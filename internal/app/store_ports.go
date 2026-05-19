@@ -48,6 +48,7 @@ type clientStore interface {
 	LoadSession(ctx context.Context, sessionID string) (*events.SessionRecord, error)
 	LoadLatestRunForSession(ctx context.Context, sessionID string) (*events.RunRecord, error)
 	UpdateSessionTitle(ctx context.Context, sessionID, title string) error
+	UpdateSessionTitleIfEmpty(ctx context.Context, sessionID, title string) error
 	DeleteSession(ctx context.Context, sessionID string) error
 	ListSessionMessages(ctx context.Context, sessionID string, limit int) ([]events.SessionMessageRecord, error)
 	NextSessionMessageTurnIndex(ctx context.Context, sessionID string) (int, error)
