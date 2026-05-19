@@ -130,6 +130,33 @@ jobs:
           test -f "$package_dir/lib/${RELEASE_GOOS}_${RELEASE_GOARCH}/libfaiss_c.so"
           test -f "$package_dir/lib/${RELEASE_GOOS}_${RELEASE_GOARCH}/libfaiss.so"
           (cd "$package_dir" && sha256sum -c CHECKSUMS)
+
+          verify_runtime_links() {
+            elf="$1"
+            runtime_lib_dir="${2:-}"
+            if [ -n "$runtime_lib_dir" ]; then
+              if ! output="$(LD_LIBRARY_PATH="$runtime_lib_dir${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" ldd "$elf" 2>&1)"; then
+                printf '%s\n' "$output" >&2
+                echo "could not inspect runtime dependencies for $elf" >&2
+                exit 1
+              fi
+            else
+              if ! output="$(ldd "$elf" 2>&1)"; then
+                printf '%s\n' "$output" >&2
+                echo "could not inspect runtime dependencies for $elf" >&2
+                exit 1
+              fi
+            fi
+            printf '%s\n' "$output"
+            if printf '%s\n' "$output" | grep -q "not found"; then
+              echo "missing runtime dependency for $elf" >&2
+              exit 1
+            fi
+          }
+          runtime_lib_dir="$package_dir/lib/${RELEASE_GOOS}_${RELEASE_GOARCH}"
+          verify_runtime_links "$package_dir/acorn"
+          verify_runtime_links "$runtime_lib_dir/libfaiss_c.so" "$runtime_lib_dir"
+          verify_runtime_links "$runtime_lib_dir/libfaiss.so" "$runtime_lib_dir"
       - uses: actions/upload-artifact@v7.0.1
         with:
           name: acorn-${{ matrix.goos }}-${{ matrix.goarch }}

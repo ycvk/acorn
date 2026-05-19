@@ -20,11 +20,11 @@ curl -fsSL https://github.com/ycvk/acorn/releases/latest/download/install-releas
 
 The installer:
 
-- installs common host tools with `apt-get`: `ca-certificates`, `curl`, `git`, `ripgrep`, `python3`, `make`, and `bash`;
+- installs common host tools with `apt-get`: `ca-certificates`, `curl`, `git`, `ripgrep`, `python3`, `make`, `bash`, and the OpenBLAS runtime package that provides `libopenblas.so.0`;
 - resolves the latest GitHub Release tag from `https://github.com/ycvk/acorn/releases/latest`;
 - detects `amd64` or `arm64` from the VPS architecture;
 - downloads `acorn_${VERSION}_linux_${ARCH}.tar.gz` and its `.sha256`;
-- verifies the outer release checksum and package `CHECKSUMS`;
+- verifies the outer release checksum, package `CHECKSUMS`, and runtime shared-library links;
 - installs `/opt/acorn/acorn` plus `/opt/acorn/lib/linux_${ARCH}/libfaiss*.so*`;
 - installs `/usr/local/bin/acorn` as a wrapper command;
 - creates the `acorn` system user;
@@ -81,6 +81,8 @@ Skip host package installation after installing dependencies yourself:
 ```bash
 curl -fsSL https://github.com/ycvk/acorn/releases/latest/download/install-release.sh | ACORN_INSTALL_HOST_TOOLS=0 sh
 ```
+
+Only use this after installing `curl`, `tar`, `sha256sum`, `systemctl`, `git`, `ripgrep`, `python3`, `make`, `bash`, and an OpenBLAS runtime package that exposes `libopenblas.so.0`.
 
 Install files without starting `systemd`:
 
