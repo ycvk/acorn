@@ -4,12 +4,6 @@ set -eu
 repo=${ACORN_REPO:-ycvk/acorn}
 version=${ACORN_VERSION:-}
 arch=${ACORN_ARCH:-}
-service_user=acorn
-service_home=/var/lib/acorn
-workspace_dir=/srv/acorn/workspace
-config_dir=$service_home/.acorn
-config_path=$config_dir/acorn.yaml
-env_path=$config_dir/acorn.env
 unit_path=/etc/systemd/system/acorn.service
 install_dir=/opt/acorn
 bin_path=$install_dir/acorn
@@ -25,6 +19,24 @@ die() {
 log() {
 	printf '%s\n' "$*"
 }
+
+service_user=$(id -un)
+service_group=$(id -gn)
+service_home=
+if command -v getent >/dev/null 2>&1; then
+	service_home=$(getent passwd "$service_user" | cut -d: -f6 || true)
+fi
+if [ -z "$service_home" ]; then
+	service_home=${HOME:-}
+fi
+if [ -z "$service_home" ]; then
+	die "could not determine home directory for user $service_user"
+fi
+
+workspace_dir=/srv/acorn/workspace
+config_dir=$service_home/.acorn
+config_path=$config_dir/acorn.yaml
+env_path=$config_dir/acorn.env
 
 run_root() {
 	if [ "$(id -u)" -eq 0 ]; then
@@ -243,7 +255,7 @@ EOF
 
 write_service_template() {
 	target=$1
-	cat > "$target" <<'EOF'
+	cat > "$target" <<EOF
 [Unit]
 Description=Acorn self-hosted agent backend
 Documentation=https://github.com/ycvk/acorn
@@ -252,19 +264,19 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=acorn
-Group=acorn
-Environment=HOME=/var/lib/acorn
-EnvironmentFile=-/var/lib/acorn/.acorn/acorn.env
-WorkingDirectory=/srv/acorn/workspace
-ExecStart=/opt/acorn/acorn serve
+User=$service_user
+Group=$service_group
+Environment=HOME=$service_home
+EnvironmentFile=-$env_path
+WorkingDirectory=$workspace_dir
+ExecStart=$bin_path serve
 Restart=on-failure
 RestartSec=5s
 TimeoutStopSec=30s
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
-ReadWritePaths=/var/lib/acorn /srv/acorn/workspace
+ReadWritePaths=$service_home/.acorn $workspace_dir
 
 [Install]
 WantedBy=multi-user.target
@@ -335,17 +347,17 @@ wrapper_template=$work_dir/acorn-wrapper
 write_config_template "$config_template"
 write_env_template "$env_template"
 write_service_template "$service_template"
-cat > "$wrapper_template" <<'EOF'
+cat > "$wrapper_template" <<EOF
 #!/bin/sh
 set -eu
 
-bin=/opt/acorn/acorn
-service_user=acorn
-service_home=/var/lib/acorn
+bin='$bin_path'
+service_user='$service_user'
+service_home='$service_home'
 
 has_config_flag() {
-	for arg in "$@"; do
-		case "$arg" in
+	for arg in "\$@"; do
+		case "\$arg" in
 			-c|-c=*)
 				return 0
 				;;
@@ -355,50 +367,41 @@ has_config_flag() {
 }
 
 run_service_command() {
-	if [ "$(id -u)" -eq 0 ]; then
-		if command -v runuser >/dev/null 2>&1; then
-			exec runuser -u "$service_user" -- env HOME="$service_home" "$bin" "$@"
-		fi
-		if command -v sudo >/dev/null 2>&1; then
-			exec sudo -u "$service_user" env HOME="$service_home" "$bin" "$@"
-		fi
-		printf 'error: runuser or sudo is required to run Acorn as %s\n' "$service_user" >&2
-		exit 1
+	if [ "\$(id -un)" = "\$service_user" ]; then
+		exec env HOME="\$service_home" "\$bin" "\$@"
 	fi
 
-	if [ "$(id -un)" = "$service_user" ]; then
-		exec env HOME="$service_home" "$bin" "$@"
+	if [ "\$(id -u)" -eq 0 ]; then
+		exec env HOME="\$service_home" "\$bin" "\$@"
 	fi
 
 	if command -v sudo >/dev/null 2>&1; then
-		exec sudo -u "$service_user" env HOME="$service_home" "$bin" "$@"
+		exec sudo -u "\$service_user" env HOME="\$service_home" "\$bin" "\$@"
 	fi
 
-	printf 'error: %s uses service-owned state; run with sudo or as user %s\n' "$1" "$service_user" >&2
+	printf 'error: %s uses installer-owned state; run with sudo or as user %s\n' "\$1" "\$service_user" >&2
 	exit 1
 }
 
-if [ "$#" -gt 0 ]; then
-	case "$1" in
+if [ "\$#" -gt 0 ]; then
+	case "\$1" in
 		decision|doctor|memory|pair|skills)
-			command_name=$1
+			command_name=\$1
 			shift
-			if ! has_config_flag "$@"; then
-				run_service_command "$command_name" "$@"
+			if ! has_config_flag "\$@"; then
+				run_service_command "\$command_name" "\$@"
 			fi
-			set -- "$command_name" "$@"
+			set -- "\$command_name" "\$@"
 			;;
 	esac
 fi
 
-exec "$bin" "$@"
+exec "\$bin" "\$@"
 EOF
-
-if ! id -u "$service_user" >/dev/null 2>&1; then
-	run_root useradd --system --home "$service_home" --create-home --shell /usr/sbin/nologin "$service_user"
-fi
 run_root install -d "$install_dir"
-run_root install -d -o "$service_user" -g "$service_user" "$service_home" "$config_dir" "$workspace_dir"
+run_root install -d -o "$service_user" -g "$service_group" "$config_dir"
+run_root chmod 0700 "$config_dir"
+run_root install -d -m 0755 -o "$service_user" -g "$service_group" "$workspace_dir"
 run_root install -m 0755 "$package_dir/acorn" "$bin_path"
 run_root rm -rf "$install_dir/lib"
 run_root mkdir -p "$install_dir/lib"
@@ -407,15 +410,15 @@ run_root chown -R root:root "$install_dir/lib"
 run_root install -m 0755 "$wrapper_template" "$wrapper_path"
 
 if [ ! -e "$config_path" ]; then
-	run_root install -m 0644 -o "$service_user" -g "$service_user" "$config_template" "$config_path"
+	run_root install -m 0644 -o "$service_user" -g "$service_group" "$config_template" "$config_path"
 else
-	log "Keeping existing config: ~acorn/.acorn/acorn.yaml"
+	log "Keeping existing config: $config_path"
 fi
 
 if [ ! -e "$env_path" ] || [ -n "${OPENAI_API_KEY:-}" ]; then
-	run_root install -m 0600 -o "$service_user" -g "$service_user" "$env_template" "$env_path"
+	run_root install -m 0600 -o "$service_user" -g "$service_group" "$env_template" "$env_path"
 else
-	log "Keeping existing environment file: ~acorn/.acorn/acorn.env"
+	log "Keeping existing environment file: $env_path"
 fi
 
 run_root install -m 0644 "$service_template" "$unit_path"
@@ -423,15 +426,15 @@ run_root systemctl daemon-reload
 
 if [ "$start_service" != "1" ]; then
 	log "Installed Acorn without starting service because ACORN_START_SERVICE=$start_service"
-	log "Config: ~acorn/.acorn/acorn.yaml"
-	log "Env:    ~acorn/.acorn/acorn.env"
+	log "Config: $config_path"
+	log "Env:    $env_path"
 	exit 0
 fi
 
 if [ -z "${OPENAI_API_KEY:-}" ]; then
 	log "Installed Acorn but did not start the service because OPENAI_API_KEY was not provided."
 	log "Edit the env file, then start the service:"
-	log "  sudoedit ~acorn/.acorn/acorn.env"
+	log "  sudoedit $env_path"
 	log "  sudo systemctl enable --now acorn"
 	exit 0
 fi
@@ -447,7 +450,7 @@ curl -fsS http://127.0.0.1:8080/healthz >/dev/null
 log "Acorn is installed and running."
 log "Binary: $bin_path"
 log "Command: $wrapper_path"
-log "Config: ~acorn/.acorn/acorn.yaml"
-log "Env:    ~acorn/.acorn/acorn.env"
+log "Config: $config_path"
+log "Env:    $env_path"
 log "Pair mobile with:"
 log "  acorn pair --server-url https://your-acorn.example.com --qr"

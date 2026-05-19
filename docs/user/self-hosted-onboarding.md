@@ -27,20 +27,19 @@ The installer:
 - verifies the outer release checksum, package `CHECKSUMS`, and runtime shared-library links;
 - installs `/opt/acorn/acorn` plus `/opt/acorn/lib/linux_${ARCH}/libfaiss*.so*`;
 - installs `/usr/local/bin/acorn` as a global wrapper command;
-- creates the `acorn` system user;
-- writes config under the `acorn` service user's `~/.acorn`;
+- writes config under the installing user's `~/.acorn`;
 - installs `/etc/systemd/system/acorn.service`.
 
-Acorn's binary default config path is `~/.acorn/acorn.yaml`. The systemd unit runs Acorn with `HOME=/var/lib/acorn`, so the service uses the same default under the `acorn` user's home:
+Acorn's binary default config path is `~/.acorn/acorn.yaml`. The installer keeps that rule: it resolves the user that runs the script and sets the `systemd` service `HOME` to that user's home. On a typical root VPS install, the service uses:
 
 ```text
-~acorn/.acorn/acorn.yaml
+/root/.acorn/acorn.yaml
 ```
 
 The default environment file is:
 
 ```text
-~acorn/.acorn/acorn.env
+/root/.acorn/acorn.env
 ```
 
 If you pass the provider key at install time, the script starts the service immediately:
@@ -52,7 +51,7 @@ curl -fsSL https://github.com/ycvk/acorn/releases/latest/download/install-releas
 Without `OPENAI_API_KEY`, the script installs files only. Edit the env file and start the service yourself:
 
 ```bash
-sudoedit ~acorn/.acorn/acorn.env
+sudoedit ~/.acorn/acorn.env
 sudo systemctl enable --now acorn
 ```
 
@@ -96,16 +95,16 @@ The installed service uses:
 
 - `/opt/acorn/acorn` for the release binary and bundled FAISS libraries.
 - `/usr/local/bin/acorn` as the global command wrapper.
-- `/var/lib/acorn` as the `acorn` service user's home.
-- `~acorn/.acorn/acorn.yaml` for config.
-- `~acorn/.acorn/acorn.env` for provider secrets.
-- `~acorn/.acorn` for runtime storage, SQLite state, generated skills, and the Bleve+FAISS index.
+- the installing user's home as the service `HOME`.
+- `~/.acorn/acorn.yaml` for config.
+- `~/.acorn/acorn.env` for provider secrets.
+- `~/.acorn` for runtime storage, SQLite state, generated skills, and the Bleve+FAISS index.
 - `/srv/acorn/workspace` for the operator workspace that tools may read and mutate.
 - `127.0.0.1:8080` for the HTTP listener.
 
-The wrapper runs service-backed operator commands such as `acorn pair`, `acorn doctor`, `acorn memory`, `acorn skills`, and `acorn decision` as the `acorn` service user when you do not pass an explicit `-c` config path. Those commands therefore use the normal `~/.acorn/acorn.yaml` default for that user.
+The wrapper runs service-backed operator commands such as `acorn pair`, `acorn doctor`, `acorn memory`, `acorn skills`, and `acorn decision` against the same installer-owned `~/.acorn/acorn.yaml` when you do not pass an explicit `-c` config path. If you install as root, that means `/root/.acorn/acorn.yaml`.
 
-If you intentionally serve directly on a trusted private interface, edit `~acorn/.acorn/acorn.yaml` and set:
+If you intentionally serve directly on a trusted private interface, edit `~/.acorn/acorn.yaml` and set:
 
 ```yaml
 web:
@@ -126,7 +125,7 @@ Check process health:
 curl http://127.0.0.1:8080/healthz
 ```
 
-Check runtime readiness as the service user:
+Check runtime readiness:
 
 ```bash
 acorn doctor
@@ -199,7 +198,7 @@ Stop the backend before filesystem-level backups:
 
 ```bash
 sudo systemctl stop acorn
-sudo tar -czf /var/backups/acorn-state.tgz -C /var/lib/acorn/.acorn .
+sudo tar -czf /var/backups/acorn-state.tgz -C ~/.acorn .
 sudo tar -czf /var/backups/acorn-workspace.tgz -C /srv/acorn/workspace .
 sudo systemctl start acorn
 ```

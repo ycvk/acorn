@@ -46,17 +46,17 @@ The installer creates:
 | --- | --- |
 | `/opt/acorn/acorn` | Release binary |
 | `/usr/local/bin/acorn` | Global command wrapper |
-| `~acorn/.acorn/acorn.yaml` | Backend configuration |
-| `~acorn/.acorn/acorn.env` | Provider secrets |
+| `~/.acorn/acorn.yaml` | Backend configuration |
+| `~/.acorn/acorn.env` | Provider secrets |
 | `/srv/acorn/workspace` | Operator workspace |
 | `/etc/systemd/system/acorn.service` | `systemd` service |
 
-For service-backed commands such as `acorn pair` and `acorn doctor`, the wrapper runs against the `acorn` service user's normal `~/.acorn` config by default.
+The installer uses the user that runs the script. On a typical root VPS install, Acorn reads `/root/.acorn/acorn.yaml` and `/root/.acorn/acorn.env`. Commands such as `acorn pair` and `acorn doctor` use the same config unless you pass `-c`.
 
 If you did not pass `OPENAI_API_KEY`, edit the environment file and start the service:
 
 ```bash
-sudoedit ~acorn/.acorn/acorn.env
+sudoedit ~/.acorn/acorn.env
 sudo systemctl enable --now acorn
 ```
 

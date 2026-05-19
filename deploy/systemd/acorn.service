@@ -6,10 +6,10 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=acorn
-Group=acorn
-Environment=HOME=/var/lib/acorn
-EnvironmentFile=-/var/lib/acorn/.acorn/acorn.env
+User=root
+Group=root
+Environment=HOME=/root
+EnvironmentFile=-/root/.acorn/acorn.env
 WorkingDirectory=/srv/acorn/workspace
 ExecStart=/opt/acorn/acorn serve
 Restart=on-failure
@@ -18,7 +18,7 @@ TimeoutStopSec=30s
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
-ReadWritePaths=/var/lib/acorn /srv/acorn/workspace
+ReadWritePaths=/root/.acorn /srv/acorn/workspace
 
 [Install]
 WantedBy=multi-user.target
