@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -216,38 +218,60 @@ class _MessageBubble extends StatelessWidget {
     final isUser = item.isUser;
     final textColor = isUser ? colors.onPrimary : colors.onSurface;
 
-    return AcornMessageBubble(
-      outbound: isUser,
-      footer: item.isAssistant && item.status != ChatRunStatus.idle
-          ? AcornMessageStatusFooter(
-              label: _runStatusLabel(item.status),
-              tone: _runStatusTone(item.status),
-              foregroundColor: textColor,
-            )
-          : null,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (item.isAssistant && item.hasReasoning) ...[
-            AcornThinkingSection(reasoning: item.reasoning),
-            const SizedBox(height: 10),
+    return GestureDetector(
+      onLongPress: () {
+        unawaited(_copyMessageText(context, item));
+      },
+      child: AcornMessageBubble(
+        outbound: isUser,
+        footer: item.isAssistant && item.status != ChatRunStatus.idle
+            ? AcornMessageStatusFooter(
+                label: _runStatusLabel(item.status),
+                tone: _runStatusTone(item.status),
+                foregroundColor: textColor,
+              )
+            : null,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (item.isAssistant && item.hasReasoning) ...[
+              AcornThinkingSection(reasoning: item.reasoning),
+              const SizedBox(height: 10),
+            ],
+            switch ((item.isStreaming, item.isAssistant)) {
+              (true, _) when item.text.isEmpty => const AcornTypingIndicator(),
+              (_, true) => AssistantMarkdown(
+                text: item.text,
+                textColor: textColor,
+              ),
+              _ => Text(
+                item.text,
+                style: TextStyle(color: textColor, fontSize: 15),
+              ),
+            },
           ],
-          switch ((item.isStreaming, item.isAssistant)) {
-            (true, _) when item.text.isEmpty => const AcornTypingIndicator(),
-            (_, true) => AssistantMarkdown(
-              text: item.text,
-              textColor: textColor,
-            ),
-            _ => SelectableText(
-              item.text,
-              style: TextStyle(color: textColor, fontSize: 15),
-            ),
-          },
-        ],
+        ),
       ),
     );
   }
+}
+
+Future<void> _copyMessageText(BuildContext context, ChatItem item) async {
+  final parts = <String>[
+    if (item.reasoning.trim().isNotEmpty) item.reasoning.trim(),
+    if (item.text.trim().isNotEmpty) item.text.trim(),
+  ];
+  if (parts.isEmpty) {
+    return;
+  }
+  await Clipboard.setData(ClipboardData(text: parts.join('\n\n')));
+  if (!context.mounted) {
+    return;
+  }
+  ScaffoldMessenger.of(
+    context,
+  ).showSnackBar(const SnackBar(content: Text('Copied message')));
 }
 
 class _ActivityRow extends StatelessWidget {

@@ -121,7 +121,6 @@ class _AssistantMarkdownState extends State<AssistantMarkdown> {
           controller: _longMessageScrollController,
           child: Markdown(
             data: widget.text,
-            selectable: true,
             controller: _longMessageScrollController,
             padding: EdgeInsets.zero,
             softLineBreak: true,
@@ -137,7 +136,6 @@ class _AssistantMarkdownState extends State<AssistantMarkdown> {
 
     return MarkdownBody(
       data: widget.text,
-      selectable: true,
       softLineBreak: true,
       onTapLink: (_, href, _) {
         unawaited(_openLink(context, href));
@@ -286,7 +284,7 @@ class _CodeBlock extends StatelessWidget {
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.fromLTRB(10, 10, 10, 12),
-              child: SelectableText(
+              child: Text(
                 code.isEmpty ? ' ' : code,
                 style: TextStyle(
                   color: textColor,

@@ -45,6 +45,73 @@ func TestProjectThread(t *testing.T) {
 	}
 }
 
+func TestClientCreateMessageBackfillsEmptyThreadTitle(t *testing.T) {
+	ctx := context.Background()
+	store, err := storesqlite.Open(filepath.Join(t.TempDir(), "state"))
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	service := BuildClientService(store, nil, "/repo")
+	service.newThreadID = func() string { return "thread_title" }
+
+	thread, err := service.CreateThread(ctx, "")
+	if err != nil {
+		t.Fatalf("CreateThread: %v", err)
+	}
+	if _, err := service.CreateMessage(ctx, thread.ID, "  Investigate the mobile thread list\nand fix titles  "); err != nil {
+		t.Fatalf("CreateMessage: %v", err)
+	}
+
+	updated, err := service.GetThread(ctx, thread.ID)
+	if err != nil {
+		t.Fatalf("GetThread: %v", err)
+	}
+	if updated.Title != "Investigate the mobile thread list and fix titles" {
+		t.Fatalf("title = %q", updated.Title)
+	}
+}
+
+func TestClientListThreadsProjectsTitleFromRecentUserMessage(t *testing.T) {
+	ctx := context.Background()
+	store, err := storesqlite.Open(filepath.Join(t.TempDir(), "state"))
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	session, err := store.CreateSession(ctx, "legacy_thread", "")
+	if err != nil {
+		t.Fatalf("CreateSession: %v", err)
+	}
+	if _, err := store.AppendSessionMessage(session.SessionID, 1, "user", "How do I configure pairing on the VPS?", ""); err != nil {
+		t.Fatalf("AppendSessionMessage: %v", err)
+	}
+	service := BuildClientService(store, nil, "/repo")
+
+	threads, err := service.ListThreads(ctx, 10)
+	if err != nil {
+		t.Fatalf("ListThreads: %v", err)
+	}
+	if len(threads) != 1 {
+		t.Fatalf("threads = %#v", threads)
+	}
+	if threads[0].Title != "How do I configure pairing on the VPS?" {
+		t.Fatalf("title = %q", threads[0].Title)
+	}
+}
+
+func TestGeneratedThreadTitleTruncatesLongText(t *testing.T) {
+	title := generatedThreadTitle(strings.Repeat("a", generatedThreadTitleMaxRunes+1))
+	if got := len([]rune(title)); got != generatedThreadTitleMaxRunes+3 {
+		t.Fatalf("title rune len = %d, want %d", got, generatedThreadTitleMaxRunes+3)
+	}
+	if !strings.HasSuffix(title, "...") {
+		t.Fatalf("title = %q, want ellipsis suffix", title)
+	}
+}
+
 func TestProjectMessage(t *testing.T) {
 	now := time.Date(2026, 5, 2, 10, 0, 0, 0, time.UTC)
 	message, err := projectMessage(events.SessionMessageRecord{

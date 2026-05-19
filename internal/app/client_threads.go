@@ -4,7 +4,10 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"unicode/utf8"
 )
+
+const generatedThreadTitleMaxRunes = 64
 
 func (s *ClientService) ListThreads(ctx context.Context, limit int) ([]Thread, error) {
 	if s == nil || s.store == nil {
@@ -24,6 +27,13 @@ func (s *ClientService) ListThreads(ctx context.Context, limit int) ([]Thread, e
 	}
 	items := make([]Thread, 0, len(sessions))
 	for _, session := range sessions {
+		if strings.TrimSpace(session.Title) == "" {
+			title, err := s.threadTitleFromRecentUserMessage(ctx, session.SessionID)
+			if err != nil {
+				return nil, err
+			}
+			session.Title = title
+		}
 		thread, err := s.projectThread(session, latestRuns[session.SessionID])
 		if err != nil {
 			return nil, err
@@ -55,6 +65,13 @@ func (s *ClientService) GetThread(ctx context.Context, threadID string) (*Thread
 	session, err := s.store.LoadSession(ctx, threadID)
 	if err != nil {
 		return nil, err
+	}
+	if strings.TrimSpace(session.Title) == "" {
+		title, err := s.threadTitleFromRecentUserMessage(ctx, threadID)
+		if err != nil {
+			return nil, err
+		}
+		session.Title = title
 	}
 	latestRun, err := s.store.LoadLatestRunForSession(ctx, threadID)
 	if err != nil {
@@ -117,8 +134,12 @@ func (s *ClientService) CreateMessage(ctx context.Context, threadID, content str
 	if err != nil {
 		return nil, err
 	}
-	record, err := s.store.AppendSessionMessage(threadID, turnIndex, "user", strings.TrimSpace(content), "")
+	trimmed := strings.TrimSpace(content)
+	record, err := s.store.AppendSessionMessage(threadID, turnIndex, "user", trimmed, "")
 	if err != nil {
+		return nil, err
+	}
+	if err := s.store.UpdateSessionTitleIfEmpty(ctx, threadID, generatedThreadTitle(trimmed)); err != nil {
 		return nil, err
 	}
 	message, err := projectMessage(*record)
@@ -126,4 +147,33 @@ func (s *ClientService) CreateMessage(ctx context.Context, threadID, content str
 		return nil, err
 	}
 	return &message, nil
+}
+
+func (s *ClientService) threadTitleFromRecentUserMessage(ctx context.Context, threadID string) (string, error) {
+	records, err := s.store.ListSessionMessages(ctx, threadID, 20)
+	if err != nil {
+		return "", err
+	}
+	for _, record := range records {
+		if record.Role != "user" {
+			continue
+		}
+		title := generatedThreadTitle(record.Content)
+		if title != "" {
+			return title, nil
+		}
+	}
+	return "", nil
+}
+
+func generatedThreadTitle(content string) string {
+	compact := strings.Join(strings.Fields(content), " ")
+	if compact == "" {
+		return ""
+	}
+	if utf8.RuneCountInString(compact) <= generatedThreadTitleMaxRunes {
+		return compact
+	}
+	runes := []rune(compact)
+	return string(runes[:generatedThreadTitleMaxRunes]) + "..."
 }

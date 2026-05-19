@@ -7,6 +7,8 @@ import '../features/chat/chat_models.dart';
 import 'connection_profile.dart';
 import 'connection_store.dart';
 
+const _generatedThreadTitleMaxRunes = 64;
+
 typedef AcornApiClientFactory =
     AcornApiClient Function({
       required String serverUrl,
@@ -224,6 +226,7 @@ class AcornController extends ChangeNotifier {
         ...chatItems,
         ...chatItemsFromMessages([userMessage]),
       ];
+      _applyThreadTitleHint(thread.id, trimmed);
       notifyListeners();
 
       final run = await api.createRun(thread.id, mode: 'direct_response');
@@ -391,6 +394,34 @@ class AcornController extends ChangeNotifier {
     chatItems = next;
   }
 
+  void _applyThreadTitleHint(String threadId, String content) {
+    final title = _threadTitleFromMessage(content);
+    if (title.isEmpty) {
+      return;
+    }
+
+    Thread titled(Thread thread) {
+      if (thread.id != threadId || thread.title.trim().isNotEmpty) {
+        return thread;
+      }
+      return Thread(
+        id: thread.id,
+        title: title,
+        workspaceRoot: thread.workspaceRoot,
+        createdAt: thread.createdAt,
+        updatedAt: thread.updatedAt,
+        state: thread.state,
+        latestRunId: thread.latestRunId,
+      );
+    }
+
+    final current = activeThread;
+    if (current != null) {
+      activeThread = titled(current);
+    }
+    threads = threads.map(titled).toList(growable: false);
+  }
+
   Future<void> _reloadActiveThreadMessages() async {
     final thread = activeThread;
     if (thread == null) {
@@ -472,4 +503,16 @@ String _appendAssistantReasoning(String current, String delta) {
     return delta;
   }
   return '$current$delta';
+}
+
+String _threadTitleFromMessage(String content) {
+  final compact = content.trim().replaceAll(RegExp(r'\s+'), ' ');
+  if (compact.isEmpty) {
+    return '';
+  }
+  final runes = compact.runes.toList(growable: false);
+  if (runes.length <= _generatedThreadTitleMaxRunes) {
+    return compact;
+  }
+  return '${String.fromCharCodes(runes.take(_generatedThreadTitleMaxRunes))}...';
 }
