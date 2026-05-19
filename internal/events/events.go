@@ -1,0 +1,121 @@
+package events
+
+import (
+	"encoding/json"
+	"time"
+
+	"github.com/ycvk/acorn/internal/orchestrationmode"
+)
+
+type RunStatus string
+
+const (
+	RunStatusRunning     RunStatus = "running"
+	RunStatusSucceeded   RunStatus = "succeeded"
+	RunStatusInterrupted RunStatus = "interrupted"
+	RunStatusFailed      RunStatus = "failed"
+)
+
+type RunRecord struct {
+	RunID             string                 `json:"run_id"`
+	SessionID         string                 `json:"session_id,omitempty"`
+	TurnIndex         int                    `json:"turn_index,omitempty"`
+	Status            RunStatus              `json:"status"`
+	Input             string                 `json:"input"`
+	Output            string                 `json:"output,omitempty"`
+	Error             string                 `json:"error,omitempty"`
+	CheckpointID      string                 `json:"checkpoint_id,omitempty"`
+	OrchestrationMode orchestrationmode.Mode `json:"orchestration_mode,omitempty"`
+	ParentRunID       string                 `json:"parent_run_id,omitempty"`
+	Depth             int                    `json:"depth,omitempty"`
+	CreatedAt         time.Time              `json:"created_at"`
+	UpdatedAt         time.Time              `json:"updated_at"`
+}
+
+type EventRecord struct {
+	Sequence  int64     `json:"sequence"`
+	RunID     string    `json:"run_id"`
+	Kind      string    `json:"kind"`
+	Payload   any       `json:"payload"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type SessionRecord struct {
+	SessionID string    `json:"session_id"`
+	Title     string    `json:"title,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type WorkerStatus string
+
+const (
+	WorkerStatusRunning   WorkerStatus = "running"
+	WorkerStatusCompleted WorkerStatus = "completed"
+	WorkerStatusFailed    WorkerStatus = "failed"
+	WorkerStatusCancelled WorkerStatus = "cancelled"
+)
+
+type WorkerRecord struct {
+	WorkerID  string       `json:"worker_id"`
+	RunID     string       `json:"run_id"`
+	Status    WorkerStatus `json:"status"`
+	Error     string       `json:"error,omitempty"`
+	CreatedAt time.Time    `json:"created_at"`
+	UpdatedAt time.Time    `json:"updated_at"`
+}
+
+type EventKind string
+
+type PendingActionKind string
+
+const (
+	PendingActionKindElicitation PendingActionKind = "elicitation"
+)
+
+type PendingActionStatus string
+
+const (
+	PendingActionStatusPending  PendingActionStatus = "pending"
+	PendingActionStatusApproved PendingActionStatus = "approved"
+	PendingActionStatusRejected PendingActionStatus = "rejected"
+	PendingActionStatusResolved PendingActionStatus = "resolved"
+)
+
+type PendingActionDecisionMode string
+
+const (
+	PendingActionModeInline   PendingActionDecisionMode = "inline"
+	PendingActionModeDeferred PendingActionDecisionMode = "deferred"
+)
+
+type PendingActionRecord struct {
+	ActionID      string                    `json:"action_id"`
+	RequestID     string                    `json:"-"`
+	RunID         string                    `json:"run_id"`
+	InterruptID   string                    `json:"interrupt_id,omitempty"`
+	Kind          PendingActionKind         `json:"kind"`
+	Subject       string                    `json:"subject,omitempty"`
+	ToolName      string                    `json:"-"`
+	PayloadJSON   string                    `json:"payload_json"`
+	ArgumentsJSON string                    `json:"-"`
+	Status        PendingActionStatus       `json:"status"`
+	Mode          PendingActionDecisionMode `json:"mode,omitempty"`
+	Reason        string                    `json:"reason,omitempty"`
+	Rule          string                    `json:"rule,omitempty"`
+	DecisionJSON  string                    `json:"decision_json,omitempty"`
+	CreatedAt     time.Time                 `json:"created_at"`
+	DecidedAt     *time.Time                `json:"decided_at,omitempty"`
+	ResolvedAt    *time.Time                `json:"resolved_at,omitempty"`
+}
+
+type SessionMessageRecord struct {
+	ID           int64           `json:"id"`
+	SessionID    string          `json:"session_id"`
+	TurnIndex    int             `json:"turn_index"`
+	Role         string          `json:"role"`
+	Content      string          `json:"content"`
+	ContentParts json.RawMessage `json:"content_parts,omitempty"`
+	RunID        string          `json:"run_id,omitempty"`
+	CreatedAt    time.Time       `json:"created_at"`
+}

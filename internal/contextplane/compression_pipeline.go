@@ -1,0 +1,232 @@
+package contextplane
+
+import (
+	"context"
+	"errors"
+	"fmt"
+
+	"github.com/cloudwego/eino/adk"
+
+	"github.com/ycvk/acorn/internal/tooling"
+)
+
+var ErrPipelineNotInitialized = errors.New("compression pipeline is not initialized")
+var ErrPipelineBudgetGovernorRequired = errors.New("compression pipeline budget governor is required")
+var ErrPipelineCompactionEngineRequired = errors.New("compression pipeline compaction engine is required")
+
+// defaultContextCompressionPipeline implements ContextCompressionPipeline.
+// It orchestrates context compression, stopping early
+// when pressure drops below the auto-compact threshold.
+type defaultContextCompressionPipeline struct {
+	governor             BudgetGovernor
+	microcompact         MicrocompactEngine
+	autocompact          CompactionEngine
+	reactivecompact      ReactiveCompactEngine
+	microcompactInterval int
+	modelProfile         ModelProfile
+}
+
+// CompressionPipelineOptions holds dependencies for the pipeline.
+type CompressionPipelineOptions struct {
+	Governor             BudgetGovernor
+	CompactionEngine     CompactionEngine
+	TokenCounter         *CompressionTokenCounter
+	Catalog              *tooling.Catalog
+	MicrocompactInterval int
+	ModelProfile         ModelProfile
+}
+
+// NewDefaultContextCompressionPipeline creates a pipeline with the given options.
+// If a layer engine is nil, that layer is skipped at runtime.
+func NewDefaultContextCompressionPipeline(opts CompressionPipelineOptions) ContextCompressionPipeline {
+	if opts.MicrocompactInterval <= 0 {
+		opts.MicrocompactInterval = 5
+	}
+
+	p := &defaultContextCompressionPipeline{
+		governor:             opts.Governor,
+		autocompact:          opts.CompactionEngine,
+		microcompactInterval: opts.MicrocompactInterval,
+		modelProfile:         opts.ModelProfile,
+	}
+
+	if opts.TokenCounter != nil {
+		p.microcompact = newMicrocompactEngine(opts.TokenCounter, opts.Catalog)
+		p.reactivecompact = newReactiveCompactEngine(opts.CompactionEngine)
+	}
+
+	return p
+}
+
+func (p *defaultContextCompressionPipeline) Compress(ctx context.Context, req PipelineRequest) (*PipelineResult, error) {
+	if p == nil {
+		return nil, ErrPipelineNotInitialized
+	}
+	if p.governor == nil {
+		return nil, ErrPipelineBudgetGovernorRequired
+	}
+
+	messages := cloneMessages(req.Messages)
+	layers := make([]CompactLayer, 0, 4)
+	totalFreed := 0
+	var finalOutcome *CompressionOutcome
+
+	// ── Layer 1: Microcompact ──
+	if p.shouldMicrocompact(req) {
+		mcResult, err := p.runMicrocompact(ctx, messages, req)
+		if err != nil {
+			return nil, fmt.Errorf("microcompact: %w", err)
+		}
+		messages = mcResult.Messages
+		totalFreed += mcResult.TokensFreed
+		if mcResult.TokensFreed > 0 {
+			layers = append(layers, CompactLayerMicrocompact)
+		}
+
+		if ok, err := p.pressureOK(ctx, messages, req); err != nil {
+			return nil, fmt.Errorf("pressure check after microcompact: %w", err)
+		} else if ok {
+			return p.buildResult(messages, layers, totalFreed, finalOutcome), nil
+		}
+	}
+
+	// ── Layer 2: Autocompact ──
+	if p.autocompact != nil && (req.Trigger == CompactTriggerAuto || req.Trigger == CompactTriggerReactive) {
+		shouldCompact, err := p.shouldAutocompact(ctx, messages, req)
+		if err != nil {
+			return nil, fmt.Errorf("check autocompact pressure: %w", err)
+		}
+		if req.Trigger == CompactTriggerAuto && !shouldCompact {
+			return p.buildResult(messages, layers, totalFreed, finalOutcome), nil
+		}
+
+		acResult, err := p.runAutocompact(ctx, messages, req)
+		if err != nil {
+			return nil, fmt.Errorf("autocompact: %w", err)
+		}
+		messages = acResult.Messages
+		totalFreed += acResult.Outcome.TokensBefore - acResult.Outcome.TokensAfter
+		layers = append(layers, CompactLayerAutocompact)
+		finalOutcome = &acResult.Outcome
+
+		if ok, err := p.pressureOK(ctx, messages, req); err != nil {
+			return nil, fmt.Errorf("pressure check after autocompact: %w", err)
+		} else if ok {
+			return p.buildResult(messages, layers, totalFreed, finalOutcome), nil
+		}
+		if req.Trigger == CompactTriggerReactive && p.reactivecompact == nil {
+			return p.buildResult(messages, layers, totalFreed, finalOutcome), nil
+		}
+	}
+
+	// ── Layer 3: ReactiveCompact ──
+	if req.Trigger == CompactTriggerReactive && p.reactivecompact != nil {
+		rcResult, err := p.reactivecompact.Recover(ctx, ReactiveCompactRequest{
+			Messages:       messages,
+			ToolInfos:      req.ToolInfos,
+			ToolState:      req.ToolState,
+			Pressure:       req.Pressure,
+			PreservePolicy: req.PreservePolicy,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("reactivecompact: %w", err)
+		}
+		messages = rcResult.Messages
+		layers = append(layers, CompactLayerReactive)
+
+		if ok, err := p.pressureOK(ctx, messages, req); err != nil {
+			return nil, fmt.Errorf("pressure check after reactivecompact: %w", err)
+		} else if ok {
+			return p.buildResult(messages, layers, totalFreed, nil), nil
+		}
+	}
+
+	// If reactive trigger and we still cannot get pressure below blocking, fail loudly.
+	if req.Trigger == CompactTriggerReactive {
+		return nil, errors.New("reactive compact exhausted all layers but context pressure remains blocking")
+	}
+
+	return p.buildResult(messages, layers, totalFreed, finalOutcome), nil
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+func (p *defaultContextCompressionPipeline) shouldMicrocompact(req PipelineRequest) bool {
+	if p.microcompact == nil {
+		return false
+	}
+	// Reactive triggers always run microcompact.
+	if req.Trigger == CompactTriggerReactive {
+		return true
+	}
+	// Auto triggers run only on interval.
+	return req.TurnIndex-req.LastCompactTurn >= p.microcompactInterval
+}
+
+func (p *defaultContextCompressionPipeline) runMicrocompact(ctx context.Context, messages []adk.Message, req PipelineRequest) (*MicrocompactResult, error) {
+	return p.microcompact.Compact(ctx, MicrocompactRequest{
+		Messages:        messages,
+		ToolInfos:       req.ToolInfos,
+		TurnIndex:       req.TurnIndex,
+		LastCompactTurn: req.LastCompactTurn,
+	})
+}
+
+func (p *defaultContextCompressionPipeline) shouldAutocompact(ctx context.Context, messages []adk.Message, req PipelineRequest) (bool, error) {
+	pressure, err := p.governor.Evaluate(ctx, BudgetEvaluateRequest{
+		Profile:  p.profileForRequest(req),
+		Messages: messages,
+		Tools:    req.ToolInfos,
+	})
+	if err != nil {
+		return false, err
+	}
+	return pressure.State == PressureAutoCompact || pressure.State == PressureBlocking, nil
+}
+
+func (p *defaultContextCompressionPipeline) runAutocompact(ctx context.Context, messages []adk.Message, req PipelineRequest) (*CompactionResult, error) {
+	if p.autocompact == nil {
+		return nil, ErrPipelineCompactionEngineRequired
+	}
+	return p.autocompact.Compact(ctx, CompactRequest{
+		Trigger:            req.Trigger,
+		Messages:           messages,
+		ToolInfos:          req.ToolInfos,
+		ToolState:          req.ToolState,
+		Pressure:           req.Pressure,
+		PreviousSummary:    req.PreviousSummary,
+		PreservePolicy:     req.PreservePolicy,
+		CurrentPlan:        req.CurrentPlan,
+		RecentTouchedPaths: req.RecentTouchedPaths,
+	})
+}
+
+func (p *defaultContextCompressionPipeline) pressureOK(ctx context.Context, messages []adk.Message, req PipelineRequest) (bool, error) {
+	pressure, err := p.governor.Evaluate(ctx, BudgetEvaluateRequest{
+		Profile:  p.profileForRequest(req),
+		Messages: messages,
+		Tools:    req.ToolInfos,
+	})
+	if err != nil {
+		return false, err
+	}
+	return pressure.State == PressureOK || pressure.State == PressureWarning, nil
+}
+
+func (p *defaultContextCompressionPipeline) profileForRequest(req PipelineRequest) ModelProfile {
+	if req.ModelProfile.ContextWindowTokens > 0 {
+		return req.ModelProfile
+	}
+	return p.modelProfile
+}
+
+func (p *defaultContextCompressionPipeline) buildResult(messages []adk.Message, layers []CompactLayer, tokensFreed int, outcome *CompressionOutcome) *PipelineResult {
+	return &PipelineResult{
+		Messages:      cloneMessages(messages),
+		LayersApplied: append([]CompactLayer(nil), layers...),
+		TokensFreed:   tokensFreed,
+		Outcome:       outcome,
+	}
+}

@@ -1,0 +1,31 @@
+{
+  "prompts": [
+    {
+      "id": "draft-procedure-from-run",
+      "prompt": "Create a procedure draft from a run summary that lacks durable evidence refs.",
+      "fixtures": ["codestable/features/2026-05-08-procedure-contract-v2/procedure-contract-v2-design.md"]
+    },
+    {
+      "id": "promote-action-verified",
+      "prompt": "Promote a procedure only when source_run and evidence_refs are available.",
+      "fixtures": ["codestable/features/2026-05-08-procedure-contract-v2/procedure-contract-v2-acceptance.md"]
+    }
+  ],
+  "assertions": [
+    {
+      "id": "draft-without-evidence",
+      "description": "A procedure without evidence remains agent_draft and unverified.",
+      "required_evidence_kinds": ["frontmatter"]
+    },
+    {
+      "id": "verified-requires-evidence",
+      "description": "An action_verified procedure includes source_run and evidence_refs.",
+      "required_evidence_kinds": ["frontmatter", "run"]
+    },
+    {
+      "id": "no-hidden-review-flow",
+      "description": "The workflow does not create candidate inbox, admission gate, or reflection review artifacts.",
+      "required_evidence_kinds": ["review"]
+    }
+  ]
+}

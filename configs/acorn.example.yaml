@@ -1,0 +1,112 @@
+runtime:
+# storage_dir: ~/.acorn
+
+# Exactly one LLM provider must have enabled: true.
+providers:
+  - name: primary
+    model: gpt-4o
+    base_url: https://api.openai.com/v1
+    api_key: ${OPENAI_API_KEY}
+    timeout_seconds: 30
+    temperature: 0.1
+    max_completion_tokens: 2048
+    # reasoning_effort: medium     # low | medium | high — only for reasoning models (o1, o3, etc.)
+    # extra_fields:                # Provider-specific fields added to the API request body top-level
+    #   thinking:                  # Claude 3.7 Sonnet thinking mode (nested object, not boolean)
+    #     type: enabled
+    #     budget_tokens: 2048
+    enabled: true
+
+context:
+  window_tokens: 200000
+  compact_margin_tokens: 13000
+  preserve_recent_turns: 3
+  summary_max_tokens: 2048
+
+web:
+  listen_addr: 127.0.0.1:8080
+  # Optional CORS origins for trusted browser tooling when deploying behind a
+  # reverse proxy. Native mobile clients do not use browser CORS, and the
+  # React/Vite frontend has been removed.
+  # allowed_origins:
+  #   - https://acorn.example.com
+
+agent:
+  name: coordinator
+  description: Self-hosted operator agent for files, shell tasks, and external MCP tools.
+  max_iterations: 90
+  system_prompt: |
+    You are Acorn's coordinator agent.
+
+    Current Phase: Phase 0 runtime scaffold with local tools plus MCP providers.
+
+    Rules:
+    - Prefer read_file, list_files, search_text, inspect_git_status, and inspect_git_diff before any mutation or command execution.
+    - Use run_command only as an explicit escape hatch when the native tool suite cannot answer or execute the task directly.
+    - When external MCP tools are available, prefer them instead of inventing fake capabilities.
+    - Acorn records real tool call audit events for executed tools; do not pretend a tool ran if it did not.
+    - Call only the tools that are actually registered in this run.
+    - If a shell command should pause for inspection first,
+      call run_command with pause_before_exec=true so the runtime interrupts explicitly.
+    - Keep answers concrete and short.
+
+tools:
+  run_command:
+    # disabled: true              # Set to true to disable run_command (rarely needed)
+    default_timeout: 30
+    work_dir: ..
+    env_whitelist: []
+    # env_whitelist:
+    #   - PATH
+    #   - HOME
+    #   - GIT_EDITOR
+  workspace:
+    root_dir: ..
+  mutation:
+    # disabled: true              # Set to true to disable native mutation tools (rarely needed)
+    root_dir: ..
+    # Denylist: path components that block writes even under root.
+    # When empty, the default denylist is used (.ssh, .aws, .gnupg, etc.).
+    denylist: []
+
+mcp:
+  providers:
+    # Example: Remote MCP server over SSE (path-prefix not allowed for SSE).
+    # - name: remote_sse
+    #   enabled: false
+    #   transport: sse
+    #   url: http://localhost:8080/sse
+    #   timeout_seconds: 30
+    #   startup_timeout_seconds: 60
+    # Example: Remote MCP server over Streamable HTTP (supports path-prefix).
+    # - name: remote_streamable
+    #   enabled: false
+    #   transport: streamable_http
+    #   url: http://localhost:8080/proxy/mcp
+    #   timeout_seconds: 30
+    #   startup_timeout_seconds: 60
+    #   # Auth configuration for HTTP-based providers:
+    #   # auth:
+    #   #   type: oauth          # "none" (default), "oauth", or "api_key"
+    #   #   client_id: "my-client"
+    #   #   scopes:
+    #   #     - read
+    #   #     - write
+    # tool_safety is required for every enabled MCP provider.
+    # tool_safety: read_only         # read_only | write_scoped | never_parallel
+
+memory:
+  search:
+    token_budget: 2000        # Soft token budget for file-backed memory context
+  semantic:
+    bleve:
+      path: ""               # Empty resolves to runtime.storage_dir/bleve-semantic
+      index_name: memory_records
+    embedding:
+      provider: openai_compatible
+      model: text-embedding-3-small
+      base_url: https://api.openai.com/v1
+      api_key: ${OPENAI_API_KEY}
+      dimensions: 1536
+      timeout_seconds: 30
+      batch_size: 64

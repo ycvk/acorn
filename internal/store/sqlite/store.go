@@ -1,0 +1,55 @@
+package sqlite
+
+import (
+	"database/sql"
+	"fmt"
+	"os"
+	"path/filepath"
+	"time"
+
+	_ "modernc.org/sqlite"
+)
+
+type Store struct {
+	db *sql.DB
+}
+
+const fixedTimestampLayout = "2006-01-02T15:04:05.000000000Z07:00"
+
+func formatTimestamp(value time.Time) string {
+	return value.UTC().Format(fixedTimestampLayout)
+}
+
+func timeNowUTC() time.Time {
+	return time.Now().UTC()
+}
+
+func Open(dir string) (*Store, error) {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return nil, fmt.Errorf("create storage dir: %w", err)
+	}
+	db, err := sql.Open("sqlite", filepath.Join(dir, "acorn.db"))
+	if err != nil {
+		return nil, fmt.Errorf("open sqlite: %w", err)
+	}
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
+
+	store := &Store{db: db}
+	if err := store.configure(); err != nil {
+		_ = db.Close()
+		return nil, err
+	}
+	if err := store.migrate(); err != nil {
+		_ = db.Close()
+		return nil, err
+	}
+	return store, nil
+}
+
+func (s *Store) Close() error {
+	if s == nil || s.db == nil {
+		return nil
+	}
+	return s.db.Close()
+}

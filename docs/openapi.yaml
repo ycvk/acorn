@@ -1,0 +1,4143 @@
+openapi: 3.1.0
+info:
+  title: Acorn Remote Client API
+  version: 0.1.0
+  description: |
+    Remote client API for Acorn's single-user self-hosted agent backend.
+    Client `/v1` run event endpoints stream persisted `RunEvent` objects.
+servers:
+  - url: http://127.0.0.1:8080
+security:
+  - bearerAuth: []
+tags:
+  - name: health
+  - name: devices
+  - name: system
+  - name: memory
+  - name: skills
+  - name: sessions
+  - name: runs
+  - name: client
+  - name: plans
+paths:
+  /healthz:
+    get:
+      tags: [health]
+      security: []
+      summary: Health check
+      operationId: healthz
+      responses:
+        '200':
+          description: Server is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /v1/devices:pair:
+    post:
+      tags: [devices]
+      security: []
+      summary: Pair a device with a one-time operator code
+      operationId: clientPairDevice
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PairDeviceRequest'
+      responses:
+        '201':
+          description: Device paired and access token issued once
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PairDeviceResponse'
+        '400':
+          $ref: '#/components/responses/InvalidPairingCode'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/devices:
+    get:
+      tags: [devices]
+      summary: List paired devices
+      operationId: clientListDevices
+      responses:
+        '200':
+          description: Paired devices
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/DeviceRevoked'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/devices/{device_id}:
+    delete:
+      tags: [devices]
+      summary: Revoke a paired device
+      operationId: clientRevokeDevice
+      parameters:
+        - $ref: '#/components/parameters/DeviceID'
+      responses:
+        '204':
+          description: Device revoked
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/DeviceRevoked'
+        '404':
+          $ref: '#/components/responses/DeviceNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/devices/{device_id}/push-token:
+    put:
+      tags: [devices]
+      summary: Register the authenticated device push token
+      operationId: clientRegisterDevicePushToken
+      parameters:
+        - $ref: '#/components/parameters/DeviceID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterDevicePushTokenRequest'
+      responses:
+        '200':
+          description: Push token registered without echoing the token value
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DevicePushToken'
+        '400':
+          $ref: '#/components/responses/InvalidPushProvider'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/DevicePushTokenForbidden'
+        '404':
+          $ref: '#/components/responses/DeviceNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/devices/{device_id}/push-token/{provider}:
+    delete:
+      tags: [devices]
+      summary: Revoke the authenticated device push token for one provider
+      operationId: clientRevokeDevicePushToken
+      parameters:
+        - $ref: '#/components/parameters/DeviceID'
+        - $ref: '#/components/parameters/PushProvider'
+      responses:
+        '204':
+          description: Device push token revoked
+        '400':
+          $ref: '#/components/responses/InvalidPushProvider'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/DevicePushTokenForbidden'
+        '404':
+          $ref: '#/components/responses/DevicePushTokenNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/threads:
+    get:
+      tags: [client]
+      summary: List client threads
+      operationId: clientListThreads
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Client threads
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ThreadListResponse'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      tags: [client]
+      summary: Create a client thread
+      operationId: clientCreateThread
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateThreadRequest'
+      responses:
+        '201':
+          description: Thread created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Thread'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/threads/{thread_id}:
+    get:
+      tags: [client]
+      summary: Get one client thread
+      operationId: clientGetThread
+      parameters:
+        - $ref: '#/components/parameters/ThreadID'
+      responses:
+        '200':
+          description: Thread found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Thread'
+        '404':
+          $ref: '#/components/responses/ThreadNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    patch:
+      tags: [client]
+      summary: Update a client thread
+      operationId: clientUpdateThread
+      parameters:
+        - $ref: '#/components/parameters/ThreadID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateThreadRequest'
+      responses:
+        '200':
+          description: Thread updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Thread'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '404':
+          $ref: '#/components/responses/ThreadNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      tags: [client]
+      summary: Delete a client thread
+      operationId: clientDeleteThread
+      parameters:
+        - $ref: '#/components/parameters/ThreadID'
+      responses:
+        '204':
+          description: Thread deleted
+        '404':
+          $ref: '#/components/responses/ThreadNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/threads/{thread_id}/messages:
+    get:
+      tags: [client]
+      summary: List messages for a client thread
+      operationId: clientListMessages
+      parameters:
+        - $ref: '#/components/parameters/ThreadID'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Messages for the thread
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageListResponse'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '404':
+          $ref: '#/components/responses/ThreadNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      tags: [client]
+      summary: Append a user message without starting a run
+      operationId: clientCreateMessage
+      parameters:
+        - $ref: '#/components/parameters/ThreadID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateMessageRequest'
+      responses:
+        '201':
+          description: Message appended
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '404':
+          $ref: '#/components/responses/ThreadNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/threads/{thread_id}/runs:
+    post:
+      tags: [client]
+      summary: Start a real runtime run for the latest unbound user message
+      operationId: clientCreateRun
+      parameters:
+        - $ref: '#/components/parameters/ThreadID'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRunRequest'
+      responses:
+        '201':
+          description: Run created and execution started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Run'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '404':
+          $ref: '#/components/responses/ThreadNotFound'
+        '503':
+          $ref: '#/components/responses/ExecutionNotReady'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/runs/{run_id}:
+    get:
+      tags: [client]
+      summary: Get one client run
+      operationId: clientGetRun
+      parameters:
+        - $ref: '#/components/parameters/RunID'
+      responses:
+        '200':
+          description: Run found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Run'
+        '404':
+          $ref: '#/components/responses/RunNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/runs/{run_id}/events:
+    get:
+      tags: [client]
+      summary: Replay and optionally follow persisted RunEvent SSE
+      description: |
+        The response is `text/event-stream`. Each SSE message uses
+        `id: <RunEvent.event_id>`, `event: <RunEvent.type>`, and `data:`
+        containing the full RunEvent JSON object. `after_seq` is an exclusive
+        persisted cursor over the existing events table. Mobile clients persist
+        `{run_id,last_seq}` locally, pass `last_seq` as `after_seq`, receive
+        backlog events first, and then receive live follow events when
+        `follow=true`.
+      operationId: clientGetRunEvents
+      parameters:
+        - $ref: '#/components/parameters/RunID'
+        - name: after_seq
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: follow
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Stream of persisted RunEvent records
+          content:
+            text/event-stream:
+              schema:
+                $ref: '#/components/schemas/RunEvent'
+        '400':
+          $ref: '#/components/responses/InvalidRunEventRequest'
+        '404':
+          $ref: '#/components/responses/RunNotFound'
+        '500':
+          $ref: '#/components/responses/RunEventProjectionFailed'
+
+  /v1/runs/{run_id}:interrupt:
+    post:
+      tags: [client]
+      summary: Request interruption for a running client run
+      operationId: clientInterruptRun
+      parameters:
+        - $ref: '#/components/parameters/RunID'
+      responses:
+        '202':
+          description: Interrupt requested
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InterruptRunResponse'
+        '404':
+          $ref: '#/components/responses/RunNotFound'
+        '409':
+          $ref: '#/components/responses/RunNotActive'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/runs/{run_id}:resume:
+    post:
+      tags: [client]
+      summary: Resume an interrupted client run
+      operationId: clientResumeRun
+      parameters:
+        - $ref: '#/components/parameters/RunID'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties: {}
+      responses:
+        '200':
+          description: Resume result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunResult'
+        '404':
+          $ref: '#/components/responses/RunNotFound'
+        '409':
+          $ref: '#/components/responses/RunNotResumable'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/pending-actions:
+    get:
+      tags: [client]
+      summary: List actionable pending client actions
+      operationId: clientListPendingActions
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Actionable pending actions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PendingActionListResponse'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/DeviceRevoked'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/pending-actions/{action_id}:
+    get:
+      tags: [client]
+      summary: Load an actionable pending client action
+      operationId: clientGetPendingAction
+      parameters:
+        - name: action_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Pending action detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PendingActionDetail'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/DeviceRevoked'
+        '404':
+          $ref: '#/components/responses/PendingActionNotFound'
+        '409':
+          $ref: '#/components/responses/PendingActionAlreadyDecided'
+        '500':
+          $ref: '#/components/responses/RunEventProjectionFailed'
+
+  /v1/pending-actions/{action_id}:decide:
+    post:
+      tags: [client]
+      summary: Decide a pending client action
+      operationId: clientDecidePendingAction
+      parameters:
+        - name: action_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DecidePendingActionRequest'
+      responses:
+        '200':
+          description: Pending action decided
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PendingActionDecision'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '404':
+          $ref: '#/components/responses/PendingActionNotFound'
+        '409':
+          $ref: '#/components/responses/PendingActionAlreadyDecided'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/inbox:
+    get:
+      tags: [client]
+      summary: Load the mobile inbox aggregate
+      description: |
+        Returns one mobile-friendly attention aggregate over durable backend
+        facts: pending actions, active runs, recent terminal runs, and system
+        readiness. This endpoint does not replace source endpoints and does not
+        introduce a second RunEvent store.
+      operationId: clientGetInbox
+      responses:
+        '200':
+          description: Mobile inbox aggregate
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InboxResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/DeviceRevoked'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/runs/{run_id}/detail:
+    get:
+      tags: [client]
+      summary: Load the aggregate detail for a run
+      operationId: clientGetRunDetail
+      parameters:
+        - $ref: '#/components/parameters/RunID'
+      responses:
+        '200':
+          description: Aggregate run detail for remote clients
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunDetail'
+        '404':
+          $ref: '#/components/responses/RunNotFound'
+        '500':
+          $ref: '#/components/responses/RunEventProjectionFailed'
+
+  /v1/system/status:
+    get:
+      tags: [client]
+      summary: Load remote client system status
+      operationId: clientGetSystemStatus
+      parameters:
+        - $ref: '#/components/parameters/ProbeMCP'
+      responses:
+        '200':
+          description: Remote client system status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemStatus'
+
+  /v1/tools:
+    get:
+      tags: [client]
+      summary: List tools for remote clients
+      operationId: clientListTools
+      parameters:
+        - $ref: '#/components/parameters/ProbeMCP'
+      responses:
+        '200':
+          description: Tool summaries
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ToolListResponse'
+
+  /v1/settings:
+    get:
+      tags: [client]
+      summary: Load remote client settings
+      operationId: clientGetSettings
+      responses:
+        '200':
+          description: Client settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientSettings'
+    patch:
+      tags: [client]
+      summary: Patch remote client settings
+      operationId: clientPatchSettings
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '501':
+          $ref: '#/components/responses/SettingsWriteUnsupported'
+
+  /v1/memory/facts:
+    get:
+      tags: [memory]
+      summary: List file-backed memory facts
+      operationId: clientListMemoryFacts
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/IncludeInactive'
+        - $ref: '#/components/parameters/IncludeRetired'
+      responses:
+        '200':
+          description: File-backed fact records
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemoryRecordListResponse'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/memory/skills:
+    get:
+      tags: [memory]
+      summary: List file-backed memory skills
+      operationId: clientListMemorySkills
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/IncludeInactive'
+        - $ref: '#/components/parameters/IncludeRetired'
+      responses:
+        '200':
+          description: File-backed skill records
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemoryRecordListResponse'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/memory/history:
+    get:
+      tags: [memory]
+      summary: List file-backed memory history records
+      operationId: clientListMemoryHistory
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/IncludeInactive'
+        - $ref: '#/components/parameters/IncludeRetired'
+      responses:
+        '200':
+          description: File-backed history records
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemoryRecordListResponse'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/memory/search:
+    get:
+      tags: [memory]
+      summary: Search file-backed memory facts, skills, and history
+      operationId: clientSearchMemory
+      parameters:
+        - name: query
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: kind
+          in: query
+          required: false
+          description: Memory kind.
+          schema:
+            type: string
+            enum: [fact, skill, history]
+        - name: scope
+          in: query
+          required: false
+          schema:
+            type: string
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/IncludeInactive'
+        - $ref: '#/components/parameters/IncludeRetired'
+      responses:
+        '200':
+          description: Memory search results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemorySearchResponse'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/skills:
+    get:
+      tags: [skills]
+      summary: List filesystem skills
+      operationId: clientListSkills
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: Skill list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SkillListResponse'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/skills/{id}:
+    get:
+      tags: [skills]
+      summary: Load one skill in detail
+      operationId: clientGetSkill
+      parameters:
+        - $ref: '#/components/parameters/SkillId'
+      responses:
+        '200':
+          description: Skill detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SkillEnvelope'
+        '404':
+          $ref: '#/components/responses/SkillNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/skills/{id}/files:
+    get:
+      tags: [skills]
+      summary: Read a file from a skill package
+      operationId: clientReadSkillFile
+      parameters:
+        - $ref: '#/components/parameters/SkillId'
+        - name: path
+          in: query
+          required: false
+          description: Relative path inside the skill package. Defaults to SKILL.md.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Skill file content
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SkillFileResponse'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '404':
+          $ref: '#/components/responses/SkillNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/threads/{thread_id}/checkpoint:
+    get:
+      tags: [client]
+      summary: Load the current working checkpoint for a thread
+      operationId: clientGetThreadCheckpoint
+      parameters:
+        - $ref: '#/components/parameters/ThreadID'
+      responses:
+        '200':
+          description: Working checkpoint payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkingCheckpointEnvelope'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    put:
+      tags: [client]
+      summary: Replace the current working checkpoint for a thread
+      operationId: clientUpdateThreadCheckpoint
+      parameters:
+        - $ref: '#/components/parameters/ThreadID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateWorkingCheckpointRequest'
+      responses:
+        '200':
+          description: Updated working checkpoint
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkingCheckpointEnvelope'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      tags: [client]
+      summary: Clear the current working checkpoint for a thread
+      operationId: clientDeleteThreadCheckpoint
+      parameters:
+        - $ref: '#/components/parameters/ThreadID'
+      responses:
+        '204':
+          description: Working checkpoint cleared
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+
+  parameters:
+    DeviceID:
+      name: device_id
+      in: path
+      required: true
+      schema:
+        type: string
+    PushProvider:
+      name: provider
+      in: path
+      required: true
+      schema:
+        type: string
+        enum: [apns, fcm]
+    ThreadID:
+      name: thread_id
+      in: path
+      required: true
+      schema:
+        type: string
+    RunID:
+      name: run_id
+      in: path
+      required: true
+      schema:
+        type: string
+    SkillId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+    Limit:
+      name: limit
+      in: query
+      required: false
+      description: Positive integer limit. Defaults to 100.
+      schema:
+        type: integer
+        minimum: 1
+    IncludeInactive:
+      name: include_inactive
+      in: query
+      required: false
+      description: Include date-inactive and superseded memory records. Defaults to false.
+      schema:
+        type: boolean
+        default: false
+    IncludeRetired:
+      name: include_retired
+      in: query
+      required: false
+      description: Include retired memory records. Defaults to false.
+      schema:
+        type: boolean
+        default: false
+    Offset:
+      name: offset
+      in: query
+      required: false
+      description: Non-negative pagination offset. Defaults to 0.
+      schema:
+        type: integer
+        minimum: 0
+    ProbeMCP:
+      name: probe_mcp
+      in: query
+      required: false
+      description: Set to `1` to perform an explicit live MCP provider probe. Omit for passive capability reads.
+      schema:
+        type: string
+        enum: ['1']
+
+  responses:
+    Unauthenticated:
+      description: Device bearer token is missing, malformed, or unknown
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            unauthenticated:
+              value:
+                error:
+                  code: unauthenticated
+                  message: unauthenticated
+    DeviceRevoked:
+      description: Device bearer token belongs to a revoked device
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            deviceRevoked:
+              value:
+                error:
+                  code: device_revoked
+                  message: device revoked
+    InvalidPairingCode:
+      description: Pairing code is missing, malformed, expired, used, or unknown
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            invalidPairingCode:
+              value:
+                error:
+                  code: invalid_pairing_code
+                  message: invalid pairing code
+    DeviceNotFound:
+      description: Device not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            deviceNotFound:
+              value:
+                error:
+                  code: device_not_found
+                  message: device not found
+    InvalidPushProvider:
+      description: Push provider is not supported
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            invalidPushProvider:
+              value:
+                error:
+                  code: invalid_push_provider
+                  message: invalid push provider
+    DevicePushTokenForbidden:
+      description: Authenticated device cannot mutate another device's push token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            devicePushTokenForbidden:
+              value:
+                error:
+                  code: device_push_token_forbidden
+                  message: device push token belongs to another device
+    DevicePushTokenNotFound:
+      description: Device push token not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            devicePushTokenNotFound:
+              value:
+                error:
+                  code: device_push_token_not_found
+                  message: device push token not found
+    InvalidRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            invalidRequest:
+              value:
+                error:
+                  code: invalid_request
+                  message: content is required
+    ThreadNotFound:
+      description: Client thread not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            threadNotFound:
+              value:
+                error:
+                  code: thread_not_found
+                  message: session thread_123 not found
+    RunNotFound:
+      description: Run not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            runNotFound:
+              value:
+                error:
+                  code: run_not_found
+                  message: run run_123 not found
+    RunNotResumable:
+      description: Run exists but cannot be resumed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            runNotResumable:
+              value:
+                error:
+                  code: run_not_resumable
+                  message: run run_123 is not interrupted
+    RunNotActive:
+      description: Run exists but is not currently active
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            runNotActive:
+              value:
+                error:
+                  code: run_not_active
+                  message: run not active
+    PendingActionNotFound:
+      description: Pending action not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            pendingActionNotFound:
+              value:
+                error:
+                  code: pending_action_not_found
+                  message: pending action not found
+    PendingActionAlreadyDecided:
+      description: Pending action has already been decided
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            pendingActionAlreadyDecided:
+              value:
+                error:
+                  code: pending_action_already_decided
+                  message: pending action already decided
+    InvalidRunEventRequest:
+      description: Invalid RunEvent replay request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            invalidAfterSeq:
+              value:
+                error:
+                  code: invalid_after_seq
+                  message: after_seq must be a non-negative integer
+            invalidFollow:
+              value:
+                error:
+                  code: invalid_request
+                  message: follow must be a boolean
+    RunEventProjectionFailed:
+      description: Persisted run event could not be projected into RunEvent
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            projectionFailed:
+              value:
+                error:
+                  code: run_event_projection_failed
+                  message: client projection failed
+    SettingsWriteUnsupported:
+      description: Client settings write path is explicitly unsupported
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            settingsWriteUnsupported:
+              value:
+                error:
+                  code: settings_write_unsupported
+                  message: client settings write endpoint is not implemented
+    FactNotFound:
+      description: Memory fact not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            factNotFound:
+              value:
+                error:
+                  code: fact_not_found
+                  message: fact not found
+    SkillNotFound:
+      description: Skill not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            skillNotFound:
+              value:
+                error:
+                  code: skill_not_found
+                  message: skill inspect-repo not found
+    ExecutionNotReady:
+      description: Execution paths are unavailable because required model/runtime config is missing
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            executionNotReady:
+              value:
+                error:
+                  code: execution_not_ready
+                  message: 'execution not ready: model.api_key is required'
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            internalError:
+              value:
+                error:
+                  code: internal_error
+                  message: internal server error
+
+  schemas:
+    HealthResponse:
+      type: object
+      additionalProperties: false
+      required: [ok]
+      properties:
+        ok:
+          type: boolean
+
+    Device:
+      type: object
+      additionalProperties: false
+      required: [device_id, name, platform, created_at, last_seen_at]
+      properties:
+        device_id:
+          type: string
+        name:
+          type: string
+        platform:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        last_seen_at:
+          type: string
+          format: date-time
+        revoked_at:
+          type: string
+          format: date-time
+
+    DeviceListResponse:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Device'
+
+    PairDeviceRequest:
+      type: object
+      additionalProperties: false
+      required: [pairing_code, device_name, platform]
+      properties:
+        pairing_code:
+          type: string
+        device_name:
+          type: string
+        platform:
+          type: string
+
+    PairDeviceResponse:
+      type: object
+      additionalProperties: false
+      required: [device, access_token]
+      properties:
+        device:
+          $ref: '#/components/schemas/Device'
+        access_token:
+          type: string
+
+    RegisterDevicePushTokenRequest:
+      type: object
+      additionalProperties: false
+      required: [provider, token]
+      properties:
+        provider:
+          type: string
+          enum: [apns, fcm]
+        platform:
+          type: string
+        token:
+          type: string
+          description: APNs or FCM token. Accepted on write and never returned.
+
+    DevicePushToken:
+      type: object
+      additionalProperties: false
+      required: [device_id, provider, platform, updated_at]
+      properties:
+        device_id:
+          type: string
+        provider:
+          type: string
+          enum: [apns, fcm]
+        platform:
+          type: string
+        updated_at:
+          type: string
+          format: date-time
+
+    MemoryScope:
+      type: object
+      additionalProperties: false
+      required: [type, key]
+      properties:
+        type:
+          type: string
+          enum: [global_user, machine, workspace, thread, run, skill, unknown]
+        key:
+          type: string
+
+    MemoryRecord:
+      type: object
+      additionalProperties: false
+      required: [ref, kind, title, status, path, body]
+      properties:
+        ref:
+          type: string
+        kind:
+          type: string
+          enum: [fact, skill, history]
+        title:
+          type: string
+        status:
+          type: string
+          enum: [unverified, verified, retired]
+        scope:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        origin:
+          type: string
+          enum: [human, agent_draft, action_verified]
+        task_pattern:
+          type: string
+        path:
+          type: string
+        body:
+          type: string
+        created:
+          type: string
+        updated:
+          type: string
+        valid_from:
+          type: string
+        valid_until:
+          type: string
+        source_run:
+          type: string
+        source_refs:
+          type: array
+          items:
+            type: string
+        evidence_refs:
+          type: array
+          items:
+            type: string
+        relations:
+          type: array
+          items:
+            $ref: '#/components/schemas/MemoryRecordRelation'
+
+    MemoryRecordRelation:
+      type: object
+      additionalProperties: false
+      required: [type, target]
+      properties:
+        type:
+          type: string
+          enum: [supports, derived_from, supersedes, contradicts]
+        target:
+          type: string
+        reason:
+          type: string
+
+    MemoryRecordListResponse:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/MemoryRecord'
+
+    MemorySearchItem:
+      type: object
+      additionalProperties: false
+      required: [ref, kind, title, status, path, snippet, score]
+      properties:
+        ref:
+          type: string
+        kind:
+          type: string
+          enum: [fact, skill, history]
+        title:
+          type: string
+        status:
+          type: string
+          enum: [unverified, verified, retired]
+        scope:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        origin:
+          type: string
+          enum: [human, agent_draft, action_verified]
+        task_pattern:
+          type: string
+        path:
+          type: string
+        snippet:
+          type: string
+        score:
+          type: number
+          format: double
+        created:
+          type: string
+        updated:
+          type: string
+        valid_from:
+          type: string
+        valid_until:
+          type: string
+        source_run:
+          type: string
+        source_refs:
+          type: array
+          items:
+            type: string
+        evidence_refs:
+          type: array
+          items:
+            type: string
+        relations:
+          type: array
+          items:
+            $ref: '#/components/schemas/MemoryRecordRelation'
+
+    MemorySearchResponse:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/MemorySearchItem'
+
+    WorkingCheckpoint:
+      type: object
+      additionalProperties: false
+      required: [thread_id, content, related_skill_id, updated_at]
+      properties:
+        thread_id:
+          type: string
+        content:
+          type: string
+        related_skill_id:
+          type: string
+        updated_at:
+          type: string
+          format: date-time
+
+    WorkingCheckpointEnvelope:
+      type: object
+      additionalProperties: false
+      properties:
+        item:
+          oneOf:
+            - $ref: '#/components/schemas/WorkingCheckpoint'
+            - type: 'null'
+
+    UpdateWorkingCheckpointRequest:
+      type: object
+      additionalProperties: false
+      required: [content]
+      properties:
+        content:
+          type: string
+        related_skill_id:
+          type: string
+
+    SkillRequirements:
+      type: object
+      additionalProperties: false
+      properties:
+        tools:
+          type: array
+          items:
+            type: string
+        toolsets:
+          type: array
+          items:
+            type: string
+        bins:
+          type: array
+          items:
+            type: string
+        env:
+          type: array
+          items:
+            type: string
+
+    SkillSummary:
+      type: object
+      additionalProperties: false
+      required: [id, name, version, source, origin, lifecycle_status, eligible]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        version:
+          type: string
+        category:
+          type: string
+        source:
+          type: string
+        origin:
+          type: string
+          enum: [human, distilled]
+        lifecycle_status:
+          type: string
+          enum: [draft, verified, unverified, needs_eval, retired]
+        task_pattern:
+          type: string
+        summary:
+          type: string
+        promoted_from:
+          type: string
+        eligible:
+          type: boolean
+        requirements:
+          $ref: '#/components/schemas/SkillRequirements'
+        disabled_reasons:
+          type: array
+          items:
+            type: string
+        created_by_run_id:
+          type: string
+        updated_by_run_id:
+          type: string
+        evidence_refs:
+          type: array
+          items:
+            type: string
+        replaces:
+          type: array
+          items:
+            type: string
+        replaced_by:
+          type: array
+          items:
+            type: string
+
+    SkillDetail:
+      allOf:
+        - $ref: '#/components/schemas/SkillSummary'
+        - type: object
+          additionalProperties: false
+          required: [path, instruction]
+          properties:
+            path:
+              type: string
+            instruction:
+              type: string
+            scripts:
+              type: array
+              items:
+                type: string
+            files:
+              type: array
+              items:
+                type: string
+            tags:
+              type: array
+              items:
+                type: string
+            platforms:
+              type: array
+              items:
+                type: string
+            trigger_hints:
+              type: array
+              items:
+                type: string
+
+    SkillFile:
+      type: object
+      additionalProperties: false
+      required: [skill_id, path, content]
+      properties:
+        skill_id:
+          type: string
+        path:
+          type: string
+        content:
+          type: string
+
+    SkillFileResponse:
+      type: object
+      additionalProperties: false
+      required: [item]
+      properties:
+        item:
+          $ref: '#/components/schemas/SkillFile'
+
+    SkillListResponse:
+      type: object
+      additionalProperties: false
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/SkillSummary'
+        total:
+          type: integer
+
+    SkillEnvelope:
+      type: object
+      additionalProperties: false
+      required: [item]
+      properties:
+        item:
+          $ref: '#/components/schemas/SkillDetail'
+
+    CapabilitiesSummary:
+      type: object
+      additionalProperties: false
+      required:
+        - tool_count
+        - enabled_tool_count
+        - skill_count
+        - eligible_skill_count
+        - ineligible_skill_count
+        - invalid_skill_count
+        - mcp_configured_provider_count
+        - mcp_enabled_provider_count
+        - mcp_healthy_provider_count
+      properties:
+        tool_count:
+          type: integer
+        enabled_tool_count:
+          type: integer
+        skill_count:
+          type: integer
+        eligible_skill_count:
+          type: integer
+        ineligible_skill_count:
+          type: integer
+        invalid_skill_count:
+          type: integer
+        mcp_configured_provider_count:
+          type: integer
+        mcp_enabled_provider_count:
+          type: integer
+        mcp_healthy_provider_count:
+          type: integer
+
+    CapabilitiesModel:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name:
+          type: string
+
+    CapabilitiesFeatures:
+      type: object
+      additionalProperties: false
+      required:
+        - interrupt_resume
+        - trace_debug
+        - session_history
+      properties:
+        interrupt_resume:
+          type: boolean
+        trace_debug:
+          type: boolean
+        session_history:
+          type: boolean
+
+    CapabilitiesTool:
+      type: object
+      additionalProperties: false
+      required: [name, source, kind, category, enabled, health_state, risk]
+      properties:
+        name:
+          type: string
+        source:
+          type: string
+        kind:
+          type: string
+        category:
+          type: string
+        resource_scope:
+          type: string
+        profiles:
+          type: array
+          items:
+            type: string
+        enabled:
+          type: boolean
+        health_state:
+          type: string
+        health_reason:
+          type: string
+        parallel_policy:
+          type: string
+        plan_policy:
+          type: string
+        fact_policy:
+          type: string
+        risk:
+          type: string
+        root_dir:
+          type: string
+        work_dir:
+          type: string
+        default_timeout:
+          type: integer
+
+    SystemStatus:
+      type: object
+      additionalProperties: false
+      required: [runtime_readiness, model, workspace_root, summary, features]
+      properties:
+        runtime_readiness:
+          $ref: '#/components/schemas/RuntimeReadiness'
+        provider_readiness:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProviderReadiness'
+        model:
+          $ref: '#/components/schemas/CapabilitiesModel'
+        workspace_root:
+          type: string
+        summary:
+          $ref: '#/components/schemas/CapabilitiesSummary'
+        features:
+          $ref: '#/components/schemas/CapabilitiesFeatures'
+
+    RuntimeReadiness:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ready, blocked]
+        reason:
+          type: string
+
+    ProviderReadiness:
+      type: object
+      additionalProperties: false
+      required: [scope, provider, status]
+      properties:
+        scope:
+          type: string
+        provider:
+          type: string
+        status:
+          type: string
+          enum: [passed, failed, blocked]
+        reason:
+          type: string
+        startup_status:
+          type: string
+        auth_status:
+          type: string
+
+    ToolSummary:
+      $ref: '#/components/schemas/CapabilitiesTool'
+
+    ToolListResponse:
+      type: object
+      additionalProperties: false
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ToolSummary'
+        total:
+          type: integer
+
+    InboxResponse:
+      type: object
+      additionalProperties: false
+      required: [pending_actions, active_runs, recent_terminal_runs, system]
+      properties:
+        pending_actions:
+          type: array
+          items:
+            $ref: '#/components/schemas/PendingActionSummary'
+        active_runs:
+          type: array
+          items:
+            $ref: '#/components/schemas/RunSummary'
+        recent_terminal_runs:
+          type: array
+          items:
+            $ref: '#/components/schemas/RunSummary'
+        system:
+          $ref: '#/components/schemas/SystemStatus'
+
+    RunSummary:
+      type: object
+      additionalProperties: false
+      required: [run_id, thread_id, status, mode, created_at, updated_at]
+      properties:
+        run_id:
+          type: string
+        thread_id:
+          type: string
+        status:
+          type: string
+          enum: [running, completed, interrupted, failed]
+        mode:
+          type: string
+          enum: [direct, agent, plan_execute]
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    PendingActionSummary:
+      type: object
+      additionalProperties: false
+      required: [action_id, run_id, thread_id, kind, status, title, options, created_at]
+      properties:
+        action_id:
+          type: string
+        run_id:
+          type: string
+        thread_id:
+          type: string
+        kind:
+          type: string
+          enum: [elicitation]
+        status:
+          type: string
+          enum: [pending]
+        title:
+          type: string
+        body:
+          type: string
+        options:
+          type: array
+          items:
+            $ref: '#/components/schemas/PendingActionOption'
+        created_at:
+          type: string
+          format: date-time
+
+    PendingActionOption:
+      type: object
+      additionalProperties: false
+      required: [id, label]
+      properties:
+        id:
+          type: string
+          enum: [accept, decline]
+        label:
+          type: string
+
+    PendingActionListResponse:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PendingActionSummary'
+
+    PendingActionDetail:
+      allOf:
+        - $ref: '#/components/schemas/PendingActionSummary'
+        - type: object
+          additionalProperties: false
+          required: [payload]
+          properties:
+            payload:
+              type: object
+              additionalProperties: true
+            reason:
+              type: string
+            rule:
+              type: string
+
+    ClientProviderSettings:
+      type: object
+      additionalProperties: false
+      required: [name, model, enabled]
+      properties:
+        name:
+          type: string
+        model:
+          type: string
+        base_url:
+          type: string
+        timeout_seconds:
+          type: integer
+        temperature:
+          type: number
+          format: float
+        max_completion_tokens:
+          type: integer
+        reasoning_effort:
+          type: string
+          enum: [low, medium, high]
+          description: Controls reasoning model effort (low=fastest, medium=default, high=most thorough). Only used by reasoning-capable models (o1, o3, etc.).
+        extra_fields:
+          type: object
+          additionalProperties: true
+          description: Provider-specific extra body fields added to the top-level of the API request. Useful for vendor-specific features not covered by standard fields. Examples — Claude thinking mode (nested object with 'type' and 'budget_tokens'), or other provider extensions. Fields must match the provider API schema exactly.
+        enabled:
+          type: boolean
+
+    ClientRuntimeSettings:
+      type: object
+      additionalProperties: false
+      required: [storage_dir, run_timeout_seconds]
+      properties:
+        storage_dir:
+          type: string
+        run_timeout_seconds:
+          type: integer
+
+    ClientWebSettings:
+      type: object
+      additionalProperties: false
+      required: [listen_addr]
+      properties:
+        listen_addr:
+          type: string
+        allowed_origins:
+          type: array
+          items:
+            type: string
+
+    ClientSettings:
+      type: object
+      additionalProperties: false
+      required: [workspace_root, providers, runtime, web]
+      properties:
+        config_path:
+          type: string
+        config_dir:
+          type: string
+        workspace_root:
+          type: string
+        providers:
+          type: array
+          items:
+            $ref: '#/components/schemas/ClientProviderSettings'
+        runtime:
+          $ref: '#/components/schemas/ClientRuntimeSettings'
+        web:
+          $ref: '#/components/schemas/ClientWebSettings'
+
+    Error:
+      type: object
+      additionalProperties: false
+      required: [code, message]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          $ref: '#/components/schemas/Error'
+
+    SelectedSkill:
+      type: object
+      additionalProperties: false
+      required: [id, name]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        source:
+          type: string
+        origin:
+          type: string
+          enum: [human, distilled]
+        task_pattern:
+          type: string
+        summary:
+          type: string
+        promoted_from:
+          type: string
+        requirements:
+          $ref: '#/components/schemas/SkillRequirements'
+        score:
+          type: integer
+        matched_terms:
+          type: array
+          items:
+            type: string
+
+    RuntimeWorkbench:
+      type: object
+      additionalProperties: false
+      required: [session_id, title, resumable, workspace_root, git_status, context_economy, provider_usage]
+      properties:
+        session_id:
+          type: string
+        title:
+          type: string
+        state:
+          type: string
+          enum: [new, running, completed, failed, interrupted, degraded]
+        latest_run_id:
+          type: string
+        latest_run_status:
+          type: string
+          enum: [running, succeeded, interrupted, failed]
+        latest_run_mode:
+          type: string
+        latest_run_depth:
+          type: integer
+        parent_run_id:
+          type: string
+        resumable:
+          type: boolean
+        resume_reason:
+          type: string
+        trace_summary:
+          $ref: '#/components/schemas/TraceSummary'
+        selected_skill:
+          $ref: '#/components/schemas/SelectedSkill'
+        latest_decision:
+          $ref: '#/components/schemas/RunDecision'
+        session_summary:
+          type: string
+        summary_status:
+          type: string
+        summary_source_run_id:
+          type: string
+        summary_updated_at:
+          type: string
+          format: date-time
+        workspace_root:
+          type: string
+        git_status:
+          $ref: '#/components/schemas/WorkspaceGitStatus'
+        mutation_checkpoints:
+          type: array
+          items:
+            $ref: '#/components/schemas/MutationCheckpoint'
+        rollback_results:
+          type: array
+          items:
+            $ref: '#/components/schemas/RollbackResult'
+        context_economy:
+          $ref: '#/components/schemas/ContextEconomy'
+        provider_usage:
+          $ref: '#/components/schemas/ProviderUsage'
+        plan:
+          $ref: '#/components/schemas/PlanDTO'
+        evidence:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlanEvidenceDTO'
+        subagents:
+          type: array
+          items:
+            $ref: '#/components/schemas/SubagentRun'
+        next_step_hint:
+          type: string
+
+    ContextEconomy:
+      type: object
+      additionalProperties: false
+      required: [tool_result_count, elided_tool_result_count, tool_result_token_estimate]
+      properties:
+        latest_pressure:
+          $ref: '#/components/schemas/ContextPressureSummary'
+        latest_compression:
+          $ref: '#/components/schemas/ContextCompressionSummary'
+        tool_results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContextToolResult'
+        tool_result_count:
+          type: integer
+        elided_tool_result_count:
+          type: integer
+        tool_result_token_estimate:
+          type: integer
+        memory_refs:
+          type: array
+          items:
+            type: string
+        procedure_refs:
+          type: array
+          items:
+            type: string
+
+    ContextPressureSummary:
+      type: object
+      additionalProperties: false
+      properties:
+        state:
+          type: string
+        estimated_input_tokens:
+          type: integer
+        effective_window_tokens:
+          type: integer
+        percent_used:
+          type: integer
+
+    ContextCompressionSummary:
+      type: object
+      additionalProperties: false
+      properties:
+        boundary_id:
+          type: string
+        tokens_before:
+          type: integer
+        tokens_after:
+          type: integer
+        summary:
+          type: string
+
+    ContextToolResult:
+      type: object
+      additionalProperties: false
+      required: [result_ref, tool_name, status, token_estimate, full_text_bytes, elided]
+      properties:
+        result_ref:
+          type: string
+        tool_name:
+          type: string
+        status:
+          type: string
+        preview:
+          type: string
+        token_estimate:
+          type: integer
+        full_text_bytes:
+          type: integer
+        elided:
+          type: boolean
+        evidence_refs:
+          type: array
+          items:
+            type: string
+
+    ProviderUsage:
+      type: object
+      additionalProperties: false
+      required: [call_count, prompt_tokens, completion_tokens, total_tokens, cached_tokens, reasoning_tokens]
+      properties:
+        call_count:
+          type: integer
+        prompt_tokens:
+          type: integer
+        completion_tokens:
+          type: integer
+        total_tokens:
+          type: integer
+        cached_tokens:
+          type: integer
+        reasoning_tokens:
+          type: integer
+        records:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProviderUsageCall'
+
+    ProviderUsageCall:
+      type: object
+      additionalProperties: false
+      required:
+        - usage_id
+        - call_site
+        - provider_name
+        - model_name
+        - prompt_tokens
+        - completion_tokens
+        - total_tokens
+        - cached_tokens
+        - reasoning_tokens
+        - created_at
+      properties:
+        usage_id:
+          type: string
+        call_site:
+          type: string
+        provider_name:
+          type: string
+        model_name:
+          type: string
+        prompt_tokens:
+          type: integer
+        completion_tokens:
+          type: integer
+        total_tokens:
+          type: integer
+        cached_tokens:
+          type: integer
+        reasoning_tokens:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+
+    WorkspaceGitStatus:
+      type: object
+      additionalProperties: false
+      required: [workspace_root, available, clean]
+      properties:
+        workspace_root:
+          type: string
+        available:
+          type: boolean
+        branch:
+          type: string
+        clean:
+          type: boolean
+        error:
+          type: string
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkspaceGitEntry'
+
+    MutationCheckpoint:
+      type: object
+      additionalProperties: false
+      required: [checkpoint_id, tool_result_ref, tool_name, status, created_at]
+      properties:
+        checkpoint_id:
+          type: string
+        tool_result_ref:
+          type: string
+        tool_name:
+          type: string
+        status:
+          type: string
+        paths:
+          type: array
+          items:
+            type: string
+        summary:
+          type: string
+        verified_diff_stat:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    RollbackResult:
+      type: object
+      additionalProperties: false
+      required: [rollback_id, tool_result_ref, tool_name, status, created_at]
+      properties:
+        rollback_id:
+          type: string
+        checkpoint_id:
+          type: string
+        tool_result_ref:
+          type: string
+        tool_name:
+          type: string
+        status:
+          type: string
+        restored_paths:
+          type: array
+          items:
+            type: string
+        conflict_paths:
+          type: array
+          items:
+            type: string
+        summary:
+          type: string
+        error:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    WorkspaceGitEntry:
+      type: object
+      additionalProperties: false
+      required: [path]
+      properties:
+        path:
+          type: string
+        index_status:
+          type: string
+        worktree_status:
+          type: string
+
+    SubagentRun:
+      type: object
+      additionalProperties: false
+      required: [sub_run_id, parent_run_id, depth, task, state, updated_at]
+      properties:
+        sub_run_id:
+          type: string
+        parent_run_id:
+          type: string
+        session_id:
+          type: string
+        depth:
+          type: integer
+        task:
+          type: string
+        child_run_mode:
+          type: string
+          enum: [fork]
+        workspace_mode:
+          type: string
+          enum: [shared, worktree]
+        worktree_path:
+          type: string
+        context_messages:
+          type: integer
+        orchestration_mode:
+          type: string
+        parent_step_id:
+          type: string
+        state:
+          type: string
+          enum: [started, completed, failed]
+        final_status:
+          type: string
+        acceptance_status:
+          type: string
+        acceptance_reasons:
+          type: array
+          items:
+            type: string
+        evidence_refs:
+          type: array
+          items:
+            type: string
+        summary:
+          type: string
+        updated_at:
+          type: string
+          format: date-time
+
+    RunDecision:
+      type: object
+      additionalProperties: false
+      required: [run_id, action, created_at]
+      properties:
+        run_id:
+          type: string
+        action:
+          type: string
+          enum: [execute_with_skill, inspect_first, execute_without_skill, resume_run, ask_user, block]
+        intent:
+          type: string
+        selected_skill_id:
+          type: string
+        decision_reason:
+          type: string
+        decision_profile_hash:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    Thread:
+      type: object
+      additionalProperties: false
+      required: [id, title, workspace_root, created_at, updated_at, state]
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        workspace_root:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        latest_run_id:
+          type: string
+        state:
+          type: string
+          enum: [new, running, completed, failed, interrupted, degraded]
+
+    ThreadListResponse:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Thread'
+
+    CreateThreadRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        title:
+          type: string
+
+    UpdateThreadRequest:
+      type: object
+      additionalProperties: false
+      required: [title]
+      properties:
+        title:
+          type: string
+
+    MessageContent:
+      type: object
+      additionalProperties: false
+      required: [type, text]
+      properties:
+        type:
+          type: string
+          enum: [text]
+        text:
+          type: string
+        parts:
+          type: array
+          items:
+            $ref: '#/components/schemas/MessagePart'
+
+    MessagePart:
+      oneOf:
+        - $ref: '#/components/schemas/TextMessagePart'
+        - $ref: '#/components/schemas/ReasoningMessagePart'
+        - $ref: '#/components/schemas/WorkStatusMessagePart'
+        - $ref: '#/components/schemas/DecisionMessagePart'
+        - $ref: '#/components/schemas/ResultMessagePart'
+        - $ref: '#/components/schemas/DisclosureMessagePart'
+        - $ref: '#/components/schemas/TechnicalDetailLinkMessagePart'
+      discriminator:
+        propertyName: kind
+        mapping:
+          text: '#/components/schemas/TextMessagePart'
+          reasoning: '#/components/schemas/ReasoningMessagePart'
+          work_status: '#/components/schemas/WorkStatusMessagePart'
+          decision: '#/components/schemas/DecisionMessagePart'
+          result: '#/components/schemas/ResultMessagePart'
+          disclosure: '#/components/schemas/DisclosureMessagePart'
+          technical_detail_link: '#/components/schemas/TechnicalDetailLinkMessagePart'
+
+    TextMessagePart:
+      type: object
+      additionalProperties: false
+      required: [kind, text]
+      properties:
+        kind:
+          type: string
+          const: text
+        text:
+          type: string
+
+    ReasoningMessagePart:
+      type: object
+      additionalProperties: false
+      required: [kind, reasoning]
+      properties:
+        kind:
+          type: string
+          const: reasoning
+        reasoning:
+          type: string
+
+    WorkStatusMessagePart:
+      type: object
+      additionalProperties: false
+      required: [kind, status, title, summary]
+      properties:
+        kind:
+          type: string
+          const: work_status
+        status:
+          type: string
+          enum: [working, interrupted, failed]
+        title:
+          type: string
+        summary:
+          type: string
+        detail_run_id:
+          type: string
+        action:
+          $ref: '#/components/schemas/MessageAction'
+
+    MessageAction:
+      type: object
+      additionalProperties: false
+      required: [kind, run_id, label]
+      properties:
+        kind:
+          type: string
+          enum: [resume_run]
+        run_id:
+          type: string
+        label:
+          type: string
+
+    DecisionMessagePart:
+      type: object
+      additionalProperties: false
+      required: [kind, decision_id, question, options]
+      properties:
+        kind:
+          type: string
+          const: decision
+        decision_id:
+          type: string
+        question:
+          type: string
+        status:
+          type: string
+          enum: [pending, approved, rejected, resolved]
+        selected_option_id:
+          type: string
+        options:
+          type: array
+          items:
+            $ref: '#/components/schemas/DecisionOption'
+
+    DecisionOption:
+      type: object
+      additionalProperties: false
+      required: [id, label]
+      properties:
+        id:
+          type: string
+        label:
+          type: string
+        description:
+          type: string
+
+    DecidePendingActionRequest:
+      type: object
+      additionalProperties: false
+      required: [decision]
+      properties:
+        decision:
+          type: string
+          enum: [accept, decline]
+
+    PendingActionDecision:
+      type: object
+      additionalProperties: false
+      required: [action_id, run_id, status, selected_option_id]
+      properties:
+        action_id:
+          type: string
+        run_id:
+          type: string
+        status:
+          type: string
+          enum: [approved, rejected]
+        selected_option_id:
+          type: string
+          enum: [accept, decline]
+        decided_at:
+          type: string
+          format: date-time
+
+    ResultMessagePart:
+      type: object
+      additionalProperties: false
+      required: [kind, title, changed, verified, risks]
+      properties:
+        kind:
+          type: string
+          const: result
+        title:
+          type: string
+        changed:
+          type: array
+          items:
+            type: string
+        verified:
+          type: array
+          items:
+            type: string
+        risks:
+          type: array
+          items:
+            type: string
+        detail_run_id:
+          type: string
+
+    DisclosureMessagePart:
+      type: object
+      additionalProperties: false
+      required: [kind, items]
+      properties:
+        kind:
+          type: string
+          const: disclosure
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/DisclosureItem'
+
+    DisclosureItem:
+      type: object
+      additionalProperties: false
+      required: [kind, label, tone]
+      properties:
+        kind:
+          type: string
+          enum: [memory, skill]
+        label:
+          type: string
+        detail:
+          type: string
+        tone:
+          type: string
+          enum: [memory, skill, procedure, neutral, warning]
+        skill_id:
+          type: string
+
+    TechnicalDetailLinkMessagePart:
+      type: object
+      additionalProperties: false
+      required: [kind, run_id, label]
+      properties:
+        kind:
+          type: string
+          const: technical_detail_link
+        run_id:
+          type: string
+        detail_run_id:
+          type: string
+        label:
+          type: string
+
+    Message:
+      type: object
+      additionalProperties: false
+      required: [id, thread_id, role, content, created_at]
+      properties:
+        id:
+          type: string
+        thread_id:
+          type: string
+        role:
+          type: string
+          enum: [user, assistant, system, tool]
+        content:
+          $ref: '#/components/schemas/MessageContent'
+        created_at:
+          type: string
+          format: date-time
+        run_id:
+          type: string
+
+    MessageListResponse:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Message'
+
+    CreateMessageRequest:
+      type: object
+      additionalProperties: false
+      required: [content]
+      properties:
+        content:
+          $ref: '#/components/schemas/MessageContent'
+
+    CreateRunRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        skill_id:
+          type: string
+        mode:
+          type: string
+          enum: [direct_response, plan_execute]
+
+    Run:
+      type: object
+      additionalProperties: false
+      required: [id, thread_id, status, mode, created_at]
+      properties:
+        id:
+          type: string
+        thread_id:
+          type: string
+        status:
+          type: string
+          enum: [running, completed, interrupted, failed]
+        mode:
+          type: string
+          enum: [direct, agent, plan_execute]
+        created_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+
+    RunEvent:
+      oneOf:
+        - $ref: '#/components/schemas/ClientRunStartedEvent'
+        - $ref: '#/components/schemas/ClientAssistantDeltaEvent'
+        - $ref: '#/components/schemas/ClientAgentMessageEvent'
+        - $ref: '#/components/schemas/ClientToolCallStartedEvent'
+        - $ref: '#/components/schemas/ClientToolCallProgressEvent'
+        - $ref: '#/components/schemas/ClientToolCallSucceededEvent'
+        - $ref: '#/components/schemas/ClientToolCallFailedEvent'
+        - $ref: '#/components/schemas/ClientToolCallInterruptedEvent'
+        - $ref: '#/components/schemas/ClientRunCompletedEvent'
+        - $ref: '#/components/schemas/ClientRunFailedEvent'
+        - $ref: '#/components/schemas/ClientRunInterruptedEvent'
+        - $ref: '#/components/schemas/ClientRunResumeRequestedEvent'
+        - $ref: '#/components/schemas/ClientElicitationPendingEvent'
+        - $ref: '#/components/schemas/ClientElicitationDecidedEvent'
+        - $ref: '#/components/schemas/ClientDecisionSelectedEvent'
+        - $ref: '#/components/schemas/ClientDecisionBlockedEvent'
+        - $ref: '#/components/schemas/ClientSkillDiscoveredEvent'
+        - $ref: '#/components/schemas/ClientSkillSelectedEvent'
+        - $ref: '#/components/schemas/ClientSkillLoadedEvent'
+        - $ref: '#/components/schemas/ClientSkillFailedEvent'
+        - $ref: '#/components/schemas/ClientSkillLifecycleEvent'
+        - $ref: '#/components/schemas/ClientProcedureActivationEvent'
+        - $ref: '#/components/schemas/ClientMemoryPreparedEvent'
+        - $ref: '#/components/schemas/ClientContextPressureEvent'
+        - $ref: '#/components/schemas/ClientContextCompressedEvent'
+        - $ref: '#/components/schemas/ClientCrystallizationVerdictEvent'
+        - $ref: '#/components/schemas/ClientCrystallizationFailedEvent'
+        - $ref: '#/components/schemas/ClientPlanCreatedEvent'
+        - $ref: '#/components/schemas/ClientPlanUpdatedEvent'
+        - $ref: '#/components/schemas/ClientPlanClearedEvent'
+        - $ref: '#/components/schemas/ClientPlanStepStartedEvent'
+        - $ref: '#/components/schemas/ClientPlanStepCompletedEvent'
+        - $ref: '#/components/schemas/ClientPlanStepFailedEvent'
+        - $ref: '#/components/schemas/ClientSubagentStartedEvent'
+        - $ref: '#/components/schemas/ClientSubagentCompletedEvent'
+        - $ref: '#/components/schemas/ClientSubagentFailedEvent'
+      discriminator:
+        propertyName: type
+        mapping:
+          run.started: '#/components/schemas/ClientRunStartedEvent'
+          assistant.delta: '#/components/schemas/ClientAssistantDeltaEvent'
+          agent.message: '#/components/schemas/ClientAgentMessageEvent'
+          tool.call.started: '#/components/schemas/ClientToolCallStartedEvent'
+          tool.call.progress: '#/components/schemas/ClientToolCallProgressEvent'
+          tool.call.succeeded: '#/components/schemas/ClientToolCallSucceededEvent'
+          tool.call.failed: '#/components/schemas/ClientToolCallFailedEvent'
+          tool.call.interrupted: '#/components/schemas/ClientToolCallInterruptedEvent'
+          run.completed: '#/components/schemas/ClientRunCompletedEvent'
+          run.failed: '#/components/schemas/ClientRunFailedEvent'
+          run.interrupted: '#/components/schemas/ClientRunInterruptedEvent'
+          run.resume_requested: '#/components/schemas/ClientRunResumeRequestedEvent'
+          elicitation.pending: '#/components/schemas/ClientElicitationPendingEvent'
+          elicitation.decided: '#/components/schemas/ClientElicitationDecidedEvent'
+          decision_selected: '#/components/schemas/ClientDecisionSelectedEvent'
+          decision_blocked: '#/components/schemas/ClientDecisionBlockedEvent'
+          skill.discovered: '#/components/schemas/ClientSkillDiscoveredEvent'
+          skill.selected: '#/components/schemas/ClientSkillSelectedEvent'
+          skill.loaded: '#/components/schemas/ClientSkillLoadedEvent'
+          skill.failed: '#/components/schemas/ClientSkillFailedEvent'
+          skill.lifecycle: '#/components/schemas/ClientSkillLifecycleEvent'
+          procedure.activation: '#/components/schemas/ClientProcedureActivationEvent'
+          memory.prepared: '#/components/schemas/ClientMemoryPreparedEvent'
+          context.pressure: '#/components/schemas/ClientContextPressureEvent'
+          context.compressed: '#/components/schemas/ClientContextCompressedEvent'
+          crystallization.verdict: '#/components/schemas/ClientCrystallizationVerdictEvent'
+          crystallization.failed: '#/components/schemas/ClientCrystallizationFailedEvent'
+          plan.created: '#/components/schemas/ClientPlanCreatedEvent'
+          plan.updated: '#/components/schemas/ClientPlanUpdatedEvent'
+          plan.cleared: '#/components/schemas/ClientPlanClearedEvent'
+          step.started: '#/components/schemas/ClientPlanStepStartedEvent'
+          step.completed: '#/components/schemas/ClientPlanStepCompletedEvent'
+          step.failed: '#/components/schemas/ClientPlanStepFailedEvent'
+          subagent.started: '#/components/schemas/ClientSubagentStartedEvent'
+          subagent.completed: '#/components/schemas/ClientSubagentCompletedEvent'
+          subagent.failed: '#/components/schemas/ClientSubagentFailedEvent'
+
+    RunEventBase:
+      type: object
+      additionalProperties: false
+      required: [event_id, run_id, seq, ts, type]
+      properties:
+        event_id:
+          type: string
+        run_id:
+          type: string
+        seq:
+          type: integer
+          format: int64
+        ts:
+          type: string
+          format: date-time
+        type:
+          type: string
+
+    ClientRunStartedEvent:
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: run.started
+            data:
+              $ref: '#/components/schemas/RunStartedData'
+
+    ClientAssistantDeltaEvent:
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: assistant.delta
+            data:
+              $ref: '#/components/schemas/AssistantDeltaData'
+
+    ClientAgentMessageEvent:
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: agent.message
+            data:
+              $ref: '#/components/schemas/AgentMessageData'
+
+    ClientToolCallStartedEvent:
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: tool.call.started
+            data:
+              $ref: '#/components/schemas/ToolCallStartedData'
+
+    ClientToolCallProgressEvent:
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: tool.call.progress
+            data:
+              $ref: '#/components/schemas/ToolCallProgressData'
+
+    ClientToolCallSucceededEvent:
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: tool.call.succeeded
+            data:
+              $ref: '#/components/schemas/ToolCallSucceededData'
+
+    ClientToolCallFailedEvent:
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: tool.call.failed
+            data:
+              $ref: '#/components/schemas/ToolCallFailedData'
+
+    ClientToolCallInterruptedEvent:
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: tool.call.interrupted
+            data:
+              $ref: '#/components/schemas/ToolCallInterruptedData'
+
+    ClientRunCompletedEvent:
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: run.completed
+            data:
+              $ref: '#/components/schemas/RunCompletedData'
+
+    ClientRunFailedEvent:
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: run.failed
+            data:
+              $ref: '#/components/schemas/RunFailedData'
+
+    ClientRunInterruptedEvent:
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: run.interrupted
+            data:
+              $ref: '#/components/schemas/RunInterruptedData'
+
+    ClientRunResumeRequestedEvent:
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: run.resume_requested
+            data:
+              $ref: '#/components/schemas/RunResumeRequestedData'
+
+    ClientElicitationPendingEvent:
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: elicitation.pending
+            data:
+              $ref: '#/components/schemas/ElicitationData'
+
+    ClientElicitationDecidedEvent:
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: elicitation.decided
+            data:
+              $ref: '#/components/schemas/ElicitationData'
+
+    ClientDecisionSelectedEvent:
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: decision_selected
+            data:
+              $ref: '#/components/schemas/DecisionSelectedData'
+
+    ClientDecisionBlockedEvent:
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: decision_blocked
+            data:
+              $ref: '#/components/schemas/DecisionBlockedData'
+
+    ClientSkillDiscoveredEvent:
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: skill.discovered
+            data:
+              $ref: '#/components/schemas/SkillData'
+
+    ClientSkillSelectedEvent:
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: skill.selected
+            data:
+              $ref: '#/components/schemas/SkillData'
+
+    ClientSkillLoadedEvent:
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: skill.loaded
+            data:
+              $ref: '#/components/schemas/SkillData'
+
+    ClientSkillFailedEvent:
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: skill.failed
+            data:
+              $ref: '#/components/schemas/SkillData'
+
+    ClientSkillLifecycleEvent:
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: skill.lifecycle
+            data:
+              $ref: '#/components/schemas/SkillLifecycleData'
+
+    ClientProcedureActivationEvent:
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: procedure.activation
+            data:
+              $ref: '#/components/schemas/ProcedureActivationData'
+
+    ClientMemoryPreparedEvent:
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: memory.prepared
+            data:
+              $ref: '#/components/schemas/MemoryPreparedData'
+
+    ClientContextPressureEvent:
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: context.pressure
+            data:
+              $ref: '#/components/schemas/ContextPressureData'
+
+    ClientContextCompressedEvent:
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: context.compressed
+            data:
+              $ref: '#/components/schemas/ContextCompressedData'
+
+    ClientCrystallizationVerdictEvent:
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: crystallization.verdict
+            data:
+              $ref: '#/components/schemas/CrystallizationVerdictData'
+
+    ClientCrystallizationFailedEvent:
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: crystallization.failed
+            data:
+              $ref: '#/components/schemas/CrystallizationFailedData'
+
+    ClientPlanCreatedEvent:
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: plan.created
+            data:
+              $ref: '#/components/schemas/PlanData'
+
+    ClientPlanUpdatedEvent:
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: plan.updated
+            data:
+              $ref: '#/components/schemas/PlanData'
+
+    ClientPlanClearedEvent:
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: plan.cleared
+            data:
+              $ref: '#/components/schemas/PlanClearedData'
+
+    ClientPlanStepStartedEvent:
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: step.started
+            data:
+              $ref: '#/components/schemas/PlanStepData'
+
+    ClientPlanStepCompletedEvent:
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: step.completed
+            data:
+              $ref: '#/components/schemas/PlanStepData'
+
+    ClientPlanStepFailedEvent:
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: step.failed
+            data:
+              $ref: '#/components/schemas/PlanStepData'
+
+    ClientSubagentStartedEvent:
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: subagent.started
+            data:
+              $ref: '#/components/schemas/SubagentData'
+
+    ClientSubagentCompletedEvent:
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: subagent.completed
+            data:
+              $ref: '#/components/schemas/SubagentData'
+
+    ClientSubagentFailedEvent:
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: subagent.failed
+            data:
+              $ref: '#/components/schemas/SubagentData'
+
+    RunStartedData:
+      type: object
+      additionalProperties: false
+      properties:
+        input:
+          type: string
+
+    AssistantDeltaData:
+      type: object
+      additionalProperties: false
+      required: [assistant_delta]
+      properties:
+        assistant_delta:
+          $ref: '#/components/schemas/StreamAssistantDelta'
+
+    AgentMessageData:
+      type: object
+      additionalProperties: false
+      required: [message]
+      properties:
+        message:
+          $ref: '#/components/schemas/StreamMessage'
+
+    ToolCallStartedData:
+      type: object
+      additionalProperties: false
+      required: [tool_call]
+      properties:
+        tool_call:
+          $ref: '#/components/schemas/StreamToolCall'
+
+    ToolCallSucceededData:
+      $ref: '#/components/schemas/ToolCallStartedData'
+
+    ToolCallProgressData:
+      type: object
+      additionalProperties: false
+      required: [tool_call]
+      properties:
+        tool_call:
+          $ref: '#/components/schemas/StreamToolCallProgress'
+
+    ToolCallFailedData:
+      $ref: '#/components/schemas/ToolCallStartedData'
+
+    ToolCallInterruptedData:
+      $ref: '#/components/schemas/ToolCallStartedData'
+
+    RunCompletedData:
+      type: object
+      additionalProperties: false
+      properties:
+        message:
+          $ref: '#/components/schemas/StreamMessage'
+
+    RunFailedData:
+      type: object
+      additionalProperties: false
+      properties:
+        error:
+          type: string
+
+    RunInterruptedData:
+      type: object
+      additionalProperties: false
+      properties:
+        interrupt:
+          $ref: '#/components/schemas/StreamInterrupt'
+
+    RunResumeRequestedData:
+      type: object
+      additionalProperties: false
+      properties:
+        targets:
+          type: object
+          additionalProperties: true
+
+    ElicitationData:
+      type: object
+      additionalProperties: false
+      required: [action_id]
+      properties:
+        action_id:
+          type: string
+        message:
+          type: string
+        requested_schema:
+          description: MCP elicitation requested schema
+
+    DecisionSelectedData:
+      type: object
+      additionalProperties: false
+      properties:
+        action:
+          type: string
+        intent:
+          type: string
+        selected_skill_id:
+          type: string
+        decision_reason:
+          type: string
+        decision_profile_hash:
+          type: string
+        explicit_skill_id:
+          type: string
+
+    DecisionBlockedData:
+      $ref: '#/components/schemas/DecisionSelectedData'
+
+    SkillData:
+      type: object
+      additionalProperties: false
+      properties:
+        skill:
+          $ref: '#/components/schemas/StreamSkill'
+
+    StreamSkillLifecycle:
+      type: object
+      additionalProperties: false
+      required: [skill_id, action]
+      properties:
+        skill_id:
+          type: string
+        action:
+          type: string
+        status:
+          type: string
+        verdict:
+          type: string
+        reason:
+          type: string
+        evidence_refs:
+          type: array
+          items:
+            type: string
+        assessment_id:
+          type: string
+        changes_required:
+          type: array
+          items:
+            type: string
+        applied:
+          type: boolean
+        assessment:
+          type: object
+          additionalProperties: true
+
+    SkillLifecycleData:
+      type: object
+      additionalProperties: false
+      required: [skill_lifecycle]
+      properties:
+        skill_lifecycle:
+          $ref: '#/components/schemas/StreamSkillLifecycle'
+
+    ProcedureActivationData:
+      type: object
+      additionalProperties: false
+      required: [procedure_activation]
+      properties:
+        procedure_activation:
+          $ref: '#/components/schemas/StreamProcedureActivation'
+
+    MemoryPreparedData:
+      type: object
+      additionalProperties: false
+      required: [memory_prepared]
+      properties:
+        memory_prepared:
+          $ref: '#/components/schemas/StreamMemoryPrepared'
+
+    ContextPressureData:
+      type: object
+      additionalProperties: false
+      required: [context_pressure]
+      properties:
+        context_pressure:
+          $ref: '#/components/schemas/StreamContextPressure'
+
+    ContextCompressedData:
+      type: object
+      additionalProperties: false
+      required: [context_compressed]
+      properties:
+        context_compressed:
+          $ref: '#/components/schemas/StreamContextCompressed'
+
+    CrystallizationVerdictData:
+      type: object
+      additionalProperties: false
+      required: [run_id, verdict]
+      properties:
+        run_id:
+          type: string
+        verdict:
+          type: string
+          enum: [crystallized, insufficient_value, too_similar]
+        skill_id:
+          type: string
+        reason:
+          type: string
+        similar_to:
+          type: string
+
+    CrystallizationFailedData:
+      type: object
+      additionalProperties: false
+      required: [run_id, error]
+      properties:
+        run_id:
+          type: string
+        error:
+          type: string
+
+    PlanData:
+      type: object
+      additionalProperties: false
+      properties:
+        plan:
+          $ref: '#/components/schemas/PlanDTO'
+
+    PlanClearedData:
+      type: object
+      additionalProperties: false
+      properties:
+        plan_id:
+          type: string
+
+    PlanStepData:
+      type: object
+      additionalProperties: false
+      properties:
+        plan_id:
+          type: string
+        session_id:
+          type: string
+        plan:
+          $ref: '#/components/schemas/PlanDTO'
+        step:
+          $ref: '#/components/schemas/PlanStepDTO'
+        updated_at:
+          type: string
+          format: date-time
+        error:
+          type: string
+
+    SubagentData:
+      type: object
+      additionalProperties: false
+      properties:
+        sub_run_id:
+          type: string
+        parent_id:
+          type: string
+        session_id:
+          type: string
+        depth:
+          type: integer
+        task:
+          type: string
+        child_run_mode:
+          type: string
+          enum: [fork]
+        workspace_mode:
+          type: string
+          enum: [shared, worktree]
+        worktree_path:
+          type: string
+        context_messages:
+          type: integer
+        summary:
+          type: string
+        final_status:
+          type: string
+        acceptance_status:
+          type: string
+        acceptance_reasons:
+          type: array
+          items:
+            type: string
+        evidence_refs:
+          type: array
+          items:
+            type: string
+        orchestration_mode:
+          type: string
+        parent_step_id:
+          type: string
+        error:
+          type: string
+
+    UnsupportedRunEvent:
+      type: object
+      additionalProperties: false
+      required: [event_id, run_id, seq, ts, type, reason]
+      properties:
+        event_id:
+          type: string
+        run_id:
+          type: string
+        seq:
+          type: integer
+          format: int64
+        ts:
+          type: string
+          format: date-time
+        type:
+          type: string
+        raw:
+          type: object
+          additionalProperties: true
+        reason:
+          type: string
+
+    RunDetailRaw:
+      type: object
+      additionalProperties: false
+      required: [unsupported_events]
+      properties:
+        unsupported_events:
+          type: array
+          items:
+            $ref: '#/components/schemas/UnsupportedRunEvent'
+
+    RunDetail:
+      type: object
+      additionalProperties: false
+      required: [run, thread, events, workbench, trace]
+      properties:
+        run:
+          $ref: '#/components/schemas/Run'
+        thread:
+          $ref: '#/components/schemas/Thread'
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/RunEvent'
+        workbench:
+          oneOf:
+            - $ref: '#/components/schemas/RuntimeWorkbench'
+            - type: 'null'
+        trace:
+          oneOf:
+            - $ref: '#/components/schemas/TraceSummary'
+            - type: 'null'
+        raw:
+          $ref: '#/components/schemas/RunDetailRaw'
+
+    TraceSummary:
+      type: object
+      additionalProperties: false
+      required: [item_count]
+      properties:
+        item_count:
+          type: integer
+        last_kind:
+          type: string
+        assistant_message_count:
+          type: integer
+        assistant_delta_count:
+          type: integer
+        assistant_delta_message_count:
+          type: integer
+        assistant_delta_char_count:
+          type: integer
+        tool_call_count:
+          type: integer
+        decision_event_count:
+          type: integer
+        skill_event_count:
+          type: integer
+        plan_event_count:
+          type: integer
+        warning_summary:
+          $ref: '#/components/schemas/TraceWarningSummary'
+        decision_selected:
+          type: boolean
+        decision_blocked:
+          type: boolean
+        skill_selected:
+          type: boolean
+        interrupted:
+          type: boolean
+        failed:
+          type: boolean
+        completed:
+          type: boolean
+
+    TraceWarningSummary:
+      type: object
+      additionalProperties: false
+      properties:
+        file_collision_count:
+          type: integer
+        directory_overlap_count:
+          type: integer
+        unknown_scope_count:
+          type: integer
+
+    InterruptRunResponse:
+      type: object
+      additionalProperties: false
+      required: [run_id, status]
+      properties:
+        run_id:
+          type: string
+        status:
+          type: string
+          enum: [interrupt_requested]
+
+    StreamMessage:
+      type: object
+      additionalProperties: true
+      properties:
+        role:
+          type: string
+        content:
+          type: string
+        reasoning:
+          type: string
+        tool_calls:
+          type: array
+          items:
+            $ref: '#/components/schemas/StreamPlannedToolCall'
+        warning_facts:
+          type: array
+          items:
+            $ref: '#/components/schemas/StreamWarningFact'
+        tool_call_id:
+          type: string
+        tool_name:
+          type: string
+        meta:
+          type: object
+          additionalProperties: true
+
+    StreamAssistantDelta:
+      type: object
+      additionalProperties: false
+      required: [sequence]
+      properties:
+        role:
+          type: string
+        delta:
+          type: string
+        reasoning:
+          type: string
+          description: Model thinking/reasoning content for reasoning-capable models
+        sequence:
+          type: integer
+        message_id:
+          type: string
+        is_final:
+          type: boolean
+        tool_calls:
+          type: array
+          items:
+            $ref: '#/components/schemas/StreamPlannedToolCall'
+        meta:
+          type: object
+          additionalProperties: true
+
+    StreamPlannedToolCall:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        arguments_json:
+          type: string
+
+    StreamWarningScope:
+      type: object
+      additionalProperties: false
+      properties:
+        kind:
+          type: string
+          enum: [exact_file, directory, broad_workspace, unknown]
+        path:
+          type: string
+        reason:
+          type: string
+
+    StreamWarningFact:
+      type: object
+      additionalProperties: false
+      properties:
+        kind:
+          type: string
+          enum: [file_collision, directory_overlap, unknown_scope]
+        actor_ids:
+          type: array
+          items:
+            type: string
+        tool_names:
+          type: array
+          items:
+            type: string
+        paths:
+          type: array
+          items:
+            type: string
+        reason:
+          type: string
+
+    StreamToolCall:
+      type: object
+      additionalProperties: false
+      properties:
+        provider:
+          type: string
+        name:
+          type: string
+        call_id:
+          type: string
+        arguments_json:
+          type: string
+        action_id:
+          type: string
+        action_kind:
+          type: string
+        interrupt_id:
+          type: string
+        mode:
+          type: string
+          enum: [inline, deferred]
+        decision:
+          type: string
+          enum: [approved, rejected]
+        decided_at:
+          type: string
+          format: date-time
+        output:
+          type: string
+        error:
+          type: string
+        reason:
+          type: string
+        rule:
+          type: string
+        duration_ms:
+          type: integer
+        interrupt_contexts:
+          type: integer
+
+    StreamToolCallProgress:
+      type: object
+      additionalProperties: false
+      properties:
+        provider:
+          type: string
+        name:
+          type: string
+        call_id:
+          type: string
+        arguments_json:
+          type: string
+        delta:
+          type: string
+        sequence:
+          type: integer
+
+    StreamInterruptContext:
+      type: object
+      additionalProperties: true
+      properties:
+        id:
+          type: string
+        address:
+          type: string
+        info:
+          type: object
+          additionalProperties: true
+        is_root_cause:
+          type: boolean
+
+    StreamInterrupt:
+      type: object
+      additionalProperties: false
+      properties:
+        context_count:
+          type: integer
+        contexts:
+          type: array
+          items:
+            $ref: '#/components/schemas/StreamInterruptContext'
+
+    StreamContextCompressed:
+      type: object
+      additionalProperties: false
+      properties:
+        boundary_id:
+          type: string
+        first_index:
+          type: integer
+        last_index:
+          type: integer
+        tokens_before:
+          type: integer
+        tokens_after:
+          type: integer
+        summary_snippet:
+          type: string
+
+    StreamContextPressure:
+      type: object
+      additionalProperties: false
+      properties:
+        state:
+          type: string
+          enum: [ok, warning, auto_compact, blocking]
+        estimated_input_tokens:
+          type: integer
+        effective_window_tokens:
+          type: integer
+        warning_threshold_tokens:
+          type: integer
+        auto_compact_threshold_tokens:
+          type: integer
+        blocking_threshold_tokens:
+          type: integer
+        percent_used:
+          type: integer
+
+    StreamSkillCandidate:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        score:
+          type: integer
+        matched_terms:
+          type: array
+          items:
+            type: string
+        filtered_reason:
+          type: string
+        requirements:
+          $ref: '#/components/schemas/SkillRequirements'
+        summary:
+          type: string
+        origin:
+          type: string
+          enum: [human, distilled]
+        task_pattern:
+          type: string
+
+    StreamSkill:
+      type: object
+      additionalProperties: false
+      properties:
+        selected_id:
+          type: string
+        name:
+          type: string
+        source:
+          type: string
+        origin:
+          type: string
+          enum: [human, distilled]
+        task_pattern:
+          type: string
+        path:
+          type: string
+        candidates:
+          type: array
+          items:
+            $ref: '#/components/schemas/StreamSkillCandidate'
+        no_selection_reason:
+          type: string
+        summary:
+          type: string
+        instruction:
+          type: string
+        scripts:
+          type: array
+          items:
+            type: string
+        requirements:
+          $ref: '#/components/schemas/SkillRequirements'
+        score:
+          type: integer
+        matched_terms:
+          type: array
+          items:
+            type: string
+        run_status:
+          type: string
+          enum: [running, succeeded, interrupted, failed]
+        promoted_from:
+          type: string
+        failure_reason:
+          type: string
+
+    StreamMemoryPreparedNudge:
+      type: object
+      additionalProperties: false
+      properties:
+        ref:
+          type: string
+        kind:
+          type: string
+        title:
+          type: string
+        status:
+          type: string
+        reason:
+          type: string
+
+    StreamMemoryPreparedEntry:
+      type: object
+      additionalProperties: false
+      properties:
+        ref:
+          type: string
+        kind:
+          type: string
+        title:
+          type: string
+
+    StreamProcedureActivation:
+      type: object
+      additionalProperties: false
+      properties:
+        run_id:
+          type: string
+        session_id:
+          type: string
+        procedure_ref:
+          type: string
+        title:
+          type: string
+        kind:
+          type: string
+        phase:
+          type: string
+          enum: [matched, selected, injected, used, rejected]
+        reason:
+          type: string
+        score:
+          type: number
+        status:
+          type: string
+        origin:
+          type: string
+        source_refs:
+          type: array
+          items:
+            type: string
+        evidence_refs:
+          type: array
+          items:
+            type: string
+
+    StreamMemoryPrepared:
+      type: object
+      additionalProperties: false
+      properties:
+        query:
+          type: string
+        workspace_scope:
+          type: string
+        nudge_count:
+          type: integer
+        entry_count:
+          type: integer
+        nudges:
+          type: array
+          items:
+            $ref: '#/components/schemas/StreamMemoryPreparedNudge'
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/StreamMemoryPreparedEntry'
+
+    # --- Stream payload schemas ---
+
+    ValidationError:
+      type: object
+      additionalProperties: false
+      required: [field, message]
+      properties:
+        field:
+          type: string
+        message:
+          type: string
+
+    ProviderDegradedEntry:
+      type: object
+      additionalProperties: false
+      required: [name, transport]
+      properties:
+        name:
+          type: string
+        transport:
+          type: string
+        error:
+          type: string
+
+    PlanStepDTO:
+      type: object
+      additionalProperties: false
+      required: [id, action, status]
+      properties:
+        id:
+          type: string
+        action:
+          type: string
+        status:
+          type: string
+          enum: [pending, in_progress, completed, failed, skipped]
+        depends_on:
+          type: array
+          items:
+            type: string
+        repo_targets:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlanRepoTargetDTO'
+        verification_intent:
+          type: array
+          items:
+            $ref: '#/components/schemas/VerificationIntentDTO'
+        risk:
+          type: string
+          enum: [read, write, execute, delegate]
+        tool_hints:
+          type: array
+          items:
+            type: string
+        evidence:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlanEvidenceDTO'
+
+    PlanRepoTargetDTO:
+      type: object
+      additionalProperties: false
+      required: [path, reason, confidence]
+      properties:
+        path:
+          type: string
+        symbol:
+          type: string
+        start_line:
+          type: integer
+        end_line:
+          type: integer
+        reason:
+          type: string
+        confidence:
+          type: string
+          enum: [high, medium, low]
+
+    VerificationIntentDTO:
+      type: object
+      additionalProperties: false
+      required: [kind, reason]
+      properties:
+        kind:
+          type: string
+          enum: [test, build, lint, diff, read, manual, subagent]
+        command:
+          type: array
+          items:
+            type: string
+        paths:
+          type: array
+          items:
+            type: string
+        reason:
+          type: string
+
+    PlanEvidenceDTO:
+      type: object
+      additionalProperties: false
+      required: [id, step_id, kind, status, summary, source_run_id, recorded_at]
+      properties:
+        id:
+          type: string
+        step_id:
+          type: string
+        kind:
+          type: string
+        status:
+          type: string
+          enum: [recorded, passed, failed, confirmed]
+        summary:
+          type: string
+        tool_name:
+          type: string
+        command:
+          type: array
+          items:
+            type: string
+        paths:
+          type: array
+          items:
+            type: string
+        diff_ref:
+          type: string
+        child_run_id:
+          type: string
+        error:
+          type: string
+        source_run_id:
+          type: string
+        recorded_at:
+          type: string
+          format: date-time
+
+    PlanDTO:
+      type: object
+      additionalProperties: false
+      required: [plan_id, session_id, run_id, steps, created_at, updated_at]
+      properties:
+        plan_id:
+          type: string
+        session_id:
+          type: string
+        run_id:
+          type: string
+        steps:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlanStepDTO'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    RunResult:
+      type: object
+      additionalProperties: false
+      required: [run_id, status]
+      properties:
+        run_id:
+          type: string
+        status:
+          type: string
+          enum: [running, succeeded, interrupted, failed]
+        output:
+          type: string
+        error:
+          type: string
+        interrupted:
+          type: object
+          additionalProperties: true
+        trace_summary:
+          $ref: '#/components/schemas/TraceSummary'
