@@ -267,12 +267,19 @@ class AcornController extends ChangeNotifier {
         'Connect to an Acorn server first.',
       );
     }
+    var sawTerminalEvent = false;
     await for (final event in stream.followRunEvents(run.id)) {
       _applyRunEvent(event);
       notifyListeners();
       if (isTerminalRunEvent(event)) {
+        sawTerminalEvent = true;
         break;
       }
+    }
+    if (!sawTerminalEvent) {
+      throw const RunEventStreamException(
+        'Run event stream closed before a terminal run event.',
+      );
     }
   }
 
@@ -392,7 +399,10 @@ class AcornController extends ChangeNotifier {
     final response = await api.listMessages(thread.id);
     final persisted = chatItemsFromMessages(response.items);
     if (persisted.isNotEmpty) {
-      chatItems = persisted;
+      chatItems = mergePersistedChatItemsWithLiveRunFeedback(
+        persisted: persisted,
+        live: chatItems,
+      );
     }
   }
 

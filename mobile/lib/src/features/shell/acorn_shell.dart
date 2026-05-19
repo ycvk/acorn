@@ -24,6 +24,7 @@ class AcornShell extends ConsumerWidget {
     final pendingCount = controller.inbox?.pendingActions.length ?? 0;
 
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       body: IndexedStack(index: controller.selectedTab, children: _screens),
       bottomNavigationBar: DecoratedBox(
         decoration: BoxDecoration(

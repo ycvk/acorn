@@ -91,6 +91,35 @@ List<ChatItem> chatItemsFromMessages(List<Message> messages) {
       .toList(growable: false);
 }
 
+List<ChatItem> mergePersistedChatItemsWithLiveRunFeedback({
+  required List<ChatItem> persisted,
+  required List<ChatItem> live,
+}) {
+  final persistedAssistantRunIDs = persisted
+      .where((item) => item.isAssistant && item.runId != null)
+      .map((item) => item.runId!)
+      .toSet();
+  final preservedLiveItems = live.where((item) {
+    if (item.kind == ChatItemKind.activity) {
+      return true;
+    }
+    if (!item.isAssistant) {
+      return false;
+    }
+    final runID = item.runId;
+    if (runID == null || runID.isEmpty) {
+      return false;
+    }
+    if (persistedAssistantRunIDs.contains(runID)) {
+      return false;
+    }
+    return item.status != ChatRunStatus.streaming ||
+        item.text.trim().isNotEmpty ||
+        item.reasoning.trim().isNotEmpty;
+  });
+  return [...persisted, ...preservedLiveItems];
+}
+
 ChatRole _roleFromMessage(String role) {
   return switch (role) {
     'user' => ChatRole.user,
@@ -194,7 +223,11 @@ ChatItem? activityFromEvent(RunEvent event) {
   if (event.type == 'assistant.delta') {
     return null;
   }
-  if (event.type == 'context.pressure' && !_shouldShowContextPressure(event)) {
+  if (event.type == 'context.pressure') {
+    if (!_shouldShowContextPressure(event)) {
+      return null;
+    }
+  } else if (!_shouldShowActivityInChat(event.type)) {
     return null;
   }
   final label = _activityLabel(event);
@@ -207,6 +240,21 @@ ChatItem? activityFromEvent(RunEvent event) {
     detail: detail,
     createdAt: event.ts,
   );
+}
+
+bool _shouldShowActivityInChat(String eventType) {
+  return switch (eventType) {
+    'run.failed' ||
+    'run.interrupted' ||
+    'run.resume_requested' ||
+    'elicitation.pending' ||
+    'decision_blocked' ||
+    'skill.failed' ||
+    'crystallization.failed' ||
+    'step.failed' ||
+    'subagent.failed' => true,
+    _ => false,
+  };
 }
 
 bool _shouldShowContextPressure(RunEvent event) {

@@ -292,6 +292,44 @@ write_env_template() {
 	fi
 }
 
+run_service_user_semantic_rebuild() {
+	rebuild_command='set -eu
+env_path=$1
+bin_path=$2
+config_path=$3
+set -a
+[ -f "$env_path" ] && . "$env_path"
+set +a
+exec "$bin_path" memory semantic rebuild -c "$config_path" --json'
+
+	if [ "$(id -un)" = "$service_user" ]; then
+		env HOME="$service_home" sh -c "$rebuild_command" sh "$env_path" "$bin_path" "$config_path"
+		return
+	fi
+
+	if [ "$(id -u)" -eq 0 ]; then
+		if [ "$service_user" = "root" ]; then
+			env HOME="$service_home" sh -c "$rebuild_command" sh "$env_path" "$bin_path" "$config_path"
+			return
+		fi
+		if command -v runuser >/dev/null 2>&1; then
+			runuser -u "$service_user" -- env HOME="$service_home" sh -c "$rebuild_command" sh "$env_path" "$bin_path" "$config_path"
+			return
+		fi
+		if command -v sudo >/dev/null 2>&1; then
+			sudo -u "$service_user" env HOME="$service_home" sh -c "$rebuild_command" sh "$env_path" "$bin_path" "$config_path"
+			return
+		fi
+		die "runuser or sudo is required to rebuild the semantic index as $service_user"
+	fi
+
+	if command -v sudo >/dev/null 2>&1; then
+		sudo -u "$service_user" env HOME="$service_home" sh -c "$rebuild_command" sh "$env_path" "$bin_path" "$config_path"
+		return
+	fi
+	die "sudo is required to rebuild the semantic index as $service_user"
+}
+
 case "$repo" in
 	*/*) ;;
 	*) die "ACORN_REPO must be owner/name, got: $repo" ;;
@@ -354,6 +392,18 @@ set -eu
 bin='$bin_path'
 service_user='$service_user'
 service_home='$service_home'
+env_path='$env_path'
+
+run_with_service_env() {
+	exec env HOME="\$service_home" sh -c 'set -eu
+env_path=$1
+bin=$2
+shift 2
+set -a
+[ -f "$env_path" ] && . "$env_path"
+set +a
+exec "$bin" "$@"' sh "\$env_path" "\$bin" "\$@"
+}
 
 has_config_flag() {
 	for arg in "\$@"; do
@@ -368,15 +418,22 @@ has_config_flag() {
 
 run_service_command() {
 	if [ "\$(id -un)" = "\$service_user" ]; then
-		exec env HOME="\$service_home" "\$bin" "\$@"
+		run_with_service_env "\$@"
 	fi
 
 	if [ "\$(id -u)" -eq 0 ]; then
-		exec env HOME="\$service_home" "\$bin" "\$@"
+		run_with_service_env "\$@"
 	fi
 
 	if command -v sudo >/dev/null 2>&1; then
-		exec sudo -u "\$service_user" env HOME="\$service_home" "\$bin" "\$@"
+		exec sudo -u "\$service_user" env HOME="\$service_home" sh -c 'set -eu
+env_path=$1
+bin=$2
+shift 2
+set -a
+[ -f "$env_path" ] && . "$env_path"
+set +a
+exec "$bin" "$@"' sh "\$env_path" "\$bin" "\$@"
 	fi
 
 	printf 'error: %s uses installer-owned state; run with sudo or as user %s\n' "\$1" "\$service_user" >&2
@@ -428,16 +485,22 @@ if [ "$start_service" != "1" ]; then
 	log "Installed Acorn without starting service because ACORN_START_SERVICE=$start_service"
 	log "Config: $config_path"
 	log "Env:    $env_path"
+	log "Before starting the service, rebuild the initial semantic index:"
+	log "  acorn memory semantic rebuild --json"
 	exit 0
 fi
 
 if [ -z "${OPENAI_API_KEY:-}" ]; then
 	log "Installed Acorn but did not start the service because OPENAI_API_KEY was not provided."
-	log "Edit the env file, then start the service:"
+	log "Edit the env file, rebuild the initial semantic index, then start the service:"
 	log "  sudoedit $env_path"
+	log "  acorn memory semantic rebuild --json"
 	log "  sudo systemctl enable --now acorn"
 	exit 0
 fi
+
+log "Rebuilding initial semantic index"
+run_service_user_semantic_rebuild
 
 run_root systemctl enable --now acorn
 sleep 2

@@ -48,10 +48,13 @@ If you pass the provider key at install time, the script starts the service imme
 curl -fsSL https://github.com/ycvk/acorn/releases/latest/download/install-release.sh | OPENAI_API_KEY=your-provider-key sh
 ```
 
+In this mode, the installer also rebuilds the initial empty semantic index before starting `systemd`. This makes first-run memory preparation work even before any memory records exist.
+
 Without `OPENAI_API_KEY`, the script installs files only. Edit the env file and start the service yourself:
 
 ```bash
 sudoedit ~/.acorn/acorn.env
+acorn memory semantic rebuild --json
 sudo systemctl enable --now acorn
 ```
 
@@ -131,7 +134,7 @@ Check runtime readiness:
 acorn doctor
 ```
 
-If you modify memory records directly, explicitly rebuild the semantic index:
+The semantic index must exist before the first backend run. The installer creates it automatically when `OPENAI_API_KEY` is supplied at install time. If you installed without starting the service, or if you later modify memory records directly, explicitly rebuild the semantic index:
 
 ```bash
 acorn memory semantic rebuild --json

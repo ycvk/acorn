@@ -72,18 +72,122 @@ void main() {
     expect(items.single.hasReasoning, isTrue);
   });
 
-  test('builds compact activity rows for tool progress', () {
-    final event = _event('tool.call.progress', {
-      'tool_call': {'call_id': 'call_1', 'name': 'run_command', 'delta': 'ok'},
+  test('preserves live run failure feedback after message reload', () {
+    final persisted = chatItemsFromMessages([
+      const Message(
+        id: 'msg_user',
+        threadId: 'thread_1',
+        role: 'user',
+        contentText: 'hello',
+        contentParts: [MessagePart(kind: 'text', text: 'hello')],
+        createdAt: '2026-05-16T00:00:00Z',
+      ),
+    ]);
+    const failedAssistant = ChatItem.message(
+      id: 'assistant:run_1',
+      role: ChatRole.assistant,
+      text: '',
+      createdAt: '2026-05-16T00:00:01Z',
+      runId: 'run_1',
+      status: ChatRunStatus.failed,
+    );
+    const failedActivity = ChatItem.activity(
+      id: 'activity:event_1',
+      runId: 'run_1',
+      eventType: 'run.failed',
+      text: 'Run failed',
+      detail: 'provider api key is missing',
+      createdAt: '2026-05-16T00:00:02Z',
+    );
+
+    final merged = mergePersistedChatItemsWithLiveRunFeedback(
+      persisted: persisted,
+      live: const [failedAssistant, failedActivity],
+    );
+
+    expect(merged.map((item) => item.id), [
+      'msg_user',
+      'assistant:run_1',
+      'activity:event_1',
+    ]);
+    expect(merged[1].status, ChatRunStatus.failed);
+    expect(merged[2].detail, 'provider api key is missing');
+  });
+
+  test('does not duplicate live assistant when persisted assistant exists', () {
+    final persisted = chatItemsFromMessages([
+      const Message(
+        id: 'msg_assistant',
+        threadId: 'thread_1',
+        role: 'assistant',
+        contentText: 'done',
+        contentParts: [MessagePart(kind: 'text', text: 'done')],
+        createdAt: '2026-05-16T00:00:02Z',
+        runId: 'run_1',
+      ),
+    ]);
+    const liveAssistant = ChatItem.message(
+      id: 'assistant:run_1',
+      role: ChatRole.assistant,
+      text: 'done',
+      createdAt: '2026-05-16T00:00:01Z',
+      runId: 'run_1',
+      status: ChatRunStatus.completed,
+    );
+
+    final merged = mergePersistedChatItemsWithLiveRunFeedback(
+      persisted: persisted,
+      live: const [liveAssistant],
+    );
+
+    expect(merged, hasLength(1));
+    expect(merged.single.id, 'msg_assistant');
+  });
+
+  test('suppresses routine run trace events from chat activity', () {
+    for (final type in const [
+      'memory.prepared',
+      'tool.call.started',
+      'tool.call.progress',
+      'tool.call.succeeded',
+      'tool.call.failed',
+      'skill.selected',
+      'skill.loaded',
+      'procedure.activation',
+      'plan.created',
+      'step.started',
+      'step.completed',
+      'subagent.started',
+      'subagent.completed',
+    ]) {
+      expect(
+        activityFromEvent(
+          _event(type, {
+            'tool_call': {
+              'call_id': 'call_1',
+              'name': 'run_command',
+              'delta': 'ok',
+              'error': 'failed',
+            },
+          }),
+        ),
+        isNull,
+        reason: type,
+      );
+    }
+  });
+
+  test('shows terminal run failure in chat activity', () {
+    final event = _event('run.failed', {
+      'error': 'provider api key is missing',
     });
 
     final item = activityFromEvent(event);
 
     expect(item, isNotNull);
     expect(item!.kind, ChatItemKind.activity);
-    expect(item.text, 'Tool output');
-    expect(item.detail, contains('run_command'));
-    expect(item.detail, contains('ok'));
+    expect(item.text, 'Run failed');
+    expect(item.detail, 'provider api key is missing');
   });
 
   test('suppresses normal context pressure in chat activity', () {
