@@ -144,7 +144,7 @@ jobs:
           test -f "$package_dir/lib/${RELEASE_GOOS}_${RELEASE_GOARCH}/libfaiss_c.so"
           test -f "$package_dir/lib/${RELEASE_GOOS}_${RELEASE_GOARCH}/libfaiss.so"
           test -x "$package_dir/install-release.sh"
-          grep -qx "ExecStart=/opt/acorn/acorn serve -c /var/lib/acorn/.acorn/acorn.yaml" "$package_dir/acorn.service"
+          grep -qx "ExecStart=/opt/acorn/acorn serve" "$package_dir/acorn.service"
           (cd "$package_dir" && sha256sum -c CHECKSUMS)
 
           verify_runtime_links() {

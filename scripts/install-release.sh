@@ -257,7 +257,7 @@ Group=acorn
 Environment=HOME=/var/lib/acorn
 EnvironmentFile=-/var/lib/acorn/.acorn/acorn.env
 WorkingDirectory=/srv/acorn/workspace
-ExecStart=/opt/acorn/acorn serve -c /var/lib/acorn/.acorn/acorn.yaml
+ExecStart=/opt/acorn/acorn serve
 Restart=on-failure
 RestartSec=5s
 TimeoutStopSec=30s
@@ -337,7 +337,61 @@ write_env_template "$env_template"
 write_service_template "$service_template"
 cat > "$wrapper_template" <<'EOF'
 #!/bin/sh
-exec /opt/acorn/acorn "$@"
+set -eu
+
+bin=/opt/acorn/acorn
+service_user=acorn
+service_home=/var/lib/acorn
+
+has_config_flag() {
+	for arg in "$@"; do
+		case "$arg" in
+			-c|-c=*)
+				return 0
+				;;
+		esac
+	done
+	return 1
+}
+
+run_service_command() {
+	if [ "$(id -u)" -eq 0 ]; then
+		if command -v runuser >/dev/null 2>&1; then
+			exec runuser -u "$service_user" -- env HOME="$service_home" "$bin" "$@"
+		fi
+		if command -v sudo >/dev/null 2>&1; then
+			exec sudo -u "$service_user" env HOME="$service_home" "$bin" "$@"
+		fi
+		printf 'error: runuser or sudo is required to run Acorn as %s\n' "$service_user" >&2
+		exit 1
+	fi
+
+	if [ "$(id -un)" = "$service_user" ]; then
+		exec env HOME="$service_home" "$bin" "$@"
+	fi
+
+	if command -v sudo >/dev/null 2>&1; then
+		exec sudo -u "$service_user" env HOME="$service_home" "$bin" "$@"
+	fi
+
+	printf 'error: %s uses service-owned state; run with sudo or as user %s\n' "$1" "$service_user" >&2
+	exit 1
+}
+
+if [ "$#" -gt 0 ]; then
+	case "$1" in
+		decision|doctor|memory|pair|skills)
+			command_name=$1
+			shift
+			if ! has_config_flag "$@"; then
+				run_service_command "$command_name" "$@"
+			fi
+			set -- "$command_name" "$@"
+			;;
+	esac
+fi
+
+exec "$bin" "$@"
 EOF
 
 if ! id -u "$service_user" >/dev/null 2>&1; then
@@ -355,13 +409,13 @@ run_root install -m 0755 "$wrapper_template" "$wrapper_path"
 if [ ! -e "$config_path" ]; then
 	run_root install -m 0644 -o "$service_user" -g "$service_user" "$config_template" "$config_path"
 else
-	log "Keeping existing config: $config_path"
+	log "Keeping existing config: ~acorn/.acorn/acorn.yaml"
 fi
 
 if [ ! -e "$env_path" ] || [ -n "${OPENAI_API_KEY:-}" ]; then
 	run_root install -m 0600 -o "$service_user" -g "$service_user" "$env_template" "$env_path"
 else
-	log "Keeping existing environment file: $env_path"
+	log "Keeping existing environment file: ~acorn/.acorn/acorn.env"
 fi
 
 run_root install -m 0644 "$service_template" "$unit_path"
@@ -369,14 +423,15 @@ run_root systemctl daemon-reload
 
 if [ "$start_service" != "1" ]; then
 	log "Installed Acorn without starting service because ACORN_START_SERVICE=$start_service"
-	log "Config: $config_path"
-	log "Env:    $env_path"
+	log "Config: ~acorn/.acorn/acorn.yaml"
+	log "Env:    ~acorn/.acorn/acorn.env"
 	exit 0
 fi
 
 if [ -z "${OPENAI_API_KEY:-}" ]; then
 	log "Installed Acorn but did not start the service because OPENAI_API_KEY was not provided."
-	log "Edit $env_path, then run:"
+	log "Edit the env file, then start the service:"
+	log "  sudoedit ~acorn/.acorn/acorn.env"
 	log "  sudo systemctl enable --now acorn"
 	exit 0
 fi
@@ -392,7 +447,7 @@ curl -fsS http://127.0.0.1:8080/healthz >/dev/null
 log "Acorn is installed and running."
 log "Binary: $bin_path"
 log "Command: $wrapper_path"
-log "Config: $config_path"
-log "Env:    $env_path"
+log "Config: ~acorn/.acorn/acorn.yaml"
+log "Env:    ~acorn/.acorn/acorn.env"
 log "Pair mobile with:"
-log "  sudo -u acorn HOME=/var/lib/acorn acorn pair -c /var/lib/acorn/.acorn/acorn.yaml --server-url https://your-acorn.example.com --qr"
+log "  acorn pair --server-url https://your-acorn.example.com --qr"

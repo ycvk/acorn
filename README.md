@@ -45,16 +45,18 @@ The installer creates:
 | Path | Purpose |
 | --- | --- |
 | `/opt/acorn/acorn` | Release binary |
-| `/usr/local/bin/acorn` | Command wrapper |
-| `/var/lib/acorn/.acorn/acorn.yaml` | Backend configuration |
-| `/var/lib/acorn/.acorn/acorn.env` | Provider secrets |
+| `/usr/local/bin/acorn` | Global command wrapper |
+| `~acorn/.acorn/acorn.yaml` | Backend configuration |
+| `~acorn/.acorn/acorn.env` | Provider secrets |
 | `/srv/acorn/workspace` | Operator workspace |
 | `/etc/systemd/system/acorn.service` | `systemd` service |
+
+For service-backed commands such as `acorn pair` and `acorn doctor`, the wrapper runs against the `acorn` service user's normal `~/.acorn` config by default.
 
 If you did not pass `OPENAI_API_KEY`, edit the environment file and start the service:
 
 ```bash
-sudoedit /var/lib/acorn/.acorn/acorn.env
+sudoedit ~acorn/.acorn/acorn.env
 sudo systemctl enable --now acorn
 ```
 
@@ -62,16 +64,19 @@ Verify the backend:
 
 ```bash
 curl http://127.0.0.1:8080/healthz
-sudo -u acorn HOME=/var/lib/acorn acorn doctor -c /var/lib/acorn/.acorn/acorn.yaml
+acorn doctor
 ```
 
 Create a pairing QR for the mobile app:
 
 ```bash
-sudo -u acorn HOME=/var/lib/acorn acorn pair \
-  -c /var/lib/acorn/.acorn/acorn.yaml \
-  --server-url https://acorn.example.com \
-  --qr
+acorn pair --server-url https://acorn.example.com --qr
+```
+
+Print the same mobile connection details for manual entry:
+
+```bash
+acorn pair --server-url https://acorn.example.com
 ```
 
 For remote access, keep Acorn bound to `127.0.0.1:8080` and expose it through Tailscale, a reverse proxy, or a tunnel. See [Self-hosted Onboarding](docs/user/self-hosted-onboarding.md) for the full deployment guide.
