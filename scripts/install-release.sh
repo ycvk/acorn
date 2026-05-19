@@ -70,10 +70,10 @@ install_debian_host_tools() {
 
 verify_runtime_link() {
 	target=$1
-	runtime_lib_dir=${2:-}
+	link_dir=${2:-}
 	need_command ldd
-	if [ -n "$runtime_lib_dir" ]; then
-		output=$(LD_LIBRARY_PATH="$runtime_lib_dir${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" ldd "$target" 2>&1) || {
+	if [ -n "$link_dir" ]; then
+		output=$(LD_LIBRARY_PATH="$link_dir${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" ldd "$target" 2>&1) || {
 			printf '%s\n' "$output" >&2
 			die "could not inspect runtime shared libraries for $target"
 		}
@@ -91,10 +91,10 @@ verify_runtime_link() {
 
 verify_package_runtime_links() {
 	package_root=$1
-	runtime_lib_dir=$package_root/lib/linux_${arch}
+	package_runtime_lib_dir=$package_root/lib/linux_${arch}
 	verify_runtime_link "$package_root/acorn"
-	verify_runtime_link "$runtime_lib_dir/libfaiss_c.so" "$runtime_lib_dir"
-	verify_runtime_link "$runtime_lib_dir/libfaiss.so" "$runtime_lib_dir"
+	verify_runtime_link "$package_runtime_lib_dir/libfaiss_c.so" "$package_runtime_lib_dir"
+	verify_runtime_link "$package_runtime_lib_dir/libfaiss.so" "$package_runtime_lib_dir"
 }
 
 detect_arch() {
