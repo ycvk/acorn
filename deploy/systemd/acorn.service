@@ -1,0 +1,24 @@
+[Unit]
+Description=Acorn self-hosted agent backend
+Documentation=https://github.com/ycvk/acorn
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=acorn
+Group=acorn
+Environment=HOME=/var/lib/acorn
+EnvironmentFile=-/var/lib/acorn/.acorn/acorn.env
+WorkingDirectory=/srv/acorn/workspace
+ExecStart=/opt/acorn/acorn serve -c /var/lib/acorn/.acorn/acorn.yaml
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=30s
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/acorn /srv/acorn/workspace
+
+[Install]
+WantedBy=multi-user.target

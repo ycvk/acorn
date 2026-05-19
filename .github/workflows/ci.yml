@@ -1,0 +1,138 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: actions/setup-go@v6.4.0
+        with:
+          go-version-file: go.mod
+      - run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+      - run: go install golang.org/x/tools/cmd/goimports@latest
+      - run: make format-check
+      - run: make lint
+
+  test-go:
+    name: Test Go
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: actions/setup-go@v6.4.0
+        with:
+          go-version-file: go.mod
+      - run: go test -race ./...
+
+  mobile-android:
+    name: Test Mobile Android
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.41.6"
+          channel: stable
+          cache: true
+      - name: Verify generated mobile client
+        run: python3 mobile/tool/generate_openapi_client.py --check
+      - name: Flutter pub get
+        working-directory: mobile
+        run: flutter pub get
+      - name: Test mobile
+        working-directory: mobile
+        run: flutter test
+      - name: Analyze mobile
+        working-directory: mobile
+        run: flutter analyze
+      - name: Build debug APK
+        working-directory: mobile
+        run: flutter build apk --debug
+      - uses: actions/upload-artifact@v7.0.1
+        with:
+          name: acorn-mobile-android-debug
+          retention-days: 14
+          path: mobile/build/app/outputs/flutter-apk/app-debug.apk
+
+  release-artifacts:
+    name: Build Release Artifacts
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            runner: ubuntu-24.04
+          - goos: linux
+            goarch: arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: actions/setup-go@v6.4.0
+        with:
+          go-version-file: go.mod
+      - name: Install Bleve FAISS native build tools
+        env:
+          RELEASE_GOOS: ${{ matrix.goos }}
+          RELEASE_GOARCH: ${{ matrix.goarch }}
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake build-essential pkg-config libopenblas-dev
+      - name: Prepare Bleve FAISS native artifacts
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_GOOS: ${{ matrix.goos }}
+          RELEASE_GOARCH: ${{ matrix.goarch }}
+        shell: bash
+        run: |
+          artifact_dir="$RUNNER_TEMP/faiss-native"
+          scripts/build-faiss-artifacts.sh "$artifact_dir" "$RELEASE_GOOS" "$RELEASE_GOARCH"
+          echo "FAISS_ARTIFACT_DIR=$artifact_dir" >> "$GITHUB_ENV"
+      - name: Build release package
+        env:
+          VERSION: ${{ github.sha }}
+          RELEASE_GOOS: ${{ matrix.goos }}
+          RELEASE_GOARCH: ${{ matrix.goarch }}
+        run: make release VERSION="$VERSION" RELEASE_GOOS="$RELEASE_GOOS" RELEASE_GOARCH="$RELEASE_GOARCH" FAISS_ARTIFACT_DIR="$FAISS_ARTIFACT_DIR"
+      - name: Verify release package
+        env:
+          VERSION: ${{ github.sha }}
+          RELEASE_GOOS: ${{ matrix.goos }}
+          RELEASE_GOARCH: ${{ matrix.goarch }}
+        shell: bash
+        run: |
+          archive_name="acorn_${VERSION}_${RELEASE_GOOS}_${RELEASE_GOARCH}.tar.gz"
+          archive="dist/$archive_name"
+
+          (cd dist && sha256sum -c "$archive_name.sha256")
+
+          tmpdir="$(mktemp -d)"
+          trap 'rm -rf "$tmpdir"' EXIT
+
+          tar -xzf "$archive" -C "$tmpdir"
+          package_dir="$tmpdir/acorn_${VERSION}_${RELEASE_GOOS}_${RELEASE_GOARCH}"
+          grep -qx "semantic_index_backend=bleve_faiss" "$package_dir/RELEASE"
+          grep -qx "native_lib_dir=lib/${RELEASE_GOOS}_${RELEASE_GOARCH}" "$package_dir/RELEASE"
+          test -f "$package_dir/lib/${RELEASE_GOOS}_${RELEASE_GOARCH}/libfaiss_c.so"
+          test -f "$package_dir/lib/${RELEASE_GOOS}_${RELEASE_GOARCH}/libfaiss.so"
+          (cd "$package_dir" && sha256sum -c CHECKSUMS)
+      - uses: actions/upload-artifact@v7.0.1
+        with:
+          name: acorn-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: |
+            dist/acorn_${{ github.sha }}_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz
+            dist/acorn_${{ github.sha }}_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz.sha256

@@ -1,0 +1,73 @@
+runtime:
+  storage_dir: ~/.acorn
+  run_timeout_seconds: 900
+
+providers:
+  - name: primary
+    model: gpt-4o
+    base_url: https://api.openai.com/v1
+    api_key: ${OPENAI_API_KEY}
+    timeout_seconds: 30
+    temperature: 0.1
+    max_completion_tokens: 2048
+    enabled: true
+
+context:
+  window_tokens: 200000
+  compact_margin_tokens: 13000
+  preserve_recent_turns: 3
+  summary_max_tokens: 2048
+
+web:
+  listen_addr: 127.0.0.1:8080
+  # Optional CORS origins for trusted browser tooling behind a reverse proxy.
+  # Mobile clients do not use browser CORS, and the React/Vite frontend has been removed.
+  # allowed_origins:
+  #   - https://acorn.example.com
+
+agent:
+  name: coordinator
+  description: Self-hosted operator agent for files, shell tasks, and external MCP tools.
+  max_iterations: 90
+  system_prompt: |
+    You are Acorn's coordinator agent running in a self-hosted backend.
+
+    Rules:
+    - Treat /srv/acorn/workspace as the operator workspace.
+    - Prefer read_file, list_files, search_text, inspect_git_status, and inspect_git_diff before mutation or shell execution.
+    - Use run_command only when native tools cannot answer or execute the task directly.
+    - Never pretend a tool, MCP provider, command, or push notification succeeded when it did not run.
+    - Keep answers concrete and short.
+
+tools:
+  run_command:
+    default_timeout: 30
+    work_dir: /srv/acorn/workspace
+    env_whitelist:
+      - PATH
+      - HOME
+      - GIT_EDITOR
+  workspace:
+    root_dir: /srv/acorn/workspace
+  mutation:
+    root_dir: /srv/acorn/workspace
+    denylist: []
+
+mcp:
+  providers: []
+
+memory:
+  search:
+    token_budget: 2000
+  semantic:
+    bleve:
+      path: ""               # Empty resolves to runtime.storage_dir/bleve-semantic
+      index_name: memory_records
+    embedding:
+      provider: openai_compatible
+      model: text-embedding-3-small
+      base_url: https://api.openai.com/v1
+      api_key: ${OPENAI_API_KEY}
+      dimensions: 1536
+      timeout_seconds: 30
+      batch_size: 64

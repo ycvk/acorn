@@ -1,0 +1,107 @@
+# golangci-lint configuration for Acorn
+# Philosophy: bug-focused and format-clean. This repo treats lint failures as
+# real regressions, not a backlog of tolerated warnings.
+
+run:
+  timeout: 5m
+  go: "1.26"
+
+linters:
+  enable:
+    # --- Bug-catchers (core) ---
+    - errcheck        # unchecked error returns — CRITICAL for this codebase
+    - govet           # standard vet checks
+    - staticcheck     # comprehensive SA/SST/QF checks
+    - unused          # unused declarations
+    - gosimple        # code simplifications (S1000+)
+    - ineffassign     # ineffective assignments
+    - typecheck       # type checking
+
+    # --- Bug-catchers (extra) ---
+    - nilerr          # returning nil when err is non-nil
+    - errname         # error naming convention (ErrXxx)
+    - bodyclose       # HTTP response body not closed
+    - noctx           # HTTP request without context
+    - rowserrcheck    # database rows.Err() not checked
+    - sqlclosecheck   # sql.Rows/Stmt not closed
+    - gofmt           # Go formatting must stay clean
+    - goimports       # imports must stay canonical
+
+  disable:
+    # Too noisy or not useful for this codebase
+    - gocritic
+    - gocyclo
+    - funlen
+    - goconst
+    - revive
+    - lll
+    - gochecknoinits
+    - gochecknoglobals
+    - exhaustive
+    - exhaustruct
+    - wrapcheck
+
+linters-settings:
+  errcheck:
+    # Check assignment of errors in function calls (default: true)
+    check-type-assertions: true
+    # Check blank assignment of errors (e.g. _ = someFunc())
+    check-blank: true
+    # Exclude common acceptable patterns
+    exclude-functions:
+      # Printing to stdout — ignoring return is fine
+      - fmt.Fprintf
+      - fmt.Printf
+      - fmt.Fprintln
+      - fmt.Println
+      - fmt.Fprint
+      - fmt.Print
+      - fmt.Sprint
+      - fmt.Sprintln
+
+  rowserrcheck:
+    # Check all database/sql.Rows operations
+    packages:
+      - github.com/ycvk/acorn/internal/store/sqlite
+
+  sqlclosecheck:
+    # Check all database/sql types
+    packages:
+      - github.com/ycvk/acorn/internal/store/sqlite
+
+  nilerr:
+    # Detect when a function returns nil on error path
+
+  staticcheck:
+    checks: ["all"]
+
+issues:
+  # Show all issues — don't cap output
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+  # Don't auto-fix — we're only establishing baseline
+  fix: false
+
+  exclude-rules:
+    # Test files get more leniency
+    - path: _test\.go
+      linters:
+        - errcheck
+        - rowserrcheck
+        - sqlclosecheck
+
+    # Generated files — skip entirely
+    - path: '.*_gen\.go'
+      linters:
+        - all
+
+  exclude-dirs:
+    # Empty/placeholder package
+    - internal/guardrail
+    # Frontend deps contain stray Go files
+    - frontend/node_modules
+    # Generated protobuf / mock files
+    - mock
+    - mocks
+    - third_party

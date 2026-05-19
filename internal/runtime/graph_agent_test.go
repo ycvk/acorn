@@ -1,0 +1,454 @@
+package runtime
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"strings"
+	"testing"
+
+	"github.com/cloudwego/eino/adk"
+	einomodel "github.com/cloudwego/eino/components/model"
+	einotool "github.com/cloudwego/eino/components/tool"
+	"github.com/cloudwego/eino/compose"
+	"github.com/cloudwego/eino/schema"
+
+	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
+	"github.com/ycvk/acorn/internal/tooling"
+)
+
+type stubChatModel struct {
+	responses []string
+	callCount int
+}
+
+func (m *stubChatModel) Generate(ctx context.Context, messages []*schema.Message, opts ...einomodel.Option) (*schema.Message, error) {
+	idx := m.callCount
+	m.callCount++
+	if idx >= len(m.responses) {
+		return schema.AssistantMessage("done", nil), nil
+	}
+	return schema.AssistantMessage(m.responses[idx], nil), nil
+}
+
+func (m *stubChatModel) Stream(ctx context.Context, messages []*schema.Message, opts ...einomodel.Option) (*schema.StreamReader[*schema.Message], error) {
+	msg, err := m.Generate(ctx, messages, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return schema.StreamReaderFromArray([]*schema.Message{msg}), nil
+}
+
+type stubTool struct {
+	name        string
+	description string
+	result      string
+	shouldErr   bool
+}
+
+func (t *stubTool) Info(_ context.Context) (*schema.ToolInfo, error) {
+	return &schema.ToolInfo{
+		Name: t.name,
+		Desc: t.description,
+		ParamsOneOf: schema.NewParamsOneOfByParams(map[string]*schema.ParameterInfo{
+			"query": {Desc: "query", Type: schema.String, Required: true},
+		}),
+	}, nil
+}
+
+func (t *stubTool) InvokableRun(_ context.Context, argumentsInJSON string, _ ...einotool.Option) (string, error) {
+	if t.shouldErr {
+		return "", fmt.Errorf("stub tool %s error", t.name)
+	}
+	return t.result, nil
+}
+
+type toolCallingStubModel struct {
+	responses []*schema.Message
+	callCount int
+}
+
+func (m *toolCallingStubModel) Generate(ctx context.Context, messages []*schema.Message, opts ...einomodel.Option) (*schema.Message, error) {
+	idx := m.callCount
+	m.callCount++
+	if idx >= len(m.responses) {
+		return schema.AssistantMessage("done", nil), nil
+	}
+	return m.responses[idx], nil
+}
+
+func (m *toolCallingStubModel) Stream(ctx context.Context, messages []*schema.Message, opts ...einomodel.Option) (*schema.StreamReader[*schema.Message], error) {
+	msg, err := m.Generate(ctx, messages, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return schema.StreamReaderFromArray([]*schema.Message{msg}), nil
+}
+
+func (m *toolCallingStubModel) WithTools(_ []*schema.ToolInfo) (einomodel.ToolCallingChatModel, error) {
+	return m, nil
+}
+
+func buildTestAgentGraph(
+	t *testing.T,
+	ctx context.Context,
+	model einomodel.BaseChatModel,
+	safeNode *SafeParallelToolsNode,
+	maxIter int,
+	store *storesqlite.Store,
+	toolInfos []*schema.ToolInfo,
+	toolSpecs []tooling.ToolSpec,
+) compose.Runnable[*agentGraphInput, *schema.Message] {
+	t.Helper()
+	planStore := PlanStore(&fakePlanStore{})
+	if store != nil {
+		planStore = newPlanStore(store)
+	}
+	eagerToolNames := make([]string, 0, len(toolInfos))
+	for _, info := range toolInfos {
+		if info != nil {
+			eagerToolNames = append(eagerToolNames, info.Name)
+		}
+	}
+	runnable, err := buildAgentGraph(ctx, "test-agent", model, safeNode, newDirectAssistantStreamer(nil), maxIter, store, nil, planStore, "Make a plan", nil, eagerToolNames, toolSpecs)
+	if err != nil {
+		t.Fatalf("buildAgentGraph: %v", err)
+	}
+	return runnable
+}
+
+func withGraphTestContext(ctx context.Context) context.Context {
+	ctx = withSessionID(ctx, "sess_graph")
+	ctx = withRunID(ctx, "run_graph")
+	return ctx
+}
+
+func TestJSONSerializerRoundTrip(t *testing.T) {
+	msg := schema.UserMessage("hello")
+	wrapper := &schemaMessageWrapper{
+		Type:  "*schema.Message",
+		Value: msg,
+	}
+	data, err := json.Marshal(wrapper)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+	var decoded schemaMessageWrapper
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	if decoded.Value == nil {
+		t.Fatal("Value is nil after round-trip")
+	}
+	if decoded.Value.Content != "hello" {
+		t.Errorf("Content mismatch: got %q, want %q", decoded.Value.Content, "hello")
+	}
+	if decoded.Type != "*schema.Message" {
+		t.Errorf("Type mismatch: got %q", decoded.Type)
+	}
+}
+
+func TestBuildAgentGraphWithSafeToolNode(t *testing.T) {
+	ctx := withGraphTestContext(context.Background())
+	model := &stubChatModel{responses: []string{`{"steps":[{"id":"s1","action":"say hello","status":"pending"}]}`, "hello", `{"decision":"done"}`}}
+	tools := []einotool.BaseTool{
+		&stubTool{name: "search", description: "search things", result: "found"},
+	}
+	safeNode, err := NewSafeParallelToolsNode(context.Background(), tools, fixedReadOnlyClassifier("search"))
+	if err != nil {
+		t.Fatalf("NewSafeParallelToolsNode: %v", err)
+	}
+	runnable := buildTestAgentGraph(t, ctx, model, safeNode, 10, nil, nil, nil)
+	if runnable == nil {
+		t.Fatal("buildAgentGraph returned nil runnable")
+	}
+}
+
+func TestAgentGraphPlanActObserveRun(t *testing.T) {
+	ctx := withGraphTestContext(context.Background())
+	model := &stubChatModel{responses: []string{
+		`{"steps":[{"id":"s1","action":"answer greeting","status":"pending"}]}`,
+		"Hello from plan loop.",
+		`{"decision":"done"}`,
+	}}
+	safeNode, err := NewSafeParallelToolsNode(context.Background(), nil, fixedReadOnlyClassifier())
+	if err != nil {
+		t.Fatalf("NewSafeParallelToolsNode: %v", err)
+	}
+	runnable := buildTestAgentGraph(t, ctx, model, safeNode, 10, nil, nil, nil)
+
+	msg, err := runnable.Invoke(ctx, &agentGraphInput{Messages: []*schema.Message{schema.UserMessage("hi")}})
+	if err != nil {
+		t.Fatalf("Invoke: %v", err)
+	}
+	if msg.Content != "Hello from plan loop." {
+		t.Fatalf("content = %q, want plan loop response", msg.Content)
+	}
+}
+
+func TestGraphAgentRunNoTools(t *testing.T) {
+	ctx := withGraphTestContext(context.Background())
+	model := &stubChatModel{responses: []string{`{"steps":[{"id":"s1","action":"answer greeting","status":"pending"}]}`, "Hello! I can help you.", `{"decision":"done"}`}}
+	tools := []einotool.BaseTool{}
+	safeNode, err := NewSafeParallelToolsNode(context.Background(), tools, fixedReadOnlyClassifier())
+	if err != nil {
+		t.Fatalf("NewSafeParallelToolsNode: %v", err)
+	}
+	runnable := buildTestAgentGraph(t, ctx, model, safeNode, 10, nil, nil, nil)
+	agent := newGraphAgent("test-agent", "test", runnable, model, tools, nil, 10, nil, nil)
+
+	input := &adk.AgentInput{
+		Messages: []*schema.Message{schema.UserMessage("hi")},
+	}
+	iter := agent.Run(ctx, input)
+
+	event, ok := iter.Next()
+	if !ok {
+		t.Fatal("expected event from Run")
+	}
+	if event.Err != nil {
+		t.Fatalf("unexpected error: %v", event.Err)
+	}
+	if event.Output == nil || event.Output.MessageOutput == nil || event.Output.MessageOutput.Message == nil {
+		t.Fatal("expected message output")
+	}
+	if event.Output.MessageOutput.Message.Content != "Hello! I can help you." {
+		t.Errorf("unexpected content: got %q", event.Output.MessageOutput.Message.Content)
+	}
+}
+
+func TestGraphAgentRunWithToolCall(t *testing.T) {
+	ctx := withGraphTestContext(context.Background())
+
+	toolCallJSON, _ := json.Marshal(map[string]any{"query": "test query"})
+	toolCallMsg := &schema.Message{
+		Role: schema.Assistant,
+		ToolCalls: []schema.ToolCall{
+			{
+				ID:   "call_1",
+				Type: "function",
+				Function: schema.FunctionCall{
+					Name:      "search",
+					Arguments: string(toolCallJSON),
+				},
+			},
+		},
+	}
+
+	model2 := &toolCallingStubModel{
+		responses: []*schema.Message{
+			schema.AssistantMessage(`{"steps":[{"id":"s1","action":"search for test","status":"pending"}]}`, nil),
+			toolCallMsg,
+			schema.AssistantMessage(`{"decision":"done"}`, nil),
+		},
+	}
+
+	tools := []einotool.BaseTool{
+		&stubTool{name: "search", description: "search things", result: "found"},
+	}
+	safeNode, err := NewSafeParallelToolsNode(context.Background(), tools, fixedReadOnlyClassifier("search"))
+	if err != nil {
+		t.Fatalf("NewSafeParallelToolsNode: %v", err)
+	}
+	ctx = safeParallelLifecycleContextFrom(t, ctx, safeNode)
+	info, err := tools[0].Info(ctx)
+	if err != nil {
+		t.Fatalf("tool Info: %v", err)
+	}
+	runnable := buildTestAgentGraph(t, ctx, model2, safeNode, 10, nil, []*schema.ToolInfo{info}, nil)
+	agent := newGraphAgent("test-agent", "test", runnable, model2, tools, nil, 10, nil, graphAgentContextBinder(ctx))
+
+	input := &adk.AgentInput{
+		Messages: []*schema.Message{schema.UserMessage("search for test")},
+	}
+	iter := agent.Run(withGraphTestContext(context.Background()), input)
+
+	var lastContent string
+	for {
+		event, ok := iter.Next()
+		if !ok {
+			break
+		}
+		if event.Err != nil {
+			t.Fatalf("unexpected error: %v", event.Err)
+		}
+		if event.Output != nil && event.Output.MessageOutput != nil && event.Output.MessageOutput.Message != nil {
+			lastContent = event.Output.MessageOutput.Message.Content
+		}
+	}
+	if !strings.Contains(lastContent, "found") {
+		t.Errorf("expected output to contain 'found', got: %q", lastContent)
+	}
+}
+
+func TestGraphAgentMaxIterations(t *testing.T) {
+	ctx := withGraphTestContext(context.Background())
+
+	model := &toolCallingStubModel{
+		responses: []*schema.Message{
+			schema.AssistantMessage(`{"steps":[{"id":"s1","action":"loop","status":"pending"},{"id":"s2","action":"continue loop","status":"pending","depends_on":["s1"]}]}`, nil),
+			makeAssistantMessage(makeToolCall("call_1", "search", `{"query":"loop"}`)),
+			schema.AssistantMessage(`{"decision":"replan"}`, nil),
+		},
+	}
+
+	tools := []einotool.BaseTool{
+		&stubTool{name: "search", description: "search things", result: "result"},
+	}
+	safeNode, err := NewSafeParallelToolsNode(context.Background(), tools, fixedReadOnlyClassifier("search"))
+	if err != nil {
+		t.Fatalf("NewSafeParallelToolsNode: %v", err)
+	}
+	ctx = safeParallelLifecycleContextFrom(t, ctx, safeNode)
+	info, err := tools[0].Info(ctx)
+	if err != nil {
+		t.Fatalf("tool Info: %v", err)
+	}
+	runnable := buildTestAgentGraph(t, ctx, model, safeNode, 1, nil, []*schema.ToolInfo{info}, nil)
+	agent := newGraphAgent("test-agent", "test", runnable, model, tools, nil, 3, nil, graphAgentContextBinder(ctx))
+
+	input := &adk.AgentInput{
+		Messages: []*schema.Message{schema.UserMessage("loop forever")},
+	}
+	iter := agent.Run(ctx, input)
+
+	var gotErr bool
+	for {
+		event, ok := iter.Next()
+		if !ok {
+			break
+		}
+		if event.Err != nil && strings.Contains(event.Err.Error(), "max iterations") {
+			gotErr = true
+		}
+	}
+	if !gotErr {
+		t.Error("expected max iterations error")
+	}
+}
+
+func TestAgentGraphReplansAfterFailedStep(t *testing.T) {
+	ctx := withGraphTestContext(context.Background())
+
+	model := &toolCallingStubModel{
+		responses: []*schema.Message{
+			schema.AssistantMessage(`{"steps":[{"id":"s1","action":"try failing search","status":"pending"},{"id":"s2","action":"recover","status":"pending","depends_on":["s1"]}]}`, nil),
+			makeAssistantMessage(makeToolCall("call_1", "search", `{"query":"broken"}`)),
+			schema.AssistantMessage(`{"decision":"replan","reason":"tool failed"}`, nil),
+			schema.AssistantMessage(`{"steps":[{"id":"s1","action":"try recovery search","status":"pending"}]}`, nil),
+			makeAssistantMessage(makeToolCall("call_2", "backup_search", `{"query":"recovery"}`)),
+		},
+	}
+
+	tools := []einotool.BaseTool{
+		&stubTool{name: "search", description: "search things", shouldErr: true},
+		&stubTool{name: "backup_search", description: "backup search things", result: "recovered"},
+	}
+	safeNode, err := NewSafeParallelToolsNode(context.Background(), tools, fixedReadOnlyClassifier("search", "backup_search"))
+	if err != nil {
+		t.Fatalf("NewSafeParallelToolsNode: %v", err)
+	}
+	ctx = safeParallelLifecycleContextFrom(t, ctx, safeNode)
+	toolInfos := make([]*schema.ToolInfo, 0, len(tools))
+	for _, tool := range tools {
+		info, err := tool.Info(ctx)
+		if err != nil {
+			t.Fatalf("tool Info: %v", err)
+		}
+		toolInfos = append(toolInfos, info)
+	}
+
+	runnable := buildTestAgentGraph(t, ctx, model, safeNode, 10, nil, toolInfos, nil)
+	out, err := runnable.Invoke(ctx, &agentGraphInput{Messages: []*schema.Message{schema.UserMessage("recover from failure")}})
+	if err != nil {
+		t.Fatalf("Invoke: %v", err)
+	}
+	if got, want := out.Content, "recovered"; got != want {
+		t.Fatalf("final content = %q, want %q", got, want)
+	}
+	if got, want := model.callCount, 5; got != want {
+		t.Fatalf("model callCount = %d, want %d", got, want)
+	}
+}
+
+func TestBuildAgentGraphWithCheckpointStore(t *testing.T) {
+	ctx := withGraphTestContext(context.Background())
+	model := &stubChatModel{responses: []string{`{"steps":[{"id":"s1","action":"hello","status":"pending"}]}`, "hello", `{"decision":"done"}`}}
+	tools := []einotool.BaseTool{
+		&stubTool{name: "search", description: "search things", result: "found"},
+	}
+	safeNode, err := NewSafeParallelToolsNode(context.Background(), tools, fixedReadOnlyClassifier("search"))
+	if err != nil {
+		t.Fatalf("NewSafeParallelToolsNode: %v", err)
+	}
+
+	dir := t.TempDir()
+	store, err := storesqlite.Open(dir)
+	if err != nil {
+		t.Fatalf("create store: %v", err)
+	}
+	runnable := buildTestAgentGraph(t, ctx, model, safeNode, 10, store, nil, nil)
+	if runnable == nil {
+		t.Fatal("buildAgentGraph returned nil runnable")
+	}
+}
+
+type toolBindingRecorder struct {
+	stubChatModel
+	boundTools []*schema.ToolInfo
+}
+
+func (m *toolBindingRecorder) WithTools(tools []*schema.ToolInfo) (einomodel.ToolCallingChatModel, error) {
+	m.boundTools = tools
+	return m, nil
+}
+
+func TestBuildAgentGraphDoesNotEagerBindToolsAtBuildTime(t *testing.T) {
+	ctx := withGraphTestContext(context.Background())
+	model := &toolBindingRecorder{stubChatModel: stubChatModel{responses: []string{`{"steps":[{"id":"s1","action":"hello","status":"pending"}]}`, "hello", `{"decision":"done"}`}}}
+	tools := []einotool.BaseTool{
+		&stubTool{name: "search", description: "search things", result: "found"},
+		&stubTool{name: "compute", description: "compute things", result: "42"},
+	}
+	safeNode, err := NewSafeParallelToolsNode(context.Background(), tools, fixedReadOnlyClassifier("search", "compute"))
+	if err != nil {
+		t.Fatalf("NewSafeParallelToolsNode: %v", err)
+	}
+
+	var toolInfos []*schema.ToolInfo
+	for _, tool := range tools {
+		info, err := tool.Info(ctx)
+		if err != nil {
+			t.Fatalf("tool Info: %v", err)
+		}
+		toolInfos = append(toolInfos, info)
+	}
+
+	buildTestAgentGraph(t, ctx, model, safeNode, 10, nil, toolInfos, nil)
+
+	if len(model.boundTools) != 0 {
+		t.Fatalf("expected graph build to avoid eager WithTools binding, got %d tools", len(model.boundTools))
+	}
+}
+
+func TestErrorsAsInterruptSignal(t *testing.T) {
+	signal := adk.FromInterruptContexts([]*adk.InterruptCtx{
+		{ID: "test-id", Address: adk.Address{}, Info: map[string]any{"kind": "run_command_pause"}},
+	})
+
+	wrapped := fmt.Errorf("agent loop get tool results: %w", signal)
+
+	var target *adk.InterruptSignal
+	if !errors.As(wrapped, &target) {
+		t.Fatal("errors.As failed to unwrap *adk.InterruptSignal through fmt.Errorf %w wrapping")
+	}
+	if target.ID != signal.ID {
+		t.Fatalf("unwrapped signal ID = %q, want %q", target.ID, signal.ID)
+	}
+
+	doubleWrapped := fmt.Errorf("compose graph invoke: %w", wrapped)
+	if _, ok := errors.AsType[*adk.InterruptSignal](doubleWrapped); !ok {
+		t.Fatal("errors.As failed to unwrap through two layers of fmt.Errorf %w wrapping")
+	}
+}

@@ -1,0 +1,45 @@
+package config
+
+import "fmt"
+
+const (
+	defaultContextStaticOverheadTokens = 4096
+	defaultContextWarningGapTokens     = 7000
+	defaultContextBlockingBufferTokens = 3000
+	defaultContextTokenEncoding        = "o200k_base"
+)
+
+func (c *Config) ContextPolicy() (ContextPolicy, error) {
+	if c == nil {
+		return ContextPolicy{}, fmt.Errorf("config is required")
+	}
+	provider, err := c.EnabledProvider()
+	if err != nil {
+		return ContextPolicy{}, fmt.Errorf("resolve context provider: %w", err)
+	}
+	if provider.MaxCompletionTokens <= 0 {
+		return ContextPolicy{}, fmt.Errorf("provider %s: max_completion_tokens must be > 0 for context policy", provider.Name)
+	}
+	return ContextPolicy{
+		ContextWindowTokens:     c.Context.WindowTokens,
+		ReservedOutputTokens:    provider.MaxCompletionTokens,
+		StaticOverheadTokens:    defaultContextStaticOverheadTokens,
+		WarningBufferTokens:     c.Context.CompactMarginTokens + defaultContextWarningGapTokens,
+		AutoCompactBufferTokens: c.Context.CompactMarginTokens,
+		BlockingBufferTokens:    deriveContextBlockingBuffer(c.Context.CompactMarginTokens),
+		PreserveRecentTurns:     c.Context.PreserveRecentTurns,
+		MaxSummaryTokens:        c.Context.SummaryMaxTokens,
+		TokenEncoding:           defaultContextTokenEncoding,
+	}, nil
+}
+
+func deriveContextBlockingBuffer(compactMarginTokens int) int {
+	blocking := compactMarginTokens / 4
+	if blocking < 1 {
+		return 1
+	}
+	if blocking > defaultContextBlockingBufferTokens {
+		return defaultContextBlockingBufferTokens
+	}
+	return blocking
+}
