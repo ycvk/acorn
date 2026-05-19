@@ -32,6 +32,8 @@ Install the latest release on Debian or Ubuntu:
 curl -fsSL https://github.com/ycvk/acorn/releases/latest/download/install-release.sh | sh
 ```
 
+The installer installs Acorn's host dependencies, including the OpenBLAS runtime required by the bundled FAISS search libraries.
+
 Install and start the service in one step:
 
 ```bash

@@ -41,15 +41,60 @@ need_command() {
 	command -v "$1" >/dev/null 2>&1 || die "$1 is required"
 }
 
+select_openblas_runtime_package() {
+	if ! command -v apt-cache >/dev/null 2>&1; then
+		die "apt-cache is required to select the OpenBLAS runtime package"
+	fi
+	if apt-cache show libopenblas0-pthread >/dev/null 2>&1; then
+		printf '%s\n' "libopenblas0-pthread"
+		return
+	fi
+	if apt-cache show libopenblas0 >/dev/null 2>&1; then
+		printf '%s\n' "libopenblas0"
+		return
+	fi
+	die "could not find an OpenBLAS runtime package; expected libopenblas0-pthread or libopenblas0"
+}
+
 install_debian_host_tools() {
 	if [ "$install_host_tools" != "1" ]; then
 		return
 	fi
 	if ! command -v apt-get >/dev/null 2>&1; then
-		die "automatic host package installation requires apt-get; set ACORN_INSTALL_HOST_TOOLS=0 after installing curl tar sha256sum systemctl git ripgrep python3 make bash"
+		die "automatic host package installation requires apt-get; set ACORN_INSTALL_HOST_TOOLS=0 after installing curl tar sha256sum systemctl git ripgrep python3 make bash and libopenblas.so.0"
 	fi
 	run_root apt-get update
-	run_root apt-get install -y ca-certificates curl git ripgrep python3 make bash
+	openblas_package=$(select_openblas_runtime_package)
+	run_root apt-get install -y ca-certificates curl git ripgrep python3 make bash "$openblas_package"
+}
+
+verify_runtime_link() {
+	target=$1
+	runtime_lib_dir=${2:-}
+	need_command ldd
+	if [ -n "$runtime_lib_dir" ]; then
+		output=$(LD_LIBRARY_PATH="$runtime_lib_dir${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" ldd "$target" 2>&1) || {
+			printf '%s\n' "$output" >&2
+			die "could not inspect runtime shared libraries for $target"
+		}
+	else
+		output=$(ldd "$target" 2>&1) || {
+			printf '%s\n' "$output" >&2
+			die "could not inspect runtime shared libraries for $target"
+		}
+	fi
+	if printf '%s\n' "$output" | grep -q "not found"; then
+		printf '%s\n' "$output" >&2
+		die "missing runtime shared library for $target"
+	fi
+}
+
+verify_package_runtime_links() {
+	package_root=$1
+	runtime_lib_dir=$package_root/lib/linux_${arch}
+	verify_runtime_link "$package_root/acorn"
+	verify_runtime_link "$runtime_lib_dir/libfaiss_c.so" "$runtime_lib_dir"
+	verify_runtime_link "$runtime_lib_dir/libfaiss.so" "$runtime_lib_dir"
 }
 
 detect_arch() {
@@ -279,6 +324,7 @@ download_release_files
 	test -x acorn
 	test -f "lib/linux_${arch}/libfaiss_c.so"
 	test -f "lib/linux_${arch}/libfaiss.so"
+	verify_package_runtime_links "$PWD"
 )
 
 package_dir=$work_dir/$package
