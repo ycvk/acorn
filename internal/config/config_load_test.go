@@ -141,7 +141,7 @@ mcp:
 }
 
 func TestLoadSelfHostedExample(t *testing.T) {
-	t.Setenv("HOME", "/var/lib/acorn")
+	t.Setenv("HOME", "/root")
 	t.Setenv("OPENAI_API_KEY", "sk-test")
 
 	cfg, err := Load("../../configs/acorn.selfhosted.example.yaml")
@@ -151,7 +151,7 @@ func TestLoadSelfHostedExample(t *testing.T) {
 	if got := cfg.Providers[0].APIKey; got != "sk-test" {
 		t.Fatalf("provider api_key = %q, want env-expanded test key", got)
 	}
-	if got, want := cfg.Runtime.StorageDir, "/var/lib/acorn/.acorn"; got != want {
+	if got, want := cfg.Runtime.StorageDir, "/root/.acorn"; got != want {
 		t.Fatalf("runtime.storage_dir = %q, want %q", got, want)
 	}
 	if got := cfg.Web.ListenAddr; got != "127.0.0.1:8080" {
