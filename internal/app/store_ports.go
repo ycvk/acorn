@@ -56,7 +56,6 @@ type clientStore interface {
 	LoadEventsAfter(ctx context.Context, runID string, afterSeq int64) ([]events.EventRecord, error)
 	LoadEvents(ctx context.Context, runID string) ([]events.EventRecord, error)
 	LoadLatestUnboundUserMessage(ctx context.Context, sessionID string) (*events.SessionMessageRecord, error)
-	SyncAssistantMessageForRun(ctx context.Context, runID string) error
 	FinishRunContext(ctx context.Context, runID string, status events.RunStatus, output, errText string) error
 	AppendEventContext(ctx context.Context, runID, kind string, payload any) (events.EventRecord, error)
 }
