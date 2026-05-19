@@ -191,14 +191,6 @@ func (s *ClientService) executeRun(ctx context.Context, handle executorHandle, r
 		}
 		return
 	}
-	if err := s.store.SyncAssistantMessageForRun(ctx, result.RunID); err != nil {
-		if started.MarkFailed(err) {
-			return
-		}
-		if persistErr := s.recordStartedRunFailure(ctx, result.RunID, err); persistErr != nil {
-			panic(persistErr)
-		}
-	}
 }
 
 func (s *ClientService) recordStartedRunFailure(ctx context.Context, runID string, cause error) error {
