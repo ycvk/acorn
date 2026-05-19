@@ -26,21 +26,21 @@ The installer:
 - downloads `acorn_${VERSION}_linux_${ARCH}.tar.gz` and its `.sha256`;
 - verifies the outer release checksum, package `CHECKSUMS`, and runtime shared-library links;
 - installs `/opt/acorn/acorn` plus `/opt/acorn/lib/linux_${ARCH}/libfaiss*.so*`;
-- installs `/usr/local/bin/acorn` as a wrapper command;
+- installs `/usr/local/bin/acorn` as a global wrapper command;
 - creates the `acorn` system user;
-- writes config under `/var/lib/acorn/.acorn`;
+- writes config under the `acorn` service user's `~/.acorn`;
 - installs `/etc/systemd/system/acorn.service`.
 
-Acorn's binary default config path is `~/.acorn/acorn.yaml`. The systemd unit sets `HOME=/var/lib/acorn` and pins the same user-scoped config path explicitly:
+Acorn's binary default config path is `~/.acorn/acorn.yaml`. The systemd unit runs Acorn with `HOME=/var/lib/acorn`, so the service uses the same default under the `acorn` user's home:
 
 ```text
-/var/lib/acorn/.acorn/acorn.yaml
+~acorn/.acorn/acorn.yaml
 ```
 
 The default environment file is:
 
 ```text
-/var/lib/acorn/.acorn/acorn.env
+~acorn/.acorn/acorn.env
 ```
 
 If you pass the provider key at install time, the script starts the service immediately:
@@ -52,7 +52,7 @@ curl -fsSL https://github.com/ycvk/acorn/releases/latest/download/install-releas
 Without `OPENAI_API_KEY`, the script installs files only. Edit the env file and start the service yourself:
 
 ```bash
-sudoedit /var/lib/acorn/.acorn/acorn.env
+sudoedit ~acorn/.acorn/acorn.env
 sudo systemctl enable --now acorn
 ```
 
@@ -95,15 +95,17 @@ curl -fsSL https://github.com/ycvk/acorn/releases/latest/download/install-releas
 The installed service uses:
 
 - `/opt/acorn/acorn` for the release binary and bundled FAISS libraries.
-- `/usr/local/bin/acorn` as the command wrapper.
+- `/usr/local/bin/acorn` as the global command wrapper.
 - `/var/lib/acorn` as the `acorn` service user's home.
-- `/var/lib/acorn/.acorn/acorn.yaml` for config.
-- `/var/lib/acorn/.acorn/acorn.env` for provider secrets.
-- `/var/lib/acorn/.acorn` for runtime storage, SQLite state, generated skills, and the Bleve+FAISS index.
+- `~acorn/.acorn/acorn.yaml` for config.
+- `~acorn/.acorn/acorn.env` for provider secrets.
+- `~acorn/.acorn` for runtime storage, SQLite state, generated skills, and the Bleve+FAISS index.
 - `/srv/acorn/workspace` for the operator workspace that tools may read and mutate.
 - `127.0.0.1:8080` for the HTTP listener.
 
-If you intentionally serve directly on a trusted private interface, edit `/var/lib/acorn/.acorn/acorn.yaml` and set:
+The wrapper runs service-backed operator commands such as `acorn pair`, `acorn doctor`, `acorn memory`, `acorn skills`, and `acorn decision` as the `acorn` service user when you do not pass an explicit `-c` config path. Those commands therefore use the normal `~/.acorn/acorn.yaml` default for that user.
+
+If you intentionally serve directly on a trusted private interface, edit `~acorn/.acorn/acorn.yaml` and set:
 
 ```yaml
 web:
@@ -127,13 +129,13 @@ curl http://127.0.0.1:8080/healthz
 Check runtime readiness as the service user:
 
 ```bash
-sudo -u acorn HOME=/var/lib/acorn acorn doctor -c /var/lib/acorn/.acorn/acorn.yaml
+acorn doctor
 ```
 
 If you modify memory records directly, explicitly rebuild the semantic index:
 
 ```bash
-sudo -u acorn HOME=/var/lib/acorn acorn memory semantic rebuild -c /var/lib/acorn/.acorn/acorn.yaml --json
+acorn memory semantic rebuild --json
 ```
 
 Bleve+FAISS is a rebuildable retrieval index. SQLite still owns runtime persisted truth, and file-backed `facts/`, `skills/`, and `history/` remain durable memory truth.
@@ -143,10 +145,13 @@ Bleve+FAISS is a rebuildable retrieval index. SQLite still owns runtime persiste
 Generate a one-time pairing payload on the server:
 
 ```bash
-sudo -u acorn HOME=/var/lib/acorn acorn pair \
-  -c /var/lib/acorn/.acorn/acorn.yaml \
-  --server-url https://acorn.example.com \
-  --qr
+acorn pair --server-url https://acorn.example.com --qr
+```
+
+For manual entry in the mobile app, print the server URL and pairing code without a QR:
+
+```bash
+acorn pair --server-url https://acorn.example.com
 ```
 
 The QR contains compact JSON:
@@ -160,10 +165,7 @@ Flutter mobile can scan this terminal QR with the in-app camera scanner, or the 
 Machine-readable output is available for scripts:
 
 ```bash
-sudo -u acorn HOME=/var/lib/acorn acorn pair \
-  -c /var/lib/acorn/.acorn/acorn.yaml \
-  --server-url https://acorn.example.com \
-  --json
+acorn pair --server-url https://acorn.example.com --json
 ```
 
 Pairing codes are short-lived and one-time. The HTTP API does not expose pairing-code creation. After pairing, the device receives a bearer token once; the backend stores only token hashes.

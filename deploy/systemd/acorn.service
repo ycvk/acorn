@@ -11,7 +11,7 @@ Group=acorn
 Environment=HOME=/var/lib/acorn
 EnvironmentFile=-/var/lib/acorn/.acorn/acorn.env
 WorkingDirectory=/srv/acorn/workspace
-ExecStart=/opt/acorn/acorn serve -c /var/lib/acorn/.acorn/acorn.yaml
+ExecStart=/opt/acorn/acorn serve
 Restart=on-failure
 RestartSec=5s
 TimeoutStopSec=30s
