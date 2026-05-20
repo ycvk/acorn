@@ -16,7 +16,7 @@ trigger_hints:
   - 更新流程记忆
 requires:
   tools:
-    - memory_search_text
+    - memory_search
     - memory_read_file
     - memory_create_file
     - memory_replace_span

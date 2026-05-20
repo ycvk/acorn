@@ -1011,6 +1011,9 @@ func newClientRuntimeMemoryModule(t *testing.T, cfg *config.Config) memorymodule
 		Embedder:   clientRuntimeEmbedder{dimensions: cfg.Memory.Semantic.Embedding.Dimensions, model: cfg.Memory.Semantic.Embedding.Model},
 		Model:      cfg.Memory.Semantic.Embedding.Model,
 		Dimensions: cfg.Memory.Semantic.Embedding.Dimensions,
+		BatchSize:  cfg.Memory.Semantic.Embedding.BatchSize,
+		Schema:     memorymodule.SemanticSchemaMemoryRecordsV1,
+		IndexName:  cfg.Memory.Semantic.Bleve.IndexName,
 		Mode:       "hybrid",
 	}); err != nil {
 		t.Fatalf("SetSemanticRuntime: %v", err)

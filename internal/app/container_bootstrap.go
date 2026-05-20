@@ -77,6 +77,9 @@ func buildContainerDependencies(ctx context.Context, cfg *config.Config) (*conta
 		Embedder:   semanticEmbedder,
 		Model:      cfg.Memory.Semantic.Embedding.Model,
 		Dimensions: cfg.Memory.Semantic.Embedding.Dimensions,
+		BatchSize:  cfg.Memory.Semantic.Embedding.BatchSize,
+		Schema:     memorymodule.SemanticSchemaMemoryRecordsV1,
+		IndexName:  cfg.Memory.Semantic.Bleve.IndexName,
 		Mode:       "hybrid",
 	}); err != nil {
 		return nil, fmt.Errorf("set semantic runtime: %w", err)

@@ -36,9 +36,9 @@ func localEligibilityToolNames(cfg *config.Config) []string {
 	}
 	for _, name := range []string{
 		"delegate_task",
+		"memory_search",
 		"memory_read_file",
 		"memory_list_files",
-		"memory_search_text",
 		"memory_create_file",
 		"memory_replace_span",
 		"skill_list",

@@ -593,8 +593,8 @@ func TestActNodeMarksFailedWhenModelReturnsNoToolCalls(t *testing.T) {
 }
 
 func TestActNodeContinuesStepAfterLoadToolsOnlyRound(t *testing.T) {
-	loadCall := makeToolCall("call_1", "load_tools", `{"tool_names":["memory_search_text"]}`)
-	searchCall := makeToolCall("call_2", "memory_search_text", `{"query":"golang"}`)
+	loadCall := makeToolCall("call_1", "load_tools", `{"tool_names":["memory_search"]}`)
+	searchCall := makeToolCall("call_2", "memory_search", `{"query":"golang"}`)
 	modelResponses := []*schema.Message{
 		schema.AssistantMessage("", []schema.ToolCall{loadCall}),
 		schema.AssistantMessage("", []schema.ToolCall{searchCall}),
@@ -602,8 +602,8 @@ func TestActNodeContinuesStepAfterLoadToolsOnlyRound(t *testing.T) {
 	model := &recordingActNodeModel{responses: modelResponses}
 	tools := &fakeToolInvoker{
 		resultSeq: [][]*schema.Message{
-			{schema.ToolMessage(`{"messages":["<deferred-tool-definitions>\n- memory_search_text: Search memory files [memory_tool]\n</deferred-tool-definitions>"],"loaded_tool_names":["memory_search_text"]}`, "call_1", schema.WithToolName("load_tools"))},
-			{schema.ToolMessage("knowledge hit", "call_2", schema.WithToolName("memory_search_text"))},
+			{schema.ToolMessage(`{"messages":["<deferred-tool-definitions>\n- memory_search: Search memory records [memory_tool]\n</deferred-tool-definitions>"],"loaded_tool_names":["memory_search"]}`, "call_1", schema.WithToolName("load_tools"))},
+			{schema.ToolMessage("knowledge hit", "call_2", schema.WithToolName("memory_search"))},
 		},
 	}
 	store := &fakePlanStore{loaded: &Plan{

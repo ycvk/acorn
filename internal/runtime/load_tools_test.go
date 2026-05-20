@@ -30,9 +30,9 @@ func TestLoadToolsToolCallsDeferredLoad(t *testing.T) {
 	plane := &stubDeferredPlane{
 		result: &contextplane.DeferredLoadResult{
 			Messages: []*schema.Message{
-				schema.UserMessage("<deferred-tool-definitions>\n- memory_search_text: Search memory files\n</deferred-tool-definitions>"),
+				schema.UserMessage("<deferred-tool-definitions>\n- memory_search: Search memory records\n</deferred-tool-definitions>"),
 			},
-			LoadedToolNames: []string{"memory_search_text"},
+			LoadedToolNames: []string{"memory_search"},
 			AlreadyLoaded:   []string{"read_file"},
 		},
 	}
@@ -46,14 +46,14 @@ func TestLoadToolsToolCallsDeferredLoad(t *testing.T) {
 	}
 
 	ctx := withRunID(withSessionID(context.Background(), "sess_load_tools"), "run_load_tools")
-	result, err := invokable.InvokableRun(ctx, `{"query":"knowledge","tool_names":["memory_search_text"],"limit":2}`)
+	result, err := invokable.InvokableRun(ctx, `{"query":"knowledge","tool_names":["memory_search"],"limit":2}`)
 	if err != nil {
 		t.Fatalf("InvokableRun: %v", err)
 	}
 	if plane.lastReq.RunID != "run_load_tools" || plane.lastReq.SessionID != "sess_load_tools" {
 		t.Fatalf("deferred load context mismatch: %+v", plane.lastReq)
 	}
-	if !strings.Contains(result, "memory_search_text") || !strings.Contains(result, "read_file") {
+	if !strings.Contains(result, "memory_search") || !strings.Contains(result, "read_file") {
 		t.Fatalf("unexpected load_tools output: %s", result)
 	}
 	if !strings.Contains(result, "\"messages\"") {

@@ -232,7 +232,7 @@ func formatSkillTree(tree *memorymodule.SkillTreeIndex) string {
 			parts = append(parts, fmt.Sprintf("  - %s [ref: %s, path: %s]", skill.Title, skill.Ref, skill.RelPath))
 		}
 	}
-	parts = append(parts, "Use memory_read_file to load a skill's full content when needed.")
+	parts = append(parts, "Use memory_search for semantic retrieval and memory_read_file to load a skill's full content when needed.")
 	return strings.Join(parts, "\n")
 }
 

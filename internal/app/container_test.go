@@ -106,6 +106,9 @@ func testContainerDependencies(t *testing.T, cfg *config.Config) *containerDepen
 		Embedder:   semanticEmbedder,
 		Model:      cfg.Memory.Semantic.Embedding.Model,
 		Dimensions: cfg.Memory.Semantic.Embedding.Dimensions,
+		BatchSize:  cfg.Memory.Semantic.Embedding.BatchSize,
+		Schema:     memorymodule.SemanticSchemaMemoryRecordsV1,
+		IndexName:  cfg.Memory.Semantic.Bleve.IndexName,
 		Mode:       "hybrid",
 	}); err != nil {
 		_ = store.Close()
