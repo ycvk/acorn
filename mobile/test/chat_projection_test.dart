@@ -177,6 +177,38 @@ void main() {
     }
   });
 
+  test('keeps native workflow tool progress out of chat activity', () {
+    for (final toolName in const [
+      'multi_edit',
+      'run_verification',
+      'git_summary',
+      'artifact_write',
+      'terminal_session_read',
+    ]) {
+      for (final type in const [
+        'tool.call.started',
+        'tool.call.progress',
+        'tool.call.succeeded',
+        'tool.call.failed',
+      ]) {
+        expect(
+          activityFromEvent(
+            _event(type, {
+              'tool_call': {
+                'call_id': 'call_$toolName',
+                'name': toolName,
+                'delta': '$toolName output',
+                'error': '$toolName failed',
+              },
+            }),
+          ),
+          isNull,
+          reason: '$type $toolName',
+        );
+      }
+    }
+  });
+
   test('shows terminal run failure in chat activity', () {
     final event = _event('run.failed', {
       'error': 'provider api key is missing',
