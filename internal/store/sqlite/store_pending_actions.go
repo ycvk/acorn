@@ -308,6 +308,8 @@ func normalizePendingActionKind(kind events.PendingActionKind) (events.PendingAc
 	switch strings.TrimSpace(string(kind)) {
 	case string(events.PendingActionKindElicitation):
 		return events.PendingActionKindElicitation, nil
+	case string(events.PendingActionKindOperatorQuestion):
+		return events.PendingActionKindOperatorQuestion, nil
 	default:
 		return "", fmt.Errorf("unsupported pending action kind %q", kind)
 	}

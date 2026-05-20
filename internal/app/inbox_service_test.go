@@ -113,6 +113,48 @@ func TestInboxServiceFailsOnInvalidPendingActionPayload(t *testing.T) {
 	}
 }
 
+func TestInboxServiceProjectsOperatorQuestionPendingAction(t *testing.T) {
+	store := openTestStore(t)
+	ctx := context.Background()
+
+	if _, err := store.CreateSession(ctx, "thread_operator_pending", "Question"); err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	if err := store.CreateRunWithSession(ctx, "run_operator_pending", "thread_operator_pending", 1, "ask", "run_operator_pending"); err != nil {
+		t.Fatalf("create run: %v", err)
+	}
+	if _, err := store.CreatePendingAction(ctx, storecore.CreatePendingActionInput{
+		ActionID: "action_operator_pending",
+		RunID:    "run_operator_pending",
+		Kind:     events.PendingActionKindOperatorQuestion,
+		Subject:  "Choose path",
+		PayloadJSON: `{
+			"question":"Which path should Acorn take?",
+			"options":[{"id":"fast","label":"Fast","description":"Ship the focused change"}],
+			"allow_freeform":true
+		}`,
+		Status: events.PendingActionStatusPending,
+		Mode:   events.PendingActionModeDeferred,
+	}); err != nil {
+		t.Fatalf("create pending action: %v", err)
+	}
+
+	inbox, err := NewInboxService(store, &inboxCapabilityStub{}).Load(ctx)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(inbox.PendingActions) != 1 {
+		t.Fatalf("pending actions = %#v, want one", inbox.PendingActions)
+	}
+	action := inbox.PendingActions[0]
+	if action.Kind != "operator_question" || action.Title != "Choose path" || action.Body != "Which path should Acorn take?" {
+		t.Fatalf("operator summary = %#v", action)
+	}
+	if len(action.Options) != 1 || action.Options[0].ID != "fast" || action.Options[0].Description != "Ship the focused change" {
+		t.Fatalf("operator options = %#v", action.Options)
+	}
+}
+
 type inboxCapabilityStub struct {
 	snapshot SystemCapabilities
 }

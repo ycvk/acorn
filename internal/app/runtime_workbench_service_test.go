@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ycvk/acorn/internal/artifacts"
 	"github.com/ycvk/acorn/internal/decision"
 	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/providerusage"
@@ -16,6 +17,7 @@ import (
 	"github.com/ycvk/acorn/internal/runtimehistory"
 	storecore "github.com/ycvk/acorn/internal/store"
 	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
+	"github.com/ycvk/acorn/internal/terminalsession"
 	"github.com/ycvk/acorn/internal/toolresult"
 	"github.com/ycvk/acorn/internal/workspace"
 )
@@ -222,6 +224,54 @@ func TestRuntimeWorkbenchServiceLoadAggregatesRuntimeTruth(t *testing.T) {
 				},
 			},
 		},
+		artifactsByRun: map[string][]artifacts.Record{
+			"run_1": {
+				{
+					ArtifactID:          "artifact_report",
+					RunID:               "run_1",
+					SessionID:           "session_1",
+					SourceToolResultRef: "tool_result:run_1:call_artifact",
+					Kind:                artifacts.KindMarkdown,
+					Title:               "Verification report",
+					MIMEType:            "text/markdown",
+					SizeBytes:           27,
+					SHA256:              strings.Repeat("a", 64),
+					CreatedAt:           now.Add(2 * time.Second),
+				},
+			},
+		},
+		terminalSessionsByRun: map[string][]terminalsession.SessionRecord{
+			"run_1": {
+				{
+					TerminalSessionID: "term_1",
+					RunID:             "run_1",
+					SessionID:         "session_1",
+					Label:             "make test",
+					CommandJSON:       `["make","test"]`,
+					Cwd:               root,
+					Status:            terminalsession.StatusExited,
+					ExitCode:          intPtr(0),
+					StdoutArtifactID:  "artifact_stdout",
+					StartedAt:         &now,
+					EndedAt:           timePtr(now.Add(2 * time.Second)),
+					CreatedAt:         now,
+					UpdatedAt:         now.Add(2 * time.Second),
+				},
+			},
+		},
+		terminalLogsBySession: map[string][]terminalsession.LogRecord{
+			"term_1": {
+				{
+					LogID:             "term_1_stdout",
+					TerminalSessionID: "term_1",
+					Stream:            terminalsession.LogStreamStdout,
+					ArtifactID:        "artifact_stdout",
+					StartOffset:       0,
+					SizeBytes:         128,
+					CreatedAt:         now.Add(2 * time.Second),
+				},
+			},
+		},
 		providerUsagesByRun: map[string][]providerusage.Record{
 			"run_1": {
 				{
@@ -321,6 +371,12 @@ func TestRuntimeWorkbenchServiceLoadAggregatesRuntimeTruth(t *testing.T) {
 	}
 	if len(workbench.ContextEconomy.ToolResults) != 2 || !workbench.ContextEconomy.ToolResults[0].Elided || len(workbench.ContextEconomy.ToolResults[0].EvidenceRefs) != 1 {
 		t.Fatalf("unexpected tool result economy: %+v", workbench.ContextEconomy.ToolResults)
+	}
+	if len(workbench.Artifacts) != 1 || workbench.Artifacts[0].ArtifactID != "artifact_report" || workbench.Artifacts[0].SourceToolResultRef != "tool_result:run_1:call_artifact" {
+		t.Fatalf("unexpected artifacts: %+v", workbench.Artifacts)
+	}
+	if len(workbench.TerminalSessions) != 1 || workbench.TerminalSessions[0].TerminalSessionID != "term_1" || len(workbench.TerminalSessions[0].Logs) != 1 {
+		t.Fatalf("unexpected terminal sessions: %+v", workbench.TerminalSessions)
 	}
 	if workbench.ProviderUsage.CallCount != 2 || workbench.ProviderUsage.TotalTokens != 170 || workbench.ProviderUsage.CachedTokens != 65 || workbench.ProviderUsage.ReasoningTokens != 6 {
 		t.Fatalf("unexpected provider usage summary: %+v", workbench.ProviderUsage)
@@ -492,15 +548,18 @@ func TestRuntimeWorkbenchServiceLoadRejectsInterruptedRunWithoutTraceService(t *
 }
 
 type runtimeWorkbenchStoreStub struct {
-	session             *events.SessionRecord
-	run                 *events.RunRecord
-	eventsByRun         map[string][]events.EventRecord
-	decision            *decision.Record
-	plan                *runtime.Plan
-	summary             *runtimehistory.SessionSummary
-	loadEventsErr       error
-	toolResultsByRun    map[string][]toolresult.Record
-	providerUsagesByRun map[string][]providerusage.Record
+	session               *events.SessionRecord
+	run                   *events.RunRecord
+	eventsByRun           map[string][]events.EventRecord
+	decision              *decision.Record
+	plan                  *runtime.Plan
+	summary               *runtimehistory.SessionSummary
+	loadEventsErr         error
+	toolResultsByRun      map[string][]toolresult.Record
+	artifactsByRun        map[string][]artifacts.Record
+	terminalSessionsByRun map[string][]terminalsession.SessionRecord
+	terminalLogsBySession map[string][]terminalsession.LogRecord
+	providerUsagesByRun   map[string][]providerusage.Record
 }
 
 func (s *runtimeWorkbenchStoreStub) LoadSession(_ context.Context, _ string) (*events.SessionRecord, error) {
@@ -537,6 +596,18 @@ func (s *runtimeWorkbenchStoreStub) ListByRun(_ context.Context, runID string) (
 	return s.toolResultsByRun[runID], nil
 }
 
+func (s *runtimeWorkbenchStoreStub) ListArtifactsByRun(_ context.Context, runID string) ([]artifacts.Record, error) {
+	return s.artifactsByRun[runID], nil
+}
+
+func (s *runtimeWorkbenchStoreStub) ListTerminalSessionsByRun(_ context.Context, runID string) ([]terminalsession.SessionRecord, error) {
+	return s.terminalSessionsByRun[runID], nil
+}
+
+func (s *runtimeWorkbenchStoreStub) ListTerminalSessionLogs(_ context.Context, terminalSessionID string) ([]terminalsession.LogRecord, error) {
+	return s.terminalLogsBySession[terminalSessionID], nil
+}
+
 func (s *runtimeWorkbenchStoreStub) ListProviderUsagesByRun(_ context.Context, runID string) ([]providerusage.Record, error) {
 	return s.providerUsagesByRun[runID], nil
 }
@@ -555,6 +626,14 @@ func runGitForWorkbenchTest(t *testing.T, root string, args ...string) {
 	if output, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("git %v: %v\n%s", args, err, string(output))
 	}
+}
+
+func intPtr(value int) *int {
+	return &value
+}
+
+func timePtr(value time.Time) *time.Time {
+	return &value
 }
 
 func openRuntimeWorkbenchSQLiteStore(t *testing.T) *storesqlite.Store {

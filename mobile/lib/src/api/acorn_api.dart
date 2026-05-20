@@ -95,11 +95,11 @@ class AcornApiClient {
 
   Future<PendingActionDecision> decidePendingAction(
     String actionId,
-    String decision,
+    PendingActionDecisionRequest request,
   ) async {
     final json = await _postJson(
       '/v1/pending-actions/${Uri.encodeComponent(actionId)}:decide',
-      {'decision': decision},
+      request.toJson(),
     );
     return PendingActionDecision.fromJson(json);
   }
@@ -596,15 +596,21 @@ class PendingActionSummary {
 }
 
 class PendingActionOption {
-  const PendingActionOption({required this.id, required this.label});
+  const PendingActionOption({
+    required this.id,
+    required this.label,
+    this.description,
+  });
 
   final String id;
   final String label;
+  final String? description;
 
   factory PendingActionOption.fromJson(Map<String, dynamic> json) {
     return PendingActionOption(
       id: _string(json['id']),
       label: _string(json['label']),
+      description: _nullableString(json['description']),
     );
   }
 }
@@ -664,14 +670,18 @@ class PendingActionDecision {
     required this.actionId,
     required this.runId,
     required this.status,
-    required this.selectedOptionId,
+    required this.decision,
+    this.selectedOptionId,
+    this.answer,
     this.decidedAt,
   });
 
   final String actionId;
   final String runId;
   final String status;
-  final String selectedOptionId;
+  final String decision;
+  final String? selectedOptionId;
+  final String? answer;
   final String? decidedAt;
 
   factory PendingActionDecision.fromJson(Map<String, dynamic> json) {
@@ -679,9 +689,34 @@ class PendingActionDecision {
       actionId: _string(json['action_id']),
       runId: _string(json['run_id']),
       status: _string(json['status']),
-      selectedOptionId: _string(json['selected_option_id']),
+      decision: _string(json['decision']),
+      selectedOptionId: _nullableString(json['selected_option_id']),
+      answer: _nullableString(json['answer']),
       decidedAt: _nullableString(json['decided_at']),
     );
+  }
+}
+
+class PendingActionDecisionRequest {
+  const PendingActionDecisionRequest({
+    required this.decision,
+    this.selectedOptionId,
+    this.answer,
+  });
+
+  final String decision;
+  final String? selectedOptionId;
+  final String? answer;
+
+  Map<String, dynamic> toJson() {
+    final json = <String, dynamic>{'decision': decision};
+    if (selectedOptionId != null) {
+      json['selected_option_id'] = selectedOptionId;
+    }
+    if (answer != null) {
+      json['answer'] = answer;
+    }
+    return json;
   }
 }
 
@@ -842,20 +877,177 @@ class RunDetail {
     required this.run,
     required this.thread,
     required this.events,
+    required this.artifacts,
+    required this.terminalSessions,
     required this.raw,
   });
 
   final Run run;
   final Thread thread;
   final List<RunEvent> events;
+  final List<RunArtifact> artifacts;
+  final List<RunTerminalSession> terminalSessions;
   final Map<String, dynamic> raw;
 
   factory RunDetail.fromJson(Map<String, dynamic> json) {
+    final workbench = _map(json['workbench']);
     return RunDetail(
       run: Run.fromJson(_map(json['run'])),
       thread: Thread.fromJson(_map(json['thread'])),
       events: _list(json['events'], RunEvent.fromJson),
+      artifacts: _list(workbench['artifacts'], RunArtifact.fromJson),
+      terminalSessions: _list(
+        workbench['terminal_sessions'],
+        RunTerminalSession.fromJson,
+      ),
       raw: Map<String, dynamic>.from(json),
+    );
+  }
+}
+
+class RunArtifact {
+  const RunArtifact({
+    required this.artifactId,
+    required this.runId,
+    required this.kind,
+    required this.sizeBytes,
+    required this.sha256,
+    required this.createdAt,
+    this.sessionId,
+    this.sourceToolResultRef,
+    this.title,
+    this.mimeType,
+  });
+
+  final String artifactId;
+  final String runId;
+  final String? sessionId;
+  final String? sourceToolResultRef;
+  final String kind;
+  final String? title;
+  final String? mimeType;
+  final int sizeBytes;
+  final String sha256;
+  final String createdAt;
+
+  factory RunArtifact.fromJson(Map<String, dynamic> json) {
+    return RunArtifact(
+      artifactId: _string(json['artifact_id']),
+      runId: _string(json['run_id']),
+      sessionId: _nullableString(json['session_id']),
+      sourceToolResultRef: _nullableString(json['source_tool_result_ref']),
+      kind: _string(json['kind']),
+      title: _nullableString(json['title']),
+      mimeType: _nullableString(json['mime_type']),
+      sizeBytes: _int(json['size_bytes']),
+      sha256: _string(json['sha256']),
+      createdAt: _string(json['created_at']),
+    );
+  }
+}
+
+class RunTerminalSession {
+  const RunTerminalSession({
+    required this.terminalSessionId,
+    required this.runId,
+    required this.commandJson,
+    required this.cwd,
+    required this.interactive,
+    required this.pty,
+    required this.status,
+    required this.createdAt,
+    required this.updatedAt,
+    this.sessionId,
+    this.label,
+    this.pid,
+    this.processGroupId,
+    this.exitCode,
+    this.signal,
+    this.stdoutArtifactId,
+    this.stderrArtifactId,
+    this.ptyArtifactId,
+    this.startedAt,
+    this.endedAt,
+    this.logs = const [],
+  });
+
+  final String terminalSessionId;
+  final String runId;
+  final String? sessionId;
+  final String? label;
+  final String commandJson;
+  final String cwd;
+  final bool interactive;
+  final bool pty;
+  final String status;
+  final int? pid;
+  final int? processGroupId;
+  final int? exitCode;
+  final String? signal;
+  final String? stdoutArtifactId;
+  final String? stderrArtifactId;
+  final String? ptyArtifactId;
+  final String? startedAt;
+  final String? endedAt;
+  final String createdAt;
+  final String updatedAt;
+  final List<RunTerminalSessionLog> logs;
+
+  factory RunTerminalSession.fromJson(Map<String, dynamic> json) {
+    return RunTerminalSession(
+      terminalSessionId: _string(json['terminal_session_id']),
+      runId: _string(json['run_id']),
+      sessionId: _nullableString(json['session_id']),
+      label: _nullableString(json['label']),
+      commandJson: _string(json['command_json']),
+      cwd: _string(json['cwd']),
+      interactive: _bool(json['interactive']),
+      pty: _bool(json['pty']),
+      status: _string(json['status']),
+      pid: _nullableInt(json['pid']),
+      processGroupId: _nullableInt(json['process_group_id']),
+      exitCode: _nullableInt(json['exit_code']),
+      signal: _nullableString(json['signal']),
+      stdoutArtifactId: _nullableString(json['stdout_artifact_id']),
+      stderrArtifactId: _nullableString(json['stderr_artifact_id']),
+      ptyArtifactId: _nullableString(json['pty_artifact_id']),
+      startedAt: _nullableString(json['started_at']),
+      endedAt: _nullableString(json['ended_at']),
+      createdAt: _string(json['created_at']),
+      updatedAt: _string(json['updated_at']),
+      logs: _list(json['logs'], RunTerminalSessionLog.fromJson),
+    );
+  }
+}
+
+class RunTerminalSessionLog {
+  const RunTerminalSessionLog({
+    required this.logId,
+    required this.terminalSessionId,
+    required this.stream,
+    required this.artifactId,
+    required this.startOffset,
+    required this.sizeBytes,
+    required this.createdAt,
+  });
+
+  final String logId;
+  final String terminalSessionId;
+  final String stream;
+  final String artifactId;
+  final int startOffset;
+  final int sizeBytes;
+  final String createdAt;
+
+  factory RunTerminalSessionLog.fromJson(Map<String, dynamic> json) {
+    return RunTerminalSessionLog(
+      logId: _string(json['log_id']),
+      terminalSessionId: _string(json['terminal_session_id']),
+      stream: _string(json['stream']),
+      artifactId: _string(json['artifact_id']),
+      startOffset: _int(json['start_offset']),
+      sizeBytes: _int(json['size_bytes']),
+      createdAt: _string(json['created_at']),
     );
   }
 }
@@ -1223,6 +1415,11 @@ int _int(Object? value) => value is int
     : value is num
     ? value.toInt()
     : 0;
+int? _nullableInt(Object? value) => value is int
+    ? value
+    : value is num
+    ? value.toInt()
+    : null;
 double _double(Object? value) => value is double
     ? value
     : value is num

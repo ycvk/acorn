@@ -14,6 +14,7 @@ import (
 	einomodel "github.com/cloudwego/eino/components/model"
 	einotool "github.com/cloudwego/eino/components/tool"
 
+	"github.com/ycvk/acorn/internal/artifacts"
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/contextplane"
 	"github.com/ycvk/acorn/internal/crystallization"
@@ -23,6 +24,7 @@ import (
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
 	"github.com/ycvk/acorn/internal/runtimehistory"
 	"github.com/ycvk/acorn/internal/skills"
+	"github.com/ycvk/acorn/internal/terminalsession"
 	"github.com/ycvk/acorn/internal/tooling"
 	"github.com/ycvk/acorn/internal/workingstate"
 	"github.com/ycvk/acorn/internal/workspace"
@@ -54,6 +56,10 @@ type RunnerFactory struct {
 	mcpPendingActions  mcpprovider.PendingActionStore
 	workspace          *workspace.Workspace
 	workspaceErr       error
+	artifactService    *artifacts.Service
+	artifactServiceErr error
+	terminalService    *terminalsession.Service
+	terminalServiceErr error
 	extraLocalTools    []einotool.BaseTool
 	handlers           []adk.ChatModelAgentMiddleware
 	mu                 sync.Mutex
@@ -122,6 +128,8 @@ func NewRunnerFactory(cfg *config.Config, store runnerFactoryStore, opts RunnerF
 	if ws == nil && cfg != nil {
 		ws, wsErr = cfg.Workspace()
 	}
+	artifactService, artifactServiceErr := buildArtifactService(cfg, store)
+	terminalService, terminalServiceErr := buildTerminalSessionService(store, artifactService, artifactServiceErr)
 	loader := opts.Loader
 	if loader == nil {
 		loader = skills.NewLoader(cfg)
@@ -179,23 +187,27 @@ func NewRunnerFactory(cfg *config.Config, store runnerFactoryStore, opts RunnerF
 		handlers:     opts.Handlers,
 	})
 	factory := &RunnerFactory{
-		cfg:               cfg,
-		store:             store,
-		loader:            loader,
-		decisionProfiles:  decisionProfiles,
-		checkpointService: opts.CheckpointService,
-		sessionSummarySvc: opts.SessionSummaryService,
-		memoryModule:      memoryModule,
-		memoryModuleErr:   memoryModuleErr,
-		contextPlane:      contextPlane,
-		contextPlaneErr:   contextPlaneErr,
-		orchestration:     orchestrationPlane,
-		mcpPendingActions: opts.MCPPendingActionStore,
-		workspace:         ws,
-		workspaceErr:      wsErr,
-		extraLocalTools:   append([]einotool.BaseTool(nil), opts.ExtraLocalTools...),
-		handlers:          append([]adk.ChatModelAgentMiddleware(nil), opts.Handlers...),
-		registry:          newRunRegistry(),
+		cfg:                cfg,
+		store:              store,
+		loader:             loader,
+		decisionProfiles:   decisionProfiles,
+		checkpointService:  opts.CheckpointService,
+		sessionSummarySvc:  opts.SessionSummaryService,
+		memoryModule:       memoryModule,
+		memoryModuleErr:    memoryModuleErr,
+		contextPlane:       contextPlane,
+		contextPlaneErr:    contextPlaneErr,
+		orchestration:      orchestrationPlane,
+		mcpPendingActions:  opts.MCPPendingActionStore,
+		workspace:          ws,
+		workspaceErr:       wsErr,
+		artifactService:    artifactService,
+		artifactServiceErr: artifactServiceErr,
+		terminalService:    terminalService,
+		terminalServiceErr: terminalServiceErr,
+		extraLocalTools:    append([]einotool.BaseTool(nil), opts.ExtraLocalTools...),
+		handlers:           append([]adk.ChatModelAgentMiddleware(nil), opts.Handlers...),
+		registry:           newRunRegistry(),
 	}
 	factory.runBuilder = newRunBuilder(factory)
 	if memoryModule != nil && cfg != nil && os.Getenv("ACORN_AUTO_CRYSTALLIZATION") == "true" {
@@ -208,6 +220,31 @@ func NewRunnerFactory(cfg *config.Config, store runnerFactoryStore, opts RunnerF
 		}
 	}
 	return factory
+}
+
+func buildArtifactService(cfg *config.Config, store runnerFactoryStore) (*artifacts.Service, error) {
+	if cfg == nil {
+		return nil, errors.New("artifact service requires config")
+	}
+	if strings.TrimSpace(cfg.Runtime.StorageDir) == "" {
+		return nil, errors.New("artifact service requires runtime storage_dir")
+	}
+	artifactStore, ok := store.(artifacts.Store)
+	if !ok {
+		return nil, errors.New("artifact service requires artifact store")
+	}
+	return artifacts.NewService(filepath.Join(cfg.Runtime.StorageDir, "artifacts"), artifactStore)
+}
+
+func buildTerminalSessionService(store runnerFactoryStore, artifactService *artifacts.Service, artifactErr error) (*terminalsession.Service, error) {
+	if artifactErr != nil {
+		return nil, fmt.Errorf("terminal session service requires artifact service: %w", artifactErr)
+	}
+	terminalStore, ok := store.(terminalsession.Store)
+	if !ok {
+		return nil, errors.New("terminal session service requires terminal session store")
+	}
+	return terminalsession.NewService(terminalStore, artifactService)
 }
 
 func (f *RunnerFactory) Crystallizer() crystallization.Service {

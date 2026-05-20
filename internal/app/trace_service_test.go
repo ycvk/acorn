@@ -8,6 +8,7 @@ import (
 
 	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/runtime"
+	storecore "github.com/ycvk/acorn/internal/store"
 )
 
 func TestTraceServiceWorksWithoutExecutionConfig(t *testing.T) {
@@ -149,6 +150,59 @@ func TestTraceServiceInfersResumeTargetsForKnownRunCommandInterruptKinds(t *test
 				t.Fatalf("unexpected interrupt payload: %#v", params)
 			}
 		})
+	}
+}
+
+func TestTraceServiceInfersResumeTargetsForDecidedOperatorQuestion(t *testing.T) {
+	store := openTestStore(t)
+
+	const runID = "run_operator_question_resume"
+	if err := store.CreateRun(context.Background(), runID, "need input", runID); err != nil {
+		t.Fatalf("create run: %v", err)
+	}
+	if _, err := store.CreatePendingAction(context.Background(), storecore.CreatePendingActionInput{
+		ActionID:    "action_operator_resume",
+		RunID:       runID,
+		Kind:        events.PendingActionKindOperatorQuestion,
+		PayloadJSON: `{"question":"Which path?","allow_freeform":true}`,
+		Status:      events.PendingActionStatusPending,
+		Mode:        events.PendingActionModeDeferred,
+	}); err != nil {
+		t.Fatalf("create pending action: %v", err)
+	}
+	if _, err := store.DecidePendingAction(context.Background(), "action_operator_resume", events.PendingActionStatusApproved, events.PendingActionModeDeferred, `{"action":"answer","answer":"ship it"}`); err != nil {
+		t.Fatalf("decide pending action: %v", err)
+	}
+	if _, err := store.AppendEventContext(context.Background(), runID, "run.interrupted", map[string]any{
+		"interrupt": map[string]any{
+			"contexts": []any{
+				map[string]any{
+					"id":            "ctx_operator",
+					"is_root_cause": true,
+					"info": map[string]any{
+						"kind":      "operator_question",
+						"action_id": "action_operator_resume",
+					},
+				},
+			},
+		},
+	}); err != nil {
+		t.Fatalf("append run.interrupted: %v", err)
+	}
+	if err := store.MarkInterruptedContext(context.Background(), runID, "waiting for operator"); err != nil {
+		t.Fatalf("mark interrupted: %v", err)
+	}
+
+	targets, err := NewTraceService(store).InferResumeTargets(context.Background(), runID)
+	if err != nil {
+		t.Fatalf("InferResumeTargets: %v", err)
+	}
+	payload, ok := targets["ctx_operator"].(map[string]any)
+	if !ok {
+		t.Fatalf("unexpected targets: %#v", targets)
+	}
+	if payload["action"] != "answer" || payload["answer"] != "ship it" || payload["action_id"] != "action_operator_resume" {
+		t.Fatalf("unexpected operator resume payload: %#v", payload)
 	}
 }
 

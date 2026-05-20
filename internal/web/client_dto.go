@@ -71,6 +71,7 @@ type MessagePartDTO struct {
 	DecisionID       string              `json:"decision_id,omitempty"`
 	Question         string              `json:"question,omitempty"`
 	SelectedOptionID string              `json:"selected_option_id,omitempty"`
+	Answer           string              `json:"answer,omitempty"`
 	Options          []DecisionOptionDTO `json:"options,omitempty"`
 	Action           *MessageActionDTO   `json:"action,omitempty"`
 }
@@ -124,6 +125,7 @@ func (part MessagePartDTO) MarshalJSON() ([]byte, error) {
 			Question         string              `json:"question"`
 			Status           string              `json:"status,omitempty"`
 			SelectedOptionID string              `json:"selected_option_id,omitempty"`
+			Answer           string              `json:"answer,omitempty"`
 			Options          []DecisionOptionDTO `json:"options"`
 		}{
 			Kind:             part.Kind,
@@ -131,6 +133,7 @@ func (part MessagePartDTO) MarshalJSON() ([]byte, error) {
 			Question:         part.Question,
 			Status:           part.Status,
 			SelectedOptionID: part.SelectedOptionID,
+			Answer:           part.Answer,
 			Options:          part.Options,
 		})
 	case "result":
@@ -188,14 +191,18 @@ type MessageActionDTO struct {
 }
 
 type DecidePendingActionRequest struct {
-	Decision string `json:"decision"`
+	Decision         string `json:"decision"`
+	SelectedOptionID string `json:"selected_option_id,omitempty"`
+	Answer           string `json:"answer,omitempty"`
 }
 
 type PendingActionDecisionDTO struct {
 	ActionID         string     `json:"action_id"`
 	RunID            string     `json:"run_id"`
 	Status           string     `json:"status"`
-	SelectedOptionID string     `json:"selected_option_id"`
+	Decision         string     `json:"decision"`
+	SelectedOptionID string     `json:"selected_option_id,omitempty"`
+	Answer           string     `json:"answer,omitempty"`
 	DecidedAt        *time.Time `json:"decided_at,omitempty"`
 }
 
@@ -309,8 +316,9 @@ type PendingActionSummaryDTO struct {
 }
 
 type PendingActionOptionDTO struct {
-	ID    string `json:"id"`
-	Label string `json:"label"`
+	ID          string `json:"id"`
+	Label       string `json:"label"`
+	Description string `json:"description,omitempty"`
 }
 
 type ToolSummaryDTO = CapabilitiesToolDTO
@@ -458,11 +466,14 @@ func messageActionDTOFromDomain(action *app.MessageAction) *MessageActionDTO {
 
 func pendingActionDecisionDTOFromDomain(record events.PendingActionRecord) PendingActionDecisionDTO {
 	status := string(record.Status)
+	decision, selectedOptionID, answer := pendingActionDecisionFields(record)
 	return PendingActionDecisionDTO{
 		ActionID:         record.ActionID,
 		RunID:            record.RunID,
 		Status:           status,
-		SelectedOptionID: selectedOptionIDFromPendingActionStatus(record.Status),
+		Decision:         decision,
+		SelectedOptionID: selectedOptionID,
+		Answer:           answer,
 		DecidedAt:        record.DecidedAt,
 	}
 }
@@ -488,15 +499,16 @@ func pendingActionDetailDTOFromDomain(item app.PendingActionDetail) PendingActio
 	}
 }
 
-func selectedOptionIDFromPendingActionStatus(status events.PendingActionStatus) string {
-	switch status {
-	case events.PendingActionStatusApproved:
-		return "accept"
-	case events.PendingActionStatusRejected:
-		return "decline"
-	default:
-		return ""
+func pendingActionDecisionFields(record events.PendingActionRecord) (string, string, string) {
+	var payload struct {
+		Action           string `json:"action"`
+		SelectedOptionID string `json:"selected_option_id"`
+		Answer           string `json:"answer"`
 	}
+	if err := json.Unmarshal([]byte(record.DecisionJSON), &payload); err == nil {
+		return payload.Action, payload.SelectedOptionID, payload.Answer
+	}
+	return "", "", ""
 }
 
 func decisionOptionDTOsFromDomain(options []app.DecisionOption) []DecisionOptionDTO {
@@ -586,8 +598,9 @@ func pendingActionOptionDTOsFromDomain(items []app.PendingActionOption) []Pendin
 	result := make([]PendingActionOptionDTO, 0, len(items))
 	for _, item := range items {
 		result = append(result, PendingActionOptionDTO{
-			ID:    item.ID,
-			Label: item.Label,
+			ID:          item.ID,
+			Label:       item.Label,
+			Description: item.Description,
 		})
 	}
 	return result

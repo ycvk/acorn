@@ -28,6 +28,12 @@ type PendingActionDetail struct {
 	Rule    string
 }
 
+type PendingActionDecisionInput struct {
+	Decision         string
+	SelectedOptionID string
+	Answer           string
+}
+
 func (s *PendingActionService) List(ctx context.Context, limit int) ([]PendingActionSummary, error) {
 	if s == nil || s.store == nil {
 		return nil, errors.New("pending action store is nil")
@@ -86,7 +92,7 @@ func (s *PendingActionService) Get(ctx context.Context, actionID string) (*Pendi
 	}, nil
 }
 
-func (s *PendingActionService) Decide(ctx context.Context, actionID, decision string) (*events.PendingActionRecord, error) {
+func (s *PendingActionService) Decide(ctx context.Context, actionID string, input PendingActionDecisionInput) (*events.PendingActionRecord, error) {
 	if s == nil || s.store == nil {
 		return nil, errors.New("pending action store is nil")
 	}
@@ -99,20 +105,10 @@ func (s *PendingActionService) Decide(ctx context.Context, actionID, decision st
 	if err != nil {
 		return nil, err
 	}
-	if record.Kind != events.PendingActionKindElicitation {
-		return nil, fmt.Errorf("unsupported pending action kind %q", record.Kind)
-	}
 
-	status, err := pendingActionDecisionStatus(decision)
+	status, decisionJSON, eventKind, eventPayload, err := buildPendingActionDecision(*record, input)
 	if err != nil {
 		return nil, err
-	}
-
-	decisionJSON, err := json.Marshal(map[string]any{
-		"action": statusToDecisionAction(status),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("marshal pending action decision: %w", err)
 	}
 
 	record, err = s.store.DecidePendingAction(ctx, actionID, status, events.PendingActionModeDeferred, string(decisionJSON))
@@ -122,13 +118,111 @@ func (s *PendingActionService) Decide(ctx context.Context, actionID, decision st
 	if err := s.store.SyncDecisionMessageForPendingAction(ctx, actionID); err != nil {
 		return nil, err
 	}
-	if _, err := s.store.AppendEventContext(ctx, record.RunID, "elicitation.decided", map[string]any{
-		"action_id": actionID,
-		"decision":  statusToDecisionAction(status),
-	}); err != nil {
-		return nil, fmt.Errorf("append elicitation decided event: %w", err)
+	if _, err := s.store.AppendEventContext(ctx, record.RunID, eventKind, eventPayload); err != nil {
+		return nil, fmt.Errorf("append %s event: %w", eventKind, err)
 	}
 	return record, nil
+}
+
+func buildPendingActionDecision(record events.PendingActionRecord, input PendingActionDecisionInput) (events.PendingActionStatus, []byte, string, map[string]any, error) {
+	switch record.Kind {
+	case events.PendingActionKindElicitation:
+		return buildElicitationDecision(record, input)
+	case events.PendingActionKindOperatorQuestion:
+		return buildOperatorQuestionDecision(record, input)
+	default:
+		return "", nil, "", nil, fmt.Errorf("unsupported pending action kind %q", record.Kind)
+	}
+}
+
+func buildElicitationDecision(record events.PendingActionRecord, input PendingActionDecisionInput) (events.PendingActionStatus, []byte, string, map[string]any, error) {
+	if strings.TrimSpace(input.SelectedOptionID) != "" || strings.TrimSpace(input.Answer) != "" {
+		return "", nil, "", nil, fmt.Errorf("%w: elicitation accepts decision only", ErrPendingActionDecisionInvalid)
+	}
+	status, err := pendingActionDecisionStatus(input.Decision)
+	if err != nil {
+		return "", nil, "", nil, err
+	}
+
+	decisionJSON, err := json.Marshal(map[string]any{
+		"action": statusToDecisionAction(status),
+	})
+	if err != nil {
+		return "", nil, "", nil, fmt.Errorf("marshal pending action decision: %w", err)
+	}
+	return status, decisionJSON, "elicitation.decided", map[string]any{
+		"action_id": record.ActionID,
+		"decision":  statusToDecisionAction(status),
+	}, nil
+}
+
+func buildOperatorQuestionDecision(record events.PendingActionRecord, input PendingActionDecisionInput) (events.PendingActionStatus, []byte, string, map[string]any, error) {
+	payload, err := operatorQuestionPayload(record)
+	if err != nil {
+		return "", nil, "", nil, err
+	}
+	action := strings.TrimSpace(strings.ToLower(input.Decision))
+	selectedOptionID := strings.TrimSpace(input.SelectedOptionID)
+	answer := strings.TrimSpace(input.Answer)
+
+	var status events.PendingActionStatus
+	switch action {
+	case events.OperatorQuestionDecisionAnswer:
+		status = events.PendingActionStatusApproved
+		if err := validateOperatorAnswer(payload, selectedOptionID, answer); err != nil {
+			return "", nil, "", nil, err
+		}
+	case events.OperatorQuestionDecisionDecline:
+		status = events.PendingActionStatusRejected
+		if selectedOptionID != "" || answer != "" {
+			return "", nil, "", nil, fmt.Errorf("%w: declined operator question must not include selected_option_id or answer", ErrPendingActionDecisionInvalid)
+		}
+	default:
+		return "", nil, "", nil, fmt.Errorf("%w: %q", ErrPendingActionDecisionInvalid, input.Decision)
+	}
+
+	decision := events.OperatorQuestionDecision{
+		Action:           action,
+		SelectedOptionID: selectedOptionID,
+		Answer:           answer,
+	}
+	decisionJSON, err := json.Marshal(decision)
+	if err != nil {
+		return "", nil, "", nil, fmt.Errorf("marshal operator question decision: %w", err)
+	}
+	eventPayload := map[string]any{
+		"action_id": record.ActionID,
+		"question":  payload.Question,
+		"decision":  action,
+	}
+	if selectedOptionID != "" {
+		eventPayload["selected_option_id"] = selectedOptionID
+	}
+	if answer != "" {
+		eventPayload["answer"] = answer
+	}
+	return status, decisionJSON, "operator_question.decided", eventPayload, nil
+}
+
+func validateOperatorAnswer(payload events.OperatorQuestionPayload, selectedOptionID string, answer string) error {
+	if selectedOptionID == "" && answer == "" {
+		return fmt.Errorf("%w: operator answer requires selected_option_id or answer", ErrPendingActionDecisionInvalid)
+	}
+	if answer != "" && !payload.AllowFreeform {
+		return fmt.Errorf("%w: operator question does not allow freeform answer", ErrPendingActionDecisionInvalid)
+	}
+	if selectedOptionID == "" {
+		if len(payload.Options) > 0 && !payload.AllowFreeform {
+			return fmt.Errorf("%w: operator answer requires selected_option_id", ErrPendingActionDecisionInvalid)
+		}
+		return nil
+	}
+	for _, option := range payload.Options {
+		if strings.TrimSpace(option.ID) == selectedOptionID {
+			return nil
+		}
+	}
+	return fmt.Errorf("%w: unknown selected_option_id %q", ErrPendingActionDecisionInvalid, selectedOptionID)
 }
 
 func pendingActionDecisionStatus(decision string) (events.PendingActionStatus, error) {

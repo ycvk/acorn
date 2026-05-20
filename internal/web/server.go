@@ -32,7 +32,7 @@ type ClientService interface {
 type PendingActionService interface {
 	List(ctx context.Context, limit int) ([]app.PendingActionSummary, error)
 	Get(ctx context.Context, actionID string) (*app.PendingActionDetail, error)
-	Decide(ctx context.Context, actionID, decision string) (*events.PendingActionRecord, error)
+	Decide(ctx context.Context, actionID string, input app.PendingActionDecisionInput) (*events.PendingActionRecord, error)
 }
 
 type RuntimeWorkbenchService interface {

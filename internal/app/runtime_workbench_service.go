@@ -10,12 +10,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ycvk/acorn/internal/artifacts"
 	"github.com/ycvk/acorn/internal/decision"
 	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/providerusage"
 	"github.com/ycvk/acorn/internal/runtime"
 	"github.com/ycvk/acorn/internal/runtimehistory"
 	storecore "github.com/ycvk/acorn/internal/store"
+	"github.com/ycvk/acorn/internal/terminalsession"
 	"github.com/ycvk/acorn/internal/toolresult"
 	"github.com/ycvk/acorn/internal/workspace"
 )
@@ -41,6 +43,8 @@ type RuntimeWorkbench struct {
 	RollbackResults     []RollbackSummary
 	ContextEconomy      ContextEconomySummary
 	ProviderUsage       ProviderUsageSummary
+	Artifacts           []ArtifactSummary
+	TerminalSessions    []TerminalSessionSummary
 	Plan                *runtime.Plan
 	Evidence            []runtime.PlanEvidence
 	Subagents           []SubagentRun
@@ -160,6 +164,53 @@ type ProviderUsageCallSummary struct {
 	CreatedAt        time.Time
 }
 
+type ArtifactSummary struct {
+	ArtifactID          string
+	RunID               string
+	SessionID           string
+	SourceToolResultRef string
+	Kind                string
+	Title               string
+	MIMEType            string
+	SizeBytes           int64
+	SHA256              string
+	CreatedAt           time.Time
+}
+
+type TerminalSessionSummary struct {
+	TerminalSessionID string
+	RunID             string
+	SessionID         string
+	Label             string
+	CommandJSON       string
+	Cwd               string
+	Interactive       bool
+	PTY               bool
+	Status            string
+	ProcessID         *int
+	ProcessGroupID    *int
+	ExitCode          *int
+	Signal            string
+	StdoutArtifactID  string
+	StderrArtifactID  string
+	PTYArtifactID     string
+	StartedAt         *time.Time
+	EndedAt           *time.Time
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+	Logs              []TerminalSessionLogSummary
+}
+
+type TerminalSessionLogSummary struct {
+	LogID             string
+	TerminalSessionID string
+	Stream            string
+	ArtifactID        string
+	StartOffset       int64
+	SizeBytes         int64
+	CreatedAt         time.Time
+}
+
 type RuntimeWorkbenchService struct {
 	cfg   RuntimeWorkbenchConfig
 	store runtimeWorkbenchStore
@@ -178,6 +229,9 @@ type runtimeWorkbenchStore interface {
 	LoadRunDecision(ctx context.Context, runID string) (*decision.Record, error)
 	GetSessionSummary(ctx context.Context, sessionID string) (*runtimehistory.SessionSummary, error)
 	ListByRun(ctx context.Context, runID string) ([]toolresult.Record, error)
+	ListArtifactsByRun(ctx context.Context, runID string) ([]artifacts.Record, error)
+	ListTerminalSessionsByRun(ctx context.Context, runID string) ([]terminalsession.SessionRecord, error)
+	ListTerminalSessionLogs(ctx context.Context, terminalSessionID string) ([]terminalsession.LogRecord, error)
 	ListProviderUsagesByRun(ctx context.Context, runID string) ([]providerusage.Record, error)
 }
 
@@ -301,6 +355,21 @@ func (s *RuntimeWorkbenchService) Load(ctx context.Context, sessionID string) (*
 		}
 		workbench.ContextEconomy = buildContextEconomySummary(rawEvents, toolResults)
 
+		artifactRecords, artifactsErr := s.store.ListArtifactsByRun(ctx, latestRun.RunID)
+		if artifactsErr != nil {
+			return nil, artifactsErr
+		}
+		workbench.Artifacts = buildArtifactSummaries(artifactRecords)
+
+		terminalRecords, terminalErr := s.store.ListTerminalSessionsByRun(ctx, latestRun.RunID)
+		if terminalErr != nil {
+			return nil, terminalErr
+		}
+		workbench.TerminalSessions, terminalErr = s.buildTerminalSessionSummaries(ctx, terminalRecords)
+		if terminalErr != nil {
+			return nil, terminalErr
+		}
+
 		providerUsages, usageErr := s.store.ListProviderUsagesByRun(ctx, latestRun.RunID)
 		if usageErr != nil {
 			return nil, usageErr
@@ -408,6 +477,112 @@ func buildContextEconomySummary(rawEvents []events.EventRecord, records []toolre
 		}
 	}
 	return summary
+}
+
+func buildArtifactSummaries(records []artifacts.Record) []ArtifactSummary {
+	if len(records) == 0 {
+		return nil
+	}
+	items := make([]ArtifactSummary, 0, len(records))
+	for _, record := range records {
+		items = append(items, ArtifactSummary{
+			ArtifactID:          record.ArtifactID,
+			RunID:               record.RunID,
+			SessionID:           record.SessionID,
+			SourceToolResultRef: record.SourceToolResultRef,
+			Kind:                string(record.Kind),
+			Title:               record.Title,
+			MIMEType:            record.MIMEType,
+			SizeBytes:           record.SizeBytes,
+			SHA256:              record.SHA256,
+			CreatedAt:           record.CreatedAt,
+		})
+	}
+	sort.SliceStable(items, func(i, j int) bool {
+		if items[i].CreatedAt.Equal(items[j].CreatedAt) {
+			return items[i].ArtifactID < items[j].ArtifactID
+		}
+		return items[i].CreatedAt.Before(items[j].CreatedAt)
+	})
+	return items
+}
+
+func (s *RuntimeWorkbenchService) buildTerminalSessionSummaries(ctx context.Context, records []terminalsession.SessionRecord) ([]TerminalSessionSummary, error) {
+	if len(records) == 0 {
+		return nil, nil
+	}
+	items := make([]TerminalSessionSummary, 0, len(records))
+	for _, record := range records {
+		logs, err := s.store.ListTerminalSessionLogs(ctx, record.TerminalSessionID)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, TerminalSessionSummary{
+			TerminalSessionID: record.TerminalSessionID,
+			RunID:             record.RunID,
+			SessionID:         record.SessionID,
+			Label:             record.Label,
+			CommandJSON:       record.CommandJSON,
+			Cwd:               record.Cwd,
+			Interactive:       record.Interactive,
+			PTY:               record.PTY,
+			Status:            string(record.Status),
+			ProcessID:         copyOptionalInt(record.ProcessID),
+			ProcessGroupID:    copyOptionalInt(record.ProcessGroupID),
+			ExitCode:          copyOptionalInt(record.ExitCode),
+			Signal:            record.Signal,
+			StdoutArtifactID:  record.StdoutArtifactID,
+			StderrArtifactID:  record.StderrArtifactID,
+			PTYArtifactID:     record.PTYArtifactID,
+			StartedAt:         copyOptionalTime(record.StartedAt),
+			EndedAt:           copyOptionalTime(record.EndedAt),
+			CreatedAt:         record.CreatedAt,
+			UpdatedAt:         record.UpdatedAt,
+			Logs:              buildTerminalSessionLogSummaries(logs),
+		})
+	}
+	sort.SliceStable(items, func(i, j int) bool {
+		if items[i].CreatedAt.Equal(items[j].CreatedAt) {
+			return items[i].TerminalSessionID < items[j].TerminalSessionID
+		}
+		return items[i].CreatedAt.Before(items[j].CreatedAt)
+	})
+	return items, nil
+}
+
+func buildTerminalSessionLogSummaries(records []terminalsession.LogRecord) []TerminalSessionLogSummary {
+	if len(records) == 0 {
+		return nil
+	}
+	items := make([]TerminalSessionLogSummary, 0, len(records))
+	for _, record := range records {
+		items = append(items, TerminalSessionLogSummary{
+			LogID:             record.LogID,
+			TerminalSessionID: record.TerminalSessionID,
+			Stream:            string(record.Stream),
+			ArtifactID:        record.ArtifactID,
+			StartOffset:       record.StartOffset,
+			SizeBytes:         record.SizeBytes,
+			CreatedAt:         record.CreatedAt,
+		})
+	}
+	return items
+}
+
+func copyOptionalInt(value *int) *int {
+	if value == nil {
+		return nil
+	}
+	copied := *value
+	return &copied
+}
+
+func copyOptionalTime(value *time.Time) *time.Time {
+	if value == nil {
+		return nil
+	}
+	copied := value.UTC()
+	return &copied
 }
 
 func buildProviderUsageSummary(records []providerusage.Record) ProviderUsageSummary {

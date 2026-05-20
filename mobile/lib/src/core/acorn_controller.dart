@@ -249,9 +249,21 @@ class AcornController extends ChangeNotifier {
     });
   }
 
-  Future<void> decidePendingAction(String actionId, String decision) async {
+  Future<void> decidePendingAction(
+    String actionId, {
+    required String decision,
+    String? selectedOptionId,
+    String? answer,
+  }) async {
     await _runBusy(() async {
-      await api.decidePendingAction(actionId, decision);
+      await api.decidePendingAction(
+        actionId,
+        PendingActionDecisionRequest(
+          decision: decision,
+          selectedOptionId: selectedOptionId,
+          answer: answer,
+        ),
+      );
       pendingActionDetail = null;
       await _refreshInboxOnly();
     });

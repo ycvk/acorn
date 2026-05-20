@@ -445,6 +445,57 @@ CREATE TABLE IF NOT EXISTS tool_results (
 );
 CREATE INDEX IF NOT EXISTS idx_tool_results_run ON tool_results(run_id);
 CREATE INDEX IF NOT EXISTS idx_tool_results_session ON tool_results(session_id);
+CREATE TABLE IF NOT EXISTS artifacts (
+    artifact_id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL,
+    session_id TEXT NOT NULL DEFAULT '',
+    source_tool_result_ref TEXT NOT NULL DEFAULT '',
+    kind TEXT NOT NULL,
+    title TEXT NOT NULL DEFAULT '',
+    mime_type TEXT NOT NULL DEFAULT '',
+    relative_path TEXT NOT NULL,
+    size_bytes INTEGER NOT NULL,
+    sha256 TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_artifacts_run ON artifacts(run_id, created_at ASC, artifact_id ASC);
+CREATE INDEX IF NOT EXISTS idx_artifacts_session ON artifacts(session_id, created_at ASC, artifact_id ASC);
+CREATE INDEX IF NOT EXISTS idx_artifacts_source_tool_result ON artifacts(source_tool_result_ref);
+CREATE TABLE IF NOT EXISTS terminal_sessions (
+    terminal_session_id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL,
+    session_id TEXT NOT NULL DEFAULT '',
+    label TEXT NOT NULL DEFAULT '',
+    command_json TEXT NOT NULL,
+    cwd TEXT NOT NULL,
+    interactive INTEGER NOT NULL DEFAULT 0,
+    pty INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL,
+    pid INTEGER,
+    process_group_id INTEGER,
+    exit_code INTEGER,
+    signal TEXT NOT NULL DEFAULT '',
+    stdout_artifact_id TEXT NOT NULL DEFAULT '',
+    stderr_artifact_id TEXT NOT NULL DEFAULT '',
+    pty_artifact_id TEXT NOT NULL DEFAULT '',
+    started_at TEXT,
+    ended_at TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_terminal_sessions_run ON terminal_sessions(run_id, created_at ASC, terminal_session_id ASC);
+CREATE INDEX IF NOT EXISTS idx_terminal_sessions_session ON terminal_sessions(session_id, created_at ASC, terminal_session_id ASC);
+CREATE INDEX IF NOT EXISTS idx_terminal_sessions_status ON terminal_sessions(status, updated_at DESC);
+CREATE TABLE IF NOT EXISTS terminal_session_logs (
+    log_id TEXT PRIMARY KEY,
+    terminal_session_id TEXT NOT NULL,
+    stream TEXT NOT NULL,
+    artifact_id TEXT NOT NULL,
+    start_offset INTEGER NOT NULL DEFAULT 0,
+    size_bytes INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_terminal_session_logs_session ON terminal_session_logs(terminal_session_id, stream, created_at ASC, log_id ASC);
 CREATE TABLE IF NOT EXISTS provider_usages (
     usage_id TEXT PRIMARY KEY,
     run_id TEXT NOT NULL,

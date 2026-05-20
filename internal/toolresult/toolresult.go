@@ -21,6 +21,12 @@ type SideEffectRef struct {
 	Path string `json:"path,omitempty"`
 }
 
+const (
+	SideEffectKindArtifact        = "artifact"
+	SideEffectKindTerminalSession = "terminal_session"
+	SideEffectKindOperatorAction  = "operator_action"
+)
+
 type EvidenceRef struct {
 	Kind string `json:"kind"`
 	Ref  string `json:"ref"`
@@ -88,7 +94,11 @@ func NormalizeAppendRequest(req AppendRequest) (AppendRequest, error) {
 	req.ToolName = strings.TrimSpace(req.ToolName)
 	req.ArgumentsJSON = strings.TrimSpace(req.ArgumentsJSON)
 	req.ErrorReason = strings.TrimSpace(req.ErrorReason)
-	req.SideEffects = normalizeSideEffects(req.SideEffects)
+	var err error
+	req.SideEffects, err = normalizeSideEffects(req.SideEffects)
+	if err != nil {
+		return AppendRequest{}, err
+	}
 	req.EvidenceRefs = normalizeEvidenceRefs(req.EvidenceRefs)
 	if req.CreatedAt.IsZero() {
 		req.CreatedAt = time.Now().UTC()
@@ -127,9 +137,9 @@ func NormalizeEvidenceRef(ref EvidenceRef) (EvidenceRef, error) {
 	return ref, nil
 }
 
-func normalizeSideEffects(items []SideEffectRef) []SideEffectRef {
+func normalizeSideEffects(items []SideEffectRef) ([]SideEffectRef, error) {
 	if len(items) == 0 {
-		return nil
+		return nil, nil
 	}
 	out := make([]SideEffectRef, 0, len(items))
 	for _, item := range items {
@@ -139,9 +149,18 @@ func normalizeSideEffects(items []SideEffectRef) []SideEffectRef {
 		if item.Kind == "" && item.Ref == "" && item.Path == "" {
 			continue
 		}
+		if item.Kind == "" {
+			return nil, fmt.Errorf("tool result side effect kind is required")
+		}
+		switch item.Kind {
+		case SideEffectKindArtifact, SideEffectKindTerminalSession, SideEffectKindOperatorAction:
+			if item.Ref == "" {
+				return nil, fmt.Errorf("tool result side effect %q requires ref", item.Kind)
+			}
+		}
 		out = append(out, item)
 	}
-	return out
+	return out, nil
 }
 
 func normalizeEvidenceRefs(items []EvidenceRef) []EvidenceRef {

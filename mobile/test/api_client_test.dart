@@ -61,71 +61,240 @@ void main() {
     final inbox = await client.getInbox();
 
     expect(inbox.pendingActions.single.actionId, 'act_1');
+    expect(inbox.pendingActions.single.options.first.description, 'Allow');
     expect(inbox.activeRuns.single.runId, 'run_1');
     expect(inbox.system.runtimeReadiness.status, 'ready');
   });
 
-  test('listMemoryFacts sends include flags and parses record v2 fields', () async {
+  test('decidePendingAction sends structured answer request', () async {
     final client = AcornApiClient(
       serverUrl: 'http://acorn.local',
       accessToken: 'device_token',
       httpClient: MockClient((request) async {
-        expect(request.method, 'GET');
-        expect(request.url.path, '/v1/memory/facts');
-        expect(request.url.queryParameters, {
-          'limit': '5',
-          'include_inactive': 'true',
-          'include_retired': 'true',
-        });
+        expect(request.method, 'POST');
+        expect(
+          request.url.toString(),
+          'http://acorn.local/v1/pending-actions/action_1:decide',
+        );
         expect(request.headers['Authorization'], 'Bearer device_token');
+        expect(jsonDecode(request.body), {
+          'decision': 'answer',
+          'selected_option_id': 'fast',
+          'answer': 'Ship it',
+        });
         return http.Response(
           jsonEncode({
-            'items': [
-              {
-                'ref': 'facts/workspaces/acorn/repo.md#repo-root',
-                'kind': 'fact',
-                'title': 'Repo root',
-                'status': 'verified',
-                'scope': 'workspace:acorn',
-                'tags': ['repo'],
-                'path': 'facts/workspaces/acorn/repo.md',
-                'body': 'repo root is /repo',
-                'created': '2026-05-02',
-                'updated': '2026-05-02',
-                'valid_from': '2026-05-01',
-                'source_run': 'run_1',
-                'source_refs': ['history/thread_1.md#summary'],
-                'evidence_refs': ['runs/run_1/events/7'],
-                'relations': [
-                  {
-                    'type': 'supports',
-                    'target': 'skills/learned/release-closeout.md#release-closeout',
-                    'reason': 'same workflow evidence',
-                  },
-                ],
-              },
-            ],
+            'action_id': 'action_1',
+            'run_id': 'run_1',
+            'status': 'approved',
+            'decision': 'answer',
+            'selected_option_id': 'fast',
+            'answer': 'Ship it',
+            'decided_at': '2026-05-20T00:00:00Z',
           }),
           200,
         );
       }),
     );
 
-    final response = await client.listMemoryFacts(
-      limit: 5,
-      includeInactive: true,
-      includeRetired: true,
+    final decision = await client.decidePendingAction(
+      'action_1',
+      const PendingActionDecisionRequest(
+        decision: 'answer',
+        selectedOptionId: 'fast',
+        answer: 'Ship it',
+      ),
     );
 
-    final item = response.items.single;
-    expect(item.ref, 'facts/workspaces/acorn/repo.md#repo-root');
-    expect(item.scope, 'workspace:acorn');
-    expect(item.tags, ['repo']);
-    expect(item.validFrom, '2026-05-01');
-    expect(item.sourceRefs, ['history/thread_1.md#summary']);
-    expect(item.evidenceRefs, ['runs/run_1/events/7']);
-    expect(item.relations.single.type, 'supports');
+    expect(decision.decision, 'answer');
+    expect(decision.selectedOptionId, 'fast');
+    expect(decision.answer, 'Ship it');
   });
+
+  test('getRunDetail parses workbench artifacts and terminal sessions', () async {
+    final client = AcornApiClient(
+      serverUrl: 'http://acorn.local',
+      accessToken: 'device_token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'GET');
+        expect(
+          request.url.toString(),
+          'http://acorn.local/v1/runs/run_1/detail',
+        );
+        expect(request.headers['Authorization'], 'Bearer device_token');
+        return http.Response(
+          jsonEncode({
+            'run': {
+              'id': 'run_1',
+              'thread_id': 'thread_1',
+              'status': 'succeeded',
+              'mode': 'plan_execute',
+              'created_at': '2026-05-20T00:00:00Z',
+            },
+            'thread': {
+              'id': 'thread_1',
+              'title': 'Artifact run',
+              'workspace_root': '/repo',
+              'created_at': '2026-05-20T00:00:00Z',
+              'updated_at': '2026-05-20T00:00:00Z',
+              'state': 'completed',
+            },
+            'events': [],
+            'workbench': {
+              'session_id': 'thread_1',
+              'title': 'Artifact run',
+              'resumable': false,
+              'workspace_root': '/repo',
+              'git_status': {
+                'workspace_root': '/repo',
+                'available': true,
+                'clean': true,
+              },
+              'context_economy': {
+                'tool_result_count': 1,
+                'elided_tool_result_count': 0,
+                'tool_result_token_estimate': 12,
+              },
+              'provider_usage': {
+                'call_count': 1,
+                'prompt_tokens': 10,
+                'completion_tokens': 2,
+                'total_tokens': 12,
+                'cached_tokens': 0,
+                'reasoning_tokens': 0,
+              },
+              'artifacts': [
+                {
+                  'artifact_id': 'artifact_report',
+                  'run_id': 'run_1',
+                  'session_id': 'thread_1',
+                  'source_tool_result_ref': 'tool_result:run_1:call_1',
+                  'kind': 'markdown',
+                  'title': 'Report',
+                  'mime_type': 'text/markdown',
+                  'size_bytes': 42,
+                  'sha256':
+                      'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+                  'created_at': '2026-05-20T00:00:01Z',
+                },
+              ],
+              'terminal_sessions': [
+                {
+                  'terminal_session_id': 'term_1',
+                  'run_id': 'run_1',
+                  'session_id': 'thread_1',
+                  'label': 'make test',
+                  'command_json': '["make","test"]',
+                  'cwd': '/repo',
+                  'interactive': false,
+                  'pty': false,
+                  'status': 'exited',
+                  'exit_code': 0,
+                  'stdout_artifact_id': 'artifact_stdout',
+                  'started_at': '2026-05-20T00:00:00Z',
+                  'ended_at': '2026-05-20T00:00:02Z',
+                  'created_at': '2026-05-20T00:00:00Z',
+                  'updated_at': '2026-05-20T00:00:02Z',
+                  'logs': [
+                    {
+                      'log_id': 'term_1_stdout',
+                      'terminal_session_id': 'term_1',
+                      'stream': 'stdout',
+                      'artifact_id': 'artifact_stdout',
+                      'start_offset': 0,
+                      'size_bytes': 128,
+                      'created_at': '2026-05-20T00:00:02Z',
+                    },
+                  ],
+                },
+              ],
+            },
+            'trace': null,
+            'raw': {'unsupported_events': []},
+          }),
+          200,
+        );
+      }),
+    );
+
+    final detail = await client.getRunDetail('run_1');
+    final artifact = detail.artifacts.single;
+    expect(artifact.artifactId, 'artifact_report');
+    expect(artifact.sourceToolResultRef, 'tool_result:run_1:call_1');
+    expect(artifact.kind, 'markdown');
+    expect(artifact.sizeBytes, 42);
+    final terminal = detail.terminalSessions.single;
+    expect(terminal.terminalSessionId, 'term_1');
+    expect(terminal.status, 'exited');
+    expect(terminal.exitCode, 0);
+    expect(terminal.logs.single.artifactId, 'artifact_stdout');
+  });
+
+  test(
+    'listMemoryFacts sends include flags and parses record v2 fields',
+    () async {
+      final client = AcornApiClient(
+        serverUrl: 'http://acorn.local',
+        accessToken: 'device_token',
+        httpClient: MockClient((request) async {
+          expect(request.method, 'GET');
+          expect(request.url.path, '/v1/memory/facts');
+          expect(request.url.queryParameters, {
+            'limit': '5',
+            'include_inactive': 'true',
+            'include_retired': 'true',
+          });
+          expect(request.headers['Authorization'], 'Bearer device_token');
+          return http.Response(
+            jsonEncode({
+              'items': [
+                {
+                  'ref': 'facts/workspaces/acorn/repo.md#repo-root',
+                  'kind': 'fact',
+                  'title': 'Repo root',
+                  'status': 'verified',
+                  'scope': 'workspace:acorn',
+                  'tags': ['repo'],
+                  'path': 'facts/workspaces/acorn/repo.md',
+                  'body': 'repo root is /repo',
+                  'created': '2026-05-02',
+                  'updated': '2026-05-02',
+                  'valid_from': '2026-05-01',
+                  'source_run': 'run_1',
+                  'source_refs': ['history/thread_1.md#summary'],
+                  'evidence_refs': ['runs/run_1/events/7'],
+                  'relations': [
+                    {
+                      'type': 'supports',
+                      'target':
+                          'skills/learned/release-closeout.md#release-closeout',
+                      'reason': 'same workflow evidence',
+                    },
+                  ],
+                },
+              ],
+            }),
+            200,
+          );
+        }),
+      );
+
+      final response = await client.listMemoryFacts(
+        limit: 5,
+        includeInactive: true,
+        includeRetired: true,
+      );
+
+      final item = response.items.single;
+      expect(item.ref, 'facts/workspaces/acorn/repo.md#repo-root');
+      expect(item.scope, 'workspace:acorn');
+      expect(item.tags, ['repo']);
+      expect(item.validFrom, '2026-05-01');
+      expect(item.sourceRefs, ['history/thread_1.md#summary']);
+      expect(item.evidenceRefs, ['runs/run_1/events/7']);
+      expect(item.relations.single.type, 'supports');
+    },
+  );
 
   test('searchMemory sends typed filters and parses search metadata', () async {
     final client = AcornApiClient(
@@ -316,12 +485,12 @@ Map<String, Object?> _inboxJson() {
         'action_id': 'act_1',
         'run_id': 'run_1',
         'thread_id': 'thread_1',
-        'kind': 'approval',
+        'kind': 'elicitation',
         'status': 'pending',
         'title': 'Approve tool',
         'body': 'run command',
         'options': [
-          {'id': 'accept', 'label': 'Accept'},
+          {'id': 'accept', 'label': 'Accept', 'description': 'Allow'},
           {'id': 'decline', 'label': 'Decline'},
         ],
         'created_at': '2026-05-15T00:00:00Z',

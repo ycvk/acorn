@@ -342,9 +342,66 @@ func toolSideEffectsFromResult(toolName string, result string) ([]toolresult.Sid
 		return mutationCheckpointSideEffects(toolName, result)
 	case "rollback_workspace_checkpoint":
 		return rollbackSideEffects(result)
+	case "artifact_write":
+		return artifactWriteSideEffects(result)
+	case "terminal_session_start", "terminal_session_write", "terminal_session_signal", "terminal_session_close":
+		return terminalSessionSideEffects(toolName, result)
+	case "ask_operator":
+		return operatorQuestionSideEffects(result)
 	default:
 		return nil, nil
 	}
+}
+
+func operatorQuestionSideEffects(result string) ([]toolresult.SideEffectRef, error) {
+	var payload struct {
+		ActionID string `json:"action_id"`
+	}
+	if err := json.Unmarshal([]byte(result), &payload); err != nil {
+		return nil, fmt.Errorf("parse ask_operator result: %w", err)
+	}
+	actionID := strings.TrimSpace(payload.ActionID)
+	if actionID == "" {
+		return nil, errors.New("ask_operator result missing action_id")
+	}
+	return []toolresult.SideEffectRef{{
+		Kind: toolresult.SideEffectKindOperatorAction,
+		Ref:  actionID,
+	}}, nil
+}
+
+func terminalSessionSideEffects(toolName string, result string) ([]toolresult.SideEffectRef, error) {
+	var payload struct {
+		TerminalSessionID string `json:"terminal_session_id"`
+	}
+	if err := json.Unmarshal([]byte(result), &payload); err != nil {
+		return nil, fmt.Errorf("parse %s result: %w", toolName, err)
+	}
+	terminalSessionID := strings.TrimSpace(payload.TerminalSessionID)
+	if terminalSessionID == "" {
+		return nil, fmt.Errorf("%s result missing terminal_session_id", toolName)
+	}
+	return []toolresult.SideEffectRef{{
+		Kind: toolresult.SideEffectKindTerminalSession,
+		Ref:  terminalSessionID,
+	}}, nil
+}
+
+func artifactWriteSideEffects(result string) ([]toolresult.SideEffectRef, error) {
+	var payload struct {
+		ArtifactID string `json:"artifact_id"`
+	}
+	if err := json.Unmarshal([]byte(result), &payload); err != nil {
+		return nil, fmt.Errorf("parse artifact_write result: %w", err)
+	}
+	artifactID := strings.TrimSpace(payload.ArtifactID)
+	if artifactID == "" {
+		return nil, errors.New("artifact_write result missing artifact_id")
+	}
+	return []toolresult.SideEffectRef{{
+		Kind: toolresult.SideEffectKindArtifact,
+		Ref:  artifactID,
+	}}, nil
 }
 
 func mutationCheckpointSideEffects(toolName string, result string) ([]toolresult.SideEffectRef, error) {

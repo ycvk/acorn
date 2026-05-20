@@ -1812,7 +1812,7 @@ components:
           type: string
         kind:
           type: string
-          enum: [elicitation]
+          enum: [elicitation, operator_question]
         status:
           type: string
           enum: [pending]
@@ -1835,8 +1835,9 @@ components:
       properties:
         id:
           type: string
-          enum: [accept, decline]
         label:
+          type: string
+        description:
           type: string
 
     PendingActionListResponse:
@@ -2040,6 +2041,14 @@ components:
           $ref: '#/components/schemas/ContextEconomy'
         provider_usage:
           $ref: '#/components/schemas/ProviderUsage'
+        artifacts:
+          type: array
+          items:
+            $ref: '#/components/schemas/RunArtifact'
+        terminal_sessions:
+          type: array
+          items:
+            $ref: '#/components/schemas/RunTerminalSession'
         plan:
           $ref: '#/components/schemas/PlanDTO'
         evidence:
@@ -2262,6 +2271,114 @@ components:
           type: string
         error:
           type: string
+        created_at:
+          type: string
+          format: date-time
+
+    RunArtifact:
+      type: object
+      additionalProperties: false
+      required: [artifact_id, run_id, kind, size_bytes, sha256, created_at]
+      properties:
+        artifact_id:
+          type: string
+        run_id:
+          type: string
+        session_id:
+          type: string
+        source_tool_result_ref:
+          type: string
+        kind:
+          type: string
+          enum: [text, markdown, json, diff, log, test_report, binary]
+        title:
+          type: string
+        mime_type:
+          type: string
+        size_bytes:
+          type: integer
+          format: int64
+        sha256:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    RunTerminalSession:
+      type: object
+      additionalProperties: false
+      required: [terminal_session_id, run_id, command_json, cwd, interactive, pty, status, created_at, updated_at]
+      properties:
+        terminal_session_id:
+          type: string
+        run_id:
+          type: string
+        session_id:
+          type: string
+        label:
+          type: string
+        command_json:
+          type: string
+        cwd:
+          type: string
+        interactive:
+          type: boolean
+        pty:
+          type: boolean
+        status:
+          type: string
+          enum: [starting, running, exited, signaled, failed, closed]
+        pid:
+          type: integer
+        process_group_id:
+          type: integer
+        exit_code:
+          type: integer
+        signal:
+          type: string
+        stdout_artifact_id:
+          type: string
+        stderr_artifact_id:
+          type: string
+        pty_artifact_id:
+          type: string
+        started_at:
+          type: string
+          format: date-time
+        ended_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        logs:
+          type: array
+          items:
+            $ref: '#/components/schemas/RunTerminalSessionLog'
+
+    RunTerminalSessionLog:
+      type: object
+      additionalProperties: false
+      required: [log_id, terminal_session_id, stream, artifact_id, start_offset, size_bytes, created_at]
+      properties:
+        log_id:
+          type: string
+        terminal_session_id:
+          type: string
+        stream:
+          type: string
+          enum: [stdout, stderr, pty]
+        artifact_id:
+          type: string
+        start_offset:
+          type: integer
+          format: int64
+        size_bytes:
+          type: integer
+          format: int64
         created_at:
           type: string
           format: date-time
@@ -2491,7 +2608,7 @@ components:
     DecisionMessagePart:
       type: object
       additionalProperties: false
-      required: [kind, decision_id, question, options]
+      required: [kind, decision_id, question]
       properties:
         kind:
           type: string
@@ -2504,6 +2621,8 @@ components:
           type: string
           enum: [pending, approved, rejected, resolved]
         selected_option_id:
+          type: string
+        answer:
           type: string
         options:
           type: array
@@ -2529,12 +2648,16 @@ components:
       properties:
         decision:
           type: string
-          enum: [accept, decline]
+          enum: [accept, decline, answer]
+        selected_option_id:
+          type: string
+        answer:
+          type: string
 
     PendingActionDecision:
       type: object
       additionalProperties: false
-      required: [action_id, run_id, status, selected_option_id]
+      required: [action_id, run_id, status, decision]
       properties:
         action_id:
           type: string
@@ -2543,9 +2666,13 @@ components:
         status:
           type: string
           enum: [approved, rejected]
+        decision:
+          type: string
+          enum: [accept, decline, answer]
         selected_option_id:
           type: string
-          enum: [accept, decline]
+        answer:
+          type: string
         decided_at:
           type: string
           format: date-time
@@ -2708,6 +2835,8 @@ components:
         - $ref: '#/components/schemas/ClientRunResumeRequestedEvent'
         - $ref: '#/components/schemas/ClientElicitationPendingEvent'
         - $ref: '#/components/schemas/ClientElicitationDecidedEvent'
+        - $ref: '#/components/schemas/ClientOperatorQuestionPendingEvent'
+        - $ref: '#/components/schemas/ClientOperatorQuestionDecidedEvent'
         - $ref: '#/components/schemas/ClientDecisionSelectedEvent'
         - $ref: '#/components/schemas/ClientDecisionBlockedEvent'
         - $ref: '#/components/schemas/ClientSkillDiscoveredEvent'
@@ -2747,6 +2876,8 @@ components:
           run.resume_requested: '#/components/schemas/ClientRunResumeRequestedEvent'
           elicitation.pending: '#/components/schemas/ClientElicitationPendingEvent'
           elicitation.decided: '#/components/schemas/ClientElicitationDecidedEvent'
+          operator_question.pending: '#/components/schemas/ClientOperatorQuestionPendingEvent'
+          operator_question.decided: '#/components/schemas/ClientOperatorQuestionDecidedEvent'
           decision_selected: '#/components/schemas/ClientDecisionSelectedEvent'
           decision_blocked: '#/components/schemas/ClientDecisionBlockedEvent'
           skill.discovered: '#/components/schemas/ClientSkillDiscoveredEvent'
@@ -2941,6 +3072,28 @@ components:
               const: elicitation.decided
             data:
               $ref: '#/components/schemas/ElicitationData'
+
+    ClientOperatorQuestionPendingEvent:
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: operator_question.pending
+            data:
+              $ref: '#/components/schemas/OperatorQuestionData'
+
+    ClientOperatorQuestionDecidedEvent:
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: operator_question.decided
+            data:
+              $ref: '#/components/schemas/OperatorQuestionData'
 
     ClientDecisionSelectedEvent:
       allOf:
@@ -3272,6 +3425,29 @@ components:
           type: string
         requested_schema:
           description: MCP elicitation requested schema
+
+    OperatorQuestionData:
+      type: object
+      additionalProperties: false
+      required: [action_id]
+      properties:
+        action_id:
+          type: string
+        question:
+          type: string
+        options:
+          type: array
+          items:
+            $ref: '#/components/schemas/PendingActionOption'
+        allow_freeform:
+          type: boolean
+        decision:
+          type: string
+          enum: [answer, decline]
+        selected_option_id:
+          type: string
+        answer:
+          type: string
 
     DecisionSelectedData:
       type: object

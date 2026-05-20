@@ -27,13 +27,20 @@ type ToolExecutionPolicy struct {
 type ToolSideEffect string
 
 const (
-	ToolSideEffectReadWorkspace  ToolSideEffect = "read_workspace"
-	ToolSideEffectWriteWorkspace ToolSideEffect = "write_workspace"
-	ToolSideEffectRunCommand     ToolSideEffect = "run_command"
-	ToolSideEffectMemoryRead     ToolSideEffect = "memory_read"
-	ToolSideEffectMemoryWrite    ToolSideEffect = "memory_write"
-	ToolSideEffectSkillRead      ToolSideEffect = "skill_read"
-	ToolSideEffectIntegration    ToolSideEffect = "integration"
+	ToolSideEffectReadWorkspace       ToolSideEffect = "read_workspace"
+	ToolSideEffectWriteWorkspace      ToolSideEffect = "write_workspace"
+	ToolSideEffectRunCommand          ToolSideEffect = "run_command"
+	ToolSideEffectProcessRead         ToolSideEffect = "process_read"
+	ToolSideEffectProcessStart        ToolSideEffect = "process_start"
+	ToolSideEffectProcessWrite        ToolSideEffect = "process_write"
+	ToolSideEffectProcessSignal       ToolSideEffect = "process_signal"
+	ToolSideEffectArtifactRead        ToolSideEffect = "artifact_read"
+	ToolSideEffectArtifactWrite       ToolSideEffect = "artifact_write"
+	ToolSideEffectOperatorInteraction ToolSideEffect = "operator_interaction"
+	ToolSideEffectMemoryRead          ToolSideEffect = "memory_read"
+	ToolSideEffectMemoryWrite         ToolSideEffect = "memory_write"
+	ToolSideEffectSkillRead           ToolSideEffect = "skill_read"
+	ToolSideEffectIntegration         ToolSideEffect = "integration"
 )
 
 type ToolResultMode string
@@ -115,6 +122,18 @@ func (c ToolContract) Validate() error {
 	if c.ResourceScope == "" {
 		return fmt.Errorf("tool contract %q has empty resource scope", c.Name)
 	}
+	switch c.ResourceScope {
+	case ResourceScopeWorkspaceFile,
+		ResourceScopeWorkspaceCommand,
+		ResourceScopeMemory,
+		ResourceScopeSkill,
+		ResourceScopeMCP,
+		ResourceScopeProcess,
+		ResourceScopeArtifact,
+		ResourceScopeOperator:
+	default:
+		return fmt.Errorf("tool contract %q has unknown resource scope %q", c.Name, c.ResourceScope)
+	}
 	if len(c.Profiles) == 0 {
 		return fmt.Errorf("tool contract %q has no profiles", c.Name)
 	}
@@ -157,6 +176,13 @@ func (c ToolContract) Validate() error {
 		case ToolSideEffectReadWorkspace,
 			ToolSideEffectWriteWorkspace,
 			ToolSideEffectRunCommand,
+			ToolSideEffectProcessRead,
+			ToolSideEffectProcessStart,
+			ToolSideEffectProcessWrite,
+			ToolSideEffectProcessSignal,
+			ToolSideEffectArtifactRead,
+			ToolSideEffectArtifactWrite,
+			ToolSideEffectOperatorInteraction,
 			ToolSideEffectMemoryRead,
 			ToolSideEffectMemoryWrite,
 			ToolSideEffectSkillRead,

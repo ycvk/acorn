@@ -92,6 +92,9 @@ func TestStoreSchemaIncludesV2Tables(t *testing.T) {
 		"run_archives":          "tool_names_json",
 		"session_summaries":     "source_run_id",
 		"provider_usages":       "cached_tokens",
+		"artifacts":             "source_tool_result_ref",
+		"terminal_sessions":     "process_group_id",
+		"terminal_session_logs": "artifact_id",
 	} {
 		columns, err := store.tableColumns(table)
 		if err != nil {
