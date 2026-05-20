@@ -28,6 +28,7 @@ type SessionMessagePart struct {
 	DecisionID       string                  `json:"decision_id,omitempty"`
 	Question         string                  `json:"question,omitempty"`
 	SelectedOptionID string                  `json:"selected_option_id,omitempty"`
+	Answer           string                  `json:"answer,omitempty"`
 	Options          []SessionDecisionOption `json:"options,omitempty"`
 	Action           *SessionMessageAction   `json:"action,omitempty"`
 }

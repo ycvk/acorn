@@ -70,7 +70,8 @@ type EventKind string
 type PendingActionKind string
 
 const (
-	PendingActionKindElicitation PendingActionKind = "elicitation"
+	PendingActionKindElicitation      PendingActionKind = "elicitation"
+	PendingActionKindOperatorQuestion PendingActionKind = "operator_question"
 )
 
 type PendingActionStatus string

@@ -144,9 +144,10 @@ func TestThreadMessageRunHandlers(t *testing.T) {
 func TestDecidePendingActionHandler(t *testing.T) {
 	service := &pendingActionHandlerStub{
 		record: events.PendingActionRecord{
-			ActionID: "action_1",
-			RunID:    "run_1",
-			Status:   events.PendingActionStatusApproved,
+			ActionID:     "action_1",
+			RunID:        "run_1",
+			Status:       events.PendingActionStatusApproved,
+			DecisionJSON: `{"action":"accept"}`,
 		},
 	}
 	server := &Server{
@@ -161,12 +162,12 @@ func TestDecidePendingActionHandler(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
 	}
-	if service.actionID != "action_1" || service.decision != "accept" {
-		t.Fatalf("unexpected decide call: action=%q decision=%q", service.actionID, service.decision)
+	if service.actionID != "action_1" || service.decision.Decision != "accept" {
+		t.Fatalf("unexpected decide call: action=%q decision=%#v", service.actionID, service.decision)
 	}
 	var response PendingActionDecisionDTO
 	decodeClientTestJSON(t, rec, &response)
-	if response.ActionID != "action_1" || response.RunID != "run_1" || response.Status != "approved" || response.SelectedOptionID != "accept" {
+	if response.ActionID != "action_1" || response.RunID != "run_1" || response.Status != "approved" || response.Decision != "accept" {
 		t.Fatalf("unexpected decide response: %#v", response)
 	}
 }
@@ -258,11 +259,6 @@ func TestDecidePendingActionHandlerRejectsInvalidRequests(t *testing.T) {
 			body:        `{}`,
 			wantMessage: "decision is required",
 		},
-		{
-			name:        "invalid decision",
-			body:        `{"decision":"maybe"}`,
-			wantMessage: "decision must be accept or decline",
-		},
 	}
 
 	for _, tt := range tests {
@@ -288,10 +284,34 @@ func TestDecidePendingActionHandlerRejectsInvalidRequests(t *testing.T) {
 			if response.Error.Message != tt.wantMessage {
 				t.Fatalf("message = %q, want %q", response.Error.Message, tt.wantMessage)
 			}
-			if service.actionID != "" || service.decision != "" {
-				t.Fatalf("service should not be called for invalid input: action=%q decision=%q", service.actionID, service.decision)
+			if service.actionID != "" || service.decision.Decision != "" {
+				t.Fatalf("service should not be called for invalid input: action=%q decision=%#v", service.actionID, service.decision)
 			}
 		})
+	}
+}
+
+func TestDecidePendingActionHandlerMapsInvalidDecision(t *testing.T) {
+	service := &pendingActionHandlerStub{err: app.ErrPendingActionDecisionInvalid}
+	server := &Server{
+		pendingAction: service,
+		deviceAuth:    &deviceAuthHandlerStub{},
+		logger:        slog.New(slog.NewTextHandler(bytes.NewBuffer(nil), nil)),
+	}
+	router := chi.NewRouter()
+	server.registerRoutes(router)
+
+	rec := performClientRequest(router, http.MethodPost, "/v1/pending-actions/action_1:decide", `{"decision":"maybe"}`)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	var response ErrorResponse
+	decodeClientTestJSON(t, rec, &response)
+	if response.Error.Code != "invalid_request" || response.Error.Message != "pending action decision invalid" {
+		t.Fatalf("unexpected error response: %#v", response.Error)
+	}
+	if service.actionID != "action_1" || service.decision.Decision != "maybe" {
+		t.Fatalf("unexpected service call: action=%q decision=%#v", service.actionID, service.decision)
 	}
 }
 
@@ -1325,7 +1345,7 @@ type pendingActionHandlerStub struct {
 	err         error
 	actionID    string
 	getActionID string
-	decision    string
+	decision    app.PendingActionDecisionInput
 	listLimit   int
 }
 
@@ -1345,12 +1365,12 @@ func (s *pendingActionHandlerStub) Get(_ context.Context, actionID string) (*app
 	return s.detail, nil
 }
 
-func (s *pendingActionHandlerStub) Decide(_ context.Context, actionID, decision string) (*events.PendingActionRecord, error) {
+func (s *pendingActionHandlerStub) Decide(_ context.Context, actionID string, decision app.PendingActionDecisionInput) (*events.PendingActionRecord, error) {
+	s.actionID = actionID
+	s.decision = decision
 	if s.err != nil {
 		return nil, s.err
 	}
-	s.actionID = actionID
-	s.decision = decision
 	return &s.record, nil
 }
 

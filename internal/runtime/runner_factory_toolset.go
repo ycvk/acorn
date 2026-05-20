@@ -45,6 +45,20 @@ func (delegateTaskBridge) CurrentSessionID(ctx context.Context) string {
 	return sessionIDFromContext(ctx)
 }
 
+type artifactToolBridge struct{}
+
+func (artifactToolBridge) CurrentRunID(ctx context.Context) string {
+	return CurrentRunID(ctx)
+}
+
+func (artifactToolBridge) CurrentSessionID(ctx context.Context) string {
+	return sessionIDFromContext(ctx)
+}
+
+func (artifactToolBridge) CurrentToolCallID(ctx context.Context) string {
+	return toolAuditCallID(ctx)
+}
+
 func (f *RunnerFactory) buildRunToolset(ctx context.Context, sessionID string, childExec orchestration.ChildAgentExecutor) (*Toolset, error) {
 	return f.buildToolset(ctx, sessionID, childExec, true, tooling.ToolProfileRun)
 }
@@ -65,11 +79,30 @@ func (f *RunnerFactory) buildToolset(
 	if f.workspace == nil {
 		return nil, errors.New("workspace contract is not initialized")
 	}
+	if f.artifactServiceErr != nil {
+		return nil, fmt.Errorf("artifact service: %w", f.artifactServiceErr)
+	}
+	if f.terminalServiceErr != nil {
+		return nil, fmt.Errorf("terminal session service: %w", f.terminalServiceErr)
+	}
+
+	var operatorStore tools.OperatorQuestionStore
+	if f.mcpPendingActions != nil {
+		operatorStore = f.mcpPendingActions
+	} else if store, ok := f.store.(tools.OperatorQuestionStore); ok {
+		operatorStore = store
+	}
 
 	localCatalog, err := tools.BuildCatalog(tools.CatalogConfig{
 		Workspace:         f.workspace,
 		MutationEnabled:   !f.cfg.Tools.Mutation.Disabled,
 		RunCommandEnabled: !f.cfg.Tools.RunCommand.Disabled,
+		ArtifactService:   f.artifactService,
+		ArtifactContext:   artifactToolBridge{},
+		TerminalService:   f.terminalService,
+		TerminalContext:   artifactToolBridge{},
+		OperatorStore:     operatorStore,
+		OperatorContext:   artifactToolBridge{},
 	}, f.extraLocalTools, childExec, delegateTaskBridge{})
 	if err != nil {
 		return nil, err

@@ -14,6 +14,7 @@ import (
 
 func TestRuntimeWorkbenchDTOFromDomainPreservesAggregatedSections(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Second)
+	exitCode := 0
 	workbench := &app.RuntimeWorkbench{
 		SessionID:       "session_42",
 		Title:           "continue runtime work",
@@ -123,6 +124,42 @@ func TestRuntimeWorkbenchDTOFromDomainPreservesAggregatedSections(t *testing.T) 
 				CreatedAt:        now,
 			}},
 		},
+		Artifacts: []app.ArtifactSummary{{
+			ArtifactID:          "artifact_report",
+			RunID:               "run_42",
+			SessionID:           "session_42",
+			SourceToolResultRef: "tool_result:run_42:call_artifact",
+			Kind:                "markdown",
+			Title:               "Verification report",
+			MIMEType:            "text/markdown",
+			SizeBytes:           27,
+			SHA256:              "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			CreatedAt:           now,
+		}},
+		TerminalSessions: []app.TerminalSessionSummary{{
+			TerminalSessionID: "term_1",
+			RunID:             "run_42",
+			SessionID:         "session_42",
+			Label:             "make test",
+			CommandJSON:       `["make","test"]`,
+			Cwd:               "/repo/acorn",
+			Status:            "exited",
+			ExitCode:          &exitCode,
+			StdoutArtifactID:  "artifact_stdout",
+			StartedAt:         &now,
+			EndedAt:           &now,
+			CreatedAt:         now,
+			UpdatedAt:         now,
+			Logs: []app.TerminalSessionLogSummary{{
+				LogID:             "term_1_stdout",
+				TerminalSessionID: "term_1",
+				Stream:            "stdout",
+				ArtifactID:        "artifact_stdout",
+				StartOffset:       0,
+				SizeBytes:         128,
+				CreatedAt:         now,
+			}},
+		}},
 		Plan: &runtime.Plan{
 			PlanID:    "plan_1",
 			SessionID: "session_42",
@@ -219,6 +256,12 @@ func TestRuntimeWorkbenchDTOFromDomainPreservesAggregatedSections(t *testing.T) 
 	}
 	if len(dto.ProviderUsage.Records) != 1 || dto.ProviderUsage.Records[0].UsageID != "provider_usage:run_42:000001" {
 		t.Fatalf("provider usage records = %+v", dto.ProviderUsage.Records)
+	}
+	if len(dto.Artifacts) != 1 || dto.Artifacts[0].ArtifactID != "artifact_report" || dto.Artifacts[0].SourceToolResultRef != "tool_result:run_42:call_artifact" {
+		t.Fatalf("artifacts = %+v", dto.Artifacts)
+	}
+	if len(dto.TerminalSessions) != 1 || dto.TerminalSessions[0].TerminalSessionID != "term_1" || len(dto.TerminalSessions[0].Logs) != 1 {
+		t.Fatalf("terminal sessions = %+v", dto.TerminalSessions)
 	}
 	if dto.Subagents[0].OrchestrationMode != "single_agent" || dto.Subagents[0].ParentStepID != "s1" {
 		t.Fatalf("subagent truth = %+v", dto.Subagents[0])

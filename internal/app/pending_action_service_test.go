@@ -73,7 +73,7 @@ func TestPendingActionServiceDecideSyncsMessageAndElicitationEvent(t *testing.T)
 		t.Fatalf("create pending action: %v", err)
 	}
 
-	record, err := NewPendingActionService(store).Decide(ctx, "action_decision_service", "accept")
+	record, err := NewPendingActionService(store).Decide(ctx, "action_decision_service", PendingActionDecisionInput{Decision: "accept"})
 	if err != nil {
 		t.Fatalf("Decide: %v", err)
 	}
@@ -108,6 +108,83 @@ func TestPendingActionServiceDecideSyncsMessageAndElicitationEvent(t *testing.T)
 	}
 	if !sawElicitationDecided {
 		t.Fatalf("expected elicitation.decided event, got %#v", eventRecords)
+	}
+}
+
+func TestPendingActionServiceDecideOperatorQuestionStoresStructuredAnswer(t *testing.T) {
+	store := openTestStore(t)
+
+	ctx := context.Background()
+	session, err := store.CreateSession(ctx, "session_operator_decision", "")
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	turnIndex, _, err := store.PrepareChatTurn(ctx, session.SessionID, "choose", "choose", 12)
+	if err != nil {
+		t.Fatalf("prepare chat turn: %v", err)
+	}
+	if err := store.CreateBoundRun(context.Background(), "run_operator_decision", session.SessionID, turnIndex, "choose", "run_operator_decision"); err != nil {
+		t.Fatalf("create bound run: %v", err)
+	}
+	if _, err := store.CreatePendingAction(ctx, storecore.CreatePendingActionInput{
+		ActionID: "action_operator_decision",
+		RunID:    "run_operator_decision",
+		Kind:     events.PendingActionKindOperatorQuestion,
+		Subject:  "Pick path",
+		PayloadJSON: `{
+			"question":"Which path should Acorn take?",
+			"options":[{"id":"fast","label":"Fast path","description":"Ship the narrow fix"}],
+			"allow_freeform":true
+		}`,
+		Status: events.PendingActionStatusPending,
+		Mode:   events.PendingActionModeDeferred,
+	}); err != nil {
+		t.Fatalf("create pending action: %v", err)
+	}
+
+	record, err := NewPendingActionService(store).Decide(ctx, "action_operator_decision", PendingActionDecisionInput{
+		Decision:         events.OperatorQuestionDecisionAnswer,
+		SelectedOptionID: "fast",
+		Answer:           "Use the fast path.",
+	})
+	if err != nil {
+		t.Fatalf("Decide: %v", err)
+	}
+	if record.Status != events.PendingActionStatusApproved {
+		t.Fatalf("record status = %q, want approved", record.Status)
+	}
+	var decision events.OperatorQuestionDecision
+	if err := json.Unmarshal([]byte(record.DecisionJSON), &decision); err != nil {
+		t.Fatalf("unmarshal decision_json: %v", err)
+	}
+	if decision.Action != events.OperatorQuestionDecisionAnswer || decision.SelectedOptionID != "fast" || decision.Answer != "Use the fast path." {
+		t.Fatalf("decision = %#v", decision)
+	}
+
+	messages, err := store.ListSessionMessages(ctx, session.SessionID, 12)
+	if err != nil {
+		t.Fatalf("list messages: %v", err)
+	}
+	var parts []storesqlite.SessionMessagePart
+	if err := json.Unmarshal([]byte(messages[1].ContentParts), &parts); err != nil {
+		t.Fatalf("unmarshal message parts: %v", err)
+	}
+	if len(parts) == 0 || parts[0].SelectedOptionID != "fast" || parts[0].Answer != "Use the fast path." {
+		t.Fatalf("decision part = %#v", parts)
+	}
+
+	eventRecords, err := store.LoadEventsAfter(ctx, "run_operator_decision", 0)
+	if err != nil {
+		t.Fatalf("load events: %v", err)
+	}
+	var sawOperatorDecided bool
+	for _, event := range eventRecords {
+		if event.Kind == "operator_question.decided" {
+			sawOperatorDecided = true
+		}
+	}
+	if !sawOperatorDecided {
+		t.Fatalf("expected operator_question.decided event, got %#v", eventRecords)
 	}
 }
 

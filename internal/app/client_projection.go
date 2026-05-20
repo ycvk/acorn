@@ -95,8 +95,8 @@ func validateMessagePart(part MessagePart) error {
 			return fmt.Errorf("work_status part action: %w", err)
 		}
 	case "decision":
-		if strings.TrimSpace(part.DecisionID) == "" || strings.TrimSpace(part.Question) == "" || len(part.Options) == 0 {
-			return errors.New("decision part requires decision_id, question and options")
+		if strings.TrimSpace(part.DecisionID) == "" || strings.TrimSpace(part.Question) == "" {
+			return errors.New("decision part requires decision_id and question")
 		}
 		switch part.Status {
 		case "", string(events.PendingActionStatusPending), string(events.PendingActionStatusApproved), string(events.PendingActionStatusRejected), string(events.PendingActionStatusResolved):
@@ -290,6 +290,10 @@ func projectRunEventData(kind string, payload map[string]any) (any, error) {
 			Message:         topLevelString(payload, "message"),
 			RequestedSchema: payload["requested_schema"],
 		}, nil
+	case "operator_question.pending":
+		return projectOperatorQuestionData(payload), nil
+	case "operator_question.decided":
+		return projectOperatorQuestionData(payload), nil
 	case "decision_selected":
 		return projectDecisionSelectedData(payload), nil
 	case "decision_blocked":
@@ -377,6 +381,18 @@ func projectRunEventData(kind string, payload map[string]any) (any, error) {
 	}
 }
 
+func projectOperatorQuestionData(payload map[string]any) OperatorQuestionData {
+	return OperatorQuestionData{
+		ActionID:         topLevelString(payload, "action_id"),
+		Question:         topLevelString(payload, "question"),
+		Options:          pendingActionOptionsFromAny(payload["options"]),
+		AllowFreeform:    topLevelBool(payload, "allow_freeform"),
+		Decision:         topLevelString(payload, "decision"),
+		SelectedOptionID: topLevelString(payload, "selected_option_id"),
+		Answer:           topLevelString(payload, "answer"),
+	}
+}
+
 func projectDecisionSelectedData(payload map[string]any) DecisionSelectedData {
 	return DecisionSelectedData{
 		Action:              topLevelString(payload, "action"),
@@ -386,6 +402,31 @@ func projectDecisionSelectedData(payload map[string]any) DecisionSelectedData {
 		DecisionProfileHash: topLevelString(payload, "decision_profile_hash"),
 		ExplicitSkillID:     topLevelString(payload, "explicit_skill_id"),
 	}
+}
+
+func pendingActionOptionsFromAny(raw any) []events.PendingActionOption {
+	items, ok := raw.([]any)
+	if !ok {
+		return nil
+	}
+	out := make([]events.PendingActionOption, 0, len(items))
+	for _, item := range items {
+		option, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		out = append(out, events.PendingActionOption{
+			ID:          topLevelString(option, "id"),
+			Label:       topLevelString(option, "label"),
+			Description: topLevelString(option, "description"),
+		})
+	}
+	return out
+}
+
+func topLevelBool(payload map[string]any, key string) bool {
+	value, ok := payload[key].(bool)
+	return ok && value
 }
 
 func projectToolCallPayload(kind string, payload map[string]any) map[string]any {

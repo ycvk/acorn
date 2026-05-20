@@ -81,6 +81,9 @@ const (
 	ResourceScopeMemory           ResourceScope = "memory"
 	ResourceScopeSkill            ResourceScope = "skill"
 	ResourceScopeMCP              ResourceScope = "mcp"
+	ResourceScopeProcess          ResourceScope = "process"
+	ResourceScopeArtifact         ResourceScope = "artifact"
+	ResourceScopeOperator         ResourceScope = "operator"
 )
 
 type HealthState string
@@ -136,6 +139,17 @@ func ConfiguredLocalSpecs(cfg *config.Config) []ToolSpec {
 		configuredLocalSpec("search_text", true),
 		configuredLocalSpec("inspect_git_status", true),
 		configuredLocalSpec("inspect_git_diff", true),
+		configuredLocalSpec("artifact_write", true),
+		configuredLocalSpec("artifact_read", true),
+		configuredLocalSpec("artifact_list", true),
+		configuredLocalSpec("terminal_session_start", true),
+		configuredLocalSpec("terminal_session_write", true),
+		configuredLocalSpec("terminal_session_read", true),
+		configuredLocalSpec("terminal_session_signal", true),
+		configuredLocalSpec("terminal_session_close", true),
+		configuredLocalSpec("terminal_session_list", true),
+		configuredLocalSpec("process_status", true),
+		configuredLocalSpec("ask_operator", true),
 		configuredLocalSpec("create_file", !cfg.Tools.Mutation.Disabled),
 		configuredLocalSpec("replace_span", !cfg.Tools.Mutation.Disabled),
 		configuredLocalSpec("apply_unified_patch", !cfg.Tools.Mutation.Disabled),
@@ -149,7 +163,7 @@ func ConfiguredLocalSpec(cfg *config.Config, name string) (ToolSpec, bool) {
 		return ToolSpec{}, false
 	}
 	switch strings.TrimSpace(name) {
-	case "read_file", "list_files", "search_text", "inspect_git_status", "inspect_git_diff":
+	case "read_file", "list_files", "search_text", "inspect_git_status", "inspect_git_diff", "artifact_write", "artifact_read", "artifact_list", "terminal_session_start", "terminal_session_write", "terminal_session_read", "terminal_session_signal", "terminal_session_close", "terminal_session_list", "process_status", "ask_operator":
 		return configuredLocalSpec(strings.TrimSpace(name), true), true
 	case "create_file", "replace_span":
 		return configuredLocalSpec(strings.TrimSpace(name), !cfg.Tools.Mutation.Disabled), true
@@ -193,6 +207,55 @@ func configuredLocalSpec(name string, enabled bool) ToolSpec {
 		spec.Execution.ParallelPolicy = ParallelPolicyReadOnly
 		spec.Execution.PathArg = "path"
 		spec.Execution.SideEffects = []ToolSideEffect{ToolSideEffectReadWorkspace}
+		spec.PlanPolicy = PlanPolicyNone
+	case "artifact_read", "artifact_list":
+		spec.Kind = ToolKindNative
+		spec.Category = ToolCategoryRead
+		spec.ResourceScope = ResourceScopeArtifact
+		spec.Execution.ParallelPolicy = ParallelPolicyReadOnly
+		spec.Execution.SideEffects = []ToolSideEffect{ToolSideEffectArtifactRead}
+		spec.PlanPolicy = PlanPolicyNone
+	case "artifact_write":
+		spec.Kind = ToolKindNative
+		spec.Category = ToolCategoryWrite
+		spec.ResourceScope = ResourceScopeArtifact
+		spec.Execution.ParallelPolicy = ParallelPolicyNeverParallel
+		spec.Execution.SideEffects = []ToolSideEffect{ToolSideEffectArtifactWrite}
+		spec.PlanPolicy = PlanPolicyNone
+	case "terminal_session_read", "terminal_session_list", "process_status":
+		spec.Kind = ToolKindNative
+		spec.Category = ToolCategoryRead
+		spec.ResourceScope = ResourceScopeProcess
+		spec.Execution.ParallelPolicy = ParallelPolicyReadOnly
+		spec.Execution.SideEffects = []ToolSideEffect{ToolSideEffectProcessRead}
+		spec.PlanPolicy = PlanPolicyNone
+	case "terminal_session_start":
+		spec.Kind = ToolKindNative
+		spec.Category = ToolCategoryExecute
+		spec.ResourceScope = ResourceScopeProcess
+		spec.Execution.ParallelPolicy = ParallelPolicyNeverParallel
+		spec.Execution.SideEffects = []ToolSideEffect{ToolSideEffectProcessStart}
+		spec.PlanPolicy = PlanPolicyRequireActivePlan
+	case "terminal_session_write":
+		spec.Kind = ToolKindNative
+		spec.Category = ToolCategoryExecute
+		spec.ResourceScope = ResourceScopeProcess
+		spec.Execution.ParallelPolicy = ParallelPolicyNeverParallel
+		spec.Execution.SideEffects = []ToolSideEffect{ToolSideEffectProcessWrite}
+		spec.PlanPolicy = PlanPolicyRequireActivePlan
+	case "terminal_session_signal", "terminal_session_close":
+		spec.Kind = ToolKindNative
+		spec.Category = ToolCategoryExecute
+		spec.ResourceScope = ResourceScopeProcess
+		spec.Execution.ParallelPolicy = ParallelPolicyNeverParallel
+		spec.Execution.SideEffects = []ToolSideEffect{ToolSideEffectProcessSignal}
+		spec.PlanPolicy = PlanPolicyRequireActivePlan
+	case "ask_operator":
+		spec.Kind = ToolKindNative
+		spec.Category = ToolCategoryIntegration
+		spec.ResourceScope = ResourceScopeOperator
+		spec.Execution.ParallelPolicy = ParallelPolicyNeverParallel
+		spec.Execution.SideEffects = []ToolSideEffect{ToolSideEffectOperatorInteraction}
 		spec.PlanPolicy = PlanPolicyNone
 	case "create_file", "replace_span", "apply_unified_patch":
 		spec.Kind = ToolKindNative

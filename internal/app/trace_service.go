@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -95,9 +96,40 @@ func (s *TraceService) resumeTargetsForContext(ctx context.Context, runID string
 	switch kind := interruptInfoKind(interrupt.Info); kind {
 	case "", "run_command_pause":
 		return defaultTargets(interrupt.ID), nil
+	case "operator_question":
+		return s.operatorQuestionTargets(ctx, runID, interrupt)
 	default:
 		return nil, fmt.Errorf("run %s interrupt %s has unsupported kind %q", runID, interrupt.ID, kind)
 	}
+}
+
+func (s *TraceService) operatorQuestionTargets(ctx context.Context, runID string, interrupt runtime.StreamInterruptContext) (map[string]any, error) {
+	actionID := interruptInfoField(interrupt.Info, "action_id")
+	if actionID == "" {
+		return nil, fmt.Errorf("run %s interrupt %s operator_question is missing action_id", runID, interrupt.ID)
+	}
+	record, err := s.store.LoadPendingAction(ctx, actionID)
+	if err != nil {
+		return nil, err
+	}
+	if record.RunID != runID {
+		return nil, fmt.Errorf("run %s interrupt %s operator_question action %s belongs to run %s", runID, interrupt.ID, actionID, record.RunID)
+	}
+	if record.Kind != events.PendingActionKindOperatorQuestion {
+		return nil, fmt.Errorf("run %s interrupt %s action %s has kind %q", runID, interrupt.ID, actionID, record.Kind)
+	}
+	if record.Status == events.PendingActionStatusPending {
+		return nil, fmt.Errorf("run %s interrupt %s operator_question action %s is still pending", runID, interrupt.ID, actionID)
+	}
+	if record.Status != events.PendingActionStatusApproved && record.Status != events.PendingActionStatusRejected {
+		return nil, fmt.Errorf("run %s interrupt %s operator_question action %s has unsupported status %q", runID, interrupt.ID, actionID, record.Status)
+	}
+	var decision map[string]any
+	if err := json.Unmarshal([]byte(record.DecisionJSON), &decision); err != nil {
+		return nil, fmt.Errorf("run %s interrupt %s operator_question action %s has invalid decision_json: %w", runID, interrupt.ID, actionID, err)
+	}
+	decision["action_id"] = actionID
+	return map[string]any{interrupt.ID: decision}, nil
 }
 
 func interruptInfoKind(raw any) string {

@@ -84,15 +84,11 @@ func (s *Server) decodeDecidePendingActionRequest(w http.ResponseWriter, r *http
 		return DecidePendingActionRequest{}, false
 	}
 	req.Decision = strings.TrimSpace(req.Decision)
+	req.SelectedOptionID = strings.TrimSpace(req.SelectedOptionID)
+	req.Answer = strings.TrimSpace(req.Answer)
 	if req.Decision == "" {
 		s.respondBadRequest(w, r, "decision is required")
 		return DecidePendingActionRequest{}, false
 	}
-	switch strings.ToLower(req.Decision) {
-	case "accept", "decline":
-		return req, true
-	default:
-		s.respondBadRequest(w, r, "decision must be accept or decline")
-		return DecidePendingActionRequest{}, false
-	}
+	return req, true
 }

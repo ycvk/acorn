@@ -3,6 +3,7 @@ package app
 import (
 	"time"
 
+	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/runtime"
 )
 
@@ -48,6 +49,7 @@ type MessagePart struct {
 	DecisionID       string           `json:"decision_id,omitempty"`
 	Question         string           `json:"question,omitempty"`
 	SelectedOptionID string           `json:"selected_option_id,omitempty"`
+	Answer           string           `json:"answer,omitempty"`
 	Options          []DecisionOption `json:"options,omitempty"`
 	Action           *MessageAction   `json:"action,omitempty"`
 }
@@ -136,6 +138,19 @@ type ElicitationPendingData struct {
 }
 
 type ElicitationDecidedData = ElicitationPendingData
+
+type OperatorQuestionData struct {
+	ActionID         string                       `json:"action_id"`
+	Question         string                       `json:"question,omitempty"`
+	Options          []events.PendingActionOption `json:"options,omitempty"`
+	AllowFreeform    bool                         `json:"allow_freeform,omitempty"`
+	Decision         string                       `json:"decision,omitempty"`
+	SelectedOptionID string                       `json:"selected_option_id,omitempty"`
+	Answer           string                       `json:"answer,omitempty"`
+}
+
+type OperatorQuestionPendingData = OperatorQuestionData
+type OperatorQuestionDecidedData = OperatorQuestionData
 
 type DecisionSelectedData struct {
 	Action              string `json:"action,omitempty"`

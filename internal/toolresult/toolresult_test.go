@@ -95,6 +95,8 @@ func TestNormalizeAppendRequestValidation(t *testing.T) {
 		{"empty tool_name", AppendRequest{RunID: "r", CallID: "c", ToolName: "", Status: StatusSucceeded}},
 		{"invalid status", AppendRequest{RunID: "r", CallID: "c", ToolName: "t", Status: "invalid"}},
 		{"negative token", AppendRequest{RunID: "r", CallID: "c", ToolName: "t", Status: StatusSucceeded, TokenEstimate: -1}},
+		{"side effect missing kind", AppendRequest{RunID: "r", CallID: "c", ToolName: "t", Status: StatusSucceeded, SideEffects: []SideEffectRef{{Path: "README.md"}}}},
+		{"artifact side effect missing ref", AppendRequest{RunID: "r", CallID: "c", ToolName: "t", Status: StatusSucceeded, SideEffects: []SideEffectRef{{Kind: SideEffectKindArtifact}}}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -103,6 +105,26 @@ func TestNormalizeAppendRequestValidation(t *testing.T) {
 				t.Fatalf("expected error for %s", tc.name)
 			}
 		})
+	}
+}
+
+func TestNormalizeAppendRequestAcceptsNativeDeveloperToolSideEffects(t *testing.T) {
+	got, err := NormalizeAppendRequest(AppendRequest{
+		RunID:    "run_1",
+		CallID:   "call_1",
+		ToolName: "artifact_write",
+		Status:   StatusSucceeded,
+		SideEffects: []SideEffectRef{
+			{Kind: SideEffectKindArtifact, Ref: "artifact_1"},
+			{Kind: SideEffectKindTerminalSession, Ref: "term_1"},
+			{Kind: SideEffectKindOperatorAction, Ref: "action_1"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("normalize append request: %v", err)
+	}
+	if len(got.SideEffects) != 3 {
+		t.Fatalf("side effect count = %d, want 3", len(got.SideEffects))
 	}
 }
 

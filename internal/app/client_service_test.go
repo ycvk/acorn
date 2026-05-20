@@ -682,6 +682,37 @@ func TestProjectRunEventAcceptsSubagentEvents(t *testing.T) {
 	}
 }
 
+func TestProjectRunEventAcceptsOperatorQuestionEvents(t *testing.T) {
+	now := time.Date(2026, 5, 20, 10, 0, 0, 0, time.UTC)
+	event, err := projectRunEvent(events.EventRecord{
+		Sequence:  12,
+		RunID:     "run_1",
+		Kind:      "operator_question.decided",
+		CreatedAt: now,
+		Payload: map[string]any{
+			"action_id":          "action_1",
+			"question":           "Which path?",
+			"decision":           "answer",
+			"selected_option_id": "fast",
+			"answer":             "Ship it",
+			"allow_freeform":     true,
+			"options": []any{
+				map[string]any{"id": "fast", "label": "Fast path"},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("projectRunEvent: %v", err)
+	}
+	data, ok := event.Data.(OperatorQuestionData)
+	if !ok {
+		t.Fatalf("event data = %T, want OperatorQuestionData", event.Data)
+	}
+	if data.ActionID != "action_1" || data.Decision != "answer" || data.SelectedOptionID != "fast" || data.Answer != "Ship it" || len(data.Options) != 1 {
+		t.Fatalf("event data = %#v", data)
+	}
+}
+
 func TestProjectRunEventRejectsNonObjectPayload(t *testing.T) {
 	_, err := projectRunEvent(events.EventRecord{
 		Sequence: 1,

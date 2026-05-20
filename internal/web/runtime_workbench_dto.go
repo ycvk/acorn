@@ -31,6 +31,8 @@ type RuntimeWorkbenchDTO struct {
 	RollbackResults     []RollbackSummaryDTO    `json:"rollback_results,omitempty"`
 	ContextEconomy      ContextEconomyDTO       `json:"context_economy"`
 	ProviderUsage       ProviderUsageDTO        `json:"provider_usage"`
+	Artifacts           []ArtifactSummaryDTO    `json:"artifacts,omitempty"`
+	TerminalSessions    []TerminalSessionDTO    `json:"terminal_sessions,omitempty"`
 	Plan                *PlanDTO                `json:"plan,omitempty"`
 	Evidence            []PlanEvidenceDTO       `json:"evidence,omitempty"`
 	Subagents           []SubagentRunDTO        `json:"subagents,omitempty"`
@@ -156,6 +158,53 @@ type ProviderUsageCallDTO struct {
 	CreatedAt        time.Time `json:"created_at"`
 }
 
+type ArtifactSummaryDTO struct {
+	ArtifactID          string    `json:"artifact_id"`
+	RunID               string    `json:"run_id"`
+	SessionID           string    `json:"session_id,omitempty"`
+	SourceToolResultRef string    `json:"source_tool_result_ref,omitempty"`
+	Kind                string    `json:"kind"`
+	Title               string    `json:"title,omitempty"`
+	MIMEType            string    `json:"mime_type,omitempty"`
+	SizeBytes           int64     `json:"size_bytes"`
+	SHA256              string    `json:"sha256"`
+	CreatedAt           time.Time `json:"created_at"`
+}
+
+type TerminalSessionDTO struct {
+	TerminalSessionID string                  `json:"terminal_session_id"`
+	RunID             string                  `json:"run_id"`
+	SessionID         string                  `json:"session_id,omitempty"`
+	Label             string                  `json:"label,omitempty"`
+	CommandJSON       string                  `json:"command_json"`
+	Cwd               string                  `json:"cwd"`
+	Interactive       bool                    `json:"interactive"`
+	PTY               bool                    `json:"pty"`
+	Status            string                  `json:"status"`
+	ProcessID         *int                    `json:"pid,omitempty"`
+	ProcessGroupID    *int                    `json:"process_group_id,omitempty"`
+	ExitCode          *int                    `json:"exit_code,omitempty"`
+	Signal            string                  `json:"signal,omitempty"`
+	StdoutArtifactID  string                  `json:"stdout_artifact_id,omitempty"`
+	StderrArtifactID  string                  `json:"stderr_artifact_id,omitempty"`
+	PTYArtifactID     string                  `json:"pty_artifact_id,omitempty"`
+	StartedAt         *time.Time              `json:"started_at,omitempty"`
+	EndedAt           *time.Time              `json:"ended_at,omitempty"`
+	CreatedAt         time.Time               `json:"created_at"`
+	UpdatedAt         time.Time               `json:"updated_at"`
+	Logs              []TerminalSessionLogDTO `json:"logs,omitempty"`
+}
+
+type TerminalSessionLogDTO struct {
+	LogID             string    `json:"log_id"`
+	TerminalSessionID string    `json:"terminal_session_id"`
+	Stream            string    `json:"stream"`
+	ArtifactID        string    `json:"artifact_id"`
+	StartOffset       int64     `json:"start_offset"`
+	SizeBytes         int64     `json:"size_bytes"`
+	CreatedAt         time.Time `json:"created_at"`
+}
+
 func runtimeWorkbenchDTOFromDomain(item *app.RuntimeWorkbench) RuntimeWorkbenchDTO {
 	if item == nil {
 		return RuntimeWorkbenchDTO{}
@@ -184,12 +233,104 @@ func runtimeWorkbenchDTOFromDomain(item *app.RuntimeWorkbench) RuntimeWorkbenchD
 		RollbackResults:     rollbackSummaryDTOsFromDomain(item.RollbackResults),
 		ContextEconomy:      contextEconomyDTOFromDomain(item.ContextEconomy),
 		ProviderUsage:       providerUsageDTOFromDomain(item.ProviderUsage),
+		Artifacts:           artifactSummaryDTOsFromDomain(item.Artifacts),
+		TerminalSessions:    terminalSessionDTOsFromDomain(item.TerminalSessions),
 		Plan:                planDTOFromRuntime(item.Plan),
 		Evidence:            planEvidenceDTOsFromRuntime(item.Evidence),
 		Subagents:           subagentRunDTOsFromDomain(item.Subagents),
 		NextStepHint:        item.NextStepHint,
 	}
 	return dto
+}
+
+func terminalSessionDTOsFromDomain(items []app.TerminalSessionSummary) []TerminalSessionDTO {
+	if len(items) == 0 {
+		return nil
+	}
+	result := make([]TerminalSessionDTO, 0, len(items))
+	for _, item := range items {
+		result = append(result, TerminalSessionDTO{
+			TerminalSessionID: item.TerminalSessionID,
+			RunID:             item.RunID,
+			SessionID:         item.SessionID,
+			Label:             item.Label,
+			CommandJSON:       item.CommandJSON,
+			Cwd:               item.Cwd,
+			Interactive:       item.Interactive,
+			PTY:               item.PTY,
+			Status:            item.Status,
+			ProcessID:         copyOptionalInt(item.ProcessID),
+			ProcessGroupID:    copyOptionalInt(item.ProcessGroupID),
+			ExitCode:          copyOptionalInt(item.ExitCode),
+			Signal:            item.Signal,
+			StdoutArtifactID:  item.StdoutArtifactID,
+			StderrArtifactID:  item.StderrArtifactID,
+			PTYArtifactID:     item.PTYArtifactID,
+			StartedAt:         copyOptionalTime(item.StartedAt),
+			EndedAt:           copyOptionalTime(item.EndedAt),
+			CreatedAt:         item.CreatedAt,
+			UpdatedAt:         item.UpdatedAt,
+			Logs:              terminalSessionLogDTOsFromDomain(item.Logs),
+		})
+	}
+	return result
+}
+
+func terminalSessionLogDTOsFromDomain(items []app.TerminalSessionLogSummary) []TerminalSessionLogDTO {
+	if len(items) == 0 {
+		return nil
+	}
+	result := make([]TerminalSessionLogDTO, 0, len(items))
+	for _, item := range items {
+		result = append(result, TerminalSessionLogDTO{
+			LogID:             item.LogID,
+			TerminalSessionID: item.TerminalSessionID,
+			Stream:            item.Stream,
+			ArtifactID:        item.ArtifactID,
+			StartOffset:       item.StartOffset,
+			SizeBytes:         item.SizeBytes,
+			CreatedAt:         item.CreatedAt,
+		})
+	}
+	return result
+}
+
+func artifactSummaryDTOsFromDomain(items []app.ArtifactSummary) []ArtifactSummaryDTO {
+	if len(items) == 0 {
+		return nil
+	}
+	result := make([]ArtifactSummaryDTO, 0, len(items))
+	for _, item := range items {
+		result = append(result, ArtifactSummaryDTO{
+			ArtifactID:          item.ArtifactID,
+			RunID:               item.RunID,
+			SessionID:           item.SessionID,
+			SourceToolResultRef: item.SourceToolResultRef,
+			Kind:                item.Kind,
+			Title:               item.Title,
+			MIMEType:            item.MIMEType,
+			SizeBytes:           item.SizeBytes,
+			SHA256:              item.SHA256,
+			CreatedAt:           item.CreatedAt,
+		})
+	}
+	return result
+}
+
+func copyOptionalInt(value *int) *int {
+	if value == nil {
+		return nil
+	}
+	copied := *value
+	return &copied
+}
+
+func copyOptionalTime(value *time.Time) *time.Time {
+	if value == nil {
+		return nil
+	}
+	copied := value.UTC()
+	return &copied
 }
 
 func workspaceGitStatusDTOFromDomain(item app.WorkspaceGitStatus) WorkspaceGitStatusDTO {

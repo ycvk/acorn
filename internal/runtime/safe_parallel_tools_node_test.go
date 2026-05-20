@@ -404,6 +404,26 @@ func TestSafeParallelMutationToolAttachesSideEffects(t *testing.T) {
 	}
 }
 
+func TestToolSideEffectsFromTerminalSessionResult(t *testing.T) {
+	sideEffects, err := toolSideEffectsFromResult("terminal_session_start", `{"terminal_session_id":"term_1","status":"running"}`)
+	if err != nil {
+		t.Fatalf("toolSideEffectsFromResult: %v", err)
+	}
+	if len(sideEffects) != 1 || sideEffects[0].Kind != toolresult.SideEffectKindTerminalSession || sideEffects[0].Ref != "term_1" {
+		t.Fatalf("side effects = %+v", sideEffects)
+	}
+}
+
+func TestToolSideEffectsFromAskOperatorResult(t *testing.T) {
+	sideEffects, err := toolSideEffectsFromResult("ask_operator", `{"action_id":"action_1","status":"answered","decision":"answer"}`)
+	if err != nil {
+		t.Fatalf("toolSideEffectsFromResult: %v", err)
+	}
+	if len(sideEffects) != 1 || sideEffects[0].Kind != toolresult.SideEffectKindOperatorAction || sideEffects[0].Ref != "action_1" {
+		t.Fatalf("side effects = %+v", sideEffects)
+	}
+}
+
 func TestSafeParallel_WriteScopedPathConflictExecutesSequentially(t *testing.T) {
 	writeTool := &trackingTool{name: "create_file"}
 

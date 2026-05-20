@@ -150,7 +150,11 @@ func (s *Server) handleDecidePendingAction(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
-	record, err := s.pendingAction.Decide(r.Context(), chi.URLParam(r, "action_id"), req.Decision)
+	record, err := s.pendingAction.Decide(r.Context(), chi.URLParam(r, "action_id"), app.PendingActionDecisionInput{
+		Decision:         req.Decision,
+		SelectedOptionID: req.SelectedOptionID,
+		Answer:           req.Answer,
+	})
 	if err != nil {
 		s.respondClientKnownError(w, r, err)
 		return

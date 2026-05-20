@@ -107,6 +107,17 @@ func decisionSessionMessageForPendingAction(action *events.PendingActionRecord) 
 	if action == nil {
 		return "", nil, errors.New("pending action is nil")
 	}
+	switch action.Kind {
+	case events.PendingActionKindElicitation:
+		return elicitationDecisionSessionMessage(action)
+	case events.PendingActionKindOperatorQuestion:
+		return operatorQuestionDecisionSessionMessage(action)
+	default:
+		return "", nil, fmt.Errorf("pending action %s has unsupported kind %q", action.ActionID, action.Kind)
+	}
+}
+
+func elicitationDecisionSessionMessage(action *events.PendingActionRecord) (string, []SessionMessagePart, error) {
 	message, err := decodeElicitationPayload(action.PayloadJSON)
 	if err != nil {
 		return "", nil, err
@@ -136,7 +147,39 @@ func decisionSessionMessageForPendingAction(action *events.PendingActionRecord) 
 	return message, parts, nil
 }
 
+func operatorQuestionDecisionSessionMessage(action *events.PendingActionRecord) (string, []SessionMessagePart, error) {
+	payload, err := decodeOperatorQuestionPayload(action.PayloadJSON)
+	if err != nil {
+		return "", nil, err
+	}
+	if strings.TrimSpace(payload.Question) == "" {
+		return "", nil, fmt.Errorf("pending action %s has empty operator question", action.ActionID)
+	}
+	decision := decodeOperatorQuestionDecision(action.DecisionJSON)
+	parts := []SessionMessagePart{{
+		Kind:             "decision",
+		DecisionID:       action.ActionID,
+		Question:         payload.Question,
+		Status:           string(action.Status),
+		SelectedOptionID: decision.SelectedOptionID,
+		Answer:           decision.Answer,
+		Options:          sessionDecisionOptionsFromPendingActionOptions(payload.Options),
+	}}
+	if strings.TrimSpace(action.RunID) != "" {
+		parts = append(parts, SessionMessagePart{
+			Kind:        "technical_detail_link",
+			RunID:       action.RunID,
+			DetailRunID: action.RunID,
+			Label:       "View technical details",
+		})
+	}
+	return payload.Question, parts, nil
+}
+
 func decisionSelectedOptionID(action *events.PendingActionRecord) string {
+	if action != nil && action.Kind == events.PendingActionKindOperatorQuestion {
+		return decodeOperatorQuestionDecision(action.DecisionJSON).SelectedOptionID
+	}
 	switch action.Status {
 	case events.PendingActionStatusApproved:
 		return "accept"
@@ -156,6 +199,43 @@ func decisionSelectedOptionID(action *events.PendingActionRecord) string {
 		}
 	}
 	return ""
+}
+
+func decodeOperatorQuestionPayload(payloadJSON string) (events.OperatorQuestionPayload, error) {
+	if strings.TrimSpace(payloadJSON) == "" {
+		return events.OperatorQuestionPayload{}, errors.New("operator question payload is empty")
+	}
+	var payload events.OperatorQuestionPayload
+	if err := json.Unmarshal([]byte(payloadJSON), &payload); err != nil {
+		return events.OperatorQuestionPayload{}, fmt.Errorf("decode operator question payload: %w", err)
+	}
+	return payload, nil
+}
+
+func decodeOperatorQuestionDecision(decisionJSON string) events.OperatorQuestionDecision {
+	if strings.TrimSpace(decisionJSON) == "" {
+		return events.OperatorQuestionDecision{}
+	}
+	var decision events.OperatorQuestionDecision
+	if err := json.Unmarshal([]byte(decisionJSON), &decision); err != nil {
+		return events.OperatorQuestionDecision{}
+	}
+	return decision
+}
+
+func sessionDecisionOptionsFromPendingActionOptions(items []events.PendingActionOption) []SessionDecisionOption {
+	if len(items) == 0 {
+		return nil
+	}
+	out := make([]SessionDecisionOption, 0, len(items))
+	for _, item := range items {
+		out = append(out, SessionDecisionOption{
+			ID:          strings.TrimSpace(item.ID),
+			Label:       strings.TrimSpace(item.Label),
+			Description: strings.TrimSpace(item.Description),
+		})
+	}
+	return out
 }
 
 func decodeElicitationPayload(payloadJSON string) (string, error) {

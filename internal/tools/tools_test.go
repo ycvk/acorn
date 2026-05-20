@@ -15,9 +15,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cloudwego/eino/adk"
 	einotool "github.com/cloudwego/eino/components/tool"
 	toolutils "github.com/cloudwego/eino/components/tool/utils"
 
+	"github.com/ycvk/acorn/internal/artifacts"
+	"github.com/ycvk/acorn/internal/events"
+	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
+	"github.com/ycvk/acorn/internal/terminalsession"
 	"github.com/ycvk/acorn/internal/tooling"
 	workspacepkg "github.com/ycvk/acorn/internal/workspace"
 )
@@ -253,6 +258,205 @@ func TestNativeWorkspaceToolsExposeProgressInterface(t *testing.T) {
 		"run_command",
 	} {
 		mustProgressToolByName(t, catalog.Tools, name)
+	}
+}
+
+func TestArtifactToolsWriteReadAndList(t *testing.T) {
+	store := newToolArtifactStore()
+	service, err := artifacts.NewService(filepath.Join(t.TempDir(), "artifacts"), store)
+	if err != nil {
+		t.Fatalf("artifacts.NewService: %v", err)
+	}
+	catalog, err := BuildCatalog(CatalogConfig{
+		ArtifactService: service,
+		ArtifactContext: fixedArtifactContext{
+			runID:     "run_1",
+			sessionID: "session_1",
+			callID:    "call_1",
+		},
+	}, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("BuildCatalog: %v", err)
+	}
+	if got, want := len(catalog.Tools), 3; got != want {
+		t.Fatalf("artifact tool count = %d, want %d", got, want)
+	}
+
+	writeTool := mustToolByName(t, catalog.Tools, "artifact_write")
+	writeOutput, err := writeTool.InvokableRun(context.Background(), `{"kind":"markdown","title":"Report","mime_type":"text/markdown","content":"hello artifact"}`)
+	if err != nil {
+		t.Fatalf("artifact_write: %v", err)
+	}
+	var written ArtifactWriteOutput
+	if err := json.Unmarshal([]byte(writeOutput), &written); err != nil {
+		t.Fatalf("json.Unmarshal(artifact_write output): %v\noutput=%s", err, writeOutput)
+	}
+	if written.RunID != "run_1" || written.SessionID != "session_1" || written.SourceToolResultRef != "tool_result:run_1:call_1" {
+		t.Fatalf("unexpected artifact write output: %+v", written)
+	}
+	if written.ArtifactID == "" || written.SizeBytes != int64(len("hello artifact")) {
+		t.Fatalf("unexpected artifact identity/size: %+v", written)
+	}
+
+	readTool := mustToolByName(t, catalog.Tools, "artifact_read")
+	readOutput, err := readTool.InvokableRun(context.Background(), `{"artifact_id":"`+written.ArtifactID+`","offset":6,"limit":20}`)
+	if err != nil {
+		t.Fatalf("artifact_read: %v", err)
+	}
+	var read ArtifactReadOutput
+	if err := json.Unmarshal([]byte(readOutput), &read); err != nil {
+		t.Fatalf("json.Unmarshal(artifact_read output): %v\noutput=%s", err, readOutput)
+	}
+	if read.Content != "artifact" || !read.EOF || read.Bytes != len("artifact") {
+		t.Fatalf("unexpected artifact read output: %+v", read)
+	}
+
+	listTool := mustToolByName(t, catalog.Tools, "artifact_list")
+	listOutput, err := listTool.InvokableRun(context.Background(), `{}`)
+	if err != nil {
+		t.Fatalf("artifact_list: %v", err)
+	}
+	var list ArtifactListOutput
+	if err := json.Unmarshal([]byte(listOutput), &list); err != nil {
+		t.Fatalf("json.Unmarshal(artifact_list output): %v\noutput=%s", err, listOutput)
+	}
+	if list.RunID != "run_1" || len(list.Items) != 1 || list.Items[0].ArtifactID != written.ArtifactID {
+		t.Fatalf("unexpected artifact list output: %+v", list)
+	}
+}
+
+func TestAskOperatorCreatesPendingActionAndInterrupts(t *testing.T) {
+	store, err := storesqlite.Open(filepath.Join(t.TempDir(), "state"))
+	if err != nil {
+		t.Fatalf("sqlite.Open: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	if err := store.CreateRun(context.Background(), "run_ask_operator", "choose path", "run_ask_operator"); err != nil {
+		t.Fatalf("create run: %v", err)
+	}
+	catalog, err := BuildCatalog(CatalogConfig{
+		OperatorStore:   store,
+		OperatorContext: fixedArtifactContext{runID: "run_ask_operator", sessionID: "session_ask_operator", callID: "call_question"},
+	}, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("BuildCatalog: %v", err)
+	}
+
+	tool := mustToolByName(t, catalog.Tools, "ask_operator")
+	_, err = tool.InvokableRun(context.Background(), `{
+		"title":"Choose path",
+		"question":"Which path should Acorn take?",
+		"options":[{"id":"fast","label":"Fast path"}],
+		"allow_freeform":true
+	}`)
+	if err == nil {
+		t.Fatal("ask_operator should interrupt")
+	}
+	var signal *adk.InterruptSignal
+	if !errors.As(err, &signal) || signal == nil {
+		t.Fatalf("expected interrupt info, got %v", err)
+	}
+	actions, err := store.ListPendingActions(context.Background(), 10)
+	if err != nil {
+		t.Fatalf("list pending actions: %v", err)
+	}
+	if len(actions) != 1 {
+		t.Fatalf("pending actions = %#v, want one", actions)
+	}
+	action := actions[0]
+	if action.Kind != events.PendingActionKindOperatorQuestion || action.ActionID != "operator_question:run_ask_operator:call_question" {
+		t.Fatalf("pending action = %#v", action)
+	}
+	var payload events.OperatorQuestionPayload
+	if err := json.Unmarshal([]byte(action.PayloadJSON), &payload); err != nil {
+		t.Fatalf("unmarshal payload: %v", err)
+	}
+	if payload.Question != "Which path should Acorn take?" || len(payload.Options) != 1 || payload.Options[0].ID != "fast" {
+		t.Fatalf("payload = %#v", payload)
+	}
+	records, err := store.LoadEvents(context.Background(), "run_ask_operator")
+	if err != nil {
+		t.Fatalf("load events: %v", err)
+	}
+	if len(records) != 1 || records[0].Kind != "operator_question.pending" {
+		t.Fatalf("events = %#v", records)
+	}
+}
+
+func TestTerminalSessionToolsStartReadAndList(t *testing.T) {
+	if _, err := exec.LookPath("sh"); err != nil {
+		t.Skip("sh is required")
+	}
+	root := t.TempDir()
+	store, err := storesqlite.Open(filepath.Join(t.TempDir(), "state"))
+	if err != nil {
+		t.Fatalf("sqlite.Open: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	artifactService, err := artifacts.NewService(filepath.Join(t.TempDir(), "artifacts"), store)
+	if err != nil {
+		t.Fatalf("artifacts.NewService: %v", err)
+	}
+	terminalService, err := terminalsession.NewService(store, artifactService)
+	if err != nil {
+		t.Fatalf("terminalsession.NewService: %v", err)
+	}
+	catalog, err := BuildCatalog(CatalogConfig{
+		Workspace:         testWorkspace(t, root),
+		TerminalService:   terminalService,
+		TerminalContext:   fixedArtifactContext{runID: "run_1", sessionID: "session_1", callID: "call_start"},
+		ArtifactService:   artifactService,
+		ArtifactContext:   fixedArtifactContext{runID: "run_1", sessionID: "session_1", callID: "call_artifact"},
+		MutationEnabled:   false,
+		RunCommandEnabled: false,
+	}, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("BuildCatalog: %v", err)
+	}
+
+	startTool := mustToolByName(t, catalog.Tools, "terminal_session_start")
+	startOutput, err := startTool.InvokableRun(context.Background(), `{"command":["sh","-c","printf terminal"],"label":"fixture"}`)
+	if err != nil {
+		t.Fatalf("terminal_session_start: %v", err)
+	}
+	var started TerminalSessionStartOutput
+	if err := json.Unmarshal([]byte(startOutput), &started); err != nil {
+		t.Fatalf("json.Unmarshal(start output): %v\noutput=%s", err, startOutput)
+	}
+	if started.TerminalSessionID == "" || started.Status != "running" {
+		t.Fatalf("unexpected start output: %+v", started)
+	}
+
+	statusTool := mustToolByName(t, catalog.Tools, "process_status")
+	final := waitTerminalToolStatus(t, statusTool, started.TerminalSessionID)
+	if final.Status != "exited" || final.ExitCode == nil || *final.ExitCode != 0 {
+		t.Fatalf("unexpected final status: %+v", final)
+	}
+
+	readTool := mustToolByName(t, catalog.Tools, "terminal_session_read")
+	readOutput, err := readTool.InvokableRun(context.Background(), `{"terminal_session_id":"`+started.TerminalSessionID+`","stream":"stdout","offset":0,"limit":64}`)
+	if err != nil {
+		t.Fatalf("terminal_session_read: %v", err)
+	}
+	var read TerminalSessionReadOutput
+	if err := json.Unmarshal([]byte(readOutput), &read); err != nil {
+		t.Fatalf("json.Unmarshal(read output): %v\noutput=%s", err, readOutput)
+	}
+	if read.Content != "terminal" || read.ArtifactID == "" {
+		t.Fatalf("unexpected read output: %+v", read)
+	}
+
+	listTool := mustToolByName(t, catalog.Tools, "terminal_session_list")
+	listOutput, err := listTool.InvokableRun(context.Background(), `{}`)
+	if err != nil {
+		t.Fatalf("terminal_session_list: %v", err)
+	}
+	var list TerminalSessionListOutput
+	if err := json.Unmarshal([]byte(listOutput), &list); err != nil {
+		t.Fatalf("json.Unmarshal(list output): %v\noutput=%s", err, listOutput)
+	}
+	if len(list.Items) != 1 || list.Items[0].TerminalSessionID != started.TerminalSessionID {
+		t.Fatalf("unexpected list output: %+v", list)
 	}
 }
 
@@ -601,4 +805,90 @@ func runGitCommandForTest(t *testing.T, root string, args ...string) {
 	if output, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("git %v: %v\n%s", args, err, string(output))
 	}
+}
+
+func waitTerminalToolStatus(t *testing.T, statusTool einotool.InvokableTool, terminalSessionID string) ProcessStatusOutput {
+	t.Helper()
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		output, err := statusTool.InvokableRun(context.Background(), `{"terminal_session_id":"`+terminalSessionID+`"}`)
+		if err != nil {
+			t.Fatalf("process_status: %v", err)
+		}
+		var decoded ProcessStatusOutput
+		if err := json.Unmarshal([]byte(output), &decoded); err != nil {
+			t.Fatalf("json.Unmarshal(process_status output): %v\noutput=%s", err, output)
+		}
+		switch decoded.Status {
+		case "exited", "signaled", "failed", "closed":
+			return decoded
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("terminal session %s still %s", terminalSessionID, decoded.Status)
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+}
+
+type fixedArtifactContext struct {
+	runID     string
+	sessionID string
+	callID    string
+}
+
+func (c fixedArtifactContext) CurrentRunID(context.Context) string {
+	return c.runID
+}
+
+func (c fixedArtifactContext) CurrentSessionID(context.Context) string {
+	return c.sessionID
+}
+
+func (c fixedArtifactContext) CurrentToolCallID(context.Context) string {
+	return c.callID
+}
+
+type toolArtifactStore struct {
+	records map[string]artifacts.Record
+}
+
+func newToolArtifactStore() *toolArtifactStore {
+	return &toolArtifactStore{records: make(map[string]artifacts.Record)}
+}
+
+func (s *toolArtifactStore) SaveArtifact(_ context.Context, record artifacts.Record) (artifacts.Record, error) {
+	normalized, err := artifacts.NormalizeRecord(record)
+	if err != nil {
+		return artifacts.Record{}, err
+	}
+	s.records[normalized.ArtifactID] = normalized
+	return normalized, nil
+}
+
+func (s *toolArtifactStore) LoadArtifact(_ context.Context, artifactID string) (artifacts.Record, error) {
+	record, ok := s.records[strings.TrimSpace(artifactID)]
+	if !ok {
+		return artifacts.Record{}, artifacts.ErrArtifactNotFound
+	}
+	return record, nil
+}
+
+func (s *toolArtifactStore) ListArtifactsByRun(_ context.Context, runID string) ([]artifacts.Record, error) {
+	var items []artifacts.Record
+	for _, record := range s.records {
+		if record.RunID == strings.TrimSpace(runID) {
+			items = append(items, record)
+		}
+	}
+	return items, nil
+}
+
+func (s *toolArtifactStore) ListArtifactsBySession(_ context.Context, sessionID string) ([]artifacts.Record, error) {
+	var items []artifacts.Record
+	for _, record := range s.records {
+		if record.SessionID == strings.TrimSpace(sessionID) {
+			items = append(items, record)
+		}
+	}
+	return items, nil
 }

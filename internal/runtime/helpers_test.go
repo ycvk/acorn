@@ -25,7 +25,9 @@ func TestMessageToMapPreservesToolContent(t *testing.T) {
 func TestCompactInterruptInfoKeepsUsefulKeysOnly(t *testing.T) {
 	payload := compactInterruptInfo(map[string]any{
 		"kind":           "elicitation_request",
+		"action_id":      "action_1",
 		"message":        "resume to continue",
+		"question":       "continue?",
 		"tool_name":      "run_command",
 		"arguments_json": `{"command":["pwd"]}`,
 		"reason":         "elicitation_required",
@@ -42,6 +44,9 @@ func TestCompactInterruptInfoKeepsUsefulKeysOnly(t *testing.T) {
 	}
 	if got := data["kind"]; got != "elicitation_request" {
 		t.Fatalf("unexpected kind: %#v", got)
+	}
+	if got := data["action_id"]; got != "action_1" {
+		t.Fatalf("unexpected action_id: %#v", got)
 	}
 }
 

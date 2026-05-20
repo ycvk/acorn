@@ -7,7 +7,9 @@ import (
 
 	einotool "github.com/cloudwego/eino/components/tool"
 
+	"github.com/ycvk/acorn/internal/artifacts"
 	"github.com/ycvk/acorn/internal/orchestration"
+	"github.com/ycvk/acorn/internal/terminalsession"
 	"github.com/ycvk/acorn/internal/workspace"
 )
 
@@ -190,6 +192,12 @@ type CatalogConfig struct {
 	Workspace         *workspace.Workspace
 	MutationEnabled   bool
 	RunCommandEnabled bool
+	ArtifactService   *artifacts.Service
+	ArtifactContext   ArtifactContext
+	TerminalService   *terminalsession.Service
+	TerminalContext   TerminalSessionContext
+	OperatorStore     OperatorQuestionStore
+	OperatorContext   OperatorQuestionContext
 }
 
 type Catalog struct {
@@ -198,6 +206,7 @@ type Catalog struct {
 
 func init() {
 	gob.Register(RunCommandInput{})
+	gob.Register(AskOperatorState{})
 	gob.Register(map[string]any{})
 	gob.Register([]any{})
 }
@@ -259,6 +268,30 @@ func BuildCatalog(cfg CatalogConfig, extraTools []einotool.BaseTool, childExec o
 			}
 			items = append(items, runTool)
 		}
+	}
+
+	if cfg.ArtifactService != nil {
+		artifactTools, err := buildArtifactTools(cfg.ArtifactService, cfg.ArtifactContext)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, artifactTools...)
+	}
+
+	if cfg.TerminalService != nil {
+		terminalTools, err := buildTerminalSessionTools(cfg.TerminalService, ws, cfg.TerminalContext)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, terminalTools...)
+	}
+
+	if cfg.OperatorStore != nil {
+		operatorTool, err := buildAskOperatorTool(cfg.OperatorStore, cfg.OperatorContext)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, operatorTool)
 	}
 
 	if childExec != nil {

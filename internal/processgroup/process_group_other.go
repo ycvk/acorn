@@ -4,6 +4,7 @@ package processgroup
 
 import (
 	"errors"
+	"os"
 	"os/exec"
 )
 
@@ -18,4 +19,12 @@ func ConfigureCommand(cmd *exec.Cmd) {
 
 func KillCommandGroup(cmd *exec.Cmd) error {
 	return ErrUnsupportedPlatform
+}
+
+func SignalCommandGroup(cmd *exec.Cmd, signal os.Signal) error {
+	return ErrUnsupportedPlatform
+}
+
+func ParseSignal(raw string) (os.Signal, error) {
+	return nil, ErrUnsupportedPlatform
 }
