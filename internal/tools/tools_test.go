@@ -37,7 +37,7 @@ func TestBuildCatalogIncludesReadOnlySuiteAndOptionalTools(t *testing.T) {
 	if err != nil {
 		t.Fatalf("build catalog: %v", err)
 	}
-	if got, want := len(catalog.Tools), 6; got != want {
+	if got, want := len(catalog.Tools), 7; got != want {
 		t.Fatalf("tool count = %d, want %d", got, want)
 	}
 }
@@ -66,7 +66,7 @@ func TestBuildCatalogAppendsExtraTools(t *testing.T) {
 	if err != nil {
 		t.Fatalf("build catalog with extra tools: %v", err)
 	}
-	if got, want := len(catalog.Tools), 6; got != want {
+	if got, want := len(catalog.Tools), 7; got != want {
 		t.Fatalf("expected %d tools, got %d", want, got)
 	}
 }
@@ -182,6 +182,97 @@ func TestRollbackWorkspaceCheckpointRestoresMutationToolCheckpoint(t *testing.T)
 	}
 }
 
+func TestMultiEditWritesMultipleFilesWithOneCheckpoint(t *testing.T) {
+	root := t.TempDir()
+	initGitRepoForToolsTest(t, root)
+	if err := os.WriteFile(filepath.Join(root, "a.txt"), []byte("one\ntwo\nthree\n"), 0o644); err != nil {
+		t.Fatalf("write a.txt: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "b.txt"), []byte("alpha\nbeta\ngamma\n"), 0o644); err != nil {
+		t.Fatalf("write b.txt: %v", err)
+	}
+	runGitCommandForTest(t, root, "add", "a.txt", "b.txt")
+	runGitCommandForTest(t, root, "commit", "-m", "fixtures")
+	ws := testWorkspace(t, root)
+	catalog, err := BuildCatalog(CatalogConfig{
+		Workspace:       ws,
+		MutationEnabled: true,
+	}, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("BuildCatalog: %v", err)
+	}
+	tool := mustToolByName(t, catalog.Tools, "multi_edit")
+
+	output, err := tool.InvokableRun(context.Background(), `{"edits":[
+		{"path":"a.txt","start_line":2,"end_line":2,"replacement":"TWO\n"},
+		{"path":"b.txt","start_line":1,"end_line":2,"replacement":"ALPHA-BETA\n"}
+	]}`)
+	if err != nil {
+		t.Fatalf("multi_edit: %v", err)
+	}
+
+	var decoded MultiEditOutput
+	if err := json.Unmarshal([]byte(output), &decoded); err != nil {
+		t.Fatalf("json.Unmarshal(multi_edit output): %v\noutput=%s", err, output)
+	}
+	if decoded.CheckpointID == "" {
+		t.Fatal("CheckpointID is required")
+	}
+	if strings.Join(decoded.CheckpointPaths, ",") != "a.txt,b.txt" {
+		t.Fatalf("CheckpointPaths = %+v", decoded.CheckpointPaths)
+	}
+	if !strings.Contains(decoded.VerifiedDiffStat, "a.txt") || !strings.Contains(decoded.VerifiedDiffStat, "b.txt") {
+		t.Fatalf("VerifiedDiffStat = %q, want both paths", decoded.VerifiedDiffStat)
+	}
+	bodyA, err := os.ReadFile(filepath.Join(root, "a.txt"))
+	if err != nil {
+		t.Fatalf("read a.txt: %v", err)
+	}
+	bodyB, err := os.ReadFile(filepath.Join(root, "b.txt"))
+	if err != nil {
+		t.Fatalf("read b.txt: %v", err)
+	}
+	if string(bodyA) != "one\nTWO\nthree\n" {
+		t.Fatalf("a.txt = %q", string(bodyA))
+	}
+	if string(bodyB) != "ALPHA-BETA\ngamma\n" {
+		t.Fatalf("b.txt = %q", string(bodyB))
+	}
+}
+
+func TestMultiEditRejectsOverlappingSpansBeforeWriting(t *testing.T) {
+	root := t.TempDir()
+	initGitRepoForToolsTest(t, root)
+	original := "one\ntwo\nthree\n"
+	if err := os.WriteFile(filepath.Join(root, "a.txt"), []byte(original), 0o644); err != nil {
+		t.Fatalf("write a.txt: %v", err)
+	}
+	ws := testWorkspace(t, root)
+	catalog, err := BuildCatalog(CatalogConfig{
+		Workspace:       ws,
+		MutationEnabled: true,
+	}, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("BuildCatalog: %v", err)
+	}
+	tool := mustToolByName(t, catalog.Tools, "multi_edit")
+
+	_, err = tool.InvokableRun(context.Background(), `{"edits":[
+		{"path":"a.txt","start_line":1,"end_line":2,"replacement":"first\n"},
+		{"path":"a.txt","start_line":2,"end_line":3,"replacement":"second\n"}
+	]}`)
+	if err == nil {
+		t.Fatal("multi_edit should reject overlapping spans")
+	}
+	body, readErr := os.ReadFile(filepath.Join(root, "a.txt"))
+	if readErr != nil {
+		t.Fatalf("read a.txt: %v", readErr)
+	}
+	if string(body) != original {
+		t.Fatalf("a.txt mutated after rejected multi_edit: %q", string(body))
+	}
+}
+
 func TestSearchTextReturnsStructuredMatches(t *testing.T) {
 	root := t.TempDir()
 	if err := os.WriteFile(filepath.Join(root, "a.txt"), []byte("alpha\nbeta\n"), 0o644); err != nil {
@@ -238,11 +329,17 @@ func TestSearchTextEmitsMatchProgress(t *testing.T) {
 func TestNativeWorkspaceToolsExposeProgressInterface(t *testing.T) {
 	root := t.TempDir()
 	initGitRepoForToolsTest(t, root)
+	artifactService, err := artifacts.NewService(filepath.Join(t.TempDir(), "artifacts"), newToolArtifactStore())
+	if err != nil {
+		t.Fatalf("artifacts.NewService: %v", err)
+	}
 	ws := testWorkspace(t, root)
 	catalog, err := BuildCatalog(CatalogConfig{
 		Workspace:         ws,
 		MutationEnabled:   true,
 		RunCommandEnabled: true,
+		ArtifactService:   artifactService,
+		ArtifactContext:   fixedArtifactContext{runID: "run_1", sessionID: "session_1", callID: "call_1"},
 	}, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("BuildCatalog: %v", err)
@@ -251,11 +348,14 @@ func TestNativeWorkspaceToolsExposeProgressInterface(t *testing.T) {
 		"read_file",
 		"list_files",
 		"search_text",
+		"git_summary",
 		"create_file",
 		"replace_span",
 		"apply_unified_patch",
+		"multi_edit",
 		"rollback_workspace_checkpoint",
 		"run_command",
+		"run_verification",
 	} {
 		mustProgressToolByName(t, catalog.Tools, name)
 	}
@@ -507,6 +607,114 @@ func TestInspectGitStatusReturnsStructuredOutput(t *testing.T) {
 	}
 	if decoded.Entries[0].Path != "nested/new.txt" {
 		t.Fatalf("entry path = %q, want nested/new.txt", decoded.Entries[0].Path)
+	}
+}
+
+func TestGitSummaryReturnsStatusDiffStatAndDiffArtifact(t *testing.T) {
+	root := t.TempDir()
+	initGitRepoForToolsTest(t, root)
+	if err := os.WriteFile(filepath.Join(root, "tracked.txt"), []byte("seed\n"), 0o644); err != nil {
+		t.Fatalf("write tracked file: %v", err)
+	}
+	runGitCommandForTest(t, root, "add", "tracked.txt")
+	runGitCommandForTest(t, root, "commit", "-m", "tracked")
+	if err := os.WriteFile(filepath.Join(root, "tracked.txt"), []byte("seed\nchanged\n"), 0o644); err != nil {
+		t.Fatalf("modify tracked file: %v", err)
+	}
+	artifactStore := newToolArtifactStore()
+	artifactService, err := artifacts.NewService(filepath.Join(t.TempDir(), "artifacts"), artifactStore)
+	if err != nil {
+		t.Fatalf("artifacts.NewService: %v", err)
+	}
+	catalog, err := BuildCatalog(CatalogConfig{
+		Workspace:       testWorkspace(t, root),
+		ArtifactService: artifactService,
+		ArtifactContext: fixedArtifactContext{runID: "run_git", sessionID: "session_git", callID: "call_git"},
+	}, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("BuildCatalog: %v", err)
+	}
+	tool := mustToolByName(t, catalog.Tools, "git_summary")
+
+	output, err := tool.InvokableRun(context.Background(), `{"include_diff":true,"context_lines":1}`)
+	if err != nil {
+		t.Fatalf("git_summary: %v", err)
+	}
+	var decoded GitSummaryOutput
+	if err := json.Unmarshal([]byte(output), &decoded); err != nil {
+		t.Fatalf("json.Unmarshal(git_summary output): %v\noutput=%s", err, output)
+	}
+	if decoded.Clean {
+		t.Fatal("Clean = true, want false")
+	}
+	if strings.Join(decoded.ChangedPaths, ",") != "tracked.txt" {
+		t.Fatalf("ChangedPaths = %+v", decoded.ChangedPaths)
+	}
+	if !strings.Contains(decoded.DiffStat, "tracked.txt") {
+		t.Fatalf("DiffStat = %q, want tracked.txt", decoded.DiffStat)
+	}
+	if decoded.DiffArtifactID == "" || decoded.DiffArtifact == nil {
+		t.Fatalf("diff artifact missing: %+v", decoded)
+	}
+	read, err := artifactService.ReadRange(context.Background(), artifacts.ReadRangeRequest{
+		ArtifactID: decoded.DiffArtifactID,
+		Limit:      4096,
+	})
+	if err != nil {
+		t.Fatalf("read diff artifact: %v", err)
+	}
+	if !strings.Contains(string(read.Content), "+changed") {
+		t.Fatalf("diff artifact content = %q", string(read.Content))
+	}
+}
+
+func TestRunVerificationWritesArtifactsAndKeepsFailureAsResult(t *testing.T) {
+	if _, err := exec.LookPath("sh"); err != nil {
+		t.Skip("sh is required")
+	}
+	root := t.TempDir()
+	artifactService, err := artifacts.NewService(filepath.Join(t.TempDir(), "artifacts"), newToolArtifactStore())
+	if err != nil {
+		t.Fatalf("artifacts.NewService: %v", err)
+	}
+	catalog, err := BuildCatalog(CatalogConfig{
+		Workspace:         testWorkspace(t, root),
+		RunCommandEnabled: true,
+		ArtifactService:   artifactService,
+		ArtifactContext:   fixedArtifactContext{runID: "run_verify", sessionID: "session_verify", callID: "call_verify"},
+	}, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("BuildCatalog: %v", err)
+	}
+	tool := mustToolByName(t, catalog.Tools, "run_verification")
+
+	output, err := tool.InvokableRun(context.Background(), `{"kind":"test","command":["sh","-lc","printf out; printf err 1>&2; exit 7"]}`)
+	if err != nil {
+		t.Fatalf("run_verification: %v", err)
+	}
+	var decoded RunVerificationOutput
+	if err := json.Unmarshal([]byte(output), &decoded); err != nil {
+		t.Fatalf("json.Unmarshal(run_verification output): %v\noutput=%s", err, output)
+	}
+	if decoded.Status != verificationStatusFailed || decoded.ExitCode != 7 {
+		t.Fatalf("status/exit = %s/%d, want failed/7", decoded.Status, decoded.ExitCode)
+	}
+	stdout, err := artifactService.ReadRange(context.Background(), artifacts.ReadRangeRequest{
+		ArtifactID: decoded.StdoutArtifactID,
+		Limit:      32,
+	})
+	if err != nil {
+		t.Fatalf("read stdout artifact: %v", err)
+	}
+	stderr, err := artifactService.ReadRange(context.Background(), artifacts.ReadRangeRequest{
+		ArtifactID: decoded.StderrArtifactID,
+		Limit:      32,
+	})
+	if err != nil {
+		t.Fatalf("read stderr artifact: %v", err)
+	}
+	if string(stdout.Content) != "out" || string(stderr.Content) != "err" {
+		t.Fatalf("artifact content stdout=%q stderr=%q", string(stdout.Content), string(stderr.Content))
 	}
 }
 

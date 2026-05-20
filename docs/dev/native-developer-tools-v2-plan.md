@@ -293,6 +293,8 @@ git diff --check
 
 ## Phase 5: Edit/Test/Git Workflow Tools
 
+Status: implemented on 2026-05-20.
+
 ### Outcome
 
 Acorn has higher-level workflow tools for common development loops without hiding the underlying diff, test command, checkpoint, or tool result evidence.
@@ -342,7 +344,23 @@ go test ./internal/tools ./internal/runtime ./internal/app ./internal/web ./inte
 git diff --check
 ```
 
+Implemented behavior:
+
+- `multi_edit` accepts explicit line spans across one or more existing workspace files, validates all ranges before writing, rejects overlapping spans, writes through temp files, and records exactly one workspace mutation checkpoint.
+- `run_verification` accepts `kind` (`test`, `lint`, `build`, `format_check`, `custom`) plus command/cwd/paths, returns normalized `passed`/`failed`/`timed_out`, and persists stdout/stderr as artifact refs.
+- `git_summary` returns status entries, changed paths and diffstat, and writes an optional diff artifact when `include_diff=true`.
+- Runtime evidence derives checkpoint/test/command/diff evidence from these tool results and backlinks evidence ids into the ToolResultLedger.
+
+Implemented verification:
+
+```bash
+go test ./internal/tools ./internal/runtime ./internal/app ./internal/web ./internal/store/sqlite
+git diff --check
+```
+
 ## Phase 6: Final Contract Sync And Release Readiness
+
+Status: implemented on 2026-05-20.
 
 ### Outcome
 
@@ -372,6 +390,27 @@ make test
 python3 mobile/tool/generate_openapi_client.py --check
 cd mobile && flutter test
 cd mobile && flutter analyze
+git diff --check
+```
+
+Implemented behavior:
+
+- Architecture/dev docs describe artifact, terminal session, operator question, verification artifact, and git diff artifact side-effect truth.
+- Capability projection exposes `multi_edit`, `run_verification`, and `git_summary`; tests assert the expanded tool catalog.
+- `docs/openapi.yaml` and the generated mobile client required no schema change for Phase 5/6 tool names; the generated client check is clean.
+- Phase 5 introduced no new package/release dependency. The existing PTY dependency still compiles for Linux amd64 in `internal/terminalsession`.
+
+Implemented verification:
+
+```bash
+go test ./internal/tools ./internal/runtime ./internal/app ./internal/web ./internal/store/sqlite
+make lint
+make format-check
+make test
+python3 mobile/tool/generate_openapi_client.py --check
+cd mobile && flutter test
+cd mobile && flutter analyze
+GOOS=linux GOARCH=amd64 go test -c ./internal/terminalsession -o /tmp/acorn-terminalsession-linux-amd64.test
 git diff --check
 ```
 

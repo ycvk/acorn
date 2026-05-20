@@ -159,6 +159,33 @@ type ApplyUnifiedPatchOutput struct {
 	VerifiedDiffStat string   `json:"verified_diff_stat,omitempty"`
 }
 
+type MultiEditInput struct {
+	Edits []MultiEditSpan `json:"edits"`
+}
+
+type MultiEditSpan struct {
+	Path        string `json:"path"`
+	StartLine   int    `json:"start_line"`
+	EndLine     int    `json:"end_line"`
+	Replacement string `json:"replacement"`
+}
+
+type MultiEditAppliedSpan struct {
+	Path             string `json:"path"`
+	StartLine        int    `json:"start_line"`
+	EndLine          int    `json:"end_line"`
+	ReplacementBytes int    `json:"replacement_bytes"`
+}
+
+type MultiEditOutput struct {
+	Paths            []string               `json:"paths"`
+	Edits            []MultiEditAppliedSpan `json:"edits"`
+	Message          string                 `json:"message"`
+	CheckpointID     string                 `json:"checkpoint_id,omitempty"`
+	CheckpointPaths  []string               `json:"checkpoint_paths,omitempty"`
+	VerifiedDiffStat string                 `json:"verified_diff_stat,omitempty"`
+}
+
 type RollbackWorkspaceCheckpointInput struct {
 	CheckpointID string `json:"checkpoint_id"`
 }
@@ -186,6 +213,49 @@ type RunCommandOutput struct {
 	ExitCode int      `json:"exit_code"`
 	Stdout   string   `json:"stdout"`
 	Stderr   string   `json:"stderr"`
+}
+
+type RunVerificationInput struct {
+	Kind           string   `json:"kind" jsonschema:"description=Verification kind: test, lint, build, format_check, or custom."`
+	Command        []string `json:"command"`
+	Cwd            string   `json:"cwd,omitempty"`
+	TimeoutSeconds int      `json:"timeout_seconds,omitempty"`
+	Paths          []string `json:"paths,omitempty"`
+}
+
+type RunVerificationOutput struct {
+	Kind             string          `json:"kind"`
+	Status           string          `json:"status"`
+	Command          []string        `json:"command"`
+	Cwd              string          `json:"cwd"`
+	ExitCode         int             `json:"exit_code"`
+	TimedOut         bool            `json:"timed_out,omitempty"`
+	DurationMS       int64           `json:"duration_ms"`
+	Paths            []string        `json:"paths,omitempty"`
+	Summary          string          `json:"summary"`
+	StdoutArtifactID string          `json:"stdout_artifact_id"`
+	StderrArtifactID string          `json:"stderr_artifact_id"`
+	StdoutArtifact   ArtifactSummary `json:"stdout_artifact"`
+	StderrArtifact   ArtifactSummary `json:"stderr_artifact"`
+}
+
+type GitSummaryInput struct {
+	Path         string `json:"path,omitempty"`
+	IncludeDiff  bool   `json:"include_diff,omitempty"`
+	Cached       bool   `json:"cached,omitempty"`
+	ContextLines int    `json:"context_lines,omitempty"`
+}
+
+type GitSummaryOutput struct {
+	RootPath       string           `json:"root_path"`
+	Path           string           `json:"path,omitempty"`
+	Branch         string           `json:"branch,omitempty"`
+	Clean          bool             `json:"clean"`
+	Entries        []GitStatusEntry `json:"entries"`
+	ChangedPaths   []string         `json:"changed_paths"`
+	DiffStat       string           `json:"diff_stat,omitempty"`
+	DiffArtifactID string           `json:"diff_artifact_id,omitempty"`
+	DiffArtifact   *ArtifactSummary `json:"diff_artifact,omitempty"`
 }
 
 type CatalogConfig struct {
@@ -239,7 +309,11 @@ func BuildCatalog(cfg CatalogConfig, extraTools []einotool.BaseTool, childExec o
 		if err != nil {
 			return nil, err
 		}
-		items = append(items, readTool, listTool, searchTool, gitStatusTool, gitDiffTool)
+		gitSummaryTool, err := buildGitSummaryTool(ws, cfg.ArtifactService, cfg.ArtifactContext)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, readTool, listTool, searchTool, gitStatusTool, gitDiffTool, gitSummaryTool)
 
 		if cfg.MutationEnabled {
 			createTool, err := buildCreateFileTool(ws)
@@ -254,11 +328,15 @@ func BuildCatalog(cfg CatalogConfig, extraTools []einotool.BaseTool, childExec o
 			if err != nil {
 				return nil, err
 			}
+			multiEditTool, err := buildMultiEditTool(ws)
+			if err != nil {
+				return nil, err
+			}
 			rollbackTool, err := buildRollbackWorkspaceCheckpointTool(ws)
 			if err != nil {
 				return nil, err
 			}
-			items = append(items, createTool, replaceTool, patchTool, rollbackTool)
+			items = append(items, createTool, replaceTool, patchTool, multiEditTool, rollbackTool)
 		}
 
 		if cfg.RunCommandEnabled {
@@ -267,6 +345,13 @@ func BuildCatalog(cfg CatalogConfig, extraTools []einotool.BaseTool, childExec o
 				return nil, err
 			}
 			items = append(items, runTool)
+			if cfg.ArtifactService != nil {
+				verifyTool, err := buildRunVerificationTool(ws, cfg.ArtifactService, cfg.ArtifactContext)
+				if err != nil {
+					return nil, err
+				}
+				items = append(items, verifyTool)
+			}
 		}
 	}
 

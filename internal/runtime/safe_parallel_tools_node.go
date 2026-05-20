@@ -338,12 +338,16 @@ func attachToolRecorder(msg *schema.Message, recorder *toolExecutionRecorder) {
 
 func toolSideEffectsFromResult(toolName string, result string) ([]toolresult.SideEffectRef, error) {
 	switch strings.TrimSpace(toolName) {
-	case "create_file", "replace_span", "apply_unified_patch":
+	case "create_file", "replace_span", "apply_unified_patch", "multi_edit":
 		return mutationCheckpointSideEffects(toolName, result)
 	case "rollback_workspace_checkpoint":
 		return rollbackSideEffects(result)
 	case "artifact_write":
 		return artifactWriteSideEffects(result)
+	case "run_verification":
+		return runVerificationSideEffects(result)
+	case "git_summary":
+		return gitSummarySideEffects(result)
 	case "terminal_session_start", "terminal_session_write", "terminal_session_signal", "terminal_session_close":
 		return terminalSessionSideEffects(toolName, result)
 	case "ask_operator":
@@ -397,6 +401,41 @@ func artifactWriteSideEffects(result string) ([]toolresult.SideEffectRef, error)
 	artifactID := strings.TrimSpace(payload.ArtifactID)
 	if artifactID == "" {
 		return nil, errors.New("artifact_write result missing artifact_id")
+	}
+	return []toolresult.SideEffectRef{{
+		Kind: toolresult.SideEffectKindArtifact,
+		Ref:  artifactID,
+	}}, nil
+}
+
+func runVerificationSideEffects(result string) ([]toolresult.SideEffectRef, error) {
+	var payload struct {
+		StdoutArtifactID string `json:"stdout_artifact_id"`
+		StderrArtifactID string `json:"stderr_artifact_id"`
+	}
+	if err := json.Unmarshal([]byte(result), &payload); err != nil {
+		return nil, fmt.Errorf("parse run_verification result: %w", err)
+	}
+	ids := normalizedSideEffectPaths([]string{payload.StdoutArtifactID, payload.StderrArtifactID})
+	if len(ids) != 2 {
+		return nil, errors.New("run_verification result missing stdout_artifact_id or stderr_artifact_id")
+	}
+	return []toolresult.SideEffectRef{
+		{Kind: toolresult.SideEffectKindArtifact, Ref: ids[0]},
+		{Kind: toolresult.SideEffectKindArtifact, Ref: ids[1]},
+	}, nil
+}
+
+func gitSummarySideEffects(result string) ([]toolresult.SideEffectRef, error) {
+	var payload struct {
+		DiffArtifactID string `json:"diff_artifact_id"`
+	}
+	if err := json.Unmarshal([]byte(result), &payload); err != nil {
+		return nil, fmt.Errorf("parse git_summary result: %w", err)
+	}
+	artifactID := strings.TrimSpace(payload.DiffArtifactID)
+	if artifactID == "" {
+		return nil, nil
 	}
 	return []toolresult.SideEffectRef{{
 		Kind: toolresult.SideEffectKindArtifact,

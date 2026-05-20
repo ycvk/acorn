@@ -12,6 +12,7 @@ const (
 	ToolCreateFile         = "create_file"
 	ToolReplaceSpan        = "replace_span"
 	ToolApplyUnifiedPatch  = "apply_unified_patch"
+	ToolMultiEdit          = "multi_edit"
 	ToolRollbackCheckpoint = "rollback_workspace_checkpoint"
 	ToolRunCommand         = "run_command"
 )

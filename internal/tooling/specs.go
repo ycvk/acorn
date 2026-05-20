@@ -139,6 +139,7 @@ func ConfiguredLocalSpecs(cfg *config.Config) []ToolSpec {
 		configuredLocalSpec("search_text", true),
 		configuredLocalSpec("inspect_git_status", true),
 		configuredLocalSpec("inspect_git_diff", true),
+		configuredLocalSpec("git_summary", true),
 		configuredLocalSpec("artifact_write", true),
 		configuredLocalSpec("artifact_read", true),
 		configuredLocalSpec("artifact_list", true),
@@ -153,8 +154,10 @@ func ConfiguredLocalSpecs(cfg *config.Config) []ToolSpec {
 		configuredLocalSpec("create_file", !cfg.Tools.Mutation.Disabled),
 		configuredLocalSpec("replace_span", !cfg.Tools.Mutation.Disabled),
 		configuredLocalSpec("apply_unified_patch", !cfg.Tools.Mutation.Disabled),
+		configuredLocalSpec("multi_edit", !cfg.Tools.Mutation.Disabled),
 		configuredLocalSpec("rollback_workspace_checkpoint", !cfg.Tools.Mutation.Disabled),
 		configuredLocalSpec("run_command", !cfg.Tools.RunCommand.Disabled),
+		configuredLocalSpec("run_verification", !cfg.Tools.RunCommand.Disabled),
 	}
 }
 
@@ -163,16 +166,16 @@ func ConfiguredLocalSpec(cfg *config.Config, name string) (ToolSpec, bool) {
 		return ToolSpec{}, false
 	}
 	switch strings.TrimSpace(name) {
-	case "read_file", "list_files", "search_text", "inspect_git_status", "inspect_git_diff", "artifact_write", "artifact_read", "artifact_list", "terminal_session_start", "terminal_session_write", "terminal_session_read", "terminal_session_signal", "terminal_session_close", "terminal_session_list", "process_status", "ask_operator":
+	case "read_file", "list_files", "search_text", "inspect_git_status", "inspect_git_diff", "git_summary", "artifact_write", "artifact_read", "artifact_list", "terminal_session_start", "terminal_session_write", "terminal_session_read", "terminal_session_signal", "terminal_session_close", "terminal_session_list", "process_status", "ask_operator":
 		return configuredLocalSpec(strings.TrimSpace(name), true), true
 	case "create_file", "replace_span":
 		return configuredLocalSpec(strings.TrimSpace(name), !cfg.Tools.Mutation.Disabled), true
-	case "apply_unified_patch":
-		return configuredLocalSpec("apply_unified_patch", !cfg.Tools.Mutation.Disabled), true
+	case "apply_unified_patch", "multi_edit":
+		return configuredLocalSpec(strings.TrimSpace(name), !cfg.Tools.Mutation.Disabled), true
 	case "rollback_workspace_checkpoint":
 		return configuredLocalSpec("rollback_workspace_checkpoint", !cfg.Tools.Mutation.Disabled), true
-	case "run_command":
-		return configuredLocalSpec("run_command", !cfg.Tools.RunCommand.Disabled), true
+	case "run_command", "run_verification":
+		return configuredLocalSpec(strings.TrimSpace(name), !cfg.Tools.RunCommand.Disabled), true
 	default:
 		return ToolSpec{}, false
 	}
@@ -207,6 +210,13 @@ func configuredLocalSpec(name string, enabled bool) ToolSpec {
 		spec.Execution.ParallelPolicy = ParallelPolicyReadOnly
 		spec.Execution.PathArg = "path"
 		spec.Execution.SideEffects = []ToolSideEffect{ToolSideEffectReadWorkspace}
+		spec.PlanPolicy = PlanPolicyNone
+	case "git_summary":
+		spec.Kind = ToolKindNative
+		spec.Category = ToolCategoryInspect
+		spec.ResourceScope = ResourceScopeWorkspaceFile
+		spec.Execution.ParallelPolicy = ParallelPolicyNeverParallel
+		spec.Execution.SideEffects = []ToolSideEffect{ToolSideEffectReadWorkspace, ToolSideEffectArtifactWrite}
 		spec.PlanPolicy = PlanPolicyNone
 	case "artifact_read", "artifact_list":
 		spec.Kind = ToolKindNative
@@ -269,6 +279,13 @@ func configuredLocalSpec(name string, enabled bool) ToolSpec {
 		}
 		spec.Execution.SideEffects = []ToolSideEffect{ToolSideEffectWriteWorkspace}
 		spec.PlanPolicy = PlanPolicyRequireActivePlan
+	case "multi_edit":
+		spec.Kind = ToolKindNative
+		spec.Category = ToolCategoryWrite
+		spec.ResourceScope = ResourceScopeWorkspaceFile
+		spec.Execution.ParallelPolicy = ParallelPolicyNeverParallel
+		spec.Execution.SideEffects = []ToolSideEffect{ToolSideEffectWriteWorkspace}
+		spec.PlanPolicy = PlanPolicyRequireActivePlan
 	case "rollback_workspace_checkpoint":
 		spec.Kind = ToolKindNative
 		spec.Category = ToolCategoryWrite
@@ -282,6 +299,13 @@ func configuredLocalSpec(name string, enabled bool) ToolSpec {
 		spec.ResourceScope = ResourceScopeWorkspaceCommand
 		spec.Execution.ParallelPolicy = ParallelPolicyNeverParallel
 		spec.Execution.SideEffects = []ToolSideEffect{ToolSideEffectRunCommand}
+		spec.PlanPolicy = PlanPolicyRequireActivePlan
+	case "run_verification":
+		spec.Kind = ToolKindNative
+		spec.Category = ToolCategoryExecute
+		spec.ResourceScope = ResourceScopeWorkspaceCommand
+		spec.Execution.ParallelPolicy = ParallelPolicyNeverParallel
+		spec.Execution.SideEffects = []ToolSideEffect{ToolSideEffectRunCommand, ToolSideEffectArtifactWrite}
 		spec.PlanPolicy = PlanPolicyRequireActivePlan
 	default:
 		spec.Kind = ToolKindNative

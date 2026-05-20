@@ -424,6 +424,32 @@ func TestToolSideEffectsFromAskOperatorResult(t *testing.T) {
 	}
 }
 
+func TestToolSideEffectsFromRunVerificationResult(t *testing.T) {
+	sideEffects, err := toolSideEffectsFromResult("run_verification", `{"stdout_artifact_id":"artifact_stdout","stderr_artifact_id":"artifact_stderr","status":"failed"}`)
+	if err != nil {
+		t.Fatalf("toolSideEffectsFromResult: %v", err)
+	}
+	if len(sideEffects) != 2 {
+		t.Fatalf("side effects count = %d, want 2: %+v", len(sideEffects), sideEffects)
+	}
+	if sideEffects[0].Kind != toolresult.SideEffectKindArtifact || sideEffects[0].Ref != "artifact_stdout" {
+		t.Fatalf("stdout side effect = %+v", sideEffects[0])
+	}
+	if sideEffects[1].Kind != toolresult.SideEffectKindArtifact || sideEffects[1].Ref != "artifact_stderr" {
+		t.Fatalf("stderr side effect = %+v", sideEffects[1])
+	}
+}
+
+func TestToolSideEffectsFromGitSummaryResult(t *testing.T) {
+	sideEffects, err := toolSideEffectsFromResult("git_summary", `{"diff_artifact_id":"artifact_diff"}`)
+	if err != nil {
+		t.Fatalf("toolSideEffectsFromResult: %v", err)
+	}
+	if len(sideEffects) != 1 || sideEffects[0].Kind != toolresult.SideEffectKindArtifact || sideEffects[0].Ref != "artifact_diff" {
+		t.Fatalf("side effects = %+v", sideEffects)
+	}
+}
+
 func TestSafeParallel_WriteScopedPathConflictExecutesSequentially(t *testing.T) {
 	writeTool := &trackingTool{name: "create_file"}
 

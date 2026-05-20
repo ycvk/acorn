@@ -40,8 +40,8 @@ func TestParallelPolicyStringParsing(t *testing.T) {
 func TestConfiguredLocalSpecsCarryCanonicalPolicies(t *testing.T) {
 	cfg := defaultToolingTestConfig()
 	specs := ConfiguredLocalSpecs(cfg)
-	if len(specs) != 21 {
-		t.Fatalf("ConfiguredLocalSpecs len = %d, want 21", len(specs))
+	if len(specs) != 24 {
+		t.Fatalf("ConfiguredLocalSpecs len = %d, want 24", len(specs))
 	}
 	createFile, ok := ConfiguredLocalSpec(cfg, "create_file")
 	if !ok {
@@ -59,6 +59,30 @@ func TestConfiguredLocalSpecsCarryCanonicalPolicies(t *testing.T) {
 	}
 	if runCommand.Execution.ParallelPolicy != ParallelPolicyNeverParallel {
 		t.Fatalf("run_command parallel = %q, want %q", runCommand.Execution.ParallelPolicy, ParallelPolicyNeverParallel)
+	}
+	runVerification, ok := ConfiguredLocalSpec(cfg, "run_verification")
+	if !ok {
+		t.Fatal("run_verification spec missing")
+	}
+	if runVerification.Execution.ParallelPolicy != ParallelPolicyNeverParallel || runVerification.PlanPolicy != PlanPolicyRequireActivePlan {
+		t.Fatalf("run_verification policy = parallel:%q plan:%q", runVerification.Execution.ParallelPolicy, runVerification.PlanPolicy)
+	}
+	if len(runVerification.Execution.SideEffects) != 2 || runVerification.Execution.SideEffects[0] != ToolSideEffectRunCommand || runVerification.Execution.SideEffects[1] != ToolSideEffectArtifactWrite {
+		t.Fatalf("run_verification side effects = %+v", runVerification.Execution.SideEffects)
+	}
+	multiEdit, ok := ConfiguredLocalSpec(cfg, "multi_edit")
+	if !ok {
+		t.Fatal("multi_edit spec missing")
+	}
+	if multiEdit.Execution.ParallelPolicy != ParallelPolicyNeverParallel || multiEdit.PlanPolicy != PlanPolicyRequireActivePlan {
+		t.Fatalf("multi_edit policy = parallel:%q plan:%q", multiEdit.Execution.ParallelPolicy, multiEdit.PlanPolicy)
+	}
+	gitSummary, ok := ConfiguredLocalSpec(cfg, "git_summary")
+	if !ok {
+		t.Fatal("git_summary spec missing")
+	}
+	if gitSummary.PlanPolicy != PlanPolicyNone || gitSummary.Execution.ParallelPolicy != ParallelPolicyNeverParallel {
+		t.Fatalf("git_summary policy = parallel:%q plan:%q", gitSummary.Execution.ParallelPolicy, gitSummary.PlanPolicy)
 	}
 	rollbackCheckpoint, ok := ConfiguredLocalSpec(cfg, "rollback_workspace_checkpoint")
 	if !ok {

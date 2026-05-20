@@ -52,7 +52,7 @@ type PlanEvidence struct {
 }
 
 func toolVerificationCommand(toolName string, argumentsJSON string) []string {
-	if toolName != "run_command" {
+	if toolName != "run_command" && toolName != "run_verification" {
 		return nil
 	}
 	var payload struct {
@@ -280,7 +280,7 @@ func commandMatchesIntent(item PlanEvidence, intent VerificationIntent) bool {
 
 func isReadTool(toolName string) bool {
 	switch strings.TrimSpace(toolName) {
-	case "read_file", "list_files", "search_text", "inspect_git_status", "inspect_git_diff":
+	case "read_file", "list_files", "search_text", "inspect_git_status", "inspect_git_diff", "git_summary":
 		return true
 	default:
 		return false
@@ -360,7 +360,9 @@ func evidenceForToolMessage(input toolMessageEvidenceInput) ([]PlanEvidence, err
 		items = append(items, ev)
 	}
 
-	if extra := commandOrTestEvidence(input, status); extra != nil {
+	if extra, err := commandOrTestEvidence(input, status); err != nil {
+		return nil, err
+	} else if extra != nil {
 		items = append(items, *extra)
 	}
 	if extra := diffEvidenceFromTool(input); extra != nil {
@@ -432,7 +434,7 @@ func delegatedSubagentEvidence(input toolMessageEvidenceInput) (*PlanEvidence, e
 
 func mutationCheckpointEvidence(input toolMessageEvidenceInput) (*PlanEvidence, error) {
 	switch input.ToolName {
-	case "create_file", "replace_span", "apply_unified_patch":
+	case "create_file", "replace_span", "apply_unified_patch", "multi_edit":
 	default:
 		return nil, nil
 	}
@@ -557,10 +559,13 @@ func failedRollbackEvidence(input toolMessageEvidenceInput, reason string) *Plan
 	}
 }
 
-func commandOrTestEvidence(input toolMessageEvidenceInput, status EvidenceStatus) *PlanEvidence {
+func commandOrTestEvidence(input toolMessageEvidenceInput, status EvidenceStatus) (*PlanEvidence, error) {
+	if input.ToolName == "run_verification" {
+		return runVerificationEvidence(input)
+	}
 	command := toolVerificationCommand(input.ToolName, input.ArgumentsJSON)
 	if len(command) == 0 {
-		return nil
+		return nil, nil
 	}
 	kind := EvidenceKindCommand
 	if intentKinds(input.Step.VerificationIntent, "test") {
@@ -587,11 +592,11 @@ func commandOrTestEvidence(input toolMessageEvidenceInput, status EvidenceStatus
 		Error:       errText,
 		SourceRunID: input.RunID,
 		RecordedAt:  input.RecordedAt,
-	}
+	}, nil
 }
 
 func diffEvidenceFromTool(input toolMessageEvidenceInput) *PlanEvidence {
-	if input.ToolName != "inspect_git_diff" {
+	if input.ToolName != "inspect_git_diff" && input.ToolName != "git_summary" {
 		return nil
 	}
 	status := EvidenceStatusPassed
@@ -599,6 +604,22 @@ func diffEvidenceFromTool(input toolMessageEvidenceInput) *PlanEvidence {
 		status = EvidenceStatusFailed
 	}
 	paths := evidencePathsForTool(input.ToolName, input.ArgumentsJSON)
+	diffRef := ""
+	if input.ToolName == "git_summary" {
+		var payload struct {
+			DiffArtifactID string   `json:"diff_artifact_id"`
+			ChangedPaths   []string `json:"changed_paths"`
+		}
+		if err := json.Unmarshal(bytes.TrimSpace([]byte(input.Message.Content)), &payload); err == nil {
+			diffRef = strings.TrimSpace(payload.DiffArtifactID)
+			if len(paths) == 0 {
+				paths = trimmedNonEmptyStrings(payload.ChangedPaths)
+			}
+		}
+		if diffRef == "" {
+			return nil
+		}
+	}
 	return &PlanEvidence{
 		ID:          fmt.Sprintf("%s-diff-%d", input.ToolName, input.RecordedAt.UnixNano()),
 		StepID:      input.Step.ID,
@@ -607,9 +628,67 @@ func diffEvidenceFromTool(input toolMessageEvidenceInput) *PlanEvidence {
 		Summary:     ExtractSemanticFact(input.ToolName, input.ArgumentsJSON, input.Message.Content),
 		ToolName:    input.ToolName,
 		Paths:       paths,
+		DiffRef:     diffRef,
 		SourceRunID: input.RunID,
 		RecordedAt:  input.RecordedAt,
 	}
+}
+
+func runVerificationEvidence(input toolMessageEvidenceInput) (*PlanEvidence, error) {
+	var payload struct {
+		Kind             string   `json:"kind"`
+		Status           string   `json:"status"`
+		Summary          string   `json:"summary"`
+		Command          []string `json:"command"`
+		Paths            []string `json:"paths"`
+		StdoutArtifactID string   `json:"stdout_artifact_id"`
+		StderrArtifactID string   `json:"stderr_artifact_id"`
+	}
+	if err := json.Unmarshal(bytes.TrimSpace([]byte(input.Message.Content)), &payload); err != nil {
+		return nil, fmt.Errorf("parse run_verification result: %w", err)
+	}
+	command := trimmedNonEmptyStrings(payload.Command)
+	if len(command) == 0 {
+		command = toolVerificationCommand(input.ToolName, input.ArgumentsJSON)
+	}
+	if len(command) == 0 {
+		return nil, fmt.Errorf("parse run_verification result: command is required")
+	}
+	kind := EvidenceKindCommand
+	if strings.TrimSpace(payload.Kind) == "test" {
+		kind = EvidenceKindTest
+	}
+	evidenceStatus := EvidenceStatusFailed
+	errorText := ""
+	if strings.TrimSpace(payload.Status) == "passed" {
+		evidenceStatus = EvidenceStatusPassed
+	} else {
+		errorText = strings.TrimSpace(payload.Summary)
+		if errorText == "" {
+			errorText = fmt.Sprintf("%s verification failed", strings.TrimSpace(payload.Kind))
+		}
+	}
+	summary := strings.TrimSpace(payload.Summary)
+	if summary == "" {
+		summary = ExtractSemanticFact(input.ToolName, input.ArgumentsJSON, input.Message.Content)
+	}
+	paths := trimmedNonEmptyStrings(payload.Paths)
+	if len(paths) == 0 {
+		paths = evidencePathsForTool(input.ToolName, input.ArgumentsJSON)
+	}
+	return &PlanEvidence{
+		ID:          fmt.Sprintf("%s-command-%d", input.ToolName, input.RecordedAt.UnixNano()),
+		StepID:      input.Step.ID,
+		Kind:        kind,
+		Status:      evidenceStatus,
+		Summary:     summary,
+		ToolName:    input.ToolName,
+		Command:     command,
+		Paths:       paths,
+		Error:       errorText,
+		SourceRunID: input.RunID,
+		RecordedAt:  input.RecordedAt,
+	}, nil
 }
 
 func recorderFromMessageExtra(extra map[string]any) toolExecutionRecorder {
@@ -681,15 +760,29 @@ func evidencePathsForTool(toolName string, argumentsJSON string) []string {
 	switch toolName {
 	case "create_file", "replace_span", "inspect_git_diff":
 		return trimmedNonEmptyStrings([]string{payload.Path})
-	case "apply_unified_patch":
+	case "apply_unified_patch", "git_summary", "run_verification":
 		return trimmedNonEmptyStrings(payload.Paths)
+	case "multi_edit":
+		var multiEdit struct {
+			Edits []struct {
+				Path string `json:"path"`
+			} `json:"edits"`
+		}
+		if err := json.Unmarshal([]byte(argumentsJSON), &multiEdit); err != nil {
+			return nil
+		}
+		paths := make([]string, 0, len(multiEdit.Edits))
+		for _, edit := range multiEdit.Edits {
+			paths = append(paths, edit.Path)
+		}
+		return trimmedNonEmptyStrings(paths)
 	default:
 		return nil
 	}
 }
 
 func commandPathsFromArgs(toolName string, argumentsJSON string) []string {
-	if toolName != "run_command" {
+	if toolName != "run_command" && toolName != "run_verification" {
 		return nil
 	}
 	return evidencePathsForTool(toolName, argumentsJSON)
