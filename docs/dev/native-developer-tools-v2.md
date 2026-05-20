@@ -2,13 +2,15 @@
 doc_type: dev-plan
 slug: native-developer-tools-v2
 component: native-developer-tools
-status: in_progress
+status: implemented
 summary: Native Developer Tools v2 的 P0 设计合同和工具边界
 tags: [runtime, tools, developer-experience, mobile]
 last_reviewed: 2026-05-20
 ---
 
 # Native Developer Tools v2
+
+Status: P0 implemented on 2026-05-20.
 
 ## 目标
 

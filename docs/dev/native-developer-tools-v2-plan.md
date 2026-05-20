@@ -2,7 +2,7 @@
 doc_type: implementation-plan
 slug: native-developer-tools-v2-plan
 component: native-developer-tools
-status: in_progress
+status: completed
 summary: Native Developer Tools v2 P0 的分阶段推进计划
 tags: [runtime, tools, developer-experience, plan]
 last_reviewed: 2026-05-20
@@ -11,6 +11,8 @@ related_docs:
 ---
 
 # Native Developer Tools v2 P0 Plan
+
+Status: completed on 2026-05-20.
 
 ## Scope
 
