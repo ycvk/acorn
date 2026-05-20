@@ -80,7 +80,7 @@ All other `/v1` routes are protected by `internal/web` device auth middleware. M
 - recent terminal root/client runs where status is `succeeded`, `interrupted`, or `failed`
 - system readiness from `CapabilitiesService.Snapshot`
 
-`GET /v1/inbox` exposes that aggregate as `InboxResponse` under the same device bearer auth as other protected `/v1` resources. Pending action summaries include thread/run identifiers and accept/decline options for attention display; source list/detail/decide behavior is owned by the pending approval contract below.
+`GET /v1/inbox` exposes that aggregate as `InboxResponse` under the same device bearer auth as other protected `/v1` resources. Run summaries include backend-projected `thread_title`, `preview`, `last_event_label`, `attention_level`, and `duration_ms` so mobile can render the owner cockpit without local run/thread heuristics. Pending action summaries include thread/run identifiers and accept/decline options for attention display; source list/detail/decide behavior is owned by the pending approval contract below.
 
 ## Pending Approval Source Contract
 

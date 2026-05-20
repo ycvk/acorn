@@ -556,16 +556,26 @@ class RunSummary {
   const RunSummary({
     required this.runId,
     required this.threadId,
+    required this.threadTitle,
     required this.status,
     required this.mode,
+    required this.preview,
+    required this.lastEventLabel,
+    required this.attentionLevel,
+    required this.durationMs,
     required this.createdAt,
     required this.updatedAt,
   });
 
   final String runId;
   final String threadId;
+  final String threadTitle;
   final String status;
   final String mode;
+  final String preview;
+  final String lastEventLabel;
+  final String attentionLevel;
+  final int durationMs;
   final String createdAt;
   final String updatedAt;
 
@@ -573,8 +583,13 @@ class RunSummary {
     return RunSummary(
       runId: _string(json['run_id']),
       threadId: _string(json['thread_id']),
+      threadTitle: _string(json['thread_title']),
       status: _string(json['status']),
       mode: _string(json['mode']),
+      preview: _string(json['preview']),
+      lastEventLabel: _string(json['last_event_label']),
+      attentionLevel: _string(json['attention_level']),
+      durationMs: _int(json['duration_ms']),
       createdAt: _string(json['created_at']),
       updatedAt: _string(json['updated_at']),
     );

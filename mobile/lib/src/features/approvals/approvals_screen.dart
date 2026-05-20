@@ -5,6 +5,7 @@ import '../../api/acorn_api.dart';
 import '../../core/providers.dart';
 import '../../ui/theme/acorn_theme.dart';
 import '../../ui/widgets/acorn_formatters.dart';
+import '../../ui/widgets/acorn_status.dart';
 import '../../ui/widgets/acorn_surfaces.dart';
 import '../../ui/widgets/empty_state.dart';
 import '../../ui/widgets/list_rows.dart';
@@ -15,8 +16,25 @@ class ApprovalsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final controller = ref.watch(acornControllerProvider);
-    final pending = controller.inbox?.pendingActions ?? const [];
+    final pending = ref.watch(
+      inboxControllerProvider.select((controller) => controller.pendingActions),
+    );
+    final inboxLoading = ref.watch(
+      inboxControllerProvider.select((controller) => controller.loading),
+    );
+    final inboxError = ref.watch(
+      inboxControllerProvider.select((controller) => controller.errorMessage),
+    );
+    final approvalBusy = ref.watch(
+      approvalsControllerProvider.select((controller) => controller.busy),
+    );
+    final approvalError = ref.watch(
+      approvalsControllerProvider.select(
+        (controller) => controller.errorMessage,
+      ),
+    );
+    final inbox = ref.read(inboxControllerProvider);
+    final busy = inboxLoading || approvalBusy;
 
     return Scaffold(
       appBar: AppBar(
@@ -25,15 +43,18 @@ class ApprovalsScreen extends ConsumerWidget {
           IconButton.filledTonal(
             tooltip: 'Refresh',
             icon: const Icon(Icons.refresh),
-            onPressed: controller.busy ? null : controller.refreshAll,
+            onPressed: busy ? null : inbox.refresh,
           ),
         ],
       ),
       body: RefreshIndicator(
-        onRefresh: controller.refreshAll,
+        onRefresh: inbox.refresh,
         child: pending.isEmpty
             ? ListView(
                 children: [
+                  if (inboxError != null) ErrorBanner(message: inboxError),
+                  if (approvalError != null)
+                    ErrorBanner(message: approvalError),
                   SizedBox(height: MediaQuery.of(context).size.height * 0.18),
                   const AcornEmptyState(
                     icon: Icons.rule_folder_outlined,
@@ -45,6 +66,9 @@ class ApprovalsScreen extends ConsumerWidget {
               )
             : ListView(
                 children: [
+                  if (inboxError != null) ErrorBanner(message: inboxError),
+                  if (approvalError != null)
+                    ErrorBanner(message: approvalError),
                   AcornPageIntro(
                     icon: Icons.rule_folder_outlined,
                     title: '${pending.length} pending',
@@ -73,12 +97,11 @@ class ApprovalsScreen extends ConsumerWidget {
     WidgetRef ref,
     PendingActionSummary action,
   ) async {
-    final controller = ref.read(acornControllerProvider);
-    await controller.loadPendingAction(action.actionId);
+    final controller = ref.read(approvalsControllerProvider);
+    final detail = await controller.loadPendingAction(action.actionId);
     if (!context.mounted) {
       return;
     }
-    final detail = controller.pendingActionDetail;
     if (detail == null) {
       return;
     }
@@ -112,7 +135,10 @@ class _ApprovalSheetState extends ConsumerState<_ApprovalSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final controller = ref.watch(acornControllerProvider);
+    final busy = ref.watch(
+      approvalsControllerProvider.select((controller) => controller.busy),
+    );
+    final controller = ref.read(approvalsControllerProvider);
     final detail = widget.detail;
     final isOperatorQuestion = detail.kind == 'operator_question';
     final allowFreeform = detail.payload['allow_freeform'] == true;
@@ -150,7 +176,7 @@ class _ApprovalSheetState extends ConsumerState<_ApprovalSheet> {
               const SizedBox(height: 18),
               for (final option in detail.options) ...[
                 FilledButton.tonal(
-                  onPressed: controller.busy
+                  onPressed: busy
                       ? null
                       : () async {
                           await controller.decidePendingAction(
@@ -180,7 +206,7 @@ class _ApprovalSheetState extends ConsumerState<_ApprovalSheet> {
                 ),
                 const SizedBox(height: 12),
                 FilledButton(
-                  onPressed: controller.busy || answerText.isEmpty
+                  onPressed: busy || answerText.isEmpty
                       ? null
                       : () async {
                           await controller.decidePendingAction(
@@ -198,7 +224,7 @@ class _ApprovalSheetState extends ConsumerState<_ApprovalSheet> {
               if (isOperatorQuestion) ...[
                 const SizedBox(height: 8),
                 TextButton(
-                  onPressed: controller.busy
+                  onPressed: busy
                       ? null
                       : () async {
                           await controller.decidePendingAction(

@@ -242,6 +242,14 @@ ChatItem? activityFromEvent(RunEvent event) {
   );
 }
 
+String runEventLabel(RunEvent event) {
+  return _activityLabel(event);
+}
+
+String? runEventDetail(RunEvent event) {
+  return _activityDetail(event);
+}
+
 bool _shouldShowActivityInChat(String eventType) {
   return switch (eventType) {
     'run.failed' ||

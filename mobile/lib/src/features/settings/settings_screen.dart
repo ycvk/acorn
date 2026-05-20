@@ -14,9 +14,16 @@ class SettingsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final controller = ref.watch(acornControllerProvider);
-    final profile = controller.profile;
-    final system = controller.inbox?.system;
+    final profile = ref.watch(
+      connectionControllerProvider.select((controller) => controller.profile),
+    );
+    final system = ref.watch(
+      inboxControllerProvider.select((controller) => controller.system),
+    );
+    final busy = ref.watch(
+      inboxControllerProvider.select((controller) => controller.loading),
+    );
+    final inbox = ref.read(inboxControllerProvider);
     final readiness = system?.runtimeReadiness.status ?? 'unknown';
     final readinessTone = readiness == 'ready'
         ? AcornStatusTone.success
@@ -29,7 +36,7 @@ class SettingsScreen extends ConsumerWidget {
           IconButton.filledTonal(
             tooltip: 'Refresh',
             icon: const Icon(Icons.refresh),
-            onPressed: controller.busy ? null : controller.refreshAll,
+            onPressed: busy ? null : inbox.refresh,
           ),
         ],
       ),
@@ -72,7 +79,7 @@ class SettingsScreen extends ConsumerWidget {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: OutlinedButton.icon(
-              onPressed: controller.disconnect,
+              onPressed: () => _disconnect(ref),
               icon: const Icon(Icons.logout),
               label: const Text('Disconnect device'),
             ),
@@ -80,5 +87,15 @@ class SettingsScreen extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _disconnect(WidgetRef ref) async {
+    ref.read(inboxControllerProvider).clear();
+    ref.read(threadsControllerProvider).clear();
+    ref.read(approvalsControllerProvider).clear();
+    ref.read(chatControllerProvider).clear();
+    ref.read(runDetailControllerProvider).clear();
+    ref.read(shellControllerProvider).reset();
+    await ref.read(connectionControllerProvider).disconnect();
   }
 }

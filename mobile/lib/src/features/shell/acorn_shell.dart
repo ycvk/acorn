@@ -1,31 +1,55 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/providers.dart';
 import '../approvals/approvals_screen.dart';
-import '../chat/chat_screen.dart';
+import '../home/home_screen.dart';
 import '../settings/settings_screen.dart';
 import '../threads/threads_screen.dart';
 
-class AcornShell extends ConsumerWidget {
+class AcornShell extends ConsumerStatefulWidget {
   const AcornShell({super.key});
 
   static const _screens = <Widget>[
-    ChatScreen(),
+    HomeScreen(),
     ThreadsScreen(),
     ApprovalsScreen(),
     SettingsScreen(),
   ];
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final controller = ref.watch(acornControllerProvider);
+  ConsumerState<AcornShell> createState() => _AcornShellState();
+}
+
+class _AcornShellState extends ConsumerState<AcornShell> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(ref.read(inboxControllerProvider).refresh());
+      unawaited(
+        ref.read(threadsControllerProvider).refresh(selectFirstThread: true),
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final selectedTab = ref.watch(
+      shellControllerProvider.select((controller) => controller.selectedIndex),
+    );
+    final pendingCount = ref.watch(
+      inboxControllerProvider.select(
+        (controller) => controller.pendingActions.length,
+      ),
+    );
     final colors = Theme.of(context).colorScheme;
-    final pendingCount = controller.inbox?.pendingActions.length ?? 0;
 
     return Scaffold(
       resizeToAvoidBottomInset: false,
-      body: IndexedStack(index: controller.selectedTab, children: _screens),
+      body: IndexedStack(index: selectedTab, children: AcornShell._screens),
       bottomNavigationBar: DecoratedBox(
         decoration: BoxDecoration(
           border: Border(
@@ -35,13 +59,13 @@ class AcornShell extends ConsumerWidget {
           ),
         ),
         child: NavigationBar(
-          selectedIndex: controller.selectedTab,
-          onDestinationSelected: controller.selectTab,
+          selectedIndex: selectedTab,
+          onDestinationSelected: ref.read(shellControllerProvider).selectTab,
           destinations: [
             const NavigationDestination(
-              icon: Icon(Icons.chat_bubble_outline),
-              selectedIcon: Icon(Icons.chat_bubble),
-              label: 'Chat',
+              icon: Icon(Icons.inbox_outlined),
+              selectedIcon: Icon(Icons.inbox),
+              label: 'Home',
             ),
             const NavigationDestination(
               icon: Icon(Icons.forum_outlined),

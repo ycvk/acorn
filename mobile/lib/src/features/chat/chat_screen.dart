@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/acorn_controller.dart';
 import '../../core/providers.dart';
 import '../../ui/theme/acorn_theme.dart';
 import '../../ui/widgets/acorn_status.dart';
@@ -13,7 +12,9 @@ import '../../ui/widgets/acorn_formatters.dart';
 import '../../ui/widgets/empty_state.dart';
 import '../../ui/widgets/message_widgets.dart';
 import 'assistant_markdown.dart';
+import 'chat_controller.dart';
 import 'chat_models.dart';
+import '../threads/threads_controller.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
   const ChatScreen({super.key});
@@ -28,7 +29,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   final _composer = TextEditingController();
   final _focusNode = FocusNode();
   final _scrollController = ScrollController();
-  AcornController? _listenedController;
+  ChatController? _listenedController;
   bool _autoScrollScheduled = false;
   bool _forceNextScrollToBottom = false;
 
@@ -36,9 +37,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final controller = ref.read(acornControllerProvider);
+      final controller = ref.read(chatControllerProvider);
       _listenedController = controller;
       controller.addListener(_scrollToBottom);
+      unawaited(controller.loadActiveThread(force: true));
     });
   }
 
@@ -53,8 +55,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final controller = ref.watch(acornControllerProvider);
-    final thread = controller.activeThread;
+    final chat = ref.watch(chatControllerProvider);
+    final threadsLoading = ref.watch(
+      threadsControllerProvider.select((controller) => controller.loading),
+    );
+    final threadsError = ref.watch(
+      threadsControllerProvider.select((controller) => controller.errorMessage),
+    );
+    final thread = ref.watch(
+      threadsControllerProvider.select((controller) => controller.activeThread),
+    );
+    final threadsController = ref.read(threadsControllerProvider);
 
     return GestureDetector(
       onTap: _focusNode.unfocus,
@@ -77,27 +88,30 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             IconButton.filledTonal(
               tooltip: 'Refresh',
               icon: const Icon(Icons.refresh),
-              onPressed: controller.busy ? null : controller.refreshAll,
+              onPressed: threadsLoading || chat.sending
+                  ? null
+                  : () => _refresh(chat),
             ),
             IconButton.filledTonal(
               tooltip: 'New thread',
               icon: const Icon(Icons.add_comment_outlined),
-              onPressed: controller.busy
+              onPressed: threadsLoading || chat.sending
                   ? null
-                  : controller.createThreadAndSelect,
+                  : () => _createThreadAndLoad(threadsController, chat),
             ),
           ],
         ),
         body: Column(
           children: [
-            if (controller.errorMessage != null)
-              ErrorBanner(message: controller.errorMessage!),
-            Expanded(child: _buildBody(controller)),
+            if (threadsError != null) ErrorBanner(message: threadsError),
+            if (chat.errorMessage != null)
+              ErrorBanner(message: chat.errorMessage!),
+            Expanded(child: _buildBody(chat, threadsController)),
             _ChatInputBar(
               controller: _composer,
               focusNode: _focusNode,
-              sending: controller.sending,
-              onSend: () => _send(controller),
+              sending: chat.sending,
+              onSend: () => _send(chat),
             ),
           ],
         ),
@@ -105,8 +119,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
   }
 
-  Widget _buildBody(AcornController controller) {
+  Widget _buildBody(
+    ChatController controller,
+    ThreadsController threadsController,
+  ) {
     final items = controller.chatItems;
+    if (controller.loading && items.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
     if (items.isEmpty) {
       return AcornEmptyState(
         icon: Icons.chat_bubble_outline,
@@ -114,7 +134,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         body:
             'Messages are stored in Acorn. Assistant output streams from persisted RunEvents.',
         action: FilledButton.icon(
-          onPressed: controller.createThreadAndSelect,
+          onPressed: () => _createThreadAndLoad(threadsController, controller),
           icon: const Icon(Icons.add),
           label: const Text('New thread'),
         ),
@@ -139,7 +159,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
   }
 
-  Future<void> _send(AcornController controller) async {
+  Future<void> _send(ChatController controller) async {
     final text = _composer.text.trim();
     if (text.isEmpty) {
       return;
@@ -149,6 +169,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _composer.clear();
     _focusNode.requestFocus();
     await controller.sendChatMessage(text);
+  }
+
+  Future<void> _refresh(ChatController chatController) async {
+    await chatController.loadActiveThread(force: true);
+  }
+
+  Future<void> _createThreadAndLoad(
+    ThreadsController threadsController,
+    ChatController chatController,
+  ) async {
+    await threadsController.createThreadAndSelect();
+    await chatController.loadActiveThread(force: true);
   }
 
   void _scrollToBottom() {

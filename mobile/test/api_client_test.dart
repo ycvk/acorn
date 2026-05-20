@@ -63,6 +63,10 @@ void main() {
     expect(inbox.pendingActions.single.actionId, 'act_1');
     expect(inbox.pendingActions.single.options.first.description, 'Allow');
     expect(inbox.activeRuns.single.runId, 'run_1');
+    expect(inbox.activeRuns.single.threadTitle, 'Deploy Acorn');
+    expect(inbox.activeRuns.single.preview, 'Run the release workflow');
+    expect(inbox.activeRuns.single.attentionLevel, 'running');
+    expect(inbox.activeRuns.single.durationMs, 1000);
     expect(inbox.system.runtimeReadiness.status, 'ready');
   });
 
@@ -500,12 +504,15 @@ Map<String, Object?> _inboxJson() {
       {
         'run_id': 'run_1',
         'thread_id': 'thread_1',
-        'status': 'waiting_for_approval',
+        'thread_title': 'Deploy Acorn',
+        'status': 'running',
         'mode': 'plan_execute',
+        'preview': 'Run the release workflow',
+        'last_event_label': 'Run is running',
+        'attention_level': 'running',
+        'duration_ms': 1000,
         'created_at': '2026-05-15T00:00:00Z',
         'updated_at': '2026-05-15T00:00:01Z',
-        'latest_event_seq': 4,
-        'pending_action_count': 1,
       },
     ],
     'recent_terminal_runs': [],

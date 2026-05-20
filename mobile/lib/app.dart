@@ -37,7 +37,7 @@ class AcornRoot extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final controller = ref.watch(acornControllerProvider);
+    final controller = ref.watch(connectionControllerProvider);
 
     if (controller.initializing) {
       return const _BootScreen();

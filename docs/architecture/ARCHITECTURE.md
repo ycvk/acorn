@@ -1,13 +1,13 @@
 ---
 doc_type: architecture
 status: current
-last_reviewed: 2026-05-19
+last_reviewed: 2026-05-20
 slug: architecture-index
 ---
 
 # Acorn 架构总入口
 
-Acorn 当前形态是 **single-user self-hosted agent backend + authenticated remote client API + Flutter mobile control surface MVP**。后端以 Go/Eino 运行 agent、工具、计划、证据、trace、working checkpoint、file-backed memory 和必接入的 Bleve+FAISS semantic retrieval index，并且是 Thread、Run、RunEvent、tool result、memory、skills、context boundary 和 workspace mutation 的唯一事实源。当前可用客户端是 `mobile/` Flutter mobile app：mobile 是主产品 control surface MVP，第一层接 `/v1` Thread/Message/Run/RunEvent、Inbox、PendingActions、RunDetail、SystemStatus、Tools、只读 Skills、Memory、Settings、Device auth 和 `/healthz`。active remote client contract 是 `/healthz`、serve-time `/mcp` mount 和 authenticated `/v1` client resources。旧 `ResidentShell`、`PersonalShelf`、fixed shelf、companion window、React/Vite frontend、legacy `/api` route group、public `/v1/codeintel/*`、Web skill mutation、reflection review API、history search API 和 SQLite-backed memory management API 已删除；client source、OpenAPI 和 generated clients 不保留兼容入口。
+Acorn 当前形态是 **single-user self-hosted agent backend + authenticated remote client API + Flutter mobile control surface**。后端以 Go/Eino 运行 agent、工具、计划、证据、trace、working checkpoint、file-backed memory 和必接入的 Bleve+FAISS semantic retrieval index，并且是 Thread、Run、RunEvent、tool result、memory、skills、context boundary 和 workspace mutation 的唯一事实源。当前可用客户端是 `mobile/` Flutter mobile app：mobile 是主产品 control surface，首屏是 `/v1/inbox` 驱动的 Home attention cockpit，Chat 是 thread detail surface，Run Inspector 消费 `RunDetail` aggregate；第一层接 `/v1` Thread/Message/Run/RunEvent、Inbox、PendingActions、RunDetail、SystemStatus、Tools、只读 Skills、Memory、Settings、Device auth 和 `/healthz`。active remote client contract 是 `/healthz`、serve-time `/mcp` mount 和 authenticated `/v1` client resources。旧 `ResidentShell`、`PersonalShelf`、fixed shelf、companion window、React/Vite frontend、legacy `/api` route group、public `/v1/codeintel/*`、Web skill mutation、reflection review API、history search API 和 SQLite-backed memory management API 已删除；client source、OpenAPI 和 generated clients 不保留兼容入口。
 
 ## 当前主链
 
@@ -63,12 +63,12 @@ operator CLI / authenticated remote clients
 | **ChildAgent contract** | `internal/orchestration/child_agent.go` 的 `ChildAgentRequest` / `ChildAgentResult` / `ChildAgentExecutor`，被 `delegate_task`、plan_execute 和 verifier 共用；`ChildAgentOriginVerifier` 与 `VerificationRequest` / `VerificationResult` 是只读 verifier 子 run 合同。`plan_execute` 只在 step 显式声明 `verification_intent.kind=verifier` 时运行 verifier，并把 verdict 回填为 `EvidenceKindVerifier` plan evidence。 |
 | **Trace** | run events 的 persisted projection；`internal/app.TraceService` 从 SQLite runs/events 构建 trace 和 resume status。RunDetail 的 trace summary 由已加载的 run event records 原地投影。 |
 | **RuntimeWorkbench** | 当前 active session 的聚合 overview；`internal/app.RuntimeWorkbenchService` 从 session/run/plan/events/tool-results/workspace git truth 装配，并投影 mutation checkpoints / rollback results，不从前端本地猜测。 |
-| **Mobile Control Surface** | `mobile/` Flutter app，当前包含 connect、inbox/readiness、threads/messages、run detail 和 pending approval decision surfaces。它通过 generated Dart client 消费 `/v1`，不执行 runtime、不维护第二套 message lifecycle、不做 offline-first truth。 |
+| **Mobile Control Surface** | `mobile/` Flutter app，当前包含 connect、Home inbox/readiness、threads/chat detail、Run Inspector、pending approval decision 和 settings surfaces。它通过 generated Dart client 消费 `/v1`；连接/API/stream clients 由 `ConnectionController` 承载，shell tab、inbox、threads、approvals、chat foreground streaming 和 run detail 分别由 feature controllers 隔离；mobile 不执行 runtime、不维护第二套 message lifecycle、不做 offline-first truth。 |
 | **Run detail surface** | 当前 run deep dive 入口，只消费 `GET /v1/runs/{run_id}/detail` aggregate；Workbench、trace、plan 和 unsupported raw events 都作为 detail 投影，不由 client 散读 legacy endpoints。 |
 | **SQLite persisted truth** | 后端 runtime 事实来源；events、runs、plans、checkpoints、tool results、archives、session summaries、context boundaries 等事实由 SQLite 持久化和迁移维护。长期 memory 的 active truth 是 `memorymodule` 文件。 |
 | **SSE StreamItem** | runtime internal / legacy trace JSON 事件形态；不是 remote client 的 live stream contract。 |
 | **Client RunEvent** | `/v1` 的 client-facing live event envelope；mobile client 的 send/live stream path 消费它。它由 SQLite `events` table 投影，SSE `id` 是 `event_id`，`event` 是 `type`，`data` 是完整 `RunEvent` JSON。 |
-| **Mobile Inbox** | `GET /v1/inbox` 的 authenticated aggregate；由 `internal/app.InboxService` 从 pending actions、active runs、recent terminal runs 和 `CapabilitiesService.Snapshot` 装配，给 mobile 一个 reconnect/attention surface，不替代 source endpoints。 |
+| **Mobile Inbox** | `GET /v1/inbox` 的 authenticated aggregate；由 `internal/app.InboxService` 从 pending actions、active runs、recent terminal runs、backend-projected run summary fields 和 `CapabilitiesService.Snapshot` 装配，给 mobile 一个 reconnect/attention surface，不替代 source endpoints。 |
 | **Pending Action Control Surface** | `GET /v1/pending-actions`、`GET /v1/pending-actions/{action_id}` 和 `POST /v1/pending-actions/{action_id}:decide`；由 `internal/app.PendingActionService` 直接消费 SQLite `pending_actions` 和 owning run，不从自然语言或 RunEvent 猜审批状态。 |
 
 ## 子架构文档

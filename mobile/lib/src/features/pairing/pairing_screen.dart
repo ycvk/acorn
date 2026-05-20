@@ -32,7 +32,7 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final controller = ref.watch(acornControllerProvider);
+    final controller = ref.watch(connectionControllerProvider);
     final colors = Theme.of(context).colorScheme;
     final text = Theme.of(context).textTheme;
 

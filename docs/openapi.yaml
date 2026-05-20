@@ -1780,11 +1780,13 @@ components:
     RunSummary:
       type: object
       additionalProperties: false
-      required: [run_id, thread_id, status, mode, created_at, updated_at]
+      required: [run_id, thread_id, thread_title, status, mode, preview, last_event_label, attention_level, duration_ms, created_at, updated_at]
       properties:
         run_id:
           type: string
         thread_id:
+          type: string
+        thread_title:
           type: string
         status:
           type: string
@@ -1792,6 +1794,16 @@ components:
         mode:
           type: string
           enum: [direct, agent, plan_execute]
+        preview:
+          type: string
+        last_event_label:
+          type: string
+        attention_level:
+          type: string
+          enum: [normal, needs_action, failed, running]
+        duration_ms:
+          type: integer
+          format: int64
         created_at:
           type: string
           format: date-time

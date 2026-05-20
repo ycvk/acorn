@@ -65,6 +65,7 @@ type clientStore interface {
 type inboxStore interface {
 	ListPendingActions(ctx context.Context, limit int) ([]events.PendingActionRecord, error)
 	LoadRun(ctx context.Context, runID string) (*events.RunRecord, error)
+	LoadSession(ctx context.Context, sessionID string) (*events.SessionRecord, error)
 	ListActiveRuns(ctx context.Context, limit int) ([]events.RunRecord, error)
 	ListRecentTerminalRuns(ctx context.Context, limit int) ([]events.RunRecord, error)
 }

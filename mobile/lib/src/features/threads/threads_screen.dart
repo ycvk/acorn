@@ -10,14 +10,28 @@ import '../../ui/widgets/acorn_surfaces.dart';
 import '../../ui/widgets/empty_state.dart';
 import '../../ui/widgets/list_rows.dart';
 import '../../ui/widgets/section_header.dart';
+import '../chat/chat_screen.dart';
 
 class ThreadsScreen extends ConsumerWidget {
   const ThreadsScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final controller = ref.watch(acornControllerProvider);
-    final threads = controller.threads;
+    final threads = ref.watch(
+      threadsControllerProvider.select((controller) => controller.threads),
+    );
+    final activeThreadId = ref.watch(
+      threadsControllerProvider.select(
+        (controller) => controller.activeThread?.id,
+      ),
+    );
+    final busy = ref.watch(
+      threadsControllerProvider.select((controller) => controller.loading),
+    );
+    final errorMessage = ref.watch(
+      threadsControllerProvider.select((controller) => controller.errorMessage),
+    );
+    final controller = ref.read(threadsControllerProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -26,31 +40,32 @@ class ThreadsScreen extends ConsumerWidget {
           IconButton.filledTonal(
             tooltip: 'Refresh',
             icon: const Icon(Icons.refresh),
-            onPressed: controller.busy ? null : controller.refreshAll,
+            onPressed: busy ? null : controller.refresh,
           ),
           IconButton.filledTonal(
             tooltip: 'New thread',
             icon: const Icon(Icons.add),
-            onPressed: controller.busy
+            onPressed: busy
                 ? null
-                : controller.createThreadAndSelect,
+                : () => _createThreadAndOpenChat(context, ref),
           ),
         ],
       ),
       body: RefreshIndicator(
-        onRefresh: controller.refreshAll,
+        onRefresh: controller.refresh,
         child: threads.isEmpty
             ? ListView(
                 children: [
-                  if (controller.errorMessage != null)
-                    ErrorBanner(message: controller.errorMessage!),
+                  if (errorMessage != null) ErrorBanner(message: errorMessage),
                   SizedBox(height: MediaQuery.of(context).size.height * 0.18),
                   AcornEmptyState(
                     icon: Icons.forum_outlined,
                     title: 'No threads yet',
                     body: 'Create a backend thread and start from Chat.',
                     action: FilledButton.icon(
-                      onPressed: controller.createThreadAndSelect,
+                      onPressed: busy
+                          ? null
+                          : () => _createThreadAndOpenChat(context, ref),
                       icon: const Icon(Icons.add),
                       label: const Text('New thread'),
                     ),
@@ -59,8 +74,7 @@ class ThreadsScreen extends ConsumerWidget {
               )
             : ListView(
                 children: [
-                  if (controller.errorMessage != null)
-                    ErrorBanner(message: controller.errorMessage!),
+                  if (errorMessage != null) ErrorBanner(message: errorMessage),
                   AcornPageIntro(
                     icon: Icons.forum_outlined,
                     title: '${threads.length} backend threads',
@@ -76,8 +90,8 @@ class ThreadsScreen extends ConsumerWidget {
                           : thread.title,
                       subtitle:
                           '${statusLabel(thread.state)} · ${formatTimestamp(thread.updatedAt)} · ${shortId(thread.id)}',
-                      selected: controller.activeThread?.id == thread.id,
-                      tone: controller.activeThread?.id == thread.id
+                      selected: activeThreadId == thread.id,
+                      tone: activeThreadId == thread.id
                           ? AcornStatusTone.info
                           : AcornStatusTone.neutral,
                       trailing: Row(
@@ -86,7 +100,7 @@ class ThreadsScreen extends ConsumerWidget {
                           IconButton(
                             tooltip: 'Delete thread',
                             icon: const Icon(Icons.delete_outline),
-                            onPressed: controller.busy
+                            onPressed: busy
                                 ? null
                                 : () => _confirmDeleteThread(
                                     context,
@@ -94,17 +108,48 @@ class ThreadsScreen extends ConsumerWidget {
                                     thread,
                                   ),
                           ),
-                          controller.activeThread?.id == thread.id
+                          activeThreadId == thread.id
                               ? const Icon(Icons.check_circle)
                               : const Icon(Icons.chevron_right),
                         ],
                       ),
-                      onTap: () => controller.selectThread(thread),
+                      onTap: () => _openThread(context, ref, thread),
                     ),
                 ],
               ),
       ),
     );
+  }
+
+  Future<void> _createThreadAndOpenChat(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    final thread = await ref
+        .read(threadsControllerProvider)
+        .createThreadAndSelect();
+    if (!context.mounted || thread == null) {
+      return;
+    }
+    _pushChat(context);
+  }
+
+  Future<void> _openThread(
+    BuildContext context,
+    WidgetRef ref,
+    Thread thread,
+  ) async {
+    ref.read(threadsControllerProvider).selectThread(thread);
+    if (!context.mounted) {
+      return;
+    }
+    _pushChat(context);
+  }
+
+  void _pushChat(BuildContext context) {
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => const ChatScreen()));
   }
 
   Future<void> _confirmDeleteThread(
@@ -139,6 +184,7 @@ class ThreadsScreen extends ConsumerWidget {
     if (confirmed != true || !context.mounted) {
       return;
     }
-    await ref.read(acornControllerProvider).deleteThread(thread);
+    await ref.read(threadsControllerProvider).deleteThread(thread);
+    await ref.read(inboxControllerProvider).refresh();
   }
 }
