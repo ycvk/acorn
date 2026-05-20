@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -149,6 +150,83 @@ func TestEvidenceForToolMessageDerivesCheckpointEvidence(t *testing.T) {
 	}
 	if checkpoint.ToolResultRef != "tool_result:run_parent:call_1" {
 		t.Fatalf("checkpoint tool_result_ref = %q", checkpoint.ToolResultRef)
+	}
+}
+
+func TestEvidenceForToolMessageDerivesRunVerificationEvidence(t *testing.T) {
+	recordedAt := time.Now().UTC()
+	items, err := evidenceForToolMessage(toolMessageEvidenceInput{
+		Step:          PlanStep{ID: "s1"},
+		RunID:         "run_parent",
+		ToolName:      "run_verification",
+		ToolCallID:    "call_verify",
+		ArgumentsJSON: `{"kind":"test","command":["go","test","./internal/runtime"],"paths":["internal/runtime"]}`,
+		Message: &planToolMessage{
+			Content: `{"kind":"test","status":"failed","summary":"test verification failed with exit code 1","command":["go","test","./internal/runtime"],"exit_code":1,"paths":["internal/runtime"],"stdout_artifact_id":"artifact_stdout","stderr_artifact_id":"artifact_stderr"}`,
+			Extra: map[string]any{
+				"tool_result_ref": "tool_result:run_parent:call_verify",
+			},
+		},
+		RecordedAt: recordedAt,
+	})
+	if err != nil {
+		t.Fatalf("evidenceForToolMessage: %v", err)
+	}
+	var verification *PlanEvidence
+	for i := range items {
+		if items[i].Kind == EvidenceKindTest {
+			verification = &items[i]
+			break
+		}
+	}
+	if verification == nil {
+		t.Fatalf("run_verification evidence missing: %+v", items)
+	}
+	if verification.Status != EvidenceStatusFailed || verification.Error == "" {
+		t.Fatalf("verification evidence = %+v", verification)
+	}
+	if strings.Join(verification.Command, " ") != "go test ./internal/runtime" {
+		t.Fatalf("verification command = %+v", verification.Command)
+	}
+	if verification.ToolResultRef != "tool_result:run_parent:call_verify" {
+		t.Fatalf("verification tool_result_ref = %q", verification.ToolResultRef)
+	}
+}
+
+func TestEvidenceForToolMessageDerivesGitSummaryDiffEvidence(t *testing.T) {
+	recordedAt := time.Now().UTC()
+	items, err := evidenceForToolMessage(toolMessageEvidenceInput{
+		Step:          PlanStep{ID: "s1"},
+		RunID:         "run_parent",
+		ToolName:      "git_summary",
+		ToolCallID:    "call_git",
+		ArgumentsJSON: `{"include_diff":true}`,
+		Message: &planToolMessage{
+			Content: `{"clean":false,"changed_paths":["a.go"],"diff_artifact_id":"artifact_diff"}`,
+			Extra: map[string]any{
+				"tool_result_ref": "tool_result:run_parent:call_git",
+			},
+		},
+		RecordedAt: recordedAt,
+	})
+	if err != nil {
+		t.Fatalf("evidenceForToolMessage: %v", err)
+	}
+	var diff *PlanEvidence
+	for i := range items {
+		if items[i].Kind == EvidenceKindDiff {
+			diff = &items[i]
+			break
+		}
+	}
+	if diff == nil {
+		t.Fatalf("git_summary diff evidence missing: %+v", items)
+	}
+	if diff.DiffRef != "artifact_diff" || strings.Join(diff.Paths, ",") != "a.go" {
+		t.Fatalf("diff evidence = %+v", diff)
+	}
+	if diff.ToolResultRef != "tool_result:run_parent:call_git" {
+		t.Fatalf("diff tool_result_ref = %q", diff.ToolResultRef)
 	}
 }
 

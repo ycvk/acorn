@@ -200,6 +200,12 @@ Artifact ids 是后端生成的 opaque ids；模型和 mobile 不能从路径拼
 
 `run_verification` 不是 `run_command` 的 fallback 包装。它是把验证命令输出标准化成 plan evidence、tool result refs 和 artifacts 的 workflow tool。
 
+当前实现细节：
+
+- `multi_edit` 只改已有 workspace 文件；所有 line span 先统一校验，单文件内 span 不允许重叠，成功时返回 `checkpoint_id`、`checkpoint_paths` 和 `verified_diff_stat`。
+- `run_verification` 返回 `kind`、`status`、`command`、`cwd`、`exit_code`、`duration_ms`、`summary`、`stdout_artifact_id`、`stderr_artifact_id`；非零退出是 `status=failed` 的工具结果，不是 runtime failure。
+- `git_summary` 返回 `entries`、`changed_paths` 和 `diff_stat`；只有 `include_diff=true` 时写 `diff_artifact_id`，且绝不 stage、commit、merge。
+
 ## Contract Changes
 
 P0 允许的 contract 扩展：
