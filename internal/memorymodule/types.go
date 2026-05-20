@@ -67,6 +67,7 @@ type Service interface {
 	RebuildSemanticIndex(ctx context.Context, opts SemanticRebuildOptions) (*SemanticRebuildResult, error)
 	AppendHistory(ctx context.Context, event HistoryEvent) error
 	PlanMemoryMutation(ctx context.Context, req PlanMemoryMutationRequest) (*MemoryMutationPlan, error)
+	ApplyMemoryMutation(ctx context.Context, req PlanMemoryMutationRequest) (*MemoryMutationResult, error)
 	CreateProcedure(ctx context.Context, req CreateProcedureRequest) (*ProcedureRecord, error)
 	BuildMemoryInstruction(ctx context.Context, workspaceSlug string) (string, error)
 }
@@ -87,6 +88,9 @@ type SemanticRuntimeOptions struct {
 	Embedder   Embedder
 	Model      string
 	Dimensions int
+	BatchSize  int
+	Schema     string
+	IndexName  string
 	Mode       string
 }
 
@@ -171,6 +175,17 @@ type MemoryMutationPlan struct {
 	ExistingRef string               `json:"existing_ref,omitempty"`
 	Kind        Kind                 `json:"kind,omitempty"`
 	Reason      string               `json:"reason,omitempty"`
+}
+
+type MemoryMutationResult struct {
+	Message               string                 `json:"message"`
+	MutationPlan          *MemoryMutationPlan    `json:"mutation_plan"`
+	Path                  string                 `json:"path"`
+	Bytes                 int                    `json:"bytes"`
+	VerifiedBytes         int                    `json:"verified_bytes"`
+	VerifiedContent       string                 `json:"verified_content,omitempty"`
+	VerificationTruncated bool                   `json:"verification_truncated,omitempty"`
+	SemanticRebuild       *SemanticRebuildResult `json:"semantic_rebuild,omitempty"`
 }
 
 type ProcedureActivationPhase string

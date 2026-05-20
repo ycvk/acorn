@@ -71,6 +71,10 @@ func (m *mockMemorySvc) AppendHistory(ctx context.Context, event memorymodule.Hi
 func (m *mockMemorySvc) PlanMemoryMutation(ctx context.Context, req memorymodule.PlanMemoryMutationRequest) (*memorymodule.MemoryMutationPlan, error) {
 	return &memorymodule.MemoryMutationPlan{Action: memorymodule.MemoryMutationCreate, Path: req.Path}, nil
 }
+func (m *mockMemorySvc) ApplyMemoryMutation(ctx context.Context, req memorymodule.PlanMemoryMutationRequest) (*memorymodule.MemoryMutationResult, error) {
+	plan := &memorymodule.MemoryMutationPlan{Action: memorymodule.MemoryMutationCreate, Path: req.Path}
+	return &memorymodule.MemoryMutationResult{Message: "ok", MutationPlan: plan, Path: req.Path}, nil
+}
 func (m *mockMemorySvc) CreateProcedure(ctx context.Context, req memorymodule.CreateProcedureRequest) (*memorymodule.ProcedureRecord, error) {
 	m.lastCreateReq = req
 	ref := m.nextRef

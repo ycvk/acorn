@@ -530,16 +530,16 @@ func TestSafeParallelStreamingExecutor_WriteReadConflictExecutesSequentially(t *
 
 func TestSafeParallel_MixedBatch(t *testing.T) {
 	readA := &trackingTool{name: "read_file"}
-	readB := &trackingTool{name: "memory_search_text"}
+	readB := &trackingTool{name: "memory_search"}
 	writeC := &trackingTool{name: "create_file"}
 	shellD := &trackingTool{name: "run_command"}
 
 	classifier := &fixedClassifier{
 		rules: map[string]tooling.ParallelPolicy{
-			"read_file":          kernel.ToolSafetyReadOnly,
-			"memory_search_text": kernel.ToolSafetyReadOnly,
-			"create_file":        kernel.ToolSafetyWriteScoped,
-			"run_command":        kernel.ToolSafetyNeverParallel,
+			"read_file":     kernel.ToolSafetyReadOnly,
+			"memory_search": kernel.ToolSafetyReadOnly,
+			"create_file":   kernel.ToolSafetyWriteScoped,
+			"run_command":   kernel.ToolSafetyNeverParallel,
 		},
 	}
 
@@ -553,7 +553,7 @@ func TestSafeParallel_MixedBatch(t *testing.T) {
 
 	input := makeAssistantMessage(
 		makeToolCall("call_1", "read_file", `{"path":"x.go"}`),
-		makeToolCall("call_2", "memory_search_text", `{"query":"test"}`),
+		makeToolCall("call_2", "memory_search", `{"query":"test"}`),
 		makeToolCall("call_3", "create_file", `{"path":"y.go","content":"hi"}`),
 		makeToolCall("call_4", "run_command", `{"command":"ls"}`),
 	)
@@ -1261,7 +1261,7 @@ func TestSafeParallel_LoadToolsSerializesLifecycleMutation(t *testing.T) {
 		}
 		time.Sleep(20 * time.Millisecond)
 		active.Add(-1)
-		return `{"loaded_tool_names":["memory_search_text"]}`, nil
+		return `{"loaded_tool_names":["memory_search"]}`, nil
 	})
 	classifier := &fixedClassifier{
 		rules: map[string]tooling.ParallelPolicy{
@@ -1274,7 +1274,7 @@ func TestSafeParallel_LoadToolsSerializesLifecycleMutation(t *testing.T) {
 	}
 
 	_, err = invokeViaStreaming(node, safeParallelLifecycleContext(t, node), makeAssistantMessage(
-		makeToolCall("call_1", "load_tools", `{"tool_names":["memory_search_text"]}`),
+		makeToolCall("call_1", "load_tools", `{"tool_names":["memory_search"]}`),
 		makeToolCall("call_2", "load_tools", `{"tool_names":["memory_read_file"]}`),
 	))
 	if err != nil {

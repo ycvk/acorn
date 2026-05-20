@@ -98,7 +98,7 @@ func runtimeToolSpec(
 		spec.Loading = tooling.DeferredLoadingPolicy("working_state_tool")
 		spec.Execution.ParallelPolicy = tooling.ParallelPolicyNeverParallel
 		spec.Execution.SideEffects = []tooling.ToolSideEffect{tooling.ToolSideEffectMemoryWrite}
-	case "memory_read_file", "memory_list_files", "memory_search_text":
+	case "memory_search", "memory_read_file", "memory_list_files":
 		spec.Kind = tooling.ToolKindMemory
 		spec.Category = tooling.ToolCategoryMemory
 		spec.ResourceScope = tooling.ResourceScopeMemory

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	einotool "github.com/cloudwego/eino/components/tool"
+	toolutils "github.com/cloudwego/eino/components/tool/utils"
 	"github.com/cloudwego/eino/schema"
 
 	"github.com/ycvk/acorn/internal/memorymodule"
@@ -23,6 +24,48 @@ type memoryNamespacedTool struct {
 	name         string
 	description  string
 	originalName string
+}
+
+type memorySearchTool struct {
+	infoSource einotool.BaseTool
+	memory     memorymodule.Service
+}
+
+type memorySearchInput struct {
+	Query           string   `json:"query" jsonschema:"description=Natural language query to search Acorn memory records."`
+	Scope           string   `json:"scope,omitempty" jsonschema:"description=Optional memory scope such as workspace:acorn. Empty searches all scopes."`
+	Kinds           []string `json:"kinds,omitempty" jsonschema:"description=Optional record kinds to include: fact skill history."`
+	Limit           int      `json:"limit,omitempty" jsonschema:"description=Maximum number of memory records to return."`
+	IncludeInactive bool     `json:"include_inactive,omitempty" jsonschema:"description=Include inactive records."`
+	IncludeRetired  bool     `json:"include_retired,omitempty" jsonschema:"description=Include retired records. Also includes inactive records."`
+	Explain         bool     `json:"explain,omitempty" jsonschema:"description=Include retrieval scoring explanation."`
+}
+
+type memorySearchOutput struct {
+	Items   []memorySearchOutputItem    `json:"items"`
+	Explain *memorymodule.SearchExplain `json:"explain,omitempty"`
+}
+
+type memorySearchOutputItem struct {
+	Ref          string                        `json:"ref"`
+	Kind         string                        `json:"kind"`
+	Title        string                        `json:"title"`
+	Status       string                        `json:"status"`
+	Scope        string                        `json:"scope,omitempty"`
+	Tags         []string                      `json:"tags,omitempty"`
+	Origin       string                        `json:"origin,omitempty"`
+	TaskPattern  string                        `json:"task_pattern,omitempty"`
+	Path         string                        `json:"path,omitempty"`
+	Snippet      string                        `json:"snippet,omitempty"`
+	Score        float64                       `json:"score"`
+	SourceRun    string                        `json:"source_run,omitempty"`
+	SourceRefs   []string                      `json:"source_refs,omitempty"`
+	EvidenceRefs []string                      `json:"evidence_refs,omitempty"`
+	Relations    []memorymodule.RecordRelation `json:"relations,omitempty"`
+	Created      string                        `json:"created,omitempty"`
+	Updated      string                        `json:"updated,omitempty"`
+	ValidFrom    string                        `json:"valid_from,omitempty"`
+	ValidUntil   string                        `json:"valid_until,omitempty"`
 }
 
 func buildMemoryFileTools(ctx context.Context, memory memorymodule.Service) ([]einotool.BaseTool, error) {
@@ -48,8 +91,13 @@ func buildMemoryFileTools(ctx context.Context, memory memorymodule.Service) ([]e
 	if err != nil {
 		return nil, fmt.Errorf("build memory tools: %w", err)
 	}
+	searchTool, err := newMemorySearchTool(memory)
+	if err != nil {
+		return nil, err
+	}
 	tools := catalog.Tools
-	result := make([]einotool.BaseTool, 0, len(tools))
+	result := make([]einotool.BaseTool, 0, len(tools)+1)
+	result = append(result, searchTool)
 	for _, item := range tools {
 		wrapped, ok, err := wrapMemoryFileTool(ctx, memory, item)
 		if err != nil {
@@ -63,6 +111,16 @@ func buildMemoryFileTools(ctx context.Context, memory memorymodule.Service) ([]e
 	return result, nil
 }
 
+func newMemorySearchTool(memory memorymodule.Service) (einotool.BaseTool, error) {
+	infoSource, err := toolutils.InferTool("memory_search", "Search Acorn memory records through the canonical semantic retrieval path.", func(ctx context.Context, input memorySearchInput) (memorySearchOutput, error) {
+		return memorySearchOutput{}, nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("build memory_search tool: %w", err)
+	}
+	return &memorySearchTool{infoSource: infoSource, memory: memory}, nil
+}
+
 func wrapMemoryFileTool(ctx context.Context, memory memorymodule.Service, inner einotool.BaseTool) (*memoryNamespacedTool, bool, error) {
 	info, err := inner.Info(ctx)
 	if err != nil {
@@ -73,7 +131,7 @@ func wrapMemoryFileTool(ctx context.Context, memory memorymodule.Service, inner 
 	}
 	name := strings.TrimSpace(info.Name)
 	switch name {
-	case "read_file", "list_files", "search_text", "create_file", "replace_span":
+	case "read_file", "list_files", "create_file", "replace_span":
 	default:
 		return nil, false, nil
 	}
@@ -114,32 +172,74 @@ func (t *memoryNamespacedTool) InvokableRun(ctx context.Context, argumentsInJSON
 	}
 }
 
+func (t *memorySearchTool) Info(ctx context.Context) (*schema.ToolInfo, error) {
+	return t.infoSource.Info(ctx)
+}
+
+func (t *memorySearchTool) InvokableRun(ctx context.Context, argumentsInJSON string, _ ...einotool.Option) (string, error) {
+	if t == nil || t.memory == nil {
+		return "", fmt.Errorf("memory service is required")
+	}
+	var input memorySearchInput
+	if err := json.Unmarshal([]byte(argumentsInJSON), &input); err != nil {
+		return "", fmt.Errorf("parse memory_search arguments: %w", err)
+	}
+	kinds, err := parseMemorySearchKinds(input.Kinds)
+	if err != nil {
+		return "", err
+	}
+	result, err := t.memory.Search(ctx, memorymodule.SearchRequest{
+		Query:           input.Query,
+		Scope:           strings.TrimSpace(input.Scope),
+		Kinds:           kinds,
+		Limit:           input.Limit,
+		IncludeInactive: input.IncludeInactive,
+		IncludeRetired:  input.IncludeRetired,
+		Explain:         input.Explain,
+	})
+	if err != nil {
+		return "", err
+	}
+	output := memorySearchOutput{}
+	if result != nil {
+		output.Items = make([]memorySearchOutputItem, 0, len(result.Items))
+		for _, item := range result.Items {
+			output.Items = append(output.Items, memorySearchOutputItemFromSearchItem(item))
+		}
+		output.Explain = result.Explain
+	}
+	body, err := json.Marshal(output)
+	if err != nil {
+		return "", fmt.Errorf("marshal memory_search output: %w", err)
+	}
+	return string(body), nil
+}
+
 func (t *memoryNamespacedTool) runMemoryCreateFile(ctx context.Context, argumentsInJSON string, opts ...einotool.Option) (string, error) {
 	var input tools.CreateFileInput
 	if err := json.Unmarshal([]byte(argumentsInJSON), &input); err != nil {
 		return "", fmt.Errorf("parse memory_create_file arguments: %w", err)
 	}
-	plan, err := t.memory.PlanMemoryMutation(ctx, memorymodule.PlanMemoryMutationRequest{
+	result, err := t.memory.ApplyMemoryMutation(ctx, memorymodule.PlanMemoryMutationRequest{
 		Path:    input.Path,
 		Content: input.Content,
 	})
 	if err != nil {
 		return "", err
 	}
-	if plan.Action == memorymodule.MemoryMutationRejectInvalid {
-		return "", fmt.Errorf("memory mutation rejected: %s", plan.Reason)
+	if result == nil || result.MutationPlan == nil {
+		return "", fmt.Errorf("memory_create_file returned no mutation plan")
 	}
-	if plan.Action == memorymodule.MemoryMutationNoopDuplicate {
-		return memoryNoopMutationOutput(plan)
+	if result.MutationPlan.Action == memorymodule.MemoryMutationRejectInvalid {
+		return "", fmt.Errorf("memory mutation rejected: %s", result.MutationPlan.Reason)
 	}
-	if plan.Action != memorymodule.MemoryMutationCreate {
-		return "", fmt.Errorf("memory_create_file cannot execute mutation plan action %q: %s", plan.Action, plan.Reason)
+	if result.MutationPlan.Action != memorymodule.MemoryMutationCreate && result.MutationPlan.Action != memorymodule.MemoryMutationNoopDuplicate {
+		return "", fmt.Errorf("memory_create_file cannot execute mutation plan action %q: %s", result.MutationPlan.Action, result.MutationPlan.Reason)
 	}
-	output, err := t.invokable.InvokableRun(ctx, argumentsInJSON, opts...)
-	if err != nil {
-		return "", err
+	if result.MutationPlan.Action == memorymodule.MemoryMutationCreate && result.SemanticRebuild == nil {
+		return "", fmt.Errorf("memory_create_file requires semantic rebuild after mutation")
 	}
-	return attachMemoryMutationPlan(output, plan)
+	return memoryMutationResultOutput(result)
 }
 
 func (t *memoryNamespacedTool) runMemoryReplaceSpan(ctx context.Context, argumentsInJSON string, opts ...einotool.Option) (string, error) {
@@ -151,51 +251,82 @@ func (t *memoryNamespacedTool) runMemoryReplaceSpan(ctx context.Context, argumen
 	if err != nil {
 		return "", err
 	}
-	plan, err := t.memory.PlanMemoryMutation(ctx, memorymodule.PlanMemoryMutationRequest{
+	result, err := t.memory.ApplyMemoryMutation(ctx, memorymodule.PlanMemoryMutationRequest{
 		Path:    input.Path,
 		Content: content,
 	})
 	if err != nil {
 		return "", err
 	}
-	if plan.Action == memorymodule.MemoryMutationRejectInvalid {
-		return "", fmt.Errorf("memory mutation rejected: %s", plan.Reason)
+	if result == nil || result.MutationPlan == nil {
+		return "", fmt.Errorf("memory_replace_span returned no mutation plan")
 	}
-	if plan.Action == memorymodule.MemoryMutationNoopDuplicate {
-		return memoryNoopMutationOutput(plan)
+	if result.MutationPlan.Action == memorymodule.MemoryMutationRejectInvalid {
+		return "", fmt.Errorf("memory mutation rejected: %s", result.MutationPlan.Reason)
 	}
-	switch plan.Action {
+	switch result.MutationPlan.Action {
 	case memorymodule.MemoryMutationReplaceExisting, memorymodule.MemoryMutationRetireExisting:
+		if result.SemanticRebuild == nil {
+			return "", fmt.Errorf("memory_replace_span requires semantic rebuild after mutation")
+		}
+	case memorymodule.MemoryMutationNoopDuplicate:
 	default:
-		return "", fmt.Errorf("memory_replace_span cannot execute mutation plan action %q: %s", plan.Action, plan.Reason)
+		return "", fmt.Errorf("memory_replace_span cannot execute mutation plan action %q: %s", result.MutationPlan.Action, result.MutationPlan.Reason)
 	}
-	output, err := t.invokable.InvokableRun(ctx, argumentsInJSON, opts...)
-	if err != nil {
-		return "", err
-	}
-	return attachMemoryMutationPlan(output, plan)
+	return memoryMutationResultOutput(result)
 }
 
-func attachMemoryMutationPlan(output string, plan *memorymodule.MemoryMutationPlan) (string, error) {
-	var payload map[string]any
-	if err := json.Unmarshal([]byte(output), &payload); err != nil {
-		return "", fmt.Errorf("parse memory tool output: %w", err)
+func parseMemorySearchKinds(values []string) ([]memorymodule.Kind, error) {
+	kinds := make([]memorymodule.Kind, 0, len(values))
+	seen := make(map[memorymodule.Kind]struct{}, len(values))
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			continue
+		}
+		kind := memorymodule.Kind(trimmed)
+		switch kind {
+		case memorymodule.KindFact, memorymodule.KindSkill, memorymodule.KindHistory:
+		default:
+			return nil, fmt.Errorf("unsupported memory_search kind %q", value)
+		}
+		if _, ok := seen[kind]; ok {
+			continue
+		}
+		seen[kind] = struct{}{}
+		kinds = append(kinds, kind)
 	}
-	payload["mutation_plan"] = plan
-	body, err := json.Marshal(payload)
+	return kinds, nil
+}
+
+func memorySearchOutputItemFromSearchItem(item memorymodule.SearchItem) memorySearchOutputItem {
+	return memorySearchOutputItem{
+		Ref:          item.Ref,
+		Kind:         item.Kind,
+		Title:        item.Title,
+		Status:       item.Status,
+		Scope:        item.Scope,
+		Tags:         append([]string(nil), item.Tags...),
+		Origin:       item.Origin,
+		TaskPattern:  item.TaskPattern,
+		Path:         item.Path,
+		Snippet:      item.Snippet,
+		Score:        item.Score,
+		SourceRun:    item.SourceRun,
+		SourceRefs:   append([]string(nil), item.SourceRefs...),
+		EvidenceRefs: append([]string(nil), item.EvidenceRefs...),
+		Relations:    append([]memorymodule.RecordRelation(nil), item.Relations...),
+		Created:      item.Created,
+		Updated:      item.Updated,
+		ValidFrom:    item.ValidFrom,
+		ValidUntil:   item.ValidUntil,
+	}
+}
+
+func memoryMutationResultOutput(result *memorymodule.MemoryMutationResult) (string, error) {
+	body, err := json.Marshal(result)
 	if err != nil {
 		return "", fmt.Errorf("marshal memory tool output: %w", err)
-	}
-	return string(body), nil
-}
-
-func memoryNoopMutationOutput(plan *memorymodule.MemoryMutationPlan) (string, error) {
-	body, err := json.Marshal(map[string]any{
-		"message":       string(memorymodule.MemoryMutationNoopDuplicate),
-		"mutation_plan": plan,
-	})
-	if err != nil {
-		return "", fmt.Errorf("marshal memory noop output: %w", err)
 	}
 	return string(body), nil
 }

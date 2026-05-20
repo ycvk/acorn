@@ -41,6 +41,18 @@ Bad.
 
 func TestMemoryCreateFileReturnsMutationPlan(t *testing.T) {
 	service := newMemoryToolTestService(t)
+	writeMemoryToolFile(t, service, "facts/workspaces/existing.md", `---
+scope: workspace:acorn
+tags: [memory]
+status: verified
+created: 2026-05-18
+updated: 2026-05-18
+---
+
+# Existing Fact
+
+Existing fact.
+`)
 	tool := memoryToolByName(t, service, "memory_create_file")
 
 	output, err := tool.InvokableRun(context.Background(), memoryCreateFileArgs(t, "facts/workspaces/new.md", `---
@@ -59,7 +71,8 @@ New fact.
 		t.Fatalf("memory_create_file: %v", err)
 	}
 	var decoded struct {
-		MutationPlan memorymodule.MemoryMutationPlan `json:"mutation_plan"`
+		MutationPlan    memorymodule.MemoryMutationPlan     `json:"mutation_plan"`
+		SemanticRebuild *memorymodule.SemanticRebuildResult `json:"semantic_rebuild"`
 	}
 	if err := json.Unmarshal([]byte(output), &decoded); err != nil {
 		t.Fatalf("json.Unmarshal: %v\n%s", err, output)
@@ -67,8 +80,18 @@ New fact.
 	if decoded.MutationPlan.Action != memorymodule.MemoryMutationCreate || decoded.MutationPlan.Ref != "facts/workspaces/new.md#new-fact" {
 		t.Fatalf("mutation plan = %#v, want create new fact", decoded.MutationPlan)
 	}
+	if decoded.SemanticRebuild == nil || decoded.SemanticRebuild.IndexedCount != 2 {
+		t.Fatalf("semantic rebuild = %#v, want two indexed records", decoded.SemanticRebuild)
+	}
 	if _, err := os.Stat(filepath.Join(service.Root(), "facts", "workspaces", "new.md")); err != nil {
 		t.Fatalf("created file missing: %v", err)
+	}
+	facts, err := service.ListFacts(t.Context(), memorymodule.RecordSelection{})
+	if err != nil {
+		t.Fatalf("ListFacts: %v", err)
+	}
+	if len(facts) != 2 {
+		t.Fatalf("len(facts) = %d, want 2 after memory_create_file refresh", len(facts))
 	}
 }
 
@@ -122,6 +145,95 @@ Existing fact.
 	}
 }
 
+func TestMemoryReplaceSpanRefreshesIndexAndSemanticIndex(t *testing.T) {
+	service := newMemoryToolTestService(t)
+	rel := "facts/workspaces/existing.md"
+	content := `---
+scope: workspace:acorn
+tags: [memory]
+status: verified
+created: 2026-05-18
+updated: 2026-05-18
+---
+
+# Existing Fact
+
+Existing fact.
+`
+	writeMemoryToolFile(t, service, rel, content)
+	tool := memoryToolByName(t, service, "memory_replace_span")
+
+	args, err := json.Marshal(map[string]any{
+		"path":        rel,
+		"start_line":  11,
+		"end_line":    11,
+		"replacement": "Updated fact.\n",
+	})
+	if err != nil {
+		t.Fatalf("marshal args: %v", err)
+	}
+	output, err := tool.InvokableRun(context.Background(), string(args))
+	if err != nil {
+		t.Fatalf("memory_replace_span: %v", err)
+	}
+	var decoded struct {
+		MutationPlan    memorymodule.MemoryMutationPlan     `json:"mutation_plan"`
+		SemanticRebuild *memorymodule.SemanticRebuildResult `json:"semantic_rebuild"`
+	}
+	if err := json.Unmarshal([]byte(output), &decoded); err != nil {
+		t.Fatalf("json.Unmarshal: %v\n%s", err, output)
+	}
+	if decoded.MutationPlan.Action != memorymodule.MemoryMutationReplaceExisting {
+		t.Fatalf("mutation plan = %#v, want replace_existing", decoded.MutationPlan)
+	}
+	if decoded.SemanticRebuild == nil || decoded.SemanticRebuild.IndexedCount != 1 {
+		t.Fatalf("semantic rebuild = %#v, want one indexed record", decoded.SemanticRebuild)
+	}
+	record, err := service.GetRecordByRef(t.Context(), "facts/workspaces/existing.md#existing-fact")
+	if err != nil {
+		t.Fatalf("GetRecordByRef: %v", err)
+	}
+	if !strings.Contains(record.Body, "Updated fact.") {
+		t.Fatalf("record body = %q, want updated body", record.Body)
+	}
+}
+
+func TestMemorySearchUsesCanonicalSemanticSearch(t *testing.T) {
+	service := newMemoryToolTestService(t)
+	createTool := memoryToolByName(t, service, "memory_create_file")
+	if _, err := createTool.InvokableRun(context.Background(), memoryCreateFileArgs(t, "facts/workspaces/new.md", `---
+scope: workspace:acorn
+tags: [memory]
+status: verified
+created: 2026-05-18
+updated: 2026-05-18
+---
+
+# New Fact
+
+New semantic fact.
+`)); err != nil {
+		t.Fatalf("memory_create_file: %v", err)
+	}
+	searchTool := memoryToolByName(t, service, "memory_search")
+	output, err := searchTool.InvokableRun(context.Background(), `{"query":"semantic","kinds":["fact"],"limit":5}`)
+	if err != nil {
+		t.Fatalf("memory_search: %v", err)
+	}
+	var decoded struct {
+		Items []struct {
+			Ref  string `json:"ref"`
+			Kind string `json:"kind"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal([]byte(output), &decoded); err != nil {
+		t.Fatalf("json.Unmarshal: %v\n%s", err, output)
+	}
+	if len(decoded.Items) != 1 || decoded.Items[0].Ref != "facts/workspaces/new.md#new-fact" || decoded.Items[0].Kind != "fact" {
+		t.Fatalf("items = %#v, want new fact", decoded.Items)
+	}
+}
+
 func newMemoryToolTestService(t *testing.T) *memorymodule.LocalService {
 	t.Helper()
 	root := t.TempDir()
@@ -143,6 +255,18 @@ func newMemoryToolTestService(t *testing.T) *memorymodule.LocalService {
 	}
 	if err := service.BuildIndex(t.Context()); err != nil {
 		t.Fatalf("BuildIndex: %v", err)
+	}
+	if err := service.SetSemanticRuntime(memorymodule.SemanticRuntimeOptions{
+		Index:      &memoryToolSemanticIndex{},
+		Embedder:   memoryToolEmbedder{model: "test-embedding", dimensions: 3},
+		Model:      "test-embedding",
+		Dimensions: 3,
+		BatchSize:  64,
+		Schema:     memorymodule.SemanticSchemaMemoryRecordsV1,
+		IndexName:  "memory_records",
+		Mode:       "hybrid",
+	}); err != nil {
+		t.Fatalf("SetSemanticRuntime: %v", err)
 	}
 	return service
 }
@@ -204,4 +328,53 @@ func memoryCreateFileArgs(t *testing.T, path string, content string) string {
 		t.Fatalf("marshal create args: %v", err)
 	}
 	return string(body)
+}
+
+type memoryToolEmbedder struct {
+	model      string
+	dimensions int
+}
+
+func (e memoryToolEmbedder) Embed(ctx context.Context, req memorymodule.EmbedRequest) (*memorymodule.EmbedResult, error) {
+	vectors := make([]memorymodule.EmbeddingVector, 0, len(req.Inputs))
+	for i, input := range req.Inputs {
+		values := make([]float32, e.dimensions)
+		for j := range values {
+			values[j] = float32(i + j + 1)
+		}
+		vectors = append(vectors, memorymodule.EmbeddingVector{Ref: input.Ref, Values: values})
+	}
+	return &memorymodule.EmbedResult{Model: e.model, Dimensions: e.dimensions, Vectors: vectors}, nil
+}
+
+type memoryToolSemanticIndex struct {
+	records []memorymodule.IndexedSemanticRecord
+}
+
+func (i *memoryToolSemanticIndex) Rebuild(ctx context.Context, req memorymodule.SemanticRebuildRequest) (*memorymodule.SemanticRebuildResult, error) {
+	i.records = append([]memorymodule.IndexedSemanticRecord(nil), req.Records...)
+	return &memorymodule.SemanticRebuildResult{
+		Model:        req.Model,
+		Dimensions:   req.Dimensions,
+		Schema:       req.Schema,
+		IndexName:    req.IndexName,
+		IndexedCount: len(req.Records),
+	}, nil
+}
+
+func (i *memoryToolSemanticIndex) Search(ctx context.Context, req memorymodule.SemanticSearchRequest) (*memorymodule.SemanticSearchResult, error) {
+	hits := make([]memorymodule.SemanticHit, 0, len(i.records))
+	for _, record := range i.records {
+		hits = append(hits, memorymodule.SemanticHit{
+			Ref:   record.Record.Ref,
+			Kind:  record.Record.Kind,
+			Score: 5,
+			Stage: "semantic_hybrid",
+		})
+	}
+	return &memorymodule.SemanticSearchResult{Hits: hits}, nil
+}
+
+func (i *memoryToolSemanticIndex) Close() error {
+	return nil
 }

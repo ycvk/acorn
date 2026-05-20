@@ -14,8 +14,9 @@ func TestStaticSkillEligibilityContextIncludesBuiltInTools(t *testing.T) {
 	}
 	for _, want := range []string{
 		"read_file",
+		"memory_search",
 		"memory_read_file",
-		"memory_search_text",
+		"memory_list_files",
 		"memory_create_file",
 		"memory_replace_span",
 		"run_command",

@@ -1379,6 +1379,7 @@ func TestBuildMemoryInstruction(t *testing.T) {
 		t.Fatalf("BuildMemoryInstruction: %v", err)
 	}
 	for _, want := range []string{
+		"memory_search",
 		"memory_read_file",
 		"memory_replace_span",
 		"procedure skill",
@@ -1429,6 +1430,9 @@ func setSemanticSearchHits(t *testing.T, service *LocalService, hits []SemanticH
 		Embedder:   deterministicEmbedder{dimensions: 3, model: "text-embedding-3-small"},
 		Model:      "text-embedding-3-small",
 		Dimensions: 3,
+		BatchSize:  64,
+		Schema:     SemanticSchemaMemoryRecordsV1,
+		IndexName:  "memory_records",
 		Mode:       "hybrid",
 	}); err != nil {
 		t.Fatalf("SetSemanticRuntime: %v", err)

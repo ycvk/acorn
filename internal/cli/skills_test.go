@@ -15,7 +15,7 @@ func TestRenderSkillsCheckUsesHealthReport(t *testing.T) {
 		Failures: []skills.HealthFailure{{
 			Kind:    skills.HealthFailureEligibility,
 			SkillID: "skill.procedure.curator",
-			Message: "missing_required_tools:memory_search_text",
+			Message: "missing_required_tools:memory_search",
 		}},
 		Observations: []skills.HealthObservation{{
 			Kind:    skills.HealthObservationLowRoutingMetadata,
@@ -34,7 +34,7 @@ func TestRenderSkillsCheckUsesHealthReport(t *testing.T) {
 
 	for _, want := range []string{
 		"Status: failed",
-		"failure eligibility: skill.procedure.curator: missing_required_tools:memory_search_text",
+		"failure eligibility: skill.procedure.curator: missing_required_tools:memory_search",
 		"observation low_routing_metadata: skill.inspect.repo",
 		"fixture inspect failed expected=skill.inspect.repo actual=skill.ship.patch candidates=skill.ship.patch,skill.inspect.repo",
 	} {

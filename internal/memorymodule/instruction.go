@@ -23,8 +23,9 @@ func (s *LocalService) BuildMemoryInstruction(ctx context.Context, workspaceSlug
 	Memory root: %s
 	Workspace: %s
 	
-	Use memory_read_file to inspect relevant memory files.
-	Use memory_replace_span or memory_create_file to update memory; both validate a mutation plan before writing.
+		Use memory_search to retrieve relevant memory records through semantic search.
+		Use memory_read_file to inspect a memory file when you need the full content.
+		Use memory_replace_span or memory_create_file to update memory; both validate a mutation plan before writing and refresh retrieval after successful writes.
 	If you learned a stable fact, update the matching facts file.
 	If you learned a reusable procedure, create or patch a procedure skill file.
 	If nothing is worth saving, leave memory unchanged.
