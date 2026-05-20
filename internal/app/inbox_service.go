@@ -15,6 +15,8 @@ const (
 	defaultInboxPendingActionLimit = 20
 	defaultInboxActiveRunLimit     = 20
 	defaultInboxTerminalRunLimit   = 20
+	runSummaryPreviewMaxRunes      = 96
+	runSummaryTitleMaxRunes        = 64
 )
 
 type InboxService struct {
@@ -34,12 +36,17 @@ type MobileInbox struct {
 }
 
 type RunSummary struct {
-	RunID     string
-	ThreadID  string
-	Status    string
-	Mode      string
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	RunID          string
+	ThreadID       string
+	ThreadTitle    string
+	Status         string
+	Mode           string
+	Preview        string
+	LastEventLabel string
+	AttentionLevel string
+	DurationMS     int64
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 }
 
 type PendingActionSummary struct {
@@ -114,7 +121,7 @@ func (s *InboxService) loadRunSummaries(ctx context.Context, list runListFunc, l
 	}
 	items := make([]RunSummary, 0, len(records))
 	for _, record := range records {
-		summary, err := projectRunSummary(record)
+		summary, err := s.projectRunSummary(ctx, record)
 		if err != nil {
 			return nil, err
 		}
@@ -246,7 +253,7 @@ func pendingActionOptionsFromEventOptions(items []events.PendingActionOption) []
 	return out
 }
 
-func projectRunSummary(record events.RunRecord) (RunSummary, error) {
+func (s *InboxService) projectRunSummary(ctx context.Context, record events.RunRecord) (RunSummary, error) {
 	status, err := projectRunStatus(record.Status)
 	if err != nil {
 		return RunSummary{}, err
@@ -255,12 +262,121 @@ func projectRunSummary(record events.RunRecord) (RunSummary, error) {
 	if err != nil {
 		return RunSummary{}, err
 	}
+	session, err := s.store.LoadSession(ctx, record.SessionID)
+	if err != nil {
+		return RunSummary{}, err
+	}
 	return RunSummary{
-		RunID:     record.RunID,
-		ThreadID:  record.SessionID,
-		Status:    status,
-		Mode:      mode,
-		CreatedAt: record.CreatedAt,
-		UpdatedAt: record.UpdatedAt,
+		RunID:          record.RunID,
+		ThreadID:       record.SessionID,
+		ThreadTitle:    runSummaryThreadTitle(*session, record),
+		Status:         status,
+		Mode:           mode,
+		Preview:        runSummaryPreview(record),
+		LastEventLabel: runSummaryLastEventLabel(record.Status),
+		AttentionLevel: runSummaryAttentionLevel(record.Status),
+		DurationMS:     runSummaryDurationMS(record),
+		CreatedAt:      record.CreatedAt,
+		UpdatedAt:      record.UpdatedAt,
 	}, nil
+}
+
+func runSummaryThreadTitle(session events.SessionRecord, run events.RunRecord) string {
+	title := strings.TrimSpace(session.Title)
+	if title != "" {
+		return truncateRunes(title, runSummaryTitleMaxRunes)
+	}
+	title = strings.TrimSpace(run.Input)
+	if title != "" {
+		return truncateRunes(compactWhitespace(title), runSummaryTitleMaxRunes)
+	}
+	return "Untitled thread"
+}
+
+func runSummaryPreview(record events.RunRecord) string {
+	switch record.Status {
+	case events.RunStatusFailed:
+		if preview := previewText(record.Error); preview != "" {
+			return preview
+		}
+		if preview := previewText(record.Output); preview != "" {
+			return preview
+		}
+	case events.RunStatusSucceeded:
+		if preview := previewText(record.Output); preview != "" {
+			return preview
+		}
+	case events.RunStatusInterrupted, events.RunStatusRunning:
+		if preview := previewText(record.Input); preview != "" {
+			return preview
+		}
+	}
+	if preview := previewText(record.Input); preview != "" {
+		return preview
+	}
+	if preview := previewText(record.Output); preview != "" {
+		return preview
+	}
+	return ""
+}
+
+func previewText(value string) string {
+	return truncateRunes(compactWhitespace(value), runSummaryPreviewMaxRunes)
+}
+
+func compactWhitespace(value string) string {
+	return strings.Join(strings.Fields(strings.TrimSpace(value)), " ")
+}
+
+func truncateRunes(value string, maxRunes int) string {
+	if maxRunes <= 0 {
+		return ""
+	}
+	runes := []rune(value)
+	if len(runes) <= maxRunes {
+		return value
+	}
+	if maxRunes <= 3 {
+		return string(runes[:maxRunes])
+	}
+	return string(runes[:maxRunes-3]) + "..."
+}
+
+func runSummaryLastEventLabel(status events.RunStatus) string {
+	switch status {
+	case events.RunStatusRunning:
+		return "Run is running"
+	case events.RunStatusSucceeded:
+		return "Run completed"
+	case events.RunStatusInterrupted:
+		return "Run interrupted"
+	case events.RunStatusFailed:
+		return "Run failed"
+	default:
+		return string(status)
+	}
+}
+
+func runSummaryAttentionLevel(status events.RunStatus) string {
+	switch status {
+	case events.RunStatusRunning:
+		return "running"
+	case events.RunStatusFailed:
+		return "failed"
+	case events.RunStatusInterrupted:
+		return "needs_action"
+	default:
+		return "normal"
+	}
+}
+
+func runSummaryDurationMS(record events.RunRecord) int64 {
+	if record.UpdatedAt.IsZero() || record.CreatedAt.IsZero() {
+		return 0
+	}
+	duration := record.UpdatedAt.Sub(record.CreatedAt)
+	if duration < 0 {
+		return 0
+	}
+	return duration.Milliseconds()
 }

@@ -295,12 +295,17 @@ type InboxResponse struct {
 }
 
 type RunSummaryDTO struct {
-	RunID     string    `json:"run_id"`
-	ThreadID  string    `json:"thread_id"`
-	Status    string    `json:"status"`
-	Mode      string    `json:"mode"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	RunID          string    `json:"run_id"`
+	ThreadID       string    `json:"thread_id"`
+	ThreadTitle    string    `json:"thread_title"`
+	Status         string    `json:"status"`
+	Mode           string    `json:"mode"`
+	Preview        string    `json:"preview"`
+	LastEventLabel string    `json:"last_event_label"`
+	AttentionLevel string    `json:"attention_level"`
+	DurationMS     int64     `json:"duration_ms"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
 }
 
 type PendingActionSummaryDTO struct {
@@ -610,12 +615,17 @@ func runSummaryDTOsFromDomain(items []app.RunSummary) []RunSummaryDTO {
 	result := make([]RunSummaryDTO, 0, len(items))
 	for _, item := range items {
 		result = append(result, RunSummaryDTO{
-			RunID:     item.RunID,
-			ThreadID:  item.ThreadID,
-			Status:    item.Status,
-			Mode:      item.Mode,
-			CreatedAt: item.CreatedAt,
-			UpdatedAt: item.UpdatedAt,
+			RunID:          item.RunID,
+			ThreadID:       item.ThreadID,
+			ThreadTitle:    item.ThreadTitle,
+			Status:         item.Status,
+			Mode:           item.Mode,
+			Preview:        item.Preview,
+			LastEventLabel: item.LastEventLabel,
+			AttentionLevel: item.AttentionLevel,
+			DurationMS:     item.DurationMS,
+			CreatedAt:      item.CreatedAt,
+			UpdatedAt:      item.UpdatedAt,
 		})
 	}
 	return result

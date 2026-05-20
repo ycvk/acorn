@@ -78,8 +78,16 @@ func TestInboxServiceLoadProjectsMobileAggregate(t *testing.T) {
 	if len(inbox.ActiveRuns) != 1 || inbox.ActiveRuns[0].RunID != "run_active" || inbox.ActiveRuns[0].Mode != "plan_execute" {
 		t.Fatalf("active runs = %#v", inbox.ActiveRuns)
 	}
+	active := inbox.ActiveRuns[0]
+	if active.ThreadTitle != "Active" || active.Preview != "work" || active.LastEventLabel != "Run is running" || active.AttentionLevel != "running" {
+		t.Fatalf("active run projection = %#v", active)
+	}
 	if len(inbox.RecentTerminalRuns) != 1 || inbox.RecentTerminalRuns[0].RunID != "run_terminal" || inbox.RecentTerminalRuns[0].Status != "completed" {
 		t.Fatalf("terminal runs = %#v", inbox.RecentTerminalRuns)
+	}
+	terminal := inbox.RecentTerminalRuns[0]
+	if terminal.ThreadTitle != "Done" || terminal.Preview != "done" || terminal.LastEventLabel != "Run completed" || terminal.AttentionLevel != "normal" {
+		t.Fatalf("terminal run projection = %#v", terminal)
 	}
 	if inbox.System.RuntimeReadiness == nil || inbox.System.RuntimeReadiness.Status != RuntimeReadinessReady {
 		t.Fatalf("system snapshot = %#v", inbox.System)

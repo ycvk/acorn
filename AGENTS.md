@@ -17,7 +17,7 @@
 - 当前 skill governance truth 是 `internal/skills` 的 deterministic health report、routing fixtures 和 Acorn-native skill pack dry-run/receipt；不要恢复 `skill_eval`/`skill_curate` 平台，也不要把 gbrain skillpack 格式当兼容目标。
 - 当前 workspace mutation 恢复事实是 scoped mutation checkpoint 和显式 `rollback_workspace_checkpoint`，不是旧 snapshot/auto rollback。
 - 当前 remote client wire contract 是 `docs/openapi.yaml`，mobile generated client 必须从它生成。
-- 当前 mobile client truth 是 `mobile/` Flutter app：`mobile/tool/generate_openapi_client.py` 从 `docs/openapi.yaml` 生成 Dart client，`AcornController` 只消费 `/v1` server truth，connection profile 写入 secure storage。
+- 当前 mobile client truth 是 `mobile/` Flutter app：`mobile/tool/generate_openapi_client.py` 从 `docs/openapi.yaml` 生成 Dart client，`ConnectionController` 只消费 `/v1` server truth，connection profile 写入 secure storage。
 - 当前 remote client auth truth 是 single-owner device auth：`acorn pair` 生成一次性 pairing code，`POST /v1/devices:pair` 换取一次性展示的 bearer token，SQLite 只保存 pairing code/device token hash，除 `/healthz` 和 pairing exchange 外的 `/v1` 路由都必须通过 device bearer auth。
 - 当前 pairing onboarding truth 是 `acorn pair --server-url <url> --qr` 渲染包含 `server_url`、`pairing_code`、`expires_at` 的终端二维码；Flutter mobile MVP 当前仍用输入框接收 server URL 和 pairing code，没有内置相机扫码器。
 - 当前 mobile inbox truth 是 `GET /v1/inbox`：由后端聚合 pending action summaries、active runs、recent terminal runs 和 system status；它复用 SQLite runs/events/pending_actions 和 `CapabilitiesService`，不是第二套 event store 或 pending action source endpoint。
