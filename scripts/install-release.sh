@@ -74,11 +74,11 @@ install_debian_host_tools() {
 		return
 	fi
 	if ! command -v apt-get >/dev/null 2>&1; then
-		die "automatic host package installation requires apt-get; set ACORN_INSTALL_HOST_TOOLS=0 after installing curl tar sha256sum systemctl git ripgrep python3 make bash and libopenblas.so.0"
+		die "automatic host package installation requires apt-get; set ACORN_INSTALL_HOST_TOOLS=0 after installing curl tar sha256sum systemctl git ripgrep python3 make bash libgomp1 and an OpenBLAS runtime package that provides libopenblas.so.0"
 	fi
 	run_root apt-get update
 	openblas_package=$(select_openblas_runtime_package)
-	run_root apt-get install -y ca-certificates curl git ripgrep python3 make bash "$openblas_package"
+	run_root apt-get install -y ca-certificates curl git ripgrep python3 make bash libgomp1 "$openblas_package"
 }
 
 verify_runtime_link() {
@@ -424,13 +424,13 @@ env_path='$env_path'
 
 run_with_service_env() {
 	exec env HOME="\$service_home" sh -c 'set -eu
-env_path=$1
-bin=$2
+env_path=\$1
+bin=\$2
 shift 2
 set -a
 [ -f "$env_path" ] && . "$env_path"
 set +a
-exec "$bin" "$@"' sh "\$env_path" "\$bin" "\$@"
+exec "\$bin" "\$@"' sh "\$env_path" "\$bin" "\$@"
 }
 
 has_config_flag() {
@@ -455,13 +455,13 @@ run_service_command() {
 
 	if command -v sudo >/dev/null 2>&1; then
 		exec sudo -u "\$service_user" env HOME="\$service_home" sh -c 'set -eu
-env_path=$1
-bin=$2
+env_path=\$1
+bin=\$2
 shift 2
 set -a
 [ -f "$env_path" ] && . "$env_path"
 set +a
-exec "$bin" "$@"' sh "\$env_path" "\$bin" "\$@"
+exec "\$bin" "\$@"' sh "\$env_path" "\$bin" "\$@"
 	fi
 
 	printf 'error: %s uses installer-owned state; run with sudo or as user %s\n' "\$1" "\$service_user" >&2
