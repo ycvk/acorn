@@ -48,6 +48,17 @@ requires:
 3. 动态页面：`load_tools({"tool_names":["browser"]})` -> `browser.open` -> `browser.scan`；需要操作时再 `browser.snapshot` -> action。
 4. 需要同时搜索和动态页面：先 `web_search` / `web_fetch` 缩小范围，再加载 `browser`。
 
+浏览器运行时缺失处理：
+
+1. 如果 `browser` 返回 `browser.executable_path` 未配置或不可访问，停止当前浏览器任务；不要反复重试，也不要改用 shell/curl 假装完成动态页面任务。
+2. 告诉用户当前 VPS 缺少可用 Chrome/Chromium runtime，需要安装浏览器并在 `acorn.yaml` 配置 `browser.executable_path`，常见路径是 `/usr/bin/chromium`。
+3. 只有用户明确要求“帮我安装/配置”时，才可以使用 host/file/systemd 工具执行 operator setup：
+   - 检查系统发行版和是否已有 `chromium` / `google-chrome`。
+   - 安装 Chrome/Chromium。
+   - 用实际可执行文件路径更新 `~/.acorn/acorn.yaml` 的 `browser.executable_path`。
+   - 重启 Acorn systemd 服务。
+   - 再用 `browser.status` 或一次最小 `browser.open` 验证。
+
 硬规则：
 
 - 只访问 `http` / `https`，并尊重 Acorn 的 URL policy；不要尝试 file、localhost、metadata、私网绕过。

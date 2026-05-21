@@ -37,6 +37,7 @@ workspace_dir=/srv/acorn/workspace
 config_dir=$service_home/.acorn
 config_path=$config_dir/acorn.yaml
 env_path=$config_dir/acorn.env
+skills_dir=$config_dir/skills
 
 run_root() {
 	if [ "$(id -u)" -eq 0 ]; then
@@ -107,6 +108,32 @@ verify_package_runtime_links() {
 	verify_runtime_link "$package_root/acorn"
 	verify_runtime_link "$package_runtime_lib_dir/libfaiss_c.so" "$package_runtime_lib_dir"
 	verify_runtime_link "$package_runtime_lib_dir/libfaiss.so" "$package_runtime_lib_dir"
+}
+
+install_packaged_skills() {
+	source_dir=$1
+	target_dir=$2
+	if [ ! -d "$source_dir" ]; then
+		die "release package is missing bundled skills directory"
+	fi
+	run_root install -d -m 0755 -o "$service_user" -g "$service_group" "$target_dir"
+	found=0
+	for skill_dir in "$source_dir"/*; do
+		if [ ! -d "$skill_dir" ]; then
+			continue
+		fi
+		skill_name=${skill_dir##*/}
+		if [ ! -f "$skill_dir/SKILL.md" ]; then
+			die "bundled skill $skill_name is missing SKILL.md"
+		fi
+		found=1
+		run_root rm -rf "$target_dir/$skill_name"
+		run_root cp -R "$skill_dir" "$target_dir/$skill_name"
+		run_root chown -R "$service_user:$service_group" "$target_dir/$skill_name"
+	done
+	if [ "$found" != "1" ]; then
+		die "release package bundled skills directory is empty"
+	fi
 }
 
 detect_arch() {
@@ -374,6 +401,7 @@ download_release_files
 	test -x acorn
 	test -f "lib/linux_${arch}/libfaiss_c.so"
 	test -f "lib/linux_${arch}/libfaiss.so"
+	test -f "skills/skill_creator/SKILL.md"
 	verify_package_runtime_links "$PWD"
 )
 
@@ -465,6 +493,7 @@ run_root mkdir -p "$install_dir/lib"
 run_root cp -R "$package_dir/lib/linux_${arch}" "$install_dir/lib/"
 run_root chown -R root:root "$install_dir/lib"
 run_root install -m 0755 "$wrapper_template" "$wrapper_path"
+install_packaged_skills "$package_dir/skills" "$skills_dir"
 
 if [ ! -e "$config_path" ]; then
 	run_root install -m 0644 -o "$service_user" -g "$service_group" "$config_template" "$config_path"

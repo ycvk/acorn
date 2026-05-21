@@ -141,8 +141,11 @@ jobs:
           grep -qx "semantic_index_backend=bleve_faiss" "$package_dir/RELEASE"
           grep -qx "native_lib_dir=lib/${RELEASE_GOOS}_${RELEASE_GOARCH}" "$package_dir/RELEASE"
           grep -qx "installer=install-release.sh" "$package_dir/RELEASE"
+          grep -qx "skills_dir=skills" "$package_dir/RELEASE"
           test -f "$package_dir/lib/${RELEASE_GOOS}_${RELEASE_GOARCH}/libfaiss_c.so"
           test -f "$package_dir/lib/${RELEASE_GOOS}_${RELEASE_GOARCH}/libfaiss.so"
+          test -f "$package_dir/skills/skill_creator/SKILL.md"
+          test -f "$package_dir/skills/web_browser_research/SKILL.md"
           test -x "$package_dir/install-release.sh"
           grep -qx "ExecStart=/opt/acorn/acorn serve" "$package_dir/acorn.service"
           (cd "$package_dir" && sha256sum -c CHECKSUMS)
@@ -307,6 +310,8 @@ jobs:
             rm -rf "$tmpdir"/*
             tar -xzf "$archive" -C "$tmpdir"
             package_dir="$(find "$tmpdir" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
+            test -f "$package_dir/skills/skill_creator/SKILL.md"
+            test -f "$package_dir/skills/web_browser_research/SKILL.md"
             (cd "$package_dir" && sha256sum -c CHECKSUMS)
           done
 
@@ -327,6 +332,7 @@ jobs:
           - acorn_${VERSION}_linux_amd64.tar.gz (includes Bleve+FAISS)
           - acorn_${VERSION}_linux_arm64.tar.gz (includes Bleve+FAISS)
           - acorn_mobile_${VERSION}_android.apk (signed Flutter mobile APK)
+          - bundled native skills installed under ~/.acorn/skills by install-release.sh
 
           Packages are built with Bleve vector search using the required bleve_faiss and vectors Go build tags.
           FAISS C API shared libraries are built from the Bleve-compatible FAISS checkpoint and packaged under lib/linux_amd64 or lib/linux_arm64.
