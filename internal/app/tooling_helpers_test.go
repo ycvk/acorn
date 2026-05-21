@@ -20,6 +20,7 @@ func TestStaticSkillEligibilityContextIncludesBuiltInTools(t *testing.T) {
 		"memory_create_file",
 		"memory_replace_span",
 		"run_command",
+		"load_tools",
 	} {
 		if _, ok := available[want]; !ok {
 			t.Fatalf("expected %q in static skill eligibility context, got %v", want, ctx.AvailableTools)

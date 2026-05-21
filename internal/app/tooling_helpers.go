@@ -43,6 +43,7 @@ func localEligibilityToolNames(cfg *config.Config) []string {
 		"memory_replace_span",
 		"skill_list",
 		"skill_view",
+		"load_tools",
 	} {
 		if _, ok := seen[name]; ok {
 			continue
