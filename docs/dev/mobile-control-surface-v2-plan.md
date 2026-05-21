@@ -1,6 +1,6 @@
 ---
 doc_type: plan
-status: active
+status: superseded
 created: 2026-05-20
 last_reviewed: 2026-05-20
 slug: mobile-control-surface-v2
@@ -15,16 +15,9 @@ architecture still behaves like a chat client with adjacent admin tabs. That is
 not the right shape for Acorn's current product truth: a single-owner
 self-hosted backend controlled from a phone.
 
-The mobile client should be an owner attention cockpit. Opening the app should
-answer, in order:
-
-1. What needs my decision?
-2. What is running now?
-3. What just completed or failed?
-4. Where can I continue work?
-
-Chat remains important, but it is one detail surface under a thread/run, not the
-global home screen.
+The mobile client should open into user work, not backend observability.
+Threads are the default continuation surface; approvals and settings stay
+available as separate destinations.
 
 ## Current Constraints
 
@@ -40,29 +33,20 @@ global home screen.
 
 ## P0 Scope
 
-### 1. Home/Inbox-First Shell
+### 1. Thread-First Shell
 
-Replace the global Chat tab with Home.
+The Home/Inbox cockpit was removed after product QA. It read like a debug
+dashboard and surfaced low-value run history. The mobile shell now opens on
+Threads.
 
 Bottom destinations:
 
-- Home
 - Threads
 - Approvals
 - Settings
 
-Home consumes `InboxResponse` and renders the owner attention stack:
-
-- Needs action: pending approvals, highest priority.
-- Running now: active runs.
-- Recently finished: recent terminal runs.
-- System: readiness summary and model/workspace status.
-
-Home rows open source-owned detail surfaces:
-
-- Pending approval rows route to the approval flow.
-- Run rows route to Run Inspector.
-- Thread continuation routes to Chat.
+`/v1/inbox` remains a backend aggregate for pending approval badge/list data and
+system/settings projections; it is not a mobile home feed.
 
 ### 2. Chat Becomes A Detail Surface
 
@@ -81,19 +65,18 @@ blocking feedback:
 Keyboard behavior is part of this scope. The pushed Chat route must resize
 around the soft keyboard and avoid bottom overflow.
 
-### 3. Run Inspector
+### 3. Run Detail
 
-Add a dedicated Run Inspector surface backed by `RunDetail`.
+Run detail is a secondary surface backed by `RunDetail`.
 
-Initial sections:
+Default sections:
 
 - Summary: status, mode, thread, timing.
-- Activity: all persisted run events as a lazy timeline.
 - Artifacts: `RunArtifact` projection.
 - Terminal sessions: `RunTerminalSession` projection.
 
-Run Inspector is where detailed runtime observability belongs. It must not read
-legacy endpoints or parse assistant prose.
+Raw persisted RunEvents are diagnostics, not product content. The default run
+detail screen must not dump assistant.delta, memory, tool, or context events.
 
 ### 4. Performance State Boundary
 
@@ -103,21 +86,21 @@ P0 behavior:
 
 - Streaming chat output should no longer keep Chat mounted as an always-visible
   tab inside the shell.
-- The shell should render Home/Threads/Approvals/Settings as attention surfaces.
+- The shell should render Threads/Approvals/Settings as product surfaces.
 - Chat message loading, send/run start, live RunEvent projection, and chat-local
   errors are owned by `ChatController`, not the connection boundary.
-- Streaming assistant deltas notify only the pushed Chat route. Home, Threads,
+- Streaming assistant deltas notify only the pushed Chat route. Threads,
   Approvals, Settings, and shell navigation do not rebuild per token.
-- Inbox state is owned by `InboxController`; Home, Approvals badge/list, and
-  Settings consume its `/v1/inbox` projection directly.
-- Thread list and active thread state are owned by `ThreadsController`; Home,
-  Threads, Chat, and Run Inspector consume that controller instead of app-wide
+- Inbox state is owned by `InboxController`; Approvals badge/list and Settings
+  consume its `/v1/inbox` projection directly.
+- Thread list and active thread state are owned by `ThreadsController`; Threads,
+  Chat, and run detail consume that controller instead of app-wide
   state.
 - Pending-action detail and decision commands are owned by
   `ApprovalsController`; decisions refresh `InboxController` after the backend
   source endpoint accepts the decision.
 - Run detail state is owned by `RunDetailController` and cached by `runId`;
-  Run Inspector consumes that controller instead of storing a widget-local
+  run detail consumes that controller instead of storing a widget-local
   future or making `ConnectionController` own run-detail state.
 - Shell tab selection is owned by `ShellController`; connection changes and tab
   changes no longer notify the same controller boundary.
@@ -131,8 +114,8 @@ backend errors, or adding silent fallback paths.
 
 ## Backend Projection Contract
 
-Home uses backend-projected `RunSummary` fields instead of deriving display
-truth from local thread state or assistant prose:
+The backend still exposes projected `RunSummary` fields for clients that need
+run summaries, but the mobile shell does not use them as a Home feed:
 
 ```yaml
 RunSummary:
@@ -145,8 +128,7 @@ RunSummary:
 
 These fields are owned by `internal/app.InboxService`, exposed through
 `docs/openapi.yaml`, and regenerated into `mobile/lib/src/api/acorn_api.dart`.
-Mobile renders them directly and does not maintain local title/run-summary
-heuristics.
+Mobile must not maintain local title/run-summary heuristics.
 
 ## Explicit Non-Goals
 
@@ -161,9 +143,9 @@ heuristics.
 ## Implementation Order
 
 1. Add this plan as the P0 contract.
-2. Add Home and make it the first shell destination.
+2. Remove Home and make Threads the first shell destination.
 3. Make Threads/New Thread open pushed Chat routes.
-4. Add Run Inspector and wire Home run rows to it.
+4. Keep run detail secondary; do not default raw RunEvent timelines into the product flow.
 5. Update architecture docs and mobile tests.
 6. Run `python3 mobile/tool/generate_openapi_client.py --check`,
    `flutter test`, `flutter analyze`, and repo submit gates.

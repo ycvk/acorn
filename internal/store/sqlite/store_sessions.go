@@ -159,7 +159,7 @@ func (s *Store) UpdateSessionTitleIfEmpty(ctx context.Context, sessionID, title 
 		return nil
 	}
 	result, err := s.db.ExecContext(ctx,
-		`UPDATE sessions SET title = ?, updated_at = ? WHERE session_id = ? AND title = ''`,
+		`UPDATE sessions SET title = ?, updated_at = ? WHERE session_id = ? AND trim(title) = ''`,
 		title,
 		formatTimestamp(time.Now()),
 		sessionID,
