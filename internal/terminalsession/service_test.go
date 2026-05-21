@@ -93,12 +93,19 @@ func TestServiceWritesInteractiveInput(t *testing.T) {
 	if final.Status != StatusExited {
 		t.Fatalf("final status = %s", final.Status)
 	}
-	stdout, err := service.Read(ctx, ReadRequest{TerminalSessionID: record.TerminalSessionID, Stream: LogStreamStdout, Offset: 0, Limit: 64})
-	if err != nil {
-		t.Fatalf("Read stdout: %v", err)
-	}
-	if strings.TrimSpace(string(stdout.Content)) != "got:hello" {
-		t.Fatalf("stdout = %q", stdout.Content)
+	waitDeadline := time.Now().Add(3 * time.Second)
+	for {
+		stdout, err := service.Read(ctx, ReadRequest{TerminalSessionID: record.TerminalSessionID, Stream: LogStreamStdout, Offset: 0, Limit: 64})
+		if err != nil {
+			t.Fatalf("Read stdout: %v", err)
+		}
+		if strings.TrimSpace(string(stdout.Content)) == "got:hello" {
+			return
+		}
+		if time.Now().After(waitDeadline) {
+			t.Fatalf("stdout = %q", stdout.Content)
+		}
+		time.Sleep(20 * time.Millisecond)
 	}
 }
 
