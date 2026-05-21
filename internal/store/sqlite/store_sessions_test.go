@@ -840,6 +840,42 @@ func TestClientSessionMessageHelpers(t *testing.T) {
 	}
 }
 
+func TestUpdateSessionTitleIfEmptyTreatsWhitespaceAsEmpty(t *testing.T) {
+	dir := t.TempDir()
+	store, err := Open(filepath.Join(dir, "state"))
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	ctx := context.Background()
+	session, err := store.CreateSession(ctx, "session_whitespace_title", "   ")
+	if err != nil {
+		t.Fatalf("CreateSession: %v", err)
+	}
+	if err := store.UpdateSessionTitleIfEmpty(ctx, session.SessionID, "Generated title"); err != nil {
+		t.Fatalf("UpdateSessionTitleIfEmpty: %v", err)
+	}
+	updated, err := store.LoadSession(ctx, session.SessionID)
+	if err != nil {
+		t.Fatalf("LoadSession: %v", err)
+	}
+	if updated.Title != "Generated title" {
+		t.Fatalf("Title = %q, want Generated title", updated.Title)
+	}
+
+	if err := store.UpdateSessionTitleIfEmpty(ctx, session.SessionID, "Replacement title"); err != nil {
+		t.Fatalf("UpdateSessionTitleIfEmpty replacement: %v", err)
+	}
+	unchanged, err := store.LoadSession(ctx, session.SessionID)
+	if err != nil {
+		t.Fatalf("LoadSession unchanged: %v", err)
+	}
+	if unchanged.Title != "Generated title" {
+		t.Fatalf("Title = %q, want Generated title", unchanged.Title)
+	}
+}
+
 func TestSyncAssistantMessageForRunPersistsFailureContext(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "state")
 	store, err := Open(dir)

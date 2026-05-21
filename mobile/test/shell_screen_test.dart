@@ -4,7 +4,6 @@ import 'package:acorn_mobile/src/core/connection_store.dart';
 import 'package:acorn_mobile/src/core/providers.dart';
 import 'package:acorn_mobile/src/features/approvals/approvals_controller.dart';
 import 'package:acorn_mobile/src/features/chat/chat_controller.dart';
-import 'package:acorn_mobile/src/features/home/home_screen.dart';
 import 'package:acorn_mobile/src/features/inbox/inbox_controller.dart';
 import 'package:acorn_mobile/src/features/shell/acorn_shell.dart';
 import 'package:acorn_mobile/src/features/shell/shell_controller.dart';
@@ -15,65 +14,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  testWidgets('home projects inbox attention sections', (tester) async {
-    final controller = ConnectionController(
-      connectionStore: MemoryConnectionStore(),
-    )..initializing = false;
-
-    await tester.pumpWidget(
-      _withControllerOverrides(
-        connectionController: controller,
-        inbox: _inbox(),
-        child: MaterialApp(
-          theme: buildAcornTheme(Brightness.light),
-          home: const HomeScreen(),
-        ),
-      ),
-    );
-
-    expect(find.text('Home'), findsOneWidget);
-    expect(find.text('Needs action'), findsOneWidget);
-    expect(find.text('Running now'), findsOneWidget);
-    expect(find.text('Recently finished'), findsOneWidget);
-    expect(find.text('Approve command'), findsOneWidget);
-    expect(find.text('Active backend run'), findsOneWidget);
-    expect(find.text('Completed backend run'), findsOneWidget);
-  });
-
-  testWidgets('home pending action switches to approvals through shell state', (
+  testWidgets('shell opens on threads and has no home destination', (
     tester,
   ) async {
-    final controller = ConnectionController(
-      connectionStore: MemoryConnectionStore(),
-    )..initializing = false;
-    final shell = ShellController();
-
-    await tester.pumpWidget(
-      _withControllerOverrides(
-        connectionController: controller,
-        shellController: shell,
-        inbox: _inbox(),
-        child: MaterialApp(
-          theme: buildAcornTheme(Brightness.light),
-          home: const HomeScreen(),
-        ),
-      ),
-    );
-
-    await tester.tap(find.text('Approve command'));
-
-    expect(shell.selectedIndex, 2);
-  });
-
-  testWidgets('shell uses home as the first destination', (tester) async {
-    final controller = ConnectionController(
+    final connection = ConnectionController(
       connectionStore: MemoryConnectionStore(),
     )..initializing = false;
 
     await tester.pumpWidget(
       _withControllerOverrides(
-        connectionController: controller,
-        inbox: _inbox(),
+        connectionController: connection,
         child: MaterialApp(
           theme: buildAcornTheme(Brightness.light),
           home: const AcornShell(),
@@ -81,24 +31,21 @@ void main() {
       ),
     );
 
-    expect(find.text('Home'), findsWidgets);
-    expect(find.text('Threads'), findsOneWidget);
+    expect(find.text('Threads'), findsWidgets);
     expect(find.text('Approvals'), findsOneWidget);
     expect(find.text('Settings'), findsOneWidget);
-    expect(find.text('Chat'), findsNothing);
+    expect(find.text('Home'), findsNothing);
   });
 }
 
 Widget _withControllerOverrides({
   required Widget child,
   required ConnectionController connectionController,
-  ShellController? shellController,
-  required InboxResponse inbox,
 }) {
   final inboxController = _TestInboxController(connectionController)
-    ..inbox = inbox;
+    ..inbox = _inbox();
   final threadsController = _TestThreadsController(connectionController);
-  final shell = shellController ?? ShellController();
+  final shell = ShellController();
   final approvalsController = ApprovalsController(
     connectionController: connectionController,
     inboxController: inboxController,
@@ -163,59 +110,17 @@ class _TestThreadsController extends ThreadsController {
 
 InboxResponse _inbox() {
   return const InboxResponse(
-    pendingActions: [
-      PendingActionSummary(
-        actionId: 'action_1',
-        runId: 'run_pending',
-        threadId: 'thread_pending',
-        kind: 'operator_question',
-        status: 'pending',
-        title: 'Approve command',
-        options: [
-          PendingActionOption(id: 'allow', label: 'Allow'),
-          PendingActionOption(id: 'deny', label: 'Deny'),
-        ],
-        createdAt: '2026-05-20T00:00:00Z',
-      ),
-    ],
-    activeRuns: [
-      RunSummary(
-        runId: 'run_active',
-        threadId: 'thread_active',
-        threadTitle: 'Active backend run',
-        status: 'running',
-        mode: 'direct',
-        preview: 'Continue the deployment',
-        lastEventLabel: 'Run is running',
-        attentionLevel: 'running',
-        durationMs: 60000,
-        createdAt: '2026-05-20T00:00:00Z',
-        updatedAt: '2026-05-20T00:01:00Z',
-      ),
-    ],
-    recentTerminalRuns: [
-      RunSummary(
-        runId: 'run_done',
-        threadId: 'thread_done',
-        threadTitle: 'Completed backend run',
-        status: 'completed',
-        mode: 'plan_execute',
-        preview: 'Release completed',
-        lastEventLabel: 'Run completed',
-        attentionLevel: 'normal',
-        durationMs: 180000,
-        createdAt: '2026-05-20T00:00:00Z',
-        updatedAt: '2026-05-20T00:03:00Z',
-      ),
-    ],
+    pendingActions: [],
+    activeRuns: [],
+    recentTerminalRuns: [],
     system: SystemStatus(
-      runtimeReadiness: RuntimeReadiness(status: 'ready', reason: 'ready'),
+      runtimeReadiness: RuntimeReadiness(status: 'ready'),
       model: CapabilitiesModel(name: 'gpt-test'),
       workspaceRoot: '/repo',
       summary: CapabilitiesSummary(
-        toolCount: 4,
-        enabledToolCount: 3,
-        skillCount: 2,
+        toolCount: 1,
+        enabledToolCount: 1,
+        skillCount: 0,
       ),
       features: CapabilitiesFeatures(
         interruptResume: true,

@@ -43,22 +43,10 @@ class ThreadsController extends ChangeNotifier {
     }
   }
 
-  Future<Thread?> createThreadAndSelect() async {
-    loading = true;
+  void startDraftThread() {
     errorMessage = null;
+    activeThread = null;
     notifyListeners();
-    try {
-      final thread = await _connectionController.api.createThread();
-      threads = [thread, ...threads];
-      activeThread = thread;
-      return thread;
-    } catch (error) {
-      errorMessage = acornUserFacingErrorText(error);
-      return null;
-    } finally {
-      loading = false;
-      notifyListeners();
-    }
   }
 
   Future<Thread> ensureActiveThread() async {

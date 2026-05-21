@@ -222,29 +222,20 @@ void main() {
     expect(item.detail, 'provider api key is missing');
   });
 
-  test('suppresses normal context pressure in chat activity', () {
+  test('suppresses context pressure in chat activity', () {
     final event = _event('context.pressure', {
-      'context_pressure': {'state': 'normal', 'percent_used': 10},
+      'context_pressure': {'state': 'warning', 'percent_used': 78},
     });
 
     expect(activityFromEvent(event), isNull);
   });
 
-  test('shows warning context pressure with compact detail', () {
-    final event = _event('context.pressure', {
-      'context_pressure': {
-        'state': 'warning',
-        'percent_used': 78,
-        'estimated_input_tokens': 7800,
-        'effective_window_tokens': 10000,
-      },
+  test('suppresses context compressed in chat activity', () {
+    final event = _event('context.compressed', {
+      'context_compressed': {'summary_snippet': 'older turns summarized'},
     });
 
-    final item = activityFromEvent(event);
-
-    expect(item, isNotNull);
-    expect(item!.text, 'Context pressure');
-    expect(item.detail, 'warning · 78% · 7800/10000 tokens');
+    expect(activityFromEvent(event), isNull);
   });
 }
 

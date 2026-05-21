@@ -11,6 +11,7 @@ import '../../ui/widgets/empty_state.dart';
 import '../../ui/widgets/list_rows.dart';
 import '../../ui/widgets/section_header.dart';
 import '../chat/chat_screen.dart';
+import 'thread_titles.dart';
 
 class ThreadsScreen extends ConsumerWidget {
   const ThreadsScreen({super.key});
@@ -85,9 +86,7 @@ class ThreadsScreen extends ConsumerWidget {
                   for (final thread in threads)
                     AcornListRow(
                       icon: Icons.forum_outlined,
-                      title: thread.title.isEmpty
-                          ? 'Untitled thread'
-                          : thread.title,
+                      title: threadDisplayTitle(thread),
                       subtitle:
                           '${statusLabel(thread.state)} · ${formatTimestamp(thread.updatedAt)} · ${shortId(thread.id)}',
                       selected: activeThreadId == thread.id,
@@ -125,10 +124,8 @@ class ThreadsScreen extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
   ) async {
-    final thread = await ref
-        .read(threadsControllerProvider)
-        .createThreadAndSelect();
-    if (!context.mounted || thread == null) {
+    ref.read(threadsControllerProvider).startDraftThread();
+    if (!context.mounted) {
       return;
     }
     _pushChat(context);
@@ -158,7 +155,7 @@ class ThreadsScreen extends ConsumerWidget {
     Thread thread,
   ) async {
     final colors = Theme.of(context).colorScheme;
-    final title = thread.title.isEmpty ? 'Untitled thread' : thread.title;
+    final title = threadDisplayTitle(thread);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(

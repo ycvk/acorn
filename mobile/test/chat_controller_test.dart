@@ -37,6 +37,36 @@ void main() {
     expect(chat.chatItems.map((item) => item.text), ['hello', 'done']);
     expect(chat.chatItems.last.status, ChatRunStatus.completed);
   });
+
+  test(
+    'draft chat creates backend thread on first message and adopts title',
+    () async {
+      final api = _FakeChatApi();
+      final app = _FakeConnectionController(api);
+      final inbox = InboxController(connectionController: app);
+      final threads = ThreadsController(connectionController: app);
+      final chat = ChatController(
+        connectionController: app,
+        threadsController: threads,
+        inboxController: inbox,
+      );
+      addTearDown(app.dispose);
+      addTearDown(inbox.dispose);
+      addTearDown(threads.dispose);
+      addTearDown(chat.dispose);
+
+      threads.startDraftThread();
+      await chat.sendChatMessage('first real request');
+
+      expect(api.createThreadCount, 1);
+      expect(threads.threads.single.title, 'Backend title');
+      expect(chat.thread?.title, 'Backend title');
+      expect(chat.chatItems.map((item) => item.text), [
+        'first real request',
+        'done',
+      ]);
+    },
+  );
 }
 
 class _FakeConnectionController extends ConnectionController {
@@ -69,6 +99,7 @@ class _FakeChatApi extends AcornApiClient {
   _FakeChatApi() : super(serverUrl: 'http://acorn.local', accessToken: 'token');
 
   final List<Message> messages = [];
+  int createThreadCount = 0;
 
   @override
   Future<InboxResponse> getInbox() {
@@ -78,6 +109,12 @@ class _FakeChatApi extends AcornApiClient {
   @override
   Future<ThreadListResponse> listThreads({int limit = 40}) {
     return Future.value(ThreadListResponse(items: [_thread('Backend title')]));
+  }
+
+  @override
+  Future<Thread> createThread({String? title}) {
+    createThreadCount += 1;
+    return Future.value(_thread(title ?? ''));
   }
 
   @override

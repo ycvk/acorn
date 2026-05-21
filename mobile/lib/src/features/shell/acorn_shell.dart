@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/providers.dart';
 import '../approvals/approvals_screen.dart';
-import '../home/home_screen.dart';
 import '../settings/settings_screen.dart';
 import '../threads/threads_screen.dart';
 
@@ -13,7 +12,6 @@ class AcornShell extends ConsumerStatefulWidget {
   const AcornShell({super.key});
 
   static const _screens = <Widget>[
-    HomeScreen(),
     ThreadsScreen(),
     ApprovalsScreen(),
     SettingsScreen(),
@@ -62,11 +60,6 @@ class _AcornShellState extends ConsumerState<AcornShell> {
           selectedIndex: selectedTab,
           onDestinationSelected: ref.read(shellControllerProvider).selectTab,
           destinations: [
-            const NavigationDestination(
-              icon: Icon(Icons.inbox_outlined),
-              selectedIcon: Icon(Icons.inbox),
-              label: 'Home',
-            ),
             const NavigationDestination(
               icon: Icon(Icons.forum_outlined),
               selectedIcon: Icon(Icons.forum),

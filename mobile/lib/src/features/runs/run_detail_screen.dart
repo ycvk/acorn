@@ -151,39 +151,22 @@ class _RunDetailBody extends StatelessWidget {
             ),
           ),
         ),
-        const SliverToBoxAdapter(child: SectionHeader(title: 'Activity')),
-        if (detail.events.isEmpty)
-          const SliverToBoxAdapter(
-            child: AcornEmptyState(
-              icon: Icons.timeline_outlined,
-              title: 'No run events',
-              body: 'The backend returned an empty event projection.',
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            child: OutlinedButton.icon(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => _RunDiagnosticsScreen(detail: detail),
+                ),
+              ),
+              icon: const Icon(Icons.bug_report_outlined),
+              label: Text('Diagnostics (${detail.events.length})'),
             ),
-          )
-        else
-          SliverList.builder(
-            itemCount: detail.events.length,
-            itemBuilder: (context, index) {
-              final event = detail.events[index];
-              return AcornListRow(
-                icon: _eventIcon(event),
-                title: runEventLabel(event),
-                subtitle:
-                    '${event.type} · seq ${event.seq} · ${formatTimestamp(event.ts)}${_eventDetailSuffix(event)}',
-                tone: _eventTone(event),
-              );
-            },
           ),
-        const SliverToBoxAdapter(child: SectionHeader(title: 'Artifacts')),
-        if (detail.artifacts.isEmpty)
-          const SliverToBoxAdapter(
-            child: _EmptySectionRow(
-              icon: Icons.inventory_2_outlined,
-              title: 'No artifacts',
-              subtitle: 'This run did not publish artifact records.',
-            ),
-          )
-        else
+        ),
+        if (detail.artifacts.isNotEmpty) ...[
+          const SliverToBoxAdapter(child: SectionHeader(title: 'Artifacts')),
           SliverList.builder(
             itemCount: detail.artifacts.length,
             itemBuilder: (context, index) {
@@ -197,18 +180,11 @@ class _RunDetailBody extends StatelessWidget {
               );
             },
           ),
-        const SliverToBoxAdapter(
-          child: SectionHeader(title: 'Terminal sessions'),
-        ),
-        if (detail.terminalSessions.isEmpty)
+        ],
+        if (detail.terminalSessions.isNotEmpty) ...[
           const SliverToBoxAdapter(
-            child: _EmptySectionRow(
-              icon: Icons.terminal_outlined,
-              title: 'No terminal sessions',
-              subtitle: 'No terminal process records are attached to this run.',
-            ),
-          )
-        else
+            child: SectionHeader(title: 'Terminal sessions'),
+          ),
           SliverList.builder(
             itemCount: detail.terminalSessions.length,
             itemBuilder: (context, index) {
@@ -222,30 +198,59 @@ class _RunDetailBody extends StatelessWidget {
               );
             },
           ),
+        ],
         const SliverToBoxAdapter(child: SizedBox(height: 18)),
       ],
     );
   }
 }
 
-class _EmptySectionRow extends StatelessWidget {
-  const _EmptySectionRow({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-  });
+class _RunDiagnosticsScreen extends StatelessWidget {
+  const _RunDiagnosticsScreen({required this.detail});
 
-  final IconData icon;
-  final String title;
-  final String subtitle;
+  final RunDetail detail;
 
   @override
   Widget build(BuildContext context) {
-    return AcornListRow(
-      icon: icon,
-      title: title,
-      subtitle: subtitle,
-      tone: AcornStatusTone.neutral,
+    final important = _importantEvents(detail.events);
+    final counts = _eventTypeCounts(detail.events);
+    return Scaffold(
+      appBar: AppBar(title: Text('Diagnostics ${shortId(detail.run.id)}')),
+      body: ListView(
+        children: [
+          AcornPageIntro(
+            icon: Icons.bug_report_outlined,
+            title: '${detail.events.length} backend events',
+            body: 'Diagnostics are separated from the product flow.',
+            tone: AcornStatusTone.neutral,
+          ),
+          const SectionHeader(title: 'Issues'),
+          if (important.isEmpty)
+            const AcornEmptyState(
+              icon: Icons.check_circle_outline,
+              title: 'No issues recorded',
+              body: 'This run did not publish failed or interrupted events.',
+            )
+          else
+            for (final event in important)
+              AcornListRow(
+                icon: _eventIcon(event),
+                title: runEventLabel(event),
+                subtitle:
+                    '${event.type} · seq ${event.seq} · ${formatTimestamp(event.ts)}${_eventDetailSuffix(event)}',
+                tone: _eventTone(event),
+              ),
+          const SectionHeader(title: 'Event types'),
+          for (final entry in counts.entries)
+            AcornListRow(
+              icon: Icons.tag_outlined,
+              title: entry.key,
+              subtitle: '${entry.value} event${entry.value == 1 ? '' : 's'}',
+              tone: AcornStatusTone.neutral,
+            ),
+          const SizedBox(height: 18),
+        ],
+      ),
     );
   }
 }
@@ -322,6 +327,36 @@ IconData _eventIcon(RunEvent event) {
     return Icons.chat_bubble_outline;
   }
   return _statusIcon(event.type.replaceFirst('run.', ''));
+}
+
+List<RunEvent> _importantEvents(List<RunEvent> events) {
+  return events
+      .where((event) {
+        if (event.type == 'run.failed' || event.type == 'run.interrupted') {
+          return true;
+        }
+        if (event.type.endsWith('.failed')) {
+          return true;
+        }
+        return false;
+      })
+      .toList(growable: false);
+}
+
+Map<String, int> _eventTypeCounts(List<RunEvent> events) {
+  final counts = <String, int>{};
+  for (final event in events) {
+    counts.update(event.type, (count) => count + 1, ifAbsent: () => 1);
+  }
+  final entries = counts.entries.toList()
+    ..sort((left, right) {
+      final countCompare = right.value.compareTo(left.value);
+      if (countCompare != 0) {
+        return countCompare;
+      }
+      return left.key.compareTo(right.key);
+    });
+  return Map<String, int>.fromEntries(entries);
 }
 
 String _terminalExit(RunTerminalSession session) {

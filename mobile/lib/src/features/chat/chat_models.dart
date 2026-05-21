@@ -220,14 +220,12 @@ ChatRunStatus statusFromTerminalEvent(RunEvent event) {
 }
 
 ChatItem? activityFromEvent(RunEvent event) {
-  if (event.type == 'assistant.delta') {
+  if (event.type == 'assistant.delta' ||
+      event.type == 'context.pressure' ||
+      event.type == 'context.compressed') {
     return null;
   }
-  if (event.type == 'context.pressure') {
-    if (!_shouldShowContextPressure(event)) {
-      return null;
-    }
-  } else if (!_shouldShowActivityInChat(event.type)) {
+  if (!_shouldShowActivityInChat(event.type)) {
     return null;
   }
   final label = _activityLabel(event);
@@ -263,12 +261,6 @@ bool _shouldShowActivityInChat(String eventType) {
     'subagent.failed' => true,
     _ => false,
   };
-}
-
-bool _shouldShowContextPressure(RunEvent event) {
-  final pressure = _record(event.data['context_pressure']);
-  final state = pressure?['state'];
-  return state == 'warning' || state == 'auto_compact' || state == 'blocking';
 }
 
 String _activityLabel(RunEvent event) {

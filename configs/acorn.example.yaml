@@ -24,7 +24,7 @@ context:
   summary_max_tokens: 2048
 
 web:
-  listen_addr: 127.0.0.1:8080
+  listen_addr: 0.0.0.0:8080
   # Optional CORS origins for trusted browser tooling when deploying behind a
   # reverse proxy. Native mobile clients do not use browser CORS, and the
   # React/Vite frontend has been removed.

@@ -11,6 +11,7 @@ import '../../ui/widgets/acorn_surfaces.dart';
 import '../../ui/widgets/acorn_formatters.dart';
 import '../../ui/widgets/empty_state.dart';
 import '../../ui/widgets/message_widgets.dart';
+import '../threads/thread_titles.dart';
 import 'assistant_markdown.dart';
 import 'chat_controller.dart';
 import 'chat_models.dart';
@@ -74,7 +75,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           title: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(thread?.title ?? 'Acorn'),
+              Text(threadDisplayTitle(thread)),
               if (thread != null)
                 Text(
                   shortId(thread.id),
@@ -97,7 +98,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               icon: const Icon(Icons.add_comment_outlined),
               onPressed: threadsLoading || chat.sending
                   ? null
-                  : () => _createThreadAndLoad(threadsController, chat),
+                  : () => _startDraftThread(threadsController, chat),
             ),
           ],
         ),
@@ -130,11 +131,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (items.isEmpty) {
       return AcornEmptyState(
         icon: Icons.chat_bubble_outline,
-        title: 'Start with a real backend run',
+        title: 'Start a thread',
         body:
-            'Messages are stored in Acorn. Assistant output streams from persisted RunEvents.',
+            'Send the first message; Acorn will save the conversation on this server.',
         action: FilledButton.icon(
-          onPressed: () => _createThreadAndLoad(threadsController, controller),
+          onPressed: () => _startDraftThread(threadsController, controller),
           icon: const Icon(Icons.add),
           label: const Text('New thread'),
         ),
@@ -175,11 +176,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     await chatController.loadActiveThread(force: true);
   }
 
-  Future<void> _createThreadAndLoad(
+  Future<void> _startDraftThread(
     ThreadsController threadsController,
     ChatController chatController,
   ) async {
-    await threadsController.createThreadAndSelect();
+    threadsController.startDraftThread();
     await chatController.loadActiveThread(force: true);
   }
 

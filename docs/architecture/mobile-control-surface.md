@@ -57,7 +57,6 @@ mobile/lib/src/api/
 mobile/lib/src/features/
   pairing/
   shell/
-  home/
   inbox/
   chat/
   threads/
@@ -72,7 +71,7 @@ mobile/lib/src/ui/
 
 `ConnectionController` owns connection lifecycle, the active API/RunEvent clients, pairing, and disconnect. `ShellController` owns tab selection. Feature controllers own feature state: `InboxController` owns `/v1/inbox`, `ThreadsController` owns thread list/active thread, `ApprovalsController` owns pending-action detail/decision commands, `ChatController` owns chat message loading, send/run start, foreground RunEvent streaming projection, and chat-local errors, and `RunDetailController` owns per-run detail loading/cache/error state. `mobile/lib/src/ui/` owns reusable theme and widgets for status pills, empty states, section headers, list rows, and chat rendering. Feature files own backend-backed screens only.
 
-The current state split keeps streaming assistant deltas inside `ChatController`; Home, Threads, Approvals, Settings, and shell navigation do not rebuild for every streamed token. Inbox refreshes notify only inbox consumers, thread list mutations notify only thread consumers, pending-action decisions notify the approval sheet plus the inbox refresh they trigger, and run-detail refreshes notify only consumers of the affected `runId`.
+The current state split keeps streaming assistant deltas inside `ChatController`; Threads, Approvals, Settings, and shell navigation do not rebuild for every streamed token. Inbox refreshes notify only inbox consumers, thread list mutations notify only thread consumers, pending-action decisions notify the approval sheet plus the inbox refresh they trigger, and run-detail refreshes notify only consumers of the affected `runId`.
 
 ## Material 3 UI System
 
@@ -117,18 +116,15 @@ The QR payload contains `server_url`, `pairing_code`, and `expires_at`. The mobi
 Current mobile surfaces:
 
 - Connect: scan the Acorn pairing QR or enter server URL / pairing code manually, pair a device, and persist the connection profile.
-- Home: primary post-pairing attention surface over `/v1/inbox`, ordered by pending approvals, active runs, recent terminal runs, and system readiness.
 - Chat: thread detail surface for backend message send, run start, live assistant streaming, backend-provided reasoning display, assistant Markdown rendering, and exceptional blocking activity rows.
 - Threads: list/create/delete backend threads and open them in Chat as a pushed detail route.
-- Run Inspector: run detail surface over `GET /v1/runs/{run_id}/detail`, projecting run summary, persisted RunEvents, artifacts, and terminal sessions.
+- Run detail: secondary detail surface over `GET /v1/runs/{run_id}/detail`, projecting summary and user-meaningful artifacts/terminal sessions. Raw event diagnostics are separated behind an explicit diagnostics route.
 - Approvals: list pending backend actions from the inbox aggregate and open the existing approval detail flow.
 - Run stream: read `GET /v1/runs/{run_id}/events?after_seq=0&follow=true` and project persisted RunEvent SSE into the active assistant bubble.
 - Pending approval: read `GET /v1/pending-actions/{action_id}` and decide through `POST /v1/pending-actions/{action_id}:decide`.
 - Settings: display connected server, device ID, backend model projection, workspace projection, and disconnect.
 
-The connected shell uses four bottom destinations: Home, Threads, Approvals, and Settings. Chat is not a global tab; it is opened from a selected/new thread. Run Inspector is opened from Home run rows and other run-linked surfaces. Each destination reloads backend truth through its feature controller; the UI does not infer run state, approval state, thread state, or readiness from local screen state.
-
-Home run rows render the backend-owned `RunSummary` projection from `/v1/inbox`: `thread_title`, `preview`, `last_event_label`, `attention_level`, and `duration_ms` are produced by `internal/app.InboxService`, declared in `docs/openapi.yaml`, and consumed through the generated Dart client. The mobile app does not generate thread titles, summarize runs, or classify run attention from local messages.
+The connected shell uses three bottom destinations: Threads, Approvals, and Settings. Chat is not a global tab; it is opened from a selected/new thread. Each destination reloads backend truth through its feature controller; the UI does not infer run state, approval state, thread state, or readiness from local screen state.
 
 ## Live RunEvent Streaming
 
@@ -145,7 +141,7 @@ The mobile streaming projection is:
 - `assistant.delta` appends `data.assistant_delta.delta` to the live assistant bubble and appends `data.assistant_delta.reasoning` to the same assistant item's separate reasoning field.
 - `agent.message` and `run.completed` replace/finalize assistant text when `data.message.content` exists and replace reasoning when `data.message.reasoning` exists.
 - `run.failed` and `run.interrupted` finalize the assistant bubble with explicit status.
-- Routine tool, memory, skill, procedure, plan, context compression, and subagent events stay out of the chat transcript. Run failures, interruptions, input requests, decision blockers, and non-normal context pressure may render as compact activity rows because they affect the next owner action. Full runtime event history belongs in Run Inspector.
+- Routine tool, memory, skill, procedure, plan, context compression, and subagent events stay out of the chat transcript. Run failures, interruptions, input requests, decision blockers, and non-normal context pressure may render as compact activity rows because they affect the next owner action. Raw runtime event history is diagnostic data, not a default mobile product surface.
 - Malformed JSON, SSE id/type mismatch, unsupported event type, or wrong run id throws a visible client error.
 - Assistant message text renders GitHub-flavored Markdown through `flutter_markdown_plus`; code blocks expose a copy action, long assistant messages use a bounded internal Markdown viewport, `http` and `https` links open through `url_launcher`, and user messages remain plain text.
 - Backend-provided reasoning renders only in a collapsed Material Thinking section on assistant messages. The client does not infer reasoning from prose, token counts, or local state.
