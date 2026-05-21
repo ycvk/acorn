@@ -148,6 +148,20 @@ func testContainerConfig(t *testing.T) *config.Config {
 			StorageDir: filepath.Join(t.TempDir(), ".acorn"),
 		},
 		Web: config.WebConfig{ListenAddr: "127.0.0.1:8080"},
+		WebAccess: config.WebAccessConfig{
+			UserAgent:        "Acorn test",
+			TimeoutSeconds:   20,
+			MaxResponseBytes: 10 * 1024 * 1024,
+			Search: config.WebSearchConfig{
+				Provider:       "tavily",
+				TimeoutSeconds: 10,
+				MaxResults:     10,
+			},
+		},
+		Browser: config.BrowserConfig{
+			Headless:              true,
+			DefaultTimeoutSeconds: 20,
+		},
 		Agent: config.AgentConfig{
 			Name:          "coordinator",
 			Description:   "test",

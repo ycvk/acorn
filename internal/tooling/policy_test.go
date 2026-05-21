@@ -40,8 +40,8 @@ func TestParallelPolicyStringParsing(t *testing.T) {
 func TestConfiguredLocalSpecsCarryCanonicalPolicies(t *testing.T) {
 	cfg := defaultToolingTestConfig()
 	specs := ConfiguredLocalSpecs(cfg)
-	if len(specs) != 24 {
-		t.Fatalf("ConfiguredLocalSpecs len = %d, want 24", len(specs))
+	if len(specs) != 27 {
+		t.Fatalf("ConfiguredLocalSpecs len = %d, want 27", len(specs))
 	}
 	createFile, ok := ConfiguredLocalSpec(cfg, "create_file")
 	if !ok {
@@ -138,6 +138,42 @@ func TestConfiguredLocalSpecsCarryCanonicalPolicies(t *testing.T) {
 	if askOperator.PlanPolicy != PlanPolicyNone {
 		t.Fatalf("ask_operator plan = %q, want %q", askOperator.PlanPolicy, PlanPolicyNone)
 	}
+	webFetch, ok := ConfiguredLocalSpec(cfg, "web_fetch")
+	if !ok {
+		t.Fatal("web_fetch spec missing")
+	}
+	if webFetch.ResourceScope != ResourceScopeWeb || webFetch.Loading.Mode != ToolLoadingModeDeferred || webFetch.Loading.Reason != "web_access" {
+		t.Fatalf("web_fetch contract = scope:%q loading:%+v", webFetch.ResourceScope, webFetch.Loading)
+	}
+	if webFetch.Execution.ParallelPolicy != ParallelPolicyReadOnly {
+		t.Fatalf("web_fetch parallel = %q, want %q", webFetch.Execution.ParallelPolicy, ParallelPolicyReadOnly)
+	}
+	if len(webFetch.Execution.SideEffects) != 2 || webFetch.Execution.SideEffects[0] != ToolSideEffectWebRead || webFetch.Execution.SideEffects[1] != ToolSideEffectArtifactWrite {
+		t.Fatalf("web_fetch side effects = %+v", webFetch.Execution.SideEffects)
+	}
+	webSearch, ok := ConfiguredLocalSpec(cfg, "web_search")
+	if !ok {
+		t.Fatal("web_search spec missing")
+	}
+	if webSearch.ResourceScope != ResourceScopeWeb || webSearch.Loading.Mode != ToolLoadingModeDeferred || webSearch.Loading.Reason != "web_access" {
+		t.Fatalf("web_search contract = scope:%q loading:%+v", webSearch.ResourceScope, webSearch.Loading)
+	}
+	if webSearch.Execution.ParallelPolicy != ParallelPolicyReadOnly {
+		t.Fatalf("web_search parallel = %q, want %q", webSearch.Execution.ParallelPolicy, ParallelPolicyReadOnly)
+	}
+	browser, ok := ConfiguredLocalSpec(cfg, "browser")
+	if !ok {
+		t.Fatal("browser spec missing")
+	}
+	if browser.ResourceScope != ResourceScopeBrowser || browser.Loading.Mode != ToolLoadingModeDeferred || browser.Loading.Reason != "web_access" {
+		t.Fatalf("browser contract = scope:%q loading:%+v", browser.ResourceScope, browser.Loading)
+	}
+	if browser.Execution.ParallelPolicy != ParallelPolicyNeverParallel {
+		t.Fatalf("browser parallel = %q, want %q", browser.Execution.ParallelPolicy, ParallelPolicyNeverParallel)
+	}
+	if len(browser.Execution.SideEffects) != 3 || browser.Execution.SideEffects[0] != ToolSideEffectBrowserRead || browser.Execution.SideEffects[1] != ToolSideEffectBrowserInteract || browser.Execution.SideEffects[2] != ToolSideEffectArtifactWrite {
+		t.Fatalf("browser side effects = %+v", browser.Execution.SideEffects)
+	}
 }
 
 func TestToolContractAcceptsNativeDeveloperToolScopes(t *testing.T) {
@@ -149,6 +185,8 @@ func TestToolContractAcceptsNativeDeveloperToolScopes(t *testing.T) {
 		{"process", ResourceScopeProcess, ToolSideEffectProcessStart},
 		{"artifact", ResourceScopeArtifact, ToolSideEffectArtifactWrite},
 		{"operator", ResourceScopeOperator, ToolSideEffectOperatorInteraction},
+		{"web", ResourceScopeWeb, ToolSideEffectWebRead},
+		{"browser", ResourceScopeBrowser, ToolSideEffectBrowserInteract},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

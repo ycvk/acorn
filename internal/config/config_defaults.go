@@ -30,6 +30,23 @@ func defaultConfig() *Config {
 			RunTimeoutSeconds: 900,
 		},
 		Web: WebConfig{ListenAddr: "127.0.0.1:8080"},
+		WebAccess: WebAccessConfig{
+			UserAgent:            "Acorn/0.x (+https://github.com/ycvk/acorn)",
+			TimeoutSeconds:       20,
+			MaxResponseBytes:     10 * 1024 * 1024,
+			AllowPrivateNetworks: false,
+			Search: WebSearchConfig{
+				Provider:       "tavily",
+				APIKey:         "${TAVILY_API_KEY}",
+				TimeoutSeconds: 10,
+				MaxResults:     10,
+			},
+		},
+		Browser: BrowserConfig{
+			ExecutablePath:        "",
+			Headless:              true,
+			DefaultTimeoutSeconds: 20,
+		},
 		Agent: AgentConfig{
 			Name:          "coordinator",
 			Description:   "A local operator agent that can inspect files and execute commands.",

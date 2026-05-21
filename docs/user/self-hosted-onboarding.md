@@ -195,7 +195,52 @@ Choose one explicit remote boundary:
 
 Do not expose `/v1` without device auth. Acorn does not provide a local/dev auth bypass, and missing, malformed, unknown, or revoked bearer tokens fail explicitly.
 
-## 8. Backup
+## 8. Optional Web Access
+
+Acorn can use native runtime tools for public web research:
+
+- `web_search` uses Tavily for search discovery.
+- `web_fetch` fetches a specific public HTTP(S) URL and stores raw/Markdown artifacts.
+- `browser` drives a backend-owned Chromium session for pages that need JavaScript, interaction, screenshots, console, or network inspection.
+
+Release packages do not bundle Chrome/Chromium. To enable browser actions on a Debian/Ubuntu VPS, install Chromium yourself:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y chromium
+```
+
+Then configure the executable path and optional Tavily key in `~/.acorn/acorn.yaml`:
+
+```yaml
+web_access:
+  search:
+    provider: tavily
+    api_key: ${TAVILY_API_KEY}
+
+browser:
+  executable_path: /usr/bin/chromium
+  headless: true
+  default_timeout_seconds: 20
+```
+
+Add the search key to `~/.acorn/acorn.env` if you want search:
+
+```dotenv
+TAVILY_API_KEY=your-tavily-key
+```
+
+Restart after editing config or env:
+
+```bash
+sudo systemctl restart acorn
+```
+
+`browser.executable_path` and `TAVILY_API_KEY` are optional at backend startup. Calling `browser` without an executable path or `web_search` without a key fails explicitly as a tool result. `web_fetch` does not require Tavily.
+
+Outbound web access is limited to HTTP(S) public network targets by default. Localhost, link-local, cloud metadata addresses, private IPs, `file:`, raw JavaScript, raw CDP, cookie tools, persistent browser profiles, and bundled Chromium are not part of this release path.
+
+## 9. Backup
 
 Stop the backend before filesystem-level backups:
 
@@ -206,9 +251,10 @@ sudo tar -czf /var/backups/acorn-workspace.tgz -C /srv/acorn/workspace .
 sudo systemctl start acorn
 ```
 
-## 9. Current Limits
+## 10. Current Limits
 
 - Host commands are host dependencies. If the model tries to run a command that is not installed on the VPS, the command fails explicitly when used.
+- Web search requires a configured Tavily API key. Browser actions require an operator-installed Chrome/Chromium executable.
 - The backend records notification wake-up facts and push delivery status, but concrete APNs/FCM network adapters are not configured by this binary service path.
 - The Flutter app does not yet include platform notification plugins.
 - Mobile is a remote control surface. It does not execute runs locally, own memory truth, or merge offline runtime state.

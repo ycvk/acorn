@@ -82,6 +82,12 @@ func (b *runBuilder) Build(ctx context.Context, req RunnerBuildRequest) (*Active
 		return nil, err
 	}
 	capabilities := capabilityAssembly.capabilities
+	defer func() {
+		if keepRunContext || capabilities == nil {
+			return
+		}
+		_ = capabilities.Close()
+	}()
 
 	if mode == orchestration.OrchestrationModeDirectResponse {
 		activeRunner, err := b.newDirectResponseRunner(ctx, req, chatModel, capabilityAssembly)
@@ -123,6 +129,7 @@ func (b *runBuilder) Build(ctx context.Context, req RunnerBuildRequest) (*Active
 		runID:            req.RunID,
 		compressionState: agentAssembly.CompressionState,
 		toolCatalog:      capabilities.catalog,
+		closeRunTools:    capabilities.Close,
 	}
 	keepRunContext = true
 	return activeRunner, nil
@@ -155,6 +162,7 @@ func (b *runBuilder) newDirectResponseRunner(ctx context.Context, req RunnerBuil
 		runID:            req.RunID,
 		compressionState: agentAssembly.CompressionState,
 		toolCatalog:      capabilities.catalog,
+		closeRunTools:    capabilities.Close,
 	}, nil
 }
 

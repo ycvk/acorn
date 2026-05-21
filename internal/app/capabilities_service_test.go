@@ -33,7 +33,7 @@ func TestCapabilitiesSnapshotContract(t *testing.T) {
 		if !strings.Contains(snapshot.RuntimeReadiness.Reason, "api_key is required") {
 			t.Fatalf("expected runtime readiness reason to mention missing api key, got %q", snapshot.RuntimeReadiness.Reason)
 		}
-		if got, want := len(snapshot.Tools), 24; got != want {
+		if got, want := len(snapshot.Tools), 27; got != want {
 			t.Fatalf("tool count = %d, want %d", got, want)
 		}
 		if !hasTool(snapshot.Tools, "artifact_write") || !hasTool(snapshot.Tools, "artifact_read") || !hasTool(snapshot.Tools, "artifact_list") {
@@ -44,6 +44,15 @@ func TestCapabilitiesSnapshotContract(t *testing.T) {
 		}
 		if !hasTool(snapshot.Tools, "ask_operator") {
 			t.Fatalf("operator question tool missing from snapshot: %+v", snapshot.Tools)
+		}
+		if !hasTool(snapshot.Tools, "web_fetch") {
+			t.Fatalf("web fetch tool missing from snapshot: %+v", snapshot.Tools)
+		}
+		if !hasTool(snapshot.Tools, "web_search") {
+			t.Fatalf("web search tool missing from snapshot: %+v", snapshot.Tools)
+		}
+		if !hasTool(snapshot.Tools, "browser") {
+			t.Fatalf("browser tool missing from snapshot: %+v", snapshot.Tools)
 		}
 		if !hasTool(snapshot.Tools, "multi_edit") || !hasTool(snapshot.Tools, "run_verification") || !hasTool(snapshot.Tools, "git_summary") {
 			t.Fatalf("workflow tools missing from snapshot: %+v", snapshot.Tools)

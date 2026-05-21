@@ -40,6 +40,7 @@ func Load(path string) (*Config, error) {
 	if strings.TrimSpace(cfg.Memory.Semantic.Bleve.Path) != "" {
 		cfg.Memory.Semantic.Bleve.Path = resolveDir(cfg.ConfigDir, cfg.Memory.Semantic.Bleve.Path)
 	}
+	cfg.Browser.ExecutablePath = resolveExecutable(cfg.ConfigDir, cfg.Browser.ExecutablePath)
 	cfg.Tools.Workspace.RootDir = resolveDir(cfg.ConfigDir, cfg.Tools.Workspace.RootDir)
 	cfg.Tools.Mutation.RootDir = resolveDir(cfg.ConfigDir, cfg.Tools.Mutation.RootDir)
 	cfg.Tools.RunCommand.WorkDir = resolveDir(cfg.ConfigDir, cfg.Tools.RunCommand.WorkDir)
@@ -63,6 +64,7 @@ func expandConfigEnv(cfg *Config) {
 		cfg.Providers[i].APIKey = os.ExpandEnv(cfg.Providers[i].APIKey)
 	}
 	cfg.Memory.Semantic.Embedding.APIKey = os.ExpandEnv(cfg.Memory.Semantic.Embedding.APIKey)
+	cfg.WebAccess.Search.APIKey = os.ExpandEnv(cfg.WebAccess.Search.APIKey)
 }
 
 func resolveDir(configDir, value string) string {

@@ -8,8 +8,10 @@ import (
 	einotool "github.com/cloudwego/eino/components/tool"
 
 	"github.com/ycvk/acorn/internal/artifacts"
+	"github.com/ycvk/acorn/internal/browser"
 	"github.com/ycvk/acorn/internal/orchestration"
 	"github.com/ycvk/acorn/internal/terminalsession"
+	"github.com/ycvk/acorn/internal/webaccess"
 	"github.com/ycvk/acorn/internal/workspace"
 )
 
@@ -268,6 +270,9 @@ type CatalogConfig struct {
 	TerminalContext   TerminalSessionContext
 	OperatorStore     OperatorQuestionStore
 	OperatorContext   OperatorQuestionContext
+	WebFetchService   *webaccess.FetchService
+	WebSearchService  *webaccess.SearchService
+	BrowserService    *browser.Service
 }
 
 type Catalog struct {
@@ -377,6 +382,39 @@ func BuildCatalog(cfg CatalogConfig, extraTools []einotool.BaseTool, childExec o
 			return nil, err
 		}
 		items = append(items, operatorTool)
+	}
+
+	if cfg.WebFetchService != nil {
+		if cfg.ArtifactService == nil {
+			return nil, errors.New("artifact service is required when web_fetch is enabled")
+		}
+		webFetchTool, err := buildWebFetchTool(cfg.WebFetchService, cfg.ArtifactService, cfg.ArtifactContext)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, webFetchTool)
+	}
+
+	if cfg.WebSearchService != nil {
+		if cfg.ArtifactService == nil {
+			return nil, errors.New("artifact service is required when web_search is enabled")
+		}
+		webSearchTool, err := buildWebSearchTool(cfg.WebSearchService, cfg.ArtifactService, cfg.ArtifactContext)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, webSearchTool)
+	}
+
+	if cfg.BrowserService != nil {
+		if cfg.ArtifactService == nil {
+			return nil, errors.New("artifact service is required when browser is enabled")
+		}
+		browserTool, err := buildBrowserTool(cfg.BrowserService, cfg.ArtifactService, cfg.ArtifactContext)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, browserTool)
 	}
 
 	if childExec != nil {

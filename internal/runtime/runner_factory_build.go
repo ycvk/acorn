@@ -21,6 +21,14 @@ import (
 type runCapabilities struct {
 	catalog      *tooling.Catalog
 	stableSkills []skills.Spec
+	close        func() error
+}
+
+func (c *runCapabilities) Close() error {
+	if c == nil || c.close == nil {
+		return nil
+	}
+	return c.close()
 }
 
 type runSelection struct {
@@ -86,6 +94,7 @@ func (f *RunnerFactory) buildRunCapabilities(ctx context.Context, sessionID stri
 	return &runCapabilities{
 		catalog:      catalog,
 		stableSkills: stableSkills,
+		close:        toolset.Close,
 	}, nil
 }
 

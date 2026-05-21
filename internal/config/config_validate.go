@@ -19,6 +19,12 @@ func (c *Config) ValidateBase() error {
 	if strings.TrimSpace(c.Web.ListenAddr) == "" {
 		return errors.New("web.listen_addr is required")
 	}
+	if err := c.validateWebAccessBase(); err != nil {
+		return err
+	}
+	if err := c.validateBrowserBase(); err != nil {
+		return err
+	}
 	seenProviderNames := make(map[string]struct{}, len(c.MCP.Providers))
 	for _, provider := range c.MCP.Providers {
 		if !provider.Enabled {
@@ -247,6 +253,44 @@ func (c *Config) validateMemorySemanticExecution() error {
 	}
 	if semantic.Embedding.BatchSize <= 0 {
 		return errors.New("memory.semantic.embedding.batch_size must be > 0")
+	}
+	return nil
+}
+
+func (c *Config) validateWebAccessBase() error {
+	if c == nil {
+		return nil
+	}
+	if strings.TrimSpace(c.WebAccess.UserAgent) == "" {
+		return errors.New("web_access.user_agent is required")
+	}
+	if c.WebAccess.TimeoutSeconds <= 0 {
+		return errors.New("web_access.timeout_seconds must be > 0")
+	}
+	if c.WebAccess.MaxResponseBytes <= 0 {
+		return errors.New("web_access.max_response_bytes must be > 0")
+	}
+	search := c.WebAccess.Search
+	switch strings.TrimSpace(search.Provider) {
+	case "tavily":
+	default:
+		return fmt.Errorf("web_access.search.provider must be tavily, got %q", search.Provider)
+	}
+	if search.TimeoutSeconds <= 0 {
+		return errors.New("web_access.search.timeout_seconds must be > 0")
+	}
+	if search.MaxResults <= 0 {
+		return errors.New("web_access.search.max_results must be > 0")
+	}
+	return nil
+}
+
+func (c *Config) validateBrowserBase() error {
+	if c == nil {
+		return nil
+	}
+	if c.Browser.DefaultTimeoutSeconds <= 0 {
+		return errors.New("browser.default_timeout_seconds must be > 0")
 	}
 	return nil
 }
