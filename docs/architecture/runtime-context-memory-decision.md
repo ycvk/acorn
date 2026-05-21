@@ -117,13 +117,13 @@ SQLite legacy memory tables/readers are removed, not parked behind a migration c
 
 `internal/skills` remains the skill loader and selector for executable native skills. Current source boundaries are explicit:
 
-- `./skills` is the read-only builtin seed pack distributed with Acorn.
+- `./skills` is the release seed pack source and the local-development builtin source.
+- release installs bundled seed skills under the installer-owned `~/.acorn/skills`.
 - `{runtime.storage_dir}/skills/generated` stores generated skills created by the runtime.
 - `./.acorn/skills/workspace` stores workspace-local writable executable skills.
-- `~/.acorn/skills` stores user-local executable skills.
-- `skills.extra_dirs` are external read-only-or-operator-managed sources.
+- `~/.acorn/skills` also stores user-local executable skills.
 
-Builtin skills include `skill.creator` and `skill.procedure.curator` plus inspection/debug/patch defaults. `skill.creator` writes Acorn-native `SKILL.md` and supporting files through the `skill_create` runtime tool. `skill_assess` applies evidence-backed lifecycle updates to mutable skill sources. Non-builtin `lifecycle_status: verified` requires `evidence_refs`.
+Seed skills include `skill.creator` and `skill.procedure.curator` plus inspection/debug/patch defaults. `skill.creator` writes Acorn-native `SKILL.md` and supporting files through the `skill_create` runtime tool. `skill_assess` applies evidence-backed lifecycle updates to mutable skill sources. Non-builtin `lifecycle_status: verified` requires `evidence_refs`.
 
 Executable skill health is a deterministic `internal/skills` contract. `BuildHealthReport` consumes the current `ScanResult`, eligibility context, and optional routing fixtures; it reports loader problems, eligibility failures, unreachable skills, exact duplicate trigger/task-pattern failures, and expected-skill routing fixture misses. Health checks do not mutate skill files, do not promote lifecycle status, and do not restore `skill_eval` / `skill_curate`; `skill_assess` remains the active lifecycle action.
 
@@ -171,7 +171,7 @@ Old `memory.blocks`, `memory.facts`, `memory.end_of_run`, `memory.background_rev
 - Procedure durable truth is file-backed `memorymodule/skills/` with `ProcedureRecord` schema; there is no SQLite procedure table or compatibility reader for old procedure origins.
 - Agent-written procedure drafts must be `origin: agent_draft`, `status: unverified`, and include `source_run`; action-verified procedures must include `source_run` plus `evidence_refs`.
 - Procedure activation truth is observable through `procedure.activation` RunEvents; matched/selected/rejected come from memorymodule, injected comes from ContextPlane attachment, and selected/used executable-skill activations come from Decision/skill selection.
-- Native skill lifecycle truth is observable through `skill.lifecycle` RunEvents and file-backed skill frontmatter. Generated/workspace/user skills can be curated by `skill_assess`; builtin seed skills cannot be runtime-mutated.
+- Native skill lifecycle truth is observable through `skill.lifecycle` RunEvents and file-backed skill frontmatter. Generated/workspace/user skills can be curated by `skill_assess`; release seed updates are delivered by the installer.
 - Memory insights route retrieval back to canonical facts, skills, and history; they are not durable facts, executable skills, or history records themselves.
 - ContextPlane does not know old memory store internals.
 - Context compact/resume work must use persisted context boundaries as runtime-history facts, not durable memory records and not `events.payload_json` reconstruction.

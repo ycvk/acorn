@@ -573,8 +573,8 @@ func TestBrowserToolFailsLoudlyWhenExecutableIsMissing(t *testing.T) {
 	}
 	tool := mustToolByName(t, catalog.Tools, "browser")
 	_, err = tool.InvokableRun(context.Background(), `{"action":"open","url":"http://93.184.216.34/"}`)
-	if err == nil || !strings.Contains(err.Error(), "browser executable_path is not configured") {
-		t.Fatalf("browser error = %v, want missing executable_path", err)
+	if err == nil || !strings.Contains(err.Error(), "browser.executable_path is not configured") || !strings.Contains(err.Error(), "install Chrome/Chromium") {
+		t.Fatalf("browser error = %v, want actionable missing executable_path", err)
 	}
 }
 

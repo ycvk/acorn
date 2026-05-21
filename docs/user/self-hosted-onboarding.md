@@ -28,6 +28,7 @@ The installer:
 - installs `/opt/acorn/acorn` plus `/opt/acorn/lib/linux_${ARCH}/libfaiss*.so*`;
 - installs `/usr/local/bin/acorn` as a global wrapper command;
 - writes config under the installing user's `~/.acorn`;
+- installs bundled native skills under `~/.acorn/skills`;
 - installs `/etc/systemd/system/acorn.service`.
 
 Acorn's binary default config path is `~/.acorn/acorn.yaml`. The installer keeps that rule: it resolves the user that runs the script and sets the `systemd` service `HOME` to that user's home. On a typical root VPS install, the service uses:
@@ -101,6 +102,7 @@ The installed service uses:
 - the installing user's home as the service `HOME`.
 - `~/.acorn/acorn.yaml` for config.
 - `~/.acorn/acorn.env` for provider secrets.
+- `~/.acorn/skills` for bundled native skills and user-local skills.
 - `~/.acorn` for runtime storage, SQLite state, generated skills, and the Bleve+FAISS index.
 - `/srv/acorn/workspace` for the operator workspace that tools may read and mutate.
 - `127.0.0.1:8080` for the HTTP listener.

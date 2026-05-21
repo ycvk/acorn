@@ -18,8 +18,23 @@ func TestOpenFailsWhenExecutableIsNotConfigured(t *testing.T) {
 		t.Fatalf("NewService: %v", err)
 	}
 	_, err = service.Open(context.Background(), "http://93.184.216.34/")
-	if err == nil || !strings.Contains(err.Error(), "browser executable_path is not configured") {
-		t.Fatalf("Open error = %v, want missing executable_path", err)
+	if err == nil || !strings.Contains(err.Error(), "browser.executable_path is not configured") || !strings.Contains(err.Error(), "install Chrome/Chromium") {
+		t.Fatalf("Open error = %v, want actionable missing executable_path", err)
+	}
+}
+
+func TestOpenFailsWhenExecutablePathIsNotAccessible(t *testing.T) {
+	service, err := NewService(Config{
+		ExecutablePath: "/not-a-real-acorn-browser",
+		Timeout:        time.Second,
+		Policy:         webaccess.URLPolicy{},
+	})
+	if err != nil {
+		t.Fatalf("NewService: %v", err)
+	}
+	_, err = service.Open(context.Background(), "http://93.184.216.34/")
+	if err == nil || !strings.Contains(err.Error(), "browser.executable_path") || !strings.Contains(err.Error(), "not accessible") || !strings.Contains(err.Error(), "install Chrome/Chromium") {
+		t.Fatalf("Open error = %v, want actionable inaccessible executable_path", err)
 	}
 }
 

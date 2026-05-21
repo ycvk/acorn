@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -23,6 +25,8 @@ import (
 const (
 	defaultElementLimit = 200
 )
+
+const browserExecutableSetupHint = "install Chrome/Chromium on the host and set browser.executable_path in acorn.yaml, for example /usr/bin/chromium"
 
 type Config struct {
 	ExecutablePath string
@@ -567,8 +571,9 @@ func (s *Service) ensureStarted(ctx context.Context) (context.Context, error) {
 	if s.browserCtx != nil {
 		return s.browserCtx, nil
 	}
-	if strings.TrimSpace(s.cfg.ExecutablePath) == "" {
-		return nil, errors.New("browser executable_path is not configured")
+	executablePath, err := verifyBrowserExecutable(s.cfg.ExecutablePath)
+	if err != nil {
+		return nil, err
 	}
 	profileDir, err := os.MkdirTemp("", "acorn-browser-*")
 	if err != nil {
@@ -576,7 +581,7 @@ func (s *Service) ensureStarted(ctx context.Context) (context.Context, error) {
 	}
 	options := append([]chromedp.ExecAllocatorOption{}, chromedp.DefaultExecAllocatorOptions[:]...)
 	options = append(options,
-		chromedp.ExecPath(s.cfg.ExecutablePath),
+		chromedp.ExecPath(executablePath),
 		chromedp.UserDataDir(profileDir),
 		chromedp.NoFirstRun,
 		chromedp.NoDefaultBrowserCheck,
@@ -595,6 +600,31 @@ func (s *Service) ensureStarted(ctx context.Context) (context.Context, error) {
 	s.browserCtx = browserCtx
 	s.profileDir = profileDir
 	return browserCtx, nil
+}
+
+func verifyBrowserExecutable(configuredPath string) (string, error) {
+	trimmed := strings.TrimSpace(configuredPath)
+	if trimmed == "" {
+		return "", fmt.Errorf("browser.executable_path is not configured; %s", browserExecutableSetupHint)
+	}
+	if filepath.IsAbs(trimmed) || strings.ContainsRune(trimmed, os.PathSeparator) {
+		info, err := os.Stat(trimmed)
+		if err != nil {
+			return "", fmt.Errorf("browser.executable_path %q is not accessible: %w; %s", trimmed, err, browserExecutableSetupHint)
+		}
+		if info.IsDir() {
+			return "", fmt.Errorf("browser.executable_path %q points to a directory; %s", trimmed, browserExecutableSetupHint)
+		}
+		if info.Mode().Perm()&0111 == 0 {
+			return "", fmt.Errorf("browser.executable_path %q is not executable; %s", trimmed, browserExecutableSetupHint)
+		}
+		return trimmed, nil
+	}
+	resolved, err := exec.LookPath(trimmed)
+	if err != nil {
+		return "", fmt.Errorf("browser.executable_path %q was not found in PATH: %w; %s", trimmed, err, browserExecutableSetupHint)
+	}
+	return resolved, nil
 }
 
 func (s *Service) actionContext(parent context.Context, browserCtx context.Context) (context.Context, context.CancelFunc) {

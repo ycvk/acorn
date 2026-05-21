@@ -97,6 +97,17 @@ LD_LIBRARY_PATH="$faiss_lib_dir${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
 
 cp -P "$faiss_lib_dir"/libfaiss*.so* "$package_dir/lib/$faiss_target/"
 
+if [ ! -d skills ]; then
+	echo "missing builtin skills directory: skills" >&2
+	exit 1
+fi
+skill_count=$(find skills -mindepth 2 -maxdepth 2 -name SKILL.md -type f | wc -l | tr -d ' ')
+if [ "$skill_count" = "0" ]; then
+	echo "builtin skills directory has no SKILL.md files" >&2
+	exit 1
+fi
+cp -R skills "$package_dir/skills"
+
 install -m 0644 configs/acorn.selfhosted.example.yaml "$package_dir/acorn.yaml.example"
 install -m 0644 deploy/systemd/acorn.service "$package_dir/acorn.service"
 install -m 0600 deploy/systemd/acorn.env.example "$package_dir/acorn.env.example"
@@ -120,6 +131,7 @@ systemd_unit=acorn.service
 installer=install-release.sh
 semantic_index_backend=bleve_faiss
 native_lib_dir=lib/$faiss_target
+skills_dir=skills
 EOF
 
 hash_file() {
