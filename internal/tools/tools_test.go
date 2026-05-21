@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
+	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -20,10 +23,12 @@ import (
 	toolutils "github.com/cloudwego/eino/components/tool/utils"
 
 	"github.com/ycvk/acorn/internal/artifacts"
+	"github.com/ycvk/acorn/internal/browser"
 	"github.com/ycvk/acorn/internal/events"
 	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
 	"github.com/ycvk/acorn/internal/terminalsession"
 	"github.com/ycvk/acorn/internal/tooling"
+	"github.com/ycvk/acorn/internal/webaccess"
 	workspacepkg "github.com/ycvk/acorn/internal/workspace"
 )
 
@@ -422,6 +427,154 @@ func TestArtifactToolsWriteReadAndList(t *testing.T) {
 	}
 	if list.RunID != "run_1" || len(list.Items) != 1 || list.Items[0].ArtifactID != written.ArtifactID {
 		t.Fatalf("unexpected artifact list output: %+v", list)
+	}
+}
+
+func TestWebFetchToolPersistsRawAndMarkdownArtifacts(t *testing.T) {
+	store := newToolArtifactStore()
+	artifactService, err := artifacts.NewService(filepath.Join(t.TempDir(), "artifacts"), store)
+	if err != nil {
+		t.Fatalf("artifacts.NewService: %v", err)
+	}
+	fetchService, err := webaccess.NewFetchService(webaccess.FetchConfig{
+		UserAgent:        "Acorn test",
+		Timeout:          time.Second,
+		MaxResponseBytes: 1024 * 1024,
+		Policy: webaccess.URLPolicy{Resolver: toolWebFetchResolver{
+			"example.com": {"93.184.216.34"},
+		}},
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Content-Type": []string{"text/html; charset=utf-8"}},
+				Body: io.NopCloser(strings.NewReader(`<!doctype html>
+<html><head><title>Fetched Page</title></head>
+<body><main><h1>Fetched Page</h1><p>Persist this page.</p></main></body></html>`)),
+				Request: req,
+			}, nil
+		})},
+	})
+	if err != nil {
+		t.Fatalf("webaccess.NewFetchService: %v", err)
+	}
+	catalog, err := BuildCatalog(CatalogConfig{
+		ArtifactService: artifactService,
+		ArtifactContext: fixedArtifactContext{runID: "run_web", sessionID: "session_web", callID: "call_web"},
+		WebFetchService: fetchService,
+	}, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("BuildCatalog: %v", err)
+	}
+	tool := mustToolByName(t, catalog.Tools, "web_fetch")
+	output, err := tool.InvokableRun(context.Background(), `{"url":"https://example.com/page","extract_mode":"full_page_markdown"}`)
+	if err != nil {
+		t.Fatalf("web_fetch: %v", err)
+	}
+	var decoded WebFetchOutput
+	if err := json.Unmarshal([]byte(output), &decoded); err != nil {
+		t.Fatalf("decode web_fetch output: %v", err)
+	}
+	if decoded.RawArtifactID == "" || decoded.MarkdownArtifactID == "" {
+		t.Fatalf("missing artifact ids: %+v", decoded)
+	}
+	if !strings.Contains(decoded.MarkdownPreview, "Persist this page") {
+		t.Fatalf("markdown preview = %q", decoded.MarkdownPreview)
+	}
+	if len(store.records) != 2 {
+		t.Fatalf("stored artifacts = %d, want 2", len(store.records))
+	}
+}
+
+func TestWebSearchToolPersistsRawProviderArtifact(t *testing.T) {
+	store := newToolArtifactStore()
+	artifactService, err := artifacts.NewService(filepath.Join(t.TempDir(), "artifacts"), store)
+	if err != nil {
+		t.Fatalf("artifacts.NewService: %v", err)
+	}
+	searchService, err := webaccess.NewSearchService(webaccess.SearchConfig{
+		APIKey:           "tvly-test",
+		Timeout:          time.Second,
+		MaxResults:       10,
+		MaxResponseBytes: 1024 * 1024,
+		Policy: webaccess.URLPolicy{Resolver: toolWebFetchResolver{
+			"example.com": {"93.184.216.34"},
+		}},
+		SearchURL: "https://tavily.test/search",
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+				Body: io.NopCloser(strings.NewReader(`{
+  "query": "acorn",
+  "response_time": 0.1,
+  "results": [
+    {"title":"Acorn Docs","url":"https://example.com/docs","content":"Official docs","score":0.9},
+    {"title":"Private","url":"http://10.0.0.1/admin","content":"Private","score":0.1}
+  ]
+}`)),
+				Request: req,
+			}, nil
+		})},
+	})
+	if err != nil {
+		t.Fatalf("webaccess.NewSearchService: %v", err)
+	}
+	catalog, err := BuildCatalog(CatalogConfig{
+		ArtifactService:  artifactService,
+		ArtifactContext:  fixedArtifactContext{runID: "run_search", sessionID: "session_search", callID: "call_search"},
+		WebSearchService: searchService,
+	}, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("BuildCatalog: %v", err)
+	}
+	tool := mustToolByName(t, catalog.Tools, "web_search")
+	output, err := tool.InvokableRun(context.Background(), `{"query":"acorn","max_results":5}`)
+	if err != nil {
+		t.Fatalf("web_search: %v", err)
+	}
+	var decoded WebSearchOutput
+	if err := json.Unmarshal([]byte(output), &decoded); err != nil {
+		t.Fatalf("decode web_search output: %v", err)
+	}
+	if decoded.RawArtifactID == "" {
+		t.Fatalf("missing raw artifact id: %+v", decoded)
+	}
+	if len(decoded.Results) != 1 || decoded.Results[0].URL != "https://example.com/docs" {
+		t.Fatalf("results = %+v", decoded.Results)
+	}
+	if len(decoded.FilteredResults) != 1 || decoded.FilteredResults[0].Reason != "private_network" {
+		t.Fatalf("filtered results = %+v", decoded.FilteredResults)
+	}
+	if len(store.records) != 1 {
+		t.Fatalf("stored artifacts = %d, want 1", len(store.records))
+	}
+}
+
+func TestBrowserToolFailsLoudlyWhenExecutableIsMissing(t *testing.T) {
+	store := newToolArtifactStore()
+	artifactService, err := artifacts.NewService(filepath.Join(t.TempDir(), "artifacts"), store)
+	if err != nil {
+		t.Fatalf("artifacts.NewService: %v", err)
+	}
+	browserService, err := browser.NewService(browser.Config{
+		Timeout: time.Second,
+		Policy:  webaccess.URLPolicy{},
+	})
+	if err != nil {
+		t.Fatalf("browser.NewService: %v", err)
+	}
+	catalog, err := BuildCatalog(CatalogConfig{
+		ArtifactService: artifactService,
+		ArtifactContext: fixedArtifactContext{runID: "run_browser", sessionID: "session_browser", callID: "call_browser"},
+		BrowserService:  browserService,
+	}, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("BuildCatalog: %v", err)
+	}
+	tool := mustToolByName(t, catalog.Tools, "browser")
+	_, err = tool.InvokableRun(context.Background(), `{"action":"open","url":"http://93.184.216.34/"}`)
+	if err == nil || !strings.Contains(err.Error(), "browser executable_path is not configured") {
+		t.Fatalf("browser error = %v, want missing executable_path", err)
 	}
 }
 
@@ -1099,4 +1252,24 @@ func (s *toolArtifactStore) ListArtifactsBySession(_ context.Context, sessionID 
 		}
 	}
 	return items, nil
+}
+
+type toolWebFetchResolver map[string][]string
+
+func (r toolWebFetchResolver) LookupIPAddr(_ context.Context, host string) ([]net.IPAddr, error) {
+	values, ok := r[host]
+	if !ok {
+		return nil, errors.New("not found")
+	}
+	out := make([]net.IPAddr, 0, len(values))
+	for _, value := range values {
+		out = append(out, net.IPAddr{IP: net.ParseIP(value)})
+	}
+	return out, nil
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (fn roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return fn(req)
 }

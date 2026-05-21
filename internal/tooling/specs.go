@@ -84,6 +84,8 @@ const (
 	ResourceScopeProcess          ResourceScope = "process"
 	ResourceScopeArtifact         ResourceScope = "artifact"
 	ResourceScopeOperator         ResourceScope = "operator"
+	ResourceScopeWeb              ResourceScope = "web"
+	ResourceScopeBrowser          ResourceScope = "browser"
 )
 
 type HealthState string
@@ -151,6 +153,9 @@ func ConfiguredLocalSpecs(cfg *config.Config) []ToolSpec {
 		configuredLocalSpec("terminal_session_list", true),
 		configuredLocalSpec("process_status", true),
 		configuredLocalSpec("ask_operator", true),
+		configuredLocalSpec("web_fetch", true),
+		configuredLocalSpec("web_search", true),
+		configuredLocalSpec("browser", true),
 		configuredLocalSpec("create_file", !cfg.Tools.Mutation.Disabled),
 		configuredLocalSpec("replace_span", !cfg.Tools.Mutation.Disabled),
 		configuredLocalSpec("apply_unified_patch", !cfg.Tools.Mutation.Disabled),
@@ -166,7 +171,7 @@ func ConfiguredLocalSpec(cfg *config.Config, name string) (ToolSpec, bool) {
 		return ToolSpec{}, false
 	}
 	switch strings.TrimSpace(name) {
-	case "read_file", "list_files", "search_text", "inspect_git_status", "inspect_git_diff", "git_summary", "artifact_write", "artifact_read", "artifact_list", "terminal_session_start", "terminal_session_write", "terminal_session_read", "terminal_session_signal", "terminal_session_close", "terminal_session_list", "process_status", "ask_operator":
+	case "read_file", "list_files", "search_text", "inspect_git_status", "inspect_git_diff", "git_summary", "artifact_write", "artifact_read", "artifact_list", "terminal_session_start", "terminal_session_write", "terminal_session_read", "terminal_session_signal", "terminal_session_close", "terminal_session_list", "process_status", "ask_operator", "web_fetch", "web_search", "browser":
 		return configuredLocalSpec(strings.TrimSpace(name), true), true
 	case "create_file", "replace_span":
 		return configuredLocalSpec(strings.TrimSpace(name), !cfg.Tools.Mutation.Disabled), true
@@ -266,6 +271,36 @@ func configuredLocalSpec(name string, enabled bool) ToolSpec {
 		spec.ResourceScope = ResourceScopeOperator
 		spec.Execution.ParallelPolicy = ParallelPolicyNeverParallel
 		spec.Execution.SideEffects = []ToolSideEffect{ToolSideEffectOperatorInteraction}
+		spec.PlanPolicy = PlanPolicyNone
+	case "web_fetch":
+		spec.Kind = ToolKindNative
+		spec.Category = ToolCategoryRead
+		spec.ResourceScope = ResourceScopeWeb
+		spec.Profiles = []ToolProfile{ToolProfileRun}
+		spec.Loading = DeferredLoadingPolicy("web_access")
+		spec.Execution.ParallelPolicy = ParallelPolicyReadOnly
+		spec.Execution.SideEffects = []ToolSideEffect{ToolSideEffectWebRead, ToolSideEffectArtifactWrite}
+		spec.Result = ToolResultPolicy{Mode: ToolResultModePreviewRef, MaxInlineBytes: 4000}
+		spec.PlanPolicy = PlanPolicyNone
+	case "web_search":
+		spec.Kind = ToolKindNative
+		spec.Category = ToolCategoryRead
+		spec.ResourceScope = ResourceScopeWeb
+		spec.Profiles = []ToolProfile{ToolProfileRun}
+		spec.Loading = DeferredLoadingPolicy("web_access")
+		spec.Execution.ParallelPolicy = ParallelPolicyReadOnly
+		spec.Execution.SideEffects = []ToolSideEffect{ToolSideEffectWebRead, ToolSideEffectArtifactWrite}
+		spec.Result = ToolResultPolicy{Mode: ToolResultModePreviewRef, MaxInlineBytes: 4000}
+		spec.PlanPolicy = PlanPolicyNone
+	case "browser":
+		spec.Kind = ToolKindNative
+		spec.Category = ToolCategoryIntegration
+		spec.ResourceScope = ResourceScopeBrowser
+		spec.Profiles = []ToolProfile{ToolProfileRun}
+		spec.Loading = DeferredLoadingPolicy("web_access")
+		spec.Execution.ParallelPolicy = ParallelPolicyNeverParallel
+		spec.Execution.SideEffects = []ToolSideEffect{ToolSideEffectBrowserRead, ToolSideEffectBrowserInteract, ToolSideEffectArtifactWrite}
+		spec.Result = ToolResultPolicy{Mode: ToolResultModePreviewRef, MaxInlineBytes: 4000}
 		spec.PlanPolicy = PlanPolicyNone
 	case "create_file", "replace_span", "apply_unified_patch":
 		spec.Kind = ToolKindNative

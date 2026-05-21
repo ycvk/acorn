@@ -13,11 +13,19 @@ import (
 const systemHotReloadRunID = "_system_hot_reload"
 
 func (r *ActiveRunner) Close() error {
+	if r == nil {
+		return nil
+	}
+	var closeErr error
+	if r != nil && r.closeRunTools != nil {
+		closeErr = r.closeRunTools()
+		r.closeRunTools = nil
+	}
 	if r.factory != nil && r.runID != "" {
 		r.factory.registry.Clear(r.runID)
 		r.factory.clearCurrentRunID(r.runID)
 	}
-	return nil
+	return closeErr
 }
 
 func (f *RunnerFactory) setCurrentRunID(runID string) {

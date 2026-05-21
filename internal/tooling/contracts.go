@@ -37,6 +37,9 @@ const (
 	ToolSideEffectArtifactRead        ToolSideEffect = "artifact_read"
 	ToolSideEffectArtifactWrite       ToolSideEffect = "artifact_write"
 	ToolSideEffectOperatorInteraction ToolSideEffect = "operator_interaction"
+	ToolSideEffectWebRead             ToolSideEffect = "web_read"
+	ToolSideEffectBrowserRead         ToolSideEffect = "browser_read"
+	ToolSideEffectBrowserInteract     ToolSideEffect = "browser_interact"
 	ToolSideEffectMemoryRead          ToolSideEffect = "memory_read"
 	ToolSideEffectMemoryWrite         ToolSideEffect = "memory_write"
 	ToolSideEffectSkillRead           ToolSideEffect = "skill_read"
@@ -130,7 +133,9 @@ func (c ToolContract) Validate() error {
 		ResourceScopeMCP,
 		ResourceScopeProcess,
 		ResourceScopeArtifact,
-		ResourceScopeOperator:
+		ResourceScopeOperator,
+		ResourceScopeWeb,
+		ResourceScopeBrowser:
 	default:
 		return fmt.Errorf("tool contract %q has unknown resource scope %q", c.Name, c.ResourceScope)
 	}
@@ -183,6 +188,9 @@ func (c ToolContract) Validate() error {
 			ToolSideEffectArtifactRead,
 			ToolSideEffectArtifactWrite,
 			ToolSideEffectOperatorInteraction,
+			ToolSideEffectWebRead,
+			ToolSideEffectBrowserRead,
+			ToolSideEffectBrowserInteract,
 			ToolSideEffectMemoryRead,
 			ToolSideEffectMemoryWrite,
 			ToolSideEffectSkillRead,

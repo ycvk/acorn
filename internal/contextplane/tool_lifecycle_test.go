@@ -108,6 +108,45 @@ func TestDefaultContextPlaneAssembleBuildsLifecycleToolSplit(t *testing.T) {
 	}
 }
 
+func TestLoadedToolInfosFromContextExcludesDeferredUntilLoaded(t *testing.T) {
+	plane := NewDefaultContextPlane(DefaultOptions{
+		MemorySearchTokenBudget: 100,
+		TokenCounter:            testTokenCounter(t),
+		Store:                   lifecycleSnapshotStore{},
+	})
+	catalog := newLifecycleCatalogForTest(t)
+	result, err := plane.Assemble(context.Background(), AssembleRequest{
+		RunID:       "run-lifecycle-infos",
+		SessionID:   "sess-lifecycle-infos",
+		Input:       "inspect repo",
+		ToolCatalog: catalog,
+	})
+	if err != nil {
+		t.Fatalf("Assemble: %v", err)
+	}
+	var toolInfos []*schema.ToolInfo
+	for _, spec := range catalog.EnabledSpecsForProfile(tooling.ToolProfileRun) {
+		info, err := spec.Tool.Info(context.Background())
+		if err != nil {
+			t.Fatalf("tool info %s: %v", spec.Name, err)
+		}
+		toolInfos = append(toolInfos, info)
+	}
+	ctx := WithToolLifecycleContext(context.Background(), plane, result.LifecycleState, catalog, toolInfos)
+
+	initial := LoadedToolInfosFromContext(ctx, result.EagerToolNames)
+	if len(initial) != 1 || initial[0].Name != "read_file" {
+		t.Fatalf("initial loaded tool infos = %+v, want only read_file", initial)
+	}
+	if _, err := plane.DeferredLoad(ctx, DeferredLoadRequest{ToolNames: []string{"mcp.prompt.fetch"}}); err != nil {
+		t.Fatalf("DeferredLoad: %v", err)
+	}
+	loaded := LoadedToolInfosFromContext(ctx, result.EagerToolNames)
+	if len(loaded) != 2 || loaded[0].Name != "mcp.prompt.fetch" || loaded[1].Name != "read_file" {
+		t.Fatalf("loaded tool infos = %+v, want deferred tool after load plus read_file", loaded)
+	}
+}
+
 func TestToolLifecycleOnToolCallRequiresLoadedTool(t *testing.T) {
 	plane := NewDefaultContextPlane(DefaultOptions{
 		MemorySearchTokenBudget: 100,

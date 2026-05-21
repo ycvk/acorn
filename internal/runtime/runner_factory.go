@@ -115,6 +115,7 @@ type ActiveRunner struct {
 	runID            string
 	compressionState *contextplane.CompressionState
 	toolCatalog      *tooling.Catalog
+	closeRunTools    func() error
 }
 
 const (

@@ -27,7 +27,9 @@ func TestValidateExecutionReadyContextConfig(t *testing.T) {
 		Runtime: RuntimeConfig{
 			StorageDir: filepath.Join(t.TempDir(), ".acorn"),
 		},
-		Web: WebConfig{ListenAddr: "127.0.0.1:8080"},
+		Web:       WebConfig{ListenAddr: "127.0.0.1:8080"},
+		WebAccess: defaultConfig().WebAccess,
+		Browser:   defaultConfig().Browser,
 		Agent: AgentConfig{
 			Name:          "coordinator",
 			Description:   "test",
@@ -115,7 +117,9 @@ func TestValidateExecutionReadyRejectsInvalidExecutionFields(t *testing.T) {
 			PreserveRecentTurns: 3,
 			SummaryMaxTokens:    2048,
 		},
-		Web: WebConfig{ListenAddr: "127.0.0.1:8080"},
+		Web:       WebConfig{ListenAddr: "127.0.0.1:8080"},
+		WebAccess: defaultConfig().WebAccess,
+		Browser:   defaultConfig().Browser,
 		Agent: AgentConfig{
 			Name:          "coordinator",
 			Description:   "test",

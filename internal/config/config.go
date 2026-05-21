@@ -5,6 +5,8 @@ type Config struct {
 	Context   ContextConfig    `yaml:"context"`
 	Runtime   RuntimeConfig    `yaml:"runtime"`
 	Web       WebConfig        `yaml:"web"`
+	WebAccess WebAccessConfig  `yaml:"web_access"`
+	Browser   BrowserConfig    `yaml:"browser"`
 	Agent     AgentConfig      `yaml:"agent"`
 	Tools     ToolsConfig      `yaml:"tools"`
 	MCP       MCPConfig        `yaml:"mcp"`
@@ -88,6 +90,27 @@ type RuntimeConfig struct {
 type WebConfig struct {
 	ListenAddr     string   `yaml:"listen_addr"`
 	AllowedOrigins []string `yaml:"allowed_origins"`
+}
+
+type WebAccessConfig struct {
+	UserAgent            string          `yaml:"user_agent"`
+	TimeoutSeconds       int             `yaml:"timeout_seconds"`
+	MaxResponseBytes     int64           `yaml:"max_response_bytes"`
+	AllowPrivateNetworks bool            `yaml:"allow_private_networks"`
+	Search               WebSearchConfig `yaml:"search"`
+}
+
+type WebSearchConfig struct {
+	Provider       string `yaml:"provider"`
+	APIKey         string `yaml:"api_key"`
+	TimeoutSeconds int    `yaml:"timeout_seconds"`
+	MaxResults     int    `yaml:"max_results"`
+}
+
+type BrowserConfig struct {
+	ExecutablePath        string `yaml:"executable_path"`
+	Headless              bool   `yaml:"headless"`
+	DefaultTimeoutSeconds int    `yaml:"default_timeout_seconds"`
 }
 
 type AgentConfig struct {
