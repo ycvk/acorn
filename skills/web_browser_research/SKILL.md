@@ -13,9 +13,19 @@ trigger_hints:
   - browse website
   - open webpage
   - research online
+  - search the web
+  - search online
+  - can you access the internet
+  - can you browse the web
   - 查网页
+  - 查一下网页
+  - 帮我查一下
   - 搜索网页
+  - 搜索一下
   - 打开网站
+  - 会联网吗
+  - 能联网吗
+  - 联网
 requires:
   tools:
     - load_tools

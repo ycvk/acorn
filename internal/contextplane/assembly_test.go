@@ -10,6 +10,7 @@ import (
 
 	"github.com/ycvk/acorn/internal/memorymodule"
 	"github.com/ycvk/acorn/internal/runtimehistory"
+	"github.com/ycvk/acorn/internal/skills"
 )
 
 type snapshotStoreStub struct{}
@@ -50,6 +51,16 @@ func TestDefaultContextPlaneAssembleBuildsContextMessagesWithPreparedMemory(t *t
 			Skill: skillsSpecWithBrief("skill.inspect.repo", "Inspect repo"),
 			Score: 10,
 		},
+		SkillSnapshot: &skills.Snapshot{
+			Skills: []skills.View{{
+				Spec: skills.Spec{
+					ID:      "skill.web.browser.research",
+					Name:    "Web Browser Research",
+					Summary: "Search, fetch, and browse the web.",
+				},
+				Eligible: true,
+			}},
+		},
 		MemoryPrepared: &memorymodule.PrepareResult{
 			Nudges: []memorymodule.Nudge{{
 				Ref:    "facts/workspaces/acorn/runtime.md",
@@ -69,13 +80,19 @@ func TestDefaultContextPlaneAssembleBuildsContextMessagesWithPreparedMemory(t *t
 	if err != nil {
 		t.Fatalf("Assemble: %v", err)
 	}
-	if got, want := len(result.Messages), 2; got != want {
+	if got, want := len(result.Messages), 3; got != want {
 		t.Fatalf("messages = %d, want %d", got, want)
 	}
 	if !strings.Contains(result.Messages[0].Content, "<skill-context>") {
 		t.Fatalf("first message should be skill context: %q", result.Messages[0].Content)
 	}
-	memoryContent := result.Messages[1].Content
+	if !strings.Contains(result.Messages[1].Content, "<skill-catalog>") {
+		t.Fatalf("second message should be skill catalog: %q", result.Messages[1].Content)
+	}
+	if !strings.Contains(result.Messages[1].Content, "skill.web.browser.research") {
+		t.Fatalf("skill catalog missing expected entry: %q", result.Messages[1].Content)
+	}
+	memoryContent := result.Messages[2].Content
 	for _, fragment := range []string{"<memory-context>", "previous summary", "## Memory Nudges", "## Memory Entries", "facts/workspaces/acorn/runtime.md", "verified prepared memory"} {
 		if !strings.Contains(memoryContent, fragment) {
 			t.Fatalf("memory content missing %q:\n%s", fragment, memoryContent)

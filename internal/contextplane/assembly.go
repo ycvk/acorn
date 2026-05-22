@@ -58,6 +58,7 @@ func (p *defaultContextPlane) Assemble(ctx context.Context, req AssembleRequest)
 	memoryMessage := buildMemoryMessageFromPacket(memoryPacket)
 	messages, err := budgetedContextMessages(ctx, p.tokenCounter, p.maxContextTokens, filterMessages(
 		buildSkillContextMessage(req.SelectedSkill),
+		buildSkillCatalogMessage(req.SkillSnapshot),
 		memoryMessage,
 	))
 	if err != nil {

@@ -9,6 +9,12 @@ import (
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
 )
 
+const capabilityDiscoveryInstruction = `Capability discovery rules:
+- Before answering a capability question or saying you cannot do something, inspect the skill catalog and currently loaded tools already present in context.
+- If a relevant skill may exist but the catalog summary is not enough, call skill_list or skill_view before answering.
+- If a relevant capability depends on deferred tools, call load_tools before concluding the capability is unavailable.
+- Prefer the matching skill and tool path over a generic limitation answer.`
+
 func emitProviderDegradedIfNeeded(ctx context.Context, store eventAppender, req RunnerBuildRequest, statuses []mcpprovider.ProviderStatus) error {
 	if store == nil || strings.TrimSpace(req.RunID) == "" {
 		return nil
@@ -140,6 +146,7 @@ func streamProcedureActivationFromDomain(runID string, item memorymodule.Procedu
 func buildStableInstruction(base string, instructionSuffix string) string {
 	parts := []string{
 		strings.TrimSpace(base),
+		strings.TrimSpace(capabilityDiscoveryInstruction),
 		strings.TrimSpace(instructionSuffix),
 	}
 	out := make([]string, 0, len(parts))

@@ -11,6 +11,7 @@ import (
 	"github.com/ycvk/acorn/internal/memorymodule"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
 	"github.com/ycvk/acorn/internal/providerusage"
+	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/tooling"
 )
 
@@ -144,6 +145,7 @@ func (a *contextSelectionAssembler) AssembleToolContext(
 		SessionID:      req.SessionID,
 		Input:          req.Input,
 		SelectedSkill:  selection.selectedSkill,
+		SkillSnapshot:  caps.skillSnapshot,
 		DecisionRecord: selection.decisionRecord,
 		Hint:           selection.hint,
 		MemoryPrepared: memoryPrepared,
@@ -168,6 +170,7 @@ func (a *contextSelectionAssembler) AssembleDirectContext(
 	ctx context.Context,
 	req RunnerBuildRequest,
 	memoryPrepared *memorymodule.PrepareResult,
+	skillSnapshot *skills.Snapshot,
 	catalog *tooling.Catalog,
 ) (*contextplane.AssembleResult, error) {
 	if a == nil || a.factory == nil || a.factory.contextPlane == nil {
@@ -180,6 +183,7 @@ func (a *contextSelectionAssembler) AssembleDirectContext(
 		RunID:          req.RunID,
 		SessionID:      req.SessionID,
 		Input:          req.Input,
+		SkillSnapshot:  skillSnapshot,
 		MemoryPrepared: memoryPrepared,
 		ToolCatalog:    catalog,
 	})

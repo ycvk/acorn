@@ -12,6 +12,7 @@ slug: runtime-context-memory-decision
 `internal/contextplane` assembles the context messages that are prepended to a run:
 
 - selected skill context
+- skill catalog inventory
 - memory context
 - deferred tool lifecycle messages
 
@@ -37,7 +38,7 @@ Context boundaries are the persisted fact layer for compacted context segments. 
 
 Context pressure is computed by `BudgetGovernor`, not by percentage thresholds. Public YAML exposes only `context.window_tokens`, `context.compact_margin_tokens`, `context.preserve_recent_turns`, and `context.summary_max_tokens`; config derives the internal policy from those fields plus the enabled provider's `max_completion_tokens` and runtime defaults. The governor derives an effective input window from model context window minus reserved output/summary tokens and static overhead, then classifies pressure as `ok`, `warning`, `auto_compact`, or `blocking` using derived buffers. Both the ADK compression adapter and `ContextSession.BeforeModelCall` consume these states; pressure requiring compact cannot silently continue with the old full history.
 
-ContextPlane initial assembly uses the same `TokenCounter` implementation as BudgetGovernor and CompactionEngine. Critical model-input context no longer uses `rune/4` estimates or the old `trimToBudget` string trimmer. Selected skill and memory context are assembled as complete context messages; if the assembled context exceeds the derived assembly budget, assembly fails instead of silently dropping active instructions. Memory context fits prepared memory by complete nudge/entry lines under the memory token budget; working checkpoint is required when present, while session summary and prepared memory can be omitted as whole sections or entries.
+ContextPlane initial assembly uses the same `TokenCounter` implementation as BudgetGovernor and CompactionEngine. Critical model-input context no longer uses `rune/4` estimates or the old `trimToBudget` string trimmer. Selected skill, skill catalog inventory, and memory context are assembled as complete context messages; if the assembled context exceeds the derived assembly budget, assembly fails instead of silently dropping active instructions. The skill catalog is a compact inventory of currently scanned skills plus runtime eligibility, meant to answer capability questions and route into `skill_list` / `skill_view` before the model falls back to a generic answer. Memory context fits prepared memory by complete nudge/entry lines under the memory token budget; working checkpoint is required when present, while session summary and prepared memory can be omitted as whole sections or entries.
 
 Tool result messages are no longer passed through a character-count `toolOutputCompressor` before model calls. Current turn tool output remains the real tool result. When a tool result ages out of the live turn window, the lifecycle middleware replaces it with a durable `tool_result_ref` marker instead of a head/tail preview.
 
@@ -51,7 +52,7 @@ Reactive compact is only triggered by explicit provider/model context overflow e
 
 `CompactionEngine` owns proactive compact execution. The ADK compression middleware evaluates pressure through `BudgetGovernor` and, only for `auto_compact` or `blocking`, delegates to the engine. The engine builds a no-tool summary input, calls the configured summary model without tool infos, rejects tool-call responses, validates the required structured continuation sections, preserves the recent tail without splitting assistant tool-call/tool-result pairs, and returns the final messages plus `CompressionOutcome`. Empty or invalid summaries fail the model call path loudly; the middleware no longer owns summary prompt/finalize/outcome callbacks.
 
-`RehydrationPlanner` owns post-compact context packets. During compaction, the engine asks the planner to extract active context from compact-before messages and tool lifecycle state, then injects packet messages after the continuation summary and before the preserved tail. Current packet kinds are working checkpoint, selected skill, tool state, session summary, prepared memory, plan, and recent files. Packet content has a source and token limit counted by the shared token counter; an oversized packet fails compaction instead of being string-truncated. Recent files only come from explicit request paths and are not discovered by scanning the workspace.
+`RehydrationPlanner` owns post-compact context packets. During compaction, the engine asks the planner to extract active context from compact-before messages and tool lifecycle state, then injects packet messages after the continuation summary and before the preserved tail. Current packet kinds are working checkpoint, selected skill, skill catalog, tool state, session summary, prepared memory, plan, and recent files. Packet content has a source and token limit counted by the shared token counter; an oversized packet fails compaction instead of being string-truncated. Recent files only come from explicit request paths and are not discovered by scanning the workspace.
 
 ## Memory Module
 
@@ -135,7 +136,7 @@ Learned memory skills are still file-backed memory records under `memorymodule/s
 
 ## Decision
 
-`internal/decision` selects direct execution, skill execution, ask-user, block, or resume behavior. It no longer has evolve/reflection action config. Runtime bridges decision output into selected skill/context hints, then ContextPlane assembles messages from the current decision, working checkpoint, session summary, and prepared file-backed memory.
+`internal/decision` selects direct execution, skill execution, ask-user, block, or resume behavior. It no longer has evolve/reflection action config. Runtime bridges decision output into selected skill/context hints, then ContextPlane assembles messages from the current decision, current skill catalog inventory, working checkpoint, session summary, and prepared file-backed memory.
 
 ## Config
 
