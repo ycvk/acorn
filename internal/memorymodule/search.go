@@ -52,8 +52,7 @@ func (s *LocalService) semanticRuntimeSnapshot() *SemanticRuntimeOptions {
 	if runtime == nil {
 		return nil
 	}
-	clone := *runtime
-	return &clone
+	return new(*runtime)
 }
 
 func (s *LocalService) allRecords(ctx context.Context) ([]Record, error) {

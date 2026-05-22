@@ -411,8 +411,7 @@ func executeVerificationCommand(ctx context.Context, ws *workspace.Workspace, co
 			return verificationCommandResult{}, errors.Join(execCtx.Err(), killErr)
 		}
 		if waitErr != nil {
-			var exitErr *exec.ExitError
-			if !errors.As(waitErr, &exitErr) {
+			if exitErr, ok := errors.AsType[*exec.ExitError](waitErr); !ok || exitErr == nil {
 				return verificationCommandResult{}, errors.Join(execCtx.Err(), waitErr)
 			}
 		}
@@ -435,8 +434,7 @@ func verificationCommandResultFromWait(command []string, stdout string, stderr s
 	if waitErr == nil {
 		return result, nil
 	}
-	var exitErr *exec.ExitError
-	if errors.As(waitErr, &exitErr) {
+	if exitErr, ok := errors.AsType[*exec.ExitError](waitErr); ok {
 		result.exitCode = exitErr.ExitCode()
 		result.status = verificationStatusFailed
 		return result, nil
@@ -531,9 +529,8 @@ func buildGitSummaryTool(ws *workspace.Workspace, service *artifacts.Service, br
 			if err != nil {
 				return GitSummaryOutput{}, err
 			}
-			summary := artifactSummaryFromRecord(record)
 			output.DiffArtifactID = record.ArtifactID
-			output.DiffArtifact = &summary
+			output.DiffArtifact = new(artifactSummaryFromRecord(record))
 			if err := emitToolProgress(ctx, emit, fmt.Sprintf("wrote diff artifact %s", record.ArtifactID)); err != nil {
 				return GitSummaryOutput{}, err
 			}

@@ -98,18 +98,16 @@ func buildSessionDetail(session events.SessionRecord, latestRun *events.RunRecor
 	if latestRun.Status == events.RunStatusInterrupted {
 		if traceSvc == nil {
 			return SessionDetail{}, fmt.Errorf("load resume status for run %s: trace service is nil", latestRun.RunID)
-		} else {
-			resumeStatus, err := traceSvc.ResumeStatus(ctx, latestRun.RunID)
-			if err != nil {
-				return SessionDetail{}, fmt.Errorf("load resume status for run %s: %w", latestRun.RunID, err)
-			} else if resumeStatus == nil {
-				return SessionDetail{}, fmt.Errorf("load resume status for run %s: resume status is nil", latestRun.RunID)
-			} else {
-				detail.Resumable = resumeStatus.Resumable
-				detail.ResumeReason = resumeStatus.Reason
-				detail.InterruptIDs = resumeStatus.InterruptIDs
-			}
 		}
+		resumeStatus, err := traceSvc.ResumeStatus(ctx, latestRun.RunID)
+		if err != nil {
+			return SessionDetail{}, fmt.Errorf("load resume status for run %s: %w", latestRun.RunID, err)
+		} else if resumeStatus == nil {
+			return SessionDetail{}, fmt.Errorf("load resume status for run %s: resume status is nil", latestRun.RunID)
+		}
+		detail.Resumable = resumeStatus.Resumable
+		detail.ResumeReason = resumeStatus.Reason
+		detail.InterruptIDs = resumeStatus.InterruptIDs
 	}
 	if detail.ResumeReason == "" {
 		detail.ResumeReason = defaultResumeReason(latestRun)

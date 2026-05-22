@@ -130,7 +130,7 @@ func TestPlanNodeSavesValidPlan(t *testing.T) {
 	store := &fakePlanStore{}
 	node := NewPlanNode(model, store, nil, "Make a plan", nil, nil)
 	ctx := withRunID(withSessionID(context.Background(), "sess_plan"), "run_plan")
-	state := &agentGraphState{Messages: []*schema.Message{schema.UserMessage("do work")}}
+	state := &AgentGraphState{Messages: []*schema.Message{schema.UserMessage("do work")}}
 
 	out, err := node.Invoke(ctx, state)
 	if err != nil {
@@ -178,7 +178,7 @@ func TestPlanNodeAddsPlanningPromptProviderSectionToModelInput(t *testing.T) {
 	node := NewPlanNode(model, store, nil, "Make a plan", provider, []string{"read_file"})
 	ctx := withRunID(withSessionID(context.Background(), "sess_plan_context"), "run_plan_context")
 
-	if _, err := node.Invoke(ctx, &agentGraphState{Messages: []*schema.Message{schema.UserMessage("read runtime plan")}}); err != nil {
+	if _, err := node.Invoke(ctx, &AgentGraphState{Messages: []*schema.Message{schema.UserMessage("read runtime plan")}}); err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}
 	if provider.callCount != 1 {
@@ -208,7 +208,7 @@ func TestPlanNodePlanningPromptProviderErrorFailsLoud(t *testing.T) {
 	node := NewPlanNode(model, store, nil, "Make a plan", provider, nil)
 	ctx := withRunID(withSessionID(context.Background(), "sess_plan_context_error"), "run_plan_context_error")
 
-	_, err := node.Invoke(ctx, &agentGraphState{Messages: []*schema.Message{schema.UserMessage("work")}})
+	_, err := node.Invoke(ctx, &AgentGraphState{Messages: []*schema.Message{schema.UserMessage("work")}})
 	if err == nil || !strings.Contains(err.Error(), "planning prompt unavailable") {
 		t.Fatalf("expected planning prompt error, got %v", err)
 	}
@@ -229,7 +229,7 @@ func TestPlanNodeRetriesInvalidPlanFormatOnce(t *testing.T) {
 	node := NewPlanNode(model, store, nil, "Make a plan", nil, nil)
 	ctx := withRunID(withSessionID(context.Background(), "sess_retry"), "run_retry")
 
-	if _, err := node.Invoke(ctx, &agentGraphState{Messages: []*schema.Message{schema.UserMessage("read")}}); err != nil {
+	if _, err := node.Invoke(ctx, &AgentGraphState{Messages: []*schema.Message{schema.UserMessage("read")}}); err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}
 	if model.callCount != 2 {
@@ -264,7 +264,7 @@ func TestPlanNodeReusesRunnableExistingPlan(t *testing.T) {
 	node := NewPlanNode(model, store, nil, "Make a plan", nil, nil)
 	ctx := withRunID(withSessionID(context.Background(), "sess_existing"), "run_continue")
 
-	out, err := node.Invoke(ctx, &agentGraphState{Messages: []*schema.Message{schema.UserMessage("continue")}})
+	out, err := node.Invoke(ctx, &AgentGraphState{Messages: []*schema.Message{schema.UserMessage("continue")}})
 	if err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}
@@ -297,7 +297,7 @@ func TestPlanNodeReusesRunnableExistingPlanWithoutPlanningPromptProvider(t *test
 	node := NewPlanNode(model, store, nil, "Make a plan", provider, nil)
 	ctx := withRunID(withSessionID(context.Background(), "sess_existing_context"), "run_continue_context")
 
-	out, err := node.Invoke(ctx, &agentGraphState{Messages: []*schema.Message{schema.UserMessage("continue")}})
+	out, err := node.Invoke(ctx, &AgentGraphState{Messages: []*schema.Message{schema.UserMessage("continue")}})
 	if err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}
@@ -328,7 +328,7 @@ func TestPlanNodeRegeneratesOnReplanDecision(t *testing.T) {
 	node := NewPlanNode(model, store, nil, "Make a plan", nil, nil)
 	ctx := withRunID(withSessionID(context.Background(), "sess_replan"), "run_replan")
 
-	out, err := node.Invoke(ctx, &agentGraphState{
+	out, err := node.Invoke(ctx, &AgentGraphState{
 		Messages:        []*schema.Message{schema.UserMessage("recover")},
 		ObserveDecision: ObserveDecision{Decision: ObserveDecisionReplan},
 	})
@@ -355,7 +355,7 @@ func TestPlanNodeRejectsInvalidPlanAfterRetry(t *testing.T) {
 	node := NewPlanNode(model, store, nil, "Make a plan", nil, nil)
 	ctx := withRunID(withSessionID(context.Background(), "sess_bad"), "run_bad")
 
-	_, err := node.Invoke(ctx, &agentGraphState{Messages: []*schema.Message{schema.UserMessage("bad")}})
+	_, err := node.Invoke(ctx, &AgentGraphState{Messages: []*schema.Message{schema.UserMessage("bad")}})
 	if err == nil {
 		t.Fatal("expected invalid plan error")
 	}
@@ -379,7 +379,7 @@ func TestPlanNodeRejectsInvalidRepoTargetPath(t *testing.T) {
 	node := NewPlanNode(model, store, nil, "Make a plan", nil, nil)
 	ctx := withRunID(withSessionID(context.Background(), "sess_bad_path"), "run_bad_path")
 
-	_, err := node.Invoke(ctx, &agentGraphState{Messages: []*schema.Message{schema.UserMessage("bad path")}})
+	_, err := node.Invoke(ctx, &AgentGraphState{Messages: []*schema.Message{schema.UserMessage("bad path")}})
 	if err == nil || !strings.Contains(err.Error(), "workspace-relative") {
 		t.Fatalf("expected workspace-relative error, got %v", err)
 	}
@@ -394,7 +394,7 @@ func TestPlanNodeRejectsInvalidRepoTargetConfidence(t *testing.T) {
 	node := NewPlanNode(model, store, nil, "Make a plan", nil, nil)
 	ctx := withRunID(withSessionID(context.Background(), "sess_bad_confidence"), "run_bad_confidence")
 
-	_, err := node.Invoke(ctx, &agentGraphState{Messages: []*schema.Message{schema.UserMessage("bad confidence")}})
+	_, err := node.Invoke(ctx, &AgentGraphState{Messages: []*schema.Message{schema.UserMessage("bad confidence")}})
 	if err == nil || !strings.Contains(err.Error(), "confidence") {
 		t.Fatalf("expected confidence error, got %v", err)
 	}
@@ -409,7 +409,7 @@ func TestPlanNodeRejectsWriteRiskWithoutVerificationIntent(t *testing.T) {
 	node := NewPlanNode(model, store, nil, "Make a plan", nil, nil)
 	ctx := withRunID(withSessionID(context.Background(), "sess_write_no_intent"), "run_write_no_intent")
 
-	_, err := node.Invoke(ctx, &agentGraphState{Messages: []*schema.Message{schema.UserMessage("edit")}})
+	_, err := node.Invoke(ctx, &AgentGraphState{Messages: []*schema.Message{schema.UserMessage("edit")}})
 	if err == nil || !strings.Contains(err.Error(), "requires verification_intent") {
 		t.Fatalf("expected verification_intent error, got %v", err)
 	}
@@ -424,7 +424,7 @@ func TestPlanNodeRejectsUnknownToolHint(t *testing.T) {
 	node := NewPlanNode(model, store, nil, "Make a plan", nil, []string{"read_file"})
 	ctx := withRunID(withSessionID(context.Background(), "sess_unknown_tool"), "run_unknown_tool")
 
-	_, err := node.Invoke(ctx, &agentGraphState{Messages: []*schema.Message{schema.UserMessage("read")}})
+	_, err := node.Invoke(ctx, &AgentGraphState{Messages: []*schema.Message{schema.UserMessage("read")}})
 	if err == nil || !strings.Contains(err.Error(), "unknown tool") {
 		t.Fatalf("expected unknown tool error, got %v", err)
 	}
@@ -446,7 +446,7 @@ func TestPlanNodeAcceptsRepoAwareMetadata(t *testing.T) {
 	node := NewPlanNode(model, store, nil, "Make a plan", nil, []string{"read_file"})
 	ctx := withRunID(withSessionID(context.Background(), "sess_metadata"), "run_metadata")
 
-	if _, err := node.Invoke(ctx, &agentGraphState{Messages: []*schema.Message{schema.UserMessage("metadata")}}); err != nil {
+	if _, err := node.Invoke(ctx, &AgentGraphState{Messages: []*schema.Message{schema.UserMessage("metadata")}}); err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}
 	step := store.saved.Steps[0]
@@ -480,7 +480,7 @@ func TestPlanNodeAcceptsVerifierVerificationIntent(t *testing.T) {
 	node := NewPlanNode(model, store, nil, "Make a plan", nil, []string{"read_file"})
 	ctx := withRunID(withSessionID(context.Background(), "sess_verifier_plan"), "run_verifier_plan")
 
-	if _, err := node.Invoke(ctx, &agentGraphState{Messages: []*schema.Message{schema.UserMessage("ship change")}}); err != nil {
+	if _, err := node.Invoke(ctx, &AgentGraphState{Messages: []*schema.Message{schema.UserMessage("ship change")}}); err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}
 	step := store.saved.Steps[0]
@@ -495,7 +495,7 @@ func TestPlanNodeReturnsModelErrorWithoutRetry(t *testing.T) {
 	node := NewPlanNode(model, store, nil, "Make a plan", nil, nil)
 	ctx := withRunID(withSessionID(context.Background(), "sess_model"), "run_model")
 
-	_, err := node.Invoke(ctx, &agentGraphState{Messages: []*schema.Message{schema.UserMessage("work")}})
+	_, err := node.Invoke(ctx, &AgentGraphState{Messages: []*schema.Message{schema.UserMessage("work")}})
 	if err == nil || !strings.Contains(err.Error(), "provider down") {
 		t.Fatalf("expected provider error, got %v", err)
 	}

@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 )
@@ -11,7 +12,7 @@ func TestOAuthTokenGetNotFound(t *testing.T) {
 	ctx := context.Background()
 
 	_, err := store.GetOAuthToken(ctx, "nonexistent")
-	if err != ErrOAuthTokenNotFound {
+	if !errors.Is(err, ErrOAuthTokenNotFound) {
 		t.Fatalf("expected ErrOAuthTokenNotFound, got %v", err)
 	}
 }
@@ -111,7 +112,7 @@ func TestOAuthTokenDelete(t *testing.T) {
 	}
 
 	_, err := store.GetOAuthToken(ctx, "delete-provider")
-	if err != ErrOAuthTokenNotFound {
+	if !errors.Is(err, ErrOAuthTokenNotFound) {
 		t.Fatalf("expected ErrOAuthTokenNotFound after delete, got %v", err)
 	}
 }
@@ -121,7 +122,7 @@ func TestOAuthTokenDeleteNotFound(t *testing.T) {
 	ctx := context.Background()
 
 	err := store.DeleteOAuthToken(ctx, "nonexistent")
-	if err != ErrOAuthTokenNotFound {
+	if !errors.Is(err, ErrOAuthTokenNotFound) {
 		t.Fatalf("expected ErrOAuthTokenNotFound on delete of missing token, got %v", err)
 	}
 }

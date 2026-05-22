@@ -183,8 +183,8 @@ func loadStableSkillSnapshot(ctx context.Context, loader interface {
 	if err != nil {
 		return nil, fmt.Errorf("build skill snapshot: %w", err)
 	}
-	copy := skills.CopySnapshot(snapshot)
-	return &copy, nil
+	copied := skills.CopySnapshot(snapshot)
+	return &copied, nil
 }
 
 func stableSkillsFromSnapshot(snapshot *skills.Snapshot) []skills.Spec {

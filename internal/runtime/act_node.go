@@ -51,7 +51,7 @@ func NewActNode(
 	}
 }
 
-func (n *ActNode) Invoke(ctx context.Context, state *agentGraphState) (*agentGraphState, error) {
+func (n *ActNode) Invoke(ctx context.Context, state *AgentGraphState) (*AgentGraphState, error) {
 	if state == nil {
 		return nil, fmt.Errorf("act node requires graph state")
 	}

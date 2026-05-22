@@ -64,16 +64,16 @@ func buildPlanExecuteGraph(
 	}
 
 	g := compose.NewGraph[*agentGraphInput, *schema.Message](
-		compose.WithGenLocalState(func(ctx context.Context) *agentGraphState {
-			return &agentGraphState{
+		compose.WithGenLocalState(func(ctx context.Context) *AgentGraphState {
+			return &AgentGraphState{
 				AgentName:           agentName,
 				RemainingIterations: maxIter,
 			}
 		}),
 	)
 
-	initLambda := compose.InvokableLambda(func(ctx context.Context, input *agentGraphInput) (*agentGraphState, error) {
-		state := &agentGraphState{
+	initLambda := compose.InvokableLambda(func(ctx context.Context, input *agentGraphInput) (*AgentGraphState, error) {
+		state := &AgentGraphState{
 			Messages:            append([]*schema.Message(nil), input.Messages...),
 			RemainingIterations: maxIter,
 			AgentName:           agentName,
@@ -98,7 +98,7 @@ func buildPlanExecuteGraph(
 	observe := NewObserveNode(wrappedModel, planStore)
 	closeout := NewCloseoutNode()
 
-	if err := g.AddLambdaNode(planNode, compose.InvokableLambda(func(ctx context.Context, state *agentGraphState) (*agentGraphState, error) {
+	if err := g.AddLambdaNode(planNode, compose.InvokableLambda(func(ctx context.Context, state *AgentGraphState) (*AgentGraphState, error) {
 		if err := consumePlanIteration(state, maxIter); err != nil {
 			return nil, err
 		}
@@ -107,13 +107,13 @@ func buildPlanExecuteGraph(
 		return nil, fmt.Errorf("add plan node: %w", err)
 	}
 
-	if err := g.AddLambdaNode(executeDispatchNode, compose.InvokableLambda(func(ctx context.Context, state *agentGraphState) (*agentGraphState, error) {
+	if err := g.AddLambdaNode(executeDispatchNode, compose.InvokableLambda(func(ctx context.Context, state *AgentGraphState) (*AgentGraphState, error) {
 		return dispatch.Invoke(ctx, state)
 	}), compose.WithNodeName(executeDispatchNode)); err != nil {
 		return nil, fmt.Errorf("add execute dispatch node: %w", err)
 	}
 
-	if err := g.AddLambdaNode(observeNode, compose.InvokableLambda(func(ctx context.Context, state *agentGraphState) (*agentGraphState, error) {
+	if err := g.AddLambdaNode(observeNode, compose.InvokableLambda(func(ctx context.Context, state *AgentGraphState) (*AgentGraphState, error) {
 		decision, err := observe.Decide(ctx, state)
 		if err != nil {
 			return nil, err
@@ -125,7 +125,7 @@ func buildPlanExecuteGraph(
 		return nil, fmt.Errorf("add observe node: %w", err)
 	}
 
-	if err := g.AddLambdaNode(closeoutNode, compose.InvokableLambda(func(ctx context.Context, state *agentGraphState) (*schema.Message, error) {
+	if err := g.AddLambdaNode(closeoutNode, compose.InvokableLambda(func(ctx context.Context, state *AgentGraphState) (*schema.Message, error) {
 		return closeout.Invoke(ctx, state)
 	}), compose.WithNodeName(closeoutNode)); err != nil {
 		return nil, fmt.Errorf("add closeout node: %w", err)
@@ -144,7 +144,7 @@ func buildPlanExecuteGraph(
 		return nil, fmt.Errorf("add execute dispatch→observe edge: %w", err)
 	}
 
-	observeBranch := compose.NewGraphBranch(func(ctx context.Context, state *agentGraphState) (string, error) {
+	observeBranch := compose.NewGraphBranch(func(ctx context.Context, state *AgentGraphState) (string, error) {
 		switch state.ObserveDecision.Decision {
 		case ObserveDecisionNext:
 			return executeDispatchNode, nil
@@ -194,7 +194,7 @@ func NewExecuteDispatchNode(store PlanStore, eventStore eventAppender, childExec
 	}
 }
 
-func (n *ExecuteDispatchNode) Invoke(ctx context.Context, state *agentGraphState) (*agentGraphState, error) {
+func (n *ExecuteDispatchNode) Invoke(ctx context.Context, state *AgentGraphState) (*AgentGraphState, error) {
 	if state == nil {
 		return nil, fmt.Errorf("execute dispatch requires graph state")
 	}
@@ -305,7 +305,7 @@ func NewCloseoutNode() *CloseoutNode {
 	return &CloseoutNode{}
 }
 
-func (n *CloseoutNode) Invoke(ctx context.Context, state *agentGraphState) (*schema.Message, error) {
+func (n *CloseoutNode) Invoke(ctx context.Context, state *AgentGraphState) (*schema.Message, error) {
 	if state == nil || state.Plan == nil || len(state.Plan.Steps) == 0 {
 		return finalMessageFromGraphState(state), nil
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -70,7 +71,7 @@ func (s *Store) Load(ctx context.Context, ref string) (toolresult.Record, error)
 	`, ref)
 	record, err := scanToolResult(row)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return toolresult.Record{}, toolresult.ErrToolResultNotFound
 		}
 		return toolresult.Record{}, err

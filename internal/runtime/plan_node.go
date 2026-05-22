@@ -69,7 +69,7 @@ func NewPlanNode(
 	}
 }
 
-func (n *PlanNode) Invoke(ctx context.Context, state *agentGraphState) (*agentGraphState, error) {
+func (n *PlanNode) Invoke(ctx context.Context, state *AgentGraphState) (*AgentGraphState, error) {
 	if state == nil {
 		return nil, fmt.Errorf("plan node requires graph state")
 	}
@@ -135,7 +135,7 @@ func (n *PlanNode) Invoke(ctx context.Context, state *agentGraphState) (*agentGr
 	return state, nil
 }
 
-func existingPlanReusable(state *agentGraphState, plan *Plan) bool {
+func existingPlanReusable(state *AgentGraphState, plan *Plan) bool {
 	if plan == nil {
 		return false
 	}
@@ -146,7 +146,7 @@ func existingPlanReusable(state *agentGraphState, plan *Plan) bool {
 	return err == nil
 }
 
-func (n *PlanNode) generatePlanSteps(ctx context.Context, state *agentGraphState) ([]PlanStep, error) {
+func (n *PlanNode) generatePlanSteps(ctx context.Context, state *AgentGraphState) ([]PlanStep, error) {
 	modelReq := graphSessionModelCallRequest(graphModelCallID(ctx, "plan"), "agent_graph_plan", nil)
 	session, baseMessages, err := graphSessionBaseMessages(ctx, state, modelReq)
 	if err != nil {

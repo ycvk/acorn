@@ -67,6 +67,5 @@ func optionalDeviceTime(value *time.Time) *string {
 	if value == nil {
 		return nil
 	}
-	formatted := value.UTC().Format(time.RFC3339Nano)
-	return &formatted
+	return new(value.UTC().Format(time.RFC3339Nano))
 }

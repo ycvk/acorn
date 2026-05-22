@@ -7,9 +7,6 @@ import (
 )
 
 func TestNormalizeSessionRecordRunning(t *testing.T) {
-	startedAt := time.Unix(1_710_000_000, 0).UTC()
-	pid := 123
-	pgid := 123
 	record, err := NormalizeSessionRecord(SessionRecord{
 		TerminalSessionID: "term_1",
 		RunID:             "run_1",
@@ -19,9 +16,9 @@ func TestNormalizeSessionRecordRunning(t *testing.T) {
 		Interactive:       true,
 		PTY:               true,
 		Status:            StatusRunning,
-		ProcessID:         &pid,
-		ProcessGroupID:    &pgid,
-		StartedAt:         &startedAt,
+		ProcessID:         new(123),
+		ProcessGroupID:    new(123),
+		StartedAt:         new(time.Unix(1_710_000_000, 0).UTC()),
 	})
 	if err != nil {
 		t.Fatalf("normalize session: %v", err)

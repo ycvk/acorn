@@ -61,7 +61,7 @@ func TestExecuteDispatchNodeCompletesStepWithChildEvidence(t *testing.T) {
 	node := NewExecuteDispatchNode(store, nil, child)
 	ctx := withRunID(withSessionID(context.Background(), "sess_plan_execute"), "run_parent")
 
-	state, err := node.Invoke(ctx, &agentGraphState{
+	state, err := node.Invoke(ctx, &AgentGraphState{
 		Messages: []*schema.Message{schema.UserMessage("inspect the repo")},
 	})
 	if err != nil {
@@ -120,7 +120,7 @@ func TestExecuteDispatchNodeFailsStepWhenChildFails(t *testing.T) {
 	node := NewExecuteDispatchNode(store, nil, child)
 	ctx := withRunID(withSessionID(context.Background(), "sess_plan_execute"), "run_parent")
 
-	state, err := node.Invoke(ctx, &agentGraphState{
+	state, err := node.Invoke(ctx, &AgentGraphState{
 		Messages: []*schema.Message{schema.UserMessage("run tests")},
 	})
 	if err != nil {
@@ -175,7 +175,7 @@ func TestExecuteDispatchNodeRunsVerifierForVerifierIntent(t *testing.T) {
 	node := NewExecuteDispatchNode(store, nil, child)
 	ctx := withRunID(withSessionID(context.Background(), "sess_plan_execute"), "run_parent")
 
-	state, err := node.Invoke(ctx, &agentGraphState{
+	state, err := node.Invoke(ctx, &AgentGraphState{
 		Messages: []*schema.Message{schema.UserMessage("update docs")},
 	})
 	if err != nil {
@@ -249,7 +249,7 @@ func TestExecuteDispatchNodeFailsStepWhenVerifierFails(t *testing.T) {
 	node := NewExecuteDispatchNode(store, nil, child)
 	ctx := withRunID(withSessionID(context.Background(), "sess_plan_execute"), "run_parent")
 
-	state, err := node.Invoke(ctx, &agentGraphState{
+	state, err := node.Invoke(ctx, &AgentGraphState{
 		Messages: []*schema.Message{schema.UserMessage("ship change")},
 	})
 	if err != nil {
@@ -293,7 +293,7 @@ func TestExecuteDispatchNodeDoesNotDispatchWithoutRunnableStep(t *testing.T) {
 	node := NewExecuteDispatchNode(store, nil, child)
 	ctx := withRunID(withSessionID(context.Background(), "sess_plan_execute"), "run_parent")
 
-	_, err := node.Invoke(ctx, &agentGraphState{
+	_, err := node.Invoke(ctx, &AgentGraphState{
 		Messages: []*schema.Message{schema.UserMessage("continue")},
 	})
 	if err == nil || !strings.Contains(err.Error(), "active plan has no runnable pending step") {
@@ -306,7 +306,7 @@ func TestExecuteDispatchNodeDoesNotDispatchWithoutRunnableStep(t *testing.T) {
 
 func TestCloseoutNodeProducesHumanReadableSummary(t *testing.T) {
 	node := NewCloseoutNode()
-	state := &agentGraphState{
+	state := &AgentGraphState{
 		Plan: &Plan{
 			Steps: []PlanStep{
 				{
@@ -345,7 +345,7 @@ func TestCloseoutNodeProducesHumanReadableSummary(t *testing.T) {
 
 func TestCloseoutNodeSingleCompletedStepReturnsChildSummaryOnly(t *testing.T) {
 	node := NewCloseoutNode()
-	state := &agentGraphState{
+	state := &AgentGraphState{
 		Plan: &Plan{
 			Steps: []PlanStep{{
 				ID:     "s1",

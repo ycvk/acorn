@@ -102,7 +102,8 @@ func (v *ToolArgumentValidator) Validate(argumentsJSON string) ([]ValidationErro
 		return nil, nil
 	}
 
-	verr, ok := err.(*jsonschema.ValidationError)
+	var verr *jsonschema.ValidationError
+	ok := errors.As(err, &verr)
 	if !ok {
 		return nil, fmt.Errorf("unexpected validation error type for %q: %T", v.toolName, err)
 	}

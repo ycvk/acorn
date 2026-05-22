@@ -37,7 +37,7 @@ func NewObserveNode(model einomodel.BaseChatModel, store PlanStore) *ObserveNode
 	return &ObserveNode{model: model, store: store}
 }
 
-func (n *ObserveNode) Decide(ctx context.Context, state *agentGraphState) (ObserveDecision, error) {
+func (n *ObserveNode) Decide(ctx context.Context, state *AgentGraphState) (ObserveDecision, error) {
 	if state == nil {
 		return ObserveDecision{}, fmt.Errorf("observe node requires graph state")
 	}

@@ -140,7 +140,7 @@ func (s *SearchService) Search(ctx context.Context, req SearchRequest) (SearchRe
 	client.Timeout = s.timeout
 	resp, err := client.Do(httpReq)
 	if err != nil {
-		return SearchResult{}, fmt.Errorf("Tavily search request failed: %w", err)
+		return SearchResult{}, fmt.Errorf("tavily search request failed: %w", err)
 	}
 	defer resp.Body.Close()
 	raw, err := readBounded(resp.Body, s.maxResponseBytes)
@@ -148,7 +148,7 @@ func (s *SearchService) Search(ctx context.Context, req SearchRequest) (SearchRe
 		return SearchResult{}, err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return SearchResult{}, fmt.Errorf("Tavily search returned HTTP status %d: %s", resp.StatusCode, strings.TrimSpace(string(raw)))
+		return SearchResult{}, fmt.Errorf("tavily search returned HTTP status %d: %s", resp.StatusCode, strings.TrimSpace(string(raw)))
 	}
 	var decoded tavilySearchResponse
 	if err := json.Unmarshal(raw, &decoded); err != nil {

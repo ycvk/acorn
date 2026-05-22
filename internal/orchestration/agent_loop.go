@@ -206,8 +206,7 @@ func consumeInterleavedForAgentLoop(ctx context.Context, interleaved *Interleave
 				interleaved.FinalMessageCh = nil
 				continue
 			}
-			resultCopy := result
-			finalResult = &resultCopy
+			finalResult = new(result)
 			if interleaved.ToolCallCh == nil {
 				return finalResult, nil
 			}

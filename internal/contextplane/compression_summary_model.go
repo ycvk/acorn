@@ -210,12 +210,12 @@ func markCompressionSummary(msg adk.Message) adk.Message {
 	if msg == nil {
 		return nil
 	}
-	copy := cloneMessage(msg)
-	if copy.Extra == nil {
-		copy.Extra = map[string]any{}
+	message := cloneMessage(msg)
+	if message.Extra == nil {
+		message.Extra = map[string]any{}
 	}
-	copy.Extra[compressionSummaryMarkerKey] = compressionSummaryMarkerValue
-	return copy
+	message.Extra[compressionSummaryMarkerKey] = compressionSummaryMarkerValue
+	return message
 }
 
 func isCompressionSummary(msg adk.Message) bool {
@@ -230,53 +230,53 @@ func sanitizeSummaryMessage(msg adk.Message) adk.Message {
 	if msg == nil {
 		return nil
 	}
-	copy := cloneMessage(msg)
-	copy.Content = redactSecrets(copy.Content)
-	for i := range copy.UserInputMultiContent {
-		copy.UserInputMultiContent[i].Text = redactSecrets(copy.UserInputMultiContent[i].Text)
+	message := cloneMessage(msg)
+	message.Content = redactSecrets(message.Content)
+	for i := range message.UserInputMultiContent {
+		message.UserInputMultiContent[i].Text = redactSecrets(message.UserInputMultiContent[i].Text)
 	}
-	for i := range copy.MultiContent {
-		copy.MultiContent[i].Text = redactSecrets(copy.MultiContent[i].Text)
+	for i := range message.MultiContent {
+		message.MultiContent[i].Text = redactSecrets(message.MultiContent[i].Text)
 	}
-	for i := range copy.AssistantGenMultiContent {
-		copy.AssistantGenMultiContent[i].Text = redactSecrets(copy.AssistantGenMultiContent[i].Text)
-		if copy.AssistantGenMultiContent[i].Reasoning != nil {
-			reasoning := *copy.AssistantGenMultiContent[i].Reasoning
+	for i := range message.AssistantGenMultiContent {
+		message.AssistantGenMultiContent[i].Text = redactSecrets(message.AssistantGenMultiContent[i].Text)
+		if message.AssistantGenMultiContent[i].Reasoning != nil {
+			reasoning := *message.AssistantGenMultiContent[i].Reasoning
 			reasoning.Text = redactSecrets(reasoning.Text)
-			copy.AssistantGenMultiContent[i].Reasoning = &reasoning
+			message.AssistantGenMultiContent[i].Reasoning = &reasoning
 		}
 	}
-	return copy
+	return message
 }
 
 func cloneMessage(msg adk.Message) *schema.Message {
-	copy := *msg
+	message := *msg
 	if msg.Extra != nil {
-		copy.Extra = cloneAnyMap(msg.Extra)
+		message.Extra = cloneAnyMap(msg.Extra)
 	}
 	if msg.UserInputMultiContent != nil {
-		copy.UserInputMultiContent = append([]schema.MessageInputPart(nil), msg.UserInputMultiContent...)
-		for i := range copy.UserInputMultiContent {
-			if copy.UserInputMultiContent[i].Extra != nil {
-				copy.UserInputMultiContent[i].Extra = cloneAnyMap(copy.UserInputMultiContent[i].Extra)
+		message.UserInputMultiContent = append([]schema.MessageInputPart(nil), msg.UserInputMultiContent...)
+		for i := range message.UserInputMultiContent {
+			if message.UserInputMultiContent[i].Extra != nil {
+				message.UserInputMultiContent[i].Extra = cloneAnyMap(message.UserInputMultiContent[i].Extra)
 			}
 		}
 	}
 	if msg.MultiContent != nil {
-		copy.MultiContent = slices.Clone(msg.MultiContent)
+		message.MultiContent = slices.Clone(msg.MultiContent)
 	}
 	if msg.AssistantGenMultiContent != nil {
-		copy.AssistantGenMultiContent = append([]schema.MessageOutputPart(nil), msg.AssistantGenMultiContent...)
-		for i := range copy.AssistantGenMultiContent {
-			if copy.AssistantGenMultiContent[i].Extra != nil {
-				copy.AssistantGenMultiContent[i].Extra = cloneAnyMap(copy.AssistantGenMultiContent[i].Extra)
+		message.AssistantGenMultiContent = append([]schema.MessageOutputPart(nil), msg.AssistantGenMultiContent...)
+		for i := range message.AssistantGenMultiContent {
+			if message.AssistantGenMultiContent[i].Extra != nil {
+				message.AssistantGenMultiContent[i].Extra = cloneAnyMap(message.AssistantGenMultiContent[i].Extra)
 			}
 		}
 	}
 	if msg.ToolCalls != nil {
-		copy.ToolCalls = append([]schema.ToolCall(nil), msg.ToolCalls...)
+		message.ToolCalls = append([]schema.ToolCall(nil), msg.ToolCalls...)
 	}
-	return &copy
+	return &message
 }
 
 func cloneAnyMap(in map[string]any) map[string]any {

@@ -280,8 +280,7 @@ func intFromSQLite(value sql.NullInt64) *int {
 	if !value.Valid {
 		return nil
 	}
-	converted := int(value.Int64)
-	return &converted
+	return new(int(value.Int64))
 }
 
 func nullableTimestamp(value *time.Time) any {

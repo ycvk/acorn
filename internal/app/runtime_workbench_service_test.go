@@ -250,10 +250,10 @@ func TestRuntimeWorkbenchServiceLoadAggregatesRuntimeTruth(t *testing.T) {
 					CommandJSON:       `["make","test"]`,
 					Cwd:               root,
 					Status:            terminalsession.StatusExited,
-					ExitCode:          intPtr(0),
+					ExitCode:          new(0),
 					StdoutArtifactID:  "artifact_stdout",
 					StartedAt:         &now,
-					EndedAt:           timePtr(now.Add(2 * time.Second)),
+					EndedAt:           new(now.Add(2 * time.Second)),
 					CreatedAt:         now,
 					UpdatedAt:         now.Add(2 * time.Second),
 				},
@@ -626,14 +626,6 @@ func runGitForWorkbenchTest(t *testing.T, root string, args ...string) {
 	if output, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("git %v: %v\n%s", args, err, string(output))
 	}
-}
-
-func intPtr(value int) *int {
-	return &value
-}
-
-func timePtr(value time.Time) *time.Time {
-	return &value
 }
 
 func openRuntimeWorkbenchSQLiteStore(t *testing.T) *storesqlite.Store {

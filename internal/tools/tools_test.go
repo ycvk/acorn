@@ -605,8 +605,7 @@ func TestAskOperatorCreatesPendingActionAndInterrupts(t *testing.T) {
 	if err == nil {
 		t.Fatal("ask_operator should interrupt")
 	}
-	var signal *adk.InterruptSignal
-	if !errors.As(err, &signal) || signal == nil {
+	if signal, ok := errors.AsType[*adk.InterruptSignal](err); !ok || signal == nil {
 		t.Fatalf("expected interrupt info, got %v", err)
 	}
 	actions, err := store.ListPendingActions(context.Background(), 10)
