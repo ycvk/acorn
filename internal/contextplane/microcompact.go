@@ -144,6 +144,5 @@ func replaceWithPlaceholder(msg adk.Message) adk.Message {
 	clone.Content = fmt.Sprintf("%s (tool: %s)", clearedPlaceholder, extractToolName(msg))
 	clone.AssistantGenMultiContent = nil
 	clone.UserInputMultiContent = nil
-	clone.MultiContent = nil
 	return &clone
 }
