@@ -127,10 +127,9 @@ func (a *graphAgent) Resume(ctx context.Context, info *adk.ResumeInfo, _ ...adk.
 		}
 
 		var runOpts []compose.Option
-		if info != nil && info.InterruptInfo != nil {
-			// Compose checkpoint is keyed by the same ID the Runner
-			// stores in InterruptInfo.Data.
-			runOpts = append(runOpts, compose.WithCheckPointID(fmt.Sprintf("%s", info.InterruptInfo.Data)))
+		if info != nil {
+			// Compose checkpoint is keyed by the same ID the Runner persists in the interrupt payload.
+			runOpts = append(runOpts, compose.WithCheckPointID(fmt.Sprintf("%s", info.Data)))
 		}
 
 		msg, err := a.runnable.Invoke(ctx, graphInput, runOpts...)

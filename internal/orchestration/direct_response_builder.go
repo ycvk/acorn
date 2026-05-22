@@ -158,13 +158,13 @@ func (a *directResponseAgent) Resume(ctx context.Context, info *adk.ResumeInfo, 
 			}
 			generator.Close()
 		}()
-		if info == nil || info.InterruptInfo == nil {
+		if info == nil {
 			generator.Send(&adk.AgentEvent{AgentName: a.Name(ctx), Err: errors.New("direct response resume requires interrupt info")})
 			return
 		}
-		resumeData, ok := info.InterruptInfo.Data.(*DirectResponseInterruptData)
+		resumeData, ok := info.Data.(*DirectResponseInterruptData)
 		if !ok || resumeData == nil {
-			generator.Send(&adk.AgentEvent{AgentName: a.Name(ctx), Err: fmt.Errorf("direct response resume requires %T interrupt data, got %T", &DirectResponseInterruptData{}, info.InterruptInfo.Data)})
+			generator.Send(&adk.AgentEvent{AgentName: a.Name(ctx), Err: fmt.Errorf("direct response resume requires %T interrupt data, got %T", &DirectResponseInterruptData{}, info.Data)})
 			return
 		}
 		a.runFromState(ctx, generator, resumeData)
