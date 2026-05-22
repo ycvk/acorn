@@ -154,21 +154,12 @@ func (s *Service) Start(ctx context.Context, req StartRequest) (SessionRecord, e
 		if err != nil {
 			return SessionRecord{}, fmt.Errorf("open terminal session stdin: %w", err)
 		}
-		stdout, err := cmd.StdoutPipe()
-		if err != nil {
-			return SessionRecord{}, fmt.Errorf("open terminal session stdout: %w", err)
-		}
-		stderr, err := cmd.StderrPipe()
-		if err != nil {
-			return SessionRecord{}, fmt.Errorf("open terminal session stderr: %w", err)
-		}
+		cmd.Stdout = stdoutBuf
+		cmd.Stderr = stderrBuf
 		active.stdin = stdin
 		if err := cmd.Start(); err != nil {
 			return SessionRecord{}, fmt.Errorf("start terminal session %v: %w", req.Command, err)
 		}
-		active.copyWG.Add(2)
-		go copyStream(&active.copyWG, stdoutBuf, stdout)
-		go copyStream(&active.copyWG, stderrBuf, stderr)
 	}
 	pid := cmd.Process.Pid
 	record := SessionRecord{
