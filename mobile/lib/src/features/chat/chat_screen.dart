@@ -107,6 +107,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             if (threadsError != null) ErrorBanner(message: threadsError),
             if (chat.errorMessage != null)
               ErrorBanner(message: chat.errorMessage!),
+            if (chat.noticeMessage != null)
+              InfoBanner(message: chat.noticeMessage!),
             Expanded(child: _buildBody(chat, threadsController)),
             _ChatInputBar(
               controller: _composer,
@@ -400,6 +402,7 @@ class _ChatInputBarState extends State<_ChatInputBar> {
 String _runStatusLabel(ChatRunStatus status) {
   return switch (status) {
     ChatRunStatus.streaming => 'streaming',
+    ChatRunStatus.reconnecting => 'reconnecting',
     ChatRunStatus.completed => 'completed',
     ChatRunStatus.failed => 'failed',
     ChatRunStatus.interrupted => 'interrupted',
@@ -410,6 +413,7 @@ String _runStatusLabel(ChatRunStatus status) {
 AcornStatusTone _runStatusTone(ChatRunStatus status) {
   return switch (status) {
     ChatRunStatus.streaming => AcornStatusTone.info,
+    ChatRunStatus.reconnecting => AcornStatusTone.warning,
     ChatRunStatus.completed => AcornStatusTone.success,
     ChatRunStatus.failed => AcornStatusTone.error,
     ChatRunStatus.interrupted => AcornStatusTone.warning,

@@ -127,3 +127,37 @@ class ErrorBanner extends StatelessWidget {
     );
   }
 }
+
+class InfoBanner extends StatelessWidget {
+  const InfoBanner({super.key, required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final status = AcornStatusColors.of(context).info;
+    return AcornSurface(
+      tone: AcornSurfaceTone.low,
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      padding: const EdgeInsets.all(14),
+      radius: AcornRadius.lg,
+      border: true,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.sync, color: status.color, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: status.color,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

@@ -1,4 +1,8 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 
 import '../../api/acorn_api.dart';
 import '../../api/run_event_stream.dart';
@@ -12,29 +16,37 @@ class ChatController extends ChangeNotifier {
     required ConnectionController connectionController,
     required ThreadsController threadsController,
     required InboxController inboxController,
+    Duration runReconnectDelay = const Duration(seconds: 1),
   }) : _connectionController = connectionController,
        _threadsController = threadsController,
-       _inboxController = inboxController;
+       _inboxController = inboxController,
+       _runReconnectDelay = runReconnectDelay;
 
   final ConnectionController _connectionController;
   final ThreadsController _threadsController;
   final InboxController _inboxController;
+  final Duration _runReconnectDelay;
 
   bool loading = false;
   bool sending = false;
   String? errorMessage;
+  String? noticeMessage;
   Thread? thread;
   List<ChatItem> chatItems = const [];
 
   Future<void> loadActiveThread({bool force = false}) async {
     final activeThread = _threadsController.activeThread;
     if (activeThread == null) {
-      if (thread == null && chatItems.isEmpty && errorMessage == null) {
+      if (thread == null &&
+          chatItems.isEmpty &&
+          errorMessage == null &&
+          noticeMessage == null) {
         return;
       }
       thread = null;
       chatItems = const [];
       errorMessage = null;
+      noticeMessage = null;
       notifyListeners();
       return;
     }
@@ -46,6 +58,7 @@ class ChatController extends ChangeNotifier {
 
     loading = true;
     errorMessage = null;
+    noticeMessage = null;
     notifyListeners();
     try {
       final response = await _connectionController.api.listMessages(
@@ -69,6 +82,7 @@ class ChatController extends ChangeNotifier {
 
     sending = true;
     errorMessage = null;
+    noticeMessage = null;
     notifyListeners();
 
     try {
@@ -96,9 +110,11 @@ class ChatController extends ChangeNotifier {
       );
       _appendLiveAssistant(run);
       await _followRun(run);
+      noticeMessage = null;
       await _reloadThreadMessages(activeThread.id);
       await _inboxController.refresh();
     } catch (error) {
+      noticeMessage = null;
       errorMessage = acornUserFacingErrorText(error);
       _markStreamingAssistantFailed();
     } finally {
@@ -109,18 +125,65 @@ class ChatController extends ChangeNotifier {
 
   Future<void> _followRun(Run run) async {
     var sawTerminalEvent = false;
-    await for (final event in _connectionController.followRunEvents(run.id)) {
-      _applyRunEvent(event);
-      notifyListeners();
-      if (isTerminalRunEvent(event)) {
-        sawTerminalEvent = true;
-        break;
+    var lastSeq = 0;
+    while (!sawTerminalEvent) {
+      try {
+        await for (final event in _connectionController.followRunEvents(
+          run.id,
+          afterSeq: lastSeq,
+        )) {
+          if (event.seq > lastSeq) {
+            lastSeq = event.seq;
+          }
+          noticeMessage = null;
+          _applyRunEvent(event);
+          notifyListeners();
+          if (isTerminalRunEvent(event)) {
+            sawTerminalEvent = true;
+            break;
+          }
+        }
+        if (!sawTerminalEvent) {
+          await _verifyRunStillRunning(run.id, lastSeq);
+          await _markRunReconnectingAndPause(run.id, lastSeq);
+        }
+      } catch (error) {
+        if (!_isRecoverableRunEventStreamError(error)) {
+          rethrow;
+        }
+        await _markRunReconnectingAndPause(run.id, lastSeq);
       }
     }
-    if (!sawTerminalEvent) {
-      throw const RunEventStreamException(
-        'Run event stream closed before a terminal run event.',
+  }
+
+  Future<void> _verifyRunStillRunning(String runId, int lastSeq) async {
+    try {
+      final current = await _connectionController.api.getRun(runId);
+      if (current.status == 'running') {
+        return;
+      }
+      throw RunEventStreamException(
+        'Run event stream closed before a terminal event; '
+        'server status is ${current.status} after seq $lastSeq.',
       );
+    } catch (error) {
+      if (_isRecoverableRunEventStreamError(error)) {
+        return;
+      }
+      rethrow;
+    }
+  }
+
+  Future<void> _markRunReconnectingAndPause(String runId, int lastSeq) async {
+    _updateCurrentAssistantForRun(
+      runId,
+      (item) => item.copyWith(status: ChatRunStatus.reconnecting),
+    );
+    noticeMessage =
+        'Connection interrupted. Reconnecting from event #$lastSeq.';
+    notifyListeners();
+    if (_runReconnectDelay > Duration.zero) {
+      await Future<void>.delayed(_runReconnectDelay);
     }
   }
 
@@ -128,13 +191,20 @@ class ChatController extends ChangeNotifier {
     final delta = assistantDeltaText(event);
     final reasoningDelta = assistantDeltaReasoning(event);
     if (delta != null || reasoningDelta != null) {
-      _updateAssistantForRun(
+      final segmentID =
+          assistantDeltaMessageId(event) ??
+          _currentAssistantSegmentIDForRun(event.runId) ??
+          'event:${event.eventId}';
+      _updateAssistantSegment(
         event.runId,
+        segmentID,
+        event.ts,
         (item) => item.copyWith(
           text: delta == null ? item.text : '${item.text}$delta',
           reasoning: reasoningDelta == null
               ? item.reasoning
               : _appendAssistantReasoning(item.reasoning, reasoningDelta),
+          status: ChatRunStatus.streaming,
         ),
       );
       return;
@@ -143,19 +213,27 @@ class ChatController extends ChangeNotifier {
     final messageText = agentMessageText(event);
     final messageReasoning = agentMessageReasoning(event);
     if (messageText != null || messageReasoning != null) {
-      _updateAssistantForRun(
-        event.runId,
-        (item) => item.copyWith(
-          text: messageText ?? item.text,
-          reasoning: messageReasoning ?? item.reasoning,
-          status: statusFromTerminalEvent(event),
-        ),
+      ChatItem updateAssistantMessage(ChatItem item) => item.copyWith(
+        text: messageText ?? item.text,
+        reasoning: messageReasoning ?? item.reasoning,
+        status: statusFromTerminalEvent(event),
       );
+      final messageID = agentMessageId(event);
+      if (messageID == null) {
+        _updateCurrentAssistantForRun(event.runId, updateAssistantMessage);
+      } else {
+        _updateAssistantSegment(
+          event.runId,
+          messageID,
+          event.ts,
+          updateAssistantMessage,
+        );
+      }
       return;
     }
 
     if (isTerminalRunEvent(event)) {
-      _updateAssistantForRun(
+      _updateCurrentAssistantForRun(
         event.runId,
         (item) => item.copyWith(status: statusFromTerminalEvent(event)),
       );
@@ -181,7 +259,7 @@ class ChatController extends ChangeNotifier {
     chatItems = [
       ...chatItems,
       ChatItem.message(
-        id: 'assistant:${run.id}',
+        id: _pendingAssistantItemID(run.id),
         role: ChatRole.assistant,
         text: '',
         createdAt: run.createdAt,
@@ -192,19 +270,67 @@ class ChatController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void _updateAssistantForRun(
+  void _updateAssistantSegment(
+    String runId,
+    String segmentID,
+    String createdAt,
+    ChatItem Function(ChatItem item) update,
+  ) {
+    final itemID = _assistantItemID(runId, segmentID);
+    final normalized = _normalizeAssistantRunItems(
+      runId,
+      currentItemID: itemID,
+    );
+    final index = normalized.lastIndexWhere((item) => item.id == itemID);
+    if (index < 0) {
+      final pendingIndex = normalized.lastIndexWhere(
+        (item) =>
+            item.id == _pendingAssistantItemID(runId) &&
+            item.text.trim().isEmpty &&
+            item.reasoning.trim().isEmpty,
+      );
+      if (pendingIndex >= 0) {
+        final next = [...normalized];
+        next[pendingIndex] = update(
+          next[pendingIndex].copyWith(
+            id: itemID,
+            status: ChatRunStatus.streaming,
+          ),
+        );
+        chatItems = next;
+        return;
+      }
+      chatItems = [
+        ...normalized,
+        update(
+          ChatItem.message(
+            id: itemID,
+            role: ChatRole.assistant,
+            text: '',
+            createdAt: createdAt,
+            runId: runId,
+            status: ChatRunStatus.streaming,
+          ),
+        ),
+      ];
+      return;
+    }
+    final next = [...normalized];
+    next[index] = update(next[index]);
+    chatItems = next;
+  }
+
+  void _updateCurrentAssistantForRun(
     String runId,
     ChatItem Function(ChatItem item) update,
   ) {
-    final index = chatItems.lastIndexWhere(
-      (item) => item.kind == ChatItemKind.message && item.runId == runId,
-    );
+    final index = _currentAssistantIndexForRun(runId, chatItems);
     if (index < 0) {
       chatItems = [
         ...chatItems,
         update(
           ChatItem.message(
-            id: 'assistant:$runId',
+            id: _pendingAssistantItemID(runId),
             role: ChatRole.assistant,
             text: '',
             createdAt: DateTime.now().toUtc().toIso8601String(),
@@ -218,6 +344,51 @@ class ChatController extends ChangeNotifier {
     final next = [...chatItems];
     next[index] = update(next[index]);
     chatItems = next;
+  }
+
+  List<ChatItem> _normalizeAssistantRunItems(
+    String runId, {
+    required String currentItemID,
+  }) {
+    return chatItems
+        .map((item) {
+          if (item.kind != ChatItemKind.message ||
+              item.runId != runId ||
+              item.id == currentItemID ||
+              !item.isStreaming) {
+            return item;
+          }
+          return item.copyWith(status: ChatRunStatus.idle);
+        })
+        .toList(growable: false);
+  }
+
+  int _currentAssistantIndexForRun(String runId, List<ChatItem> items) {
+    final streamingIndex = items.lastIndexWhere(
+      (item) =>
+          item.kind == ChatItemKind.message &&
+          item.runId == runId &&
+          item.isStreaming,
+    );
+    if (streamingIndex >= 0) {
+      return streamingIndex;
+    }
+    return items.lastIndexWhere(
+      (item) => item.kind == ChatItemKind.message && item.runId == runId,
+    );
+  }
+
+  String? _currentAssistantSegmentIDForRun(String runId) {
+    final index = _currentAssistantIndexForRun(runId, chatItems);
+    if (index < 0) {
+      return null;
+    }
+    final prefix = 'assistant:$runId:';
+    final id = chatItems[index].id;
+    if (!id.startsWith(prefix)) {
+      return null;
+    }
+    return id.substring(prefix.length);
   }
 
   void _markStreamingAssistantFailed() {
@@ -247,10 +418,25 @@ class ChatController extends ChangeNotifier {
     loading = false;
     sending = false;
     errorMessage = null;
+    noticeMessage = null;
     thread = null;
     chatItems = const [];
     notifyListeners();
   }
+}
+
+bool _isRecoverableRunEventStreamError(Object error) {
+  return error is http.ClientException ||
+      error is SocketException ||
+      error is TimeoutException;
+}
+
+String _assistantItemID(String runId, String segmentID) {
+  return 'assistant:$runId:$segmentID';
+}
+
+String _pendingAssistantItemID(String runId) {
+  return _assistantItemID(runId, 'pending');
 }
 
 String _appendAssistantReasoning(String current, String delta) {

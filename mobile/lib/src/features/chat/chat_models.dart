@@ -4,7 +4,14 @@ enum ChatItemKind { message, activity }
 
 enum ChatRole { user, assistant, system }
 
-enum ChatRunStatus { idle, streaming, completed, failed, interrupted }
+enum ChatRunStatus {
+  idle,
+  streaming,
+  reconnecting,
+  completed,
+  failed,
+  interrupted,
+}
 
 class ChatItem {
   const ChatItem.message({
@@ -44,10 +51,12 @@ class ChatItem {
 
   bool get isUser => role == ChatRole.user;
   bool get isAssistant => role == ChatRole.assistant;
-  bool get isStreaming => status == ChatRunStatus.streaming;
+  bool get isStreaming =>
+      status == ChatRunStatus.streaming || status == ChatRunStatus.reconnecting;
   bool get hasReasoning => reasoning.trim().isNotEmpty;
 
   ChatItem copyWith({
+    String? id,
     String? text,
     String? reasoning,
     String? detail,
@@ -55,7 +64,7 @@ class ChatItem {
   }) {
     if (kind == ChatItemKind.activity) {
       return ChatItem.activity(
-        id: id,
+        id: id ?? this.id,
         runId: runId ?? '',
         eventType: eventType ?? '',
         text: text ?? this.text,
@@ -64,7 +73,7 @@ class ChatItem {
       );
     }
     return ChatItem.message(
-      id: id,
+      id: id ?? this.id,
       role: role,
       text: text ?? this.text,
       reasoning: reasoning ?? this.reasoning,
@@ -95,10 +104,18 @@ List<ChatItem> mergePersistedChatItemsWithLiveRunFeedback({
   required List<ChatItem> persisted,
   required List<ChatItem> live,
 }) {
+  final multiSegmentRunIDs = _multiSegmentAssistantRunIDs(live);
   final persistedAssistantRunIDs = persisted
       .where((item) => item.isAssistant && item.runId != null)
       .map((item) => item.runId!)
       .toSet();
+  final filteredPersisted = persisted.where((item) {
+    final runID = item.runId;
+    if (item.isAssistant && runID != null) {
+      return !multiSegmentRunIDs.contains(runID);
+    }
+    return true;
+  });
   final preservedLiveItems = live.where((item) {
     if (item.kind == ChatItemKind.activity) {
       return true;
@@ -110,14 +127,32 @@ List<ChatItem> mergePersistedChatItemsWithLiveRunFeedback({
     if (runID == null || runID.isEmpty) {
       return false;
     }
+    if (multiSegmentRunIDs.contains(runID)) {
+      return true;
+    }
     if (persistedAssistantRunIDs.contains(runID)) {
       return false;
     }
-    return item.status != ChatRunStatus.streaming ||
+    return !item.isStreaming ||
         item.text.trim().isNotEmpty ||
         item.reasoning.trim().isNotEmpty;
   });
-  return [...persisted, ...preservedLiveItems];
+  return [...filteredPersisted, ...preservedLiveItems];
+}
+
+Set<String> _multiSegmentAssistantRunIDs(List<ChatItem> items) {
+  final counts = <String, int>{};
+  for (final item in items) {
+    final runID = item.runId;
+    if (!item.isAssistant || runID == null || runID.isEmpty) {
+      continue;
+    }
+    counts[runID] = (counts[runID] ?? 0) + 1;
+  }
+  return counts.entries
+      .where((entry) => entry.value > 1)
+      .map((entry) => entry.key)
+      .toSet();
 }
 
 ChatRole _roleFromMessage(String role) {
@@ -179,6 +214,17 @@ String? assistantDeltaReasoning(RunEvent event) {
   return reasoning.trim().isEmpty ? null : reasoning;
 }
 
+String? assistantDeltaMessageId(RunEvent event) {
+  if (event.type != 'assistant.delta') {
+    return null;
+  }
+  final delta = event.data['assistant_delta'];
+  if (delta is! Map) {
+    throw const FormatException('assistant.delta missing assistant_delta.');
+  }
+  return _nonEmptyString(delta['message_id']);
+}
+
 String? agentMessageText(RunEvent event) {
   if (event.type != 'agent.message' && event.type != 'run.completed') {
     return null;
@@ -208,6 +254,18 @@ String? agentMessageReasoning(RunEvent event) {
   }
   final trimmed = reasoning.trim();
   return trimmed.isEmpty ? null : trimmed;
+}
+
+String? agentMessageId(RunEvent event) {
+  if (event.type != 'agent.message' && event.type != 'run.completed') {
+    return null;
+  }
+  final message = event.data['message'];
+  if (message is! Map) {
+    return null;
+  }
+  return _nonEmptyString(message['message_id']) ??
+      _nonEmptyString(_record(message['meta'])?['message_id']);
 }
 
 ChatRunStatus statusFromTerminalEvent(RunEvent event) {
@@ -372,4 +430,12 @@ Map<Object?, Object?>? _record(Object? value) {
     return value;
   }
   return null;
+}
+
+String? _nonEmptyString(Object? value) {
+  if (value is! String) {
+    return null;
+  }
+  final trimmed = value.trim();
+  return trimmed.isEmpty ? null : trimmed;
 }

@@ -121,7 +121,7 @@ class ConnectionController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Stream<RunEvent> followRunEvents(String runId) {
+  Stream<RunEvent> followRunEvents(String runId, {int afterSeq = 0}) {
     final stream = _stream;
     if (stream == null) {
       throw const AcornApiException(
@@ -130,7 +130,7 @@ class ConnectionController extends ChangeNotifier {
         'Connect to an Acorn server first.',
       );
     }
-    return stream.followRunEvents(runId);
+    return stream.followRunEvents(runId, afterSeq: afterSeq);
   }
 
   Future<void> _runBusy(Future<void> Function() action) async {

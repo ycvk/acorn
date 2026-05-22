@@ -24,6 +24,18 @@ void main() {
     },
   );
 
+  test('reads assistant delta message identity', () {
+    final event = _event('assistant.delta', {
+      'assistant_delta': {
+        'message_id': 'run_1:assistant:1',
+        'sequence': 1,
+        'delta': 'hello',
+      },
+    });
+
+    expect(assistantDeltaMessageId(event), 'run_1:assistant:1');
+  });
+
   test('reads reasoning from final assistant message payloads', () {
     final event = _event('run.completed', {
       'message': {
@@ -143,6 +155,65 @@ void main() {
     expect(merged, hasLength(1));
     expect(merged.single.id, 'msg_assistant');
   });
+
+  test(
+    'keeps live multi-segment assistant transcript after message reload',
+    () {
+      final persisted = chatItemsFromMessages([
+        const Message(
+          id: 'msg_user',
+          threadId: 'thread_1',
+          role: 'user',
+          contentText: 'hello',
+          contentParts: [MessagePart(kind: 'text', text: 'hello')],
+          createdAt: '2026-05-16T00:00:00Z',
+        ),
+        const Message(
+          id: 'msg_assistant',
+          threadId: 'thread_1',
+          role: 'assistant',
+          contentText: 'Second pass',
+          contentParts: [MessagePart(kind: 'text', text: 'Second pass')],
+          createdAt: '2026-05-16T00:00:05Z',
+          runId: 'run_1',
+        ),
+      ]);
+      const firstLive = ChatItem.message(
+        id: 'assistant:run_1:run_1:assistant:0',
+        role: ChatRole.assistant,
+        text: 'First pass',
+        reasoning: 'thinking before tool',
+        createdAt: '2026-05-16T00:00:01Z',
+        runId: 'run_1',
+        status: ChatRunStatus.idle,
+      );
+      const secondLive = ChatItem.message(
+        id: 'assistant:run_1:run_1:assistant:1',
+        role: ChatRole.assistant,
+        text: 'Second pass',
+        reasoning: 'thinking after tool',
+        createdAt: '2026-05-16T00:00:04Z',
+        runId: 'run_1',
+        status: ChatRunStatus.completed,
+      );
+
+      final merged = mergePersistedChatItemsWithLiveRunFeedback(
+        persisted: persisted,
+        live: const [firstLive, secondLive],
+      );
+
+      expect(merged.map((item) => item.id), [
+        'msg_user',
+        'assistant:run_1:run_1:assistant:0',
+        'assistant:run_1:run_1:assistant:1',
+      ]);
+      expect(merged.map((item) => item.text), [
+        'hello',
+        'First pass',
+        'Second pass',
+      ]);
+    },
+  );
 
   test('suppresses routine run trace events from chat activity', () {
     for (final type in const [
