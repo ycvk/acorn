@@ -14,7 +14,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  testWidgets('shell opens on threads and has no home destination', (
+  testWidgets('shell opens on the threads work surface and has no home tab', (
     tester,
   ) async {
     final connection = ConnectionController(
@@ -31,6 +31,8 @@ void main() {
       ),
     );
 
+    expect(find.text('Needs your decision'), findsOneWidget);
+    expect(find.text('Review deployment?'), findsOneWidget);
     expect(find.text('Threads'), findsWidgets);
     expect(find.text('Approvals'), findsOneWidget);
     expect(find.text('Settings'), findsOneWidget);
@@ -109,11 +111,37 @@ class _TestThreadsController extends ThreadsController {
 }
 
 InboxResponse _inbox() {
-  return const InboxResponse(
-    pendingActions: [],
-    activeRuns: [],
+  return InboxResponse(
+    pendingActions: const [
+      PendingActionSummary(
+        actionId: 'action-1',
+        runId: 'run-1234567890',
+        threadId: 'thread-1',
+        kind: 'operator_question',
+        status: 'pending',
+        title: 'Review deployment?',
+        body: 'Acorn needs a device decision before it continues.',
+        options: [],
+        createdAt: '2026-05-22T08:00:00Z',
+      ),
+    ],
+    activeRuns: const [
+      RunSummary(
+        runId: 'run-active-123456',
+        threadId: 'thread-1',
+        threadTitle: 'Ship mobile shell polish',
+        status: 'running',
+        mode: 'plan_execute',
+        preview: 'Updating the Flutter mobile control surface.',
+        lastEventLabel: 'tool.call.progress',
+        attentionLevel: 'running',
+        durationMs: 91000,
+        createdAt: '2026-05-22T08:00:00Z',
+        updatedAt: '2026-05-22T08:01:30Z',
+      ),
+    ],
     recentTerminalRuns: [],
-    system: SystemStatus(
+    system: const SystemStatus(
       runtimeReadiness: RuntimeReadiness(status: 'ready'),
       model: CapabilitiesModel(name: 'gpt-test'),
       workspaceRoot: '/repo',

@@ -33,129 +33,50 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
   @override
   Widget build(BuildContext context) {
     final controller = ref.watch(connectionControllerProvider);
-    final colors = Theme.of(context).colorScheme;
-    final text = Theme.of(context).textTheme;
 
     return Scaffold(
       body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 560),
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(20, 28, 20, 28),
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    AcornTonalIcon(
-                      icon: Icons.spa_rounded,
-                      tone: AcornStatusTone.success,
-                      size: 64,
-                      iconSize: 34,
-                      radius: AcornRadius.xl,
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Acorn', style: text.headlineMedium),
-                          const SizedBox(height: 6),
-                          Text(
-                            'Mobile control for your self-hosted backend.',
-                            style: text.bodyLarge?.copyWith(
-                              color: colors.onSurfaceVariant,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: const [
-                    StatusPill(
-                      label: 'Single owner',
-                      tone: AcornStatusTone.success,
-                      icon: Icons.verified_user_outlined,
-                    ),
-                    StatusPill(
-                      label: '/v1 remote',
-                      tone: AcornStatusTone.info,
-                      icon: Icons.route_outlined,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 28),
-                AcornSurface(
-                  tone: AcornSurfaceTone.low,
-                  border: true,
-                  radius: AcornRadius.xl,
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      TextField(
-                        controller: _serverUrl,
-                        decoration: const InputDecoration(
-                          labelText: 'Server URL',
-                          prefixIcon: Icon(Icons.dns_outlined),
-                        ),
-                        keyboardType: TextInputType.url,
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: _pairingCode,
-                        decoration: const InputDecoration(
-                          labelText: 'Pairing code',
-                          prefixIcon: Icon(Icons.password_outlined),
-                        ),
-                        textCapitalization: TextCapitalization.characters,
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: _deviceName,
-                        decoration: const InputDecoration(
-                          labelText: 'Device name',
-                          prefixIcon: Icon(Icons.phone_android_outlined),
-                        ),
-                      ),
-                      const SizedBox(height: 18),
-                      FilledButton.icon(
-                        onPressed: controller.busy
-                            ? null
-                            : () => controller.pair(
-                                serverUrl: _serverUrl.text,
-                                pairingCode: _pairingCode.text,
-                                deviceName: _deviceName.text,
-                                platform: _platformName(),
-                              ),
-                        icon: const Icon(Icons.link),
-                        label: const Text('Pair device'),
-                      ),
-                      const SizedBox(height: 10),
-                      OutlinedButton.icon(
-                        onPressed: controller.busy ? null : _scanPairingQr,
-                        icon: const Icon(Icons.qr_code_scanner),
-                        label: const Text('Scan pairing QR'),
-                      ),
-                      if (controller.busy) ...[
-                        const SizedBox(height: 18),
-                        const LinearProgressIndicator(),
-                      ],
-                    ],
+        bottom: false,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final horizontalPadding = constraints.maxWidth > 480 ? 28.0 : 16.0;
+            return Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 560),
+                child: ListView(
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
+                  padding: EdgeInsets.fromLTRB(
+                    horizontalPadding,
+                    14,
+                    horizontalPadding,
+                    28,
                   ),
+                  children: [
+                    const _PairingHero(),
+                    const SizedBox(height: 16),
+                    _PairingForm(
+                      serverUrl: _serverUrl,
+                      pairingCode: _pairingCode,
+                      deviceName: _deviceName,
+                      busy: controller.busy,
+                      onPair: () => controller.pair(
+                        serverUrl: _serverUrl.text,
+                        pairingCode: _pairingCode.text,
+                        deviceName: _deviceName.text,
+                        platform: _platformName(),
+                      ),
+                      onScanPairingQr: _scanPairingQr,
+                    ),
+                    if (controller.errorMessage != null) ...[
+                      const SizedBox(height: 14),
+                      ErrorBanner(message: controller.errorMessage!),
+                    ],
+                  ],
                 ),
-                if (controller.errorMessage != null) ...[
-                  const SizedBox(height: 14),
-                  ErrorBanner(message: controller.errorMessage!),
-                ],
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         ),
       ),
     );
@@ -170,6 +91,230 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
     }
     _serverUrl.text = payload.serverUrl;
     _pairingCode.text = payload.pairingCode;
+  }
+}
+
+class _PairingHero extends StatelessWidget {
+  const _PairingHero();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
+    final dark = colors.brightness == Brightness.dark;
+    final background = dark
+        ? colors.surfaceContainerHigh
+        : colors.inverseSurface;
+    final foreground = dark ? colors.onSurface : colors.onInverseSurface;
+    final muted = foreground.withValues(alpha: 0.72);
+
+    return Material(
+      color: background,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(34)),
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                SizedBox.square(
+                  dimension: 44,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: foreground.withValues(alpha: 0.11),
+                      borderRadius: BorderRadius.circular(AcornRadius.lg),
+                      border: Border.all(
+                        color: foreground.withValues(alpha: 0.16),
+                      ),
+                    ),
+                    child: Icon(Icons.spa_rounded, color: foreground, size: 25),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Acorn',
+                    style: text.titleLarge?.copyWith(
+                      color: foreground,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 22),
+            Text(
+              'Control your self-hosted backend.',
+              style: text.headlineMedium?.copyWith(
+                color: foreground,
+                fontWeight: FontWeight.w900,
+                height: 1.05,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Pair once with a terminal QR or pairing code. After that, this phone only consumes authenticated /v1 server truth.',
+              style: text.bodyMedium?.copyWith(
+                color: muted,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 18),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _HeroChip(
+                  icon: Icons.verified_user_outlined,
+                  label: 'Single owner',
+                  foreground: foreground,
+                ),
+                _HeroChip(
+                  icon: Icons.route_outlined,
+                  label: '/v1 remote',
+                  foreground: foreground,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _HeroChip extends StatelessWidget {
+  const _HeroChip({
+    required this.icon,
+    required this.label,
+    required this.foreground,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color foreground;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: foreground.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(AcornRadius.pill),
+        border: Border.all(color: foreground.withValues(alpha: 0.14)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: foreground, size: 17),
+            const SizedBox(width: 7),
+            Text(
+              label,
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                color: foreground,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PairingForm extends StatelessWidget {
+  const _PairingForm({
+    required this.serverUrl,
+    required this.pairingCode,
+    required this.deviceName,
+    required this.busy,
+    required this.onPair,
+    required this.onScanPairingQr,
+  });
+
+  final TextEditingController serverUrl;
+  final TextEditingController pairingCode;
+  final TextEditingController deviceName;
+  final bool busy;
+  final VoidCallback onPair;
+  final VoidCallback onScanPairingQr;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return AcornSurface(
+      tone: AcornSurfaceTone.low,
+      border: true,
+      radius: AcornRadius.xl,
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+      child: AutofillGroup(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Pair this device',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+                Icon(Icons.lock_outline, color: colors.onSurfaceVariant),
+              ],
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: serverUrl,
+              decoration: const InputDecoration(
+                labelText: 'Server URL',
+                prefixIcon: Icon(Icons.dns_outlined),
+              ),
+              keyboardType: TextInputType.url,
+              autofillHints: const [AutofillHints.url],
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: pairingCode,
+              decoration: const InputDecoration(
+                labelText: 'Pairing code',
+                prefixIcon: Icon(Icons.password_outlined),
+              ),
+              textCapitalization: TextCapitalization.characters,
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: deviceName,
+              decoration: const InputDecoration(
+                labelText: 'Device name',
+                prefixIcon: Icon(Icons.phone_android_outlined),
+              ),
+            ),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: busy ? null : onPair,
+              icon: const Icon(Icons.link),
+              label: const Text('Pair device'),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: busy ? null : onScanPairingQr,
+              icon: const Icon(Icons.qr_code_scanner),
+              label: const Text('Scan pairing QR'),
+            ),
+            if (busy) ...[
+              const SizedBox(height: 16),
+              const LinearProgressIndicator(),
+            ],
+          ],
+        ),
+      ),
+    );
   }
 }
 

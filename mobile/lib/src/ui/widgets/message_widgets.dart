@@ -21,38 +21,40 @@ class AcornMessageBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final maxWidth = math.min(MediaQuery.sizeOf(context).width * 0.78, 640.0);
-    final radius = BorderRadius.only(
-      topLeft: const Radius.circular(AcornRadius.xl),
-      topRight: const Radius.circular(AcornRadius.xl),
-      bottomLeft: Radius.circular(outbound ? AcornRadius.xl : AcornRadius.lg),
-      bottomRight: Radius.circular(outbound ? AcornRadius.lg : AcornRadius.xl),
+    final maxWidth = math.min(
+      MediaQuery.sizeOf(context).width * (outbound ? 0.74 : 0.90),
+      outbound ? 560.0 : 680.0,
     );
+    final radius = BorderRadius.circular(AcornRadius.lg);
     final background = outbound
         ? colors.primaryContainer
-        : colors.surfaceContainerHigh;
+        : colors.surfaceContainerLowest;
     final foreground = outbound ? colors.onPrimaryContainer : colors.onSurface;
 
     return Align(
       alignment: outbound ? Alignment.centerRight : Alignment.centerLeft,
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 5),
+        padding: const EdgeInsets.symmetric(vertical: 6),
         child: ConstrainedBox(
           constraints: BoxConstraints(maxWidth: maxWidth),
           child: Material(
             color: background,
-            surfaceTintColor: Colors.transparent,
+            elevation: outbound ? 0 : 1,
+            shadowColor: colors.shadow.withValues(alpha: 0.12),
+            surfaceTintColor: outbound
+                ? Colors.transparent
+                : colors.surfaceTint.withValues(alpha: 0.16),
             shape: RoundedRectangleBorder(
               borderRadius: radius,
               side: BorderSide(
                 color: outbound
-                    ? colors.primary.withValues(alpha: 0.24)
-                    : colors.outlineVariant.withValues(alpha: 0.82),
+                    ? colors.primary.withValues(alpha: 0.18)
+                    : colors.outlineVariant.withValues(alpha: 0.72),
               ),
             ),
             clipBehavior: Clip.antiAlias,
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
               child: IconTheme.merge(
                 data: IconThemeData(color: foreground),
                 child: DefaultTextStyle.merge(
@@ -102,9 +104,9 @@ class AcornActivityRow extends StatelessWidget {
     return AcornSurface(
       tone: AcornSurfaceTone.low,
       border: true,
-      radius: AcornRadius.lg,
-      margin: const EdgeInsets.symmetric(vertical: 4),
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      radius: AcornRadius.md,
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.fromLTRB(12, 11, 12, 11),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -113,7 +115,7 @@ class AcornActivityRow extends StatelessWidget {
             tone: AcornStatusTone.info,
             size: 34,
             iconSize: 18,
-            radius: AcornRadius.md,
+            radius: AcornRadius.sm,
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -202,10 +204,13 @@ class _AcornThinkingSectionState extends State<AcornThinkingSection> {
     final textTheme = Theme.of(context).textTheme;
     final trimmed = widget.reasoning.trim();
 
-    return AcornSurface(
-      tone: AcornSurfaceTone.base,
-      border: true,
-      radius: AcornRadius.md,
+    return Material(
+      color: colors.surfaceContainerLow,
+      surfaceTintColor: colors.surfaceTint.withValues(alpha: 0.10),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AcornRadius.md),
+        side: BorderSide(color: colors.outlineVariant.withValues(alpha: 0.7)),
+      ),
       clipBehavior: Clip.antiAlias,
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -214,11 +219,11 @@ class _AcornThinkingSectionState extends State<AcornThinkingSection> {
           InkWell(
             onTap: () => setState(() => _expanded = !_expanded),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               child: Row(
                 children: [
                   Icon(
-                    Icons.lightbulb_outline,
+                    Icons.psychology_alt_outlined,
                     size: 18,
                     color: colors.onSurfaceVariant,
                   ),
@@ -246,12 +251,12 @@ class _AcornThinkingSectionState extends State<AcornThinkingSection> {
             alignment: Alignment.topCenter,
             child: _expanded
                 ? Padding(
-                    padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
                     child: SelectableText(
                       trimmed,
                       style: textTheme.bodySmall?.copyWith(
                         color: colors.onSurfaceVariant,
-                        height: 1.38,
+                        height: 1.45,
                       ),
                     ),
                   )

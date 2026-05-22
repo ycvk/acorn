@@ -1,20 +1,70 @@
 import 'package:flutter/material.dart';
+import 'package:flex_color_scheme/flex_color_scheme.dart';
 
 ThemeData buildAcornTheme(Brightness brightness) {
   final scheme = _acornColorScheme(brightness);
-  final base = ThemeData(
-    useMaterial3: true,
-    brightness: brightness,
-    colorScheme: scheme,
-    scaffoldBackgroundColor: scheme.surface,
+  final base = brightness == Brightness.light
+      ? FlexThemeData.light(
+          colorScheme: scheme,
+          surfaceMode: FlexSurfaceMode.highScaffoldLowSurface,
+          blendLevel: 4,
+          subThemesData: _acornSubThemes(Brightness.light),
+          useMaterial3: true,
+          visualDensity: FlexColorScheme.comfortablePlatformDensity,
+        )
+      : FlexThemeData.dark(
+          colorScheme: scheme,
+          surfaceMode: FlexSurfaceMode.highScaffoldLowSurface,
+          blendLevel: 8,
+          subThemesData: _acornSubThemes(Brightness.dark),
+          useMaterial3: true,
+          visualDensity: FlexColorScheme.comfortablePlatformDensity,
+        );
+  final baseScheme = base.colorScheme;
+  final acornScheme = baseScheme.copyWith(
+    primary: scheme.primary,
+    onPrimary: scheme.onPrimary,
+    primaryContainer: scheme.primaryContainer,
+    onPrimaryContainer: scheme.onPrimaryContainer,
+    secondary: scheme.secondary,
+    onSecondary: scheme.onSecondary,
+    secondaryContainer: scheme.secondaryContainer,
+    onSecondaryContainer: scheme.onSecondaryContainer,
+    tertiary: scheme.tertiary,
+    onTertiary: scheme.onTertiary,
+    tertiaryContainer: scheme.tertiaryContainer,
+    onTertiaryContainer: scheme.onTertiaryContainer,
+    error: scheme.error,
+    onError: scheme.onError,
+    errorContainer: scheme.errorContainer,
+    onErrorContainer: scheme.onErrorContainer,
+    surface: scheme.surface,
+    onSurface: scheme.onSurface,
+    surfaceContainerLowest: scheme.surfaceContainerLowest,
+    surfaceContainerLow: scheme.surfaceContainerLow,
+    surfaceContainer: scheme.surfaceContainer,
+    surfaceContainerHigh: scheme.surfaceContainerHigh,
+    surfaceContainerHighest: scheme.surfaceContainerHighest,
+    onSurfaceVariant: scheme.onSurfaceVariant,
+    outline: scheme.outline,
+    outlineVariant: scheme.outlineVariant,
+    inverseSurface: scheme.inverseSurface,
+    onInverseSurface: scheme.onInverseSurface,
+    inversePrimary: scheme.inversePrimary,
+    surfaceTint: scheme.surfaceTint,
   );
-  final textTheme = base.textTheme.apply(
-    bodyColor: scheme.onSurface,
-    displayColor: scheme.onSurface,
+  final seeded = base.copyWith(
+    brightness: brightness,
+    colorScheme: acornScheme,
+    scaffoldBackgroundColor: acornScheme.surface,
+  );
+  final textTheme = seeded.textTheme.apply(
+    bodyColor: acornScheme.onSurface,
+    displayColor: acornScheme.onSurface,
   );
 
-  return base.copyWith(
-    scaffoldBackgroundColor: scheme.surface,
+  return seeded.copyWith(
+    scaffoldBackgroundColor: acornScheme.surface,
     textTheme: textTheme.copyWith(
       headlineMedium: textTheme.headlineMedium?.copyWith(
         fontWeight: FontWeight.w800,
@@ -38,23 +88,23 @@ ThemeData buildAcornTheme(Brightness brightness) {
       centerTitle: false,
       elevation: 0,
       scrolledUnderElevation: 0,
-      backgroundColor: scheme.surface,
-      foregroundColor: scheme.onSurface,
+      backgroundColor: acornScheme.surface,
+      foregroundColor: acornScheme.onSurface,
       surfaceTintColor: Colors.transparent,
       titleTextStyle: textTheme.titleLarge?.copyWith(
-        color: scheme.onSurface,
+        color: acornScheme.onSurface,
         fontWeight: FontWeight.w800,
       ),
       toolbarHeight: 64,
     ),
     navigationBarTheme: NavigationBarThemeData(
       height: 78,
-      backgroundColor: scheme.surfaceContainerLow,
+      backgroundColor: acornScheme.surfaceContainerLow,
       elevation: 0,
-      indicatorColor: scheme.primaryContainer,
+      indicatorColor: acornScheme.primaryContainer,
       indicatorShape: const StadiumBorder(),
       overlayColor: WidgetStatePropertyAll(
-        scheme.primary.withValues(alpha: 0.08),
+        acornScheme.primary.withValues(alpha: 0.08),
       ),
       labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
       iconTheme: WidgetStateProperty.resolveWith((states) {
@@ -79,23 +129,23 @@ ThemeData buildAcornTheme(Brightness brightness) {
       labelStyle: TextStyle(color: scheme.onSurfaceVariant),
       hintStyle: TextStyle(color: scheme.onSurfaceVariant),
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(AcornRadius.xl),
+        borderRadius: BorderRadius.circular(AcornRadius.lg),
         borderSide: BorderSide(color: scheme.outlineVariant),
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(AcornRadius.xl),
+        borderRadius: BorderRadius.circular(AcornRadius.lg),
         borderSide: BorderSide(color: scheme.outlineVariant),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(AcornRadius.xl),
+        borderRadius: BorderRadius.circular(AcornRadius.lg),
         borderSide: BorderSide(color: scheme.primary, width: 1.6),
       ),
       errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(AcornRadius.xl),
+        borderRadius: BorderRadius.circular(AcornRadius.lg),
         borderSide: BorderSide(color: scheme.error, width: 1.2),
       ),
       focusedErrorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(AcornRadius.xl),
+        borderRadius: BorderRadius.circular(AcornRadius.lg),
         borderSide: BorderSide(color: scheme.error, width: 1.4),
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
@@ -215,6 +265,78 @@ ThemeData buildAcornTheme(Brightness brightness) {
   );
 }
 
+FlexSubThemesData _acornSubThemes(Brightness brightness) {
+  final dark = brightness == Brightness.dark;
+  return FlexSubThemesData(
+    interactionEffects: true,
+    tintedDisabledControls: true,
+    blendOnLevel: dark ? 10 : 6,
+    blendOnColors: dark,
+    scaffoldBackgroundBaseColor: FlexScaffoldBaseColor.surface,
+    useMaterial3Typography: true,
+    defaultRadius: AcornRadius.lg,
+    buttonMinSize: const Size(64, 48),
+    thickBorderWidth: 1.4,
+    thinBorderWidth: 1,
+    filledButtonRadius: AcornRadius.pill,
+    elevatedButtonRadius: AcornRadius.pill,
+    outlinedButtonRadius: AcornRadius.pill,
+    textButtonRadius: AcornRadius.pill,
+    segmentedButtonRadius: AcornRadius.pill,
+    inputDecoratorRadius: AcornRadius.lg,
+    inputDecoratorIsFilled: true,
+    inputDecoratorBackgroundAlpha: dark ? 40 : 26,
+    inputDecoratorBorderType: FlexInputBorderType.outline,
+    inputDecoratorFocusedBorderWidth: 1.4,
+    inputDecoratorUnfocusedHasBorder: true,
+    inputDecoratorBorderSchemeColor: SchemeColor.outlineVariant,
+    inputDecoratorPrefixIconSchemeColor: SchemeColor.onSurfaceVariant,
+    inputDecoratorSuffixIconSchemeColor: SchemeColor.onSurfaceVariant,
+    inputDecoratorContentPadding: const EdgeInsets.symmetric(
+      horizontal: 18,
+      vertical: 16,
+    ),
+    listTileIconSchemeColor: SchemeColor.onSurfaceVariant,
+    listTileContentPadding: const EdgeInsets.symmetric(
+      horizontal: 16,
+      vertical: 8,
+    ),
+    cardRadius: AcornRadius.lg,
+    cardElevation: 1,
+    chipRadius: AcornRadius.pill,
+    chipIconSize: 18,
+    popupMenuRadius: AcornRadius.md,
+    popupMenuElevation: 3,
+    menuRadius: AcornRadius.md,
+    menuElevation: 3,
+    searchBarRadius: AcornRadius.lg,
+    searchViewRadius: AcornRadius.lg,
+    searchUseGlobalShape: true,
+    dialogRadius: AcornRadius.xl,
+    bottomSheetRadius: AcornRadius.xl,
+    bottomSheetElevation: 0,
+    bottomSheetModalElevation: 0,
+    appBarBackgroundSchemeColor: SchemeColor.surface,
+    appBarForegroundSchemeColor: SchemeColor.onSurface,
+    appBarScrolledUnderElevation: 0,
+    navigationBarHeight: 78,
+    navigationBarBackgroundSchemeColor: SchemeColor.surfaceContainerLow,
+    navigationBarIndicatorSchemeColor: SchemeColor.primaryContainer,
+    navigationBarIndicatorRadius: AcornRadius.pill,
+    navigationBarSelectedIconSchemeColor: SchemeColor.onPrimaryContainer,
+    navigationBarSelectedLabelSchemeColor: SchemeColor.onSurface,
+    navigationBarUnselectedIconSchemeColor: SchemeColor.onSurfaceVariant,
+    navigationBarUnselectedLabelSchemeColor: SchemeColor.onSurfaceVariant,
+    navigationBarMutedUnselectedIcon: false,
+    navigationBarMutedUnselectedLabel: false,
+    navigationBarLabelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+    snackBarRadius: AcornRadius.sm,
+    tooltipRadius: AcornRadius.sm,
+    progressIndicatorLinearMinHeight: 4,
+    progressIndicatorLinearRadius: AcornRadius.pill,
+  );
+}
+
 ColorScheme _acornColorScheme(Brightness brightness) {
   final base = ColorScheme.fromSeed(
     seedColor: const Color(0xFF4F6F52),
@@ -302,7 +424,7 @@ abstract final class AcornRadius {
   static const sm = 8.0;
   static const md = 12.0;
   static const lg = 16.0;
-  static const xl = 28.0;
+  static const xl = 24.0;
   static const pill = 999.0;
 }
 

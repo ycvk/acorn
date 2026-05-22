@@ -61,8 +61,10 @@ class AcornBottomSurface extends StatelessWidget {
     return SafeArea(
       top: false,
       child: Material(
-        color: colors.surfaceContainerLow,
-        surfaceTintColor: Colors.transparent,
+        color: colors.surfaceContainer,
+        elevation: 1,
+        shadowColor: colors.shadow.withValues(alpha: 0.12),
+        surfaceTintColor: colors.surfaceTint.withValues(alpha: 0.12),
         child: DecoratedBox(
           decoration: BoxDecoration(
             border: Border(
@@ -73,7 +75,7 @@ class AcornBottomSurface extends StatelessWidget {
             ),
           ),
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
             child: child,
           ),
         ),

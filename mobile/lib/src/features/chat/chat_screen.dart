@@ -86,14 +86,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             ],
           ),
           actions: [
-            IconButton.filledTonal(
+            IconButton(
               tooltip: 'Refresh',
               icon: const Icon(Icons.refresh),
               onPressed: threadsLoading || chat.sending
                   ? null
                   : () => _refresh(chat),
             ),
-            IconButton.filledTonal(
+            IconButton(
               tooltip: 'New thread',
               icon: const Icon(Icons.add_comment_outlined),
               onPressed: threadsLoading || chat.sending
@@ -251,7 +251,7 @@ class _MessageBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final isUser = item.isUser;
-    final textColor = isUser ? colors.onPrimary : colors.onSurface;
+    final textColor = isUser ? colors.onPrimaryContainer : colors.onSurface;
 
     return GestureDetector(
       onLongPress: () {
@@ -357,6 +357,7 @@ class _ChatInputBarState extends State<_ChatInputBar> {
   @override
   Widget build(BuildContext context) {
     final hasText = widget.controller.text.trim().isNotEmpty;
+    final colors = Theme.of(context).colorScheme;
     return AcornBottomSurface(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
@@ -370,7 +371,27 @@ class _ChatInputBarState extends State<_ChatInputBar> {
               maxLines: 5,
               textInputAction: TextInputAction.send,
               onSubmitted: widget.sending ? null : (_) => widget.onSend(),
-              decoration: const InputDecoration(hintText: 'Message Acorn'),
+              decoration: InputDecoration(
+                hintText: 'Message Acorn',
+                filled: true,
+                fillColor: colors.surfaceContainerLowest,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AcornRadius.lg),
+                  borderSide: BorderSide(color: colors.outlineVariant),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AcornRadius.lg),
+                  borderSide: BorderSide(color: colors.outlineVariant),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AcornRadius.lg),
+                  borderSide: BorderSide(color: colors.primary, width: 1.4),
+                ),
+              ),
             ),
           ),
           const SizedBox(width: 8),
