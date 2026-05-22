@@ -40,6 +40,7 @@ func TestDefaultRehydrationPlannerExtractsContextEnvelopePackets(t *testing.T) {
 		TokenCounter: testTokenCounter(t),
 		Messages: []adk.Message{
 			schema.UserMessage("<skill-context>\nSelected skill: cs-feat-impl\n</skill-context>"),
+			schema.UserMessage("<skill-catalog>\nCatalog:\n- skill.web.browser.research (Web Browser Research) [eligible]\n</skill-catalog>"),
 			schema.UserMessage(memoryContext),
 		},
 	})
@@ -50,12 +51,14 @@ func TestDefaultRehydrationPlannerExtractsContextEnvelopePackets(t *testing.T) {
 	wantKinds := []RehydratePacketKind{
 		RehydrateWorkingCheckpoint,
 		RehydrateSelectedSkill,
+		RehydrateSkillCatalog,
 		RehydrateSessionSummary,
 		RehydratePreparedMemory,
 	}
 	assertPacketKinds(t, plan.Packets, wantKinds)
 	assertPacketContains(t, plan, RehydrateWorkingCheckpoint, "finish context protocol rewrite")
 	assertPacketContains(t, plan, RehydrateSelectedSkill, "Selected skill: cs-feat-impl")
+	assertPacketContains(t, plan, RehydrateSkillCatalog, "skill.web.browser.research")
 	assertPacketContains(t, plan, RehydrateSessionSummary, "context roadmap is active")
 	assertPacketContains(t, plan, RehydratePreparedMemory, "## Memory Entries")
 }

@@ -18,6 +18,7 @@ type RehydratePacketKind string
 const (
 	RehydrateWorkingCheckpoint RehydratePacketKind = "working_checkpoint"
 	RehydrateSelectedSkill     RehydratePacketKind = "selected_skill"
+	RehydrateSkillCatalog      RehydratePacketKind = "skill_catalog"
 	RehydrateToolState         RehydratePacketKind = "tool_state"
 	RehydrateSessionSummary    RehydratePacketKind = "session_summary"
 	RehydratePreparedMemory    RehydratePacketKind = "prepared_memory"
@@ -60,6 +61,7 @@ type defaultRehydrationPlanner struct{}
 var defaultRehydratePacketLimits = map[RehydratePacketKind]int{
 	RehydrateWorkingCheckpoint: 7000,
 	RehydrateSelectedSkill:     8000,
+	RehydrateSkillCatalog:      9000,
 	RehydrateToolState:         7000,
 	RehydrateSessionSummary:    5000,
 	RehydratePreparedMemory:    12000,
@@ -90,6 +92,9 @@ func (defaultRehydrationPlanner) Plan(ctx context.Context, req RehydrateRequest)
 		return nil, err
 	}
 	if err := builder.append(RehydrateSelectedSkill, "skill-context", extractTaggedContent(req.Messages, "skill-context")); err != nil {
+		return nil, err
+	}
+	if err := builder.append(RehydrateSkillCatalog, "skill-catalog", extractTaggedContent(req.Messages, "skill-catalog")); err != nil {
 		return nil, err
 	}
 	if err := builder.append(RehydrateToolState, "tool-lifecycle-state", formatToolStatePacket(req.ToolState)); err != nil {

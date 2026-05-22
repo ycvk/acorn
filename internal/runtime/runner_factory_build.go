@@ -19,9 +19,10 @@ import (
 )
 
 type runCapabilities struct {
-	catalog      *tooling.Catalog
-	stableSkills []skills.Spec
-	close        func() error
+	catalog       *tooling.Catalog
+	skillSnapshot *skills.Snapshot
+	stableSkills  []skills.Spec
+	close         func() error
 }
 
 func (c *runCapabilities) Close() error {
@@ -43,11 +44,6 @@ func (f *RunnerFactory) buildRunCapabilities(ctx context.Context, sessionID stri
 	if err != nil {
 		return nil, err
 	}
-	stableSkills, err := loadStableSkills(ctx, f.loader)
-	if err != nil {
-		return nil, err
-	}
-
 	specs := append([]tooling.ToolSpec(nil), toolset.Catalog().Specs()...)
 	var resourceTools []einotool.BaseTool
 	var promptTools []einotool.BaseTool
@@ -91,10 +87,15 @@ func (f *RunnerFactory) buildRunCapabilities(ctx context.Context, sessionID stri
 	if err != nil {
 		return nil, err
 	}
+	skillSnapshot, err := loadStableSkillSnapshot(ctx, f.loader, skillEligibilityContextFromCatalog(catalog))
+	if err != nil {
+		return nil, err
+	}
 	return &runCapabilities{
-		catalog:      catalog,
-		stableSkills: stableSkills,
-		close:        toolset.Close,
+		catalog:       catalog,
+		skillSnapshot: skillSnapshot,
+		stableSkills:  stableSkillsFromSnapshot(skillSnapshot),
+		close:         toolset.Close,
 	}, nil
 }
 

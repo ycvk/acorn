@@ -13,6 +13,7 @@ import (
 	"github.com/ycvk/acorn/internal/decision"
 	"github.com/ycvk/acorn/internal/memorymodule"
 	"github.com/ycvk/acorn/internal/runtimehistory"
+	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/tooling"
 	"github.com/ycvk/acorn/internal/toolresult"
 	"github.com/ycvk/acorn/internal/workingstate"
@@ -32,6 +33,7 @@ type AssembleRequest struct {
 	SessionID      string
 	Input          string
 	SelectedSkill  *SelectedSkill
+	SkillSnapshot  *skills.Snapshot
 	DecisionRecord *decision.Record
 	Hint           *DecisionContextHint
 	MemoryPrepared *memorymodule.PrepareResult

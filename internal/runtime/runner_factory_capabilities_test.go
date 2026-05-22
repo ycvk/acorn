@@ -63,6 +63,9 @@ func TestBuildStableInstruction(t *testing.T) {
 	if !strings.Contains(got, "you are a helper") {
 		t.Fatalf("stable instruction missing base: %q", got)
 	}
+	if !strings.Contains(got, "Capability discovery rules:") {
+		t.Fatalf("stable instruction missing capability discovery guidance: %q", got)
+	}
 	if !strings.Contains(got, "be concise") {
 		t.Fatalf("stable instruction missing suffix: %q", got)
 	}
@@ -73,15 +76,18 @@ func TestBuildStableInstruction(t *testing.T) {
 
 func TestBuildStableInstructionBaseOnly(t *testing.T) {
 	got := buildStableInstruction("base prompt", "")
-	if got != "base prompt" {
-		t.Fatalf("expected %q, got %q", "base prompt", got)
+	if !strings.Contains(got, "base prompt") {
+		t.Fatalf("stable instruction missing base prompt: %q", got)
+	}
+	if !strings.Contains(got, "call skill_list or skill_view before answering") {
+		t.Fatalf("stable instruction missing skill discovery rule: %q", got)
 	}
 }
 
 func TestBuildStableInstructionAllEmpty(t *testing.T) {
 	got := buildStableInstruction("", "")
-	if got != "" {
-		t.Fatalf("expected empty string, got %q", got)
+	if !strings.Contains(got, "Capability discovery rules:") {
+		t.Fatalf("expected capability discovery guidance, got %q", got)
 	}
 }
 

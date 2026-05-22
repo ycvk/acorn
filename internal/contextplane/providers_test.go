@@ -135,6 +135,59 @@ func TestBuildSkillContextMessageNil(t *testing.T) {
 	}
 }
 
+func TestBuildSkillCatalogMessage(t *testing.T) {
+	snapshot := &skills.Snapshot{
+		Skills: []skills.View{
+			{
+				Spec: skills.Spec{
+					ID:           "skill.web.browser.research",
+					Name:         "Web Browser Research",
+					Summary:      "Search, fetch, and browse the web.",
+					TriggerHints: []string{"search web", "browse site", "open page"},
+					Requires:     skills.Requirements{Tools: []string{"load_tools"}},
+				},
+				Eligible: true,
+			},
+			{
+				Spec: skills.Spec{
+					ID:              "skill.retired",
+					Name:            "Retired",
+					LifecycleStatus: skills.LifecycleRetired,
+				},
+				Eligible: true,
+			},
+			{
+				Spec: skills.Spec{
+					ID:      "skill.browser.disabled",
+					Name:    "Browser Disabled",
+					Summary: "Needs browser runtime.",
+				},
+				Eligible:        false,
+				DisabledReasons: []string{"missing_required_tools:browser"},
+			},
+		},
+	}
+	got := buildSkillCatalogMessage(snapshot)
+	if got == nil {
+		t.Fatal("expected non-nil skill catalog message")
+	}
+	if !strings.Contains(got.Content, "<skill-catalog>") {
+		t.Fatalf("missing <skill-catalog> tag: %q", got.Content)
+	}
+	if !strings.Contains(got.Content, "skill.web.browser.research") {
+		t.Fatalf("missing browser research catalog entry: %q", got.Content)
+	}
+	if !strings.Contains(got.Content, "call skill_list or skill_view before answering") {
+		t.Fatalf("missing catalog guidance: %q", got.Content)
+	}
+	if strings.Contains(got.Content, "skill.retired") {
+		t.Fatalf("retired skill should not appear in catalog: %q", got.Content)
+	}
+	if !strings.Contains(got.Content, "disabled=missing_required_tools:browser") {
+		t.Fatalf("missing disabled reason in catalog: %q", got.Content)
+	}
+}
+
 func TestMemoryMessagePresentWhenDynamicContentExists(t *testing.T) {
 	cases := []struct {
 		name string

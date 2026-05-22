@@ -166,9 +166,9 @@ func nonEmptyStrings(items ...string) []string {
 	return out
 }
 
-func loadStableSkills(ctx context.Context, loader interface {
+func loadStableSkillSnapshot(ctx context.Context, loader interface {
 	ScanSkills(context.Context) (*skills.ScanResult, error)
-}) ([]skills.Spec, error) {
+}, eligibility skills.EligibilityContext) (*skills.Snapshot, error) {
 	if loader == nil {
 		return nil, nil
 	}
@@ -179,11 +179,23 @@ func loadStableSkills(ctx context.Context, loader interface {
 	if scan == nil {
 		return nil, nil
 	}
-	items := make([]skills.Spec, 0, len(scan.Skills))
-	for _, item := range scan.Skills {
-		items = append(items, skills.CopySpec(item))
+	snapshot, err := skills.BuildSnapshot(*scan, eligibility)
+	if err != nil {
+		return nil, fmt.Errorf("build skill snapshot: %w", err)
 	}
-	return items, nil
+	copy := skills.CopySnapshot(snapshot)
+	return &copy, nil
+}
+
+func stableSkillsFromSnapshot(snapshot *skills.Snapshot) []skills.Spec {
+	if snapshot == nil || len(snapshot.Skills) == 0 {
+		return nil
+	}
+	items := make([]skills.Spec, 0, len(snapshot.Skills))
+	for _, item := range snapshot.Skills {
+		items = append(items, skills.CopySpec(item.Spec))
+	}
+	return items
 }
 
 func recommendedSkillsFromMatches(matches []SkillMatch) []decision.RecommendedSkill {

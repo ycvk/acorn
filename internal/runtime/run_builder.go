@@ -144,7 +144,7 @@ func (b *runBuilder) newDirectResponseRunner(ctx context.Context, req RunnerBuil
 	if err != nil {
 		return nil, err
 	}
-	contextResult, err := b.ensureContextSelectionAssembler().AssembleDirectContext(ctx, req, memoryPrepared, capabilities.catalog)
+	contextResult, err := b.ensureContextSelectionAssembler().AssembleDirectContext(ctx, req, memoryPrepared, capabilities.skillSnapshot, capabilities.catalog)
 	if err != nil {
 		return nil, err
 	}
