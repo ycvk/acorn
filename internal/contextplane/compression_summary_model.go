@@ -2,7 +2,6 @@ package contextplane
 
 import (
 	"errors"
-	"slices"
 	"strings"
 
 	"github.com/cloudwego/eino/adk"
@@ -164,11 +163,6 @@ func messageText(msg adk.Message) string {
 			parts = append(parts, strings.TrimSpace(part.Text))
 		}
 	}
-	for _, part := range msg.MultiContent {
-		if part.Type == schema.ChatMessagePartTypeText && strings.TrimSpace(part.Text) != "" {
-			parts = append(parts, strings.TrimSpace(part.Text))
-		}
-	}
 	for _, part := range msg.AssistantGenMultiContent {
 		if part.Type == schema.ChatMessagePartTypeText && strings.TrimSpace(part.Text) != "" {
 			parts = append(parts, strings.TrimSpace(part.Text))
@@ -235,9 +229,6 @@ func sanitizeSummaryMessage(msg adk.Message) adk.Message {
 	for i := range message.UserInputMultiContent {
 		message.UserInputMultiContent[i].Text = redactSecrets(message.UserInputMultiContent[i].Text)
 	}
-	for i := range message.MultiContent {
-		message.MultiContent[i].Text = redactSecrets(message.MultiContent[i].Text)
-	}
 	for i := range message.AssistantGenMultiContent {
 		message.AssistantGenMultiContent[i].Text = redactSecrets(message.AssistantGenMultiContent[i].Text)
 		if message.AssistantGenMultiContent[i].Reasoning != nil {
@@ -261,9 +252,6 @@ func cloneMessage(msg adk.Message) *schema.Message {
 				message.UserInputMultiContent[i].Extra = cloneAnyMap(message.UserInputMultiContent[i].Extra)
 			}
 		}
-	}
-	if msg.MultiContent != nil {
-		message.MultiContent = slices.Clone(msg.MultiContent)
 	}
 	if msg.AssistantGenMultiContent != nil {
 		message.AssistantGenMultiContent = append([]schema.MessageOutputPart(nil), msg.AssistantGenMultiContent...)
