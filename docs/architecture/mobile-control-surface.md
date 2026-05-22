@@ -1,7 +1,7 @@
 ---
 doc_type: architecture
 status: current
-last_reviewed: 2026-05-20
+last_reviewed: 2026-05-22
 slug: mobile-control-surface
 ---
 
@@ -75,7 +75,9 @@ The current state split keeps streaming assistant deltas inside `ChatController`
 
 ## Material 3 UI System
 
-The Flutter mobile shell uses Material 3 as the active UI system. `mobile/lib/src/ui/theme/acorn_theme.dart` owns `ThemeData(useMaterial3: true)`, `ColorScheme.fromSeed`, component theme defaults, spacing/radius constants, and semantic status color tokens. The app uses system/Material typography through `ThemeData.textTheme` and keeps status vocabulary centralized as success, warning, info, neutral, and error.
+The Flutter mobile shell uses Material 3 as the active UI system. `mobile/lib/src/ui/theme/acorn_theme.dart` owns the FlexColorScheme-backed `ThemeData`, Acorn color scheme values, component sub-themes, spacing/radius constants, and semantic status color tokens. The app uses system/Material typography through `ThemeData.textTheme` and keeps status vocabulary centralized as success, warning, info, neutral, and error.
+
+The connected UI should read as a Material control surface: app bars use standard icon actions, settings uses grouped `Card` + `ListTile` sections, chat uses paper-like assistant surfaces and primary-container user messages, and the composer is a bottom Material surface. Avoid oversized custom pill cards for ordinary settings rows, chat reasoning blocks, or toolbar actions; reserve prominent filled/tonal controls for primary actions and status.
 
 Reusable presentation widgets live under `mobile/lib/src/ui/widgets/`:
 
@@ -117,14 +119,14 @@ Current mobile surfaces:
 
 - Connect: scan the Acorn pairing QR or enter server URL / pairing code manually, pair a device, and persist the connection profile.
 - Chat: thread detail surface for backend message send, run start, live assistant streaming, backend-provided reasoning display, assistant Markdown rendering, and exceptional blocking activity rows.
-- Threads: list/create/delete backend threads and open them in Chat as a pushed detail route.
+- Threads: first shell destination and thread-continuation surface. It uses `/v1/inbox` only for high-priority owner context (server readiness, pending decision count, active/attention runs) while still making backend threads the primary action path; it lists/creates/deletes backend threads and opens them in Chat as a pushed detail route.
 - Run detail: secondary detail surface over `GET /v1/runs/{run_id}/detail`, projecting summary and user-meaningful artifacts/terminal sessions. Raw event diagnostics are separated behind an explicit diagnostics route.
 - Approvals: list pending backend actions from the inbox aggregate and open the existing approval detail flow.
 - Run stream: read `GET /v1/runs/{run_id}/events?after_seq=0&follow=true` and project persisted RunEvent SSE into the active assistant bubble.
 - Pending approval: read `GET /v1/pending-actions/{action_id}` and decide through `POST /v1/pending-actions/{action_id}:decide`.
 - Settings: display connected server, device ID, backend model projection, workspace projection, and disconnect.
 
-The connected shell uses three bottom destinations: Threads, Approvals, and Settings. Chat is not a global tab; it is opened from a selected/new thread. Each destination reloads backend truth through its feature controller; the UI does not infer run state, approval state, thread state, or readiness from local screen state.
+The connected shell uses three bottom destinations: Threads, Approvals, and Settings. Chat is not a global tab; it is opened from a selected/new thread. Threads remains the first screen, not a separate Home/Inbox feed; its header and priority cards consume backend-owned inbox projections without creating local run or approval truth. Each destination reloads backend truth through its feature controller; the UI does not infer run state, approval state, thread state, or readiness from local screen state.
 
 ## Live RunEvent Streaming
 
