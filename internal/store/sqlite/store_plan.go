@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 )
@@ -87,7 +88,7 @@ func (s *Store) scanPlan(row *sql.Row) (*PlanRecord, error) {
 		updatedAt string
 	)
 	if err := row.Scan(&planID, &sessionID, &runID, &stepsJSON, &createdAt, &updatedAt); err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("%w: session/run", ErrPlanNotFound)
 		}
 		return nil, fmt.Errorf("scan plan: %w", err)

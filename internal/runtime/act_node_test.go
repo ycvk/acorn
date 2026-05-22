@@ -104,7 +104,7 @@ func TestActNodeStreamingPathCallsModelStream(t *testing.T) {
 	node := NewActNode(model, tools, newDirectAssistantStreamer(nil), store, nil, nil, nil)
 	ctx := withRunID(withSessionID(context.Background(), "sess_stream"), "run_stream")
 
-	out, err := node.Invoke(ctx, &agentGraphState{Messages: []*schema.Message{schema.UserMessage("test")}})
+	out, err := node.Invoke(ctx, &AgentGraphState{Messages: []*schema.Message{schema.UserMessage("test")}})
 	if err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}
@@ -151,7 +151,7 @@ func TestActNodeCompletesNextPendingStep(t *testing.T) {
 	node := NewActNode(model, tools, newDirectAssistantStreamer(nil), store, nil, nil, nil)
 	ctx := withRunID(withSessionID(context.Background(), "sess_act"), "run_act")
 
-	out, err := node.Invoke(ctx, &agentGraphState{Messages: []*schema.Message{schema.UserMessage("read")}})
+	out, err := node.Invoke(ctx, &AgentGraphState{Messages: []*schema.Message{schema.UserMessage("read")}})
 	if err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}
@@ -200,7 +200,7 @@ func TestActNodeCompletesTestIntentStepWithPassedCommandEvidence(t *testing.T) {
 	node := NewActNode(model, tools, newDirectAssistantStreamer(nil), store, nil, nil, nil)
 	ctx := withRunID(withSessionID(context.Background(), "sess_test"), "run_test")
 
-	out, err := node.Invoke(ctx, &agentGraphState{Messages: []*schema.Message{schema.UserMessage("test runtime")}})
+	out, err := node.Invoke(ctx, &AgentGraphState{Messages: []*schema.Message{schema.UserMessage("test runtime")}})
 	if err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}
@@ -248,7 +248,7 @@ func TestActNodeFailsWhenVerificationIntentHasOnlyRecordedEvidence(t *testing.T)
 	node := NewActNode(model, tools, newDirectAssistantStreamer(nil), store, nil, nil, nil)
 	ctx := withRunID(withSessionID(context.Background(), "sess_gap"), "run_gap")
 
-	out, err := node.Invoke(ctx, &agentGraphState{Messages: []*schema.Message{schema.UserMessage("verify")}})
+	out, err := node.Invoke(ctx, &AgentGraphState{Messages: []*schema.Message{schema.UserMessage("verify")}})
 	if err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}
@@ -291,7 +291,7 @@ func TestActNodeContinuesSameStepUntilRollbackEvidenceCoversIntent(t *testing.T)
 	node := NewActNode(model, tools, newDirectAssistantStreamer(nil), store, nil, nil, nil)
 	ctx := withRunID(withSessionID(context.Background(), "sess_rollback_continue"), "run_rollback_continue")
 
-	out, err := node.Invoke(ctx, &agentGraphState{Messages: []*schema.Message{schema.UserMessage("create then rollback")}})
+	out, err := node.Invoke(ctx, &AgentGraphState{Messages: []*schema.Message{schema.UserMessage("create then rollback")}})
 	if err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}
@@ -351,7 +351,7 @@ func TestActNodeCompletesDelegateStepWithPassedSubagentEvidence(t *testing.T) {
 	node := NewActNode(model, tools, newDirectAssistantStreamer(nil), store, nil, nil, nil)
 	ctx := withRunID(withSessionID(context.Background(), "sess_delegate"), "run_delegate")
 
-	out, err := node.Invoke(ctx, &agentGraphState{Messages: []*schema.Message{schema.UserMessage("delegate tests")}})
+	out, err := node.Invoke(ctx, &AgentGraphState{Messages: []*schema.Message{schema.UserMessage("delegate tests")}})
 	if err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}
@@ -395,7 +395,7 @@ func TestActNodeFailsDelegateStepWhenSubagentAcceptanceFails(t *testing.T) {
 	node := NewActNode(model, tools, newDirectAssistantStreamer(nil), store, nil, nil, nil)
 	ctx := withRunID(withSessionID(context.Background(), "sess_delegate_fail"), "run_delegate_fail")
 
-	out, err := node.Invoke(ctx, &agentGraphState{Messages: []*schema.Message{schema.UserMessage("delegate tests")}})
+	out, err := node.Invoke(ctx, &AgentGraphState{Messages: []*schema.Message{schema.UserMessage("delegate tests")}})
 	if err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}
@@ -434,7 +434,7 @@ func TestActNodeRecordsFailedToolEvidence(t *testing.T) {
 	node := NewActNode(model, tools, newDirectAssistantStreamer(nil), store, nil, nil, nil)
 	ctx := withRunID(withSessionID(context.Background(), "sess_fail_evidence"), "run_fail_evidence")
 
-	out, err := node.Invoke(ctx, &agentGraphState{Messages: []*schema.Message{schema.UserMessage("read missing")}})
+	out, err := node.Invoke(ctx, &AgentGraphState{Messages: []*schema.Message{schema.UserMessage("read missing")}})
 	if err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}
@@ -473,7 +473,7 @@ func TestActNodeRecordsDiffEvidenceFromRecorder(t *testing.T) {
 	node := NewActNode(model, tools, newDirectAssistantStreamer(nil), store, nil, nil, nil)
 	ctx := withRunID(withSessionID(context.Background(), "sess_snapshot"), "run_snapshot")
 
-	out, err := node.Invoke(ctx, &agentGraphState{Messages: []*schema.Message{schema.UserMessage("write")}})
+	out, err := node.Invoke(ctx, &AgentGraphState{Messages: []*schema.Message{schema.UserMessage("write")}})
 	if err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}
@@ -528,7 +528,7 @@ func TestActNodeEnforcesRiskyToolPlanBeforeTools(t *testing.T) {
 	}, nil)
 	ctx := withRunID(withSessionID(context.Background(), "sess_risky"), "run_risky")
 
-	if _, err := node.Invoke(ctx, &agentGraphState{Messages: []*schema.Message{schema.UserMessage("create")}}); err != nil {
+	if _, err := node.Invoke(ctx, &AgentGraphState{Messages: []*schema.Message{schema.UserMessage("create")}}); err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}
 	if store.loadCount < 2 {
@@ -556,7 +556,7 @@ func TestActNodeMarksFailedWhenToolNodeFails(t *testing.T) {
 	node := NewActNode(model, tools, newDirectAssistantStreamer(nil), store, nil, nil, nil)
 	ctx := withRunID(withSessionID(context.Background(), "sess_fail"), "run_fail")
 
-	out, err := node.Invoke(ctx, &agentGraphState{Messages: []*schema.Message{schema.UserMessage("read")}})
+	out, err := node.Invoke(ctx, &AgentGraphState{Messages: []*schema.Message{schema.UserMessage("read")}})
 	if err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}
@@ -580,7 +580,7 @@ func TestActNodeMarksFailedWhenModelReturnsNoToolCalls(t *testing.T) {
 	node := NewActNode(model, &fakeToolInvoker{}, newDirectAssistantStreamer(nil), store, nil, nil, nil)
 	ctx := withRunID(withSessionID(context.Background(), "sess_no_tools"), "run_no_tools")
 
-	out, err := node.Invoke(ctx, &agentGraphState{Messages: []*schema.Message{schema.UserMessage("read")}})
+	out, err := node.Invoke(ctx, &AgentGraphState{Messages: []*schema.Message{schema.UserMessage("read")}})
 	if err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}
@@ -617,7 +617,7 @@ func TestActNodeContinuesStepAfterLoadToolsOnlyRound(t *testing.T) {
 	node := NewActNode(model, tools, newDirectAssistantStreamer(nil), store, nil, nil, []string{"read_file"})
 	ctx := withRunID(withSessionID(context.Background(), "sess_load_tools"), "run_load_tools")
 
-	out, err := node.Invoke(ctx, &agentGraphState{Messages: []*schema.Message{schema.UserMessage("research")}})
+	out, err := node.Invoke(ctx, &AgentGraphState{Messages: []*schema.Message{schema.UserMessage("research")}})
 	if err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}

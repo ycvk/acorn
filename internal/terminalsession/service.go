@@ -570,11 +570,9 @@ func normalizeStartRequest(req StartRequest) StartRequest {
 
 func statusFromWaitErr(waitErr error) (Status, *int, string) {
 	if waitErr == nil {
-		code := 0
-		return StatusExited, &code, ""
+		return StatusExited, new(0), ""
 	}
-	var exitErr *exec.ExitError
-	if errors.As(waitErr, &exitErr) {
+	if exitErr, ok := errors.AsType[*exec.ExitError](waitErr); ok {
 		if status, ok := exitErr.Sys().(syscall.WaitStatus); ok && status.Signaled() {
 			return StatusSignaled, nil, status.Signal().String()
 		}

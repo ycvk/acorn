@@ -45,8 +45,8 @@ func (s *SkillService) Snapshot(ctx context.Context) (*skills.Snapshot, error) {
 	if err != nil {
 		return nil, err
 	}
-	copy := skills.CopySnapshot(snapshot)
-	return &copy, nil
+	copied := skills.CopySnapshot(snapshot)
+	return &copied, nil
 }
 
 func (s *SkillService) Health(ctx context.Context, fixtures []skills.RoutingFixture) (*skills.HealthReport, error) {
@@ -61,8 +61,8 @@ func (s *SkillService) Health(ctx context.Context, fixtures []skills.RoutingFixt
 	if err != nil {
 		return nil, err
 	}
-	copy := skills.CopyHealthReport(*report)
-	return &copy, nil
+	copied := skills.CopyHealthReport(*report)
+	return &copied, nil
 }
 
 type SkillListFilter struct {
@@ -166,8 +166,8 @@ func (s *SkillService) Create(ctx context.Context, input CreateSkillInput) (*ski
 	if err != nil {
 		return nil, err
 	}
-	copy := skills.CopyView(view)
-	return &copy, nil
+	copied := skills.CopyView(view)
+	return &copied, nil
 }
 
 func (s *SkillService) Patch(ctx context.Context, id, content, source string) (*skills.View, error) {

@@ -9,27 +9,27 @@ import (
 )
 
 type notifyingPendingActionStore struct {
-	pendingActionCreateStore
+	PendingActionCreateStore
 	notifications *NotificationService
 }
 
-type pendingActionCreateStore interface {
+type PendingActionCreateStore interface {
 	pendingActionDecisionStore
 	CreatePendingAction(context.Context, storecore.CreatePendingActionInput) (*events.PendingActionRecord, error)
 }
 
-func NewNotifyingPendingActionStore(store pendingActionCreateStore, notifications *NotificationService) pendingActionCreateStore {
+func NewNotifyingPendingActionStore(store PendingActionCreateStore, notifications *NotificationService) PendingActionCreateStore {
 	if notifications == nil {
 		return store
 	}
 	return &notifyingPendingActionStore{
-		pendingActionCreateStore: store,
+		PendingActionCreateStore: store,
 		notifications:            notifications,
 	}
 }
 
 func (s *notifyingPendingActionStore) CreatePendingAction(ctx context.Context, input storecore.CreatePendingActionInput) (*events.PendingActionRecord, error) {
-	record, err := s.pendingActionCreateStore.CreatePendingAction(ctx, input)
+	record, err := s.PendingActionCreateStore.CreatePendingAction(ctx, input)
 	if err != nil {
 		return nil, err
 	}

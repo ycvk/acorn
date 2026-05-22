@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	readability "codeberg.org/readeck/go-readability/v2"
+	"codeberg.org/readeck/go-readability/v2"
 	htmltomarkdown "github.com/JohannesKaufmann/html-to-markdown/v2"
 	"github.com/JohannesKaufmann/html-to-markdown/v2/converter"
 	"golang.org/x/net/html"

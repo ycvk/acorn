@@ -321,16 +321,14 @@ func copyOptionalInt(value *int) *int {
 	if value == nil {
 		return nil
 	}
-	copied := *value
-	return &copied
+	return new(*value)
 }
 
 func copyOptionalTime(value *time.Time) *time.Time {
 	if value == nil {
 		return nil
 	}
-	copied := value.UTC()
-	return &copied
+	return new(value.UTC())
 }
 
 func workspaceGitStatusDTOFromDomain(item app.WorkspaceGitStatus) WorkspaceGitStatusDTO {

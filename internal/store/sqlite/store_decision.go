@@ -3,6 +3,7 @@ package sqlite
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -59,7 +60,7 @@ func (s *Store) LoadRunDecision(ctx context.Context, runID string) (*decision.Re
 		&record.DecisionProfileHash,
 		&createdAt,
 	); err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("load run decision: %w", err)

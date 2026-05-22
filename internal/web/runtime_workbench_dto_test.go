@@ -14,7 +14,6 @@ import (
 
 func TestRuntimeWorkbenchDTOFromDomainPreservesAggregatedSections(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Second)
-	exitCode := 0
 	workbench := &app.RuntimeWorkbench{
 		SessionID:       "session_42",
 		Title:           "continue runtime work",
@@ -144,7 +143,7 @@ func TestRuntimeWorkbenchDTOFromDomainPreservesAggregatedSections(t *testing.T) 
 			CommandJSON:       `["make","test"]`,
 			Cwd:               "/repo/acorn",
 			Status:            "exited",
-			ExitCode:          &exitCode,
+			ExitCode:          new(0),
 			StdoutArtifactID:  "artifact_stdout",
 			StartedAt:         &now,
 			EndedAt:           &now,

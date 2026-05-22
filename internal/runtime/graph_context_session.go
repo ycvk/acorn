@@ -28,7 +28,7 @@ func graphSessionModelCallRequest(callID, source string, toolInfos []*schema.Too
 	}
 }
 
-func graphSessionBaseMessages(ctx context.Context, state *agentGraphState, req contextplane.ModelCallRequest) (contextplane.ContextSession, []*schema.Message, error) {
+func graphSessionBaseMessages(ctx context.Context, state *AgentGraphState, req contextplane.ModelCallRequest) (contextplane.ContextSession, []*schema.Message, error) {
 	session := contextplane.ContextSessionFromContext(ctx)
 	if session == nil {
 		if state == nil {
@@ -47,7 +47,7 @@ func graphSessionBaseMessages(ctx context.Context, state *agentGraphState, req c
 	return session, base, nil
 }
 
-func graphSessionReactiveBaseMessages(ctx context.Context, session contextplane.ContextSession, state *agentGraphState, req contextplane.ModelCallRequest, cause error) ([]*schema.Message, error) {
+func graphSessionReactiveBaseMessages(ctx context.Context, session contextplane.ContextSession, state *AgentGraphState, req contextplane.ModelCallRequest, cause error) ([]*schema.Message, error) {
 	if session == nil {
 		return nil, cause
 	}

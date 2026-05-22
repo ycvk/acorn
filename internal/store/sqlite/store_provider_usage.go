@@ -3,6 +3,7 @@ package sqlite
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -84,7 +85,7 @@ func scanProviderUsage(scanner providerUsageScanner) (providerusage.Record, erro
 		&record.ReasoningTokens,
 		&createdAt,
 	); err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return providerusage.Record{}, err
 		}
 		return providerusage.Record{}, err

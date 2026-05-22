@@ -40,7 +40,7 @@ func (s *assistantStreamAppenderSpy) AppendEventContext(_ context.Context, runID
 }
 
 func (m *assistantStreamingModel) Generate(context.Context, []*schema.Message, ...einomodel.Option) (*schema.Message, error) {
-	return nil, errors.New("Generate should not be used in assistant stream tests")
+	return nil, errors.New("generate should not be used in assistant stream tests")
 }
 
 func (m *assistantStreamingModel) Stream(_ context.Context, _ []*schema.Message, opts ...einomodel.Option) (*schema.StreamReader[*schema.Message], error) {

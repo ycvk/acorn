@@ -2,6 +2,7 @@ package memorymodule
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -225,7 +226,7 @@ func (s *LocalService) getRecordByRefFromFS(ctx context.Context, ref string) (*R
 			}
 			return nil
 		})
-		if err != nil && err != filepath.SkipAll {
+		if err != nil && !errors.Is(err, filepath.SkipAll) {
 			return nil, fmt.Errorf("search %s for ref %q: %w", kinds[i], ref, err)
 		}
 		if found != nil {

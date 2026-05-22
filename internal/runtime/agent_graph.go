@@ -18,7 +18,7 @@ import (
 	"github.com/ycvk/acorn/internal/tooling"
 )
 
-type agentGraphState struct {
+type AgentGraphState struct {
 	Messages            []*schema.Message
 	Plan                *Plan
 	ObserveDecision     ObserveDecision
@@ -78,16 +78,16 @@ func buildAgentGraph(
 	}
 
 	g := compose.NewGraph[*agentGraphInput, *schema.Message](
-		compose.WithGenLocalState(func(ctx context.Context) *agentGraphState {
-			return &agentGraphState{
+		compose.WithGenLocalState(func(ctx context.Context) *AgentGraphState {
+			return &AgentGraphState{
 				AgentName:           agentName,
 				RemainingIterations: maxIter,
 			}
 		}),
 	)
 
-	initLambda := compose.InvokableLambda(func(ctx context.Context, input *agentGraphInput) (*agentGraphState, error) {
-		state := &agentGraphState{
+	initLambda := compose.InvokableLambda(func(ctx context.Context, input *agentGraphInput) (*AgentGraphState, error) {
+		state := &AgentGraphState{
 			Messages:            append([]*schema.Message(nil), input.Messages...),
 			RemainingIterations: maxIter,
 			AgentName:           agentName,
@@ -111,7 +111,7 @@ func buildAgentGraph(
 	act := NewActNode(wrappedModel, safeToolNode, streamer, planStore, eventStore, toolSpecs, eagerToolNames)
 	observe := NewObserveNode(wrappedModel, planStore)
 
-	if err := g.AddLambdaNode(planNode, compose.InvokableLambda(func(ctx context.Context, state *agentGraphState) (*agentGraphState, error) {
+	if err := g.AddLambdaNode(planNode, compose.InvokableLambda(func(ctx context.Context, state *AgentGraphState) (*AgentGraphState, error) {
 		if err := consumePlanIteration(state, maxIter); err != nil {
 			return nil, err
 		}
@@ -120,13 +120,13 @@ func buildAgentGraph(
 		return nil, fmt.Errorf("add plan node: %w", err)
 	}
 
-	if err := g.AddLambdaNode(actNode, compose.InvokableLambda(func(ctx context.Context, state *agentGraphState) (*agentGraphState, error) {
+	if err := g.AddLambdaNode(actNode, compose.InvokableLambda(func(ctx context.Context, state *AgentGraphState) (*AgentGraphState, error) {
 		return act.Invoke(ctx, state)
 	}), compose.WithNodeName(actNode)); err != nil {
 		return nil, fmt.Errorf("add act node: %w", err)
 	}
 
-	if err := g.AddLambdaNode(observeNode, compose.InvokableLambda(func(ctx context.Context, state *agentGraphState) (*agentGraphState, error) {
+	if err := g.AddLambdaNode(observeNode, compose.InvokableLambda(func(ctx context.Context, state *AgentGraphState) (*AgentGraphState, error) {
 		decision, err := observe.Decide(ctx, state)
 		if err != nil {
 			return nil, err
@@ -138,7 +138,7 @@ func buildAgentGraph(
 		return nil, fmt.Errorf("add observe node: %w", err)
 	}
 
-	if err := g.AddLambdaNode(finalNode, compose.InvokableLambda(func(ctx context.Context, state *agentGraphState) (*schema.Message, error) {
+	if err := g.AddLambdaNode(finalNode, compose.InvokableLambda(func(ctx context.Context, state *AgentGraphState) (*schema.Message, error) {
 		return finalMessageFromGraphState(state), nil
 	}), compose.WithNodeName(finalNode)); err != nil {
 		return nil, fmt.Errorf("add final node: %w", err)
@@ -157,7 +157,7 @@ func buildAgentGraph(
 		return nil, fmt.Errorf("add act→observe edge: %w", err)
 	}
 
-	observeBranch := compose.NewGraphBranch(func(ctx context.Context, state *agentGraphState) (string, error) {
+	observeBranch := compose.NewGraphBranch(func(ctx context.Context, state *AgentGraphState) (string, error) {
 		switch state.ObserveDecision.Decision {
 		case ObserveDecisionNext:
 			return actNode, nil
@@ -236,7 +236,7 @@ func isNilCheckpointStore(store compose.CheckPointStore) bool {
 	}
 }
 
-func consumePlanIteration(state *agentGraphState, maxIter int) error {
+func consumePlanIteration(state *AgentGraphState, maxIter int) error {
 	if state.RemainingIterations <= 0 {
 		return fmt.Errorf("exceeds max iterations (%d)", maxIter)
 	}
@@ -244,7 +244,7 @@ func consumePlanIteration(state *agentGraphState, maxIter int) error {
 	return nil
 }
 
-func finalMessageFromGraphState(state *agentGraphState) *schema.Message {
+func finalMessageFromGraphState(state *AgentGraphState) *schema.Message {
 	if state == nil {
 		return schema.AssistantMessage("", nil)
 	}

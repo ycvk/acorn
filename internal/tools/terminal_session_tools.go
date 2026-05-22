@@ -383,8 +383,7 @@ func copyOptionalInt(value *int) *int {
 	if value == nil {
 		return nil
 	}
-	copied := *value
-	return &copied
+	return new(*value)
 }
 
 func formatOptionalTime(value *time.Time) string {

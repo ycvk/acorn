@@ -8,7 +8,7 @@ import (
 )
 
 func init() {
-	schema.RegisterName[*agentGraphState]("_acorn_agent_graph_state")
+	schema.RegisterName[*AgentGraphState]("_acorn_agent_graph_state")
 	schema.RegisterName[*Plan]("_acorn_plan")
 }
 

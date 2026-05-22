@@ -207,13 +207,13 @@ func TestHandleElicitationEmitsStreamItems(t *testing.T) {
 	_, _ = handler.HandleElicitation(ctx, req)
 
 	// Verify that pending and decided stream events were emitted via events table
-	events_list, err := store.LoadEvents(ctx, runID)
+	eventsList, err := store.LoadEvents(ctx, runID)
 	if err != nil {
 		t.Fatalf("load events: %v", err)
 	}
 
 	var foundPending, foundDecided bool
-	for _, e := range events_list {
+	for _, e := range eventsList {
 		if e.Kind == "elicitation.pending" {
 			foundPending = true
 		}

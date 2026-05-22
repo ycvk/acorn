@@ -53,7 +53,6 @@ func TestStoreTerminalSessionsSaveLoadListAndLogs(t *testing.T) {
 	}
 
 	endedAt := startedAt.Add(time.Minute)
-	exitCode := 0
 	updated, err := store.SaveTerminalSession(context.Background(), terminalsession.SessionRecord{
 		TerminalSessionID: "term_1",
 		RunID:             "run_1",
@@ -66,7 +65,7 @@ func TestStoreTerminalSessionsSaveLoadListAndLogs(t *testing.T) {
 		Status:            terminalsession.StatusExited,
 		ProcessID:         &pid,
 		ProcessGroupID:    &pgid,
-		ExitCode:          &exitCode,
+		ExitCode:          new(0),
 		StdoutArtifactID:  "artifact_stdout",
 		StartedAt:         &startedAt,
 		EndedAt:           &endedAt,

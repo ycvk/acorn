@@ -125,7 +125,6 @@ func buildBrowserTool(service *browser.Service, artifactService *artifacts.Servi
 				return BrowserOutput{}, err
 			}
 			preview, truncated := previewString(scan.Extracted.Markdown, defaultBrowserPreviewBytes)
-			summary := artifactSummaryFromRecord(record)
 			output.Scan = &BrowserScanOutput{
 				URL:                scan.URL,
 				Title:              scan.Extracted.Title,
@@ -134,7 +133,7 @@ func buildBrowserTool(service *browser.Service, artifactService *artifacts.Servi
 				MarkdownPreview:    preview,
 				MarkdownTruncated:  truncated,
 				MarkdownArtifactID: record.ArtifactID,
-				MarkdownArtifact:   &summary,
+				MarkdownArtifact:   new(artifactSummaryFromRecord(record)),
 				Links:              append([]webaccess.PageLink(nil), scan.Extracted.Links...),
 			}
 			if err := emitToolProgress(ctx, emit, fmt.Sprintf("scanned %s into artifact %s", scan.URL, record.ArtifactID)); err != nil {
@@ -206,11 +205,9 @@ func buildBrowserTool(service *browser.Service, artifactService *artifacts.Servi
 				}
 				output.Console = &result
 			case "list":
-				result := service.ConsoleList()
-				output.Console = &result
+				output.Console = new(service.ConsoleList())
 			case "stop":
-				result := service.ConsoleStop()
-				output.Console = &result
+				output.Console = new(service.ConsoleStop())
 			default:
 				return BrowserOutput{}, fmt.Errorf("unsupported browser console mode %q", input.Mode)
 			}
@@ -225,11 +222,9 @@ func buildBrowserTool(service *browser.Service, artifactService *artifacts.Servi
 				}
 				output.Network = &result
 			case "list":
-				result := service.NetworkList()
-				output.Network = &result
+				output.Network = new(service.NetworkList())
 			case "stop":
-				result := service.NetworkStop()
-				output.Network = &result
+				output.Network = new(service.NetworkStop())
 			default:
 				return BrowserOutput{}, fmt.Errorf("unsupported browser network mode %q", input.Mode)
 			}

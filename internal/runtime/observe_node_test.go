@@ -44,7 +44,7 @@ func TestObserveNodeReturnsDoneWithoutLLMWhenAllStepsTerminal(t *testing.T) {
 	node := NewObserveNode(model, store)
 	ctx := withSessionID(context.Background(), "sess_observe")
 
-	decision, err := node.Decide(ctx, &agentGraphState{})
+	decision, err := node.Decide(ctx, &AgentGraphState{})
 	if err != nil {
 		t.Fatalf("Decide: %v", err)
 	}
@@ -72,7 +72,7 @@ func TestObserveNodeParsesNextDecision(t *testing.T) {
 	node := NewObserveNode(model, store)
 	ctx := withSessionID(context.Background(), "sess_next")
 
-	decision, err := node.Decide(ctx, &agentGraphState{Messages: []*schema.Message{schema.UserMessage("continue")}})
+	decision, err := node.Decide(ctx, &AgentGraphState{Messages: []*schema.Message{schema.UserMessage("continue")}})
 	if err != nil {
 		t.Fatalf("Decide: %v", err)
 	}
@@ -100,7 +100,7 @@ func TestObserveNodeParsesReplanDecision(t *testing.T) {
 	node := NewObserveNode(model, store)
 	ctx := withSessionID(context.Background(), "sess_replan")
 
-	decision, err := node.Decide(ctx, &agentGraphState{})
+	decision, err := node.Decide(ctx, &AgentGraphState{})
 	if err != nil {
 		t.Fatalf("Decide: %v", err)
 	}
@@ -124,7 +124,7 @@ func TestObserveNodeRejectsInvalidDecision(t *testing.T) {
 	node := NewObserveNode(model, store)
 	ctx := withSessionID(context.Background(), "sess_invalid")
 
-	_, err := node.Decide(ctx, &agentGraphState{})
+	_, err := node.Decide(ctx, &AgentGraphState{})
 	if err == nil || !strings.Contains(err.Error(), "step_id") {
 		t.Fatalf("expected step_id error, got %v", err)
 	}
