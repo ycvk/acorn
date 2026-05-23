@@ -31,7 +31,7 @@ type WebSearchOutput struct {
 	ResponseTime    float64                          `json:"response_time,omitempty"`
 }
 
-func buildWebSearchTool(search *webaccess.SearchService, artifactService *artifacts.Service, bridge ArtifactContext) (einotool.BaseTool, error) {
+func buildWebSearchTool(search WebSearchService, artifactService ArtifactService, bridge ArtifactContext) (einotool.BaseTool, error) {
 	if search == nil {
 		return nil, errors.New("web search service is required")
 	}

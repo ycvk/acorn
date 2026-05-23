@@ -1,4 +1,4 @@
-package runtime
+package stream
 
 import (
 	"fmt"
@@ -17,7 +17,7 @@ func activeProviderName(chatModel einomodel.BaseChatModel) string {
 	return ""
 }
 
-func streamItemsFromAgentEvent(event *adk.AgentEvent, chatModel einomodel.BaseChatModel) []StreamItem {
+func StreamItemsFromAgentEvent(event *adk.AgentEvent, chatModel einomodel.BaseChatModel) []StreamItem {
 	items := make([]StreamItem, 0, 3)
 	createdAt := time.Now().UTC()
 	if event.Output != nil && event.Output.MessageOutput != nil {
@@ -25,7 +25,7 @@ func streamItemsFromAgentEvent(event *adk.AgentEvent, chatModel einomodel.BaseCh
 			items = append(items, StreamItem{
 				Kind:      StreamKindAssistantMessage,
 				CreatedAt: createdAt,
-				Payload:   &AssistantMessagePayload{Message: streamMessageFromSchema(message, activeProviderName(chatModel))},
+				Payload:   &AssistantMessagePayload{Message: StreamMessageFromSchema(message, activeProviderName(chatModel))},
 			})
 		}
 	}
@@ -46,7 +46,7 @@ func streamItemsFromAgentEvent(event *adk.AgentEvent, chatModel einomodel.BaseCh
 	return items
 }
 
-func streamMessageFromSchema(message *schema.Message, activeProvider string) *StreamMessage {
+func StreamMessageFromSchema(message *schema.Message, activeProvider string) *StreamMessage {
 	if message == nil {
 		return nil
 	}

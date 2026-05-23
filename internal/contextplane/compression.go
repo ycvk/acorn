@@ -19,7 +19,7 @@ import (
 type CompressionBuildOptions struct {
 	RuntimeStorageDir string
 	TokenCounter      *CompressionTokenCounter
-	State             *CompressionState
+	State             any
 	EmitCompressed    func(context.Context, CompressionOutcome) error
 	EmitPressure      func(context.Context, BudgetPressure) error
 }
@@ -114,7 +114,7 @@ type pipelineCompressionMiddleware struct {
 	governor        BudgetGovernor
 	modelProfile    ModelProfile
 	preservePolicy  PreservePolicy
-	state           *CompressionState
+	state           any
 	emitCompressed  func(context.Context, CompressionOutcome) error
 	emitPressure    func(context.Context, BudgetPressure) error
 	turnIndex       int
@@ -127,7 +127,7 @@ type pipelineCompressionMiddlewareOptions struct {
 	Governor       BudgetGovernor
 	ModelProfile   ModelProfile
 	PreservePolicy PreservePolicy
-	State          *CompressionState
+	State          any
 	EmitCompressed func(context.Context, CompressionOutcome) error
 	EmitPressure   func(context.Context, BudgetPressure) error
 }
@@ -212,8 +212,8 @@ func (m *pipelineCompressionMiddleware) BeforeModelRewriteState(ctx context.Cont
 	if result.Outcome != nil {
 		outcome := *result.Outcome
 		outcome.LayersApplied = append([]CompactLayer(nil), result.LayersApplied...)
-		if m.state != nil {
-			m.state.RecordCompression(outcome.Summary)
+		if s, ok := m.state.(*CompressionState); ok && s != nil {
+			s.RecordCompression(outcome.Summary)
 		}
 		if m.emitCompressed != nil {
 			if err := m.emitCompressed(ctx, outcome); err != nil {
@@ -357,8 +357,8 @@ func (m *reactivePipelineModel) preFlightCompact(ctx context.Context, input []*s
 	if result.Outcome != nil {
 		outcome := *result.Outcome
 		outcome.LayersApplied = append([]CompactLayer(nil), result.LayersApplied...)
-		if m.middleware.state != nil {
-			m.middleware.state.RecordCompression(outcome.Summary)
+		if s, ok := m.middleware.state.(*CompressionState); ok && s != nil {
+			s.RecordCompression(outcome.Summary)
 		}
 		if m.middleware.emitCompressed != nil {
 			if err := m.middleware.emitCompressed(ctx, outcome); err != nil {
@@ -416,8 +416,8 @@ func (m *reactivePipelineModel) reactiveCompact(ctx context.Context, input []*sc
 	if result.Outcome != nil {
 		outcome := *result.Outcome
 		outcome.LayersApplied = append([]CompactLayer(nil), result.LayersApplied...)
-		if m.middleware.state != nil {
-			m.middleware.state.RecordCompression(outcome.Summary)
+		if s, ok := m.middleware.state.(*CompressionState); ok && s != nil {
+			s.RecordCompression(outcome.Summary)
 		}
 		if m.middleware.emitCompressed != nil {
 			if err := m.middleware.emitCompressed(ctx, outcome); err != nil {

@@ -12,6 +12,7 @@ import (
 	"github.com/ycvk/acorn/internal/contextplane"
 	"github.com/ycvk/acorn/internal/orchestration"
 	"github.com/ycvk/acorn/internal/providerusage"
+	"github.com/ycvk/acorn/internal/runtime/graph"
 	"github.com/ycvk/acorn/internal/tooling"
 	"github.com/ycvk/acorn/internal/toolresult"
 )
@@ -21,7 +22,7 @@ type ActNode struct {
 	tools      orchestration.ToolInvoker
 	streamer   orchestration.AssistantStreamer
 	store      PlanStore
-	eventStore eventAppender
+	eventStore EventAppender
 	specs      map[string]tooling.ToolSpec
 	eagerTools []string
 }
@@ -36,7 +37,7 @@ func NewActNode(
 	tools orchestration.ToolInvoker,
 	streamer orchestration.AssistantStreamer,
 	store PlanStore,
-	eventStore eventAppender,
+	eventStore EventAppender,
 	specs []tooling.ToolSpec,
 	eagerToolNames []string,
 ) *ActNode {
@@ -51,7 +52,7 @@ func NewActNode(
 	}
 }
 
-func (n *ActNode) Invoke(ctx context.Context, state *AgentGraphState) (*AgentGraphState, error) {
+func (n *ActNode) Invoke(ctx context.Context, state *graph.AgentGraphState) (*graph.AgentGraphState, error) {
 	if state == nil {
 		return nil, fmt.Errorf("act node requires graph state")
 	}
@@ -64,7 +65,7 @@ func (n *ActNode) Invoke(ctx context.Context, state *AgentGraphState) (*AgentGra
 	if n.store == nil {
 		return nil, fmt.Errorf("act node requires a plan store")
 	}
-	sessionID := strings.TrimSpace(sessionIDFromContext(ctx))
+	sessionID := strings.TrimSpace(SessionIDFromContext(ctx))
 	if sessionID == "" {
 		return nil, fmt.Errorf("act node requires session_id")
 	}
@@ -94,8 +95,8 @@ func (n *ActNode) Invoke(ctx context.Context, state *AgentGraphState) (*AgentGra
 	for round := 0; round < maxActionRoundsPerStep; round++ {
 		toolInfos := contextplane.LoadedToolInfosFromContext(ctx, n.eagerTools)
 		messageID := fmt.Sprintf("act-%s-%d", step.ID, round)
-		modelReq := graphSessionModelCallRequest(messageID, "agent_graph_act", toolInfos)
-		session, baseMessages, err := graphSessionBaseMessages(ctx, state, modelReq)
+		modelReq := graph.GraphSessionModelCallRequest(messageID, "agent_graph_act", toolInfos)
+		session, baseMessages, err := graph.GraphSessionBaseMessages(ctx, state, modelReq)
 		if err != nil {
 			return nil, fmt.Errorf("act before model call: %w", err)
 		}
@@ -108,7 +109,7 @@ func (n *ActNode) Invoke(ctx context.Context, state *AgentGraphState) (*AgentGra
 			CallSite:  providerusage.CallSiteAct,
 		})
 		if contextplane.IsContextOverflowError(err) && session != nil {
-			baseMessages, err = graphSessionReactiveBaseMessages(ctx, session, state, modelReq, err)
+			baseMessages, err = graph.GraphSessionReactiveBaseMessages(ctx, session, state, modelReq, err)
 			if err != nil {
 				return nil, fmt.Errorf("act reactive compact: %w", err)
 			}
@@ -129,7 +130,7 @@ func (n *ActNode) Invoke(ctx context.Context, state *AgentGraphState) (*AgentGra
 		}
 		assistant := assistantResult.Message
 		state.Messages = append(state.Messages, assistant)
-		if err := graphSessionRecordAssistant(ctx, session, assistant); err != nil {
+		if err := graph.GraphSessionRecordAssistant(ctx, session, assistant); err != nil {
 			return nil, err
 		}
 		switch assistantResult.StopReason {
@@ -139,7 +140,7 @@ func (n *ActNode) Invoke(ctx context.Context, state *AgentGraphState) (*AgentGra
 				return nil, err
 			}
 			state.Plan = plan
-			state.Phase = phaseAct
+			state.Phase = graph.PhaseAct
 			return state, nil
 		case orchestration.AssistantStopReasonEndTurn, orchestration.AssistantStopReasonToolCalls:
 		case orchestration.AssistantStopReasonUnknown:
@@ -153,7 +154,7 @@ func (n *ActNode) Invoke(ctx context.Context, state *AgentGraphState) (*AgentGra
 				return nil, err
 			}
 			state.Plan = plan
-			state.Phase = phaseAct
+			state.Phase = graph.PhaseAct
 			return state, nil
 		}
 		if err := n.enforceToolCalls(ctx, assistant.ToolCalls); err != nil {
@@ -171,16 +172,16 @@ func (n *ActNode) Invoke(ctx context.Context, state *AgentGraphState) (*AgentGra
 				return nil, failErr
 			}
 			state.Plan = plan
-			state.Phase = phaseAct
+			state.Phase = graph.PhaseAct
 			return state, nil
 		}
 		state.Messages = append(state.Messages, toolMessages...)
-		if err := graphSessionRecordToolResults(ctx, session, toolMessages); err != nil {
+		if err := graph.GraphSessionRecordToolResults(ctx, session, toolMessages); err != nil {
 			return nil, err
 		}
 		deferredDefinitions := deferredDefinitionMessages(toolMessages)
 		state.Messages = append(state.Messages, deferredDefinitions...)
-		if err := graphSessionRecordMessages(ctx, session, deferredDefinitions); err != nil {
+		if err := graph.GraphSessionRecordMessages(ctx, session, deferredDefinitions); err != nil {
 			return nil, err
 		}
 
@@ -229,7 +230,7 @@ func (n *ActNode) Invoke(ctx context.Context, state *AgentGraphState) (*AgentGra
 				return nil, err
 			}
 			state.Plan = plan
-			state.Phase = phaseAct
+			state.Phase = graph.PhaseAct
 			return state, nil
 		}
 		if reason, ok := failedToolMessageReason(toolMessages); ok {
@@ -238,7 +239,7 @@ func (n *ActNode) Invoke(ctx context.Context, state *AgentGraphState) (*AgentGra
 				return nil, err
 			}
 			state.Plan = plan
-			state.Phase = phaseAct
+			state.Phase = graph.PhaseAct
 			return state, nil
 		}
 
@@ -249,7 +250,7 @@ func (n *ActNode) Invoke(ctx context.Context, state *AgentGraphState) (*AgentGra
 					return nil, err
 				}
 				state.Plan = plan
-				state.Phase = phaseAct
+				state.Phase = graph.PhaseAct
 				return state, nil
 			}
 			step = currentStep
@@ -263,12 +264,12 @@ func (n *ActNode) Invoke(ctx context.Context, state *AgentGraphState) (*AgentGra
 					return nil, failErr
 				}
 				state.Plan = plan
-				state.Phase = phaseAct
+				state.Phase = graph.PhaseAct
 				return state, nil
 			}
 			continuation := schema.UserMessage(formatVerificationContinuationPrompt(currentStep, err))
 			state.Messages = append(state.Messages, continuation)
-			if err := graphSessionRecordMessages(ctx, session, []*schema.Message{continuation}); err != nil {
+			if err := graph.GraphSessionRecordMessages(ctx, session, []*schema.Message{continuation}); err != nil {
 				return nil, err
 			}
 			step = currentStep
@@ -286,7 +287,7 @@ func (n *ActNode) Invoke(ctx context.Context, state *AgentGraphState) (*AgentGra
 		}
 
 		state.Plan = plan
-		state.Phase = phaseAct
+		state.Phase = graph.PhaseAct
 		return state, nil
 	}
 
@@ -299,7 +300,7 @@ func (n *ActNode) Invoke(ctx context.Context, state *AgentGraphState) (*AgentGra
 		return nil, err
 	}
 	state.Plan = plan
-	state.Phase = phaseAct
+	state.Phase = graph.PhaseAct
 	return state, nil
 }
 
@@ -384,7 +385,7 @@ func (n *ActNode) loadRunnablePlan(ctx context.Context, sessionID string) (*Plan
 	if err != nil {
 		return nil, -1, fmt.Errorf("load active plan: %w", err)
 	}
-	index, err := findRunnablePlanStep(plan)
+	index, err := graph.FindRunnablePlanStep(plan)
 	if err != nil {
 		return nil, -1, err
 	}
@@ -459,7 +460,7 @@ func (n *ActNode) emitStepStarted(ctx context.Context, plan *Plan, step PlanStep
 	if n.eventStore == nil {
 		return nil
 	}
-	_, err := appendStreamItem(ctx, n.eventStore, streamSinkFromContext(ctx), StreamItem{
+	_, err := AppendStreamItem(ctx, n.eventStore, streamSinkFromContext(ctx), StreamItem{
 		RunID:     plan.RunID,
 		Kind:      StreamKindStepStarted,
 		CreatedAt: plan.UpdatedAt,
@@ -475,7 +476,7 @@ func (n *ActNode) emitStepCompleted(ctx context.Context, plan *Plan, step PlanSt
 	if n.eventStore == nil {
 		return nil
 	}
-	_, err := appendStreamItem(ctx, n.eventStore, streamSinkFromContext(ctx), StreamItem{
+	_, err := AppendStreamItem(ctx, n.eventStore, streamSinkFromContext(ctx), StreamItem{
 		RunID:     plan.RunID,
 		Kind:      StreamKindStepCompleted,
 		CreatedAt: plan.UpdatedAt,
@@ -491,7 +492,7 @@ func (n *ActNode) emitStepFailed(ctx context.Context, plan *Plan, step PlanStep,
 	if n.eventStore == nil {
 		return nil
 	}
-	_, err := appendStreamItem(ctx, n.eventStore, streamSinkFromContext(ctx), StreamItem{
+	_, err := AppendStreamItem(ctx, n.eventStore, streamSinkFromContext(ctx), StreamItem{
 		RunID:     plan.RunID,
 		Kind:      StreamKindStepFailed,
 		CreatedAt: plan.UpdatedAt,

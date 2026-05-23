@@ -7,12 +7,7 @@ import (
 
 	einotool "github.com/cloudwego/eino/components/tool"
 
-	"github.com/ycvk/acorn/internal/artifacts"
-	"github.com/ycvk/acorn/internal/browser"
 	"github.com/ycvk/acorn/internal/orchestration"
-	"github.com/ycvk/acorn/internal/terminalsession"
-	"github.com/ycvk/acorn/internal/webaccess"
-	"github.com/ycvk/acorn/internal/workspace"
 )
 
 const defaultVerificationPreviewBytes = 2000
@@ -261,18 +256,18 @@ type GitSummaryOutput struct {
 }
 
 type CatalogConfig struct {
-	Workspace         *workspace.Workspace
+	Workspace         WorkspaceView
 	MutationEnabled   bool
 	RunCommandEnabled bool
-	ArtifactService   *artifacts.Service
+	ArtifactService   ArtifactService
 	ArtifactContext   ArtifactContext
-	TerminalService   *terminalsession.Service
+	TerminalService   TerminalService
 	TerminalContext   TerminalSessionContext
 	OperatorStore     OperatorQuestionStore
 	OperatorContext   OperatorQuestionContext
-	WebFetchService   *webaccess.FetchService
-	WebSearchService  *webaccess.SearchService
-	BrowserService    *browser.Service
+	WebFetchService   WebFetchService
+	WebSearchService  WebSearchService
+	BrowserService    BrowserService
 }
 
 type Catalog struct {

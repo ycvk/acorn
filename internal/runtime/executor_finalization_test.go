@@ -144,12 +144,12 @@ func TestFinishCollectedRunSuccessPersistsAfterContextCancellation(t *testing.T)
 }
 
 func newFinalizationTestExecutor(t *testing.T, store *storesqlite.Store, cfg *config.Config) *Executor {
-	runnerFactory := newRunnerFactory(t, cfg, store, RunnerFactoryOptions{})
+	runBuilder := newRunnerFactory(t, cfg, store, RunnerFactoryOptions{})
 	exec := &Executor{
 		store:             store,
-		runnerFactory:     runnerFactory,
+		runBuilder:        runBuilder,
 		controller:        NewRunController(),
-		sessionSummarySvc: runnerFactory.sessionSummarySvc,
+		sessionSummarySvc: runBuilder.SessionSummarySvc(),
 		newChatModel: func(context.Context) (einomodel.BaseChatModel, error) {
 			return nil, errors.New("unexpected model creation")
 		},
@@ -166,7 +166,7 @@ func createFinalizationRun(t *testing.T, ctx context.Context, store *storesqlite
 		if err := store.CreateBoundRun(ctx, runID, "", 0, input, runID); err != nil {
 			t.Fatalf("CreateBoundRun: %v", err)
 		}
-		if _, err := appendStreamItem(ctx, store, nil, StreamItem{RunID: runID, Kind: StreamKindRunStarted, Payload: &RunStartedPayload{Input: input}}); err != nil {
+		if _, err := AppendStreamItem(ctx, store, nil, StreamItem{RunID: runID, Kind: StreamKindRunStarted, Payload: &RunStartedPayload{Input: input}}); err != nil {
 			t.Fatalf("append run_started: %v", err)
 		}
 		return runID
@@ -181,7 +181,7 @@ func createFinalizationRun(t *testing.T, ctx context.Context, store *storesqlite
 	if err := store.CreateBoundRun(ctx, runID, sessionID, turnIndex, input, runID); err != nil {
 		t.Fatalf("CreateBoundRun: %v", err)
 	}
-	if _, err := appendStreamItem(ctx, store, nil, StreamItem{RunID: runID, Kind: StreamKindRunStarted, Payload: &RunStartedPayload{Input: input}}); err != nil {
+	if _, err := AppendStreamItem(ctx, store, nil, StreamItem{RunID: runID, Kind: StreamKindRunStarted, Payload: &RunStartedPayload{Input: input}}); err != nil {
 		t.Fatalf("append run_started: %v", err)
 	}
 	return runID
@@ -189,7 +189,7 @@ func createFinalizationRun(t *testing.T, ctx context.Context, store *storesqlite
 
 func appendSuccessfulToolEvent(t *testing.T, ctx context.Context, store *storesqlite.Store, runID, name, argumentsJSON string) {
 	t.Helper()
-	if _, err := appendStreamItem(ctx, store, nil, StreamItem{
+	if _, err := AppendStreamItem(ctx, store, nil, StreamItem{
 		RunID: runID,
 		Kind:  StreamKindToolCallSucceeded,
 		Payload: &ToolCallSucceededPayload{ToolCall: &StreamToolCall{

@@ -77,7 +77,7 @@ func projectEventToStreamItem(event events.EventRecord) StreamItem {
 		return item
 	}
 
-	payload, err := unmarshalPayload(kind, data)
+	payload, err := UnmarshalPayload(kind, data)
 	if err != nil {
 		return item
 	}

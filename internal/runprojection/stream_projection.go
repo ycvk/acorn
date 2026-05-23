@@ -1,4 +1,4 @@
-package runtime
+package runprojection
 
 import (
 	"context"
@@ -8,11 +8,20 @@ import (
 	"github.com/ycvk/acorn/internal/events"
 )
 
-func appendStreamItem(ctx context.Context, store eventAppender, sink StreamSink, item StreamItem) (events.EventRecord, error) {
+type EventAppender interface {
+	AppendEventContext(ctx context.Context, runID, kind string, payload any) (events.EventRecord, error)
+}
+
+// ToolAuditStore is the minimal interface required by tool audit wrappers.
+type ToolAuditStore interface {
+	EventAppender
+}
+
+func AppendStreamItem(ctx context.Context, store EventAppender, sink StreamSink, item StreamItem) (events.EventRecord, error) {
 	if store == nil {
 		return events.EventRecord{}, fmt.Errorf("append stream item: nil store")
 	}
-	kind, payload, err := projectStreamItemToEvent(item)
+	kind, payload, err := ProjectStreamItemToEvent(item)
 	if err != nil {
 		return events.EventRecord{}, err
 	}
@@ -30,15 +39,11 @@ func appendStreamItem(ctx context.Context, store eventAppender, sink StreamSink,
 	return saved, nil
 }
 
-type eventAppender interface {
-	AppendEventContext(ctx context.Context, runID, kind string, payload any) (events.EventRecord, error)
-}
-
-func projectStreamItemToEvent(item StreamItem) (string, any, error) {
+func ProjectStreamItemToEvent(item StreamItem) (string, any, error) {
 	if item.Payload == nil {
-		return streamKindToEventKind(item.Kind), map[string]any{}, nil
+		return StreamKindToEventKind(item.Kind), map[string]any{}, nil
 	}
-	payload, err := streamPayloadMap(item.Kind, item.Payload)
+	payload, err := StreamPayloadMap(item.Kind, item.Payload)
 	if err != nil {
 		return "", nil, err
 	}
@@ -46,30 +51,30 @@ func projectStreamItemToEvent(item StreamItem) (string, any, error) {
 	switch p := item.Payload.(type) {
 	case *ToolCallStartedPayload:
 		if p.ToolCall != nil {
-			mergeToolCallIntoPayload(payload, p.ToolCall)
+			MergeToolCallIntoPayload(payload, p.ToolCall)
 		}
 	case *ToolCallProgressPayload:
 		if p.ToolCall != nil {
-			mergeToolCallProgressIntoPayload(payload, p.ToolCall)
+			MergeToolCallProgressIntoPayload(payload, p.ToolCall)
 		}
 	case *ToolCallSucceededPayload:
 		if p.ToolCall != nil {
-			mergeToolCallIntoPayload(payload, p.ToolCall)
+			MergeToolCallIntoPayload(payload, p.ToolCall)
 		}
 	case *ToolCallFailedPayload:
 		if p.ToolCall != nil {
-			mergeToolCallIntoPayload(payload, p.ToolCall)
+			MergeToolCallIntoPayload(payload, p.ToolCall)
 		}
 	case *ToolCallInterruptedPayload:
 		if p.ToolCall != nil {
-			mergeToolCallIntoPayload(payload, p.ToolCall)
+			MergeToolCallIntoPayload(payload, p.ToolCall)
 		}
 	}
 
-	return streamKindToEventKind(item.Kind), payload, nil
+	return StreamKindToEventKind(item.Kind), payload, nil
 }
 
-func streamKindToEventKind(kind StreamItemKind) string {
+func StreamKindToEventKind(kind StreamItemKind) string {
 	switch kind {
 	case StreamKindRunStarted:
 		return "run.started"
@@ -126,19 +131,19 @@ func streamKindToEventKind(kind StreamItemKind) string {
 	}
 }
 
-func streamPayloadMap(kind StreamItemKind, payload any) (map[string]any, error) {
+func StreamPayloadMap(kind StreamItemKind, payload any) (map[string]any, error) {
 	out := map[string]any{}
 	if payload == nil {
 		return out, nil
 	}
-	if err := reencodeViaJSON(payload, &out); err != nil {
+	if err := ReencodeViaJSON(payload, &out); err != nil {
 		return nil, fmt.Errorf("stream %s payload: %w", kind, err)
 	}
 	return out, nil
 }
 
-func mergeToolCallIntoPayload(payload map[string]any, tool *StreamToolCall) {
-	toolMap, err := streamPayloadMap(StreamKindToolCallStarted, tool)
+func MergeToolCallIntoPayload(payload map[string]any, tool *StreamToolCall) {
+	toolMap, err := StreamPayloadMap(StreamKindToolCallStarted, tool)
 	if err != nil {
 		return
 	}
@@ -154,8 +159,8 @@ func mergeToolCallIntoPayload(payload map[string]any, tool *StreamToolCall) {
 	delete(payload, "tool_call")
 }
 
-func mergeToolCallProgressIntoPayload(payload map[string]any, tool *StreamToolCallProgress) {
-	toolMap, err := streamPayloadMap(StreamKindToolCallProgress, tool)
+func MergeToolCallProgressIntoPayload(payload map[string]any, tool *StreamToolCallProgress) {
+	toolMap, err := StreamPayloadMap(StreamKindToolCallProgress, tool)
 	if err != nil {
 		return
 	}
@@ -171,7 +176,7 @@ func mergeToolCallProgressIntoPayload(payload map[string]any, tool *StreamToolCa
 	delete(payload, "tool_call")
 }
 
-func reencodeViaJSON(in any, out any) error {
+func ReencodeViaJSON(in any, out any) error {
 	data, err := json.Marshal(in)
 	if err != nil {
 		return fmt.Errorf("re-encode marshal: %w", err)

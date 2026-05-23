@@ -26,7 +26,7 @@ const (
 	verificationStatusTimedOut = "timed_out"
 )
 
-func buildMultiEditTool(ws *workspace.Workspace) (einotool.BaseTool, error) {
+func buildMultiEditTool(ws WorkspaceView) (einotool.BaseTool, error) {
 	tool, err := inferProgressTool("multi_edit", "Atomically replace multiple explicit line ranges across workspace files with one mutation checkpoint.", func(ctx context.Context, input MultiEditInput, emit tooling.ToolProgressEmitter) (MultiEditOutput, error) {
 		plans, appliedEdits, paths, err := prepareMultiEditPlans(ws, input.Edits)
 		if err != nil {
@@ -89,7 +89,7 @@ type multiEditTempFile struct {
 	mode   os.FileMode
 }
 
-func prepareMultiEditPlans(ws *workspace.Workspace, spans []MultiEditSpan) ([]multiEditPlan, []MultiEditAppliedSpan, []string, error) {
+func prepareMultiEditPlans(ws WorkspaceView, spans []MultiEditSpan) ([]multiEditPlan, []MultiEditAppliedSpan, []string, error) {
 	if len(spans) == 0 {
 		return nil, nil, nil, errors.New("edits are required")
 	}
@@ -256,7 +256,7 @@ func restoreMultiEditPlans(plans []multiEditPlan) error {
 	return joined
 }
 
-func buildRunVerificationTool(ws *workspace.Workspace, service *artifacts.Service, bridge ArtifactContext) (einotool.BaseTool, error) {
+func buildRunVerificationTool(ws WorkspaceView, service ArtifactService, bridge ArtifactContext) (einotool.BaseTool, error) {
 	if service == nil {
 		return nil, errors.New("artifact service is required")
 	}
@@ -359,14 +359,14 @@ func normalizeCommand(command []string) ([]string, error) {
 	return normalized, nil
 }
 
-func normalizeVerificationPaths(ws *workspace.Workspace, values []string) ([]string, error) {
+func normalizeVerificationPaths(ws WorkspaceView, values []string) ([]string, error) {
 	if len(values) == 0 {
 		return nil, nil
 	}
 	return normalizePatchPaths(ws, values)
 }
 
-func executeVerificationCommand(ctx context.Context, ws *workspace.Workspace, command []string, cwd string, timeoutSeconds int, emit tooling.ToolProgressEmitter) (verificationCommandResult, error) {
+func executeVerificationCommand(ctx context.Context, ws WorkspaceView, command []string, cwd string, timeoutSeconds int, emit tooling.ToolProgressEmitter) (verificationCommandResult, error) {
 	if timeoutSeconds <= 0 {
 		timeoutSeconds = ws.RunCommandDefaultTimeout()
 	}
@@ -446,7 +446,7 @@ func verificationSummary(kind string, status string, exitCode int) string {
 	return fmt.Sprintf("%s verification %s with exit code %d", kind, status, exitCode)
 }
 
-func writeWorkflowArtifact(ctx context.Context, service *artifacts.Service, bridge ArtifactContext, kind artifacts.Kind, title string, mimeType string, content string) (artifacts.Record, error) {
+func writeWorkflowArtifact(ctx context.Context, service ArtifactService, bridge ArtifactContext, kind artifacts.Kind, title string, mimeType string, content string) (artifacts.Record, error) {
 	runID := strings.TrimSpace(bridge.CurrentRunID(ctx))
 	if runID == "" {
 		return artifacts.Record{}, errors.New("workflow artifact write requires current run context")
@@ -466,7 +466,7 @@ func writeWorkflowArtifact(ctx context.Context, service *artifacts.Service, brid
 	})
 }
 
-func buildGitSummaryTool(ws *workspace.Workspace, service *artifacts.Service, bridge ArtifactContext) (einotool.BaseTool, error) {
+func buildGitSummaryTool(ws WorkspaceView, service ArtifactService, bridge ArtifactContext) (einotool.BaseTool, error) {
 	tool, err := inferProgressTool("git_summary", "Summarize workspace git status, diffstat, changed paths, and optionally persist a scoped diff artifact.", func(ctx context.Context, input GitSummaryInput, emit tooling.ToolProgressEmitter) (GitSummaryOutput, error) {
 		if input.ContextLines < 0 {
 			return GitSummaryOutput{}, errors.New("context_lines must be >= 0")
@@ -546,7 +546,7 @@ func buildGitSummaryTool(ws *workspace.Workspace, service *artifacts.Service, br
 	return tool, nil
 }
 
-func gitSummaryDiffStat(ctx context.Context, ws *workspace.Workspace, scopedPath string, cached bool) (string, error) {
+func gitSummaryDiffStat(ctx context.Context, ws WorkspaceView, scopedPath string, cached bool) (string, error) {
 	args := []string{"diff", "--stat"}
 	if cached {
 		args = append(args, "--cached")
@@ -564,7 +564,7 @@ func gitSummaryDiffStat(ctx context.Context, ws *workspace.Workspace, scopedPath
 	return strings.TrimSpace(strings.Join(trimmedNonEmptyStrings([]string{worktreeStat, cachedStat}), "\n")), nil
 }
 
-func gitSummaryDiff(ctx context.Context, ws *workspace.Workspace, scopedPath string, cached bool, contextLines int) (string, error) {
+func gitSummaryDiff(ctx context.Context, ws WorkspaceView, scopedPath string, cached bool, contextLines int) (string, error) {
 	args := []string{"diff", "--no-ext-diff", fmt.Sprintf("--unified=%d", contextLines)}
 	if cached {
 		args = append(args, "--cached")

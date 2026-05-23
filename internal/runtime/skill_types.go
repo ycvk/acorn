@@ -15,6 +15,6 @@ type SkillMatch struct {
 	FilteredReason string
 }
 
-func copySelectedSkill(selected *SelectedSkill) *SelectedSkill {
+func CopySelectedSkill(selected *SelectedSkill) *SelectedSkill {
 	return contextplane.CopySelectedSkill(selected)
 }

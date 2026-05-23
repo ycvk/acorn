@@ -1,6 +1,7 @@
 package skills
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -25,6 +26,14 @@ type Loader struct {
 	workspaceDir string
 	generatedDir string
 	userDir      string
+}
+
+// SkillLoader is the subset of Loader used by tool builders.
+type SkillLoader interface {
+	ScanSkills(context.Context) (*ScanResult, error)
+	CreateSkill(context.Context, CreateInput) (*Spec, error)
+	WriteSkillFile(context.Context, string, string, string) error
+	UpdateSkillLifecycle(context.Context, string, LifecycleUpdate) (*Spec, error)
 }
 
 type CreateInput struct {

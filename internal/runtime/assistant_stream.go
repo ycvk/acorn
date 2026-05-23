@@ -36,7 +36,7 @@ func (a *assistantStreamAccumulator) append(delta string) int {
 type assistantStreamOptions struct {
 	MessageID string
 	RunID     string
-	Appender  eventAppender
+	Appender  EventAppender
 	Sink      StreamSink
 	ToolInfos []*schema.ToolInfo
 	CallSite  string
@@ -104,7 +104,7 @@ func streamAssistantMessage(
 				},
 			}
 			if opts.Appender != nil {
-				if _, err := appendStreamItem(ctx, opts.Appender, opts.Sink, item); err != nil {
+				if _, err := AppendStreamItem(ctx, opts.Appender, opts.Sink, item); err != nil {
 					return nil, err
 				}
 				continue

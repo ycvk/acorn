@@ -265,8 +265,11 @@ func TestBuildDirectResponseContinuesAfterOutputLimit(t *testing.T) {
 		ToolNodeFactory: func(context.Context, []einotool.BaseTool, tooling.ExecutionPolicyResolver) (ToolInvoker, error) {
 			return &directResponseTestToolNode{}, nil
 		},
-		ToolLifecycleBinder: func(ctx context.Context, state *contextplane.ToolLifecycleState, catalog *tooling.Catalog, infos []*schema.ToolInfo) context.Context {
-			return contextplane.WithToolLifecycleContext(ctx, contextPlane, state, catalog, infos)
+		ToolLifecycleBinder: func(ctx context.Context, state ToolLifecycleStateView, catalog *tooling.Catalog, infos []*schema.ToolInfo) context.Context {
+			if t, ok := state.(testToolLifecycleStateView); ok && t.state != nil {
+				return contextplane.WithToolLifecycleContext(ctx, contextPlane, t.state, catalog, infos)
+			}
+			return ctx
 		},
 	})
 	assembly, err := plane.BuildDirectResponse(ctx, DirectResponseRequest{
@@ -335,8 +338,11 @@ func TestBuildDirectResponseDoesNotExecuteTruncatedToolCalls(t *testing.T) {
 		ToolNodeFactory: func(context.Context, []einotool.BaseTool, tooling.ExecutionPolicyResolver) (ToolInvoker, error) {
 			return toolNode, nil
 		},
-		ToolLifecycleBinder: func(ctx context.Context, state *contextplane.ToolLifecycleState, catalog *tooling.Catalog, infos []*schema.ToolInfo) context.Context {
-			return contextplane.WithToolLifecycleContext(ctx, contextPlane, state, catalog, infos)
+		ToolLifecycleBinder: func(ctx context.Context, state ToolLifecycleStateView, catalog *tooling.Catalog, infos []*schema.ToolInfo) context.Context {
+			if t, ok := state.(testToolLifecycleStateView); ok && t.state != nil {
+				return contextplane.WithToolLifecycleContext(ctx, contextPlane, t.state, catalog, infos)
+			}
+			return ctx
 		},
 	})
 	assembly, err := plane.BuildDirectResponse(ctx, DirectResponseRequest{
@@ -406,8 +412,11 @@ func TestBuildDirectResponseRunsToolCallLoop(t *testing.T) {
 		ToolNodeFactory: func(context.Context, []einotool.BaseTool, tooling.ExecutionPolicyResolver) (ToolInvoker, error) {
 			return toolNode, nil
 		},
-		ToolLifecycleBinder: func(ctx context.Context, state *contextplane.ToolLifecycleState, catalog *tooling.Catalog, infos []*schema.ToolInfo) context.Context {
-			return contextplane.WithToolLifecycleContext(ctx, contextPlane, state, catalog, infos)
+		ToolLifecycleBinder: func(ctx context.Context, state ToolLifecycleStateView, catalog *tooling.Catalog, infos []*schema.ToolInfo) context.Context {
+			if t, ok := state.(testToolLifecycleStateView); ok && t.state != nil {
+				return contextplane.WithToolLifecycleContext(ctx, contextPlane, t.state, catalog, infos)
+			}
+			return ctx
 		},
 	})
 	assembly, err := plane.BuildDirectResponse(ctx, DirectResponseRequest{
@@ -474,8 +483,11 @@ func TestBuildDirectResponsePropagatesModelError(t *testing.T) {
 		ToolNodeFactory: func(context.Context, []einotool.BaseTool, tooling.ExecutionPolicyResolver) (ToolInvoker, error) {
 			return &directResponseTestToolNode{}, nil
 		},
-		ToolLifecycleBinder: func(ctx context.Context, state *contextplane.ToolLifecycleState, catalog *tooling.Catalog, infos []*schema.ToolInfo) context.Context {
-			return contextplane.WithToolLifecycleContext(ctx, contextPlane, state, catalog, infos)
+		ToolLifecycleBinder: func(ctx context.Context, state ToolLifecycleStateView, catalog *tooling.Catalog, infos []*schema.ToolInfo) context.Context {
+			if t, ok := state.(testToolLifecycleStateView); ok && t.state != nil {
+				return contextplane.WithToolLifecycleContext(ctx, contextPlane, t.state, catalog, infos)
+			}
+			return ctx
 		},
 	})
 	assembly, err := plane.BuildDirectResponse(ctx, DirectResponseRequest{
@@ -525,8 +537,11 @@ func TestBuildDirectResponseReactiveCompactsAndRetriesOverflow(t *testing.T) {
 		ToolNodeFactory: func(context.Context, []einotool.BaseTool, tooling.ExecutionPolicyResolver) (ToolInvoker, error) {
 			return &directResponseTestToolNode{}, nil
 		},
-		ToolLifecycleBinder: func(ctx context.Context, state *contextplane.ToolLifecycleState, catalog *tooling.Catalog, infos []*schema.ToolInfo) context.Context {
-			return contextplane.WithToolLifecycleContext(ctx, contextPlane, state, catalog, infos)
+		ToolLifecycleBinder: func(ctx context.Context, state ToolLifecycleStateView, catalog *tooling.Catalog, infos []*schema.ToolInfo) context.Context {
+			if t, ok := state.(testToolLifecycleStateView); ok && t.state != nil {
+				return contextplane.WithToolLifecycleContext(ctx, contextPlane, t.state, catalog, infos)
+			}
+			return ctx
 		},
 	})
 	assembly, err := plane.BuildDirectResponse(ctx, DirectResponseRequest{
@@ -612,8 +627,11 @@ func TestBuildDirectResponseFailsWithoutContextSession(t *testing.T) {
 		ToolNodeFactory: func(context.Context, []einotool.BaseTool, tooling.ExecutionPolicyResolver) (ToolInvoker, error) {
 			return &directResponseTestToolNode{}, nil
 		},
-		ToolLifecycleBinder: func(ctx context.Context, state *contextplane.ToolLifecycleState, catalog *tooling.Catalog, infos []*schema.ToolInfo) context.Context {
-			return contextplane.WithToolLifecycleContext(ctx, contextPlane, state, catalog, infos)
+		ToolLifecycleBinder: func(ctx context.Context, state ToolLifecycleStateView, catalog *tooling.Catalog, infos []*schema.ToolInfo) context.Context {
+			if t, ok := state.(testToolLifecycleStateView); ok && t.state != nil {
+				return contextplane.WithToolLifecycleContext(ctx, contextPlane, t.state, catalog, infos)
+			}
+			return ctx
 		},
 	})
 	assembly, err := plane.BuildDirectResponse(ctx, DirectResponseRequest{
@@ -665,7 +683,7 @@ func directResponseCatalogForTest(t *testing.T, ctx context.Context, tool einoto
 	return catalog
 }
 
-func directResponseContextResultForTest(runID string, sessionID string, eagerTools ...string) *contextplane.AssembleResult {
+func directResponseContextResultForTest(runID string, sessionID string, eagerTools ...string) AssembleResultView {
 	loaded := make(map[string]contextplane.LoadedToolRecord, len(eagerTools))
 	now := time.Now().UTC()
 	for _, name := range eagerTools {
@@ -679,17 +697,30 @@ func directResponseContextResultForTest(runID string, sessionID string, eagerToo
 			LoadSource: "eager",
 		}
 	}
-	return &contextplane.AssembleResult{
-		LifecycleState: &contextplane.ToolLifecycleState{
-			RunID:         strings.TrimSpace(runID),
-			SessionID:     strings.TrimSpace(sessionID),
-			LoadedTools:   loaded,
-			DeferredTools: map[string]contextplane.DeferredToolRecord{},
-			MaxAgeTurns:   2,
-			MaxResultRefs: 32,
-		},
+	state := &contextplane.ToolLifecycleState{
+		RunID:         strings.TrimSpace(runID),
+		SessionID:     strings.TrimSpace(sessionID),
+		LoadedTools:   loaded,
+		DeferredTools: map[string]contextplane.DeferredToolRecord{},
+		MaxAgeTurns:   2,
+		MaxResultRefs: 32,
+	}
+	return AssembleResultView{
+		LifecycleState: testToolLifecycleStateView{state: state},
 		EagerToolNames: append([]string(nil), eagerTools...),
 	}
+}
+
+type testToolLifecycleStateView struct {
+	state *contextplane.ToolLifecycleState
+}
+
+func (t testToolLifecycleStateView) IsLoaded(toolName string) bool {
+	if t.state == nil {
+		return false
+	}
+	_, ok := t.state.LoadedTools[toolName]
+	return ok
 }
 
 func messagesContainToolResult(messages []*schema.Message, want string) bool {
@@ -965,8 +996,11 @@ func TestBuildDirectResponseHandlesInterrupt(t *testing.T) {
 		ToolNodeFactory: func(context.Context, []einotool.BaseTool, tooling.ExecutionPolicyResolver) (ToolInvoker, error) {
 			return &directResponseInterruptToolNode{}, nil
 		},
-		ToolLifecycleBinder: func(ctx context.Context, state *contextplane.ToolLifecycleState, catalog *tooling.Catalog, infos []*schema.ToolInfo) context.Context {
-			return contextplane.WithToolLifecycleContext(ctx, contextPlane, state, catalog, infos)
+		ToolLifecycleBinder: func(ctx context.Context, state ToolLifecycleStateView, catalog *tooling.Catalog, infos []*schema.ToolInfo) context.Context {
+			if t, ok := state.(testToolLifecycleStateView); ok && t.state != nil {
+				return contextplane.WithToolLifecycleContext(ctx, contextPlane, t.state, catalog, infos)
+			}
+			return ctx
 		},
 	})
 	assembly, err := plane.BuildDirectResponse(ctx, DirectResponseRequest{
@@ -1038,8 +1072,11 @@ func TestBuildDirectResponsePreservesNestedInterruptContexts(t *testing.T) {
 		ToolNodeFactory: func(context.Context, []einotool.BaseTool, tooling.ExecutionPolicyResolver) (ToolInvoker, error) {
 			return &directResponseInterruptToolNode{signal: interruptSignal}, nil
 		},
-		ToolLifecycleBinder: func(ctx context.Context, state *contextplane.ToolLifecycleState, catalog *tooling.Catalog, infos []*schema.ToolInfo) context.Context {
-			return contextplane.WithToolLifecycleContext(ctx, contextPlane, state, catalog, infos)
+		ToolLifecycleBinder: func(ctx context.Context, state ToolLifecycleStateView, catalog *tooling.Catalog, infos []*schema.ToolInfo) context.Context {
+			if t, ok := state.(testToolLifecycleStateView); ok && t.state != nil {
+				return contextplane.WithToolLifecycleContext(ctx, contextPlane, t.state, catalog, infos)
+			}
+			return ctx
 		},
 	})
 	assembly, err := plane.BuildDirectResponse(ctx, DirectResponseRequest{
@@ -1166,8 +1203,11 @@ func TestBuildDirectResponseResumeContinuesFromPendingToolCalls(t *testing.T) {
 		ToolNodeFactory: func(context.Context, []einotool.BaseTool, tooling.ExecutionPolicyResolver) (ToolInvoker, error) {
 			return toolNode, nil
 		},
-		ToolLifecycleBinder: func(ctx context.Context, state *contextplane.ToolLifecycleState, catalog *tooling.Catalog, infos []*schema.ToolInfo) context.Context {
-			return contextplane.WithToolLifecycleContext(ctx, contextPlane, state, catalog, infos)
+		ToolLifecycleBinder: func(ctx context.Context, state ToolLifecycleStateView, catalog *tooling.Catalog, infos []*schema.ToolInfo) context.Context {
+			if t, ok := state.(testToolLifecycleStateView); ok && t.state != nil {
+				return contextplane.WithToolLifecycleContext(ctx, contextPlane, t.state, catalog, infos)
+			}
+			return ctx
 		},
 	})
 	assembly, err := plane.BuildDirectResponse(ctx, DirectResponseRequest{

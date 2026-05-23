@@ -7,7 +7,6 @@ import (
 	einomodel "github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/schema"
 
-	"github.com/ycvk/acorn/internal/contextplane"
 	"github.com/ycvk/acorn/internal/orchestrationmode"
 	"github.com/ycvk/acorn/internal/tooling"
 )
@@ -36,7 +35,7 @@ type DirectResponseRequest struct {
 	ChatModel         einomodel.BaseChatModel
 	AssistantStreamer AssistantStreamer
 	Catalog           *tooling.Catalog
-	ContextResult     *contextplane.AssembleResult
+	ContextResult     AssembleResultView
 	AllowedToolNames  []string
 	ExcludedToolNames []string
 	InstructionSuffix string
@@ -85,7 +84,7 @@ type SingleAgentRequest struct {
 	ChatModel              einomodel.BaseChatModel
 	AssistantStreamer      AssistantStreamer
 	Catalog                *tooling.Catalog
-	ContextResult          *contextplane.AssembleResult
+	ContextResult          AssembleResultView
 	AllowedToolNames       []string
 	ExcludedToolNames      []string
 	InstructionSuffix      string
@@ -99,7 +98,7 @@ type PlanExecuteRequest struct {
 	RunID                  string
 	ChatModel              einomodel.BaseChatModel
 	Catalog                *tooling.Catalog
-	ContextResult          *contextplane.AssembleResult
+	ContextResult          AssembleResultView
 	AllowedToolNames       []string
 	ExcludedToolNames      []string
 	InstructionSuffix      string
@@ -110,9 +109,9 @@ type PlanExecuteRequest struct {
 type RunAssembly struct {
 	Runner           *adk.Runner
 	Instruction      string
-	CompressionState *contextplane.CompressionState
+	CompressionState any
 }
 
 type SingleAgentAssembly = RunAssembly
 
-type ToolLifecycleBinder func(ctx context.Context, state *contextplane.ToolLifecycleState, catalog *tooling.Catalog, infos []*schema.ToolInfo) context.Context
+type ToolLifecycleBinder func(ctx context.Context, state ToolLifecycleStateView, catalog *tooling.Catalog, infos []*schema.ToolInfo) context.Context

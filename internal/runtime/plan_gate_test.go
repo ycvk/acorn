@@ -8,6 +8,7 @@ import (
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/schema"
 
+	"github.com/ycvk/acorn/internal/runtime/graph"
 	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
 )
 
@@ -21,7 +22,7 @@ func TestAgentGraphAlwaysRunsPlanNode(t *testing.T) {
 	if err := store.CreateRun(context.Background(), "run_plan_gate", "fix sqlite rows", "run_plan_gate"); err != nil {
 		t.Fatalf("CreateRun: %v", err)
 	}
-	runCtx := withRunID(withSessionID(ctx, "sess_plan_gate"), "run_plan_gate")
+	runCtx := withRunID(WithSessionID(ctx, "sess_plan_gate"), "run_plan_gate")
 
 	toolCall := makeToolCall("call_1", "search", `{"query":"sqlite rows"}`)
 	model := &toolCallingStubModel{
@@ -40,12 +41,12 @@ func TestAgentGraphAlwaysRunsPlanNode(t *testing.T) {
 	if err != nil {
 		t.Fatalf("tool Info: %v", err)
 	}
-	runnable, err := buildAgentGraph(runCtx, "test-agent", model, safeNode, newDirectAssistantStreamer(nil), 10, store, nil, newPlanStore(store), "Make a plan", nil, []string{info.Name}, nil)
+	runnable, err := BuildAgentGraph(runCtx, "test-agent", model, safeNode, newDirectAssistantStreamer(nil), 10, store, nil, NewPlanStore(store), "Make a plan", nil, []string{info.Name}, nil)
 	if err != nil {
 		t.Fatalf("buildAgentGraph: %v", err)
 	}
 
-	if _, err := runnable.Invoke(runCtx, &agentGraphInput{Messages: []*schema.Message{schema.UserMessage("fix sqlite rows")}}); err != nil {
+	if _, err := runnable.Invoke(runCtx, &graph.AgentGraphInput{Messages: []*schema.Message{schema.UserMessage("fix sqlite rows")}}); err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}
 
@@ -87,7 +88,7 @@ func TestAgentGraphNoExistingPlanRunsPlanNode(t *testing.T) {
 	if err := store.CreateRun(context.Background(), "run_plan_gate_empty", "read README", "run_plan_gate_empty"); err != nil {
 		t.Fatalf("CreateRun: %v", err)
 	}
-	runCtx := withRunID(withSessionID(ctx, "sess_plan_gate_empty"), "run_plan_gate_empty")
+	runCtx := withRunID(WithSessionID(ctx, "sess_plan_gate_empty"), "run_plan_gate_empty")
 
 	toolCall := makeToolCall("call_1", "search", `{"query":"README"}`)
 	model := &toolCallingStubModel{
@@ -106,12 +107,12 @@ func TestAgentGraphNoExistingPlanRunsPlanNode(t *testing.T) {
 	if err != nil {
 		t.Fatalf("tool Info: %v", err)
 	}
-	runnable, err := buildAgentGraph(runCtx, "test-agent", model, safeNode, newDirectAssistantStreamer(nil), 10, store, nil, newPlanStore(store), "Make a plan", nil, []string{info.Name}, nil)
+	runnable, err := BuildAgentGraph(runCtx, "test-agent", model, safeNode, newDirectAssistantStreamer(nil), 10, store, nil, NewPlanStore(store), "Make a plan", nil, []string{info.Name}, nil)
 	if err != nil {
 		t.Fatalf("buildAgentGraph: %v", err)
 	}
 
-	if _, err := runnable.Invoke(runCtx, &agentGraphInput{Messages: []*schema.Message{schema.UserMessage("read README")}}); err != nil {
+	if _, err := runnable.Invoke(runCtx, &graph.AgentGraphInput{Messages: []*schema.Message{schema.UserMessage("read README")}}); err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}
 	if model.callCount != 2 {
@@ -134,7 +135,7 @@ func TestMemoryEvolutionFinalizationAppendsHistoryThenKeepsNormalPlanPath(t *tes
 	store, cfg := newRunnerFactoryMemoryTestContext(t)
 	factory := newRunnerFactory(t, cfg, store, RunnerFactoryOptions{})
 	exec := newFinalizationTestExecutor(t, store, cfg)
-	exec.runnerFactory = factory
+	exec.runBuilder = factory
 	runID := createFinalizationRun(t, ctx, store, "session-evolution", "fix sqlite rows")
 	saveCompletedPlan(t, ctx, store, runID, "session-evolution")
 
@@ -146,7 +147,7 @@ func TestMemoryEvolutionFinalizationAppendsHistoryThenKeepsNormalPlanPath(t *tes
 	if err := store.CreateRun(context.Background(), "run_evolution_second", "fix sqlite rows again", "run_evolution_second"); err != nil {
 		t.Fatalf("CreateRun second: %v", err)
 	}
-	runCtx := withRunID(withSessionID(ctx, "session-evolution-second"), "run_evolution_second")
+	runCtx := withRunID(WithSessionID(ctx, "session-evolution-second"), "run_evolution_second")
 	toolCall := makeToolCall("call_1", "search", `{"query":"sqlite rows"}`)
 	model := &toolCallingStubModel{responses: []*schema.Message{
 		schema.AssistantMessage(`{"steps":[{"id":"s1","action":"Search sqlite rows again","status":"pending"}]}`, nil),
@@ -162,11 +163,11 @@ func TestMemoryEvolutionFinalizationAppendsHistoryThenKeepsNormalPlanPath(t *tes
 	if err != nil {
 		t.Fatalf("tool Info: %v", err)
 	}
-	runnable, err := buildAgentGraph(runCtx, "test-agent", model, safeNode, newDirectAssistantStreamer(nil), 10, store, nil, newPlanStore(store), "Make a plan", nil, []string{info.Name}, nil)
+	runnable, err := BuildAgentGraph(runCtx, "test-agent", model, safeNode, newDirectAssistantStreamer(nil), 10, store, nil, NewPlanStore(store), "Make a plan", nil, []string{info.Name}, nil)
 	if err != nil {
 		t.Fatalf("buildAgentGraph: %v", err)
 	}
-	if _, err := runnable.Invoke(runCtx, &agentGraphInput{Messages: []*schema.Message{schema.UserMessage("fix sqlite rows again")}}); err != nil {
+	if _, err := runnable.Invoke(runCtx, &graph.AgentGraphInput{Messages: []*schema.Message{schema.UserMessage("fix sqlite rows again")}}); err != nil {
 		t.Fatalf("Invoke second: %v", err)
 	}
 	if model.callCount != 2 {

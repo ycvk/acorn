@@ -7,6 +7,7 @@ import (
 
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/schema"
+	"github.com/ycvk/acorn/internal/runtime/graph"
 	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
 )
 
@@ -21,7 +22,7 @@ func TestPlanActObserveE2E(t *testing.T) {
 	if err := store.CreateRun(context.Background(), "run_e2e", "do two steps", "run_e2e"); err != nil {
 		t.Fatalf("CreateRun: %v", err)
 	}
-	runCtx := withRunID(withSessionID(ctx, "sess_e2e"), "run_e2e")
+	runCtx := withRunID(WithSessionID(ctx, "sess_e2e"), "run_e2e")
 	sinkItems := make([]StreamItem, 0)
 	runCtx = withStreamSink(runCtx, func(item StreamItem) error {
 		sinkItems = append(sinkItems, item)
@@ -48,15 +49,15 @@ func TestPlanActObserveE2E(t *testing.T) {
 	if err != nil {
 		t.Fatalf("tool Info: %v", err)
 	}
-	runnable, err := buildAgentGraph(runCtx, "test-agent", model, safeNode, newDirectAssistantStreamer(nil), 10, store, nil, newPlanStore(store), "Make a plan", nil, []string{info.Name}, nil)
+	runnable, err := BuildAgentGraph(runCtx, "test-agent", model, safeNode, newDirectAssistantStreamer(nil), 10, store, nil, NewPlanStore(store), "Make a plan", nil, []string{info.Name}, nil)
 	if err != nil {
 		t.Fatalf("buildAgentGraph: %v", err)
 	}
 
-	if _, err := runnable.Invoke(runCtx, &agentGraphInput{Messages: []*schema.Message{schema.UserMessage("do two steps")}}); err != nil {
+	if _, err := runnable.Invoke(runCtx, &graph.AgentGraphInput{Messages: []*schema.Message{schema.UserMessage("do two steps")}}); err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}
-	if _, err := appendStreamItem(runCtx, store, nil, StreamItem{RunID: "run_e2e", Kind: StreamKindRunCompleted, Payload: &RunCompletedPayload{}}); err != nil {
+	if _, err := AppendStreamItem(runCtx, store, nil, StreamItem{RunID: "run_e2e", Kind: StreamKindRunCompleted, Payload: &RunCompletedPayload{}}); err != nil {
 		t.Fatalf("append run completed: %v", err)
 	}
 
@@ -107,7 +108,7 @@ func TestPlanActObserveE2ESingleStep(t *testing.T) {
 	if err := store.CreateRun(context.Background(), "run_single", "read README", "run_single"); err != nil {
 		t.Fatalf("CreateRun: %v", err)
 	}
-	runCtx := withRunID(withSessionID(ctx, "sess_single"), "run_single")
+	runCtx := withRunID(WithSessionID(ctx, "sess_single"), "run_single")
 
 	toolCall := makeToolCall("call_1", "search", `{"query":"README"}`)
 	model := &toolCallingStubModel{
@@ -126,12 +127,12 @@ func TestPlanActObserveE2ESingleStep(t *testing.T) {
 	if err != nil {
 		t.Fatalf("tool Info: %v", err)
 	}
-	runnable, err := buildAgentGraph(runCtx, "test-agent", model, safeNode, newDirectAssistantStreamer(nil), 10, store, nil, newPlanStore(store), "Make a plan", nil, []string{info.Name}, nil)
+	runnable, err := BuildAgentGraph(runCtx, "test-agent", model, safeNode, newDirectAssistantStreamer(nil), 10, store, nil, NewPlanStore(store), "Make a plan", nil, []string{info.Name}, nil)
 	if err != nil {
 		t.Fatalf("buildAgentGraph: %v", err)
 	}
 
-	if _, err := runnable.Invoke(runCtx, &agentGraphInput{Messages: []*schema.Message{schema.UserMessage("read README")}}); err != nil {
+	if _, err := runnable.Invoke(runCtx, &graph.AgentGraphInput{Messages: []*schema.Message{schema.UserMessage("read README")}}); err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}
 	plan, err := store.LoadPlanBySession(ctx, "sess_single")
@@ -156,7 +157,7 @@ func TestPlanActObserveE2EReplanConsumesOneAdditionalIteration(t *testing.T) {
 	if err := store.CreateRun(context.Background(), "run_replan", "recover after failure", "run_replan"); err != nil {
 		t.Fatalf("CreateRun: %v", err)
 	}
-	runCtx := withRunID(withSessionID(ctx, "sess_replan"), "run_replan")
+	runCtx := withRunID(WithSessionID(ctx, "sess_replan"), "run_replan")
 
 	secondToolCall := makeToolCall("call_2", "search", `{"query":"fixed"}`)
 	model := &toolCallingStubModel{
@@ -178,12 +179,12 @@ func TestPlanActObserveE2EReplanConsumesOneAdditionalIteration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("tool Info: %v", err)
 	}
-	runnable, err := buildAgentGraph(runCtx, "test-agent", model, safeNode, newDirectAssistantStreamer(nil), 2, store, nil, newPlanStore(store), "Make a plan", nil, []string{info.Name}, nil)
+	runnable, err := BuildAgentGraph(runCtx, "test-agent", model, safeNode, newDirectAssistantStreamer(nil), 2, store, nil, NewPlanStore(store), "Make a plan", nil, []string{info.Name}, nil)
 	if err != nil {
 		t.Fatalf("buildAgentGraph: %v", err)
 	}
 
-	if _, err := runnable.Invoke(runCtx, &agentGraphInput{Messages: []*schema.Message{schema.UserMessage("recover")}}); err != nil {
+	if _, err := runnable.Invoke(runCtx, &graph.AgentGraphInput{Messages: []*schema.Message{schema.UserMessage("recover")}}); err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}
 	plan, err := store.LoadPlanBySession(ctx, "sess_replan")

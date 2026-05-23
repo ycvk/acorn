@@ -43,7 +43,7 @@ type closeableIndexStore interface {
 
 type RunnerFactory struct {
 	cfg                *config.Config
-	store              runnerFactoryStore
+	store              RunnerFactoryStore
 	loader             *skills.Loader
 	decisionProfiles   *decision.ProfileService
 	checkpointService  *workingstate.Service
@@ -66,7 +66,7 @@ type RunnerFactory struct {
 	cachedManager      *mcpprovider.Manager
 	lastSessionOverlay string
 
-	registry     *runRegistry
+	registry     *Registry
 	currentRunID atomic.Value // stores string; atomic to avoid deadlock with f.mu in providerEventCallback
 
 	eventMu     sync.Mutex
@@ -77,53 +77,12 @@ type RunnerFactory struct {
 	indexStore   closeableIndexStore
 }
 
-type RunnerFactoryOptions struct {
-	Loader                 *skills.Loader
-	DecisionProfileService *decision.ProfileService
-	ExtraLocalTools        []einotool.BaseTool
-	Workspace              *workspace.Workspace
-	Handlers               []adk.ChatModelAgentMiddleware
-	CheckpointService      *workingstate.Service
-	SessionSummaryService  *runtimehistory.SessionSummaryService
-	MemoryModule           memorymodule.Service
-	ContextPlane           contextplane.ContextPlane
-	MCPPendingActionStore  mcpprovider.PendingActionStore
-}
-
-type RunnerBuildRequest struct {
-	SessionID         string
-	RunID             string
-	Input             string
-	SkillID           string
-	AllowedToolNames  []string
-	Sink              StreamSink
-	ExcludedToolNames []string
-	InstructionSuffix string
-	OrchestrationMode orchestration.OrchestrationMode
-	ParentRunID       string
-}
-
-type ActiveRunner struct {
-	mcp              *mcpprovider.Manager
-	runner           *adk.Runner
-	selectedSkill    *SelectedSkill
-	instruction      string
-	chatModel        einomodel.BaseChatModel
-	factory          *RunnerFactory
-	contextResult    *contextplane.AssembleResult
-	contextSession   contextplane.ContextSession
-	runID            string
-	compressionState *contextplane.CompressionState
-	toolCatalog      *tooling.Catalog
-	closeRunTools    func() error
-}
-
 const (
 	noEligibleSkillMatchReason = "no_eligible_match"
 	ambiguousTopScoreReason    = "ambiguous_top_score"
 )
 
-func NewRunnerFactory(cfg *config.Config, store runnerFactoryStore, opts RunnerFactoryOptions) *RunnerFactory {
+func NewRunnerFactory(cfg *config.Config, store RunnerFactoryStore, opts RunnerFactoryOptions) *RunnerFactory {
 	ws := opts.Workspace
 	var wsErr error
 	if ws == nil && cfg != nil {
@@ -208,7 +167,7 @@ func NewRunnerFactory(cfg *config.Config, store runnerFactoryStore, opts RunnerF
 		terminalServiceErr: terminalServiceErr,
 		extraLocalTools:    append([]einotool.BaseTool(nil), opts.ExtraLocalTools...),
 		handlers:           append([]adk.ChatModelAgentMiddleware(nil), opts.Handlers...),
-		registry:           newRunRegistry(),
+		registry:           NewRegistry(),
 	}
 	factory.runBuilder = newRunBuilder(factory)
 	if memoryModule != nil && cfg != nil && os.Getenv("ACORN_AUTO_CRYSTALLIZATION") == "true" {
@@ -223,7 +182,7 @@ func NewRunnerFactory(cfg *config.Config, store runnerFactoryStore, opts RunnerF
 	return factory
 }
 
-func buildArtifactService(cfg *config.Config, store runnerFactoryStore) (*artifacts.Service, error) {
+func buildArtifactService(cfg *config.Config, store RunnerFactoryStore) (*artifacts.Service, error) {
 	if cfg == nil {
 		return nil, errors.New("artifact service requires config")
 	}
@@ -237,7 +196,7 @@ func buildArtifactService(cfg *config.Config, store runnerFactoryStore) (*artifa
 	return artifacts.NewService(filepath.Join(cfg.Runtime.StorageDir, "artifacts"), artifactStore)
 }
 
-func buildTerminalSessionService(store runnerFactoryStore, artifactService *artifacts.Service, artifactErr error) (*terminalsession.Service, error) {
+func buildTerminalSessionService(store RunnerFactoryStore, artifactService *artifacts.Service, artifactErr error) (*terminalsession.Service, error) {
 	if artifactErr != nil {
 		return nil, fmt.Errorf("terminal session service requires artifact service: %w", artifactErr)
 	}
@@ -296,6 +255,45 @@ func (f *RunnerFactory) cloneForWorkspace(ws *workspace.Workspace) *RunnerFactor
 	})
 	clone.registry = f.registry
 	return clone
+}
+
+func (f *RunnerFactory) Registry() *Registry {
+	if f == nil {
+		return nil
+	}
+	return f.registry
+}
+
+func (f *RunnerFactory) ConsumeEventError(runID string) error {
+	return f.consumeEventError(runID)
+}
+
+func (f *RunnerFactory) Config() *config.Config {
+	if f == nil {
+		return nil
+	}
+	return f.cfg
+}
+
+func (f *RunnerFactory) MemoryModule() memorymodule.Service {
+	if f == nil {
+		return nil
+	}
+	return f.memoryModule
+}
+
+func (f *RunnerFactory) SessionSummarySvc() *runtimehistory.SessionSummaryService {
+	if f == nil {
+		return nil
+	}
+	return f.sessionSummarySvc
+}
+
+func (f *RunnerFactory) NewChatModel(ctx context.Context) (einomodel.BaseChatModel, error) {
+	if f == nil {
+		return nil, errors.New("runner factory is nil")
+	}
+	return f.newChatModel(ctx)
 }
 
 func (f *RunnerFactory) hasWorkingContext(ctx context.Context, sessionID string) (bool, error) {

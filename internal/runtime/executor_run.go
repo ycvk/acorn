@@ -32,7 +32,7 @@ func (e *Executor) Run(ctx context.Context, input, skillID string, sink StreamSi
 }
 
 func (e *Executor) ExecuteMessages(ctx context.Context, req ExecuteRequest, sink StreamSink) (*Result, error) {
-	if e == nil || e.runnerFactory == nil || e.store == nil {
+	if e == nil || e.runBuilder == nil || e.store == nil {
 		return nil, errors.New("executor is not initialized")
 	}
 
@@ -73,7 +73,7 @@ func (e *Executor) ExecuteMessages(ctx context.Context, req ExecuteRequest, sink
 		return nil, err
 	}
 
-	active, err := e.runnerFactory.New(runCtxBase, RunnerBuildRequest{
+	active, err := e.runBuilder.New(runCtxBase, RunnerBuildRequest{
 		SessionID:         req.SessionID,
 		RunID:             runID,
 		Input:             req.Input,
@@ -98,21 +98,21 @@ func (e *Executor) ExecuteMessages(ctx context.Context, req ExecuteRequest, sink
 		}
 		return nil, err
 	}
-	executionSink, err := e.prepareSkillExecution(ctx, runID, active.selectedSkill, sink)
+	executionSink, err := e.prepareSkillExecution(ctx, runID, active.SelectedSkill, sink)
 	if err != nil {
 		return nil, err
 	}
 
 	executionCtx := buildExecutionContext(runCtxBase, runID, req.SessionID, req.TurnIndex, executionSink)
-	if active.contextSession != nil {
-		executionCtx = contextplane.WithContextSession(executionCtx, active.contextSession)
+	if active.ContextSession != nil {
+		executionCtx = contextplane.WithContextSession(executionCtx, active.ContextSession)
 	}
-	iter := active.runner.Run(executionCtx, messages, adk.WithCheckPointID(runID))
-	return e.consume(ctx, runID, req.Input, iter, active.selectedSkill, executionSink, active.chatModel)
+	iter := active.Runner.Run(executionCtx, messages, adk.WithCheckPointID(runID))
+	return e.consume(ctx, runID, req.Input, iter, active.SelectedSkill, executionSink, active.ChatModel)
 }
 
 func (e *Executor) ResumeWithTargets(ctx context.Context, runID string, targets map[string]any, sink StreamSink) (*Result, error) {
-	if e == nil || e.runnerFactory == nil || e.store == nil {
+	if e == nil || e.runBuilder == nil || e.store == nil {
 		return nil, errors.New("executor is not initialized")
 	}
 
@@ -131,7 +131,7 @@ func (e *Executor) ResumeWithTargets(ctx context.Context, runID string, targets 
 		return nil, err
 	}
 
-	active, err := e.runnerFactory.New(runCtxBase, RunnerBuildRequest{
+	active, err := e.runBuilder.New(runCtxBase, RunnerBuildRequest{
 		SessionID:         run.SessionID,
 		RunID:             runID,
 		OrchestrationMode: run.OrchestrationMode,
@@ -142,11 +142,11 @@ func (e *Executor) ResumeWithTargets(ctx context.Context, runID string, targets 
 	}
 	defer active.Close()
 
-	executionSink, err := e.prepareSkillExecution(ctx, runID, active.selectedSkill, sink)
+	executionSink, err := e.prepareSkillExecution(ctx, runID, active.SelectedSkill, sink)
 	if err != nil {
 		return nil, err
 	}
-	if active.contextSession == nil {
+	if active.ContextSession == nil {
 		messages := []adk.Message{}
 		if strings.TrimSpace(run.Input) != "" {
 			messages = []adk.Message{schema.UserMessage(run.Input)}
@@ -164,8 +164,8 @@ func (e *Executor) ResumeWithTargets(ctx context.Context, runID string, targets 
 		}
 	}
 
-	iter, err := active.runner.ResumeWithParams(
-		contextplane.WithContextSession(buildExecutionContext(runCtxBase, runID, run.SessionID, run.TurnIndex, executionSink), active.contextSession),
+	iter, err := active.Runner.ResumeWithParams(
+		contextplane.WithContextSession(buildExecutionContext(runCtxBase, runID, run.SessionID, run.TurnIndex, executionSink), active.ContextSession),
 		runID,
 		&adk.ResumeParams{Targets: targets},
 	)
@@ -173,7 +173,7 @@ func (e *Executor) ResumeWithTargets(ctx context.Context, runID string, targets 
 		return nil, fmt.Errorf("resume run %s: %w", runID, err)
 	}
 
-	result, err := e.consume(ctx, runID, run.Input, iter, active.selectedSkill, executionSink, active.chatModel)
+	result, err := e.consume(ctx, runID, run.Input, iter, active.SelectedSkill, executionSink, active.ChatModel)
 	if err != nil {
 		return nil, err
 	}
@@ -184,7 +184,7 @@ func (e *Executor) ResumeWithTargets(ctx context.Context, runID string, targets 
 }
 
 func (e *Executor) newManagedRunContext(ctx context.Context, runID string) (context.Context, func()) {
-	runTimeout := time.Duration(e.runnerFactory.cfg.Runtime.RunTimeoutSeconds) * time.Second
+	runTimeout := time.Duration(e.runBuilder.Config().Runtime.RunTimeoutSeconds) * time.Second
 	if runTimeout <= 0 {
 		runTimeout = 15 * time.Minute
 	}
@@ -201,7 +201,7 @@ func (e *Executor) newManagedRunContext(ctx context.Context, runID string) (cont
 
 func buildExecutionContext(runCtxBase context.Context, runID, sessionID string, turnIndex int, sink StreamSink) context.Context {
 	runCtx := withRunID(runCtxBase, runID)
-	runCtx = withSessionID(runCtx, sessionID)
+	runCtx = WithSessionID(runCtx, sessionID)
 	runCtx = withTurnIndex(runCtx, turnIndex)
 	return withStreamSink(runCtx, sink)
 }

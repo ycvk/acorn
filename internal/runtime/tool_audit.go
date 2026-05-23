@@ -13,10 +13,9 @@ import (
 	"github.com/cloudwego/eino/compose"
 	"github.com/cloudwego/eino/schema"
 
+	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	"github.com/ycvk/acorn/internal/tooling"
 )
-
-type runContextKey struct{}
 
 type auditedTool struct {
 	spec      tooling.ToolSpec
@@ -30,18 +29,11 @@ type auditedTool struct {
 type toolAuditCallIDKey struct{}
 
 func withRunID(ctx context.Context, runID string) context.Context {
-	return context.WithValue(ctx, runContextKey{}, runID)
+	return runtimeapi.WithRunID(ctx, runID)
 }
 
 func getRunID(ctx context.Context) string {
-	if ctx == nil {
-		return ""
-	}
-	value, ok := ctx.Value(runContextKey{}).(string)
-	if !ok {
-		return ""
-	}
-	return value
+	return runtimeapi.GetRunID(ctx)
 }
 
 func withToolAuditCallID(ctx context.Context, callID string) context.Context {
@@ -101,7 +93,7 @@ func (t *auditedTool) run(ctx context.Context, argumentsInJSON string, emit tool
 	runID := getRunID(ctx)
 	startedAt := time.Now().UTC()
 	if runID != "" {
-		if _, err := appendStreamItem(ctx, t.store, streamSinkFromContext(ctx), StreamItem{
+		if _, err := AppendStreamItem(ctx, t.store, streamSinkFromContext(ctx), StreamItem{
 			RunID:     runID,
 			Kind:      StreamKindToolCallStarted,
 			CreatedAt: startedAt,
@@ -116,7 +108,7 @@ func (t *auditedTool) run(ctx context.Context, argumentsInJSON string, emit tool
 		if validateErr != nil {
 			output := validateErr.Error()
 			if runID != "" {
-				if _, auditErr := appendStreamItem(ctx, t.store, streamSinkFromContext(ctx), StreamItem{
+				if _, auditErr := AppendStreamItem(ctx, t.store, streamSinkFromContext(ctx), StreamItem{
 					RunID:     runID,
 					Kind:      StreamKindToolCallFailed,
 					CreatedAt: time.Now().UTC(),
@@ -130,7 +122,7 @@ func (t *auditedTool) run(ctx context.Context, argumentsInJSON string, emit tool
 		if len(validationErrors) > 0 {
 			output := FormatValidationError(t.spec.Name, validationErrors)
 			if runID != "" {
-				if _, auditErr := appendStreamItem(ctx, t.store, streamSinkFromContext(ctx), StreamItem{
+				if _, auditErr := AppendStreamItem(ctx, t.store, streamSinkFromContext(ctx), StreamItem{
 					RunID:     runID,
 					Kind:      StreamKindToolCallFailed,
 					CreatedAt: time.Now().UTC(),
@@ -150,7 +142,7 @@ func (t *auditedTool) run(ctx context.Context, argumentsInJSON string, emit tool
 	}
 
 	if interruptCount, interrupted := interruptContextCount(err); interrupted {
-		if _, auditErr := appendStreamItem(ctx, t.store, streamSinkFromContext(ctx), StreamItem{
+		if _, auditErr := AppendStreamItem(ctx, t.store, streamSinkFromContext(ctx), StreamItem{
 			RunID:     runID,
 			Kind:      StreamKindToolCallInterrupted,
 			CreatedAt: time.Now().UTC(),
@@ -162,7 +154,7 @@ func (t *auditedTool) run(ctx context.Context, argumentsInJSON string, emit tool
 	}
 
 	if err != nil {
-		if _, auditErr := appendStreamItem(ctx, t.store, streamSinkFromContext(ctx), StreamItem{
+		if _, auditErr := AppendStreamItem(ctx, t.store, streamSinkFromContext(ctx), StreamItem{
 			RunID:     runID,
 			Kind:      StreamKindToolCallFailed,
 			CreatedAt: time.Now().UTC(),
@@ -173,7 +165,7 @@ func (t *auditedTool) run(ctx context.Context, argumentsInJSON string, emit tool
 		return output, err
 	}
 
-	if _, err := appendStreamItem(ctx, t.store, streamSinkFromContext(ctx), StreamItem{
+	if _, err := AppendStreamItem(ctx, t.store, streamSinkFromContext(ctx), StreamItem{
 		RunID:     runID,
 		Kind:      StreamKindToolCallSucceeded,
 		CreatedAt: time.Now().UTC(),
@@ -212,7 +204,7 @@ func (t *auditedTool) progressEmitter(ctx context.Context, argumentsInJSON strin
 			runID = getRunID(ctx)
 		}
 		if runID != "" {
-			if _, err := appendStreamItem(ctx, t.store, streamSinkFromContext(ctx), StreamItem{
+			if _, err := AppendStreamItem(ctx, t.store, streamSinkFromContext(ctx), StreamItem{
 				RunID:     runID,
 				Kind:      StreamKindToolCallProgress,
 				CreatedAt: time.Now().UTC(),

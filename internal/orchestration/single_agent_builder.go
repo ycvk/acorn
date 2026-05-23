@@ -80,7 +80,7 @@ type InstructionCacheInvalidator func()
 
 type ToolSchemaChangeDetector func(ctx context.Context, tools []einotool.BaseTool) bool
 
-type HandlersBuilder func(ctx context.Context, chatModel einomodel.BaseChatModel, compressionState *contextplane.CompressionState) ([]adk.ChatModelAgentMiddleware, error)
+type HandlersBuilder func(ctx context.Context, chatModel einomodel.BaseChatModel, compressionState any) ([]adk.ChatModelAgentMiddleware, error)
 
 type DefaultPlaneOptions struct {
 	SystemPrompt                string
@@ -148,7 +148,7 @@ func (p *DefaultPlane) BuildSingleAgent(ctx context.Context, req SingleAgentRequ
 	if req.AssistantStreamer == nil {
 		return nil, fmt.Errorf("assistant streamer is required")
 	}
-	if req.ContextResult == nil || req.ContextResult.LifecycleState == nil {
+	if req.ContextResult.LifecycleState == nil {
 		return nil, fmt.Errorf("context plane lifecycle state is required")
 	}
 	if p.toolBuilder == nil || p.toolNodeFactory == nil || p.graphBuilder == nil || p.handlersBuilder == nil || p.instructionBuilder == nil {
@@ -246,7 +246,7 @@ func (p *DefaultPlane) BuildPlanExecute(ctx context.Context, req PlanExecuteRequ
 	if req.Catalog == nil {
 		return nil, fmt.Errorf("tool catalog is required")
 	}
-	if req.ContextResult == nil || req.ContextResult.LifecycleState == nil {
+	if req.ContextResult.LifecycleState == nil {
 		return nil, fmt.Errorf("context plane lifecycle state is required")
 	}
 	if p.toolBuilder == nil || p.handlersBuilder == nil || p.instructionBuilder == nil || p.planExecuteGraphBuilder == nil {

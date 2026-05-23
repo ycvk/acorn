@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/cloudwego/eino/compose"
 	"github.com/cloudwego/eino/schema"
 
+	"github.com/ycvk/acorn/internal/runtime/graph"
 	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
 	"github.com/ycvk/acorn/internal/tooling"
 )
@@ -90,6 +92,54 @@ func (m *toolCallingStubModel) WithTools(_ []*schema.ToolInfo) (einomodel.ToolCa
 	return m, nil
 }
 
+type recordingGraphRunnable struct {
+	checkpointIDs []string
+}
+
+func (r *recordingGraphRunnable) Invoke(_ context.Context, _ *graph.AgentGraphInput, opts ...compose.Option) (*schema.Message, error) {
+	r.checkpointIDs = append(r.checkpointIDs, checkpointIDFromComposeOptions(opts))
+	return schema.AssistantMessage("ok", nil), nil
+}
+
+func (r *recordingGraphRunnable) Stream(context.Context, *graph.AgentGraphInput, ...compose.Option) (*schema.StreamReader[*schema.Message], error) {
+	return nil, errors.New("recording runnable Stream is not used")
+}
+
+func (r *recordingGraphRunnable) Collect(context.Context, *schema.StreamReader[*graph.AgentGraphInput], ...compose.Option) (*schema.Message, error) {
+	return nil, errors.New("recording runnable Collect is not used")
+}
+
+func (r *recordingGraphRunnable) Transform(context.Context, *schema.StreamReader[*graph.AgentGraphInput], ...compose.Option) (*schema.StreamReader[*schema.Message], error) {
+	return nil, errors.New("recording runnable Transform is not used")
+}
+
+type noopCheckPointStore struct{}
+
+func (noopCheckPointStore) Get(context.Context, string) ([]byte, bool, error) { return nil, false, nil }
+func (noopCheckPointStore) Set(context.Context, string, []byte) error         { return nil }
+
+func checkpointIDFromComposeOptions(opts []compose.Option) string {
+	for _, opt := range opts {
+		if id := checkpointIDFromComposeOption(opt); id != "" {
+			return id
+		}
+	}
+	return ""
+}
+
+func checkpointIDFromComposeOption(opt compose.Option) string {
+	value := reflect.ValueOf(opt)
+	field := value.FieldByName("checkPointID")
+	if !field.IsValid() || field.Kind() != reflect.Ptr || field.IsNil() {
+		return ""
+	}
+	elem := field.Elem()
+	if elem.Kind() != reflect.String {
+		return ""
+	}
+	return elem.String()
+}
+
 func buildTestAgentGraph(
 	t *testing.T,
 	ctx context.Context,
@@ -99,11 +149,11 @@ func buildTestAgentGraph(
 	store *storesqlite.Store,
 	toolInfos []*schema.ToolInfo,
 	toolSpecs []tooling.ToolSpec,
-) compose.Runnable[*agentGraphInput, *schema.Message] {
+) compose.Runnable[*graph.AgentGraphInput, *schema.Message] {
 	t.Helper()
 	planStore := PlanStore(&fakePlanStore{})
 	if store != nil {
-		planStore = newPlanStore(store)
+		planStore = NewPlanStore(store)
 	}
 	eagerToolNames := make([]string, 0, len(toolInfos))
 	for _, info := range toolInfos {
@@ -111,7 +161,7 @@ func buildTestAgentGraph(
 			eagerToolNames = append(eagerToolNames, info.Name)
 		}
 	}
-	runnable, err := buildAgentGraph(ctx, "test-agent", model, safeNode, newDirectAssistantStreamer(nil), maxIter, store, nil, planStore, "Make a plan", nil, eagerToolNames, toolSpecs)
+	runnable, err := BuildAgentGraph(ctx, "test-agent", model, safeNode, newDirectAssistantStreamer(nil), maxIter, store, nil, planStore, "Make a plan", nil, eagerToolNames, toolSpecs)
 	if err != nil {
 		t.Fatalf("buildAgentGraph: %v", err)
 	}
@@ -119,7 +169,7 @@ func buildTestAgentGraph(
 }
 
 func withGraphTestContext(ctx context.Context) context.Context {
-	ctx = withSessionID(ctx, "sess_graph")
+	ctx = WithSessionID(ctx, "sess_graph")
 	ctx = withRunID(ctx, "run_graph")
 	return ctx
 }
@@ -178,7 +228,7 @@ func TestAgentGraphPlanActObserveRun(t *testing.T) {
 	}
 	runnable := buildTestAgentGraph(t, ctx, model, safeNode, 10, nil, nil, nil)
 
-	msg, err := runnable.Invoke(ctx, &agentGraphInput{Messages: []*schema.Message{schema.UserMessage("hi")}})
+	msg, err := runnable.Invoke(ctx, &graph.AgentGraphInput{Messages: []*schema.Message{schema.UserMessage("hi")}})
 	if err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}
@@ -196,7 +246,7 @@ func TestGraphAgentRunNoTools(t *testing.T) {
 		t.Fatalf("NewSafeParallelToolsNode: %v", err)
 	}
 	runnable := buildTestAgentGraph(t, ctx, model, safeNode, 10, nil, nil, nil)
-	agent := newGraphAgent("test-agent", "test", runnable, model, tools, nil, 10, nil, nil)
+	agent := graph.NewGraphAgent("test-agent", "test", runnable, model, tools, nil, 10, nil, nil)
 
 	input := &adk.AgentInput{
 		Messages: []*schema.Message{schema.UserMessage("hi")},
@@ -257,7 +307,7 @@ func TestGraphAgentRunWithToolCall(t *testing.T) {
 		t.Fatalf("tool Info: %v", err)
 	}
 	runnable := buildTestAgentGraph(t, ctx, model2, safeNode, 10, nil, []*schema.ToolInfo{info}, nil)
-	agent := newGraphAgent("test-agent", "test", runnable, model2, tools, nil, 10, nil, graphAgentContextBinder(ctx))
+	agent := graph.NewGraphAgent("test-agent", "test", runnable, model2, tools, nil, 10, nil, graph.GraphAgentContextBinder(ctx))
 
 	input := &adk.AgentInput{
 		Messages: []*schema.Message{schema.UserMessage("search for test")},
@@ -306,7 +356,7 @@ func TestGraphAgentMaxIterations(t *testing.T) {
 		t.Fatalf("tool Info: %v", err)
 	}
 	runnable := buildTestAgentGraph(t, ctx, model, safeNode, 1, nil, []*schema.ToolInfo{info}, nil)
-	agent := newGraphAgent("test-agent", "test", runnable, model, tools, nil, 3, nil, graphAgentContextBinder(ctx))
+	agent := graph.NewGraphAgent("test-agent", "test", runnable, model, tools, nil, 3, nil, graph.GraphAgentContextBinder(ctx))
 
 	input := &adk.AgentInput{
 		Messages: []*schema.Message{schema.UserMessage("loop forever")},
@@ -325,6 +375,46 @@ func TestGraphAgentMaxIterations(t *testing.T) {
 	}
 	if !gotErr {
 		t.Error("expected max iterations error")
+	}
+}
+
+func TestGraphAgentRunAndResumeUseScopedComposeCheckpoint(t *testing.T) {
+	ctx := withRunID(context.Background(), "run_graph_checkpoint")
+	runnable := &recordingGraphRunnable{}
+	agent := graph.NewGraphAgent("test-agent", "test", runnable, nil, nil, nil, 10, noopCheckPointStore{}, nil)
+
+	runIter := agent.Run(ctx, &adk.AgentInput{Messages: []*schema.Message{schema.UserMessage("start")}})
+	assertGraphAgentIteratorClean(t, runIter)
+
+	resumeIter := agent.Resume(ctx, &adk.ResumeInfo{InterruptInfo: &adk.InterruptInfo{Data: "not-a-checkpoint-id"}})
+	assertGraphAgentIteratorClean(t, resumeIter)
+
+	want := "graph:run_graph_checkpoint:test-agent"
+	if len(runnable.checkpointIDs) != 2 {
+		t.Fatalf("checkpoint ids = %v, want two invocations", runnable.checkpointIDs)
+	}
+	for i, got := range runnable.checkpointIDs {
+		if got != want {
+			t.Fatalf("checkpoint id[%d] = %q, want %q", i, got, want)
+		}
+	}
+}
+
+func assertGraphAgentIteratorClean(t *testing.T, iter *adk.AsyncIterator[*adk.AgentEvent]) {
+	t.Helper()
+	seen := 0
+	for {
+		event, ok := iter.Next()
+		if !ok {
+			break
+		}
+		seen++
+		if event.Err != nil {
+			t.Fatalf("unexpected agent error: %v", event.Err)
+		}
+	}
+	if seen == 0 {
+		t.Fatal("expected at least one agent event")
 	}
 }
 
@@ -360,7 +450,7 @@ func TestAgentGraphReplansAfterFailedStep(t *testing.T) {
 	}
 
 	runnable := buildTestAgentGraph(t, ctx, model, safeNode, 10, nil, toolInfos, nil)
-	out, err := runnable.Invoke(ctx, &agentGraphInput{Messages: []*schema.Message{schema.UserMessage("recover from failure")}})
+	out, err := runnable.Invoke(ctx, &graph.AgentGraphInput{Messages: []*schema.Message{schema.UserMessage("recover from failure")}})
 	if err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}

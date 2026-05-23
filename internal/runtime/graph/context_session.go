@@ -1,4 +1,4 @@
-package runtime
+package graph
 
 import (
 	"context"
@@ -9,17 +9,18 @@ import (
 	"github.com/cloudwego/eino/schema"
 
 	"github.com/ycvk/acorn/internal/contextplane"
+	"github.com/ycvk/acorn/internal/runtime/api"
 )
 
-func graphModelCallID(ctx context.Context, prefix string) string {
-	runID := strings.TrimSpace(CurrentRunID(ctx))
+func GraphModelCallID(ctx context.Context, prefix string) string {
+	runID := strings.TrimSpace(api.GetRunID(ctx))
 	if runID == "" {
 		return prefix
 	}
 	return prefix + "-" + runID
 }
 
-func graphSessionModelCallRequest(callID, source string, toolInfos []*schema.ToolInfo) contextplane.ModelCallRequest {
+func GraphSessionModelCallRequest(callID, source string, toolInfos []*schema.ToolInfo) contextplane.ModelCallRequest {
 	return contextplane.ModelCallRequest{
 		CallID:       callID,
 		QuerySource:  source,
@@ -28,7 +29,7 @@ func graphSessionModelCallRequest(callID, source string, toolInfos []*schema.Too
 	}
 }
 
-func graphSessionBaseMessages(ctx context.Context, state *AgentGraphState, req contextplane.ModelCallRequest) (contextplane.ContextSession, []*schema.Message, error) {
+func GraphSessionBaseMessages(ctx context.Context, state *AgentGraphState, req contextplane.ModelCallRequest) (contextplane.ContextSession, []*schema.Message, error) {
 	session := contextplane.ContextSessionFromContext(ctx)
 	if session == nil {
 		if state == nil {
@@ -40,14 +41,14 @@ func graphSessionBaseMessages(ctx context.Context, state *AgentGraphState, req c
 	if err != nil {
 		return nil, nil, err
 	}
-	base := schemaMessagesFromADK(input.Messages)
+	base := SchemaMessagesFromADK(input.Messages)
 	if state != nil {
 		state.Messages = append([]*schema.Message(nil), base...)
 	}
 	return session, base, nil
 }
 
-func graphSessionReactiveBaseMessages(ctx context.Context, session contextplane.ContextSession, state *AgentGraphState, req contextplane.ModelCallRequest, cause error) ([]*schema.Message, error) {
+func GraphSessionReactiveBaseMessages(ctx context.Context, session contextplane.ContextSession, state *AgentGraphState, req contextplane.ModelCallRequest, cause error) ([]*schema.Message, error) {
 	if session == nil {
 		return nil, cause
 	}
@@ -55,14 +56,14 @@ func graphSessionReactiveBaseMessages(ctx context.Context, session contextplane.
 	if err != nil {
 		return nil, err
 	}
-	base := schemaMessagesFromADK(input.Messages)
+	base := SchemaMessagesFromADK(input.Messages)
 	if state != nil {
 		state.Messages = append([]*schema.Message(nil), base...)
 	}
 	return base, nil
 }
 
-func graphSessionRecordAssistant(ctx context.Context, session contextplane.ContextSession, msg *schema.Message) error {
+func GraphSessionRecordAssistant(ctx context.Context, session contextplane.ContextSession, msg *schema.Message) error {
 	if session == nil {
 		return nil
 	}
@@ -72,7 +73,7 @@ func graphSessionRecordAssistant(ctx context.Context, session contextplane.Conte
 	return nil
 }
 
-func graphSessionRecordMessages(ctx context.Context, session contextplane.ContextSession, messages []*schema.Message) error {
+func GraphSessionRecordMessages(ctx context.Context, session contextplane.ContextSession, messages []*schema.Message) error {
 	if session == nil || len(messages) == 0 {
 		return nil
 	}
@@ -88,7 +89,7 @@ func graphSessionRecordMessages(ctx context.Context, session contextplane.Contex
 	return nil
 }
 
-func graphSessionRecordToolResults(ctx context.Context, session contextplane.ContextSession, messages []*schema.Message) error {
+func GraphSessionRecordToolResults(ctx context.Context, session contextplane.ContextSession, messages []*schema.Message) error {
 	if session == nil || len(messages) == 0 {
 		return nil
 	}
@@ -104,11 +105,12 @@ func graphSessionRecordToolResults(ctx context.Context, session contextplane.Con
 	return nil
 }
 
-func schemaMessagesFromADK(messages []adk.Message) []*schema.Message {
+// SchemaMessagesFromADK converts ADK messages to schema messages.
+func SchemaMessagesFromADK(messages []adk.Message) []*schema.Message {
 	out := make([]*schema.Message, 0, len(messages))
-	for _, msg := range messages {
-		if msg != nil {
-			out = append(out, msg)
+	for _, m := range messages {
+		if m != nil {
+			out = append(out, m)
 		}
 	}
 	return out

@@ -26,7 +26,7 @@ func (e *Executor) finishCollectedRun(ctx context.Context, runID, input string, 
 }
 
 func (e *Executor) finishFailedRun(ctx context.Context, runID, input string, state runState, selectedSkill *SelectedSkill, sink StreamSink) (*Result, error) {
-	durableCtx := durableContext(ctx)
+	durableCtx := DurableContext(ctx)
 	if !state.emittedRunFailed && state.failure != nil {
 		if err := e.emitRunFailed(durableCtx, runID, sink, state.failure.Error()); err != nil {
 			return nil, err
@@ -55,7 +55,7 @@ func (e *Executor) finishFailedRun(ctx context.Context, runID, input string, sta
 }
 
 func (e *Executor) finishInterruptedRun(ctx context.Context, runID string, state runState) (*Result, error) {
-	durableCtx := durableContext(ctx)
+	durableCtx := DurableContext(ctx)
 	if err := e.store.MarkInterruptedContext(durableCtx, runID, state.lastOutput); err != nil {
 		return nil, err
 	}
@@ -73,7 +73,7 @@ func (e *Executor) finishInterruptedRun(ctx context.Context, runID string, state
 }
 
 func (e *Executor) finishSucceededRun(ctx context.Context, runID, input string, state runState, selectedSkill *SelectedSkill, sink StreamSink) (*Result, error) {
-	durableCtx := durableContext(ctx)
+	durableCtx := DurableContext(ctx)
 	if err := e.store.UpdateRunOutputContext(durableCtx, runID, state.lastOutput); err != nil {
 		return nil, err
 	}
@@ -141,7 +141,7 @@ func (e *Executor) persistConversationSegment(ctx context.Context, runID string,
 }
 
 func (e *Executor) appendRunHistory(ctx context.Context, runID string, runStatus events.RunStatus, input, output string) error {
-	if e == nil || e.store == nil || e.runnerFactory == nil || e.runnerFactory.memoryModule == nil {
+	if e == nil || e.store == nil || e.runBuilder == nil || e.runBuilder.MemoryModule() == nil {
 		return errors.New("memory module is not initialized")
 	}
 	run, err := e.store.LoadRun(ctx, runID)
@@ -156,7 +156,7 @@ func (e *Executor) appendRunHistory(ctx context.Context, runID string, runStatus
 	if archive != nil {
 		filesChanged = append(filesChanged, archive.TouchedPaths...)
 	}
-	if err := e.runnerFactory.memoryModule.AppendHistory(ctx, memorymodule.HistoryEvent{
+	if err := e.runBuilder.MemoryModule().AppendHistory(ctx, memorymodule.HistoryEvent{
 		SessionID:    run.SessionID,
 		RunID:        runID,
 		Status:       string(runStatus),
@@ -270,7 +270,7 @@ func (e *Executor) emitCrystallizationFailed(ctx context.Context, runID string, 
 	if e.store == nil {
 		return errors.New("executor store is nil")
 	}
-	_, appendErr := appendStreamItem(ctx, e.store, sink, StreamItem{
+	_, appendErr := AppendStreamItem(ctx, e.store, sink, StreamItem{
 		RunID: runID,
 		Kind:  StreamKindCrystallizationFailed,
 		Payload: &CrystallizationFailedPayload{
@@ -288,7 +288,7 @@ func (e *Executor) emitCrystallizationVerdict(ctx context.Context, runID string,
 	if e.store == nil {
 		return errors.New("executor store is nil")
 	}
-	_, appendErr := appendStreamItem(ctx, e.store, sink, StreamItem{
+	_, appendErr := AppendStreamItem(ctx, e.store, sink, StreamItem{
 		RunID: runID,
 		Kind:  StreamKindCrystallizationVerdict,
 		Payload: &CrystallizationVerdictPayload{

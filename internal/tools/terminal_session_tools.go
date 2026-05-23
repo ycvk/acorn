@@ -14,7 +14,6 @@ import (
 	"github.com/ycvk/acorn/internal/terminalsession"
 	"github.com/ycvk/acorn/internal/tooling"
 	"github.com/ycvk/acorn/internal/toolresult"
-	"github.com/ycvk/acorn/internal/workspace"
 )
 
 type TerminalSessionContext interface {
@@ -124,7 +123,7 @@ type ProcessStatusOutput struct {
 	TerminalSessionSummary
 }
 
-func buildTerminalSessionTools(service *terminalsession.Service, ws *workspace.Workspace, bridge TerminalSessionContext) ([]einotool.BaseTool, error) {
+func buildTerminalSessionTools(service TerminalService, ws WorkspaceView, bridge TerminalSessionContext) ([]einotool.BaseTool, error) {
 	if service == nil {
 		return nil, errors.New("terminal session service is required")
 	}
@@ -134,7 +133,7 @@ func buildTerminalSessionTools(service *terminalsession.Service, ws *workspace.W
 	if bridge == nil {
 		return nil, errors.New("terminal session context bridge is required")
 	}
-	builders := []func(*terminalsession.Service, *workspace.Workspace, TerminalSessionContext) (einotool.BaseTool, error){
+	builders := []func(TerminalService, WorkspaceView, TerminalSessionContext) (einotool.BaseTool, error){
 		buildTerminalSessionStartTool,
 		buildTerminalSessionWriteTool,
 		buildTerminalSessionReadTool,
@@ -154,7 +153,7 @@ func buildTerminalSessionTools(service *terminalsession.Service, ws *workspace.W
 	return tools, nil
 }
 
-func buildTerminalSessionStartTool(service *terminalsession.Service, ws *workspace.Workspace, bridge TerminalSessionContext) (einotool.BaseTool, error) {
+func buildTerminalSessionStartTool(service TerminalService, ws WorkspaceView, bridge TerminalSessionContext) (einotool.BaseTool, error) {
 	tool, err := inferProgressTool("terminal_session_start", "Start a persistent Acorn-owned terminal/process session.", func(ctx context.Context, input TerminalSessionStartInput, emit tooling.ToolProgressEmitter) (TerminalSessionStartOutput, error) {
 		runID := strings.TrimSpace(bridge.CurrentRunID(ctx))
 		if runID == "" {
@@ -200,7 +199,7 @@ func buildTerminalSessionStartTool(service *terminalsession.Service, ws *workspa
 	return tool, nil
 }
 
-func buildTerminalSessionWriteTool(service *terminalsession.Service, _ *workspace.Workspace, _ TerminalSessionContext) (einotool.BaseTool, error) {
+func buildTerminalSessionWriteTool(service TerminalService, _ WorkspaceView, _ TerminalSessionContext) (einotool.BaseTool, error) {
 	tool, err := inferProgressTool("terminal_session_write", "Write input to a running terminal/process session.", func(ctx context.Context, input TerminalSessionWriteInput, emit tooling.ToolProgressEmitter) (TerminalSessionWriteOutput, error) {
 		result, err := service.Write(ctx, terminalsession.WriteRequest{TerminalSessionID: input.TerminalSessionID, Input: input.Input})
 		if err != nil {
@@ -217,7 +216,7 @@ func buildTerminalSessionWriteTool(service *terminalsession.Service, _ *workspac
 	return tool, nil
 }
 
-func buildTerminalSessionReadTool(service *terminalsession.Service, _ *workspace.Workspace, _ TerminalSessionContext) (einotool.BaseTool, error) {
+func buildTerminalSessionReadTool(service TerminalService, _ WorkspaceView, _ TerminalSessionContext) (einotool.BaseTool, error) {
 	tool, err := inferProgressTool("terminal_session_read", "Read a bounded range from a terminal/process session log.", func(ctx context.Context, input TerminalSessionReadInput, emit tooling.ToolProgressEmitter) (TerminalSessionReadOutput, error) {
 		result, err := service.Read(ctx, terminalsession.ReadRequest{
 			TerminalSessionID: input.TerminalSessionID,
@@ -248,7 +247,7 @@ func buildTerminalSessionReadTool(service *terminalsession.Service, _ *workspace
 	return tool, nil
 }
 
-func buildTerminalSessionSignalTool(service *terminalsession.Service, _ *workspace.Workspace, _ TerminalSessionContext) (einotool.BaseTool, error) {
+func buildTerminalSessionSignalTool(service TerminalService, _ WorkspaceView, _ TerminalSessionContext) (einotool.BaseTool, error) {
 	tool, err := inferProgressTool("terminal_session_signal", "Send a signal to a running terminal/process session process group.", func(ctx context.Context, input TerminalSessionSignalInput, emit tooling.ToolProgressEmitter) (TerminalSessionSignalOutput, error) {
 		signalName := strings.ToUpper(strings.TrimSpace(input.Signal))
 		record, err := service.Signal(ctx, terminalsession.SignalRequest{TerminalSessionID: input.TerminalSessionID, Signal: signalName})
@@ -266,7 +265,7 @@ func buildTerminalSessionSignalTool(service *terminalsession.Service, _ *workspa
 	return tool, nil
 }
 
-func buildTerminalSessionCloseTool(service *terminalsession.Service, _ *workspace.Workspace, _ TerminalSessionContext) (einotool.BaseTool, error) {
+func buildTerminalSessionCloseTool(service TerminalService, _ WorkspaceView, _ TerminalSessionContext) (einotool.BaseTool, error) {
 	tool, err := inferProgressTool("terminal_session_close", "Close a running terminal/process session by signaling its process group.", func(ctx context.Context, input TerminalSessionCloseInput, emit tooling.ToolProgressEmitter) (TerminalSessionCloseOutput, error) {
 		signalName := "TERM"
 		if input.Force {
@@ -287,7 +286,7 @@ func buildTerminalSessionCloseTool(service *terminalsession.Service, _ *workspac
 	return tool, nil
 }
 
-func buildTerminalSessionListTool(service *terminalsession.Service, _ *workspace.Workspace, bridge TerminalSessionContext) (einotool.BaseTool, error) {
+func buildTerminalSessionListTool(service TerminalService, _ WorkspaceView, bridge TerminalSessionContext) (einotool.BaseTool, error) {
 	tool, err := inferProgressTool("terminal_session_list", "List terminal/process sessions for a run.", func(ctx context.Context, input TerminalSessionListInput, emit tooling.ToolProgressEmitter) (TerminalSessionListOutput, error) {
 		runID := strings.TrimSpace(input.RunID)
 		if runID == "" {
@@ -315,7 +314,7 @@ func buildTerminalSessionListTool(service *terminalsession.Service, _ *workspace
 	return tool, nil
 }
 
-func buildProcessStatusTool(service *terminalsession.Service, _ *workspace.Workspace, _ TerminalSessionContext) (einotool.BaseTool, error) {
+func buildProcessStatusTool(service TerminalService, _ WorkspaceView, _ TerminalSessionContext) (einotool.BaseTool, error) {
 	tool, err := inferProgressTool("process_status", "Inspect status for an Acorn-owned terminal/process session.", func(ctx context.Context, input ProcessStatusInput, emit tooling.ToolProgressEmitter) (ProcessStatusOutput, error) {
 		record, err := service.Load(ctx, input.TerminalSessionID)
 		if err != nil {

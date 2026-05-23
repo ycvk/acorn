@@ -19,7 +19,7 @@ import (
 
 type SubagentExecutor struct {
 	cfg   *config.Config
-	store executorStore
+	store ExecutorStore
 	rf    *RunnerFactory
 	ctrl  *RunController
 
@@ -27,7 +27,7 @@ type SubagentExecutor struct {
 	depths  map[string]int
 }
 
-func NewSubagentExecutor(cfg *config.Config, store executorStore, rf *RunnerFactory, ctrl *RunController) *SubagentExecutor {
+func NewSubagentExecutor(cfg *config.Config, store ExecutorStore, rf *RunnerFactory, ctrl *RunController) *SubagentExecutor {
 	if ctrl == nil {
 		ctrl = NewRunController()
 	}
@@ -115,7 +115,7 @@ func (se *SubagentExecutor) Execute(ctx context.Context, req orchestration.Child
 		return nil, fmt.Errorf("prepare child session turn: %w", err)
 	}
 
-	if _, err := appendStreamItem(ctx, se.store, sink, StreamItem{
+	if _, err := AppendStreamItem(ctx, se.store, sink, StreamItem{
 		RunID:     parentRunID,
 		Kind:      StreamKindSubagentStarted,
 		CreatedAt: time.Now().UTC(),
@@ -196,7 +196,7 @@ func (se *SubagentExecutor) Execute(ctx context.Context, req orchestration.Child
 	}
 	delegated.Acceptance = evaluateDelegationAcceptance(req, events.RunStatus(finalStatus), delegated.OutputSummary, delegated.EvidenceSummaries, planFailureReasons)
 
-	if _, err := appendStreamItem(ctx, se.store, sink, StreamItem{
+	if _, err := AppendStreamItem(ctx, se.store, sink, StreamItem{
 		RunID:     parentRunID,
 		Kind:      StreamKindSubagentCompleted,
 		CreatedAt: time.Now().UTC(),
@@ -225,7 +225,7 @@ func (se *SubagentExecutor) emitFailed(ctx context.Context, parentRunID, subRunI
 	if se == nil || se.store == nil {
 		return errors.New("emit subagent.failed: store is not initialized")
 	}
-	if _, err := appendStreamItem(ctx, se.store, sink, StreamItem{
+	if _, err := AppendStreamItem(ctx, se.store, sink, StreamItem{
 		RunID:     parentRunID,
 		Kind:      StreamKindSubagentFailed,
 		CreatedAt: time.Now().UTC(),

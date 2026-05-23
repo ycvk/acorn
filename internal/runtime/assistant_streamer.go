@@ -7,10 +7,10 @@ import (
 )
 
 type directAssistantStreamer struct {
-	appender eventAppender
+	appender EventAppender
 }
 
-func newDirectAssistantStreamer(appender eventAppender) *directAssistantStreamer {
+func newDirectAssistantStreamer(appender EventAppender) *directAssistantStreamer {
 	return &directAssistantStreamer{appender: appender}
 }
 

@@ -15,7 +15,7 @@ func (e *Executor) emitLifecyclePayload(ctx context.Context, runID string, sink 
 	if payload == nil {
 		return errors.New("lifecycle payload is nil")
 	}
-	_, err := appendStreamItem(ctx, e.store, sink, StreamItem{
+	_, err := AppendStreamItem(ctx, e.store, sink, StreamItem{
 		RunID:     runID,
 		Kind:      payload.StreamKind(),
 		CreatedAt: time.Now().UTC(),

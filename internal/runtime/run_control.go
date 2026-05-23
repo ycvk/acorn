@@ -8,8 +8,6 @@ import (
 	"sync"
 )
 
-var ErrRunNotActive = errors.New("run not active")
-
 type RunController struct {
 	activeMu      sync.Mutex
 	activeCancels map[string]context.CancelFunc
@@ -63,7 +61,7 @@ func (c *RunController) Interrupt(runID string) error {
 
 // InterruptTree interrupts a run and all its children in the execution tree.
 // Children in finalization phase are allowed to complete.
-func (c *RunController) InterruptTree(runID string, registry *runRegistry) {
+func (c *RunController) InterruptTree(runID string, registry *Registry) {
 	if c == nil || registry == nil {
 		return
 	}

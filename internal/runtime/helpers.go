@@ -43,7 +43,7 @@ func newSessionID() string {
 	return fmt.Sprintf("session_%d", time.Now().UTC().UnixNano())
 }
 
-func extractString(value any) string {
+func ExtractString(value any) string {
 	switch typed := value.(type) {
 	case nil:
 		return ""
@@ -54,7 +54,7 @@ func extractString(value any) string {
 	}
 }
 
-func interruptPayloadFromStream(interrupt *StreamInterrupt) map[string]any {
+func InterruptPayloadFromStream(interrupt *StreamInterrupt) map[string]any {
 	if interrupt == nil {
 		return nil
 	}

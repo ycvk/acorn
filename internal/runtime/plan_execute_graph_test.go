@@ -10,6 +10,7 @@ import (
 	"github.com/cloudwego/eino/schema"
 
 	"github.com/ycvk/acorn/internal/orchestration"
+	"github.com/ycvk/acorn/internal/runtime/graph"
 )
 
 type stubChildAgentExecutor struct {
@@ -59,9 +60,9 @@ func TestExecuteDispatchNodeCompletesStepWithChildEvidence(t *testing.T) {
 		},
 	}
 	node := NewExecuteDispatchNode(store, nil, child)
-	ctx := withRunID(withSessionID(context.Background(), "sess_plan_execute"), "run_parent")
+	ctx := withRunID(WithSessionID(context.Background(), "sess_plan_execute"), "run_parent")
 
-	state, err := node.Invoke(ctx, &AgentGraphState{
+	state, err := node.Invoke(ctx, &graph.AgentGraphState{
 		Messages: []*schema.Message{schema.UserMessage("inspect the repo")},
 	})
 	if err != nil {
@@ -118,9 +119,9 @@ func TestExecuteDispatchNodeFailsStepWhenChildFails(t *testing.T) {
 	}}
 	child := &stubChildAgentExecutor{err: errors.New("tool run failed")}
 	node := NewExecuteDispatchNode(store, nil, child)
-	ctx := withRunID(withSessionID(context.Background(), "sess_plan_execute"), "run_parent")
+	ctx := withRunID(WithSessionID(context.Background(), "sess_plan_execute"), "run_parent")
 
-	state, err := node.Invoke(ctx, &AgentGraphState{
+	state, err := node.Invoke(ctx, &graph.AgentGraphState{
 		Messages: []*schema.Message{schema.UserMessage("run tests")},
 	})
 	if err != nil {
@@ -173,9 +174,9 @@ func TestExecuteDispatchNodeRunsVerifierForVerifierIntent(t *testing.T) {
 		},
 	}
 	node := NewExecuteDispatchNode(store, nil, child)
-	ctx := withRunID(withSessionID(context.Background(), "sess_plan_execute"), "run_parent")
+	ctx := withRunID(WithSessionID(context.Background(), "sess_plan_execute"), "run_parent")
 
-	state, err := node.Invoke(ctx, &AgentGraphState{
+	state, err := node.Invoke(ctx, &graph.AgentGraphState{
 		Messages: []*schema.Message{schema.UserMessage("update docs")},
 	})
 	if err != nil {
@@ -247,9 +248,9 @@ func TestExecuteDispatchNodeFailsStepWhenVerifierFails(t *testing.T) {
 		},
 	}
 	node := NewExecuteDispatchNode(store, nil, child)
-	ctx := withRunID(withSessionID(context.Background(), "sess_plan_execute"), "run_parent")
+	ctx := withRunID(WithSessionID(context.Background(), "sess_plan_execute"), "run_parent")
 
-	state, err := node.Invoke(ctx, &AgentGraphState{
+	state, err := node.Invoke(ctx, &graph.AgentGraphState{
 		Messages: []*schema.Message{schema.UserMessage("ship change")},
 	})
 	if err != nil {
@@ -291,9 +292,9 @@ func TestExecuteDispatchNodeDoesNotDispatchWithoutRunnableStep(t *testing.T) {
 		},
 	}
 	node := NewExecuteDispatchNode(store, nil, child)
-	ctx := withRunID(withSessionID(context.Background(), "sess_plan_execute"), "run_parent")
+	ctx := withRunID(WithSessionID(context.Background(), "sess_plan_execute"), "run_parent")
 
-	_, err := node.Invoke(ctx, &AgentGraphState{
+	_, err := node.Invoke(ctx, &graph.AgentGraphState{
 		Messages: []*schema.Message{schema.UserMessage("continue")},
 	})
 	if err == nil || !strings.Contains(err.Error(), "active plan has no runnable pending step") {
@@ -306,7 +307,7 @@ func TestExecuteDispatchNodeDoesNotDispatchWithoutRunnableStep(t *testing.T) {
 
 func TestCloseoutNodeProducesHumanReadableSummary(t *testing.T) {
 	node := NewCloseoutNode()
-	state := &AgentGraphState{
+	state := &graph.AgentGraphState{
 		Plan: &Plan{
 			Steps: []PlanStep{
 				{
@@ -345,7 +346,7 @@ func TestCloseoutNodeProducesHumanReadableSummary(t *testing.T) {
 
 func TestCloseoutNodeSingleCompletedStepReturnsChildSummaryOnly(t *testing.T) {
 	node := NewCloseoutNode()
-	state := &AgentGraphState{
+	state := &graph.AgentGraphState{
 		Plan: &Plan{
 			Steps: []PlanStep{{
 				ID:     "s1",

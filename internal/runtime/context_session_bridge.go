@@ -20,13 +20,13 @@ func (e *Executor) bootstrapContextSessionMessages(
 	mode orchestration.OrchestrationMode,
 	active *ActiveRunner,
 ) ([]adk.Message, error) {
-	if e == nil || e.runnerFactory == nil || e.runnerFactory.cfg == nil {
+	if e == nil || e.runBuilder == nil || e.runBuilder.Config() == nil {
 		return nil, fmt.Errorf("context session bootstrap requires runtime config")
 	}
 	if active == nil {
 		return nil, fmt.Errorf("context session bootstrap requires active runner")
 	}
-	contextPolicy, err := e.runnerFactory.cfg.ContextPolicy()
+	contextPolicy, err := e.runBuilder.Config().ContextPolicy()
 	if err != nil {
 		return nil, fmt.Errorf("context policy: %w", err)
 	}
@@ -38,14 +38,14 @@ func (e *Executor) bootstrapContextSessionMessages(
 	pipeline := contextplane.NewDefaultContextCompressionPipeline(contextplane.CompressionPipelineOptions{
 		Governor: contextplane.NewBudgetGovernor(counter),
 		CompactionEngine: contextplane.NewDefaultCompactionEngine(contextplane.CompactionEngineOptions{
-			Model:                active.chatModel,
+			Model:                active.ChatModel,
 			ModelOptions:         []einomodel.Option{einomodel.WithMaxTokens(contextPolicy.MaxSummaryTokens)},
 			TokenCounter:         counter,
 			HandoffFrameDisabled: contextPolicy.HandoffFrameDisabled,
 			MaxSummaryTokens:     contextPolicy.MaxSummaryTokens,
 		}),
 		TokenCounter:         counter,
-		Catalog:              active.toolCatalog,
+		Catalog:              active.ToolCatalog,
 		MicrocompactInterval: 5,
 		ModelProfile:         modelProfile,
 	})
@@ -57,17 +57,17 @@ func (e *Executor) bootstrapContextSessionMessages(
 			RecentTurns:       contextPolicy.PreserveRecentTurns,
 			PreserveToolPairs: true,
 		},
-		State: active.compressionState,
+		State: active.CompressionState,
 		EmitCompressed: func(ctx context.Context, outcome contextplane.CompressionOutcome) error {
-			return emitContextCompressedEvent(ctx, e.store, outcome)
+			return EmitContextCompressedEvent(ctx, e.store, outcome)
 		},
 		EmitPressure: func(ctx context.Context, pressure contextplane.BudgetPressure) error {
-			return emitContextPressureEvent(ctx, e.store, pressure)
+			return EmitContextPressureEvent(ctx, e.store, pressure)
 		},
 	})
 	initialMessages := append([]adk.Message(nil), req.Messages...)
 	if mode == orchestration.OrchestrationModeDirectResponse {
-		if instruction := strings.TrimSpace(active.instruction); instruction != "" {
+		if instruction := strings.TrimSpace(active.Instruction); instruction != "" {
 			initialMessages = append([]adk.Message{schema.SystemMessage(instruction)}, initialMessages...)
 		}
 	}
@@ -77,12 +77,12 @@ func (e *Executor) bootstrapContextSessionMessages(
 		TurnIndex:       req.TurnIndex,
 		Mode:            string(mode),
 		InitialMessages: initialMessages,
-		Assembly:        active.contextResult,
+		Assembly:        active.ContextResult,
 		ModelProfile:    modelProfile,
 	})
 	if err != nil {
 		return nil, err
 	}
-	active.contextSession = session
+	active.ContextSession = session
 	return input.Messages, nil
 }

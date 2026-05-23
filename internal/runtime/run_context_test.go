@@ -8,7 +8,7 @@ import (
 )
 
 func TestRunRegistryRegisterRoot(t *testing.T) {
-	reg := newRunRegistry()
+	reg := NewRegistry()
 	budget := NewRunBudget(10)
 	rc := &RunContext{
 		RunID:  "run_root",
@@ -32,7 +32,7 @@ func TestRunRegistryRegisterRoot(t *testing.T) {
 }
 
 func TestRunRegistryRegisterChild(t *testing.T) {
-	reg := newRunRegistry()
+	reg := NewRegistry()
 	budget := NewRunBudget(10)
 
 	parent := &RunContext{
@@ -67,7 +67,7 @@ func TestRunRegistryRegisterChild(t *testing.T) {
 }
 
 func TestRunRegistryRegisterMissingParent(t *testing.T) {
-	reg := newRunRegistry()
+	reg := NewRegistry()
 	budget := NewRunBudget(10)
 
 	child := &RunContext{
@@ -85,7 +85,7 @@ func TestRunRegistryRegisterMissingParent(t *testing.T) {
 }
 
 func TestRunRegistryClear(t *testing.T) {
-	reg := newRunRegistry()
+	reg := NewRegistry()
 	budget := NewRunBudget(10)
 
 	root := &RunContext{RunID: "run_clear_root", Budget: budget}
@@ -111,7 +111,7 @@ func TestRunRegistryClear(t *testing.T) {
 }
 
 func TestRunRegistryClearSubtree(t *testing.T) {
-	reg := newRunRegistry()
+	reg := NewRegistry()
 	budget := NewRunBudget(10)
 
 	root := &RunContext{RunID: "run_st_root", Budget: budget}
@@ -138,7 +138,7 @@ func TestRunRegistryClearSubtree(t *testing.T) {
 }
 
 func TestRunRegistryInterruptTree(t *testing.T) {
-	reg := newRunRegistry()
+	reg := NewRegistry()
 	budget := NewRunBudget(10)
 
 	root := &RunContext{RunID: "run_it_root", Budget: budget}
@@ -177,7 +177,7 @@ func TestRunRegistryInterruptTree(t *testing.T) {
 }
 
 func TestRunRegistryInterruptTreeSkipsFinalizing(t *testing.T) {
-	reg := newRunRegistry()
+	reg := NewRegistry()
 	budget := NewRunBudget(10)
 
 	root := &RunContext{RunID: "run_fin_root", Budget: budget}
@@ -210,7 +210,7 @@ func TestRunRegistryInterruptTreeSkipsFinalizing(t *testing.T) {
 }
 
 func TestRunRegistryInterruptTreeLeafToRoot(t *testing.T) {
-	reg := newRunRegistry()
+	reg := NewRegistry()
 	budget := NewRunBudget(10)
 
 	root := &RunContext{RunID: "run_ltr_root", Budget: budget}
@@ -283,7 +283,7 @@ func TestRunBudgetDefaults(t *testing.T) {
 }
 
 func TestRunRegistryConcurrentAccess(t *testing.T) {
-	reg := newRunRegistry()
+	reg := NewRegistry()
 	budget := NewRunBudget(10)
 
 	root := &RunContext{RunID: "run_conc_root", Budget: budget}
@@ -320,7 +320,7 @@ func TestRunRegistryConcurrentAccess(t *testing.T) {
 }
 
 func TestRunRegistryRegisterNil(t *testing.T) {
-	reg := newRunRegistry()
+	reg := NewRegistry()
 	err := reg.Register(nil)
 	if err == nil {
 		t.Fatal("Register nil should return error")
@@ -328,7 +328,7 @@ func TestRunRegistryRegisterNil(t *testing.T) {
 }
 
 func TestRunRegistryGetNonExistent(t *testing.T) {
-	reg := newRunRegistry()
+	reg := NewRegistry()
 	_, ok := reg.Get("nonexistent")
 	if ok {
 		t.Fatal("Get non-existent should return false")
@@ -336,12 +336,12 @@ func TestRunRegistryGetNonExistent(t *testing.T) {
 }
 
 func TestRunRegistryClearEmpty(t *testing.T) {
-	reg := newRunRegistry()
+	reg := NewRegistry()
 	reg.Clear("nonexistent") // should not panic
 }
 
 func TestRunRegistryInterruptTreeNonExistent(t *testing.T) {
-	reg := newRunRegistry()
+	reg := NewRegistry()
 	cancelFuncs := map[string]context.CancelFunc{}
 	reg.InterruptTree("nonexistent", cancelFuncs) // should not panic
 }

@@ -8,22 +8,13 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/cloudwego/eino/adk"
 	einomodel "github.com/cloudwego/eino/components/model"
 
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/crystallization"
 	"github.com/ycvk/acorn/internal/events"
-	"github.com/ycvk/acorn/internal/orchestrationmode"
 	"github.com/ycvk/acorn/internal/runtimehistory"
 )
-
-var (
-	ErrRunNotInterrupted = errors.New("run not interrupted")
-	ErrExecutionNotReady = errors.New("execution not ready")
-)
-
-type StreamSink func(item StreamItem) error
 
 type Result struct {
 	RunID        string           `json:"run_id"`
@@ -34,22 +25,9 @@ type Result struct {
 	TraceSummary *TraceSummary    `json:"trace_summary,omitempty"`
 }
 
-type ExecuteRequest struct {
-	RunID             string
-	SessionID         string
-	TurnIndex         int
-	Input             string
-	SkillID           string
-	AllowedToolNames  []string
-	Messages          []adk.Message
-	OrchestrationMode orchestrationmode.Mode
-	ParentRunID       string
-	Depth             int
-}
-
 type Executor struct {
-	store             executorStore
-	runnerFactory     *RunnerFactory
+	store             ExecutorStore
+	runBuilder        RunBuilder
 	controller        *RunController
 	newChatModel      func(ctx context.Context) (einomodel.BaseChatModel, error)
 	archiveRunFunc    func(ctx context.Context, runID string, runStatus events.RunStatus) error
@@ -57,15 +35,15 @@ type Executor struct {
 	crystallizer      crystallization.Service
 }
 
-func NewExecutorWithRunnerFactoryAndController(cfg *config.Config, store executorStore, runnerFactory *RunnerFactory, controller *RunController) (*Executor, error) {
+func NewExecutorWithRunnerFactoryAndController(cfg *config.Config, store ExecutorStore, runBuilder RunBuilder, controller *RunController) (*Executor, error) {
 	if cfg == nil {
 		return nil, errors.New("config is required")
 	}
 	if store == nil {
 		return nil, errors.New("store is required")
 	}
-	if runnerFactory == nil {
-		return nil, errors.New("runner factory is required")
+	if runBuilder == nil {
+		return nil, errors.New("run builder is required")
 	}
 	if controller == nil {
 		controller = NewRunController()
@@ -75,12 +53,12 @@ func NewExecutorWithRunnerFactoryAndController(cfg *config.Config, store executo
 	}
 	exec := &Executor{
 		store:             store,
-		runnerFactory:     runnerFactory,
+		runBuilder:        runBuilder,
 		controller:        controller,
-		sessionSummarySvc: runnerFactory.sessionSummarySvc,
-		newChatModel:      runnerFactory.newChatModel,
+		sessionSummarySvc: runBuilder.SessionSummarySvc(),
+		newChatModel:      runBuilder.NewChatModel,
 	}
-	exec.crystallizer = runnerFactory.Crystallizer()
+	exec.crystallizer = runBuilder.Crystallizer()
 	exec.archiveRunFunc = exec.archiveRun
 	return exec, nil
 }
@@ -99,14 +77,14 @@ func archiveSignalsFromEvents(records []events.EventRecord) ([]string, []string)
 		if !ok {
 			continue
 		}
-		toolName := strings.TrimSpace(extractString(payload["tool_name"]))
+		toolName := strings.TrimSpace(ExtractString(payload["tool_name"]))
 		if toolName == "" && strings.HasPrefix(record.Kind, "tool.call") {
-			toolName = strings.TrimSpace(extractString(payload["name"]))
+			toolName = strings.TrimSpace(ExtractString(payload["name"]))
 		}
 		if toolName != "" {
 			toolSet[toolName] = struct{}{}
 		}
-		if arguments := strings.TrimSpace(extractString(payload["arguments_json"])); arguments != "" {
+		if arguments := strings.TrimSpace(ExtractString(payload["arguments_json"])); arguments != "" {
 			for _, path := range extractTouchedPaths(arguments) {
 				pathSet[path] = struct{}{}
 			}
@@ -125,7 +103,7 @@ func extractTouchedPaths(argumentsJSON string) []string {
 	}
 	paths := make([]string, 0, 2)
 	for _, key := range []string{"path", "file_path", "target", "root_dir", "work_dir"} {
-		value := strings.TrimSpace(extractString(payload[key]))
+		value := strings.TrimSpace(ExtractString(payload[key]))
 		if value != "" {
 			paths = append(paths, value)
 		}
@@ -168,7 +146,7 @@ func (e *Executor) failRunSetup(ctx context.Context, runID string, setupErr erro
 	if e == nil || e.store == nil || strings.TrimSpace(runID) == "" || setupErr == nil {
 		return setupErr
 	}
-	durableCtx := durableContext(ctx)
+	durableCtx := DurableContext(ctx)
 	if err := e.emitRunFailed(durableCtx, runID, sink, setupErr.Error()); err != nil {
 		return err
 	}
@@ -179,7 +157,7 @@ func (e *Executor) recordFinalizationFailure(ctx context.Context, runID, output 
 	if e == nil || e.store == nil {
 		return finalizationErr
 	}
-	durableCtx := durableContext(ctx)
+	durableCtx := DurableContext(ctx)
 	message := fmt.Sprintf("run finalization failed: %v", finalizationErr)
 	var errs []error
 	if err := e.store.FinishRunContext(durableCtx, runID, events.RunStatusFailed, output, message); err != nil {
@@ -200,7 +178,7 @@ func (e *Executor) verifyAndRecordSkill(ctx context.Context, runID string, selec
 	if e == nil || e.store == nil || selected == nil || strings.TrimSpace(runID) == "" || status != events.RunStatusFailed {
 		return nil
 	}
-	_, err := appendStreamItem(ctx, e.store, sink, StreamItem{
+	_, err := AppendStreamItem(ctx, e.store, sink, StreamItem{
 		RunID: runID,
 		Kind:  StreamKindSkillFailed,
 		Payload: &SkillFailedPayload{Skill: &StreamSkill{
@@ -209,7 +187,7 @@ func (e *Executor) verifyAndRecordSkill(ctx context.Context, runID string, selec
 			Source:        selected.Skill.Source,
 			Path:          selected.Skill.Path,
 			Summary:       selected.Skill.Summary,
-			Requirements:  streamSkillRequirementsFromDomain(selected.Skill.Requires),
+			Requirements:  StreamSkillRequirementsFromDomain(selected.Skill.Requires),
 			FailureReason: failureReasonForStatus(status, output),
 		}},
 	})
