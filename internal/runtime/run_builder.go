@@ -61,7 +61,7 @@ func (b *runBuilder) Build(ctx context.Context, req RunnerBuildRequest) (*Active
 		if registeredRunContext {
 			f.registry.Clear(req.RunID)
 		}
-		f.clearCurrentRunID(req.RunID)
+		f.ClearCurrentRunID(req.RunID)
 	}()
 
 	f.setCurrentRunID(req.RunID)
@@ -119,17 +119,17 @@ func (b *runBuilder) Build(ctx context.Context, req RunnerBuildRequest) (*Active
 	}
 
 	activeRunner := &ActiveRunner{
-		mcp:              capabilityAssembly.mcpManager,
-		runner:           agentAssembly.Runner,
-		selectedSkill:    copySelectedSkill(selection.selectedSkill),
-		instruction:      agentAssembly.Instruction,
-		chatModel:        chatModel,
-		factory:          f,
-		contextResult:    contextResult,
-		runID:            req.RunID,
-		compressionState: agentAssembly.CompressionState,
-		toolCatalog:      capabilities.catalog,
-		closeRunTools:    capabilities.Close,
+		Mcp:              capabilityAssembly.mcpManager,
+		Runner:           agentAssembly.Runner,
+		SelectedSkill:    CopySelectedSkill(selection.selectedSkill),
+		Instruction:      agentAssembly.Instruction,
+		ChatModel:        chatModel,
+		Factory:          f,
+		ContextResult:    contextResult,
+		RunID:            req.RunID,
+		CompressionState: agentAssembly.CompressionState,
+		ToolCatalog:      capabilities.catalog,
+		CloseRunTools:    capabilities.Close,
 	}
 	keepRunContext = true
 	return activeRunner, nil
@@ -153,16 +153,16 @@ func (b *runBuilder) newDirectResponseRunner(ctx context.Context, req RunnerBuil
 		return nil, err
 	}
 	return &ActiveRunner{
-		mcp:              capabilityAssembly.mcpManager,
-		runner:           agentAssembly.Runner,
-		instruction:      agentAssembly.Instruction,
-		chatModel:        chatModel,
-		factory:          b.factory,
-		contextResult:    contextResult,
-		runID:            req.RunID,
-		compressionState: agentAssembly.CompressionState,
-		toolCatalog:      capabilities.catalog,
-		closeRunTools:    capabilities.Close,
+		Mcp:              capabilityAssembly.mcpManager,
+		Runner:           agentAssembly.Runner,
+		Instruction:      agentAssembly.Instruction,
+		ChatModel:        chatModel,
+		Factory:          b.factory,
+		ContextResult:    contextResult,
+		RunID:            req.RunID,
+		CompressionState: agentAssembly.CompressionState,
+		ToolCatalog:      capabilities.catalog,
+		CloseRunTools:    capabilities.Close,
 	}, nil
 }
 

@@ -14,13 +14,14 @@ import (
 	"github.com/ycvk/acorn/internal/toolresult"
 )
 
-type executorStore interface {
+// ExecutorStore is the store contract required by the Executor.
+type ExecutorStore interface {
 	adk.CheckPointStore
 	contextplane.RunContextSnapshotStore
 	toolresult.Ledger
 	providerusage.Recorder
 	runDecisionStore
-	eventAppender
+	EventAppender
 	planRecordStore
 
 	CreateFreshSessionTurn(ctx context.Context, sessionID, title, input string) (int, error)
@@ -40,8 +41,9 @@ type executorStore interface {
 	FindLatestInterruptedRun(ctx context.Context) (*events.RunRecord, error)
 }
 
-type runnerFactoryStore interface {
-	executorStore
+// RunnerFactoryStore is the store contract required by the RunnerFactory.
+type RunnerFactoryStore interface {
+	ExecutorStore
 	mcpprovider.TokenStore
 	mcpprovider.PendingActionStore
 }
@@ -53,5 +55,5 @@ type planRecordStore interface {
 }
 
 type toolAuditStore interface {
-	eventAppender
+	EventAppender
 }

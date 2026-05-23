@@ -5,10 +5,11 @@ import (
 
 	"github.com/cloudwego/eino/compose"
 	"github.com/cloudwego/eino/schema"
+	"github.com/ycvk/acorn/internal/runtime/graph"
 )
 
 func init() {
-	schema.RegisterName[*AgentGraphState]("_acorn_agent_graph_state")
+	schema.RegisterName[graph.AgentGraphState]("_acorn_agent_graph_state")
 	schema.RegisterName[*Plan]("_acorn_plan")
 }
 

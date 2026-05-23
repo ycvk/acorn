@@ -15,7 +15,7 @@ const capabilityDiscoveryInstruction = `Capability discovery rules:
 - If a relevant capability depends on deferred tools, call load_tools before concluding the capability is unavailable.
 - Prefer the matching skill and tool path over a generic limitation answer.`
 
-func emitProviderDegradedIfNeeded(ctx context.Context, store eventAppender, req RunnerBuildRequest, statuses []mcpprovider.ProviderStatus) error {
+func emitProviderDegradedIfNeeded(ctx context.Context, store EventAppender, req RunnerBuildRequest, statuses []mcpprovider.ProviderStatus) error {
 	if store == nil || strings.TrimSpace(req.RunID) == "" {
 		return nil
 	}
@@ -39,7 +39,7 @@ func emitProviderDegradedIfNeeded(ctx context.Context, store eventAppender, req 
 	if !healthy || !failed {
 		return nil
 	}
-	_, err := appendStreamItem(ctx, store, req.Sink, StreamItem{
+	_, err := AppendStreamItem(ctx, store, req.Sink, StreamItem{
 		RunID:     req.RunID,
 		Kind:      StreamKindProviderDegraded,
 		CreatedAt: time.Now().UTC(),
@@ -50,7 +50,7 @@ func emitProviderDegradedIfNeeded(ctx context.Context, store eventAppender, req 
 	return err
 }
 
-func emitMemoryPreparedEvent(ctx context.Context, store eventAppender, req RunnerBuildRequest, workspaceScope string, result *memorymodule.PrepareResult) error {
+func emitMemoryPreparedEvent(ctx context.Context, store EventAppender, req RunnerBuildRequest, workspaceScope string, result *memorymodule.PrepareResult) error {
 	if store == nil || strings.TrimSpace(req.RunID) == "" {
 		return nil
 	}
@@ -80,7 +80,7 @@ func emitMemoryPreparedEvent(ctx context.Context, store eventAppender, req Runne
 			})
 		}
 	}
-	_, err := appendStreamItem(ctx, store, req.Sink, StreamItem{
+	_, err := AppendStreamItem(ctx, store, req.Sink, StreamItem{
 		RunID:     req.RunID,
 		Kind:      StreamKindMemoryPrepared,
 		CreatedAt: time.Now().UTC(),
@@ -89,12 +89,12 @@ func emitMemoryPreparedEvent(ctx context.Context, store eventAppender, req Runne
 	return err
 }
 
-func emitProcedureActivationEvents(ctx context.Context, store eventAppender, sink StreamSink, runID string, activations []memorymodule.ProcedureActivation) error {
+func emitProcedureActivationEvents(ctx context.Context, store EventAppender, sink StreamSink, runID string, activations []memorymodule.ProcedureActivation) error {
 	if store == nil || strings.TrimSpace(runID) == "" || len(activations) == 0 {
 		return nil
 	}
 	for _, activation := range activations {
-		_, err := appendStreamItem(ctx, store, sink, StreamItem{
+		_, err := AppendStreamItem(ctx, store, sink, StreamItem{
 			RunID:     runID,
 			Kind:      StreamKindProcedureActivation,
 			CreatedAt: time.Now().UTC(),

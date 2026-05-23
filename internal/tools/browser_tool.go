@@ -62,7 +62,7 @@ type BrowserOutput struct {
 	Message    string                   `json:"message,omitempty"`
 }
 
-func buildBrowserTool(service *browser.Service, artifactService *artifacts.Service, bridge ArtifactContext) (einotool.BaseTool, error) {
+func buildBrowserTool(service BrowserService, artifactService ArtifactService, bridge ArtifactContext) (einotool.BaseTool, error) {
 	if service == nil {
 		return nil, errors.New("browser service is required")
 	}

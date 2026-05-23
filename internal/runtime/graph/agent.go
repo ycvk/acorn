@@ -1,10 +1,11 @@
-package runtime
+package graph
 
 import (
 	"context"
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/cloudwego/eino/adk"
 	einomodel "github.com/cloudwego/eino/components/model"
@@ -12,6 +13,7 @@ import (
 	"github.com/cloudwego/eino/compose"
 	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/contextplane"
+	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 
 	"github.com/ycvk/acorn/internal/orchestration"
 )
@@ -19,7 +21,7 @@ import (
 type graphAgent struct {
 	name        string
 	description string
-	runnable    compose.Runnable[*agentGraphInput, *schema.Message]
+	runnable    compose.Runnable[*AgentGraphInput, *schema.Message]
 	model       einomodel.BaseChatModel
 	tools       []einotool.BaseTool
 	handlers    []adk.ChatModelAgentMiddleware
@@ -28,10 +30,10 @@ type graphAgent struct {
 	bindContext func(context.Context) context.Context
 }
 
-func newGraphAgent(
+func NewGraphAgent(
 	name string,
 	description string,
-	runnable compose.Runnable[*agentGraphInput, *schema.Message],
+	runnable compose.Runnable[*AgentGraphInput, *schema.Message],
 	model einomodel.BaseChatModel,
 	tools []einotool.BaseTool,
 	handlers []adk.ChatModelAgentMiddleware,
@@ -75,11 +77,17 @@ func (a *graphAgent) Run(ctx context.Context, input *adk.AgentInput, _ ...adk.Ag
 			ctx = a.bindContext(ctx)
 		}
 
-		graphInput := &agentGraphInput{
+		graphInput := &AgentGraphInput{
 			Messages: input.Messages,
 		}
 
-		msg, err := a.runnable.Invoke(ctx, graphInput)
+		runOpts, err := a.composeOptions(ctx)
+		if err != nil {
+			generator.Send(&adk.AgentEvent{AgentName: a.name, Err: err})
+			return
+		}
+
+		msg, err := a.runnable.Invoke(ctx, graphInput, runOpts...)
 		if err != nil {
 			if _, ok := compose.ExtractInterruptInfo(err); ok {
 				generator.Send(a.buildInterruptEvent(err))
@@ -122,14 +130,19 @@ func (a *graphAgent) Resume(ctx context.Context, info *adk.ResumeInfo, _ ...adk.
 			ctx = a.bindContext(ctx)
 		}
 
-		graphInput := &agentGraphInput{
+		if a.store == nil {
+			generator.Send(&adk.AgentEvent{AgentName: a.name, Err: errors.New("graph agent resume requires checkpoint store")})
+			return
+		}
+
+		graphInput := &AgentGraphInput{
 			Messages: nil,
 		}
 
-		var runOpts []compose.Option
-		if info != nil {
-			// Compose checkpoint is keyed by the same ID the Runner persists in the interrupt payload.
-			runOpts = append(runOpts, compose.WithCheckPointID(fmt.Sprintf("%s", info.Data)))
+		runOpts, err := a.composeOptions(ctx)
+		if err != nil {
+			generator.Send(&adk.AgentEvent{AgentName: a.name, Err: err})
+			return
 		}
 
 		msg, err := a.runnable.Invoke(ctx, graphInput, runOpts...)
@@ -160,7 +173,22 @@ func (a *graphAgent) Resume(ctx context.Context, info *adk.ResumeInfo, _ ...adk.
 	return iterator
 }
 
-func graphAgentContextBinder(buildCtx context.Context) func(context.Context) context.Context {
+func (a *graphAgent) composeOptions(ctx context.Context) ([]compose.Option, error) {
+	if a.store == nil {
+		return nil, nil
+	}
+	runID := strings.TrimSpace(runtimeapi.GetRunID(ctx))
+	if runID == "" {
+		return nil, fmt.Errorf("graph agent %q requires run_id for checkpointed execution", a.name)
+	}
+	agentName := strings.TrimSpace(a.name)
+	if agentName == "" {
+		agentName = "graph"
+	}
+	return []compose.Option{compose.WithCheckPointID(fmt.Sprintf("graph:%s:%s", runID, agentName))}, nil
+}
+
+func GraphAgentContextBinder(buildCtx context.Context) func(context.Context) context.Context {
 	lifecycle := contextplane.ToolLifecycleContextFromContext(buildCtx)
 	if lifecycle == nil {
 		return nil

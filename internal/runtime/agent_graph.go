@@ -15,31 +15,11 @@ import (
 	"github.com/cloudwego/eino/schema"
 
 	"github.com/ycvk/acorn/internal/orchestration"
+	"github.com/ycvk/acorn/internal/runtime/graph"
 	"github.com/ycvk/acorn/internal/tooling"
 )
 
-type AgentGraphState struct {
-	Messages            []*schema.Message
-	Plan                *Plan
-	ObserveDecision     ObserveDecision
-	RemainingIterations int
-	AgentName           string
-	Phase               graphPhase
-}
-
-type agentGraphInput struct {
-	Messages []*schema.Message
-}
-
-type graphPhase string
-
-const (
-	phasePlan    graphPhase = "plan"
-	phaseAct     graphPhase = "act"
-	phaseObserve graphPhase = "observe"
-)
-
-func buildAgentGraph(
+func BuildAgentGraph(
 	ctx context.Context,
 	agentName string,
 	chatModel einomodel.BaseChatModel,
@@ -53,7 +33,7 @@ func buildAgentGraph(
 	planningPromptProvider PlanningPromptProvider,
 	eagerToolNames []string,
 	toolSpecs []tooling.ToolSpec,
-) (compose.Runnable[*agentGraphInput, *schema.Message], error) {
+) (compose.Runnable[*graph.AgentGraphInput, *schema.Message], error) {
 	if chatModel == nil {
 		return nil, errors.New("agent graph requires a chat model")
 	}
@@ -77,17 +57,17 @@ func buildAgentGraph(
 		maxIter = 20
 	}
 
-	g := compose.NewGraph[*agentGraphInput, *schema.Message](
-		compose.WithGenLocalState(func(ctx context.Context) *AgentGraphState {
-			return &AgentGraphState{
+	g := compose.NewGraph[*graph.AgentGraphInput, *schema.Message](
+		compose.WithGenLocalState(func(ctx context.Context) *graph.AgentGraphState {
+			return &graph.AgentGraphState{
 				AgentName:           agentName,
 				RemainingIterations: maxIter,
 			}
 		}),
 	)
 
-	initLambda := compose.InvokableLambda(func(ctx context.Context, input *agentGraphInput) (*AgentGraphState, error) {
-		state := &AgentGraphState{
+	initLambda := compose.InvokableLambda(func(ctx context.Context, input *graph.AgentGraphInput) (*graph.AgentGraphState, error) {
+		state := &graph.AgentGraphState{
 			Messages:            append([]*schema.Message(nil), input.Messages...),
 			RemainingIterations: maxIter,
 			AgentName:           agentName,
@@ -109,9 +89,9 @@ func buildAgentGraph(
 	eventStore := eventAppenderFromCheckpointStore(checkpointStore)
 	plan := NewPlanNode(wrappedModel, planStore, eventStore, planPrompt, planningPromptProvider, enabledPlanToolNamesFromSpecs(toolSpecs))
 	act := NewActNode(wrappedModel, safeToolNode, streamer, planStore, eventStore, toolSpecs, eagerToolNames)
-	observe := NewObserveNode(wrappedModel, planStore)
+	observe := graph.NewObserveNode(wrappedModel, planStore)
 
-	if err := g.AddLambdaNode(planNode, compose.InvokableLambda(func(ctx context.Context, state *AgentGraphState) (*AgentGraphState, error) {
+	if err := g.AddLambdaNode(planNode, compose.InvokableLambda(func(ctx context.Context, state *graph.AgentGraphState) (*graph.AgentGraphState, error) {
 		if err := consumePlanIteration(state, maxIter); err != nil {
 			return nil, err
 		}
@@ -120,25 +100,25 @@ func buildAgentGraph(
 		return nil, fmt.Errorf("add plan node: %w", err)
 	}
 
-	if err := g.AddLambdaNode(actNode, compose.InvokableLambda(func(ctx context.Context, state *AgentGraphState) (*AgentGraphState, error) {
+	if err := g.AddLambdaNode(actNode, compose.InvokableLambda(func(ctx context.Context, state *graph.AgentGraphState) (*graph.AgentGraphState, error) {
 		return act.Invoke(ctx, state)
 	}), compose.WithNodeName(actNode)); err != nil {
 		return nil, fmt.Errorf("add act node: %w", err)
 	}
 
-	if err := g.AddLambdaNode(observeNode, compose.InvokableLambda(func(ctx context.Context, state *AgentGraphState) (*AgentGraphState, error) {
+	if err := g.AddLambdaNode(observeNode, compose.InvokableLambda(func(ctx context.Context, state *graph.AgentGraphState) (*graph.AgentGraphState, error) {
 		decision, err := observe.Decide(ctx, state)
 		if err != nil {
 			return nil, err
 		}
 		state.ObserveDecision = decision
-		state.Phase = phaseObserve
+		state.Phase = graph.PhaseObserve
 		return state, nil
 	}), compose.WithNodeName(observeNode)); err != nil {
 		return nil, fmt.Errorf("add observe node: %w", err)
 	}
 
-	if err := g.AddLambdaNode(finalNode, compose.InvokableLambda(func(ctx context.Context, state *AgentGraphState) (*schema.Message, error) {
+	if err := g.AddLambdaNode(finalNode, compose.InvokableLambda(func(ctx context.Context, state *graph.AgentGraphState) (*schema.Message, error) {
 		return finalMessageFromGraphState(state), nil
 	}), compose.WithNodeName(finalNode)); err != nil {
 		return nil, fmt.Errorf("add final node: %w", err)
@@ -157,13 +137,13 @@ func buildAgentGraph(
 		return nil, fmt.Errorf("add act→observe edge: %w", err)
 	}
 
-	observeBranch := compose.NewGraphBranch(func(ctx context.Context, state *AgentGraphState) (string, error) {
+	observeBranch := compose.NewGraphBranch(func(ctx context.Context, state *graph.AgentGraphState) (string, error) {
 		switch state.ObserveDecision.Decision {
-		case ObserveDecisionNext:
+		case graph.ObserveDecisionNext:
 			return actNode, nil
-		case ObserveDecisionReplan:
+		case graph.ObserveDecisionReplan:
 			return planNode, nil
-		case ObserveDecisionDone:
+		case graph.ObserveDecisionDone:
 			return finalNode, nil
 		default:
 			return "", fmt.Errorf("unknown observe decision %q", state.ObserveDecision.Decision)
@@ -195,11 +175,11 @@ func buildAgentGraph(
 	return runnable, nil
 }
 
-func eventAppenderFromCheckpointStore(store compose.CheckPointStore) eventAppender {
+func eventAppenderFromCheckpointStore(store compose.CheckPointStore) EventAppender {
 	if isNilCheckpointStore(store) {
 		return nil
 	}
-	appender, ok := store.(eventAppender)
+	appender, ok := store.(EventAppender)
 	if !ok {
 		return nil
 	}
@@ -236,7 +216,7 @@ func isNilCheckpointStore(store compose.CheckPointStore) bool {
 	}
 }
 
-func consumePlanIteration(state *AgentGraphState, maxIter int) error {
+func consumePlanIteration(state *graph.AgentGraphState, maxIter int) error {
 	if state.RemainingIterations <= 0 {
 		return fmt.Errorf("exceeds max iterations (%d)", maxIter)
 	}
@@ -244,7 +224,7 @@ func consumePlanIteration(state *AgentGraphState, maxIter int) error {
 	return nil
 }
 
-func finalMessageFromGraphState(state *AgentGraphState) *schema.Message {
+func finalMessageFromGraphState(state *graph.AgentGraphState) *schema.Message {
 	if state == nil {
 		return schema.AssistantMessage("", nil)
 	}
@@ -264,32 +244,13 @@ func finalMessageFromGraphState(state *AgentGraphState) *schema.Message {
 		}
 	}
 	if state.Plan != nil {
-		return schema.AssistantMessage(formatPlanSummary(state.Plan), nil)
+		return schema.AssistantMessage(graph.FormatPlanSummary(state.Plan), nil)
 	}
 	return schema.AssistantMessage("", nil)
 }
 
-func formatPlanSummary(plan *Plan) string {
-	if plan == nil || len(plan.Steps) == 0 {
-		return ""
-	}
-	var summary string
-	for _, step := range plan.Steps {
-		if step.Status == PlanStepCompleted {
-			if summary != "" {
-				summary += "\n"
-			}
-			summary += step.Action
-		}
-	}
-	if summary != "" {
-		return summary
-	}
-	return "Plan finished."
-}
-
 func isGraphControlMessage(content string) bool {
-	if _, err := parseObserveDecision(content); err == nil {
+	if _, err := graph.ParseObserveDecision(content); err == nil {
 		return true
 	}
 	if _, err := parsePlanSteps(content); err == nil {

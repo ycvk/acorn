@@ -8,6 +8,7 @@ import (
 
 	einomodel "github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/schema"
+	"github.com/ycvk/acorn/internal/runtime/graph"
 )
 
 type observeNodeModel struct {
@@ -41,14 +42,14 @@ func TestObserveNodeReturnsDoneWithoutLLMWhenAllStepsTerminal(t *testing.T) {
 		CreatedAt: time.Now().UTC(),
 		UpdatedAt: time.Now().UTC(),
 	}}
-	node := NewObserveNode(model, store)
-	ctx := withSessionID(context.Background(), "sess_observe")
+	node := graph.NewObserveNode(model, store)
+	ctx := WithSessionID(context.Background(), "sess_observe")
 
-	decision, err := node.Decide(ctx, &AgentGraphState{})
+	decision, err := node.Decide(ctx, &graph.AgentGraphState{})
 	if err != nil {
 		t.Fatalf("Decide: %v", err)
 	}
-	if decision.Decision != ObserveDecisionDone {
+	if decision.Decision != graph.ObserveDecisionDone {
 		t.Fatalf("decision = %q, want done", decision.Decision)
 	}
 	if model.callCount != 0 {
@@ -69,14 +70,14 @@ func TestObserveNodeParsesNextDecision(t *testing.T) {
 		CreatedAt: time.Now().UTC(),
 		UpdatedAt: time.Now().UTC(),
 	}}
-	node := NewObserveNode(model, store)
-	ctx := withSessionID(context.Background(), "sess_next")
+	node := graph.NewObserveNode(model, store)
+	ctx := WithSessionID(context.Background(), "sess_next")
 
-	decision, err := node.Decide(ctx, &AgentGraphState{Messages: []*schema.Message{schema.UserMessage("continue")}})
+	decision, err := node.Decide(ctx, &graph.AgentGraphState{Messages: []*schema.Message{schema.UserMessage("continue")}})
 	if err != nil {
 		t.Fatalf("Decide: %v", err)
 	}
-	if decision.Decision != ObserveDecisionNext || decision.StepID != "s2" {
+	if decision.Decision != graph.ObserveDecisionNext || decision.StepID != "s2" {
 		t.Fatalf("decision = %+v, want next s2", decision)
 	}
 	if model.callCount != 1 {
@@ -97,14 +98,14 @@ func TestObserveNodeParsesReplanDecision(t *testing.T) {
 		CreatedAt: time.Now().UTC(),
 		UpdatedAt: time.Now().UTC(),
 	}}
-	node := NewObserveNode(model, store)
-	ctx := withSessionID(context.Background(), "sess_replan")
+	node := graph.NewObserveNode(model, store)
+	ctx := WithSessionID(context.Background(), "sess_replan")
 
-	decision, err := node.Decide(ctx, &AgentGraphState{})
+	decision, err := node.Decide(ctx, &graph.AgentGraphState{})
 	if err != nil {
 		t.Fatalf("Decide: %v", err)
 	}
-	if decision.Decision != ObserveDecisionReplan {
+	if decision.Decision != graph.ObserveDecisionReplan {
 		t.Fatalf("decision = %q, want replan", decision.Decision)
 	}
 }
@@ -121,10 +122,10 @@ func TestObserveNodeRejectsInvalidDecision(t *testing.T) {
 		CreatedAt: time.Now().UTC(),
 		UpdatedAt: time.Now().UTC(),
 	}}
-	node := NewObserveNode(model, store)
-	ctx := withSessionID(context.Background(), "sess_invalid")
+	node := graph.NewObserveNode(model, store)
+	ctx := WithSessionID(context.Background(), "sess_invalid")
 
-	_, err := node.Decide(ctx, &AgentGraphState{})
+	_, err := node.Decide(ctx, &graph.AgentGraphState{})
 	if err == nil || !strings.Contains(err.Error(), "step_id") {
 		t.Fatalf("expected step_id error, got %v", err)
 	}

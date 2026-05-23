@@ -14,19 +14,20 @@ import (
 	"github.com/cloudwego/eino/schema"
 
 	"github.com/ycvk/acorn/internal/orchestration"
+	"github.com/ycvk/acorn/internal/runtime/graph"
 	"github.com/ycvk/acorn/internal/tooling"
 )
 
 type ExecuteDispatchNode struct {
 	store         PlanStore
-	eventStore    eventAppender
+	eventStore    EventAppender
 	childExecutor orchestration.ChildAgentExecutor
 	verifier      orchestration.Verifier
 }
 
 type CloseoutNode struct{}
 
-func buildPlanExecuteGraph(
+func BuildPlanExecuteGraph(
 	ctx context.Context,
 	agentName string,
 	chatModel einomodel.BaseChatModel,
@@ -39,7 +40,7 @@ func buildPlanExecuteGraph(
 	eagerToolNames []string,
 	toolSpecs []tooling.ToolSpec,
 	childExecutor orchestration.ChildAgentExecutor,
-) (compose.Runnable[*agentGraphInput, *schema.Message], error) {
+) (compose.Runnable[*graph.AgentGraphInput, *schema.Message], error) {
 	if chatModel == nil {
 		return nil, errors.New("plan-execute graph requires a chat model")
 	}
@@ -63,17 +64,17 @@ func buildPlanExecuteGraph(
 		maxIter = 20
 	}
 
-	g := compose.NewGraph[*agentGraphInput, *schema.Message](
-		compose.WithGenLocalState(func(ctx context.Context) *AgentGraphState {
-			return &AgentGraphState{
+	g := compose.NewGraph[*graph.AgentGraphInput, *schema.Message](
+		compose.WithGenLocalState(func(ctx context.Context) *graph.AgentGraphState {
+			return &graph.AgentGraphState{
 				AgentName:           agentName,
 				RemainingIterations: maxIter,
 			}
 		}),
 	)
 
-	initLambda := compose.InvokableLambda(func(ctx context.Context, input *agentGraphInput) (*AgentGraphState, error) {
-		state := &AgentGraphState{
+	initLambda := compose.InvokableLambda(func(ctx context.Context, input *graph.AgentGraphInput) (*graph.AgentGraphState, error) {
+		state := &graph.AgentGraphState{
 			Messages:            append([]*schema.Message(nil), input.Messages...),
 			RemainingIterations: maxIter,
 			AgentName:           agentName,
@@ -95,10 +96,10 @@ func buildPlanExecuteGraph(
 	eventStore := eventAppenderFromCheckpointStore(checkpointStore)
 	plan := NewPlanNode(wrappedModel, planStore, eventStore, planPrompt, planningPromptProvider, enabledPlanToolNamesFromSpecs(toolSpecs))
 	dispatch := NewExecuteDispatchNode(planStore, eventStore, childExecutor)
-	observe := NewObserveNode(wrappedModel, planStore)
+	observe := graph.NewObserveNode(wrappedModel, planStore)
 	closeout := NewCloseoutNode()
 
-	if err := g.AddLambdaNode(planNode, compose.InvokableLambda(func(ctx context.Context, state *AgentGraphState) (*AgentGraphState, error) {
+	if err := g.AddLambdaNode(planNode, compose.InvokableLambda(func(ctx context.Context, state *graph.AgentGraphState) (*graph.AgentGraphState, error) {
 		if err := consumePlanIteration(state, maxIter); err != nil {
 			return nil, err
 		}
@@ -107,25 +108,25 @@ func buildPlanExecuteGraph(
 		return nil, fmt.Errorf("add plan node: %w", err)
 	}
 
-	if err := g.AddLambdaNode(executeDispatchNode, compose.InvokableLambda(func(ctx context.Context, state *AgentGraphState) (*AgentGraphState, error) {
+	if err := g.AddLambdaNode(executeDispatchNode, compose.InvokableLambda(func(ctx context.Context, state *graph.AgentGraphState) (*graph.AgentGraphState, error) {
 		return dispatch.Invoke(ctx, state)
 	}), compose.WithNodeName(executeDispatchNode)); err != nil {
 		return nil, fmt.Errorf("add execute dispatch node: %w", err)
 	}
 
-	if err := g.AddLambdaNode(observeNode, compose.InvokableLambda(func(ctx context.Context, state *AgentGraphState) (*AgentGraphState, error) {
+	if err := g.AddLambdaNode(observeNode, compose.InvokableLambda(func(ctx context.Context, state *graph.AgentGraphState) (*graph.AgentGraphState, error) {
 		decision, err := observe.Decide(ctx, state)
 		if err != nil {
 			return nil, err
 		}
 		state.ObserveDecision = decision
-		state.Phase = phaseObserve
+		state.Phase = graph.PhaseObserve
 		return state, nil
 	}), compose.WithNodeName(observeNode)); err != nil {
 		return nil, fmt.Errorf("add observe node: %w", err)
 	}
 
-	if err := g.AddLambdaNode(closeoutNode, compose.InvokableLambda(func(ctx context.Context, state *AgentGraphState) (*schema.Message, error) {
+	if err := g.AddLambdaNode(closeoutNode, compose.InvokableLambda(func(ctx context.Context, state *graph.AgentGraphState) (*schema.Message, error) {
 		return closeout.Invoke(ctx, state)
 	}), compose.WithNodeName(closeoutNode)); err != nil {
 		return nil, fmt.Errorf("add closeout node: %w", err)
@@ -144,13 +145,13 @@ func buildPlanExecuteGraph(
 		return nil, fmt.Errorf("add execute dispatch→observe edge: %w", err)
 	}
 
-	observeBranch := compose.NewGraphBranch(func(ctx context.Context, state *AgentGraphState) (string, error) {
+	observeBranch := compose.NewGraphBranch(func(ctx context.Context, state *graph.AgentGraphState) (string, error) {
 		switch state.ObserveDecision.Decision {
-		case ObserveDecisionNext:
+		case graph.ObserveDecisionNext:
 			return executeDispatchNode, nil
-		case ObserveDecisionReplan:
+		case graph.ObserveDecisionReplan:
 			return planNode, nil
-		case ObserveDecisionDone:
+		case graph.ObserveDecisionDone:
 			return closeoutNode, nil
 		default:
 			return "", fmt.Errorf("unknown observe decision %q", state.ObserveDecision.Decision)
@@ -181,7 +182,7 @@ func buildPlanExecuteGraph(
 	return runnable, nil
 }
 
-func NewExecuteDispatchNode(store PlanStore, eventStore eventAppender, childExecutor orchestration.ChildAgentExecutor) *ExecuteDispatchNode {
+func NewExecuteDispatchNode(store PlanStore, eventStore EventAppender, childExecutor orchestration.ChildAgentExecutor) *ExecuteDispatchNode {
 	var verifier orchestration.Verifier
 	if childExecutor != nil {
 		verifier = orchestration.NewChildAgentVerifier(childExecutor)
@@ -194,7 +195,7 @@ func NewExecuteDispatchNode(store PlanStore, eventStore eventAppender, childExec
 	}
 }
 
-func (n *ExecuteDispatchNode) Invoke(ctx context.Context, state *AgentGraphState) (*AgentGraphState, error) {
+func (n *ExecuteDispatchNode) Invoke(ctx context.Context, state *graph.AgentGraphState) (*graph.AgentGraphState, error) {
 	if state == nil {
 		return nil, fmt.Errorf("execute dispatch requires graph state")
 	}
@@ -204,7 +205,7 @@ func (n *ExecuteDispatchNode) Invoke(ctx context.Context, state *AgentGraphState
 	if n.childExecutor == nil {
 		return nil, fmt.Errorf("execute dispatch requires a child executor")
 	}
-	sessionID := strings.TrimSpace(sessionIDFromContext(ctx))
+	sessionID := strings.TrimSpace(SessionIDFromContext(ctx))
 	if sessionID == "" {
 		return nil, fmt.Errorf("execute dispatch requires session_id")
 	}
@@ -252,7 +253,7 @@ func (n *ExecuteDispatchNode) Invoke(ctx context.Context, state *AgentGraphState
 		}
 		state.Messages = append(state.Messages, schema.AssistantMessage(formatDispatchOutcome(plan.Steps[stepIndex], false), nil))
 		state.Plan = plan
-		state.Phase = phaseAct
+		state.Phase = graph.PhaseAct
 		return state, nil
 	}
 
@@ -281,7 +282,7 @@ func (n *ExecuteDispatchNode) Invoke(ctx context.Context, state *AgentGraphState
 			}
 			state.Messages = append(state.Messages, schema.AssistantMessage(formatDispatchOutcome(plan.Steps[stepIndex], false), nil))
 			state.Plan = plan
-			state.Phase = phaseAct
+			state.Phase = graph.PhaseAct
 			return state, nil
 		}
 	}
@@ -297,7 +298,7 @@ func (n *ExecuteDispatchNode) Invoke(ctx context.Context, state *AgentGraphState
 	}
 	state.Messages = append(state.Messages, schema.AssistantMessage(formatDispatchOutcome(plan.Steps[stepIndex], true), nil))
 	state.Plan = plan
-	state.Phase = phaseAct
+	state.Phase = graph.PhaseAct
 	return state, nil
 }
 
@@ -305,7 +306,7 @@ func NewCloseoutNode() *CloseoutNode {
 	return &CloseoutNode{}
 }
 
-func (n *CloseoutNode) Invoke(ctx context.Context, state *AgentGraphState) (*schema.Message, error) {
+func (n *CloseoutNode) Invoke(ctx context.Context, state *graph.AgentGraphState) (*schema.Message, error) {
 	if state == nil || state.Plan == nil || len(state.Plan.Steps) == 0 {
 		return finalMessageFromGraphState(state), nil
 	}
@@ -361,7 +362,7 @@ func (n *ExecuteDispatchNode) loadRunnablePlan(ctx context.Context, sessionID st
 	if err != nil {
 		return nil, -1, fmt.Errorf("load active plan: %w", err)
 	}
-	index, err := findRunnablePlanStep(plan)
+	index, err := graph.FindRunnablePlanStep(plan)
 	if err != nil {
 		return nil, -1, err
 	}
@@ -397,7 +398,7 @@ func (n *ExecuteDispatchNode) emitStepStarted(ctx context.Context, plan *Plan, s
 	if n.eventStore == nil {
 		return nil
 	}
-	_, err := appendStreamItem(ctx, n.eventStore, streamSinkFromContext(ctx), StreamItem{
+	_, err := AppendStreamItem(ctx, n.eventStore, streamSinkFromContext(ctx), StreamItem{
 		RunID:     plan.RunID,
 		Kind:      StreamKindStepStarted,
 		CreatedAt: plan.UpdatedAt,
@@ -413,7 +414,7 @@ func (n *ExecuteDispatchNode) emitStepCompleted(ctx context.Context, plan *Plan,
 	if n.eventStore == nil {
 		return nil
 	}
-	_, err := appendStreamItem(ctx, n.eventStore, streamSinkFromContext(ctx), StreamItem{
+	_, err := AppendStreamItem(ctx, n.eventStore, streamSinkFromContext(ctx), StreamItem{
 		RunID:     plan.RunID,
 		Kind:      StreamKindStepCompleted,
 		CreatedAt: plan.UpdatedAt,
@@ -429,7 +430,7 @@ func (n *ExecuteDispatchNode) emitStepFailed(ctx context.Context, plan *Plan, st
 	if n.eventStore == nil {
 		return nil
 	}
-	_, err := appendStreamItem(ctx, n.eventStore, streamSinkFromContext(ctx), StreamItem{
+	_, err := AppendStreamItem(ctx, n.eventStore, streamSinkFromContext(ctx), StreamItem{
 		RunID:     plan.RunID,
 		Kind:      StreamKindStepFailed,
 		CreatedAt: plan.UpdatedAt,

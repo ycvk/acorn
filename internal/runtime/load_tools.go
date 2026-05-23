@@ -31,7 +31,7 @@ func newLoadToolsTool(plane contextplane.ContextPlane) (einotool.BaseTool, error
 	return toolutils.InferTool("load_tools", "Load deferred tool definitions by query or exact tool names.", func(ctx context.Context, input loadToolsInput) (loadToolsOutput, error) {
 		result, err := plane.DeferredLoad(ctx, contextplane.DeferredLoadRequest{
 			RunID:     getRunID(ctx),
-			SessionID: sessionIDFromContext(ctx),
+			SessionID: SessionIDFromContext(ctx),
 			Query:     strings.TrimSpace(input.Query),
 			ToolNames: append([]string(nil), input.ToolNames...),
 			Limit:     input.Limit,

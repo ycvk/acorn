@@ -100,7 +100,7 @@ func streamAssistantInterleaved(
 				},
 			}
 			if opts.Appender != nil {
-				if _, appendErr := appendStreamItem(ctx, opts.Appender, opts.Sink, item); appendErr != nil {
+				if _, appendErr := AppendStreamItem(ctx, opts.Appender, opts.Sink, item); appendErr != nil {
 					select {
 					case s.ErrCh <- appendErr:
 					case <-ctx.Done():

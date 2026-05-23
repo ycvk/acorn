@@ -1,23 +1,16 @@
-package runtime
+package api
 
 import "github.com/ycvk/acorn/internal/events"
 
 type SessionState string
 
 const (
-	// SessionStateNew indicates the session has no persisted runs yet.
-	SessionStateNew SessionState = "new"
-	// SessionStateRunning indicates the latest run is still in progress.
-	SessionStateRunning SessionState = "running"
-	// SessionStateCompleted indicates the latest run finished successfully.
-	SessionStateCompleted SessionState = "completed"
-	// SessionStateFailed indicates the latest run failed.
-	SessionStateFailed SessionState = "failed"
-	// SessionStateInterrupted indicates the latest run was interrupted and may be resumable.
+	SessionStateNew         SessionState = "new"
+	SessionStateRunning     SessionState = "running"
+	SessionStateCompleted   SessionState = "completed"
+	SessionStateFailed      SessionState = "failed"
 	SessionStateInterrupted SessionState = "interrupted"
-	// SessionStateDegraded indicates the session's run state is determinable but
-	// the runtime environment has issues (e.g., MCP provider unavailable).
-	SessionStateDegraded SessionState = "degraded"
+	SessionStateDegraded    SessionState = "degraded"
 )
 
 // DeriveSessionState determines a session's state from its latest run record

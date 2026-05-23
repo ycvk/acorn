@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ycvk/acorn/internal/runtime/graph"
 	storecore "github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/tooling"
 )
@@ -22,7 +23,7 @@ func enforceRiskyToolPlan(ctx context.Context, store PlanStore, spec tooling.Too
 	if store == nil {
 		return "", "", errors.New("plan enforcement store is not available")
 	}
-	sessionID := strings.TrimSpace(sessionIDFromContext(ctx))
+	sessionID := strings.TrimSpace(SessionIDFromContext(ctx))
 	if sessionID == "" {
 		return "", "", fmt.Errorf("%w: session_id not available for %s", ErrRiskyToolRequiresPlan, spec.Name)
 	}
@@ -33,7 +34,7 @@ func enforceRiskyToolPlan(ctx context.Context, store PlanStore, spec tooling.Too
 		}
 		return "", "", fmt.Errorf("load active plan for %s: %w", spec.Name, err)
 	}
-	stepIndex, err := findSingleInProgressPlanStep(plan)
+	stepIndex, err := graph.FindSingleInProgressPlanStep(plan)
 	if err != nil {
 		return "", "", fmt.Errorf("%w: %v", ErrRiskyToolRequiresPlan, err)
 	}

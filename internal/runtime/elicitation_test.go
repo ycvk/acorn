@@ -88,6 +88,9 @@ func TestElicitationPayloadFromStream(t *testing.T) {
 		if p.Message != "Please approve this action" {
 			t.Fatalf("Message = %q, want 'Please approve this action'", p.Message)
 		}
+		if p.StreamKind() != StreamKindElicitationPending {
+			t.Fatalf("StreamKind = %q, want %q", p.StreamKind(), StreamKindElicitationPending)
+		}
 	})
 
 	t.Run("extracts from pointer payload", func(t *testing.T) {
@@ -107,6 +110,26 @@ func TestElicitationPayloadFromStream(t *testing.T) {
 		}
 		if p.Message != "Operator input needed" {
 			t.Fatalf("Message = %q, want 'Operator input needed'", p.Message)
+		}
+		if p.StreamKind() != StreamKindElicitationPending {
+			t.Fatalf("StreamKind = %q, want %q", p.StreamKind(), StreamKindElicitationPending)
+		}
+	})
+
+	t.Run("preserves decided stream kind", func(t *testing.T) {
+		item := StreamItem{
+			Kind: StreamKindElicitationDecided,
+			Payload: &ElicitationPayload{
+				ActionID: "action_789",
+				Message:  "Operator decided",
+			},
+		}
+		p, err := ElicitationPayloadFromStream(item)
+		if err != nil {
+			t.Fatalf("ElicitationPayloadFromStream: %v", err)
+		}
+		if p.StreamKind() != StreamKindElicitationDecided {
+			t.Fatalf("StreamKind = %q, want %q", p.StreamKind(), StreamKindElicitationDecided)
 		}
 	})
 
@@ -153,6 +176,9 @@ func TestSamplingPayloadFromStream(t *testing.T) {
 		if p.Model != "gpt-4" {
 			t.Fatalf("Model = %q, want gpt-4", p.Model)
 		}
+		if p.StreamKind() != StreamKindSamplingStarted {
+			t.Fatalf("StreamKind = %q, want %q", p.StreamKind(), StreamKindSamplingStarted)
+		}
 	})
 
 	t.Run("extracts from pointer payload", func(t *testing.T) {
@@ -172,6 +198,27 @@ func TestSamplingPayloadFromStream(t *testing.T) {
 		}
 		if p.Depth != 2 {
 			t.Fatalf("Depth = %d, want 2", p.Depth)
+		}
+		if p.StreamKind() != StreamKindSamplingStarted {
+			t.Fatalf("StreamKind = %q, want %q", p.StreamKind(), StreamKindSamplingStarted)
+		}
+	})
+
+	t.Run("preserves completed stream kind", func(t *testing.T) {
+		item := StreamItem{
+			Kind: StreamKindSamplingCompleted,
+			Payload: &SamplingPayload{
+				RunID: "run_sampling_3",
+				Depth: 2,
+				Model: "gpt-4",
+			},
+		}
+		p, err := SamplingPayloadFromStream(item)
+		if err != nil {
+			t.Fatalf("SamplingPayloadFromStream: %v", err)
+		}
+		if p.StreamKind() != StreamKindSamplingCompleted {
+			t.Fatalf("StreamKind = %q, want %q", p.StreamKind(), StreamKindSamplingCompleted)
 		}
 	})
 

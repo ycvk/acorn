@@ -374,7 +374,7 @@ func TestValidationFailureThroughSafeParallelNodeIsModelVisibleFailedToolResult(
 	ledger := newMemoryToolResultLedger()
 	ctx := safeParallelLifecycleContextFromWithLedger(
 		t,
-		withTurnIndex(withRunID(withSessionID(context.Background(), "sess_validation_node"), runID), 1),
+		withTurnIndex(withRunID(WithSessionID(context.Background(), "sess_validation_node"), runID), 1),
 		node,
 		ledger,
 	)

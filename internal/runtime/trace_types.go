@@ -1,10 +1,6 @@
 package runtime
 
-import (
-	"context"
-
-	"github.com/ycvk/acorn/internal/events"
-)
+import "github.com/ycvk/acorn/internal/events"
 
 // --- Trace types ---
 
@@ -31,24 +27,4 @@ type TraceSummary struct {
 	Interrupted                bool           `json:"interrupted,omitempty"`
 	Failed                     bool           `json:"failed,omitempty"`
 	Completed                  bool           `json:"completed,omitempty"`
-}
-
-type streamSinkContextKey struct{}
-
-func withStreamSink(ctx context.Context, sink StreamSink) context.Context {
-	if sink == nil {
-		return ctx
-	}
-	return context.WithValue(ctx, streamSinkContextKey{}, sink)
-}
-
-func streamSinkFromContext(ctx context.Context) StreamSink {
-	if ctx == nil {
-		return nil
-	}
-	sink, ok := ctx.Value(streamSinkContextKey{}).(StreamSink)
-	if !ok {
-		return nil
-	}
-	return sink
 }

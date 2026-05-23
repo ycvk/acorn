@@ -239,7 +239,7 @@ func emitToolCallLifecycle(ctx context.Context, call classifiedCall) error {
 	}
 	return lifecycleCtx.Plane.OnToolCall(ctx, contextplane.ToolCallEvent{
 		RunID:     getRunID(ctx),
-		SessionID: sessionIDFromContext(ctx),
+		SessionID: SessionIDFromContext(ctx),
 		TurnIndex: turnIndexFromContext(ctx),
 		CallID:    call.toolCall.ID,
 		ToolName:  call.toolCall.Function.Name,
@@ -288,7 +288,7 @@ func emitToolResultLifecycle(ctx context.Context, msg *schema.Message) error {
 	}
 	return lifecycleCtx.Plane.OnToolResult(ctx, contextplane.ToolResultEvent{
 		RunID:        getRunID(ctx),
-		SessionID:    sessionIDFromContext(ctx),
+		SessionID:    SessionIDFromContext(ctx),
 		TurnIndex:    turnIndexFromContext(ctx),
 		CallID:       msg.ToolCallID,
 		ToolName:     msg.ToolName,

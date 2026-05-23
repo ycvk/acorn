@@ -1,17 +1,19 @@
-package runtime
+package graph
 
 import (
 	"fmt"
 	"strings"
+
+	"github.com/ycvk/acorn/internal/runtime/api"
 )
 
-func findSingleInProgressPlanStep(plan *Plan) (int, error) {
+func FindSingleInProgressPlanStep(plan *api.Plan) (int, error) {
 	if plan == nil || len(plan.Steps) == 0 {
 		return -1, fmt.Errorf("active plan has no steps")
 	}
 	index := -1
 	for i, step := range plan.Steps {
-		if step.Status != PlanStepInProgress {
+		if step.Status != api.PlanStepInProgress {
 			continue
 		}
 		if index >= 0 {
@@ -25,13 +27,13 @@ func findSingleInProgressPlanStep(plan *Plan) (int, error) {
 	return index, nil
 }
 
-func findRunnablePlanStep(plan *Plan) (int, error) {
+func FindRunnablePlanStep(plan *api.Plan) (int, error) {
 	if plan == nil || len(plan.Steps) == 0 {
 		return -1, fmt.Errorf("active plan has no steps")
 	}
 	inProgress := -1
 	for i, step := range plan.Steps {
-		if step.Status != PlanStepInProgress {
+		if step.Status != api.PlanStepInProgress {
 			continue
 		}
 		if inProgress >= 0 {
@@ -43,49 +45,69 @@ func findRunnablePlanStep(plan *Plan) (int, error) {
 		return inProgress, nil
 	}
 	for i, step := range plan.Steps {
-		if step.Status != PlanStepPending {
+		if step.Status != api.PlanStepPending {
 			continue
 		}
-		if planStepDependenciesCompleted(plan, step) {
+		if PlanStepDependenciesCompleted(plan, step) {
 			return i, nil
 		}
 	}
 	return -1, fmt.Errorf("active plan has no runnable pending step")
 }
 
-func planStepDependenciesCompleted(plan *Plan, step PlanStep) bool {
+func PlanStepDependenciesCompleted(plan *api.Plan, step api.PlanStep) bool {
 	if len(step.DependsOn) == 0 {
 		return true
 	}
-	statusByID := make(map[string]PlanStepStatus, len(plan.Steps))
+	statusByID := make(map[string]api.PlanStepStatus, len(plan.Steps))
 	for _, candidate := range plan.Steps {
 		statusByID[candidate.ID] = candidate.Status
 	}
 	for _, dep := range step.DependsOn {
-		if statusByID[strings.TrimSpace(dep)] != PlanStepCompleted {
+		if statusByID[strings.TrimSpace(dep)] != api.PlanStepCompleted {
 			return false
 		}
 	}
 	return true
 }
 
-func allPlanStepsTerminal(plan *Plan) bool {
+func AllPlanStepsTerminal(plan *api.Plan) bool {
 	if plan == nil || len(plan.Steps) == 0 {
 		return false
 	}
 	for _, step := range plan.Steps {
-		if !planStepTerminal(step.Status) {
+		if !PlanStepTerminal(step.Status) {
 			return false
 		}
 	}
 	return true
 }
 
-func planStepTerminal(status PlanStepStatus) bool {
+func PlanStepTerminal(status api.PlanStepStatus) bool {
 	switch status {
-	case PlanStepCompleted, PlanStepFailed, PlanStepSkipped:
+	case api.PlanStepCompleted, api.PlanStepFailed, api.PlanStepSkipped:
 		return true
 	default:
 		return false
 	}
+}
+
+// FormatPlanSummary formats a plan into a short summary of completed steps.
+func FormatPlanSummary(plan *api.Plan) string {
+	if plan == nil || len(plan.Steps) == 0 {
+		return ""
+	}
+	var summary string
+	for _, step := range plan.Steps {
+		if step.Status == api.PlanStepCompleted {
+			if summary != "" {
+				summary += "\n"
+			}
+			summary += step.Action
+		}
+	}
+	if summary != "" {
+		return summary
+	}
+	return "Plan finished."
 }

@@ -647,6 +647,9 @@ func TestStreamProjectionRoundtrip(t *testing.T) {
 			if result.Payload == nil {
 				t.Fatalf("payload is nil after roundtrip")
 			}
+			if got := result.Payload.StreamKind(); got != tt.item.Kind {
+				t.Fatalf("payload stream kind mismatch: got %q, want %q", got, tt.item.Kind)
+			}
 
 			assertStreamItemsEqualJSON(t, tt.item, result)
 		})
@@ -709,6 +712,9 @@ func TestStreamProjectionRoundtrip_MCPKindsPreserved(t *testing.T) {
 			p, ok := result.Payload.(*MCPProviderLifecyclePayload)
 			if !ok {
 				t.Fatalf("expected *MCPProviderLifecyclePayload, got %T", result.Payload)
+			}
+			if got := p.StreamKind(); got != kind {
+				t.Fatalf("payload stream kind = %q, want %q", got, kind)
 			}
 			if p.ProviderName != "shared_mcp" {
 				t.Fatalf("provider_name = %q, want shared_mcp", p.ProviderName)

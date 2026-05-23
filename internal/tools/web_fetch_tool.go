@@ -44,7 +44,7 @@ type WebFetchOutput struct {
 	Links              []webaccess.PageLink `json:"links,omitempty"`
 }
 
-func buildWebFetchTool(fetcher *webaccess.FetchService, artifactService *artifacts.Service, bridge ArtifactContext) (einotool.BaseTool, error) {
+func buildWebFetchTool(fetcher WebFetchService, artifactService ArtifactService, bridge ArtifactContext) (einotool.BaseTool, error) {
 	if fetcher == nil {
 		return nil, errors.New("web fetch service is required")
 	}

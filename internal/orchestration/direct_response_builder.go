@@ -28,7 +28,7 @@ func (p *DefaultPlane) BuildDirectResponse(ctx context.Context, req DirectRespon
 	if req.Catalog == nil {
 		return nil, fmt.Errorf("tool catalog is required")
 	}
-	if req.ContextResult == nil || req.ContextResult.LifecycleState == nil {
+	if req.ContextResult.LifecycleState == nil {
 		return nil, fmt.Errorf("context plane lifecycle state is required")
 	}
 	if p.toolBuilder == nil || p.toolNodeFactory == nil || p.instructionBuilder == nil {
@@ -111,7 +111,7 @@ type directResponseAgent struct {
 	storeContextBinder   func(ctx context.Context) context.Context
 	sessionContextBinder func(ctx context.Context, sessionID string) context.Context
 	lifecycleBinder      ToolLifecycleBinder
-	lifecycleState       *contextplane.ToolLifecycleState
+	lifecycleState       ToolLifecycleStateView
 	catalog              *tooling.Catalog
 	toolInfos            []*schema.ToolInfo
 	eagerToolNames       []string

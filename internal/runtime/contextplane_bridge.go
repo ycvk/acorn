@@ -8,9 +8,9 @@ import (
 	"github.com/ycvk/acorn/internal/contextplane"
 )
 
-func emitContextCompressedEvent(
+func EmitContextCompressedEvent(
 	ctx context.Context,
-	store eventAppender,
+	store EventAppender,
 	outcome contextplane.CompressionOutcome,
 ) error {
 	if store == nil {
@@ -20,7 +20,7 @@ func emitContextCompressedEvent(
 	if runID == "" {
 		return nil
 	}
-	_, err := appendStreamItem(ctx, store, CurrentStreamSink(ctx), StreamItem{
+	_, err := AppendStreamItem(ctx, store, CurrentStreamSink(ctx), StreamItem{
 		RunID:     runID,
 		Kind:      StreamKindContextCompressed,
 		CreatedAt: time.Now().UTC(),
@@ -36,9 +36,9 @@ func emitContextCompressedEvent(
 	return err
 }
 
-func emitContextPressureEvent(
+func EmitContextPressureEvent(
 	ctx context.Context,
-	store eventAppender,
+	store EventAppender,
 	pressure contextplane.BudgetPressure,
 ) error {
 	if store == nil {
@@ -48,7 +48,7 @@ func emitContextPressureEvent(
 	if runID == "" {
 		return nil
 	}
-	_, err := appendStreamItem(ctx, store, CurrentStreamSink(ctx), StreamItem{
+	_, err := AppendStreamItem(ctx, store, CurrentStreamSink(ctx), StreamItem{
 		RunID:     runID,
 		Kind:      StreamKindContextPressure,
 		CreatedAt: time.Now().UTC(),

@@ -17,7 +17,6 @@ import (
 	toolutils "github.com/cloudwego/eino/components/tool/utils"
 
 	"github.com/ycvk/acorn/internal/tooling"
-	"github.com/ycvk/acorn/internal/workspace"
 )
 
 const (
@@ -39,7 +38,7 @@ var skippedReadOnlyDirectoryNames = map[string]struct{}{
 	"vendor":       {},
 }
 
-func buildReadFileTool(ws *workspace.Workspace) (einotool.BaseTool, error) {
+func buildReadFileTool(ws WorkspaceView) (einotool.BaseTool, error) {
 	tool, err := inferProgressTool("read_file", "Read a workspace file with explicit line-range and preview controls.", func(ctx context.Context, input ReadFileInput, emit tooling.ToolProgressEmitter) (ReadFileOutput, error) {
 		if strings.TrimSpace(input.Path) == "" {
 			return ReadFileOutput{}, errors.New("path is required")
@@ -88,7 +87,7 @@ func buildReadFileTool(ws *workspace.Workspace) (einotool.BaseTool, error) {
 	return tool, nil
 }
 
-func buildListFilesTool(ws *workspace.Workspace) (einotool.BaseTool, error) {
+func buildListFilesTool(ws WorkspaceView) (einotool.BaseTool, error) {
 	tool, err := inferProgressTool("list_files", "List workspace files and directories under an optional path prefix.", func(ctx context.Context, input ListFilesInput, emit tooling.ToolProgressEmitter) (ListFilesOutput, error) {
 		basePath, baseRel, err := resolveListBase(ws, input.Path)
 		if err != nil {
@@ -160,7 +159,7 @@ func buildListFilesTool(ws *workspace.Workspace) (einotool.BaseTool, error) {
 	return tool, nil
 }
 
-func buildSearchTextTool(ws *workspace.Workspace) (einotool.BaseTool, error) {
+func buildSearchTextTool(ws WorkspaceView) (einotool.BaseTool, error) {
 	tool, err := inferProgressTool("search_text", "Search workspace text files without dropping to raw command execution.", func(ctx context.Context, input SearchTextInput, emit tooling.ToolProgressEmitter) (SearchTextOutput, error) {
 		query := strings.TrimSpace(input.Query)
 		if query == "" {
@@ -241,7 +240,7 @@ func buildSearchTextTool(ws *workspace.Workspace) (einotool.BaseTool, error) {
 	return tool, nil
 }
 
-func buildInspectGitStatusTool(ws *workspace.Workspace) (einotool.BaseTool, error) {
+func buildInspectGitStatusTool(ws WorkspaceView) (einotool.BaseTool, error) {
 	tool, err := toolutils.InferTool("inspect_git_status", "Inspect git status for the workspace or an optional scoped path.", func(ctx context.Context, input InspectGitStatusInput) (InspectGitStatusOutput, error) {
 		status, err := ws.InspectGitStatus(ctx, input.Path)
 		if err != nil {
@@ -267,7 +266,7 @@ func buildInspectGitStatusTool(ws *workspace.Workspace) (einotool.BaseTool, erro
 	return tool, nil
 }
 
-func buildInspectGitDiffTool(ws *workspace.Workspace) (einotool.BaseTool, error) {
+func buildInspectGitDiffTool(ws WorkspaceView) (einotool.BaseTool, error) {
 	tool, err := toolutils.InferTool("inspect_git_diff", "Inspect git diff output for the workspace or an optional scoped path.", func(ctx context.Context, input InspectGitDiffInput) (InspectGitDiffOutput, error) {
 		contextLines := input.ContextLines
 		if contextLines < 0 {
@@ -307,7 +306,7 @@ func buildInspectGitDiffTool(ws *workspace.Workspace) (einotool.BaseTool, error)
 	return tool, nil
 }
 
-func resolveListBase(ws *workspace.Workspace, value string) (string, string, error) {
+func resolveListBase(ws WorkspaceView, value string) (string, string, error) {
 	if strings.TrimSpace(value) == "" {
 		return ws.Root(), "", nil
 	}
@@ -417,7 +416,7 @@ func runGitCommand(ctx context.Context, root string, args ...string) (string, er
 	return stdout.String(), nil
 }
 
-func normalizeScopedRelativePath(ws *workspace.Workspace, value string) (string, error) {
+func normalizeScopedRelativePath(ws WorkspaceView, value string) (string, error) {
 	resolved, err := ws.ResolveReadPath(value)
 	if err != nil {
 		return "", err

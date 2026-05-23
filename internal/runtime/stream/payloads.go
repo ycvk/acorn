@@ -1,6 +1,10 @@
-package runtime
+package stream
 
-import "time"
+import (
+	"time"
+
+	"github.com/ycvk/acorn/internal/runtime/api"
+)
 
 // --- Lifecycle payloads ---
 
@@ -197,35 +201,51 @@ type ProviderDegradedEntry struct {
 // --- MCP payloads ---
 
 type MCPProviderLifecyclePayload struct {
-	ProviderName string `json:"provider_name"`
-	Transport    string `json:"transport,omitempty"`
-	Error        string `json:"error,omitempty"`
-	AuthStatus   string `json:"auth_status,omitempty"`
+	streamKind   StreamItemKind `json:"-"`
+	ProviderName string         `json:"provider_name"`
+	Transport    string         `json:"transport,omitempty"`
+	Error        string         `json:"error,omitempty"`
+	AuthStatus   string         `json:"auth_status,omitempty"`
 }
 
 func (p MCPProviderLifecyclePayload) StreamKind() StreamItemKind {
+	if p.streamKind != "" {
+		return p.streamKind
+	}
 	return StreamKindMCPToolCatalogRefreshed
 }
 
 // --- Elicitation payloads ---
 
 type ElicitationPayload struct {
-	ActionID        string `json:"action_id"`
-	Message         string `json:"message"`
-	RequestedSchema any    `json:"requested_schema,omitempty"`
+	streamKind      StreamItemKind `json:"-"`
+	ActionID        string         `json:"action_id"`
+	Message         string         `json:"message"`
+	RequestedSchema any            `json:"requested_schema,omitempty"`
 }
 
-func (p ElicitationPayload) StreamKind() StreamItemKind { return StreamKindElicitationPending }
+func (p ElicitationPayload) StreamKind() StreamItemKind {
+	if p.streamKind != "" {
+		return p.streamKind
+	}
+	return StreamKindElicitationPending
+}
 
 // --- Sampling payloads ---
 
 type SamplingPayload struct {
-	RunID string `json:"run_id"`
-	Depth int32  `json:"depth"`
-	Model string `json:"model,omitempty"`
+	streamKind StreamItemKind `json:"-"`
+	RunID      string         `json:"run_id"`
+	Depth      int32          `json:"depth"`
+	Model      string         `json:"model,omitempty"`
 }
 
-func (p SamplingPayload) StreamKind() StreamItemKind { return StreamKindSamplingStarted }
+func (p SamplingPayload) StreamKind() StreamItemKind {
+	if p.streamKind != "" {
+		return p.streamKind
+	}
+	return StreamKindSamplingStarted
+}
 
 // --- Subagent payloads ---
 
@@ -469,12 +489,12 @@ type StreamContextPressure struct {
 
 // StreamPlan is the plan state carried in plan stream events.
 type StreamPlan struct {
-	PlanID    string     `json:"plan_id"`
-	SessionID string     `json:"session_id"`
-	RunID     string     `json:"run_id"`
-	Steps     []PlanStep `json:"steps"`
-	CreatedAt time.Time  `json:"created_at"`
-	UpdatedAt time.Time  `json:"updated_at"`
+	PlanID    string         `json:"plan_id"`
+	SessionID string         `json:"session_id"`
+	RunID     string         `json:"run_id"`
+	Steps     []api.PlanStep `json:"steps"`
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
 }
 
 type PlanCreatedPayload struct {

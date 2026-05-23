@@ -64,7 +64,7 @@ type ContextSessionOptions struct {
 	BudgetGovernor BudgetGovernor
 	Pipeline       ContextCompressionPipeline
 	PreservePolicy PreservePolicy
-	State          *CompressionState
+	State          any
 	EmitCompressed func(context.Context, CompressionOutcome) error
 	EmitPressure   func(context.Context, BudgetPressure) error
 }
@@ -77,7 +77,7 @@ type defaultContextSession struct {
 	budgetGovernor  BudgetGovernor
 	pipeline        ContextCompressionPipeline
 	preservePolicy  PreservePolicy
-	state           *CompressionState
+	state           any
 	emitCompressed  func(context.Context, CompressionOutcome) error
 	emitPressure    func(context.Context, BudgetPressure) error
 	lastSummary     string
@@ -94,8 +94,8 @@ func NewDefaultContextSession(opts ContextSessionOptions) ContextSession {
 		emitCompressed: opts.EmitCompressed,
 		emitPressure:   opts.EmitPressure,
 	}
-	if opts.State != nil {
-		s.lastSummary = opts.State.LastSummary
+	if st, ok := opts.State.(*CompressionState); ok && st != nil {
+		s.lastSummary = st.LastSummary
 	}
 	return s
 }
@@ -234,8 +234,8 @@ func (s *defaultContextSession) compact(ctx context.Context, req ModelCallReques
 		outcome := *result.Outcome
 		outcome.LayersApplied = append([]CompactLayer(nil), result.LayersApplied...)
 		s.lastSummary = outcome.Summary
-		if s.state != nil {
-			s.state.RecordCompression(outcome.Summary)
+		if st, ok := s.state.(*CompressionState); ok && st != nil {
+			st.RecordCompression(outcome.Summary)
 		}
 		if s.emitCompressed != nil {
 			if err := s.emitCompressed(ctx, outcome); err != nil {

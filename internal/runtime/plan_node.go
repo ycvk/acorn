@@ -12,13 +12,14 @@ import (
 	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/contextplane"
 	"github.com/ycvk/acorn/internal/providerusage"
+	"github.com/ycvk/acorn/internal/runtime/graph"
 	storecore "github.com/ycvk/acorn/internal/store"
 )
 
 type PlanNode struct {
 	model                  einomodel.BaseChatModel
 	store                  PlanStore
-	eventStore             eventAppender
+	eventStore             EventAppender
 	prompt                 string
 	planningPromptProvider PlanningPromptProvider
 	enabledToolNames       []string
@@ -54,7 +55,7 @@ Rules:
 func NewPlanNode(
 	model einomodel.BaseChatModel,
 	store PlanStore,
-	eventStore eventAppender,
+	eventStore EventAppender,
 	prompt string,
 	planningPromptProvider PlanningPromptProvider,
 	enabledToolNames []string,
@@ -69,7 +70,7 @@ func NewPlanNode(
 	}
 }
 
-func (n *PlanNode) Invoke(ctx context.Context, state *AgentGraphState) (*AgentGraphState, error) {
+func (n *PlanNode) Invoke(ctx context.Context, state *graph.AgentGraphState) (*graph.AgentGraphState, error) {
 	if state == nil {
 		return nil, fmt.Errorf("plan node requires graph state")
 	}
@@ -79,7 +80,7 @@ func (n *PlanNode) Invoke(ctx context.Context, state *AgentGraphState) (*AgentGr
 	if n.store == nil {
 		return nil, fmt.Errorf("plan node requires a plan store")
 	}
-	sessionID := strings.TrimSpace(sessionIDFromContext(ctx))
+	sessionID := strings.TrimSpace(SessionIDFromContext(ctx))
 	if sessionID == "" {
 		return nil, fmt.Errorf("plan node requires session_id")
 	}
@@ -97,7 +98,7 @@ func (n *PlanNode) Invoke(ctx context.Context, state *AgentGraphState) (*AgentGr
 	}
 	if existingPlanReusable(state, existing) {
 		state.Plan = existing
-		state.Phase = phasePlan
+		state.Phase = graph.PhasePlan
 		return state, nil
 	}
 
@@ -131,24 +132,24 @@ func (n *PlanNode) Invoke(ctx context.Context, state *AgentGraphState) (*AgentGr
 	}
 
 	state.Plan = plan
-	state.Phase = phasePlan
+	state.Phase = graph.PhasePlan
 	return state, nil
 }
 
-func existingPlanReusable(state *AgentGraphState, plan *Plan) bool {
+func existingPlanReusable(state *graph.AgentGraphState, plan *Plan) bool {
 	if plan == nil {
 		return false
 	}
-	if state != nil && state.ObserveDecision.Decision == ObserveDecisionReplan {
+	if state != nil && state.ObserveDecision.Decision == graph.ObserveDecisionReplan {
 		return false
 	}
-	_, err := findRunnablePlanStep(plan)
+	_, err := graph.FindRunnablePlanStep(plan)
 	return err == nil
 }
 
-func (n *PlanNode) generatePlanSteps(ctx context.Context, state *AgentGraphState) ([]PlanStep, error) {
-	modelReq := graphSessionModelCallRequest(graphModelCallID(ctx, "plan"), "agent_graph_plan", nil)
-	session, baseMessages, err := graphSessionBaseMessages(ctx, state, modelReq)
+func (n *PlanNode) generatePlanSteps(ctx context.Context, state *graph.AgentGraphState) ([]PlanStep, error) {
+	modelReq := graph.GraphSessionModelCallRequest(graph.GraphModelCallID(ctx, "plan"), "agent_graph_plan", nil)
+	session, baseMessages, err := graph.GraphSessionBaseMessages(ctx, state, modelReq)
 	if err != nil {
 		return nil, fmt.Errorf("plan before model call: %w", err)
 	}
@@ -164,7 +165,7 @@ func (n *PlanNode) generatePlanSteps(ctx context.Context, state *AgentGraphState
 		}
 		msg, err := n.model.Generate(providerusage.WithCallSite(ctx, providerusage.CallSitePlan), input)
 		if contextplane.IsContextOverflowError(err) && session != nil {
-			baseMessages, err = graphSessionReactiveBaseMessages(ctx, session, state, modelReq, err)
+			baseMessages, err = graph.GraphSessionReactiveBaseMessages(ctx, session, state, modelReq, err)
 			if err != nil {
 				return nil, fmt.Errorf("plan reactive compact: %w", err)
 			}
@@ -254,7 +255,7 @@ func (n *PlanNode) emitPlanEvent(ctx context.Context, plan *Plan, update bool) e
 		kind = StreamKindPlanUpdated
 		payload = &PlanUpdatedPayload{Plan: streamPlanFromDomain(plan)}
 	}
-	if _, err := appendStreamItem(ctx, n.eventStore, streamSinkFromContext(ctx), StreamItem{
+	if _, err := AppendStreamItem(ctx, n.eventStore, streamSinkFromContext(ctx), StreamItem{
 		RunID:     plan.RunID,
 		Kind:      kind,
 		CreatedAt: plan.UpdatedAt,

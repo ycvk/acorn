@@ -67,8 +67,8 @@ func TestExecuteMessagesPersistsDirectResponseModeForGreeting(t *testing.T) {
 	}
 
 	directErr := errors.New("direct response route selected")
-	exec.runnerFactory.orchestration = fakeModeRoutingPlane{directErr: directErr}
-	exec.runnerFactory.installRunChatModelBuilderForTest(func(context.Context, RunnerBuildRequest) (einomodel.BaseChatModel, error) {
+	exec.runBuilder.(*RunnerFactory).orchestration = fakeModeRoutingPlane{directErr: directErr}
+	exec.runBuilder.(*RunnerFactory).installRunChatModelBuilderForTest(func(context.Context, RunnerBuildRequest) (einomodel.BaseChatModel, error) {
 		return directRoutingTestModel{}, nil
 	})
 
@@ -115,7 +115,7 @@ func TestExecuteMessagesDirectResponseExecutesToolLoop(t *testing.T) {
 			schema.AssistantMessage("lookup result: acorn", nil),
 		},
 	}
-	exec.runnerFactory.installRunChatModelBuilderForTest(func(context.Context, RunnerBuildRequest) (einomodel.BaseChatModel, error) {
+	exec.runBuilder.(*RunnerFactory).installRunChatModelBuilderForTest(func(context.Context, RunnerBuildRequest) (einomodel.BaseChatModel, error) {
 		return model, nil
 	})
 
@@ -225,7 +225,7 @@ func TestResumeDirectResponseRebuildsContextSession(t *testing.T) {
 			schema.AssistantMessage("done after pause", nil),
 		},
 	}
-	exec.runnerFactory.installRunChatModelBuilderForTest(func(context.Context, RunnerBuildRequest) (einomodel.BaseChatModel, error) {
+	exec.runBuilder.(*RunnerFactory).installRunChatModelBuilderForTest(func(context.Context, RunnerBuildRequest) (einomodel.BaseChatModel, error) {
 		return model, nil
 	})
 
@@ -294,7 +294,7 @@ func TestResumeDirectResponseRunCommandPauseWithoutExtraPayload(t *testing.T) {
 			schema.AssistantMessage("done after pause", nil),
 		},
 	}
-	exec.runnerFactory.installRunChatModelBuilderForTest(func(context.Context, RunnerBuildRequest) (einomodel.BaseChatModel, error) {
+	exec.runBuilder.(*RunnerFactory).installRunChatModelBuilderForTest(func(context.Context, RunnerBuildRequest) (einomodel.BaseChatModel, error) {
 		return model, nil
 	})
 
@@ -344,7 +344,7 @@ func TestExecuteMessagesPersistsExplicitPlanExecuteMode(t *testing.T) {
 		t.Fatalf("NewExecutorWithRunnerFactoryAndController: %v", err)
 	}
 
-	exec.runnerFactory.workspace = nil
+	exec.runBuilder.(*RunnerFactory).workspace = nil
 
 	_, err = exec.ExecuteMessages(ctx, ExecuteRequest{
 		RunID:             "run_plan_route",
@@ -605,7 +605,7 @@ func TestExecuteMessagesDirectResponseEmitsToolProgress(t *testing.T) {
 			schema.AssistantMessage("result: done", nil),
 		},
 	}
-	exec.runnerFactory.installRunChatModelBuilderForTest(func(context.Context, RunnerBuildRequest) (einomodel.BaseChatModel, error) {
+	exec.runBuilder.(*RunnerFactory).installRunChatModelBuilderForTest(func(context.Context, RunnerBuildRequest) (einomodel.BaseChatModel, error) {
 		return model, nil
 	})
 

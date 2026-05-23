@@ -18,17 +18,16 @@ import (
 
 	"github.com/ycvk/acorn/internal/processgroup"
 	"github.com/ycvk/acorn/internal/tooling"
-	"github.com/ycvk/acorn/internal/workspace"
 )
 
 const runCommandDescription = "Execute a local command as an explicit escape hatch. Set pause_before_exec=true to force an interrupt before execution."
 
 type runCommandTool struct {
 	infoSource einotool.BaseTool
-	ws         *workspace.Workspace
+	ws         WorkspaceView
 }
 
-func buildRunCommandTool(ws *workspace.Workspace) (einotool.BaseTool, error) {
+func buildRunCommandTool(ws WorkspaceView) (einotool.BaseTool, error) {
 	tool, err := toolutils.InferTool("run_command", runCommandDescription, func(context.Context, RunCommandInput) (RunCommandOutput, error) {
 		return RunCommandOutput{}, nil
 	})

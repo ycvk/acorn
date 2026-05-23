@@ -1,4 +1,4 @@
-package runtime
+package runstream
 
 import (
 	"encoding/json"
@@ -104,7 +104,7 @@ func (item *StreamItem) UnmarshalJSON(data []byte) error {
 		if err != nil {
 			return fmt.Errorf("re-marshal payload: %w", err)
 		}
-		p, err := unmarshalPayload(item.Kind, payloadBytes)
+		p, err := UnmarshalPayload(item.Kind, payloadBytes)
 		if err != nil {
 			return err
 		}
@@ -114,7 +114,7 @@ func (item *StreamItem) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func unmarshalPayload(kind StreamItemKind, data json.RawMessage) (StreamPayload, error) {
+func UnmarshalPayload(kind StreamItemKind, data json.RawMessage) (StreamPayload, error) {
 	var p StreamPayload
 	switch kind {
 	case StreamKindRunStarted:
@@ -221,6 +221,14 @@ func unmarshalPayload(kind StreamItemKind, data json.RawMessage) (StreamPayload,
 	}
 	if err := json.Unmarshal(data, p); err != nil {
 		return nil, fmt.Errorf("unmarshal %s payload: %w", kind, err)
+	}
+	switch v := p.(type) {
+	case *MCPProviderLifecyclePayload:
+		v.streamKind = kind
+	case *ElicitationPayload:
+		v.streamKind = kind
+	case *SamplingPayload:
+		v.streamKind = kind
 	}
 	return p, nil
 }

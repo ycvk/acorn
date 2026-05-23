@@ -19,7 +19,7 @@ func skillEligibilityContextFromCatalog(catalog *tooling.Catalog) skills.Eligibi
 	return tooling.EligibilityContextForProfile(catalog, tooling.ToolProfileRun, nil)
 }
 
-func emitSkillSelectionEvents(ctx context.Context, store eventAppender, req RunnerBuildRequest, selected *SelectedSkill, matches []SkillMatch) error {
+func emitSkillSelectionEvents(ctx context.Context, store EventAppender, req RunnerBuildRequest, selected *SelectedSkill, matches []SkillMatch) error {
 	if store == nil || strings.TrimSpace(req.RunID) == "" {
 		return nil
 	}
@@ -30,7 +30,7 @@ func emitSkillSelectionEvents(ctx context.Context, store eventAppender, req Runn
 	if selected == nil {
 		discoveredSkill.NoSelectionReason = deriveNoSelectionReason(req, matches)
 	}
-	if _, err := appendStreamItem(ctx, store, req.Sink, StreamItem{
+	if _, err := AppendStreamItem(ctx, store, req.Sink, StreamItem{
 		RunID:     req.RunID,
 		Kind:      StreamKindSkillDiscovered,
 		CreatedAt: time.Now().UTC(),
@@ -42,7 +42,7 @@ func emitSkillSelectionEvents(ctx context.Context, store eventAppender, req Runn
 		return nil
 	}
 	streamSkill := streamSkillFromSelected(selected, candidates)
-	if _, err := appendStreamItem(ctx, store, req.Sink, StreamItem{
+	if _, err := AppendStreamItem(ctx, store, req.Sink, StreamItem{
 		RunID:     req.RunID,
 		Kind:      StreamKindSkillSelected,
 		CreatedAt: time.Now().UTC(),
@@ -50,7 +50,7 @@ func emitSkillSelectionEvents(ctx context.Context, store eventAppender, req Runn
 	}); err != nil {
 		return err
 	}
-	if _, err := appendStreamItem(ctx, store, req.Sink, StreamItem{
+	if _, err := AppendStreamItem(ctx, store, req.Sink, StreamItem{
 		RunID:     req.RunID,
 		Kind:      StreamKindSkillLoaded,
 		CreatedAt: time.Now().UTC(),
@@ -107,7 +107,7 @@ func topSkillCandidates(matches []SkillMatch, limit int) []StreamSkillCandidate 
 			Score:          item.Score,
 			MatchedTerms:   append([]string(nil), item.MatchedTerms...),
 			FilteredReason: item.FilteredReason,
-			Requirements:   streamSkillRequirementsFromDomain(item.Skill.Requires),
+			Requirements:   StreamSkillRequirementsFromDomain(item.Skill.Requires),
 			Summary:        item.Skill.Summary,
 			Origin:         string(item.Skill.Origin),
 			TaskPattern:    item.Skill.TaskPattern,
@@ -131,7 +131,7 @@ func streamSkillFromSelected(selected *SelectedSkill, candidates []StreamSkillCa
 		Summary:      selected.Skill.Summary,
 		Instruction:  selected.Skill.Instruction,
 		Scripts:      append([]string(nil), selected.Skill.Scripts...),
-		Requirements: streamSkillRequirementsFromDomain(selected.Skill.Requires),
+		Requirements: StreamSkillRequirementsFromDomain(selected.Skill.Requires),
 		Score:        selected.Score,
 		MatchedTerms: append([]string(nil), selected.MatchedTerms...),
 	}
@@ -212,7 +212,7 @@ func recommendedSkillsFromMatches(matches []SkillMatch) []decision.RecommendedSk
 	return items
 }
 
-func emitDecisionEvents(ctx context.Context, store eventAppender, req RunnerBuildRequest, record *decision.Record, explicitSkillID string) error {
+func emitDecisionEvents(ctx context.Context, store EventAppender, req RunnerBuildRequest, record *decision.Record, explicitSkillID string) error {
 	if store == nil || strings.TrimSpace(req.RunID) == "" || record == nil {
 		return nil
 	}
@@ -229,7 +229,7 @@ func emitDecisionEvents(ctx context.Context, store eventAppender, req RunnerBuil
 		ExplicitSkillID:     strings.TrimSpace(explicitSkillID),
 	}
 	if finalKind == StreamKindDecisionBlocked {
-		_, err := appendStreamItem(ctx, store, req.Sink, StreamItem{
+		_, err := AppendStreamItem(ctx, store, req.Sink, StreamItem{
 			RunID:     req.RunID,
 			Kind:      finalKind,
 			CreatedAt: time.Now().UTC(),
@@ -244,7 +244,7 @@ func emitDecisionEvents(ctx context.Context, store eventAppender, req RunnerBuil
 		})
 		return err
 	}
-	_, err := appendStreamItem(ctx, store, req.Sink, StreamItem{
+	_, err := AppendStreamItem(ctx, store, req.Sink, StreamItem{
 		RunID:     req.RunID,
 		Kind:      finalKind,
 		CreatedAt: time.Now().UTC(),
@@ -253,7 +253,7 @@ func emitDecisionEvents(ctx context.Context, store eventAppender, req RunnerBuil
 	return err
 }
 
-func streamSkillRequirementsFromDomain(item skills.Requirements) StreamSkillRequirements {
+func StreamSkillRequirementsFromDomain(item skills.Requirements) StreamSkillRequirements {
 	return StreamSkillRequirements{
 		Tools:    append([]string(nil), item.Tools...),
 		Toolsets: append([]string(nil), item.Toolsets...),

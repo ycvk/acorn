@@ -20,10 +20,10 @@ func (e *Executor) consume(ctx context.Context, runID, input string, iter *adk.A
 	if err != nil {
 		return nil, err
 	}
-	if err := e.runnerFactory.consumeEventError(runID); err != nil {
+	if err := e.runBuilder.ConsumeEventError(runID); err != nil {
 		state.failure = err
 	}
-	if rc, ok := e.runnerFactory.registry.Get(runID); ok {
+	if rc, ok := e.runBuilder.Registry().Get(runID); ok {
 		rc.SetFinalizing()
 	}
 	return e.finishCollectedRun(ctx, runID, input, state, selectedSkill, sink)
@@ -36,7 +36,7 @@ func (e *Executor) collectRunState(ctx context.Context, runID string, iter *adk.
 		if !ok {
 			return state, nil
 		}
-		if err := e.applyAgentEvent(ctx, runID, streamItemsFromAgentEvent(event, chatModel), sink, &state); err != nil {
+		if err := e.applyAgentEvent(ctx, runID, StreamItemsFromAgentEvent(event, chatModel), sink, &state); err != nil {
 			return runState{}, err
 		}
 	}
@@ -52,7 +52,7 @@ func (e *Executor) prepareSkillExecution(ctx context.Context, runID string, sele
 func (e *Executor) applyAgentEvent(ctx context.Context, runID string, items []StreamItem, sink StreamSink, state *runState) error {
 	for _, item := range items {
 		item.RunID = runID
-		if _, err := appendStreamItem(ctx, e.store, sink, item); err != nil {
+		if _, err := AppendStreamItem(ctx, e.store, sink, item); err != nil {
 			return err
 		}
 		state.applyStreamItem(item)
@@ -68,7 +68,7 @@ func (s *runState) applyStreamItem(item StreamItem) {
 		s.lastOutput = msg.Content
 	}
 	if interrupt := item.GetInterrupt(); interrupt != nil {
-		s.interrupt = interruptPayloadFromStream(interrupt)
+		s.interrupt = InterruptPayloadFromStream(interrupt)
 	}
 	if item.Kind == StreamKindRunFailed && item.GetError() != "" {
 		s.failure = errors.New(item.GetError())

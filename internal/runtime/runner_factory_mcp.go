@@ -17,13 +17,13 @@ func (r *ActiveRunner) Close() error {
 		return nil
 	}
 	var closeErr error
-	if r != nil && r.closeRunTools != nil {
-		closeErr = r.closeRunTools()
-		r.closeRunTools = nil
+	if r != nil && r.CloseRunTools != nil {
+		closeErr = r.CloseRunTools()
+		r.CloseRunTools = nil
 	}
-	if r.factory != nil && r.runID != "" {
-		r.factory.registry.Clear(r.runID)
-		r.factory.clearCurrentRunID(r.runID)
+	if r.Factory != nil && r.RunID != "" {
+		r.Factory.registry.Clear(r.RunID)
+		r.Factory.ClearCurrentRunID(r.RunID)
 	}
 	return closeErr
 }
@@ -34,7 +34,7 @@ func (f *RunnerFactory) setCurrentRunID(runID string) {
 	f.currentRunID.Store(runID)
 }
 
-func (f *RunnerFactory) clearCurrentRunID(runID string) {
+func (f *RunnerFactory) ClearCurrentRunID(runID string) {
 	if f == nil || runID == "" {
 		return
 	}
@@ -167,7 +167,7 @@ func (f *RunnerFactory) providerEventCallback() mcpprovider.ProviderEventCallbac
 			AuthStatus:   ev.AuthStatus,
 		}
 
-		if _, err := appendStreamItem(context.Background(), f.store, sink, StreamItem{
+		if _, err := AppendStreamItem(context.Background(), f.store, sink, StreamItem{
 			RunID:     runID,
 			Kind:      kind,
 			CreatedAt: time.Now().UTC(),

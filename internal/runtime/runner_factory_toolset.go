@@ -67,7 +67,7 @@ func (delegateTaskBridge) CurrentRunID(ctx context.Context) string {
 }
 
 func (delegateTaskBridge) CurrentSessionID(ctx context.Context) string {
-	return sessionIDFromContext(ctx)
+	return SessionIDFromContext(ctx)
 }
 
 type artifactToolBridge struct{}
@@ -77,7 +77,7 @@ func (artifactToolBridge) CurrentRunID(ctx context.Context) string {
 }
 
 func (artifactToolBridge) CurrentSessionID(ctx context.Context) string {
-	return sessionIDFromContext(ctx)
+	return SessionIDFromContext(ctx)
 }
 
 func (artifactToolBridge) CurrentToolCallID(ctx context.Context) string {

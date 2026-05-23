@@ -6,23 +6,16 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ycvk/acorn/internal/runtime/api"
 	storecore "github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/toolresult"
 )
 
-type PlanStore interface {
-	OrchestrationPlanStore()
-	LoadPlan(ctx context.Context, sessionID string) (*Plan, error)
-	SavePlan(ctx context.Context, plan *Plan) error
-	AppendStepEvidence(ctx context.Context, sessionID string, runID string, stepID string, evidence PlanEvidence) (*Plan, error)
-	AppendToolResultEvidenceRef(ctx context.Context, resultRef string, ref toolresult.EvidenceRef) error
-}
-
 type durablePlanStore struct {
-	store planRecordStore
+	store api.PlanRecordStore
 }
 
-func newPlanStore(store planRecordStore) PlanStore {
+func NewPlanStore(store api.PlanRecordStore) api.PlanStore {
 	if store == nil {
 		return nil
 	}
