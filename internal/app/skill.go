@@ -403,7 +403,7 @@ type liveMCPManager interface {
 }
 
 type toolCatalogBuilder interface {
-	BuildCapabilityCatalog(ctx context.Context) (*tooling.Catalog, error)
+	BuildCapabilitySpecs(ctx context.Context) ([]tooling.ToolSpec, error)
 }
 
 type CapabilitiesService struct {
@@ -483,11 +483,11 @@ func (s *CapabilitiesService) snapshotTools(ctx context.Context, providers []Sys
 
 	var specs []tooling.ToolSpec
 	if s.catalogBuilder != nil {
-		catalog, err := s.catalogBuilder.BuildCapabilityCatalog(ctx)
+		liveSpecs, err := s.catalogBuilder.BuildCapabilitySpecs(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("build tool catalog: %w", err)
 		}
-		specs = catalog.Specs()
+		specs = liveSpecs
 	} else {
 		specs = tooling.ConfiguredLocalSpecs(s.cfg)
 	}

@@ -34,12 +34,16 @@ func (t *Toolset) Close() error {
 	if t == nil {
 		return nil
 	}
+	return closeToolsetClosers(t.closers)
+}
+
+func closeToolsetClosers(closers []toolsetCloser) error {
 	var errs []error
-	for i := len(t.closers) - 1; i >= 0; i-- {
-		if t.closers[i] == nil {
+	for i := len(closers) - 1; i >= 0; i-- {
+		if closers[i] == nil {
 			continue
 		}
-		if err := t.closers[i].Close(); err != nil {
+		if err := closers[i].Close(); err != nil {
 			errs = append(errs, err)
 		}
 	}
