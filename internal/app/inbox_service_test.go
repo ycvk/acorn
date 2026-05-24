@@ -8,7 +8,6 @@ import (
 	storecore "github.com/ycvk/acorn/internal/store"
 
 	"github.com/ycvk/acorn/internal/events"
-	"github.com/ycvk/acorn/internal/orchestrationmode"
 )
 
 func TestInboxServiceLoadProjectsMobileAggregate(t *testing.T) {
@@ -27,7 +26,7 @@ func TestInboxServiceLoadProjectsMobileAggregate(t *testing.T) {
 		TurnIndex:         1,
 		Input:             "work",
 		CheckpointID:      "run_active",
-		OrchestrationMode: orchestrationmode.PlanExecute,
+		OrchestrationMode: events.ModePlanExecute,
 	}); err != nil {
 		t.Fatalf("create active run: %v", err)
 	}
@@ -37,7 +36,7 @@ func TestInboxServiceLoadProjectsMobileAggregate(t *testing.T) {
 		TurnIndex:         1,
 		Input:             "finish",
 		CheckpointID:      "run_terminal",
-		OrchestrationMode: orchestrationmode.DirectResponse,
+		OrchestrationMode: events.ModeDirectResponse,
 	}); err != nil {
 		t.Fatalf("create terminal run: %v", err)
 	}

@@ -10,14 +10,14 @@ import (
 	"github.com/cloudwego/eino/schema"
 
 	"github.com/ycvk/acorn/internal/contextplane"
-	"github.com/ycvk/acorn/internal/orchestrationmode"
+	"github.com/ycvk/acorn/internal/events"
 )
 
 func (e *Executor) bootstrapContextSessionMessages(
 	ctx context.Context,
 	req ExecuteRequest,
 	runID string,
-	mode orchestrationmode.Mode,
+	mode events.OrchestrationMode,
 	active *ActiveRunner,
 ) ([]adk.Message, error) {
 	if e == nil || e.runBuilder == nil || e.runBuilder.Config() == nil {
@@ -66,7 +66,7 @@ func (e *Executor) bootstrapContextSessionMessages(
 		},
 	})
 	initialMessages := append([]adk.Message(nil), req.Messages...)
-	if mode == orchestrationmode.DirectResponse {
+	if mode == events.ModeDirectResponse {
 		if instruction := strings.TrimSpace(active.Instruction); instruction != "" {
 			initialMessages = append([]adk.Message{schema.SystemMessage(instruction)}, initialMessages...)
 		}

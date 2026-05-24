@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/ycvk/acorn/internal/events"
-	"github.com/ycvk/acorn/internal/orchestrationmode"
 )
 
 // Sentinel errors
@@ -35,7 +34,7 @@ type RunCreateParams struct {
 	TurnIndex         int
 	Input             string
 	CheckpointID      string
-	OrchestrationMode orchestrationmode.Mode
+	OrchestrationMode events.OrchestrationMode
 	ParentRunID       string
 	Depth             int
 }

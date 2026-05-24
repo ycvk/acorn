@@ -96,17 +96,7 @@ func localEligibilityToolNames(cfg *config.Config) []string {
 			names = append(names, spec.Name)
 		}
 	}
-	for _, name := range []string{
-		"delegate_task",
-		"memory_search",
-		"memory_read_file",
-		"memory_list_files",
-		"memory_create_file",
-		"memory_replace_span",
-		"skill_list",
-		"skill_view",
-		"load_tools",
-	} {
+	for _, name := range tooling.BuiltinToolNames() {
 		if _, ok := seen[name]; ok {
 			continue
 		}
@@ -293,65 +283,19 @@ func buildContainer(ctx context.Context, cfg *config.Config) (*Container, error)
 	loader := skills.NewLoader(cfg)
 	checkpointService := workingstate.NewService(store, 4000)
 	sessionSummaryService := runtimehistory.NewSessionSummaryService(store, 2000)
-	memoryModule, err := memorymodule.NewLocalService(memorymodule.Config{Root: filepath.Join(cfg.Runtime.StorageDir, "memory")})
+	memoryModule, semanticIndex, semanticEmbedder, err := buildMemoryModule(ctx, cfg)
 	if err != nil {
 		return nil, err
-	}
-	if err := memoryModule.EnsureLayout(ctx); err != nil {
-		return nil, err
-	}
-	if err := memoryModule.BuildIndex(ctx); err != nil {
-		return nil, err
-	}
-	semanticIndex, semanticEmbedder, err := buildMemorySemanticDependencies(ctx, cfg)
-	if err != nil {
-		return nil, err
-	}
-	if semanticIndex != nil {
-		if err := memoryModule.SetSemanticRuntime(memorymodule.SemanticRuntimeOptions{
-			Index:      semanticIndex,
-			Embedder:   semanticEmbedder,
-			Model:      cfg.Memory.Semantic.Embedding.Model,
-			Dimensions: cfg.Memory.Semantic.Embedding.Dimensions,
-			BatchSize:  cfg.Memory.Semantic.Embedding.BatchSize,
-			Schema:     memorymodule.SemanticSchemaMemoryRecordsV1,
-			IndexName:  cfg.Memory.Semantic.Bleve.IndexName,
-			Mode:       "hybrid",
-		}); err != nil {
-			return nil, fmt.Errorf("set semantic runtime: %w", err)
-		}
 	}
 	decisionProfileService := decision.NewProfileService(ws.Root())
 	if _, err := decisionProfileService.Load(); err != nil {
 		return nil, err
 	}
 
-	contextPolicy, err := cfg.ContextPolicy()
+	contextPlane, err := buildContextPlane(cfg, store, checkpointService, sessionSummaryService)
 	if err != nil {
-		return nil, fmt.Errorf("context policy: %w", err)
+		return nil, err
 	}
-	maxContextTokens, err := contextplane.ContextAssemblyTokenLimitFromContextPolicy(contextPolicy)
-	if err != nil {
-		return nil, fmt.Errorf("context plane budget: %w", err)
-	}
-	contextCounter, err := contextplane.NewCompressionTokenCounter(contextPolicy)
-	if err != nil {
-		return nil, fmt.Errorf("context plane token counter: %w", err)
-	}
-	contextPlane := contextplane.NewDefaultContextPlane(contextplane.DefaultOptions{
-		MemoryContextTokenBudget: cfg.Memory.Search.MemoryContextTokenBudget,
-		MaxContextTokens:         maxContextTokens,
-		TokenCounter:             contextCounter,
-		Store:                    store,
-		CheckpointService:        checkpointService,
-		SessionSummaryService:    sessionSummaryService,
-		ToolResultLedger:         store,
-		MemoryBudget: contextplane.LayeredMemoryBudget{
-			L1IndexTokens:     cfg.Memory.Search.IndexTokenBudget,
-			L2InitialTokens:   cfg.Memory.Search.InitialTokenBudget,
-			L3OnDemandReserve: cfg.Memory.Search.OnDemandReserve,
-		},
-	})
 
 	notificationService := NewNotificationService(store, notificationrouter.Router{})
 	mcpPendingActionStore := NewNotifyingPendingActionStore(store, notificationService)
@@ -429,6 +373,68 @@ func buildContainer(ctx context.Context, cfg *config.Config) (*Container, error)
 
 	committed = true
 	return container, nil
+}
+
+func buildMemoryModule(ctx context.Context, cfg *config.Config) (memorymodule.Service, memorymodule.SemanticIndex, memorymodule.Embedder, error) {
+	memoryModule, err := memorymodule.NewLocalService(memorymodule.Config{Root: filepath.Join(cfg.Runtime.StorageDir, "memory")})
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	if err := memoryModule.EnsureLayout(ctx); err != nil {
+		return nil, nil, nil, err
+	}
+	if err := memoryModule.BuildIndex(ctx); err != nil {
+		return nil, nil, nil, err
+	}
+	semanticIndex, semanticEmbedder, err := buildMemorySemanticDependencies(ctx, cfg)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	if semanticIndex != nil {
+		if err := memoryModule.SetSemanticRuntime(memorymodule.SemanticRuntimeOptions{
+			Index:      semanticIndex,
+			Embedder:   semanticEmbedder,
+			Model:      cfg.Memory.Semantic.Embedding.Model,
+			Dimensions: cfg.Memory.Semantic.Embedding.Dimensions,
+			BatchSize:  cfg.Memory.Semantic.Embedding.BatchSize,
+			Schema:     memorymodule.SemanticSchemaMemoryRecordsV1,
+			IndexName:  cfg.Memory.Semantic.Bleve.IndexName,
+			Mode:       "hybrid",
+		}); err != nil {
+			return nil, nil, nil, fmt.Errorf("set semantic runtime: %w", err)
+		}
+	}
+	return memoryModule, semanticIndex, semanticEmbedder, nil
+}
+
+func buildContextPlane(cfg *config.Config, store *storesqlite.Store, checkpointService *workingstate.Service, sessionSummaryService *runtimehistory.SessionSummaryService) (contextplane.ContextPlane, error) {
+	contextPolicy, err := cfg.ContextPolicy()
+	if err != nil {
+		return nil, fmt.Errorf("context policy: %w", err)
+	}
+	maxContextTokens, err := contextplane.ContextAssemblyTokenLimitFromContextPolicy(contextPolicy)
+	if err != nil {
+		return nil, fmt.Errorf("context plane budget: %w", err)
+	}
+	contextCounter, err := contextplane.NewCompressionTokenCounter(contextPolicy)
+	if err != nil {
+		return nil, fmt.Errorf("context plane token counter: %w", err)
+	}
+	contextPlane := contextplane.NewDefaultContextPlane(contextplane.DefaultOptions{
+		MemoryContextTokenBudget: cfg.Memory.Search.MemoryContextTokenBudget,
+		MaxContextTokens:         maxContextTokens,
+		TokenCounter:             contextCounter,
+		Store:                    store,
+		CheckpointService:        checkpointService,
+		SessionSummaryService:    sessionSummaryService,
+		ToolResultLedger:         store,
+		MemoryBudget: contextplane.LayeredMemoryBudget{
+			L1IndexTokens:     cfg.Memory.Search.IndexTokenBudget,
+			L2InitialTokens:   cfg.Memory.Search.InitialTokenBudget,
+			L3OnDemandReserve: cfg.Memory.Search.OnDemandReserve,
+		},
+	})
+	return contextPlane, nil
 }
 
 func buildMemorySemanticDependencies(ctx context.Context, cfg *config.Config) (memorymodule.SemanticIndex, memorymodule.Embedder, error) {

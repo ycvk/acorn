@@ -13,7 +13,6 @@ import (
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/orchestration"
-	"github.com/ycvk/acorn/internal/orchestrationmode"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/workspace"
@@ -409,9 +408,9 @@ func (se *SubagentExecutor) Execute(ctx context.Context, req orchestration.Child
 	subRunID := newRunID()
 	childSessionID := "delegate_" + subRunID
 	childRunMode := orchestration.NormalizeChildRunMode(req.ChildRunMode)
-	requestedMode := orchestrationmode.Normalize(req.RequestedMode)
+	requestedMode := events.OrchestrationMode(req.RequestedMode).Normalize()
 	if requestedMode == "" {
-		requestedMode = orchestrationmode.SingleAgent
+		requestedMode = events.ModeSingleAgent
 	}
 	workspaceMode := orchestration.NormalizeChildWorkspaceMode(req.WorkspaceMode)
 	childRunnerFactory := se.rf
@@ -541,7 +540,7 @@ func (se *SubagentExecutor) Execute(ctx context.Context, req orchestration.Child
 	return delegated, nil
 }
 
-func (se *SubagentExecutor) emitFailed(ctx context.Context, parentRunID, subRunID, childSessionID, parentStepID string, childRunMode orchestration.ChildRunMode, workspaceMode orchestration.ChildWorkspaceMode, worktreePath string, mode orchestrationmode.Mode, errMsg string, sink StreamSink) error {
+func (se *SubagentExecutor) emitFailed(ctx context.Context, parentRunID, subRunID, childSessionID, parentStepID string, childRunMode orchestration.ChildRunMode, workspaceMode orchestration.ChildWorkspaceMode, worktreePath string, mode events.OrchestrationMode, errMsg string, sink StreamSink) error {
 	if se == nil || se.store == nil {
 		return errors.New("emit subagent.failed: store is not initialized")
 	}
@@ -621,7 +620,7 @@ func normalizeChildAgentRequest(req orchestration.ChildAgentRequest) orchestrati
 	req.ExpectedEvidence = normalizeToolNames(req.ExpectedEvidence)
 	req.ChildRunMode = orchestration.NormalizeChildRunMode(req.ChildRunMode)
 	req.WorkspaceMode = orchestration.NormalizeChildWorkspaceMode(req.WorkspaceMode)
-	req.RequestedMode = orchestrationmode.Normalize(req.RequestedMode)
+	req.RequestedMode = events.OrchestrationMode(req.RequestedMode).Normalize()
 	return req
 }
 
@@ -833,16 +832,16 @@ func FindPendingResume(ctx context.Context, store PendingResumeStore) (*PendingR
 	}, nil
 }
 
-func resolveRootOrchestrationMode(req ExecuteRequest) orchestrationmode.Mode {
-	mode := orchestrationmode.Normalize(req.OrchestrationMode)
+func resolveRootOrchestrationMode(req ExecuteRequest) events.OrchestrationMode {
+	mode := events.OrchestrationMode(req.OrchestrationMode).Normalize()
 	if req.OrchestrationMode != "" {
 		return mode
 	}
 	if strings.TrimSpace(req.ParentRunID) != "" {
-		return orchestrationmode.SingleAgent
+		return events.ModeSingleAgent
 	}
 	if strings.TrimSpace(req.SkillID) != "" {
-		return orchestrationmode.PlanExecute
+		return events.ModePlanExecute
 	}
-	return orchestrationmode.DirectResponse
+	return events.ModeDirectResponse
 }

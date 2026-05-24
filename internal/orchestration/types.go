@@ -101,4 +101,17 @@ type RunAssembly struct {
 
 type SingleAgentAssembly = RunAssembly
 
+// ToolLifecycleStateView is the read-only view of tool lifecycle state.
+type ToolLifecycleStateView interface {
+	IsLoaded(toolName string) bool
+}
+
+// AssembleResultView is the read-only view of context plane assembly result.
+type AssembleResultView struct {
+	Messages          []*schema.Message
+	LifecycleState    ToolLifecycleStateView
+	EagerToolNames    []string
+	DeferredToolNames []string
+}
+
 type ToolLifecycleBinder func(ctx context.Context, state ToolLifecycleStateView, catalog *tooling.Catalog, infos []*schema.ToolInfo) context.Context

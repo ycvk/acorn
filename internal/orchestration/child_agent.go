@@ -6,7 +6,7 @@ import (
 
 	"github.com/cloudwego/eino/schema"
 
-	"github.com/ycvk/acorn/internal/orchestrationmode"
+	"github.com/ycvk/acorn/internal/events"
 )
 
 type ChildAgentOrigin string
@@ -59,7 +59,7 @@ type ChildAgentRequest struct {
 	AcceptanceCriteria []string
 	ExpectedEvidence   []string
 	Origin             ChildAgentOrigin
-	RequestedMode      orchestrationmode.Mode
+	RequestedMode      events.OrchestrationMode
 }
 
 type ChildAgentResult struct {

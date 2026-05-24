@@ -3,7 +3,7 @@ package api
 import (
 	"github.com/cloudwego/eino/adk"
 
-	"github.com/ycvk/acorn/internal/orchestrationmode"
+	"github.com/ycvk/acorn/internal/events"
 )
 
 type ExecuteRequest struct {
@@ -14,7 +14,7 @@ type ExecuteRequest struct {
 	SkillID           string
 	AllowedToolNames  []string
 	Messages          []adk.Message
-	OrchestrationMode orchestrationmode.Mode
+	OrchestrationMode events.OrchestrationMode
 	ParentRunID       string
 	Depth             int
 }

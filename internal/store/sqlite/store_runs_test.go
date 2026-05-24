@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/ycvk/acorn/internal/events"
-	"github.com/ycvk/acorn/internal/orchestrationmode"
 	storecore "github.com/ycvk/acorn/internal/store"
 )
 
@@ -48,8 +47,8 @@ func TestStoreLifecycle(t *testing.T) {
 	if run == nil || len(items) != 1 {
 		t.Fatalf("expected run and one event, got run=%#v items=%#v", run, items)
 	}
-	if run.OrchestrationMode != orchestrationmode.DirectResponse {
-		t.Fatalf("OrchestrationMode = %q, want %q", run.OrchestrationMode, orchestrationmode.DirectResponse)
+	if run.OrchestrationMode != events.ModeDirectResponse {
+		t.Fatalf("OrchestrationMode = %q, want %q", run.OrchestrationMode, events.ModeDirectResponse)
 	}
 }
 
@@ -67,7 +66,7 @@ func TestCreateRunWithParamsPersistsLineageAndMode(t *testing.T) {
 		TurnIndex:         2,
 		Input:             "child task",
 		CheckpointID:      "run_child",
-		OrchestrationMode: orchestrationmode.SingleAgent,
+		OrchestrationMode: events.ModeSingleAgent,
 		ParentRunID:       "run_parent",
 		Depth:             1,
 	})
@@ -85,8 +84,8 @@ func TestCreateRunWithParamsPersistsLineageAndMode(t *testing.T) {
 	if run.Depth != 1 {
 		t.Fatalf("Depth = %d, want 1", run.Depth)
 	}
-	if run.OrchestrationMode != orchestrationmode.SingleAgent {
-		t.Fatalf("OrchestrationMode = %q, want %q", run.OrchestrationMode, orchestrationmode.SingleAgent)
+	if run.OrchestrationMode != events.ModeSingleAgent {
+		t.Fatalf("OrchestrationMode = %q, want %q", run.OrchestrationMode, events.ModeSingleAgent)
 	}
 }
 
@@ -215,7 +214,7 @@ func TestListInboxRunsFiltersRootSessionRunsByStatus(t *testing.T) {
 		TurnIndex:         2,
 		Input:             "child",
 		CheckpointID:      "run_child",
-		OrchestrationMode: orchestrationmode.SingleAgent,
+		OrchestrationMode: events.ModeSingleAgent,
 		ParentRunID:       "run_active",
 		Depth:             1,
 	}); err != nil {
