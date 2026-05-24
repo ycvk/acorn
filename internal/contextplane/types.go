@@ -110,27 +110,27 @@ type SessionSummaryService interface {
 }
 
 type DefaultOptions struct {
-	MemorySearchTokenBudget int
-	MaxContextTokens        int
-	TokenCounter            TokenCounter
-	Store                   RunContextSnapshotStore
-	CheckpointService       CheckpointService
-	SessionSummaryService   SessionSummaryService
-	ToolResultLedger        toolresult.Ledger
-	MemoryBudget            LayeredMemoryBudget
+	MemoryContextTokenBudget int
+	MaxContextTokens         int
+	TokenCounter             TokenCounter
+	Store                    RunContextSnapshotStore
+	CheckpointService        CheckpointService
+	SessionSummaryService    SessionSummaryService
+	ToolResultLedger         toolresult.Ledger
+	MemoryBudget             LayeredMemoryBudget
 }
 
 type defaultContextPlane struct {
-	memorySearchTokenBudget int
-	maxContextTokens        int
-	tokenCounter            TokenCounter
-	store                   RunContextSnapshotStore
-	checkpointService       CheckpointService
-	sessionSummaryService   SessionSummaryService
-	toolResultLedger        toolresult.Ledger
-	budgetAllocator         BudgetAllocator
-	compressionPipeline     CompressionPipeline
-	memoryBudget            LayeredMemoryBudget
+	memoryContextTokenBudget int
+	maxContextTokens         int
+	tokenCounter             TokenCounter
+	store                    RunContextSnapshotStore
+	checkpointService        CheckpointService
+	sessionSummaryService    SessionSummaryService
+	toolResultLedger         toolresult.Ledger
+	budgetAllocator          BudgetAllocator
+	compressionPipeline      CompressionPipeline
+	memoryBudget             LayeredMemoryBudget
 }
 
 type LayeredMemoryBudget struct {
@@ -176,20 +176,20 @@ type ToolResultRecord struct {
 
 func NewDefaultContextPlane(opts DefaultOptions) ContextPlane {
 	p := &defaultContextPlane{
-		memorySearchTokenBudget: opts.MemorySearchTokenBudget,
-		maxContextTokens:        opts.MaxContextTokens,
-		tokenCounter:            opts.TokenCounter,
-		store:                   opts.Store,
-		checkpointService:       opts.CheckpointService,
-		sessionSummaryService:   opts.SessionSummaryService,
-		toolResultLedger:        opts.ToolResultLedger,
-		budgetAllocator:         NewBudgetAllocator(),
-		compressionPipeline:     NewCompressionPipeline(),
+		memoryContextTokenBudget: opts.MemoryContextTokenBudget,
+		maxContextTokens:         opts.MaxContextTokens,
+		tokenCounter:             opts.TokenCounter,
+		store:                    opts.Store,
+		checkpointService:        opts.CheckpointService,
+		sessionSummaryService:    opts.SessionSummaryService,
+		toolResultLedger:         opts.ToolResultLedger,
+		budgetAllocator:          NewBudgetAllocator(),
+		compressionPipeline:      NewCompressionPipeline(),
 	}
 	if opts.MemoryBudget.L1IndexTokens > 0 || opts.MemoryBudget.L2InitialTokens > 0 || opts.MemoryBudget.L3OnDemandReserve > 0 {
 		p.memoryBudget = opts.MemoryBudget
-	} else if opts.MemorySearchTokenBudget > 0 {
-		p.memoryBudget = defaultLayeredBudgetFromTotal(opts.MemorySearchTokenBudget)
+	} else if opts.MemoryContextTokenBudget > 0 {
+		p.memoryBudget = defaultLayeredBudgetFromTotal(opts.MemoryContextTokenBudget)
 	}
 	return p
 }

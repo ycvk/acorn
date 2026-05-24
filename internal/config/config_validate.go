@@ -89,8 +89,8 @@ func (c *Config) ValidateBase() error {
 			return fmt.Errorf("mcp.providers[%s].tool_safety must be one of readonly|read_only|write_scoped|never_parallel, got %q", name, safety)
 		}
 	}
-	if c.Memory.Search.TokenBudget <= 0 {
-		c.Memory.Search.TokenBudget = 2000
+	if c.Memory.Search.MemoryContextTokenBudget <= 0 {
+		c.Memory.Search.MemoryContextTokenBudget = 2000
 	}
 	if err := c.validateMemorySemanticBase(); err != nil {
 		return err

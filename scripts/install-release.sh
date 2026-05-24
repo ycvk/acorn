@@ -264,7 +264,7 @@ mcp:
 
 memory:
   search:
-    token_budget: 2000
+    memory_context_token_budget: 2000
   semantic:
     bleve:
       path: ""

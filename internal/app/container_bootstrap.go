@@ -20,25 +20,13 @@ import (
 	"github.com/ycvk/acorn/internal/skills"
 	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
 	"github.com/ycvk/acorn/internal/workingstate"
-	"github.com/ycvk/acorn/internal/workspace"
 )
 
-type containerDependencies struct {
-	store             *storesqlite.Store
-	workspace         *workspace.Workspace
-	loader            *skills.Loader
-	decisionProfiles  *decision.ProfileService
-	checkpointService *workingstate.Service
-	memoryModule      memorymodule.Service
-	semanticIndex     memorymodule.SemanticIndex
-	semanticEmbedder  memorymodule.Embedder
-	notifications     *NotificationService
-	runnerFactory     *runtime.RunnerFactory
-	runController     *runtime.RunController
-	executors         executorFactory
-}
+func buildContainer(ctx context.Context, cfg *config.Config) (*Container, error) {
+	if cfg == nil {
+		return nil, errors.New("config is required")
+	}
 
-func buildContainerDependencies(ctx context.Context, cfg *config.Config) (*containerDependencies, error) {
 	store, err := storesqlite.Open(cfg.Runtime.StorageDir)
 	if err != nil {
 		return nil, err
@@ -72,17 +60,19 @@ func buildContainerDependencies(ctx context.Context, cfg *config.Config) (*conta
 	if err != nil {
 		return nil, err
 	}
-	if err := memoryModule.SetSemanticRuntime(memorymodule.SemanticRuntimeOptions{
-		Index:      semanticIndex,
-		Embedder:   semanticEmbedder,
-		Model:      cfg.Memory.Semantic.Embedding.Model,
-		Dimensions: cfg.Memory.Semantic.Embedding.Dimensions,
-		BatchSize:  cfg.Memory.Semantic.Embedding.BatchSize,
-		Schema:     memorymodule.SemanticSchemaMemoryRecordsV1,
-		IndexName:  cfg.Memory.Semantic.Bleve.IndexName,
-		Mode:       "hybrid",
-	}); err != nil {
-		return nil, fmt.Errorf("set semantic runtime: %w", err)
+	if semanticIndex != nil {
+		if err := memoryModule.SetSemanticRuntime(memorymodule.SemanticRuntimeOptions{
+			Index:      semanticIndex,
+			Embedder:   semanticEmbedder,
+			Model:      cfg.Memory.Semantic.Embedding.Model,
+			Dimensions: cfg.Memory.Semantic.Embedding.Dimensions,
+			BatchSize:  cfg.Memory.Semantic.Embedding.BatchSize,
+			Schema:     memorymodule.SemanticSchemaMemoryRecordsV1,
+			IndexName:  cfg.Memory.Semantic.Bleve.IndexName,
+			Mode:       "hybrid",
+		}); err != nil {
+			return nil, fmt.Errorf("set semantic runtime: %w", err)
+		}
 	}
 	decisionProfileService := decision.NewProfileService(ws.Root())
 	if _, err := decisionProfileService.Load(); err != nil {
@@ -102,13 +92,13 @@ func buildContainerDependencies(ctx context.Context, cfg *config.Config) (*conta
 		return nil, fmt.Errorf("context plane token counter: %w", err)
 	}
 	contextPlane := contextplane.NewDefaultContextPlane(contextplane.DefaultOptions{
-		MemorySearchTokenBudget: cfg.Memory.Search.TokenBudget,
-		MaxContextTokens:        maxContextTokens,
-		TokenCounter:            contextCounter,
-		Store:                   store,
-		CheckpointService:       checkpointService,
-		SessionSummaryService:   sessionSummaryService,
-		ToolResultLedger:        store,
+		MemoryContextTokenBudget: cfg.Memory.Search.MemoryContextTokenBudget,
+		MaxContextTokens:         maxContextTokens,
+		TokenCounter:             contextCounter,
+		Store:                    store,
+		CheckpointService:        checkpointService,
+		SessionSummaryService:    sessionSummaryService,
+		ToolResultLedger:         store,
 		MemoryBudget: contextplane.LayeredMemoryBudget{
 			L1IndexTokens:     cfg.Memory.Search.IndexTokenBudget,
 			L2InitialTokens:   cfg.Memory.Search.InitialTokenBudget,
@@ -130,57 +120,41 @@ func buildContainerDependencies(ctx context.Context, cfg *config.Config) (*conta
 		MCPPendingActionStore:  mcpPendingActionStore,
 	})
 	runController := runtime.NewRunController()
+	executors := newExecutorFactory(cfg, store, runnerFactory, runController)
 
-	committed = true
-	return &containerDependencies{
-		store:             store,
-		workspace:         ws,
-		loader:            loader,
-		decisionProfiles:  decisionProfileService,
-		checkpointService: checkpointService,
-		memoryModule:      memoryModule,
-		semanticIndex:     semanticIndex,
-		semanticEmbedder:  semanticEmbedder,
-		notifications:     notificationService,
-		runnerFactory:     runnerFactory,
-		runController:     runController,
-		executors:         newExecutorFactory(cfg, store, runnerFactory, runController),
-	}, nil
-}
-
-func buildContainerFromDependencies(cfg *config.Config, deps *containerDependencies) (*Container, error) {
 	container := &Container{
 		cfg:           cfg,
-		store:         deps.store,
-		runnerFactory: deps.runnerFactory,
-		runController: deps.runController,
+		store:         store,
+		runnerFactory: runnerFactory,
+		runController: runController,
 	}
-	container.sessions = NewSessionService(deps.store)
-	container.trace = NewTraceService(deps.store)
-	container.sessionState = NewSessionStateService(cfg, deps.store, container.trace)
+
+	container.sessions = NewSessionService(store)
+	container.trace = NewTraceService(store)
+	container.sessionState = NewSessionStateService(cfg, store, container.trace)
 	container.workbench = NewRuntimeWorkbenchService(RuntimeWorkbenchConfig{
-		Workspace: deps.workspace,
-	}, deps.store, container.trace)
-	checkpoints, err := NewWorkingCheckpointService(deps.checkpointService)
+		Workspace: ws,
+	}, store, container.trace)
+	checkpoints, err := NewWorkingCheckpointService(checkpointService)
 	if err != nil {
 		return nil, err
 	}
 	container.checkpoints = checkpoints
-	container.skills = NewSkillService(cfg, deps.loader)
-	container.chat = NewChatService(deps.store, deps.executors)
+	container.skills = NewSkillService(cfg, loader)
+	container.chat = NewChatService(store, executors)
 	workspaceRoot := ""
-	if deps.workspace != nil {
-		workspaceRoot = deps.workspace.Root()
+	if ws != nil {
+		workspaceRoot = ws.Root()
 	}
-	container.client = BuildClientService(deps.store, deps.executors, workspaceRoot)
-	container.pendingAction = NewPendingActionService(deps.store)
-	container.run = NewRunService(deps.executors, deps.runController)
-	container.resume = NewResumeService(container.trace, deps.executors, deps.store)
-	container.decision = NewDecisionService(deps.decisionProfiles, deps.store)
+	container.client = BuildClientService(store, executors, workspaceRoot)
+	container.pendingAction = NewPendingActionService(store)
+	container.run = NewRunService(executors, runController)
+	container.resume = NewResumeService(container.trace, executors, store)
+	container.decision = NewDecisionService(decisionProfileService, store)
 
-	memoryService, err := NewMemoryService(deps.memoryModule, MemoryServiceSemanticOptions{
-		Index:      deps.semanticIndex,
-		Embedder:   deps.semanticEmbedder,
+	memoryService, err := NewMemoryService(memoryModule, MemoryServiceSemanticOptions{
+		Index:      semanticIndex,
+		Embedder:   semanticEmbedder,
 		Model:      cfg.Memory.Semantic.Embedding.Model,
 		Dimensions: cfg.Memory.Semantic.Embedding.Dimensions,
 		BatchSize:  cfg.Memory.Semantic.Embedding.BatchSize,
@@ -192,16 +166,18 @@ func buildContainerFromDependencies(cfg *config.Config, deps *containerDependenc
 	}
 	container.memory = memoryService
 
-	container.capabilities = NewCapabilitiesService(cfg, container.skills, mcpprovider.Doctor, deps.runnerFactory)
-	container.deviceAuth = NewDeviceAuthService(deps.store)
-	container.inbox = NewInboxService(deps.store, container.capabilities)
-	container.notifications = deps.notifications
+	container.capabilities = NewCapabilitiesService(cfg, container.skills, mcpprovider.Doctor, runnerFactory)
+	container.deviceAuth = NewDeviceAuthService(store)
+	container.inbox = NewInboxService(store, container.capabilities)
+	container.notifications = notificationService
 
-	mcpServer, err := buildContainerMCPServer(cfg, deps.runnerFactory)
+	mcpServer, err := buildContainerMCPServer(cfg, runnerFactory)
 	if err != nil {
 		return nil, err
 	}
 	container.mcpServer = mcpServer
+
+	committed = true
 	return container, nil
 }
 

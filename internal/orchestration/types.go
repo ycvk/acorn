@@ -7,24 +7,11 @@ import (
 	einomodel "github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/schema"
 
-	"github.com/ycvk/acorn/internal/orchestrationmode"
 	"github.com/ycvk/acorn/internal/tooling"
 )
 
 type PlanningPromptProvider interface {
 	BuildPlanningPromptSection(enabledToolNames []string) (string, error)
-}
-
-type OrchestrationMode = orchestrationmode.Mode
-
-const (
-	OrchestrationModeDirectResponse = orchestrationmode.DirectResponse
-	OrchestrationModeSingleAgent    = orchestrationmode.SingleAgent
-	OrchestrationModePlanExecute    = orchestrationmode.PlanExecute
-)
-
-func NormalizeOrchestrationMode(mode OrchestrationMode) OrchestrationMode {
-	return orchestrationmode.Normalize(mode)
 }
 
 type DirectResponseRequest struct {

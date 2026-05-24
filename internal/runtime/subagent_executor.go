@@ -13,6 +13,7 @@ import (
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/orchestration"
+	"github.com/ycvk/acorn/internal/orchestrationmode"
 	storecore "github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/workspace"
 )
@@ -89,9 +90,9 @@ func (se *SubagentExecutor) Execute(ctx context.Context, req orchestration.Child
 	subRunID := newRunID()
 	childSessionID := "delegate_" + subRunID
 	childRunMode := orchestration.NormalizeChildRunMode(req.ChildRunMode)
-	requestedMode := orchestration.NormalizeOrchestrationMode(req.RequestedMode)
+	requestedMode := orchestrationmode.Normalize(req.RequestedMode)
 	if requestedMode == "" {
-		requestedMode = orchestration.OrchestrationModeSingleAgent
+		requestedMode = orchestrationmode.SingleAgent
 	}
 	workspaceMode := orchestration.NormalizeChildWorkspaceMode(req.WorkspaceMode)
 	childRunnerFactory := se.rf
@@ -221,7 +222,7 @@ func (se *SubagentExecutor) Execute(ctx context.Context, req orchestration.Child
 	return delegated, nil
 }
 
-func (se *SubagentExecutor) emitFailed(ctx context.Context, parentRunID, subRunID, childSessionID, parentStepID string, childRunMode orchestration.ChildRunMode, workspaceMode orchestration.ChildWorkspaceMode, worktreePath string, mode orchestration.OrchestrationMode, errMsg string, sink StreamSink) error {
+func (se *SubagentExecutor) emitFailed(ctx context.Context, parentRunID, subRunID, childSessionID, parentStepID string, childRunMode orchestration.ChildRunMode, workspaceMode orchestration.ChildWorkspaceMode, worktreePath string, mode orchestrationmode.Mode, errMsg string, sink StreamSink) error {
 	if se == nil || se.store == nil {
 		return errors.New("emit subagent.failed: store is not initialized")
 	}
@@ -301,7 +302,7 @@ func normalizeChildAgentRequest(req orchestration.ChildAgentRequest) orchestrati
 	req.ExpectedEvidence = normalizeToolNames(req.ExpectedEvidence)
 	req.ChildRunMode = orchestration.NormalizeChildRunMode(req.ChildRunMode)
 	req.WorkspaceMode = orchestration.NormalizeChildWorkspaceMode(req.WorkspaceMode)
-	req.RequestedMode = orchestration.NormalizeOrchestrationMode(req.RequestedMode)
+	req.RequestedMode = orchestrationmode.Normalize(req.RequestedMode)
 	return req
 }
 

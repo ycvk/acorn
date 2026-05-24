@@ -20,30 +20,30 @@ type ChatStore interface {
 }
 
 type ChatService struct {
-	store     ChatStore
-	executors executorFactory
+	store       ChatStore
+	newExecutor func(context.Context) (executorHandle, error)
 }
 
-func NewChatService(store ChatStore, executors executorFactory) *ChatService {
-	return &ChatService{store: store, executors: executors}
+func NewChatService(store ChatStore, newExecutor func(context.Context) (executorHandle, error)) *ChatService {
+	return &ChatService{store: store, newExecutor: newExecutor}
 }
 
 func (s *ChatService) Send(ctx context.Context, sessionID, input, skillID string, sink runtime.StreamSink) (*runtime.Result, int, error) {
 	if s == nil || s.store == nil {
 		return nil, 0, errors.New("chat store is nil")
 	}
-	if s.executors == nil {
+	if s.newExecutor == nil {
 		return nil, 0, errors.New("chat executor factory is nil")
 	}
 	turnIndex, history, err := s.store.PrepareChatTurn(ctx, sessionID, input, deriveSessionTitle(input), chatHistoryLimit)
 	if err != nil {
 		return nil, 0, err
 	}
-	handle, err := s.executors.New(ctx)
+	exec, err := s.newExecutor(ctx)
 	if err != nil {
 		return nil, 0, err
 	}
-	result, err := handle.ExecuteMessages(ctx, runtime.ExecuteRequest{
+	result, err := exec.ExecuteMessages(ctx, runtime.ExecuteRequest{
 		SessionID: sessionID,
 		TurnIndex: turnIndex,
 		Input:     input,

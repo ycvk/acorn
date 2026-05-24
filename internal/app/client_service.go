@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"time"
@@ -17,17 +18,17 @@ var (
 // creation, run creation, and event replay into distinct HTTP calls.
 type ClientService struct {
 	store         clientStore
-	executors     executorFactory
+	newExecutor   func(context.Context) (executorHandle, error)
 	workspaceRoot string
 	eventPoll     time.Duration
 	newThreadID   func() string
 	newRunID      func() string
 }
 
-func BuildClientService(store clientStore, executors executorFactory, workspaceRoot string) *ClientService {
+func BuildClientService(store clientStore, newExecutor func(context.Context) (executorHandle, error), workspaceRoot string) *ClientService {
 	return &ClientService{
 		store:         store,
-		executors:     executors,
+		newExecutor:   newExecutor,
 		workspaceRoot: workspaceRoot,
 		eventPoll:     100 * time.Millisecond,
 		newThreadID:   newThreadID,

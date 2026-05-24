@@ -10,6 +10,7 @@ import (
 
 	"github.com/ycvk/acorn/internal/contextplane"
 	"github.com/ycvk/acorn/internal/orchestration"
+	"github.com/ycvk/acorn/internal/orchestrationmode"
 	"github.com/ycvk/acorn/internal/tooling"
 )
 
@@ -33,8 +34,8 @@ func (b *runBuilder) Build(ctx context.Context, req RunnerBuildRequest) (*Active
 		return nil, errors.New("runner factory is not initialized")
 	}
 	f := b.factory
-	mode := orchestration.NormalizeOrchestrationMode(req.OrchestrationMode)
-	if mode != orchestration.OrchestrationModeDirectResponse {
+	mode := orchestrationmode.Normalize(req.OrchestrationMode)
+	if mode != orchestrationmode.DirectResponse {
 		if f.workspaceErr != nil {
 			return nil, fmt.Errorf("workspace contract: %w", f.workspaceErr)
 		}
@@ -67,7 +68,7 @@ func (b *runBuilder) Build(ctx context.Context, req RunnerBuildRequest) (*Active
 	f.setCurrentRunID(req.RunID)
 
 	switch mode {
-	case orchestration.OrchestrationModeDirectResponse, orchestration.OrchestrationModeSingleAgent, orchestration.OrchestrationModePlanExecute:
+	case orchestrationmode.DirectResponse, orchestrationmode.SingleAgent, orchestrationmode.PlanExecute:
 	default:
 		return nil, fmt.Errorf("unsupported orchestration mode %q", mode)
 	}
@@ -89,7 +90,7 @@ func (b *runBuilder) Build(ctx context.Context, req RunnerBuildRequest) (*Active
 		_ = capabilities.Close()
 	}()
 
-	if mode == orchestration.OrchestrationModeDirectResponse {
+	if mode == orchestrationmode.DirectResponse {
 		activeRunner, err := b.newDirectResponseRunner(ctx, req, chatModel, capabilityAssembly)
 		if err != nil {
 			return nil, err
@@ -168,7 +169,7 @@ func (b *runBuilder) newDirectResponseRunner(ctx context.Context, req RunnerBuil
 
 func (b *runBuilder) buildToolEnabledAssembly(
 	ctx context.Context,
-	mode orchestration.OrchestrationMode,
+	mode orchestrationmode.Mode,
 	req RunnerBuildRequest,
 	caps *runCapabilities,
 	chatModel einomodel.BaseChatModel,
@@ -182,9 +183,9 @@ func (b *runBuilder) buildToolEnabledAssembly(
 		catalog = caps.catalog
 	}
 	switch mode {
-	case orchestration.OrchestrationModePlanExecute:
+	case orchestrationmode.PlanExecute:
 		return b.factory.buildPlanExecuteAssembly(ctx, req, catalog, chatModel, contextResult)
-	case orchestration.OrchestrationModeSingleAgent:
+	case orchestrationmode.SingleAgent:
 		return b.factory.buildSingleAgentAssembly(ctx, req, catalog, chatModel, contextResult)
 	default:
 		return nil, fmt.Errorf("unsupported orchestration mode %q", mode)

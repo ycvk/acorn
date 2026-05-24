@@ -8,23 +8,23 @@ import (
 )
 
 type RunService struct {
-	executors  executorFactory
-	controller *runtime.RunController
+	newExecutor func(context.Context) (executorHandle, error)
+	controller  *runtime.RunController
 }
 
-func NewRunService(executors executorFactory, controller *runtime.RunController) *RunService {
-	return &RunService{executors: executors, controller: controller}
+func NewRunService(newExecutor func(context.Context) (executorHandle, error), controller *runtime.RunController) *RunService {
+	return &RunService{newExecutor: newExecutor, controller: controller}
 }
 
 func (s *RunService) Run(ctx context.Context, input, skillID string, sink runtime.StreamSink) (*runtime.Result, error) {
-	if s == nil || s.executors == nil {
+	if s == nil || s.newExecutor == nil {
 		return nil, errors.New("run executor factory is nil")
 	}
-	handle, err := s.executors.New(ctx)
+	exec, err := s.newExecutor(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return handle.Run(ctx, input, skillID, sink)
+	return exec.Run(ctx, input, skillID, sink)
 }
 
 func (s *RunService) InterruptRun(ctx context.Context, runID string) error {

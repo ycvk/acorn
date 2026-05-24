@@ -18,7 +18,7 @@ func TestChatServiceSendPersistsFailureContextForFollowUp(t *testing.T) {
 		t.Fatalf("create session: %v", err)
 	}
 
-	service := NewChatService(store, executorFactoryFunc(func(_ context.Context) (executorHandle, error) {
+	service := NewChatService(store, func(_ context.Context) (executorHandle, error) {
 		return chatTestExecutorHandle{
 			executeMessagesFn: func(ctx context.Context, req runtime.ExecuteRequest, sink runtime.StreamSink) (*runtime.Result, error) {
 				if err := store.CreateBoundRun(context.Background(), "run_failed", req.SessionID, req.TurnIndex, req.Input, "run_failed"); err != nil {
@@ -35,7 +35,7 @@ func TestChatServiceSendPersistsFailureContextForFollowUp(t *testing.T) {
 				}, nil
 			},
 		}, nil
-	}))
+	})
 
 	result, turnIndex, err := service.Send(ctx, session.SessionID, "fix the broken command", "", nil)
 	if err != nil {
@@ -78,7 +78,7 @@ func TestChatServiceSendPassesInputThroughExecuteRequest(t *testing.T) {
 	}
 
 	var captured runtime.ExecuteRequest
-	service := NewChatService(store, executorFactoryFunc(func(_ context.Context) (executorHandle, error) {
+	service := NewChatService(store, func(_ context.Context) (executorHandle, error) {
 		return chatTestExecutorHandle{
 			executeMessagesFn: func(ctx context.Context, req runtime.ExecuteRequest, sink runtime.StreamSink) (*runtime.Result, error) {
 				captured = req
@@ -95,7 +95,7 @@ func TestChatServiceSendPassesInputThroughExecuteRequest(t *testing.T) {
 				}, nil
 			},
 		}, nil
-	}))
+	})
 
 	result, turnIndex, err := service.Send(ctx, session.SessionID, "remember where the repo root is", "skill.inspect.repo", nil)
 	if err != nil {

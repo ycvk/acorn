@@ -336,7 +336,7 @@ func baseCapabilitiesConfig(apiKey string) *config.Config {
 	cfg.Context.CompactMarginTokens = 13000
 	cfg.Context.PreserveRecentTurns = 3
 	cfg.Context.SummaryMaxTokens = 2048
-	cfg.Memory.Search.TokenBudget = 2000
+	cfg.Memory.Search.MemoryContextTokenBudget = 2000
 	cfg.Memory.Semantic.Embedding.APIKey = apiKey
 	return cfg
 }

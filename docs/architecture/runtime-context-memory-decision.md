@@ -145,7 +145,7 @@ The active memory config keeps file-backed context budgeting and requires semant
 ```yaml
 memory:
   search:
-    token_budget: 2000
+    memory_context_token_budget: 2000
   semantic:
     bleve:
       path: ""

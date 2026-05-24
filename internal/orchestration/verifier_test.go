@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/cloudwego/eino/schema"
+
+	"github.com/ycvk/acorn/internal/orchestrationmode"
 )
 
 type fakeVerifierChildExecutor struct {
@@ -61,7 +63,7 @@ func TestChildAgentVerifierBuildsVerifierChildRequest(t *testing.T) {
 	if child.req.Origin != ChildAgentOriginVerifier {
 		t.Fatalf("origin = %q, want verifier", child.req.Origin)
 	}
-	if child.req.RequestedMode != OrchestrationModeSingleAgent {
+	if child.req.RequestedMode != orchestrationmode.SingleAgent {
 		t.Fatalf("requested mode = %q, want single_agent", child.req.RequestedMode)
 	}
 	if child.req.ParentRunID != "run_parent" || child.req.ParentSessionID != "sess_parent" || child.req.ParentStepID != "s1" {

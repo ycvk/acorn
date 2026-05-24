@@ -8,7 +8,7 @@ import (
 	"github.com/ycvk/acorn/internal/contextplane"
 	"github.com/ycvk/acorn/internal/decision"
 	"github.com/ycvk/acorn/internal/memorymodule"
-	"github.com/ycvk/acorn/internal/orchestration"
+	"github.com/ycvk/acorn/internal/orchestrationmode"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
 	"github.com/ycvk/acorn/internal/runtimehistory"
 	"github.com/ycvk/acorn/internal/skills"
@@ -41,7 +41,7 @@ type RunnerBuildRequest struct {
 	Sink              StreamSink
 	ExcludedToolNames []string
 	InstructionSuffix string
-	OrchestrationMode orchestration.OrchestrationMode
+	OrchestrationMode orchestrationmode.Mode
 	ParentRunID       string
 }
 

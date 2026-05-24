@@ -62,3 +62,34 @@ func TestMessageDTOFromDomainEmitsReasoningPart(t *testing.T) {
 		t.Fatalf("message JSON should contain reasoning part, got %s", string(raw))
 	}
 }
+
+func TestMessagePartDTOEmitsDisclosureItemsField(t *testing.T) {
+	raw, err := json.Marshal(MessagePartDTO{
+		Kind:  "disclosure",
+		Items: []DisclosureItemDTO{},
+	})
+	if err != nil {
+		t.Fatalf("marshal disclosure part: %v", err)
+	}
+	if !strings.Contains(string(raw), `"items":[]`) {
+		t.Fatalf("disclosure part should always emit items, got %s", string(raw))
+	}
+}
+
+func TestMessagePartDTOEmitsTechnicalDetailLinkRequiredFields(t *testing.T) {
+	raw, err := json.Marshal(MessagePartDTO{
+		Kind:        "technical_detail_link",
+		DetailRunID: "detail_run_1",
+	})
+	if err != nil {
+		t.Fatalf("marshal technical detail link: %v", err)
+	}
+	for _, want := range []string{`"detail_run_id":"detail_run_1"`, `"run_id":""`, `"label":""`} {
+		if !strings.Contains(string(raw), want) {
+			t.Fatalf("technical_detail_link JSON should contain %s, got %s", want, string(raw))
+		}
+	}
+	if strings.Contains(string(raw), "tool_name") {
+		t.Fatalf("technical_detail_link JSON should not contain tool_name, got %s", string(raw))
+	}
+}

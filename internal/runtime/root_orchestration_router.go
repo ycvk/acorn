@@ -3,19 +3,19 @@ package runtime
 import (
 	"strings"
 
-	"github.com/ycvk/acorn/internal/orchestration"
+	"github.com/ycvk/acorn/internal/orchestrationmode"
 )
 
-func resolveRootOrchestrationMode(req ExecuteRequest) orchestration.OrchestrationMode {
-	mode := orchestration.NormalizeOrchestrationMode(req.OrchestrationMode)
+func resolveRootOrchestrationMode(req ExecuteRequest) orchestrationmode.Mode {
+	mode := orchestrationmode.Normalize(req.OrchestrationMode)
 	if req.OrchestrationMode != "" {
 		return mode
 	}
 	if strings.TrimSpace(req.ParentRunID) != "" {
-		return orchestration.OrchestrationModeSingleAgent
+		return orchestrationmode.SingleAgent
 	}
 	if strings.TrimSpace(req.SkillID) != "" {
-		return orchestration.OrchestrationModePlanExecute
+		return orchestrationmode.PlanExecute
 	}
-	return orchestration.OrchestrationModeDirectResponse
+	return orchestrationmode.DirectResponse
 }

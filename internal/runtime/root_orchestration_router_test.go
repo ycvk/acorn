@@ -3,7 +3,6 @@ package runtime
 import (
 	"testing"
 
-	"github.com/ycvk/acorn/internal/orchestration"
 	"github.com/ycvk/acorn/internal/orchestrationmode"
 )
 
@@ -11,42 +10,42 @@ func TestResolveRootOrchestrationMode(t *testing.T) {
 	tests := []struct {
 		name string
 		req  ExecuteRequest
-		want orchestration.OrchestrationMode
+		want orchestrationmode.Mode
 	}{
 		{
 			name: "greeting uses direct response",
 			req:  ExecuteRequest{Input: "你好"},
-			want: orchestration.OrchestrationModeDirectResponse,
+			want: orchestrationmode.DirectResponse,
 		},
 		{
 			name: "english greeting uses direct response",
 			req:  ExecuteRequest{Input: "hello, what can you do?"},
-			want: orchestration.OrchestrationModeDirectResponse,
+			want: orchestrationmode.DirectResponse,
 		},
 		{
 			name: "plain question uses direct response",
 			req:  ExecuteRequest{Input: "解释一下 Acorn 是什么"},
-			want: orchestration.OrchestrationModeDirectResponse,
+			want: orchestrationmode.DirectResponse,
 		},
 		{
 			name: "blank input uses direct response",
 			req:  ExecuteRequest{Input: " \n\t "},
-			want: orchestration.OrchestrationModeDirectResponse,
+			want: orchestrationmode.DirectResponse,
 		},
 		{
 			name: "repo task without explicit mode uses direct response",
 			req:  ExecuteRequest{Input: "修复 internal/runtime/executor_run.go 并跑 go test"},
-			want: orchestration.OrchestrationModeDirectResponse,
+			want: orchestrationmode.DirectResponse,
 		},
 		{
 			name: "verification intent without explicit mode uses direct response",
 			req:  ExecuteRequest{Input: "验证这个改动并运行 make lint"},
-			want: orchestration.OrchestrationModeDirectResponse,
+			want: orchestrationmode.DirectResponse,
 		},
 		{
 			name: "english mutation intent without explicit mode uses direct response",
 			req:  ExecuteRequest{Input: "implement the new trace drawer behavior"},
-			want: orchestration.OrchestrationModeDirectResponse,
+			want: orchestrationmode.DirectResponse,
 		},
 		{
 			name: "explicit mode is preserved",
@@ -54,7 +53,7 @@ func TestResolveRootOrchestrationMode(t *testing.T) {
 				Input:             "你好",
 				OrchestrationMode: orchestrationmode.PlanExecute,
 			},
-			want: orchestration.OrchestrationModePlanExecute,
+			want: orchestrationmode.PlanExecute,
 		},
 		{
 			name: "unknown explicit mode is preserved for unsupported-mode failure",
@@ -62,7 +61,7 @@ func TestResolveRootOrchestrationMode(t *testing.T) {
 				Input:             "你好",
 				OrchestrationMode: orchestrationmode.Mode("unknown_mode"),
 			},
-			want: orchestration.OrchestrationMode("unknown_mode"),
+			want: orchestrationmode.Mode("unknown_mode"),
 		},
 		{
 			name: "child run defaults to single agent",
@@ -70,7 +69,7 @@ func TestResolveRootOrchestrationMode(t *testing.T) {
 				Input:       "inspect",
 				ParentRunID: "run_parent",
 			},
-			want: orchestration.OrchestrationModeSingleAgent,
+			want: orchestrationmode.SingleAgent,
 		},
 		{
 			name: "explicit skill uses plan execute",
@@ -78,7 +77,7 @@ func TestResolveRootOrchestrationMode(t *testing.T) {
 				Input:   "处理这个",
 				SkillID: "cs-feat-impl",
 			},
-			want: orchestration.OrchestrationModePlanExecute,
+			want: orchestrationmode.PlanExecute,
 		},
 	}
 
