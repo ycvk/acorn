@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 
+	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
+
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/decision"
 	"github.com/ycvk/acorn/internal/memorymodule"
@@ -875,10 +877,10 @@ func providerStartupReason(status string) string {
 
 type DecisionService struct {
 	profiles *decision.ProfileService
-	store    decisionStore
+	store    *storesqlite.Store
 }
 
-func NewDecisionService(profiles *decision.ProfileService, store decisionStore) *DecisionService {
+func NewDecisionService(profiles *decision.ProfileService, store *storesqlite.Store) *DecisionService {
 	return &DecisionService{profiles: profiles, store: store}
 }
 

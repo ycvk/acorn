@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
+
 	"github.com/ycvk/acorn/internal/artifacts"
 	"github.com/ycvk/acorn/internal/decision"
 	"github.com/ycvk/acorn/internal/events"
@@ -86,7 +88,7 @@ func (s *ResumeService) Resume(ctx context.Context, runID string, sink runtime.S
 }
 
 type TraceService struct {
-	store traceStore
+	store *storesqlite.Store
 }
 
 type ResumeStatus struct {
@@ -97,7 +99,7 @@ type ResumeStatus struct {
 	Reason       string           `json:"reason,omitempty"`
 }
 
-func NewTraceService(store traceStore) *TraceService {
+func NewTraceService(store *storesqlite.Store) *TraceService {
 	return &TraceService{store: store}
 }
 
