@@ -11,8 +11,6 @@ import (
 	"time"
 	"unicode/utf8"
 
-	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
-
 	"github.com/cloudwego/eino/adk"
 	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/config"
@@ -25,10 +23,10 @@ import (
 )
 
 type SessionService struct {
-	store *storesqlite.Store
+	store sessionStore
 }
 
-func NewSessionService(store *storesqlite.Store) *SessionService {
+func NewSessionService(store sessionStore) *SessionService {
 	return &SessionService{store: store}
 }
 
@@ -68,11 +66,11 @@ type SessionDetail struct {
 
 type SessionStateService struct {
 	cfg   *config.Config
-	store *storesqlite.Store
+	store sessionStateStore
 	trace *TraceService
 }
 
-func NewSessionStateService(cfg *config.Config, store *storesqlite.Store, trace *TraceService) *SessionStateService {
+func NewSessionStateService(cfg *config.Config, store sessionStateStore, trace *TraceService) *SessionStateService {
 	return &SessionStateService{
 		cfg:   cfg,
 		store: store,
@@ -107,7 +105,7 @@ func (s *SessionStateService) LoadSession(ctx context.Context, sessionID string)
 	return &detail, nil
 }
 
-func buildSessionDetail(session events.SessionRecord, latestRun *events.RunRecord, ctx context.Context, store *storesqlite.Store, traceSvc *TraceService) (SessionDetail, error) {
+func buildSessionDetail(session events.SessionRecord, latestRun *events.RunRecord, ctx context.Context, store sessionStateStore, traceSvc *TraceService) (SessionDetail, error) {
 	detail := SessionDetail{
 		Session: session,
 	}
@@ -259,7 +257,7 @@ var (
 // It deliberately stays separate from ChatService because /v1 splits message
 // creation, run creation, and event replay into distinct HTTP calls.
 type ClientService struct {
-	store         *storesqlite.Store
+	store         clientStore
 	newExecutor   func(context.Context) (executorHandle, error)
 	workspaceRoot string
 	eventPoll     time.Duration
@@ -267,7 +265,7 @@ type ClientService struct {
 	newRunID      func() string
 }
 
-func BuildClientService(store *storesqlite.Store, newExecutor func(context.Context) (executorHandle, error), workspaceRoot string) *ClientService {
+func BuildClientService(store clientStore, newExecutor func(context.Context) (executorHandle, error), workspaceRoot string) *ClientService {
 	return &ClientService{
 		store:         store,
 		newExecutor:   newExecutor,

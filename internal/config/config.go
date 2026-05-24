@@ -38,10 +38,10 @@ type ContextConfig struct {
 }
 
 type ContextPolicy struct {
-	WindowTokens        int
-	CompactMarginTokens int
-	PreserveRecentTurns int
-	SummaryMaxTokens    int
+	WindowTokens         int
+	CompactMarginTokens  int
+	PreserveRecentTurns  int
+	SummaryMaxTokens     int
 	ReservedOutputTokens int
 	TokenEncoding        string
 	HandoffFrameDisabled bool

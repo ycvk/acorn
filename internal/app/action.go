@@ -14,8 +14,6 @@ import (
 	"strings"
 	"time"
 
-	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
-
 	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/notifications"
 	"github.com/ycvk/acorn/internal/store"
@@ -24,10 +22,10 @@ import (
 var ErrPendingActionDecisionInvalid = errors.New("pending action decision invalid")
 
 type PendingActionService struct {
-	store *storesqlite.Store
+	store pendingActionDecisionStore
 }
 
-func NewPendingActionService(store *storesqlite.Store) *PendingActionService {
+func NewPendingActionService(store pendingActionDecisionStore) *PendingActionService {
 	return &PendingActionService{store: store}
 }
 
@@ -266,7 +264,7 @@ const (
 )
 
 type InboxService struct {
-	store        *storesqlite.Store
+	store        inboxStore
 	capabilities inboxCapabilityService
 }
 
@@ -313,7 +311,7 @@ type PendingActionOption struct {
 	Description string
 }
 
-func NewInboxService(store *storesqlite.Store, capabilities inboxCapabilityService) *InboxService {
+func NewInboxService(store inboxStore, capabilities inboxCapabilityService) *InboxService {
 	return &InboxService{store: store, capabilities: capabilities}
 }
 
@@ -650,16 +648,6 @@ type DevicePushTokenView struct {
 	UpdatedAt time.Time
 }
 
-type notificationStore interface {
-	UpsertDevicePushToken(ctx context.Context, token *store.DevicePushToken) (*store.DevicePushToken, error)
-	LoadDevicePushToken(ctx context.Context, deviceID, provider string) (*store.DevicePushToken, error)
-	RevokeDevicePushToken(ctx context.Context, deviceID, provider string, revokedAt time.Time) error
-	ListActiveDevicePushTokens(ctx context.Context) ([]store.DevicePushToken, error)
-	CreateNotification(ctx context.Context, notification *store.Notification) error
-	CreateNotificationDelivery(ctx context.Context, delivery *store.NotificationDelivery) error
-	UpdateNotificationDeliveryStatus(ctx context.Context, deliveryID, status, errorText string, updatedAt time.Time) error
-}
-
 type NotificationService struct {
 	store      notificationStore
 	dispatcher PushDispatcher
@@ -914,12 +902,12 @@ type DeviceView struct {
 }
 
 type DeviceAuthService struct {
-	store *storesqlite.Store
+	store deviceAuthStore
 	now   func() time.Time
 	rand  io.Reader
 }
 
-func NewDeviceAuthService(store *storesqlite.Store) *DeviceAuthService {
+func NewDeviceAuthService(store deviceAuthStore) *DeviceAuthService {
 	return &DeviceAuthService{
 		store: store,
 		now:   func() time.Time { return time.Now().UTC() },
