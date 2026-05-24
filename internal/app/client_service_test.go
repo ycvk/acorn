@@ -895,6 +895,67 @@ func TestClientCreateRunReturnsExecutionNotReady(t *testing.T) {
 	}
 }
 
+func TestClientCreateRunReportsPostStartPersistenceFailure(t *testing.T) {
+	ctx := context.Background()
+	db, err := storesqlite.Open(filepath.Join(t.TempDir(), "state"))
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	closed := false
+	t.Cleanup(func() {
+		if !closed {
+			_ = db.Close()
+		}
+	})
+
+	exec := &postStartFailingExecutor{
+		store:   db,
+		release: make(chan struct{}),
+	}
+	service := BuildClientService(db, func(context.Context) (executorHandle, error) {
+		return exec, nil
+	}, "/repo")
+	service.newThreadID = func() string { return "thread_post_start_failure" }
+	service.newRunID = func() string { return "run_post_start_failure" }
+	reported := make(chan error, 1)
+	service.reportError = func(_ context.Context, runID string, err error) {
+		if runID != "run_post_start_failure" {
+			t.Errorf("reported run id = %q", runID)
+		}
+		reported <- err
+	}
+
+	thread, err := service.CreateThread(ctx, "post-start failure")
+	if err != nil {
+		t.Fatalf("CreateThread: %v", err)
+	}
+	if _, err := service.CreateMessage(ctx, thread.ID, "hello"); err != nil {
+		t.Fatalf("CreateMessage: %v", err)
+	}
+	run, err := service.CreateRun(ctx, thread.ID, "", "")
+	if err != nil {
+		t.Fatalf("CreateRun: %v", err)
+	}
+	if run.ID != "run_post_start_failure" || run.Status != "running" {
+		t.Fatalf("created run = %#v", run)
+	}
+
+	if err := db.Close(); err != nil {
+		t.Fatalf("close store: %v", err)
+	}
+	closed = true
+	close(exec.release)
+
+	select {
+	case err := <-reported:
+		if err == nil || !strings.Contains(err.Error(), "record started client run failure") {
+			t.Fatalf("reported error = %v, want persistence failure", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for background failure report")
+	}
+}
+
 func TestClientCreateRunRejectsInvalidModes(t *testing.T) {
 	tests := []struct {
 		name string
@@ -936,6 +997,48 @@ func TestClientCreateRunRejectsInvalidModes(t *testing.T) {
 			}
 		})
 	}
+}
+
+type postStartFailingExecutor struct {
+	store   *storesqlite.Store
+	release chan struct{}
+}
+
+func (e *postStartFailingExecutor) Run(context.Context, string, string, runtime.StreamSink) (*runtime.Result, error) {
+	return nil, errors.New("unexpected Run call")
+}
+
+func (e *postStartFailingExecutor) ExecuteMessages(ctx context.Context, req runtime.ExecuteRequest, sink runtime.StreamSink) (*runtime.Result, error) {
+	mode := req.OrchestrationMode
+	if strings.TrimSpace(string(mode)) == "" {
+		mode = events.ModeDirectResponse
+	}
+	if err := e.store.CreateBoundRunWithParams(ctx, storecore.RunCreateParams{
+		RunID:             req.RunID,
+		SessionID:         req.SessionID,
+		TurnIndex:         req.TurnIndex,
+		Input:             req.Input,
+		OrchestrationMode: mode,
+	}); err != nil {
+		return nil, err
+	}
+	if _, err := e.store.AppendEventContext(ctx, req.RunID, "run.started", map[string]any{"input": req.Input}); err != nil {
+		return nil, err
+	}
+	if err := sink(runtime.StreamItem{
+		RunID:     req.RunID,
+		Kind:      runtime.StreamKindRunStarted,
+		CreatedAt: time.Now().UTC(),
+		Payload:   runtime.RunStartedPayload{Input: req.Input},
+	}); err != nil {
+		return nil, err
+	}
+	<-e.release
+	return nil, errors.New("executor failed after start")
+}
+
+func (e *postStartFailingExecutor) ResumeWithTargets(context.Context, string, map[string]any, runtime.StreamSink) (*runtime.Result, error) {
+	return nil, errors.New("unexpected ResumeWithTargets call")
 }
 
 func newClientOpenAITestServer(t *testing.T, answer string) *httptest.Server {

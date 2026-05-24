@@ -30,7 +30,7 @@ func (f *RunnerFactory) buildToolset(
 	childExec orchestration.ChildAgentExecutor,
 	includePlanning bool,
 	profile tooling.ToolProfile,
-) (*Toolset, error) {
+) (toolset *Toolset, err error) {
 	if f == nil || f.deps.Config == nil {
 		return nil, errors.New("runner factory is not initialized")
 	}
@@ -43,6 +43,15 @@ func (f *RunnerFactory) buildToolset(
 	if f.deps.TerminalService == nil {
 		return nil, errors.New("terminal session service is not initialized")
 	}
+	var closers []toolsetCloser
+	defer func() {
+		if err == nil {
+			return
+		}
+		if closeErr := closeToolsetClosers(closers); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("close toolset after build failure: %w", closeErr))
+		}
+	}()
 
 	webFetchService, err := webaccess.NewFetchService(webaccess.FetchConfig{
 		UserAgent:        f.deps.Config.WebAccess.UserAgent,
@@ -79,6 +88,7 @@ func (f *RunnerFactory) buildToolset(
 	if err != nil {
 		return nil, fmt.Errorf("browser service: %w", err)
 	}
+	closers = append(closers, browserService)
 
 	var operatorStore tools.OperatorQuestionStore
 	if f.deps.MCPPendingActions != nil {
@@ -180,7 +190,7 @@ func (f *RunnerFactory) buildToolset(
 	if err != nil {
 		return nil, fmt.Errorf("build toolset catalog: %w", err)
 	}
-	return &Toolset{catalog: catalog, profile: profile, closers: []toolsetCloser{browserService}}, nil
+	return &Toolset{catalog: catalog, profile: profile, closers: closers}, nil
 }
 
 const capabilityDiscoveryInstruction = `Capability discovery rules:

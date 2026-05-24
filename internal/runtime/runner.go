@@ -54,7 +54,7 @@ func (f *RunnerFactory) New(ctx context.Context, req RunnerBuildRequest) (*Activ
 	return f.ensureRunBuilder().Build(ctx, req)
 }
 
-func (f *RunnerFactory) BuildCapabilityCatalog(ctx context.Context) (*tooling.Catalog, error) {
+func (f *RunnerFactory) BuildCapabilitySpecs(ctx context.Context) ([]tooling.ToolSpec, error) {
 	if f == nil || f.deps.Config == nil {
 		return nil, errors.New("runner factory is not initialized")
 	}
@@ -63,7 +63,14 @@ func (f *RunnerFactory) BuildCapabilityCatalog(ctx context.Context) (*tooling.Ca
 	if err != nil {
 		return nil, err
 	}
-	return toolset.Catalog(), nil
+	specs := toolset.Catalog().Specs()
+	for i := range specs {
+		specs[i].Tool = nil
+	}
+	if err := toolset.Close(); err != nil {
+		return nil, fmt.Errorf("close capability toolset: %w", err)
+	}
+	return specs, nil
 }
 
 func (f *RunnerFactory) newChildAgentExecutor() *SubagentExecutor {

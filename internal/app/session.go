@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -262,6 +263,7 @@ type ClientService struct {
 	eventPoll     time.Duration
 	newThreadID   func() string
 	newRunID      func() string
+	reportError   func(context.Context, string, error)
 }
 
 func BuildClientService(store clientStore, newExecutor func(context.Context) (executorHandle, error), workspaceRoot string) *ClientService {
@@ -272,6 +274,7 @@ func BuildClientService(store clientStore, newExecutor func(context.Context) (ex
 		eventPoll:     100 * time.Millisecond,
 		newThreadID:   newThreadID,
 		newRunID:      newRunID,
+		reportError:   reportClientBackgroundError,
 	}
 }
 
@@ -447,7 +450,7 @@ func (s *ClientService) executeRun(ctx context.Context, exec executorHandle, req
 			return
 		}
 		if persistErr := s.recordStartedRunFailure(ctx, req.RunID, err); persistErr != nil {
-			panic(persistErr)
+			s.reportBackgroundRunFailure(ctx, req.RunID, err, persistErr)
 		}
 		return
 	}
@@ -457,10 +460,26 @@ func (s *ClientService) executeRun(ctx context.Context, exec executorHandle, req
 			return
 		}
 		if persistErr := s.recordStartedRunFailure(ctx, req.RunID, err); persistErr != nil {
-			panic(persistErr)
+			s.reportBackgroundRunFailure(ctx, req.RunID, err, persistErr)
 		}
 		return
 	}
+}
+
+func (s *ClientService) reportBackgroundRunFailure(ctx context.Context, runID string, cause, persistErr error) {
+	err := errors.Join(
+		fmt.Errorf("client executor failed after run start: %w", cause),
+		fmt.Errorf("record started client run failure: %w", persistErr),
+	)
+	report := reportClientBackgroundError
+	if s != nil && s.reportError != nil {
+		report = s.reportError
+	}
+	report(ctx, runID, err)
+}
+
+func reportClientBackgroundError(ctx context.Context, runID string, err error) {
+	slog.Default().ErrorContext(ctx, "client background run failure was not persisted", "run_id", runID, "error", err)
 }
 
 func (s *ClientService) recordStartedRunFailure(ctx context.Context, runID string, cause error) error {

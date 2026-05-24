@@ -58,15 +58,12 @@ orchestration → contextplane (正常)
 1. **在 `internal/events` 中定义新类型**：
    ```go
    package events
-   
    type OrchestrationMode string
-   
    const (
        ModeDirectResponse OrchestrationMode = "direct_response"
        ModePlanExecute    OrchestrationMode = "plan_execute"
        ModeSingleAgent    OrchestrationMode = "single_agent"
    )
-   
    func (m OrchestrationMode) Normalize() OrchestrationMode { ... }
    ```
 
