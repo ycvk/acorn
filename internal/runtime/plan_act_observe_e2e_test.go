@@ -69,7 +69,7 @@ func TestPlanActObserveE2E(t *testing.T) {
 		t.Fatalf("step count = %d, want 2", len(plan.Steps))
 	}
 	for _, step := range plan.Steps {
-		if step.Status != string(PlanStepCompleted) {
+		if string(step.Status) != string(PlanStepCompleted) {
 			t.Fatalf("step %s status = %q, want completed", step.ID, step.Status)
 		}
 		if len(step.Evidence) != 1 {
@@ -194,7 +194,7 @@ func TestPlanActObserveE2EReplanConsumesOneAdditionalIteration(t *testing.T) {
 	if len(plan.Steps) != 1 || plan.Steps[0].Action != "Try corrected path" {
 		t.Fatalf("regenerated plan = %+v", plan.Steps)
 	}
-	if plan.Steps[0].Status != string(PlanStepCompleted) {
+	if string(plan.Steps[0].Status) != string(PlanStepCompleted) {
 		t.Fatalf("regenerated step status = %q, want completed", plan.Steps[0].Status)
 	}
 }

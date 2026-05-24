@@ -12,7 +12,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/ycvk/acorn/internal/events"
-	storecore "github.com/ycvk/acorn/internal/store"
+	"github.com/ycvk/acorn/internal/store"
 )
 
 const defaultElicitationTimeout = 30 * time.Second
@@ -27,7 +27,7 @@ const (
 
 // PendingActionStore is the pending-action persistence port required by MCP elicitation.
 type PendingActionStore interface {
-	CreatePendingAction(ctx context.Context, input storecore.CreatePendingActionInput) (*events.PendingActionRecord, error)
+	CreatePendingAction(ctx context.Context, input store.CreatePendingActionInput) (*events.PendingActionRecord, error)
 	LoadPendingAction(ctx context.Context, actionID string) (*events.PendingActionRecord, error)
 	DecidePendingAction(ctx context.Context, actionID string, status events.PendingActionStatus, mode events.PendingActionDecisionMode, decisionJSON string) (*events.PendingActionRecord, error)
 	SyncDecisionMessageForPendingAction(ctx context.Context, actionID string) error
@@ -93,7 +93,7 @@ func (h *ElicitationHandler) HandleElicitation(ctx context.Context, req *mcp.Eli
 		return nil, fmt.Errorf("marshal elicitation params: %w", err)
 	}
 
-	record, err := h.store.CreatePendingAction(ctx, storecore.CreatePendingActionInput{
+	record, err := h.store.CreatePendingAction(ctx, store.CreatePendingActionInput{
 		ActionID:    actionID,
 		RunID:       runID,
 		Kind:        events.PendingActionKindElicitation,

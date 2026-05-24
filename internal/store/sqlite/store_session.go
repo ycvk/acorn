@@ -12,6 +12,7 @@ import (
 
 	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/runtimehistory"
+	"github.com/ycvk/acorn/internal/store"
 )
 
 type SessionMessagePart struct {
@@ -81,7 +82,7 @@ func (s *Store) LoadSession(ctx context.Context, sessionID string) (*events.Sess
 	)
 	if err := row.Scan(&rec.SessionID, &rec.Title, &created, &updated); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("%w: %s", ErrSessionNotFound, sessionID)
+			return nil, fmt.Errorf("%w: %s", store.ErrSessionNotFound, sessionID)
 		}
 		return nil, fmt.Errorf("load session: %w", err)
 	}
@@ -191,7 +192,7 @@ func (s *Store) UpdateSessionTitle(ctx context.Context, sessionID, title string)
 		return fmt.Errorf("update session title rows affected: %w", err)
 	}
 	if affected == 0 {
-		return fmt.Errorf("%w: %s", ErrSessionNotFound, sessionID)
+		return fmt.Errorf("%w: %s", store.ErrSessionNotFound, sessionID)
 	}
 	return nil
 }
@@ -336,7 +337,7 @@ func (s *Store) UpdateSessionMessageWithParts(ctx context.Context, id int64, con
 		return fmt.Errorf("update session message rows affected: %w", err)
 	}
 	if affected == 0 {
-		return fmt.Errorf("%w: %d", ErrSessionMessageNotFound, id)
+		return fmt.Errorf("%w: %d", store.ErrSessionMessageNotFound, id)
 	}
 	return nil
 }
@@ -412,7 +413,7 @@ func (s *Store) LoadLatestUnboundUserMessage(ctx context.Context, sessionID stri
 	)
 	if err := row.Scan(&rec.ID, &rec.SessionID, &rec.TurnIndex, &rec.Role, &rec.Content, &contentParts, &rec.RunID, &created); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("%w: latest unbound user message for %s", ErrSessionMessageNotFound, sessionID)
+			return nil, fmt.Errorf("%w: latest unbound user message for %s", store.ErrSessionMessageNotFound, sessionID)
 		}
 		return nil, fmt.Errorf("load latest unbound user message: %w", err)
 	}
@@ -573,7 +574,7 @@ func (s *Store) buildSessionMessageResultSummary(ctx context.Context, runID stri
 	}
 
 	plan, err := s.LoadPlanByRun(ctx, runID)
-	if err != nil && !errors.Is(err, ErrPlanNotFound) {
+	if err != nil && !errors.Is(err, store.ErrPlanNotFound) {
 		return sessionMessageResultSummary{}, fmt.Errorf("build session result summary: load plan: %w", err)
 	}
 	if plan != nil {
@@ -639,7 +640,7 @@ func (b *sessionMessageResultSummaryBuilder) addEvents(records []events.EventRec
 	return nil
 }
 
-func (b *sessionMessageResultSummaryBuilder) addPlan(plan *PlanRecord) {
+func (b *sessionMessageResultSummaryBuilder) addPlan(plan *store.PlanRecord) {
 	for _, step := range plan.Steps {
 		for _, item := range step.Evidence {
 			status := strings.TrimSpace(item.Status)
@@ -841,7 +842,7 @@ func sessionSummaryEventRisk(kind string, payload map[string]any) string {
 	return kind
 }
 
-func sessionSummaryPlanRisk(item PlanEvidence) string {
+func sessionSummaryPlanRisk(item store.PlanEvidence) string {
 	if errText := compactContinuationText(item.Error, 180); errText != "" {
 		if summary := strings.TrimSpace(item.Summary); summary != "" {
 			return fmt.Sprintf("%s: %s", summary, errText)

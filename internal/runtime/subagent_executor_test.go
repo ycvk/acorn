@@ -14,7 +14,7 @@ import (
 	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/orchestration"
 	"github.com/ycvk/acorn/internal/orchestrationmode"
-	storecore "github.com/ycvk/acorn/internal/store"
+	"github.com/ycvk/acorn/internal/store"
 	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
 )
 
@@ -531,14 +531,14 @@ func TestEvaluateDelegationAcceptanceFailsOnChildPlanFailure(t *testing.T) {
 func TestDelegationEvidenceSummaries(t *testing.T) {
 	t.Parallel()
 
-	plan := &storecore.PlanRecord{
+	plan := &store.PlanRecord{
 		PlanID:    "plan_1",
 		SessionID: "sess_1",
 		RunID:     "run_1",
-		Steps: []storecore.PlanStep{
+		Steps: []store.PlanStep{
 			{
 				ID: "s1",
-				Evidence: []storecore.PlanEvidence{
+				Evidence: []store.PlanEvidence{
 					{Summary: "go test ./internal/auth passed"},
 					{Summary: "go test ./internal/auth passed"},
 					{Summary: "updated internal/auth/handler_test.go"},
@@ -558,9 +558,9 @@ func TestDelegationEvidenceSummaries(t *testing.T) {
 func TestDelegationEvidenceRefsUseChildPlanEvidence(t *testing.T) {
 	t.Parallel()
 
-	record := &storecore.PlanRecord{
-		Steps: []storecore.PlanStep{{
-			Evidence: []storecore.PlanEvidence{
+	record := &store.PlanRecord{
+		Steps: []store.PlanStep{{
+			Evidence: []store.PlanEvidence{
 				{
 					ID:            "ev_1",
 					ToolResultRef: "tool_result:run_child:call_1",

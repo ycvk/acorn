@@ -10,7 +10,7 @@ import (
 	einomodel "github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/runtime/graph"
-	storecore "github.com/ycvk/acorn/internal/store"
+	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/toolresult"
 )
 
@@ -57,7 +57,7 @@ func (s *fakePlanStore) LoadPlan(_ context.Context, _ string) (*Plan, error) {
 		return nil, s.loadErr
 	}
 	if s.loaded == nil {
-		return nil, storecore.ErrPlanNotFound
+		return nil, store.ErrPlanNotFound
 	}
 	return s.loaded, nil
 }

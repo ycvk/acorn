@@ -12,13 +12,14 @@ import (
 	"testing"
 	"time"
 
+	storecore "github.com/ycvk/acorn/internal/store"
+
 	"github.com/meguminnnnnnnnn/go-openai"
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/memorymodule"
 	"github.com/ycvk/acorn/internal/orchestrationmode"
 	"github.com/ycvk/acorn/internal/runtime"
-	storecore "github.com/ycvk/acorn/internal/store"
 	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
 )
 

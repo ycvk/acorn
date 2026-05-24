@@ -16,7 +16,7 @@ import (
 
 	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/notifications"
-	storecore "github.com/ycvk/acorn/internal/store"
+	"github.com/ycvk/acorn/internal/store"
 )
 
 var ErrPendingActionDecisionInvalid = errors.New("pending action decision invalid")
@@ -78,7 +78,7 @@ func (s *PendingActionService) Get(ctx context.Context, actionID string) (*Pendi
 		return nil, err
 	}
 	if record.Status != events.PendingActionStatusPending {
-		return nil, fmt.Errorf("%w: status %q", storecore.ErrPendingActionDecided, record.Status)
+		return nil, fmt.Errorf("%w: status %q", store.ErrPendingActionDecided, record.Status)
 	}
 	run, err := s.store.LoadRun(ctx, record.RunID)
 	if err != nil {
@@ -695,7 +695,7 @@ func (s *NotificationService) RegisterDevicePushToken(ctx context.Context, auth 
 	if err != nil {
 		return nil, err
 	}
-	record, err := s.store.UpsertDevicePushToken(ctx, &storecore.DevicePushToken{
+	record, err := s.store.UpsertDevicePushToken(ctx, &store.DevicePushToken{
 		PushTokenID: pushTokenID,
 		DeviceID:    deviceID,
 		Provider:    provider,
@@ -748,7 +748,7 @@ func (s *NotificationService) NotifyPendingAction(ctx context.Context, action ev
 	if err != nil {
 		return err
 	}
-	notification := &storecore.Notification{
+	notification := &store.Notification{
 		NotificationID: notificationID,
 		Kind:           notifications.KindPendingAction,
 		RunID:          action.RunID,
@@ -770,13 +770,13 @@ func (s *NotificationService) NotifyPendingAction(ctx context.Context, action ev
 	return nil
 }
 
-func (s *NotificationService) createAndDispatchDelivery(ctx context.Context, notification storecore.Notification, token storecore.DevicePushToken) error {
+func (s *NotificationService) createAndDispatchDelivery(ctx context.Context, notification store.Notification, token store.DevicePushToken) error {
 	now := s.now()
 	deliveryID, err := generatePrefixedID(s.rand, "delivery", 16)
 	if err != nil {
 		return err
 	}
-	delivery := &storecore.NotificationDelivery{
+	delivery := &store.NotificationDelivery{
 		DeliveryID:     deliveryID,
 		NotificationID: notification.NotificationID,
 		DeviceID:       token.DeviceID,
@@ -818,7 +818,7 @@ func (s *NotificationService) createAndDispatchDelivery(ctx context.Context, not
 	return nil
 }
 
-func devicePushTokenView(record storecore.DevicePushToken) DevicePushTokenView {
+func devicePushTokenView(record store.DevicePushToken) DevicePushTokenView {
 	return DevicePushTokenView{
 		DeviceID:  record.DeviceID,
 		Provider:  record.Provider,
@@ -839,7 +839,7 @@ type PendingActionCreateStore interface {
 	DecidePendingAction(ctx context.Context, actionID string, status events.PendingActionStatus, mode events.PendingActionDecisionMode, decisionJSON string) (*events.PendingActionRecord, error)
 	SyncDecisionMessageForPendingAction(ctx context.Context, actionID string) error
 	AppendEventContext(ctx context.Context, runID, kind string, payload any) (events.EventRecord, error)
-	CreatePendingAction(context.Context, storecore.CreatePendingActionInput) (*events.PendingActionRecord, error)
+	CreatePendingAction(context.Context, store.CreatePendingActionInput) (*events.PendingActionRecord, error)
 }
 
 func NewNotifyingPendingActionStore(store PendingActionCreateStore, notifications *NotificationService) PendingActionCreateStore {
@@ -852,7 +852,7 @@ func NewNotifyingPendingActionStore(store PendingActionCreateStore, notification
 	}
 }
 
-func (s *notifyingPendingActionStore) CreatePendingAction(ctx context.Context, input storecore.CreatePendingActionInput) (*events.PendingActionRecord, error) {
+func (s *notifyingPendingActionStore) CreatePendingAction(ctx context.Context, input store.CreatePendingActionInput) (*events.PendingActionRecord, error) {
 	record, err := s.PendingActionCreateStore.CreatePendingAction(ctx, input)
 	if err != nil {
 		return nil, err
@@ -927,7 +927,7 @@ func (s *DeviceAuthService) CreatePairingCode(ctx context.Context, ttl time.Dura
 		return nil, err
 	}
 	now := s.now()
-	record := &storecore.PairingCode{
+	record := &store.PairingCode{
 		CodeHash:  hashSecret(normalizePairingCode(code)),
 		ExpiresAt: now.Add(ttl),
 		CreatedAt: now,
@@ -956,7 +956,7 @@ func (s *DeviceAuthService) PairDevice(ctx context.Context, input PairDeviceInpu
 	}
 	now := s.now()
 	if _, err := s.store.ConsumePairingCode(ctx, hashSecret(code), now); err != nil {
-		if errors.Is(err, storecore.ErrPairingCodeNotFound) || errors.Is(err, storecore.ErrPairingCodeUsed) || errors.Is(err, storecore.ErrPairingCodeExpired) {
+		if errors.Is(err, store.ErrPairingCodeNotFound) || errors.Is(err, store.ErrPairingCodeUsed) || errors.Is(err, store.ErrPairingCodeExpired) {
 			return nil, ErrInvalidPairingCode
 		}
 		return nil, err
@@ -969,7 +969,7 @@ func (s *DeviceAuthService) PairDevice(ctx context.Context, input PairDeviceInpu
 	if err != nil {
 		return nil, err
 	}
-	device := &storecore.Device{
+	device := &store.Device{
 		DeviceID:   deviceID,
 		Name:       name,
 		Platform:   platform,
@@ -996,7 +996,7 @@ func (s *DeviceAuthService) Authenticate(ctx context.Context, rawToken string) (
 	}
 	device, err := s.store.LoadDeviceByTokenHash(ctx, hashSecret(token))
 	if err != nil {
-		if errors.Is(err, storecore.ErrDeviceNotFound) {
+		if errors.Is(err, store.ErrDeviceNotFound) {
 			return nil, ErrUnauthenticated
 		}
 		return nil, err
@@ -1036,7 +1036,7 @@ func (s *DeviceAuthService) RevokeDevice(ctx context.Context, deviceID string) e
 		return ErrDeviceNotFound
 	}
 	if err := s.store.RevokeDevice(ctx, trimmed, s.now()); err != nil {
-		if errors.Is(err, storecore.ErrDeviceNotFound) {
+		if errors.Is(err, store.ErrDeviceNotFound) {
 			return ErrDeviceNotFound
 		}
 		return err
@@ -1044,7 +1044,7 @@ func (s *DeviceAuthService) RevokeDevice(ctx context.Context, deviceID string) e
 	return nil
 }
 
-func deviceViewFromRecord(record storecore.Device) DeviceView {
+func deviceViewFromRecord(record store.Device) DeviceView {
 	return DeviceView{
 		DeviceID:   record.DeviceID,
 		Name:       record.Name,

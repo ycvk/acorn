@@ -10,15 +10,14 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/auth"
 	"github.com/modelcontextprotocol/go-sdk/oauthex"
+	"github.com/ycvk/acorn/internal/store"
 	"golang.org/x/oauth2"
-
-	storecore "github.com/ycvk/acorn/internal/store"
 )
 
 // TokenStore is the token persistence port required by the MCP OAuth flow.
 type TokenStore interface {
-	GetOAuthToken(ctx context.Context, providerName string) (*storecore.OAuthToken, error)
-	SaveOAuthToken(ctx context.Context, token *storecore.OAuthToken) error
+	GetOAuthToken(ctx context.Context, providerName string) (*store.OAuthToken, error)
+	SaveOAuthToken(ctx context.Context, token *store.OAuthToken) error
 }
 
 // persistentOAuthHandler implements auth.OAuthHandler by persisting tokens
@@ -91,7 +90,7 @@ func newPersistentOAuthHandler(store TokenStore, providerName, serverURL, client
 func (h *persistentOAuthHandler) TokenSource(ctx context.Context) (oauth2.TokenSource, error) {
 	token, err := h.store.GetOAuthToken(ctx, h.providerName)
 	if err != nil {
-		if errors.Is(err, storecore.ErrOAuthTokenNotFound) {
+		if errors.Is(err, store.ErrOAuthTokenNotFound) {
 			// No token yet — transport will trigger Authorize on 401
 			return nil, nil
 		}
@@ -137,7 +136,7 @@ func (h *persistentOAuthHandler) Authorize(ctx context.Context, req *http.Reques
 		return fmt.Errorf("get token after authorization for provider %q: %w", h.providerName, err)
 	}
 
-	saveErr := h.store.SaveOAuthToken(ctx, &storecore.OAuthToken{
+	saveErr := h.store.SaveOAuthToken(ctx, &store.OAuthToken{
 		ProviderName: h.providerName,
 		AccessToken:  tok.AccessToken,
 		RefreshToken: tok.RefreshToken,
@@ -188,7 +187,7 @@ func (r *refreshTokenSource) Token() (*oauth2.Token, error) {
 		}
 		return nil, err
 	}
-	if err := r.store.SaveOAuthToken(context.Background(), &storecore.OAuthToken{
+	if err := r.store.SaveOAuthToken(context.Background(), &store.OAuthToken{
 		ProviderName: r.providerName,
 		AccessToken:  tok.AccessToken,
 		RefreshToken: tok.RefreshToken,

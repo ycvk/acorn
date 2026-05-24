@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	storecore "github.com/ycvk/acorn/internal/store"
+
 	"github.com/cloudwego/eino/adk"
 	einomodel "github.com/cloudwego/eino/components/model"
 	einotool "github.com/cloudwego/eino/components/tool"
@@ -20,7 +22,6 @@ import (
 	"github.com/ycvk/acorn/internal/orchestration"
 	"github.com/ycvk/acorn/internal/orchestrationmode"
 	"github.com/ycvk/acorn/internal/runtimehistory"
-	storecore "github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/tooling"
 )
 

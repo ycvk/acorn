@@ -8,7 +8,7 @@ import (
 
 	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/notifications"
-	storecore "github.com/ycvk/acorn/internal/store"
+	"github.com/ycvk/acorn/internal/store"
 )
 
 func TestNotificationServiceRegisterDevicePushTokenForCurrentDevice(t *testing.T) {
@@ -52,7 +52,7 @@ func TestNotificationServiceRejectsOtherDevicePushToken(t *testing.T) {
 
 func TestNotificationServiceNotifyPendingActionRecordsNotConfiguredDelivery(t *testing.T) {
 	store := &fakeNotificationStore{
-		activeTokens: []storecore.DevicePushToken{{
+		activeTokens: []store.DevicePushToken{{
 			PushTokenID: "push_1",
 			DeviceID:    "device_1",
 			Provider:    "apns",
@@ -82,7 +82,7 @@ func TestNotificationServiceNotifyPendingActionRecordsNotConfiguredDelivery(t *t
 
 func TestNotificationServiceDispatchesLightweightWakePayload(t *testing.T) {
 	store := &fakeNotificationStore{
-		activeTokens: []storecore.DevicePushToken{{
+		activeTokens: []store.DevicePushToken{{
 			PushTokenID: "push_1",
 			DeviceID:    "device_1",
 			Provider:    "apns",
@@ -116,18 +116,18 @@ func TestNotificationServiceDispatchesLightweightWakePayload(t *testing.T) {
 }
 
 type fakeNotificationStore struct {
-	pushToken    storecore.DevicePushToken
-	activeTokens []storecore.DevicePushToken
-	notification storecore.Notification
-	deliveries   []storecore.NotificationDelivery
+	pushToken    store.DevicePushToken
+	activeTokens []store.DevicePushToken
+	notification store.Notification
+	deliveries   []store.NotificationDelivery
 }
 
-func (s *fakeNotificationStore) UpsertDevicePushToken(_ context.Context, token *storecore.DevicePushToken) (*storecore.DevicePushToken, error) {
+func (s *fakeNotificationStore) UpsertDevicePushToken(_ context.Context, token *store.DevicePushToken) (*store.DevicePushToken, error) {
 	s.pushToken = *token
 	return &s.pushToken, nil
 }
 
-func (s *fakeNotificationStore) LoadDevicePushToken(context.Context, string, string) (*storecore.DevicePushToken, error) {
+func (s *fakeNotificationStore) LoadDevicePushToken(context.Context, string, string) (*store.DevicePushToken, error) {
 	return &s.pushToken, nil
 }
 
@@ -135,16 +135,16 @@ func (s *fakeNotificationStore) RevokeDevicePushToken(context.Context, string, s
 	return nil
 }
 
-func (s *fakeNotificationStore) ListActiveDevicePushTokens(context.Context) ([]storecore.DevicePushToken, error) {
-	return append([]storecore.DevicePushToken(nil), s.activeTokens...), nil
+func (s *fakeNotificationStore) ListActiveDevicePushTokens(context.Context) ([]store.DevicePushToken, error) {
+	return append([]store.DevicePushToken(nil), s.activeTokens...), nil
 }
 
-func (s *fakeNotificationStore) CreateNotification(_ context.Context, notification *storecore.Notification) error {
+func (s *fakeNotificationStore) CreateNotification(_ context.Context, notification *store.Notification) error {
 	s.notification = *notification
 	return nil
 }
 
-func (s *fakeNotificationStore) CreateNotificationDelivery(_ context.Context, delivery *storecore.NotificationDelivery) error {
+func (s *fakeNotificationStore) CreateNotificationDelivery(_ context.Context, delivery *store.NotificationDelivery) error {
 	s.deliveries = append(s.deliveries, *delivery)
 	return nil
 }
@@ -158,7 +158,7 @@ func (s *fakeNotificationStore) UpdateNotificationDeliveryStatus(_ context.Conte
 			return nil
 		}
 	}
-	return storecore.ErrNotificationNotFound
+	return store.ErrNotificationNotFound
 }
 
 type recordingPushDispatcher struct {

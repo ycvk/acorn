@@ -7,7 +7,7 @@ import (
 	"github.com/ycvk/acorn/internal/decision"
 	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/runtimehistory"
-	storecore "github.com/ycvk/acorn/internal/store"
+	"github.com/ycvk/acorn/internal/store"
 )
 
 type sessionStore interface {
@@ -71,21 +71,21 @@ type inboxStore interface {
 }
 
 type deviceAuthStore interface {
-	SavePairingCode(ctx context.Context, code *storecore.PairingCode) error
-	ConsumePairingCode(ctx context.Context, codeHash string, now time.Time) (*storecore.PairingCode, error)
-	SaveDevice(ctx context.Context, device *storecore.Device) error
-	LoadDeviceByTokenHash(ctx context.Context, tokenHash string) (*storecore.Device, error)
-	ListDevices(ctx context.Context) ([]storecore.Device, error)
+	SavePairingCode(ctx context.Context, code *store.PairingCode) error
+	ConsumePairingCode(ctx context.Context, codeHash string, now time.Time) (*store.PairingCode, error)
+	SaveDevice(ctx context.Context, device *store.Device) error
+	LoadDeviceByTokenHash(ctx context.Context, tokenHash string) (*store.Device, error)
+	ListDevices(ctx context.Context) ([]store.Device, error)
 	TouchDevice(ctx context.Context, deviceID string, seenAt time.Time) error
 	RevokeDevice(ctx context.Context, deviceID string, revokedAt time.Time) error
 }
 
 type notificationStore interface {
-	UpsertDevicePushToken(ctx context.Context, token *storecore.DevicePushToken) (*storecore.DevicePushToken, error)
-	LoadDevicePushToken(ctx context.Context, deviceID, provider string) (*storecore.DevicePushToken, error)
+	UpsertDevicePushToken(ctx context.Context, token *store.DevicePushToken) (*store.DevicePushToken, error)
+	LoadDevicePushToken(ctx context.Context, deviceID, provider string) (*store.DevicePushToken, error)
 	RevokeDevicePushToken(ctx context.Context, deviceID, provider string, revokedAt time.Time) error
-	ListActiveDevicePushTokens(ctx context.Context) ([]storecore.DevicePushToken, error)
-	CreateNotification(ctx context.Context, notification *storecore.Notification) error
-	CreateNotificationDelivery(ctx context.Context, delivery *storecore.NotificationDelivery) error
+	ListActiveDevicePushTokens(ctx context.Context) ([]store.DevicePushToken, error)
+	CreateNotification(ctx context.Context, notification *store.Notification) error
+	CreateNotificationDelivery(ctx context.Context, delivery *store.NotificationDelivery) error
 	UpdateNotificationDeliveryStatus(ctx context.Context, deliveryID, status, errorText string, updatedAt time.Time) error
 }

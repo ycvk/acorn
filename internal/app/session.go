@@ -19,7 +19,7 @@ import (
 	"github.com/ycvk/acorn/internal/orchestrationmode"
 	"github.com/ycvk/acorn/internal/runtime"
 	"github.com/ycvk/acorn/internal/runtimehistory"
-	storecore "github.com/ycvk/acorn/internal/store"
+	"github.com/ycvk/acorn/internal/store"
 )
 
 type SessionService struct {
@@ -389,7 +389,7 @@ func (s *ClientService) CreateRun(ctx context.Context, threadID, skillID, mode s
 	}
 	message, err := s.store.LoadLatestUnboundUserMessage(ctx, threadID)
 	if err != nil {
-		if errors.Is(err, storecore.ErrSessionMessageNotFound) {
+		if errors.Is(err, store.ErrSessionMessageNotFound) {
 			return nil, fmt.Errorf("%w: thread %s", ErrClientNoPendingMessage, threadID)
 		}
 		return nil, err

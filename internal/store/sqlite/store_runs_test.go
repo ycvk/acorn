@@ -9,6 +9,7 @@ import (
 
 	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/orchestrationmode"
+	storecore "github.com/ycvk/acorn/internal/store"
 )
 
 func TestStoreLifecycle(t *testing.T) {
@@ -60,7 +61,7 @@ func TestCreateRunWithParamsPersistsLineageAndMode(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = store.Close() })
 
-	err = store.CreateRunWithParams(context.Background(), RunCreateParams{
+	err = store.CreateRunWithParams(context.Background(), storecore.RunCreateParams{
 		RunID:             "run_child",
 		SessionID:         "session_child",
 		TurnIndex:         2,
@@ -97,7 +98,7 @@ func TestCreateRunWithParamsRejectsMissingMode(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = store.Close() })
 
-	err = store.CreateRunWithParams(context.Background(), RunCreateParams{
+	err = store.CreateRunWithParams(context.Background(), storecore.RunCreateParams{
 		RunID:        "run_missing_mode",
 		Input:        "hello",
 		CheckpointID: "run_missing_mode",
@@ -208,7 +209,7 @@ func TestListInboxRunsFiltersRootSessionRunsByStatus(t *testing.T) {
 	if err := store.FinishRunContext(ctx, "run_failed", events.RunStatusFailed, "", "boom"); err != nil {
 		t.Fatalf("finish failed run: %v", err)
 	}
-	if err := store.CreateRunWithParams(ctx, RunCreateParams{
+	if err := store.CreateRunWithParams(ctx, storecore.RunCreateParams{
 		RunID:             "run_child",
 		SessionID:         "session_active",
 		TurnIndex:         2,
