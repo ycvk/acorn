@@ -47,8 +47,8 @@ func newRuntimeChatModel(
 }
 
 func (f *RunnerFactory) newChatModel(ctx context.Context) (einomodel.BaseChatModel, error) {
-	if f == nil || f.cfg == nil {
+	if f == nil || f.deps.Config == nil {
 		return nil, errors.New("runner factory is not initialized")
 	}
-	return newRuntimeChatModel(ctx, f.cfg, nil, nil)
+	return newRuntimeChatModel(ctx, f.deps.Config, nil, nil)
 }

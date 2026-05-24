@@ -22,7 +22,7 @@ type auditedTool struct {
 	tool      einotool.BaseTool
 	invokable einotool.InvokableTool
 	progress  tooling.ProgressTool
-	store     toolAuditStore
+	store     runtimeapi.EventAppender
 	validator *ToolArgumentValidator
 }
 
@@ -51,7 +51,7 @@ func toolAuditCallID(ctx context.Context) string {
 	return strings.TrimSpace(value)
 }
 
-func wrapToolForAudit(ctx context.Context, store toolAuditStore, spec tooling.ToolSpec) (einotool.BaseTool, error) {
+func wrapToolForAudit(ctx context.Context, store runtimeapi.EventAppender, spec tooling.ToolSpec) (einotool.BaseTool, error) {
 	info, err := spec.Tool.Info(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("read tool info for audit: %w", err)
@@ -279,7 +279,7 @@ func interruptContextCount(err error) (int, bool) {
 
 func buildAuditedTools(
 	ctx context.Context,
-	store toolAuditStore,
+	store runtimeapi.EventAppender,
 	specs []tooling.ToolSpec,
 	excludedToolNames []string,
 	allowedToolNames []string,

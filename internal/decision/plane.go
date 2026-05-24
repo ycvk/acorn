@@ -1,15 +1,8 @@
 package decision
 
 import (
-	"context"
-
 	einomodel "github.com/cloudwego/eino/components/model"
 )
-
-type Plane interface {
-	Decide(ctx context.Context, req Request) (*Result, error)
-	HandleAction(ctx context.Context, req ActionRequest) error
-}
 
 type Request struct {
 	RunID             string

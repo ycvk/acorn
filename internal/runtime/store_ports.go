@@ -6,6 +6,7 @@ import (
 	"github.com/cloudwego/eino/adk"
 
 	"github.com/ycvk/acorn/internal/contextplane"
+	"github.com/ycvk/acorn/internal/decision"
 	"github.com/ycvk/acorn/internal/events"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
 	"github.com/ycvk/acorn/internal/providerusage"
@@ -22,7 +23,9 @@ type ExecutorStore interface {
 	providerusage.Recorder
 	runDecisionStore
 	EventAppender
-	planRecordStore
+	LoadPlanBySession(ctx context.Context, sessionID string) (*storecore.PlanRecord, error)
+	SavePlan(ctx context.Context, plan *storecore.PlanRecord) error
+	AppendEvidenceRef(ctx context.Context, resultRef string, ref toolresult.EvidenceRef) (toolresult.Record, error)
 
 	CreateFreshSessionTurn(ctx context.Context, sessionID, title, input string) (int, error)
 	CreateBoundRunWithParams(ctx context.Context, params storecore.RunCreateParams) error
@@ -48,12 +51,7 @@ type RunnerFactoryStore interface {
 	mcpprovider.PendingActionStore
 }
 
-type planRecordStore interface {
-	LoadPlanBySession(ctx context.Context, sessionID string) (*storecore.PlanRecord, error)
-	SavePlan(ctx context.Context, plan *storecore.PlanRecord) error
-	AppendEvidenceRef(ctx context.Context, resultRef string, ref toolresult.EvidenceRef) (toolresult.Record, error)
-}
-
-type toolAuditStore interface {
-	EventAppender
+type runDecisionStore interface {
+	SaveRunDecision(context.Context, decision.Record) error
+	LoadRunDecision(context.Context, string) (*decision.Record, error)
 }

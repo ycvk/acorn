@@ -21,13 +21,13 @@ type modelProviderAssembler struct {
 }
 
 func (a *modelProviderAssembler) BuildRunChatModel(ctx context.Context, req RunnerBuildRequest) (einomodel.BaseChatModel, error) {
-	if a == nil || a.factory == nil || a.factory.cfg == nil {
+	if a == nil || a.factory == nil || a.factory.deps.Config == nil {
 		return nil, errors.New("runner factory is not initialized")
 	}
 	if a.buildRun != nil {
 		return a.buildRun(ctx, req)
 	}
-	model, provider, err := buildRuntimeChatModelWithProvider(ctx, a.factory.cfg, nil)
+	model, provider, err := buildRuntimeChatModelWithProvider(ctx, a.factory.deps.Config, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -37,13 +37,13 @@ func (a *modelProviderAssembler) BuildRunChatModel(ctx context.Context, req Runn
 		ProviderName: provider.Name,
 		ModelName:    provider.Model,
 	}
-	if req.RunID != "" && a.factory.store != nil {
-		existing, err := a.factory.store.ListProviderUsagesByRun(ctx, req.RunID)
+	if req.RunID != "" && a.factory.deps.Store != nil {
+		existing, err := a.factory.deps.Store.ListProviderUsagesByRun(ctx, req.RunID)
 		if err == nil {
 			metadata.InitialSequence = uint64(len(existing))
 		}
 	}
-	return providerusage.WrapModel(model, a.factory.store, metadata)
+	return providerusage.WrapModel(model, a.factory.deps.Store, metadata)
 }
 
 type capabilityAssembly struct {
@@ -78,17 +78,14 @@ func (a *contextSelectionAssembler) PrepareMemory(ctx context.Context, req Runne
 	if a == nil || a.factory == nil {
 		return nil, errors.New("runner factory is not initialized")
 	}
-	if a.factory.memoryModuleErr != nil {
-		return nil, fmt.Errorf("memory module initialization: %w", a.factory.memoryModuleErr)
-	}
-	if a.factory.memoryModule == nil {
+	if a.factory.deps.MemoryModule == nil {
 		return nil, errors.New("memory module is not initialized")
 	}
 	workspaceSlug := ""
-	if a.factory.workspace != nil {
-		workspaceSlug = memorymodule.WorkspaceSlug(a.factory.workspace.Root())
+	if a.factory.deps.Workspace != nil {
+		workspaceSlug = memorymodule.WorkspaceSlug(a.factory.deps.Workspace.Root())
 	}
-	result, err := a.factory.memoryModule.Prepare(ctx, memorymodule.PrepareRequest{
+	result, err := a.factory.deps.MemoryModule.Prepare(ctx, memorymodule.PrepareRequest{
 		RunID:         req.RunID,
 		SessionID:     req.SessionID,
 		WorkspaceSlug: workspaceSlug,
@@ -98,11 +95,11 @@ func (a *contextSelectionAssembler) PrepareMemory(ctx context.Context, req Runne
 	if err != nil {
 		return nil, fmt.Errorf("prepare memory: %w", err)
 	}
-	if err := emitMemoryPreparedEvent(ctx, a.factory.store, req, memorymodule.WorkspaceScope(workspaceSlug), result); err != nil {
+	if err := emitMemoryPreparedEvent(ctx, a.factory.deps.Store, req, memorymodule.WorkspaceScope(workspaceSlug), result); err != nil {
 		return nil, err
 	}
 	if result != nil {
-		if err := emitProcedureActivationEvents(ctx, a.factory.store, req.Sink, req.RunID, result.ProcedureActivations); err != nil {
+		if err := emitProcedureActivationEvents(ctx, a.factory.deps.Store, req.Sink, req.RunID, result.ProcedureActivations); err != nil {
 			return nil, err
 		}
 	}
@@ -128,11 +125,8 @@ func (a *contextSelectionAssembler) AssembleToolContext(
 	selection *runSelection,
 	memoryPrepared *memorymodule.PrepareResult,
 ) (*contextplane.AssembleResult, error) {
-	if a == nil || a.factory == nil || a.factory.contextPlane == nil {
+	if a == nil || a.factory == nil || a.factory.deps.ContextPlane == nil {
 		return nil, errors.New("context plane is not initialized")
-	}
-	if a.factory.contextPlaneErr != nil {
-		return nil, a.factory.contextPlaneErr
 	}
 	if caps == nil {
 		return nil, errors.New("run capabilities are required")
@@ -140,7 +134,7 @@ func (a *contextSelectionAssembler) AssembleToolContext(
 	if selection == nil {
 		selection = &runSelection{}
 	}
-	result, err := a.factory.contextPlane.Assemble(ctx, contextplane.AssembleRequest{
+	result, err := a.factory.deps.ContextPlane.Assemble(ctx, contextplane.AssembleRequest{
 		RunID:          req.RunID,
 		SessionID:      req.SessionID,
 		Input:          req.Input,
@@ -156,7 +150,7 @@ func (a *contextSelectionAssembler) AssembleToolContext(
 	}
 	if err := emitProcedureActivationEvents(
 		ctx,
-		a.factory.store,
+		a.factory.deps.Store,
 		req.Sink,
 		req.RunID,
 		filterProcedureActivationsByPhase(result.ProcedureActivations, memorymodule.ProcedureActivationInjected),
@@ -173,13 +167,10 @@ func (a *contextSelectionAssembler) AssembleDirectContext(
 	skillSnapshot *skills.Snapshot,
 	catalog *tooling.Catalog,
 ) (*contextplane.AssembleResult, error) {
-	if a == nil || a.factory == nil || a.factory.contextPlane == nil {
+	if a == nil || a.factory == nil || a.factory.deps.ContextPlane == nil {
 		return nil, errors.New("context plane is not initialized")
 	}
-	if a.factory.contextPlaneErr != nil {
-		return nil, a.factory.contextPlaneErr
-	}
-	result, err := a.factory.contextPlane.Assemble(ctx, contextplane.AssembleRequest{
+	result, err := a.factory.deps.ContextPlane.Assemble(ctx, contextplane.AssembleRequest{
 		RunID:          req.RunID,
 		SessionID:      req.SessionID,
 		Input:          req.Input,
@@ -192,7 +183,7 @@ func (a *contextSelectionAssembler) AssembleDirectContext(
 	}
 	if err := emitProcedureActivationEvents(
 		ctx,
-		a.factory.store,
+		a.factory.deps.Store,
 		req.Sink,
 		req.RunID,
 		filterProcedureActivationsByPhase(result.ProcedureActivations, memorymodule.ProcedureActivationInjected),

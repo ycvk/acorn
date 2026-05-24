@@ -61,7 +61,7 @@ func TestRunnerFactoryBuildServeToolsetOmitsRunOnlyTools(t *testing.T) {
 
 func TestRunnerFactoryBuildRunToolsetIncludesRunOnlyTools(t *testing.T) {
 	factory := newRunnerFactoryToolsetTestFactory(t)
-	subagentExec := NewSubagentExecutor(factory.cfg, factory.store, factory, nil)
+	subagentExec := NewSubagentExecutor(factory.deps.Config, factory.deps.Store, factory, nil)
 
 	toolset, err := factory.buildRunToolset(context.Background(), "session_test", subagentExec)
 	if err != nil {

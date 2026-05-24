@@ -1,7 +1,6 @@
 package runtime
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -9,53 +8,6 @@ import (
 	"github.com/ycvk/acorn/internal/decision"
 	"github.com/ycvk/acorn/internal/skills"
 )
-
-type planeBridge struct {
-	engine  *decision.Engine
-	profile *decision.ProfileService
-	store   runDecisionStore
-	saveFn  func(context.Context, decision.Record) error
-	emitFn  func(context.Context, *decision.Record, string) error
-}
-
-type runDecisionStore interface {
-	SaveRunDecision(context.Context, decision.Record) error
-	LoadRunDecision(context.Context, string) (*decision.Record, error)
-}
-
-func newPlaneBridge(
-	engine *decision.Engine,
-	profile *decision.ProfileService,
-	store runDecisionStore,
-	saveFn func(context.Context, decision.Record) error,
-	emitFn func(context.Context, *decision.Record, string) error,
-) *planeBridge {
-	return &planeBridge{
-		engine:  engine,
-		profile: profile,
-		store:   store,
-		saveFn:  saveFn,
-		emitFn:  emitFn,
-	}
-}
-
-func (b *planeBridge) Decide(ctx context.Context, req decision.Request) (*decision.Result, error) {
-	if b.engine == nil {
-		return nil, fmt.Errorf("decision engine is nil")
-	}
-	record, err := b.engine.Decide(ctx, decision.DecideInput(req))
-	if err != nil {
-		return nil, err
-	}
-	selected := selectedSkillResultFromRecord(record)
-	hint := decision.BuildHint(record.Action)
-	result := &decision.Result{
-		Record:        record,
-		SelectedSkill: selected,
-		Hint:          hint,
-	}
-	return result, nil
-}
 
 func enrichSelectedSkillFromMatches(result *decision.Result, matches []SkillMatch, stableSkills []skills.Spec) {
 	if result == nil || result.Record == nil || result.SelectedSkill == nil {
@@ -75,26 +27,6 @@ func enrichSelectedSkillFromMatches(result *decision.Result, matches []SkillMatc
 			result.SelectedSkill.SkillName = s.Name
 			return
 		}
-	}
-}
-
-func (b *planeBridge) HandleAction(ctx context.Context, req decision.ActionRequest) error {
-	if req.Result == nil || req.Result.Record == nil {
-		return nil
-	}
-	action := req.Result.Record.Action
-	if decision.IsContinuableAction(action) {
-		return nil
-	}
-	switch action {
-	case decision.ActionAskUser:
-		return fmt.Errorf("decision requires operator confirmation: %s", req.Result.Record.DecisionReason)
-	case decision.ActionBlock:
-		return fmt.Errorf("decision blocked execution: %s", req.Result.Record.DecisionReason)
-	case decision.ActionResumeRun:
-		return fmt.Errorf("decision resolved to resume_run for a new execution")
-	default:
-		return nil
 	}
 }
 
@@ -174,15 +106,4 @@ func selectedSkillFromPlaneResult(result *decision.Result, stableSkills []skills
 		}, nil
 	}
 	return nil, fmt.Errorf("decision selected skill %q not found", skillID)
-}
-
-func skillIDs(items []skills.Spec) []string {
-	if len(items) == 0 {
-		return nil
-	}
-	ids := make([]string, 0, len(items))
-	for _, item := range items {
-		ids = append(ids, item.ID)
-	}
-	return ids
 }

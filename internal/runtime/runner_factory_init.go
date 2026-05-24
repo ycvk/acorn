@@ -21,35 +21,28 @@ import (
 	"github.com/ycvk/acorn/internal/workspace"
 )
 
-// runnerFactoryInitDeps holds all dependencies constructed during RunnerFactory initialization.
-type runnerFactoryInitDeps struct {
-	workspace          *workspace.Workspace
-	workspaceErr       error
-	artifactService    *artifacts.Service
-	artifactServiceErr error
-	terminalService    *terminalsession.Service
-	terminalServiceErr error
-	loader             *skills.Loader
-	decisionProfiles   *decision.ProfileService
-	memoryModule       memorymodule.Service
-	memoryModuleErr    error
-	contextPlane       contextplane.ContextPlane
-	contextPlaneErr    error
-	orchestrationPlane orchestrationPlane
-}
-
-// initRunnerFactoryDeps builds all optional dependencies for a RunnerFactory.
-// It centralizes the initialization logic so that runner_factory.go can focus
-// on runtime management.
-func initRunnerFactoryDeps(cfg *config.Config, store RunnerFactoryStore, opts RunnerFactoryOptions) runnerFactoryInitDeps {
-	ws := opts.Workspace
-	var wsErr error
-	if ws == nil && cfg != nil {
-		ws, wsErr = cfg.Workspace()
+func buildRuntimeDeps(cfg *config.Config, store RunnerFactoryStore, opts RunnerFactoryOptions) (RuntimeDeps, error) {
+	if cfg == nil {
+		return RuntimeDeps{}, errors.New("config is required")
+	}
+	if store == nil {
+		return RuntimeDeps{}, errors.New("store is required")
 	}
 
-	artifactService, artifactServiceErr := buildArtifactService(cfg, store)
-	terminalService, terminalServiceErr := buildTerminalSessionService(store, artifactService, artifactServiceErr)
+	ws, err := resolveWorkspace(cfg, opts.Workspace)
+	if err != nil {
+		return RuntimeDeps{}, fmt.Errorf("workspace: %w", err)
+	}
+
+	artifactService, err := buildArtifactService(cfg, store)
+	if err != nil {
+		return RuntimeDeps{}, fmt.Errorf("artifact service: %w", err)
+	}
+
+	terminalService, err := buildTerminalSessionService(store, artifactService)
+	if err != nil {
+		return RuntimeDeps{}, fmt.Errorf("terminal session service: %w", err)
+	}
 
 	loader := opts.Loader
 	if loader == nil {
@@ -65,16 +58,16 @@ func initRunnerFactoryDeps(cfg *config.Config, store RunnerFactoryStore, opts Ru
 		decisionProfiles = decision.NewProfileService(root)
 	}
 
-	memoryModule := opts.MemoryModule
-	var memoryModuleErr error
-	if memoryModule == nil {
-		memoryModuleErr = errors.New("memory module is required")
+	if opts.MemoryModule == nil {
+		return RuntimeDeps{}, errors.New("memory module is required")
 	}
 
 	contextPlane := opts.ContextPlane
-	var contextPlaneErr error
 	if contextPlane == nil {
-		contextPlane, contextPlaneErr = buildDefaultContextPlane(cfg, store, opts)
+		contextPlane, err = buildDefaultContextPlane(cfg, store, opts)
+		if err != nil {
+			return RuntimeDeps{}, fmt.Errorf("context plane: %w", err)
+		}
 	}
 
 	orchestrationPlane := newDefaultOrchestrationPlane(defaultOrchestrationPlaneDeps{
@@ -84,44 +77,57 @@ func initRunnerFactoryDeps(cfg *config.Config, store RunnerFactoryStore, opts Ru
 		handlers:     opts.Handlers,
 	})
 
-	return runnerFactoryInitDeps{
-		workspace:          ws,
-		workspaceErr:       wsErr,
-		artifactService:    artifactService,
-		artifactServiceErr: artifactServiceErr,
-		terminalService:    terminalService,
-		terminalServiceErr: terminalServiceErr,
-		loader:             loader,
-		decisionProfiles:   decisionProfiles,
-		memoryModule:       memoryModule,
-		memoryModuleErr:    memoryModuleErr,
-		contextPlane:       contextPlane,
-		contextPlaneErr:    contextPlaneErr,
-		orchestrationPlane: orchestrationPlane,
+	crystallizer, indexStore, err := buildCrystallizer(opts.MemoryModule, cfg)
+	if err != nil {
+		return RuntimeDeps{}, fmt.Errorf("crystallizer: %w", err)
 	}
+
+	return RuntimeDeps{
+		Config:            cfg,
+		Store:             store,
+		Loader:            loader,
+		DecisionProfiles:  decisionProfiles,
+		CheckpointService: opts.CheckpointService,
+		SessionSummarySvc: opts.SessionSummaryService,
+		MemoryModule:      opts.MemoryModule,
+		ContextPlane:      contextPlane,
+		Orchestration:     orchestrationPlane,
+		MCPPendingActions: opts.MCPPendingActionStore,
+		Workspace:         ws,
+		ArtifactService:   artifactService,
+		TerminalService:   terminalService,
+		ExtraLocalTools:   append([]einotool.BaseTool(nil), opts.ExtraLocalTools...),
+		Handlers:          append([]adk.ChatModelAgentMiddleware(nil), opts.Handlers...),
+		Crystallizer:      crystallizer,
+		IndexStore:        indexStore,
+	}, nil
+}
+
+func resolveWorkspace(cfg *config.Config, override *workspace.Workspace) (*workspace.Workspace, error) {
+	if override != nil {
+		return override, nil
+	}
+	return cfg.Workspace()
 }
 
 func buildArtifactService(cfg *config.Config, store RunnerFactoryStore) (*artifacts.Service, error) {
 	if cfg == nil {
-		return nil, errors.New("artifact service requires config")
+		return nil, errors.New("config is required")
 	}
 	if strings.TrimSpace(cfg.Runtime.StorageDir) == "" {
-		return nil, errors.New("artifact service requires runtime storage_dir")
+		return nil, errors.New("storage_dir is required")
 	}
 	artifactStore, ok := store.(artifacts.Store)
 	if !ok {
-		return nil, errors.New("artifact service requires artifact store")
+		return nil, errors.New("store must implement artifacts.Store")
 	}
 	return artifacts.NewService(filepath.Join(cfg.Runtime.StorageDir, "artifacts"), artifactStore)
 }
 
-func buildTerminalSessionService(store RunnerFactoryStore, artifactService *artifacts.Service, artifactErr error) (*terminalsession.Service, error) {
-	if artifactErr != nil {
-		return nil, fmt.Errorf("terminal session service requires artifact service: %w", artifactErr)
-	}
+func buildTerminalSessionService(store RunnerFactoryStore, artifactService *artifacts.Service) (*terminalsession.Service, error) {
 	terminalStore, ok := store.(terminalsession.Store)
 	if !ok {
-		return nil, errors.New("terminal session service requires terminal session store")
+		return nil, errors.New("store must implement terminalsession.Store")
 	}
 	return terminalsession.NewService(terminalStore, artifactService)
 }
@@ -138,11 +144,11 @@ func buildDefaultContextPlane(cfg *config.Config, store RunnerFactoryStore, opts
 		}
 		maxContextTokens, err = contextplane.ContextAssemblyTokenLimitFromContextPolicy(contextPolicy)
 		if err != nil {
-			return nil, fmt.Errorf("context plane budget: %w", err)
+			return nil, fmt.Errorf("token limit: %w", err)
 		}
 		tokenCounter, err = contextplane.NewCompressionTokenCounter(contextPolicy)
 		if err != nil {
-			return nil, fmt.Errorf("context plane token counter: %w", err)
+			return nil, fmt.Errorf("token counter: %w", err)
 		}
 	}
 	return contextplane.NewDefaultContextPlane(contextplane.DefaultOptions{
@@ -153,57 +159,31 @@ func buildDefaultContextPlane(cfg *config.Config, store RunnerFactoryStore, opts
 		CheckpointService:        opts.CheckpointService,
 		SessionSummaryService:    opts.SessionSummaryService,
 		ToolResultLedger:         store,
+		MemoryBudget: contextplane.LayeredMemoryBudget{
+			L1IndexTokens:     cfg.Memory.Search.IndexTokenBudget,
+			L2InitialTokens:   cfg.Memory.Search.InitialTokenBudget,
+			L3OnDemandReserve: cfg.Memory.Search.OnDemandReserve,
+		},
 	}), nil
 }
 
-// Crystallizer returns the optional crystallization service.
-func (f *RunnerFactory) Crystallizer() crystallization.Service {
-	if f == nil {
-		return nil
+func buildCrystallizer(memoryModule memorymodule.Service, cfg *config.Config) (crystallization.Service, closeableIndexStore, error) {
+	if memoryModule == nil || cfg == nil || os.Getenv("ACORN_AUTO_CRYSTALLIZATION") != "true" {
+		return nil, nil, nil
 	}
-	return f.crystallizer
+	indexStore, err := crystallization.OpenIndexStore(filepath.Join(cfg.Runtime.StorageDir, "insight_index.db"))
+	if err != nil {
+		return nil, nil, fmt.Errorf("open insight index: %w", err)
+	}
+	crystallizer := crystallization.NewDefaultService(memoryModule, indexStore)
+	return crystallizer, indexStore, nil
 }
 
-// initCrystallizer sets up the optional crystallization service.
-func initCrystallizer(f *RunnerFactory) {
-	if f.memoryModule == nil || f.cfg == nil || os.Getenv("ACORN_AUTO_CRYSTALLIZATION") != "true" {
-		return
-	}
-	indexStore, err := crystallization.OpenIndexStore(filepath.Join(f.cfg.Runtime.StorageDir, "insight_index.db"))
-	if err == nil {
-		f.crystallizer = crystallization.NewDefaultService(f.memoryModule, indexStore)
-		f.indexStore = indexStore
-	} else {
-		f.memoryModuleErr = errors.Join(f.memoryModuleErr, fmt.Errorf("open insight index: %w", err))
-	}
-}
-
-// assembleRunnerFactory creates a RunnerFactory from pre-built dependencies.
-func assembleRunnerFactory(cfg *config.Config, store RunnerFactoryStore, opts RunnerFactoryOptions, deps runnerFactoryInitDeps) *RunnerFactory {
+func assembleRunnerFactory(deps RuntimeDeps) *RunnerFactory {
 	factory := &RunnerFactory{
-		cfg:                cfg,
-		store:              store,
-		loader:             deps.loader,
-		decisionProfiles:   deps.decisionProfiles,
-		checkpointService:  opts.CheckpointService,
-		sessionSummarySvc:  opts.SessionSummaryService,
-		memoryModule:       deps.memoryModule,
-		memoryModuleErr:    deps.memoryModuleErr,
-		contextPlane:       deps.contextPlane,
-		contextPlaneErr:    deps.contextPlaneErr,
-		orchestration:      deps.orchestrationPlane,
-		mcpPendingActions:  opts.MCPPendingActionStore,
-		workspace:          deps.workspace,
-		workspaceErr:       deps.workspaceErr,
-		artifactService:    deps.artifactService,
-		artifactServiceErr: deps.artifactServiceErr,
-		terminalService:    deps.terminalService,
-		terminalServiceErr: deps.terminalServiceErr,
-		extraLocalTools:    append([]einotool.BaseTool(nil), opts.ExtraLocalTools...),
-		handlers:           append([]adk.ChatModelAgentMiddleware(nil), opts.Handlers...),
-		registry:           NewRegistry(),
+		deps:     deps,
+		registry: NewRegistry(),
 	}
 	factory.runBuilder = newRunBuilder(factory)
-	initCrystallizer(factory)
 	return factory
 }
