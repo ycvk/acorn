@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/ycvk/acorn/internal/config"
-	"github.com/ycvk/acorn/internal/orchestrationmode"
+	"github.com/ycvk/acorn/internal/events"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
 )
 
@@ -16,7 +16,7 @@ func mcpRunnerBuildRequest(sessionID, runID string) RunnerBuildRequest {
 		SessionID:         sessionID,
 		RunID:             runID,
 		Input:             "test input",
-		OrchestrationMode: orchestrationmode.SingleAgent,
+		OrchestrationMode: events.ModeSingleAgent,
 	}
 }
 

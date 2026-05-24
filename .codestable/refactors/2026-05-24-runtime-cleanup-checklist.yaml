@@ -85,7 +85,8 @@ steps:
   risk: medium
   verify: go test ./internal/runtime/stream/... && go test ./internal/runtime/...
   status: completed
-  notes: Skipped - too invasive (20+ files), deferred to future refactor
+  notes: Conservative approach - merged plan_payloads.go into payloads.go and plan_helpers.go
+    into helpers.go. Type system preserved.
 - id: 9
   title: 简化 ContextPlane 参数
   target: internal/contextplane/, internal/config/

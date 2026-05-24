@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/ycvk/acorn/internal/events"
-	"github.com/ycvk/acorn/internal/orchestrationmode"
 	"github.com/ycvk/acorn/internal/runtimehistory"
 	"github.com/ycvk/acorn/internal/store"
 )
@@ -20,7 +19,7 @@ func (s *Store) CreateRun(ctx context.Context, runID, input, checkpointID string
 		RunID:             runID,
 		Input:             input,
 		CheckpointID:      checkpointID,
-		OrchestrationMode: orchestrationmode.DirectResponse,
+		OrchestrationMode: events.ModeDirectResponse,
 	})
 }
 
@@ -31,12 +30,12 @@ func (s *Store) CreateRunWithSession(ctx context.Context, runID, sessionID strin
 		TurnIndex:         turnIndex,
 		Input:             input,
 		CheckpointID:      checkpointID,
-		OrchestrationMode: orchestrationmode.DirectResponse,
+		OrchestrationMode: events.ModeDirectResponse,
 	})
 }
 
 func (s *Store) CreateRunWithParams(ctx context.Context, params store.RunCreateParams) error {
-	mode := orchestrationmode.Normalize(params.OrchestrationMode)
+	mode := params.OrchestrationMode.Normalize()
 	if strings.TrimSpace(string(mode)) == "" {
 		return fmt.Errorf("orchestration mode is required")
 	}
@@ -68,7 +67,7 @@ func (s *Store) CreateBoundRun(ctx context.Context, runID, sessionID string, tur
 		TurnIndex:         turnIndex,
 		Input:             input,
 		CheckpointID:      checkpointID,
-		OrchestrationMode: orchestrationmode.DirectResponse,
+		OrchestrationMode: events.ModeDirectResponse,
 	})
 }
 

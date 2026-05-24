@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/ycvk/acorn/internal/events"
-	"github.com/ycvk/acorn/internal/orchestrationmode"
 )
 
 type runRecordScanner interface {
@@ -25,7 +24,7 @@ func scanRunRecord(scanner runRecordScanner) (*events.RunRecord, error) {
 		return nil, err
 	}
 	rec.Status = events.RunStatus(status)
-	rec.OrchestrationMode = orchestrationmode.Normalize(orchestrationmode.Mode(orchestrationModeRaw))
+	rec.OrchestrationMode = events.OrchestrationMode(orchestrationModeRaw).Normalize()
 	createdAt, err := parseTimestamp(time.RFC3339Nano, created, "run.created_at")
 	if err != nil {
 		return nil, err

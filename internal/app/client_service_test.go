@@ -18,7 +18,6 @@ import (
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/memorymodule"
-	"github.com/ycvk/acorn/internal/orchestrationmode"
 	"github.com/ycvk/acorn/internal/runtime"
 	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
 )
@@ -253,7 +252,7 @@ func TestProjectRunMapsStatusAndMode(t *testing.T) {
 		RunID:             "run_1",
 		SessionID:         "session_1",
 		Status:            events.RunStatusSucceeded,
-		OrchestrationMode: orchestrationmode.SingleAgent,
+		OrchestrationMode: events.ModeSingleAgent,
 		CreatedAt:         now,
 		UpdatedAt:         now.Add(time.Second),
 	})
@@ -269,7 +268,7 @@ func TestProjectRunRejectsUnknownStatusAndMode(t *testing.T) {
 	_, err := projectRun(events.RunRecord{
 		RunID:             "run_bad_status",
 		Status:            events.RunStatus(""),
-		OrchestrationMode: orchestrationmode.SingleAgent,
+		OrchestrationMode: events.ModeSingleAgent,
 	})
 	if !errors.Is(err, ErrClientProjectionFailed) {
 		t.Fatalf("status error = %v, want ErrClientProjectionFailed", err)
@@ -278,7 +277,7 @@ func TestProjectRunRejectsUnknownStatusAndMode(t *testing.T) {
 	_, err = projectRun(events.RunRecord{
 		RunID:             "run_bad_mode",
 		Status:            events.RunStatusRunning,
-		OrchestrationMode: orchestrationmode.Mode("unknown"),
+		OrchestrationMode: events.OrchestrationMode("unknown"),
 	})
 	if !errors.Is(err, ErrClientProjectionFailed) {
 		t.Fatalf("mode error = %v, want ErrClientProjectionFailed", err)

@@ -8,7 +8,7 @@ import (
 
 	"github.com/cloudwego/eino/adk"
 	einomodel "github.com/cloudwego/eino/components/model"
-	"github.com/ycvk/acorn/internal/orchestrationmode"
+	"github.com/ycvk/acorn/internal/events"
 )
 
 func TestRunnerFactoryNewCleansRunContextOnSetupFailure(t *testing.T) {
@@ -22,7 +22,7 @@ func TestRunnerFactoryNewCleansRunContextOnSetupFailure(t *testing.T) {
 	_, err := factory.New(context.Background(), RunnerBuildRequest{
 		RunID:             "run_cleanup",
 		SessionID:         "session_cleanup",
-		OrchestrationMode: orchestrationmode.DirectResponse,
+		OrchestrationMode: events.ModeDirectResponse,
 	})
 	if err == nil {
 		t.Fatal("expected setup failure")

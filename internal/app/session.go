@@ -16,7 +16,6 @@ import (
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/decision"
 	"github.com/ycvk/acorn/internal/events"
-	"github.com/ycvk/acorn/internal/orchestrationmode"
 	"github.com/ycvk/acorn/internal/runtime"
 	"github.com/ycvk/acorn/internal/runtimehistory"
 	"github.com/ycvk/acorn/internal/store"
@@ -429,12 +428,12 @@ func (s *ClientService) CreateRun(ctx context.Context, threadID, skillID, mode s
 	}
 }
 
-func parseClientRunMode(raw string) (orchestrationmode.Mode, error) {
-	mode := orchestrationmode.Mode(strings.TrimSpace(raw))
+func parseClientRunMode(raw string) (events.OrchestrationMode, error) {
+	mode := events.OrchestrationMode(strings.TrimSpace(raw))
 	switch mode {
 	case "":
 		return "", nil
-	case orchestrationmode.DirectResponse, orchestrationmode.PlanExecute:
+	case events.ModeDirectResponse, events.ModePlanExecute:
 		return mode, nil
 	default:
 		return "", fmt.Errorf("%w: %s", ErrClientInvalidRunMode, raw)
@@ -1119,13 +1118,13 @@ func projectRunStatus(status events.RunStatus) (string, error) {
 	}
 }
 
-func projectRunMode(mode orchestrationmode.Mode) (string, error) {
+func projectRunMode(mode events.OrchestrationMode) (string, error) {
 	switch mode {
-	case orchestrationmode.DirectResponse:
+	case events.ModeDirectResponse:
 		return "direct", nil
-	case orchestrationmode.SingleAgent:
+	case events.ModeSingleAgent:
 		return "agent", nil
-	case orchestrationmode.PlanExecute:
+	case events.ModePlanExecute:
 		return "plan_execute", nil
 	default:
 		return "", projectionError("unknown run mode %q", mode)

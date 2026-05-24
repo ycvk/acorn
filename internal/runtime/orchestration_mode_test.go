@@ -20,7 +20,6 @@ import (
 	"github.com/ycvk/acorn/internal/decision"
 	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/orchestration"
-	"github.com/ycvk/acorn/internal/orchestrationmode"
 	"github.com/ycvk/acorn/internal/runtimehistory"
 	"github.com/ycvk/acorn/internal/tooling"
 )
@@ -88,8 +87,8 @@ func TestExecuteMessagesPersistsDirectResponseModeForGreeting(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadRun: %v", err)
 	}
-	if run.OrchestrationMode != orchestrationmode.DirectResponse {
-		t.Fatalf("root run mode = %q, want %q", run.OrchestrationMode, orchestrationmode.DirectResponse)
+	if run.OrchestrationMode != events.ModeDirectResponse {
+		t.Fatalf("root run mode = %q, want %q", run.OrchestrationMode, events.ModeDirectResponse)
 	}
 }
 
@@ -353,7 +352,7 @@ func TestExecuteMessagesPersistsExplicitPlanExecuteMode(t *testing.T) {
 		RunID:             "run_plan_route",
 		Input:             "修复 internal/runtime/executor_run.go 里的默认执行模式并跑 go test",
 		Messages:          []adk.Message{},
-		OrchestrationMode: orchestrationmode.PlanExecute,
+		OrchestrationMode: events.ModePlanExecute,
 	}, nil)
 	if err == nil || !strings.Contains(err.Error(), "workspace contract is not initialized") {
 		t.Fatalf("ExecuteMessages error = %v, want workspace contract failure", err)
@@ -363,8 +362,8 @@ func TestExecuteMessagesPersistsExplicitPlanExecuteMode(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadRun: %v", err)
 	}
-	if run.OrchestrationMode != orchestrationmode.PlanExecute {
-		t.Fatalf("root run mode = %q, want %q", run.OrchestrationMode, orchestrationmode.PlanExecute)
+	if run.OrchestrationMode != events.ModePlanExecute {
+		t.Fatalf("root run mode = %q, want %q", run.OrchestrationMode, events.ModePlanExecute)
 	}
 }
 
@@ -379,7 +378,7 @@ func TestBuildSingleAgentAssemblyInjectsMemoryReflection(t *testing.T) {
 		RunID:             "run_single_memory",
 		SessionID:         "session_single_memory",
 		Input:             "inspect repo",
-		OrchestrationMode: orchestrationmode.SingleAgent,
+		OrchestrationMode: events.ModeSingleAgent,
 	}, nil, directRoutingTestModel{}, nil)
 	if err != nil {
 		t.Fatalf("buildSingleAgentAssembly: %v", err)
@@ -406,7 +405,7 @@ func TestBuildPlanExecuteAssemblyInjectsMemoryReflection(t *testing.T) {
 		RunID:             "run_plan_memory",
 		SessionID:         "session_plan_memory",
 		Input:             "fix code",
-		OrchestrationMode: orchestrationmode.PlanExecute,
+		OrchestrationMode: events.ModePlanExecute,
 	}, nil, directRoutingTestModel{}, nil)
 	if !errors.Is(err, routeErr) {
 		t.Fatalf("buildPlanExecuteAssembly error = %v, want %v", err, routeErr)
@@ -436,7 +435,7 @@ func TestResumeWithTargetsRoutesPlanExecuteRunByPersistedMode(t *testing.T) {
 		SessionID:         "session_resume",
 		Input:             "resume plan execute",
 		CheckpointID:      runID,
-		OrchestrationMode: orchestrationmode.PlanExecute,
+		OrchestrationMode: events.ModePlanExecute,
 	}); err != nil {
 		t.Fatalf("CreateRunWithParams: %v", err)
 	}
@@ -524,7 +523,7 @@ func TestResumeWithTargetsRejectsRemovedWorkflowMode(t *testing.T) {
 		SessionID:         "session_workflow",
 		Input:             "resume workflow",
 		CheckpointID:      runID,
-		OrchestrationMode: orchestrationmode.Mode("workflow"),
+		OrchestrationMode: events.OrchestrationMode("workflow"),
 	}); err != nil {
 		t.Fatalf("CreateRunWithParams: %v", err)
 	}
@@ -564,7 +563,7 @@ func TestSubagentExecuteUsesRealChildRunIDInEvents(t *testing.T) {
 		ParentSessionID:    "session-parent",
 		ParentStepID:       "s1",
 		Task:               "inspect repo",
-		RequestedMode:      orchestrationmode.SingleAgent,
+		RequestedMode:      events.ModeSingleAgent,
 		AcceptanceCriteria: []string{"completed"},
 	})
 	if err == nil {

@@ -3,7 +3,6 @@ package contextplane
 import (
 	"context"
 	"errors"
-	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -11,7 +10,6 @@ import (
 
 	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/runtimehistory"
-	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
 	"github.com/ycvk/acorn/internal/tooling"
 	"github.com/ycvk/acorn/internal/toolresult"
 )
@@ -229,11 +227,7 @@ func TestToolLifecycleEventsRequireStateForNamedTools(t *testing.T) {
 }
 
 func TestToolLifecycleOnToolResultPersistsLedgerAndRecentResults(t *testing.T) {
-	store, err := storesqlite.Open(filepath.Join(t.TempDir(), "state"))
-	if err != nil {
-		t.Fatalf("open store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
+	store := newFakeContextStore()
 
 	plane := NewDefaultContextPlane(DefaultOptions{ToolResultLedger: store})
 	state := &ToolLifecycleState{

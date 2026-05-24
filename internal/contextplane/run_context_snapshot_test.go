@@ -2,11 +2,9 @@ package contextplane
 
 import (
 	"context"
-	"path/filepath"
 	"strings"
 	"testing"
 
-	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
 	"github.com/ycvk/acorn/internal/workingstate"
 )
 
@@ -57,12 +55,7 @@ func TestRunContextAssemblerLoadsFrozenSnapshot(t *testing.T) {
 	}
 }
 
-func newRunContextAssemblerTestStore(t *testing.T) *storesqlite.Store {
+func newRunContextAssemblerTestStore(t *testing.T) *fakeContextStore {
 	t.Helper()
-	store, err := storesqlite.Open(filepath.Join(t.TempDir(), "state"))
-	if err != nil {
-		t.Fatalf("open store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-	return store
+	return newFakeContextStore()
 }
