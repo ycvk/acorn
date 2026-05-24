@@ -14,7 +14,12 @@ type notifyingPendingActionStore struct {
 }
 
 type PendingActionCreateStore interface {
-	pendingActionDecisionStore
+	ListPendingActions(ctx context.Context, limit int) ([]events.PendingActionRecord, error)
+	LoadPendingAction(ctx context.Context, actionID string) (*events.PendingActionRecord, error)
+	LoadRun(ctx context.Context, runID string) (*events.RunRecord, error)
+	DecidePendingAction(ctx context.Context, actionID string, status events.PendingActionStatus, mode events.PendingActionDecisionMode, decisionJSON string) (*events.PendingActionRecord, error)
+	SyncDecisionMessageForPendingAction(ctx context.Context, actionID string) error
+	AppendEventContext(ctx context.Context, runID, kind string, payload any) (events.EventRecord, error)
 	CreatePendingAction(context.Context, storecore.CreatePendingActionInput) (*events.PendingActionRecord, error)
 }
 

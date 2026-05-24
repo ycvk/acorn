@@ -251,7 +251,7 @@ func TestRunnerFactoryCloseClosesInsightIndexStore(t *testing.T) {
 	factory := newRunnerFactory(t, cfg, store, RunnerFactoryOptions{})
 
 	factory.mu.Lock()
-	indexStore := factory.indexStore
+	indexStore := factory.deps.IndexStore
 	factory.mu.Unlock()
 	if indexStore == nil {
 		t.Fatal("expected insight index store when auto crystallization is enabled")
@@ -262,8 +262,8 @@ func TestRunnerFactoryCloseClosesInsightIndexStore(t *testing.T) {
 	}
 
 	factory.mu.Lock()
-	indexAfter := factory.indexStore
-	crystallizerAfter := factory.crystallizer
+	indexAfter := factory.deps.IndexStore
+	crystallizerAfter := factory.deps.Crystallizer
 	factory.mu.Unlock()
 	if indexAfter != nil {
 		t.Fatal("expected insight index store to be nil after Close()")

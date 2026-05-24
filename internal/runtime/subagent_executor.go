@@ -250,14 +250,14 @@ func (se *SubagentExecutor) emitFailed(ctx context.Context, parentRunID, subRunI
 }
 
 func (se *SubagentExecutor) createChildWorktreeWorkspace(ctx context.Context, subRunID string) (*workspace.Workspace, error) {
-	if se == nil || se.rf == nil || se.rf.workspace == nil {
+	if se == nil || se.rf == nil || se.rf.deps.Workspace == nil {
 		return nil, errors.New("child worktree requires an initialized workspace")
 	}
-	worktree, err := se.rf.workspace.CreateChildWorktree(childCtxOrBackground(ctx), subRunID)
+	worktree, err := se.rf.deps.Workspace.CreateChildWorktree(childCtxOrBackground(ctx), subRunID)
 	if err != nil {
 		return nil, fmt.Errorf("create child worktree: %w", err)
 	}
-	childWorkspace, err := se.rf.workspace.OpenWorktree(worktree)
+	childWorkspace, err := se.rf.deps.Workspace.OpenWorktree(worktree)
 	if err != nil {
 		return nil, fmt.Errorf("open child worktree: %w", err)
 	}

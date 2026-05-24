@@ -109,7 +109,7 @@ func buildContainer(ctx context.Context, cfg *config.Config) (*Container, error)
 	notificationService := NewNotificationService(store, notificationrouter.Router{})
 	mcpPendingActionStore := NewNotifyingPendingActionStore(store, notificationService)
 
-	runnerFactory := runtime.NewRunnerFactory(cfg, store, runtime.RunnerFactoryOptions{
+	runnerFactory, err := runtime.NewRunnerFactory(cfg, store, runtime.RunnerFactoryOptions{
 		Loader:                 loader,
 		Workspace:              ws,
 		DecisionProfileService: decisionProfileService,
@@ -119,6 +119,9 @@ func buildContainer(ctx context.Context, cfg *config.Config) (*Container, error)
 		ContextPlane:           contextPlane,
 		MCPPendingActionStore:  mcpPendingActionStore,
 	})
+	if err != nil {
+		return nil, fmt.Errorf("init runner factory: %w", err)
+	}
 	runController := runtime.NewRunController()
 	executors := newExecutorFactory(cfg, store, runnerFactory, runController)
 

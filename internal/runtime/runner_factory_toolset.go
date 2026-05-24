@@ -95,52 +95,49 @@ func (f *RunnerFactory) buildToolset(
 	includePlanning bool,
 	profile tooling.ToolProfile,
 ) (*Toolset, error) {
-	if f == nil || f.cfg == nil {
+	if f == nil || f.deps.Config == nil {
 		return nil, errors.New("runner factory is not initialized")
 	}
-	if f.workspaceErr != nil {
-		return nil, fmt.Errorf("workspace contract: %w", f.workspaceErr)
-	}
-	if f.workspace == nil {
+	if f.deps.Workspace == nil {
 		return nil, errors.New("workspace contract is not initialized")
 	}
-	if f.artifactServiceErr != nil {
-		return nil, fmt.Errorf("artifact service: %w", f.artifactServiceErr)
+	if f.deps.ArtifactService == nil {
+		return nil, errors.New("artifact service is not initialized")
 	}
-	if f.terminalServiceErr != nil {
-		return nil, fmt.Errorf("terminal session service: %w", f.terminalServiceErr)
+	if f.deps.TerminalService == nil {
+		return nil, errors.New("terminal session service is not initialized")
 	}
 
 	webFetchService, err := webaccess.NewFetchService(webaccess.FetchConfig{
-		UserAgent:        f.cfg.WebAccess.UserAgent,
-		Timeout:          time.Duration(f.cfg.WebAccess.TimeoutSeconds) * time.Second,
-		MaxResponseBytes: f.cfg.WebAccess.MaxResponseBytes,
+		UserAgent:        f.deps.Config.WebAccess.UserAgent,
+		Timeout:          time.Duration(f.deps.Config.WebAccess.TimeoutSeconds) * time.Second,
+		MaxResponseBytes: f.deps.Config.WebAccess.MaxResponseBytes,
 		Policy: webaccess.URLPolicy{
-			AllowPrivateNetworks: f.cfg.WebAccess.AllowPrivateNetworks,
+			AllowPrivateNetworks: f.deps.Config.WebAccess.AllowPrivateNetworks,
 		},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("web fetch service: %w", err)
 	}
 	webSearchService, err := webaccess.NewSearchService(webaccess.SearchConfig{
-		APIKey:           f.cfg.WebAccess.Search.APIKey,
-		Timeout:          time.Duration(f.cfg.WebAccess.Search.TimeoutSeconds) * time.Second,
-		MaxResults:       f.cfg.WebAccess.Search.MaxResults,
-		MaxResponseBytes: f.cfg.WebAccess.MaxResponseBytes,
+		APIKey:           f.deps.Config.WebAccess.Search.APIKey,
+		Timeout:          time.Duration(f.deps.Config.WebAccess.Search.TimeoutSeconds) * time.Second,
+		MaxResults:       f.deps.Config.WebAccess.Search.MaxResults,
+		MaxResponseBytes: f.deps.Config.WebAccess.MaxResponseBytes,
 		Policy: webaccess.URLPolicy{
-			AllowPrivateNetworks: f.cfg.WebAccess.AllowPrivateNetworks,
+			AllowPrivateNetworks: f.deps.Config.WebAccess.AllowPrivateNetworks,
 		},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("web search service: %w", err)
 	}
 	browserService, err := browser.NewService(browser.Config{
-		ExecutablePath: strings.TrimSpace(f.cfg.Browser.ExecutablePath),
-		Headless:       f.cfg.Browser.Headless,
-		Timeout:        time.Duration(f.cfg.Browser.DefaultTimeoutSeconds) * time.Second,
-		UserAgent:      f.cfg.WebAccess.UserAgent,
+		ExecutablePath: strings.TrimSpace(f.deps.Config.Browser.ExecutablePath),
+		Headless:       f.deps.Config.Browser.Headless,
+		Timeout:        time.Duration(f.deps.Config.Browser.DefaultTimeoutSeconds) * time.Second,
+		UserAgent:      f.deps.Config.WebAccess.UserAgent,
 		Policy: webaccess.URLPolicy{
-			AllowPrivateNetworks: f.cfg.WebAccess.AllowPrivateNetworks,
+			AllowPrivateNetworks: f.deps.Config.WebAccess.AllowPrivateNetworks,
 		},
 	})
 	if err != nil {
@@ -148,31 +145,31 @@ func (f *RunnerFactory) buildToolset(
 	}
 
 	var operatorStore tools.OperatorQuestionStore
-	if f.mcpPendingActions != nil {
-		operatorStore = f.mcpPendingActions
-	} else if store, ok := f.store.(tools.OperatorQuestionStore); ok {
+	if f.deps.MCPPendingActions != nil {
+		operatorStore = f.deps.MCPPendingActions
+	} else if store, ok := f.deps.Store.(tools.OperatorQuestionStore); ok {
 		operatorStore = store
 	}
 
 	localCatalog, err := tools.BuildCatalog(tools.CatalogConfig{
-		Workspace:         f.workspace,
-		MutationEnabled:   !f.cfg.Tools.Mutation.Disabled,
-		RunCommandEnabled: !f.cfg.Tools.RunCommand.Disabled,
-		ArtifactService:   f.artifactService,
+		Workspace:         f.deps.Workspace,
+		MutationEnabled:   !f.deps.Config.Tools.Mutation.Disabled,
+		RunCommandEnabled: !f.deps.Config.Tools.RunCommand.Disabled,
+		ArtifactService:   f.deps.ArtifactService,
 		ArtifactContext:   artifactToolBridge{},
-		TerminalService:   f.terminalService,
+		TerminalService:   f.deps.TerminalService,
 		TerminalContext:   artifactToolBridge{},
 		OperatorStore:     operatorStore,
 		OperatorContext:   artifactToolBridge{},
 		WebFetchService:   webFetchService,
 		WebSearchService:  webSearchService,
 		BrowserService:    browserService,
-	}, f.extraLocalTools, childExec, delegateTaskBridge{})
+	}, f.deps.ExtraLocalTools, childExec, delegateTaskBridge{})
 	if err != nil {
 		return nil, err
 	}
 
-	checkpointService := f.checkpointService
+	checkpointService := f.deps.CheckpointService
 	effectiveSessionID := sessionID
 	if !includePlanning {
 		checkpointService = nil
@@ -183,23 +180,23 @@ func (f *RunnerFactory) buildToolset(
 		return nil, fmt.Errorf("build working checkpoint tools: %w", err)
 	}
 	var memoryTools []einotool.BaseTool
-	if f.memoryModule != nil {
-		fileTools, err := buildMemoryFileTools(ctx, f.memoryModule)
+	if f.deps.MemoryModule != nil {
+		fileTools, err := buildMemoryFileTools(ctx, f.deps.MemoryModule)
 		if err != nil {
 			return nil, err
 		}
 		memoryTools = append(memoryTools, fileTools...)
 	}
 
-	skillTools, err := skills.BuildAgentTools(f.loader)
+	skillTools, err := skills.BuildAgentTools(f.deps.Loader)
 	if err != nil {
 		return nil, fmt.Errorf("build skill tools: %w", err)
 	}
 	var skillLifecycleTools []einotool.BaseTool
 	if includePlanning {
 		skillLifecycleTools, err = skilllifecycle.BuildAgentTools(skilllifecycle.ToolOptions{
-			Loader: f.loader,
-			Store:  f.store,
+			Loader: f.deps.Loader,
+			Store:  f.deps.Store,
 			Bridge: delegateTaskBridge{},
 		})
 		if err != nil {
@@ -207,23 +204,23 @@ func (f *RunnerFactory) buildToolset(
 		}
 	}
 
-	specs, err := buildCatalogSpecs(ctx, f.cfg, "local", tooling.ToolKindNative, []tooling.ToolProfile{tooling.ToolProfileRun, tooling.ToolProfileServe}, append([]einotool.BaseTool(nil), localCatalog.Tools...))
+	specs, err := buildCatalogSpecs(ctx, f.deps.Config, "local", tooling.ToolKindNative, []tooling.ToolProfile{tooling.ToolProfileRun, tooling.ToolProfileServe}, append([]einotool.BaseTool(nil), localCatalog.Tools...))
 	if err != nil {
 		return nil, err
 	}
-	checkpointSpecs, err := buildCatalogSpecs(ctx, f.cfg, "workingstate", tooling.ToolKindMemory, []tooling.ToolProfile{tooling.ToolProfileRun, tooling.ToolProfileServe}, checkpointTools)
+	checkpointSpecs, err := buildCatalogSpecs(ctx, f.deps.Config, "workingstate", tooling.ToolKindMemory, []tooling.ToolProfile{tooling.ToolProfileRun, tooling.ToolProfileServe}, checkpointTools)
 	if err != nil {
 		return nil, err
 	}
-	memorySpecs, err := buildCatalogSpecs(ctx, f.cfg, "memory", tooling.ToolKindMemory, []tooling.ToolProfile{tooling.ToolProfileRun, tooling.ToolProfileServe}, memoryTools)
+	memorySpecs, err := buildCatalogSpecs(ctx, f.deps.Config, "memory", tooling.ToolKindMemory, []tooling.ToolProfile{tooling.ToolProfileRun, tooling.ToolProfileServe}, memoryTools)
 	if err != nil {
 		return nil, err
 	}
-	skillSpecs, err := buildCatalogSpecs(ctx, f.cfg, "skill", tooling.ToolKindSkill, []tooling.ToolProfile{tooling.ToolProfileRun, tooling.ToolProfileServe}, skillTools)
+	skillSpecs, err := buildCatalogSpecs(ctx, f.deps.Config, "skill", tooling.ToolKindSkill, []tooling.ToolProfile{tooling.ToolProfileRun, tooling.ToolProfileServe}, skillTools)
 	if err != nil {
 		return nil, err
 	}
-	skillLifecycleSpecs, err := buildCatalogSpecs(ctx, f.cfg, "skill.lifecycle", tooling.ToolKindSkill, []tooling.ToolProfile{tooling.ToolProfileRun}, skillLifecycleTools)
+	skillLifecycleSpecs, err := buildCatalogSpecs(ctx, f.deps.Config, "skill.lifecycle", tooling.ToolKindSkill, []tooling.ToolProfile{tooling.ToolProfileRun}, skillLifecycleTools)
 	if err != nil {
 		return nil, err
 	}
@@ -233,11 +230,11 @@ func (f *RunnerFactory) buildToolset(
 	specs = append(specs, skillLifecycleSpecs...)
 
 	if includePlanning {
-		loadToolsTool, err := newLoadToolsTool(f.contextPlane)
+		loadToolsTool, err := newLoadToolsTool(f.deps.ContextPlane)
 		if err != nil {
 			return nil, fmt.Errorf("build load_tools tool: %w", err)
 		}
-		planningSpecs, err := buildCatalogSpecs(ctx, f.cfg, "runtime", tooling.ToolKindNative, []tooling.ToolProfile{tooling.ToolProfileRun}, []einotool.BaseTool{loadToolsTool})
+		planningSpecs, err := buildCatalogSpecs(ctx, f.deps.Config, "runtime", tooling.ToolKindNative, []tooling.ToolProfile{tooling.ToolProfileRun}, []einotool.BaseTool{loadToolsTool})
 		if err != nil {
 			return nil, err
 		}

@@ -5,6 +5,8 @@ import (
 
 	"github.com/cloudwego/eino/adk"
 	"github.com/cloudwego/eino/schema"
+
+	"github.com/ycvk/acorn/internal/contextplane"
 )
 
 // SessionOwner is the subset of contextplane.ContextSession used by orchestration.
@@ -47,13 +49,5 @@ type DefaultOverflowChecker struct{}
 
 // IsContextOverflowError reports whether err is a context-overflow error.
 func (DefaultOverflowChecker) IsContextOverflowError(err error) bool {
-	return err != nil && isContextOverflowError(err)
-}
-
-// isContextOverflowError is the standard check; it may be overridden in tests.
-var isContextOverflowError = func(err error) bool {
-	// Default implementation: inspect error message or type.
-	// This is a placeholder that will be wired to contextplane.IsContextOverflowError
-	// by runtime during adapter setup.
-	return false
+	return contextplane.IsContextOverflowError(err)
 }

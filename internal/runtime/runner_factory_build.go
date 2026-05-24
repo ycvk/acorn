@@ -61,22 +61,22 @@ func (f *RunnerFactory) buildRunCapabilities(ctx context.Context, sessionID stri
 		if err != nil {
 			return nil, fmt.Errorf("namespace MCP tool %q for provider %q: %w", info.Name, registration.ProviderName, err)
 		}
-		spec, err := runtimeToolSpec(ctx, f.cfg, registration.ProviderName, tooling.ToolKindMCP, []tooling.ToolProfile{tooling.ToolProfileRun}, namespaced)
+		spec, err := runtimeToolSpec(ctx, f.deps.Config, registration.ProviderName, tooling.ToolKindMCP, []tooling.ToolProfile{tooling.ToolProfileRun}, namespaced)
 		if err != nil {
 			return nil, err
 		}
-		parallelPolicy, err := mcpToolParallelPolicy(f.cfg, registration.ProviderName)
+		parallelPolicy, err := mcpToolParallelPolicy(f.deps.Config, registration.ProviderName)
 		if err != nil {
 			return nil, fmt.Errorf("resolve MCP tool safety for provider %q: %w", registration.ProviderName, err)
 		}
 		spec.Execution.ParallelPolicy = parallelPolicy
 		specs = append(specs, spec)
 	}
-	resourceSpecs, err := buildCatalogSpecs(ctx, f.cfg, "mcp.resource", tooling.ToolKindMCPResource, []tooling.ToolProfile{tooling.ToolProfileRun}, resourceTools)
+	resourceSpecs, err := buildCatalogSpecs(ctx, f.deps.Config, "mcp.resource", tooling.ToolKindMCPResource, []tooling.ToolProfile{tooling.ToolProfileRun}, resourceTools)
 	if err != nil {
 		return nil, err
 	}
-	promptSpecs, err := buildCatalogSpecs(ctx, f.cfg, "mcp.prompt", tooling.ToolKindMCPPrompt, []tooling.ToolProfile{tooling.ToolProfileRun}, promptTools)
+	promptSpecs, err := buildCatalogSpecs(ctx, f.deps.Config, "mcp.prompt", tooling.ToolKindMCPPrompt, []tooling.ToolProfile{tooling.ToolProfileRun}, promptTools)
 	if err != nil {
 		return nil, err
 	}
@@ -87,7 +87,7 @@ func (f *RunnerFactory) buildRunCapabilities(ctx context.Context, sessionID stri
 	if err != nil {
 		return nil, err
 	}
-	skillSnapshot, err := loadStableSkillSnapshot(ctx, f.loader, skillEligibilityContextFromCatalog(catalog))
+	skillSnapshot, err := loadStableSkillSnapshot(ctx, f.deps.Loader, skillEligibilityContextFromCatalog(catalog))
 	if err != nil {
 		return nil, err
 	}
@@ -121,7 +121,7 @@ func (f *RunnerFactory) resolveRunSelection(
 	}
 
 	if strings.TrimSpace(req.Input) != "" || strings.TrimSpace(req.SkillID) != "" {
-		engine, parsed, err := buildPlaneEngine(f.decisionProfiles)
+		engine, parsed, err := buildPlaneEngine(f.deps.DecisionProfiles)
 		if err != nil {
 			return nil, err
 		}
@@ -141,50 +141,42 @@ func (f *RunnerFactory) resolveRunSelection(
 		if err != nil {
 			return nil, err
 		}
-		bridge := newPlaneBridge(
-			engine,
-			f.decisionProfiles,
-			f.store,
-			func(ctx context.Context, record decision.Record) error {
-				return f.store.SaveRunDecision(ctx, record)
-			},
-			func(ctx context.Context, record *decision.Record, explicitSkillID string) error {
-				return emitDecisionEvents(ctx, f.store, req, record, explicitSkillID)
-			},
-		)
 		planeReq := buildPlaneRequest(req, caps, discovered, hasWorkingContext)
-		result, err := bridge.Decide(ctx, planeReq)
+		record, err := engine.Decide(ctx, decision.DecideInput(planeReq))
 		if err != nil {
 			return nil, err
 		}
-		fillRecordMetadata(result.Record, parsed.Hash)
-		if bridge.saveFn != nil {
-			if err := bridge.saveFn(ctx, *result.Record); err != nil {
-				return nil, err
-			}
+		fillRecordMetadata(record, parsed.Hash)
+		if err := f.deps.Store.SaveRunDecision(ctx, *record); err != nil {
+			return nil, err
 		}
-		if bridge.emitFn != nil {
-			if err := bridge.emitFn(ctx, result.Record, req.SkillID); err != nil {
-				return nil, err
-			}
+		if err := emitDecisionEvents(ctx, f.deps.Store, req, record, req.SkillID); err != nil {
+			return nil, err
+		}
+		result := &decision.Result{
+			Record:        record,
+			SelectedSkill: selectedSkillResultFromRecord(record),
+			Hint:          decision.BuildHint(record.Action),
 		}
 		enrichSelectedSkillFromMatches(result, discovered, caps.stableSkills)
 		selectedSkill, err := selectedSkillFromPlaneResult(result, caps.stableSkills)
 		if err != nil {
 			return nil, err
 		}
-		if emitErr := emitSkillSelectionEvents(ctx, f.store, req, selectedSkill, discovered); emitErr != nil {
+		if emitErr := emitSkillSelectionEvents(ctx, f.deps.Store, req, selectedSkill, discovered); emitErr != nil {
 			return nil, emitErr
 		}
-		if actionErr := bridge.HandleAction(ctx, decision.ActionRequest{
-			RunID:     req.RunID,
-			SessionID: req.SessionID,
-			Input:     req.Input,
-			Result:    result,
-			ChatModel: chatModel,
-			Skills:    skillIDs(caps.stableSkills),
-		}); actionErr != nil {
-			return nil, actionErr
+		if !decision.IsContinuableAction(record.Action) {
+			switch record.Action {
+			case decision.ActionAskUser:
+				return nil, fmt.Errorf("decision requires operator confirmation: %s", record.DecisionReason)
+			case decision.ActionBlock:
+				return nil, fmt.Errorf("decision blocked execution: %s", record.DecisionReason)
+			case decision.ActionResumeRun:
+				return nil, fmt.Errorf("decision resolved to resume_run for a new execution")
+			default:
+				return nil, fmt.Errorf("decision action %q is not continuable", record.Action)
+			}
 		}
 		return &runSelection{
 			decisionRecord: result.Record,
@@ -193,7 +185,7 @@ func (f *RunnerFactory) resolveRunSelection(
 		}, nil
 	} else if strings.TrimSpace(req.RunID) != "" {
 		var err error
-		decisionRecord, err := f.store.LoadRunDecision(ctx, req.RunID)
+		decisionRecord, err := f.deps.Store.LoadRunDecision(ctx, req.RunID)
 		if err != nil {
 			return nil, err
 		}
@@ -225,20 +217,20 @@ func (f *RunnerFactory) buildSingleAgentAssembly(
 	chatModel einomodel.BaseChatModel,
 	contextResult *contextplane.AssembleResult,
 ) (*orchestration.RunAssembly, error) {
-	if f == nil || f.orchestration == nil {
+	if f == nil || f.deps.Orchestration == nil {
 		return nil, fmt.Errorf("orchestration plane is not initialized")
 	}
 	instructionSuffix, err := f.withMemoryInstruction(ctx, req)
 	if err != nil {
 		return nil, err
 	}
-	return f.orchestration.BuildSingleAgent(ctx, orchestration.SingleAgentRequest{
-		AgentName:         f.cfg.Agent.Name,
-		AgentDescription:  f.cfg.Agent.Description,
+	return f.deps.Orchestration.BuildSingleAgent(ctx, orchestration.SingleAgentRequest{
+		AgentName:         f.deps.Config.Agent.Name,
+		AgentDescription:  f.deps.Config.Agent.Description,
 		SessionID:         req.SessionID,
 		RunID:             req.RunID,
 		ChatModel:         chatModel,
-		AssistantStreamer: newDirectAssistantStreamer(f.store),
+		AssistantStreamer: newDirectAssistantStreamer(f.deps.Store),
 		Catalog:           catalog,
 		ContextResult:     AssembleResultToView(contextResult),
 		AllowedToolNames:  append([]string(nil), req.AllowedToolNames...),
@@ -254,16 +246,16 @@ func (f *RunnerFactory) buildDirectResponseAssembly(
 	chatModel einomodel.BaseChatModel,
 	contextResult *contextplane.AssembleResult,
 ) (*orchestration.RunAssembly, error) {
-	if f == nil || f.orchestration == nil {
+	if f == nil || f.deps.Orchestration == nil {
 		return nil, fmt.Errorf("orchestration plane is not initialized")
 	}
-	return f.orchestration.BuildDirectResponse(ctx, orchestration.DirectResponseRequest{
-		AgentName:         f.cfg.Agent.Name,
-		AgentDescription:  f.cfg.Agent.Description,
+	return f.deps.Orchestration.BuildDirectResponse(ctx, orchestration.DirectResponseRequest{
+		AgentName:         f.deps.Config.Agent.Name,
+		AgentDescription:  f.deps.Config.Agent.Description,
 		SessionID:         req.SessionID,
 		RunID:             req.RunID,
 		ChatModel:         chatModel,
-		AssistantStreamer: newDirectAssistantStreamer(f.store),
+		AssistantStreamer: newDirectAssistantStreamer(f.deps.Store),
 		Catalog:           catalog,
 		ContextResult:     AssembleResultToView(contextResult),
 		AllowedToolNames:  append([]string(nil), req.AllowedToolNames...),
@@ -279,16 +271,16 @@ func (f *RunnerFactory) buildPlanExecuteAssembly(
 	chatModel einomodel.BaseChatModel,
 	contextResult *contextplane.AssembleResult,
 ) (*orchestration.RunAssembly, error) {
-	if f == nil || f.orchestration == nil {
+	if f == nil || f.deps.Orchestration == nil {
 		return nil, fmt.Errorf("orchestration plane is not initialized")
 	}
 	instructionSuffix, err := f.withMemoryInstruction(ctx, req)
 	if err != nil {
 		return nil, err
 	}
-	return f.orchestration.BuildPlanExecute(ctx, orchestration.PlanExecuteRequest{
-		AgentName:         f.cfg.Agent.Name,
-		AgentDescription:  f.cfg.Agent.Description,
+	return f.deps.Orchestration.BuildPlanExecute(ctx, orchestration.PlanExecuteRequest{
+		AgentName:         f.deps.Config.Agent.Name,
+		AgentDescription:  f.deps.Config.Agent.Description,
 		SessionID:         req.SessionID,
 		RunID:             req.RunID,
 		ChatModel:         chatModel,
@@ -302,14 +294,14 @@ func (f *RunnerFactory) buildPlanExecuteAssembly(
 }
 
 func (f *RunnerFactory) withMemoryInstruction(ctx context.Context, req RunnerBuildRequest) (string, error) {
-	if f == nil || f.memoryModule == nil {
+	if f == nil || f.deps.MemoryModule == nil {
 		return "", errors.New("memory module is not initialized")
 	}
 	workspaceSlug := ""
-	if f.workspace != nil {
-		workspaceSlug = memorymodule.WorkspaceSlug(f.workspace.Root())
+	if f.deps.Workspace != nil {
+		workspaceSlug = memorymodule.WorkspaceSlug(f.deps.Workspace.Root())
 	}
-	instruction, err := f.memoryModule.BuildMemoryInstruction(ctx, workspaceSlug)
+	instruction, err := f.deps.MemoryModule.BuildMemoryInstruction(ctx, workspaceSlug)
 	if err != nil {
 		return "", fmt.Errorf("build memory instruction: %w", err)
 	}

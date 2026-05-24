@@ -30,16 +30,13 @@ func newRunBuilder(factory *RunnerFactory) *runBuilder {
 }
 
 func (b *runBuilder) Build(ctx context.Context, req RunnerBuildRequest) (*ActiveRunner, error) {
-	if b == nil || b.factory == nil || b.factory.cfg == nil || b.factory.store == nil {
+	if b == nil || b.factory == nil || b.factory.deps.Config == nil || b.factory.deps.Store == nil {
 		return nil, errors.New("runner factory is not initialized")
 	}
 	f := b.factory
 	mode := orchestrationmode.Normalize(req.OrchestrationMode)
 	if mode != orchestrationmode.DirectResponse {
-		if f.workspaceErr != nil {
-			return nil, fmt.Errorf("workspace contract: %w", f.workspaceErr)
-		}
-		if f.workspace == nil {
+		if f.deps.Workspace == nil {
 			return nil, errors.New("workspace contract is not initialized")
 		}
 	}
@@ -47,7 +44,7 @@ func (b *runBuilder) Build(ctx context.Context, req RunnerBuildRequest) (*Active
 	rc := &RunContext{
 		RunID:    req.RunID,
 		ParentID: strings.TrimSpace(req.ParentRunID),
-		Budget:   NewRunBudget(f.cfg.Agent.MaxIterations),
+		Budget:   NewRunBudget(f.deps.Config.Agent.MaxIterations),
 		Sink:     req.Sink,
 	}
 	if err := f.registry.Register(rc); err != nil {

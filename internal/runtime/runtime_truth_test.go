@@ -13,8 +13,11 @@ import (
 
 func TestRunnerFactoryNewCleansRunContextOnSetupFailure(t *testing.T) {
 	store, cfg := newRunnerFactoryMemoryTestContext(t)
-	cfg.Providers[0].Enabled = false
 	factory := newRunnerFactory(t, cfg, store, RunnerFactoryOptions{})
+
+	factory.installRunChatModelBuilderForTest(func(context.Context, RunnerBuildRequest) (einomodel.BaseChatModel, error) {
+		return nil, errors.New("model setup failed")
+	})
 
 	_, err := factory.New(context.Background(), RunnerBuildRequest{
 		RunID:             "run_cleanup",

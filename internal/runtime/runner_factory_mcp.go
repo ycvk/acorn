@@ -67,7 +67,7 @@ func hasEnabledProviders(cfgs []mcpprovider.ProviderConfig) bool {
 }
 
 func (f *RunnerFactory) bootstrapRunMCP(ctx context.Context, req RunnerBuildRequest) (*mcpprovider.Manager, error) {
-	providerConfigs := mcpprovider.ProviderConfigsFromConfig(f.cfg.MCP.Providers)
+	providerConfigs := mcpprovider.ProviderConfigsFromConfig(f.deps.Config.MCP.Providers)
 	if !hasEnabledProviders(providerConfigs) {
 		return nil, nil
 	}
@@ -81,7 +81,7 @@ func (f *RunnerFactory) bootstrapRunMCP(ctx context.Context, req RunnerBuildRequ
 		return nil, err
 	}
 	manager.SetActiveRunID(req.RunID)
-	if err := emitProviderDegradedIfNeeded(ctx, f.store, req, manager.Statuses()); err != nil {
+	if err := emitProviderDegradedIfNeeded(ctx, f.deps.Store, req, manager.Statuses()); err != nil {
 		return nil, err
 	}
 	return manager, nil
@@ -92,11 +92,11 @@ func (f *RunnerFactory) getOrCreateMCPManager(ctx context.Context, providerConfi
 	defer f.mu.Unlock()
 
 	if f.cachedManager == nil {
-		pendingActionStore := mcpprovider.PendingActionStore(f.store)
-		if f.mcpPendingActions != nil {
-			pendingActionStore = f.mcpPendingActions
+		pendingActionStore := mcpprovider.PendingActionStore(f.deps.Store)
+		if f.deps.MCPPendingActions != nil {
+			pendingActionStore = f.deps.MCPPendingActions
 		}
-		mgr, err := mcpprovider.NewManager(ctx, providerConfigs, mcpprovider.WithEventCallback(f.providerEventCallback()), mcpprovider.WithTokenStore(f.store), mcpprovider.WithStore(pendingActionStore))
+		mgr, err := mcpprovider.NewManager(ctx, providerConfigs, mcpprovider.WithEventCallback(f.providerEventCallback()), mcpprovider.WithTokenStore(f.deps.Store), mcpprovider.WithStore(pendingActionStore))
 		if err != nil {
 			return nil, err
 		}
@@ -167,7 +167,7 @@ func (f *RunnerFactory) providerEventCallback() mcpprovider.ProviderEventCallbac
 			AuthStatus:   ev.AuthStatus,
 		}
 
-		if _, err := AppendStreamItem(context.Background(), f.store, sink, StreamItem{
+		if _, err := AppendStreamItem(context.Background(), f.deps.Store, sink, StreamItem{
 			RunID:     runID,
 			Kind:      kind,
 			CreatedAt: time.Now().UTC(),
@@ -232,10 +232,10 @@ func (f *RunnerFactory) Close() error {
 		f.cachedManager = nil
 		f.lastSessionOverlay = ""
 	}
-	if f.indexStore != nil {
-		closeErr = errors.Join(closeErr, f.indexStore.Close())
-		f.indexStore = nil
-		f.crystallizer = nil
+	if f.deps.IndexStore != nil {
+		closeErr = errors.Join(closeErr, f.deps.IndexStore.Close())
+		f.deps.IndexStore = nil
+		f.deps.Crystallizer = nil
 	}
 	return closeErr
 }

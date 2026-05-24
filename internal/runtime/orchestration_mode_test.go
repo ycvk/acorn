@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -67,7 +69,7 @@ func TestExecuteMessagesPersistsDirectResponseModeForGreeting(t *testing.T) {
 	}
 
 	directErr := errors.New("direct response route selected")
-	exec.runBuilder.(*RunnerFactory).orchestration = fakeModeRoutingPlane{directErr: directErr}
+	exec.runBuilder.(*RunnerFactory).deps.Orchestration = fakeModeRoutingPlane{directErr: directErr}
 	exec.runBuilder.(*RunnerFactory).installRunChatModelBuilderForTest(func(context.Context, RunnerBuildRequest) (einomodel.BaseChatModel, error) {
 		return directRoutingTestModel{}, nil
 	})
@@ -344,7 +346,7 @@ func TestExecuteMessagesPersistsExplicitPlanExecuteMode(t *testing.T) {
 		t.Fatalf("NewExecutorWithRunnerFactoryAndController: %v", err)
 	}
 
-	exec.runBuilder.(*RunnerFactory).workspace = nil
+	exec.runBuilder.(*RunnerFactory).deps.Workspace = nil
 
 	_, err = exec.ExecuteMessages(ctx, ExecuteRequest{
 		RunID:             "run_plan_route",
@@ -370,7 +372,7 @@ func TestBuildSingleAgentAssemblyInjectsMemoryReflection(t *testing.T) {
 	store, cfg := newRunnerFactoryMemoryTestContext(t)
 	factory := newRunnerFactory(t, cfg, store, RunnerFactoryOptions{})
 	var captured orchestration.SingleAgentRequest
-	factory.orchestration = fakeModeRoutingPlane{singleAgentReq: &captured}
+	factory.deps.Orchestration = fakeModeRoutingPlane{singleAgentReq: &captured}
 
 	assembly, err := factory.buildSingleAgentAssembly(ctx, RunnerBuildRequest{
 		RunID:             "run_single_memory",
@@ -397,7 +399,7 @@ func TestBuildPlanExecuteAssemblyInjectsMemoryReflection(t *testing.T) {
 	factory := newRunnerFactory(t, cfg, store, RunnerFactoryOptions{})
 	var captured orchestration.PlanExecuteRequest
 	routeErr := errors.New("plan execute captured")
-	factory.orchestration = fakeModeRoutingPlane{planExecuteErr: routeErr, planReq: &captured}
+	factory.deps.Orchestration = fakeModeRoutingPlane{planExecuteErr: routeErr, planReq: &captured}
 
 	_, err := factory.buildPlanExecuteAssembly(ctx, RunnerBuildRequest{
 		RunID:             "run_plan_memory",
@@ -420,7 +422,7 @@ func TestResumeWithTargetsRoutesPlanExecuteRunByPersistedMode(t *testing.T) {
 	store, cfg := newRunnerFactoryMemoryTestContext(t)
 	factory := newRunnerFactory(t, cfg, store, RunnerFactoryOptions{})
 	routeErr := errors.New("plan execute route selected")
-	factory.orchestration = fakeModeRoutingPlane{planExecuteErr: routeErr}
+	factory.deps.Orchestration = fakeModeRoutingPlane{planExecuteErr: routeErr}
 
 	exec, err := NewExecutorWithRunnerFactoryAndController(cfg, store, factory, nil)
 	if err != nil {
@@ -458,6 +460,47 @@ func TestResumeWithTargetsRoutesPlanExecuteRunByPersistedMode(t *testing.T) {
 	_, err = exec.ResumeWithTargets(ctx, runID, map[string]any{}, nil)
 	if !errors.Is(err, routeErr) {
 		t.Fatalf("ResumeWithTargets error = %v, want %v", err, routeErr)
+	}
+}
+
+func TestResolveRunSelectionRejectsResumeRunDecision(t *testing.T) {
+	ctx := context.Background()
+	store, cfg := newRunnerFactoryMemoryTestContext(t)
+	factory := newRunnerFactory(t, cfg, store, RunnerFactoryOptions{})
+	decisionRoot := t.TempDir()
+	profile := decision.Profile{
+		Defaults: decision.Defaults{
+			MissingContext:            decision.ActionInspectFirst,
+			MissingRequiredCapability: decision.ActionBlock,
+		},
+		Routes: []decision.Route{
+			{Intent: "general", Action: decision.ActionResumeRun},
+		},
+	}
+	raw, err := decision.RenderProfileMarkdown(profile)
+	if err != nil {
+		t.Fatalf("RenderProfileMarkdown: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(decisionRoot, "decision.md"), []byte(raw), 0o644); err != nil {
+		t.Fatalf("write decision.md: %v", err)
+	}
+	factory.deps.DecisionProfiles = decision.NewProfileService(decisionRoot)
+
+	catalog, err := tooling.NewCatalog(ctx, nil)
+	if err != nil {
+		t.Fatalf("NewCatalog: %v", err)
+	}
+	caps := &runCapabilities{catalog: catalog}
+	selection, err := factory.resolveRunSelection(ctx, RunnerBuildRequest{
+		RunID:     "run_resume_decision",
+		SessionID: "session_resume_decision",
+		Input:     "hello",
+	}, caps, nil)
+	if err == nil {
+		t.Fatalf("resolveRunSelection returned selection %+v, want resume_run rejection", selection)
+	}
+	if !strings.Contains(err.Error(), "decision resolved to resume_run for a new execution") {
+		t.Fatalf("resolveRunSelection error = %v, want resume_run rejection", err)
 	}
 }
 

@@ -141,7 +141,24 @@ func newRunnerFactory(t *testing.T, cfg *config.Config, store RunnerFactoryStore
 	if opts.MemoryModule == nil {
 		opts.MemoryModule = newRunnerFactoryMemoryModule(t, cfg)
 	}
-	return NewRunnerFactory(cfg, store, opts)
+	factory, err := NewRunnerFactory(cfg, store, opts)
+	if err != nil {
+		t.Fatalf("NewRunnerFactory: %v", err)
+	}
+	return factory
+}
+
+func TestNewRunnerFactoryUsesInjectedContextPlane(t *testing.T) {
+	store, cfg := newRunnerFactoryMemoryTestContext(t)
+	plane := &stubDeferredPlane{}
+
+	factory := newRunnerFactory(t, cfg, store, RunnerFactoryOptions{
+		ContextPlane: plane,
+	})
+
+	if factory.deps.ContextPlane != plane {
+		t.Fatal("NewRunnerFactory did not retain injected context plane")
+	}
 }
 
 type runtimeTestSemanticIndex struct{}
