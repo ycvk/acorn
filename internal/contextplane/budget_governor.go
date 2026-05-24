@@ -60,15 +60,28 @@ func NewBudgetGovernor(tokenCounter *CompressionTokenCounter) BudgetGovernor {
 	return defaultBudgetGovernor{tokenCounter: tokenCounter}
 }
 
+const (
+	defaultStaticOverheadTokens = 4096
+	defaultWarningGapTokens     = 7000
+	defaultBlockingBufferMax    = 3000
+)
+
 func ModelProfileFromContextPolicy(cfg config.ContextPolicy) ModelProfile {
+	blockingBuffer := cfg.CompactMarginTokens / 4
+	if blockingBuffer < 1 {
+		blockingBuffer = 1
+	}
+	if blockingBuffer > defaultBlockingBufferMax {
+		blockingBuffer = defaultBlockingBufferMax
+	}
 	return ModelProfile{
-		ContextWindowTokens:         cfg.ContextWindowTokens,
+		ContextWindowTokens:         cfg.WindowTokens,
 		ReservedOutputTokens:        cfg.ReservedOutputTokens,
-		ReservedSummaryOutputTokens: cfg.MaxSummaryTokens,
-		StaticOverheadTokens:        cfg.StaticOverheadTokens,
-		WarningBufferTokens:         cfg.WarningBufferTokens,
-		AutoCompactBufferTokens:     cfg.AutoCompactBufferTokens,
-		BlockingBufferTokens:        cfg.BlockingBufferTokens,
+		ReservedSummaryOutputTokens: cfg.SummaryMaxTokens,
+		StaticOverheadTokens:        defaultStaticOverheadTokens,
+		WarningBufferTokens:         cfg.CompactMarginTokens + defaultWarningGapTokens,
+		AutoCompactBufferTokens:     cfg.CompactMarginTokens,
+		BlockingBufferTokens:        blockingBuffer,
 	}
 }
 

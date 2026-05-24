@@ -38,16 +38,13 @@ type ContextConfig struct {
 }
 
 type ContextPolicy struct {
-	ContextWindowTokens     int
-	ReservedOutputTokens    int
-	StaticOverheadTokens    int
-	WarningBufferTokens     int
-	AutoCompactBufferTokens int
-	BlockingBufferTokens    int
-	PreserveRecentTurns     int
-	MaxSummaryTokens        int
-	TokenEncoding           string
-	HandoffFrameDisabled    bool
+	WindowTokens        int
+	CompactMarginTokens int
+	PreserveRecentTurns int
+	SummaryMaxTokens    int
+	ReservedOutputTokens int
+	TokenEncoding        string
+	HandoffFrameDisabled bool
 }
 
 type MemoryConfig struct {

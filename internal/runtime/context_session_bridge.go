@@ -39,10 +39,10 @@ func (e *Executor) bootstrapContextSessionMessages(
 		Governor: contextplane.NewBudgetGovernor(counter),
 		CompactionEngine: contextplane.NewDefaultCompactionEngine(contextplane.CompactionEngineOptions{
 			Model:                active.ChatModel,
-			ModelOptions:         []einomodel.Option{einomodel.WithMaxTokens(contextPolicy.MaxSummaryTokens)},
+			ModelOptions:         []einomodel.Option{einomodel.WithMaxTokens(contextPolicy.SummaryMaxTokens)},
 			TokenCounter:         counter,
 			HandoffFrameDisabled: contextPolicy.HandoffFrameDisabled,
-			MaxSummaryTokens:     contextPolicy.MaxSummaryTokens,
+			MaxSummaryTokens:     contextPolicy.SummaryMaxTokens,
 		}),
 		TokenCounter:         counter,
 		Catalog:              active.ToolCatalog,

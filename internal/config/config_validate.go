@@ -206,9 +206,10 @@ func (c *Config) validateContext() error {
 	if err != nil {
 		return err
 	}
-	reserved := max(policy.ReservedOutputTokens, policy.MaxSummaryTokens)
-	effectiveWindow := policy.ContextWindowTokens - reserved - policy.StaticOverheadTokens
-	if effectiveWindow <= policy.WarningBufferTokens {
+	reserved := max(policy.ReservedOutputTokens, policy.SummaryMaxTokens)
+	effectiveWindow := policy.WindowTokens - reserved - defaultContextStaticOverheadTokens
+	warningThreshold := policy.CompactMarginTokens + defaultContextWarningGapTokens
+	if effectiveWindow <= warningThreshold {
 		return errors.New("context effective window must be greater than derived warning threshold buffer")
 	}
 	return nil

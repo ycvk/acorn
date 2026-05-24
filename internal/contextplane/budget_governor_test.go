@@ -101,13 +101,11 @@ func TestBudgetGovernorRequiresTokenCounter(t *testing.T) {
 
 func TestContextAssemblyTokenLimitFromContextPolicy(t *testing.T) {
 	got, err := ContextAssemblyTokenLimitFromContextPolicy(config.ContextPolicy{
-		ContextWindowTokens:     200000,
-		ReservedOutputTokens:    4096,
-		StaticOverheadTokens:    4096,
-		WarningBufferTokens:     20000,
-		AutoCompactBufferTokens: 13000,
-		BlockingBufferTokens:    3000,
-		MaxSummaryTokens:        2048,
+		WindowTokens:         200000,
+		CompactMarginTokens:  13000,
+		PreserveRecentTurns:  3,
+		SummaryMaxTokens:     2048,
+		ReservedOutputTokens: 4096,
 	})
 	if err != nil {
 		t.Fatalf("ContextAssemblyTokenLimitFromContextPolicy: %v", err)
