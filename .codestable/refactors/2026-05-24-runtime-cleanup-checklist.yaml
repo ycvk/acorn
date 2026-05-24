@@ -1,0 +1,118 @@
+title: "Acorn Runtime Cleanup Refactor"
+date: "2026-05-24"
+status: "approved"
+scan: "2026-05-24-runtime-cleanup-scan.md"
+design: "2026-05-24-runtime-cleanup-design.md"
+
+steps:
+  - id: 1
+    title: "合并 store/sqlite 文件"
+    target: "internal/store/sqlite/"
+    method: "M-L3-01"
+    from: 45
+    to: 20
+    risk: "low"
+    verify: "go test ./internal/store/sqlite/... && go build ./..."
+    status: "pending"
+    notes: ""
+
+  - id: 2
+    title: "合并 web handler/dto 文件"
+    target: "internal/web/"
+    method: "M-L3-01"
+    from: 37
+    to: 15
+    risk: "low"
+    verify: "go test ./internal/web/... && go build ./..."
+    status: "pending"
+    notes: ""
+
+  - id: 3
+    title: "合并 app service 文件"
+    target: "internal/app/"
+    method: "M-L3-01"
+    from: 48
+    to: 15
+    risk: "low"
+    verify: "go test ./internal/app/... && go build ./..."
+    status: "pending"
+    notes: ""
+
+  - id: 4
+    title: "合并 runtime 核心文件"
+    target: "internal/runtime/"
+    method: "M-L3-01"
+    from: 135
+    to: 25
+    risk: "medium"
+    verify: "go test ./internal/runtime/... && go build ./..."
+    status: "pending"
+    notes: "最关键步骤，核心逻辑密集"
+
+  - id: 5
+    title: "内联 graph/api/stream 子包"
+    target: "internal/runtime/{graph,api,stream}/"
+    method: "M-L3-04"
+    from: 3
+    to: 0
+    risk: "low"
+    verify: "go test ./internal/runtime/... && go build ./..."
+    status: "pending"
+    notes: "子包消失，内容合并到 runtime 包"
+
+  - id: 6
+    title: "合并 store 三层类型"
+    target: "internal/store/"
+    method: "M-L3-02"
+    from: 3
+    to: 1
+    risk: "low"
+    verify: "go build ./... && go test ./internal/store/..."
+    status: "pending"
+    notes: "删除 alias 层"
+
+  - id: 7
+    title: "删除微型接口"
+    target: "internal/app/, internal/web/"
+    method: "M-L1-01"
+    from: 20
+    to: 0
+    risk: "medium"
+    verify: "go build ./... && go test ./internal/app/... && go test ./internal/web/... && go test ./internal/runtime/..."
+    status: "pending"
+    notes: "破坏性变更，编译失败点可能多"
+
+  - id: 8
+    title: "简化 Stream 事件系统"
+    target: "internal/runtime/stream/"
+    method: "M-L2-03"
+    from: 40
+    to: 1
+    risk: "medium"
+    verify: "go test ./internal/runtime/stream/... && go test ./internal/runtime/..."
+    status: "pending"
+    notes: "类型系统改动，需确保序列化行为不变"
+
+  - id: 9
+    title: "简化 ContextPlane 参数"
+    target: "internal/contextplane/, internal/config/"
+    method: "M-L2-01"
+    from: 10
+    to: 4
+    risk: "high"
+    verify: "go test ./internal/contextplane/... && go build ./..."
+    status: "pending"
+    notes: "可能影响运行时行为，需谨慎"
+
+  - id: 10
+    title: "最终验证"
+    target: "整个项目"
+    method: "N/A"
+    from: "N/A"
+    to: "N/A"
+    risk: "low"
+    verify: "go test ./... && go build ./... && go vet ./..."
+    status: "pending"
+    notes: "全部通过后标记完成"
+
+rollback_strategy: "每步完成后 git commit，失败时 git reset --hard HEAD~1"
