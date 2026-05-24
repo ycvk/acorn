@@ -72,10 +72,10 @@ func (defaultCompressionPipeline) Build(
 
 	engine := NewDefaultCompactionEngine(CompactionEngineOptions{
 		Model:                chatModel,
-		ModelOptions:         []einomodel.Option{einomodel.WithMaxTokens(cfg.MaxSummaryTokens)},
+		ModelOptions:         []einomodel.Option{einomodel.WithMaxTokens(cfg.SummaryMaxTokens)},
 		TokenCounter:         tokenCounter,
 		HandoffFrameDisabled: cfg.HandoffFrameDisabled,
-		MaxSummaryTokens:     cfg.MaxSummaryTokens,
+		MaxSummaryTokens:     cfg.SummaryMaxTokens,
 	})
 	pipeline := NewDefaultContextCompressionPipeline(CompressionPipelineOptions{
 		Governor:             governor,

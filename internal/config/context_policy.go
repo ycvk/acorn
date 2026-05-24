@@ -21,15 +21,12 @@ func (c *Config) ContextPolicy() (ContextPolicy, error) {
 		return ContextPolicy{}, fmt.Errorf("provider %s: max_completion_tokens must be > 0 for context policy", provider.Name)
 	}
 	return ContextPolicy{
-		ContextWindowTokens:     c.Context.WindowTokens,
-		ReservedOutputTokens:    provider.MaxCompletionTokens,
-		StaticOverheadTokens:    defaultContextStaticOverheadTokens,
-		WarningBufferTokens:     c.Context.CompactMarginTokens + defaultContextWarningGapTokens,
-		AutoCompactBufferTokens: c.Context.CompactMarginTokens,
-		BlockingBufferTokens:    deriveContextBlockingBuffer(c.Context.CompactMarginTokens),
-		PreserveRecentTurns:     c.Context.PreserveRecentTurns,
-		MaxSummaryTokens:        c.Context.SummaryMaxTokens,
-		TokenEncoding:           defaultContextTokenEncoding,
+		WindowTokens:         c.Context.WindowTokens,
+		CompactMarginTokens:  c.Context.CompactMarginTokens,
+		PreserveRecentTurns:  c.Context.PreserveRecentTurns,
+		SummaryMaxTokens:     c.Context.SummaryMaxTokens,
+		ReservedOutputTokens: provider.MaxCompletionTokens,
+		TokenEncoding:        defaultContextTokenEncoding,
 	}, nil
 }
 

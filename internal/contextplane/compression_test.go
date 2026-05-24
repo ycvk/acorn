@@ -430,15 +430,12 @@ func assertNoSecretText(t *testing.T, label, value string) {
 
 func compressionEnabledTestConfig() config.ContextPolicy {
 	return config.ContextPolicy{
-		ContextWindowTokens:     200000,
-		ReservedOutputTokens:    4096,
-		StaticOverheadTokens:    4096,
-		WarningBufferTokens:     20000,
-		AutoCompactBufferTokens: 13000,
-		BlockingBufferTokens:    3000,
-		PreserveRecentTurns:     2,
-		MaxSummaryTokens:        2048,
-		TokenEncoding:           "o200k_base",
+		WindowTokens:         200000,
+		CompactMarginTokens:  13000,
+		PreserveRecentTurns:  2,
+		SummaryMaxTokens:     2048,
+		ReservedOutputTokens: 4096,
+		TokenEncoding:        "o200k_base",
 	}
 }
 
@@ -689,7 +686,7 @@ func compactTestMessages(t *testing.T, cfg config.ContextPolicy, messages []adk.
 	}
 	engine := NewDefaultCompactionEngine(CompactionEngineOptions{
 		Model:                &fakeCompressionChatModel{response: response},
-		ModelOptions:         []einomodel.Option{einomodel.WithMaxTokens(cfg.MaxSummaryTokens)},
+		ModelOptions:         []einomodel.Option{einomodel.WithMaxTokens(cfg.SummaryMaxTokens)},
 		TokenCounter:         counter,
 		HandoffFrameDisabled: cfg.HandoffFrameDisabled,
 	})

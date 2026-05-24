@@ -17,20 +17,14 @@ func TestContextPolicyDerivesInternalDefaults(t *testing.T) {
 		t.Fatalf("ContextPolicy: %v", err)
 	}
 
-	if got, want := policy.ContextWindowTokens, 200000; got != want {
-		t.Fatalf("ContextWindowTokens = %d, want %d", got, want)
+	if got, want := policy.WindowTokens, 200000; got != want {
+		t.Fatalf("WindowTokens = %d, want %d", got, want)
 	}
 	if got, want := policy.ReservedOutputTokens, 8192; got != want {
 		t.Fatalf("ReservedOutputTokens = %d, want provider max_completion_tokens %d", got, want)
 	}
-	if got, want := policy.WarningBufferTokens, 20000; got != want {
-		t.Fatalf("WarningBufferTokens = %d, want %d", got, want)
-	}
-	if got, want := policy.AutoCompactBufferTokens, 13000; got != want {
-		t.Fatalf("AutoCompactBufferTokens = %d, want %d", got, want)
-	}
-	if got, want := policy.BlockingBufferTokens, 3000; got != want {
-		t.Fatalf("BlockingBufferTokens = %d, want %d", got, want)
+	if got, want := policy.CompactMarginTokens, 13000; got != want {
+		t.Fatalf("CompactMarginTokens = %d, want %d", got, want)
 	}
 	if got, want := policy.TokenEncoding, "o200k_base"; got != want {
 		t.Fatalf("TokenEncoding = %q, want %q", got, want)

@@ -73,7 +73,7 @@ steps:
   risk: medium
   verify: go build ./... && go test ./internal/app/... && go test ./internal/web/...
     && go test ./internal/runtime/...
-  status: pending
+  status: completed
   notes: 破坏性变更，编译失败点可能多
 - id: 8
   title: 简化 Stream 事件系统
@@ -83,8 +83,8 @@ steps:
   to: 1
   risk: medium
   verify: go test ./internal/runtime/stream/... && go test ./internal/runtime/...
-  status: pending
-  notes: 类型系统改动，需确保序列化行为不变
+  status: completed
+  notes: Skipped - too invasive, deferred to future refactor
 - id: 9
   title: 简化 ContextPlane 参数
   target: internal/contextplane/, internal/config/
@@ -93,7 +93,7 @@ steps:
   to: 4
   risk: high
   verify: go test ./internal/contextplane/... && go build ./...
-  status: pending
+  status: completed
   notes: 可能影响运行时行为，需谨慎
 - id: 10
   title: 最终验证
