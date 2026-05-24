@@ -33,8 +33,8 @@ func (s fakeSessionSummaryService) Get(context.Context, string) (*runtimehistory
 
 func TestDefaultContextPlaneAssembleBuildsContextMessagesWithPreparedMemory(t *testing.T) {
 	plane := NewDefaultContextPlane(DefaultOptions{
-		MemorySearchTokenBudget: 2000,
-		TokenCounter:            testTokenCounter(t),
+		MemoryContextTokenBudget: 2000,
+		TokenCounter:             testTokenCounter(t),
 		SessionSummaryService: fakeSessionSummaryService{summary: &runtimehistory.SessionSummary{
 			SessionID:   "session-1",
 			SourceRunID: "run-prev",
@@ -110,9 +110,9 @@ func TestDefaultContextPlaneAssembleBuildsContextMessagesWithPreparedMemory(t *t
 
 func TestDefaultContextPlaneAssembleInjectsPreparedMemoryEntry(t *testing.T) {
 	plane := NewDefaultContextPlane(DefaultOptions{
-		MemorySearchTokenBudget: 2000,
-		TokenCounter:            testTokenCounter(t),
-		Store:                   snapshotStoreStub{},
+		MemoryContextTokenBudget: 2000,
+		TokenCounter:             testTokenCounter(t),
+		Store:                    snapshotStoreStub{},
 	})
 	result, err := plane.Assemble(context.Background(), AssembleRequest{
 		RunID:     "run_context",
@@ -154,9 +154,9 @@ func TestDefaultContextPlaneAssembleInjectsPreparedMemoryEntry(t *testing.T) {
 
 func TestDefaultContextPlaneAssembleWorksWithoutPreparedMemory(t *testing.T) {
 	plane := NewDefaultContextPlane(DefaultOptions{
-		MemorySearchTokenBudget: 2000,
-		TokenCounter:            testTokenCounter(t),
-		Store:                   snapshotStoreStub{},
+		MemoryContextTokenBudget: 2000,
+		TokenCounter:             testTokenCounter(t),
+		Store:                    snapshotStoreStub{},
 	})
 	result, err := plane.Assemble(context.Background(), AssembleRequest{
 		RunID:     "run_sop_only",

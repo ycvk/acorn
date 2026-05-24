@@ -59,7 +59,7 @@ func defaultConfig() *Config {
 		},
 		Memory: MemoryConfig{
 			Search: LayeredMemorySearchConfig{
-				TokenBudget: 2000,
+				MemoryContextTokenBudget: 2000,
 			},
 			Semantic: MemorySemanticConfig{
 				Bleve: BleveSemanticConfig{

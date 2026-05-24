@@ -20,7 +20,7 @@ func (p *defaultContextPlane) Assemble(ctx context.Context, req AssembleRequest)
 		return nil, errors.New("context plane token counter is required")
 	}
 	budget, err := p.Budget(ctx, BudgetRequest{
-		TotalTokens:     p.memorySearchTokenBudget,
+		TotalTokens:     p.memoryContextTokenBudget,
 		PresentSections: assemblePresentSections(req),
 		Hint:            req.Hint,
 	})

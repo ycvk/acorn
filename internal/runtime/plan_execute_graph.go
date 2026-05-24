@@ -14,6 +14,7 @@ import (
 	"github.com/cloudwego/eino/schema"
 
 	"github.com/ycvk/acorn/internal/orchestration"
+	"github.com/ycvk/acorn/internal/orchestrationmode"
 	"github.com/ycvk/acorn/internal/runtime/graph"
 	"github.com/ycvk/acorn/internal/tooling"
 )
@@ -456,7 +457,7 @@ func (n *ExecuteDispatchNode) buildChildRequest(sessionID, runID string, plan *P
 		ContextMessages:  append([]*schema.Message(nil), messages...),
 		AllowedToolNames: append([]string(nil), step.ToolHints...),
 		Origin:           orchestration.ChildAgentOriginPlanExecute,
-		RequestedMode:    orchestration.OrchestrationModeSingleAgent,
+		RequestedMode:    orchestrationmode.SingleAgent,
 	}
 }
 

@@ -56,10 +56,10 @@ type MemoryConfig struct {
 }
 
 type LayeredMemorySearchConfig struct {
-	TokenBudget        int `yaml:"token_budget"`
-	IndexTokenBudget   int `yaml:"index_token_budget"`
-	InitialTokenBudget int `yaml:"initial_token_budget"`
-	OnDemandReserve    int `yaml:"on_demand_reserve"`
+	MemoryContextTokenBudget int `yaml:"memory_context_token_budget"`
+	IndexTokenBudget         int `yaml:"index_token_budget"`
+	InitialTokenBudget       int `yaml:"initial_token_budget"`
+	OnDemandReserve          int `yaml:"on_demand_reserve"`
 }
 
 type MemorySemanticConfig struct {

@@ -75,9 +75,9 @@ func lifecycleToolContract(name string, source string, kind tooling.ToolKind, lo
 
 func TestDefaultContextPlaneAssembleBuildsLifecycleToolSplit(t *testing.T) {
 	plane := NewDefaultContextPlane(DefaultOptions{
-		MemorySearchTokenBudget: 100,
-		TokenCounter:            testTokenCounter(t),
-		Store:                   lifecycleSnapshotStore{},
+		MemoryContextTokenBudget: 100,
+		TokenCounter:             testTokenCounter(t),
+		Store:                    lifecycleSnapshotStore{},
 	})
 
 	catalog := newLifecycleCatalogForTest(t)
@@ -110,9 +110,9 @@ func TestDefaultContextPlaneAssembleBuildsLifecycleToolSplit(t *testing.T) {
 
 func TestLoadedToolInfosFromContextExcludesDeferredUntilLoaded(t *testing.T) {
 	plane := NewDefaultContextPlane(DefaultOptions{
-		MemorySearchTokenBudget: 100,
-		TokenCounter:            testTokenCounter(t),
-		Store:                   lifecycleSnapshotStore{},
+		MemoryContextTokenBudget: 100,
+		TokenCounter:             testTokenCounter(t),
+		Store:                    lifecycleSnapshotStore{},
 	})
 	catalog := newLifecycleCatalogForTest(t)
 	result, err := plane.Assemble(context.Background(), AssembleRequest{
@@ -149,9 +149,9 @@ func TestLoadedToolInfosFromContextExcludesDeferredUntilLoaded(t *testing.T) {
 
 func TestToolLifecycleOnToolCallRequiresLoadedTool(t *testing.T) {
 	plane := NewDefaultContextPlane(DefaultOptions{
-		MemorySearchTokenBudget: 100,
-		TokenCounter:            testTokenCounter(t),
-		Store:                   lifecycleSnapshotStore{},
+		MemoryContextTokenBudget: 100,
+		TokenCounter:             testTokenCounter(t),
+		Store:                    lifecycleSnapshotStore{},
 	})
 	catalog := newLifecycleCatalogForTest(t)
 
@@ -317,9 +317,9 @@ func TestToolLifecycleOnToolResultRequiresLedger(t *testing.T) {
 
 func TestToolLifecycleConcurrentReadAndDeferredLoad(t *testing.T) {
 	plane := NewDefaultContextPlane(DefaultOptions{
-		MemorySearchTokenBudget: 100,
-		TokenCounter:            testTokenCounter(t),
-		Store:                   lifecycleSnapshotStore{},
+		MemoryContextTokenBudget: 100,
+		TokenCounter:             testTokenCounter(t),
+		Store:                    lifecycleSnapshotStore{},
 	})
 	catalog := newLifecycleCatalogForTest(t)
 

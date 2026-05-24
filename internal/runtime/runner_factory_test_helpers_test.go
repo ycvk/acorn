@@ -43,7 +43,7 @@ func newRunnerFactoryMemoryTestContext(t *testing.T) (*storesqlite.Store, *confi
 		},
 		Memory: config.MemoryConfig{
 			Search: config.LayeredMemorySearchConfig{
-				TokenBudget: 2000,
+				MemoryContextTokenBudget: 2000,
 			},
 			Semantic: config.MemorySemanticConfig{
 				Bleve: config.BleveSemanticConfig{

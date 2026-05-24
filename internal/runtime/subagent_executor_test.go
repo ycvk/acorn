@@ -13,6 +13,7 @@ import (
 
 	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/orchestration"
+	"github.com/ycvk/acorn/internal/orchestrationmode"
 	storecore "github.com/ycvk/acorn/internal/store"
 	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
 )
@@ -352,7 +353,7 @@ func TestSubagentEmitFailedReturnsDurableWriteError(t *testing.T) {
 		orchestration.ChildRunModeFork,
 		orchestration.ChildWorkspaceModeWorktree,
 		"",
-		orchestration.OrchestrationModeSingleAgent,
+		orchestrationmode.SingleAgent,
 		"boom",
 		nil,
 	)

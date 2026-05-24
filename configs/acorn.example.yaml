@@ -113,7 +113,7 @@ mcp:
 
 memory:
   search:
-    token_budget: 2000        # Soft token budget for file-backed memory context
+    memory_context_token_budget: 2000  # Soft token budget for file-backed memory context
   semantic:
     bleve:
       path: ""               # Empty resolves to runtime.storage_dir/bleve-semantic

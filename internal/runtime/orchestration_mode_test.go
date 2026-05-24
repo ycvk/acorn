@@ -376,7 +376,7 @@ func TestBuildSingleAgentAssemblyInjectsMemoryReflection(t *testing.T) {
 		RunID:             "run_single_memory",
 		SessionID:         "session_single_memory",
 		Input:             "inspect repo",
-		OrchestrationMode: orchestration.OrchestrationModeSingleAgent,
+		OrchestrationMode: orchestrationmode.SingleAgent,
 	}, nil, directRoutingTestModel{}, nil)
 	if err != nil {
 		t.Fatalf("buildSingleAgentAssembly: %v", err)
@@ -403,7 +403,7 @@ func TestBuildPlanExecuteAssemblyInjectsMemoryReflection(t *testing.T) {
 		RunID:             "run_plan_memory",
 		SessionID:         "session_plan_memory",
 		Input:             "fix code",
-		OrchestrationMode: orchestration.OrchestrationModePlanExecute,
+		OrchestrationMode: orchestrationmode.PlanExecute,
 	}, nil, directRoutingTestModel{}, nil)
 	if !errors.Is(err, routeErr) {
 		t.Fatalf("buildPlanExecuteAssembly error = %v, want %v", err, routeErr)
@@ -520,7 +520,7 @@ func TestSubagentExecuteUsesRealChildRunIDInEvents(t *testing.T) {
 		ParentSessionID:    "session-parent",
 		ParentStepID:       "s1",
 		Task:               "inspect repo",
-		RequestedMode:      orchestration.OrchestrationModeSingleAgent,
+		RequestedMode:      orchestrationmode.SingleAgent,
 		AcceptanceCriteria: []string{"completed"},
 	})
 	if err == nil {

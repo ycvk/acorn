@@ -104,7 +104,7 @@ func (s *ClientService) EventPollInterval() time.Duration {
 }
 
 func (s *ClientService) CreateRun(ctx context.Context, threadID, skillID, mode string) (*Run, error) {
-	if s == nil || s.store == nil || s.executors == nil || s.newRunID == nil {
+	if s == nil || s.store == nil || s.newExecutor == nil || s.newRunID == nil {
 		return nil, errors.New("client service is not initialized")
 	}
 	threadID = strings.TrimSpace(threadID)
@@ -127,7 +127,7 @@ func (s *ClientService) CreateRun(ctx context.Context, threadID, skillID, mode s
 	if err != nil {
 		return nil, err
 	}
-	handle, err := s.executors.New(ctx)
+	exec, err := s.newExecutor(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -146,7 +146,7 @@ func (s *ClientService) CreateRun(ctx context.Context, threadID, skillID, mode s
 		OrchestrationMode: orchestrationMode,
 	}
 	runCtx := context.WithoutCancel(ctx)
-	go s.executeRun(runCtx, handle, req, started)
+	go s.executeRun(runCtx, exec, req, started)
 
 	select {
 	case <-started.Started():
@@ -170,8 +170,8 @@ func parseClientRunMode(raw string) (orchestrationmode.Mode, error) {
 	}
 }
 
-func (s *ClientService) executeRun(ctx context.Context, handle executorHandle, req runtime.ExecuteRequest, started *clientRunStartSignal) {
-	result, err := handle.ExecuteMessages(ctx, req, started.Sink)
+func (s *ClientService) executeRun(ctx context.Context, exec executorHandle, req runtime.ExecuteRequest, started *clientRunStartSignal) {
+	result, err := exec.ExecuteMessages(ctx, req, started.Sink)
 	if err != nil {
 		if started.MarkFailed(err) {
 			return

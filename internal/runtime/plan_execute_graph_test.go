@@ -10,6 +10,7 @@ import (
 	"github.com/cloudwego/eino/schema"
 
 	"github.com/ycvk/acorn/internal/orchestration"
+	"github.com/ycvk/acorn/internal/orchestrationmode"
 	"github.com/ycvk/acorn/internal/runtime/graph"
 )
 
@@ -71,8 +72,8 @@ func TestExecuteDispatchNodeCompletesStepWithChildEvidence(t *testing.T) {
 	if len(child.reqs) != 1 {
 		t.Fatalf("child request count = %d, want 1", len(child.reqs))
 	}
-	if child.reqs[0].RequestedMode != orchestration.OrchestrationModeSingleAgent {
-		t.Fatalf("RequestedMode = %q, want %q", child.reqs[0].RequestedMode, orchestration.OrchestrationModeSingleAgent)
+	if child.reqs[0].RequestedMode != orchestrationmode.SingleAgent {
+		t.Fatalf("RequestedMode = %q, want %q", child.reqs[0].RequestedMode, orchestrationmode.SingleAgent)
 	}
 	if child.reqs[0].Origin != orchestration.ChildAgentOriginPlanExecute {
 		t.Fatalf("Origin = %q, want %q", child.reqs[0].Origin, orchestration.ChildAgentOriginPlanExecute)

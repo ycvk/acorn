@@ -802,9 +802,9 @@ func TestClientCreateRunUsesRealExecutorPath(t *testing.T) {
 		t.Fatalf("NewExecutorWithRunnerFactoryAndController: %v", err)
 	}
 
-	service := BuildClientService(store, executorFactoryFunc(func(context.Context) (executorHandle, error) {
+	service := BuildClientService(store, func(context.Context) (executorHandle, error) {
 		return executor, nil
-	}), cfg.WorkspaceRoot())
+	}, cfg.WorkspaceRoot())
 	service.newThreadID = func() string { return "thread_runtime" }
 	service.newRunID = func() string { return "run_runtime" }
 
@@ -870,9 +870,9 @@ func TestClientCreateRunReturnsExecutionNotReady(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = store.Close() })
 
-	service := BuildClientService(store, executorFactoryFunc(func(context.Context) (executorHandle, error) {
+	service := BuildClientService(store, func(context.Context) (executorHandle, error) {
 		return nil, runtime.ErrExecutionNotReady
-	}), "/repo")
+	}, "/repo")
 	service.newThreadID = func() string { return "thread_not_ready" }
 	service.newRunID = func() string { return "run_not_ready" }
 
@@ -910,10 +910,10 @@ func TestClientCreateRunRejectsInvalidModes(t *testing.T) {
 			}
 			t.Cleanup(func() { _ = store.Close() })
 
-			service := BuildClientService(store, executorFactoryFunc(func(context.Context) (executorHandle, error) {
+			service := BuildClientService(store, func(context.Context) (executorHandle, error) {
 				t.Fatal("executor factory should not be called for invalid mode")
 				return nil, nil
-			}), "/repo")
+			}, "/repo")
 			service.newThreadID = func() string { return "thread_invalid_mode" }
 			service.newRunID = func() string { return "run_invalid_mode" }
 

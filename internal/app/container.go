@@ -16,20 +16,10 @@ type executorHandle interface {
 	ResumeWithTargets(ctx context.Context, runID string, targets map[string]any, sink runtime.StreamSink) (*runtime.Result, error)
 }
 
-type executorFactory interface {
-	New(ctx context.Context) (executorHandle, error)
-}
-
-type executorFactoryFunc func(ctx context.Context) (executorHandle, error)
-
-func (fn executorFactoryFunc) New(ctx context.Context) (executorHandle, error) {
-	return fn(ctx)
-}
-
-func newExecutorFactory(cfg *config.Config, store *storesqlite.Store, runnerFactory *runtime.RunnerFactory, controller *runtime.RunController) executorFactory {
-	return executorFactoryFunc(func(_ context.Context) (executorHandle, error) {
+func newExecutorFactory(cfg *config.Config, store *storesqlite.Store, runnerFactory *runtime.RunnerFactory, controller *runtime.RunController) func(context.Context) (executorHandle, error) {
+	return func(_ context.Context) (executorHandle, error) {
 		return runtime.NewExecutorWithRunnerFactoryAndController(cfg, store, runnerFactory, controller)
-	})
+	}
 }
 
 type Container struct {
@@ -61,18 +51,7 @@ func NewContainer(ctx context.Context, cfg *config.Config) (*Container, error) {
 	if cfg == nil {
 		return nil, errors.New("config is required")
 	}
-	deps, err := buildContainerDependencies(ctx, cfg)
-	if err != nil {
-		return nil, err
-	}
-	container, err := buildContainerFromDependencies(cfg, deps)
-	if err != nil {
-		if deps != nil && deps.store != nil {
-			_ = deps.store.Close()
-		}
-		return nil, err
-	}
-	return container, nil
+	return buildContainer(ctx, cfg)
 }
 
 func (c *Container) Config() *config.Config {

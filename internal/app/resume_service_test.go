@@ -35,7 +35,7 @@ func TestResumeServiceResumeKeepsNonApprovalInterruptDefaultTarget(t *testing.T)
 		resumedRunID string
 		resumed      map[string]any
 	)
-	service := NewResumeService(NewTraceService(store), executorFactoryFunc(func(_ context.Context) (executorHandle, error) {
+	service := NewResumeService(NewTraceService(store), func(_ context.Context) (executorHandle, error) {
 		return resumeTestExecutorHandle{
 			resumeWithTargetsFn: func(ctx context.Context, targetRunID string, targets map[string]any, sink runtime.StreamSink) (*runtime.Result, error) {
 				resumedRunID = targetRunID
@@ -43,7 +43,7 @@ func TestResumeServiceResumeKeepsNonApprovalInterruptDefaultTarget(t *testing.T)
 				return &runtime.Result{RunID: targetRunID, Status: events.RunStatusSucceeded, Output: "done"}, nil
 			},
 		}, nil
-	}), store)
+	}, store)
 
 	result, err := service.Resume(ctx, runID, nil)
 	if err != nil {
@@ -77,14 +77,14 @@ func TestResumeServiceRejectsFailedRun(t *testing.T) {
 	}
 
 	var resumed bool
-	service := NewResumeService(NewTraceService(store), executorFactoryFunc(func(_ context.Context) (executorHandle, error) {
+	service := NewResumeService(NewTraceService(store), func(_ context.Context) (executorHandle, error) {
 		return resumeTestExecutorHandle{
 			resumeWithTargetsFn: func(ctx context.Context, targetRunID string, targets map[string]any, sink runtime.StreamSink) (*runtime.Result, error) {
 				resumed = true
 				return &runtime.Result{RunID: targetRunID, Status: events.RunStatusSucceeded}, nil
 			},
 		}, nil
-	}), store)
+	}, store)
 
 	_, err := service.Resume(ctx, runID, nil)
 	if !errors.Is(err, runtime.ErrRunNotInterrupted) {
@@ -111,14 +111,14 @@ func TestResumeServiceRejectsCompletedRun(t *testing.T) {
 	}
 
 	var resumed bool
-	service := NewResumeService(NewTraceService(store), executorFactoryFunc(func(_ context.Context) (executorHandle, error) {
+	service := NewResumeService(NewTraceService(store), func(_ context.Context) (executorHandle, error) {
 		return resumeTestExecutorHandle{
 			resumeWithTargetsFn: func(ctx context.Context, targetRunID string, targets map[string]any, sink runtime.StreamSink) (*runtime.Result, error) {
 				resumed = true
 				return &runtime.Result{RunID: targetRunID, Status: events.RunStatusSucceeded}, nil
 			},
 		}, nil
-	}), store)
+	}, store)
 
 	_, err := service.Resume(ctx, runID, nil)
 	if !errors.Is(err, runtime.ErrRunNotInterrupted) {

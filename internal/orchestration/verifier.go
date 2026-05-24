@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"github.com/cloudwego/eino/schema"
+
+	"github.com/ycvk/acorn/internal/orchestrationmode"
 )
 
 type VerificationVerdict string
@@ -81,7 +83,7 @@ func (v *ChildAgentVerifier) Verify(ctx context.Context, req VerificationRequest
 		AllowedToolNames:   append([]string(nil), req.AllowedToolNames...),
 		AcceptanceCriteria: []string{"verdict"},
 		Origin:             ChildAgentOriginVerifier,
-		RequestedMode:      OrchestrationModeSingleAgent,
+		RequestedMode:      orchestrationmode.SingleAgent,
 	})
 	if err != nil {
 		return nil, err

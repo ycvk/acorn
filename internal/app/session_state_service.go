@@ -71,7 +71,7 @@ func (s *SessionStateService) LoadSession(ctx context.Context, sessionID string)
 	if err != nil {
 		return nil, err
 	}
-	detail.MemoryContextBudget = s.cfg.Memory.Search.TokenBudget
+	detail.MemoryContextBudget = s.cfg.Memory.Search.MemoryContextTokenBudget
 	summary, summaryErr := s.store.GetSessionSummary(ctx, sessionID)
 	if summaryErr != nil {
 		return nil, fmt.Errorf("load session summary for %s: %w", sessionID, summaryErr)
