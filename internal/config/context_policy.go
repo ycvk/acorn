@@ -5,7 +5,6 @@ import "fmt"
 const (
 	defaultContextStaticOverheadTokens = 4096
 	defaultContextWarningGapTokens     = 7000
-	defaultContextBlockingBufferTokens = 3000
 	defaultContextTokenEncoding        = "o200k_base"
 )
 
@@ -28,15 +27,4 @@ func (c *Config) ContextPolicy() (ContextPolicy, error) {
 		ReservedOutputTokens: provider.MaxCompletionTokens,
 		TokenEncoding:        defaultContextTokenEncoding,
 	}, nil
-}
-
-func deriveContextBlockingBuffer(compactMarginTokens int) int {
-	blocking := compactMarginTokens / 4
-	if blocking < 1 {
-		return 1
-	}
-	if blocking > defaultContextBlockingBufferTokens {
-		return defaultContextBlockingBufferTokens
-	}
-	return blocking
 }
