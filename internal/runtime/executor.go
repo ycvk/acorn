@@ -7,13 +7,19 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
+	"github.com/cloudwego/eino/adk"
 	einomodel "github.com/cloudwego/eino/components/model"
-
+	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/config"
+	"github.com/ycvk/acorn/internal/contextplane"
 	"github.com/ycvk/acorn/internal/crystallization"
 	"github.com/ycvk/acorn/internal/events"
+	"github.com/ycvk/acorn/internal/memorymodule"
 	"github.com/ycvk/acorn/internal/runtimehistory"
+	storecore "github.com/ycvk/acorn/internal/store"
+	"github.com/ycvk/acorn/internal/toolresult"
 )
 
 type Result struct {
@@ -205,4 +211,599 @@ func failureReasonForStatus(status events.RunStatus, output string) string {
 		return "run_failed"
 	}
 	return "run_failed:with_output"
+}
+
+type runState struct {
+	lastOutput       string
+	interrupt        map[string]any
+	failure          error
+	emittedRunFailed bool
+}
+
+func (e *Executor) consume(ctx context.Context, runID, input string, iter *adk.AsyncIterator[*adk.AgentEvent], selectedSkill *SelectedSkill, sink StreamSink, chatModel einomodel.BaseChatModel) (*Result, error) {
+	state, err := e.collectRunState(ctx, runID, iter, sink, chatModel)
+	if err != nil {
+		return nil, err
+	}
+	if err := e.runBuilder.ConsumeEventError(runID); err != nil {
+		state.failure = err
+	}
+	if rc, ok := e.runBuilder.Registry().Get(runID); ok {
+		rc.SetFinalizing()
+	}
+	return e.finishCollectedRun(ctx, runID, input, state, selectedSkill, sink)
+}
+
+func (e *Executor) collectRunState(ctx context.Context, runID string, iter *adk.AsyncIterator[*adk.AgentEvent], sink StreamSink, chatModel einomodel.BaseChatModel) (runState, error) {
+	state := runState{}
+	for {
+		event, ok := iter.Next()
+		if !ok {
+			return state, nil
+		}
+		if err := e.applyAgentEvent(ctx, runID, StreamItemsFromAgentEvent(event, chatModel), sink, &state); err != nil {
+			return runState{}, err
+		}
+	}
+}
+
+func (e *Executor) prepareSkillExecution(ctx context.Context, runID string, selected *SelectedSkill, downstreamSink StreamSink) (StreamSink, error) {
+	_ = ctx
+	_ = runID
+	_ = selected
+	return downstreamSink, nil
+}
+
+func (e *Executor) applyAgentEvent(ctx context.Context, runID string, items []StreamItem, sink StreamSink, state *runState) error {
+	for _, item := range items {
+		item.RunID = runID
+		if _, err := AppendStreamItem(ctx, e.store, sink, item); err != nil {
+			return err
+		}
+		state.applyStreamItem(item)
+	}
+	return nil
+}
+
+func (s *runState) applyStreamItem(item StreamItem) {
+	if delta := item.GetAssistantDelta(); delta != nil {
+		s.lastOutput += delta.Delta
+	}
+	if msg := item.GetMessage(); msg != nil && msg.Content != "" {
+		s.lastOutput = msg.Content
+	}
+	if interrupt := item.GetInterrupt(); interrupt != nil {
+		s.interrupt = InterruptPayloadFromStream(interrupt)
+	}
+	if item.Kind == StreamKindRunFailed && item.GetError() != "" {
+		s.failure = errors.New(item.GetError())
+		s.emittedRunFailed = true
+	}
+}
+
+func (e *Executor) Run(ctx context.Context, input, skillID string, sink StreamSink) (*Result, error) {
+	sessionID := newSessionID()
+	title, _ := compactText(input, 48)
+	turnIndex, err := e.store.CreateFreshSessionTurn(ctx, sessionID, title, input)
+	if err != nil {
+		return nil, err
+	}
+	return e.ExecuteMessages(ctx, ExecuteRequest{
+		SessionID: sessionID,
+		TurnIndex: turnIndex,
+		Input:     input,
+		SkillID:   skillID,
+		Messages:  []adk.Message{schema.UserMessage(input)},
+	}, sink)
+}
+
+func (e *Executor) ExecuteMessages(ctx context.Context, req ExecuteRequest, sink StreamSink) (*Result, error) {
+	if e == nil || e.runBuilder == nil || e.store == nil {
+		return nil, errors.New("executor is not initialized")
+	}
+
+	runID := strings.TrimSpace(req.RunID)
+	if runID == "" {
+		runID = newRunID()
+	}
+	if strings.TrimSpace(req.SessionID) == "" {
+		req.SessionID = newSessionID()
+		title, _ := compactText(req.Input, 48)
+		turnIndex, err := e.store.CreateFreshSessionTurn(ctx, req.SessionID, title, req.Input)
+		if err != nil {
+			return nil, err
+		}
+		req.TurnIndex = turnIndex
+		if len(req.Messages) == 0 && strings.TrimSpace(req.Input) != "" {
+			req.Messages = []adk.Message{schema.UserMessage(req.Input)}
+		}
+	}
+	mode := resolveRootOrchestrationMode(req)
+	if err := e.store.CreateBoundRunWithParams(ctx, storecore.RunCreateParams{
+		RunID:             runID,
+		SessionID:         req.SessionID,
+		TurnIndex:         req.TurnIndex,
+		Input:             req.Input,
+		CheckpointID:      runID,
+		OrchestrationMode: mode,
+		ParentRunID:       req.ParentRunID,
+		Depth:             req.Depth,
+	}); err != nil {
+		return nil, err
+	}
+
+	runCtxBase, cleanup := e.newManagedRunContext(ctx, runID)
+	defer cleanup()
+
+	if err := e.emitRunStarted(ctx, runID, req.Input, sink); err != nil {
+		return nil, err
+	}
+
+	active, err := e.runBuilder.New(runCtxBase, RunnerBuildRequest{
+		SessionID:         req.SessionID,
+		RunID:             runID,
+		Input:             req.Input,
+		SkillID:           req.SkillID,
+		AllowedToolNames:  append([]string(nil), req.AllowedToolNames...),
+		Sink:              sink,
+		OrchestrationMode: mode,
+		ParentRunID:       req.ParentRunID,
+	})
+	if err != nil {
+		if failErr := e.failRunSetup(ctx, runID, err, sink); failErr != nil {
+			return nil, failErr
+		}
+		return nil, err
+	}
+	defer active.Close()
+
+	messages, err := e.bootstrapContextSessionMessages(ctx, req, runID, mode, active)
+	if err != nil {
+		if failErr := e.failRunSetup(ctx, runID, err, sink); failErr != nil {
+			return nil, failErr
+		}
+		return nil, err
+	}
+	executionSink, err := e.prepareSkillExecution(ctx, runID, active.SelectedSkill, sink)
+	if err != nil {
+		return nil, err
+	}
+
+	executionCtx := buildExecutionContext(runCtxBase, runID, req.SessionID, req.TurnIndex, executionSink)
+	if active.ContextSession != nil {
+		executionCtx = contextplane.WithContextSession(executionCtx, active.ContextSession)
+	}
+	iter := active.Runner.Run(executionCtx, messages, adk.WithCheckPointID(runID))
+	return e.consume(ctx, runID, req.Input, iter, active.SelectedSkill, executionSink, active.ChatModel)
+}
+
+func (e *Executor) ResumeWithTargets(ctx context.Context, runID string, targets map[string]any, sink StreamSink) (*Result, error) {
+	if e == nil || e.runBuilder == nil || e.store == nil {
+		return nil, errors.New("executor is not initialized")
+	}
+
+	run, err := e.store.LoadRun(ctx, runID)
+	if err != nil {
+		return nil, err
+	}
+	if run.Status != events.RunStatusInterrupted {
+		return nil, fmt.Errorf("%w: %s", ErrRunNotInterrupted, runID)
+	}
+
+	runCtxBase, cleanup := e.newManagedRunContext(ctx, runID)
+	defer cleanup()
+
+	if err := e.emitRunResumeRequested(ctx, runID, targets, sink); err != nil {
+		return nil, err
+	}
+
+	active, err := e.runBuilder.New(runCtxBase, RunnerBuildRequest{
+		SessionID:         run.SessionID,
+		RunID:             runID,
+		OrchestrationMode: run.OrchestrationMode,
+		ParentRunID:       run.ParentRunID,
+	})
+	if err != nil {
+		return nil, err
+	}
+	defer active.Close()
+
+	executionSink, err := e.prepareSkillExecution(ctx, runID, active.SelectedSkill, sink)
+	if err != nil {
+		return nil, err
+	}
+	if active.ContextSession == nil {
+		messages := []adk.Message{}
+		if strings.TrimSpace(run.Input) != "" {
+			messages = []adk.Message{schema.UserMessage(run.Input)}
+		}
+		if _, err := e.bootstrapContextSessionMessages(ctx, ExecuteRequest{
+			SessionID:         run.SessionID,
+			TurnIndex:         run.TurnIndex,
+			Input:             run.Input,
+			Messages:          messages,
+			OrchestrationMode: run.OrchestrationMode,
+			ParentRunID:       run.ParentRunID,
+			Depth:             run.Depth,
+		}, runID, run.OrchestrationMode, active); err != nil {
+			return nil, fmt.Errorf("bootstrap resume context session: %w", err)
+		}
+	}
+
+	iter, err := active.Runner.ResumeWithParams(
+		contextplane.WithContextSession(buildExecutionContext(runCtxBase, runID, run.SessionID, run.TurnIndex, executionSink), active.ContextSession),
+		runID,
+		&adk.ResumeParams{Targets: targets},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("resume run %s: %w", runID, err)
+	}
+
+	result, err := e.consume(ctx, runID, run.Input, iter, active.SelectedSkill, executionSink, active.ChatModel)
+	if err != nil {
+		return nil, err
+	}
+	if err := e.store.SyncAssistantMessageForRun(ctx, runID); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func (e *Executor) newManagedRunContext(ctx context.Context, runID string) (context.Context, func()) {
+	runTimeout := time.Duration(e.runBuilder.Config().Runtime.RunTimeoutSeconds) * time.Second
+	if runTimeout <= 0 {
+		runTimeout = 15 * time.Minute
+	}
+	runCtxBase, cancel := context.WithTimeout(ctx, runTimeout)
+	if e.controller == nil {
+		return runCtxBase, cancel
+	}
+	e.controller.Register(runID, cancel)
+	return runCtxBase, func() {
+		e.controller.Clear(runID)
+		cancel()
+	}
+}
+
+func buildExecutionContext(runCtxBase context.Context, runID, sessionID string, turnIndex int, sink StreamSink) context.Context {
+	runCtx := withRunID(runCtxBase, runID)
+	runCtx = WithSessionID(runCtx, sessionID)
+	runCtx = withTurnIndex(runCtx, turnIndex)
+	return withStreamSink(runCtx, sink)
+}
+
+func (e *Executor) emitLifecyclePayload(ctx context.Context, runID string, sink StreamSink, payload StreamPayload) error {
+	if e == nil || e.store == nil {
+		return errors.New("executor store is nil")
+	}
+	if payload == nil {
+		return errors.New("lifecycle payload is nil")
+	}
+	_, err := AppendStreamItem(ctx, e.store, sink, StreamItem{
+		RunID:     runID,
+		Kind:      payload.StreamKind(),
+		CreatedAt: time.Now().UTC(),
+		Payload:   payload,
+	})
+	return err
+}
+
+func (e *Executor) emitRunStarted(ctx context.Context, runID, input string, sink StreamSink) error {
+	return e.emitLifecyclePayload(ctx, runID, sink, &RunStartedPayload{Input: input})
+}
+
+func (e *Executor) emitRunResumeRequested(ctx context.Context, runID string, targets map[string]any, sink StreamSink) error {
+	return e.emitLifecyclePayload(ctx, runID, sink, &RunResumeRequestedPayload{Targets: targets})
+}
+
+func (e *Executor) emitRunCompleted(ctx context.Context, runID, output string, sink StreamSink) error {
+	return e.emitLifecyclePayload(ctx, runID, sink, &RunCompletedPayload{
+		Message: &StreamMessage{
+			Role:    string(schema.Assistant),
+			Content: output,
+		},
+	})
+}
+
+func (e *Executor) emitRunFailed(ctx context.Context, runID string, sink StreamSink, message string) error {
+	return e.emitLifecyclePayload(ctx, runID, sink, &RunFailedPayload{Error: message})
+}
+
+func (e *Executor) finishCollectedRun(ctx context.Context, runID, input string, state runState, selectedSkill *SelectedSkill, sink StreamSink) (*Result, error) {
+	switch {
+	case state.failure != nil:
+		return e.finishFailedRun(ctx, runID, input, state, selectedSkill, sink)
+	case state.interrupt != nil:
+		return e.finishInterruptedRun(ctx, runID, state)
+	default:
+		return e.finishSucceededRun(ctx, runID, input, state, selectedSkill, sink)
+	}
+}
+
+func (e *Executor) finishFailedRun(ctx context.Context, runID, input string, state runState, selectedSkill *SelectedSkill, sink StreamSink) (*Result, error) {
+	durableCtx := DurableContext(ctx)
+	if !state.emittedRunFailed && state.failure != nil {
+		if err := e.emitRunFailed(durableCtx, runID, sink, state.failure.Error()); err != nil {
+			return nil, err
+		}
+	}
+	if err := e.store.FinishRunContext(durableCtx, runID, events.RunStatusFailed, state.lastOutput, state.failure.Error()); err != nil {
+		return nil, err
+	}
+	if err := e.verifyAndRecordSkill(durableCtx, runID, selectedSkill, events.RunStatusFailed, state.lastOutput, sink); err != nil {
+		return nil, err
+	}
+	if err := e.finalizePostRun(durableCtx, runID, events.RunStatusFailed, input, state.lastOutput); err != nil {
+		return nil, errors.Join(state.failure, fmt.Errorf("finalize failed run: %w", err))
+	}
+	summary, err := e.traceSummary(durableCtx, runID)
+	if err != nil {
+		return nil, err
+	}
+	return &Result{
+		RunID:        runID,
+		Status:       events.RunStatusFailed,
+		Output:       state.lastOutput,
+		Error:        state.failure.Error(),
+		TraceSummary: summary,
+	}, nil
+}
+
+func (e *Executor) finishInterruptedRun(ctx context.Context, runID string, state runState) (*Result, error) {
+	durableCtx := DurableContext(ctx)
+	if err := e.store.MarkInterruptedContext(durableCtx, runID, state.lastOutput); err != nil {
+		return nil, err
+	}
+	summary, err := e.traceSummary(durableCtx, runID)
+	if err != nil {
+		return nil, err
+	}
+	return &Result{
+		RunID:        runID,
+		Status:       events.RunStatusInterrupted,
+		Output:       state.lastOutput,
+		Interrupted:  state.interrupt,
+		TraceSummary: summary,
+	}, nil
+}
+
+func (e *Executor) finishSucceededRun(ctx context.Context, runID, input string, state runState, selectedSkill *SelectedSkill, sink StreamSink) (*Result, error) {
+	durableCtx := DurableContext(ctx)
+	if err := e.store.UpdateRunOutputContext(durableCtx, runID, state.lastOutput); err != nil {
+		return nil, err
+	}
+	if err := e.verifyAndRecordSkill(durableCtx, runID, selectedSkill, events.RunStatusSucceeded, state.lastOutput, sink); err != nil {
+		return nil, err
+	}
+	if err := e.finalizePostRun(durableCtx, runID, events.RunStatusSucceeded, input, state.lastOutput); err != nil {
+		return nil, e.recordFinalizationFailure(durableCtx, runID, state.lastOutput, err, sink)
+	}
+	if e.crystallizer != nil {
+		if err := e.runCrystallization(durableCtx, runID, input, state.lastOutput, selectedSkill, sink); err != nil {
+			if emitErr := e.emitCrystallizationFailed(durableCtx, runID, err, sink); emitErr != nil {
+				return nil, errors.Join(err, fmt.Errorf("emit crystallization failure: %w", emitErr))
+			}
+		}
+	}
+	if err := e.emitRunCompleted(durableCtx, runID, state.lastOutput, sink); err != nil {
+		return nil, err
+	}
+	if err := e.store.FinishRunContext(durableCtx, runID, events.RunStatusSucceeded, state.lastOutput, ""); err != nil {
+		return nil, err
+	}
+	summary, err := e.traceSummary(durableCtx, runID)
+	if err != nil {
+		return nil, err
+	}
+	return &Result{
+		RunID:        runID,
+		Status:       events.RunStatusSucceeded,
+		Output:       state.lastOutput,
+		TraceSummary: summary,
+	}, nil
+}
+
+func (e *Executor) finalizePostRun(ctx context.Context, runID string, runStatus events.RunStatus, input, output string) error {
+	if e == nil || e.store == nil {
+		return errors.New("executor store is nil")
+	}
+	if err := e.store.SyncAssistantMessageForRunStatus(ctx, runID, runStatus); err != nil {
+		return fmt.Errorf("sync assistant message: %w", err)
+	}
+	if err := e.persistConversationSegment(ctx, runID, runStatus); err != nil {
+		return err
+	}
+	if e.archiveRunFunc == nil {
+		return errors.New("run archive finalizer is not initialized")
+	}
+	if err := e.archiveRunFunc(ctx, runID, runStatus); err != nil {
+		return err
+	}
+	if err := e.appendRunHistory(ctx, runID, runStatus, input, output); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (e *Executor) persistConversationSegment(ctx context.Context, runID string, runStatus events.RunStatus) error {
+	if e == nil || e.store == nil {
+		return errors.New("executor store is nil")
+	}
+	if _, err := e.store.CreateSegmentFromRun(ctx, runID, runStatus); err != nil {
+		return fmt.Errorf("create conversation segment: %w", err)
+	}
+	return nil
+}
+
+func (e *Executor) appendRunHistory(ctx context.Context, runID string, runStatus events.RunStatus, input, output string) error {
+	if e == nil || e.store == nil || e.runBuilder == nil || e.runBuilder.MemoryModule() == nil {
+		return errors.New("memory module is not initialized")
+	}
+	run, err := e.store.LoadRun(ctx, runID)
+	if err != nil {
+		return fmt.Errorf("load run for memory history: %w", err)
+	}
+	archive, err := e.store.GetRunArchive(ctx, runID)
+	if err != nil {
+		return fmt.Errorf("load run archive for memory history: %w", err)
+	}
+	var filesChanged []string
+	if archive != nil {
+		filesChanged = append(filesChanged, archive.TouchedPaths...)
+	}
+	if err := e.runBuilder.MemoryModule().AppendHistory(ctx, memorymodule.HistoryEvent{
+		SessionID:    run.SessionID,
+		RunID:        runID,
+		Status:       string(runStatus),
+		Summary:      compactArchiveText(strings.TrimSpace(input + " " + output)),
+		FilesChanged: filesChanged,
+		Timestamp:    time.Now().UTC(),
+	}); err != nil {
+		return fmt.Errorf("append memory history: %w", err)
+	}
+	return nil
+}
+
+func (e *Executor) archiveRun(ctx context.Context, runID string, runStatus events.RunStatus) error {
+	if e == nil || e.store == nil {
+		return errors.New("executor store is nil")
+	}
+	run, err := e.store.LoadRun(ctx, runID)
+	if err != nil {
+		return fmt.Errorf("archive run: load run: %w", err)
+	}
+	records, err := e.store.LoadEvents(ctx, runID)
+	if err != nil {
+		return fmt.Errorf("archive run: load events: %w", err)
+	}
+	touchedPaths, toolNames := archiveSignalsFromEvents(records)
+	archive := runtimehistory.RunArchive{
+		RunID:         run.RunID,
+		SessionID:     run.SessionID,
+		InputExcerpt:  compactArchiveText(run.Input),
+		OutputExcerpt: compactArchiveText(run.Output),
+		TouchedPaths:  touchedPaths,
+		ToolNames:     toolNames,
+		RunStatus:     string(runStatus),
+		CreatedAt:     time.Now().UTC(),
+	}
+	if err := e.store.UpsertRunArchive(ctx, archive); err != nil {
+		return fmt.Errorf("archive run: %w", err)
+	}
+	if e.sessionSummarySvc != nil && strings.TrimSpace(run.SessionID) != "" {
+		if _, err := e.sessionSummarySvc.Update(ctx, run.SessionID, run.RunID, string(runStatus), buildSessionSummaryText(*run, toolNames)); err != nil {
+			return fmt.Errorf("archive run: update session summary: %w", err)
+		}
+	}
+	return nil
+}
+
+func (e *Executor) runCrystallization(ctx context.Context, runID, input, output string, selectedSkill *SelectedSkill, sink StreamSink) error {
+	if e == nil || e.crystallizer == nil {
+		return nil
+	}
+	archive, err := e.store.GetRunArchive(ctx, runID)
+	if err != nil {
+		return fmt.Errorf("load run archive for crystallization: %w", err)
+	}
+	var toolNames []string
+	var touchedPaths []string
+	if archive != nil {
+		toolNames = archive.ToolNames
+		touchedPaths = archive.TouchedPaths
+	}
+	toolResults, err := e.store.ListByRun(ctx, runID)
+	if err != nil {
+		return fmt.Errorf("load tool result evidence for crystallization: %w", err)
+	}
+	res, err := e.crystallizer.Crystallize(ctx, crystallization.CrystallizationRequest{
+		RunID:        runID,
+		Input:        input,
+		Output:       output,
+		ToolNames:    toolNames,
+		TouchedPaths: touchedPaths,
+		EvidenceRefs: crystallizationEvidenceRefs(toolResults),
+	})
+	if err != nil {
+		return err
+	}
+	if res != nil {
+		if err := e.emitCrystallizationVerdict(ctx, runID, res, sink); err != nil {
+			return fmt.Errorf("emit crystallization verdict: %w", err)
+		}
+	}
+	return nil
+}
+
+func crystallizationEvidenceRefs(records []toolresult.Record) []string {
+	if len(records) == 0 {
+		return nil
+	}
+	refs := make([]string, 0, len(records))
+	seen := make(map[string]struct{}, len(records))
+	for _, record := range records {
+		if record.Status != toolresult.StatusSucceeded {
+			continue
+		}
+		ref := strings.TrimSpace(record.ResultRef)
+		if ref == "" {
+			continue
+		}
+		if _, ok := seen[ref]; ok {
+			continue
+		}
+		seen[ref] = struct{}{}
+		refs = append(refs, ref)
+	}
+	return refs
+}
+
+func (e *Executor) emitCrystallizationFailed(ctx context.Context, runID string, err error, sink StreamSink) error {
+	if e == nil {
+		return errors.New("executor is nil")
+	}
+	if e.store == nil {
+		return errors.New("executor store is nil")
+	}
+	_, appendErr := AppendStreamItem(ctx, e.store, sink, StreamItem{
+		RunID: runID,
+		Kind:  StreamKindCrystallizationFailed,
+		Payload: &CrystallizationFailedPayload{
+			RunID: runID,
+			Error: err.Error(),
+		},
+	})
+	return appendErr
+}
+
+func (e *Executor) emitCrystallizationVerdict(ctx context.Context, runID string, res *crystallization.CrystallizationResult, sink StreamSink) error {
+	if e == nil {
+		return errors.New("executor is nil")
+	}
+	if e.store == nil {
+		return errors.New("executor store is nil")
+	}
+	_, appendErr := AppendStreamItem(ctx, e.store, sink, StreamItem{
+		RunID: runID,
+		Kind:  StreamKindCrystallizationVerdict,
+		Payload: &CrystallizationVerdictPayload{
+			RunID:     runID,
+			Verdict:   string(res.Verdict),
+			SkillID:   res.SkillID,
+			Reason:    res.Reason,
+			SimilarTo: res.SimilarTo,
+		},
+	})
+	return appendErr
+}
+
+func buildSessionSummaryText(run events.RunRecord, toolNames []string) string {
+	lines := []string{
+		"Last request: " + compactArchiveText(run.Input),
+		"Last outcome: " + firstNonEmpty(compactArchiveText(run.Output), compactArchiveText(run.Error), string(run.Status)),
+	}
+	if len(toolNames) > 0 {
+		lines = append(lines, "Tools used: "+strings.Join(toolNames, ", "))
+	}
+	return strings.TrimSpace(strings.Join(lines, "\n"))
 }
