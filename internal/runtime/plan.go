@@ -22,7 +22,7 @@ import (
 	"github.com/ycvk/acorn/internal/runtime/api"
 	"github.com/ycvk/acorn/internal/runtime/graph"
 	"github.com/ycvk/acorn/internal/runtime/stream"
-	storecore "github.com/ycvk/acorn/internal/store"
+	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/tooling"
 	"github.com/ycvk/acorn/internal/toolresult"
 )
@@ -101,10 +101,10 @@ func (n *PlanNode) Invoke(ctx context.Context, state *graph.AgentGraphState) (*g
 	}
 
 	existing, err := n.store.LoadPlan(ctx, sessionID)
-	if err != nil && !errors.Is(err, storecore.ErrPlanNotFound) {
+	if err != nil && !errors.Is(err, store.ErrPlanNotFound) {
 		return nil, fmt.Errorf("load existing plan: %w", err)
 	}
-	if errors.Is(err, storecore.ErrPlanNotFound) {
+	if errors.Is(err, store.ErrPlanNotFound) {
 		existing = nil
 	}
 	if existingPlanReusable(state, existing) {
@@ -584,7 +584,7 @@ func (s *durablePlanStore) AppendToolResultEvidenceRef(ctx context.Context, resu
 	return err
 }
 
-func planFromStoreRecord(record *storecore.PlanRecord) *Plan {
+func planFromStoreRecord(record *store.PlanRecord) *Plan {
 	if record == nil {
 		return nil
 	}
@@ -612,25 +612,25 @@ func planFromStoreRecord(record *storecore.PlanRecord) *Plan {
 	}
 }
 
-func storeRecordFromPlan(plan *Plan) *storecore.PlanRecord {
+func storeRecordFromPlan(plan *Plan) *store.PlanRecord {
 	if plan == nil {
 		return nil
 	}
-	steps := make([]storecore.PlanStep, 0, len(plan.Steps))
+	steps := make([]store.PlanStep, 0, len(plan.Steps))
 	for _, step := range plan.Steps {
-		steps = append(steps, storecore.PlanStep{
+		steps = append(steps, store.PlanStep{
 			ID:                 step.ID,
 			Action:             step.Action,
-			Status:             string(step.Status),
+			Status:             store.PlanStepStatus(step.Status),
 			DependsOn:          append([]string(nil), step.DependsOn...),
 			RepoTargets:        storePlanRepoTargets(step.RepoTargets),
 			VerificationIntent: storeVerificationIntents(step.VerificationIntent),
-			Risk:               string(step.Risk),
+			Risk:               store.PlanStepRisk(step.Risk),
 			ToolHints:          append([]string(nil), step.ToolHints...),
 			Evidence:           storePlanEvidence(step.Evidence),
 		})
 	}
-	return &storecore.PlanRecord{
+	return &store.PlanRecord{
 		PlanID:    plan.PlanID,
 		SessionID: plan.SessionID,
 		RunID:     plan.RunID,
@@ -640,7 +640,7 @@ func storeRecordFromPlan(plan *Plan) *storecore.PlanRecord {
 	}
 }
 
-func planRepoTargetsFromStore(items []storecore.PlanRepoTarget) []PlanRepoTarget {
+func planRepoTargetsFromStore(items []store.PlanRepoTarget) []PlanRepoTarget {
 	result := make([]PlanRepoTarget, 0, len(items))
 	for _, item := range items {
 		result = append(result, PlanRepoTarget{
@@ -655,10 +655,10 @@ func planRepoTargetsFromStore(items []storecore.PlanRepoTarget) []PlanRepoTarget
 	return result
 }
 
-func storePlanRepoTargets(items []PlanRepoTarget) []storecore.PlanRepoTarget {
-	result := make([]storecore.PlanRepoTarget, 0, len(items))
+func storePlanRepoTargets(items []PlanRepoTarget) []store.PlanRepoTarget {
+	result := make([]store.PlanRepoTarget, 0, len(items))
 	for _, item := range items {
-		result = append(result, storecore.PlanRepoTarget{
+		result = append(result, store.PlanRepoTarget{
 			Path:       item.Path,
 			Symbol:     item.Symbol,
 			StartLine:  item.StartLine,
@@ -670,7 +670,7 @@ func storePlanRepoTargets(items []PlanRepoTarget) []storecore.PlanRepoTarget {
 	return result
 }
 
-func verificationIntentsFromStore(items []storecore.VerificationIntent) []VerificationIntent {
+func verificationIntentsFromStore(items []store.VerificationIntent) []VerificationIntent {
 	result := make([]VerificationIntent, 0, len(items))
 	for _, item := range items {
 		result = append(result, VerificationIntent{
@@ -683,10 +683,10 @@ func verificationIntentsFromStore(items []storecore.VerificationIntent) []Verifi
 	return result
 }
 
-func storeVerificationIntents(items []VerificationIntent) []storecore.VerificationIntent {
-	result := make([]storecore.VerificationIntent, 0, len(items))
+func storeVerificationIntents(items []VerificationIntent) []store.VerificationIntent {
+	result := make([]store.VerificationIntent, 0, len(items))
 	for _, item := range items {
-		result = append(result, storecore.VerificationIntent{
+		result = append(result, store.VerificationIntent{
 			Kind:    item.Kind,
 			Command: append([]string(nil), item.Command...),
 			Paths:   append([]string(nil), item.Paths...),
@@ -696,7 +696,7 @@ func storeVerificationIntents(items []VerificationIntent) []storecore.Verificati
 	return result
 }
 
-func planEvidenceFromStore(items []storecore.PlanEvidence) []PlanEvidence {
+func planEvidenceFromStore(items []store.PlanEvidence) []PlanEvidence {
 	result := make([]PlanEvidence, 0, len(items))
 	for _, item := range items {
 		result = append(result, PlanEvidence{
@@ -719,10 +719,10 @@ func planEvidenceFromStore(items []storecore.PlanEvidence) []PlanEvidence {
 	return result
 }
 
-func storePlanEvidence(items []PlanEvidence) []storecore.PlanEvidence {
-	result := make([]storecore.PlanEvidence, 0, len(items))
+func storePlanEvidence(items []PlanEvidence) []store.PlanEvidence {
+	result := make([]store.PlanEvidence, 0, len(items))
 	for _, item := range items {
-		result = append(result, storecore.PlanEvidence{
+		result = append(result, store.PlanEvidence{
 			ID:            item.ID,
 			StepID:        item.StepID,
 			Kind:          string(item.Kind),
@@ -1508,20 +1508,20 @@ var (
 	ErrPlanStepVerificationGap = errors.New("plan step requires recorded verification before completion")
 )
 
-func enforceRiskyToolPlan(ctx context.Context, store PlanStore, spec tooling.ToolSpec) (string, string, error) {
+func enforceRiskyToolPlan(ctx context.Context, planStore PlanStore, spec tooling.ToolSpec) (string, string, error) {
 	if spec.PlanPolicy != tooling.PlanPolicyRequireActivePlan {
 		return "", "", nil
 	}
-	if store == nil {
+	if planStore == nil {
 		return "", "", errors.New("plan enforcement store is not available")
 	}
 	sessionID := strings.TrimSpace(SessionIDFromContext(ctx))
 	if sessionID == "" {
 		return "", "", fmt.Errorf("%w: session_id not available for %s", ErrRiskyToolRequiresPlan, spec.Name)
 	}
-	plan, err := store.LoadPlan(ctx, sessionID)
+	plan, err := planStore.LoadPlan(ctx, sessionID)
 	if err != nil {
-		if errors.Is(err, storecore.ErrPlanNotFound) {
+		if errors.Is(err, store.ErrPlanNotFound) {
 			return "", "", fmt.Errorf("%w: active plan not available before %s", ErrRiskyToolRequiresPlan, spec.Name)
 		}
 		return "", "", fmt.Errorf("load active plan for %s: %w", spec.Name, err)

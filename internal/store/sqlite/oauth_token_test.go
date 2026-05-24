@@ -5,6 +5,8 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	storecore "github.com/ycvk/acorn/internal/store"
 )
 
 func TestOAuthTokenGetNotFound(t *testing.T) {
@@ -12,8 +14,8 @@ func TestOAuthTokenGetNotFound(t *testing.T) {
 	ctx := context.Background()
 
 	_, err := store.GetOAuthToken(ctx, "nonexistent")
-	if !errors.Is(err, ErrOAuthTokenNotFound) {
-		t.Fatalf("expected ErrOAuthTokenNotFound, got %v", err)
+	if !errors.Is(err, storecore.ErrOAuthTokenNotFound) {
+		t.Fatalf("expected storecore.ErrOAuthTokenNotFound, got %v", err)
 	}
 }
 
@@ -22,7 +24,7 @@ func TestOAuthTokenSaveAndGetRoundTrip(t *testing.T) {
 	ctx := context.Background()
 
 	expiry := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
-	token := &OAuthToken{
+	token := &storecore.OAuthToken{
 		ProviderName: "test-provider",
 		AccessToken:  "access-abc",
 		RefreshToken: "refresh-xyz",
@@ -57,7 +59,7 @@ func TestOAuthTokenSaveUpserts(t *testing.T) {
 	store := openTestStore(t)
 	ctx := context.Background()
 
-	token1 := &OAuthToken{
+	token1 := &storecore.OAuthToken{
 		ProviderName: "upsert-provider",
 		AccessToken:  "first-access",
 		RefreshToken: "first-refresh",
@@ -68,7 +70,7 @@ func TestOAuthTokenSaveUpserts(t *testing.T) {
 		t.Fatalf("first save: %v", err)
 	}
 
-	token2 := &OAuthToken{
+	token2 := &storecore.OAuthToken{
 		ProviderName: "upsert-provider",
 		AccessToken:  "second-access",
 		RefreshToken: "second-refresh",
@@ -96,7 +98,7 @@ func TestOAuthTokenDelete(t *testing.T) {
 	store := openTestStore(t)
 	ctx := context.Background()
 
-	token := &OAuthToken{
+	token := &storecore.OAuthToken{
 		ProviderName: "delete-provider",
 		AccessToken:  "to-delete",
 		RefreshToken: "to-delete-refresh",
@@ -112,8 +114,8 @@ func TestOAuthTokenDelete(t *testing.T) {
 	}
 
 	_, err := store.GetOAuthToken(ctx, "delete-provider")
-	if !errors.Is(err, ErrOAuthTokenNotFound) {
-		t.Fatalf("expected ErrOAuthTokenNotFound after delete, got %v", err)
+	if !errors.Is(err, storecore.ErrOAuthTokenNotFound) {
+		t.Fatalf("expected storecore.ErrOAuthTokenNotFound after delete, got %v", err)
 	}
 }
 
@@ -122,8 +124,8 @@ func TestOAuthTokenDeleteNotFound(t *testing.T) {
 	ctx := context.Background()
 
 	err := store.DeleteOAuthToken(ctx, "nonexistent")
-	if !errors.Is(err, ErrOAuthTokenNotFound) {
-		t.Fatalf("expected ErrOAuthTokenNotFound on delete of missing token, got %v", err)
+	if !errors.Is(err, storecore.ErrOAuthTokenNotFound) {
+		t.Fatalf("expected storecore.ErrOAuthTokenNotFound on delete of missing token, got %v", err)
 	}
 }
 

@@ -12,10 +12,11 @@ import (
 	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/orchestrationmode"
 	"github.com/ycvk/acorn/internal/runtimehistory"
+	"github.com/ycvk/acorn/internal/store"
 )
 
 func (s *Store) CreateRun(ctx context.Context, runID, input, checkpointID string) error {
-	return s.CreateRunWithParams(ctx, RunCreateParams{
+	return s.CreateRunWithParams(ctx, store.RunCreateParams{
 		RunID:             runID,
 		Input:             input,
 		CheckpointID:      checkpointID,
@@ -24,7 +25,7 @@ func (s *Store) CreateRun(ctx context.Context, runID, input, checkpointID string
 }
 
 func (s *Store) CreateRunWithSession(ctx context.Context, runID, sessionID string, turnIndex int, input, checkpointID string) error {
-	return s.CreateRunWithParams(ctx, RunCreateParams{
+	return s.CreateRunWithParams(ctx, store.RunCreateParams{
 		RunID:             runID,
 		SessionID:         sessionID,
 		TurnIndex:         turnIndex,
@@ -34,7 +35,7 @@ func (s *Store) CreateRunWithSession(ctx context.Context, runID, sessionID strin
 	})
 }
 
-func (s *Store) CreateRunWithParams(ctx context.Context, params RunCreateParams) error {
+func (s *Store) CreateRunWithParams(ctx context.Context, params store.RunCreateParams) error {
 	mode := orchestrationmode.Normalize(params.OrchestrationMode)
 	if strings.TrimSpace(string(mode)) == "" {
 		return fmt.Errorf("orchestration mode is required")
@@ -61,7 +62,7 @@ func (s *Store) CreateRunWithParams(ctx context.Context, params RunCreateParams)
 }
 
 func (s *Store) CreateBoundRun(ctx context.Context, runID, sessionID string, turnIndex int, input, checkpointID string) error {
-	return s.CreateBoundRunWithParams(ctx, RunCreateParams{
+	return s.CreateBoundRunWithParams(ctx, store.RunCreateParams{
 		RunID:             runID,
 		SessionID:         sessionID,
 		TurnIndex:         turnIndex,
@@ -71,7 +72,7 @@ func (s *Store) CreateBoundRun(ctx context.Context, runID, sessionID string, tur
 	})
 }
 
-func (s *Store) CreateBoundRunWithParams(ctx context.Context, params RunCreateParams) error {
+func (s *Store) CreateBoundRunWithParams(ctx context.Context, params store.RunCreateParams) error {
 	if err := s.CreateRunWithParams(ctx, params); err != nil {
 		return err
 	}
@@ -157,7 +158,7 @@ func (s *Store) LoadRun(ctx context.Context, runID string) (*events.RunRecord, e
 	rec, err := scanRunRecord(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("%w: %s", ErrRunNotFound, runID)
+			return nil, fmt.Errorf("%w: %s", store.ErrRunNotFound, runID)
 		}
 		return nil, fmt.Errorf("load run: %w", err)
 	}

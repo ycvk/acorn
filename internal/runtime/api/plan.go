@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	storecore "github.com/ycvk/acorn/internal/store"
+	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/toolresult"
 )
 
@@ -79,7 +79,7 @@ type PlanStore interface {
 // --- PlanRecordStore interface ---
 
 type PlanRecordStore interface {
-	LoadPlanBySession(ctx context.Context, sessionID string) (*storecore.PlanRecord, error)
-	SavePlan(ctx context.Context, plan *storecore.PlanRecord) error
+	LoadPlanBySession(ctx context.Context, sessionID string) (*store.PlanRecord, error)
+	SavePlan(ctx context.Context, plan *store.PlanRecord) error
 	AppendEvidenceRef(ctx context.Context, resultRef string, ref toolresult.EvidenceRef) (toolresult.Record, error)
 }

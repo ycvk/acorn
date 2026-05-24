@@ -6,8 +6,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/ycvk/acorn/internal/events"
 	storecore "github.com/ycvk/acorn/internal/store"
+
+	"github.com/ycvk/acorn/internal/events"
 	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
 )
 

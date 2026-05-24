@@ -5,6 +5,8 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	storecore "github.com/ycvk/acorn/internal/store"
 )
 
 func TestDevicePushTokenLifecycle(t *testing.T) {
@@ -12,7 +14,7 @@ func TestDevicePushTokenLifecycle(t *testing.T) {
 	ctx := context.Background()
 	now := time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC)
 
-	if err := store.SaveDevice(ctx, &Device{
+	if err := store.SaveDevice(ctx, &storecore.Device{
 		DeviceID:   "device_1",
 		Name:       "Phone",
 		Platform:   "ios",
@@ -23,7 +25,7 @@ func TestDevicePushTokenLifecycle(t *testing.T) {
 		t.Fatalf("save device: %v", err)
 	}
 
-	got, err := store.UpsertDevicePushToken(ctx, &DevicePushToken{
+	got, err := store.UpsertDevicePushToken(ctx, &storecore.DevicePushToken{
 		PushTokenID: "push_1",
 		DeviceID:    "device_1",
 		Provider:    "apns",
@@ -40,7 +42,7 @@ func TestDevicePushTokenLifecycle(t *testing.T) {
 		t.Fatalf("unexpected push token: %#v", got)
 	}
 
-	updated, err := store.UpsertDevicePushToken(ctx, &DevicePushToken{
+	updated, err := store.UpsertDevicePushToken(ctx, &storecore.DevicePushToken{
 		PushTokenID: "push_ignored_on_conflict",
 		DeviceID:    "device_1",
 		Provider:    "apns",
@@ -75,8 +77,8 @@ func TestDevicePushTokenLifecycle(t *testing.T) {
 	if len(active) != 0 {
 		t.Fatalf("active tokens after revoke = %#v, want none", active)
 	}
-	if err := store.RevokeDevicePushToken(ctx, "device_1", "apns", now.Add(3*time.Minute)); !errors.Is(err, ErrDevicePushTokenNotFound) {
-		t.Fatalf("second revoke error = %v, want ErrDevicePushTokenNotFound", err)
+	if err := store.RevokeDevicePushToken(ctx, "device_1", "apns", now.Add(3*time.Minute)); !errors.Is(err, storecore.ErrDevicePushTokenNotFound) {
+		t.Fatalf("second revoke error = %v, want storecore.ErrDevicePushTokenNotFound", err)
 	}
 }
 
@@ -85,7 +87,7 @@ func TestNotificationAndDeliveryLifecycle(t *testing.T) {
 	ctx := context.Background()
 	now := time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC)
 
-	if err := store.SaveDevice(ctx, &Device{
+	if err := store.SaveDevice(ctx, &storecore.Device{
 		DeviceID:   "device_1",
 		Name:       "Phone",
 		Platform:   "ios",
@@ -95,7 +97,7 @@ func TestNotificationAndDeliveryLifecycle(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("save device: %v", err)
 	}
-	if _, err := store.UpsertDevicePushToken(ctx, &DevicePushToken{
+	if _, err := store.UpsertDevicePushToken(ctx, &storecore.DevicePushToken{
 		PushTokenID: "push_1",
 		DeviceID:    "device_1",
 		Provider:    "apns",
@@ -108,7 +110,7 @@ func TestNotificationAndDeliveryLifecycle(t *testing.T) {
 		t.Fatalf("upsert push token: %v", err)
 	}
 
-	notification := &Notification{
+	notification := &storecore.Notification{
 		NotificationID: "notif_1",
 		Kind:           "pending_action",
 		RunID:          "run_1",
@@ -126,7 +128,7 @@ func TestNotificationAndDeliveryLifecycle(t *testing.T) {
 		t.Fatalf("unexpected notification: %#v", loaded)
 	}
 
-	delivery := &NotificationDelivery{
+	delivery := &storecore.NotificationDelivery{
 		DeliveryID:     "delivery_1",
 		NotificationID: "notif_1",
 		DeviceID:       "device_1",

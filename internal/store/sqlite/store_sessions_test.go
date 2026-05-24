@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/ycvk/acorn/internal/events"
+	storecore "github.com/ycvk/acorn/internal/store"
 )
 
 func TestSessionQueries(t *testing.T) {
@@ -277,15 +278,15 @@ func TestSyncAssistantMessageForRunBuildsResultSummaryFromEvidence(t *testing.T)
 	}); err != nil {
 		t.Fatalf("append failed event: %v", err)
 	}
-	if err := store.SavePlan(context.Background(), &PlanRecord{
+	if err := store.SavePlan(context.Background(), &storecore.PlanRecord{
 		PlanID:    "plan_evidence",
 		SessionID: session.SessionID,
 		RunID:     "run_evidence",
-		Steps: []PlanStep{{
+		Steps: []storecore.PlanStep{{
 			ID:     "step_1",
 			Action: "verify",
 			Status: "completed",
-			Evidence: []PlanEvidence{{
+			Evidence: []storecore.PlanEvidence{{
 				ID:          "diff_1",
 				StepID:      "step_1",
 				Kind:        "diff",
@@ -835,8 +836,8 @@ func TestClientSessionMessageHelpers(t *testing.T) {
 		t.Fatalf("BindLatestUserMessageRunID first: %v", err)
 	}
 	_, err = store.LoadLatestUnboundUserMessage(context.Background(), session.SessionID)
-	if !errors.Is(err, ErrSessionMessageNotFound) {
-		t.Fatalf("LoadLatestUnboundUserMessage exhausted error = %v, want ErrSessionMessageNotFound", err)
+	if !errors.Is(err, storecore.ErrSessionMessageNotFound) {
+		t.Fatalf("LoadLatestUnboundUserMessage exhausted error = %v, want storecore.ErrSessionMessageNotFound", err)
 	}
 }
 
@@ -1034,7 +1035,7 @@ func TestSyncDecisionMessageForPendingActionCreatesAndUpdatesDecisionPart(t *tes
 	if err := store.CreateBoundRun(context.Background(), "run_decision", session.SessionID, turnIndex, "run tool", "run_decision"); err != nil {
 		t.Fatalf("create bound run: %v", err)
 	}
-	_, err = store.CreatePendingAction(context.Background(), CreatePendingActionInput{
+	_, err = store.CreatePendingAction(context.Background(), storecore.CreatePendingActionInput{
 		ActionID:    "action_decision",
 		RunID:       "run_decision",
 		Kind:        events.PendingActionKindElicitation,
@@ -1187,8 +1188,8 @@ func TestCreateBoundRunCleansUpRunWhenBindingFails(t *testing.T) {
 	}
 
 	run, loadErr := store.LoadRun(context.Background(), "run_orphan")
-	if !errors.Is(loadErr, ErrRunNotFound) {
-		t.Fatalf("LoadRun error = %v, want ErrRunNotFound", loadErr)
+	if !errors.Is(loadErr, storecore.ErrRunNotFound) {
+		t.Fatalf("LoadRun error = %v, want storecore.ErrRunNotFound", loadErr)
 	}
 	if run != nil {
 		t.Fatalf("expected orphaned run cleanup, got %#v", run)

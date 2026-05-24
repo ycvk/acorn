@@ -16,7 +16,7 @@ import (
 	"github.com/ycvk/acorn/internal/providerusage"
 	"github.com/ycvk/acorn/internal/runtime"
 	"github.com/ycvk/acorn/internal/runtimehistory"
-	storecore "github.com/ycvk/acorn/internal/store"
+	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/terminalsession"
 	"github.com/ycvk/acorn/internal/toolresult"
 	"github.com/ycvk/acorn/internal/workspace"
@@ -398,7 +398,7 @@ func (s *RuntimeWorkbenchService) Load(ctx context.Context, sessionID string) (*
 
 		if s.plans != nil {
 			plan, planErr := s.plans.LoadRuntimePlan(ctx, trimmedSessionID)
-			if planErr != nil && !errors.Is(planErr, storecore.ErrPlanNotFound) {
+			if planErr != nil && !errors.Is(planErr, store.ErrPlanNotFound) {
 				return nil, planErr
 			}
 			workbench.Plan = plan
@@ -1025,7 +1025,7 @@ func runtimeWorkbenchNextStepHint(workbench *RuntimeWorkbench) string {
 }
 
 type runtimePlanRecordStore interface {
-	LoadPlanBySession(ctx context.Context, sessionID string) (*storecore.PlanRecord, error)
+	LoadPlanBySession(ctx context.Context, sessionID string) (*store.PlanRecord, error)
 }
 
 type runtimePlanStoreAdapter struct {
@@ -1047,7 +1047,7 @@ func (s runtimePlanStoreAdapter) LoadRuntimePlan(ctx context.Context, sessionID 
 	return runtimePlanFromStoreRecord(record), nil
 }
 
-func runtimePlanFromStoreRecord(record *storecore.PlanRecord) *runtime.Plan {
+func runtimePlanFromStoreRecord(record *store.PlanRecord) *runtime.Plan {
 	if record == nil {
 		return nil
 	}

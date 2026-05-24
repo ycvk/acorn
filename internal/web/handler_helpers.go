@@ -7,14 +7,14 @@ import (
 	"github.com/ycvk/acorn/internal/app"
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/runtime"
-	storecore "github.com/ycvk/acorn/internal/store"
+	"github.com/ycvk/acorn/internal/store"
 )
 
 func (s *Server) respondClientKnownError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
-	case errors.Is(err, storecore.ErrSessionNotFound):
+	case errors.Is(err, store.ErrSessionNotFound):
 		s.respondError(w, r, http.StatusNotFound, "thread_not_found", err.Error())
-	case errors.Is(err, storecore.ErrRunNotFound):
+	case errors.Is(err, store.ErrRunNotFound):
 		s.respondError(w, r, http.StatusNotFound, "run_not_found", err.Error())
 	case errors.Is(err, app.ErrClientNoPendingMessage):
 		s.respondBadRequest(w, r, err.Error())

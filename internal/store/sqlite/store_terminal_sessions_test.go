@@ -121,6 +121,6 @@ func TestStoreTerminalSessionLoadMissing(t *testing.T) {
 
 	_, err = store.LoadTerminalSession(context.Background(), "missing")
 	if !errors.Is(err, terminalsession.ErrSessionNotFound) {
-		t.Fatalf("load missing err = %v, want ErrSessionNotFound", err)
+		t.Fatalf("load missing err = %v, want storecore.ErrSessionNotFound", err)
 	}
 }

@@ -12,10 +12,10 @@ import (
 	"github.com/ycvk/acorn/internal/decision"
 	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/providerusage"
-	storecore "github.com/ycvk/acorn/internal/store"
+	"github.com/ycvk/acorn/internal/store"
 )
 
-func (s *Store) UpsertDevicePushToken(ctx context.Context, token *storecore.DevicePushToken) (*storecore.DevicePushToken, error) {
+func (s *Store) UpsertDevicePushToken(ctx context.Context, token *store.DevicePushToken) (*store.DevicePushToken, error) {
 	if token == nil {
 		return nil, errors.New("device push token is nil")
 	}
@@ -58,7 +58,7 @@ func (s *Store) UpsertDevicePushToken(ctx context.Context, token *storecore.Devi
 	return s.LoadDevicePushToken(ctx, token.DeviceID, token.Provider)
 }
 
-func (s *Store) LoadDevicePushToken(ctx context.Context, deviceID, provider string) (*storecore.DevicePushToken, error) {
+func (s *Store) LoadDevicePushToken(ctx context.Context, deviceID, provider string) (*store.DevicePushToken, error) {
 	row := s.db.QueryRowContext(ctx,
 		`SELECT push_token_id, device_id, provider, platform, token_value, token_hash, created_at, updated_at, revoked_at
 		 FROM device_push_tokens
@@ -69,7 +69,7 @@ func (s *Store) LoadDevicePushToken(ctx context.Context, deviceID, provider stri
 	token, err := scanDevicePushToken(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, storecore.ErrDevicePushTokenNotFound
+			return nil, store.ErrDevicePushTokenNotFound
 		}
 		return nil, fmt.Errorf("load device push token: %w", err)
 	}
@@ -92,12 +92,12 @@ func (s *Store) RevokeDevicePushToken(ctx context.Context, deviceID, provider st
 		return fmt.Errorf("revoke device push token rows affected: %w", err)
 	}
 	if affected == 0 {
-		return storecore.ErrDevicePushTokenNotFound
+		return store.ErrDevicePushTokenNotFound
 	}
 	return nil
 }
 
-func (s *Store) ListActiveDevicePushTokens(ctx context.Context) ([]storecore.DevicePushToken, error) {
+func (s *Store) ListActiveDevicePushTokens(ctx context.Context) ([]store.DevicePushToken, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT t.push_token_id, t.device_id, t.provider, t.platform, t.token_value, t.token_hash, t.created_at, t.updated_at, t.revoked_at
 		 FROM device_push_tokens t
@@ -110,7 +110,7 @@ func (s *Store) ListActiveDevicePushTokens(ctx context.Context) ([]storecore.Dev
 	}
 	defer rows.Close()
 
-	items := make([]storecore.DevicePushToken, 0)
+	items := make([]store.DevicePushToken, 0)
 	for rows.Next() {
 		token, err := scanDevicePushToken(rows)
 		if err != nil {
@@ -124,7 +124,7 @@ func (s *Store) ListActiveDevicePushTokens(ctx context.Context) ([]storecore.Dev
 	return items, nil
 }
 
-func (s *Store) CreateNotification(ctx context.Context, notification *storecore.Notification) error {
+func (s *Store) CreateNotification(ctx context.Context, notification *store.Notification) error {
 	if notification == nil {
 		return errors.New("notification is nil")
 	}
@@ -143,7 +143,7 @@ func (s *Store) CreateNotification(ctx context.Context, notification *storecore.
 	return nil
 }
 
-func (s *Store) LoadNotification(ctx context.Context, notificationID string) (*storecore.Notification, error) {
+func (s *Store) LoadNotification(ctx context.Context, notificationID string) (*store.Notification, error) {
 	row := s.db.QueryRowContext(ctx,
 		`SELECT notification_id, kind, run_id, action_id, created_at
 		 FROM notifications
@@ -153,14 +153,14 @@ func (s *Store) LoadNotification(ctx context.Context, notificationID string) (*s
 	notification, err := scanNotification(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, storecore.ErrNotificationNotFound
+			return nil, store.ErrNotificationNotFound
 		}
 		return nil, fmt.Errorf("load notification: %w", err)
 	}
 	return notification, nil
 }
 
-func (s *Store) CreateNotificationDelivery(ctx context.Context, delivery *storecore.NotificationDelivery) error {
+func (s *Store) CreateNotificationDelivery(ctx context.Context, delivery *store.NotificationDelivery) error {
 	if delivery == nil {
 		return errors.New("notification delivery is nil")
 	}
@@ -199,12 +199,12 @@ func (s *Store) UpdateNotificationDeliveryStatus(ctx context.Context, deliveryID
 		return fmt.Errorf("update notification delivery rows affected: %w", err)
 	}
 	if affected == 0 {
-		return storecore.ErrNotificationNotFound
+		return store.ErrNotificationNotFound
 	}
 	return nil
 }
 
-func (s *Store) ListNotificationDeliveries(ctx context.Context, notificationID string) ([]storecore.NotificationDelivery, error) {
+func (s *Store) ListNotificationDeliveries(ctx context.Context, notificationID string) ([]store.NotificationDelivery, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT delivery_id, notification_id, device_id, push_token_id, provider, status, error, created_at, updated_at
 		 FROM notification_deliveries
@@ -217,7 +217,7 @@ func (s *Store) ListNotificationDeliveries(ctx context.Context, notificationID s
 	}
 	defer rows.Close()
 
-	items := make([]storecore.NotificationDelivery, 0)
+	items := make([]store.NotificationDelivery, 0)
 	for rows.Next() {
 		delivery, err := scanNotificationDelivery(rows)
 		if err != nil {
@@ -231,9 +231,9 @@ func (s *Store) ListNotificationDeliveries(ctx context.Context, notificationID s
 	return items, nil
 }
 
-func scanDevicePushToken(scanner rowScanner) (*storecore.DevicePushToken, error) {
+func scanDevicePushToken(scanner rowScanner) (*store.DevicePushToken, error) {
 	var (
-		token     storecore.DevicePushToken
+		token     store.DevicePushToken
 		createdAt string
 		updatedAt string
 		revokedAt string
@@ -259,9 +259,9 @@ func scanDevicePushToken(scanner rowScanner) (*storecore.DevicePushToken, error)
 	return &token, nil
 }
 
-func scanNotification(scanner rowScanner) (*storecore.Notification, error) {
+func scanNotification(scanner rowScanner) (*store.Notification, error) {
 	var (
-		notification storecore.Notification
+		notification store.Notification
 		createdAt    string
 	)
 	if err := scanner.Scan(&notification.NotificationID, &notification.Kind, &notification.RunID, &notification.ActionID, &createdAt); err != nil {
@@ -275,9 +275,9 @@ func scanNotification(scanner rowScanner) (*storecore.Notification, error) {
 	return &notification, nil
 }
 
-func scanNotificationDelivery(scanner rowScanner) (*storecore.NotificationDelivery, error) {
+func scanNotificationDelivery(scanner rowScanner) (*store.NotificationDelivery, error) {
 	var (
-		delivery  storecore.NotificationDelivery
+		delivery  store.NotificationDelivery
 		createdAt string
 		updatedAt string
 	)
@@ -297,13 +297,13 @@ func scanNotificationDelivery(scanner rowScanner) (*storecore.NotificationDelive
 	return &delivery, nil
 }
 
-func (s *Store) LoadOwnerProfile(ctx context.Context) (*OwnerProfile, error) {
+func (s *Store) LoadOwnerProfile(ctx context.Context) (*store.OwnerProfile, error) {
 	row := s.db.QueryRowContext(ctx,
 		`SELECT owner_id, created_at FROM owner_profile WHERE owner_id = ?`,
 		"owner",
 	)
 	var (
-		profile OwnerProfile
+		profile store.OwnerProfile
 		created string
 	)
 	if err := row.Scan(&profile.OwnerID, &created); err != nil {
@@ -317,7 +317,7 @@ func (s *Store) LoadOwnerProfile(ctx context.Context) (*OwnerProfile, error) {
 	return &profile, nil
 }
 
-func (s *Store) SavePairingCode(ctx context.Context, code *PairingCode) error {
+func (s *Store) SavePairingCode(ctx context.Context, code *store.PairingCode) error {
 	if code == nil {
 		return errors.New("pairing code is nil")
 	}
@@ -335,7 +335,7 @@ func (s *Store) SavePairingCode(ctx context.Context, code *PairingCode) error {
 	return nil
 }
 
-func (s *Store) LoadPairingCode(ctx context.Context, codeHash string) (*PairingCode, error) {
+func (s *Store) LoadPairingCode(ctx context.Context, codeHash string) (*store.PairingCode, error) {
 	row := s.db.QueryRowContext(ctx,
 		`SELECT code_hash, expires_at, used_at, created_at
 		 FROM pairing_codes
@@ -345,23 +345,23 @@ func (s *Store) LoadPairingCode(ctx context.Context, codeHash string) (*PairingC
 	code, err := scanPairingCode(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, ErrPairingCodeNotFound
+			return nil, store.ErrPairingCodeNotFound
 		}
 		return nil, fmt.Errorf("load pairing code: %w", err)
 	}
 	return code, nil
 }
 
-func (s *Store) ConsumePairingCode(ctx context.Context, codeHash string, now time.Time) (*PairingCode, error) {
+func (s *Store) ConsumePairingCode(ctx context.Context, codeHash string, now time.Time) (*store.PairingCode, error) {
 	code, err := s.LoadPairingCode(ctx, codeHash)
 	if err != nil {
 		return nil, err
 	}
 	if code.UsedAt != nil {
-		return nil, ErrPairingCodeUsed
+		return nil, store.ErrPairingCodeUsed
 	}
 	if !now.Before(code.ExpiresAt) {
-		return nil, ErrPairingCodeExpired
+		return nil, store.ErrPairingCodeExpired
 	}
 	usedAt := now.UTC()
 	result, err := s.db.ExecContext(ctx,
@@ -377,13 +377,13 @@ func (s *Store) ConsumePairingCode(ctx context.Context, codeHash string, now tim
 		return nil, fmt.Errorf("consume pairing code rows affected: %w", err)
 	}
 	if affected == 0 {
-		return nil, ErrPairingCodeUsed
+		return nil, store.ErrPairingCodeUsed
 	}
 	code.UsedAt = &usedAt
 	return code, nil
 }
 
-func (s *Store) SaveDevice(ctx context.Context, device *Device) error {
+func (s *Store) SaveDevice(ctx context.Context, device *store.Device) error {
 	if device == nil {
 		return errors.New("device is nil")
 	}
@@ -404,7 +404,7 @@ func (s *Store) SaveDevice(ctx context.Context, device *Device) error {
 	return nil
 }
 
-func (s *Store) LoadDeviceByTokenHash(ctx context.Context, tokenHash string) (*Device, error) {
+func (s *Store) LoadDeviceByTokenHash(ctx context.Context, tokenHash string) (*store.Device, error) {
 	row := s.db.QueryRowContext(ctx,
 		`SELECT device_id, name, platform, token_hash, created_at, last_seen_at, revoked_at
 		 FROM devices
@@ -414,14 +414,14 @@ func (s *Store) LoadDeviceByTokenHash(ctx context.Context, tokenHash string) (*D
 	device, err := scanDevice(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, ErrDeviceNotFound
+			return nil, store.ErrDeviceNotFound
 		}
 		return nil, fmt.Errorf("load device by token hash: %w", err)
 	}
 	return device, nil
 }
 
-func (s *Store) LoadDevice(ctx context.Context, deviceID string) (*Device, error) {
+func (s *Store) LoadDevice(ctx context.Context, deviceID string) (*store.Device, error) {
 	row := s.db.QueryRowContext(ctx,
 		`SELECT device_id, name, platform, token_hash, created_at, last_seen_at, revoked_at
 		 FROM devices
@@ -431,14 +431,14 @@ func (s *Store) LoadDevice(ctx context.Context, deviceID string) (*Device, error
 	device, err := scanDevice(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, ErrDeviceNotFound
+			return nil, store.ErrDeviceNotFound
 		}
 		return nil, fmt.Errorf("load device: %w", err)
 	}
 	return device, nil
 }
 
-func (s *Store) ListDevices(ctx context.Context) ([]Device, error) {
+func (s *Store) ListDevices(ctx context.Context) ([]store.Device, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT device_id, name, platform, token_hash, created_at, last_seen_at, revoked_at
 		 FROM devices
@@ -449,7 +449,7 @@ func (s *Store) ListDevices(ctx context.Context) ([]Device, error) {
 	}
 	defer rows.Close()
 
-	var devices []Device
+	var devices []store.Device
 	for rows.Next() {
 		device, err := scanDevice(rows)
 		if err != nil {
@@ -477,7 +477,7 @@ func (s *Store) TouchDevice(ctx context.Context, deviceID string, seenAt time.Ti
 		return fmt.Errorf("touch device rows affected: %w", err)
 	}
 	if affected == 0 {
-		return ErrDeviceNotFound
+		return store.ErrDeviceNotFound
 	}
 	return nil
 }
@@ -496,7 +496,7 @@ func (s *Store) RevokeDevice(ctx context.Context, deviceID string, revokedAt tim
 		return fmt.Errorf("revoke device rows affected: %w", err)
 	}
 	if affected == 0 {
-		return ErrDeviceNotFound
+		return store.ErrDeviceNotFound
 	}
 	return nil
 }
@@ -505,9 +505,9 @@ type rowScanner interface {
 	Scan(dest ...any) error
 }
 
-func scanPairingCode(scanner rowScanner) (*PairingCode, error) {
+func scanPairingCode(scanner rowScanner) (*store.PairingCode, error) {
 	var (
-		code      PairingCode
+		code      store.PairingCode
 		expiresAt string
 		usedAt    string
 		createdAt string
@@ -533,9 +533,9 @@ func scanPairingCode(scanner rowScanner) (*PairingCode, error) {
 	return &code, nil
 }
 
-func scanDevice(scanner rowScanner) (*Device, error) {
+func scanDevice(scanner rowScanner) (*store.Device, error) {
 	var (
-		device     Device
+		device     store.Device
 		createdAt  string
 		lastSeenAt string
 		revokedAt  string
@@ -579,7 +579,7 @@ func formatOptionalTimestamp(value *time.Time) string {
 	return formatTimestamp(*value)
 }
 
-func (s *Store) GetOAuthToken(ctx context.Context, providerName string) (*OAuthToken, error) {
+func (s *Store) GetOAuthToken(ctx context.Context, providerName string) (*store.OAuthToken, error) {
 	row := s.db.QueryRowContext(ctx,
 		`SELECT provider_name, access_token, refresh_token, expiry, updated_at
 	     FROM mcp_oauth_tokens
@@ -587,13 +587,13 @@ func (s *Store) GetOAuthToken(ctx context.Context, providerName string) (*OAuthT
 		providerName,
 	)
 	var (
-		token   OAuthToken
+		token   store.OAuthToken
 		expiry  string
 		updated string
 	)
 	if err := row.Scan(&token.ProviderName, &token.AccessToken, &token.RefreshToken, &expiry, &updated); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, ErrOAuthTokenNotFound
+			return nil, store.ErrOAuthTokenNotFound
 		}
 		return nil, fmt.Errorf("get oauth token: %w", err)
 	}
@@ -610,7 +610,7 @@ func (s *Store) GetOAuthToken(ctx context.Context, providerName string) (*OAuthT
 	return &token, nil
 }
 
-func (s *Store) SaveOAuthToken(ctx context.Context, token *OAuthToken) error {
+func (s *Store) SaveOAuthToken(ctx context.Context, token *store.OAuthToken) error {
 	now := formatTimestamp(time.Now())
 	_, err := s.db.ExecContext(
 		ctx,
@@ -646,12 +646,12 @@ func (s *Store) DeleteOAuthToken(ctx context.Context, providerName string) error
 		return fmt.Errorf("delete oauth token rows affected: %w", err)
 	}
 	if affected == 0 {
-		return ErrOAuthTokenNotFound
+		return store.ErrOAuthTokenNotFound
 	}
 	return nil
 }
 
-func (s *Store) CreatePendingAction(ctx context.Context, input CreatePendingActionInput) (*events.PendingActionRecord, error) {
+func (s *Store) CreatePendingAction(ctx context.Context, input store.CreatePendingActionInput) (*events.PendingActionRecord, error) {
 	kind, err := normalizePendingActionKind(input.Kind)
 	if err != nil {
 		return nil, fmt.Errorf("create pending action: %w", err)
@@ -702,7 +702,7 @@ func (s *Store) CreatePendingAction(ctx context.Context, input CreatePendingActi
 	)
 	if err != nil {
 		if isPendingActionUniqueConstraint(err) {
-			return nil, ErrPendingActionExists
+			return nil, store.ErrPendingActionExists
 		}
 		return nil, fmt.Errorf("create pending action: %w", err)
 	}
@@ -718,7 +718,7 @@ func (s *Store) AttachPendingActionInterrupt(ctx context.Context, actionID, inte
 	)
 	if err != nil {
 		if isPendingActionUniqueConstraint(err) {
-			return ErrPendingActionExists
+			return store.ErrPendingActionExists
 		}
 		return fmt.Errorf("attach pending action interrupt: %w", err)
 	}
@@ -727,7 +727,7 @@ func (s *Store) AttachPendingActionInterrupt(ctx context.Context, actionID, inte
 		return fmt.Errorf("attach pending action interrupt rows affected: %w", err)
 	}
 	if affected == 0 {
-		return fmt.Errorf("attach pending action interrupt: %w: %s", ErrPendingActionNotFound, actionID)
+		return fmt.Errorf("attach pending action interrupt: %w: %s", store.ErrPendingActionNotFound, actionID)
 	}
 	return nil
 }
@@ -743,7 +743,7 @@ func (s *Store) LoadPendingAction(ctx context.Context, actionID string) (*events
 	record, err := scanPendingActionRecord(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("%w: %s", ErrPendingActionNotFound, actionID)
+			return nil, fmt.Errorf("%w: %s", store.ErrPendingActionNotFound, actionID)
 		}
 		return nil, fmt.Errorf("load pending action: %w", err)
 	}
@@ -761,7 +761,7 @@ func (s *Store) LoadPendingActionByInterrupt(ctx context.Context, interruptID st
 	record, err := scanPendingActionRecord(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("%w: %s", ErrPendingActionNotFound, interruptID)
+			return nil, fmt.Errorf("%w: %s", store.ErrPendingActionNotFound, interruptID)
 		}
 		return nil, fmt.Errorf("load pending action by interrupt: %w", err)
 	}
@@ -857,12 +857,12 @@ func (s *Store) DecidePendingAction(ctx context.Context, actionID string, status
 	))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("decide pending action: %w: %s", ErrPendingActionNotFound, actionID)
+			return nil, fmt.Errorf("decide pending action: %w: %s", store.ErrPendingActionNotFound, actionID)
 		}
 		return nil, fmt.Errorf("decide pending action load: %w", err)
 	}
 	if record.Status != events.PendingActionStatusPending {
-		return nil, fmt.Errorf("decide pending action: %w: status %q", ErrPendingActionDecided, record.Status)
+		return nil, fmt.Errorf("decide pending action: %w: status %q", store.ErrPendingActionDecided, record.Status)
 	}
 
 	result, err := tx.ExecContext(
@@ -883,7 +883,7 @@ func (s *Store) DecidePendingAction(ctx context.Context, actionID string, status
 		return nil, fmt.Errorf("decide pending action rows affected: %w", err)
 	}
 	if affected == 0 {
-		return nil, fmt.Errorf("decide pending action: %w", ErrPendingActionDecided)
+		return nil, fmt.Errorf("decide pending action: %w", store.ErrPendingActionDecided)
 	}
 
 	eventPayload, err := json.Marshal(map[string]any{
@@ -938,7 +938,7 @@ func (s *Store) ResolvePendingAction(ctx context.Context, actionID string) error
 		return fmt.Errorf("resolve pending action rows affected: %w", err)
 	}
 	if affected == 0 {
-		return fmt.Errorf("resolve pending action: %w: %s", ErrPendingActionNotFound, actionID)
+		return fmt.Errorf("resolve pending action: %w: %s", store.ErrPendingActionNotFound, actionID)
 	}
 	return nil
 }
@@ -1067,7 +1067,7 @@ func (s *Store) LoadRunDecision(ctx context.Context, runID string) (*decision.Re
 
 // SavePlan upserts a plan. If the plan_id already exists, it updates; otherwise inserts.
 // Empty steps = delete the plan row.
-func (s *Store) SavePlan(ctx context.Context, plan *PlanRecord) error {
+func (s *Store) SavePlan(ctx context.Context, plan *store.PlanRecord) error {
 	if plan == nil {
 		return fmt.Errorf("plan is nil")
 	}
@@ -1101,8 +1101,8 @@ func (s *Store) SavePlan(ctx context.Context, plan *PlanRecord) error {
 }
 
 // LoadPlanBySession loads the most recent plan for a session.
-// Returns ErrPlanNotFound if no plan exists.
-func (s *Store) LoadPlanBySession(ctx context.Context, sessionID string) (*PlanRecord, error) {
+// Returns store.ErrPlanNotFound if no plan exists.
+func (s *Store) LoadPlanBySession(ctx context.Context, sessionID string) (*store.PlanRecord, error) {
 	row := s.db.QueryRowContext(ctx, `
 		SELECT plan_id, session_id, run_id, steps_json, created_at, updated_at
 		FROM plan_steps
@@ -1113,8 +1113,8 @@ func (s *Store) LoadPlanBySession(ctx context.Context, sessionID string) (*PlanR
 }
 
 // LoadPlanByRun loads a plan by its last modifying run ID.
-// Returns ErrPlanNotFound if no plan exists.
-func (s *Store) LoadPlanByRun(ctx context.Context, runID string) (*PlanRecord, error) {
+// Returns store.ErrPlanNotFound if no plan exists.
+func (s *Store) LoadPlanByRun(ctx context.Context, runID string) (*store.PlanRecord, error) {
 	row := s.db.QueryRowContext(ctx, `
 		SELECT plan_id, session_id, run_id, steps_json, created_at, updated_at
 		FROM plan_steps
@@ -1134,7 +1134,7 @@ func (s *Store) DeletePlanBySession(ctx context.Context, sessionID string) error
 	return nil
 }
 
-func (s *Store) scanPlan(row *sql.Row) (*PlanRecord, error) {
+func (s *Store) scanPlan(row *sql.Row) (*store.PlanRecord, error) {
 	var (
 		planID    string
 		sessionID string
@@ -1145,11 +1145,11 @@ func (s *Store) scanPlan(row *sql.Row) (*PlanRecord, error) {
 	)
 	if err := row.Scan(&planID, &sessionID, &runID, &stepsJSON, &createdAt, &updatedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("%w: session/run", ErrPlanNotFound)
+			return nil, fmt.Errorf("%w: session/run", store.ErrPlanNotFound)
 		}
 		return nil, fmt.Errorf("scan plan: %w", err)
 	}
-	var steps []PlanStep
+	var steps []store.PlanStep
 	if err := json.Unmarshal([]byte(stepsJSON), &steps); err != nil {
 		return nil, fmt.Errorf("unmarshal plan steps: %w", err)
 	}
@@ -1161,7 +1161,7 @@ func (s *Store) scanPlan(row *sql.Row) (*PlanRecord, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &PlanRecord{
+	return &store.PlanRecord{
 		PlanID:    planID,
 		SessionID: sessionID,
 		RunID:     runID,

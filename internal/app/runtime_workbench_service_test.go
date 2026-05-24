@@ -15,7 +15,7 @@ import (
 	"github.com/ycvk/acorn/internal/providerusage"
 	"github.com/ycvk/acorn/internal/runtime"
 	"github.com/ycvk/acorn/internal/runtimehistory"
-	storecore "github.com/ycvk/acorn/internal/store"
+	"github.com/ycvk/acorn/internal/store"
 	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
 	"github.com/ycvk/acorn/internal/terminalsession"
 	"github.com/ycvk/acorn/internal/toolresult"
@@ -583,7 +583,7 @@ func (s *runtimeWorkbenchStoreStub) LoadRunDecision(_ context.Context, _ string)
 
 func (s *runtimeWorkbenchStoreStub) LoadRuntimePlan(_ context.Context, _ string) (*runtime.Plan, error) {
 	if s.plan == nil {
-		return nil, storecore.ErrPlanNotFound
+		return nil, store.ErrPlanNotFound
 	}
 	return s.plan, nil
 }

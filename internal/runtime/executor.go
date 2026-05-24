@@ -18,7 +18,7 @@ import (
 	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/memorymodule"
 	"github.com/ycvk/acorn/internal/runtimehistory"
-	storecore "github.com/ycvk/acorn/internal/store"
+	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/toolresult"
 )
 
@@ -319,7 +319,7 @@ func (e *Executor) ExecuteMessages(ctx context.Context, req ExecuteRequest, sink
 		}
 	}
 	mode := resolveRootOrchestrationMode(req)
-	if err := e.store.CreateBoundRunWithParams(ctx, storecore.RunCreateParams{
+	if err := e.store.CreateBoundRunWithParams(ctx, store.RunCreateParams{
 		RunID:             runID,
 		SessionID:         req.SessionID,
 		TurnIndex:         req.TurnIndex,

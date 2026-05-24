@@ -12,7 +12,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/auth"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	storecore "github.com/ycvk/acorn/internal/store"
+	"github.com/ycvk/acorn/internal/store"
 	"golang.org/x/oauth2"
 )
 
@@ -20,27 +20,27 @@ import (
 // without requiring a real database. It satisfies the TokenStore interface
 // defined in oauth_handler.go.
 type mockTokenStore struct {
-	tokens  map[string]*storecore.OAuthToken
+	tokens  map[string]*store.OAuthToken
 	getErr  error
 	saveErr error
 }
 
 func newMockTokenStore() *mockTokenStore {
-	return &mockTokenStore{tokens: make(map[string]*storecore.OAuthToken)}
+	return &mockTokenStore{tokens: make(map[string]*store.OAuthToken)}
 }
 
-func (m *mockTokenStore) GetOAuthToken(_ context.Context, providerName string) (*storecore.OAuthToken, error) {
+func (m *mockTokenStore) GetOAuthToken(_ context.Context, providerName string) (*store.OAuthToken, error) {
 	if m.getErr != nil {
 		return nil, m.getErr
 	}
 	tok, ok := m.tokens[providerName]
 	if !ok {
-		return nil, storecore.ErrOAuthTokenNotFound
+		return nil, store.ErrOAuthTokenNotFound
 	}
 	return tok, nil
 }
 
-func (m *mockTokenStore) SaveOAuthToken(_ context.Context, token *storecore.OAuthToken) error {
+func (m *mockTokenStore) SaveOAuthToken(_ context.Context, token *store.OAuthToken) error {
 	if m.saveErr != nil {
 		return m.saveErr
 	}
@@ -60,7 +60,7 @@ func TestSQLiteOAuthHandler_TokenSource_ReturnsTokenWhenExists(t *testing.T) {
 	providerName := "test-provider"
 	futureExpiry := time.Now().Add(1 * time.Hour)
 
-	store.tokens[providerName] = &storecore.OAuthToken{
+	store.tokens[providerName] = &store.OAuthToken{
 		ProviderName: providerName,
 		AccessToken:  "valid-access-token",
 		RefreshToken: "valid-refresh-token",
@@ -503,21 +503,21 @@ func TestSQLiteOAuthHandler_TokenSource_UsesErrorsIsForNotFound(t *testing.T) {
 	store := newMockTokenStore()
 	// getErr is a wrapped error that contains "not found" in its message
 	// but should NOT be treated as ErrOAuthTokenNotFound when using errors.Is.
-	wrappedErr := fmt.Errorf("wrapped: %w", storecore.ErrOAuthTokenNotFound)
+	wrappedErr := fmt.Errorf("wrapped: %w", store.ErrOAuthTokenNotFound)
 
 	// Verify errors.Is works with the wrapped error
-	if !errors.Is(wrappedErr, storecore.ErrOAuthTokenNotFound) {
+	if !errors.Is(wrappedErr, store.ErrOAuthTokenNotFound) {
 		t.Fatal("errors.Is should detect ErrOAuthTokenNotFound through wrapping")
 	}
 
 	// Verify a random error with "not found" in its message is NOT matched by errors.Is
 	randomErr := errors.New("token not found in cache")
-	if errors.Is(randomErr, storecore.ErrOAuthTokenNotFound) {
+	if errors.Is(randomErr, store.ErrOAuthTokenNotFound) {
 		t.Fatal("errors.Is should NOT match a random error that happens to contain 'not found'")
 	}
 
 	// Now verify the handler correctly returns (nil, nil) for the sentinel error
-	store.getErr = storecore.ErrOAuthTokenNotFound
+	store.getErr = store.ErrOAuthTokenNotFound
 	handler := &persistentOAuthHandler{
 		store:        store,
 		providerName: "test-provider",

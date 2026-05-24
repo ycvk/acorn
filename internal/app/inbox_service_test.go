@@ -5,9 +5,10 @@ import (
 	"errors"
 	"testing"
 
+	storecore "github.com/ycvk/acorn/internal/store"
+
 	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/orchestrationmode"
-	storecore "github.com/ycvk/acorn/internal/store"
 )
 
 func TestInboxServiceLoadProjectsMobileAggregate(t *testing.T) {

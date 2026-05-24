@@ -6,7 +6,7 @@ import (
 
 	"github.com/ycvk/acorn/internal/app"
 	"github.com/ycvk/acorn/internal/runtime"
-	storecore "github.com/ycvk/acorn/internal/store"
+	"github.com/ycvk/acorn/internal/store"
 )
 
 func (s *Server) respondKnownError(w http.ResponseWriter, r *http.Request, err error) {
@@ -23,19 +23,19 @@ func (s *Server) respondKnownError(w http.ResponseWriter, r *http.Request, err e
 		s.respondError(w, r, http.StatusForbidden, "device_push_token_forbidden", err.Error())
 	case errors.Is(err, app.ErrInvalidPushProvider):
 		s.respondError(w, r, http.StatusBadRequest, "invalid_push_provider", err.Error())
-	case errors.Is(err, storecore.ErrDevicePushTokenNotFound):
+	case errors.Is(err, store.ErrDevicePushTokenNotFound):
 		s.respondNotFound(w, r, "device_push_token_not_found", err.Error())
-	case errors.Is(err, storecore.ErrSessionNotFound):
+	case errors.Is(err, store.ErrSessionNotFound):
 		s.respondNotFound(w, r, "session_not_found", err.Error())
-	case errors.Is(err, storecore.ErrRunNotFound):
+	case errors.Is(err, store.ErrRunNotFound):
 		s.respondNotFound(w, r, "run_not_found", err.Error())
-	case errors.Is(err, storecore.ErrPendingActionNotFound):
+	case errors.Is(err, store.ErrPendingActionNotFound):
 		s.respondNotFound(w, r, "pending_action_not_found", err.Error())
-	case errors.Is(err, storecore.ErrPendingActionDecided):
+	case errors.Is(err, store.ErrPendingActionDecided):
 		s.respondConflict(w, r, "pending_action_already_decided", err.Error())
-	case errors.Is(err, storecore.ErrFactNotFound):
+	case errors.Is(err, store.ErrFactNotFound):
 		s.respondNotFound(w, r, "fact_not_found", err.Error())
-	case errors.Is(err, storecore.ErrPlanNotFound):
+	case errors.Is(err, store.ErrPlanNotFound):
 		s.respondNotFound(w, r, "plan_not_found", err.Error())
 	case errors.Is(err, app.ErrSkillAlreadyExists):
 		s.respondConflict(w, r, "skill_already_exists", err.Error())

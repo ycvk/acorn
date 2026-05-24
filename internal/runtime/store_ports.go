@@ -11,7 +11,7 @@ import (
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
 	"github.com/ycvk/acorn/internal/providerusage"
 	"github.com/ycvk/acorn/internal/runtimehistory"
-	storecore "github.com/ycvk/acorn/internal/store"
+	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/toolresult"
 )
 
@@ -23,12 +23,12 @@ type ExecutorStore interface {
 	providerusage.Recorder
 	runDecisionStore
 	EventAppender
-	LoadPlanBySession(ctx context.Context, sessionID string) (*storecore.PlanRecord, error)
-	SavePlan(ctx context.Context, plan *storecore.PlanRecord) error
+	LoadPlanBySession(ctx context.Context, sessionID string) (*store.PlanRecord, error)
+	SavePlan(ctx context.Context, plan *store.PlanRecord) error
 	AppendEvidenceRef(ctx context.Context, resultRef string, ref toolresult.EvidenceRef) (toolresult.Record, error)
 
 	CreateFreshSessionTurn(ctx context.Context, sessionID, title, input string) (int, error)
-	CreateBoundRunWithParams(ctx context.Context, params storecore.RunCreateParams) error
+	CreateBoundRunWithParams(ctx context.Context, params store.RunCreateParams) error
 	LoadRun(ctx context.Context, runID string) (*events.RunRecord, error)
 	LoadEvents(ctx context.Context, runID string) ([]events.EventRecord, error)
 	LoadEventsAfter(ctx context.Context, runID string, afterSeq int64) ([]events.EventRecord, error)

@@ -15,7 +15,7 @@ import (
 	"github.com/ycvk/acorn/internal/orchestration"
 	"github.com/ycvk/acorn/internal/orchestrationmode"
 	"github.com/ycvk/acorn/internal/skills"
-	storecore "github.com/ycvk/acorn/internal/store"
+	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/workspace"
 )
 
@@ -487,13 +487,13 @@ func (se *SubagentExecutor) Execute(ctx context.Context, req orchestration.Child
 	}
 
 	planRecord, err := se.store.LoadPlanBySession(childCtxOrBackground(ctx), childSessionID)
-	if err != nil && !errors.Is(err, storecore.ErrPlanNotFound) {
+	if err != nil && !errors.Is(err, store.ErrPlanNotFound) {
 		if emitErr := se.emitFailed(ctx, parentRunID, subRunID, childSessionID, req.ParentStepID, childRunMode, workspaceMode, worktreePath, requestedMode, err.Error(), sink); emitErr != nil {
 			return nil, errors.Join(fmt.Errorf("load child plan: %w", err), emitErr)
 		}
 		return nil, fmt.Errorf("load child plan: %w", err)
 	}
-	if errors.Is(err, storecore.ErrPlanNotFound) {
+	if errors.Is(err, store.ErrPlanNotFound) {
 		planRecord = nil
 	}
 
@@ -657,13 +657,13 @@ func evaluateDelegationAcceptance(
 	return orchestration.ChildAgentAcceptance{Status: "failed", Reasons: reasons}
 }
 
-func delegationPlanFailureReasons(planRecord *storecore.PlanRecord) []string {
+func delegationPlanFailureReasons(planRecord *store.PlanRecord) []string {
 	if planRecord == nil {
 		return nil
 	}
 	reasons := make([]string, 0)
 	for _, step := range planRecord.Steps {
-		if strings.TrimSpace(step.Status) != string(PlanStepFailed) {
+		if strings.TrimSpace(string(step.Status)) != string(PlanStepFailed) {
 			continue
 		}
 		reason := strings.TrimSpace(latestStoreEvidenceError(step.Evidence))
@@ -679,7 +679,7 @@ func delegationPlanFailureReasons(planRecord *storecore.PlanRecord) []string {
 	return reasons
 }
 
-func latestStoreEvidenceError(items []storecore.PlanEvidence) string {
+func latestStoreEvidenceError(items []store.PlanEvidence) string {
 	for i := len(items) - 1; i >= 0; i-- {
 		if strings.TrimSpace(items[i].Status) != string(EvidenceStatusFailed) {
 			continue
@@ -694,7 +694,7 @@ func latestStoreEvidenceError(items []storecore.PlanEvidence) string {
 	return ""
 }
 
-func delegationEvidenceSummaries(planRecord *storecore.PlanRecord) []string {
+func delegationEvidenceSummaries(planRecord *store.PlanRecord) []string {
 	if planRecord == nil {
 		return nil
 	}
@@ -716,7 +716,7 @@ func delegationEvidenceSummaries(planRecord *storecore.PlanRecord) []string {
 	return result
 }
 
-func delegationEvidenceRefs(planRecord *storecore.PlanRecord) []string {
+func delegationEvidenceRefs(planRecord *store.PlanRecord) []string {
 	if planRecord == nil {
 		return nil
 	}
@@ -736,7 +736,7 @@ func delegationEvidenceRefs(planRecord *storecore.PlanRecord) []string {
 	return result
 }
 
-func childEvidenceRefs(evidence storecore.PlanEvidence) []string {
+func childEvidenceRefs(evidence store.PlanEvidence) []string {
 	refs := make([]string, 0, 3)
 	if ref := strings.TrimSpace(evidence.ToolResultRef); ref != "" {
 		refs = append(refs, ref)

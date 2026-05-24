@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	storecore "github.com/ycvk/acorn/internal/store"
 )
 
 func TestSavePlan_CreateNew(t *testing.T) {
@@ -18,11 +20,11 @@ func TestSavePlan_CreateNew(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now().UTC()
 
-	plan := &PlanRecord{
+	plan := &storecore.PlanRecord{
 		PlanID:    "plan_1",
 		SessionID: "sess_1",
 		RunID:     "run_1",
-		Steps: []PlanStep{
+		Steps: []storecore.PlanStep{
 			{ID: "s1", Action: "read the codebase", Status: "pending", DependsOn: []string{}},
 			{ID: "s2", Action: "write tests", Status: "pending", DependsOn: []string{"s1"}},
 			{ID: "s3", Action: "run tests", Status: "pending", DependsOn: []string{"s2"}},
@@ -75,24 +77,24 @@ func TestSavePlan_RoundtripsRepoAwareMetadata(t *testing.T) {
 
 	ctx := context.Background()
 	now := time.Now().UTC()
-	plan := &PlanRecord{
+	plan := &storecore.PlanRecord{
 		PlanID:    "plan_repo_aware",
 		SessionID: "sess_repo_aware",
 		RunID:     "run_repo_aware",
-		Steps: []PlanStep{{
+		Steps: []storecore.PlanStep{{
 			ID:        "s1",
 			Action:    "update runtime plan metadata",
 			Status:    "pending",
 			DependsOn: []string{},
-			RepoTargets: []PlanRepoTarget{{
+			RepoTargets: []storecore.PlanRepoTarget{{
 				Path:       "internal/runtime/plan_types.go",
-				Symbol:     "PlanStep",
+				Symbol:     "storecore.PlanStep",
 				StartLine:  30,
 				EndLine:    44,
-				Reason:     "plan metadata belongs on PlanStep",
+				Reason:     "plan metadata belongs on storecore.PlanStep",
 				Confidence: "high",
 			}},
-			VerificationIntent: []VerificationIntent{{
+			VerificationIntent: []storecore.VerificationIntent{{
 				Kind:    "test",
 				Command: []string{"go", "test", "./internal/runtime"},
 				Paths:   []string{"internal/runtime"},
@@ -123,7 +125,7 @@ func TestSavePlan_RoundtripsRepoAwareMetadata(t *testing.T) {
 		t.Fatalf("RepoTargets = %+v", step.RepoTargets)
 	}
 	if len(step.VerificationIntent) != 1 || step.VerificationIntent[0].Kind != "test" || len(step.VerificationIntent[0].Command) != 3 {
-		t.Fatalf("VerificationIntent = %+v", step.VerificationIntent)
+		t.Fatalf("storecore.VerificationIntent = %+v", step.VerificationIntent)
 	}
 	if len(step.ToolHints) != 2 || step.ToolHints[1] != "apply_unified_patch" {
 		t.Fatalf("ToolHints = %+v", step.ToolHints)
@@ -139,15 +141,15 @@ func TestSavePlan_RoundtripsEvidence(t *testing.T) {
 
 	ctx := context.Background()
 	now := time.Now().UTC()
-	plan := &PlanRecord{
+	plan := &storecore.PlanRecord{
 		PlanID:    "plan_evidence",
 		SessionID: "sess_evidence",
 		RunID:     "run_evidence",
-		Steps: []PlanStep{{
+		Steps: []storecore.PlanStep{{
 			ID:     "s1",
 			Action: "verify evidence roundtrip",
 			Status: "completed",
-			Evidence: []PlanEvidence{{
+			Evidence: []storecore.PlanEvidence{{
 				ID:          "ev_1",
 				StepID:      "s1",
 				Kind:        "test",
@@ -192,11 +194,11 @@ func TestSavePlan_UpdateExisting(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now().UTC()
 
-	plan := &PlanRecord{
+	plan := &storecore.PlanRecord{
 		PlanID:    "plan_up",
 		SessionID: "sess_up",
 		RunID:     "run_1",
-		Steps: []PlanStep{
+		Steps: []storecore.PlanStep{
 			{ID: "s1", Action: "step one", Status: "pending"},
 			{ID: "s2", Action: "step two", Status: "pending"},
 		},
@@ -207,11 +209,11 @@ func TestSavePlan_UpdateExisting(t *testing.T) {
 		t.Fatalf("SavePlan (create): %v", err)
 	}
 
-	updated := &PlanRecord{
+	updated := &storecore.PlanRecord{
 		PlanID:    "plan_up",
 		SessionID: "sess_up",
 		RunID:     "run_2",
-		Steps: []PlanStep{
+		Steps: []storecore.PlanStep{
 			{ID: "s1", Action: "step one", Status: "completed"},
 			{ID: "s2", Action: "step two", Status: "in_progress"},
 			{ID: "s3", Action: "step three", Status: "pending"},
@@ -252,11 +254,11 @@ func TestSavePlan_EmptyStepsDeletesRow(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now().UTC()
 
-	plan := &PlanRecord{
+	plan := &storecore.PlanRecord{
 		PlanID:    "plan_del",
 		SessionID: "sess_del",
 		RunID:     "run_del",
-		Steps: []PlanStep{
+		Steps: []storecore.PlanStep{
 			{ID: "s1", Action: "do something", Status: "pending"},
 		},
 		CreatedAt: now,
@@ -266,7 +268,7 @@ func TestSavePlan_EmptyStepsDeletesRow(t *testing.T) {
 		t.Fatalf("SavePlan (create): %v", err)
 	}
 
-	clearPlan := &PlanRecord{
+	clearPlan := &storecore.PlanRecord{
 		PlanID: "plan_del",
 		Steps:  nil,
 	}
@@ -276,10 +278,10 @@ func TestSavePlan_EmptyStepsDeletesRow(t *testing.T) {
 
 	_, err = store.LoadPlanBySession(ctx, "sess_del")
 	if err == nil {
-		t.Fatal("expected ErrPlanNotFound after clearing steps, got nil error")
+		t.Fatal("expected storecore.ErrPlanNotFound after clearing steps, got nil error")
 	}
-	if !errors.Is(err, ErrPlanNotFound) {
-		t.Fatalf("expected ErrPlanNotFound, got %v", err)
+	if !errors.Is(err, storecore.ErrPlanNotFound) {
+		t.Fatalf("expected storecore.ErrPlanNotFound, got %v", err)
 	}
 }
 
@@ -293,10 +295,10 @@ func TestLoadPlanBySession_NotFound(t *testing.T) {
 	ctx := context.Background()
 	_, err = store.LoadPlanBySession(ctx, "nonexistent_session")
 	if err == nil {
-		t.Fatal("expected ErrPlanNotFound, got nil error")
+		t.Fatal("expected storecore.ErrPlanNotFound, got nil error")
 	}
-	if !errors.Is(err, ErrPlanNotFound) {
-		t.Fatalf("expected ErrPlanNotFound, got %v", err)
+	if !errors.Is(err, storecore.ErrPlanNotFound) {
+		t.Fatalf("expected storecore.ErrPlanNotFound, got %v", err)
 	}
 }
 
@@ -310,11 +312,11 @@ func TestLoadPlanByRun(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now().UTC()
 
-	plan := &PlanRecord{
+	plan := &storecore.PlanRecord{
 		PlanID:    "plan_run",
 		SessionID: "sess_run",
 		RunID:     "run_42",
-		Steps: []PlanStep{
+		Steps: []storecore.PlanStep{
 			{ID: "s1", Action: "inspect", Status: "in_progress"},
 		},
 		CreatedAt: now,
@@ -352,10 +354,10 @@ func TestLoadPlanByRun_NotFound(t *testing.T) {
 	ctx := context.Background()
 	_, err = store.LoadPlanByRun(ctx, "nonexistent_run")
 	if err == nil {
-		t.Fatal("expected ErrPlanNotFound, got nil error")
+		t.Fatal("expected storecore.ErrPlanNotFound, got nil error")
 	}
-	if !errors.Is(err, ErrPlanNotFound) {
-		t.Fatalf("expected ErrPlanNotFound, got %v", err)
+	if !errors.Is(err, storecore.ErrPlanNotFound) {
+		t.Fatalf("expected storecore.ErrPlanNotFound, got %v", err)
 	}
 }
 
@@ -369,11 +371,11 @@ func TestDeletePlanBySession(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now().UTC()
 
-	plan := &PlanRecord{
+	plan := &storecore.PlanRecord{
 		PlanID:    "plan_del_sess",
 		SessionID: "sess_del_by_session",
 		RunID:     "run_del_sess",
-		Steps: []PlanStep{
+		Steps: []storecore.PlanStep{
 			{ID: "s1", Action: "do work", Status: "pending"},
 		},
 		CreatedAt: now,
@@ -389,9 +391,9 @@ func TestDeletePlanBySession(t *testing.T) {
 
 	_, err = store.LoadPlanBySession(ctx, "sess_del_by_session")
 	if err == nil {
-		t.Fatal("expected ErrPlanNotFound after delete, got nil error")
+		t.Fatal("expected storecore.ErrPlanNotFound after delete, got nil error")
 	}
-	if !errors.Is(err, ErrPlanNotFound) {
-		t.Fatalf("expected ErrPlanNotFound, got %v", err)
+	if !errors.Is(err, storecore.ErrPlanNotFound) {
+		t.Fatalf("expected storecore.ErrPlanNotFound, got %v", err)
 	}
 }

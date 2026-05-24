@@ -60,7 +60,7 @@ func TestAgentGraphAlwaysRunsPlanNode(t *testing.T) {
 	if got, want := plan.Steps[0].Action, "Search sqlite rows"; got != want {
 		t.Fatalf("step action = %q, want %q", got, want)
 	}
-	if plan.Steps[0].Status != string(PlanStepCompleted) {
+	if string(plan.Steps[0].Status) != string(PlanStepCompleted) {
 		t.Fatalf("step status = %q, want completed", plan.Steps[0].Status)
 	}
 	if model.callCount != 2 {

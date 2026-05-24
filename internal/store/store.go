@@ -1,12 +1,34 @@
 package store
 
 import (
+	"errors"
 	"time"
 
 	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/orchestrationmode"
 )
 
+// Sentinel errors
+var (
+	ErrRunNotFound              = errors.New("run not found")
+	ErrSessionNotFound          = errors.New("session not found")
+	ErrSessionMessageNotFound   = errors.New("session message not found")
+	ErrFactNotFound             = errors.New("fact not found")
+	ErrPendingActionNotFound    = errors.New("pending action not found")
+	ErrPendingActionExists      = errors.New("pending action already exists")
+	ErrPendingActionDecided     = errors.New("pending action already decided")
+	ErrUnsupportedStorageSchema = errors.New("unsupported storage schema")
+	ErrOAuthTokenNotFound       = errors.New("oauth token not found")
+	ErrPlanNotFound             = errors.New("plan not found")
+	ErrDeviceNotFound           = errors.New("device not found")
+	ErrPairingCodeNotFound      = errors.New("pairing code not found")
+	ErrPairingCodeUsed          = errors.New("pairing code already used")
+	ErrPairingCodeExpired       = errors.New("pairing code expired")
+	ErrDevicePushTokenNotFound  = errors.New("device push token not found")
+	ErrNotificationNotFound     = errors.New("notification not found")
+)
+
+// Types
 type RunCreateParams struct {
 	RunID             string
 	SessionID         string
@@ -107,7 +129,7 @@ type PlanEvidence struct {
 	ChildRunID    string    `json:"child_run_id,omitempty"`
 	Error         string    `json:"error,omitempty"`
 	SourceRunID   string    `json:"source_run_id,omitempty"`
-	RecordedAt    time.Time `json:"recorded_at,omitempty"`
+	RecordedAt    time.Time `json:"recorded_at"`
 }
 
 type PlanRepoTarget struct {
@@ -129,14 +151,33 @@ type VerificationIntent struct {
 type PlanStep struct {
 	ID                 string               `json:"id"`
 	Action             string               `json:"action"`
-	Status             string               `json:"status"`
+	Status             PlanStepStatus       `json:"status"`
 	DependsOn          []string             `json:"depends_on,omitempty"`
 	RepoTargets        []PlanRepoTarget     `json:"repo_targets,omitempty"`
 	VerificationIntent []VerificationIntent `json:"verification_intent,omitempty"`
-	Risk               string               `json:"risk,omitempty"`
+	Risk               PlanStepRisk         `json:"risk,omitempty"`
 	ToolHints          []string             `json:"tool_hints,omitempty"`
 	Evidence           []PlanEvidence       `json:"evidence,omitempty"`
 }
+
+type PlanStepStatus string
+
+const (
+	PlanStepPending    PlanStepStatus = "pending"
+	PlanStepInProgress PlanStepStatus = "in_progress"
+	PlanStepCompleted  PlanStepStatus = "completed"
+	PlanStepFailed     PlanStepStatus = "failed"
+	PlanStepSkipped    PlanStepStatus = "skipped"
+)
+
+type PlanStepRisk string
+
+const (
+	PlanStepRiskRead     PlanStepRisk = "read"
+	PlanStepRiskWrite    PlanStepRisk = "write"
+	PlanStepRiskExecute  PlanStepRisk = "execute"
+	PlanStepRiskDelegate PlanStepRisk = "delegate"
+)
 
 type PlanRecord struct {
 	PlanID    string     `json:"plan_id"`
