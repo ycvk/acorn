@@ -12,7 +12,7 @@ GO_PACKAGES := $(shell go list ./...)
 GOLANGCI_LINT := $(shell which golangci-lint 2>/dev/null)
 GOIMPORTS := $(shell which goimports 2>/dev/null)
 
-.PHONY: help build release release-linux-amd64 release-linux-arm64 dev-faiss-artifacts dev-build-faiss dev-doctor-faiss dev-serve-faiss doctor serve test vet lint format format-check
+.PHONY: help build release release-linux-amd64 release-linux-arm64 dev-faiss-artifacts dev-build-faiss dev-doctor-faiss dev-serve-faiss doctor serve test test-architecture vet lint format format-check
 
 help:
 	@echo "make build         # build ./bin/acorn"
@@ -82,12 +82,12 @@ format:
 ifndef GOIMPORTS
 	$(error goimports not found — install: go install golang.org/x/tools/cmd/goimports@latest)
 endif
-	gofmt -w ./cmd ./internal
-	goimports -w ./cmd ./internal
+	gofmt -w ./cmd ./internal ./tests
+	goimports -w ./cmd ./internal ./tests
 
 format-check:
-	@test -z "$$(gofmt -l ./cmd ./internal)" || (gofmt -l ./cmd ./internal && false)
+	@test -z "$$(gofmt -l ./cmd ./internal ./tests)" || (gofmt -l ./cmd ./internal ./tests && false)
 ifndef GOIMPORTS
 	$(error goimports not found — install: go install golang.org/x/tools/cmd/goimports@latest)
 endif
-	@test -z "$$(goimports -l ./cmd ./internal)" || (goimports -l ./cmd ./internal && false)
+	@test -z "$$(goimports -l ./cmd ./internal ./tests)" || (goimports -l ./cmd ./internal ./tests && false)

@@ -148,7 +148,7 @@ SQLite now persists mobile wake-up state:
 - `notifications`: durable wake-up facts such as `pending_action`.
 - `notification_deliveries`: per-device delivery attempts with `pending`, `sent`, `failed`, or `not_configured`.
 
-`internal/app.NotificationService` owns token registration and pending-action wake-up creation. `internal/notifications.Router` is the APNs/FCM dispatcher port; when no concrete dispatcher is configured, delivery rows are updated to `not_configured` instead of pretending push succeeded.
+`internal/app.NotificationService` owns token registration and pending-action wake-up creation. `internal/app` also owns the APNs/FCM dispatcher port; when no concrete dispatcher is configured, delivery rows are updated to `not_configured` instead of pretending push succeeded.
 
 MCP elicitation pending actions are wired through a notification-aware pending action store wrapper passed via `runtime.RunnerFactoryOptions.MCPPendingActionStore`. Runtime still does not know APNs/FCM details; it only receives the same pending-action store contract.
 
