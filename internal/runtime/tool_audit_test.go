@@ -12,9 +12,9 @@ import (
 	"github.com/cloudwego/eino/schema"
 
 	"github.com/ycvk/acorn/internal/config"
+	storerepo "github.com/ycvk/acorn/internal/store"
 	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
 	"github.com/ycvk/acorn/internal/tooling"
-	storerepo "github.com/ycvk/acorn/internal/store"
 )
 
 func TestAuditedToolRecordsSucceededEvent(t *testing.T) {

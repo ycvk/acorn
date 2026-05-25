@@ -14,8 +14,8 @@ import (
 	"github.com/ycvk/acorn/internal/memorymodule"
 	"github.com/ycvk/acorn/internal/runtimehistory"
 	"github.com/ycvk/acorn/internal/skills"
-	"github.com/ycvk/acorn/internal/tooling"
 	"github.com/ycvk/acorn/internal/store"
+	"github.com/ycvk/acorn/internal/tooling"
 	"github.com/ycvk/acorn/internal/workingstate"
 )
 

@@ -19,15 +19,15 @@ const (
 )
 
 type EvalSample struct {
-	ID            string        `json:"id,omitempty"`
-	Kind          EvalKind      `json:"kind"`
-	RunID         string        `json:"run_id,omitempty"`
-	Query         string        `json:"query"`
-	Scope         string        `json:"scope,omitempty"`
-	ReturnedRefs  []string      `json:"returned_refs,omitempty"`
+	ID            string            `json:"id,omitempty"`
+	Kind          EvalKind          `json:"kind"`
+	RunID         string            `json:"run_id,omitempty"`
+	Query         string            `json:"query"`
+	Scope         string            `json:"scope,omitempty"`
+	ReturnedRefs  []string          `json:"returned_refs,omitempty"`
 	ExplainDigest EvalExplainDigest `json:"explain_digest,omitempty"`
-	LatencyMS     int64         `json:"latency_ms,omitempty"`
-	CapturedAt    time.Time     `json:"captured_at"`
+	LatencyMS     int64             `json:"latency_ms,omitempty"`
+	CapturedAt    time.Time         `json:"captured_at"`
 }
 
 type EvalExplainDigest struct {

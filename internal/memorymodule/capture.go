@@ -85,10 +85,7 @@ func digestSearchExplain(explain *SearchExplain) EvalExplainDigest {
 		Items:  make([]EvalItemDigest, 0, len(explain.Items)),
 	}
 	for _, stage := range explain.Stages {
-		digest.Stages = append(digest.Stages, EvalStageDigest{
-			Name:           stage.Name,
-			CandidateCount: stage.CandidateCount,
-		})
+		digest.Stages = append(digest.Stages, EvalStageDigest(stage))
 	}
 	for _, item := range explain.Items {
 		digest.Items = append(digest.Items, EvalItemDigest{
