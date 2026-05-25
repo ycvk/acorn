@@ -1,4 +1,4 @@
-package retrievaleval
+package memorymodule
 
 import (
 	"context"
@@ -10,71 +10,71 @@ import (
 	"time"
 )
 
-type Kind string
+type EvalKind string
 
 const (
-	KindMemorySearch  Kind = "memory_search"
-	KindMemoryPrepare Kind = "memory_prepare"
-	KindSkillRouting  Kind = "skill_routing"
+	EvalKindMemorySearch  EvalKind = "memory_search"
+	EvalKindMemoryPrepare EvalKind = "memory_prepare"
+	EvalKindSkillRouting  EvalKind = "skill_routing"
 )
 
-type Sample struct {
+type EvalSample struct {
 	ID            string        `json:"id,omitempty"`
-	Kind          Kind          `json:"kind"`
+	Kind          EvalKind      `json:"kind"`
 	RunID         string        `json:"run_id,omitempty"`
 	Query         string        `json:"query"`
 	Scope         string        `json:"scope,omitempty"`
 	ReturnedRefs  []string      `json:"returned_refs,omitempty"`
-	ExplainDigest ExplainDigest `json:"explain_digest,omitempty"`
+	ExplainDigest EvalExplainDigest `json:"explain_digest,omitempty"`
 	LatencyMS     int64         `json:"latency_ms,omitempty"`
 	CapturedAt    time.Time     `json:"captured_at"`
 }
 
-type ExplainDigest struct {
-	Stages []StageDigest `json:"stages,omitempty"`
-	Items  []ItemDigest  `json:"items,omitempty"`
+type EvalExplainDigest struct {
+	Stages []EvalStageDigest `json:"stages,omitempty"`
+	Items  []EvalItemDigest  `json:"items,omitempty"`
 }
 
-type StageDigest struct {
+type EvalStageDigest struct {
 	Name           string `json:"name"`
 	CandidateCount int    `json:"candidate_count"`
 }
 
-type ItemDigest struct {
+type EvalItemDigest struct {
 	Ref               string   `json:"ref"`
 	FinalScore        float64  `json:"final_score"`
 	ContributionCount int      `json:"contribution_count"`
 	Stages            []string `json:"stages,omitempty"`
 }
 
-type Sink interface {
-	Capture(ctx context.Context, sample Sample) error
+type EvalSink interface {
+	Capture(ctx context.Context, sample EvalSample) error
 }
 
-type FileSink struct {
+type EvalFileSink struct {
 	path string
 	now  func() time.Time
 }
 
-func NewFileSink(path string) (*FileSink, error) {
+func NewEvalFileSink(path string) (*EvalFileSink, error) {
 	trimmed := strings.TrimSpace(path)
 	if trimmed == "" {
 		return nil, fmt.Errorf("capture sink path is required")
 	}
-	return &FileSink{
+	return &EvalFileSink{
 		path: trimmed,
 		now:  time.Now,
 	}, nil
 }
 
-func (s *FileSink) Capture(ctx context.Context, sample Sample) error {
+func (s *EvalFileSink) Capture(ctx context.Context, sample EvalSample) error {
 	if s == nil {
 		return fmt.Errorf("capture sink is nil")
 	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	normalized, err := NormalizeSample(sample, s.now())
+	normalized, err := NormalizeEvalSample(sample, s.now())
 	if err != nil {
 		return err
 	}
@@ -99,17 +99,17 @@ func (s *FileSink) Capture(ctx context.Context, sample Sample) error {
 	return nil
 }
 
-func NormalizeSample(sample Sample, fallbackTime time.Time) (Sample, error) {
+func NormalizeEvalSample(sample EvalSample, fallbackTime time.Time) (EvalSample, error) {
 	sample.ID = strings.TrimSpace(sample.ID)
 	sample.RunID = strings.TrimSpace(sample.RunID)
 	sample.Query = strings.TrimSpace(sample.Query)
 	sample.Scope = strings.TrimSpace(sample.Scope)
 	sample.ReturnedRefs = uniqueNonEmpty(sample.ReturnedRefs)
 	if sample.Kind == "" {
-		return Sample{}, fmt.Errorf("capture sample kind is required")
+		return EvalSample{}, fmt.Errorf("capture sample kind is required")
 	}
 	if sample.Query == "" {
-		return Sample{}, fmt.Errorf("capture sample query is required")
+		return EvalSample{}, fmt.Errorf("capture sample query is required")
 	}
 	if sample.CapturedAt.IsZero() {
 		if fallbackTime.IsZero() {

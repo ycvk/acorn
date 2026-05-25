@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ycvk/acorn/internal/retrievaleval"
+	"github.com/ycvk/acorn/internal/memorymodule"
 )
 
 func TestCandidateCaptureSampleIncludesCandidateRefs(t *testing.T) {
@@ -27,7 +27,7 @@ func TestCandidateCaptureSampleIncludesCandidateRefs(t *testing.T) {
 		RunID:   "run_skill",
 		Latency: 5 * time.Millisecond,
 	})
-	if sample.Kind != retrievaleval.KindSkillRouting || sample.Query != "inspect repo" {
+	if sample.Kind != memorymodule.EvalKindSkillRouting || sample.Query != "inspect repo" {
 		t.Fatalf("sample = %#v", sample)
 	}
 	if sample.RunID != "run_skill" || sample.LatencyMS != 5 {

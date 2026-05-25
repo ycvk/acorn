@@ -1,10 +1,6 @@
 package memorymodule
 
-import (
-	"time"
-
-	"github.com/ycvk/acorn/internal/retrievaleval"
-)
+import "time"
 
 type CaptureMetadata struct {
 	ID         string
@@ -13,10 +9,10 @@ type CaptureMetadata struct {
 	CapturedAt time.Time
 }
 
-func SearchCaptureSample(req SearchRequest, result *SearchResult, meta CaptureMetadata) retrievaleval.Sample {
-	return retrievaleval.Sample{
+func SearchCaptureSample(req SearchRequest, result *SearchResult, meta CaptureMetadata) EvalSample {
+	return EvalSample{
 		ID:            meta.ID,
-		Kind:          retrievaleval.KindMemorySearch,
+		Kind:          EvalKindMemorySearch,
 		RunID:         meta.RunID,
 		Query:         req.Query,
 		Scope:         req.Scope,
@@ -27,10 +23,10 @@ func SearchCaptureSample(req SearchRequest, result *SearchResult, meta CaptureMe
 	}
 }
 
-func PrepareCaptureSample(req PrepareRequest, result *PrepareResult, meta CaptureMetadata) retrievaleval.Sample {
-	return retrievaleval.Sample{
+func PrepareCaptureSample(req PrepareRequest, result *PrepareResult, meta CaptureMetadata) EvalSample {
+	return EvalSample{
 		ID:            meta.ID,
-		Kind:          retrievaleval.KindMemoryPrepare,
+		Kind:          EvalKindMemoryPrepare,
 		RunID:         firstNonEmptyString(meta.RunID, req.RunID),
 		Query:         req.UserInput,
 		Scope:         WorkspaceScope(req.WorkspaceSlug),
@@ -66,36 +62,36 @@ func prepareResultRefs(result *PrepareResult) []string {
 	return refs
 }
 
-func prepareExplainDigest(result *PrepareResult) retrievaleval.ExplainDigest {
+func prepareExplainDigest(result *PrepareResult) EvalExplainDigest {
 	if result == nil {
-		return retrievaleval.ExplainDigest{}
+		return EvalExplainDigest{}
 	}
 	return digestSearchExplain(result.Explain)
 }
 
-func explainDigest(result *SearchResult) retrievaleval.ExplainDigest {
+func explainDigest(result *SearchResult) EvalExplainDigest {
 	if result == nil {
-		return retrievaleval.ExplainDigest{}
+		return EvalExplainDigest{}
 	}
 	return digestSearchExplain(result.Explain)
 }
 
-func digestSearchExplain(explain *SearchExplain) retrievaleval.ExplainDigest {
+func digestSearchExplain(explain *SearchExplain) EvalExplainDigest {
 	if explain == nil {
-		return retrievaleval.ExplainDigest{}
+		return EvalExplainDigest{}
 	}
-	digest := retrievaleval.ExplainDigest{
-		Stages: make([]retrievaleval.StageDigest, 0, len(explain.Stages)),
-		Items:  make([]retrievaleval.ItemDigest, 0, len(explain.Items)),
+	digest := EvalExplainDigest{
+		Stages: make([]EvalStageDigest, 0, len(explain.Stages)),
+		Items:  make([]EvalItemDigest, 0, len(explain.Items)),
 	}
 	for _, stage := range explain.Stages {
-		digest.Stages = append(digest.Stages, retrievaleval.StageDigest{
+		digest.Stages = append(digest.Stages, EvalStageDigest{
 			Name:           stage.Name,
 			CandidateCount: stage.CandidateCount,
 		})
 	}
 	for _, item := range explain.Items {
-		digest.Items = append(digest.Items, retrievaleval.ItemDigest{
+		digest.Items = append(digest.Items, EvalItemDigest{
 			Ref:               item.Ref,
 			FinalScore:        item.FinalScore,
 			ContributionCount: len(item.Contributions),
