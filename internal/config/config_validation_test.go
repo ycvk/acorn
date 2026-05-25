@@ -171,3 +171,20 @@ func TestValidateExecutionReadyRejectsInvalidExecutionFields(t *testing.T) {
 		t.Fatalf("expected valid reasoning_effort to pass, got %v", err)
 	}
 }
+
+func TestWorkspaceRootDirRejectsMismatchedLocalToolRoots(t *testing.T) {
+	root := t.TempDir()
+	other := t.TempDir()
+	cfg := defaultConfig()
+	cfg.Tools.Workspace.RootDir = root
+	cfg.Tools.Mutation.RootDir = other
+	cfg.Tools.RunCommand.WorkDir = root
+
+	_, err := cfg.Workspace()
+	if err == nil {
+		t.Fatal("expected mismatched local tool roots to fail")
+	}
+	if !strings.Contains(err.Error(), "workspace root mismatch") {
+		t.Fatalf("Workspace error = %v, want workspace root mismatch", err)
+	}
+}

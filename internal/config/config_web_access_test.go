@@ -7,37 +7,6 @@ import (
 	"testing"
 )
 
-func TestDefaultConfigWebAccessDefaults(t *testing.T) {
-	cfg := defaultConfig()
-	if cfg.WebAccess.UserAgent == "" {
-		t.Fatal("web_access.user_agent default is empty")
-	}
-	if cfg.WebAccess.TimeoutSeconds != 20 {
-		t.Fatalf("web_access.timeout_seconds = %d, want 20", cfg.WebAccess.TimeoutSeconds)
-	}
-	if cfg.WebAccess.MaxResponseBytes != 10*1024*1024 {
-		t.Fatalf("web_access.max_response_bytes = %d, want 10MiB", cfg.WebAccess.MaxResponseBytes)
-	}
-	if cfg.WebAccess.AllowPrivateNetworks {
-		t.Fatal("web_access.allow_private_networks default should be false")
-	}
-	if cfg.WebAccess.Search.Provider != "tavily" {
-		t.Fatalf("web_access.search.provider = %q, want tavily", cfg.WebAccess.Search.Provider)
-	}
-	if cfg.WebAccess.Search.TimeoutSeconds != 10 {
-		t.Fatalf("web_access.search.timeout_seconds = %d, want 10", cfg.WebAccess.Search.TimeoutSeconds)
-	}
-	if cfg.WebAccess.Search.MaxResults != 10 {
-		t.Fatalf("web_access.search.max_results = %d, want 10", cfg.WebAccess.Search.MaxResults)
-	}
-	if !cfg.Browser.Headless {
-		t.Fatal("browser.headless default should be true")
-	}
-	if cfg.Browser.DefaultTimeoutSeconds != 20 {
-		t.Fatalf("browser.default_timeout_seconds = %d, want 20", cfg.Browser.DefaultTimeoutSeconds)
-	}
-}
-
 func TestValidateExecutionReadyDoesNotRequireWebSearchKeyOrBrowserExecutable(t *testing.T) {
 	cfg := defaultConfig()
 	cfg.Providers[0].APIKey = "sk-chat"

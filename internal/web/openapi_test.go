@@ -254,6 +254,7 @@ func TestOpenAPIContractMatchesFileBackedMemorySurface(t *testing.T) {
 			t.Fatalf("openapi contract should not contain stale entry %q", stale)
 		}
 	}
+
 	for _, futurePath := range []string{
 		"/v1/pairing-codes",
 	} {

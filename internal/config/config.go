@@ -31,20 +31,13 @@ type ProviderConfig struct {
 }
 
 type ContextConfig struct {
-	WindowTokens        int `yaml:"window_tokens"`
-	CompactMarginTokens int `yaml:"compact_margin_tokens"`
-	PreserveRecentTurns int `yaml:"preserve_recent_turns"`
-	SummaryMaxTokens    int `yaml:"summary_max_tokens"`
-}
-
-type ContextPolicy struct {
-	WindowTokens         int
-	CompactMarginTokens  int
-	PreserveRecentTurns  int
-	SummaryMaxTokens     int
-	ReservedOutputTokens int
-	TokenEncoding        string
-	HandoffFrameDisabled bool
+	WindowTokens         int    `yaml:"window_tokens"`
+	CompactMarginTokens  int    `yaml:"compact_margin_tokens"`
+	PreserveRecentTurns  int    `yaml:"preserve_recent_turns"`
+	SummaryMaxTokens     int    `yaml:"summary_max_tokens"`
+	ReservedOutputTokens int    `yaml:"-"`
+	TokenEncoding        string `yaml:"-"`
+	HandoffFrameDisabled bool   `yaml:"-"`
 }
 
 type MemoryConfig struct {

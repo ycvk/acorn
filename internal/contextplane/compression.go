@@ -23,7 +23,7 @@ type CompressionBuildOptions struct {
 }
 
 type CompressionPipeline interface {
-	Build(context.Context, config.ContextPolicy, einomodel.BaseChatModel, CompressionBuildOptions) ([]adk.ChatModelAgentMiddleware, error)
+	Build(context.Context, config.ContextConfig, einomodel.BaseChatModel, CompressionBuildOptions) ([]adk.ChatModelAgentMiddleware, error)
 }
 
 type defaultCompressionPipeline struct{}
@@ -34,7 +34,7 @@ func NewCompressionPipeline() CompressionPipeline {
 
 func (p *defaultContextPlane) BuildHandlers(
 	ctx context.Context,
-	cfg config.ContextPolicy,
+	cfg config.ContextConfig,
 	chatModel einomodel.BaseChatModel,
 	opts CompressionBuildOptions,
 ) ([]adk.ChatModelAgentMiddleware, error) {
@@ -46,7 +46,7 @@ func (p *defaultContextPlane) BuildHandlers(
 
 func (defaultCompressionPipeline) Build(
 	ctx context.Context,
-	cfg config.ContextPolicy,
+	cfg config.ContextConfig,
 	chatModel einomodel.BaseChatModel,
 	opts CompressionBuildOptions,
 ) ([]adk.ChatModelAgentMiddleware, error) {
@@ -331,41 +331,7 @@ func (m *reactivePipelineModel) preFlightCompact(ctx context.Context, input []*s
 		return input, nil
 	}
 
-	result, err := m.middleware.pipeline.Compress(ctx, PipelineRequest{
-		Messages:        input,
-		ToolInfos:       append([]*schema.ToolInfo(nil), m.tools...),
-		Trigger:         CompactTriggerAuto,
-		TurnIndex:       currentTurn,
-		LastCompactTurn: lastCompact,
-		Pressure:        pressure,
-		PreservePolicy:  m.middleware.preservePolicy,
-		ModelProfile:    m.middleware.modelProfile,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("pre-flight pipeline auto compact: %w", err)
-	}
-	if result == nil {
-		return nil, errors.New("pre-flight pipeline auto compact returned nil")
-	}
-
-	m.middleware.mu.Lock()
-	m.middleware.lastCompactTurn = currentTurn
-	m.middleware.mu.Unlock()
-
-	if result.Outcome != nil {
-		outcome := *result.Outcome
-		outcome.LayersApplied = append([]CompactLayer(nil), result.LayersApplied...)
-		if s, ok := m.middleware.state.(*CompressionState); ok && s != nil {
-			s.RecordCompression(outcome.Summary)
-		}
-		if m.middleware.emitCompressed != nil {
-			if err := m.middleware.emitCompressed(ctx, outcome); err != nil {
-				return nil, fmt.Errorf("emit pre-flight pipeline compression event: %w", err)
-			}
-		}
-	}
-
-	return result.Messages, nil
+	return m.executeCompact(ctx, input, pressure, currentTurn, lastCompact, CompactTriggerAuto, "pre-flight")
 }
 
 func (m *reactivePipelineModel) reactiveCompact(ctx context.Context, input []*schema.Message) ([]*schema.Message, error) {
@@ -390,10 +356,14 @@ func (m *reactivePipelineModel) reactiveCompact(ctx context.Context, input []*sc
 	lastCompact := m.middleware.lastCompactTurn
 	m.middleware.mu.Unlock()
 
+	return m.executeCompact(ctx, input, pressure, currentTurn, lastCompact, CompactTriggerReactive, "reactive")
+}
+
+func (m *reactivePipelineModel) executeCompact(ctx context.Context, input []*schema.Message, pressure BudgetPressure, currentTurn, lastCompact int, trigger CompactTrigger, phase string) ([]*schema.Message, error) {
 	result, err := m.middleware.pipeline.Compress(ctx, PipelineRequest{
 		Messages:        input,
 		ToolInfos:       append([]*schema.ToolInfo(nil), m.tools...),
-		Trigger:         CompactTriggerReactive,
+		Trigger:         trigger,
 		TurnIndex:       currentTurn,
 		LastCompactTurn: lastCompact,
 		Pressure:        pressure,
@@ -401,10 +371,10 @@ func (m *reactivePipelineModel) reactiveCompact(ctx context.Context, input []*sc
 		ModelProfile:    m.middleware.modelProfile,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("reactive pipeline compact: %w", err)
+		return nil, fmt.Errorf("%s pipeline compact: %w", phase, err)
 	}
 	if result == nil {
-		return nil, errors.New("reactive pipeline compact returned nil")
+		return nil, fmt.Errorf("%s pipeline compact returned nil", phase)
 	}
 
 	m.middleware.mu.Lock()
@@ -419,7 +389,7 @@ func (m *reactivePipelineModel) reactiveCompact(ctx context.Context, input []*sc
 		}
 		if m.middleware.emitCompressed != nil {
 			if err := m.middleware.emitCompressed(ctx, outcome); err != nil {
-				return nil, fmt.Errorf("emit reactive pipeline compression event: %w", err)
+				return nil, fmt.Errorf("emit %s pipeline compression event: %w", phase, err)
 			}
 		}
 	}

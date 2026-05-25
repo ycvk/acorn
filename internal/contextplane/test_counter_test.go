@@ -8,7 +8,7 @@ import (
 
 func testTokenCounter(t *testing.T) *CompressionTokenCounter {
 	t.Helper()
-	counter, err := NewCompressionTokenCounter(config.ContextPolicy{TokenEncoding: "o200k_base"})
+	counter, err := NewCompressionTokenCounter(config.ContextConfig{TokenEncoding: "o200k_base"})
 	if err != nil {
 		t.Fatalf("NewCompressionTokenCounter: %v", err)
 	}

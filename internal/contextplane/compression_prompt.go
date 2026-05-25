@@ -35,34 +35,13 @@ CRITICAL RULES:
 // important field — it captures what the user was doing right before compression.
 const summarizerUserPromptTemplate = `Summarize the conversation below into a structured context checkpoint. The next assistant will use this to continue seamlessly.
 
-## Required Sections
+## Required Sections (use these exact headings)
 
 ### Primary Request / Intent
 THE MOST IMPORTANT FIELD. Copy or tightly summarize the user's primary request and latest intent. If the user gave a sequence of instructions, include the full sequence.
 
-### Technical Concepts
-Important domain concepts, architecture terms, runtime components, protocols, APIs, and invariants.
-
-### Files and Code Sections
-File paths, functions, types, config keys, docs, tests, commands, and code sections that were read, modified, or discussed.
-
-### Errors and Fixes
-Exact errors, failed commands, blocked checks, fixes applied, and unresolved failures.
-
-### Problem Solving
-Numbered list of significant actions taken. Each entry should include:
-- Tool name and key arguments (especially file paths)
-- Outcome (success/failure/partial)
-Keep entries concise — focus on what changed, not how.
-
-### All User Messages
-List every user message or explicit user instruction that matters for continuation. Preserve exact wording for hard constraints.
-
-### Pending Tasks
-Explicit user asks or implementation steps that have not been completed yet.
-
 ### Current Work
-What was actively being worked on when context was compacted, including current step, files in flight, verification state, and known dirty-worktree facts.
+What was actively being worked on when context was compacted, including: current step, files in flight, verification state, errors encountered, fixes applied, and any pending tasks. Organize this however makes sense — you do not need separate subsections.
 
 ### Next Step
 The next concrete action the continuing assistant should take.
@@ -81,14 +60,12 @@ const iterativeUpdatePrompt = `You are updating a context compaction summary. A 
 
 RULES:
 - PRESERVE all existing information from the previous summary.
-- UPDATE sections where new information supersedes old information.
-- ADD new entries to "Problem Solving", "Files and Code Sections", "Pending Tasks", "Current Work", etc.
-- MOVE completed items from "Current Work" or "Pending Tasks" into "Problem Solving" when appropriate.
 - UPDATE "Primary Request / Intent" to reflect the most recent user request.
-- REMOVE items from "Errors and Fixes" if they were resolved in the new turns, or mark them resolved with the fix.
+- UPDATE "Current Work" with new progress, errors, fixes, and pending tasks. Remove or mark resolved items that are now complete.
+- UPDATE "Next Step" to reflect what should happen next.
 - Do NOT discard information unless explicitly superseded.
 - Follow the exact required section headings:
-  Primary Request / Intent, Technical Concepts, Files and Code Sections, Errors and Fixes, Problem Solving, All User Messages, Pending Tasks, Current Work, Next Step.
+  Primary Request / Intent, Current Work, Next Step.
 - Do NOT call tools or request tool calls. You have no tools in this task.
 - NEVER include API keys, tokens, passwords, or secrets — replace with [REDACTED].
 

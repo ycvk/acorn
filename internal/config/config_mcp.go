@@ -29,8 +29,8 @@ func validateSSEURL(providerName, rawURL string) error {
 	}
 	segments := strings.Split(strings.Trim(cleaned, "/"), "/")
 	nonEmpty := 0
-	for _, s := range segments {
-		if strings.TrimSpace(s) != "" {
+	for _, segment := range segments {
+		if strings.TrimSpace(segment) != "" {
 			nonEmpty++
 		}
 	}

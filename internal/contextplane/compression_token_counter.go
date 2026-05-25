@@ -28,7 +28,7 @@ type TokenCounter interface {
 	CountMessages(context.Context, []adk.Message, []*schema.ToolInfo) (int, error)
 }
 
-func NewCompressionTokenCounter(cfg config.ContextPolicy) (*CompressionTokenCounter, error) {
+func NewCompressionTokenCounter(cfg config.ContextConfig) (*CompressionTokenCounter, error) {
 	if err := ensureCompressionTokenLoader(); err != nil {
 		return nil, err
 	}

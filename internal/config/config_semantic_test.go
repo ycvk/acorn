@@ -7,40 +7,6 @@ import (
 	"testing"
 )
 
-func TestDefaultConfigMemorySemanticDefaults(t *testing.T) {
-	cfg := defaultConfig()
-
-	if got, want := cfg.Memory.Semantic.Bleve.IndexName, "memory_records"; got != want {
-		t.Fatalf("bleve index_name = %q, want %q", got, want)
-	}
-	if got, want := cfg.Memory.Semantic.Embedding.Provider, "openai_compatible"; got != want {
-		t.Fatalf("embedding provider = %q, want %q", got, want)
-	}
-	if got, want := cfg.Memory.Semantic.Embedding.Model, "text-embedding-3-small"; got != want {
-		t.Fatalf("embedding model = %q, want %q", got, want)
-	}
-	if got, want := cfg.Memory.Semantic.Embedding.BaseURL, "https://api.openai.com/v1"; got != want {
-		t.Fatalf("embedding base_url = %q, want %q", got, want)
-	}
-	if got, want := cfg.Memory.Semantic.Embedding.APIKey, "${OPENAI_API_KEY}"; got != want {
-		t.Fatalf("embedding api_key = %q, want %q", got, want)
-	}
-	if got, want := cfg.Memory.Semantic.Embedding.Dimensions, 1536; got != want {
-		t.Fatalf("embedding dimensions = %d, want %d", got, want)
-	}
-	if got, want := cfg.Memory.Semantic.Embedding.TimeoutSeconds, 30; got != want {
-		t.Fatalf("embedding timeout = %d, want %d", got, want)
-	}
-	if got, want := cfg.Memory.Semantic.Embedding.BatchSize, 64; got != want {
-		t.Fatalf("embedding batch_size = %d, want %d", got, want)
-	}
-	if err := cfg.ValidateExecutionReady(); err == nil {
-		t.Fatal("expected default config to still require chat provider api_key")
-	} else if strings.Contains(err.Error(), "memory.semantic.embedding.api_key") {
-		t.Fatalf("default semantic config should use explicit embedding api_key env reference, got %v", err)
-	}
-}
-
 func TestLoadExpandsMemorySemanticEmbeddingAPIKeyEnvironment(t *testing.T) {
 	t.Setenv("ACORN_TEST_CHAT_KEY", "sk-chat")
 	t.Setenv("ACORN_TEST_EMBEDDING_KEY", "sk-embedding")

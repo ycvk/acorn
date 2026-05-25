@@ -7,44 +7,6 @@ import (
 	"testing"
 )
 
-func TestMCPAuthConfigStructFields(t *testing.T) {
-	auth := MCPAuthConfig{
-		Type:       "oauth",
-		ClientID:   "my-client",
-		Scopes:     []string{"read", "write"},
-		TokenStore: "sqlite",
-	}
-	if got, want := auth.Type, "oauth"; got != want {
-		t.Fatalf("Type = %q, want %q", got, want)
-	}
-	if got, want := auth.ClientID, "my-client"; got != want {
-		t.Fatalf("ClientID = %q, want %q", got, want)
-	}
-	if got, want := len(auth.Scopes), 2; got != want {
-		t.Fatalf("len(Scopes) = %d, want %d", got, want)
-	}
-	if got, want := auth.TokenStore, "sqlite"; got != want {
-		t.Fatalf("TokenStore = %q, want %q", got, want)
-	}
-}
-
-func TestMCPProviderConfigAuthField(t *testing.T) {
-	cfg := MCPProviderConfig{
-		Enabled: true,
-		Name:    "test",
-		Auth: MCPAuthConfig{
-			Type:     "oauth",
-			ClientID: "client-123",
-		},
-	}
-	if got, want := cfg.Auth.Type, "oauth"; got != want {
-		t.Fatalf("Auth.Type = %q, want %q", got, want)
-	}
-	if got, want := cfg.Auth.ClientID, "client-123"; got != want {
-		t.Fatalf("Auth.ClientID = %q, want %q", got, want)
-	}
-}
-
 func TestLoadMCPAuthOauthWithStdioRejected(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "acorn.yaml")

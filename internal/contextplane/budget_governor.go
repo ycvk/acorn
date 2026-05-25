@@ -66,7 +66,7 @@ const (
 	defaultBlockingBufferMax    = 3000
 )
 
-func ModelProfileFromContextPolicy(cfg config.ContextPolicy) ModelProfile {
+func ModelProfileFromContextPolicy(cfg config.ContextConfig) ModelProfile {
 	blockingBuffer := cfg.CompactMarginTokens / 4
 	if blockingBuffer < 1 {
 		blockingBuffer = 1
@@ -85,7 +85,7 @@ func ModelProfileFromContextPolicy(cfg config.ContextPolicy) ModelProfile {
 	}
 }
 
-func ContextAssemblyTokenLimitFromContextPolicy(cfg config.ContextPolicy) (int, error) {
+func ContextAssemblyTokenLimitFromContextPolicy(cfg config.ContextConfig) (int, error) {
 	thresholds, err := pressureThresholds(ModelProfileFromContextPolicy(cfg))
 	if err != nil {
 		return 0, err

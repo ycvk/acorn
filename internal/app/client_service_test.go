@@ -14,7 +14,6 @@ import (
 
 	storecore "github.com/ycvk/acorn/internal/store"
 
-	"github.com/meguminnnnnnnnn/go-openai"
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/memorymodule"
@@ -1124,6 +1123,55 @@ func (e *postStartFailingExecutor) ResumeWithTargets(context.Context, string, ma
 	return nil, errors.New("unexpected ResumeWithTargets call")
 }
 
+type openaiTestRequest struct {
+	Stream bool   `json:"stream"`
+	Model  string `json:"model"`
+}
+
+type openaiTestResponse struct {
+	ID      string             `json:"id"`
+	Object  string             `json:"object"`
+	Created int64              `json:"created"`
+	Model   string             `json:"model"`
+	Choices []openaiTestChoice `json:"choices"`
+	Usage   openaiTestUsage    `json:"usage"`
+}
+
+type openaiTestChoice struct {
+	Index        int               `json:"index"`
+	Message      openaiTestMessage `json:"message"`
+	FinishReason string            `json:"finish_reason"`
+}
+
+type openaiTestMessage struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
+type openaiTestStreamResponse struct {
+	ID      string                   `json:"id"`
+	Object  string                   `json:"object"`
+	Created int64                    `json:"created"`
+	Model   string                   `json:"model"`
+	Choices []openaiTestStreamChoice `json:"choices"`
+}
+
+type openaiTestStreamChoice struct {
+	Index        int                    `json:"index"`
+	Delta        openaiTestMessageDelta `json:"delta"`
+	FinishReason string                 `json:"finish_reason"`
+}
+
+type openaiTestMessageDelta struct {
+	Content string `json:"content"`
+}
+
+type openaiTestUsage struct {
+	PromptTokens     int `json:"prompt_tokens"`
+	CompletionTokens int `json:"completion_tokens"`
+	TotalTokens      int `json:"total_tokens"`
+}
+
 func newClientOpenAITestServer(t *testing.T, answer string) *httptest.Server {
 	t.Helper()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1131,24 +1179,24 @@ func newClientOpenAITestServer(t *testing.T, answer string) *httptest.Server {
 			http.Error(w, "unexpected request", http.StatusNotFound)
 			return
 		}
-		var req openai.ChatCompletionRequest
+		var req openaiTestRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 		if req.Stream {
 			w.Header().Set("Content-Type", "text/event-stream")
-			chunk := openai.ChatCompletionStreamResponse{
+			chunk := openaiTestStreamResponse{
 				ID:      "chatcmpl_client_v1",
 				Object:  "chat.completion.chunk",
 				Created: time.Now().Unix(),
 				Model:   req.Model,
-				Choices: []openai.ChatCompletionStreamChoice{{
+				Choices: []openaiTestStreamChoice{{
 					Index: 0,
-					Delta: openai.ChatCompletionStreamChoiceDelta{
+					Delta: openaiTestMessageDelta{
 						Content: answer,
 					},
-					FinishReason: openai.FinishReasonStop,
+					FinishReason: "stop",
 				}},
 			}
 			body, err := json.Marshal(chunk)
@@ -1166,20 +1214,20 @@ func newClientOpenAITestServer(t *testing.T, answer string) *httptest.Server {
 			}
 			return
 		}
-		response := openai.ChatCompletionResponse{
+		response := openaiTestResponse{
 			ID:      "chatcmpl_client_v1",
 			Object:  "chat.completion",
 			Created: time.Now().Unix(),
 			Model:   req.Model,
-			Choices: []openai.ChatCompletionChoice{{
+			Choices: []openaiTestChoice{{
 				Index: 0,
-				Message: openai.ChatCompletionMessage{
-					Role:    openai.ChatMessageRoleAssistant,
+				Message: openaiTestMessage{
+					Role:    "assistant",
 					Content: answer,
 				},
-				FinishReason: openai.FinishReasonStop,
+				FinishReason: "stop",
 			}},
-			Usage: openai.Usage{
+			Usage: openaiTestUsage{
 				PromptTokens:     1,
 				CompletionTokens: 1,
 				TotalTokens:      2,

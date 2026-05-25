@@ -25,19 +25,19 @@ type ContextPlane interface {
 	OnToolResult(context.Context, ToolResultEvent) error
 	DeferredLoad(context.Context, DeferredLoadRequest) (*DeferredLoadResult, error)
 	Budget(context.Context, BudgetRequest) (BudgetStatus, error)
-	BuildHandlers(context.Context, config.ContextPolicy, einomodel.BaseChatModel, CompressionBuildOptions) ([]adk.ChatModelAgentMiddleware, error)
+	BuildHandlers(context.Context, config.ContextConfig, einomodel.BaseChatModel, CompressionBuildOptions) ([]adk.ChatModelAgentMiddleware, error)
 }
 
 type AssembleRequest struct {
-	RunID          string
-	SessionID      string
-	Input          string
-	SelectedSkill  *SelectedSkill
-	SkillSnapshot  *skills.Snapshot
-	DecisionRecord *decision.Record
-	Hint           *DecisionContextHint
-	MemoryPrepared *memorymodule.PrepareResult
-	ToolCatalog    *tooling.Catalog
+	RunID           string
+	SessionID       string
+	Input           string
+	SelectedSkill   *SelectedSkill
+	SkillSnapshot   *skills.Snapshot
+	DecisionRecord  *decision.Record
+	ContextPriority ContextPriority
+	MemoryPrepared  *memorymodule.PrepareResult
+	ToolCatalog     *tooling.Catalog
 }
 
 type AssembleResult struct {
@@ -85,8 +85,6 @@ type DeferredLoadResult struct {
 	LoadedToolNames []string
 	AlreadyLoaded   []string
 }
-
-type DecisionContextHint = decision.DecisionContextHint
 
 type ContextPriority = decision.ContextPriority
 

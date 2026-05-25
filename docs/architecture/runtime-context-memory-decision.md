@@ -136,7 +136,7 @@ Learned memory skills are still file-backed memory records under `memorymodule/s
 
 ## Decision
 
-`internal/decision` selects direct execution, skill execution, ask-user, block, or resume behavior. It no longer has evolve/reflection action config. Runtime bridges decision output into selected skill/context hints, then ContextPlane assembles messages from the current decision, current skill catalog inventory, working checkpoint, session summary, and prepared file-backed memory.
+`internal/decision` is a small run selection policy for tool-enabled modes. It selects direct execution, skill execution, ask-user, block, or resume behavior from explicit skill input, eligible skill candidates, workspace decision profile, and working context state. Runtime persists the decision record, resolves the selected skill and context priority, then ContextPlane assembles messages from the current decision, current skill catalog inventory, working checkpoint, session summary, and prepared file-backed memory.
 
 ## Config
 

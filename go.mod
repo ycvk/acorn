@@ -12,13 +12,11 @@ require (
 	github.com/cloudwego/eino v0.8.13
 	github.com/cloudwego/eino-ext/components/model/openai v0.1.13
 	github.com/cloudwego/eino-ext/components/tool/mcp/officialmcp v0.1.0
-	github.com/creack/pty v1.1.24
 	github.com/getkin/kin-openapi v0.138.0
 	github.com/go-chi/chi/v5 v5.2.5
 	github.com/go-chi/cors v1.2.2
 	github.com/localit-io/tiktoken-go v0.2.1
 	github.com/mdp/qrterminal/v3 v3.2.1
-	github.com/meguminnnnnnnnn/go-openai v0.1.4
 	github.com/modelcontextprotocol/go-sdk v1.6.0
 	github.com/pkoukk/tiktoken-go-loader v0.0.2
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
@@ -82,6 +80,7 @@ require (
 	github.com/kr/text v0.2.0 // indirect
 	github.com/mailru/easyjson v0.9.2 // indirect
 	github.com/mattn/go-isatty v0.0.22 // indirect
+	github.com/meguminnnnnnnnn/go-openai v0.1.4 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect

@@ -409,11 +409,6 @@ String? _activityDetail(RunEvent event) {
     if (percent is num) {
       parts.add('${percent.round()}%');
     }
-    final estimated = pressure['estimated_input_tokens'];
-    final effective = pressure['effective_window_tokens'];
-    if (estimated is num && effective is num && effective > 0) {
-      parts.add('${estimated.round()}/${effective.round()} tokens');
-    }
     return parts.isEmpty ? null : parts.join(' · ');
   }
 

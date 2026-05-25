@@ -291,48 +291,12 @@ func quoteJSONSchema(s string) string {
 	return fmt.Sprintf("%q", s)
 }
 
-func enrichSelectedSkillFromMatches(result *decision.Result, matches []SkillMatch, stableSkills []skills.Spec) {
-	if result == nil || result.Record == nil || result.SelectedSkill == nil {
-		return
-	}
-	skillID := result.SelectedSkill.SkillID
-	for _, m := range matches {
-		if m.Skill.ID == skillID {
-			result.SelectedSkill.SkillName = m.Skill.Name
-			result.SelectedSkill.Score = m.Score
-			result.SelectedSkill.MatchedTerms = append([]string(nil), m.MatchedTerms...)
-			return
-		}
-	}
-	for _, s := range stableSkills {
-		if s.ID == skillID {
-			result.SelectedSkill.SkillName = s.Name
-			return
-		}
-	}
-}
-
-func selectedSkillResultFromRecord(record *decision.Record) *decision.SelectedSkillResult {
-	if record == nil || record.Action != decision.ActionExecuteWithSkill {
-		return nil
-	}
-	skillID := strings.TrimSpace(record.SelectedSkillID)
-	if skillID == "" {
-		return nil
-	}
-	return &decision.SelectedSkillResult{
-		SkillID:  skillID,
-		Explicit: record.DecisionReason == "explicit_skill",
-	}
-}
-
-func buildPlaneRequest(
+func buildDecisionInput(
 	req RunnerBuildRequest,
-	caps *runCapabilities,
 	matches []SkillMatch,
 	hasWorkingContext bool,
-) decision.Request {
-	return decision.Request{
+) decision.DecideInput {
+	return decision.DecideInput{
 		RunID:             req.RunID,
 		SessionID:         req.SessionID,
 		Input:             req.Input,
@@ -342,7 +306,7 @@ func buildPlaneRequest(
 	}
 }
 
-func buildPlaneEngine(profile *decision.ProfileService) (*decision.Engine, *decision.ParsedProfile, error) {
+func buildDecisionEngine(profile *decision.ProfileService) (*decision.Engine, *decision.ParsedProfile, error) {
 	if profile == nil {
 		return nil, nil, fmt.Errorf("decision profile service is nil")
 	}
@@ -362,30 +326,37 @@ func fillRecordMetadata(record *decision.Record, profileHash string) {
 	record.CreatedAt = time.Now().UTC()
 }
 
-func selectedSkillFromPlaneResult(result *decision.Result, stableSkills []skills.Spec) (*SelectedSkill, error) {
-	if result == nil || result.Record == nil {
+func selectedSkillFromDecisionRecord(record *decision.Record, matches []SkillMatch, stableSkills []skills.Spec) (*SelectedSkill, error) {
+	if record == nil {
 		return nil, nil
 	}
-	if result.Record.Action != decision.ActionExecuteWithSkill {
+	if record.Action != decision.ActionExecuteWithSkill {
 		return nil, nil
 	}
-	if result.SelectedSkill == nil {
-		return nil, fmt.Errorf("decision action execute_with_skill requires selected skill result")
-	}
-	skillID := strings.TrimSpace(result.SelectedSkill.SkillID)
+	skillID := strings.TrimSpace(record.SelectedSkillID)
 	if skillID == "" {
 		return nil, fmt.Errorf("decision action execute_with_skill requires selected skill id")
 	}
+	score, matchedTerms := selectedSkillMatchMetadata(skillID, matches)
 	for _, item := range stableSkills {
 		if item.ID != skillID {
 			continue
 		}
 		return &SelectedSkill{
 			Skill:        skills.CopySpec(item),
-			Score:        result.SelectedSkill.Score,
-			MatchedTerms: append([]string(nil), result.SelectedSkill.MatchedTerms...),
-			Explicit:     result.SelectedSkill.Explicit,
+			Score:        score,
+			MatchedTerms: matchedTerms,
+			Explicit:     record.DecisionReason == "explicit_skill",
 		}, nil
 	}
 	return nil, fmt.Errorf("decision selected skill %q not found", skillID)
+}
+
+func selectedSkillMatchMetadata(skillID string, matches []SkillMatch) (int, []string) {
+	for _, match := range matches {
+		if match.Skill.ID == skillID {
+			return match.Score, append([]string(nil), match.MatchedTerms...)
+		}
+	}
+	return 0, nil
 }

@@ -571,7 +571,7 @@ func TestBuildDirectResponseReactiveCompactsAndRetriesOverflow(t *testing.T) {
 			},
 		},
 	}
-	counter, err := contextplane.NewCompressionTokenCounter(config.ContextPolicy{TokenEncoding: "o200k_base"})
+	counter, err := contextplane.NewCompressionTokenCounter(config.ContextConfig{TokenEncoding: "o200k_base"})
 	if err != nil {
 		t.Fatalf("NewCompressionTokenCounter: %v", err)
 	}

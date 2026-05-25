@@ -49,50 +49,50 @@ func sumBudget(status BudgetStatus) int {
 	return total
 }
 
-func TestBudgetAllocator_SkillHintIncreasesSkillBudget(t *testing.T) {
+func TestBudgetAllocator_SkillPriorityIncreasesSkillBudget(t *testing.T) {
 	allocator := NewBudgetAllocator()
 	baseline, _ := allocator.Allocate(BudgetRequest{TotalTokens: 100})
-	hinted, err := allocator.Allocate(BudgetRequest{
-		TotalTokens: 100,
-		Hint:        &DecisionContextHint{ContextPriority: decision.PrioritySkill},
+	prioritized, err := allocator.Allocate(BudgetRequest{
+		TotalTokens:     100,
+		ContextPriority: decision.PrioritySkill,
 	})
 	if err != nil {
-		t.Fatalf("hinted Allocate: %v", err)
+		t.Fatalf("prioritized Allocate: %v", err)
 	}
-	if budgetFor(hinted, SectionSkill) <= budgetFor(baseline, SectionSkill) {
-		t.Fatalf("skill budget = %d, want > baseline %d", budgetFor(hinted, SectionSkill), budgetFor(baseline, SectionSkill))
+	if budgetFor(prioritized, SectionSkill) <= budgetFor(baseline, SectionSkill) {
+		t.Fatalf("skill budget = %d, want > baseline %d", budgetFor(prioritized, SectionSkill), budgetFor(baseline, SectionSkill))
 	}
-	if sumBudget(hinted) != 100 {
-		t.Fatalf("hinted allocation sum = %d, want 100", sumBudget(hinted))
+	if sumBudget(prioritized) != 100 {
+		t.Fatalf("prioritized allocation sum = %d, want 100", sumBudget(prioritized))
 	}
 }
 
-func TestBudgetAllocator_ConversationHintIncreasesConversationBudget(t *testing.T) {
+func TestBudgetAllocator_ConversationPriorityIncreasesConversationBudget(t *testing.T) {
 	allocator := NewBudgetAllocator()
 	baseline, _ := allocator.Allocate(BudgetRequest{TotalTokens: 100})
-	hinted, err := allocator.Allocate(BudgetRequest{
-		TotalTokens: 100,
-		Hint:        &DecisionContextHint{ContextPriority: decision.PriorityConversation},
+	prioritized, err := allocator.Allocate(BudgetRequest{
+		TotalTokens:     100,
+		ContextPriority: decision.PriorityConversation,
 	})
 	if err != nil {
-		t.Fatalf("hinted Allocate: %v", err)
+		t.Fatalf("prioritized Allocate: %v", err)
 	}
-	if budgetFor(hinted, SectionConversation) <= budgetFor(baseline, SectionConversation) {
-		t.Fatalf("conversation budget = %d, want > baseline %d", budgetFor(hinted, SectionConversation), budgetFor(baseline, SectionConversation))
+	if budgetFor(prioritized, SectionConversation) <= budgetFor(baseline, SectionConversation) {
+		t.Fatalf("conversation budget = %d, want > baseline %d", budgetFor(prioritized, SectionConversation), budgetFor(baseline, SectionConversation))
 	}
 }
 
-func TestBuildHint_IntegrationWithBudget(t *testing.T) {
+func TestContextPriorityForAction_IntegrationWithBudget(t *testing.T) {
 	allocator := NewBudgetAllocator()
-	hint := decision.BuildHint(decision.ActionInspectFirst)
-	hinted, err := allocator.Allocate(BudgetRequest{
-		TotalTokens: 100,
-		Hint:        hint,
+	priority := decision.ContextPriorityForAction(decision.ActionInspectFirst)
+	prioritized, err := allocator.Allocate(BudgetRequest{
+		TotalTokens:     100,
+		ContextPriority: priority,
 	})
 	if err != nil {
-		t.Fatalf("Allocate with BuildHint: %v", err)
+		t.Fatalf("Allocate with ContextPriorityForAction: %v", err)
 	}
-	if budgetFor(hinted, SectionConversation) != 30 {
-		t.Fatalf("conversation budget = %d, want balanced baseline 30", budgetFor(hinted, SectionConversation))
+	if budgetFor(prioritized, SectionConversation) != 30 {
+		t.Fatalf("conversation budget = %d, want balanced baseline 30", budgetFor(prioritized, SectionConversation))
 	}
 }

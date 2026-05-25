@@ -23,6 +23,7 @@ import (
 	"github.com/ycvk/acorn/internal/toolfactory"
 	"github.com/ycvk/acorn/internal/tooling"
 	"github.com/ycvk/acorn/internal/workingstate"
+	"github.com/ycvk/acorn/internal/workspace"
 )
 
 type WorkingCheckpointService struct {
@@ -285,6 +286,45 @@ func buildContainer(ctx context.Context, cfg *config.Config) (*Container, error)
 		}
 	}()
 
+	deps, err := buildContainerRuntimeDeps(ctx, cfg, store)
+	if err != nil {
+		return nil, err
+	}
+
+	container, err := buildContainerAppServices(cfg, store, deps)
+	if err != nil {
+		return nil, err
+	}
+
+	mcpServer, serveToolset, err := buildContainerMCPServer(cfg, deps.runnerFactory)
+	if err != nil {
+		return nil, err
+	}
+	container.mcpServer = mcpServer
+	container.serveToolset = serveToolset
+
+	committed = true
+	return container, nil
+}
+
+type containerRuntimeDeps struct {
+	ws                     *workspace.Workspace
+	loader                 *skills.Loader
+	checkpointService      *workingstate.Service
+	sessionSummaryService  *runtimehistory.SessionSummaryService
+	memoryModule           memorymodule.Service
+	semanticIndex          memorymodule.SemanticIndex
+	semanticEmbedder       memorymodule.Embedder
+	decisionProfileService *decision.ProfileService
+	contextPlane           contextplane.ContextPlane
+	notificationService    *NotificationService
+	mcpPendingActionStore  PendingActionCreateStore
+	runnerFactory          *runtime.RunnerFactory
+	runController          *runtime.RunController
+	executors              func(context.Context) (executorHandle, error)
+}
+
+func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, store *storesqlite.Store) (*containerRuntimeDeps, error) {
 	ws, err := cfg.Workspace()
 	if err != nil {
 		return nil, err
@@ -325,39 +365,58 @@ func buildContainer(ctx context.Context, cfg *config.Config) (*Container, error)
 	runController := runtime.NewRunController()
 	executors := newExecutorFactory(cfg, store, runnerFactory, runController)
 
+	return &containerRuntimeDeps{
+		ws:                     ws,
+		loader:                 loader,
+		checkpointService:      checkpointService,
+		sessionSummaryService:  sessionSummaryService,
+		memoryModule:           memoryModule,
+		semanticIndex:          semanticIndex,
+		semanticEmbedder:       semanticEmbedder,
+		decisionProfileService: decisionProfileService,
+		contextPlane:           contextPlane,
+		notificationService:    notificationService,
+		mcpPendingActionStore:  mcpPendingActionStore,
+		runnerFactory:          runnerFactory,
+		runController:          runController,
+		executors:              executors,
+	}, nil
+}
+
+func buildContainerAppServices(cfg *config.Config, store *storesqlite.Store, deps *containerRuntimeDeps) (*Container, error) {
 	container := &Container{
 		cfg:           cfg,
 		store:         store,
-		runnerFactory: runnerFactory,
-		runController: runController,
+		runnerFactory: deps.runnerFactory,
+		runController: deps.runController,
 	}
 
 	container.sessions = NewSessionService(store)
 	container.trace = NewTraceService(store)
 	container.sessionState = NewSessionStateService(cfg, store, container.trace)
 	container.workbench = NewRuntimeWorkbenchService(RuntimeWorkbenchConfig{
-		Workspace: ws,
+		Workspace: deps.ws,
 	}, store, container.trace)
-	checkpoints, err := NewWorkingCheckpointService(checkpointService)
+	checkpoints, err := NewWorkingCheckpointService(deps.checkpointService)
 	if err != nil {
 		return nil, err
 	}
 	container.checkpoints = checkpoints
-	container.skills = NewSkillService(cfg, loader)
-	container.chat = NewChatService(store, executors)
+	container.skills = NewSkillService(cfg, deps.loader)
+	container.chat = NewChatService(store, deps.executors)
 	workspaceRoot := ""
-	if ws != nil {
-		workspaceRoot = ws.Root()
+	if deps.ws != nil {
+		workspaceRoot = deps.ws.Root()
 	}
-	container.client = BuildClientService(store, executors, workspaceRoot)
+	container.client = BuildClientService(store, deps.executors, workspaceRoot)
 	container.pendingAction = NewPendingActionService(store)
-	container.run = NewRunService(executors, runController)
-	container.resume = NewResumeService(container.trace, executors, store)
-	container.decision = NewDecisionService(decisionProfileService, store)
+	container.run = NewRunService(deps.executors, deps.runController)
+	container.resume = NewResumeService(container.trace, deps.executors, store)
+	container.decision = NewDecisionService(deps.decisionProfileService, store)
 
-	memoryService, err := NewMemoryService(memoryModule, MemoryServiceSemanticOptions{
-		Index:      semanticIndex,
-		Embedder:   semanticEmbedder,
+	memoryService, err := NewMemoryService(deps.memoryModule, MemoryServiceSemanticOptions{
+		Index:      deps.semanticIndex,
+		Embedder:   deps.semanticEmbedder,
 		Model:      cfg.Memory.Semantic.Embedding.Model,
 		Dimensions: cfg.Memory.Semantic.Embedding.Dimensions,
 		BatchSize:  cfg.Memory.Semantic.Embedding.BatchSize,
@@ -369,19 +428,11 @@ func buildContainer(ctx context.Context, cfg *config.Config) (*Container, error)
 	}
 	container.memory = memoryService
 
-	container.capabilities = NewCapabilitiesService(cfg, container.skills, mcpprovider.Doctor, runnerFactory)
+	container.capabilities = NewCapabilitiesService(cfg, container.skills, mcpprovider.Doctor, deps.runnerFactory)
 	container.deviceAuth = NewDeviceAuthService(store)
 	container.inbox = NewInboxService(store, container.capabilities)
-	container.notifications = notificationService
+	container.notifications = deps.notificationService
 
-	mcpServer, serveToolset, err := buildContainerMCPServer(cfg, runnerFactory)
-	if err != nil {
-		return nil, err
-	}
-	container.mcpServer = mcpServer
-	container.serveToolset = serveToolset
-
-	committed = true
 	return container, nil
 }
 
