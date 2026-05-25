@@ -10,7 +10,7 @@ import (
 )
 
 func NewToolset(catalog *tooling.Catalog, profile tooling.ToolProfile, closers ...io.Closer) *Toolset {
-	c := make([]closer, 0, len(closers))
+	c := make([]io.Closer, 0, len(closers))
 	for _, cl := range closers {
 		if cl != nil {
 			c = append(c, cl)
@@ -23,11 +23,7 @@ func NewToolset(catalog *tooling.Catalog, profile tooling.ToolProfile, closers .
 type Toolset struct {
 	catalog *tooling.Catalog
 	profile tooling.ToolProfile
-	closers []closer
-}
-
-type closer interface {
-	Close() error
+	closers []io.Closer
 }
 
 func (t Toolset) All() []einotool.BaseTool {
