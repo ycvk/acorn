@@ -9,15 +9,15 @@ import (
 	"github.com/cloudwego/eino/adk"
 
 	"github.com/ycvk/acorn/internal/contextplane"
-	appmodel "github.com/ycvk/acorn/internal/model"
+	"github.com/ycvk/acorn/internal/providers"
 )
 
 func TestRunnerFactoryBuildsCompressionStackPerRun(t *testing.T) {
 	store, cfg := newRunnerFactoryMemoryTestContext(t)
 
-	chatModel, err := appmodel.NewChatModel(context.Background(), cfg.Providers[0])
+	chatModel, err := providers.NewOpenAIChatModel(context.Background(), cfg.Providers[0])
 	if err != nil {
-		t.Fatalf("NewChatModel: %v", err)
+		t.Fatalf("NewOpenAIChatModel: %v", err)
 	}
 
 	staticHandler := &adk.BaseChatModelAgentMiddleware{}
@@ -55,9 +55,9 @@ func TestCompressionAlwaysOnBuildsMiddlewareStack(t *testing.T) {
 	store, cfg := newRunnerFactoryMemoryTestContext(t)
 	// Compression is always on in V2; Enabled field removed
 
-	chatModel, err := appmodel.NewChatModel(context.Background(), cfg.Providers[0])
+	chatModel, err := providers.NewOpenAIChatModel(context.Background(), cfg.Providers[0])
 	if err != nil {
-		t.Fatalf("NewChatModel: %v", err)
+		t.Fatalf("NewOpenAIChatModel: %v", err)
 	}
 
 	staticHandler := &adk.BaseChatModelAgentMiddleware{}
