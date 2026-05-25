@@ -14,7 +14,7 @@ import (
 	"github.com/ycvk/acorn/internal/contextplane"
 	"github.com/ycvk/acorn/internal/decision"
 	"github.com/ycvk/acorn/internal/memorymodule"
-	notificationrouter "github.com/ycvk/acorn/internal/notifications"
+
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
 	"github.com/ycvk/acorn/internal/runtime"
 	"github.com/ycvk/acorn/internal/runtimehistory"
@@ -346,7 +346,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, store *s
 		return nil, err
 	}
 
-	notificationService := NewNotificationService(store, notificationrouter.Router{})
+	notificationService := NewNotificationService(store, newNotificationRouter(nil))
 	mcpPendingActionStore := NewNotifyingPendingActionStore(store, notificationService)
 
 	runnerFactory, err := runtime.NewRunnerFactory(cfg, store, runtime.RunnerFactoryOptions{

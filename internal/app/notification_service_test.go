@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/ycvk/acorn/internal/events"
-	"github.com/ycvk/acorn/internal/notifications"
 	"github.com/ycvk/acorn/internal/store"
 )
 
@@ -69,13 +68,13 @@ func TestNotificationServiceNotifyPendingActionRecordsNotConfiguredDelivery(t *t
 	}); err != nil {
 		t.Fatalf("NotifyPendingAction: %v", err)
 	}
-	if store.notification.Kind != notifications.KindPendingAction || store.notification.ActionID != "action_1" {
+	if store.notification.Kind != KindPendingAction || store.notification.ActionID != "action_1" {
 		t.Fatalf("unexpected notification: %#v", store.notification)
 	}
 	if len(store.deliveries) != 1 {
 		t.Fatalf("delivery count = %d, want 1", len(store.deliveries))
 	}
-	if store.deliveries[0].Status != notifications.DeliveryStatusNotConfigured || store.deliveries[0].Error == "" {
+	if store.deliveries[0].Status != DeliveryStatusNotConfigured || store.deliveries[0].Error == "" {
 		t.Fatalf("unexpected delivery: %#v", store.deliveries[0])
 	}
 }
@@ -104,13 +103,13 @@ func TestNotificationServiceDispatchesLightweightWakePayload(t *testing.T) {
 		t.Fatalf("dispatch count = %d, want 1", len(dispatcher.requests))
 	}
 	req := dispatcher.requests[0]
-	if req.Data["reload"] != "inbox" || req.Data["kind"] != notifications.KindPendingAction {
+	if req.Data["reload"] != "inbox" || req.Data["kind"] != KindPendingAction {
 		t.Fatalf("unexpected wake data: %#v", req.Data)
 	}
 	if _, ok := req.Data["action_id"]; ok {
 		t.Fatalf("push payload must not include action_id: %#v", req.Data)
 	}
-	if store.deliveries[0].Status != notifications.DeliveryStatusSent {
+	if store.deliveries[0].Status != DeliveryStatusSent {
 		t.Fatalf("delivery status = %q, want sent", store.deliveries[0].Status)
 	}
 }
@@ -162,10 +161,10 @@ func (s *fakeNotificationStore) UpdateNotificationDeliveryStatus(_ context.Conte
 }
 
 type recordingPushDispatcher struct {
-	requests []notifications.DispatchRequest
+	requests []DispatchRequest
 }
 
-func (d *recordingPushDispatcher) Dispatch(_ context.Context, req notifications.DispatchRequest) error {
+func (d *recordingPushDispatcher) Dispatch(_ context.Context, req DispatchRequest) error {
 	d.requests = append(d.requests, req)
 	return nil
 }

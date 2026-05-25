@@ -1,4 +1,4 @@
-package notifications
+package app
 
 import (
 	"context"
@@ -34,39 +34,29 @@ type DispatchRequest struct {
 	Data           map[string]string
 }
 
-type APNSDispatcher interface {
-	DispatchAPNS(ctx context.Context, req DispatchRequest) error
+type PushDispatcher interface {
+	Dispatch(ctx context.Context, req DispatchRequest) error
 }
 
-type FCMDispatcher interface {
-	DispatchFCM(ctx context.Context, req DispatchRequest) error
+type notificationRouter struct {
+	dispatchers map[string]PushDispatcher
 }
 
-type Router struct {
-	APNS APNSDispatcher
-	FCM  FCMDispatcher
+func newNotificationRouter(dispatchers map[string]PushDispatcher) notificationRouter {
+	return notificationRouter{dispatchers: dispatchers}
 }
 
-func (r Router) Dispatch(ctx context.Context, req DispatchRequest) error {
+func (r notificationRouter) Dispatch(ctx context.Context, req DispatchRequest) error {
 	provider, err := NormalizeProvider(req.Provider)
 	if err != nil {
 		return err
 	}
 	req.Provider = provider
-	switch provider {
-	case ProviderAPNS:
-		if r.APNS == nil {
-			return fmt.Errorf("%w: apns", ErrDispatcherNotConfigured)
-		}
-		return r.APNS.DispatchAPNS(ctx, req)
-	case ProviderFCM:
-		if r.FCM == nil {
-			return fmt.Errorf("%w: fcm", ErrDispatcherNotConfigured)
-		}
-		return r.FCM.DispatchFCM(ctx, req)
-	default:
-		return fmt.Errorf("%w: %s", ErrUnsupportedProvider, provider)
+	d, ok := r.dispatchers[provider]
+	if !ok || d == nil {
+		return fmt.Errorf("%w: %s", ErrDispatcherNotConfigured, provider)
 	}
+	return d.Dispatch(ctx, req)
 }
 
 func NormalizeProvider(provider string) (string, error) {
