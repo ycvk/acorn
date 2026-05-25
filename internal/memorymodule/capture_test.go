@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ycvk/acorn/internal/retrievaleval"
 )
 
 func TestSearchCaptureSampleIncludesRefsAndExplainDigest(t *testing.T) {
@@ -38,7 +37,7 @@ Run make lint.
 		Latency:    25 * time.Millisecond,
 		CapturedAt: time.Date(2026, 5, 15, 1, 2, 3, 0, time.UTC),
 	})
-	if sample.Kind != retrievaleval.KindMemorySearch || sample.Query != "go lint" || sample.Scope != "workspace:acorn" {
+	if sample.Kind != EvalKindMemorySearch || sample.Query != "go lint" || sample.Scope != "workspace:acorn" {
 		t.Fatalf("sample = %#v", sample)
 	}
 	if sample.RunID != "run_1" || sample.LatencyMS != 25 {
@@ -78,7 +77,7 @@ Run make lint.
 		t.Fatalf("Prepare: %v", err)
 	}
 	sample := PrepareCaptureSample(req, result, CaptureMetadata{Latency: time.Second})
-	if sample.Kind != retrievaleval.KindMemoryPrepare || sample.RunID != "run_prepare" {
+	if sample.Kind != EvalKindMemoryPrepare || sample.RunID != "run_prepare" {
 		t.Fatalf("sample = %#v", sample)
 	}
 	if sample.Scope != "workspace:acorn" || sample.Query != "go lint" || sample.LatencyMS != 1000 {
@@ -134,7 +133,7 @@ Capture should preserve semantic explain stages.
 	}
 }
 
-func stageDigestContains(stages []retrievaleval.StageDigest, name string) bool {
+func stageDigestContains(stages []EvalStageDigest, name string) bool {
 	for _, stage := range stages {
 		if stage.Name == name {
 			return true

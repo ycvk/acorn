@@ -3,7 +3,7 @@ package skills
 import (
 	"time"
 
-	"github.com/ycvk/acorn/internal/retrievaleval"
+	"github.com/ycvk/acorn/internal/memorymodule"
 )
 
 type CaptureMetadata struct {
@@ -13,10 +13,10 @@ type CaptureMetadata struct {
 	CapturedAt time.Time
 }
 
-func CandidateCaptureSample(query CandidateQuery, result *CandidateResult, meta CaptureMetadata) retrievaleval.Sample {
-	return retrievaleval.Sample{
+func CandidateCaptureSample(query CandidateQuery, result *CandidateResult, meta CaptureMetadata) memorymodule.EvalSample {
+	return memorymodule.EvalSample{
 		ID:           meta.ID,
-		Kind:         retrievaleval.KindSkillRouting,
+		Kind:         memorymodule.EvalKindSkillRouting,
 		RunID:        meta.RunID,
 		Query:        query.Input,
 		ReturnedRefs: candidateResultRefs(result),
