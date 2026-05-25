@@ -66,6 +66,9 @@ serve: build
 test:
 	go test $(GO_PACKAGES)
 
+test-architecture:
+	go test ./tests/architecture
+
 vet:
 	go vet $(GO_PACKAGES)
 
