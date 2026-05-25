@@ -16,7 +16,6 @@ import (
 	toolutils "github.com/cloudwego/eino/components/tool/utils"
 	"github.com/cloudwego/eino/schema"
 
-	"github.com/ycvk/acorn/internal/processgroup"
 	"github.com/ycvk/acorn/internal/tooling"
 )
 
@@ -100,7 +99,7 @@ func (t *runCommandTool) run(ctx context.Context, input RunCommandInput, emit to
 	defer cancel()
 
 	cmd := exec.Command(input.Command[0], input.Command[1:]...)
-	processgroup.ConfigureCommand(cmd)
+	ConfigureCommand(cmd)
 	cmd.Dir = resolvedCwd
 	cmd.Env = filterWhitelistedEnv(os.Environ(), t.ws.RunCommandEnvWhitelist())
 	stdoutBuf := newRunCommandProgressBuffer(ctx, emit)
@@ -128,7 +127,7 @@ func (t *runCommandTool) run(ctx context.Context, input RunCommandInput, emit to
 		}
 		return runCommandResult(input.Command, resolvedCwd, stdoutBuf.String(), stderrBuf.String(), waitErr)
 	case <-execCtx.Done():
-		killErr := processgroup.KillCommandGroup(cmd)
+		killErr := KillCommandGroup(cmd)
 		waitErr := <-waitCh
 		if waitErr != nil {
 			exitErr, ok := errors.AsType[*exec.ExitError](waitErr)

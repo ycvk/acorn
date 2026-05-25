@@ -14,7 +14,6 @@ import (
 	einotool "github.com/cloudwego/eino/components/tool"
 
 	"github.com/ycvk/acorn/internal/artifacts"
-	"github.com/ycvk/acorn/internal/processgroup"
 	"github.com/ycvk/acorn/internal/tooling"
 	"github.com/ycvk/acorn/internal/toolresult"
 	"github.com/ycvk/acorn/internal/workspace"
@@ -374,7 +373,7 @@ func executeVerificationCommand(ctx context.Context, ws WorkspaceView, command [
 	defer cancel()
 
 	cmd := exec.Command(command[0], command[1:]...)
-	processgroup.ConfigureCommand(cmd)
+	ConfigureCommand(cmd)
 	cmd.Dir = cwd
 	cmd.Env = filterWhitelistedEnv(os.Environ(), ws.RunCommandEnvWhitelist())
 	stdoutBuf := newRunCommandProgressBuffer(ctx, emit)
@@ -402,7 +401,7 @@ func executeVerificationCommand(ctx context.Context, ws WorkspaceView, command [
 		}
 		return verificationCommandResultFromWait(command, stdoutBuf.String(), stderrBuf.String(), waitErr)
 	case <-execCtx.Done():
-		killErr := processgroup.KillCommandGroup(cmd)
+		killErr := KillCommandGroup(cmd)
 		waitErr := <-waitCh
 		if err := errors.Join(stdoutBuf.Err(), stderrBuf.Err()); err != nil {
 			return verificationCommandResult{}, err

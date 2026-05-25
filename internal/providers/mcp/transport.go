@@ -9,7 +9,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/ycvk/acorn/internal/processgroup"
+	"github.com/ycvk/acorn/internal/tools"
 )
 
 // TransportMetadata carries resolved transport kind and connection-relevant
@@ -74,7 +74,7 @@ func buildStdioTransport(cfg ProviderConfig) (mcp.Transport, func(), TransportMe
 	}
 
 	cmd := exec.Command(commandPath, cfg.Args...)
-	processgroup.ConfigureCommand(cmd)
+	tools.ConfigureCommand(cmd)
 	if strings.TrimSpace(cfg.WorkDir) != "" {
 		cmd.Dir = cfg.WorkDir
 	}
