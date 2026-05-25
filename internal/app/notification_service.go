@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/ycvk/acorn/internal/events"
-	"github.com/ycvk/acorn/internal/notifications"
 	"github.com/ycvk/acorn/internal/store"
 )
 
@@ -162,10 +161,6 @@ var (
 	ErrInvalidPushProvider      = errors.New("invalid push provider")
 )
 
-type PushDispatcher interface {
-	Dispatch(ctx context.Context, req notifications.DispatchRequest) error
-}
-
 type DevicePushTokenInput struct {
 	DeviceID string
 	Provider string
@@ -210,7 +205,7 @@ func (s *NotificationService) RegisterDevicePushToken(ctx context.Context, auth 
 	if auth.Device.DeviceID != deviceID {
 		return nil, ErrDevicePushTokenForbidden
 	}
-	provider, err := notifications.NormalizeProvider(input.Provider)
+	provider, err := NormalizeProvider(input.Provider)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %s", ErrInvalidPushProvider, input.Provider)
 	}
@@ -258,7 +253,7 @@ func (s *NotificationService) RevokeDevicePushToken(ctx context.Context, auth *D
 	if auth.Device.DeviceID != deviceID {
 		return ErrDevicePushTokenForbidden
 	}
-	normalizedProvider, err := notifications.NormalizeProvider(provider)
+	normalizedProvider, err := NormalizeProvider(provider)
 	if err != nil {
 		return fmt.Errorf("%w: %s", ErrInvalidPushProvider, provider)
 	}
@@ -282,7 +277,7 @@ func (s *NotificationService) NotifyPendingAction(ctx context.Context, action ev
 	}
 	notification := &store.Notification{
 		NotificationID: notificationID,
-		Kind:           notifications.KindPendingAction,
+		Kind:           KindPendingAction,
 		RunID:          action.RunID,
 		ActionID:       action.ActionID,
 		CreatedAt:      now,
@@ -314,37 +309,37 @@ func (s *NotificationService) createAndDispatchDelivery(ctx context.Context, not
 		DeviceID:       token.DeviceID,
 		PushTokenID:    token.PushTokenID,
 		Provider:       token.Provider,
-		Status:         notifications.DeliveryStatusPending,
+		Status:         DeliveryStatusPending,
 		CreatedAt:      now,
 		UpdatedAt:      now,
 	}
 	if err := s.store.CreateNotificationDelivery(ctx, delivery); err != nil {
 		return err
 	}
-	status := notifications.DeliveryStatusSent
+	status := DeliveryStatusSent
 	errorText := ""
 	if s.dispatcher == nil {
-		status = notifications.DeliveryStatusNotConfigured
-		errorText = notifications.ErrDispatcherNotConfigured.Error()
-	} else if err := s.dispatcher.Dispatch(ctx, notifications.DispatchRequest{
+		status = DeliveryStatusNotConfigured
+		errorText = ErrDispatcherNotConfigured.Error()
+	} else if err := s.dispatcher.Dispatch(ctx, DispatchRequest{
 		Provider:       token.Provider,
 		Token:          token.TokenValue,
 		NotificationID: notification.NotificationID,
 		Kind:           notification.Kind,
 		CreatedAt:      notification.CreatedAt,
-		Data:           notifications.WakeData(notification.NotificationID, notification.Kind),
+		Data:           WakeData(notification.NotificationID, notification.Kind),
 	}); err != nil {
-		if errors.Is(err, notifications.ErrDispatcherNotConfigured) {
-			status = notifications.DeliveryStatusNotConfigured
+		if errors.Is(err, ErrDispatcherNotConfigured) {
+			status = DeliveryStatusNotConfigured
 		} else {
-			status = notifications.DeliveryStatusFailed
+			status = DeliveryStatusFailed
 		}
 		errorText = err.Error()
 	}
 	if err := s.store.UpdateNotificationDeliveryStatus(ctx, deliveryID, status, errorText, s.now()); err != nil {
 		return err
 	}
-	if status == notifications.DeliveryStatusFailed {
+	if status == DeliveryStatusFailed {
 		return errors.New(errorText)
 	}
 	return nil
