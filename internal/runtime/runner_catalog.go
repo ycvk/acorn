@@ -133,15 +133,14 @@ func (a *contextSelectionAssembler) AssembleToolContext(
 		selection = &runSelection{}
 	}
 	result, err := a.factory.deps.ContextPlane.Assemble(ctx, contextplane.AssembleRequest{
-		RunID:           req.RunID,
-		SessionID:       req.SessionID,
-		Input:           req.Input,
-		SelectedSkill:   selection.selectedSkill,
-		SkillSnapshot:   caps.skillSnapshot,
-		DecisionRecord:  selection.decisionRecord,
-		ContextPriority: selection.contextPriority,
-		MemoryPrepared:  memoryPrepared,
-		ToolCatalog:     caps.catalog,
+		RunID:          req.RunID,
+		SessionID:      req.SessionID,
+		Input:          req.Input,
+		SelectedSkill:  selection.selectedSkill,
+		SkillSnapshot:  caps.skillSnapshot,
+		DecisionRecord: selection.decisionRecord,
+		MemoryPrepared: memoryPrepared,
+		ToolCatalog:    caps.catalog,
 	})
 	if err != nil {
 		return nil, err

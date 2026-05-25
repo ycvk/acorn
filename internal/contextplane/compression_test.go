@@ -188,6 +188,74 @@ func TestContextCompressionPipelineReactiveTrigger(t *testing.T) {
 	}
 }
 
+func TestContextCompressionPipelineReactiveTriggerHalvesRecentTurns(t *testing.T) {
+	engine := &testCompactionEngine{
+		result: &CompactionResult{
+			Messages:    []adk.Message{schema.SystemMessage("system"), schema.UserMessage("reactive compact summary")},
+			SummaryText: "reactive compact summary",
+			Outcome: CompressionOutcome{
+				BoundaryID:     "ctxb_reactive",
+				TokensBefore:   120,
+				TokensAfter:    110,
+				Summary:        "reactive compact summary",
+				SummarySnippet: "reactive compact summary",
+			},
+		},
+	}
+	pipeline := NewDefaultContextCompressionPipeline(CompressionPipelineOptions{
+		Governor:         testBudgetGovernor{pressure: testPressure(PressureBlocking)},
+		CompactionEngine: engine,
+		TokenCounter:     testTokenCounter(t),
+	})
+
+	_, err := pipeline.Compress(context.Background(), PipelineRequest{
+		Trigger:        CompactTriggerReactive,
+		TurnIndex:      15,
+		PreservePolicy: PreservePolicy{RecentTurns: 4, PreserveToolPairs: true},
+		Messages: []adk.Message{
+			schema.SystemMessage("system"),
+			schema.UserMessage("old 1"),
+			schema.AssistantMessage("old resp 1", nil),
+			schema.UserMessage("old 2"),
+			schema.AssistantMessage("old resp 2", nil),
+			schema.UserMessage("recent"),
+			schema.AssistantMessage("recent resp", nil),
+		},
+	})
+	if err == nil || !strings.Contains(err.Error(), "context pressure remains blocking") {
+		t.Fatalf("Compress error = %v, want blocking pressure after reactive layers", err)
+	}
+	if engine.request.PreservePolicy.RecentTurns != 2 {
+		t.Fatalf("recent turns = %d, want 2 (halved from 4)", engine.request.PreservePolicy.RecentTurns)
+	}
+	if engine.request.Trigger != CompactTriggerReactive {
+		t.Fatalf("trigger = %q, want reactive", engine.request.Trigger)
+	}
+}
+
+func TestContextCompressionPipelineRequiresTokenCounter(t *testing.T) {
+	engine := &testCompactionEngine{
+		result: &CompactionResult{
+			Messages: []adk.Message{schema.SystemMessage("system")},
+			Outcome:  CompressionOutcome{TokensBefore: 10, TokensAfter: 5},
+		},
+	}
+	pipeline := NewDefaultContextCompressionPipeline(CompressionPipelineOptions{
+		Governor:         testBudgetGovernor{pressure: testPressure(PressureAutoCompact)},
+		CompactionEngine: engine,
+	})
+
+	_, err := pipeline.Compress(context.Background(), PipelineRequest{
+		Trigger:        CompactTriggerAuto,
+		TurnIndex:      10,
+		PreservePolicy: PreservePolicy{RecentTurns: 1, PreserveToolPairs: true},
+		Messages:       []adk.Message{schema.UserMessage("large prompt")},
+	})
+	if !errors.Is(err, ErrPipelineTokenCounterRequired) {
+		t.Fatalf("Compress error = %v, want ErrPipelineTokenCounterRequired", err)
+	}
+}
+
 func TestCompressionMiddlewareSkipsWhenPressureBelowAutoCompact(t *testing.T) {
 	cfg := compressionEnabledTestConfig()
 	model := &fakeCompressionChatModel{

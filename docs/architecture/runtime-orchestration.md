@@ -25,7 +25,7 @@ slug: runtime-orchestration
 
 ContextSession 拥有所有 root mode 的首轮 model input，并且 direct_response 的深层 tool loop 已经不再维护 loop-local messages。缺少 root ContextSession binding 时 direct_response 直接失败，不回退到 `input.Messages`。
 
-CompactionEngine 拥有 proactive compact 的 summary/rewrite 规则。ADK handler stack 和 ContextSession direct loop 都通过 BudgetGovernor pressure 触发 engine-owned compact；summary shape、tail preservation、rehydration packets 和 token metrics 不由 adapter 自己决定。
+CompactionEngine 拥有 proactive compact 的 summary/rewrite 规则。ADK handler stack 和 ContextSession direct loop 都通过 BudgetGovernor pressure 触发 engine-owned compact；summary shape、tail preservation、contextplane rehydration packets 和 token metrics 不由 adapter 自己决定。
 
 Reactive compact 是 provider overflow 专用恢复路径。`direct_response` 在 `AssistantStreamer.StreamAssistantMessage` 返回明确 context overflow 后，通过 ContextSession 执行 `CompactTriggerReactive` 并用同一个 message id、model、tool infos 重试一次；普通 model error 不重试。ADK graph modes 不把内部控制 prompt 写入 ContextSession，而是在 compaction middleware 的 `WrapModel` seam 对 `Generate` / `Stream` 的直接 overflow error 做同样的一次 reactive compact retry。
 

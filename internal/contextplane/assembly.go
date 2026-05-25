@@ -19,14 +19,6 @@ func (p *defaultContextPlane) Assemble(ctx context.Context, req AssembleRequest)
 	if p.tokenCounter == nil {
 		return nil, errors.New("context plane token counter is required")
 	}
-	budget, err := p.Budget(ctx, BudgetRequest{
-		TotalTokens:     p.memoryContextTokenBudget,
-		PresentSections: assemblePresentSections(req),
-		ContextPriority: req.ContextPriority,
-	})
-	if err != nil {
-		return nil, err
-	}
 
 	var (
 		sessionSummary    string
@@ -69,7 +61,6 @@ func (p *defaultContextPlane) Assemble(ctx context.Context, req AssembleRequest)
 
 	return &AssembleResult{
 		Messages:          messages,
-		BudgetUsed:        budget,
 		LifecycleState:    lifecycleState,
 		EagerToolNames:    sortedLoadedToolNames(lifecycleState),
 		DeferredToolNames: deferredNames,
@@ -78,14 +69,6 @@ func (p *defaultContextPlane) Assemble(ctx context.Context, req AssembleRequest)
 			memoryPacket,
 		),
 	}, nil
-}
-
-func assemblePresentSections(req AssembleRequest) []Section {
-	sections := []Section{SectionMemory, SectionToolDef, SectionConversation}
-	if req.SelectedSkill != nil {
-		sections = append([]Section{SectionSkill}, sections...)
-	}
-	return sections
 }
 
 func filterMessages(messages ...*schema.Message) []*schema.Message {

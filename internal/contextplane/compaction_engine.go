@@ -55,7 +55,7 @@ type CompactionResult struct {
 	OriginalMessages []adk.Message
 }
 
-type CompactionEngine interface {
+type compactionEngine interface {
 	Compact(context.Context, CompactRequest) (*CompactionResult, error)
 }
 
@@ -63,16 +63,16 @@ type CompactionEngineOptions struct {
 	Model                einomodel.BaseChatModel
 	ModelOptions         []einomodel.Option
 	TokenCounter         *CompressionTokenCounter
-	RehydrationPlanner   RehydrationPlanner
+	RehydrationPlanner   *RehydrationPlanner
 	HandoffFrameDisabled bool
 	MaxSummaryTokens     int
 }
 
-type defaultCompactionEngine struct {
+type CompactionEngine struct {
 	model                einomodel.BaseChatModel
 	modelOptions         []einomodel.Option
 	tokenCounter         *CompressionTokenCounter
-	rehydrationPlanner   RehydrationPlanner
+	rehydrationPlanner   *RehydrationPlanner
 	handoffFrameDisabled bool
 	maxSummaryTokens     int
 }
@@ -94,12 +94,12 @@ var requiredContinuationSummarySections = []string{
 	"Next Step",
 }
 
-func NewDefaultCompactionEngine(opts CompactionEngineOptions) CompactionEngine {
+func NewDefaultCompactionEngine(opts CompactionEngineOptions) *CompactionEngine {
 	planner := opts.RehydrationPlanner
 	if planner == nil {
 		planner = NewDefaultRehydrationPlanner()
 	}
-	return &defaultCompactionEngine{
+	return &CompactionEngine{
 		model:                opts.Model,
 		modelOptions:         append([]einomodel.Option(nil), opts.ModelOptions...),
 		tokenCounter:         opts.TokenCounter,
@@ -109,7 +109,7 @@ func NewDefaultCompactionEngine(opts CompactionEngineOptions) CompactionEngine {
 	}
 }
 
-func (e *defaultCompactionEngine) Compact(ctx context.Context, req CompactRequest) (*CompactionResult, error) {
+func (e *CompactionEngine) Compact(ctx context.Context, req CompactRequest) (*CompactionResult, error) {
 	if e == nil {
 		return nil, errors.New("compaction engine is not initialized")
 	}
@@ -298,7 +298,7 @@ func splitLeadingSystemMessages(messages []adk.Message) ([]adk.Message, []adk.Me
 	return cloneContextSessionMessages(messages[:index]), cloneContextSessionMessages(messages[index:])
 }
 
-func (e *defaultCompactionEngine) countMessages(ctx context.Context, messages []*schema.Message) (int, error) {
+func (e *CompactionEngine) countMessages(ctx context.Context, messages []*schema.Message) (int, error) {
 	if e.tokenCounter == nil {
 		return 0, errors.New("token counter is nil")
 	}

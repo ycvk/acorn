@@ -24,25 +24,22 @@ type ContextPlane interface {
 	OnToolCall(context.Context, ToolCallEvent) error
 	OnToolResult(context.Context, ToolResultEvent) error
 	DeferredLoad(context.Context, DeferredLoadRequest) (*DeferredLoadResult, error)
-	Budget(context.Context, BudgetRequest) (BudgetStatus, error)
 	BuildHandlers(context.Context, config.ContextConfig, einomodel.BaseChatModel, CompressionBuildOptions) ([]adk.ChatModelAgentMiddleware, error)
 }
 
 type AssembleRequest struct {
-	RunID           string
-	SessionID       string
-	Input           string
-	SelectedSkill   *SelectedSkill
-	SkillSnapshot   *skills.Snapshot
-	DecisionRecord  *decision.Record
-	ContextPriority ContextPriority
-	MemoryPrepared  *memorymodule.PrepareResult
-	ToolCatalog     *tooling.Catalog
+	RunID          string
+	SessionID      string
+	Input          string
+	SelectedSkill  *SelectedSkill
+	SkillSnapshot  *skills.Snapshot
+	DecisionRecord *decision.Record
+	MemoryPrepared *memorymodule.PrepareResult
+	ToolCatalog    *tooling.Catalog
 }
 
 type AssembleResult struct {
 	Messages             []*schema.Message
-	BudgetUsed           BudgetStatus
 	LifecycleState       *ToolLifecycleState
 	EagerToolNames       []string
 	DeferredToolNames    []string
@@ -86,14 +83,6 @@ type DeferredLoadResult struct {
 	AlreadyLoaded   []string
 }
 
-type ContextPriority = decision.ContextPriority
-
-const (
-	PriorityBalanced     = decision.PriorityBalanced
-	PrioritySkill        = decision.PrioritySkill
-	PriorityConversation = decision.PriorityConversation
-)
-
 type RunContextSnapshotStore interface {
 	SaveRunContextSnapshot(context.Context, runtimehistory.RunContextSnapshot) error
 	LoadRunContextSnapshot(context.Context, string) (*runtimehistory.RunContextSnapshot, error)
@@ -126,8 +115,7 @@ type defaultContextPlane struct {
 	checkpointService        CheckpointService
 	sessionSummaryService    SessionSummaryService
 	toolResultLedger         toolresult.Ledger
-	budgetAllocator          BudgetAllocator
-	compressionPipeline      CompressionPipeline
+	compressionPipeline      *CompressionPipeline
 	memoryBudget             LayeredMemoryBudget
 }
 
@@ -181,7 +169,6 @@ func NewDefaultContextPlane(opts DefaultOptions) ContextPlane {
 		checkpointService:        opts.CheckpointService,
 		sessionSummaryService:    opts.SessionSummaryService,
 		toolResultLedger:         opts.ToolResultLedger,
-		budgetAllocator:          NewBudgetAllocator(),
 		compressionPipeline:      NewCompressionPipeline(),
 	}
 	if opts.MemoryBudget.L1IndexTokens > 0 || opts.MemoryBudget.L2InitialTokens > 0 || opts.MemoryBudget.L3OnDemandReserve > 0 {
@@ -230,14 +217,6 @@ type PipelineResult struct {
 	Outcome       *CompressionOutcome
 }
 
-type ContextCompressionPipeline interface {
-	Compress(ctx context.Context, req PipelineRequest) (*PipelineResult, error)
-}
-
-type MicrocompactEngine interface {
-	Compact(ctx context.Context, req MicrocompactRequest) (*MicrocompactResult, error)
-}
-
 type MicrocompactRequest struct {
 	Messages        []adk.Message
 	ToolInfos       []*schema.ToolInfo
@@ -249,21 +228,4 @@ type MicrocompactResult struct {
 	Messages     []adk.Message
 	TokensFreed  int
 	ClearedTools []string
-}
-
-type ReactiveCompactEngine interface {
-	Recover(ctx context.Context, req ReactiveCompactRequest) (*ReactiveCompactResult, error)
-}
-
-type ReactiveCompactRequest struct {
-	Messages       []adk.Message
-	ToolInfos      []*schema.ToolInfo
-	ToolState      *ToolLifecycleState
-	Pressure       BudgetPressure
-	PreservePolicy PreservePolicy
-}
-
-type ReactiveCompactResult struct {
-	Messages  []adk.Message
-	Recovered bool
 }

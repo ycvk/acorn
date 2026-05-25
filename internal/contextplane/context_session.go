@@ -61,8 +61,8 @@ type ModelInput struct {
 }
 
 type ContextSessionOptions struct {
-	BudgetGovernor BudgetGovernor
-	Pipeline       ContextCompressionPipeline
+	BudgetGovernor budgetGovernor
+	Pipeline       *defaultContextCompressionPipeline
 	PreservePolicy PreservePolicy
 	State          any
 	EmitCompressed func(context.Context, CompressionOutcome) error
@@ -74,8 +74,8 @@ type defaultContextSession struct {
 	turnIndex       int
 	modelProfile    ModelProfile
 	messages        []adk.Message
-	budgetGovernor  BudgetGovernor
-	pipeline        ContextCompressionPipeline
+	budgetGovernor  budgetGovernor
+	pipeline        *defaultContextCompressionPipeline
 	preservePolicy  PreservePolicy
 	state           any
 	emitCompressed  func(context.Context, CompressionOutcome) error
