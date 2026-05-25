@@ -15,13 +15,7 @@ type UpdateWorkingCheckpointInput struct {
 	RelatedSkillID string `json:"related_skill_id" jsonschema:"description=Optional skill ID this checkpoint is anchored to"`
 }
 
-type CheckpointService interface {
-	Get(ctx context.Context, threadID string) (*Checkpoint, error)
-	Update(ctx context.Context, threadID, content, relatedSkillID string) (*Checkpoint, error)
-	Clear(ctx context.Context, threadID string) error
-}
-
-func BuildWorkingCheckpointTools(checkpoints CheckpointService, sessionID string) ([]einotool.BaseTool, error) {
+func BuildWorkingCheckpointTools(checkpoints *Service, sessionID string) ([]einotool.BaseTool, error) {
 	trimmedSessionID := strings.TrimSpace(sessionID)
 
 	items := make([]einotool.BaseTool, 0, 2)

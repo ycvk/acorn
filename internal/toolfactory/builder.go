@@ -28,7 +28,7 @@ type Builder struct {
 	cfg               *config.Config
 	workspace         tools.WorkspaceView
 	artifactService   tools.ArtifactService
-	checkpointService workingstate.CheckpointService
+	checkpointService *workingstate.Service
 	memoryModule      memorymodule.Service
 	loader            skills.SkillLoader
 	store             skilllifecycle.LifecycleEventAppender
@@ -42,7 +42,7 @@ func NewBuilder(
 	cfg *config.Config,
 	workspace tools.WorkspaceView,
 	artifactService tools.ArtifactService,
-	checkpointService workingstate.CheckpointService,
+	checkpointService *workingstate.Service,
 	memoryModule memorymodule.Service,
 	loader skills.SkillLoader,
 	store skilllifecycle.LifecycleEventAppender,

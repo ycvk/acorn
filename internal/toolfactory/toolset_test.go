@@ -3,6 +3,7 @@ package toolfactory
 import (
 	"context"
 	"errors"
+	"io"
 	"testing"
 
 	einotool "github.com/cloudwego/eino/components/tool"
@@ -98,14 +99,14 @@ func TestToolsetCloseNoClosers(t *testing.T) {
 }
 
 func TestToolsetCloseSingleError(t *testing.T) {
-	ts := &Toolset{closers: []closer{&errCloser{err: errors.New("boom")}}}
+	ts := &Toolset{closers: []io.Closer{&errCloser{err: errors.New("boom")}}}
 	if err := ts.Close(); err == nil {
 		t.Fatalf("Close() = nil, want error")
 	}
 }
 
 func TestToolsetCloseSkipsNil(t *testing.T) {
-	ts := &Toolset{closers: []closer{nil, &okCloser{}}}
+	ts := &Toolset{closers: []io.Closer{nil, &okCloser{}}}
 	if err := ts.Close(); err != nil {
 		t.Fatalf("Close() = %v, want nil", err)
 	}
@@ -113,7 +114,7 @@ func TestToolsetCloseSkipsNil(t *testing.T) {
 
 func TestToolsetCloseReverseOrder(t *testing.T) {
 	var order []int
-	ts := &Toolset{closers: []closer{
+	ts := &Toolset{closers: []io.Closer{
 		&orderCloser{n: 1, order: &order},
 		&orderCloser{n: 2, order: &order},
 	}}
