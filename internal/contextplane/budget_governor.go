@@ -20,7 +20,7 @@ const (
 	PressureBlocking    BudgetPressureState = "blocking"
 )
 
-type BudgetGovernor interface {
+type budgetGovernor interface {
 	Evaluate(context.Context, BudgetEvaluateRequest) (BudgetPressure, error)
 	AutoCompactThreshold(ModelProfile) (int, error)
 }
@@ -52,12 +52,12 @@ type BudgetPressure struct {
 	State                      BudgetPressureState
 }
 
-type defaultBudgetGovernor struct {
+type BudgetGovernor struct {
 	tokenCounter *CompressionTokenCounter
 }
 
-func NewBudgetGovernor(tokenCounter *CompressionTokenCounter) BudgetGovernor {
-	return defaultBudgetGovernor{tokenCounter: tokenCounter}
+func NewBudgetGovernor(tokenCounter *CompressionTokenCounter) *BudgetGovernor {
+	return &BudgetGovernor{tokenCounter: tokenCounter}
 }
 
 const (
@@ -93,7 +93,10 @@ func ContextAssemblyTokenLimitFromContextPolicy(cfg config.ContextConfig) (int, 
 	return thresholds.warning, nil
 }
 
-func (g defaultBudgetGovernor) Evaluate(ctx context.Context, req BudgetEvaluateRequest) (BudgetPressure, error) {
+func (g *BudgetGovernor) Evaluate(ctx context.Context, req BudgetEvaluateRequest) (BudgetPressure, error) {
+	if g == nil {
+		return BudgetPressure{}, errors.New("budget governor is not initialized")
+	}
 	if g.tokenCounter == nil {
 		return BudgetPressure{}, errors.New("budget governor token counter is required")
 	}
@@ -117,7 +120,10 @@ func (g defaultBudgetGovernor) Evaluate(ctx context.Context, req BudgetEvaluateR
 	return pressure, nil
 }
 
-func (g defaultBudgetGovernor) AutoCompactThreshold(profile ModelProfile) (int, error) {
+func (g *BudgetGovernor) AutoCompactThreshold(profile ModelProfile) (int, error) {
+	if g == nil {
+		return 0, errors.New("budget governor is not initialized")
+	}
 	thresholds, err := pressureThresholds(profile)
 	if err != nil {
 		return 0, err

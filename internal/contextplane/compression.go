@@ -22,14 +22,10 @@ type CompressionBuildOptions struct {
 	EmitPressure      func(context.Context, BudgetPressure) error
 }
 
-type CompressionPipeline interface {
-	Build(context.Context, config.ContextConfig, einomodel.BaseChatModel, CompressionBuildOptions) ([]adk.ChatModelAgentMiddleware, error)
-}
+type CompressionPipeline struct{}
 
-type defaultCompressionPipeline struct{}
-
-func NewCompressionPipeline() CompressionPipeline {
-	return defaultCompressionPipeline{}
+func NewCompressionPipeline() *CompressionPipeline {
+	return &CompressionPipeline{}
 }
 
 func (p *defaultContextPlane) BuildHandlers(
@@ -44,7 +40,7 @@ func (p *defaultContextPlane) BuildHandlers(
 	return p.compressionPipeline.Build(ctx, cfg, chatModel, opts)
 }
 
-func (defaultCompressionPipeline) Build(
+func (*CompressionPipeline) Build(
 	ctx context.Context,
 	cfg config.ContextConfig,
 	chatModel einomodel.BaseChatModel,
@@ -108,8 +104,8 @@ func (defaultCompressionPipeline) Build(
 
 type pipelineCompressionMiddleware struct {
 	*adk.BaseChatModelAgentMiddleware
-	pipeline        ContextCompressionPipeline
-	governor        BudgetGovernor
+	pipeline        *defaultContextCompressionPipeline
+	governor        budgetGovernor
 	modelProfile    ModelProfile
 	preservePolicy  PreservePolicy
 	state           any
@@ -121,8 +117,8 @@ type pipelineCompressionMiddleware struct {
 }
 
 type pipelineCompressionMiddlewareOptions struct {
-	Pipeline       ContextCompressionPipeline
-	Governor       BudgetGovernor
+	Pipeline       *defaultContextCompressionPipeline
+	Governor       budgetGovernor
 	ModelProfile   ModelProfile
 	PreservePolicy PreservePolicy
 	State          any

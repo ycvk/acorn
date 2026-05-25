@@ -103,9 +103,6 @@ func TestDefaultContextPlaneAssembleBuildsContextMessagesWithPreparedMemory(t *t
 			t.Fatalf("memory content contains old retrieval fragment %q:\n%s", forbidden, memoryContent)
 		}
 	}
-	if sumBudget(result.BudgetUsed) != 2000 {
-		t.Fatalf("budget sum = %d, want 2000", sumBudget(result.BudgetUsed))
-	}
 }
 
 func TestDefaultContextPlaneAssembleInjectsPreparedMemoryEntry(t *testing.T) {

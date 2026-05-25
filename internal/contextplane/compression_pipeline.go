@@ -13,49 +13,36 @@ import (
 var ErrPipelineNotInitialized = errors.New("compression pipeline is not initialized")
 var ErrPipelineBudgetGovernorRequired = errors.New("compression pipeline budget governor is required")
 var ErrPipelineCompactionEngineRequired = errors.New("compression pipeline compaction engine is required")
+var ErrPipelineTokenCounterRequired = errors.New("compression pipeline token counter is required")
 
-// defaultContextCompressionPipeline implements ContextCompressionPipeline.
-// It orchestrates context compression, stopping early
-// when pressure drops below the auto-compact threshold.
 type defaultContextCompressionPipeline struct {
-	governor             BudgetGovernor
-	microcompact         MicrocompactEngine
-	autocompact          CompactionEngine
-	reactivecompact      ReactiveCompactEngine
+	governor             budgetGovernor
+	microcompact         *defaultMicrocompactEngine
+	autocompact          compactionEngine
 	microcompactInterval int
 	modelProfile         ModelProfile
 }
 
-// CompressionPipelineOptions holds dependencies for the pipeline.
 type CompressionPipelineOptions struct {
-	Governor             BudgetGovernor
-	CompactionEngine     CompactionEngine
+	Governor             budgetGovernor
+	CompactionEngine     compactionEngine
 	TokenCounter         *CompressionTokenCounter
 	Catalog              *tooling.Catalog
 	MicrocompactInterval int
 	ModelProfile         ModelProfile
 }
 
-// NewDefaultContextCompressionPipeline creates a pipeline with the given options.
-// If a layer engine is nil, that layer is skipped at runtime.
-func NewDefaultContextCompressionPipeline(opts CompressionPipelineOptions) ContextCompressionPipeline {
+func NewDefaultContextCompressionPipeline(opts CompressionPipelineOptions) *defaultContextCompressionPipeline {
 	if opts.MicrocompactInterval <= 0 {
 		opts.MicrocompactInterval = 5
 	}
-
-	p := &defaultContextCompressionPipeline{
+	return &defaultContextCompressionPipeline{
 		governor:             opts.Governor,
+		microcompact:         newMicrocompactEngine(opts.TokenCounter, opts.Catalog),
 		autocompact:          opts.CompactionEngine,
 		microcompactInterval: opts.MicrocompactInterval,
 		modelProfile:         opts.ModelProfile,
 	}
-
-	if opts.TokenCounter != nil {
-		p.microcompact = newMicrocompactEngine(opts.TokenCounter, opts.Catalog)
-		p.reactivecompact = newReactiveCompactEngine(opts.CompactionEngine)
-	}
-
-	return p
 }
 
 func (p *defaultContextCompressionPipeline) Compress(ctx context.Context, req PipelineRequest) (*PipelineResult, error) {
@@ -64,6 +51,12 @@ func (p *defaultContextCompressionPipeline) Compress(ctx context.Context, req Pi
 	}
 	if p.governor == nil {
 		return nil, ErrPipelineBudgetGovernorRequired
+	}
+	if p.microcompact == nil || p.microcompact.counter == nil {
+		return nil, ErrPipelineTokenCounterRequired
+	}
+	if p.autocompact == nil {
+		return nil, ErrPipelineCompactionEngineRequired
 	}
 
 	messages := cloneMessages(req.Messages)
@@ -91,7 +84,7 @@ func (p *defaultContextCompressionPipeline) Compress(ctx context.Context, req Pi
 	}
 
 	// ── Layer 2: Autocompact ──
-	if p.autocompact != nil && (req.Trigger == CompactTriggerAuto || req.Trigger == CompactTriggerReactive) {
+	if req.Trigger == CompactTriggerAuto || req.Trigger == CompactTriggerReactive {
 		shouldCompact, err := p.shouldAutocompact(ctx, messages, req)
 		if err != nil {
 			return nil, fmt.Errorf("check autocompact pressure: %w", err)
@@ -114,20 +107,11 @@ func (p *defaultContextCompressionPipeline) Compress(ctx context.Context, req Pi
 		} else if ok {
 			return p.buildResult(messages, layers, totalFreed, finalOutcome), nil
 		}
-		if req.Trigger == CompactTriggerReactive && p.reactivecompact == nil {
-			return p.buildResult(messages, layers, totalFreed, finalOutcome), nil
-		}
 	}
 
 	// ── Layer 3: ReactiveCompact ──
-	if req.Trigger == CompactTriggerReactive && p.reactivecompact != nil {
-		rcResult, err := p.reactivecompact.Recover(ctx, ReactiveCompactRequest{
-			Messages:       messages,
-			ToolInfos:      req.ToolInfos,
-			ToolState:      req.ToolState,
-			Pressure:       req.Pressure,
-			PreservePolicy: req.PreservePolicy,
-		})
+	if req.Trigger == CompactTriggerReactive {
+		rcResult, err := p.runReactiveCompact(ctx, messages, req)
 		if err != nil {
 			return nil, fmt.Errorf("reactivecompact: %w", err)
 		}
@@ -154,14 +138,9 @@ func (p *defaultContextCompressionPipeline) Compress(ctx context.Context, req Pi
 // ---------------------------------------------------------------------------
 
 func (p *defaultContextCompressionPipeline) shouldMicrocompact(req PipelineRequest) bool {
-	if p.microcompact == nil {
-		return false
-	}
-	// Reactive triggers always run microcompact.
 	if req.Trigger == CompactTriggerReactive {
 		return true
 	}
-	// Auto triggers run only on interval.
 	return req.TurnIndex-req.LastCompactTurn >= p.microcompactInterval
 }
 
@@ -187,9 +166,6 @@ func (p *defaultContextCompressionPipeline) shouldAutocompact(ctx context.Contex
 }
 
 func (p *defaultContextCompressionPipeline) runAutocompact(ctx context.Context, messages []adk.Message, req PipelineRequest) (*CompactionResult, error) {
-	if p.autocompact == nil {
-		return nil, ErrPipelineCompactionEngineRequired
-	}
 	return p.autocompact.Compact(ctx, CompactRequest{
 		Trigger:            req.Trigger,
 		Messages:           messages,
@@ -200,6 +176,19 @@ func (p *defaultContextCompressionPipeline) runAutocompact(ctx context.Context, 
 		PreservePolicy:     req.PreservePolicy,
 		CurrentPlan:        req.CurrentPlan,
 		RecentTouchedPaths: req.RecentTouchedPaths,
+	})
+}
+
+func (p *defaultContextCompressionPipeline) runReactiveCompact(ctx context.Context, messages []adk.Message, req PipelineRequest) (*CompactionResult, error) {
+	aggressivePolicy := req.PreservePolicy
+	aggressivePolicy.RecentTurns = max(1, aggressivePolicy.RecentTurns/2)
+	return p.autocompact.Compact(ctx, CompactRequest{
+		Trigger:        CompactTriggerReactive,
+		Messages:       messages,
+		ToolInfos:      req.ToolInfos,
+		ToolState:      req.ToolState,
+		Pressure:       req.Pressure,
+		PreservePolicy: aggressivePolicy,
 	})
 }
 

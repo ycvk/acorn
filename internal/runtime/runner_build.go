@@ -192,9 +192,8 @@ func (c *runCapabilities) Close() error {
 }
 
 type runSelection struct {
-	decisionRecord  *decision.Record
-	selectedSkill   *SelectedSkill
-	contextPriority decision.ContextPriority
+	decisionRecord *decision.Record
+	selectedSkill  *SelectedSkill
 }
 
 func (f *RunnerFactory) buildRunCapabilities(ctx context.Context, sessionID string, mcpManager *mcpprovider.Manager) (*runCapabilities, error) {
@@ -331,9 +330,8 @@ func (f *RunnerFactory) resolveRunSelection(
 			}
 		}
 		return &runSelection{
-			decisionRecord:  record,
-			selectedSkill:   selectedSkill,
-			contextPriority: decision.ContextPriorityForAction(record.Action),
+			decisionRecord: record,
+			selectedSkill:  selectedSkill,
 		}, nil
 	} else if strings.TrimSpace(req.RunID) != "" {
 		var err error
@@ -349,9 +347,8 @@ func (f *RunnerFactory) resolveRunSelection(
 			return nil, err
 		}
 		return &runSelection{
-			decisionRecord:  decisionRecord,
-			selectedSkill:   selectedSkill,
-			contextPriority: decision.ContextPriorityForAction(decisionRecord.Action),
+			decisionRecord: decisionRecord,
+			selectedSkill:  selectedSkill,
 		}, nil
 	}
 	return &runSelection{}, nil

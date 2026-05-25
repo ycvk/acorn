@@ -21,7 +21,7 @@ type defaultMicrocompactEngine struct {
 	catalog *tooling.Catalog
 }
 
-func newMicrocompactEngine(counter *CompressionTokenCounter, catalog *tooling.Catalog) MicrocompactEngine {
+func newMicrocompactEngine(counter *CompressionTokenCounter, catalog *tooling.Catalog) *defaultMicrocompactEngine {
 	return &defaultMicrocompactEngine{counter: counter, catalog: catalog}
 }
 

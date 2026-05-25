@@ -52,7 +52,7 @@ Reactive compact is only triggered by explicit provider/model context overflow e
 
 `CompactionEngine` owns proactive compact execution. The ADK compression middleware evaluates pressure through `BudgetGovernor` and, only for `auto_compact` or `blocking`, delegates to the engine. The engine builds a no-tool summary input, calls the configured summary model without tool infos, rejects tool-call responses, validates the required structured continuation sections, preserves the recent tail without splitting assistant tool-call/tool-result pairs, and returns the final messages plus `CompressionOutcome`. Empty or invalid summaries fail the model call path loudly; the middleware no longer owns summary prompt/finalize/outcome callbacks.
 
-`RehydrationPlanner` owns post-compact context packets. During compaction, the engine asks the planner to extract active context from compact-before messages and tool lifecycle state, then injects packet messages after the continuation summary and before the preserved tail. Current packet kinds are working checkpoint, selected skill, skill catalog, tool state, session summary, prepared memory, plan, and recent files. Packet content has a source and token limit counted by the shared token counter; an oversized packet fails compaction instead of being string-truncated. Recent files only come from explicit request paths and are not discovered by scanning the workspace.
+ContextPlane's concrete post-compact rehydration helper owns context packets. During compaction, the engine asks the helper to extract active context from compact-before messages and tool lifecycle state, then injects packet messages after the continuation summary and before the preserved tail. Current packet kinds are working checkpoint, selected skill, skill catalog, tool state, session summary, prepared memory, plan, and recent files. Packet content has a source and token limit counted by the shared token counter; an oversized packet fails compaction instead of being string-truncated. Recent files only come from explicit request paths and are not discovered by scanning the workspace.
 
 ## Memory Module
 
@@ -183,6 +183,6 @@ Old `memory.blocks`, `memory.facts`, `memory.end_of_run`, `memory.background_rev
 - Root runner execution context must carry ContextSession. direct_response must fail loudly if the binding is missing and must not fall back to ADK runner input messages.
 - Reactive compact is a narrow provider-overflow recovery path with one retry on the same model/options. Non-overflow provider/runtime errors remain explicit failures.
 - Proactive compact rules must live in CompactionEngine; middleware adapters cannot own summary shape, tail cutting, summary validation, or compression metrics.
-- Post-compact active context must be restored as RehydrationPlanner packets with explicit kind/source/token limits; oversized packets fail instead of being truncated, and compact summary alone is not enough continuation context.
+- Post-compact active context must be restored as contextplane rehydration packets with explicit kind/source/token limits; oversized packets fail instead of being truncated, and compact summary alone is not enough continuation context.
 - Tool failures remain tool results; Acorn runtime wiring/storage/model failures fail the run.
 - No silent fallback path recreates old memory behavior.

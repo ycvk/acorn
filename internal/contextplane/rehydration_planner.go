@@ -26,10 +26,6 @@ const (
 	RehydrateRecentFiles       RehydratePacketKind = "recent_files"
 )
 
-type RehydrationPlanner interface {
-	Plan(context.Context, RehydrateRequest) (*RehydratePlan, error)
-}
-
 type RehydrateRequest struct {
 	SessionID          string
 	RunID              string
@@ -56,18 +52,18 @@ type RehydratePacket struct {
 	TokenLimit int
 }
 
-type defaultRehydrationPlanner struct{}
+type RehydrationPlanner struct{}
 
 // defaultRehydrateMaxPacketTokens is the maximum tokens allowed for any single
 // rehydrate packet. Previously there were 8 per-kind limits; now all packets
 // share the total TokenBudget and each is capped by this single limit.
 const defaultRehydrateMaxPacketTokens = 15000
 
-func NewDefaultRehydrationPlanner() RehydrationPlanner {
-	return defaultRehydrationPlanner{}
+func NewDefaultRehydrationPlanner() *RehydrationPlanner {
+	return &RehydrationPlanner{}
 }
 
-func (defaultRehydrationPlanner) Plan(ctx context.Context, req RehydrateRequest) (*RehydratePlan, error) {
+func (*RehydrationPlanner) Plan(ctx context.Context, req RehydrateRequest) (*RehydratePlan, error) {
 	if req.TokenCounter == nil {
 		return nil, errors.New("rehydration planner token counter is required")
 	}
