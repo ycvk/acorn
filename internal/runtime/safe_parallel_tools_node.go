@@ -348,8 +348,6 @@ func toolSideEffectsFromResult(toolName string, result string) ([]toolresult.Sid
 		return runVerificationSideEffects(result)
 	case "git_summary":
 		return gitSummarySideEffects(result)
-	case "terminal_session_start", "terminal_session_write", "terminal_session_signal", "terminal_session_close":
-		return terminalSessionSideEffects(toolName, result)
 	case "ask_operator":
 		return operatorQuestionSideEffects(result)
 	default:
@@ -371,23 +369,6 @@ func operatorQuestionSideEffects(result string) ([]toolresult.SideEffectRef, err
 	return []toolresult.SideEffectRef{{
 		Kind: toolresult.SideEffectKindOperatorAction,
 		Ref:  actionID,
-	}}, nil
-}
-
-func terminalSessionSideEffects(toolName string, result string) ([]toolresult.SideEffectRef, error) {
-	var payload struct {
-		TerminalSessionID string `json:"terminal_session_id"`
-	}
-	if err := json.Unmarshal([]byte(result), &payload); err != nil {
-		return nil, fmt.Errorf("parse %s result: %w", toolName, err)
-	}
-	terminalSessionID := strings.TrimSpace(payload.TerminalSessionID)
-	if terminalSessionID == "" {
-		return nil, fmt.Errorf("%s result missing terminal_session_id", toolName)
-	}
-	return []toolresult.SideEffectRef{{
-		Kind: toolresult.SideEffectKindTerminalSession,
-		Ref:  terminalSessionID,
 	}}, nil
 }
 

@@ -893,7 +893,6 @@ class RunDetail {
     required this.thread,
     required this.events,
     required this.artifacts,
-    required this.terminalSessions,
     required this.raw,
   });
 
@@ -901,7 +900,6 @@ class RunDetail {
   final Thread thread;
   final List<RunEvent> events;
   final List<RunArtifact> artifacts;
-  final List<RunTerminalSession> terminalSessions;
   final Map<String, dynamic> raw;
 
   factory RunDetail.fromJson(Map<String, dynamic> json) {
@@ -911,10 +909,6 @@ class RunDetail {
       thread: Thread.fromJson(_map(json['thread'])),
       events: _list(json['events'], RunEvent.fromJson),
       artifacts: _list(workbench['artifacts'], RunArtifact.fromJson),
-      terminalSessions: _list(
-        workbench['terminal_sessions'],
-        RunTerminalSession.fromJson,
-      ),
       raw: Map<String, dynamic>.from(json),
     );
   }
@@ -956,112 +950,6 @@ class RunArtifact {
       mimeType: _nullableString(json['mime_type']),
       sizeBytes: _int(json['size_bytes']),
       sha256: _string(json['sha256']),
-      createdAt: _string(json['created_at']),
-    );
-  }
-}
-
-class RunTerminalSession {
-  const RunTerminalSession({
-    required this.terminalSessionId,
-    required this.runId,
-    required this.commandJson,
-    required this.cwd,
-    required this.interactive,
-    required this.pty,
-    required this.status,
-    required this.createdAt,
-    required this.updatedAt,
-    this.sessionId,
-    this.label,
-    this.pid,
-    this.processGroupId,
-    this.exitCode,
-    this.signal,
-    this.stdoutArtifactId,
-    this.stderrArtifactId,
-    this.ptyArtifactId,
-    this.startedAt,
-    this.endedAt,
-    this.logs = const [],
-  });
-
-  final String terminalSessionId;
-  final String runId;
-  final String? sessionId;
-  final String? label;
-  final String commandJson;
-  final String cwd;
-  final bool interactive;
-  final bool pty;
-  final String status;
-  final int? pid;
-  final int? processGroupId;
-  final int? exitCode;
-  final String? signal;
-  final String? stdoutArtifactId;
-  final String? stderrArtifactId;
-  final String? ptyArtifactId;
-  final String? startedAt;
-  final String? endedAt;
-  final String createdAt;
-  final String updatedAt;
-  final List<RunTerminalSessionLog> logs;
-
-  factory RunTerminalSession.fromJson(Map<String, dynamic> json) {
-    return RunTerminalSession(
-      terminalSessionId: _string(json['terminal_session_id']),
-      runId: _string(json['run_id']),
-      sessionId: _nullableString(json['session_id']),
-      label: _nullableString(json['label']),
-      commandJson: _string(json['command_json']),
-      cwd: _string(json['cwd']),
-      interactive: _bool(json['interactive']),
-      pty: _bool(json['pty']),
-      status: _string(json['status']),
-      pid: _nullableInt(json['pid']),
-      processGroupId: _nullableInt(json['process_group_id']),
-      exitCode: _nullableInt(json['exit_code']),
-      signal: _nullableString(json['signal']),
-      stdoutArtifactId: _nullableString(json['stdout_artifact_id']),
-      stderrArtifactId: _nullableString(json['stderr_artifact_id']),
-      ptyArtifactId: _nullableString(json['pty_artifact_id']),
-      startedAt: _nullableString(json['started_at']),
-      endedAt: _nullableString(json['ended_at']),
-      createdAt: _string(json['created_at']),
-      updatedAt: _string(json['updated_at']),
-      logs: _list(json['logs'], RunTerminalSessionLog.fromJson),
-    );
-  }
-}
-
-class RunTerminalSessionLog {
-  const RunTerminalSessionLog({
-    required this.logId,
-    required this.terminalSessionId,
-    required this.stream,
-    required this.artifactId,
-    required this.startOffset,
-    required this.sizeBytes,
-    required this.createdAt,
-  });
-
-  final String logId;
-  final String terminalSessionId;
-  final String stream;
-  final String artifactId;
-  final int startOffset;
-  final int sizeBytes;
-  final String createdAt;
-
-  factory RunTerminalSessionLog.fromJson(Map<String, dynamic> json) {
-    return RunTerminalSessionLog(
-      logId: _string(json['log_id']),
-      terminalSessionId: _string(json['terminal_session_id']),
-      stream: _string(json['stream']),
-      artifactId: _string(json['artifact_id']),
-      startOffset: _int(json['start_offset']),
-      sizeBytes: _int(json['size_bytes']),
       createdAt: _string(json['created_at']),
     );
   }
@@ -1430,11 +1318,6 @@ int _int(Object? value) => value is int
     : value is num
     ? value.toInt()
     : 0;
-int? _nullableInt(Object? value) => value is int
-    ? value
-    : value is num
-    ? value.toInt()
-    : null;
 double _double(Object? value) => value is double
     ? value
     : value is num

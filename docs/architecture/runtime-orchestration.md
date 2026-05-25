@@ -9,7 +9,7 @@ slug: runtime-orchestration
 
 ## OrchestrationPlane
 
-`internal/orchestration` 是 root 编排唯一 builder 入口。当前实现是 concrete `DefaultPlane`，由 `NewDefaultPlane(DefaultPlaneOptions)` 构造；RunnerFactory 在 `internal/runtime/runner_factory_orchestration.go` 注入 tool builder、tool node factory、graph builders、handlers builder 和 context binders。生产代码不再暴露跨包 `Plane` interface；runtime 只保留本地 `orchestrationPlane` 测试 seam，不新增第二套 plane abstraction。
+`internal/orchestration` 是 root 编排唯一 builder 入口。当前实现是 concrete `DefaultPlane`，由 `NewDefaultPlane(DefaultPlaneOptions)` 构造；RunnerFactory 在 `internal/runtime/runner_orchestration.go` 注入 tool builder、tool node factory、graph builders、handlers builder 和 context binders。生产代码不再暴露跨包 `Plane` interface；runtime 只保留本地 `orchestrationPlane` 测试 seam，不新增第二套 plane abstraction。
 
 三个 build 方法：
 
@@ -19,7 +19,7 @@ slug: runtime-orchestration
 
 ## direct_response
 
-`direct_response` 读取 run tool catalog、绑定 ContextPlane tool lifecycle state，并构建 `SafeParallelToolsNode`。它不启动 PlanNode，也不调用 child-agent executor；执行时按 `ContextSession.BeforeModelCall -> AssistantStreamer.StreamAssistantMessage -> ContextSession.RecordAssistant -> SafeParallelToolsNode.Invoke -> ContextSession.RecordToolResults` 的 session-owned loop 推进，直到模型返回无 tool call 的最终 assistant message。`AssistantStreamer` 负责把模型 stream chunk 持久化为 `assistant.delta`，再保留最终完整 assistant message。
+`direct_response` 读取 run tool catalog、绑定 ContextPlane tool lifecycle state，并构建 `SafeParallelToolsNode`。它不启动 PlanNode，也不调用 child-agent executor；执行时按 `ContextSession.BeforeModelCall -> AssistantStreamer.StreamAssistantInterleaved -> StreamingToolExecutor.Submit/GetRemainingResults -> ContextSession.RecordAssistant/RecordToolResults` 的 session-owned loop 推进，直到模型返回无 tool call 的最终 assistant message。`AssistantStreamer` 负责把模型 stream chunk 持久化为 `assistant.delta`，再保留最终完整 assistant message。
 
 `direct_response` 是 Acorn-specific ADK agent，不是 Eino `adk.NewChatModelAgent` 的薄封装。保留自定义 loop 的原因是：普通问答必须产出 Acorn RunEvent / StreamItem truth，tool lifecycle 必须和 ContextPlane 的 loaded/deferred state 绑定，普通 tool failure 必须继续作为模型可见 failed tool result。缺 lifecycle wiring、缺 catalog、缺 tool node 或模型 streaming 失败是 runtime failure。
 
@@ -39,7 +39,7 @@ single_agent / plan_execute 内部的 PlanNode plan JSON、ObserveNode decision 
 - graph builder 必须拿到 runtime `PlanStore`；缺 plan store 直接构建失败。
 - Procedure activation 不在 graph 内生成 synthetic plan。Learned procedures now enter the run as file-backed memory skill entries from `memorymodule.Prepare`; ordinary executable skills still come from `internal/skills` selection and ContextPlane injection.
 - ActNode 用 `SafeParallelToolsNode` 执行工具，并把 tool result 写入 step evidence ledger；同一结果同时由 ContextPlane 写入 durable `tool_results` ledger，再由 PlanStore 把 step evidence backlink 回写到同一条 tool result 记录。workspace mutation checkpoint / rollback 的 side-effect refs 也沿这条链路进入 ledger 和 workbench projection。
-- `SafeParallelToolsNode` 是 Eino `compose.ToolsNode` 的 Acorn-specific adapter；实际批次、路径冲突和结果顺序由 `internal/runtime/tool_execution_scheduler.go` 的 shared scheduler core 处理。它从 `tooling.ExecutionPolicyResolver` 读取 `ToolContract.Execution`，保留 policy-aware parallelism、ContextPlane tool lifecycle 和 plan evidence recorder；已加载工具没有 execution policy 是 runtime wiring failure，不会默认成 read-only。真实工具执行时会显式触发 Eino Tool component callbacks，因此外部 Eino callback/DevOps handler 能看到 tool OnStart/OnEnd/OnError。模型调用 unknown/deferred tool 仍是模型可见 failed tool result，不伪造真实工具 callback success。
+- `SafeParallelToolsNode` 是 Acorn-specific tool dispatch adapter；实际批次、路径冲突和结果顺序由 `internal/runtime/tool.go` 的 shared scheduler core 处理，并通过 `internal/runtime/streaming_tool_executor.go` 暴露实时提交接口。它从 `tooling.ExecutionPolicyResolver` 读取 `ToolContract.Execution`，保留 policy-aware parallelism、ContextPlane tool lifecycle 和 plan evidence recorder；已加载工具没有 execution policy 是 runtime wiring failure，不会默认成 read-only。真实工具执行时会显式触发 Eino Tool component callbacks，因此外部 Eino callback/DevOps handler 能看到 tool OnStart/OnEnd/OnError。模型调用 unknown/deferred tool 仍是模型可见 failed tool result，不伪造真实工具 callback success。
 
 ## plan_execute
 
@@ -68,9 +68,9 @@ Tool runtime contract lives in `internal/tooling.ToolContract`. Runtime tool bui
 
 ## 装配边界
 
-默认 OrchestrationPlane 的依赖来自 RunnerFactory，构造集中在 `internal/runtime/runner_factory_orchestration.go`：
+默认 OrchestrationPlane 的依赖来自 RunnerFactory，构造集中在 `internal/runtime/runner_orchestration.go`：
 
-- tool builder：`internal/runtime/tool_audit.go` 的 audited tools。
+- tool builder：`internal/runtime/tool.go` 的 audited tools。
 - tool node factory：`internal/runtime/safe_parallel_tools_node.go` 的 safe parallel tools node。
 - graph builders：runtime 的 `buildAgentGraph` 与 `buildPlanExecuteGraph`。
 - handlers builder：ContextPlane compaction middleware adapter + runtime custom handlers；旧 runtime sliding window middleware 已删除。

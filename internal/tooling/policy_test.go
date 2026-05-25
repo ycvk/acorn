@@ -40,8 +40,8 @@ func TestParallelPolicyStringParsing(t *testing.T) {
 func TestConfiguredLocalSpecsCarryCanonicalPolicies(t *testing.T) {
 	cfg := defaultToolingTestConfig()
 	specs := ConfiguredLocalSpecs(cfg)
-	if len(specs) != 27 {
-		t.Fatalf("ConfiguredLocalSpecs len = %d, want 27", len(specs))
+	if len(specs) != 20 {
+		t.Fatalf("ConfiguredLocalSpecs len = %d, want 20", len(specs))
 	}
 	createFile, ok := ConfiguredLocalSpec(cfg, "create_file")
 	if !ok {
@@ -111,23 +111,6 @@ func TestConfiguredLocalSpecsCarryCanonicalPolicies(t *testing.T) {
 	if artifactRead.ResourceScope != ResourceScopeArtifact || artifactRead.Execution.ParallelPolicy != ParallelPolicyReadOnly {
 		t.Fatalf("artifact_read policy = scope:%q parallel:%q", artifactRead.ResourceScope, artifactRead.Execution.ParallelPolicy)
 	}
-	terminalStart, ok := ConfiguredLocalSpec(cfg, "terminal_session_start")
-	if !ok {
-		t.Fatal("terminal_session_start spec missing")
-	}
-	if terminalStart.ResourceScope != ResourceScopeProcess || terminalStart.Execution.ParallelPolicy != ParallelPolicyNeverParallel {
-		t.Fatalf("terminal_session_start policy = scope:%q parallel:%q", terminalStart.ResourceScope, terminalStart.Execution.ParallelPolicy)
-	}
-	if terminalStart.PlanPolicy != PlanPolicyRequireActivePlan {
-		t.Fatalf("terminal_session_start plan = %q, want %q", terminalStart.PlanPolicy, PlanPolicyRequireActivePlan)
-	}
-	processStatus, ok := ConfiguredLocalSpec(cfg, "process_status")
-	if !ok {
-		t.Fatal("process_status spec missing")
-	}
-	if processStatus.ResourceScope != ResourceScopeProcess || processStatus.Execution.ParallelPolicy != ParallelPolicyReadOnly {
-		t.Fatalf("process_status policy = scope:%q parallel:%q", processStatus.ResourceScope, processStatus.Execution.ParallelPolicy)
-	}
 	askOperator, ok := ConfiguredLocalSpec(cfg, "ask_operator")
 	if !ok {
 		t.Fatal("ask_operator spec missing")
@@ -182,7 +165,6 @@ func TestToolContractAcceptsNativeDeveloperToolScopes(t *testing.T) {
 		scope  ResourceScope
 		effect ToolSideEffect
 	}{
-		{"process", ResourceScopeProcess, ToolSideEffectProcessStart},
 		{"artifact", ResourceScopeArtifact, ToolSideEffectArtifactWrite},
 		{"operator", ResourceScopeOperator, ToolSideEffectOperatorInteraction},
 		{"web", ResourceScopeWeb, ToolSideEffectWebRead},

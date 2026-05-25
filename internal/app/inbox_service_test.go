@@ -18,7 +18,7 @@ func TestInboxServiceLoadProjectsMobileAggregate(t *testing.T) {
 		t.Fatalf("create active session: %v", err)
 	}
 	if _, err := store.CreateSession(ctx, "thread_terminal", "Done"); err != nil {
-		t.Fatalf("create terminal session: %v", err)
+		t.Fatalf("create completed thread: %v", err)
 	}
 	if err := store.CreateRunWithParams(ctx, storecore.RunCreateParams{
 		RunID:             "run_active",

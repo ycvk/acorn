@@ -20,6 +20,7 @@ import (
 	"github.com/ycvk/acorn/internal/runtime"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/store"
+	"github.com/ycvk/acorn/internal/web/runprojector"
 )
 
 func TestThreadMessageRunHandlers(t *testing.T) {
@@ -532,14 +533,14 @@ func TestClientHandlersReturnClientErrorCodes(t *testing.T) {
 
 func TestRunEventsBacklogSSE(t *testing.T) {
 	service := &clientHandlerStub{
-		events: []app.RunEvent{
+		events: []runprojector.RunEvent{
 			{
 				EventID: "run_1:2",
 				RunID:   "run_1",
 				Seq:     2,
 				TS:      time.Date(2026, 5, 2, 10, 4, 0, 0, time.UTC),
 				Type:    "assistant.delta",
-				Data: app.AssistantDeltaData{
+				Data: runprojector.AssistantDeltaData{
 					AssistantDelta: map[string]any{"delta": "he"},
 				},
 			},
@@ -549,7 +550,7 @@ func TestRunEventsBacklogSSE(t *testing.T) {
 				Seq:     3,
 				TS:      time.Date(2026, 5, 2, 10, 5, 0, 0, time.UTC),
 				Type:    "run.completed",
-				Data:    app.RunCompletedData{Message: map[string]any{"content": "done"}},
+				Data:    runprojector.RunCompletedData{Message: map[string]any{"content": "done"}},
 			},
 		},
 	}
@@ -584,14 +585,14 @@ func TestRunEventsBacklogSSE(t *testing.T) {
 
 func TestRunEventsRejectInvalidSSEMetadata(t *testing.T) {
 	service := &clientHandlerStub{
-		events: []app.RunEvent{
+		events: []runprojector.RunEvent{
 			{
 				EventID: "run_1:2\nbroken",
 				RunID:   "run_1",
 				Seq:     2,
 				TS:      time.Date(2026, 5, 2, 10, 4, 0, 0, time.UTC),
 				Type:    "assistant.delta",
-				Data: app.AssistantDeltaData{
+				Data: runprojector.AssistantDeltaData{
 					AssistantDelta: map[string]any{"delta": "he"},
 				},
 			},
@@ -614,7 +615,7 @@ func TestRunEventsRejectInvalidSSEMetadata(t *testing.T) {
 
 func TestRunEventsFollowPollsUntilTerminal(t *testing.T) {
 	service := &clientHandlerStub{
-		eventBatches: [][]app.RunEvent{
+		eventBatches: [][]runprojector.RunEvent{
 			{
 				{
 					EventID: "run_follow:1",
@@ -622,7 +623,7 @@ func TestRunEventsFollowPollsUntilTerminal(t *testing.T) {
 					Seq:     1,
 					TS:      time.Date(2026, 5, 2, 10, 4, 0, 0, time.UTC),
 					Type:    "run.started",
-					Data:    app.RunStartedData{Input: "hello"},
+					Data:    runprojector.RunStartedData{Input: "hello"},
 				},
 			},
 			{
@@ -632,7 +633,7 @@ func TestRunEventsFollowPollsUntilTerminal(t *testing.T) {
 					Seq:     2,
 					TS:      time.Date(2026, 5, 2, 10, 4, 1, 0, time.UTC),
 					Type:    "run.completed",
-					Data:    app.RunCompletedData{Message: map[string]any{"content": "done"}},
+					Data:    runprojector.RunCompletedData{Message: map[string]any{"content": "done"}},
 				},
 			},
 			nil,
@@ -722,14 +723,14 @@ func TestClientResourceSurfaceHandlers(t *testing.T) {
 			Mode:      "direct",
 			CreatedAt: time.Date(2026, 5, 2, 10, 3, 0, 0, time.UTC),
 		},
-		events: []app.RunEvent{
+		events: []runprojector.RunEvent{
 			{
 				EventID: "run_1:1",
 				RunID:   "run_1",
 				Seq:     1,
 				TS:      time.Date(2026, 5, 2, 10, 3, 0, 0, time.UTC),
 				Type:    "run.started",
-				Data:    app.RunStartedData{Input: "hello"},
+				Data:    runprojector.RunStartedData{Input: "hello"},
 			},
 			{
 				EventID: "run_1:2",
@@ -737,7 +738,7 @@ func TestClientResourceSurfaceHandlers(t *testing.T) {
 				Seq:     2,
 				TS:      time.Date(2026, 5, 2, 10, 3, 1, 0, time.UTC),
 				Type:    "skill.selected",
-				Data: app.SkillData{Skill: map[string]any{
+				Data: runprojector.SkillData{Skill: map[string]any{
 					"selected_id":  "sop.release-closeout",
 					"name":         "Release closeout",
 					"origin":       "distilled",
@@ -745,7 +746,7 @@ func TestClientResourceSurfaceHandlers(t *testing.T) {
 				}},
 			},
 		},
-		unsupported: []app.UnsupportedRunEvent{
+		unsupported: []runprojector.UnsupportedRunEvent{
 			{
 				EventID: "run_1:99",
 				RunID:   "run_1",
@@ -1215,11 +1216,11 @@ type clientHandlerStub struct {
 	thread      app.Thread
 	message     app.Message
 	run         app.Run
-	events      []app.RunEvent
-	unsupported []app.UnsupportedRunEvent
+	events      []runprojector.RunEvent
+	unsupported []runprojector.UnsupportedRunEvent
 	err         error
 
-	eventBatches              [][]app.RunEvent
+	eventBatches              [][]runprojector.RunEvent
 	loadEventCalls            int
 	lastAfterSeq              int64
 	statusChecks              int
@@ -1307,7 +1308,7 @@ func (s *clientHandlerStub) GetRun(context.Context, string) (*app.Run, error) {
 	return &s.run, nil
 }
 
-func (s *clientHandlerStub) LoadRunEventsAfter(_ context.Context, _ string, afterSeq int64) ([]app.RunEvent, error) {
+func (s *clientHandlerStub) LoadRunEventsAfter(_ context.Context, _ string, afterSeq int64) ([]runprojector.RunEvent, error) {
 	if s.err != nil {
 		return nil, s.err
 	}
@@ -1316,18 +1317,18 @@ func (s *clientHandlerStub) LoadRunEventsAfter(_ context.Context, _ string, afte
 	if len(s.eventBatches) > 0 {
 		batch := s.eventBatches[0]
 		s.eventBatches = s.eventBatches[1:]
-		return append([]app.RunEvent(nil), batch...), nil
+		return append([]runprojector.RunEvent(nil), batch...), nil
 	}
-	return append([]app.RunEvent(nil), s.events...), nil
+	return append([]runprojector.RunEvent(nil), s.events...), nil
 }
 
-func (s *clientHandlerStub) LoadRunEventsForDetail(context.Context, string) (*app.RunEventDetail, error) {
+func (s *clientHandlerStub) LoadRunEventsForDetail(context.Context, string) (*runprojector.RunEventDetail, error) {
 	if s.err != nil {
 		return nil, s.err
 	}
-	return &app.RunEventDetail{
-		Events:      append([]app.RunEvent(nil), s.events...),
-		Unsupported: append([]app.UnsupportedRunEvent(nil), s.unsupported...),
+	return &runprojector.RunEventDetail{
+		Events:      append([]runprojector.RunEvent(nil), s.events...),
+		Unsupported: append([]runprojector.UnsupportedRunEvent(nil), s.unsupported...),
 	}, nil
 }
 

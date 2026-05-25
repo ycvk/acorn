@@ -2,7 +2,6 @@ package orchestration
 
 import (
 	"context"
-	"encoding/gob"
 	"errors"
 	"fmt"
 	"strings"
@@ -121,10 +120,6 @@ type directResponseAgent struct {
 type DirectResponseInterruptData struct {
 	Iteration int
 	Message   *schema.Message
-}
-
-func init() {
-	gob.Register(&DirectResponseInterruptData{})
 }
 
 func (a *directResponseAgent) Name(context.Context) string {

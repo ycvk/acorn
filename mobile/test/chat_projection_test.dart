@@ -254,7 +254,6 @@ void main() {
       'run_verification',
       'git_summary',
       'artifact_write',
-      'terminal_session_read',
     ]) {
       for (final type in const [
         'tool.call.started',

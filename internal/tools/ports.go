@@ -5,7 +5,6 @@ import (
 
 	"github.com/ycvk/acorn/internal/artifacts"
 	"github.com/ycvk/acorn/internal/browser"
-	"github.com/ycvk/acorn/internal/terminalsession"
 	"github.com/ycvk/acorn/internal/webaccess"
 	"github.com/ycvk/acorn/internal/workspace"
 )
@@ -32,17 +31,6 @@ type ArtifactService interface {
 	ReadRange(ctx context.Context, req artifacts.ReadRangeRequest) (artifacts.ReadRangeResult, error)
 	ListByRun(ctx context.Context, runID string) ([]artifacts.Record, error)
 	ListBySession(ctx context.Context, sessionID string) ([]artifacts.Record, error)
-}
-
-// TerminalService is the subset of terminal session operations required by tool builders.
-type TerminalService interface {
-	Start(ctx context.Context, req terminalsession.StartRequest) (terminalsession.SessionRecord, error)
-	Write(ctx context.Context, req terminalsession.WriteRequest) (terminalsession.WriteResult, error)
-	Read(ctx context.Context, req terminalsession.ReadRequest) (terminalsession.ReadResult, error)
-	Signal(ctx context.Context, req terminalsession.SignalRequest) (terminalsession.SessionRecord, error)
-	Close(ctx context.Context, terminalSessionID string, force bool) (terminalsession.SessionRecord, error)
-	ListByRun(ctx context.Context, runID string) ([]terminalsession.SessionRecord, error)
-	Load(ctx context.Context, terminalSessionID string) (terminalsession.SessionRecord, error)
 }
 
 // WebFetchService is the subset of web fetch operations required by tool builders.

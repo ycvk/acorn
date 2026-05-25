@@ -20,7 +20,6 @@ import (
 	"github.com/ycvk/acorn/internal/orchestration"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
 	"github.com/ycvk/acorn/internal/skills"
-	"github.com/ycvk/acorn/internal/terminalsession"
 	"github.com/ycvk/acorn/internal/tooling"
 	"github.com/ycvk/acorn/internal/workspace"
 )
@@ -41,11 +40,6 @@ func buildRuntimeDeps(cfg *config.Config, store RunnerFactoryStore, opts RunnerF
 	artifactService, err := buildArtifactService(cfg, store)
 	if err != nil {
 		return RuntimeDeps{}, fmt.Errorf("artifact service: %w", err)
-	}
-
-	terminalService, err := buildTerminalSessionService(store, artifactService)
-	if err != nil {
-		return RuntimeDeps{}, fmt.Errorf("terminal session service: %w", err)
 	}
 
 	loader := opts.Loader
@@ -99,7 +93,6 @@ func buildRuntimeDeps(cfg *config.Config, store RunnerFactoryStore, opts RunnerF
 		MCPPendingActions: opts.MCPPendingActionStore,
 		Workspace:         ws,
 		ArtifactService:   artifactService,
-		TerminalService:   terminalService,
 		ExtraLocalTools:   append([]einotool.BaseTool(nil), opts.ExtraLocalTools...),
 		Handlers:          append([]adk.ChatModelAgentMiddleware(nil), opts.Handlers...),
 		Crystallizer:      crystallizer,
@@ -126,14 +119,6 @@ func buildArtifactService(cfg *config.Config, store RunnerFactoryStore) (*artifa
 		return nil, errors.New("store must implement artifacts.Store")
 	}
 	return artifacts.NewService(filepath.Join(cfg.Runtime.StorageDir, "artifacts"), artifactStore)
-}
-
-func buildTerminalSessionService(store RunnerFactoryStore, artifactService *artifacts.Service) (*terminalsession.Service, error) {
-	terminalStore, ok := store.(terminalsession.Store)
-	if !ok {
-		return nil, errors.New("store must implement terminalsession.Store")
-	}
-	return terminalsession.NewService(terminalStore, artifactService)
 }
 
 func buildDefaultContextPlane(cfg *config.Config, store RunnerFactoryStore, opts RunnerFactoryOptions) (contextplane.ContextPlane, error) {

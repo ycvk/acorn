@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:acorn_mobile/src/api/acorn_api.dart';
 import 'package:acorn_mobile/src/api/run_event_stream.dart';
 import 'package:acorn_mobile/src/core/connection_profile.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -76,6 +77,34 @@ void main() {
       client.followRunEvents('run_1').toList(),
       throwsA(isA<RunEventStreamException>()),
     );
+  });
+
+  test('accepts every active operational RunEvent type', () {
+    final operationalTypes = <String>[
+      'operator_question.pending',
+      'operator_question.decided',
+      'provider.degraded',
+      'mcp.tool_catalog_refreshed',
+      'mcp.tool_catalog_refresh_failed',
+      'mcp.provider_added',
+      'mcp.provider_removed',
+      'mcp.provider_restarted',
+      'mcp.resource_catalog_refreshed',
+      'mcp.resource_catalog_refresh_failed',
+      'mcp.prompt_catalog_refreshed',
+      'mcp.prompt_catalog_refresh_failed',
+      'mcp.auth_status_changed',
+      'sampling.started',
+      'sampling.completed',
+      'sampling.failed',
+    ];
+
+    for (final type in operationalTypes) {
+      validateRunEvent(
+        RunEvent.fromJson(_event('event_$type', 1, type, <String, Object?>{})),
+        expectedRunId: 'run_1',
+      );
+    }
   });
 }
 

@@ -11,6 +11,7 @@ import (
 	"github.com/ycvk/acorn/internal/memorymodule"
 	"github.com/ycvk/acorn/internal/runtime"
 	"github.com/ycvk/acorn/internal/skills"
+	"github.com/ycvk/acorn/internal/web/runprojector"
 )
 
 type ClientService interface {
@@ -23,8 +24,8 @@ type ClientService interface {
 	CreateMessage(ctx context.Context, threadID, content string) (*app.Message, error)
 	CreateRun(ctx context.Context, threadID, skillID, mode string) (*app.Run, error)
 	GetRun(ctx context.Context, runID string) (*app.Run, error)
-	LoadRunEventsAfter(ctx context.Context, runID string, afterSeq int64) ([]app.RunEvent, error)
-	LoadRunEventsForDetail(ctx context.Context, runID string) (*app.RunEventDetail, error)
+	LoadRunEventsAfter(ctx context.Context, runID string, afterSeq int64) ([]runprojector.RunEvent, error)
+	LoadRunEventsForDetail(ctx context.Context, runID string) (*runprojector.RunEventDetail, error)
 	RunIsTerminal(ctx context.Context, runID string) (bool, error)
 	EventPollInterval() time.Duration
 }

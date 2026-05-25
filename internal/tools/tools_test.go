@@ -26,7 +26,6 @@ import (
 	"github.com/ycvk/acorn/internal/browser"
 	"github.com/ycvk/acorn/internal/events"
 	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
-	"github.com/ycvk/acorn/internal/terminalsession"
 	"github.com/ycvk/acorn/internal/tooling"
 	"github.com/ycvk/acorn/internal/webaccess"
 	workspacepkg "github.com/ycvk/acorn/internal/workspace"
@@ -635,83 +634,6 @@ func TestAskOperatorCreatesPendingActionAndInterrupts(t *testing.T) {
 	}
 }
 
-func TestTerminalSessionToolsStartReadAndList(t *testing.T) {
-	if _, err := exec.LookPath("sh"); err != nil {
-		t.Skip("sh is required")
-	}
-	root := t.TempDir()
-	store, err := storesqlite.Open(filepath.Join(t.TempDir(), "state"))
-	if err != nil {
-		t.Fatalf("sqlite.Open: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-	artifactService, err := artifacts.NewService(filepath.Join(t.TempDir(), "artifacts"), store)
-	if err != nil {
-		t.Fatalf("artifacts.NewService: %v", err)
-	}
-	terminalService, err := terminalsession.NewService(store, artifactService)
-	if err != nil {
-		t.Fatalf("terminalsession.NewService: %v", err)
-	}
-	catalog, err := BuildCatalog(CatalogConfig{
-		Workspace:         testWorkspace(t, root),
-		TerminalService:   terminalService,
-		TerminalContext:   fixedArtifactContext{runID: "run_1", sessionID: "session_1", callID: "call_start"},
-		ArtifactService:   artifactService,
-		ArtifactContext:   fixedArtifactContext{runID: "run_1", sessionID: "session_1", callID: "call_artifact"},
-		MutationEnabled:   false,
-		RunCommandEnabled: false,
-	}, nil, nil, nil)
-	if err != nil {
-		t.Fatalf("BuildCatalog: %v", err)
-	}
-
-	startTool := mustToolByName(t, catalog.Tools, "terminal_session_start")
-	startOutput, err := startTool.InvokableRun(context.Background(), `{"command":["sh","-c","printf terminal"],"label":"fixture"}`)
-	if err != nil {
-		t.Fatalf("terminal_session_start: %v", err)
-	}
-	var started TerminalSessionStartOutput
-	if err := json.Unmarshal([]byte(startOutput), &started); err != nil {
-		t.Fatalf("json.Unmarshal(start output): %v\noutput=%s", err, startOutput)
-	}
-	if started.TerminalSessionID == "" || started.Status != "running" {
-		t.Fatalf("unexpected start output: %+v", started)
-	}
-
-	statusTool := mustToolByName(t, catalog.Tools, "process_status")
-	final := waitTerminalToolStatus(t, statusTool, started.TerminalSessionID)
-	if final.Status != "exited" || final.ExitCode == nil || *final.ExitCode != 0 {
-		t.Fatalf("unexpected final status: %+v", final)
-	}
-
-	readTool := mustToolByName(t, catalog.Tools, "terminal_session_read")
-	readOutput, err := readTool.InvokableRun(context.Background(), `{"terminal_session_id":"`+started.TerminalSessionID+`","stream":"stdout","offset":0,"limit":64}`)
-	if err != nil {
-		t.Fatalf("terminal_session_read: %v", err)
-	}
-	var read TerminalSessionReadOutput
-	if err := json.Unmarshal([]byte(readOutput), &read); err != nil {
-		t.Fatalf("json.Unmarshal(read output): %v\noutput=%s", err, readOutput)
-	}
-	if read.Content != "terminal" || read.ArtifactID == "" {
-		t.Fatalf("unexpected read output: %+v", read)
-	}
-
-	listTool := mustToolByName(t, catalog.Tools, "terminal_session_list")
-	listOutput, err := listTool.InvokableRun(context.Background(), `{}`)
-	if err != nil {
-		t.Fatalf("terminal_session_list: %v", err)
-	}
-	var list TerminalSessionListOutput
-	if err := json.Unmarshal([]byte(listOutput), &list); err != nil {
-		t.Fatalf("json.Unmarshal(list output): %v\noutput=%s", err, listOutput)
-	}
-	if len(list.Items) != 1 || list.Items[0].TerminalSessionID != started.TerminalSessionID {
-		t.Fatalf("unexpected list output: %+v", list)
-	}
-}
-
 func TestInspectGitStatusReturnsStructuredOutput(t *testing.T) {
 	root := t.TempDir()
 	if _, err := exec.LookPath("git"); err != nil {
@@ -1164,29 +1086,6 @@ func runGitCommandForTest(t *testing.T, root string, args ...string) {
 	cmd.Dir = root
 	if output, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("git %v: %v\n%s", args, err, string(output))
-	}
-}
-
-func waitTerminalToolStatus(t *testing.T, statusTool einotool.InvokableTool, terminalSessionID string) ProcessStatusOutput {
-	t.Helper()
-	deadline := time.Now().Add(3 * time.Second)
-	for {
-		output, err := statusTool.InvokableRun(context.Background(), `{"terminal_session_id":"`+terminalSessionID+`"}`)
-		if err != nil {
-			t.Fatalf("process_status: %v", err)
-		}
-		var decoded ProcessStatusOutput
-		if err := json.Unmarshal([]byte(output), &decoded); err != nil {
-			t.Fatalf("json.Unmarshal(process_status output): %v\noutput=%s", err, output)
-		}
-		switch decoded.Status {
-		case "exited", "signaled", "failed", "closed":
-			return decoded
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("terminal session %s still %s", terminalSessionID, decoded.Status)
-		}
-		time.Sleep(25 * time.Millisecond)
 	}
 }
 

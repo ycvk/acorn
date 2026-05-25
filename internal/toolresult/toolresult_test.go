@@ -116,15 +116,14 @@ func TestNormalizeAppendRequestAcceptsNativeDeveloperToolSideEffects(t *testing.
 		Status:   StatusSucceeded,
 		SideEffects: []SideEffectRef{
 			{Kind: SideEffectKindArtifact, Ref: "artifact_1"},
-			{Kind: SideEffectKindTerminalSession, Ref: "term_1"},
 			{Kind: SideEffectKindOperatorAction, Ref: "action_1"},
 		},
 	})
 	if err != nil {
 		t.Fatalf("normalize append request: %v", err)
 	}
-	if len(got.SideEffects) != 3 {
-		t.Fatalf("side effect count = %d, want 3", len(got.SideEffects))
+	if len(got.SideEffects) != 2 {
+		t.Fatalf("side effect count = %d, want 2", len(got.SideEffects))
 	}
 }
 

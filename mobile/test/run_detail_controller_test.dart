@@ -111,7 +111,6 @@ RunDetail _detail(String runId) {
       ),
     ],
     artifacts: const [],
-    terminalSessions: const [],
     raw: const {},
   );
 }

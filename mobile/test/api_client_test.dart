@@ -115,7 +115,7 @@ void main() {
     expect(decision.answer, 'Ship it');
   });
 
-  test('getRunDetail parses workbench artifacts and terminal sessions', () async {
+  test('getRunDetail parses workbench artifacts', () async {
     final client = AcornApiClient(
       serverUrl: 'http://acorn.local',
       accessToken: 'device_token',
@@ -182,36 +182,6 @@ void main() {
                   'created_at': '2026-05-20T00:00:01Z',
                 },
               ],
-              'terminal_sessions': [
-                {
-                  'terminal_session_id': 'term_1',
-                  'run_id': 'run_1',
-                  'session_id': 'thread_1',
-                  'label': 'make test',
-                  'command_json': '["make","test"]',
-                  'cwd': '/repo',
-                  'interactive': false,
-                  'pty': false,
-                  'status': 'exited',
-                  'exit_code': 0,
-                  'stdout_artifact_id': 'artifact_stdout',
-                  'started_at': '2026-05-20T00:00:00Z',
-                  'ended_at': '2026-05-20T00:00:02Z',
-                  'created_at': '2026-05-20T00:00:00Z',
-                  'updated_at': '2026-05-20T00:00:02Z',
-                  'logs': [
-                    {
-                      'log_id': 'term_1_stdout',
-                      'terminal_session_id': 'term_1',
-                      'stream': 'stdout',
-                      'artifact_id': 'artifact_stdout',
-                      'start_offset': 0,
-                      'size_bytes': 128,
-                      'created_at': '2026-05-20T00:00:02Z',
-                    },
-                  ],
-                },
-              ],
             },
             'trace': null,
             'raw': {'unsupported_events': []},
@@ -227,11 +197,6 @@ void main() {
     expect(artifact.sourceToolResultRef, 'tool_result:run_1:call_1');
     expect(artifact.kind, 'markdown');
     expect(artifact.sizeBytes, 42);
-    final terminal = detail.terminalSessions.single;
-    expect(terminal.terminalSessionId, 'term_1');
-    expect(terminal.status, 'exited');
-    expect(terminal.exitCode, 0);
-    expect(terminal.logs.single.artifactId, 'artifact_stdout');
   });
 
   test(

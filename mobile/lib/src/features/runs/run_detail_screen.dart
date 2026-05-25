@@ -181,24 +181,6 @@ class _RunDetailBody extends StatelessWidget {
             },
           ),
         ],
-        if (detail.terminalSessions.isNotEmpty) ...[
-          const SliverToBoxAdapter(
-            child: SectionHeader(title: 'Terminal sessions'),
-          ),
-          SliverList.builder(
-            itemCount: detail.terminalSessions.length,
-            itemBuilder: (context, index) {
-              final session = detail.terminalSessions[index];
-              return AcornListRow(
-                icon: Icons.terminal_outlined,
-                title: session.label ?? shortId(session.terminalSessionId),
-                subtitle:
-                    '${session.status} · ${session.cwd} · ${_terminalExit(session)}',
-                tone: _terminalTone(session.status),
-              );
-            },
-          ),
-        ],
         const SliverToBoxAdapter(child: SizedBox(height: 18)),
       ],
     );
@@ -286,16 +268,6 @@ AcornStatusTone _eventTone(RunEvent event) {
   return AcornStatusTone.neutral;
 }
 
-AcornStatusTone _terminalTone(String status) {
-  return switch (status) {
-    'completed' => AcornStatusTone.success,
-    'failed' => AcornStatusTone.error,
-    'interrupted' => AcornStatusTone.warning,
-    'running' => AcornStatusTone.info,
-    _ => AcornStatusTone.neutral,
-  };
-}
-
 IconData _statusIcon(String status) {
   return switch (status) {
     'completed' => Icons.check_circle_outline,
@@ -357,16 +329,6 @@ Map<String, int> _eventTypeCounts(List<RunEvent> events) {
       return left.key.compareTo(right.key);
     });
   return Map<String, int>.fromEntries(entries);
-}
-
-String _terminalExit(RunTerminalSession session) {
-  if (session.exitCode != null) {
-    return 'exit ${session.exitCode}';
-  }
-  if (session.signal != null) {
-    return 'signal ${session.signal}';
-  }
-  return shortId(session.terminalSessionId);
 }
 
 String _formatBytes(int bytes) {

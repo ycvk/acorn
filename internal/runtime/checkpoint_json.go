@@ -5,13 +5,7 @@ import (
 
 	"github.com/cloudwego/eino/compose"
 	"github.com/cloudwego/eino/schema"
-	"github.com/ycvk/acorn/internal/runtime/graph"
 )
-
-func init() {
-	schema.RegisterName[graph.AgentGraphState]("_acorn_agent_graph_state")
-	schema.RegisterName[*Plan]("_acorn_plan")
-}
 
 // jsonSerializer implements compose.Serializer using encoding/json.
 // Unlike gob, JSON preserves pointer type information for *schema.Message,

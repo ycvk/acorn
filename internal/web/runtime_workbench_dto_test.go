@@ -135,30 +135,6 @@ func TestRuntimeWorkbenchDTOFromDomainPreservesAggregatedSections(t *testing.T) 
 			SHA256:              "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 			CreatedAt:           now,
 		}},
-		TerminalSessions: []app.TerminalSessionSummary{{
-			TerminalSessionID: "term_1",
-			RunID:             "run_42",
-			SessionID:         "session_42",
-			Label:             "make test",
-			CommandJSON:       `["make","test"]`,
-			Cwd:               "/repo/acorn",
-			Status:            "exited",
-			ExitCode:          new(0),
-			StdoutArtifactID:  "artifact_stdout",
-			StartedAt:         &now,
-			EndedAt:           &now,
-			CreatedAt:         now,
-			UpdatedAt:         now,
-			Logs: []app.TerminalSessionLogSummary{{
-				LogID:             "term_1_stdout",
-				TerminalSessionID: "term_1",
-				Stream:            "stdout",
-				ArtifactID:        "artifact_stdout",
-				StartOffset:       0,
-				SizeBytes:         128,
-				CreatedAt:         now,
-			}},
-		}},
 		Plan: &runtime.Plan{
 			PlanID:    "plan_1",
 			SessionID: "session_42",
@@ -258,9 +234,6 @@ func TestRuntimeWorkbenchDTOFromDomainPreservesAggregatedSections(t *testing.T) 
 	}
 	if len(dto.Artifacts) != 1 || dto.Artifacts[0].ArtifactID != "artifact_report" || dto.Artifacts[0].SourceToolResultRef != "tool_result:run_42:call_artifact" {
 		t.Fatalf("artifacts = %+v", dto.Artifacts)
-	}
-	if len(dto.TerminalSessions) != 1 || dto.TerminalSessions[0].TerminalSessionID != "term_1" || len(dto.TerminalSessions[0].Logs) != 1 {
-		t.Fatalf("terminal sessions = %+v", dto.TerminalSessions)
 	}
 	if dto.Subagents[0].OrchestrationMode != "single_agent" || dto.Subagents[0].ParentStepID != "s1" {
 		t.Fatalf("subagent truth = %+v", dto.Subagents[0])

@@ -17,7 +17,7 @@ import (
 	"github.com/ycvk/acorn/internal/workspace"
 )
 
-func BuildMemoryFileTools(ctx context.Context, memory memorymodule.Service) ([]einotool.BaseTool, error) {
+func BuildMemoryFileTools(ctx context.Context, memory memorymodule.Service, delegate tools.DelegateTaskContext) ([]einotool.BaseTool, error) {
 	if memory == nil {
 		return nil, fmt.Errorf("memory service is required")
 	}
@@ -36,7 +36,7 @@ func BuildMemoryFileTools(ctx context.Context, memory memorymodule.Service) ([]e
 	catalog, err := tools.BuildCatalog(tools.CatalogConfig{
 		Workspace:       ws,
 		MutationEnabled: true,
-	}, nil, nil, nil)
+	}, nil, nil, delegate)
 	if err != nil {
 		return nil, fmt.Errorf("build memory tools: %w", err)
 	}
@@ -61,47 +61,63 @@ func BuildMemoryFileTools(ctx context.Context, memory memorymodule.Service) ([]e
 }
 
 type memorySearchInput struct {
-	Query           string   `json:"query,omitempty"`
-	Scope           string   `json:"scope,omitempty"`
-	Kinds           []string `json:"kinds,omitempty"`
-	Limit           int      `json:"limit,omitempty"`
-	IncludeInactive bool     `json:"include_inactive,omitempty"`
-	IncludeRetired  bool     `json:"include_retired,omitempty"`
-	Explain         bool     `json:"explain,omitempty"`
+	Query           string   `json:"query" jsonschema:"description=Natural language query to search Acorn memory records."`
+	Scope           string   `json:"scope,omitempty" jsonschema:"description=Optional memory scope such as workspace:acorn. Empty searches all scopes."`
+	Kinds           []string `json:"kinds,omitempty" jsonschema:"description=Optional record kinds to include: fact skill history."`
+	Limit           int      `json:"limit,omitempty" jsonschema:"description=Maximum number of memory records to return."`
+	IncludeInactive bool     `json:"include_inactive,omitempty" jsonschema:"description=Include inactive records."`
+	IncludeRetired  bool     `json:"include_retired,omitempty" jsonschema:"description=Include retired records. Also includes inactive records."`
+	Explain         bool     `json:"explain,omitempty" jsonschema:"description=Include retrieval scoring explanation."`
 }
 
 type memorySearchOutput struct {
-	Items   []memorySearchOutputItem `json:"items,omitempty"`
-	Explain string                   `json:"explain,omitempty"`
+	Items   []memorySearchOutputItem    `json:"items"`
+	Explain *memorymodule.SearchExplain `json:"explain,omitempty"`
 }
 
 type memorySearchOutputItem struct {
-	Ref         string   `json:"ref,omitempty"`
-	Kind        string   `json:"kind,omitempty"`
-	Title       string   `json:"title,omitempty"`
-	Content     string   `json:"content,omitempty"`
-	Score       float64  `json:"score,omitempty"`
-	CreatedAt   string   `json:"created_at,omitempty"`
-	UpdatedAt   string   `json:"updated_at,omitempty"`
-	ValidFrom   string   `json:"valid_from,omitempty"`
-	ValidUntil  string   `json:"valid_until,omitempty"`
-	SourceRunID string   `json:"source_run_id,omitempty"`
-	Tags        []string `json:"tags,omitempty"`
+	Ref          string                        `json:"ref"`
+	Kind         string                        `json:"kind"`
+	Title        string                        `json:"title"`
+	Status       string                        `json:"status"`
+	Scope        string                        `json:"scope,omitempty"`
+	Tags         []string                      `json:"tags,omitempty"`
+	Origin       string                        `json:"origin,omitempty"`
+	TaskPattern  string                        `json:"task_pattern,omitempty"`
+	Path         string                        `json:"path,omitempty"`
+	Snippet      string                        `json:"snippet,omitempty"`
+	Score        float64                       `json:"score"`
+	SourceRun    string                        `json:"source_run,omitempty"`
+	SourceRefs   []string                      `json:"source_refs,omitempty"`
+	EvidenceRefs []string                      `json:"evidence_refs,omitempty"`
+	CreatedAt    string                        `json:"created_at,omitempty"`
+	UpdatedAt    string                        `json:"updated_at,omitempty"`
+	ValidFrom    string                        `json:"valid_from,omitempty"`
+	ValidUntil   string                        `json:"valid_until,omitempty"`
+	Relations    []memorymodule.RecordRelation `json:"relations,omitempty"`
 }
 
 func memorySearchOutputItemFromSearchItem(item memorymodule.SearchItem) memorySearchOutputItem {
 	return memorySearchOutputItem{
-		Ref:         item.Ref,
-		Kind:        item.Kind,
-		Title:       item.Title,
-		Content:     item.Snippet,
-		Score:       item.Score,
-		CreatedAt:   item.Created,
-		UpdatedAt:   item.Updated,
-		ValidFrom:   item.ValidFrom,
-		ValidUntil:  item.ValidUntil,
-		SourceRunID: item.SourceRun,
-		Tags:        append([]string(nil), item.Tags...),
+		Ref:          item.Ref,
+		Kind:         item.Kind,
+		Title:        item.Title,
+		Status:       item.Status,
+		Scope:        item.Scope,
+		Tags:         append([]string(nil), item.Tags...),
+		Origin:       item.Origin,
+		TaskPattern:  item.TaskPattern,
+		Path:         item.Path,
+		Snippet:      item.Snippet,
+		Score:        item.Score,
+		SourceRun:    item.SourceRun,
+		SourceRefs:   append([]string(nil), item.SourceRefs...),
+		EvidenceRefs: append([]string(nil), item.EvidenceRefs...),
+		CreatedAt:    item.Created,
+		UpdatedAt:    item.Updated,
+		ValidFrom:    item.ValidFrom,
+		ValidUntil:   item.ValidUntil,
+		Relations:    append([]memorymodule.RecordRelation(nil), item.Relations...),
 	}
 }
 
@@ -155,10 +171,7 @@ func (t *memorySearchTool) InvokableRun(ctx context.Context, argumentsInJSON str
 			output.Items = append(output.Items, memorySearchOutputItemFromSearchItem(item))
 		}
 		if result.Explain != nil {
-			explainBody, err := json.Marshal(result.Explain)
-			if err == nil {
-				output.Explain = string(explainBody)
-			}
+			output.Explain = result.Explain
 		}
 	}
 	body, err := json.Marshal(output)

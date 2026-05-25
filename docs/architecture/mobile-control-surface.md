@@ -120,7 +120,7 @@ Current mobile surfaces:
 - Connect: scan the Acorn pairing QR or enter server URL / pairing code manually, pair a device, and persist the connection profile.
 - Chat: thread detail surface for backend message send, run start, live assistant streaming, backend-provided reasoning display, assistant Markdown rendering, and exceptional blocking activity rows.
 - Threads: first shell destination and thread-continuation surface. It uses `/v1/inbox` only for high-priority owner context (server readiness, pending decision count, active/attention runs) while still making backend threads the primary action path; it lists/creates/deletes backend threads and opens them in Chat as a pushed detail route.
-- Run detail: secondary detail surface over `GET /v1/runs/{run_id}/detail`, projecting summary and user-meaningful artifacts/terminal sessions. Raw event diagnostics are separated behind an explicit diagnostics route.
+- Run detail: secondary detail surface over `GET /v1/runs/{run_id}/detail`, projecting summary and user-meaningful artifacts. Raw event diagnostics are separated behind an explicit diagnostics route.
 - Approvals: list pending backend actions from the inbox aggregate and open the existing approval detail flow.
 - Run stream: read `GET /v1/runs/{run_id}/events?after_seq=0&follow=true` and project persisted RunEvent SSE into the active assistant bubble.
 - Pending approval: read `GET /v1/pending-actions/{action_id}` and decide through `POST /v1/pending-actions/{action_id}:decide`.

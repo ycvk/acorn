@@ -57,6 +57,9 @@ func (s *Store) migrateV2() error {
 	if err := s.dropRemovedRuntimeTables(); err != nil {
 		return err
 	}
+	if err := s.dropRemovedTerminalSessionTables(); err != nil {
+		return err
+	}
 	if err := s.dropRemovedCodeintelTables(); err != nil {
 		return err
 	}
@@ -132,6 +135,43 @@ func (s *Store) dropRemovedRuntimeTables() (err error) {
 	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit removed runtime table drop: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) dropRemovedTerminalSessionTables() (err error) {
+	const version = "v2_drop_removed_terminal_session_tables"
+	var count int
+	row := s.db.QueryRow("SELECT COUNT(*) FROM schema_migrations WHERE version = ?", version)
+	if err := row.Scan(&count); err == nil && count > 0 {
+		return nil
+	}
+
+	tx, err := s.db.Begin()
+	if err != nil {
+		return fmt.Errorf("begin removed terminal session table drop: %w", err)
+	}
+	defer func() {
+		rollbackErr := tx.Rollback()
+		if rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
+			err = errors.Join(err, fmt.Errorf("removed terminal session table drop rollback: %w", rollbackErr))
+		}
+	}()
+
+	statements := []string{
+		`DROP TABLE IF EXISTS terminal_session_logs`,
+		`DROP TABLE IF EXISTS terminal_sessions`,
+	}
+	for _, statement := range statements {
+		if _, err := tx.Exec(statement); err != nil {
+			return fmt.Errorf("drop removed terminal session table: %w", err)
+		}
+	}
+	if _, err := tx.Exec("INSERT INTO schema_migrations (version, applied_at) VALUES (?, datetime('now'))", version); err != nil {
+		return fmt.Errorf("record removed terminal session table drop migration: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit removed terminal session table drop: %w", err)
 	}
 	return nil
 }
@@ -463,41 +503,6 @@ CREATE TABLE IF NOT EXISTS artifacts (
 CREATE INDEX IF NOT EXISTS idx_artifacts_run ON artifacts(run_id, created_at ASC, artifact_id ASC);
 CREATE INDEX IF NOT EXISTS idx_artifacts_session ON artifacts(session_id, created_at ASC, artifact_id ASC);
 CREATE INDEX IF NOT EXISTS idx_artifacts_source_tool_result ON artifacts(source_tool_result_ref);
-CREATE TABLE IF NOT EXISTS terminal_sessions (
-    terminal_session_id TEXT PRIMARY KEY,
-    run_id TEXT NOT NULL,
-    session_id TEXT NOT NULL DEFAULT '',
-    label TEXT NOT NULL DEFAULT '',
-    command_json TEXT NOT NULL,
-    cwd TEXT NOT NULL,
-    interactive INTEGER NOT NULL DEFAULT 0,
-    pty INTEGER NOT NULL DEFAULT 0,
-    status TEXT NOT NULL,
-    pid INTEGER,
-    process_group_id INTEGER,
-    exit_code INTEGER,
-    signal TEXT NOT NULL DEFAULT '',
-    stdout_artifact_id TEXT NOT NULL DEFAULT '',
-    stderr_artifact_id TEXT NOT NULL DEFAULT '',
-    pty_artifact_id TEXT NOT NULL DEFAULT '',
-    started_at TEXT,
-    ended_at TEXT,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_terminal_sessions_run ON terminal_sessions(run_id, created_at ASC, terminal_session_id ASC);
-CREATE INDEX IF NOT EXISTS idx_terminal_sessions_session ON terminal_sessions(session_id, created_at ASC, terminal_session_id ASC);
-CREATE INDEX IF NOT EXISTS idx_terminal_sessions_status ON terminal_sessions(status, updated_at DESC);
-CREATE TABLE IF NOT EXISTS terminal_session_logs (
-    log_id TEXT PRIMARY KEY,
-    terminal_session_id TEXT NOT NULL,
-    stream TEXT NOT NULL,
-    artifact_id TEXT NOT NULL,
-    start_offset INTEGER NOT NULL DEFAULT 0,
-    size_bytes INTEGER NOT NULL DEFAULT 0,
-    created_at TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_terminal_session_logs_session ON terminal_session_logs(terminal_session_id, stream, created_at ASC, log_id ASC);
 CREATE TABLE IF NOT EXISTS provider_usages (
     usage_id TEXT PRIMARY KEY,
     run_id TEXT NOT NULL,
@@ -579,8 +584,6 @@ func (s *Store) validateSchema() error {
 		"context_boundaries":      {"boundary_id", "session_id", "run_id", "sequence", "turn_index", "mode", "trigger", "first_index", "last_index", "covered_first_message_id", "covered_last_message_id", "previous_boundary_id", "summary_message_id", "transcript_ref", "preserved_from_index", "preserved_to_index", "preserved_head_message_id", "preserved_anchor_message_id", "preserved_tail_message_id", "tokens_before", "tokens_after", "effective_window_tokens", "summary", "summary_snippet", "created_at"},
 		"tool_results":            {"result_ref", "run_id", "session_id", "turn_index", "call_id", "tool_name", "arguments_json", "status", "error_reason", "preview", "full_text", "token_estimate", "side_effects_json", "evidence_refs_json", "created_at"},
 		"artifacts":               {"artifact_id", "run_id", "session_id", "source_tool_result_ref", "kind", "title", "mime_type", "relative_path", "size_bytes", "sha256", "created_at"},
-		"terminal_sessions":       {"terminal_session_id", "run_id", "session_id", "label", "command_json", "cwd", "interactive", "pty", "status", "pid", "process_group_id", "exit_code", "signal", "stdout_artifact_id", "stderr_artifact_id", "pty_artifact_id", "started_at", "ended_at", "created_at", "updated_at"},
-		"terminal_session_logs":   {"log_id", "terminal_session_id", "stream", "artifact_id", "start_offset", "size_bytes", "created_at"},
 		"provider_usages":         {"usage_id", "run_id", "session_id", "call_site", "provider_name", "model_name", "prompt_tokens", "completion_tokens", "total_tokens", "cached_tokens", "reasoning_tokens", "created_at"},
 		"run_decisions":           {"run_id", "session_id", "action", "intent", "selected_skill_id", "decision_reason", "decision_profile_hash", "created_at"},
 		"run_archives":            {"run_id", "session_id", "input_excerpt", "output_excerpt", "touched_paths_json", "tool_names_json", "run_status", "created_at"},

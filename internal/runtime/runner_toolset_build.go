@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
 	"github.com/ycvk/acorn/internal/skilllifecycle"
 	"github.com/ycvk/acorn/internal/skills"
+	"github.com/ycvk/acorn/internal/toolfactory"
 	"github.com/ycvk/acorn/internal/tooling"
 	"github.com/ycvk/acorn/internal/tools"
 	"github.com/ycvk/acorn/internal/webaccess"
@@ -30,7 +32,7 @@ func (f *RunnerFactory) buildToolset(
 	childExec orchestration.ChildAgentExecutor,
 	includePlanning bool,
 	profile tooling.ToolProfile,
-) (toolset *Toolset, err error) {
+) (toolset *toolfactory.Toolset, err error) {
 	if f == nil || f.deps.Config == nil {
 		return nil, errors.New("runner factory is not initialized")
 	}
@@ -40,16 +42,22 @@ func (f *RunnerFactory) buildToolset(
 	if f.deps.ArtifactService == nil {
 		return nil, errors.New("artifact service is not initialized")
 	}
-	if f.deps.TerminalService == nil {
-		return nil, errors.New("terminal session service is not initialized")
-	}
-	var closers []toolsetCloser
+	var closers []io.Closer
 	defer func() {
 		if err == nil {
 			return
 		}
-		if closeErr := closeToolsetClosers(closers); closeErr != nil {
-			err = errors.Join(err, fmt.Errorf("close toolset after build failure: %w", closeErr))
+		var closeErrs []error
+		for i := len(closers) - 1; i >= 0; i-- {
+			if closers[i] == nil {
+				continue
+			}
+			if closeErr := closers[i].Close(); closeErr != nil {
+				closeErrs = append(closeErrs, closeErr)
+			}
+		}
+		if len(closeErrs) > 0 {
+			err = errors.Join(err, fmt.Errorf("close toolset after build failure: %w", errors.Join(closeErrs...)))
 		}
 	}()
 
@@ -103,8 +111,6 @@ func (f *RunnerFactory) buildToolset(
 		RunCommandEnabled: !f.deps.Config.Tools.RunCommand.Disabled,
 		ArtifactService:   f.deps.ArtifactService,
 		ArtifactContext:   artifactToolBridge{},
-		TerminalService:   f.deps.TerminalService,
-		TerminalContext:   artifactToolBridge{},
 		OperatorStore:     operatorStore,
 		OperatorContext:   artifactToolBridge{},
 		WebFetchService:   webFetchService,
@@ -127,7 +133,7 @@ func (f *RunnerFactory) buildToolset(
 	}
 	var memoryTools []einotool.BaseTool
 	if f.deps.MemoryModule != nil {
-		fileTools, err := buildMemoryFileTools(ctx, f.deps.MemoryModule)
+		fileTools, err := toolfactory.BuildMemoryFileTools(ctx, f.deps.MemoryModule, delegateTaskBridge{})
 		if err != nil {
 			return nil, err
 		}
@@ -190,7 +196,7 @@ func (f *RunnerFactory) buildToolset(
 	if err != nil {
 		return nil, fmt.Errorf("build toolset catalog: %w", err)
 	}
-	return &Toolset{catalog: catalog, profile: profile, closers: closers}, nil
+	return toolfactory.NewToolset(catalog, profile, closers...), nil
 }
 
 const capabilityDiscoveryInstruction = `Capability discovery rules:

@@ -12,18 +12,11 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/ycvk/acorn/internal/events"
+	"github.com/ycvk/acorn/internal/runtime/stream"
 	"github.com/ycvk/acorn/internal/store"
 )
 
 const defaultElicitationTimeout = 30 * time.Second
-
-// Local stream kind constants for elicitation events.
-// These mirror runtime.StreamKindElicitationPending/Decided to avoid an
-// import cycle (runtime -> mcpprovider -> runtime).
-const (
-	elicitationEventKindPending = "elicitation.pending"
-	elicitationEventKindDecided = "elicitation.decided"
-)
 
 // PendingActionStore is the pending-action persistence port required by MCP elicitation.
 type PendingActionStore interface {
@@ -109,7 +102,7 @@ func (h *ElicitationHandler) HandleElicitation(ctx context.Context, req *mcp.Eli
 		return nil, fmt.Errorf("sync elicitation pending action message: %w", err)
 	}
 
-	if err := h.emitElicitationEvent(ctx, runID, record.ActionID, req.Params, elicitationEventKindPending); err != nil {
+	if err := h.emitElicitationEvent(ctx, runID, record.ActionID, req.Params, string(stream.StreamKindElicitationPending)); err != nil {
 		return nil, err
 	}
 
@@ -122,7 +115,7 @@ func (h *ElicitationHandler) HandleElicitation(ctx context.Context, req *mcp.Eli
 		return nil, fmt.Errorf("sync elicitation decided message: %w", err)
 	}
 
-	if err := h.emitElicitationEvent(ctx, runID, record.ActionID, req.Params, elicitationEventKindDecided); err != nil {
+	if err := h.emitElicitationEvent(ctx, runID, record.ActionID, req.Params, string(stream.StreamKindElicitationDecided)); err != nil {
 		return nil, err
 	}
 
@@ -183,20 +176,12 @@ func pendingActionStatusToElicitResult(status events.PendingActionStatus) *mcp.E
 	}
 }
 
-// elicitationEventPayload is the payload for elicitation stream events.
-// It mirrors runtime.ElicitationPayload to avoid an import cycle.
-type elicitationEventPayload struct {
-	ActionID        string `json:"action_id"`
-	Message         string `json:"message"`
-	RequestedSchema any    `json:"requested_schema,omitempty"`
-}
-
 // emitElicitationEvent emits an elicitation event via the store's AppendEventContext.
 func (h *ElicitationHandler) emitElicitationEvent(ctx context.Context, runID, actionID string, params *mcp.ElicitParams, eventKind string) error {
 	if h.store == nil {
 		return fmt.Errorf("elicitation event store not configured")
 	}
-	payload := elicitationEventPayload{
+	payload := stream.ElicitationPayload{
 		ActionID: actionID,
 	}
 	if params != nil {

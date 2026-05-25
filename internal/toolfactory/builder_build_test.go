@@ -37,7 +37,7 @@ func (m *mockWorkspace) InspectGitStatus(ctx context.Context, scopedPath string)
 func TestBuilderBuildWithWorkspace(t *testing.T) {
 	cfg := config.DefaultConfig()
 	ws := &mockWorkspace{root: t.TempDir()}
-	b := NewBuilder(cfg, ws, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	b := NewBuilder(cfg, ws, nil, nil, nil, nil, nil, nil, nil, nil)
 
 	// Build will fail because it tries to create webaccess/browser services,
 	// but we at least verify it passes the nil-checks.
