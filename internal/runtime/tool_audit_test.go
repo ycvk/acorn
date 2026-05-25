@@ -14,7 +14,7 @@ import (
 	"github.com/ycvk/acorn/internal/config"
 	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
 	"github.com/ycvk/acorn/internal/tooling"
-	"github.com/ycvk/acorn/internal/toolresult"
+	storerepo "github.com/ycvk/acorn/internal/store"
 )
 
 func TestAuditedToolRecordsSucceededEvent(t *testing.T) {
@@ -399,12 +399,12 @@ func TestValidationFailureThroughSafeParallelNodeIsModelVisibleFailedToolResult(
 		t.Fatalf("validation failure should be marked as tool_error: %+v", msg.Extra)
 	}
 
-	record, err := ledger.Load(context.Background(), toolresult.BuildRef(runID, callID))
+	record, err := ledger.Load(context.Background(), storerepo.BuildToolResultRef(runID, callID))
 	if err != nil {
 		t.Fatalf("load ledger record: %v", err)
 	}
-	if record.Status != toolresult.StatusFailed {
-		t.Fatalf("ledger status = %q, want %q", record.Status, toolresult.StatusFailed)
+	if record.Status != storerepo.ToolResultStatusFailed {
+		t.Fatalf("ledger status = %q, want %q", record.Status, storerepo.ToolResultStatusFailed)
 	}
 	if record.FullText != msg.Content {
 		t.Fatalf("ledger full text = %q, want tool message content %q", record.FullText, msg.Content)

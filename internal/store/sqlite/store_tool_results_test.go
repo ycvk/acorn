@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ycvk/acorn/internal/toolresult"
+	storerepo "github.com/ycvk/acorn/internal/store"
 )
 
 func TestStoreToolResultsAppendLoadListAndBacklink(t *testing.T) {
@@ -17,21 +17,21 @@ func TestStoreToolResultsAppendLoadListAndBacklink(t *testing.T) {
 	t.Cleanup(func() { _ = store.Close() })
 
 	firstAt := time.Unix(1_710_000_000, 0).UTC()
-	initial, err := store.Append(context.Background(), toolresult.AppendRequest{
+	initial, err := store.Append(context.Background(), storerepo.ToolResultAppendRequest{
 		RunID:         "run_1",
 		SessionID:     "sess_1",
 		TurnIndex:     2,
 		CallID:        "call_1",
 		ToolName:      "read_file",
 		ArgumentsJSON: `{"path":"README.md"}`,
-		Status:        toolresult.StatusSucceeded,
+		Status:        storerepo.ToolResultStatusSucceeded,
 		FullText:      "first result body",
 		TokenEstimate: 9,
-		SideEffects: []toolresult.SideEffectRef{{
+		SideEffects: []storerepo.SideEffectRef{{
 			Kind: "workspace_read",
 			Path: "README.md",
 		}},
-		EvidenceRefs: []toolresult.EvidenceRef{{
+		EvidenceRefs: []storerepo.EvidenceRef{{
 			Kind: "plan_evidence",
 			Ref:  "step-evidence-1",
 		}},
@@ -48,21 +48,21 @@ func TestStoreToolResultsAppendLoadListAndBacklink(t *testing.T) {
 	}
 
 	secondAt := time.Unix(1_710_000_060, 0).UTC()
-	updated, err := store.Append(context.Background(), toolresult.AppendRequest{
+	updated, err := store.Append(context.Background(), storerepo.ToolResultAppendRequest{
 		RunID:         "run_1",
 		SessionID:     "sess_1",
 		TurnIndex:     2,
 		CallID:        "call_1",
 		ToolName:      "read_file",
 		ArgumentsJSON: `{"path":"README.md"}`,
-		Status:        toolresult.StatusSucceeded,
+		Status:        storerepo.ToolResultStatusSucceeded,
 		FullText:      "second result body",
 		TokenEstimate: 11,
-		SideEffects: []toolresult.SideEffectRef{{
+		SideEffects: []storerepo.SideEffectRef{{
 			Kind: "workspace_read",
 			Path: "README.md",
 		}},
-		EvidenceRefs: []toolresult.EvidenceRef{{
+		EvidenceRefs: []storerepo.EvidenceRef{{
 			Kind: "plan_evidence",
 			Ref:  "step-evidence-1",
 		}},
@@ -103,7 +103,7 @@ func TestStoreToolResultsAppendLoadListAndBacklink(t *testing.T) {
 		t.Fatalf("list count = %d, want 1", len(items))
 	}
 
-	backlinked, err := store.AppendEvidenceRef(context.Background(), updated.ResultRef, toolresult.EvidenceRef{
+	backlinked, err := store.AppendEvidenceRef(context.Background(), updated.ResultRef, storerepo.EvidenceRef{
 		Kind: "plan_evidence",
 		Ref:  "step-evidence-2",
 	})
@@ -118,7 +118,7 @@ func TestStoreToolResultsAppendLoadListAndBacklink(t *testing.T) {
 	if err == nil {
 		t.Fatalf("load missing tool result = %#v, want error", missing)
 	}
-	if err != toolresult.ErrToolResultNotFound {
+	if err != storerepo.ErrToolResultNotFound {
 		t.Fatalf("missing tool result error = %v, want ErrToolResultNotFound", err)
 	}
 }
@@ -130,16 +130,16 @@ func TestStoreToolResultsAppendRejectsRequiredFields(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = store.Close() })
 
-	_, err = store.Append(context.Background(), toolresult.AppendRequest{
+	_, err = store.Append(context.Background(), storerepo.ToolResultAppendRequest{
 		SessionID: "sess_1",
 		CallID:    "call_1",
 		ToolName:  "read_file",
-		Status:    toolresult.StatusSucceeded,
+		Status:    storerepo.ToolResultStatusSucceeded,
 	})
 	if err == nil {
 		t.Fatal("expected missing run_id error")
 	}
-	_, err = store.Append(context.Background(), toolresult.AppendRequest{
+	_, err = store.Append(context.Background(), storerepo.ToolResultAppendRequest{
 		RunID:     "run_1",
 		SessionID: "sess_1",
 		CallID:    "call_1",

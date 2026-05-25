@@ -7,7 +7,7 @@ import (
 
 	"github.com/ycvk/acorn/internal/crystallization"
 	"github.com/ycvk/acorn/internal/events"
-	"github.com/ycvk/acorn/internal/toolresult"
+	storerepo "github.com/ycvk/acorn/internal/store"
 )
 
 type mockCrystallizer struct {
@@ -254,18 +254,18 @@ func TestCrystallizationFeatureGateDisabled(t *testing.T) {
 }
 
 type toolResultAppender interface {
-	Append(context.Context, toolresult.AppendRequest) (toolresult.Record, error)
+	Append(context.Context, storerepo.ToolResultAppendRequest) (storerepo.ToolResultRecord, error)
 }
 
 func appendSuccessfulToolResult(t *testing.T, ctx context.Context, store toolResultAppender, runID, sessionID, callID, toolName string) string {
 	t.Helper()
-	record, err := store.Append(ctx, toolresult.AppendRequest{
+	record, err := store.Append(ctx, storerepo.ToolResultAppendRequest{
 		RunID:         runID,
 		SessionID:     sessionID,
 		CallID:        callID,
 		ToolName:      toolName,
 		ArgumentsJSON: `{}`,
-		Status:        toolresult.StatusSucceeded,
+		Status:        storerepo.ToolResultStatusSucceeded,
 		FullText:      "ok",
 	})
 	if err != nil {

@@ -11,7 +11,7 @@ import (
 	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/providerusage"
 	"github.com/ycvk/acorn/internal/runtime"
-	"github.com/ycvk/acorn/internal/toolresult"
+	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/workspace"
 )
 
@@ -32,7 +32,7 @@ func flattenPlanEvidence(plan *runtime.Plan) []runtime.PlanEvidence {
 	return evidence
 }
 
-func buildContextEconomySummary(rawEvents []events.EventRecord, records []toolresult.Record) ContextEconomySummary {
+func buildContextEconomySummary(rawEvents []events.EventRecord, records []store.ToolResultRecord) ContextEconomySummary {
 	summary := ContextEconomySummary{
 		ToolResultCount: len(records),
 		ToolResults:     make([]ContextToolResultSummary, 0, len(records)),
@@ -149,7 +149,7 @@ func buildProviderUsageSummary(records []providerusage.Record) ProviderUsageSumm
 	return summary
 }
 
-func evidenceRefStrings(items []toolresult.EvidenceRef) []string {
+func evidenceRefStrings(items []store.EvidenceRef) []string {
 	if len(items) == 0 {
 		return nil
 	}
@@ -259,7 +259,7 @@ func buildSubagentRuns(raw []events.EventRecord) []SubagentRun {
 	return result
 }
 
-func buildMutationCheckpointSummaries(records []toolresult.Record) []MutationCheckpointSummary {
+func buildMutationCheckpointSummaries(records []store.ToolResultRecord) []MutationCheckpointSummary {
 	byID := make(map[string]*MutationCheckpointSummary)
 	for _, record := range records {
 		paths := sideEffectPaths(record.SideEffects, workspace.MutationCheckpointEffect)
@@ -288,7 +288,7 @@ func buildMutationCheckpointSummaries(records []toolresult.Record) []MutationChe
 	return sortedMutationCheckpointSummaries(byID)
 }
 
-func buildRollbackSummaries(records []toolresult.Record) ([]RollbackSummary, error) {
+func buildRollbackSummaries(records []store.ToolResultRecord) ([]RollbackSummary, error) {
 	byID := make(map[string]*RollbackSummary)
 	for _, record := range records {
 		if strings.TrimSpace(record.ToolName) != "rollback_workspace_checkpoint" {
@@ -325,10 +325,10 @@ type rollbackSummaryPayload struct {
 	Error         string   `json:"error"`
 }
 
-func parseRollbackSummaryRecord(record toolresult.Record) (RollbackSummary, error) {
+func parseRollbackSummaryRecord(record store.ToolResultRecord) (RollbackSummary, error) {
 	var payload rollbackSummaryPayload
 	if err := json.Unmarshal([]byte(record.FullText), &payload); err != nil {
-		if record.Status == toolresult.StatusFailed {
+		if record.Status == store.ToolResultStatusFailed {
 			return failedRollbackSummaryRecord(record), nil
 		}
 		return RollbackSummary{}, fmt.Errorf("parse rollback_workspace_checkpoint result %s: %w", record.ResultRef, err)
@@ -355,7 +355,7 @@ func parseRollbackSummaryRecord(record toolresult.Record) (RollbackSummary, erro
 	}, nil
 }
 
-func failedRollbackSummaryRecord(record toolresult.Record) RollbackSummary {
+func failedRollbackSummaryRecord(record store.ToolResultRecord) RollbackSummary {
 	errText := strings.TrimSpace(record.ErrorReason)
 	if errText == "" {
 		errText = strings.TrimSpace(record.Preview)
@@ -387,7 +387,7 @@ func mutationCheckpointDiffStat(fullText string) string {
 	return strings.TrimSpace(payload.VerifiedDiffStat)
 }
 
-func sideEffectPaths(items []toolresult.SideEffectRef, kind string) []string {
+func sideEffectPaths(items []store.SideEffectRef, kind string) []string {
 	paths := make([]string, 0, len(items))
 	for _, item := range items {
 		if strings.TrimSpace(item.Kind) != kind {
@@ -400,7 +400,7 @@ func sideEffectPaths(items []toolresult.SideEffectRef, kind string) []string {
 	return trimmedWorkspacePaths(paths)
 }
 
-func firstSideEffectRef(items []toolresult.SideEffectRef, kind string) string {
+func firstSideEffectRef(items []store.SideEffectRef, kind string) string {
 	for _, item := range items {
 		if strings.TrimSpace(item.Kind) == kind && strings.TrimSpace(item.Ref) != "" {
 			return strings.TrimSpace(item.Ref)

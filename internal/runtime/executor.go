@@ -19,7 +19,6 @@ import (
 	"github.com/ycvk/acorn/internal/memorymodule"
 	"github.com/ycvk/acorn/internal/runtimehistory"
 	"github.com/ycvk/acorn/internal/store"
-	"github.com/ycvk/acorn/internal/toolresult"
 )
 
 type Result struct {
@@ -735,14 +734,14 @@ func (e *Executor) runCrystallization(ctx context.Context, runID, input, output 
 	return nil
 }
 
-func crystallizationEvidenceRefs(records []toolresult.Record) []string {
+func crystallizationEvidenceRefs(records []store.ToolResultRecord) []string {
 	if len(records) == 0 {
 		return nil
 	}
 	refs := make([]string, 0, len(records))
 	seen := make(map[string]struct{}, len(records))
 	for _, record := range records {
-		if record.Status != toolresult.StatusSucceeded {
+		if record.Status != store.ToolResultStatusSucceeded {
 			continue
 		}
 		ref := strings.TrimSpace(record.ResultRef)

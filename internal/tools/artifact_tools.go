@@ -10,7 +10,7 @@ import (
 
 	"github.com/ycvk/acorn/internal/artifacts"
 	"github.com/ycvk/acorn/internal/tooling"
-	"github.com/ycvk/acorn/internal/toolresult"
+	"github.com/ycvk/acorn/internal/store"
 )
 
 type ArtifactContext interface {
@@ -100,7 +100,7 @@ func buildArtifactWriteTool(service ArtifactService, bridge ArtifactContext) (ei
 		if callID == "" {
 			return ArtifactWriteOutput{}, errors.New("artifact_write requires current tool call context")
 		}
-		sourceRef := toolresult.BuildRef(runID, callID)
+		sourceRef := store.BuildToolResultRef(runID, callID)
 		record, err := service.Write(ctx, artifacts.WriteRequest{
 			RunID:               runID,
 			SessionID:           strings.TrimSpace(bridge.CurrentSessionID(ctx)),

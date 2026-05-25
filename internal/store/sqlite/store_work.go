@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/ycvk/acorn/internal/artifacts"
-	"github.com/ycvk/acorn/internal/toolresult"
+	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/workingstate"
 )
 
@@ -155,20 +155,20 @@ func scanArtifact(scanner interface{ Scan(dest ...any) error }) (artifacts.Recor
 	return artifacts.NormalizeRecord(record)
 }
 
-func (s *Store) Append(ctx context.Context, req toolresult.AppendRequest) (toolresult.Record, error) {
-	req, err := toolresult.NormalizeAppendRequest(req)
+func (s *Store) Append(ctx context.Context, req store.ToolResultAppendRequest) (store.ToolResultRecord, error) {
+	req, err := store.NormalizeToolResultAppendRequest(req)
 	if err != nil {
-		return toolresult.Record{}, err
+		return store.ToolResultRecord{}, err
 	}
-	ref := toolresult.BuildRef(req.RunID, req.CallID)
-	preview := toolresult.Preview(req.FullText, 240)
+	ref := store.BuildToolResultRef(req.RunID, req.CallID)
+	preview := store.PreviewToolResult(req.FullText, 240)
 	sideEffectsJSON, err := json.Marshal(req.SideEffects)
 	if err != nil {
-		return toolresult.Record{}, fmt.Errorf("marshal tool result side effects: %w", err)
+		return store.ToolResultRecord{}, fmt.Errorf("marshal tool result side effects: %w", err)
 	}
 	evidenceRefsJSON, err := json.Marshal(req.EvidenceRefs)
 	if err != nil {
-		return toolresult.Record{}, fmt.Errorf("marshal tool result evidence refs: %w", err)
+		return store.ToolResultRecord{}, fmt.Errorf("marshal tool result evidence refs: %w", err)
 	}
 	_, err = s.db.ExecContext(ctx, `
 		INSERT INTO tool_results (
@@ -196,15 +196,15 @@ func (s *Store) Append(ctx context.Context, req toolresult.AppendRequest) (toolr
 		req.ArgumentsJSON, string(req.Status), req.ErrorReason, preview, req.FullText, req.TokenEstimate,
 		string(sideEffectsJSON), string(evidenceRefsJSON), formatTimestamp(req.CreatedAt))
 	if err != nil {
-		return toolresult.Record{}, fmt.Errorf("append tool result %s: %w", ref, err)
+		return store.ToolResultRecord{}, fmt.Errorf("append tool result %s: %w", ref, err)
 	}
 	return s.Load(ctx, ref)
 }
 
-func (s *Store) Load(ctx context.Context, ref string) (toolresult.Record, error) {
+func (s *Store) Load(ctx context.Context, ref string) (store.ToolResultRecord, error) {
 	ref = strings.TrimSpace(ref)
 	if ref == "" {
-		return toolresult.Record{}, fmt.Errorf("tool result ref is required")
+		return store.ToolResultRecord{}, fmt.Errorf("tool result ref is required")
 	}
 	row := s.db.QueryRowContext(ctx, `
 		SELECT result_ref, run_id, session_id, turn_index, call_id, tool_name,
@@ -216,14 +216,14 @@ func (s *Store) Load(ctx context.Context, ref string) (toolresult.Record, error)
 	record, err := scanToolResult(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return toolresult.Record{}, toolresult.ErrToolResultNotFound
+			return store.ToolResultRecord{}, store.ErrToolResultNotFound
 		}
-		return toolresult.Record{}, err
+		return store.ToolResultRecord{}, err
 	}
 	return record, nil
 }
 
-func (s *Store) ListByRun(ctx context.Context, runID string) ([]toolresult.Record, error) {
+func (s *Store) ListByRun(ctx context.Context, runID string) ([]store.ToolResultRecord, error) {
 	runID = strings.TrimSpace(runID)
 	if runID == "" {
 		return nil, fmt.Errorf("tool result run_id is required")
@@ -241,7 +241,7 @@ func (s *Store) ListByRun(ctx context.Context, runID string) ([]toolresult.Recor
 	}
 	defer rows.Close()
 
-	var items []toolresult.Record
+	var items []store.ToolResultRecord
 	for rows.Next() {
 		record, err := scanToolResult(rows)
 		if err != nil {
@@ -255,14 +255,14 @@ func (s *Store) ListByRun(ctx context.Context, runID string) ([]toolresult.Recor
 	return items, nil
 }
 
-func (s *Store) AppendEvidenceRef(ctx context.Context, resultRef string, ref toolresult.EvidenceRef) (toolresult.Record, error) {
-	ref, err := toolresult.NormalizeEvidenceRef(ref)
+func (s *Store) AppendEvidenceRef(ctx context.Context, resultRef string, ref store.EvidenceRef) (store.ToolResultRecord, error) {
+	ref, err := store.NormalizeEvidenceRef(ref)
 	if err != nil {
-		return toolresult.Record{}, err
+		return store.ToolResultRecord{}, err
 	}
 	record, err := s.Load(ctx, resultRef)
 	if err != nil {
-		return toolresult.Record{}, err
+		return store.ToolResultRecord{}, err
 	}
 	for _, existing := range record.EvidenceRefs {
 		if existing.Kind == ref.Kind && existing.Ref == ref.Ref {
@@ -272,16 +272,16 @@ func (s *Store) AppendEvidenceRef(ctx context.Context, resultRef string, ref too
 	record.EvidenceRefs = append(record.EvidenceRefs, ref)
 	payload, err := json.Marshal(record.EvidenceRefs)
 	if err != nil {
-		return toolresult.Record{}, fmt.Errorf("marshal tool result evidence refs: %w", err)
+		return store.ToolResultRecord{}, fmt.Errorf("marshal tool result evidence refs: %w", err)
 	}
 	if _, err := s.db.ExecContext(ctx, `UPDATE tool_results SET evidence_refs_json = ? WHERE result_ref = ?`, string(payload), record.ResultRef); err != nil {
-		return toolresult.Record{}, fmt.Errorf("append evidence ref to tool result %s: %w", record.ResultRef, err)
+		return store.ToolResultRecord{}, fmt.Errorf("append evidence ref to tool result %s: %w", record.ResultRef, err)
 	}
 	return s.Load(ctx, record.ResultRef)
 }
 
-func scanToolResult(scanner interface{ Scan(dest ...any) error }) (toolresult.Record, error) {
-	var record toolresult.Record
+func scanToolResult(scanner interface{ Scan(dest ...any) error }) (store.ToolResultRecord, error) {
+	var record store.ToolResultRecord
 	var status string
 	var sideEffectsJSON string
 	var evidenceRefsJSON string
@@ -303,18 +303,18 @@ func scanToolResult(scanner interface{ Scan(dest ...any) error }) (toolresult.Re
 		&evidenceRefsJSON,
 		&createdAt,
 	); err != nil {
-		return toolresult.Record{}, err
+		return store.ToolResultRecord{}, err
 	}
-	record.Status = toolresult.Status(status)
+	record.Status = store.ToolResultStatus(status)
 	if err := json.Unmarshal([]byte(sideEffectsJSON), &record.SideEffects); err != nil {
-		return toolresult.Record{}, fmt.Errorf("decode tool result side effects %s: %w", record.ResultRef, err)
+		return store.ToolResultRecord{}, fmt.Errorf("decode tool result side effects %s: %w", record.ResultRef, err)
 	}
 	if err := json.Unmarshal([]byte(evidenceRefsJSON), &record.EvidenceRefs); err != nil {
-		return toolresult.Record{}, fmt.Errorf("decode tool result evidence refs %s: %w", record.ResultRef, err)
+		return store.ToolResultRecord{}, fmt.Errorf("decode tool result evidence refs %s: %w", record.ResultRef, err)
 	}
 	parsed, err := parseTimestamp(fixedTimestampLayout, createdAt, "tool_result.created_at")
 	if err != nil {
-		return toolresult.Record{}, err
+		return store.ToolResultRecord{}, err
 	}
 	record.CreatedAt = parsed
 	return record, nil

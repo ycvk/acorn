@@ -5,7 +5,7 @@ import (
 	"sync"
 
 	"github.com/ycvk/acorn/internal/runtimehistory"
-	"github.com/ycvk/acorn/internal/toolresult"
+	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/workingstate"
 )
 
@@ -15,14 +15,14 @@ type fakeContextStore struct {
 	mu          sync.RWMutex
 	snapshots   map[string]runtimehistory.RunContextSnapshot
 	checkpoints map[string]workingstate.Checkpoint
-	results     map[string]toolresult.Record
+	results     map[string]store.ToolResultRecord
 }
 
 func newFakeContextStore() *fakeContextStore {
 	return &fakeContextStore{
 		snapshots:   make(map[string]runtimehistory.RunContextSnapshot),
 		checkpoints: make(map[string]workingstate.Checkpoint),
-		results:     make(map[string]toolresult.Record),
+		results:     make(map[string]store.ToolResultRecord),
 	}
 }
 
@@ -69,12 +69,12 @@ func (s *fakeContextStore) DeleteWorkingCheckpoint(_ context.Context, threadID s
 	return nil
 }
 
-// toolresult.Ledger implementation
-func (s *fakeContextStore) Append(_ context.Context, req toolresult.AppendRequest) (toolresult.Record, error) {
+// store.ToolResultLedger implementation
+func (s *fakeContextStore) Append(_ context.Context, req store.ToolResultAppendRequest) (store.ToolResultRecord, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	ref := toolresult.BuildRef(req.RunID, req.CallID)
-	rec := toolresult.Record{
+	ref := store.BuildToolResultRef(req.RunID, req.CallID)
+	rec := store.ToolResultRecord{
 		ResultRef:     ref,
 		RunID:         req.RunID,
 		SessionID:     req.SessionID,
@@ -84,7 +84,7 @@ func (s *fakeContextStore) Append(_ context.Context, req toolresult.AppendReques
 		Status:        req.Status,
 		ErrorReason:   req.ErrorReason,
 		FullText:      req.FullText,
-		Preview:       toolresult.Preview(req.FullText, 0),
+		Preview:       store.PreviewToolResult(req.FullText, 0),
 		TokenEstimate: req.TokenEstimate,
 		SideEffects:   req.SideEffects,
 		EvidenceRefs:  req.EvidenceRefs,
@@ -94,20 +94,20 @@ func (s *fakeContextStore) Append(_ context.Context, req toolresult.AppendReques
 	return rec, nil
 }
 
-func (s *fakeContextStore) Load(_ context.Context, ref string) (toolresult.Record, error) {
+func (s *fakeContextStore) Load(_ context.Context, ref string) (store.ToolResultRecord, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	rec, ok := s.results[ref]
 	if !ok {
-		return toolresult.Record{}, toolresult.ErrToolResultNotFound
+		return store.ToolResultRecord{}, store.ErrToolResultNotFound
 	}
 	return rec, nil
 }
 
-func (s *fakeContextStore) ListByRun(_ context.Context, runID string) ([]toolresult.Record, error) {
+func (s *fakeContextStore) ListByRun(_ context.Context, runID string) ([]store.ToolResultRecord, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	var out []toolresult.Record
+	var out []store.ToolResultRecord
 	for _, rec := range s.results {
 		if rec.RunID == runID {
 			out = append(out, rec)
@@ -116,12 +116,12 @@ func (s *fakeContextStore) ListByRun(_ context.Context, runID string) ([]toolres
 	return out, nil
 }
 
-func (s *fakeContextStore) AppendEvidenceRef(_ context.Context, ref string, ev toolresult.EvidenceRef) (toolresult.Record, error) {
+func (s *fakeContextStore) AppendEvidenceRef(_ context.Context, ref string, ev store.EvidenceRef) (store.ToolResultRecord, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	rec, ok := s.results[ref]
 	if !ok {
-		return toolresult.Record{}, toolresult.ErrToolResultNotFound
+		return store.ToolResultRecord{}, store.ErrToolResultNotFound
 	}
 	rec.EvidenceRefs = append(rec.EvidenceRefs, ev)
 	s.results[ref] = rec

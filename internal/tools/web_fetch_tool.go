@@ -10,7 +10,7 @@ import (
 
 	"github.com/ycvk/acorn/internal/artifacts"
 	"github.com/ycvk/acorn/internal/tooling"
-	"github.com/ycvk/acorn/internal/toolresult"
+	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/webaccess"
 )
 
@@ -63,7 +63,7 @@ func buildWebFetchTool(fetcher WebFetchService, artifactService ArtifactService,
 		if callID == "" {
 			return WebFetchOutput{}, errors.New("web_fetch requires current tool call context")
 		}
-		sourceRef := toolresult.BuildRef(runID, callID)
+		sourceRef := store.BuildToolResultRef(runID, callID)
 		result, err := fetcher.Fetch(ctx, webaccess.FetchRequest{
 			URL:         input.URL,
 			ExtractMode: webaccess.ExtractionMode(strings.TrimSpace(input.ExtractMode)),

@@ -1,4 +1,4 @@
-package toolresult
+package store
 
 import (
 	"context"
@@ -8,11 +8,11 @@ import (
 	"time"
 )
 
-type Status string
+type ToolResultStatus string
 
 const (
-	StatusSucceeded Status = "succeeded"
-	StatusFailed    Status = "failed"
+	ToolResultStatusSucceeded ToolResultStatus = "succeeded"
+	ToolResultStatusFailed    ToolResultStatus = "failed"
 )
 
 type SideEffectRef struct {
@@ -31,14 +31,14 @@ type EvidenceRef struct {
 	Ref  string `json:"ref"`
 }
 
-type AppendRequest struct {
+type ToolResultAppendRequest struct {
 	RunID         string
 	SessionID     string
 	TurnIndex     int
 	CallID        string
 	ToolName      string
 	ArgumentsJSON string
-	Status        Status
+	Status        ToolResultStatus
 	ErrorReason   string
 	FullText      string
 	TokenEstimate int
@@ -47,7 +47,7 @@ type AppendRequest struct {
 	CreatedAt     time.Time
 }
 
-type Record struct {
+type ToolResultRecord struct {
 	ResultRef     string
 	RunID         string
 	SessionID     string
@@ -55,7 +55,7 @@ type Record struct {
 	CallID        string
 	ToolName      string
 	ArgumentsJSON string
-	Status        Status
+	Status        ToolResultStatus
 	ErrorReason   string
 	Preview       string
 	FullText      string
@@ -67,18 +67,18 @@ type Record struct {
 
 var ErrToolResultNotFound = errors.New("tool result not found")
 
-type Ledger interface {
-	Append(context.Context, AppendRequest) (Record, error)
-	Load(context.Context, string) (Record, error)
-	ListByRun(context.Context, string) ([]Record, error)
-	AppendEvidenceRef(context.Context, string, EvidenceRef) (Record, error)
+type ToolResultLedger interface {
+	Append(context.Context, ToolResultAppendRequest) (ToolResultRecord, error)
+	Load(context.Context, string) (ToolResultRecord, error)
+	ListByRun(context.Context, string) ([]ToolResultRecord, error)
+	AppendEvidenceRef(context.Context, string, EvidenceRef) (ToolResultRecord, error)
 }
 
-func BuildRef(runID string, callID string) string {
+func BuildToolResultRef(runID string, callID string) string {
 	return "tool_result:" + strings.TrimSpace(runID) + ":" + strings.TrimSpace(callID)
 }
 
-func Preview(text string, limit int) string {
+func PreviewToolResult(text string, limit int) string {
 	cleaned := strings.TrimSpace(text)
 	if limit <= 0 || len(cleaned) <= limit {
 		return cleaned
@@ -86,7 +86,7 @@ func Preview(text string, limit int) string {
 	return strings.TrimSpace(cleaned[:limit]) + "..."
 }
 
-func NormalizeAppendRequest(req AppendRequest) (AppendRequest, error) {
+func NormalizeToolResultAppendRequest(req ToolResultAppendRequest) (ToolResultAppendRequest, error) {
 	req.RunID = strings.TrimSpace(req.RunID)
 	req.SessionID = strings.TrimSpace(req.SessionID)
 	req.CallID = strings.TrimSpace(req.CallID)
@@ -94,32 +94,32 @@ func NormalizeAppendRequest(req AppendRequest) (AppendRequest, error) {
 	req.ArgumentsJSON = strings.TrimSpace(req.ArgumentsJSON)
 	req.ErrorReason = strings.TrimSpace(req.ErrorReason)
 	var err error
-	req.SideEffects, err = normalizeSideEffects(req.SideEffects)
+	req.SideEffects, err = normalizeToolResultSideEffects(req.SideEffects)
 	if err != nil {
-		return AppendRequest{}, err
+		return ToolResultAppendRequest{}, err
 	}
-	req.EvidenceRefs = normalizeEvidenceRefs(req.EvidenceRefs)
+	req.EvidenceRefs = normalizeToolResultEvidenceRefs(req.EvidenceRefs)
 	if req.CreatedAt.IsZero() {
 		req.CreatedAt = time.Now().UTC()
 	} else {
 		req.CreatedAt = req.CreatedAt.UTC()
 	}
 	if req.RunID == "" {
-		return AppendRequest{}, fmt.Errorf("tool result run_id is required")
+		return ToolResultAppendRequest{}, fmt.Errorf("tool result run_id is required")
 	}
 	if req.CallID == "" {
-		return AppendRequest{}, fmt.Errorf("tool result call_id is required")
+		return ToolResultAppendRequest{}, fmt.Errorf("tool result call_id is required")
 	}
 	if req.ToolName == "" {
-		return AppendRequest{}, fmt.Errorf("tool result tool_name is required")
+		return ToolResultAppendRequest{}, fmt.Errorf("tool result tool_name is required")
 	}
 	switch req.Status {
-	case StatusSucceeded, StatusFailed:
+	case ToolResultStatusSucceeded, ToolResultStatusFailed:
 	default:
-		return AppendRequest{}, fmt.Errorf("tool result status %q is invalid", req.Status)
+		return ToolResultAppendRequest{}, fmt.Errorf("tool result status %q is invalid", req.Status)
 	}
 	if req.TokenEstimate < 0 {
-		return AppendRequest{}, fmt.Errorf("tool result token estimate must be >= 0")
+		return ToolResultAppendRequest{}, fmt.Errorf("tool result token estimate must be >= 0")
 	}
 	return req, nil
 }
@@ -136,7 +136,7 @@ func NormalizeEvidenceRef(ref EvidenceRef) (EvidenceRef, error) {
 	return ref, nil
 }
 
-func normalizeSideEffects(items []SideEffectRef) ([]SideEffectRef, error) {
+func normalizeToolResultSideEffects(items []SideEffectRef) ([]SideEffectRef, error) {
 	if len(items) == 0 {
 		return nil, nil
 	}
@@ -162,7 +162,7 @@ func normalizeSideEffects(items []SideEffectRef) ([]SideEffectRef, error) {
 	return out, nil
 }
 
-func normalizeEvidenceRefs(items []EvidenceRef) []EvidenceRef {
+func normalizeToolResultEvidenceRefs(items []EvidenceRef) []EvidenceRef {
 	if len(items) == 0 {
 		return nil
 	}

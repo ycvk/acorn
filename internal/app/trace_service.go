@@ -12,7 +12,7 @@ import (
 	"github.com/ycvk/acorn/internal/providerusage"
 	"github.com/ycvk/acorn/internal/runtime"
 	"github.com/ycvk/acorn/internal/runtimehistory"
-	"github.com/ycvk/acorn/internal/toolresult"
+	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/workspace"
 )
 
@@ -223,7 +223,7 @@ type runtimeWorkbenchStore interface {
 	LoadEvents(ctx context.Context, runID string) ([]events.EventRecord, error)
 	LoadRunDecision(ctx context.Context, runID string) (*decision.Record, error)
 	GetSessionSummary(ctx context.Context, sessionID string) (*runtimehistory.SessionSummary, error)
-	ListByRun(ctx context.Context, runID string) ([]toolresult.Record, error)
+	ListByRun(ctx context.Context, runID string) ([]store.ToolResultRecord, error)
 	ListArtifactsByRun(ctx context.Context, runID string) ([]artifacts.Record, error)
 	ListProviderUsagesByRun(ctx context.Context, runID string) ([]providerusage.Record, error)
 }

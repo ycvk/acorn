@@ -11,7 +11,7 @@ import (
 	"github.com/cloudwego/eino/schema"
 
 	"github.com/ycvk/acorn/internal/tooling"
-	"github.com/ycvk/acorn/internal/toolresult"
+	"github.com/ycvk/acorn/internal/store"
 )
 
 const (
@@ -275,11 +275,11 @@ func (p *defaultContextPlane) OnToolResult(ctx context.Context, event ToolResult
 	if p.toolResultLedger == nil {
 		return errors.New("tool result ledger is not initialized")
 	}
-	status := toolresult.StatusSucceeded
+	status := store.ToolResultStatusSucceeded
 	if event.IsError {
-		status = toolresult.StatusFailed
+		status = store.ToolResultStatusFailed
 	}
-	ledgerRecord, err := p.toolResultLedger.Append(ctx, toolresult.AppendRequest{
+	ledgerRecord, err := p.toolResultLedger.Append(ctx, store.ToolResultAppendRequest{
 		RunID:         event.RunID,
 		SessionID:     event.SessionID,
 		TurnIndex:     event.TurnIndex,
@@ -290,7 +290,7 @@ func (p *defaultContextPlane) OnToolResult(ctx context.Context, event ToolResult
 		ErrorReason:   event.ErrorReason,
 		FullText:      event.Result,
 		TokenEstimate: event.ResultTokens,
-		SideEffects:   append([]toolresult.SideEffectRef(nil), event.SideEffects...),
+		SideEffects:   append([]store.SideEffectRef(nil), event.SideEffects...),
 	})
 	if err != nil {
 		return fmt.Errorf("append tool result ledger: %w", err)

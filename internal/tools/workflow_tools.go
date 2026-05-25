@@ -15,7 +15,7 @@ import (
 
 	"github.com/ycvk/acorn/internal/artifacts"
 	"github.com/ycvk/acorn/internal/tooling"
-	"github.com/ycvk/acorn/internal/toolresult"
+	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/workspace"
 )
 
@@ -457,7 +457,7 @@ func writeWorkflowArtifact(ctx context.Context, service ArtifactService, bridge 
 	return service.Write(ctx, artifacts.WriteRequest{
 		RunID:               runID,
 		SessionID:           strings.TrimSpace(bridge.CurrentSessionID(ctx)),
-		SourceToolResultRef: toolresult.BuildRef(runID, callID),
+		SourceToolResultRef: store.BuildToolResultRef(runID, callID),
 		Kind:                kind,
 		Title:               title,
 		MIMEType:            mimeType,

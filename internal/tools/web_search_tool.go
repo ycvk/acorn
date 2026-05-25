@@ -10,7 +10,7 @@ import (
 
 	"github.com/ycvk/acorn/internal/artifacts"
 	"github.com/ycvk/acorn/internal/tooling"
-	"github.com/ycvk/acorn/internal/toolresult"
+	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/webaccess"
 )
 
@@ -50,7 +50,7 @@ func buildWebSearchTool(search WebSearchService, artifactService ArtifactService
 		if callID == "" {
 			return WebSearchOutput{}, errors.New("web_search requires current tool call context")
 		}
-		sourceRef := toolresult.BuildRef(runID, callID)
+		sourceRef := store.BuildToolResultRef(runID, callID)
 		result, err := search.Search(ctx, webaccess.SearchRequest{
 			Query:      input.Query,
 			MaxResults: input.MaxResults,
