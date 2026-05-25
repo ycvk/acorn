@@ -14,7 +14,7 @@ import (
 	"github.com/ycvk/acorn/internal/providerusage"
 	"github.com/ycvk/acorn/internal/runtime/graph"
 	"github.com/ycvk/acorn/internal/tooling"
-	"github.com/ycvk/acorn/internal/toolresult"
+	"github.com/ycvk/acorn/internal/store"
 )
 
 type ActNode struct {
@@ -209,7 +209,7 @@ func (n *ActNode) Invoke(ctx context.Context, state *graph.AgentGraphState) (*gr
 					return nil, fmt.Errorf("record plan step evidence: %w", err)
 				}
 				if strings.TrimSpace(evidence.ToolResultRef) != "" {
-					if err := n.store.AppendToolResultEvidenceRef(ctx, evidence.ToolResultRef, toolresult.EvidenceRef{
+					if err := n.store.AppendToolResultEvidenceRef(ctx, evidence.ToolResultRef, store.EvidenceRef{
 						Kind: string(evidence.Kind),
 						Ref:  evidence.ID,
 					}); err != nil {

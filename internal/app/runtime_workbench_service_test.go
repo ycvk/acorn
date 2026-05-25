@@ -17,7 +17,6 @@ import (
 	"github.com/ycvk/acorn/internal/runtimehistory"
 	"github.com/ycvk/acorn/internal/store"
 	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
-	"github.com/ycvk/acorn/internal/toolresult"
 	"github.com/ycvk/acorn/internal/workspace"
 )
 
@@ -177,7 +176,7 @@ func TestRuntimeWorkbenchServiceLoadAggregatesRuntimeTruth(t *testing.T) {
 			CreatedAt: now,
 			UpdatedAt: now,
 		},
-		toolResultsByRun: map[string][]toolresult.Record{
+		toolResultsByRun: map[string][]store.ToolResultRecord{
 			"run_1": {
 				{
 					ResultRef:     "tool_result:run_1:call_create",
@@ -187,16 +186,16 @@ func TestRuntimeWorkbenchServiceLoadAggregatesRuntimeTruth(t *testing.T) {
 					CallID:        "call_create",
 					ToolName:      "create_file",
 					ArgumentsJSON: `{"path":"tracked.txt","content":"changed"}`,
-					Status:        toolresult.StatusSucceeded,
+					Status:        store.ToolResultStatusSucceeded,
 					Preview:       `{"path":"tracked.txt","message":"ok","checkpoint_id":"workspace_checkpoint_1","checkpoint_paths":["tracked.txt"],"verified_bytes":7,"verified_content":"changed","verification_truncated":false}`,
 					FullText:      `{"path":"tracked.txt","message":"ok","checkpoint_id":"workspace_checkpoint_1","checkpoint_paths":["tracked.txt"],"verified_bytes":7,"verified_content":"changed","verification_truncated":false,"extra":"large result body"}`,
 					TokenEstimate: 42,
-					SideEffects: []toolresult.SideEffectRef{{
+					SideEffects: []store.SideEffectRef{{
 						Kind: workspace.MutationCheckpointEffect,
 						Ref:  "workspace_checkpoint_1",
 						Path: "tracked.txt",
 					}},
-					EvidenceRefs: []toolresult.EvidenceRef{{
+					EvidenceRefs: []store.EvidenceRef{{
 						Kind: "plan_evidence",
 						Ref:  "ev_1",
 					}},
@@ -210,11 +209,11 @@ func TestRuntimeWorkbenchServiceLoadAggregatesRuntimeTruth(t *testing.T) {
 					CallID:        "call_rollback",
 					ToolName:      "rollback_workspace_checkpoint",
 					ArgumentsJSON: `{"checkpoint_id":"workspace_checkpoint_1"}`,
-					Status:        toolresult.StatusSucceeded,
+					Status:        store.ToolResultStatusSucceeded,
 					Preview:       `{"checkpoint_id":"workspace_checkpoint_1","rollback_id":"workspace_rollback_1","status":"succeeded","restored_paths":["tracked.txt"],"conflict_paths":[],"error":""}`,
 					FullText:      `{"checkpoint_id":"workspace_checkpoint_1","rollback_id":"workspace_rollback_1","status":"succeeded","restored_paths":["tracked.txt"],"conflict_paths":[],"error":""}`,
 					TokenEstimate: 21,
-					SideEffects: []toolresult.SideEffectRef{{
+					SideEffects: []store.SideEffectRef{{
 						Kind: workspace.MutationRollbackEffect,
 						Ref:  "workspace_rollback_1",
 						Path: "tracked.txt",
@@ -396,10 +395,10 @@ func TestRuntimeWorkbenchServiceLoadFailsLoudOnProjectionError(t *testing.T) {
 
 func TestParseRollbackSummaryRecordPreservesFailedNonJSONToolResult(t *testing.T) {
 	now := time.Now().UTC()
-	summary, err := parseRollbackSummaryRecord(toolresult.Record{
+	summary, err := parseRollbackSummaryRecord(store.ToolResultRecord{
 		ResultRef:   "tool_result:run_1:call_rollback",
 		ToolName:    "rollback_workspace_checkpoint",
-		Status:      toolresult.StatusFailed,
+		Status:      store.ToolResultStatusFailed,
 		ErrorReason: "workspace rollback conflict: tracked.txt",
 		Preview:     `Tool call "rollback_workspace_checkpoint" failed: workspace rollback conflict: tracked.txt`,
 		FullText:    `Tool call "rollback_workspace_checkpoint" failed: workspace rollback conflict: tracked.txt`,
@@ -519,7 +518,7 @@ type runtimeWorkbenchStoreStub struct {
 	plan                *runtime.Plan
 	summary             *runtimehistory.SessionSummary
 	loadEventsErr       error
-	toolResultsByRun    map[string][]toolresult.Record
+	toolResultsByRun    map[string][]store.ToolResultRecord
 	artifactsByRun      map[string][]artifacts.Record
 	providerUsagesByRun map[string][]providerusage.Record
 }
@@ -554,7 +553,7 @@ func (s *runtimeWorkbenchStoreStub) GetSessionSummary(_ context.Context, _ strin
 	return s.summary, nil
 }
 
-func (s *runtimeWorkbenchStoreStub) ListByRun(_ context.Context, runID string) ([]toolresult.Record, error) {
+func (s *runtimeWorkbenchStoreStub) ListByRun(_ context.Context, runID string) ([]store.ToolResultRecord, error) {
 	return s.toolResultsByRun[runID], nil
 }
 

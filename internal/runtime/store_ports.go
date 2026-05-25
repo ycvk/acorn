@@ -13,7 +13,6 @@ import (
 	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	"github.com/ycvk/acorn/internal/runtimehistory"
 	"github.com/ycvk/acorn/internal/store"
-	"github.com/ycvk/acorn/internal/toolresult"
 )
 
 // SessionTurnStore creates fresh session turns.
@@ -48,7 +47,7 @@ type ArchiveStore interface {
 
 // EvidenceStore appends evidence references.
 type EvidenceStore interface {
-	AppendEvidenceRef(ctx context.Context, resultRef string, ref toolresult.EvidenceRef) (toolresult.Record, error)
+	AppendEvidenceRef(ctx context.Context, resultRef string, ref store.EvidenceRef) (store.ToolResultRecord, error)
 }
 
 // ProviderUsageStore queries provider usage records.
@@ -60,7 +59,7 @@ type ProviderUsageStore interface {
 type ExecutorStore interface {
 	adk.CheckPointStore
 	contextplane.RunContextSnapshotStore
-	toolresult.Ledger
+	store.ToolResultLedger
 	providerusage.Recorder
 	runDecisionStore
 	EventAppender

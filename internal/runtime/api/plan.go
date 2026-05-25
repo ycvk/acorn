@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/ycvk/acorn/internal/store"
-	"github.com/ycvk/acorn/internal/toolresult"
 )
 
 // --- Plan types ---
@@ -73,7 +72,7 @@ type PlanStore interface {
 	LoadPlan(ctx context.Context, sessionID string) (*Plan, error)
 	SavePlan(ctx context.Context, plan *Plan) error
 	AppendStepEvidence(ctx context.Context, sessionID string, runID string, stepID string, evidence PlanEvidence) (*Plan, error)
-	AppendToolResultEvidenceRef(ctx context.Context, resultRef string, ref toolresult.EvidenceRef) error
+	AppendToolResultEvidenceRef(ctx context.Context, resultRef string, ref store.EvidenceRef) error
 }
 
 // --- PlanRecordStore interface ---
@@ -81,5 +80,5 @@ type PlanStore interface {
 type PlanRecordStore interface {
 	LoadPlanBySession(ctx context.Context, sessionID string) (*store.PlanRecord, error)
 	SavePlan(ctx context.Context, plan *store.PlanRecord) error
-	AppendEvidenceRef(ctx context.Context, resultRef string, ref toolresult.EvidenceRef) (toolresult.Record, error)
+	AppendEvidenceRef(ctx context.Context, resultRef string, ref store.EvidenceRef) (store.ToolResultRecord, error)
 }

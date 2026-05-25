@@ -11,7 +11,7 @@ import (
 	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/runtimehistory"
 	"github.com/ycvk/acorn/internal/tooling"
-	"github.com/ycvk/acorn/internal/toolresult"
+	storerepo "github.com/ycvk/acorn/internal/store"
 )
 
 type lifecycleStubTool struct {
@@ -248,7 +248,7 @@ func TestToolLifecycleOnToolResultPersistsLedgerAndRecentResults(t *testing.T) {
 		Arguments:    `{"path":"README.md"}`,
 		Result:       "tool output body",
 		ResultTokens: 4,
-		SideEffects: []toolresult.SideEffectRef{{
+		SideEffects: []storerepo.SideEffectRef{{
 			Kind: "workspace_read",
 			Path: "README.md",
 		}},

@@ -15,7 +15,7 @@ import (
 	"github.com/ycvk/acorn/internal/runtimehistory"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/tooling"
-	"github.com/ycvk/acorn/internal/toolresult"
+	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/workingstate"
 )
 
@@ -66,7 +66,7 @@ type ToolResultEvent struct {
 	IsError      bool
 	ErrorReason  string
 	ResultTokens int
-	SideEffects  []toolresult.SideEffectRef
+	SideEffects  []store.SideEffectRef
 }
 
 type DeferredLoadRequest struct {
@@ -103,7 +103,7 @@ type DefaultOptions struct {
 	Store                    RunContextSnapshotStore
 	CheckpointService        CheckpointService
 	SessionSummaryService    SessionSummaryService
-	ToolResultLedger         toolresult.Ledger
+	ToolResultLedger         store.ToolResultLedger
 	MemoryBudget             LayeredMemoryBudget
 }
 
@@ -114,7 +114,7 @@ type defaultContextPlane struct {
 	store                    RunContextSnapshotStore
 	checkpointService        CheckpointService
 	sessionSummaryService    SessionSummaryService
-	toolResultLedger         toolresult.Ledger
+	toolResultLedger         store.ToolResultLedger
 	compressionPipeline      *CompressionPipeline
 	memoryBudget             LayeredMemoryBudget
 }

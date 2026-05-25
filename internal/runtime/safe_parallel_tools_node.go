@@ -18,7 +18,7 @@ import (
 	"github.com/ycvk/acorn/internal/contextplane"
 	"github.com/ycvk/acorn/internal/orchestration"
 	"github.com/ycvk/acorn/internal/tooling"
-	"github.com/ycvk/acorn/internal/toolresult"
+	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/workspace"
 )
 
@@ -94,7 +94,7 @@ func (n *SafeParallelToolsNode) NewStreamingExecutor(ctx context.Context) orches
 
 func (n *SafeParallelToolsNode) invokeSingle(ctx context.Context, call classifiedCall) (*schema.Message, error) {
 	recorder := &toolExecutionRecorder{}
-	resultRef := toolresult.BuildRef(getRunID(ctx), call.toolCall.ID)
+	resultRef := store.BuildToolResultRef(getRunID(ctx), call.toolCall.ID)
 	if err := emitToolCallLifecycle(ctx, call); err != nil {
 		if rejected, ok := errors.AsType[*contextplane.ToolCallRejectedError](err); ok {
 			msg := schema.ToolMessage(rejected.Error(), call.toolCall.ID, schema.WithToolName(call.toolCall.Function.Name))
@@ -194,7 +194,7 @@ func attachToolSideEffects(msg *schema.Message, toolName string, result string) 
 	if msg.Extra == nil {
 		msg.Extra = make(map[string]any, 3)
 	}
-	msg.Extra["tool_side_effects"] = append([]toolresult.SideEffectRef(nil), sideEffects...)
+	msg.Extra["tool_side_effects"] = append([]store.SideEffectRef(nil), sideEffects...)
 	return nil
 }
 
@@ -273,12 +273,12 @@ func emitToolResultLifecycle(ctx context.Context, msg *schema.Message) error {
 			arguments = value
 		}
 	}
-	var sideEffects []toolresult.SideEffectRef
+	var sideEffects []store.SideEffectRef
 	if rawSideEffects, ok := msg.Extra["tool_side_effects"]; ok {
 		switch value := rawSideEffects.(type) {
-		case []toolresult.SideEffectRef:
+		case []store.SideEffectRef:
 			sideEffects = append(sideEffects, value...)
-		case []*toolresult.SideEffectRef:
+		case []*store.SideEffectRef:
 			for _, item := range value {
 				if item != nil {
 					sideEffects = append(sideEffects, *item)
@@ -336,7 +336,7 @@ func attachToolRecorder(msg *schema.Message, recorder *toolExecutionRecorder) {
 	msg.Extra["plan_evidence_recorder"] = *recorder
 }
 
-func toolSideEffectsFromResult(toolName string, result string) ([]toolresult.SideEffectRef, error) {
+func toolSideEffectsFromResult(toolName string, result string) ([]store.SideEffectRef, error) {
 	switch strings.TrimSpace(toolName) {
 	case "create_file", "replace_span", "apply_unified_patch", "multi_edit":
 		return mutationCheckpointSideEffects(toolName, result)
@@ -355,7 +355,7 @@ func toolSideEffectsFromResult(toolName string, result string) ([]toolresult.Sid
 	}
 }
 
-func operatorQuestionSideEffects(result string) ([]toolresult.SideEffectRef, error) {
+func operatorQuestionSideEffects(result string) ([]store.SideEffectRef, error) {
 	var payload struct {
 		ActionID string `json:"action_id"`
 	}
@@ -366,13 +366,13 @@ func operatorQuestionSideEffects(result string) ([]toolresult.SideEffectRef, err
 	if actionID == "" {
 		return nil, errors.New("ask_operator result missing action_id")
 	}
-	return []toolresult.SideEffectRef{{
-		Kind: toolresult.SideEffectKindOperatorAction,
+	return []store.SideEffectRef{{
+		Kind: store.SideEffectKindOperatorAction,
 		Ref:  actionID,
 	}}, nil
 }
 
-func artifactWriteSideEffects(result string) ([]toolresult.SideEffectRef, error) {
+func artifactWriteSideEffects(result string) ([]store.SideEffectRef, error) {
 	var payload struct {
 		ArtifactID string `json:"artifact_id"`
 	}
@@ -383,13 +383,13 @@ func artifactWriteSideEffects(result string) ([]toolresult.SideEffectRef, error)
 	if artifactID == "" {
 		return nil, errors.New("artifact_write result missing artifact_id")
 	}
-	return []toolresult.SideEffectRef{{
-		Kind: toolresult.SideEffectKindArtifact,
+	return []store.SideEffectRef{{
+		Kind: store.SideEffectKindArtifact,
 		Ref:  artifactID,
 	}}, nil
 }
 
-func runVerificationSideEffects(result string) ([]toolresult.SideEffectRef, error) {
+func runVerificationSideEffects(result string) ([]store.SideEffectRef, error) {
 	var payload struct {
 		StdoutArtifactID string `json:"stdout_artifact_id"`
 		StderrArtifactID string `json:"stderr_artifact_id"`
@@ -401,13 +401,13 @@ func runVerificationSideEffects(result string) ([]toolresult.SideEffectRef, erro
 	if len(ids) != 2 {
 		return nil, errors.New("run_verification result missing stdout_artifact_id or stderr_artifact_id")
 	}
-	return []toolresult.SideEffectRef{
-		{Kind: toolresult.SideEffectKindArtifact, Ref: ids[0]},
-		{Kind: toolresult.SideEffectKindArtifact, Ref: ids[1]},
+	return []store.SideEffectRef{
+		{Kind: store.SideEffectKindArtifact, Ref: ids[0]},
+		{Kind: store.SideEffectKindArtifact, Ref: ids[1]},
 	}, nil
 }
 
-func gitSummarySideEffects(result string) ([]toolresult.SideEffectRef, error) {
+func gitSummarySideEffects(result string) ([]store.SideEffectRef, error) {
 	var payload struct {
 		DiffArtifactID string `json:"diff_artifact_id"`
 	}
@@ -418,13 +418,13 @@ func gitSummarySideEffects(result string) ([]toolresult.SideEffectRef, error) {
 	if artifactID == "" {
 		return nil, nil
 	}
-	return []toolresult.SideEffectRef{{
-		Kind: toolresult.SideEffectKindArtifact,
+	return []store.SideEffectRef{{
+		Kind: store.SideEffectKindArtifact,
 		Ref:  artifactID,
 	}}, nil
 }
 
-func mutationCheckpointSideEffects(toolName string, result string) ([]toolresult.SideEffectRef, error) {
+func mutationCheckpointSideEffects(toolName string, result string) ([]store.SideEffectRef, error) {
 	var payload struct {
 		CheckpointID    string   `json:"checkpoint_id"`
 		CheckpointPaths []string `json:"checkpoint_paths"`
@@ -448,9 +448,9 @@ func mutationCheckpointSideEffects(toolName string, result string) ([]toolresult
 	if len(paths) == 0 {
 		return nil, fmt.Errorf("%s result missing checkpoint_paths", toolName)
 	}
-	effects := make([]toolresult.SideEffectRef, 0, len(paths))
+	effects := make([]store.SideEffectRef, 0, len(paths))
 	for _, path := range paths {
-		effects = append(effects, toolresult.SideEffectRef{
+		effects = append(effects, store.SideEffectRef{
 			Kind: workspace.MutationCheckpointEffect,
 			Ref:  checkpointID,
 			Path: path,
@@ -459,7 +459,7 @@ func mutationCheckpointSideEffects(toolName string, result string) ([]toolresult
 	return effects, nil
 }
 
-func rollbackSideEffects(result string) ([]toolresult.SideEffectRef, error) {
+func rollbackSideEffects(result string) ([]store.SideEffectRef, error) {
 	var payload struct {
 		CheckpointID  string   `json:"checkpoint_id"`
 		RollbackID    string   `json:"rollback_id"`
@@ -482,9 +482,9 @@ func rollbackSideEffects(result string) ([]toolresult.SideEffectRef, error) {
 	if len(paths) == 0 {
 		return nil, errors.New("rollback result missing restored_paths")
 	}
-	effects := make([]toolresult.SideEffectRef, 0, len(paths))
+	effects := make([]store.SideEffectRef, 0, len(paths))
 	for _, path := range paths {
-		effects = append(effects, toolresult.SideEffectRef{
+		effects = append(effects, store.SideEffectRef{
 			Kind: workspace.MutationRollbackEffect,
 			Ref:  rollbackID,
 			Path: path,

@@ -11,7 +11,7 @@ import (
 	"github.com/ycvk/acorn/internal/artifacts"
 	"github.com/ycvk/acorn/internal/browser"
 	"github.com/ycvk/acorn/internal/tooling"
-	"github.com/ycvk/acorn/internal/toolresult"
+	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/webaccess"
 )
 
@@ -115,7 +115,7 @@ func buildBrowserTool(service BrowserService, artifactService ArtifactService, b
 			record, err := artifactService.Write(ctx, artifacts.WriteRequest{
 				RunID:               runID,
 				SessionID:           strings.TrimSpace(bridge.CurrentSessionID(ctx)),
-				SourceToolResultRef: toolresult.BuildRef(runID, callID),
+				SourceToolResultRef: store.BuildToolResultRef(runID, callID),
 				Kind:                artifacts.KindMarkdown,
 				Title:               artifactTitle("browser scan", scan.Extracted.Title, scan.URL),
 				MIMEType:            "text/markdown; charset=utf-8",
@@ -177,7 +177,7 @@ func buildBrowserTool(service BrowserService, artifactService ArtifactService, b
 			record, err := artifactService.Write(ctx, artifacts.WriteRequest{
 				RunID:               runID,
 				SessionID:           strings.TrimSpace(bridge.CurrentSessionID(ctx)),
-				SourceToolResultRef: toolresult.BuildRef(runID, callID),
+				SourceToolResultRef: store.BuildToolResultRef(runID, callID),
 				Kind:                artifacts.KindBinary,
 				Title:               "browser screenshot",
 				MIMEType:            "image/png",

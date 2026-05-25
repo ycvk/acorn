@@ -9,7 +9,6 @@ import (
 
 	"github.com/ycvk/acorn/internal/runtime/api"
 	"github.com/ycvk/acorn/internal/store"
-	"github.com/ycvk/acorn/internal/toolresult"
 )
 
 type durablePlanStore struct {
@@ -82,7 +81,7 @@ func (s *durablePlanStore) AppendStepEvidence(
 	return plan, nil
 }
 
-func (s *durablePlanStore) AppendToolResultEvidenceRef(ctx context.Context, resultRef string, ref toolresult.EvidenceRef) error {
+func (s *durablePlanStore) AppendToolResultEvidenceRef(ctx context.Context, resultRef string, ref store.EvidenceRef) error {
 	if s == nil || s.store == nil {
 		return fmt.Errorf("plan store is not available")
 	}

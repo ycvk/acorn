@@ -19,7 +19,7 @@ import (
 	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/contextplane"
 	"github.com/ycvk/acorn/internal/tooling"
-	"github.com/ycvk/acorn/internal/toolresult"
+	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/workspace"
 )
 
@@ -181,7 +181,7 @@ func safeParallelLifecycleContextFrom(t *testing.T, ctx context.Context, node *S
 	return safeParallelLifecycleContextFromWithLedger(t, ctx, node, newMemoryToolResultLedger())
 }
 
-func safeParallelLifecycleContextFromWithLedger(t *testing.T, ctx context.Context, node *SafeParallelToolsNode, ledger toolresult.Ledger) context.Context {
+func safeParallelLifecycleContextFromWithLedger(t *testing.T, ctx context.Context, node *SafeParallelToolsNode, ledger store.ToolResultLedger) context.Context {
 	t.Helper()
 	sessionID := SessionIDFromContext(ctx)
 	if strings.TrimSpace(sessionID) == "" {
@@ -388,9 +388,9 @@ func TestSafeParallelMutationToolAttachesSideEffects(t *testing.T) {
 	if !ok {
 		t.Fatal("tool_side_effects missing from tool message extra")
 	}
-	sideEffects, ok := rawSideEffects.([]toolresult.SideEffectRef)
+	sideEffects, ok := rawSideEffects.([]store.SideEffectRef)
 	if !ok {
-		t.Fatalf("tool_side_effects type = %T, want []toolresult.SideEffectRef", rawSideEffects)
+		t.Fatalf("tool_side_effects type = %T, want []store.SideEffectRef", rawSideEffects)
 	}
 	if len(sideEffects) != 1 || sideEffects[0].Kind != workspace.MutationCheckpointEffect || sideEffects[0].Ref != "workspace_checkpoint_1" || sideEffects[0].Path != "a.go" {
 		t.Fatalf("side effects = %+v", sideEffects)
@@ -409,7 +409,7 @@ func TestToolSideEffectsFromAskOperatorResult(t *testing.T) {
 	if err != nil {
 		t.Fatalf("toolSideEffectsFromResult: %v", err)
 	}
-	if len(sideEffects) != 1 || sideEffects[0].Kind != toolresult.SideEffectKindOperatorAction || sideEffects[0].Ref != "action_1" {
+	if len(sideEffects) != 1 || sideEffects[0].Kind != store.SideEffectKindOperatorAction || sideEffects[0].Ref != "action_1" {
 		t.Fatalf("side effects = %+v", sideEffects)
 	}
 }
@@ -422,10 +422,10 @@ func TestToolSideEffectsFromRunVerificationResult(t *testing.T) {
 	if len(sideEffects) != 2 {
 		t.Fatalf("side effects count = %d, want 2: %+v", len(sideEffects), sideEffects)
 	}
-	if sideEffects[0].Kind != toolresult.SideEffectKindArtifact || sideEffects[0].Ref != "artifact_stdout" {
+	if sideEffects[0].Kind != store.SideEffectKindArtifact || sideEffects[0].Ref != "artifact_stdout" {
 		t.Fatalf("stdout side effect = %+v", sideEffects[0])
 	}
-	if sideEffects[1].Kind != toolresult.SideEffectKindArtifact || sideEffects[1].Ref != "artifact_stderr" {
+	if sideEffects[1].Kind != store.SideEffectKindArtifact || sideEffects[1].Ref != "artifact_stderr" {
 		t.Fatalf("stderr side effect = %+v", sideEffects[1])
 	}
 }
@@ -435,7 +435,7 @@ func TestToolSideEffectsFromGitSummaryResult(t *testing.T) {
 	if err != nil {
 		t.Fatalf("toolSideEffectsFromResult: %v", err)
 	}
-	if len(sideEffects) != 1 || sideEffects[0].Kind != toolresult.SideEffectKindArtifact || sideEffects[0].Ref != "artifact_diff" {
+	if len(sideEffects) != 1 || sideEffects[0].Kind != store.SideEffectKindArtifact || sideEffects[0].Ref != "artifact_diff" {
 		t.Fatalf("side effects = %+v", sideEffects)
 	}
 }

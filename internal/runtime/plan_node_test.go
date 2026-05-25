@@ -11,7 +11,6 @@ import (
 	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/runtime/graph"
 	"github.com/ycvk/acorn/internal/store"
-	"github.com/ycvk/acorn/internal/toolresult"
 )
 
 type planNodeModel struct {
@@ -86,7 +85,7 @@ func (s *fakePlanStore) AppendStepEvidence(_ context.Context, _ string, runID st
 	return nil, fmt.Errorf("step %s missing", stepID)
 }
 
-func (s *fakePlanStore) AppendToolResultEvidenceRef(_ context.Context, resultRef string, ref toolresult.EvidenceRef) error {
+func (s *fakePlanStore) AppendToolResultEvidenceRef(_ context.Context, resultRef string, ref store.EvidenceRef) error {
 	if s.loaded == nil {
 		return fmt.Errorf("plan not loaded")
 	}
@@ -103,7 +102,7 @@ func (s *fakePlanStore) AppendToolResultEvidenceRef(_ context.Context, resultRef
 	return nil
 }
 
-func containsEvidenceRef(resultRef string, ref toolresult.EvidenceRef) bool {
+func containsEvidenceRef(resultRef string, ref store.EvidenceRef) bool {
 	return strings.TrimSpace(resultRef) != "" && strings.TrimSpace(ref.Ref) != ""
 }
 

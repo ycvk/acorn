@@ -7,26 +7,26 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/ycvk/acorn/internal/toolresult"
+	"github.com/ycvk/acorn/internal/store"
 )
 
 type memoryToolResultLedger struct {
 	mu      sync.Mutex
-	records map[string]toolresult.Record
+	records map[string]store.ToolResultRecord
 	order   []string
 }
 
 func newMemoryToolResultLedger() *memoryToolResultLedger {
-	return &memoryToolResultLedger{records: make(map[string]toolresult.Record)}
+	return &memoryToolResultLedger{records: make(map[string]store.ToolResultRecord)}
 }
 
-func (m *memoryToolResultLedger) Append(_ context.Context, req toolresult.AppendRequest) (toolresult.Record, error) {
-	req, err := toolresult.NormalizeAppendRequest(req)
+func (m *memoryToolResultLedger) Append(_ context.Context, req store.ToolResultAppendRequest) (store.ToolResultRecord, error) {
+	req, err := store.NormalizeToolResultAppendRequest(req)
 	if err != nil {
-		return toolresult.Record{}, err
+		return store.ToolResultRecord{}, err
 	}
-	rec := toolresult.Record{
-		ResultRef:     toolresult.BuildRef(req.RunID, req.CallID),
+	rec := store.ToolResultRecord{
+		ResultRef:     store.BuildToolResultRef(req.RunID, req.CallID),
 		RunID:         req.RunID,
 		SessionID:     req.SessionID,
 		TurnIndex:     req.TurnIndex,
@@ -35,18 +35,18 @@ func (m *memoryToolResultLedger) Append(_ context.Context, req toolresult.Append
 		ArgumentsJSON: req.ArgumentsJSON,
 		Status:        req.Status,
 		ErrorReason:   req.ErrorReason,
-		Preview:       toolresult.Preview(req.FullText, 240),
+		Preview:       store.PreviewToolResult(req.FullText, 240),
 		FullText:      req.FullText,
 		TokenEstimate: req.TokenEstimate,
-		SideEffects:   append([]toolresult.SideEffectRef(nil), req.SideEffects...),
-		EvidenceRefs:  append([]toolresult.EvidenceRef(nil), req.EvidenceRefs...),
+		SideEffects:   append([]store.SideEffectRef(nil), req.SideEffects...),
+		EvidenceRefs:  append([]store.EvidenceRef(nil), req.EvidenceRefs...),
 		CreatedAt:     req.CreatedAt,
 	}
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.records == nil {
-		m.records = make(map[string]toolresult.Record)
+		m.records = make(map[string]store.ToolResultRecord)
 	}
 	if _, exists := m.records[rec.ResultRef]; !exists {
 		m.order = append(m.order, rec.ResultRef)
@@ -55,25 +55,25 @@ func (m *memoryToolResultLedger) Append(_ context.Context, req toolresult.Append
 	return rec, nil
 }
 
-func (m *memoryToolResultLedger) Load(_ context.Context, ref string) (toolresult.Record, error) {
+func (m *memoryToolResultLedger) Load(_ context.Context, ref string) (store.ToolResultRecord, error) {
 	ref = strings.TrimSpace(ref)
 	if ref == "" {
-		return toolresult.Record{}, fmt.Errorf("tool result ref is required")
+		return store.ToolResultRecord{}, fmt.Errorf("tool result ref is required")
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	record, ok := m.records[ref]
 	if !ok {
-		return toolresult.Record{}, toolresult.ErrToolResultNotFound
+		return store.ToolResultRecord{}, store.ErrToolResultNotFound
 	}
 	return record, nil
 }
 
-func (m *memoryToolResultLedger) ListByRun(_ context.Context, runID string) ([]toolresult.Record, error) {
+func (m *memoryToolResultLedger) ListByRun(_ context.Context, runID string) ([]store.ToolResultRecord, error) {
 	runID = strings.TrimSpace(runID)
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	out := make([]toolresult.Record, 0)
+	out := make([]store.ToolResultRecord, 0)
 	for _, ref := range m.order {
 		record := m.records[ref]
 		if record.RunID == runID {
@@ -86,19 +86,19 @@ func (m *memoryToolResultLedger) ListByRun(_ context.Context, runID string) ([]t
 		}
 		return out[i].CreatedAt.Before(out[j].CreatedAt)
 	})
-	return append([]toolresult.Record(nil), out...), nil
+	return append([]store.ToolResultRecord(nil), out...), nil
 }
 
-func (m *memoryToolResultLedger) AppendEvidenceRef(_ context.Context, resultRef string, ref toolresult.EvidenceRef) (toolresult.Record, error) {
-	ref, err := toolresult.NormalizeEvidenceRef(ref)
+func (m *memoryToolResultLedger) AppendEvidenceRef(_ context.Context, resultRef string, ref store.EvidenceRef) (store.ToolResultRecord, error) {
+	ref, err := store.NormalizeEvidenceRef(ref)
 	if err != nil {
-		return toolresult.Record{}, err
+		return store.ToolResultRecord{}, err
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	record, ok := m.records[strings.TrimSpace(resultRef)]
 	if !ok {
-		return toolresult.Record{}, toolresult.ErrToolResultNotFound
+		return store.ToolResultRecord{}, store.ErrToolResultNotFound
 	}
 	for _, existing := range record.EvidenceRefs {
 		if existing.Kind == ref.Kind && existing.Ref == ref.Ref {
