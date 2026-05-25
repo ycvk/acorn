@@ -1,6 +1,6 @@
 //go:build darwin || linux
 
-package processgroup
+package tools
 
 import (
 	"errors"
