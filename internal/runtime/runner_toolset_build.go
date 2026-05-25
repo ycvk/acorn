@@ -14,7 +14,7 @@ import (
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/decision"
 	"github.com/ycvk/acorn/internal/memorymodule"
-	appmodel "github.com/ycvk/acorn/internal/model"
+	"github.com/ycvk/acorn/internal/providers"
 	"github.com/ycvk/acorn/internal/orchestration"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
 	"github.com/ycvk/acorn/internal/skilllifecycle"
@@ -360,7 +360,7 @@ func buildRuntimeChatModelWithProvider(ctx context.Context, cfg *config.Config, 
 		return nil, config.ProviderConfig{}, errors.New("config is required")
 	}
 	if newModel == nil {
-		newModel = appmodel.NewChatModel
+		newModel = providers.NewOpenAIChatModel
 	}
 
 	provider, err := cfg.EnabledProvider()
