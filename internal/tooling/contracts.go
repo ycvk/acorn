@@ -30,10 +30,6 @@ const (
 	ToolSideEffectReadWorkspace       ToolSideEffect = "read_workspace"
 	ToolSideEffectWriteWorkspace      ToolSideEffect = "write_workspace"
 	ToolSideEffectRunCommand          ToolSideEffect = "run_command"
-	ToolSideEffectProcessRead         ToolSideEffect = "process_read"
-	ToolSideEffectProcessStart        ToolSideEffect = "process_start"
-	ToolSideEffectProcessWrite        ToolSideEffect = "process_write"
-	ToolSideEffectProcessSignal       ToolSideEffect = "process_signal"
 	ToolSideEffectArtifactRead        ToolSideEffect = "artifact_read"
 	ToolSideEffectArtifactWrite       ToolSideEffect = "artifact_write"
 	ToolSideEffectOperatorInteraction ToolSideEffect = "operator_interaction"
@@ -131,7 +127,6 @@ func (c ToolContract) Validate() error {
 		ResourceScopeMemory,
 		ResourceScopeSkill,
 		ResourceScopeMCP,
-		ResourceScopeProcess,
 		ResourceScopeArtifact,
 		ResourceScopeOperator,
 		ResourceScopeWeb,
@@ -181,10 +176,6 @@ func (c ToolContract) Validate() error {
 		case ToolSideEffectReadWorkspace,
 			ToolSideEffectWriteWorkspace,
 			ToolSideEffectRunCommand,
-			ToolSideEffectProcessRead,
-			ToolSideEffectProcessStart,
-			ToolSideEffectProcessWrite,
-			ToolSideEffectProcessSignal,
 			ToolSideEffectArtifactRead,
 			ToolSideEffectArtifactWrite,
 			ToolSideEffectOperatorInteraction,

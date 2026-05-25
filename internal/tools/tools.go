@@ -261,8 +261,6 @@ type CatalogConfig struct {
 	RunCommandEnabled bool
 	ArtifactService   ArtifactService
 	ArtifactContext   ArtifactContext
-	TerminalService   TerminalService
-	TerminalContext   TerminalSessionContext
 	OperatorStore     OperatorQuestionStore
 	OperatorContext   OperatorQuestionContext
 	WebFetchService   WebFetchService
@@ -361,14 +359,6 @@ func BuildCatalog(cfg CatalogConfig, extraTools []einotool.BaseTool, childExec o
 			return nil, err
 		}
 		items = append(items, artifactTools...)
-	}
-
-	if cfg.TerminalService != nil {
-		terminalTools, err := buildTerminalSessionTools(cfg.TerminalService, ws, cfg.TerminalContext)
-		if err != nil {
-			return nil, err
-		}
-		items = append(items, terminalTools...)
 	}
 
 	if cfg.OperatorStore != nil {

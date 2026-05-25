@@ -12,9 +12,7 @@ import (
 const sqliteImportPath = "github.com/ycvk/acorn/internal/store/sqlite"
 
 var sqliteImportAllowlist = map[string]struct{}{
-	"internal/app/container.go":           {},
-	"internal/app/container_bootstrap.go": {},
-	"internal/app/infra_services.go":      {},
+	"internal/app/container.go": {},
 }
 
 func TestSQLiteStoreImportsStayBehindCompositionRoot(t *testing.T) {

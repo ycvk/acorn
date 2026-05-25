@@ -3,6 +3,7 @@ package web
 import (
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/ycvk/acorn/internal/app"
 	"github.com/ycvk/acorn/internal/config"
@@ -43,4 +44,16 @@ func clientWorkspaceRoot(cfg *config.Config) string {
 		return ""
 	}
 	return cfg.WorkspaceRoot()
+}
+
+func bearerToken(header string) (string, error) {
+	trimmed := strings.TrimSpace(header)
+	if trimmed == "" {
+		return "", app.ErrUnauthenticated
+	}
+	parts := strings.Fields(trimmed)
+	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") || strings.TrimSpace(parts[1]) == "" {
+		return "", app.ErrUnauthenticated
+	}
+	return parts[1], nil
 }

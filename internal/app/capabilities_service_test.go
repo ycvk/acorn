@@ -33,14 +33,11 @@ func TestCapabilitiesSnapshotContract(t *testing.T) {
 		if !strings.Contains(snapshot.RuntimeReadiness.Reason, "api_key is required") {
 			t.Fatalf("expected runtime readiness reason to mention missing api key, got %q", snapshot.RuntimeReadiness.Reason)
 		}
-		if got, want := len(snapshot.Tools), 27; got != want {
+		if got, want := len(snapshot.Tools), 20; got != want {
 			t.Fatalf("tool count = %d, want %d", got, want)
 		}
 		if !hasTool(snapshot.Tools, "artifact_write") || !hasTool(snapshot.Tools, "artifact_read") || !hasTool(snapshot.Tools, "artifact_list") {
 			t.Fatalf("artifact tools missing from snapshot: %+v", snapshot.Tools)
-		}
-		if !hasTool(snapshot.Tools, "terminal_session_start") || !hasTool(snapshot.Tools, "terminal_session_read") || !hasTool(snapshot.Tools, "process_status") {
-			t.Fatalf("terminal session tools missing from snapshot: %+v", snapshot.Tools)
 		}
 		if !hasTool(snapshot.Tools, "ask_operator") {
 			t.Fatalf("operator question tool missing from snapshot: %+v", snapshot.Tools)

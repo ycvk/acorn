@@ -5,6 +5,7 @@ import (
 
 	"github.com/ycvk/acorn/internal/app"
 	"github.com/ycvk/acorn/internal/runtime"
+	"github.com/ycvk/acorn/internal/web/runprojector"
 )
 
 type RunDetailDTO struct {
@@ -41,7 +42,7 @@ func runDTOFromDomain(run app.Run) RunDTO {
 	return dto
 }
 
-func runEventDTOFromDomain(event app.RunEvent) RunEventDTO {
+func runEventDTOFromDomain(event runprojector.RunEvent) RunEventDTO {
 	return RunEventDTO{
 		EventID: event.EventID,
 		RunID:   event.RunID,
@@ -52,7 +53,7 @@ func runEventDTOFromDomain(event app.RunEvent) RunEventDTO {
 	}
 }
 
-func runEventDTOsFromDomain(items []app.RunEvent) []RunEventDTO {
+func runEventDTOsFromDomain(items []runprojector.RunEvent) []RunEventDTO {
 	result := make([]RunEventDTO, 0, len(items))
 	for _, item := range items {
 		result = append(result, runEventDTOFromDomain(item))
@@ -60,7 +61,7 @@ func runEventDTOsFromDomain(items []app.RunEvent) []RunEventDTO {
 	return result
 }
 
-func unsupportedRunEventDTOFromDomain(event app.UnsupportedRunEvent) UnsupportedRunEventDTO {
+func unsupportedRunEventDTOFromDomain(event runprojector.UnsupportedRunEvent) UnsupportedRunEventDTO {
 	return UnsupportedRunEventDTO{
 		EventID: event.EventID,
 		RunID:   event.RunID,
@@ -72,7 +73,7 @@ func unsupportedRunEventDTOFromDomain(event app.UnsupportedRunEvent) Unsupported
 	}
 }
 
-func unsupportedRunEventDTOsFromDomain(items []app.UnsupportedRunEvent) []UnsupportedRunEventDTO {
+func unsupportedRunEventDTOsFromDomain(items []runprojector.UnsupportedRunEvent) []UnsupportedRunEventDTO {
 	result := make([]UnsupportedRunEventDTO, 0, len(items))
 	for _, item := range items {
 		result = append(result, unsupportedRunEventDTOFromDomain(item))
@@ -105,7 +106,6 @@ type RuntimeWorkbenchDTO struct {
 	ContextEconomy      ContextEconomyDTO       `json:"context_economy"`
 	ProviderUsage       ProviderUsageDTO        `json:"provider_usage"`
 	Artifacts           []ArtifactSummaryDTO    `json:"artifacts,omitempty"`
-	TerminalSessions    []TerminalSessionDTO    `json:"terminal_sessions,omitempty"`
 	Plan                *PlanDTO                `json:"plan,omitempty"`
 	Evidence            []PlanEvidenceDTO       `json:"evidence,omitempty"`
 	Subagents           []SubagentRunDTO        `json:"subagents,omitempty"`

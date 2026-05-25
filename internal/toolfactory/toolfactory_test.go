@@ -87,7 +87,7 @@ func TestBuildCatalogSpecsNilTool(t *testing.T) {
 
 func TestNewBuilder(t *testing.T) {
 	cfg := config.DefaultConfig()
-	b := NewBuilder(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	b := NewBuilder(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	if b == nil {
 		t.Fatal("expected non-nil builder")
 	}
@@ -114,7 +114,7 @@ func TestBuilderBuildNilConfig(t *testing.T) {
 
 func TestBuilderBuildNilWorkspace(t *testing.T) {
 	cfg := config.DefaultConfig()
-	b := NewBuilder(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	b := NewBuilder(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	_, err := b.Build(context.Background(), BuildOptions{})
 	if err == nil {
 		t.Fatal("expected error for nil workspace")
@@ -129,7 +129,7 @@ func TestNewLoadToolsToolValidation(t *testing.T) {
 }
 
 func TestBuildMemoryFileToolsNilMemory(t *testing.T) {
-	_, err := BuildMemoryFileTools(context.Background(), nil)
+	_, err := BuildMemoryFileTools(context.Background(), nil, nil)
 	if err == nil {
 		t.Fatal("expected error for nil memory")
 	}

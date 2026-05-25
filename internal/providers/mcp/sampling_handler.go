@@ -11,6 +11,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/ycvk/acorn/internal/events"
+	"github.com/ycvk/acorn/internal/runtime/stream"
 )
 
 // SamplingExecutor is the interface for executing sampling sub-runs.
@@ -20,15 +21,6 @@ import (
 type SamplingExecutor interface {
 	ExecuteMessages(ctx context.Context, messages []*schema.Message) (output string, err error)
 }
-
-// Local stream kind constants for sampling events.
-// These mirror runtime.StreamKindSamplingStarted/Completed/Failed to avoid an
-// import cycle (runtime -> mcpprovider -> runtime).
-const (
-	samplingEventKindStarted   = "sampling.started"
-	samplingEventKindCompleted = "sampling.completed"
-	samplingEventKindFailed    = "sampling.failed"
-)
 
 // samplingDepthCap is the maximum depth for recursive sampling requests.
 // Per D-05, the cap is 2 to prevent unbounded LLM recursion.
@@ -101,7 +93,7 @@ func (h *SamplingHandler) HandleCreateMessage(ctx context.Context, req *mcp.Crea
 
 	// Step 4: Emit sampling.started event
 	depth := atomic.LoadInt32(&h.manager.samplingDepth)
-	if err := h.emitSamplingEvent(ctx, runID, samplingEventKindStarted, samplingEventPayload{
+	if err := h.emitSamplingEvent(ctx, runID, string(stream.StreamKindSamplingStarted), stream.SamplingPayload{
 		RunID: subRunID,
 		Depth: depth,
 	}); err != nil {
@@ -116,7 +108,7 @@ func (h *SamplingHandler) HandleCreateMessage(ctx context.Context, req *mcp.Crea
 	output, err := h.executor.ExecuteMessages(ctx, messages)
 	if err != nil {
 		// Step 8: Emit sampling.failed event
-		if emitErr := h.emitSamplingEvent(ctx, runID, samplingEventKindFailed, samplingEventPayload{
+		if emitErr := h.emitSamplingEvent(ctx, runID, string(stream.StreamKindSamplingFailed), stream.SamplingPayload{
 			RunID: subRunID,
 			Depth: depth,
 		}); emitErr != nil {
@@ -127,7 +119,7 @@ func (h *SamplingHandler) HandleCreateMessage(ctx context.Context, req *mcp.Crea
 
 	// Step 7: Emit sampling.completed event
 	model := "acorn-default"
-	if err := h.emitSamplingEvent(ctx, runID, samplingEventKindCompleted, samplingEventPayload{
+	if err := h.emitSamplingEvent(ctx, runID, string(stream.StreamKindSamplingCompleted), stream.SamplingPayload{
 		RunID: subRunID,
 		Depth: depth,
 		Model: model,
@@ -152,16 +144,8 @@ func (h *SamplingHandler) getActiveRunID() string {
 	return ""
 }
 
-// samplingEventPayload is the payload for sampling stream events.
-// It mirrors runtime.SamplingPayload to avoid an import cycle.
-type samplingEventPayload struct {
-	RunID string `json:"run_id"`
-	Depth int32  `json:"depth"`
-	Model string `json:"model,omitempty"`
-}
-
 // emitSamplingEvent emits a sampling event via the store's AppendEvent.
-func (h *SamplingHandler) emitSamplingEvent(ctx context.Context, runID, eventKind string, payload samplingEventPayload) error {
+func (h *SamplingHandler) emitSamplingEvent(ctx context.Context, runID, eventKind string, payload stream.SamplingPayload) error {
 	if h.store == nil {
 		return errors.New("sampling event store not configured")
 	}

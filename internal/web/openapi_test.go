@@ -106,8 +106,6 @@ func TestOpenAPIContractMatchesFileBackedMemorySurface(t *testing.T) {
 		"RuntimeWorkbench",
 		"WorkspaceGitStatus",
 		"RunArtifact",
-		"RunTerminalSession",
-		"RunTerminalSessionLog",
 		"SubagentRun",
 		"unauthenticated",
 		"device_revoked",
@@ -311,8 +309,6 @@ func TestOpenAPIContractMatchesFileBackedMemorySurface(t *testing.T) {
 		"MutationCheckpoint",
 		"RollbackResult",
 		"RunArtifact",
-		"RunTerminalSession",
-		"RunTerminalSessionLog",
 	} {
 		if doc.Components.Schemas[schemaName] == nil {
 			t.Fatalf("missing schema %s", schemaName)

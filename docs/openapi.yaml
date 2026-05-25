@@ -2057,10 +2057,6 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/RunArtifact'
-        terminal_sessions:
-          type: array
-          items:
-            $ref: '#/components/schemas/RunTerminalSession'
         plan:
           $ref: '#/components/schemas/PlanDTO'
         evidence:
@@ -2312,85 +2308,6 @@ components:
           format: int64
         sha256:
           type: string
-        created_at:
-          type: string
-          format: date-time
-
-    RunTerminalSession:
-      type: object
-      additionalProperties: false
-      required: [terminal_session_id, run_id, command_json, cwd, interactive, pty, status, created_at, updated_at]
-      properties:
-        terminal_session_id:
-          type: string
-        run_id:
-          type: string
-        session_id:
-          type: string
-        label:
-          type: string
-        command_json:
-          type: string
-        cwd:
-          type: string
-        interactive:
-          type: boolean
-        pty:
-          type: boolean
-        status:
-          type: string
-          enum: [starting, running, exited, signaled, failed, closed]
-        pid:
-          type: integer
-        process_group_id:
-          type: integer
-        exit_code:
-          type: integer
-        signal:
-          type: string
-        stdout_artifact_id:
-          type: string
-        stderr_artifact_id:
-          type: string
-        pty_artifact_id:
-          type: string
-        started_at:
-          type: string
-          format: date-time
-        ended_at:
-          type: string
-          format: date-time
-        created_at:
-          type: string
-          format: date-time
-        updated_at:
-          type: string
-          format: date-time
-        logs:
-          type: array
-          items:
-            $ref: '#/components/schemas/RunTerminalSessionLog'
-
-    RunTerminalSessionLog:
-      type: object
-      additionalProperties: false
-      required: [log_id, terminal_session_id, stream, artifact_id, start_offset, size_bytes, created_at]
-      properties:
-        log_id:
-          type: string
-        terminal_session_id:
-          type: string
-        stream:
-          type: string
-          enum: [stdout, stderr, pty]
-        artifact_id:
-          type: string
-        start_offset:
-          type: integer
-          format: int64
-        size_bytes:
-          type: integer
-          format: int64
         created_at:
           type: string
           format: date-time
@@ -2849,6 +2766,20 @@ components:
         - $ref: '#/components/schemas/ClientElicitationDecidedEvent'
         - $ref: '#/components/schemas/ClientOperatorQuestionPendingEvent'
         - $ref: '#/components/schemas/ClientOperatorQuestionDecidedEvent'
+        - $ref: '#/components/schemas/ClientProviderDegradedEvent'
+        - $ref: '#/components/schemas/ClientMCPToolCatalogRefreshedEvent'
+        - $ref: '#/components/schemas/ClientMCPToolCatalogRefreshFailedEvent'
+        - $ref: '#/components/schemas/ClientMCPProviderAddedEvent'
+        - $ref: '#/components/schemas/ClientMCPProviderRemovedEvent'
+        - $ref: '#/components/schemas/ClientMCPProviderRestartedEvent'
+        - $ref: '#/components/schemas/ClientMCPResourceCatalogRefreshedEvent'
+        - $ref: '#/components/schemas/ClientMCPResourceCatalogRefreshFailedEvent'
+        - $ref: '#/components/schemas/ClientMCPPromptCatalogRefreshedEvent'
+        - $ref: '#/components/schemas/ClientMCPPromptCatalogRefreshFailedEvent'
+        - $ref: '#/components/schemas/ClientMCPAuthStatusChangedEvent'
+        - $ref: '#/components/schemas/ClientSamplingStartedEvent'
+        - $ref: '#/components/schemas/ClientSamplingCompletedEvent'
+        - $ref: '#/components/schemas/ClientSamplingFailedEvent'
         - $ref: '#/components/schemas/ClientDecisionSelectedEvent'
         - $ref: '#/components/schemas/ClientDecisionBlockedEvent'
         - $ref: '#/components/schemas/ClientSkillDiscoveredEvent'
@@ -2890,6 +2821,20 @@ components:
           elicitation.decided: '#/components/schemas/ClientElicitationDecidedEvent'
           operator_question.pending: '#/components/schemas/ClientOperatorQuestionPendingEvent'
           operator_question.decided: '#/components/schemas/ClientOperatorQuestionDecidedEvent'
+          provider.degraded: '#/components/schemas/ClientProviderDegradedEvent'
+          mcp.tool_catalog_refreshed: '#/components/schemas/ClientMCPToolCatalogRefreshedEvent'
+          mcp.tool_catalog_refresh_failed: '#/components/schemas/ClientMCPToolCatalogRefreshFailedEvent'
+          mcp.provider_added: '#/components/schemas/ClientMCPProviderAddedEvent'
+          mcp.provider_removed: '#/components/schemas/ClientMCPProviderRemovedEvent'
+          mcp.provider_restarted: '#/components/schemas/ClientMCPProviderRestartedEvent'
+          mcp.resource_catalog_refreshed: '#/components/schemas/ClientMCPResourceCatalogRefreshedEvent'
+          mcp.resource_catalog_refresh_failed: '#/components/schemas/ClientMCPResourceCatalogRefreshFailedEvent'
+          mcp.prompt_catalog_refreshed: '#/components/schemas/ClientMCPPromptCatalogRefreshedEvent'
+          mcp.prompt_catalog_refresh_failed: '#/components/schemas/ClientMCPPromptCatalogRefreshFailedEvent'
+          mcp.auth_status_changed: '#/components/schemas/ClientMCPAuthStatusChangedEvent'
+          sampling.started: '#/components/schemas/ClientSamplingStartedEvent'
+          sampling.completed: '#/components/schemas/ClientSamplingCompletedEvent'
+          sampling.failed: '#/components/schemas/ClientSamplingFailedEvent'
           decision_selected: '#/components/schemas/ClientDecisionSelectedEvent'
           decision_blocked: '#/components/schemas/ClientDecisionBlockedEvent'
           skill.discovered: '#/components/schemas/ClientSkillDiscoveredEvent'
@@ -3106,6 +3051,160 @@ components:
               const: operator_question.decided
             data:
               $ref: '#/components/schemas/OperatorQuestionData'
+
+    ClientProviderDegradedEvent:
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: provider.degraded
+            data:
+              $ref: '#/components/schemas/ProviderDegradedData'
+
+    ClientMCPToolCatalogRefreshedEvent:
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: mcp.tool_catalog_refreshed
+            data:
+              $ref: '#/components/schemas/MCPProviderLifecycleData'
+
+    ClientMCPToolCatalogRefreshFailedEvent:
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: mcp.tool_catalog_refresh_failed
+            data:
+              $ref: '#/components/schemas/MCPProviderLifecycleData'
+
+    ClientMCPProviderAddedEvent:
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: mcp.provider_added
+            data:
+              $ref: '#/components/schemas/MCPProviderLifecycleData'
+
+    ClientMCPProviderRemovedEvent:
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: mcp.provider_removed
+            data:
+              $ref: '#/components/schemas/MCPProviderLifecycleData'
+
+    ClientMCPProviderRestartedEvent:
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: mcp.provider_restarted
+            data:
+              $ref: '#/components/schemas/MCPProviderLifecycleData'
+
+    ClientMCPResourceCatalogRefreshedEvent:
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: mcp.resource_catalog_refreshed
+            data:
+              $ref: '#/components/schemas/MCPProviderLifecycleData'
+
+    ClientMCPResourceCatalogRefreshFailedEvent:
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: mcp.resource_catalog_refresh_failed
+            data:
+              $ref: '#/components/schemas/MCPProviderLifecycleData'
+
+    ClientMCPPromptCatalogRefreshedEvent:
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: mcp.prompt_catalog_refreshed
+            data:
+              $ref: '#/components/schemas/MCPProviderLifecycleData'
+
+    ClientMCPPromptCatalogRefreshFailedEvent:
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: mcp.prompt_catalog_refresh_failed
+            data:
+              $ref: '#/components/schemas/MCPProviderLifecycleData'
+
+    ClientMCPAuthStatusChangedEvent:
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: mcp.auth_status_changed
+            data:
+              $ref: '#/components/schemas/MCPProviderLifecycleData'
+
+    ClientSamplingStartedEvent:
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: sampling.started
+            data:
+              $ref: '#/components/schemas/SamplingData'
+
+    ClientSamplingCompletedEvent:
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: sampling.completed
+            data:
+              $ref: '#/components/schemas/SamplingData'
+
+    ClientSamplingFailedEvent:
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: sampling.failed
+            data:
+              $ref: '#/components/schemas/SamplingData'
 
     ClientDecisionSelectedEvent:
       allOf:
@@ -3459,6 +3558,40 @@ components:
         selected_option_id:
           type: string
         answer:
+          type: string
+
+    ProviderDegradedData:
+      type: object
+      additionalProperties: false
+      properties:
+        affected_providers:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProviderDegradedEntry'
+
+    MCPProviderLifecycleData:
+      type: object
+      additionalProperties: false
+      properties:
+        provider_name:
+          type: string
+        transport:
+          type: string
+        error:
+          type: string
+        auth_status:
+          type: string
+
+    SamplingData:
+      type: object
+      additionalProperties: false
+      required: [run_id, depth]
+      properties:
+        run_id:
+          type: string
+        depth:
+          type: integer
+        model:
           type: string
 
     DecisionSelectedData:

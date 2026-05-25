@@ -16,7 +16,6 @@ import (
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
 	"github.com/ycvk/acorn/internal/runtimehistory"
 	"github.com/ycvk/acorn/internal/skills"
-	"github.com/ycvk/acorn/internal/terminalsession"
 	"github.com/ycvk/acorn/internal/workingstate"
 	"github.com/ycvk/acorn/internal/workspace"
 )
@@ -45,7 +44,6 @@ type RuntimeDeps struct {
 	MCPPendingActions mcpprovider.PendingActionStore
 	Workspace         *workspace.Workspace
 	ArtifactService   *artifacts.Service
-	TerminalService   *terminalsession.Service
 	ExtraLocalTools   []einotool.BaseTool
 	Handlers          []adk.ChatModelAgentMiddleware
 	Crystallizer      crystallization.Service

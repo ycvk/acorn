@@ -12,6 +12,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/ycvk/acorn/internal/events"
+	"github.com/ycvk/acorn/internal/runtime/stream"
 )
 
 // mockSamplingExecutor is a test double for SamplingExecutor.
@@ -43,7 +44,7 @@ type mockSamplingEventStore struct {
 	events []struct {
 		runID   string
 		kind    string
-		payload samplingEventPayload
+		payload stream.SamplingPayload
 	}
 	mu sync.Mutex
 }
@@ -51,11 +52,11 @@ type mockSamplingEventStore struct {
 func (m *mockSamplingEventStore) AppendEventContext(_ context.Context, runID, kind string, payload any) (events.EventRecord, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	p, _ := payload.(samplingEventPayload)
+	p, _ := payload.(stream.SamplingPayload)
 	m.events = append(m.events, struct {
 		runID   string
 		kind    string
-		payload samplingEventPayload
+		payload stream.SamplingPayload
 	}{runID: runID, kind: kind, payload: p})
 	return events.EventRecord{}, nil
 }
@@ -63,14 +64,14 @@ func (m *mockSamplingEventStore) AppendEventContext(_ context.Context, runID, ki
 func (m *mockSamplingEventStore) getEvents() []struct {
 	runID   string
 	kind    string
-	payload samplingEventPayload
+	payload stream.SamplingPayload
 } {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return append([]struct {
 		runID   string
 		kind    string
-		payload samplingEventPayload
+		payload stream.SamplingPayload
 	}{}, m.events...)
 }
 
@@ -261,7 +262,7 @@ func TestHandleCreateMessageSubRunIDPrefix(t *testing.T) {
 	// Find the started event and verify sub-run ID is present
 	var startedFound bool
 	for _, ev := range events {
-		if ev.kind == samplingEventKindStarted {
+		if ev.kind == string(stream.StreamKindSamplingStarted) {
 			startedFound = true
 			if strings.TrimSpace(ev.payload.RunID) == "" {
 				t.Fatal("sub-run ID in sampling.started event is empty")
@@ -301,10 +302,10 @@ func TestHandleCreateMessageEmitsEvents(t *testing.T) {
 	if got, want := len(events), 2; got != want {
 		t.Fatalf("event count = %d, want %d", got, want)
 	}
-	if got, want := events[0].kind, samplingEventKindStarted; got != want {
+	if got, want := events[0].kind, string(stream.StreamKindSamplingStarted); got != want {
 		t.Fatalf("event[0].kind = %q, want %q", got, want)
 	}
-	if got, want := events[1].kind, samplingEventKindCompleted; got != want {
+	if got, want := events[1].kind, string(stream.StreamKindSamplingCompleted); got != want {
 		t.Fatalf("event[1].kind = %q, want %q", got, want)
 	}
 	// Depth should be 1 during started event (after increment)
@@ -347,10 +348,10 @@ func TestHandleCreateMessageExecutorError(t *testing.T) {
 	if got, want := len(events), 2; got != want {
 		t.Fatalf("event count = %d, want %d", got, want)
 	}
-	if got, want := events[0].kind, samplingEventKindStarted; got != want {
+	if got, want := events[0].kind, string(stream.StreamKindSamplingStarted); got != want {
 		t.Fatalf("event[0].kind = %q, want %q", got, want)
 	}
-	if got, want := events[1].kind, samplingEventKindFailed; got != want {
+	if got, want := events[1].kind, string(stream.StreamKindSamplingFailed); got != want {
 		t.Fatalf("event[1].kind = %q, want %q", got, want)
 	}
 

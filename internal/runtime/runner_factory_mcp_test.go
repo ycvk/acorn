@@ -367,8 +367,12 @@ func TestRunnerFactoryEventCallbackDoesNotImportRuntime(t *testing.T) {
 		t.Fatalf("go list: %v\n%s", err, string(output))
 	}
 	imports := string(output)
-	if strings.Contains(imports, "github.com/ycvk/acorn/internal/runtime") {
-		t.Fatalf("internal/providers/mcp must NOT import internal/runtime; imports: %s", imports)
+	// Check for the exact runtime package path, not sub-packages like runtime/stream.
+	importList := strings.Trim(imports, "[]")
+	for _, pkg := range strings.Fields(importList) {
+		if pkg == "github.com/ycvk/acorn/internal/runtime" {
+			t.Fatalf("internal/providers/mcp must NOT import internal/runtime; imports: %s", imports)
+		}
 	}
 }
 

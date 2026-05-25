@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/cloudwego/eino/adk"
-	"github.com/cloudwego/eino/components/tool"
 	einotool "github.com/cloudwego/eino/components/tool"
 	toolutils "github.com/cloudwego/eino/components/tool/utils"
 	"github.com/cloudwego/eino/compose"
@@ -505,8 +504,8 @@ func augmentDescription(desc, provider string) string {
 // (prefixed) tool name and augmented description, while InvokableRun()
 // delegates to the original tool which uses the original name for MCP RPC.
 type mcpNamespacedTool struct {
-	inner         tool.BaseTool
-	invokable     tool.InvokableTool
+	inner         einotool.BaseTool
+	invokable     einotool.InvokableTool
 	prefixedName  string
 	augmentedDesc string
 }
@@ -515,8 +514,8 @@ type mcpNamespacedTool struct {
 // The LLM sees prefixedName in the tool schema, but tool calls are routed
 // through the original inner tool which preserves the original MCP name for
 // the tools/call RPC.
-func newMCPNamespacedTool(ctx context.Context, inner tool.BaseTool, provider, originalToolName string) (*mcpNamespacedTool, error) {
-	invokable, ok := inner.(tool.InvokableTool)
+func newMCPNamespacedTool(ctx context.Context, inner einotool.BaseTool, provider, originalToolName string) (*mcpNamespacedTool, error) {
+	invokable, ok := inner.(einotool.InvokableTool)
 	if !ok {
 		return nil, fmt.Errorf("MCP tool %q is not invokable", originalToolName)
 	}
@@ -546,7 +545,7 @@ func (t *mcpNamespacedTool) Info(ctx context.Context) (*schema.ToolInfo, error) 
 	}, nil
 }
 
-func (t *mcpNamespacedTool) InvokableRun(ctx context.Context, argumentsInJSON string, opts ...tool.Option) (string, error) {
+func (t *mcpNamespacedTool) InvokableRun(ctx context.Context, argumentsInJSON string, opts ...einotool.Option) (string, error) {
 	return t.invokable.InvokableRun(ctx, argumentsInJSON, opts...)
 }
 

@@ -28,7 +28,6 @@ type Builder struct {
 	cfg               *config.Config
 	workspace         tools.WorkspaceView
 	artifactService   tools.ArtifactService
-	terminalService   tools.TerminalService
 	checkpointService workingstate.CheckpointService
 	memoryModule      memorymodule.Service
 	loader            skills.SkillLoader
@@ -43,7 +42,6 @@ func NewBuilder(
 	cfg *config.Config,
 	workspace tools.WorkspaceView,
 	artifactService tools.ArtifactService,
-	terminalService tools.TerminalService,
 	checkpointService workingstate.CheckpointService,
 	memoryModule memorymodule.Service,
 	loader skills.SkillLoader,
@@ -56,7 +54,6 @@ func NewBuilder(
 		cfg:               cfg,
 		workspace:         workspace,
 		artifactService:   artifactService,
-		terminalService:   terminalService,
 		checkpointService: checkpointService,
 		memoryModule:      memoryModule,
 		loader:            loader,
@@ -74,7 +71,6 @@ type BuildOptions struct {
 	IncludePlanning     bool
 	Profile             tooling.ToolProfile
 	ArtifactContext     tools.ArtifactContext
-	TerminalContext     tools.TerminalSessionContext
 	OperatorContext     tools.OperatorQuestionContext
 	DelegateContext     tools.DelegateTaskContext
 	RunContextBridge    skilllifecycle.RunContextBridge
@@ -139,8 +135,6 @@ func (b *Builder) Build(ctx context.Context, opts BuildOptions) (*Toolset, error
 		RunCommandEnabled: !b.cfg.Tools.RunCommand.Disabled,
 		ArtifactService:   b.artifactService,
 		ArtifactContext:   opts.ArtifactContext,
-		TerminalService:   b.terminalService,
-		TerminalContext:   opts.TerminalContext,
 		OperatorStore:     operatorStore,
 		OperatorContext:   opts.OperatorContext,
 		WebFetchService:   webFetchService,
@@ -163,7 +157,7 @@ func (b *Builder) Build(ctx context.Context, opts BuildOptions) (*Toolset, error
 	}
 	var memoryTools []einotool.BaseTool
 	if b.memoryModule != nil {
-		fileTools, err := BuildMemoryFileTools(ctx, b.memoryModule)
+		fileTools, err := BuildMemoryFileTools(ctx, b.memoryModule, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -226,5 +220,5 @@ func (b *Builder) Build(ctx context.Context, opts BuildOptions) (*Toolset, error
 	if err != nil {
 		return nil, fmt.Errorf("build toolset catalog: %w", err)
 	}
-	return &Toolset{catalog: catalog, profile: opts.Profile, closers: []closer{browserService}}, nil
+	return NewToolset(catalog, opts.Profile, browserService), nil
 }

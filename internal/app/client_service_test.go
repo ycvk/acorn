@@ -20,6 +20,7 @@ import (
 	"github.com/ycvk/acorn/internal/memorymodule"
 	"github.com/ycvk/acorn/internal/runtime"
 	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
+	"github.com/ycvk/acorn/internal/web/runprojector"
 )
 
 func TestProjectThread(t *testing.T) {
@@ -286,7 +287,7 @@ func TestProjectRunRejectsUnknownStatusAndMode(t *testing.T) {
 
 func TestProjectRunEvent(t *testing.T) {
 	now := time.Date(2026, 5, 2, 10, 0, 0, 0, time.UTC)
-	event, err := projectRunEvent(events.EventRecord{
+	event, err := runprojector.ProjectRunEvent(events.EventRecord{
 		Sequence:  7,
 		RunID:     "run_1",
 		Kind:      "assistant.delta",
@@ -300,12 +301,12 @@ func TestProjectRunEvent(t *testing.T) {
 		},
 	})
 	if err != nil {
-		t.Fatalf("projectRunEvent: %v", err)
+		t.Fatalf("runprojector.ProjectRunEvent: %v", err)
 	}
 	if event.EventID != "run_1:7" || event.Type != "assistant.delta" {
 		t.Fatalf("event = %#v", event)
 	}
-	data, ok := event.Data.(AssistantDeltaData)
+	data, ok := event.Data.(runprojector.AssistantDeltaData)
 	if !ok || data.AssistantDelta["delta"] != "he" {
 		t.Fatalf("event data = %#v", event.Data)
 	}
@@ -313,7 +314,7 @@ func TestProjectRunEvent(t *testing.T) {
 
 func TestProjectRunEventAcceptsResumeRequested(t *testing.T) {
 	now := time.Date(2026, 5, 2, 10, 0, 0, 0, time.UTC)
-	event, err := projectRunEvent(events.EventRecord{
+	event, err := runprojector.ProjectRunEvent(events.EventRecord{
 		Sequence:  8,
 		RunID:     "run_1",
 		Kind:      "run.resume_requested",
@@ -325,14 +326,14 @@ func TestProjectRunEventAcceptsResumeRequested(t *testing.T) {
 		},
 	})
 	if err != nil {
-		t.Fatalf("projectRunEvent: %v", err)
+		t.Fatalf("runprojector.ProjectRunEvent: %v", err)
 	}
 	if event.EventID != "run_1:8" || event.Type != "run.resume_requested" {
 		t.Fatalf("event = %#v", event)
 	}
-	data, ok := event.Data.(RunResumeRequestedData)
+	data, ok := event.Data.(runprojector.RunResumeRequestedData)
 	if !ok {
-		t.Fatalf("event data = %T, want RunResumeRequestedData", event.Data)
+		t.Fatalf("event data = %T, want runprojector.RunResumeRequestedData", event.Data)
 	}
 	if _, ok := data.Targets["agent:coordinator"]; !ok {
 		t.Fatalf("targets = %#v", data.Targets)
@@ -349,7 +350,7 @@ func TestProjectRunEventAcceptsDecisionEvents(t *testing.T) {
 		{
 			name: "selected",
 			kind: "decision_selected",
-			data: DecisionSelectedData{
+			data: runprojector.DecisionSelectedData{
 				Action:          "execute_with_skill",
 				SelectedSkillID: "skill.ship.patch",
 			},
@@ -357,7 +358,7 @@ func TestProjectRunEventAcceptsDecisionEvents(t *testing.T) {
 		{
 			name: "blocked",
 			kind: "decision_blocked",
-			data: DecisionBlockedData{
+			data: runprojector.DecisionBlockedData{
 				Action:         "ask_user",
 				DecisionReason: "operator confirmation required",
 			},
@@ -366,7 +367,7 @@ func TestProjectRunEventAcceptsDecisionEvents(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			event, err := projectRunEvent(events.EventRecord{
+			event, err := runprojector.ProjectRunEvent(events.EventRecord{
 				Sequence:  9,
 				RunID:     "run_1",
 				Kind:      tc.kind,
@@ -380,7 +381,7 @@ func TestProjectRunEventAcceptsDecisionEvents(t *testing.T) {
 				},
 			})
 			if err != nil {
-				t.Fatalf("projectRunEvent: %v", err)
+				t.Fatalf("runprojector.ProjectRunEvent: %v", err)
 			}
 			if event.Type != tc.kind || event.Data == nil {
 				t.Fatalf("event = %#v", event)
@@ -396,7 +397,7 @@ func TestProjectRunEventAcceptsElicitationEvents(t *testing.T) {
 	now := time.Date(2026, 5, 2, 10, 0, 0, 0, time.UTC)
 	for _, kind := range []string{"elicitation.pending", "elicitation.decided"} {
 		t.Run(kind, func(t *testing.T) {
-			event, err := projectRunEvent(events.EventRecord{
+			event, err := runprojector.ProjectRunEvent(events.EventRecord{
 				Sequence:  11,
 				RunID:     "run_1",
 				Kind:      kind,
@@ -407,14 +408,14 @@ func TestProjectRunEventAcceptsElicitationEvents(t *testing.T) {
 				},
 			})
 			if err != nil {
-				t.Fatalf("projectRunEvent: %v", err)
+				t.Fatalf("runprojector.ProjectRunEvent: %v", err)
 			}
 			if event.Type != kind {
 				t.Fatalf("event type = %q, want %q", event.Type, kind)
 			}
-			data, ok := event.Data.(ElicitationPendingData)
+			data, ok := event.Data.(runprojector.ElicitationPendingData)
 			if !ok {
-				t.Fatalf("event data = %T, want ElicitationPendingData", event.Data)
+				t.Fatalf("event data = %T, want runprojector.ElicitationPendingData", event.Data)
 			}
 			if data.ActionID != "action_1" || data.Message != "Allow Acorn to continue?" {
 				t.Fatalf("event data = %#v", data)
@@ -427,7 +428,7 @@ func TestProjectRunEventAcceptsSkillEvents(t *testing.T) {
 	now := time.Date(2026, 5, 2, 10, 0, 0, 0, time.UTC)
 	for _, kind := range []string{"skill.discovered", "skill.selected", "skill.loaded", "skill.failed"} {
 		t.Run(kind, func(t *testing.T) {
-			event, err := projectRunEvent(events.EventRecord{
+			event, err := runprojector.ProjectRunEvent(events.EventRecord{
 				Sequence:  10,
 				RunID:     "run_1",
 				Kind:      kind,
@@ -440,9 +441,9 @@ func TestProjectRunEventAcceptsSkillEvents(t *testing.T) {
 				},
 			})
 			if err != nil {
-				t.Fatalf("projectRunEvent: %v", err)
+				t.Fatalf("runprojector.ProjectRunEvent: %v", err)
 			}
-			data, ok := event.Data.(SkillData)
+			data, ok := event.Data.(runprojector.SkillData)
 			if !ok || data.Skill["selected_id"] != "skill.ship.patch" {
 				t.Fatalf("event data = %#v", event.Data)
 			}
@@ -452,7 +453,7 @@ func TestProjectRunEventAcceptsSkillEvents(t *testing.T) {
 
 func TestProjectRunEventAcceptsSkillLifecycle(t *testing.T) {
 	now := time.Date(2026, 5, 2, 10, 0, 0, 0, time.UTC)
-	event, err := projectRunEvent(events.EventRecord{
+	event, err := runprojector.ProjectRunEvent(events.EventRecord{
 		Sequence:  11,
 		RunID:     "run_1",
 		Kind:      "skill.lifecycle",
@@ -474,11 +475,11 @@ func TestProjectRunEventAcceptsSkillLifecycle(t *testing.T) {
 		},
 	})
 	if err != nil {
-		t.Fatalf("projectRunEvent: %v", err)
+		t.Fatalf("runprojector.ProjectRunEvent: %v", err)
 	}
-	data, ok := event.Data.(SkillLifecycleData)
+	data, ok := event.Data.(runprojector.SkillLifecycleData)
 	if !ok {
-		t.Fatalf("event data = %T, want SkillLifecycleData", event.Data)
+		t.Fatalf("event data = %T, want runprojector.SkillLifecycleData", event.Data)
 	}
 	if data.SkillLifecycle["skill_id"] != "skill.generated" || data.SkillLifecycle["action"] != "assessed" {
 		t.Fatalf("event data = %#v", event.Data)
@@ -487,7 +488,7 @@ func TestProjectRunEventAcceptsSkillLifecycle(t *testing.T) {
 
 func TestProjectRunEventAcceptsProcedureActivation(t *testing.T) {
 	now := time.Date(2026, 5, 2, 10, 0, 0, 0, time.UTC)
-	event, err := projectRunEvent(events.EventRecord{
+	event, err := runprojector.ProjectRunEvent(events.EventRecord{
 		Sequence:  12,
 		RunID:     "run_1",
 		Kind:      "procedure.activation",
@@ -501,11 +502,11 @@ func TestProjectRunEventAcceptsProcedureActivation(t *testing.T) {
 		},
 	})
 	if err != nil {
-		t.Fatalf("projectRunEvent: %v", err)
+		t.Fatalf("runprojector.ProjectRunEvent: %v", err)
 	}
-	data, ok := event.Data.(ProcedureActivationData)
+	data, ok := event.Data.(runprojector.ProcedureActivationData)
 	if !ok {
-		t.Fatalf("event data = %T, want ProcedureActivationData", event.Data)
+		t.Fatalf("event data = %T, want runprojector.ProcedureActivationData", event.Data)
 	}
 	if data.ProcedureActivation["phase"] != "injected" {
 		t.Fatalf("event data = %#v", event.Data)
@@ -515,7 +516,7 @@ func TestProjectRunEventAcceptsProcedureActivation(t *testing.T) {
 func TestProjectRunEventAcceptsContextEvents(t *testing.T) {
 	now := time.Date(2026, 5, 2, 10, 0, 0, 0, time.UTC)
 
-	pressure, err := projectRunEvent(events.EventRecord{
+	pressure, err := runprojector.ProjectRunEvent(events.EventRecord{
 		Sequence:  13,
 		RunID:     "run_1",
 		Kind:      "context.pressure",
@@ -533,17 +534,17 @@ func TestProjectRunEventAcceptsContextEvents(t *testing.T) {
 		},
 	})
 	if err != nil {
-		t.Fatalf("projectRunEvent context.pressure: %v", err)
+		t.Fatalf("runprojector.ProjectRunEvent context.pressure: %v", err)
 	}
-	pressureData, ok := pressure.Data.(ContextPressureData)
+	pressureData, ok := pressure.Data.(runprojector.ContextPressureData)
 	if !ok {
-		t.Fatalf("pressure data = %T, want ContextPressureData", pressure.Data)
+		t.Fatalf("pressure data = %T, want runprojector.ContextPressureData", pressure.Data)
 	}
 	if pressureData.ContextPressure["state"] != "warning" {
 		t.Fatalf("pressure data = %#v", pressure.Data)
 	}
 
-	compressed, err := projectRunEvent(events.EventRecord{
+	compressed, err := runprojector.ProjectRunEvent(events.EventRecord{
 		Sequence:  14,
 		RunID:     "run_1",
 		Kind:      "context.compressed",
@@ -560,11 +561,11 @@ func TestProjectRunEventAcceptsContextEvents(t *testing.T) {
 		},
 	})
 	if err != nil {
-		t.Fatalf("projectRunEvent context.compressed: %v", err)
+		t.Fatalf("runprojector.ProjectRunEvent context.compressed: %v", err)
 	}
-	compressedData, ok := compressed.Data.(ContextCompressedData)
+	compressedData, ok := compressed.Data.(runprojector.ContextCompressedData)
 	if !ok {
-		t.Fatalf("compressed data = %T, want ContextCompressedData", compressed.Data)
+		t.Fatalf("compressed data = %T, want runprojector.ContextCompressedData", compressed.Data)
 	}
 	if compressedData.ContextCompressed["boundary_id"] != "ctxb_run_1_0001" {
 		t.Fatalf("compressed data = %#v", compressed.Data)
@@ -574,7 +575,7 @@ func TestProjectRunEventAcceptsContextEvents(t *testing.T) {
 func TestProjectRunEventAcceptsCrystallizationEvents(t *testing.T) {
 	now := time.Date(2026, 5, 2, 10, 0, 0, 0, time.UTC)
 
-	verdict, err := projectRunEvent(events.EventRecord{
+	verdict, err := runprojector.ProjectRunEvent(events.EventRecord{
 		Sequence:  15,
 		RunID:     "run_1",
 		Kind:      "crystallization.verdict",
@@ -588,17 +589,17 @@ func TestProjectRunEventAcceptsCrystallizationEvents(t *testing.T) {
 		},
 	})
 	if err != nil {
-		t.Fatalf("projectRunEvent crystallization.verdict: %v", err)
+		t.Fatalf("runprojector.ProjectRunEvent crystallization.verdict: %v", err)
 	}
-	verdictData, ok := verdict.Data.(CrystallizationVerdictData)
+	verdictData, ok := verdict.Data.(runprojector.CrystallizationVerdictData)
 	if !ok {
-		t.Fatalf("verdict data = %T, want CrystallizationVerdictData", verdict.Data)
+		t.Fatalf("verdict data = %T, want runprojector.CrystallizationVerdictData", verdict.Data)
 	}
 	if verdictData.Verdict != "crystallized" || verdictData.SkillID == "" {
 		t.Fatalf("verdict data = %#v", verdictData)
 	}
 
-	failed, err := projectRunEvent(events.EventRecord{
+	failed, err := runprojector.ProjectRunEvent(events.EventRecord{
 		Sequence:  16,
 		RunID:     "run_1",
 		Kind:      "crystallization.failed",
@@ -609,11 +610,11 @@ func TestProjectRunEventAcceptsCrystallizationEvents(t *testing.T) {
 		},
 	})
 	if err != nil {
-		t.Fatalf("projectRunEvent crystallization.failed: %v", err)
+		t.Fatalf("runprojector.ProjectRunEvent crystallization.failed: %v", err)
 	}
-	failedData, ok := failed.Data.(CrystallizationFailedData)
+	failedData, ok := failed.Data.(runprojector.CrystallizationFailedData)
 	if !ok {
-		t.Fatalf("failed data = %T, want CrystallizationFailedData", failed.Data)
+		t.Fatalf("failed data = %T, want runprojector.CrystallizationFailedData", failed.Data)
 	}
 	if failedData.Error == "" || failedData.RunID != "run_1" {
 		t.Fatalf("failed data = %#v", failedData)
@@ -625,7 +626,7 @@ func TestProjectRunEventAcceptsPlanEvents(t *testing.T) {
 	cases := []string{"plan.created", "plan.updated", "plan.cleared", "step.started", "step.completed", "step.failed"}
 	for _, kind := range cases {
 		t.Run(kind, func(t *testing.T) {
-			event, err := projectRunEvent(events.EventRecord{
+			event, err := runprojector.ProjectRunEvent(events.EventRecord{
 				Sequence:  11,
 				RunID:     "run_1",
 				Kind:      kind,
@@ -640,7 +641,7 @@ func TestProjectRunEventAcceptsPlanEvents(t *testing.T) {
 				},
 			})
 			if err != nil {
-				t.Fatalf("projectRunEvent: %v", err)
+				t.Fatalf("runprojector.ProjectRunEvent: %v", err)
 			}
 			if event.Type != kind || event.Data == nil {
 				t.Fatalf("event = %#v", event)
@@ -653,7 +654,7 @@ func TestProjectRunEventAcceptsSubagentEvents(t *testing.T) {
 	now := time.Date(2026, 5, 2, 10, 0, 0, 0, time.UTC)
 	for _, kind := range []string{"subagent.started", "subagent.completed", "subagent.failed"} {
 		t.Run(kind, func(t *testing.T) {
-			event, err := projectRunEvent(events.EventRecord{
+			event, err := runprojector.ProjectRunEvent(events.EventRecord{
 				Sequence:  12,
 				RunID:     "run_1",
 				Kind:      kind,
@@ -672,9 +673,9 @@ func TestProjectRunEventAcceptsSubagentEvents(t *testing.T) {
 				},
 			})
 			if err != nil {
-				t.Fatalf("projectRunEvent: %v", err)
+				t.Fatalf("runprojector.ProjectRunEvent: %v", err)
 			}
-			data, ok := event.Data.(SubagentData)
+			data, ok := event.Data.(runprojector.SubagentData)
 			if !ok || data.SubRunID != "sub_1" || data.Depth != 1 {
 				t.Fatalf("event data = %#v", event.Data)
 			}
@@ -684,7 +685,7 @@ func TestProjectRunEventAcceptsSubagentEvents(t *testing.T) {
 
 func TestProjectRunEventAcceptsOperatorQuestionEvents(t *testing.T) {
 	now := time.Date(2026, 5, 20, 10, 0, 0, 0, time.UTC)
-	event, err := projectRunEvent(events.EventRecord{
+	event, err := runprojector.ProjectRunEvent(events.EventRecord{
 		Sequence:  12,
 		RunID:     "run_1",
 		Kind:      "operator_question.decided",
@@ -702,45 +703,127 @@ func TestProjectRunEventAcceptsOperatorQuestionEvents(t *testing.T) {
 		},
 	})
 	if err != nil {
-		t.Fatalf("projectRunEvent: %v", err)
+		t.Fatalf("runprojector.ProjectRunEvent: %v", err)
 	}
-	data, ok := event.Data.(OperatorQuestionData)
+	data, ok := event.Data.(runprojector.OperatorQuestionData)
 	if !ok {
-		t.Fatalf("event data = %T, want OperatorQuestionData", event.Data)
+		t.Fatalf("event data = %T, want runprojector.OperatorQuestionData", event.Data)
 	}
 	if data.ActionID != "action_1" || data.Decision != "answer" || data.SelectedOptionID != "fast" || data.Answer != "Ship it" || len(data.Options) != 1 {
 		t.Fatalf("event data = %#v", data)
 	}
 }
 
+func TestProjectRunEventAcceptsOperationalEvents(t *testing.T) {
+	now := time.Date(2026, 5, 25, 10, 0, 0, 0, time.UTC)
+
+	provider, err := runprojector.ProjectRunEvent(events.EventRecord{
+		Sequence:  13,
+		RunID:     "run_1",
+		Kind:      "provider.degraded",
+		CreatedAt: now,
+		Payload: map[string]any{
+			"affected_providers": []any{
+				map[string]any{"name": "mcp.remote", "transport": "streamable_http", "error": "dial refused"},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("provider.degraded projection: %v", err)
+	}
+	providerData, ok := provider.Data.(runprojector.ProviderDegradedData)
+	if !ok || len(providerData.AffectedProviders) != 1 || providerData.AffectedProviders[0].Name != "mcp.remote" {
+		t.Fatalf("provider.degraded data = %#v", provider.Data)
+	}
+
+	mcpKinds := []string{
+		"mcp.tool_catalog_refreshed",
+		"mcp.tool_catalog_refresh_failed",
+		"mcp.provider_added",
+		"mcp.provider_removed",
+		"mcp.provider_restarted",
+		"mcp.resource_catalog_refreshed",
+		"mcp.resource_catalog_refresh_failed",
+		"mcp.prompt_catalog_refreshed",
+		"mcp.prompt_catalog_refresh_failed",
+		"mcp.auth_status_changed",
+	}
+	for _, kind := range mcpKinds {
+		t.Run(kind, func(t *testing.T) {
+			event, err := runprojector.ProjectRunEvent(events.EventRecord{
+				Sequence:  14,
+				RunID:     "run_1",
+				Kind:      kind,
+				CreatedAt: now,
+				Payload: map[string]any{
+					"provider_name": "github",
+					"transport":     "sse",
+					"error":         "refresh failed",
+					"auth_status":   "reauth_required",
+				},
+			})
+			if err != nil {
+				t.Fatalf("%s projection: %v", kind, err)
+			}
+			data, ok := event.Data.(runprojector.MCPProviderLifecycleData)
+			if !ok || data.ProviderName != "github" || data.AuthStatus != "reauth_required" {
+				t.Fatalf("%s data = %#v", kind, event.Data)
+			}
+		})
+	}
+
+	for _, kind := range []string{"sampling.started", "sampling.completed", "sampling.failed"} {
+		t.Run(kind, func(t *testing.T) {
+			event, err := runprojector.ProjectRunEvent(events.EventRecord{
+				Sequence:  15,
+				RunID:     "run_1",
+				Kind:      kind,
+				CreatedAt: now,
+				Payload: map[string]any{
+					"run_id": "subagent_pending",
+					"depth":  float64(1),
+					"model":  "acorn-default",
+				},
+			})
+			if err != nil {
+				t.Fatalf("%s projection: %v", kind, err)
+			}
+			data, ok := event.Data.(runprojector.SamplingData)
+			if !ok || data.RunID != "subagent_pending" || data.Depth != 1 {
+				t.Fatalf("%s data = %#v", kind, event.Data)
+			}
+		})
+	}
+}
+
 func TestProjectRunEventRejectsNonObjectPayload(t *testing.T) {
-	_, err := projectRunEvent(events.EventRecord{
+	_, err := runprojector.ProjectRunEvent(events.EventRecord{
 		Sequence: 1,
 		RunID:    "run_1",
 		Kind:     "assistant.delta",
 		Payload:  []any{"not", "object"},
 	})
-	if !errors.Is(err, ErrClientProjectionFailed) {
-		t.Fatalf("error = %v, want ErrClientProjectionFailed", err)
+	if !errors.Is(err, runprojector.ErrProjectionFailed) {
+		t.Fatalf("error = %v, want runprojector.ErrProjectionFailed", err)
 	}
 }
 
 func TestProjectRunEventRejectsUnsupportedLiveKind(t *testing.T) {
-	_, err := projectRunEvent(events.EventRecord{
+	_, err := runprojector.ProjectRunEvent(events.EventRecord{
 		Sequence:  1,
 		RunID:     "run_1",
 		Kind:      "future.kind",
 		CreatedAt: time.Date(2026, 5, 2, 10, 0, 0, 0, time.UTC),
 		Payload:   map[string]any{"value": "debug"},
 	})
-	if !errors.Is(err, ErrClientProjectionFailed) {
-		t.Fatalf("error = %v, want ErrClientProjectionFailed", err)
+	if !errors.Is(err, runprojector.ErrProjectionFailed) {
+		t.Fatalf("error = %v, want runprojector.ErrProjectionFailed", err)
 	}
 }
 
 func TestProjectUnsupportedRunEventPreservesRawPayload(t *testing.T) {
 	now := time.Date(2026, 5, 2, 10, 0, 0, 0, time.UTC)
-	event := projectUnsupportedRunEvent(events.EventRecord{
+	event := runprojector.ProjectUnsupportedRunEvent(events.EventRecord{
 		Sequence:  7,
 		RunID:     "run_1",
 		Kind:      "future.kind",

@@ -22,9 +22,8 @@ type SideEffectRef struct {
 }
 
 const (
-	SideEffectKindArtifact        = "artifact"
-	SideEffectKindTerminalSession = "terminal_session"
-	SideEffectKindOperatorAction  = "operator_action"
+	SideEffectKindArtifact       = "artifact"
+	SideEffectKindOperatorAction = "operator_action"
 )
 
 type EvidenceRef struct {
@@ -153,7 +152,7 @@ func normalizeSideEffects(items []SideEffectRef) ([]SideEffectRef, error) {
 			return nil, fmt.Errorf("tool result side effect kind is required")
 		}
 		switch item.Kind {
-		case SideEffectKindArtifact, SideEffectKindTerminalSession, SideEffectKindOperatorAction:
+		case SideEffectKindArtifact, SideEffectKindOperatorAction:
 			if item.Ref == "" {
 				return nil, fmt.Errorf("tool result side effect %q requires ref", item.Kind)
 			}

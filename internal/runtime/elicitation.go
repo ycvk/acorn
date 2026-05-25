@@ -1,9 +1,5 @@
 package runtime
 
-import (
-	"encoding/gob"
-)
-
 type ElicitationInterruptInfo struct {
 	Kind            string
 	ActionID        string
@@ -13,8 +9,4 @@ type ElicitationInterruptInfo struct {
 
 type ElicitationInterruptState struct {
 	ActionID string
-}
-
-func init() {
-	gob.Register(ElicitationInterruptState{})
 }

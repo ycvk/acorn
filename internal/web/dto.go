@@ -20,20 +20,6 @@ func nonNilStrings(values []string) []string {
 	return values
 }
 
-func copyOptionalInt(value *int) *int {
-	if value == nil {
-		return nil
-	}
-	return new(*value)
-}
-
-func copyOptionalTime(value *time.Time) *time.Time {
-	if value == nil {
-		return nil
-	}
-	return new(value.UTC())
-}
-
 func summaryText(summary *runtimehistory.SessionSummary) string {
 	if summary == nil {
 		return ""

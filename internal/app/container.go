@@ -20,6 +20,7 @@ import (
 	"github.com/ycvk/acorn/internal/runtimehistory"
 	"github.com/ycvk/acorn/internal/skills"
 	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
+	"github.com/ycvk/acorn/internal/toolfactory"
 	"github.com/ycvk/acorn/internal/tooling"
 	"github.com/ycvk/acorn/internal/workingstate"
 )
@@ -160,6 +161,7 @@ type Container struct {
 	inbox         *InboxService
 	notifications *NotificationService
 	mcpServer     *mcp.Server
+	serveToolset  *toolfactory.Toolset
 }
 
 func NewContainer(ctx context.Context, cfg *config.Config) (*Container, error) {
@@ -246,6 +248,11 @@ func (c *Container) Close() error {
 		return nil
 	}
 	var errs []error
+	if c.serveToolset != nil {
+		if err := c.serveToolset.Close(); err != nil {
+			errs = append(errs, err)
+		}
+	}
 	if c.runnerFactory != nil {
 		if err := c.runnerFactory.Close(); err != nil {
 			errs = append(errs, err)
@@ -263,6 +270,8 @@ func buildContainer(ctx context.Context, cfg *config.Config) (*Container, error)
 	if cfg == nil {
 		return nil, errors.New("config is required")
 	}
+
+	runtime.RegisterTypes()
 
 	store, err := storesqlite.Open(cfg.Runtime.StorageDir)
 	if err != nil {
@@ -365,11 +374,12 @@ func buildContainer(ctx context.Context, cfg *config.Config) (*Container, error)
 	container.inbox = NewInboxService(store, container.capabilities)
 	container.notifications = notificationService
 
-	mcpServer, err := buildContainerMCPServer(cfg, runnerFactory)
+	mcpServer, serveToolset, err := buildContainerMCPServer(cfg, runnerFactory)
 	if err != nil {
 		return nil, err
 	}
 	container.mcpServer = mcpServer
+	container.serveToolset = serveToolset
 
 	committed = true
 	return container, nil
@@ -470,18 +480,21 @@ func buildMemorySemanticDependencies(ctx context.Context, cfg *config.Config) (m
 	return index, embedder, nil
 }
 
-func buildContainerMCPServer(cfg *config.Config, runnerFactory *runtime.RunnerFactory) (*mcp.Server, error) {
+func buildContainerMCPServer(cfg *config.Config, runnerFactory *runtime.RunnerFactory) (*mcp.Server, *toolfactory.Toolset, error) {
 	if len(cfg.Serve.Tools.Allowlist) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 	ctx := context.Background()
 	toolset, err := runnerFactory.BuildServeToolset(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("build serve toolset: %w", err)
+		return nil, nil, fmt.Errorf("build serve toolset: %w", err)
 	}
 	mcpServer, err := mcpprovider.NewMCPServer(ctx, cfg.Serve, toolset.All())
 	if err != nil {
-		return nil, fmt.Errorf("create MCP server: %w", err)
+		if closeErr := toolset.Close(); closeErr != nil {
+			return nil, nil, errors.Join(fmt.Errorf("create MCP server: %w", err), fmt.Errorf("close serve toolset after MCP server failure: %w", closeErr))
+		}
+		return nil, nil, fmt.Errorf("create MCP server: %w", err)
 	}
-	return mcpServer, nil
+	return mcpServer, toolset, nil
 }

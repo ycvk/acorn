@@ -95,8 +95,6 @@ func TestStoreSchemaIncludesV2Tables(t *testing.T) {
 		"session_summaries":     "source_run_id",
 		"provider_usages":       "cached_tokens",
 		"artifacts":             "source_tool_result_ref",
-		"terminal_sessions":     "process_group_id",
-		"terminal_session_logs": "artifact_id",
 	} {
 		columns, err := store.tableColumns(table)
 		if err != nil {
@@ -173,6 +171,38 @@ CREATE TABLE skill_patch_history(id INTEGER PRIMARY KEY AUTOINCREMENT);`); err !
 	} {
 		if tableExists(t, store, table) {
 			t.Fatalf("legacy memory table %s still exists after migration", table)
+		}
+	}
+}
+
+func TestMigrationDropsRemovedTerminalSessionTables(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "state")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("mkdir state dir: %v", err)
+	}
+	db, err := sql.Open("sqlite", filepath.Join(dir, "acorn.db"))
+	if err != nil {
+		t.Fatalf("open sqlite directly: %v", err)
+	}
+	if _, err := db.Exec(`
+CREATE TABLE terminal_sessions(terminal_session_id TEXT PRIMARY KEY);
+CREATE TABLE terminal_session_logs(log_id TEXT PRIMARY KEY, terminal_session_id TEXT NOT NULL);`); err != nil {
+		_ = db.Close()
+		t.Fatalf("seed removed terminal session tables: %v", err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatalf("close seeded db: %v", err)
+	}
+
+	store, err := Open(dir)
+	if err != nil {
+		t.Fatalf("open migrated store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	for _, table := range []string{"terminal_sessions", "terminal_session_logs"} {
+		if tableExists(t, store, table) {
+			t.Fatalf("removed terminal session table %s still exists after migration", table)
 		}
 	}
 }
