@@ -227,7 +227,7 @@ func (s *Store) ListNotificationDeliveries(ctx context.Context, notificationID s
 	return items, nil
 }
 
-func scanDevicePushToken(scanner rowScanner) (*store.DevicePushToken, error) {
+func scanDevicePushToken(scanner interface{ Scan(dest ...any) error }) (*store.DevicePushToken, error) {
 	var (
 		token     store.DevicePushToken
 		createdAt string
@@ -255,7 +255,7 @@ func scanDevicePushToken(scanner rowScanner) (*store.DevicePushToken, error) {
 	return &token, nil
 }
 
-func scanNotification(scanner rowScanner) (*store.Notification, error) {
+func scanNotification(scanner interface{ Scan(dest ...any) error }) (*store.Notification, error) {
 	var (
 		notification store.Notification
 		createdAt    string
@@ -271,7 +271,7 @@ func scanNotification(scanner rowScanner) (*store.Notification, error) {
 	return &notification, nil
 }
 
-func scanNotificationDelivery(scanner rowScanner) (*store.NotificationDelivery, error) {
+func scanNotificationDelivery(scanner interface{ Scan(dest ...any) error }) (*store.NotificationDelivery, error) {
 	var (
 		delivery  store.NotificationDelivery
 		createdAt string

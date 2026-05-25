@@ -214,11 +214,7 @@ func (s *Store) RevokeDevice(ctx context.Context, deviceID string, revokedAt tim
 	return nil
 }
 
-type rowScanner interface {
-	Scan(dest ...any) error
-}
-
-func scanPairingCode(scanner rowScanner) (*store.PairingCode, error) {
+func scanPairingCode(scanner interface{ Scan(dest ...any) error }) (*store.PairingCode, error) {
 	var (
 		code      store.PairingCode
 		expiresAt string
@@ -246,7 +242,7 @@ func scanPairingCode(scanner rowScanner) (*store.PairingCode, error) {
 	return &code, nil
 }
 
-func scanDevice(scanner rowScanner) (*store.Device, error) {
+func scanDevice(scanner interface{ Scan(dest ...any) error }) (*store.Device, error) {
 	var (
 		device     store.Device
 		createdAt  string
