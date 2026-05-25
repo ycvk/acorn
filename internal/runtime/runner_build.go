@@ -192,9 +192,9 @@ func (c *runCapabilities) Close() error {
 }
 
 type runSelection struct {
-	decisionRecord *decision.Record
-	selectedSkill  *SelectedSkill
-	hint           *decision.DecisionContextHint
+	decisionRecord  *decision.Record
+	selectedSkill   *SelectedSkill
+	contextPriority decision.ContextPriority
 }
 
 func (f *RunnerFactory) buildRunCapabilities(ctx context.Context, sessionID string, mcpManager *mcpprovider.Manager) (*runCapabilities, error) {
@@ -269,7 +269,6 @@ func (f *RunnerFactory) resolveRunSelection(
 	ctx context.Context,
 	req RunnerBuildRequest,
 	caps *runCapabilities,
-	chatModel einomodel.BaseChatModel,
 ) (*runSelection, error) {
 	if caps == nil {
 		return nil, fmt.Errorf("run capabilities are required")
@@ -280,7 +279,7 @@ func (f *RunnerFactory) resolveRunSelection(
 	}
 
 	if strings.TrimSpace(req.Input) != "" || strings.TrimSpace(req.SkillID) != "" {
-		engine, parsed, err := buildPlaneEngine(f.deps.DecisionProfiles)
+		engine, parsed, err := buildDecisionEngine(f.deps.DecisionProfiles)
 		if err != nil {
 			return nil, err
 		}
@@ -300,8 +299,8 @@ func (f *RunnerFactory) resolveRunSelection(
 		if err != nil {
 			return nil, err
 		}
-		planeReq := buildPlaneRequest(req, caps, discovered, hasWorkingContext)
-		record, err := engine.Decide(ctx, decision.DecideInput(planeReq))
+		input := buildDecisionInput(req, discovered, hasWorkingContext)
+		record, err := engine.Decide(ctx, input)
 		if err != nil {
 			return nil, err
 		}
@@ -312,13 +311,7 @@ func (f *RunnerFactory) resolveRunSelection(
 		if err := emitDecisionEvents(ctx, f.deps.Store, req, record, req.SkillID); err != nil {
 			return nil, err
 		}
-		result := &decision.Result{
-			Record:        record,
-			SelectedSkill: selectedSkillResultFromRecord(record),
-			Hint:          decision.BuildHint(record.Action),
-		}
-		enrichSelectedSkillFromMatches(result, discovered, caps.stableSkills)
-		selectedSkill, err := selectedSkillFromPlaneResult(result, caps.stableSkills)
+		selectedSkill, err := selectedSkillFromDecisionRecord(record, discovered, caps.stableSkills)
 		if err != nil {
 			return nil, err
 		}
@@ -338,9 +331,9 @@ func (f *RunnerFactory) resolveRunSelection(
 			}
 		}
 		return &runSelection{
-			decisionRecord: result.Record,
-			selectedSkill:  selectedSkill,
-			hint:           result.Hint,
+			decisionRecord:  record,
+			selectedSkill:   selectedSkill,
+			contextPriority: decision.ContextPriorityForAction(record.Action),
 		}, nil
 	} else if strings.TrimSpace(req.RunID) != "" {
 		var err error
@@ -351,19 +344,14 @@ func (f *RunnerFactory) resolveRunSelection(
 		if decisionRecord == nil {
 			return nil, fmt.Errorf("run decision missing for %s", req.RunID)
 		}
-		result := &decision.Result{
-			Record:        decisionRecord,
-			SelectedSkill: selectedSkillResultFromRecord(decisionRecord),
-		}
-		enrichSelectedSkillFromMatches(result, nil, caps.stableSkills)
-		selectedSkill, err := selectedSkillFromPlaneResult(result, caps.stableSkills)
+		selectedSkill, err := selectedSkillFromDecisionRecord(decisionRecord, nil, caps.stableSkills)
 		if err != nil {
 			return nil, err
 		}
 		return &runSelection{
-			decisionRecord: decisionRecord,
-			selectedSkill:  selectedSkill,
-			hint:           decision.BuildHint(decisionRecord.Action),
+			decisionRecord:  decisionRecord,
+			selectedSkill:   selectedSkill,
+			contextPriority: decision.ContextPriorityForAction(decisionRecord.Action),
 		}, nil
 	}
 	return &runSelection{}, nil

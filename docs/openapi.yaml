@@ -18,7 +18,6 @@ tags:
   - name: sessions
   - name: runs
   - name: client
-  - name: plans
 paths:
   /healthz:
     get:

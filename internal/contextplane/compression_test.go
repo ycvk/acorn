@@ -17,7 +17,7 @@ import (
 )
 
 func TestCompressionTokenCounterUsesConfiguredEncoding(t *testing.T) {
-	cfg := config.ContextPolicy{
+	cfg := config.ContextConfig{
 		TokenEncoding: "cl100k_base",
 	}
 	counter, err := NewCompressionTokenCounter(cfg)
@@ -52,7 +52,7 @@ func TestCompressionTokenCounterUsesConfiguredEncoding(t *testing.T) {
 }
 
 func TestCompressionTokenCounterRejectsUnknownEncoding(t *testing.T) {
-	_, err := NewCompressionTokenCounter(config.ContextPolicy{
+	_, err := NewCompressionTokenCounter(config.ContextConfig{
 		TokenEncoding: "unknown_encoding",
 	})
 	if err == nil || !strings.Contains(err.Error(), "unknown_encoding") {
@@ -228,7 +228,33 @@ func TestCompactionEngineRejectsInvalidStructuredSummary(t *testing.T) {
 		t.Fatalf("NewCompressionTokenCounter: %v", err)
 	}
 	engine := NewDefaultCompactionEngine(CompactionEngineOptions{
-		Model:        &fakeCompressionChatModel{response: "unstructured summary"},
+		Model:        &fakeCompressionChatModel{response: "too short"},
+		TokenCounter: counter,
+	})
+
+	_, err = engine.Compact(context.Background(), CompactRequest{
+		Trigger: CompactTriggerAuto,
+		Messages: []adk.Message{
+			schema.SystemMessage("system"),
+			schema.UserMessage("Old request"),
+			schema.AssistantMessage("Old response", nil),
+			schema.UserMessage("Recent request"),
+		},
+		PreservePolicy: PreservePolicy{RecentTurns: 1, PreserveToolPairs: true},
+	})
+	if err == nil || !strings.Contains(err.Error(), "too short") {
+		t.Fatalf("Compact error = %v, want too short", err)
+	}
+}
+
+func TestCompactionEngineRejectsMalformedStructuredSummary(t *testing.T) {
+	cfg := compressionEnabledTestConfig()
+	counter, err := NewCompressionTokenCounter(cfg)
+	if err != nil {
+		t.Fatalf("NewCompressionTokenCounter: %v", err)
+	}
+	engine := NewDefaultCompactionEngine(CompactionEngineOptions{
+		Model:        &fakeCompressionChatModel{response: "This is a long unstructured paragraph that contains no continuation headings at all, but it is over fifty characters."},
 		TokenCounter: counter,
 	})
 
@@ -428,8 +454,8 @@ func assertNoSecretText(t *testing.T, label, value string) {
 	}
 }
 
-func compressionEnabledTestConfig() config.ContextPolicy {
-	return config.ContextPolicy{
+func compressionEnabledTestConfig() config.ContextConfig {
+	return config.ContextConfig{
 		WindowTokens:         200000,
 		CompactMarginTokens:  13000,
 		PreserveRecentTurns:  2,
@@ -444,26 +470,8 @@ func structuredCompressionSummary(marker string) string {
 		"### Primary Request / Intent",
 		"Continue the current task. " + marker,
 		"",
-		"### Technical Concepts",
-		"Context protocol, compaction, structured continuation summary.",
-		"",
-		"### Files and Code Sections",
-		"internal/contextplane/compression.go",
-		"",
-		"### Errors and Fixes",
-		"none",
-		"",
-		"### Problem Solving",
-		"1. Conversation history was compacted into a continuation checkpoint.",
-		"",
-		"### All User Messages",
-		"- Old request and recent user instructions are represented.",
-		"",
-		"### Pending Tasks",
-		"- Continue verification.",
-		"",
 		"### Current Work",
-		"Compaction test fixture is exercising the current rewrite.",
+		"Context protocol, compaction, structured continuation summary. Files: internal/contextplane/compression.go. Errors: none. Problem Solving: conversation history was compacted into a continuation checkpoint. Pending: continue verification.",
 		"",
 		"### Next Step",
 		"Run the next validation command.",
@@ -678,7 +686,7 @@ func TestCompressionFinalizerHandoffDefaultEnabled(t *testing.T) {
 	}
 }
 
-func compactTestMessages(t *testing.T, cfg config.ContextPolicy, messages []adk.Message, response string) *CompactionResult {
+func compactTestMessages(t *testing.T, cfg config.ContextConfig, messages []adk.Message, response string) *CompactionResult {
 	t.Helper()
 	counter, err := NewCompressionTokenCounter(cfg)
 	if err != nil {

@@ -12,7 +12,7 @@ import (
 )
 
 func TestBudgetGovernorEvaluatePressureStates(t *testing.T) {
-	counter, err := NewCompressionTokenCounter(config.ContextPolicy{TokenEncoding: "o200k_base"})
+	counter, err := NewCompressionTokenCounter(config.ContextConfig{TokenEncoding: "o200k_base"})
 	if err != nil {
 		t.Fatalf("NewCompressionTokenCounter: %v", err)
 	}
@@ -100,7 +100,7 @@ func TestBudgetGovernorRequiresTokenCounter(t *testing.T) {
 }
 
 func TestContextAssemblyTokenLimitFromContextPolicy(t *testing.T) {
-	got, err := ContextAssemblyTokenLimitFromContextPolicy(config.ContextPolicy{
+	got, err := ContextAssemblyTokenLimitFromContextPolicy(config.ContextConfig{
 		WindowTokens:         200000,
 		CompactMarginTokens:  13000,
 		PreserveRecentTurns:  3,

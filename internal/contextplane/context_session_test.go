@@ -394,7 +394,7 @@ func TestContextSessionResumeFailsLoud(t *testing.T) {
 
 func newTestContextSession(t *testing.T) ContextSession {
 	t.Helper()
-	counter, err := NewCompressionTokenCounter(config.ContextPolicy{TokenEncoding: "o200k_base"})
+	counter, err := NewCompressionTokenCounter(config.ContextConfig{TokenEncoding: "o200k_base"})
 	if err != nil {
 		t.Fatalf("NewCompressionTokenCounter: %v", err)
 	}

@@ -22,7 +22,7 @@ func (p *defaultContextPlane) Assemble(ctx context.Context, req AssembleRequest)
 	budget, err := p.Budget(ctx, BudgetRequest{
 		TotalTokens:     p.memoryContextTokenBudget,
 		PresentSections: assemblePresentSections(req),
-		Hint:            req.Hint,
+		ContextPriority: req.ContextPriority,
 	})
 	if err != nil {
 		return nil, err

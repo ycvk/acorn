@@ -495,7 +495,7 @@ func TestResolveRunSelectionRejectsResumeRunDecision(t *testing.T) {
 		RunID:     "run_resume_decision",
 		SessionID: "session_resume_decision",
 		Input:     "hello",
-	}, caps, nil)
+	}, caps)
 	if err == nil {
 		t.Fatalf("resolveRunSelection returned selection %+v, want resume_run rejection", selection)
 	}

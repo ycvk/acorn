@@ -109,12 +109,11 @@ func (a *contextSelectionAssembler) ResolveSelection(
 	ctx context.Context,
 	req RunnerBuildRequest,
 	caps *runCapabilities,
-	chatModel einomodel.BaseChatModel,
 ) (*runSelection, error) {
 	if a == nil || a.factory == nil {
 		return nil, errors.New("runner factory is not initialized")
 	}
-	return a.factory.resolveRunSelection(ctx, req, caps, chatModel)
+	return a.factory.resolveRunSelection(ctx, req, caps)
 }
 
 func (a *contextSelectionAssembler) AssembleToolContext(
@@ -134,15 +133,15 @@ func (a *contextSelectionAssembler) AssembleToolContext(
 		selection = &runSelection{}
 	}
 	result, err := a.factory.deps.ContextPlane.Assemble(ctx, contextplane.AssembleRequest{
-		RunID:          req.RunID,
-		SessionID:      req.SessionID,
-		Input:          req.Input,
-		SelectedSkill:  selection.selectedSkill,
-		SkillSnapshot:  caps.skillSnapshot,
-		DecisionRecord: selection.decisionRecord,
-		Hint:           selection.hint,
-		MemoryPrepared: memoryPrepared,
-		ToolCatalog:    caps.catalog,
+		RunID:           req.RunID,
+		SessionID:       req.SessionID,
+		Input:           req.Input,
+		SelectedSkill:   selection.selectedSkill,
+		SkillSnapshot:   caps.skillSnapshot,
+		DecisionRecord:  selection.decisionRecord,
+		ContextPriority: selection.contextPriority,
+		MemoryPrepared:  memoryPrepared,
+		ToolCatalog:     caps.catalog,
 	})
 	if err != nil {
 		return nil, err

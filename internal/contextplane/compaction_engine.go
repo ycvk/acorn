@@ -90,18 +90,6 @@ type CompressionOutcome struct {
 
 var requiredContinuationSummarySections = []string{
 	"Primary Request / Intent",
-	"Technical Concepts",
-	"Files and Code Sections",
-	"Errors and Fixes",
-	"Problem Solving",
-	"All User Messages",
-	"Pending Tasks",
-	"Current Work",
-	"Next Step",
-}
-
-var requiredNonEmptyContinuationSections = []string{
-	"All User Messages",
 	"Current Work",
 	"Next Step",
 }
@@ -259,14 +247,15 @@ func validateStructuredContinuationSummary(summary string) error {
 	if trimmed == "" {
 		return errors.New("compression summary content is empty")
 	}
+	if len(trimmed) < 50 {
+		return errors.New("compression summary content is too short")
+	}
 	for _, section := range requiredContinuationSummarySections {
-		if _, ok := continuationSummarySection(trimmed, section); !ok {
+		content, ok := continuationSummarySection(trimmed, section)
+		if !ok {
 			return fmt.Errorf("compression summary missing required section %q", section)
 		}
-	}
-	for _, section := range requiredNonEmptyContinuationSections {
-		content, ok := continuationSummarySection(trimmed, section)
-		if !ok || isEmptySummarySection(content) {
+		if isEmptySummarySection(content) {
 			return fmt.Errorf("compression summary section %q is empty", section)
 		}
 	}

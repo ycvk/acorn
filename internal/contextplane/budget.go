@@ -17,7 +17,7 @@ const (
 type BudgetRequest struct {
 	TotalTokens     int
 	PresentSections []Section
-	Hint            *DecisionContextHint
+	ContextPriority ContextPriority
 }
 
 type SectionBudget struct {
@@ -78,7 +78,7 @@ func (a BudgetAllocator) Allocate(req BudgetRequest) (BudgetStatus, error) {
 		allocations[idx%len(allocations)].Tokens++
 		allocated++
 	}
-	allocations = applyPriorityHint(allocations, sectionForPriority(req.Hint))
+	allocations = applyPriorityHint(allocations, sectionForPriority(req.ContextPriority))
 	return BudgetStatus{TotalTokens: req.TotalTokens, Allocations: allocations}, nil
 }
 
@@ -110,11 +110,8 @@ func zeroAllocations(sections []Section) []SectionBudget {
 	return allocations
 }
 
-func sectionForPriority(hint *DecisionContextHint) Section {
-	if hint == nil {
-		return ""
-	}
-	switch hint.ContextPriority {
+func sectionForPriority(priority ContextPriority) Section {
+	switch priority {
 	case PrioritySkill:
 		return SectionSkill
 	case PriorityConversation:

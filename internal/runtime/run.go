@@ -113,7 +113,7 @@ func (b *runBuilder) Build(ctx context.Context, req RunnerBuildRequest) (*Active
 		return nil, err
 	}
 
-	selection, err := b.ensureContextSelectionAssembler().ResolveSelection(ctx, req, capabilities, chatModel)
+	selection, err := b.ensureContextSelectionAssembler().ResolveSelection(ctx, req, capabilities)
 	if err != nil {
 		return nil, err
 	}

@@ -1,9 +1,5 @@
 package decision
 
-type DecisionContextHint struct {
-	ContextPriority ContextPriority
-}
-
 type ContextPriority string
 
 const (

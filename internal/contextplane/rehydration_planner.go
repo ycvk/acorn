@@ -58,16 +58,10 @@ type RehydratePacket struct {
 
 type defaultRehydrationPlanner struct{}
 
-var defaultRehydratePacketLimits = map[RehydratePacketKind]int{
-	RehydrateWorkingCheckpoint: 7000,
-	RehydrateSelectedSkill:     8000,
-	RehydrateSkillCatalog:      9000,
-	RehydrateToolState:         7000,
-	RehydrateSessionSummary:    5000,
-	RehydratePreparedMemory:    12000,
-	RehydratePlanState:         2500,
-	RehydrateRecentFiles:       500,
-}
+// defaultRehydrateMaxPacketTokens is the maximum tokens allowed for any single
+// rehydrate packet. Previously there were 8 per-kind limits; now all packets
+// share the total TokenBudget and each is capped by this single limit.
+const defaultRehydrateMaxPacketTokens = 15000
 
 func NewDefaultRehydrationPlanner() RehydrationPlanner {
 	return defaultRehydrationPlanner{}
@@ -157,17 +151,13 @@ func (b *rehydratePlanBuilder) append(kind RehydratePacketKind, source string, c
 	if trimmed == "" {
 		return nil
 	}
-	limit := defaultRehydratePacketLimits[kind]
-	if limit <= 0 {
-		return fmt.Errorf("rehydrate packet %s token limit must be positive", kind)
-	}
 	tokens, err := b.tokenCounter.CountText(b.ctx, trimmed)
 	if err != nil {
 		return fmt.Errorf("count rehydrate packet %s tokens: %w", kind, err)
 	}
 	b.plan.TokensBefore += tokens
-	if tokens > limit {
-		return fmt.Errorf("rehydrate packet %s requires %d tokens over limit %d", kind, tokens, limit)
+	if tokens > defaultRehydrateMaxPacketTokens {
+		return fmt.Errorf("rehydrate packet %s requires %d tokens over limit %d", kind, tokens, defaultRehydrateMaxPacketTokens)
 	}
 	if b.plan.TokensAfter+tokens > b.plan.TokenBudget {
 		return fmt.Errorf("rehydrate packet %s would exceed plan budget %d", kind, b.plan.TokenBudget)
@@ -176,7 +166,7 @@ func (b *rehydratePlanBuilder) append(kind RehydratePacketKind, source string, c
 		Kind:       kind,
 		Source:     strings.TrimSpace(source),
 		Content:    trimmed,
-		TokenLimit: limit,
+		TokenLimit: defaultRehydrateMaxPacketTokens,
 	})
 	b.plan.TokensAfter += tokens
 	return nil
