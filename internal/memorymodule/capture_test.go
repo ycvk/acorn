@@ -3,7 +3,6 @@ package memorymodule
 import (
 	"testing"
 	"time"
-
 )
 
 func TestSearchCaptureSampleIncludesRefsAndExplainDigest(t *testing.T) {

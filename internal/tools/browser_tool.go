@@ -10,8 +10,8 @@ import (
 
 	"github.com/ycvk/acorn/internal/artifacts"
 	"github.com/ycvk/acorn/internal/browser"
-	"github.com/ycvk/acorn/internal/tooling"
 	"github.com/ycvk/acorn/internal/store"
+	"github.com/ycvk/acorn/internal/tooling"
 	"github.com/ycvk/acorn/internal/webaccess"
 )
 
