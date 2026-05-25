@@ -661,11 +661,7 @@ func (s *Store) ListProviderUsagesByRun(ctx context.Context, runID string) ([]pr
 	return items, nil
 }
 
-type providerUsageScanner interface {
-	Scan(dest ...any) error
-}
-
-func scanProviderUsage(scanner providerUsageScanner) (providerusage.Record, error) {
+func scanProviderUsage(scanner interface{ Scan(dest ...any) error }) (providerusage.Record, error) {
 	var record providerusage.Record
 	var createdAt string
 	if err := scanner.Scan(

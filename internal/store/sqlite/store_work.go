@@ -127,11 +127,7 @@ func (s *Store) ListArtifactsBySession(ctx context.Context, sessionID string) ([
 	return items, nil
 }
 
-type artifactScanner interface {
-	Scan(dest ...any) error
-}
-
-func scanArtifact(scanner artifactScanner) (artifacts.Record, error) {
+func scanArtifact(scanner interface{ Scan(dest ...any) error }) (artifacts.Record, error) {
 	var record artifacts.Record
 	var kind string
 	var createdAt string
@@ -284,11 +280,7 @@ func (s *Store) AppendEvidenceRef(ctx context.Context, resultRef string, ref too
 	return s.Load(ctx, record.ResultRef)
 }
 
-type toolResultScanner interface {
-	Scan(dest ...any) error
-}
-
-func scanToolResult(scanner toolResultScanner) (toolresult.Record, error) {
+func scanToolResult(scanner interface{ Scan(dest ...any) error }) (toolresult.Record, error) {
 	var record toolresult.Record
 	var status string
 	var sideEffectsJSON string

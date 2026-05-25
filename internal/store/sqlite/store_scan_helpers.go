@@ -8,11 +8,7 @@ import (
 	"github.com/ycvk/acorn/internal/events"
 )
 
-type runRecordScanner interface {
-	Scan(dest ...any) error
-}
-
-func scanRunRecord(scanner runRecordScanner) (*events.RunRecord, error) {
+func scanRunRecord(scanner interface{ Scan(dest ...any) error }) (*events.RunRecord, error) {
 	var (
 		rec                  events.RunRecord
 		status               string
@@ -38,7 +34,7 @@ func scanRunRecord(scanner runRecordScanner) (*events.RunRecord, error) {
 	return &rec, nil
 }
 
-func scanPendingActionRecord(scanner runRecordScanner) (*events.PendingActionRecord, error) {
+func scanPendingActionRecord(scanner interface{ Scan(dest ...any) error }) (*events.PendingActionRecord, error) {
 	var (
 		record     events.PendingActionRecord
 		kind       string
