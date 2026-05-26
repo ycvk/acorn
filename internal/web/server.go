@@ -11,6 +11,7 @@ import (
 	"github.com/ycvk/acorn/internal/memorymodule"
 	"github.com/ycvk/acorn/internal/runtime"
 	"github.com/ycvk/acorn/internal/skills"
+	"github.com/ycvk/acorn/internal/stream"
 	"github.com/ycvk/acorn/internal/web/runprojector"
 )
 
@@ -47,7 +48,7 @@ type WorkingCheckpointService interface {
 }
 
 type ResumeService interface {
-	Resume(ctx context.Context, runID string, sink runtime.StreamSink) (*runtime.Result, error)
+	Resume(ctx context.Context, runID string, sink stream.StreamSink) (*runtime.Result, error)
 }
 
 type RunService interface {

@@ -1,19 +1,23 @@
 package runtime
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/ycvk/acorn/internal/stream"
+)
 
 func TestProjectStreamItemToEventProjectsSkillPayload(t *testing.T) {
-	kind, payload := mustProjectStreamItemToEvent(t, StreamItem{
+	kind, payload := mustProjectStreamItemToEvent(t, stream.StreamItem{
 		RunID: "run_5",
-		Kind:  StreamKindSkillSelected,
-		Payload: &SkillSelectedPayload{Skill: &StreamSkill{
+		Kind:  stream.StreamKindSkillSelected,
+		Payload: &stream.SkillSelectedPayload{Skill: &stream.StreamSkill{
 			SelectedID:   "skill.inspect.repo",
 			Name:         "Inspect Repo",
 			Source:       "workspace",
 			Path:         "/tmp/skills/inspect_repo",
 			Instruction:  "Read README.md first.",
 			Scripts:      []string{"scripts/quick_map.sh"},
-			Requirements: StreamSkillRequirements{Tools: []string{"read_file", "run_command"}},
+			Requirements: stream.StreamSkillRequirements{Tools: []string{"read_file", "run_command"}},
 			Score:        145,
 		}},
 	})
@@ -37,12 +41,12 @@ func TestProjectStreamItemToEventProjectsSkillPayload(t *testing.T) {
 }
 
 func TestProjectStreamItemToEventProjectsNoSelectionReason(t *testing.T) {
-	kind, payload := mustProjectStreamItemToEvent(t, StreamItem{
+	kind, payload := mustProjectStreamItemToEvent(t, stream.StreamItem{
 		RunID: "run_5b",
-		Kind:  StreamKindSkillDiscovered,
-		Payload: &SkillDiscoveredPayload{Skill: &StreamSkill{
+		Kind:  stream.StreamKindSkillDiscovered,
+		Payload: &stream.SkillDiscoveredPayload{Skill: &stream.StreamSkill{
 			NoSelectionReason: "no_eligible_match",
-			Candidates: []StreamSkillCandidate{
+			Candidates: []stream.StreamSkillCandidate{
 				{ID: "skill.inspect.repo", FilteredReason: "missing_required_tools:read_file"},
 			},
 		}},
@@ -63,10 +67,10 @@ func TestProjectStreamItemToEventProjectsNoSelectionReason(t *testing.T) {
 }
 
 func TestProjectStreamItemToEventProjectsSkillFailureReason(t *testing.T) {
-	kind, payload := mustProjectStreamItemToEvent(t, StreamItem{
+	kind, payload := mustProjectStreamItemToEvent(t, stream.StreamItem{
 		RunID: "run_6",
-		Kind:  StreamKindSkillFailed,
-		Payload: &SkillFailedPayload{Skill: &StreamSkill{
+		Kind:  stream.StreamKindSkillFailed,
+		Payload: &stream.SkillFailedPayload{Skill: &stream.StreamSkill{
 			SelectedID:    "skill.inspect.repo",
 			FailureReason: "missing_output_term:entrypoint",
 		}},
@@ -85,10 +89,10 @@ func TestProjectStreamItemToEventProjectsSkillFailureReason(t *testing.T) {
 }
 
 func TestProjectStreamItemToEventProjectsSkillLifecycle(t *testing.T) {
-	kind, payload := mustProjectStreamItemToEvent(t, StreamItem{
+	kind, payload := mustProjectStreamItemToEvent(t, stream.StreamItem{
 		RunID: "run_7",
-		Kind:  StreamKindSkillLifecycle,
-		Payload: &SkillLifecyclePayload{SkillLifecycle: &StreamSkillLifecycle{
+		Kind:  stream.StreamKindSkillLifecycle,
+		Payload: &stream.SkillLifecyclePayload{SkillLifecycle: &stream.StreamSkillLifecycle{
 			SkillID:         "skill.generated",
 			Action:          "assessed",
 			Status:          "verified",
@@ -115,12 +119,12 @@ func TestProjectStreamItemToEventProjectsSkillLifecycle(t *testing.T) {
 }
 
 func TestSummarizeStreamItemsCountsCurrentSkillEvents(t *testing.T) {
-	items := []StreamItem{
-		{Kind: StreamKindSkillDiscovered, Payload: &SkillDiscoveredPayload{Skill: &StreamSkill{SelectedID: "s1"}}},
-		{Kind: StreamKindSkillSelected, Payload: &SkillSelectedPayload{Skill: &StreamSkill{SelectedID: "s1"}}},
-		{Kind: StreamKindSkillLoaded, Payload: &SkillLoadedPayload{Skill: &StreamSkill{SelectedID: "s1"}}},
-		{Kind: StreamKindSkillFailed, Payload: &SkillFailedPayload{Skill: &StreamSkill{SelectedID: "s1"}}},
-		{Kind: StreamKindSkillLifecycle, Payload: &SkillLifecyclePayload{SkillLifecycle: &StreamSkillLifecycle{SkillID: "s1", Action: "assessed"}}},
+	items := []stream.StreamItem{
+		{Kind: stream.StreamKindSkillDiscovered, Payload: &stream.SkillDiscoveredPayload{Skill: &stream.StreamSkill{SelectedID: "s1"}}},
+		{Kind: stream.StreamKindSkillSelected, Payload: &stream.SkillSelectedPayload{Skill: &stream.StreamSkill{SelectedID: "s1"}}},
+		{Kind: stream.StreamKindSkillLoaded, Payload: &stream.SkillLoadedPayload{Skill: &stream.StreamSkill{SelectedID: "s1"}}},
+		{Kind: stream.StreamKindSkillFailed, Payload: &stream.SkillFailedPayload{Skill: &stream.StreamSkill{SelectedID: "s1"}}},
+		{Kind: stream.StreamKindSkillLifecycle, Payload: &stream.SkillLifecyclePayload{SkillLifecycle: &stream.StreamSkillLifecycle{SkillID: "s1", Action: "assessed"}}},
 	}
 	summary := summarizeStreamItems(items)
 	if summary.SkillEventCount != 5 {

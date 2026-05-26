@@ -216,16 +216,3 @@ type PipelineResult struct {
 	TokensFreed   int
 	Outcome       *CompressionOutcome
 }
-
-type MicrocompactRequest struct {
-	Messages        []adk.Message
-	ToolInfos       []*schema.ToolInfo
-	TurnIndex       int
-	LastCompactTurn int
-}
-
-type MicrocompactResult struct {
-	Messages     []adk.Message
-	TokensFreed  int
-	ClearedTools []string
-}

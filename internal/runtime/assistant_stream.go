@@ -11,6 +11,7 @@ import (
 
 	"github.com/ycvk/acorn/internal/orchestration"
 	"github.com/ycvk/acorn/internal/providerusage"
+	"github.com/ycvk/acorn/internal/stream"
 )
 
 type assistantStreamAccumulator struct {
@@ -37,7 +38,7 @@ type assistantStreamOptions struct {
 	MessageID string
 	RunID     string
 	Appender  EventAppender
-	Sink      StreamSink
+	Sink      stream.StreamSink
 	ToolInfos []*schema.ToolInfo
 	CallSite  string
 }
@@ -59,20 +60,20 @@ func streamAssistantMessage(
 	if callSite == "" {
 		callSite = providerusage.CallSiteAssistant
 	}
-	stream, err := model.Stream(providerusage.WithCallSite(ctx, callSite), messages, streamOpts...)
+	modelStream, err := model.Stream(providerusage.WithCallSite(ctx, callSite), messages, streamOpts...)
 	if err != nil {
 		return nil, err
 	}
-	if stream == nil {
+	if modelStream == nil {
 		return nil, fmt.Errorf("assistant stream returned nil stream")
 	}
-	defer stream.Close()
+	defer modelStream.Close()
 
 	accumulator := newAssistantStreamAccumulator(opts.MessageID)
 	frames := make([]*schema.Message, 0, 4)
 
 	for {
-		frame, recvErr := stream.Recv()
+		frame, recvErr := modelStream.Recv()
 		if recvErr != nil {
 			if recvErr == io.EOF {
 				break
@@ -88,11 +89,11 @@ func streamAssistantMessage(
 		}
 		if opts.Appender != nil || opts.Sink != nil {
 			sequence := accumulator.append(frame.Content)
-			item := StreamItem{
+			item := stream.StreamItem{
 				RunID: opts.RunID,
-				Kind:  StreamKindAssistantDelta,
-				Payload: &AssistantDeltaPayload{
-					AssistantDelta: &StreamAssistantDelta{
+				Kind:  stream.StreamKindAssistantDelta,
+				Payload: &stream.AssistantDeltaPayload{
+					AssistantDelta: &stream.StreamAssistantDelta{
 						Role:      string(frame.Role),
 						Delta:     frame.Content,
 						Reasoning: frame.ReasoningContent,
@@ -104,7 +105,7 @@ func streamAssistantMessage(
 				},
 			}
 			if opts.Appender != nil {
-				if _, err := AppendStreamItem(ctx, opts.Appender, opts.Sink, item); err != nil {
+				if _, err := stream.AppendStreamItem(ctx, opts.Appender, opts.Sink, item); err != nil {
 					return nil, err
 				}
 				continue
@@ -158,13 +159,13 @@ func assistantRawFinishReason(message *schema.Message) string {
 	return strings.TrimSpace(strings.ToLower(message.ResponseMeta.FinishReason))
 }
 
-func streamPlannedToolCalls(calls []schema.ToolCall) []StreamPlannedToolCall {
+func streamPlannedToolCalls(calls []schema.ToolCall) []stream.StreamPlannedToolCall {
 	if len(calls) == 0 {
 		return nil
 	}
-	out := make([]StreamPlannedToolCall, 0, len(calls))
+	out := make([]stream.StreamPlannedToolCall, 0, len(calls))
 	for _, call := range calls {
-		out = append(out, StreamPlannedToolCall{
+		out = append(out, stream.StreamPlannedToolCall{
 			ID:            call.ID,
 			Name:          call.Function.Name,
 			ArgumentsJSON: call.Function.Arguments,

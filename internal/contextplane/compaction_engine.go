@@ -63,7 +63,6 @@ type CompactionEngineOptions struct {
 	Model                einomodel.BaseChatModel
 	ModelOptions         []einomodel.Option
 	TokenCounter         *CompressionTokenCounter
-	RehydrationPlanner   *RehydrationPlanner
 	HandoffFrameDisabled bool
 	MaxSummaryTokens     int
 }
@@ -72,7 +71,6 @@ type CompactionEngine struct {
 	model                einomodel.BaseChatModel
 	modelOptions         []einomodel.Option
 	tokenCounter         *CompressionTokenCounter
-	rehydrationPlanner   *RehydrationPlanner
 	handoffFrameDisabled bool
 	maxSummaryTokens     int
 }
@@ -95,15 +93,10 @@ var requiredContinuationSummarySections = []string{
 }
 
 func NewDefaultCompactionEngine(opts CompactionEngineOptions) *CompactionEngine {
-	planner := opts.RehydrationPlanner
-	if planner == nil {
-		planner = NewDefaultRehydrationPlanner()
-	}
 	return &CompactionEngine{
 		model:                opts.Model,
 		modelOptions:         append([]einomodel.Option(nil), opts.ModelOptions...),
 		tokenCounter:         opts.TokenCounter,
-		rehydrationPlanner:   planner,
 		handoffFrameDisabled: opts.HandoffFrameDisabled,
 		maxSummaryTokens:     opts.MaxSummaryTokens,
 	}
@@ -171,7 +164,7 @@ func (e *CompactionEngine) Compact(ctx context.Context, req CompactRequest) (*Co
 
 	systemMessages, contextMessages := splitLeadingSystemMessages(req.Messages)
 	preservedTail := preservedConversationTail(contextMessages, req.PreservePolicy)
-	rehydratePlan, err := e.rehydrationPlanner.Plan(ctx, RehydrateRequest{
+	rehydratePlan, err := e.buildRehydratePlan(ctx, RehydrateRequest{
 		Messages:           req.Messages,
 		ToolState:          req.ToolState,
 		CurrentPlan:        req.CurrentPlan,
@@ -324,4 +317,47 @@ func schemaMessagesToADK(messages []*schema.Message) []adk.Message {
 		}
 	}
 	return result
+}
+
+func (e *CompactionEngine) buildRehydratePlan(ctx context.Context, req RehydrateRequest) (*RehydratePlan, error) {
+	if req.TokenCounter == nil {
+		return nil, errors.New("rehydration planner token counter is required")
+	}
+	tokenBudget := req.TokenBudget
+	if tokenBudget <= 0 {
+		tokenBudget = defaultRehydratePlanTokenBudget
+	}
+	builder := rehydratePlanBuilder{
+		ctx:          ctx,
+		tokenCounter: req.TokenCounter,
+		plan:         RehydratePlan{TokenBudget: tokenBudget},
+	}
+
+	memoryContext := extractTaggedContent(req.Messages, "memory-context")
+	if err := builder.append(RehydrateWorkingCheckpoint, "memory-context/working-checkpoint", extractTaggedBlock(memoryContext, "working-checkpoint")); err != nil {
+		return nil, err
+	}
+	if err := builder.append(RehydrateSelectedSkill, "skill-context", extractTaggedContent(req.Messages, "skill-context")); err != nil {
+		return nil, err
+	}
+	if err := builder.append(RehydrateSkillCatalog, "skill-catalog", extractTaggedContent(req.Messages, "skill-catalog")); err != nil {
+		return nil, err
+	}
+	if err := builder.append(RehydrateToolState, "tool-lifecycle-state", formatToolStatePacket(req.ToolState)); err != nil {
+		return nil, err
+	}
+	if err := builder.append(RehydrateSessionSummary, "memory-context/session-summary", extractTaggedBlock(memoryContext, "session-summary")); err != nil {
+		return nil, err
+	}
+	if err := builder.append(RehydratePreparedMemory, "memory-context/prepared-memory", extractPreparedMemoryPacket(memoryContext)); err != nil {
+		return nil, err
+	}
+	if err := builder.append(RehydratePlanState, "request/current-plan", req.CurrentPlan); err != nil {
+		return nil, err
+	}
+	if err := builder.append(RehydrateRecentFiles, "request/recent-touched-paths", formatRecentTouchedPaths(req.RecentTouchedPaths)); err != nil {
+		return nil, err
+	}
+
+	return &builder.plan, nil
 }

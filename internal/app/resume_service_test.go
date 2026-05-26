@@ -8,6 +8,7 @@ import (
 
 	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/runtime"
+	"github.com/ycvk/acorn/internal/stream"
 )
 
 func TestResumeServiceResumeKeepsNonApprovalInterruptDefaultTarget(t *testing.T) {
@@ -37,7 +38,7 @@ func TestResumeServiceResumeKeepsNonApprovalInterruptDefaultTarget(t *testing.T)
 	)
 	service := NewResumeService(NewTraceService(store), func(_ context.Context) (executorHandle, error) {
 		return resumeTestExecutorHandle{
-			resumeWithTargetsFn: func(ctx context.Context, targetRunID string, targets map[string]any, sink runtime.StreamSink) (*runtime.Result, error) {
+			resumeWithTargetsFn: func(ctx context.Context, targetRunID string, targets map[string]any, sink stream.StreamSink) (*runtime.Result, error) {
 				resumedRunID = targetRunID
 				resumed = targets
 				return &runtime.Result{RunID: targetRunID, Status: events.RunStatusSucceeded, Output: "done"}, nil
@@ -79,7 +80,7 @@ func TestResumeServiceRejectsFailedRun(t *testing.T) {
 	var resumed bool
 	service := NewResumeService(NewTraceService(store), func(_ context.Context) (executorHandle, error) {
 		return resumeTestExecutorHandle{
-			resumeWithTargetsFn: func(ctx context.Context, targetRunID string, targets map[string]any, sink runtime.StreamSink) (*runtime.Result, error) {
+			resumeWithTargetsFn: func(ctx context.Context, targetRunID string, targets map[string]any, sink stream.StreamSink) (*runtime.Result, error) {
 				resumed = true
 				return &runtime.Result{RunID: targetRunID, Status: events.RunStatusSucceeded}, nil
 			},
@@ -113,7 +114,7 @@ func TestResumeServiceRejectsCompletedRun(t *testing.T) {
 	var resumed bool
 	service := NewResumeService(NewTraceService(store), func(_ context.Context) (executorHandle, error) {
 		return resumeTestExecutorHandle{
-			resumeWithTargetsFn: func(ctx context.Context, targetRunID string, targets map[string]any, sink runtime.StreamSink) (*runtime.Result, error) {
+			resumeWithTargetsFn: func(ctx context.Context, targetRunID string, targets map[string]any, sink stream.StreamSink) (*runtime.Result, error) {
 				resumed = true
 				return &runtime.Result{RunID: targetRunID, Status: events.RunStatusSucceeded}, nil
 			},
@@ -133,18 +134,18 @@ func TestResumeServiceRejectsCompletedRun(t *testing.T) {
 }
 
 type resumeTestExecutorHandle struct {
-	resumeWithTargetsFn func(ctx context.Context, runID string, targets map[string]any, sink runtime.StreamSink) (*runtime.Result, error)
+	resumeWithTargetsFn func(ctx context.Context, runID string, targets map[string]any, sink stream.StreamSink) (*runtime.Result, error)
 }
 
-func (h resumeTestExecutorHandle) Run(ctx context.Context, input, skillID string, sink runtime.StreamSink) (*runtime.Result, error) {
+func (h resumeTestExecutorHandle) Run(ctx context.Context, input, skillID string, sink stream.StreamSink) (*runtime.Result, error) {
 	panic("unexpected Run call")
 }
 
-func (h resumeTestExecutorHandle) ExecuteMessages(ctx context.Context, req runtime.ExecuteRequest, sink runtime.StreamSink) (*runtime.Result, error) {
+func (h resumeTestExecutorHandle) ExecuteMessages(ctx context.Context, req runtime.ExecuteRequest, sink stream.StreamSink) (*runtime.Result, error) {
 	panic("unexpected ExecuteMessages call")
 }
 
-func (h resumeTestExecutorHandle) ResumeWithTargets(ctx context.Context, runID string, targets map[string]any, sink runtime.StreamSink) (*runtime.Result, error) {
+func (h resumeTestExecutorHandle) ResumeWithTargets(ctx context.Context, runID string, targets map[string]any, sink stream.StreamSink) (*runtime.Result, error) {
 	if h.resumeWithTargetsFn == nil {
 		panic("unexpected ResumeWithTargets call")
 	}

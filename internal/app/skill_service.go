@@ -10,18 +10,9 @@ import (
 	"github.com/ycvk/acorn/internal/skills"
 )
 
-type stableSkillScanner interface {
-	ScanSkills(ctx context.Context) (*skills.ScanResult, error)
-	CreateSkill(ctx context.Context, input skills.CreateInput) (*skills.Spec, error)
-	PatchSkillWithSource(ctx context.Context, skillID, patchContent, source string) error
-	DeleteSkill(ctx context.Context, skillID string) error
-	ReadSkillFile(ctx context.Context, skillID, relativePath string) (string, error)
-	WriteSkillFile(ctx context.Context, skillID, relativePath, content string) error
-}
-
 type SkillService struct {
 	cfg     *config.Config
-	scanner stableSkillScanner
+	scanner *skills.Loader
 }
 
 var (
@@ -29,7 +20,7 @@ var (
 	ErrSkillNotFound      = errors.New("skill not found")
 )
 
-func NewSkillService(cfg *config.Config, scanner stableSkillScanner) *SkillService {
+func NewSkillService(cfg *config.Config, scanner *skills.Loader) *SkillService {
 	return &SkillService{cfg: cfg, scanner: scanner}
 }
 

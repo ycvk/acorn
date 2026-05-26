@@ -10,7 +10,7 @@ import (
 )
 
 func TestDefaultRehydrationPlannerExtractsContextEnvelopePackets(t *testing.T) {
-	planner := NewDefaultRehydrationPlanner()
+	engine := NewDefaultCompactionEngine(CompactionEngineOptions{})
 	memoryContext := strings.Join([]string{
 		"<memory-context>",
 		referenceContextNote,
@@ -36,7 +36,7 @@ func TestDefaultRehydrationPlannerExtractsContextEnvelopePackets(t *testing.T) {
 		"</memory-context>",
 	}, "\n")
 
-	plan, err := planner.Plan(context.Background(), RehydrateRequest{
+	plan, err := engine.buildRehydratePlan(context.Background(), RehydrateRequest{
 		TokenCounter: testTokenCounter(t),
 		Messages: []adk.Message{
 			schema.UserMessage("<skill-context>\nSelected skill: cs-feat-impl\n</skill-context>"),
@@ -64,8 +64,8 @@ func TestDefaultRehydrationPlannerExtractsContextEnvelopePackets(t *testing.T) {
 }
 
 func TestDefaultRehydrationPlannerRejectsOversizedPackets(t *testing.T) {
-	planner := NewDefaultRehydrationPlanner()
-	_, err := planner.Plan(context.Background(), RehydrateRequest{
+	engine := NewDefaultCompactionEngine(CompactionEngineOptions{})
+	_, err := engine.buildRehydratePlan(context.Background(), RehydrateRequest{
 		TokenCounter: testTokenCounter(t),
 		Messages: []adk.Message{
 			schema.UserMessage("<skill-context>\n" + strings.Repeat("skill-content ", 12000) + "\n</skill-context>"),
@@ -77,8 +77,8 @@ func TestDefaultRehydrationPlannerRejectsOversizedPackets(t *testing.T) {
 }
 
 func TestDefaultRehydrationPlannerBuildsToolPlanAndRecentPackets(t *testing.T) {
-	planner := NewDefaultRehydrationPlanner()
-	plan, err := planner.Plan(context.Background(), RehydrateRequest{
+	engine := NewDefaultCompactionEngine(CompactionEngineOptions{})
+	plan, err := engine.buildRehydratePlan(context.Background(), RehydrateRequest{
 		TokenCounter: testTokenCounter(t),
 		ToolState: &ToolLifecycleState{
 			LoadedTools: map[string]LoadedToolRecord{

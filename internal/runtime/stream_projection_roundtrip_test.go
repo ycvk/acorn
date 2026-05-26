@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ycvk/acorn/internal/events"
+	"github.com/ycvk/acorn/internal/stream"
 )
 
 func TestStreamProjectionRoundtrip(t *testing.T) {
@@ -16,25 +17,25 @@ func TestStreamProjectionRoundtrip(t *testing.T) {
 
 	tests := []struct {
 		name string
-		item StreamItem
+		item stream.StreamItem
 	}{
 		{
 			name: "run_started",
-			item: StreamItem{
-				RunID: "run_rt", Sequence: 1, Kind: StreamKindRunStarted, CreatedAt: now,
-				Payload: &RunStartedPayload{Input: "inspect the codebase"},
+			item: stream.StreamItem{
+				RunID: "run_rt", Sequence: 1, Kind: stream.StreamKindRunStarted, CreatedAt: now,
+				Payload: &stream.RunStartedPayload{Input: "inspect the codebase"},
 			},
 		},
 		{
 			name: "run_completed",
-			item: StreamItem{
-				RunID: "run_rt", Sequence: 2, Kind: StreamKindRunCompleted, CreatedAt: now,
-				Payload: &RunCompletedPayload{
-					Message: &StreamMessage{
+			item: stream.StreamItem{
+				RunID: "run_rt", Sequence: 2, Kind: stream.StreamKindRunCompleted, CreatedAt: now,
+				Payload: &stream.RunCompletedPayload{
+					Message: &stream.StreamMessage{
 						Role:      "assistant",
 						Content:   "done",
 						Reasoning: "thought process",
-						ToolCalls: []StreamPlannedToolCall{
+						ToolCalls: []stream.StreamPlannedToolCall{
 							{ID: "tc_1", Name: "read_file", ArgumentsJSON: `{"path":"README.md"}`},
 						},
 						Meta: map[string]any{"active_provider": "primary", "latency_ms": 150},
@@ -44,19 +45,19 @@ func TestStreamProjectionRoundtrip(t *testing.T) {
 		},
 		{
 			name: "run_failed",
-			item: StreamItem{
-				RunID: "run_rt", Sequence: 3, Kind: StreamKindRunFailed, CreatedAt: now,
-				Payload: &RunFailedPayload{Error: "model unavailable: connection refused"},
+			item: stream.StreamItem{
+				RunID: "run_rt", Sequence: 3, Kind: stream.StreamKindRunFailed, CreatedAt: now,
+				Payload: &stream.RunFailedPayload{Error: "model unavailable: connection refused"},
 			},
 		},
 		{
 			name: "run_interrupted",
-			item: StreamItem{
-				RunID: "run_rt", Sequence: 4, Kind: StreamKindRunInterrupted, CreatedAt: now,
-				Payload: &RunInterruptedPayload{
-					Interrupt: &StreamInterrupt{
+			item: stream.StreamItem{
+				RunID: "run_rt", Sequence: 4, Kind: stream.StreamKindRunInterrupted, CreatedAt: now,
+				Payload: &stream.RunInterruptedPayload{
+					Interrupt: &stream.StreamInterrupt{
 						ContextCount: 2,
-						Contexts: []StreamInterruptContext{
+						Contexts: []stream.StreamInterruptContext{
 							{ID: "int_1", Address: "tool.run_command", Info: map[string]any{"kind": "approval", "cmd": "rm -rf /"}, IsRootCause: true},
 							{ID: "int_2", Address: "tool.create_file", Info: map[string]any{"kind": "approval"}, IsRootCause: false},
 						},
@@ -66,9 +67,9 @@ func TestStreamProjectionRoundtrip(t *testing.T) {
 		},
 		{
 			name: "run_resume_requested",
-			item: StreamItem{
-				RunID: "run_rt", Sequence: 5, Kind: StreamKindRunResumeRequested, CreatedAt: now,
-				Payload: &RunResumeRequestedPayload{
+			item: stream.StreamItem{
+				RunID: "run_rt", Sequence: 5, Kind: stream.StreamKindRunResumeRequested, CreatedAt: now,
+				Payload: &stream.RunResumeRequestedPayload{
 					Targets: map[string]any{
 						"interrupt_ids": []any{"int_1"},
 						"approved":      true,
@@ -79,9 +80,9 @@ func TestStreamProjectionRoundtrip(t *testing.T) {
 		},
 		{
 			name: "decision_selected",
-			item: StreamItem{
-				RunID: "run_rt", Sequence: 7, Kind: StreamKindDecisionSelected, CreatedAt: now,
-				Payload: &DecisionSelectedPayload{
+			item: stream.StreamItem{
+				RunID: "run_rt", Sequence: 7, Kind: stream.StreamKindDecisionSelected, CreatedAt: now,
+				Payload: &stream.DecisionSelectedPayload{
 					Action:              "skill",
 					Intent:              "inspect the repo",
 					SelectedSkillID:     "skill.inspect.repo",
@@ -93,9 +94,9 @@ func TestStreamProjectionRoundtrip(t *testing.T) {
 		},
 		{
 			name: "decision_blocked",
-			item: StreamItem{
-				RunID: "run_rt", Sequence: 8, Kind: StreamKindDecisionBlocked, CreatedAt: now,
-				Payload: &DecisionBlockedPayload{
+			item: stream.StreamItem{
+				RunID: "run_rt", Sequence: 8, Kind: stream.StreamKindDecisionBlocked, CreatedAt: now,
+				Payload: &stream.DecisionBlockedPayload{
 					Action:              "skill",
 					Intent:              "deploy to prod",
 					SelectedSkillID:     "",
@@ -108,14 +109,14 @@ func TestStreamProjectionRoundtrip(t *testing.T) {
 
 		{
 			name: "skill_discovered",
-			item: StreamItem{
-				RunID: "run_rt", Sequence: 9, Kind: StreamKindSkillDiscovered, CreatedAt: now,
-				Payload: &SkillDiscoveredPayload{Skill: &StreamSkill{
+			item: stream.StreamItem{
+				RunID: "run_rt", Sequence: 9, Kind: stream.StreamKindSkillDiscovered, CreatedAt: now,
+				Payload: &stream.SkillDiscoveredPayload{Skill: &stream.StreamSkill{
 					SelectedID: "",
 					Name:       "Inspect Repo",
 					Source:     "workspace",
-					Candidates: []StreamSkillCandidate{
-						{ID: "skill.inspect.repo", Name: "Inspect Repo", Score: 145, MatchedTerms: []string{"inspect", "repo"}, Summary: "Quick repo overview", Requirements: StreamSkillRequirements{Tools: []string{"read_file", "run_command"}}},
+					Candidates: []stream.StreamSkillCandidate{
+						{ID: "skill.inspect.repo", Name: "Inspect Repo", Score: 145, MatchedTerms: []string{"inspect", "repo"}, Summary: "Quick repo overview", Requirements: stream.StreamSkillRequirements{Tools: []string{"read_file", "run_command"}}},
 					},
 					NoSelectionReason: "ambiguous_top_score",
 				}},
@@ -123,16 +124,16 @@ func TestStreamProjectionRoundtrip(t *testing.T) {
 		},
 		{
 			name: "skill_selected",
-			item: StreamItem{
-				RunID: "run_rt", Sequence: 10, Kind: StreamKindSkillSelected, CreatedAt: now,
-				Payload: &SkillSelectedPayload{Skill: &StreamSkill{
+			item: stream.StreamItem{
+				RunID: "run_rt", Sequence: 10, Kind: stream.StreamKindSkillSelected, CreatedAt: now,
+				Payload: &stream.SkillSelectedPayload{Skill: &stream.StreamSkill{
 					SelectedID:   "skill.inspect.repo",
 					Name:         "Inspect Repo",
 					Source:       "workspace",
 					Path:         "/tmp/skills/inspect_repo",
 					Instruction:  "Read README.md first.",
 					Scripts:      []string{"scripts/quick_map.sh"},
-					Requirements: StreamSkillRequirements{Tools: []string{"read_file", "run_command"}, Toolsets: []string{"fs"}, Bins: []string{"git"}, Env: []string{"HOME"}},
+					Requirements: stream.StreamSkillRequirements{Tools: []string{"read_file", "run_command"}, Toolsets: []string{"fs"}, Bins: []string{"git"}, Env: []string{"HOME"}},
 					Score:        145,
 					MatchedTerms: []string{"inspect", "repo"},
 				}},
@@ -140,9 +141,9 @@ func TestStreamProjectionRoundtrip(t *testing.T) {
 		},
 		{
 			name: "skill_loaded",
-			item: StreamItem{
-				RunID: "run_rt", Sequence: 11, Kind: StreamKindSkillLoaded, CreatedAt: now,
-				Payload: &SkillLoadedPayload{Skill: &StreamSkill{
+			item: stream.StreamItem{
+				RunID: "run_rt", Sequence: 11, Kind: stream.StreamKindSkillLoaded, CreatedAt: now,
+				Payload: &stream.SkillLoadedPayload{Skill: &stream.StreamSkill{
 					SelectedID:   "skill.inspect.repo",
 					Name:         "Inspect Repo",
 					Source:       "workspace",
@@ -156,9 +157,9 @@ func TestStreamProjectionRoundtrip(t *testing.T) {
 		},
 		{
 			name: "skill_failed",
-			item: StreamItem{
-				RunID: "run_rt", Sequence: 12, Kind: StreamKindSkillFailed, CreatedAt: now,
-				Payload: &SkillFailedPayload{Skill: &StreamSkill{
+			item: stream.StreamItem{
+				RunID: "run_rt", Sequence: 12, Kind: stream.StreamKindSkillFailed, CreatedAt: now,
+				Payload: &stream.SkillFailedPayload{Skill: &stream.StreamSkill{
 					SelectedID:    "skill.inspect.repo",
 					Name:          "Inspect Repo",
 					FailureReason: "missing_tool_use:read_file",
@@ -167,9 +168,9 @@ func TestStreamProjectionRoundtrip(t *testing.T) {
 		},
 		{
 			name: "skill_lifecycle",
-			item: StreamItem{
-				RunID: "run_rt", Sequence: 13, Kind: StreamKindSkillLifecycle, CreatedAt: now,
-				Payload: &SkillLifecyclePayload{SkillLifecycle: &StreamSkillLifecycle{
+			item: stream.StreamItem{
+				RunID: "run_rt", Sequence: 13, Kind: stream.StreamKindSkillLifecycle, CreatedAt: now,
+				Payload: &stream.SkillLifecyclePayload{SkillLifecycle: &stream.StreamSkillLifecycle{
 					SkillID:         "skill.generated",
 					Action:          "assessed",
 					Status:          "verified",
@@ -185,9 +186,9 @@ func TestStreamProjectionRoundtrip(t *testing.T) {
 
 		{
 			name: "context_compressed",
-			item: StreamItem{
-				RunID: "run_rt", Sequence: 17, Kind: StreamKindContextCompressed, CreatedAt: now,
-				Payload: &ContextCompressedPayload{ContextCompressed: &StreamContextCompressed{
+			item: stream.StreamItem{
+				RunID: "run_rt", Sequence: 17, Kind: stream.StreamKindContextCompressed, CreatedAt: now,
+				Payload: &stream.ContextCompressedPayload{ContextCompressed: &stream.StreamContextCompressed{
 					BoundaryID:     "ctxb_run_rt_0001",
 					FirstIndex:     2,
 					LastIndex:      8,
@@ -199,9 +200,9 @@ func TestStreamProjectionRoundtrip(t *testing.T) {
 		},
 		{
 			name: "context_pressure",
-			item: StreamItem{
-				RunID: "run_rt", Sequence: 18, Kind: StreamKindContextPressure, CreatedAt: now,
-				Payload: &ContextPressurePayload{ContextPressure: &StreamContextPressure{
+			item: stream.StreamItem{
+				RunID: "run_rt", Sequence: 18, Kind: stream.StreamKindContextPressure, CreatedAt: now,
+				Payload: &stream.ContextPressurePayload{ContextPressure: &stream.StreamContextPressure{
 					State:                      "auto_compact",
 					EstimatedInputTokens:       12000,
 					EffectiveWindowTokens:      14000,
@@ -215,13 +216,13 @@ func TestStreamProjectionRoundtrip(t *testing.T) {
 
 		{
 			name: "assistant_message",
-			item: StreamItem{
-				RunID: "run_rt", Sequence: 19, Kind: StreamKindAssistantMessage, CreatedAt: now,
-				Payload: &AssistantMessagePayload{Message: &StreamMessage{
+			item: stream.StreamItem{
+				RunID: "run_rt", Sequence: 19, Kind: stream.StreamKindAssistantMessage, CreatedAt: now,
+				Payload: &stream.AssistantMessagePayload{Message: &stream.StreamMessage{
 					Role:      "assistant",
 					Content:   "I'll read the README for you.",
 					Reasoning: "User wants repo overview",
-					ToolCalls: []StreamPlannedToolCall{
+					ToolCalls: []stream.StreamPlannedToolCall{
 						{ID: "tc_1", Name: "read_file", ArgumentsJSON: `{"path":"README.md"}`},
 					},
 					Meta: map[string]any{"active_provider": "primary"},
@@ -230,9 +231,9 @@ func TestStreamProjectionRoundtrip(t *testing.T) {
 		},
 		{
 			name: "tool_call_started",
-			item: StreamItem{
-				RunID: "run_rt", Sequence: 19, Kind: StreamKindToolCallStarted, CreatedAt: now,
-				Payload: &ToolCallStartedPayload{ToolCall: &StreamToolCall{
+			item: stream.StreamItem{
+				RunID: "run_rt", Sequence: 19, Kind: stream.StreamKindToolCallStarted, CreatedAt: now,
+				Payload: &stream.ToolCallStartedPayload{ToolCall: &stream.StreamToolCall{
 					Provider:      "local",
 					Name:          "read_file",
 					ArgumentsJSON: `{"path":"README.md"}`,
@@ -241,9 +242,9 @@ func TestStreamProjectionRoundtrip(t *testing.T) {
 		},
 		{
 			name: "tool_call_succeeded",
-			item: StreamItem{
-				RunID: "run_rt", Sequence: 20, Kind: StreamKindToolCallSucceeded, CreatedAt: now,
-				Payload: &ToolCallSucceededPayload{ToolCall: &StreamToolCall{
+			item: stream.StreamItem{
+				RunID: "run_rt", Sequence: 20, Kind: stream.StreamKindToolCallSucceeded, CreatedAt: now,
+				Payload: &stream.ToolCallSucceededPayload{ToolCall: &stream.StreamToolCall{
 					Provider:   "local",
 					Name:       "read_file",
 					Output:     "# Acorn\n\nA Go-based agent runtime.",
@@ -253,9 +254,9 @@ func TestStreamProjectionRoundtrip(t *testing.T) {
 		},
 		{
 			name: "tool_call_progress",
-			item: StreamItem{
-				RunID: "run_rt", Sequence: 21, Kind: StreamKindToolCallProgress, CreatedAt: now,
-				Payload: &ToolCallProgressPayload{ToolCall: &StreamToolCallProgress{
+			item: stream.StreamItem{
+				RunID: "run_rt", Sequence: 21, Kind: stream.StreamKindToolCallProgress, CreatedAt: now,
+				Payload: &stream.ToolCallProgressPayload{ToolCall: &stream.StreamToolCallProgress{
 					Provider:      "local",
 					Name:          "run_command",
 					CallID:        "call_1",
@@ -267,9 +268,9 @@ func TestStreamProjectionRoundtrip(t *testing.T) {
 		},
 		{
 			name: "tool_call_failed",
-			item: StreamItem{
-				RunID: "run_rt", Sequence: 22, Kind: StreamKindToolCallFailed, CreatedAt: now,
-				Payload: &ToolCallFailedPayload{ToolCall: &StreamToolCall{
+			item: stream.StreamItem{
+				RunID: "run_rt", Sequence: 22, Kind: stream.StreamKindToolCallFailed, CreatedAt: now,
+				Payload: &stream.ToolCallFailedPayload{ToolCall: &stream.StreamToolCall{
 					Provider:   "local",
 					Name:       "run_command",
 					Error:      "exit status 1: command not found",
@@ -279,9 +280,9 @@ func TestStreamProjectionRoundtrip(t *testing.T) {
 		},
 		{
 			name: "tool_call_interrupted",
-			item: StreamItem{
-				RunID: "run_rt", Sequence: 23, Kind: StreamKindToolCallInterrupted, CreatedAt: now,
-				Payload: &ToolCallInterruptedPayload{ToolCall: &StreamToolCall{
+			item: stream.StreamItem{
+				RunID: "run_rt", Sequence: 23, Kind: stream.StreamKindToolCallInterrupted, CreatedAt: now,
+				Payload: &stream.ToolCallInterruptedPayload{ToolCall: &stream.StreamToolCall{
 					Provider:          "local",
 					Name:              "run_command",
 					InterruptID:       "int_1",
@@ -291,10 +292,10 @@ func TestStreamProjectionRoundtrip(t *testing.T) {
 		},
 		{
 			name: "provider.degraded",
-			item: StreamItem{
-				RunID: "run_rt", Sequence: 26, Kind: StreamKindProviderDegraded, CreatedAt: now,
-				Payload: &ProviderDegradedPayload{
-					AffectedProviders: []ProviderDegradedEntry{
+			item: stream.StreamItem{
+				RunID: "run_rt", Sequence: 26, Kind: stream.StreamKindProviderDegraded, CreatedAt: now,
+				Payload: &stream.ProviderDegradedPayload{
+					AffectedProviders: []stream.ProviderDegradedEntry{
 						{Name: "openai", Transport: "https", Error: "rate limit"},
 						{Name: "anthropic", Transport: "https"},
 					},
@@ -304,9 +305,9 @@ func TestStreamProjectionRoundtrip(t *testing.T) {
 
 		{
 			name: "mcp.tool_catalog_refreshed",
-			item: StreamItem{
-				RunID: "run_rt", Sequence: 37, Kind: StreamKindMCPToolCatalogRefreshed, CreatedAt: now,
-				Payload: &MCPProviderLifecyclePayload{
+			item: stream.StreamItem{
+				RunID: "run_rt", Sequence: 37, Kind: stream.StreamKindMCPToolCatalogRefreshed, CreatedAt: now,
+				Payload: &stream.MCPProviderLifecyclePayload{
 					ProviderName: "remote_mcp",
 					Transport:    "stdio",
 				},
@@ -314,9 +315,9 @@ func TestStreamProjectionRoundtrip(t *testing.T) {
 		},
 		{
 			name: "mcp.tool_catalog_refresh_failed",
-			item: StreamItem{
-				RunID: "run_rt", Sequence: 38, Kind: StreamKindMCPToolCatalogRefreshFailed, CreatedAt: now,
-				Payload: &MCPProviderLifecyclePayload{
+			item: stream.StreamItem{
+				RunID: "run_rt", Sequence: 38, Kind: stream.StreamKindMCPToolCatalogRefreshFailed, CreatedAt: now,
+				Payload: &stream.MCPProviderLifecyclePayload{
 					ProviderName: "remote_mcp",
 					Transport:    "stdio",
 					Error:        "catalog refresh timeout",
@@ -325,9 +326,9 @@ func TestStreamProjectionRoundtrip(t *testing.T) {
 		},
 		{
 			name: "mcp.provider_added",
-			item: StreamItem{
-				RunID: "run_rt", Sequence: 39, Kind: StreamKindMCPProviderAdded, CreatedAt: now,
-				Payload: &MCPProviderLifecyclePayload{
+			item: stream.StreamItem{
+				RunID: "run_rt", Sequence: 39, Kind: stream.StreamKindMCPProviderAdded, CreatedAt: now,
+				Payload: &stream.MCPProviderLifecyclePayload{
 					ProviderName: "new_mcp",
 					Transport:    "stdio",
 				},
@@ -335,9 +336,9 @@ func TestStreamProjectionRoundtrip(t *testing.T) {
 		},
 		{
 			name: "mcp.provider_removed",
-			item: StreamItem{
-				RunID: "run_rt", Sequence: 40, Kind: StreamKindMCPProviderRemoved, CreatedAt: now,
-				Payload: &MCPProviderLifecyclePayload{
+			item: stream.StreamItem{
+				RunID: "run_rt", Sequence: 40, Kind: stream.StreamKindMCPProviderRemoved, CreatedAt: now,
+				Payload: &stream.MCPProviderLifecyclePayload{
 					ProviderName: "old_mcp",
 					Transport:    "stdio",
 				},
@@ -345,9 +346,9 @@ func TestStreamProjectionRoundtrip(t *testing.T) {
 		},
 		{
 			name: "mcp.provider_restarted",
-			item: StreamItem{
-				RunID: "run_rt", Sequence: 41, Kind: StreamKindMCPProviderRestarted, CreatedAt: now,
-				Payload: &MCPProviderLifecyclePayload{
+			item: stream.StreamItem{
+				RunID: "run_rt", Sequence: 41, Kind: stream.StreamKindMCPProviderRestarted, CreatedAt: now,
+				Payload: &stream.MCPProviderLifecyclePayload{
 					ProviderName: "remote_mcp",
 					Transport:    "stdio",
 				},
@@ -355,9 +356,9 @@ func TestStreamProjectionRoundtrip(t *testing.T) {
 		},
 		{
 			name: "mcp.resource_catalog_refreshed",
-			item: StreamItem{
-				RunID: "run_rt", Sequence: 42, Kind: StreamKindMCPResourceCatalogRefreshed, CreatedAt: now,
-				Payload: &MCPProviderLifecyclePayload{
+			item: stream.StreamItem{
+				RunID: "run_rt", Sequence: 42, Kind: stream.StreamKindMCPResourceCatalogRefreshed, CreatedAt: now,
+				Payload: &stream.MCPProviderLifecyclePayload{
 					ProviderName: "remote_mcp",
 					Transport:    "stdio",
 				},
@@ -365,9 +366,9 @@ func TestStreamProjectionRoundtrip(t *testing.T) {
 		},
 		{
 			name: "mcp.resource_catalog_refresh_failed",
-			item: StreamItem{
-				RunID: "run_rt", Sequence: 43, Kind: StreamKindMCPResourceCatalogRefreshFailed, CreatedAt: now,
-				Payload: &MCPProviderLifecyclePayload{
+			item: stream.StreamItem{
+				RunID: "run_rt", Sequence: 43, Kind: stream.StreamKindMCPResourceCatalogRefreshFailed, CreatedAt: now,
+				Payload: &stream.MCPProviderLifecyclePayload{
 					ProviderName: "remote_mcp",
 					Transport:    "stdio",
 					Error:        "resource list timeout",
@@ -376,9 +377,9 @@ func TestStreamProjectionRoundtrip(t *testing.T) {
 		},
 		{
 			name: "mcp.prompt_catalog_refreshed",
-			item: StreamItem{
-				RunID: "run_rt", Sequence: 44, Kind: StreamKindMCPPromptCatalogRefreshed, CreatedAt: now,
-				Payload: &MCPProviderLifecyclePayload{
+			item: stream.StreamItem{
+				RunID: "run_rt", Sequence: 44, Kind: stream.StreamKindMCPPromptCatalogRefreshed, CreatedAt: now,
+				Payload: &stream.MCPProviderLifecyclePayload{
 					ProviderName: "remote_mcp",
 					Transport:    "stdio",
 				},
@@ -386,9 +387,9 @@ func TestStreamProjectionRoundtrip(t *testing.T) {
 		},
 		{
 			name: "mcp.prompt_catalog_refresh_failed",
-			item: StreamItem{
-				RunID: "run_rt", Sequence: 45, Kind: StreamKindMCPPromptCatalogRefreshFailed, CreatedAt: now,
-				Payload: &MCPProviderLifecyclePayload{
+			item: stream.StreamItem{
+				RunID: "run_rt", Sequence: 45, Kind: stream.StreamKindMCPPromptCatalogRefreshFailed, CreatedAt: now,
+				Payload: &stream.MCPProviderLifecyclePayload{
 					ProviderName: "remote_mcp",
 					Transport:    "stdio",
 					Error:        "prompt list timeout",
@@ -397,9 +398,9 @@ func TestStreamProjectionRoundtrip(t *testing.T) {
 		},
 		{
 			name: "mcp.auth_status_changed",
-			item: StreamItem{
-				RunID: "run_rt", Sequence: 46, Kind: StreamKindMCPAuthStatusChanged, CreatedAt: now,
-				Payload: &MCPProviderLifecyclePayload{
+			item: stream.StreamItem{
+				RunID: "run_rt", Sequence: 46, Kind: stream.StreamKindMCPAuthStatusChanged, CreatedAt: now,
+				Payload: &stream.MCPProviderLifecyclePayload{
 					ProviderName: "remote_mcp",
 					Transport:    "stdio",
 					AuthStatus:   "authenticated",
@@ -409,9 +410,9 @@ func TestStreamProjectionRoundtrip(t *testing.T) {
 
 		{
 			name: "elicitation.pending",
-			item: StreamItem{
-				RunID: "run_rt", Sequence: 47, Kind: StreamKindElicitationPending, CreatedAt: now,
-				Payload: &ElicitationPayload{
+			item: stream.StreamItem{
+				RunID: "run_rt", Sequence: 47, Kind: stream.StreamKindElicitationPending, CreatedAt: now,
+				Payload: &stream.ElicitationPayload{
 					ActionID: "act_1",
 					Message:  "Please approve shell execution",
 					RequestedSchema: map[string]any{
@@ -426,9 +427,9 @@ func TestStreamProjectionRoundtrip(t *testing.T) {
 		},
 		{
 			name: "elicitation.decided",
-			item: StreamItem{
-				RunID: "run_rt", Sequence: 48, Kind: StreamKindElicitationDecided, CreatedAt: now,
-				Payload: &ElicitationPayload{
+			item: stream.StreamItem{
+				RunID: "run_rt", Sequence: 48, Kind: stream.StreamKindElicitationDecided, CreatedAt: now,
+				Payload: &stream.ElicitationPayload{
 					ActionID:        "act_1",
 					Message:         "User approved",
 					RequestedSchema: map[string]any{"type": "object"},
@@ -438,9 +439,9 @@ func TestStreamProjectionRoundtrip(t *testing.T) {
 
 		{
 			name: "sampling.started",
-			item: StreamItem{
-				RunID: "run_rt", Sequence: 49, Kind: StreamKindSamplingStarted, CreatedAt: now,
-				Payload: &SamplingPayload{
+			item: stream.StreamItem{
+				RunID: "run_rt", Sequence: 49, Kind: stream.StreamKindSamplingStarted, CreatedAt: now,
+				Payload: &stream.SamplingPayload{
 					RunID: "run_rt",
 					Depth: 2,
 					Model: "gpt-4o",
@@ -449,9 +450,9 @@ func TestStreamProjectionRoundtrip(t *testing.T) {
 		},
 		{
 			name: "sampling.completed",
-			item: StreamItem{
-				RunID: "run_rt", Sequence: 50, Kind: StreamKindSamplingCompleted, CreatedAt: now,
-				Payload: &SamplingPayload{
+			item: stream.StreamItem{
+				RunID: "run_rt", Sequence: 50, Kind: stream.StreamKindSamplingCompleted, CreatedAt: now,
+				Payload: &stream.SamplingPayload{
 					RunID: "run_rt",
 					Depth: 2,
 					Model: "gpt-4o",
@@ -460,9 +461,9 @@ func TestStreamProjectionRoundtrip(t *testing.T) {
 		},
 		{
 			name: "sampling.failed",
-			item: StreamItem{
-				RunID: "run_rt", Sequence: 51, Kind: StreamKindSamplingFailed, CreatedAt: now,
-				Payload: &SamplingPayload{
+			item: stream.StreamItem{
+				RunID: "run_rt", Sequence: 51, Kind: stream.StreamKindSamplingFailed, CreatedAt: now,
+				Payload: &stream.SamplingPayload{
 					RunID: "run_rt",
 					Depth: 3,
 					Model: "claude-3",
@@ -472,10 +473,10 @@ func TestStreamProjectionRoundtrip(t *testing.T) {
 
 		{
 			name: "plan_created",
-			item: StreamItem{
-				RunID: "run_rt", Sequence: 52, Kind: StreamKindPlanCreated, CreatedAt: now,
-				Payload: &PlanCreatedPayload{
-					Plan: &StreamPlan{
+			item: stream.StreamItem{
+				RunID: "run_rt", Sequence: 52, Kind: stream.StreamKindPlanCreated, CreatedAt: now,
+				Payload: &stream.PlanCreatedPayload{
+					Plan: &stream.StreamPlan{
 						PlanID:    "plan_1",
 						SessionID: "sess_1",
 						RunID:     "run_rt",
@@ -492,10 +493,10 @@ func TestStreamProjectionRoundtrip(t *testing.T) {
 		},
 		{
 			name: "plan_created_repo_aware_metadata",
-			item: StreamItem{
-				RunID: "run_rt", Sequence: 58, Kind: StreamKindPlanCreated, CreatedAt: now,
-				Payload: &PlanCreatedPayload{
-					Plan: &StreamPlan{
+			item: stream.StreamItem{
+				RunID: "run_rt", Sequence: 58, Kind: stream.StreamKindPlanCreated, CreatedAt: now,
+				Payload: &stream.PlanCreatedPayload{
+					Plan: &stream.StreamPlan{
 						PlanID:    "plan_repo_aware",
 						SessionID: "sess_repo_aware",
 						RunID:     "run_rt",
@@ -528,10 +529,10 @@ func TestStreamProjectionRoundtrip(t *testing.T) {
 		},
 		{
 			name: "plan_updated",
-			item: StreamItem{
-				RunID: "run_rt", Sequence: 53, Kind: StreamKindPlanUpdated, CreatedAt: now,
-				Payload: &PlanUpdatedPayload{
-					Plan: &StreamPlan{
+			item: stream.StreamItem{
+				RunID: "run_rt", Sequence: 53, Kind: stream.StreamKindPlanUpdated, CreatedAt: now,
+				Payload: &stream.PlanUpdatedPayload{
+					Plan: &stream.StreamPlan{
 						PlanID:    "plan_1",
 						SessionID: "sess_1",
 						RunID:     "run_rt",
@@ -548,20 +549,20 @@ func TestStreamProjectionRoundtrip(t *testing.T) {
 		},
 		{
 			name: "plan_cleared",
-			item: StreamItem{
-				RunID: "run_rt", Sequence: 54, Kind: StreamKindPlanCleared, CreatedAt: now,
-				Payload: &PlanClearedPayload{PlanID: "plan_1"},
+			item: stream.StreamItem{
+				RunID: "run_rt", Sequence: 54, Kind: stream.StreamKindPlanCleared, CreatedAt: now,
+				Payload: &stream.PlanClearedPayload{PlanID: "plan_1"},
 			},
 		},
 		{
 			name: "step_started",
-			item: StreamItem{
-				RunID: "run_rt", Sequence: 55, Kind: StreamKindStepStarted, CreatedAt: now,
-				Payload: &PlanStepStartedPayload{PlanStepPayload: PlanStepPayload{
+			item: stream.StreamItem{
+				RunID: "run_rt", Sequence: 55, Kind: stream.StreamKindStepStarted, CreatedAt: now,
+				Payload: &stream.PlanStepStartedPayload{PlanStepPayload: stream.PlanStepPayload{
 					PlanID:    "plan_1",
 					SessionID: "sess_1",
 					RunID:     "run_rt",
-					Plan: &StreamPlan{
+					Plan: &stream.StreamPlan{
 						PlanID:    "plan_1",
 						SessionID: "sess_1",
 						RunID:     "run_rt",
@@ -576,13 +577,13 @@ func TestStreamProjectionRoundtrip(t *testing.T) {
 		},
 		{
 			name: "step_completed",
-			item: StreamItem{
-				RunID: "run_rt", Sequence: 56, Kind: StreamKindStepCompleted, CreatedAt: now,
-				Payload: &PlanStepCompletedPayload{PlanStepPayload: PlanStepPayload{
+			item: stream.StreamItem{
+				RunID: "run_rt", Sequence: 56, Kind: stream.StreamKindStepCompleted, CreatedAt: now,
+				Payload: &stream.PlanStepCompletedPayload{PlanStepPayload: stream.PlanStepPayload{
 					PlanID:    "plan_1",
 					SessionID: "sess_1",
 					RunID:     "run_rt",
-					Plan: &StreamPlan{
+					Plan: &stream.StreamPlan{
 						PlanID:    "plan_1",
 						SessionID: "sess_1",
 						RunID:     "run_rt",
@@ -597,14 +598,14 @@ func TestStreamProjectionRoundtrip(t *testing.T) {
 		},
 		{
 			name: "step_failed",
-			item: StreamItem{
-				RunID: "run_rt", Sequence: 57, Kind: StreamKindStepFailed, CreatedAt: now,
-				Payload: &PlanStepFailedPayload{
-					PlanStepPayload: PlanStepPayload{
+			item: stream.StreamItem{
+				RunID: "run_rt", Sequence: 57, Kind: stream.StreamKindStepFailed, CreatedAt: now,
+				Payload: &stream.PlanStepFailedPayload{
+					PlanStepPayload: stream.PlanStepPayload{
 						PlanID:    "plan_1",
 						SessionID: "sess_1",
 						RunID:     "run_rt",
-						Plan: &StreamPlan{
+						Plan: &stream.StreamPlan{
 							PlanID:    "plan_1",
 							SessionID: "sess_1",
 							RunID:     "run_rt",
@@ -625,7 +626,7 @@ func TestStreamProjectionRoundtrip(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			eventKind, payload, err := projectStreamItemToEvent(tt.item)
+			eventKind, payload, err := stream.ProjectStreamItemToEvent(tt.item)
 			if err != nil {
 				t.Fatalf("forward projection failed: %v", err)
 			}
@@ -661,20 +662,20 @@ func TestStreamProjectionRoundtrip_MCPKindsPreserved(t *testing.T) {
 
 	now := time.Date(2026, 4, 27, 12, 0, 0, 0, time.UTC)
 
-	mcpKinds := []StreamItemKind{
-		StreamKindMCPToolCatalogRefreshed,
-		StreamKindMCPToolCatalogRefreshFailed,
-		StreamKindMCPProviderAdded,
-		StreamKindMCPProviderRemoved,
-		StreamKindMCPProviderRestarted,
-		StreamKindMCPResourceCatalogRefreshed,
-		StreamKindMCPResourceCatalogRefreshFailed,
-		StreamKindMCPPromptCatalogRefreshed,
-		StreamKindMCPPromptCatalogRefreshFailed,
-		StreamKindMCPAuthStatusChanged,
+	mcpKinds := []stream.StreamItemKind{
+		stream.StreamKindMCPToolCatalogRefreshed,
+		stream.StreamKindMCPToolCatalogRefreshFailed,
+		stream.StreamKindMCPProviderAdded,
+		stream.StreamKindMCPProviderRemoved,
+		stream.StreamKindMCPProviderRestarted,
+		stream.StreamKindMCPResourceCatalogRefreshed,
+		stream.StreamKindMCPResourceCatalogRefreshFailed,
+		stream.StreamKindMCPPromptCatalogRefreshed,
+		stream.StreamKindMCPPromptCatalogRefreshFailed,
+		stream.StreamKindMCPAuthStatusChanged,
 	}
 
-	sharedPayload := &MCPProviderLifecyclePayload{
+	sharedPayload := &stream.MCPProviderLifecyclePayload{
 		ProviderName: "shared_mcp",
 		Transport:    "stdio",
 		Error:        "test error",
@@ -685,12 +686,12 @@ func TestStreamProjectionRoundtrip_MCPKindsPreserved(t *testing.T) {
 		t.Run(string(kind), func(t *testing.T) {
 			t.Parallel()
 
-			item := StreamItem{
+			item := stream.StreamItem{
 				RunID: "run_mcp_shared", Sequence: 1, Kind: kind, CreatedAt: now,
 				Payload: sharedPayload,
 			}
 
-			eventKind, payload, err := projectStreamItemToEvent(item)
+			eventKind, payload, err := stream.ProjectStreamItemToEvent(item)
 			if err != nil {
 				t.Fatalf("forward projection failed: %v", err)
 			}
@@ -709,9 +710,9 @@ func TestStreamProjectionRoundtrip_MCPKindsPreserved(t *testing.T) {
 				t.Fatalf("kind not preserved: got %q, want %q", result.Kind, kind)
 			}
 
-			p, ok := result.Payload.(*MCPProviderLifecyclePayload)
+			p, ok := result.Payload.(*stream.MCPProviderLifecyclePayload)
 			if !ok {
-				t.Fatalf("expected *MCPProviderLifecyclePayload, got %T", result.Payload)
+				t.Fatalf("expected *stream.MCPProviderLifecyclePayload, got %T", result.Payload)
 			}
 			if got := p.StreamKind(); got != kind {
 				t.Fatalf("payload stream kind = %q, want %q", got, kind)
@@ -736,69 +737,69 @@ func TestStreamProjectionRoundtrip_NilOptionalFields(t *testing.T) {
 
 	tests := []struct {
 		name string
-		item StreamItem
+		item stream.StreamItem
 	}{
 		{
 			name: "run_completed_nil_message",
-			item: StreamItem{
-				RunID: "run_nil", Sequence: 1, Kind: StreamKindRunCompleted, CreatedAt: now,
-				Payload: &RunCompletedPayload{Message: nil},
+			item: stream.StreamItem{
+				RunID: "run_nil", Sequence: 1, Kind: stream.StreamKindRunCompleted, CreatedAt: now,
+				Payload: &stream.RunCompletedPayload{Message: nil},
 			},
 		},
 		{
 			name: "run_interrupted_nil_interrupt",
-			item: StreamItem{
-				RunID: "run_nil", Sequence: 2, Kind: StreamKindRunInterrupted, CreatedAt: now,
-				Payload: &RunInterruptedPayload{Interrupt: nil},
+			item: stream.StreamItem{
+				RunID: "run_nil", Sequence: 2, Kind: stream.StreamKindRunInterrupted, CreatedAt: now,
+				Payload: &stream.RunInterruptedPayload{Interrupt: nil},
 			},
 		},
 		{
 			name: "skill_discovered_nil_skill",
-			item: StreamItem{
-				RunID: "run_nil", Sequence: 3, Kind: StreamKindSkillDiscovered, CreatedAt: now,
-				Payload: &SkillDiscoveredPayload{Skill: nil},
+			item: stream.StreamItem{
+				RunID: "run_nil", Sequence: 3, Kind: stream.StreamKindSkillDiscovered, CreatedAt: now,
+				Payload: &stream.SkillDiscoveredPayload{Skill: nil},
 			},
 		},
 		{
 			name: "assistant_message_nil_message",
-			item: StreamItem{
-				RunID: "run_nil", Sequence: 4, Kind: StreamKindAssistantMessage, CreatedAt: now,
-				Payload: &AssistantMessagePayload{Message: nil},
+			item: stream.StreamItem{
+				RunID: "run_nil", Sequence: 4, Kind: stream.StreamKindAssistantMessage, CreatedAt: now,
+				Payload: &stream.AssistantMessagePayload{Message: nil},
 			},
 		},
 		{
 			name: "tool_call_started_nil_toolcall",
-			item: StreamItem{
-				RunID: "run_nil", Sequence: 5, Kind: StreamKindToolCallStarted, CreatedAt: now,
-				Payload: &ToolCallStartedPayload{ToolCall: nil},
+			item: stream.StreamItem{
+				RunID: "run_nil", Sequence: 5, Kind: stream.StreamKindToolCallStarted, CreatedAt: now,
+				Payload: &stream.ToolCallStartedPayload{ToolCall: nil},
 			},
 		},
 		{
 			name: "context_compressed_nil_context",
-			item: StreamItem{
-				RunID: "run_nil", Sequence: 7, Kind: StreamKindContextCompressed, CreatedAt: now,
-				Payload: &ContextCompressedPayload{ContextCompressed: nil},
+			item: stream.StreamItem{
+				RunID: "run_nil", Sequence: 7, Kind: stream.StreamKindContextCompressed, CreatedAt: now,
+				Payload: &stream.ContextCompressedPayload{ContextCompressed: nil},
 			},
 		},
 		{
 			name: "elicitation_nil_schema",
-			item: StreamItem{
-				RunID: "run_nil", Sequence: 9, Kind: StreamKindElicitationPending, CreatedAt: now,
-				Payload: &ElicitationPayload{ActionID: "act_nil", Message: "no schema"},
+			item: stream.StreamItem{
+				RunID: "run_nil", Sequence: 9, Kind: stream.StreamKindElicitationPending, CreatedAt: now,
+				Payload: &stream.ElicitationPayload{ActionID: "act_nil", Message: "no schema"},
 			},
 		},
 		{
 			name: "run_resume_requested_nil_targets",
-			item: StreamItem{
-				RunID: "run_nil", Sequence: 10, Kind: StreamKindRunResumeRequested, CreatedAt: now,
-				Payload: &RunResumeRequestedPayload{Targets: nil},
+			item: stream.StreamItem{
+				RunID: "run_nil", Sequence: 10, Kind: stream.StreamKindRunResumeRequested, CreatedAt: now,
+				Payload: &stream.RunResumeRequestedPayload{Targets: nil},
 			},
 		},
 		{
 			name: "provider_degraded_empty_providers",
-			item: StreamItem{
-				RunID: "run_nil", Sequence: 13, Kind: StreamKindProviderDegraded, CreatedAt: now,
-				Payload: &ProviderDegradedPayload{AffectedProviders: nil},
+			item: stream.StreamItem{
+				RunID: "run_nil", Sequence: 13, Kind: stream.StreamKindProviderDegraded, CreatedAt: now,
+				Payload: &stream.ProviderDegradedPayload{AffectedProviders: nil},
 			},
 		},
 	}
@@ -807,7 +808,7 @@ func TestStreamProjectionRoundtrip_NilOptionalFields(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			eventKind, payload, err := projectStreamItemToEvent(tt.item)
+			eventKind, payload, err := stream.ProjectStreamItemToEvent(tt.item)
 			if err != nil {
 				t.Fatalf("forward projection failed: %v", err)
 			}
@@ -838,13 +839,13 @@ func TestStreamProjectionRoundtrip_ToolCallMerge(t *testing.T) {
 
 	tests := []struct {
 		name string
-		item StreamItem
+		item stream.StreamItem
 	}{
 		{
 			name: "tool_call_started_full",
-			item: StreamItem{
-				RunID: "run_tc", Sequence: 1, Kind: StreamKindToolCallStarted, CreatedAt: now,
-				Payload: &ToolCallStartedPayload{ToolCall: &StreamToolCall{
+			item: stream.StreamItem{
+				RunID: "run_tc", Sequence: 1, Kind: stream.StreamKindToolCallStarted, CreatedAt: now,
+				Payload: &stream.ToolCallStartedPayload{ToolCall: &stream.StreamToolCall{
 					Provider:          "local",
 					Name:              "run_command",
 					ArgumentsJSON:     `{"cmd":"ls -la"}`,
@@ -858,9 +859,9 @@ func TestStreamProjectionRoundtrip_ToolCallMerge(t *testing.T) {
 		},
 		{
 			name: "tool_call_succeeded_full",
-			item: StreamItem{
-				RunID: "run_tc", Sequence: 2, Kind: StreamKindToolCallSucceeded, CreatedAt: now,
-				Payload: &ToolCallSucceededPayload{ToolCall: &StreamToolCall{
+			item: stream.StreamItem{
+				RunID: "run_tc", Sequence: 2, Kind: stream.StreamKindToolCallSucceeded, CreatedAt: now,
+				Payload: &stream.ToolCallSucceededPayload{ToolCall: &stream.StreamToolCall{
 					Provider:   "mcp.remote",
 					Name:       "read_file",
 					Output:     "file contents here",
@@ -870,9 +871,9 @@ func TestStreamProjectionRoundtrip_ToolCallMerge(t *testing.T) {
 		},
 		{
 			name: "tool_call_progress_full",
-			item: StreamItem{
-				RunID: "run_tc", Sequence: 3, Kind: StreamKindToolCallProgress, CreatedAt: now,
-				Payload: &ToolCallProgressPayload{ToolCall: &StreamToolCallProgress{
+			item: stream.StreamItem{
+				RunID: "run_tc", Sequence: 3, Kind: stream.StreamKindToolCallProgress, CreatedAt: now,
+				Payload: &stream.ToolCallProgressPayload{ToolCall: &stream.StreamToolCallProgress{
 					Provider:      "local",
 					Name:          "run_command",
 					CallID:        "call_1",
@@ -884,9 +885,9 @@ func TestStreamProjectionRoundtrip_ToolCallMerge(t *testing.T) {
 		},
 		{
 			name: "tool_call_failed_full",
-			item: StreamItem{
-				RunID: "run_tc", Sequence: 4, Kind: StreamKindToolCallFailed, CreatedAt: now,
-				Payload: &ToolCallFailedPayload{ToolCall: &StreamToolCall{
+			item: stream.StreamItem{
+				RunID: "run_tc", Sequence: 4, Kind: stream.StreamKindToolCallFailed, CreatedAt: now,
+				Payload: &stream.ToolCallFailedPayload{ToolCall: &stream.StreamToolCall{
 					Provider:   "local",
 					Name:       "run_command",
 					Error:      "exit status 127",
@@ -896,9 +897,9 @@ func TestStreamProjectionRoundtrip_ToolCallMerge(t *testing.T) {
 		},
 		{
 			name: "tool_call_interrupted_full",
-			item: StreamItem{
-				RunID: "run_tc", Sequence: 5, Kind: StreamKindToolCallInterrupted, CreatedAt: now,
-				Payload: &ToolCallInterruptedPayload{ToolCall: &StreamToolCall{
+			item: stream.StreamItem{
+				RunID: "run_tc", Sequence: 5, Kind: stream.StreamKindToolCallInterrupted, CreatedAt: now,
+				Payload: &stream.ToolCallInterruptedPayload{ToolCall: &stream.StreamToolCall{
 					Provider:          "local",
 					Name:              "run_command",
 					InterruptID:       "int_2",
@@ -912,7 +913,7 @@ func TestStreamProjectionRoundtrip_ToolCallMerge(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			eventKind, payload, err := projectStreamItemToEvent(tt.item)
+			eventKind, payload, err := stream.ProjectStreamItemToEvent(tt.item)
 			if err != nil {
 				t.Fatalf("forward projection failed: %v", err)
 			}
@@ -945,16 +946,16 @@ func TestStreamProjectionRoundtrip_ToolCallMerge(t *testing.T) {
 // assertStreamItemsEqualJSON compares two StreamItems by serializing both to JSON.
 // This normalizes away Go-level type differences that are semantically equivalent
 // in JSON (e.g., int 5 vs float64 5.0 inside any-typed fields).
-func assertStreamItemsEqualJSON(t *testing.T, expected, actual StreamItem) {
+func assertStreamItemsEqualJSON(t *testing.T, expected, actual stream.StreamItem) {
 	t.Helper()
 
 	expectedJSON, err := json.Marshal(expected)
 	if err != nil {
-		t.Fatalf("marshal expected StreamItem: %v", err)
+		t.Fatalf("marshal expected stream.StreamItem: %v", err)
 	}
 	actualJSON, err := json.Marshal(actual)
 	if err != nil {
-		t.Fatalf("marshal actual StreamItem: %v", err)
+		t.Fatalf("marshal actual stream.StreamItem: %v", err)
 	}
 
 	if !reflect.DeepEqual(expectedJSON, actualJSON) {

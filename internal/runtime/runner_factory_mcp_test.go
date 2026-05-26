@@ -9,6 +9,7 @@ import (
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/events"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
+	"github.com/ycvk/acorn/internal/stream"
 )
 
 func mcpRunnerBuildRequest(sessionID, runID string) RunnerBuildRequest {
@@ -313,10 +314,10 @@ func TestRunnerFactoryEmitsProviderDegraded(t *testing.T) {
 		t.Fatalf("LoadEvents: %v", err)
 	}
 
-	var degradedItem *StreamItem
+	var degradedItem *stream.StreamItem
 	for _, ev := range eventsRaw {
 		item := projectEventToStreamItem(ev)
-		if item.Kind == StreamKindProviderDegraded {
+		if item.Kind == stream.StreamKindProviderDegraded {
 			degradedItem = &item
 			break
 		}
@@ -326,9 +327,9 @@ func TestRunnerFactoryEmitsProviderDegraded(t *testing.T) {
 		t.Fatal("expected provider.degraded event when healthy and failed providers coexist")
 	}
 
-	payload, ok := degradedItem.Payload.(*ProviderDegradedPayload)
+	payload, ok := degradedItem.Payload.(*stream.ProviderDegradedPayload)
 	if !ok {
-		t.Fatalf("expected *ProviderDegradedPayload, got %T", degradedItem.Payload)
+		t.Fatalf("expected *stream.ProviderDegradedPayload, got %T", degradedItem.Payload)
 	}
 
 	if len(payload.AffectedProviders) == 0 {
@@ -480,7 +481,7 @@ func TestProviderEventCallbackMapsToSpecificKinds(t *testing.T) {
 	factory.registry.Register(&RunContext{
 		RunID:  "run_kind_test",
 		Budget: NewRunBudget(10),
-		Sink:   func(item StreamItem) error { return nil },
+		Sink:   func(item stream.StreamItem) error { return nil },
 	})
 	factory.currentRunID.Store("run_kind_test")
 
@@ -488,14 +489,14 @@ func TestProviderEventCallbackMapsToSpecificKinds(t *testing.T) {
 
 	cases := []struct {
 		kind           string
-		wantStreamKind StreamItemKind
+		wantStreamKind stream.StreamItemKind
 	}{
-		{"tool_catalog_refreshed", StreamKindMCPToolCatalogRefreshed},
-		{"tool_catalog_refresh_failed", StreamKindMCPToolCatalogRefreshFailed},
-		{"provider_added", StreamKindMCPProviderAdded},
-		{"provider_removed", StreamKindMCPProviderRemoved},
-		{"provider_restarted", StreamKindMCPProviderRestarted},
-		{"auth_status_changed", StreamKindMCPAuthStatusChanged},
+		{"tool_catalog_refreshed", stream.StreamKindMCPToolCatalogRefreshed},
+		{"tool_catalog_refresh_failed", stream.StreamKindMCPToolCatalogRefreshFailed},
+		{"provider_added", stream.StreamKindMCPProviderAdded},
+		{"provider_removed", stream.StreamKindMCPProviderRemoved},
+		{"provider_restarted", stream.StreamKindMCPProviderRestarted},
+		{"auth_status_changed", stream.StreamKindMCPAuthStatusChanged},
 	}
 
 	for _, tc := range cases {
@@ -515,7 +516,7 @@ func TestProviderEventCallbackMapsToSpecificKinds(t *testing.T) {
 			}
 
 			// Find the latest event matching our kind
-			var found *StreamItem
+			var found *stream.StreamItem
 			for _, ev := range events {
 				item := projectEventToStreamItem(ev)
 				if item.Kind == tc.wantStreamKind {
@@ -530,13 +531,13 @@ func TestProviderEventCallbackMapsToSpecificKinds(t *testing.T) {
 					item := projectEventToStreamItem(ev)
 					kinds = append(kinds, string(item.Kind))
 				}
-				t.Fatalf("expected StreamItem with Kind %q, got kinds: %v", tc.wantStreamKind, kinds)
+				t.Fatalf("expected stream.StreamItem with Kind %q, got kinds: %v", tc.wantStreamKind, kinds)
 			}
 
-			// Verify MCPProviderLifecyclePayload fields
-			payload, ok := found.Payload.(*MCPProviderLifecyclePayload)
+			// Verify stream.MCPProviderLifecyclePayload fields
+			payload, ok := found.Payload.(*stream.MCPProviderLifecyclePayload)
 			if !ok {
-				t.Fatalf("expected *MCPProviderLifecyclePayload, got %T", found.Payload)
+				t.Fatalf("expected *stream.MCPProviderLifecyclePayload, got %T", found.Payload)
 			}
 			if got := payload.ProviderName; got != "test-provider" {
 				t.Fatalf("provider_name = %q, want %q", got, "test-provider")
@@ -576,10 +577,10 @@ func TestProviderEventCallbackBackgroundPersistence(t *testing.T) {
 		t.Fatalf("LoadEvents: %v", err)
 	}
 
-	var found *StreamItem
+	var found *stream.StreamItem
 	for _, ev := range events {
 		item := projectEventToStreamItem(ev)
-		if item.Kind == StreamKindMCPProviderAdded {
+		if item.Kind == stream.StreamKindMCPProviderAdded {
 			found = &item
 			break
 		}
@@ -590,12 +591,12 @@ func TestProviderEventCallbackBackgroundPersistence(t *testing.T) {
 			item := projectEventToStreamItem(ev)
 			kinds = append(kinds, string(item.Kind))
 		}
-		t.Fatalf("expected background StreamItem with Kind %q, got kinds: %v", StreamKindMCPProviderAdded, kinds)
+		t.Fatalf("expected background stream.StreamItem with Kind %q, got kinds: %v", stream.StreamKindMCPProviderAdded, kinds)
 	}
 
-	payload, ok := found.Payload.(*MCPProviderLifecyclePayload)
+	payload, ok := found.Payload.(*stream.MCPProviderLifecyclePayload)
 	if !ok {
-		t.Fatalf("expected *MCPProviderLifecyclePayload, got %T", found.Payload)
+		t.Fatalf("expected *stream.MCPProviderLifecyclePayload, got %T", found.Payload)
 	}
 	if got := payload.ProviderName; got != "bg-provider" {
 		t.Fatalf("provider_name = %q, want %q", got, "bg-provider")

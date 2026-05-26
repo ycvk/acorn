@@ -35,14 +35,15 @@ runtime/     → (不导入 runner/ 或 executor/，避免循环)
 
 ### 原则 1: runtime/ 根不导入 runner/ 或 executor/
 
-runtime/ 根当前通过 alias.go/alias_stream.go 向外提供类型，这些别名不应依赖 runner/ 或 executor/ 的具体实现。
+runtime/ 根当前只通过 alias.go 向外提供 runtime/api 类型；stream 类型已经 hard-cut 到 `internal/stream`，runtime 根不再 re-export stream payload。
 
 ### 原则 2: 共享基础设施留在 runtime/ 根
 
 以下类型留在 runtime/ 根，供 runner/ 和 executor/ 共同导入：
 - `RunContext`, `RunBudget`, `Registry`（原 runRegistry 导出）
 - `Trace`, `TraceSummary`
-- `alias.go` 和 `alias_stream.go` 中的所有别名
+- `alias.go` 中的 runtime/api 别名
+- stream item/kind/payload 类型归 `internal/stream` 所有，调用方直接 import `internal/stream`
 - `store_ports.go` 中的接口定义（EventAppender 等已通过 alias 导出）
 
 ### 原则 3: runner/ 负责 run 构建
@@ -210,7 +211,7 @@ rf.SetChildAgentExecutor(childExec) // 或通过 Options 传入
 
 ### 留在 runtime/ 根的文件
 - `alias.go`
-- `alias_stream.go`
+- `internal/stream/`（已从旧 runtime stream 副本 hard-cut 提升为 canonical stream 包）
 - `run_context.go` (导出 Registry)
 - `trace_types.go`
 - `trace_projector.go`

@@ -19,6 +19,7 @@ import (
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/contextplane"
 	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
+	"github.com/ycvk/acorn/internal/stream"
 	"github.com/ycvk/acorn/internal/tooling"
 )
 
@@ -98,11 +99,11 @@ func (t *auditedTool) run(ctx context.Context, argumentsInJSON string, emit tool
 	runID := getRunID(ctx)
 	startedAt := time.Now().UTC()
 	if runID != "" {
-		if _, err := AppendStreamItem(ctx, t.store, streamSinkFromContext(ctx), StreamItem{
+		if _, err := stream.AppendStreamItem(ctx, t.store, stream.StreamSinkFromContext(ctx), stream.StreamItem{
 			RunID:     runID,
-			Kind:      StreamKindToolCallStarted,
+			Kind:      stream.StreamKindToolCallStarted,
 			CreatedAt: startedAt,
-			Payload:   &ToolCallStartedPayload{ToolCall: t.streamToolCall(ctx, argumentsInJSON)},
+			Payload:   &stream.ToolCallStartedPayload{ToolCall: t.streamToolCall(ctx, argumentsInJSON)},
 		}); err != nil {
 			return "", fmt.Errorf("append tool.call.started audit event: %w", err)
 		}
@@ -113,11 +114,11 @@ func (t *auditedTool) run(ctx context.Context, argumentsInJSON string, emit tool
 		if validateErr != nil {
 			output := validateErr.Error()
 			if runID != "" {
-				if _, auditErr := AppendStreamItem(ctx, t.store, streamSinkFromContext(ctx), StreamItem{
+				if _, auditErr := stream.AppendStreamItem(ctx, t.store, stream.StreamSinkFromContext(ctx), stream.StreamItem{
 					RunID:     runID,
-					Kind:      StreamKindToolCallFailed,
+					Kind:      stream.StreamKindToolCallFailed,
 					CreatedAt: time.Now().UTC(),
-					Payload:   &ToolCallFailedPayload{ToolCall: t.failedStreamToolCall(ctx, argumentsInJSON, output, time.Since(startedAt).Milliseconds())},
+					Payload:   &stream.ToolCallFailedPayload{ToolCall: t.failedStreamToolCall(ctx, argumentsInJSON, output, time.Since(startedAt).Milliseconds())},
 				}); auditErr != nil {
 					return "", fmt.Errorf("append validation error audit event: %w", auditErr)
 				}
@@ -127,11 +128,11 @@ func (t *auditedTool) run(ctx context.Context, argumentsInJSON string, emit tool
 		if len(validationErrors) > 0 {
 			output := FormatValidationError(t.spec.Name, validationErrors)
 			if runID != "" {
-				if _, auditErr := AppendStreamItem(ctx, t.store, streamSinkFromContext(ctx), StreamItem{
+				if _, auditErr := stream.AppendStreamItem(ctx, t.store, stream.StreamSinkFromContext(ctx), stream.StreamItem{
 					RunID:     runID,
-					Kind:      StreamKindToolCallFailed,
+					Kind:      stream.StreamKindToolCallFailed,
 					CreatedAt: time.Now().UTC(),
-					Payload:   &ToolCallFailedPayload{ToolCall: t.failedStreamToolCall(ctx, argumentsInJSON, output, time.Since(startedAt).Milliseconds())},
+					Payload:   &stream.ToolCallFailedPayload{ToolCall: t.failedStreamToolCall(ctx, argumentsInJSON, output, time.Since(startedAt).Milliseconds())},
 				}); auditErr != nil {
 					return "", fmt.Errorf("append tool.call.failed validation event: %w", auditErr)
 				}
@@ -147,11 +148,11 @@ func (t *auditedTool) run(ctx context.Context, argumentsInJSON string, emit tool
 	}
 
 	if interruptCount, interrupted := interruptContextCount(err); interrupted {
-		if _, auditErr := AppendStreamItem(ctx, t.store, streamSinkFromContext(ctx), StreamItem{
+		if _, auditErr := stream.AppendStreamItem(ctx, t.store, stream.StreamSinkFromContext(ctx), stream.StreamItem{
 			RunID:     runID,
-			Kind:      StreamKindToolCallInterrupted,
+			Kind:      stream.StreamKindToolCallInterrupted,
 			CreatedAt: time.Now().UTC(),
-			Payload:   &ToolCallInterruptedPayload{ToolCall: t.interruptedStreamToolCall(ctx, argumentsInJSON, err.Error(), durationMS, interruptCount)},
+			Payload:   &stream.ToolCallInterruptedPayload{ToolCall: t.interruptedStreamToolCall(ctx, argumentsInJSON, err.Error(), durationMS, interruptCount)},
 		}); auditErr != nil {
 			return output, errors.Join(err, fmt.Errorf("append tool.call.interrupted audit event: %w", auditErr))
 		}
@@ -159,22 +160,22 @@ func (t *auditedTool) run(ctx context.Context, argumentsInJSON string, emit tool
 	}
 
 	if err != nil {
-		if _, auditErr := AppendStreamItem(ctx, t.store, streamSinkFromContext(ctx), StreamItem{
+		if _, auditErr := stream.AppendStreamItem(ctx, t.store, stream.StreamSinkFromContext(ctx), stream.StreamItem{
 			RunID:     runID,
-			Kind:      StreamKindToolCallFailed,
+			Kind:      stream.StreamKindToolCallFailed,
 			CreatedAt: time.Now().UTC(),
-			Payload:   &ToolCallFailedPayload{ToolCall: t.failedStreamToolCall(ctx, argumentsInJSON, err.Error(), durationMS)},
+			Payload:   &stream.ToolCallFailedPayload{ToolCall: t.failedStreamToolCall(ctx, argumentsInJSON, err.Error(), durationMS)},
 		}); auditErr != nil {
 			return output, errors.Join(err, fmt.Errorf("append tool.call.failed audit event: %w", auditErr))
 		}
 		return output, err
 	}
 
-	if _, err := AppendStreamItem(ctx, t.store, streamSinkFromContext(ctx), StreamItem{
+	if _, err := stream.AppendStreamItem(ctx, t.store, stream.StreamSinkFromContext(ctx), stream.StreamItem{
 		RunID:     runID,
-		Kind:      StreamKindToolCallSucceeded,
+		Kind:      stream.StreamKindToolCallSucceeded,
 		CreatedAt: time.Now().UTC(),
-		Payload:   &ToolCallSucceededPayload{ToolCall: t.succeededStreamToolCall(ctx, argumentsInJSON, output, durationMS)},
+		Payload:   &stream.ToolCallSucceededPayload{ToolCall: t.succeededStreamToolCall(ctx, argumentsInJSON, output, durationMS)},
 	}); err != nil {
 		return output, fmt.Errorf("append tool.call.succeeded audit event: %w", err)
 	}
@@ -209,11 +210,11 @@ func (t *auditedTool) progressEmitter(ctx context.Context, argumentsInJSON strin
 			runID = getRunID(ctx)
 		}
 		if runID != "" {
-			if _, err := AppendStreamItem(ctx, t.store, streamSinkFromContext(ctx), StreamItem{
+			if _, err := stream.AppendStreamItem(ctx, t.store, stream.StreamSinkFromContext(ctx), stream.StreamItem{
 				RunID:     runID,
-				Kind:      StreamKindToolCallProgress,
+				Kind:      stream.StreamKindToolCallProgress,
 				CreatedAt: time.Now().UTC(),
-				Payload: &ToolCallProgressPayload{ToolCall: &StreamToolCallProgress{
+				Payload: &stream.ToolCallProgressPayload{ToolCall: &stream.StreamToolCallProgress{
 					Provider:      t.spec.Source,
 					Name:          t.spec.Name,
 					CallID:        toolAuditCallID(ctx),
@@ -232,8 +233,8 @@ func (t *auditedTool) progressEmitter(ctx context.Context, argumentsInJSON strin
 	}
 }
 
-func (t *auditedTool) streamToolCall(ctx context.Context, argumentsInJSON string) *StreamToolCall {
-	return &StreamToolCall{
+func (t *auditedTool) streamToolCall(ctx context.Context, argumentsInJSON string) *stream.StreamToolCall {
+	return &stream.StreamToolCall{
 		Provider:      t.spec.Source,
 		Name:          t.spec.Name,
 		CallID:        toolAuditCallID(ctx),
@@ -241,21 +242,21 @@ func (t *auditedTool) streamToolCall(ctx context.Context, argumentsInJSON string
 	}
 }
 
-func (t *auditedTool) failedStreamToolCall(ctx context.Context, argumentsInJSON string, message string, durationMS int64) *StreamToolCall {
+func (t *auditedTool) failedStreamToolCall(ctx context.Context, argumentsInJSON string, message string, durationMS int64) *stream.StreamToolCall {
 	toolCall := t.streamToolCall(ctx, argumentsInJSON)
 	toolCall.Error = message
 	toolCall.DurationMS = durationMS
 	return toolCall
 }
 
-func (t *auditedTool) succeededStreamToolCall(ctx context.Context, argumentsInJSON string, output string, durationMS int64) *StreamToolCall {
+func (t *auditedTool) succeededStreamToolCall(ctx context.Context, argumentsInJSON string, output string, durationMS int64) *stream.StreamToolCall {
 	toolCall := t.streamToolCall(ctx, argumentsInJSON)
 	toolCall.Output = truncateAudit(output, 12000)
 	toolCall.DurationMS = durationMS
 	return toolCall
 }
 
-func (t *auditedTool) interruptedStreamToolCall(ctx context.Context, argumentsInJSON string, message string, durationMS int64, interruptCount int) *StreamToolCall {
+func (t *auditedTool) interruptedStreamToolCall(ctx context.Context, argumentsInJSON string, message string, durationMS int64, interruptCount int) *stream.StreamToolCall {
 	toolCall := t.failedStreamToolCall(ctx, argumentsInJSON, message, durationMS)
 	toolCall.InterruptContexts = interruptCount
 	return toolCall

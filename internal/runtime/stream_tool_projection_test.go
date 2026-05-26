@@ -1,12 +1,16 @@
 package runtime
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/ycvk/acorn/internal/stream"
+)
 
 func TestProjectStreamItemToEventKeepsToolInterruptShape(t *testing.T) {
-	kind, payload := mustProjectStreamItemToEvent(t, StreamItem{
+	kind, payload := mustProjectStreamItemToEvent(t, stream.StreamItem{
 		RunID: "run_1",
-		Kind:  StreamKindToolCallInterrupted,
-		Payload: &ToolCallInterruptedPayload{ToolCall: &StreamToolCall{
+		Kind:  stream.StreamKindToolCallInterrupted,
+		Payload: &stream.ToolCallInterruptedPayload{ToolCall: &stream.StreamToolCall{
 			Name:              "run_command",
 			Error:             "need approval",
 			InterruptContexts: 1,

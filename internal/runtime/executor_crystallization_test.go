@@ -8,6 +8,7 @@ import (
 	"github.com/ycvk/acorn/internal/crystallization"
 	"github.com/ycvk/acorn/internal/events"
 	storerepo "github.com/ycvk/acorn/internal/store"
+	"github.com/ycvk/acorn/internal/stream"
 )
 
 type mockCrystallizer struct {
@@ -161,7 +162,7 @@ func TestCrystallizationVerdictEventEmitted(t *testing.T) {
 	trace := BuildTrace(&events.RunRecord{RunID: runID}, raw)
 	found := false
 	for _, item := range trace.Items {
-		if item.Kind == StreamKindCrystallizationVerdict {
+		if item.Kind == stream.StreamKindCrystallizationVerdict {
 			found = true
 			break
 		}
@@ -187,7 +188,7 @@ func TestCrystallizationEventSinkFailureReturnsError(t *testing.T) {
 	appendSuccessfulToolEvent(t, ctx, store, runID, "file_edit", `{"path":"config.yaml"}`)
 	appendSuccessfulToolResult(t, ctx, store, runID, sessionID, "call_edit", "file_edit")
 
-	_, err := exec.finishCollectedRun(ctx, runID, "edit config", runState{lastOutput: "done"}, nil, func(StreamItem) error {
+	_, err := exec.finishCollectedRun(ctx, runID, "edit config", runState{lastOutput: "done"}, nil, func(stream.StreamItem) error {
 		return errors.New("sink unavailable")
 	})
 	if err == nil {

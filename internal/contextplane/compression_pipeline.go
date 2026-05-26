@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/cloudwego/eino/adk"
+	"github.com/cloudwego/eino/schema"
 
 	"github.com/ycvk/acorn/internal/tooling"
 )
@@ -15,12 +17,16 @@ var ErrPipelineBudgetGovernorRequired = errors.New("compression pipeline budget 
 var ErrPipelineCompactionEngineRequired = errors.New("compression pipeline compaction engine is required")
 var ErrPipelineTokenCounterRequired = errors.New("compression pipeline token counter is required")
 
+const clearedPlaceholder = "[Previous tool result content cleared]"
+const turnIndexExtraKey = "acorn_turn_index"
+
 type defaultContextCompressionPipeline struct {
 	governor             budgetGovernor
-	microcompact         *defaultMicrocompactEngine
 	autocompact          compactionEngine
 	microcompactInterval int
 	modelProfile         ModelProfile
+	catalog              *tooling.Catalog
+	tokenCounter         *CompressionTokenCounter
 }
 
 type CompressionPipelineOptions struct {
@@ -38,10 +44,11 @@ func NewDefaultContextCompressionPipeline(opts CompressionPipelineOptions) *defa
 	}
 	return &defaultContextCompressionPipeline{
 		governor:             opts.Governor,
-		microcompact:         newMicrocompactEngine(opts.TokenCounter, opts.Catalog),
 		autocompact:          opts.CompactionEngine,
 		microcompactInterval: opts.MicrocompactInterval,
 		modelProfile:         opts.ModelProfile,
+		catalog:              opts.Catalog,
+		tokenCounter:         opts.TokenCounter,
 	}
 }
 
@@ -52,7 +59,7 @@ func (p *defaultContextCompressionPipeline) Compress(ctx context.Context, req Pi
 	if p.governor == nil {
 		return nil, ErrPipelineBudgetGovernorRequired
 	}
-	if p.microcompact == nil || p.microcompact.counter == nil {
+	if p.tokenCounter == nil {
 		return nil, ErrPipelineTokenCounterRequired
 	}
 	if p.autocompact == nil {
@@ -66,13 +73,13 @@ func (p *defaultContextCompressionPipeline) Compress(ctx context.Context, req Pi
 
 	// ── Layer 1: Microcompact ──
 	if p.shouldMicrocompact(req) {
-		mcResult, err := p.runMicrocompact(ctx, messages, req)
+		mcMessages, mcFreed, err := p.runMicrocompact(ctx, messages, req)
 		if err != nil {
 			return nil, fmt.Errorf("microcompact: %w", err)
 		}
-		messages = mcResult.Messages
-		totalFreed += mcResult.TokensFreed
-		if mcResult.TokensFreed > 0 {
+		messages = mcMessages
+		totalFreed += mcFreed
+		if mcFreed > 0 {
 			layers = append(layers, CompactLayerMicrocompact)
 		}
 
@@ -144,13 +151,105 @@ func (p *defaultContextCompressionPipeline) shouldMicrocompact(req PipelineReque
 	return req.TurnIndex-req.LastCompactTurn >= p.microcompactInterval
 }
 
-func (p *defaultContextCompressionPipeline) runMicrocompact(ctx context.Context, messages []adk.Message, req PipelineRequest) (*MicrocompactResult, error) {
-	return p.microcompact.Compact(ctx, MicrocompactRequest{
-		Messages:        messages,
-		ToolInfos:       req.ToolInfos,
-		TurnIndex:       req.TurnIndex,
-		LastCompactTurn: req.LastCompactTurn,
-	})
+func (p *defaultContextCompressionPipeline) runMicrocompact(ctx context.Context, messages []adk.Message, req PipelineRequest) ([]adk.Message, int, error) {
+	var cleared []string
+	freed := 0
+
+	for i, msg := range messages {
+		if !isToolResultMessage(msg) {
+			continue
+		}
+		toolName := extractToolName(msg)
+		if toolName == "" {
+			continue
+		}
+		if !p.isCompressibleTool(toolName) {
+			continue
+		}
+		if isRecentResult(msg, req.TurnIndex) {
+			continue
+		}
+
+		beforeTokens, err := p.countMessage(ctx, msg)
+		if err != nil {
+			return nil, 0, fmt.Errorf("count tool result before: %w", err)
+		}
+		messages[i] = replaceWithPlaceholder(msg)
+		afterTokens, err := p.countMessage(ctx, messages[i])
+		if err != nil {
+			return nil, 0, fmt.Errorf("count tool result after: %w", err)
+		}
+		freed += beforeTokens - afterTokens
+		cleared = append(cleared, toolName)
+	}
+
+	_ = cleared // unused for now, kept for future logging
+	return messages, freed, nil
+}
+
+func (p *defaultContextCompressionPipeline) countMessage(ctx context.Context, msg adk.Message) (int, error) {
+	if p.tokenCounter == nil {
+		return 0, nil
+	}
+	return p.tokenCounter.CountMessages(ctx, []adk.Message{msg}, nil)
+}
+
+func isToolResultMessage(msg adk.Message) bool {
+	if msg == nil {
+		return false
+	}
+	return msg.Role == schema.Tool
+}
+
+func extractToolName(msg adk.Message) string {
+	if msg == nil {
+		return ""
+	}
+	name := strings.TrimSpace(msg.ToolName)
+	if name != "" {
+		return name
+	}
+	content := strings.TrimSpace(msg.Content)
+	if idx := strings.Index(content, "tool:"); idx == 0 {
+		rest := strings.TrimSpace(content[5:])
+		if space := strings.IndexFunc(rest, func(r rune) bool { return r == ' ' || r == '\n' }); space > 0 {
+			return rest[:space]
+		}
+	}
+	return ""
+}
+
+func (p *defaultContextCompressionPipeline) isCompressibleTool(name string) bool {
+	if p.catalog != nil {
+		return p.catalog.IsCompressible(name)
+	}
+	return false
+}
+
+func isRecentResult(msg adk.Message, currentTurn int) bool {
+	if msg == nil || msg.Extra == nil {
+		return false
+	}
+	v, ok := msg.Extra[turnIndexExtraKey]
+	if !ok {
+		return false
+	}
+	msgTurn, ok := v.(int)
+	if !ok {
+		return false
+	}
+	return msgTurn == currentTurn
+}
+
+func replaceWithPlaceholder(msg adk.Message) adk.Message {
+	if msg == nil {
+		return msg
+	}
+	clone := *msg
+	clone.Content = fmt.Sprintf("%s (tool: %s)", clearedPlaceholder, extractToolName(msg))
+	clone.AssistantGenMultiContent = nil
+	clone.UserInputMultiContent = nil
+	return &clone
 }
 
 func (p *defaultContextCompressionPipeline) shouldAutocompact(ctx context.Context, messages []adk.Message, req PipelineRequest) (bool, error) {

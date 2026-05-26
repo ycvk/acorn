@@ -8,6 +8,7 @@ import (
 	"time"
 
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
+	"github.com/ycvk/acorn/internal/stream"
 )
 
 func hasEnabledProviders(cfgs []mcpprovider.ProviderConfig) bool {
@@ -76,7 +77,7 @@ func (f *RunnerFactory) providerEventCallback() mcpprovider.ProviderEventCallbac
 	return func(ev mcpprovider.ProviderEvent) {
 		runID := f.currentRunIDValue()
 
-		var sink StreamSink
+		var sink stream.StreamSink
 		if rc, ok := f.registry.Get(runID); ok {
 			sink = rc.Sink
 		}
@@ -86,41 +87,41 @@ func (f *RunnerFactory) providerEventCallback() mcpprovider.ProviderEventCallbac
 			sink = nil
 		}
 
-		var kind StreamItemKind
+		var kind stream.StreamItemKind
 		switch ev.Kind {
 		case "tool_catalog_refreshed":
-			kind = StreamKindMCPToolCatalogRefreshed
+			kind = stream.StreamKindMCPToolCatalogRefreshed
 		case "tool_catalog_refresh_failed":
-			kind = StreamKindMCPToolCatalogRefreshFailed
+			kind = stream.StreamKindMCPToolCatalogRefreshFailed
 		case "provider_added":
-			kind = StreamKindMCPProviderAdded
+			kind = stream.StreamKindMCPProviderAdded
 		case "provider_removed":
-			kind = StreamKindMCPProviderRemoved
+			kind = stream.StreamKindMCPProviderRemoved
 		case "provider_restarted":
-			kind = StreamKindMCPProviderRestarted
+			kind = stream.StreamKindMCPProviderRestarted
 		case "resource_catalog_refreshed":
-			kind = StreamKindMCPResourceCatalogRefreshed
+			kind = stream.StreamKindMCPResourceCatalogRefreshed
 		case "resource_catalog_refresh_failed":
-			kind = StreamKindMCPResourceCatalogRefreshFailed
+			kind = stream.StreamKindMCPResourceCatalogRefreshFailed
 		case "prompt_catalog_refreshed":
-			kind = StreamKindMCPPromptCatalogRefreshed
+			kind = stream.StreamKindMCPPromptCatalogRefreshed
 		case "prompt_catalog_refresh_failed":
-			kind = StreamKindMCPPromptCatalogRefreshFailed
+			kind = stream.StreamKindMCPPromptCatalogRefreshFailed
 		case "auth_status_changed":
-			kind = StreamKindMCPAuthStatusChanged
+			kind = stream.StreamKindMCPAuthStatusChanged
 		default:
 			f.recordEventError(runID, fmt.Errorf("unknown MCP provider event %q", ev.Kind))
 			return
 		}
 
-		payload := MCPProviderLifecyclePayload{
+		payload := stream.MCPProviderLifecyclePayload{
 			ProviderName: ev.Provider,
 			Transport:    ev.Transport,
 			Error:        ev.Error,
 			AuthStatus:   ev.AuthStatus,
 		}
 
-		if _, err := AppendStreamItem(context.Background(), f.deps.Store, sink, StreamItem{
+		if _, err := stream.AppendStreamItem(context.Background(), f.deps.Store, sink, stream.StreamItem{
 			RunID:     runID,
 			Kind:      kind,
 			CreatedAt: time.Now().UTC(),

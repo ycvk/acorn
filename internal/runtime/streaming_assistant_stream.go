@@ -10,6 +10,7 @@ import (
 
 	"github.com/ycvk/acorn/internal/orchestration"
 	"github.com/ycvk/acorn/internal/providerusage"
+	"github.com/ycvk/acorn/internal/stream"
 )
 
 func streamAssistantInterleaved(
@@ -26,7 +27,7 @@ func streamAssistantInterleaved(
 	if callSite == "" {
 		callSite = providerusage.CallSiteAssistant
 	}
-	stream, err := model.Stream(providerusage.WithCallSite(ctx, callSite), messages, streamOpts...)
+	modelStream, err := model.Stream(providerusage.WithCallSite(ctx, callSite), messages, streamOpts...)
 
 	s := &orchestration.InterleavedStream{
 		ToolCallCh:     make(chan schema.ToolCall, 8),
@@ -46,21 +47,21 @@ func streamAssistantInterleaved(
 			}
 			return
 		}
-		if stream == nil {
+		if modelStream == nil {
 			select {
 			case s.ErrCh <- fmt.Errorf("assistant stream returned nil stream"):
 			case <-ctx.Done():
 			}
 			return
 		}
-		defer stream.Close()
+		defer modelStream.Close()
 
 		accumulator := newAssistantStreamAccumulator(opts.MessageID)
 		frames := make([]*schema.Message, 0, 4)
-		sink := streamSinkFromContext(ctx)
+		sink := stream.StreamSinkFromContext(ctx)
 
 		for {
-			frame, recvErr := stream.Recv()
+			frame, recvErr := modelStream.Recv()
 			if recvErr != nil {
 				if recvErr == io.EOF {
 					break
@@ -84,11 +85,11 @@ func streamAssistantInterleaved(
 				continue
 			}
 			sequence := accumulator.append(frame.Content)
-			item := StreamItem{
+			item := stream.StreamItem{
 				RunID: opts.RunID,
-				Kind:  StreamKindAssistantDelta,
-				Payload: &AssistantDeltaPayload{
-					AssistantDelta: &StreamAssistantDelta{
+				Kind:  stream.StreamKindAssistantDelta,
+				Payload: &stream.AssistantDeltaPayload{
+					AssistantDelta: &stream.StreamAssistantDelta{
 						Role:      string(frame.Role),
 						Delta:     frame.Content,
 						Reasoning: frame.ReasoningContent,
@@ -100,7 +101,7 @@ func streamAssistantInterleaved(
 				},
 			}
 			if opts.Appender != nil {
-				if _, appendErr := AppendStreamItem(ctx, opts.Appender, opts.Sink, item); appendErr != nil {
+				if _, appendErr := stream.AppendStreamItem(ctx, opts.Appender, opts.Sink, item); appendErr != nil {
 					select {
 					case s.ErrCh <- appendErr:
 					case <-ctx.Done():
@@ -156,4 +157,34 @@ func streamAssistantInterleaved(
 	}()
 
 	return s
+}
+
+type directAssistantStreamer struct {
+	appender EventAppender
+}
+
+func newDirectAssistantStreamer(appender EventAppender) *directAssistantStreamer {
+	return &directAssistantStreamer{appender: appender}
+}
+
+func (s *directAssistantStreamer) StreamAssistantMessage(ctx context.Context, req orchestration.AssistantStreamRequest) (*orchestration.AssistantStreamResult, error) {
+	return streamAssistantMessage(ctx, req.Model, req.Messages, assistantStreamOptions{
+		MessageID: req.MessageID,
+		RunID:     req.RunID,
+		Appender:  s.appender,
+		Sink:      stream.StreamSinkFromContext(ctx),
+		ToolInfos: req.ToolInfos,
+		CallSite:  req.CallSite,
+	})
+}
+
+func (s *directAssistantStreamer) StreamAssistantInterleaved(ctx context.Context, req orchestration.AssistantStreamRequest) *orchestration.InterleavedStream {
+	return streamAssistantInterleaved(ctx, req.Model, req.Messages, assistantStreamOptions{
+		MessageID: req.MessageID,
+		RunID:     req.RunID,
+		Appender:  s.appender,
+		Sink:      stream.StreamSinkFromContext(ctx),
+		ToolInfos: req.ToolInfos,
+		CallSite:  req.CallSite,
+	})
 }

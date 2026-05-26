@@ -14,6 +14,7 @@ import (
 	"github.com/ycvk/acorn/internal/contextplane"
 	"github.com/ycvk/acorn/internal/decision"
 	"github.com/ycvk/acorn/internal/memorymodule"
+	"github.com/ycvk/acorn/internal/stream"
 
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
 	"github.com/ycvk/acorn/internal/runtime"
@@ -128,9 +129,9 @@ func staticSkillEligibilityContext(cfg *config.Config) skills.EligibilityContext
 }
 
 type executorHandle interface {
-	Run(ctx context.Context, input, skillID string, sink runtime.StreamSink) (*runtime.Result, error)
-	ExecuteMessages(ctx context.Context, req runtime.ExecuteRequest, sink runtime.StreamSink) (*runtime.Result, error)
-	ResumeWithTargets(ctx context.Context, runID string, targets map[string]any, sink runtime.StreamSink) (*runtime.Result, error)
+	Run(ctx context.Context, input, skillID string, sink stream.StreamSink) (*runtime.Result, error)
+	ExecuteMessages(ctx context.Context, req runtime.ExecuteRequest, sink stream.StreamSink) (*runtime.Result, error)
+	ResumeWithTargets(ctx context.Context, runID string, targets map[string]any, sink stream.StreamSink) (*runtime.Result, error)
 }
 
 func newExecutorFactory(cfg *config.Config, store *storesqlite.Store, runnerFactory *runtime.RunnerFactory, controller *runtime.RunController) func(context.Context) (executorHandle, error) {

@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/ycvk/acorn/internal/runtime"
+	"github.com/ycvk/acorn/internal/stream"
 )
 
 type RunService struct {
@@ -16,7 +17,7 @@ func NewRunService(newExecutor func(context.Context) (executorHandle, error), co
 	return &RunService{newExecutor: newExecutor, controller: controller}
 }
 
-func (s *RunService) Run(ctx context.Context, input, skillID string, sink runtime.StreamSink) (*runtime.Result, error) {
+func (s *RunService) Run(ctx context.Context, input, skillID string, sink stream.StreamSink) (*runtime.Result, error) {
 	if s == nil || s.newExecutor == nil {
 		return nil, errors.New("run executor factory is nil")
 	}
@@ -52,7 +53,7 @@ func (s *ResumeService) FindPendingResume(ctx context.Context) (*runtime.Pending
 	return runtime.FindPendingResume(ctx, s.pending)
 }
 
-func (s *ResumeService) Resume(ctx context.Context, runID string, sink runtime.StreamSink) (*runtime.Result, error) {
+func (s *ResumeService) Resume(ctx context.Context, runID string, sink stream.StreamSink) (*runtime.Result, error) {
 	if s == nil || s.trace == nil {
 		return nil, errors.New("resume trace service is nil")
 	}

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	storecore "github.com/ycvk/acorn/internal/store"
+	"github.com/ycvk/acorn/internal/stream"
 
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/events"
@@ -1086,11 +1087,11 @@ type postStartFailingExecutor struct {
 	release chan struct{}
 }
 
-func (e *postStartFailingExecutor) Run(context.Context, string, string, runtime.StreamSink) (*runtime.Result, error) {
+func (e *postStartFailingExecutor) Run(context.Context, string, string, stream.StreamSink) (*runtime.Result, error) {
 	return nil, errors.New("unexpected Run call")
 }
 
-func (e *postStartFailingExecutor) ExecuteMessages(ctx context.Context, req runtime.ExecuteRequest, sink runtime.StreamSink) (*runtime.Result, error) {
+func (e *postStartFailingExecutor) ExecuteMessages(ctx context.Context, req runtime.ExecuteRequest, sink stream.StreamSink) (*runtime.Result, error) {
 	mode := req.OrchestrationMode
 	if strings.TrimSpace(string(mode)) == "" {
 		mode = events.ModeDirectResponse
@@ -1107,11 +1108,11 @@ func (e *postStartFailingExecutor) ExecuteMessages(ctx context.Context, req runt
 	if _, err := e.store.AppendEventContext(ctx, req.RunID, "run.started", map[string]any{"input": req.Input}); err != nil {
 		return nil, err
 	}
-	if err := sink(runtime.StreamItem{
+	if err := sink(stream.StreamItem{
 		RunID:     req.RunID,
-		Kind:      runtime.StreamKindRunStarted,
+		Kind:      stream.StreamKindRunStarted,
 		CreatedAt: time.Now().UTC(),
-		Payload:   runtime.RunStartedPayload{Input: req.Input},
+		Payload:   stream.RunStartedPayload{Input: req.Input},
 	}); err != nil {
 		return nil, err
 	}
@@ -1119,7 +1120,7 @@ func (e *postStartFailingExecutor) ExecuteMessages(ctx context.Context, req runt
 	return nil, errors.New("executor failed after start")
 }
 
-func (e *postStartFailingExecutor) ResumeWithTargets(context.Context, string, map[string]any, runtime.StreamSink) (*runtime.Result, error) {
+func (e *postStartFailingExecutor) ResumeWithTargets(context.Context, string, map[string]any, stream.StreamSink) (*runtime.Result, error) {
 	return nil, errors.New("unexpected ResumeWithTargets call")
 }
 

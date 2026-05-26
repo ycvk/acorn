@@ -11,6 +11,7 @@ import (
 
 	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/runtime"
+	"github.com/ycvk/acorn/internal/stream"
 )
 
 type clientRunStartSignal struct {
@@ -36,8 +37,8 @@ func (s *clientRunStartSignal) Failed() <-chan error {
 	return s.failed
 }
 
-func (s *clientRunStartSignal) Sink(item runtime.StreamItem) error {
-	if item.Kind == runtime.StreamKindRunStarted {
+func (s *clientRunStartSignal) Sink(item stream.StreamItem) error {
+	if item.Kind == stream.StreamKindRunStarted {
 		s.hasStarted.Store(true)
 		s.closeOnce.Do(func() { close(s.started) })
 	}

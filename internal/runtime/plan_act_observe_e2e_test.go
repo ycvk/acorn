@@ -9,6 +9,7 @@ import (
 	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/runtime/graph"
 	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
+	"github.com/ycvk/acorn/internal/stream"
 )
 
 func TestPlanActObserveE2E(t *testing.T) {
@@ -23,8 +24,8 @@ func TestPlanActObserveE2E(t *testing.T) {
 		t.Fatalf("CreateRun: %v", err)
 	}
 	runCtx := withRunID(WithSessionID(ctx, "sess_e2e"), "run_e2e")
-	sinkItems := make([]StreamItem, 0)
-	runCtx = withStreamSink(runCtx, func(item StreamItem) error {
+	sinkItems := make([]stream.StreamItem, 0)
+	runCtx = stream.WithStreamSink(runCtx, func(item stream.StreamItem) error {
 		sinkItems = append(sinkItems, item)
 		return nil
 	})
@@ -57,7 +58,7 @@ func TestPlanActObserveE2E(t *testing.T) {
 	if _, err := runnable.Invoke(runCtx, &graph.AgentGraphInput{Messages: []*schema.Message{schema.UserMessage("do two steps")}}); err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}
-	if _, err := AppendStreamItem(runCtx, store, nil, StreamItem{RunID: "run_e2e", Kind: StreamKindRunCompleted, Payload: &RunCompletedPayload{}}); err != nil {
+	if _, err := stream.AppendStreamItem(runCtx, store, nil, stream.StreamItem{RunID: "run_e2e", Kind: stream.StreamKindRunCompleted, Payload: &stream.RunCompletedPayload{}}); err != nil {
 		t.Fatalf("append run completed: %v", err)
 	}
 

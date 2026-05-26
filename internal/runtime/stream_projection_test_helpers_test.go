@@ -1,12 +1,16 @@
 package runtime
 
-import "testing"
+import (
+	"testing"
 
-func mustProjectStreamItemToEvent(t *testing.T, item StreamItem) (string, any) {
+	"github.com/ycvk/acorn/internal/stream"
+)
+
+func mustProjectStreamItemToEvent(t *testing.T, item stream.StreamItem) (string, any) {
 	t.Helper()
-	kind, payload, err := projectStreamItemToEvent(item)
+	kind, payload, err := stream.ProjectStreamItemToEvent(item)
 	if err != nil {
-		t.Fatalf("projectStreamItemToEvent(%q): %v", item.Kind, err)
+		t.Fatalf("stream.ProjectStreamItemToEvent(%q): %v", item.Kind, err)
 	}
 	return kind, payload
 }
