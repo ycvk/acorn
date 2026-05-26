@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ycvk/acorn/internal/clientevents"
 	"github.com/ycvk/acorn/internal/runtime"
-	"github.com/ycvk/acorn/internal/web/runprojector"
 )
 
-func (s *ClientService) LoadRunEventsAfter(ctx context.Context, runID string, afterSeq int64) ([]runprojector.RunEvent, error) {
+func (s *ClientService) LoadRunEventsAfter(ctx context.Context, runID string, afterSeq int64) ([]clientevents.RunEvent, error) {
 	if s == nil || s.store == nil {
 		return nil, errors.New("client store is nil")
 	}
@@ -21,18 +21,18 @@ func (s *ClientService) LoadRunEventsAfter(ctx context.Context, runID string, af
 	if err != nil {
 		return nil, fmt.Errorf("%w: load persisted run events: %v", ErrClientProjectionFailed, err)
 	}
-	events := make([]runprojector.RunEvent, 0, len(records))
+	events := make([]clientevents.RunEvent, 0, len(records))
 	for _, record := range records {
-		event, err := runprojector.ProjectRunEvent(record)
+		event, err := clientevents.ProjectRunEvent(record)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("%w: project persisted run event: %v", ErrClientProjectionFailed, err)
 		}
 		events = append(events, event)
 	}
 	return events, nil
 }
 
-func (s *ClientService) LoadRunEventsForDetail(ctx context.Context, runID string) (*runprojector.RunEventDetail, error) {
+func (s *ClientService) LoadRunEventsForDetail(ctx context.Context, runID string) (*clientevents.RunEventDetail, error) {
 	if s == nil || s.store == nil {
 		return nil, errors.New("client store is nil")
 	}
@@ -43,17 +43,17 @@ func (s *ClientService) LoadRunEventsForDetail(ctx context.Context, runID string
 	if err != nil {
 		return nil, fmt.Errorf("%w: load persisted run events: %v", ErrClientProjectionFailed, err)
 	}
-	events := make([]runprojector.RunEvent, 0, len(records))
-	unsupported := make([]runprojector.UnsupportedRunEvent, 0)
+	events := make([]clientevents.RunEvent, 0, len(records))
+	unsupported := make([]clientevents.UnsupportedRunEvent, 0)
 	for _, record := range records {
-		event, err := runprojector.ProjectRunEvent(record)
+		event, err := clientevents.ProjectRunEvent(record)
 		if err != nil {
-			unsupported = append(unsupported, runprojector.ProjectUnsupportedRunEvent(record))
+			unsupported = append(unsupported, clientevents.ProjectUnsupportedRunEvent(record))
 			continue
 		}
 		events = append(events, event)
 	}
-	return &runprojector.RunEventDetail{
+	return &clientevents.RunEventDetail{
 		Events:      events,
 		Unsupported: unsupported,
 		Trace:       runtime.BuildTraceSummary(records),

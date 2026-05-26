@@ -1,4 +1,4 @@
-package runprojector
+package clientevents
 
 import (
 	"fmt"
@@ -6,7 +6,7 @@ import (
 	"github.com/ycvk/acorn/internal/events"
 )
 
-// ProjectRunEvent converts an EventRecord into a typed RunEvent for client consumption.
+// ProjectRunEvent converts an EventRecord into the /v1 client run event contract.
 func ProjectRunEvent(record events.EventRecord) (RunEvent, error) {
 	payload, ok := record.Payload.(map[string]any)
 	if !ok {
@@ -63,7 +63,7 @@ func ProjectUnsupportedRunEvent(record events.EventRecord) UnsupportedRunEvent {
 	}
 }
 
-// ProjectRunEventData maps an event kind and payload to a typed data struct.
+// ProjectRunEventData maps an event kind and payload to a typed client data struct.
 func ProjectRunEventData(kind string, payload map[string]any) (any, error) {
 	switch kind {
 	case "run.started":
@@ -81,15 +81,15 @@ func ProjectRunEventData(kind string, payload map[string]any) (any, error) {
 		}
 		return AgentMessageData{Message: value}, nil
 	case "tool.call.started":
-		return ToolCallStartedData{ToolCall: projectToolCallPayload(kind, payload)}, nil
+		return ToolCallStartedData{ToolCall: projectToolCallPayload(payload)}, nil
 	case "tool.call.progress":
-		return ToolCallProgressData{ToolCall: projectToolCallPayload(kind, payload)}, nil
+		return ToolCallProgressData{ToolCall: projectToolCallPayload(payload)}, nil
 	case "tool.call.succeeded":
-		return ToolCallSucceededData{ToolCall: projectToolCallPayload(kind, payload)}, nil
+		return ToolCallSucceededData{ToolCall: projectToolCallPayload(payload)}, nil
 	case "tool.call.failed":
-		return ToolCallFailedData{ToolCall: projectToolCallPayload(kind, payload)}, nil
+		return ToolCallFailedData{ToolCall: projectToolCallPayload(payload)}, nil
 	case "tool.call.interrupted":
-		return ToolCallInterruptedData{ToolCall: projectToolCallPayload(kind, payload)}, nil
+		return ToolCallInterruptedData{ToolCall: projectToolCallPayload(payload)}, nil
 	case "run.completed":
 		value, _ := objectField(payload, "message")
 		return RunCompletedData{Message: value}, nil
@@ -269,7 +269,7 @@ func projectDecisionSelectedData(payload map[string]any) DecisionSelectedData {
 	}
 }
 
-func projectToolCallPayload(kind string, payload map[string]any) map[string]any {
+func projectToolCallPayload(payload map[string]any) map[string]any {
 	if value, ok := objectField(payload, "tool_call"); ok {
 		return value
 	}

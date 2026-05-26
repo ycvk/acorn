@@ -69,7 +69,7 @@ func TestCompressionPipelineOrdersStackBeforeCustomHandler(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CompressionPipeline.Build: %v", err)
 	}
-	if got, want := len(middlewares), 3; got != want {
+	if got, want := len(middlewares), 2; got != want {
 		t.Fatalf("middleware count = %d, want %d", got, want)
 	}
 
@@ -78,7 +78,6 @@ func TestCompressionPipelineOrdersStackBeforeCustomHandler(t *testing.T) {
 	wantOrder := []string{
 		"patchtoolcalls",
 		"toolLifecycleMiddleware",
-		"pipelineCompressionMiddleware",
 		"BaseChatModelAgentMiddleware",
 	}
 	for i, want := range wantOrder {
@@ -253,39 +252,6 @@ func TestContextCompressionPipelineRequiresTokenCounter(t *testing.T) {
 	})
 	if !errors.Is(err, ErrPipelineTokenCounterRequired) {
 		t.Fatalf("Compress error = %v, want ErrPipelineTokenCounterRequired", err)
-	}
-}
-
-func TestCompressionMiddlewareSkipsWhenPressureBelowAutoCompact(t *testing.T) {
-	cfg := compressionEnabledTestConfig()
-	model := &fakeCompressionChatModel{
-		response: structuredCompressionSummary("should not be called"),
-	}
-	middlewares, err := NewCompressionPipeline().Build(context.Background(), cfg, model, CompressionBuildOptions{
-		RuntimeStorageDir: t.TempDir(),
-	})
-	if err != nil {
-		t.Fatalf("CompressionPipeline.Build: %v", err)
-	}
-
-	ctx := context.Background()
-	state := &adk.ChatModelAgentState{
-		Messages: []adk.Message{
-			schema.SystemMessage("system instruction"),
-			schema.UserMessage("small request"),
-		},
-	}
-	for _, mw := range middlewares {
-		ctx, state, err = mw.BeforeModelRewriteState(ctx, state, &adk.ModelContext{})
-		if err != nil {
-			t.Fatalf("BeforeModelRewriteState: %v", err)
-		}
-	}
-	if model.generateCalls != 0 {
-		t.Fatalf("summary model calls = %d, want 0 below auto compact pressure", model.generateCalls)
-	}
-	if got, want := len(state.Messages), 2; got != want {
-		t.Fatalf("message count = %d, want unchanged %d", got, want)
 	}
 }
 

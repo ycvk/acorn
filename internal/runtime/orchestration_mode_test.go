@@ -64,14 +64,14 @@ func TestExecuteMessagesPersistsDirectResponseModeForGreeting(t *testing.T) {
 	ctx := context.Background()
 	store, cfg := newRunnerFactoryMemoryTestContext(t)
 	factory := newRunnerFactory(t, cfg, store, RunnerFactoryOptions{})
-	exec, err := NewExecutorWithRunnerFactoryAndController(cfg, store, factory, nil)
+	exec, err := NewExecutorWithRunRuntimeAndController(cfg, store, factory, nil)
 	if err != nil {
-		t.Fatalf("NewExecutorWithRunnerFactoryAndController: %v", err)
+		t.Fatalf("NewExecutorWithRunRuntimeAndController: %v", err)
 	}
 
 	directErr := errors.New("direct response route selected")
-	exec.runBuilder.(*RunnerFactory).deps.Orchestration = fakeModeRoutingPlane{directErr: directErr}
-	exec.runBuilder.(*RunnerFactory).installRunChatModelBuilderForTest(func(context.Context, RunnerBuildRequest) (einomodel.BaseChatModel, error) {
+	factory.deps.Orchestration = fakeModeRoutingPlane{directErr: directErr}
+	factory.installRunChatModelBuilderForTest(func(context.Context, RunnerBuildRequest) (einomodel.BaseChatModel, error) {
 		return directRoutingTestModel{}, nil
 	})
 
@@ -100,9 +100,9 @@ func TestExecuteMessagesDirectResponseExecutesToolLoop(t *testing.T) {
 	factory := newRunnerFactory(t, cfg, store, RunnerFactoryOptions{
 		ExtraLocalTools: []einotool.BaseTool{lookup},
 	})
-	exec, err := NewExecutorWithRunnerFactoryAndController(cfg, store, factory, nil)
+	exec, err := NewExecutorWithRunRuntimeAndController(cfg, store, factory, nil)
 	if err != nil {
-		t.Fatalf("NewExecutorWithRunnerFactoryAndController: %v", err)
+		t.Fatalf("NewExecutorWithRunRuntimeAndController: %v", err)
 	}
 
 	toolCall := schema.ToolCall{
@@ -118,7 +118,7 @@ func TestExecuteMessagesDirectResponseExecutesToolLoop(t *testing.T) {
 			schema.AssistantMessage("lookup result: acorn", nil),
 		},
 	}
-	exec.runBuilder.(*RunnerFactory).installRunChatModelBuilderForTest(func(context.Context, RunnerBuildRequest) (einomodel.BaseChatModel, error) {
+	factory.installRunChatModelBuilderForTest(func(context.Context, RunnerBuildRequest) (einomodel.BaseChatModel, error) {
 		return model, nil
 	})
 
@@ -210,9 +210,9 @@ func TestResumeDirectResponseRebuildsContextSession(t *testing.T) {
 	factory := newRunnerFactory(t, cfg, store, RunnerFactoryOptions{
 		ExtraLocalTools: []einotool.BaseTool{pauseTool},
 	})
-	exec, err := NewExecutorWithRunnerFactoryAndController(cfg, store, factory, nil)
+	exec, err := NewExecutorWithRunRuntimeAndController(cfg, store, factory, nil)
 	if err != nil {
-		t.Fatalf("NewExecutorWithRunnerFactoryAndController: %v", err)
+		t.Fatalf("NewExecutorWithRunRuntimeAndController: %v", err)
 	}
 
 	toolCall := schema.ToolCall{
@@ -228,7 +228,7 @@ func TestResumeDirectResponseRebuildsContextSession(t *testing.T) {
 			schema.AssistantMessage("done after pause", nil),
 		},
 	}
-	exec.runBuilder.(*RunnerFactory).installRunChatModelBuilderForTest(func(context.Context, RunnerBuildRequest) (einomodel.BaseChatModel, error) {
+	factory.installRunChatModelBuilderForTest(func(context.Context, RunnerBuildRequest) (einomodel.BaseChatModel, error) {
 		return model, nil
 	})
 
@@ -279,9 +279,9 @@ func TestResumeDirectResponseRunCommandPauseWithoutExtraPayload(t *testing.T) {
 	factory := newRunnerFactory(t, cfg, store, RunnerFactoryOptions{
 		ExtraLocalTools: []einotool.BaseTool{pauseTool},
 	})
-	exec, err := NewExecutorWithRunnerFactoryAndController(cfg, store, factory, nil)
+	exec, err := NewExecutorWithRunRuntimeAndController(cfg, store, factory, nil)
 	if err != nil {
-		t.Fatalf("NewExecutorWithRunnerFactoryAndController: %v", err)
+		t.Fatalf("NewExecutorWithRunRuntimeAndController: %v", err)
 	}
 
 	toolCall := schema.ToolCall{
@@ -297,7 +297,7 @@ func TestResumeDirectResponseRunCommandPauseWithoutExtraPayload(t *testing.T) {
 			schema.AssistantMessage("done after pause", nil),
 		},
 	}
-	exec.runBuilder.(*RunnerFactory).installRunChatModelBuilderForTest(func(context.Context, RunnerBuildRequest) (einomodel.BaseChatModel, error) {
+	factory.installRunChatModelBuilderForTest(func(context.Context, RunnerBuildRequest) (einomodel.BaseChatModel, error) {
 		return model, nil
 	})
 
@@ -342,12 +342,12 @@ func TestExecuteMessagesPersistsExplicitPlanExecuteMode(t *testing.T) {
 	ctx := context.Background()
 	store, cfg := newRunnerFactoryMemoryTestContext(t)
 	factory := newRunnerFactory(t, cfg, store, RunnerFactoryOptions{})
-	exec, err := NewExecutorWithRunnerFactoryAndController(cfg, store, factory, nil)
+	exec, err := NewExecutorWithRunRuntimeAndController(cfg, store, factory, nil)
 	if err != nil {
-		t.Fatalf("NewExecutorWithRunnerFactoryAndController: %v", err)
+		t.Fatalf("NewExecutorWithRunRuntimeAndController: %v", err)
 	}
 
-	exec.runBuilder.(*RunnerFactory).deps.Workspace = nil
+	factory.deps.Workspace = nil
 
 	_, err = exec.ExecuteMessages(ctx, ExecuteRequest{
 		RunID:             "run_plan_route",
@@ -425,9 +425,9 @@ func TestResumeWithTargetsRoutesPlanExecuteRunByPersistedMode(t *testing.T) {
 	routeErr := errors.New("plan execute route selected")
 	factory.deps.Orchestration = fakeModeRoutingPlane{planExecuteErr: routeErr}
 
-	exec, err := NewExecutorWithRunnerFactoryAndController(cfg, store, factory, nil)
+	exec, err := NewExecutorWithRunRuntimeAndController(cfg, store, factory, nil)
 	if err != nil {
-		t.Fatalf("NewExecutorWithRunnerFactoryAndController: %v", err)
+		t.Fatalf("NewExecutorWithRunRuntimeAndController: %v", err)
 	}
 
 	runID := "run_resume_mode"
@@ -513,9 +513,9 @@ func TestResumeWithTargetsRejectsRemovedWorkflowMode(t *testing.T) {
 		return nil, errors.New("removed workflow mode should fail before model build")
 	})
 
-	exec, err := NewExecutorWithRunnerFactoryAndController(cfg, store, factory, nil)
+	exec, err := NewExecutorWithRunRuntimeAndController(cfg, store, factory, nil)
 	if err != nil {
-		t.Fatalf("NewExecutorWithRunnerFactoryAndController: %v", err)
+		t.Fatalf("NewExecutorWithRunRuntimeAndController: %v", err)
 	}
 
 	runID := "run_resume_workflow_mode"
@@ -631,9 +631,9 @@ func TestExecuteMessagesDirectResponseEmitsToolProgress(t *testing.T) {
 	factory := newRunnerFactory(t, cfg, store, RunnerFactoryOptions{
 		ExtraLocalTools: []einotool.BaseTool{progressTool},
 	})
-	exec, err := NewExecutorWithRunnerFactoryAndController(cfg, store, factory, nil)
+	exec, err := NewExecutorWithRunRuntimeAndController(cfg, store, factory, nil)
 	if err != nil {
-		t.Fatalf("NewExecutorWithRunnerFactoryAndController: %v", err)
+		t.Fatalf("NewExecutorWithRunRuntimeAndController: %v", err)
 	}
 
 	toolCall := schema.ToolCall{
@@ -649,7 +649,7 @@ func TestExecuteMessagesDirectResponseEmitsToolProgress(t *testing.T) {
 			schema.AssistantMessage("result: done", nil),
 		},
 	}
-	exec.runBuilder.(*RunnerFactory).installRunChatModelBuilderForTest(func(context.Context, RunnerBuildRequest) (einomodel.BaseChatModel, error) {
+	factory.installRunChatModelBuilderForTest(func(context.Context, RunnerBuildRequest) (einomodel.BaseChatModel, error) {
 		return model, nil
 	})
 

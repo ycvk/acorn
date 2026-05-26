@@ -70,24 +70,3 @@ type RunDTO struct {
 	CreatedAt   time.Time  `json:"created_at"`
 	CompletedAt *time.Time `json:"completed_at,omitempty"`
 }
-
-// RunEventDTO represents a single event in a run event stream.
-type RunEventDTO struct {
-	EventID string    `json:"event_id"`
-	RunID   string    `json:"run_id"`
-	Seq     int64     `json:"seq"`
-	TS      time.Time `json:"ts"`
-	Type    string    `json:"type"`
-	Data    any       `json:"data"`
-}
-
-// UnsupportedRunEventDTO captures events the client does not yet understand.
-type UnsupportedRunEventDTO struct {
-	EventID string         `json:"event_id"`
-	RunID   string         `json:"run_id"`
-	Seq     int64          `json:"seq"`
-	TS      time.Time      `json:"ts"`
-	Type    string         `json:"type"`
-	Raw     map[string]any `json:"raw,omitempty"`
-	Reason  string         `json:"reason"`
-}

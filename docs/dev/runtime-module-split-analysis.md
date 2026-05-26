@@ -53,7 +53,7 @@
 |------------------|------------------------|------------|
 | `internal/app/` | 20 files | ~120+ |
 | `internal/web/` | 8 files | ~40+ |
-| `internal/web/runprojector/` | 1 file | ~5 |
+| `internal/clientevents/` | 1 file | ~5 |
 
 ### 2.1 Top Externally-Referenced Types (from runtime package)
 

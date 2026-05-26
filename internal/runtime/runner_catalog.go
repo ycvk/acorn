@@ -15,16 +15,15 @@ import (
 )
 
 type modelProviderAssembler struct {
-	factory  *RunnerFactory
-	buildRun func(context.Context, RunnerBuildRequest) (einomodel.BaseChatModel, error)
+	factory *RunnerFactory
 }
 
 func (a *modelProviderAssembler) BuildRunChatModel(ctx context.Context, req RunnerBuildRequest) (einomodel.BaseChatModel, error) {
 	if a == nil || a.factory == nil || a.factory.deps.Config == nil {
 		return nil, errors.New("runner factory is not initialized")
 	}
-	if a.buildRun != nil {
-		return a.buildRun(ctx, req)
+	if a.factory.runChatModelBuilder != nil {
+		return a.factory.runChatModelBuilder(ctx, req)
 	}
 	model, provider, err := buildRuntimeChatModelWithProvider(ctx, a.factory.deps.Config, nil)
 	if err != nil {

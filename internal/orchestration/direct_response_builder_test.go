@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -18,6 +19,7 @@ import (
 
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/contextplane"
+	"github.com/ycvk/acorn/internal/runtimehistory"
 	"github.com/ycvk/acorn/internal/tooling"
 )
 
@@ -773,6 +775,9 @@ func runDirectResponseAssembly(t *testing.T, ctx context.Context, assembly *RunA
 
 func newDirectResponseTestSession(t *testing.T, ctx context.Context, assembly *RunAssembly, opts contextplane.ContextSessionOptions) contextplane.ContextSession {
 	t.Helper()
+	if opts.BoundaryStore == nil {
+		opts.BoundaryStore = newDirectResponseContextBoundaryStore()
+	}
 	session := contextplane.NewDefaultContextSession(opts)
 	initialMessages := []adk.Message{schema.UserMessage("root task")}
 	if assembly != nil && strings.TrimSpace(assembly.Instruction) != "" {
@@ -789,6 +794,65 @@ func newDirectResponseTestSession(t *testing.T, ctx context.Context, assembly *R
 		t.Fatalf("Bootstrap context session: %v", err)
 	}
 	return session
+}
+
+type directResponseContextBoundaryStore struct {
+	mu         sync.RWMutex
+	boundaries map[string]runtimehistory.ContextBoundary
+}
+
+func newDirectResponseContextBoundaryStore() *directResponseContextBoundaryStore {
+	return &directResponseContextBoundaryStore{boundaries: make(map[string]runtimehistory.ContextBoundary)}
+}
+
+func (s *directResponseContextBoundaryStore) SaveContextBoundary(_ context.Context, boundary runtimehistory.ContextBoundary) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.boundaries == nil {
+		s.boundaries = make(map[string]runtimehistory.ContextBoundary)
+	}
+	s.boundaries[boundary.BoundaryID] = boundary
+	return nil
+}
+
+func (s *directResponseContextBoundaryStore) LoadContextBoundary(_ context.Context, boundaryID string) (*runtimehistory.ContextBoundary, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	boundary, ok := s.boundaries[boundaryID]
+	if !ok {
+		return nil, nil
+	}
+	return &boundary, nil
+}
+
+func (s *directResponseContextBoundaryStore) LoadLatestContextBoundary(ctx context.Context, sessionID string) (*runtimehistory.ContextBoundary, error) {
+	boundaries, err := s.ListContextBoundaries(ctx, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	if len(boundaries) == 0 {
+		return nil, nil
+	}
+	latest := boundaries[len(boundaries)-1]
+	return &latest, nil
+}
+
+func (s *directResponseContextBoundaryStore) ListContextBoundaries(_ context.Context, sessionID string) ([]runtimehistory.ContextBoundary, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var out []runtimehistory.ContextBoundary
+	for _, boundary := range s.boundaries {
+		if boundary.SessionID == sessionID {
+			out = append(out, boundary)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Sequence == out[j].Sequence {
+			return out[i].CreatedAt.Before(out[j].CreatedAt)
+		}
+		return out[i].Sequence < out[j].Sequence
+	})
+	return out, nil
 }
 
 func runDirectResponseAssemblyWithoutSession(ctx context.Context, assembly *RunAssembly) []*adk.AgentEvent {

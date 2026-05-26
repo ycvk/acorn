@@ -145,12 +145,12 @@ func TestFinishCollectedRunSuccessPersistsAfterContextCancellation(t *testing.T)
 }
 
 func newFinalizationTestExecutor(t *testing.T, store *storesqlite.Store, cfg *config.Config) *Executor {
-	runBuilder := newRunnerFactory(t, cfg, store, RunnerFactoryOptions{})
+	runRuntime := newRunnerFactory(t, cfg, store, RunnerFactoryOptions{})
 	exec := &Executor{
 		store:             store,
-		runBuilder:        runBuilder,
+		runRuntime:        runRuntime,
 		controller:        NewRunController(),
-		sessionSummarySvc: runBuilder.SessionSummarySvc(),
+		sessionSummarySvc: runRuntime.SessionSummarySvc(),
 		newChatModel: func(context.Context) (einomodel.BaseChatModel, error) {
 			return nil, errors.New("unexpected model creation")
 		},

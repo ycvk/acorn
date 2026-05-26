@@ -136,7 +136,7 @@ func TestMemoryEvolutionFinalizationAppendsHistoryThenKeepsNormalPlanPath(t *tes
 	store, cfg := newRunnerFactoryMemoryTestContext(t)
 	factory := newRunnerFactory(t, cfg, store, RunnerFactoryOptions{})
 	exec := newFinalizationTestExecutor(t, store, cfg)
-	exec.runBuilder = factory
+	exec.runRuntime = factory
 	runID := createFinalizationRun(t, ctx, store, "session-evolution", "fix sqlite rows")
 	saveCompletedPlan(t, ctx, store, runID, "session-evolution")
 

@@ -1,4 +1,4 @@
-package runprojector
+package clientevents
 
 import (
 	"time"
@@ -7,25 +7,25 @@ import (
 	"github.com/ycvk/acorn/internal/runtime"
 )
 
-// RunEvent is a client-visible run event with typed data.
+// RunEvent is the client-visible run event envelope used by /v1 run detail and SSE.
 type RunEvent struct {
-	EventID string
-	RunID   string
-	Seq     int64
-	TS      time.Time
-	Type    string
-	Data    any
+	EventID string    `json:"event_id"`
+	RunID   string    `json:"run_id"`
+	Seq     int64     `json:"seq"`
+	TS      time.Time `json:"ts"`
+	Type    string    `json:"type"`
+	Data    any       `json:"data"`
 }
 
-// UnsupportedRunEvent captures events the client does not yet understand.
+// UnsupportedRunEvent captures persisted events outside the client contract for diagnostics.
 type UnsupportedRunEvent struct {
-	EventID string
-	RunID   string
-	Seq     int64
-	TS      time.Time
-	Type    string
-	Raw     map[string]any
-	Reason  string
+	EventID string         `json:"event_id"`
+	RunID   string         `json:"run_id"`
+	Seq     int64          `json:"seq"`
+	TS      time.Time      `json:"ts"`
+	Type    string         `json:"type"`
+	Raw     map[string]any `json:"raw,omitempty"`
+	Reason  string         `json:"reason"`
 }
 
 // RunEventDetail aggregates events and trace for a run detail view.

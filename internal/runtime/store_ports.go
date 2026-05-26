@@ -59,6 +59,7 @@ type ProviderUsageStore interface {
 type ExecutorStore interface {
 	adk.CheckPointStore
 	contextplane.RunContextSnapshotStore
+	contextplane.ContextBoundaryStore
 	store.ToolResultLedger
 	providerusage.Recorder
 	runDecisionStore

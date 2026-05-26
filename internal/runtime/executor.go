@@ -33,7 +33,7 @@ type Result struct {
 
 type Executor struct {
 	store             ExecutorStore
-	runBuilder        RunBuilder
+	runRuntime        RunRuntime
 	controller        *RunController
 	newChatModel      func(ctx context.Context) (einomodel.BaseChatModel, error)
 	archiveRunFunc    func(ctx context.Context, runID string, runStatus events.RunStatus) error
@@ -41,15 +41,15 @@ type Executor struct {
 	crystallizer      crystallization.Service
 }
 
-func NewExecutorWithRunnerFactoryAndController(cfg *config.Config, store ExecutorStore, runBuilder RunBuilder, controller *RunController) (*Executor, error) {
+func NewExecutorWithRunRuntimeAndController(cfg *config.Config, store ExecutorStore, runRuntime RunRuntime, controller *RunController) (*Executor, error) {
 	if cfg == nil {
 		return nil, errors.New("config is required")
 	}
 	if store == nil {
 		return nil, errors.New("store is required")
 	}
-	if runBuilder == nil {
-		return nil, errors.New("run builder is required")
+	if runRuntime == nil {
+		return nil, errors.New("run runtime is required")
 	}
 	if controller == nil {
 		controller = NewRunController()
@@ -59,12 +59,12 @@ func NewExecutorWithRunnerFactoryAndController(cfg *config.Config, store Executo
 	}
 	exec := &Executor{
 		store:             store,
-		runBuilder:        runBuilder,
+		runRuntime:        runRuntime,
 		controller:        controller,
-		sessionSummarySvc: runBuilder.SessionSummarySvc(),
-		newChatModel:      runBuilder.NewChatModel,
+		sessionSummarySvc: runRuntime.SessionSummarySvc(),
+		newChatModel:      runRuntime.NewChatModel,
 	}
-	exec.crystallizer = runBuilder.Crystallizer()
+	exec.crystallizer = runRuntime.Crystallizer()
 	exec.archiveRunFunc = exec.archiveRun
 	return exec, nil
 }
@@ -225,10 +225,10 @@ func (e *Executor) consume(ctx context.Context, runID, input string, iter *adk.A
 	if err != nil {
 		return nil, err
 	}
-	if err := e.runBuilder.ConsumeEventError(runID); err != nil {
+	if err := e.runRuntime.ConsumeEventError(runID); err != nil {
 		state.failure = err
 	}
-	if rc, ok := e.runBuilder.Registry().Get(runID); ok {
+	if rc, ok := e.runRuntime.Registry().Get(runID); ok {
 		rc.SetFinalizing()
 	}
 	return e.finishCollectedRun(ctx, runID, input, state, selectedSkill, sink)
@@ -298,7 +298,7 @@ func (e *Executor) Run(ctx context.Context, input, skillID string, sink stream.S
 }
 
 func (e *Executor) ExecuteMessages(ctx context.Context, req ExecuteRequest, sink stream.StreamSink) (*Result, error) {
-	if e == nil || e.runBuilder == nil || e.store == nil {
+	if e == nil || e.runRuntime == nil || e.store == nil {
 		return nil, errors.New("executor is not initialized")
 	}
 
@@ -339,7 +339,7 @@ func (e *Executor) ExecuteMessages(ctx context.Context, req ExecuteRequest, sink
 		return nil, err
 	}
 
-	active, err := e.runBuilder.New(runCtxBase, RunnerBuildRequest{
+	active, err := e.runRuntime.New(runCtxBase, RunnerBuildRequest{
 		SessionID:         req.SessionID,
 		RunID:             runID,
 		Input:             req.Input,
@@ -378,7 +378,7 @@ func (e *Executor) ExecuteMessages(ctx context.Context, req ExecuteRequest, sink
 }
 
 func (e *Executor) ResumeWithTargets(ctx context.Context, runID string, targets map[string]any, sink stream.StreamSink) (*Result, error) {
-	if e == nil || e.runBuilder == nil || e.store == nil {
+	if e == nil || e.runRuntime == nil || e.store == nil {
 		return nil, errors.New("executor is not initialized")
 	}
 
@@ -397,7 +397,7 @@ func (e *Executor) ResumeWithTargets(ctx context.Context, runID string, targets 
 		return nil, err
 	}
 
-	active, err := e.runBuilder.New(runCtxBase, RunnerBuildRequest{
+	active, err := e.runRuntime.New(runCtxBase, RunnerBuildRequest{
 		SessionID:         run.SessionID,
 		RunID:             runID,
 		OrchestrationMode: run.OrchestrationMode,
@@ -450,7 +450,7 @@ func (e *Executor) ResumeWithTargets(ctx context.Context, runID string, targets 
 }
 
 func (e *Executor) newManagedRunContext(ctx context.Context, runID string) (context.Context, func()) {
-	runTimeout := time.Duration(e.runBuilder.Config().Runtime.RunTimeoutSeconds) * time.Second
+	runTimeout := time.Duration(e.runRuntime.Config().Runtime.RunTimeoutSeconds) * time.Second
 	if runTimeout <= 0 {
 		runTimeout = 15 * time.Minute
 	}
@@ -636,7 +636,7 @@ func (e *Executor) persistConversationSegment(ctx context.Context, runID string,
 }
 
 func (e *Executor) appendRunHistory(ctx context.Context, runID string, runStatus events.RunStatus, input, output string) error {
-	if e == nil || e.store == nil || e.runBuilder == nil || e.runBuilder.MemoryModule() == nil {
+	if e == nil || e.store == nil || e.runRuntime == nil || e.runRuntime.MemoryModule() == nil {
 		return errors.New("memory module is not initialized")
 	}
 	run, err := e.store.LoadRun(ctx, runID)
@@ -651,7 +651,7 @@ func (e *Executor) appendRunHistory(ctx context.Context, runID string, runStatus
 	if archive != nil {
 		filesChanged = append(filesChanged, archive.TouchedPaths...)
 	}
-	if err := e.runBuilder.MemoryModule().AppendHistory(ctx, memorymodule.HistoryEvent{
+	if err := e.runRuntime.MemoryModule().AppendHistory(ctx, memorymodule.HistoryEvent{
 		SessionID:    run.SessionID,
 		RunID:        runID,
 		Status:       string(runStatus),
