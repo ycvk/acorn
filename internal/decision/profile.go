@@ -12,6 +12,32 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// ProfileService provides access to the workspace decision profile.
+type ProfileService struct {
+	workspaceRoot string
+}
+
+// NewProfileService creates a new profile service for the given workspace root.
+func NewProfileService(workspaceRoot string) *ProfileService {
+	return &ProfileService{workspaceRoot: strings.TrimSpace(workspaceRoot)}
+}
+
+// WorkspaceRoot returns the configured workspace root.
+func (s *ProfileService) WorkspaceRoot() string {
+	if s == nil {
+		return ""
+	}
+	return s.workspaceRoot
+}
+
+// Load loads and parses the decision profile for the workspace.
+func (s *ProfileService) Load() (*ParsedProfile, error) {
+	if s == nil {
+		return nil, fmt.Errorf("decision profile service is nil")
+	}
+	return LoadWorkspaceProfile(s.workspaceRoot)
+}
+
 const (
 	BlockDefaults = "acorn-defaults"
 	BlockRoutes   = "acorn-routes"

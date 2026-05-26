@@ -9,6 +9,7 @@ import (
 	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/runtime"
+	"github.com/ycvk/acorn/internal/stream"
 )
 
 const chatHistoryLimit = 12
@@ -27,7 +28,7 @@ func NewChatService(store ChatStore, newExecutor func(context.Context) (executor
 	return &ChatService{store: store, newExecutor: newExecutor}
 }
 
-func (s *ChatService) Send(ctx context.Context, sessionID, input, skillID string, sink runtime.StreamSink) (*runtime.Result, int, error) {
+func (s *ChatService) Send(ctx context.Context, sessionID, input, skillID string, sink stream.StreamSink) (*runtime.Result, int, error) {
 	if s == nil || s.store == nil {
 		return nil, 0, errors.New("chat store is nil")
 	}

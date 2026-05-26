@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/ycvk/acorn/internal/events"
+	"github.com/ycvk/acorn/internal/stream"
 )
 
 func TestFinishCollectedRunInterruptMarksRunInterrupted(t *testing.T) {
@@ -70,7 +71,7 @@ func TestFailRunSetupMarksRunFailedAndEmitsLifecycleFailure(t *testing.T) {
 	var found bool
 	for _, record := range records {
 		item := projectEventToStreamItem(record)
-		if item.Kind != StreamKindRunFailed {
+		if item.Kind != stream.StreamKindRunFailed {
 			continue
 		}
 		if item.GetError() == "setup boom" {

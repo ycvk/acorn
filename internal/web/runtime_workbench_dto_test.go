@@ -9,6 +9,7 @@ import (
 	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/runtime"
 	"github.com/ycvk/acorn/internal/runtimehistory"
+	"github.com/ycvk/acorn/internal/stream"
 	"github.com/ycvk/acorn/internal/workspace"
 )
 
@@ -26,7 +27,7 @@ func TestRuntimeWorkbenchDTOFromDomainPreservesAggregatedSections(t *testing.T) 
 		ResumeReason:    "pending actions remain",
 		TraceSummary: &runtime.TraceSummary{
 			ItemCount: 12,
-			LastKind:  runtime.StreamKindSubagentCompleted,
+			LastKind:  stream.StreamKindSubagentCompleted,
 		},
 		LatestDecision: &decision.Record{
 			RunID:               "run_42",

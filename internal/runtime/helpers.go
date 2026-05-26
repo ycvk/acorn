@@ -8,11 +8,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cloudwego/eino/compose"
 	"github.com/cloudwego/eino/schema"
 	"github.com/santhosh-tekuri/jsonschema/v6"
 	"github.com/santhosh-tekuri/jsonschema/v6/kind"
 	"github.com/ycvk/acorn/internal/decision"
 	"github.com/ycvk/acorn/internal/skills"
+	"github.com/ycvk/acorn/internal/stream"
 	"golang.org/x/text/language"
 	"golang.org/x/text/message"
 )
@@ -65,7 +67,7 @@ func ExtractString(value any) string {
 	}
 }
 
-func InterruptPayloadFromStream(interrupt *StreamInterrupt) map[string]any {
+func InterruptPayloadFromStream(interrupt *stream.StreamInterrupt) map[string]any {
 	if interrupt == nil {
 		return nil
 	}
@@ -94,8 +96,8 @@ func CurrentRunID(ctx context.Context) string {
 	return getRunID(ctx)
 }
 
-func CurrentStreamSink(ctx context.Context) StreamSink {
-	return streamSinkFromContext(ctx)
+func CurrentStreamSink(ctx context.Context) stream.StreamSink {
+	return stream.StreamSinkFromContext(ctx)
 }
 
 // --- Turn index context plumbing ---
@@ -359,4 +361,21 @@ func selectedSkillMatchMetadata(skillID string, matches []SkillMatch) (int, []st
 		}
 	}
 	return 0, nil
+}
+
+type jsonSerializer struct{}
+
+func (j *jsonSerializer) Marshal(v any) ([]byte, error) {
+	return json.Marshal(v)
+}
+
+func (j *jsonSerializer) Unmarshal(data []byte, v any) error {
+	return json.Unmarshal(data, v)
+}
+
+var _ compose.Serializer = (*jsonSerializer)(nil)
+
+type schemaMessageWrapper struct {
+	Type  string          `json:"__type"`
+	Value *schema.Message `json:"value"`
 }

@@ -15,6 +15,7 @@ import (
 	"github.com/ycvk/acorn/internal/orchestration"
 	"github.com/ycvk/acorn/internal/store"
 	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
+	"github.com/ycvk/acorn/internal/stream"
 )
 
 func openStore(t *testing.T) *storesqlite.Store {
@@ -93,12 +94,12 @@ func TestSubagentExecutorDepthTracking(t *testing.T) {
 func TestSubagentPayloadStreamKind(t *testing.T) {
 	t.Parallel()
 
-	started := SubagentStartedPayload{SubRunID: "sub1", ParentID: "p1", Depth: 1, Task: "t", ChildRunMode: "fork", WorkspaceMode: "worktree", ContextMessages: 2}
-	if started.StreamKind() != StreamKindSubagentStarted {
-		t.Fatalf("SubagentStartedPayload.StreamKind() = %q, want %q", started.StreamKind(), StreamKindSubagentStarted)
+	started := stream.SubagentStartedPayload{SubRunID: "sub1", ParentID: "p1", Depth: 1, Task: "t", ChildRunMode: "fork", WorkspaceMode: "worktree", ContextMessages: 2}
+	if started.StreamKind() != stream.StreamKindSubagentStarted {
+		t.Fatalf("stream.SubagentStartedPayload.StreamKind() = %q, want %q", started.StreamKind(), stream.StreamKindSubagentStarted)
 	}
 
-	completed := SubagentCompletedPayload{
+	completed := stream.SubagentCompletedPayload{
 		SubRunID:         "sub1",
 		ParentID:         "p1",
 		Summary:          "s",
@@ -108,11 +109,11 @@ func TestSubagentPayloadStreamKind(t *testing.T) {
 		WorkspaceMode:    "worktree",
 		EvidenceRefs:     []string{"tool_result:run_child:call_1"},
 	}
-	if completed.StreamKind() != StreamKindSubagentCompleted {
-		t.Fatalf("SubagentCompletedPayload.StreamKind() = %q, want %q", completed.StreamKind(), StreamKindSubagentCompleted)
+	if completed.StreamKind() != stream.StreamKindSubagentCompleted {
+		t.Fatalf("stream.SubagentCompletedPayload.StreamKind() = %q, want %q", completed.StreamKind(), stream.StreamKindSubagentCompleted)
 	}
 
-	failed := SubagentFailedPayload{
+	failed := stream.SubagentFailedPayload{
 		SubRunID:         "sub1",
 		ParentID:         "p1",
 		Error:            "e",
@@ -120,8 +121,8 @@ func TestSubagentPayloadStreamKind(t *testing.T) {
 		ChildRunMode:     "fork",
 		WorkspaceMode:    "worktree",
 	}
-	if failed.StreamKind() != StreamKindSubagentFailed {
-		t.Fatalf("SubagentFailedPayload.StreamKind() = %q, want %q", failed.StreamKind(), StreamKindSubagentFailed)
+	if failed.StreamKind() != stream.StreamKindSubagentFailed {
+		t.Fatalf("stream.SubagentFailedPayload.StreamKind() = %q, want %q", failed.StreamKind(), stream.StreamKindSubagentFailed)
 	}
 }
 
@@ -129,18 +130,18 @@ func TestSubagentPayloadUnmarshal(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		kind StreamItemKind
+		kind stream.StreamItemKind
 	}{
-		{StreamKindSubagentStarted},
-		{StreamKindSubagentCompleted},
-		{StreamKindSubagentFailed},
+		{stream.StreamKindSubagentStarted},
+		{stream.StreamKindSubagentCompleted},
+		{stream.StreamKindSubagentFailed},
 	}
 
 	for _, tt := range tests {
 		t.Run(string(tt.kind), func(t *testing.T) {
-			p, err := unmarshalPayload(tt.kind, []byte(`{}`))
+			p, err := stream.UnmarshalPayload(tt.kind, []byte(`{}`))
 			if err != nil {
-				t.Fatalf("unmarshalPayload(%q): %v", tt.kind, err)
+				t.Fatalf("stream.UnmarshalPayload(%q): %v", tt.kind, err)
 			}
 			if p.StreamKind() != tt.kind {
 				t.Fatalf("StreamKind() = %q, want %q", p.StreamKind(), tt.kind)
@@ -156,22 +157,22 @@ func TestSubagentStreamItemProjection(t *testing.T) {
 
 	tests := []struct {
 		name          string
-		item          StreamItem
+		item          stream.StreamItem
 		wantEventKind string
 	}{
 		{
 			name: "subagent_started",
-			item: StreamItem{
-				RunID: "run_1", Sequence: 1, Kind: StreamKindSubagentStarted, CreatedAt: now,
-				Payload: &SubagentStartedPayload{SubRunID: "sub_1", ParentID: "run_1", Depth: 1, Task: "analyze", ChildRunMode: "fork", WorkspaceMode: "worktree", ContextMessages: 2},
+			item: stream.StreamItem{
+				RunID: "run_1", Sequence: 1, Kind: stream.StreamKindSubagentStarted, CreatedAt: now,
+				Payload: &stream.SubagentStartedPayload{SubRunID: "sub_1", ParentID: "run_1", Depth: 1, Task: "analyze", ChildRunMode: "fork", WorkspaceMode: "worktree", ContextMessages: 2},
 			},
 			wantEventKind: "subagent.started",
 		},
 		{
 			name: "subagent_completed",
-			item: StreamItem{
-				RunID: "run_1", Sequence: 2, Kind: StreamKindSubagentCompleted, CreatedAt: now,
-				Payload: &SubagentCompletedPayload{
+			item: stream.StreamItem{
+				RunID: "run_1", Sequence: 2, Kind: stream.StreamKindSubagentCompleted, CreatedAt: now,
+				Payload: &stream.SubagentCompletedPayload{
 					SubRunID:         "sub_1",
 					ParentID:         "run_1",
 					Summary:          "done",
@@ -186,9 +187,9 @@ func TestSubagentStreamItemProjection(t *testing.T) {
 		},
 		{
 			name: "subagent_failed",
-			item: StreamItem{
-				RunID: "run_1", Sequence: 3, Kind: StreamKindSubagentFailed, CreatedAt: now,
-				Payload: &SubagentFailedPayload{
+			item: stream.StreamItem{
+				RunID: "run_1", Sequence: 3, Kind: stream.StreamKindSubagentFailed, CreatedAt: now,
+				Payload: &stream.SubagentFailedPayload{
 					SubRunID:         "sub_1",
 					ParentID:         "run_1",
 					Error:            "boom",
@@ -203,9 +204,9 @@ func TestSubagentStreamItemProjection(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			eventKind, _, err := projectStreamItemToEvent(tt.item)
+			eventKind, _, err := stream.ProjectStreamItemToEvent(tt.item)
 			if err != nil {
-				t.Fatalf("projectStreamItemToEvent: %v", err)
+				t.Fatalf("stream.ProjectStreamItemToEvent: %v", err)
 			}
 			if eventKind != tt.wantEventKind {
 				t.Fatalf("event kind = %q, want %q", eventKind, tt.wantEventKind)
@@ -219,11 +220,11 @@ func TestSubagentEventKindToStreamKind(t *testing.T) {
 
 	tests := []struct {
 		eventKind string
-		want      StreamItemKind
+		want      stream.StreamItemKind
 	}{
-		{"subagent.started", StreamKindSubagentStarted},
-		{"subagent.completed", StreamKindSubagentCompleted},
-		{"subagent.failed", StreamKindSubagentFailed},
+		{"subagent.started", stream.StreamKindSubagentStarted},
+		{"subagent.completed", stream.StreamKindSubagentCompleted},
+		{"subagent.failed", stream.StreamKindSubagentFailed},
 	}
 
 	for _, tt := range tests {
@@ -241,14 +242,14 @@ func TestSubagentStreamItemJSONRoundtrip(t *testing.T) {
 
 	now := time.Date(2026, 4, 27, 12, 0, 0, 0, time.UTC)
 
-	items := []StreamItem{
+	items := []stream.StreamItem{
 		{
-			RunID: "run_1", Sequence: 1, Kind: StreamKindSubagentStarted, CreatedAt: now,
-			Payload: &SubagentStartedPayload{SubRunID: "sub_1", ParentID: "run_1", Depth: 1, Task: "analyze the codebase", ChildRunMode: "fork", WorkspaceMode: "worktree", ContextMessages: 2},
+			RunID: "run_1", Sequence: 1, Kind: stream.StreamKindSubagentStarted, CreatedAt: now,
+			Payload: &stream.SubagentStartedPayload{SubRunID: "sub_1", ParentID: "run_1", Depth: 1, Task: "analyze the codebase", ChildRunMode: "fork", WorkspaceMode: "worktree", ContextMessages: 2},
 		},
 		{
-			RunID: "run_1", Sequence: 2, Kind: StreamKindSubagentCompleted, CreatedAt: now,
-			Payload: &SubagentCompletedPayload{
+			RunID: "run_1", Sequence: 2, Kind: stream.StreamKindSubagentCompleted, CreatedAt: now,
+			Payload: &stream.SubagentCompletedPayload{
 				SubRunID:         "sub_1",
 				ParentID:         "run_1",
 				Summary:          "found 3 issues",
@@ -260,8 +261,8 @@ func TestSubagentStreamItemJSONRoundtrip(t *testing.T) {
 			},
 		},
 		{
-			RunID: "run_1", Sequence: 3, Kind: StreamKindSubagentFailed, CreatedAt: now,
-			Payload: &SubagentFailedPayload{
+			RunID: "run_1", Sequence: 3, Kind: stream.StreamKindSubagentFailed, CreatedAt: now,
+			Payload: &stream.SubagentFailedPayload{
 				SubRunID:         "sub_1",
 				ParentID:         "run_1",
 				Error:            "timeout",
@@ -279,7 +280,7 @@ func TestSubagentStreamItemJSONRoundtrip(t *testing.T) {
 				t.Fatalf("Marshal: %v", err)
 			}
 
-			var decoded StreamItem
+			var decoded stream.StreamItem
 			if err := json.Unmarshal(data, &decoded); err != nil {
 				t.Fatalf("Unmarshal: %v", err)
 			}
@@ -373,7 +374,7 @@ func TestSubagentExecuteJoinsEmitFailedError(t *testing.T) {
 	}
 
 	sinkCalls := 0
-	ctx := withStreamSink(context.Background(), func(item StreamItem) error {
+	ctx := stream.WithStreamSink(context.Background(), func(item stream.StreamItem) error {
 		sinkCalls++
 		if sinkCalls == 1 {
 			return nil
@@ -403,10 +404,10 @@ func TestSubagentExecuteJoinsEmitFailedError(t *testing.T) {
 func TestSubagentTraceSummary(t *testing.T) {
 	t.Parallel()
 
-	items := []StreamItem{
-		{Kind: StreamKindSubagentStarted},
-		{Kind: StreamKindSubagentCompleted},
-		{Kind: StreamKindSubagentFailed},
+	items := []stream.StreamItem{
+		{Kind: stream.StreamKindSubagentStarted},
+		{Kind: stream.StreamKindSubagentCompleted},
+		{Kind: stream.StreamKindSubagentFailed},
 	}
 
 	summary := summarizeStreamItems(items)
@@ -420,14 +421,14 @@ func TestSubagentEventRecordRoundtrip(t *testing.T) {
 
 	now := time.Date(2026, 4, 27, 12, 0, 0, 0, time.UTC)
 
-	original := StreamItem{
-		RunID: "run_rt", Sequence: 1, Kind: StreamKindSubagentStarted, CreatedAt: now,
-		Payload: &SubagentStartedPayload{SubRunID: "sub_1", ParentID: "run_rt", Depth: 1, Task: "inspect", ChildRunMode: "fork", WorkspaceMode: "worktree", ContextMessages: 2},
+	original := stream.StreamItem{
+		RunID: "run_rt", Sequence: 1, Kind: stream.StreamKindSubagentStarted, CreatedAt: now,
+		Payload: &stream.SubagentStartedPayload{SubRunID: "sub_1", ParentID: "run_rt", Depth: 1, Task: "inspect", ChildRunMode: "fork", WorkspaceMode: "worktree", ContextMessages: 2},
 	}
 
-	eventKind, payload, err := projectStreamItemToEvent(original)
+	eventKind, payload, err := stream.ProjectStreamItemToEvent(original)
 	if err != nil {
-		t.Fatalf("projectStreamItemToEvent: %v", err)
+		t.Fatalf("stream.ProjectStreamItemToEvent: %v", err)
 	}
 
 	event := events.EventRecord{
@@ -439,13 +440,13 @@ func TestSubagentEventRecordRoundtrip(t *testing.T) {
 	}
 
 	reconstructed := projectEventToStreamItem(event)
-	if reconstructed.Kind != StreamKindSubagentStarted {
-		t.Fatalf("reconstructed Kind = %q, want %q", reconstructed.Kind, StreamKindSubagentStarted)
+	if reconstructed.Kind != stream.StreamKindSubagentStarted {
+		t.Fatalf("reconstructed Kind = %q, want %q", reconstructed.Kind, stream.StreamKindSubagentStarted)
 	}
 
-	started, ok := reconstructed.Payload.(*SubagentStartedPayload)
+	started, ok := reconstructed.Payload.(*stream.SubagentStartedPayload)
 	if !ok {
-		t.Fatalf("Payload type = %T, want *SubagentStartedPayload", reconstructed.Payload)
+		t.Fatalf("Payload type = %T, want *stream.SubagentStartedPayload", reconstructed.Payload)
 	}
 	if started.SubRunID != "sub_1" {
 		t.Fatalf("SubRunID = %q, want %q", started.SubRunID, "sub_1")

@@ -12,6 +12,7 @@ import (
 	"github.com/ycvk/acorn/internal/providerusage"
 	"github.com/ycvk/acorn/internal/runtime"
 	"github.com/ycvk/acorn/internal/store"
+	"github.com/ycvk/acorn/internal/stream"
 	"github.com/ycvk/acorn/internal/workspace"
 )
 
@@ -175,8 +176,8 @@ func buildSubagentRuns(raw []events.EventRecord) []SubagentRun {
 		}
 		current := item[0]
 		switch current.Kind {
-		case runtime.StreamKindSubagentStarted:
-			payload, ok := current.Payload.(*runtime.SubagentStartedPayload)
+		case stream.StreamKindSubagentStarted:
+			payload, ok := current.Payload.(*stream.SubagentStartedPayload)
 			if !ok || strings.TrimSpace(payload.SubRunID) == "" {
 				continue
 			}
@@ -197,8 +198,8 @@ func buildSubagentRuns(raw []events.EventRecord) []SubagentRun {
 			}
 			byID[payload.SubRunID] = run
 			order = append(order, payload.SubRunID)
-		case runtime.StreamKindSubagentCompleted:
-			payload, ok := current.Payload.(*runtime.SubagentCompletedPayload)
+		case stream.StreamKindSubagentCompleted:
+			payload, ok := current.Payload.(*stream.SubagentCompletedPayload)
 			if !ok || strings.TrimSpace(payload.SubRunID) == "" {
 				continue
 			}
@@ -222,8 +223,8 @@ func buildSubagentRuns(raw []events.EventRecord) []SubagentRun {
 			run.EvidenceRefs = append([]string(nil), payload.EvidenceRefs...)
 			run.Summary = payload.Summary
 			run.UpdatedAt = current.CreatedAt
-		case runtime.StreamKindSubagentFailed:
-			payload, ok := current.Payload.(*runtime.SubagentFailedPayload)
+		case stream.StreamKindSubagentFailed:
+			payload, ok := current.Payload.(*stream.SubagentFailedPayload)
 			if !ok || strings.TrimSpace(payload.SubRunID) == "" {
 				continue
 			}

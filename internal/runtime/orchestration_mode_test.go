@@ -11,6 +11,7 @@ import (
 	"time"
 
 	storecore "github.com/ycvk/acorn/internal/store"
+	"github.com/ycvk/acorn/internal/stream"
 
 	"github.com/cloudwego/eino/adk"
 	einomodel "github.com/cloudwego/eino/components/model"
@@ -574,14 +575,14 @@ func TestSubagentExecuteUsesRealChildRunIDInEvents(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadEvents: %v", err)
 	}
-	var started *SubagentStartedPayload
-	var failed *SubagentFailedPayload
+	var started *stream.SubagentStartedPayload
+	var failed *stream.SubagentFailedPayload
 	for _, record := range raw {
 		item := projectEventToStreamItem(record)
 		switch payload := item.Payload.(type) {
-		case *SubagentStartedPayload:
+		case *stream.SubagentStartedPayload:
 			started = payload
-		case *SubagentFailedPayload:
+		case *stream.SubagentFailedPayload:
 			failed = payload
 		}
 	}

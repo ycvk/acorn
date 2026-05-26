@@ -7,6 +7,7 @@ import (
 
 	"github.com/ycvk/acorn/internal/config"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
+	"github.com/ycvk/acorn/internal/runtime"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/tooling"
 )
@@ -126,19 +127,15 @@ type liveMCPManager interface {
 	Statuses() []mcpprovider.ProviderStatus
 }
 
-type toolCatalogBuilder interface {
-	BuildCapabilitySpecs(ctx context.Context) ([]tooling.ToolSpec, error)
-}
-
 type CapabilitiesService struct {
 	cfg            *config.Config
 	skills         skillSnapshotStore
 	probeProviders providerStatusDoctor
+	catalogBuilder *runtime.RunnerFactory
 	liveManager    liveMCPManager
-	catalogBuilder toolCatalogBuilder
 }
 
-func NewCapabilitiesService(cfg *config.Config, skills skillSnapshotStore, probeProviders providerStatusDoctor, catalogBuilder toolCatalogBuilder) *CapabilitiesService {
+func NewCapabilitiesService(cfg *config.Config, skills skillSnapshotStore, probeProviders providerStatusDoctor, catalogBuilder *runtime.RunnerFactory) *CapabilitiesService {
 	return &CapabilitiesService{
 		cfg:            cfg,
 		skills:         skills,

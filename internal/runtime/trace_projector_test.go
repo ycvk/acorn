@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ycvk/acorn/internal/events"
+	"github.com/ycvk/acorn/internal/stream"
 )
 
 func TestBuildTraceProjectsAndSummarizesItems(t *testing.T) {
@@ -24,8 +25,8 @@ func TestBuildTraceProjectsAndSummarizesItems(t *testing.T) {
 	if trace.Summary == nil || trace.Summary.ItemCount != 3 {
 		t.Fatalf("unexpected summary: %#v", trace.Summary)
 	}
-	if trace.Summary.LastKind != StreamKindRunCompleted {
-		t.Fatalf("LastKind = %q, want %q", trace.Summary.LastKind, StreamKindRunCompleted)
+	if trace.Summary.LastKind != stream.StreamKindRunCompleted {
+		t.Fatalf("LastKind = %q, want %q", trace.Summary.LastKind, stream.StreamKindRunCompleted)
 	}
 }
 

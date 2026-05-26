@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/cloudwego/eino/schema"
+	"github.com/ycvk/acorn/internal/stream"
 )
 
 func TestMessageToMapPreservesToolContent(t *testing.T) {
@@ -12,13 +13,13 @@ func TestMessageToMapPreservesToolContent(t *testing.T) {
 		Role:    schema.Tool,
 		Content: strings.Repeat("a", 1200),
 	}
-	stream := streamMessageFromSchema(msg, "")
-	content := stream.Content
+	message := stream.StreamMessageFromSchema(msg, "")
+	content := message.Content
 	if len(content) != 1200 {
 		t.Fatalf("expected full tool content, got len=%d", len(content))
 	}
-	if len(stream.Meta) > 0 {
-		t.Fatalf("expected no meta, got %#v", stream.Meta)
+	if len(message.Meta) > 0 {
+		t.Fatalf("expected no meta, got %#v", message.Meta)
 	}
 }
 

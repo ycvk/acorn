@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/cloudwego/eino/adk"
 	einomodel "github.com/cloudwego/eino/components/model"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/ycvk/acorn/internal/contextplane"
 	"github.com/ycvk/acorn/internal/events"
+	"github.com/ycvk/acorn/internal/stream"
 )
 
 func (e *Executor) bootstrapContextSessionMessages(
@@ -85,4 +87,61 @@ func (e *Executor) bootstrapContextSessionMessages(
 	}
 	active.ContextSession = session
 	return input.Messages, nil
+}
+
+func EmitContextCompressedEvent(
+	ctx context.Context,
+	store EventAppender,
+	outcome contextplane.CompressionOutcome,
+) error {
+	if store == nil {
+		return nil
+	}
+	runID := strings.TrimSpace(CurrentRunID(ctx))
+	if runID == "" {
+		return nil
+	}
+	_, err := stream.AppendStreamItem(ctx, store, CurrentStreamSink(ctx), stream.StreamItem{
+		RunID:     runID,
+		Kind:      stream.StreamKindContextCompressed,
+		CreatedAt: time.Now().UTC(),
+		Payload: &stream.ContextCompressedPayload{ContextCompressed: &stream.StreamContextCompressed{
+			BoundaryID:     outcome.BoundaryID,
+			FirstIndex:     outcome.FirstIndex,
+			LastIndex:      outcome.LastIndex,
+			TokensBefore:   outcome.TokensBefore,
+			TokensAfter:    outcome.TokensAfter,
+			SummarySnippet: outcome.SummarySnippet,
+		}},
+	})
+	return err
+}
+
+func EmitContextPressureEvent(
+	ctx context.Context,
+	store EventAppender,
+	pressure contextplane.BudgetPressure,
+) error {
+	if store == nil {
+		return nil
+	}
+	runID := strings.TrimSpace(CurrentRunID(ctx))
+	if runID == "" {
+		return nil
+	}
+	_, err := stream.AppendStreamItem(ctx, store, CurrentStreamSink(ctx), stream.StreamItem{
+		RunID:     runID,
+		Kind:      stream.StreamKindContextPressure,
+		CreatedAt: time.Now().UTC(),
+		Payload: &stream.ContextPressurePayload{ContextPressure: &stream.StreamContextPressure{
+			State:                      string(pressure.State),
+			EstimatedInputTokens:       pressure.EstimatedInputTokens,
+			EffectiveWindowTokens:      pressure.EffectiveWindowTokens,
+			WarningThresholdTokens:     pressure.WarningThresholdTokens,
+			AutoCompactThresholdTokens: pressure.AutoCompactThresholdTokens,
+			BlockingThresholdTokens:    pressure.BlockingThresholdTokens,
+			PercentUsed:                pressure.PercentUsed,
+		}},
+	})
+	return err
 }

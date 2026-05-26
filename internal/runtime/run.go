@@ -21,6 +21,7 @@ import (
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
 	"github.com/ycvk/acorn/internal/runtimehistory"
 	"github.com/ycvk/acorn/internal/skills"
+	"github.com/ycvk/acorn/internal/stream"
 	"github.com/ycvk/acorn/internal/tooling"
 	"github.com/ycvk/acorn/internal/workingstate"
 	"github.com/ycvk/acorn/internal/workspace"
@@ -239,7 +240,7 @@ type RunContext struct {
 	ChildIDs []string // NOT []*RunContext — prevent GC leak (Oracle ruling)
 	Depth    int      // 0 for root
 	Budget   *RunBudget
-	Sink     StreamSink
+	Sink     stream.StreamSink
 
 	// finalizing is true during finishCollectedRun.
 	// Children in finalization phase are allowed to complete
@@ -477,7 +478,7 @@ type RunnerBuildRequest struct {
 	Input             string
 	SkillID           string
 	AllowedToolNames  []string
-	Sink              StreamSink
+	Sink              stream.StreamSink
 	ExcludedToolNames []string
 	InstructionSuffix string
 	OrchestrationMode events.OrchestrationMode

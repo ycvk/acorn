@@ -11,6 +11,7 @@ import (
 
 	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/orchestration"
+	"github.com/ycvk/acorn/internal/stream"
 )
 
 type assistantStreamingModel struct {
@@ -55,12 +56,12 @@ func TestStreamAssistantMessageEmitsDeltaItemsAndReturnsFinalMessage(t *testing.
 		schema.AssistantMessage("好", nil),
 	})
 	model := &assistantStreamingModel{stream: reader}
-	var items []StreamItem
+	var items []stream.StreamItem
 
 	result, err := streamAssistantMessage(context.Background(), model, []*schema.Message{schema.UserMessage("hi")}, assistantStreamOptions{
 		MessageID: "run_1:assistant:0",
 		RunID:     "run_1",
-		Sink: func(item StreamItem) error {
+		Sink: func(item stream.StreamItem) error {
 			items = append(items, item)
 			return nil
 		},
@@ -78,7 +79,7 @@ func TestStreamAssistantMessageEmitsDeltaItemsAndReturnsFinalMessage(t *testing.
 	if len(items) != 2 {
 		t.Fatalf("delta item count = %d, want 2", len(items))
 	}
-	if items[0].Kind != StreamKindAssistantDelta || items[1].Kind != StreamKindAssistantDelta {
+	if items[0].Kind != stream.StreamKindAssistantDelta || items[1].Kind != stream.StreamKindAssistantDelta {
 		t.Fatalf("unexpected kinds: %#v", items)
 	}
 	first := items[0].GetAssistantDelta()
@@ -95,26 +96,26 @@ func TestStreamAssistantMessageEmitsDeltaItemsAndReturnsFinalMessage(t *testing.
 }
 
 func TestSummarizeStreamItemsCountsAssistantDeltas(t *testing.T) {
-	items := []StreamItem{
+	items := []stream.StreamItem{
 		{
-			Kind: StreamKindAssistantDelta,
-			Payload: &AssistantDeltaPayload{AssistantDelta: &StreamAssistantDelta{
+			Kind: stream.StreamKindAssistantDelta,
+			Payload: &stream.AssistantDeltaPayload{AssistantDelta: &stream.StreamAssistantDelta{
 				MessageID: "run_1:assistant:0",
 				Sequence:  1,
 				Delta:     "你",
 			}},
 		},
 		{
-			Kind: StreamKindAssistantDelta,
-			Payload: &AssistantDeltaPayload{AssistantDelta: &StreamAssistantDelta{
+			Kind: stream.StreamKindAssistantDelta,
+			Payload: &stream.AssistantDeltaPayload{AssistantDelta: &stream.StreamAssistantDelta{
 				MessageID: "run_1:assistant:0",
 				Sequence:  2,
 				Delta:     " 好",
 			}},
 		},
 		{
-			Kind: StreamKindAssistantDelta,
-			Payload: &AssistantDeltaPayload{AssistantDelta: &StreamAssistantDelta{
+			Kind: stream.StreamKindAssistantDelta,
+			Payload: &stream.AssistantDeltaPayload{AssistantDelta: &stream.StreamAssistantDelta{
 				MessageID: "run_1:assistant:1",
 				Sequence:  1,
 				Delta:     "\n",
@@ -171,7 +172,7 @@ func TestStreamAssistantMessageAppendsDeltaWithoutLiveSink(t *testing.T) {
 	}
 	item := projectEventToStreamItem(appender.records[0])
 	delta := item.GetAssistantDelta()
-	if item.Kind != StreamKindAssistantDelta || delta == nil {
+	if item.Kind != stream.StreamKindAssistantDelta || delta == nil {
 		t.Fatalf("appended item = %#v, want assistant delta", item)
 	}
 	if delta.Delta != "Budget exhausted." || delta.Sequence != 1 {
@@ -187,8 +188,8 @@ func TestDirectAssistantStreamerPersistsAndSinksDeltas(t *testing.T) {
 	model := &assistantStreamingModel{stream: reader}
 	appender := &assistantStreamAppenderSpy{}
 	streamer := newDirectAssistantStreamer(appender)
-	var sinkItems []StreamItem
-	ctx := withStreamSink(context.Background(), func(item StreamItem) error {
+	var sinkItems []stream.StreamItem
+	ctx := stream.WithStreamSink(context.Background(), func(item stream.StreamItem) error {
 		sinkItems = append(sinkItems, item)
 		return nil
 	})
@@ -236,19 +237,19 @@ func orchestrationAssistantStreamRequestForTest(runID string, model *assistantSt
 
 func TestRunStateApplyStreamItemAppendsAssistantDelta(t *testing.T) {
 	var state runState
-	state.applyStreamItem(StreamItem{
-		Kind: StreamKindAssistantDelta,
-		Payload: &AssistantDeltaPayload{
-			AssistantDelta: &StreamAssistantDelta{
+	state.applyStreamItem(stream.StreamItem{
+		Kind: stream.StreamKindAssistantDelta,
+		Payload: &stream.AssistantDeltaPayload{
+			AssistantDelta: &stream.StreamAssistantDelta{
 				Delta:    "partial ",
 				Sequence: 1,
 			},
 		},
 	})
-	state.applyStreamItem(StreamItem{
-		Kind: StreamKindAssistantDelta,
-		Payload: &AssistantDeltaPayload{
-			AssistantDelta: &StreamAssistantDelta{
+	state.applyStreamItem(stream.StreamItem{
+		Kind: stream.StreamKindAssistantDelta,
+		Payload: &stream.AssistantDeltaPayload{
+			AssistantDelta: &stream.StreamAssistantDelta{
 				Delta:    "answer",
 				Sequence: 2,
 			},

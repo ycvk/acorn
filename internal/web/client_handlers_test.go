@@ -20,6 +20,7 @@ import (
 	"github.com/ycvk/acorn/internal/runtime"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/store"
+	"github.com/ycvk/acorn/internal/stream"
 	"github.com/ycvk/acorn/internal/web/runprojector"
 )
 
@@ -1460,7 +1461,7 @@ type clientResumeStub struct {
 	err    error
 }
 
-func (s *clientResumeStub) Resume(context.Context, string, runtime.StreamSink) (*runtime.Result, error) {
+func (s *clientResumeStub) Resume(context.Context, string, stream.StreamSink) (*runtime.Result, error) {
 	return s.result, s.err
 }
 

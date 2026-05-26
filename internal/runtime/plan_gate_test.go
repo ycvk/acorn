@@ -10,6 +10,7 @@ import (
 
 	"github.com/ycvk/acorn/internal/runtime/graph"
 	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
+	"github.com/ycvk/acorn/internal/stream"
 )
 
 func TestAgentGraphAlwaysRunsPlanNode(t *testing.T) {
@@ -71,11 +72,11 @@ func TestAgentGraphAlwaysRunsPlanNode(t *testing.T) {
 		t.Fatalf("LoadEvents: %v", err)
 	}
 	for _, record := range records {
-		if record.Kind == string(StreamKindPlanCreated) {
+		if record.Kind == string(stream.StreamKindPlanCreated) {
 			return
 		}
 	}
-	t.Fatalf("expected %s event", StreamKindPlanCreated)
+	t.Fatalf("expected %s event", stream.StreamKindPlanCreated)
 }
 
 func TestAgentGraphNoExistingPlanRunsPlanNode(t *testing.T) {
@@ -123,11 +124,11 @@ func TestAgentGraphNoExistingPlanRunsPlanNode(t *testing.T) {
 		t.Fatalf("LoadEvents: %v", err)
 	}
 	for _, record := range records {
-		if record.Kind == string(StreamKindPlanCreated) {
+		if record.Kind == string(stream.StreamKindPlanCreated) {
 			return
 		}
 	}
-	t.Fatalf("expected %s event when SOP matches are empty", StreamKindPlanCreated)
+	t.Fatalf("expected %s event when SOP matches are empty", stream.StreamKindPlanCreated)
 }
 
 func TestMemoryEvolutionFinalizationAppendsHistoryThenKeepsNormalPlanPath(t *testing.T) {
@@ -178,11 +179,11 @@ func TestMemoryEvolutionFinalizationAppendsHistoryThenKeepsNormalPlanPath(t *tes
 		t.Fatalf("LoadEvents second: %v", err)
 	}
 	for _, event := range events {
-		if event.Kind == string(StreamKindPlanCreated) {
+		if event.Kind == string(stream.StreamKindPlanCreated) {
 			return
 		}
 	}
-	t.Fatalf("expected second run to emit %s", StreamKindPlanCreated)
+	t.Fatalf("expected second run to emit %s", stream.StreamKindPlanCreated)
 }
 
 func saveCompletedPlan(t *testing.T, ctx context.Context, store *storesqlite.Store, runID string, sessionID string) {

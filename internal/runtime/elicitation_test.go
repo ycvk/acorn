@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/gob"
 	"testing"
+
+	"github.com/ycvk/acorn/internal/stream"
 )
 
 func TestElicitationInterruptStateGobRoundTrip(t *testing.T) {
@@ -27,17 +29,17 @@ func TestElicitationInterruptStateGobRoundTrip(t *testing.T) {
 
 func TestStreamKindElicitationAndSamplingConstants(t *testing.T) {
 	tests := []struct {
-		constant StreamItemKind
+		constant stream.StreamItemKind
 		want     string
 	}{
-		{StreamKindElicitationPending, "elicitation.pending"},
-		{StreamKindElicitationDecided, "elicitation.decided"},
-		{StreamKindSamplingStarted, "sampling.started"},
-		{StreamKindSamplingCompleted, "sampling.completed"},
-		{StreamKindSamplingFailed, "sampling.failed"},
+		{stream.StreamKindElicitationPending, "elicitation.pending"},
+		{stream.StreamKindElicitationDecided, "elicitation.decided"},
+		{stream.StreamKindSamplingStarted, "sampling.started"},
+		{stream.StreamKindSamplingCompleted, "sampling.completed"},
+		{stream.StreamKindSamplingFailed, "sampling.failed"},
 	}
 	for _, tt := range tests {
-		if tt.constant != StreamItemKind(tt.want) {
+		if tt.constant != stream.StreamItemKind(tt.want) {
 			t.Errorf("constant = %q, want %q", tt.constant, tt.want)
 		}
 	}
@@ -46,41 +48,41 @@ func TestStreamKindElicitationAndSamplingConstants(t *testing.T) {
 func TestProjectStreamItemToEventElicitationAndSamplingKinds(t *testing.T) {
 	tests := []struct {
 		name     string
-		kind     StreamItemKind
+		kind     stream.StreamItemKind
 		wantKind string
 	}{
-		{"elicitation pending maps to elicitation.pending", StreamKindElicitationPending, "elicitation.pending"},
-		{"elicitation decided maps to elicitation.decided", StreamKindElicitationDecided, "elicitation.decided"},
-		{"sampling started maps to sampling.started", StreamKindSamplingStarted, "sampling.started"},
-		{"sampling completed maps to sampling.completed", StreamKindSamplingCompleted, "sampling.completed"},
-		{"sampling failed maps to sampling.failed", StreamKindSamplingFailed, "sampling.failed"},
+		{"elicitation pending maps to elicitation.pending", stream.StreamKindElicitationPending, "elicitation.pending"},
+		{"elicitation decided maps to elicitation.decided", stream.StreamKindElicitationDecided, "elicitation.decided"},
+		{"sampling started maps to sampling.started", stream.StreamKindSamplingStarted, "sampling.started"},
+		{"sampling completed maps to sampling.completed", stream.StreamKindSamplingCompleted, "sampling.completed"},
+		{"sampling failed maps to sampling.failed", stream.StreamKindSamplingFailed, "sampling.failed"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			item := StreamItem{
+			item := stream.StreamItem{
 				Kind:    tt.kind,
-				Payload: &ElicitationPayload{},
+				Payload: &stream.ElicitationPayload{},
 			}
 			gotKind, _ := mustProjectStreamItemToEvent(t, item)
 			if gotKind != tt.wantKind {
-				t.Errorf("projectStreamItemToEvent(%q) kind = %q, want %q", tt.kind, gotKind, tt.wantKind)
+				t.Errorf("stream.ProjectStreamItemToEvent(%q) kind = %q, want %q", tt.kind, gotKind, tt.wantKind)
 			}
 		})
 	}
 }
 
 func TestElicitationPayloadFromStream(t *testing.T) {
-	t.Run("extracts typed ElicitationPayload", func(t *testing.T) {
-		item := StreamItem{
-			Kind: StreamKindElicitationPending,
-			Payload: ElicitationPayload{
+	t.Run("extracts typed stream.ElicitationPayload", func(t *testing.T) {
+		item := stream.StreamItem{
+			Kind: stream.StreamKindElicitationPending,
+			Payload: stream.ElicitationPayload{
 				ActionID: "action_123",
 				Message:  "Please approve this action",
 			},
 		}
-		p, err := ElicitationPayloadFromStream(item)
+		p, err := stream.ElicitationPayloadFromStream(item)
 		if err != nil {
-			t.Fatalf("ElicitationPayloadFromStream: %v", err)
+			t.Fatalf("stream.ElicitationPayloadFromStream: %v", err)
 		}
 		if p.ActionID != "action_123" {
 			t.Fatalf("ActionID = %q, want action_123", p.ActionID)
@@ -88,22 +90,22 @@ func TestElicitationPayloadFromStream(t *testing.T) {
 		if p.Message != "Please approve this action" {
 			t.Fatalf("Message = %q, want 'Please approve this action'", p.Message)
 		}
-		if p.StreamKind() != StreamKindElicitationPending {
-			t.Fatalf("StreamKind = %q, want %q", p.StreamKind(), StreamKindElicitationPending)
+		if p.StreamKind() != stream.StreamKindElicitationPending {
+			t.Fatalf("StreamKind = %q, want %q", p.StreamKind(), stream.StreamKindElicitationPending)
 		}
 	})
 
 	t.Run("extracts from pointer payload", func(t *testing.T) {
-		item := StreamItem{
-			Kind: StreamKindElicitationPending,
-			Payload: &ElicitationPayload{
+		item := stream.StreamItem{
+			Kind: stream.StreamKindElicitationPending,
+			Payload: &stream.ElicitationPayload{
 				ActionID: "action_456",
 				Message:  "Operator input needed",
 			},
 		}
-		p, err := ElicitationPayloadFromStream(item)
+		p, err := stream.ElicitationPayloadFromStream(item)
 		if err != nil {
-			t.Fatalf("ElicitationPayloadFromStream: %v", err)
+			t.Fatalf("stream.ElicitationPayloadFromStream: %v", err)
 		}
 		if p.ActionID != "action_456" {
 			t.Fatalf("ActionID = %q, want action_456", p.ActionID)
@@ -111,42 +113,42 @@ func TestElicitationPayloadFromStream(t *testing.T) {
 		if p.Message != "Operator input needed" {
 			t.Fatalf("Message = %q, want 'Operator input needed'", p.Message)
 		}
-		if p.StreamKind() != StreamKindElicitationPending {
-			t.Fatalf("StreamKind = %q, want %q", p.StreamKind(), StreamKindElicitationPending)
+		if p.StreamKind() != stream.StreamKindElicitationPending {
+			t.Fatalf("StreamKind = %q, want %q", p.StreamKind(), stream.StreamKindElicitationPending)
 		}
 	})
 
 	t.Run("preserves decided stream kind", func(t *testing.T) {
-		item := StreamItem{
-			Kind: StreamKindElicitationDecided,
-			Payload: &ElicitationPayload{
+		item := stream.StreamItem{
+			Kind: stream.StreamKindElicitationDecided,
+			Payload: &stream.ElicitationPayload{
 				ActionID: "action_789",
 				Message:  "Operator decided",
 			},
 		}
-		p, err := ElicitationPayloadFromStream(item)
+		p, err := stream.ElicitationPayloadFromStream(item)
 		if err != nil {
-			t.Fatalf("ElicitationPayloadFromStream: %v", err)
+			t.Fatalf("stream.ElicitationPayloadFromStream: %v", err)
 		}
-		if p.StreamKind() != StreamKindElicitationDecided {
-			t.Fatalf("StreamKind = %q, want %q", p.StreamKind(), StreamKindElicitationDecided)
+		if p.StreamKind() != stream.StreamKindElicitationDecided {
+			t.Fatalf("StreamKind = %q, want %q", p.StreamKind(), stream.StreamKindElicitationDecided)
 		}
 	})
 
 	t.Run("returns error for nil payload", func(t *testing.T) {
-		item := StreamItem{Kind: StreamKindElicitationPending}
-		_, err := ElicitationPayloadFromStream(item)
+		item := stream.StreamItem{Kind: stream.StreamKindElicitationPending}
+		_, err := stream.ElicitationPayloadFromStream(item)
 		if err == nil {
 			t.Fatal("expected error for nil payload")
 		}
 	})
 
 	t.Run("returns error for empty action_id", func(t *testing.T) {
-		item := StreamItem{
-			Kind:    StreamKindElicitationPending,
-			Payload: &ElicitationPayload{Message: "hello"},
+		item := stream.StreamItem{
+			Kind:    stream.StreamKindElicitationPending,
+			Payload: &stream.ElicitationPayload{Message: "hello"},
 		}
-		_, err := ElicitationPayloadFromStream(item)
+		_, err := stream.ElicitationPayloadFromStream(item)
 		if err == nil {
 			t.Fatal("expected error when action_id is empty")
 		}
@@ -154,18 +156,18 @@ func TestElicitationPayloadFromStream(t *testing.T) {
 }
 
 func TestSamplingPayloadFromStream(t *testing.T) {
-	t.Run("extracts typed SamplingPayload", func(t *testing.T) {
-		item := StreamItem{
-			Kind: StreamKindSamplingStarted,
-			Payload: SamplingPayload{
+	t.Run("extracts typed stream.SamplingPayload", func(t *testing.T) {
+		item := stream.StreamItem{
+			Kind: stream.StreamKindSamplingStarted,
+			Payload: stream.SamplingPayload{
 				RunID: "run_sampling_1",
 				Depth: 1,
 				Model: "gpt-4",
 			},
 		}
-		p, err := SamplingPayloadFromStream(item)
+		p, err := stream.SamplingPayloadFromStream(item)
 		if err != nil {
-			t.Fatalf("SamplingPayloadFromStream: %v", err)
+			t.Fatalf("stream.SamplingPayloadFromStream: %v", err)
 		}
 		if p.RunID != "run_sampling_1" {
 			t.Fatalf("RunID = %q, want run_sampling_1", p.RunID)
@@ -176,22 +178,22 @@ func TestSamplingPayloadFromStream(t *testing.T) {
 		if p.Model != "gpt-4" {
 			t.Fatalf("Model = %q, want gpt-4", p.Model)
 		}
-		if p.StreamKind() != StreamKindSamplingStarted {
-			t.Fatalf("StreamKind = %q, want %q", p.StreamKind(), StreamKindSamplingStarted)
+		if p.StreamKind() != stream.StreamKindSamplingStarted {
+			t.Fatalf("StreamKind = %q, want %q", p.StreamKind(), stream.StreamKindSamplingStarted)
 		}
 	})
 
 	t.Run("extracts from pointer payload", func(t *testing.T) {
-		item := StreamItem{
-			Kind: StreamKindSamplingStarted,
-			Payload: &SamplingPayload{
+		item := stream.StreamItem{
+			Kind: stream.StreamKindSamplingStarted,
+			Payload: &stream.SamplingPayload{
 				RunID: "run_789",
 				Depth: 2,
 			},
 		}
-		p, err := SamplingPayloadFromStream(item)
+		p, err := stream.SamplingPayloadFromStream(item)
 		if err != nil {
-			t.Fatalf("SamplingPayloadFromStream: %v", err)
+			t.Fatalf("stream.SamplingPayloadFromStream: %v", err)
 		}
 		if p.RunID != "run_789" {
 			t.Fatalf("RunID = %q, want run_789", p.RunID)
@@ -199,43 +201,43 @@ func TestSamplingPayloadFromStream(t *testing.T) {
 		if p.Depth != 2 {
 			t.Fatalf("Depth = %d, want 2", p.Depth)
 		}
-		if p.StreamKind() != StreamKindSamplingStarted {
-			t.Fatalf("StreamKind = %q, want %q", p.StreamKind(), StreamKindSamplingStarted)
+		if p.StreamKind() != stream.StreamKindSamplingStarted {
+			t.Fatalf("StreamKind = %q, want %q", p.StreamKind(), stream.StreamKindSamplingStarted)
 		}
 	})
 
 	t.Run("preserves completed stream kind", func(t *testing.T) {
-		item := StreamItem{
-			Kind: StreamKindSamplingCompleted,
-			Payload: &SamplingPayload{
+		item := stream.StreamItem{
+			Kind: stream.StreamKindSamplingCompleted,
+			Payload: &stream.SamplingPayload{
 				RunID: "run_sampling_3",
 				Depth: 2,
 				Model: "gpt-4",
 			},
 		}
-		p, err := SamplingPayloadFromStream(item)
+		p, err := stream.SamplingPayloadFromStream(item)
 		if err != nil {
-			t.Fatalf("SamplingPayloadFromStream: %v", err)
+			t.Fatalf("stream.SamplingPayloadFromStream: %v", err)
 		}
-		if p.StreamKind() != StreamKindSamplingCompleted {
-			t.Fatalf("StreamKind = %q, want %q", p.StreamKind(), StreamKindSamplingCompleted)
+		if p.StreamKind() != stream.StreamKindSamplingCompleted {
+			t.Fatalf("StreamKind = %q, want %q", p.StreamKind(), stream.StreamKindSamplingCompleted)
 		}
 	})
 
 	t.Run("returns error for nil payload", func(t *testing.T) {
-		item := StreamItem{Kind: StreamKindSamplingStarted}
-		_, err := SamplingPayloadFromStream(item)
+		item := stream.StreamItem{Kind: stream.StreamKindSamplingStarted}
+		_, err := stream.SamplingPayloadFromStream(item)
 		if err == nil {
 			t.Fatal("expected error for nil payload")
 		}
 	})
 
 	t.Run("returns error for empty run_id", func(t *testing.T) {
-		item := StreamItem{
-			Kind:    StreamKindSamplingStarted,
-			Payload: &SamplingPayload{Depth: 1},
+		item := stream.StreamItem{
+			Kind:    stream.StreamKindSamplingStarted,
+			Payload: &stream.SamplingPayload{Depth: 1},
 		}
-		_, err := SamplingPayloadFromStream(item)
+		_, err := stream.SamplingPayloadFromStream(item)
 		if err == nil {
 			t.Fatal("expected error when run_id is empty")
 		}

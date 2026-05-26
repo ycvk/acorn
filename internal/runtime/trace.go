@@ -15,38 +15,39 @@ import (
 	"github.com/ycvk/acorn/internal/orchestration"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/store"
+	"github.com/ycvk/acorn/internal/stream"
 	"github.com/ycvk/acorn/internal/workspace"
 )
 
 // --- Trace types ---
 
 type Trace struct {
-	Run     *events.RunRecord `json:"run,omitempty"`
-	Summary *TraceSummary     `json:"summary,omitempty"`
-	Items   []StreamItem      `json:"items,omitempty"`
+	Run     *events.RunRecord   `json:"run,omitempty"`
+	Summary *TraceSummary       `json:"summary,omitempty"`
+	Items   []stream.StreamItem `json:"items,omitempty"`
 }
 
 type TraceSummary struct {
-	ItemCount                  int            `json:"item_count"`
-	LastKind                   StreamItemKind `json:"last_kind,omitempty"`
-	AssistantMessageCount      int            `json:"assistant_message_count,omitempty"`
-	AssistantDeltaCount        int            `json:"assistant_delta_count,omitempty"`
-	AssistantDeltaMessageCount int            `json:"assistant_delta_message_count,omitempty"`
-	AssistantDeltaCharCount    int            `json:"assistant_delta_char_count,omitempty"`
-	ToolCallCount              int            `json:"tool_call_count,omitempty"`
-	DecisionEventCount         int            `json:"decision_event_count,omitempty"`
-	SkillEventCount            int            `json:"skill_event_count,omitempty"`
-	PlanEventCount             int            `json:"plan_event_count,omitempty"`
-	DecisionSelected           bool           `json:"decision_selected,omitempty"`
-	DecisionBlocked            bool           `json:"decision_blocked,omitempty"`
-	SkillSelected              bool           `json:"skill_selected,omitempty"`
-	Interrupted                bool           `json:"interrupted,omitempty"`
-	Failed                     bool           `json:"failed,omitempty"`
-	Completed                  bool           `json:"completed,omitempty"`
+	ItemCount                  int                   `json:"item_count"`
+	LastKind                   stream.StreamItemKind `json:"last_kind,omitempty"`
+	AssistantMessageCount      int                   `json:"assistant_message_count,omitempty"`
+	AssistantDeltaCount        int                   `json:"assistant_delta_count,omitempty"`
+	AssistantDeltaMessageCount int                   `json:"assistant_delta_message_count,omitempty"`
+	AssistantDeltaCharCount    int                   `json:"assistant_delta_char_count,omitempty"`
+	ToolCallCount              int                   `json:"tool_call_count,omitempty"`
+	DecisionEventCount         int                   `json:"decision_event_count,omitempty"`
+	SkillEventCount            int                   `json:"skill_event_count,omitempty"`
+	PlanEventCount             int                   `json:"plan_event_count,omitempty"`
+	DecisionSelected           bool                  `json:"decision_selected,omitempty"`
+	DecisionBlocked            bool                  `json:"decision_blocked,omitempty"`
+	SkillSelected              bool                  `json:"skill_selected,omitempty"`
+	Interrupted                bool                  `json:"interrupted,omitempty"`
+	Failed                     bool                  `json:"failed,omitempty"`
+	Completed                  bool                  `json:"completed,omitempty"`
 }
 
 func BuildTrace(run *events.RunRecord, raw []events.EventRecord) *Trace {
-	items := make([]StreamItem, 0, len(raw))
+	items := make([]stream.StreamItem, 0, len(raw))
 	for _, event := range raw {
 		items = append(items, projectEventToStreamItem(event))
 	}
@@ -54,24 +55,24 @@ func BuildTrace(run *events.RunRecord, raw []events.EventRecord) *Trace {
 }
 
 func BuildTraceSummary(raw []events.EventRecord) *TraceSummary {
-	items := make([]StreamItem, 0, len(raw))
+	items := make([]stream.StreamItem, 0, len(raw))
 	for _, event := range raw {
 		items = append(items, projectEventToStreamItem(event))
 	}
 	return summarizeStreamItems(items)
 }
 
-func LatestRootInterruptContexts(raw []events.EventRecord) ([]StreamInterruptContext, error) {
+func LatestRootInterruptContexts(raw []events.EventRecord) ([]stream.StreamInterruptContext, error) {
 	for i := len(raw) - 1; i >= 0; i-- {
 		item := projectEventToStreamItem(raw[i])
-		if item.Kind != StreamKindRunInterrupted {
+		if item.Kind != stream.StreamKindRunInterrupted {
 			continue
 		}
 		interrupt := item.GetInterrupt()
 		if interrupt == nil {
 			return nil, errors.New("run.interrupted payload missing interrupt")
 		}
-		contexts := make([]StreamInterruptContext, 0, len(interrupt.Contexts))
+		contexts := make([]stream.StreamInterruptContext, 0, len(interrupt.Contexts))
 		for _, ctx := range interrupt.Contexts {
 			if !ctx.IsRootCause {
 				continue
@@ -102,8 +103,8 @@ func LatestRootInterruptIDs(raw []events.EventRecord) ([]string, error) {
 	return ids, nil
 }
 
-func projectEventToStreamItem(event events.EventRecord) StreamItem {
-	item := StreamItem{RunID: event.RunID, Sequence: event.Sequence, CreatedAt: event.CreatedAt}
+func projectEventToStreamItem(event events.EventRecord) stream.StreamItem {
+	item := stream.StreamItem{RunID: event.RunID, Sequence: event.Sequence, CreatedAt: event.CreatedAt}
 
 	kind := eventKindToStreamKind(event.Kind)
 	item.Kind = kind
@@ -113,111 +114,111 @@ func projectEventToStreamItem(event events.EventRecord) StreamItem {
 		return item
 	}
 
-	payload, err := UnmarshalPayload(kind, data)
+	payload, err := stream.UnmarshalPayload(kind, data)
 	if err != nil {
 		return item
 	}
 	item.Payload = payload
 
 	switch p := payload.(type) {
-	case *ToolCallStartedPayload:
+	case *stream.ToolCallStartedPayload:
 		p.ToolCall = extractToolCallFromMergedPayload(event.Payload)
-	case *ToolCallProgressPayload:
+	case *stream.ToolCallProgressPayload:
 		p.ToolCall = extractToolCallProgressFromMergedPayload(event.Payload)
-	case *ToolCallSucceededPayload:
+	case *stream.ToolCallSucceededPayload:
 		p.ToolCall = extractToolCallFromMergedPayload(event.Payload)
-	case *ToolCallFailedPayload:
+	case *stream.ToolCallFailedPayload:
 		p.ToolCall = extractToolCallFromMergedPayload(event.Payload)
-	case *ToolCallInterruptedPayload:
+	case *stream.ToolCallInterruptedPayload:
 		p.ToolCall = extractToolCallFromMergedPayload(event.Payload)
 	}
 
 	return item
 }
 
-func eventKindToStreamKind(eventKind string) StreamItemKind {
+func eventKindToStreamKind(eventKind string) stream.StreamItemKind {
 	switch eventKind {
 	case "run.started":
-		return StreamKindRunStarted
+		return stream.StreamKindRunStarted
 	case "run.completed":
-		return StreamKindRunCompleted
+		return stream.StreamKindRunCompleted
 	case "run.failed":
-		return StreamKindRunFailed
+		return stream.StreamKindRunFailed
 	case "run.interrupted":
-		return StreamKindRunInterrupted
+		return stream.StreamKindRunInterrupted
 	case "run.resume_requested":
-		return StreamKindRunResumeRequested
+		return stream.StreamKindRunResumeRequested
 	case "decision_selected":
-		return StreamKindDecisionSelected
+		return stream.StreamKindDecisionSelected
 	case "decision_blocked":
-		return StreamKindDecisionBlocked
+		return stream.StreamKindDecisionBlocked
 	case "skill.discovered":
-		return StreamKindSkillDiscovered
+		return stream.StreamKindSkillDiscovered
 	case "skill.selected":
-		return StreamKindSkillSelected
+		return stream.StreamKindSkillSelected
 	case "skill.loaded":
-		return StreamKindSkillLoaded
+		return stream.StreamKindSkillLoaded
 	case "skill.failed":
-		return StreamKindSkillFailed
+		return stream.StreamKindSkillFailed
 	case "skill.lifecycle":
-		return StreamKindSkillLifecycle
+		return stream.StreamKindSkillLifecycle
 	case "memory.prepared":
-		return StreamKindMemoryPrepared
+		return stream.StreamKindMemoryPrepared
 	case "context.pressure":
-		return StreamKindContextPressure
+		return stream.StreamKindContextPressure
 	case "context.compressed":
-		return StreamKindContextCompressed
+		return stream.StreamKindContextCompressed
 	case "assistant.delta":
-		return StreamKindAssistantDelta
+		return stream.StreamKindAssistantDelta
 	case "stream.heartbeat":
-		return StreamKindHeartbeat
+		return stream.StreamKindHeartbeat
 	case "agent.message":
-		return StreamKindAssistantMessage
+		return stream.StreamKindAssistantMessage
 	case "tool.call.started":
-		return StreamKindToolCallStarted
+		return stream.StreamKindToolCallStarted
 	case "tool.call.progress":
-		return StreamKindToolCallProgress
+		return stream.StreamKindToolCallProgress
 	case "tool.call.succeeded":
-		return StreamKindToolCallSucceeded
+		return stream.StreamKindToolCallSucceeded
 	case "tool.call.failed":
-		return StreamKindToolCallFailed
+		return stream.StreamKindToolCallFailed
 	case "tool.call.interrupted":
-		return StreamKindToolCallInterrupted
+		return stream.StreamKindToolCallInterrupted
 	case "subagent.started":
-		return StreamKindSubagentStarted
+		return stream.StreamKindSubagentStarted
 	case "subagent.completed":
-		return StreamKindSubagentCompleted
+		return stream.StreamKindSubagentCompleted
 	case "subagent.failed":
-		return StreamKindSubagentFailed
+		return stream.StreamKindSubagentFailed
 	case "tool.parallel_batch.started":
-		return StreamKindToolParallelBatchStarted
+		return stream.StreamKindToolParallelBatchStarted
 	case "tool.parallel_batch.completed":
-		return StreamKindToolParallelBatchCompleted
+		return stream.StreamKindToolParallelBatchCompleted
 	case "run.archived":
-		return StreamKindRunArchived
+		return stream.StreamKindRunArchived
 	case "plan.created":
-		return StreamKindPlanCreated
+		return stream.StreamKindPlanCreated
 	case "plan.updated":
-		return StreamKindPlanUpdated
+		return stream.StreamKindPlanUpdated
 	case "plan.cleared":
-		return StreamKindPlanCleared
+		return stream.StreamKindPlanCleared
 	case "step.started":
-		return StreamKindStepStarted
+		return stream.StreamKindStepStarted
 	case "step.completed":
-		return StreamKindStepCompleted
+		return stream.StreamKindStepCompleted
 	case "step.failed":
-		return StreamKindStepFailed
+		return stream.StreamKindStepFailed
 	default:
-		return StreamItemKind(eventKind)
+		return stream.StreamItemKind(eventKind)
 	}
 }
 
-func extractToolCallFromMergedPayload(payload any) *StreamToolCall {
+func extractToolCallFromMergedPayload(payload any) *stream.StreamToolCall {
 	data, err := json.Marshal(payload)
 	if err != nil {
 		return nil
 	}
-	var tool StreamToolCall
+	var tool stream.StreamToolCall
 	if err := json.Unmarshal(data, &tool); err != nil {
 		return nil
 	}
@@ -234,12 +235,12 @@ func extractToolCallFromMergedPayload(payload any) *StreamToolCall {
 	return &tool
 }
 
-func extractToolCallProgressFromMergedPayload(payload any) *StreamToolCallProgress {
+func extractToolCallProgressFromMergedPayload(payload any) *stream.StreamToolCallProgress {
 	data, err := json.Marshal(payload)
 	if err != nil {
 		return nil
 	}
-	var tool StreamToolCallProgress
+	var tool stream.StreamToolCallProgress
 	if err := json.Unmarshal(data, &tool); err != nil {
 		return nil
 	}
@@ -256,13 +257,13 @@ func extractToolCallProgressFromMergedPayload(payload any) *StreamToolCallProgre
 	return &tool
 }
 
-func summarizeStreamItems(items []StreamItem) *TraceSummary {
+func summarizeStreamItems(items []stream.StreamItem) *TraceSummary {
 	summary := &TraceSummary{ItemCount: len(items)}
 	assistantDeltaMessageIDs := make(map[string]struct{})
 	for _, item := range items {
 		summary.LastKind = item.Kind
 		switch item.Kind {
-		case StreamKindAssistantDelta:
+		case stream.StreamKindAssistantDelta:
 			summary.AssistantDeltaCount++
 			if delta := item.GetAssistantDelta(); delta != nil {
 				summary.AssistantDeltaCharCount += len([]rune(delta.Delta))
@@ -271,30 +272,30 @@ func summarizeStreamItems(items []StreamItem) *TraceSummary {
 					assistantDeltaMessageIDs[messageID] = struct{}{}
 				}
 			}
-		case StreamKindAssistantMessage:
+		case stream.StreamKindAssistantMessage:
 			summary.AssistantMessageCount++
-		case StreamKindToolCallStarted, StreamKindToolCallSucceeded, StreamKindToolCallFailed, StreamKindToolCallInterrupted:
+		case stream.StreamKindToolCallStarted, stream.StreamKindToolCallSucceeded, stream.StreamKindToolCallFailed, stream.StreamKindToolCallInterrupted:
 			summary.ToolCallCount++
-		case StreamKindDecisionSelected, StreamKindDecisionBlocked:
+		case stream.StreamKindDecisionSelected, stream.StreamKindDecisionBlocked:
 			summary.DecisionEventCount++
-			if item.Kind == StreamKindDecisionSelected {
+			if item.Kind == stream.StreamKindDecisionSelected {
 				summary.DecisionSelected = true
 			}
-			if item.Kind == StreamKindDecisionBlocked {
+			if item.Kind == stream.StreamKindDecisionBlocked {
 				summary.DecisionBlocked = true
 			}
-		case StreamKindSkillDiscovered, StreamKindSkillSelected, StreamKindSkillLoaded, StreamKindSkillFailed, StreamKindSkillLifecycle:
+		case stream.StreamKindSkillDiscovered, stream.StreamKindSkillSelected, stream.StreamKindSkillLoaded, stream.StreamKindSkillFailed, stream.StreamKindSkillLifecycle:
 			summary.SkillEventCount++
-			if item.Kind == StreamKindSkillSelected {
+			if item.Kind == stream.StreamKindSkillSelected {
 				summary.SkillSelected = true
 			}
-		case StreamKindRunInterrupted:
+		case stream.StreamKindRunInterrupted:
 			summary.Interrupted = true
-		case StreamKindRunFailed:
+		case stream.StreamKindRunFailed:
 			summary.Failed = true
-		case StreamKindRunCompleted:
+		case stream.StreamKindRunCompleted:
 			summary.Completed = true
-		case StreamKindPlanCreated, StreamKindPlanUpdated, StreamKindPlanCleared, StreamKindStepStarted, StreamKindStepCompleted, StreamKindStepFailed:
+		case stream.StreamKindPlanCreated, stream.StreamKindPlanUpdated, stream.StreamKindPlanCleared, stream.StreamKindStepStarted, stream.StreamKindStepCompleted, stream.StreamKindStepFailed:
 			summary.PlanEventCount++
 		}
 	}
@@ -305,7 +306,7 @@ func summarizeStreamItems(items []StreamItem) *TraceSummary {
 func SelectedSkillFromEvents(raw []events.EventRecord) *SelectedSkill {
 	for i := len(raw) - 1; i >= 0; i-- {
 		item := projectEventToStreamItem(raw[i])
-		if (item.Kind != StreamKindSkillLoaded && item.Kind != StreamKindSkillSelected) || item.GetSkill() == nil {
+		if (item.Kind != stream.StreamKindSkillLoaded && item.Kind != stream.StreamKindSkillSelected) || item.GetSkill() == nil {
 			continue
 		}
 		skill := item.GetSkill()
@@ -403,7 +404,7 @@ func (se *SubagentExecutor) Execute(ctx context.Context, req orchestration.Child
 		return nil, errors.New("subagent executor store is not initialized")
 	}
 
-	sink := streamSinkFromContext(ctx)
+	sink := stream.StreamSinkFromContext(ctx)
 
 	subRunID := newRunID()
 	childSessionID := "delegate_" + subRunID
@@ -434,11 +435,11 @@ func (se *SubagentExecutor) Execute(ctx context.Context, req orchestration.Child
 		return nil, fmt.Errorf("prepare child session turn: %w", err)
 	}
 
-	if _, err := AppendStreamItem(ctx, se.store, sink, StreamItem{
+	if _, err := stream.AppendStreamItem(ctx, se.store, sink, stream.StreamItem{
 		RunID:     parentRunID,
-		Kind:      StreamKindSubagentStarted,
+		Kind:      stream.StreamKindSubagentStarted,
 		CreatedAt: time.Now().UTC(),
-		Payload: &SubagentStartedPayload{
+		Payload: &stream.SubagentStartedPayload{
 			SubRunID:          subRunID,
 			ParentID:          parentRunID,
 			SessionID:         childSessionID,
@@ -515,11 +516,11 @@ func (se *SubagentExecutor) Execute(ctx context.Context, req orchestration.Child
 	}
 	delegated.Acceptance = evaluateDelegationAcceptance(req, events.RunStatus(finalStatus), delegated.OutputSummary, delegated.EvidenceSummaries, planFailureReasons)
 
-	if _, err := AppendStreamItem(ctx, se.store, sink, StreamItem{
+	if _, err := stream.AppendStreamItem(ctx, se.store, sink, stream.StreamItem{
 		RunID:     parentRunID,
-		Kind:      StreamKindSubagentCompleted,
+		Kind:      stream.StreamKindSubagentCompleted,
 		CreatedAt: time.Now().UTC(),
-		Payload: &SubagentCompletedPayload{
+		Payload: &stream.SubagentCompletedPayload{
 			SubRunID:          subRunID,
 			ParentID:          parentRunID,
 			SessionID:         childSessionID,
@@ -540,15 +541,15 @@ func (se *SubagentExecutor) Execute(ctx context.Context, req orchestration.Child
 	return delegated, nil
 }
 
-func (se *SubagentExecutor) emitFailed(ctx context.Context, parentRunID, subRunID, childSessionID, parentStepID string, childRunMode orchestration.ChildRunMode, workspaceMode orchestration.ChildWorkspaceMode, worktreePath string, mode events.OrchestrationMode, errMsg string, sink StreamSink) error {
+func (se *SubagentExecutor) emitFailed(ctx context.Context, parentRunID, subRunID, childSessionID, parentStepID string, childRunMode orchestration.ChildRunMode, workspaceMode orchestration.ChildWorkspaceMode, worktreePath string, mode events.OrchestrationMode, errMsg string, sink stream.StreamSink) error {
 	if se == nil || se.store == nil {
 		return errors.New("emit subagent.failed: store is not initialized")
 	}
-	if _, err := AppendStreamItem(ctx, se.store, sink, StreamItem{
+	if _, err := stream.AppendStreamItem(ctx, se.store, sink, stream.StreamItem{
 		RunID:     parentRunID,
-		Kind:      StreamKindSubagentFailed,
+		Kind:      stream.StreamKindSubagentFailed,
 		CreatedAt: time.Now().UTC(),
-		Payload: &SubagentFailedPayload{
+		Payload: &stream.SubagentFailedPayload{
 			SubRunID:          subRunID,
 			ParentID:          parentRunID,
 			SessionID:         childSessionID,

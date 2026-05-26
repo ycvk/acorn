@@ -13,6 +13,7 @@ import (
 	"github.com/ycvk/acorn/internal/runtime"
 	"github.com/ycvk/acorn/internal/runtimehistory"
 	"github.com/ycvk/acorn/internal/store"
+	"github.com/ycvk/acorn/internal/stream"
 	"github.com/ycvk/acorn/internal/workspace"
 )
 
@@ -98,7 +99,7 @@ func (s *TraceService) InferResumeTargets(ctx context.Context, runID string) (ma
 	return targets, nil
 }
 
-func (s *TraceService) resumeTargetsForContext(ctx context.Context, runID string, interrupt runtime.StreamInterruptContext) (map[string]any, error) {
+func (s *TraceService) resumeTargetsForContext(ctx context.Context, runID string, interrupt stream.StreamInterruptContext) (map[string]any, error) {
 	switch kind := interruptInfoKind(interrupt.Info); kind {
 	case "", "run_command_pause":
 		return defaultTargets(interrupt.ID), nil
@@ -109,7 +110,7 @@ func (s *TraceService) resumeTargetsForContext(ctx context.Context, runID string
 	}
 }
 
-func (s *TraceService) operatorQuestionTargets(ctx context.Context, runID string, interrupt runtime.StreamInterruptContext) (map[string]any, error) {
+func (s *TraceService) operatorQuestionTargets(ctx context.Context, runID string, interrupt stream.StreamInterruptContext) (map[string]any, error) {
 	actionID := interruptInfoField(interrupt.Info, "action_id")
 	if actionID == "" {
 		return nil, fmt.Errorf("run %s interrupt %s operator_question is missing action_id", runID, interrupt.ID)

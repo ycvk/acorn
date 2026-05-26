@@ -17,6 +17,7 @@ import (
 	"github.com/ycvk/acorn/internal/runtimehistory"
 	"github.com/ycvk/acorn/internal/store"
 	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
+	"github.com/ycvk/acorn/internal/stream"
 	"github.com/ycvk/acorn/internal/workspace"
 )
 
@@ -56,10 +57,10 @@ func TestRuntimeWorkbenchServiceLoadAggregatesRuntimeTruth(t *testing.T) {
 			"run_1": {
 				{
 					RunID:     "run_1",
-					Kind:      string(runtime.StreamKindSubagentStarted),
+					Kind:      string(stream.StreamKindSubagentStarted),
 					Sequence:  1,
 					CreatedAt: now,
-					Payload: &runtime.SubagentStartedPayload{
+					Payload: &stream.SubagentStartedPayload{
 						SubRunID:          "sub_1",
 						ParentID:          "run_1",
 						SessionID:         "session_1",
@@ -75,10 +76,10 @@ func TestRuntimeWorkbenchServiceLoadAggregatesRuntimeTruth(t *testing.T) {
 				},
 				{
 					RunID:     "run_1",
-					Kind:      string(runtime.StreamKindSubagentCompleted),
+					Kind:      string(stream.StreamKindSubagentCompleted),
 					Sequence:  2,
 					CreatedAt: now.Add(time.Second),
-					Payload: &runtime.SubagentCompletedPayload{
+					Payload: &stream.SubagentCompletedPayload{
 						SubRunID:          "sub_1",
 						ParentID:          "run_1",
 						SessionID:         "session_1",
@@ -96,17 +97,17 @@ func TestRuntimeWorkbenchServiceLoadAggregatesRuntimeTruth(t *testing.T) {
 				},
 				{
 					RunID:     "run_1",
-					Kind:      string(runtime.StreamKindStepCompleted),
+					Kind:      string(stream.StreamKindStepCompleted),
 					Sequence:  3,
 					CreatedAt: now.Add(2 * time.Second),
-					Payload:   &runtime.PlanStepCompletedPayload{},
+					Payload:   &stream.PlanStepCompletedPayload{},
 				},
 				{
 					RunID:     "run_1",
 					Kind:      "context.pressure",
 					Sequence:  4,
 					CreatedAt: now.Add(3 * time.Second),
-					Payload: &runtime.ContextPressurePayload{ContextPressure: &runtime.StreamContextPressure{
+					Payload: &stream.ContextPressurePayload{ContextPressure: &stream.StreamContextPressure{
 						State:                 "warning",
 						EstimatedInputTokens:  12000,
 						EffectiveWindowTokens: 16000,
@@ -118,7 +119,7 @@ func TestRuntimeWorkbenchServiceLoadAggregatesRuntimeTruth(t *testing.T) {
 					Kind:      "context.compressed",
 					Sequence:  5,
 					CreatedAt: now.Add(4 * time.Second),
-					Payload: &runtime.ContextCompressedPayload{ContextCompressed: &runtime.StreamContextCompressed{
+					Payload: &stream.ContextCompressedPayload{ContextCompressed: &stream.StreamContextCompressed{
 						BoundaryID:     "boundary_1",
 						TokensBefore:   12000,
 						TokensAfter:    5000,
@@ -130,8 +131,8 @@ func TestRuntimeWorkbenchServiceLoadAggregatesRuntimeTruth(t *testing.T) {
 					Kind:      "memory.prepared",
 					Sequence:  6,
 					CreatedAt: now.Add(5 * time.Second),
-					Payload: &runtime.MemoryPreparedPayload{MemoryPrepared: &runtime.StreamMemoryPrepared{
-						Entries: []runtime.StreamMemoryPreparedEntry{{
+					Payload: &stream.MemoryPreparedPayload{MemoryPrepared: &stream.StreamMemoryPrepared{
+						Entries: []stream.StreamMemoryPreparedEntry{{
 							Ref:   "facts/context-economy.md#tool-results",
 							Kind:  "fact",
 							Title: "Tool result economy",
@@ -143,7 +144,7 @@ func TestRuntimeWorkbenchServiceLoadAggregatesRuntimeTruth(t *testing.T) {
 					Kind:      "procedure.activation",
 					Sequence:  7,
 					CreatedAt: now.Add(6 * time.Second),
-					Payload: &runtime.ProcedureActivationPayload{ProcedureActivation: &runtime.StreamProcedureActivation{
+					Payload: &stream.ProcedureActivationPayload{ProcedureActivation: &stream.StreamProcedureActivation{
 						ProcedureRef: "skills/learned/context-economy.md#projection",
 						Phase:        "injected",
 					}},

@@ -383,3 +383,49 @@ func cloneContextSessionMessages(messages []adk.Message) []adk.Message {
 func cloneContextSessionMessage(msg adk.Message) adk.Message {
 	return cloneMessage(msg)
 }
+
+func AnnotateMessageTurn(msg adk.Message, turnIndex int) adk.Message {
+	if msg == nil {
+		return msg
+	}
+	if msg.Extra == nil {
+		msg.Extra = make(map[string]any)
+	}
+	msg.Extra[turnIndexExtraKey] = turnIndex
+	return msg
+}
+
+// CompressionState tracks compression history within a single run so later
+// compressions can update the latest sanitized summary incrementally.
+type CompressionState struct {
+	LastSummary      string
+	CompressionCount int
+}
+
+// NewCompressionState creates a zero-value CompressionState.
+func NewCompressionState() *CompressionState {
+	return &CompressionState{}
+}
+
+// RecordCompression updates state after a successful compression.
+func (s *CompressionState) RecordCompression(summary string) {
+	s.LastSummary = summary
+	s.CompressionCount++
+}
+
+type contextSessionContextKey struct{}
+
+func WithContextSession(ctx context.Context, session ContextSession) context.Context {
+	return context.WithValue(ctx, contextSessionContextKey{}, session)
+}
+
+func ContextSessionFromContext(ctx context.Context) ContextSession {
+	if ctx == nil {
+		return nil
+	}
+	session, ok := ctx.Value(contextSessionContextKey{}).(ContextSession)
+	if !ok {
+		return nil
+	}
+	return session
+}

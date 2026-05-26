@@ -12,8 +12,8 @@ import (
 	"github.com/ycvk/acorn/internal/contextplane"
 	"github.com/ycvk/acorn/internal/providerusage"
 	"github.com/ycvk/acorn/internal/runtime/graph"
-	"github.com/ycvk/acorn/internal/runtime/stream"
 	"github.com/ycvk/acorn/internal/store"
+	"github.com/ycvk/acorn/internal/stream"
 )
 
 type PlanNode struct {
@@ -249,13 +249,13 @@ Do not split tool-result-dependent operations across steps. If a later tool call
 }
 
 func (n *PlanNode) emitPlanEvent(ctx context.Context, plan *Plan, update bool) error {
-	payload := StreamPayload(&PlanCreatedPayload{Plan: streamPlanFromDomain(plan)})
-	kind := StreamKindPlanCreated
+	payload := stream.StreamPayload(&stream.PlanCreatedPayload{Plan: streamPlanFromDomain(plan)})
+	kind := stream.StreamKindPlanCreated
 	if update {
-		kind = StreamKindPlanUpdated
-		payload = &PlanUpdatedPayload{Plan: streamPlanFromDomain(plan)}
+		kind = stream.StreamKindPlanUpdated
+		payload = &stream.PlanUpdatedPayload{Plan: streamPlanFromDomain(plan)}
 	}
-	if _, err := AppendStreamItem(ctx, n.eventStore, streamSinkFromContext(ctx), StreamItem{
+	if _, err := stream.AppendStreamItem(ctx, n.eventStore, stream.StreamSinkFromContext(ctx), stream.StreamItem{
 		RunID:     plan.RunID,
 		Kind:      kind,
 		CreatedAt: plan.UpdatedAt,

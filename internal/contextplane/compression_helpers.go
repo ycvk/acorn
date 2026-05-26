@@ -1,6 +1,7 @@
 package contextplane
 
 import (
+	"reflect"
 	"regexp"
 	"strings"
 
@@ -193,4 +194,17 @@ func extractKeyVariables(tail []adk.Message) string {
 		return "none"
 	}
 	return strings.Join(parts, "; ")
+}
+
+func isNilInterface(value any) bool {
+	if value == nil {
+		return true
+	}
+	v := reflect.ValueOf(value)
+	switch v.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Ptr, reflect.Slice:
+		return v.IsNil()
+	default:
+		return false
+	}
 }

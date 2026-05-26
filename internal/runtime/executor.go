@@ -19,6 +19,7 @@ import (
 	"github.com/ycvk/acorn/internal/memorymodule"
 	"github.com/ycvk/acorn/internal/runtimehistory"
 	"github.com/ycvk/acorn/internal/store"
+	"github.com/ycvk/acorn/internal/stream"
 )
 
 type Result struct {
@@ -147,7 +148,7 @@ func (e *Executor) traceSummary(ctx context.Context, runID string) (*TraceSummar
 	return BuildTraceSummary(items), nil
 }
 
-func (e *Executor) failRunSetup(ctx context.Context, runID string, setupErr error, sink StreamSink) error {
+func (e *Executor) failRunSetup(ctx context.Context, runID string, setupErr error, sink stream.StreamSink) error {
 	if e == nil || e.store == nil || strings.TrimSpace(runID) == "" || setupErr == nil {
 		return setupErr
 	}
@@ -158,7 +159,7 @@ func (e *Executor) failRunSetup(ctx context.Context, runID string, setupErr erro
 	return e.store.FinishRunContext(durableCtx, runID, events.RunStatusFailed, "", setupErr.Error())
 }
 
-func (e *Executor) recordFinalizationFailure(ctx context.Context, runID, output string, finalizationErr error, sink StreamSink) error {
+func (e *Executor) recordFinalizationFailure(ctx context.Context, runID, output string, finalizationErr error, sink stream.StreamSink) error {
 	if e == nil || e.store == nil {
 		return finalizationErr
 	}
@@ -178,15 +179,15 @@ func (e *Executor) recordFinalizationFailure(ctx context.Context, runID, output 
 	return errors.Join(errs...)
 }
 
-func (e *Executor) verifyAndRecordSkill(ctx context.Context, runID string, selected *SelectedSkill, status events.RunStatus, output string, sink StreamSink) error {
+func (e *Executor) verifyAndRecordSkill(ctx context.Context, runID string, selected *SelectedSkill, status events.RunStatus, output string, sink stream.StreamSink) error {
 	_ = ctx
 	if e == nil || e.store == nil || selected == nil || strings.TrimSpace(runID) == "" || status != events.RunStatusFailed {
 		return nil
 	}
-	_, err := AppendStreamItem(ctx, e.store, sink, StreamItem{
+	_, err := stream.AppendStreamItem(ctx, e.store, sink, stream.StreamItem{
 		RunID: runID,
-		Kind:  StreamKindSkillFailed,
-		Payload: &SkillFailedPayload{Skill: &StreamSkill{
+		Kind:  stream.StreamKindSkillFailed,
+		Payload: &stream.SkillFailedPayload{Skill: &stream.StreamSkill{
 			SelectedID:    selected.Skill.ID,
 			Name:          selected.Skill.Name,
 			Source:        selected.Skill.Source,
@@ -219,7 +220,7 @@ type runState struct {
 	emittedRunFailed bool
 }
 
-func (e *Executor) consume(ctx context.Context, runID, input string, iter *adk.AsyncIterator[*adk.AgentEvent], selectedSkill *SelectedSkill, sink StreamSink, chatModel einomodel.BaseChatModel) (*Result, error) {
+func (e *Executor) consume(ctx context.Context, runID, input string, iter *adk.AsyncIterator[*adk.AgentEvent], selectedSkill *SelectedSkill, sink stream.StreamSink, chatModel einomodel.BaseChatModel) (*Result, error) {
 	state, err := e.collectRunState(ctx, runID, iter, sink, chatModel)
 	if err != nil {
 		return nil, err
@@ -233,30 +234,30 @@ func (e *Executor) consume(ctx context.Context, runID, input string, iter *adk.A
 	return e.finishCollectedRun(ctx, runID, input, state, selectedSkill, sink)
 }
 
-func (e *Executor) collectRunState(ctx context.Context, runID string, iter *adk.AsyncIterator[*adk.AgentEvent], sink StreamSink, chatModel einomodel.BaseChatModel) (runState, error) {
+func (e *Executor) collectRunState(ctx context.Context, runID string, iter *adk.AsyncIterator[*adk.AgentEvent], sink stream.StreamSink, chatModel einomodel.BaseChatModel) (runState, error) {
 	state := runState{}
 	for {
 		event, ok := iter.Next()
 		if !ok {
 			return state, nil
 		}
-		if err := e.applyAgentEvent(ctx, runID, StreamItemsFromAgentEvent(event, chatModel), sink, &state); err != nil {
+		if err := e.applyAgentEvent(ctx, runID, stream.StreamItemsFromAgentEvent(event, chatModel), sink, &state); err != nil {
 			return runState{}, err
 		}
 	}
 }
 
-func (e *Executor) prepareSkillExecution(ctx context.Context, runID string, selected *SelectedSkill, downstreamSink StreamSink) (StreamSink, error) {
+func (e *Executor) prepareSkillExecution(ctx context.Context, runID string, selected *SelectedSkill, downstreamSink stream.StreamSink) (stream.StreamSink, error) {
 	_ = ctx
 	_ = runID
 	_ = selected
 	return downstreamSink, nil
 }
 
-func (e *Executor) applyAgentEvent(ctx context.Context, runID string, items []StreamItem, sink StreamSink, state *runState) error {
+func (e *Executor) applyAgentEvent(ctx context.Context, runID string, items []stream.StreamItem, sink stream.StreamSink, state *runState) error {
 	for _, item := range items {
 		item.RunID = runID
-		if _, err := AppendStreamItem(ctx, e.store, sink, item); err != nil {
+		if _, err := stream.AppendStreamItem(ctx, e.store, sink, item); err != nil {
 			return err
 		}
 		state.applyStreamItem(item)
@@ -264,7 +265,7 @@ func (e *Executor) applyAgentEvent(ctx context.Context, runID string, items []St
 	return nil
 }
 
-func (s *runState) applyStreamItem(item StreamItem) {
+func (s *runState) applyStreamItem(item stream.StreamItem) {
 	if delta := item.GetAssistantDelta(); delta != nil {
 		s.lastOutput += delta.Delta
 	}
@@ -274,13 +275,13 @@ func (s *runState) applyStreamItem(item StreamItem) {
 	if interrupt := item.GetInterrupt(); interrupt != nil {
 		s.interrupt = InterruptPayloadFromStream(interrupt)
 	}
-	if item.Kind == StreamKindRunFailed && item.GetError() != "" {
+	if item.Kind == stream.StreamKindRunFailed && item.GetError() != "" {
 		s.failure = errors.New(item.GetError())
 		s.emittedRunFailed = true
 	}
 }
 
-func (e *Executor) Run(ctx context.Context, input, skillID string, sink StreamSink) (*Result, error) {
+func (e *Executor) Run(ctx context.Context, input, skillID string, sink stream.StreamSink) (*Result, error) {
 	sessionID := newSessionID()
 	title, _ := compactText(input, 48)
 	turnIndex, err := e.store.CreateFreshSessionTurn(ctx, sessionID, title, input)
@@ -296,7 +297,7 @@ func (e *Executor) Run(ctx context.Context, input, skillID string, sink StreamSi
 	}, sink)
 }
 
-func (e *Executor) ExecuteMessages(ctx context.Context, req ExecuteRequest, sink StreamSink) (*Result, error) {
+func (e *Executor) ExecuteMessages(ctx context.Context, req ExecuteRequest, sink stream.StreamSink) (*Result, error) {
 	if e == nil || e.runBuilder == nil || e.store == nil {
 		return nil, errors.New("executor is not initialized")
 	}
@@ -376,7 +377,7 @@ func (e *Executor) ExecuteMessages(ctx context.Context, req ExecuteRequest, sink
 	return e.consume(ctx, runID, req.Input, iter, active.SelectedSkill, executionSink, active.ChatModel)
 }
 
-func (e *Executor) ResumeWithTargets(ctx context.Context, runID string, targets map[string]any, sink StreamSink) (*Result, error) {
+func (e *Executor) ResumeWithTargets(ctx context.Context, runID string, targets map[string]any, sink stream.StreamSink) (*Result, error) {
 	if e == nil || e.runBuilder == nil || e.store == nil {
 		return nil, errors.New("executor is not initialized")
 	}
@@ -464,21 +465,21 @@ func (e *Executor) newManagedRunContext(ctx context.Context, runID string) (cont
 	}
 }
 
-func buildExecutionContext(runCtxBase context.Context, runID, sessionID string, turnIndex int, sink StreamSink) context.Context {
+func buildExecutionContext(runCtxBase context.Context, runID, sessionID string, turnIndex int, sink stream.StreamSink) context.Context {
 	runCtx := withRunID(runCtxBase, runID)
 	runCtx = WithSessionID(runCtx, sessionID)
 	runCtx = withTurnIndex(runCtx, turnIndex)
-	return withStreamSink(runCtx, sink)
+	return stream.WithStreamSink(runCtx, sink)
 }
 
-func (e *Executor) emitLifecyclePayload(ctx context.Context, runID string, sink StreamSink, payload StreamPayload) error {
+func (e *Executor) emitLifecyclePayload(ctx context.Context, runID string, sink stream.StreamSink, payload stream.StreamPayload) error {
 	if e == nil || e.store == nil {
 		return errors.New("executor store is nil")
 	}
 	if payload == nil {
 		return errors.New("lifecycle payload is nil")
 	}
-	_, err := AppendStreamItem(ctx, e.store, sink, StreamItem{
+	_, err := stream.AppendStreamItem(ctx, e.store, sink, stream.StreamItem{
 		RunID:     runID,
 		Kind:      payload.StreamKind(),
 		CreatedAt: time.Now().UTC(),
@@ -487,28 +488,28 @@ func (e *Executor) emitLifecyclePayload(ctx context.Context, runID string, sink 
 	return err
 }
 
-func (e *Executor) emitRunStarted(ctx context.Context, runID, input string, sink StreamSink) error {
-	return e.emitLifecyclePayload(ctx, runID, sink, &RunStartedPayload{Input: input})
+func (e *Executor) emitRunStarted(ctx context.Context, runID, input string, sink stream.StreamSink) error {
+	return e.emitLifecyclePayload(ctx, runID, sink, &stream.RunStartedPayload{Input: input})
 }
 
-func (e *Executor) emitRunResumeRequested(ctx context.Context, runID string, targets map[string]any, sink StreamSink) error {
-	return e.emitLifecyclePayload(ctx, runID, sink, &RunResumeRequestedPayload{Targets: targets})
+func (e *Executor) emitRunResumeRequested(ctx context.Context, runID string, targets map[string]any, sink stream.StreamSink) error {
+	return e.emitLifecyclePayload(ctx, runID, sink, &stream.RunResumeRequestedPayload{Targets: targets})
 }
 
-func (e *Executor) emitRunCompleted(ctx context.Context, runID, output string, sink StreamSink) error {
-	return e.emitLifecyclePayload(ctx, runID, sink, &RunCompletedPayload{
-		Message: &StreamMessage{
+func (e *Executor) emitRunCompleted(ctx context.Context, runID, output string, sink stream.StreamSink) error {
+	return e.emitLifecyclePayload(ctx, runID, sink, &stream.RunCompletedPayload{
+		Message: &stream.StreamMessage{
 			Role:    string(schema.Assistant),
 			Content: output,
 		},
 	})
 }
 
-func (e *Executor) emitRunFailed(ctx context.Context, runID string, sink StreamSink, message string) error {
-	return e.emitLifecyclePayload(ctx, runID, sink, &RunFailedPayload{Error: message})
+func (e *Executor) emitRunFailed(ctx context.Context, runID string, sink stream.StreamSink, message string) error {
+	return e.emitLifecyclePayload(ctx, runID, sink, &stream.RunFailedPayload{Error: message})
 }
 
-func (e *Executor) finishCollectedRun(ctx context.Context, runID, input string, state runState, selectedSkill *SelectedSkill, sink StreamSink) (*Result, error) {
+func (e *Executor) finishCollectedRun(ctx context.Context, runID, input string, state runState, selectedSkill *SelectedSkill, sink stream.StreamSink) (*Result, error) {
 	switch {
 	case state.failure != nil:
 		return e.finishFailedRun(ctx, runID, input, state, selectedSkill, sink)
@@ -519,7 +520,7 @@ func (e *Executor) finishCollectedRun(ctx context.Context, runID, input string, 
 	}
 }
 
-func (e *Executor) finishFailedRun(ctx context.Context, runID, input string, state runState, selectedSkill *SelectedSkill, sink StreamSink) (*Result, error) {
+func (e *Executor) finishFailedRun(ctx context.Context, runID, input string, state runState, selectedSkill *SelectedSkill, sink stream.StreamSink) (*Result, error) {
 	durableCtx := DurableContext(ctx)
 	if !state.emittedRunFailed && state.failure != nil {
 		if err := e.emitRunFailed(durableCtx, runID, sink, state.failure.Error()); err != nil {
@@ -566,7 +567,7 @@ func (e *Executor) finishInterruptedRun(ctx context.Context, runID string, state
 	}, nil
 }
 
-func (e *Executor) finishSucceededRun(ctx context.Context, runID, input string, state runState, selectedSkill *SelectedSkill, sink StreamSink) (*Result, error) {
+func (e *Executor) finishSucceededRun(ctx context.Context, runID, input string, state runState, selectedSkill *SelectedSkill, sink stream.StreamSink) (*Result, error) {
 	durableCtx := DurableContext(ctx)
 	if err := e.store.UpdateRunOutputContext(durableCtx, runID, state.lastOutput); err != nil {
 		return nil, err
@@ -697,7 +698,7 @@ func (e *Executor) archiveRun(ctx context.Context, runID string, runStatus event
 	return nil
 }
 
-func (e *Executor) runCrystallization(ctx context.Context, runID, input, output string, selectedSkill *SelectedSkill, sink StreamSink) error {
+func (e *Executor) runCrystallization(ctx context.Context, runID, input, output string, selectedSkill *SelectedSkill, sink stream.StreamSink) error {
 	if e == nil || e.crystallizer == nil {
 		return nil
 	}
@@ -757,17 +758,17 @@ func crystallizationEvidenceRefs(records []store.ToolResultRecord) []string {
 	return refs
 }
 
-func (e *Executor) emitCrystallizationFailed(ctx context.Context, runID string, err error, sink StreamSink) error {
+func (e *Executor) emitCrystallizationFailed(ctx context.Context, runID string, err error, sink stream.StreamSink) error {
 	if e == nil {
 		return errors.New("executor is nil")
 	}
 	if e.store == nil {
 		return errors.New("executor store is nil")
 	}
-	_, appendErr := AppendStreamItem(ctx, e.store, sink, StreamItem{
+	_, appendErr := stream.AppendStreamItem(ctx, e.store, sink, stream.StreamItem{
 		RunID: runID,
-		Kind:  StreamKindCrystallizationFailed,
-		Payload: &CrystallizationFailedPayload{
+		Kind:  stream.StreamKindCrystallizationFailed,
+		Payload: &stream.CrystallizationFailedPayload{
 			RunID: runID,
 			Error: err.Error(),
 		},
@@ -775,17 +776,17 @@ func (e *Executor) emitCrystallizationFailed(ctx context.Context, runID string, 
 	return appendErr
 }
 
-func (e *Executor) emitCrystallizationVerdict(ctx context.Context, runID string, res *crystallization.CrystallizationResult, sink StreamSink) error {
+func (e *Executor) emitCrystallizationVerdict(ctx context.Context, runID string, res *crystallization.CrystallizationResult, sink stream.StreamSink) error {
 	if e == nil {
 		return errors.New("executor is nil")
 	}
 	if e.store == nil {
 		return errors.New("executor store is nil")
 	}
-	_, appendErr := AppendStreamItem(ctx, e.store, sink, StreamItem{
+	_, appendErr := stream.AppendStreamItem(ctx, e.store, sink, stream.StreamItem{
 		RunID: runID,
-		Kind:  StreamKindCrystallizationVerdict,
-		Payload: &CrystallizationVerdictPayload{
+		Kind:  stream.StreamKindCrystallizationVerdict,
+		Payload: &stream.CrystallizationVerdictPayload{
 			RunID:     runID,
 			Verdict:   string(res.Verdict),
 			SkillID:   res.SkillID,

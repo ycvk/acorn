@@ -14,6 +14,7 @@ import (
 	"github.com/ycvk/acorn/internal/providerusage"
 	"github.com/ycvk/acorn/internal/runtime/graph"
 	"github.com/ycvk/acorn/internal/store"
+	"github.com/ycvk/acorn/internal/stream"
 	"github.com/ycvk/acorn/internal/tooling"
 )
 
@@ -460,11 +461,11 @@ func (n *ActNode) emitStepStarted(ctx context.Context, plan *Plan, step PlanStep
 	if n.eventStore == nil {
 		return nil
 	}
-	_, err := AppendStreamItem(ctx, n.eventStore, streamSinkFromContext(ctx), StreamItem{
+	_, err := stream.AppendStreamItem(ctx, n.eventStore, stream.StreamSinkFromContext(ctx), stream.StreamItem{
 		RunID:     plan.RunID,
-		Kind:      StreamKindStepStarted,
+		Kind:      stream.StreamKindStepStarted,
 		CreatedAt: plan.UpdatedAt,
-		Payload:   &PlanStepStartedPayload{PlanStepPayload: streamStepPayloadFromPlan(plan, step)},
+		Payload:   &stream.PlanStepStartedPayload{PlanStepPayload: streamStepPayloadFromPlan(plan, step)},
 	})
 	if err != nil {
 		return fmt.Errorf("append step.started event: %w", err)
@@ -476,11 +477,11 @@ func (n *ActNode) emitStepCompleted(ctx context.Context, plan *Plan, step PlanSt
 	if n.eventStore == nil {
 		return nil
 	}
-	_, err := AppendStreamItem(ctx, n.eventStore, streamSinkFromContext(ctx), StreamItem{
+	_, err := stream.AppendStreamItem(ctx, n.eventStore, stream.StreamSinkFromContext(ctx), stream.StreamItem{
 		RunID:     plan.RunID,
-		Kind:      StreamKindStepCompleted,
+		Kind:      stream.StreamKindStepCompleted,
 		CreatedAt: plan.UpdatedAt,
-		Payload:   &PlanStepCompletedPayload{PlanStepPayload: streamStepPayloadFromPlan(plan, step)},
+		Payload:   &stream.PlanStepCompletedPayload{PlanStepPayload: streamStepPayloadFromPlan(plan, step)},
 	})
 	if err != nil {
 		return fmt.Errorf("append step.completed event: %w", err)
@@ -492,11 +493,11 @@ func (n *ActNode) emitStepFailed(ctx context.Context, plan *Plan, step PlanStep,
 	if n.eventStore == nil {
 		return nil
 	}
-	_, err := AppendStreamItem(ctx, n.eventStore, streamSinkFromContext(ctx), StreamItem{
+	_, err := stream.AppendStreamItem(ctx, n.eventStore, stream.StreamSinkFromContext(ctx), stream.StreamItem{
 		RunID:     plan.RunID,
-		Kind:      StreamKindStepFailed,
+		Kind:      stream.StreamKindStepFailed,
 		CreatedAt: plan.UpdatedAt,
-		Payload: &PlanStepFailedPayload{
+		Payload: &stream.PlanStepFailedPayload{
 			PlanStepPayload: streamStepPayloadFromPlan(plan, step),
 			Error:           reason,
 		},

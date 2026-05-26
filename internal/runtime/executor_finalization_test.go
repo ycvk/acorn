@@ -13,6 +13,7 @@ import (
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/events"
 	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
+	"github.com/ycvk/acorn/internal/stream"
 )
 
 func TestFinishCollectedRunSuccessSummaryIncludesTerminalEvent(t *testing.T) {
@@ -31,8 +32,8 @@ func TestFinishCollectedRunSuccessSummaryIncludesTerminalEvent(t *testing.T) {
 	if !result.TraceSummary.Completed {
 		t.Fatalf("TraceSummary.Completed = false, want true")
 	}
-	if result.TraceSummary.LastKind != StreamKindRunCompleted {
-		t.Fatalf("TraceSummary.LastKind = %q, want %q", result.TraceSummary.LastKind, StreamKindRunCompleted)
+	if result.TraceSummary.LastKind != stream.StreamKindRunCompleted {
+		t.Fatalf("TraceSummary.LastKind = %q, want %q", result.TraceSummary.LastKind, stream.StreamKindRunCompleted)
 	}
 
 	messages, err := store.ListSessionMessagesByRunID(ctx, runID)
@@ -92,8 +93,8 @@ func TestFinishCollectedRunArchiveFailureMarksRunFailed(t *testing.T) {
 	if trace.Summary == nil || !trace.Summary.Failed {
 		t.Fatalf("trace summary = %#v, want failed summary", trace.Summary)
 	}
-	if trace.Summary.LastKind != StreamKindRunFailed {
-		t.Fatalf("last kind = %q, want %q", trace.Summary.LastKind, StreamKindRunFailed)
+	if trace.Summary.LastKind != stream.StreamKindRunFailed {
+		t.Fatalf("last kind = %q, want %q", trace.Summary.LastKind, stream.StreamKindRunFailed)
 	}
 }
 
@@ -166,7 +167,7 @@ func createFinalizationRun(t *testing.T, ctx context.Context, store *storesqlite
 		if err := store.CreateBoundRun(ctx, runID, "", 0, input, runID); err != nil {
 			t.Fatalf("CreateBoundRun: %v", err)
 		}
-		if _, err := AppendStreamItem(ctx, store, nil, StreamItem{RunID: runID, Kind: StreamKindRunStarted, Payload: &RunStartedPayload{Input: input}}); err != nil {
+		if _, err := stream.AppendStreamItem(ctx, store, nil, stream.StreamItem{RunID: runID, Kind: stream.StreamKindRunStarted, Payload: &stream.RunStartedPayload{Input: input}}); err != nil {
 			t.Fatalf("append run_started: %v", err)
 		}
 		return runID
@@ -181,7 +182,7 @@ func createFinalizationRun(t *testing.T, ctx context.Context, store *storesqlite
 	if err := store.CreateBoundRun(ctx, runID, sessionID, turnIndex, input, runID); err != nil {
 		t.Fatalf("CreateBoundRun: %v", err)
 	}
-	if _, err := AppendStreamItem(ctx, store, nil, StreamItem{RunID: runID, Kind: StreamKindRunStarted, Payload: &RunStartedPayload{Input: input}}); err != nil {
+	if _, err := stream.AppendStreamItem(ctx, store, nil, stream.StreamItem{RunID: runID, Kind: stream.StreamKindRunStarted, Payload: &stream.RunStartedPayload{Input: input}}); err != nil {
 		t.Fatalf("append run_started: %v", err)
 	}
 	return runID
@@ -189,10 +190,10 @@ func createFinalizationRun(t *testing.T, ctx context.Context, store *storesqlite
 
 func appendSuccessfulToolEvent(t *testing.T, ctx context.Context, store *storesqlite.Store, runID, name, argumentsJSON string) {
 	t.Helper()
-	if _, err := AppendStreamItem(ctx, store, nil, StreamItem{
+	if _, err := stream.AppendStreamItem(ctx, store, nil, stream.StreamItem{
 		RunID: runID,
-		Kind:  StreamKindToolCallSucceeded,
-		Payload: &ToolCallSucceededPayload{ToolCall: &StreamToolCall{
+		Kind:  stream.StreamKindToolCallSucceeded,
+		Payload: &stream.ToolCallSucceededPayload{ToolCall: &stream.StreamToolCall{
 			Name:          name,
 			ArgumentsJSON: argumentsJSON,
 			Output:        "ok",
