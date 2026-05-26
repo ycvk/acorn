@@ -88,6 +88,13 @@ type RunContextSnapshotStore interface {
 	LoadRunContextSnapshot(context.Context, string) (*runtimehistory.RunContextSnapshot, error)
 }
 
+type ContextBoundaryStore interface {
+	SaveContextBoundary(context.Context, runtimehistory.ContextBoundary) error
+	LoadContextBoundary(context.Context, string) (*runtimehistory.ContextBoundary, error)
+	LoadLatestContextBoundary(context.Context, string) (*runtimehistory.ContextBoundary, error)
+	ListContextBoundaries(context.Context, string) ([]runtimehistory.ContextBoundary, error)
+}
+
 type CheckpointService interface {
 	Get(context.Context, string) (*workingstate.Checkpoint, error)
 }

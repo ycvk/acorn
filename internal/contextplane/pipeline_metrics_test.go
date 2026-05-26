@@ -32,6 +32,7 @@ func TestCompressionOutcomeIncludesLayersApplied(t *testing.T) {
 	session := NewDefaultContextSession(ContextSessionOptions{
 		BudgetGovernor: testBudgetGovernor{pressure: testPressure(PressureBlocking), dynamic: true},
 		Pipeline:       pipeline,
+		BoundaryStore:  newFakeContextStore(),
 		PreservePolicy: PreservePolicy{RecentTurns: 1, PreserveToolPairs: true},
 		EmitCompressed: func(_ context.Context, outcome CompressionOutcome) error {
 			captured = outcome
@@ -62,8 +63,8 @@ func TestCompressionOutcomeIncludesLayersApplied(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BeforeModelCall: %v", err)
 	}
-	if captured.BoundaryID != "ctxb_test" {
-		t.Fatalf("boundary id = %q, want ctxb_test", captured.BoundaryID)
+	if captured.BoundaryID != "ctxb_run_1_0001" {
+		t.Fatalf("boundary id = %q, want ctxb_run_1_0001", captured.BoundaryID)
 	}
 	if len(captured.LayersApplied) == 0 {
 		t.Fatal("LayersApplied is empty")

@@ -25,7 +25,7 @@
 
 1. **Thread 管理**（12-33 行）：`ThreadDTO`, `ThreadListResponse`, `CreateThreadRequest`, `UpdateThreadRequest`
 2. **Message 聊天**（34-56 行）：`MessageDTO`, `MessageContentDTO`, `MessagePartDTO`, `CreateMessageRequest`
-3. **Run 执行**（235-270 行）：`RunDTO`, `RunEventDTO`, `RunDetailDTO`, `CreateRunRequest`
+3. **Run 执行**（235-270 行）：`RunDTO`, `RunDetailDTO`, `CreateRunRequest`；`RunEvent` wire contract 由 `internal/clientevents` 统一持有
 4. **Pending Action 审批**（193-234 行）：`PendingActionDetailDTO`, `DecidePendingActionRequest`
 5. **Memory 记忆**：通过 `type alias` 指向 `dto_memory.go`
 6. **Skill 技能**：通过 `type alias` 指向 `dto_skills.go`
@@ -121,7 +121,7 @@ type StreamMessage = stream.StreamMessage
 |--------|---------------------------|---------|
 | `thread_dto.go` | `ThreadDTO`, `ThreadListResponse`, `CreateThreadRequest`, `UpdateThreadRequest` + `threadDTOFromDomain`, `threadDTOsFromDomain` | ~30 |
 | `message_dto.go` | `MessageDTO`, `MessageContentDTO`, `MessagePartDTO`, `CreateMessageRequest`, `MessageListResponse` + `messageDTOFromDomain`, `messagePartDTOsFromDomain`, `disclosureItemDTOsFromDomain`, `messageActionDTOFromDomain`, `messageDTOsFromDomain` | ~120 |
-| `run_dto.go` | `RunDTO`, `RunEventDTO`, `RunDetailDTO`, `RunDetailRawDTO`, `CreateRunRequest`, `ResumeRunRequest`, `InterruptRunResponse` + `runDTOFromDomain`, `runEventDTOFromDomain`, `runEventDTOsFromDomain` | ~80 |
+| `run_dto.go` | `RunDTO`, `RunDetailDTO`, `RunDetailRawDTO`, `CreateRunRequest`, `ResumeRunRequest`, `InterruptRunResponse` + `runDTOFromDomain`；`RunEvent`/unsupported-event types come from `internal/clientevents` | ~60 |
 | `pending_action_dto.go` | `PendingActionDetailDTO`, `PendingActionListResponse`, `PendingActionDecisionDTO`, `DecidePendingActionRequest`, `DecisionOptionDTO` + `pendingActionDetailDTOFromDomain`, `pendingActionDecisionDTOFromDomain`, `decisionOptionDTOsFromDomain`, `pendingActionSummaryDTOsFromDomain` | ~70 |
 | `settings_dto.go` | `ClientSettingsDTO`, `ClientProviderSettingsDTO`, `ClientRuntimeSettingsDTO`, `ClientWebSettingsDTO` + `clientSettingsDTOFromConfig` | ~40 |
 | `inbox_dto.go` | `InboxResponse`, `SystemStatusDTO`, `RunSummaryDTO`, `PendingActionSummaryDTO`, `PendingActionOptionDTO`, `ToolSummaryDTO` + `inboxDTOFromDomain` | ~60 |
@@ -190,7 +190,7 @@ type ThreadDTO = thread.ThreadDTO  // 等迁移完成后可以删除
 
        // Run
        RunDTOFromDomain(source app.Run) RunDTO
-       RunEventDTOsFromDomain(source []app.RunEvent) []RunEventDTO
+       // RunEvent wire envelopes are projected by internal/clientevents, not by web DTO converters.
 
        // PendingAction
        PendingActionDetailDTOFromDomain(source app.PendingActionDetail) PendingActionDetailDTO

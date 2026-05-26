@@ -79,32 +79,11 @@ void main() {
     );
   });
 
-  test('accepts every active operational RunEvent type', () {
-    final operationalTypes = <String>[
-      'operator_question.pending',
-      'operator_question.decided',
-      'provider.degraded',
-      'mcp.tool_catalog_refreshed',
-      'mcp.tool_catalog_refresh_failed',
-      'mcp.provider_added',
-      'mcp.provider_removed',
-      'mcp.provider_restarted',
-      'mcp.resource_catalog_refreshed',
-      'mcp.resource_catalog_refresh_failed',
-      'mcp.prompt_catalog_refreshed',
-      'mcp.prompt_catalog_refresh_failed',
-      'mcp.auth_status_changed',
-      'sampling.started',
-      'sampling.completed',
-      'sampling.failed',
-    ];
-
-    for (final type in operationalTypes) {
-      validateRunEvent(
-        RunEvent.fromJson(_event('event_$type', 1, type, <String, Object?>{})),
-        expectedRunId: 'run_1',
-      );
-    }
+  test('accepts backend-owned RunEvent types', () {
+    validateRunEvent(
+      RunEvent.fromJson(_event('event_future', 1, 'future.backend_event', {})),
+      expectedRunId: 'run_1',
+    );
   });
 }
 

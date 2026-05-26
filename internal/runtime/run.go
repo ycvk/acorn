@@ -27,26 +27,26 @@ import (
 	"github.com/ycvk/acorn/internal/workspace"
 )
 
-type runBuilder struct {
+type runCoordinator struct {
 	factory          *RunnerFactory
 	modelProvider    *modelProviderAssembler
 	capabilities     *capabilityAssembler
 	contextSelection *contextSelectionAssembler
 }
 
-func newRunBuilder(factory *RunnerFactory) *runBuilder {
-	builder := &runBuilder{factory: factory}
-	builder.modelProvider = &modelProviderAssembler{factory: factory}
-	builder.capabilities = &capabilityAssembler{factory: factory}
-	builder.contextSelection = &contextSelectionAssembler{factory: factory}
-	return builder
+func newRunCoordinator(factory *RunnerFactory) *runCoordinator {
+	coordinator := &runCoordinator{factory: factory}
+	coordinator.modelProvider = &modelProviderAssembler{factory: factory}
+	coordinator.capabilities = &capabilityAssembler{factory: factory}
+	coordinator.contextSelection = &contextSelectionAssembler{factory: factory}
+	return coordinator
 }
 
-func (b *runBuilder) Build(ctx context.Context, req RunnerBuildRequest) (*ActiveRunner, error) {
-	if b == nil || b.factory == nil || b.factory.deps.Config == nil || b.factory.deps.Store == nil {
+func (c *runCoordinator) Build(ctx context.Context, req RunnerBuildRequest) (*ActiveRunner, error) {
+	if c == nil || c.factory == nil || c.factory.deps.Config == nil || c.factory.deps.Store == nil {
 		return nil, errors.New("runner factory is not initialized")
 	}
-	f := b.factory
+	f := c.factory
 	mode := events.OrchestrationMode(req.OrchestrationMode).Normalize()
 	if mode != events.ModeDirectResponse {
 		if f.deps.Workspace == nil {
@@ -83,12 +83,12 @@ func (b *runBuilder) Build(ctx context.Context, req RunnerBuildRequest) (*Active
 		return nil, fmt.Errorf("unsupported orchestration mode %q", mode)
 	}
 
-	chatModel, err := b.ensureModelProviderAssembler().BuildRunChatModel(ctx, req)
+	chatModel, err := c.ensureModelProviderAssembler().BuildRunChatModel(ctx, req)
 	if err != nil {
 		return nil, err
 	}
 
-	capabilityAssembly, err := b.ensureCapabilityAssembler().BuildRunCapabilities(ctx, req)
+	capabilityAssembly, err := c.ensureCapabilityAssembler().BuildRunCapabilities(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -101,7 +101,7 @@ func (b *runBuilder) Build(ctx context.Context, req RunnerBuildRequest) (*Active
 	}()
 
 	if mode == events.ModeDirectResponse {
-		activeRunner, err := b.newDirectResponseRunner(ctx, req, chatModel, capabilityAssembly)
+		activeRunner, err := c.newDirectResponseRunner(ctx, req, chatModel, capabilityAssembly)
 		if err != nil {
 			return nil, err
 		}
@@ -109,22 +109,22 @@ func (b *runBuilder) Build(ctx context.Context, req RunnerBuildRequest) (*Active
 		return activeRunner, nil
 	}
 
-	memoryPrepared, err := b.ensureContextSelectionAssembler().PrepareMemory(ctx, req)
+	memoryPrepared, err := c.ensureContextSelectionAssembler().PrepareMemory(ctx, req)
 	if err != nil {
 		return nil, err
 	}
 
-	selection, err := b.ensureContextSelectionAssembler().ResolveSelection(ctx, req, capabilities)
+	selection, err := c.ensureContextSelectionAssembler().ResolveSelection(ctx, req, capabilities)
 	if err != nil {
 		return nil, err
 	}
 
-	contextResult, err := b.ensureContextSelectionAssembler().AssembleToolContext(ctx, req, capabilities, selection, memoryPrepared)
+	contextResult, err := c.ensureContextSelectionAssembler().AssembleToolContext(ctx, req, capabilities, selection, memoryPrepared)
 	if err != nil {
 		return nil, err
 	}
 
-	agentAssembly, err := b.buildToolEnabledAssembly(ctx, mode, req, capabilities, chatModel, contextResult)
+	agentAssembly, err := c.buildToolEnabledAssembly(ctx, mode, req, capabilities, chatModel, contextResult)
 	if err != nil {
 		return nil, err
 	}
@@ -146,20 +146,20 @@ func (b *runBuilder) Build(ctx context.Context, req RunnerBuildRequest) (*Active
 	return activeRunner, nil
 }
 
-func (b *runBuilder) newDirectResponseRunner(ctx context.Context, req RunnerBuildRequest, chatModel einomodel.BaseChatModel, capabilityAssembly *capabilityAssembly) (*ActiveRunner, error) {
+func (c *runCoordinator) newDirectResponseRunner(ctx context.Context, req RunnerBuildRequest, chatModel einomodel.BaseChatModel, capabilityAssembly *capabilityAssembly) (*ActiveRunner, error) {
 	if capabilityAssembly == nil || capabilityAssembly.capabilities == nil {
 		return nil, errors.New("run capabilities are required")
 	}
 	capabilities := capabilityAssembly.capabilities
-	memoryPrepared, err := b.ensureContextSelectionAssembler().PrepareMemory(ctx, req)
+	memoryPrepared, err := c.ensureContextSelectionAssembler().PrepareMemory(ctx, req)
 	if err != nil {
 		return nil, err
 	}
-	contextResult, err := b.ensureContextSelectionAssembler().AssembleDirectContext(ctx, req, memoryPrepared, capabilities.skillSnapshot, capabilities.catalog)
+	contextResult, err := c.ensureContextSelectionAssembler().AssembleDirectContext(ctx, req, memoryPrepared, capabilities.skillSnapshot, capabilities.catalog)
 	if err != nil {
 		return nil, err
 	}
-	agentAssembly, err := b.factory.buildDirectResponseAssembly(ctx, req, capabilities.catalog, chatModel, contextResult)
+	agentAssembly, err := c.factory.buildDirectResponseAssembly(ctx, req, capabilities.catalog, chatModel, contextResult)
 	if err != nil {
 		return nil, err
 	}
@@ -168,7 +168,7 @@ func (b *runBuilder) newDirectResponseRunner(ctx context.Context, req RunnerBuil
 		Runner:           agentAssembly.Runner,
 		Instruction:      agentAssembly.Instruction,
 		ChatModel:        chatModel,
-		Factory:          b.factory,
+		Factory:          c.factory,
 		ContextResult:    contextResult,
 		RunID:            req.RunID,
 		CompressionState: agentAssembly.CompressionState,
@@ -177,7 +177,7 @@ func (b *runBuilder) newDirectResponseRunner(ctx context.Context, req RunnerBuil
 	}, nil
 }
 
-func (b *runBuilder) buildToolEnabledAssembly(
+func (c *runCoordinator) buildToolEnabledAssembly(
 	ctx context.Context,
 	mode events.OrchestrationMode,
 	req RunnerBuildRequest,
@@ -185,7 +185,7 @@ func (b *runBuilder) buildToolEnabledAssembly(
 	chatModel einomodel.BaseChatModel,
 	contextResult *contextplane.AssembleResult,
 ) (*orchestration.RunAssembly, error) {
-	if b == nil || b.factory == nil {
+	if c == nil || c.factory == nil {
 		return nil, errors.New("runner factory is not initialized")
 	}
 	var catalog *tooling.Catalog
@@ -194,40 +194,33 @@ func (b *runBuilder) buildToolEnabledAssembly(
 	}
 	switch mode {
 	case events.ModePlanExecute:
-		return b.factory.buildPlanExecuteAssembly(ctx, req, catalog, chatModel, contextResult)
+		return c.factory.buildPlanExecuteAssembly(ctx, req, catalog, chatModel, contextResult)
 	case events.ModeSingleAgent:
-		return b.factory.buildSingleAgentAssembly(ctx, req, catalog, chatModel, contextResult)
+		return c.factory.buildSingleAgentAssembly(ctx, req, catalog, chatModel, contextResult)
 	default:
 		return nil, fmt.Errorf("unsupported orchestration mode %q", mode)
 	}
 }
 
-func (b *runBuilder) ensureModelProviderAssembler() *modelProviderAssembler {
-	if b.modelProvider == nil {
-		b.modelProvider = &modelProviderAssembler{factory: b.factory}
+func (c *runCoordinator) ensureModelProviderAssembler() *modelProviderAssembler {
+	if c.modelProvider == nil {
+		c.modelProvider = &modelProviderAssembler{factory: c.factory}
 	}
-	return b.modelProvider
+	return c.modelProvider
 }
 
-func (b *runBuilder) ensureCapabilityAssembler() *capabilityAssembler {
-	if b.capabilities == nil {
-		b.capabilities = &capabilityAssembler{factory: b.factory}
+func (c *runCoordinator) ensureCapabilityAssembler() *capabilityAssembler {
+	if c.capabilities == nil {
+		c.capabilities = &capabilityAssembler{factory: c.factory}
 	}
-	return b.capabilities
+	return c.capabilities
 }
 
-func (b *runBuilder) ensureContextSelectionAssembler() *contextSelectionAssembler {
-	if b.contextSelection == nil {
-		b.contextSelection = &contextSelectionAssembler{factory: b.factory}
+func (c *runCoordinator) ensureContextSelectionAssembler() *contextSelectionAssembler {
+	if c.contextSelection == nil {
+		c.contextSelection = &contextSelectionAssembler{factory: c.factory}
 	}
-	return b.contextSelection
-}
-
-func (f *RunnerFactory) ensureRunBuilder() *runBuilder {
-	if f.runBuilder == nil {
-		f.runBuilder = newRunBuilder(f)
-	}
-	return f.runBuilder
+	return c.contextSelection
 }
 
 // RunContext represents a single run in the execution tree.
@@ -501,8 +494,8 @@ type ActiveRunner struct {
 	CloseRunTools    func() error
 }
 
-// RunBuilder is the interface required by Executor to build and manage runs.
-type RunBuilder interface {
+// RunRuntime is the execution runtime facade required by Executor.
+type RunRuntime interface {
 	New(ctx context.Context, req RunnerBuildRequest) (*ActiveRunner, error)
 	Registry() *Registry
 	ConsumeEventError(runID string) error

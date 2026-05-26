@@ -2,6 +2,7 @@ package contextplane
 
 import (
 	"context"
+	"sort"
 	"sync"
 
 	"github.com/ycvk/acorn/internal/runtimehistory"
@@ -14,6 +15,7 @@ import (
 type fakeContextStore struct {
 	mu          sync.RWMutex
 	snapshots   map[string]runtimehistory.RunContextSnapshot
+	boundaries  map[string]runtimehistory.ContextBoundary
 	checkpoints map[string]workingstate.Checkpoint
 	results     map[string]store.ToolResultRecord
 }
@@ -21,6 +23,7 @@ type fakeContextStore struct {
 func newFakeContextStore() *fakeContextStore {
 	return &fakeContextStore{
 		snapshots:   make(map[string]runtimehistory.RunContextSnapshot),
+		boundaries:  make(map[string]runtimehistory.ContextBoundary),
 		checkpoints: make(map[string]workingstate.Checkpoint),
 		results:     make(map[string]store.ToolResultRecord),
 	}
@@ -42,6 +45,54 @@ func (s *fakeContextStore) LoadRunContextSnapshot(_ context.Context, runID strin
 		return nil, nil
 	}
 	return &snap, nil
+}
+
+// ContextBoundaryStore implementation
+func (s *fakeContextStore) SaveContextBoundary(_ context.Context, boundary runtimehistory.ContextBoundary) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.boundaries[boundary.BoundaryID] = boundary
+	return nil
+}
+
+func (s *fakeContextStore) LoadContextBoundary(_ context.Context, boundaryID string) (*runtimehistory.ContextBoundary, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	boundary, ok := s.boundaries[boundaryID]
+	if !ok {
+		return nil, nil
+	}
+	return &boundary, nil
+}
+
+func (s *fakeContextStore) LoadLatestContextBoundary(ctx context.Context, sessionID string) (*runtimehistory.ContextBoundary, error) {
+	boundaries, err := s.ListContextBoundaries(ctx, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	if len(boundaries) == 0 {
+		return nil, nil
+	}
+	latest := boundaries[len(boundaries)-1]
+	return &latest, nil
+}
+
+func (s *fakeContextStore) ListContextBoundaries(_ context.Context, sessionID string) ([]runtimehistory.ContextBoundary, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var out []runtimehistory.ContextBoundary
+	for _, boundary := range s.boundaries {
+		if boundary.SessionID == sessionID {
+			out = append(out, boundary)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Sequence == out[j].Sequence {
+			return out[i].CreatedAt.Before(out[j].CreatedAt)
+		}
+		return out[i].Sequence < out[j].Sequence
+	})
+	return out, nil
 }
 
 // workingstate.Store implementation

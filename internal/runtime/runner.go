@@ -31,7 +31,7 @@ type RunnerFactory struct {
 	eventMu     sync.Mutex
 	eventErrors map[string]error
 
-	runBuilder *runBuilder
+	runChatModelBuilder func(context.Context, RunnerBuildRequest) (einomodel.BaseChatModel, error)
 }
 
 const (
@@ -51,7 +51,7 @@ func (f *RunnerFactory) New(ctx context.Context, req RunnerBuildRequest) (*Activ
 	if f == nil {
 		return nil, errors.New("runner factory is not initialized")
 	}
-	return f.ensureRunBuilder().Build(ctx, req)
+	return newRunCoordinator(f).Build(ctx, req)
 }
 
 func (f *RunnerFactory) BuildCapabilitySpecs(ctx context.Context) ([]tooling.ToolSpec, error) {
@@ -83,10 +83,10 @@ func (f *RunnerFactory) cloneForWorkspace(ws *workspace.Workspace) *RunnerFactor
 	}
 	cloneDeps := f.deps.CloneForWorkspace(ws)
 	clone := &RunnerFactory{
-		deps:     cloneDeps,
-		registry: f.registry,
+		deps:                cloneDeps,
+		registry:            f.registry,
+		runChatModelBuilder: f.runChatModelBuilder,
 	}
-	clone.runBuilder = newRunBuilder(clone)
 	return clone
 }
 
@@ -148,10 +148,6 @@ func (f *RunnerFactory) hasWorkingContext(ctx context.Context, sessionID string)
 		return false, nil
 	}
 	return strings.TrimSpace(checkpoint.Content) != "", nil
-}
-
-func (a *modelProviderAssembler) SetBuildRunForTest(fn func(context.Context, RunnerBuildRequest) (einomodel.BaseChatModel, error)) {
-	a.buildRun = fn
 }
 
 func (r *ActiveRunner) Close() error {

@@ -5,11 +5,13 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/cloudwego/eino/adk"
 	"github.com/cloudwego/eino/schema"
 
 	"github.com/ycvk/acorn/internal/config"
+	"github.com/ycvk/acorn/internal/runtimehistory"
 )
 
 func TestContextSessionBootstrapOrdersAssemblyBeforeInitialMessages(t *testing.T) {
@@ -144,6 +146,7 @@ func TestContextSessionBeforeModelCallCompactsOnPressure(t *testing.T) {
 		},
 	}
 	var outcomes []CompressionOutcome
+	store := newFakeContextStore()
 	session := NewDefaultContextSession(ContextSessionOptions{
 		BudgetGovernor: testBudgetGovernor{pressure: testPressure(PressureAutoCompact)},
 		Pipeline: NewDefaultContextCompressionPipeline(CompressionPipelineOptions{
@@ -151,6 +154,7 @@ func TestContextSessionBeforeModelCallCompactsOnPressure(t *testing.T) {
 			CompactionEngine: engine,
 			TokenCounter:     testTokenCounter(t),
 		}),
+		BoundaryStore:  store,
 		PreservePolicy: PreservePolicy{RecentTurns: 1, PreserveToolPairs: true},
 		State:          state,
 		EmitCompressed: func(_ context.Context, outcome CompressionOutcome) error {
@@ -198,8 +202,16 @@ func TestContextSessionBeforeModelCallCompactsOnPressure(t *testing.T) {
 	if state.CompressionCount != 1 || state.LastSummary != "summary checkpoint" {
 		t.Fatalf("compression state = %+v, want recorded summary", state)
 	}
-	if len(outcomes) != 1 || outcomes[0].BoundaryID != "ctxb_1" {
+	wantBoundaryID := "ctxb_run_1_0001"
+	if len(outcomes) != 1 || outcomes[0].BoundaryID != wantBoundaryID {
 		t.Fatalf("outcomes = %+v, want emitted boundary", outcomes)
+	}
+	boundaries, err := store.ListContextBoundaries(context.Background(), "session_1")
+	if err != nil {
+		t.Fatalf("ListContextBoundaries: %v", err)
+	}
+	if len(boundaries) != 1 || boundaries[0].BoundaryID != wantBoundaryID || boundaries[0].Summary != "summary checkpoint" {
+		t.Fatalf("boundaries = %+v, want persisted compact boundary", boundaries)
 	}
 }
 
@@ -260,6 +272,7 @@ func TestContextSessionReactiveCompactUsesReactiveTrigger(t *testing.T) {
 	}
 	var outcomes []CompressionOutcome
 	governor := testBudgetGovernor{pressure: testPressure(PressureBlocking), dynamic: true}
+	store := newFakeContextStore()
 	session := NewDefaultContextSession(ContextSessionOptions{
 		BudgetGovernor: governor,
 		Pipeline: NewDefaultContextCompressionPipeline(CompressionPipelineOptions{
@@ -267,6 +280,7 @@ func TestContextSessionReactiveCompactUsesReactiveTrigger(t *testing.T) {
 			CompactionEngine: engine,
 			TokenCounter:     testTokenCounter(t),
 		}),
+		BoundaryStore:  store,
 		PreservePolicy: PreservePolicy{RecentTurns: 1, PreserveToolPairs: true},
 		State:          state,
 		EmitCompressed: func(_ context.Context, outcome CompressionOutcome) error {
@@ -310,7 +324,8 @@ func TestContextSessionReactiveCompactUsesReactiveTrigger(t *testing.T) {
 	if state.CompressionCount != 1 || state.LastSummary != "reactive summary" {
 		t.Fatalf("compression state = %+v, want reactive summary", state)
 	}
-	if len(outcomes) != 1 || outcomes[0].BoundaryID != "ctxb_reactive" {
+	wantBoundaryID := "ctxb_run_1_0001"
+	if len(outcomes) != 1 || outcomes[0].BoundaryID != wantBoundaryID {
 		t.Fatalf("outcomes = %+v, want reactive boundary", outcomes)
 	}
 }
@@ -380,15 +395,60 @@ func TestContextSessionRequiresBudgetGovernor(t *testing.T) {
 	}
 }
 
-func TestContextSessionResumeFailsLoud(t *testing.T) {
-	_, err := newTestContextSession(t).Resume(context.Background(), ResumeContextRequest{
-		SessionID:  "session_1",
-		RunID:      "run_1",
-		Mode:       "direct_response",
-		BoundaryID: "ctxb_1",
+func TestContextSessionResumeLoadsPersistedBoundary(t *testing.T) {
+	store := newFakeContextStore()
+	boundary := testContextBoundary("ctxb_run_1_0001", "session_1", "run_1", 1, "resume summary checkpoint")
+	if err := store.SaveContextBoundary(context.Background(), boundary); err != nil {
+		t.Fatalf("SaveContextBoundary: %v", err)
+	}
+	session := NewDefaultContextSession(ContextSessionOptions{
+		BudgetGovernor: testBudgetGovernor{pressure: testPressure(PressureOK)},
+		BoundaryStore:  store,
 	})
-	if err == nil || !strings.Contains(err.Error(), "persisted context boundary integration") {
-		t.Fatalf("error = %v, want persisted boundary integration error", err)
+	input, err := session.Resume(context.Background(), ResumeContextRequest{
+		SessionID:    "session_1",
+		RunID:        "run_1",
+		Mode:         "direct_response",
+		BoundaryID:   boundary.BoundaryID,
+		ModelProfile: testContextSessionProfile(),
+	})
+	if err != nil {
+		t.Fatalf("Resume: %v", err)
+	}
+	if session.ID().SessionID != "session_1" || session.ID().RunID != "run_1" || session.ID().Mode != "direct_response" {
+		t.Fatalf("unexpected session id after resume: %+v", session.ID())
+	}
+	if len(input.Messages) != 1 || !strings.Contains(summaryMessageText(input.Messages[0]), "resume summary checkpoint") {
+		t.Fatalf("resume messages = %+v, want persisted summary checkpoint", input.Messages)
+	}
+}
+
+func testContextBoundary(boundaryID, sessionID, runID string, sequence int, summary string) runtimehistory.ContextBoundary {
+	return runtimehistory.ContextBoundary{
+		BoundaryID:               boundaryID,
+		SessionID:                sessionID,
+		RunID:                    runID,
+		Sequence:                 sequence,
+		TurnIndex:                sequence,
+		Mode:                     "direct_response",
+		Trigger:                  string(CompactTriggerAuto),
+		FirstIndex:               0,
+		LastIndex:                1,
+		CoveredFirstMessageID:    runID + ":message:0000",
+		CoveredLastMessageID:     runID + ":message:0001",
+		SummaryMessageID:         boundaryID + ":summary",
+		TranscriptRef:            runID + ":messages:0-1",
+		PreservedFromIndex:       1,
+		PreservedToIndex:         1,
+		PreservedHeadMessageID:   runID + ":message:0001",
+		PreservedAnchorMessageID: runID + ":message:0001",
+		PreservedTailMessageID:   runID + ":message:0001",
+		TokensBefore:             100,
+		TokensAfter:              40,
+		EffectiveWindowTokens:    1000,
+		Summary:                  summary,
+		SummarySnippet:           summary,
+		CreatedAt:                time.Now().UTC(),
 	}
 }
 

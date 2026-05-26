@@ -6,13 +6,13 @@ import (
 	"time"
 
 	"github.com/ycvk/acorn/internal/app"
+	"github.com/ycvk/acorn/internal/clientevents"
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/memorymodule"
 	"github.com/ycvk/acorn/internal/runtime"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/stream"
-	"github.com/ycvk/acorn/internal/web/runprojector"
 )
 
 type ClientService interface {
@@ -25,8 +25,8 @@ type ClientService interface {
 	CreateMessage(ctx context.Context, threadID, content string) (*app.Message, error)
 	CreateRun(ctx context.Context, threadID, skillID, mode string) (*app.Run, error)
 	GetRun(ctx context.Context, runID string) (*app.Run, error)
-	LoadRunEventsAfter(ctx context.Context, runID string, afterSeq int64) ([]runprojector.RunEvent, error)
-	LoadRunEventsForDetail(ctx context.Context, runID string) (*runprojector.RunEventDetail, error)
+	LoadRunEventsAfter(ctx context.Context, runID string, afterSeq int64) ([]clientevents.RunEvent, error)
+	LoadRunEventsForDetail(ctx context.Context, runID string) (*clientevents.RunEventDetail, error)
 	RunIsTerminal(ctx context.Context, runID string) (bool, error)
 	EventPollInterval() time.Duration
 }

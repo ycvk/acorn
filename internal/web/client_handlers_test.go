@@ -14,6 +14,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/ycvk/acorn/internal/app"
+	"github.com/ycvk/acorn/internal/clientevents"
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/memorymodule"
@@ -21,7 +22,6 @@ import (
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/stream"
-	"github.com/ycvk/acorn/internal/web/runprojector"
 )
 
 func TestThreadMessageRunHandlers(t *testing.T) {
@@ -534,14 +534,14 @@ func TestClientHandlersReturnClientErrorCodes(t *testing.T) {
 
 func TestRunEventsBacklogSSE(t *testing.T) {
 	service := &clientHandlerStub{
-		events: []runprojector.RunEvent{
+		events: []clientevents.RunEvent{
 			{
 				EventID: "run_1:2",
 				RunID:   "run_1",
 				Seq:     2,
 				TS:      time.Date(2026, 5, 2, 10, 4, 0, 0, time.UTC),
 				Type:    "assistant.delta",
-				Data: runprojector.AssistantDeltaData{
+				Data: clientevents.AssistantDeltaData{
 					AssistantDelta: map[string]any{"delta": "he"},
 				},
 			},
@@ -551,7 +551,7 @@ func TestRunEventsBacklogSSE(t *testing.T) {
 				Seq:     3,
 				TS:      time.Date(2026, 5, 2, 10, 5, 0, 0, time.UTC),
 				Type:    "run.completed",
-				Data:    runprojector.RunCompletedData{Message: map[string]any{"content": "done"}},
+				Data:    clientevents.RunCompletedData{Message: map[string]any{"content": "done"}},
 			},
 		},
 	}
@@ -586,14 +586,14 @@ func TestRunEventsBacklogSSE(t *testing.T) {
 
 func TestRunEventsRejectInvalidSSEMetadata(t *testing.T) {
 	service := &clientHandlerStub{
-		events: []runprojector.RunEvent{
+		events: []clientevents.RunEvent{
 			{
 				EventID: "run_1:2\nbroken",
 				RunID:   "run_1",
 				Seq:     2,
 				TS:      time.Date(2026, 5, 2, 10, 4, 0, 0, time.UTC),
 				Type:    "assistant.delta",
-				Data: runprojector.AssistantDeltaData{
+				Data: clientevents.AssistantDeltaData{
 					AssistantDelta: map[string]any{"delta": "he"},
 				},
 			},
@@ -616,7 +616,7 @@ func TestRunEventsRejectInvalidSSEMetadata(t *testing.T) {
 
 func TestRunEventsFollowPollsUntilTerminal(t *testing.T) {
 	service := &clientHandlerStub{
-		eventBatches: [][]runprojector.RunEvent{
+		eventBatches: [][]clientevents.RunEvent{
 			{
 				{
 					EventID: "run_follow:1",
@@ -624,7 +624,7 @@ func TestRunEventsFollowPollsUntilTerminal(t *testing.T) {
 					Seq:     1,
 					TS:      time.Date(2026, 5, 2, 10, 4, 0, 0, time.UTC),
 					Type:    "run.started",
-					Data:    runprojector.RunStartedData{Input: "hello"},
+					Data:    clientevents.RunStartedData{Input: "hello"},
 				},
 			},
 			{
@@ -634,7 +634,7 @@ func TestRunEventsFollowPollsUntilTerminal(t *testing.T) {
 					Seq:     2,
 					TS:      time.Date(2026, 5, 2, 10, 4, 1, 0, time.UTC),
 					Type:    "run.completed",
-					Data:    runprojector.RunCompletedData{Message: map[string]any{"content": "done"}},
+					Data:    clientevents.RunCompletedData{Message: map[string]any{"content": "done"}},
 				},
 			},
 			nil,
@@ -724,14 +724,14 @@ func TestClientResourceSurfaceHandlers(t *testing.T) {
 			Mode:      "direct",
 			CreatedAt: time.Date(2026, 5, 2, 10, 3, 0, 0, time.UTC),
 		},
-		events: []runprojector.RunEvent{
+		events: []clientevents.RunEvent{
 			{
 				EventID: "run_1:1",
 				RunID:   "run_1",
 				Seq:     1,
 				TS:      time.Date(2026, 5, 2, 10, 3, 0, 0, time.UTC),
 				Type:    "run.started",
-				Data:    runprojector.RunStartedData{Input: "hello"},
+				Data:    clientevents.RunStartedData{Input: "hello"},
 			},
 			{
 				EventID: "run_1:2",
@@ -739,7 +739,7 @@ func TestClientResourceSurfaceHandlers(t *testing.T) {
 				Seq:     2,
 				TS:      time.Date(2026, 5, 2, 10, 3, 1, 0, time.UTC),
 				Type:    "skill.selected",
-				Data: runprojector.SkillData{Skill: map[string]any{
+				Data: clientevents.SkillData{Skill: map[string]any{
 					"selected_id":  "sop.release-closeout",
 					"name":         "Release closeout",
 					"origin":       "distilled",
@@ -747,7 +747,7 @@ func TestClientResourceSurfaceHandlers(t *testing.T) {
 				}},
 			},
 		},
-		unsupported: []runprojector.UnsupportedRunEvent{
+		unsupported: []clientevents.UnsupportedRunEvent{
 			{
 				EventID: "run_1:99",
 				RunID:   "run_1",
@@ -1217,11 +1217,11 @@ type clientHandlerStub struct {
 	thread      app.Thread
 	message     app.Message
 	run         app.Run
-	events      []runprojector.RunEvent
-	unsupported []runprojector.UnsupportedRunEvent
+	events      []clientevents.RunEvent
+	unsupported []clientevents.UnsupportedRunEvent
 	err         error
 
-	eventBatches              [][]runprojector.RunEvent
+	eventBatches              [][]clientevents.RunEvent
 	loadEventCalls            int
 	lastAfterSeq              int64
 	statusChecks              int
@@ -1309,7 +1309,7 @@ func (s *clientHandlerStub) GetRun(context.Context, string) (*app.Run, error) {
 	return &s.run, nil
 }
 
-func (s *clientHandlerStub) LoadRunEventsAfter(_ context.Context, _ string, afterSeq int64) ([]runprojector.RunEvent, error) {
+func (s *clientHandlerStub) LoadRunEventsAfter(_ context.Context, _ string, afterSeq int64) ([]clientevents.RunEvent, error) {
 	if s.err != nil {
 		return nil, s.err
 	}
@@ -1318,18 +1318,18 @@ func (s *clientHandlerStub) LoadRunEventsAfter(_ context.Context, _ string, afte
 	if len(s.eventBatches) > 0 {
 		batch := s.eventBatches[0]
 		s.eventBatches = s.eventBatches[1:]
-		return append([]runprojector.RunEvent(nil), batch...), nil
+		return append([]clientevents.RunEvent(nil), batch...), nil
 	}
-	return append([]runprojector.RunEvent(nil), s.events...), nil
+	return append([]clientevents.RunEvent(nil), s.events...), nil
 }
 
-func (s *clientHandlerStub) LoadRunEventsForDetail(context.Context, string) (*runprojector.RunEventDetail, error) {
+func (s *clientHandlerStub) LoadRunEventsForDetail(context.Context, string) (*clientevents.RunEventDetail, error) {
 	if s.err != nil {
 		return nil, s.err
 	}
-	return &runprojector.RunEventDetail{
-		Events:      append([]runprojector.RunEvent(nil), s.events...),
-		Unsupported: append([]runprojector.UnsupportedRunEvent(nil), s.unsupported...),
+	return &clientevents.RunEventDetail{
+		Events:      append([]clientevents.RunEvent(nil), s.events...),
+		Unsupported: append([]clientevents.UnsupportedRunEvent(nil), s.unsupported...),
 	}, nil
 }
 

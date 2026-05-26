@@ -169,12 +169,10 @@ func buildCrystallizer(memoryModule memorymodule.Service, cfg *config.Config) (c
 }
 
 func assembleRunnerFactory(deps RuntimeDeps) *RunnerFactory {
-	factory := &RunnerFactory{
+	return &RunnerFactory{
 		deps:     deps,
 		registry: NewRegistry(),
 	}
-	factory.runBuilder = newRunBuilder(factory)
-	return factory
 }
 
 type runCapabilities struct {

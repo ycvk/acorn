@@ -5,9 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/cloudwego/eino/adk"
 	"github.com/cloudwego/eino/schema"
+
+	"github.com/ycvk/acorn/internal/runtimehistory"
 )
 
 type ContextSession interface {
@@ -63,6 +66,7 @@ type ModelInput struct {
 type ContextSessionOptions struct {
 	BudgetGovernor budgetGovernor
 	Pipeline       *defaultContextCompressionPipeline
+	BoundaryStore  ContextBoundaryStore
 	PreservePolicy PreservePolicy
 	State          any
 	EmitCompressed func(context.Context, CompressionOutcome) error
@@ -70,25 +74,29 @@ type ContextSessionOptions struct {
 }
 
 type defaultContextSession struct {
-	id              ContextSessionID
-	turnIndex       int
-	modelProfile    ModelProfile
-	messages        []adk.Message
-	budgetGovernor  budgetGovernor
-	pipeline        *defaultContextCompressionPipeline
-	preservePolicy  PreservePolicy
-	state           any
-	emitCompressed  func(context.Context, CompressionOutcome) error
-	emitPressure    func(context.Context, BudgetPressure) error
-	lastSummary     string
-	lastCompactTurn int
-	bootstrapped    bool
+	id               ContextSessionID
+	turnIndex        int
+	modelProfile     ModelProfile
+	messages         []adk.Message
+	budgetGovernor   budgetGovernor
+	pipeline         *defaultContextCompressionPipeline
+	boundaryStore    ContextBoundaryStore
+	preservePolicy   PreservePolicy
+	state            any
+	emitCompressed   func(context.Context, CompressionOutcome) error
+	emitPressure     func(context.Context, BudgetPressure) error
+	lastSummary      string
+	lastBoundaryID   string
+	boundarySequence int
+	lastCompactTurn  int
+	bootstrapped     bool
 }
 
 func NewDefaultContextSession(opts ContextSessionOptions) ContextSession {
 	s := &defaultContextSession{
 		budgetGovernor: opts.BudgetGovernor,
 		pipeline:       opts.Pipeline,
+		boundaryStore:  opts.BoundaryStore,
 		preservePolicy: opts.PreservePolicy,
 		state:          opts.State,
 		emitCompressed: opts.EmitCompressed,
@@ -205,8 +213,9 @@ func (s *defaultContextSession) compact(ctx context.Context, req ModelCallReques
 			toolState = lifecycle.State
 		}
 	}
+	beforeMessages := cloneContextSessionMessages(s.messages)
 	result, err := s.pipeline.Compress(ctx, PipelineRequest{
-		Messages:           cloneContextSessionMessages(s.messages),
+		Messages:           beforeMessages,
 		ToolInfos:          append([]*schema.ToolInfo(nil), req.ToolInfos...),
 		ToolState:          toolState,
 		Trigger:            trigger,
@@ -233,7 +242,14 @@ func (s *defaultContextSession) compact(ctx context.Context, req ModelCallReques
 	if result.Outcome != nil {
 		outcome := *result.Outcome
 		outcome.LayersApplied = append([]CompactLayer(nil), result.LayersApplied...)
+		boundary, err := s.persistContextBoundary(ctx, beforeMessages, outcome, pressure, trigger)
+		if err != nil {
+			return nil, fmt.Errorf("persist context boundary: %w", err)
+		}
+		outcome.BoundaryID = boundary.BoundaryID
 		s.lastSummary = outcome.Summary
+		s.lastBoundaryID = boundary.BoundaryID
+		s.boundarySequence = boundary.Sequence
 		if st, ok := s.state.(*CompressionState); ok && st != nil {
 			st.RecordCompression(outcome.Summary)
 		}
@@ -248,6 +264,73 @@ func (s *defaultContextSession) compact(ctx context.Context, req ModelCallReques
 		return nil, err
 	}
 	return s.modelInput(afterPressure), nil
+}
+
+func (s *defaultContextSession) persistContextBoundary(ctx context.Context, beforeMessages []adk.Message, outcome CompressionOutcome, pressure BudgetPressure, trigger CompactTrigger) (runtimehistory.ContextBoundary, error) {
+	if s.boundaryStore == nil {
+		return runtimehistory.ContextBoundary{}, errors.New("context session boundary store is required")
+	}
+	if strings.TrimSpace(outcome.Summary) == "" {
+		return runtimehistory.ContextBoundary{}, errors.New("context session compression outcome summary is required")
+	}
+
+	previousBoundaryID := s.lastBoundaryID
+	sequence := s.boundarySequence + 1
+	latest, err := s.boundaryStore.LoadLatestContextBoundary(ctx, s.id.SessionID)
+	if err != nil {
+		return runtimehistory.ContextBoundary{}, fmt.Errorf("load latest context boundary: %w", err)
+	}
+	if latest != nil && latest.Sequence >= sequence {
+		sequence = latest.Sequence + 1
+		previousBoundaryID = latest.BoundaryID
+	}
+	if sequence <= 0 {
+		sequence = 1
+	}
+
+	firstIndex, lastIndex := normalizeBoundaryCoveredRange(outcome.FirstIndex, outcome.LastIndex, len(beforeMessages))
+	preservedFrom, preservedTo := preservedRangeAfterRewrite(lastIndex, len(beforeMessages))
+	effectiveWindow := pressure.EffectiveWindowTokens
+	if effectiveWindow <= 0 {
+		effectiveWindow = s.modelProfile.ContextWindowTokens
+	}
+	boundaryID := contextBoundaryID(s.id.RunID, sequence)
+	summarySnippet := strings.TrimSpace(outcome.SummarySnippet)
+	if summarySnippet == "" {
+		summarySnippet = snippet(outcome.Summary, 200)
+	}
+
+	boundary := runtimehistory.ContextBoundary{
+		BoundaryID:               boundaryID,
+		SessionID:                s.id.SessionID,
+		RunID:                    s.id.RunID,
+		Sequence:                 sequence,
+		TurnIndex:                s.turnIndex,
+		Mode:                     s.id.Mode,
+		Trigger:                  string(trigger),
+		FirstIndex:               firstIndex,
+		LastIndex:                lastIndex,
+		CoveredFirstMessageID:    contextBoundaryMessageID(s.id.RunID, firstIndex),
+		CoveredLastMessageID:     contextBoundaryMessageID(s.id.RunID, lastIndex),
+		PreviousBoundaryID:       previousBoundaryID,
+		SummaryMessageID:         boundaryID + ":summary",
+		TranscriptRef:            fmt.Sprintf("%s:messages:%d-%d", s.id.RunID, firstIndex, lastIndex),
+		PreservedFromIndex:       preservedFrom,
+		PreservedToIndex:         preservedTo,
+		PreservedHeadMessageID:   contextBoundaryMessageID(s.id.RunID, preservedFrom),
+		PreservedAnchorMessageID: contextBoundaryMessageID(s.id.RunID, preservedFrom),
+		PreservedTailMessageID:   contextBoundaryMessageID(s.id.RunID, preservedTo),
+		TokensBefore:             outcome.TokensBefore,
+		TokensAfter:              outcome.TokensAfter,
+		EffectiveWindowTokens:    effectiveWindow,
+		Summary:                  strings.TrimSpace(outcome.Summary),
+		SummarySnippet:           summarySnippet,
+		CreatedAt:                time.Now().UTC(),
+	}
+	if err := s.boundaryStore.SaveContextBoundary(ctx, boundary); err != nil {
+		return runtimehistory.ContextBoundary{}, err
+	}
+	return boundary, nil
 }
 
 func (s *defaultContextSession) RecordAssistant(_ context.Context, msg adk.Message) error {
@@ -300,11 +383,130 @@ func (s *defaultContextSession) annotateTurnIndex(msg adk.Message) adk.Message {
 	return AnnotateMessageTurn(msg, s.turnIndex)
 }
 
-func (s *defaultContextSession) Resume(context.Context, ResumeContextRequest) (*ModelInput, error) {
+func (s *defaultContextSession) Resume(ctx context.Context, req ResumeContextRequest) (*ModelInput, error) {
 	if s == nil {
 		return nil, errors.New("context session is not initialized")
 	}
-	return nil, errors.New("context session resume requires persisted context boundary integration")
+	if s.budgetGovernor == nil {
+		return nil, errors.New("context session budget governor is required")
+	}
+	if s.boundaryStore == nil {
+		return nil, errors.New("context session boundary store is required")
+	}
+	id, err := validateContextSessionIdentity(req.SessionID, req.RunID, req.Mode)
+	if err != nil {
+		return nil, err
+	}
+	var boundary *runtimehistory.ContextBoundary
+	if strings.TrimSpace(req.BoundaryID) != "" {
+		boundary, err = s.boundaryStore.LoadContextBoundary(ctx, req.BoundaryID)
+	} else {
+		boundary, err = s.boundaryStore.LoadLatestContextBoundary(ctx, req.SessionID)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("load context boundary for resume: %w", err)
+	}
+	if boundary == nil {
+		return nil, errors.New("context boundary not found")
+	}
+	if boundary.SessionID != id.SessionID {
+		return nil, fmt.Errorf("context boundary session mismatch: got %q want %q", boundary.SessionID, id.SessionID)
+	}
+	if boundary.RunID != id.RunID {
+		return nil, fmt.Errorf("context boundary run mismatch: got %q want %q", boundary.RunID, id.RunID)
+	}
+	if boundary.Mode != id.Mode {
+		return nil, fmt.Errorf("context boundary mode mismatch: got %q want %q", boundary.Mode, id.Mode)
+	}
+	if strings.TrimSpace(boundary.Summary) == "" {
+		return nil, errors.New("context boundary summary is required for resume")
+	}
+
+	s.id = id
+	s.turnIndex = boundary.TurnIndex
+	s.modelProfile = req.ModelProfile
+	s.messages = []adk.Message{markCompressionSummary(sanitizeSummaryMessage(compactionSummaryMessage(boundary.Summary)))}
+	s.lastSummary = boundary.Summary
+	s.lastBoundaryID = boundary.BoundaryID
+	s.boundarySequence = boundary.Sequence
+	s.lastCompactTurn = boundary.TurnIndex
+	s.bootstrapped = true
+	return s.currentInput(ctx, nil)
+}
+
+func normalizeBoundaryCoveredRange(firstIndex, lastIndex, messageCount int) (int, int) {
+	if firstIndex < 0 {
+		firstIndex = 0
+	}
+	if lastIndex < firstIndex {
+		lastIndex = firstIndex
+	}
+	if messageCount <= 0 {
+		return firstIndex, lastIndex
+	}
+	if firstIndex >= messageCount {
+		firstIndex = messageCount - 1
+	}
+	if lastIndex >= messageCount {
+		lastIndex = messageCount - 1
+	}
+	if lastIndex < firstIndex {
+		lastIndex = firstIndex
+	}
+	return firstIndex, lastIndex
+}
+
+func preservedRangeAfterRewrite(lastIndex, messageCount int) (int, int) {
+	if messageCount <= 0 {
+		return 0, 0
+	}
+	from := lastIndex + 1
+	to := messageCount - 1
+	if from < 0 || from >= messageCount || to < from {
+		idx := lastIndex
+		if idx < 0 {
+			idx = 0
+		}
+		if idx >= messageCount {
+			idx = messageCount - 1
+		}
+		return idx, idx
+	}
+	return from, to
+}
+
+func contextBoundaryID(runID string, sequence int) string {
+	part := sanitizeBoundaryIDPart(runID)
+	if part == "" {
+		part = "run"
+	}
+	return fmt.Sprintf("ctxb_%s_%04d", part, sequence)
+}
+
+func sanitizeBoundaryIDPart(value string) string {
+	var b strings.Builder
+	for _, r := range strings.TrimSpace(value) {
+		switch {
+		case r >= 'a' && r <= 'z':
+			b.WriteRune(r)
+		case r >= 'A' && r <= 'Z':
+			b.WriteRune(r)
+		case r >= '0' && r <= '9':
+			b.WriteRune(r)
+		case r == '_' || r == '-':
+			b.WriteRune(r)
+		default:
+			b.WriteRune('_')
+		}
+	}
+	return b.String()
+}
+
+func contextBoundaryMessageID(runID string, index int) string {
+	if index < 0 {
+		index = 0
+	}
+	return fmt.Sprintf("%s:message:%04d", runID, index)
 }
 
 func shouldCompactForPressure(state BudgetPressureState) bool {

@@ -22,13 +22,13 @@ func (e *Executor) bootstrapContextSessionMessages(
 	mode events.OrchestrationMode,
 	active *ActiveRunner,
 ) ([]adk.Message, error) {
-	if e == nil || e.runBuilder == nil || e.runBuilder.Config() == nil {
+	if e == nil || e.runRuntime == nil || e.runRuntime.Config() == nil {
 		return nil, fmt.Errorf("context session bootstrap requires runtime config")
 	}
 	if active == nil {
 		return nil, fmt.Errorf("context session bootstrap requires active runner")
 	}
-	contextPolicy, err := e.runBuilder.Config().ContextPolicy()
+	contextPolicy, err := e.runRuntime.Config().ContextPolicy()
 	if err != nil {
 		return nil, fmt.Errorf("context policy: %w", err)
 	}
@@ -55,6 +55,7 @@ func (e *Executor) bootstrapContextSessionMessages(
 	session := contextplane.NewDefaultContextSession(contextplane.ContextSessionOptions{
 		BudgetGovernor: contextplane.NewBudgetGovernor(counter),
 		Pipeline:       pipeline,
+		BoundaryStore:  e.store,
 		PreservePolicy: contextplane.PreservePolicy{
 			RecentTurns:       contextPolicy.PreserveRecentTurns,
 			PreserveToolPairs: true,

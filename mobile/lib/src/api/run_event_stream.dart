@@ -207,66 +207,9 @@ void validateRunEvent(RunEvent event, {String? expectedRunId}) {
   if (event.ts.isEmpty) {
     throw const RunEventStreamException('RunEvent.ts is required.');
   }
-  if (!_supportedRunEventTypes.contains(event.type)) {
-    throw RunEventStreamException(
-      'RunEvent.type is not supported by the mobile client: ${event.type}',
-    );
+  if (event.type.isEmpty) {
+    throw const RunEventStreamException('RunEvent.type is required.');
   }
 }
-
-const _supportedRunEventTypes = {
-  'run.started',
-  'assistant.delta',
-  'agent.message',
-  'tool.call.started',
-  'tool.call.progress',
-  'tool.call.succeeded',
-  'tool.call.failed',
-  'tool.call.interrupted',
-  'run.completed',
-  'run.failed',
-  'run.interrupted',
-  'run.resume_requested',
-  'elicitation.pending',
-  'elicitation.decided',
-  'operator_question.pending',
-  'operator_question.decided',
-  'provider.degraded',
-  'mcp.tool_catalog_refreshed',
-  'mcp.tool_catalog_refresh_failed',
-  'mcp.provider_added',
-  'mcp.provider_removed',
-  'mcp.provider_restarted',
-  'mcp.resource_catalog_refreshed',
-  'mcp.resource_catalog_refresh_failed',
-  'mcp.prompt_catalog_refreshed',
-  'mcp.prompt_catalog_refresh_failed',
-  'mcp.auth_status_changed',
-  'sampling.started',
-  'sampling.completed',
-  'sampling.failed',
-  'decision_selected',
-  'decision_blocked',
-  'skill.discovered',
-  'skill.selected',
-  'skill.loaded',
-  'skill.failed',
-  'skill.lifecycle',
-  'procedure.activation',
-  'memory.prepared',
-  'context.pressure',
-  'context.compressed',
-  'crystallization.verdict',
-  'crystallization.failed',
-  'plan.created',
-  'plan.updated',
-  'plan.cleared',
-  'step.started',
-  'step.completed',
-  'step.failed',
-  'subagent.started',
-  'subagent.completed',
-  'subagent.failed',
-};
 
 String _string(Object? value) => value is String ? value : '';

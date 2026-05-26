@@ -12,7 +12,7 @@ import (
 	"github.com/ycvk/acorn/internal/providers"
 )
 
-func TestRunnerFactoryBuildsCompressionStackPerRun(t *testing.T) {
+func TestRunnerFactoryBuildsContextHandlerStackPerRun(t *testing.T) {
 	store, cfg := newRunnerFactoryMemoryTestContext(t)
 
 	chatModel, err := providers.NewOpenAIChatModel(context.Background(), cfg.Providers[0])
@@ -33,20 +33,20 @@ func TestRunnerFactoryBuildsCompressionStackPerRun(t *testing.T) {
 	if err != nil {
 		t.Fatalf("buildRunnerAgentHandlers(second): %v", err)
 	}
-	if got, want := len(first), 4; got != want {
+	if got, want := len(first), 3; got != want {
 		t.Fatalf("handler count = %d, want %d", got, want)
 	}
-	for i, want := range []string{"patchtoolcalls", "toolLifecycleMiddleware", "pipelineCompressionMiddleware", "BaseChatModelAgentMiddleware"} {
+	for i, want := range []string{"patchtoolcalls", "toolLifecycleMiddleware", "BaseChatModelAgentMiddleware"} {
 		if got := reflect.TypeOf(first[i]).String(); !strings.Contains(got, want) {
 			t.Fatalf("first handler[%d] type = %q, want substring %q", i, got, want)
 		}
 	}
-	for i := 0; i < 3; i++ {
+	for i := 0; i < 2; i++ {
 		if reflect.ValueOf(first[i]).Pointer() == reflect.ValueOf(second[i]).Pointer() {
-			t.Fatalf("compression handler %d should be rebuilt per run", i)
+			t.Fatalf("context handler %d should be rebuilt per run", i)
 		}
 	}
-	if reflect.ValueOf(first[3]).Pointer() != reflect.ValueOf(second[3]).Pointer() {
+	if reflect.ValueOf(first[2]).Pointer() != reflect.ValueOf(second[2]).Pointer() {
 		t.Fatalf("static custom handler should be reused across runs")
 	}
 }
@@ -68,10 +68,10 @@ func TestCompressionAlwaysOnBuildsMiddlewareStack(t *testing.T) {
 	if err != nil {
 		t.Fatalf("buildRunnerAgentHandlers: %v", err)
 	}
-	if got, want := len(handlers), 4; got != want {
+	if got, want := len(handlers), 3; got != want {
 		t.Fatalf("handler count = %d, want %d (compression always on)", got, want)
 	}
-	for i, want := range []string{"patchtoolcalls", "toolLifecycleMiddleware", "pipelineCompressionMiddleware", "BaseChatModelAgentMiddleware"} {
+	for i, want := range []string{"patchtoolcalls", "toolLifecycleMiddleware", "BaseChatModelAgentMiddleware"} {
 		if got := reflect.TypeOf(handlers[i]).String(); !strings.Contains(got, want) {
 			t.Fatalf("handler[%d] type = %q, want substring %q", i, got, want)
 		}

@@ -4,22 +4,22 @@ import (
 	"time"
 
 	"github.com/ycvk/acorn/internal/app"
+	"github.com/ycvk/acorn/internal/clientevents"
 	"github.com/ycvk/acorn/internal/runtime"
-	"github.com/ycvk/acorn/internal/web/runprojector"
 )
 
 type RunDetailDTO struct {
-	Run       RunDTO                `json:"run"`
-	Thread    ThreadDTO             `json:"thread"`
-	Events    []RunEventDTO         `json:"events"`
-	Workbench *RuntimeWorkbenchDTO  `json:"workbench"`
-	Trace     *runtime.TraceSummary `json:"trace"`
-	Raw       *RunDetailRawDTO      `json:"raw,omitempty"`
+	Run       RunDTO                  `json:"run"`
+	Thread    ThreadDTO               `json:"thread"`
+	Events    []clientevents.RunEvent `json:"events"`
+	Workbench *RuntimeWorkbenchDTO    `json:"workbench"`
+	Trace     *runtime.TraceSummary   `json:"trace"`
+	Raw       *RunDetailRawDTO        `json:"raw,omitempty"`
 }
 
 // RunDetailRawDTO holds raw unsupported events for diagnostic purposes.
 type RunDetailRawDTO struct {
-	UnsupportedEvents []UnsupportedRunEventDTO `json:"unsupported_events"`
+	UnsupportedEvents []clientevents.UnsupportedRunEvent `json:"unsupported_events"`
 }
 
 // InterruptRunResponse is returned after requesting a run interruption.
@@ -40,45 +40,6 @@ func runDTOFromDomain(run app.Run) RunDTO {
 		dto.CompletedAt = &run.CompletedAt
 	}
 	return dto
-}
-
-func runEventDTOFromDomain(event runprojector.RunEvent) RunEventDTO {
-	return RunEventDTO{
-		EventID: event.EventID,
-		RunID:   event.RunID,
-		Seq:     event.Seq,
-		TS:      event.TS,
-		Type:    event.Type,
-		Data:    event.Data,
-	}
-}
-
-func runEventDTOsFromDomain(items []runprojector.RunEvent) []RunEventDTO {
-	result := make([]RunEventDTO, 0, len(items))
-	for _, item := range items {
-		result = append(result, runEventDTOFromDomain(item))
-	}
-	return result
-}
-
-func unsupportedRunEventDTOFromDomain(event runprojector.UnsupportedRunEvent) UnsupportedRunEventDTO {
-	return UnsupportedRunEventDTO{
-		EventID: event.EventID,
-		RunID:   event.RunID,
-		Seq:     event.Seq,
-		TS:      event.TS,
-		Type:    event.Type,
-		Raw:     event.Raw,
-		Reason:  event.Reason,
-	}
-}
-
-func unsupportedRunEventDTOsFromDomain(items []runprojector.UnsupportedRunEvent) []UnsupportedRunEventDTO {
-	result := make([]UnsupportedRunEventDTO, 0, len(items))
-	for _, item := range items {
-		result = append(result, unsupportedRunEventDTOFromDomain(item))
-	}
-	return result
 }
 
 type RuntimeWorkbenchDTO struct {

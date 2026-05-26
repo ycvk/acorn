@@ -1,4 +1,4 @@
-package runprojector
+package clientevents
 
 import (
 	"errors"

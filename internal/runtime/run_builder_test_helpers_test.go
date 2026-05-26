@@ -7,8 +7,8 @@ import (
 )
 
 func (f *RunnerFactory) installRunChatModelBuilderForTest(fn func(context.Context, RunnerBuildRequest) (einomodel.BaseChatModel, error)) {
-	if f == nil || f.runBuilder == nil || f.runBuilder.modelProvider == nil {
+	if f == nil {
 		return
 	}
-	f.runBuilder.modelProvider.SetBuildRunForTest(fn)
+	f.runChatModelBuilder = fn
 }

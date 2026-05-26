@@ -80,12 +80,12 @@ func (s *Server) handleClientRunDetail(w http.ResponseWriter, r *http.Request) {
 	detail := RunDetailDTO{
 		Run:       runDTOFromDomain(*run),
 		Thread:    threadDTOFromDomain(*thread),
-		Events:    runEventDTOsFromDomain(eventDetail.Events),
+		Events:    eventDetail.Events,
 		Workbench: runtimeWorkbenchDTOPointer(workbench),
 		Trace:     eventDetail.Trace,
 	}
 	if len(eventDetail.Unsupported) > 0 {
-		detail.Raw = &RunDetailRawDTO{UnsupportedEvents: unsupportedRunEventDTOsFromDomain(eventDetail.Unsupported)}
+		detail.Raw = &RunDetailRawDTO{UnsupportedEvents: eventDetail.Unsupported}
 	}
 	s.respondJSON(w, r, http.StatusOK, detail)
 }
@@ -122,7 +122,7 @@ func (s *Server) handleRunEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	for _, item := range items {
-		if err := writer.Sink(runEventDTOFromDomain(item)); err != nil {
+		if err := writer.Sink(item); err != nil {
 			if !writer.started {
 				s.respondInternalError(w, r, err)
 				return
@@ -154,7 +154,7 @@ func (s *Server) followRunEvents(r *http.Request, writer *clientSSEWriter, runID
 				return
 			}
 			for _, item := range items {
-				if err := writer.Sink(runEventDTOFromDomain(item)); err != nil {
+				if err := writer.Sink(item); err != nil {
 					s.logInternalError(r, "client_sse_follow_write_failed", err)
 					return
 				}

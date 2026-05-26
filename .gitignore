@@ -2,7 +2,9 @@
 .idea
 .agents/
 .sisyphus/
-.acorn/
+.acorn/skills/
+.acorn/harness/state/
+.acorn/harness/.last-check
 .opencode/
 .claude/
 .tmp/

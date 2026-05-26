@@ -71,6 +71,7 @@ func TestContextSessionPassesPreviousSummary(t *testing.T) {
 			CompactionEngine: engine,
 			TokenCounter:     testTokenCounter(t),
 		}),
+		BoundaryStore:  newFakeContextStore(),
 		PreservePolicy: PreservePolicy{RecentTurns: 1, PreserveToolPairs: true},
 		State:          state,
 	})

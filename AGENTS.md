@@ -142,3 +142,27 @@ go test ./internal/config ./internal/contextplane ./internal/orchestration ./int
 - OpenAPI/generated mobile types 漏同步会让 mobile parser 或 analyzer 失败。
 - `context.compressed` 有 `boundary_id` 不代表事件是 durable truth，真正事实在 SQLite `context_boundaries`。
 - `serve` 可以在 execution-not-ready 状态启动，执行路径会显式返回 `execution_not_ready`，不要伪造可执行状态。
+
+## Harness Orchestrate Protocol
+
+本小节描述 AI 协作时的新对话加载协议。
+
+### 自动加载顺序
+
+每次新对话开始时，按以下顺序加载上下文：
+
+1. **读取项目状态**：加载 `.acorn/harness/state/current.md`
+2. **读取模块记忆**：根据当前 sprint 涉及的模块，加载 `.acorn/harness/memory/modules/*.md`
+3. **读取架构决策**：加载 `.acorn/harness/memory/decisions/*.md`
+4. **评估用户意图**：判断属于 `specific_task`、`status_query`、`vague` 或 `harness_meta`
+5. **呈现上下文**：向用户汇报当前 sprint 状态和已知风险
+
+### 状态更新责任
+
+- 任何涉及 sprint 进度、blocker、风险变更的 run 结束后，必须更新 `state/current.md`
+- 任何涉及架构决策、硬约束变更的讨论结束后，必须更新 `memory/decisions/` 或 `memory/modules/`
+- 更新时直接改写 Markdown，不要破坏现有格式
+
+### 跨 session 恢复
+
+当检测到这是新 session（无历史上下文或用户输入"继续"），自动加载 `state/current.md` 并向用户呈现："上次我们做到这：..."
