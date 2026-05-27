@@ -65,7 +65,7 @@ These are intentionally out of scope for this plan:
 
 - `internal/contextplane/`
 - `internal/toolresult/`
-- `internal/runtime/plan_evidence.go`
+- `internal/runtime/plan/plan_evidence.go`
 - `internal/app/runtime_workbench_service.go`
 - `internal/web/runtime_workbench_dto.go`
 - `mobile/lib/src/features/chat/chat_models.dart`
@@ -197,7 +197,7 @@ go test ./internal/workspace ./internal/tools ./internal/runtime ./internal/orch
 ### Likely Files
 
 - `internal/memorymodule/`
-- `internal/runtime/plan_evidence.go`
+- `internal/runtime/plan/plan_evidence.go`
 - `internal/orchestration/verifier.go`
 - `internal/cli/`
 - `internal/app/runtime_workbench_service.go`

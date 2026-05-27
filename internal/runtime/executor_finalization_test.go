@@ -22,7 +22,7 @@ func TestFinishCollectedRunSuccessSummaryIncludesTerminalEvent(t *testing.T) {
 	exec := newFinalizationTestExecutor(t, store, cfg)
 	runID := createFinalizationRun(t, ctx, store, "session-terminal", "hello")
 
-	result, err := exec.finishCollectedRun(ctx, runID, "hello", runState{lastOutput: "world"}, nil, nil)
+	result, err := exec.finishCollectedRun(ctx, runID, "hello", RunState{lastOutput: "world"}, nil, nil)
 	if err != nil {
 		t.Fatalf("finishCollectedRun: %v", err)
 	}
@@ -66,7 +66,7 @@ func TestFinishCollectedRunArchiveFailureMarksRunFailed(t *testing.T) {
 	}
 	runID := createFinalizationRun(t, ctx, store, "", "hello")
 
-	_, err := exec.finishCollectedRun(ctx, runID, "hello", runState{lastOutput: "world"}, nil, nil)
+	_, err := exec.finishCollectedRun(ctx, runID, "hello", RunState{lastOutput: "world"}, nil, nil)
 	if err == nil {
 		t.Fatal("finishCollectedRun returned nil error, want archive finalization error")
 	}
@@ -105,7 +105,7 @@ func TestFinishCollectedRunAppendsMemoryHistoryWithTouchedFiles(t *testing.T) {
 	runID := createFinalizationRun(t, ctx, store, "session-history", "update memory runtime")
 	appendSuccessfulToolEvent(t, ctx, store, runID, "apply_unified_patch", `{"path":"internal/runtime/executor_terminal.go"}`)
 
-	if _, err := exec.finishCollectedRun(ctx, runID, "update memory runtime", runState{lastOutput: "history appended"}, nil, nil); err != nil {
+	if _, err := exec.finishCollectedRun(ctx, runID, "update memory runtime", RunState{lastOutput: "history appended"}, nil, nil); err != nil {
 		t.Fatalf("finishCollectedRun: %v", err)
 	}
 	assertMemoryHistoryContains(t, cfg, "session-history", runID, "files changed: internal/runtime/executor_terminal.go")
@@ -119,7 +119,7 @@ func TestFinishCollectedRunSuccessPersistsAfterContextCancellation(t *testing.T)
 	cancelledCtx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	result, err := exec.finishCollectedRun(cancelledCtx, runID, "hello", runState{lastOutput: "world"}, nil, nil)
+	result, err := exec.finishCollectedRun(cancelledCtx, runID, "hello", RunState{lastOutput: "world"}, nil, nil)
 	if err != nil {
 		t.Fatalf("finishCollectedRun with cancelled context: %v", err)
 	}

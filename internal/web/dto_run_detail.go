@@ -100,21 +100,9 @@ type UpdateThreadRequest struct {
 }
 
 func threadDTOFromDomain(thread app.Thread) ThreadDTO {
-	return ThreadDTO{
-		ID:            thread.ID,
-		Title:         thread.Title,
-		WorkspaceRoot: thread.WorkspaceRoot,
-		CreatedAt:     thread.CreatedAt,
-		UpdatedAt:     thread.UpdatedAt,
-		LatestRunID:   thread.LatestRunID,
-		State:         thread.State,
-	}
+	return DefaultConverter.threadDTOFromDomain(thread)
 }
 
 func threadDTOsFromDomain(items []app.Thread) []ThreadDTO {
-	result := make([]ThreadDTO, 0, len(items))
-	for _, item := range items {
-		result = append(result, threadDTOFromDomain(item))
-	}
-	return result
+	return DefaultConverter.threadDTOsFromDomain(items)
 }

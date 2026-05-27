@@ -5,6 +5,7 @@ import (
 
 	"github.com/ycvk/acorn/internal/orchestration"
 	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
+	"github.com/ycvk/acorn/internal/runtime/tool"
 	"github.com/ycvk/acorn/internal/toolfactory"
 	"github.com/ycvk/acorn/internal/tooling"
 )
@@ -34,7 +35,7 @@ func (artifactToolBridge) CurrentSessionID(ctx context.Context) string {
 }
 
 func (artifactToolBridge) CurrentToolCallID(ctx context.Context) string {
-	return toolAuditCallID(ctx)
+	return tool.ToolAuditCallID(ctx)
 }
 
 func (f *RunnerFactory) buildRunToolset(ctx context.Context, sessionID string, childExec orchestration.ChildAgentExecutor) (*toolfactory.Toolset, error) {

@@ -126,7 +126,7 @@ func TestSummarizeStreamItemsCountsCurrentSkillEvents(t *testing.T) {
 		{Kind: stream.StreamKindSkillFailed, Payload: &stream.SkillFailedPayload{Skill: &stream.StreamSkill{SelectedID: "s1"}}},
 		{Kind: stream.StreamKindSkillLifecycle, Payload: &stream.SkillLifecyclePayload{SkillLifecycle: &stream.StreamSkillLifecycle{SkillID: "s1", Action: "assessed"}}},
 	}
-	summary := summarizeStreamItems(items)
+	summary := SummarizeStreamItems(items)
 	if summary.SkillEventCount != 5 {
 		t.Fatalf("SkillEventCount = %d, want 5", summary.SkillEventCount)
 	}

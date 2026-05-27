@@ -198,7 +198,7 @@ func GraphAgentContextBinder(buildCtx context.Context) func(context.Context) con
 		if contextplane.ToolLifecycleContextFromContext(runCtx) != nil {
 			return runCtx
 		}
-		return contextplane.WithToolLifecycleContext(runCtx, lifecycle.Plane, lifecycle.State, lifecycle.Catalog, infos)
+		return contextplane.WithToolLifecycleContext(runCtx, lifecycle.Ledger, lifecycle.State, lifecycle.Catalog, infos)
 	}
 }
 

@@ -11,6 +11,7 @@ import (
 	"github.com/ycvk/acorn/internal/model"
 	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	"github.com/ycvk/acorn/internal/runtime/graph"
+	"github.com/ycvk/acorn/internal/store"
 )
 
 type observeNodeModel struct {
@@ -131,4 +132,53 @@ func TestObserveNodeRejectsInvalidDecision(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "step_id") {
 		t.Fatalf("expected step_id error, got %v", err)
 	}
+}
+
+// --- Test helper duplicated from plan package ---
+
+type fakePlanStore struct {
+	loaded    *model.Plan
+	saved     *model.Plan
+	loadErr   error
+	saveErr   error
+	loadCount int
+}
+
+func (s *fakePlanStore) OrchestrationPlanStore() {}
+
+func (s *fakePlanStore) LoadPlan(_ context.Context, _ string) (*model.Plan, error) {
+	s.loadCount++
+	if s.loadErr != nil {
+		return nil, s.loadErr
+	}
+	if s.loaded == nil {
+		return nil, store.ErrPlanNotFound
+	}
+	return s.loaded, nil
+}
+
+func (s *fakePlanStore) SavePlan(_ context.Context, plan *model.Plan) error {
+	if s.saveErr != nil {
+		return s.saveErr
+	}
+	s.saved = plan
+	s.loaded = plan
+	return nil
+}
+
+func (s *fakePlanStore) AppendStepEvidence(_ context.Context, _ string, runID string, stepID string, evidence model.PlanEvidence) (*model.Plan, error) {
+	if s.loaded == nil {
+		return nil, store.ErrPlanNotFound
+	}
+	for i := range s.loaded.Steps {
+		if s.loaded.Steps[i].ID == stepID {
+			s.loaded.Steps[i].Evidence = append(s.loaded.Steps[i].Evidence, evidence)
+			break
+		}
+	}
+	return s.loaded, nil
+}
+
+func (s *fakePlanStore) AppendToolResultEvidenceRef(_ context.Context, _ string, _ store.EvidenceRef) error {
+	return nil
 }

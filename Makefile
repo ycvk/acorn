@@ -12,7 +12,7 @@ GO_PACKAGES := $(shell go list ./...)
 GOLANGCI_LINT := $(shell which golangci-lint 2>/dev/null)
 GOIMPORTS := $(shell which goimports 2>/dev/null)
 
-.PHONY: help build release release-linux-amd64 release-linux-arm64 dev-faiss-artifacts dev-build-faiss dev-doctor-faiss dev-serve-faiss doctor serve test test-architecture vet lint format format-check
+.PHONY: help build release release-linux-amd64 release-linux-arm64 dev-faiss-artifacts dev-build-faiss dev-doctor-faiss dev-serve-faiss doctor serve generate generate-web test test-architecture vet lint format format-check
 
 help:
 	@echo "make build         # build ./bin/acorn"
@@ -25,6 +25,7 @@ help:
 	@echo "make dev-serve-faiss # run serve with local FAISS-enabled dev binary"
 	@echo "make doctor        # run doctor with $(CONFIG)"
 	@echo "make serve         # run remote API with $(CONFIG)"
+	@echo "make generate      # regenerate checked-in generated code"
 	@echo "make test          # go test ./..."
 	@echo "make vet           # go vet ./..."
 	@echo "make lint          # run golangci-lint"
@@ -62,6 +63,11 @@ doctor: build
 
 serve: build
 	$(BINARY) serve -c $(CONFIG)
+
+generate: generate-web
+
+generate-web:
+	go generate ./internal/web
 
 test:
 	go test $(GO_PACKAGES)

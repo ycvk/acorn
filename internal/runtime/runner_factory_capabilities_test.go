@@ -3,6 +3,7 @@ package runtime
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -10,6 +11,9 @@ import (
 	"github.com/cloudwego/eino/schema"
 
 	"github.com/ycvk/acorn/internal/memorymodule"
+	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
+	rtool "github.com/ycvk/acorn/internal/runtime/tool"
+	"github.com/ycvk/acorn/internal/tooling"
 )
 
 func TestBuildCapabilityRegistryFailsOnResourceToolInfoError(t *testing.T) {
@@ -136,7 +140,7 @@ func TestEmitMemoryPreparedEventWritesPreparedPayload(t *testing.T) {
 	if len(records) != 1 {
 		t.Fatalf("events = %#v", records)
 	}
-	item := projectEventToStreamItem(records[0])
+	item := ProjectEventToStreamItem(records[0])
 	prepared := item.GetMemoryPrepared()
 	if prepared == nil {
 		t.Fatalf("event payload = %#v", item.Payload)
@@ -181,7 +185,7 @@ func TestEmitProcedureActivationEventsWritesActivationPayload(t *testing.T) {
 	if len(records) != 1 {
 		t.Fatalf("events = %#v", records)
 	}
-	item := projectEventToStreamItem(records[0])
+	item := ProjectEventToStreamItem(records[0])
 	activation := item.GetProcedureActivation()
 	if activation == nil {
 		t.Fatalf("event payload = %#v", item.Payload)
@@ -191,5 +195,90 @@ func TestEmitProcedureActivationEventsWritesActivationPayload(t *testing.T) {
 	}
 	if len(activation.EvidenceRefs) != 1 || activation.EvidenceRefs[0] != "tool-result:run_proc:call_1" {
 		t.Fatalf("evidence refs = %#v", activation.EvidenceRefs)
+	}
+}
+
+func buildCapabilityRegistryForTest(
+	ctx context.Context,
+	localTools []einotool.BaseTool,
+	registrations []mcpprovider.ToolRegistration,
+	resourceTools []einotool.BaseTool,
+	promptTools []einotool.BaseTool,
+) (*tooling.Catalog, error) {
+	specs := make([]tooling.ToolSpec, 0, len(localTools)+len(registrations)+len(resourceTools)+len(promptTools))
+	for _, tool := range localTools {
+		specs = append(specs, tooling.ToolSpec{
+			ToolContract: toolNamingContract("", "local", tooling.ToolKindNative, tooling.ToolCategoryRead, tooling.ResourceScopeWorkspaceFile, tooling.EagerLoadingPolicy()),
+			Tool:         tool,
+		})
+	}
+	for _, registration := range registrations {
+		info, err := registration.Tool.Info(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("read MCP tool info for provider %q: %w", registration.ProviderName, err)
+		}
+		namespaced, err := rtool.NewMCPNamespacedTool(ctx, registration.Tool, registration.ProviderName, info.Name)
+		if err != nil {
+			return nil, fmt.Errorf("namespace MCP tool %q for provider %q: %w", info.Name, registration.ProviderName, err)
+		}
+		specs = append(specs, tooling.ToolSpec{
+			ToolContract: toolNamingContract("", registration.ProviderName, tooling.ToolKindMCP, tooling.ToolCategoryIntegration, tooling.ResourceScopeMCP, tooling.EagerLoadingPolicy()),
+			Tool:         namespaced,
+		})
+	}
+	for _, tool := range resourceTools {
+		info, err := tool.Info(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("read resource tool info: %w", err)
+		}
+		if info == nil {
+			return nil, fmt.Errorf("read resource tool info: nil ToolInfo")
+		}
+		specs = append(specs, tooling.ToolSpec{
+			ToolContract: toolNamingContract("", info.Name, tooling.ToolKindMCPResource, tooling.ToolCategoryIntegration, tooling.ResourceScopeMCP, tooling.DeferredLoadingPolicy("deferred_mcp_catalog")),
+			Tool:         tool,
+		})
+	}
+	for _, tool := range promptTools {
+		info, err := tool.Info(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("read prompt tool info: %w", err)
+		}
+		if info == nil {
+			return nil, fmt.Errorf("read prompt tool info: nil ToolInfo")
+		}
+		specs = append(specs, tooling.ToolSpec{
+			ToolContract: toolNamingContract("", info.Name, tooling.ToolKindMCPPrompt, tooling.ToolCategoryIntegration, tooling.ResourceScopeMCP, tooling.DeferredLoadingPolicy("deferred_mcp_catalog")),
+			Tool:         tool,
+		})
+	}
+	return tooling.NewCatalog(ctx, specs)
+}
+
+func toolNamingContract(
+	name string,
+	source string,
+	kind tooling.ToolKind,
+	category tooling.ToolCategory,
+	scope tooling.ResourceScope,
+	loading tooling.ToolLoadingPolicy,
+) tooling.ToolContract {
+	return tooling.ToolContract{
+		Name:          name,
+		Source:        source,
+		Kind:          kind,
+		Category:      category,
+		ResourceScope: scope,
+		Profiles:      []tooling.ToolProfile{tooling.ToolProfileRun},
+		PlanPolicy:    tooling.PlanPolicyNone,
+		FactPolicy:    tooling.FactPolicyAuto,
+		Loading:       loading,
+		Execution: tooling.ToolExecutionPolicy{
+			ParallelPolicy: tooling.ParallelPolicyReadOnly,
+			SideEffects:    []tooling.ToolSideEffect{tooling.ToolSideEffectIntegration},
+		},
+		Result:     tooling.InlineResultPolicy(0),
+		Boundary:   tooling.ToolResultBoundaryPolicy(),
+		Projection: tooling.ActivityProjectionPolicy(),
 	}
 }

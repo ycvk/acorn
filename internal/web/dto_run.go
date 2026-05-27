@@ -34,23 +34,7 @@ type PendingActionSummaryDTO struct {
 }
 
 func runSummaryDTOsFromDomain(items []app.RunSummary) []RunSummaryDTO {
-	result := make([]RunSummaryDTO, 0, len(items))
-	for _, item := range items {
-		result = append(result, RunSummaryDTO{
-			RunID:          item.RunID,
-			ThreadID:       item.ThreadID,
-			ThreadTitle:    item.ThreadTitle,
-			Status:         item.Status,
-			Mode:           item.Mode,
-			Preview:        item.Preview,
-			LastEventLabel: item.LastEventLabel,
-			AttentionLevel: item.AttentionLevel,
-			DurationMS:     item.DurationMS,
-			CreatedAt:      item.CreatedAt,
-			UpdatedAt:      item.UpdatedAt,
-		})
-	}
-	return result
+	return DefaultConverter.runSummaryDTOsFromDomain(items)
 }
 
 type CreateRunRequest struct {

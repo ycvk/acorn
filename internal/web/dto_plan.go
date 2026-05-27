@@ -88,37 +88,11 @@ func planDTOFromRuntime(plan *model.Plan) *PlanDTO {
 }
 
 func planRepoTargetDTOsFromRuntime(items []model.PlanRepoTarget) []PlanRepoTargetDTO {
-	if len(items) == 0 {
-		return nil
-	}
-	result := make([]PlanRepoTargetDTO, 0, len(items))
-	for _, item := range items {
-		result = append(result, PlanRepoTargetDTO{
-			Path:       item.Path,
-			Symbol:     item.Symbol,
-			StartLine:  item.StartLine,
-			EndLine:    item.EndLine,
-			Reason:     item.Reason,
-			Confidence: item.Confidence,
-		})
-	}
-	return result
+	return DefaultConverter.planRepoTargetDTOsFromRuntime(items)
 }
 
 func verificationIntentDTOsFromRuntime(items []model.VerificationIntent) []VerificationIntentDTO {
-	if len(items) == 0 {
-		return nil
-	}
-	result := make([]VerificationIntentDTO, 0, len(items))
-	for _, item := range items {
-		result = append(result, VerificationIntentDTO{
-			Kind:    item.Kind,
-			Command: append([]string(nil), item.Command...),
-			Paths:   append([]string(nil), item.Paths...),
-			Reason:  item.Reason,
-		})
-	}
-	return result
+	return DefaultConverter.verificationIntentDTOsFromRuntime(items)
 }
 
 func planEvidenceDTOsFromRuntime(items []model.PlanEvidence) []PlanEvidenceDTO {

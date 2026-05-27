@@ -9,6 +9,7 @@ import (
 	"github.com/cloudwego/eino/adk"
 	einomodel "github.com/cloudwego/eino/components/model"
 	"github.com/ycvk/acorn/internal/events"
+	"github.com/ycvk/acorn/internal/runtime/plan"
 )
 
 func TestRunnerFactoryNewCleansRunContextOnSetupFailure(t *testing.T) {
@@ -37,7 +38,7 @@ func TestRunnerFactoryNewCleansRunContextOnSetupFailure(t *testing.T) {
 
 func TestWrapModelWithHandlersReturnsWrapError(t *testing.T) {
 	wantErr := errors.New("wrap failed")
-	_, err := wrapModelWithHandlers(context.Background(), nil, []adk.ChatModelAgentMiddleware{
+	_, err := plan.WrapModelWithHandlers(context.Background(), nil, []adk.ChatModelAgentMiddleware{
 		&failingModelWrapper{err: wantErr},
 	})
 	if err == nil {

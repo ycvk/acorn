@@ -31,7 +31,7 @@ func runDecisionCheck(ctx context.Context, args []string) error {
 		return err
 	}
 	return withContainer(ctx, *configPath, func(container *app.Container) error {
-		profile, err := container.Decision().Profile(ctx)
+		profile, err := container.DecisionProfile()
 		if err != nil {
 			return err
 		}
@@ -55,7 +55,7 @@ func runDecisionInspect(ctx context.Context, args []string) error {
 	}
 	runID := fs.Arg(0)
 	return withContainer(ctx, *configPath, func(container *app.Container) error {
-		record, err := container.Decision().InspectRun(ctx, runID)
+		record, err := container.InspectRunDecision(ctx, runID)
 		if err != nil {
 			return err
 		}

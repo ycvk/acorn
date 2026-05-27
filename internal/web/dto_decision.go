@@ -32,18 +32,7 @@ type RunDecisionDTO struct {
 }
 
 func runDecisionDTOFromDomain(record *decision.Record) *RunDecisionDTO {
-	if record == nil {
-		return nil
-	}
-	return &RunDecisionDTO{
-		RunID:               record.RunID,
-		Action:              string(record.Action),
-		Intent:              record.Intent,
-		SelectedSkillID:     record.SelectedSkillID,
-		DecisionReason:      record.DecisionReason,
-		DecisionProfileHash: record.DecisionProfileHash,
-		CreatedAt:           record.CreatedAt,
-	}
+	return DefaultConverter.runDecisionDTOFromDomain(record)
 }
 
 func selectedSkillDTOFromRuntime(skill *runtime.SelectedSkill) *SelectedSkillDTO {

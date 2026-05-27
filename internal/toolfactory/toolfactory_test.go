@@ -122,9 +122,9 @@ func TestBuilderBuildNilWorkspace(t *testing.T) {
 }
 
 func TestNewLoadToolsToolValidation(t *testing.T) {
-	_, err := NewLoadToolsTool(nil, nil)
+	_, err := NewLoadToolsTool(nil)
 	if err == nil {
-		t.Fatal("expected error for nil plane")
+		t.Fatal("expected error for nil extractor")
 	}
 }
 

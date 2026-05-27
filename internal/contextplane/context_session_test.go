@@ -132,11 +132,11 @@ func TestContextSessionContextBinding(t *testing.T) {
 
 func TestContextSessionBeforeModelCallCompactsOnPressure(t *testing.T) {
 	state := NewCompressionState()
-	engine := &testCompactionEngine{
-		result: &CompactionResult{
+	pipeline := &testCompressionPipeline{
+		result: &PipelineResult{
 			Messages:    []adk.Message{schema.SystemMessage("system"), schema.UserMessage("summary checkpoint")},
-			SummaryText: "summary checkpoint",
-			Outcome: CompressionOutcome{
+			TokensFreed: 80,
+			Outcome: &CompressionOutcome{
 				BoundaryID:     "ctxb_1",
 				TokensBefore:   100,
 				TokensAfter:    20,
@@ -149,11 +149,7 @@ func TestContextSessionBeforeModelCallCompactsOnPressure(t *testing.T) {
 	store := newFakeContextStore()
 	session := NewDefaultContextSession(ContextSessionOptions{
 		BudgetGovernor: testBudgetGovernor{pressure: testPressure(PressureAutoCompact)},
-		Pipeline: NewDefaultContextCompressionPipeline(CompressionPipelineOptions{
-			Governor:         testBudgetGovernor{pressure: testPressure(PressureAutoCompact)},
-			CompactionEngine: engine,
-			TokenCounter:     testTokenCounter(t),
-		}),
+		Pipeline:       pipeline,
 		BoundaryStore:  store,
 		PreservePolicy: PreservePolicy{RecentTurns: 1, PreserveToolPairs: true},
 		State:          state,
@@ -184,17 +180,17 @@ func TestContextSessionBeforeModelCallCompactsOnPressure(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BeforeModelCall: %v", err)
 	}
-	if !engine.called {
-		t.Fatal("compaction engine was not called")
+	if !pipeline.called {
+		t.Fatal("compression pipeline was not called")
 	}
-	if engine.request.Trigger != CompactTriggerAuto {
-		t.Fatalf("trigger = %q, want auto", engine.request.Trigger)
+	if pipeline.request.Trigger != CompactTriggerAuto {
+		t.Fatalf("trigger = %q, want auto", pipeline.request.Trigger)
 	}
-	if len(engine.request.ToolInfos) != 1 || engine.request.ToolInfos[0].Name != "lookup" {
-		t.Fatalf("tool infos = %#v, want lookup", engine.request.ToolInfos)
+	if len(pipeline.request.ToolInfos) != 1 || pipeline.request.ToolInfos[0].Name != "lookup" {
+		t.Fatalf("tool infos = %#v, want lookup", pipeline.request.ToolInfos)
 	}
-	if engine.request.ToolState == nil || engine.request.ToolState.RunID != "run_1" {
-		t.Fatalf("tool state = %#v, want run_1", engine.request.ToolState)
+	if pipeline.request.ToolState == nil || pipeline.request.ToolState.RunID != "run_1" {
+		t.Fatalf("tool state = %#v, want run_1", pipeline.request.ToolState)
 	}
 	if got := messageContents(input.Messages); strings.Join(got, "|") != "system|summary checkpoint" {
 		t.Fatalf("messages = %v, want compacted checkpoint", got)
@@ -257,11 +253,11 @@ func TestContextSessionBeforeModelCallFailsWhenEngineMissing(t *testing.T) {
 
 func TestContextSessionReactiveCompactUsesReactiveTrigger(t *testing.T) {
 	state := NewCompressionState()
-	engine := &testCompactionEngine{
-		result: &CompactionResult{
+	pipeline := &testCompressionPipeline{
+		result: &PipelineResult{
 			Messages:    []adk.Message{schema.SystemMessage("system"), schema.UserMessage("reactive summary")},
-			SummaryText: "reactive summary",
-			Outcome: CompressionOutcome{
+			TokensFreed: 80,
+			Outcome: &CompressionOutcome{
 				BoundaryID:     "ctxb_reactive",
 				TokensBefore:   120,
 				TokensAfter:    40,
@@ -275,11 +271,7 @@ func TestContextSessionReactiveCompactUsesReactiveTrigger(t *testing.T) {
 	store := newFakeContextStore()
 	session := NewDefaultContextSession(ContextSessionOptions{
 		BudgetGovernor: governor,
-		Pipeline: NewDefaultContextCompressionPipeline(CompressionPipelineOptions{
-			Governor:         governor,
-			CompactionEngine: engine,
-			TokenCounter:     testTokenCounter(t),
-		}),
+		Pipeline:       pipeline,
 		BoundaryStore:  store,
 		PreservePolicy: PreservePolicy{RecentTurns: 1, PreserveToolPairs: true},
 		State:          state,
@@ -312,11 +304,11 @@ func TestContextSessionReactiveCompactUsesReactiveTrigger(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReactiveCompact: %v", err)
 	}
-	if !engine.called {
-		t.Fatal("compaction engine was not called")
+	if !pipeline.called {
+		t.Fatal("compression pipeline was not called")
 	}
-	if engine.request.Trigger != CompactTriggerReactive {
-		t.Fatalf("trigger = %q, want reactive", engine.request.Trigger)
+	if pipeline.request.Trigger != CompactTriggerReactive {
+		t.Fatalf("trigger = %q, want reactive", pipeline.request.Trigger)
 	}
 	if got := messageContents(input.Messages); strings.Join(got, "|") != "system|reactive summary" {
 		t.Fatalf("messages = %v, want reactive summary", got)
@@ -423,6 +415,18 @@ func TestContextSessionResumeLoadsPersistedBoundary(t *testing.T) {
 	}
 }
 
+func summaryMessageText(msg adk.Message) string {
+	if msg == nil {
+		return ""
+	}
+	for _, part := range msg.UserInputMultiContent {
+		if part.Type == schema.ChatMessagePartTypeText {
+			return strings.TrimSpace(part.Text)
+		}
+	}
+	return strings.TrimSpace(msg.Content)
+}
+
 func testContextBoundary(boundaryID, sessionID, runID string, sequence int, summary string) model.ContextBoundary {
 	return model.ContextBoundary{
 		BoundaryID:               boundaryID,
@@ -513,20 +517,20 @@ func testPressure(state BudgetPressureState) BudgetPressure {
 	}
 }
 
-type testCompactionEngine struct {
+type testCompressionPipeline struct {
 	called  bool
-	request CompactRequest
-	result  *CompactionResult
+	request PipelineRequest
+	result  *PipelineResult
 	err     error
 }
 
-func (e *testCompactionEngine) Compact(_ context.Context, req CompactRequest) (*CompactionResult, error) {
-	e.called = true
-	e.request = req
-	if e.err != nil {
-		return nil, e.err
+func (p *testCompressionPipeline) Compress(_ context.Context, req PipelineRequest) (*PipelineResult, error) {
+	p.called = true
+	p.request = req
+	if p.err != nil {
+		return nil, p.err
 	}
-	return e.result, nil
+	return p.result, nil
 }
 
 func fmtWrapped(format string, err error) error {

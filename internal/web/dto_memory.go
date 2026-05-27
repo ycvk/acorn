@@ -81,80 +81,13 @@ type WorkingCheckpointDTO struct {
 }
 
 func workingCheckpointDTOFromView(view *app.WorkingCheckpointView) *WorkingCheckpointDTO {
-	if view == nil {
-		return nil
-	}
-	return &WorkingCheckpointDTO{
-		ThreadID:       view.ThreadID,
-		Content:        view.Content,
-		RelatedSkillID: view.RelatedSkillID,
-		UpdatedAt:      view.UpdatedAt,
-	}
+	return DefaultConverter.workingCheckpointDTOFromView(view)
 }
 
 func memoryRecordDTOsFromDomain(records []memorymodule.Record) []MemoryRecordDTO {
-	items := make([]MemoryRecordDTO, 0, len(records))
-	for _, record := range records {
-		items = append(items, MemoryRecordDTO{
-			Ref:          record.Ref,
-			Kind:         string(record.Kind),
-			Title:        record.Title,
-			Status:       string(record.Status),
-			Scope:        record.Scope,
-			Tags:         append([]string(nil), record.Tags...),
-			Origin:       record.Origin,
-			TaskPattern:  record.TaskPattern,
-			Path:         record.RelPath,
-			Body:         record.Body,
-			Created:      record.Created,
-			Updated:      record.Updated,
-			ValidFrom:    record.ValidFrom,
-			ValidUntil:   record.ValidUntil,
-			SourceRun:    record.SourceRun,
-			SourceRefs:   append([]string(nil), record.SourceRefs...),
-			EvidenceRefs: append([]string(nil), record.EvidenceRefs...),
-			Relations:    memoryRecordRelationDTOsFromDomain(record.Relations),
-		})
-	}
-	return items
+	return DefaultConverter.memoryRecordDTOsFromDomain(records)
 }
 
 func memorySearchItemDTOsFromDomain(records []memorymodule.SearchItem) []MemorySearchItemDTO {
-	items := make([]MemorySearchItemDTO, 0, len(records))
-	for _, record := range records {
-		items = append(items, MemorySearchItemDTO{
-			Ref:          record.Ref,
-			Kind:         record.Kind,
-			Title:        record.Title,
-			Status:       record.Status,
-			Scope:        record.Scope,
-			Tags:         append([]string(nil), record.Tags...),
-			Origin:       record.Origin,
-			TaskPattern:  record.TaskPattern,
-			Path:         record.Path,
-			Snippet:      record.Snippet,
-			Score:        record.Score,
-			Created:      record.Created,
-			Updated:      record.Updated,
-			ValidFrom:    record.ValidFrom,
-			ValidUntil:   record.ValidUntil,
-			SourceRun:    record.SourceRun,
-			SourceRefs:   append([]string(nil), record.SourceRefs...),
-			EvidenceRefs: append([]string(nil), record.EvidenceRefs...),
-			Relations:    memoryRecordRelationDTOsFromDomain(record.Relations),
-		})
-	}
-	return items
-}
-
-func memoryRecordRelationDTOsFromDomain(items []memorymodule.RecordRelation) []MemoryRecordRelationDTO {
-	out := make([]MemoryRecordRelationDTO, 0, len(items))
-	for _, item := range items {
-		out = append(out, MemoryRecordRelationDTO{
-			Type:   string(item.Type),
-			Target: item.Target,
-			Reason: item.Reason,
-		})
-	}
-	return out
+	return DefaultConverter.memorySearchItemDTOsFromDomain(records)
 }

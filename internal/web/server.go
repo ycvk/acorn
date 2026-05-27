@@ -28,6 +28,7 @@ type ClientService interface {
 	LoadRunEventsAfter(ctx context.Context, runID string, afterSeq int64) ([]clientevents.RunEvent, error)
 	LoadRunEventsForDetail(ctx context.Context, runID string) (*clientevents.RunEventDetail, error)
 	RunIsTerminal(ctx context.Context, runID string) (bool, error)
+	InterruptRun(ctx context.Context, runID string) error
 	EventPollInterval() time.Duration
 }
 
@@ -47,12 +48,8 @@ type WorkingCheckpointService interface {
 	Clear(ctx context.Context, threadID string) error
 }
 
-type ResumeService interface {
+type TraceService interface {
 	Resume(ctx context.Context, runID string, sink stream.StreamSink) (*runtime.Result, error)
-}
-
-type RunService interface {
-	InterruptRun(ctx context.Context, runID string) error
 }
 
 type CapabilityService interface {
@@ -95,8 +92,7 @@ type Dependencies struct {
 	PendingAction PendingActionService
 	Workbench     RuntimeWorkbenchService
 	Checkpoints   WorkingCheckpointService
-	Resume        ResumeService
-	Run           RunService
+	Trace         TraceService
 	Memory        MemoryService
 	Skills        SkillService
 	Capabilities  CapabilityService
@@ -112,8 +108,7 @@ type Server struct {
 	pendingAction PendingActionService
 	workbench     RuntimeWorkbenchService
 	checkpoints   WorkingCheckpointService
-	resume        ResumeService
-	run           RunService
+	trace         TraceService
 	memory        MemoryService
 	skills        SkillService
 	capabilities  CapabilityService

@@ -37,7 +37,7 @@ func (a runContextAssembler) createSnapshot(ctx context.Context, req AssembleReq
 		CreatedAt: time.Now().UTC(),
 	}
 	var checkpointSection string
-	if !isNilInterface(a.checkpointService) && strings.TrimSpace(req.SessionID) != "" {
+	if !IsNilInterface(a.checkpointService) && strings.TrimSpace(req.SessionID) != "" {
 		checkpoint, err := a.checkpointService.Get(ctx, req.SessionID)
 		if err != nil {
 			return nil, fmt.Errorf("load working checkpoint: %w", err)

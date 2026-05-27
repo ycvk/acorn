@@ -73,25 +73,15 @@ type CapabilitiesToolDTO struct {
 }
 
 func capabilitiesSummaryDTOFromSnapshot(snapshot app.SystemCapabilitySummary) CapabilitiesSummaryDTO {
-	return CapabilitiesSummaryDTO{
-		ToolCount:                  snapshot.ToolCount,
-		EnabledToolCount:           snapshot.EnabledToolCount,
-		SkillCount:                 snapshot.SkillCount,
-		EligibleSkillCount:         snapshot.EligibleSkillCount,
-		IneligibleSkillCount:       snapshot.IneligibleSkillCount,
-		InvalidSkillCount:          snapshot.InvalidSkillCount,
-		MCPConfiguredProviderCount: snapshot.MCPConfiguredProviderCount,
-		MCPEnabledProviderCount:    snapshot.MCPEnabledProviderCount,
-		MCPHealthyProviderCount:    snapshot.MCPHealthyProviderCount,
-	}
+	return DefaultConverter.capabilitiesSummaryDTOFromSnapshot(snapshot)
 }
 
 func capabilitiesModelDTOFromSnapshot(snapshot app.SystemModelCapabilities) CapabilitiesModelDTO {
-	return CapabilitiesModelDTO{Name: snapshot.Name}
+	return DefaultConverter.capabilitiesModelDTOFromSnapshot(snapshot)
 }
 
 func capabilitiesFeaturesDTOFromSnapshot(snapshot app.SystemFeatureCapabilities) CapabilitiesFeaturesDTO {
-	return CapabilitiesFeaturesDTO(snapshot)
+	return DefaultConverter.capabilitiesFeaturesDTOFromSnapshot(snapshot)
 }
 
 func runtimeReadinessDTOFromSnapshot(snapshot *app.RuntimeReadiness) RuntimeReadinessDTO {
@@ -105,46 +95,11 @@ func runtimeReadinessDTOFromSnapshot(snapshot *app.RuntimeReadiness) RuntimeRead
 }
 
 func providerReadinessDTOsFromSnapshot(snapshot []app.ProviderReadinessSummary) []ProviderReadinessDTO {
-	if len(snapshot) == 0 {
-		return nil
-	}
-	items := make([]ProviderReadinessDTO, 0, len(snapshot))
-	for _, item := range snapshot {
-		items = append(items, ProviderReadinessDTO{
-			Scope:         item.Scope,
-			Provider:      item.Provider,
-			Status:        string(item.Status),
-			Reason:        item.Reason,
-			StartupStatus: item.StartupStatus,
-			AuthStatus:    item.AuthStatus,
-		})
-	}
-	return items
+	return DefaultConverter.providerReadinessDTOsFromSnapshot(snapshot)
 }
 
 func capabilitiesToolsDTOFromSnapshot(snapshot []app.SystemToolCapability) []CapabilitiesToolDTO {
-	items := make([]CapabilitiesToolDTO, 0, len(snapshot))
-	for _, item := range snapshot {
-		items = append(items, CapabilitiesToolDTO{
-			Name:           item.Name,
-			Source:         item.Source,
-			Kind:           item.Kind,
-			Category:       item.Category,
-			ResourceScope:  item.ResourceScope,
-			Profiles:       append([]string(nil), item.Profiles...),
-			Enabled:        item.Enabled,
-			HealthState:    item.HealthState,
-			HealthReason:   item.HealthReason,
-			ParallelPolicy: item.ParallelPolicy,
-			PlanPolicy:     item.PlanPolicy,
-			FactPolicy:     item.FactPolicy,
-			Risk:           item.Risk,
-			RootDir:        item.RootDir,
-			WorkDir:        item.WorkDir,
-			DefaultTimeout: item.DefaultTimeout,
-		})
-	}
-	return items
+	return DefaultConverter.capabilitiesToolsDTOFromSnapshot(snapshot)
 }
 
 // SystemStatusDTO represents the overall system readiness snapshot.

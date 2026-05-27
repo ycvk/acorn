@@ -44,22 +44,22 @@ type TraceSummary struct {
 func BuildTrace(run *events.RunRecord, raw []events.EventRecord) *Trace {
 	items := make([]stream.StreamItem, 0, len(raw))
 	for _, event := range raw {
-		items = append(items, projectEventToStreamItem(event))
+		items = append(items, ProjectEventToStreamItem(event))
 	}
-	return &Trace{Run: run, Summary: summarizeStreamItems(items), Items: items}
+	return &Trace{Run: run, Summary: SummarizeStreamItems(items), Items: items}
 }
 
 func BuildTraceSummary(raw []events.EventRecord) *TraceSummary {
 	items := make([]stream.StreamItem, 0, len(raw))
 	for _, event := range raw {
-		items = append(items, projectEventToStreamItem(event))
+		items = append(items, ProjectEventToStreamItem(event))
 	}
-	return summarizeStreamItems(items)
+	return SummarizeStreamItems(items)
 }
 
 func LatestRootInterruptContexts(raw []events.EventRecord) ([]stream.StreamInterruptContext, error) {
 	for i := len(raw) - 1; i >= 0; i-- {
-		item := projectEventToStreamItem(raw[i])
+		item := ProjectEventToStreamItem(raw[i])
 		if item.Kind != stream.StreamKindRunInterrupted {
 			continue
 		}
@@ -98,7 +98,7 @@ func LatestRootInterruptIDs(raw []events.EventRecord) ([]string, error) {
 	return ids, nil
 }
 
-func projectEventToStreamItem(event events.EventRecord) stream.StreamItem {
+func ProjectEventToStreamItem(event events.EventRecord) stream.StreamItem {
 	item := stream.StreamItem{RunID: event.RunID, Sequence: event.Sequence, CreatedAt: event.CreatedAt}
 
 	kind := eventKindToStreamKind(event.Kind)
@@ -252,7 +252,7 @@ func extractToolCallProgressFromMergedPayload(payload any) *stream.StreamToolCal
 	return &tool
 }
 
-func summarizeStreamItems(items []stream.StreamItem) *TraceSummary {
+func SummarizeStreamItems(items []stream.StreamItem) *TraceSummary {
 	summary := &TraceSummary{ItemCount: len(items)}
 	assistantDeltaMessageIDs := make(map[string]struct{})
 	for _, item := range items {
@@ -300,7 +300,7 @@ func summarizeStreamItems(items []stream.StreamItem) *TraceSummary {
 
 func SelectedSkillFromEvents(raw []events.EventRecord) *SelectedSkill {
 	for i := len(raw) - 1; i >= 0; i-- {
-		item := projectEventToStreamItem(raw[i])
+		item := ProjectEventToStreamItem(raw[i])
 		if (item.Kind != stream.StreamKindSkillLoaded && item.Kind != stream.StreamKindSkillSelected) || item.GetSkill() == nil {
 			continue
 		}

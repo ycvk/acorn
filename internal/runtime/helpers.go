@@ -13,6 +13,7 @@ import (
 	"github.com/santhosh-tekuri/jsonschema/v6"
 	"github.com/santhosh-tekuri/jsonschema/v6/kind"
 	"github.com/ycvk/acorn/internal/decision"
+	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/stream"
 	"golang.org/x/text/language"
@@ -93,7 +94,7 @@ func DurableContext(ctx context.Context) context.Context {
 }
 
 func CurrentRunID(ctx context.Context) string {
-	return getRunID(ctx)
+	return runtimeapi.GetRunID(ctx)
 }
 
 func CurrentStreamSink(ctx context.Context) stream.StreamSink {
@@ -106,17 +107,6 @@ type turnIndexContextKey struct{}
 
 func withTurnIndex(ctx context.Context, turnIndex int) context.Context {
 	return context.WithValue(ctx, turnIndexContextKey{}, turnIndex)
-}
-
-func turnIndexFromContext(ctx context.Context) int {
-	if ctx == nil {
-		return 0
-	}
-	index, ok := ctx.Value(turnIndexContextKey{}).(int)
-	if !ok {
-		return 0
-	}
-	return index
 }
 
 var defaultEnglishPrinter = message.NewPrinter(language.English)
@@ -363,19 +353,14 @@ func selectedSkillMatchMetadata(skillID string, matches []SkillMatch) (int, []st
 	return 0, nil
 }
 
-type jsonSerializer struct{}
+type JSONSerializer struct{}
 
-func (j *jsonSerializer) Marshal(v any) ([]byte, error) {
+func (j *JSONSerializer) Marshal(v any) ([]byte, error) {
 	return json.Marshal(v)
 }
 
-func (j *jsonSerializer) Unmarshal(data []byte, v any) error {
+func (j *JSONSerializer) Unmarshal(data []byte, v any) error {
 	return json.Unmarshal(data, v)
 }
 
-var _ compose.Serializer = (*jsonSerializer)(nil)
-
-type schemaMessageWrapper struct {
-	Type  string          `json:"__type"`
-	Value *schema.Message `json:"value"`
-}
+var _ compose.Serializer = (*JSONSerializer)(nil)

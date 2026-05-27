@@ -214,7 +214,7 @@ func failureReasonForStatus(status events.RunStatus, output string) string {
 	return "run_failed:with_output"
 }
 
-type runState struct {
+type RunState struct {
 	lastOutput       string
 	interrupt        map[string]any
 	failure          error
@@ -235,15 +235,15 @@ func (e *Executor) consume(ctx context.Context, runID, input string, iter *adk.A
 	return e.finishCollectedRun(ctx, runID, input, state, selectedSkill, sink)
 }
 
-func (e *Executor) collectRunState(ctx context.Context, runID string, iter *adk.AsyncIterator[*adk.AgentEvent], sink stream.StreamSink, chatModel einomodel.BaseChatModel) (runState, error) {
-	state := runState{}
+func (e *Executor) collectRunState(ctx context.Context, runID string, iter *adk.AsyncIterator[*adk.AgentEvent], sink stream.StreamSink, chatModel einomodel.BaseChatModel) (RunState, error) {
+	state := RunState{}
 	for {
 		event, ok := iter.Next()
 		if !ok {
 			return state, nil
 		}
 		if err := e.applyAgentEvent(ctx, runID, stream.StreamItemsFromAgentEvent(event, chatModel), sink, &state); err != nil {
-			return runState{}, err
+			return RunState{}, err
 		}
 	}
 }
@@ -255,7 +255,7 @@ func (e *Executor) prepareSkillExecution(ctx context.Context, runID string, sele
 	return downstreamSink, nil
 }
 
-func (e *Executor) applyAgentEvent(ctx context.Context, runID string, items []stream.StreamItem, sink stream.StreamSink, state *runState) error {
+func (e *Executor) applyAgentEvent(ctx context.Context, runID string, items []stream.StreamItem, sink stream.StreamSink, state *RunState) error {
 	for _, item := range items {
 		item.RunID = runID
 		if _, err := stream.AppendStreamItem(ctx, e.store, sink, item); err != nil {
@@ -266,7 +266,7 @@ func (e *Executor) applyAgentEvent(ctx context.Context, runID string, items []st
 	return nil
 }
 
-func (s *runState) applyStreamItem(item stream.StreamItem) {
+func (s *RunState) applyStreamItem(item stream.StreamItem) {
 	if delta := item.GetAssistantDelta(); delta != nil {
 		s.lastOutput += delta.Delta
 	}
@@ -467,7 +467,7 @@ func (e *Executor) newManagedRunContext(ctx context.Context, runID string) (cont
 }
 
 func buildExecutionContext(runCtxBase context.Context, runID, sessionID string, turnIndex int, sink stream.StreamSink) context.Context {
-	runCtx := withRunID(runCtxBase, runID)
+	runCtx := runtimeapi.WithRunID(runCtxBase, runID)
 	runCtx = runtimeapi.WithSessionID(runCtx, sessionID)
 	runCtx = withTurnIndex(runCtx, turnIndex)
 	return stream.WithStreamSink(runCtx, sink)
@@ -510,7 +510,7 @@ func (e *Executor) emitRunFailed(ctx context.Context, runID string, sink stream.
 	return e.emitLifecyclePayload(ctx, runID, sink, &stream.RunFailedPayload{Error: message})
 }
 
-func (e *Executor) finishCollectedRun(ctx context.Context, runID, input string, state runState, selectedSkill *SelectedSkill, sink stream.StreamSink) (*Result, error) {
+func (e *Executor) finishCollectedRun(ctx context.Context, runID, input string, state RunState, selectedSkill *SelectedSkill, sink stream.StreamSink) (*Result, error) {
 	switch {
 	case state.failure != nil:
 		return e.finishFailedRun(ctx, runID, input, state, selectedSkill, sink)
@@ -521,7 +521,7 @@ func (e *Executor) finishCollectedRun(ctx context.Context, runID, input string, 
 	}
 }
 
-func (e *Executor) finishFailedRun(ctx context.Context, runID, input string, state runState, selectedSkill *SelectedSkill, sink stream.StreamSink) (*Result, error) {
+func (e *Executor) finishFailedRun(ctx context.Context, runID, input string, state RunState, selectedSkill *SelectedSkill, sink stream.StreamSink) (*Result, error) {
 	durableCtx := DurableContext(ctx)
 	if !state.emittedRunFailed && state.failure != nil {
 		if err := e.emitRunFailed(durableCtx, runID, sink, state.failure.Error()); err != nil {
@@ -550,7 +550,7 @@ func (e *Executor) finishFailedRun(ctx context.Context, runID, input string, sta
 	}, nil
 }
 
-func (e *Executor) finishInterruptedRun(ctx context.Context, runID string, state runState) (*Result, error) {
+func (e *Executor) finishInterruptedRun(ctx context.Context, runID string, state RunState) (*Result, error) {
 	durableCtx := DurableContext(ctx)
 	if err := e.store.MarkInterruptedContext(durableCtx, runID, state.lastOutput); err != nil {
 		return nil, err
@@ -568,7 +568,7 @@ func (e *Executor) finishInterruptedRun(ctx context.Context, runID string, state
 	}, nil
 }
 
-func (e *Executor) finishSucceededRun(ctx context.Context, runID, input string, state runState, selectedSkill *SelectedSkill, sink stream.StreamSink) (*Result, error) {
+func (e *Executor) finishSucceededRun(ctx context.Context, runID, input string, state RunState, selectedSkill *SelectedSkill, sink stream.StreamSink) (*Result, error) {
 	durableCtx := DurableContext(ctx)
 	if err := e.store.UpdateRunOutputContext(durableCtx, runID, state.lastOutput); err != nil {
 		return nil, err
