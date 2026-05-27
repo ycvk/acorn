@@ -6,7 +6,7 @@ import (
 	"github.com/cloudwego/eino/schema"
 )
 
-const referenceContextNote = "Reference context only. It is NOT new user input — do not respond to it directly."
+const ReferenceContextNote = "Reference context only. It is NOT new user input — do not respond to it directly."
 
 func buildContextEnvelopeMessage(tag string, body ...string) *schema.Message {
 	trimmedTag := strings.TrimSpace(tag)
@@ -24,7 +24,7 @@ func buildContextEnvelopeMessage(tag string, body ...string) *schema.Message {
 	}
 	lines := []string{
 		"<" + trimmedTag + ">",
-		referenceContextNote,
+		ReferenceContextNote,
 		"",
 		strings.Join(sections, "\n\n"),
 		"</" + trimmedTag + ">",

@@ -6,6 +6,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/ycvk/acorn/internal/config"
+	"github.com/ycvk/acorn/internal/decision"
 	"github.com/ycvk/acorn/internal/runtime"
 	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
 	"github.com/ycvk/acorn/internal/toolfactory"
@@ -16,7 +17,6 @@ type Container struct {
 	store         *storesqlite.Store
 	runnerFactory *runtime.RunnerFactory
 	runController *runtime.RunController
-	sessions      *SessionService
 	trace         *TraceService
 	sessionState  *SessionStateService
 	workbench     *RuntimeWorkbenchService
@@ -25,9 +25,7 @@ type Container struct {
 	chat          *ChatService
 	client        *ClientService
 	pendingAction *PendingActionService
-	run           *RunService
-	resume        *ResumeService
-	decision      *DecisionService
+	profiles      *decision.ProfileService
 	memory        *MemoryService
 	capabilities  *CapabilitiesService
 	deviceAuth    *DeviceAuthService
@@ -48,12 +46,12 @@ func (c *Container) Config() *config.Config {
 	return c.cfg
 }
 
-func (c *Container) Sessions() *SessionService {
-	return c.sessions
-}
-
 func (c *Container) SessionState() *SessionStateService {
 	return c.sessionState
+}
+
+func (c *Container) Trace() *TraceService {
+	return c.trace
 }
 
 func (c *Container) Workbench() *RuntimeWorkbenchService {
@@ -80,20 +78,22 @@ func (c *Container) Skills() *SkillService {
 	return c.skills
 }
 
-func (c *Container) Run() *RunService {
-	return c.run
-}
-
-func (c *Container) Resume() *ResumeService {
-	return c.resume
-}
-
 func (c *Container) Memory() *MemoryService {
 	return c.memory
 }
 
-func (c *Container) Decision() *DecisionService {
-	return c.decision
+func (c *Container) DecisionProfile() (*decision.ParsedProfile, error) {
+	if c == nil || c.profiles == nil {
+		return nil, errors.New("decision profile service is nil")
+	}
+	return c.profiles.Load()
+}
+
+func (c *Container) InspectRunDecision(ctx context.Context, runID string) (*decision.Record, error) {
+	if c == nil || c.store == nil {
+		return nil, errors.New("store is nil")
+	}
+	return c.store.LoadRunDecision(ctx, runID)
 }
 
 func (c *Container) Capabilities() *CapabilitiesService {

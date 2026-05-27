@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -579,7 +581,7 @@ func TestSubagentExecuteUsesRealChildRunIDInEvents(t *testing.T) {
 	var started *stream.SubagentStartedPayload
 	var failed *stream.SubagentFailedPayload
 	for _, record := range raw {
-		item := projectEventToStreamItem(record)
+		item := ProjectEventToStreamItem(record)
 		switch payload := item.Payload.(type) {
 		case *stream.SubagentStartedPayload:
 			started = payload
@@ -688,5 +690,75 @@ func TestExecuteMessagesDirectResponseEmitsToolProgress(t *testing.T) {
 	}
 	if succeededSeq <= startedSeq {
 		t.Fatalf("succeeded sequence %d should be after started %d", succeededSeq, startedSeq)
+	}
+}
+
+// --- Test helpers duplicated from tool/plan packages ---
+
+type trackingTool struct {
+	name      string
+	result    string
+	delay     time.Duration
+	calls     atomic.Int64
+	mu        sync.Mutex
+	callTimes []time.Time
+}
+
+func (t *trackingTool) Info(context.Context) (*schema.ToolInfo, error) {
+	return &schema.ToolInfo{Name: t.name}, nil
+}
+
+func (t *trackingTool) InvokableRun(ctx context.Context, argumentsInJSON string, opts ...einotool.Option) (string, error) {
+	t.mu.Lock()
+	t.callTimes = append(t.callTimes, time.Now())
+	t.mu.Unlock()
+	t.calls.Add(1)
+	if t.delay > 0 {
+		time.Sleep(t.delay)
+	}
+	if t.result == "" {
+		return defaultTrackingToolResult(t.name, argumentsInJSON), nil
+	}
+	return t.result, nil
+}
+
+func (t *trackingTool) lastCallCount() int64 {
+	return t.calls.Load()
+}
+
+func defaultTrackingToolResult(toolName string, argumentsJSON string) string {
+	return fmt.Sprintf("%s result for %s", toolName, argumentsJSON)
+}
+
+type toolCallingStubModel struct {
+	responses []*schema.Message
+	callCount int
+}
+
+func (m *toolCallingStubModel) Generate(ctx context.Context, messages []*schema.Message, opts ...einomodel.Option) (*schema.Message, error) {
+	idx := m.callCount
+	m.callCount++
+	if idx >= len(m.responses) {
+		return schema.AssistantMessage("done", nil), nil
+	}
+	return m.responses[idx], nil
+}
+
+func (m *toolCallingStubModel) Stream(ctx context.Context, messages []*schema.Message, opts ...einomodel.Option) (*schema.StreamReader[*schema.Message], error) {
+	msg, err := m.Generate(ctx, messages, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return schema.StreamReaderFromArray([]*schema.Message{msg}), nil
+}
+
+func (m *toolCallingStubModel) WithTools(_ []*schema.ToolInfo) (einomodel.ToolCallingChatModel, error) {
+	return m, nil
+}
+
+func makeAssistantMessage(calls ...schema.ToolCall) *schema.Message {
+	return &schema.Message{
+		Role:      schema.Assistant,
+		ToolCalls: calls,
 	}
 }

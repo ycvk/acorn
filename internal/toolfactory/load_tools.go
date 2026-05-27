@@ -9,6 +9,7 @@ import (
 	toolutils "github.com/cloudwego/eino/components/tool/utils"
 
 	"github.com/ycvk/acorn/internal/contextplane"
+	"github.com/ycvk/acorn/internal/contextplane/toollifecycle"
 )
 
 // RunContextExtractor extracts run and session identifiers from context.
@@ -29,15 +30,12 @@ type loadToolsOutput struct {
 	AlreadyLoaded   []string `json:"already_loaded,omitempty"`
 }
 
-func NewLoadToolsTool(plane contextplane.ContextPlane, extractor RunContextExtractor) (einotool.BaseTool, error) {
-	if plane == nil {
-		return nil, errors.New("context plane is required")
-	}
+func NewLoadToolsTool(extractor RunContextExtractor) (einotool.BaseTool, error) {
 	if extractor == nil {
 		return nil, errors.New("run context extractor is required")
 	}
 	return toolutils.InferTool("load_tools", "Load deferred tool definitions by query or exact tool names.", func(ctx context.Context, input loadToolsInput) (loadToolsOutput, error) {
-		result, err := plane.DeferredLoad(ctx, contextplane.DeferredLoadRequest{
+		result, err := toollifecycle.DeferredLoad(ctx, contextplane.DeferredLoadRequest{
 			RunID:     extractor.RunID(ctx),
 			SessionID: extractor.SessionID(ctx),
 			Query:     strings.TrimSpace(input.Query),

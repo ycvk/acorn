@@ -270,7 +270,7 @@ type subagentExecutorAdapter struct {
 }
 
 func (a subagentExecutorAdapter) ExecuteMessages(ctx context.Context, messages []*schema.Message) (string, error) {
-	parentRunID := getRunID(ctx)
+	parentRunID := runtimeapi.GetRunID(ctx)
 	if strings.TrimSpace(parentRunID) == "" {
 		parentRunID = "sampling_parent"
 	}

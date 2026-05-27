@@ -15,7 +15,7 @@ func TestFinishCollectedRunInterruptMarksRunInterrupted(t *testing.T) {
 	exec := newFinalizationTestExecutor(t, store, cfg)
 	runID := createFinalizationRun(t, ctx, store, "", "hello")
 
-	result, err := exec.finishCollectedRun(ctx, runID, "hello", runState{
+	result, err := exec.finishCollectedRun(ctx, runID, "hello", RunState{
 		lastOutput: "partial",
 		interrupt: map[string]any{
 			"kind": "elicitation",
@@ -70,7 +70,7 @@ func TestFailRunSetupMarksRunFailedAndEmitsLifecycleFailure(t *testing.T) {
 	}
 	var found bool
 	for _, record := range records {
-		item := projectEventToStreamItem(record)
+		item := ProjectEventToStreamItem(record)
 		if item.Kind != stream.StreamKindRunFailed {
 			continue
 		}

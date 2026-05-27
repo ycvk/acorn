@@ -116,23 +116,5 @@ func runtimeWorkbenchDTOFromDomain(item *app.RuntimeWorkbench) RuntimeWorkbenchD
 }
 
 func artifactSummaryDTOsFromDomain(items []app.ArtifactSummary) []ArtifactSummaryDTO {
-	if len(items) == 0 {
-		return nil
-	}
-	result := make([]ArtifactSummaryDTO, 0, len(items))
-	for _, item := range items {
-		result = append(result, ArtifactSummaryDTO{
-			ArtifactID:          item.ArtifactID,
-			RunID:               item.RunID,
-			SessionID:           item.SessionID,
-			SourceToolResultRef: item.SourceToolResultRef,
-			Kind:                item.Kind,
-			Title:               item.Title,
-			MIMEType:            item.MIMEType,
-			SizeBytes:           item.SizeBytes,
-			SHA256:              item.SHA256,
-			CreatedAt:           item.CreatedAt,
-		})
-	}
-	return result
+	return DefaultConverter.artifactSummaryDTOsFromDomain(items)
 }

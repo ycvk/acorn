@@ -64,8 +64,8 @@ type ModelInput struct {
 }
 
 type ContextSessionOptions struct {
-	BudgetGovernor budgetGovernor
-	Pipeline       *defaultContextCompressionPipeline
+	BudgetGovernor BudgetGovernor
+	Pipeline       CompressionPipeline
 	BoundaryStore  ContextBoundaryStore
 	PreservePolicy PreservePolicy
 	State          any
@@ -78,8 +78,8 @@ type defaultContextSession struct {
 	turnIndex        int
 	modelProfile     ModelProfile
 	messages         []adk.Message
-	budgetGovernor   budgetGovernor
-	pipeline         *defaultContextCompressionPipeline
+	budgetGovernor   BudgetGovernor
+	pipeline         CompressionPipeline
 	boundaryStore    ContextBoundaryStore
 	preservePolicy   PreservePolicy
 	state            any
@@ -133,7 +133,7 @@ func (s *defaultContextSession) Bootstrap(ctx context.Context, req BootstrapRequ
 	if req.Assembly != nil {
 		for _, msg := range req.Assembly.Messages {
 			if msg != nil {
-				messages = append(messages, cloneContextSessionMessage(msg))
+				messages = append(messages, CloneContextSessionMessage(msg))
 			}
 		}
 	}
@@ -141,7 +141,7 @@ func (s *defaultContextSession) Bootstrap(ctx context.Context, req BootstrapRequ
 		if msg == nil {
 			continue
 		}
-		messages = append(messages, cloneContextSessionMessage(msg))
+		messages = append(messages, CloneContextSessionMessage(msg))
 	}
 	s.id = id
 	s.turnIndex = req.TurnIndex
@@ -213,7 +213,7 @@ func (s *defaultContextSession) compact(ctx context.Context, req ModelCallReques
 			toolState = lifecycle.State
 		}
 	}
-	beforeMessages := cloneContextSessionMessages(s.messages)
+	beforeMessages := CloneContextSessionMessages(s.messages)
 	result, err := s.pipeline.Compress(ctx, PipelineRequest{
 		Messages:           beforeMessages,
 		ToolInfos:          append([]*schema.ToolInfo(nil), req.ToolInfos...),
@@ -237,7 +237,7 @@ func (s *defaultContextSession) compact(ctx context.Context, req ModelCallReques
 	if len(result.Messages) == 0 {
 		return nil, errors.New("context session compression returned empty messages")
 	}
-	s.messages = cloneContextSessionMessages(result.Messages)
+	s.messages = CloneContextSessionMessages(result.Messages)
 	s.lastCompactTurn = s.turnIndex
 	if result.Outcome != nil {
 		outcome := *result.Outcome
@@ -297,7 +297,7 @@ func (s *defaultContextSession) persistContextBoundary(ctx context.Context, befo
 	boundaryID := contextBoundaryID(s.id.RunID, sequence)
 	summarySnippet := strings.TrimSpace(outcome.SummarySnippet)
 	if summarySnippet == "" {
-		summarySnippet = snippet(outcome.Summary, 200)
+		summarySnippet = Snippet(outcome.Summary, 200)
 	}
 
 	boundary := model.ContextBoundary{
@@ -343,7 +343,7 @@ func (s *defaultContextSession) RecordAssistant(_ context.Context, msg adk.Messa
 	if msg == nil {
 		return errors.New("context session assistant message is required")
 	}
-	s.messages = append(s.messages, s.annotateTurnIndex(cloneContextSessionMessage(msg)))
+	s.messages = append(s.messages, s.annotateTurnIndex(CloneContextSessionMessage(msg)))
 	return nil
 }
 
@@ -358,7 +358,7 @@ func (s *defaultContextSession) RecordMessages(_ context.Context, messages []adk
 		if msg == nil {
 			return errors.New("context session message is required")
 		}
-		s.messages = append(s.messages, s.annotateTurnIndex(cloneContextSessionMessage(msg)))
+		s.messages = append(s.messages, s.annotateTurnIndex(CloneContextSessionMessage(msg)))
 	}
 	return nil
 }
@@ -374,7 +374,7 @@ func (s *defaultContextSession) RecordToolResults(_ context.Context, results []a
 		if result == nil {
 			return errors.New("context session tool result message is required")
 		}
-		s.messages = append(s.messages, s.annotateTurnIndex(cloneContextSessionMessage(result)))
+		s.messages = append(s.messages, s.annotateTurnIndex(CloneContextSessionMessage(result)))
 	}
 	return nil
 }
@@ -425,7 +425,7 @@ func (s *defaultContextSession) Resume(ctx context.Context, req ResumeContextReq
 	s.id = id
 	s.turnIndex = boundary.TurnIndex
 	s.modelProfile = req.ModelProfile
-	s.messages = []adk.Message{markCompressionSummary(sanitizeSummaryMessage(compactionSummaryMessage(boundary.Summary)))}
+	s.messages = []adk.Message{MarkCompressionSummary(SanitizeSummaryMessage(CompactionSummaryMessage(boundary.Summary)))}
 	s.lastSummary = boundary.Summary
 	s.lastBoundaryID = boundary.BoundaryID
 	s.boundarySequence = boundary.Sequence
@@ -527,7 +527,7 @@ func (s *defaultContextSession) evaluatePressure(ctx context.Context, tools []*s
 	}
 	pressure, err := s.budgetGovernor.Evaluate(ctx, BudgetEvaluateRequest{
 		Profile:  s.modelProfile,
-		Messages: cloneContextSessionMessages(s.messages),
+		Messages: CloneContextSessionMessages(s.messages),
 		Tools:    append([]*schema.ToolInfo(nil), tools...),
 	})
 	if err != nil {
@@ -548,7 +548,7 @@ func (s *defaultContextSession) emitPressureEvent(ctx context.Context, pressure 
 
 func (s *defaultContextSession) modelInput(pressure BudgetPressure) *ModelInput {
 	return &ModelInput{
-		Messages: cloneContextSessionMessages(s.messages),
+		Messages: CloneContextSessionMessages(s.messages),
 		Pressure: pressure,
 	}
 }
@@ -571,19 +571,19 @@ func validateContextSessionIdentity(sessionID, runID, mode string) (ContextSessi
 	return id, nil
 }
 
-func cloneContextSessionMessages(messages []adk.Message) []adk.Message {
+func CloneContextSessionMessages(messages []adk.Message) []adk.Message {
 	result := make([]adk.Message, 0, len(messages))
 	for _, msg := range messages {
 		if msg == nil {
 			continue
 		}
-		result = append(result, cloneContextSessionMessage(msg))
+		result = append(result, CloneContextSessionMessage(msg))
 	}
 	return result
 }
 
-func cloneContextSessionMessage(msg adk.Message) adk.Message {
-	return cloneMessage(msg)
+func CloneContextSessionMessage(msg adk.Message) adk.Message {
+	return CloneMessage(msg)
 }
 
 func AnnotateMessageTurn(msg adk.Message, turnIndex int) adk.Message {
@@ -593,7 +593,7 @@ func AnnotateMessageTurn(msg adk.Message, turnIndex int) adk.Message {
 	if msg.Extra == nil {
 		msg.Extra = make(map[string]any)
 	}
-	msg.Extra[turnIndexExtraKey] = turnIndex
+	msg.Extra[TurnIndexExtraKey] = turnIndex
 	return msg
 }
 

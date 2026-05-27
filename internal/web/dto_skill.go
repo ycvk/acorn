@@ -102,10 +102,5 @@ func skillSummaryDTOsFromViews(items []skills.View) []SkillSummaryDTO {
 }
 
 func skillRequirementsDTOFromDomain(item skills.Requirements) SkillRequirementsDTO {
-	return SkillRequirementsDTO{
-		Tools:    append([]string(nil), item.Tools...),
-		Toolsets: append([]string(nil), item.Toolsets...),
-		Bins:     append([]string(nil), item.Bins...),
-		Env:      append([]string(nil), item.Env...),
-	}
+	return DefaultConverter.skillRequirementsDTOFromDomain(item)
 }

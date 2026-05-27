@@ -640,7 +640,7 @@ func TestStreamProjectionRoundtrip(t *testing.T) {
 				Payload:   payload,
 			}
 
-			result := projectEventToStreamItem(event)
+			result := ProjectEventToStreamItem(event)
 
 			if result.Kind != tt.item.Kind {
 				t.Fatalf("kind mismatch: got %q, want %q", result.Kind, tt.item.Kind)
@@ -705,7 +705,7 @@ func TestStreamProjectionRoundtrip_MCPKindsPreserved(t *testing.T) {
 				Payload:   payload,
 			}
 
-			result := projectEventToStreamItem(event)
+			result := ProjectEventToStreamItem(event)
 
 			if result.Kind != kind {
 				t.Fatalf("kind not preserved: got %q, want %q", result.Kind, kind)
@@ -822,7 +822,7 @@ func TestStreamProjectionRoundtrip_NilOptionalFields(t *testing.T) {
 				Payload:   payload,
 			}
 
-			result := projectEventToStreamItem(event)
+			result := ProjectEventToStreamItem(event)
 
 			if result.Kind != tt.item.Kind {
 				t.Fatalf("kind mismatch: got %q, want %q", result.Kind, tt.item.Kind)
@@ -933,7 +933,7 @@ func TestStreamProjectionRoundtrip_ToolCallMerge(t *testing.T) {
 				Payload:   payload,
 			}
 
-			result := projectEventToStreamItem(event)
+			result := ProjectEventToStreamItem(event)
 
 			if result.GetToolCall() == nil && result.GetToolCallProgress() == nil {
 				t.Fatalf("ToolCall is nil after roundtrip; expected non-nil")

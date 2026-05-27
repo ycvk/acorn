@@ -101,46 +101,13 @@ func pendingActionListResponseFromDomain(items []app.PendingActionSummary) Pendi
 }
 
 func decisionOptionDTOsFromDomain(options []app.DecisionOption) []DecisionOptionDTO {
-	if len(options) == 0 {
-		return nil
-	}
-	items := make([]DecisionOptionDTO, 0, len(options))
-	for _, option := range options {
-		items = append(items, DecisionOptionDTO{
-			ID:          option.ID,
-			Label:       option.Label,
-			Description: option.Description,
-		})
-	}
-	return items
+	return DefaultConverter.decisionOptionDTOsFromDomain(options)
 }
 
 func pendingActionOptionDTOsFromDomain(items []app.PendingActionOption) []PendingActionOptionDTO {
-	result := make([]PendingActionOptionDTO, 0, len(items))
-	for _, item := range items {
-		result = append(result, PendingActionOptionDTO{
-			ID:          item.ID,
-			Label:       item.Label,
-			Description: item.Description,
-		})
-	}
-	return result
+	return DefaultConverter.pendingActionOptionDTOsFromDomain(items)
 }
 
 func pendingActionSummaryDTOsFromDomain(items []app.PendingActionSummary) []PendingActionSummaryDTO {
-	result := make([]PendingActionSummaryDTO, 0, len(items))
-	for _, item := range items {
-		result = append(result, PendingActionSummaryDTO{
-			ActionID:  item.ActionID,
-			RunID:     item.RunID,
-			ThreadID:  item.ThreadID,
-			Kind:      item.Kind,
-			Status:    item.Status,
-			Title:     item.Title,
-			Body:      item.Body,
-			Options:   pendingActionOptionDTOsFromDomain(item.Options),
-			CreatedAt: item.CreatedAt,
-		})
-	}
-	return result
+	return DefaultConverter.pendingActionSummaryDTOsFromDomain(items)
 }

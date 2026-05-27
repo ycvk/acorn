@@ -11,6 +11,7 @@ import (
 	"github.com/cloudwego/eino/schema"
 
 	"github.com/ycvk/acorn/internal/contextplane"
+	"github.com/ycvk/acorn/internal/contextplane/compaction"
 	"github.com/ycvk/acorn/internal/events"
 	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	"github.com/ycvk/acorn/internal/stream"
@@ -38,9 +39,9 @@ func (e *Executor) bootstrapContextSessionMessages(
 	if err != nil {
 		return nil, fmt.Errorf("build context session token counter: %w", err)
 	}
-	pipeline := contextplane.NewDefaultContextCompressionPipeline(contextplane.CompressionPipelineOptions{
+	pipeline := compaction.NewDefaultContextCompressionPipeline(compaction.CompressionPipelineOptions{
 		Governor: contextplane.NewBudgetGovernor(counter),
-		CompactionEngine: contextplane.NewDefaultCompactionEngine(contextplane.CompactionEngineOptions{
+		CompactionEngine: compaction.NewDefaultCompactionEngine(compaction.CompactionEngineOptions{
 			Model:                active.ChatModel,
 			ModelOptions:         []einomodel.Option{einomodel.WithMaxTokens(contextPolicy.SummaryMaxTokens)},
 			TokenCounter:         counter,

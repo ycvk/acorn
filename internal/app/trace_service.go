@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -18,7 +19,9 @@ import (
 )
 
 type TraceService struct {
-	store traceStore
+	store       traceStore
+	newExecutor func(context.Context) (executorHandle, error)
+	pending     runtime.PendingResumeStore
 }
 
 type ResumeStatus struct {
@@ -31,6 +34,34 @@ type ResumeStatus struct {
 
 func NewTraceService(store traceStore) *TraceService {
 	return &TraceService{store: store}
+}
+
+func (s *TraceService) WithResume(newExecutor func(context.Context) (executorHandle, error), pending runtime.PendingResumeStore) *TraceService {
+	s.newExecutor = newExecutor
+	s.pending = pending
+	return s
+}
+
+func (s *TraceService) FindPendingResume(ctx context.Context) (*runtime.PendingResumeInfo, error) {
+	if s == nil || s.pending == nil {
+		return nil, errors.New("resume pending store is nil")
+	}
+	return runtime.FindPendingResume(ctx, s.pending)
+}
+
+func (s *TraceService) Resume(ctx context.Context, runID string, sink stream.StreamSink) (*runtime.Result, error) {
+	if s == nil || s.newExecutor == nil {
+		return nil, errors.New("resume executor factory is nil")
+	}
+	targets, err := s.InferResumeTargets(ctx, runID)
+	if err != nil {
+		return nil, err
+	}
+	exec, err := s.newExecutor(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return exec.ResumeWithTargets(ctx, runID, targets, sink)
 }
 
 func (s *TraceService) Trace(ctx context.Context, runID string) (*runtime.Trace, error) {

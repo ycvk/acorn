@@ -31,7 +31,7 @@ func (s *Server) handleClientGetRun(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleClientInterruptRun(w http.ResponseWriter, r *http.Request) {
 	runID := chi.URLParam(r, "run_id")
-	if err := s.run.InterruptRun(r.Context(), runID); err != nil {
+	if err := s.client.InterruptRun(r.Context(), runID); err != nil {
 		s.respondClientKnownError(w, r, err)
 		return
 	}
@@ -47,7 +47,7 @@ func (s *Server) handleClientResumeRun(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	result, err := s.resume.Resume(r.Context(), runID, nil)
+	result, err := s.trace.Resume(r.Context(), runID, nil)
 	if err != nil {
 		s.respondClientKnownError(w, r, err)
 		return

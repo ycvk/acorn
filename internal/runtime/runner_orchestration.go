@@ -11,9 +11,12 @@ import (
 	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/contextplane"
+	"github.com/ycvk/acorn/internal/contextplane/compaction"
 	"github.com/ycvk/acorn/internal/orchestration"
 	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	"github.com/ycvk/acorn/internal/runtime/graph"
+	"github.com/ycvk/acorn/internal/runtime/plan"
+	"github.com/ycvk/acorn/internal/runtime/tool"
 	"github.com/ycvk/acorn/internal/tooling"
 )
 
@@ -25,12 +28,12 @@ type defaultOrchestrationPlaneDeps struct {
 }
 
 func newDefaultOrchestrationPlane(deps defaultOrchestrationPlaneDeps) *orchestration.DefaultPlane {
-	toolSchemaCache := NewToolSchemaCache()
+	toolSchemaCache := tool.NewToolSchemaCache()
 	return orchestration.NewDefaultPlane(orchestration.DefaultPlaneOptions{
 		SystemPrompt:             deps.cfg.Agent.SystemPrompt,
 		MaxIterations:            deps.cfg.Agent.MaxIterations,
 		CheckpointStore:          deps.store,
-		PlanStore:                NewPlanStore(deps.store),
+		PlanStore:                plan.NewPlanStore(deps.store),
 		ToolBuilder:              deps.buildAuditedTools,
 		ToolNodeFactory:          deps.buildToolNode,
 		GraphBuilder:             BuildRuntimeAgentGraph,
@@ -51,7 +54,7 @@ func (d defaultOrchestrationPlaneDeps) buildAuditedTools(
 	allowedToolNames []string,
 	runID string,
 ) ([]einotool.BaseTool, error) {
-	return buildAuditedTools(
+	return tool.BuildAuditedTools(
 		ctx,
 		d.store,
 		specs,
@@ -66,7 +69,7 @@ func (d defaultOrchestrationPlaneDeps) buildToolNode(
 	tools []einotool.BaseTool,
 	resolver tooling.ExecutionPolicyResolver,
 ) (orchestration.ToolInvoker, error) {
-	return NewSafeParallelToolsNode(ctx, tools, resolver)
+	return tool.NewSafeParallelToolsNode(ctx, tools, resolver)
 }
 
 func BuildRuntimeAgentGraph(ctx context.Context, req orchestration.GraphBuildRequest) (adk.Agent, error) {
@@ -74,7 +77,7 @@ func BuildRuntimeAgentGraph(ctx context.Context, req orchestration.GraphBuildReq
 	if err != nil {
 		return nil, err
 	}
-	runnable, err := BuildAgentGraph(
+	runnable, err := plan.BuildAgentGraph(
 		ctx,
 		req.AgentName,
 		req.ChatModel,
@@ -110,7 +113,7 @@ func BuildRuntimePlanExecuteGraph(ctx context.Context, req orchestration.PlanExe
 	if err != nil {
 		return nil, err
 	}
-	runnable, err := BuildPlanExecuteGraph(
+	runnable, err := plan.BuildPlanExecuteGraph(
 		ctx,
 		req.AgentName,
 		req.ChatModel,
@@ -143,12 +146,12 @@ func BuildRuntimePlanExecuteGraph(ctx context.Context, req orchestration.PlanExe
 func runtimeGraphDependencies(
 	planStore orchestration.PlanStore,
 	promptProvider orchestration.PlanningPromptProvider,
-) (runtimeapi.PlanStore, PlanningPromptProvider, error) {
+) (runtimeapi.PlanStore, plan.PlanningPromptProvider, error) {
 	typedPlanStore, ok := planStore.(runtimeapi.PlanStore)
 	if !ok {
 		return nil, nil, fmt.Errorf("orchestration plane requires runtime plan store")
 	}
-	typedPromptProvider, ok := promptProvider.(PlanningPromptProvider)
+	typedPromptProvider, ok := promptProvider.(plan.PlanningPromptProvider)
 	if promptProvider != nil && !ok {
 		return nil, nil, fmt.Errorf("orchestration plane requires runtime planning prompt provider")
 	}
@@ -190,7 +193,7 @@ func buildRunnerAgentHandlers(
 	if err != nil {
 		return nil, fmt.Errorf("context policy: %w", err)
 	}
-	compressionHandlers, err := contextPlane.BuildHandlers(ctx, contextPolicy, chatModel, contextplane.CompressionBuildOptions{
+	compressionHandlers, err := compaction.NewCompressionMiddlewareBuilder().Build(ctx, contextPolicy, chatModel, contextplane.CompressionBuildOptions{
 		RuntimeStorageDir: cfg.Runtime.StorageDir,
 		State:             compressionState,
 		EmitCompressed: func(ctx context.Context, outcome contextplane.CompressionOutcome) error {
@@ -216,7 +219,7 @@ func (d defaultOrchestrationPlaneDeps) bindToolLifecycle(
 	infos []*schema.ToolInfo,
 ) context.Context {
 	if adapter, ok := state.(toolLifecycleStateAdapter); ok && adapter.state != nil {
-		return contextplane.WithToolLifecycleContext(ctx, d.contextPlane, adapter.state, catalog, infos)
+		return contextplane.WithToolLifecycleContext(ctx, d.contextPlane.ToolResultLedger(), adapter.state, catalog, infos)
 	}
 	return ctx
 }

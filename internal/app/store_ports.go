@@ -35,6 +35,8 @@ type decisionStore interface {
 }
 
 type sessionStateStore interface {
+	CreateSession(ctx context.Context, sessionID, title string) (*events.SessionRecord, error)
+	ListSessionMessages(ctx context.Context, sessionID string, limit int) ([]events.SessionMessageRecord, error)
 	LoadSession(ctx context.Context, sessionID string) (*events.SessionRecord, error)
 	LoadLatestRunForSession(ctx context.Context, sessionID string) (*events.RunRecord, error)
 	LoadEvents(ctx context.Context, runID string) ([]events.EventRecord, error)

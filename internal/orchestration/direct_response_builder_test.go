@@ -17,7 +17,6 @@ import (
 	"github.com/cloudwego/eino/compose"
 	"github.com/cloudwego/eino/schema"
 
-	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/contextplane"
 	"github.com/ycvk/acorn/internal/model"
 	"github.com/ycvk/acorn/internal/tooling"
@@ -269,7 +268,7 @@ func TestBuildDirectResponseContinuesAfterOutputLimit(t *testing.T) {
 		},
 		ToolLifecycleBinder: func(ctx context.Context, state ToolLifecycleStateView, catalog *tooling.Catalog, infos []*schema.ToolInfo) context.Context {
 			if t, ok := state.(testToolLifecycleStateView); ok && t.state != nil {
-				return contextplane.WithToolLifecycleContext(ctx, contextPlane, t.state, catalog, infos)
+				return contextplane.WithToolLifecycleContext(ctx, contextPlane.ToolResultLedger(), t.state, catalog, infos)
 			}
 			return ctx
 		},
@@ -342,7 +341,7 @@ func TestBuildDirectResponseDoesNotExecuteTruncatedToolCalls(t *testing.T) {
 		},
 		ToolLifecycleBinder: func(ctx context.Context, state ToolLifecycleStateView, catalog *tooling.Catalog, infos []*schema.ToolInfo) context.Context {
 			if t, ok := state.(testToolLifecycleStateView); ok && t.state != nil {
-				return contextplane.WithToolLifecycleContext(ctx, contextPlane, t.state, catalog, infos)
+				return contextplane.WithToolLifecycleContext(ctx, contextPlane.ToolResultLedger(), t.state, catalog, infos)
 			}
 			return ctx
 		},
@@ -416,7 +415,7 @@ func TestBuildDirectResponseRunsToolCallLoop(t *testing.T) {
 		},
 		ToolLifecycleBinder: func(ctx context.Context, state ToolLifecycleStateView, catalog *tooling.Catalog, infos []*schema.ToolInfo) context.Context {
 			if t, ok := state.(testToolLifecycleStateView); ok && t.state != nil {
-				return contextplane.WithToolLifecycleContext(ctx, contextPlane, t.state, catalog, infos)
+				return contextplane.WithToolLifecycleContext(ctx, contextPlane.ToolResultLedger(), t.state, catalog, infos)
 			}
 			return ctx
 		},
@@ -487,7 +486,7 @@ func TestBuildDirectResponsePropagatesModelError(t *testing.T) {
 		},
 		ToolLifecycleBinder: func(ctx context.Context, state ToolLifecycleStateView, catalog *tooling.Catalog, infos []*schema.ToolInfo) context.Context {
 			if t, ok := state.(testToolLifecycleStateView); ok && t.state != nil {
-				return contextplane.WithToolLifecycleContext(ctx, contextPlane, t.state, catalog, infos)
+				return contextplane.WithToolLifecycleContext(ctx, contextPlane.ToolResultLedger(), t.state, catalog, infos)
 			}
 			return ctx
 		},
@@ -541,7 +540,7 @@ func TestBuildDirectResponseReactiveCompactsAndRetriesOverflow(t *testing.T) {
 		},
 		ToolLifecycleBinder: func(ctx context.Context, state ToolLifecycleStateView, catalog *tooling.Catalog, infos []*schema.ToolInfo) context.Context {
 			if t, ok := state.(testToolLifecycleStateView); ok && t.state != nil {
-				return contextplane.WithToolLifecycleContext(ctx, contextPlane, t.state, catalog, infos)
+				return contextplane.WithToolLifecycleContext(ctx, contextPlane.ToolResultLedger(), t.state, catalog, infos)
 			}
 			return ctx
 		},
@@ -561,10 +560,10 @@ func TestBuildDirectResponseReactiveCompactsAndRetriesOverflow(t *testing.T) {
 		t.Fatalf("BuildDirectResponse: %v", err)
 	}
 	engine := &directResponseReactiveEngine{
-		result: &contextplane.CompactionResult{
+		result: &contextplane.PipelineResult{
 			Messages:    []adk.Message{schema.UserMessage("reactive compact summary")},
-			SummaryText: "reactive compact summary",
-			Outcome: contextplane.CompressionOutcome{
+			TokensFreed: 80,
+			Outcome: &contextplane.CompressionOutcome{
 				BoundaryID:     "ctxb_reactive",
 				TokensBefore:   120,
 				TokensAfter:    40,
@@ -573,17 +572,9 @@ func TestBuildDirectResponseReactiveCompactsAndRetriesOverflow(t *testing.T) {
 			},
 		},
 	}
-	counter, err := contextplane.NewCompressionTokenCounter(config.ContextConfig{TokenEncoding: "o200k_base"})
-	if err != nil {
-		t.Fatalf("NewCompressionTokenCounter: %v", err)
-	}
 	session := newDirectResponseTestSession(t, ctx, assembly, contextplane.ContextSessionOptions{
 		BudgetGovernor: directResponseNoPressureGovernor{},
-		Pipeline: contextplane.NewDefaultContextCompressionPipeline(contextplane.CompressionPipelineOptions{
-			Governor:         directResponseBlockingGovernor{},
-			CompactionEngine: engine,
-			TokenCounter:     counter,
-		}),
+		Pipeline:       engine,
 		PreservePolicy: contextplane.PreservePolicy{RecentTurns: 1, PreserveToolPairs: true},
 	})
 	ctx = contextplane.WithContextSession(ctx, session)
@@ -631,7 +622,7 @@ func TestBuildDirectResponseFailsWithoutContextSession(t *testing.T) {
 		},
 		ToolLifecycleBinder: func(ctx context.Context, state ToolLifecycleStateView, catalog *tooling.Catalog, infos []*schema.ToolInfo) context.Context {
 			if t, ok := state.(testToolLifecycleStateView); ok && t.state != nil {
-				return contextplane.WithToolLifecycleContext(ctx, contextPlane, t.state, catalog, infos)
+				return contextplane.WithToolLifecycleContext(ctx, contextPlane.ToolResultLedger(), t.state, catalog, infos)
 			}
 			return ctx
 		},
@@ -889,35 +880,6 @@ func (directResponseNoPressureGovernor) AutoCompactThreshold(contextplane.ModelP
 	return 900, nil
 }
 
-type directResponseBlockingGovernor struct{}
-
-func (directResponseBlockingGovernor) Evaluate(_ context.Context, req contextplane.BudgetEvaluateRequest) (contextplane.BudgetPressure, error) {
-	if len(req.Messages) <= 1 {
-		return contextplane.BudgetPressure{
-			EstimatedInputTokens:       10,
-			EffectiveWindowTokens:      1000,
-			WarningThresholdTokens:     800,
-			AutoCompactThresholdTokens: 900,
-			BlockingThresholdTokens:    990,
-			PercentUsed:                1,
-			State:                      contextplane.PressureOK,
-		}, nil
-	}
-	return contextplane.BudgetPressure{
-		EstimatedInputTokens:       1000,
-		EffectiveWindowTokens:      1000,
-		WarningThresholdTokens:     800,
-		AutoCompactThresholdTokens: 900,
-		BlockingThresholdTokens:    990,
-		PercentUsed:                100,
-		State:                      contextplane.PressureBlocking,
-	}, nil
-}
-
-func (directResponseBlockingGovernor) AutoCompactThreshold(contextplane.ModelProfile) (int, error) {
-	return 900, nil
-}
-
 func directResponseTestModelProfile() contextplane.ModelProfile {
 	return contextplane.ModelProfile{
 		ContextWindowTokens:         200000,
@@ -932,11 +894,11 @@ func directResponseTestModelProfile() contextplane.ModelProfile {
 
 type directResponseReactiveEngine struct {
 	called  bool
-	request contextplane.CompactRequest
-	result  *contextplane.CompactionResult
+	request contextplane.PipelineRequest
+	result  *contextplane.PipelineResult
 }
 
-func (e *directResponseReactiveEngine) Compact(_ context.Context, req contextplane.CompactRequest) (*contextplane.CompactionResult, error) {
+func (e *directResponseReactiveEngine) Compress(_ context.Context, req contextplane.PipelineRequest) (*contextplane.PipelineResult, error) {
 	e.called = true
 	e.request = req
 	return e.result, nil
@@ -1062,7 +1024,7 @@ func TestBuildDirectResponseHandlesInterrupt(t *testing.T) {
 		},
 		ToolLifecycleBinder: func(ctx context.Context, state ToolLifecycleStateView, catalog *tooling.Catalog, infos []*schema.ToolInfo) context.Context {
 			if t, ok := state.(testToolLifecycleStateView); ok && t.state != nil {
-				return contextplane.WithToolLifecycleContext(ctx, contextPlane, t.state, catalog, infos)
+				return contextplane.WithToolLifecycleContext(ctx, contextPlane.ToolResultLedger(), t.state, catalog, infos)
 			}
 			return ctx
 		},
@@ -1138,7 +1100,7 @@ func TestBuildDirectResponsePreservesNestedInterruptContexts(t *testing.T) {
 		},
 		ToolLifecycleBinder: func(ctx context.Context, state ToolLifecycleStateView, catalog *tooling.Catalog, infos []*schema.ToolInfo) context.Context {
 			if t, ok := state.(testToolLifecycleStateView); ok && t.state != nil {
-				return contextplane.WithToolLifecycleContext(ctx, contextPlane, t.state, catalog, infos)
+				return contextplane.WithToolLifecycleContext(ctx, contextPlane.ToolResultLedger(), t.state, catalog, infos)
 			}
 			return ctx
 		},
@@ -1269,7 +1231,7 @@ func TestBuildDirectResponseResumeContinuesFromPendingToolCalls(t *testing.T) {
 		},
 		ToolLifecycleBinder: func(ctx context.Context, state ToolLifecycleStateView, catalog *tooling.Catalog, infos []*schema.ToolInfo) context.Context {
 			if t, ok := state.(testToolLifecycleStateView); ok && t.state != nil {
-				return contextplane.WithToolLifecycleContext(ctx, contextPlane, t.state, catalog, infos)
+				return contextplane.WithToolLifecycleContext(ctx, contextPlane.ToolResultLedger(), t.state, catalog, infos)
 			}
 			return ctx
 		},

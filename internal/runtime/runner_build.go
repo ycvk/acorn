@@ -18,6 +18,7 @@ import (
 	"github.com/ycvk/acorn/internal/memorymodule"
 	"github.com/ycvk/acorn/internal/orchestration"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
+	"github.com/ycvk/acorn/internal/runtime/tool"
 	"github.com/ycvk/acorn/internal/skills"
 	corestore "github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/tooling"
@@ -213,26 +214,26 @@ func (f *RunnerFactory) buildRunCapabilities(ctx context.Context, sessionID stri
 		if err != nil {
 			return nil, fmt.Errorf("read MCP tool info for provider %q: %w", registration.ProviderName, err)
 		}
-		namespaced, err := newMCPNamespacedTool(ctx, registration.Tool, registration.ProviderName, info.Name)
+		namespaced, err := tool.NewMCPNamespacedTool(ctx, registration.Tool, registration.ProviderName, info.Name)
 		if err != nil {
 			return nil, fmt.Errorf("namespace MCP tool %q for provider %q: %w", info.Name, registration.ProviderName, err)
 		}
-		spec, err := runtimeToolSpec(ctx, f.deps.Config, registration.ProviderName, tooling.ToolKindMCP, []tooling.ToolProfile{tooling.ToolProfileRun}, namespaced)
+		spec, err := tool.RuntimeToolSpec(ctx, f.deps.Config, registration.ProviderName, tooling.ToolKindMCP, []tooling.ToolProfile{tooling.ToolProfileRun}, namespaced)
 		if err != nil {
 			return nil, err
 		}
-		parallelPolicy, err := mcpToolParallelPolicy(f.deps.Config, registration.ProviderName)
+		parallelPolicy, err := tool.MCPToolParallelPolicy(f.deps.Config, registration.ProviderName)
 		if err != nil {
 			return nil, fmt.Errorf("resolve MCP tool safety for provider %q: %w", registration.ProviderName, err)
 		}
 		spec.Execution.ParallelPolicy = parallelPolicy
 		specs = append(specs, spec)
 	}
-	resourceSpecs, err := buildCatalogSpecs(ctx, f.deps.Config, "mcp.resource", tooling.ToolKindMCPResource, []tooling.ToolProfile{tooling.ToolProfileRun}, resourceTools)
+	resourceSpecs, err := tool.BuildCatalogSpecs(ctx, f.deps.Config, "mcp.resource", tooling.ToolKindMCPResource, []tooling.ToolProfile{tooling.ToolProfileRun}, resourceTools)
 	if err != nil {
 		return nil, err
 	}
-	promptSpecs, err := buildCatalogSpecs(ctx, f.deps.Config, "mcp.prompt", tooling.ToolKindMCPPrompt, []tooling.ToolProfile{tooling.ToolProfileRun}, promptTools)
+	promptSpecs, err := tool.BuildCatalogSpecs(ctx, f.deps.Config, "mcp.prompt", tooling.ToolKindMCPPrompt, []tooling.ToolProfile{tooling.ToolProfileRun}, promptTools)
 	if err != nil {
 		return nil, err
 	}
@@ -372,7 +373,7 @@ func (f *RunnerFactory) buildSingleAgentAssembly(
 		SessionID:         req.SessionID,
 		RunID:             req.RunID,
 		ChatModel:         chatModel,
-		AssistantStreamer: newDirectAssistantStreamer(f.deps.Store),
+		AssistantStreamer: tool.NewDirectAssistantStreamer(f.deps.Store),
 		Catalog:           catalog,
 		ContextResult:     AssembleResultToView(contextResult),
 		AllowedToolNames:  append([]string(nil), req.AllowedToolNames...),
@@ -397,7 +398,7 @@ func (f *RunnerFactory) buildDirectResponseAssembly(
 		SessionID:         req.SessionID,
 		RunID:             req.RunID,
 		ChatModel:         chatModel,
-		AssistantStreamer: newDirectAssistantStreamer(f.deps.Store),
+		AssistantStreamer: tool.NewDirectAssistantStreamer(f.deps.Store),
 		Catalog:           catalog,
 		ContextResult:     AssembleResultToView(contextResult),
 		AllowedToolNames:  append([]string(nil), req.AllowedToolNames...),

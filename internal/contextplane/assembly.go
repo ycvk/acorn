@@ -35,7 +35,7 @@ func (p *defaultContextPlane) Assemble(ctx context.Context, req AssembleRequest)
 	if assembledContext != nil {
 		checkpointSection = assembledContext.checkpointSection
 	}
-	if strings.TrimSpace(req.Input) != "" && strings.TrimSpace(req.SessionID) != "" && !isNilInterface(p.sessionSummaryService) {
+	if strings.TrimSpace(req.Input) != "" && strings.TrimSpace(req.SessionID) != "" && !IsNilInterface(p.sessionSummaryService) {
 		summary, summaryErr := p.sessionSummaryService.Get(ctx, req.SessionID)
 		if summaryErr != nil {
 			return nil, fmt.Errorf("load session summary for %q: %w", req.SessionID, summaryErr)
@@ -86,9 +86,9 @@ func budgetedContextMessages(ctx context.Context, counter TokenCounter, maxToken
 		return nil, errors.New("context message token counter is required")
 	}
 	if maxTokens <= 0 {
-		return cloneMessages(messages), nil
+		return CloneMessages(messages), nil
 	}
-	cloned := cloneMessages(messages)
+	cloned := CloneMessages(messages)
 	adkMessages := make([]adk.Message, 0, len(cloned))
 	for _, msg := range cloned {
 		if msg != nil {
@@ -105,7 +105,7 @@ func budgetedContextMessages(ctx context.Context, counter TokenCounter, maxToken
 	return cloned, nil
 }
 
-func cloneMessages(messages []*schema.Message) []*schema.Message {
+func CloneMessages(messages []*schema.Message) []*schema.Message {
 	out := make([]*schema.Message, 0, len(messages))
 	for _, msg := range messages {
 		if msg == nil {

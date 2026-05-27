@@ -27,7 +27,7 @@ import (
 
 func TestProjectThread(t *testing.T) {
 	now := time.Date(2026, 5, 2, 10, 0, 0, 0, time.UTC)
-	service := BuildClientService(nil, nil, "/repo")
+	service := BuildClientService(nil, nil, nil, "/repo")
 
 	thread, err := service.projectThread(events.SessionRecord{
 		SessionID: "session_1",
@@ -56,7 +56,7 @@ func TestClientCreateMessageBackfillsEmptyThreadTitle(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = store.Close() })
 
-	service := BuildClientService(store, nil, "/repo")
+	service := BuildClientService(store, nil, nil, "/repo")
 	service.newThreadID = func() string { return "thread_title" }
 
 	thread, err := service.CreateThread(ctx, "")
@@ -91,7 +91,7 @@ func TestClientListThreadsProjectsTitleFromRecentUserMessage(t *testing.T) {
 	if _, err := store.AppendSessionMessage(session.SessionID, 1, "user", "How do I configure pairing on the VPS?", ""); err != nil {
 		t.Fatalf("AppendSessionMessage: %v", err)
 	}
-	service := BuildClientService(store, nil, "/repo")
+	service := BuildClientService(store, nil, nil, "/repo")
 
 	threads, err := service.ListThreads(ctx, 10)
 	if err != nil {
@@ -871,7 +871,7 @@ func TestLoadRunEventsForDetailSeparatesUnsupportedEvents(t *testing.T) {
 	if _, err := store.AppendEventContext(context.Background(), "run_detail", "future.kind", map[string]any{"value": "debug"}); err != nil {
 		t.Fatalf("append future.kind: %v", err)
 	}
-	service := BuildClientService(store, nil, "/repo")
+	service := BuildClientService(store, nil, nil, "/repo")
 	detail, err := service.LoadRunEventsForDetail(ctx, "run_detail")
 	if err != nil {
 		t.Fatalf("LoadRunEventsForDetail: %v", err)
@@ -910,7 +910,7 @@ func TestClientCreateRunUsesRealExecutorPath(t *testing.T) {
 
 	service := BuildClientService(store, func(context.Context) (executorHandle, error) {
 		return executor, nil
-	}, cfg.WorkspaceRoot())
+	}, nil, cfg.WorkspaceRoot())
 	service.newThreadID = func() string { return "thread_runtime" }
 	service.newRunID = func() string { return "run_runtime" }
 
@@ -978,7 +978,7 @@ func TestClientCreateRunReturnsExecutionNotReady(t *testing.T) {
 
 	service := BuildClientService(store, func(context.Context) (executorHandle, error) {
 		return nil, runtimeapi.ErrExecutionNotReady
-	}, "/repo")
+	}, nil, "/repo")
 	service.newThreadID = func() string { return "thread_not_ready" }
 	service.newRunID = func() string { return "run_not_ready" }
 
@@ -1017,7 +1017,7 @@ func TestClientCreateRunReportsPostStartPersistenceFailure(t *testing.T) {
 	}
 	service := BuildClientService(db, func(context.Context) (executorHandle, error) {
 		return exec, nil
-	}, "/repo")
+	}, nil, "/repo")
 	service.newThreadID = func() string { return "thread_post_start_failure" }
 	service.newRunID = func() string { return "run_post_start_failure" }
 	reported := make(chan error, 1)
@@ -1080,7 +1080,7 @@ func TestClientCreateRunRejectsInvalidModes(t *testing.T) {
 			service := BuildClientService(store, func(context.Context) (executorHandle, error) {
 				t.Fatal("executor factory should not be called for invalid mode")
 				return nil, nil
-			}, "/repo")
+			}, nil, "/repo")
 			service.newThreadID = func() string { return "thread_invalid_mode" }
 			service.newRunID = func() string { return "run_invalid_mode" }
 

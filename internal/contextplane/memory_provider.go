@@ -284,7 +284,7 @@ func formatMemoryNudge(nudge memorymodule.Nudge) string {
 	if reason := strings.TrimSpace(nudge.Reason); reason != "" {
 		parts = append(parts, "reason="+reason)
 	}
-	return "- " + strings.Join(nonEmptyMemoryParts(parts), " ")
+	return "- " + strings.Join(NonEmptyMemoryParts(parts), " ")
 }
 
 func formatMemoryEntry(entry memorymodule.Entry) string {
@@ -302,7 +302,7 @@ func formatMemoryEntry(entry memorymodule.Entry) string {
 	return "- " + prefix + strings.TrimSpace(entry.Content)
 }
 
-func nonEmptyMemoryParts(parts []string) []string {
+func NonEmptyMemoryParts(parts []string) []string {
 	out := make([]string, 0, len(parts))
 	for _, part := range parts {
 		if strings.TrimSpace(part) != "" {

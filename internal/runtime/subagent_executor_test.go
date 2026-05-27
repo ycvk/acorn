@@ -14,6 +14,7 @@ import (
 	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/model"
 	"github.com/ycvk/acorn/internal/orchestration"
+	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
 	"github.com/ycvk/acorn/internal/stream"
 )
@@ -309,7 +310,7 @@ func TestSubagentAdapterExtractsRunID(t *testing.T) {
 	}
 	adapter := subagentExecutorAdapter{exec: se}
 
-	ctx := withRunID(context.Background(), "test_parent")
+	ctx := runtimeapi.WithRunID(context.Background(), "test_parent")
 
 	_, err := adapter.ExecuteMessages(ctx, []*schema.Message{
 		schema.UserMessage("test message"),
@@ -410,7 +411,7 @@ func TestSubagentTraceSummary(t *testing.T) {
 		{Kind: stream.StreamKindSubagentFailed},
 	}
 
-	summary := summarizeStreamItems(items)
+	summary := SummarizeStreamItems(items)
 	if summary.ItemCount != 3 {
 		t.Fatalf("ItemCount = %d, want 3", summary.ItemCount)
 	}
@@ -439,7 +440,7 @@ func TestSubagentEventRecordRoundtrip(t *testing.T) {
 		CreatedAt: original.CreatedAt,
 	}
 
-	reconstructed := projectEventToStreamItem(event)
+	reconstructed := ProjectEventToStreamItem(event)
 	if reconstructed.Kind != stream.StreamKindSubagentStarted {
 		t.Fatalf("reconstructed Kind = %q, want %q", reconstructed.Kind, stream.StreamKindSubagentStarted)
 	}

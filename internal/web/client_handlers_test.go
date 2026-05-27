@@ -868,8 +868,7 @@ func TestClientResourceSurfaceHandlers(t *testing.T) {
 	server := &Server{
 		client:       service,
 		workbench:    &clientWorkbenchStub{workbench: &app.RuntimeWorkbench{SessionID: "thread_1", WorkspaceRoot: "/repo"}},
-		run:          &clientRunStub{},
-		resume:       &clientResumeStub{result: &runtime.Result{RunID: "run_1", Status: "interrupted"}},
+		trace:        &clientTraceStub{result: &runtime.Result{RunID: "run_1", Status: "interrupted"}},
 		capabilities: capabilities,
 		pendingAction: &pendingActionHandlerStub{
 			summaries: []app.PendingActionSummary{{
@@ -1346,6 +1345,13 @@ func (s *clientHandlerStub) RunIsTerminal(context.Context, string) (bool, error)
 	return true, nil
 }
 
+func (s *clientHandlerStub) InterruptRun(context.Context, string) error {
+	if s.err != nil {
+		return s.err
+	}
+	return nil
+}
+
 func (s *clientHandlerStub) EventPollInterval() time.Duration {
 	return time.Millisecond
 }
@@ -1448,22 +1454,12 @@ func (s *clientWorkbenchStub) Load(context.Context, string) (*app.RuntimeWorkben
 	return s.workbench, s.err
 }
 
-type clientRunStub struct {
-	interruptedRunID string
-	err              error
-}
-
-func (s *clientRunStub) InterruptRun(_ context.Context, runID string) error {
-	s.interruptedRunID = runID
-	return s.err
-}
-
-type clientResumeStub struct {
+type clientTraceStub struct {
 	result *runtime.Result
 	err    error
 }
 
-func (s *clientResumeStub) Resume(context.Context, string, stream.StreamSink) (*runtime.Result, error) {
+func (s *clientTraceStub) Resume(context.Context, string, stream.StreamSink) (*runtime.Result, error) {
 	return s.result, s.err
 }
 

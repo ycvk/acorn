@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ycvk/acorn/internal/events"
+	"github.com/ycvk/acorn/internal/runtime"
 	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	"github.com/ycvk/acorn/internal/store"
 )
@@ -15,6 +16,7 @@ import (
 type ClientService struct {
 	store         clientStore
 	newExecutor   func(context.Context) (executorHandle, error)
+	controller    *runtime.RunController
 	workspaceRoot string
 	eventPoll     time.Duration
 	newThreadID   func() string
@@ -22,10 +24,11 @@ type ClientService struct {
 	reportError   func(context.Context, string, error)
 }
 
-func BuildClientService(store clientStore, newExecutor func(context.Context) (executorHandle, error), workspaceRoot string) *ClientService {
+func BuildClientService(store clientStore, newExecutor func(context.Context) (executorHandle, error), controller *runtime.RunController, workspaceRoot string) *ClientService {
 	return &ClientService{
 		store:         store,
 		newExecutor:   newExecutor,
+		controller:    controller,
 		workspaceRoot: workspaceRoot,
 		eventPoll:     100 * time.Millisecond,
 		newThreadID:   newThreadID,
@@ -73,6 +76,14 @@ func (s *ClientService) RunIsTerminal(ctx context.Context, runID string) (bool, 
 	default:
 		return false, projectionError("unknown run status %q", record.Status)
 	}
+}
+
+func (s *ClientService) InterruptRun(ctx context.Context, runID string) error {
+	_ = ctx
+	if s == nil || s.controller == nil {
+		return errors.New("run controller is nil")
+	}
+	return s.controller.Interrupt(runID)
 }
 
 func (s *ClientService) CreateRun(ctx context.Context, threadID, skillID, mode string) (*Run, error) {

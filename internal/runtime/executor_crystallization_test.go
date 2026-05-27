@@ -50,7 +50,7 @@ func TestCrystallizationCalledOnSuccess(t *testing.T) {
 	appendSuccessfulToolEvent(t, ctx, store, runID, "deploy_tool", `{"target":"prod"}`)
 	evidenceRef := appendSuccessfulToolResult(t, ctx, store, runID, sessionID, "call_deploy", "deploy_tool")
 
-	result, err := exec.finishCollectedRun(ctx, runID, "deploy app", runState{lastOutput: "deployed"}, nil, nil)
+	result, err := exec.finishCollectedRun(ctx, runID, "deploy app", RunState{lastOutput: "deployed"}, nil, nil)
 	if err != nil {
 		t.Fatalf("finishCollectedRun: %v", err)
 	}
@@ -91,7 +91,7 @@ func TestCrystallizationErrorDoesNotBlockSuccess(t *testing.T) {
 	appendSuccessfulToolEvent(t, ctx, store, runID, "file_edit", `{"path":"config.yaml"}`)
 	appendSuccessfulToolResult(t, ctx, store, runID, sessionID, "call_edit", "file_edit")
 
-	result, err := exec.finishCollectedRun(ctx, runID, "update config", runState{lastOutput: "done"}, nil, nil)
+	result, err := exec.finishCollectedRun(ctx, runID, "update config", RunState{lastOutput: "done"}, nil, nil)
 	if err != nil {
 		t.Fatalf("finishCollectedRun: %v", err)
 	}
@@ -118,7 +118,7 @@ func TestCrystallizationSkippedWhenNil(t *testing.T) {
 	runID := createFinalizationRun(t, ctx, store, "session-no-crystal", "list files")
 	appendSuccessfulToolEvent(t, ctx, store, runID, "file_read", `{"path":"README.md"}`)
 
-	result, err := exec.finishCollectedRun(ctx, runID, "list files", runState{lastOutput: "files listed"}, nil, nil)
+	result, err := exec.finishCollectedRun(ctx, runID, "list files", RunState{lastOutput: "files listed"}, nil, nil)
 	if err != nil {
 		t.Fatalf("finishCollectedRun: %v", err)
 	}
@@ -150,7 +150,7 @@ func TestCrystallizationVerdictEventEmitted(t *testing.T) {
 	appendSuccessfulToolEvent(t, ctx, store, runID, "file_edit", `{"path":"README.md"}`)
 	appendSuccessfulToolResult(t, ctx, store, runID, sessionID, "call_edit", "file_edit")
 
-	_, err := exec.finishCollectedRun(ctx, runID, "hello", runState{lastOutput: "hi"}, nil, nil)
+	_, err := exec.finishCollectedRun(ctx, runID, "hello", RunState{lastOutput: "hi"}, nil, nil)
 	if err != nil {
 		t.Fatalf("finishCollectedRun: %v", err)
 	}
@@ -188,7 +188,7 @@ func TestCrystallizationEventSinkFailureReturnsError(t *testing.T) {
 	appendSuccessfulToolEvent(t, ctx, store, runID, "file_edit", `{"path":"config.yaml"}`)
 	appendSuccessfulToolResult(t, ctx, store, runID, sessionID, "call_edit", "file_edit")
 
-	_, err := exec.finishCollectedRun(ctx, runID, "edit config", runState{lastOutput: "done"}, nil, func(stream.StreamItem) error {
+	_, err := exec.finishCollectedRun(ctx, runID, "edit config", RunState{lastOutput: "done"}, nil, func(stream.StreamItem) error {
 		return errors.New("sink unavailable")
 	})
 	if err == nil {
@@ -210,7 +210,7 @@ func TestCrystallizationWithArchiveData(t *testing.T) {
 	firstEvidenceRef := appendSuccessfulToolResult(t, ctx, store, runID, sessionID, "call_migrate", "db_migrate")
 	secondEvidenceRef := appendSuccessfulToolResult(t, ctx, store, runID, sessionID, "call_verify", "db_verify")
 
-	_, err := exec.finishCollectedRun(ctx, runID, "migrate db", runState{lastOutput: "migration complete"}, nil, nil)
+	_, err := exec.finishCollectedRun(ctx, runID, "migrate db", RunState{lastOutput: "migration complete"}, nil, nil)
 	if err != nil {
 		t.Fatalf("finishCollectedRun: %v", err)
 	}
@@ -245,7 +245,7 @@ func TestCrystallizationFeatureGateDisabled(t *testing.T) {
 	appendSuccessfulToolEvent(t, ctx, store, runID, "test_tool", `{}`)
 	appendSuccessfulToolResult(t, ctx, store, runID, sessionID, "call_test", "test_tool")
 
-	_, err := exec.finishCollectedRun(ctx, runID, "test gate", runState{lastOutput: "ok"}, nil, nil)
+	_, err := exec.finishCollectedRun(ctx, runID, "test gate", RunState{lastOutput: "ok"}, nil, nil)
 	if err != nil {
 		t.Fatalf("finishCollectedRun: %v", err)
 	}

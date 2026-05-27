@@ -18,6 +18,7 @@ import (
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
 	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 
+	"github.com/ycvk/acorn/internal/runtime/tool"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/stream"
 	"github.com/ycvk/acorn/internal/toolfactory"
@@ -157,23 +158,23 @@ func (f *RunnerFactory) buildToolset(
 		}
 	}
 
-	specs, err := buildCatalogSpecs(ctx, f.deps.Config, "local", tooling.ToolKindNative, []tooling.ToolProfile{tooling.ToolProfileRun, tooling.ToolProfileServe}, append([]einotool.BaseTool(nil), localCatalog.Tools...))
+	specs, err := tool.BuildCatalogSpecs(ctx, f.deps.Config, "local", tooling.ToolKindNative, []tooling.ToolProfile{tooling.ToolProfileRun, tooling.ToolProfileServe}, append([]einotool.BaseTool(nil), localCatalog.Tools...))
 	if err != nil {
 		return nil, err
 	}
-	checkpointSpecs, err := buildCatalogSpecs(ctx, f.deps.Config, "workingstate", tooling.ToolKindMemory, []tooling.ToolProfile{tooling.ToolProfileRun, tooling.ToolProfileServe}, checkpointTools)
+	checkpointSpecs, err := tool.BuildCatalogSpecs(ctx, f.deps.Config, "workingstate", tooling.ToolKindMemory, []tooling.ToolProfile{tooling.ToolProfileRun, tooling.ToolProfileServe}, checkpointTools)
 	if err != nil {
 		return nil, err
 	}
-	memorySpecs, err := buildCatalogSpecs(ctx, f.deps.Config, "memory", tooling.ToolKindMemory, []tooling.ToolProfile{tooling.ToolProfileRun, tooling.ToolProfileServe}, memoryTools)
+	memorySpecs, err := tool.BuildCatalogSpecs(ctx, f.deps.Config, "memory", tooling.ToolKindMemory, []tooling.ToolProfile{tooling.ToolProfileRun, tooling.ToolProfileServe}, memoryTools)
 	if err != nil {
 		return nil, err
 	}
-	skillSpecs, err := buildCatalogSpecs(ctx, f.deps.Config, "skill", tooling.ToolKindSkill, []tooling.ToolProfile{tooling.ToolProfileRun, tooling.ToolProfileServe}, skillTools)
+	skillSpecs, err := tool.BuildCatalogSpecs(ctx, f.deps.Config, "skill", tooling.ToolKindSkill, []tooling.ToolProfile{tooling.ToolProfileRun, tooling.ToolProfileServe}, skillTools)
 	if err != nil {
 		return nil, err
 	}
-	skillLifecycleSpecs, err := buildCatalogSpecs(ctx, f.deps.Config, "skill.lifecycle", tooling.ToolKindSkill, []tooling.ToolProfile{tooling.ToolProfileRun}, skillLifecycleTools)
+	skillLifecycleSpecs, err := tool.BuildCatalogSpecs(ctx, f.deps.Config, "skill.lifecycle", tooling.ToolKindSkill, []tooling.ToolProfile{tooling.ToolProfileRun}, skillLifecycleTools)
 	if err != nil {
 		return nil, err
 	}
@@ -183,11 +184,11 @@ func (f *RunnerFactory) buildToolset(
 	specs = append(specs, skillLifecycleSpecs...)
 
 	if includePlanning {
-		loadToolsTool, err := newLoadToolsTool(f.deps.ContextPlane)
+		loadToolsTool, err := tool.NewLoadToolsTool()
 		if err != nil {
 			return nil, fmt.Errorf("build load_tools tool: %w", err)
 		}
-		planningSpecs, err := buildCatalogSpecs(ctx, f.deps.Config, "runtime", tooling.ToolKindNative, []tooling.ToolProfile{tooling.ToolProfileRun}, []einotool.BaseTool{loadToolsTool})
+		planningSpecs, err := tool.BuildCatalogSpecs(ctx, f.deps.Config, "runtime", tooling.ToolKindNative, []tooling.ToolProfile{tooling.ToolProfileRun}, []einotool.BaseTool{loadToolsTool})
 		if err != nil {
 			return nil, err
 		}

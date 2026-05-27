@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/ycvk/acorn/internal/decision"
+	"github.com/ycvk/acorn/internal/runtime/tooltest"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/tooling"
 )
@@ -227,15 +228,15 @@ func newSkillSelectionRegistry(t *testing.T) *tooling.Catalog {
 	items := []tooling.ToolSpec{
 		{
 			ToolContract: skillSelectionToolContract("read_file", tooling.ToolCategoryRead, tooling.ResourceScopeWorkspaceFile, tooling.ParallelPolicyReadOnly, tooling.PlanPolicyNone),
-			Tool:         mustInferTool(t, "read_file", func(context.Context, map[string]any) (string, error) { return "ok", nil }),
+			Tool:         tooltest.MustInferTool(t, "read_file", func(context.Context, map[string]any) (string, error) { return "ok", nil }),
 		},
 		{
 			ToolContract: skillSelectionToolContract("create_file", tooling.ToolCategoryWrite, tooling.ResourceScopeWorkspaceFile, tooling.ParallelPolicyWriteScoped, tooling.PlanPolicyRequireActivePlan),
-			Tool:         mustInferTool(t, "create_file", func(context.Context, map[string]any) (string, error) { return "ok", nil }),
+			Tool:         tooltest.MustInferTool(t, "create_file", func(context.Context, map[string]any) (string, error) { return "ok", nil }),
 		},
 		{
 			ToolContract: skillSelectionToolContract("run_command", tooling.ToolCategoryExecute, tooling.ResourceScopeWorkspaceCommand, tooling.ParallelPolicyNeverParallel, tooling.PlanPolicyRequireActivePlan),
-			Tool:         mustInferTool(t, "run_command", func(context.Context, map[string]any) (string, error) { return "ok", nil }),
+			Tool:         tooltest.MustInferTool(t, "run_command", func(context.Context, map[string]any) (string, error) { return "ok", nil }),
 		},
 	}
 	registry, err := tooling.NewCatalog(context.Background(), items)

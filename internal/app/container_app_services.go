@@ -13,8 +13,7 @@ func buildContainerAppServices(cfg *config.Config, store containerAppStore, deps
 		runController: deps.runController,
 	}
 
-	container.sessions = NewSessionService(store)
-	container.trace = NewTraceService(store)
+	container.trace = NewTraceService(store).WithResume(deps.executors, store)
 	container.sessionState = NewSessionStateService(cfg, store, container.trace)
 	container.workbench = NewRuntimeWorkbenchService(RuntimeWorkbenchConfig{
 		Workspace: deps.ws,
@@ -30,11 +29,9 @@ func buildContainerAppServices(cfg *config.Config, store containerAppStore, deps
 	if deps.ws != nil {
 		workspaceRoot = deps.ws.Root()
 	}
-	container.client = BuildClientService(store, deps.executors, workspaceRoot)
+	container.client = BuildClientService(store, deps.executors, deps.runController, workspaceRoot)
 	container.pendingAction = NewPendingActionService(store)
-	container.run = NewRunService(deps.executors, deps.runController)
-	container.resume = NewResumeService(container.trace, deps.executors, store)
-	container.decision = NewDecisionService(deps.decisionProfileService, store)
+	container.profiles = deps.decisionProfileService
 
 	memoryService, err := NewMemoryService(deps.memoryModule, MemoryServiceSemanticOptions{
 		Index:      deps.semanticIndex,

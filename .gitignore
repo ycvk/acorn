@@ -26,6 +26,6 @@ configs/acorn.local.yaml
 /dist/
 /.artifacts/
 /acorn
-runtime.test
+*.test
 /untitled.pen
 coverage.out

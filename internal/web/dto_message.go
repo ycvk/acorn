@@ -131,20 +131,7 @@ func messagePartDTOsFromDomain(parts []app.MessagePart) []MessagePartDTO {
 }
 
 func disclosureItemDTOsFromDomain(items []app.DisclosureItem) []DisclosureItemDTO {
-	if len(items) == 0 {
-		return nil
-	}
-	result := make([]DisclosureItemDTO, 0, len(items))
-	for _, item := range items {
-		result = append(result, DisclosureItemDTO{
-			Kind:    item.Kind,
-			Label:   item.Label,
-			Detail:  item.Detail,
-			Tone:    item.Tone,
-			SkillID: item.SkillID,
-		})
-	}
-	return result
+	return DefaultConverter.disclosureItemDTOsFromDomain(items)
 }
 
 func messageActionDTOFromDomain(action *app.MessageAction) *MessageActionDTO {

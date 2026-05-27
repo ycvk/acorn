@@ -6,10 +6,8 @@ import (
 	"time"
 
 	"github.com/cloudwego/eino/adk"
-	einomodel "github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/schema"
 
-	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/decision"
 	"github.com/ycvk/acorn/internal/memorymodule"
 	"github.com/ycvk/acorn/internal/model"
@@ -21,10 +19,7 @@ import (
 
 type ContextPlane interface {
 	Assemble(context.Context, AssembleRequest) (*AssembleResult, error)
-	OnToolCall(context.Context, ToolCallEvent) error
-	OnToolResult(context.Context, ToolResultEvent) error
-	DeferredLoad(context.Context, DeferredLoadRequest) (*DeferredLoadResult, error)
-	BuildHandlers(context.Context, config.ContextConfig, einomodel.BaseChatModel, CompressionBuildOptions) ([]adk.ChatModelAgentMiddleware, error)
+	ToolResultLedger() store.ToolResultLedger
 }
 
 type AssembleRequest struct {
@@ -122,7 +117,6 @@ type defaultContextPlane struct {
 	checkpointService        CheckpointService
 	sessionSummaryService    SessionSummaryService
 	toolResultLedger         store.ToolResultLedger
-	compressionPipeline      *CompressionPipeline
 	memoryBudget             LayeredMemoryBudget
 }
 
@@ -141,6 +135,13 @@ type ToolLifecycleState struct {
 	MaxAgeTurns   int
 	MaxResultRefs int
 	mu            sync.Mutex
+}
+
+func (s *ToolLifecycleState) Mu() *sync.Mutex {
+	if s == nil {
+		return nil
+	}
+	return &s.mu
 }
 
 type LoadedToolRecord struct {
@@ -176,7 +177,6 @@ func NewDefaultContextPlane(opts DefaultOptions) ContextPlane {
 		checkpointService:        opts.CheckpointService,
 		sessionSummaryService:    opts.SessionSummaryService,
 		toolResultLedger:         opts.ToolResultLedger,
-		compressionPipeline:      NewCompressionPipeline(),
 	}
 	if opts.MemoryBudget.L1IndexTokens > 0 || opts.MemoryBudget.L2InitialTokens > 0 || opts.MemoryBudget.L3OnDemandReserve > 0 {
 		p.memoryBudget = opts.MemoryBudget
@@ -184,6 +184,13 @@ func NewDefaultContextPlane(opts DefaultOptions) ContextPlane {
 		p.memoryBudget = defaultLayeredBudgetFromTotal(opts.MemoryContextTokenBudget)
 	}
 	return p
+}
+
+func (p *defaultContextPlane) ToolResultLedger() store.ToolResultLedger {
+	if p == nil {
+		return nil
+	}
+	return p.toolResultLedger
 }
 
 func defaultLayeredBudgetFromTotal(total int) LayeredMemoryBudget {
@@ -222,4 +229,40 @@ type PipelineResult struct {
 	LayersApplied []CompactLayer
 	TokensFreed   int
 	Outcome       *CompressionOutcome
+}
+
+type CompressionPipeline interface {
+	Compress(context.Context, PipelineRequest) (*PipelineResult, error)
+}
+
+type CompactTrigger string
+
+const (
+	CompactTriggerAuto     CompactTrigger = "auto"
+	CompactTriggerManual   CompactTrigger = "manual"
+	CompactTriggerReactive CompactTrigger = "reactive"
+)
+
+type PreservePolicy struct {
+	RecentTurns       int
+	PreserveToolPairs bool
+}
+
+type CompressionOutcome struct {
+	BoundaryID     string
+	FirstIndex     int
+	LastIndex      int
+	TokensBefore   int
+	TokensAfter    int
+	Summary        string
+	SummarySnippet string
+	LayersApplied  []CompactLayer
+}
+
+type CompressionBuildOptions struct {
+	RuntimeStorageDir string
+	TokenCounter      *CompressionTokenCounter
+	State             any
+	EmitCompressed    func(context.Context, CompressionOutcome) error
+	EmitPressure      func(context.Context, BudgetPressure) error
 }

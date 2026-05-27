@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"github.com/ycvk/acorn/internal/runtime/tooltest"
 )
 
 func TestValidatorValidArgumentsPass(t *testing.T) {
-	tool := mustInferTool(t, "write_file", func(ctx context.Context, input struct {
+	tool := tooltest.MustInferTool(t, "write_file", func(ctx context.Context, input struct {
 		Path    string `json:"path"`
 		Content string `json:"content"`
 	}) (string, error) {
@@ -34,7 +36,7 @@ func TestValidatorValidArgumentsPass(t *testing.T) {
 }
 
 func TestValidatorMissingRequiredField(t *testing.T) {
-	tool := mustInferTool(t, "write_file", func(ctx context.Context, input struct {
+	tool := tooltest.MustInferTool(t, "write_file", func(ctx context.Context, input struct {
 		Path    string `json:"path"`
 		Content string `json:"content"`
 	}) (string, error) {
@@ -78,7 +80,7 @@ func TestValidatorMissingRequiredField(t *testing.T) {
 }
 
 func TestValidatorWrongType(t *testing.T) {
-	tool := mustInferTool(t, "write_file", func(ctx context.Context, input struct {
+	tool := tooltest.MustInferTool(t, "write_file", func(ctx context.Context, input struct {
 		Path    string `json:"path"`
 		Content string `json:"content"`
 	}) (string, error) {
@@ -114,7 +116,7 @@ func TestValidatorWrongType(t *testing.T) {
 }
 
 func TestValidatorEnumConstraint(t *testing.T) {
-	tool := mustInferTool(t, "set_mode", func(ctx context.Context, input struct {
+	tool := tooltest.MustInferTool(t, "set_mode", func(ctx context.Context, input struct {
 		Mode string `json:"mode" jsonschema:"enum=read,enum=write,enum=admin"`
 	}) (string, error) {
 		return "ok", nil
@@ -162,7 +164,7 @@ func TestValidatorNestedObject(t *testing.T) {
 	type Inner struct {
 		Field string `json:"field"`
 	}
-	tool := mustInferTool(t, "nested_tool", func(ctx context.Context, input struct {
+	tool := tooltest.MustInferTool(t, "nested_tool", func(ctx context.Context, input struct {
 		Inner Inner `json:"inner"`
 	}) (string, error) {
 		return "ok", nil
@@ -198,7 +200,7 @@ func TestValidatorNestedObject(t *testing.T) {
 }
 
 func TestValidatorEmptyArgumentsWithNoRequiredFields(t *testing.T) {
-	tool := mustInferTool(t, "optional_tool", func(ctx context.Context, input struct {
+	tool := tooltest.MustInferTool(t, "optional_tool", func(ctx context.Context, input struct {
 		Path    string `json:"path,omitempty"`
 		Content string `json:"content,omitempty"`
 	}) (string, error) {
@@ -239,7 +241,7 @@ func TestValidatorComplexRealToolSchema(t *testing.T) {
 		Content string `json:"content"`
 		Mode    string `json:"mode"`
 	}
-	tool := mustInferTool(t, "create_file", func(ctx context.Context, input FileWriteInput) (string, error) {
+	tool := tooltest.MustInferTool(t, "create_file", func(ctx context.Context, input FileWriteInput) (string, error) {
 		return "ok", nil
 	})
 	info, err := tool.Info(context.Background())

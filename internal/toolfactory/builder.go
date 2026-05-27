@@ -205,7 +205,7 @@ func (b *Builder) Build(ctx context.Context, opts BuildOptions) (*Toolset, error
 	specs = append(specs, skillLifecycleSpecs...)
 
 	if opts.IncludePlanning {
-		loadToolsTool, err := NewLoadToolsTool(b.contextPlane, opts.RunContextExtractor)
+		loadToolsTool, err := NewLoadToolsTool(opts.RunContextExtractor)
 		if err != nil {
 			return nil, fmt.Errorf("build load_tools tool: %w", err)
 		}

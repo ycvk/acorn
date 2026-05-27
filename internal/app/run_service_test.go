@@ -8,9 +8,9 @@ import (
 	"github.com/ycvk/acorn/internal/runtime"
 )
 
-func TestRunServiceInterruptRunDelegatesToSharedController(t *testing.T) {
+func TestClientServiceInterruptRunDelegatesToSharedController(t *testing.T) {
 	controller := runtime.NewRunController()
-	service := NewRunService(nil, controller)
+	service := BuildClientService(nil, nil, controller, "")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
