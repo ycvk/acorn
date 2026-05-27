@@ -11,7 +11,6 @@ import (
 	"github.com/cloudwego/eino/adk"
 	einomodel "github.com/cloudwego/eino/components/model"
 	einotool "github.com/cloudwego/eino/components/tool"
-	"github.com/ycvk/acorn/internal/artifacts"
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/contextplane"
 	"github.com/ycvk/acorn/internal/crystallization"
@@ -20,6 +19,7 @@ import (
 	"github.com/ycvk/acorn/internal/orchestration"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
 	"github.com/ycvk/acorn/internal/skills"
+	corestore "github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/tooling"
 	"github.com/ycvk/acorn/internal/workspace"
 )
@@ -107,18 +107,18 @@ func resolveWorkspace(cfg *config.Config, override *workspace.Workspace) (*works
 	return cfg.Workspace()
 }
 
-func buildArtifactService(cfg *config.Config, store RunnerFactoryStore) (*artifacts.Service, error) {
+func buildArtifactService(cfg *config.Config, store RunnerFactoryStore) (*corestore.ArtifactService, error) {
 	if cfg == nil {
 		return nil, errors.New("config is required")
 	}
 	if strings.TrimSpace(cfg.Runtime.StorageDir) == "" {
 		return nil, errors.New("storage_dir is required")
 	}
-	artifactStore, ok := store.(artifacts.Store)
+	artifactStore, ok := store.(corestore.ArtifactStore)
 	if !ok {
-		return nil, errors.New("store must implement artifacts.Store")
+		return nil, errors.New("store must implement corestore.ArtifactStore")
 	}
-	return artifacts.NewService(filepath.Join(cfg.Runtime.StorageDir, "artifacts"), artifactStore)
+	return corestore.NewArtifactService(filepath.Join(cfg.Runtime.StorageDir, "artifacts"), artifactStore)
 }
 
 func buildDefaultContextPlane(cfg *config.Config, store RunnerFactoryStore, opts RunnerFactoryOptions) (contextplane.ContextPlane, error) {

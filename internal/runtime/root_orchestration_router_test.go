@@ -4,52 +4,53 @@ import (
 	"testing"
 
 	"github.com/ycvk/acorn/internal/events"
+	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 )
 
 func TestResolveRootOrchestrationMode(t *testing.T) {
 	tests := []struct {
 		name string
-		req  ExecuteRequest
+		req  runtimeapi.ExecuteRequest
 		want events.OrchestrationMode
 	}{
 		{
 			name: "greeting uses direct response",
-			req:  ExecuteRequest{Input: "你好"},
+			req:  runtimeapi.ExecuteRequest{Input: "你好"},
 			want: events.ModeDirectResponse,
 		},
 		{
 			name: "english greeting uses direct response",
-			req:  ExecuteRequest{Input: "hello, what can you do?"},
+			req:  runtimeapi.ExecuteRequest{Input: "hello, what can you do?"},
 			want: events.ModeDirectResponse,
 		},
 		{
 			name: "plain question uses direct response",
-			req:  ExecuteRequest{Input: "解释一下 Acorn 是什么"},
+			req:  runtimeapi.ExecuteRequest{Input: "解释一下 Acorn 是什么"},
 			want: events.ModeDirectResponse,
 		},
 		{
 			name: "blank input uses direct response",
-			req:  ExecuteRequest{Input: " \n\t "},
+			req:  runtimeapi.ExecuteRequest{Input: " \n\t "},
 			want: events.ModeDirectResponse,
 		},
 		{
 			name: "repo task without explicit mode uses direct response",
-			req:  ExecuteRequest{Input: "修复 internal/runtime/executor_run.go 并跑 go test"},
+			req:  runtimeapi.ExecuteRequest{Input: "修复 internal/runtime/executor_run.go 并跑 go test"},
 			want: events.ModeDirectResponse,
 		},
 		{
 			name: "verification intent without explicit mode uses direct response",
-			req:  ExecuteRequest{Input: "验证这个改动并运行 make lint"},
+			req:  runtimeapi.ExecuteRequest{Input: "验证这个改动并运行 make lint"},
 			want: events.ModeDirectResponse,
 		},
 		{
 			name: "english mutation intent without explicit mode uses direct response",
-			req:  ExecuteRequest{Input: "implement the new trace drawer behavior"},
+			req:  runtimeapi.ExecuteRequest{Input: "implement the new trace drawer behavior"},
 			want: events.ModeDirectResponse,
 		},
 		{
 			name: "explicit mode is preserved",
-			req: ExecuteRequest{
+			req: runtimeapi.ExecuteRequest{
 				Input:             "你好",
 				OrchestrationMode: events.ModePlanExecute,
 			},
@@ -57,7 +58,7 @@ func TestResolveRootOrchestrationMode(t *testing.T) {
 		},
 		{
 			name: "unknown explicit mode is preserved for unsupported-mode failure",
-			req: ExecuteRequest{
+			req: runtimeapi.ExecuteRequest{
 				Input:             "你好",
 				OrchestrationMode: events.OrchestrationMode("unknown_mode"),
 			},
@@ -65,7 +66,7 @@ func TestResolveRootOrchestrationMode(t *testing.T) {
 		},
 		{
 			name: "child run defaults to single agent",
-			req: ExecuteRequest{
+			req: runtimeapi.ExecuteRequest{
 				Input:       "inspect",
 				ParentRunID: "run_parent",
 			},
@@ -73,7 +74,7 @@ func TestResolveRootOrchestrationMode(t *testing.T) {
 		},
 		{
 			name: "explicit skill uses plan execute",
-			req: ExecuteRequest{
+			req: runtimeapi.ExecuteRequest{
 				Input:   "处理这个",
 				SkillID: "cs-feat-impl",
 			},

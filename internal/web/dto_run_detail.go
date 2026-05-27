@@ -6,6 +6,7 @@ import (
 	"github.com/ycvk/acorn/internal/app"
 	"github.com/ycvk/acorn/internal/clientevents"
 	"github.com/ycvk/acorn/internal/runtime"
+	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 )
 
 type RunDetailDTO struct {
@@ -45,7 +46,7 @@ func runDTOFromDomain(run app.Run) RunDTO {
 type RuntimeWorkbenchDTO struct {
 	SessionID           string                  `json:"session_id"`
 	Title               string                  `json:"title"`
-	State               runtime.SessionState    `json:"state,omitempty"`
+	State               runtimeapi.SessionState `json:"state,omitempty"`
 	LatestRunID         string                  `json:"latest_run_id,omitempty"`
 	LatestRunStatus     string                  `json:"latest_run_status,omitempty"`
 	LatestRunMode       string                  `json:"latest_run_mode,omitempty"`

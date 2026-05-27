@@ -11,7 +11,9 @@ import (
 	einomodel "github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/compose"
 	"github.com/cloudwego/eino/schema"
+	"github.com/ycvk/acorn/internal/model"
 	"github.com/ycvk/acorn/internal/orchestration"
+	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	"github.com/ycvk/acorn/internal/runtime/graph"
 	"github.com/ycvk/acorn/internal/tooling"
 )
@@ -88,34 +90,34 @@ func (e *fakeToolStreamingExecutor) Discard() {}
 
 func TestActNodeStreamingPathCallsModelStream(t *testing.T) {
 	toolCall := makeToolCall("call_stream", "read_file", `{"path":"README.md"}`)
-	model := &actNodeModel{response: schema.AssistantMessage("", []schema.ToolCall{toolCall})}
+	nodeModel := &actNodeModel{response: schema.AssistantMessage("", []schema.ToolCall{toolCall})}
 	tools := &fakeToolInvoker{results: []*schema.Message{
 		schema.ToolMessage("streaming works", "call_stream", schema.WithToolName("read_file")),
 	}}
-	store := &fakePlanStore{loaded: &Plan{
+	store := &fakePlanStore{loaded: &model.Plan{
 		PlanID:    "plan_stream",
 		SessionID: "sess_stream",
 		RunID:     "run_stream",
-		Steps: []PlanStep{
-			{ID: "s1", Action: "Stream test", Status: PlanStepPending},
+		Steps: []model.PlanStep{
+			{ID: "s1", Action: "Stream test", Status: model.PlanStepPending},
 		},
 		CreatedAt: time.Now().UTC(),
 		UpdatedAt: time.Now().UTC(),
 	}}
-	node := NewActNode(model, tools, newDirectAssistantStreamer(nil), store, nil, nil, nil)
-	ctx := withRunID(WithSessionID(context.Background(), "sess_stream"), "run_stream")
+	node := NewActNode(nodeModel, tools, newDirectAssistantStreamer(nil), store, nil, nil, nil)
+	ctx := withRunID(runtimeapi.WithSessionID(context.Background(), "sess_stream"), "run_stream")
 
 	out, err := node.Invoke(ctx, &graph.AgentGraphState{Messages: []*schema.Message{schema.UserMessage("test")}})
 	if err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}
-	if model.callCount != 1 {
-		t.Fatalf("model call count = %d, want 1", model.callCount)
+	if nodeModel.callCount != 1 {
+		t.Fatalf("model call count = %d, want 1", nodeModel.callCount)
 	}
 	if tools.callCount != 1 {
 		t.Fatalf("tools call count = %d, want 1", tools.callCount)
 	}
-	if out.Plan.Steps[0].Status != PlanStepCompleted {
+	if out.Plan.Steps[0].Status != model.PlanStepCompleted {
 		t.Fatalf("step status = %q, want completed", out.Plan.Steps[0].Status)
 	}
 	if len(out.Messages) != 3 {
@@ -134,32 +136,32 @@ func TestActNodeStreamingPathCallsModelStream(t *testing.T) {
 
 func TestActNodeCompletesNextPendingStep(t *testing.T) {
 	toolCall := makeToolCall("call_1", "read_file", `{"path":"README.md"}`)
-	model := &actNodeModel{response: schema.AssistantMessage("", []schema.ToolCall{toolCall})}
+	nodeModel := &actNodeModel{response: schema.AssistantMessage("", []schema.ToolCall{toolCall})}
 	tools := &fakeToolInvoker{results: []*schema.Message{
 		schema.ToolMessage("README contents", "call_1", schema.WithToolName("read_file")),
 	}}
-	store := &fakePlanStore{loaded: &Plan{
+	store := &fakePlanStore{loaded: &model.Plan{
 		PlanID:    "plan_1",
 		SessionID: "sess_act",
 		RunID:     "run_act",
-		Steps: []PlanStep{
-			{ID: "s1", Action: "Read README", Status: PlanStepPending},
-			{ID: "s2", Action: "Summarize README", Status: PlanStepPending, DependsOn: []string{"s1"}},
+		Steps: []model.PlanStep{
+			{ID: "s1", Action: "Read README", Status: model.PlanStepPending},
+			{ID: "s2", Action: "Summarize README", Status: model.PlanStepPending, DependsOn: []string{"s1"}},
 		},
 		CreatedAt: time.Now().UTC(),
 		UpdatedAt: time.Now().UTC(),
 	}}
-	node := NewActNode(model, tools, newDirectAssistantStreamer(nil), store, nil, nil, nil)
-	ctx := withRunID(WithSessionID(context.Background(), "sess_act"), "run_act")
+	node := NewActNode(nodeModel, tools, newDirectAssistantStreamer(nil), store, nil, nil, nil)
+	ctx := withRunID(runtimeapi.WithSessionID(context.Background(), "sess_act"), "run_act")
 
 	out, err := node.Invoke(ctx, &graph.AgentGraphState{Messages: []*schema.Message{schema.UserMessage("read")}})
 	if err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}
-	if model.callCount != 1 || tools.callCount != 1 {
-		t.Fatalf("model/tools calls = %d/%d, want 1/1", model.callCount, tools.callCount)
+	if nodeModel.callCount != 1 || tools.callCount != 1 {
+		t.Fatalf("model/tools calls = %d/%d, want 1/1", nodeModel.callCount, tools.callCount)
 	}
-	if out.Plan.Steps[0].Status != PlanStepCompleted {
+	if out.Plan.Steps[0].Status != model.PlanStepCompleted {
 		t.Fatalf("step status = %q, want completed", out.Plan.Steps[0].Status)
 	}
 	if got := len(out.Plan.Steps[0].Evidence); got != 1 {
@@ -175,20 +177,20 @@ func TestActNodeCompletesNextPendingStep(t *testing.T) {
 
 func TestActNodeCompletesTestIntentStepWithPassedCommandEvidence(t *testing.T) {
 	toolCall := makeToolCall("call_1", "run_command", `{"command":["go","test","./internal/runtime"]}`)
-	model := &actNodeModel{response: schema.AssistantMessage("", []schema.ToolCall{toolCall})}
+	nodeModel := &actNodeModel{response: schema.AssistantMessage("", []schema.ToolCall{toolCall})}
 	tools := &fakeToolInvoker{results: []*schema.Message{
 		schema.ToolMessage(`{"exit_code":0}`, "call_1", schema.WithToolName("run_command")),
 	}}
-	store := &fakePlanStore{loaded: &Plan{
+	store := &fakePlanStore{loaded: &model.Plan{
 		PlanID:    "plan_test",
 		SessionID: "sess_test",
 		RunID:     "run_test",
-		Steps: []PlanStep{{
+		Steps: []model.PlanStep{{
 			ID:     "s1",
 			Action: "Run runtime tests",
-			Status: PlanStepPending,
-			Risk:   PlanStepRiskExecute,
-			VerificationIntent: []VerificationIntent{{
+			Status: model.PlanStepPending,
+			Risk:   model.PlanStepRiskExecute,
+			VerificationIntent: []model.VerificationIntent{{
 				Kind:    "test",
 				Command: []string{"go", "test", "./internal/runtime"},
 				Paths:   []string{"internal/runtime"},
@@ -198,14 +200,14 @@ func TestActNodeCompletesTestIntentStepWithPassedCommandEvidence(t *testing.T) {
 		CreatedAt: time.Now().UTC(),
 		UpdatedAt: time.Now().UTC(),
 	}}
-	node := NewActNode(model, tools, newDirectAssistantStreamer(nil), store, nil, nil, nil)
-	ctx := withRunID(WithSessionID(context.Background(), "sess_test"), "run_test")
+	node := NewActNode(nodeModel, tools, newDirectAssistantStreamer(nil), store, nil, nil, nil)
+	ctx := withRunID(runtimeapi.WithSessionID(context.Background(), "sess_test"), "run_test")
 
 	out, err := node.Invoke(ctx, &graph.AgentGraphState{Messages: []*schema.Message{schema.UserMessage("test runtime")}})
 	if err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}
-	if out.Plan.Steps[0].Status != PlanStepCompleted {
+	if out.Plan.Steps[0].Status != model.PlanStepCompleted {
 		t.Fatalf("step status = %q, want completed", out.Plan.Steps[0].Status)
 	}
 	if got := len(out.Plan.Steps[0].Evidence); got < 2 {
@@ -213,7 +215,7 @@ func TestActNodeCompletesTestIntentStepWithPassedCommandEvidence(t *testing.T) {
 	}
 	found := false
 	for _, item := range out.Plan.Steps[0].Evidence {
-		if item.Kind == EvidenceKindTest && item.Status == EvidenceStatusPassed {
+		if item.Kind == model.EvidenceKindTest && item.Status == model.EvidenceStatusPassed {
 			found = true
 		}
 	}
@@ -224,20 +226,20 @@ func TestActNodeCompletesTestIntentStepWithPassedCommandEvidence(t *testing.T) {
 
 func TestActNodeFailsWhenVerificationIntentHasOnlyRecordedEvidence(t *testing.T) {
 	toolCall := makeToolCall("call_1", "read_file", `{"path":"README.md"}`)
-	model := &actNodeModel{response: schema.AssistantMessage("", []schema.ToolCall{toolCall})}
+	nodeModel := &actNodeModel{response: schema.AssistantMessage("", []schema.ToolCall{toolCall})}
 	tools := &fakeToolInvoker{results: []*schema.Message{
 		schema.ToolMessage("README contents", "call_1", schema.WithToolName("read_file")),
 	}}
-	store := &fakePlanStore{loaded: &Plan{
+	store := &fakePlanStore{loaded: &model.Plan{
 		PlanID:    "plan_gap",
 		SessionID: "sess_gap",
 		RunID:     "run_gap",
-		Steps: []PlanStep{{
+		Steps: []model.PlanStep{{
 			ID:     "s1",
 			Action: "Verify with tests",
-			Status: PlanStepPending,
-			Risk:   PlanStepRiskExecute,
-			VerificationIntent: []VerificationIntent{{
+			Status: model.PlanStepPending,
+			Risk:   model.PlanStepRiskExecute,
+			VerificationIntent: []model.VerificationIntent{{
 				Kind:   "test",
 				Paths:  []string{"internal/runtime"},
 				Reason: "need test coverage",
@@ -246,14 +248,14 @@ func TestActNodeFailsWhenVerificationIntentHasOnlyRecordedEvidence(t *testing.T)
 		CreatedAt: time.Now().UTC(),
 		UpdatedAt: time.Now().UTC(),
 	}}
-	node := NewActNode(model, tools, newDirectAssistantStreamer(nil), store, nil, nil, nil)
-	ctx := withRunID(WithSessionID(context.Background(), "sess_gap"), "run_gap")
+	node := NewActNode(nodeModel, tools, newDirectAssistantStreamer(nil), store, nil, nil, nil)
+	ctx := withRunID(runtimeapi.WithSessionID(context.Background(), "sess_gap"), "run_gap")
 
 	out, err := node.Invoke(ctx, &graph.AgentGraphState{Messages: []*schema.Message{schema.UserMessage("verify")}})
 	if err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}
-	if out.Plan.Steps[0].Status != PlanStepFailed {
+	if out.Plan.Steps[0].Status != model.PlanStepFailed {
 		t.Fatalf("step status = %q, want failed", out.Plan.Steps[0].Status)
 	}
 }
@@ -261,7 +263,7 @@ func TestActNodeFailsWhenVerificationIntentHasOnlyRecordedEvidence(t *testing.T)
 func TestActNodeContinuesSameStepUntilRollbackEvidenceCoversIntent(t *testing.T) {
 	createCall := makeToolCall("call_1", "create_file", `{"path":"notes.txt","content":"hello"}`)
 	rollbackCall := makeToolCall("call_2", "rollback_workspace_checkpoint", `{"checkpoint_id":"workspace_checkpoint_1"}`)
-	model := &recordingActNodeModel{responses: []*schema.Message{
+	actModel := &recordingActNodeModel{responses: []*schema.Message{
 		schema.AssistantMessage("", []schema.ToolCall{createCall}),
 		schema.AssistantMessage("", []schema.ToolCall{rollbackCall}),
 	}}
@@ -271,17 +273,17 @@ func TestActNodeContinuesSameStepUntilRollbackEvidenceCoversIntent(t *testing.T)
 			{schema.ToolMessage(`{"checkpoint_id":"workspace_checkpoint_1","rollback_id":"workspace_rollback_1","status":"succeeded","restored_paths":["notes.txt"],"conflict_paths":[],"error":""}`, "call_2", schema.WithToolName("rollback_workspace_checkpoint"))},
 		},
 	}
-	store := &fakePlanStore{loaded: &Plan{
+	store := &fakePlanStore{loaded: &model.Plan{
 		PlanID:    "plan_rollback_continue",
 		SessionID: "sess_rollback_continue",
 		RunID:     "run_rollback_continue",
-		Steps: []PlanStep{{
+		Steps: []model.PlanStep{{
 			ID:        "s1",
 			Action:    "Create and rollback a file",
-			Status:    PlanStepPending,
-			Risk:      PlanStepRiskWrite,
+			Status:    model.PlanStepPending,
+			Risk:      model.PlanStepRiskWrite,
 			ToolHints: []string{"create_file", "rollback_workspace_checkpoint"},
-			VerificationIntent: []VerificationIntent{{
+			VerificationIntent: []model.VerificationIntent{{
 				Kind:   "rollback",
 				Reason: "rollback must succeed",
 			}},
@@ -289,59 +291,59 @@ func TestActNodeContinuesSameStepUntilRollbackEvidenceCoversIntent(t *testing.T)
 		CreatedAt: time.Now().UTC(),
 		UpdatedAt: time.Now().UTC(),
 	}}
-	node := NewActNode(model, tools, newDirectAssistantStreamer(nil), store, nil, nil, nil)
-	ctx := withRunID(WithSessionID(context.Background(), "sess_rollback_continue"), "run_rollback_continue")
+	node := NewActNode(actModel, tools, newDirectAssistantStreamer(nil), store, nil, nil, nil)
+	ctx := withRunID(runtimeapi.WithSessionID(context.Background(), "sess_rollback_continue"), "run_rollback_continue")
 
 	out, err := node.Invoke(ctx, &graph.AgentGraphState{Messages: []*schema.Message{schema.UserMessage("create then rollback")}})
 	if err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}
-	if out.Plan.Steps[0].Status != PlanStepCompleted {
+	if out.Plan.Steps[0].Status != model.PlanStepCompleted {
 		t.Fatalf("step status = %q, want completed", out.Plan.Steps[0].Status)
 	}
-	if model.callCount != 2 || tools.callCount != 2 {
-		t.Fatalf("model/tools calls = %d/%d, want 2/2", model.callCount, tools.callCount)
+	if actModel.callCount != 2 || tools.callCount != 2 {
+		t.Fatalf("model/tools calls = %d/%d, want 2/2", actModel.callCount, tools.callCount)
 	}
 	var foundRollback bool
 	for _, item := range out.Plan.Steps[0].Evidence {
-		if item.Kind == EvidenceKindRollback && item.Status == EvidenceStatusPassed {
+		if item.Kind == model.EvidenceKindRollback && item.Status == model.EvidenceStatusPassed {
 			foundRollback = true
 		}
 	}
 	if !foundRollback {
 		t.Fatalf("expected passed rollback evidence, got %+v", out.Plan.Steps[0].Evidence)
 	}
-	if len(model.inputs) < 2 {
-		t.Fatalf("model inputs = %d, want second round", len(model.inputs))
+	if len(actModel.inputs) < 2 {
+		t.Fatalf("model inputs = %d, want second round", len(actModel.inputs))
 	}
 	var foundContinuation bool
-	for _, msg := range model.inputs[1] {
+	for _, msg := range actModel.inputs[1] {
 		if msg != nil && msg.Role == schema.User && strings.Contains(msg.Content, "Missing verification") {
 			foundContinuation = true
 			break
 		}
 	}
 	if !foundContinuation {
-		t.Fatalf("second model input missing verification continuation: %+v", model.inputs[1])
+		t.Fatalf("second model input missing verification continuation: %+v", actModel.inputs[1])
 	}
 }
 
 func TestActNodeCompletesDelegateStepWithPassedSubagentEvidence(t *testing.T) {
 	toolCall := makeToolCall("call_1", "delegate_task", `{"task":"write tests","acceptance_criteria":["tests pass"]}`)
-	model := &actNodeModel{response: schema.AssistantMessage("", []schema.ToolCall{toolCall})}
+	nodeModel := &actNodeModel{response: schema.AssistantMessage("", []schema.ToolCall{toolCall})}
 	tools := &fakeToolInvoker{results: []*schema.Message{
 		schema.ToolMessage(`{"child_run_id":"run_child_1","child_session_id":"delegate_run_child_1","final_status":"succeeded","output_summary":"tests pass","acceptance":{"status":"passed","reasons":[]}}`, "call_1", schema.WithToolName("delegate_task")),
 	}}
-	store := &fakePlanStore{loaded: &Plan{
+	store := &fakePlanStore{loaded: &model.Plan{
 		PlanID:    "plan_delegate",
 		SessionID: "sess_delegate",
 		RunID:     "run_delegate",
-		Steps: []PlanStep{{
+		Steps: []model.PlanStep{{
 			ID:     "s1",
 			Action: "Delegate test writing",
-			Status: PlanStepPending,
-			Risk:   PlanStepRiskDelegate,
-			VerificationIntent: []VerificationIntent{{
+			Status: model.PlanStepPending,
+			Risk:   model.PlanStepRiskDelegate,
+			VerificationIntent: []model.VerificationIntent{{
 				Kind:   "subagent",
 				Reason: "child task must pass acceptance",
 			}},
@@ -349,19 +351,19 @@ func TestActNodeCompletesDelegateStepWithPassedSubagentEvidence(t *testing.T) {
 		CreatedAt: time.Now().UTC(),
 		UpdatedAt: time.Now().UTC(),
 	}}
-	node := NewActNode(model, tools, newDirectAssistantStreamer(nil), store, nil, nil, nil)
-	ctx := withRunID(WithSessionID(context.Background(), "sess_delegate"), "run_delegate")
+	node := NewActNode(nodeModel, tools, newDirectAssistantStreamer(nil), store, nil, nil, nil)
+	ctx := withRunID(runtimeapi.WithSessionID(context.Background(), "sess_delegate"), "run_delegate")
 
 	out, err := node.Invoke(ctx, &graph.AgentGraphState{Messages: []*schema.Message{schema.UserMessage("delegate tests")}})
 	if err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}
-	if out.Plan.Steps[0].Status != PlanStepCompleted {
+	if out.Plan.Steps[0].Status != model.PlanStepCompleted {
 		t.Fatalf("step status = %q, want completed", out.Plan.Steps[0].Status)
 	}
 	found := false
 	for _, item := range out.Plan.Steps[0].Evidence {
-		if item.Kind == EvidenceKindSubagent && item.Status == EvidenceStatusPassed && item.ChildRunID == "run_child_1" {
+		if item.Kind == model.EvidenceKindSubagent && item.Status == model.EvidenceStatusPassed && item.ChildRunID == "run_child_1" {
 			found = true
 		}
 	}
@@ -372,20 +374,20 @@ func TestActNodeCompletesDelegateStepWithPassedSubagentEvidence(t *testing.T) {
 
 func TestActNodeFailsDelegateStepWhenSubagentAcceptanceFails(t *testing.T) {
 	toolCall := makeToolCall("call_1", "delegate_task", `{"task":"write tests","acceptance_criteria":["tests pass"]}`)
-	model := &actNodeModel{response: schema.AssistantMessage("", []schema.ToolCall{toolCall})}
+	nodeModel := &actNodeModel{response: schema.AssistantMessage("", []schema.ToolCall{toolCall})}
 	tools := &fakeToolInvoker{results: []*schema.Message{
 		schema.ToolMessage(`{"child_run_id":"run_child_2","child_session_id":"delegate_run_child_2","final_status":"succeeded","output_summary":"tests missing","acceptance":{"status":"failed","reasons":["missing expected evidence: go test ./internal/auth"]}}`, "call_1", schema.WithToolName("delegate_task")),
 	}}
-	store := &fakePlanStore{loaded: &Plan{
+	store := &fakePlanStore{loaded: &model.Plan{
 		PlanID:    "plan_delegate_fail",
 		SessionID: "sess_delegate_fail",
 		RunID:     "run_delegate_fail",
-		Steps: []PlanStep{{
+		Steps: []model.PlanStep{{
 			ID:     "s1",
 			Action: "Delegate test writing",
-			Status: PlanStepPending,
-			Risk:   PlanStepRiskDelegate,
-			VerificationIntent: []VerificationIntent{{
+			Status: model.PlanStepPending,
+			Risk:   model.PlanStepRiskDelegate,
+			VerificationIntent: []model.VerificationIntent{{
 				Kind:   "subagent",
 				Reason: "child task must pass acceptance",
 			}},
@@ -393,19 +395,19 @@ func TestActNodeFailsDelegateStepWhenSubagentAcceptanceFails(t *testing.T) {
 		CreatedAt: time.Now().UTC(),
 		UpdatedAt: time.Now().UTC(),
 	}}
-	node := NewActNode(model, tools, newDirectAssistantStreamer(nil), store, nil, nil, nil)
-	ctx := withRunID(WithSessionID(context.Background(), "sess_delegate_fail"), "run_delegate_fail")
+	node := NewActNode(nodeModel, tools, newDirectAssistantStreamer(nil), store, nil, nil, nil)
+	ctx := withRunID(runtimeapi.WithSessionID(context.Background(), "sess_delegate_fail"), "run_delegate_fail")
 
 	out, err := node.Invoke(ctx, &graph.AgentGraphState{Messages: []*schema.Message{schema.UserMessage("delegate tests")}})
 	if err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}
-	if out.Plan.Steps[0].Status != PlanStepFailed {
+	if out.Plan.Steps[0].Status != model.PlanStepFailed {
 		t.Fatalf("step status = %q, want failed", out.Plan.Steps[0].Status)
 	}
 	found := false
 	for _, item := range out.Plan.Steps[0].Evidence {
-		if item.Kind == EvidenceKindSubagent && item.Status == EvidenceStatusFailed && strings.Contains(item.Error, "missing expected evidence") {
+		if item.Kind == model.EvidenceKindSubagent && item.Status == model.EvidenceStatusFailed && strings.Contains(item.Error, "missing expected evidence") {
 			found = true
 		}
 	}
@@ -416,7 +418,7 @@ func TestActNodeFailsDelegateStepWhenSubagentAcceptanceFails(t *testing.T) {
 
 func TestActNodeRecordsFailedToolEvidence(t *testing.T) {
 	toolCall := makeToolCall("call_1", "read_file", `{"path":"missing.md"}`)
-	model := &actNodeModel{response: schema.AssistantMessage("", []schema.ToolCall{toolCall})}
+	nodeModel := &actNodeModel{response: schema.AssistantMessage("", []schema.ToolCall{toolCall})}
 	msg := schema.ToolMessage("file does not exist", "call_1", schema.WithToolName("read_file"))
 	if msg.Extra == nil {
 		msg.Extra = map[string]any{}
@@ -424,38 +426,38 @@ func TestActNodeRecordsFailedToolEvidence(t *testing.T) {
 	msg.Extra["tool_error"] = true
 	msg.Extra["tool_error_reason"] = "file does not exist"
 	tools := &fakeToolInvoker{results: []*schema.Message{msg}}
-	store := &fakePlanStore{loaded: &Plan{
+	store := &fakePlanStore{loaded: &model.Plan{
 		PlanID:    "plan_fail_evidence",
 		SessionID: "sess_fail_evidence",
 		RunID:     "run_fail_evidence",
-		Steps:     []PlanStep{{ID: "s1", Action: "Read missing file", Status: PlanStepPending}},
+		Steps:     []model.PlanStep{{ID: "s1", Action: "Read missing file", Status: model.PlanStepPending}},
 		CreatedAt: time.Now().UTC(),
 		UpdatedAt: time.Now().UTC(),
 	}}
-	node := NewActNode(model, tools, newDirectAssistantStreamer(nil), store, nil, nil, nil)
-	ctx := withRunID(WithSessionID(context.Background(), "sess_fail_evidence"), "run_fail_evidence")
+	node := NewActNode(nodeModel, tools, newDirectAssistantStreamer(nil), store, nil, nil, nil)
+	ctx := withRunID(runtimeapi.WithSessionID(context.Background(), "sess_fail_evidence"), "run_fail_evidence")
 
 	out, err := node.Invoke(ctx, &graph.AgentGraphState{Messages: []*schema.Message{schema.UserMessage("read missing")}})
 	if err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}
-	if out.Plan.Steps[0].Status != PlanStepFailed {
+	if out.Plan.Steps[0].Status != model.PlanStepFailed {
 		t.Fatalf("step status = %q, want failed", out.Plan.Steps[0].Status)
 	}
-	if len(out.Plan.Steps[0].Evidence) == 0 || out.Plan.Steps[0].Evidence[0].Status != EvidenceStatusFailed {
+	if len(out.Plan.Steps[0].Evidence) == 0 || out.Plan.Steps[0].Evidence[0].Status != model.EvidenceStatusFailed {
 		t.Fatalf("expected failed evidence, got %+v", out.Plan.Steps[0].Evidence)
 	}
 }
 
 func TestActNodeRecordsDiffEvidenceFromRecorder(t *testing.T) {
 	toolCall := makeToolCall("call_1", "create_file", `{"path":"target.txt"}`)
-	model := &actNodeModel{response: schema.AssistantMessage("", []schema.ToolCall{toolCall})}
+	nodeModel := &actNodeModel{response: schema.AssistantMessage("", []schema.ToolCall{toolCall})}
 	msg := schema.ToolMessage(`{"path":"target.txt","message":"ok","checkpoint_id":"checkpoint_create_file","checkpoint_paths":["target.txt"],"verified_bytes":1,"verified_content":"target","verification_truncated":false}`, "call_1", schema.WithToolName("create_file"))
 	msg.Extra = map[string]any{
 		"plan_evidence_recorder": toolExecutionRecorder{
 			items: []recordedToolArtifact{{
-				Kind:    EvidenceKindDiff,
-				Status:  EvidenceStatusRecorded,
+				Kind:    model.EvidenceKindDiff,
+				Status:  model.EvidenceStatusRecorded,
 				Summary: "created diff evidence",
 				Paths:   []string{"target.txt"},
 				DiffRef: "diff_1",
@@ -463,16 +465,16 @@ func TestActNodeRecordsDiffEvidenceFromRecorder(t *testing.T) {
 		},
 	}
 	tools := &fakeToolInvoker{results: []*schema.Message{msg}}
-	store := &fakePlanStore{loaded: &Plan{
+	store := &fakePlanStore{loaded: &model.Plan{
 		PlanID:    "plan_snapshot",
 		SessionID: "sess_snapshot",
 		RunID:     "run_snapshot",
-		Steps:     []PlanStep{{ID: "s1", Action: "Write file", Status: PlanStepPending}},
+		Steps:     []model.PlanStep{{ID: "s1", Action: "Write file", Status: model.PlanStepPending}},
 		CreatedAt: time.Now().UTC(),
 		UpdatedAt: time.Now().UTC(),
 	}}
-	node := NewActNode(model, tools, newDirectAssistantStreamer(nil), store, nil, nil, nil)
-	ctx := withRunID(WithSessionID(context.Background(), "sess_snapshot"), "run_snapshot")
+	node := NewActNode(nodeModel, tools, newDirectAssistantStreamer(nil), store, nil, nil, nil)
+	ctx := withRunID(runtimeapi.WithSessionID(context.Background(), "sess_snapshot"), "run_snapshot")
 
 	out, err := node.Invoke(ctx, &graph.AgentGraphState{Messages: []*schema.Message{schema.UserMessage("write")}})
 	if err != nil {
@@ -480,7 +482,7 @@ func TestActNodeRecordsDiffEvidenceFromRecorder(t *testing.T) {
 	}
 	found := false
 	for _, item := range out.Plan.Steps[0].Evidence {
-		if item.Kind == EvidenceKindDiff && item.DiffRef == "diff_1" {
+		if item.Kind == model.EvidenceKindDiff && item.DiffRef == "diff_1" {
 			found = true
 		}
 	}
@@ -491,21 +493,21 @@ func TestActNodeRecordsDiffEvidenceFromRecorder(t *testing.T) {
 
 func TestActNodeEnforcesRiskyToolPlanBeforeTools(t *testing.T) {
 	toolCall := makeToolCall("call_1", "create_file", `{"path":"x.txt"}`)
-	model := &actNodeModel{response: schema.AssistantMessage("", []schema.ToolCall{toolCall})}
+	nodeModel := &actNodeModel{response: schema.AssistantMessage("", []schema.ToolCall{toolCall})}
 	tools := &fakeToolInvoker{results: []*schema.Message{
 		schema.ToolMessage(`{"path":"x.txt","message":"ok","checkpoint_id":"checkpoint_create_file","checkpoint_paths":["x.txt"],"verified_bytes":1,"verified_content":"x","verification_truncated":false}`, "call_1", schema.WithToolName("create_file")),
 	}}
-	store := &fakePlanStore{loaded: &Plan{
+	store := &fakePlanStore{loaded: &model.Plan{
 		PlanID:    "plan_1",
 		SessionID: "sess_risky",
 		RunID:     "run_risky",
-		Steps: []PlanStep{
-			{ID: "s1", Action: "Create file", Status: PlanStepPending},
+		Steps: []model.PlanStep{
+			{ID: "s1", Action: "Create file", Status: model.PlanStepPending},
 		},
 		CreatedAt: time.Now().UTC(),
 		UpdatedAt: time.Now().UTC(),
 	}}
-	node := NewActNode(model, tools, newDirectAssistantStreamer(nil), store, nil, []tooling.ToolSpec{
+	node := NewActNode(nodeModel, tools, newDirectAssistantStreamer(nil), store, nil, []tooling.ToolSpec{
 		{
 			ToolContract: tooling.ToolContract{
 				Name:          "create_file",
@@ -527,7 +529,7 @@ func TestActNodeEnforcesRiskyToolPlanBeforeTools(t *testing.T) {
 			},
 		},
 	}, nil)
-	ctx := withRunID(WithSessionID(context.Background(), "sess_risky"), "run_risky")
+	ctx := withRunID(runtimeapi.WithSessionID(context.Background(), "sess_risky"), "run_risky")
 
 	if _, err := node.Invoke(ctx, &graph.AgentGraphState{Messages: []*schema.Message{schema.UserMessage("create")}}); err != nil {
 		t.Fatalf("Invoke: %v", err)
@@ -542,50 +544,50 @@ func TestActNodeEnforcesRiskyToolPlanBeforeTools(t *testing.T) {
 
 func TestActNodeMarksFailedWhenToolNodeFails(t *testing.T) {
 	toolCall := makeToolCall("call_1", "read_file", `{"path":"README.md"}`)
-	model := &actNodeModel{response: schema.AssistantMessage("", []schema.ToolCall{toolCall})}
+	nodeModel := &actNodeModel{response: schema.AssistantMessage("", []schema.ToolCall{toolCall})}
 	tools := &fakeToolInvoker{err: errors.New("tool node failed")}
-	store := &fakePlanStore{loaded: &Plan{
+	store := &fakePlanStore{loaded: &model.Plan{
 		PlanID:    "plan_1",
 		SessionID: "sess_fail",
 		RunID:     "run_fail",
-		Steps: []PlanStep{
-			{ID: "s1", Action: "Read README", Status: PlanStepPending},
+		Steps: []model.PlanStep{
+			{ID: "s1", Action: "Read README", Status: model.PlanStepPending},
 		},
 		CreatedAt: time.Now().UTC(),
 		UpdatedAt: time.Now().UTC(),
 	}}
-	node := NewActNode(model, tools, newDirectAssistantStreamer(nil), store, nil, nil, nil)
-	ctx := withRunID(WithSessionID(context.Background(), "sess_fail"), "run_fail")
+	node := NewActNode(nodeModel, tools, newDirectAssistantStreamer(nil), store, nil, nil, nil)
+	ctx := withRunID(runtimeapi.WithSessionID(context.Background(), "sess_fail"), "run_fail")
 
 	out, err := node.Invoke(ctx, &graph.AgentGraphState{Messages: []*schema.Message{schema.UserMessage("read")}})
 	if err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}
-	if out.Plan.Steps[0].Status != PlanStepFailed {
+	if out.Plan.Steps[0].Status != model.PlanStepFailed {
 		t.Fatalf("step status = %q, want failed", out.Plan.Steps[0].Status)
 	}
 }
 
 func TestActNodeMarksFailedWhenModelReturnsNoToolCalls(t *testing.T) {
-	model := &actNodeModel{response: schema.AssistantMessage("I cannot call tools.", nil)}
-	store := &fakePlanStore{loaded: &Plan{
+	nodeModel := &actNodeModel{response: schema.AssistantMessage("I cannot call tools.", nil)}
+	store := &fakePlanStore{loaded: &model.Plan{
 		PlanID:    "plan_1",
 		SessionID: "sess_no_tools",
 		RunID:     "run_no_tools",
-		Steps: []PlanStep{
-			{ID: "s1", Action: "Read README", Status: PlanStepPending},
+		Steps: []model.PlanStep{
+			{ID: "s1", Action: "Read README", Status: model.PlanStepPending},
 		},
 		CreatedAt: time.Now().UTC(),
 		UpdatedAt: time.Now().UTC(),
 	}}
-	node := NewActNode(model, &fakeToolInvoker{}, newDirectAssistantStreamer(nil), store, nil, nil, nil)
-	ctx := withRunID(WithSessionID(context.Background(), "sess_no_tools"), "run_no_tools")
+	node := NewActNode(nodeModel, &fakeToolInvoker{}, newDirectAssistantStreamer(nil), store, nil, nil, nil)
+	ctx := withRunID(runtimeapi.WithSessionID(context.Background(), "sess_no_tools"), "run_no_tools")
 
 	out, err := node.Invoke(ctx, &graph.AgentGraphState{Messages: []*schema.Message{schema.UserMessage("read")}})
 	if err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}
-	if out.Plan.Steps[0].Status != PlanStepFailed {
+	if out.Plan.Steps[0].Status != model.PlanStepFailed {
 		t.Fatalf("step status = %q, want failed", out.Plan.Steps[0].Status)
 	}
 	if !strings.Contains(out.Messages[len(out.Messages)-1].Content, "cannot call") {
@@ -600,29 +602,29 @@ func TestActNodeContinuesStepAfterLoadToolsOnlyRound(t *testing.T) {
 		schema.AssistantMessage("", []schema.ToolCall{loadCall}),
 		schema.AssistantMessage("", []schema.ToolCall{searchCall}),
 	}
-	model := &recordingActNodeModel{responses: modelResponses}
+	actModel := &recordingActNodeModel{responses: modelResponses}
 	tools := &fakeToolInvoker{
 		resultSeq: [][]*schema.Message{
 			{schema.ToolMessage(`{"messages":["<deferred-tool-definitions>\n- memory_search: Search memory records [memory_tool]\n</deferred-tool-definitions>"],"loaded_tool_names":["memory_search"]}`, "call_1", schema.WithToolName("load_tools"))},
 			{schema.ToolMessage("knowledge hit", "call_2", schema.WithToolName("memory_search"))},
 		},
 	}
-	store := &fakePlanStore{loaded: &Plan{
+	store := &fakePlanStore{loaded: &model.Plan{
 		PlanID:    "plan_load_tools",
 		SessionID: "sess_load_tools",
 		RunID:     "run_load_tools",
-		Steps:     []PlanStep{{ID: "s1", Action: "Research knowledge", Status: PlanStepPending}},
+		Steps:     []model.PlanStep{{ID: "s1", Action: "Research knowledge", Status: model.PlanStepPending}},
 		CreatedAt: time.Now().UTC(),
 		UpdatedAt: time.Now().UTC(),
 	}}
-	node := NewActNode(model, tools, newDirectAssistantStreamer(nil), store, nil, nil, []string{"read_file"})
-	ctx := withRunID(WithSessionID(context.Background(), "sess_load_tools"), "run_load_tools")
+	node := NewActNode(actModel, tools, newDirectAssistantStreamer(nil), store, nil, nil, []string{"read_file"})
+	ctx := withRunID(runtimeapi.WithSessionID(context.Background(), "sess_load_tools"), "run_load_tools")
 
 	out, err := node.Invoke(ctx, &graph.AgentGraphState{Messages: []*schema.Message{schema.UserMessage("research")}})
 	if err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}
-	if out.Plan.Steps[0].Status != PlanStepCompleted {
+	if out.Plan.Steps[0].Status != model.PlanStepCompleted {
 		t.Fatalf("step status = %q, want completed", out.Plan.Steps[0].Status)
 	}
 	if tools.callCount != 2 {
@@ -631,18 +633,18 @@ func TestActNodeContinuesStepAfterLoadToolsOnlyRound(t *testing.T) {
 	if len(out.Plan.Steps[0].Evidence) < 2 {
 		t.Fatalf("expected both load_tools and search evidence, got %+v", out.Plan.Steps[0].Evidence)
 	}
-	if len(model.inputs) < 2 {
-		t.Fatalf("model inputs = %d, want at least 2 rounds", len(model.inputs))
+	if len(actModel.inputs) < 2 {
+		t.Fatalf("model inputs = %d, want at least 2 rounds", len(actModel.inputs))
 	}
 	var found bool
-	for _, msg := range model.inputs[1] {
+	for _, msg := range actModel.inputs[1] {
 		if msg != nil && msg.Role == schema.User && strings.Contains(msg.Content, "<deferred-tool-definitions>") {
 			found = true
 			break
 		}
 	}
 	if !found {
-		t.Fatalf("second round input missing deferred definition message: %+v", model.inputs[1])
+		t.Fatalf("second round input missing deferred definition message: %+v", actModel.inputs[1])
 	}
 }
 

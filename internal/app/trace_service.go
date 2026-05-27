@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ycvk/acorn/internal/artifacts"
 	"github.com/ycvk/acorn/internal/decision"
 	"github.com/ycvk/acorn/internal/events"
-	"github.com/ycvk/acorn/internal/providerusage"
+	"github.com/ycvk/acorn/internal/model"
+	"github.com/ycvk/acorn/internal/providers"
 	"github.com/ycvk/acorn/internal/runtime"
-	"github.com/ycvk/acorn/internal/runtimehistory"
+	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/stream"
 	"github.com/ycvk/acorn/internal/workspace"
@@ -80,11 +80,11 @@ func (s *TraceService) InferResumeTargets(ctx context.Context, runID string) (ma
 	}
 	status := buildResumeStatus(runID, run, items)
 	if !status.Resumable {
-		return nil, fmt.Errorf("%w: %s", runtime.ErrRunNotInterrupted, status.Reason)
+		return nil, fmt.Errorf("%w: %s", runtimeapi.ErrRunNotInterrupted, status.Reason)
 	}
 	contexts, err := runtime.LatestRootInterruptContexts(items)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", runtime.ErrRunNotInterrupted, err)
+		return nil, fmt.Errorf("%w: %v", runtimeapi.ErrRunNotInterrupted, err)
 	}
 	targets := make(map[string]any, len(contexts))
 	for _, ctxItem := range contexts {
@@ -223,12 +223,12 @@ type runtimeWorkbenchStore interface {
 	LoadLatestRunForSession(ctx context.Context, sessionID string) (*events.RunRecord, error)
 	LoadEvents(ctx context.Context, runID string) ([]events.EventRecord, error)
 	LoadRunDecision(ctx context.Context, runID string) (*decision.Record, error)
-	GetSessionSummary(ctx context.Context, sessionID string) (*runtimehistory.SessionSummary, error)
+	GetSessionSummary(ctx context.Context, sessionID string) (*model.SessionSummary, error)
 	ListByRun(ctx context.Context, runID string) ([]store.ToolResultRecord, error)
-	ListArtifactsByRun(ctx context.Context, runID string) ([]artifacts.Record, error)
-	ListProviderUsagesByRun(ctx context.Context, runID string) ([]providerusage.Record, error)
+	ListArtifactsByRun(ctx context.Context, runID string) ([]store.ArtifactRecord, error)
+	ListProviderUsagesByRun(ctx context.Context, runID string) ([]providers.UsageRecord, error)
 }
 
 type runtimeWorkbenchPlanStore interface {
-	LoadRuntimePlan(ctx context.Context, sessionID string) (*runtime.Plan, error)
+	LoadRuntimePlan(ctx context.Context, sessionID string) (*model.Plan, error)
 }

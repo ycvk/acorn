@@ -4,27 +4,29 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/ycvk/acorn/internal/model"
 )
 
-func parsePlanSteps(content string) ([]PlanStep, error) {
+func parsePlanSteps(content string) ([]model.PlanStep, error) {
 	trimmed := strings.TrimSpace(content)
 	if trimmed == "" {
 		return nil, fmt.Errorf("empty plan response")
 	}
 	var envelope struct {
-		Steps []PlanStep `json:"steps"`
+		Steps []model.PlanStep `json:"steps"`
 	}
 	if err := json.Unmarshal([]byte(trimmed), &envelope); err == nil && envelope.Steps != nil {
 		return envelope.Steps, nil
 	}
-	var steps []PlanStep
+	var steps []model.PlanStep
 	if err := json.Unmarshal([]byte(trimmed), &steps); err != nil {
 		return nil, fmt.Errorf("parse plan JSON: %w", err)
 	}
 	return steps, nil
 }
 
-func validatePlanSteps(steps []PlanStep, enabledToolNames []string) error {
+func validatePlanSteps(steps []model.PlanStep, enabledToolNames []string) error {
 	if len(steps) == 0 {
 		return fmt.Errorf("plan must contain at least one step")
 	}
@@ -41,7 +43,7 @@ func validatePlanSteps(steps []PlanStep, enabledToolNames []string) error {
 		if strings.TrimSpace(step.Action) == "" {
 			return fmt.Errorf("step %s action is required", id)
 		}
-		if step.Status != "" && step.Status != PlanStepPending {
+		if step.Status != "" && step.Status != model.PlanStepPending {
 			return fmt.Errorf("step %s initial status must be pending", id)
 		}
 		if err := validatePlanStepMetadata(step, enabledToolNames); err != nil {
@@ -68,7 +70,7 @@ func validatePlanSteps(steps []PlanStep, enabledToolNames []string) error {
 	return nil
 }
 
-func validatePlanStepMetadata(step PlanStep, enabledToolNames []string) error {
+func validatePlanStepMetadata(step model.PlanStep, enabledToolNames []string) error {
 	stepID := strings.TrimSpace(step.ID)
 	for i, target := range step.RepoTargets {
 		path := strings.TrimSpace(target.Path)
@@ -87,7 +89,7 @@ func validatePlanStepMetadata(step PlanStep, enabledToolNames []string) error {
 		}
 	}
 	switch step.Risk {
-	case PlanStepRiskRead, PlanStepRiskWrite, PlanStepRiskExecute, PlanStepRiskDelegate:
+	case model.PlanStepRiskRead, model.PlanStepRiskWrite, model.PlanStepRiskExecute, model.PlanStepRiskDelegate:
 	default:
 		return fmt.Errorf("step %s risk must be read, write, execute, or delegate", stepID)
 	}
@@ -97,7 +99,7 @@ func validatePlanStepMetadata(step PlanStep, enabledToolNames []string) error {
 			return fmt.Errorf("step %s verification_intent[%d].kind is invalid: %s", stepID, i, kind)
 		}
 	}
-	if step.Risk == PlanStepRiskWrite || step.Risk == PlanStepRiskExecute || step.Risk == PlanStepRiskDelegate {
+	if step.Risk == model.PlanStepRiskWrite || step.Risk == model.PlanStepRiskExecute || step.Risk == model.PlanStepRiskDelegate {
 		if len(step.VerificationIntent) == 0 {
 			return fmt.Errorf("step %s risk %s requires verification_intent", stepID, step.Risk)
 		}
@@ -140,7 +142,7 @@ func validVerificationIntentKind(kind string) bool {
 	}
 }
 
-func detectPlanStepCycle(steps []PlanStep) error {
+func detectPlanStepCycle(steps []model.PlanStep) error {
 	deps := make(map[string][]string, len(steps))
 	for _, step := range steps {
 		id := strings.TrimSpace(step.ID)
@@ -176,17 +178,17 @@ func detectPlanStepCycle(steps []PlanStep) error {
 	return nil
 }
 
-func normalizePlanSteps(steps []PlanStep) []PlanStep {
-	out := make([]PlanStep, 0, len(steps))
+func normalizePlanSteps(steps []model.PlanStep) []model.PlanStep {
+	out := make([]model.PlanStep, 0, len(steps))
 	for _, step := range steps {
 		normalized := clonePlanStep(step)
 		normalized.ID = strings.TrimSpace(normalized.ID)
 		normalized.Action = strings.TrimSpace(normalized.Action)
 		if normalized.Status == "" {
-			normalized.Status = PlanStepPending
+			normalized.Status = model.PlanStepPending
 		}
 		if normalized.Risk == "" {
-			normalized.Risk = PlanStepRiskRead
+			normalized.Risk = model.PlanStepRiskRead
 		}
 		deps := make([]string, 0, len(normalized.DependsOn))
 		for _, dep := range normalized.DependsOn {
@@ -201,8 +203,8 @@ func normalizePlanSteps(steps []PlanStep) []PlanStep {
 	return out
 }
 
-func normalizePlanRepoTargets(items []PlanRepoTarget) []PlanRepoTarget {
-	out := make([]PlanRepoTarget, 0, len(items))
+func normalizePlanRepoTargets(items []model.PlanRepoTarget) []model.PlanRepoTarget {
+	out := make([]model.PlanRepoTarget, 0, len(items))
 	for _, item := range items {
 		normalized := item
 		normalized.Path = strings.TrimSpace(normalized.Path)
@@ -214,8 +216,8 @@ func normalizePlanRepoTargets(items []PlanRepoTarget) []PlanRepoTarget {
 	return out
 }
 
-func normalizeVerificationIntents(items []VerificationIntent) []VerificationIntent {
-	out := make([]VerificationIntent, 0, len(items))
+func normalizeVerificationIntents(items []model.VerificationIntent) []model.VerificationIntent {
+	out := make([]model.VerificationIntent, 0, len(items))
 	for _, item := range items {
 		normalized := item
 		normalized.Kind = strings.TrimSpace(normalized.Kind)

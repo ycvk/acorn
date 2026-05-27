@@ -3,13 +3,13 @@ package graph
 import (
 	"github.com/cloudwego/eino/schema"
 
-	"github.com/ycvk/acorn/internal/runtime/api"
+	"github.com/ycvk/acorn/internal/model"
 )
 
 // AgentGraphState is the local state managed by the agent graph.
 type AgentGraphState struct {
 	Messages            []*schema.Message
-	Plan                *api.Plan
+	Plan                *model.Plan
 	ObserveDecision     ObserveDecision
 	RemainingIterations int
 	AgentName           string

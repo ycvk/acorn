@@ -8,6 +8,8 @@ import (
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/schema"
 
+	"github.com/ycvk/acorn/internal/model"
+	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	"github.com/ycvk/acorn/internal/runtime/graph"
 	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
 	"github.com/ycvk/acorn/internal/stream"
@@ -23,10 +25,10 @@ func TestAgentGraphAlwaysRunsPlanNode(t *testing.T) {
 	if err := store.CreateRun(context.Background(), "run_plan_gate", "fix sqlite rows", "run_plan_gate"); err != nil {
 		t.Fatalf("CreateRun: %v", err)
 	}
-	runCtx := withRunID(WithSessionID(ctx, "sess_plan_gate"), "run_plan_gate")
+	runCtx := withRunID(runtimeapi.WithSessionID(ctx, "sess_plan_gate"), "run_plan_gate")
 
 	toolCall := makeToolCall("call_1", "search", `{"query":"sqlite rows"}`)
-	model := &toolCallingStubModel{
+	testModel := &toolCallingStubModel{
 		responses: []*schema.Message{
 			schema.AssistantMessage(`{"steps":[{"id":"s1","action":"Search sqlite rows","status":"pending"}]}`, nil),
 			makeAssistantMessage(toolCall),
@@ -42,7 +44,7 @@ func TestAgentGraphAlwaysRunsPlanNode(t *testing.T) {
 	if err != nil {
 		t.Fatalf("tool Info: %v", err)
 	}
-	runnable, err := BuildAgentGraph(runCtx, "test-agent", model, safeNode, newDirectAssistantStreamer(nil), 10, store, nil, NewPlanStore(store), "Make a plan", nil, []string{info.Name}, nil)
+	runnable, err := BuildAgentGraph(runCtx, "test-agent", testModel, safeNode, newDirectAssistantStreamer(nil), 10, store, nil, NewPlanStore(store), "Make a plan", nil, []string{info.Name}, nil)
 	if err != nil {
 		t.Fatalf("buildAgentGraph: %v", err)
 	}
@@ -61,11 +63,11 @@ func TestAgentGraphAlwaysRunsPlanNode(t *testing.T) {
 	if got, want := plan.Steps[0].Action, "Search sqlite rows"; got != want {
 		t.Fatalf("step action = %q, want %q", got, want)
 	}
-	if string(plan.Steps[0].Status) != string(PlanStepCompleted) {
+	if string(plan.Steps[0].Status) != string(model.PlanStepCompleted) {
 		t.Fatalf("step status = %q, want completed", plan.Steps[0].Status)
 	}
-	if model.callCount != 2 {
-		t.Fatalf("model callCount = %d, want 2", model.callCount)
+	if testModel.callCount != 2 {
+		t.Fatalf("model callCount = %d, want 2", testModel.callCount)
 	}
 	records, err := store.LoadEvents(ctx, "run_plan_gate")
 	if err != nil {
@@ -89,10 +91,10 @@ func TestAgentGraphNoExistingPlanRunsPlanNode(t *testing.T) {
 	if err := store.CreateRun(context.Background(), "run_plan_gate_empty", "read README", "run_plan_gate_empty"); err != nil {
 		t.Fatalf("CreateRun: %v", err)
 	}
-	runCtx := withRunID(WithSessionID(ctx, "sess_plan_gate_empty"), "run_plan_gate_empty")
+	runCtx := withRunID(runtimeapi.WithSessionID(ctx, "sess_plan_gate_empty"), "run_plan_gate_empty")
 
 	toolCall := makeToolCall("call_1", "search", `{"query":"README"}`)
-	model := &toolCallingStubModel{
+	testModel := &toolCallingStubModel{
 		responses: []*schema.Message{
 			schema.AssistantMessage(`{"steps":[{"id":"s1","action":"Read README","status":"pending"}]}`, nil),
 			makeAssistantMessage(toolCall),
@@ -108,7 +110,7 @@ func TestAgentGraphNoExistingPlanRunsPlanNode(t *testing.T) {
 	if err != nil {
 		t.Fatalf("tool Info: %v", err)
 	}
-	runnable, err := BuildAgentGraph(runCtx, "test-agent", model, safeNode, newDirectAssistantStreamer(nil), 10, store, nil, NewPlanStore(store), "Make a plan", nil, []string{info.Name}, nil)
+	runnable, err := BuildAgentGraph(runCtx, "test-agent", testModel, safeNode, newDirectAssistantStreamer(nil), 10, store, nil, NewPlanStore(store), "Make a plan", nil, []string{info.Name}, nil)
 	if err != nil {
 		t.Fatalf("buildAgentGraph: %v", err)
 	}
@@ -116,8 +118,8 @@ func TestAgentGraphNoExistingPlanRunsPlanNode(t *testing.T) {
 	if _, err := runnable.Invoke(runCtx, &graph.AgentGraphInput{Messages: []*schema.Message{schema.UserMessage("read README")}}); err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}
-	if model.callCount != 2 {
-		t.Fatalf("model callCount = %d, want 2", model.callCount)
+	if testModel.callCount != 2 {
+		t.Fatalf("model callCount = %d, want 2", testModel.callCount)
 	}
 	records, err := store.LoadEvents(ctx, "run_plan_gate_empty")
 	if err != nil {
@@ -148,9 +150,9 @@ func TestMemoryEvolutionFinalizationAppendsHistoryThenKeepsNormalPlanPath(t *tes
 	if err := store.CreateRun(context.Background(), "run_evolution_second", "fix sqlite rows again", "run_evolution_second"); err != nil {
 		t.Fatalf("CreateRun second: %v", err)
 	}
-	runCtx := withRunID(WithSessionID(ctx, "session-evolution-second"), "run_evolution_second")
+	runCtx := withRunID(runtimeapi.WithSessionID(ctx, "session-evolution-second"), "run_evolution_second")
 	toolCall := makeToolCall("call_1", "search", `{"query":"sqlite rows"}`)
-	model := &toolCallingStubModel{responses: []*schema.Message{
+	testModel := &toolCallingStubModel{responses: []*schema.Message{
 		schema.AssistantMessage(`{"steps":[{"id":"s1","action":"Search sqlite rows again","status":"pending"}]}`, nil),
 		makeAssistantMessage(toolCall),
 	}}
@@ -164,15 +166,15 @@ func TestMemoryEvolutionFinalizationAppendsHistoryThenKeepsNormalPlanPath(t *tes
 	if err != nil {
 		t.Fatalf("tool Info: %v", err)
 	}
-	runnable, err := BuildAgentGraph(runCtx, "test-agent", model, safeNode, newDirectAssistantStreamer(nil), 10, store, nil, NewPlanStore(store), "Make a plan", nil, []string{info.Name}, nil)
+	runnable, err := BuildAgentGraph(runCtx, "test-agent", testModel, safeNode, newDirectAssistantStreamer(nil), 10, store, nil, NewPlanStore(store), "Make a plan", nil, []string{info.Name}, nil)
 	if err != nil {
 		t.Fatalf("buildAgentGraph: %v", err)
 	}
 	if _, err := runnable.Invoke(runCtx, &graph.AgentGraphInput{Messages: []*schema.Message{schema.UserMessage("fix sqlite rows again")}}); err != nil {
 		t.Fatalf("Invoke second: %v", err)
 	}
-	if model.callCount != 2 {
-		t.Fatalf("second run model callCount = %d, want 2", model.callCount)
+	if testModel.callCount != 2 {
+		t.Fatalf("second run model callCount = %d, want 2", testModel.callCount)
 	}
 	events, err := store.LoadEvents(ctx, "run_evolution_second")
 	if err != nil {
@@ -188,19 +190,19 @@ func TestMemoryEvolutionFinalizationAppendsHistoryThenKeepsNormalPlanPath(t *tes
 
 func saveCompletedPlan(t *testing.T, ctx context.Context, store *storesqlite.Store, runID string, sessionID string) {
 	t.Helper()
-	if err := store.SavePlan(ctx, storeRecordFromPlan(&Plan{
+	if err := store.SavePlan(ctx, &model.Plan{
 		PlanID:    sessionID,
 		SessionID: sessionID,
 		RunID:     runID,
-		Steps: []PlanStep{{
+		Steps: []model.PlanStep{{
 			ID:     "s1",
 			Action: "Complete task",
-			Status: PlanStepCompleted,
-			Evidence: []PlanEvidence{{
+			Status: model.PlanStepCompleted,
+			Evidence: []model.PlanEvidence{{
 				Summary: "tool proof",
 			}},
 		}},
-	})); err != nil {
+	}); err != nil {
 		t.Fatalf("SavePlan: %v", err)
 	}
 }

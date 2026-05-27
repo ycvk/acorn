@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/ycvk/acorn/internal/events"
-	"github.com/ycvk/acorn/internal/runtime"
+	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	storecore "github.com/ycvk/acorn/internal/store"
 )
 
@@ -266,8 +266,8 @@ func TestTraceServiceResumeStatusRejectsFailedRun(t *testing.T) {
 	}
 
 	_, err = service.InferResumeTargets(context.Background(), runID)
-	if !errors.Is(err, runtime.ErrRunNotInterrupted) {
-		t.Fatalf("InferResumeTargets error = %v, want runtime.ErrRunNotInterrupted", err)
+	if !errors.Is(err, runtimeapi.ErrRunNotInterrupted) {
+		t.Fatalf("InferResumeTargets error = %v, want runtimeapi.ErrRunNotInterrupted", err)
 	}
 	if err == nil || !strings.Contains(err.Error(), "failed and cannot be resumed") {
 		t.Fatalf("unexpected infer error: %v", err)

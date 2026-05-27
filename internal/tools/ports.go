@@ -3,8 +3,7 @@ package tools
 import (
 	"context"
 
-	"github.com/ycvk/acorn/internal/artifacts"
-	"github.com/ycvk/acorn/internal/browser"
+	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/webaccess"
 	"github.com/ycvk/acorn/internal/workspace"
 )
@@ -27,10 +26,10 @@ type WorkspaceView interface {
 
 // ArtifactService is the subset of artifact operations required by tool builders.
 type ArtifactService interface {
-	Write(ctx context.Context, req artifacts.WriteRequest) (artifacts.Record, error)
-	ReadRange(ctx context.Context, req artifacts.ReadRangeRequest) (artifacts.ReadRangeResult, error)
-	ListByRun(ctx context.Context, runID string) ([]artifacts.Record, error)
-	ListBySession(ctx context.Context, sessionID string) ([]artifacts.Record, error)
+	Write(ctx context.Context, req store.ArtifactWriteRequest) (store.ArtifactRecord, error)
+	ReadRange(ctx context.Context, req store.ArtifactReadRangeRequest) (store.ArtifactReadRangeResult, error)
+	ListByRun(ctx context.Context, runID string) ([]store.ArtifactRecord, error)
+	ListBySession(ctx context.Context, sessionID string) ([]store.ArtifactRecord, error)
 }
 
 // WebFetchService is the subset of web fetch operations required by tool builders.
@@ -45,21 +44,21 @@ type WebSearchService interface {
 
 // BrowserService is the subset of browser automation operations required by tool builders.
 type BrowserService interface {
-	Status(ctx context.Context) (browser.Status, error)
-	Open(ctx context.Context, rawURL string) (browser.NavigateResult, error)
-	Tabs(ctx context.Context) ([]browser.Tab, error)
-	Scan(ctx context.Context, req browser.ScanRequest) (browser.ScanResult, error)
-	Snapshot(ctx context.Context) (browser.SnapshotResult, error)
-	Click(ctx context.Context, ref, selector string) (browser.NavigateResult, error)
-	Fill(ctx context.Context, ref, selector, text string) (browser.NavigateResult, error)
-	Press(ctx context.Context, ref, selector, key string) (browser.NavigateResult, error)
-	Select(ctx context.Context, ref, selector, value string) (browser.NavigateResult, error)
+	Status(ctx context.Context) (Status, error)
+	Open(ctx context.Context, rawURL string) (NavigateResult, error)
+	Tabs(ctx context.Context) ([]Tab, error)
+	Scan(ctx context.Context, req ScanRequest) (ScanResult, error)
+	Snapshot(ctx context.Context) (SnapshotResult, error)
+	Click(ctx context.Context, ref, selector string) (NavigateResult, error)
+	Fill(ctx context.Context, ref, selector, text string) (NavigateResult, error)
+	Press(ctx context.Context, ref, selector, key string) (NavigateResult, error)
+	Select(ctx context.Context, ref, selector, value string) (NavigateResult, error)
 	Screenshot(ctx context.Context, fullPage bool) ([]byte, error)
-	ConsoleStart(ctx context.Context) (browser.ConsoleResult, error)
-	ConsoleList() browser.ConsoleResult
-	ConsoleStop() browser.ConsoleResult
-	NetworkStart(ctx context.Context) (browser.NetworkResult, error)
-	NetworkList() browser.NetworkResult
-	NetworkStop() browser.NetworkResult
+	ConsoleStart(ctx context.Context) (ConsoleResult, error)
+	ConsoleList() ConsoleResult
+	ConsoleStop() ConsoleResult
+	NetworkStart(ctx context.Context) (NetworkResult, error)
+	NetworkList() NetworkResult
+	NetworkStop() NetworkResult
 	Close() error
 }

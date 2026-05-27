@@ -12,6 +12,7 @@ import (
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/contextplane"
 	"github.com/ycvk/acorn/internal/orchestration"
+	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	"github.com/ycvk/acorn/internal/runtime/graph"
 	"github.com/ycvk/acorn/internal/tooling"
 )
@@ -142,8 +143,8 @@ func BuildRuntimePlanExecuteGraph(ctx context.Context, req orchestration.PlanExe
 func runtimeGraphDependencies(
 	planStore orchestration.PlanStore,
 	promptProvider orchestration.PlanningPromptProvider,
-) (PlanStore, PlanningPromptProvider, error) {
-	typedPlanStore, ok := planStore.(PlanStore)
+) (runtimeapi.PlanStore, PlanningPromptProvider, error) {
+	typedPlanStore, ok := planStore.(runtimeapi.PlanStore)
 	if !ok {
 		return nil, nil, fmt.Errorf("orchestration plane requires runtime plan store")
 	}
@@ -175,7 +176,7 @@ func buildRunnerAgentHandlers(
 	cfg *config.Config,
 	contextPlane contextplane.ContextPlane,
 	extraHandlers []adk.ChatModelAgentMiddleware,
-	store EventAppender,
+	store runtimeapi.EventAppender,
 	chatModel einomodel.BaseChatModel,
 	compressionState any,
 ) ([]adk.ChatModelAgentMiddleware, error) {
@@ -221,11 +222,11 @@ func (d defaultOrchestrationPlaneDeps) bindToolLifecycle(
 }
 
 func (d defaultOrchestrationPlaneDeps) bindStore(ctx context.Context) context.Context {
-	return WithStore(ctx, d.store)
+	return runtimeapi.WithStore(ctx, d.store)
 }
 
 func bindSessionID(ctx context.Context, sessionID string) context.Context {
-	return WithSessionID(ctx, sessionID)
+	return runtimeapi.WithSessionID(ctx, sessionID)
 }
 
 type toolLifecycleStateAdapter struct {

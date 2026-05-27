@@ -12,12 +12,13 @@ import (
 
 	"github.com/ycvk/acorn/internal/contextplane"
 	"github.com/ycvk/acorn/internal/events"
+	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	"github.com/ycvk/acorn/internal/stream"
 )
 
 func (e *Executor) bootstrapContextSessionMessages(
 	ctx context.Context,
-	req ExecuteRequest,
+	req runtimeapi.ExecuteRequest,
 	runID string,
 	mode events.OrchestrationMode,
 	active *ActiveRunner,
@@ -92,7 +93,7 @@ func (e *Executor) bootstrapContextSessionMessages(
 
 func EmitContextCompressedEvent(
 	ctx context.Context,
-	store EventAppender,
+	store runtimeapi.EventAppender,
 	outcome contextplane.CompressionOutcome,
 ) error {
 	if store == nil {
@@ -120,7 +121,7 @@ func EmitContextCompressedEvent(
 
 func EmitContextPressureEvent(
 	ctx context.Context,
-	store EventAppender,
+	store runtimeapi.EventAppender,
 	pressure contextplane.BudgetPressure,
 ) error {
 	if store == nil {

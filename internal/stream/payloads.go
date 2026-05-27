@@ -3,7 +3,7 @@ package stream
 import (
 	"time"
 
-	"github.com/ycvk/acorn/internal/runtime/api"
+	"github.com/ycvk/acorn/internal/model"
 )
 
 // --- Lifecycle payloads ---
@@ -487,24 +487,14 @@ type StreamContextPressure struct {
 
 // --- Plan payloads ---
 
-// StreamPlan is the plan state carried in plan stream events.
-type StreamPlan struct {
-	PlanID    string         `json:"plan_id"`
-	SessionID string         `json:"session_id"`
-	RunID     string         `json:"run_id"`
-	Steps     []api.PlanStep `json:"steps"`
-	CreatedAt time.Time      `json:"created_at"`
-	UpdatedAt time.Time      `json:"updated_at"`
-}
-
 type PlanCreatedPayload struct {
-	Plan *StreamPlan `json:"plan"`
+	Plan *model.Plan `json:"plan"`
 }
 
 func (p *PlanCreatedPayload) StreamKind() StreamItemKind { return StreamKindPlanCreated }
 
 type PlanUpdatedPayload struct {
-	Plan *StreamPlan `json:"plan"`
+	Plan *model.Plan `json:"plan"`
 }
 
 func (p *PlanUpdatedPayload) StreamKind() StreamItemKind { return StreamKindPlanUpdated }
@@ -537,12 +527,12 @@ func (p *CrystallizationVerdictPayload) StreamKind() StreamItemKind {
 }
 
 type PlanStepPayload struct {
-	PlanID    string        `json:"plan_id"`
-	SessionID string        `json:"session_id"`
-	RunID     string        `json:"run_id"`
-	Plan      *StreamPlan   `json:"plan"`
-	Step      *api.PlanStep `json:"step"`
-	UpdatedAt time.Time     `json:"updated_at"`
+	PlanID    string          `json:"plan_id"`
+	SessionID string          `json:"session_id"`
+	RunID     string          `json:"run_id"`
+	Plan      *model.Plan     `json:"plan"`
+	Step      *model.PlanStep `json:"step"`
+	UpdatedAt time.Time       `json:"updated_at"`
 }
 
 type PlanStepStartedPayload struct {

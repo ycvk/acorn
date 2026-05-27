@@ -6,15 +6,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ycvk/acorn/internal/model"
 	"github.com/ycvk/acorn/internal/orchestration"
 )
 
 func TestValidatePlanEvidenceRejectsDiffWithoutRefOrPaths(t *testing.T) {
-	err := validatePlanEvidence("s1", PlanEvidence{
+	err := validatePlanEvidence("s1", model.PlanEvidence{
 		ID:          "ev_1",
 		StepID:      "s1",
-		Kind:        EvidenceKindDiff,
-		Status:      EvidenceStatusPassed,
+		Kind:        model.EvidenceKindDiff,
+		Status:      model.EvidenceStatusPassed,
 		Summary:     "diff found",
 		SourceRunID: "run_1",
 		RecordedAt:  time.Now().UTC(),
@@ -25,17 +26,17 @@ func TestValidatePlanEvidenceRejectsDiffWithoutRefOrPaths(t *testing.T) {
 }
 
 func TestEnsureVerificationIntentCoverageFailsOnRecordedOnlyEvidence(t *testing.T) {
-	err := ensureVerificationIntentCoverage(PlanStep{
+	err := ensureVerificationIntentCoverage(model.PlanStep{
 		ID: "s1",
-		VerificationIntent: []VerificationIntent{{
+		VerificationIntent: []model.VerificationIntent{{
 			Kind:   "test",
 			Reason: "prove with tests",
 		}},
-		Evidence: []PlanEvidence{{
+		Evidence: []model.PlanEvidence{{
 			ID:          "ev_1",
 			StepID:      "s1",
-			Kind:        EvidenceKindTool,
-			Status:      EvidenceStatusRecorded,
+			Kind:        model.EvidenceKindTool,
+			Status:      model.EvidenceStatusRecorded,
 			Summary:     "read something",
 			SourceRunID: "run_1",
 			RecordedAt:  time.Now().UTC(),
@@ -47,19 +48,19 @@ func TestEnsureVerificationIntentCoverageFailsOnRecordedOnlyEvidence(t *testing.
 }
 
 func TestEnsureVerificationIntentCoveragePassesWithTestEvidence(t *testing.T) {
-	err := ensureVerificationIntentCoverage(PlanStep{
+	err := ensureVerificationIntentCoverage(model.PlanStep{
 		ID: "s1",
-		VerificationIntent: []VerificationIntent{{
+		VerificationIntent: []model.VerificationIntent{{
 			Kind:    "test",
 			Command: []string{"go", "test", "./internal/runtime"},
 			Paths:   []string{"internal/runtime"},
 			Reason:  "prove with tests",
 		}},
-		Evidence: []PlanEvidence{{
+		Evidence: []model.PlanEvidence{{
 			ID:          "ev_1",
 			StepID:      "s1",
-			Kind:        EvidenceKindTest,
-			Status:      EvidenceStatusPassed,
+			Kind:        model.EvidenceKindTest,
+			Status:      model.EvidenceStatusPassed,
 			Summary:     "go test passed",
 			Command:     []string{"go", "test", "./internal/runtime"},
 			Paths:       []string{"internal/runtime"},
@@ -73,11 +74,11 @@ func TestEnsureVerificationIntentCoveragePassesWithTestEvidence(t *testing.T) {
 }
 
 func TestValidatePlanEvidenceAcceptsVerifierEvidence(t *testing.T) {
-	err := validatePlanEvidence("s1", PlanEvidence{
+	err := validatePlanEvidence("s1", model.PlanEvidence{
 		ID:          "ev_1",
 		StepID:      "s1",
-		Kind:        EvidenceKindVerifier,
-		Status:      EvidenceStatusPassed,
+		Kind:        model.EvidenceKindVerifier,
+		Status:      model.EvidenceStatusPassed,
 		Summary:     "verifier passed",
 		ChildRunID:  "run_child_1",
 		SourceRunID: "run_parent",
@@ -90,12 +91,12 @@ func TestValidatePlanEvidenceAcceptsVerifierEvidence(t *testing.T) {
 
 func TestValidatePlanEvidenceAcceptsCheckpointAndRollbackEvidence(t *testing.T) {
 	now := time.Now().UTC()
-	for _, evidence := range []PlanEvidence{
+	for _, evidence := range []model.PlanEvidence{
 		{
 			ID:          "ev_checkpoint",
 			StepID:      "s1",
-			Kind:        EvidenceKindCheckpoint,
-			Status:      EvidenceStatusPassed,
+			Kind:        model.EvidenceKindCheckpoint,
+			Status:      model.EvidenceStatusPassed,
 			Summary:     "checkpoint recorded",
 			SourceRunID: "run_parent",
 			RecordedAt:  now,
@@ -103,8 +104,8 @@ func TestValidatePlanEvidenceAcceptsCheckpointAndRollbackEvidence(t *testing.T) 
 		{
 			ID:          "ev_rollback",
 			StepID:      "s1",
-			Kind:        EvidenceKindRollback,
-			Status:      EvidenceStatusFailed,
+			Kind:        model.EvidenceKindRollback,
+			Status:      model.EvidenceStatusFailed,
 			Summary:     "rollback failed",
 			SourceRunID: "run_parent",
 			RecordedAt:  now,
@@ -119,7 +120,7 @@ func TestValidatePlanEvidenceAcceptsCheckpointAndRollbackEvidence(t *testing.T) 
 func TestEvidenceForToolMessageDerivesCheckpointEvidence(t *testing.T) {
 	recordedAt := time.Now().UTC()
 	items, err := evidenceForToolMessage(toolMessageEvidenceInput{
-		Step:          PlanStep{ID: "s1"},
+		Step:          model.PlanStep{ID: "s1"},
 		RunID:         "run_parent",
 		ToolName:      "create_file",
 		ToolCallID:    "call_1",
@@ -135,9 +136,9 @@ func TestEvidenceForToolMessageDerivesCheckpointEvidence(t *testing.T) {
 	if err != nil {
 		t.Fatalf("evidenceForToolMessage: %v", err)
 	}
-	var checkpoint *PlanEvidence
+	var checkpoint *model.PlanEvidence
 	for i := range items {
-		if items[i].Kind == EvidenceKindCheckpoint {
+		if items[i].Kind == model.EvidenceKindCheckpoint {
 			checkpoint = &items[i]
 			break
 		}
@@ -145,7 +146,7 @@ func TestEvidenceForToolMessageDerivesCheckpointEvidence(t *testing.T) {
 	if checkpoint == nil {
 		t.Fatalf("checkpoint evidence missing: %+v", items)
 	}
-	if checkpoint.Status != EvidenceStatusPassed || len(checkpoint.Paths) != 1 || checkpoint.Paths[0] != "notes.txt" {
+	if checkpoint.Status != model.EvidenceStatusPassed || len(checkpoint.Paths) != 1 || checkpoint.Paths[0] != "notes.txt" {
 		t.Fatalf("checkpoint evidence = %+v", checkpoint)
 	}
 	if checkpoint.ToolResultRef != "tool_result:run_parent:call_1" {
@@ -156,7 +157,7 @@ func TestEvidenceForToolMessageDerivesCheckpointEvidence(t *testing.T) {
 func TestEvidenceForToolMessageDerivesRunVerificationEvidence(t *testing.T) {
 	recordedAt := time.Now().UTC()
 	items, err := evidenceForToolMessage(toolMessageEvidenceInput{
-		Step:          PlanStep{ID: "s1"},
+		Step:          model.PlanStep{ID: "s1"},
 		RunID:         "run_parent",
 		ToolName:      "run_verification",
 		ToolCallID:    "call_verify",
@@ -172,9 +173,9 @@ func TestEvidenceForToolMessageDerivesRunVerificationEvidence(t *testing.T) {
 	if err != nil {
 		t.Fatalf("evidenceForToolMessage: %v", err)
 	}
-	var verification *PlanEvidence
+	var verification *model.PlanEvidence
 	for i := range items {
-		if items[i].Kind == EvidenceKindTest {
+		if items[i].Kind == model.EvidenceKindTest {
 			verification = &items[i]
 			break
 		}
@@ -182,7 +183,7 @@ func TestEvidenceForToolMessageDerivesRunVerificationEvidence(t *testing.T) {
 	if verification == nil {
 		t.Fatalf("run_verification evidence missing: %+v", items)
 	}
-	if verification.Status != EvidenceStatusFailed || verification.Error == "" {
+	if verification.Status != model.EvidenceStatusFailed || verification.Error == "" {
 		t.Fatalf("verification evidence = %+v", verification)
 	}
 	if strings.Join(verification.Command, " ") != "go test ./internal/runtime" {
@@ -196,7 +197,7 @@ func TestEvidenceForToolMessageDerivesRunVerificationEvidence(t *testing.T) {
 func TestEvidenceForToolMessageDerivesGitSummaryDiffEvidence(t *testing.T) {
 	recordedAt := time.Now().UTC()
 	items, err := evidenceForToolMessage(toolMessageEvidenceInput{
-		Step:          PlanStep{ID: "s1"},
+		Step:          model.PlanStep{ID: "s1"},
 		RunID:         "run_parent",
 		ToolName:      "git_summary",
 		ToolCallID:    "call_git",
@@ -212,9 +213,9 @@ func TestEvidenceForToolMessageDerivesGitSummaryDiffEvidence(t *testing.T) {
 	if err != nil {
 		t.Fatalf("evidenceForToolMessage: %v", err)
 	}
-	var diff *PlanEvidence
+	var diff *model.PlanEvidence
 	for i := range items {
-		if items[i].Kind == EvidenceKindDiff {
+		if items[i].Kind == model.EvidenceKindDiff {
 			diff = &items[i]
 			break
 		}
@@ -233,7 +234,7 @@ func TestEvidenceForToolMessageDerivesGitSummaryDiffEvidence(t *testing.T) {
 func TestEvidenceForToolMessageDerivesRollbackEvidence(t *testing.T) {
 	recordedAt := time.Now().UTC()
 	items, err := evidenceForToolMessage(toolMessageEvidenceInput{
-		Step:          PlanStep{ID: "s1"},
+		Step:          model.PlanStep{ID: "s1"},
 		RunID:         "run_parent",
 		ToolName:      "rollback_workspace_checkpoint",
 		ToolCallID:    "call_2",
@@ -251,9 +252,9 @@ func TestEvidenceForToolMessageDerivesRollbackEvidence(t *testing.T) {
 	if err != nil {
 		t.Fatalf("evidenceForToolMessage: %v", err)
 	}
-	var rollback *PlanEvidence
+	var rollback *model.PlanEvidence
 	for i := range items {
-		if items[i].Kind == EvidenceKindRollback {
+		if items[i].Kind == model.EvidenceKindRollback {
 			rollback = &items[i]
 			break
 		}
@@ -261,7 +262,7 @@ func TestEvidenceForToolMessageDerivesRollbackEvidence(t *testing.T) {
 	if rollback == nil {
 		t.Fatalf("rollback evidence missing: %+v", items)
 	}
-	if rollback.Status != EvidenceStatusFailed || rollback.Error != "workspace rollback conflict" || len(rollback.Paths) != 1 || rollback.Paths[0] != "notes.txt" {
+	if rollback.Status != model.EvidenceStatusFailed || rollback.Error != "workspace rollback conflict" || len(rollback.Paths) != 1 || rollback.Paths[0] != "notes.txt" {
 		t.Fatalf("rollback evidence = %+v", rollback)
 	}
 	if rollback.ToolResultRef != "tool_result:run_parent:call_2" {
@@ -272,7 +273,7 @@ func TestEvidenceForToolMessageDerivesRollbackEvidence(t *testing.T) {
 func TestEvidenceForToolMessageDerivesFailedRollbackEvidenceFromNonJSONToolError(t *testing.T) {
 	recordedAt := time.Now().UTC()
 	items, err := evidenceForToolMessage(toolMessageEvidenceInput{
-		Step:          PlanStep{ID: "s1"},
+		Step:          model.PlanStep{ID: "s1"},
 		RunID:         "run_parent",
 		ToolName:      "rollback_workspace_checkpoint",
 		ToolCallID:    "call_2",
@@ -290,9 +291,9 @@ func TestEvidenceForToolMessageDerivesFailedRollbackEvidenceFromNonJSONToolError
 	if err != nil {
 		t.Fatalf("evidenceForToolMessage: %v", err)
 	}
-	var rollback *PlanEvidence
+	var rollback *model.PlanEvidence
 	for i := range items {
-		if items[i].Kind == EvidenceKindRollback {
+		if items[i].Kind == model.EvidenceKindRollback {
 			rollback = &items[i]
 			break
 		}
@@ -300,7 +301,7 @@ func TestEvidenceForToolMessageDerivesFailedRollbackEvidenceFromNonJSONToolError
 	if rollback == nil {
 		t.Fatalf("rollback evidence missing: %+v", items)
 	}
-	if rollback.Status != EvidenceStatusFailed || rollback.Error != "workspace rollback conflict: notes.txt" {
+	if rollback.Status != model.EvidenceStatusFailed || rollback.Error != "workspace rollback conflict: notes.txt" {
 		t.Fatalf("rollback evidence = %+v", rollback)
 	}
 	if rollback.ToolResultRef != "tool_result:run_parent:call_2" {
@@ -315,18 +316,18 @@ func TestVerifierEvidenceFromPassedResultCountsForVerifierIntent(t *testing.T) {
 		Verdict:    orchestration.VerificationVerdictPassed,
 		Summary:    "all acceptance criteria passed",
 	}, recordedAt)
-	if evidence.Kind != EvidenceKindVerifier || evidence.Status != EvidenceStatusPassed || evidence.ChildRunID != "run_child_1" {
+	if evidence.Kind != model.EvidenceKindVerifier || evidence.Status != model.EvidenceStatusPassed || evidence.ChildRunID != "run_child_1" {
 		t.Fatalf("unexpected evidence: %+v", evidence)
 	}
 	if evidence.SourceRunID != "run_parent" || !evidence.RecordedAt.Equal(recordedAt) {
 		t.Fatalf("unexpected evidence metadata: %+v", evidence)
 	}
-	err := ensureVerificationIntentCoverage(PlanStep{
+	err := ensureVerificationIntentCoverage(model.PlanStep{
 		ID: "s1",
-		VerificationIntent: []VerificationIntent{{
+		VerificationIntent: []model.VerificationIntent{{
 			Kind: "verifier",
 		}},
-		Evidence: []PlanEvidence{evidence},
+		Evidence: []model.PlanEvidence{evidence},
 	})
 	if err != nil {
 		t.Fatalf("ensureVerificationIntentCoverage: %v", err)
@@ -339,7 +340,7 @@ func TestVerifierEvidenceFromFailedResultPreservesFindings(t *testing.T) {
 		Verdict:          orchestration.VerificationVerdictFailed,
 		BlockingFindings: []string{"missing integration test", "openapi drift"},
 	}, time.Now().UTC())
-	if evidence.Status != EvidenceStatusFailed {
+	if evidence.Status != model.EvidenceStatusFailed {
 		t.Fatalf("status = %q, want failed", evidence.Status)
 	}
 	if evidence.Error != "missing integration test; openapi drift" {
@@ -353,18 +354,18 @@ func TestVerifierEvidenceFromInconclusiveResultDoesNotCountAsCoverage(t *testing
 		Verdict:         orchestration.VerificationVerdictInconclusive,
 		MissingEvidence: []string{"tool result ref unavailable"},
 	}, time.Now().UTC())
-	if evidence.Status != EvidenceStatusRecorded {
+	if evidence.Status != model.EvidenceStatusRecorded {
 		t.Fatalf("status = %q, want recorded", evidence.Status)
 	}
 	if evidence.Error != "tool result ref unavailable" {
 		t.Fatalf("error = %q", evidence.Error)
 	}
-	err := ensureVerificationIntentCoverage(PlanStep{
+	err := ensureVerificationIntentCoverage(model.PlanStep{
 		ID: "s1",
-		VerificationIntent: []VerificationIntent{{
+		VerificationIntent: []model.VerificationIntent{{
 			Kind: "verifier",
 		}},
-		Evidence: []PlanEvidence{evidence},
+		Evidence: []model.PlanEvidence{evidence},
 	})
 	if !errors.Is(err, ErrPlanStepVerificationGap) {
 		t.Fatalf("error = %v, want ErrPlanStepVerificationGap", err)
@@ -373,7 +374,7 @@ func TestVerifierEvidenceFromInconclusiveResultDoesNotCountAsCoverage(t *testing
 
 func TestVerifierEvidenceFromNilResultIsRecordedFailureEvidence(t *testing.T) {
 	evidence := verifierEvidenceFromResult("s1", "run_parent", nil, time.Now().UTC())
-	if evidence.Kind != EvidenceKindVerifier || evidence.Status != EvidenceStatusRecorded {
+	if evidence.Kind != model.EvidenceKindVerifier || evidence.Status != model.EvidenceStatusRecorded {
 		t.Fatalf("unexpected evidence: %+v", evidence)
 	}
 	if evidence.Error != "verifier result is nil" {

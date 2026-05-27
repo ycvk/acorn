@@ -20,8 +20,9 @@ import (
 
 	"github.com/ycvk/acorn/internal/decision"
 	"github.com/ycvk/acorn/internal/events"
+	"github.com/ycvk/acorn/internal/model"
 	"github.com/ycvk/acorn/internal/orchestration"
-	"github.com/ycvk/acorn/internal/runtimehistory"
+	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	"github.com/ycvk/acorn/internal/tooling"
 )
 
@@ -75,7 +76,7 @@ func TestExecuteMessagesPersistsDirectResponseModeForGreeting(t *testing.T) {
 		return directRoutingTestModel{}, nil
 	})
 
-	_, err = exec.ExecuteMessages(ctx, ExecuteRequest{
+	_, err = exec.ExecuteMessages(ctx, runtimeapi.ExecuteRequest{
 		RunID:    "run_direct_route",
 		Input:    "你好",
 		Messages: []adk.Message{},
@@ -122,7 +123,7 @@ func TestExecuteMessagesDirectResponseExecutesToolLoop(t *testing.T) {
 		return model, nil
 	})
 
-	result, err := exec.ExecuteMessages(ctx, ExecuteRequest{
+	result, err := exec.ExecuteMessages(ctx, runtimeapi.ExecuteRequest{
 		Input:    "look up acorn",
 		Messages: []adk.Message{schema.UserMessage("look up acorn")},
 	}, nil)
@@ -232,7 +233,7 @@ func TestResumeDirectResponseRebuildsContextSession(t *testing.T) {
 		return model, nil
 	})
 
-	result, err := exec.ExecuteMessages(ctx, ExecuteRequest{
+	result, err := exec.ExecuteMessages(ctx, runtimeapi.ExecuteRequest{
 		RunID:    "run_direct_resume",
 		Input:    "call pause tool",
 		Messages: []adk.Message{schema.UserMessage("call pause tool")},
@@ -301,7 +302,7 @@ func TestResumeDirectResponseRunCommandPauseWithoutExtraPayload(t *testing.T) {
 		return model, nil
 	})
 
-	result, err := exec.ExecuteMessages(ctx, ExecuteRequest{
+	result, err := exec.ExecuteMessages(ctx, runtimeapi.ExecuteRequest{
 		RunID:    "run_direct_pause_resume",
 		Input:    "pause before command",
 		Messages: []adk.Message{schema.UserMessage("pause before command")},
@@ -349,7 +350,7 @@ func TestExecuteMessagesPersistsExplicitPlanExecuteMode(t *testing.T) {
 
 	factory.deps.Workspace = nil
 
-	_, err = exec.ExecuteMessages(ctx, ExecuteRequest{
+	_, err = exec.ExecuteMessages(ctx, runtimeapi.ExecuteRequest{
 		RunID:             "run_plan_route",
 		Input:             "修复 internal/runtime/executor_run.go 里的默认执行模式并跑 go test",
 		Messages:          []adk.Message{},
@@ -451,7 +452,7 @@ func TestResumeWithTargetsRoutesPlanExecuteRunByPersistedMode(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("SaveRunDecision: %v", err)
 	}
-	if err := store.SaveRunContextSnapshot(ctx, runtimehistory.RunContextSnapshot{
+	if err := store.SaveRunContextSnapshot(ctx, model.RunContextSnapshot{
 		RunID:     runID,
 		CreatedAt: time.Now().UTC(),
 	}); err != nil {
@@ -539,7 +540,7 @@ func TestResumeWithTargetsRejectsRemovedWorkflowMode(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("SaveRunDecision: %v", err)
 	}
-	if err := store.SaveRunContextSnapshot(ctx, runtimehistory.RunContextSnapshot{
+	if err := store.SaveRunContextSnapshot(ctx, model.RunContextSnapshot{
 		RunID:     runID,
 		CreatedAt: time.Now().UTC(),
 	}); err != nil {
@@ -653,7 +654,7 @@ func TestExecuteMessagesDirectResponseEmitsToolProgress(t *testing.T) {
 		return model, nil
 	})
 
-	result, err := exec.ExecuteMessages(ctx, ExecuteRequest{
+	result, err := exec.ExecuteMessages(ctx, runtimeapi.ExecuteRequest{
 		Input:    "run progress tool",
 		Messages: []adk.Message{schema.UserMessage("run progress tool")},
 	}, nil)

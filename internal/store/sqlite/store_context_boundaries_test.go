@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ycvk/acorn/internal/runtimehistory"
+	"github.com/ycvk/acorn/internal/model"
 )
 
 func TestSaveAndLoadContextBoundary(t *testing.T) {
@@ -74,7 +74,7 @@ func TestLoadLatestAndListContextBoundaries(t *testing.T) {
 
 	ctx := context.Background()
 	base := time.Date(2026, 5, 8, 12, 30, 0, 0, time.UTC)
-	for _, boundary := range []runtimehistory.ContextBoundary{
+	for _, boundary := range []model.ContextBoundary{
 		testContextBoundary("ctxb_1", "session_1", "run_1", 1, base),
 		testContextBoundary("ctxb_2", "session_1", "run_2", 2, base.Add(time.Minute)),
 		testContextBoundary("ctxb_other", "session_2", "run_3", 3, base.Add(2*time.Minute)),
@@ -114,32 +114,32 @@ func TestSaveContextBoundaryRejectsInvalidInput(t *testing.T) {
 	valid := testContextBoundary("ctxb_1", "session_1", "run_1", 1, time.Date(2026, 5, 8, 12, 30, 0, 0, time.UTC))
 	cases := []struct {
 		name    string
-		mutate  func(*runtimehistory.ContextBoundary)
+		mutate  func(*model.ContextBoundary)
 		wantErr string
 	}{
-		{name: "missing boundary id", mutate: func(b *runtimehistory.ContextBoundary) { b.BoundaryID = "" }, wantErr: "id is required"},
-		{name: "missing session id", mutate: func(b *runtimehistory.ContextBoundary) { b.SessionID = "" }, wantErr: "session id is required"},
-		{name: "missing run id", mutate: func(b *runtimehistory.ContextBoundary) { b.RunID = "" }, wantErr: "run id is required"},
-		{name: "invalid sequence", mutate: func(b *runtimehistory.ContextBoundary) { b.Sequence = 0 }, wantErr: "sequence must be positive"},
-		{name: "invalid turn index", mutate: func(b *runtimehistory.ContextBoundary) { b.TurnIndex = -1 }, wantErr: "turn index"},
-		{name: "missing mode", mutate: func(b *runtimehistory.ContextBoundary) { b.Mode = "" }, wantErr: "mode is required"},
-		{name: "missing trigger", mutate: func(b *runtimehistory.ContextBoundary) { b.Trigger = "" }, wantErr: "trigger is required"},
-		{name: "invalid covered range", mutate: func(b *runtimehistory.ContextBoundary) { b.LastIndex = b.FirstIndex - 1 }, wantErr: "last index"},
-		{name: "missing covered first message", mutate: func(b *runtimehistory.ContextBoundary) { b.CoveredFirstMessageID = "" }, wantErr: "covered first message id"},
-		{name: "missing covered last message", mutate: func(b *runtimehistory.ContextBoundary) { b.CoveredLastMessageID = "" }, wantErr: "covered last message id"},
-		{name: "missing summary message", mutate: func(b *runtimehistory.ContextBoundary) { b.SummaryMessageID = "" }, wantErr: "summary message id"},
-		{name: "missing transcript ref", mutate: func(b *runtimehistory.ContextBoundary) { b.TranscriptRef = "" }, wantErr: "transcript ref"},
-		{name: "invalid preserved range", mutate: func(b *runtimehistory.ContextBoundary) { b.PreservedToIndex = b.PreservedFromIndex - 1 }, wantErr: "preserved to index"},
-		{name: "missing preserved head", mutate: func(b *runtimehistory.ContextBoundary) { b.PreservedHeadMessageID = "" }, wantErr: "preserved head message id"},
-		{name: "missing preserved anchor", mutate: func(b *runtimehistory.ContextBoundary) { b.PreservedAnchorMessageID = "" }, wantErr: "preserved anchor message id"},
-		{name: "missing preserved tail", mutate: func(b *runtimehistory.ContextBoundary) { b.PreservedTailMessageID = "" }, wantErr: "preserved tail message id"},
-		{name: "invalid tokens before", mutate: func(b *runtimehistory.ContextBoundary) { b.TokensBefore = 0 }, wantErr: "tokens before"},
-		{name: "invalid tokens after", mutate: func(b *runtimehistory.ContextBoundary) { b.TokensAfter = 0 }, wantErr: "tokens after"},
-		{name: "token growth", mutate: func(b *runtimehistory.ContextBoundary) { b.TokensAfter = b.TokensBefore }, wantErr: "less than tokens before"},
-		{name: "invalid effective window", mutate: func(b *runtimehistory.ContextBoundary) { b.EffectiveWindowTokens = 0 }, wantErr: "effective window tokens"},
-		{name: "tokens exceed effective window", mutate: func(b *runtimehistory.ContextBoundary) { b.EffectiveWindowTokens = b.TokensAfter - 1 }, wantErr: "must not exceed effective window"},
-		{name: "missing summary", mutate: func(b *runtimehistory.ContextBoundary) { b.Summary = "  " }, wantErr: "summary is required"},
-		{name: "missing created_at", mutate: func(b *runtimehistory.ContextBoundary) { b.CreatedAt = time.Time{} }, wantErr: "created_at is required"},
+		{name: "missing boundary id", mutate: func(b *model.ContextBoundary) { b.BoundaryID = "" }, wantErr: "id is required"},
+		{name: "missing session id", mutate: func(b *model.ContextBoundary) { b.SessionID = "" }, wantErr: "session id is required"},
+		{name: "missing run id", mutate: func(b *model.ContextBoundary) { b.RunID = "" }, wantErr: "run id is required"},
+		{name: "invalid sequence", mutate: func(b *model.ContextBoundary) { b.Sequence = 0 }, wantErr: "sequence must be positive"},
+		{name: "invalid turn index", mutate: func(b *model.ContextBoundary) { b.TurnIndex = -1 }, wantErr: "turn index"},
+		{name: "missing mode", mutate: func(b *model.ContextBoundary) { b.Mode = "" }, wantErr: "mode is required"},
+		{name: "missing trigger", mutate: func(b *model.ContextBoundary) { b.Trigger = "" }, wantErr: "trigger is required"},
+		{name: "invalid covered range", mutate: func(b *model.ContextBoundary) { b.LastIndex = b.FirstIndex - 1 }, wantErr: "last index"},
+		{name: "missing covered first message", mutate: func(b *model.ContextBoundary) { b.CoveredFirstMessageID = "" }, wantErr: "covered first message id"},
+		{name: "missing covered last message", mutate: func(b *model.ContextBoundary) { b.CoveredLastMessageID = "" }, wantErr: "covered last message id"},
+		{name: "missing summary message", mutate: func(b *model.ContextBoundary) { b.SummaryMessageID = "" }, wantErr: "summary message id"},
+		{name: "missing transcript ref", mutate: func(b *model.ContextBoundary) { b.TranscriptRef = "" }, wantErr: "transcript ref"},
+		{name: "invalid preserved range", mutate: func(b *model.ContextBoundary) { b.PreservedToIndex = b.PreservedFromIndex - 1 }, wantErr: "preserved to index"},
+		{name: "missing preserved head", mutate: func(b *model.ContextBoundary) { b.PreservedHeadMessageID = "" }, wantErr: "preserved head message id"},
+		{name: "missing preserved anchor", mutate: func(b *model.ContextBoundary) { b.PreservedAnchorMessageID = "" }, wantErr: "preserved anchor message id"},
+		{name: "missing preserved tail", mutate: func(b *model.ContextBoundary) { b.PreservedTailMessageID = "" }, wantErr: "preserved tail message id"},
+		{name: "invalid tokens before", mutate: func(b *model.ContextBoundary) { b.TokensBefore = 0 }, wantErr: "tokens before"},
+		{name: "invalid tokens after", mutate: func(b *model.ContextBoundary) { b.TokensAfter = 0 }, wantErr: "tokens after"},
+		{name: "token growth", mutate: func(b *model.ContextBoundary) { b.TokensAfter = b.TokensBefore }, wantErr: "less than tokens before"},
+		{name: "invalid effective window", mutate: func(b *model.ContextBoundary) { b.EffectiveWindowTokens = 0 }, wantErr: "effective window tokens"},
+		{name: "tokens exceed effective window", mutate: func(b *model.ContextBoundary) { b.EffectiveWindowTokens = b.TokensAfter - 1 }, wantErr: "must not exceed effective window"},
+		{name: "missing summary", mutate: func(b *model.ContextBoundary) { b.Summary = "  " }, wantErr: "summary is required"},
+		{name: "missing created_at", mutate: func(b *model.ContextBoundary) { b.CreatedAt = time.Time{} }, wantErr: "created_at is required"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -175,8 +175,8 @@ func TestLoadContextBoundaryRejectsCorruptTimestamp(t *testing.T) {
 	}
 }
 
-func testContextBoundary(boundaryID, sessionID, runID string, sequence int, createdAt time.Time) runtimehistory.ContextBoundary {
-	return runtimehistory.ContextBoundary{
+func testContextBoundary(boundaryID, sessionID, runID string, sequence int, createdAt time.Time) model.ContextBoundary {
+	return model.ContextBoundary{
 		BoundaryID:               boundaryID,
 		SessionID:                sessionID,
 		RunID:                    runID,

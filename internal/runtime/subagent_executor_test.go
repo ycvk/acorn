@@ -12,8 +12,8 @@ import (
 	"github.com/cloudwego/eino/schema"
 
 	"github.com/ycvk/acorn/internal/events"
+	"github.com/ycvk/acorn/internal/model"
 	"github.com/ycvk/acorn/internal/orchestration"
-	"github.com/ycvk/acorn/internal/store"
 	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
 	"github.com/ycvk/acorn/internal/stream"
 )
@@ -531,14 +531,14 @@ func TestEvaluateDelegationAcceptanceFailsOnChildPlanFailure(t *testing.T) {
 func TestDelegationEvidenceSummaries(t *testing.T) {
 	t.Parallel()
 
-	plan := &store.PlanRecord{
+	plan := &model.Plan{
 		PlanID:    "plan_1",
 		SessionID: "sess_1",
 		RunID:     "run_1",
-		Steps: []store.PlanStep{
+		Steps: []model.PlanStep{
 			{
 				ID: "s1",
-				Evidence: []store.PlanEvidence{
+				Evidence: []model.PlanEvidence{
 					{Summary: "go test ./internal/auth passed"},
 					{Summary: "go test ./internal/auth passed"},
 					{Summary: "updated internal/auth/handler_test.go"},
@@ -558,9 +558,9 @@ func TestDelegationEvidenceSummaries(t *testing.T) {
 func TestDelegationEvidenceRefsUseChildPlanEvidence(t *testing.T) {
 	t.Parallel()
 
-	record := &store.PlanRecord{
-		Steps: []store.PlanStep{{
-			Evidence: []store.PlanEvidence{
+	record := &model.Plan{
+		Steps: []model.PlanStep{{
+			Evidence: []model.PlanEvidence{
 				{
 					ID:            "ev_1",
 					ToolResultRef: "tool_result:run_child:call_1",

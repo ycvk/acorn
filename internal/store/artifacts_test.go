@@ -1,4 +1,4 @@
-package artifacts
+package store
 
 import (
 	"context"
@@ -10,22 +10,22 @@ import (
 	"time"
 )
 
-func TestServiceWriteReadRangeVerifyAndList(t *testing.T) {
+func TestArtifactServiceWriteReadRangeVerifyAndList(t *testing.T) {
 	ctx := context.Background()
-	store := newMemoryStore()
+	store := newMemoryArtifactStore()
 	root := t.TempDir()
-	service, err := NewService(root, store)
+	service, err := NewArtifactService(root, store)
 	if err != nil {
 		t.Fatalf("new service: %v", err)
 	}
 
 	createdAt := time.Unix(1_710_000_000, 0).UTC()
-	record, err := service.Write(ctx, WriteRequest{
+	record, err := service.Write(ctx, ArtifactWriteRequest{
 		ArtifactID:          "artifact_1",
 		RunID:               "run_1",
 		SessionID:           "session_1",
 		SourceToolResultRef: "tool_result:run_1:call_1",
-		Kind:                KindLog,
+		Kind:                ArtifactKindLog,
 		Title:               "stdout",
 		MIMEType:            "text/plain",
 		Content:             []byte("abcdef"),
@@ -41,7 +41,7 @@ func TestServiceWriteReadRangeVerifyAndList(t *testing.T) {
 		t.Fatalf("sha256 = %q, want %q", got, want)
 	}
 
-	firstRange, err := service.ReadRange(ctx, ReadRangeRequest{ArtifactID: record.ArtifactID, Offset: 2, Limit: 3})
+	firstRange, err := service.ReadRange(ctx, ArtifactReadRangeRequest{ArtifactID: record.ArtifactID, Offset: 2, Limit: 3})
 	if err != nil {
 		t.Fatalf("read range: %v", err)
 	}
@@ -52,7 +52,7 @@ func TestServiceWriteReadRangeVerifyAndList(t *testing.T) {
 		t.Fatal("range should not be EOF")
 	}
 
-	finalRange, err := service.ReadRange(ctx, ReadRangeRequest{ArtifactID: record.ArtifactID, Offset: 5, Limit: 10})
+	finalRange, err := service.ReadRange(ctx, ArtifactReadRangeRequest{ArtifactID: record.ArtifactID, Offset: 5, Limit: 10})
 	if err != nil {
 		t.Fatalf("read final range: %v", err)
 	}
@@ -82,18 +82,18 @@ func TestServiceWriteReadRangeVerifyAndList(t *testing.T) {
 	}
 }
 
-func TestServiceVerifyDetectsTamperedContent(t *testing.T) {
+func TestArtifactServiceVerifyDetectsTamperedContent(t *testing.T) {
 	ctx := context.Background()
-	store := newMemoryStore()
+	store := newMemoryArtifactStore()
 	root := t.TempDir()
-	service, err := NewService(root, store)
+	service, err := NewArtifactService(root, store)
 	if err != nil {
 		t.Fatalf("new service: %v", err)
 	}
-	record, err := service.Write(ctx, WriteRequest{
+	record, err := service.Write(ctx, ArtifactWriteRequest{
 		ArtifactID: "artifact_1",
 		RunID:      "run_1",
-		Kind:       KindText,
+		Kind:       ArtifactKindText,
 		Content:    []byte("original"),
 	})
 	if err != nil {
@@ -107,11 +107,11 @@ func TestServiceVerifyDetectsTamperedContent(t *testing.T) {
 	}
 }
 
-func TestNormalizeRecordRejectsUnsafeRelativePath(t *testing.T) {
-	_, err := NormalizeRecord(Record{
+func TestNormalizeArtifactRecordRejectsUnsafeRelativePath(t *testing.T) {
+	_, err := NormalizeArtifactRecord(ArtifactRecord{
 		ArtifactID:   "artifact_1",
 		RunID:        "run_1",
-		Kind:         KindText,
+		Kind:         ArtifactKindText,
 		RelativePath: "../escape",
 		SizeBytes:    1,
 		SHA256:       sha256Hex([]byte("x")),
@@ -121,33 +121,33 @@ func TestNormalizeRecordRejectsUnsafeRelativePath(t *testing.T) {
 	}
 }
 
-type memoryStore struct {
-	records map[string]Record
+type memoryArtifactStore struct {
+	records map[string]ArtifactRecord
 }
 
-func newMemoryStore() *memoryStore {
-	return &memoryStore{records: make(map[string]Record)}
+func newMemoryArtifactStore() *memoryArtifactStore {
+	return &memoryArtifactStore{records: make(map[string]ArtifactRecord)}
 }
 
-func (s *memoryStore) SaveArtifact(_ context.Context, record Record) (Record, error) {
-	normalized, err := NormalizeRecord(record)
+func (s *memoryArtifactStore) SaveArtifact(_ context.Context, record ArtifactRecord) (ArtifactRecord, error) {
+	normalized, err := NormalizeArtifactRecord(record)
 	if err != nil {
-		return Record{}, err
+		return ArtifactRecord{}, err
 	}
 	s.records[normalized.ArtifactID] = normalized
 	return normalized, nil
 }
 
-func (s *memoryStore) LoadArtifact(_ context.Context, artifactID string) (Record, error) {
+func (s *memoryArtifactStore) LoadArtifact(_ context.Context, artifactID string) (ArtifactRecord, error) {
 	record, ok := s.records[artifactID]
 	if !ok {
-		return Record{}, ErrArtifactNotFound
+		return ArtifactRecord{}, ErrArtifactNotFound
 	}
 	return record, nil
 }
 
-func (s *memoryStore) ListArtifactsByRun(_ context.Context, runID string) ([]Record, error) {
-	var items []Record
+func (s *memoryArtifactStore) ListArtifactsByRun(_ context.Context, runID string) ([]ArtifactRecord, error) {
+	var items []ArtifactRecord
 	for _, record := range s.records {
 		if record.RunID == runID {
 			items = append(items, record)
@@ -156,8 +156,8 @@ func (s *memoryStore) ListArtifactsByRun(_ context.Context, runID string) ([]Rec
 	return items, nil
 }
 
-func (s *memoryStore) ListArtifactsBySession(_ context.Context, sessionID string) ([]Record, error) {
-	var items []Record
+func (s *memoryArtifactStore) ListArtifactsBySession(_ context.Context, sessionID string) ([]ArtifactRecord, error) {
+	var items []ArtifactRecord
 	for _, record := range s.records {
 		if record.SessionID == sessionID {
 			items = append(items, record)

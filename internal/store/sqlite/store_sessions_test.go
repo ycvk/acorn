@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/ycvk/acorn/internal/events"
+	"github.com/ycvk/acorn/internal/model"
 	storecore "github.com/ycvk/acorn/internal/store"
 )
 
@@ -278,15 +279,15 @@ func TestSyncAssistantMessageForRunBuildsResultSummaryFromEvidence(t *testing.T)
 	}); err != nil {
 		t.Fatalf("append failed event: %v", err)
 	}
-	if err := store.SavePlan(context.Background(), &storecore.PlanRecord{
+	if err := store.SavePlan(context.Background(), &model.Plan{
 		PlanID:    "plan_evidence",
 		SessionID: session.SessionID,
 		RunID:     "run_evidence",
-		Steps: []storecore.PlanStep{{
+		Steps: []model.PlanStep{{
 			ID:     "step_1",
 			Action: "verify",
 			Status: "completed",
-			Evidence: []storecore.PlanEvidence{{
+			Evidence: []model.PlanEvidence{{
 				ID:          "diff_1",
 				StepID:      "step_1",
 				Kind:        "diff",

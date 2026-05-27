@@ -8,7 +8,6 @@ import (
 
 	einotool "github.com/cloudwego/eino/components/tool"
 
-	"github.com/ycvk/acorn/internal/artifacts"
 	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/tooling"
 	"github.com/ycvk/acorn/internal/webaccess"
@@ -72,11 +71,11 @@ func buildWebFetchTool(fetcher WebFetchService, artifactService ArtifactService,
 			return WebFetchOutput{}, err
 		}
 		sessionID := strings.TrimSpace(bridge.CurrentSessionID(ctx))
-		rawRecord, err := artifactService.Write(ctx, artifacts.WriteRequest{
+		rawRecord, err := artifactService.Write(ctx, store.ArtifactWriteRequest{
 			RunID:               runID,
 			SessionID:           sessionID,
 			SourceToolResultRef: sourceRef,
-			Kind:                artifacts.KindText,
+			Kind:                store.ArtifactKindText,
 			Title:               artifactTitle("web_fetch raw", result.Extracted.Title, result.FinalURL),
 			MIMEType:            result.ContentType,
 			Content:             result.Raw,
@@ -84,11 +83,11 @@ func buildWebFetchTool(fetcher WebFetchService, artifactService ArtifactService,
 		if err != nil {
 			return WebFetchOutput{}, err
 		}
-		markdownRecord, err := artifactService.Write(ctx, artifacts.WriteRequest{
+		markdownRecord, err := artifactService.Write(ctx, store.ArtifactWriteRequest{
 			RunID:               runID,
 			SessionID:           sessionID,
 			SourceToolResultRef: sourceRef,
-			Kind:                artifacts.KindMarkdown,
+			Kind:                store.ArtifactKindMarkdown,
 			Title:               artifactTitle("web_fetch markdown", result.Extracted.Title, result.FinalURL),
 			MIMEType:            "text/markdown; charset=utf-8",
 			Content:             []byte(result.Extracted.Markdown),

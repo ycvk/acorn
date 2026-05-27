@@ -22,9 +22,8 @@ import (
 	einotool "github.com/cloudwego/eino/components/tool"
 	toolutils "github.com/cloudwego/eino/components/tool/utils"
 
-	"github.com/ycvk/acorn/internal/artifacts"
-	"github.com/ycvk/acorn/internal/browser"
 	"github.com/ycvk/acorn/internal/events"
+	corestore "github.com/ycvk/acorn/internal/store"
 	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
 	"github.com/ycvk/acorn/internal/tooling"
 	"github.com/ycvk/acorn/internal/webaccess"
@@ -333,9 +332,9 @@ func TestSearchTextEmitsMatchProgress(t *testing.T) {
 func TestNativeWorkspaceToolsExposeProgressInterface(t *testing.T) {
 	root := t.TempDir()
 	initGitRepoForToolsTest(t, root)
-	artifactService, err := artifacts.NewService(filepath.Join(t.TempDir(), "artifacts"), newToolArtifactStore())
+	artifactService, err := corestore.NewArtifactService(filepath.Join(t.TempDir(), "artifacts"), newToolArtifactStore())
 	if err != nil {
-		t.Fatalf("artifacts.NewService: %v", err)
+		t.Fatalf("corestore.NewArtifactService: %v", err)
 	}
 	ws := testWorkspace(t, root)
 	catalog, err := BuildCatalog(CatalogConfig{
@@ -367,9 +366,9 @@ func TestNativeWorkspaceToolsExposeProgressInterface(t *testing.T) {
 
 func TestArtifactToolsWriteReadAndList(t *testing.T) {
 	store := newToolArtifactStore()
-	service, err := artifacts.NewService(filepath.Join(t.TempDir(), "artifacts"), store)
+	service, err := corestore.NewArtifactService(filepath.Join(t.TempDir(), "artifacts"), store)
 	if err != nil {
-		t.Fatalf("artifacts.NewService: %v", err)
+		t.Fatalf("corestore.NewArtifactService: %v", err)
 	}
 	catalog, err := BuildCatalog(CatalogConfig{
 		ArtifactService: service,
@@ -431,9 +430,9 @@ func TestArtifactToolsWriteReadAndList(t *testing.T) {
 
 func TestWebFetchToolPersistsRawAndMarkdownArtifacts(t *testing.T) {
 	store := newToolArtifactStore()
-	artifactService, err := artifacts.NewService(filepath.Join(t.TempDir(), "artifacts"), store)
+	artifactService, err := corestore.NewArtifactService(filepath.Join(t.TempDir(), "artifacts"), store)
 	if err != nil {
-		t.Fatalf("artifacts.NewService: %v", err)
+		t.Fatalf("corestore.NewArtifactService: %v", err)
 	}
 	fetchService, err := webaccess.NewFetchService(webaccess.FetchConfig{
 		UserAgent:        "Acorn test",
@@ -486,9 +485,9 @@ func TestWebFetchToolPersistsRawAndMarkdownArtifacts(t *testing.T) {
 
 func TestWebSearchToolPersistsRawProviderArtifact(t *testing.T) {
 	store := newToolArtifactStore()
-	artifactService, err := artifacts.NewService(filepath.Join(t.TempDir(), "artifacts"), store)
+	artifactService, err := corestore.NewArtifactService(filepath.Join(t.TempDir(), "artifacts"), store)
 	if err != nil {
-		t.Fatalf("artifacts.NewService: %v", err)
+		t.Fatalf("corestore.NewArtifactService: %v", err)
 	}
 	searchService, err := webaccess.NewSearchService(webaccess.SearchConfig{
 		APIKey:           "tvly-test",
@@ -551,11 +550,11 @@ func TestWebSearchToolPersistsRawProviderArtifact(t *testing.T) {
 
 func TestBrowserToolFailsLoudlyWhenExecutableIsMissing(t *testing.T) {
 	store := newToolArtifactStore()
-	artifactService, err := artifacts.NewService(filepath.Join(t.TempDir(), "artifacts"), store)
+	artifactService, err := corestore.NewArtifactService(filepath.Join(t.TempDir(), "artifacts"), store)
 	if err != nil {
-		t.Fatalf("artifacts.NewService: %v", err)
+		t.Fatalf("corestore.NewArtifactService: %v", err)
 	}
-	browserService, err := browser.NewService(browser.Config{
+	browserService, err := NewService(Config{
 		Timeout: time.Second,
 		Policy:  webaccess.URLPolicy{},
 	})
@@ -696,9 +695,9 @@ func TestGitSummaryReturnsStatusDiffStatAndDiffArtifact(t *testing.T) {
 		t.Fatalf("modify tracked file: %v", err)
 	}
 	artifactStore := newToolArtifactStore()
-	artifactService, err := artifacts.NewService(filepath.Join(t.TempDir(), "artifacts"), artifactStore)
+	artifactService, err := corestore.NewArtifactService(filepath.Join(t.TempDir(), "artifacts"), artifactStore)
 	if err != nil {
-		t.Fatalf("artifacts.NewService: %v", err)
+		t.Fatalf("corestore.NewArtifactService: %v", err)
 	}
 	catalog, err := BuildCatalog(CatalogConfig{
 		Workspace:       testWorkspace(t, root),
@@ -730,7 +729,7 @@ func TestGitSummaryReturnsStatusDiffStatAndDiffArtifact(t *testing.T) {
 	if decoded.DiffArtifactID == "" || decoded.DiffArtifact == nil {
 		t.Fatalf("diff artifact missing: %+v", decoded)
 	}
-	read, err := artifactService.ReadRange(context.Background(), artifacts.ReadRangeRequest{
+	read, err := artifactService.ReadRange(context.Background(), corestore.ArtifactReadRangeRequest{
 		ArtifactID: decoded.DiffArtifactID,
 		Limit:      4096,
 	})
@@ -747,9 +746,9 @@ func TestRunVerificationWritesArtifactsAndKeepsFailureAsResult(t *testing.T) {
 		t.Skip("sh is required")
 	}
 	root := t.TempDir()
-	artifactService, err := artifacts.NewService(filepath.Join(t.TempDir(), "artifacts"), newToolArtifactStore())
+	artifactService, err := corestore.NewArtifactService(filepath.Join(t.TempDir(), "artifacts"), newToolArtifactStore())
 	if err != nil {
-		t.Fatalf("artifacts.NewService: %v", err)
+		t.Fatalf("corestore.NewArtifactService: %v", err)
 	}
 	catalog, err := BuildCatalog(CatalogConfig{
 		Workspace:         testWorkspace(t, root),
@@ -773,14 +772,14 @@ func TestRunVerificationWritesArtifactsAndKeepsFailureAsResult(t *testing.T) {
 	if decoded.Status != verificationStatusFailed || decoded.ExitCode != 7 {
 		t.Fatalf("status/exit = %s/%d, want failed/7", decoded.Status, decoded.ExitCode)
 	}
-	stdout, err := artifactService.ReadRange(context.Background(), artifacts.ReadRangeRequest{
+	stdout, err := artifactService.ReadRange(context.Background(), corestore.ArtifactReadRangeRequest{
 		ArtifactID: decoded.StdoutArtifactID,
 		Limit:      32,
 	})
 	if err != nil {
 		t.Fatalf("read stdout artifact: %v", err)
 	}
-	stderr, err := artifactService.ReadRange(context.Background(), artifacts.ReadRangeRequest{
+	stderr, err := artifactService.ReadRange(context.Background(), corestore.ArtifactReadRangeRequest{
 		ArtifactID: decoded.StderrArtifactID,
 		Limit:      32,
 	})
@@ -1108,32 +1107,32 @@ func (c fixedArtifactContext) CurrentToolCallID(context.Context) string {
 }
 
 type toolArtifactStore struct {
-	records map[string]artifacts.Record
+	records map[string]corestore.ArtifactRecord
 }
 
 func newToolArtifactStore() *toolArtifactStore {
-	return &toolArtifactStore{records: make(map[string]artifacts.Record)}
+	return &toolArtifactStore{records: make(map[string]corestore.ArtifactRecord)}
 }
 
-func (s *toolArtifactStore) SaveArtifact(_ context.Context, record artifacts.Record) (artifacts.Record, error) {
-	normalized, err := artifacts.NormalizeRecord(record)
+func (s *toolArtifactStore) SaveArtifact(_ context.Context, record corestore.ArtifactRecord) (corestore.ArtifactRecord, error) {
+	normalized, err := corestore.NormalizeArtifactRecord(record)
 	if err != nil {
-		return artifacts.Record{}, err
+		return corestore.ArtifactRecord{}, err
 	}
 	s.records[normalized.ArtifactID] = normalized
 	return normalized, nil
 }
 
-func (s *toolArtifactStore) LoadArtifact(_ context.Context, artifactID string) (artifacts.Record, error) {
+func (s *toolArtifactStore) LoadArtifact(_ context.Context, artifactID string) (corestore.ArtifactRecord, error) {
 	record, ok := s.records[strings.TrimSpace(artifactID)]
 	if !ok {
-		return artifacts.Record{}, artifacts.ErrArtifactNotFound
+		return corestore.ArtifactRecord{}, corestore.ErrArtifactNotFound
 	}
 	return record, nil
 }
 
-func (s *toolArtifactStore) ListArtifactsByRun(_ context.Context, runID string) ([]artifacts.Record, error) {
-	var items []artifacts.Record
+func (s *toolArtifactStore) ListArtifactsByRun(_ context.Context, runID string) ([]corestore.ArtifactRecord, error) {
+	var items []corestore.ArtifactRecord
 	for _, record := range s.records {
 		if record.RunID == strings.TrimSpace(runID) {
 			items = append(items, record)
@@ -1142,8 +1141,8 @@ func (s *toolArtifactStore) ListArtifactsByRun(_ context.Context, runID string) 
 	return items, nil
 }
 
-func (s *toolArtifactStore) ListArtifactsBySession(_ context.Context, sessionID string) ([]artifacts.Record, error) {
-	var items []artifacts.Record
+func (s *toolArtifactStore) ListArtifactsBySession(_ context.Context, sessionID string) ([]corestore.ArtifactRecord, error) {
+	var items []corestore.ArtifactRecord
 	for _, record := range s.records {
 		if record.SessionID == strings.TrimSpace(sessionID) {
 			items = append(items, record)

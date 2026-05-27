@@ -12,8 +12,8 @@ import (
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/crystallization"
 	"github.com/ycvk/acorn/internal/memorymodule"
+	"github.com/ycvk/acorn/internal/model"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
-	"github.com/ycvk/acorn/internal/runtimehistory"
 	"github.com/ycvk/acorn/internal/tooling"
 	"github.com/ycvk/acorn/internal/workspace"
 )
@@ -115,7 +115,7 @@ func (f *RunnerFactory) MemoryModule() memorymodule.Service {
 	return f.deps.MemoryModule
 }
 
-func (f *RunnerFactory) SessionSummarySvc() *runtimehistory.SessionSummaryService {
+func (f *RunnerFactory) SessionSummarySvc() *model.SessionSummaryService {
 	if f == nil {
 		return nil
 	}

@@ -10,7 +10,9 @@ import (
 	einomodel "github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/contextplane"
-	"github.com/ycvk/acorn/internal/providerusage"
+	"github.com/ycvk/acorn/internal/model"
+	"github.com/ycvk/acorn/internal/providers"
+	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	"github.com/ycvk/acorn/internal/runtime/graph"
 	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/stream"
@@ -18,8 +20,8 @@ import (
 
 type PlanNode struct {
 	model                  einomodel.BaseChatModel
-	store                  PlanStore
-	eventStore             EventAppender
+	store                  runtimeapi.PlanStore
+	eventStore             runtimeapi.EventAppender
 	prompt                 string
 	planningPromptProvider PlanningPromptProvider
 	enabledToolNames       []string
@@ -54,8 +56,8 @@ Rules:
 
 func NewPlanNode(
 	model einomodel.BaseChatModel,
-	store PlanStore,
-	eventStore EventAppender,
+	store runtimeapi.PlanStore,
+	eventStore runtimeapi.EventAppender,
 	prompt string,
 	planningPromptProvider PlanningPromptProvider,
 	enabledToolNames []string,
@@ -80,7 +82,7 @@ func (n *PlanNode) Invoke(ctx context.Context, state *graph.AgentGraphState) (*g
 	if n.store == nil {
 		return nil, fmt.Errorf("plan node requires a plan store")
 	}
-	sessionID := strings.TrimSpace(SessionIDFromContext(ctx))
+	sessionID := strings.TrimSpace(runtimeapi.SessionIDFromContext(ctx))
 	if sessionID == "" {
 		return nil, fmt.Errorf("plan node requires session_id")
 	}
@@ -114,7 +116,7 @@ func (n *PlanNode) Invoke(ctx context.Context, state *graph.AgentGraphState) (*g
 		planID = existing.PlanID
 		createdAt = existing.CreatedAt
 	}
-	plan := &Plan{
+	plan := &model.Plan{
 		PlanID:    planID,
 		SessionID: sessionID,
 		RunID:     runID,
@@ -136,7 +138,7 @@ func (n *PlanNode) Invoke(ctx context.Context, state *graph.AgentGraphState) (*g
 	return state, nil
 }
 
-func existingPlanReusable(state *graph.AgentGraphState, plan *Plan) bool {
+func existingPlanReusable(state *graph.AgentGraphState, plan *model.Plan) bool {
 	if plan == nil {
 		return false
 	}
@@ -147,7 +149,7 @@ func existingPlanReusable(state *graph.AgentGraphState, plan *Plan) bool {
 	return err == nil
 }
 
-func (n *PlanNode) generatePlanSteps(ctx context.Context, state *graph.AgentGraphState) ([]PlanStep, error) {
+func (n *PlanNode) generatePlanSteps(ctx context.Context, state *graph.AgentGraphState) ([]model.PlanStep, error) {
 	modelReq := graph.GraphSessionModelCallRequest(graph.GraphModelCallID(ctx, "plan"), "agent_graph_plan", nil)
 	session, baseMessages, err := graph.GraphSessionBaseMessages(ctx, state, modelReq)
 	if err != nil {
@@ -163,7 +165,7 @@ func (n *PlanNode) generatePlanSteps(ctx context.Context, state *graph.AgentGrap
 		if attempt > 0 {
 			input = appendPlanRepairMessage(modelInput, lastErr)
 		}
-		msg, err := n.model.Generate(providerusage.WithCallSite(ctx, providerusage.CallSitePlan), input)
+		msg, err := n.model.Generate(providers.WithCallSite(ctx, providers.CallSitePlan), input)
 		if contextplane.IsContextOverflowError(err) && session != nil {
 			baseMessages, err = graph.GraphSessionReactiveBaseMessages(ctx, session, state, modelReq, err)
 			if err != nil {
@@ -177,7 +179,7 @@ func (n *PlanNode) generatePlanSteps(ctx context.Context, state *graph.AgentGrap
 			if attempt > 0 {
 				input = appendPlanRepairMessage(modelInput, lastErr)
 			}
-			msg, err = n.model.Generate(providerusage.WithCallSite(ctx, providerusage.CallSitePlan), input)
+			msg, err = n.model.Generate(providers.WithCallSite(ctx, providers.CallSitePlan), input)
 		}
 		if err != nil {
 			return nil, fmt.Errorf("generate plan: %w", err)
@@ -248,7 +250,7 @@ Use verification_intent kind "test" only for actual test commands. Use "checkpoi
 Do not split tool-result-dependent operations across steps. If a later tool call needs an id or output from an earlier tool call, such as checkpoint_id followed by rollback_workspace_checkpoint, keep those calls in one step.`, planningContext)
 }
 
-func (n *PlanNode) emitPlanEvent(ctx context.Context, plan *Plan, update bool) error {
+func (n *PlanNode) emitPlanEvent(ctx context.Context, plan *model.Plan, update bool) error {
 	payload := stream.StreamPayload(&stream.PlanCreatedPayload{Plan: streamPlanFromDomain(plan)})
 	kind := stream.StreamKindPlanCreated
 	if update {

@@ -9,6 +9,7 @@ import (
 	"github.com/cloudwego/eino/schema"
 
 	"github.com/ycvk/acorn/internal/contextplane"
+	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 )
 
 type stubDeferredPlane struct {
@@ -45,7 +46,7 @@ func TestLoadToolsToolCallsDeferredLoad(t *testing.T) {
 		t.Fatal("load_tools tool is not invokable")
 	}
 
-	ctx := withRunID(WithSessionID(context.Background(), "sess_load_tools"), "run_load_tools")
+	ctx := withRunID(runtimeapi.WithSessionID(context.Background(), "sess_load_tools"), "run_load_tools")
 	result, err := invokable.InvokableRun(ctx, `{"query":"knowledge","tool_names":["memory_search"],"limit":2}`)
 	if err != nil {
 		t.Fatalf("InvokableRun: %v", err)

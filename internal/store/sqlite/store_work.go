@@ -8,15 +8,14 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ycvk/acorn/internal/artifacts"
 	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/workingstate"
 )
 
-func (s *Store) SaveArtifact(ctx context.Context, record artifacts.Record) (artifacts.Record, error) {
-	normalized, err := artifacts.NormalizeRecord(record)
+func (s *Store) SaveArtifact(ctx context.Context, record store.ArtifactRecord) (store.ArtifactRecord, error) {
+	normalized, err := store.NormalizeArtifactRecord(record)
 	if err != nil {
-		return artifacts.Record{}, err
+		return store.ArtifactRecord{}, err
 	}
 	_, err = s.db.ExecContext(ctx, `
 		INSERT INTO artifacts (
@@ -39,15 +38,15 @@ func (s *Store) SaveArtifact(ctx context.Context, record artifacts.Record) (arti
 		string(normalized.Kind), normalized.Title, normalized.MIMEType, normalized.RelativePath,
 		normalized.SizeBytes, normalized.SHA256, formatTimestamp(normalized.CreatedAt))
 	if err != nil {
-		return artifacts.Record{}, fmt.Errorf("save artifact %s: %w", normalized.ArtifactID, err)
+		return store.ArtifactRecord{}, fmt.Errorf("save artifact %s: %w", normalized.ArtifactID, err)
 	}
 	return s.LoadArtifact(ctx, normalized.ArtifactID)
 }
 
-func (s *Store) LoadArtifact(ctx context.Context, artifactID string) (artifacts.Record, error) {
+func (s *Store) LoadArtifact(ctx context.Context, artifactID string) (store.ArtifactRecord, error) {
 	artifactID = strings.TrimSpace(artifactID)
 	if artifactID == "" {
-		return artifacts.Record{}, fmt.Errorf("artifact_id is required")
+		return store.ArtifactRecord{}, fmt.Errorf("artifact_id is required")
 	}
 	row := s.db.QueryRowContext(ctx, `
 		SELECT artifact_id, run_id, session_id, source_tool_result_ref, kind, title,
@@ -58,14 +57,14 @@ func (s *Store) LoadArtifact(ctx context.Context, artifactID string) (artifacts.
 	record, err := scanArtifact(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return artifacts.Record{}, fmt.Errorf("%w: %s", artifacts.ErrArtifactNotFound, artifactID)
+			return store.ArtifactRecord{}, fmt.Errorf("%w: %s", store.ErrArtifactNotFound, artifactID)
 		}
-		return artifacts.Record{}, err
+		return store.ArtifactRecord{}, err
 	}
 	return record, nil
 }
 
-func (s *Store) ListArtifactsByRun(ctx context.Context, runID string) ([]artifacts.Record, error) {
+func (s *Store) ListArtifactsByRun(ctx context.Context, runID string) ([]store.ArtifactRecord, error) {
 	runID = strings.TrimSpace(runID)
 	if runID == "" {
 		return nil, fmt.Errorf("artifact run_id is required")
@@ -82,7 +81,7 @@ func (s *Store) ListArtifactsByRun(ctx context.Context, runID string) ([]artifac
 	}
 	defer rows.Close()
 
-	var items []artifacts.Record
+	var items []store.ArtifactRecord
 	for rows.Next() {
 		record, err := scanArtifact(rows)
 		if err != nil {
@@ -96,7 +95,7 @@ func (s *Store) ListArtifactsByRun(ctx context.Context, runID string) ([]artifac
 	return items, nil
 }
 
-func (s *Store) ListArtifactsBySession(ctx context.Context, sessionID string) ([]artifacts.Record, error) {
+func (s *Store) ListArtifactsBySession(ctx context.Context, sessionID string) ([]store.ArtifactRecord, error) {
 	sessionID = strings.TrimSpace(sessionID)
 	if sessionID == "" {
 		return nil, fmt.Errorf("artifact session_id is required")
@@ -113,7 +112,7 @@ func (s *Store) ListArtifactsBySession(ctx context.Context, sessionID string) ([
 	}
 	defer rows.Close()
 
-	var items []artifacts.Record
+	var items []store.ArtifactRecord
 	for rows.Next() {
 		record, err := scanArtifact(rows)
 		if err != nil {
@@ -127,8 +126,8 @@ func (s *Store) ListArtifactsBySession(ctx context.Context, sessionID string) ([
 	return items, nil
 }
 
-func scanArtifact(scanner interface{ Scan(dest ...any) error }) (artifacts.Record, error) {
-	var record artifacts.Record
+func scanArtifact(scanner interface{ Scan(dest ...any) error }) (store.ArtifactRecord, error) {
+	var record store.ArtifactRecord
 	var kind string
 	var createdAt string
 	if err := scanner.Scan(
@@ -144,15 +143,15 @@ func scanArtifact(scanner interface{ Scan(dest ...any) error }) (artifacts.Recor
 		&record.SHA256,
 		&createdAt,
 	); err != nil {
-		return artifacts.Record{}, err
+		return store.ArtifactRecord{}, err
 	}
-	record.Kind = artifacts.Kind(kind)
+	record.Kind = store.ArtifactKind(kind)
 	parsed, err := parseTimestamp(fixedTimestampLayout, createdAt, "artifact.created_at")
 	if err != nil {
-		return artifacts.Record{}, err
+		return store.ArtifactRecord{}, err
 	}
 	record.CreatedAt = parsed
-	return artifacts.NormalizeRecord(record)
+	return store.NormalizeArtifactRecord(record)
 }
 
 func (s *Store) Append(ctx context.Context, req store.ToolResultAppendRequest) (store.ToolResultRecord, error) {

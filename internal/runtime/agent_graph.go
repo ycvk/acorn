@@ -15,6 +15,7 @@ import (
 	"github.com/cloudwego/eino/schema"
 
 	"github.com/ycvk/acorn/internal/orchestration"
+	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	"github.com/ycvk/acorn/internal/runtime/graph"
 	"github.com/ycvk/acorn/internal/tooling"
 )
@@ -28,7 +29,7 @@ func BuildAgentGraph(
 	maxIterations int,
 	checkpointStore compose.CheckPointStore,
 	handlers []adk.ChatModelAgentMiddleware,
-	planStore PlanStore,
+	planStore runtimeapi.PlanStore,
 	planPrompt string,
 	planningPromptProvider PlanningPromptProvider,
 	eagerToolNames []string,
@@ -175,11 +176,11 @@ func BuildAgentGraph(
 	return runnable, nil
 }
 
-func eventAppenderFromCheckpointStore(store compose.CheckPointStore) EventAppender {
+func eventAppenderFromCheckpointStore(store compose.CheckPointStore) runtimeapi.EventAppender {
 	if isNilCheckpointStore(store) {
 		return nil
 	}
-	appender, ok := store.(EventAppender)
+	appender, ok := store.(runtimeapi.EventAppender)
 	if !ok {
 		return nil
 	}

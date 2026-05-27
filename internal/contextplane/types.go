@@ -12,7 +12,7 @@ import (
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/decision"
 	"github.com/ycvk/acorn/internal/memorymodule"
-	"github.com/ycvk/acorn/internal/runtimehistory"
+	"github.com/ycvk/acorn/internal/model"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/tooling"
@@ -84,15 +84,15 @@ type DeferredLoadResult struct {
 }
 
 type RunContextSnapshotStore interface {
-	SaveRunContextSnapshot(context.Context, runtimehistory.RunContextSnapshot) error
-	LoadRunContextSnapshot(context.Context, string) (*runtimehistory.RunContextSnapshot, error)
+	SaveRunContextSnapshot(context.Context, model.RunContextSnapshot) error
+	LoadRunContextSnapshot(context.Context, string) (*model.RunContextSnapshot, error)
 }
 
 type ContextBoundaryStore interface {
-	SaveContextBoundary(context.Context, runtimehistory.ContextBoundary) error
-	LoadContextBoundary(context.Context, string) (*runtimehistory.ContextBoundary, error)
-	LoadLatestContextBoundary(context.Context, string) (*runtimehistory.ContextBoundary, error)
-	ListContextBoundaries(context.Context, string) ([]runtimehistory.ContextBoundary, error)
+	SaveContextBoundary(context.Context, model.ContextBoundary) error
+	LoadContextBoundary(context.Context, string) (*model.ContextBoundary, error)
+	LoadLatestContextBoundary(context.Context, string) (*model.ContextBoundary, error)
+	ListContextBoundaries(context.Context, string) ([]model.ContextBoundary, error)
 }
 
 type CheckpointService interface {
@@ -100,7 +100,7 @@ type CheckpointService interface {
 }
 
 type SessionSummaryService interface {
-	Get(context.Context, string) (*runtimehistory.SessionSummary, error)
+	Get(context.Context, string) (*model.SessionSummary, error)
 }
 
 type DefaultOptions struct {

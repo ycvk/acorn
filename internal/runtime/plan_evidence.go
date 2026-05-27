@@ -10,13 +10,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ycvk/acorn/internal/model"
 	"github.com/ycvk/acorn/internal/orchestration"
+	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	"github.com/ycvk/acorn/internal/runtime/graph"
 	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/tooling"
 )
 
-func latestEvidenceSummary(items []PlanEvidence) string {
+func latestEvidenceSummary(items []model.PlanEvidence) string {
 	for i := len(items) - 1; i >= 0; i-- {
 		summary := strings.TrimSpace(items[i].Summary)
 		if summary != "" {
@@ -26,7 +28,7 @@ func latestEvidenceSummary(items []PlanEvidence) string {
 	return ""
 }
 
-func validatePlanEvidence(stepID string, evidence PlanEvidence) error {
+func validatePlanEvidence(stepID string, evidence model.PlanEvidence) error {
 	if strings.TrimSpace(stepID) == "" {
 		return fmt.Errorf("plan step id is required")
 	}
@@ -49,7 +51,7 @@ func validatePlanEvidence(stepID string, evidence PlanEvidence) error {
 		return fmt.Errorf("plan evidence status %q is invalid", evidence.Status)
 	}
 	switch evidence.Kind {
-	case EvidenceKindDiff:
+	case model.EvidenceKindDiff:
 		if strings.TrimSpace(evidence.DiffRef) == "" && len(trimmedNonEmptyStrings(evidence.Paths)) == 0 {
 			return fmt.Errorf("plan evidence diff kind requires diff_ref or paths")
 		}
@@ -59,18 +61,18 @@ func validatePlanEvidence(stepID string, evidence PlanEvidence) error {
 	return nil
 }
 
-func validEvidenceKind(kind EvidenceKind) bool {
+func validEvidenceKind(kind model.EvidenceKind) bool {
 	switch kind {
-	case EvidenceKindTool, EvidenceKindCommand, EvidenceKindDiff, EvidenceKindCheckpoint, EvidenceKindRollback, EvidenceKindTest, EvidenceKindSubagent, EvidenceKindVerifier, EvidenceKindManual:
+	case model.EvidenceKindTool, model.EvidenceKindCommand, model.EvidenceKindDiff, model.EvidenceKindCheckpoint, model.EvidenceKindRollback, model.EvidenceKindTest, model.EvidenceKindSubagent, model.EvidenceKindVerifier, model.EvidenceKindManual:
 		return true
 	default:
 		return false
 	}
 }
 
-func validEvidenceStatus(status EvidenceStatus) bool {
+func validEvidenceStatus(status model.EvidenceStatus) bool {
 	switch status {
-	case EvidenceStatusRecorded, EvidenceStatusPassed, EvidenceStatusFailed, EvidenceStatusConfirmed:
+	case model.EvidenceStatusRecorded, model.EvidenceStatusPassed, model.EvidenceStatusFailed, model.EvidenceStatusConfirmed:
 		return true
 	default:
 		return false
@@ -87,7 +89,7 @@ func trimmedNonEmptyStrings(items []string) []string {
 	return out
 }
 
-func ensureVerificationIntentCoverage(step PlanStep) error {
+func ensureVerificationIntentCoverage(step model.PlanStep) error {
 	if len(step.VerificationIntent) == 0 {
 		return nil
 	}
@@ -103,7 +105,7 @@ func ensureVerificationIntentCoverage(step PlanStep) error {
 	return fmt.Errorf("%w: step %s missing coverage for %s", ErrPlanStepVerificationGap, strings.TrimSpace(step.ID), strings.Join(missing, ", "))
 }
 
-func intentCovered(intent VerificationIntent, evidence []PlanEvidence) bool {
+func intentCovered(intent model.VerificationIntent, evidence []model.PlanEvidence) bool {
 	kind := strings.TrimSpace(intent.Kind)
 	for _, item := range evidence {
 		if !evidenceCountsForCoverage(item) {
@@ -111,42 +113,42 @@ func intentCovered(intent VerificationIntent, evidence []PlanEvidence) bool {
 		}
 		switch kind {
 		case "read":
-			if (item.Kind == EvidenceKindTool && isReadTool(item.ToolName)) || (item.Kind == EvidenceKindManual && item.Status == EvidenceStatusConfirmed) {
+			if (item.Kind == model.EvidenceKindTool && isReadTool(item.ToolName)) || (item.Kind == model.EvidenceKindManual && item.Status == model.EvidenceStatusConfirmed) {
 				return true
 			}
 		case "test":
-			if item.Kind == EvidenceKindTest {
+			if item.Kind == model.EvidenceKindTest {
 				return true
 			}
-			if item.Kind == EvidenceKindCommand && commandMatchesIntent(item, intent) {
+			if item.Kind == model.EvidenceKindCommand && commandMatchesIntent(item, intent) {
 				return true
 			}
 		case "build", "lint":
-			if item.Kind == EvidenceKindCommand && commandMatchesIntent(item, intent) {
+			if item.Kind == model.EvidenceKindCommand && commandMatchesIntent(item, intent) {
 				return true
 			}
 		case "diff":
-			if item.Kind == EvidenceKindDiff {
+			if item.Kind == model.EvidenceKindDiff {
 				return true
 			}
 		case "checkpoint":
-			if item.Kind == EvidenceKindCheckpoint {
+			if item.Kind == model.EvidenceKindCheckpoint {
 				return true
 			}
 		case "rollback":
-			if item.Kind == EvidenceKindRollback {
+			if item.Kind == model.EvidenceKindRollback {
 				return true
 			}
 		case "manual":
-			if item.Kind == EvidenceKindManual && item.Status == EvidenceStatusConfirmed {
+			if item.Kind == model.EvidenceKindManual && item.Status == model.EvidenceStatusConfirmed {
 				return true
 			}
 		case "subagent":
-			if item.Kind == EvidenceKindSubagent {
+			if item.Kind == model.EvidenceKindSubagent {
 				return true
 			}
 		case "verifier":
-			if item.Kind == EvidenceKindVerifier {
+			if item.Kind == model.EvidenceKindVerifier {
 				return true
 			}
 		}
@@ -154,27 +156,27 @@ func intentCovered(intent VerificationIntent, evidence []PlanEvidence) bool {
 	return false
 }
 
-func verifierEvidenceFromResult(stepID, parentRunID string, result *orchestration.VerificationResult, recordedAt time.Time) PlanEvidence {
+func verifierEvidenceFromResult(stepID, parentRunID string, result *orchestration.VerificationResult, recordedAt time.Time) model.PlanEvidence {
 	if result == nil {
 		reason := "verifier result is nil"
-		return PlanEvidence{
+		return model.PlanEvidence{
 			ID:          fmt.Sprintf("verifier-%d", recordedAt.UnixNano()),
 			StepID:      stepID,
-			Kind:        EvidenceKindVerifier,
-			Status:      EvidenceStatusRecorded,
+			Kind:        model.EvidenceKindVerifier,
+			Status:      model.EvidenceStatusRecorded,
 			Summary:     reason,
 			Error:       reason,
 			SourceRunID: parentRunID,
 			RecordedAt:  recordedAt,
 		}
 	}
-	status := EvidenceStatusRecorded
+	status := model.EvidenceStatusRecorded
 	errText := ""
 	switch result.Verdict {
 	case orchestration.VerificationVerdictPassed:
-		status = EvidenceStatusPassed
+		status = model.EvidenceStatusPassed
 	case orchestration.VerificationVerdictFailed:
-		status = EvidenceStatusFailed
+		status = model.EvidenceStatusFailed
 		errText = strings.Join(trimmedNonEmptyStrings(result.BlockingFindings), "; ")
 		if errText == "" {
 			errText = "verifier failed"
@@ -191,10 +193,10 @@ func verifierEvidenceFromResult(stepID, parentRunID string, result *orchestratio
 	if summary == "" {
 		summary = fmt.Sprintf("verifier verdict: %s", strings.TrimSpace(string(result.Verdict)))
 	}
-	return PlanEvidence{
+	return model.PlanEvidence{
 		ID:          fmt.Sprintf("verifier-%d", recordedAt.UnixNano()),
 		StepID:      stepID,
-		Kind:        EvidenceKindVerifier,
+		Kind:        model.EvidenceKindVerifier,
 		Status:      status,
 		Summary:     summary,
 		ChildRunID:  strings.TrimSpace(result.ChildRunID),
@@ -204,11 +206,11 @@ func verifierEvidenceFromResult(stepID, parentRunID string, result *orchestratio
 	}
 }
 
-func evidenceCountsForCoverage(item PlanEvidence) bool {
-	return item.Status == EvidenceStatusPassed || item.Status == EvidenceStatusConfirmed
+func evidenceCountsForCoverage(item model.PlanEvidence) bool {
+	return item.Status == model.EvidenceStatusPassed || item.Status == model.EvidenceStatusConfirmed
 }
 
-func commandMatchesIntent(item PlanEvidence, intent VerificationIntent) bool {
+func commandMatchesIntent(item model.PlanEvidence, intent model.VerificationIntent) bool {
 	intentCommand := trimmedNonEmptyStrings(intent.Command)
 	itemCommand := trimmedNonEmptyStrings(item.Command)
 	if len(intentCommand) > 0 && !slices.Equal(intentCommand, itemCommand) {
@@ -244,8 +246,8 @@ type toolExecutionRecorder struct {
 }
 
 type recordedToolArtifact struct {
-	Kind    EvidenceKind
-	Status  EvidenceStatus
+	Kind    model.EvidenceKind
+	Status  model.EvidenceStatus
 	Summary string
 	Paths   []string
 	DiffRef string
@@ -253,7 +255,7 @@ type recordedToolArtifact struct {
 }
 
 type toolMessageEvidenceInput struct {
-	Step          PlanStep
+	Step          model.PlanStep
 	RunID         string
 	ToolName      string
 	ToolCallID    string
@@ -267,21 +269,21 @@ type planToolMessage struct {
 	Extra   map[string]any
 }
 
-func evidenceForToolMessage(input toolMessageEvidenceInput) ([]PlanEvidence, error) {
-	items := make([]PlanEvidence, 0, 4)
+func evidenceForToolMessage(input toolMessageEvidenceInput) ([]model.PlanEvidence, error) {
+	items := make([]model.PlanEvidence, 0, 4)
 	if input.Message == nil {
 		return items, nil
 	}
 	resultRef := toolResultRefFromMessage(input.Message.Extra)
-	status := EvidenceStatusRecorded
+	status := model.EvidenceStatusRecorded
 	errText := strings.TrimSpace(toolErrorReason(input.Message))
 	if errText != "" {
-		status = EvidenceStatusFailed
+		status = model.EvidenceStatusFailed
 	}
-	base := PlanEvidence{
+	base := model.PlanEvidence{
 		ID:            fmt.Sprintf("%s-%d", input.ToolName, input.RecordedAt.UnixNano()),
 		StepID:        input.Step.ID,
-		Kind:          EvidenceKindTool,
+		Kind:          model.EvidenceKindTool,
 		Status:        status,
 		Summary:       ExtractSemanticFact(input.ToolName, input.ArgumentsJSON, input.Message.Content),
 		ToolResultRef: resultRef,
@@ -296,7 +298,7 @@ func evidenceForToolMessage(input toolMessageEvidenceInput) ([]PlanEvidence, err
 
 	recorder := recorderFromMessageExtra(input.Message.Extra)
 	for idx, item := range recorder.items {
-		ev := PlanEvidence{
+		ev := model.PlanEvidence{
 			ID:          fmt.Sprintf("%s-artifact-%d-%d", input.ToolName, input.RecordedAt.UnixNano(), idx),
 			StepID:      input.Step.ID,
 			Kind:        item.Kind,
@@ -343,7 +345,7 @@ func evidenceForToolMessage(input toolMessageEvidenceInput) ([]PlanEvidence, err
 	return items, nil
 }
 
-func delegatedSubagentEvidence(input toolMessageEvidenceInput) (*PlanEvidence, error) {
+func delegatedSubagentEvidence(input toolMessageEvidenceInput) (*model.PlanEvidence, error) {
 	if input.ToolName != "delegate_task" {
 		return nil, nil
 	}
@@ -359,21 +361,21 @@ func delegatedSubagentEvidence(input toolMessageEvidenceInput) (*PlanEvidence, e
 	if acceptanceStatus == "" {
 		return nil, fmt.Errorf("parse delegate_task result: acceptance.status is required")
 	}
-	status := EvidenceStatusPassed
+	status := model.EvidenceStatusPassed
 	errorText := ""
 	summary := fmt.Sprintf("child run %s passed acceptance", childRunID)
 	if acceptanceStatus != "passed" {
-		status = EvidenceStatusFailed
+		status = model.EvidenceStatusFailed
 		errorText = strings.Join(trimmedNonEmptyStrings(payload.Acceptance.Reasons), "; ")
 		summary = fmt.Sprintf("child run %s failed acceptance", childRunID)
 		if errorText == "" {
 			errorText = fmt.Sprintf("child run %s acceptance failed", childRunID)
 		}
 	}
-	return &PlanEvidence{
+	return &model.PlanEvidence{
 		ID:          fmt.Sprintf("%s-subagent-%d", input.ToolName, input.RecordedAt.UnixNano()),
 		StepID:      input.Step.ID,
-		Kind:        EvidenceKindSubagent,
+		Kind:        model.EvidenceKindSubagent,
 		Status:      status,
 		Summary:     summary,
 		ToolName:    input.ToolName,
@@ -384,7 +386,7 @@ func delegatedSubagentEvidence(input toolMessageEvidenceInput) (*PlanEvidence, e
 	}, nil
 }
 
-func mutationCheckpointEvidence(input toolMessageEvidenceInput) (*PlanEvidence, error) {
+func mutationCheckpointEvidence(input toolMessageEvidenceInput) (*model.PlanEvidence, error) {
 	switch input.ToolName {
 	case "create_file", "replace_span", "apply_unified_patch", "multi_edit":
 	default:
@@ -417,11 +419,11 @@ func mutationCheckpointEvidence(input toolMessageEvidenceInput) (*PlanEvidence, 
 		return nil, fmt.Errorf("parse %s checkpoint result: checkpoint_paths are required", input.ToolName)
 	}
 	summary := fmt.Sprintf("workspace checkpoint %s recorded for %d path(s)", checkpointID, len(paths))
-	return &PlanEvidence{
+	return &model.PlanEvidence{
 		ID:          fmt.Sprintf("%s-checkpoint-%d", input.ToolName, input.RecordedAt.UnixNano()),
 		StepID:      input.Step.ID,
-		Kind:        EvidenceKindCheckpoint,
-		Status:      EvidenceStatusPassed,
+		Kind:        model.EvidenceKindCheckpoint,
+		Status:      model.EvidenceStatusPassed,
 		Summary:     summary,
 		ToolName:    input.ToolName,
 		Paths:       paths,
@@ -430,7 +432,7 @@ func mutationCheckpointEvidence(input toolMessageEvidenceInput) (*PlanEvidence, 
 	}, nil
 }
 
-func rollbackEvidenceFromTool(input toolMessageEvidenceInput) (*PlanEvidence, error) {
+func rollbackEvidenceFromTool(input toolMessageEvidenceInput) (*model.PlanEvidence, error) {
 	if input.ToolName != "rollback_workspace_checkpoint" {
 		return nil, nil
 	}
@@ -449,20 +451,20 @@ func rollbackEvidenceFromTool(input toolMessageEvidenceInput) (*PlanEvidence, er
 		return nil, fmt.Errorf("parse rollback_workspace_checkpoint result: %w", err)
 	}
 	errorText := strings.TrimSpace(payload.Error)
-	var status EvidenceStatus
+	var status model.EvidenceStatus
 	var summary string
 	rollbackID := strings.TrimSpace(payload.RollbackID)
 	if rollbackID == "" {
 		rollbackID = strings.TrimSpace(payload.CheckpointID)
 	}
 	if strings.TrimSpace(payload.Status) == "succeeded" {
-		status = EvidenceStatusPassed
+		status = model.EvidenceStatusPassed
 		summary = fmt.Sprintf("workspace rollback %s restored %d path(s)", rollbackID, len(trimmedNonEmptyStrings(payload.RestoredPaths)))
 		if rollbackID == "" {
 			return nil, fmt.Errorf("parse rollback_workspace_checkpoint result: rollback_id is required")
 		}
 	} else {
-		status = EvidenceStatusFailed
+		status = model.EvidenceStatusFailed
 		conflicts := trimmedNonEmptyStrings(payload.ConflictPaths)
 		if errorText == "" && len(conflicts) > 0 {
 			errorText = strings.Join(conflicts, ", ")
@@ -479,10 +481,10 @@ func rollbackEvidenceFromTool(input toolMessageEvidenceInput) (*PlanEvidence, er
 	if len(paths) == 0 {
 		paths = trimmedNonEmptyStrings(payload.ConflictPaths)
 	}
-	return &PlanEvidence{
+	return &model.PlanEvidence{
 		ID:          fmt.Sprintf("rollback_workspace_checkpoint-%d", input.RecordedAt.UnixNano()),
 		StepID:      input.Step.ID,
-		Kind:        EvidenceKindRollback,
+		Kind:        model.EvidenceKindRollback,
 		Status:      status,
 		Summary:     summary,
 		ToolName:    input.ToolName,
@@ -493,16 +495,16 @@ func rollbackEvidenceFromTool(input toolMessageEvidenceInput) (*PlanEvidence, er
 	}, nil
 }
 
-func failedRollbackEvidence(input toolMessageEvidenceInput, reason string) *PlanEvidence {
+func failedRollbackEvidence(input toolMessageEvidenceInput, reason string) *model.PlanEvidence {
 	reason = strings.TrimSpace(reason)
 	if reason == "" {
 		reason = "workspace rollback failed"
 	}
-	return &PlanEvidence{
+	return &model.PlanEvidence{
 		ID:          fmt.Sprintf("rollback_workspace_checkpoint-%d", input.RecordedAt.UnixNano()),
 		StepID:      input.Step.ID,
-		Kind:        EvidenceKindRollback,
-		Status:      EvidenceStatusFailed,
+		Kind:        model.EvidenceKindRollback,
+		Status:      model.EvidenceStatusFailed,
 		Summary:     reason,
 		ToolName:    input.ToolName,
 		Error:       reason,
@@ -511,7 +513,7 @@ func failedRollbackEvidence(input toolMessageEvidenceInput, reason string) *Plan
 	}
 }
 
-func commandOrTestEvidence(input toolMessageEvidenceInput, status EvidenceStatus) (*PlanEvidence, error) {
+func commandOrTestEvidence(input toolMessageEvidenceInput, status model.EvidenceStatus) (*model.PlanEvidence, error) {
 	if input.ToolName == "run_verification" {
 		return runVerificationEvidence(input)
 	}
@@ -519,20 +521,20 @@ func commandOrTestEvidence(input toolMessageEvidenceInput, status EvidenceStatus
 	if len(command) == 0 {
 		return nil, nil
 	}
-	kind := EvidenceKindCommand
+	kind := model.EvidenceKindCommand
 	if intentKinds(input.Step.VerificationIntent, "test") {
-		kind = EvidenceKindTest
+		kind = model.EvidenceKindTest
 	}
-	commandStatus := EvidenceStatusPassed
+	commandStatus := model.EvidenceStatusPassed
 	errText := strings.TrimSpace(toolErrorReason(input.Message))
 	if errText != "" {
-		commandStatus = EvidenceStatusFailed
+		commandStatus = model.EvidenceStatusFailed
 	}
 	paths := append([]string(nil), intentPathsForKinds(input.Step.VerificationIntent, "test", "build", "lint")...)
 	if len(paths) == 0 {
 		paths = commandPathsFromArgs(input.ToolName, input.ArgumentsJSON)
 	}
-	return &PlanEvidence{
+	return &model.PlanEvidence{
 		ID:          fmt.Sprintf("%s-command-%d", input.ToolName, input.RecordedAt.UnixNano()),
 		StepID:      input.Step.ID,
 		Kind:        kind,
@@ -547,13 +549,13 @@ func commandOrTestEvidence(input toolMessageEvidenceInput, status EvidenceStatus
 	}, nil
 }
 
-func diffEvidenceFromTool(input toolMessageEvidenceInput) *PlanEvidence {
+func diffEvidenceFromTool(input toolMessageEvidenceInput) *model.PlanEvidence {
 	if input.ToolName != "inspect_git_diff" && input.ToolName != "git_summary" {
 		return nil
 	}
-	status := EvidenceStatusPassed
+	status := model.EvidenceStatusPassed
 	if errText := strings.TrimSpace(toolErrorReason(input.Message)); errText != "" {
-		status = EvidenceStatusFailed
+		status = model.EvidenceStatusFailed
 	}
 	paths := evidencePathsForTool(input.ToolName, input.ArgumentsJSON)
 	diffRef := ""
@@ -572,10 +574,10 @@ func diffEvidenceFromTool(input toolMessageEvidenceInput) *PlanEvidence {
 			return nil
 		}
 	}
-	return &PlanEvidence{
+	return &model.PlanEvidence{
 		ID:          fmt.Sprintf("%s-diff-%d", input.ToolName, input.RecordedAt.UnixNano()),
 		StepID:      input.Step.ID,
-		Kind:        EvidenceKindDiff,
+		Kind:        model.EvidenceKindDiff,
 		Status:      status,
 		Summary:     ExtractSemanticFact(input.ToolName, input.ArgumentsJSON, input.Message.Content),
 		ToolName:    input.ToolName,
@@ -586,7 +588,7 @@ func diffEvidenceFromTool(input toolMessageEvidenceInput) *PlanEvidence {
 	}
 }
 
-func runVerificationEvidence(input toolMessageEvidenceInput) (*PlanEvidence, error) {
+func runVerificationEvidence(input toolMessageEvidenceInput) (*model.PlanEvidence, error) {
 	var payload struct {
 		Kind             string   `json:"kind"`
 		Status           string   `json:"status"`
@@ -606,14 +608,14 @@ func runVerificationEvidence(input toolMessageEvidenceInput) (*PlanEvidence, err
 	if len(command) == 0 {
 		return nil, fmt.Errorf("parse run_verification result: command is required")
 	}
-	kind := EvidenceKindCommand
+	kind := model.EvidenceKindCommand
 	if strings.TrimSpace(payload.Kind) == "test" {
-		kind = EvidenceKindTest
+		kind = model.EvidenceKindTest
 	}
-	evidenceStatus := EvidenceStatusFailed
+	evidenceStatus := model.EvidenceStatusFailed
 	errorText := ""
 	if strings.TrimSpace(payload.Status) == "passed" {
-		evidenceStatus = EvidenceStatusPassed
+		evidenceStatus = model.EvidenceStatusPassed
 	} else {
 		errorText = strings.TrimSpace(payload.Summary)
 		if errorText == "" {
@@ -628,7 +630,7 @@ func runVerificationEvidence(input toolMessageEvidenceInput) (*PlanEvidence, err
 	if len(paths) == 0 {
 		paths = evidencePathsForTool(input.ToolName, input.ArgumentsJSON)
 	}
-	return &PlanEvidence{
+	return &model.PlanEvidence{
 		ID:          fmt.Sprintf("%s-command-%d", input.ToolName, input.RecordedAt.UnixNano()),
 		StepID:      input.Step.ID,
 		Kind:        kind,
@@ -740,7 +742,7 @@ func commandPathsFromArgs(toolName string, argumentsJSON string) []string {
 	return evidencePathsForTool(toolName, argumentsJSON)
 }
 
-func intentKinds(items []VerificationIntent, want ...string) bool {
+func intentKinds(items []model.VerificationIntent, want ...string) bool {
 	for _, item := range items {
 		for _, candidate := range want {
 			if strings.TrimSpace(item.Kind) == candidate {
@@ -751,7 +753,7 @@ func intentKinds(items []VerificationIntent, want ...string) bool {
 	return false
 }
 
-func intentPathsForKinds(items []VerificationIntent, kinds ...string) []string {
+func intentPathsForKinds(items []model.VerificationIntent, kinds ...string) []string {
 	out := make([]string, 0)
 	for _, item := range items {
 		for _, kind := range kinds {
@@ -769,14 +771,14 @@ var (
 	ErrPlanStepVerificationGap = errors.New("plan step requires recorded verification before completion")
 )
 
-func enforceRiskyToolPlan(ctx context.Context, planStore PlanStore, spec tooling.ToolSpec) (string, string, error) {
+func enforceRiskyToolPlan(ctx context.Context, planStore runtimeapi.PlanStore, spec tooling.ToolSpec) (string, string, error) {
 	if spec.PlanPolicy != tooling.PlanPolicyRequireActivePlan {
 		return "", "", nil
 	}
 	if planStore == nil {
 		return "", "", errors.New("plan enforcement store is not available")
 	}
-	sessionID := strings.TrimSpace(SessionIDFromContext(ctx))
+	sessionID := strings.TrimSpace(runtimeapi.SessionIDFromContext(ctx))
 	if sessionID == "" {
 		return "", "", fmt.Errorf("%w: session_id not available for %s", ErrRiskyToolRequiresPlan, spec.Name)
 	}

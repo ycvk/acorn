@@ -5,11 +5,11 @@ import (
 
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/contextplane"
-	"github.com/ycvk/acorn/internal/runtimehistory"
+	"github.com/ycvk/acorn/internal/model"
 	"github.com/ycvk/acorn/internal/workingstate"
 )
 
-func buildContextPlane(cfg *config.Config, store contextPlaneStore, checkpointService *workingstate.Service, sessionSummaryService *runtimehistory.SessionSummaryService) (contextplane.ContextPlane, error) {
+func buildContextPlane(cfg *config.Config, store contextPlaneStore, checkpointService *workingstate.Service, sessionSummaryService *model.SessionSummaryService) (contextplane.ContextPlane, error) {
 	contextPolicy, err := cfg.ContextPolicy()
 	if err != nil {
 		return nil, fmt.Errorf("context policy: %w", err)

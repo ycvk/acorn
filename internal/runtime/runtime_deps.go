@@ -6,16 +6,16 @@ import (
 	"github.com/cloudwego/eino/adk"
 	einotool "github.com/cloudwego/eino/components/tool"
 
-	"github.com/ycvk/acorn/internal/artifacts"
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/contextplane"
 	"github.com/ycvk/acorn/internal/crystallization"
 	"github.com/ycvk/acorn/internal/decision"
 	"github.com/ycvk/acorn/internal/memorymodule"
+	"github.com/ycvk/acorn/internal/model"
 	"github.com/ycvk/acorn/internal/orchestration"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
-	"github.com/ycvk/acorn/internal/runtimehistory"
 	"github.com/ycvk/acorn/internal/skills"
+	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/workingstate"
 	"github.com/ycvk/acorn/internal/workspace"
 )
@@ -37,13 +37,13 @@ type RuntimeDeps struct {
 	Loader            *skills.Loader
 	DecisionProfiles  *decision.ProfileService
 	CheckpointService *workingstate.Service
-	SessionSummarySvc *runtimehistory.SessionSummaryService
+	SessionSummarySvc *model.SessionSummaryService
 	MemoryModule      memorymodule.Service
 	ContextPlane      contextplane.ContextPlane
 	Orchestration     orchestrationPlane
 	MCPPendingActions mcpprovider.PendingActionStore
 	Workspace         *workspace.Workspace
-	ArtifactService   *artifacts.Service
+	ArtifactService   *store.ArtifactService
 	ExtraLocalTools   []einotool.BaseTool
 	Handlers          []adk.ChatModelAgentMiddleware
 	Crystallizer      crystallization.Service

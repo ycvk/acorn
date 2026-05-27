@@ -17,7 +17,8 @@ import (
 	"github.com/ycvk/acorn/internal/crystallization"
 	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/memorymodule"
-	"github.com/ycvk/acorn/internal/runtimehistory"
+	"github.com/ycvk/acorn/internal/model"
+	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/stream"
 )
@@ -37,7 +38,7 @@ type Executor struct {
 	controller        *RunController
 	newChatModel      func(ctx context.Context) (einomodel.BaseChatModel, error)
 	archiveRunFunc    func(ctx context.Context, runID string, runStatus events.RunStatus) error
-	sessionSummarySvc *runtimehistory.SessionSummaryService
+	sessionSummarySvc *model.SessionSummaryService
 	crystallizer      crystallization.Service
 }
 
@@ -55,7 +56,7 @@ func NewExecutorWithRunRuntimeAndController(cfg *config.Config, store ExecutorSt
 		controller = NewRunController()
 	}
 	if err := cfg.ValidateExecutionReady(); err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrExecutionNotReady, err)
+		return nil, fmt.Errorf("%w: %v", runtimeapi.ErrExecutionNotReady, err)
 	}
 	exec := &Executor{
 		store:             store,
@@ -288,7 +289,7 @@ func (e *Executor) Run(ctx context.Context, input, skillID string, sink stream.S
 	if err != nil {
 		return nil, err
 	}
-	return e.ExecuteMessages(ctx, ExecuteRequest{
+	return e.ExecuteMessages(ctx, runtimeapi.ExecuteRequest{
 		SessionID: sessionID,
 		TurnIndex: turnIndex,
 		Input:     input,
@@ -297,7 +298,7 @@ func (e *Executor) Run(ctx context.Context, input, skillID string, sink stream.S
 	}, sink)
 }
 
-func (e *Executor) ExecuteMessages(ctx context.Context, req ExecuteRequest, sink stream.StreamSink) (*Result, error) {
+func (e *Executor) ExecuteMessages(ctx context.Context, req runtimeapi.ExecuteRequest, sink stream.StreamSink) (*Result, error) {
 	if e == nil || e.runRuntime == nil || e.store == nil {
 		return nil, errors.New("executor is not initialized")
 	}
@@ -387,7 +388,7 @@ func (e *Executor) ResumeWithTargets(ctx context.Context, runID string, targets 
 		return nil, err
 	}
 	if run.Status != events.RunStatusInterrupted {
-		return nil, fmt.Errorf("%w: %s", ErrRunNotInterrupted, runID)
+		return nil, fmt.Errorf("%w: %s", runtimeapi.ErrRunNotInterrupted, runID)
 	}
 
 	runCtxBase, cleanup := e.newManagedRunContext(ctx, runID)
@@ -417,7 +418,7 @@ func (e *Executor) ResumeWithTargets(ctx context.Context, runID string, targets 
 		if strings.TrimSpace(run.Input) != "" {
 			messages = []adk.Message{schema.UserMessage(run.Input)}
 		}
-		if _, err := e.bootstrapContextSessionMessages(ctx, ExecuteRequest{
+		if _, err := e.bootstrapContextSessionMessages(ctx, runtimeapi.ExecuteRequest{
 			SessionID:         run.SessionID,
 			TurnIndex:         run.TurnIndex,
 			Input:             run.Input,
@@ -467,7 +468,7 @@ func (e *Executor) newManagedRunContext(ctx context.Context, runID string) (cont
 
 func buildExecutionContext(runCtxBase context.Context, runID, sessionID string, turnIndex int, sink stream.StreamSink) context.Context {
 	runCtx := withRunID(runCtxBase, runID)
-	runCtx = WithSessionID(runCtx, sessionID)
+	runCtx = runtimeapi.WithSessionID(runCtx, sessionID)
 	runCtx = withTurnIndex(runCtx, turnIndex)
 	return stream.WithStreamSink(runCtx, sink)
 }
@@ -677,7 +678,7 @@ func (e *Executor) archiveRun(ctx context.Context, runID string, runStatus event
 		return fmt.Errorf("archive run: load events: %w", err)
 	}
 	touchedPaths, toolNames := archiveSignalsFromEvents(records)
-	archive := runtimehistory.RunArchive{
+	archive := model.RunArchive{
 		RunID:         run.RunID,
 		SessionID:     run.SessionID,
 		InputExcerpt:  compactArchiveText(run.Input),

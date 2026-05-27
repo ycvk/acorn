@@ -7,6 +7,7 @@ import (
 
 	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/runtime"
+	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	"github.com/ycvk/acorn/internal/stream"
 )
 
@@ -21,7 +22,7 @@ func TestChatServiceSendPersistsFailureContextForFollowUp(t *testing.T) {
 
 	service := NewChatService(store, func(_ context.Context) (executorHandle, error) {
 		return chatTestExecutorHandle{
-			executeMessagesFn: func(ctx context.Context, req runtime.ExecuteRequest, sink stream.StreamSink) (*runtime.Result, error) {
+			executeMessagesFn: func(ctx context.Context, req runtimeapi.ExecuteRequest, sink stream.StreamSink) (*runtime.Result, error) {
 				if err := store.CreateBoundRun(context.Background(), "run_failed", req.SessionID, req.TurnIndex, req.Input, "run_failed"); err != nil {
 					t.Fatalf("create bound run: %v", err)
 				}
@@ -78,10 +79,10 @@ func TestChatServiceSendPassesInputThroughExecuteRequest(t *testing.T) {
 		t.Fatalf("create session: %v", err)
 	}
 
-	var captured runtime.ExecuteRequest
+	var captured runtimeapi.ExecuteRequest
 	service := NewChatService(store, func(_ context.Context) (executorHandle, error) {
 		return chatTestExecutorHandle{
-			executeMessagesFn: func(ctx context.Context, req runtime.ExecuteRequest, sink stream.StreamSink) (*runtime.Result, error) {
+			executeMessagesFn: func(ctx context.Context, req runtimeapi.ExecuteRequest, sink stream.StreamSink) (*runtime.Result, error) {
 				captured = req
 				if err := store.CreateBoundRun(context.Background(), "run_success", req.SessionID, req.TurnIndex, req.Input, "run_success"); err != nil {
 					t.Fatalf("create bound run: %v", err)
@@ -123,14 +124,14 @@ func TestChatServiceSendPassesInputThroughExecuteRequest(t *testing.T) {
 }
 
 type chatTestExecutorHandle struct {
-	executeMessagesFn func(ctx context.Context, req runtime.ExecuteRequest, sink stream.StreamSink) (*runtime.Result, error)
+	executeMessagesFn func(ctx context.Context, req runtimeapi.ExecuteRequest, sink stream.StreamSink) (*runtime.Result, error)
 }
 
 func (h chatTestExecutorHandle) Run(ctx context.Context, input, skillID string, sink stream.StreamSink) (*runtime.Result, error) {
 	panic("unexpected Run call")
 }
 
-func (h chatTestExecutorHandle) ExecuteMessages(ctx context.Context, req runtime.ExecuteRequest, sink stream.StreamSink) (*runtime.Result, error) {
+func (h chatTestExecutorHandle) ExecuteMessages(ctx context.Context, req runtimeapi.ExecuteRequest, sink stream.StreamSink) (*runtime.Result, error) {
 	if h.executeMessagesFn == nil {
 		panic("unexpected ExecuteMessages call")
 	}

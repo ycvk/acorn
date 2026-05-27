@@ -19,7 +19,7 @@ import (
 
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/contextplane"
-	"github.com/ycvk/acorn/internal/runtimehistory"
+	"github.com/ycvk/acorn/internal/model"
 	"github.com/ycvk/acorn/internal/tooling"
 )
 
@@ -798,24 +798,24 @@ func newDirectResponseTestSession(t *testing.T, ctx context.Context, assembly *R
 
 type directResponseContextBoundaryStore struct {
 	mu         sync.RWMutex
-	boundaries map[string]runtimehistory.ContextBoundary
+	boundaries map[string]model.ContextBoundary
 }
 
 func newDirectResponseContextBoundaryStore() *directResponseContextBoundaryStore {
-	return &directResponseContextBoundaryStore{boundaries: make(map[string]runtimehistory.ContextBoundary)}
+	return &directResponseContextBoundaryStore{boundaries: make(map[string]model.ContextBoundary)}
 }
 
-func (s *directResponseContextBoundaryStore) SaveContextBoundary(_ context.Context, boundary runtimehistory.ContextBoundary) error {
+func (s *directResponseContextBoundaryStore) SaveContextBoundary(_ context.Context, boundary model.ContextBoundary) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.boundaries == nil {
-		s.boundaries = make(map[string]runtimehistory.ContextBoundary)
+		s.boundaries = make(map[string]model.ContextBoundary)
 	}
 	s.boundaries[boundary.BoundaryID] = boundary
 	return nil
 }
 
-func (s *directResponseContextBoundaryStore) LoadContextBoundary(_ context.Context, boundaryID string) (*runtimehistory.ContextBoundary, error) {
+func (s *directResponseContextBoundaryStore) LoadContextBoundary(_ context.Context, boundaryID string) (*model.ContextBoundary, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	boundary, ok := s.boundaries[boundaryID]
@@ -825,7 +825,7 @@ func (s *directResponseContextBoundaryStore) LoadContextBoundary(_ context.Conte
 	return &boundary, nil
 }
 
-func (s *directResponseContextBoundaryStore) LoadLatestContextBoundary(ctx context.Context, sessionID string) (*runtimehistory.ContextBoundary, error) {
+func (s *directResponseContextBoundaryStore) LoadLatestContextBoundary(ctx context.Context, sessionID string) (*model.ContextBoundary, error) {
 	boundaries, err := s.ListContextBoundaries(ctx, sessionID)
 	if err != nil {
 		return nil, err
@@ -837,10 +837,10 @@ func (s *directResponseContextBoundaryStore) LoadLatestContextBoundary(ctx conte
 	return &latest, nil
 }
 
-func (s *directResponseContextBoundaryStore) ListContextBoundaries(_ context.Context, sessionID string) ([]runtimehistory.ContextBoundary, error) {
+func (s *directResponseContextBoundaryStore) ListContextBoundaries(_ context.Context, sessionID string) ([]model.ContextBoundary, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	var out []runtimehistory.ContextBoundary
+	var out []model.ContextBoundary
 	for _, boundary := range s.boundaries {
 		if boundary.SessionID == sessionID {
 			out = append(out, boundary)

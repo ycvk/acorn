@@ -7,7 +7,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/ycvk/acorn/internal/events"
-	"github.com/ycvk/acorn/internal/runtime"
+	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 )
 
 const generatedThreadTitleMaxRunes = 64
@@ -140,7 +140,7 @@ func (s *ClientService) projectThread(record events.SessionRecord, latestRun *ev
 		WorkspaceRoot: s.workspaceRoot,
 		CreatedAt:     record.CreatedAt,
 		UpdatedAt:     record.UpdatedAt,
-		State:         string(runtime.SessionStateNew),
+		State:         string(runtimeapi.SessionStateNew),
 	}
 	if latestRun == nil {
 		return thread, nil
@@ -157,13 +157,13 @@ func (s *ClientService) projectThread(record events.SessionRecord, latestRun *ev
 func projectThreadState(status events.RunStatus) (string, error) {
 	switch status {
 	case events.RunStatusRunning:
-		return string(runtime.SessionStateRunning), nil
+		return string(runtimeapi.SessionStateRunning), nil
 	case events.RunStatusSucceeded:
-		return string(runtime.SessionStateCompleted), nil
+		return string(runtimeapi.SessionStateCompleted), nil
 	case events.RunStatusFailed:
-		return string(runtime.SessionStateFailed), nil
+		return string(runtimeapi.SessionStateFailed), nil
 	case events.RunStatusInterrupted:
-		return string(runtime.SessionStateInterrupted), nil
+		return string(runtimeapi.SessionStateInterrupted), nil
 	default:
 		return "", projectionError("unknown run status %q", status)
 	}

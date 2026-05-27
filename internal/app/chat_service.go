@@ -9,6 +9,7 @@ import (
 	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/runtime"
+	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	"github.com/ycvk/acorn/internal/stream"
 )
 
@@ -43,7 +44,7 @@ func (s *ChatService) Send(ctx context.Context, sessionID, input, skillID string
 	if err != nil {
 		return nil, 0, err
 	}
-	result, err := exec.ExecuteMessages(ctx, runtime.ExecuteRequest{
+	result, err := exec.ExecuteMessages(ctx, runtimeapi.ExecuteRequest{
 		SessionID: sessionID,
 		TurnIndex: turnIndex,
 		Input:     input,

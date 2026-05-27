@@ -11,7 +11,8 @@ import (
 	"github.com/cloudwego/eino/schema"
 
 	"github.com/ycvk/acorn/internal/contextplane"
-	"github.com/ycvk/acorn/internal/providerusage"
+	"github.com/ycvk/acorn/internal/model"
+	"github.com/ycvk/acorn/internal/providers"
 	"github.com/ycvk/acorn/internal/runtime/api"
 )
 
@@ -51,13 +52,13 @@ func (n *ObserveNode) Decide(ctx context.Context, state *AgentGraphState) (Obser
 	if err != nil {
 		return ObserveDecision{}, fmt.Errorf("observe before model call: %w", err)
 	}
-	msg, err := n.model.Generate(providerusage.WithCallSite(ctx, providerusage.CallSiteObserve), n.buildModelInput(baseMessages, plan))
+	msg, err := n.model.Generate(providers.WithCallSite(ctx, providers.CallSiteObserve), n.buildModelInput(baseMessages, plan))
 	if contextplane.IsContextOverflowError(err) && session != nil {
 		baseMessages, err = GraphSessionReactiveBaseMessages(ctx, session, state, modelReq, err)
 		if err != nil {
 			return ObserveDecision{}, fmt.Errorf("observe reactive compact: %w", err)
 		}
-		msg, err = n.model.Generate(providerusage.WithCallSite(ctx, providerusage.CallSiteObserve), n.buildModelInput(baseMessages, plan))
+		msg, err = n.model.Generate(providers.WithCallSite(ctx, providers.CallSiteObserve), n.buildModelInput(baseMessages, plan))
 	}
 	if err != nil {
 		return ObserveDecision{}, fmt.Errorf("generate observe decision: %w", err)
@@ -73,7 +74,7 @@ func (n *ObserveNode) Decide(ctx context.Context, state *AgentGraphState) (Obser
 	return decision, nil
 }
 
-func (n *ObserveNode) buildModelInput(messages []*schema.Message, plan *api.Plan) []*schema.Message {
+func (n *ObserveNode) buildModelInput(messages []*schema.Message, plan *model.Plan) []*schema.Message {
 	out := make([]*schema.Message, 0, len(messages)+1)
 	out = append(out, messages...)
 	out = append(out, schema.UserMessage(formatObservePrompt(plan)))
@@ -99,7 +100,7 @@ func ParseObserveDecision(content string) (ObserveDecision, error) {
 	return decision, nil
 }
 
-func formatObservePrompt(plan *api.Plan) string {
+func formatObservePrompt(plan *model.Plan) string {
 	if plan == nil {
 		return "No active plan."
 	}

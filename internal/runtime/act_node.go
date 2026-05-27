@@ -10,8 +10,10 @@ import (
 	einomodel "github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/contextplane"
+	"github.com/ycvk/acorn/internal/model"
 	"github.com/ycvk/acorn/internal/orchestration"
-	"github.com/ycvk/acorn/internal/providerusage"
+	"github.com/ycvk/acorn/internal/providers"
+	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	"github.com/ycvk/acorn/internal/runtime/graph"
 	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/stream"
@@ -22,8 +24,8 @@ type ActNode struct {
 	model      einomodel.BaseChatModel
 	tools      orchestration.ToolInvoker
 	streamer   orchestration.AssistantStreamer
-	store      PlanStore
-	eventStore EventAppender
+	store      runtimeapi.PlanStore
+	eventStore runtimeapi.EventAppender
 	specs      map[string]tooling.ToolSpec
 	eagerTools []string
 }
@@ -37,8 +39,8 @@ func NewActNode(
 	model einomodel.BaseChatModel,
 	tools orchestration.ToolInvoker,
 	streamer orchestration.AssistantStreamer,
-	store PlanStore,
-	eventStore EventAppender,
+	store runtimeapi.PlanStore,
+	eventStore runtimeapi.EventAppender,
 	specs []tooling.ToolSpec,
 	eagerToolNames []string,
 ) *ActNode {
@@ -66,7 +68,7 @@ func (n *ActNode) Invoke(ctx context.Context, state *graph.AgentGraphState) (*gr
 	if n.store == nil {
 		return nil, fmt.Errorf("act node requires a plan store")
 	}
-	sessionID := strings.TrimSpace(SessionIDFromContext(ctx))
+	sessionID := strings.TrimSpace(runtimeapi.SessionIDFromContext(ctx))
 	if sessionID == "" {
 		return nil, fmt.Errorf("act node requires session_id")
 	}
@@ -79,8 +81,8 @@ func (n *ActNode) Invoke(ctx context.Context, state *graph.AgentGraphState) (*gr
 	if err != nil {
 		return nil, err
 	}
-	if plan.Steps[stepIndex].Status == PlanStepPending {
-		plan.Steps[stepIndex].Status = PlanStepInProgress
+	if plan.Steps[stepIndex].Status == model.PlanStepPending {
+		plan.Steps[stepIndex].Status = model.PlanStepInProgress
 		plan.RunID = runID
 		plan.UpdatedAt = time.Now().UTC()
 		if err := n.store.SavePlan(ctx, plan); err != nil {
@@ -107,7 +109,7 @@ func (n *ActNode) Invoke(ctx context.Context, state *graph.AgentGraphState) (*gr
 			Model:     n.model,
 			Messages:  n.buildModelInput(baseMessages, step),
 			ToolInfos: toolInfos,
-			CallSite:  providerusage.CallSiteAct,
+			CallSite:  providers.CallSiteAct,
 		})
 		if contextplane.IsContextOverflowError(err) && session != nil {
 			baseMessages, err = graph.GraphSessionReactiveBaseMessages(ctx, session, state, modelReq, err)
@@ -120,7 +122,7 @@ func (n *ActNode) Invoke(ctx context.Context, state *graph.AgentGraphState) (*gr
 				Model:     n.model,
 				Messages:  n.buildModelInput(baseMessages, step),
 				ToolInfos: toolInfos,
-				CallSite:  providerusage.CallSiteAct,
+				CallSite:  providers.CallSiteAct,
 			})
 		}
 		if err != nil {
@@ -277,7 +279,7 @@ func (n *ActNode) Invoke(ctx context.Context, state *graph.AgentGraphState) (*gr
 			continue
 		}
 
-		plan.Steps[stepIndex].Status = PlanStepCompleted
+		plan.Steps[stepIndex].Status = model.PlanStepCompleted
 		plan.RunID = runID
 		plan.UpdatedAt = time.Now().UTC()
 		if err := n.store.SavePlan(ctx, plan); err != nil {
@@ -305,7 +307,7 @@ func (n *ActNode) Invoke(ctx context.Context, state *graph.AgentGraphState) (*gr
 	return state, nil
 }
 
-func formatVerificationContinuationPrompt(step PlanStep, coverageErr error) string {
+func formatVerificationContinuationPrompt(step model.PlanStep, coverageErr error) string {
 	var b strings.Builder
 	b.WriteString("The active plan step is not complete yet. Continue the same step and call the missing tool(s) needed to satisfy verification before finalizing.")
 	if coverageErr != nil && strings.TrimSpace(coverageErr.Error()) != "" {
@@ -381,7 +383,7 @@ func parseLoadToolsOutput(content string) loadToolsOutputPayload {
 	return payload
 }
 
-func (n *ActNode) loadRunnablePlan(ctx context.Context, sessionID string) (*Plan, int, error) {
+func (n *ActNode) loadRunnablePlan(ctx context.Context, sessionID string) (*model.Plan, int, error) {
 	plan, err := n.store.LoadPlan(ctx, sessionID)
 	if err != nil {
 		return nil, -1, fmt.Errorf("load active plan: %w", err)
@@ -393,7 +395,7 @@ func (n *ActNode) loadRunnablePlan(ctx context.Context, sessionID string) (*Plan
 	return plan, index, nil
 }
 
-func (n *ActNode) buildModelInput(messages []*schema.Message, step PlanStep) []*schema.Message {
+func (n *ActNode) buildModelInput(messages []*schema.Message, step model.PlanStep) []*schema.Message {
 	instruction := fmt.Sprintf(
 		"Execute exactly one active plan step. Return the tool calls needed for this step and do not complete unrelated work.\n\nStep %s: %s",
 		step.ID,
@@ -418,8 +420,8 @@ func (n *ActNode) enforceToolCalls(ctx context.Context, calls []schema.ToolCall)
 	return nil
 }
 
-func (n *ActNode) failStep(ctx context.Context, plan *Plan, stepIndex int, reason string) (*Plan, error) {
-	plan.Steps[stepIndex].Status = PlanStepFailed
+func (n *ActNode) failStep(ctx context.Context, plan *model.Plan, stepIndex int, reason string) (*model.Plan, error) {
+	plan.Steps[stepIndex].Status = model.PlanStepFailed
 	plan.UpdatedAt = time.Now().UTC()
 	if err := n.store.SavePlan(ctx, plan); err != nil {
 		return nil, fmt.Errorf("mark plan step failed: %w", err)
@@ -430,10 +432,10 @@ func (n *ActNode) failStep(ctx context.Context, plan *Plan, stepIndex int, reaso
 	return plan, nil
 }
 
-func failedSubagentEvidenceReason(items []PlanEvidence) (string, bool) {
+func failedSubagentEvidenceReason(items []model.PlanEvidence) (string, bool) {
 	for i := len(items) - 1; i >= 0; i-- {
 		item := items[i]
-		if item.Kind != EvidenceKindSubagent || item.Status != EvidenceStatusFailed {
+		if item.Kind != model.EvidenceKindSubagent || item.Status != model.EvidenceStatusFailed {
 			continue
 		}
 		if strings.TrimSpace(item.Error) != "" {
@@ -444,7 +446,7 @@ func failedSubagentEvidenceReason(items []PlanEvidence) (string, bool) {
 	return "", false
 }
 
-func (n *ActNode) reloadStep(ctx context.Context, sessionID string, stepID string) (*Plan, int, error) {
+func (n *ActNode) reloadStep(ctx context.Context, sessionID string, stepID string) (*model.Plan, int, error) {
 	plan, err := n.store.LoadPlan(ctx, sessionID)
 	if err != nil {
 		return nil, -1, fmt.Errorf("reload plan: %w", err)
@@ -457,7 +459,7 @@ func (n *ActNode) reloadStep(ctx context.Context, sessionID string, stepID strin
 	return nil, -1, fmt.Errorf("plan step %s no longer exists", stepID)
 }
 
-func (n *ActNode) emitStepStarted(ctx context.Context, plan *Plan, step PlanStep) error {
+func (n *ActNode) emitStepStarted(ctx context.Context, plan *model.Plan, step model.PlanStep) error {
 	if n.eventStore == nil {
 		return nil
 	}
@@ -473,7 +475,7 @@ func (n *ActNode) emitStepStarted(ctx context.Context, plan *Plan, step PlanStep
 	return nil
 }
 
-func (n *ActNode) emitStepCompleted(ctx context.Context, plan *Plan, step PlanStep) error {
+func (n *ActNode) emitStepCompleted(ctx context.Context, plan *model.Plan, step model.PlanStep) error {
 	if n.eventStore == nil {
 		return nil
 	}
@@ -489,7 +491,7 @@ func (n *ActNode) emitStepCompleted(ctx context.Context, plan *Plan, step PlanSt
 	return nil
 }
 
-func (n *ActNode) emitStepFailed(ctx context.Context, plan *Plan, step PlanStep, reason string) error {
+func (n *ActNode) emitStepFailed(ctx context.Context, plan *model.Plan, step model.PlanStep, reason string) error {
 	if n.eventStore == nil {
 		return nil
 	}

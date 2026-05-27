@@ -7,7 +7,7 @@
 - 迁移纯类型定义（无依赖运行时逻辑）：
   - `errors.go` — 错误常量
   - `execute.go` — `ExecuteRequest`
-  - `plan.go` — `Plan`, `PlanStep`, `PlanStore`, `PlanRecordStore`
+  - `plan.go` — `Plan`, `PlanStep`, `PlanStore`, `PlanPersistenceStore`
   - `evidence.go` — `PlanEvidence`, `EvidenceKind`, `EvidenceStatus`
   - `session.go` — `SessionState`, `DeriveSessionState`
   - `context.go` — `WithRunID`, `GetRunID`, `WithSessionID`, `SessionIDFromContext`, `WithStore`, `WithTurnIndex`

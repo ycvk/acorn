@@ -10,11 +10,11 @@ import (
 	"strings"
 
 	"github.com/ycvk/acorn/internal/events"
-	"github.com/ycvk/acorn/internal/runtimehistory"
+	"github.com/ycvk/acorn/internal/model"
 	"github.com/ycvk/acorn/internal/store"
 )
 
-func (s *Store) UpsertSessionSummary(ctx context.Context, summary runtimehistory.SessionSummary) error {
+func (s *Store) UpsertSessionSummary(ctx context.Context, summary model.SessionSummary) error {
 	_, err := s.db.ExecContext(ctx,
 		`INSERT INTO session_summaries(session_id, source_run_id, run_status, summary, updated_at)
 		 VALUES(?, ?, ?, ?, ?)
@@ -35,14 +35,14 @@ func (s *Store) UpsertSessionSummary(ctx context.Context, summary runtimehistory
 	return nil
 }
 
-func (s *Store) GetSessionSummary(ctx context.Context, sessionID string) (*runtimehistory.SessionSummary, error) {
+func (s *Store) GetSessionSummary(ctx context.Context, sessionID string) (*model.SessionSummary, error) {
 	row := s.db.QueryRowContext(ctx,
 		`SELECT session_id, source_run_id, run_status, summary, updated_at
 		 FROM session_summaries WHERE session_id = ?`,
 		strings.TrimSpace(sessionID),
 	)
 	var (
-		record    runtimehistory.SessionSummary
+		record    model.SessionSummary
 		updatedAt string
 	)
 	if err := row.Scan(&record.SessionID, &record.SourceRunID, &record.RunStatus, &record.Summary, &updatedAt); err != nil {
@@ -59,7 +59,7 @@ func (s *Store) GetSessionSummary(ctx context.Context, sessionID string) (*runti
 	return &record, nil
 }
 
-func (s *Store) ListAllSessionSummaries(ctx context.Context) ([]runtimehistory.SessionSummary, error) {
+func (s *Store) ListAllSessionSummaries(ctx context.Context) ([]model.SessionSummary, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT session_id, source_run_id, run_status, summary, updated_at
 		 FROM session_summaries
@@ -70,10 +70,10 @@ func (s *Store) ListAllSessionSummaries(ctx context.Context) ([]runtimehistory.S
 	}
 	defer rows.Close()
 
-	items := make([]runtimehistory.SessionSummary, 0)
+	items := make([]model.SessionSummary, 0)
 	for rows.Next() {
 		var (
-			record    runtimehistory.SessionSummary
+			record    model.SessionSummary
 			updatedAt string
 		)
 		if err := rows.Scan(&record.SessionID, &record.SourceRunID, &record.RunStatus, &record.Summary, &updatedAt); err != nil {
@@ -186,11 +186,11 @@ func (b *sessionMessageResultSummaryBuilder) addEvents(records []events.EventRec
 	return nil
 }
 
-func (b *sessionMessageResultSummaryBuilder) addPlan(plan *store.PlanRecord) {
+func (b *sessionMessageResultSummaryBuilder) addPlan(plan *model.Plan) {
 	for _, step := range plan.Steps {
 		for _, item := range step.Evidence {
-			status := strings.TrimSpace(item.Status)
-			kind := strings.TrimSpace(item.Kind)
+			status := strings.TrimSpace(string(item.Status))
+			kind := strings.TrimSpace(string(item.Kind))
 			if status == "failed" {
 				b.addRisk(sessionSummaryPlanRisk(item))
 				continue
@@ -388,7 +388,7 @@ func sessionSummaryEventRisk(kind string, payload map[string]any) string {
 	return kind
 }
 
-func sessionSummaryPlanRisk(item store.PlanEvidence) string {
+func sessionSummaryPlanRisk(item model.PlanEvidence) string {
 	if errText := compactContinuationText(item.Error, 180); errText != "" {
 		if summary := strings.TrimSpace(item.Summary); summary != "" {
 			return fmt.Sprintf("%s: %s", summary, errText)
@@ -401,7 +401,7 @@ func sessionSummaryPlanRisk(item store.PlanEvidence) string {
 	if command := sessionSummaryCommandText(item.Command); command != "" {
 		return command
 	}
-	if kind := strings.TrimSpace(item.Kind); kind != "" {
+	if kind := strings.TrimSpace(string(item.Kind)); kind != "" {
 		return kind + " failed"
 	}
 	return "plan evidence failed"
@@ -1048,7 +1048,7 @@ func (s *Store) LoadLatestRunForSession(ctx context.Context, sessionID string) (
 	return rec, nil
 }
 
-func (s *Store) GetConversationHistorySegment(ctx context.Context, segmentID int64) (*runtimehistory.HistoryHit, error) {
+func (s *Store) GetConversationHistorySegment(ctx context.Context, segmentID int64) (*model.HistoryHit, error) {
 	row := s.db.QueryRowContext(ctx,
 		`SELECT id, session_id, run_id, run_status, user_content || char(10) || assistant_content, created_at
 		 FROM conversation_segments WHERE id = ?`,
@@ -1064,7 +1064,7 @@ func (s *Store) GetConversationHistorySegment(ctx context.Context, segmentID int
 	return hit, nil
 }
 
-func (s *Store) GetConversationHistorySegmentByRunID(ctx context.Context, runID string) (*runtimehistory.HistoryHit, error) {
+func (s *Store) GetConversationHistorySegmentByRunID(ctx context.Context, runID string) (*model.HistoryHit, error) {
 	trimmedRunID := strings.TrimSpace(runID)
 	if trimmedRunID == "" {
 		return nil, errors.New("run id is required")
@@ -1084,9 +1084,9 @@ func (s *Store) GetConversationHistorySegmentByRunID(ctx context.Context, runID 
 	return hit, nil
 }
 
-func scanHistoryHit(scanner interface{ Scan(dest ...any) error }) (*runtimehistory.HistoryHit, error) {
+func scanHistoryHit(scanner interface{ Scan(dest ...any) error }) (*model.HistoryHit, error) {
 	var (
-		hit       runtimehistory.HistoryHit
+		hit       model.HistoryHit
 		createdAt string
 	)
 	if err := scanner.Scan(&hit.SegmentID, &hit.SessionID, &hit.RunID, &hit.RunStatus, &hit.Content, &createdAt); err != nil {

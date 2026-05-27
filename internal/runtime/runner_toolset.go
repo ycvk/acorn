@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/ycvk/acorn/internal/orchestration"
+	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	"github.com/ycvk/acorn/internal/toolfactory"
 	"github.com/ycvk/acorn/internal/tooling"
 )
@@ -19,7 +20,7 @@ func (delegateTaskBridge) CurrentRunID(ctx context.Context) string {
 }
 
 func (delegateTaskBridge) CurrentSessionID(ctx context.Context) string {
-	return SessionIDFromContext(ctx)
+	return runtimeapi.SessionIDFromContext(ctx)
 }
 
 type artifactToolBridge struct{}
@@ -29,7 +30,7 @@ func (artifactToolBridge) CurrentRunID(ctx context.Context) string {
 }
 
 func (artifactToolBridge) CurrentSessionID(ctx context.Context) string {
-	return SessionIDFromContext(ctx)
+	return runtimeapi.SessionIDFromContext(ctx)
 }
 
 func (artifactToolBridge) CurrentToolCallID(ctx context.Context) string {

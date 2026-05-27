@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ycvk/acorn/internal/events"
+	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/stream"
 )
@@ -358,7 +359,7 @@ func FindPendingResume(ctx context.Context, store PendingResumeStore) (*PendingR
 	}, nil
 }
 
-func resolveRootOrchestrationMode(req ExecuteRequest) events.OrchestrationMode {
+func resolveRootOrchestrationMode(req runtimeapi.ExecuteRequest) events.OrchestrationMode {
 	mode := events.OrchestrationMode(req.OrchestrationMode).Normalize()
 	if req.OrchestrationMode != "" {
 		return mode

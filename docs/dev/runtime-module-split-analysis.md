@@ -16,17 +16,17 @@
 | `ErrRunNotInterrupted` | `api.ErrRunNotInterrupted` | Error |
 | `ErrExecutionNotReady` | `api.ErrExecutionNotReady` | Error |
 | `ExecuteRequest` | `api.ExecuteRequest` | Request Type |
-| `Plan` | `api.Plan` | Core Type |
-| `PlanStep` | `api.PlanStep` | Core Type |
-| `PlanStepStatus` | `api.PlanStepStatus` | Enum |
-| `PlanStepRisk` | `api.PlanStepRisk` | Enum |
-| `PlanRepoTarget` | `api.PlanRepoTarget` | Type |
-| `VerificationIntent` | `api.VerificationIntent` | Type |
+| `Plan` | `model.Plan` | Core Type |
+| `PlanStep` | `model.PlanStep` | Core Type |
+| `PlanStepStatus` | `model.PlanStepStatus` | Enum |
+| `PlanStepRisk` | `model.PlanStepRisk` | Enum |
+| `PlanRepoTarget` | `model.PlanRepoTarget` | Type |
+| `VerificationIntent` | `model.VerificationIntent` | Type |
 | `PlanStore` | `api.PlanStore` | Interface |
-| `PlanRecordStore` | `api.PlanRecordStore` | Interface |
-| `PlanEvidence` | `api.PlanEvidence` | Core Type |
-| `EvidenceKind` | `api.EvidenceKind` | Enum |
-| `EvidenceStatus` | `api.EvidenceStatus` | Enum |
+| `PlanPersistenceStore` | `api.PlanPersistenceStore` | Interface |
+| `PlanEvidence` | `model.PlanEvidence` | Core Type |
+| `EvidenceKind` | `model.EvidenceKind` | Enum |
+| `EvidenceStatus` | `model.EvidenceStatus` | Enum |
 | `WithRunID`, `GetRunID` | `api.WithRunID`, `api.GetRunID` | Context Helper |
 | `WithSessionID`, `SessionIDFromContext` | `api.WithSessionID`, `api.SessionIDFromContext` | Context Helper |
 | `WithStore` | `api.WithStore` | Context Helper |
@@ -207,9 +207,9 @@ type RunnerFactoryStore interface {
 
 **Dependencies to Cut:**
 - `runtime` → `internal/store` (via `store.RunCreateParams`, `store.EvidenceRef`, `store.ToolResultLedger`)
-- `runtime` → `internal/runtimehistory` (via `ArchiveStore` using `RunArchive`)
+- `runtime` → `internal/model` (via `ArchiveStore` using `RunArchive`)
 
-**Note:** `store_ports.go` references `runtime/api.PlanRecordStore`, so `runtime/ports/` would import `runtime/api`. This is fine — api/ is already a leaf package.
+**Note:** `store_ports.go` references `runtime/api.PlanPersistenceStore`, so `runtime/ports/` would import `runtime/api`. This is fine — api/ is already a leaf package.
 
 ---
 
@@ -396,9 +396,9 @@ package ports
 import (
     "context"
     "github.com/ycvk/acorn/internal/events"
-    "github.com/ycvk/acorn/internal/providerusage"
+    "github.com/ycvk/acorn/internal/providers"
     "github.com/ycvk/acorn/internal/runtime/api"
-    "github.com/ycvk/acorn/internal/runtimehistory"
+    "github.com/ycvk/acorn/internal/model"
     "github.com/ycvk/acorn/internal/store"
 )
 
@@ -509,12 +509,12 @@ type PromptProvider interface {
 }
 
 // Evidence validation
-func ValidateEvidence(stepID string, evidence api.PlanEvidence) error
-func ValidEvidenceKind(kind api.EvidenceKind) bool
-func ValidEvidenceStatus(status api.EvidenceStatus) bool
+func ValidateEvidence(stepID string, evidence model.PlanEvidence) error
+func ValidEvidenceKind(kind model.EvidenceKind) bool
+func ValidEvidenceStatus(status model.EvidenceStatus) bool
 
 // Plan execution
-func ExecuteStep(ctx context.Context, step api.PlanStep, state graph.AgentGraphState) error
+func ExecuteStep(ctx context.Context, step model.PlanStep, state graph.AgentGraphState) error
 // ... etc.
 ```
 

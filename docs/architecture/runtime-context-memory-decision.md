@@ -32,7 +32,7 @@ Procedure activation is a runtime trace, not a second durable procedure store. `
 
 Working checkpoints are owned by `internal/workingstate`. The `update_working_checkpoint` and `clear_working_checkpoint` tools are built there and registered by runtime as working-state tools, not as durable memory-module behavior.
 
-Run archives, session summaries, history search hits, run context snapshots, and context boundaries are runtime-history state owned by `internal/runtimehistory`; they are not durable file-backed memory records.
+Run archives, session summaries, run context snapshots, and context boundaries are runtime history model state owned by `internal/model` and persisted through store ports/SQLite; they are not durable file-backed memory records.
 
 Context boundaries are the persisted fact layer for compacted context segments. A boundary records the session/run identity, sequence, turn index, root mode, compact trigger, covered message range, transcript reference, summary message reference, preserved segment references, token metrics, and created timestamp. `context.compressed` stream payloads may project a boundary id, but the event is not the durable boundary truth.
 

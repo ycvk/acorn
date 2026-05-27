@@ -11,7 +11,7 @@ import (
 	einomodel "github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/schema"
 
-	"github.com/ycvk/acorn/internal/providerusage"
+	"github.com/ycvk/acorn/internal/providers"
 )
 
 type CompactTrigger string
@@ -138,7 +138,7 @@ func (e *CompactionEngine) Compact(ctx context.Context, req CompactRequest) (*Co
 	generateOpts := append([]einomodel.Option(nil), e.modelOptions...)
 	generateOpts = append(generateOpts, einomodel.WithMaxTokens(summaryBudget))
 
-	rawSummary, err := e.model.Generate(providerusage.WithCallSite(ctx, providerusage.CallSiteCompaction), summaryInput, generateOpts...)
+	rawSummary, err := e.model.Generate(providers.WithCallSite(ctx, providers.CallSiteCompaction), summaryInput, generateOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("generate compaction summary: %w", err)
 	}

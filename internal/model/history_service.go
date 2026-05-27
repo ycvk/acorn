@@ -1,4 +1,4 @@
-package runtimehistory
+package model
 
 import (
 	"context"

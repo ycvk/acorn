@@ -9,7 +9,7 @@ import (
 	"github.com/cloudwego/eino/adk"
 	"github.com/cloudwego/eino/schema"
 
-	"github.com/ycvk/acorn/internal/runtimehistory"
+	"github.com/ycvk/acorn/internal/model"
 )
 
 func (p *defaultContextPlane) Assemble(ctx context.Context, req AssembleRequest) (*AssembleResult, error) {
@@ -40,7 +40,7 @@ func (p *defaultContextPlane) Assemble(ctx context.Context, req AssembleRequest)
 		if summaryErr != nil {
 			return nil, fmt.Errorf("load session summary for %q: %w", req.SessionID, summaryErr)
 		}
-		sessionSummary = runtimehistory.FormatSessionSummaryForPrompt(summary)
+		sessionSummary = model.FormatSessionSummaryForPrompt(summary)
 	}
 
 	memoryPacket, err := buildMemoryContextPacket(ctx, p.tokenCounter, p.memoryBudget, sessionSummary, checkpointSection, req.MemoryPrepared)

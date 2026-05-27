@@ -7,7 +7,7 @@ import (
 
 	"github.com/cloudwego/eino/schema"
 
-	"github.com/ycvk/acorn/internal/runtime/api"
+	"github.com/ycvk/acorn/internal/model"
 )
 
 func TestStreamSinkContext(t *testing.T) {
@@ -206,12 +206,12 @@ func TestStreamMessageFromSchema(t *testing.T) {
 
 func TestStreamPlanFromDomain(t *testing.T) {
 	now := time.Now()
-	plan := &api.Plan{
+	plan := &model.Plan{
 		PlanID:    "p1",
 		SessionID: "s1",
 		RunID:     "r1",
-		Steps: []api.PlanStep{
-			{ID: "step1", Action: "read", Status: api.PlanStepPending, DependsOn: []string{"dep1"}, ToolHints: []string{"hint1"}},
+		Steps: []model.PlanStep{
+			{ID: "step1", Action: "read", Status: model.PlanStepPending, DependsOn: []string{"dep1"}, ToolHints: []string{"hint1"}},
 		},
 		CreatedAt: now,
 		UpdatedAt: now,
@@ -238,7 +238,7 @@ func TestStreamPlanFromDomain(t *testing.T) {
 }
 
 func TestClonePlanSteps(t *testing.T) {
-	original := []api.PlanStep{
+	original := []model.PlanStep{
 		{ID: "s1", DependsOn: []string{"d1"}, ToolHints: []string{"h1"}},
 		{ID: "s2", DependsOn: []string{"d2"}, ToolHints: []string{"h2"}},
 	}
@@ -254,7 +254,7 @@ func TestClonePlanSteps(t *testing.T) {
 }
 
 func TestClonePlanStepPtr(t *testing.T) {
-	step := api.PlanStep{ID: "s1", DependsOn: []string{"d1"}}
+	step := model.PlanStep{ID: "s1", DependsOn: []string{"d1"}}
 	ptr := ClonePlanStepPtr(step)
 	if ptr == nil {
 		t.Fatal("expected non-nil")
@@ -270,8 +270,8 @@ func TestClonePlanStepPtr(t *testing.T) {
 
 func TestStreamStepPayloadFromPlan(t *testing.T) {
 	now := time.Now()
-	plan := &api.Plan{PlanID: "p1", SessionID: "s1", RunID: "r1", UpdatedAt: now}
-	step := api.PlanStep{ID: "step1", Action: "read"}
+	plan := &model.Plan{PlanID: "p1", SessionID: "s1", RunID: "r1", UpdatedAt: now}
+	step := model.PlanStep{ID: "step1", Action: "read"}
 	payload := StreamStepPayloadFromPlan(plan, step)
 	if payload.PlanID != "p1" {
 		t.Fatalf("plan_id = %q", payload.PlanID)

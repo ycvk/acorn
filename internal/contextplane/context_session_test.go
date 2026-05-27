@@ -11,7 +11,7 @@ import (
 	"github.com/cloudwego/eino/schema"
 
 	"github.com/ycvk/acorn/internal/config"
-	"github.com/ycvk/acorn/internal/runtimehistory"
+	"github.com/ycvk/acorn/internal/model"
 )
 
 func TestContextSessionBootstrapOrdersAssemblyBeforeInitialMessages(t *testing.T) {
@@ -423,8 +423,8 @@ func TestContextSessionResumeLoadsPersistedBoundary(t *testing.T) {
 	}
 }
 
-func testContextBoundary(boundaryID, sessionID, runID string, sequence int, summary string) runtimehistory.ContextBoundary {
-	return runtimehistory.ContextBoundary{
+func testContextBoundary(boundaryID, sessionID, runID string, sequence int, summary string) model.ContextBoundary {
+	return model.ContextBoundary{
 		BoundaryID:               boundaryID,
 		SessionID:                sessionID,
 		RunID:                    runID,

@@ -1,4 +1,4 @@
-package skilllifecycle
+package skills
 
 import (
 	"context"
@@ -13,18 +13,17 @@ import (
 
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/events"
-	"github.com/ycvk/acorn/internal/skills"
 )
 
-func TestBuildAgentToolsIncludesSkillAssessOnly(t *testing.T) {
+func TestBuildSkillLifecycleToolsIncludesSkillAssessOnly(t *testing.T) {
 	loader := newSkillLifecycleTestLoader(t)
-	tools, err := BuildAgentTools(ToolOptions{
+	tools, err := BuildSkillLifecycleTools(ToolOptions{
 		Loader: loader,
 		Store:  &toolEventStore{},
 		Bridge: fixedRunBridge{runID: "run_parent", sessionID: "session_parent"},
 	})
 	if err != nil {
-		t.Fatalf("BuildAgentTools: %v", err)
+		t.Fatalf("BuildSkillLifecycleTools: %v", err)
 	}
 	names := toolNamesFromSet(t, tools)
 	if !names["skill_assess"] {
@@ -38,10 +37,10 @@ func TestBuildAgentToolsIncludesSkillAssessOnly(t *testing.T) {
 func TestSkillAssessUpdatesMutableSkillWithEvidence(t *testing.T) {
 	root := t.TempDir()
 	cfg := skillLifecycleTestConfig(root)
-	loader := skills.NewLoader(cfg)
+	loader := NewLoader(cfg)
 	ctx := context.Background()
 
-	created, err := loader.CreateSkill(ctx, skills.CreateInput{
+	created, err := loader.CreateSkill(ctx, CreateInput{
 		ID:          "skill.generated",
 		Name:        "Generated",
 		Instruction: "Use generated workflow.",
@@ -49,18 +48,18 @@ func TestSkillAssessUpdatesMutableSkillWithEvidence(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateSkill: %v", err)
 	}
-	if created.LifecycleStatus != skills.LifecycleDraft {
+	if created.LifecycleStatus != LifecycleDraft {
 		t.Fatalf("created lifecycle = %q", created.LifecycleStatus)
 	}
 
 	store := &toolEventStore{}
-	tools, err := BuildAgentTools(ToolOptions{
+	tools, err := BuildSkillLifecycleTools(ToolOptions{
 		Loader: loader,
 		Store:  store,
 		Bridge: fixedRunBridge{runID: "run_parent", sessionID: "session_parent"},
 	})
 	if err != nil {
-		t.Fatalf("BuildAgentTools: %v", err)
+		t.Fatalf("BuildSkillLifecycleTools: %v", err)
 	}
 	assessTool := mustInvokableLifecycleTool(t, tools, "skill_assess")
 	body, err := json.Marshal(AssessToolInput{
@@ -90,7 +89,7 @@ func TestSkillAssessUpdatesMutableSkillWithEvidence(t *testing.T) {
 	if output.Assessment.SourceRunID != "run_parent" {
 		t.Fatalf("source run id = %q", output.Assessment.SourceRunID)
 	}
-	if output.Updated == nil || output.Updated.LifecycleStatus != skills.LifecycleVerified {
+	if output.Updated == nil || output.Updated.LifecycleStatus != LifecycleVerified {
 		t.Fatalf("updated = %#v", output.Updated)
 	}
 	if !reflect.DeepEqual(output.Updated.EvidenceRefs, []string{"tool_result:run_parent:skill_create"}) {
@@ -113,23 +112,23 @@ func TestSkillAssessUpdatesMutableSkillWithEvidence(t *testing.T) {
 
 func TestSkillAssessBuiltinSkillIsVisibleButNotApplied(t *testing.T) {
 	loader := &builtinSkillLifecycleLoader{
-		skill: skills.Spec{
+		skill: Spec{
 			ID:              "skill.creator",
 			Name:            "Skill Creator",
-			Source:          skills.BuiltinScope,
-			Origin:          skills.OriginHuman,
-			LifecycleStatus: skills.LifecycleVerified,
+			Source:          BuiltinScope,
+			Origin:          OriginHuman,
+			LifecycleStatus: LifecycleVerified,
 			EvidenceRefs:    []string{"builtin:acorn-native-skill-seed-pack"},
 		},
 	}
 	store := &toolEventStore{}
-	tools, err := BuildAgentTools(ToolOptions{
+	tools, err := BuildSkillLifecycleTools(ToolOptions{
 		Loader: loader,
 		Store:  store,
 		Bridge: fixedRunBridge{runID: "run_parent", sessionID: "session_parent"},
 	})
 	if err != nil {
-		t.Fatalf("BuildAgentTools: %v", err)
+		t.Fatalf("BuildSkillLifecycleTools: %v", err)
 	}
 	assessTool := mustInvokableLifecycleTool(t, tools, "skill_assess")
 	body, err := json.Marshal(AssessToolInput{
@@ -169,15 +168,15 @@ func TestSkillAssessBuiltinSkillIsVisibleButNotApplied(t *testing.T) {
 func TestSkillAssessRejectsVerifiedWithoutEvidence(t *testing.T) {
 	root := t.TempDir()
 	cfg := skillLifecycleTestConfig(root)
-	loader := skills.NewLoader(cfg)
+	loader := NewLoader(cfg)
 	store := &toolEventStore{}
-	tools, err := BuildAgentTools(ToolOptions{
+	tools, err := BuildSkillLifecycleTools(ToolOptions{
 		Loader: loader,
 		Store:  store,
 		Bridge: fixedRunBridge{runID: "run_parent", sessionID: "session_parent"},
 	})
 	if err != nil {
-		t.Fatalf("BuildAgentTools: %v", err)
+		t.Fatalf("BuildSkillLifecycleTools: %v", err)
 	}
 	assessTool := mustInvokableLifecycleTool(t, tools, "skill_assess")
 	body, err := json.Marshal(AssessToolInput{
@@ -211,10 +210,10 @@ func toolNamesFromSet(t *testing.T, tools []einotool.BaseTool) map[string]bool {
 	return names
 }
 
-func newSkillLifecycleTestLoader(t *testing.T) *skills.Loader {
+func newSkillLifecycleTestLoader(t *testing.T) *Loader {
 	t.Helper()
 	cfg := skillLifecycleTestConfig(t.TempDir())
-	return skills.NewLoader(cfg)
+	return NewLoader(cfg)
 }
 
 func skillLifecycleTestConfig(root string) *config.Config {
@@ -254,17 +253,25 @@ func mustJSON(t *testing.T, value any) string {
 }
 
 type builtinSkillLifecycleLoader struct {
-	skill        skills.Spec
+	skill        Spec
 	updateCalled bool
 }
 
-func (l *builtinSkillLifecycleLoader) ScanSkills(context.Context) (*skills.ScanResult, error) {
-	return &skills.ScanResult{Skills: []skills.Spec{l.skill}}, nil
+func (l *builtinSkillLifecycleLoader) ScanSkills(context.Context) (*ScanResult, error) {
+	return &ScanResult{Skills: []Spec{l.skill}}, nil
 }
 
-func (l *builtinSkillLifecycleLoader) UpdateSkillLifecycle(context.Context, string, skills.LifecycleUpdate) (*skills.Spec, error) {
+func (l *builtinSkillLifecycleLoader) UpdateSkillLifecycle(context.Context, string, LifecycleUpdate) (*Spec, error) {
 	l.updateCalled = true
 	return nil, errors.New("builtin skill should not be updated")
+}
+
+func (l *builtinSkillLifecycleLoader) CreateSkill(context.Context, CreateInput) (*Spec, error) {
+	return nil, errors.New("builtin skill should not be created")
+}
+
+func (l *builtinSkillLifecycleLoader) WriteSkillFile(context.Context, string, string, string) error {
+	return errors.New("builtin skill should not write file")
 }
 
 func legacySkillToolName(kind string) string {

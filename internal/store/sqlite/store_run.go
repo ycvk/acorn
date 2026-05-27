@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/ycvk/acorn/internal/events"
-	"github.com/ycvk/acorn/internal/runtimehistory"
+	"github.com/ycvk/acorn/internal/model"
 	"github.com/ycvk/acorn/internal/store"
 )
 
@@ -309,7 +309,7 @@ func (s *Store) Get(ctx context.Context, key string) ([]byte, bool, error) {
 	return payload, true, nil
 }
 
-func (s *Store) UpsertRunArchive(ctx context.Context, archive runtimehistory.RunArchive) error {
+func (s *Store) UpsertRunArchive(ctx context.Context, archive model.RunArchive) error {
 	touchedPathsJSON, err := json.Marshal(archive.TouchedPaths)
 	if err != nil {
 		return fmt.Errorf("marshal archive touched paths: %w", err)
@@ -344,7 +344,7 @@ func (s *Store) UpsertRunArchive(ctx context.Context, archive runtimehistory.Run
 	return nil
 }
 
-func (s *Store) GetRunArchive(ctx context.Context, runID string) (*runtimehistory.RunArchive, error) {
+func (s *Store) GetRunArchive(ctx context.Context, runID string) (*model.RunArchive, error) {
 	row := s.db.QueryRowContext(ctx,
 		`SELECT run_id, session_id, input_excerpt, output_excerpt, touched_paths_json, tool_names_json, run_status, created_at
 		 FROM run_archives WHERE run_id = ?`,
@@ -360,7 +360,7 @@ func (s *Store) GetRunArchive(ctx context.Context, runID string) (*runtimehistor
 	return archive, nil
 }
 
-func (s *Store) ListAllRunArchives(ctx context.Context) ([]runtimehistory.RunArchive, error) {
+func (s *Store) ListAllRunArchives(ctx context.Context) ([]model.RunArchive, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT run_id, session_id, input_excerpt, output_excerpt, touched_paths_json, tool_names_json, run_status, created_at
 		 FROM run_archives
@@ -371,7 +371,7 @@ func (s *Store) ListAllRunArchives(ctx context.Context) ([]runtimehistory.RunArc
 	}
 	defer rows.Close()
 
-	items := make([]runtimehistory.RunArchive, 0)
+	items := make([]model.RunArchive, 0)
 	for rows.Next() {
 		archive, err := scanRunArchive(rows)
 		if err != nil {
@@ -385,9 +385,9 @@ func (s *Store) ListAllRunArchives(ctx context.Context) ([]runtimehistory.RunArc
 	return items, nil
 }
 
-func scanRunArchive(scanner interface{ Scan(dest ...any) error }) (*runtimehistory.RunArchive, error) {
+func scanRunArchive(scanner interface{ Scan(dest ...any) error }) (*model.RunArchive, error) {
 	var (
-		archive         runtimehistory.RunArchive
+		archive         model.RunArchive
 		touchedPathsRaw string
 		toolNamesRaw    string
 		createdAt       string
@@ -413,7 +413,7 @@ func scanRunArchive(scanner interface{ Scan(dest ...any) error }) (*runtimehisto
 	return &archive, nil
 }
 
-func (s *Store) SaveRunContextSnapshot(ctx context.Context, snapshot runtimehistory.RunContextSnapshot) error {
+func (s *Store) SaveRunContextSnapshot(ctx context.Context, snapshot model.RunContextSnapshot) error {
 	_, err := s.db.ExecContext(ctx,
 		`INSERT INTO run_context_snapshots(run_id, working_checkpoint_content, working_checkpoint_skill_id, decision_profile_hash, decision_action, decision_skill_id, created_at)
 			 VALUES(?, ?, ?, ?, ?, ?, ?)
@@ -438,14 +438,14 @@ func (s *Store) SaveRunContextSnapshot(ctx context.Context, snapshot runtimehist
 	return nil
 }
 
-func (s *Store) LoadRunContextSnapshot(ctx context.Context, runID string) (*runtimehistory.RunContextSnapshot, error) {
+func (s *Store) LoadRunContextSnapshot(ctx context.Context, runID string) (*model.RunContextSnapshot, error) {
 	row := s.db.QueryRowContext(ctx,
 		`SELECT run_id, working_checkpoint_content, working_checkpoint_skill_id, decision_profile_hash, decision_action, decision_skill_id, created_at
 			 FROM run_context_snapshots WHERE run_id = ?`,
 		runID,
 	)
 	var (
-		snapshot  runtimehistory.RunContextSnapshot
+		snapshot  model.RunContextSnapshot
 		createdAt string
 	)
 	if err := row.Scan(
@@ -470,7 +470,7 @@ func (s *Store) LoadRunContextSnapshot(ctx context.Context, runID string) (*runt
 	return &snapshot, nil
 }
 
-func (s *Store) SaveContextBoundary(ctx context.Context, boundary runtimehistory.ContextBoundary) error {
+func (s *Store) SaveContextBoundary(ctx context.Context, boundary model.ContextBoundary) error {
 	if err := validateContextBoundary(boundary); err != nil {
 		return err
 	}
@@ -509,7 +509,7 @@ func (s *Store) SaveContextBoundary(ctx context.Context, boundary runtimehistory
 	return nil
 }
 
-func (s *Store) LoadContextBoundary(ctx context.Context, boundaryID string) (*runtimehistory.ContextBoundary, error) {
+func (s *Store) LoadContextBoundary(ctx context.Context, boundaryID string) (*model.ContextBoundary, error) {
 	id := strings.TrimSpace(boundaryID)
 	if id == "" {
 		return nil, errors.New("context boundary id is required")
@@ -530,7 +530,7 @@ func (s *Store) LoadContextBoundary(ctx context.Context, boundaryID string) (*ru
 	return boundary, nil
 }
 
-func (s *Store) LoadLatestContextBoundary(ctx context.Context, sessionID string) (*runtimehistory.ContextBoundary, error) {
+func (s *Store) LoadLatestContextBoundary(ctx context.Context, sessionID string) (*model.ContextBoundary, error) {
 	id := strings.TrimSpace(sessionID)
 	if id == "" {
 		return nil, errors.New("context boundary session id is required")
@@ -553,7 +553,7 @@ func (s *Store) LoadLatestContextBoundary(ctx context.Context, sessionID string)
 	return boundary, nil
 }
 
-func (s *Store) ListContextBoundaries(ctx context.Context, sessionID string) ([]runtimehistory.ContextBoundary, error) {
+func (s *Store) ListContextBoundaries(ctx context.Context, sessionID string) ([]model.ContextBoundary, error) {
 	id := strings.TrimSpace(sessionID)
 	if id == "" {
 		return nil, errors.New("context boundary session id is required")
@@ -570,7 +570,7 @@ func (s *Store) ListContextBoundaries(ctx context.Context, sessionID string) ([]
 	}
 	defer rows.Close()
 
-	items := make([]runtimehistory.ContextBoundary, 0)
+	items := make([]model.ContextBoundary, 0)
 	for rows.Next() {
 		boundary, err := scanContextBoundary(rows)
 		if err != nil {
@@ -584,7 +584,7 @@ func (s *Store) ListContextBoundaries(ctx context.Context, sessionID string) ([]
 	return items, nil
 }
 
-func validateContextBoundary(boundary runtimehistory.ContextBoundary) error {
+func validateContextBoundary(boundary model.ContextBoundary) error {
 	if strings.TrimSpace(boundary.BoundaryID) == "" {
 		return errors.New("context boundary id is required")
 	}
@@ -663,9 +663,9 @@ func validateContextBoundary(boundary runtimehistory.ContextBoundary) error {
 	return nil
 }
 
-func scanContextBoundary(scanner interface{ Scan(dest ...any) error }) (*runtimehistory.ContextBoundary, error) {
+func scanContextBoundary(scanner interface{ Scan(dest ...any) error }) (*model.ContextBoundary, error) {
 	var (
-		boundary  runtimehistory.ContextBoundary
+		boundary  model.ContextBoundary
 		createdAt string
 	)
 	if err := scanner.Scan(
