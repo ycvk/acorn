@@ -200,10 +200,15 @@ type SubagentData struct {
 	SessionID         string   `json:"session_id,omitempty"`
 	Depth             int      `json:"depth,omitempty"`
 	Task              string   `json:"task,omitempty"`
+	ChildRunMode      string   `json:"child_run_mode,omitempty"`
+	WorkspaceMode     string   `json:"workspace_mode,omitempty"`
+	WorktreePath      string   `json:"worktree_path,omitempty"`
+	ContextMessages   int      `json:"context_messages,omitempty"`
 	Summary           string   `json:"summary,omitempty"`
 	FinalStatus       string   `json:"final_status,omitempty"`
 	AcceptanceStatus  string   `json:"acceptance_status,omitempty"`
 	AcceptanceReasons []string `json:"acceptance_reasons,omitempty"`
+	EvidenceRefs      []string `json:"evidence_refs,omitempty"`
 	OrchestrationMode string   `json:"orchestration_mode,omitempty"`
 	ParentStepID      string   `json:"parent_step_id,omitempty"`
 	Error             string   `json:"error,omitempty"`
