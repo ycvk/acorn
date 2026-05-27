@@ -40,6 +40,7 @@ last_updated: 2026-05-26
 2. Tool lifecycle fail-loud：unknown、disabled、deferred-before-load 是模型可见 failed tool result；runtime wiring/storage/model failure 是 run failure。
 3. Tool result lifecycle 必须写入 durable ledger；ledger wiring/storage 失败是 run failure。
 4. workspace checkpoint / rollback side effects 只能从后端 ledger/workbench projection 消费。
+5. 代码变更必须包含可复现的测试或回归验证；缺少测试的变更视为未完成的交付，禁止合并。
 
 ## 关联决策
 
