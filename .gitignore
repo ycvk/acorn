@@ -2,9 +2,6 @@
 .idea
 .agents/
 .sisyphus/
-.acorn/skills/
-.acorn/harness/state/
-.acorn/harness/.last-check
 .opencode/
 .claude/
 .tmp/
@@ -29,7 +26,6 @@ configs/acorn.local.yaml
 /dist/
 /.artifacts/
 /acorn
-gsd-sdk
 runtime.test
 /untitled.pen
 coverage.out

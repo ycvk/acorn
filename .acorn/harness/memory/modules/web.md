@@ -11,7 +11,7 @@ interfaces:
   - to: store
     contract: "SQLite runs/events/pending_actions"
 owner_run: run_abc123
-last_updated: 2026-05-26
+last_updated: 2026-05-27
 ---
 
 # Web
@@ -31,7 +31,7 @@ HTTP 服务层。暴露 `/v1` 远程客户端 API、`/healthz` 健康检查、se
 
 - Core logic: stable
 - 已知问题: 无
-- 最近改动: 2026-05-20 确认 pending action 消费 SQLite `pending_actions`，不从 RunEvent 反推
+- 最近改动: 2026-05-27 修复 CapabilitiesSummaryDTO JSON tag（invalid_count → invalid_skill_count）
 
 ## 硬约束（不可违反）
 

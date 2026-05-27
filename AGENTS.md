@@ -166,3 +166,65 @@ go test ./internal/config ./internal/contextplane ./internal/orchestration ./int
 ### 跨 session 恢复
 
 当检测到这是新 session（无历史上下文或用户输入"继续"），自动加载 `state/current.md` 并向用户呈现："上次我们做到这：..."
+
+## Phase 2 Meta-Cognition Protocol
+
+本小节描述 reflexion、meta-review 和 pattern-updater 的运行约束。
+
+### Reflexion 触发条件
+
+- run 涉及 >= 2 个模块的文件修改
+- run 修改了 `internal/web/`、`docs/openapi.yaml`、`mobile/` 中任一文件
+- run 执行了测试且结果非全绿
+- run 结束后用户给了负面反馈
+- run 识别到与已有 RISK 描述匹配的问题
+
+### Meta-Review 自动升级边界
+
+- 计数 >= 2 的 pattern → 自动升级为 RISK（无需确认）
+- 硬约束升级 → 必须等人确认
+- 新建决策 → 必须等人确认
+
+### Pattern 版本定义
+
+- v0: 发现（首次记录在 reflexion）
+- v1: 治理（升级为 RISK 或约束）
+- v2: 完善（硬约束落地）
+- v3+: 迭代优化
+
+## Phase 3 Auto-Skill-Create Protocol
+
+本小节描述 harness 自演化能力的运行约束。
+
+### Auto-Skill-Create 三层安全
+
+1. AI 生成内容（基于 gap 描述 + 模板）
+2. 自动验证不变量（skill-validator 检查格式/结构/安全）
+3. 人确认后激活（用户说"确认激活"才正式启用）
+
+### 不变量清单
+
+- frontmatter 必须有 `name` + `description`（<= 200 字符）
+- 正文必须有"触发时机"和"输出格式"小节
+- 无循环依赖（skill 不调用自己）
+- 无 destructive 命令
+- 不修改 AGENTS.md 或 hooks.json
+
+### Bootstrap Verification
+
+- 新 skill 激活后自动触发
+- 使用 replay fixture 验证历史场景覆盖率
+- 覆盖率 < 50% 或验证失败 → 建议回退到草稿
+
+### Decision Conflict Detection
+
+- 新建决策后自动扫描
+- 每 14 天全量扫描一次
+- 发现直接矛盾、隐式矛盾或过期决策时生成审计报告
+
+### Skill Governance 边界
+
+- 自动生成的 skill 放在 `.claude/skills/{name}/SKILL.md`
+- 草稿状态 skill 未激活前不进入 orchestrate 路由
+- 回滚的 skill 移动到 `.claude/skills/deprecated/drafts/`
+- 已激活 skill 的修改走同样的"生成-验证-确认"流程
