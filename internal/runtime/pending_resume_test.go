@@ -3,29 +3,35 @@ package runtime
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/ycvk/acorn/internal/events"
+	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
 )
 
-type mockPendingResumeStore struct {
-	run *events.RunRecord
-	err error
-}
-
-func (m *mockPendingResumeStore) FindLatestInterruptedRun(_ context.Context) (*events.RunRecord, error) {
-	return m.run, m.err
+func openPendingResumeTestStore(t *testing.T) *storesqlite.Store {
+	t.Helper()
+	s, err := storesqlite.Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+	return s
 }
 
 func TestFindPendingResume_Found(t *testing.T) {
-	now := time.Now().UTC()
-	store := &mockPendingResumeStore{
-		run: &events.RunRecord{
-			RunID: "run_int", SessionID: "sess_1", Input: "interrupted task",
-			Status: events.RunStatusInterrupted, CreatedAt: now, UpdatedAt: now,
-		},
+	ctx := context.Background()
+	store := openPendingResumeTestStore(t)
+	if _, err := store.CreateSession(ctx, "sess_1", "test"); err != nil {
+		t.Fatalf("CreateSession: %v", err)
 	}
-	info, err := FindPendingResume(context.Background(), store)
+	if err := store.CreateRunWithSession(ctx, "run_int", "sess_1", 1, "interrupted task", "cp_1"); err != nil {
+		t.Fatalf("CreateRunWithSession: %v", err)
+	}
+	if err := store.FinishRunContext(ctx, "run_int", events.RunStatusInterrupted, "", ""); err != nil {
+		t.Fatalf("FinishRunContext: %v", err)
+	}
+
+	info, err := FindPendingResume(ctx, store)
 	if err != nil {
 		t.Fatalf("FindPendingResume: %v", err)
 	}
@@ -41,7 +47,7 @@ func TestFindPendingResume_Found(t *testing.T) {
 }
 
 func TestFindPendingResume_None(t *testing.T) {
-	store := &mockPendingResumeStore{run: nil}
+	store := openPendingResumeTestStore(t)
 	info, err := FindPendingResume(context.Background(), store)
 	if err != nil {
 		t.Fatalf("FindPendingResume: %v", err)

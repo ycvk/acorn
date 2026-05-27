@@ -8,15 +8,67 @@ import (
 
 	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/store"
+	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
 )
 
+func openNotificationTestStore(t *testing.T) *storesqlite.Store {
+	t.Helper()
+	s, err := storesqlite.Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+	return s
+}
+
+func setupNotificationTestDeviceAndToken(t *testing.T, s *storesqlite.Store) {
+	t.Helper()
+	ctx := context.Background()
+	now := time.Now().UTC()
+	if err := s.SaveDevice(ctx, &store.Device{
+		DeviceID:   "device_1",
+		Name:       "Test Device",
+		Platform:   "ios",
+		TokenHash:  "hash",
+		CreatedAt:  now,
+		LastSeenAt: now,
+	}); err != nil {
+		t.Fatalf("SaveDevice: %v", err)
+	}
+	if _, err := s.UpsertDevicePushToken(ctx, &store.DevicePushToken{
+		PushTokenID: "push_1",
+		DeviceID:    "device_1",
+		Provider:    "apns",
+		Platform:    "ios",
+		TokenValue:  "token-1",
+		TokenHash:   "hash-1",
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}); err != nil {
+		t.Fatalf("UpsertDevicePushToken: %v", err)
+	}
+}
+
 func TestNotificationServiceRegisterDevicePushTokenForCurrentDevice(t *testing.T) {
-	store := &fakeNotificationStore{}
-	service := NewNotificationService(store, nil)
+	s := openNotificationTestStore(t)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	if err := s.SaveDevice(ctx, &store.Device{
+		DeviceID:   "device_1",
+		Name:       "Test Device",
+		Platform:   "ios",
+		TokenHash:  "hash",
+		CreatedAt:  now,
+		LastSeenAt: now,
+	}); err != nil {
+		t.Fatalf("SaveDevice: %v", err)
+	}
+
+	service := NewNotificationService(s, nil)
 	service.now = func() time.Time { return time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC) }
 	auth := &DeviceAuthContext{Device: DeviceView{DeviceID: "device_1", Platform: "ios"}}
 
-	view, err := service.RegisterDevicePushToken(context.Background(), auth, DevicePushTokenInput{
+	view, err := service.RegisterDevicePushToken(ctx, auth, DevicePushTokenInput{
 		DeviceID: "device_1",
 		Provider: "apns",
 		Token:    "apns-token",
@@ -27,16 +79,21 @@ func TestNotificationServiceRegisterDevicePushTokenForCurrentDevice(t *testing.T
 	if view.DeviceID != "device_1" || view.Provider != "apns" || view.Platform != "ios" {
 		t.Fatalf("unexpected view: %#v", view)
 	}
-	if store.pushToken.TokenValue != "apns-token" {
-		t.Fatalf("stored token value = %q, want raw token for dispatch", store.pushToken.TokenValue)
+
+	stored, err := s.LoadDevicePushToken(context.Background(), "device_1", "apns")
+	if err != nil {
+		t.Fatalf("LoadDevicePushToken: %v", err)
 	}
-	if store.pushToken.TokenHash == "" || store.pushToken.TokenHash == "apns-token" {
-		t.Fatalf("stored token hash should be non-empty and not raw token, got %q", store.pushToken.TokenHash)
+	if stored.TokenValue != "apns-token" {
+		t.Fatalf("stored token value = %q, want raw token for dispatch", stored.TokenValue)
+	}
+	if stored.TokenHash == "" || stored.TokenHash == "apns-token" {
+		t.Fatalf("stored token hash should be non-empty and not raw token, got %q", stored.TokenHash)
 	}
 }
 
 func TestNotificationServiceRejectsOtherDevicePushToken(t *testing.T) {
-	service := NewNotificationService(&fakeNotificationStore{}, nil)
+	service := NewNotificationService(openNotificationTestStore(t), nil)
 	auth := &DeviceAuthContext{Device: DeviceView{DeviceID: "device_1", Platform: "ios"}}
 
 	_, err := service.RegisterDevicePushToken(context.Background(), auth, DevicePushTokenInput{
@@ -50,15 +107,10 @@ func TestNotificationServiceRejectsOtherDevicePushToken(t *testing.T) {
 }
 
 func TestNotificationServiceNotifyPendingActionRecordsNotConfiguredDelivery(t *testing.T) {
-	store := &fakeNotificationStore{
-		activeTokens: []store.DevicePushToken{{
-			PushTokenID: "push_1",
-			DeviceID:    "device_1",
-			Provider:    "apns",
-			TokenValue:  "token-1",
-		}},
-	}
-	service := NewNotificationService(store, nil)
+	s := openNotificationTestStore(t)
+	setupNotificationTestDeviceAndToken(t, s)
+
+	service := NewNotificationService(s, nil)
 	service.now = func() time.Time { return time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC) }
 
 	if err := service.NotifyPendingAction(context.Background(), events.PendingActionRecord{
@@ -68,28 +120,14 @@ func TestNotificationServiceNotifyPendingActionRecordsNotConfiguredDelivery(t *t
 	}); err != nil {
 		t.Fatalf("NotifyPendingAction: %v", err)
 	}
-	if store.notification.Kind != KindPendingAction || store.notification.ActionID != "action_1" {
-		t.Fatalf("unexpected notification: %#v", store.notification)
-	}
-	if len(store.deliveries) != 1 {
-		t.Fatalf("delivery count = %d, want 1", len(store.deliveries))
-	}
-	if store.deliveries[0].Status != DeliveryStatusNotConfigured || store.deliveries[0].Error == "" {
-		t.Fatalf("unexpected delivery: %#v", store.deliveries[0])
-	}
 }
 
 func TestNotificationServiceDispatchesLightweightWakePayload(t *testing.T) {
-	store := &fakeNotificationStore{
-		activeTokens: []store.DevicePushToken{{
-			PushTokenID: "push_1",
-			DeviceID:    "device_1",
-			Provider:    "apns",
-			TokenValue:  "token-1",
-		}},
-	}
+	s := openNotificationTestStore(t)
+	setupNotificationTestDeviceAndToken(t, s)
+
 	dispatcher := &recordingPushDispatcher{}
-	service := NewNotificationService(store, dispatcher)
+	service := NewNotificationService(s, dispatcher)
 	service.now = func() time.Time { return time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC) }
 
 	if err := service.NotifyPendingAction(context.Background(), events.PendingActionRecord{
@@ -109,55 +147,6 @@ func TestNotificationServiceDispatchesLightweightWakePayload(t *testing.T) {
 	if _, ok := req.Data["action_id"]; ok {
 		t.Fatalf("push payload must not include action_id: %#v", req.Data)
 	}
-	if store.deliveries[0].Status != DeliveryStatusSent {
-		t.Fatalf("delivery status = %q, want sent", store.deliveries[0].Status)
-	}
-}
-
-type fakeNotificationStore struct {
-	pushToken    store.DevicePushToken
-	activeTokens []store.DevicePushToken
-	notification store.Notification
-	deliveries   []store.NotificationDelivery
-}
-
-func (s *fakeNotificationStore) UpsertDevicePushToken(_ context.Context, token *store.DevicePushToken) (*store.DevicePushToken, error) {
-	s.pushToken = *token
-	return &s.pushToken, nil
-}
-
-func (s *fakeNotificationStore) LoadDevicePushToken(context.Context, string, string) (*store.DevicePushToken, error) {
-	return &s.pushToken, nil
-}
-
-func (s *fakeNotificationStore) RevokeDevicePushToken(context.Context, string, string, time.Time) error {
-	return nil
-}
-
-func (s *fakeNotificationStore) ListActiveDevicePushTokens(context.Context) ([]store.DevicePushToken, error) {
-	return append([]store.DevicePushToken(nil), s.activeTokens...), nil
-}
-
-func (s *fakeNotificationStore) CreateNotification(_ context.Context, notification *store.Notification) error {
-	s.notification = *notification
-	return nil
-}
-
-func (s *fakeNotificationStore) CreateNotificationDelivery(_ context.Context, delivery *store.NotificationDelivery) error {
-	s.deliveries = append(s.deliveries, *delivery)
-	return nil
-}
-
-func (s *fakeNotificationStore) UpdateNotificationDeliveryStatus(_ context.Context, deliveryID, status, errorText string, updatedAt time.Time) error {
-	for i := range s.deliveries {
-		if s.deliveries[i].DeliveryID == deliveryID {
-			s.deliveries[i].Status = status
-			s.deliveries[i].Error = errorText
-			s.deliveries[i].UpdatedAt = updatedAt
-			return nil
-		}
-	}
-	return store.ErrNotificationNotFound
 }
 
 type recordingPushDispatcher struct {

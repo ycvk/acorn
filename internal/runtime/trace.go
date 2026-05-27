@@ -332,10 +332,6 @@ func SelectedSkillFromEvents(raw []events.EventRecord) *SelectedSkill {
 	return nil
 }
 
-type PendingResumeStore interface {
-	FindLatestInterruptedRun(ctx context.Context) (*events.RunRecord, error)
-}
-
 type PendingResumeInfo struct {
 	RunID     string    `json:"run_id"`
 	SessionID string    `json:"session_id"`

@@ -20,6 +20,12 @@ import (
 	"github.com/ycvk/acorn/internal/tooling"
 )
 
+type orchestrationPlane interface {
+	BuildDirectResponse(ctx context.Context, req orchestration.DirectResponseRequest) (*orchestration.RunAssembly, error)
+	BuildSingleAgent(ctx context.Context, req orchestration.SingleAgentRequest) (*orchestration.RunAssembly, error)
+	BuildPlanExecute(ctx context.Context, req orchestration.PlanExecuteRequest) (*orchestration.RunAssembly, error)
+}
+
 type defaultOrchestrationPlaneDeps struct {
 	cfg          *config.Config
 	store        RunnerFactoryStore

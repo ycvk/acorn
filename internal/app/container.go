@@ -3,13 +3,18 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/ycvk/acorn/internal/config"
+	"github.com/ycvk/acorn/internal/crystallization"
 	"github.com/ycvk/acorn/internal/decision"
+	"github.com/ycvk/acorn/internal/memorymodule"
 	"github.com/ycvk/acorn/internal/runtime"
 	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
-	"github.com/ycvk/acorn/internal/toolfactory"
 )
 
 type Container struct {
@@ -32,7 +37,7 @@ type Container struct {
 	inbox         *InboxService
 	notifications *NotificationService
 	mcpServer     *mcp.Server
-	serveToolset  *toolfactory.Toolset
+	serveToolset  *runtime.Toolset
 }
 
 func NewContainer(ctx context.Context, cfg *config.Config) (*Container, error) {
@@ -158,7 +163,7 @@ func buildContainer(ctx context.Context, cfg *config.Config) (*Container, error)
 		}
 	}()
 
-	deps, err := buildContainerRuntimeDeps(ctx, cfg, store)
+	deps, err := buildContainerRuntimeDeps(ctx, cfg, store, buildContainerCrystallizerFactory(cfg))
 	if err != nil {
 		return nil, err
 	}
@@ -178,4 +183,17 @@ func buildContainer(ctx context.Context, cfg *config.Config) (*Container, error)
 
 	committed = true
 	return container, nil
+}
+
+func buildContainerCrystallizerFactory(cfg *config.Config) crystallizerFactory {
+	return func(memorySvc memorymodule.Service) (crystallization.Service, io.Closer, error) {
+		if memorySvc == nil || os.Getenv("ACORN_AUTO_CRYSTALLIZATION") != "true" {
+			return nil, nil, nil
+		}
+		indexStore, err := storesqlite.OpenCrystallizationIndexStore(filepath.Join(cfg.Runtime.StorageDir, "insight_index.db"))
+		if err != nil {
+			return nil, nil, fmt.Errorf("open insight index: %w", err)
+		}
+		return crystallization.NewDefaultService(memorySvc, indexStore), indexStore, nil
+	}
 }

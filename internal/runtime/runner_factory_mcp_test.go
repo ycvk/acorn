@@ -246,10 +246,22 @@ func TestRunnerFactoryCloseReleasesManager(t *testing.T) {
 	}
 }
 
-func TestRunnerFactoryCloseClosesInsightIndexStore(t *testing.T) {
-	t.Setenv("ACORN_AUTO_CRYSTALLIZATION", "true")
+type recordingCloser struct {
+	closed bool
+}
+
+func (c *recordingCloser) Close() error {
+	c.closed = true
+	return nil
+}
+
+func TestRunnerFactoryCloseClosesInjectedCrystallizerCloser(t *testing.T) {
 	store, cfg := newRunnerFactoryMemoryTestContext(t)
-	factory := newRunnerFactory(t, cfg, store, RunnerFactoryOptions{})
+	closer := &recordingCloser{}
+	factory := newRunnerFactory(t, cfg, store, RunnerFactoryOptions{
+		Crystallizer:       stubCrystallizer{},
+		CrystallizerCloser: closer,
+	})
 
 	factory.mu.Lock()
 	indexStore := factory.deps.IndexStore
@@ -272,8 +284,8 @@ func TestRunnerFactoryCloseClosesInsightIndexStore(t *testing.T) {
 	if crystallizerAfter != nil {
 		t.Fatal("expected crystallizer to be nil after Close()")
 	}
-	if _, err := indexStore.Query(context.Background(), "anything", 1); err == nil {
-		t.Fatal("expected closed insight index store query to fail")
+	if !closer.closed {
+		t.Fatal("expected injected crystallizer closer to be closed")
 	}
 }
 

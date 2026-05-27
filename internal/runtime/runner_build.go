@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
+	"io"
 	"path/filepath"
 	"strings"
 
@@ -76,7 +76,7 @@ func buildRuntimeDeps(cfg *config.Config, store RunnerFactoryStore, opts RunnerF
 		handlers:     opts.Handlers,
 	})
 
-	crystallizer, indexStore, err := buildCrystallizer(opts.MemoryModule, cfg)
+	crystallizer, indexStore, err := resolveCrystallizer(opts.Crystallizer, opts.CrystallizerCloser)
 	if err != nil {
 		return RuntimeDeps{}, fmt.Errorf("crystallizer: %w", err)
 	}
@@ -157,16 +157,11 @@ func buildDefaultContextPlane(cfg *config.Config, store RunnerFactoryStore, opts
 	}), nil
 }
 
-func buildCrystallizer(memoryModule memorymodule.Service, cfg *config.Config) (crystallization.Service, closeableIndexStore, error) {
-	if memoryModule == nil || cfg == nil || os.Getenv("ACORN_AUTO_CRYSTALLIZATION") != "true" {
-		return nil, nil, nil
+func resolveCrystallizer(crystallizer crystallization.Service, closer io.Closer) (crystallization.Service, io.Closer, error) {
+	if crystallizer == nil && closer != nil {
+		return nil, nil, errors.New("crystallizer closer requires crystallizer")
 	}
-	indexStore, err := crystallization.OpenIndexStore(filepath.Join(cfg.Runtime.StorageDir, "insight_index.db"))
-	if err != nil {
-		return nil, nil, fmt.Errorf("open insight index: %w", err)
-	}
-	crystallizer := crystallization.NewDefaultService(memoryModule, indexStore)
-	return crystallizer, indexStore, nil
+	return crystallizer, closer, nil
 }
 
 func assembleRunnerFactory(deps RuntimeDeps) *RunnerFactory {
