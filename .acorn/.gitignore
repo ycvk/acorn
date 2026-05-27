@@ -1,0 +1,18 @@
+# === 运行时状态（高频更新，本地生成，不提交） ===
+harness/state/
+harness/reflexions/
+harness/skill_usage.log
+harness/.last-check
+
+# === 临时产物（自动生成，不提交） ===
+harness/skill_templates/
+
+# === 可选：本地数据库（通常很大，不提交） ===
+*.db
+*.db-wal
+*.db-shm
+
+# === 保留提交：共识层 ===
+# harness/memory/modules/*.md
+# harness/memory/decisions/*.md
+# harness/README.md
