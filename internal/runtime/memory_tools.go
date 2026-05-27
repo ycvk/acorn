@@ -1,4 +1,4 @@
-package toolfactory
+package runtime
 
 import (
 	"context"
@@ -79,7 +79,7 @@ type memorySearchOutputItem struct {
 	Ref          string                        `json:"ref"`
 	Kind         string                        `json:"kind"`
 	Title        string                        `json:"title"`
-	Status       string                        `json:"status"`
+	Status       string                        `json:"status,omitempty"`
 	Scope        string                        `json:"scope,omitempty"`
 	Tags         []string                      `json:"tags,omitempty"`
 	Origin       string                        `json:"origin,omitempty"`

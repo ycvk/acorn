@@ -9,10 +9,9 @@ import (
 	"github.com/ycvk/acorn/internal/config"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
 	"github.com/ycvk/acorn/internal/runtime"
-	"github.com/ycvk/acorn/internal/toolfactory"
 )
 
-func buildContainerMCPServer(cfg *config.Config, runnerFactory *runtime.RunnerFactory) (*mcp.Server, *toolfactory.Toolset, error) {
+func buildContainerMCPServer(cfg *config.Config, runnerFactory *runtime.RunnerFactory) (*mcp.Server, *runtime.Toolset, error) {
 	if len(cfg.Serve.Tools.Allowlist) == 0 {
 		return nil, nil, nil
 	}

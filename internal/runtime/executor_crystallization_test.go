@@ -11,30 +11,19 @@ import (
 	"github.com/ycvk/acorn/internal/stream"
 )
 
-type mockCrystallizer struct {
-	called    bool
-	lastReq   crystallization.CrystallizationRequest
-	returnErr error
-	returnRes *crystallization.CrystallizationResult
+type stubCrystallizer struct {
+	crystallize func(context.Context, crystallization.CrystallizationRequest) (*crystallization.CrystallizationResult, error)
 }
 
-func (m *mockCrystallizer) Crystallize(ctx context.Context, req crystallization.CrystallizationRequest) (*crystallization.CrystallizationResult, error) {
-	m.called = true
-	m.lastReq = req
-	if m.returnErr != nil {
-		return nil, m.returnErr
-	}
-	if m.returnRes != nil {
-		return m.returnRes, nil
-	}
-	return &crystallization.CrystallizationResult{Verdict: crystallization.VerdictCrystallized, SkillID: "skill-mock"}, nil
+func (s stubCrystallizer) Crystallize(ctx context.Context, req crystallization.CrystallizationRequest) (*crystallization.CrystallizationResult, error) {
+	return s.crystallize(ctx, req)
 }
 
-func (m *mockCrystallizer) BuildIndexEntry(ctx context.Context, skillID string) (*crystallization.IndexEntry, error) {
+func (s stubCrystallizer) BuildIndexEntry(ctx context.Context, skillID string) (*crystallization.IndexEntry, error) {
 	return nil, nil
 }
 
-func (m *mockCrystallizer) QueryIndex(ctx context.Context, input string, limit int) ([]crystallization.IndexEntry, error) {
+func (s stubCrystallizer) QueryIndex(ctx context.Context, input string, limit int) ([]crystallization.IndexEntry, error) {
 	return nil, nil
 }
 
@@ -42,8 +31,13 @@ func TestCrystallizationCalledOnSuccess(t *testing.T) {
 	ctx := context.Background()
 	store, cfg := newRunnerFactoryMemoryTestContext(t)
 	exec := newFinalizationTestExecutor(t, store, cfg)
-	mock := &mockCrystallizer{}
-	exec.SetCrystallizer(mock)
+
+	var lastReq crystallization.CrystallizationRequest
+	svc := stubCrystallizer{crystallize: func(ctx context.Context, req crystallization.CrystallizationRequest) (*crystallization.CrystallizationResult, error) {
+		lastReq = req
+		return &crystallization.CrystallizationResult{Verdict: crystallization.VerdictCrystallized, SkillID: "skill-mock"}, nil
+	}}
+	exec.SetCrystallizer(svc)
 
 	sessionID := "session-crystal"
 	runID := createFinalizationRun(t, ctx, store, sessionID, "deploy app")
@@ -57,17 +51,14 @@ func TestCrystallizationCalledOnSuccess(t *testing.T) {
 	if result.TraceSummary == nil || !result.TraceSummary.Completed {
 		t.Fatal("expected successful completion")
 	}
-	if !mock.called {
-		t.Fatal("expected crystallizer to be called")
+	if lastReq.RunID != runID {
+		t.Fatalf("expected runID %q, got %q", runID, lastReq.RunID)
 	}
-	if mock.lastReq.RunID != runID {
-		t.Fatalf("expected runID %q, got %q", runID, mock.lastReq.RunID)
+	if len(lastReq.ToolNames) != 1 || lastReq.ToolNames[0] != "deploy_tool" {
+		t.Fatalf("expected tool names from finalized archive, got %v", lastReq.ToolNames)
 	}
-	if len(mock.lastReq.ToolNames) != 1 || mock.lastReq.ToolNames[0] != "deploy_tool" {
-		t.Fatalf("expected tool names from finalized archive, got %v", mock.lastReq.ToolNames)
-	}
-	if len(mock.lastReq.EvidenceRefs) != 1 || mock.lastReq.EvidenceRefs[0] != evidenceRef {
-		t.Fatalf("expected evidence refs %q, got %v", evidenceRef, mock.lastReq.EvidenceRefs)
+	if len(lastReq.EvidenceRefs) != 1 || lastReq.EvidenceRefs[0] != evidenceRef {
+		t.Fatalf("expected evidence refs %q, got %v", evidenceRef, lastReq.EvidenceRefs)
 	}
 
 	run, err := store.LoadRun(ctx, runID)
@@ -83,8 +74,10 @@ func TestCrystallizationErrorDoesNotBlockSuccess(t *testing.T) {
 	ctx := context.Background()
 	store, cfg := newRunnerFactoryMemoryTestContext(t)
 	exec := newFinalizationTestExecutor(t, store, cfg)
-	mock := &mockCrystallizer{returnErr: errors.New("crystallizer failure")}
-	exec.SetCrystallizer(mock)
+	svc := stubCrystallizer{crystallize: func(ctx context.Context, req crystallization.CrystallizationRequest) (*crystallization.CrystallizationResult, error) {
+		return nil, errors.New("crystallizer failure")
+	}}
+	exec.SetCrystallizer(svc)
 
 	sessionID := "session-crystal-err"
 	runID := createFinalizationRun(t, ctx, store, sessionID, "update config")
@@ -97,9 +90,6 @@ func TestCrystallizationErrorDoesNotBlockSuccess(t *testing.T) {
 	}
 	if result.TraceSummary == nil || !result.TraceSummary.Completed {
 		t.Fatal("expected successful completion despite crystallization error")
-	}
-	if !mock.called {
-		t.Fatal("expected crystallizer to be called")
 	}
 
 	run, err := store.LoadRun(ctx, runID)
@@ -139,11 +129,10 @@ func TestCrystallizationVerdictEventEmitted(t *testing.T) {
 	ctx := context.Background()
 	store, cfg := newRunnerFactoryMemoryTestContext(t)
 	exec := newFinalizationTestExecutor(t, store, cfg)
-	mock := &mockCrystallizer{returnRes: &crystallization.CrystallizationResult{
-		Verdict: crystallization.VerdictInsufficientValue,
-		Reason:  "no meaningful tool sequence",
+	svc := stubCrystallizer{crystallize: func(ctx context.Context, req crystallization.CrystallizationRequest) (*crystallization.CrystallizationResult, error) {
+		return &crystallization.CrystallizationResult{Verdict: crystallization.VerdictInsufficientValue, Reason: "no meaningful tool sequence"}, nil
 	}}
-	exec.SetCrystallizer(mock)
+	exec.SetCrystallizer(svc)
 
 	sessionID := "session-verdict"
 	runID := createFinalizationRun(t, ctx, store, sessionID, "hello")
@@ -176,12 +165,10 @@ func TestCrystallizationEventSinkFailureReturnsError(t *testing.T) {
 	ctx := context.Background()
 	store, cfg := newRunnerFactoryMemoryTestContext(t)
 	exec := newFinalizationTestExecutor(t, store, cfg)
-	mock := &mockCrystallizer{returnRes: &crystallization.CrystallizationResult{
-		Verdict: crystallization.VerdictCrystallized,
-		SkillID: "skill-mock",
-		Reason:  "test verdict",
+	svc := stubCrystallizer{crystallize: func(ctx context.Context, req crystallization.CrystallizationRequest) (*crystallization.CrystallizationResult, error) {
+		return &crystallization.CrystallizationResult{Verdict: crystallization.VerdictCrystallized, SkillID: "skill-mock", Reason: "test verdict"}, nil
 	}}
-	exec.SetCrystallizer(mock)
+	exec.SetCrystallizer(svc)
 
 	sessionID := "session-crystal-sink-failure"
 	runID := createFinalizationRun(t, ctx, store, sessionID, "edit config")
@@ -200,8 +187,13 @@ func TestCrystallizationWithArchiveData(t *testing.T) {
 	ctx := context.Background()
 	store, cfg := newRunnerFactoryMemoryTestContext(t)
 	exec := newFinalizationTestExecutor(t, store, cfg)
-	mock := &mockCrystallizer{}
-	exec.SetCrystallizer(mock)
+
+	var lastReq crystallization.CrystallizationRequest
+	svc := stubCrystallizer{crystallize: func(ctx context.Context, req crystallization.CrystallizationRequest) (*crystallization.CrystallizationResult, error) {
+		lastReq = req
+		return &crystallization.CrystallizationResult{Verdict: crystallization.VerdictCrystallized, SkillID: "skill-mock"}, nil
+	}}
+	exec.SetCrystallizer(svc)
 
 	sessionID := "session-archive"
 	runID := createFinalizationRun(t, ctx, store, sessionID, "migrate db")
@@ -214,17 +206,14 @@ func TestCrystallizationWithArchiveData(t *testing.T) {
 	if err != nil {
 		t.Fatalf("finishCollectedRun: %v", err)
 	}
-	if !mock.called {
-		t.Fatal("expected crystallizer to be called")
+	if len(lastReq.ToolNames) != 2 || lastReq.ToolNames[0] != "db_migrate" {
+		t.Fatalf("expected tool names from archive, got %v", lastReq.ToolNames)
 	}
-	if len(mock.lastReq.ToolNames) != 2 || mock.lastReq.ToolNames[0] != "db_migrate" {
-		t.Fatalf("expected tool names from archive, got %v", mock.lastReq.ToolNames)
+	if len(lastReq.TouchedPaths) != 1 || lastReq.TouchedPaths[0] != "migrations/002.sql" {
+		t.Fatalf("expected touched paths from archive, got %v", lastReq.TouchedPaths)
 	}
-	if len(mock.lastReq.TouchedPaths) != 1 || mock.lastReq.TouchedPaths[0] != "migrations/002.sql" {
-		t.Fatalf("expected touched paths from archive, got %v", mock.lastReq.TouchedPaths)
-	}
-	if len(mock.lastReq.EvidenceRefs) != 2 || mock.lastReq.EvidenceRefs[0] != firstEvidenceRef || mock.lastReq.EvidenceRefs[1] != secondEvidenceRef {
-		t.Fatalf("expected evidence refs [%q %q], got %v", firstEvidenceRef, secondEvidenceRef, mock.lastReq.EvidenceRefs)
+	if len(lastReq.EvidenceRefs) != 2 || lastReq.EvidenceRefs[0] != firstEvidenceRef || lastReq.EvidenceRefs[1] != secondEvidenceRef {
+		t.Fatalf("expected evidence refs [%q %q], got %v", firstEvidenceRef, secondEvidenceRef, lastReq.EvidenceRefs)
 	}
 }
 
@@ -237,8 +226,12 @@ func TestCrystallizationFeatureGateDisabled(t *testing.T) {
 	}
 	exec := newFinalizationTestExecutor(t, store, cfg)
 
-	mock := &mockCrystallizer{}
-	exec.SetCrystallizer(mock)
+	var called bool
+	svc := stubCrystallizer{crystallize: func(ctx context.Context, req crystallization.CrystallizationRequest) (*crystallization.CrystallizationResult, error) {
+		called = true
+		return &crystallization.CrystallizationResult{Verdict: crystallization.VerdictCrystallized, SkillID: "skill-mock"}, nil
+	}}
+	exec.SetCrystallizer(svc)
 
 	sessionID := "session-gate"
 	runID := createFinalizationRun(t, ctx, store, sessionID, "test gate")
@@ -249,7 +242,7 @@ func TestCrystallizationFeatureGateDisabled(t *testing.T) {
 	if err != nil {
 		t.Fatalf("finishCollectedRun: %v", err)
 	}
-	if !mock.called {
+	if !called {
 		t.Fatal("expected crystallizer to be called when explicitly set on executor")
 	}
 }

@@ -1,4 +1,4 @@
-package crystallization
+package sqlite
 
 import (
 	"context"
@@ -7,26 +7,20 @@ import (
 	"strings"
 	"time"
 
-	_ "modernc.org/sqlite"
+	"github.com/ycvk/acorn/internal/crystallization"
 )
 
-type IndexStore interface {
-	Upsert(ctx context.Context, entry *IndexEntry) error
-	Query(ctx context.Context, input string, limit int) ([]IndexEntry, error)
-	Delete(ctx context.Context, skillID string) error
-}
-
-type SQLiteIndexStore struct {
+type CrystallizationIndexStore struct {
 	db *sql.DB
 }
 
-func OpenIndexStore(dbPath string) (*SQLiteIndexStore, error) {
+func OpenCrystallizationIndexStore(dbPath string) (*CrystallizationIndexStore, error) {
 	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("open insight index db: %w", err)
 	}
 	db.SetMaxOpenConns(1)
-	store := &SQLiteIndexStore{db: db}
+	store := &CrystallizationIndexStore{db: db}
 	if err := store.initSchema(); err != nil {
 		_ = db.Close()
 		return nil, err
@@ -34,14 +28,14 @@ func OpenIndexStore(dbPath string) (*SQLiteIndexStore, error) {
 	return store, nil
 }
 
-func (s *SQLiteIndexStore) Close() error {
+func (s *CrystallizationIndexStore) Close() error {
 	if s == nil || s.db == nil {
 		return nil
 	}
 	return s.db.Close()
 }
 
-func (s *SQLiteIndexStore) initSchema() error {
+func (s *CrystallizationIndexStore) initSchema() error {
 	schema := `
 	CREATE TABLE IF NOT EXISTS insight_index (
 		skill_id TEXT PRIMARY KEY,
@@ -61,7 +55,7 @@ func (s *SQLiteIndexStore) initSchema() error {
 	return err
 }
 
-func (s *SQLiteIndexStore) Upsert(ctx context.Context, entry *IndexEntry) error {
+func (s *CrystallizationIndexStore) Upsert(ctx context.Context, entry *crystallization.IndexEntry) error {
 	if s == nil || s.db == nil {
 		return fmt.Errorf("index store not initialized")
 	}
@@ -92,14 +86,14 @@ func (s *SQLiteIndexStore) Upsert(ctx context.Context, entry *IndexEntry) error 
 	return err
 }
 
-func (s *SQLiteIndexStore) Query(ctx context.Context, input string, limit int) ([]IndexEntry, error) {
+func (s *CrystallizationIndexStore) Query(ctx context.Context, input string, limit int) ([]crystallization.IndexEntry, error) {
 	if s == nil || s.db == nil {
 		return nil, fmt.Errorf("index store not initialized")
 	}
 	if limit <= 0 {
 		limit = 20
 	}
-	terms := extractTerms(input)
+	terms := extractCrystallizationTerms(input)
 	if len(terms) == 0 {
 		return nil, nil
 	}
@@ -126,9 +120,9 @@ func (s *SQLiteIndexStore) Query(ctx context.Context, input string, limit int) (
 	}
 	defer rows.Close()
 
-	var results []IndexEntry
+	var results []crystallization.IndexEntry
 	for rows.Next() {
-		var entry IndexEntry
+		var entry crystallization.IndexEntry
 		var keywordsStr, createdStr, updatedStr string
 		if err := rows.Scan(&entry.SkillID, &entry.SkillName, &entry.Summary, &keywordsStr, &entry.TaskPattern, &entry.QualityScore, &entry.Source, &createdStr, &updatedStr); err != nil {
 			return nil, fmt.Errorf("scan insight index row: %w", err)
@@ -136,11 +130,11 @@ func (s *SQLiteIndexStore) Query(ctx context.Context, input string, limit int) (
 		if keywordsStr != "" {
 			entry.Keywords = strings.Split(keywordsStr, ",")
 		}
-		entry.CreatedAt, err = parseIndexTime(createdStr)
+		entry.CreatedAt, err = parseCrystallizationIndexTime(createdStr)
 		if err != nil {
 			return nil, fmt.Errorf("parse insight index created_at for %s: %w", entry.SkillID, err)
 		}
-		entry.UpdatedAt, err = parseIndexTime(updatedStr)
+		entry.UpdatedAt, err = parseCrystallizationIndexTime(updatedStr)
 		if err != nil {
 			return nil, fmt.Errorf("parse insight index updated_at for %s: %w", entry.SkillID, err)
 		}
@@ -152,7 +146,7 @@ func (s *SQLiteIndexStore) Query(ctx context.Context, input string, limit int) (
 	return results, nil
 }
 
-func (s *SQLiteIndexStore) Delete(ctx context.Context, skillID string) error {
+func (s *CrystallizationIndexStore) Delete(ctx context.Context, skillID string) error {
 	if s == nil || s.db == nil {
 		return fmt.Errorf("index store not initialized")
 	}
@@ -160,7 +154,7 @@ func (s *SQLiteIndexStore) Delete(ctx context.Context, skillID string) error {
 	return err
 }
 
-func extractTerms(input string) []string {
+func extractCrystallizationTerms(input string) []string {
 	input = strings.ToLower(input)
 	words := strings.FieldsFunc(input, func(r rune) bool {
 		return r == ' ' || r == '\t' || r == '\n' || r == ',' || r == '.' || r == ';' || r == ':' || r == '?' || r == '!'
@@ -179,4 +173,20 @@ func extractTerms(input string) []string {
 		terms = append(terms, w)
 	}
 	return terms
+}
+
+func parseCrystallizationIndexTime(value string) (time.Time, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return time.Time{}, fmt.Errorf("timestamp is required")
+	}
+	t, err := time.Parse("2006-01-02", value)
+	if err == nil && !t.IsZero() {
+		return t, nil
+	}
+	t, err = time.Parse(time.RFC3339, value)
+	if err == nil && !t.IsZero() {
+		return t, nil
+	}
+	return time.Time{}, fmt.Errorf("invalid timestamp %q", value)
 }

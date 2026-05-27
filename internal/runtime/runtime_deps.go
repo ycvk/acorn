@@ -1,7 +1,7 @@
 package runtime
 
 import (
-	"context"
+	"io"
 
 	"github.com/cloudwego/eino/adk"
 	einotool "github.com/cloudwego/eino/components/tool"
@@ -12,24 +12,12 @@ import (
 	"github.com/ycvk/acorn/internal/decision"
 	"github.com/ycvk/acorn/internal/memorymodule"
 	"github.com/ycvk/acorn/internal/model"
-	"github.com/ycvk/acorn/internal/orchestration"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/workingstate"
 	"github.com/ycvk/acorn/internal/workspace"
 )
-
-type orchestrationPlane interface {
-	BuildDirectResponse(context.Context, orchestration.DirectResponseRequest) (*orchestration.RunAssembly, error)
-	BuildSingleAgent(context.Context, orchestration.SingleAgentRequest) (*orchestration.RunAssembly, error)
-	BuildPlanExecute(context.Context, orchestration.PlanExecuteRequest) (*orchestration.RunAssembly, error)
-}
-
-type closeableIndexStore interface {
-	crystallization.IndexStore
-	Close() error
-}
 
 type RuntimeDeps struct {
 	Config            *config.Config
@@ -47,7 +35,7 @@ type RuntimeDeps struct {
 	ExtraLocalTools   []einotool.BaseTool
 	Handlers          []adk.ChatModelAgentMiddleware
 	Crystallizer      crystallization.Service
-	IndexStore        closeableIndexStore
+	IndexStore        io.Closer
 }
 
 func (d RuntimeDeps) CloneForWorkspace(ws *workspace.Workspace) RuntimeDeps {

@@ -55,6 +55,11 @@ type ProviderUsageStore interface {
 	ListProviderUsagesByRun(ctx context.Context, runID string) ([]providers.UsageRecord, error)
 }
 
+// PendingResumeStore reads the persisted interrupted run truth required by resume discovery.
+type PendingResumeStore interface {
+	FindLatestInterruptedRun(ctx context.Context) (*events.RunRecord, error)
+}
+
 // ExecutorStore is the store contract required by the Executor.
 type ExecutorStore interface {
 	adk.CheckPointStore

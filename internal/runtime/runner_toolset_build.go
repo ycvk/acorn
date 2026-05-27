@@ -21,7 +21,6 @@ import (
 	"github.com/ycvk/acorn/internal/runtime/tool"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/stream"
-	"github.com/ycvk/acorn/internal/toolfactory"
 	"github.com/ycvk/acorn/internal/tooling"
 	"github.com/ycvk/acorn/internal/tools"
 	"github.com/ycvk/acorn/internal/webaccess"
@@ -34,7 +33,7 @@ func (f *RunnerFactory) buildToolset(
 	childExec orchestration.ChildAgentExecutor,
 	includePlanning bool,
 	profile tooling.ToolProfile,
-) (toolset *toolfactory.Toolset, err error) {
+) (toolset *Toolset, err error) {
 	if f == nil || f.deps.Config == nil {
 		return nil, errors.New("runner factory is not initialized")
 	}
@@ -103,8 +102,8 @@ func (f *RunnerFactory) buildToolset(
 	var operatorStore tools.OperatorQuestionStore
 	if f.deps.MCPPendingActions != nil {
 		operatorStore = f.deps.MCPPendingActions
-	} else if store, ok := f.deps.Store.(tools.OperatorQuestionStore); ok {
-		operatorStore = store
+	} else {
+		operatorStore = f.deps.Store
 	}
 
 	localCatalog, err := tools.BuildCatalog(tools.CatalogConfig{
@@ -135,7 +134,7 @@ func (f *RunnerFactory) buildToolset(
 	}
 	var memoryTools []einotool.BaseTool
 	if f.deps.MemoryModule != nil {
-		fileTools, err := toolfactory.BuildMemoryFileTools(ctx, f.deps.MemoryModule, delegateTaskBridge{})
+		fileTools, err := BuildMemoryFileTools(ctx, f.deps.MemoryModule, delegateTaskBridge{})
 		if err != nil {
 			return nil, err
 		}
@@ -198,7 +197,7 @@ func (f *RunnerFactory) buildToolset(
 	if err != nil {
 		return nil, fmt.Errorf("build toolset catalog: %w", err)
 	}
-	return toolfactory.NewToolset(catalog, profile, closers...), nil
+	return NewToolset(catalog, profile, closers...), nil
 }
 
 const capabilityDiscoveryInstruction = `Capability discovery rules:

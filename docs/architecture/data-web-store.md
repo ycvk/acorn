@@ -157,3 +157,5 @@ MCP elicitation pending actions are wired through a notification-aware pending a
 Store code persists records and performs schema migrations. It does not decide memory admission, assemble prompts, choose skills, or hide corrupted rows behind empty results. Runtime/app/web services own business projection through their own ports.
 
 `internal/store` is allowed to hold shared persistence records where multiple consumers need the same durable shape, such as plan records, OAuth tokens, pending-action input, and store sentinel errors. The sqlite package aliases or implements these records; it no longer owns them as cross-package API.
+
+Optional auto-crystallization follows the same boundary: `internal/crystallization` owns procedure admission logic and the `IndexStore` port, while `internal/store/sqlite` only implements the SQLite insight-index adapter. The app composition root opens that adapter and injects it into runtime; runtime does not import the SQLite package or own the index schema.

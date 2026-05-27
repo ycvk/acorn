@@ -1,4 +1,4 @@
-package toolfactory
+package tool
 
 import (
 	"context"
@@ -11,22 +11,22 @@ import (
 	"github.com/ycvk/acorn/internal/tooling"
 )
 
-// mockTool is a minimal einotool.BaseTool for testing.
-type mockTool struct {
+// specTestTool is a minimal einotool.BaseTool for testing spec construction.
+type specTestTool struct {
 	name string
 }
 
-func (m *mockTool) Info(ctx context.Context) (*schema.ToolInfo, error) {
+func (m *specTestTool) Info(ctx context.Context) (*schema.ToolInfo, error) {
 	return &schema.ToolInfo{Name: m.name}, nil
 }
 
-func (m *mockTool) InvokableRun(ctx context.Context, input string) (string, error) {
+func (m *specTestTool) InvokableRun(ctx context.Context, input string) (string, error) {
 	return "", nil
 }
 
 func TestRuntimeToolSpec(t *testing.T) {
 	cfg := config.DefaultConfig()
-	tool := &mockTool{name: "test_tool"}
+	tool := &specTestTool{name: "test_tool"}
 
 	spec, err := RuntimeToolSpec(context.Background(), cfg, "native", tooling.ToolKindNative, []tooling.ToolProfile{tooling.ToolProfileRun}, tool)
 	if err != nil {
@@ -48,7 +48,7 @@ func TestRuntimeToolSpec(t *testing.T) {
 
 func TestRuntimeToolSpecEmptyName(t *testing.T) {
 	cfg := config.DefaultConfig()
-	tool := &mockTool{name: "  "}
+	tool := &specTestTool{name: "  "}
 	_, err := RuntimeToolSpec(context.Background(), cfg, "native", tooling.ToolKindNative, nil, tool)
 	if err == nil {
 		t.Fatal("expected error for empty name")
@@ -58,8 +58,8 @@ func TestRuntimeToolSpecEmptyName(t *testing.T) {
 func TestBuildCatalogSpecs(t *testing.T) {
 	cfg := config.DefaultConfig()
 	tools := []einotool.BaseTool{
-		&mockTool{name: "tool_a"},
-		&mockTool{name: "tool_b"},
+		&specTestTool{name: "tool_a"},
+		&specTestTool{name: "tool_b"},
 	}
 
 	specs, err := BuildCatalogSpecs(context.Background(), cfg, "native", tooling.ToolKindNative, []tooling.ToolProfile{tooling.ToolProfileRun}, tools)
@@ -82,55 +82,5 @@ func TestBuildCatalogSpecsNilTool(t *testing.T) {
 	}
 	if len(specs) != 0 {
 		t.Fatalf("expected 0 specs, got %d", len(specs))
-	}
-}
-
-func TestNewBuilder(t *testing.T) {
-	cfg := config.DefaultConfig()
-	b := NewBuilder(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil)
-	if b == nil {
-		t.Fatal("expected non-nil builder")
-	}
-	if b.cfg != cfg {
-		t.Fatal("cfg not set")
-	}
-}
-
-func TestBuilderBuildNilBuilder(t *testing.T) {
-	var b *Builder
-	_, err := b.Build(context.Background(), BuildOptions{})
-	if err == nil {
-		t.Fatal("expected error for nil builder")
-	}
-}
-
-func TestBuilderBuildNilConfig(t *testing.T) {
-	b := &Builder{cfg: nil}
-	_, err := b.Build(context.Background(), BuildOptions{})
-	if err == nil {
-		t.Fatal("expected error for nil config")
-	}
-}
-
-func TestBuilderBuildNilWorkspace(t *testing.T) {
-	cfg := config.DefaultConfig()
-	b := NewBuilder(cfg, nil, nil, nil, nil, nil, nil, nil, nil, nil)
-	_, err := b.Build(context.Background(), BuildOptions{})
-	if err == nil {
-		t.Fatal("expected error for nil workspace")
-	}
-}
-
-func TestNewLoadToolsToolValidation(t *testing.T) {
-	_, err := NewLoadToolsTool(nil)
-	if err == nil {
-		t.Fatal("expected error for nil extractor")
-	}
-}
-
-func TestBuildMemoryFileToolsNilMemory(t *testing.T) {
-	_, err := BuildMemoryFileTools(context.Background(), nil, nil)
-	if err == nil {
-		t.Fatal("expected error for nil memory")
 	}
 }

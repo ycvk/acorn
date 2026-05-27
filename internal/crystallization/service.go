@@ -15,6 +15,12 @@ type Service interface {
 	QueryIndex(ctx context.Context, input string, limit int) ([]IndexEntry, error)
 }
 
+type IndexStore interface {
+	Upsert(ctx context.Context, entry *IndexEntry) error
+	Query(ctx context.Context, input string, limit int) ([]IndexEntry, error)
+	Delete(ctx context.Context, skillID string) error
+}
+
 type DefaultService struct {
 	memorySvc  memorymodule.Service
 	indexStore IndexStore
