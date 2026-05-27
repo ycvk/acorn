@@ -79,10 +79,15 @@ void main() {
     );
   });
 
-  test('accepts backend-owned RunEvent types', () {
-    validateRunEvent(
-      RunEvent.fromJson(_event('event_future', 1, 'future.backend_event', {})),
-      expectedRunId: 'run_1',
+  test('rejects unknown RunEvent types', () {
+    expect(
+      () => validateRunEvent(
+        RunEvent.fromJson(
+          _event('event_future', 1, 'future.backend_event', {}),
+        ),
+        expectedRunId: 'run_1',
+      ),
+      throwsA(isA<RunEventStreamException>()),
     );
   });
 }

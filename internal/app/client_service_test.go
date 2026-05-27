@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -665,10 +666,17 @@ func TestProjectRunEventAcceptsSubagentEvents(t *testing.T) {
 					"session_id":         "thread_1",
 					"depth":              float64(1),
 					"task":               "inspect",
+					"child_run_mode":     "fork",
+					"workspace_mode":     "worktree",
+					"worktree_path":      "/tmp/acorn-child",
+					"context_messages":   float64(3),
 					"summary":            "done",
 					"final_status":       "completed",
 					"acceptance_status":  "accepted",
 					"acceptance_reasons": []any{"ok"},
+					"evidence_refs":      []any{"run:sub_1", "evidence:e1"},
+					"orchestration_mode": "single_agent",
+					"parent_step_id":     "step_1",
 					"error":              "boom",
 				},
 			})
@@ -678,6 +686,17 @@ func TestProjectRunEventAcceptsSubagentEvents(t *testing.T) {
 			data, ok := event.Data.(clientevents.SubagentData)
 			if !ok || data.SubRunID != "sub_1" || data.Depth != 1 {
 				t.Fatalf("event data = %#v", event.Data)
+			}
+			if data.ChildRunMode != "fork" ||
+				data.WorkspaceMode != "worktree" ||
+				data.WorktreePath != "/tmp/acorn-child" ||
+				data.ContextMessages != 3 ||
+				data.OrchestrationMode != "single_agent" ||
+				data.ParentStepID != "step_1" {
+				t.Fatalf("event data = %#v", event.Data)
+			}
+			if !reflect.DeepEqual(data.EvidenceRefs, []string{"run:sub_1", "evidence:e1"}) {
+				t.Fatalf("evidence refs = %#v", data.EvidenceRefs)
 			}
 		})
 	}
