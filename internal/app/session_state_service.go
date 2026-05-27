@@ -8,6 +8,7 @@ import (
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/runtime"
+	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 )
 
 type SessionStateService struct {
@@ -60,7 +61,7 @@ func buildSessionDetail(session events.SessionRecord, latestRun *events.RunRecor
 		detail.LatestRunStatus = latestRun.Status
 	}
 
-	detail.State = runtime.DeriveSessionState(latestRun, false)
+	detail.State = runtimeapi.DeriveSessionState(latestRun, false)
 
 	if latestRun == nil {
 		return detail, nil

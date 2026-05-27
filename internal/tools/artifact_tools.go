@@ -8,7 +8,6 @@ import (
 
 	einotool "github.com/cloudwego/eino/components/tool"
 
-	"github.com/ycvk/acorn/internal/artifacts"
 	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/tooling"
 )
@@ -101,11 +100,11 @@ func buildArtifactWriteTool(service ArtifactService, bridge ArtifactContext) (ei
 			return ArtifactWriteOutput{}, errors.New("artifact_write requires current tool call context")
 		}
 		sourceRef := store.BuildToolResultRef(runID, callID)
-		record, err := service.Write(ctx, artifacts.WriteRequest{
+		record, err := service.Write(ctx, store.ArtifactWriteRequest{
 			RunID:               runID,
 			SessionID:           strings.TrimSpace(bridge.CurrentSessionID(ctx)),
 			SourceToolResultRef: sourceRef,
-			Kind:                artifacts.Kind(strings.TrimSpace(input.Kind)),
+			Kind:                store.ArtifactKind(strings.TrimSpace(input.Kind)),
 			Title:               input.Title,
 			MIMEType:            input.MIMEType,
 			Content:             []byte(input.Content),
@@ -126,7 +125,7 @@ func buildArtifactWriteTool(service ArtifactService, bridge ArtifactContext) (ei
 
 func buildArtifactReadTool(service ArtifactService) (einotool.BaseTool, error) {
 	tool, err := inferProgressTool("artifact_read", "Read an explicit byte range from a persisted artifact.", func(ctx context.Context, input ArtifactReadInput, emit tooling.ToolProgressEmitter) (ArtifactReadOutput, error) {
-		result, err := service.ReadRange(ctx, artifacts.ReadRangeRequest{
+		result, err := service.ReadRange(ctx, store.ArtifactReadRangeRequest{
 			ArtifactID: input.ArtifactID,
 			Offset:     input.Offset,
 			Limit:      input.Limit,
@@ -165,7 +164,7 @@ func buildArtifactListTool(service ArtifactService, bridge ArtifactContext) (ein
 			}
 		}
 		var (
-			records []artifacts.Record
+			records []store.ArtifactRecord
 			err     error
 		)
 		if runID != "" {
@@ -193,7 +192,7 @@ func buildArtifactListTool(service ArtifactService, bridge ArtifactContext) (ein
 	return tool, nil
 }
 
-func artifactSummaryFromRecord(record artifacts.Record) ArtifactSummary {
+func artifactSummaryFromRecord(record store.ArtifactRecord) ArtifactSummary {
 	return ArtifactSummary{
 		ArtifactID:          record.ArtifactID,
 		RunID:               record.RunID,

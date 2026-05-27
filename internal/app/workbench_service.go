@@ -8,6 +8,7 @@ import (
 
 	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/runtime"
+	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/workspace"
 )
@@ -25,7 +26,7 @@ func runtimeWorkbenchPlanStoreFrom(store runtimeWorkbenchStore) runtimeWorkbench
 	if typed, ok := store.(runtimeWorkbenchPlanStore); ok {
 		return typed
 	}
-	if typed, ok := store.(runtimePlanRecordStore); ok {
+	if typed, ok := store.(runtimePlanPersistenceStore); ok {
 		return newRuntimePlanStoreAdapter(typed)
 	}
 	return nil
@@ -60,7 +61,7 @@ func (s *RuntimeWorkbenchService) Load(ctx context.Context, sessionID string) (*
 		workbench.LatestRunDepth = latestRun.Depth
 		workbench.ParentRunID = latestRun.ParentRunID
 	}
-	workbench.State = runtime.DeriveSessionState(latestRun, false)
+	workbench.State = runtimeapi.DeriveSessionState(latestRun, false)
 
 	if latestRun != nil && latestRun.Status == events.RunStatusInterrupted {
 		if s.trace == nil {

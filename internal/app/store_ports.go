@@ -6,7 +6,7 @@ import (
 
 	"github.com/ycvk/acorn/internal/decision"
 	"github.com/ycvk/acorn/internal/events"
-	"github.com/ycvk/acorn/internal/runtimehistory"
+	"github.com/ycvk/acorn/internal/model"
 	"github.com/ycvk/acorn/internal/store"
 )
 
@@ -39,7 +39,7 @@ type sessionStateStore interface {
 	LoadLatestRunForSession(ctx context.Context, sessionID string) (*events.RunRecord, error)
 	LoadEvents(ctx context.Context, runID string) ([]events.EventRecord, error)
 	LoadRunDecision(ctx context.Context, runID string) (*decision.Record, error)
-	GetSessionSummary(ctx context.Context, sessionID string) (*runtimehistory.SessionSummary, error)
+	GetSessionSummary(ctx context.Context, sessionID string) (*model.SessionSummary, error)
 }
 
 type clientStore interface {

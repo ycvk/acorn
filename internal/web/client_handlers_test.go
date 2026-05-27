@@ -19,6 +19,8 @@ import (
 	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/memorymodule"
 	"github.com/ycvk/acorn/internal/runtime"
+	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
+
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/stream"
@@ -500,7 +502,7 @@ func TestClientHandlersReturnClientErrorCodes(t *testing.T) {
 			method:     http.MethodPost,
 			path:       "/v1/threads/thread_1/runs",
 			body:       `{}`,
-			err:        runtime.ErrExecutionNotReady,
+			err:        runtimeapi.ErrExecutionNotReady,
 			wantStatus: http.StatusServiceUnavailable,
 			wantCode:   "execution_not_ready",
 		},

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ycvk/acorn/internal/providerusage"
+	"github.com/ycvk/acorn/internal/providers"
 )
 
 func TestAppendAndListProviderUsagesByRun(t *testing.T) {
@@ -21,11 +21,11 @@ func TestAppendAndListProviderUsagesByRun(t *testing.T) {
 	})
 
 	ctx := context.Background()
-	first := providerusage.Record{
+	first := providers.UsageRecord{
 		UsageID:          "provider_usage:run_1:000001",
 		RunID:            "run_1",
 		SessionID:        "session_1",
-		CallSite:         providerusage.CallSitePlan,
+		CallSite:         providers.CallSitePlan,
 		ProviderName:     "openai",
 		ModelName:        "gpt-test",
 		PromptTokens:     100,
@@ -35,11 +35,11 @@ func TestAppendAndListProviderUsagesByRun(t *testing.T) {
 		ReasoningTokens:  5,
 		CreatedAt:        time.Date(2026, 5, 9, 1, 2, 3, 4, time.UTC),
 	}
-	second := providerusage.Record{
+	second := providers.UsageRecord{
 		UsageID:          "provider_usage:run_1:000002",
 		RunID:            "run_1",
 		SessionID:        "session_1",
-		CallSite:         providerusage.CallSiteAct,
+		CallSite:         providers.CallSiteAct,
 		ProviderName:     "openai",
 		ModelName:        "gpt-test",
 		PromptTokens:     40,
@@ -55,10 +55,10 @@ func TestAppendAndListProviderUsagesByRun(t *testing.T) {
 	if err := store.AppendProviderUsage(ctx, second); err != nil {
 		t.Fatalf("AppendProviderUsage second: %v", err)
 	}
-	if err := store.AppendProviderUsage(ctx, providerusage.Record{
+	if err := store.AppendProviderUsage(ctx, providers.UsageRecord{
 		UsageID:      "provider_usage:other:000001",
 		RunID:        "other",
-		CallSite:     providerusage.CallSiteRuntime,
+		CallSite:     providers.CallSiteRuntime,
 		ProviderName: "openai",
 		ModelName:    "gpt-other",
 		CreatedAt:    first.CreatedAt,
@@ -88,9 +88,9 @@ func TestAppendProviderUsageRequiresRunID(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = store.Close() })
 
-	err = store.AppendProviderUsage(context.Background(), providerusage.Record{
+	err = store.AppendProviderUsage(context.Background(), providers.UsageRecord{
 		UsageID:      "provider_usage::000001",
-		CallSite:     providerusage.CallSiteRuntime,
+		CallSite:     providers.CallSiteRuntime,
 		ProviderName: "openai",
 		ModelName:    "gpt-test",
 	})

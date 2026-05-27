@@ -10,7 +10,9 @@ import (
 	"github.com/cloudwego/eino/schema"
 
 	"github.com/ycvk/acorn/internal/events"
+	"github.com/ycvk/acorn/internal/model"
 	"github.com/ycvk/acorn/internal/orchestration"
+	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	"github.com/ycvk/acorn/internal/runtime/graph"
 )
 
@@ -38,14 +40,14 @@ func (s *stubChildAgentExecutor) Execute(_ context.Context, req orchestration.Ch
 }
 
 func TestExecuteDispatchNodeCompletesStepWithChildEvidence(t *testing.T) {
-	store := &fakePlanStore{loaded: &Plan{
+	store := &fakePlanStore{loaded: &model.Plan{
 		PlanID:    "plan_1",
 		SessionID: "sess_plan_execute",
 		RunID:     "run_parent",
-		Steps: []PlanStep{{
+		Steps: []model.PlanStep{{
 			ID:        "s1",
 			Action:    "inspect repository",
-			Status:    PlanStepPending,
+			Status:    model.PlanStepPending,
 			ToolHints: []string{"read_file"},
 		}},
 		CreatedAt: time.Now().UTC(),
@@ -61,7 +63,7 @@ func TestExecuteDispatchNodeCompletesStepWithChildEvidence(t *testing.T) {
 		},
 	}
 	node := NewExecuteDispatchNode(store, nil, child)
-	ctx := withRunID(WithSessionID(context.Background(), "sess_plan_execute"), "run_parent")
+	ctx := withRunID(runtimeapi.WithSessionID(context.Background(), "sess_plan_execute"), "run_parent")
 
 	state, err := node.Invoke(ctx, &graph.AgentGraphState{
 		Messages: []*schema.Message{schema.UserMessage("inspect the repo")},
@@ -87,14 +89,14 @@ func TestExecuteDispatchNodeCompletesStepWithChildEvidence(t *testing.T) {
 	if !strings.Contains(child.reqs[0].Task, "user-facing result") || strings.Contains(child.reqs[0].Task, "provide a concise completion summary") {
 		t.Fatalf("child task should request user-facing output without summary wrapper: %q", child.reqs[0].Task)
 	}
-	if store.loaded.Steps[0].Status != PlanStepCompleted {
+	if store.loaded.Steps[0].Status != model.PlanStepCompleted {
 		t.Fatalf("step status = %q, want completed", store.loaded.Steps[0].Status)
 	}
 	if len(store.loaded.Steps[0].Evidence) != 1 {
 		t.Fatalf("evidence count = %d, want 1", len(store.loaded.Steps[0].Evidence))
 	}
 	ev := store.loaded.Steps[0].Evidence[0]
-	if ev.Kind != EvidenceKindSubagent || ev.Status != EvidenceStatusPassed || ev.ChildRunID != "run_child_1" {
+	if ev.Kind != model.EvidenceKindSubagent || ev.Status != model.EvidenceStatusPassed || ev.ChildRunID != "run_child_1" {
 		t.Fatalf("unexpected evidence: %+v", ev)
 	}
 	if state == nil || state.Plan == nil {
@@ -106,21 +108,21 @@ func TestExecuteDispatchNodeCompletesStepWithChildEvidence(t *testing.T) {
 }
 
 func TestExecuteDispatchNodeFailsStepWhenChildFails(t *testing.T) {
-	store := &fakePlanStore{loaded: &Plan{
+	store := &fakePlanStore{loaded: &model.Plan{
 		PlanID:    "plan_1",
 		SessionID: "sess_plan_execute",
 		RunID:     "run_parent",
-		Steps: []PlanStep{{
+		Steps: []model.PlanStep{{
 			ID:     "s1",
 			Action: "run tests",
-			Status: PlanStepPending,
+			Status: model.PlanStepPending,
 		}},
 		CreatedAt: time.Now().UTC(),
 		UpdatedAt: time.Now().UTC(),
 	}}
 	child := &stubChildAgentExecutor{err: errors.New("tool run failed")}
 	node := NewExecuteDispatchNode(store, nil, child)
-	ctx := withRunID(WithSessionID(context.Background(), "sess_plan_execute"), "run_parent")
+	ctx := withRunID(runtimeapi.WithSessionID(context.Background(), "sess_plan_execute"), "run_parent")
 
 	state, err := node.Invoke(ctx, &graph.AgentGraphState{
 		Messages: []*schema.Message{schema.UserMessage("run tests")},
@@ -128,10 +130,10 @@ func TestExecuteDispatchNodeFailsStepWhenChildFails(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}
-	if store.loaded.Steps[0].Status != PlanStepFailed {
+	if store.loaded.Steps[0].Status != model.PlanStepFailed {
 		t.Fatalf("step status = %q, want failed", store.loaded.Steps[0].Status)
 	}
-	if len(store.loaded.Steps[0].Evidence) != 1 || store.loaded.Steps[0].Evidence[0].Status != EvidenceStatusFailed {
+	if len(store.loaded.Steps[0].Evidence) != 1 || store.loaded.Steps[0].Evidence[0].Status != model.EvidenceStatusFailed {
 		t.Fatalf("unexpected evidence: %+v", store.loaded.Steps[0].Evidence)
 	}
 	if state == nil || len(state.Messages) == 0 || !strings.Contains(state.Messages[len(state.Messages)-1].Content, "failed") {
@@ -140,15 +142,15 @@ func TestExecuteDispatchNodeFailsStepWhenChildFails(t *testing.T) {
 }
 
 func TestExecuteDispatchNodeRunsVerifierForVerifierIntent(t *testing.T) {
-	store := &fakePlanStore{loaded: &Plan{
+	store := &fakePlanStore{loaded: &model.Plan{
 		PlanID:    "plan_1",
 		SessionID: "sess_plan_execute",
 		RunID:     "run_parent",
-		Steps: []PlanStep{{
+		Steps: []model.PlanStep{{
 			ID:     "s1",
 			Action: "update runtime docs",
-			Status: PlanStepPending,
-			VerificationIntent: []VerificationIntent{{
+			Status: model.PlanStepPending,
+			VerificationIntent: []model.VerificationIntent{{
 				Kind:   "verifier",
 				Reason: "independent evidence review required",
 			}},
@@ -175,7 +177,7 @@ func TestExecuteDispatchNodeRunsVerifierForVerifierIntent(t *testing.T) {
 		},
 	}
 	node := NewExecuteDispatchNode(store, nil, child)
-	ctx := withRunID(WithSessionID(context.Background(), "sess_plan_execute"), "run_parent")
+	ctx := withRunID(runtimeapi.WithSessionID(context.Background(), "sess_plan_execute"), "run_parent")
 
 	state, err := node.Invoke(ctx, &graph.AgentGraphState{
 		Messages: []*schema.Message{schema.UserMessage("update docs")},
@@ -198,14 +200,14 @@ func TestExecuteDispatchNodeRunsVerifierForVerifierIntent(t *testing.T) {
 	if !strings.Contains(child.reqs[1].Task, "Do not modify the workspace") || !strings.Contains(child.reqs[1].Task, "independent evidence review required") {
 		t.Fatalf("verifier task missing read-only criteria:\n%s", child.reqs[1].Task)
 	}
-	if store.loaded.Steps[0].Status != PlanStepCompleted {
+	if store.loaded.Steps[0].Status != model.PlanStepCompleted {
 		t.Fatalf("step status = %q, want completed", store.loaded.Steps[0].Status)
 	}
 	if len(store.loaded.Steps[0].Evidence) != 2 {
 		t.Fatalf("evidence count = %d, want 2", len(store.loaded.Steps[0].Evidence))
 	}
 	verifierEvidence := store.loaded.Steps[0].Evidence[1]
-	if verifierEvidence.Kind != EvidenceKindVerifier || verifierEvidence.Status != EvidenceStatusPassed || verifierEvidence.ChildRunID != "run_child_verifier" {
+	if verifierEvidence.Kind != model.EvidenceKindVerifier || verifierEvidence.Status != model.EvidenceStatusPassed || verifierEvidence.ChildRunID != "run_child_verifier" {
 		t.Fatalf("verifier evidence = %+v", verifierEvidence)
 	}
 	if state == nil || state.Plan == nil {
@@ -214,15 +216,15 @@ func TestExecuteDispatchNodeRunsVerifierForVerifierIntent(t *testing.T) {
 }
 
 func TestExecuteDispatchNodeFailsStepWhenVerifierFails(t *testing.T) {
-	store := &fakePlanStore{loaded: &Plan{
+	store := &fakePlanStore{loaded: &model.Plan{
 		PlanID:    "plan_1",
 		SessionID: "sess_plan_execute",
 		RunID:     "run_parent",
-		Steps: []PlanStep{{
+		Steps: []model.PlanStep{{
 			ID:     "s1",
 			Action: "ship runtime change",
-			Status: PlanStepPending,
-			VerificationIntent: []VerificationIntent{{
+			Status: model.PlanStepPending,
+			VerificationIntent: []model.VerificationIntent{{
 				Kind:   "verifier",
 				Reason: "independent evidence review required",
 			}},
@@ -249,7 +251,7 @@ func TestExecuteDispatchNodeFailsStepWhenVerifierFails(t *testing.T) {
 		},
 	}
 	node := NewExecuteDispatchNode(store, nil, child)
-	ctx := withRunID(WithSessionID(context.Background(), "sess_plan_execute"), "run_parent")
+	ctx := withRunID(runtimeapi.WithSessionID(context.Background(), "sess_plan_execute"), "run_parent")
 
 	state, err := node.Invoke(ctx, &graph.AgentGraphState{
 		Messages: []*schema.Message{schema.UserMessage("ship change")},
@@ -257,14 +259,14 @@ func TestExecuteDispatchNodeFailsStepWhenVerifierFails(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}
-	if store.loaded.Steps[0].Status != PlanStepFailed {
+	if store.loaded.Steps[0].Status != model.PlanStepFailed {
 		t.Fatalf("step status = %q, want failed", store.loaded.Steps[0].Status)
 	}
 	if len(store.loaded.Steps[0].Evidence) != 2 {
 		t.Fatalf("evidence count = %d, want 2", len(store.loaded.Steps[0].Evidence))
 	}
 	verifierEvidence := store.loaded.Steps[0].Evidence[1]
-	if verifierEvidence.Kind != EvidenceKindVerifier || verifierEvidence.Status != EvidenceStatusFailed || verifierEvidence.Error != "missing regression test" {
+	if verifierEvidence.Kind != model.EvidenceKindVerifier || verifierEvidence.Status != model.EvidenceStatusFailed || verifierEvidence.Error != "missing regression test" {
 		t.Fatalf("verifier evidence = %+v", verifierEvidence)
 	}
 	if state == nil || len(state.Messages) == 0 || !strings.Contains(state.Messages[len(state.Messages)-1].Content, "missing regression test") {
@@ -273,14 +275,14 @@ func TestExecuteDispatchNodeFailsStepWhenVerifierFails(t *testing.T) {
 }
 
 func TestExecuteDispatchNodeDoesNotDispatchWithoutRunnableStep(t *testing.T) {
-	store := &fakePlanStore{loaded: &Plan{
+	store := &fakePlanStore{loaded: &model.Plan{
 		PlanID:    "plan_1",
 		SessionID: "sess_plan_execute",
 		RunID:     "run_parent",
-		Steps: []PlanStep{{
+		Steps: []model.PlanStep{{
 			ID:     "s1",
 			Action: "already done",
-			Status: PlanStepCompleted,
+			Status: model.PlanStepCompleted,
 		}},
 		CreatedAt: time.Now().UTC(),
 		UpdatedAt: time.Now().UTC(),
@@ -293,7 +295,7 @@ func TestExecuteDispatchNodeDoesNotDispatchWithoutRunnableStep(t *testing.T) {
 		},
 	}
 	node := NewExecuteDispatchNode(store, nil, child)
-	ctx := withRunID(WithSessionID(context.Background(), "sess_plan_execute"), "run_parent")
+	ctx := withRunID(runtimeapi.WithSessionID(context.Background(), "sess_plan_execute"), "run_parent")
 
 	_, err := node.Invoke(ctx, &graph.AgentGraphState{
 		Messages: []*schema.Message{schema.UserMessage("continue")},
@@ -309,23 +311,23 @@ func TestExecuteDispatchNodeDoesNotDispatchWithoutRunnableStep(t *testing.T) {
 func TestCloseoutNodeProducesHumanReadableSummary(t *testing.T) {
 	node := NewCloseoutNode()
 	state := &graph.AgentGraphState{
-		Plan: &Plan{
-			Steps: []PlanStep{
+		Plan: &model.Plan{
+			Steps: []model.PlanStep{
 				{
 					ID:     "s1",
 					Action: "inspect repository",
-					Status: PlanStepCompleted,
-					Evidence: []PlanEvidence{{
+					Status: model.PlanStepCompleted,
+					Evidence: []model.PlanEvidence{{
 						Summary: "found the target file",
 					}},
 				},
 				{
 					ID:     "s2",
 					Action: "run integration tests",
-					Status: PlanStepFailed,
-					Evidence: []PlanEvidence{{
-						Kind:   EvidenceKindSubagent,
-						Status: EvidenceStatusFailed,
+					Status: model.PlanStepFailed,
+					Evidence: []model.PlanEvidence{{
+						Kind:   model.EvidenceKindSubagent,
+						Status: model.EvidenceStatusFailed,
 						Error:  "tests timed out",
 					}},
 				},
@@ -348,12 +350,12 @@ func TestCloseoutNodeProducesHumanReadableSummary(t *testing.T) {
 func TestCloseoutNodeSingleCompletedStepReturnsChildSummaryOnly(t *testing.T) {
 	node := NewCloseoutNode()
 	state := &graph.AgentGraphState{
-		Plan: &Plan{
-			Steps: []PlanStep{{
+		Plan: &model.Plan{
+			Steps: []model.PlanStep{{
 				ID:     "s1",
 				Action: "Respond to the user's greeting in Chinese with a friendly welcome message",
-				Status: PlanStepCompleted,
-				Evidence: []PlanEvidence{{
+				Status: model.PlanStepCompleted,
+				Evidence: []model.PlanEvidence{{
 					Summary: "你好！欢迎使用 Acorn。我是你的智能助手，很高兴为你服务。",
 				}},
 			}},

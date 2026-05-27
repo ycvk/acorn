@@ -8,8 +8,8 @@ import (
 	einomodel "github.com/cloudwego/eino/components/model"
 	"github.com/ycvk/acorn/internal/contextplane"
 	"github.com/ycvk/acorn/internal/memorymodule"
+	"github.com/ycvk/acorn/internal/providers"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
-	"github.com/ycvk/acorn/internal/providerusage"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/tooling"
 )
@@ -29,7 +29,7 @@ func (a *modelProviderAssembler) BuildRunChatModel(ctx context.Context, req Runn
 	if err != nil {
 		return nil, err
 	}
-	metadata := providerusage.RunMetadata{
+	metadata := providers.UsageRunMetadata{
 		RunID:        req.RunID,
 		SessionID:    req.SessionID,
 		ProviderName: provider.Name,
@@ -41,7 +41,7 @@ func (a *modelProviderAssembler) BuildRunChatModel(ctx context.Context, req Runn
 			metadata.InitialSequence = uint64(len(existing))
 		}
 	}
-	return providerusage.WrapModel(model, a.factory.deps.Store, metadata)
+	return providers.WrapModelWithUsage(model, a.factory.deps.Store, metadata)
 }
 
 type capabilityAssembly struct {

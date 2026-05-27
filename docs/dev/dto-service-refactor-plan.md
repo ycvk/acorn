@@ -135,16 +135,15 @@ type StreamMessage = stream.StreamMessage
 
 **`client_dto.go` 的命运**：
 
-选项 A（推荐）：**保留 `client_dto.go` 作为聚合入口文件**，只放 `type alias` 和 `re-export`：
+选项 A：**保留 `client_dto.go` 作为聚合入口文件**，只放临时 `type alias` 和 `re-export`；当前硬 cut 规则下不采用这个选项：
 ```go
 package web
 
-// Re-exports for backward compatibility during migration.
-// New code should import specific domain files directly.
-type ThreadDTO = thread.ThreadDTO  // 等迁移完成后可以删除
+// Historical sketch only. Current code should import specific domain files directly.
+type ThreadDTO = thread.ThreadDTO
 ```
 
-选项 B：**彻底删除 `client_dto.go`**，让所有 import 方改引用新文件。更干净但 diff 更大。
+选项 B（当前规则）：**彻底删除 `client_dto.go`**，让所有 import 方改引用新文件。更符合 hard-cut migration。
 
 **建议**：选 A，保留一个版本的 re-export，给迁移缓冲期，之后下一个 release 删除。
 

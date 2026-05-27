@@ -8,8 +8,6 @@ import (
 
 	einotool "github.com/cloudwego/eino/components/tool"
 
-	"github.com/ycvk/acorn/internal/artifacts"
-	"github.com/ycvk/acorn/internal/browser"
 	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/tooling"
 	"github.com/ycvk/acorn/internal/webaccess"
@@ -51,14 +49,14 @@ type BrowserScreenshotOutput struct {
 type BrowserOutput struct {
 	Action     string                   `json:"action"`
 	Mode       string                   `json:"mode,omitempty"`
-	Status     *browser.Status          `json:"status,omitempty"`
-	Tabs       []browser.Tab            `json:"tabs,omitempty"`
-	Navigation *browser.NavigateResult  `json:"navigation,omitempty"`
+	Status     *Status                  `json:"status,omitempty"`
+	Tabs       []Tab                    `json:"tabs,omitempty"`
+	Navigation *NavigateResult          `json:"navigation,omitempty"`
 	Scan       *BrowserScanOutput       `json:"scan,omitempty"`
-	Snapshot   *browser.SnapshotResult  `json:"snapshot,omitempty"`
+	Snapshot   *SnapshotResult          `json:"snapshot,omitempty"`
 	Screenshot *BrowserScreenshotOutput `json:"screenshot,omitempty"`
-	Console    *browser.ConsoleResult   `json:"console,omitempty"`
-	Network    *browser.NetworkResult   `json:"network,omitempty"`
+	Console    *ConsoleResult           `json:"console,omitempty"`
+	Network    *NetworkResult           `json:"network,omitempty"`
 	Message    string                   `json:"message,omitempty"`
 }
 
@@ -106,17 +104,17 @@ func buildBrowserTool(service BrowserService, artifactService ArtifactService, b
 			}
 			output.Tabs = tabs
 		case "scan":
-			scan, err := service.Scan(ctx, browser.ScanRequest{
+			scan, err := service.Scan(ctx, ScanRequest{
 				ExtractMode: webaccess.ExtractionMode(strings.TrimSpace(input.ExtractMode)),
 			})
 			if err != nil {
 				return BrowserOutput{}, err
 			}
-			record, err := artifactService.Write(ctx, artifacts.WriteRequest{
+			record, err := artifactService.Write(ctx, store.ArtifactWriteRequest{
 				RunID:               runID,
 				SessionID:           strings.TrimSpace(bridge.CurrentSessionID(ctx)),
 				SourceToolResultRef: store.BuildToolResultRef(runID, callID),
-				Kind:                artifacts.KindMarkdown,
+				Kind:                store.ArtifactKindMarkdown,
 				Title:               artifactTitle("browser scan", scan.Extracted.Title, scan.URL),
 				MIMEType:            "text/markdown; charset=utf-8",
 				Content:             []byte(scan.Extracted.Markdown),
@@ -174,11 +172,11 @@ func buildBrowserTool(service BrowserService, artifactService ArtifactService, b
 			if err != nil {
 				return BrowserOutput{}, err
 			}
-			record, err := artifactService.Write(ctx, artifacts.WriteRequest{
+			record, err := artifactService.Write(ctx, store.ArtifactWriteRequest{
 				RunID:               runID,
 				SessionID:           strings.TrimSpace(bridge.CurrentSessionID(ctx)),
 				SourceToolResultRef: store.BuildToolResultRef(runID, callID),
-				Kind:                artifacts.KindBinary,
+				Kind:                store.ArtifactKindBinary,
 				Title:               "browser screenshot",
 				MIMEType:            "image/png",
 				Content:             image,

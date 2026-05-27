@@ -17,9 +17,10 @@ import (
 	"github.com/ycvk/acorn/internal/decision"
 	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/memorymodule"
+	"github.com/ycvk/acorn/internal/model"
 	"github.com/ycvk/acorn/internal/orchestration"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
-	"github.com/ycvk/acorn/internal/runtimehistory"
+	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/stream"
 	"github.com/ycvk/acorn/internal/tooling"
@@ -422,13 +423,13 @@ func (c *RunController) Interrupt(runID string) error {
 	}
 	runID = strings.TrimSpace(runID)
 	if runID == "" {
-		return fmt.Errorf("%w: empty run id", ErrRunNotActive)
+		return fmt.Errorf("%w: empty run id", runtimeapi.ErrRunNotActive)
 	}
 	c.activeMu.Lock()
 	cancel, ok := c.activeCancels[runID]
 	c.activeMu.Unlock()
 	if !ok {
-		return fmt.Errorf("%w: %s", ErrRunNotActive, runID)
+		return fmt.Errorf("%w: %s", runtimeapi.ErrRunNotActive, runID)
 	}
 	cancel()
 	return nil
@@ -458,7 +459,7 @@ type RunnerFactoryOptions struct {
 	Workspace              *workspace.Workspace
 	Handlers               []adk.ChatModelAgentMiddleware
 	CheckpointService      *workingstate.Service
-	SessionSummaryService  *runtimehistory.SessionSummaryService
+	SessionSummaryService  *model.SessionSummaryService
 	MemoryModule           memorymodule.Service
 	ContextPlane           contextplane.ContextPlane
 	MCPPendingActionStore  mcpprovider.PendingActionStore
@@ -501,7 +502,7 @@ type RunRuntime interface {
 	ConsumeEventError(runID string) error
 	Config() *config.Config
 	MemoryModule() memorymodule.Service
-	SessionSummarySvc() *runtimehistory.SessionSummaryService
+	SessionSummarySvc() *model.SessionSummaryService
 	NewChatModel(ctx context.Context) (einomodel.BaseChatModel, error)
 	Crystallizer() crystallization.Service
 }

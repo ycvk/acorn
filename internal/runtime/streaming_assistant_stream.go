@@ -9,7 +9,8 @@ import (
 	"github.com/cloudwego/eino/schema"
 
 	"github.com/ycvk/acorn/internal/orchestration"
-	"github.com/ycvk/acorn/internal/providerusage"
+	"github.com/ycvk/acorn/internal/providers"
+	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	"github.com/ycvk/acorn/internal/stream"
 )
 
@@ -25,9 +26,9 @@ func streamAssistantInterleaved(
 	}
 	callSite := opts.CallSite
 	if callSite == "" {
-		callSite = providerusage.CallSiteAssistant
+		callSite = providers.CallSiteAssistant
 	}
-	modelStream, err := model.Stream(providerusage.WithCallSite(ctx, callSite), messages, streamOpts...)
+	modelStream, err := model.Stream(providers.WithCallSite(ctx, callSite), messages, streamOpts...)
 
 	s := &orchestration.InterleavedStream{
 		ToolCallCh:     make(chan schema.ToolCall, 8),
@@ -160,10 +161,10 @@ func streamAssistantInterleaved(
 }
 
 type directAssistantStreamer struct {
-	appender EventAppender
+	appender runtimeapi.EventAppender
 }
 
-func newDirectAssistantStreamer(appender EventAppender) *directAssistantStreamer {
+func newDirectAssistantStreamer(appender runtimeapi.EventAppender) *directAssistantStreamer {
 	return &directAssistantStreamer{appender: appender}
 }
 

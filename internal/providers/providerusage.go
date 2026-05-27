@@ -1,4 +1,4 @@
-package providerusage
+package providers
 
 import (
 	"context"
@@ -47,7 +47,7 @@ func CallSiteFromContext(ctx context.Context) string {
 	return value
 }
 
-type Record struct {
+type UsageRecord struct {
 	UsageID          string
 	RunID            string
 	SessionID        string
@@ -62,7 +62,7 @@ type Record struct {
 	CreatedAt        time.Time
 }
 
-type RunMetadata struct {
+type UsageRunMetadata struct {
 	RunID           string
 	SessionID       string
 	ProviderName    string
@@ -70,11 +70,11 @@ type RunMetadata struct {
 	InitialSequence uint64
 }
 
-type Recorder interface {
-	AppendProviderUsage(context.Context, Record) error
+type UsageRecorder interface {
+	AppendProviderUsage(context.Context, UsageRecord) error
 }
 
-func WrapModel(model einomodel.BaseChatModel, recorder Recorder, metadata RunMetadata) (einomodel.BaseChatModel, error) {
+func WrapModelWithUsage(model einomodel.BaseChatModel, recorder UsageRecorder, metadata UsageRunMetadata) (einomodel.BaseChatModel, error) {
 	if model == nil {
 		return nil, errors.New("provider usage model is nil")
 	}
@@ -102,8 +102,8 @@ func WrapModel(model einomodel.BaseChatModel, recorder Recorder, metadata RunMet
 
 type recordingModel struct {
 	inner    einomodel.BaseChatModel
-	recorder Recorder
-	metadata RunMetadata
+	recorder UsageRecorder
+	metadata UsageRunMetadata
 	sequence atomic.Uint64
 }
 
@@ -171,7 +171,7 @@ func (m *recordingModel) recordUsage(ctx context.Context, msg *schema.Message) e
 		return nil
 	}
 	usage := msg.ResponseMeta.Usage
-	record := Record{
+	record := UsageRecord{
 		UsageID:          m.nextUsageID(),
 		RunID:            m.metadata.RunID,
 		SessionID:        m.metadata.SessionID,
@@ -199,8 +199,8 @@ func (m *recordingModel) nextUsageID() string {
 	return fmt.Sprintf("provider_usage:%s:%06d", m.metadata.RunID, seq)
 }
 
-func normalizeRunMetadata(metadata RunMetadata) RunMetadata {
-	return RunMetadata{
+func normalizeRunMetadata(metadata UsageRunMetadata) UsageRunMetadata {
+	return UsageRunMetadata{
 		RunID:           strings.TrimSpace(metadata.RunID),
 		SessionID:       strings.TrimSpace(metadata.SessionID),
 		ProviderName:    strings.TrimSpace(metadata.ProviderName),
@@ -209,7 +209,7 @@ func normalizeRunMetadata(metadata RunMetadata) RunMetadata {
 	}
 }
 
-func NormalizeRecord(record Record) (Record, error) {
+func NormalizeUsageRecord(record UsageRecord) (UsageRecord, error) {
 	if record.CreatedAt.IsZero() {
 		record.CreatedAt = time.Now().UTC()
 	}
@@ -222,7 +222,7 @@ func NormalizeRecord(record Record) (Record, error) {
 	return record, normalizeRecord(record)
 }
 
-func normalizeRecord(record Record) error {
+func normalizeRecord(record UsageRecord) error {
 	if record.UsageID == "" {
 		return errors.New("provider usage id is required")
 	}

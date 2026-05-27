@@ -10,7 +10,7 @@ import (
 	"sync/atomic"
 
 	"github.com/ycvk/acorn/internal/events"
-	"github.com/ycvk/acorn/internal/runtime"
+	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	"github.com/ycvk/acorn/internal/stream"
 )
 
@@ -57,7 +57,7 @@ func reportClientBackgroundError(ctx context.Context, runID string, err error) {
 	slog.Default().ErrorContext(ctx, "client background run failure was not persisted", "run_id", runID, "error", err)
 }
 
-func (s *ClientService) executeRun(ctx context.Context, exec executorHandle, req runtime.ExecuteRequest, started *clientRunStartSignal) {
+func (s *ClientService) executeRun(ctx context.Context, exec executorHandle, req runtimeapi.ExecuteRequest, started *clientRunStartSignal) {
 	result, err := exec.ExecuteMessages(ctx, req, started.Sink)
 	if err != nil {
 		if started.MarkFailed(err) {

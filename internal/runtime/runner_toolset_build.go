@@ -10,14 +10,14 @@ import (
 
 	einomodel "github.com/cloudwego/eino/components/model"
 	einotool "github.com/cloudwego/eino/components/tool"
-	"github.com/ycvk/acorn/internal/browser"
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/decision"
 	"github.com/ycvk/acorn/internal/memorymodule"
 	"github.com/ycvk/acorn/internal/orchestration"
 	"github.com/ycvk/acorn/internal/providers"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
-	"github.com/ycvk/acorn/internal/skilllifecycle"
+	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
+
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/stream"
 	"github.com/ycvk/acorn/internal/toolfactory"
@@ -85,7 +85,7 @@ func (f *RunnerFactory) buildToolset(
 	if err != nil {
 		return nil, fmt.Errorf("web search service: %w", err)
 	}
-	browserService, err := browser.NewService(browser.Config{
+	browserService, err := tools.NewService(tools.Config{
 		ExecutablePath: strings.TrimSpace(f.deps.Config.Browser.ExecutablePath),
 		Headless:       f.deps.Config.Browser.Headless,
 		Timeout:        time.Duration(f.deps.Config.Browser.DefaultTimeoutSeconds) * time.Second,
@@ -147,7 +147,7 @@ func (f *RunnerFactory) buildToolset(
 	}
 	var skillLifecycleTools []einotool.BaseTool
 	if includePlanning {
-		skillLifecycleTools, err = skilllifecycle.BuildAgentTools(skilllifecycle.ToolOptions{
+		skillLifecycleTools, err = skills.BuildSkillLifecycleTools(skills.ToolOptions{
 			Loader: f.deps.Loader,
 			Store:  f.deps.Store,
 			Bridge: delegateTaskBridge{},
@@ -206,7 +206,7 @@ const capabilityDiscoveryInstruction = `Capability discovery rules:
 - If a relevant capability depends on deferred tools, call load_tools before concluding the capability is unavailable.
 - Prefer the matching skill and tool path over a generic limitation answer.`
 
-func emitProviderDegradedIfNeeded(ctx context.Context, store EventAppender, req RunnerBuildRequest, statuses []mcpprovider.ProviderStatus) error {
+func emitProviderDegradedIfNeeded(ctx context.Context, store runtimeapi.EventAppender, req RunnerBuildRequest, statuses []mcpprovider.ProviderStatus) error {
 	if store == nil || strings.TrimSpace(req.RunID) == "" {
 		return nil
 	}
@@ -241,7 +241,7 @@ func emitProviderDegradedIfNeeded(ctx context.Context, store EventAppender, req 
 	return err
 }
 
-func emitMemoryPreparedEvent(ctx context.Context, store EventAppender, req RunnerBuildRequest, workspaceScope string, result *memorymodule.PrepareResult) error {
+func emitMemoryPreparedEvent(ctx context.Context, store runtimeapi.EventAppender, req RunnerBuildRequest, workspaceScope string, result *memorymodule.PrepareResult) error {
 	if store == nil || strings.TrimSpace(req.RunID) == "" {
 		return nil
 	}
@@ -280,7 +280,7 @@ func emitMemoryPreparedEvent(ctx context.Context, store EventAppender, req Runne
 	return err
 }
 
-func emitProcedureActivationEvents(ctx context.Context, store EventAppender, sink stream.StreamSink, runID string, activations []memorymodule.ProcedureActivation) error {
+func emitProcedureActivationEvents(ctx context.Context, store runtimeapi.EventAppender, sink stream.StreamSink, runID string, activations []memorymodule.ProcedureActivation) error {
 	if store == nil || strings.TrimSpace(runID) == "" || len(activations) == 0 {
 		return nil
 	}
@@ -401,7 +401,7 @@ func skillEligibilityContextFromCatalog(catalog *tooling.Catalog) skills.Eligibi
 	return tooling.EligibilityContextForProfile(catalog, tooling.ToolProfileRun, nil)
 }
 
-func emitSkillSelectionEvents(ctx context.Context, store EventAppender, req RunnerBuildRequest, selected *SelectedSkill, matches []SkillMatch) error {
+func emitSkillSelectionEvents(ctx context.Context, store runtimeapi.EventAppender, req RunnerBuildRequest, selected *SelectedSkill, matches []SkillMatch) error {
 	if store == nil || strings.TrimSpace(req.RunID) == "" {
 		return nil
 	}
@@ -594,7 +594,7 @@ func recommendedSkillsFromMatches(matches []SkillMatch) []decision.RecommendedSk
 	return items
 }
 
-func emitDecisionEvents(ctx context.Context, store EventAppender, req RunnerBuildRequest, record *decision.Record, explicitSkillID string) error {
+func emitDecisionEvents(ctx context.Context, store runtimeapi.EventAppender, req RunnerBuildRequest, record *decision.Record, explicitSkillID string) error {
 	if store == nil || strings.TrimSpace(req.RunID) == "" || record == nil {
 		return nil
 	}

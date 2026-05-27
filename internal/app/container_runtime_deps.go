@@ -8,8 +8,8 @@ import (
 	"github.com/ycvk/acorn/internal/contextplane"
 	"github.com/ycvk/acorn/internal/decision"
 	"github.com/ycvk/acorn/internal/memorymodule"
+	"github.com/ycvk/acorn/internal/model"
 	"github.com/ycvk/acorn/internal/runtime"
-	"github.com/ycvk/acorn/internal/runtimehistory"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/workingstate"
 	"github.com/ycvk/acorn/internal/workspace"
@@ -19,7 +19,7 @@ type containerRuntimeDeps struct {
 	ws                     *workspace.Workspace
 	loader                 *skills.Loader
 	checkpointService      *workingstate.Service
-	sessionSummaryService  *runtimehistory.SessionSummaryService
+	sessionSummaryService  *model.SessionSummaryService
 	memoryModule           memorymodule.Service
 	semanticIndex          memorymodule.SemanticIndex
 	semanticEmbedder       memorymodule.Embedder
@@ -39,7 +39,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, store co
 	}
 	loader := skills.NewLoader(cfg)
 	checkpointService := workingstate.NewService(store, 4000)
-	sessionSummaryService := runtimehistory.NewSessionSummaryService(store, 2000)
+	sessionSummaryService := model.NewSessionSummaryService(store, 2000)
 	memoryModule, semanticIndex, semanticEmbedder, err := buildMemoryModule(ctx, cfg)
 	if err != nil {
 		return nil, err

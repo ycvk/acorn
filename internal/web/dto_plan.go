@@ -3,7 +3,7 @@ package web
 import (
 	"time"
 
-	"github.com/ycvk/acorn/internal/runtime"
+	"github.com/ycvk/acorn/internal/model"
 )
 
 type PlanStepDTO struct {
@@ -59,7 +59,7 @@ type PlanDTO struct {
 	UpdatedAt time.Time     `json:"updated_at"`
 }
 
-func planDTOFromRuntime(plan *runtime.Plan) *PlanDTO {
+func planDTOFromRuntime(plan *model.Plan) *PlanDTO {
 	if plan == nil {
 		return nil
 	}
@@ -87,7 +87,7 @@ func planDTOFromRuntime(plan *runtime.Plan) *PlanDTO {
 	}
 }
 
-func planRepoTargetDTOsFromRuntime(items []runtime.PlanRepoTarget) []PlanRepoTargetDTO {
+func planRepoTargetDTOsFromRuntime(items []model.PlanRepoTarget) []PlanRepoTargetDTO {
 	if len(items) == 0 {
 		return nil
 	}
@@ -105,7 +105,7 @@ func planRepoTargetDTOsFromRuntime(items []runtime.PlanRepoTarget) []PlanRepoTar
 	return result
 }
 
-func verificationIntentDTOsFromRuntime(items []runtime.VerificationIntent) []VerificationIntentDTO {
+func verificationIntentDTOsFromRuntime(items []model.VerificationIntent) []VerificationIntentDTO {
 	if len(items) == 0 {
 		return nil
 	}
@@ -121,7 +121,7 @@ func verificationIntentDTOsFromRuntime(items []runtime.VerificationIntent) []Ver
 	return result
 }
 
-func planEvidenceDTOsFromRuntime(items []runtime.PlanEvidence) []PlanEvidenceDTO {
+func planEvidenceDTOsFromRuntime(items []model.PlanEvidence) []PlanEvidenceDTO {
 	if len(items) == 0 {
 		return nil
 	}

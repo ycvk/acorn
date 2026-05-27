@@ -7,8 +7,9 @@ import (
 	"github.com/ycvk/acorn/internal/app"
 	"github.com/ycvk/acorn/internal/decision"
 	"github.com/ycvk/acorn/internal/events"
+	"github.com/ycvk/acorn/internal/model"
 	"github.com/ycvk/acorn/internal/runtime"
-	"github.com/ycvk/acorn/internal/runtimehistory"
+	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	"github.com/ycvk/acorn/internal/stream"
 	"github.com/ycvk/acorn/internal/workspace"
 )
@@ -18,7 +19,7 @@ func TestRuntimeWorkbenchDTOFromDomainPreservesAggregatedSections(t *testing.T) 
 	workbench := &app.RuntimeWorkbench{
 		SessionID:       "session_42",
 		Title:           "continue runtime work",
-		State:           runtime.SessionStateInterrupted,
+		State:           runtimeapi.SessionStateInterrupted,
 		LatestRunID:     "run_42",
 		LatestRunStatus: events.RunStatusInterrupted,
 		LatestRunMode:   "plan_execute",
@@ -37,7 +38,7 @@ func TestRuntimeWorkbenchDTOFromDomainPreservesAggregatedSections(t *testing.T) 
 			DecisionProfileHash: "hash",
 			CreatedAt:           now,
 		},
-		SessionSummary: &runtimehistory.SessionSummary{
+		SessionSummary: &model.SessionSummary{
 			Summary:     "current runtime workbench state",
 			RunStatus:   "interrupted",
 			SourceRunID: "run_42",
@@ -136,19 +137,19 @@ func TestRuntimeWorkbenchDTOFromDomainPreservesAggregatedSections(t *testing.T) 
 			SHA256:              "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 			CreatedAt:           now,
 		}},
-		Plan: &runtime.Plan{
+		Plan: &model.Plan{
 			PlanID:    "plan_1",
 			SessionID: "session_42",
 			RunID:     "run_42",
-			Steps: []runtime.PlanStep{{
+			Steps: []model.PlanStep{{
 				ID:     "step_1",
 				Action: "switch shell to workbench",
-				Status: runtime.PlanStepInProgress,
-				Evidence: []runtime.PlanEvidence{{
+				Status: model.PlanStepInProgress,
+				Evidence: []model.PlanEvidence{{
 					ID:         "ev_1",
 					StepID:     "step_1",
-					Kind:       runtime.EvidenceKind("test"),
-					Status:     runtime.EvidenceStatusPassed,
+					Kind:       model.EvidenceKind("test"),
+					Status:     model.EvidenceStatusPassed,
 					Summary:    "go test ./internal/web",
 					RecordedAt: now,
 				}},
@@ -156,11 +157,11 @@ func TestRuntimeWorkbenchDTOFromDomainPreservesAggregatedSections(t *testing.T) 
 			CreatedAt: now,
 			UpdatedAt: now,
 		},
-		Evidence: []runtime.PlanEvidence{{
+		Evidence: []model.PlanEvidence{{
 			ID:         "ev_1",
 			StepID:     "step_1",
-			Kind:       runtime.EvidenceKind("test"),
-			Status:     runtime.EvidenceStatusPassed,
+			Kind:       model.EvidenceKind("test"),
+			Status:     model.EvidenceStatusPassed,
 			Summary:    "go test ./internal/web",
 			RecordedAt: now,
 		}},

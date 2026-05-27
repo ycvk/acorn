@@ -5,15 +5,16 @@ import (
 
 	"github.com/ycvk/acorn/internal/decision"
 	"github.com/ycvk/acorn/internal/events"
+	"github.com/ycvk/acorn/internal/model"
 	"github.com/ycvk/acorn/internal/runtime"
-	"github.com/ycvk/acorn/internal/runtimehistory"
+	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	"github.com/ycvk/acorn/internal/workspace"
 )
 
 type RuntimeWorkbench struct {
 	SessionID           string
 	Title               string
-	State               runtime.SessionState
+	State               runtimeapi.SessionState
 	LatestRunID         string
 	LatestRunStatus     events.RunStatus
 	LatestRunMode       string
@@ -24,7 +25,7 @@ type RuntimeWorkbench struct {
 	TraceSummary        *runtime.TraceSummary
 	SelectedSkill       *runtime.SelectedSkill
 	LatestDecision      *decision.Record
-	SessionSummary      *runtimehistory.SessionSummary
+	SessionSummary      *model.SessionSummary
 	WorkspaceRoot       string
 	GitStatus           WorkspaceGitStatus
 	MutationCheckpoints []MutationCheckpointSummary
@@ -32,8 +33,8 @@ type RuntimeWorkbench struct {
 	ContextEconomy      ContextEconomySummary
 	ProviderUsage       ProviderUsageSummary
 	Artifacts           []ArtifactSummary
-	Plan                *runtime.Plan
-	Evidence            []runtime.PlanEvidence
+	Plan                *model.Plan
+	Evidence            []model.PlanEvidence
 	Subagents           []SubagentRun
 	NextStepHint        string
 }

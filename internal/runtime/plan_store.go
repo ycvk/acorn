@@ -7,15 +7,16 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ycvk/acorn/internal/model"
 	"github.com/ycvk/acorn/internal/runtime/api"
 	"github.com/ycvk/acorn/internal/store"
 )
 
 type durablePlanStore struct {
-	store api.PlanRecordStore
+	store api.PlanPersistenceStore
 }
 
-func NewPlanStore(store api.PlanRecordStore) api.PlanStore {
+func NewPlanStore(store api.PlanPersistenceStore) api.PlanStore {
 	if store == nil {
 		return nil
 	}
@@ -24,7 +25,7 @@ func NewPlanStore(store api.PlanRecordStore) api.PlanStore {
 
 func (s *durablePlanStore) OrchestrationPlanStore() {}
 
-func (s *durablePlanStore) LoadPlan(ctx context.Context, sessionID string) (*Plan, error) {
+func (s *durablePlanStore) LoadPlan(ctx context.Context, sessionID string) (*model.Plan, error) {
 	if s == nil || s.store == nil {
 		return nil, fmt.Errorf("plan store is not available")
 	}
@@ -32,14 +33,14 @@ func (s *durablePlanStore) LoadPlan(ctx context.Context, sessionID string) (*Pla
 	if err != nil {
 		return nil, err
 	}
-	return planFromStoreRecord(record), nil
+	return record, nil
 }
 
-func (s *durablePlanStore) SavePlan(ctx context.Context, plan *Plan) error {
+func (s *durablePlanStore) SavePlan(ctx context.Context, plan *model.Plan) error {
 	if s == nil || s.store == nil {
 		return fmt.Errorf("plan store is not available")
 	}
-	return s.store.SavePlan(ctx, storeRecordFromPlan(plan))
+	return s.store.SavePlan(ctx, plan)
 }
 
 func (s *durablePlanStore) AppendStepEvidence(
@@ -47,8 +48,8 @@ func (s *durablePlanStore) AppendStepEvidence(
 	sessionID string,
 	runID string,
 	stepID string,
-	evidence PlanEvidence,
-) (*Plan, error) {
+	evidence model.PlanEvidence,
+) (*model.Plan, error) {
 	if strings.TrimSpace(sessionID) == "" {
 		return nil, fmt.Errorf("session_id is required")
 	}
@@ -87,164 +88,6 @@ func (s *durablePlanStore) AppendToolResultEvidenceRef(ctx context.Context, resu
 	}
 	_, err := s.store.AppendEvidenceRef(ctx, resultRef, ref)
 	return err
-}
-
-func planFromStoreRecord(record *store.PlanRecord) *Plan {
-	if record == nil {
-		return nil
-	}
-	steps := make([]PlanStep, 0, len(record.Steps))
-	for _, step := range record.Steps {
-		steps = append(steps, PlanStep{
-			ID:                 step.ID,
-			Action:             step.Action,
-			Status:             PlanStepStatus(step.Status),
-			DependsOn:          append([]string(nil), step.DependsOn...),
-			RepoTargets:        planRepoTargetsFromStore(step.RepoTargets),
-			VerificationIntent: verificationIntentsFromStore(step.VerificationIntent),
-			Risk:               PlanStepRisk(step.Risk),
-			ToolHints:          append([]string(nil), step.ToolHints...),
-			Evidence:           planEvidenceFromStore(step.Evidence),
-		})
-	}
-	return &Plan{
-		PlanID:    record.PlanID,
-		SessionID: record.SessionID,
-		RunID:     record.RunID,
-		Steps:     steps,
-		CreatedAt: record.CreatedAt,
-		UpdatedAt: record.UpdatedAt,
-	}
-}
-
-func storeRecordFromPlan(plan *Plan) *store.PlanRecord {
-	if plan == nil {
-		return nil
-	}
-	steps := make([]store.PlanStep, 0, len(plan.Steps))
-	for _, step := range plan.Steps {
-		steps = append(steps, store.PlanStep{
-			ID:                 step.ID,
-			Action:             step.Action,
-			Status:             store.PlanStepStatus(step.Status),
-			DependsOn:          append([]string(nil), step.DependsOn...),
-			RepoTargets:        storePlanRepoTargets(step.RepoTargets),
-			VerificationIntent: storeVerificationIntents(step.VerificationIntent),
-			Risk:               store.PlanStepRisk(step.Risk),
-			ToolHints:          append([]string(nil), step.ToolHints...),
-			Evidence:           storePlanEvidence(step.Evidence),
-		})
-	}
-	return &store.PlanRecord{
-		PlanID:    plan.PlanID,
-		SessionID: plan.SessionID,
-		RunID:     plan.RunID,
-		Steps:     steps,
-		CreatedAt: plan.CreatedAt,
-		UpdatedAt: plan.UpdatedAt,
-	}
-}
-
-func planRepoTargetsFromStore(items []store.PlanRepoTarget) []PlanRepoTarget {
-	result := make([]PlanRepoTarget, 0, len(items))
-	for _, item := range items {
-		result = append(result, PlanRepoTarget{
-			Path:       item.Path,
-			Symbol:     item.Symbol,
-			StartLine:  item.StartLine,
-			EndLine:    item.EndLine,
-			Reason:     item.Reason,
-			Confidence: item.Confidence,
-		})
-	}
-	return result
-}
-
-func storePlanRepoTargets(items []PlanRepoTarget) []store.PlanRepoTarget {
-	result := make([]store.PlanRepoTarget, 0, len(items))
-	for _, item := range items {
-		result = append(result, store.PlanRepoTarget{
-			Path:       item.Path,
-			Symbol:     item.Symbol,
-			StartLine:  item.StartLine,
-			EndLine:    item.EndLine,
-			Reason:     item.Reason,
-			Confidence: item.Confidence,
-		})
-	}
-	return result
-}
-
-func verificationIntentsFromStore(items []store.VerificationIntent) []VerificationIntent {
-	result := make([]VerificationIntent, 0, len(items))
-	for _, item := range items {
-		result = append(result, VerificationIntent{
-			Kind:    item.Kind,
-			Command: append([]string(nil), item.Command...),
-			Paths:   append([]string(nil), item.Paths...),
-			Reason:  item.Reason,
-		})
-	}
-	return result
-}
-
-func storeVerificationIntents(items []VerificationIntent) []store.VerificationIntent {
-	result := make([]store.VerificationIntent, 0, len(items))
-	for _, item := range items {
-		result = append(result, store.VerificationIntent{
-			Kind:    item.Kind,
-			Command: append([]string(nil), item.Command...),
-			Paths:   append([]string(nil), item.Paths...),
-			Reason:  item.Reason,
-		})
-	}
-	return result
-}
-
-func planEvidenceFromStore(items []store.PlanEvidence) []PlanEvidence {
-	result := make([]PlanEvidence, 0, len(items))
-	for _, item := range items {
-		result = append(result, PlanEvidence{
-			ID:            item.ID,
-			StepID:        item.StepID,
-			Kind:          EvidenceKind(item.Kind),
-			Status:        EvidenceStatus(item.Status),
-			Summary:       item.Summary,
-			ToolResultRef: item.ToolResultRef,
-			ToolName:      item.ToolName,
-			Command:       append([]string(nil), item.Command...),
-			Paths:         append([]string(nil), item.Paths...),
-			DiffRef:       item.DiffRef,
-			ChildRunID:    item.ChildRunID,
-			Error:         item.Error,
-			SourceRunID:   item.SourceRunID,
-			RecordedAt:    item.RecordedAt,
-		})
-	}
-	return result
-}
-
-func storePlanEvidence(items []PlanEvidence) []store.PlanEvidence {
-	result := make([]store.PlanEvidence, 0, len(items))
-	for _, item := range items {
-		result = append(result, store.PlanEvidence{
-			ID:            item.ID,
-			StepID:        item.StepID,
-			Kind:          string(item.Kind),
-			Status:        string(item.Status),
-			Summary:       item.Summary,
-			ToolResultRef: item.ToolResultRef,
-			ToolName:      item.ToolName,
-			Command:       append([]string(nil), item.Command...),
-			Paths:         append([]string(nil), item.Paths...),
-			DiffRef:       item.DiffRef,
-			ChildRunID:    item.ChildRunID,
-			Error:         item.Error,
-			SourceRunID:   item.SourceRunID,
-			RecordedAt:    item.RecordedAt,
-		})
-	}
-	return result
 }
 
 func toolVerificationCommand(toolName string, argumentsJSON string) []string {

@@ -17,6 +17,7 @@ import (
 	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/contextplane"
 	"github.com/ycvk/acorn/internal/orchestration"
+	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/tooling"
 	"github.com/ycvk/acorn/internal/workspace"
@@ -239,7 +240,7 @@ func emitToolCallLifecycle(ctx context.Context, call classifiedCall) error {
 	}
 	return lifecycleCtx.Plane.OnToolCall(ctx, contextplane.ToolCallEvent{
 		RunID:     getRunID(ctx),
-		SessionID: SessionIDFromContext(ctx),
+		SessionID: runtimeapi.SessionIDFromContext(ctx),
 		TurnIndex: turnIndexFromContext(ctx),
 		CallID:    call.toolCall.ID,
 		ToolName:  call.toolCall.Function.Name,
@@ -288,7 +289,7 @@ func emitToolResultLifecycle(ctx context.Context, msg *schema.Message) error {
 	}
 	return lifecycleCtx.Plane.OnToolResult(ctx, contextplane.ToolResultEvent{
 		RunID:        getRunID(ctx),
-		SessionID:    SessionIDFromContext(ctx),
+		SessionID:    runtimeapi.SessionIDFromContext(ctx),
 		TurnIndex:    turnIndexFromContext(ctx),
 		CallID:       msg.ToolCallID,
 		ToolName:     msg.ToolName,

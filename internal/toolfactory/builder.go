@@ -9,13 +9,12 @@ import (
 
 	einotool "github.com/cloudwego/eino/components/tool"
 
-	"github.com/ycvk/acorn/internal/browser"
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/contextplane"
 	"github.com/ycvk/acorn/internal/memorymodule"
 	"github.com/ycvk/acorn/internal/orchestration"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
-	"github.com/ycvk/acorn/internal/skilllifecycle"
+
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/tooling"
 	"github.com/ycvk/acorn/internal/tools"
@@ -31,7 +30,7 @@ type Builder struct {
 	checkpointService *workingstate.Service
 	memoryModule      memorymodule.Service
 	loader            skills.SkillLoader
-	store             skilllifecycle.LifecycleEventAppender
+	store             skills.LifecycleEventAppender
 	mcpPendingActions mcpprovider.PendingActionStore
 	extraLocalTools   []einotool.BaseTool
 	contextPlane      contextplane.ContextPlane
@@ -45,7 +44,7 @@ func NewBuilder(
 	checkpointService *workingstate.Service,
 	memoryModule memorymodule.Service,
 	loader skills.SkillLoader,
-	store skilllifecycle.LifecycleEventAppender,
+	store skills.LifecycleEventAppender,
 	mcpPendingActions mcpprovider.PendingActionStore,
 	extraLocalTools []einotool.BaseTool,
 	contextPlane contextplane.ContextPlane,
@@ -73,7 +72,7 @@ type BuildOptions struct {
 	ArtifactContext     tools.ArtifactContext
 	OperatorContext     tools.OperatorQuestionContext
 	DelegateContext     tools.DelegateTaskContext
-	RunContextBridge    skilllifecycle.RunContextBridge
+	RunContextBridge    skills.RunContextBridge
 	RunContextExtractor RunContextExtractor
 }
 
@@ -109,7 +108,7 @@ func (b *Builder) Build(ctx context.Context, opts BuildOptions) (*Toolset, error
 	if err != nil {
 		return nil, fmt.Errorf("web search service: %w", err)
 	}
-	browserService, err := browser.NewService(browser.Config{
+	browserService, err := tools.NewService(tools.Config{
 		ExecutablePath: strings.TrimSpace(b.cfg.Browser.ExecutablePath),
 		Headless:       b.cfg.Browser.Headless,
 		Timeout:        time.Duration(b.cfg.Browser.DefaultTimeoutSeconds) * time.Second,
@@ -170,7 +169,7 @@ func (b *Builder) Build(ctx context.Context, opts BuildOptions) (*Toolset, error
 	}
 	var skillLifecycleTools []einotool.BaseTool
 	if opts.IncludePlanning {
-		skillLifecycleTools, err = skilllifecycle.BuildAgentTools(skilllifecycle.ToolOptions{
+		skillLifecycleTools, err = skills.BuildSkillLifecycleTools(skills.ToolOptions{
 			Loader: b.loader,
 			Store:  b.store,
 			Bridge: opts.RunContextBridge,

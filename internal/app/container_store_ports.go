@@ -2,8 +2,8 @@ package app
 
 import (
 	"github.com/ycvk/acorn/internal/contextplane"
+	"github.com/ycvk/acorn/internal/model"
 	"github.com/ycvk/acorn/internal/runtime"
-	"github.com/ycvk/acorn/internal/runtimehistory"
 	storecore "github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/workingstate"
 )
@@ -16,7 +16,7 @@ type contextPlaneStore interface {
 type containerRuntimeStore interface {
 	runtime.RunnerFactoryStore
 	workingstate.Store
-	runtimehistory.SessionSummaryStore
+	model.SessionSummaryStore
 	notificationStore
 	PendingActionCreateStore
 }

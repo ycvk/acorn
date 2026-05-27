@@ -1,4 +1,4 @@
-package providerusage
+package providers
 
 import (
 	"context"
@@ -11,11 +11,11 @@ import (
 )
 
 type fakeRecorder struct {
-	records []Record
+	records []UsageRecord
 	err     error
 }
 
-func (r *fakeRecorder) AppendProviderUsage(_ context.Context, record Record) error {
+func (r *fakeRecorder) AppendProviderUsage(_ context.Context, record UsageRecord) error {
 	if r.err != nil {
 		return r.err
 	}
@@ -38,14 +38,14 @@ func (m *usageModel) Stream(context.Context, []*schema.Message, ...einomodel.Opt
 
 func TestRecordingModelGeneratePersistsReturnedUsage(t *testing.T) {
 	recorder := &fakeRecorder{}
-	model, err := WrapModel(&usageModel{generateMessage: usageMessage(10, 3, 13, 7, 2)}, recorder, RunMetadata{
+	model, err := WrapModelWithUsage(&usageModel{generateMessage: usageMessage(10, 3, 13, 7, 2)}, recorder, UsageRunMetadata{
 		RunID:        "run_1",
 		SessionID:    "session_1",
 		ProviderName: "openai",
 		ModelName:    "gpt-test",
 	})
 	if err != nil {
-		t.Fatalf("WrapModel: %v", err)
+		t.Fatalf("WrapModelWithUsage: %v", err)
 	}
 
 	msg, err := model.Generate(WithCallSite(context.Background(), CallSitePlan), []*schema.Message{schema.UserMessage("hi")})
@@ -69,7 +69,7 @@ func TestRecordingModelGeneratePersistsReturnedUsage(t *testing.T) {
 
 func TestRecordingModelRespectsInitialSequence(t *testing.T) {
 	recorder := &fakeRecorder{}
-	model, err := WrapModel(&usageModel{generateMessage: usageMessage(5, 2, 7, 0, 0)}, recorder, RunMetadata{
+	model, err := WrapModelWithUsage(&usageModel{generateMessage: usageMessage(5, 2, 7, 0, 0)}, recorder, UsageRunMetadata{
 		RunID:           "run_2",
 		SessionID:       "session_1",
 		ProviderName:    "openai",
@@ -77,7 +77,7 @@ func TestRecordingModelRespectsInitialSequence(t *testing.T) {
 		InitialSequence: 3,
 	})
 	if err != nil {
-		t.Fatalf("WrapModel: %v", err)
+		t.Fatalf("WrapModelWithUsage: %v", err)
 	}
 
 	msg, err := model.Generate(context.Background(), nil)
@@ -98,17 +98,17 @@ func TestRecordingModelRespectsInitialSequence(t *testing.T) {
 
 func TestRecordingModelStreamPersistsUsageAfterEOF(t *testing.T) {
 	recorder := &fakeRecorder{}
-	model, err := WrapModel(&usageModel{streamMessages: []*schema.Message{
+	model, err := WrapModelWithUsage(&usageModel{streamMessages: []*schema.Message{
 		schema.AssistantMessage("hello", nil),
 		usageMessage(12, 4, 16, 6, 1),
-	}}, recorder, RunMetadata{
+	}}, recorder, UsageRunMetadata{
 		RunID:        "run_stream",
 		SessionID:    "session_1",
 		ProviderName: "openai",
 		ModelName:    "gpt-test",
 	})
 	if err != nil {
-		t.Fatalf("WrapModel: %v", err)
+		t.Fatalf("WrapModelWithUsage: %v", err)
 	}
 
 	stream, err := model.Stream(WithCallSite(context.Background(), CallSiteAssistant), nil)
@@ -137,13 +137,13 @@ func TestRecordingModelStreamPersistsUsageAfterEOF(t *testing.T) {
 
 func TestRecordingModelSurfacesRecorderError(t *testing.T) {
 	recorder := &fakeRecorder{err: errors.New("store down")}
-	model, err := WrapModel(&usageModel{generateMessage: usageMessage(1, 1, 2, 0, 0)}, recorder, RunMetadata{
+	model, err := WrapModelWithUsage(&usageModel{generateMessage: usageMessage(1, 1, 2, 0, 0)}, recorder, UsageRunMetadata{
 		RunID:        "run_1",
 		ProviderName: "openai",
 		ModelName:    "gpt-test",
 	})
 	if err != nil {
-		t.Fatalf("WrapModel: %v", err)
+		t.Fatalf("WrapModelWithUsage: %v", err)
 	}
 
 	_, err = model.Generate(context.Background(), nil)

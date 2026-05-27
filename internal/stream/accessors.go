@@ -1,5 +1,7 @@
 package stream
 
+import "github.com/ycvk/acorn/internal/model"
+
 // --- Typed accessor methods ---
 
 func (item StreamItem) GetMessage() *StreamMessage {
@@ -120,7 +122,7 @@ func (item StreamItem) GetTargets() map[string]any {
 	return nil
 }
 
-func (item StreamItem) GetPlan() *StreamPlan {
+func (item StreamItem) GetPlan() *model.Plan {
 	switch p := item.Payload.(type) {
 	case *PlanCreatedPayload:
 		return p.Plan

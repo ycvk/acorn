@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/ycvk/acorn/internal/decision"
-	"github.com/ycvk/acorn/internal/runtimehistory"
+	"github.com/ycvk/acorn/internal/model"
 	"github.com/ycvk/acorn/internal/workingstate"
 )
 
@@ -17,7 +17,7 @@ type runContextAssembler struct {
 }
 
 type assembledRunContext struct {
-	snapshot          *runtimehistory.RunContextSnapshot
+	snapshot          *model.RunContextSnapshot
 	checkpointSection string
 }
 
@@ -32,7 +32,7 @@ func (a runContextAssembler) Assemble(ctx context.Context, req AssembleRequest) 
 }
 
 func (a runContextAssembler) createSnapshot(ctx context.Context, req AssembleRequest, selectedSkill *SelectedSkill, record *decision.Record) (*assembledRunContext, error) {
-	snapshot := runtimehistory.RunContextSnapshot{
+	snapshot := model.RunContextSnapshot{
 		RunID:     req.RunID,
 		CreatedAt: time.Now().UTC(),
 	}

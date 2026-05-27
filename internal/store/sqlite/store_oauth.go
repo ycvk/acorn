@@ -11,7 +11,8 @@ import (
 
 	"github.com/ycvk/acorn/internal/decision"
 	"github.com/ycvk/acorn/internal/events"
-	"github.com/ycvk/acorn/internal/providerusage"
+	"github.com/ycvk/acorn/internal/model"
+	"github.com/ycvk/acorn/internal/providers"
 	"github.com/ycvk/acorn/internal/store"
 )
 
@@ -503,7 +504,7 @@ func (s *Store) LoadRunDecision(ctx context.Context, runID string) (*decision.Re
 
 // SavePlan upserts a plan. If the plan_id already exists, it updates; otherwise inserts.
 // Empty steps = delete the plan row.
-func (s *Store) SavePlan(ctx context.Context, plan *store.PlanRecord) error {
+func (s *Store) SavePlan(ctx context.Context, plan *model.Plan) error {
 	if plan == nil {
 		return fmt.Errorf("plan is nil")
 	}
@@ -538,7 +539,7 @@ func (s *Store) SavePlan(ctx context.Context, plan *store.PlanRecord) error {
 
 // LoadPlanBySession loads the most recent plan for a session.
 // Returns store.ErrPlanNotFound if no plan exists.
-func (s *Store) LoadPlanBySession(ctx context.Context, sessionID string) (*store.PlanRecord, error) {
+func (s *Store) LoadPlanBySession(ctx context.Context, sessionID string) (*model.Plan, error) {
 	row := s.db.QueryRowContext(ctx, `
 		SELECT plan_id, session_id, run_id, steps_json, created_at, updated_at
 		FROM plan_steps
@@ -550,7 +551,7 @@ func (s *Store) LoadPlanBySession(ctx context.Context, sessionID string) (*store
 
 // LoadPlanByRun loads a plan by its last modifying run ID.
 // Returns store.ErrPlanNotFound if no plan exists.
-func (s *Store) LoadPlanByRun(ctx context.Context, runID string) (*store.PlanRecord, error) {
+func (s *Store) LoadPlanByRun(ctx context.Context, runID string) (*model.Plan, error) {
 	row := s.db.QueryRowContext(ctx, `
 		SELECT plan_id, session_id, run_id, steps_json, created_at, updated_at
 		FROM plan_steps
@@ -570,7 +571,7 @@ func (s *Store) DeletePlanBySession(ctx context.Context, sessionID string) error
 	return nil
 }
 
-func (s *Store) scanPlan(row *sql.Row) (*store.PlanRecord, error) {
+func (s *Store) scanPlan(row *sql.Row) (*model.Plan, error) {
 	var (
 		planID    string
 		sessionID string
@@ -585,7 +586,7 @@ func (s *Store) scanPlan(row *sql.Row) (*store.PlanRecord, error) {
 		}
 		return nil, fmt.Errorf("scan plan: %w", err)
 	}
-	var steps []store.PlanStep
+	var steps []model.PlanStep
 	if err := json.Unmarshal([]byte(stepsJSON), &steps); err != nil {
 		return nil, fmt.Errorf("unmarshal plan steps: %w", err)
 	}
@@ -597,7 +598,7 @@ func (s *Store) scanPlan(row *sql.Row) (*store.PlanRecord, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &store.PlanRecord{
+	return &model.Plan{
 		PlanID:    planID,
 		SessionID: sessionID,
 		RunID:     runID,
@@ -607,8 +608,8 @@ func (s *Store) scanPlan(row *sql.Row) (*store.PlanRecord, error) {
 	}, nil
 }
 
-func (s *Store) AppendProviderUsage(ctx context.Context, record providerusage.Record) error {
-	normalized, err := providerusage.NormalizeRecord(record)
+func (s *Store) AppendProviderUsage(ctx context.Context, record providers.UsageRecord) error {
+	normalized, err := providers.NormalizeUsageRecord(record)
 	if err != nil {
 		return err
 	}
@@ -629,7 +630,7 @@ func (s *Store) AppendProviderUsage(ctx context.Context, record providerusage.Re
 	return nil
 }
 
-func (s *Store) ListProviderUsagesByRun(ctx context.Context, runID string) ([]providerusage.Record, error) {
+func (s *Store) ListProviderUsagesByRun(ctx context.Context, runID string) ([]providers.UsageRecord, error) {
 	runID = strings.TrimSpace(runID)
 	if runID == "" {
 		return nil, fmt.Errorf("provider usage run_id is required")
@@ -647,7 +648,7 @@ func (s *Store) ListProviderUsagesByRun(ctx context.Context, runID string) ([]pr
 	}
 	defer rows.Close()
 
-	var items []providerusage.Record
+	var items []providers.UsageRecord
 	for rows.Next() {
 		record, err := scanProviderUsage(rows)
 		if err != nil {
@@ -661,8 +662,8 @@ func (s *Store) ListProviderUsagesByRun(ctx context.Context, runID string) ([]pr
 	return items, nil
 }
 
-func scanProviderUsage(scanner interface{ Scan(dest ...any) error }) (providerusage.Record, error) {
-	var record providerusage.Record
+func scanProviderUsage(scanner interface{ Scan(dest ...any) error }) (providers.UsageRecord, error) {
+	var record providers.UsageRecord
 	var createdAt string
 	if err := scanner.Scan(
 		&record.UsageID,
@@ -679,13 +680,13 @@ func scanProviderUsage(scanner interface{ Scan(dest ...any) error }) (providerus
 		&createdAt,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return providerusage.Record{}, err
+			return providers.UsageRecord{}, err
 		}
-		return providerusage.Record{}, err
+		return providers.UsageRecord{}, err
 	}
 	parsed, err := parseTimestamp(fixedTimestampLayout, createdAt, "provider_usage.created_at")
 	if err != nil {
-		return providerusage.Record{}, err
+		return providers.UsageRecord{}, err
 	}
 	record.CreatedAt = parsed
 	return record, nil

@@ -8,10 +8,10 @@ import (
 	"github.com/ycvk/acorn/internal/contextplane"
 	"github.com/ycvk/acorn/internal/decision"
 	"github.com/ycvk/acorn/internal/events"
+	"github.com/ycvk/acorn/internal/model"
+	"github.com/ycvk/acorn/internal/providers"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
-	"github.com/ycvk/acorn/internal/providerusage"
 	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
-	"github.com/ycvk/acorn/internal/runtimehistory"
 	"github.com/ycvk/acorn/internal/store"
 )
 
@@ -41,8 +41,8 @@ type EventStore interface {
 
 // ArchiveStore manages run archives.
 type ArchiveStore interface {
-	GetRunArchive(ctx context.Context, runID string) (*runtimehistory.RunArchive, error)
-	UpsertRunArchive(ctx context.Context, archive runtimehistory.RunArchive) error
+	GetRunArchive(ctx context.Context, runID string) (*model.RunArchive, error)
+	UpsertRunArchive(ctx context.Context, archive model.RunArchive) error
 }
 
 // EvidenceStore appends evidence references.
@@ -52,7 +52,7 @@ type EvidenceStore interface {
 
 // ProviderUsageStore queries provider usage records.
 type ProviderUsageStore interface {
-	ListProviderUsagesByRun(ctx context.Context, runID string) ([]providerusage.Record, error)
+	ListProviderUsagesByRun(ctx context.Context, runID string) ([]providers.UsageRecord, error)
 }
 
 // ExecutorStore is the store contract required by the Executor.
@@ -61,14 +61,14 @@ type ExecutorStore interface {
 	contextplane.RunContextSnapshotStore
 	contextplane.ContextBoundaryStore
 	store.ToolResultLedger
-	providerusage.Recorder
+	providers.UsageRecorder
 	runDecisionStore
-	EventAppender
+	runtimeapi.EventAppender
 	SessionTurnStore
 	RunStore
 	EventStore
 	ArchiveStore
-	runtimeapi.PlanRecordStore
+	runtimeapi.PlanPersistenceStore
 	EvidenceStore
 	ProviderUsageStore
 }

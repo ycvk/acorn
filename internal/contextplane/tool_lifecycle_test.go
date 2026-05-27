@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/cloudwego/eino/schema"
-	"github.com/ycvk/acorn/internal/runtimehistory"
+	"github.com/ycvk/acorn/internal/model"
 	storerepo "github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/tooling"
 )
@@ -25,11 +25,11 @@ func (t lifecycleStubTool) Info(context.Context) (*schema.ToolInfo, error) {
 
 type lifecycleSnapshotStore struct{}
 
-func (lifecycleSnapshotStore) SaveRunContextSnapshot(context.Context, runtimehistory.RunContextSnapshot) error {
+func (lifecycleSnapshotStore) SaveRunContextSnapshot(context.Context, model.RunContextSnapshot) error {
 	return nil
 }
 
-func (lifecycleSnapshotStore) LoadRunContextSnapshot(context.Context, string) (*runtimehistory.RunContextSnapshot, error) {
+func (lifecycleSnapshotStore) LoadRunContextSnapshot(context.Context, string) (*model.RunContextSnapshot, error) {
 	return nil, nil
 }
 

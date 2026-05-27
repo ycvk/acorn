@@ -5,7 +5,7 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/ycvk/acorn/internal/runtimehistory"
+	"github.com/ycvk/acorn/internal/model"
 	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/workingstate"
 )
@@ -14,30 +14,30 @@ import (
 // needed by contextplane tests, avoiding a dependency on store/sqlite.
 type fakeContextStore struct {
 	mu          sync.RWMutex
-	snapshots   map[string]runtimehistory.RunContextSnapshot
-	boundaries  map[string]runtimehistory.ContextBoundary
+	snapshots   map[string]model.RunContextSnapshot
+	boundaries  map[string]model.ContextBoundary
 	checkpoints map[string]workingstate.Checkpoint
 	results     map[string]store.ToolResultRecord
 }
 
 func newFakeContextStore() *fakeContextStore {
 	return &fakeContextStore{
-		snapshots:   make(map[string]runtimehistory.RunContextSnapshot),
-		boundaries:  make(map[string]runtimehistory.ContextBoundary),
+		snapshots:   make(map[string]model.RunContextSnapshot),
+		boundaries:  make(map[string]model.ContextBoundary),
 		checkpoints: make(map[string]workingstate.Checkpoint),
 		results:     make(map[string]store.ToolResultRecord),
 	}
 }
 
 // RunContextSnapshotStore implementation
-func (s *fakeContextStore) SaveRunContextSnapshot(_ context.Context, snap runtimehistory.RunContextSnapshot) error {
+func (s *fakeContextStore) SaveRunContextSnapshot(_ context.Context, snap model.RunContextSnapshot) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.snapshots[snap.RunID] = snap
 	return nil
 }
 
-func (s *fakeContextStore) LoadRunContextSnapshot(_ context.Context, runID string) (*runtimehistory.RunContextSnapshot, error) {
+func (s *fakeContextStore) LoadRunContextSnapshot(_ context.Context, runID string) (*model.RunContextSnapshot, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	snap, ok := s.snapshots[runID]
@@ -48,14 +48,14 @@ func (s *fakeContextStore) LoadRunContextSnapshot(_ context.Context, runID strin
 }
 
 // ContextBoundaryStore implementation
-func (s *fakeContextStore) SaveContextBoundary(_ context.Context, boundary runtimehistory.ContextBoundary) error {
+func (s *fakeContextStore) SaveContextBoundary(_ context.Context, boundary model.ContextBoundary) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.boundaries[boundary.BoundaryID] = boundary
 	return nil
 }
 
-func (s *fakeContextStore) LoadContextBoundary(_ context.Context, boundaryID string) (*runtimehistory.ContextBoundary, error) {
+func (s *fakeContextStore) LoadContextBoundary(_ context.Context, boundaryID string) (*model.ContextBoundary, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	boundary, ok := s.boundaries[boundaryID]
@@ -65,7 +65,7 @@ func (s *fakeContextStore) LoadContextBoundary(_ context.Context, boundaryID str
 	return &boundary, nil
 }
 
-func (s *fakeContextStore) LoadLatestContextBoundary(ctx context.Context, sessionID string) (*runtimehistory.ContextBoundary, error) {
+func (s *fakeContextStore) LoadLatestContextBoundary(ctx context.Context, sessionID string) (*model.ContextBoundary, error) {
 	boundaries, err := s.ListContextBoundaries(ctx, sessionID)
 	if err != nil {
 		return nil, err
@@ -77,10 +77,10 @@ func (s *fakeContextStore) LoadLatestContextBoundary(ctx context.Context, sessio
 	return &latest, nil
 }
 
-func (s *fakeContextStore) ListContextBoundaries(_ context.Context, sessionID string) ([]runtimehistory.ContextBoundary, error) {
+func (s *fakeContextStore) ListContextBoundaries(_ context.Context, sessionID string) ([]model.ContextBoundary, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	var out []runtimehistory.ContextBoundary
+	var out []model.ContextBoundary
 	for _, boundary := range s.boundaries {
 		if boundary.SessionID == sessionID {
 			out = append(out, boundary)

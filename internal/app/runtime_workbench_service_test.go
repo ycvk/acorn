@@ -9,12 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ycvk/acorn/internal/artifacts"
 	"github.com/ycvk/acorn/internal/decision"
 	"github.com/ycvk/acorn/internal/events"
-	"github.com/ycvk/acorn/internal/providerusage"
-	"github.com/ycvk/acorn/internal/runtime"
-	"github.com/ycvk/acorn/internal/runtimehistory"
+	"github.com/ycvk/acorn/internal/model"
+	"github.com/ycvk/acorn/internal/providers"
 	"github.com/ycvk/acorn/internal/store"
 	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
 	"github.com/ycvk/acorn/internal/stream"
@@ -157,19 +155,19 @@ func TestRuntimeWorkbenchServiceLoadAggregatesRuntimeTruth(t *testing.T) {
 			Action:    decision.ActionResumeRun,
 			CreatedAt: now,
 		},
-		plan: &runtime.Plan{
+		plan: &model.Plan{
 			PlanID:    "plan_1",
 			SessionID: "session_1",
 			RunID:     "run_1",
-			Steps: []runtime.PlanStep{{
+			Steps: []model.PlanStep{{
 				ID:     "step_1",
 				Action: "inspect workbench",
-				Status: runtime.PlanStepCompleted,
-				Evidence: []runtime.PlanEvidence{{
+				Status: model.PlanStepCompleted,
+				Evidence: []model.PlanEvidence{{
 					ID:         "ev_1",
 					StepID:     "step_1",
-					Kind:       runtime.EvidenceKindTest,
-					Status:     runtime.EvidenceStatusPassed,
+					Kind:       model.EvidenceKindTest,
+					Status:     model.EvidenceStatusPassed,
 					Summary:    "go test ./internal/app",
 					RecordedAt: now,
 				}},
@@ -223,14 +221,14 @@ func TestRuntimeWorkbenchServiceLoadAggregatesRuntimeTruth(t *testing.T) {
 				},
 			},
 		},
-		artifactsByRun: map[string][]artifacts.Record{
+		artifactsByRun: map[string][]store.ArtifactRecord{
 			"run_1": {
 				{
 					ArtifactID:          "artifact_report",
 					RunID:               "run_1",
 					SessionID:           "session_1",
 					SourceToolResultRef: "tool_result:run_1:call_artifact",
-					Kind:                artifacts.KindMarkdown,
+					Kind:                store.ArtifactKindMarkdown,
 					Title:               "Verification report",
 					MIMEType:            "text/markdown",
 					SizeBytes:           27,
@@ -239,13 +237,13 @@ func TestRuntimeWorkbenchServiceLoadAggregatesRuntimeTruth(t *testing.T) {
 				},
 			},
 		},
-		providerUsagesByRun: map[string][]providerusage.Record{
+		providerUsagesByRun: map[string][]providers.UsageRecord{
 			"run_1": {
 				{
 					UsageID:          "provider_usage:run_1:000001",
 					RunID:            "run_1",
 					SessionID:        "session_1",
-					CallSite:         providerusage.CallSitePlan,
+					CallSite:         providers.CallSitePlan,
 					ProviderName:     "openai",
 					ModelName:        "gpt-test",
 					PromptTokens:     100,
@@ -259,7 +257,7 @@ func TestRuntimeWorkbenchServiceLoadAggregatesRuntimeTruth(t *testing.T) {
 					UsageID:          "provider_usage:run_1:000002",
 					RunID:            "run_1",
 					SessionID:        "session_1",
-					CallSite:         providerusage.CallSiteAct,
+					CallSite:         providers.CallSiteAct,
 					ProviderName:     "openai",
 					ModelName:        "gpt-test",
 					PromptTokens:     40,
@@ -271,7 +269,7 @@ func TestRuntimeWorkbenchServiceLoadAggregatesRuntimeTruth(t *testing.T) {
 				},
 			},
 		},
-		summary: &runtimehistory.SessionSummary{
+		summary: &model.SessionSummary{
 			SessionID:   "session_1",
 			SourceRunID: "run_1",
 			RunStatus:   "interrupted",
@@ -345,7 +343,7 @@ func TestRuntimeWorkbenchServiceLoadAggregatesRuntimeTruth(t *testing.T) {
 	if workbench.ProviderUsage.CallCount != 2 || workbench.ProviderUsage.TotalTokens != 170 || workbench.ProviderUsage.CachedTokens != 65 || workbench.ProviderUsage.ReasoningTokens != 6 {
 		t.Fatalf("unexpected provider usage summary: %+v", workbench.ProviderUsage)
 	}
-	if len(workbench.ProviderUsage.Records) != 2 || workbench.ProviderUsage.Records[0].CallSite != providerusage.CallSitePlan {
+	if len(workbench.ProviderUsage.Records) != 2 || workbench.ProviderUsage.Records[0].CallSite != providers.CallSitePlan {
 		t.Fatalf("unexpected provider usage records: %+v", workbench.ProviderUsage.Records)
 	}
 }
@@ -383,7 +381,7 @@ func TestRuntimeWorkbenchServiceLoadFailsLoudOnProjectionError(t *testing.T) {
 	store := &runtimeWorkbenchStoreStub{
 		session:       &events.SessionRecord{SessionID: "session_1", Title: "Runtime Workbench"},
 		run:           &events.RunRecord{RunID: "run_1", SessionID: "session_1", Status: events.RunStatusSucceeded},
-		summary:       &runtimehistory.SessionSummary{SessionID: "session_1", Summary: "ok"},
+		summary:       &model.SessionSummary{SessionID: "session_1", Summary: "ok"},
 		loadEventsErr: errors.New("load events boom"),
 	}
 
@@ -434,7 +432,7 @@ func TestRuntimeWorkbenchServiceLoadFailsLoudOnResumeStatusError(t *testing.T) {
 			Status:       events.RunStatusInterrupted,
 			CheckpointID: "checkpoint_1",
 		},
-		summary: &runtimehistory.SessionSummary{SessionID: "session_1", Summary: "ok"},
+		summary: &model.SessionSummary{SessionID: "session_1", Summary: "ok"},
 	}
 
 	service := NewRuntimeWorkbenchService(RuntimeWorkbenchConfig{}, store, NewTraceService(traceStore))
@@ -501,7 +499,7 @@ func TestRuntimeWorkbenchServiceLoadRejectsInterruptedRunWithoutTraceService(t *
 			Status:       events.RunStatusInterrupted,
 			CheckpointID: "checkpoint_1",
 		},
-		summary: &runtimehistory.SessionSummary{SessionID: "session_1", Summary: "ok"},
+		summary: &model.SessionSummary{SessionID: "session_1", Summary: "ok"},
 	}
 
 	service := NewRuntimeWorkbenchService(RuntimeWorkbenchConfig{}, store, nil)
@@ -516,12 +514,12 @@ type runtimeWorkbenchStoreStub struct {
 	run                 *events.RunRecord
 	eventsByRun         map[string][]events.EventRecord
 	decision            *decision.Record
-	plan                *runtime.Plan
-	summary             *runtimehistory.SessionSummary
+	plan                *model.Plan
+	summary             *model.SessionSummary
 	loadEventsErr       error
 	toolResultsByRun    map[string][]store.ToolResultRecord
-	artifactsByRun      map[string][]artifacts.Record
-	providerUsagesByRun map[string][]providerusage.Record
+	artifactsByRun      map[string][]store.ArtifactRecord
+	providerUsagesByRun map[string][]providers.UsageRecord
 }
 
 func (s *runtimeWorkbenchStoreStub) LoadSession(_ context.Context, _ string) (*events.SessionRecord, error) {
@@ -543,14 +541,14 @@ func (s *runtimeWorkbenchStoreStub) LoadRunDecision(_ context.Context, _ string)
 	return s.decision, nil
 }
 
-func (s *runtimeWorkbenchStoreStub) LoadRuntimePlan(_ context.Context, _ string) (*runtime.Plan, error) {
+func (s *runtimeWorkbenchStoreStub) LoadRuntimePlan(_ context.Context, _ string) (*model.Plan, error) {
 	if s.plan == nil {
 		return nil, store.ErrPlanNotFound
 	}
 	return s.plan, nil
 }
 
-func (s *runtimeWorkbenchStoreStub) GetSessionSummary(_ context.Context, _ string) (*runtimehistory.SessionSummary, error) {
+func (s *runtimeWorkbenchStoreStub) GetSessionSummary(_ context.Context, _ string) (*model.SessionSummary, error) {
 	return s.summary, nil
 }
 
@@ -558,11 +556,11 @@ func (s *runtimeWorkbenchStoreStub) ListByRun(_ context.Context, runID string) (
 	return s.toolResultsByRun[runID], nil
 }
 
-func (s *runtimeWorkbenchStoreStub) ListArtifactsByRun(_ context.Context, runID string) ([]artifacts.Record, error) {
+func (s *runtimeWorkbenchStoreStub) ListArtifactsByRun(_ context.Context, runID string) ([]store.ArtifactRecord, error) {
 	return s.artifactsByRun[runID], nil
 }
 
-func (s *runtimeWorkbenchStoreStub) ListProviderUsagesByRun(_ context.Context, runID string) ([]providerusage.Record, error) {
+func (s *runtimeWorkbenchStoreStub) ListProviderUsagesByRun(_ context.Context, runID string) ([]providers.UsageRecord, error) {
 	return s.providerUsagesByRun[runID], nil
 }
 

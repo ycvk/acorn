@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	"github.com/ycvk/acorn/internal/app"
-	"github.com/ycvk/acorn/internal/runtime"
+	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	"github.com/ycvk/acorn/internal/store"
 )
 
@@ -41,11 +41,11 @@ func (s *Server) respondKnownError(w http.ResponseWriter, r *http.Request, err e
 		s.respondConflict(w, r, "skill_already_exists", err.Error())
 	case errors.Is(err, app.ErrSkillNotFound):
 		s.respondNotFound(w, r, "skill_not_found", err.Error())
-	case errors.Is(err, runtime.ErrRunNotActive):
+	case errors.Is(err, runtimeapi.ErrRunNotActive):
 		s.respondConflict(w, r, "run_not_active", err.Error())
-	case errors.Is(err, runtime.ErrRunNotInterrupted):
+	case errors.Is(err, runtimeapi.ErrRunNotInterrupted):
 		s.respondError(w, r, http.StatusBadRequest, "run_not_resumable", err.Error())
-	case errors.Is(err, runtime.ErrExecutionNotReady):
+	case errors.Is(err, runtimeapi.ErrExecutionNotReady):
 		s.respondError(w, r, http.StatusServiceUnavailable, "execution_not_ready", err.Error())
 	default:
 		s.respondInternalError(w, r, err)

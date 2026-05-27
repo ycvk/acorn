@@ -10,7 +10,8 @@ import (
 	"github.com/cloudwego/eino/schema"
 
 	"github.com/ycvk/acorn/internal/orchestration"
-	"github.com/ycvk/acorn/internal/providerusage"
+	"github.com/ycvk/acorn/internal/providers"
+	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	"github.com/ycvk/acorn/internal/stream"
 )
 
@@ -37,7 +38,7 @@ func (a *assistantStreamAccumulator) append(delta string) int {
 type assistantStreamOptions struct {
 	MessageID string
 	RunID     string
-	Appender  EventAppender
+	Appender  runtimeapi.EventAppender
 	Sink      stream.StreamSink
 	ToolInfos []*schema.ToolInfo
 	CallSite  string
@@ -58,9 +59,9 @@ func streamAssistantMessage(
 	}
 	callSite := opts.CallSite
 	if callSite == "" {
-		callSite = providerusage.CallSiteAssistant
+		callSite = providers.CallSiteAssistant
 	}
-	modelStream, err := model.Stream(providerusage.WithCallSite(ctx, callSite), messages, streamOpts...)
+	modelStream, err := model.Stream(providers.WithCallSite(ctx, callSite), messages, streamOpts...)
 	if err != nil {
 		return nil, err
 	}

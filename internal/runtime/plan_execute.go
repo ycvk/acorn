@@ -13,15 +13,17 @@ import (
 	"github.com/cloudwego/eino/compose"
 	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/events"
+	"github.com/ycvk/acorn/internal/model"
 	"github.com/ycvk/acorn/internal/orchestration"
+	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	"github.com/ycvk/acorn/internal/runtime/graph"
 	"github.com/ycvk/acorn/internal/stream"
 	"github.com/ycvk/acorn/internal/tooling"
 )
 
 type ExecuteDispatchNode struct {
-	store         PlanStore
-	eventStore    EventAppender
+	store         runtimeapi.PlanStore
+	eventStore    runtimeapi.EventAppender
 	childExecutor orchestration.ChildAgentExecutor
 	verifier      orchestration.Verifier
 }
@@ -35,7 +37,7 @@ func BuildPlanExecuteGraph(
 	maxIterations int,
 	checkpointStore compose.CheckPointStore,
 	handlers []adk.ChatModelAgentMiddleware,
-	planStore PlanStore,
+	planStore runtimeapi.PlanStore,
 	planPrompt string,
 	planningPromptProvider PlanningPromptProvider,
 	eagerToolNames []string,
@@ -183,7 +185,7 @@ func BuildPlanExecuteGraph(
 	return runnable, nil
 }
 
-func NewExecuteDispatchNode(store PlanStore, eventStore EventAppender, childExecutor orchestration.ChildAgentExecutor) *ExecuteDispatchNode {
+func NewExecuteDispatchNode(store runtimeapi.PlanStore, eventStore runtimeapi.EventAppender, childExecutor orchestration.ChildAgentExecutor) *ExecuteDispatchNode {
 	var verifier orchestration.Verifier
 	if childExecutor != nil {
 		verifier = orchestration.NewChildAgentVerifier(childExecutor)
@@ -206,7 +208,7 @@ func (n *ExecuteDispatchNode) Invoke(ctx context.Context, state *graph.AgentGrap
 	if n.childExecutor == nil {
 		return nil, fmt.Errorf("execute dispatch requires a child executor")
 	}
-	sessionID := strings.TrimSpace(SessionIDFromContext(ctx))
+	sessionID := strings.TrimSpace(runtimeapi.SessionIDFromContext(ctx))
 	if sessionID == "" {
 		return nil, fmt.Errorf("execute dispatch requires session_id")
 	}
@@ -219,8 +221,8 @@ func (n *ExecuteDispatchNode) Invoke(ctx context.Context, state *graph.AgentGrap
 	if err != nil {
 		return nil, err
 	}
-	if plan.Steps[stepIndex].Status == PlanStepPending {
-		plan.Steps[stepIndex].Status = PlanStepInProgress
+	if plan.Steps[stepIndex].Status == model.PlanStepPending {
+		plan.Steps[stepIndex].Status = model.PlanStepInProgress
 		plan.RunID = runID
 		plan.UpdatedAt = time.Now().UTC()
 		if err := n.store.SavePlan(ctx, plan); err != nil {
@@ -234,7 +236,7 @@ func (n *ExecuteDispatchNode) Invoke(ctx context.Context, state *graph.AgentGrap
 	step := plan.Steps[stepIndex]
 	result, execErr := n.childExecutor.Execute(ctx, n.buildChildRequest(sessionID, runID, plan, step, state.Messages))
 	recordedAt := time.Now().UTC()
-	var evidence PlanEvidence
+	var evidence model.PlanEvidence
 	if execErr != nil {
 		evidence = failedChildExecutionEvidence(step.ID, runID, execErr, recordedAt)
 	} else {
@@ -288,7 +290,7 @@ func (n *ExecuteDispatchNode) Invoke(ctx context.Context, state *graph.AgentGrap
 		}
 	}
 
-	plan.Steps[stepIndex].Status = PlanStepCompleted
+	plan.Steps[stepIndex].Status = model.PlanStepCompleted
 	plan.RunID = runID
 	plan.UpdatedAt = time.Now().UTC()
 	if err := n.store.SavePlan(ctx, plan); err != nil {
@@ -316,13 +318,13 @@ func (n *CloseoutNode) Invoke(ctx context.Context, state *graph.AgentGraphState)
 	for _, step := range state.Plan.Steps {
 		summary := latestEvidenceSummary(step.Evidence)
 		switch step.Status {
-		case PlanStepCompleted:
+		case model.PlanStepCompleted:
 			line := step.Action
 			if summary != "" {
 				line = summary
 			}
 			completed = append(completed, line)
-		case PlanStepFailed:
+		case model.PlanStepFailed:
 			line := step.Action
 			if reason, ok := failedPlanExecutionEvidenceReason(step.Evidence); ok && strings.TrimSpace(reason) != "" {
 				line = fmt.Sprintf("%s: %s", step.Action, reason)
@@ -358,7 +360,7 @@ func (n *CloseoutNode) Invoke(ctx context.Context, state *graph.AgentGraphState)
 	return schema.AssistantMessage(strings.TrimSpace(b.String()), nil), nil
 }
 
-func (n *ExecuteDispatchNode) loadRunnablePlan(ctx context.Context, sessionID string) (*Plan, int, error) {
+func (n *ExecuteDispatchNode) loadRunnablePlan(ctx context.Context, sessionID string) (*model.Plan, int, error) {
 	plan, err := n.store.LoadPlan(ctx, sessionID)
 	if err != nil {
 		return nil, -1, fmt.Errorf("load active plan: %w", err)
@@ -370,7 +372,7 @@ func (n *ExecuteDispatchNode) loadRunnablePlan(ctx context.Context, sessionID st
 	return plan, index, nil
 }
 
-func (n *ExecuteDispatchNode) reloadStep(ctx context.Context, sessionID string, stepID string) (*Plan, int, error) {
+func (n *ExecuteDispatchNode) reloadStep(ctx context.Context, sessionID string, stepID string) (*model.Plan, int, error) {
 	plan, err := n.store.LoadPlan(ctx, sessionID)
 	if err != nil {
 		return nil, -1, fmt.Errorf("reload plan: %w", err)
@@ -383,8 +385,8 @@ func (n *ExecuteDispatchNode) reloadStep(ctx context.Context, sessionID string, 
 	return nil, -1, fmt.Errorf("plan step %s no longer exists", stepID)
 }
 
-func (n *ExecuteDispatchNode) failStep(ctx context.Context, plan *Plan, stepIndex int, reason string) (*Plan, error) {
-	plan.Steps[stepIndex].Status = PlanStepFailed
+func (n *ExecuteDispatchNode) failStep(ctx context.Context, plan *model.Plan, stepIndex int, reason string) (*model.Plan, error) {
+	plan.Steps[stepIndex].Status = model.PlanStepFailed
 	plan.UpdatedAt = time.Now().UTC()
 	if err := n.store.SavePlan(ctx, plan); err != nil {
 		return nil, fmt.Errorf("mark plan step failed: %w", err)
@@ -395,7 +397,7 @@ func (n *ExecuteDispatchNode) failStep(ctx context.Context, plan *Plan, stepInde
 	return plan, nil
 }
 
-func (n *ExecuteDispatchNode) emitStepStarted(ctx context.Context, plan *Plan, step PlanStep) error {
+func (n *ExecuteDispatchNode) emitStepStarted(ctx context.Context, plan *model.Plan, step model.PlanStep) error {
 	if n.eventStore == nil {
 		return nil
 	}
@@ -411,7 +413,7 @@ func (n *ExecuteDispatchNode) emitStepStarted(ctx context.Context, plan *Plan, s
 	return nil
 }
 
-func (n *ExecuteDispatchNode) emitStepCompleted(ctx context.Context, plan *Plan, step PlanStep) error {
+func (n *ExecuteDispatchNode) emitStepCompleted(ctx context.Context, plan *model.Plan, step model.PlanStep) error {
 	if n.eventStore == nil {
 		return nil
 	}
@@ -427,7 +429,7 @@ func (n *ExecuteDispatchNode) emitStepCompleted(ctx context.Context, plan *Plan,
 	return nil
 }
 
-func (n *ExecuteDispatchNode) emitStepFailed(ctx context.Context, plan *Plan, step PlanStep, reason string) error {
+func (n *ExecuteDispatchNode) emitStepFailed(ctx context.Context, plan *model.Plan, step model.PlanStep, reason string) error {
 	if n.eventStore == nil {
 		return nil
 	}
@@ -446,7 +448,7 @@ func (n *ExecuteDispatchNode) emitStepFailed(ctx context.Context, plan *Plan, st
 	return nil
 }
 
-func (n *ExecuteDispatchNode) buildChildRequest(sessionID, runID string, plan *Plan, step PlanStep, messages []*schema.Message) orchestration.ChildAgentRequest {
+func (n *ExecuteDispatchNode) buildChildRequest(sessionID, runID string, plan *model.Plan, step model.PlanStep, messages []*schema.Message) orchestration.ChildAgentRequest {
 	return orchestration.ChildAgentRequest{
 		ParentRunID:      runID,
 		ParentSessionID:  sessionID,
@@ -461,7 +463,7 @@ func (n *ExecuteDispatchNode) buildChildRequest(sessionID, runID string, plan *P
 	}
 }
 
-func (n *ExecuteDispatchNode) buildVerificationRequest(sessionID, runID string, plan *Plan, step PlanStep, messages []*schema.Message) orchestration.VerificationRequest {
+func (n *ExecuteDispatchNode) buildVerificationRequest(sessionID, runID string, plan *model.Plan, step model.PlanStep, messages []*schema.Message) orchestration.VerificationRequest {
 	return orchestration.VerificationRequest{
 		ParentRunID:        runID,
 		ParentSessionID:    sessionID,
@@ -475,7 +477,7 @@ func (n *ExecuteDispatchNode) buildVerificationRequest(sessionID, runID string, 
 	}
 }
 
-func formatExecuteChildTask(plan *Plan, step PlanStep) string {
+func formatExecuteChildTask(plan *model.Plan, step model.PlanStep) string {
 	var b strings.Builder
 	b.WriteString("Execute exactly one parent plan step. Finish only this step.\n")
 	b.WriteString("Your final output must be the user-facing result for this step, not an execution report. Do not add headings such as \"Completion Summary\" unless the user explicitly asked for a report.\n\n")
@@ -519,13 +521,13 @@ func formatExecuteChildTask(plan *Plan, step PlanStep) string {
 	return strings.TrimSpace(b.String())
 }
 
-func completedStepContext(plan *Plan, currentStepID string) string {
+func completedStepContext(plan *model.Plan, currentStepID string) string {
 	if plan == nil {
 		return ""
 	}
 	lines := make([]string, 0, len(plan.Steps))
 	for _, step := range plan.Steps {
-		if step.ID == currentStepID || step.Status != PlanStepCompleted {
+		if step.ID == currentStepID || step.Status != model.PlanStepCompleted {
 			continue
 		}
 		summary := latestEvidenceSummary(step.Evidence)
@@ -538,7 +540,7 @@ func completedStepContext(plan *Plan, currentStepID string) string {
 	return strings.Join(lines, "\n")
 }
 
-func stepRequiresVerifier(step PlanStep) bool {
+func stepRequiresVerifier(step model.PlanStep) bool {
 	for _, intent := range step.VerificationIntent {
 		if strings.TrimSpace(intent.Kind) == "verifier" {
 			return true
@@ -547,7 +549,7 @@ func stepRequiresVerifier(step PlanStep) bool {
 	return false
 }
 
-func verifierAcceptanceCriteria(step PlanStep) []string {
+func verifierAcceptanceCriteria(step model.PlanStep) []string {
 	criteria := make([]string, 0, len(step.VerificationIntent)+1)
 	action := strings.TrimSpace(step.Action)
 	if action != "" {
@@ -564,7 +566,7 @@ func verifierAcceptanceCriteria(step PlanStep) []string {
 	return trimmedNonEmptyStrings(criteria)
 }
 
-func verifierEvidenceRefs(items []PlanEvidence) []string {
+func verifierEvidenceRefs(items []model.PlanEvidence) []string {
 	refs := make([]string, 0, len(items))
 	for _, item := range items {
 		if ref := strings.TrimSpace(item.ID); ref != "" {
@@ -574,7 +576,7 @@ func verifierEvidenceRefs(items []PlanEvidence) []string {
 	return trimmedNonEmptyStrings(refs)
 }
 
-func verifierToolResultRefs(items []PlanEvidence) []string {
+func verifierToolResultRefs(items []model.PlanEvidence) []string {
 	refs := make([]string, 0, len(items))
 	for _, item := range items {
 		if ref := strings.TrimSpace(item.ToolResultRef); ref != "" {
@@ -588,24 +590,24 @@ func verifierReadOnlyToolNames() []string {
 	return []string{"read_file", "list_files", "search_text", "inspect_git_status", "inspect_git_diff"}
 }
 
-func subagentEvidenceFromChildResult(stepID, parentRunID string, result *orchestration.ChildAgentResult, recordedAt time.Time) PlanEvidence {
+func subagentEvidenceFromChildResult(stepID, parentRunID string, result *orchestration.ChildAgentResult, recordedAt time.Time) model.PlanEvidence {
 	if result == nil {
 		return failedChildExecutionEvidence(stepID, parentRunID, errors.New("child result is nil"), recordedAt)
 	}
 	summary := summarizeChildResult(result)
-	status := EvidenceStatusPassed
+	status := model.EvidenceStatusPassed
 	errText := ""
 	if strings.TrimSpace(result.Acceptance.Status) != "passed" {
-		status = EvidenceStatusFailed
+		status = model.EvidenceStatusFailed
 		errText = strings.Join(trimmedNonEmptyStrings(result.Acceptance.Reasons), "; ")
 		if errText == "" {
 			errText = fmt.Sprintf("child run %s acceptance failed", strings.TrimSpace(result.ChildRunID))
 		}
 	}
-	return PlanEvidence{
+	return model.PlanEvidence{
 		ID:          fmt.Sprintf("subagent-%d", recordedAt.UnixNano()),
 		StepID:      stepID,
-		Kind:        EvidenceKindSubagent,
+		Kind:        model.EvidenceKindSubagent,
 		Status:      status,
 		Summary:     summary,
 		ChildRunID:  strings.TrimSpace(result.ChildRunID),
@@ -615,16 +617,16 @@ func subagentEvidenceFromChildResult(stepID, parentRunID string, result *orchest
 	}
 }
 
-func failedChildExecutionEvidence(stepID, parentRunID string, execErr error, recordedAt time.Time) PlanEvidence {
+func failedChildExecutionEvidence(stepID, parentRunID string, execErr error, recordedAt time.Time) model.PlanEvidence {
 	reason := "child execution failed"
 	if execErr != nil && strings.TrimSpace(execErr.Error()) != "" {
 		reason = strings.TrimSpace(execErr.Error())
 	}
-	return PlanEvidence{
+	return model.PlanEvidence{
 		ID:          fmt.Sprintf("subagent-%d", recordedAt.UnixNano()),
 		StepID:      stepID,
-		Kind:        EvidenceKindSubagent,
-		Status:      EvidenceStatusFailed,
+		Kind:        model.EvidenceKindSubagent,
+		Status:      model.EvidenceStatusFailed,
 		Summary:     reason,
 		Error:       reason,
 		SourceRunID: parentRunID,
@@ -632,16 +634,16 @@ func failedChildExecutionEvidence(stepID, parentRunID string, execErr error, rec
 	}
 }
 
-func failedVerifierExecutionEvidence(stepID, parentRunID string, execErr error, recordedAt time.Time) PlanEvidence {
+func failedVerifierExecutionEvidence(stepID, parentRunID string, execErr error, recordedAt time.Time) model.PlanEvidence {
 	reason := "verifier execution failed"
 	if execErr != nil && strings.TrimSpace(execErr.Error()) != "" {
 		reason = strings.TrimSpace(execErr.Error())
 	}
-	return PlanEvidence{
+	return model.PlanEvidence{
 		ID:          fmt.Sprintf("verifier-%d", recordedAt.UnixNano()),
 		StepID:      stepID,
-		Kind:        EvidenceKindVerifier,
-		Status:      EvidenceStatusFailed,
+		Kind:        model.EvidenceKindVerifier,
+		Status:      model.EvidenceStatusFailed,
 		Summary:     reason,
 		Error:       reason,
 		SourceRunID: parentRunID,
@@ -669,7 +671,7 @@ func summarizeChildResult(result *orchestration.ChildAgentResult) string {
 	return fmt.Sprintf("child run %s failed", childRunID)
 }
 
-func formatDispatchOutcome(step PlanStep, succeeded bool) string {
+func formatDispatchOutcome(step model.PlanStep, succeeded bool) string {
 	summary := latestEvidenceSummary(step.Evidence)
 	if succeeded {
 		if summary != "" {
@@ -683,16 +685,16 @@ func formatDispatchOutcome(step PlanStep, succeeded bool) string {
 	return fmt.Sprintf("Step %s failed.", strings.TrimSpace(step.ID))
 }
 
-func failedPlanExecutionEvidenceReason(items []PlanEvidence) (string, bool) {
+func failedPlanExecutionEvidenceReason(items []model.PlanEvidence) (string, bool) {
 	for i := len(items) - 1; i >= 0; i-- {
 		item := items[i]
 		switch item.Kind {
-		case EvidenceKindSubagent:
-			if item.Status != EvidenceStatusFailed {
+		case model.EvidenceKindSubagent:
+			if item.Status != model.EvidenceStatusFailed {
 				continue
 			}
-		case EvidenceKindVerifier:
-			if item.Status != EvidenceStatusFailed && !(item.Status == EvidenceStatusRecorded && strings.TrimSpace(item.Error) != "") {
+		case model.EvidenceKindVerifier:
+			if item.Status != model.EvidenceStatusFailed && !(item.Status == model.EvidenceStatusRecorded && strings.TrimSpace(item.Error) != "") {
 				continue
 			}
 		default:

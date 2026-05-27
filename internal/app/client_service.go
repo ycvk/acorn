@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/ycvk/acorn/internal/events"
-	"github.com/ycvk/acorn/internal/runtime"
+	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	"github.com/ycvk/acorn/internal/store"
 )
 
@@ -108,7 +108,7 @@ func (s *ClientService) CreateRun(ctx context.Context, threadID, skillID, mode s
 		return nil, errors.New("client run id is empty")
 	}
 	started := newRunStartSignal()
-	req := runtime.ExecuteRequest{
+	req := runtimeapi.ExecuteRequest{
 		RunID:             runID,
 		SessionID:         threadID,
 		TurnIndex:         message.TurnIndex,

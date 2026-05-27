@@ -63,7 +63,7 @@ Tool taxonomy、SQLite schema 和 storage/domain ports 已有 P0 工具所需的
 
 ### Likely Files
 
-- `internal/artifacts/`
+- `internal/store/artifacts.go`
 - `internal/terminalsession/`
 - `internal/tooling/specs.go`
 - `internal/tooling/contracts.go`
@@ -90,7 +90,7 @@ git diff --check
 Implemented verification:
 
 ```bash
-go test ./internal/tooling ./internal/toolresult ./internal/artifacts ./internal/terminalsession ./internal/store/sqlite ./internal/app ./internal/runtime
+go test ./internal/tooling ./internal/store ./internal/store/sqlite ./internal/app ./internal/runtime
 make lint
 make format-check
 git diff --check
@@ -106,7 +106,7 @@ Acorn can persist run-scoped artifacts and expose them to the model and remote c
 
 ### Build
 
-- Add `internal/artifacts` service with file-backed content and SQLite metadata.
+- Add `internal/store.ArtifactService` with file-backed content and SQLite metadata.
 - Add native tools:
   - `artifact_write`
   - `artifact_read`
@@ -118,7 +118,7 @@ Acorn can persist run-scoped artifacts and expose them to the model and remote c
 
 ### Likely Files
 
-- `internal/artifacts/`
+- `internal/store/artifacts.go`
 - `internal/tools/artifact_tools.go`
 - `internal/runtime/runner_factory_toolset.go`
 - `internal/runtime/tool_specs.go`
@@ -137,7 +137,7 @@ Acorn can persist run-scoped artifacts and expose them to the model and remote c
 ### Verify
 
 ```bash
-go test ./internal/artifacts ./internal/tools ./internal/runtime ./internal/app ./internal/web ./internal/store/sqlite
+go test ./internal/store ./internal/tools ./internal/runtime ./internal/app ./internal/web ./internal/store/sqlite
 python3 mobile/tool/generate_openapi_client.py --check
 git diff --check
 ```
@@ -145,7 +145,7 @@ git diff --check
 Implemented verification:
 
 ```bash
-go test ./internal/tools ./internal/runtime ./internal/app ./internal/web ./internal/store/sqlite ./internal/tooling ./internal/toolresult ./internal/artifacts
+go test ./internal/tools ./internal/runtime ./internal/app ./internal/web ./internal/store ./internal/store/sqlite ./internal/tooling
 python3 mobile/tool/generate_openapi_client.py --check
 flutter test
 flutter analyze
@@ -214,7 +214,7 @@ git diff --check
 Implemented verification:
 
 ```bash
-go test ./internal/terminalsession ./internal/tools ./internal/runtime ./internal/app ./internal/web ./internal/store/sqlite ./internal/tooling ./internal/toolresult ./internal/artifacts ./internal/processgroup
+go test ./internal/tools ./internal/runtime ./internal/app ./internal/web ./internal/store ./internal/store/sqlite ./internal/tooling
 python3 mobile/tool/generate_openapi_client.py --check
 flutter test
 flutter test test/api_client_test.dart

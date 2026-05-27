@@ -7,6 +7,8 @@ import (
 
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/schema"
+	"github.com/ycvk/acorn/internal/model"
+	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	"github.com/ycvk/acorn/internal/runtime/graph"
 	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
 	"github.com/ycvk/acorn/internal/stream"
@@ -23,7 +25,7 @@ func TestPlanActObserveE2E(t *testing.T) {
 	if err := store.CreateRun(context.Background(), "run_e2e", "do two steps", "run_e2e"); err != nil {
 		t.Fatalf("CreateRun: %v", err)
 	}
-	runCtx := withRunID(WithSessionID(ctx, "sess_e2e"), "run_e2e")
+	runCtx := withRunID(runtimeapi.WithSessionID(ctx, "sess_e2e"), "run_e2e")
 	sinkItems := make([]stream.StreamItem, 0)
 	runCtx = stream.WithStreamSink(runCtx, func(item stream.StreamItem) error {
 		sinkItems = append(sinkItems, item)
@@ -32,7 +34,7 @@ func TestPlanActObserveE2E(t *testing.T) {
 
 	toolCallA := makeToolCall("call_1", "search", `{"query":"alpha"}`)
 	toolCallB := makeToolCall("call_2", "search", `{"query":"beta"}`)
-	model := &toolCallingStubModel{
+	testModel := &toolCallingStubModel{
 		responses: []*schema.Message{
 			schema.AssistantMessage(`{"steps":[{"id":"s1","action":"Search alpha","status":"pending"},{"id":"s2","action":"Search beta","status":"pending","depends_on":["s1"]}]}`, nil),
 			makeAssistantMessage(toolCallA),
@@ -50,7 +52,7 @@ func TestPlanActObserveE2E(t *testing.T) {
 	if err != nil {
 		t.Fatalf("tool Info: %v", err)
 	}
-	runnable, err := BuildAgentGraph(runCtx, "test-agent", model, safeNode, newDirectAssistantStreamer(nil), 10, store, nil, NewPlanStore(store), "Make a plan", nil, []string{info.Name}, nil)
+	runnable, err := BuildAgentGraph(runCtx, "test-agent", testModel, safeNode, newDirectAssistantStreamer(nil), 10, store, nil, NewPlanStore(store), "Make a plan", nil, []string{info.Name}, nil)
 	if err != nil {
 		t.Fatalf("buildAgentGraph: %v", err)
 	}
@@ -70,7 +72,7 @@ func TestPlanActObserveE2E(t *testing.T) {
 		t.Fatalf("step count = %d, want 2", len(plan.Steps))
 	}
 	for _, step := range plan.Steps {
-		if string(step.Status) != string(PlanStepCompleted) {
+		if string(step.Status) != string(model.PlanStepCompleted) {
 			t.Fatalf("step %s status = %q, want completed", step.ID, step.Status)
 		}
 		if len(step.Evidence) != 1 {
@@ -91,7 +93,7 @@ func TestPlanActObserveE2E(t *testing.T) {
 			t.Fatalf("event %q not found in order; remaining kinds=%v", want, gotKinds)
 		}
 	}
-	if got, want := model.callCount, 4; got != want {
+	if got, want := testModel.callCount, 4; got != want {
 		t.Fatalf("model callCount = %d, want %d", got, want)
 	}
 	if len(sinkItems) == 0 {
@@ -109,10 +111,10 @@ func TestPlanActObserveE2ESingleStep(t *testing.T) {
 	if err := store.CreateRun(context.Background(), "run_single", "read README", "run_single"); err != nil {
 		t.Fatalf("CreateRun: %v", err)
 	}
-	runCtx := withRunID(WithSessionID(ctx, "sess_single"), "run_single")
+	runCtx := withRunID(runtimeapi.WithSessionID(ctx, "sess_single"), "run_single")
 
 	toolCall := makeToolCall("call_1", "search", `{"query":"README"}`)
-	model := &toolCallingStubModel{
+	testModel := &toolCallingStubModel{
 		responses: []*schema.Message{
 			schema.AssistantMessage(`{"steps":[{"id":"s1","action":"Read README","status":"pending"}]}`, nil),
 			makeAssistantMessage(toolCall),
@@ -128,7 +130,7 @@ func TestPlanActObserveE2ESingleStep(t *testing.T) {
 	if err != nil {
 		t.Fatalf("tool Info: %v", err)
 	}
-	runnable, err := BuildAgentGraph(runCtx, "test-agent", model, safeNode, newDirectAssistantStreamer(nil), 10, store, nil, NewPlanStore(store), "Make a plan", nil, []string{info.Name}, nil)
+	runnable, err := BuildAgentGraph(runCtx, "test-agent", testModel, safeNode, newDirectAssistantStreamer(nil), 10, store, nil, NewPlanStore(store), "Make a plan", nil, []string{info.Name}, nil)
 	if err != nil {
 		t.Fatalf("buildAgentGraph: %v", err)
 	}
@@ -143,8 +145,8 @@ func TestPlanActObserveE2ESingleStep(t *testing.T) {
 	if len(plan.Steps) != 1 {
 		t.Fatalf("step count = %d, want 1", len(plan.Steps))
 	}
-	if model.callCount != 2 {
-		t.Fatalf("model callCount = %d, want 2", model.callCount)
+	if testModel.callCount != 2 {
+		t.Fatalf("model callCount = %d, want 2", testModel.callCount)
 	}
 }
 
@@ -158,10 +160,10 @@ func TestPlanActObserveE2EReplanConsumesOneAdditionalIteration(t *testing.T) {
 	if err := store.CreateRun(context.Background(), "run_replan", "recover after failure", "run_replan"); err != nil {
 		t.Fatalf("CreateRun: %v", err)
 	}
-	runCtx := withRunID(WithSessionID(ctx, "sess_replan"), "run_replan")
+	runCtx := withRunID(runtimeapi.WithSessionID(ctx, "sess_replan"), "run_replan")
 
 	secondToolCall := makeToolCall("call_2", "search", `{"query":"fixed"}`)
-	model := &toolCallingStubModel{
+	testModel := &toolCallingStubModel{
 		responses: []*schema.Message{
 			schema.AssistantMessage(`{"steps":[{"id":"s1","action":"Try first path","status":"pending"},{"id":"s2","action":"Continue after first path","status":"pending","depends_on":["s1"]}]}`, nil),
 			schema.AssistantMessage("unable to choose a tool", nil),
@@ -180,7 +182,7 @@ func TestPlanActObserveE2EReplanConsumesOneAdditionalIteration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("tool Info: %v", err)
 	}
-	runnable, err := BuildAgentGraph(runCtx, "test-agent", model, safeNode, newDirectAssistantStreamer(nil), 2, store, nil, NewPlanStore(store), "Make a plan", nil, []string{info.Name}, nil)
+	runnable, err := BuildAgentGraph(runCtx, "test-agent", testModel, safeNode, newDirectAssistantStreamer(nil), 2, store, nil, NewPlanStore(store), "Make a plan", nil, []string{info.Name}, nil)
 	if err != nil {
 		t.Fatalf("buildAgentGraph: %v", err)
 	}
@@ -195,7 +197,7 @@ func TestPlanActObserveE2EReplanConsumesOneAdditionalIteration(t *testing.T) {
 	if len(plan.Steps) != 1 || plan.Steps[0].Action != "Try corrected path" {
 		t.Fatalf("regenerated plan = %+v", plan.Steps)
 	}
-	if string(plan.Steps[0].Status) != string(PlanStepCompleted) {
+	if string(plan.Steps[0].Status) != string(model.PlanStepCompleted) {
 		t.Fatalf("regenerated step status = %q, want completed", plan.Steps[0].Status)
 	}
 }

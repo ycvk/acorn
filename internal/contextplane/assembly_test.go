@@ -9,25 +9,25 @@ import (
 	"github.com/cloudwego/eino/schema"
 
 	"github.com/ycvk/acorn/internal/memorymodule"
-	"github.com/ycvk/acorn/internal/runtimehistory"
+	"github.com/ycvk/acorn/internal/model"
 	"github.com/ycvk/acorn/internal/skills"
 )
 
 type snapshotStoreStub struct{}
 
-func (snapshotStoreStub) SaveRunContextSnapshot(context.Context, runtimehistory.RunContextSnapshot) error {
+func (snapshotStoreStub) SaveRunContextSnapshot(context.Context, model.RunContextSnapshot) error {
 	return nil
 }
 
-func (snapshotStoreStub) LoadRunContextSnapshot(context.Context, string) (*runtimehistory.RunContextSnapshot, error) {
+func (snapshotStoreStub) LoadRunContextSnapshot(context.Context, string) (*model.RunContextSnapshot, error) {
 	return nil, nil
 }
 
 type fakeSessionSummaryService struct {
-	summary *runtimehistory.SessionSummary
+	summary *model.SessionSummary
 }
 
-func (s fakeSessionSummaryService) Get(context.Context, string) (*runtimehistory.SessionSummary, error) {
+func (s fakeSessionSummaryService) Get(context.Context, string) (*model.SessionSummary, error) {
 	return s.summary, nil
 }
 
@@ -35,7 +35,7 @@ func TestDefaultContextPlaneAssembleBuildsContextMessagesWithPreparedMemory(t *t
 	plane := NewDefaultContextPlane(DefaultOptions{
 		MemoryContextTokenBudget: 2000,
 		TokenCounter:             testTokenCounter(t),
-		SessionSummaryService: fakeSessionSummaryService{summary: &runtimehistory.SessionSummary{
+		SessionSummaryService: fakeSessionSummaryService{summary: &model.SessionSummary{
 			SessionID:   "session-1",
 			SourceRunID: "run-prev",
 			RunStatus:   "succeeded",

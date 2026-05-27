@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ycvk/acorn/internal/events"
+	"github.com/ycvk/acorn/internal/model"
 	"github.com/ycvk/acorn/internal/stream"
 )
 
@@ -476,11 +477,11 @@ func TestStreamProjectionRoundtrip(t *testing.T) {
 			item: stream.StreamItem{
 				RunID: "run_rt", Sequence: 52, Kind: stream.StreamKindPlanCreated, CreatedAt: now,
 				Payload: &stream.PlanCreatedPayload{
-					Plan: &stream.StreamPlan{
+					Plan: &model.Plan{
 						PlanID:    "plan_1",
 						SessionID: "sess_1",
 						RunID:     "run_rt",
-						Steps: []PlanStep{
+						Steps: []model.PlanStep{
 							{ID: "s1", Action: "read the codebase", Status: "pending"},
 							{ID: "s2", Action: "write tests", Status: "pending", DependsOn: []string{"s1"}},
 							{ID: "s3", Action: "run tests", Status: "pending", DependsOn: []string{"s2"}},
@@ -496,29 +497,29 @@ func TestStreamProjectionRoundtrip(t *testing.T) {
 			item: stream.StreamItem{
 				RunID: "run_rt", Sequence: 58, Kind: stream.StreamKindPlanCreated, CreatedAt: now,
 				Payload: &stream.PlanCreatedPayload{
-					Plan: &stream.StreamPlan{
+					Plan: &model.Plan{
 						PlanID:    "plan_repo_aware",
 						SessionID: "sess_repo_aware",
 						RunID:     "run_rt",
-						Steps: []PlanStep{{
+						Steps: []model.PlanStep{{
 							ID:     "s1",
 							Action: "update runtime plan metadata",
-							Status: PlanStepPending,
-							RepoTargets: []PlanRepoTarget{{
-								Path:       "internal/runtime/plan_types.go",
-								Symbol:     "PlanStep",
+							Status: model.PlanStepPending,
+							RepoTargets: []model.PlanRepoTarget{{
+								Path:       "internal/model/plan.go",
+								Symbol:     "model.PlanStep",
 								StartLine:  30,
 								EndLine:    44,
-								Reason:     "plan metadata belongs on PlanStep",
+								Reason:     "plan metadata belongs on model.PlanStep",
 								Confidence: "high",
 							}},
-							VerificationIntent: []VerificationIntent{{
+							VerificationIntent: []model.VerificationIntent{{
 								Kind:    "test",
 								Command: []string{"go", "test", "./internal/runtime"},
 								Paths:   []string{"internal/runtime"},
 								Reason:  "runtime plan tests cover metadata",
 							}},
-							Risk:      PlanStepRiskWrite,
+							Risk:      model.PlanStepRiskWrite,
 							ToolHints: []string{"read_file", "apply_unified_patch"},
 						}},
 						CreatedAt: now,
@@ -532,11 +533,11 @@ func TestStreamProjectionRoundtrip(t *testing.T) {
 			item: stream.StreamItem{
 				RunID: "run_rt", Sequence: 53, Kind: stream.StreamKindPlanUpdated, CreatedAt: now,
 				Payload: &stream.PlanUpdatedPayload{
-					Plan: &stream.StreamPlan{
+					Plan: &model.Plan{
 						PlanID:    "plan_1",
 						SessionID: "sess_1",
 						RunID:     "run_rt",
-						Steps: []PlanStep{
+						Steps: []model.PlanStep{
 							{ID: "s1", Action: "read the codebase", Status: "completed"},
 							{ID: "s2", Action: "write tests", Status: "in_progress", DependsOn: []string{"s1"}},
 							{ID: "s3", Action: "run tests", Status: "pending", DependsOn: []string{"s2"}},
@@ -562,15 +563,15 @@ func TestStreamProjectionRoundtrip(t *testing.T) {
 					PlanID:    "plan_1",
 					SessionID: "sess_1",
 					RunID:     "run_rt",
-					Plan: &stream.StreamPlan{
+					Plan: &model.Plan{
 						PlanID:    "plan_1",
 						SessionID: "sess_1",
 						RunID:     "run_rt",
-						Steps:     []PlanStep{{ID: "s1", Action: "read the codebase", Status: "in_progress"}},
+						Steps:     []model.PlanStep{{ID: "s1", Action: "read the codebase", Status: "in_progress"}},
 						CreatedAt: now,
 						UpdatedAt: now,
 					},
-					Step:      &PlanStep{ID: "s1", Action: "read the codebase", Status: "in_progress"},
+					Step:      &model.PlanStep{ID: "s1", Action: "read the codebase", Status: "in_progress"},
 					UpdatedAt: now,
 				}},
 			},
@@ -583,15 +584,15 @@ func TestStreamProjectionRoundtrip(t *testing.T) {
 					PlanID:    "plan_1",
 					SessionID: "sess_1",
 					RunID:     "run_rt",
-					Plan: &stream.StreamPlan{
+					Plan: &model.Plan{
 						PlanID:    "plan_1",
 						SessionID: "sess_1",
 						RunID:     "run_rt",
-						Steps:     []PlanStep{{ID: "s1", Action: "read the codebase", Status: "completed"}},
+						Steps:     []model.PlanStep{{ID: "s1", Action: "read the codebase", Status: "completed"}},
 						CreatedAt: now,
 						UpdatedAt: now,
 					},
-					Step:      &PlanStep{ID: "s1", Action: "read the codebase", Status: "completed"},
+					Step:      &model.PlanStep{ID: "s1", Action: "read the codebase", Status: "completed"},
 					UpdatedAt: now,
 				}},
 			},
@@ -605,15 +606,15 @@ func TestStreamProjectionRoundtrip(t *testing.T) {
 						PlanID:    "plan_1",
 						SessionID: "sess_1",
 						RunID:     "run_rt",
-						Plan: &stream.StreamPlan{
+						Plan: &model.Plan{
 							PlanID:    "plan_1",
 							SessionID: "sess_1",
 							RunID:     "run_rt",
-							Steps:     []PlanStep{{ID: "s1", Action: "read the codebase", Status: "failed"}},
+							Steps:     []model.PlanStep{{ID: "s1", Action: "read the codebase", Status: "failed"}},
 							CreatedAt: now,
 							UpdatedAt: now,
 						},
-						Step:      &PlanStep{ID: "s1", Action: "read the codebase", Status: "failed"},
+						Step:      &model.PlanStep{ID: "s1", Action: "read the codebase", Status: "failed"},
 						UpdatedAt: now,
 					},
 					Error: "model returned no tool calls",

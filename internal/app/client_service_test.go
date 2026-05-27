@@ -21,6 +21,7 @@ import (
 	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/memorymodule"
 	"github.com/ycvk/acorn/internal/runtime"
+	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
 )
 
@@ -976,7 +977,7 @@ func TestClientCreateRunReturnsExecutionNotReady(t *testing.T) {
 	t.Cleanup(func() { _ = store.Close() })
 
 	service := BuildClientService(store, func(context.Context) (executorHandle, error) {
-		return nil, runtime.ErrExecutionNotReady
+		return nil, runtimeapi.ErrExecutionNotReady
 	}, "/repo")
 	service.newThreadID = func() string { return "thread_not_ready" }
 	service.newRunID = func() string { return "run_not_ready" }
@@ -989,7 +990,7 @@ func TestClientCreateRunReturnsExecutionNotReady(t *testing.T) {
 		t.Fatalf("CreateMessage: %v", err)
 	}
 	_, err = service.CreateRun(ctx, thread.ID, "", "")
-	if !errors.Is(err, runtime.ErrExecutionNotReady) {
+	if !errors.Is(err, runtimeapi.ErrExecutionNotReady) {
 		t.Fatalf("CreateRun error = %v, want ErrExecutionNotReady", err)
 	}
 	if _, loadErr := store.LoadRun(ctx, "run_not_ready"); !errors.Is(loadErr, storecore.ErrRunNotFound) {
@@ -1110,7 +1111,7 @@ func (e *postStartFailingExecutor) Run(context.Context, string, string, stream.S
 	return nil, errors.New("unexpected Run call")
 }
 
-func (e *postStartFailingExecutor) ExecuteMessages(ctx context.Context, req runtime.ExecuteRequest, sink stream.StreamSink) (*runtime.Result, error) {
+func (e *postStartFailingExecutor) ExecuteMessages(ctx context.Context, req runtimeapi.ExecuteRequest, sink stream.StreamSink) (*runtime.Result, error) {
 	mode := req.OrchestrationMode
 	if strings.TrimSpace(string(mode)) == "" {
 		mode = events.ModeDirectResponse

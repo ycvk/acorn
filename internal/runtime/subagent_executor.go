@@ -11,7 +11,9 @@ import (
 	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/events"
+	"github.com/ycvk/acorn/internal/model"
 	"github.com/ycvk/acorn/internal/orchestration"
+	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/stream"
 	"github.com/ycvk/acorn/internal/workspace"
@@ -148,7 +150,7 @@ func (se *SubagentExecutor) Execute(ctx context.Context, req orchestration.Child
 
 	childMessages := append([]*schema.Message(nil), req.ContextMessages...)
 	childMessages = append(childMessages, schema.UserMessage(task))
-	result, err := exec.ExecuteMessages(childCtx, ExecuteRequest{
+	result, err := exec.ExecuteMessages(childCtx, runtimeapi.ExecuteRequest{
 		RunID:             subRunID,
 		SessionID:         childSessionID,
 		TurnIndex:         turnIndex,
@@ -337,13 +339,13 @@ func evaluateDelegationAcceptance(
 	return orchestration.ChildAgentAcceptance{Status: "failed", Reasons: reasons}
 }
 
-func delegationPlanFailureReasons(planRecord *store.PlanRecord) []string {
+func delegationPlanFailureReasons(planRecord *model.Plan) []string {
 	if planRecord == nil {
 		return nil
 	}
 	reasons := make([]string, 0)
 	for _, step := range planRecord.Steps {
-		if strings.TrimSpace(string(step.Status)) != string(PlanStepFailed) {
+		if strings.TrimSpace(string(step.Status)) != string(model.PlanStepFailed) {
 			continue
 		}
 		reason := strings.TrimSpace(latestStoreEvidenceError(step.Evidence))
@@ -359,9 +361,9 @@ func delegationPlanFailureReasons(planRecord *store.PlanRecord) []string {
 	return reasons
 }
 
-func latestStoreEvidenceError(items []store.PlanEvidence) string {
+func latestStoreEvidenceError(items []model.PlanEvidence) string {
 	for i := len(items) - 1; i >= 0; i-- {
-		if strings.TrimSpace(items[i].Status) != string(EvidenceStatusFailed) {
+		if strings.TrimSpace(string(items[i].Status)) != string(model.EvidenceStatusFailed) {
 			continue
 		}
 		if errText := strings.TrimSpace(items[i].Error); errText != "" {
@@ -374,7 +376,7 @@ func latestStoreEvidenceError(items []store.PlanEvidence) string {
 	return ""
 }
 
-func delegationEvidenceSummaries(planRecord *store.PlanRecord) []string {
+func delegationEvidenceSummaries(planRecord *model.Plan) []string {
 	if planRecord == nil {
 		return nil
 	}
@@ -396,7 +398,7 @@ func delegationEvidenceSummaries(planRecord *store.PlanRecord) []string {
 	return result
 }
 
-func delegationEvidenceRefs(planRecord *store.PlanRecord) []string {
+func delegationEvidenceRefs(planRecord *model.Plan) []string {
 	if planRecord == nil {
 		return nil
 	}
@@ -416,7 +418,7 @@ func delegationEvidenceRefs(planRecord *store.PlanRecord) []string {
 	return result
 }
 
-func childEvidenceRefs(evidence store.PlanEvidence) []string {
+func childEvidenceRefs(evidence model.PlanEvidence) []string {
 	refs := make([]string, 0, 3)
 	if ref := strings.TrimSpace(evidence.ToolResultRef); ref != "" {
 		refs = append(refs, ref)

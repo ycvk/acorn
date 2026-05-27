@@ -10,7 +10,7 @@ import (
 	"github.com/cloudwego/eino/adk"
 	"github.com/cloudwego/eino/schema"
 
-	"github.com/ycvk/acorn/internal/runtimehistory"
+	"github.com/ycvk/acorn/internal/model"
 )
 
 type ContextSession interface {
@@ -266,19 +266,19 @@ func (s *defaultContextSession) compact(ctx context.Context, req ModelCallReques
 	return s.modelInput(afterPressure), nil
 }
 
-func (s *defaultContextSession) persistContextBoundary(ctx context.Context, beforeMessages []adk.Message, outcome CompressionOutcome, pressure BudgetPressure, trigger CompactTrigger) (runtimehistory.ContextBoundary, error) {
+func (s *defaultContextSession) persistContextBoundary(ctx context.Context, beforeMessages []adk.Message, outcome CompressionOutcome, pressure BudgetPressure, trigger CompactTrigger) (model.ContextBoundary, error) {
 	if s.boundaryStore == nil {
-		return runtimehistory.ContextBoundary{}, errors.New("context session boundary store is required")
+		return model.ContextBoundary{}, errors.New("context session boundary store is required")
 	}
 	if strings.TrimSpace(outcome.Summary) == "" {
-		return runtimehistory.ContextBoundary{}, errors.New("context session compression outcome summary is required")
+		return model.ContextBoundary{}, errors.New("context session compression outcome summary is required")
 	}
 
 	previousBoundaryID := s.lastBoundaryID
 	sequence := s.boundarySequence + 1
 	latest, err := s.boundaryStore.LoadLatestContextBoundary(ctx, s.id.SessionID)
 	if err != nil {
-		return runtimehistory.ContextBoundary{}, fmt.Errorf("load latest context boundary: %w", err)
+		return model.ContextBoundary{}, fmt.Errorf("load latest context boundary: %w", err)
 	}
 	if latest != nil && latest.Sequence >= sequence {
 		sequence = latest.Sequence + 1
@@ -300,7 +300,7 @@ func (s *defaultContextSession) persistContextBoundary(ctx context.Context, befo
 		summarySnippet = snippet(outcome.Summary, 200)
 	}
 
-	boundary := runtimehistory.ContextBoundary{
+	boundary := model.ContextBoundary{
 		BoundaryID:               boundaryID,
 		SessionID:                s.id.SessionID,
 		RunID:                    s.id.RunID,
@@ -328,7 +328,7 @@ func (s *defaultContextSession) persistContextBoundary(ctx context.Context, befo
 		CreatedAt:                time.Now().UTC(),
 	}
 	if err := s.boundaryStore.SaveContextBoundary(ctx, boundary); err != nil {
-		return runtimehistory.ContextBoundary{}, err
+		return model.ContextBoundary{}, err
 	}
 	return boundary, nil
 }
@@ -397,7 +397,7 @@ func (s *defaultContextSession) Resume(ctx context.Context, req ResumeContextReq
 	if err != nil {
 		return nil, err
 	}
-	var boundary *runtimehistory.ContextBoundary
+	var boundary *model.ContextBoundary
 	if strings.TrimSpace(req.BoundaryID) != "" {
 		boundary, err = s.boundaryStore.LoadContextBoundary(ctx, req.BoundaryID)
 	} else {

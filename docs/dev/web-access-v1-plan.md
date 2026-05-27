@@ -125,7 +125,7 @@ Markdown-backed evidence with raw and Markdown artifacts.
 ### Verify
 
 ```bash
-go test ./internal/webaccess ./internal/tools ./internal/runtime ./internal/artifacts ./internal/store/sqlite
+go test ./internal/webaccess ./internal/tools ./internal/runtime ./internal/store/sqlite
 ```
 
 Implemented verification:
@@ -162,7 +162,7 @@ URLs with raw provider evidence.
 ### Verify
 
 ```bash
-go test ./internal/webaccess ./internal/tools ./internal/runtime ./internal/artifacts
+go test ./internal/webaccess ./internal/tools ./internal/runtime
 ```
 
 Implemented verification:
@@ -216,14 +216,14 @@ backend-owned run-scoped Chromium session, and persist only explicit artifacts.
 ### Verify
 
 ```bash
-go test ./internal/browser ./internal/tools ./internal/runtime ./internal/artifacts
-ACORN_BROWSER_TEST_CHROMIUM=/path/to/chromium go test ./internal/browser -run Integration
+go test ./internal/tools ./internal/runtime ./internal/store/sqlite
+ACORN_BROWSER_TEST_CHROMIUM=/path/to/chromium go test ./internal/tools -run TestIntegrationBrowserOpenSnapshotScan
 ```
 
 Implemented verification:
 
 ```bash
-go test ./internal/browser ./internal/tools ./internal/runtime ./internal/tooling ./internal/app
+go test ./internal/tools ./internal/runtime ./internal/tooling ./internal/app
 ```
 
 The Chromium integration test remains opt-in because the release package does

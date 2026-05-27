@@ -15,6 +15,7 @@ import (
 	"github.com/cloudwego/eino/compose"
 	"github.com/cloudwego/eino/schema"
 
+	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	"github.com/ycvk/acorn/internal/runtime/graph"
 	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
 	"github.com/ycvk/acorn/internal/tooling"
@@ -151,7 +152,7 @@ func buildTestAgentGraph(
 	toolSpecs []tooling.ToolSpec,
 ) compose.Runnable[*graph.AgentGraphInput, *schema.Message] {
 	t.Helper()
-	planStore := PlanStore(&fakePlanStore{})
+	planStore := runtimeapi.PlanStore(&fakePlanStore{})
 	if store != nil {
 		planStore = NewPlanStore(store)
 	}
@@ -169,7 +170,7 @@ func buildTestAgentGraph(
 }
 
 func withGraphTestContext(ctx context.Context) context.Context {
-	ctx = WithSessionID(ctx, "sess_graph")
+	ctx = runtimeapi.WithSessionID(ctx, "sess_graph")
 	ctx = withRunID(ctx, "run_graph")
 	return ctx
 }

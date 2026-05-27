@@ -12,6 +12,7 @@ import (
 	"github.com/cloudwego/eino/schema"
 
 	"github.com/ycvk/acorn/internal/config"
+	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	storerepo "github.com/ycvk/acorn/internal/store"
 	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
 	"github.com/ycvk/acorn/internal/tooling"
@@ -374,7 +375,7 @@ func TestValidationFailureThroughSafeParallelNodeIsModelVisibleFailedToolResult(
 	ledger := newMemoryToolResultLedger()
 	ctx := safeParallelLifecycleContextFromWithLedger(
 		t,
-		withTurnIndex(withRunID(WithSessionID(context.Background(), "sess_validation_node"), runID), 1),
+		withTurnIndex(withRunID(runtimeapi.WithSessionID(context.Background(), "sess_validation_node"), runID), 1),
 		node,
 		ledger,
 	)

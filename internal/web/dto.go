@@ -3,7 +3,7 @@ package web
 import (
 	"time"
 
-	"github.com/ycvk/acorn/internal/runtimehistory"
+	"github.com/ycvk/acorn/internal/model"
 )
 
 func optionalDeviceTime(value *time.Time) *string {
@@ -20,28 +20,28 @@ func nonNilStrings(values []string) []string {
 	return values
 }
 
-func summaryText(summary *runtimehistory.SessionSummary) string {
+func summaryText(summary *model.SessionSummary) string {
 	if summary == nil {
 		return ""
 	}
 	return summary.Summary
 }
 
-func summaryStatus(summary *runtimehistory.SessionSummary) string {
+func summaryStatus(summary *model.SessionSummary) string {
 	if summary == nil {
 		return ""
 	}
 	return summary.RunStatus
 }
 
-func summarySourceRunID(summary *runtimehistory.SessionSummary) string {
+func summarySourceRunID(summary *model.SessionSummary) string {
 	if summary == nil {
 		return ""
 	}
 	return summary.SourceRunID
 }
 
-func summaryUpdatedAt(summary *runtimehistory.SessionSummary) *time.Time {
+func summaryUpdatedAt(summary *model.SessionSummary) *time.Time {
 	if summary == nil {
 		return nil
 	}

@@ -1,4 +1,4 @@
-package skilllifecycle
+package skills
 
 import (
 	"context"
@@ -12,13 +12,7 @@ import (
 	toolutils "github.com/cloudwego/eino/components/tool/utils"
 
 	"github.com/ycvk/acorn/internal/events"
-	"github.com/ycvk/acorn/internal/skills"
 )
-
-type Loader interface {
-	ScanSkills(context.Context) (*skills.ScanResult, error)
-	UpdateSkillLifecycle(context.Context, string, skills.LifecycleUpdate) (*skills.Spec, error)
-}
 
 type RunContextBridge interface {
 	CurrentRunID(context.Context) string
@@ -30,7 +24,7 @@ type LifecycleEventAppender interface {
 }
 
 type ToolOptions struct {
-	Loader Loader
+	Loader SkillLoader
 	Store  LifecycleEventAppender
 	Bridge RunContextBridge
 }
@@ -48,7 +42,7 @@ type AssessToolOutput struct {
 	Updated    *Spec           `json:"updated,omitempty"`
 }
 
-func BuildAgentTools(opts ToolOptions) ([]einotool.BaseTool, error) {
+func BuildSkillLifecycleTools(opts ToolOptions) ([]einotool.BaseTool, error) {
 	if opts.Loader == nil {
 		return nil, errors.New("skill lifecycle tools require loader")
 	}
@@ -121,7 +115,7 @@ func assessSkill(ctx context.Context, opts ToolOptions, input AssessToolInput) (
 	}
 	applied := false
 	if skillMutableSource(skill.Source) {
-		updated, err = opts.Loader.UpdateSkillLifecycle(ctx, skill.ID, skills.LifecycleUpdate{
+		updated, err = opts.Loader.UpdateSkillLifecycle(ctx, skill.ID, LifecycleUpdate{
 			Status:         status,
 			EvidenceRefs:   evidenceRefs,
 			UpdatedByRunID: runID,
@@ -151,7 +145,7 @@ func assessSkill(ctx context.Context, opts ToolOptions, input AssessToolInput) (
 	return &AssessToolOutput{Assessment: assessment, Updated: updated}, nil
 }
 
-func findSkill(ctx context.Context, loader Loader, id string) (Spec, error) {
+func findSkill(ctx context.Context, loader SkillLoader, id string) (Spec, error) {
 	trimmedID := strings.TrimSpace(id)
 	if trimmedID == "" {
 		return Spec{}, errors.New("id is required")
@@ -165,7 +159,7 @@ func findSkill(ctx context.Context, loader Loader, id string) (Spec, error) {
 			return item, nil
 		}
 	}
-	return Spec{}, fmt.Errorf("%w: %s", skills.ErrNotFound, trimmedID)
+	return Spec{}, fmt.Errorf("%w: %s", ErrNotFound, trimmedID)
 }
 
 func normalizeAssessmentVerdict(verdict AssessmentVerdict) AssessmentVerdict {
@@ -181,14 +175,14 @@ func validateAssessmentVerdict(verdict AssessmentVerdict) error {
 	}
 }
 
-func lifecycleStatusForAssessment(verdict AssessmentVerdict) (skills.LifecycleStatus, error) {
+func lifecycleStatusForAssessment(verdict AssessmentVerdict) (LifecycleStatus, error) {
 	switch verdict {
 	case AssessmentVerified:
-		return skills.LifecycleVerified, nil
+		return LifecycleVerified, nil
 	case AssessmentNeedsEval:
-		return skills.LifecycleNeedsEval, nil
+		return LifecycleNeedsEval, nil
 	case AssessmentRetired:
-		return skills.LifecycleRetired, nil
+		return LifecycleRetired, nil
 	default:
 		return "", fmt.Errorf("assessment verdict %q cannot be applied", verdict)
 	}
@@ -209,7 +203,7 @@ func emitAssessmentLifecycleEvent(ctx context.Context, store LifecycleEventAppen
 
 func skillMutableSource(source string) bool {
 	switch strings.TrimSpace(source) {
-	case skills.WorkspaceScope, skills.GeneratedScope, skills.UserScope:
+	case WorkspaceScope, GeneratedScope, UserScope:
 		return true
 	default:
 		return false

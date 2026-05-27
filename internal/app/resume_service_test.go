@@ -8,6 +8,7 @@ import (
 
 	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/runtime"
+	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	"github.com/ycvk/acorn/internal/stream"
 )
 
@@ -88,8 +89,8 @@ func TestResumeServiceRejectsFailedRun(t *testing.T) {
 	}, store)
 
 	_, err := service.Resume(ctx, runID, nil)
-	if !errors.Is(err, runtime.ErrRunNotInterrupted) {
-		t.Fatalf("Resume error = %v, want runtime.ErrRunNotInterrupted", err)
+	if !errors.Is(err, runtimeapi.ErrRunNotInterrupted) {
+		t.Fatalf("Resume error = %v, want runtimeapi.ErrRunNotInterrupted", err)
 	}
 	if err == nil || !strings.Contains(err.Error(), "failed and cannot be resumed") {
 		t.Fatalf("unexpected resume error: %v", err)
@@ -122,8 +123,8 @@ func TestResumeServiceRejectsCompletedRun(t *testing.T) {
 	}, store)
 
 	_, err := service.Resume(ctx, runID, nil)
-	if !errors.Is(err, runtime.ErrRunNotInterrupted) {
-		t.Fatalf("Resume error = %v, want runtime.ErrRunNotInterrupted", err)
+	if !errors.Is(err, runtimeapi.ErrRunNotInterrupted) {
+		t.Fatalf("Resume error = %v, want runtimeapi.ErrRunNotInterrupted", err)
 	}
 	if err == nil || !strings.Contains(err.Error(), "completed and does not need resume") {
 		t.Fatalf("unexpected resume error: %v", err)
@@ -141,7 +142,7 @@ func (h resumeTestExecutorHandle) Run(ctx context.Context, input, skillID string
 	panic("unexpected Run call")
 }
 
-func (h resumeTestExecutorHandle) ExecuteMessages(ctx context.Context, req runtime.ExecuteRequest, sink stream.StreamSink) (*runtime.Result, error) {
+func (h resumeTestExecutorHandle) ExecuteMessages(ctx context.Context, req runtimeapi.ExecuteRequest, sink stream.StreamSink) (*runtime.Result, error) {
 	panic("unexpected ExecuteMessages call")
 }
 

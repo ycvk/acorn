@@ -86,12 +86,12 @@ Workspace mutation tools 会创建 scoped mutation checkpoint 并把 checkpoint 
 
 | 类型 | 位置 | 用途 |
 |---|---|---|
-| `Plan` | `internal/runtime/plan_types.go` | session/run 当前执行计划 |
-| `PlanStep` | `internal/runtime/plan_types.go` | 单个执行步骤，含 `id`、`action`、`status`、`depends_on`、`repo_targets`、`verification_intent`、`risk`、`tool_hints`、`evidence` |
-| `PlanRepoTarget` | `internal/runtime/plan_types.go` | step 声明的 workspace 相对目标路径、可选符号、理由和 confidence |
-| `VerificationIntent` | `internal/runtime/plan_types.go` | step 执行前声明的验证方式，kind 为 test / build / lint / diff / read / manual / subagent / verifier / checkpoint / rollback |
-| `PlanStepRisk` | `internal/runtime/plan_types.go` | step 风险分类，取值 read / write / execute / delegate |
-| `PlanEvidence` | `internal/runtime/plan_evidence.go` | step 的结构化执行证据，包含 tool/command/diff/test/manual/subagent/verifier/checkpoint/rollback，并可携带 `tool_result_ref` backlink |
+| `Plan` | `internal/model/plan.go` | session/run 当前执行计划 |
+| `PlanStep` | `internal/model/plan.go` | 单个执行步骤，含 `id`、`action`、`status`、`depends_on`、`repo_targets`、`verification_intent`、`risk`、`tool_hints`、`evidence` |
+| `PlanRepoTarget` | `internal/model/plan.go` | step 声明的 workspace 相对目标路径、可选符号、理由和 confidence |
+| `VerificationIntent` | `internal/model/plan.go` | step 执行前声明的验证方式，kind 为 test / build / lint / diff / read / manual / subagent / verifier / checkpoint / rollback |
+| `PlanStepRisk` | `internal/model/plan.go` | step 风险分类，取值 read / write / execute / delegate |
+| `PlanEvidence` | `internal/model/plan.go` | step 的结构化执行证据，包含 tool/command/diff/test/manual/subagent/verifier/checkpoint/rollback，并可携带 `tool_result_ref` backlink；runtime 验证逻辑在 `internal/runtime/plan_evidence.go`。 |
 | `DelegationSpec` | `internal/tools/delegate_task.go` | `delegate_task` 的结构化父子任务合同，含 child task、tool allowlist、acceptance criteria 和 expected evidence |
 | `VerificationRequest` / `VerificationResult` | `internal/orchestration/verifier.go` | verifier child run 的只读验证合同 |
 | `PlanStore` | `internal/runtime/plan_store.go` | `LoadPlan`、`SavePlan`、`AppendStepEvidence` |
