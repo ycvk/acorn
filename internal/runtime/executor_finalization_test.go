@@ -144,7 +144,7 @@ func TestFinishCollectedRunSuccessPersistsAfterContextCancellation(t *testing.T)
 	assertMemoryHistoryContains(t, cfg, "session-cancelled", runID, "succeeded hello world")
 }
 
-func newFinalizationTestExecutor(t *testing.T, store *storesqlite.Store, cfg *config.Config) *Executor {
+func newFinalizationTestExecutor(t *testing.T, store RunnerFactoryStore, cfg *config.Config) *Executor {
 	runRuntime := newRunnerFactory(t, cfg, store, RunnerFactoryOptions{})
 	exec := &Executor{
 		store:             store,

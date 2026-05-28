@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"strings"
 
 	"github.com/cloudwego/eino/adk"
@@ -12,7 +11,6 @@ import (
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/contextplane"
-	"github.com/ycvk/acorn/internal/crystallization"
 	"github.com/ycvk/acorn/internal/decision"
 	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/memorymodule"
@@ -42,9 +40,6 @@ func newRunCoordinator(factory *RunnerFactory) *runCoordinator {
 }
 
 func (c *runCoordinator) Build(ctx context.Context, req RunnerBuildRequest) (*ActiveRunner, error) {
-	if c == nil || c.factory == nil || c.factory.deps.Config == nil || c.factory.deps.Store == nil {
-		return nil, errors.New("runner factory is not initialized")
-	}
 	f := c.factory
 	mode := events.OrchestrationMode(req.OrchestrationMode).Normalize()
 	if mode != events.ModeDirectResponse {
@@ -184,9 +179,6 @@ func (c *runCoordinator) buildToolEnabledAssembly(
 	chatModel einomodel.BaseChatModel,
 	contextResult *contextplane.AssembleResult,
 ) (*orchestration.RunAssembly, error) {
-	if c == nil || c.factory == nil {
-		return nil, errors.New("runner factory is not initialized")
-	}
 	var catalog *tooling.Catalog
 	if caps != nil {
 		catalog = caps.catalog
@@ -234,8 +226,6 @@ type RunnerFactoryOptions struct {
 	MemoryModule           memorymodule.Service
 	ContextPlane           contextplane.ContextPlane
 	MCPPendingActionStore  mcpprovider.PendingActionStore
-	Crystallizer           crystallization.Service
-	CrystallizerCloser     io.Closer
 }
 
 // RunnerBuildRequest holds the parameters for building a new run.
@@ -277,5 +267,4 @@ type RunRuntime interface {
 	MemoryModule() memorymodule.Service
 	SessionSummarySvc() *model.SessionSummaryService
 	NewChatModel(ctx context.Context) (einomodel.BaseChatModel, error)
-	Crystallizer() crystallization.Service
 }

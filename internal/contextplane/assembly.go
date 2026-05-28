@@ -13,9 +13,6 @@ import (
 )
 
 func (p *defaultContextPlane) Assemble(ctx context.Context, req AssembleRequest) (*AssembleResult, error) {
-	if p == nil {
-		return nil, errors.New("context plane is not initialized")
-	}
 	if p.tokenCounter == nil {
 		return nil, errors.New("context plane token counter is required")
 	}

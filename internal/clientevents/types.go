@@ -160,19 +160,6 @@ type ContextPressureData struct {
 	ContextPressure map[string]any `json:"context_pressure"`
 }
 
-type CrystallizationVerdictData struct {
-	RunID     string `json:"run_id"`
-	Verdict   string `json:"verdict"`
-	SkillID   string `json:"skill_id,omitempty"`
-	Reason    string `json:"reason,omitempty"`
-	SimilarTo string `json:"similar_to,omitempty"`
-}
-
-type CrystallizationFailedData struct {
-	RunID string `json:"run_id"`
-	Error string `json:"error,omitempty"`
-}
-
 type ContextCompressedData struct {
 	ContextCompressed map[string]any `json:"context_compressed"`
 }

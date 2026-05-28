@@ -89,15 +89,6 @@ func TestCompressionPipelineOrdersStackBeforeCustomHandler(t *testing.T) {
 	}
 }
 
-func containsLayer(layers []contextplane.CompactLayer, want contextplane.CompactLayer) bool {
-	for _, l := range layers {
-		if l == want {
-			return true
-		}
-	}
-	return false
-}
-
 func TestContextCompressionPipelineAutoTrigger(t *testing.T) {
 	engine := &testCompactionEngine{
 		result: &CompactionResult{
@@ -141,9 +132,6 @@ func TestContextCompressionPipelineAutoTrigger(t *testing.T) {
 	}
 	if len(result.Messages) == 0 {
 		t.Fatal("result.Messages is empty")
-	}
-	if !containsLayer(result.LayersApplied, contextplane.CompactLayerAutocompact) {
-		t.Fatalf("LayersApplied = %v, want auto compact", result.LayersApplied)
 	}
 }
 

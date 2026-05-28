@@ -67,11 +67,10 @@ func (p *defaultContextCompressionPipeline) Compress(ctx context.Context, req co
 	}
 
 	messages := contextplane.CloneContextSessionMessages(req.Messages)
-	layers := make([]contextplane.CompactLayer, 0, 4)
 	totalFreed := 0
 	var finalOutcome *contextplane.CompressionOutcome
 
-	// ── Layer 1: Microcompact ──
+	// ── Proactive: Microcompact ──
 	if p.shouldMicrocompact(req) {
 		mcMessages, mcFreed, err := p.runMicrocompact(ctx, messages, req)
 		if err != nil {
@@ -79,25 +78,22 @@ func (p *defaultContextCompressionPipeline) Compress(ctx context.Context, req co
 		}
 		messages = mcMessages
 		totalFreed += mcFreed
-		if mcFreed > 0 {
-			layers = append(layers, contextplane.CompactLayerMicrocompact)
-		}
 
 		if ok, err := p.pressureOK(ctx, messages, req); err != nil {
 			return nil, fmt.Errorf("pressure check after microcompact: %w", err)
 		} else if ok {
-			return p.buildResult(messages, layers, totalFreed, finalOutcome), nil
+			return p.buildResult(messages, totalFreed, finalOutcome), nil
 		}
 	}
 
-	// ── Layer 2: Autocompact ──
+	// ── Proactive: Autocompact ──
 	if req.Trigger == contextplane.CompactTriggerAuto || req.Trigger == contextplane.CompactTriggerReactive {
 		shouldCompact, err := p.shouldAutocompact(ctx, messages, req)
 		if err != nil {
 			return nil, fmt.Errorf("check autocompact pressure: %w", err)
 		}
 		if req.Trigger == contextplane.CompactTriggerAuto && !shouldCompact {
-			return p.buildResult(messages, layers, totalFreed, finalOutcome), nil
+			return p.buildResult(messages, totalFreed, finalOutcome), nil
 		}
 
 		acResult, err := p.runAutocompact(ctx, messages, req)
@@ -106,29 +102,27 @@ func (p *defaultContextCompressionPipeline) Compress(ctx context.Context, req co
 		}
 		messages = acResult.Messages
 		totalFreed += acResult.Outcome.TokensBefore - acResult.Outcome.TokensAfter
-		layers = append(layers, contextplane.CompactLayerAutocompact)
 		finalOutcome = &acResult.Outcome
 
 		if ok, err := p.pressureOK(ctx, messages, req); err != nil {
 			return nil, fmt.Errorf("pressure check after autocompact: %w", err)
 		} else if ok {
-			return p.buildResult(messages, layers, totalFreed, finalOutcome), nil
+			return p.buildResult(messages, totalFreed, finalOutcome), nil
 		}
 	}
 
-	// ── Layer 3: ReactiveCompact ──
+	// ── Reactive: Final compact ──
 	if req.Trigger == contextplane.CompactTriggerReactive {
 		rcResult, err := p.runReactiveCompact(ctx, messages, req)
 		if err != nil {
 			return nil, fmt.Errorf("reactivecompact: %w", err)
 		}
 		messages = rcResult.Messages
-		layers = append(layers, contextplane.CompactLayerReactive)
 
 		if ok, err := p.pressureOK(ctx, messages, req); err != nil {
 			return nil, fmt.Errorf("pressure check after reactivecompact: %w", err)
 		} else if ok {
-			return p.buildResult(messages, layers, totalFreed, nil), nil
+			return p.buildResult(messages, totalFreed, nil), nil
 		}
 	}
 
@@ -137,7 +131,7 @@ func (p *defaultContextCompressionPipeline) Compress(ctx context.Context, req co
 		return nil, errors.New("reactive compact exhausted all layers but context pressure remains blocking")
 	}
 
-	return p.buildResult(messages, layers, totalFreed, finalOutcome), nil
+	return p.buildResult(messages, totalFreed, finalOutcome), nil
 }
 
 // ---------------------------------------------------------------------------
@@ -310,11 +304,10 @@ func (p *defaultContextCompressionPipeline) profileForRequest(req contextplane.P
 	return p.modelProfile
 }
 
-func (p *defaultContextCompressionPipeline) buildResult(messages []adk.Message, layers []contextplane.CompactLayer, tokensFreed int, outcome *contextplane.CompressionOutcome) *contextplane.PipelineResult {
+func (p *defaultContextCompressionPipeline) buildResult(messages []adk.Message, tokensFreed int, outcome *contextplane.CompressionOutcome) *contextplane.PipelineResult {
 	return &contextplane.PipelineResult{
-		Messages:      contextplane.CloneContextSessionMessages(messages),
-		LayersApplied: append([]contextplane.CompactLayer(nil), layers...),
-		TokensFreed:   tokensFreed,
-		Outcome:       outcome,
+		Messages:    contextplane.CloneContextSessionMessages(messages),
+		TokensFreed: tokensFreed,
+		Outcome:     outcome,
 	}
 }

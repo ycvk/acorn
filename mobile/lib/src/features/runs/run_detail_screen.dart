@@ -291,8 +291,7 @@ IconData _eventIcon(RunEvent event) {
   if (event.type.startsWith('context.')) {
     return Icons.compress_outlined;
   }
-  if (event.type.startsWith('memory.') ||
-      event.type.startsWith('crystallization.')) {
+  if (event.type.startsWith('memory.')) {
     return Icons.psychology_alt_outlined;
   }
   if (event.type == 'assistant.delta' || event.type == 'agent.message') {

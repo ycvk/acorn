@@ -109,16 +109,10 @@ func NewDefaultContextSession(opts ContextSessionOptions) ContextSession {
 }
 
 func (s *defaultContextSession) ID() ContextSessionID {
-	if s == nil {
-		return ContextSessionID{}
-	}
 	return s.id
 }
 
 func (s *defaultContextSession) Bootstrap(ctx context.Context, req BootstrapRequest) (*ModelInput, error) {
-	if s == nil {
-		return nil, errors.New("context session is not initialized")
-	}
 	if s.budgetGovernor == nil {
 		return nil, errors.New("context session budget governor is required")
 	}
@@ -152,9 +146,6 @@ func (s *defaultContextSession) Bootstrap(ctx context.Context, req BootstrapRequ
 }
 
 func (s *defaultContextSession) BeforeModelCall(ctx context.Context, req ModelCallRequest) (*ModelInput, error) {
-	if s == nil {
-		return nil, errors.New("context session is not initialized")
-	}
 	if !s.bootstrapped {
 		return nil, errors.New("context session must be bootstrapped before model calls")
 	}
@@ -178,9 +169,6 @@ func (s *defaultContextSession) BeforeModelCall(ctx context.Context, req ModelCa
 }
 
 func (s *defaultContextSession) ReactiveCompact(ctx context.Context, req ModelCallRequest, cause error) (*ModelInput, error) {
-	if s == nil {
-		return nil, errors.New("context session is not initialized")
-	}
 	if !s.bootstrapped {
 		return nil, errors.New("context session must be bootstrapped before reactive compact")
 	}
@@ -241,7 +229,6 @@ func (s *defaultContextSession) compact(ctx context.Context, req ModelCallReques
 	s.lastCompactTurn = s.turnIndex
 	if result.Outcome != nil {
 		outcome := *result.Outcome
-		outcome.LayersApplied = append([]CompactLayer(nil), result.LayersApplied...)
 		boundary, err := s.persistContextBoundary(ctx, beforeMessages, outcome, pressure, trigger)
 		if err != nil {
 			return nil, fmt.Errorf("persist context boundary: %w", err)
@@ -334,9 +321,6 @@ func (s *defaultContextSession) persistContextBoundary(ctx context.Context, befo
 }
 
 func (s *defaultContextSession) RecordAssistant(_ context.Context, msg adk.Message) error {
-	if s == nil {
-		return errors.New("context session is not initialized")
-	}
 	if !s.bootstrapped {
 		return errors.New("context session must be bootstrapped before recording assistant messages")
 	}
@@ -348,9 +332,6 @@ func (s *defaultContextSession) RecordAssistant(_ context.Context, msg adk.Messa
 }
 
 func (s *defaultContextSession) RecordMessages(_ context.Context, messages []adk.Message) error {
-	if s == nil {
-		return errors.New("context session is not initialized")
-	}
 	if !s.bootstrapped {
 		return errors.New("context session must be bootstrapped before recording messages")
 	}
@@ -364,9 +345,6 @@ func (s *defaultContextSession) RecordMessages(_ context.Context, messages []adk
 }
 
 func (s *defaultContextSession) RecordToolResults(_ context.Context, results []adk.Message) error {
-	if s == nil {
-		return errors.New("context session is not initialized")
-	}
 	if !s.bootstrapped {
 		return errors.New("context session must be bootstrapped before recording tool results")
 	}
@@ -384,9 +362,6 @@ func (s *defaultContextSession) annotateTurnIndex(msg adk.Message) adk.Message {
 }
 
 func (s *defaultContextSession) Resume(ctx context.Context, req ResumeContextRequest) (*ModelInput, error) {
-	if s == nil {
-		return nil, errors.New("context session is not initialized")
-	}
 	if s.budgetGovernor == nil {
 		return nil, errors.New("context session budget governor is required")
 	}

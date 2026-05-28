@@ -186,10 +186,5 @@ func (f *RunnerFactory) Close() error {
 		f.cachedManager = nil
 		f.lastSessionOverlay = ""
 	}
-	if f.deps.IndexStore != nil {
-		closeErr = errors.Join(closeErr, f.deps.IndexStore.Close())
-		f.deps.IndexStore = nil
-		f.deps.Crystallizer = nil
-	}
 	return closeErr
 }

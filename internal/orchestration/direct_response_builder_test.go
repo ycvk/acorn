@@ -19,6 +19,7 @@ import (
 
 	"github.com/ycvk/acorn/internal/contextplane"
 	"github.com/ycvk/acorn/internal/model"
+	"github.com/ycvk/acorn/internal/store/storetest"
 	"github.com/ycvk/acorn/internal/tooling"
 )
 
@@ -246,7 +247,7 @@ func TestBuildDirectResponseContinuesAfterOutputLimit(t *testing.T) {
 	ctx := context.Background()
 	tool := directResponseTestTool{name: "lookup", result: "lookup result: acorn"}
 	catalog := directResponseCatalogForTest(t, ctx, tool)
-	contextPlane := contextplane.NewDefaultContextPlane(contextplane.DefaultOptions{ToolResultLedger: newMemoryToolResultLedger()})
+	contextPlane := contextplane.NewDefaultContextPlane(contextplane.DefaultOptions{ToolResultLedger: storetest.NewMemoryToolResultLedger()})
 	contextResult := directResponseContextResultForTest("run", "session", "lookup")
 	model := &directResponseTestModel{
 		responses: []*schema.Message{
@@ -313,7 +314,7 @@ func TestBuildDirectResponseDoesNotExecuteTruncatedToolCalls(t *testing.T) {
 	ctx := context.Background()
 	tool := directResponseTestTool{name: "lookup", result: "lookup result: acorn"}
 	catalog := directResponseCatalogForTest(t, ctx, tool)
-	contextPlane := contextplane.NewDefaultContextPlane(contextplane.DefaultOptions{ToolResultLedger: newMemoryToolResultLedger()})
+	contextPlane := contextplane.NewDefaultContextPlane(contextplane.DefaultOptions{ToolResultLedger: storetest.NewMemoryToolResultLedger()})
 	contextResult := directResponseContextResultForTest("run", "session", "lookup")
 	model := &directResponseTestModel{
 		responses: []*schema.Message{
@@ -383,7 +384,7 @@ func TestBuildDirectResponseRunsToolCallLoop(t *testing.T) {
 	ctx := context.Background()
 	tool := directResponseTestTool{name: "lookup", result: "lookup result: acorn"}
 	catalog := directResponseCatalogForTest(t, ctx, tool)
-	contextPlane := contextplane.NewDefaultContextPlane(contextplane.DefaultOptions{ToolResultLedger: newMemoryToolResultLedger()})
+	contextPlane := contextplane.NewDefaultContextPlane(contextplane.DefaultOptions{ToolResultLedger: storetest.NewMemoryToolResultLedger()})
 	contextResult := directResponseContextResultForTest("run", "session", "lookup")
 	model := &directResponseTestModel{
 		responses: []*schema.Message{
@@ -471,7 +472,7 @@ func TestBuildDirectResponsePropagatesModelError(t *testing.T) {
 	model := &directResponseTestModel{err: modelErr}
 	tool := directResponseTestTool{name: "lookup", result: "lookup result: acorn"}
 	catalog := directResponseCatalogForTest(t, ctx, tool)
-	contextPlane := contextplane.NewDefaultContextPlane(contextplane.DefaultOptions{ToolResultLedger: newMemoryToolResultLedger()})
+	contextPlane := contextplane.NewDefaultContextPlane(contextplane.DefaultOptions{ToolResultLedger: storetest.NewMemoryToolResultLedger()})
 	contextResult := directResponseContextResultForTest("run", "session", "lookup")
 	plane := NewDefaultPlane(DefaultPlaneOptions{
 		SystemPrompt:       "system",
@@ -517,7 +518,7 @@ func TestBuildDirectResponseReactiveCompactsAndRetriesOverflow(t *testing.T) {
 	ctx := context.Background()
 	tool := directResponseTestTool{name: "lookup", result: "lookup result: acorn"}
 	catalog := directResponseCatalogForTest(t, ctx, tool)
-	contextPlane := contextplane.NewDefaultContextPlane(contextplane.DefaultOptions{ToolResultLedger: newMemoryToolResultLedger()})
+	contextPlane := contextplane.NewDefaultContextPlane(contextplane.DefaultOptions{ToolResultLedger: storetest.NewMemoryToolResultLedger()})
 	contextResult := directResponseContextResultForTest("run", "session", "lookup")
 	model := &directResponseTestModel{
 		streamErrors: []error{errors.New("model_context_window_exceeded")},
@@ -605,7 +606,7 @@ func TestBuildDirectResponseFailsWithoutContextSession(t *testing.T) {
 	ctx := context.Background()
 	tool := directResponseTestTool{name: "lookup", result: "lookup result: acorn"}
 	catalog := directResponseCatalogForTest(t, ctx, tool)
-	contextPlane := contextplane.NewDefaultContextPlane(contextplane.DefaultOptions{ToolResultLedger: newMemoryToolResultLedger()})
+	contextPlane := contextplane.NewDefaultContextPlane(contextplane.DefaultOptions{ToolResultLedger: storetest.NewMemoryToolResultLedger()})
 	contextResult := directResponseContextResultForTest("run", "session", "lookup")
 	plane := NewDefaultPlane(DefaultPlaneOptions{
 		SystemPrompt:    "system",
@@ -993,7 +994,7 @@ func TestBuildDirectResponseHandlesInterrupt(t *testing.T) {
 	ctx := context.Background()
 	tool := directResponseTestTool{name: "lookup", result: "lookup result: acorn"}
 	catalog := directResponseCatalogForTest(t, ctx, tool)
-	contextPlane := contextplane.NewDefaultContextPlane(contextplane.DefaultOptions{ToolResultLedger: newMemoryToolResultLedger()})
+	contextPlane := contextplane.NewDefaultContextPlane(contextplane.DefaultOptions{ToolResultLedger: storetest.NewMemoryToolResultLedger()})
 	contextResult := directResponseContextResultForTest("run", "session", "lookup")
 	model := &directResponseTestModel{
 		responses: []*schema.Message{
@@ -1055,7 +1056,7 @@ func TestBuildDirectResponsePreservesNestedInterruptContexts(t *testing.T) {
 	ctx := context.Background()
 	tool := directResponseTestTool{name: "lookup", result: "lookup result: acorn"}
 	catalog := directResponseCatalogForTest(t, ctx, tool)
-	contextPlane := contextplane.NewDefaultContextPlane(contextplane.DefaultOptions{ToolResultLedger: newMemoryToolResultLedger()})
+	contextPlane := contextplane.NewDefaultContextPlane(contextplane.DefaultOptions{ToolResultLedger: storetest.NewMemoryToolResultLedger()})
 	contextResult := directResponseContextResultForTest("run", "session", "lookup")
 	model := &directResponseTestModel{
 		responses: []*schema.Message{
@@ -1197,7 +1198,7 @@ func TestBuildDirectResponseResumeContinuesFromPendingToolCalls(t *testing.T) {
 	ctx := context.Background()
 	tool := directResponseTestTool{name: "lookup", result: "unused"}
 	catalog := directResponseCatalogForTest(t, ctx, tool)
-	contextPlane := contextplane.NewDefaultContextPlane(contextplane.DefaultOptions{ToolResultLedger: newMemoryToolResultLedger()})
+	contextPlane := contextplane.NewDefaultContextPlane(contextplane.DefaultOptions{ToolResultLedger: storetest.NewMemoryToolResultLedger()})
 	contextResult := directResponseContextResultForTest("run", "session", "lookup")
 	model := &directResponseTestModel{
 		responses: []*schema.Message{

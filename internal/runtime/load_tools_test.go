@@ -11,6 +11,7 @@ import (
 	"github.com/ycvk/acorn/internal/contextplane"
 	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	acorntool "github.com/ycvk/acorn/internal/runtime/tool"
+	"github.com/ycvk/acorn/internal/store/storetest"
 	"github.com/ycvk/acorn/internal/tooling"
 )
 
@@ -61,7 +62,7 @@ func TestLoadToolsToolCallsDeferredLoad(t *testing.T) {
 		DeferredTools: map[string]contextplane.DeferredToolRecord{"memory_search": {Name: "memory_search", Reason: "test_deferred"}},
 	}
 
-	ctx = contextplane.WithToolLifecycleContext(ctx, newMemoryToolResultLedger(), state, catalog, []*schema.ToolInfo{{Name: "memory_search"}})
+	ctx = contextplane.WithToolLifecycleContext(ctx, storetest.NewMemoryToolResultLedger(), state, catalog, []*schema.ToolInfo{{Name: "memory_search"}})
 
 	result, err := invokable.InvokableRun(ctx, `{"query":"knowledge","tool_names":["memory_search"],"limit":2}`)
 	if err != nil {

@@ -13,9 +13,41 @@ const sqliteImportPath = "github.com/ycvk/acorn/internal/store/sqlite"
 
 var sqliteImportAllowlist = map[string]struct{}{
 	"internal/app/container.go": {},
+	// SQLite-backed integration tests intentionally exercise persisted runtime
+	// behavior that unit fakes cannot validate.
+	"internal/runtime/executor_finalization_test.go":       {},
+	"internal/runtime/runner_factory_test_helpers_test.go": {},
+	"internal/runtime/plan/graph_agent_test.go":            {},
+	"internal/runtime/plan/plan_act_observe_e2e_test.go":   {},
+	"internal/runtime/plan/plan_gate_test.go":              {},
+	"internal/providers/mcp/elicitation_handler_test.go":   {},
+	"internal/tools/tools_test.go":                         {},
+	// App/service integration tests validate persisted /v1 projections and
+	// notification/session state against the SQLite store contract.
+	"internal/app/client_service_test.go":            {},
+	"internal/app/helpers_test.go":                   {},
+	"internal/app/notification_service_test.go":      {},
+	"internal/app/pending_action_service_test.go":    {},
+	"internal/app/runtime_workbench_service_test.go": {},
+	"internal/app/session_state_service_test.go":     {},
 }
 
 func TestSQLiteStoreImportsStayBehindCompositionRoot(t *testing.T) {
+	offenders := scanSQLiteImports(t, false)
+	if len(offenders) > 0 {
+		t.Fatalf("sqlite store imported outside composition root:\n%s", strings.Join(offenders, "\n"))
+	}
+}
+
+func TestSQLiteStoreImportsStayBehindCompositionRoot_InTests(t *testing.T) {
+	offenders := scanSQLiteImports(t, true)
+	if len(offenders) > 0 {
+		t.Fatalf("sqlite store imported in tests outside composition root:\n%s", strings.Join(offenders, "\n"))
+	}
+}
+
+func scanSQLiteImports(t *testing.T, includeTests bool) []string {
+	t.Helper()
 	root := filepath.Join("..", "..")
 	internalRoot := filepath.Join(root, "internal")
 	fset := token.NewFileSet()
@@ -31,7 +63,13 @@ func TestSQLiteStoreImportsStayBehindCompositionRoot(t *testing.T) {
 			}
 			return nil
 		}
-		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+		if !strings.HasSuffix(path, ".go") {
+			return nil
+		}
+		if !includeTests && strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		if includeTests && !strings.HasSuffix(path, "_test.go") {
 			return nil
 		}
 		rel, err := filepath.Rel(root, path)
@@ -55,8 +93,5 @@ func TestSQLiteStoreImportsStayBehindCompositionRoot(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("scan internal package imports: %v", err)
 	}
-
-	if len(offenders) > 0 {
-		t.Fatalf("sqlite store imported outside composition root:\n%s", strings.Join(offenders, "\n"))
-	}
+	return offenders
 }

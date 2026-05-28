@@ -3,32 +3,43 @@ package runtime
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/ycvk/acorn/internal/events"
-	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
 )
 
-func openPendingResumeTestStore(t *testing.T) *storesqlite.Store {
-	t.Helper()
-	s, err := storesqlite.Open(t.TempDir())
-	if err != nil {
-		t.Fatalf("open store: %v", err)
+type pendingResumeTestStore struct {
+	runs []events.RunRecord
+}
+
+func (s *pendingResumeTestStore) FindLatestInterruptedRun(_ context.Context) (*events.RunRecord, error) {
+	latestIndex := -1
+	for i := range s.runs {
+		if s.runs[i].Status != events.RunStatusInterrupted {
+			continue
+		}
+		if latestIndex == -1 || s.runs[i].CreatedAt.After(s.runs[latestIndex].CreatedAt) {
+			latestIndex = i
+		}
 	}
-	t.Cleanup(func() { _ = s.Close() })
-	return s
+	if latestIndex == -1 {
+		return nil, nil
+	}
+	return &s.runs[latestIndex], nil
 }
 
 func TestFindPendingResume_Found(t *testing.T) {
 	ctx := context.Background()
-	store := openPendingResumeTestStore(t)
-	if _, err := store.CreateSession(ctx, "sess_1", "test"); err != nil {
-		t.Fatalf("CreateSession: %v", err)
-	}
-	if err := store.CreateRunWithSession(ctx, "run_int", "sess_1", 1, "interrupted task", "cp_1"); err != nil {
-		t.Fatalf("CreateRunWithSession: %v", err)
-	}
-	if err := store.FinishRunContext(ctx, "run_int", events.RunStatusInterrupted, "", ""); err != nil {
-		t.Fatalf("FinishRunContext: %v", err)
+	store := &pendingResumeTestStore{
+		runs: []events.RunRecord{
+			{
+				RunID:     "run_int",
+				SessionID: "sess_1",
+				Status:    events.RunStatusInterrupted,
+				Input:     "interrupted task",
+				CreatedAt: time.Date(2026, 5, 28, 10, 0, 0, 0, time.UTC),
+			},
+		},
 	}
 
 	info, err := FindPendingResume(ctx, store)
@@ -47,7 +58,7 @@ func TestFindPendingResume_Found(t *testing.T) {
 }
 
 func TestFindPendingResume_None(t *testing.T) {
-	store := openPendingResumeTestStore(t)
+	store := &pendingResumeTestStore{}
 	info, err := FindPendingResume(context.Background(), store)
 	if err != nil {
 		t.Fatalf("FindPendingResume: %v", err)

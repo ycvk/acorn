@@ -314,7 +314,6 @@ bool _shouldShowActivityInChat(String eventType) {
     'elicitation.pending' ||
     'decision_blocked' ||
     'skill.failed' ||
-    'crystallization.failed' ||
     'step.failed' ||
     'subagent.failed' => true,
     _ => false,
@@ -345,8 +344,6 @@ String _activityLabel(RunEvent event) {
     'memory.prepared' => 'Memory prepared',
     'context.pressure' => 'Context pressure',
     'context.compressed' => 'Context compressed',
-    'crystallization.verdict' => 'Memory verdict',
-    'crystallization.failed' => 'Memory write failed',
     'plan.created' => 'Plan created',
     'plan.updated' => 'Plan updated',
     'plan.cleared' => 'Plan cleared',

@@ -12,6 +12,7 @@ import (
 
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/model"
+	"github.com/ycvk/acorn/internal/store/storetest"
 )
 
 func TestContextSessionBootstrapOrdersAssemblyBeforeInitialMessages(t *testing.T) {
@@ -146,7 +147,7 @@ func TestContextSessionBeforeModelCallCompactsOnPressure(t *testing.T) {
 		},
 	}
 	var outcomes []CompressionOutcome
-	store := newFakeContextStore()
+	store := storetest.NewFakeContextStore()
 	session := NewDefaultContextSession(ContextSessionOptions{
 		BudgetGovernor: testBudgetGovernor{pressure: testPressure(PressureAutoCompact)},
 		Pipeline:       pipeline,
@@ -268,7 +269,7 @@ func TestContextSessionReactiveCompactUsesReactiveTrigger(t *testing.T) {
 	}
 	var outcomes []CompressionOutcome
 	governor := testBudgetGovernor{pressure: testPressure(PressureBlocking), dynamic: true}
-	store := newFakeContextStore()
+	store := storetest.NewFakeContextStore()
 	session := NewDefaultContextSession(ContextSessionOptions{
 		BudgetGovernor: governor,
 		Pipeline:       pipeline,
@@ -388,7 +389,7 @@ func TestContextSessionRequiresBudgetGovernor(t *testing.T) {
 }
 
 func TestContextSessionResumeLoadsPersistedBoundary(t *testing.T) {
-	store := newFakeContextStore()
+	store := storetest.NewFakeContextStore()
 	boundary := testContextBoundary("ctxb_run_1_0001", "session_1", "run_1", 1, "resume summary checkpoint")
 	if err := store.SaveContextBoundary(context.Background(), boundary); err != nil {
 		t.Fatalf("SaveContextBoundary: %v", err)

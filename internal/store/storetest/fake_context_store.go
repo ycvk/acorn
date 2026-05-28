@@ -1,4 +1,4 @@
-package contextplane
+package storetest
 
 import (
 	"context"
@@ -10,9 +10,9 @@ import (
 	"github.com/ycvk/acorn/internal/workingstate"
 )
 
-// fakeContextStore is a minimal in-memory implementation of the interfaces
+// FakeContextStore is a minimal in-memory implementation of the interfaces
 // needed by contextplane tests, avoiding a dependency on store/sqlite.
-type fakeContextStore struct {
+type FakeContextStore struct {
 	mu          sync.RWMutex
 	snapshots   map[string]model.RunContextSnapshot
 	boundaries  map[string]model.ContextBoundary
@@ -20,8 +20,8 @@ type fakeContextStore struct {
 	results     map[string]store.ToolResultRecord
 }
 
-func newFakeContextStore() *fakeContextStore {
-	return &fakeContextStore{
+func NewFakeContextStore() *FakeContextStore {
+	return &FakeContextStore{
 		snapshots:   make(map[string]model.RunContextSnapshot),
 		boundaries:  make(map[string]model.ContextBoundary),
 		checkpoints: make(map[string]workingstate.Checkpoint),
@@ -30,14 +30,15 @@ func newFakeContextStore() *fakeContextStore {
 }
 
 // RunContextSnapshotStore implementation
-func (s *fakeContextStore) SaveRunContextSnapshot(_ context.Context, snap model.RunContextSnapshot) error {
+
+func (s *FakeContextStore) SaveRunContextSnapshot(_ context.Context, snap model.RunContextSnapshot) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.snapshots[snap.RunID] = snap
 	return nil
 }
 
-func (s *fakeContextStore) LoadRunContextSnapshot(_ context.Context, runID string) (*model.RunContextSnapshot, error) {
+func (s *FakeContextStore) LoadRunContextSnapshot(_ context.Context, runID string) (*model.RunContextSnapshot, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	snap, ok := s.snapshots[runID]
@@ -48,14 +49,15 @@ func (s *fakeContextStore) LoadRunContextSnapshot(_ context.Context, runID strin
 }
 
 // ContextBoundaryStore implementation
-func (s *fakeContextStore) SaveContextBoundary(_ context.Context, boundary model.ContextBoundary) error {
+
+func (s *FakeContextStore) SaveContextBoundary(_ context.Context, boundary model.ContextBoundary) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.boundaries[boundary.BoundaryID] = boundary
 	return nil
 }
 
-func (s *fakeContextStore) LoadContextBoundary(_ context.Context, boundaryID string) (*model.ContextBoundary, error) {
+func (s *FakeContextStore) LoadContextBoundary(_ context.Context, boundaryID string) (*model.ContextBoundary, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	boundary, ok := s.boundaries[boundaryID]
@@ -65,7 +67,7 @@ func (s *fakeContextStore) LoadContextBoundary(_ context.Context, boundaryID str
 	return &boundary, nil
 }
 
-func (s *fakeContextStore) LoadLatestContextBoundary(ctx context.Context, sessionID string) (*model.ContextBoundary, error) {
+func (s *FakeContextStore) LoadLatestContextBoundary(ctx context.Context, sessionID string) (*model.ContextBoundary, error) {
 	boundaries, err := s.ListContextBoundaries(ctx, sessionID)
 	if err != nil {
 		return nil, err
@@ -77,7 +79,7 @@ func (s *fakeContextStore) LoadLatestContextBoundary(ctx context.Context, sessio
 	return &latest, nil
 }
 
-func (s *fakeContextStore) ListContextBoundaries(_ context.Context, sessionID string) ([]model.ContextBoundary, error) {
+func (s *FakeContextStore) ListContextBoundaries(_ context.Context, sessionID string) ([]model.ContextBoundary, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	var out []model.ContextBoundary
@@ -96,7 +98,8 @@ func (s *fakeContextStore) ListContextBoundaries(_ context.Context, sessionID st
 }
 
 // workingstate.Store implementation
-func (s *fakeContextStore) GetWorkingCheckpoint(_ context.Context, threadID string) (*workingstate.Checkpoint, error) {
+
+func (s *FakeContextStore) GetWorkingCheckpoint(_ context.Context, threadID string) (*workingstate.Checkpoint, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	cp, ok := s.checkpoints[threadID]
@@ -106,14 +109,14 @@ func (s *fakeContextStore) GetWorkingCheckpoint(_ context.Context, threadID stri
 	return &cp, nil
 }
 
-func (s *fakeContextStore) UpsertWorkingCheckpoint(_ context.Context, cp workingstate.Checkpoint) error {
+func (s *FakeContextStore) UpsertWorkingCheckpoint(_ context.Context, cp workingstate.Checkpoint) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.checkpoints[cp.ThreadID] = cp
 	return nil
 }
 
-func (s *fakeContextStore) DeleteWorkingCheckpoint(_ context.Context, threadID string) error {
+func (s *FakeContextStore) DeleteWorkingCheckpoint(_ context.Context, threadID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.checkpoints, threadID)
@@ -121,7 +124,8 @@ func (s *fakeContextStore) DeleteWorkingCheckpoint(_ context.Context, threadID s
 }
 
 // store.ToolResultLedger implementation
-func (s *fakeContextStore) Append(_ context.Context, req store.ToolResultAppendRequest) (store.ToolResultRecord, error) {
+
+func (s *FakeContextStore) Append(_ context.Context, req store.ToolResultAppendRequest) (store.ToolResultRecord, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	ref := store.BuildToolResultRef(req.RunID, req.CallID)
@@ -145,7 +149,7 @@ func (s *fakeContextStore) Append(_ context.Context, req store.ToolResultAppendR
 	return rec, nil
 }
 
-func (s *fakeContextStore) Load(_ context.Context, ref string) (store.ToolResultRecord, error) {
+func (s *FakeContextStore) Load(_ context.Context, ref string) (store.ToolResultRecord, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	rec, ok := s.results[ref]
@@ -155,7 +159,7 @@ func (s *fakeContextStore) Load(_ context.Context, ref string) (store.ToolResult
 	return rec, nil
 }
 
-func (s *fakeContextStore) ListByRun(_ context.Context, runID string) ([]store.ToolResultRecord, error) {
+func (s *FakeContextStore) ListByRun(_ context.Context, runID string) ([]store.ToolResultRecord, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	var out []store.ToolResultRecord
@@ -167,7 +171,7 @@ func (s *fakeContextStore) ListByRun(_ context.Context, runID string) ([]store.T
 	return out, nil
 }
 
-func (s *fakeContextStore) AppendEvidenceRef(_ context.Context, ref string, ev store.EvidenceRef) (store.ToolResultRecord, error) {
+func (s *FakeContextStore) AppendEvidenceRef(_ context.Context, ref string, ev store.EvidenceRef) (store.ToolResultRecord, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	rec, ok := s.results[ref]

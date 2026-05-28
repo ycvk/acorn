@@ -94,9 +94,6 @@ func ContextAssemblyTokenLimitFromContextPolicy(cfg config.ContextConfig) (int, 
 }
 
 func (g *budgetGovernor) Evaluate(ctx context.Context, req BudgetEvaluateRequest) (BudgetPressure, error) {
-	if g == nil {
-		return BudgetPressure{}, errors.New("budget governor is not initialized")
-	}
 	if g.tokenCounter == nil {
 		return BudgetPressure{}, errors.New("budget governor token counter is required")
 	}
@@ -121,9 +118,6 @@ func (g *budgetGovernor) Evaluate(ctx context.Context, req BudgetEvaluateRequest
 }
 
 func (g *budgetGovernor) AutoCompactThreshold(profile ModelProfile) (int, error) {
-	if g == nil {
-		return 0, errors.New("budget governor is not initialized")
-	}
 	thresholds, err := pressureThresholds(profile)
 	if err != nil {
 		return 0, err

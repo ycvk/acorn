@@ -64,7 +64,7 @@ func testContainerConfig(t *testing.T) *config.Config {
 			SummaryMaxTokens:    2048,
 		},
 		Memory: config.MemoryConfig{
-			Search: config.LayeredMemorySearchConfig{
+			Search: config.MemorySearchConfig{
 				MemoryContextTokenBudget: 2000,
 			},
 			Semantic: config.MemorySemanticConfig{

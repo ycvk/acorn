@@ -256,8 +256,6 @@ const _supportedRunEventTypes = {
   'memory.prepared',
   'context.pressure',
   'context.compressed',
-  'crystallization.verdict',
-  'crystallization.failed',
   'plan.created',
   'plan.updated',
   'plan.cleared',

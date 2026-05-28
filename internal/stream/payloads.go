@@ -505,27 +505,6 @@ type PlanClearedPayload struct {
 
 func (p *PlanClearedPayload) StreamKind() StreamItemKind { return StreamKindPlanCleared }
 
-type CrystallizationFailedPayload struct {
-	RunID string `json:"run_id"`
-	Error string `json:"error"`
-}
-
-func (p *CrystallizationFailedPayload) StreamKind() StreamItemKind {
-	return StreamKindCrystallizationFailed
-}
-
-type CrystallizationVerdictPayload struct {
-	RunID     string `json:"run_id"`
-	Verdict   string `json:"verdict"`
-	SkillID   string `json:"skill_id,omitempty"`
-	Reason    string `json:"reason,omitempty"`
-	SimilarTo string `json:"similar_to,omitempty"`
-}
-
-func (p *CrystallizationVerdictPayload) StreamKind() StreamItemKind {
-	return StreamKindCrystallizationVerdict
-}
-
 type PlanStepPayload struct {
 	PlanID    string          `json:"plan_id"`
 	SessionID string          `json:"session_id"`

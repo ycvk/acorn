@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -15,19 +14,8 @@ import (
 	"github.com/ycvk/acorn/internal/model"
 	"github.com/ycvk/acorn/internal/orchestration"
 	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
-	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
 	"github.com/ycvk/acorn/internal/stream"
 )
-
-func openStore(t *testing.T) *storesqlite.Store {
-	t.Helper()
-	store, err := storesqlite.Open(filepath.Join(t.TempDir(), "state"))
-	if err != nil {
-		t.Fatalf("open store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-	return store
-}
 
 func TestSubagentExecutorEmptyTask(t *testing.T) {
 	t.Parallel()
@@ -369,10 +357,7 @@ func TestSubagentEmitFailedReturnsDurableWriteError(t *testing.T) {
 func TestSubagentExecuteJoinsEmitFailedError(t *testing.T) {
 	t.Parallel()
 
-	store := openStore(t)
-	if err := store.CreateRun(context.Background(), "parent_run", "inspect repo", "parent_run"); err != nil {
-		t.Fatalf("CreateRun: %v", err)
-	}
+	store, _ := newRunnerFactoryMemoryTestContext(t)
 
 	sinkCalls := 0
 	ctx := stream.WithStreamSink(context.Background(), func(item stream.StreamItem) error {

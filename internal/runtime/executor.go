@@ -14,7 +14,6 @@ import (
 	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/contextplane"
-	"github.com/ycvk/acorn/internal/crystallization"
 	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/memorymodule"
 	"github.com/ycvk/acorn/internal/model"
@@ -39,7 +38,6 @@ type Executor struct {
 	newChatModel      func(ctx context.Context) (einomodel.BaseChatModel, error)
 	archiveRunFunc    func(ctx context.Context, runID string, runStatus events.RunStatus) error
 	sessionSummarySvc *model.SessionSummaryService
-	crystallizer      crystallization.Service
 }
 
 func NewExecutorWithRunRuntimeAndController(cfg *config.Config, store ExecutorStore, runRuntime RunRuntime, controller *RunController) (*Executor, error) {
@@ -65,15 +63,8 @@ func NewExecutorWithRunRuntimeAndController(cfg *config.Config, store ExecutorSt
 		sessionSummarySvc: runRuntime.SessionSummarySvc(),
 		newChatModel:      runRuntime.NewChatModel,
 	}
-	exec.crystallizer = runRuntime.Crystallizer()
 	exec.archiveRunFunc = exec.archiveRun
 	return exec, nil
-}
-
-func (e *Executor) SetCrystallizer(svc crystallization.Service) {
-	if e != nil {
-		e.crystallizer = svc
-	}
 }
 
 func archiveSignalsFromEvents(records []events.EventRecord) ([]string, []string) {
@@ -139,9 +130,6 @@ func compactArchiveText(value string) string {
 }
 
 func (e *Executor) traceSummary(ctx context.Context, runID string) (*TraceSummary, error) {
-	if e == nil || e.store == nil {
-		return nil, errors.New("executor store is nil")
-	}
 	items, err := e.store.LoadEvents(ctx, runID)
 	if err != nil {
 		return nil, fmt.Errorf("load trace summary events: %w", err)
@@ -150,7 +138,7 @@ func (e *Executor) traceSummary(ctx context.Context, runID string) (*TraceSummar
 }
 
 func (e *Executor) failRunSetup(ctx context.Context, runID string, setupErr error, sink stream.StreamSink) error {
-	if e == nil || e.store == nil || strings.TrimSpace(runID) == "" || setupErr == nil {
+	if strings.TrimSpace(runID) == "" || setupErr == nil {
 		return setupErr
 	}
 	durableCtx := DurableContext(ctx)
@@ -161,9 +149,6 @@ func (e *Executor) failRunSetup(ctx context.Context, runID string, setupErr erro
 }
 
 func (e *Executor) recordFinalizationFailure(ctx context.Context, runID, output string, finalizationErr error, sink stream.StreamSink) error {
-	if e == nil || e.store == nil {
-		return finalizationErr
-	}
 	durableCtx := DurableContext(ctx)
 	message := fmt.Sprintf("run finalization failed: %v", finalizationErr)
 	var errs []error
@@ -182,7 +167,7 @@ func (e *Executor) recordFinalizationFailure(ctx context.Context, runID, output 
 
 func (e *Executor) verifyAndRecordSkill(ctx context.Context, runID string, selected *SelectedSkill, status events.RunStatus, output string, sink stream.StreamSink) error {
 	_ = ctx
-	if e == nil || e.store == nil || selected == nil || strings.TrimSpace(runID) == "" || status != events.RunStatusFailed {
+	if selected == nil || strings.TrimSpace(runID) == "" || status != events.RunStatusFailed {
 		return nil
 	}
 	_, err := stream.AppendStreamItem(ctx, e.store, sink, stream.StreamItem{
@@ -299,10 +284,6 @@ func (e *Executor) Run(ctx context.Context, input, skillID string, sink stream.S
 }
 
 func (e *Executor) ExecuteMessages(ctx context.Context, req runtimeapi.ExecuteRequest, sink stream.StreamSink) (*Result, error) {
-	if e == nil || e.runRuntime == nil || e.store == nil {
-		return nil, errors.New("executor is not initialized")
-	}
-
 	runID := strings.TrimSpace(req.RunID)
 	if runID == "" {
 		runID = newRunID()
@@ -379,10 +360,6 @@ func (e *Executor) ExecuteMessages(ctx context.Context, req runtimeapi.ExecuteRe
 }
 
 func (e *Executor) ResumeWithTargets(ctx context.Context, runID string, targets map[string]any, sink stream.StreamSink) (*Result, error) {
-	if e == nil || e.runRuntime == nil || e.store == nil {
-		return nil, errors.New("executor is not initialized")
-	}
-
 	run, err := e.store.LoadRun(ctx, runID)
 	if err != nil {
 		return nil, err
@@ -474,9 +451,6 @@ func buildExecutionContext(runCtxBase context.Context, runID, sessionID string, 
 }
 
 func (e *Executor) emitLifecyclePayload(ctx context.Context, runID string, sink stream.StreamSink, payload stream.StreamPayload) error {
-	if e == nil || e.store == nil {
-		return errors.New("executor store is nil")
-	}
 	if payload == nil {
 		return errors.New("lifecycle payload is nil")
 	}
@@ -579,13 +553,6 @@ func (e *Executor) finishSucceededRun(ctx context.Context, runID, input string, 
 	if err := e.finalizePostRun(durableCtx, runID, events.RunStatusSucceeded, input, state.lastOutput); err != nil {
 		return nil, e.recordFinalizationFailure(durableCtx, runID, state.lastOutput, err, sink)
 	}
-	if e.crystallizer != nil {
-		if err := e.runCrystallization(durableCtx, runID, input, state.lastOutput, selectedSkill, sink); err != nil {
-			if emitErr := e.emitCrystallizationFailed(durableCtx, runID, err, sink); emitErr != nil {
-				return nil, errors.Join(err, fmt.Errorf("emit crystallization failure: %w", emitErr))
-			}
-		}
-	}
 	if err := e.emitRunCompleted(durableCtx, runID, state.lastOutput, sink); err != nil {
 		return nil, err
 	}
@@ -605,9 +572,6 @@ func (e *Executor) finishSucceededRun(ctx context.Context, runID, input string, 
 }
 
 func (e *Executor) finalizePostRun(ctx context.Context, runID string, runStatus events.RunStatus, input, output string) error {
-	if e == nil || e.store == nil {
-		return errors.New("executor store is nil")
-	}
 	if err := e.store.SyncAssistantMessageForRunStatus(ctx, runID, runStatus); err != nil {
 		return fmt.Errorf("sync assistant message: %w", err)
 	}
@@ -627,9 +591,6 @@ func (e *Executor) finalizePostRun(ctx context.Context, runID string, runStatus 
 }
 
 func (e *Executor) persistConversationSegment(ctx context.Context, runID string, runStatus events.RunStatus) error {
-	if e == nil || e.store == nil {
-		return errors.New("executor store is nil")
-	}
 	if _, err := e.store.CreateSegmentFromRun(ctx, runID, runStatus); err != nil {
 		return fmt.Errorf("create conversation segment: %w", err)
 	}
@@ -637,7 +598,7 @@ func (e *Executor) persistConversationSegment(ctx context.Context, runID string,
 }
 
 func (e *Executor) appendRunHistory(ctx context.Context, runID string, runStatus events.RunStatus, input, output string) error {
-	if e == nil || e.store == nil || e.runRuntime == nil || e.runRuntime.MemoryModule() == nil {
+	if e.runRuntime.MemoryModule() == nil {
 		return errors.New("memory module is not initialized")
 	}
 	run, err := e.store.LoadRun(ctx, runID)
@@ -666,9 +627,6 @@ func (e *Executor) appendRunHistory(ctx context.Context, runID string, runStatus
 }
 
 func (e *Executor) archiveRun(ctx context.Context, runID string, runStatus events.RunStatus) error {
-	if e == nil || e.store == nil {
-		return errors.New("executor store is nil")
-	}
 	run, err := e.store.LoadRun(ctx, runID)
 	if err != nil {
 		return fmt.Errorf("archive run: load run: %w", err)
@@ -697,105 +655,6 @@ func (e *Executor) archiveRun(ctx context.Context, runID string, runStatus event
 		}
 	}
 	return nil
-}
-
-func (e *Executor) runCrystallization(ctx context.Context, runID, input, output string, selectedSkill *SelectedSkill, sink stream.StreamSink) error {
-	if e == nil || e.crystallizer == nil {
-		return nil
-	}
-	archive, err := e.store.GetRunArchive(ctx, runID)
-	if err != nil {
-		return fmt.Errorf("load run archive for crystallization: %w", err)
-	}
-	var toolNames []string
-	var touchedPaths []string
-	if archive != nil {
-		toolNames = archive.ToolNames
-		touchedPaths = archive.TouchedPaths
-	}
-	toolResults, err := e.store.ListByRun(ctx, runID)
-	if err != nil {
-		return fmt.Errorf("load tool result evidence for crystallization: %w", err)
-	}
-	res, err := e.crystallizer.Crystallize(ctx, crystallization.CrystallizationRequest{
-		RunID:        runID,
-		Input:        input,
-		Output:       output,
-		ToolNames:    toolNames,
-		TouchedPaths: touchedPaths,
-		EvidenceRefs: crystallizationEvidenceRefs(toolResults),
-	})
-	if err != nil {
-		return err
-	}
-	if res != nil {
-		if err := e.emitCrystallizationVerdict(ctx, runID, res, sink); err != nil {
-			return fmt.Errorf("emit crystallization verdict: %w", err)
-		}
-	}
-	return nil
-}
-
-func crystallizationEvidenceRefs(records []store.ToolResultRecord) []string {
-	if len(records) == 0 {
-		return nil
-	}
-	refs := make([]string, 0, len(records))
-	seen := make(map[string]struct{}, len(records))
-	for _, record := range records {
-		if record.Status != store.ToolResultStatusSucceeded {
-			continue
-		}
-		ref := strings.TrimSpace(record.ResultRef)
-		if ref == "" {
-			continue
-		}
-		if _, ok := seen[ref]; ok {
-			continue
-		}
-		seen[ref] = struct{}{}
-		refs = append(refs, ref)
-	}
-	return refs
-}
-
-func (e *Executor) emitCrystallizationFailed(ctx context.Context, runID string, err error, sink stream.StreamSink) error {
-	if e == nil {
-		return errors.New("executor is nil")
-	}
-	if e.store == nil {
-		return errors.New("executor store is nil")
-	}
-	_, appendErr := stream.AppendStreamItem(ctx, e.store, sink, stream.StreamItem{
-		RunID: runID,
-		Kind:  stream.StreamKindCrystallizationFailed,
-		Payload: &stream.CrystallizationFailedPayload{
-			RunID: runID,
-			Error: err.Error(),
-		},
-	})
-	return appendErr
-}
-
-func (e *Executor) emitCrystallizationVerdict(ctx context.Context, runID string, res *crystallization.CrystallizationResult, sink stream.StreamSink) error {
-	if e == nil {
-		return errors.New("executor is nil")
-	}
-	if e.store == nil {
-		return errors.New("executor store is nil")
-	}
-	_, appendErr := stream.AppendStreamItem(ctx, e.store, sink, stream.StreamItem{
-		RunID: runID,
-		Kind:  stream.StreamKindCrystallizationVerdict,
-		Payload: &stream.CrystallizationVerdictPayload{
-			RunID:     runID,
-			Verdict:   string(res.Verdict),
-			SkillID:   res.SkillID,
-			Reason:    res.Reason,
-			SimilarTo: res.SimilarTo,
-		},
-	})
-	return appendErr
 }
 
 func buildSessionSummaryText(run events.RunRecord, toolNames []string) string {

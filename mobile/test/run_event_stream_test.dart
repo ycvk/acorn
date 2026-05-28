@@ -90,6 +90,21 @@ void main() {
       throwsA(isA<RunEventStreamException>()),
     );
   });
+
+  test('rejects removed crystallization RunEvent types', () {
+    expect(
+      () => validateRunEvent(
+        RunEvent.fromJson(
+          _event('event_removed', 1, 'crystallization.verdict', {
+            'run_id': 'run_1',
+            'verdict': 'crystallized',
+          }),
+        ),
+        expectedRunId: 'run_1',
+      ),
+      throwsA(isA<RunEventStreamException>()),
+    );
+  });
 }
 
 Map<String, Object?> _event(

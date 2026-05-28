@@ -2790,8 +2790,6 @@ components:
         - $ref: '#/components/schemas/ClientMemoryPreparedEvent'
         - $ref: '#/components/schemas/ClientContextPressureEvent'
         - $ref: '#/components/schemas/ClientContextCompressedEvent'
-        - $ref: '#/components/schemas/ClientCrystallizationVerdictEvent'
-        - $ref: '#/components/schemas/ClientCrystallizationFailedEvent'
         - $ref: '#/components/schemas/ClientPlanCreatedEvent'
         - $ref: '#/components/schemas/ClientPlanUpdatedEvent'
         - $ref: '#/components/schemas/ClientPlanClearedEvent'
@@ -2845,8 +2843,6 @@ components:
           memory.prepared: '#/components/schemas/ClientMemoryPreparedEvent'
           context.pressure: '#/components/schemas/ClientContextPressureEvent'
           context.compressed: '#/components/schemas/ClientContextCompressedEvent'
-          crystallization.verdict: '#/components/schemas/ClientCrystallizationVerdictEvent'
-          crystallization.failed: '#/components/schemas/ClientCrystallizationFailedEvent'
           plan.created: '#/components/schemas/ClientPlanCreatedEvent'
           plan.updated: '#/components/schemas/ClientPlanUpdatedEvent'
           plan.cleared: '#/components/schemas/ClientPlanClearedEvent'
@@ -3326,28 +3322,6 @@ components:
             data:
               $ref: '#/components/schemas/ContextCompressedData'
 
-    ClientCrystallizationVerdictEvent:
-      allOf:
-        - $ref: '#/components/schemas/RunEventBase'
-        - type: object
-          required: [type, data]
-          properties:
-            type:
-              const: crystallization.verdict
-            data:
-              $ref: '#/components/schemas/CrystallizationVerdictData'
-
-    ClientCrystallizationFailedEvent:
-      allOf:
-        - $ref: '#/components/schemas/RunEventBase'
-        - type: object
-          required: [type, data]
-          properties:
-            type:
-              const: crystallization.failed
-            data:
-              $ref: '#/components/schemas/CrystallizationFailedData'
-
     ClientPlanCreatedEvent:
       allOf:
         - $ref: '#/components/schemas/RunEventBase'
@@ -3690,33 +3664,6 @@ components:
       properties:
         context_compressed:
           $ref: '#/components/schemas/StreamContextCompressed'
-
-    CrystallizationVerdictData:
-      type: object
-      additionalProperties: false
-      required: [run_id, verdict]
-      properties:
-        run_id:
-          type: string
-        verdict:
-          type: string
-          enum: [crystallized, insufficient_value, too_similar]
-        skill_id:
-          type: string
-        reason:
-          type: string
-        similar_to:
-          type: string
-
-    CrystallizationFailedData:
-      type: object
-      additionalProperties: false
-      required: [run_id, error]
-      properties:
-        run_id:
-          type: string
-        error:
-          type: string
 
     PlanData:
       type: object

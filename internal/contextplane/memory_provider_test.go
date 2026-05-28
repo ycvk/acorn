@@ -10,7 +10,7 @@ import (
 	"github.com/ycvk/acorn/internal/memorymodule"
 )
 
-func buildMemoryMessageForTest(ctx context.Context, counter TokenCounter, budget LayeredMemoryBudget, sessionSummarySection, checkpointSection string, prepared *memorymodule.PrepareResult) (*schema.Message, error) {
+func buildMemoryMessageForTest(ctx context.Context, counter TokenCounter, budget int, sessionSummarySection, checkpointSection string, prepared *memorymodule.PrepareResult) (*schema.Message, error) {
 	packet, err := buildMemoryContextPacket(ctx, counter, budget, sessionSummarySection, checkpointSection, prepared)
 	if err != nil {
 		return nil, err
@@ -23,7 +23,7 @@ func TestBuildMemoryContextPacketHonorsTotalBudget(t *testing.T) {
 	packet, err := buildMemoryContextPacket(
 		context.Background(),
 		counter,
-		LayeredMemoryBudget{L2InitialTokens: 42},
+		42,
 		"",
 		"<working-checkpoint>\ncheckpoint keeps session continuity tight and specific.\n</working-checkpoint>",
 		&memorymodule.PrepareResult{Entries: []memorymodule.Entry{
@@ -58,7 +58,7 @@ func TestBuildMemoryContextPacketKeepsCheckpointWithPreparedMemory(t *testing.T)
 	packet, err := buildMemoryContextPacket(
 		context.Background(),
 		testTokenCounter(t),
-		LayeredMemoryBudget{L2InitialTokens: 30},
+		30,
 		"",
 		"<working-checkpoint>\nshort checkpoint\n</working-checkpoint>",
 		&memorymodule.PrepareResult{Entries: []memorymodule.Entry{{Ref: "fact:1", Kind: "fact", Content: "targeted recall"}}},
@@ -69,7 +69,7 @@ func TestBuildMemoryContextPacketKeepsCheckpointWithPreparedMemory(t *testing.T)
 	if packet == nil {
 		t.Fatal("expected non-nil packet")
 	}
-	content, err := buildMemoryMessageForTest(context.Background(), testTokenCounter(t), LayeredMemoryBudget{L2InitialTokens: 30}, "", "<working-checkpoint>\nshort checkpoint\n</working-checkpoint>", &memorymodule.PrepareResult{Entries: []memorymodule.Entry{{Ref: "fact:1", Kind: "fact", Content: "targeted recall"}}})
+	content, err := buildMemoryMessageForTest(context.Background(), testTokenCounter(t), 30, "", "<working-checkpoint>\nshort checkpoint\n</working-checkpoint>", &memorymodule.PrepareResult{Entries: []memorymodule.Entry{{Ref: "fact:1", Kind: "fact", Content: "targeted recall"}}})
 	if err != nil {
 		t.Fatalf("buildMemoryMessage: %v", err)
 	}

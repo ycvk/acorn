@@ -47,9 +47,6 @@ func NewCompressionTokenCounter(cfg config.ContextConfig) (*CompressionTokenCoun
 }
 
 func (c *CompressionTokenCounter) CountText(_ context.Context, text string) (int, error) {
-	if c == nil || c.encoder == nil {
-		return 0, errors.New("compression token counter is not initialized")
-	}
 	return len(c.encoder.Encode(text, nil, nil)), nil
 }
 
@@ -66,9 +63,6 @@ func (c *CompressionTokenCounter) CountReduction(ctx context.Context, messages [
 }
 
 func (c *CompressionTokenCounter) count(_ context.Context, messages []adk.Message, tools []*schema.ToolInfo) (int, error) {
-	if c == nil || c.encoder == nil {
-		return 0, errors.New("compression token counter is not initialized")
-	}
 	total := 0
 	for _, msg := range messages {
 		payload, err := json.Marshal(normalizeCompressionMessage(msg))

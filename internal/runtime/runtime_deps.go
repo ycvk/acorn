@@ -1,14 +1,11 @@
 package runtime
 
 import (
-	"io"
-
 	"github.com/cloudwego/eino/adk"
 	einotool "github.com/cloudwego/eino/components/tool"
 
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/contextplane"
-	"github.com/ycvk/acorn/internal/crystallization"
 	"github.com/ycvk/acorn/internal/decision"
 	"github.com/ycvk/acorn/internal/memorymodule"
 	"github.com/ycvk/acorn/internal/model"
@@ -34,8 +31,6 @@ type RuntimeDeps struct {
 	ArtifactService   *store.ArtifactService
 	ExtraLocalTools   []einotool.BaseTool
 	Handlers          []adk.ChatModelAgentMiddleware
-	Crystallizer      crystallization.Service
-	IndexStore        io.Closer
 }
 
 func (d RuntimeDeps) CloneForWorkspace(ws *workspace.Workspace) RuntimeDeps {

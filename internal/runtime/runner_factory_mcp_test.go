@@ -246,49 +246,6 @@ func TestRunnerFactoryCloseReleasesManager(t *testing.T) {
 	}
 }
 
-type recordingCloser struct {
-	closed bool
-}
-
-func (c *recordingCloser) Close() error {
-	c.closed = true
-	return nil
-}
-
-func TestRunnerFactoryCloseClosesInjectedCrystallizerCloser(t *testing.T) {
-	store, cfg := newRunnerFactoryMemoryTestContext(t)
-	closer := &recordingCloser{}
-	factory := newRunnerFactory(t, cfg, store, RunnerFactoryOptions{
-		Crystallizer:       stubCrystallizer{},
-		CrystallizerCloser: closer,
-	})
-
-	factory.mu.Lock()
-	indexStore := factory.deps.IndexStore
-	factory.mu.Unlock()
-	if indexStore == nil {
-		t.Fatal("expected insight index store when auto crystallization is enabled")
-	}
-
-	if err := factory.Close(); err != nil {
-		t.Fatalf("factory Close: %v", err)
-	}
-
-	factory.mu.Lock()
-	indexAfter := factory.deps.IndexStore
-	crystallizerAfter := factory.deps.Crystallizer
-	factory.mu.Unlock()
-	if indexAfter != nil {
-		t.Fatal("expected insight index store to be nil after Close()")
-	}
-	if crystallizerAfter != nil {
-		t.Fatal("expected crystallizer to be nil after Close()")
-	}
-	if !closer.closed {
-		t.Fatal("expected injected crystallizer closer to be closed")
-	}
-}
-
 func TestRunnerFactoryEmitsProviderDegraded(t *testing.T) {
 	binary := buildMCPFixtureServer(t)
 	store, cfg := newRunnerFactoryMemoryTestContext(t)

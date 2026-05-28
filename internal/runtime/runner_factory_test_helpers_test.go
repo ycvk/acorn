@@ -42,7 +42,7 @@ func newRunnerFactoryMemoryTestContext(t *testing.T) (*storesqlite.Store, *confi
 			SummaryMaxTokens:    2048,
 		},
 		Memory: config.MemoryConfig{
-			Search: config.LayeredMemorySearchConfig{
+			Search: config.MemorySearchConfig{
 				MemoryContextTokenBudget: 2000,
 			},
 			Semantic: config.MemorySemanticConfig{
@@ -136,7 +136,7 @@ func newRunnerFactoryMemoryModule(t *testing.T, cfg *config.Config) memorymodule
 	return service
 }
 
-func newRunnerFactory(t *testing.T, cfg *config.Config, store *storesqlite.Store, opts RunnerFactoryOptions) *RunnerFactory {
+func newRunnerFactory(t *testing.T, cfg *config.Config, store RunnerFactoryStore, opts RunnerFactoryOptions) *RunnerFactory {
 	t.Helper()
 	if opts.MemoryModule == nil {
 		opts.MemoryModule = newRunnerFactoryMemoryModule(t, cfg)

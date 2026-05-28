@@ -1,4 +1,4 @@
-package orchestration
+package storetest
 
 import (
 	"context"
@@ -10,17 +10,19 @@ import (
 	"github.com/ycvk/acorn/internal/store"
 )
 
-type memoryToolResultLedger struct {
+// MemoryToolResultLedger is a minimal in-memory implementation of store.ToolResultLedger
+// for use in tests, avoiding a dependency on store/sqlite.
+type MemoryToolResultLedger struct {
 	mu      sync.Mutex
 	records map[string]store.ToolResultRecord
 	order   []string
 }
 
-func newMemoryToolResultLedger() *memoryToolResultLedger {
-	return &memoryToolResultLedger{records: make(map[string]store.ToolResultRecord)}
+func NewMemoryToolResultLedger() *MemoryToolResultLedger {
+	return &MemoryToolResultLedger{records: make(map[string]store.ToolResultRecord)}
 }
 
-func (m *memoryToolResultLedger) Append(_ context.Context, req store.ToolResultAppendRequest) (store.ToolResultRecord, error) {
+func (m *MemoryToolResultLedger) Append(_ context.Context, req store.ToolResultAppendRequest) (store.ToolResultRecord, error) {
 	req, err := store.NormalizeToolResultAppendRequest(req)
 	if err != nil {
 		return store.ToolResultRecord{}, err
@@ -55,7 +57,7 @@ func (m *memoryToolResultLedger) Append(_ context.Context, req store.ToolResultA
 	return rec, nil
 }
 
-func (m *memoryToolResultLedger) Load(_ context.Context, ref string) (store.ToolResultRecord, error) {
+func (m *MemoryToolResultLedger) Load(_ context.Context, ref string) (store.ToolResultRecord, error) {
 	ref = strings.TrimSpace(ref)
 	if ref == "" {
 		return store.ToolResultRecord{}, fmt.Errorf("tool result ref is required")
@@ -69,7 +71,7 @@ func (m *memoryToolResultLedger) Load(_ context.Context, ref string) (store.Tool
 	return record, nil
 }
 
-func (m *memoryToolResultLedger) ListByRun(_ context.Context, runID string) ([]store.ToolResultRecord, error) {
+func (m *MemoryToolResultLedger) ListByRun(_ context.Context, runID string) ([]store.ToolResultRecord, error) {
 	runID = strings.TrimSpace(runID)
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -89,7 +91,7 @@ func (m *memoryToolResultLedger) ListByRun(_ context.Context, runID string) ([]s
 	return append([]store.ToolResultRecord(nil), out...), nil
 }
 
-func (m *memoryToolResultLedger) AppendEvidenceRef(_ context.Context, resultRef string, ref store.EvidenceRef) (store.ToolResultRecord, error) {
+func (m *MemoryToolResultLedger) AppendEvidenceRef(_ context.Context, resultRef string, ref store.EvidenceRef) (store.ToolResultRecord, error) {
 	ref, err := store.NormalizeEvidenceRef(ref)
 	if err != nil {
 		return store.ToolResultRecord{}, err

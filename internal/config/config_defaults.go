@@ -58,7 +58,7 @@ func defaultConfig() *Config {
 			RunCommand: RunCommandToolConfig{DefaultTimeout: 30, WorkDir: "."},
 		},
 		Memory: MemoryConfig{
-			Search: LayeredMemorySearchConfig{
+			Search: MemorySearchConfig{
 				MemoryContextTokenBudget: 2000,
 			},
 			Semantic: MemorySemanticConfig{

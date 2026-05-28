@@ -31,12 +31,12 @@ type memoryContextPacket struct {
 	AttachedEntryRefs []string
 }
 
-func buildMemoryContextPacket(ctx context.Context, counter TokenCounter, budget LayeredMemoryBudget, sessionSummarySection, checkpointSection string, prepared *memorymodule.PrepareResult) (*memoryContextPacket, error) {
+func buildMemoryContextPacket(ctx context.Context, counter TokenCounter, budget int, sessionSummarySection, checkpointSection string, prepared *memorymodule.PrepareResult) (*memoryContextPacket, error) {
 	if counter == nil {
 		return nil, errors.New("memory context token counter is required")
 	}
 
-	tokenBudget := budget.L1IndexTokens + budget.L2InitialTokens
+	tokenBudget := budget
 	if tokenBudget <= 0 {
 		tokenBudget = defaultMemoryContextTokenBudget
 	}

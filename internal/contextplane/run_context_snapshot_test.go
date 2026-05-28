@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ycvk/acorn/internal/store/storetest"
 	"github.com/ycvk/acorn/internal/workingstate"
 )
 
@@ -55,7 +56,7 @@ func TestRunContextAssemblerLoadsFrozenSnapshot(t *testing.T) {
 	}
 }
 
-func newRunContextAssemblerTestStore(t *testing.T) *fakeContextStore {
+func newRunContextAssemblerTestStore(t *testing.T) *storetest.FakeContextStore {
 	t.Helper()
-	return newFakeContextStore()
+	return storetest.NewFakeContextStore()
 }

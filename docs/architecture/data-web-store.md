@@ -158,4 +158,4 @@ Store code persists records and performs schema migrations. It does not decide m
 
 `internal/store` is allowed to hold shared persistence records where multiple consumers need the same durable shape, such as plan records, OAuth tokens, pending-action input, and store sentinel errors. The sqlite package aliases or implements these records; it no longer owns them as cross-package API.
 
-Optional auto-crystallization follows the same boundary: `internal/crystallization` owns procedure admission logic and the `IndexStore` port, while `internal/store/sqlite` only implements the SQLite insight-index adapter. The app composition root opens that adapter and injects it into runtime; runtime does not import the SQLite package or own the index schema.
+Procedure learning and memory admission are owned by `internal/memorymodule` and its file-backed records. Runtime no longer owns a separate auto-crystallization pipeline or SQLite insight-index adapter; any learned procedure must enter through the active memory/skill lifecycle contracts instead of a second store path.

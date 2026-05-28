@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"path/filepath"
 	"strings"
 
@@ -13,7 +12,6 @@ import (
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/contextplane"
-	"github.com/ycvk/acorn/internal/crystallization"
 	"github.com/ycvk/acorn/internal/decision"
 	"github.com/ycvk/acorn/internal/memorymodule"
 	"github.com/ycvk/acorn/internal/orchestration"
@@ -76,11 +74,6 @@ func buildRuntimeDeps(cfg *config.Config, store RunnerFactoryStore, opts RunnerF
 		handlers:     opts.Handlers,
 	})
 
-	crystallizer, indexStore, err := resolveCrystallizer(opts.Crystallizer, opts.CrystallizerCloser)
-	if err != nil {
-		return RuntimeDeps{}, fmt.Errorf("crystallizer: %w", err)
-	}
-
 	return RuntimeDeps{
 		Config:            cfg,
 		Store:             store,
@@ -96,8 +89,6 @@ func buildRuntimeDeps(cfg *config.Config, store RunnerFactoryStore, opts RunnerF
 		ArtifactService:   artifactService,
 		ExtraLocalTools:   append([]einotool.BaseTool(nil), opts.ExtraLocalTools...),
 		Handlers:          append([]adk.ChatModelAgentMiddleware(nil), opts.Handlers...),
-		Crystallizer:      crystallizer,
-		IndexStore:        indexStore,
 	}, nil
 }
 
@@ -149,19 +140,7 @@ func buildDefaultContextPlane(cfg *config.Config, store RunnerFactoryStore, opts
 		CheckpointService:        opts.CheckpointService,
 		SessionSummaryService:    opts.SessionSummaryService,
 		ToolResultLedger:         store,
-		MemoryBudget: contextplane.LayeredMemoryBudget{
-			L1IndexTokens:     cfg.Memory.Search.IndexTokenBudget,
-			L2InitialTokens:   cfg.Memory.Search.InitialTokenBudget,
-			L3OnDemandReserve: cfg.Memory.Search.OnDemandReserve,
-		},
 	}), nil
-}
-
-func resolveCrystallizer(crystallizer crystallization.Service, closer io.Closer) (crystallization.Service, io.Closer, error) {
-	if crystallizer == nil && closer != nil {
-		return nil, nil, errors.New("crystallizer closer requires crystallizer")
-	}
-	return crystallizer, closer, nil
 }
 
 func assembleRunnerFactory(deps RuntimeDeps) *RunnerFactory {

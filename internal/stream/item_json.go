@@ -212,10 +212,6 @@ func UnmarshalPayload(kind StreamItemKind, data json.RawMessage) (StreamPayload,
 		p = &PlanStepCompletedPayload{}
 	case StreamKindStepFailed:
 		p = &PlanStepFailedPayload{}
-	case StreamKindCrystallizationFailed:
-		p = &CrystallizationFailedPayload{}
-	case StreamKindCrystallizationVerdict:
-		p = &CrystallizationVerdictPayload{}
 	default:
 		return nil, fmt.Errorf("unknown stream kind: %s", kind)
 	}
