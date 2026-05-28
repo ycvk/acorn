@@ -15,7 +15,6 @@ const (
 	maxSearchLimit     = 50
 	maxPrepareNudges   = 25
 	maxPrepareEntries  = 20
-	maxEntryBytes      = 1200
 )
 
 type Kind string
