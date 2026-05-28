@@ -52,7 +52,7 @@ func TestDecide_ProfileRouteSelectsAvailableSkill(t *testing.T) {
 	}
 }
 
-func TestDecide_ProfileRouteFallsBackToTopSkillWhenUnavailable(t *testing.T) {
+func TestDecide_ProfileRouteUsesTopSkillWhenPreferredSkillUnavailable(t *testing.T) {
 	profile := DefaultProfile()
 	engine := NewEngine(profile)
 
@@ -78,6 +78,114 @@ func TestDecide_ProfileRouteFallsBackToTopSkillWhenUnavailable(t *testing.T) {
 	}
 	if record.DecisionReason != "top_skill_recommendation" {
 		t.Fatalf("reason = %q, want top_skill_recommendation", record.DecisionReason)
+	}
+}
+
+func TestDecide_NoProfileRouteUsesTopSkillRecommendation(t *testing.T) {
+	profile := DefaultProfile()
+	profile.Routes = nil
+	engine := NewEngine(profile)
+
+	record, err := engine.Decide(context.Background(), DecideInput{
+		Input: "please fix sqlite query loop error handling",
+		AvailableSkills: []RecommendedSkill{
+			{
+				ID:             "sop.fix-sqlite-query-loop-error-handling",
+				Name:           "SQLite Rows Error Handling SOP",
+				Score:          10,
+				TriggerMatched: true,
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Decide: %v", err)
+	}
+	if record.Action != ActionExecuteWithSkill {
+		t.Fatalf("action = %q, want execute_with_skill", record.Action)
+	}
+	if record.SelectedSkillID != "sop.fix-sqlite-query-loop-error-handling" {
+		t.Fatalf("selected skill = %q", record.SelectedSkillID)
+	}
+	if record.DecisionReason != "top_skill_recommendation" {
+		t.Fatalf("reason = %q, want top_skill_recommendation", record.DecisionReason)
+	}
+}
+
+func TestDecide_ProfileRouteBlockIsAuthoritative(t *testing.T) {
+	profile := DefaultProfile()
+	profile.Routes = []Route{{Intent: "debug", Action: ActionBlock}}
+	engine := NewEngine(profile)
+
+	record, err := engine.Decide(context.Background(), DecideInput{
+		Input: "debug this runtime error",
+		AvailableSkills: []RecommendedSkill{
+			{ID: "skill.debug.backend", Name: "Debug Backend", Score: 10, TriggerMatched: true},
+		},
+		HasWorkingContext: true,
+	})
+	if err != nil {
+		t.Fatalf("Decide: %v", err)
+	}
+	if record.Action != ActionBlock {
+		t.Fatalf("action = %q, want block", record.Action)
+	}
+	if record.SelectedSkillID != "" {
+		t.Fatalf("selected skill = %q, want empty", record.SelectedSkillID)
+	}
+	if record.DecisionReason != "profile_route" {
+		t.Fatalf("reason = %q, want profile_route", record.DecisionReason)
+	}
+}
+
+func TestDecide_ProfileRouteExecuteWithoutSkillIsAuthoritative(t *testing.T) {
+	profile := DefaultProfile()
+	profile.Routes = []Route{{Intent: "debug", Action: ActionExecuteWithoutSkill}}
+	engine := NewEngine(profile)
+
+	record, err := engine.Decide(context.Background(), DecideInput{
+		Input: "debug this runtime error",
+		AvailableSkills: []RecommendedSkill{
+			{ID: "skill.debug.backend", Name: "Debug Backend", Score: 10, TriggerMatched: true},
+		},
+		HasWorkingContext: true,
+	})
+	if err != nil {
+		t.Fatalf("Decide: %v", err)
+	}
+	if record.Action != ActionExecuteWithoutSkill {
+		t.Fatalf("action = %q, want execute_without_skill", record.Action)
+	}
+	if record.SelectedSkillID != "" {
+		t.Fatalf("selected skill = %q, want empty", record.SelectedSkillID)
+	}
+	if record.DecisionReason != "profile_route" {
+		t.Fatalf("reason = %q, want profile_route", record.DecisionReason)
+	}
+}
+
+func TestDecide_ProfileRouteResumeRunIsAuthoritative(t *testing.T) {
+	profile := DefaultProfile()
+	profile.Routes = []Route{{Intent: "debug", Action: ActionResumeRun}}
+	engine := NewEngine(profile)
+
+	record, err := engine.Decide(context.Background(), DecideInput{
+		Input: "debug this runtime error",
+		AvailableSkills: []RecommendedSkill{
+			{ID: "skill.debug.backend", Name: "Debug Backend", Score: 10, TriggerMatched: true},
+		},
+		HasWorkingContext: true,
+	})
+	if err != nil {
+		t.Fatalf("Decide: %v", err)
+	}
+	if record.Action != ActionResumeRun {
+		t.Fatalf("action = %q, want resume_run", record.Action)
+	}
+	if record.SelectedSkillID != "" {
+		t.Fatalf("selected skill = %q, want empty", record.SelectedSkillID)
+	}
+	if record.DecisionReason != "profile_route" {
+		t.Fatalf("reason = %q, want profile_route", record.DecisionReason)
 	}
 }
 

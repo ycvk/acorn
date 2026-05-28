@@ -104,7 +104,7 @@ func (t *auditedTool) run(ctx context.Context, argumentsInJSON string, emit tool
 			RunID:     runID,
 			Kind:      stream.StreamKindToolCallStarted,
 			CreatedAt: startedAt,
-			Payload:   &stream.ToolCallStartedPayload{ToolCall: t.streamToolCall(ctx, argumentsInJSON)},
+			Payload:   map[string]any{"tool_call": t.streamToolCall(ctx, argumentsInJSON)},
 		}); err != nil {
 			return "", fmt.Errorf("append tool.call.started audit event: %w", err)
 		}
@@ -119,7 +119,7 @@ func (t *auditedTool) run(ctx context.Context, argumentsInJSON string, emit tool
 					RunID:     runID,
 					Kind:      stream.StreamKindToolCallFailed,
 					CreatedAt: time.Now().UTC(),
-					Payload:   &stream.ToolCallFailedPayload{ToolCall: t.failedStreamToolCall(ctx, argumentsInJSON, output, time.Since(startedAt).Milliseconds())},
+					Payload:   map[string]any{"tool_call": t.failedStreamToolCall(ctx, argumentsInJSON, output, time.Since(startedAt).Milliseconds())},
 				}); auditErr != nil {
 					return "", fmt.Errorf("append validation error audit event: %w", auditErr)
 				}
@@ -133,7 +133,7 @@ func (t *auditedTool) run(ctx context.Context, argumentsInJSON string, emit tool
 					RunID:     runID,
 					Kind:      stream.StreamKindToolCallFailed,
 					CreatedAt: time.Now().UTC(),
-					Payload:   &stream.ToolCallFailedPayload{ToolCall: t.failedStreamToolCall(ctx, argumentsInJSON, output, time.Since(startedAt).Milliseconds())},
+					Payload:   map[string]any{"tool_call": t.failedStreamToolCall(ctx, argumentsInJSON, output, time.Since(startedAt).Milliseconds())},
 				}); auditErr != nil {
 					return "", fmt.Errorf("append tool.call.failed validation event: %w", auditErr)
 				}
@@ -153,7 +153,7 @@ func (t *auditedTool) run(ctx context.Context, argumentsInJSON string, emit tool
 			RunID:     runID,
 			Kind:      stream.StreamKindToolCallInterrupted,
 			CreatedAt: time.Now().UTC(),
-			Payload:   &stream.ToolCallInterruptedPayload{ToolCall: t.interruptedStreamToolCall(ctx, argumentsInJSON, err.Error(), durationMS, interruptCount)},
+			Payload:   map[string]any{"tool_call": t.interruptedStreamToolCall(ctx, argumentsInJSON, err.Error(), durationMS, interruptCount)},
 		}); auditErr != nil {
 			return output, errors.Join(err, fmt.Errorf("append tool.call.interrupted audit event: %w", auditErr))
 		}
@@ -165,7 +165,7 @@ func (t *auditedTool) run(ctx context.Context, argumentsInJSON string, emit tool
 			RunID:     runID,
 			Kind:      stream.StreamKindToolCallFailed,
 			CreatedAt: time.Now().UTC(),
-			Payload:   &stream.ToolCallFailedPayload{ToolCall: t.failedStreamToolCall(ctx, argumentsInJSON, err.Error(), durationMS)},
+			Payload:   map[string]any{"tool_call": t.failedStreamToolCall(ctx, argumentsInJSON, err.Error(), durationMS)},
 		}); auditErr != nil {
 			return output, errors.Join(err, fmt.Errorf("append tool.call.failed audit event: %w", auditErr))
 		}
@@ -176,7 +176,7 @@ func (t *auditedTool) run(ctx context.Context, argumentsInJSON string, emit tool
 		RunID:     runID,
 		Kind:      stream.StreamKindToolCallSucceeded,
 		CreatedAt: time.Now().UTC(),
-		Payload:   &stream.ToolCallSucceededPayload{ToolCall: t.succeededStreamToolCall(ctx, argumentsInJSON, output, durationMS)},
+		Payload:   map[string]any{"tool_call": t.succeededStreamToolCall(ctx, argumentsInJSON, output, durationMS)},
 	}); err != nil {
 		return output, fmt.Errorf("append tool.call.succeeded audit event: %w", err)
 	}
@@ -215,7 +215,7 @@ func (t *auditedTool) progressEmitter(ctx context.Context, argumentsInJSON strin
 				RunID:     runID,
 				Kind:      stream.StreamKindToolCallProgress,
 				CreatedAt: time.Now().UTC(),
-				Payload: &stream.ToolCallProgressPayload{ToolCall: &stream.StreamToolCallProgress{
+				Payload: map[string]any{"tool_call": &stream.StreamToolCallProgress{
 					Provider:      t.spec.Source,
 					Name:          t.spec.Name,
 					CallID:        ToolAuditCallID(ctx),
@@ -685,15 +685,10 @@ func RuntimeToolSpec(
 			ResourceScope: tooling.ResourceScopeWorkspaceFile,
 			Profiles:      append([]tooling.ToolProfile(nil), profiles...),
 			PlanPolicy:    tooling.PlanPolicyNone,
-			FactPolicy:    tooling.FactPolicySuppress,
 			Loading:       tooling.EagerLoadingPolicy(),
 			Execution: tooling.ToolExecutionPolicy{
 				ParallelPolicy: tooling.ParallelPolicyReadOnly,
-				SideEffects:    []tooling.ToolSideEffect{tooling.ToolSideEffectReadWorkspace},
 			},
-			Result:     tooling.InlineResultPolicy(0),
-			Boundary:   tooling.ToolResultBoundaryPolicy(),
-			Projection: tooling.ActivityProjectionPolicy(),
 		},
 		Tool: tool,
 	}
@@ -704,42 +699,34 @@ func RuntimeToolSpec(
 		spec.Category = tooling.ToolCategorySkill
 		spec.ResourceScope = tooling.ResourceScopeSkill
 		spec.Execution.ParallelPolicy = tooling.ParallelPolicyNeverParallel
-		spec.Execution.SideEffects = []tooling.ToolSideEffect{tooling.ToolSideEffectSkillRead}
 		spec.PlanPolicy = tooling.PlanPolicyRequireActivePlan
 	case "load_tools":
 		spec.Kind = tooling.ToolKindNative
 		spec.Category = tooling.ToolCategoryInspect
 		spec.ResourceScope = tooling.ResourceScopeWorkspaceFile
 		spec.Execution.ParallelPolicy = tooling.ParallelPolicyNeverParallel
-		spec.Execution.SideEffects = []tooling.ToolSideEffect{tooling.ToolSideEffectReadWorkspace}
 	case "update_working_checkpoint", "clear_working_checkpoint":
 		spec.Kind = tooling.ToolKindMemory
 		spec.Category = tooling.ToolCategoryMemory
 		spec.ResourceScope = tooling.ResourceScopeMemory
 		spec.Loading = tooling.DeferredLoadingPolicy("working_state_tool")
 		spec.Execution.ParallelPolicy = tooling.ParallelPolicyNeverParallel
-		spec.Execution.SideEffects = []tooling.ToolSideEffect{tooling.ToolSideEffectMemoryWrite}
 	case "memory_search", "memory_read_file", "memory_list_files":
 		spec.Kind = tooling.ToolKindMemory
 		spec.Category = tooling.ToolCategoryMemory
 		spec.ResourceScope = tooling.ResourceScopeMemory
 		spec.Execution.ParallelPolicy = tooling.ParallelPolicyReadOnly
-		spec.Execution.SideEffects = []tooling.ToolSideEffect{tooling.ToolSideEffectMemoryRead}
-		spec.FactPolicy = tooling.FactPolicySuppress
 	case "memory_create_file", "memory_replace_span":
 		spec.Kind = tooling.ToolKindMemory
 		spec.Category = tooling.ToolCategoryMemory
 		spec.ResourceScope = tooling.ResourceScopeMemory
 		spec.Execution.ParallelPolicy = tooling.ParallelPolicyWriteScoped
 		spec.Execution.PathArg = "path"
-		spec.Execution.SideEffects = []tooling.ToolSideEffect{tooling.ToolSideEffectMemoryWrite}
-		spec.FactPolicy = tooling.FactPolicySuppress
 	case "skill_list", "skill_view":
 		spec.Kind = tooling.ToolKindSkill
 		spec.Category = tooling.ToolCategorySkill
 		spec.ResourceScope = tooling.ResourceScopeSkill
 		spec.Execution.ParallelPolicy = tooling.ParallelPolicyReadOnly
-		spec.Execution.SideEffects = []tooling.ToolSideEffect{tooling.ToolSideEffectSkillRead}
 	default:
 		switch kind {
 		case tooling.ToolKindMCP, tooling.ToolKindMCPResource, tooling.ToolKindMCPPrompt:
@@ -748,8 +735,6 @@ func RuntimeToolSpec(
 			spec.ResourceScope = tooling.ResourceScopeMCP
 			spec.Execution.ParallelPolicy = tooling.ParallelPolicyReadOnly
 			spec.Execution.PathArg = "path"
-			spec.Execution.SideEffects = []tooling.ToolSideEffect{tooling.ToolSideEffectIntegration}
-			spec.FactPolicy = tooling.FactPolicyAuto
 			if kind == tooling.ToolKindMCPResource || kind == tooling.ToolKindMCPPrompt {
 				spec.Loading = tooling.DeferredLoadingPolicy("deferred_mcp_catalog")
 			}
@@ -758,8 +743,6 @@ func RuntimeToolSpec(
 			spec.ResourceScope = tooling.ResourceScopeWorkspaceFile
 			spec.Execution.ParallelPolicy = tooling.ParallelPolicyReadOnly
 			spec.Execution.PathArg = "path"
-			spec.Execution.SideEffects = []tooling.ToolSideEffect{tooling.ToolSideEffectReadWorkspace}
-			spec.FactPolicy = tooling.FactPolicyAuto
 		}
 	}
 	return spec, nil

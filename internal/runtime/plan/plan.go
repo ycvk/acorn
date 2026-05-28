@@ -251,11 +251,11 @@ Do not split tool-result-dependent operations across steps. If a later tool call
 }
 
 func (n *PlanNode) emitPlanEvent(ctx context.Context, plan *model.Plan, update bool) error {
-	payload := stream.StreamPayload(&stream.PlanCreatedPayload{Plan: streamPlanFromDomain(plan)})
+	payload := map[string]any{"plan": streamPlanFromDomain(plan)}
 	kind := stream.StreamKindPlanCreated
 	if update {
 		kind = stream.StreamKindPlanUpdated
-		payload = &stream.PlanUpdatedPayload{Plan: streamPlanFromDomain(plan)}
+		payload = map[string]any{"plan": streamPlanFromDomain(plan)}
 	}
 	if _, err := stream.AppendStreamItem(ctx, n.eventStore, stream.StreamSinkFromContext(ctx), stream.StreamItem{
 		RunID:     plan.RunID,

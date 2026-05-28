@@ -18,7 +18,7 @@ func TestProjectStreamItemToEventFailsOnInvalidStructuredPayload(t *testing.T) {
 			_, _, err := stream.ProjectStreamItemToEvent(stream.StreamItem{
 				RunID:   "run_projection_failure",
 				Kind:    kind,
-				Payload: &stream.ElicitationPayload{RequestedSchema: map[string]any{"not_json": make(chan int)}},
+				Payload: map[string]any{"requested_schema": map[string]any{"not_json": make(chan int)}},
 			})
 			if err == nil {
 				t.Fatal("stream.ProjectStreamItemToEvent returned nil error, want payload projection error")

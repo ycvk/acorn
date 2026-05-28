@@ -93,8 +93,8 @@ func streamAssistantMessage(
 			item := stream.StreamItem{
 				RunID: opts.RunID,
 				Kind:  stream.StreamKindAssistantDelta,
-				Payload: &stream.AssistantDeltaPayload{
-					AssistantDelta: &stream.StreamAssistantDelta{
+				Payload: map[string]any{
+					"assistant_delta": &stream.StreamAssistantDelta{
 						Role:      string(frame.Role),
 						Delta:     frame.Content,
 						Reasoning: frame.ReasoningContent,

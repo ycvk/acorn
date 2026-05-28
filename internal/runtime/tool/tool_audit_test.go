@@ -135,6 +135,9 @@ func TestAuditedToolRecordsProgressEvent(t *testing.T) {
 		}
 	}
 	payload := evts[1].Payload.(map[string]any)
+	if _, exists := payload["tool_call"]; exists {
+		t.Fatalf("progress event payload should be canonical top-level shape, got %#v", payload)
+	}
 	if payload["delta"] != "chunk" || payload["call_id"] != "call_progress" {
 		t.Fatalf("unexpected progress payload: %#v", payload)
 	}
@@ -168,7 +171,10 @@ func TestAuditedToolRecordsInterruptedEvent(t *testing.T) {
 		t.Fatalf("unexpected interrupt event kind: %s", evts[1].Kind)
 	}
 	payload := evts[1].Payload.(map[string]any)
-	if !strings.Contains(payload["error"].(string), "need approval") {
+	if _, exists := payload["tool_call"]; exists {
+		t.Fatalf("interrupt event payload should be canonical top-level shape, got %#v", payload)
+	}
+	if !strings.Contains(fmt.Sprint(payload["error"]), "need approval") {
 		t.Fatalf("unexpected interrupt error payload: %#v", payload)
 	}
 }
@@ -397,7 +403,11 @@ func TestValidationBlocksInvalidArguments(t *testing.T) {
 	if evts[1].Kind != "tool.call.failed" {
 		t.Fatalf("expected tool.call.failed event, got %s", evts[1].Kind)
 	}
-	if !strings.Contains(fmt.Sprint(evts[1].Payload), "validation_failed") {
+	payload := evts[1].Payload.(map[string]any)
+	if _, exists := payload["tool_call"]; exists {
+		t.Fatalf("failed event payload should be canonical top-level shape, got %#v", payload)
+	}
+	if !strings.Contains(fmt.Sprint(payload["error"]), "validation_failed") {
 		t.Fatalf("failed event does not expose validation failure: %#v", evts[1].Payload)
 	}
 }

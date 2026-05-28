@@ -6,11 +6,11 @@ import (
 	"github.com/ycvk/acorn/internal/stream"
 )
 
-func TestProjectStreamItemToEventKeepsToolInterruptShape(t *testing.T) {
+func TestProjectStreamItemToEventNormalizesToolInterruptPayload(t *testing.T) {
 	kind, payload := mustProjectStreamItemToEvent(t, stream.StreamItem{
 		RunID: "run_1",
 		Kind:  stream.StreamKindToolCallInterrupted,
-		Payload: &stream.ToolCallInterruptedPayload{ToolCall: &stream.StreamToolCall{
+		Payload: map[string]any{"tool_call": &stream.StreamToolCall{
 			Name:              "run_command",
 			Error:             "need approval",
 			InterruptContexts: 1,
@@ -20,7 +20,10 @@ func TestProjectStreamItemToEventKeepsToolInterruptShape(t *testing.T) {
 		t.Fatalf("kind = %q, want tool.call.interrupted", kind)
 	}
 	body := payload.(map[string]any)
+	if _, ok := body["tool_call"]; ok {
+		t.Fatalf("tool_call should be normalized out of event payload: %#v", body)
+	}
 	if body["tool_name"] != "run_command" || body["interrupt_contexts"] != float64(1) {
-		t.Fatalf("unexpected payload: %#v", body)
+		t.Fatalf("unexpected normalized tool payload: %#v", body)
 	}
 }

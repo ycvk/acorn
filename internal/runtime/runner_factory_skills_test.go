@@ -265,11 +265,7 @@ func skillSelectionToolContract(
 		ResourceScope: scope,
 		Profiles:      []tooling.ToolProfile{tooling.ToolProfileRun},
 		PlanPolicy:    plan,
-		FactPolicy:    tooling.FactPolicyAuto,
 		Loading:       tooling.EagerLoadingPolicy(),
 		Execution:     execution,
-		Result:        tooling.InlineResultPolicy(0),
-		Boundary:      tooling.ToolResultBoundaryPolicy(),
-		Projection:    tooling.ActivityProjectionPolicy(),
 	}
 }

@@ -45,10 +45,6 @@ const (
 	StreamKindSubagentStarted                 StreamItemKind = "subagent.started"
 	StreamKindSubagentCompleted               StreamItemKind = "subagent.completed"
 	StreamKindSubagentFailed                  StreamItemKind = "subagent.failed"
-	StreamKindHeartbeat                       StreamItemKind = "stream.heartbeat"
-	StreamKindToolParallelBatchStarted        StreamItemKind = "tool.parallel_batch.started"
-	StreamKindToolParallelBatchCompleted      StreamItemKind = "tool.parallel_batch.completed"
-	StreamKindRunArchived                     StreamItemKind = "run.archived"
 	StreamKindPlanCreated                     StreamItemKind = "plan.created"
 	StreamKindPlanUpdated                     StreamItemKind = "plan.updated"
 	StreamKindPlanCleared                     StreamItemKind = "plan.cleared"
@@ -56,7 +52,3 @@ const (
 	StreamKindStepCompleted                   StreamItemKind = "step.completed"
 	StreamKindStepFailed                      StreamItemKind = "step.failed"
 )
-
-type StreamPayload interface {
-	StreamKind() StreamItemKind
-}

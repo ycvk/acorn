@@ -271,14 +271,7 @@ func toolNamingContract(
 		ResourceScope: scope,
 		Profiles:      []tooling.ToolProfile{tooling.ToolProfileRun},
 		PlanPolicy:    tooling.PlanPolicyNone,
-		FactPolicy:    tooling.FactPolicyAuto,
 		Loading:       loading,
-		Execution: tooling.ToolExecutionPolicy{
-			ParallelPolicy: tooling.ParallelPolicyReadOnly,
-			SideEffects:    []tooling.ToolSideEffect{tooling.ToolSideEffectIntegration},
-		},
-		Result:     tooling.InlineResultPolicy(0),
-		Boundary:   tooling.ToolResultBoundaryPolicy(),
-		Projection: tooling.ActivityProjectionPolicy(),
+		Execution:     tooling.ToolExecutionPolicy{ParallelPolicy: tooling.ParallelPolicyReadOnly},
 	}
 }

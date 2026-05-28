@@ -25,7 +25,9 @@ func StreamItemsFromAgentEvent(event *adk.AgentEvent, chatModel einomodel.BaseCh
 			items = append(items, StreamItem{
 				Kind:      StreamKindAssistantMessage,
 				CreatedAt: createdAt,
-				Payload:   &AssistantMessagePayload{Message: StreamMessageFromSchema(message, activeProviderName(chatModel))},
+				Payload: map[string]any{
+					"message": StreamMessageFromSchema(message, activeProviderName(chatModel)),
+				},
 			})
 		}
 	}
@@ -33,14 +35,18 @@ func StreamItemsFromAgentEvent(event *adk.AgentEvent, chatModel einomodel.BaseCh
 		items = append(items, StreamItem{
 			Kind:      StreamKindRunInterrupted,
 			CreatedAt: createdAt,
-			Payload:   &RunInterruptedPayload{Interrupt: streamInterruptFromInfo(event.Action.Interrupted)},
+			Payload: map[string]any{
+				"interrupt": streamInterruptFromInfo(event.Action.Interrupted),
+			},
 		})
 	}
 	if event.Err != nil {
 		items = append(items, StreamItem{
 			Kind:      StreamKindRunFailed,
 			CreatedAt: createdAt,
-			Payload:   &RunFailedPayload{Error: event.Err.Error()},
+			Payload: map[string]any{
+				"error": event.Err.Error(),
+			},
 		})
 	}
 	return items

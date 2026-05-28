@@ -2,7 +2,7 @@ package decision
 
 import "time"
 
-type Action string
+type Action = string
 
 const (
 	ActionExecuteWithSkill    Action = "execute_with_skill"
@@ -14,13 +14,13 @@ const (
 )
 
 type Defaults struct {
-	MissingContext            Action `yaml:"missing_context" json:"missing_context"`
-	MissingRequiredCapability Action `yaml:"missing_required_capability" json:"missing_required_capability"`
+	MissingContext            string `yaml:"missing_context" json:"missing_context"`
+	MissingRequiredCapability string `yaml:"missing_required_capability" json:"missing_required_capability"`
 }
 
 type Route struct {
 	Intent  string `yaml:"intent" json:"intent"`
-	Action  Action `yaml:"action" json:"action"`
+	Action  string `yaml:"action" json:"action"`
 	SkillID string `yaml:"skill_id,omitempty" json:"skill_id,omitempty"`
 }
 
@@ -32,7 +32,7 @@ type Profile struct {
 type Record struct {
 	RunID               string    `json:"run_id"`
 	SessionID           string    `json:"session_id,omitempty"`
-	Action              Action    `json:"action"`
+	Action              string    `json:"action"`
 	Intent              string    `json:"intent"`
 	SelectedSkillID     string    `json:"selected_skill_id,omitempty"`
 	DecisionReason      string    `json:"decision_reason"`

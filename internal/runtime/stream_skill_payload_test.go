@@ -10,7 +10,7 @@ func TestProjectStreamItemToEventProjectsSkillPayload(t *testing.T) {
 	kind, payload := mustProjectStreamItemToEvent(t, stream.StreamItem{
 		RunID: "run_5",
 		Kind:  stream.StreamKindSkillSelected,
-		Payload: &stream.SkillSelectedPayload{Skill: &stream.StreamSkill{
+		Payload: map[string]any{"skill": &stream.StreamSkill{
 			SelectedID:   "skill.inspect.repo",
 			Name:         "Inspect Repo",
 			Source:       "workspace",
@@ -25,18 +25,18 @@ func TestProjectStreamItemToEventProjectsSkillPayload(t *testing.T) {
 		t.Fatalf("kind = %q, want skill.selected", kind)
 	}
 	body := payload.(map[string]any)
-	skillBody, ok := body["skill"].(map[string]any)
-	if !ok {
+	skill := stream.StreamItem{Payload: body}.GetSkill()
+	if skill == nil {
 		t.Fatalf("unexpected payload: %#v", body)
 	}
-	if skillBody["selected_id"] != "skill.inspect.repo" {
-		t.Fatalf("unexpected selected_id: %#v", skillBody)
+	if skill.SelectedID != "skill.inspect.repo" {
+		t.Fatalf("unexpected selected_id: %#v", skill)
 	}
-	if skillBody["name"] != "Inspect Repo" || skillBody["source"] != "workspace" || skillBody["instruction"] != "Read README.md first." {
-		t.Fatalf("unexpected metadata payload: %#v", skillBody)
+	if skill.Name != "Inspect Repo" || skill.Source != "workspace" || skill.Instruction != "Read README.md first." {
+		t.Fatalf("unexpected metadata payload: %#v", skill)
 	}
-	if skillBody["path"] != "/tmp/skills/inspect_repo" {
-		t.Fatalf("unexpected skill path payload: %#v", skillBody)
+	if skill.Path != "/tmp/skills/inspect_repo" {
+		t.Fatalf("unexpected skill path payload: %#v", skill)
 	}
 }
 
@@ -44,7 +44,7 @@ func TestProjectStreamItemToEventProjectsNoSelectionReason(t *testing.T) {
 	kind, payload := mustProjectStreamItemToEvent(t, stream.StreamItem{
 		RunID: "run_5b",
 		Kind:  stream.StreamKindSkillDiscovered,
-		Payload: &stream.SkillDiscoveredPayload{Skill: &stream.StreamSkill{
+		Payload: map[string]any{"skill": &stream.StreamSkill{
 			NoSelectionReason: "no_eligible_match",
 			Candidates: []stream.StreamSkillCandidate{
 				{ID: "skill.inspect.repo", FilteredReason: "missing_required_tools:read_file"},
@@ -55,13 +55,17 @@ func TestProjectStreamItemToEventProjectsNoSelectionReason(t *testing.T) {
 		t.Fatalf("kind = %q, want skill.discovered", kind)
 	}
 	body := payload.(map[string]any)
-	skillBody := body["skill"].(map[string]any)
-	if got, want := skillBody["no_selection_reason"], "no_eligible_match"; got != want {
+	skill := stream.StreamItem{Payload: body}.GetSkill()
+	if skill == nil {
+		t.Fatalf("unexpected payload: %#v", body)
+	}
+	if got, want := skill.NoSelectionReason, "no_eligible_match"; got != want {
 		t.Fatalf("no_selection_reason = %#v, want %#v", got, want)
 	}
-	candidates := skillBody["candidates"].([]any)
-	c0 := candidates[0].(map[string]any)
-	if got, want := c0["filtered_reason"], "missing_required_tools:read_file"; got != want {
+	if len(skill.Candidates) != 1 {
+		t.Fatalf("candidates count = %d, want 1", len(skill.Candidates))
+	}
+	if got, want := skill.Candidates[0].FilteredReason, "missing_required_tools:read_file"; got != want {
 		t.Fatalf("filtered_reason = %#v, want %#v", got, want)
 	}
 }
@@ -70,7 +74,7 @@ func TestProjectStreamItemToEventProjectsSkillFailureReason(t *testing.T) {
 	kind, payload := mustProjectStreamItemToEvent(t, stream.StreamItem{
 		RunID: "run_6",
 		Kind:  stream.StreamKindSkillFailed,
-		Payload: &stream.SkillFailedPayload{Skill: &stream.StreamSkill{
+		Payload: map[string]any{"skill": &stream.StreamSkill{
 			SelectedID:    "skill.inspect.repo",
 			FailureReason: "missing_output_term:entrypoint",
 		}},
@@ -79,12 +83,12 @@ func TestProjectStreamItemToEventProjectsSkillFailureReason(t *testing.T) {
 		t.Fatalf("kind = %q, want skill.failed", kind)
 	}
 	body := payload.(map[string]any)
-	skillBody, ok := body["skill"].(map[string]any)
-	if !ok {
+	skill := stream.StreamItem{Payload: body}.GetSkill()
+	if skill == nil {
 		t.Fatalf("unexpected payload: %#v", body)
 	}
-	if skillBody["failure_reason"] != "missing_output_term:entrypoint" {
-		t.Fatalf("unexpected failure_reason: %#v", skillBody)
+	if skill.FailureReason != "missing_output_term:entrypoint" {
+		t.Fatalf("unexpected failure_reason: %#v", skill)
 	}
 }
 
@@ -92,7 +96,7 @@ func TestProjectStreamItemToEventProjectsSkillLifecycle(t *testing.T) {
 	kind, payload := mustProjectStreamItemToEvent(t, stream.StreamItem{
 		RunID: "run_7",
 		Kind:  stream.StreamKindSkillLifecycle,
-		Payload: &stream.SkillLifecyclePayload{SkillLifecycle: &stream.StreamSkillLifecycle{
+		Payload: map[string]any{"skill_lifecycle": &stream.StreamSkillLifecycle{
 			SkillID:         "skill.generated",
 			Action:          "assessed",
 			Status:          "verified",
@@ -109,22 +113,22 @@ func TestProjectStreamItemToEventProjectsSkillLifecycle(t *testing.T) {
 		t.Fatalf("kind = %q, want skill.lifecycle", kind)
 	}
 	body := payload.(map[string]any)
-	lifecycleBody, ok := body["skill_lifecycle"].(map[string]any)
-	if !ok {
+	lifecycle := stream.StreamItem{Payload: body}.GetSkillLifecycle()
+	if lifecycle == nil {
 		t.Fatalf("unexpected payload: %#v", body)
 	}
-	if lifecycleBody["skill_id"] != "skill.generated" || lifecycleBody["action"] != "assessed" {
-		t.Fatalf("unexpected lifecycle payload: %#v", lifecycleBody)
+	if lifecycle.SkillID != "skill.generated" || lifecycle.Action != "assessed" {
+		t.Fatalf("unexpected lifecycle payload: %#v", lifecycle)
 	}
 }
 
 func TestSummarizeStreamItemsCountsCurrentSkillEvents(t *testing.T) {
 	items := []stream.StreamItem{
-		{Kind: stream.StreamKindSkillDiscovered, Payload: &stream.SkillDiscoveredPayload{Skill: &stream.StreamSkill{SelectedID: "s1"}}},
-		{Kind: stream.StreamKindSkillSelected, Payload: &stream.SkillSelectedPayload{Skill: &stream.StreamSkill{SelectedID: "s1"}}},
-		{Kind: stream.StreamKindSkillLoaded, Payload: &stream.SkillLoadedPayload{Skill: &stream.StreamSkill{SelectedID: "s1"}}},
-		{Kind: stream.StreamKindSkillFailed, Payload: &stream.SkillFailedPayload{Skill: &stream.StreamSkill{SelectedID: "s1"}}},
-		{Kind: stream.StreamKindSkillLifecycle, Payload: &stream.SkillLifecyclePayload{SkillLifecycle: &stream.StreamSkillLifecycle{SkillID: "s1", Action: "assessed"}}},
+		{Kind: stream.StreamKindSkillDiscovered, Payload: map[string]any{"skill": &stream.StreamSkill{SelectedID: "s1"}}},
+		{Kind: stream.StreamKindSkillSelected, Payload: map[string]any{"skill": &stream.StreamSkill{SelectedID: "s1"}}},
+		{Kind: stream.StreamKindSkillLoaded, Payload: map[string]any{"skill": &stream.StreamSkill{SelectedID: "s1"}}},
+		{Kind: stream.StreamKindSkillFailed, Payload: map[string]any{"skill": &stream.StreamSkill{SelectedID: "s1"}}},
+		{Kind: stream.StreamKindSkillLifecycle, Payload: map[string]any{"skill_lifecycle": &stream.StreamSkillLifecycle{SkillID: "s1", Action: "assessed"}}},
 	}
 	summary := SummarizeStreamItems(items)
 	if summary.SkillEventCount != 5 {

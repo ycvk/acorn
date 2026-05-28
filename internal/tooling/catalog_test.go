@@ -89,11 +89,7 @@ func TestNewCatalogRejectsIncompleteContract(t *testing.T) {
 			ResourceScope: ResourceScopeWorkspaceFile,
 			Profiles:      []ToolProfile{ToolProfileRun},
 			PlanPolicy:    PlanPolicyNone,
-			FactPolicy:    FactPolicyAuto,
 			Loading:       EagerLoadingPolicy(),
-			Result:        InlineResultPolicy(0),
-			Boundary:      ToolResultBoundaryPolicy(),
-			Projection:    ActivityProjectionPolicy(),
 		},
 		Tool: tool,
 	}})
@@ -135,12 +131,8 @@ func testToolContract(name string, source string, parallel ParallelPolicy) ToolC
 		ResourceScope: ResourceScopeWorkspaceFile,
 		Profiles:      []ToolProfile{ToolProfileRun},
 		PlanPolicy:    PlanPolicyNone,
-		FactPolicy:    FactPolicyAuto,
 		Loading:       EagerLoadingPolicy(),
 		Execution:     execution,
-		Result:        InlineResultPolicy(0),
-		Boundary:      ToolResultBoundaryPolicy(),
-		Projection:    ActivityProjectionPolicy(),
 	}
 }
 

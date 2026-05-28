@@ -62,7 +62,6 @@ type SystemToolCapability struct {
 	HealthReason   string   `json:"health_reason,omitempty"`
 	ParallelPolicy string   `json:"parallel_policy,omitempty"`
 	PlanPolicy     string   `json:"plan_policy,omitempty"`
-	FactPolicy     string   `json:"fact_policy,omitempty"`
 	Risk           string   `json:"risk"`
 	RootDir        string   `json:"root_dir,omitempty"`
 	WorkDir        string   `json:"work_dir,omitempty"`
@@ -239,7 +238,6 @@ func (s *CapabilitiesService) snapshotTools(ctx context.Context, providers []Sys
 				HealthReason:   strings.TrimSpace(provider.Error),
 				ParallelPolicy: parallelPolicy,
 				PlanPolicy:     string(tooling.PlanPolicyNone),
-				FactPolicy:     string(tooling.FactPolicyAuto),
 				Risk:           "integration",
 			})
 		}
@@ -277,7 +275,6 @@ func toolCapabilityFromSpec(spec tooling.ToolSpec, workspaceRoot string, runComm
 		HealthReason:   spec.Health.Reason,
 		ParallelPolicy: string(spec.Execution.ParallelPolicy),
 		PlanPolicy:     string(spec.PlanPolicy),
-		FactPolicy:     string(spec.FactPolicy),
 		Risk:           toolRisk(spec),
 	}
 	switch spec.ResourceScope {

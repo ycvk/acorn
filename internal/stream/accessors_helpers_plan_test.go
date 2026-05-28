@@ -43,42 +43,42 @@ func TestAccessors(t *testing.T) {
 	}{
 		{
 			name:        "assistant_message",
-			item:        StreamItem{Payload: &AssistantMessagePayload{Message: &StreamMessage{Role: "assistant", Content: "hi"}}},
+			item:        StreamItem{Payload: map[string]any{"message": &StreamMessage{Role: "assistant", Content: "hi"}}},
 			wantMessage: true,
 		},
 		{
 			name:        "run_completed",
-			item:        StreamItem{Payload: &RunCompletedPayload{Message: &StreamMessage{Role: "assistant", Content: "done"}}},
+			item:        StreamItem{Payload: map[string]any{"message": &StreamMessage{Role: "assistant", Content: "done"}}},
 			wantMessage: true,
 		},
 		{
 			name:      "assistant_delta",
-			item:      StreamItem{Payload: &AssistantDeltaPayload{AssistantDelta: &StreamAssistantDelta{Delta: "delta"}}},
+			item:      StreamItem{Payload: map[string]any{"assistant_delta": &StreamAssistantDelta{Delta: "delta"}}},
 			wantDelta: true,
 		},
 		{
 			name:     "tool_call_started",
-			item:     StreamItem{Payload: &ToolCallStartedPayload{ToolCall: &StreamToolCall{Name: "t1"}}},
+			item:     StreamItem{Payload: map[string]any{"tool_call": &StreamToolCall{Name: "t1"}}},
 			wantTool: true,
 		},
 		{
 			name:     "tool_call_succeeded",
-			item:     StreamItem{Payload: &ToolCallSucceededPayload{ToolCall: &StreamToolCall{Name: "t1"}}},
+			item:     StreamItem{Payload: map[string]any{"tool_call": &StreamToolCall{Name: "t1"}}},
 			wantTool: true,
 		},
 		{
 			name:      "skill_discovered",
-			item:      StreamItem{Payload: &SkillDiscoveredPayload{Skill: &StreamSkill{SelectedID: "s1"}}},
+			item:      StreamItem{Payload: map[string]any{"skill": &StreamSkill{SelectedID: "s1"}}},
 			wantSkill: true,
 		},
 		{
 			name:          "run_interrupted",
-			item:          StreamItem{Payload: &RunInterruptedPayload{Interrupt: &StreamInterrupt{ContextCount: 1}}},
+			item:          StreamItem{Payload: map[string]any{"interrupt": &StreamInterrupt{ContextCount: 1}}},
 			wantInterrupt: true,
 		},
 		{
 			name:       "memory_prepared",
-			item:       StreamItem{Payload: &MemoryPreparedPayload{MemoryPrepared: &StreamMemoryPrepared{Query: "ok"}}},
+			item:       StreamItem{Payload: map[string]any{"memory_prepared": &StreamMemoryPrepared{Query: "ok"}}},
 			wantMemory: true,
 		},
 		{
@@ -278,5 +278,25 @@ func TestStreamStepPayloadFromPlan(t *testing.T) {
 	}
 	if payload.Step == nil || payload.Step.ID != "step1" {
 		t.Fatal("step not set")
+	}
+}
+
+func TestPlanStepPayloadToMap(t *testing.T) {
+	now := time.Now()
+	plan := &model.Plan{PlanID: "p1", SessionID: "s1", RunID: "r1", UpdatedAt: now}
+	step := model.PlanStep{ID: "step1", Action: "read"}
+	p := StreamStepPayloadFromPlan(plan, step)
+	m := PlanStepPayloadToMap(p)
+	if m["plan_id"] != "p1" {
+		t.Fatalf("plan_id = %v", m["plan_id"])
+	}
+	if m["session_id"] != "s1" {
+		t.Fatalf("session_id = %v", m["session_id"])
+	}
+	if m["run_id"] != "r1" {
+		t.Fatalf("run_id = %v", m["run_id"])
+	}
+	if m["step"] == nil {
+		t.Fatal("step missing")
 	}
 }

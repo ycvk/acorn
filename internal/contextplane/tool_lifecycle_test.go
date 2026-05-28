@@ -58,12 +58,8 @@ func lifecycleToolContract(name string, source string, kind tooling.ToolKind, lo
 		ResourceScope: tooling.ResourceScopeWorkspaceFile,
 		Profiles:      []tooling.ToolProfile{tooling.ToolProfileRun},
 		PlanPolicy:    tooling.PlanPolicyNone,
-		FactPolicy:    tooling.FactPolicyAuto,
 		Loading:       loading,
 		Execution:     tooling.ToolExecutionPolicy{ParallelPolicy: tooling.ParallelPolicyReadOnly},
-		Result:        tooling.InlineResultPolicy(0),
-		Boundary:      tooling.ToolResultBoundaryPolicy(),
-		Projection:    tooling.ActivityProjectionPolicy(),
 	}
 }
 

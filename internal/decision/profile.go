@@ -146,7 +146,7 @@ func RenderProfileMarkdown(profile Profile) (string, error) {
 }
 
 func validateProfile(profile Profile) error {
-	validAction := map[Action]struct{}{
+	validAction := map[string]struct{}{
 		ActionExecuteWithSkill:    {},
 		ActionInspectFirst:        {},
 		ActionExecuteWithoutSkill: {},
@@ -154,7 +154,7 @@ func validateProfile(profile Profile) error {
 		ActionAskUser:             {},
 		ActionBlock:               {},
 	}
-	for _, action := range []Action{
+	for _, action := range []string{
 		profile.Defaults.MissingContext,
 		profile.Defaults.MissingRequiredCapability,
 	} {

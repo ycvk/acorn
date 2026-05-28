@@ -181,12 +181,12 @@ func (h *ElicitationHandler) emitElicitationEvent(ctx context.Context, runID, ac
 	if h.store == nil {
 		return fmt.Errorf("elicitation event store not configured")
 	}
-	payload := stream.ElicitationPayload{
-		ActionID: actionID,
+	payload := map[string]any{
+		"action_id": actionID,
 	}
 	if params != nil {
-		payload.Message = params.Message
-		payload.RequestedSchema = params.RequestedSchema
+		payload["message"] = params.Message
+		payload["requested_schema"] = params.RequestedSchema
 	}
 
 	_, err := h.store.AppendEventContext(ctx, runID, eventKind, payload)

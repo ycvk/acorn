@@ -1,140 +1,476 @@
 package stream
 
-import "github.com/ycvk/acorn/internal/model"
+import (
+	"encoding/json"
 
-// --- Typed accessor methods ---
+	"github.com/ycvk/acorn/internal/model"
+)
+
+func getPayloadMap(item StreamItem) map[string]any {
+	if item.Payload == nil {
+		return nil
+	}
+	return item.Payload
+}
+
+func getNestedMap(m map[string]any, key string) map[string]any {
+	if m == nil {
+		return nil
+	}
+	v, ok := m[key].(map[string]any)
+	if !ok {
+		return nil
+	}
+	return v
+}
+
+func getString(m map[string]any, key string) string {
+	if m == nil {
+		return ""
+	}
+	v, ok := m[key].(string)
+	if !ok {
+		return ""
+	}
+	return v
+}
+
+func getFloat64(m map[string]any, key string) float64 {
+	if m == nil {
+		return 0
+	}
+	switch v := m[key].(type) {
+	case float64:
+		return v
+	case int:
+		return float64(v)
+	case int64:
+		return float64(v)
+	}
+	return 0
+}
+
+func getInt(m map[string]any, key string) int {
+	if m == nil {
+		return 0
+	}
+	switch v := m[key].(type) {
+	case int:
+		return v
+	case float64:
+		return int(v)
+	case int64:
+		return int(v)
+	}
+	return 0
+}
+
+func getInt64(m map[string]any, key string) int64 {
+	if m == nil {
+		return 0
+	}
+	switch v := m[key].(type) {
+	case int64:
+		return v
+	case int:
+		return int64(v)
+	case float64:
+		return int64(v)
+	}
+	return 0
+}
+
+func getBool(m map[string]any, key string) bool {
+	if m == nil {
+		return false
+	}
+	v, ok := m[key].(bool)
+	if !ok {
+		return false
+	}
+	return v
+}
+
+func getStringSlice(m map[string]any, key string) []string {
+	if m == nil {
+		return nil
+	}
+	v, ok := m[key].([]any)
+	if !ok {
+		return nil
+	}
+	out := make([]string, 0, len(v))
+	for _, item := range v {
+		if s, ok := item.(string); ok {
+			out = append(out, s)
+		}
+	}
+	return out
+}
 
 func (item StreamItem) GetMessage() *StreamMessage {
-	switch p := item.Payload.(type) {
-	case *AssistantMessagePayload:
-		return p.Message
-	case *RunCompletedPayload:
-		return p.Message
-	default:
+	m := getPayloadMap(item)
+	if msg, ok := m["message"].(*StreamMessage); ok && msg != nil {
+		return msg
+	}
+	msgMap := getNestedMap(m, "message")
+	if msgMap == nil {
 		return nil
+	}
+	return &StreamMessage{
+		Role:       getString(msgMap, "role"),
+		Content:    getString(msgMap, "content"),
+		Reasoning:  getString(msgMap, "reasoning"),
+		ToolCallID: getString(msgMap, "tool_call_id"),
+		ToolName:   getString(msgMap, "tool_name"),
 	}
 }
 
 func (item StreamItem) GetAssistantDelta() *StreamAssistantDelta {
-	if p, ok := item.Payload.(*AssistantDeltaPayload); ok {
-		return p.AssistantDelta
+	m := getPayloadMap(item)
+	if delta, ok := m["assistant_delta"].(*StreamAssistantDelta); ok && delta != nil {
+		return delta
 	}
-	return nil
+	deltaMap := getNestedMap(m, "assistant_delta")
+	if deltaMap == nil {
+		return nil
+	}
+	return &StreamAssistantDelta{
+		Role:      getString(deltaMap, "role"),
+		Delta:     getString(deltaMap, "delta"),
+		Reasoning: getString(deltaMap, "reasoning"),
+		Sequence:  getInt(deltaMap, "sequence"),
+		MessageID: getString(deltaMap, "message_id"),
+		IsFinal:   getBool(deltaMap, "is_final"),
+		Meta:      getNestedMap(deltaMap, "meta"),
+	}
 }
 
 func (item StreamItem) GetToolCall() *StreamToolCall {
-	switch p := item.Payload.(type) {
-	case *ToolCallStartedPayload:
-		return p.ToolCall
-	case *ToolCallSucceededPayload:
-		return p.ToolCall
-	case *ToolCallFailedPayload:
-		return p.ToolCall
-	case *ToolCallInterruptedPayload:
-		return p.ToolCall
-	default:
+	m := getPayloadMap(item)
+	if call, ok := m["tool_call"].(*StreamToolCall); ok && call != nil {
+		return call
+	}
+	callMap := getNestedMap(m, "tool_call")
+	if callMap == nil {
 		return nil
+	}
+	return &StreamToolCall{
+		Provider:          getString(callMap, "provider"),
+		Name:              getString(callMap, "name"),
+		CallID:            getString(callMap, "call_id"),
+		ArgumentsJSON:     getString(callMap, "arguments_json"),
+		InterruptID:       getString(callMap, "interrupt_id"),
+		Output:            getString(callMap, "output"),
+		Error:             getString(callMap, "error"),
+		DurationMS:        getInt64(callMap, "duration_ms"),
+		InterruptContexts: getInt(callMap, "interrupt_contexts"),
 	}
 }
 
 func (item StreamItem) GetToolCallProgress() *StreamToolCallProgress {
-	if p, ok := item.Payload.(*ToolCallProgressPayload); ok {
-		return p.ToolCall
+	m := getPayloadMap(item)
+	if call, ok := m["tool_call"].(*StreamToolCallProgress); ok && call != nil {
+		return call
 	}
-	return nil
+	callMap := getNestedMap(m, "tool_call")
+	if callMap == nil {
+		return nil
+	}
+	return &StreamToolCallProgress{
+		Provider:      getString(callMap, "provider"),
+		Name:          getString(callMap, "name"),
+		CallID:        getString(callMap, "call_id"),
+		ArgumentsJSON: getString(callMap, "arguments_json"),
+		Delta:         getString(callMap, "delta"),
+		Sequence:      getInt(callMap, "sequence"),
+	}
 }
 
 func (item StreamItem) GetInterrupt() *StreamInterrupt {
-	if p, ok := item.Payload.(*RunInterruptedPayload); ok {
-		return p.Interrupt
+	m := getPayloadMap(item)
+	if interrupt, ok := m["interrupt"].(*StreamInterrupt); ok && interrupt != nil {
+		return interrupt
 	}
-	return nil
+	interruptMap := getNestedMap(m, "interrupt")
+	if interruptMap == nil {
+		return nil
+	}
+	interrupt := &StreamInterrupt{
+		ContextCount: getInt(interruptMap, "context_count"),
+	}
+	contextsRaw, ok := interruptMap["contexts"].([]any)
+	if ok {
+		interrupt.Contexts = make([]StreamInterruptContext, 0, len(contextsRaw))
+		for _, ctxRaw := range contextsRaw {
+			ctxMap, ok := ctxRaw.(map[string]any)
+			if !ok {
+				continue
+			}
+			interrupt.Contexts = append(interrupt.Contexts, StreamInterruptContext{
+				ID:          getString(ctxMap, "id"),
+				Address:     getString(ctxMap, "address"),
+				Info:        compactInterruptInfo(ctxMap["info"]),
+				IsRootCause: getBool(ctxMap, "is_root_cause"),
+			})
+		}
+	}
+	return interrupt
 }
 
 func (item StreamItem) GetSkill() *StreamSkill {
-	switch p := item.Payload.(type) {
-	case *SkillDiscoveredPayload:
-		return p.Skill
-	case *SkillSelectedPayload:
-		return p.Skill
-	case *SkillLoadedPayload:
-		return p.Skill
-	case *SkillFailedPayload:
-		return p.Skill
-	default:
+	m := getPayloadMap(item)
+	if skill, ok := m["skill"].(*StreamSkill); ok && skill != nil {
+		return skill
+	}
+	skillMap := getNestedMap(m, "skill")
+	if skillMap == nil {
 		return nil
 	}
+	skill := &StreamSkill{
+		SelectedID:        getString(skillMap, "selected_id"),
+		Name:              getString(skillMap, "name"),
+		Source:            getString(skillMap, "source"),
+		Origin:            getString(skillMap, "origin"),
+		TaskPattern:       getString(skillMap, "task_pattern"),
+		Path:              getString(skillMap, "path"),
+		NoSelectionReason: getString(skillMap, "no_selection_reason"),
+		Summary:           getString(skillMap, "summary"),
+		Instruction:       getString(skillMap, "instruction"),
+		Scripts:           getStringSlice(skillMap, "scripts"),
+		Score:             getInt(skillMap, "score"),
+		RunStatus:         getString(skillMap, "run_status"),
+		PromotedFrom:      getString(skillMap, "promoted_from"),
+		FailureReason:     getString(skillMap, "failure_reason"),
+		MatchedTerms:      getStringSlice(skillMap, "matched_terms"),
+	}
+	reqMap := getNestedMap(skillMap, "requirements")
+	if reqMap != nil {
+		skill.Requirements = StreamSkillRequirements{
+			Tools:    getStringSlice(reqMap, "tools"),
+			Toolsets: getStringSlice(reqMap, "toolsets"),
+			Bins:     getStringSlice(reqMap, "bins"),
+			Env:      getStringSlice(reqMap, "env"),
+		}
+	}
+	candidatesRaw, ok := skillMap["candidates"].([]any)
+	if ok {
+		skill.Candidates = make([]StreamSkillCandidate, 0, len(candidatesRaw))
+		for _, candRaw := range candidatesRaw {
+			candMap, ok := candRaw.(map[string]any)
+			if !ok {
+				continue
+			}
+			candidate := StreamSkillCandidate{
+				ID:             getString(candMap, "id"),
+				Name:           getString(candMap, "name"),
+				Score:          getInt(candMap, "score"),
+				FilteredReason: getString(candMap, "filtered_reason"),
+				Summary:        getString(candMap, "summary"),
+				Origin:         getString(candMap, "origin"),
+				TaskPattern:    getString(candMap, "task_pattern"),
+				MatchedTerms:   getStringSlice(candMap, "matched_terms"),
+			}
+			reqMap := getNestedMap(candMap, "requirements")
+			if reqMap != nil {
+				candidate.Requirements = StreamSkillRequirements{
+					Tools:    getStringSlice(reqMap, "tools"),
+					Toolsets: getStringSlice(reqMap, "toolsets"),
+					Bins:     getStringSlice(reqMap, "bins"),
+					Env:      getStringSlice(reqMap, "env"),
+				}
+			}
+			skill.Candidates = append(skill.Candidates, candidate)
+		}
+	}
+	return skill
 }
 
 func (item StreamItem) GetSkillLifecycle() *StreamSkillLifecycle {
-	if p, ok := item.Payload.(*SkillLifecyclePayload); ok {
-		return p.SkillLifecycle
+	m := getPayloadMap(item)
+	if lc, ok := m["skill_lifecycle"].(*StreamSkillLifecycle); ok && lc != nil {
+		return lc
 	}
-	return nil
+	lcMap := getNestedMap(m, "skill_lifecycle")
+	if lcMap == nil {
+		return nil
+	}
+	return &StreamSkillLifecycle{
+		SkillID:         getString(lcMap, "skill_id"),
+		Action:          getString(lcMap, "action"),
+		Status:          getString(lcMap, "status"),
+		Verdict:         getString(lcMap, "verdict"),
+		Reason:          getString(lcMap, "reason"),
+		EvidenceRefs:    getStringSlice(lcMap, "evidence_refs"),
+		AssessmentID:    getString(lcMap, "assessment_id"),
+		ChangesRequired: getStringSlice(lcMap, "changes_required"),
+		Applied:         getBool(lcMap, "applied"),
+		Assessment:      getNestedMap(lcMap, "assessment"),
+	}
 }
 
 func (item StreamItem) GetMemoryPrepared() *StreamMemoryPrepared {
-	if p, ok := item.Payload.(*MemoryPreparedPayload); ok {
-		return p.MemoryPrepared
+	m := getPayloadMap(item)
+	if mem, ok := m["memory_prepared"].(*StreamMemoryPrepared); ok && mem != nil {
+		return mem
 	}
-	return nil
+	memMap := getNestedMap(m, "memory_prepared")
+	if memMap == nil {
+		return nil
+	}
+	mem := &StreamMemoryPrepared{
+		Query:          getString(memMap, "query"),
+		WorkspaceScope: getString(memMap, "workspace_scope"),
+		NudgeCount:     getInt(memMap, "nudge_count"),
+		EntryCount:     getInt(memMap, "entry_count"),
+	}
+	nudgesRaw, ok := memMap["nudges"].([]any)
+	if ok {
+		mem.Nudges = make([]StreamMemoryPreparedNudge, 0, len(nudgesRaw))
+		for _, nudgeRaw := range nudgesRaw {
+			nudgeMap, ok := nudgeRaw.(map[string]any)
+			if !ok {
+				continue
+			}
+			mem.Nudges = append(mem.Nudges, StreamMemoryPreparedNudge{
+				Ref:    getString(nudgeMap, "ref"),
+				Kind:   getString(nudgeMap, "kind"),
+				Title:  getString(nudgeMap, "title"),
+				Status: getString(nudgeMap, "status"),
+				Reason: getString(nudgeMap, "reason"),
+			})
+		}
+	}
+	entriesRaw, ok := memMap["entries"].([]any)
+	if ok {
+		mem.Entries = make([]StreamMemoryPreparedEntry, 0, len(entriesRaw))
+		for _, entryRaw := range entriesRaw {
+			entryMap, ok := entryRaw.(map[string]any)
+			if !ok {
+				continue
+			}
+			mem.Entries = append(mem.Entries, StreamMemoryPreparedEntry{
+				Ref:   getString(entryMap, "ref"),
+				Kind:  getString(entryMap, "kind"),
+				Title: getString(entryMap, "title"),
+			})
+		}
+	}
+	return mem
 }
 
 func (item StreamItem) GetProcedureActivation() *StreamProcedureActivation {
-	if p, ok := item.Payload.(*ProcedureActivationPayload); ok {
-		return p.ProcedureActivation
+	m := getPayloadMap(item)
+	if proc, ok := m["procedure_activation"].(*StreamProcedureActivation); ok && proc != nil {
+		return proc
 	}
-	return nil
+	procMap := getNestedMap(m, "procedure_activation")
+	if procMap == nil {
+		return nil
+	}
+	return &StreamProcedureActivation{
+		RunID:        getString(procMap, "run_id"),
+		SessionID:    getString(procMap, "session_id"),
+		ProcedureRef: getString(procMap, "procedure_ref"),
+		Title:        getString(procMap, "title"),
+		Kind:         getString(procMap, "kind"),
+		Phase:        getString(procMap, "phase"),
+		Reason:       getString(procMap, "reason"),
+		Score:        getFloat64(procMap, "score"),
+		Status:       getString(procMap, "status"),
+		Origin:       getString(procMap, "origin"),
+		SourceRefs:   getStringSlice(procMap, "source_refs"),
+		EvidenceRefs: getStringSlice(procMap, "evidence_refs"),
+	}
 }
 
 func (item StreamItem) GetContextCompressed() *StreamContextCompressed {
-	if p, ok := item.Payload.(*ContextCompressedPayload); ok {
-		return p.ContextCompressed
+	m := getPayloadMap(item)
+	if ctx, ok := m["context_compressed"].(*StreamContextCompressed); ok && ctx != nil {
+		return ctx
 	}
-	return nil
+	ctxMap := getNestedMap(m, "context_compressed")
+	if ctxMap == nil {
+		return nil
+	}
+	return &StreamContextCompressed{
+		BoundaryID:     getString(ctxMap, "boundary_id"),
+		FirstIndex:     getInt(ctxMap, "first_index"),
+		LastIndex:      getInt(ctxMap, "last_index"),
+		TokensBefore:   getInt(ctxMap, "tokens_before"),
+		TokensAfter:    getInt(ctxMap, "tokens_after"),
+		SummarySnippet: getString(ctxMap, "summary_snippet"),
+	}
 }
 
 func (item StreamItem) GetContextPressure() *StreamContextPressure {
-	if p, ok := item.Payload.(*ContextPressurePayload); ok {
-		return p.ContextPressure
+	m := getPayloadMap(item)
+	if ctx, ok := m["context_pressure"].(*StreamContextPressure); ok && ctx != nil {
+		return ctx
 	}
-	return nil
+	ctxMap := getNestedMap(m, "context_pressure")
+	if ctxMap == nil {
+		return nil
+	}
+	return &StreamContextPressure{
+		State:                      getString(ctxMap, "state"),
+		EstimatedInputTokens:       getInt(ctxMap, "estimated_input_tokens"),
+		EffectiveWindowTokens:      getInt(ctxMap, "effective_window_tokens"),
+		WarningThresholdTokens:     getInt(ctxMap, "warning_threshold_tokens"),
+		AutoCompactThresholdTokens: getInt(ctxMap, "auto_compact_threshold_tokens"),
+		BlockingThresholdTokens:    getInt(ctxMap, "blocking_threshold_tokens"),
+		PercentUsed:                getInt(ctxMap, "percent_used"),
+	}
 }
 
 func (item StreamItem) GetError() string {
-	if p, ok := item.Payload.(*RunFailedPayload); ok {
-		return p.Error
-	}
-	return ""
+	return getString(getPayloadMap(item), "error")
 }
 
 func (item StreamItem) GetInput() string {
-	if p, ok := item.Payload.(*RunStartedPayload); ok {
-		return p.Input
-	}
-	return ""
+	return getString(getPayloadMap(item), "input")
 }
 
 func (item StreamItem) GetTargets() map[string]any {
-	if p, ok := item.Payload.(*RunResumeRequestedPayload); ok {
-		return p.Targets
+	m := getPayloadMap(item)
+	if m == nil {
+		return nil
 	}
-	return nil
+	v, ok := m["targets"].(map[string]any)
+	if !ok {
+		return nil
+	}
+	return v
 }
 
 func (item StreamItem) GetPlan() *model.Plan {
-	switch p := item.Payload.(type) {
-	case *PlanCreatedPayload:
-		return p.Plan
-	case *PlanUpdatedPayload:
-		return p.Plan
-	case *PlanStepStartedPayload:
-		return p.Plan
-	case *PlanStepCompletedPayload:
-		return p.Plan
-	case *PlanStepFailedPayload:
-		return p.Plan
-	default:
+	m := getPayloadMap(item)
+	if m == nil {
 		return nil
 	}
+	return planFromValue(m["plan"])
+}
+
+func planFromValue(value any) *model.Plan {
+	if value == nil {
+		return nil
+	}
+	switch plan := value.(type) {
+	case *model.Plan:
+		return plan
+	case model.Plan:
+		return &plan
+	}
+	data, err := json.Marshal(value)
+	if err != nil {
+		return nil
+	}
+	var plan model.Plan
+	if err := json.Unmarshal(data, &plan); err != nil {
+		return nil
+	}
+	if plan.PlanID == "" && plan.SessionID == "" && plan.RunID == "" && len(plan.Steps) == 0 {
+		return nil
+	}
+	return &plan
 }

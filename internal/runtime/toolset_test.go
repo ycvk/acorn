@@ -39,15 +39,8 @@ func buildTestCatalog(t *testing.T, tools ...einotool.BaseTool) *tooling.Catalog
 				ResourceScope: tooling.ResourceScopeWorkspaceFile,
 				Profiles:      []tooling.ToolProfile{tooling.ToolProfileRun, tooling.ToolProfileServe},
 				PlanPolicy:    tooling.PlanPolicyNone,
-				FactPolicy:    tooling.FactPolicyAuto,
 				Loading:       tooling.EagerLoadingPolicy(),
-				Execution: tooling.ToolExecutionPolicy{
-					ParallelPolicy: tooling.ParallelPolicyReadOnly,
-					SideEffects:    []tooling.ToolSideEffect{tooling.ToolSideEffectReadWorkspace},
-				},
-				Result:     tooling.InlineResultPolicy(0),
-				Boundary:   tooling.ToolResultBoundaryPolicy(),
-				Projection: tooling.ActivityProjectionPolicy(),
+				Execution:     tooling.ToolExecutionPolicy{ParallelPolicy: tooling.ParallelPolicyReadOnly},
 			},
 			Tool: tool,
 		}

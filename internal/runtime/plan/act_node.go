@@ -468,7 +468,7 @@ func (n *ActNode) emitStepStarted(ctx context.Context, plan *model.Plan, step mo
 		RunID:     plan.RunID,
 		Kind:      stream.StreamKindStepStarted,
 		CreatedAt: plan.UpdatedAt,
-		Payload:   &stream.PlanStepStartedPayload{PlanStepPayload: streamStepPayloadFromPlan(plan, step)},
+		Payload:   stream.PlanStepPayloadToMap(streamStepPayloadFromPlan(plan, step)),
 	})
 	if err != nil {
 		return fmt.Errorf("append step.started event: %w", err)
@@ -484,7 +484,7 @@ func (n *ActNode) emitStepCompleted(ctx context.Context, plan *model.Plan, step 
 		RunID:     plan.RunID,
 		Kind:      stream.StreamKindStepCompleted,
 		CreatedAt: plan.UpdatedAt,
-		Payload:   &stream.PlanStepCompletedPayload{PlanStepPayload: streamStepPayloadFromPlan(plan, step)},
+		Payload:   stream.PlanStepPayloadToMap(streamStepPayloadFromPlan(plan, step)),
 	})
 	if err != nil {
 		return fmt.Errorf("append step.completed event: %w", err)
@@ -496,14 +496,13 @@ func (n *ActNode) emitStepFailed(ctx context.Context, plan *model.Plan, step mod
 	if n.eventStore == nil {
 		return nil
 	}
+	payload := stream.PlanStepPayloadToMap(streamStepPayloadFromPlan(plan, step))
+	payload["error"] = reason
 	_, err := stream.AppendStreamItem(ctx, n.eventStore, stream.StreamSinkFromContext(ctx), stream.StreamItem{
 		RunID:     plan.RunID,
 		Kind:      stream.StreamKindStepFailed,
 		CreatedAt: plan.UpdatedAt,
-		Payload: &stream.PlanStepFailedPayload{
-			PlanStepPayload: streamStepPayloadFromPlan(plan, step),
-			Error:           reason,
-		},
+		Payload:   payload,
 	})
 	if err != nil {
 		return fmt.Errorf("append step.failed event: %w", err)

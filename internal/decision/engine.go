@@ -33,17 +33,10 @@ func (e *Engine) Decide(ctx context.Context, input DecideInput) (*Record, error)
 			reason = "explicit_skill_unavailable"
 		}
 	} else if route := routeForIntent(e.profile.Routes, intent); route != nil {
-		if routedAction, routedSkillID, routedReason, ok := e.resolveProfileRoute(*route, input.AvailableSkills); ok {
+		if routedAction, routedSkillID, routedReason := e.resolveProfileRoute(*route, input.AvailableSkills); routedAction != "" {
 			action = routedAction
 			skillID = routedSkillID
 			reason = routedReason
-		} else if top, ok := topRecommendedSkill(input.AvailableSkills); ok {
-			action = ActionExecuteWithSkill
-			skillID = top.ID
-			reason = "top_skill_recommendation"
-		} else if !input.HasWorkingContext {
-			action = e.defaultMissingContextAction()
-			reason = "missing_context"
 		}
 	} else if top, ok := topRecommendedSkill(input.AvailableSkills); ok {
 		action = ActionExecuteWithSkill
@@ -64,30 +57,33 @@ func (e *Engine) Decide(ctx context.Context, input DecideInput) (*Record, error)
 	}, nil
 }
 
-func (e *Engine) resolveProfileRoute(route Route, skills []RecommendedSkill) (Action, string, string, bool) {
+func (e *Engine) resolveProfileRoute(route Route, skills []RecommendedSkill) (string, string, string) {
 	switch route.Action {
 	case ActionExecuteWithSkill:
 		skillID := strings.TrimSpace(route.SkillID)
 		if skillID == "" {
-			return ActionBlock, "", "profile_route_missing_skill", false
+			return ActionBlock, "", "profile_route_missing_skill"
 		}
 		if _, ok := eligibleSkillByID(skills, skillID); !ok {
-			return ActionBlock, "", "profile_route_skill_unavailable", false
+			if top, topOK := topRecommendedSkill(skills); topOK {
+				return ActionExecuteWithSkill, top.ID, "top_skill_recommendation"
+			}
+			return ActionBlock, "", "profile_route_skill_unavailable"
 		}
-		return ActionExecuteWithSkill, skillID, "profile_route", true
+		return ActionExecuteWithSkill, skillID, "profile_route"
 	default:
-		return route.Action, "", "profile_route", true
+		return route.Action, "", "profile_route"
 	}
 }
 
-func (e *Engine) defaultMissingContextAction() Action {
+func (e *Engine) defaultMissingContextAction() string {
 	if e != nil && e.profile.Defaults.MissingContext != "" {
 		return e.profile.Defaults.MissingContext
 	}
 	return ActionInspectFirst
 }
 
-func (e *Engine) defaultMissingCapabilityAction() Action {
+func (e *Engine) defaultMissingCapabilityAction() string {
 	if e != nil && e.profile.Defaults.MissingRequiredCapability != "" {
 		return e.profile.Defaults.MissingRequiredCapability
 	}

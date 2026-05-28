@@ -662,12 +662,8 @@ func directResponseCatalogForTest(t *testing.T, ctx context.Context, tool einoto
 			ResourceScope: tooling.ResourceScopeWorkspaceFile,
 			Profiles:      []tooling.ToolProfile{tooling.ToolProfileRun},
 			PlanPolicy:    tooling.PlanPolicyNone,
-			FactPolicy:    tooling.FactPolicyAuto,
 			Loading:       tooling.EagerLoadingPolicy(),
 			Execution:     tooling.ToolExecutionPolicy{ParallelPolicy: tooling.ParallelPolicyReadOnly},
-			Result:        tooling.InlineResultPolicy(0),
-			Boundary:      tooling.ToolResultBoundaryPolicy(),
-			Projection:    tooling.ActivityProjectionPolicy(),
 		},
 		Tool: tool,
 	}})

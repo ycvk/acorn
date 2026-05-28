@@ -261,7 +261,6 @@ func (c *ConverterImpl) appSystemToolCapabilityToWebCapabilitiesToolDTO(source a
 	webCapabilitiesToolDTO.HealthReason = source.HealthReason
 	webCapabilitiesToolDTO.ParallelPolicy = source.ParallelPolicy
 	webCapabilitiesToolDTO.PlanPolicy = source.PlanPolicy
-	webCapabilitiesToolDTO.FactPolicy = source.FactPolicy
 	webCapabilitiesToolDTO.Risk = source.Risk
 	webCapabilitiesToolDTO.RootDir = source.RootDir
 	webCapabilitiesToolDTO.WorkDir = source.WorkDir

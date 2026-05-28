@@ -21,7 +21,7 @@ func TestStreamItemMarshalUnmarshalRoundTrip(t *testing.T) {
 				Sequence:  1,
 				Kind:      StreamKindRunStarted,
 				CreatedAt: now,
-				Payload:   RunStartedPayload{Input: "hello"},
+				Payload:   map[string]any{"input": "hello"},
 			},
 			want: `"input":"hello"`,
 		},
@@ -32,8 +32,8 @@ func TestStreamItemMarshalUnmarshalRoundTrip(t *testing.T) {
 				Sequence:  5,
 				Kind:      StreamKindToolCallSucceeded,
 				CreatedAt: now,
-				Payload: ToolCallSucceededPayload{
-					ToolCall: &StreamToolCall{
+				Payload: map[string]any{
+					"tool_call": &StreamToolCall{
 						CallID: "call_1",
 						Name:   "test_tool",
 					},
@@ -45,10 +45,10 @@ func TestStreamItemMarshalUnmarshalRoundTrip(t *testing.T) {
 			name: "plain item without payload",
 			item: StreamItem{
 				RunID:     "run_2",
-				Kind:      StreamKindHeartbeat,
+				Kind:      StreamKindRunCompleted,
 				CreatedAt: now,
 			},
-			want: `"kind":"stream.heartbeat"`,
+			want: `"kind":"run_completed"`,
 		},
 	}
 
@@ -78,11 +78,6 @@ func TestStreamItemMarshalUnmarshalRoundTrip(t *testing.T) {
 			if got.Payload == nil && tc.item.Payload != nil {
 				t.Fatal("payload was lost")
 			}
-			if got.Payload != nil {
-				if got.Payload.StreamKind() != tc.item.Payload.StreamKind() {
-					t.Fatalf("payload kind: got %q, want %q", got.Payload.StreamKind(), tc.item.Payload.StreamKind())
-				}
-			}
 		})
 	}
 }
@@ -100,133 +95,6 @@ func TestStreamItemUnmarshalMissingKind(t *testing.T) {
 	var item StreamItem
 	if err := json.Unmarshal(data, &item); err == nil {
 		t.Fatal("expected error for missing kind")
-	}
-}
-
-func TestUnmarshalPayloadKnownKinds(t *testing.T) {
-	cases := []struct {
-		kind StreamItemKind
-		data string
-	}{
-		{StreamKindRunStarted, `{"input":"hello"}`},
-		{StreamKindRunCompleted, `{}`},
-		{StreamKindRunFailed, `{"error":"boom"}`},
-		{StreamKindDecisionSelected, `{"action":"plan"}`},
-		{StreamKindSkillDiscovered, `{}`},
-		{StreamKindSkillSelected, `{}`},
-		{StreamKindSkillLoaded, `{}`},
-		{StreamKindSkillFailed, `{}`},
-		{StreamKindSkillLifecycle, `{}`},
-		{StreamKindProcedureActivation, `{}`},
-		{StreamKindMemoryPrepared, `{}`},
-		{StreamKindContextPressure, `{}`},
-		{StreamKindContextCompressed, `{}`},
-		{StreamKindAssistantDelta, `{}`},
-		{StreamKindAssistantMessage, `{}`},
-		{StreamKindToolCallStarted, `{"call_id":"c1","tool_name":"t1"}`},
-		{StreamKindToolCallProgress, `{}`},
-		{StreamKindToolCallSucceeded, `{}`},
-		{StreamKindToolCallFailed, `{}`},
-		{StreamKindToolCallInterrupted, `{}`},
-		{StreamKindProviderDegraded, `{}`},
-		{StreamKindMCPToolCatalogRefreshed, `{}`},
-		{StreamKindMCPProviderAdded, `{}`},
-		{StreamKindMCPResourceCatalogRefreshed, `{}`},
-		{StreamKindMCPPromptCatalogRefreshed, `{}`},
-		{StreamKindMCPAuthStatusChanged, `{}`},
-		{StreamKindElicitationPending, `{"action_id":"a1"}`},
-		{StreamKindSamplingStarted, `{"run_id":"r1"}`},
-		{StreamKindSubagentStarted, `{}`},
-		{StreamKindSubagentCompleted, `{}`},
-		{StreamKindSubagentFailed, `{}`},
-		{StreamKindHeartbeat, `{}`},
-		{StreamKindToolParallelBatchStarted, `{}`},
-		{StreamKindToolParallelBatchCompleted, `{}`},
-		{StreamKindRunArchived, `{"run_id":"r1","events_compressed":0}`},
-		{StreamKindPlanCreated, `{}`},
-		{StreamKindPlanUpdated, `{}`},
-		{StreamKindPlanCleared, `{}`},
-		{StreamKindStepStarted, `{}`},
-		{StreamKindStepCompleted, `{}`},
-		{StreamKindStepFailed, `{}`},
-	}
-
-	for _, tc := range cases {
-		t.Run(string(tc.kind), func(t *testing.T) {
-			p, err := UnmarshalPayload(tc.kind, json.RawMessage(tc.data))
-			if err != nil {
-				t.Fatalf("unmarshal: %v", err)
-			}
-			if p == nil {
-				t.Fatal("payload is nil")
-			}
-			if p.StreamKind() != tc.kind {
-				t.Fatalf("kind mismatch: got %q, want %q", p.StreamKind(), tc.kind)
-			}
-		})
-	}
-}
-
-func TestUnmarshalPayloadUnknownKind(t *testing.T) {
-	_, err := UnmarshalPayload("unknown.kind", json.RawMessage(`{}`))
-	if err == nil {
-		t.Fatal("expected error for unknown kind")
-	}
-}
-
-func TestPayloadStreamKindMethods(t *testing.T) {
-	cases := []struct {
-		payload StreamPayload
-		want    StreamItemKind
-	}{
-		{RunStartedPayload{}, StreamKindRunStarted},
-		{RunCompletedPayload{}, StreamKindRunCompleted},
-		{RunFailedPayload{}, StreamKindRunFailed},
-		{RunInterruptedPayload{}, StreamKindRunInterrupted},
-		{RunResumeRequestedPayload{}, StreamKindRunResumeRequested},
-		{RunArchivedPayload{}, StreamKindRunArchived},
-		{DecisionSelectedPayload{}, StreamKindDecisionSelected},
-		{DecisionBlockedPayload{}, StreamKindDecisionBlocked},
-		{SkillDiscoveredPayload{}, StreamKindSkillDiscovered},
-		{SkillSelectedPayload{}, StreamKindSkillSelected},
-		{SkillLoadedPayload{}, StreamKindSkillLoaded},
-		{SkillFailedPayload{}, StreamKindSkillFailed},
-		{SkillLifecyclePayload{}, StreamKindSkillLifecycle},
-		{ProcedureActivationPayload{}, StreamKindProcedureActivation},
-		{MemoryPreparedPayload{}, StreamKindMemoryPrepared},
-		{ContextPressurePayload{}, StreamKindContextPressure},
-		{ContextCompressedPayload{}, StreamKindContextCompressed},
-		{AssistantDeltaPayload{}, StreamKindAssistantDelta},
-		{AssistantMessagePayload{}, StreamKindAssistantMessage},
-		{ToolCallStartedPayload{}, StreamKindToolCallStarted},
-		{ToolCallProgressPayload{}, StreamKindToolCallProgress},
-		{ToolCallSucceededPayload{}, StreamKindToolCallSucceeded},
-		{ToolCallFailedPayload{}, StreamKindToolCallFailed},
-		{ToolCallInterruptedPayload{}, StreamKindToolCallInterrupted},
-		{ProviderDegradedPayload{}, StreamKindProviderDegraded},
-		{MCPProviderLifecyclePayload{}, StreamKindMCPToolCatalogRefreshed},
-		{ElicitationPayload{}, StreamKindElicitationPending},
-		{SamplingPayload{}, StreamKindSamplingStarted},
-		{SubagentStartedPayload{}, StreamKindSubagentStarted},
-		{SubagentCompletedPayload{}, StreamKindSubagentCompleted},
-		{SubagentFailedPayload{}, StreamKindSubagentFailed},
-		{HeartbeatPayload{}, StreamKindHeartbeat},
-		{ToolParallelBatchStartedPayload{}, StreamKindToolParallelBatchStarted},
-		{ToolParallelBatchCompletedPayload{}, StreamKindToolParallelBatchCompleted},
-		{&PlanCreatedPayload{}, StreamKindPlanCreated},
-		{&PlanUpdatedPayload{}, StreamKindPlanUpdated},
-		{&PlanClearedPayload{}, StreamKindPlanCleared},
-		{&PlanStepStartedPayload{}, StreamKindStepStarted},
-		{&PlanStepCompletedPayload{}, StreamKindStepCompleted},
-		{&PlanStepFailedPayload{}, StreamKindStepFailed},
-	}
-
-	for _, tc := range cases {
-		t.Run(string(tc.want), func(t *testing.T) {
-			if got := tc.payload.StreamKind(); got != tc.want {
-				t.Fatalf("StreamKind() = %q, want %q", got, tc.want)
-			}
-		})
 	}
 }
 

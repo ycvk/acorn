@@ -47,7 +47,7 @@ func TestAppendStreamItemSuccess(t *testing.T) {
 		return nil
 	}
 
-	item := StreamItem{RunID: "run_1", Kind: StreamKindRunStarted, Payload: RunStartedPayload{Input: "hello"}}
+	item := StreamItem{RunID: "run_1", Kind: StreamKindRunStarted, Payload: map[string]any{"input": "hello"}}
 	record, err := AppendStreamItem(context.Background(), store, sink, item)
 	if err != nil {
 		t.Fatalf("AppendStreamItem: %v", err)
@@ -81,7 +81,7 @@ func TestAppendStreamItemSinkError(t *testing.T) {
 
 func TestAppendStreamItemNoSink(t *testing.T) {
 	store := &mockEventAppender{record: events.EventRecord{Sequence: 1}}
-	item := StreamItem{RunID: "run_1", Kind: StreamKindHeartbeat}
+	item := StreamItem{RunID: "run_1", Kind: StreamKindRunCompleted}
 	record, err := AppendStreamItem(context.Background(), store, nil, item)
 	if err != nil {
 		t.Fatalf("AppendStreamItem: %v", err)
@@ -99,22 +99,22 @@ func TestProjectStreamItemToEvent(t *testing.T) {
 	}{
 		{
 			name:     "nil_payload",
-			item:     StreamItem{Kind: StreamKindHeartbeat},
-			wantKind: "stream.heartbeat",
+			item:     StreamItem{Kind: StreamKindRunCompleted},
+			wantKind: "run.completed",
 		},
 		{
 			name:     "run_started",
-			item:     StreamItem{Kind: StreamKindRunStarted, Payload: RunStartedPayload{Input: "hello"}},
+			item:     StreamItem{Kind: StreamKindRunStarted, Payload: map[string]any{"input": "hello"}},
 			wantKind: "run.started",
 		},
 		{
 			name:     "tool_call_started",
-			item:     StreamItem{Kind: StreamKindToolCallStarted, Payload: ToolCallStartedPayload{ToolCall: &StreamToolCall{Name: "t1", CallID: "c1"}}},
+			item:     StreamItem{Kind: StreamKindToolCallStarted, Payload: map[string]any{"tool_call": &StreamToolCall{Name: "t1", CallID: "c1"}}},
 			wantKind: "tool.call.started",
 		},
 		{
 			name:     "assistant_message",
-			item:     StreamItem{Kind: StreamKindAssistantMessage, Payload: AssistantMessagePayload{Message: &StreamMessage{Content: "hi"}}},
+			item:     StreamItem{Kind: StreamKindAssistantMessage, Payload: map[string]any{"message": &StreamMessage{Content: "hi"}}},
 			wantKind: "agent.message",
 		},
 	}
@@ -161,10 +161,7 @@ func TestStreamKindToEventKind(t *testing.T) {
 		{StreamKindMemoryPrepared, "memory.prepared"},
 		{StreamKindContextPressure, "context.pressure"},
 		{StreamKindContextCompressed, "context.compressed"},
-		{StreamKindHeartbeat, "stream.heartbeat"},
-		{StreamKindToolParallelBatchStarted, "tool.parallel_batch.started"},
-		{StreamKindToolParallelBatchCompleted, "tool.parallel_batch.completed"},
-		{StreamKindRunArchived, "run.archived"},
+		{StreamKindPlanCleared, "plan.cleared"},
 		{"unknown.kind", "unknown.kind"},
 	}
 
