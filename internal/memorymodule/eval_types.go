@@ -47,10 +47,6 @@ type EvalItemDigest struct {
 	Stages            []string `json:"stages,omitempty"`
 }
 
-type EvalSink interface {
-	Capture(ctx context.Context, sample EvalSample) error
-}
-
 type EvalFileSink struct {
 	path string
 	now  func() time.Time
