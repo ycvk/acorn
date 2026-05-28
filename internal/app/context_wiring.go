@@ -30,11 +30,6 @@ func buildContextPlane(cfg *config.Config, store contextPlaneStore, checkpointSe
 		CheckpointService:        checkpointService,
 		SessionSummaryService:    sessionSummaryService,
 		ToolResultLedger:         store,
-		MemoryBudget: contextplane.LayeredMemoryBudget{
-			L1IndexTokens:     cfg.Memory.Search.IndexTokenBudget,
-			L2InitialTokens:   cfg.Memory.Search.InitialTokenBudget,
-			L3OnDemandReserve: cfg.Memory.Search.OnDemandReserve,
-		},
 	})
 	return contextPlane, nil
 }

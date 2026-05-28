@@ -149,8 +149,6 @@ func TestUnmarshalPayloadKnownKinds(t *testing.T) {
 		{StreamKindStepStarted, `{}`},
 		{StreamKindStepCompleted, `{}`},
 		{StreamKindStepFailed, `{}`},
-		{StreamKindCrystallizationFailed, `{}`},
-		{StreamKindCrystallizationVerdict, `{}`},
 	}
 
 	for _, tc := range cases {
@@ -221,8 +219,6 @@ func TestPayloadStreamKindMethods(t *testing.T) {
 		{&PlanStepStartedPayload{}, StreamKindStepStarted},
 		{&PlanStepCompletedPayload{}, StreamKindStepCompleted},
 		{&PlanStepFailedPayload{}, StreamKindStepFailed},
-		{&CrystallizationFailedPayload{}, StreamKindCrystallizationFailed},
-		{&CrystallizationVerdictPayload{}, StreamKindCrystallizationVerdict},
 	}
 
 	for _, tc := range cases {

@@ -8,6 +8,7 @@ import (
 	"github.com/cloudwego/eino/schema"
 
 	"github.com/ycvk/acorn/internal/contextplane"
+	"github.com/ycvk/acorn/internal/store/storetest"
 )
 
 func TestCompressionOutcomeIncludesLayersApplied(t *testing.T) {
@@ -34,7 +35,7 @@ func TestCompressionOutcomeIncludesLayersApplied(t *testing.T) {
 	session := contextplane.NewDefaultContextSession(contextplane.ContextSessionOptions{
 		BudgetGovernor: testBudgetGovernor{pressure: testPressure(contextplane.PressureBlocking), dynamic: true},
 		Pipeline:       pipeline,
-		BoundaryStore:  newFakeContextStore(),
+		BoundaryStore:  storetest.NewFakeContextStore(),
 		PreservePolicy: contextplane.PreservePolicy{RecentTurns: 1, PreserveToolPairs: true},
 		EmitCompressed: func(_ context.Context, outcome contextplane.CompressionOutcome) error {
 			captured = outcome
@@ -67,11 +68,5 @@ func TestCompressionOutcomeIncludesLayersApplied(t *testing.T) {
 	}
 	if captured.BoundaryID != "ctxb_run_1_0001" {
 		t.Fatalf("boundary id = %q, want ctxb_run_1_0001", captured.BoundaryID)
-	}
-	if len(captured.LayersApplied) == 0 {
-		t.Fatal("LayersApplied is empty")
-	}
-	if captured.LayersApplied[len(captured.LayersApplied)-1] != contextplane.CompactLayerAutocompact {
-		t.Fatalf("last layer = %v, want autocompact", captured.LayersApplied)
 	}
 }

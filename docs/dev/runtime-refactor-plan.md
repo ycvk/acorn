@@ -31,7 +31,7 @@
 
 ### Blocker 1: Stream Payload 类型 (~650 行)
 
-**问题**: `graph/` 子包物理迁移被 `AppendStreamItem` 阻塞。`AppendStreamItem` 依赖 `projectStreamItemToEvent` 投影逻辑，后者引用 30+ 个 payload 类型（`RunStartedPayload`, `AssistantMessagePayload`, `ToolCallStartedPayload`, `CrystallizationFailedPayload` 等），这些类型分布在：
+**问题**: `graph/` 子包物理迁移被 `AppendStreamItem` 阻塞。`AppendStreamItem` 依赖 `projectStreamItemToEvent` 投影逻辑，后者引用 30+ 个 payload 类型（`RunStartedPayload`, `AssistantMessagePayload`, `ToolCallStartedPayload`, `ContextCompressedPayload` 等），这些类型分布在：
 
 - `internal/runtime/stream_payloads.go` (517 行)
 - `internal/runtime/stream_accessors.go` (138 行)

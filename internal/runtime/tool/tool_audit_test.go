@@ -3,20 +3,74 @@ package tool
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	einotool "github.com/cloudwego/eino/components/tool"
 	toolutils "github.com/cloudwego/eino/components/tool/utils"
 	"github.com/cloudwego/eino/schema"
 
 	"github.com/ycvk/acorn/internal/config"
+	"github.com/ycvk/acorn/internal/events"
 	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	storerepo "github.com/ycvk/acorn/internal/store"
-	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
+	"github.com/ycvk/acorn/internal/store/storetest"
 	"github.com/ycvk/acorn/internal/tooling"
 )
+
+// auditTestStore is the narrow store contract needed by tool-audit tests.
+type auditTestStore interface {
+	runtimeapi.EventAppender
+	CreateRun(ctx context.Context, runID, input, checkpointID string) error
+	LoadEvents(ctx context.Context, runID string) ([]events.EventRecord, error)
+}
+
+type fakeAuditTestStore struct {
+	runs   map[string]events.RunRecord
+	events map[string][]events.EventRecord
+	next   int64
+}
+
+func newFakeAuditTestStore() *fakeAuditTestStore {
+	return &fakeAuditTestStore{
+		runs:   make(map[string]events.RunRecord),
+		events: make(map[string][]events.EventRecord),
+	}
+}
+
+func (s *fakeAuditTestStore) CreateRun(_ context.Context, runID, input, checkpointID string) error {
+	now := time.Now().UTC()
+	s.runs[runID] = events.RunRecord{
+		RunID:        runID,
+		Status:       events.RunStatusRunning,
+		Input:        input,
+		CheckpointID: checkpointID,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
+	return nil
+}
+
+func (s *fakeAuditTestStore) AppendEventContext(_ context.Context, runID, kind string, payload any) (events.EventRecord, error) {
+	if _, ok := s.runs[runID]; !ok {
+		return events.EventRecord{}, fmt.Errorf("run %q not found", runID)
+	}
+	s.next++
+	record := events.EventRecord{
+		Sequence:  s.next,
+		RunID:     runID,
+		Kind:      kind,
+		Payload:   payload,
+		CreatedAt: time.Now().UTC(),
+	}
+	s.events[runID] = append(s.events[runID], record)
+	return record, nil
+}
+
+func (s *fakeAuditTestStore) LoadEvents(_ context.Context, runID string) ([]events.EventRecord, error) {
+	return append([]events.EventRecord(nil), s.events[runID]...), nil
+}
 
 func TestAuditedToolRecordsSucceededEvent(t *testing.T) {
 	store := openAuditTestStore(t)
@@ -207,14 +261,9 @@ func TestWrapToolForAuditFailsWhenValidatorCannotBeBuilt(t *testing.T) {
 	}
 }
 
-func openAuditTestStore(t *testing.T) *storesqlite.Store {
+func openAuditTestStore(t *testing.T) auditTestStore {
 	t.Helper()
-	store, err := storesqlite.Open(filepath.Join(t.TempDir(), "state"))
-	if err != nil {
-		t.Fatalf("open store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-	return store
+	return newFakeAuditTestStore()
 }
 
 func mustInferTool[T any, R any](t *testing.T, name string, fn func(context.Context, T) (R, error)) einotool.BaseTool {
@@ -226,7 +275,7 @@ func mustInferTool[T any, R any](t *testing.T, name string, fn func(context.Cont
 	return tool
 }
 
-func mustWrapTool(t *testing.T, store *storesqlite.Store, provider string, tool einotool.BaseTool) einotool.BaseTool {
+func mustWrapTool(t *testing.T, store runtimeapi.EventAppender, provider string, tool einotool.BaseTool) einotool.BaseTool {
 	t.Helper()
 	wrapped, err := wrapToolForAudit(context.Background(), store, mustAuditSpec(t, provider, tool))
 	if err != nil {
@@ -372,7 +421,7 @@ func TestValidationFailureThroughSafeParallelNodeIsModelVisibleFailedToolResult(
 	if err := store.CreateRun(context.Background(), runID, "input", runID); err != nil {
 		t.Fatalf("create run: %v", err)
 	}
-	ledger := NewMemoryToolResultLedger()
+	ledger := storetest.NewMemoryToolResultLedger()
 	ctx := safeParallelLifecycleContextFromWithLedger(
 		t,
 		runtimeapi.WithTurnIndex(runtimeapi.WithRunID(runtimeapi.WithSessionID(context.Background(), "sess_validation_node"), runID), 1),

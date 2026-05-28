@@ -106,7 +106,6 @@ type DefaultOptions struct {
 	CheckpointService        CheckpointService
 	SessionSummaryService    SessionSummaryService
 	ToolResultLedger         store.ToolResultLedger
-	MemoryBudget             LayeredMemoryBudget
 }
 
 type defaultContextPlane struct {
@@ -117,13 +116,7 @@ type defaultContextPlane struct {
 	checkpointService        CheckpointService
 	sessionSummaryService    SessionSummaryService
 	toolResultLedger         store.ToolResultLedger
-	memoryBudget             LayeredMemoryBudget
-}
-
-type LayeredMemoryBudget struct {
-	L1IndexTokens     int
-	L2InitialTokens   int
-	L3OnDemandReserve int
+	memoryBudget             int
 }
 
 type ToolLifecycleState struct {
@@ -138,9 +131,6 @@ type ToolLifecycleState struct {
 }
 
 func (s *ToolLifecycleState) Mu() *sync.Mutex {
-	if s == nil {
-		return nil
-	}
 	return &s.mu
 }
 
@@ -177,37 +167,14 @@ func NewDefaultContextPlane(opts DefaultOptions) ContextPlane {
 		checkpointService:        opts.CheckpointService,
 		sessionSummaryService:    opts.SessionSummaryService,
 		toolResultLedger:         opts.ToolResultLedger,
-	}
-	if opts.MemoryBudget.L1IndexTokens > 0 || opts.MemoryBudget.L2InitialTokens > 0 || opts.MemoryBudget.L3OnDemandReserve > 0 {
-		p.memoryBudget = opts.MemoryBudget
-	} else if opts.MemoryContextTokenBudget > 0 {
-		p.memoryBudget = defaultLayeredBudgetFromTotal(opts.MemoryContextTokenBudget)
+		memoryBudget:             opts.MemoryContextTokenBudget,
 	}
 	return p
 }
 
 func (p *defaultContextPlane) ToolResultLedger() store.ToolResultLedger {
-	if p == nil {
-		return nil
-	}
 	return p.toolResultLedger
 }
-
-func defaultLayeredBudgetFromTotal(total int) LayeredMemoryBudget {
-	return LayeredMemoryBudget{
-		L1IndexTokens:     total * 15 / 100,
-		L2InitialTokens:   total * 70 / 100,
-		L3OnDemandReserve: total * 15 / 100,
-	}
-}
-
-type CompactLayer string
-
-const (
-	CompactLayerMicrocompact CompactLayer = "microcompact"
-	CompactLayerAutocompact  CompactLayer = "auto"
-	CompactLayerReactive     CompactLayer = "reactive"
-)
 
 type PipelineRequest struct {
 	Messages           []adk.Message
@@ -225,10 +192,9 @@ type PipelineRequest struct {
 }
 
 type PipelineResult struct {
-	Messages      []adk.Message
-	LayersApplied []CompactLayer
-	TokensFreed   int
-	Outcome       *CompressionOutcome
+	Messages    []adk.Message
+	TokensFreed int
+	Outcome     *CompressionOutcome
 }
 
 type CompressionPipeline interface {
@@ -256,7 +222,6 @@ type CompressionOutcome struct {
 	TokensAfter    int
 	Summary        string
 	SummarySnippet string
-	LayersApplied  []CompactLayer
 }
 
 type CompressionBuildOptions struct {

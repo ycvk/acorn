@@ -2,7 +2,6 @@ package runtime
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -10,7 +9,6 @@ import (
 
 	einomodel "github.com/cloudwego/eino/components/model"
 	"github.com/ycvk/acorn/internal/config"
-	"github.com/ycvk/acorn/internal/crystallization"
 	"github.com/ycvk/acorn/internal/memorymodule"
 	"github.com/ycvk/acorn/internal/model"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
@@ -48,16 +46,10 @@ func NewRunnerFactory(cfg *config.Config, store RunnerFactoryStore, opts RunnerF
 }
 
 func (f *RunnerFactory) New(ctx context.Context, req RunnerBuildRequest) (*ActiveRunner, error) {
-	if f == nil {
-		return nil, errors.New("runner factory is not initialized")
-	}
 	return newRunCoordinator(f).Build(ctx, req)
 }
 
 func (f *RunnerFactory) BuildCapabilitySpecs(ctx context.Context) ([]tooling.ToolSpec, error) {
-	if f == nil || f.deps.Config == nil {
-		return nil, errors.New("runner factory is not initialized")
-	}
 	childExec := f.newChildAgentExecutor()
 	toolset, err := f.buildToolset(ctx, "", childExec, true, tooling.ToolProfileRun)
 	if err != nil {
@@ -78,9 +70,6 @@ func (f *RunnerFactory) newChildAgentExecutor() *SubagentExecutor {
 }
 
 func (f *RunnerFactory) cloneForWorkspace(ws *workspace.Workspace) *RunnerFactory {
-	if f == nil {
-		return nil
-	}
 	cloneDeps := f.deps.CloneForWorkspace(ws)
 	clone := &RunnerFactory{
 		deps:                cloneDeps,
@@ -91,9 +80,6 @@ func (f *RunnerFactory) cloneForWorkspace(ws *workspace.Workspace) *RunnerFactor
 }
 
 func (f *RunnerFactory) Registry() *Registry {
-	if f == nil {
-		return nil
-	}
 	return f.registry
 }
 
@@ -102,42 +88,23 @@ func (f *RunnerFactory) ConsumeEventError(runID string) error {
 }
 
 func (f *RunnerFactory) Config() *config.Config {
-	if f == nil {
-		return nil
-	}
 	return f.deps.Config
 }
 
 func (f *RunnerFactory) MemoryModule() memorymodule.Service {
-	if f == nil {
-		return nil
-	}
 	return f.deps.MemoryModule
 }
 
 func (f *RunnerFactory) SessionSummarySvc() *model.SessionSummaryService {
-	if f == nil {
-		return nil
-	}
 	return f.deps.SessionSummarySvc
 }
 
 func (f *RunnerFactory) NewChatModel(ctx context.Context) (einomodel.BaseChatModel, error) {
-	if f == nil {
-		return nil, errors.New("runner factory is nil")
-	}
 	return f.newChatModel(ctx)
 }
 
-func (f *RunnerFactory) Crystallizer() crystallization.Service {
-	if f == nil {
-		return nil
-	}
-	return f.deps.Crystallizer
-}
-
 func (f *RunnerFactory) hasWorkingContext(ctx context.Context, sessionID string) (bool, error) {
-	if f == nil || f.deps.CheckpointService == nil || strings.TrimSpace(sessionID) == "" {
+	if strings.TrimSpace(sessionID) == "" || f.deps.CheckpointService == nil {
 		return false, nil
 	}
 	checkpoint, err := f.deps.CheckpointService.Get(ctx, sessionID)
@@ -151,11 +118,8 @@ func (f *RunnerFactory) hasWorkingContext(ctx context.Context, sessionID string)
 }
 
 func (r *ActiveRunner) Close() error {
-	if r == nil {
-		return nil
-	}
 	var closeErr error
-	if r != nil && r.CloseRunTools != nil {
+	if r.CloseRunTools != nil {
 		closeErr = r.CloseRunTools()
 		r.CloseRunTools = nil
 	}
@@ -173,7 +137,7 @@ func (f *RunnerFactory) setCurrentRunID(runID string) {
 }
 
 func (f *RunnerFactory) ClearCurrentRunID(runID string) {
-	if f == nil || runID == "" {
+	if runID == "" {
 		return
 	}
 	f.mu.Lock()
@@ -184,9 +148,6 @@ func (f *RunnerFactory) ClearCurrentRunID(runID string) {
 }
 
 func (f *RunnerFactory) currentRunIDValue() string {
-	if f == nil {
-		return ""
-	}
 	value := f.currentRunID.Load()
 	runID, ok := value.(string)
 	if !ok {

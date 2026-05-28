@@ -12,7 +12,7 @@ import (
 )
 
 func TestBuildMemoryMessageEmpty(t *testing.T) {
-	got, err := buildMemoryMessageForTest(context.Background(), testTokenCounter(t), LayeredMemoryBudget{L2InitialTokens: 2000}, "", "", nil)
+	got, err := buildMemoryMessageForTest(context.Background(), testTokenCounter(t), 2000, "", "", nil)
 	if err != nil {
 		t.Fatalf("buildMemoryMessage: %v", err)
 	}
@@ -29,7 +29,7 @@ func TestBuildMemoryMessageContent(t *testing.T) {
 			{Ref: "fact:2", Kind: "fact", Title: "Fact 2", Content: "fact2"},
 		},
 	}
-	got, err := buildMemoryMessageForTest(context.Background(), testTokenCounter(t), LayeredMemoryBudget{L2InitialTokens: 2000}, "", "checkpoint data", prepared)
+	got, err := buildMemoryMessageForTest(context.Background(), testTokenCounter(t), 2000, "", "checkpoint data", prepared)
 	if err != nil {
 		t.Fatalf("buildMemoryMessage: %v", err)
 	}
@@ -66,7 +66,7 @@ func TestBuildMemoryMessageContent(t *testing.T) {
 }
 
 func TestBuildMemoryMessageRole(t *testing.T) {
-	got, err := buildMemoryMessageForTest(context.Background(), testTokenCounter(t), LayeredMemoryBudget{L2InitialTokens: 2000}, "", "cp", nil)
+	got, err := buildMemoryMessageForTest(context.Background(), testTokenCounter(t), 2000, "", "cp", nil)
 	if err != nil {
 		t.Fatalf("buildMemoryMessage: %v", err)
 	}
@@ -79,7 +79,7 @@ func TestBuildMemoryMessageRole(t *testing.T) {
 }
 
 func TestBuildMemoryMessagePartialContent(t *testing.T) {
-	got, err := buildMemoryMessageForTest(context.Background(), testTokenCounter(t), LayeredMemoryBudget{L2InitialTokens: 2000}, "", "checkpoint only", nil)
+	got, err := buildMemoryMessageForTest(context.Background(), testTokenCounter(t), 2000, "", "checkpoint only", nil)
 	if err != nil {
 		t.Fatalf("buildMemoryMessage: %v", err)
 	}
@@ -204,7 +204,7 @@ func TestMemoryMessagePresentWhenDynamicContentExists(t *testing.T) {
 			if strings.TrimSpace(tc.fact) != "" {
 				prepared = &memorymodule.PrepareResult{Entries: []memorymodule.Entry{{Ref: "fact:1", Kind: "fact", Content: "fact1"}}}
 			}
-			got, err := buildMemoryMessageForTest(context.Background(), testTokenCounter(t), LayeredMemoryBudget{L2InitialTokens: 2000}, "", tc.cp, prepared)
+			got, err := buildMemoryMessageForTest(context.Background(), testTokenCounter(t), 2000, "", tc.cp, prepared)
 			if err != nil {
 				t.Fatalf("buildMemoryMessage: %v", err)
 			}
@@ -216,7 +216,7 @@ func TestMemoryMessagePresentWhenDynamicContentExists(t *testing.T) {
 }
 
 func TestMemoryMessageNilWhenAllEmpty(t *testing.T) {
-	got, err := buildMemoryMessageForTest(context.Background(), testTokenCounter(t), LayeredMemoryBudget{L2InitialTokens: 2000}, "", "", nil)
+	got, err := buildMemoryMessageForTest(context.Background(), testTokenCounter(t), 2000, "", "", nil)
 	if err != nil {
 		t.Fatalf("buildMemoryMessage: %v", err)
 	}
@@ -237,7 +237,7 @@ func TestInstructionSplitCoverage(t *testing.T) {
 
 	stable := buildStableInstruction(base, suffix)
 	skillMsg := buildSkillContextMessage(skill)
-	memMsg, err := buildMemoryMessageForTest(context.Background(), testTokenCounter(t), LayeredMemoryBudget{L2InitialTokens: 2000}, "", cp, prepared)
+	memMsg, err := buildMemoryMessageForTest(context.Background(), testTokenCounter(t), 2000, "", cp, prepared)
 	if err != nil {
 		t.Fatalf("buildMemoryMessage: %v", err)
 	}

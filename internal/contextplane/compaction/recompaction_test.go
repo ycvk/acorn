@@ -9,6 +9,7 @@ import (
 	"github.com/cloudwego/eino/schema"
 
 	"github.com/ycvk/acorn/internal/contextplane"
+	"github.com/ycvk/acorn/internal/store/storetest"
 )
 
 func TestBuildSummarizerInputUsesPreviousSummary(t *testing.T) {
@@ -73,7 +74,7 @@ func TestContextSessionPassesPreviousSummary(t *testing.T) {
 			CompactionEngine: engine,
 			TokenCounter:     testTokenCounter(t),
 		}),
-		BoundaryStore:  newFakeContextStore(),
+		BoundaryStore:  storetest.NewFakeContextStore(),
 		PreservePolicy: contextplane.PreservePolicy{RecentTurns: 1, PreserveToolPairs: true},
 		State:          state,
 	})

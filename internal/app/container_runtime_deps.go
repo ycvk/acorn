@@ -2,13 +2,10 @@ package app
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"io"
 
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/contextplane"
-	"github.com/ycvk/acorn/internal/crystallization"
 	"github.com/ycvk/acorn/internal/decision"
 	"github.com/ycvk/acorn/internal/memorymodule"
 	"github.com/ycvk/acorn/internal/model"
@@ -35,9 +32,7 @@ type containerRuntimeDeps struct {
 	executors              func(context.Context) (executorHandle, error)
 }
 
-type crystallizerFactory func(memorymodule.Service) (crystallization.Service, io.Closer, error)
-
-func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, store containerRuntimeStore, buildCrystallizer crystallizerFactory) (*containerRuntimeDeps, error) {
+func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, store containerRuntimeStore) (*containerRuntimeDeps, error) {
 	ws, err := cfg.Workspace()
 	if err != nil {
 		return nil, err
@@ -62,15 +57,6 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, store co
 	notificationService := NewNotificationService(store, newNotificationRouter(nil))
 	mcpPendingActionStore := NewNotifyingPendingActionStore(store, notificationService)
 
-	var crystallizer crystallization.Service
-	var crystallizerCloser io.Closer
-	if buildCrystallizer != nil {
-		crystallizer, crystallizerCloser, err = buildCrystallizer(memoryModule)
-		if err != nil {
-			return nil, fmt.Errorf("init crystallizer: %w", err)
-		}
-	}
-
 	runnerFactory, err := runtime.NewRunnerFactory(cfg, store, runtime.RunnerFactoryOptions{
 		Loader:                 loader,
 		Workspace:              ws,
@@ -80,13 +66,8 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, store co
 		MemoryModule:           memoryModule,
 		ContextPlane:           contextPlane,
 		MCPPendingActionStore:  mcpPendingActionStore,
-		Crystallizer:           crystallizer,
-		CrystallizerCloser:     crystallizerCloser,
 	})
 	if err != nil {
-		if crystallizerCloser != nil {
-			err = errors.Join(err, crystallizerCloser.Close())
-		}
 		return nil, fmt.Errorf("init runner factory: %w", err)
 	}
 	runController := runtime.NewRunController()

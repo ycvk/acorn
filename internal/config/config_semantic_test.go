@@ -218,6 +218,62 @@ memory:
 	}
 }
 
+func TestLoadRejectsRemovedLayeredMemoryBudgetFields(t *testing.T) {
+	for _, field := range []string{"index_token_budget", "initial_token_budget", "on_demand_reserve"} {
+		t.Run(field, func(t *testing.T) {
+			_, err := Load(writeConfig(t, `providers:
+  - name: default
+    model: test
+    base_url: https://example.invalid/v1
+    api_key: test
+    temperature: 0.3
+    max_completion_tokens: 100
+    timeout_seconds: 30
+    enabled: true
+web:
+  listen_addr: 127.0.0.1:8080
+agent:
+  name: coordinator
+  description: test
+  max_iterations: 4
+tools:
+  workspace:
+    root_dir: .
+  mutation:
+    disabled: true
+    root_dir: .
+  run_command:
+    disabled: true
+    default_timeout: 30
+    work_dir: .
+mcp:
+  providers: []
+memory:
+  search:
+    memory_context_token_budget: 2000
+    `+field+`: 100
+  semantic:
+    bleve:
+      index_name: memory_records
+    embedding:
+      provider: openai_compatible
+      model: text-embedding-3-small
+      base_url: https://api.openai.com/v1
+      api_key: test
+      dimensions: 1536
+      timeout_seconds: 30
+      batch_size: 64
+`))
+			if err == nil {
+				t.Fatalf("expected removed %s field to fail strict load", field)
+			}
+			if !strings.Contains(err.Error(), "field "+field+" not found") {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
 func TestLoadExamplesConfigureMemorySemantic(t *testing.T) {
 	t.Setenv("OPENAI_API_KEY", "sk-test")
 

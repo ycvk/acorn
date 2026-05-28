@@ -260,7 +260,6 @@ rf.SetChildAgentExecutor(childExec) // 或通过 Options 传入
 - `executor_terminal.go`
 - `run_control.go`
 - `context_session_bridge.go`
-- `executor_crystallization_test.go`
 - `executor_finalization_test.go`
 - `executor_lifecycle_test.go`
 - `run_control_test.go`

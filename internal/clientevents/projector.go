@@ -177,19 +177,6 @@ func ProjectRunEventData(kind string, payload map[string]any) (any, error) {
 			return nil, projectionError("context.compressed payload missing context_compressed object")
 		}
 		return ContextCompressedData{ContextCompressed: value}, nil
-	case "crystallization.failed":
-		return CrystallizationFailedData{
-			RunID: topLevelString(payload, "run_id"),
-			Error: topLevelString(payload, "error"),
-		}, nil
-	case "crystallization.verdict":
-		return CrystallizationVerdictData{
-			RunID:     topLevelString(payload, "run_id"),
-			Verdict:   topLevelString(payload, "verdict"),
-			SkillID:   topLevelString(payload, "skill_id"),
-			Reason:    topLevelString(payload, "reason"),
-			SimilarTo: topLevelString(payload, "similar_to"),
-		}, nil
 	case "plan.created", "plan.updated":
 		value, _ := objectField(payload, "plan")
 		return PlanData{Plan: value}, nil

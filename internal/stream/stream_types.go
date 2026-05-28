@@ -55,8 +55,6 @@ const (
 	StreamKindStepStarted                     StreamItemKind = "step.started"
 	StreamKindStepCompleted                   StreamItemKind = "step.completed"
 	StreamKindStepFailed                      StreamItemKind = "step.failed"
-	StreamKindCrystallizationFailed           StreamItemKind = "crystallization.failed"
-	StreamKindCrystallizationVerdict          StreamItemKind = "crystallization.verdict"
 )
 
 type StreamPayload interface {

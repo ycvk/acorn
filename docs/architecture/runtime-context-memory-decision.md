@@ -105,6 +105,7 @@ The following old paths are no longer active runtime truth:
 - decision `ActionEvolve`
 - memory candidate review / backend admission queue / background distillation
 - old FactService-backed execution-path crystallization
+- the removed optional auto-crystallization pipeline
 - MemoryLens, read plans, access logs, usage envelope
 - `search_knowledge` and `RetrievalService`
 - SQLite core-memory injection into prompt context
@@ -114,7 +115,7 @@ The following old paths are no longer active runtime truth:
 
 SQLite legacy memory tables/readers are removed, not parked behind a migration command. The schema migration drops leftover old memory/search/patch-history tables on open.
 
-The surviving optional auto-crystallization path writes `memorymodule` procedure records, not old FactService facts. Its domain service lives in `internal/crystallization`, its SQLite insight index is an injected `internal/store/sqlite` adapter, and runtime only consumes the `crystallization.Service` interface when the app composition root explicitly enables and wires it.
+Procedure records now enter through the active `memorymodule` and skill lifecycle paths. There is no separate runtime auto-crystallization service, insight-index adapter, or `crystallization.*` RunEvent contract.
 
 ## Skills
 

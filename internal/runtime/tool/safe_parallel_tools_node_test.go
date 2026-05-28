@@ -20,6 +20,7 @@ import (
 	"github.com/ycvk/acorn/internal/contextplane"
 	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	"github.com/ycvk/acorn/internal/store"
+	"github.com/ycvk/acorn/internal/store/storetest"
 	"github.com/ycvk/acorn/internal/tooling"
 	"github.com/ycvk/acorn/internal/workspace"
 )
@@ -179,7 +180,7 @@ func streamViaStreaming(node *SafeParallelToolsNode, ctx context.Context, input 
 }
 
 func safeParallelLifecycleContextFrom(t *testing.T, ctx context.Context, node *SafeParallelToolsNode) context.Context {
-	return safeParallelLifecycleContextFromWithLedger(t, ctx, node, NewMemoryToolResultLedger())
+	return safeParallelLifecycleContextFromWithLedger(t, ctx, node, storetest.NewMemoryToolResultLedger())
 }
 
 func safeParallelLifecycleContextFromWithLedger(t *testing.T, ctx context.Context, node *SafeParallelToolsNode, ledger store.ToolResultLedger) context.Context {
@@ -214,7 +215,7 @@ func safeParallelLifecycleContextFromWithLedger(t *testing.T, ctx context.Contex
 		}
 	}
 	if ledger == nil {
-		ledger = NewMemoryToolResultLedger()
+		ledger = storetest.NewMemoryToolResultLedger()
 	}
 	return contextplane.WithToolLifecycleContext(ctx, ledger, state, nil, infos)
 }
@@ -374,7 +375,7 @@ func TestSafeParallelMutationToolAttachesSideEffects(t *testing.T) {
 		t.Fatalf("NewSafeParallelToolsNode: %v", err)
 	}
 
-	ledger := NewMemoryToolResultLedger()
+	ledger := storetest.NewMemoryToolResultLedger()
 	ctx := safeParallelLifecycleContextFromWithLedger(t, runtimeapi.WithTurnIndex(withRunID(runtimeapi.WithSessionID(context.Background(), "sess_safe_parallel"), "run_safe_parallel"), 1), node, ledger)
 	results, err := invokeViaStreaming(node, ctx, makeAssistantMessage(
 		makeToolCall("call_1", "create_file", `{"path":"a.go","content":"hello"}`),
@@ -1466,7 +1467,7 @@ func TestSafeParallel_EmitsLifecycleTurnIndexFromContext(t *testing.T) {
 		},
 	}
 	ctx := runtimeapi.WithTurnIndex(withRunID(runtimeapi.WithSessionID(context.Background(), "sess_turn"), "run_turn"), 7)
-	ctx = contextplane.WithToolLifecycleContext(ctx, NewMemoryToolResultLedger(), state, nil, []*schema.ToolInfo{{Name: "read_file"}})
+	ctx = contextplane.WithToolLifecycleContext(ctx, storetest.NewMemoryToolResultLedger(), state, nil, []*schema.ToolInfo{{Name: "read_file"}})
 
 	results, err := invokeViaStreaming(node, ctx, makeAssistantMessage(makeToolCall("call_1", "read_file", `{"path":"README.md"}`)))
 	if err != nil {

@@ -574,55 +574,6 @@ func TestProjectRunEventAcceptsContextEvents(t *testing.T) {
 	}
 }
 
-func TestProjectRunEventAcceptsCrystallizationEvents(t *testing.T) {
-	now := time.Date(2026, 5, 2, 10, 0, 0, 0, time.UTC)
-
-	verdict, err := clientevents.ProjectRunEvent(events.EventRecord{
-		Sequence:  15,
-		RunID:     "run_1",
-		Kind:      "crystallization.verdict",
-		CreatedAt: now,
-		Payload: map[string]any{
-			"run_id":     "run_1",
-			"verdict":    "crystallized",
-			"skill_id":   "skills/learned/deploy.md#deploy-procedure",
-			"reason":     "crystallized from successful deployment run",
-			"similar_to": "",
-		},
-	})
-	if err != nil {
-		t.Fatalf("clientevents.ProjectRunEvent crystallization.verdict: %v", err)
-	}
-	verdictData, ok := verdict.Data.(clientevents.CrystallizationVerdictData)
-	if !ok {
-		t.Fatalf("verdict data = %T, want clientevents.CrystallizationVerdictData", verdict.Data)
-	}
-	if verdictData.Verdict != "crystallized" || verdictData.SkillID == "" {
-		t.Fatalf("verdict data = %#v", verdictData)
-	}
-
-	failed, err := clientevents.ProjectRunEvent(events.EventRecord{
-		Sequence:  16,
-		RunID:     "run_1",
-		Kind:      "crystallization.failed",
-		CreatedAt: now,
-		Payload: map[string]any{
-			"run_id": "run_1",
-			"error":  "load run archive for crystallization: storage unavailable",
-		},
-	})
-	if err != nil {
-		t.Fatalf("clientevents.ProjectRunEvent crystallization.failed: %v", err)
-	}
-	failedData, ok := failed.Data.(clientevents.CrystallizationFailedData)
-	if !ok {
-		t.Fatalf("failed data = %T, want clientevents.CrystallizationFailedData", failed.Data)
-	}
-	if failedData.Error == "" || failedData.RunID != "run_1" {
-		t.Fatalf("failed data = %#v", failedData)
-	}
-}
-
 func TestProjectRunEventAcceptsPlanEvents(t *testing.T) {
 	now := time.Date(2026, 5, 2, 10, 0, 0, 0, time.UTC)
 	cases := []string{"plan.created", "plan.updated", "plan.cleared", "step.started", "step.completed", "step.failed"}
