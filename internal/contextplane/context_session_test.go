@@ -203,12 +203,12 @@ func TestContextSessionBeforeModelCallCompactsOnPressure(t *testing.T) {
 	if len(outcomes) != 1 || outcomes[0].BoundaryID != wantBoundaryID {
 		t.Fatalf("outcomes = %+v, want emitted boundary", outcomes)
 	}
-	boundaries, err := store.ListContextBoundaries(context.Background(), "session_1")
+	latest, err := store.LoadLatestContextBoundary(context.Background(), "session_1")
 	if err != nil {
-		t.Fatalf("ListContextBoundaries: %v", err)
+		t.Fatalf("LoadLatestContextBoundary: %v", err)
 	}
-	if len(boundaries) != 1 || boundaries[0].BoundaryID != wantBoundaryID || boundaries[0].Summary != "summary checkpoint" {
-		t.Fatalf("boundaries = %+v, want persisted compact boundary", boundaries)
+	if latest == nil || latest.BoundaryID != wantBoundaryID || latest.Summary != "summary checkpoint" {
+		t.Fatalf("latest boundary = %+v, want persisted compact boundary", latest)
 	}
 }
 
@@ -438,19 +438,19 @@ func testContextBoundary(boundaryID, sessionID, runID string, sequence int, summ
 		Mode:                     "direct_response",
 		Trigger:                  string(CompactTriggerAuto),
 		FirstIndex:               0,
-		LastIndex:                1,
-		CoveredFirstMessageID:    runID + ":message:0000",
-		CoveredLastMessageID:     runID + ":message:0001",
+		LastIndex:                2,
+		CoveredFirstMessageID:    "run_1:message:0000",
+		CoveredLastMessageID:     "run_1:message:0002",
 		SummaryMessageID:         boundaryID + ":summary",
-		TranscriptRef:            runID + ":messages:0-1",
-		PreservedFromIndex:       1,
-		PreservedToIndex:         1,
-		PreservedHeadMessageID:   runID + ":message:0001",
-		PreservedAnchorMessageID: runID + ":message:0001",
-		PreservedTailMessageID:   runID + ":message:0001",
+		TranscriptRef:            "run_1:messages:0-2",
+		PreservedFromIndex:       3,
+		PreservedToIndex:         3,
+		PreservedHeadMessageID:   "run_1:message:0003",
+		PreservedAnchorMessageID: "run_1:message:0003",
+		PreservedTailMessageID:   "run_1:message:0003",
 		TokensBefore:             100,
-		TokensAfter:              40,
-		EffectiveWindowTokens:    1000,
+		TokensAfter:              20,
+		EffectiveWindowTokens:    200000,
 		Summary:                  summary,
 		SummarySnippet:           summary,
 		CreatedAt:                time.Now().UTC(),

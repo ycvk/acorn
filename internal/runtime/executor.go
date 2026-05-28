@@ -76,14 +76,24 @@ func archiveSignalsFromEvents(records []events.EventRecord) ([]string, []string)
 			continue
 		}
 		toolName := strings.TrimSpace(ExtractString(payload["tool_name"]))
+		argumentsJSON := strings.TrimSpace(ExtractString(payload["arguments_json"]))
+		if toolName == "" && argumentsJSON == "" {
+			if toolCallMap, ok := payload["tool_call"].(map[string]any); ok {
+				toolName = strings.TrimSpace(ExtractString(toolCallMap["name"]))
+				argumentsJSON = strings.TrimSpace(ExtractString(toolCallMap["arguments_json"]))
+			} else if toolCall, ok := payload["tool_call"].(*stream.StreamToolCall); ok && toolCall != nil {
+				toolName = strings.TrimSpace(toolCall.Name)
+				argumentsJSON = strings.TrimSpace(toolCall.ArgumentsJSON)
+			}
+		}
 		if toolName == "" && strings.HasPrefix(record.Kind, "tool.call") {
 			toolName = strings.TrimSpace(ExtractString(payload["name"]))
 		}
 		if toolName != "" {
 			toolSet[toolName] = struct{}{}
 		}
-		if arguments := strings.TrimSpace(ExtractString(payload["arguments_json"])); arguments != "" {
-			for _, path := range extractTouchedPaths(arguments) {
+		if argumentsJSON != "" {
+			for _, path := range extractTouchedPaths(argumentsJSON) {
 				pathSet[path] = struct{}{}
 			}
 		}
@@ -173,7 +183,7 @@ func (e *Executor) verifyAndRecordSkill(ctx context.Context, runID string, selec
 	_, err := stream.AppendStreamItem(ctx, e.store, sink, stream.StreamItem{
 		RunID: runID,
 		Kind:  stream.StreamKindSkillFailed,
-		Payload: &stream.SkillFailedPayload{Skill: &stream.StreamSkill{
+		Payload: map[string]any{"skill": &stream.StreamSkill{
 			SelectedID:    selected.Skill.ID,
 			Name:          selected.Skill.Name,
 			Source:        selected.Skill.Source,
@@ -450,13 +460,10 @@ func buildExecutionContext(runCtxBase context.Context, runID, sessionID string, 
 	return stream.WithStreamSink(runCtx, sink)
 }
 
-func (e *Executor) emitLifecyclePayload(ctx context.Context, runID string, sink stream.StreamSink, payload stream.StreamPayload) error {
-	if payload == nil {
-		return errors.New("lifecycle payload is nil")
-	}
+func (e *Executor) emitLifecyclePayload(ctx context.Context, runID string, sink stream.StreamSink, kind stream.StreamItemKind, payload map[string]any) error {
 	_, err := stream.AppendStreamItem(ctx, e.store, sink, stream.StreamItem{
 		RunID:     runID,
-		Kind:      payload.StreamKind(),
+		Kind:      kind,
 		CreatedAt: time.Now().UTC(),
 		Payload:   payload,
 	})
@@ -464,24 +471,22 @@ func (e *Executor) emitLifecyclePayload(ctx context.Context, runID string, sink 
 }
 
 func (e *Executor) emitRunStarted(ctx context.Context, runID, input string, sink stream.StreamSink) error {
-	return e.emitLifecyclePayload(ctx, runID, sink, &stream.RunStartedPayload{Input: input})
+	return e.emitLifecyclePayload(ctx, runID, sink, stream.StreamKindRunStarted, map[string]any{"input": input})
 }
 
 func (e *Executor) emitRunResumeRequested(ctx context.Context, runID string, targets map[string]any, sink stream.StreamSink) error {
-	return e.emitLifecyclePayload(ctx, runID, sink, &stream.RunResumeRequestedPayload{Targets: targets})
+	return e.emitLifecyclePayload(ctx, runID, sink, stream.StreamKindRunResumeRequested, map[string]any{"targets": targets})
 }
 
 func (e *Executor) emitRunCompleted(ctx context.Context, runID, output string, sink stream.StreamSink) error {
-	return e.emitLifecyclePayload(ctx, runID, sink, &stream.RunCompletedPayload{
-		Message: &stream.StreamMessage{
-			Role:    string(schema.Assistant),
-			Content: output,
-		},
-	})
+	return e.emitLifecyclePayload(ctx, runID, sink, stream.StreamKindRunCompleted, map[string]any{"message": &stream.StreamMessage{
+		Role:    string(schema.Assistant),
+		Content: output,
+	}})
 }
 
 func (e *Executor) emitRunFailed(ctx context.Context, runID string, sink stream.StreamSink, message string) error {
-	return e.emitLifecyclePayload(ctx, runID, sink, &stream.RunFailedPayload{Error: message})
+	return e.emitLifecyclePayload(ctx, runID, sink, stream.StreamKindRunFailed, map[string]any{"error": message})
 }
 
 func (e *Executor) finishCollectedRun(ctx context.Context, runID, input string, state RunState, selectedSkill *SelectedSkill, sink stream.StreamSink) (*Result, error) {

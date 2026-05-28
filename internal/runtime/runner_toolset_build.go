@@ -211,7 +211,7 @@ func emitProviderDegradedIfNeeded(ctx context.Context, store runtimeapi.EventApp
 		return nil
 	}
 	var healthy, failed bool
-	var failedEntries []stream.ProviderDegradedEntry
+	var failedEntries []map[string]any
 	for _, s := range statuses {
 		if !s.Enabled {
 			continue
@@ -220,10 +220,10 @@ func emitProviderDegradedIfNeeded(ctx context.Context, store runtimeapi.EventApp
 			healthy = true
 		} else if s.StartupStatus == "failed" {
 			failed = true
-			failedEntries = append(failedEntries, stream.ProviderDegradedEntry{
-				Name:      s.Name,
-				Transport: s.Transport,
-				Error:     s.Error,
+			failedEntries = append(failedEntries, map[string]any{
+				"name":      s.Name,
+				"transport": s.Transport,
+				"error":     s.Error,
 			})
 		}
 	}
@@ -234,9 +234,7 @@ func emitProviderDegradedIfNeeded(ctx context.Context, store runtimeapi.EventApp
 		RunID:     req.RunID,
 		Kind:      stream.StreamKindProviderDegraded,
 		CreatedAt: time.Now().UTC(),
-		Payload: &stream.ProviderDegradedPayload{
-			AffectedProviders: failedEntries,
-		},
+		Payload:   map[string]any{"affected_providers": failedEntries},
 	})
 	return err
 }
@@ -275,7 +273,7 @@ func emitMemoryPreparedEvent(ctx context.Context, store runtimeapi.EventAppender
 		RunID:     req.RunID,
 		Kind:      stream.StreamKindMemoryPrepared,
 		CreatedAt: time.Now().UTC(),
-		Payload:   &stream.MemoryPreparedPayload{MemoryPrepared: prepared},
+		Payload:   map[string]any{"memory_prepared": prepared},
 	})
 	return err
 }
@@ -289,9 +287,7 @@ func emitProcedureActivationEvents(ctx context.Context, store runtimeapi.EventAp
 			RunID:     runID,
 			Kind:      stream.StreamKindProcedureActivation,
 			CreatedAt: time.Now().UTC(),
-			Payload: &stream.ProcedureActivationPayload{
-				ProcedureActivation: streamProcedureActivationFromDomain(runID, activation),
-			},
+			Payload:   map[string]any{"procedure_activation": streamProcedureActivationFromDomain(runID, activation)},
 		})
 		if err != nil {
 			return err
@@ -416,7 +412,7 @@ func emitSkillSelectionEvents(ctx context.Context, store runtimeapi.EventAppende
 		RunID:     req.RunID,
 		Kind:      stream.StreamKindSkillDiscovered,
 		CreatedAt: time.Now().UTC(),
-		Payload:   &stream.SkillDiscoveredPayload{Skill: discoveredSkill},
+		Payload:   map[string]any{"skill": discoveredSkill},
 	}); err != nil {
 		return err
 	}
@@ -428,7 +424,7 @@ func emitSkillSelectionEvents(ctx context.Context, store runtimeapi.EventAppende
 		RunID:     req.RunID,
 		Kind:      stream.StreamKindSkillSelected,
 		CreatedAt: time.Now().UTC(),
-		Payload:   &stream.SkillSelectedPayload{Skill: streamSkill},
+		Payload:   map[string]any{"skill": streamSkill},
 	}); err != nil {
 		return err
 	}
@@ -436,7 +432,7 @@ func emitSkillSelectionEvents(ctx context.Context, store runtimeapi.EventAppende
 		RunID:     req.RunID,
 		Kind:      stream.StreamKindSkillLoaded,
 		CreatedAt: time.Now().UTC(),
-		Payload:   &stream.SkillLoadedPayload{Skill: streamSkill},
+		Payload:   map[string]any{"skill": streamSkill},
 	}); err != nil {
 		return err
 	}
@@ -602,29 +598,13 @@ func emitDecisionEvents(ctx context.Context, store runtimeapi.EventAppender, req
 	if record.Action == decision.ActionAskUser || record.Action == decision.ActionBlock || record.Action == decision.ActionResumeRun {
 		finalKind = stream.StreamKindDecisionBlocked
 	}
-	decisionPayload := &stream.DecisionSelectedPayload{
-		Action:              string(record.Action),
-		Intent:              record.Intent,
-		SelectedSkillID:     record.SelectedSkillID,
-		DecisionReason:      record.DecisionReason,
-		DecisionProfileHash: record.DecisionProfileHash,
-		ExplicitSkillID:     strings.TrimSpace(explicitSkillID),
-	}
-	if finalKind == stream.StreamKindDecisionBlocked {
-		_, err := stream.AppendStreamItem(ctx, store, req.Sink, stream.StreamItem{
-			RunID:     req.RunID,
-			Kind:      finalKind,
-			CreatedAt: time.Now().UTC(),
-			Payload: &stream.DecisionBlockedPayload{
-				Action:              string(record.Action),
-				Intent:              record.Intent,
-				SelectedSkillID:     record.SelectedSkillID,
-				DecisionReason:      record.DecisionReason,
-				DecisionProfileHash: record.DecisionProfileHash,
-				ExplicitSkillID:     strings.TrimSpace(explicitSkillID),
-			},
-		})
-		return err
+	decisionPayload := map[string]any{
+		"action":                string(record.Action),
+		"intent":                record.Intent,
+		"selected_skill_id":     record.SelectedSkillID,
+		"decision_reason":       record.DecisionReason,
+		"decision_profile_hash": record.DecisionProfileHash,
+		"explicit_skill_id":     strings.TrimSpace(explicitSkillID),
 	}
 	_, err := stream.AppendStreamItem(ctx, store, req.Sink, stream.StreamItem{
 		RunID:     req.RunID,

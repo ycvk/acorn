@@ -6,19 +6,17 @@ import (
 	"time"
 )
 
-// --- StreamItem ---
-
+// StreamItem is a single event in the run stream.
 type StreamItem struct {
 	RunID     string         `json:"run_id"`
 	Sequence  int64          `json:"sequence,omitempty"`
 	Kind      StreamItemKind `json:"kind"`
 	CreatedAt time.Time      `json:"created_at"`
-	Payload   StreamPayload  `json:"-"`
+	Payload   map[string]any `json:"-"`
 }
 
 // MarshalJSON serializes StreamItem with payload fields flattened into the
-// top-level object. The "kind" field acts as the discriminator so the
-// nested "payload" wrapper is unnecessary on the wire.
+// top-level object. The "kind" field acts as the discriminator.
 func (item StreamItem) MarshalJSON() ([]byte, error) {
 	obj := map[string]any{
 		"run_id":     item.RunID,
@@ -28,24 +26,14 @@ func (item StreamItem) MarshalJSON() ([]byte, error) {
 	if item.Sequence != 0 {
 		obj["sequence"] = item.Sequence
 	}
-	if item.Payload != nil {
-		payloadBytes, err := json.Marshal(item.Payload)
-		if err != nil {
-			return nil, fmt.Errorf("marshal stream item payload: %w", err)
-		}
-		var payloadMap map[string]any
-		if err := json.Unmarshal(payloadBytes, &payloadMap); err != nil {
-			return nil, fmt.Errorf("unmarshal stream item payload to map: %w", err)
-		}
-		for k, v := range payloadMap {
-			obj[k] = v
-		}
+	for k, v := range item.Payload {
+		obj[k] = v
 	}
 	return json.Marshal(obj)
 }
 
 // UnmarshalJSON deserializes flat StreamItem JSON, extracting common fields
-// and passing the remaining keys as the typed payload based on Kind.
+// and keeping the remaining keys as the payload map.
 func (item *StreamItem) UnmarshalJSON(data []byte) error {
 	var raw map[string]any
 	if err := json.Unmarshal(data, &raw); err != nil {
@@ -98,133 +86,7 @@ func (item *StreamItem) UnmarshalJSON(data []byte) error {
 	delete(raw, "kind")
 	delete(raw, "sequence")
 	delete(raw, "created_at")
-
-	if len(raw) > 0 {
-		payloadBytes, err := json.Marshal(raw)
-		if err != nil {
-			return fmt.Errorf("re-marshal payload: %w", err)
-		}
-		p, err := UnmarshalPayload(item.Kind, payloadBytes)
-		if err != nil {
-			return err
-		}
-		item.Payload = p
-	}
+	item.Payload = raw
 
 	return nil
-}
-
-func UnmarshalPayload(kind StreamItemKind, data json.RawMessage) (StreamPayload, error) {
-	var p StreamPayload
-	switch kind {
-	case StreamKindRunStarted:
-		p = &RunStartedPayload{}
-	case StreamKindRunCompleted:
-		p = &RunCompletedPayload{}
-	case StreamKindRunFailed:
-		p = &RunFailedPayload{}
-	case StreamKindRunInterrupted:
-		p = &RunInterruptedPayload{}
-	case StreamKindRunResumeRequested:
-		p = &RunResumeRequestedPayload{}
-	case StreamKindDecisionSelected:
-		p = &DecisionSelectedPayload{}
-	case StreamKindDecisionBlocked:
-		p = &DecisionBlockedPayload{}
-	case StreamKindSkillDiscovered:
-		p = &SkillDiscoveredPayload{}
-	case StreamKindSkillSelected:
-		p = &SkillSelectedPayload{}
-	case StreamKindSkillLoaded:
-		p = &SkillLoadedPayload{}
-	case StreamKindSkillFailed:
-		p = &SkillFailedPayload{}
-	case StreamKindSkillLifecycle:
-		p = &SkillLifecyclePayload{}
-	case StreamKindProcedureActivation:
-		p = &ProcedureActivationPayload{}
-	case StreamKindMemoryPrepared:
-		p = &MemoryPreparedPayload{}
-	case StreamKindContextPressure:
-		p = &ContextPressurePayload{}
-	case StreamKindContextCompressed:
-		p = &ContextCompressedPayload{}
-	case StreamKindAssistantDelta:
-		p = &AssistantDeltaPayload{}
-	case StreamKindAssistantMessage:
-		p = &AssistantMessagePayload{}
-	case StreamKindToolCallStarted:
-		p = &ToolCallStartedPayload{}
-	case StreamKindToolCallProgress:
-		p = &ToolCallProgressPayload{}
-	case StreamKindToolCallSucceeded:
-		p = &ToolCallSucceededPayload{}
-	case StreamKindToolCallFailed:
-		p = &ToolCallFailedPayload{}
-	case StreamKindToolCallInterrupted:
-		p = &ToolCallInterruptedPayload{}
-	case StreamKindProviderDegraded:
-		p = &ProviderDegradedPayload{}
-	case StreamKindMCPToolCatalogRefreshed,
-		StreamKindMCPToolCatalogRefreshFailed,
-		StreamKindMCPProviderAdded,
-		StreamKindMCPProviderRemoved,
-		StreamKindMCPProviderRestarted,
-		StreamKindMCPResourceCatalogRefreshed,
-		StreamKindMCPResourceCatalogRefreshFailed,
-		StreamKindMCPPromptCatalogRefreshed,
-		StreamKindMCPPromptCatalogRefreshFailed,
-		StreamKindMCPAuthStatusChanged:
-		p = &MCPProviderLifecyclePayload{}
-	case StreamKindElicitationPending:
-		p = &ElicitationPayload{}
-	case StreamKindElicitationDecided:
-		p = &ElicitationPayload{}
-	case StreamKindSamplingStarted:
-		p = &SamplingPayload{}
-	case StreamKindSamplingCompleted:
-		p = &SamplingPayload{}
-	case StreamKindSamplingFailed:
-		p = &SamplingPayload{}
-	case StreamKindSubagentStarted:
-		p = &SubagentStartedPayload{}
-	case StreamKindSubagentCompleted:
-		p = &SubagentCompletedPayload{}
-	case StreamKindSubagentFailed:
-		p = &SubagentFailedPayload{}
-	case StreamKindHeartbeat:
-		p = &HeartbeatPayload{}
-	case StreamKindToolParallelBatchStarted:
-		p = &ToolParallelBatchStartedPayload{}
-	case StreamKindToolParallelBatchCompleted:
-		p = &ToolParallelBatchCompletedPayload{}
-	case StreamKindRunArchived:
-		p = &RunArchivedPayload{}
-	case StreamKindPlanCreated:
-		p = &PlanCreatedPayload{}
-	case StreamKindPlanUpdated:
-		p = &PlanUpdatedPayload{}
-	case StreamKindPlanCleared:
-		p = &PlanClearedPayload{}
-	case StreamKindStepStarted:
-		p = &PlanStepStartedPayload{}
-	case StreamKindStepCompleted:
-		p = &PlanStepCompletedPayload{}
-	case StreamKindStepFailed:
-		p = &PlanStepFailedPayload{}
-	default:
-		return nil, fmt.Errorf("unknown stream kind: %s", kind)
-	}
-	if err := json.Unmarshal(data, p); err != nil {
-		return nil, fmt.Errorf("unmarshal %s payload: %w", kind, err)
-	}
-	switch v := p.(type) {
-	case *MCPProviderLifecyclePayload:
-		v.streamKind = kind
-	case *ElicitationPayload:
-		v.streamKind = kind
-	case *SamplingPayload:
-		v.streamKind = kind
-	}
-	return p, nil
 }

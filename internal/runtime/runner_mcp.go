@@ -86,49 +86,52 @@ func (f *RunnerFactory) providerEventCallback() mcpprovider.ProviderEventCallbac
 			runID = systemHotReloadRunID
 			sink = nil
 		}
-
-		var kind stream.StreamItemKind
-		switch ev.Kind {
-		case "tool_catalog_refreshed":
-			kind = stream.StreamKindMCPToolCatalogRefreshed
-		case "tool_catalog_refresh_failed":
-			kind = stream.StreamKindMCPToolCatalogRefreshFailed
-		case "provider_added":
-			kind = stream.StreamKindMCPProviderAdded
-		case "provider_removed":
-			kind = stream.StreamKindMCPProviderRemoved
-		case "provider_restarted":
-			kind = stream.StreamKindMCPProviderRestarted
-		case "resource_catalog_refreshed":
-			kind = stream.StreamKindMCPResourceCatalogRefreshed
-		case "resource_catalog_refresh_failed":
-			kind = stream.StreamKindMCPResourceCatalogRefreshFailed
-		case "prompt_catalog_refreshed":
-			kind = stream.StreamKindMCPPromptCatalogRefreshed
-		case "prompt_catalog_refresh_failed":
-			kind = stream.StreamKindMCPPromptCatalogRefreshFailed
-		case "auth_status_changed":
-			kind = stream.StreamKindMCPAuthStatusChanged
-		default:
-			f.recordEventError(runID, fmt.Errorf("unknown MCP provider event %q", ev.Kind))
+		kind, err := streamKindForMCPProviderEvent(ev.Kind)
+		if err != nil {
+			f.recordEventError(runID, err)
 			return
-		}
-
-		payload := stream.MCPProviderLifecyclePayload{
-			ProviderName: ev.Provider,
-			Transport:    ev.Transport,
-			Error:        ev.Error,
-			AuthStatus:   ev.AuthStatus,
 		}
 
 		if _, err := stream.AppendStreamItem(context.Background(), f.deps.Store, sink, stream.StreamItem{
 			RunID:     runID,
 			Kind:      kind,
 			CreatedAt: time.Now().UTC(),
-			Payload:   &payload,
+			Payload: map[string]any{
+				"provider_name": ev.Provider,
+				"transport":     ev.Transport,
+				"error":         ev.Error,
+				"auth_status":   ev.AuthStatus,
+			},
 		}); err != nil {
-			f.recordEventError(runID, fmt.Errorf("append MCP lifecycle stream item %s: %w", kind, err))
+			f.recordEventError(runID, fmt.Errorf("append MCP lifecycle stream item %s: %w", ev.Kind, err))
 		}
+	}
+}
+
+func streamKindForMCPProviderEvent(kind string) (stream.StreamItemKind, error) {
+	switch strings.TrimSpace(kind) {
+	case "tool_catalog_refreshed":
+		return stream.StreamKindMCPToolCatalogRefreshed, nil
+	case "tool_catalog_refresh_failed":
+		return stream.StreamKindMCPToolCatalogRefreshFailed, nil
+	case "provider_added":
+		return stream.StreamKindMCPProviderAdded, nil
+	case "provider_removed":
+		return stream.StreamKindMCPProviderRemoved, nil
+	case "provider_restarted":
+		return stream.StreamKindMCPProviderRestarted, nil
+	case "resource_catalog_refreshed":
+		return stream.StreamKindMCPResourceCatalogRefreshed, nil
+	case "resource_catalog_refresh_failed":
+		return stream.StreamKindMCPResourceCatalogRefreshFailed, nil
+	case "prompt_catalog_refreshed":
+		return stream.StreamKindMCPPromptCatalogRefreshed, nil
+	case "prompt_catalog_refresh_failed":
+		return stream.StreamKindMCPPromptCatalogRefreshFailed, nil
+	case "auth_status_changed":
+		return stream.StreamKindMCPAuthStatusChanged, nil
+	default:
+		return "", fmt.Errorf("unknown MCP provider event kind %q", kind)
 	}
 }
 

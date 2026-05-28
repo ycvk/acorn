@@ -38,32 +38,13 @@ func ProjectStreamItemToEvent(item StreamItem) (string, any, error) {
 	if item.Payload == nil {
 		return streamKindToEventKind(item.Kind), map[string]any{}, nil
 	}
+
 	payload, err := streamPayloadMap(item.Kind, item.Payload)
 	if err != nil {
 		return "", nil, err
 	}
-
-	switch p := item.Payload.(type) {
-	case *ToolCallStartedPayload:
-		if p.ToolCall != nil {
-			mergeToolCallIntoPayload(payload, p.ToolCall)
-		}
-	case *ToolCallProgressPayload:
-		if p.ToolCall != nil {
-			mergeToolCallProgressIntoPayload(payload, p.ToolCall)
-		}
-	case *ToolCallSucceededPayload:
-		if p.ToolCall != nil {
-			mergeToolCallIntoPayload(payload, p.ToolCall)
-		}
-	case *ToolCallFailedPayload:
-		if p.ToolCall != nil {
-			mergeToolCallIntoPayload(payload, p.ToolCall)
-		}
-	case *ToolCallInterruptedPayload:
-		if p.ToolCall != nil {
-			mergeToolCallIntoPayload(payload, p.ToolCall)
-		}
+	if err := normalizeToolCallPayload(item.Kind, payload); err != nil {
+		return "", nil, err
 	}
 
 	return streamKindToEventKind(item.Kind), payload, nil
@@ -113,14 +94,8 @@ func streamKindToEventKind(kind StreamItemKind) string {
 		return "context.pressure"
 	case StreamKindContextCompressed:
 		return "context.compressed"
-	case StreamKindHeartbeat:
-		return "stream.heartbeat"
-	case StreamKindToolParallelBatchStarted:
-		return "tool.parallel_batch.started"
-	case StreamKindToolParallelBatchCompleted:
-		return "tool.parallel_batch.completed"
-	case StreamKindRunArchived:
-		return "run.archived"
+	case StreamKindPlanCleared:
+		return "plan.cleared"
 	default:
 		return string(kind)
 	}
@@ -137,27 +112,25 @@ func streamPayloadMap(kind StreamItemKind, payload any) (map[string]any, error) 
 	return out, nil
 }
 
-func mergeToolCallIntoPayload(payload map[string]any, tool *StreamToolCall) {
-	toolMap, err := streamPayloadMap(StreamKindToolCallStarted, tool)
-	if err != nil {
-		return
+func normalizeToolCallPayload(kind StreamItemKind, payload map[string]any) error {
+	switch kind {
+	case StreamKindToolCallStarted,
+		StreamKindToolCallProgress,
+		StreamKindToolCallSucceeded,
+		StreamKindToolCallFailed,
+		StreamKindToolCallInterrupted:
+	default:
+		return nil
 	}
-	for k, v := range toolMap {
-		dst := k
-		if k == "name" {
-			dst = "tool_name"
-		}
-		if _, exists := payload[dst]; !exists {
-			payload[dst] = v
-		}
-	}
-	delete(payload, "tool_call")
-}
 
-func mergeToolCallProgressIntoPayload(payload map[string]any, tool *StreamToolCallProgress) {
-	toolMap, err := streamPayloadMap(StreamKindToolCallProgress, tool)
-	if err != nil {
-		return
+	raw, exists := payload["tool_call"]
+	if !exists || raw == nil {
+		delete(payload, "tool_call")
+		return nil
+	}
+	toolMap, ok := raw.(map[string]any)
+	if !ok {
+		return fmt.Errorf("stream %s payload tool_call must be object", kind)
 	}
 	for k, v := range toolMap {
 		dst := k
@@ -169,6 +142,7 @@ func mergeToolCallProgressIntoPayload(payload map[string]any, tool *StreamToolCa
 		}
 	}
 	delete(payload, "tool_call")
+	return nil
 }
 
 func reencodeViaJSON(in any, out any) error {

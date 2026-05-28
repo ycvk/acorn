@@ -58,18 +58,18 @@ func TestRuntimeWorkbenchServiceLoadAggregatesRuntimeTruth(t *testing.T) {
 					Kind:      string(stream.StreamKindSubagentStarted),
 					Sequence:  1,
 					CreatedAt: now,
-					Payload: &stream.SubagentStartedPayload{
-						SubRunID:          "sub_1",
-						ParentID:          "run_1",
-						SessionID:         "session_1",
-						Depth:             1,
-						Task:              "verify ui",
-						ChildRunMode:      "fork",
-						WorkspaceMode:     "worktree",
-						WorktreePath:      "/tmp/worktree/run_child",
-						ContextMessages:   3,
-						OrchestrationMode: "single_agent",
-						ParentStepID:      "s1",
+					Payload: map[string]any{
+						"sub_run_id":         "sub_1",
+						"parent_id":          "run_1",
+						"session_id":         "session_1",
+						"depth":              1,
+						"task":               "verify ui",
+						"child_run_mode":     "fork",
+						"workspace_mode":     "worktree",
+						"worktree_path":      "/tmp/worktree/run_child",
+						"context_messages":   3,
+						"orchestration_mode": "single_agent",
+						"parent_step_id":     "s1",
 					},
 				},
 				{
@@ -77,20 +77,20 @@ func TestRuntimeWorkbenchServiceLoadAggregatesRuntimeTruth(t *testing.T) {
 					Kind:      string(stream.StreamKindSubagentCompleted),
 					Sequence:  2,
 					CreatedAt: now.Add(time.Second),
-					Payload: &stream.SubagentCompletedPayload{
-						SubRunID:          "sub_1",
-						ParentID:          "run_1",
-						SessionID:         "session_1",
-						Summary:           "done",
-						FinalStatus:       "accepted",
-						AcceptanceStatus:  "accepted",
-						AcceptanceReasons: []string{"tests passed"},
-						ChildRunMode:      "fork",
-						WorkspaceMode:     "worktree",
-						WorktreePath:      "/tmp/worktree/run_child",
-						EvidenceRefs:      []string{"tool_result:run_child:call_1"},
-						OrchestrationMode: "single_agent",
-						ParentStepID:      "s1",
+					Payload: map[string]any{
+						"sub_run_id":         "sub_1",
+						"parent_id":          "run_1",
+						"session_id":         "session_1",
+						"summary":            "done",
+						"final_status":       "accepted",
+						"acceptance_status":  "accepted",
+						"acceptance_reasons": []string{"tests passed"},
+						"child_run_mode":     "fork",
+						"workspace_mode":     "worktree",
+						"worktree_path":      "/tmp/worktree/run_child",
+						"evidence_refs":      []string{"tool_result:run_child:call_1"},
+						"orchestration_mode": "single_agent",
+						"parent_step_id":     "s1",
 					},
 				},
 				{
@@ -98,14 +98,14 @@ func TestRuntimeWorkbenchServiceLoadAggregatesRuntimeTruth(t *testing.T) {
 					Kind:      string(stream.StreamKindStepCompleted),
 					Sequence:  3,
 					CreatedAt: now.Add(2 * time.Second),
-					Payload:   &stream.PlanStepCompletedPayload{},
+					Payload:   map[string]any{},
 				},
 				{
 					RunID:     "run_1",
 					Kind:      "context.pressure",
 					Sequence:  4,
 					CreatedAt: now.Add(3 * time.Second),
-					Payload: &stream.ContextPressurePayload{ContextPressure: &stream.StreamContextPressure{
+					Payload: map[string]any{"context_pressure": &stream.StreamContextPressure{
 						State:                 "warning",
 						EstimatedInputTokens:  12000,
 						EffectiveWindowTokens: 16000,
@@ -117,7 +117,7 @@ func TestRuntimeWorkbenchServiceLoadAggregatesRuntimeTruth(t *testing.T) {
 					Kind:      "context.compressed",
 					Sequence:  5,
 					CreatedAt: now.Add(4 * time.Second),
-					Payload: &stream.ContextCompressedPayload{ContextCompressed: &stream.StreamContextCompressed{
+					Payload: map[string]any{"context_compressed": &stream.StreamContextCompressed{
 						BoundaryID:     "boundary_1",
 						TokensBefore:   12000,
 						TokensAfter:    5000,
@@ -129,7 +129,7 @@ func TestRuntimeWorkbenchServiceLoadAggregatesRuntimeTruth(t *testing.T) {
 					Kind:      "memory.prepared",
 					Sequence:  6,
 					CreatedAt: now.Add(5 * time.Second),
-					Payload: &stream.MemoryPreparedPayload{MemoryPrepared: &stream.StreamMemoryPrepared{
+					Payload: map[string]any{"memory_prepared": &stream.StreamMemoryPrepared{
 						Entries: []stream.StreamMemoryPreparedEntry{{
 							Ref:   "facts/context-economy.md#tool-results",
 							Kind:  "fact",
@@ -142,7 +142,7 @@ func TestRuntimeWorkbenchServiceLoadAggregatesRuntimeTruth(t *testing.T) {
 					Kind:      "procedure.activation",
 					Sequence:  7,
 					CreatedAt: now.Add(6 * time.Second),
-					Payload: &stream.ProcedureActivationPayload{ProcedureActivation: &stream.StreamProcedureActivation{
+					Payload: map[string]any{"procedure_activation": &stream.StreamProcedureActivation{
 						ProcedureRef: "skills/learned/context-economy.md#projection",
 						Phase:        "injected",
 					}},

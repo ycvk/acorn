@@ -108,7 +108,7 @@ func EmitContextCompressedEvent(
 		RunID:     runID,
 		Kind:      stream.StreamKindContextCompressed,
 		CreatedAt: time.Now().UTC(),
-		Payload: &stream.ContextCompressedPayload{ContextCompressed: &stream.StreamContextCompressed{
+		Payload: map[string]any{"context_compressed": &stream.StreamContextCompressed{
 			BoundaryID:     outcome.BoundaryID,
 			FirstIndex:     outcome.FirstIndex,
 			LastIndex:      outcome.LastIndex,
@@ -136,7 +136,7 @@ func EmitContextPressureEvent(
 		RunID:     runID,
 		Kind:      stream.StreamKindContextPressure,
 		CreatedAt: time.Now().UTC(),
-		Payload: &stream.ContextPressurePayload{ContextPressure: &stream.StreamContextPressure{
+		Payload: map[string]any{"context_pressure": &stream.StreamContextPressure{
 			State:                      string(pressure.State),
 			EstimatedInputTokens:       pressure.EstimatedInputTokens,
 			EffectiveWindowTokens:      pressure.EffectiveWindowTokens,

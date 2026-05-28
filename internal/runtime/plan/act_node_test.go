@@ -518,15 +518,11 @@ func TestActNodeEnforcesRiskyToolPlanBeforeTools(t *testing.T) {
 				ResourceScope: tooling.ResourceScopeWorkspaceFile,
 				Profiles:      []tooling.ToolProfile{tooling.ToolProfileRun},
 				PlanPolicy:    tooling.PlanPolicyRequireActivePlan,
-				FactPolicy:    tooling.FactPolicyAuto,
 				Loading:       tooling.EagerLoadingPolicy(),
 				Execution: tooling.ToolExecutionPolicy{
 					ParallelPolicy: tooling.ParallelPolicyWriteScoped,
 					PathArg:        "path",
 				},
-				Result:     tooling.InlineResultPolicy(0),
-				Boundary:   tooling.ToolResultBoundaryPolicy(),
-				Projection: tooling.ActivityProjectionPolicy(),
 			},
 		},
 	}, nil)

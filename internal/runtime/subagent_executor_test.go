@@ -80,65 +80,6 @@ func TestSubagentExecutorDepthTracking(t *testing.T) {
 	}
 }
 
-func TestSubagentPayloadStreamKind(t *testing.T) {
-	t.Parallel()
-
-	started := stream.SubagentStartedPayload{SubRunID: "sub1", ParentID: "p1", Depth: 1, Task: "t", ChildRunMode: "fork", WorkspaceMode: "worktree", ContextMessages: 2}
-	if started.StreamKind() != stream.StreamKindSubagentStarted {
-		t.Fatalf("stream.SubagentStartedPayload.StreamKind() = %q, want %q", started.StreamKind(), stream.StreamKindSubagentStarted)
-	}
-
-	completed := stream.SubagentCompletedPayload{
-		SubRunID:         "sub1",
-		ParentID:         "p1",
-		Summary:          "s",
-		FinalStatus:      "succeeded",
-		AcceptanceStatus: "passed",
-		ChildRunMode:     "fork",
-		WorkspaceMode:    "worktree",
-		EvidenceRefs:     []string{"tool_result:run_child:call_1"},
-	}
-	if completed.StreamKind() != stream.StreamKindSubagentCompleted {
-		t.Fatalf("stream.SubagentCompletedPayload.StreamKind() = %q, want %q", completed.StreamKind(), stream.StreamKindSubagentCompleted)
-	}
-
-	failed := stream.SubagentFailedPayload{
-		SubRunID:         "sub1",
-		ParentID:         "p1",
-		Error:            "e",
-		AcceptanceStatus: "failed",
-		ChildRunMode:     "fork",
-		WorkspaceMode:    "worktree",
-	}
-	if failed.StreamKind() != stream.StreamKindSubagentFailed {
-		t.Fatalf("stream.SubagentFailedPayload.StreamKind() = %q, want %q", failed.StreamKind(), stream.StreamKindSubagentFailed)
-	}
-}
-
-func TestSubagentPayloadUnmarshal(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		kind stream.StreamItemKind
-	}{
-		{stream.StreamKindSubagentStarted},
-		{stream.StreamKindSubagentCompleted},
-		{stream.StreamKindSubagentFailed},
-	}
-
-	for _, tt := range tests {
-		t.Run(string(tt.kind), func(t *testing.T) {
-			p, err := stream.UnmarshalPayload(tt.kind, []byte(`{}`))
-			if err != nil {
-				t.Fatalf("stream.UnmarshalPayload(%q): %v", tt.kind, err)
-			}
-			if p.StreamKind() != tt.kind {
-				t.Fatalf("StreamKind() = %q, want %q", p.StreamKind(), tt.kind)
-			}
-		})
-	}
-}
-
 func TestSubagentStreamItemProjection(t *testing.T) {
 	t.Parallel()
 
@@ -153,7 +94,7 @@ func TestSubagentStreamItemProjection(t *testing.T) {
 			name: "subagent_started",
 			item: stream.StreamItem{
 				RunID: "run_1", Sequence: 1, Kind: stream.StreamKindSubagentStarted, CreatedAt: now,
-				Payload: &stream.SubagentStartedPayload{SubRunID: "sub_1", ParentID: "run_1", Depth: 1, Task: "analyze", ChildRunMode: "fork", WorkspaceMode: "worktree", ContextMessages: 2},
+				Payload: map[string]any{"sub_run_id": "sub_1", "parent_id": "run_1", "depth": 1, "task": "analyze", "child_run_mode": "fork", "workspace_mode": "worktree", "context_messages": 2},
 			},
 			wantEventKind: "subagent.started",
 		},
@@ -161,15 +102,15 @@ func TestSubagentStreamItemProjection(t *testing.T) {
 			name: "subagent_completed",
 			item: stream.StreamItem{
 				RunID: "run_1", Sequence: 2, Kind: stream.StreamKindSubagentCompleted, CreatedAt: now,
-				Payload: &stream.SubagentCompletedPayload{
-					SubRunID:         "sub_1",
-					ParentID:         "run_1",
-					Summary:          "done",
-					FinalStatus:      "succeeded",
-					AcceptanceStatus: "passed",
-					ChildRunMode:     "fork",
-					WorkspaceMode:    "worktree",
-					EvidenceRefs:     []string{"tool_result:run_child:call_1"},
+				Payload: map[string]any{
+					"sub_run_id":        "sub_1",
+					"parent_id":         "run_1",
+					"summary":           "done",
+					"final_status":      "succeeded",
+					"acceptance_status": "passed",
+					"child_run_mode":    "fork",
+					"workspace_mode":    "worktree",
+					"evidence_refs":     []string{"tool_result:run_child:call_1"},
 				},
 			},
 			wantEventKind: "subagent.completed",
@@ -178,13 +119,13 @@ func TestSubagentStreamItemProjection(t *testing.T) {
 			name: "subagent_failed",
 			item: stream.StreamItem{
 				RunID: "run_1", Sequence: 3, Kind: stream.StreamKindSubagentFailed, CreatedAt: now,
-				Payload: &stream.SubagentFailedPayload{
-					SubRunID:         "sub_1",
-					ParentID:         "run_1",
-					Error:            "boom",
-					AcceptanceStatus: "failed",
-					ChildRunMode:     "fork",
-					WorkspaceMode:    "worktree",
+				Payload: map[string]any{
+					"sub_run_id":        "sub_1",
+					"parent_id":         "run_1",
+					"error":             "boom",
+					"acceptance_status": "failed",
+					"child_run_mode":    "fork",
+					"workspace_mode":    "worktree",
 				},
 			},
 			wantEventKind: "subagent.failed",
@@ -234,30 +175,30 @@ func TestSubagentStreamItemJSONRoundtrip(t *testing.T) {
 	items := []stream.StreamItem{
 		{
 			RunID: "run_1", Sequence: 1, Kind: stream.StreamKindSubagentStarted, CreatedAt: now,
-			Payload: &stream.SubagentStartedPayload{SubRunID: "sub_1", ParentID: "run_1", Depth: 1, Task: "analyze the codebase", ChildRunMode: "fork", WorkspaceMode: "worktree", ContextMessages: 2},
+			Payload: map[string]any{"sub_run_id": "sub_1", "parent_id": "run_1", "depth": 1, "task": "analyze the codebase", "child_run_mode": "fork", "workspace_mode": "worktree", "context_messages": 2},
 		},
 		{
 			RunID: "run_1", Sequence: 2, Kind: stream.StreamKindSubagentCompleted, CreatedAt: now,
-			Payload: &stream.SubagentCompletedPayload{
-				SubRunID:         "sub_1",
-				ParentID:         "run_1",
-				Summary:          "found 3 issues",
-				FinalStatus:      "succeeded",
-				AcceptanceStatus: "passed",
-				ChildRunMode:     "fork",
-				WorkspaceMode:    "worktree",
-				EvidenceRefs:     []string{"tool_result:run_child:call_1"},
+			Payload: map[string]any{
+				"sub_run_id":        "sub_1",
+				"parent_id":         "run_1",
+				"summary":           "found 3 issues",
+				"final_status":      "succeeded",
+				"acceptance_status": "passed",
+				"child_run_mode":    "fork",
+				"workspace_mode":    "worktree",
+				"evidence_refs":     []string{"tool_result:run_child:call_1"},
 			},
 		},
 		{
 			RunID: "run_1", Sequence: 3, Kind: stream.StreamKindSubagentFailed, CreatedAt: now,
-			Payload: &stream.SubagentFailedPayload{
-				SubRunID:         "sub_1",
-				ParentID:         "run_1",
-				Error:            "timeout",
-				AcceptanceStatus: "failed",
-				ChildRunMode:     "fork",
-				WorkspaceMode:    "worktree",
+			Payload: map[string]any{
+				"sub_run_id":        "sub_1",
+				"parent_id":         "run_1",
+				"error":             "timeout",
+				"acceptance_status": "failed",
+				"child_run_mode":    "fork",
+				"workspace_mode":    "worktree",
 			},
 		},
 	}
@@ -282,9 +223,6 @@ func TestSubagentStreamItemJSONRoundtrip(t *testing.T) {
 			}
 			if decoded.Payload == nil {
 				t.Fatal("Payload is nil after roundtrip")
-			}
-			if decoded.Payload.StreamKind() != original.Kind {
-				t.Fatalf("Payload.StreamKind() = %q, want %q", decoded.Payload.StreamKind(), original.Kind)
 			}
 		})
 	}
@@ -409,7 +347,7 @@ func TestSubagentEventRecordRoundtrip(t *testing.T) {
 
 	original := stream.StreamItem{
 		RunID: "run_rt", Sequence: 1, Kind: stream.StreamKindSubagentStarted, CreatedAt: now,
-		Payload: &stream.SubagentStartedPayload{SubRunID: "sub_1", ParentID: "run_rt", Depth: 1, Task: "inspect", ChildRunMode: "fork", WorkspaceMode: "worktree", ContextMessages: 2},
+		Payload: map[string]any{"sub_run_id": "sub_1", "parent_id": "run_rt", "depth": 1, "task": "inspect", "child_run_mode": "fork", "workspace_mode": "worktree", "context_messages": 2},
 	}
 
 	eventKind, payload, err := stream.ProjectStreamItemToEvent(original)
@@ -430,21 +368,18 @@ func TestSubagentEventRecordRoundtrip(t *testing.T) {
 		t.Fatalf("reconstructed Kind = %q, want %q", reconstructed.Kind, stream.StreamKindSubagentStarted)
 	}
 
-	started, ok := reconstructed.Payload.(*stream.SubagentStartedPayload)
-	if !ok {
-		t.Fatalf("Payload type = %T, want *stream.SubagentStartedPayload", reconstructed.Payload)
+	p := reconstructed.Payload
+	if p["sub_run_id"] != "sub_1" {
+		t.Fatalf("sub_run_id = %q, want %q", p["sub_run_id"], "sub_1")
 	}
-	if started.SubRunID != "sub_1" {
-		t.Fatalf("SubRunID = %q, want %q", started.SubRunID, "sub_1")
+	if p["depth"] != float64(1) {
+		t.Fatalf("depth = %v, want 1", p["depth"])
 	}
-	if started.Depth != 1 {
-		t.Fatalf("Depth = %d, want 1", started.Depth)
+	if p["child_run_mode"] != "fork" || p["context_messages"] != float64(2) {
+		t.Fatalf("lineage fields = mode:%v context:%v", p["child_run_mode"], p["context_messages"])
 	}
-	if started.ChildRunMode != "fork" || started.ContextMessages != 2 {
-		t.Fatalf("lineage fields = mode:%q context:%d", started.ChildRunMode, started.ContextMessages)
-	}
-	if started.WorkspaceMode != "worktree" {
-		t.Fatalf("WorkspaceMode = %q, want worktree", started.WorkspaceMode)
+	if p["workspace_mode"] != "worktree" {
+		t.Fatalf("workspace_mode = %q, want worktree", p["workspace_mode"])
 	}
 }
 

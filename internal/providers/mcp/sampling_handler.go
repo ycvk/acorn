@@ -93,9 +93,9 @@ func (h *SamplingHandler) HandleCreateMessage(ctx context.Context, req *mcp.Crea
 
 	// Step 4: Emit sampling.started event
 	depth := atomic.LoadInt32(&h.manager.samplingDepth)
-	if err := h.emitSamplingEvent(ctx, runID, string(stream.StreamKindSamplingStarted), stream.SamplingPayload{
-		RunID: subRunID,
-		Depth: depth,
+	if err := h.emitSamplingEvent(ctx, runID, string(stream.StreamKindSamplingStarted), map[string]any{
+		"run_id": subRunID,
+		"depth":  depth,
 	}); err != nil {
 		return nil, err
 	}
@@ -108,9 +108,9 @@ func (h *SamplingHandler) HandleCreateMessage(ctx context.Context, req *mcp.Crea
 	output, err := h.executor.ExecuteMessages(ctx, messages)
 	if err != nil {
 		// Step 8: Emit sampling.failed event
-		if emitErr := h.emitSamplingEvent(ctx, runID, string(stream.StreamKindSamplingFailed), stream.SamplingPayload{
-			RunID: subRunID,
-			Depth: depth,
+		if emitErr := h.emitSamplingEvent(ctx, runID, string(stream.StreamKindSamplingFailed), map[string]any{
+			"run_id": subRunID,
+			"depth":  depth,
 		}); emitErr != nil {
 			return nil, errors.Join(fmt.Errorf("sampling sub-run execution failed: %w", err), emitErr)
 		}
@@ -119,10 +119,10 @@ func (h *SamplingHandler) HandleCreateMessage(ctx context.Context, req *mcp.Crea
 
 	// Step 7: Emit sampling.completed event
 	model := "acorn-default"
-	if err := h.emitSamplingEvent(ctx, runID, string(stream.StreamKindSamplingCompleted), stream.SamplingPayload{
-		RunID: subRunID,
-		Depth: depth,
-		Model: model,
+	if err := h.emitSamplingEvent(ctx, runID, string(stream.StreamKindSamplingCompleted), map[string]any{
+		"run_id": subRunID,
+		"depth":  depth,
+		"model":  model,
 	}); err != nil {
 		return nil, err
 	}
@@ -145,7 +145,7 @@ func (h *SamplingHandler) getActiveRunID() string {
 }
 
 // emitSamplingEvent emits a sampling event via the store's AppendEvent.
-func (h *SamplingHandler) emitSamplingEvent(ctx context.Context, runID, eventKind string, payload stream.SamplingPayload) error {
+func (h *SamplingHandler) emitSamplingEvent(ctx context.Context, runID, eventKind string, payload map[string]any) error {
 	if h.store == nil {
 		return errors.New("sampling event store not configured")
 	}

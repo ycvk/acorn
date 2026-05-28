@@ -61,8 +61,7 @@ P0 不做 repo context、LSP、repo map、persistent code index、`/v1/codeintel
 - `ResourceScope`: P0 使用 `artifact`、`operator` 和现有 workspace/mutation scope，而不是把所有东西塞进 `workspace_file`。
 - `PlanPolicy`: 写 workspace、`multi_edit`、`run_verification` 要求 active plan；artifact read/write/list、operator question 可以不要求 active plan。
 - `ParallelPolicy`: artifact read/list 可以 read-only 并发；artifact write、multi-edit、`run_command` 必须 serial 或 write-scoped。
-- `SideEffects`: P0 需要新增 artifact/operator 相关 side effect，并保留 `run_command` side effect；不允许用空 side effects 掩盖真实行为。
-- `Result`: 大输出默认 `preview_ref` 或 `ref_only`，完整内容必须可从 ledger/artifact 重新读取。
+- Side effects and large-result handling are runtime/ledger behavior, not `ToolContract` fields. Tools that mutate state must emit concrete side-effect refs through the tool result ledger; large outputs must remain rereadable from the ledger/artifact path instead of being replaced by empty success text.
 
 ### 2. Tool result is model-visible truth
 

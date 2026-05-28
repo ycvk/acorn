@@ -176,76 +176,80 @@ func buildSubagentRuns(raw []events.EventRecord) []SubagentRun {
 			continue
 		}
 		current := item[0]
+		m := current.Payload
+		if m == nil {
+			continue
+		}
 		switch current.Kind {
 		case stream.StreamKindSubagentStarted:
-			payload, ok := current.Payload.(*stream.SubagentStartedPayload)
-			if !ok || strings.TrimSpace(payload.SubRunID) == "" {
+			subRunID := getString(m, "sub_run_id")
+			if strings.TrimSpace(subRunID) == "" {
 				continue
 			}
 			run := &SubagentRun{
-				SubRunID:          payload.SubRunID,
-				ParentRunID:       payload.ParentID,
-				SessionID:         payload.SessionID,
-				Depth:             payload.Depth,
-				Task:              payload.Task,
-				ChildRunMode:      payload.ChildRunMode,
-				WorkspaceMode:     payload.WorkspaceMode,
-				WorktreePath:      payload.WorktreePath,
-				ContextMessages:   payload.ContextMessages,
-				OrchestrationMode: payload.OrchestrationMode,
-				ParentStepID:      payload.ParentStepID,
+				SubRunID:          subRunID,
+				ParentRunID:       getString(m, "parent_id"),
+				SessionID:         getString(m, "session_id"),
+				Depth:             getInt(m, "depth"),
+				Task:              getString(m, "task"),
+				ChildRunMode:      getString(m, "child_run_mode"),
+				WorkspaceMode:     getString(m, "workspace_mode"),
+				WorktreePath:      getString(m, "worktree_path"),
+				ContextMessages:   getInt(m, "context_messages"),
+				OrchestrationMode: getString(m, "orchestration_mode"),
+				ParentStepID:      getString(m, "parent_step_id"),
 				State:             "started",
 				UpdatedAt:         current.CreatedAt,
 			}
-			byID[payload.SubRunID] = run
-			order = append(order, payload.SubRunID)
+			byID[subRunID] = run
+			order = append(order, subRunID)
 		case stream.StreamKindSubagentCompleted:
-			payload, ok := current.Payload.(*stream.SubagentCompletedPayload)
-			if !ok || strings.TrimSpace(payload.SubRunID) == "" {
+			subRunID := getString(m, "sub_run_id")
+			if strings.TrimSpace(subRunID) == "" {
 				continue
 			}
-			run, ok := byID[payload.SubRunID]
+			run, ok := byID[subRunID]
 			if !ok {
-				run = &SubagentRun{SubRunID: payload.SubRunID}
-				byID[payload.SubRunID] = run
-				order = append(order, payload.SubRunID)
+				run = &SubagentRun{SubRunID: subRunID}
+				byID[subRunID] = run
+				order = append(order, subRunID)
 			}
-			run.ParentRunID = payload.ParentID
-			run.SessionID = payload.SessionID
-			run.OrchestrationMode = payload.OrchestrationMode
-			run.ParentStepID = payload.ParentStepID
+			run.ParentRunID = getString(m, "parent_id")
+			run.SessionID = getString(m, "session_id")
+			run.OrchestrationMode = getString(m, "orchestration_mode")
+			run.ParentStepID = getString(m, "parent_step_id")
 			run.State = "completed"
-			run.FinalStatus = payload.FinalStatus
-			run.AcceptanceStatus = payload.AcceptanceStatus
-			run.AcceptanceReasons = append([]string(nil), payload.AcceptanceReasons...)
-			run.ChildRunMode = payload.ChildRunMode
-			run.WorkspaceMode = payload.WorkspaceMode
-			run.WorktreePath = payload.WorktreePath
-			run.EvidenceRefs = append([]string(nil), payload.EvidenceRefs...)
-			run.Summary = payload.Summary
+			run.FinalStatus = getString(m, "final_status")
+			run.AcceptanceStatus = getString(m, "acceptance_status")
+			run.AcceptanceReasons = append([]string(nil), getStringSlice(m, "acceptance_reasons")...)
+			run.ChildRunMode = getString(m, "child_run_mode")
+			run.WorkspaceMode = getString(m, "workspace_mode")
+			run.WorktreePath = getString(m, "worktree_path")
+			run.EvidenceRefs = append([]string(nil), getStringSlice(m, "evidence_refs")...)
+			run.Summary = getString(m, "summary")
 			run.UpdatedAt = current.CreatedAt
 		case stream.StreamKindSubagentFailed:
-			payload, ok := current.Payload.(*stream.SubagentFailedPayload)
-			if !ok || strings.TrimSpace(payload.SubRunID) == "" {
+			subRunID := getString(m, "sub_run_id")
+			if strings.TrimSpace(subRunID) == "" {
 				continue
 			}
-			run, ok := byID[payload.SubRunID]
+			run, ok := byID[subRunID]
 			if !ok {
-				run = &SubagentRun{SubRunID: payload.SubRunID}
-				byID[payload.SubRunID] = run
-				order = append(order, payload.SubRunID)
+				run = &SubagentRun{SubRunID: subRunID}
+				byID[subRunID] = run
+				order = append(order, subRunID)
 			}
-			run.ParentRunID = payload.ParentID
-			run.SessionID = payload.SessionID
-			run.OrchestrationMode = payload.OrchestrationMode
-			run.ParentStepID = payload.ParentStepID
+			run.ParentRunID = getString(m, "parent_id")
+			run.SessionID = getString(m, "session_id")
+			run.OrchestrationMode = getString(m, "orchestration_mode")
+			run.ParentStepID = getString(m, "parent_step_id")
 			run.State = "failed"
-			run.AcceptanceStatus = payload.AcceptanceStatus
-			run.AcceptanceReasons = append([]string(nil), payload.AcceptanceReasons...)
-			run.ChildRunMode = payload.ChildRunMode
-			run.WorkspaceMode = payload.WorkspaceMode
-			run.WorktreePath = payload.WorktreePath
-			run.Summary = payload.Error
+			run.AcceptanceStatus = getString(m, "acceptance_status")
+			run.AcceptanceReasons = append([]string(nil), getStringSlice(m, "acceptance_reasons")...)
+			run.ChildRunMode = getString(m, "child_run_mode")
+			run.WorkspaceMode = getString(m, "workspace_mode")
+			run.WorktreePath = getString(m, "worktree_path")
+			run.Summary = getString(m, "error")
 			run.UpdatedAt = current.CreatedAt
 		}
 	}
@@ -259,6 +263,49 @@ func buildSubagentRuns(raw []events.EventRecord) []SubagentRun {
 		return result[i].UpdatedAt.After(result[j].UpdatedAt)
 	})
 	return result
+}
+
+func getString(m map[string]any, key string) string {
+	if m == nil {
+		return ""
+	}
+	v, ok := m[key].(string)
+	if !ok {
+		return ""
+	}
+	return v
+}
+
+func getInt(m map[string]any, key string) int {
+	if m == nil {
+		return 0
+	}
+	switch v := m[key].(type) {
+	case int:
+		return v
+	case float64:
+		return int(v)
+	case int64:
+		return int(v)
+	}
+	return 0
+}
+
+func getStringSlice(m map[string]any, key string) []string {
+	if m == nil {
+		return nil
+	}
+	v, ok := m[key].([]any)
+	if !ok {
+		return nil
+	}
+	out := make([]string, 0, len(v))
+	for _, item := range v {
+		if s, ok := item.(string); ok {
+			out = append(out, s)
+		}
+	}
+	return out
 }
 
 func buildMutationCheckpointSummaries(records []store.ToolResultRecord) []MutationCheckpointSummary {

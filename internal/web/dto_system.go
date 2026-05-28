@@ -65,7 +65,6 @@ type CapabilitiesToolDTO struct {
 	HealthReason   string   `json:"health_reason,omitempty"`
 	ParallelPolicy string   `json:"parallel_policy,omitempty"`
 	PlanPolicy     string   `json:"plan_policy,omitempty"`
-	FactPolicy     string   `json:"fact_policy,omitempty"`
 	Risk           string   `json:"risk"`
 	RootDir        string   `json:"root_dir,omitempty"`
 	WorkDir        string   `json:"work_dir,omitempty"`

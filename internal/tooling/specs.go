@@ -188,15 +188,10 @@ func configuredLocalSpec(name string, enabled bool) ToolSpec {
 			ResourceScope: ResourceScopeWorkspaceFile,
 			Profiles:      []ToolProfile{ToolProfileRun, ToolProfileServe},
 			PlanPolicy:    PlanPolicyNone,
-			FactPolicy:    FactPolicyAuto,
 			Loading:       EagerLoadingPolicy(),
 			Execution: ToolExecutionPolicy{
 				ParallelPolicy: ParallelPolicyReadOnly,
-				SideEffects:    []ToolSideEffect{ToolSideEffectReadWorkspace},
 			},
-			Result:     InlineResultPolicy(0),
-			Boundary:   ToolResultBoundaryPolicy(),
-			Projection: ActivityProjectionPolicy(),
 		},
 	}
 	switch name {
@@ -206,35 +201,30 @@ func configuredLocalSpec(name string, enabled bool) ToolSpec {
 		spec.ResourceScope = ResourceScopeWorkspaceFile
 		spec.Execution.ParallelPolicy = ParallelPolicyReadOnly
 		spec.Execution.PathArg = "path"
-		spec.Execution.SideEffects = []ToolSideEffect{ToolSideEffectReadWorkspace}
 		spec.PlanPolicy = PlanPolicyNone
 	case "git_summary":
 		spec.Kind = ToolKindNative
 		spec.Category = ToolCategoryInspect
 		spec.ResourceScope = ResourceScopeWorkspaceFile
 		spec.Execution.ParallelPolicy = ParallelPolicyNeverParallel
-		spec.Execution.SideEffects = []ToolSideEffect{ToolSideEffectReadWorkspace, ToolSideEffectArtifactWrite}
 		spec.PlanPolicy = PlanPolicyNone
 	case "artifact_read", "artifact_list":
 		spec.Kind = ToolKindNative
 		spec.Category = ToolCategoryRead
 		spec.ResourceScope = ResourceScopeArtifact
 		spec.Execution.ParallelPolicy = ParallelPolicyReadOnly
-		spec.Execution.SideEffects = []ToolSideEffect{ToolSideEffectArtifactRead}
 		spec.PlanPolicy = PlanPolicyNone
 	case "artifact_write":
 		spec.Kind = ToolKindNative
 		spec.Category = ToolCategoryWrite
 		spec.ResourceScope = ResourceScopeArtifact
 		spec.Execution.ParallelPolicy = ParallelPolicyNeverParallel
-		spec.Execution.SideEffects = []ToolSideEffect{ToolSideEffectArtifactWrite}
 		spec.PlanPolicy = PlanPolicyNone
 	case "ask_operator":
 		spec.Kind = ToolKindNative
 		spec.Category = ToolCategoryIntegration
 		spec.ResourceScope = ResourceScopeOperator
 		spec.Execution.ParallelPolicy = ParallelPolicyNeverParallel
-		spec.Execution.SideEffects = []ToolSideEffect{ToolSideEffectOperatorInteraction}
 		spec.PlanPolicy = PlanPolicyNone
 	case "web_fetch":
 		spec.Kind = ToolKindNative
@@ -243,8 +233,6 @@ func configuredLocalSpec(name string, enabled bool) ToolSpec {
 		spec.Profiles = []ToolProfile{ToolProfileRun}
 		spec.Loading = DeferredLoadingPolicy("web_access")
 		spec.Execution.ParallelPolicy = ParallelPolicyReadOnly
-		spec.Execution.SideEffects = []ToolSideEffect{ToolSideEffectWebRead, ToolSideEffectArtifactWrite}
-		spec.Result = ToolResultPolicy{Mode: ToolResultModePreviewRef, MaxInlineBytes: 4000}
 		spec.PlanPolicy = PlanPolicyNone
 	case "web_search":
 		spec.Kind = ToolKindNative
@@ -253,8 +241,6 @@ func configuredLocalSpec(name string, enabled bool) ToolSpec {
 		spec.Profiles = []ToolProfile{ToolProfileRun}
 		spec.Loading = DeferredLoadingPolicy("web_access")
 		spec.Execution.ParallelPolicy = ParallelPolicyReadOnly
-		spec.Execution.SideEffects = []ToolSideEffect{ToolSideEffectWebRead, ToolSideEffectArtifactWrite}
-		spec.Result = ToolResultPolicy{Mode: ToolResultModePreviewRef, MaxInlineBytes: 4000}
 		spec.PlanPolicy = PlanPolicyNone
 	case "browser":
 		spec.Kind = ToolKindNative
@@ -263,8 +249,6 @@ func configuredLocalSpec(name string, enabled bool) ToolSpec {
 		spec.Profiles = []ToolProfile{ToolProfileRun}
 		spec.Loading = DeferredLoadingPolicy("web_access")
 		spec.Execution.ParallelPolicy = ParallelPolicyNeverParallel
-		spec.Execution.SideEffects = []ToolSideEffect{ToolSideEffectBrowserRead, ToolSideEffectBrowserInteract, ToolSideEffectArtifactWrite}
-		spec.Result = ToolResultPolicy{Mode: ToolResultModePreviewRef, MaxInlineBytes: 4000}
 		spec.PlanPolicy = PlanPolicyNone
 	case "create_file", "replace_span", "apply_unified_patch":
 		spec.Kind = ToolKindNative
@@ -276,42 +260,36 @@ func configuredLocalSpec(name string, enabled bool) ToolSpec {
 		} else {
 			spec.Execution.PathArg = "path"
 		}
-		spec.Execution.SideEffects = []ToolSideEffect{ToolSideEffectWriteWorkspace}
 		spec.PlanPolicy = PlanPolicyRequireActivePlan
 	case "multi_edit":
 		spec.Kind = ToolKindNative
 		spec.Category = ToolCategoryWrite
 		spec.ResourceScope = ResourceScopeWorkspaceFile
 		spec.Execution.ParallelPolicy = ParallelPolicyNeverParallel
-		spec.Execution.SideEffects = []ToolSideEffect{ToolSideEffectWriteWorkspace}
 		spec.PlanPolicy = PlanPolicyRequireActivePlan
 	case "rollback_workspace_checkpoint":
 		spec.Kind = ToolKindNative
 		spec.Category = ToolCategoryWrite
 		spec.ResourceScope = ResourceScopeWorkspaceFile
 		spec.Execution.ParallelPolicy = ParallelPolicyNeverParallel
-		spec.Execution.SideEffects = []ToolSideEffect{ToolSideEffectWriteWorkspace}
 		spec.PlanPolicy = PlanPolicyRequireActivePlan
 	case "run_command":
 		spec.Kind = ToolKindNative
 		spec.Category = ToolCategoryExecute
 		spec.ResourceScope = ResourceScopeWorkspaceCommand
 		spec.Execution.ParallelPolicy = ParallelPolicyNeverParallel
-		spec.Execution.SideEffects = []ToolSideEffect{ToolSideEffectRunCommand}
 		spec.PlanPolicy = PlanPolicyRequireActivePlan
 	case "run_verification":
 		spec.Kind = ToolKindNative
 		spec.Category = ToolCategoryExecute
 		spec.ResourceScope = ResourceScopeWorkspaceCommand
 		spec.Execution.ParallelPolicy = ParallelPolicyNeverParallel
-		spec.Execution.SideEffects = []ToolSideEffect{ToolSideEffectRunCommand, ToolSideEffectArtifactWrite}
 		spec.PlanPolicy = PlanPolicyRequireActivePlan
 	default:
 		spec.Kind = ToolKindNative
 		spec.Category = ToolCategoryInspect
 		spec.ResourceScope = ResourceScopeWorkspaceFile
 		spec.Execution.ParallelPolicy = ParallelPolicyReadOnly
-		spec.Execution.SideEffects = []ToolSideEffect{ToolSideEffectReadWorkspace}
 		spec.PlanPolicy = PlanPolicyNone
 	}
 	if enabled {

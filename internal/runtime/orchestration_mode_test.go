@@ -578,30 +578,31 @@ func TestSubagentExecuteUsesRealChildRunIDInEvents(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadEvents: %v", err)
 	}
-	var started *stream.SubagentStartedPayload
-	var failed *stream.SubagentFailedPayload
+	var started, failed map[string]any
 	for _, record := range raw {
 		item := ProjectEventToStreamItem(record)
-		switch payload := item.Payload.(type) {
-		case *stream.SubagentStartedPayload:
-			started = payload
-		case *stream.SubagentFailedPayload:
-			failed = payload
+		if item.Kind == stream.StreamKindSubagentStarted {
+			started = item.Payload
+		}
+		if item.Kind == stream.StreamKindSubagentFailed {
+			failed = item.Payload
 		}
 	}
 	if started == nil || failed == nil {
 		t.Fatalf("expected started and failed subagent payloads, got started=%v failed=%v", started, failed)
 	}
-	if started.SubRunID == "" || failed.SubRunID == "" {
+	startedSubRunID := started["sub_run_id"].(string)
+	failedSubRunID := failed["sub_run_id"].(string)
+	if startedSubRunID == "" || failedSubRunID == "" {
 		t.Fatalf("expected real child run ids, got started=%+v failed=%+v", started, failed)
 	}
-	if started.SubRunID != failed.SubRunID {
-		t.Fatalf("child run ids diverged: started=%q failed=%q", started.SubRunID, failed.SubRunID)
+	if startedSubRunID != failedSubRunID {
+		t.Fatalf("child run ids diverged: started=%q failed=%q", startedSubRunID, failedSubRunID)
 	}
-	if failed.ParentStepID != "s1" || failed.OrchestrationMode != "single_agent" {
+	if failed["parent_step_id"] != "s1" || failed["orchestration_mode"] != "single_agent" {
 		t.Fatalf("failed payload missing step/mode truth: %+v", failed)
 	}
-	if started.WorkspaceMode != string(orchestration.ChildWorkspaceModeShared) || failed.WorkspaceMode != string(orchestration.ChildWorkspaceModeShared) {
+	if started["workspace_mode"] != string(orchestration.ChildWorkspaceModeShared) || failed["workspace_mode"] != string(orchestration.ChildWorkspaceModeShared) {
 		t.Fatalf("expected shared workspace mode, got started=%+v failed=%+v", started, failed)
 	}
 }

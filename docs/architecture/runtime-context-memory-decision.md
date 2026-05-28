@@ -24,7 +24,7 @@ Memory context now consists of:
 
 ContextPlane no longer loads SQLite core-memory blocks, old knowledge facts, MemoryLens results, read plans, access logs, retrieval cards, or `hydrate_memory_refs` state. Provider errors are run-build errors; empty memory is represented by no memory message.
 
-Tool lifecycle state is derived from `tooling.ToolContract`, not tool-name hard-code. Runtime builds each enabled tool with explicit loading, execution, result, boundary, and projection policy; catalog construction fails if a contract is incomplete. ContextPlane splits eager/deferred tools only from `ToolContract.Loading.Mode`, and deferred records keep the contract reason.
+Tool lifecycle state is derived from `tooling.ToolContract`, not tool-name hard-code. Runtime builds each enabled tool with explicit identity, source, kind, category, resource scope, profiles, loading policy, execution policy, and plan policy; catalog construction fails if a contract is incomplete. ContextPlane splits eager/deferred tools only from `ToolContract.Loading.Mode`, and deferred records keep the contract reason.
 
 Tool result truth is now durable and ledger-backed. `ContextPlane.OnToolResult` writes each tool result to SQLite `tool_results` through the `internal/store.ToolResultLedger` contract, using a deterministic `tool_result_ref` plus preview, full text, token estimate, status, arguments, side-effect refs, and evidence refs. Workspace mutation checkpoint and rollback side effects ride on the same refs. The lifecycle state keeps the same durable ref in `RecentResults`; missing ledger wiring is a runtime failure, not a fallback.
 

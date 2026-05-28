@@ -109,23 +109,20 @@ func ProjectEventToStreamItem(event events.EventRecord) stream.StreamItem {
 		return item
 	}
 
-	payload, err := stream.UnmarshalPayload(kind, data)
-	if err != nil {
+	var payload map[string]any
+	if err := json.Unmarshal(data, &payload); err != nil {
 		return item
 	}
-	item.Payload = payload
-
-	switch p := payload.(type) {
-	case *stream.ToolCallStartedPayload:
-		p.ToolCall = extractToolCallFromMergedPayload(event.Payload)
-	case *stream.ToolCallProgressPayload:
-		p.ToolCall = extractToolCallProgressFromMergedPayload(event.Payload)
-	case *stream.ToolCallSucceededPayload:
-		p.ToolCall = extractToolCallFromMergedPayload(event.Payload)
-	case *stream.ToolCallFailedPayload:
-		p.ToolCall = extractToolCallFromMergedPayload(event.Payload)
-	case *stream.ToolCallInterruptedPayload:
-		p.ToolCall = extractToolCallFromMergedPayload(event.Payload)
+	switch kind {
+	case stream.StreamKindToolCallStarted,
+		stream.StreamKindToolCallSucceeded,
+		stream.StreamKindToolCallFailed,
+		stream.StreamKindToolCallInterrupted:
+		item.Payload = map[string]any{"tool_call": extractToolCallFromMergedPayload(event.Payload)}
+	case stream.StreamKindToolCallProgress:
+		item.Payload = map[string]any{"tool_call": extractToolCallProgressFromMergedPayload(event.Payload)}
+	default:
+		item.Payload = payload
 	}
 
 	return item
@@ -165,8 +162,6 @@ func eventKindToStreamKind(eventKind string) stream.StreamItemKind {
 		return stream.StreamKindContextCompressed
 	case "assistant.delta":
 		return stream.StreamKindAssistantDelta
-	case "stream.heartbeat":
-		return stream.StreamKindHeartbeat
 	case "agent.message":
 		return stream.StreamKindAssistantMessage
 	case "tool.call.started":
@@ -179,18 +174,32 @@ func eventKindToStreamKind(eventKind string) stream.StreamItemKind {
 		return stream.StreamKindToolCallFailed
 	case "tool.call.interrupted":
 		return stream.StreamKindToolCallInterrupted
+	case "mcp.tool_catalog_refreshed":
+		return stream.StreamKindMCPToolCatalogRefreshed
+	case "mcp.tool_catalog_refresh_failed":
+		return stream.StreamKindMCPToolCatalogRefreshFailed
+	case "mcp.provider_added":
+		return stream.StreamKindMCPProviderAdded
+	case "mcp.provider_removed":
+		return stream.StreamKindMCPProviderRemoved
+	case "mcp.provider_restarted":
+		return stream.StreamKindMCPProviderRestarted
+	case "mcp.resource_catalog_refreshed":
+		return stream.StreamKindMCPResourceCatalogRefreshed
+	case "mcp.resource_catalog_refresh_failed":
+		return stream.StreamKindMCPResourceCatalogRefreshFailed
+	case "mcp.prompt_catalog_refreshed":
+		return stream.StreamKindMCPPromptCatalogRefreshed
+	case "mcp.prompt_catalog_refresh_failed":
+		return stream.StreamKindMCPPromptCatalogRefreshFailed
+	case "mcp.auth_status_changed":
+		return stream.StreamKindMCPAuthStatusChanged
 	case "subagent.started":
 		return stream.StreamKindSubagentStarted
 	case "subagent.completed":
 		return stream.StreamKindSubagentCompleted
 	case "subagent.failed":
 		return stream.StreamKindSubagentFailed
-	case "tool.parallel_batch.started":
-		return stream.StreamKindToolParallelBatchStarted
-	case "tool.parallel_batch.completed":
-		return stream.StreamKindToolParallelBatchCompleted
-	case "run.archived":
-		return stream.StreamKindRunArchived
 	case "plan.created":
 		return stream.StreamKindPlanCreated
 	case "plan.updated":

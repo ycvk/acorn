@@ -67,9 +67,6 @@ func TestConfiguredLocalSpecsCarryCanonicalPolicies(t *testing.T) {
 	if runVerification.Execution.ParallelPolicy != ParallelPolicyNeverParallel || runVerification.PlanPolicy != PlanPolicyRequireActivePlan {
 		t.Fatalf("run_verification policy = parallel:%q plan:%q", runVerification.Execution.ParallelPolicy, runVerification.PlanPolicy)
 	}
-	if len(runVerification.Execution.SideEffects) != 2 || runVerification.Execution.SideEffects[0] != ToolSideEffectRunCommand || runVerification.Execution.SideEffects[1] != ToolSideEffectArtifactWrite {
-		t.Fatalf("run_verification side effects = %+v", runVerification.Execution.SideEffects)
-	}
 	multiEdit, ok := ConfiguredLocalSpec(cfg, "multi_edit")
 	if !ok {
 		t.Fatal("multi_edit spec missing")
@@ -131,9 +128,6 @@ func TestConfiguredLocalSpecsCarryCanonicalPolicies(t *testing.T) {
 	if webFetch.Execution.ParallelPolicy != ParallelPolicyReadOnly {
 		t.Fatalf("web_fetch parallel = %q, want %q", webFetch.Execution.ParallelPolicy, ParallelPolicyReadOnly)
 	}
-	if len(webFetch.Execution.SideEffects) != 2 || webFetch.Execution.SideEffects[0] != ToolSideEffectWebRead || webFetch.Execution.SideEffects[1] != ToolSideEffectArtifactWrite {
-		t.Fatalf("web_fetch side effects = %+v", webFetch.Execution.SideEffects)
-	}
 	webSearch, ok := ConfiguredLocalSpec(cfg, "web_search")
 	if !ok {
 		t.Fatal("web_search spec missing")
@@ -154,21 +148,17 @@ func TestConfiguredLocalSpecsCarryCanonicalPolicies(t *testing.T) {
 	if browser.Execution.ParallelPolicy != ParallelPolicyNeverParallel {
 		t.Fatalf("browser parallel = %q, want %q", browser.Execution.ParallelPolicy, ParallelPolicyNeverParallel)
 	}
-	if len(browser.Execution.SideEffects) != 3 || browser.Execution.SideEffects[0] != ToolSideEffectBrowserRead || browser.Execution.SideEffects[1] != ToolSideEffectBrowserInteract || browser.Execution.SideEffects[2] != ToolSideEffectArtifactWrite {
-		t.Fatalf("browser side effects = %+v", browser.Execution.SideEffects)
-	}
 }
 
 func TestToolContractAcceptsNativeDeveloperToolScopes(t *testing.T) {
 	tests := []struct {
-		name   string
-		scope  ResourceScope
-		effect ToolSideEffect
+		name  string
+		scope ResourceScope
 	}{
-		{"artifact", ResourceScopeArtifact, ToolSideEffectArtifactWrite},
-		{"operator", ResourceScopeOperator, ToolSideEffectOperatorInteraction},
-		{"web", ResourceScopeWeb, ToolSideEffectWebRead},
-		{"browser", ResourceScopeBrowser, ToolSideEffectBrowserInteract},
+		{"artifact", ResourceScopeArtifact},
+		{"operator", ResourceScopeOperator},
+		{"web", ResourceScopeWeb},
+		{"browser", ResourceScopeBrowser},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -180,15 +170,10 @@ func TestToolContractAcceptsNativeDeveloperToolScopes(t *testing.T) {
 				ResourceScope: tt.scope,
 				Profiles:      []ToolProfile{ToolProfileRun},
 				PlanPolicy:    PlanPolicyRequireActivePlan,
-				FactPolicy:    FactPolicyAuto,
 				Loading:       EagerLoadingPolicy(),
 				Execution: ToolExecutionPolicy{
 					ParallelPolicy: ParallelPolicyNeverParallel,
-					SideEffects:    []ToolSideEffect{tt.effect},
 				},
-				Result:     InlineResultPolicy(0),
-				Boundary:   ToolResultBoundaryPolicy(),
-				Projection: ActivityProjectionPolicy(),
 			}
 			if err := contract.Validate(); err != nil {
 				t.Fatalf("validate contract: %v", err)
@@ -206,15 +191,10 @@ func TestToolContractRejectsUnknownResourceScope(t *testing.T) {
 		ResourceScope: ResourceScope("bad"),
 		Profiles:      []ToolProfile{ToolProfileRun},
 		PlanPolicy:    PlanPolicyNone,
-		FactPolicy:    FactPolicyAuto,
 		Loading:       EagerLoadingPolicy(),
 		Execution: ToolExecutionPolicy{
 			ParallelPolicy: ParallelPolicyReadOnly,
-			SideEffects:    []ToolSideEffect{ToolSideEffectReadWorkspace},
 		},
-		Result:     InlineResultPolicy(0),
-		Boundary:   ToolResultBoundaryPolicy(),
-		Projection: ActivityProjectionPolicy(),
 	}
 	if err := contract.Validate(); err == nil {
 		t.Fatal("expected unknown resource scope error")

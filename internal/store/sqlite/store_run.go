@@ -167,10 +167,10 @@ func (s *Store) LoadRun(ctx context.Context, runID string) (*events.RunRecord, e
 func (s *Store) ListActiveRuns(ctx context.Context, limit int) ([]events.RunRecord, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT run_id, session_id, turn_index, status, input_text, output_text, error_text, checkpoint_id, orchestration_mode, parent_run_id, depth, created_at, updated_at
-		 FROM runs
-		 WHERE status = ? AND session_id <> '' AND parent_run_id = ''
-		 ORDER BY updated_at DESC
-		 LIMIT ?`,
+			 FROM runs
+			 WHERE status = ? AND session_id <> '' AND parent_run_id = ''
+			 ORDER BY updated_at DESC
+			 LIMIT ?`,
 		string(events.RunStatusRunning),
 		normalizeRunListLimit(limit),
 	)
@@ -183,10 +183,10 @@ func (s *Store) ListActiveRuns(ctx context.Context, limit int) ([]events.RunReco
 func (s *Store) ListRecentTerminalRuns(ctx context.Context, limit int) ([]events.RunRecord, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT run_id, session_id, turn_index, status, input_text, output_text, error_text, checkpoint_id, orchestration_mode, parent_run_id, depth, created_at, updated_at
-		 FROM runs
-		 WHERE status IN (?, ?, ?) AND session_id <> '' AND parent_run_id = ''
-		 ORDER BY updated_at DESC
-		 LIMIT ?`,
+			 FROM runs
+			 WHERE status IN (?, ?, ?) AND session_id <> '' AND parent_run_id = ''
+			 ORDER BY updated_at DESC
+			 LIMIT ?`,
 		string(events.RunStatusSucceeded),
 		string(events.RunStatusInterrupted),
 		string(events.RunStatusFailed),
@@ -266,7 +266,7 @@ func scanEventRows(rows *sql.Rows, runID string) ([]events.EventRecord, error) {
 func (s *Store) FindLatestInterruptedRun(ctx context.Context) (*events.RunRecord, error) {
 	row := s.db.QueryRowContext(ctx,
 		`SELECT run_id, session_id, turn_index, status, input_text, output_text, error_text, checkpoint_id, orchestration_mode, parent_run_id, depth, created_at, updated_at
-		 FROM runs WHERE status = ? ORDER BY created_at DESC LIMIT 1`,
+			 FROM runs WHERE status = ? ORDER BY created_at DESC LIMIT 1`,
 		string(events.RunStatusInterrupted),
 	)
 	rec, err := scanRunRecord(row)
@@ -320,15 +320,15 @@ func (s *Store) UpsertRunArchive(ctx context.Context, archive model.RunArchive) 
 	}
 	_, err = s.db.ExecContext(ctx,
 		`INSERT INTO run_archives(run_id, session_id, input_excerpt, output_excerpt, touched_paths_json, tool_names_json, run_status, created_at)
-		 VALUES(?, ?, ?, ?, ?, ?, ?, ?)
-		 ON CONFLICT(run_id) DO UPDATE SET
-		     session_id = excluded.session_id,
-		     input_excerpt = excluded.input_excerpt,
-		     output_excerpt = excluded.output_excerpt,
-		     touched_paths_json = excluded.touched_paths_json,
-		     tool_names_json = excluded.tool_names_json,
-		     run_status = excluded.run_status,
-		     created_at = excluded.created_at`,
+			 VALUES(?, ?, ?, ?, ?, ?, ?, ?)
+			 ON CONFLICT(run_id) DO UPDATE SET
+			     session_id = excluded.session_id,
+			     input_excerpt = excluded.input_excerpt,
+			     output_excerpt = excluded.output_excerpt,
+			     touched_paths_json = excluded.touched_paths_json,
+			     tool_names_json = excluded.tool_names_json,
+			     run_status = excluded.run_status,
+			     created_at = excluded.created_at`,
 		archive.RunID,
 		archive.SessionID,
 		archive.InputExcerpt,
@@ -347,7 +347,7 @@ func (s *Store) UpsertRunArchive(ctx context.Context, archive model.RunArchive) 
 func (s *Store) GetRunArchive(ctx context.Context, runID string) (*model.RunArchive, error) {
 	row := s.db.QueryRowContext(ctx,
 		`SELECT run_id, session_id, input_excerpt, output_excerpt, touched_paths_json, tool_names_json, run_status, created_at
-		 FROM run_archives WHERE run_id = ?`,
+			 FROM run_archives WHERE run_id = ?`,
 		runID,
 	)
 	archive, err := scanRunArchive(row)
@@ -363,8 +363,8 @@ func (s *Store) GetRunArchive(ctx context.Context, runID string) (*model.RunArch
 func (s *Store) ListAllRunArchives(ctx context.Context) ([]model.RunArchive, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT run_id, session_id, input_excerpt, output_excerpt, touched_paths_json, tool_names_json, run_status, created_at
-		 FROM run_archives
-		 ORDER BY created_at, run_id`,
+			 FROM run_archives
+			 ORDER BY created_at, run_id`,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list all run archives: %w", err)
@@ -416,14 +416,14 @@ func scanRunArchive(scanner interface{ Scan(dest ...any) error }) (*model.RunArc
 func (s *Store) SaveRunContextSnapshot(ctx context.Context, snapshot model.RunContextSnapshot) error {
 	_, err := s.db.ExecContext(ctx,
 		`INSERT INTO run_context_snapshots(run_id, working_checkpoint_content, working_checkpoint_skill_id, decision_profile_hash, decision_action, decision_skill_id, created_at)
-			 VALUES(?, ?, ?, ?, ?, ?, ?)
-			 ON CONFLICT(run_id) DO UPDATE SET
-			     working_checkpoint_content = excluded.working_checkpoint_content,
-			     working_checkpoint_skill_id = excluded.working_checkpoint_skill_id,
-			     decision_profile_hash = excluded.decision_profile_hash,
-			     decision_action = excluded.decision_action,
-			     decision_skill_id = excluded.decision_skill_id,
-		     created_at = excluded.created_at`,
+				 VALUES(?, ?, ?, ?, ?, ?, ?)
+				 ON CONFLICT(run_id) DO UPDATE SET
+				     working_checkpoint_content = excluded.working_checkpoint_content,
+				     working_checkpoint_skill_id = excluded.working_checkpoint_skill_id,
+				     decision_profile_hash = excluded.decision_profile_hash,
+				     decision_action = excluded.decision_action,
+				     decision_skill_id = excluded.decision_skill_id,
+			     created_at = excluded.created_at`,
 		snapshot.RunID,
 		snapshot.WorkingCheckpointContent,
 		snapshot.WorkingCheckpointSkillID,
@@ -441,7 +441,7 @@ func (s *Store) SaveRunContextSnapshot(ctx context.Context, snapshot model.RunCo
 func (s *Store) LoadRunContextSnapshot(ctx context.Context, runID string) (*model.RunContextSnapshot, error) {
 	row := s.db.QueryRowContext(ctx,
 		`SELECT run_id, working_checkpoint_content, working_checkpoint_skill_id, decision_profile_hash, decision_action, decision_skill_id, created_at
-			 FROM run_context_snapshots WHERE run_id = ?`,
+				 FROM run_context_snapshots WHERE run_id = ?`,
 		runID,
 	)
 	var (
@@ -476,7 +476,7 @@ func (s *Store) SaveContextBoundary(ctx context.Context, boundary model.ContextB
 	}
 	_, err := s.db.ExecContext(ctx,
 		`INSERT INTO context_boundaries(boundary_id, session_id, run_id, sequence, turn_index, mode, trigger, first_index, last_index, covered_first_message_id, covered_last_message_id, previous_boundary_id, summary_message_id, transcript_ref, preserved_from_index, preserved_to_index, preserved_head_message_id, preserved_anchor_message_id, preserved_tail_message_id, tokens_before, tokens_after, effective_window_tokens, summary, summary_snippet, created_at)
-		 VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			 VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		strings.TrimSpace(boundary.BoundaryID),
 		strings.TrimSpace(boundary.SessionID),
 		strings.TrimSpace(boundary.RunID),
@@ -516,8 +516,8 @@ func (s *Store) LoadContextBoundary(ctx context.Context, boundaryID string) (*mo
 	}
 	row := s.db.QueryRowContext(ctx,
 		`SELECT boundary_id, session_id, run_id, sequence, turn_index, mode, trigger, first_index, last_index, covered_first_message_id, covered_last_message_id, previous_boundary_id, summary_message_id, transcript_ref, preserved_from_index, preserved_to_index, preserved_head_message_id, preserved_anchor_message_id, preserved_tail_message_id, tokens_before, tokens_after, effective_window_tokens, summary, summary_snippet, created_at
-		 FROM context_boundaries
-		 WHERE boundary_id = ?`,
+			 FROM context_boundaries
+			 WHERE boundary_id = ?`,
 		id,
 	)
 	boundary, err := scanContextBoundary(row)
@@ -537,10 +537,10 @@ func (s *Store) LoadLatestContextBoundary(ctx context.Context, sessionID string)
 	}
 	row := s.db.QueryRowContext(ctx,
 		`SELECT boundary_id, session_id, run_id, sequence, turn_index, mode, trigger, first_index, last_index, covered_first_message_id, covered_last_message_id, previous_boundary_id, summary_message_id, transcript_ref, preserved_from_index, preserved_to_index, preserved_head_message_id, preserved_anchor_message_id, preserved_tail_message_id, tokens_before, tokens_after, effective_window_tokens, summary, summary_snippet, created_at
-		 FROM context_boundaries
-		 WHERE session_id = ?
-		 ORDER BY sequence DESC, created_at DESC
-		 LIMIT 1`,
+			 FROM context_boundaries
+			 WHERE session_id = ?
+			 ORDER BY sequence DESC, created_at DESC
+			 LIMIT 1`,
 		id,
 	)
 	boundary, err := scanContextBoundary(row)
@@ -560,9 +560,9 @@ func (s *Store) ListContextBoundaries(ctx context.Context, sessionID string) ([]
 	}
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT boundary_id, session_id, run_id, sequence, turn_index, mode, trigger, first_index, last_index, covered_first_message_id, covered_last_message_id, previous_boundary_id, summary_message_id, transcript_ref, preserved_from_index, preserved_to_index, preserved_head_message_id, preserved_anchor_message_id, preserved_tail_message_id, tokens_before, tokens_after, effective_window_tokens, summary, summary_snippet, created_at
-		 FROM context_boundaries
-		 WHERE session_id = ?
-		 ORDER BY sequence ASC, created_at ASC`,
+			 FROM context_boundaries
+			 WHERE session_id = ?
+			 ORDER BY sequence ASC, created_at ASC`,
 		id,
 	)
 	if err != nil {

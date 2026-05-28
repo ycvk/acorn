@@ -1680,8 +1680,6 @@ components:
           type: string
         plan_policy:
           type: string
-        fact_policy:
-          type: string
         risk:
           type: string
         root_dir:

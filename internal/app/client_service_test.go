@@ -1083,7 +1083,7 @@ func (e *postStartFailingExecutor) ExecuteMessages(ctx context.Context, req runt
 		RunID:     req.RunID,
 		Kind:      stream.StreamKindRunStarted,
 		CreatedAt: time.Now().UTC(),
-		Payload:   stream.RunStartedPayload{Input: req.Input},
+		Payload:   map[string]any{"input": req.Input},
 	}); err != nil {
 		return nil, err
 	}

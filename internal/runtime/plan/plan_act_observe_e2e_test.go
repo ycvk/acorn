@@ -62,7 +62,7 @@ func TestPlanActObserveE2E(t *testing.T) {
 	if _, err := runnable.Invoke(runCtx, &graph.AgentGraphInput{Messages: []*schema.Message{schema.UserMessage("do two steps")}}); err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}
-	if _, err := stream.AppendStreamItem(runCtx, store, nil, stream.StreamItem{RunID: "run_e2e", Kind: stream.StreamKindRunCompleted, Payload: &stream.RunCompletedPayload{}}); err != nil {
+	if _, err := stream.AppendStreamItem(runCtx, store, nil, stream.StreamItem{RunID: "run_e2e", Kind: stream.StreamKindRunCompleted, Payload: map[string]any{}}); err != nil {
 		t.Fatalf("append run completed: %v", err)
 	}
 

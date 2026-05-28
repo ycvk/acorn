@@ -46,6 +46,23 @@ func StreamStepPayloadFromPlan(plan *model.Plan, step model.PlanStep) PlanStepPa
 	}
 }
 
+// PlanStepPayloadToMap flattens a PlanStepPayload into a map[string]any.
+func PlanStepPayloadToMap(p PlanStepPayload) map[string]any {
+	m := map[string]any{
+		"plan_id":    p.PlanID,
+		"session_id": p.SessionID,
+		"run_id":     p.RunID,
+		"updated_at": p.UpdatedAt,
+	}
+	if p.Plan != nil {
+		m["plan"] = p.Plan
+	}
+	if p.Step != nil {
+		m["step"] = p.Step
+	}
+	return m
+}
+
 // ClonePlanSteps deep-copies a slice of model.PlanStep.
 func ClonePlanSteps(steps []model.PlanStep) []model.PlanStep {
 	out := make([]model.PlanStep, 0, len(steps))

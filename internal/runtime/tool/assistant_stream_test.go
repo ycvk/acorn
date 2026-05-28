@@ -100,7 +100,7 @@ func TestSummarizeStreamItemsCountsAssistantDeltas(t *testing.T) {
 	items := []stream.StreamItem{
 		{
 			Kind: stream.StreamKindAssistantDelta,
-			Payload: &stream.AssistantDeltaPayload{AssistantDelta: &stream.StreamAssistantDelta{
+			Payload: map[string]any{"assistant_delta": &stream.StreamAssistantDelta{
 				MessageID: "run_1:assistant:0",
 				Sequence:  1,
 				Delta:     "你",
@@ -108,7 +108,7 @@ func TestSummarizeStreamItemsCountsAssistantDeltas(t *testing.T) {
 		},
 		{
 			Kind: stream.StreamKindAssistantDelta,
-			Payload: &stream.AssistantDeltaPayload{AssistantDelta: &stream.StreamAssistantDelta{
+			Payload: map[string]any{"assistant_delta": &stream.StreamAssistantDelta{
 				MessageID: "run_1:assistant:0",
 				Sequence:  2,
 				Delta:     " 好",
@@ -116,7 +116,7 @@ func TestSummarizeStreamItemsCountsAssistantDeltas(t *testing.T) {
 		},
 		{
 			Kind: stream.StreamKindAssistantDelta,
-			Payload: &stream.AssistantDeltaPayload{AssistantDelta: &stream.StreamAssistantDelta{
+			Payload: map[string]any{"assistant_delta": &stream.StreamAssistantDelta{
 				MessageID: "run_1:assistant:1",
 				Sequence:  1,
 				Delta:     "\n",
@@ -240,21 +240,17 @@ func TestRunStateApplyStreamItemAppendsAssistantDelta(t *testing.T) {
 	var state runState
 	state.applyStreamItem(stream.StreamItem{
 		Kind: stream.StreamKindAssistantDelta,
-		Payload: &stream.AssistantDeltaPayload{
-			AssistantDelta: &stream.StreamAssistantDelta{
-				Delta:    "partial ",
-				Sequence: 1,
-			},
-		},
+		Payload: map[string]any{"assistant_delta": &stream.StreamAssistantDelta{
+			Delta:    "partial ",
+			Sequence: 1,
+		}},
 	})
 	state.applyStreamItem(stream.StreamItem{
 		Kind: stream.StreamKindAssistantDelta,
-		Payload: &stream.AssistantDeltaPayload{
-			AssistantDelta: &stream.StreamAssistantDelta{
-				Delta:    "answer",
-				Sequence: 2,
-			},
-		},
+		Payload: map[string]any{"assistant_delta": &stream.StreamAssistantDelta{
+			Delta:    "answer",
+			Sequence: 2,
+		}},
 	})
 	if state.lastOutput != "partial answer" {
 		t.Fatalf("lastOutput = %q, want %q", state.lastOutput, "partial answer")
@@ -298,7 +294,8 @@ func projectEventToStreamItem(event events.EventRecord) stream.StreamItem {
 		CreatedAt: event.CreatedAt,
 	}
 	data, _ := json.Marshal(event.Payload)
-	payload, _ := stream.UnmarshalPayload(item.Kind, data)
+	var payload map[string]any
+	json.Unmarshal(data, &payload)
 	if payload != nil {
 		item.Payload = payload
 	}

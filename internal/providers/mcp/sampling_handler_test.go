@@ -44,7 +44,7 @@ type mockSamplingEventStore struct {
 	events []struct {
 		runID   string
 		kind    string
-		payload stream.SamplingPayload
+		payload map[string]any
 	}
 	mu sync.Mutex
 }
@@ -52,11 +52,11 @@ type mockSamplingEventStore struct {
 func (m *mockSamplingEventStore) AppendEventContext(_ context.Context, runID, kind string, payload any) (events.EventRecord, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	p, _ := payload.(stream.SamplingPayload)
+	p, _ := payload.(map[string]any)
 	m.events = append(m.events, struct {
 		runID   string
 		kind    string
-		payload stream.SamplingPayload
+		payload map[string]any
 	}{runID: runID, kind: kind, payload: p})
 	return events.EventRecord{}, nil
 }
@@ -64,14 +64,14 @@ func (m *mockSamplingEventStore) AppendEventContext(_ context.Context, runID, ki
 func (m *mockSamplingEventStore) getEvents() []struct {
 	runID   string
 	kind    string
-	payload stream.SamplingPayload
+	payload map[string]any
 } {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return append([]struct {
 		runID   string
 		kind    string
-		payload stream.SamplingPayload
+		payload map[string]any
 	}{}, m.events...)
 }
 
@@ -264,7 +264,7 @@ func TestHandleCreateMessageSubRunIDPrefix(t *testing.T) {
 	for _, ev := range events {
 		if ev.kind == string(stream.StreamKindSamplingStarted) {
 			startedFound = true
-			if strings.TrimSpace(ev.payload.RunID) == "" {
+			if runID, ok := ev.payload["run_id"].(string); !ok || strings.TrimSpace(runID) == "" {
 				t.Fatal("sub-run ID in sampling.started event is empty")
 			}
 		}
@@ -309,12 +309,23 @@ func TestHandleCreateMessageEmitsEvents(t *testing.T) {
 		t.Fatalf("event[1].kind = %q, want %q", got, want)
 	}
 	// Depth should be 1 during started event (after increment)
-	if got, want := events[0].payload.Depth, int32(1); got != want {
-		t.Fatalf("started event depth = %d, want %d", got, want)
+	var depthVal int32
+	switch d := events[0].payload["depth"].(type) {
+	case int32:
+		depthVal = d
+	case int:
+		depthVal = int32(d)
+	case float64:
+		depthVal = int32(d)
+	default:
+		t.Fatalf("started event depth has unexpected type %T: %v", events[0].payload["depth"], events[0].payload["depth"])
+	}
+	if depthVal != 1 {
+		t.Fatalf("started event depth = %d, want 1", depthVal)
 	}
 	// Completed event should have model set
-	if got, want := events[1].payload.Model, "acorn-default"; got != want {
-		t.Fatalf("completed event model = %q, want %q", got, want)
+	if model, ok := events[1].payload["model"].(string); !ok || model != "acorn-default" {
+		t.Fatalf("completed event model = %v, want acorn-default", events[1].payload["model"])
 	}
 }
 

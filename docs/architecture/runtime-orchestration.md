@@ -64,7 +64,7 @@ Eino `adk/prebuilt/deep` 的 subagent/filesystem/shell 组合能力也只作为�
 
 Acorn 不再有通用 orchestration guardrail 链，也不再维护命令名 allowlist。安全和输入校验落在具体工具边界：workspace mutation tools 通过 `workspace.ResolveWritePath` 限制相对路径、root escape、symlink escape 和 mutation denylist；`run_command` 只校验 workspace cwd、timeout 和显式 `pause_before_exec`。命令是否存在由宿主系统决定，缺失二进制或非零退出码作为真实 tool result 返回模型。缺 lifecycle context/state/plane、graph、store 或工具边界自身损坏才是 runtime failure。
 
-Tool runtime contract lives in `internal/tooling.ToolContract`. Runtime tool builders must assign loading/execution/result/boundary/projection policy before catalog construction. MCP enabled providers must declare `tool_safety`; missing or invalid safety fails config/runtime build instead of silently assuming read-only.
+Tool runtime contract lives in `internal/tooling.ToolContract`. Runtime tool builders must assign identity, source, kind, category, resource scope, profiles, loading policy, execution policy, and plan policy before catalog construction. MCP enabled providers must declare `tool_safety`; missing or invalid safety fails config/runtime build instead of silently assuming read-only.
 
 ## 装配边界
 
