@@ -6,12 +6,12 @@ import (
 	"testing"
 
 	"github.com/ycvk/acorn/internal/config"
-	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
+	"github.com/ycvk/acorn/internal/events"
 )
 
 func TestSessionStateServiceLoadSessionDoesNotCheckpointFallback(t *testing.T) {
 	ctx := context.Background()
-	store := openSessionStateSQLiteStore(t)
+	store := openTestStore(t)
 	createInterruptedSessionRun(t, store, "session_1", "run_unknown_interrupt", "manual_gate")
 
 	service := NewSessionStateService(&config.Config{}, store, NewTraceService(store))
@@ -29,7 +29,7 @@ func TestSessionStateServiceLoadSessionDoesNotCheckpointFallback(t *testing.T) {
 
 func TestSessionStateServiceLoadSessionRequiresTraceForInterruptedRuns(t *testing.T) {
 	ctx := context.Background()
-	store := openSessionStateSQLiteStore(t)
+	store := openTestStore(t)
 	createInterruptedSessionRun(t, store, "session_1", "run_1", "")
 
 	service := NewSessionStateService(&config.Config{}, store, nil)
@@ -39,21 +39,14 @@ func TestSessionStateServiceLoadSessionRequiresTraceForInterruptedRuns(t *testin
 	}
 }
 
-func openSessionStateSQLiteStore(t *testing.T) *storesqlite.Store {
-	t.Helper()
-	store, err := storesqlite.Open(t.TempDir())
-	if err != nil {
-		t.Fatalf("open sqlite store: %v", err)
-	}
-	t.Cleanup(func() {
-		if err := store.Close(); err != nil {
-			t.Fatalf("close sqlite store: %v", err)
-		}
-	})
-	return store
+type sessionStateRunStore interface {
+	CreateSession(context.Context, string, string) (*events.SessionRecord, error)
+	CreateRunWithSession(context.Context, string, string, int, string, string) error
+	AppendEventContext(context.Context, string, string, any) (events.EventRecord, error)
+	MarkInterruptedContext(context.Context, string, string) error
 }
 
-func createInterruptedSessionRun(t *testing.T, store *storesqlite.Store, sessionID, runID, interruptKind string) {
+func createInterruptedSessionRun(t *testing.T, store sessionStateRunStore, sessionID, runID, interruptKind string) {
 	t.Helper()
 	ctx := context.Background()
 	if _, err := store.CreateSession(ctx, sessionID, "Session "+sessionID); err != nil {
