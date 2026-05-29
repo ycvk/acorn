@@ -23,12 +23,12 @@ import (
 )
 
 type Result struct {
-	RunID        string           `json:"run_id"`
-	Status       events.RunStatus `json:"status"`
-	Output       string           `json:"output,omitempty"`
-	Error        string           `json:"error,omitempty"`
-	Interrupted  map[string]any   `json:"interrupted,omitempty"`
-	TraceSummary *TraceSummary    `json:"trace_summary,omitempty"`
+	RunID        string               `json:"run_id"`
+	Status       events.RunStatus     `json:"status"`
+	Output       string               `json:"output,omitempty"`
+	Error        string               `json:"error,omitempty"`
+	Interrupted  map[string]any       `json:"interrupted,omitempty"`
+	TraceSummary *stream.TraceSummary `json:"trace_summary,omitempty"`
 }
 
 type Executor struct {
@@ -139,12 +139,12 @@ func compactArchiveText(value string) string {
 	return trimmed[:280] + "..."
 }
 
-func (e *Executor) traceSummary(ctx context.Context, runID string) (*TraceSummary, error) {
+func (e *Executor) traceSummary(ctx context.Context, runID string) (*stream.TraceSummary, error) {
 	items, err := e.store.LoadEvents(ctx, runID)
 	if err != nil {
 		return nil, fmt.Errorf("load trace summary events: %w", err)
 	}
-	return BuildTraceSummary(items), nil
+	return stream.BuildTraceSummary(items)
 }
 
 func (e *Executor) failRunSetup(ctx context.Context, runID string, setupErr error, sink stream.StreamSink) error {

@@ -77,7 +77,11 @@ func (s *RuntimeWorkbenchService) Load(ctx context.Context, sessionID string) (*
 
 	if latestRun != nil {
 		rawEvents := latestRunProjection.RawEvents
-		workbench.Subagents = buildSubagentRuns(rawEvents)
+		subagents, subagentErr := buildSubagentRuns(rawEvents)
+		if subagentErr != nil {
+			return nil, subagentErr
+		}
+		workbench.Subagents = subagents
 
 		if s.plans != nil {
 			plan, planErr := s.plans.LoadRuntimePlan(ctx, trimmedSessionID)
@@ -100,7 +104,11 @@ func (s *RuntimeWorkbenchService) Load(ctx context.Context, sessionID string) (*
 		if rollbackErr != nil {
 			return nil, rollbackErr
 		}
-		workbench.ContextEconomy = buildContextEconomySummary(rawEvents, toolResults)
+		contextEconomy, contextEconomyErr := buildContextEconomySummary(rawEvents, toolResults)
+		if contextEconomyErr != nil {
+			return nil, contextEconomyErr
+		}
+		workbench.ContextEconomy = contextEconomy
 
 		artifactRecords, artifactsErr := s.store.ListArtifactsByRun(ctx, latestRun.RunID)
 		if artifactsErr != nil {

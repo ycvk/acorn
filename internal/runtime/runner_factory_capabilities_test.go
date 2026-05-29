@@ -140,7 +140,7 @@ func TestEmitMemoryPreparedEventWritesPreparedPayload(t *testing.T) {
 	if len(records) != 1 {
 		t.Fatalf("events = %#v", records)
 	}
-	item := ProjectEventToStreamItem(records[0])
+	item := mustProjectEventToStreamItem(t, records[0])
 	prepared := item.GetMemoryPrepared()
 	if prepared == nil {
 		t.Fatalf("event payload = %#v", item.Payload)
@@ -185,7 +185,7 @@ func TestEmitProcedureActivationEventsWritesActivationPayload(t *testing.T) {
 	if len(records) != 1 {
 		t.Fatalf("events = %#v", records)
 	}
-	item := ProjectEventToStreamItem(records[0])
+	item := mustProjectEventToStreamItem(t, records[0])
 	activation := item.GetProcedureActivation()
 	if activation == nil {
 		t.Fatalf("event payload = %#v", item.Payload)

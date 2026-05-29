@@ -250,7 +250,7 @@ func TestResumeDirectResponseRebuildsContextSession(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadEvents: %v", err)
 	}
-	contexts, err := LatestRootInterruptContexts(records)
+	contexts, err := stream.LatestRootInterruptContexts(records)
 	if err != nil {
 		t.Fatalf("LatestRootInterruptContexts: %v", err)
 	}
@@ -319,7 +319,7 @@ func TestResumeDirectResponseRunCommandPauseWithoutExtraPayload(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadEvents: %v", err)
 	}
-	contexts, err := LatestRootInterruptContexts(records)
+	contexts, err := stream.LatestRootInterruptContexts(records)
 	if err != nil {
 		t.Fatalf("LatestRootInterruptContexts: %v", err)
 	}
@@ -583,7 +583,7 @@ func TestSubagentExecuteUsesRealChildRunIDInEvents(t *testing.T) {
 	}
 	var started, failed map[string]any
 	for _, record := range raw {
-		item := ProjectEventToStreamItem(record)
+		item := mustProjectEventToStreamItem(t, record)
 		if item.Kind == stream.StreamKindSubagentStarted {
 			started = item.Payload
 		}

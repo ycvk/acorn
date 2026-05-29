@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/stream"
 )
 
@@ -15,6 +16,15 @@ func mustProjectStreamItemToEvent(t *testing.T, item stream.StreamItem) (string,
 		t.Fatalf("stream.ProjectStreamItemToEvent(%q): %v", item.Kind, err)
 	}
 	return kind, payload
+}
+
+func mustProjectEventToStreamItem(t *testing.T, event events.EventRecord) stream.StreamItem {
+	t.Helper()
+	item, err := stream.ProjectEventToStreamItem(event)
+	if err != nil {
+		t.Fatalf("stream.ProjectEventToStreamItem(%q): %v", event.Kind, err)
+	}
+	return item
 }
 
 // assertStreamItemsEqualJSON compares two StreamItems by serializing both to JSON,

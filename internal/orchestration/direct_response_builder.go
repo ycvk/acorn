@@ -76,7 +76,6 @@ func (p *DefaultPlane) BuildDirectResponse(ctx context.Context, req DirectRespon
 		runID:                req.RunID,
 		toolNode:             safeToolNode,
 		instruction:          instruction,
-		storeContextBinder:   p.storeContextBinder,
 		sessionContextBinder: p.sessionContextBinder,
 		lifecycleBinder:      p.toolLifecycleBinder,
 		lifecycleState:       req.ContextResult.LifecycleState,
@@ -107,7 +106,6 @@ type directResponseAgent struct {
 	runID                string
 	toolNode             ToolInvoker
 	instruction          string
-	storeContextBinder   func(ctx context.Context) context.Context
 	sessionContextBinder func(ctx context.Context, sessionID string) context.Context
 	lifecycleBinder      ToolLifecycleBinder
 	lifecycleState       ToolLifecycleStateView
@@ -186,9 +184,6 @@ func (a *directResponseAgent) runFromState(ctx context.Context, generator *adk.A
 	}
 
 	runCtx := ctx
-	if a.storeContextBinder != nil {
-		runCtx = a.storeContextBinder(runCtx)
-	}
 	if a.sessionContextBinder != nil {
 		runCtx = a.sessionContextBinder(runCtx, a.sessionID)
 	}

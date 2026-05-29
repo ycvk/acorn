@@ -125,7 +125,7 @@ class _RunDetailBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final run = detail.run;
-    final diagnosticCount = detail.events.length;
+    final activityCount = detail.events.length;
     final threadTitle = detail.thread.title.trim().isEmpty
         ? 'Thread ${shortId(detail.thread.id)}'
         : detail.thread.title.trim();
@@ -158,11 +158,11 @@ class _RunDetailBody extends StatelessWidget {
             child: OutlinedButton.icon(
               onPressed: () => Navigator.of(context).push(
                 MaterialPageRoute<void>(
-                  builder: (_) => _RunDiagnosticsScreen(detail: detail),
+                  builder: (_) => _RunActivityScreen(detail: detail),
                 ),
               ),
-              icon: const Icon(Icons.bug_report_outlined),
-              label: Text('Diagnostics ($diagnosticCount)'),
+              icon: const Icon(Icons.timeline_outlined),
+              label: Text('Activity ($activityCount)'),
             ),
           ),
         ),
@@ -188,8 +188,8 @@ class _RunDetailBody extends StatelessWidget {
   }
 }
 
-class _RunDiagnosticsScreen extends StatelessWidget {
-  const _RunDiagnosticsScreen({required this.detail});
+class _RunActivityScreen extends StatelessWidget {
+  const _RunActivityScreen({required this.detail});
 
   final RunDetail detail;
 
@@ -199,13 +199,14 @@ class _RunDiagnosticsScreen extends StatelessWidget {
     final counts = _eventTypeCounts(detail.events.map((event) => event.type));
     final totalCount = detail.events.length;
     return Scaffold(
-      appBar: AppBar(title: Text('Diagnostics ${shortId(detail.run.id)}')),
+      appBar: AppBar(title: Text('Run activity ${shortId(detail.run.id)}')),
       body: ListView(
         children: [
           AcornPageIntro(
-            icon: Icons.bug_report_outlined,
-            title: '$totalCount backend events',
-            body: 'Diagnostics are separated from the product flow.',
+            icon: Icons.timeline_outlined,
+            title: '$totalCount live events',
+            body:
+                'Live activity, issue signals, and trace summary stay backed by the server.',
             tone: AcornStatusTone.neutral,
           ),
           const SectionHeader(title: 'Issues'),

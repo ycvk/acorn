@@ -96,7 +96,6 @@ type DefaultPlaneOptions struct {
 	InstructionCacheInvalidator InstructionCacheInvalidator
 	ToolSchemaChangeDetector    ToolSchemaChangeDetector
 	ToolLifecycleBinder         ToolLifecycleBinder
-	StoreContextBinder          func(ctx context.Context) context.Context
 	SessionContextBinder        func(ctx context.Context, sessionID string) context.Context
 }
 
@@ -114,7 +113,6 @@ type DefaultPlane struct {
 	instructionCacheInvalidator InstructionCacheInvalidator
 	toolSchemaChangeDetector    ToolSchemaChangeDetector
 	toolLifecycleBinder         ToolLifecycleBinder
-	storeContextBinder          func(ctx context.Context) context.Context
 	sessionContextBinder        func(ctx context.Context, sessionID string) context.Context
 }
 
@@ -133,7 +131,6 @@ func NewDefaultPlane(opts DefaultPlaneOptions) *DefaultPlane {
 		instructionCacheInvalidator: opts.InstructionCacheInvalidator,
 		toolSchemaChangeDetector:    opts.ToolSchemaChangeDetector,
 		toolLifecycleBinder:         opts.ToolLifecycleBinder,
-		storeContextBinder:          opts.StoreContextBinder,
 		sessionContextBinder:        opts.SessionContextBinder,
 	}
 }
@@ -198,9 +195,6 @@ func (p *DefaultPlane) BuildSingleAgent(ctx context.Context, req SingleAgentRequ
 	}
 
 	runCtx := ctx
-	if p.storeContextBinder != nil {
-		runCtx = p.storeContextBinder(runCtx)
-	}
 	if p.sessionContextBinder != nil {
 		runCtx = p.sessionContextBinder(runCtx, req.SessionID)
 	}
@@ -294,9 +288,6 @@ func (p *DefaultPlane) BuildPlanExecute(ctx context.Context, req PlanExecuteRequ
 	}
 
 	runCtx := ctx
-	if p.storeContextBinder != nil {
-		runCtx = p.storeContextBinder(runCtx)
-	}
 	if p.sessionContextBinder != nil {
 		runCtx = p.sessionContextBinder(runCtx, req.SessionID)
 	}

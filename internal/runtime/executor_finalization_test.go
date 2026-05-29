@@ -89,7 +89,10 @@ func TestFinishCollectedRunArchiveFailureMarksRunFailed(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadEvents: %v", err)
 	}
-	trace := BuildTrace(run, raw)
+	trace, err := stream.BuildTrace(run, raw)
+	if err != nil {
+		t.Fatalf("stream.BuildTrace: %v", err)
+	}
 	if trace.Summary == nil || !trace.Summary.Failed {
 		t.Fatalf("trace summary = %#v, want failed summary", trace.Summary)
 	}

@@ -70,7 +70,7 @@ func TestFailRunSetupMarksRunFailedAndEmitsLifecycleFailure(t *testing.T) {
 	}
 	var found bool
 	for _, record := range records {
-		item := ProjectEventToStreamItem(record)
+		item := mustProjectEventToStreamItem(t, record)
 		if item.Kind != stream.StreamKindRunFailed {
 			continue
 		}
