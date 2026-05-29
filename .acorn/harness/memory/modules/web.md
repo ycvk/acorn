@@ -24,7 +24,7 @@ HTTP 服务层。暴露 `/v1` 远程客户端 API、`/healthz` 健康检查、se
 
 - `/v1/inbox`：mobile inbox aggregation
 - `/v1/runs/{run_id}/events`：mobile live RunEvent replay/follow；只暴露 run/assistant/agent/approval/resume/decision-blocker live subset
-- `/v1/runs/{run_id}`：run detail；只暴露 live events、trace summary 和 workbench facts，不携带 raw diagnostic event payload
+- `/v1/runs/{run_id}`：run detail；只暴露 run/thread、live events、top-level artifacts 和 trace summary，不携带 raw diagnostic event payload、runtime workbench 或 plan DTO
 - `/v1/pending-actions`：pending approval list/detail/decide
 - `/v1/devices:pair`：device auth pairing
 - `/healthz`：服务健康检查
@@ -33,7 +33,7 @@ HTTP 服务层。暴露 `/v1` 远程客户端 API、`/healthz` 健康检查、se
 
 - Core logic: stable
 - 已知问题: 无
-- 最近改动: 2026-05-29 `/v1/runs/{run_id}/events` hard-cut 为 mobile live subset；diagnostic-only persisted events 只进入 SQLite trace summary/workbench projection，不再进入 SSE live contract 或 RunDetail raw payload。
+- 最近改动: 2026-05-29 `/v1/runs/{run_id}/events` hard-cut 为 mobile live subset；diagnostic-only persisted events 只进入 SQLite/backend trace summary，不再进入 SSE live contract、RunDetail raw payload、runtime workbench 或 plan DTO。RunDetail artifacts 改为顶层字段并由 `ClientService` 通过窄 artifact store port 加载。
 
 ## 硬约束（不可违反）
 

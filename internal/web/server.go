@@ -26,6 +26,7 @@ type ClientService interface {
 	GetRun(ctx context.Context, runID string) (*app.Run, error)
 	LoadRunEventsAfter(ctx context.Context, runID string, afterSeq int64) (*clientevents.RunEventBatch, error)
 	LoadRunEventsForDetail(ctx context.Context, runID string) (*clientevents.RunEventDetail, error)
+	ListRunArtifacts(ctx context.Context, runID string) ([]app.ArtifactSummary, error)
 	RunIsTerminal(ctx context.Context, runID string) (bool, error)
 	InterruptRun(ctx context.Context, runID string) error
 	EventPollInterval() time.Duration
@@ -35,10 +36,6 @@ type PendingActionService interface {
 	List(ctx context.Context, limit int) ([]app.PendingActionSummary, error)
 	Get(ctx context.Context, actionID string) (*app.PendingActionDetail, error)
 	Decide(ctx context.Context, actionID string, input app.PendingActionDecisionInput) (*events.PendingActionRecord, error)
-}
-
-type RuntimeWorkbenchService interface {
-	Load(ctx context.Context, sessionID string) (*app.RuntimeWorkbench, error)
 }
 
 type WorkingCheckpointService interface {
@@ -89,7 +86,6 @@ type DeviceAuthService interface {
 type Dependencies struct {
 	Client        ClientService
 	PendingAction PendingActionService
-	Workbench     RuntimeWorkbenchService
 	Checkpoints   WorkingCheckpointService
 	Trace         TraceService
 	Memory        MemoryService
@@ -105,7 +101,6 @@ type Dependencies struct {
 type Server struct {
 	client        ClientService
 	pendingAction PendingActionService
-	workbench     RuntimeWorkbenchService
 	checkpoints   WorkingCheckpointService
 	trace         TraceService
 	memory        MemoryService

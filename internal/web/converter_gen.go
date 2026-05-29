@@ -5,11 +5,8 @@ package web
 
 import (
 	app "github.com/ycvk/acorn/internal/app"
-	decision "github.com/ycvk/acorn/internal/decision"
 	memorymodule "github.com/ycvk/acorn/internal/memorymodule"
-	model "github.com/ycvk/acorn/internal/model"
 	skills "github.com/ycvk/acorn/internal/skills"
-	workspace "github.com/ycvk/acorn/internal/workspace"
 )
 
 type ConverterImpl struct{}
@@ -27,23 +24,6 @@ func (c *ConverterImpl) appArtifactSummaryToWebArtifactSummaryDTO(source app.Art
 	webArtifactSummaryDTO.SHA256 = source.SHA256
 	webArtifactSummaryDTO.CreatedAt = TimeToTime(source.CreatedAt)
 	return webArtifactSummaryDTO
-}
-func (c *ConverterImpl) appContextToolResultSummaryToWebContextToolResultDTO(source app.ContextToolResultSummary) ContextToolResultDTO {
-	var webContextToolResultDTO ContextToolResultDTO
-	webContextToolResultDTO.ResultRef = source.ResultRef
-	webContextToolResultDTO.ToolName = source.ToolName
-	webContextToolResultDTO.Status = source.Status
-	webContextToolResultDTO.Preview = source.Preview
-	webContextToolResultDTO.TokenEstimate = source.TokenEstimate
-	webContextToolResultDTO.FullTextBytes = source.FullTextBytes
-	webContextToolResultDTO.Elided = source.Elided
-	if source.EvidenceRefs != nil {
-		webContextToolResultDTO.EvidenceRefs = make([]string, len(source.EvidenceRefs))
-		for i := 0; i < len(source.EvidenceRefs); i++ {
-			webContextToolResultDTO.EvidenceRefs[i] = source.EvidenceRefs[i]
-		}
-	}
-	return webContextToolResultDTO
 }
 func (c *ConverterImpl) appDecisionOptionToWebDecisionOptionDTO(source app.DecisionOption) DecisionOptionDTO {
 	var webDecisionOptionDTO DecisionOptionDTO
@@ -111,23 +91,6 @@ func (c *ConverterImpl) appMessagePartToWebMessagePartDTO(source app.MessagePart
 	webMessagePartDTO.Action = c.pAppMessageActionToPWebMessageActionDTO(source.Action)
 	return webMessagePartDTO
 }
-func (c *ConverterImpl) appMutationCheckpointSummaryToWebMutationCheckpointDTO(source app.MutationCheckpointSummary) MutationCheckpointDTO {
-	var webMutationCheckpointDTO MutationCheckpointDTO
-	webMutationCheckpointDTO.CheckpointID = source.CheckpointID
-	webMutationCheckpointDTO.ToolResultRef = source.ToolResultRef
-	webMutationCheckpointDTO.ToolName = source.ToolName
-	webMutationCheckpointDTO.Status = source.Status
-	if source.Paths != nil {
-		webMutationCheckpointDTO.Paths = make([]string, len(source.Paths))
-		for i := 0; i < len(source.Paths); i++ {
-			webMutationCheckpointDTO.Paths[i] = source.Paths[i]
-		}
-	}
-	webMutationCheckpointDTO.Summary = source.Summary
-	webMutationCheckpointDTO.VerifiedDiffStat = source.VerifiedDiffStat
-	webMutationCheckpointDTO.CreatedAt = TimeToTime(source.CreatedAt)
-	return webMutationCheckpointDTO
-}
 func (c *ConverterImpl) appPendingActionOptionToWebPendingActionOptionDTO(source app.PendingActionOption) PendingActionOptionDTO {
 	var webPendingActionOptionDTO PendingActionOptionDTO
 	webPendingActionOptionDTO.ID = source.ID
@@ -158,44 +121,6 @@ func (c *ConverterImpl) appProviderReadinessSummaryToWebProviderReadinessDTO(sou
 	webProviderReadinessDTO.AuthStatus = source.AuthStatus
 	return webProviderReadinessDTO
 }
-func (c *ConverterImpl) appProviderUsageCallSummaryToWebProviderUsageCallDTO(source app.ProviderUsageCallSummary) ProviderUsageCallDTO {
-	var webProviderUsageCallDTO ProviderUsageCallDTO
-	webProviderUsageCallDTO.UsageID = source.UsageID
-	webProviderUsageCallDTO.CallSite = source.CallSite
-	webProviderUsageCallDTO.ProviderName = source.ProviderName
-	webProviderUsageCallDTO.ModelName = source.ModelName
-	webProviderUsageCallDTO.PromptTokens = source.PromptTokens
-	webProviderUsageCallDTO.CompletionTokens = source.CompletionTokens
-	webProviderUsageCallDTO.TotalTokens = source.TotalTokens
-	webProviderUsageCallDTO.CachedTokens = source.CachedTokens
-	webProviderUsageCallDTO.ReasoningTokens = source.ReasoningTokens
-	webProviderUsageCallDTO.CreatedAt = TimeToTime(source.CreatedAt)
-	return webProviderUsageCallDTO
-}
-func (c *ConverterImpl) appRollbackSummaryToWebRollbackSummaryDTO(source app.RollbackSummary) RollbackSummaryDTO {
-	var webRollbackSummaryDTO RollbackSummaryDTO
-	webRollbackSummaryDTO.RollbackID = source.RollbackID
-	webRollbackSummaryDTO.CheckpointID = source.CheckpointID
-	webRollbackSummaryDTO.ToolResultRef = source.ToolResultRef
-	webRollbackSummaryDTO.ToolName = source.ToolName
-	webRollbackSummaryDTO.Status = source.Status
-	if source.RestoredPaths != nil {
-		webRollbackSummaryDTO.RestoredPaths = make([]string, len(source.RestoredPaths))
-		for i := 0; i < len(source.RestoredPaths); i++ {
-			webRollbackSummaryDTO.RestoredPaths[i] = source.RestoredPaths[i]
-		}
-	}
-	if source.ConflictPaths != nil {
-		webRollbackSummaryDTO.ConflictPaths = make([]string, len(source.ConflictPaths))
-		for j := 0; j < len(source.ConflictPaths); j++ {
-			webRollbackSummaryDTO.ConflictPaths[j] = source.ConflictPaths[j]
-		}
-	}
-	webRollbackSummaryDTO.Summary = source.Summary
-	webRollbackSummaryDTO.Error = source.Error
-	webRollbackSummaryDTO.CreatedAt = TimeToTime(source.CreatedAt)
-	return webRollbackSummaryDTO
-}
 func (c *ConverterImpl) appRunSummaryToWebRunSummaryDTO(source app.RunSummary) RunSummaryDTO {
 	var webRunSummaryDTO RunSummaryDTO
 	webRunSummaryDTO.RunID = source.RunID
@@ -210,38 +135,6 @@ func (c *ConverterImpl) appRunSummaryToWebRunSummaryDTO(source app.RunSummary) R
 	webRunSummaryDTO.CreatedAt = TimeToTime(source.CreatedAt)
 	webRunSummaryDTO.UpdatedAt = TimeToTime(source.UpdatedAt)
 	return webRunSummaryDTO
-}
-func (c *ConverterImpl) appSubagentRunToWebSubagentRunDTO(source app.SubagentRun) SubagentRunDTO {
-	var webSubagentRunDTO SubagentRunDTO
-	webSubagentRunDTO.SubRunID = source.SubRunID
-	webSubagentRunDTO.ParentRunID = source.ParentRunID
-	webSubagentRunDTO.SessionID = source.SessionID
-	webSubagentRunDTO.Depth = source.Depth
-	webSubagentRunDTO.Task = source.Task
-	webSubagentRunDTO.ChildRunMode = source.ChildRunMode
-	webSubagentRunDTO.WorkspaceMode = source.WorkspaceMode
-	webSubagentRunDTO.WorktreePath = source.WorktreePath
-	webSubagentRunDTO.ContextMessages = source.ContextMessages
-	webSubagentRunDTO.OrchestrationMode = source.OrchestrationMode
-	webSubagentRunDTO.ParentStepID = source.ParentStepID
-	webSubagentRunDTO.State = source.State
-	webSubagentRunDTO.FinalStatus = source.FinalStatus
-	webSubagentRunDTO.AcceptanceStatus = source.AcceptanceStatus
-	if source.AcceptanceReasons != nil {
-		webSubagentRunDTO.AcceptanceReasons = make([]string, len(source.AcceptanceReasons))
-		for i := 0; i < len(source.AcceptanceReasons); i++ {
-			webSubagentRunDTO.AcceptanceReasons[i] = source.AcceptanceReasons[i]
-		}
-	}
-	if source.EvidenceRefs != nil {
-		webSubagentRunDTO.EvidenceRefs = make([]string, len(source.EvidenceRefs))
-		for j := 0; j < len(source.EvidenceRefs); j++ {
-			webSubagentRunDTO.EvidenceRefs[j] = source.EvidenceRefs[j]
-		}
-	}
-	webSubagentRunDTO.Summary = source.Summary
-	webSubagentRunDTO.UpdatedAt = TimeToTime(source.UpdatedAt)
-	return webSubagentRunDTO
 }
 func (c *ConverterImpl) appSystemToolCapabilityToWebCapabilitiesToolDTO(source app.SystemToolCapability) CapabilitiesToolDTO {
 	var webCapabilitiesToolDTO CapabilitiesToolDTO
@@ -311,33 +204,6 @@ func (c *ConverterImpl) capabilitiesToolsDTOFromSnapshot(source []app.SystemTool
 		}
 	}
 	return webCapabilitiesToolDTOList
-}
-func (c *ConverterImpl) contextEconomyDTOFromDomain(source app.ContextEconomySummary) ContextEconomyDTO {
-	var webContextEconomyDTO ContextEconomyDTO
-	webContextEconomyDTO.LatestPressure = c.pAppContextPressureSummaryToPWebContextPressureDTO(source.LatestPressure)
-	webContextEconomyDTO.LatestCompression = c.pAppContextCompressionSummaryToPWebContextCompressionDTO(source.LatestCompression)
-	if source.ToolResults != nil {
-		webContextEconomyDTO.ToolResults = make([]ContextToolResultDTO, len(source.ToolResults))
-		for i := 0; i < len(source.ToolResults); i++ {
-			webContextEconomyDTO.ToolResults[i] = c.appContextToolResultSummaryToWebContextToolResultDTO(source.ToolResults[i])
-		}
-	}
-	webContextEconomyDTO.ToolResultCount = source.ToolResultCount
-	webContextEconomyDTO.ElidedToolResultCount = source.ElidedToolResultCount
-	webContextEconomyDTO.ToolResultTokenEstimate = source.ToolResultTokenEstimate
-	if source.MemoryRefs != nil {
-		webContextEconomyDTO.MemoryRefs = make([]string, len(source.MemoryRefs))
-		for j := 0; j < len(source.MemoryRefs); j++ {
-			webContextEconomyDTO.MemoryRefs[j] = source.MemoryRefs[j]
-		}
-	}
-	if source.ProcedureRefs != nil {
-		webContextEconomyDTO.ProcedureRefs = make([]string, len(source.ProcedureRefs))
-		for k := 0; k < len(source.ProcedureRefs); k++ {
-			webContextEconomyDTO.ProcedureRefs[k] = source.ProcedureRefs[k]
-		}
-	}
-	return webContextEconomyDTO
 }
 func (c *ConverterImpl) decisionOptionDTOsFromDomain(source []app.DecisionOption) []DecisionOptionDTO {
 	var webDecisionOptionDTOList []DecisionOptionDTO
@@ -491,68 +357,6 @@ func (c *ConverterImpl) messageDTOsFromDomain(source []app.Message) []MessageDTO
 	}
 	return webMessageDTOList
 }
-func (c *ConverterImpl) modelPlanRepoTargetToWebPlanRepoTargetDTO(source model.PlanRepoTarget) PlanRepoTargetDTO {
-	var webPlanRepoTargetDTO PlanRepoTargetDTO
-	webPlanRepoTargetDTO.Path = source.Path
-	webPlanRepoTargetDTO.Symbol = source.Symbol
-	webPlanRepoTargetDTO.StartLine = source.StartLine
-	webPlanRepoTargetDTO.EndLine = source.EndLine
-	webPlanRepoTargetDTO.Reason = source.Reason
-	webPlanRepoTargetDTO.Confidence = source.Confidence
-	return webPlanRepoTargetDTO
-}
-func (c *ConverterImpl) modelVerificationIntentToWebVerificationIntentDTO(source model.VerificationIntent) VerificationIntentDTO {
-	var webVerificationIntentDTO VerificationIntentDTO
-	webVerificationIntentDTO.Kind = source.Kind
-	if source.Command != nil {
-		webVerificationIntentDTO.Command = make([]string, len(source.Command))
-		for i := 0; i < len(source.Command); i++ {
-			webVerificationIntentDTO.Command[i] = source.Command[i]
-		}
-	}
-	if source.Paths != nil {
-		webVerificationIntentDTO.Paths = make([]string, len(source.Paths))
-		for j := 0; j < len(source.Paths); j++ {
-			webVerificationIntentDTO.Paths[j] = source.Paths[j]
-		}
-	}
-	webVerificationIntentDTO.Reason = source.Reason
-	return webVerificationIntentDTO
-}
-func (c *ConverterImpl) mutationCheckpointDTOsFromDomain(source []app.MutationCheckpointSummary) []MutationCheckpointDTO {
-	var webMutationCheckpointDTOList []MutationCheckpointDTO
-	if source != nil {
-		webMutationCheckpointDTOList = make([]MutationCheckpointDTO, len(source))
-		for i := 0; i < len(source); i++ {
-			webMutationCheckpointDTOList[i] = c.appMutationCheckpointSummaryToWebMutationCheckpointDTO(source[i])
-		}
-	}
-	return webMutationCheckpointDTOList
-}
-func (c *ConverterImpl) pAppContextCompressionSummaryToPWebContextCompressionDTO(source *app.ContextCompressionSummary) *ContextCompressionDTO {
-	var pWebContextCompressionDTO *ContextCompressionDTO
-	if source != nil {
-		var webContextCompressionDTO ContextCompressionDTO
-		webContextCompressionDTO.BoundaryID = (*source).BoundaryID
-		webContextCompressionDTO.TokensBefore = (*source).TokensBefore
-		webContextCompressionDTO.TokensAfter = (*source).TokensAfter
-		webContextCompressionDTO.Summary = (*source).Summary
-		pWebContextCompressionDTO = &webContextCompressionDTO
-	}
-	return pWebContextCompressionDTO
-}
-func (c *ConverterImpl) pAppContextPressureSummaryToPWebContextPressureDTO(source *app.ContextPressureSummary) *ContextPressureDTO {
-	var pWebContextPressureDTO *ContextPressureDTO
-	if source != nil {
-		var webContextPressureDTO ContextPressureDTO
-		webContextPressureDTO.State = (*source).State
-		webContextPressureDTO.EstimatedInputTokens = (*source).EstimatedInputTokens
-		webContextPressureDTO.EffectiveWindowTokens = (*source).EffectiveWindowTokens
-		webContextPressureDTO.PercentUsed = (*source).PercentUsed
-		pWebContextPressureDTO = &webContextPressureDTO
-	}
-	return pWebContextPressureDTO
-}
 func (c *ConverterImpl) pAppMessageActionToPWebMessageActionDTO(source *app.MessageAction) *MessageActionDTO {
 	var pWebMessageActionDTO *MessageActionDTO
 	if source != nil {
@@ -584,16 +388,6 @@ func (c *ConverterImpl) pendingActionSummaryDTOsFromDomain(source []app.PendingA
 	}
 	return webPendingActionSummaryDTOList
 }
-func (c *ConverterImpl) planRepoTargetDTOsFromRuntime(source []model.PlanRepoTarget) []PlanRepoTargetDTO {
-	var webPlanRepoTargetDTOList []PlanRepoTargetDTO
-	if source != nil {
-		webPlanRepoTargetDTOList = make([]PlanRepoTargetDTO, len(source))
-		for i := 0; i < len(source); i++ {
-			webPlanRepoTargetDTOList[i] = c.modelPlanRepoTargetToWebPlanRepoTargetDTO(source[i])
-		}
-	}
-	return webPlanRepoTargetDTOList
-}
 func (c *ConverterImpl) providerReadinessDTOsFromSnapshot(source []app.ProviderReadinessSummary) []ProviderReadinessDTO {
 	var webProviderReadinessDTOList []ProviderReadinessDTO
 	if source != nil {
@@ -603,47 +397,6 @@ func (c *ConverterImpl) providerReadinessDTOsFromSnapshot(source []app.ProviderR
 		}
 	}
 	return webProviderReadinessDTOList
-}
-func (c *ConverterImpl) providerUsageDTOFromDomain(source app.ProviderUsageSummary) ProviderUsageDTO {
-	var webProviderUsageDTO ProviderUsageDTO
-	webProviderUsageDTO.CallCount = source.CallCount
-	webProviderUsageDTO.PromptTokens = source.PromptTokens
-	webProviderUsageDTO.CompletionTokens = source.CompletionTokens
-	webProviderUsageDTO.TotalTokens = source.TotalTokens
-	webProviderUsageDTO.CachedTokens = source.CachedTokens
-	webProviderUsageDTO.ReasoningTokens = source.ReasoningTokens
-	if source.Records != nil {
-		webProviderUsageDTO.Records = make([]ProviderUsageCallDTO, len(source.Records))
-		for i := 0; i < len(source.Records); i++ {
-			webProviderUsageDTO.Records[i] = c.appProviderUsageCallSummaryToWebProviderUsageCallDTO(source.Records[i])
-		}
-	}
-	return webProviderUsageDTO
-}
-func (c *ConverterImpl) rollbackSummaryDTOsFromDomain(source []app.RollbackSummary) []RollbackSummaryDTO {
-	var webRollbackSummaryDTOList []RollbackSummaryDTO
-	if source != nil {
-		webRollbackSummaryDTOList = make([]RollbackSummaryDTO, len(source))
-		for i := 0; i < len(source); i++ {
-			webRollbackSummaryDTOList[i] = c.appRollbackSummaryToWebRollbackSummaryDTO(source[i])
-		}
-	}
-	return webRollbackSummaryDTOList
-}
-func (c *ConverterImpl) runDecisionDTOFromDomain(source *decision.Record) *RunDecisionDTO {
-	var pWebRunDecisionDTO *RunDecisionDTO
-	if source != nil {
-		var webRunDecisionDTO RunDecisionDTO
-		webRunDecisionDTO.RunID = (*source).RunID
-		webRunDecisionDTO.Action = string((*source).Action)
-		webRunDecisionDTO.Intent = (*source).Intent
-		webRunDecisionDTO.SelectedSkillID = (*source).SelectedSkillID
-		webRunDecisionDTO.DecisionReason = (*source).DecisionReason
-		webRunDecisionDTO.DecisionProfileHash = (*source).DecisionProfileHash
-		webRunDecisionDTO.CreatedAt = TimeToTime((*source).CreatedAt)
-		pWebRunDecisionDTO = &webRunDecisionDTO
-	}
-	return pWebRunDecisionDTO
 }
 func (c *ConverterImpl) runSummaryDTOsFromDomain(source []app.RunSummary) []RunSummaryDTO {
 	var webRunSummaryDTOList []RunSummaryDTO
@@ -683,16 +436,6 @@ func (c *ConverterImpl) skillRequirementsDTOFromDomain(source skills.Requirement
 	}
 	return webSkillRequirementsDTO
 }
-func (c *ConverterImpl) subagentRunDTOsFromDomain(source []app.SubagentRun) []SubagentRunDTO {
-	var webSubagentRunDTOList []SubagentRunDTO
-	if source != nil {
-		webSubagentRunDTOList = make([]SubagentRunDTO, len(source))
-		for i := 0; i < len(source); i++ {
-			webSubagentRunDTOList[i] = c.appSubagentRunToWebSubagentRunDTO(source[i])
-		}
-	}
-	return webSubagentRunDTOList
-}
 func (c *ConverterImpl) threadDTOFromDomain(source app.Thread) ThreadDTO {
 	var webThreadDTO ThreadDTO
 	webThreadDTO.ID = source.ID
@@ -714,16 +457,6 @@ func (c *ConverterImpl) threadDTOsFromDomain(source []app.Thread) []ThreadDTO {
 	}
 	return webThreadDTOList
 }
-func (c *ConverterImpl) verificationIntentDTOsFromRuntime(source []model.VerificationIntent) []VerificationIntentDTO {
-	var webVerificationIntentDTOList []VerificationIntentDTO
-	if source != nil {
-		webVerificationIntentDTOList = make([]VerificationIntentDTO, len(source))
-		for i := 0; i < len(source); i++ {
-			webVerificationIntentDTOList[i] = c.modelVerificationIntentToWebVerificationIntentDTO(source[i])
-		}
-	}
-	return webVerificationIntentDTOList
-}
 func (c *ConverterImpl) workingCheckpointDTOFromView(source *app.WorkingCheckpointView) *WorkingCheckpointDTO {
 	var pWebWorkingCheckpointDTO *WorkingCheckpointDTO
 	if source != nil {
@@ -735,26 +468,4 @@ func (c *ConverterImpl) workingCheckpointDTOFromView(source *app.WorkingCheckpoi
 		pWebWorkingCheckpointDTO = &webWorkingCheckpointDTO
 	}
 	return pWebWorkingCheckpointDTO
-}
-func (c *ConverterImpl) workspaceGitStatusDTOFromDomain(source app.WorkspaceGitStatus) WorkspaceGitStatusDTO {
-	var webWorkspaceGitStatusDTO WorkspaceGitStatusDTO
-	webWorkspaceGitStatusDTO.WorkspaceRoot = source.WorkspaceRoot
-	webWorkspaceGitStatusDTO.Available = source.Available
-	webWorkspaceGitStatusDTO.Branch = source.Branch
-	webWorkspaceGitStatusDTO.Clean = source.Clean
-	webWorkspaceGitStatusDTO.Error = source.Error
-	if source.Entries != nil {
-		webWorkspaceGitStatusDTO.Entries = make([]WorkspaceGitEntryDTO, len(source.Entries))
-		for i := 0; i < len(source.Entries); i++ {
-			webWorkspaceGitStatusDTO.Entries[i] = c.workspaceGitStatusEntryToWebWorkspaceGitEntryDTO(source.Entries[i])
-		}
-	}
-	return webWorkspaceGitStatusDTO
-}
-func (c *ConverterImpl) workspaceGitStatusEntryToWebWorkspaceGitEntryDTO(source workspace.GitStatusEntry) WorkspaceGitEntryDTO {
-	var webWorkspaceGitEntryDTO WorkspaceGitEntryDTO
-	webWorkspaceGitEntryDTO.Path = source.Path
-	webWorkspaceGitEntryDTO.IndexStatus = source.IndexStatus
-	webWorkspaceGitEntryDTO.WorktreeStatus = source.WorktreeStatus
-	return webWorkspaceGitEntryDTO
 }

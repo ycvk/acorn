@@ -63,9 +63,13 @@ func (s *ClientService) LoadRunEventsForDetail(ctx context.Context, runID string
 		}
 		events = append(events, event)
 	}
+	traceSummary, err := clientevents.BuildTraceSummary(records)
+	if err != nil {
+		return nil, fmt.Errorf("%w: build trace summary: %v", ErrClientProjectionFailed, err)
+	}
 	return &clientevents.RunEventDetail{
 		Events: events,
-		Trace:  clientevents.BuildTraceSummary(records),
+		Trace:  traceSummary,
 	}, nil
 }
 

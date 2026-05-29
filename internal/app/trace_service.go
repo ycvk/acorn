@@ -8,15 +8,10 @@ import (
 	"strings"
 
 	"github.com/ycvk/acorn/internal/clientevents"
-	"github.com/ycvk/acorn/internal/decision"
 	"github.com/ycvk/acorn/internal/events"
-	"github.com/ycvk/acorn/internal/model"
-	"github.com/ycvk/acorn/internal/providers"
 	"github.com/ycvk/acorn/internal/runtime"
 	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
-	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/stream"
-	"github.com/ycvk/acorn/internal/workspace"
 )
 
 type TraceService struct {
@@ -88,31 +83,7 @@ func runResultFromRuntime(result *runtime.Result) *RunResult {
 		Output:       result.Output,
 		Error:        result.Error,
 		Interrupted:  cloneMap(result.Interrupted),
-		TraceSummary: traceSummaryFromRuntime(result.TraceSummary),
-	}
-}
-
-func traceSummaryFromRuntime(summary *stream.TraceSummary) *clientevents.TraceSummary {
-	if summary == nil {
-		return nil
-	}
-	return &clientevents.TraceSummary{
-		ItemCount:                  summary.ItemCount,
-		LastKind:                   string(summary.LastKind),
-		AssistantMessageCount:      summary.AssistantMessageCount,
-		AssistantDeltaCount:        summary.AssistantDeltaCount,
-		AssistantDeltaMessageCount: summary.AssistantDeltaMessageCount,
-		AssistantDeltaCharCount:    summary.AssistantDeltaCharCount,
-		ToolCallCount:              summary.ToolCallCount,
-		DecisionEventCount:         summary.DecisionEventCount,
-		SkillEventCount:            summary.SkillEventCount,
-		PlanEventCount:             summary.PlanEventCount,
-		DecisionSelected:           summary.DecisionSelected,
-		DecisionBlocked:            summary.DecisionBlocked,
-		SkillSelected:              summary.SkillSelected,
-		Interrupted:                summary.Interrupted,
-		Failed:                     summary.Failed,
-		Completed:                  summary.Completed,
+		TraceSummary: clientevents.TraceSummaryFromStream(result.TraceSummary),
 	}
 }
 
@@ -302,30 +273,4 @@ func defaultTargets(interruptID string) map[string]any {
 	return map[string]any{
 		interruptID: map[string]any{},
 	}
-}
-
-type RuntimeWorkbenchService struct {
-	cfg   RuntimeWorkbenchConfig
-	store runtimeWorkbenchStore
-	plans runtimeWorkbenchPlanStore
-	trace *TraceService
-}
-
-type RuntimeWorkbenchConfig struct {
-	Workspace *workspace.Workspace
-}
-
-type runtimeWorkbenchStore interface {
-	LoadSession(ctx context.Context, sessionID string) (*events.SessionRecord, error)
-	LoadLatestRunForSession(ctx context.Context, sessionID string) (*events.RunRecord, error)
-	LoadEvents(ctx context.Context, runID string) ([]events.EventRecord, error)
-	LoadRunDecision(ctx context.Context, runID string) (*decision.Record, error)
-	GetSessionSummary(ctx context.Context, sessionID string) (*model.SessionSummary, error)
-	ListByRun(ctx context.Context, runID string) ([]store.ToolResultRecord, error)
-	ListArtifactsByRun(ctx context.Context, runID string) ([]store.ArtifactRecord, error)
-	ListProviderUsagesByRun(ctx context.Context, runID string) ([]providers.UsageRecord, error)
-}
-
-type runtimeWorkbenchPlanStore interface {
-	LoadRuntimePlan(ctx context.Context, sessionID string) (*model.Plan, error)
 }

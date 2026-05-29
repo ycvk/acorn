@@ -919,12 +919,11 @@ class RunDetail {
   final Map<String, dynamic> raw;
 
   factory RunDetail.fromJson(Map<String, dynamic> json) {
-    final workbench = _map(json['workbench']);
     return RunDetail(
       run: Run.fromJson(_map(json['run'])),
       thread: Thread.fromJson(_map(json['thread'])),
       events: _list(json['events'], RunEvent.fromJson),
-      artifacts: _list(workbench['artifacts'], RunArtifact.fromJson),
+      artifacts: _list(json['artifacts'], RunArtifact.fromJson),
       raw: Map<String, dynamic>.from(json),
     );
   }

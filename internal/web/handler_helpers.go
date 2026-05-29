@@ -32,13 +32,6 @@ func (s *Server) respondClientKnownError(w http.ResponseWriter, r *http.Request,
 	}
 }
 
-func runtimeWorkbenchDTOPointer(item *app.RuntimeWorkbench) *RuntimeWorkbenchDTO {
-	if item == nil {
-		return nil
-	}
-	return new(runtimeWorkbenchDTOFromDomain(item))
-}
-
 func clientWorkspaceRoot(cfg *config.Config) string {
 	if cfg == nil {
 		return ""

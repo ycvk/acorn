@@ -72,7 +72,7 @@ func (s *Server) handleClientRunDetail(w http.ResponseWriter, r *http.Request) {
 		s.respondClientKnownError(w, r, err)
 		return
 	}
-	workbench, err := s.workbench.Load(r.Context(), run.ThreadID)
+	artifacts, err := s.client.ListRunArtifacts(r.Context(), runID)
 	if err != nil {
 		s.respondClientKnownError(w, r, err)
 		return
@@ -81,7 +81,7 @@ func (s *Server) handleClientRunDetail(w http.ResponseWriter, r *http.Request) {
 		Run:       runDTOFromDomain(*run),
 		Thread:    threadDTOFromDomain(*thread),
 		Events:    eventDetail.Events,
-		Workbench: runtimeWorkbenchDTOPointer(workbench),
+		Artifacts: artifactSummaryDTOsFromDomain(artifacts),
 		Trace:     eventDetail.Trace,
 	}
 	s.respondJSON(w, r, http.StatusOK, detail)

@@ -14,10 +14,6 @@ func buildContainerAppServices(cfg *config.Config, store containerAppStore, deps
 	}
 
 	container.trace = NewTraceService(store).WithResume(deps.executors, store)
-	container.sessionState = NewSessionStateService(cfg, store, container.trace)
-	container.workbench = NewRuntimeWorkbenchService(RuntimeWorkbenchConfig{
-		Workspace: deps.ws,
-	}, store, container.trace)
 	checkpoints, err := NewWorkingCheckpointService(deps.checkpointService)
 	if err != nil {
 		return nil, err

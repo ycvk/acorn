@@ -24,8 +24,6 @@ type containerRuntimeStore interface {
 type containerAppStore interface {
 	sessionStore
 	traceStore
-	sessionStateStore
-	runtimeWorkbenchStore
 	ChatStore
 	clientStore
 	pendingActionDecisionStore

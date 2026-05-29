@@ -107,11 +107,11 @@ A: 不会。会修改 workspace 的工具会留下 mutation checkpoint；只有�
 
 Q: Plan 面板显示 No active plan 怎么办？
 
-A: 当前 run 可能是普通问答，也可能还没有生成执行计划。先确认任务是否属于需要工具执行的类型；如果已经执行过，再用 `/v1/runs/{run_id}/detail` 核对后端是否有 plan。
+A: 当前 run 可能是普通问答，也可能还没有生成执行计划。先确认任务是否属于需要工具执行的类型；如果已经执行过，`/v1/runs/{run_id}/detail` 只能核对 run/thread、activity、trace summary 和 artifacts；完整 plan 仍是后端诊断事实，不作为 mobile/public DTO 暴露。
 
 ## 相关功能
 
 - `POST /v1/threads/{thread_id}/messages`：追加用户消息。
 - `POST /v1/threads/{thread_id}/runs`：启动任务执行。
-- `/v1/runs/{run_id}/detail`：查看某次 run 的 detail 聚合，包括 workbench/plan/trace。
+- `/v1/runs/{run_id}/detail`：查看某次 run 的 detail 聚合，包括 run/thread、live events、artifacts 和 trace summary。
 - `/v1/runs/{run_id}/events`：查看 mobile live RunEvent 事件流，不包含 plan/step 诊断事件。

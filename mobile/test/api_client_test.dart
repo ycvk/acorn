@@ -115,7 +115,7 @@ void main() {
     expect(decision.answer, 'Ship it');
   });
 
-  test('getRunDetail parses workbench artifacts', () async {
+  test('getRunDetail parses artifacts', () async {
     final client = AcornApiClient(
       serverUrl: 'http://acorn.local',
       accessToken: 'device_token',
@@ -144,45 +144,21 @@ void main() {
               'state': 'completed',
             },
             'events': [],
-            'workbench': {
-              'session_id': 'thread_1',
-              'title': 'Artifact run',
-              'resumable': false,
-              'workspace_root': '/repo',
-              'git_status': {
-                'workspace_root': '/repo',
-                'available': true,
-                'clean': true,
+            'artifacts': [
+              {
+                'artifact_id': 'artifact_report',
+                'run_id': 'run_1',
+                'session_id': 'thread_1',
+                'source_tool_result_ref': 'tool_result:run_1:call_1',
+                'kind': 'markdown',
+                'title': 'Report',
+                'mime_type': 'text/markdown',
+                'size_bytes': 42,
+                'sha256':
+                    'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+                'created_at': '2026-05-20T00:00:01Z',
               },
-              'context_economy': {
-                'tool_result_count': 1,
-                'elided_tool_result_count': 0,
-                'tool_result_token_estimate': 12,
-              },
-              'provider_usage': {
-                'call_count': 1,
-                'prompt_tokens': 10,
-                'completion_tokens': 2,
-                'total_tokens': 12,
-                'cached_tokens': 0,
-                'reasoning_tokens': 0,
-              },
-              'artifacts': [
-                {
-                  'artifact_id': 'artifact_report',
-                  'run_id': 'run_1',
-                  'session_id': 'thread_1',
-                  'source_tool_result_ref': 'tool_result:run_1:call_1',
-                  'kind': 'markdown',
-                  'title': 'Report',
-                  'mime_type': 'text/markdown',
-                  'size_bytes': 42,
-                  'sha256':
-                      'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-                  'created_at': '2026-05-20T00:00:01Z',
-                },
-              ],
-            },
+            ],
             'trace': null,
           }),
           200,

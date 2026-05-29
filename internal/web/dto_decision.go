@@ -1,57 +1,6 @@
 package web
 
-import (
-	"time"
-
-	"github.com/ycvk/acorn/internal/clientevents"
-	"github.com/ycvk/acorn/internal/config"
-	"github.com/ycvk/acorn/internal/decision"
-)
-
-type SelectedSkillDTO struct {
-	ID           string               `json:"id"`
-	Name         string               `json:"name"`
-	Source       string               `json:"source,omitempty"`
-	Origin       string               `json:"origin,omitempty"`
-	TaskPattern  string               `json:"task_pattern,omitempty"`
-	Summary      string               `json:"summary,omitempty"`
-	PromotedFrom string               `json:"promoted_from,omitempty"`
-	Requirements SkillRequirementsDTO `json:"requirements,omitempty"`
-	Score        int                  `json:"score,omitempty"`
-	MatchedTerms []string             `json:"matched_terms,omitempty"`
-}
-
-type RunDecisionDTO struct {
-	RunID               string    `json:"run_id"`
-	Action              string    `json:"action"`
-	Intent              string    `json:"intent,omitempty"`
-	SelectedSkillID     string    `json:"selected_skill_id,omitempty"`
-	DecisionReason      string    `json:"decision_reason,omitempty"`
-	DecisionProfileHash string    `json:"decision_profile_hash,omitempty"`
-	CreatedAt           time.Time `json:"created_at"`
-}
-
-func runDecisionDTOFromDomain(record *decision.Record) *RunDecisionDTO {
-	return DefaultConverter.runDecisionDTOFromDomain(record)
-}
-
-func selectedSkillDTOFromClientProjection(skill *clientevents.SelectedSkill) *SelectedSkillDTO {
-	if skill == nil {
-		return nil
-	}
-	return &SelectedSkillDTO{
-		ID:           skill.Skill.ID,
-		Name:         skill.Skill.Name,
-		Source:       skill.Skill.Source,
-		Origin:       string(skill.Skill.Origin),
-		TaskPattern:  skill.Skill.TaskPattern,
-		Summary:      skill.Skill.Summary,
-		PromotedFrom: skill.Skill.PromotedFrom,
-		Requirements: skillRequirementsDTOFromDomain(skill.Skill.Requires),
-		Score:        skill.Score,
-		MatchedTerms: append([]string(nil), skill.MatchedTerms...),
-	}
-}
+import "github.com/ycvk/acorn/internal/config"
 
 // ClientProviderSettingsDTO represents a provider configuration exposed to the client.
 type ClientProviderSettingsDTO struct {
