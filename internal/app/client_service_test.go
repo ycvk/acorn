@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -342,56 +341,31 @@ func TestProjectRunEventAcceptsResumeRequested(t *testing.T) {
 	}
 }
 
-func TestProjectRunEventAcceptsDecisionEvents(t *testing.T) {
+func TestProjectRunEventAcceptsDecisionBlocked(t *testing.T) {
 	now := time.Date(2026, 5, 2, 10, 0, 0, 0, time.UTC)
-	cases := []struct {
-		name string
-		kind string
-		data any
-	}{
-		{
-			name: "selected",
-			kind: "decision_selected",
-			data: clientevents.DecisionSelectedData{
-				Action:          "execute_with_skill",
-				SelectedSkillID: "skill.ship.patch",
-			},
+	event, err := clientevents.ProjectRunEvent(events.EventRecord{
+		Sequence:  9,
+		RunID:     "run_1",
+		Kind:      "decision_blocked",
+		CreatedAt: now,
+		Payload: map[string]any{
+			"action":          "ask_user",
+			"intent":          "implement",
+			"decision_reason": "operator confirmation required",
 		},
-		{
-			name: "blocked",
-			kind: "decision_blocked",
-			data: clientevents.DecisionBlockedData{
-				Action:         "ask_user",
-				DecisionReason: "operator confirmation required",
-			},
-		},
+	})
+	if err != nil {
+		t.Fatalf("clientevents.ProjectRunEvent: %v", err)
 	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			event, err := clientevents.ProjectRunEvent(events.EventRecord{
-				Sequence:  9,
-				RunID:     "run_1",
-				Kind:      tc.kind,
-				CreatedAt: now,
-				Payload: map[string]any{
-					"action":            "execute_with_skill",
-					"intent":            "implement",
-					"selected_skill_id": "skill.ship.patch",
-					"decision_reason":   "route matched",
-					"explicit_skill_id": "skill.ship.patch",
-				},
-			})
-			if err != nil {
-				t.Fatalf("clientevents.ProjectRunEvent: %v", err)
-			}
-			if event.Type != tc.kind || event.Data == nil {
-				t.Fatalf("event = %#v", event)
-			}
-			if fmt.Sprintf("%T", event.Data) != fmt.Sprintf("%T", tc.data) {
-				t.Fatalf("data type = %T, want %T", event.Data, tc.data)
-			}
-		})
+	if event.Type != "decision_blocked" {
+		t.Fatalf("event = %#v", event)
+	}
+	data, ok := event.Data.(clientevents.DecisionBlockedData)
+	if !ok {
+		t.Fatalf("event data = %T, want clientevents.DecisionBlockedData", event.Data)
+	}
+	if data.Action != "ask_user" || data.DecisionReason != "operator confirmation required" {
+		t.Fatalf("event data = %#v", data)
 	}
 }
 
@@ -426,229 +400,37 @@ func TestProjectRunEventAcceptsElicitationEvents(t *testing.T) {
 	}
 }
 
-func TestProjectRunEventAcceptsSkillEvents(t *testing.T) {
+func TestProjectRunEventRejectsDiagnosticOnlyKinds(t *testing.T) {
 	now := time.Date(2026, 5, 2, 10, 0, 0, 0, time.UTC)
-	for _, kind := range []string{"skill.discovered", "skill.selected", "skill.loaded", "skill.failed"} {
+	for _, kind := range []string{
+		"tool.call.started",
+		"tool.call.progress",
+		"tool.call.succeeded",
+		"tool.call.failed",
+		"provider.degraded",
+		"mcp.provider_added",
+		"sampling.started",
+		"decision_selected",
+		"skill.selected",
+		"skill.lifecycle",
+		"procedure.activation",
+		"memory.prepared",
+		"context.pressure",
+		"context.compressed",
+		"plan.created",
+		"step.started",
+		"subagent.failed",
+	} {
 		t.Run(kind, func(t *testing.T) {
-			event, err := clientevents.ProjectRunEvent(events.EventRecord{
-				Sequence:  10,
-				RunID:     "run_1",
-				Kind:      kind,
-				CreatedAt: now,
-				Payload: map[string]any{
-					"skill": map[string]any{
-						"selected_id": "skill.ship.patch",
-						"name":        "skill.ship.patch",
-					},
-				},
-			})
-			if err != nil {
-				t.Fatalf("clientevents.ProjectRunEvent: %v", err)
-			}
-			data, ok := event.Data.(clientevents.SkillData)
-			if !ok || data.Skill["selected_id"] != "skill.ship.patch" {
-				t.Fatalf("event data = %#v", event.Data)
-			}
-		})
-	}
-}
-
-func TestProjectRunEventAcceptsSkillLifecycle(t *testing.T) {
-	now := time.Date(2026, 5, 2, 10, 0, 0, 0, time.UTC)
-	event, err := clientevents.ProjectRunEvent(events.EventRecord{
-		Sequence:  11,
-		RunID:     "run_1",
-		Kind:      "skill.lifecycle",
-		CreatedAt: now,
-		Payload: map[string]any{
-			"skill_lifecycle": map[string]any{
-				"skill_id":         "skill.generated",
-				"action":           "assessed",
-				"status":           "verified",
-				"verdict":          "verified",
-				"reason":           "durable evidence-backed promotion",
-				"assessment_id":    "skill_assessment_1",
-				"changes_required": []any{"none"},
-				"applied":          true,
-				"assessment": map[string]any{
-					"assessment_id": "skill_assessment_1",
-				},
-			},
-		},
-	})
-	if err != nil {
-		t.Fatalf("clientevents.ProjectRunEvent: %v", err)
-	}
-	data, ok := event.Data.(clientevents.SkillLifecycleData)
-	if !ok {
-		t.Fatalf("event data = %T, want clientevents.SkillLifecycleData", event.Data)
-	}
-	if data.SkillLifecycle["skill_id"] != "skill.generated" || data.SkillLifecycle["action"] != "assessed" {
-		t.Fatalf("event data = %#v", event.Data)
-	}
-}
-
-func TestProjectRunEventAcceptsProcedureActivation(t *testing.T) {
-	now := time.Date(2026, 5, 2, 10, 0, 0, 0, time.UTC)
-	event, err := clientevents.ProjectRunEvent(events.EventRecord{
-		Sequence:  12,
-		RunID:     "run_1",
-		Kind:      "procedure.activation",
-		CreatedAt: now,
-		Payload: map[string]any{
-			"procedure_activation": map[string]any{
-				"procedure_ref": "skills/learned/sqlite.md#sqlite",
-				"phase":         "injected",
-				"reason":        "injected_into_memory_context",
-			},
-		},
-	})
-	if err != nil {
-		t.Fatalf("clientevents.ProjectRunEvent: %v", err)
-	}
-	data, ok := event.Data.(clientevents.ProcedureActivationData)
-	if !ok {
-		t.Fatalf("event data = %T, want clientevents.ProcedureActivationData", event.Data)
-	}
-	if data.ProcedureActivation["phase"] != "injected" {
-		t.Fatalf("event data = %#v", event.Data)
-	}
-}
-
-func TestProjectRunEventAcceptsContextEvents(t *testing.T) {
-	now := time.Date(2026, 5, 2, 10, 0, 0, 0, time.UTC)
-
-	pressure, err := clientevents.ProjectRunEvent(events.EventRecord{
-		Sequence:  13,
-		RunID:     "run_1",
-		Kind:      "context.pressure",
-		CreatedAt: now,
-		Payload: map[string]any{
-			"context_pressure": map[string]any{
-				"state":                         "warning",
-				"estimated_input_tokens":        float64(12000),
-				"effective_window_tokens":       float64(16000),
-				"warning_threshold_tokens":      float64(11000),
-				"auto_compact_threshold_tokens": float64(13000),
-				"blocking_threshold_tokens":     float64(15000),
-				"percent_used":                  float64(75),
-			},
-		},
-	})
-	if err != nil {
-		t.Fatalf("clientevents.ProjectRunEvent context.pressure: %v", err)
-	}
-	pressureData, ok := pressure.Data.(clientevents.ContextPressureData)
-	if !ok {
-		t.Fatalf("pressure data = %T, want clientevents.ContextPressureData", pressure.Data)
-	}
-	if pressureData.ContextPressure["state"] != "warning" {
-		t.Fatalf("pressure data = %#v", pressure.Data)
-	}
-
-	compressed, err := clientevents.ProjectRunEvent(events.EventRecord{
-		Sequence:  14,
-		RunID:     "run_1",
-		Kind:      "context.compressed",
-		CreatedAt: now,
-		Payload: map[string]any{
-			"context_compressed": map[string]any{
-				"boundary_id":     "ctxb_run_1_0001",
-				"first_index":     float64(2),
-				"last_index":      float64(8),
-				"tokens_before":   float64(12000),
-				"tokens_after":    float64(4000),
-				"summary_snippet": "User asked about the repo.",
-			},
-		},
-	})
-	if err != nil {
-		t.Fatalf("clientevents.ProjectRunEvent context.compressed: %v", err)
-	}
-	compressedData, ok := compressed.Data.(clientevents.ContextCompressedData)
-	if !ok {
-		t.Fatalf("compressed data = %T, want clientevents.ContextCompressedData", compressed.Data)
-	}
-	if compressedData.ContextCompressed["boundary_id"] != "ctxb_run_1_0001" {
-		t.Fatalf("compressed data = %#v", compressed.Data)
-	}
-}
-
-func TestProjectRunEventAcceptsPlanEvents(t *testing.T) {
-	now := time.Date(2026, 5, 2, 10, 0, 0, 0, time.UTC)
-	cases := []string{"plan.created", "plan.updated", "plan.cleared", "step.started", "step.completed", "step.failed"}
-	for _, kind := range cases {
-		t.Run(kind, func(t *testing.T) {
-			event, err := clientevents.ProjectRunEvent(events.EventRecord{
-				Sequence:  11,
-				RunID:     "run_1",
-				Kind:      kind,
-				CreatedAt: now,
-				Payload: map[string]any{
-					"plan_id":    "plan_1",
-					"session_id": "thread_1",
-					"plan":       map[string]any{"plan_id": "plan_1"},
-					"step":       map[string]any{"id": "s1", "title": "Do it"},
-					"updated_at": "2026-05-02T10:00:00Z",
-					"error":      "boom",
-				},
-			})
-			if err != nil {
-				t.Fatalf("clientevents.ProjectRunEvent: %v", err)
-			}
-			if event.Type != kind || event.Data == nil {
-				t.Fatalf("event = %#v", event)
-			}
-		})
-	}
-}
-
-func TestProjectRunEventAcceptsSubagentEvents(t *testing.T) {
-	now := time.Date(2026, 5, 2, 10, 0, 0, 0, time.UTC)
-	for _, kind := range []string{"subagent.started", "subagent.completed", "subagent.failed"} {
-		t.Run(kind, func(t *testing.T) {
-			event, err := clientevents.ProjectRunEvent(events.EventRecord{
+			_, err := clientevents.ProjectRunEvent(events.EventRecord{
 				Sequence:  12,
 				RunID:     "run_1",
 				Kind:      kind,
 				CreatedAt: now,
-				Payload: map[string]any{
-					"sub_run_id":         "sub_1",
-					"parent_id":          "run_1",
-					"session_id":         "thread_1",
-					"depth":              float64(1),
-					"task":               "inspect",
-					"child_run_mode":     "fork",
-					"workspace_mode":     "worktree",
-					"worktree_path":      "/tmp/acorn-child",
-					"context_messages":   float64(3),
-					"summary":            "done",
-					"final_status":       "completed",
-					"acceptance_status":  "accepted",
-					"acceptance_reasons": []any{"ok"},
-					"evidence_refs":      []any{"run:sub_1", "evidence:e1"},
-					"orchestration_mode": "single_agent",
-					"parent_step_id":     "step_1",
-					"error":              "boom",
-				},
+				Payload:   map[string]any{"value": "diagnostic"},
 			})
-			if err != nil {
-				t.Fatalf("clientevents.ProjectRunEvent: %v", err)
-			}
-			data, ok := event.Data.(clientevents.SubagentData)
-			if !ok || data.SubRunID != "sub_1" || data.Depth != 1 {
-				t.Fatalf("event data = %#v", event.Data)
-			}
-			if data.ChildRunMode != "fork" ||
-				data.WorkspaceMode != "worktree" ||
-				data.WorktreePath != "/tmp/acorn-child" ||
-				data.ContextMessages != 3 ||
-				data.OrchestrationMode != "single_agent" ||
-				data.ParentStepID != "step_1" {
-				t.Fatalf("event data = %#v", event.Data)
-			}
-			if !reflect.DeepEqual(data.EvidenceRefs, []string{"run:sub_1", "evidence:e1"}) {
-				t.Fatalf("evidence refs = %#v", data.EvidenceRefs)
+			if !errors.Is(err, clientevents.ErrProjectionFailed) {
+				t.Fatalf("error = %v, want ErrProjectionFailed", err)
 			}
 		})
 	}
@@ -685,88 +467,6 @@ func TestProjectRunEventAcceptsOperatorQuestionEvents(t *testing.T) {
 	}
 }
 
-func TestProjectRunEventAcceptsOperationalEvents(t *testing.T) {
-	now := time.Date(2026, 5, 25, 10, 0, 0, 0, time.UTC)
-
-	provider, err := clientevents.ProjectRunEvent(events.EventRecord{
-		Sequence:  13,
-		RunID:     "run_1",
-		Kind:      "provider.degraded",
-		CreatedAt: now,
-		Payload: map[string]any{
-			"affected_providers": []any{
-				map[string]any{"name": "mcp.remote", "transport": "streamable_http", "error": "dial refused"},
-			},
-		},
-	})
-	if err != nil {
-		t.Fatalf("provider.degraded projection: %v", err)
-	}
-	providerData, ok := provider.Data.(clientevents.ProviderDegradedData)
-	if !ok || len(providerData.AffectedProviders) != 1 || providerData.AffectedProviders[0].Name != "mcp.remote" {
-		t.Fatalf("provider.degraded data = %#v", provider.Data)
-	}
-
-	mcpKinds := []string{
-		"mcp.tool_catalog_refreshed",
-		"mcp.tool_catalog_refresh_failed",
-		"mcp.provider_added",
-		"mcp.provider_removed",
-		"mcp.provider_restarted",
-		"mcp.resource_catalog_refreshed",
-		"mcp.resource_catalog_refresh_failed",
-		"mcp.prompt_catalog_refreshed",
-		"mcp.prompt_catalog_refresh_failed",
-		"mcp.auth_status_changed",
-	}
-	for _, kind := range mcpKinds {
-		t.Run(kind, func(t *testing.T) {
-			event, err := clientevents.ProjectRunEvent(events.EventRecord{
-				Sequence:  14,
-				RunID:     "run_1",
-				Kind:      kind,
-				CreatedAt: now,
-				Payload: map[string]any{
-					"provider_name": "github",
-					"transport":     "sse",
-					"error":         "refresh failed",
-					"auth_status":   "reauth_required",
-				},
-			})
-			if err != nil {
-				t.Fatalf("%s projection: %v", kind, err)
-			}
-			data, ok := event.Data.(clientevents.MCPProviderLifecycleData)
-			if !ok || data.ProviderName != "github" || data.AuthStatus != "reauth_required" {
-				t.Fatalf("%s data = %#v", kind, event.Data)
-			}
-		})
-	}
-
-	for _, kind := range []string{"sampling.started", "sampling.completed", "sampling.failed"} {
-		t.Run(kind, func(t *testing.T) {
-			event, err := clientevents.ProjectRunEvent(events.EventRecord{
-				Sequence:  15,
-				RunID:     "run_1",
-				Kind:      kind,
-				CreatedAt: now,
-				Payload: map[string]any{
-					"run_id": "subagent_pending",
-					"depth":  float64(1),
-					"model":  "acorn-default",
-				},
-			})
-			if err != nil {
-				t.Fatalf("%s projection: %v", kind, err)
-			}
-			data, ok := event.Data.(clientevents.SamplingData)
-			if !ok || data.RunID != "subagent_pending" || data.Depth != 1 {
-				t.Fatalf("%s data = %#v", kind, event.Data)
-			}
-		})
-	}
-}
-
 func TestProjectRunEventRejectsNonObjectPayload(t *testing.T) {
 	_, err := clientevents.ProjectRunEvent(events.EventRecord{
 		Sequence: 1,
@@ -792,21 +492,62 @@ func TestProjectRunEventRejectsUnsupportedLiveKind(t *testing.T) {
 	}
 }
 
-func TestProjectUnsupportedRunEventPreservesRawPayload(t *testing.T) {
-	now := time.Date(2026, 5, 2, 10, 0, 0, 0, time.UTC)
-	event := clientevents.ProjectUnsupportedRunEvent(events.EventRecord{
-		Sequence:  7,
-		RunID:     "run_1",
-		Kind:      "future.kind",
-		CreatedAt: now,
-		Payload:   map[string]any{"value": "debug"},
-	})
-	if event.EventID != "run_1:7" || event.Type != "future.kind" || event.Raw["value"] != "debug" || event.Reason == "" {
-		t.Fatalf("unsupported event = %#v", event)
+func TestLoadRunEventsAfterFiltersDiagnosticsAndAdvancesCursor(t *testing.T) {
+	ctx := context.Background()
+	store, err := storesqlite.Open(filepath.Join(t.TempDir(), "state"))
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	if err := store.CreateRun(ctx, "run_live", "input", "thread_live"); err != nil {
+		t.Fatalf("CreateRun: %v", err)
+	}
+	if _, err := store.AppendEventContext(ctx, "run_live", "run.started", map[string]any{"input": "hello"}); err != nil {
+		t.Fatalf("append run.started: %v", err)
+	}
+	if _, err := store.AppendEventContext(ctx, "run_live", "tool.call.progress", map[string]any{"delta": "hidden"}); err != nil {
+		t.Fatalf("append tool.call.progress: %v", err)
+	}
+	if _, err := store.AppendEventContext(ctx, "run_live", "memory.prepared", map[string]any{"memory_prepared": map[string]any{"entry_count": float64(2)}}); err != nil {
+		t.Fatalf("append memory.prepared: %v", err)
+	}
+	if _, err := store.AppendEventContext(ctx, "run_live", "assistant.delta", map[string]any{"assistant_delta": map[string]any{"delta": "hi"}}); err != nil {
+		t.Fatalf("append assistant.delta: %v", err)
+	}
+	if _, err := store.AppendEventContext(ctx, "run_live", "context.pressure", map[string]any{"context_pressure": map[string]any{"state": "warning"}}); err != nil {
+		t.Fatalf("append context.pressure: %v", err)
+	}
+
+	service := BuildClientService(store, nil, nil, "/repo")
+	batch, err := service.LoadRunEventsAfter(ctx, "run_live", 1)
+	if err != nil {
+		t.Fatalf("LoadRunEventsAfter: %v", err)
+	}
+	if batch.CursorSeq != 5 {
+		t.Fatalf("cursor = %d, want 5", batch.CursorSeq)
+	}
+	if len(batch.Events) != 1 || batch.Events[0].Type != "assistant.delta" {
+		t.Fatalf("events = %#v", batch.Events)
+	}
+
+	batch, err = service.LoadRunEventsAfter(ctx, "run_live", 2)
+	if err != nil {
+		t.Fatalf("LoadRunEventsAfter after diagnostic: %v", err)
+	}
+	if batch.CursorSeq != 5 || len(batch.Events) != 1 || batch.Events[0].Seq != 4 {
+		t.Fatalf("batch after diagnostic = %#v", batch)
+	}
+
+	batch, err = service.LoadRunEventsAfter(ctx, "run_live", 4)
+	if err != nil {
+		t.Fatalf("LoadRunEventsAfter after live event: %v", err)
+	}
+	if batch.CursorSeq != 5 || len(batch.Events) != 0 {
+		t.Fatalf("diagnostic-only batch = %#v", batch)
 	}
 }
 
-func TestLoadRunEventsForDetailSeparatesUnsupportedEvents(t *testing.T) {
+func TestLoadRunEventsForDetailFiltersDiagnosticsAndKeepsTraceSummary(t *testing.T) {
 	ctx := context.Background()
 	store, err := storesqlite.Open(filepath.Join(t.TempDir(), "state"))
 	if err != nil {
@@ -822,6 +563,9 @@ func TestLoadRunEventsForDetailSeparatesUnsupportedEvents(t *testing.T) {
 	if _, err := store.AppendEventContext(context.Background(), "run_detail", "future.kind", map[string]any{"value": "debug"}); err != nil {
 		t.Fatalf("append future.kind: %v", err)
 	}
+	if _, err := store.AppendEventContext(context.Background(), "run_detail", "skill.selected", map[string]any{"skill": map[string]any{"selected_id": "skill.ship.patch"}}); err != nil {
+		t.Fatalf("append skill.selected: %v", err)
+	}
 	service := BuildClientService(store, nil, nil, "/repo")
 	detail, err := service.LoadRunEventsForDetail(ctx, "run_detail")
 	if err != nil {
@@ -830,10 +574,7 @@ func TestLoadRunEventsForDetailSeparatesUnsupportedEvents(t *testing.T) {
 	if len(detail.Events) != 1 || detail.Events[0].Type != "run.started" {
 		t.Fatalf("events = %#v", detail.Events)
 	}
-	if len(detail.Unsupported) != 1 || detail.Unsupported[0].Type != "future.kind" || detail.Unsupported[0].Raw["value"] != "debug" {
-		t.Fatalf("unsupported = %#v", detail.Unsupported)
-	}
-	if detail.Trace == nil || detail.Trace.ItemCount == 0 {
+	if detail.Trace == nil || detail.Trace.ItemCount != 3 || detail.Trace.SkillEventCount != 1 {
 		t.Fatalf("trace summary = %#v, want non-empty", detail.Trace)
 	}
 }

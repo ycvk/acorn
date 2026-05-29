@@ -122,7 +122,7 @@ Current mobile surfaces:
 - Threads: first shell destination and thread-continuation surface. It uses `/v1/inbox` only for high-priority owner context (server readiness, pending decision count, active/attention runs) while still making backend threads the primary action path; it lists/creates/deletes backend threads and opens them in Chat as a pushed detail route.
 - Run detail: secondary detail surface over `GET /v1/runs/{run_id}/detail`, projecting summary and user-meaningful artifacts. Raw event diagnostics are separated behind an explicit diagnostics route.
 - Approvals: list pending backend actions from the inbox aggregate and open the existing approval detail flow.
-- Run stream: read `GET /v1/runs/{run_id}/events?after_seq=0&follow=true` and project persisted RunEvent SSE into the active assistant bubble.
+- Run stream: read `GET /v1/runs/{run_id}/events?after_seq=0&follow=true` and project the mobile live RunEvent subset into the active assistant bubble.
 - Pending approval: read `GET /v1/pending-actions/{action_id}` and decide through `POST /v1/pending-actions/{action_id}:decide`.
 - Settings: display connected server, device ID, backend model projection, workspace projection, and disconnect.
 
@@ -138,18 +138,19 @@ event: <RunEvent.type>
 data: <full RunEvent JSON>
 ```
 
-The mobile streaming projection is:
+The mobile streaming projection only accepts the live OpenAPI RunEvent subset:
 
 - `assistant.delta` appends `data.assistant_delta.delta` to the live assistant bubble and appends `data.assistant_delta.reasoning` to the same assistant item's separate reasoning field.
 - `agent.message` and `run.completed` replace/finalize assistant text when `data.message.content` exists and replace reasoning when `data.message.reasoning` exists.
 - `run.failed` and `run.interrupted` finalize the assistant bubble with explicit status.
-- Routine tool, memory, skill, procedure, plan, context compression, and subagent events stay out of the chat transcript. Run failures, interruptions, input requests, decision blockers, and non-normal context pressure may render as compact activity rows because they affect the next owner action. Raw runtime event history is diagnostic data, not a default mobile product surface.
+- `run.resume_requested`, `elicitation.pending`, `operator_question.pending`, and `decision_blocked` may render compact activity rows because they affect the next owner action.
+- Routine tool, memory, skill, procedure, plan, context compression, MCP, sampling, and subagent events are diagnostic-only backend events. They stay out of the live stream and the default chat transcript.
 - Malformed JSON, SSE id/type mismatch, unsupported event type, or wrong run id throws a visible client error.
 - Assistant message text renders GitHub-flavored Markdown through `flutter_markdown_plus`; code blocks expose a copy action, long assistant messages use a bounded internal Markdown viewport, `http` and `https` links open through `url_launcher`, and user messages remain plain text.
 - Backend-provided reasoning renders only in a collapsed Material Thinking section on assistant messages. The client does not infer reasoning from prose, token counts, or local state.
 - Persisted thread reloads consume generated `Message.contentParts`; `kind: reasoning` parts become the same assistant reasoning field.
 
-This is a foreground follow surface only. Backend persisted RunEvent and message state remain the durable facts.
+This is a foreground follow surface only. Backend persisted event and message state remain the durable facts, while raw runtime event history is diagnostic data behind RunDetail rather than a default mobile product surface.
 
 ## FlutterClaw Seed Boundary
 

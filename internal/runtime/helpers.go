@@ -2,12 +2,10 @@ package runtime
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
-	"github.com/cloudwego/eino/compose"
 	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	"github.com/ycvk/acorn/internal/stream"
 )
@@ -93,22 +91,8 @@ func CurrentStreamSink(ctx context.Context) stream.StreamSink {
 	return stream.StreamSinkFromContext(ctx)
 }
 
-// --- Turn index context plumbing ---
-
 type turnIndexContextKey struct{}
 
 func withTurnIndex(ctx context.Context, turnIndex int) context.Context {
 	return context.WithValue(ctx, turnIndexContextKey{}, turnIndex)
 }
-
-type JSONSerializer struct{}
-
-func (j *JSONSerializer) Marshal(v any) ([]byte, error) {
-	return json.Marshal(v)
-}
-
-func (j *JSONSerializer) Unmarshal(data []byte, v any) error {
-	return json.Unmarshal(data, v)
-}
-
-var _ compose.Serializer = (*JSONSerializer)(nil)

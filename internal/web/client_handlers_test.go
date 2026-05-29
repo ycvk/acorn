@@ -617,28 +617,34 @@ func TestRunEventsRejectInvalidSSEMetadata(t *testing.T) {
 
 func TestRunEventsFollowPollsUntilTerminal(t *testing.T) {
 	service := &clientHandlerStub{
-		eventBatches: [][]clientevents.RunEvent{
+		eventBatches: []*clientevents.RunEventBatch{
 			{
-				{
-					EventID: "run_follow:1",
-					RunID:   "run_follow",
-					Seq:     1,
-					TS:      time.Date(2026, 5, 2, 10, 4, 0, 0, time.UTC),
-					Type:    "run.started",
-					Data:    clientevents.RunStartedData{Input: "hello"},
+				Events: []clientevents.RunEvent{
+					{
+						EventID: "run_follow:1",
+						RunID:   "run_follow",
+						Seq:     1,
+						TS:      time.Date(2026, 5, 2, 10, 4, 0, 0, time.UTC),
+						Type:    "run.started",
+						Data:    clientevents.RunStartedData{Input: "hello"},
+					},
 				},
+				CursorSeq: 1,
 			},
 			{
-				{
-					EventID: "run_follow:2",
-					RunID:   "run_follow",
-					Seq:     2,
-					TS:      time.Date(2026, 5, 2, 10, 4, 1, 0, time.UTC),
-					Type:    "run.completed",
-					Data:    clientevents.RunCompletedData{Message: map[string]any{"content": "done"}},
+				Events: []clientevents.RunEvent{
+					{
+						EventID: "run_follow:2",
+						RunID:   "run_follow",
+						Seq:     2,
+						TS:      time.Date(2026, 5, 2, 10, 4, 1, 0, time.UTC),
+						Type:    "run.completed",
+						Data:    clientevents.RunCompletedData{Message: map[string]any{"content": "done"}},
+					},
 				},
+				CursorSeq: 2,
 			},
-			nil,
+			{CursorSeq: 3},
 		},
 		terminalAfterStatusChecks: 2,
 	}
@@ -733,30 +739,6 @@ func TestClientResourceSurfaceHandlers(t *testing.T) {
 				TS:      time.Date(2026, 5, 2, 10, 3, 0, 0, time.UTC),
 				Type:    "run.started",
 				Data:    clientevents.RunStartedData{Input: "hello"},
-			},
-			{
-				EventID: "run_1:2",
-				RunID:   "run_1",
-				Seq:     2,
-				TS:      time.Date(2026, 5, 2, 10, 3, 1, 0, time.UTC),
-				Type:    "skill.selected",
-				Data: clientevents.SkillData{Skill: map[string]any{
-					"selected_id":  "sop.release-closeout",
-					"name":         "Release closeout",
-					"origin":       "distilled",
-					"task_pattern": "release closeout",
-				}},
-			},
-		},
-		unsupported: []clientevents.UnsupportedRunEvent{
-			{
-				EventID: "run_1:99",
-				RunID:   "run_1",
-				Seq:     99,
-				TS:      time.Date(2026, 5, 2, 10, 4, 0, 0, time.UTC),
-				Type:    "debug.future",
-				Raw:     map[string]any{"value": "raw"},
-				Reason:  "unsupported test event",
 			},
 		},
 	}
@@ -1031,6 +1013,14 @@ func TestClientResourceSurfaceHandlers(t *testing.T) {
 		})
 	}
 
+	detailRec := performClientRequest(router, http.MethodGet, "/v1/runs/run_1/detail", "")
+	if detailRec.Code != http.StatusOK {
+		t.Fatalf("detail status = %d body=%s", detailRec.Code, detailRec.Body.String())
+	}
+	if strings.Contains(detailRec.Body.String(), `"raw"`) {
+		t.Fatalf("run detail should not expose raw diagnostic events: %s", detailRec.Body.String())
+	}
+
 	systemStatusRec := performClientRequest(router, http.MethodGet, "/v1/system/status", "")
 	if systemStatusRec.Code != http.StatusOK {
 		t.Fatalf("system status code = %d body=%s", systemStatusRec.Code, systemStatusRec.Body.String())
@@ -1214,14 +1204,13 @@ func (s *deviceAuthHandlerStub) RevokeDevice(_ context.Context, deviceID string)
 }
 
 type clientHandlerStub struct {
-	thread      app.Thread
-	message     app.Message
-	run         app.Run
-	events      []clientevents.RunEvent
-	unsupported []clientevents.UnsupportedRunEvent
-	err         error
+	thread  app.Thread
+	message app.Message
+	run     app.Run
+	events  []clientevents.RunEvent
+	err     error
 
-	eventBatches              [][]clientevents.RunEvent
+	eventBatches              []*clientevents.RunEventBatch
 	loadEventCalls            int
 	lastAfterSeq              int64
 	statusChecks              int
@@ -1309,7 +1298,7 @@ func (s *clientHandlerStub) GetRun(context.Context, string) (*app.Run, error) {
 	return &s.run, nil
 }
 
-func (s *clientHandlerStub) LoadRunEventsAfter(_ context.Context, _ string, afterSeq int64) ([]clientevents.RunEvent, error) {
+func (s *clientHandlerStub) LoadRunEventsAfter(_ context.Context, _ string, afterSeq int64) (*clientevents.RunEventBatch, error) {
 	if s.err != nil {
 		return nil, s.err
 	}
@@ -1318,9 +1307,22 @@ func (s *clientHandlerStub) LoadRunEventsAfter(_ context.Context, _ string, afte
 	if len(s.eventBatches) > 0 {
 		batch := s.eventBatches[0]
 		s.eventBatches = s.eventBatches[1:]
-		return append([]clientevents.RunEvent(nil), batch...), nil
+		if batch == nil {
+			return &clientevents.RunEventBatch{CursorSeq: afterSeq}, nil
+		}
+		return &clientevents.RunEventBatch{
+			Events:    append([]clientevents.RunEvent(nil), batch.Events...),
+			CursorSeq: batch.CursorSeq,
+		}, nil
 	}
-	return append([]clientevents.RunEvent(nil), s.events...), nil
+	cursorSeq := afterSeq
+	if len(s.events) > 0 {
+		cursorSeq = s.events[len(s.events)-1].Seq
+	}
+	return &clientevents.RunEventBatch{
+		Events:    append([]clientevents.RunEvent(nil), s.events...),
+		CursorSeq: cursorSeq,
+	}, nil
 }
 
 func (s *clientHandlerStub) LoadRunEventsForDetail(context.Context, string) (*clientevents.RunEventDetail, error) {
@@ -1328,8 +1330,7 @@ func (s *clientHandlerStub) LoadRunEventsForDetail(context.Context, string) (*cl
 		return nil, s.err
 	}
 	return &clientevents.RunEventDetail{
-		Events:      append([]clientevents.RunEvent(nil), s.events...),
-		Unsupported: append([]clientevents.UnsupportedRunEvent(nil), s.unsupported...),
+		Events: append([]clientevents.RunEvent(nil), s.events...),
 	}, nil
 }
 

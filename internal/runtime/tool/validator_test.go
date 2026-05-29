@@ -1,4 +1,4 @@
-package runtime
+package tool
 
 import (
 	"context"
@@ -21,12 +21,12 @@ func TestValidatorValidArgumentsPass(t *testing.T) {
 		t.Fatalf("tool info: %v", err)
 	}
 
-	v, err := NewToolArgumentValidatorFromToolInfo(info)
+	v, err := newToolArgumentValidatorFromToolInfo(info)
 	if err != nil {
 		t.Fatalf("new validator: %v", err)
 	}
 
-	errors, err := v.Validate(`{"path":"/tmp/test","content":"hello"}`)
+	errors, err := v.validate(`{"path":"/tmp/test","content":"hello"}`)
 	if err != nil {
 		t.Fatalf("validate: %v", err)
 	}
@@ -47,12 +47,12 @@ func TestValidatorMissingRequiredField(t *testing.T) {
 		t.Fatalf("tool info: %v", err)
 	}
 
-	v, err := NewToolArgumentValidatorFromToolInfo(info)
+	v, err := newToolArgumentValidatorFromToolInfo(info)
 	if err != nil {
 		t.Fatalf("new validator: %v", err)
 	}
 
-	errors, err := v.Validate(`{}`)
+	errors, err := v.validate(`{}`)
 	if err != nil {
 		t.Fatalf("validate: %v", err)
 	}
@@ -91,12 +91,12 @@ func TestValidatorWrongType(t *testing.T) {
 		t.Fatalf("tool info: %v", err)
 	}
 
-	v, err := NewToolArgumentValidatorFromToolInfo(info)
+	v, err := newToolArgumentValidatorFromToolInfo(info)
 	if err != nil {
 		t.Fatalf("new validator: %v", err)
 	}
 
-	errors, err := v.Validate(`{"path":123,"content":"hello"}`)
+	errors, err := v.validate(`{"path":123,"content":"hello"}`)
 	if err != nil {
 		t.Fatalf("validate: %v", err)
 	}
@@ -126,13 +126,12 @@ func TestValidatorEnumConstraint(t *testing.T) {
 		t.Fatalf("tool info: %v", err)
 	}
 
-	v, err := NewToolArgumentValidatorFromToolInfo(info)
+	v, err := newToolArgumentValidatorFromToolInfo(info)
 	if err != nil {
 		t.Fatalf("new validator: %v", err)
 	}
 
-	// valid enum value
-	errors, err := v.Validate(`{"mode":"read"}`)
+	errors, err := v.validate(`{"mode":"read"}`)
 	if err != nil {
 		t.Fatalf("validate: %v", err)
 	}
@@ -140,8 +139,7 @@ func TestValidatorEnumConstraint(t *testing.T) {
 		t.Fatalf("expected no errors for valid enum, got %v", errors)
 	}
 
-	// invalid enum value
-	errors, err = v.Validate(`{"mode":"invalid"}`)
+	errors, err = v.validate(`{"mode":"invalid"}`)
 	if err != nil {
 		t.Fatalf("validate: %v", err)
 	}
@@ -174,13 +172,12 @@ func TestValidatorNestedObject(t *testing.T) {
 		t.Fatalf("tool info: %v", err)
 	}
 
-	v, err := NewToolArgumentValidatorFromToolInfo(info)
+	v, err := newToolArgumentValidatorFromToolInfo(info)
 	if err != nil {
 		t.Fatalf("new validator: %v", err)
 	}
 
-	// missing inner.field
-	errors, err := v.Validate(`{"inner":{}}`)
+	errors, err := v.validate(`{"inner":{}}`)
 	if err != nil {
 		t.Fatalf("validate: %v", err)
 	}
@@ -211,12 +208,12 @@ func TestValidatorEmptyArgumentsWithNoRequiredFields(t *testing.T) {
 		t.Fatalf("tool info: %v", err)
 	}
 
-	v, err := NewToolArgumentValidatorFromToolInfo(info)
+	v, err := newToolArgumentValidatorFromToolInfo(info)
 	if err != nil {
 		t.Fatalf("new validator: %v", err)
 	}
 
-	errors, err := v.Validate(`{}`)
+	errors, err := v.validate(`{}`)
 	if err != nil {
 		t.Fatalf("validate: %v", err)
 	}
@@ -224,8 +221,7 @@ func TestValidatorEmptyArgumentsWithNoRequiredFields(t *testing.T) {
 		t.Fatalf("expected no errors for empty optional args, got %v", errors)
 	}
 
-	// Also test empty string treated as {}
-	errors, err = v.Validate("")
+	errors, err = v.validate("")
 	if err != nil {
 		t.Fatalf("validate empty string: %v", err)
 	}
@@ -235,7 +231,6 @@ func TestValidatorEmptyArgumentsWithNoRequiredFields(t *testing.T) {
 }
 
 func TestValidatorComplexRealToolSchema(t *testing.T) {
-	// Use the real create_file schema from internal/tools via InferTool.
 	type FileWriteInput struct {
 		Path    string `json:"path"`
 		Content string `json:"content"`
@@ -249,13 +244,12 @@ func TestValidatorComplexRealToolSchema(t *testing.T) {
 		t.Fatalf("tool info: %v", err)
 	}
 
-	v, err := NewToolArgumentValidatorFromToolInfo(info)
+	v, err := newToolArgumentValidatorFromToolInfo(info)
 	if err != nil {
 		t.Fatalf("new validator: %v", err)
 	}
 
-	// Valid input
-	errors, err := v.Validate(`{"path":"/tmp/foo","content":"hello","mode":"overwrite"}`)
+	errors, err := v.validate(`{"path":"/tmp/foo","content":"hello","mode":"overwrite"}`)
 	if err != nil {
 		t.Fatalf("validate valid: %v", err)
 	}
@@ -263,8 +257,7 @@ func TestValidatorComplexRealToolSchema(t *testing.T) {
 		t.Fatalf("expected no errors for valid input, got %v", errors)
 	}
 
-	// Missing path and content
-	errors, err = v.Validate(`{"mode":"overwrite"}`)
+	errors, err = v.validate(`{"mode":"overwrite"}`)
 	if err != nil {
 		t.Fatalf("validate missing: %v", err)
 	}
@@ -285,11 +278,11 @@ func TestValidatorComplexRealToolSchema(t *testing.T) {
 }
 
 func TestValidatorFormatValidationError(t *testing.T) {
-	errors := []ValidationError{
+	errors := []validationError{
 		{Field: "/path", Message: "missing required field \"path\""},
 		{Field: "/content", Message: "expected string, got number"},
 	}
-	jsonStr := FormatValidationError("create_file", errors)
+	jsonStr := formatValidationError("create_file", errors)
 
 	var parsed map[string]any
 	if err := json.Unmarshal([]byte(jsonStr), &parsed); err != nil {

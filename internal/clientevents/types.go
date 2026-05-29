@@ -7,7 +7,7 @@ import (
 	"github.com/ycvk/acorn/internal/skills"
 )
 
-// RunEvent is the client-visible run event envelope used by /v1 run detail and SSE.
+// RunEvent is the client-visible live event envelope used by /v1 run detail and SSE.
 type RunEvent struct {
 	EventID string    `json:"event_id"`
 	RunID   string    `json:"run_id"`
@@ -17,22 +17,16 @@ type RunEvent struct {
 	Data    any       `json:"data"`
 }
 
-// UnsupportedRunEvent captures persisted events outside the client contract for diagnostics.
-type UnsupportedRunEvent struct {
-	EventID string         `json:"event_id"`
-	RunID   string         `json:"run_id"`
-	Seq     int64          `json:"seq"`
-	TS      time.Time      `json:"ts"`
-	Type    string         `json:"type"`
-	Raw     map[string]any `json:"raw,omitempty"`
-	Reason  string         `json:"reason"`
+// RunEventBatch is a live event page plus the persisted cursor scanned to build it.
+type RunEventBatch struct {
+	Events    []RunEvent
+	CursorSeq int64
 }
 
-// RunEventDetail aggregates events and trace for a run detail view.
+// RunEventDetail aggregates live events and trace summary for a run detail view.
 type RunEventDetail struct {
-	Events      []RunEvent
-	Unsupported []UnsupportedRunEvent
-	Trace       *TraceSummary
+	Events []RunEvent
+	Trace  *TraceSummary
 }
 
 type SessionState string
@@ -86,26 +80,6 @@ type AgentMessageData struct {
 	Message map[string]any `json:"message"`
 }
 
-type ToolCallStartedData struct {
-	ToolCall map[string]any `json:"tool_call"`
-}
-
-type ToolCallProgressData struct {
-	ToolCall map[string]any `json:"tool_call"`
-}
-
-type ToolCallSucceededData struct {
-	ToolCall map[string]any `json:"tool_call"`
-}
-
-type ToolCallFailedData struct {
-	ToolCall map[string]any `json:"tool_call"`
-}
-
-type ToolCallInterruptedData struct {
-	ToolCall map[string]any `json:"tool_call"`
-}
-
 type RunCompletedData struct {
 	Message map[string]any `json:"message,omitempty"`
 }
@@ -143,97 +117,11 @@ type OperatorQuestionData struct {
 type OperatorQuestionPendingData = OperatorQuestionData
 type OperatorQuestionDecidedData = OperatorQuestionData
 
-type ProviderDegradedData struct {
-	AffectedProviders []ProviderDegradedEntryData `json:"affected_providers"`
-}
-
-type ProviderDegradedEntryData struct {
-	Name      string `json:"name"`
-	Transport string `json:"transport"`
-	Error     string `json:"error,omitempty"`
-}
-
-type MCPProviderLifecycleData struct {
-	ProviderName string `json:"provider_name"`
-	Transport    string `json:"transport,omitempty"`
-	Error        string `json:"error,omitempty"`
-	AuthStatus   string `json:"auth_status,omitempty"`
-}
-
-type SamplingData struct {
-	RunID string `json:"run_id"`
-	Depth int    `json:"depth"`
-	Model string `json:"model,omitempty"`
-}
-
-type DecisionSelectedData struct {
+type DecisionBlockedData struct {
 	Action              string `json:"action,omitempty"`
 	Intent              string `json:"intent,omitempty"`
 	SelectedSkillID     string `json:"selected_skill_id,omitempty"`
 	DecisionReason      string `json:"decision_reason,omitempty"`
 	DecisionProfileHash string `json:"decision_profile_hash,omitempty"`
 	ExplicitSkillID     string `json:"explicit_skill_id,omitempty"`
-}
-
-type DecisionBlockedData = DecisionSelectedData
-
-type SkillData struct {
-	Skill map[string]any `json:"skill,omitempty"`
-}
-
-type SkillLifecycleData struct {
-	SkillLifecycle map[string]any `json:"skill_lifecycle"`
-}
-
-type ProcedureActivationData struct {
-	ProcedureActivation map[string]any `json:"procedure_activation"`
-}
-
-type MemoryPreparedData struct {
-	MemoryPrepared map[string]any `json:"memory_prepared"`
-}
-
-type ContextPressureData struct {
-	ContextPressure map[string]any `json:"context_pressure"`
-}
-
-type ContextCompressedData struct {
-	ContextCompressed map[string]any `json:"context_compressed"`
-}
-
-type PlanData struct {
-	Plan map[string]any `json:"plan,omitempty"`
-}
-
-type PlanClearedData struct {
-	PlanID string `json:"plan_id,omitempty"`
-}
-
-type PlanStepData struct {
-	PlanID    string         `json:"plan_id,omitempty"`
-	SessionID string         `json:"session_id,omitempty"`
-	Plan      map[string]any `json:"plan,omitempty"`
-	Step      map[string]any `json:"step,omitempty"`
-	UpdatedAt string         `json:"updated_at,omitempty"`
-	Error     string         `json:"error,omitempty"`
-}
-
-type SubagentData struct {
-	SubRunID          string   `json:"sub_run_id,omitempty"`
-	ParentID          string   `json:"parent_id,omitempty"`
-	SessionID         string   `json:"session_id,omitempty"`
-	Depth             int      `json:"depth,omitempty"`
-	Task              string   `json:"task,omitempty"`
-	ChildRunMode      string   `json:"child_run_mode,omitempty"`
-	WorkspaceMode     string   `json:"workspace_mode,omitempty"`
-	WorktreePath      string   `json:"worktree_path,omitempty"`
-	ContextMessages   int      `json:"context_messages,omitempty"`
-	Summary           string   `json:"summary,omitempty"`
-	FinalStatus       string   `json:"final_status,omitempty"`
-	AcceptanceStatus  string   `json:"acceptance_status,omitempty"`
-	AcceptanceReasons []string `json:"acceptance_reasons,omitempty"`
-	EvidenceRefs      []string `json:"evidence_refs,omitempty"`
-	OrchestrationMode string   `json:"orchestration_mode,omitempty"`
-	ParentStepID      string   `json:"parent_step_id,omitempty"`
-	Error             string   `json:"error,omitempty"`
 }

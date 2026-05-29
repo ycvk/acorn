@@ -45,7 +45,7 @@ curl -H "Authorization: Bearer $ACORN_DEVICE_TOKEN" \
   http://127.0.0.1:8080/v1/threads/THREAD_ID/runs
 ```
 
-在 `/v1/runs/{run_id}/events` 输出中，plan 生命周期事件会和其他 RunEvent 一起出现：
+Plan 生命周期事件会持久化为后端诊断事件，但不会进入 `/v1/runs/{run_id}/events` mobile live stream。调试 plan 时优先看 `/v1/runs/{run_id}/detail` 的 workbench/plan 聚合，必要时再通过后端 trace/SQLite 诊断路径核对原始事件：
 
 ```json
 {"kind":"plan.created","plan":{"plan_id":"session_...","steps":[{"id":"s1","action":"Read README.md","status":"pending","risk":"read","repo_targets":[{"path":"README.md","reason":"summarize project skeleton","confidence":"high"}],"tool_hints":["read_file"]}]}}
@@ -58,8 +58,6 @@ curl -H "Authorization: Bearer $ACORN_DEVICE_TOKEN" \
 ```bash
 curl -H "Authorization: Bearer $ACORN_DEVICE_TOKEN" \
   http://127.0.0.1:8080/v1/runs/RUN_ID/detail
-curl -H "Authorization: Bearer $ACORN_DEVICE_TOKEN" \
-  'http://127.0.0.1:8080/v1/runs/RUN_ID/events?follow=false'
 ```
 
 ## 核心概念
@@ -127,7 +125,7 @@ func buildAgentGraph(
 ) (compose.Runnable[*agentGraphInput, *schema.Message], error)
 ```
 
-### Stream 事件
+### Diagnostic Events
 
 | kind | payload | 说明 |
 |---|---|---|
@@ -138,14 +136,14 @@ func buildAgentGraph(
 | `step.completed` | `plan`、`step` | step 完成 |
 | `step.failed` | `plan`、`step`、`error` | step 失败 |
 
-`step.started`、`step.completed` 和 `step.failed` 都携带完整 `plan`，remote client 可以直接用 payload 刷新当前 run 的 plan projection。
+`step.started`、`step.completed` 和 `step.failed` 都携带完整 `plan`，但它们是 persisted diagnostic events，不是 mobile live `RunEvent` contract。Remote clients should refresh plan state from `GET /v1/runs/{run_id}/detail` instead of consuming plan/step diagnostics from the foreground SSE stream.
 
 ### Remote Client API
 
 | endpoint | 返回 | 用途 |
 |---|---|---|
 | `GET /v1/runs/{run_id}/detail` | `RunDetail` | 查询 run detail 聚合，包含 workbench/plan/trace 真相 |
-| `GET /v1/runs/{run_id}/events` | `RunEvent` SSE/历史事件 | 查询 persisted run events，包含 plan/step 生命周期事件 |
+| `GET /v1/runs/{run_id}/events` | `RunEvent` SSE/历史事件 | 查询 mobile live event subset，不包含 plan/step diagnostics |
 
 `RunDetail`、`RunEvent`、`PlanDTO`、`PlanStepDTO` 和 `PlanEvidenceDTO` 的字段以 `docs/openapi.yaml` 为准，mobile Dart client 由 `mobile/tool/generate_openapi_client.py` 生成。不要恢复 legacy `/api/sessions/*/plan` 或 `/api/runs/*/plan` 平行查询面。
 
@@ -155,21 +153,20 @@ func buildAgentGraph(
 
 ```bash
 curl -H "Authorization: Bearer $ACORN_DEVICE_TOKEN" \
-  'http://127.0.0.1:8080/v1/runs/RUN_ID/events?follow=false' \
-  | rg 'plan.created|step.started|step.completed|step.failed'
+  http://127.0.0.1:8080/v1/runs/RUN_ID/detail
 ```
 
-这条命令只观察 plan/step 生命周期，不代表完整 run 是否成功。最终状态仍以 `run.completed` / `run.failed` 和 RunDetail trace 为准。
+Run detail 是 plan/workbench/trace 的 remote client source。完整 run 成败仍以 run status、terminal live event 和 RunDetail trace 为准。
 
-### 让 remote client 消费 plan stream
+### 让 remote client 消费 plan state
 
-当前 mobile control surface 通过 `/v1/runs/{run_id}/detail` 和 persisted RunEvent processor 消费后端事实。扩展 plan stream 时必须从 `/v1` `RunEvent` processor 和 RunDetail aggregate 统一处理，不要恢复旧 frontend dispatcher 或 legacy `StreamItem` reducer。
+当前 mobile control surface 通过 `/v1/runs/{run_id}/detail` 消费 plan/workbench/trace 事实，通过 `/v1/runs/{run_id}/events` 只消费 foreground live subset。扩展 plan state 时必须从 RunDetail aggregate 处理，不要恢复旧 frontend dispatcher、legacy `StreamItem` reducer，或把 plan/step diagnostics 重新塞进 live RunEvent。
 
 新增 plan event 时必须同步三处：
 
 - `docs/openapi.yaml`
 - `mobile/lib/src/api/acorn_api.dart`
-- 对应的 mobile `/v1` RunEvent projection/view model
+- 对应的 RunDetail projection/view model
 
 新增 plan step、evidence、verifier、checkpoint 或 rollback 字段时还必须同步 runtime/store/Web DTO/OpenAPI/mobile types，并覆盖 SQLite roundtrip 与 stream payload clone，避免 metadata 在中途丢失。
 
@@ -187,7 +184,7 @@ curl -H "Authorization: Bearer $ACORN_DEVICE_TOKEN" \
 - 初始 plan 和每次 replan 都消耗一次 plan iteration；超过 `maxIterations` 会显式报错。
 - PlanNode 只重试一次无效 JSON 或无效 step 结构，第二次仍失败会返回 `new plan format` 错误。
 - plan 使用现有 SQLite plan 表，不新增 migration。
-- 调试 plan payload 时优先使用 authenticated `/v1/runs/{run_id}/events` 或 `/v1/runs/{run_id}/detail`；不要恢复 CLI streaming 作为第二套 client contract。
+- 调试 plan payload 时优先使用 authenticated `/v1/runs/{run_id}/detail`；不要恢复 CLI streaming 或 `/v1` live stream 作为第二套 plan client contract。
 - 当前没有 repo-map/codeintel planning context；`repo_targets` 由 PlanNode 根据用户请求、conversation context 和可见工具生成。
 - `tool_hints` 不是 allowlist；真正的工具边界仍由 tool catalog 和 `ToolSpec.PlanPolicy` 执行。
 - `Risk=delegate` 仍只是 plan step risk 分类；真正的委派合同在 `delegate_task` 的 `DelegationSpec`，不会被内联进 `PlanStep` schema。
