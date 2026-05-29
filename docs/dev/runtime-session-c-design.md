@@ -170,42 +170,26 @@ Test 文件按被测代码的位置迁移：
 
 1. **app/ 层 import 变化**: app/ 层直接引用 `runtime.RunnerFactory`、`runtime.Executor` 等，alias 文件需要完整覆盖这些类型。
 2. **测试辅助函数**: `newRunnerFactory()` 等测试辅助函数在 test 文件中定义，需要随被测文件一起迁移。
-3. **SubagentExecutor 双向依赖**: SubagentExecutor 使用 RunnerFactory，RunnerFactory 创建 SubagentExecutor。拆分后 SubagentExecutor 在 executor/，RunnerFactory 在 runner/。RunnerFactory 通过 `newChildAgentExecutor()` 创建 SubagentExecutor，需要改为从外部注入或通过接口解耦。
+3. **SubagentExecutor 双向依赖**: 历史风险已在 2026-05-29 hard cut 收口。RunnerFactory 仍触发 child-agent executor 装配，但 factory contract 只接收 `ChildAgentRuntimeDeps`，不再暴露完整 `*RunnerFactory`。
 
 ## SubagentExecutor 解耦方案
 
-当前 `RunnerFactory.newChildAgentExecutor()` 直接创建 `SubagentExecutor`：
+当前实现：
 
 ```go
-func (f *RunnerFactory) newChildAgentExecutor() *SubagentExecutor {
-    return NewSubagentExecutor(f.cfg, f.store, f, nil)
+type ChildAgentExecutorFactory func(ChildAgentRuntimeDeps) (orchestration.ChildAgentExecutor, error)
+
+type ChildAgentRuntimeDeps struct {
+    RunRuntime           RunRuntime
+    ParentDepth          func(parentRunID string) int
+    CreateChildWorkspace func(context.Context, string) (*workspace.Workspace, error)
+    RuntimeForWorkspace  func(*workspace.Workspace) RunRuntime
 }
 ```
 
-拆分后，RunnerFactory 在 runner/，SubagentExecutor 在 executor/。如果 runner/ 导入 executor/，则形成循环：
-- runner/ → executor/ (RunnerFactory 需要创建 SubagentExecutor)
-- executor/ → runner/ (SubagentExecutor 需要 RunnerFactory)
+`RunnerFactory.newChildAgentExecutor()` 只负责把当前 runtime facade、parent-depth resolver、child-workspace creator、workspace-runtime factory 传给注入的 factory。`NewSubagentExecutorFactory` 在 app/test composition root 创建 concrete `SubagentExecutor`，并由 `NewSubagentExecutor` 对 config、store、runtime 和 dependency functions 做构造期校验。
 
-**解决方案**: 将 `newChildAgentExecutor()` 从 RunnerFactory 中移除，改为在 orchestration 层或 runtime 根注入：
-
-```go
-// runner/ RunnerFactory 中不再包含 child agent executor 创建逻辑
-// 改为接受外部注入的 orchestration.ChildAgentExecutor
-
-// executor/ 中新增函数：
-func NewChildAgentExecutor(cfg *config.Config, store executorStore, rf *runner.RunnerFactory) *SubagentExecutor {
-    return NewSubagentExecutor(cfg, store, rf, nil)
-}
-
-// runtime/ 根或 app/ 层负责连接：
-rf := runner.NewRunnerFactory(cfg, store, opts)
-childExec := executor.NewChildAgentExecutor(cfg, store, rf)
-rf.SetChildAgentExecutor(childExec) // 或通过 Options 传入
-```
-
-但这需要修改 RunnerFactory 的初始化流程。更简单的方案：**将 SubagentExecutor 留在 runner/ 包**，因为它本质上是 RunnerFactory 的附属工具（child run creation），不是真正的"执行器"。
-
-**最终决定**: SubagentExecutor 留在 runner/ 包，因为它是 RunnerFactory 的工具，不是独立的执行域组件。
+后续如果真要拆 `internal/runner` / executor 包，不能恢复 runner ↔ executor 循环，也不能加 alias 兼容层。先证明 runner assembly 有稳定 owner，再一次性移动文件和 imports。当前决定是暂不移动文件：依赖方向已收窄，但 package split 的收益还没有超过 import churn。
 
 ## 文件迁移清单
 

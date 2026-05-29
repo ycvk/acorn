@@ -1,7 +1,7 @@
 ---
 doc_type: implementation-plan
 status: proposed
-last_reviewed: 2026-05-28
+last_reviewed: 2026-05-29
 slug: architecture-refactor-2026-05-28
 ---
 
@@ -13,9 +13,9 @@ This plan is intentionally destructive: when a new owner is chosen, the old path
 
 Primary Go guidance used for this plan:
 
-- Go modules should use `internal/` to create compile-time import boundaries and leave room for implementation refactors.
-- Packages should be named from the client point of view and should group cohesive behavior, not arbitrary technical buckets or file-count targets.
-- Interfaces are best defined by the consuming package when they describe the consumer's required behavior. Implementing packages should usually return concrete types.
+- Go modules should use `internal/` to create compile-time import boundaries and leave room for implementation refactors. Source: https://go.dev/doc/modules/layout
+- Packages should be named from the client point of view and should group cohesive behavior, not arbitrary technical buckets or file-count targets. Source: https://go.dev/blog/package-names
+- Interfaces are best defined by the consuming package when they describe the consumer's required behavior. Implementing packages should usually return concrete types. Source: https://go.dev/wiki/CodeReviewComments#interfaces
 - Tests should be written at the level that proves the behavior under risk. Pure logic should move into small functions with cheap tests; persisted runtime behavior should keep real SQLite integration tests.
 
 Practical Acorn interpretation:
@@ -39,6 +39,27 @@ These contracts must survive every phase unless a later accepted design explicit
 - Mobile and `/v1` consume backend truth; they must not infer status from prose, local state, or raw markdown.
 
 ## Target Shape
+
+### App Read Models
+
+Target:
+
+- Keep `internal/app` as the `/v1`, mobile inbox, and workbench read-model owner.
+- Keep app services thin: services should load the records for one surface, then delegate shared latest-run projection to package-owned projectors.
+- Centralize shared latest-run projection in `internal/app` only when the output is consumed by at least two app surfaces and still names real domain concepts: session state, resume status, raw run events, trace summary, selected skill, latest decision, and session summary.
+- Keep surface-specific DTO shaping in the service that owns the surface. `ClientService`, `SessionStateService`, `InboxService`, and `RuntimeWorkbenchService` may share projectors, but they should not share a generic DTO that forces unrelated fields into every response.
+
+Allowed cleanup:
+
+- Extract duplicated latest-run state/resume/trace/decision projection from `SessionStateService` and `RuntimeWorkbenchService` into a package-local projector.
+- Keep run-summary and pending-action summary builders next to inbox/notification code while only extracting helpers that have multiple current callers.
+- Add tests around projection failure behavior when the extracted projector changes error context.
+
+Rejected cleanup:
+
+- Creating `common`, `shared`, `helpers`, or `utils` packages.
+- Moving `/v1` DTOs, mobile inbox DTOs, or workbench-only DTOs into a generic app model package.
+- Swallowing projection errors or treating malformed stored events, decisions, or pending actions as empty projections.
 
 ### Store and App Boundary
 
@@ -150,7 +171,55 @@ Rejected cleanup:
    - `make lint`
    - `git diff --check HEAD`
 
-### Phase 1: Package and Import Graph Inventory
+### Phase 1: App Read-Model Projection Hard Cut
+
+Scope:
+
+- `internal/app/session_state_service.go`
+- `internal/app/workbench_service.go`
+- `internal/app/trace_service.go`
+- `internal/app/workbench_projectors.go`
+- `internal/app/pending_action_service.go`
+- `internal/app/notification_service.go`
+- `internal/app/store_ports.go`
+- focused tests in `internal/app`
+
+Live duplication to remove first:
+
+- Latest session run state is assembled in both `SessionStateService.LoadSession` and `RuntimeWorkbenchService.Load`.
+- Interrupted-run resume status is loaded in both services through `TraceService.ResumeStatus`.
+- Raw run events are loaded in both services, then converted into `runtime.BuildTraceSummary` and `runtime.SelectedSkillFromEvents`.
+- Latest run decision is loaded in both services after run-event projection.
+- `defaultResumeReason` is already shared and should remain the single default reason source.
+
+Implementation:
+
+1. Add a package-local latest-run read-model projector in `internal/app`.
+2. Make the projector consume only the narrow store methods it needs: `LoadEvents` and `LoadRunDecision`.
+3. Keep `TraceService` as the resume inference owner; the projector may call `TraceService.ResumeStatus`, but it must not duplicate interrupt parsing.
+4. Update `SessionStateService` to populate `SessionDetail` from the projector and keep only `MemoryContextBudget` and session-summary loading in the service.
+5. Update `RuntimeWorkbenchService` to populate its common latest-run fields from the projector, then keep workbench-only projections in `workbench_service.go` and `workbench_projectors.go`: plan evidence, tool-result economy, artifacts, provider usage, subagents, workspace git status, and next-step hint.
+6. Keep `InboxService` run summaries in place for now. They are a separate mobile aggregate shape and should only be touched if the new projector proves a concrete duplicate, not just a similar name.
+7. Delete any now-dead private helper or test stub fields in the same change.
+
+Acceptance:
+
+- No `/v1` DTO shape, OpenAPI schema, generated mobile client, or persisted store schema changes.
+- Projection failures remain fail-loud and include the affected run id.
+- Interrupted runs still require a trace service for resumability; there is no checkpoint fallback.
+- `SessionStateService` and `RuntimeWorkbenchService` use the same projector for latest-run resume/trace/decision facts.
+- Workbench-only projections stay in the workbench owner and do not move into a generic helper bucket.
+
+Validation:
+
+- `go test ./internal/app`
+- `go test ./tests/architecture -run TestSQLiteStoreImportsStayBehindCompositionRoot -count=1`
+- `go test ./internal/runtime ./internal/contextplane ./internal/memorymodule`
+- `make format-check`
+- `make lint`
+- `git diff --check`
+
+### Phase 2: Package and Import Graph Inventory
 
 1. Generate current package dependency graph with `go list -deps` and targeted `rg`.
 2. Identify packages with mixed ownership by call chain, not file count.
@@ -169,7 +238,50 @@ Acceptance:
 - No package is named `common`, `shared`, `helpers`, or `utils`.
 - Every proposed move has a delete plan for old paths and tests.
 
-### Phase 2: Runtime Assembly Split
+2026-05-29 live inventory result:
+
+Current import direction:
+
+- `internal/app` and `internal/web` are the main external runtime consumers. Production app wiring uses `runtime.RunnerFactory`, `runtime.Executor`, `runtime.RunController`, `runtime.Toolset`, trace/workbench DTOs, and `runtime/api`.
+- `internal/runtime` imports `internal/orchestration`, `internal/runtime/plan`, `internal/runtime/graph`, `internal/runtime/tool`, `internal/contextplane`, `internal/memorymodule`, `internal/skills`, providers, tools, workspace, and store ports.
+- `internal/orchestration` does not import `internal/runtime`; it receives runtime-specific graph/tool/context builders through injected functions and interfaces.
+- `internal/runtime/plan`, `internal/runtime/graph`, and `internal/runtime/tool` already form meaningful subpackages. Moving them before simplifying the runner assembly would mostly shuffle imports.
+
+Candidate classification:
+
+| Candidate | Owner | Current files | Wire/OpenAPI impact | Move now? | Delete plan |
+| --- | --- | --- | --- | --- | --- |
+| App latest-run read model | `internal/app` | `latest_run_projector.go`, `session_state_service.go`, `workbench_service.go` | None | Done in Phase 1 | Duplicated resume/events/decision projection removed from both services |
+| Runtime run assembly wrapper cleanup | `internal/runtime` | `run.go`, `runner_catalog.go` | None | Done in current branch | Deleted `runCoordinator` and object-style assembler wrappers; kept direct `RunnerFactory` methods |
+| New `internal/runner` package | Not proven yet | `runner*.go`, `run.go`, `runtime_deps.go`, `subagent_executor.go` | None expected, but import churn is large | No | Child-agent construction no longer exposes `*RunnerFactory`; still blocked until the runner assembly owner is proven enough to justify package churn |
+| Orchestration plane package move | `internal/orchestration` already owns it | `runner_orchestration.go`, `internal/orchestration/*` | None | No | Keep runtime-owned wiring seam; do not recreate cross-package `Plane` abstraction |
+| Toolset builder move | Runtime run assembly, not generic tooling | `runner_toolset*.go`, `toolset.go` | None | No | Revisit after runner assembly wrapper cleanup shows a stable owner |
+
+Completed hard-cut action:
+
+1. Collapse `runCoordinator` into `RunnerFactory.New` / direct package-local build methods.
+2. Replace `modelProviderAssembler`, `capabilityAssembler`, and `contextSelectionAssembler` with concrete `RunnerFactory` methods.
+3. Delete lazy `ensure*Assembler` helpers in the same change.
+4. Keep all behavior and root mode contracts unchanged.
+5. Validate with `go test ./internal/runtime ./internal/orchestration`, focused root mode tests, `go test ./...`, `make format-check`, `make lint`, and `git diff --check`.
+
+2026-05-29 Phase 3 pre-cut:
+
+1. Require `RunnerFactoryOptions.ChildAgentExecutorFactory`; `NewRunnerFactory` fails if it is missing.
+2. Move concrete `SubagentExecutor` construction to app/test composition through `NewSubagentExecutorFactory`.
+3. Keep `RunnerFactory` responsible for invoking the injected factory, not constructing `SubagentExecutor` directly.
+4. Preserve existing child-run behavior and MCP sampling behavior.
+5. Remaining blocker before package split: `SubagentExecutor` still receives parent registry depth, child worktree creation/opening, and workspace-cloned runtime through the factory contract.
+
+2026-05-29 Phase 3 dependency narrowing:
+
+1. Replace `ChildAgentExecutorFactory func(*RunnerFactory)` with `ChildAgentExecutorFactory func(ChildAgentRuntimeDeps) (ChildAgentExecutor, error)`.
+2. Pass only `RunRuntime`, parent-depth resolver, child-workspace creator, and workspace-runtime factory into the child-agent factory.
+3. Make `NewSubagentExecutor` validate required config/store/runtime/dependency functions at construction.
+4. Keep default construction in app/test composition through `NewSubagentExecutorFactory`; no new package or alias layer yet.
+5. Remaining blocker before package split: prove that runner assembly itself has a stable external owner. Do not move files just because the child-agent dependency is now narrower.
+
+### Phase 3: Runtime Assembly Split
 
 1. Move runner assembly only after the owner name and dependency direction are proven.
 2. Update imports in one hard cut.
@@ -183,7 +295,7 @@ Validation:
 - `go test ./...`
 - architecture grep for deleted owner paths
 
-### Phase 3: ContextPlane File Layout Simplification
+### Phase 4: ContextPlane File Layout Simplification
 
 1. Decide whether `compaction` and `toollifecycle` remain subpackages based on import direction and readability.
 2. If merged, move tests first or in the same patch.
@@ -196,7 +308,7 @@ Validation:
 - context boundary SQLite tests
 - reactive compact and proactive compact tests
 
-### Phase 4: MemoryModule Simplification
+### Phase 5: MemoryModule Simplification
 
 1. Merge mechanically split files only when ownership is identical.
 2. Keep strict Record V2 validation.
@@ -209,7 +321,7 @@ Validation:
 - semantic rebuild/search tests
 - replay fixture tests for insights/source refs/relations
 
-### Phase 5: Test Boundary Cleanup
+### Phase 6: Test Boundary Cleanup
 
 1. Tag each SQLite-backed test as integration, projection, or pure logic.
 2. Keep integration tests on real SQLite temp DBs.
@@ -221,7 +333,7 @@ Validation:
 - `go test ./tests/architecture`
 - `go test ./...`
 
-### Phase 6: Docs and Generated Contracts
+### Phase 7: Docs and Generated Contracts
 
 1. Update `docs/architecture/` only for current truth after code lands.
 2. Keep future plans in `docs/dev/`.

@@ -20,33 +20,80 @@ import (
 )
 
 type SubagentExecutor struct {
-	cfg   *config.Config
-	store ExecutorStore
-	rf    *RunnerFactory
-	ctrl  *RunController
+	cfg                  *config.Config
+	store                ExecutorStore
+	runRuntime           RunRuntime
+	ctrl                 *RunController
+	parentDepth          func(parentRunID string) int
+	createChildWorkspace func(context.Context, string) (*workspace.Workspace, error)
+	runtimeForWorkspace  func(*workspace.Workspace) RunRuntime
 
 	depthMu sync.Mutex
 	depths  map[string]int
 }
 
-func NewSubagentExecutor(cfg *config.Config, store ExecutorStore, rf *RunnerFactory, ctrl *RunController) *SubagentExecutor {
+type SubagentExecutorOptions struct {
+	Config               *config.Config
+	Store                ExecutorStore
+	RunRuntime           RunRuntime
+	Controller           *RunController
+	ParentDepth          func(parentRunID string) int
+	CreateChildWorkspace func(context.Context, string) (*workspace.Workspace, error)
+	RuntimeForWorkspace  func(*workspace.Workspace) RunRuntime
+}
+
+func NewSubagentExecutor(opts SubagentExecutorOptions) (*SubagentExecutor, error) {
+	if opts.Config == nil {
+		return nil, errors.New("config is required")
+	}
+	if opts.Store == nil {
+		return nil, errors.New("store is required")
+	}
+	if opts.RunRuntime == nil {
+		return nil, errors.New("run runtime is required")
+	}
+	if opts.ParentDepth == nil {
+		return nil, errors.New("parent depth resolver is required")
+	}
+	if opts.CreateChildWorkspace == nil {
+		return nil, errors.New("child workspace creator is required")
+	}
+	if opts.RuntimeForWorkspace == nil {
+		return nil, errors.New("workspace runtime factory is required")
+	}
+	ctrl := opts.Controller
 	if ctrl == nil {
 		ctrl = NewRunController()
 	}
 	return &SubagentExecutor{
-		cfg:    cfg,
-		store:  store,
-		rf:     rf,
-		ctrl:   ctrl,
-		depths: make(map[string]int),
+		cfg:                  opts.Config,
+		store:                opts.Store,
+		runRuntime:           opts.RunRuntime,
+		ctrl:                 ctrl,
+		parentDepth:          opts.ParentDepth,
+		createChildWorkspace: opts.CreateChildWorkspace,
+		runtimeForWorkspace:  opts.RuntimeForWorkspace,
+		depths:               make(map[string]int),
+	}, nil
+}
+
+func NewSubagentExecutorFactory(cfg *config.Config, store ExecutorStore, ctrl *RunController) ChildAgentExecutorFactory {
+	return func(deps ChildAgentRuntimeDeps) (orchestration.ChildAgentExecutor, error) {
+		return NewSubagentExecutor(SubagentExecutorOptions{
+			Config:               cfg,
+			Store:                store,
+			RunRuntime:           deps.RunRuntime,
+			Controller:           ctrl,
+			ParentDepth:          deps.ParentDepth,
+			CreateChildWorkspace: deps.CreateChildWorkspace,
+			RuntimeForWorkspace:  deps.RuntimeForWorkspace,
+		})
 	}
 }
 
 func (se *SubagentExecutor) currentDepth(parentRunID string) int {
-	if se != nil && se.rf != nil && se.rf.registry != nil {
-		if rc, ok := se.rf.registry.Get(strings.TrimSpace(parentRunID)); ok {
-			return rc.Depth
-		}
+	if se != nil && se.parentDepth != nil {
+		return se.parentDepth(parentRunID)
 	}
 	se.depthMu.Lock()
 	defer se.depthMu.Unlock()
@@ -96,7 +143,7 @@ func (se *SubagentExecutor) Execute(ctx context.Context, req orchestration.Child
 		requestedMode = events.ModeSingleAgent
 	}
 	workspaceMode := orchestration.NormalizeChildWorkspaceMode(req.WorkspaceMode)
-	childRunnerFactory := se.rf
+	childRunRuntime := se.runRuntime
 	worktreePath := ""
 	if workspaceMode == orchestration.ChildWorkspaceModeWorktree {
 		childWorkspace, err := se.createChildWorktreeWorkspace(ctx, subRunID)
@@ -107,7 +154,14 @@ func (se *SubagentExecutor) Execute(ctx context.Context, req orchestration.Child
 			return nil, err
 		}
 		worktreePath = childWorkspace.Root()
-		childRunnerFactory = se.rf.cloneForWorkspace(childWorkspace)
+		if se.runtimeForWorkspace == nil {
+			err := errors.New("child workspace runtime factory is not initialized")
+			if emitErr := se.emitFailed(ctx, parentRunID, subRunID, childSessionID, req.ParentStepID, childRunMode, workspaceMode, worktreePath, requestedMode, err.Error(), sink); emitErr != nil {
+				return nil, errors.Join(err, emitErr)
+			}
+			return nil, err
+		}
+		childRunRuntime = se.runtimeForWorkspace(childWorkspace)
 	}
 	// Delegated child sessions always start fresh, so bootstrap the session and
 	// first user turn in one tight path rather than walking the general chat
@@ -140,7 +194,7 @@ func (se *SubagentExecutor) Execute(ctx context.Context, req orchestration.Child
 
 	childCtx := childCtxOrBackground(ctx)
 
-	exec, err := NewExecutorWithRunRuntimeAndController(se.cfg, se.store, childRunnerFactory, se.ctrl)
+	exec, err := NewExecutorWithRunRuntimeAndController(se.cfg, se.store, childRunRuntime, se.ctrl)
 	if err != nil {
 		if emitErr := se.emitFailed(ctx, parentRunID, subRunID, childSessionID, req.ParentStepID, childRunMode, workspaceMode, worktreePath, requestedMode, err.Error(), sink); emitErr != nil {
 			return nil, errors.Join(fmt.Errorf("create subagent executor: %w", err), emitErr)
@@ -251,18 +305,10 @@ func (se *SubagentExecutor) emitFailed(ctx context.Context, parentRunID, subRunI
 }
 
 func (se *SubagentExecutor) createChildWorktreeWorkspace(ctx context.Context, subRunID string) (*workspace.Workspace, error) {
-	if se == nil || se.rf == nil || se.rf.deps.Workspace == nil {
+	if se == nil || se.createChildWorkspace == nil {
 		return nil, errors.New("child worktree requires an initialized workspace")
 	}
-	worktree, err := se.rf.deps.Workspace.CreateChildWorktree(childCtxOrBackground(ctx), subRunID)
-	if err != nil {
-		return nil, fmt.Errorf("create child worktree: %w", err)
-	}
-	childWorkspace, err := se.rf.deps.Workspace.OpenWorktree(worktree)
-	if err != nil {
-		return nil, fmt.Errorf("open child worktree: %w", err)
-	}
-	return childWorkspace, nil
+	return se.createChildWorkspace(childCtxOrBackground(ctx), subRunID)
 }
 
 type subagentExecutorAdapter struct {

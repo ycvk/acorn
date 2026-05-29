@@ -16,7 +16,7 @@ operator CLI / authenticated remote clients
   -> app Container
   -> remote client contracts (/healthz + /v1 client resources + optional /mcp mount)
   -> runtime Executor (consumer-owned store ports)
-  -> RunnerFactory / runBuilder (runtime-owned store ports)
+  -> RunnerFactory.buildRun (runtime-owned store ports)
   -> run selection policy + ContextPlane + OrchestrationPlane
   -> SQLite adapter / persisted truth
   -> Flutter mobile control surface
@@ -26,7 +26,7 @@ operator CLI / authenticated remote clients
 
 - `internal/app/container.go` 装配 app service、runtime executor、trace/workbench service 和 web dependencies。
 - `internal/runtime/executor.go` 负责 session/run 创建、root mode routing、执行和 finalization。
-- `internal/runtime/runner.go` 的 `RunnerFactory.New` 只保留 run build 入口；`internal/runtime/run.go` 的 `runBuilder.Build` 执行 per-run assembly。当前 active execution paths 都走固定主链：model -> run tool catalog -> memorymodule prepare -> ContextPlane -> OrchestrationPlane -> ActiveRunner。`direct_response` 不进入 run selection；public `plan_execute` 和 internal child `single_agent` 会先通过 `internal/decision` policy 解析 selected skill、decision record 和 context priority，再交给 ContextPlane 渲染上下文。
+- `internal/runtime/runner.go` 的 `RunnerFactory.New` 只保留 run build 入口；`internal/runtime/run.go` 的 `RunnerFactory.buildRun` 执行 per-run assembly。当前 active execution paths 都走固定主链：model -> run tool catalog -> memorymodule prepare -> ContextPlane -> OrchestrationPlane -> ActiveRunner。`direct_response` 不进入 run selection；public `plan_execute` 和 internal child `single_agent` 会先通过 `internal/decision` policy 解析 selected skill、decision record 和 context priority，再交给 ContextPlane 渲染上下文。
 - `internal/contextplane/` 管 run 上下文、prepared file-backed memory 和 deferred tool loading；`internal/contextplane/toollifecycle/` 管工具 lifecycle state 和 middleware；`internal/contextplane/compaction/` 管 proactive compact、compression pipeline 和 post-compact rehydration。
 - `internal/orchestration/` 管 public root `direct_response` / `plan_execute` assembly，以及内部 child-run `single_agent` assembly。
 - Procedure 学习与 memory admission 归 `internal/memorymodule` 和 skill lifecycle；当前没有独立 auto-crystallization service、SQLite insight-index adapter 或 `crystallization.*` RunEvent 合同。
@@ -42,8 +42,8 @@ operator CLI / authenticated remote clients
 | 术语 | 当前含义 |
 |---|---|
 | **Executor** | `internal/runtime.Executor`，接收 authenticated remote client 请求，创建 run，写入 root orchestration mode，调用 RunnerFactory，并执行 run lifecycle。 |
-| **RunnerFactory** | `internal/runtime.RunnerFactory`，持有 runtime 共享依赖、registry、workspace、provider/cache 和 concrete orchestration builder；每次 run 的具体装配委托给内部 `runBuilder`。 |
-| **runBuilder** | `internal/runtime/run.go` 的 per-run assembly 入口，按固定主链接 model、tool catalog、prepared memory、run selection policy、ContextPlane 和 OrchestrationPlane，返回 `ActiveRunner`。 |
+| **RunnerFactory** | `internal/runtime.RunnerFactory`，持有 runtime 共享依赖、registry、workspace、provider/cache 和 concrete orchestration builder；每次 run 的具体装配由 `RunnerFactory.buildRun` 执行。 |
+| **RunnerFactory.buildRun** | `internal/runtime/run.go` 的 per-run assembly 入口，按固定主链接 model、tool catalog、prepared memory、run selection policy、ContextPlane 和 OrchestrationPlane，返回 `ActiveRunner`。 |
 | **Root orchestration mode** | 持久化到 `runs.orchestration_mode` 的 run 模式。Public root request 只接受 `direct_response` / `plan_execute`；`single_agent` 保留为内部 child-run / verifier / eval 执行模式，并可作为 persisted child run truth 投影。 |
 | **ContextPlane** | `internal/contextplane` 的运行时上下文边界，负责 context assembly、budget 和 deferred load；`internal/contextplane/toollifecycle/` 负责 tool lifecycle，`internal/contextplane/compaction/` 负责 compression handlers；初始上下文预算使用共享 token counter，不再用字符串 trim 丢 active context。 |
 | **BudgetGovernor** | `internal/contextplane` 的 context pressure 计算器；用 model window、provider output cap、summary cap、static overhead 和 derived buffers 得出 `ok` / `warning` / `auto_compact` / `blocking`，替代 percentage compression trigger。属于 core contextplane 类型，被 compaction 子包消费。 |
@@ -96,7 +96,7 @@ operator CLI / authenticated remote clients
 - **Memory Record V2 是长期记忆事实**：facts、procedures 和 history projection 的 validity、source/evidence refs、typed relations、active/retired 状态都由 `internal/memorymodule` 解析和投影；client、ContextPlane、run selection policy 和 semantic index 不能解析 markdown 或自行推断 active status。
 - **Workbench 装配 fail-loud**：session summary、trace projection、resume status probe、plan、git inspection 等真实装配失败时 endpoint 返回错误，不伪造 clean、ready 或 resumable。
 - **Client shell 单一路径**：Flutter mobile app 是当前唯一产品 control surface；旧 React/Vite frontend、`ResidentShell`、`PersonalShelf`、`ClientShell -> FoundationWorkspace`、旧 chat/composer/runtime-controller 不作为兼容路径存在。
-- **OrchestrationPlane 单一编排入口**：runtime 不新增第二套 plane；RunnerFactory 持有 concrete `orchestration.DefaultPlane`，runBuilder 直接按 mode 委托给 factory 的 direct / single-agent / plan-execute assembly 方法。跨包 `Plane` interface 已删除，runtime 本地 seam 只用于测试注入。
+- **OrchestrationPlane 单一编排入口**：runtime 不新增第二套 plane；RunnerFactory 持有 concrete `orchestration.DefaultPlane`，`RunnerFactory.buildRun` 直接按 mode 委托给 direct / single-agent / plan-execute assembly 方法。跨包 `Plane` interface 已删除，runtime 本地 seam 只用于测试注入。
 - **OpenAPI 是 wire contract**：remote client DTO 只投影 app/runtime domain；不为内部重构新增 endpoint、改 wire shape 或生成 mobile 假类型。
 - **Client v1 不复用 legacy StreamItem**：remote client 的 live stream fact 是 `/v1` `RunEvent`；runtime internal 可以继续使用 `runtime.StreamItem` 作为执行内部事件形态，但它不是 OpenAPI/generated 或 mobile app source contract。
 - **Remote client 必须设备认证**：除 `/healthz` 和 `POST /v1/devices:pair` 外，`/v1` 只接受 valid device bearer token；missing/malformed/unknown token 返回 `unauthenticated`，revoked token 返回 `device_revoked`。不存在 local/dev fallback。

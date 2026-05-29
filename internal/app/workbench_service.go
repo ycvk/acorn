@@ -3,12 +3,8 @@ package app
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 
-	"github.com/ycvk/acorn/internal/events"
-	"github.com/ycvk/acorn/internal/runtime"
-	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/workspace"
 )
@@ -50,37 +46,27 @@ func (s *RuntimeWorkbenchService) Load(ctx context.Context, sessionID string) (*
 		return nil, err
 	}
 
+	latestRunProjection, err := projectLatestRun(ctx, s.store, s.trace, latestRun)
+	if err != nil {
+		return nil, err
+	}
+
 	workbench := &RuntimeWorkbench{
 		SessionID: trimmedSessionID,
 		Title:     session.Title,
+		State:     latestRunProjection.State,
 	}
 	if latestRun != nil {
-		workbench.LatestRunID = latestRun.RunID
-		workbench.LatestRunStatus = latestRun.Status
-		workbench.LatestRunMode = string(latestRun.OrchestrationMode)
-		workbench.LatestRunDepth = latestRun.Depth
-		workbench.ParentRunID = latestRun.ParentRunID
-	}
-	workbench.State = runtimeapi.DeriveSessionState(latestRun, false)
-
-	if latestRun != nil && latestRun.Status == events.RunStatusInterrupted {
-		if s.trace == nil {
-			return nil, fmt.Errorf("load resume status for run %s: trace service is nil", latestRun.RunID)
-		}
-		resumeStatus, resumeErr := s.trace.ResumeStatus(ctx, latestRun.RunID)
-		if resumeErr != nil {
-			return nil, fmt.Errorf("load resume status for run %s: %w", latestRun.RunID, resumeErr)
-		}
-		if resumeStatus == nil {
-			return nil, fmt.Errorf("load resume status for run %s: resume status is nil", latestRun.RunID)
-		}
-		if resumeStatus != nil {
-			workbench.Resumable = resumeStatus.Resumable
-			workbench.ResumeReason = resumeStatus.Reason
-		}
-	}
-	if workbench.ResumeReason == "" {
-		workbench.ResumeReason = defaultResumeReason(latestRun)
+		workbench.LatestRunID = latestRunProjection.LatestRunID
+		workbench.LatestRunStatus = latestRunProjection.LatestRunStatus
+		workbench.LatestRunMode = latestRunProjection.LatestRunMode
+		workbench.LatestRunDepth = latestRunProjection.LatestRunDepth
+		workbench.ParentRunID = latestRunProjection.ParentRunID
+		workbench.Resumable = latestRunProjection.Resumable
+		workbench.ResumeReason = latestRunProjection.ResumeReason
+		workbench.TraceSummary = latestRunProjection.TraceSummary
+		workbench.SelectedSkill = latestRunProjection.SelectedSkill
+		workbench.LatestDecision = latestRunProjection.LatestDecision
 	}
 
 	summary, summaryErr := s.store.GetSessionSummary(ctx, trimmedSessionID)
@@ -90,21 +76,8 @@ func (s *RuntimeWorkbenchService) Load(ctx context.Context, sessionID string) (*
 	workbench.SessionSummary = summary
 
 	if latestRun != nil {
-		rawEvents, eventsErr := s.store.LoadEvents(ctx, latestRun.RunID)
-		if eventsErr != nil {
-			return nil, eventsErr
-		}
-		if len(rawEvents) > 0 {
-			workbench.TraceSummary = runtime.BuildTraceSummary(rawEvents)
-			workbench.SelectedSkill = runtime.SelectedSkillFromEvents(rawEvents)
-			workbench.Subagents = buildSubagentRuns(rawEvents)
-		}
-
-		decisionRecord, decisionErr := s.store.LoadRunDecision(ctx, latestRun.RunID)
-		if decisionErr != nil {
-			return nil, decisionErr
-		}
-		workbench.LatestDecision = decisionRecord
+		rawEvents := latestRunProjection.RawEvents
+		workbench.Subagents = buildSubagentRuns(rawEvents)
 
 		if s.plans != nil {
 			plan, planErr := s.plans.LoadRuntimePlan(ctx, trimmedSessionID)

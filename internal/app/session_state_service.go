@@ -78,54 +78,22 @@ func (s *SessionStateService) LoadSession(ctx context.Context, sessionID string)
 }
 
 func buildSessionDetail(session events.SessionRecord, latestRun *events.RunRecord, ctx context.Context, store sessionStateStore, traceSvc *TraceService) (SessionDetail, error) {
+	latestRunProjection, err := projectLatestRun(ctx, store, traceSvc, latestRun)
+	if err != nil {
+		return SessionDetail{}, err
+	}
 	detail := SessionDetail{
-		Session: session,
+		Session:         session,
+		LatestRunID:     latestRunProjection.LatestRunID,
+		LatestRunStatus: latestRunProjection.LatestRunStatus,
+		State:           latestRunProjection.State,
+		Resumable:       latestRunProjection.Resumable,
+		ResumeReason:    latestRunProjection.ResumeReason,
+		TraceSummary:    latestRunProjection.TraceSummary,
+		SelectedSkill:   latestRunProjection.SelectedSkill,
+		LatestDecision:  latestRunProjection.LatestDecision,
+		InterruptIDs:    latestRunProjection.InterruptIDs,
 	}
-	if latestRun != nil {
-		detail.LatestRunID = latestRun.RunID
-		detail.LatestRunStatus = latestRun.Status
-	}
-
-	detail.State = runtimeapi.DeriveSessionState(latestRun, false)
-
-	if latestRun == nil {
-		return detail, nil
-	}
-
-	if latestRun.Status == events.RunStatusInterrupted {
-		if traceSvc == nil {
-			return SessionDetail{}, fmt.Errorf("load resume status for run %s: trace service is nil", latestRun.RunID)
-		}
-		resumeStatus, err := traceSvc.ResumeStatus(ctx, latestRun.RunID)
-		if err != nil {
-			return SessionDetail{}, fmt.Errorf("load resume status for run %s: %w", latestRun.RunID, err)
-		} else if resumeStatus == nil {
-			return SessionDetail{}, fmt.Errorf("load resume status for run %s: resume status is nil", latestRun.RunID)
-		}
-		detail.Resumable = resumeStatus.Resumable
-		detail.ResumeReason = resumeStatus.Reason
-		detail.InterruptIDs = resumeStatus.InterruptIDs
-	}
-	if detail.ResumeReason == "" {
-		detail.ResumeReason = defaultResumeReason(latestRun)
-	}
-
-	if store == nil {
-		return SessionDetail{}, fmt.Errorf("load events for run %s: session state store is nil", latestRun.RunID)
-	}
-	raw, loadErr := store.LoadEvents(ctx, latestRun.RunID)
-	if loadErr == nil && len(raw) > 0 {
-		detail.TraceSummary = runtime.BuildTraceSummary(raw)
-		detail.SelectedSkill = runtime.SelectedSkillFromEvents(raw)
-	} else if loadErr != nil {
-		return SessionDetail{}, fmt.Errorf("load events for run %s: %w", latestRun.RunID, loadErr)
-	}
-	if decisionRecord, decisionErr := store.LoadRunDecision(ctx, latestRun.RunID); decisionErr == nil {
-		detail.LatestDecision = decisionRecord
-	} else {
-		return SessionDetail{}, fmt.Errorf("load decision for run %s: %w", latestRun.RunID, decisionErr)
-	}
-
 	return detail, nil
 }
 

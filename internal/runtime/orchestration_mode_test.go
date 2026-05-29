@@ -560,9 +560,12 @@ func TestSubagentExecuteUsesRealChildRunIDInEvents(t *testing.T) {
 	store, cfg := newRunnerFactoryMemoryTestContext(t)
 	parentRunID := createFinalizationRun(t, ctx, store, "session-parent", "inspect repo")
 	factory := newRunnerFactory(t, cfg, store, RunnerFactoryOptions{})
-	sub := NewSubagentExecutor(cfg, store, factory, nil)
+	sub, err := factory.newChildAgentExecutor()
+	if err != nil {
+		t.Fatalf("newChildAgentExecutor: %v", err)
+	}
 
-	_, err := sub.Execute(ctx, orchestration.ChildAgentRequest{
+	_, err = sub.Execute(ctx, orchestration.ChildAgentRequest{
 		ParentRunID:        parentRunID,
 		ParentSessionID:    "session-parent",
 		ParentStepID:       "s1",

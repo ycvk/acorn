@@ -6,10 +6,12 @@ import (
 	"os/exec"
 	"path/filepath"
 	goruntime "runtime"
+	"strings"
 	"testing"
 
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/memorymodule"
+	"github.com/ycvk/acorn/internal/orchestration"
 	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
 )
 
@@ -141,6 +143,9 @@ func newRunnerFactory(t *testing.T, cfg *config.Config, store RunnerFactoryStore
 	if opts.MemoryModule == nil {
 		opts.MemoryModule = newRunnerFactoryMemoryModule(t, cfg)
 	}
+	if opts.ChildAgentExecutorFactory == nil {
+		opts.ChildAgentExecutorFactory = NewSubagentExecutorFactory(cfg, store, nil)
+	}
 	factory, err := NewRunnerFactory(cfg, store, opts)
 	if err != nil {
 		t.Fatalf("NewRunnerFactory: %v", err)
@@ -159,6 +164,65 @@ func TestNewRunnerFactoryUsesInjectedContextPlane(t *testing.T) {
 	if factory.deps.ContextPlane != plane {
 		t.Fatal("NewRunnerFactory did not retain injected context plane")
 	}
+}
+
+func TestNewRunnerFactoryRequiresChildAgentExecutorFactory(t *testing.T) {
+	store, cfg := newRunnerFactoryMemoryTestContext(t)
+
+	_, err := NewRunnerFactory(cfg, store, RunnerFactoryOptions{
+		MemoryModule: newRunnerFactoryMemoryModule(t, cfg),
+	})
+	if err == nil || !strings.Contains(err.Error(), "child agent executor factory is required") {
+		t.Fatalf("NewRunnerFactory error = %v, want child agent executor factory requirement", err)
+	}
+}
+
+func TestRunnerFactoryChildAgentFactoryReceivesRuntimeDeps(t *testing.T) {
+	store, cfg := newRunnerFactoryMemoryTestContext(t)
+
+	var got ChildAgentRuntimeDeps
+	factory := newRunnerFactory(t, cfg, store, RunnerFactoryOptions{
+		ChildAgentExecutorFactory: func(deps ChildAgentRuntimeDeps) (orchestration.ChildAgentExecutor, error) {
+			got = deps
+			return stubChildAgentExecutor{}, nil
+		},
+	})
+
+	childExec, err := factory.newChildAgentExecutor()
+	if err != nil {
+		t.Fatalf("newChildAgentExecutor: %v", err)
+	}
+	if childExec == nil {
+		t.Fatal("child executor is nil")
+	}
+	if got.RunRuntime != factory {
+		t.Fatal("child agent factory did not receive the runner runtime facade")
+	}
+	if got.ParentDepth == nil {
+		t.Fatal("child agent factory did not receive parent depth resolver")
+	}
+	if got.CreateChildWorkspace == nil {
+		t.Fatal("child agent factory did not receive child workspace creator")
+	}
+	if got.RuntimeForWorkspace == nil {
+		t.Fatal("child agent factory did not receive workspace runtime factory")
+	}
+}
+
+func TestSubagentExecutorFactoryRequiresRuntimeDeps(t *testing.T) {
+	store, cfg := newRunnerFactoryMemoryTestContext(t)
+	factory := NewSubagentExecutorFactory(cfg, store, nil)
+
+	_, err := factory(ChildAgentRuntimeDeps{})
+	if err == nil || !strings.Contains(err.Error(), "run runtime is required") {
+		t.Fatalf("factory error = %v, want run runtime requirement", err)
+	}
+}
+
+type stubChildAgentExecutor struct{}
+
+func (stubChildAgentExecutor) Execute(context.Context, orchestration.ChildAgentRequest) (*orchestration.ChildAgentResult, error) {
+	return &orchestration.ChildAgentResult{}, nil
 }
 
 type runtimeTestSemanticIndex struct{}
