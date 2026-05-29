@@ -243,13 +243,6 @@ func (e *Executor) collectRunState(ctx context.Context, runID string, iter *adk.
 	}
 }
 
-func (e *Executor) prepareSkillExecution(ctx context.Context, runID string, selected *SelectedSkill, downstreamSink stream.StreamSink) (stream.StreamSink, error) {
-	_ = ctx
-	_ = runID
-	_ = selected
-	return downstreamSink, nil
-}
-
 func (e *Executor) applyAgentEvent(ctx context.Context, runID string, items []stream.StreamItem, sink stream.StreamSink, state *RunState) error {
 	for _, item := range items {
 		item.RunID = runID
@@ -356,10 +349,7 @@ func (e *Executor) ExecuteMessages(ctx context.Context, req runtimeapi.ExecuteRe
 		}
 		return nil, err
 	}
-	executionSink, err := e.prepareSkillExecution(ctx, runID, active.SelectedSkill, sink)
-	if err != nil {
-		return nil, err
-	}
+	executionSink := sink
 
 	executionCtx := buildExecutionContext(runCtxBase, runID, req.SessionID, req.TurnIndex, executionSink)
 	if active.ContextSession != nil {
@@ -396,10 +386,7 @@ func (e *Executor) ResumeWithTargets(ctx context.Context, runID string, targets 
 	}
 	defer active.Close()
 
-	executionSink, err := e.prepareSkillExecution(ctx, runID, active.SelectedSkill, sink)
-	if err != nil {
-		return nil, err
-	}
+	executionSink := sink
 	if active.ContextSession == nil {
 		messages := []adk.Message{}
 		if strings.TrimSpace(run.Input) != "" {

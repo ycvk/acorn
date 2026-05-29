@@ -61,7 +61,7 @@
 - `ContextBoundary` 是 durable compact boundary truth。`context.compressed` 只是 RunEvent projection，不能作为 loader truth。
 - Reactive compact 只处理真实 provider/model context overflow，并且只允许同 provider/options 一次重试。其他 provider/runtime/tool/parser 错误必须显式失败。
 - Tool lifecycle fail-loud：unknown、disabled、deferred-before-load 是模型可见 failed tool result；runtime wiring/storage/model failure 是 run failure。
-- Tool result lifecycle 必须写入 durable ledger；ledger wiring/storage 失败是 run failure。workspace checkpoint / rollback side effects 只能从后端 ledger/workbench projection 消费。
+- Tool result lifecycle 必须写入 durable ledger；ledger wiring/storage 失败是 run failure。workspace checkpoint / rollback side effects 只能从后端 ledger/store-owned projection 消费。
 
 ## Native Skill Lifecycle 约束
 

@@ -26,7 +26,6 @@ func TestContainerBuildsCoreServices(t *testing.T) {
 		"chat":         container.Chat(),
 		"run":          container.Run(),
 		"resume":       container.Resume(),
-		"sessionState": container.SessionState(),
 		"capabilities": container.Capabilities(),
 		"skills":       container.Skills(),
 	} {

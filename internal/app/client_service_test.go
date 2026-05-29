@@ -579,6 +579,43 @@ func TestLoadRunEventsForDetailFiltersDiagnosticsAndKeepsTraceSummary(t *testing
 	}
 }
 
+func TestClientServiceListRunArtifactsUsesRunScopedStorePort(t *testing.T) {
+	ctx := context.Background()
+	store, err := storesqlite.Open(filepath.Join(t.TempDir(), "state"))
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	if err := store.CreateRun(ctx, "run_artifacts", "input", "thread_artifacts"); err != nil {
+		t.Fatalf("CreateRun: %v", err)
+	}
+	_, err = store.SaveArtifact(ctx, storecore.ArtifactRecord{
+		ArtifactID:          "artifact_report",
+		RunID:               "run_artifacts",
+		SessionID:           "thread_artifacts",
+		SourceToolResultRef: "tool_result:run_artifacts:call_1",
+		Kind:                storecore.ArtifactKindMarkdown,
+		Title:               "Report",
+		MIMEType:            "text/markdown",
+		SizeBytes:           42,
+		SHA256:              "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		RelativePath:        "run_artifacts/artifact_report",
+		CreatedAt:           time.Date(2026, 5, 20, 10, 0, 0, 0, time.UTC),
+	})
+	if err != nil {
+		t.Fatalf("SaveArtifact: %v", err)
+	}
+
+	service := BuildClientService(store, nil, nil, "/repo")
+	artifacts, err := service.ListRunArtifacts(ctx, "run_artifacts")
+	if err != nil {
+		t.Fatalf("ListRunArtifacts: %v", err)
+	}
+	if len(artifacts) != 1 || artifacts[0].ArtifactID != "artifact_report" || artifacts[0].SourceToolResultRef != "tool_result:run_artifacts:call_1" {
+		t.Fatalf("artifacts = %#v", artifacts)
+	}
+}
+
 func TestClientCreateRunUsesRealExecutorPath(t *testing.T) {
 	ctx := context.Background()
 	store, err := storesqlite.Open(filepath.Join(t.TempDir(), "state"))

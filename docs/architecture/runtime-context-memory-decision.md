@@ -180,7 +180,7 @@ Old `memory.blocks`, `memory.facts`, `memory.end_of_run`, `memory.background_rev
 - ContextPlane does not know old memory store internals.
 - Context compact/resume work must use persisted context boundaries as runtime-history facts, not durable memory records and not `events.payload_json` reconstruction.
 - Context pressure must use BudgetGovernor effective-window thresholds from derived context policy; `threshold_pct`, client-side estimates, and character-count fallback are not active context truth.
-- Client pressure/boundary visibility must come from backend projections such as RunDetail trace/workbench diagnostics, not client-local estimation or old compact marker parsing.
+- Client pressure/boundary visibility must come from backend-owned trace projections when explicitly exposed, not client-local estimation, old compact marker parsing, or a broad RunDetail workbench diagnostic aggregate.
 - Sliding-window marker compression, public `compression.*` config, `compression.max_history_turns`, `compression.hard_token_cap_pct`, and run-wide `TokenBudget` are not active runtime paths.
 - Root run initial model input must be produced through ContextSession Bootstrap; direct prepend helpers are not the execution truth.
 - Root runner execution context must carry ContextSession. direct_response must fail loudly if the binding is missing and must not fall back to ADK runner input messages.

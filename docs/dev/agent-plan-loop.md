@@ -45,7 +45,7 @@ curl -H "Authorization: Bearer $ACORN_DEVICE_TOKEN" \
   http://127.0.0.1:8080/v1/threads/THREAD_ID/runs
 ```
 
-Plan 生命周期事件会持久化为后端诊断事件，但不会进入 `/v1/runs/{run_id}/events` mobile live stream。调试 plan 时优先看 `/v1/runs/{run_id}/detail` 的 workbench/plan 聚合，必要时再通过后端 trace/SQLite 诊断路径核对原始事件：
+Plan 生命周期事件会持久化为后端诊断事件，但不会进入 `/v1/runs/{run_id}/events` mobile live stream，也不会作为 public RunDetail plan DTO 暴露。调试 plan 时从后端 trace/SQLite 诊断路径核对原始事件：
 
 ```json
 {"kind":"plan.created","plan":{"plan_id":"session_...","steps":[{"id":"s1","action":"Read README.md","status":"pending","risk":"read","repo_targets":[{"path":"README.md","reason":"summarize project skeleton","confidence":"high"}],"tool_hints":["read_file"]}]}}
@@ -53,7 +53,7 @@ Plan 生命周期事件会持久化为后端诊断事件，但不会进入 `/v1/
 {"kind":"step.completed","plan":{"steps":[{"id":"s1","status":"completed","risk":"read"}]},"step":{"id":"s1","status":"completed","risk":"read"}}
 ```
 
-如果需要离线查询当前计划，可通过标准 `/v1` run detail 聚合查看：
+如果需要远程核对一次 run 的用户可见事实，可通过标准 `/v1` run detail 查看 run/thread、live event activity、trace summary 和 artifacts：
 
 ```bash
 curl -H "Authorization: Bearer $ACORN_DEVICE_TOKEN" \
@@ -72,7 +72,7 @@ curl -H "Authorization: Bearer $ACORN_DEVICE_TOKEN" \
 
 Verifier child run 使用同一 `ChildAgentExecutor` lineage，但 origin 固定为 `verifier` 且默认只读。`plan_execute` 的 `ExecuteDispatchNode` 只在 step 显式声明 `verification_intent.kind=verifier` 时运行它；primary child execution 先写入 `kind=subagent` evidence，verifier 再消费 plan、acceptance criteria、tool result refs、evidence refs 和只读 inspection tools，返回 `passed | failed | inconclusive` verdict。`inconclusive` 不是成功；verdict 会作为 `kind=verifier` evidence 回填 plan，failed/inconclusive 会让当前 step 显式失败，不会升级成全局 closeout policy。
 
-Workspace mutation tools 会创建 scoped mutation checkpoint 并把 checkpoint id 写入 tool output / tool result side effects。显式调用 `rollback_workspace_checkpoint` 才会 rollback；rollback result 同样通过 tool result ledger、PlanEvidence 和 RunDetail workbench projection 露出。前端不能从 git/local state 或 assistant 文本推断 checkpoint / rollback truth。
+Workspace mutation tools 会创建 scoped mutation checkpoint 并把 checkpoint id 写入 tool output / tool result side effects。显式调用 `rollback_workspace_checkpoint` 才会 rollback；rollback result 同样通过 tool result ledger 和 PlanEvidence 保留为后端事实。前端不能从 git/local state 或 assistant 文本推断 checkpoint / rollback truth，也不能要求 RunDetail 暴露完整 checkpoint/rollback workbench 聚合。
 
 `ObserveNode` 读取当前 plan 和消息历史，返回 `next`、`replan` 或 `done`。如果所有 steps 都已经是终态，Observe 会直接结束，不再调用模型。
 
@@ -136,16 +136,16 @@ func buildAgentGraph(
 | `step.completed` | `plan`、`step` | step 完成 |
 | `step.failed` | `plan`、`step`、`error` | step 失败 |
 
-`step.started`、`step.completed` 和 `step.failed` 都携带完整 `plan`，但它们是 persisted diagnostic events，不是 mobile live `RunEvent` contract。Remote clients should refresh plan state from `GET /v1/runs/{run_id}/detail` instead of consuming plan/step diagnostics from the foreground SSE stream.
+`step.started`、`step.completed` 和 `step.failed` 都携带完整 `plan`，但它们是 persisted diagnostic events，不是 mobile live `RunEvent` contract，也不是 public RunDetail DTO。Remote clients must not consume plan/step diagnostics from the foreground SSE stream.
 
 ### Remote Client API
 
 | endpoint | 返回 | 用途 |
 |---|---|---|
-| `GET /v1/runs/{run_id}/detail` | `RunDetail` | 查询 run detail 聚合，包含 workbench/plan/trace 真相 |
+| `GET /v1/runs/{run_id}/detail` | `RunDetail` | 查询 run detail 聚合，包含 run/thread、live events、artifacts 和 trace summary |
 | `GET /v1/runs/{run_id}/events` | `RunEvent` SSE/历史事件 | 查询 mobile live event subset，不包含 plan/step diagnostics |
 
-`RunDetail`、`RunEvent`、`PlanDTO`、`PlanStepDTO` 和 `PlanEvidenceDTO` 的字段以 `docs/openapi.yaml` 为准，mobile Dart client 由 `mobile/tool/generate_openapi_client.py` 生成。不要恢复 legacy `/api/sessions/*/plan` 或 `/api/runs/*/plan` 平行查询面。
+`RunDetail` 和 `RunEvent` 的字段以 `docs/openapi.yaml` 为准，mobile Dart client 由 `mobile/tool/generate_openapi_client.py` 生成。不要恢复 legacy `/api/sessions/*/plan`、`/api/runs/*/plan`、public `PlanDTO` 或 runtime workbench 平行查询面。
 
 ## 常见场景
 
@@ -156,17 +156,17 @@ curl -H "Authorization: Bearer $ACORN_DEVICE_TOKEN" \
   http://127.0.0.1:8080/v1/runs/RUN_ID/detail
 ```
 
-Run detail 是 plan/workbench/trace 的 remote client source。完整 run 成败仍以 run status、terminal live event 和 RunDetail trace 为准。
+Run detail 是 remote client 的 run/thread、activity、artifact 和 trace-summary source。完整 run 成败仍以 run status、terminal live event 和 RunDetail trace 为准。
 
 ### 让 remote client 消费 plan state
 
-当前 mobile control surface 通过 `/v1/runs/{run_id}/detail` 消费 plan/workbench/trace 事实，通过 `/v1/runs/{run_id}/events` 只消费 foreground live subset。扩展 plan state 时必须从 RunDetail aggregate 处理，不要恢复旧 frontend dispatcher、legacy `StreamItem` reducer，或把 plan/step diagnostics 重新塞进 live RunEvent。
+当前 mobile control surface 通过 `/v1/runs/{run_id}/detail` 消费 run/thread、artifacts 和 trace summary，通过 `/v1/runs/{run_id}/events` 只消费 foreground live subset。扩展 plan state 时必须先明确新的 product surface 和 OpenAPI contract，不要恢复旧 frontend dispatcher、legacy `StreamItem` reducer、public PlanDTO/workbench aggregate，或把 plan/step diagnostics 重新塞进 live RunEvent。
 
-新增 plan event 时必须同步三处：
+新增 public plan surface 时必须同步三处：
 
 - `docs/openapi.yaml`
 - `mobile/lib/src/api/acorn_api.dart`
-- 对应的 RunDetail projection/view model
+- 对应的 explicit projection/view model
 
 新增 plan step、evidence、verifier、checkpoint 或 rollback 字段时还必须同步 runtime/store/Web DTO/OpenAPI/mobile types，并覆盖 SQLite roundtrip 与 stream payload clone，避免 metadata 在中途丢失。
 

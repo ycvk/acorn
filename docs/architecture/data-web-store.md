@@ -24,7 +24,7 @@ SQLite does not keep active legacy memory stores, codeintel indexes, or filesyst
 
 Cross-package store-facing records and sentinel errors live in `internal/store`, not in `internal/store/sqlite`. App/runtime/provider packages own the ports they consume:
 
-- app services use narrow ports such as `clientStore`, `traceStore`, `sessionStateStore`, and `runtimeWorkbenchStore`.
+- app services use narrow ports such as `clientStore`, `traceStore`, and purpose-specific service store ports.
 - runtime uses `executorStore`, `runnerFactoryStore`, `planRecordStore`, and `toolAuditStore`.
 - MCP provider exports `TokenStore` and `PendingActionStore` as provider contracts.
 
@@ -122,9 +122,9 @@ Native skill creation and curation now run through runtime tools rather than Web
 
 `POST /v1/threads/{thread_id}/runs` accepts `CreateRunRequest` with optional `skill_id` and explicit public root `mode` (`direct_response`, `plan_execute`). The request mode is written into runtime orchestration truth before execution starts; `single_agent` is internal child-run execution mode and is not accepted as a public create-run request. The returned run still projects persisted internal/legacy `single_agent` runs through the client-facing `Run.mode` mapping as `agent`.
 
-RunDetail workbench projection also includes mutation checkpoint and rollback summaries derived from `tool_results.side_effects_json` and rollback tool outputs. Clients do not derive these from message text, local git state, or assistant prose.
+RunDetail is intentionally narrow. It returns run/thread facts, the mobile live event subset, backend trace summary, and run artifacts loaded through the client service artifact store port. It does not expose runtime workbench, plan DTOs, raw diagnostic event payloads, mutation checkpoint summaries, rollback summaries, provider usage, git status, or context-economy internals.
 
-RunEvent projection is strict and intentionally narrow. `/v1/runs/{run_id}/events` emits only the mobile live subset: run lifecycle, assistant deltas/messages, terminal status, resume requests, elicitation/operator-question events, and `decision_blocked`. Runtime trace events such as tool progress, skill/procedure lifecycle, memory preparation, context pressure/compression, plan/step updates, subagents, MCP lifecycle, and sampling remain persisted diagnostics in SQLite and aggregate into trace/workbench summaries; they are not part of the live mobile contract or raw `/v1` RunDetail payload.
+RunEvent projection is strict and intentionally narrow. `/v1/runs/{run_id}/events` emits only the mobile live subset: run lifecycle, assistant deltas/messages, terminal status, resume requests, elicitation/operator-question events, and `decision_blocked`. Runtime trace events such as tool progress, skill/procedure lifecycle, memory preparation, context pressure/compression, plan/step updates, subagents, MCP lifecycle, and sampling remain persisted diagnostics in SQLite and aggregate into backend trace summaries; they are not part of the live mobile contract or raw `/v1` RunDetail payload.
 
 `after_seq` is the exclusive persisted cursor over SQLite `events.sequence`. Because the endpoint filters diagnostics, the server may advance the returned polling cursor across persisted events it did not emit. Clients persist `{run_id,last_seq}`, receive backlog before foreground follow events, and do not maintain a second run-event truth store.
 

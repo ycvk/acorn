@@ -17,9 +17,6 @@ func NewHandler(deps Dependencies) (http.Handler, error) {
 	if deps.PendingAction == nil {
 		return nil, errors.New("web pending action service is required")
 	}
-	if deps.Workbench == nil {
-		return nil, errors.New("web runtime workbench service is required")
-	}
 	if deps.Checkpoints == nil {
 		return nil, errors.New("web working checkpoint service is required")
 	}
@@ -53,7 +50,6 @@ func NewHandler(deps Dependencies) (http.Handler, error) {
 	server := &Server{
 		client:        deps.Client,
 		pendingAction: deps.PendingAction,
-		workbench:     deps.Workbench,
 		checkpoints:   deps.Checkpoints,
 		trace:         deps.Trace,
 		memory:        deps.Memory,

@@ -4,9 +4,7 @@ import (
 	"time"
 
 	"github.com/ycvk/acorn/internal/app"
-	"github.com/ycvk/acorn/internal/decision"
 	"github.com/ycvk/acorn/internal/memorymodule"
-	"github.com/ycvk/acorn/internal/model"
 	"github.com/ycvk/acorn/internal/skills"
 )
 
@@ -58,26 +56,9 @@ type Converter interface {
 	memorySearchItemDTOsFromDomain(source []memorymodule.SearchItem) []MemorySearchItemDTO
 	workingCheckpointDTOFromView(source *app.WorkingCheckpointView) *WorkingCheckpointDTO
 
-	// Workbench / Workspace
-	workspaceGitStatusDTOFromDomain(source app.WorkspaceGitStatus) WorkspaceGitStatusDTO
-	subagentRunDTOsFromDomain(source []app.SubagentRun) []SubagentRunDTO
-	mutationCheckpointDTOsFromDomain(source []app.MutationCheckpointSummary) []MutationCheckpointDTO
-	rollbackSummaryDTOsFromDomain(source []app.RollbackSummary) []RollbackSummaryDTO
+	// Artifacts
 	artifactSummaryDTOsFromDomain(source []app.ArtifactSummary) []ArtifactSummaryDTO
-
-	// Context Economy
-	contextEconomyDTOFromDomain(source app.ContextEconomySummary) ContextEconomyDTO
-
-	// Provider Usage
-	providerUsageDTOFromDomain(source app.ProviderUsageSummary) ProviderUsageDTO
-
-	// Plan
-	planRepoTargetDTOsFromRuntime(source []model.PlanRepoTarget) []PlanRepoTargetDTO
-	verificationIntentDTOsFromRuntime(source []model.VerificationIntent) []VerificationIntentDTO
 
 	// Skills
 	skillRequirementsDTOFromDomain(source skills.Requirements) SkillRequirementsDTO
-
-	// Decision
-	runDecisionDTOFromDomain(source *decision.Record) *RunDecisionDTO
 }

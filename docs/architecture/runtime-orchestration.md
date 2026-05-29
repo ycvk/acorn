@@ -38,7 +38,7 @@ single_agent / plan_execute 内部的 PlanNode plan JSON、ObserveNode decision 
 - `internal/runtime/plan/agent_graph.go` 构建 PlanNode / ActNode / ObserveNode / FinalNode。
 - graph builder 必须拿到 runtime `PlanStore`；缺 plan store 直接构建失败。
 - Procedure activation 不在 graph 内生成 synthetic plan。Learned procedures now enter the run as file-backed memory skill entries from `memorymodule.Prepare`; ordinary executable skills still come from `internal/skills` selection and ContextPlane injection.
-- ActNode 用 `SafeParallelToolsNode` 执行工具，并把 tool result 写入 step evidence ledger；同一结果同时由 ContextPlane 写入 durable `tool_results` ledger，再由 PlanStore 把 step evidence backlink 回写到同一条 tool result 记录。workspace mutation checkpoint / rollback 的 side-effect refs 也沿这条链路进入 ledger 和 workbench projection。
+- ActNode 用 `SafeParallelToolsNode` 执行工具，并把 tool result 写入 step evidence ledger；同一结果同时由 ContextPlane 写入 durable `tool_results` ledger，再由 PlanStore 把 step evidence backlink 回写到同一条 tool result 记录。workspace mutation checkpoint / rollback 的 side-effect refs 也沿这条链路进入 ledger/store-owned backend truth。
 - `SafeParallelToolsNode` 是 Acorn-specific tool dispatch adapter；实际批次、路径冲突和结果顺序由 `internal/runtime/tool/tool.go` 的 shared scheduler core 处理，并通过 `internal/runtime/tool/streaming_tool_executor.go` 暴露实时提交接口。它从 `tooling.ExecutionPolicyResolver` 读取 `ToolContract.Execution`，保留 policy-aware parallelism、ContextPlane tool lifecycle 和 plan evidence recorder；已加载工具没有 execution policy 是 runtime wiring failure，不会默认成 read-only。真实工具执行时会显式触发 Eino Tool component callbacks，因此外部 Eino callback/DevOps handler 能看到 tool OnStart/OnEnd/OnError。模型调用 unknown/deferred tool 仍是模型可见 failed tool result，不伪造真实工具 callback success。
 
 ## plan_execute
@@ -47,7 +47,7 @@ single_agent / plan_execute 内部的 PlanNode plan JSON、ObserveNode decision 
 
 Verifier child runs 仍走同一 `ChildAgentExecutor` 合同，但 origin 固定为 `verifier`，任务只读，返回 `VerificationResult` 的 `passed|failed|inconclusive` verdict。`plan_execute` 只在 step 显式声明 `verification_intent.kind=verifier` 时触发 verifier；verifier 结果会转成 `kind=verifier` plan evidence，failed/inconclusive 会让当前 step 失败。它不是自动 blocking closeout，也不会把验证本身提升成第二套 closeout policy。
 
-`plan_execute` 对照 Eino `adk/prebuilt/planexecute` 的 plan/execute/replan 思路，但不是直接复用 prebuilt agent。Acorn 自定义 graph 的硬约束是 persisted `PlanStore`、step evidence ledger、child run lineage、workbench/trace truth 和 fail-loud runtime errors。后续如果吸收 Eino prebuilt 能力，只允许吸收 planner output/tool-calling planner 等局部模式，不能替换这套持久化和 child-agent contract。
+`plan_execute` 对照 Eino `adk/prebuilt/planexecute` 的 plan/execute/replan 思路，但不是直接复用 prebuilt agent。Acorn 自定义 graph 的硬约束是 persisted `PlanStore`、step evidence ledger、child run lineage、backend trace truth 和 fail-loud runtime errors。后续如果吸收 Eino prebuilt 能力，只允许吸收 planner output/tool-calling planner 等局部模式，不能替换这套持久化和 child-agent contract。
 
 Eino `adk/prebuilt/deep` 的 subagent/filesystem/shell 组合能力也只作为参考输入。Acorn 的多 agent 执行事实仍是 `ChildAgentExecutor` + child run/session + evidence summary；不能新增第二套 subagent task protocol。
 

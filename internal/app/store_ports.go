@@ -6,7 +6,6 @@ import (
 
 	"github.com/ycvk/acorn/internal/decision"
 	"github.com/ycvk/acorn/internal/events"
-	"github.com/ycvk/acorn/internal/model"
 	"github.com/ycvk/acorn/internal/store"
 )
 
@@ -34,16 +33,6 @@ type decisionStore interface {
 	LoadRunDecision(ctx context.Context, runID string) (*decision.Record, error)
 }
 
-type sessionStateStore interface {
-	CreateSession(ctx context.Context, sessionID, title string) (*events.SessionRecord, error)
-	ListSessionMessages(ctx context.Context, sessionID string, limit int) ([]events.SessionMessageRecord, error)
-	LoadSession(ctx context.Context, sessionID string) (*events.SessionRecord, error)
-	LoadLatestRunForSession(ctx context.Context, sessionID string) (*events.RunRecord, error)
-	LoadEvents(ctx context.Context, runID string) ([]events.EventRecord, error)
-	LoadRunDecision(ctx context.Context, runID string) (*decision.Record, error)
-	GetSessionSummary(ctx context.Context, sessionID string) (*model.SessionSummary, error)
-}
-
 type clientStore interface {
 	ListSessions(ctx context.Context, limit int) ([]events.SessionRecord, error)
 	LoadLatestRunsForSessions(ctx context.Context, sessionIDs []string) (map[string]*events.RunRecord, error)
@@ -59,6 +48,7 @@ type clientStore interface {
 	LoadRun(ctx context.Context, runID string) (*events.RunRecord, error)
 	LoadEventsAfter(ctx context.Context, runID string, afterSeq int64) ([]events.EventRecord, error)
 	LoadEvents(ctx context.Context, runID string) ([]events.EventRecord, error)
+	ListArtifactsByRun(ctx context.Context, runID string) ([]store.ArtifactRecord, error)
 	LoadLatestUnboundUserMessage(ctx context.Context, sessionID string) (*events.SessionMessageRecord, error)
 	FinishRunContext(ctx context.Context, runID string, status events.RunStatus, output, errText string) error
 	AppendEventContext(ctx context.Context, runID, kind string, payload any) (events.EventRecord, error)

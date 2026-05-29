@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/ycvk/acorn/internal/events"
-	"github.com/ycvk/acorn/internal/skills"
 )
 
 // RunEvent is the client-visible live event envelope used by /v1 run detail and SSE.
@@ -58,12 +57,6 @@ type TraceSummary struct {
 	Interrupted                bool   `json:"interrupted,omitempty"`
 	Failed                     bool   `json:"failed,omitempty"`
 	Completed                  bool   `json:"completed,omitempty"`
-}
-
-type SelectedSkill struct {
-	Skill        skills.Spec
-	Score        int
-	MatchedTerms []string
 }
 
 // --- Event payload data types ---

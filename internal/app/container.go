@@ -17,8 +17,6 @@ type Container struct {
 	runnerFactory *runtime.RunnerFactory
 	runController *runtime.RunController
 	trace         *TraceService
-	sessionState  *SessionStateService
-	workbench     *RuntimeWorkbenchService
 	checkpoints   *WorkingCheckpointService
 	skills        *SkillService
 	chat          *ChatService
@@ -45,16 +43,8 @@ func (c *Container) Config() *config.Config {
 	return c.cfg
 }
 
-func (c *Container) SessionState() *SessionStateService {
-	return c.sessionState
-}
-
 func (c *Container) Trace() *TraceService {
 	return c.trace
-}
-
-func (c *Container) Workbench() *RuntimeWorkbenchService {
-	return c.workbench
 }
 
 func (c *Container) Checkpoints() *WorkingCheckpointService {

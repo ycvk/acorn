@@ -22,19 +22,6 @@ func topLevelString(payload map[string]any, key string) string {
 	return strings.TrimSpace(value)
 }
 
-func topLevelInt(payload map[string]any, key string) int {
-	switch value := payload[key].(type) {
-	case int:
-		return value
-	case int64:
-		return int(value)
-	case float64:
-		return int(value)
-	default:
-		return 0
-	}
-}
-
 func topLevelBool(payload map[string]any, key string) bool {
 	value, ok := payload[key].(bool)
 	return ok && value
@@ -46,21 +33,6 @@ func objectField(payload map[string]any, key string) (map[string]any, bool) {
 		return nil, false
 	}
 	return cloneMap(value), true
-}
-
-func stringArrayField(payload map[string]any, key string) []string {
-	values, ok := payload[key].([]any)
-	if !ok {
-		return nil
-	}
-	out := make([]string, 0, len(values))
-	for _, value := range values {
-		item, ok := value.(string)
-		if ok {
-			out = append(out, strings.TrimSpace(item))
-		}
-	}
-	return out
 }
 
 func cloneMap(payload map[string]any) map[string]any {

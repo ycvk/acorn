@@ -741,6 +741,18 @@ func TestClientResourceSurfaceHandlers(t *testing.T) {
 				Data:    clientevents.RunStartedData{Input: "hello"},
 			},
 		},
+		artifacts: []app.ArtifactSummary{{
+			ArtifactID:          "artifact_report",
+			RunID:               "run_1",
+			SessionID:           "thread_1",
+			SourceToolResultRef: "tool_result:run_1:call_1",
+			Kind:                "markdown",
+			Title:               "Report",
+			MIMEType:            "text/markdown",
+			SizeBytes:           42,
+			SHA256:              "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			CreatedAt:           time.Date(2026, 5, 2, 10, 4, 0, 0, time.UTC),
+		}},
 	}
 	capabilities := &clientCapabilityStub{snapshot: app.SystemCapabilities{
 		RuntimeReadiness: &app.RuntimeReadiness{Status: app.RuntimeReadinessReady},
@@ -848,7 +860,6 @@ func TestClientResourceSurfaceHandlers(t *testing.T) {
 	}
 	server := &Server{
 		client:       service,
-		workbench:    &clientWorkbenchStub{workbench: &app.RuntimeWorkbench{SessionID: "thread_1", WorkspaceRoot: "/repo"}},
 		trace:        &clientTraceStub{result: &app.RunResult{RunID: "run_1", Status: "interrupted"}},
 		capabilities: capabilities,
 		pendingAction: &pendingActionHandlerStub{
@@ -1019,6 +1030,12 @@ func TestClientResourceSurfaceHandlers(t *testing.T) {
 	}
 	if strings.Contains(detailRec.Body.String(), `"raw"`) {
 		t.Fatalf("run detail should not expose raw diagnostic events: %s", detailRec.Body.String())
+	}
+	if strings.Contains(detailRec.Body.String(), `"workbench"`) {
+		t.Fatalf("run detail should not expose runtime workbench: %s", detailRec.Body.String())
+	}
+	if !strings.Contains(detailRec.Body.String(), `"artifacts":[{"artifact_id":"artifact_report"`) {
+		t.Fatalf("run detail should expose top-level artifacts: %s", detailRec.Body.String())
 	}
 
 	systemStatusRec := performClientRequest(router, http.MethodGet, "/v1/system/status", "")
@@ -1204,11 +1221,12 @@ func (s *deviceAuthHandlerStub) RevokeDevice(_ context.Context, deviceID string)
 }
 
 type clientHandlerStub struct {
-	thread  app.Thread
-	message app.Message
-	run     app.Run
-	events  []clientevents.RunEvent
-	err     error
+	thread    app.Thread
+	message   app.Message
+	run       app.Run
+	events    []clientevents.RunEvent
+	artifacts []app.ArtifactSummary
+	err       error
 
 	eventBatches              []*clientevents.RunEventBatch
 	loadEventCalls            int
@@ -1334,6 +1352,13 @@ func (s *clientHandlerStub) LoadRunEventsForDetail(context.Context, string) (*cl
 	}, nil
 }
 
+func (s *clientHandlerStub) ListRunArtifacts(context.Context, string) ([]app.ArtifactSummary, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	return append([]app.ArtifactSummary(nil), s.artifacts...), nil
+}
+
 func (s *clientHandlerStub) RunIsTerminal(context.Context, string) (bool, error) {
 	if s.err != nil {
 		return false, s.err
@@ -1444,15 +1469,6 @@ func (s *notificationHandlerStub) RevokeDevicePushToken(_ context.Context, auth 
 }
 
 var _ NotificationService = (*notificationHandlerStub)(nil)
-
-type clientWorkbenchStub struct {
-	workbench *app.RuntimeWorkbench
-	err       error
-}
-
-func (s *clientWorkbenchStub) Load(context.Context, string) (*app.RuntimeWorkbench, error) {
-	return s.workbench, s.err
-}
 
 type clientTraceStub struct {
 	result *app.RunResult
