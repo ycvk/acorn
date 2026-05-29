@@ -1,7 +1,7 @@
 ---
 doc_type: architecture
 status: current
-last_reviewed: 2026-05-20
+last_reviewed: 2026-05-29
 slug: architecture-index
 ---
 
@@ -35,7 +35,7 @@ operator CLI / authenticated remote clients
 - `internal/store/sqlite/` 是 SQLite adapter / persisted truth：sessions、runs、events、plans、checkpoints、archives、session summaries、context boundaries 和 workbench 所需事实都从这里或 workspace inspection 装配。除 app composition root 外，生产代码不直接依赖 sqlite package；runtime、app services 和 MCP provider 通过 consumer-owned ports 消费持久化能力。长期 memory 的 active truth 是 `memorymodule` Record V2 文件；旧 SQLite memory/codeintel tables/readers 和 `acorn memory migrate` CLI 已删除，schema migration 会丢弃残留旧表。
 - `internal/app/client_service.go` 和 `internal/web/handlers_client.go` 暴露 `/v1` Thread/Message/Run/RunEvent/RunDetail client surface；`RunEvent` 从 existing `events` table replay/follow，不新建 event bus 或 `run_events` 表。
 - `mobile/lib/main.dart` 启动当前 Flutter mobile control surface；`mobile/tool/generate_openapi_client.py` 从 `docs/openapi.yaml` 生成 `mobile/lib/src/api/acorn_api.dart`，移动端 app state 只消费 authenticated `/v1` server truth。
-- `.github/workflows/ci.yml` 运行 Go gates 和 mobile Android gates；mobile job 固定 Flutter stable `3.41.6`，校验 generated OpenAPI client，跑 `flutter test` / `flutter analyze` / `flutter build apk --debug`，并上传短期 debug APK artifact。`.github/workflows/release.yml` 在 tag `v*` 或手动 dispatch 时生成并发布当前 self-hosted release tarball 和 signed Android APK；后端矩阵产物覆盖必带 Bleve+FAISS 的 `linux/amd64` 和 `linux/arm64`，mobile 产物为 `acorn_mobile_${VERSION}_android.apk`。`scripts/build-release.sh` / `make release-linux-amd64` / `make release-linux-arm64` 提供 Linux build host 上的本地等价打包，固定使用 `CGO_ENABLED=1` 和 `-tags "bleve_faiss vectors"`；`scripts/build-faiss-artifacts.sh` 构建 Bleve 兼容 FAISS fork 的 pinned checkpoint，并输出 `lib/${GOOS}_${GOARCH}/libfaiss*.so*`。后端包内包含 `acorn` binary、FAISS runtime libraries、`deploy/systemd/acorn.service`、`deploy/systemd/acorn.env.example`、`configs/acorn.selfhosted.example.yaml` 和 onboarding guide；installer 在 Debian/Ubuntu 上安装 OpenBLAS runtime 并校验 release binary/FAISS shared libraries 的动态库闭包。Android release APK 必须由 repository signing secrets 生成，缺失时 workflow 显式失败，不发布 debug-key release fallback。VPS 上的 Linux service 以执行安装脚本的用户作为 systemd `User` 和 `HOME`，使用二进制默认 `~/.acorn/acorn.yaml`；root VPS install 使用 `/root/.acorn` 保存 runtime storage，用 `/srv/acorn/workspace` 作为 operator workspace。
+- `.github/workflows/ci.yml` 运行 Go gates 和 mobile Android gates；mobile job 固定 Flutter stable `3.41.6`，校验 generated OpenAPI client，跑 `flutter test` / `flutter analyze` / `flutter build apk --debug`，并上传短期 debug APK artifact。`.github/workflows/release.yml` 在 tag `v*` 或手动 dispatch 时生成并发布当前 self-hosted release tarball 和 signed Android APK；后端矩阵产物覆盖必带 Bleve+FAISS 的 `linux/amd64` 和 `linux/arm64`，mobile 产物为 `acorn_mobile_${VERSION}_android.apk`。`scripts/build-release.sh` / `make release-linux-amd64` / `make release-linux-arm64` 提供 Linux build host 上的后端本地等价打包，固定使用 `CGO_ENABLED=1` 和 `-tags "bleve_faiss vectors"`；`scripts/build-faiss-artifacts.sh` 构建 Bleve 兼容 FAISS fork 的 pinned checkpoint，并输出 `lib/${GOOS}_${GOARCH}/libfaiss*.so*`。后端包内包含 `acorn` binary、FAISS runtime libraries、`deploy/systemd/acorn.service`、`deploy/systemd/acorn.env.example`、`configs/acorn.selfhosted.example.yaml` 和 onboarding guide；installer 在 Debian/Ubuntu 上安装 OpenBLAS runtime 并校验 release binary/FAISS shared libraries 的动态库闭包。Android release APK 必须由 repository signing secrets 生成，缺失时 workflow 显式失败，不发布 debug-key release fallback。VPS 上的 Linux service 以执行安装脚本的用户作为 systemd `User` 和 `HOME`，使用二进制默认 `~/.acorn/acorn.yaml`；root VPS install 使用 `/root/.acorn` 保存 runtime storage，用 `/srv/acorn/workspace` 作为 operator workspace。
 
 ## 核心术语
 
@@ -53,7 +53,7 @@ operator CLI / authenticated remote clients
 | **Tool lifecycle state** | `internal/contextplane` 管理的 run-scoped 工具可见性状态，记录 loaded tools、deferred tools 和 tool result references；执行前由 `SafeParallelToolsNode` 调 `OnToolCall` 校验，执行后写入 durable `ToolResultLedger`。 |
 | **ToolResultLedger** | `internal/store` ledger contract + SQLite `tool_results` 的工具结果事实层；保存 result ref、arguments、status、preview/full text、side-effect refs 和 evidence refs，是 context rehydration、plan evidence backlink、workbench checkpoint/rollback projection 的共同来源。 |
 | **Device Auth** | Single-owner self-hosted auth boundary：`acorn pair` 通过本地 store 写入一次性 pairing code hash，`POST /v1/devices:pair` 换取一次性展示的 bearer token；SQLite 只保存 token hash，protected `/v1` 请求由 `internal/web` middleware 调 `internal/app.DeviceAuthService` 验证。 |
-| **Self-hosted Onboarding** | GitHub Release 预构建 tarball + VPS/Linux binary + signed Android APK + `systemd` 主路径；tag `v*` 自动生成 `linux/amd64` 和 `linux/arm64` 的 `acorn`、`acorn.service`、`acorn.env.example`、`acorn.yaml.example`、checksum 和 guide，并生成 `acorn_mobile_${VERSION}_android.apk`，本地 `make release-linux-*` 作为后端等价 fallback。VPS 使用安装用户的 `~/.acorn` runtime storage、`/srv/acorn/workspace` operator workspace、`/healthz` process health 和 `acorn pair --qr` pairing payload；`/usr/local/bin/acorn` wrapper 默认让 service-backed operator commands 消费同一个安装用户的默认 `~/.acorn/acorn.yaml`。 |
+| **Self-hosted Onboarding** | GitHub Release 预构建 tarball + VPS/Linux binary + signed Android APK + `systemd` 主路径；tag `v*` 自动生成 `linux/amd64` 和 `linux/arm64` 的 `acorn`、`acorn.service`、`acorn.env.example`、`configs/acorn.selfhosted.example.yaml`、checksum 和 guide，并生成 `acorn_mobile_${VERSION}_android.apk`；本地 `make release-linux-*` 是 Linux build host 上的后端等价打包路径。VPS 使用安装用户的 `~/.acorn` runtime storage、`/srv/acorn/workspace` operator workspace、`/healthz` process health 和 `acorn pair --qr` pairing payload；`/usr/local/bin/acorn` wrapper 默认让 service-backed operator commands 消费同一个安装用户的默认 `~/.acorn/acorn.yaml`。 |
 | **ToolExecutionScheduler** | `internal/runtime/tool/` 的共享调度核；direct_response 和 graph tool execution 都通过它消费 `ToolContract.Execution`，处理 read-only 并发、write-scoped path conflict 和 exclusive sequencing。 |
 | **Deferred tool** | enabled 但首轮未暴露给模型的工具；必须通过 `load_tools` / `DeferredLoad` 加载后才能调用。 |
 | **Run selection policy** | `internal/decision` 的小型选择策略，由 runtime 在 tool-enabled mode 中调用；消费 explicit skill、skill candidates 和 working context，持久化 decision record，返回 selected skill 和 context priority。它不是独立 Plane，也不负责 root mode routing。 |
@@ -80,7 +80,7 @@ operator CLI / authenticated remote clients
 - [runtime-context-memory-decision.md](runtime-context-memory-decision.md)：ContextPlane、MemoryModule、run selection policy、skill retrieval、tool lifecycle。
 - [data-web-store.md](data-web-store.md)：SQLite truth、events/runs/plans/session/workbench、remote client DTO/API responsibility、`/v1` RunEvent replay/follow。
 - [mobile-control-surface.md](mobile-control-surface.md)：Flutter mobile app、generated Dart client、secure connection profile 和移动端事实边界。
-- [self-hosted onboarding guide](../../docs/user/self-hosted-onboarding.md)：VPS binary service、first-run、pairing、remote access、storage 和 backup。
+- [self-hosted onboarding guide](../user/self-hosted-onboarding.md)：VPS binary service、first-run、pairing、remote access、storage 和 backup。
 
 ## 关键边界
 
@@ -100,21 +100,20 @@ operator CLI / authenticated remote clients
 - **OpenAPI 是 wire contract**：remote client DTO 只投影 app/runtime domain；不为内部重构新增 endpoint、改 wire shape 或生成 mobile 假类型。
 - **Client v1 不复用 legacy StreamItem**：remote client 的 live stream fact 是 `/v1` `RunEvent`；runtime internal 可以继续使用 `runtime.StreamItem` 作为执行内部事件形态，但它不是 OpenAPI/generated 或 mobile app source contract。
 - **Remote client 必须设备认证**：除 `/healthz` 和 `POST /v1/devices:pair` 外，`/v1` 只接受 valid device bearer token；missing/malformed/unknown token 返回 `unauthenticated`，revoked token 返回 `device_revoked`。不存在 local/dev fallback。
-- **Self-hosted deployment 不创建第二套运行时**：`systemd` 只启动同一个 `acorn serve`，配置通过 `/etc/acorn/acorn.yaml` 进入同一 app composition root；部署路径不新增 debug-only API、auth bypass、mock provider 或独立 mobile backend。
+- **Self-hosted deployment 不创建第二套运行时**：`systemd` 只启动同一个 `acorn serve`，配置通过安装用户的 `~/.acorn/acorn.yaml` 进入同一 app composition root；root VPS install 使用 `/root/.acorn/acorn.yaml`。部署路径不新增 debug-only API、auth bypass、mock provider 或独立 mobile backend。
 - **Pairing QR 是 payload，不是事实通道**：`acorn pair --qr` 只编码 `server_url`、`pairing_code`、`expires_at`；设备 token 仍只能由 `POST /v1/devices:pair` 一次性交换得到。
 - **Codeintel 已删除**：active backend 没有 `internal/codeintel`、repo-map/symbol 模型工具、codeintel SQLite index 或 `/v1/codeintel/*` client resource。需要代码定位时应使用普通文件/搜索工具或外部 LSP/MCP。
 - **Skills client 面只读**：OpenAPI 只保留 list/get/read-file；create/patch/delete 通过显式 CLI/operator path 处理，不作为 remote client mutation surface。
 - **Legacy `/api` 已删除**：backend 不再注册 `/api` route group；OpenAPI path map 和 generated mobile API 不包含 legacy `/api` paths、operationId 或 legacy-only schemas。不要恢复 `/api -> /v1` alias、compat handler 或 debug-only `/api` surface。
 
-## 重要决定与历史来源
+## 相关开发文档
 
-- [2026-05-02 Acorn-native Frontend Hard Cut](../compound/2026-05-02-decision-acorn-native-frontend-hard-cut.md)：决定前端按 Acorn-native resident client 硬切，不保留旧 UI 兼容层。
-- [2026-05-03 Standard Client Rebuild Execution Locks](../compound/2026-05-03-decision-standard-client-rebuild-execution-locks.md)：决定 Acorn Web 后续以 standard app client 为唯一主线，不保留 resident/fixed shelf 兼容壳。
-- [2026-05-16 Web Client Deletion Cutover](../compound/2026-05-16-decision-web-client-deletion-cutover.md)：决定删除 React/Vite frontend 和 root Node workspace，Flutter mobile 成为唯一产品 control surface。
-- [2026-05-16 VPS Binary Self-hosted Onboarding](../compound/2026-05-16-decision-vps-binary-self-hosted-onboarding.md)：决定 self-hosted onboarding 硬切为 Linux binary + `systemd`，删除容器化发行入口，后续不把容器镜像作为当前或未来部署路径。
-- [2026-05-03 Legacy API Cutover Contract](../compound/2026-05-03-decision-legacy-api-cutover-contract.md)：决定 legacy `/api` 的 route-by-route 删除/迁移路线和执行顺序。
-- [2026-05-04 Resident Companion Home Shell Contract](../compound/2026-05-04-decision-resident-companion-home-shell-contract.md)：决定首页默认形态收束为 companion-first，聊天入口优先，不默认展示 start prompts、常驻 sidebar、右侧 context panel 或能力目录。
-- [runtime-evolution roadmap](../roadmap/runtime-evolution/runtime-evolution-roadmap.md)：历史 runtime evolution 规划来源；同名条目中已迁移的内容以当前 live code 和更新后的 roadmap 为准。
-- [repo-aware-controlled-execution roadmap](../roadmap/repo-aware-controlled-execution/repo-aware-controlled-execution-roadmap.md)：当前 repo-aware planning、evidence、delegation、workbench visibility 和 context tool lifecycle 的有效规划归属。
-- [acorn-native-client-rebuild roadmap](../roadmap/acorn-native-client-rebuild/acorn-native-client-rebuild-roadmap.md)：当前 resident client、visual system、conversation stream、workbench/trace/system surfaces 的来源记录。
-- [self-hosted-mobile-client roadmap](../roadmap/self-hosted-mobile-client/self-hosted-mobile-client-roadmap.md)：新的产品方向入口，规划 single-user self-hosted backend、remote client contract 和 mobile control surface；已落地 device auth、`/v1/inbox`、pending approval source endpoints、Flutter mobile MVP、notification wake-up backend contract 和 VPS binary onboarding path 是 current remote boundary。
+Current-truth architecture lives in this document and the subdocuments above.
+`docs/dev/` only keeps documents that still guide implementation or operation:
+
+- `docs/dev/agent-plan-loop.md`
+- `docs/dev/native-developer-tools-v2.md`
+- `docs/dev/web-access-v1.md`
+
+Completed implementation plans, superseded split sketches, and one-off research
+reports are not retained as architecture contracts.
