@@ -14,7 +14,6 @@ import (
 	"github.com/ycvk/acorn/internal/model"
 	"github.com/ycvk/acorn/internal/providers"
 	"github.com/ycvk/acorn/internal/store"
-	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
 	"github.com/ycvk/acorn/internal/stream"
 	"github.com/ycvk/acorn/internal/workspace"
 )
@@ -415,15 +414,7 @@ func TestParseRollbackSummaryRecordPreservesFailedNonJSONToolResult(t *testing.T
 }
 
 func TestRuntimeWorkbenchServiceLoadFailsLoudOnResumeStatusError(t *testing.T) {
-	traceStore, err := storesqlite.Open(t.TempDir())
-	if err != nil {
-		t.Fatalf("open trace store: %v", err)
-	}
-	t.Cleanup(func() {
-		if err := traceStore.Close(); err != nil {
-			t.Fatalf("close trace store: %v", err)
-		}
-	})
+	traceStore := openTestStore(t)
 	store := &runtimeWorkbenchStoreStub{
 		session: &events.SessionRecord{SessionID: "session_1", Title: "Runtime Workbench"},
 		run: &events.RunRecord{
@@ -450,7 +441,7 @@ func TestRuntimeWorkbenchServiceLoadFailsLoudOnResumeStatusError(t *testing.T) {
 
 func TestRuntimeWorkbenchServiceLoadUsesTraceResumeStatusOnly(t *testing.T) {
 	ctx := context.Background()
-	store := openRuntimeWorkbenchSQLiteStore(t)
+	store := openTestStore(t)
 	if _, err := store.CreateSession(ctx, "session_1", "Runtime Workbench"); err != nil {
 		t.Fatalf("CreateSession: %v", err)
 	}
@@ -578,18 +569,4 @@ func runGitForWorkbenchTest(t *testing.T, root string, args ...string) {
 	if output, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("git %v: %v\n%s", args, err, string(output))
 	}
-}
-
-func openRuntimeWorkbenchSQLiteStore(t *testing.T) *storesqlite.Store {
-	t.Helper()
-	store, err := storesqlite.Open(t.TempDir())
-	if err != nil {
-		t.Fatalf("open sqlite store: %v", err)
-	}
-	t.Cleanup(func() {
-		if err := store.Close(); err != nil {
-			t.Fatalf("close sqlite store: %v", err)
-		}
-	})
-	return store
 }

@@ -24,12 +24,10 @@ var sqliteImportAllowlist = map[string]struct{}{
 	"internal/tools/tools_test.go":                         {},
 	// App/service integration tests validate persisted /v1 projections and
 	// notification/session state against the SQLite store contract.
-	"internal/app/client_service_test.go":            {},
-	"internal/app/helpers_test.go":                   {},
-	"internal/app/notification_service_test.go":      {},
-	"internal/app/pending_action_service_test.go":    {},
-	"internal/app/runtime_workbench_service_test.go": {},
-	"internal/app/session_state_service_test.go":     {},
+	"internal/app/client_service_test.go":         {},
+	"internal/app/helpers_test.go":                {},
+	"internal/app/notification_service_test.go":   {},
+	"internal/app/pending_action_service_test.go": {},
 }
 
 func TestSQLiteStoreImportsStayBehindCompositionRoot(t *testing.T) {

@@ -348,6 +348,13 @@ Validation:
 - `go test ./tests/architecture`
 - `go test ./...`
 
+2026-05-29 Phase 6 result:
+
+1. Kept app projection tests on real SQLite because they verify persisted `/v1` and workbench behavior.
+2. Removed duplicate app test SQLite open helpers from `session_state_service_test.go` and `runtime_workbench_service_test.go`; both now reuse the package-level integration helper.
+3. Replaced direct SQLite type coupling in session-state helper setup with a narrow test interface.
+4. Removed those two files from `sqliteImportAllowlist`; `internal/app/helpers_test.go` remains the single app package SQLite test helper import.
+
 ### Phase 7: Docs and Generated Contracts
 
 1. Update `docs/architecture/` only for current truth after code lands.
