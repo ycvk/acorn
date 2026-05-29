@@ -94,7 +94,7 @@ func runtimeWorkbenchDTOFromDomain(item *app.RuntimeWorkbench) RuntimeWorkbenchD
 		Resumable:           item.Resumable,
 		ResumeReason:        item.ResumeReason,
 		TraceSummary:        item.TraceSummary,
-		SelectedSkill:       selectedSkillDTOFromRuntime(item.SelectedSkill),
+		SelectedSkill:       selectedSkillDTOFromClientProjection(item.SelectedSkill),
 		LatestDecision:      runDecisionDTOFromDomain(item.LatestDecision),
 		SessionSummary:      summaryText(item.SessionSummary),
 		SummaryStatus:       summaryStatus(item.SessionSummary),

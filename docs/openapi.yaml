@@ -3822,8 +3822,6 @@ components:
           type: integer
         plan_event_count:
           type: integer
-        warning_summary:
-          $ref: '#/components/schemas/TraceWarningSummary'
         decision_selected:
           type: boolean
         decision_blocked:
@@ -3836,17 +3834,6 @@ components:
           type: boolean
         completed:
           type: boolean
-
-    TraceWarningSummary:
-      type: object
-      additionalProperties: false
-      properties:
-        file_collision_count:
-          type: integer
-        directory_overlap_count:
-          type: integer
-        unknown_scope_count:
-          type: integer
 
     InterruptRunResponse:
       type: object

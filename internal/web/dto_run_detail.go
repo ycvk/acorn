@@ -5,17 +5,15 @@ import (
 
 	"github.com/ycvk/acorn/internal/app"
 	"github.com/ycvk/acorn/internal/clientevents"
-	"github.com/ycvk/acorn/internal/runtime"
-	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 )
 
 type RunDetailDTO struct {
-	Run       RunDTO                  `json:"run"`
-	Thread    ThreadDTO               `json:"thread"`
-	Events    []clientevents.RunEvent `json:"events"`
-	Workbench *RuntimeWorkbenchDTO    `json:"workbench"`
-	Trace     *runtime.TraceSummary   `json:"trace"`
-	Raw       *RunDetailRawDTO        `json:"raw,omitempty"`
+	Run       RunDTO                     `json:"run"`
+	Thread    ThreadDTO                  `json:"thread"`
+	Events    []clientevents.RunEvent    `json:"events"`
+	Workbench *RuntimeWorkbenchDTO       `json:"workbench"`
+	Trace     *clientevents.TraceSummary `json:"trace"`
+	Raw       *RunDetailRawDTO           `json:"raw,omitempty"`
 }
 
 // RunDetailRawDTO holds raw unsupported events for diagnostic purposes.
@@ -44,34 +42,34 @@ func runDTOFromDomain(run app.Run) RunDTO {
 }
 
 type RuntimeWorkbenchDTO struct {
-	SessionID           string                  `json:"session_id"`
-	Title               string                  `json:"title"`
-	State               runtimeapi.SessionState `json:"state,omitempty"`
-	LatestRunID         string                  `json:"latest_run_id,omitempty"`
-	LatestRunStatus     string                  `json:"latest_run_status,omitempty"`
-	LatestRunMode       string                  `json:"latest_run_mode,omitempty"`
-	LatestRunDepth      int                     `json:"latest_run_depth,omitempty"`
-	ParentRunID         string                  `json:"parent_run_id,omitempty"`
-	Resumable           bool                    `json:"resumable"`
-	ResumeReason        string                  `json:"resume_reason,omitempty"`
-	TraceSummary        *runtime.TraceSummary   `json:"trace_summary,omitempty"`
-	SelectedSkill       *SelectedSkillDTO       `json:"selected_skill,omitempty"`
-	LatestDecision      *RunDecisionDTO         `json:"latest_decision,omitempty"`
-	SessionSummary      string                  `json:"session_summary,omitempty"`
-	SummaryStatus       string                  `json:"summary_status,omitempty"`
-	SummarySourceRunID  string                  `json:"summary_source_run_id,omitempty"`
-	SummaryUpdatedAt    *time.Time              `json:"summary_updated_at,omitempty"`
-	WorkspaceRoot       string                  `json:"workspace_root"`
-	GitStatus           WorkspaceGitStatusDTO   `json:"git_status"`
-	MutationCheckpoints []MutationCheckpointDTO `json:"mutation_checkpoints,omitempty"`
-	RollbackResults     []RollbackSummaryDTO    `json:"rollback_results,omitempty"`
-	ContextEconomy      ContextEconomyDTO       `json:"context_economy"`
-	ProviderUsage       ProviderUsageDTO        `json:"provider_usage"`
-	Artifacts           []ArtifactSummaryDTO    `json:"artifacts,omitempty"`
-	Plan                *PlanDTO                `json:"plan,omitempty"`
-	Evidence            []PlanEvidenceDTO       `json:"evidence,omitempty"`
-	Subagents           []SubagentRunDTO        `json:"subagents,omitempty"`
-	NextStepHint        string                  `json:"next_step_hint,omitempty"`
+	SessionID           string                     `json:"session_id"`
+	Title               string                     `json:"title"`
+	State               clientevents.SessionState  `json:"state,omitempty"`
+	LatestRunID         string                     `json:"latest_run_id,omitempty"`
+	LatestRunStatus     string                     `json:"latest_run_status,omitempty"`
+	LatestRunMode       string                     `json:"latest_run_mode,omitempty"`
+	LatestRunDepth      int                        `json:"latest_run_depth,omitempty"`
+	ParentRunID         string                     `json:"parent_run_id,omitempty"`
+	Resumable           bool                       `json:"resumable"`
+	ResumeReason        string                     `json:"resume_reason,omitempty"`
+	TraceSummary        *clientevents.TraceSummary `json:"trace_summary,omitempty"`
+	SelectedSkill       *SelectedSkillDTO          `json:"selected_skill,omitempty"`
+	LatestDecision      *RunDecisionDTO            `json:"latest_decision,omitempty"`
+	SessionSummary      string                     `json:"session_summary,omitempty"`
+	SummaryStatus       string                     `json:"summary_status,omitempty"`
+	SummarySourceRunID  string                     `json:"summary_source_run_id,omitempty"`
+	SummaryUpdatedAt    *time.Time                 `json:"summary_updated_at,omitempty"`
+	WorkspaceRoot       string                     `json:"workspace_root"`
+	GitStatus           WorkspaceGitStatusDTO      `json:"git_status"`
+	MutationCheckpoints []MutationCheckpointDTO    `json:"mutation_checkpoints,omitempty"`
+	RollbackResults     []RollbackSummaryDTO       `json:"rollback_results,omitempty"`
+	ContextEconomy      ContextEconomyDTO          `json:"context_economy"`
+	ProviderUsage       ProviderUsageDTO           `json:"provider_usage"`
+	Artifacts           []ArtifactSummaryDTO       `json:"artifacts,omitempty"`
+	Plan                *PlanDTO                   `json:"plan,omitempty"`
+	Evidence            []PlanEvidenceDTO          `json:"evidence,omitempty"`
+	Subagents           []SubagentRunDTO           `json:"subagents,omitempty"`
+	NextStepHint        string                     `json:"next_step_hint,omitempty"`
 }
 
 type ThreadDTO struct {

@@ -7,11 +7,11 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/ycvk/acorn/internal/clientevents"
 	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/model"
 	"github.com/ycvk/acorn/internal/providers"
 	"github.com/ycvk/acorn/internal/runtime"
-	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/stream"
 	"github.com/ycvk/acorn/internal/workspace"
@@ -527,15 +527,15 @@ func runtimeWorkbenchNextStepHint(workbench *RuntimeWorkbench) string {
 		return "可以继续当前工作，从上次中断处恢复。"
 	}
 	switch workbench.State {
-	case runtimeapi.SessionStateRunning:
+	case clientevents.SessionStateRunning:
 		return "先查看最近一次轨迹，确认当前运行是否仍在进行中。"
-	case runtimeapi.SessionStateFailed:
+	case clientevents.SessionStateFailed:
 		return "先查看失败轨迹，再决定继续当前工作还是补发新消息。"
-	case runtimeapi.SessionStateCompleted:
+	case clientevents.SessionStateCompleted:
 		return "可以基于当前上下文继续推进，或发送新消息开始下一步。"
-	case runtimeapi.SessionStateInterrupted:
+	case clientevents.SessionStateInterrupted:
 		return "当前运行已中断，先检查中断上下文和最近证据。"
-	case runtimeapi.SessionStateNew:
+	case clientevents.SessionStateNew:
 		return "新建本地会话开始新的工作。"
 	default:
 		if strings.TrimSpace(workbench.LatestRunID) != "" {

@@ -3,18 +3,17 @@ package app
 import (
 	"time"
 
+	"github.com/ycvk/acorn/internal/clientevents"
 	"github.com/ycvk/acorn/internal/decision"
 	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/model"
-	"github.com/ycvk/acorn/internal/runtime"
-	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	"github.com/ycvk/acorn/internal/workspace"
 )
 
 type RuntimeWorkbench struct {
 	SessionID           string
 	Title               string
-	State               runtimeapi.SessionState
+	State               clientevents.SessionState
 	LatestRunID         string
 	LatestRunStatus     events.RunStatus
 	LatestRunMode       string
@@ -22,8 +21,8 @@ type RuntimeWorkbench struct {
 	ParentRunID         string
 	Resumable           bool
 	ResumeReason        string
-	TraceSummary        *runtime.TraceSummary
-	SelectedSkill       *runtime.SelectedSkill
+	TraceSummary        *clientevents.TraceSummary
+	SelectedSkill       *clientevents.SelectedSkill
 	LatestDecision      *decision.Record
 	SessionSummary      *model.SessionSummary
 	WorkspaceRoot       string

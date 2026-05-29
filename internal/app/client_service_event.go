@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/ycvk/acorn/internal/clientevents"
-	"github.com/ycvk/acorn/internal/runtime"
 )
 
 func (s *ClientService) LoadRunEventsAfter(ctx context.Context, runID string, afterSeq int64) ([]clientevents.RunEvent, error) {
@@ -56,7 +55,7 @@ func (s *ClientService) LoadRunEventsForDetail(ctx context.Context, runID string
 	return &clientevents.RunEventDetail{
 		Events:      events,
 		Unsupported: unsupported,
-		Trace:       runtime.BuildTraceSummary(records),
+		Trace:       clientevents.BuildTraceSummary(records),
 	}, nil
 }
 

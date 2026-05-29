@@ -10,7 +10,6 @@ import (
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/memorymodule"
-	"github.com/ycvk/acorn/internal/runtime"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/stream"
 )
@@ -49,7 +48,7 @@ type WorkingCheckpointService interface {
 }
 
 type TraceService interface {
-	Resume(ctx context.Context, runID string, sink stream.StreamSink) (*runtime.Result, error)
+	Resume(ctx context.Context, runID string, sink stream.StreamSink) (*app.RunResult, error)
 }
 
 type CapabilityService interface {
