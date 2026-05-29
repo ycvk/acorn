@@ -159,7 +159,7 @@ func TestSubagentEventKindToStreamKind(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.eventKind, func(t *testing.T) {
-			got := eventKindToStreamKind(tt.eventKind)
+			got := mustProjectEventToStreamItem(t, events.EventRecord{Kind: tt.eventKind}).Kind
 			if got != tt.want {
 				t.Fatalf("eventKindToStreamKind(%q) = %q, want %q", tt.eventKind, got, tt.want)
 			}
@@ -334,7 +334,7 @@ func TestSubagentTraceSummary(t *testing.T) {
 		{Kind: stream.StreamKindSubagentFailed},
 	}
 
-	summary := SummarizeStreamItems(items)
+	summary := stream.SummarizeStreamItems(items)
 	if summary.ItemCount != 3 {
 		t.Fatalf("ItemCount = %d, want 3", summary.ItemCount)
 	}
@@ -363,7 +363,7 @@ func TestSubagentEventRecordRoundtrip(t *testing.T) {
 		CreatedAt: original.CreatedAt,
 	}
 
-	reconstructed := ProjectEventToStreamItem(event)
+	reconstructed := mustProjectEventToStreamItem(t, event)
 	if reconstructed.Kind != stream.StreamKindSubagentStarted {
 		t.Fatalf("reconstructed Kind = %q, want %q", reconstructed.Kind, stream.StreamKindSubagentStarted)
 	}

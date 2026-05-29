@@ -285,7 +285,7 @@ func TestRunnerFactoryEmitsProviderDegraded(t *testing.T) {
 
 	var degradedItem *stream.StreamItem
 	for _, ev := range eventsRaw {
-		item := ProjectEventToStreamItem(ev)
+		item := mustProjectEventToStreamItem(t, ev)
 		if item.Kind == stream.StreamKindProviderDegraded {
 			degradedItem = &item
 			break
@@ -490,7 +490,7 @@ func TestProviderEventCallbackMapsToSpecificKinds(t *testing.T) {
 
 			var found *stream.StreamItem
 			for _, ev := range events {
-				item := ProjectEventToStreamItem(ev)
+				item := mustProjectEventToStreamItem(t, ev)
 				if item.Kind == tt.streamKind {
 					found = &item
 					break
@@ -499,7 +499,7 @@ func TestProviderEventCallbackMapsToSpecificKinds(t *testing.T) {
 			if found == nil {
 				var kinds []string
 				for _, ev := range events {
-					item := ProjectEventToStreamItem(ev)
+					item := mustProjectEventToStreamItem(t, ev)
 					kinds = append(kinds, string(item.Kind))
 				}
 				t.Fatalf("expected stream.StreamItem with Kind %q, got kinds: %v", tt.streamKind, kinds)
@@ -546,7 +546,7 @@ func TestProviderEventCallbackBackgroundPersistence(t *testing.T) {
 
 	var found *stream.StreamItem
 	for _, ev := range events {
-		item := ProjectEventToStreamItem(ev)
+		item := mustProjectEventToStreamItem(t, ev)
 		if item.Kind == stream.StreamKindMCPProviderAdded {
 			found = &item
 			break
@@ -555,7 +555,7 @@ func TestProviderEventCallbackBackgroundPersistence(t *testing.T) {
 	if found == nil {
 		var kinds []string
 		for _, ev := range events {
-			item := ProjectEventToStreamItem(ev)
+			item := mustProjectEventToStreamItem(t, ev)
 			kinds = append(kinds, string(item.Kind))
 		}
 		t.Fatalf("expected background stream.StreamItem with Kind %q, got kinds: %v", stream.StreamKindMCPProviderAdded, kinds)

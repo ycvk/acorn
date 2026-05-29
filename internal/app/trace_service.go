@@ -92,7 +92,7 @@ func runResultFromRuntime(result *runtime.Result) *RunResult {
 	}
 }
 
-func traceSummaryFromRuntime(summary *runtime.TraceSummary) *clientevents.TraceSummary {
+func traceSummaryFromRuntime(summary *stream.TraceSummary) *clientevents.TraceSummary {
 	if summary == nil {
 		return nil
 	}
@@ -127,12 +127,15 @@ func cloneMap(value map[string]any) map[string]any {
 	return out
 }
 
-func (s *TraceService) Trace(ctx context.Context, runID string) (*runtime.Trace, error) {
+func (s *TraceService) Trace(ctx context.Context, runID string) (*stream.Trace, error) {
 	run, items, err := s.loadRunEvents(ctx, runID)
 	if err != nil {
 		return nil, err
 	}
-	trace := runtime.BuildTrace(run, items)
+	trace, err := stream.BuildTrace(run, items)
+	if err != nil {
+		return nil, err
+	}
 	if trace == nil {
 		return nil, nil
 	}
@@ -176,7 +179,7 @@ func (s *TraceService) InferResumeTargets(ctx context.Context, runID string) (ma
 	if !status.Resumable {
 		return nil, fmt.Errorf("%w: %s", runtimeapi.ErrRunNotInterrupted, status.Reason)
 	}
-	contexts, err := runtime.LatestRootInterruptContexts(items)
+	contexts, err := stream.LatestRootInterruptContexts(items)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", runtimeapi.ErrRunNotInterrupted, err)
 	}
@@ -274,7 +277,7 @@ func buildResumeStatus(runID string, run *events.RunRecord, items []events.Event
 
 	switch run.Status {
 	case events.RunStatusInterrupted:
-		interruptIDs, err := runtime.LatestRootInterruptIDs(items)
+		interruptIDs, err := stream.LatestRootInterruptIDs(items)
 		if err != nil {
 			status.Reason = fmt.Sprintf("run %s is interrupted but missing resumable interrupt data: %v", runID, err)
 			return status

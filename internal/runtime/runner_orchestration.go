@@ -48,7 +48,6 @@ func newDefaultOrchestrationPlane(deps defaultOrchestrationPlaneDeps) *orchestra
 		InstructionBuilder:       buildStableInstruction,
 		ToolSchemaChangeDetector: toolSchemaCache.AnyChanged,
 		ToolLifecycleBinder:      deps.bindToolLifecycle,
-		StoreContextBinder:       deps.bindStore,
 		SessionContextBinder:     bindSessionID,
 	})
 }
@@ -228,10 +227,6 @@ func (d defaultOrchestrationPlaneDeps) bindToolLifecycle(
 		return contextplane.WithToolLifecycleContext(ctx, d.contextPlane.ToolResultLedger(), adapter.state, catalog, infos)
 	}
 	return ctx
-}
-
-func (d defaultOrchestrationPlaneDeps) bindStore(ctx context.Context) context.Context {
-	return runtimeapi.WithStore(ctx, d.store)
 }
 
 func bindSessionID(ctx context.Context, sessionID string) context.Context {

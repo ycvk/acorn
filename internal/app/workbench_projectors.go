@@ -11,7 +11,6 @@ import (
 	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/model"
 	"github.com/ycvk/acorn/internal/providers"
-	"github.com/ycvk/acorn/internal/runtime"
 	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/stream"
 	"github.com/ycvk/acorn/internal/workspace"
@@ -34,7 +33,7 @@ func flattenPlanEvidence(plan *model.Plan) []model.PlanEvidence {
 	return evidence
 }
 
-func buildContextEconomySummary(rawEvents []events.EventRecord, records []store.ToolResultRecord) ContextEconomySummary {
+func buildContextEconomySummary(rawEvents []events.EventRecord, records []store.ToolResultRecord) (ContextEconomySummary, error) {
 	summary := ContextEconomySummary{
 		ToolResultCount: len(records),
 		ToolResults:     make([]ContextToolResultSummary, 0, len(records)),
@@ -60,7 +59,10 @@ func buildContextEconomySummary(rawEvents []events.EventRecord, records []store.
 		return summary.ToolResults[i].ResultRef < summary.ToolResults[j].ResultRef
 	})
 
-	trace := runtime.BuildTrace(nil, rawEvents)
+	trace, err := stream.BuildTrace(nil, rawEvents)
+	if err != nil {
+		return ContextEconomySummary{}, err
+	}
 	for _, item := range trace.Items {
 		if pressure := item.GetContextPressure(); pressure != nil {
 			summary.LatestPressure = &ContextPressureSummary{
@@ -90,7 +92,7 @@ func buildContextEconomySummary(rawEvents []events.EventRecord, records []store.
 			summary.ProcedureRefs = appendUniqueStrings(summary.ProcedureRefs, []string{activation.ProcedureRef})
 		}
 	}
-	return summary
+	return summary, nil
 }
 
 func buildArtifactSummaries(records []store.ArtifactRecord) []ArtifactSummary {
@@ -164,18 +166,17 @@ func evidenceRefStrings(items []store.EvidenceRef) []string {
 	return out
 }
 
-func buildSubagentRuns(raw []events.EventRecord) []SubagentRun {
+func buildSubagentRuns(raw []events.EventRecord) ([]SubagentRun, error) {
 	if len(raw) == 0 {
-		return nil
+		return nil, nil
 	}
 	byID := make(map[string]*SubagentRun)
 	order := make([]string, 0)
 	for _, event := range raw {
-		item := runtime.BuildTrace(nil, []events.EventRecord{event}).Items
-		if len(item) == 0 {
-			continue
+		current, err := stream.ProjectEventToStreamItem(event)
+		if err != nil {
+			return nil, err
 		}
-		current := item[0]
 		m := current.Payload
 		if m == nil {
 			continue
@@ -262,7 +263,7 @@ func buildSubagentRuns(raw []events.EventRecord) []SubagentRun {
 	sort.SliceStable(result, func(i, j int) bool {
 		return result[i].UpdatedAt.After(result[j].UpdatedAt)
 	})
-	return result
+	return result, nil
 }
 
 func getString(m map[string]any, key string) string {

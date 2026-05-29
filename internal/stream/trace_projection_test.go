@@ -1,4 +1,4 @@
-package runtime
+package stream
 
 import (
 	"encoding/json"
@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/ycvk/acorn/internal/events"
-	"github.com/ycvk/acorn/internal/stream"
 )
 
 func TestBuildTraceProjectsAndSummarizesItems(t *testing.T) {
@@ -18,20 +17,20 @@ func TestBuildTraceProjectsAndSummarizesItems(t *testing.T) {
 		{Sequence: 3, RunID: "run_1", Kind: "run.completed", CreatedAt: time.Now(), Payload: map[string]any{"message": map[string]any{"role": "assistant", "content": "hi"}}},
 	}
 
-	trace := BuildTrace(run, raw)
+	trace := mustBuildTrace(t, run, raw)
 	if trace == nil || len(trace.Items) != 3 {
 		t.Fatalf("BuildTrace returned %#v", trace)
 	}
 	if trace.Summary == nil || trace.Summary.ItemCount != 3 {
 		t.Fatalf("unexpected summary: %#v", trace.Summary)
 	}
-	if trace.Summary.LastKind != stream.StreamKindRunCompleted {
-		t.Fatalf("LastKind = %q, want %q", trace.Summary.LastKind, stream.StreamKindRunCompleted)
+	if trace.Summary.LastKind != StreamKindRunCompleted {
+		t.Fatalf("LastKind = %q, want %q", trace.Summary.LastKind, StreamKindRunCompleted)
 	}
 }
 
 func TestBuildTraceRoundTripsResumeAndInterruptContract(t *testing.T) {
-	trace := BuildTrace(&events.RunRecord{RunID: "run_3"}, []events.EventRecord{
+	trace := mustBuildTrace(t, &events.RunRecord{RunID: "run_3"}, []events.EventRecord{
 		{
 			Sequence: 1, RunID: "run_3", Kind: "run.interrupted", CreatedAt: time.Now(),
 			Payload: map[string]any{
@@ -86,7 +85,7 @@ func TestBuildTraceRoundTripsResumeAndInterruptContract(t *testing.T) {
 }
 
 func TestBuildTraceProjectsSkillEventsAndSummary(t *testing.T) {
-	trace := BuildTrace(&events.RunRecord{RunID: "run_4"}, []events.EventRecord{
+	trace := mustBuildTrace(t, &events.RunRecord{RunID: "run_4"}, []events.EventRecord{
 		{
 			Sequence: 1, RunID: "run_4", Kind: "skill.discovered", CreatedAt: time.Now(),
 			Payload: map[string]any{
@@ -161,7 +160,7 @@ func TestBuildTraceProjectsSkillEventsAndSummary(t *testing.T) {
 }
 
 func TestBuildTraceProjectsNoSelectionReason(t *testing.T) {
-	trace := BuildTrace(&events.RunRecord{RunID: "run_4b"}, []events.EventRecord{
+	trace := mustBuildTrace(t, &events.RunRecord{RunID: "run_4b"}, []events.EventRecord{
 		{
 			Sequence: 1, RunID: "run_4b", Kind: "skill.discovered", CreatedAt: time.Now(),
 			Payload: map[string]any{
@@ -199,7 +198,7 @@ func TestBuildTraceProjectsNoSelectionReason(t *testing.T) {
 }
 
 func TestBuildTracePreservesFileWriteVerificationOutput(t *testing.T) {
-	trace := BuildTrace(&events.RunRecord{RunID: "run_write_1"}, []events.EventRecord{
+	trace := mustBuildTrace(t, &events.RunRecord{RunID: "run_write_1"}, []events.EventRecord{
 		{
 			Sequence: 1, RunID: "run_write_1", Kind: "tool.call.succeeded", CreatedAt: time.Now(),
 			Payload: map[string]any{
@@ -220,4 +219,27 @@ func TestBuildTracePreservesFileWriteVerificationOutput(t *testing.T) {
 			t.Fatalf("tool output should contain %q, got %s", want, tc.Output)
 		}
 	}
+}
+
+func TestProjectEventToStreamItemRejectsNonObjectPayload(t *testing.T) {
+	_, err := ProjectEventToStreamItem(events.EventRecord{
+		RunID:   "run_bad",
+		Kind:    "agent.message",
+		Payload: []string{"not", "an", "object"},
+	})
+	if err == nil {
+		t.Fatal("ProjectEventToStreamItem returned nil error for non-object payload")
+	}
+	if !strings.Contains(err.Error(), "payload object") {
+		t.Fatalf("error = %v, want payload object context", err)
+	}
+}
+
+func mustBuildTrace(t *testing.T, run *events.RunRecord, raw []events.EventRecord) *Trace {
+	t.Helper()
+	trace, err := BuildTrace(run, raw)
+	if err != nil {
+		t.Fatalf("BuildTrace: %v", err)
+	}
+	return trace
 }
