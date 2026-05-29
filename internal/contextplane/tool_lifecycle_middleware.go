@@ -1,12 +1,10 @@
-package toollifecycle
+package contextplane
 
 import (
 	"context"
 
 	"github.com/cloudwego/eino/adk"
 	"github.com/cloudwego/eino/schema"
-
-	"github.com/ycvk/acorn/internal/contextplane"
 )
 
 type toolLifecycleMiddleware struct {
@@ -32,7 +30,7 @@ func (m *toolLifecycleMiddleware) BeforeModelRewriteState(
 	}
 	copy(cloned.Messages, state.Messages)
 	currentTurn := countConversationTurns(cloned.Messages)
-	cloned.Messages = contextplane.PruneToolMessages(ctx, cloned.Messages, currentTurn)
+	cloned.Messages = PruneToolMessages(ctx, cloned.Messages, currentTurn)
 	return ctx, cloned, nil
 }
 

@@ -113,7 +113,7 @@ Target:
 
 Allowed cleanup:
 
-- Merge `contextplane/compaction` into `contextplane` if import cycles stay clean and tests prove identical behavior.
+- Keep `contextplane/compaction` as a subpackage when the engine/pipeline/rehydration owner remains cohesive and avoids bloating the core context package.
 - Merge `contextplane/toollifecycle` into `contextplane` if the lifecycle state remains explicit and ledger failures remain runtime failures.
 - Remove duplicated helper types after the owner move is complete.
 
@@ -297,16 +297,25 @@ Validation:
 
 ### Phase 4: ContextPlane File Layout Simplification
 
-1. Decide whether `compaction` and `toollifecycle` remain subpackages based on import direction and readability.
-2. If merged, move tests first or in the same patch.
-3. Preserve context boundary schema, BudgetGovernor pressure semantics, and rehydration packet behavior.
-4. Add regression tests before deleting any context packet kind.
+1. Merge `contextplane/toollifecycle` into `contextplane`; the parent package already owns lifecycle state and context binding.
+2. Keep `contextplane/compaction` as a subpackage; it remains the cohesive owner of compaction engine, compression pipeline, middleware builder, prompts, and rehydration planner.
+3. Update runtime tool call sites to use `contextplane.OnToolCall`, `contextplane.OnToolResult`, `contextplane.DeferredLoad`, and `contextplane.ToolCallRejectedError` directly.
+4. Preserve context boundary schema, BudgetGovernor pressure semantics, rehydration packet behavior, and fail-loud ledger writes.
+5. Do not add alias packages or compatibility imports.
 
 Validation:
 
-- `go test ./internal/contextplane ./internal/contextplane/compaction ./internal/contextplane/toollifecycle`
+- `go test ./internal/contextplane ./internal/contextplane/compaction`
 - context boundary SQLite tests
 - reactive compact and proactive compact tests
+
+2026-05-29 Phase 4 result:
+
+1. Merged `contextplane/toollifecycle` into `contextplane`.
+2. Deleted the child package rather than leaving compatibility aliases.
+3. Updated runtime tool call sites to consume the parent package API directly.
+4. Kept `contextplane/compaction` as a subpackage because its engine/pipeline/rehydration owner is still cohesive.
+5. Verified package removal with `go list ./internal/contextplane/...`.
 
 ### Phase 5: MemoryModule Simplification
 

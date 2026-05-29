@@ -1,4 +1,4 @@
-package toollifecycle
+package contextplane
 
 import (
 	"context"
@@ -10,7 +10,6 @@ import (
 
 	"github.com/cloudwego/eino/schema"
 
-	"github.com/ycvk/acorn/internal/contextplane"
 	"github.com/ycvk/acorn/internal/store"
 )
 
@@ -37,12 +36,12 @@ func (e *ToolCallRejectedError) Error() string {
 	return fmt.Sprintf("tool %q rejected by lifecycle: %s", toolName, reason)
 }
 
-func OnToolCall(ctx context.Context, event contextplane.ToolCallEvent) error {
+func OnToolCall(ctx context.Context, event ToolCallEvent) error {
 	toolName := strings.TrimSpace(event.ToolName)
 	if toolName == "" {
 		return errors.New("tool call event requires tool_name")
 	}
-	lifecycleCtx := contextplane.ToolLifecycleContextFromContext(ctx)
+	lifecycleCtx := ToolLifecycleContextFromContext(ctx)
 	if lifecycleCtx == nil || lifecycleCtx.State == nil {
 		return errors.New("tool lifecycle state is not initialized")
 	}
@@ -65,11 +64,11 @@ func OnToolCall(ctx context.Context, event contextplane.ToolCallEvent) error {
 	}
 }
 
-func OnToolResult(ctx context.Context, event contextplane.ToolResultEvent) error {
+func OnToolResult(ctx context.Context, event ToolResultEvent) error {
 	if strings.TrimSpace(event.ToolName) == "" {
 		return errors.New("tool result event requires tool_name")
 	}
-	lifecycleCtx := contextplane.ToolLifecycleContextFromContext(ctx)
+	lifecycleCtx := ToolLifecycleContextFromContext(ctx)
 	if lifecycleCtx == nil || lifecycleCtx.State == nil {
 		return errors.New("tool lifecycle state is not initialized")
 	}
@@ -102,7 +101,7 @@ func OnToolResult(ctx context.Context, event contextplane.ToolResultEvent) error
 	if err != nil {
 		return fmt.Errorf("append tool result ledger: %w", err)
 	}
-	record := contextplane.ToolResultRecord{
+	record := ToolResultRecord{
 		CallID:    strings.TrimSpace(event.CallID),
 		ToolName:  strings.TrimSpace(event.ToolName),
 		TurnIndex: event.TurnIndex,
@@ -112,11 +111,11 @@ func OnToolResult(ctx context.Context, event contextplane.ToolResultEvent) error
 		IsError:   event.IsError,
 		Prunable:  true,
 	}
-	contextplane.UpdateToolResultRecord(lifecycleCtx.State, record)
+	UpdateToolResultRecord(lifecycleCtx.State, record)
 	return nil
 }
 
-func DeferredLoad(ctx context.Context, req contextplane.DeferredLoadRequest) (*contextplane.DeferredLoadResult, error) {
+func DeferredLoad(ctx context.Context, req DeferredLoadRequest) (*DeferredLoadResult, error) {
 	if len(req.ToolNames) == 0 && strings.TrimSpace(req.Query) == "" {
 		return nil, errors.New("deferred load requires tool_names or query")
 	}
@@ -127,7 +126,7 @@ func DeferredLoad(ctx context.Context, req contextplane.DeferredLoadRequest) (*c
 	if limit <= 0 || limit > 5 {
 		return nil, fmt.Errorf("deferred load limit must be between 1 and %d", 5)
 	}
-	lifecycleCtx := contextplane.ToolLifecycleContextFromContext(ctx)
+	lifecycleCtx := ToolLifecycleContextFromContext(ctx)
 	if lifecycleCtx == nil || lifecycleCtx.State == nil {
 		return nil, errors.New("tool lifecycle state is not initialized")
 	}
@@ -146,14 +145,14 @@ func DeferredLoad(ctx context.Context, req contextplane.DeferredLoadRequest) (*c
 	}
 	now := time.Now().UTC()
 	loadedNames := make([]string, 0, len(selected))
-	records := make([]contextplane.DeferredToolRecord, 0, len(selected))
+	records := make([]DeferredToolRecord, 0, len(selected))
 	for _, name := range selected {
 		record, ok := lifecycleCtx.State.DeferredTools[name]
 		if !ok {
 			continue
 		}
 		delete(lifecycleCtx.State.DeferredTools, name)
-		lifecycleCtx.State.LoadedTools[name] = contextplane.LoadedToolRecord{
+		lifecycleCtx.State.LoadedTools[name] = LoadedToolRecord{
 			Name:       name,
 			LoadedAt:   now,
 			LoadSource: "deferred",
@@ -168,14 +167,14 @@ func DeferredLoad(ctx context.Context, req contextplane.DeferredLoadRequest) (*c
 	}
 	sort.Strings(loadedNames)
 	sort.Strings(alreadyLoaded)
-	return &contextplane.DeferredLoadResult{
+	return &DeferredLoadResult{
 		Messages:        messages,
 		LoadedToolNames: loadedNames,
 		AlreadyLoaded:   alreadyLoaded,
 	}, nil
 }
 
-func formatDeferredToolDefinitions(records []contextplane.DeferredToolRecord) *schema.Message {
+func formatDeferredToolDefinitions(records []DeferredToolRecord) *schema.Message {
 	if len(records) == 0 {
 		return nil
 	}
@@ -202,7 +201,7 @@ func formatDeferredToolDefinitions(records []contextplane.DeferredToolRecord) *s
 	return schema.UserMessage(b.String())
 }
 
-func resolveDeferredLoadTargets(lifecycleCtx *contextplane.ToolLifecycleContext, req contextplane.DeferredLoadRequest, limit int) ([]string, []string, error) {
+func resolveDeferredLoadTargets(lifecycleCtx *ToolLifecycleContext, req DeferredLoadRequest, limit int) ([]string, []string, error) {
 	selectedSet := make(map[string]struct{})
 	alreadySet := make(map[string]struct{})
 	for _, raw := range req.ToolNames {
@@ -246,7 +245,7 @@ func resolveDeferredLoadTargets(lifecycleCtx *contextplane.ToolLifecycleContext,
 	return selected, alreadyLoaded, nil
 }
 
-func matchesDeferredToolQuery(record contextplane.DeferredToolRecord, query string) bool {
+func matchesDeferredToolQuery(record DeferredToolRecord, query string) bool {
 	if strings.Contains(strings.ToLower(record.Name), query) {
 		return true
 	}

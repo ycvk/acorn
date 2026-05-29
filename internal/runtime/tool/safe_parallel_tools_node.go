@@ -16,7 +16,6 @@ import (
 	"github.com/cloudwego/eino/compose"
 	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/contextplane"
-	"github.com/ycvk/acorn/internal/contextplane/toollifecycle"
 	"github.com/ycvk/acorn/internal/orchestration"
 	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	"github.com/ycvk/acorn/internal/store"
@@ -97,7 +96,7 @@ func (n *SafeParallelToolsNode) NewStreamingExecutor(ctx context.Context) orches
 func (n *SafeParallelToolsNode) invokeSingle(ctx context.Context, call classifiedCall) (*schema.Message, error) {
 	resultRef := store.BuildToolResultRef(getRunID(ctx), call.toolCall.ID)
 	if err := emitToolCallLifecycle(ctx, call); err != nil {
-		if rejected, ok := errors.AsType[*toollifecycle.ToolCallRejectedError](err); ok {
+		if rejected, ok := errors.AsType[*contextplane.ToolCallRejectedError](err); ok {
 			msg := schema.ToolMessage(rejected.Error(), call.toolCall.ID, schema.WithToolName(call.toolCall.Function.Name))
 			attachToolMessageLedgerMeta(msg, call, resultRef)
 			markToolMessageFailed(msg, rejected.Error())
@@ -229,7 +228,7 @@ func toolCallbackType(tool einotool.InvokableTool) string {
 }
 
 func emitToolCallLifecycle(ctx context.Context, call classifiedCall) error {
-	return toollifecycle.OnToolCall(ctx, contextplane.ToolCallEvent{
+	return contextplane.OnToolCall(ctx, contextplane.ToolCallEvent{
 		RunID:     getRunID(ctx),
 		SessionID: runtimeapi.SessionIDFromContext(ctx),
 		TurnIndex: runtimeapi.TurnIndexFromContext(ctx),
@@ -274,7 +273,7 @@ func emitToolResultLifecycle(ctx context.Context, msg *schema.Message) error {
 			}
 		}
 	}
-	return toollifecycle.OnToolResult(ctx, contextplane.ToolResultEvent{
+	return contextplane.OnToolResult(ctx, contextplane.ToolResultEvent{
 		RunID:        getRunID(ctx),
 		SessionID:    runtimeapi.SessionIDFromContext(ctx),
 		TurnIndex:    runtimeapi.TurnIndexFromContext(ctx),
