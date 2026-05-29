@@ -330,6 +330,12 @@ Validation:
 - semantic rebuild/search tests
 - replay fixture tests for insights/source refs/relations
 
+2026-05-29 Phase 5 result:
+
+1. Kept semantic, Bleve, frontmatter, mutation, history, and procedure-learning files separate because they each own real behavior.
+2. Merged the mechanically split search projection helpers from `search_item.go` and search explain helpers from `explain.go` into `search.go`.
+3. Did not change Record V2 validation, semantic ranking, semantic rebuild, insight source boosts, relation boosts, or replay fixture behavior.
+
 ### Phase 6: Test Boundary Cleanup
 
 1. Tag each SQLite-backed test as integration, projection, or pure logic.
