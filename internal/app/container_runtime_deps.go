@@ -56,16 +56,18 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, store co
 
 	notificationService := NewNotificationService(store, newNotificationRouter(nil))
 	mcpPendingActionStore := NewNotifyingPendingActionStore(store, notificationService)
+	childAgentExecutorFactory := runtime.NewSubagentExecutorFactory(cfg, store, nil)
 
 	runnerFactory, err := runtime.NewRunnerFactory(cfg, store, runtime.RunnerFactoryOptions{
-		Loader:                 loader,
-		Workspace:              ws,
-		DecisionProfileService: decisionProfileService,
-		CheckpointService:      checkpointService,
-		SessionSummaryService:  sessionSummaryService,
-		MemoryModule:           memoryModule,
-		ContextPlane:           contextPlane,
-		MCPPendingActionStore:  mcpPendingActionStore,
+		Loader:                    loader,
+		Workspace:                 ws,
+		DecisionProfileService:    decisionProfileService,
+		CheckpointService:         checkpointService,
+		SessionSummaryService:     sessionSummaryService,
+		MemoryModule:              memoryModule,
+		ContextPlane:              contextPlane,
+		MCPPendingActionStore:     mcpPendingActionStore,
+		ChildAgentExecutorFactory: childAgentExecutorFactory,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("init runner factory: %w", err)

@@ -14,18 +14,14 @@ import (
 	"github.com/ycvk/acorn/internal/tooling"
 )
 
-type modelProviderAssembler struct {
-	factory *RunnerFactory
-}
-
-func (a *modelProviderAssembler) BuildRunChatModel(ctx context.Context, req RunnerBuildRequest) (einomodel.BaseChatModel, error) {
-	if a == nil || a.factory == nil || a.factory.deps.Config == nil {
+func (f *RunnerFactory) buildRunChatModel(ctx context.Context, req RunnerBuildRequest) (einomodel.BaseChatModel, error) {
+	if f == nil || f.deps.Config == nil {
 		return nil, errors.New("runner factory is not initialized")
 	}
-	if a.factory.runChatModelBuilder != nil {
-		return a.factory.runChatModelBuilder(ctx, req)
+	if f.runChatModelBuilder != nil {
+		return f.runChatModelBuilder(ctx, req)
 	}
-	model, provider, err := buildRuntimeChatModelWithProvider(ctx, a.factory.deps.Config, nil)
+	model, provider, err := buildRuntimeChatModelWithProvider(ctx, f.deps.Config, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -35,13 +31,13 @@ func (a *modelProviderAssembler) BuildRunChatModel(ctx context.Context, req Runn
 		ProviderName: provider.Name,
 		ModelName:    provider.Model,
 	}
-	if req.RunID != "" && a.factory.deps.Store != nil {
-		existing, err := a.factory.deps.Store.ListProviderUsagesByRun(ctx, req.RunID)
+	if req.RunID != "" && f.deps.Store != nil {
+		existing, err := f.deps.Store.ListProviderUsagesByRun(ctx, req.RunID)
 		if err == nil {
 			metadata.InitialSequence = uint64(len(existing))
 		}
 	}
-	return providers.WrapModelWithUsage(model, a.factory.deps.Store, metadata)
+	return providers.WrapModelWithUsage(model, f.deps.Store, metadata)
 }
 
 type capabilityAssembly struct {
@@ -49,41 +45,33 @@ type capabilityAssembly struct {
 	capabilities *runCapabilities
 }
 
-type capabilityAssembler struct {
-	factory *RunnerFactory
-}
-
-func (a *capabilityAssembler) BuildRunCapabilities(ctx context.Context, req RunnerBuildRequest) (*capabilityAssembly, error) {
-	if a == nil || a.factory == nil {
+func (f *RunnerFactory) buildRunCapabilityAssembly(ctx context.Context, req RunnerBuildRequest) (*capabilityAssembly, error) {
+	if f == nil {
 		return nil, errors.New("runner factory is not initialized")
 	}
-	mcpManager, err := a.factory.bootstrapRunMCP(ctx, req)
+	mcpManager, err := f.bootstrapRunMCP(ctx, req)
 	if err != nil {
 		return nil, err
 	}
-	capabilities, err := a.factory.buildRunCapabilities(ctx, req.SessionID, mcpManager)
+	capabilities, err := f.buildRunCapabilities(ctx, req.SessionID, mcpManager)
 	if err != nil {
 		return nil, err
 	}
 	return &capabilityAssembly{mcpManager: mcpManager, capabilities: capabilities}, nil
 }
 
-type contextSelectionAssembler struct {
-	factory *RunnerFactory
-}
-
-func (a *contextSelectionAssembler) PrepareMemory(ctx context.Context, req RunnerBuildRequest) (*memorymodule.PrepareResult, error) {
-	if a == nil || a.factory == nil {
+func (f *RunnerFactory) prepareRunMemory(ctx context.Context, req RunnerBuildRequest) (*memorymodule.PrepareResult, error) {
+	if f == nil {
 		return nil, errors.New("runner factory is not initialized")
 	}
-	if a.factory.deps.MemoryModule == nil {
+	if f.deps.MemoryModule == nil {
 		return nil, errors.New("memory module is not initialized")
 	}
 	workspaceSlug := ""
-	if a.factory.deps.Workspace != nil {
-		workspaceSlug = memorymodule.WorkspaceSlug(a.factory.deps.Workspace.Root())
+	if f.deps.Workspace != nil {
+		workspaceSlug = memorymodule.WorkspaceSlug(f.deps.Workspace.Root())
 	}
-	result, err := a.factory.deps.MemoryModule.Prepare(ctx, memorymodule.PrepareRequest{
+	result, err := f.deps.MemoryModule.Prepare(ctx, memorymodule.PrepareRequest{
 		RunID:         req.RunID,
 		SessionID:     req.SessionID,
 		WorkspaceSlug: workspaceSlug,
@@ -93,36 +81,25 @@ func (a *contextSelectionAssembler) PrepareMemory(ctx context.Context, req Runne
 	if err != nil {
 		return nil, fmt.Errorf("prepare memory: %w", err)
 	}
-	if err := emitMemoryPreparedEvent(ctx, a.factory.deps.Store, req, memorymodule.WorkspaceScope(workspaceSlug), result); err != nil {
+	if err := emitMemoryPreparedEvent(ctx, f.deps.Store, req, memorymodule.WorkspaceScope(workspaceSlug), result); err != nil {
 		return nil, err
 	}
 	if result != nil {
-		if err := emitProcedureActivationEvents(ctx, a.factory.deps.Store, req.Sink, req.RunID, result.ProcedureActivations); err != nil {
+		if err := emitProcedureActivationEvents(ctx, f.deps.Store, req.Sink, req.RunID, result.ProcedureActivations); err != nil {
 			return nil, err
 		}
 	}
 	return result, nil
 }
 
-func (a *contextSelectionAssembler) ResolveSelection(
-	ctx context.Context,
-	req RunnerBuildRequest,
-	caps *runCapabilities,
-) (*runSelection, error) {
-	if a == nil || a.factory == nil {
-		return nil, errors.New("runner factory is not initialized")
-	}
-	return a.factory.resolveRunSelection(ctx, req, caps)
-}
-
-func (a *contextSelectionAssembler) AssembleToolContext(
+func (f *RunnerFactory) assembleToolContext(
 	ctx context.Context,
 	req RunnerBuildRequest,
 	caps *runCapabilities,
 	selection *runSelection,
 	memoryPrepared *memorymodule.PrepareResult,
 ) (*contextplane.AssembleResult, error) {
-	if a == nil || a.factory == nil || a.factory.deps.ContextPlane == nil {
+	if f == nil || f.deps.ContextPlane == nil {
 		return nil, errors.New("context plane is not initialized")
 	}
 	if caps == nil {
@@ -131,7 +108,7 @@ func (a *contextSelectionAssembler) AssembleToolContext(
 	if selection == nil {
 		selection = &runSelection{}
 	}
-	result, err := a.factory.deps.ContextPlane.Assemble(ctx, contextplane.AssembleRequest{
+	result, err := f.deps.ContextPlane.Assemble(ctx, contextplane.AssembleRequest{
 		RunID:          req.RunID,
 		SessionID:      req.SessionID,
 		Input:          req.Input,
@@ -146,7 +123,7 @@ func (a *contextSelectionAssembler) AssembleToolContext(
 	}
 	if err := emitProcedureActivationEvents(
 		ctx,
-		a.factory.deps.Store,
+		f.deps.Store,
 		req.Sink,
 		req.RunID,
 		filterProcedureActivationsByPhase(result.ProcedureActivations, memorymodule.ProcedureActivationInjected),
@@ -156,17 +133,17 @@ func (a *contextSelectionAssembler) AssembleToolContext(
 	return result, nil
 }
 
-func (a *contextSelectionAssembler) AssembleDirectContext(
+func (f *RunnerFactory) assembleDirectContext(
 	ctx context.Context,
 	req RunnerBuildRequest,
 	memoryPrepared *memorymodule.PrepareResult,
 	skillSnapshot *skills.Snapshot,
 	catalog *tooling.Catalog,
 ) (*contextplane.AssembleResult, error) {
-	if a == nil || a.factory == nil || a.factory.deps.ContextPlane == nil {
+	if f == nil || f.deps.ContextPlane == nil {
 		return nil, errors.New("context plane is not initialized")
 	}
-	result, err := a.factory.deps.ContextPlane.Assemble(ctx, contextplane.AssembleRequest{
+	result, err := f.deps.ContextPlane.Assemble(ctx, contextplane.AssembleRequest{
 		RunID:          req.RunID,
 		SessionID:      req.SessionID,
 		Input:          req.Input,
@@ -179,7 +156,7 @@ func (a *contextSelectionAssembler) AssembleDirectContext(
 	}
 	if err := emitProcedureActivationEvents(
 		ctx,
-		a.factory.deps.Store,
+		f.deps.Store,
 		req.Sink,
 		req.RunID,
 		filterProcedureActivationsByPhase(result.ProcedureActivations, memorymodule.ProcedureActivationInjected),

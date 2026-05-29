@@ -387,7 +387,7 @@ func TestRuntimeWorkbenchServiceLoadFailsLoudOnProjectionError(t *testing.T) {
 
 	service := NewRuntimeWorkbenchService(RuntimeWorkbenchConfig{}, store, nil)
 	_, err := service.Load(context.Background(), "session_1")
-	if err == nil || err.Error() != "load events boom" {
+	if err == nil || !strings.Contains(err.Error(), "load events for run run_1: load events boom") {
 		t.Fatalf("expected fail-loud events error, got %v", err)
 	}
 }

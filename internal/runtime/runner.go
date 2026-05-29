@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -11,6 +12,7 @@ import (
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/memorymodule"
 	"github.com/ycvk/acorn/internal/model"
+	"github.com/ycvk/acorn/internal/orchestration"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
 	"github.com/ycvk/acorn/internal/tooling"
 	"github.com/ycvk/acorn/internal/workspace"
@@ -29,7 +31,17 @@ type RunnerFactory struct {
 	eventMu     sync.Mutex
 	eventErrors map[string]error
 
-	runChatModelBuilder func(context.Context, RunnerBuildRequest) (einomodel.BaseChatModel, error)
+	runChatModelBuilder       func(context.Context, RunnerBuildRequest) (einomodel.BaseChatModel, error)
+	childAgentExecutorFactory ChildAgentExecutorFactory
+}
+
+type ChildAgentExecutorFactory func(ChildAgentRuntimeDeps) (orchestration.ChildAgentExecutor, error)
+
+type ChildAgentRuntimeDeps struct {
+	RunRuntime           RunRuntime
+	ParentDepth          func(parentRunID string) int
+	CreateChildWorkspace func(context.Context, string) (*workspace.Workspace, error)
+	RuntimeForWorkspace  func(*workspace.Workspace) RunRuntime
 }
 
 const (
@@ -38,19 +50,27 @@ const (
 )
 
 func NewRunnerFactory(cfg *config.Config, store RunnerFactoryStore, opts RunnerFactoryOptions) (*RunnerFactory, error) {
+	if opts.ChildAgentExecutorFactory == nil {
+		return nil, errors.New("child agent executor factory is required")
+	}
 	deps, err := buildRuntimeDeps(cfg, store, opts)
 	if err != nil {
 		return nil, fmt.Errorf("build runtime deps: %w", err)
 	}
-	return assembleRunnerFactory(deps), nil
+	factory := assembleRunnerFactory(deps)
+	factory.childAgentExecutorFactory = opts.ChildAgentExecutorFactory
+	return factory, nil
 }
 
 func (f *RunnerFactory) New(ctx context.Context, req RunnerBuildRequest) (*ActiveRunner, error) {
-	return newRunCoordinator(f).Build(ctx, req)
+	return f.buildRun(ctx, req)
 }
 
 func (f *RunnerFactory) BuildCapabilitySpecs(ctx context.Context) ([]tooling.ToolSpec, error) {
-	childExec := f.newChildAgentExecutor()
+	childExec, err := f.newChildAgentExecutor()
+	if err != nil {
+		return nil, err
+	}
 	toolset, err := f.buildToolset(ctx, "", childExec, true, tooling.ToolProfileRun)
 	if err != nil {
 		return nil, err
@@ -65,18 +85,63 @@ func (f *RunnerFactory) BuildCapabilitySpecs(ctx context.Context) ([]tooling.Too
 	return specs, nil
 }
 
-func (f *RunnerFactory) newChildAgentExecutor() *SubagentExecutor {
-	return NewSubagentExecutor(f.deps.Config, f.deps.Store, f, nil)
+func (f *RunnerFactory) newChildAgentExecutor() (orchestration.ChildAgentExecutor, error) {
+	if f == nil || f.childAgentExecutorFactory == nil {
+		return nil, errors.New("child agent executor factory is not initialized")
+	}
+	childExec, err := f.childAgentExecutorFactory(ChildAgentRuntimeDeps{
+		RunRuntime:           f,
+		ParentDepth:          f.parentRunDepth,
+		CreateChildWorkspace: f.createChildWorkspace,
+		RuntimeForWorkspace:  f.runtimeForWorkspace,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("create child agent executor: %w", err)
+	}
+	if childExec == nil {
+		return nil, errors.New("child agent executor factory returned nil")
+	}
+	return childExec, nil
 }
 
 func (f *RunnerFactory) cloneForWorkspace(ws *workspace.Workspace) *RunnerFactory {
 	cloneDeps := f.deps.CloneForWorkspace(ws)
 	clone := &RunnerFactory{
-		deps:                cloneDeps,
-		registry:            f.registry,
-		runChatModelBuilder: f.runChatModelBuilder,
+		deps:                      cloneDeps,
+		registry:                  f.registry,
+		runChatModelBuilder:       f.runChatModelBuilder,
+		childAgentExecutorFactory: f.childAgentExecutorFactory,
 	}
 	return clone
+}
+
+func (f *RunnerFactory) parentRunDepth(parentRunID string) int {
+	if f == nil || f.registry == nil {
+		return 0
+	}
+	if rc, ok := f.registry.Get(strings.TrimSpace(parentRunID)); ok {
+		return rc.Depth
+	}
+	return 0
+}
+
+func (f *RunnerFactory) createChildWorkspace(ctx context.Context, subRunID string) (*workspace.Workspace, error) {
+	if f == nil || f.deps.Workspace == nil {
+		return nil, errors.New("child worktree requires an initialized workspace")
+	}
+	worktree, err := f.deps.Workspace.CreateChildWorktree(ctx, subRunID)
+	if err != nil {
+		return nil, fmt.Errorf("create child worktree: %w", err)
+	}
+	childWorkspace, err := f.deps.Workspace.OpenWorktree(worktree)
+	if err != nil {
+		return nil, fmt.Errorf("open child worktree: %w", err)
+	}
+	return childWorkspace, nil
+}
+
+func (f *RunnerFactory) runtimeForWorkspace(ws *workspace.Workspace) RunRuntime {
+	return f.cloneForWorkspace(ws)
 }
 
 func (f *RunnerFactory) Registry() *Registry {

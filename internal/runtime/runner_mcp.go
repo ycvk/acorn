@@ -57,7 +57,10 @@ func (f *RunnerFactory) getOrCreateMCPManager(ctx context.Context, providerConfi
 		f.cachedManager = mgr
 		f.lastSessionOverlay = sessionOverlay
 
-		childExec := f.newChildAgentExecutor()
+		childExec, err := f.newChildAgentExecutor()
+		if err != nil {
+			return nil, err
+		}
 		mgr.SetSamplingExecutor(subagentExecutorAdapter{exec: childExec})
 
 		return mgr, nil

@@ -75,6 +75,7 @@ Tool runtime contract lives in `internal/tooling.ToolContract`. Runtime tool bui
 - graph builders：`internal/runtime/plan` 的 `BuildAgentGraph` 与 `BuildPlanExecuteGraph`。
 - handlers builder：ContextPlane compaction middleware adapter + runtime custom handlers；旧 runtime sliding window middleware 已删除。
 - context binders：store、session id、tool lifecycle context。
+- child-agent executor：`RunnerFactoryOptions.ChildAgentExecutorFactory` 是必填装配依赖；app composition root 当前注入 `NewSubagentExecutorFactory`。RunnerFactory 只把 `ChildAgentRuntimeDeps` 交给注入 factory：`RunRuntime`、parent-depth resolver、child-workspace creator、workspace-runtime factory；factory 不接收完整 `*RunnerFactory`，`NewSubagentExecutor` 缺必需依赖会直接失败。
 - context session：Executor Bootstrap 后挂在 `ActiveRunner` 并绑定到 root execution context；direct_response 内部 message loop 通过 ContextSession 统一，graph modes 的 internal control prompts 不进入 session history。
 
 这些是装配细节，不改变 root mode 语义。

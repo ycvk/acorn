@@ -170,7 +170,10 @@ type runSelection struct {
 }
 
 func (f *RunnerFactory) buildRunCapabilities(ctx context.Context, sessionID string, mcpManager *mcpprovider.Manager) (*runCapabilities, error) {
-	childExec := f.newChildAgentExecutor()
+	childExec, err := f.newChildAgentExecutor()
+	if err != nil {
+		return nil, err
+	}
 	toolset, err := f.buildRunToolset(ctx, sessionID, childExec)
 	if err != nil {
 		return nil, err
@@ -395,6 +398,10 @@ func (f *RunnerFactory) buildPlanExecuteAssembly(
 	if err != nil {
 		return nil, err
 	}
+	childExec, err := f.newChildAgentExecutor()
+	if err != nil {
+		return nil, err
+	}
 	return f.deps.Orchestration.BuildPlanExecute(ctx, orchestration.PlanExecuteRequest{
 		AgentName:         f.deps.Config.Agent.Name,
 		AgentDescription:  f.deps.Config.Agent.Description,
@@ -406,7 +413,7 @@ func (f *RunnerFactory) buildPlanExecuteAssembly(
 		AllowedToolNames:  append([]string(nil), req.AllowedToolNames...),
 		ExcludedToolNames: append([]string(nil), req.ExcludedToolNames...),
 		InstructionSuffix: instructionSuffix,
-		ChildExecutor:     f.newChildAgentExecutor(),
+		ChildExecutor:     childExec,
 	})
 }
 
