@@ -24,7 +24,7 @@ type ClientService interface {
 	CreateMessage(ctx context.Context, threadID, content string) (*app.Message, error)
 	CreateRun(ctx context.Context, threadID, skillID, mode string) (*app.Run, error)
 	GetRun(ctx context.Context, runID string) (*app.Run, error)
-	LoadRunEventsAfter(ctx context.Context, runID string, afterSeq int64) ([]clientevents.RunEvent, error)
+	LoadRunEventsAfter(ctx context.Context, runID string, afterSeq int64) (*clientevents.RunEventBatch, error)
 	LoadRunEventsForDetail(ctx context.Context, runID string) (*clientevents.RunEventDetail, error)
 	RunIsTerminal(ctx context.Context, runID string) (bool, error)
 	InterruptRun(ctx context.Context, runID string) error

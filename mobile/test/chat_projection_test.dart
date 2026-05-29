@@ -215,70 +215,6 @@ void main() {
     },
   );
 
-  test('suppresses routine run trace events from chat activity', () {
-    for (final type in const [
-      'memory.prepared',
-      'tool.call.started',
-      'tool.call.progress',
-      'tool.call.succeeded',
-      'tool.call.failed',
-      'skill.selected',
-      'skill.loaded',
-      'procedure.activation',
-      'plan.created',
-      'step.started',
-      'step.completed',
-      'subagent.started',
-      'subagent.completed',
-    ]) {
-      expect(
-        activityFromEvent(
-          _event(type, {
-            'tool_call': {
-              'call_id': 'call_1',
-              'name': 'run_command',
-              'delta': 'ok',
-              'error': 'failed',
-            },
-          }),
-        ),
-        isNull,
-        reason: type,
-      );
-    }
-  });
-
-  test('keeps native workflow tool progress out of chat activity', () {
-    for (final toolName in const [
-      'multi_edit',
-      'run_verification',
-      'git_summary',
-      'artifact_write',
-    ]) {
-      for (final type in const [
-        'tool.call.started',
-        'tool.call.progress',
-        'tool.call.succeeded',
-        'tool.call.failed',
-      ]) {
-        expect(
-          activityFromEvent(
-            _event(type, {
-              'tool_call': {
-                'call_id': 'call_$toolName',
-                'name': toolName,
-                'delta': '$toolName output',
-                'error': '$toolName failed',
-              },
-            }),
-          ),
-          isNull,
-          reason: '$type $toolName',
-        );
-      }
-    }
-  });
-
   test('shows terminal run failure in chat activity', () {
     final event = _event('run.failed', {
       'error': 'provider api key is missing',
@@ -292,20 +228,42 @@ void main() {
     expect(item.detail, 'provider api key is missing');
   });
 
-  test('suppresses context pressure in chat activity', () {
-    final event = _event('context.pressure', {
-      'context_pressure': {'state': 'warning', 'percent_used': 78},
+  test('shows owner question in chat activity', () {
+    final event = _event('operator_question.pending', {
+      'action_id': 'action_1',
+      'question': 'Ship this change?',
     });
 
-    expect(activityFromEvent(event), isNull);
+    final item = activityFromEvent(event);
+
+    expect(item, isNotNull);
+    expect(item!.text, 'Question pending');
+    expect(item.detail, 'Ship this change?');
   });
 
-  test('suppresses context compressed in chat activity', () {
-    final event = _event('context.compressed', {
-      'context_compressed': {'summary_snippet': 'older turns summarized'},
+  test('shows elicitation message in chat activity', () {
+    final event = _event('elicitation.pending', {
+      'request_id': 'request_1',
+      'message': 'Pick a workspace root.',
     });
 
-    expect(activityFromEvent(event), isNull);
+    final item = activityFromEvent(event);
+
+    expect(item, isNotNull);
+    expect(item!.text, 'Input requested');
+    expect(item.detail, 'Pick a workspace root.');
+  });
+
+  test('shows decision blocked reason in chat activity', () {
+    final event = _event('decision_blocked', {
+      'decision_reason': 'No approval decision was recorded.',
+    });
+
+    final item = activityFromEvent(event);
+
+    expect(item, isNotNull);
+    expect(item!.text, 'Decision blocked');
+    expect(item.detail, 'No approval decision was recorded.');
   });
 }
 

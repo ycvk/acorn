@@ -184,7 +184,6 @@ void main() {
               ],
             },
             'trace': null,
-            'raw': {'unsupported_events': []},
           }),
           200,
         );

@@ -278,9 +278,7 @@ ChatRunStatus statusFromTerminalEvent(RunEvent event) {
 }
 
 ChatItem? activityFromEvent(RunEvent event) {
-  if (event.type == 'assistant.delta' ||
-      event.type == 'context.pressure' ||
-      event.type == 'context.compressed') {
+  if (event.type == 'assistant.delta') {
     return null;
   }
   if (!_shouldShowActivityInChat(event.type)) {
@@ -312,10 +310,8 @@ bool _shouldShowActivityInChat(String eventType) {
     'run.interrupted' ||
     'run.resume_requested' ||
     'elicitation.pending' ||
-    'decision_blocked' ||
-    'skill.failed' ||
-    'step.failed' ||
-    'subagent.failed' => true,
+    'operator_question.pending' ||
+    'decision_blocked' => true,
     _ => false,
   };
 }
@@ -323,95 +319,49 @@ bool _shouldShowActivityInChat(String eventType) {
 String _activityLabel(RunEvent event) {
   return switch (event.type) {
     'run.started' => 'Run started',
-    'tool.call.started' => 'Tool started',
-    'tool.call.progress' => 'Tool output',
-    'tool.call.succeeded' => 'Tool completed',
-    'tool.call.failed' => 'Tool failed',
-    'tool.call.interrupted' => 'Tool interrupted',
     'run.failed' => 'Run failed',
     'run.interrupted' => 'Run interrupted',
     'run.resume_requested' => 'Resume requested',
     'elicitation.pending' => 'Input requested',
     'elicitation.decided' => 'Input answered',
-    'decision_selected' => 'Decision selected',
+    'operator_question.pending' => 'Question pending',
+    'operator_question.decided' => 'Question answered',
     'decision_blocked' => 'Decision blocked',
-    'skill.discovered' => 'Skill discovered',
-    'skill.selected' => 'Skill selected',
-    'skill.loaded' => 'Skill loaded',
-    'skill.failed' => 'Skill failed',
-    'skill.lifecycle' => 'Skill lifecycle',
-    'procedure.activation' => 'Procedure activated',
-    'memory.prepared' => 'Memory prepared',
-    'context.pressure' => 'Context pressure',
-    'context.compressed' => 'Context compressed',
-    'plan.created' => 'Plan created',
-    'plan.updated' => 'Plan updated',
-    'plan.cleared' => 'Plan cleared',
-    'step.started' => 'Step started',
-    'step.completed' => 'Step completed',
-    'step.failed' => 'Step failed',
-    'subagent.started' => 'Subagent started',
-    'subagent.completed' => 'Subagent completed',
-    'subagent.failed' => 'Subagent failed',
     _ => event.type,
   };
 }
 
 String? _activityDetail(RunEvent event) {
   final data = event.data;
-  final tool = data['tool_call'];
-  if (tool is Map) {
-    final name = tool['name'];
-    final delta = tool['delta'];
-    final error = tool['error'];
-    final parts = <String>[
-      if (name is String && name.isNotEmpty) name,
-      if (delta is String && delta.trim().isNotEmpty) delta.trim(),
-      if (error is String && error.trim().isNotEmpty) error.trim(),
-    ];
-    return parts.isEmpty ? null : parts.join(' · ');
-  }
-
-  final step = data['step'];
-  if (step is Map) {
-    final title = step['title'] ?? step['id'];
-    return title is String && title.isNotEmpty ? title : null;
-  }
-
-  final skill = data['skill'];
-  if (skill is Map) {
-    final name = skill['name'] ?? skill['id'];
-    return name is String && name.isNotEmpty ? name : null;
-  }
-
-  final procedure = data['procedure'];
-  if (procedure is Map) {
-    final name = procedure['name'] ?? procedure['id'];
-    return name is String && name.isNotEmpty ? name : null;
-  }
 
   final error = data['error'];
   if (error is String && error.trim().isNotEmpty) {
     return error.trim();
   }
 
-  final pressure = _record(data['context_pressure']);
-  if (pressure != null) {
-    final parts = <String>[];
-    final state = pressure['state'];
-    if (state is String && state.isNotEmpty) {
-      parts.add(state);
-    }
-    final percent = pressure['percent_used'];
-    if (percent is num) {
-      parts.add('${percent.round()}%');
-    }
-    return parts.isEmpty ? null : parts.join(' · ');
+  final message = data['message'];
+  if (message is String && message.trim().isNotEmpty) {
+    return message.trim();
+  }
+
+  final question = data['question'];
+  if (question is String && question.trim().isNotEmpty) {
+    return question.trim();
+  }
+
+  final answer = data['answer'];
+  if (answer is String && answer.trim().isNotEmpty) {
+    return answer.trim();
   }
 
   final reason = data['reason'];
   if (reason is String && reason.trim().isNotEmpty) {
     return reason.trim();
+  }
+
+  final decisionReason = data['decision_reason'];
+  if (decisionReason is String && decisionReason.trim().isNotEmpty) {
+    return decisionReason.trim();
   }
 
   return null;

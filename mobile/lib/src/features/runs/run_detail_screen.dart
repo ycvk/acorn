@@ -125,6 +125,7 @@ class _RunDetailBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final run = detail.run;
+    final diagnosticCount = detail.events.length;
     final threadTitle = detail.thread.title.trim().isEmpty
         ? 'Thread ${shortId(detail.thread.id)}'
         : detail.thread.title.trim();
@@ -161,7 +162,7 @@ class _RunDetailBody extends StatelessWidget {
                 ),
               ),
               icon: const Icon(Icons.bug_report_outlined),
-              label: Text('Diagnostics (${detail.events.length})'),
+              label: Text('Diagnostics ($diagnosticCount)'),
             ),
           ),
         ),
@@ -195,14 +196,15 @@ class _RunDiagnosticsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final important = _importantEvents(detail.events);
-    final counts = _eventTypeCounts(detail.events);
+    final counts = _eventTypeCounts(detail.events.map((event) => event.type));
+    final totalCount = detail.events.length;
     return Scaffold(
       appBar: AppBar(title: Text('Diagnostics ${shortId(detail.run.id)}')),
       body: ListView(
         children: [
           AcornPageIntro(
             icon: Icons.bug_report_outlined,
-            title: '${detail.events.length} backend events',
+            title: '$totalCount backend events',
             body: 'Diagnostics are separated from the product flow.',
             tone: AcornStatusTone.neutral,
           ),
@@ -259,7 +261,7 @@ AcornStatusTone _eventTone(RunEvent event) {
   if (event.type.endsWith('.failed') || event.type == 'run.failed') {
     return AcornStatusTone.error;
   }
-  if (event.type == 'run.interrupted' || event.type == 'context.pressure') {
+  if (event.type == 'run.interrupted') {
     return AcornStatusTone.warning;
   }
   if (event.type == 'run.completed') {
@@ -279,21 +281,6 @@ IconData _statusIcon(String status) {
 }
 
 IconData _eventIcon(RunEvent event) {
-  if (event.type.startsWith('tool.call.')) {
-    return Icons.build_outlined;
-  }
-  if (event.type.startsWith('skill.')) {
-    return Icons.extension_outlined;
-  }
-  if (event.type.startsWith('plan.') || event.type.startsWith('step.')) {
-    return Icons.account_tree_outlined;
-  }
-  if (event.type.startsWith('context.')) {
-    return Icons.compress_outlined;
-  }
-  if (event.type.startsWith('memory.')) {
-    return Icons.psychology_alt_outlined;
-  }
   if (event.type == 'assistant.delta' || event.type == 'agent.message') {
     return Icons.chat_bubble_outline;
   }
@@ -314,10 +301,10 @@ List<RunEvent> _importantEvents(List<RunEvent> events) {
       .toList(growable: false);
 }
 
-Map<String, int> _eventTypeCounts(List<RunEvent> events) {
+Map<String, int> _eventTypeCounts(Iterable<String> eventTypes) {
   final counts = <String, int>{};
-  for (final event in events) {
-    counts.update(event.type, (count) => count + 1, ifAbsent: () => 1);
+  for (final type in eventTypes) {
+    counts.update(type, (count) => count + 1, ifAbsent: () => 1);
   }
   final entries = counts.entries.toList()
     ..sort((left, right) {

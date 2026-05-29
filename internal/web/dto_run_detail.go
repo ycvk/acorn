@@ -13,12 +13,6 @@ type RunDetailDTO struct {
 	Events    []clientevents.RunEvent    `json:"events"`
 	Workbench *RuntimeWorkbenchDTO       `json:"workbench"`
 	Trace     *clientevents.TraceSummary `json:"trace"`
-	Raw       *RunDetailRawDTO           `json:"raw,omitempty"`
-}
-
-// RunDetailRawDTO holds raw unsupported events for diagnostic purposes.
-type RunDetailRawDTO struct {
-	UnsupportedEvents []clientevents.UnsupportedRunEvent `json:"unsupported_events"`
 }
 
 // InterruptRunResponse is returned after requesting a run interruption.

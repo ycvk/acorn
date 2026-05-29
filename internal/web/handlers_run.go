@@ -84,9 +84,6 @@ func (s *Server) handleClientRunDetail(w http.ResponseWriter, r *http.Request) {
 		Workbench: runtimeWorkbenchDTOPointer(workbench),
 		Trace:     eventDetail.Trace,
 	}
-	if len(eventDetail.Unsupported) > 0 {
-		detail.Raw = &RunDetailRawDTO{UnsupportedEvents: eventDetail.Unsupported}
-	}
 	s.respondJSON(w, r, http.StatusOK, detail)
 }
 
@@ -102,7 +99,7 @@ func (s *Server) handleRunEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	runID := chi.URLParam(r, "run_id")
-	items, err := s.client.LoadRunEventsAfter(r.Context(), runID, afterSeq)
+	batch, err := s.client.LoadRunEventsAfter(r.Context(), runID, afterSeq)
 	if err != nil {
 		s.respondClientKnownError(w, r, err)
 		return
@@ -112,8 +109,8 @@ func (s *Server) handleRunEvents(w http.ResponseWriter, r *http.Request) {
 		s.respondInternalError(w, r, err)
 		return
 	}
-	lastSeq := afterSeq
-	if len(items) == 0 {
+	lastSeq := batch.CursorSeq
+	if len(batch.Events) == 0 {
 		writer.Start()
 		if !follow {
 			return
@@ -121,7 +118,7 @@ func (s *Server) handleRunEvents(w http.ResponseWriter, r *http.Request) {
 		s.followRunEvents(r, writer, runID, lastSeq)
 		return
 	}
-	for _, item := range items {
+	for _, item := range batch.Events {
 		if err := writer.Sink(item); err != nil {
 			if !writer.started {
 				s.respondInternalError(w, r, err)
@@ -130,7 +127,6 @@ func (s *Server) handleRunEvents(w http.ResponseWriter, r *http.Request) {
 			s.logInternalError(r, "client_sse_backlog_write_failed", err)
 			return
 		}
-		lastSeq = item.Seq
 	}
 	if !follow {
 		return
@@ -148,24 +144,24 @@ func (s *Server) followRunEvents(r *http.Request, writer *clientSSEWriter, runID
 		case <-r.Context().Done():
 			return
 		case <-ticker.C:
-			items, err := s.client.LoadRunEventsAfter(r.Context(), runID, lastSeq)
+			batch, err := s.client.LoadRunEventsAfter(r.Context(), runID, lastSeq)
 			if err != nil {
 				s.logInternalError(r, "client_sse_follow_load_failed", err)
 				return
 			}
-			for _, item := range items {
+			lastSeq = batch.CursorSeq
+			for _, item := range batch.Events {
 				if err := writer.Sink(item); err != nil {
 					s.logInternalError(r, "client_sse_follow_write_failed", err)
 					return
 				}
-				lastSeq = item.Seq
 			}
 			terminal, err := s.client.RunIsTerminal(r.Context(), runID)
 			if err != nil {
 				s.logInternalError(r, "client_sse_follow_status_failed", err)
 				return
 			}
-			if terminal && len(items) == 0 {
+			if terminal && len(batch.Events) == 0 {
 				return
 			}
 		}

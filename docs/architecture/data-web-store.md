@@ -113,7 +113,7 @@ Native skill creation and curation now run through runtime tools rather than Web
 - threads
 - messages
 - runs
-- persisted run-event stream
+- mobile live run-event stream
 - pending-action list/detail/decisions
 - mobile inbox aggregate
 - run detail aggregate
@@ -124,7 +124,9 @@ Native skill creation and curation now run through runtime tools rather than Web
 
 RunDetail workbench projection also includes mutation checkpoint and rollback summaries derived from `tool_results.side_effects_json` and rollback tool outputs. Clients do not derive these from message text, local git state, or assistant prose.
 
-RunEvent projection is strict: known event kinds must parse to typed payloads, corrupt payloads fail projection, and live stream does not invent terminal events. `after_seq` is the exclusive persisted cursor over SQLite `events.sequence`; clients persist `{run_id,last_seq}`, receive backlog before foreground follow events, and do not maintain a second run-event truth store.
+RunEvent projection is strict and intentionally narrow. `/v1/runs/{run_id}/events` emits only the mobile live subset: run lifecycle, assistant deltas/messages, terminal status, resume requests, elicitation/operator-question events, and `decision_blocked`. Runtime trace events such as tool progress, skill/procedure lifecycle, memory preparation, context pressure/compression, plan/step updates, subagents, MCP lifecycle, and sampling remain persisted diagnostics in SQLite and aggregate into trace/workbench summaries; they are not part of the live mobile contract or raw `/v1` RunDetail payload.
+
+`after_seq` is the exclusive persisted cursor over SQLite `events.sequence`. Because the endpoint filters diagnostics, the server may advance the returned polling cursor across persisted events it did not emit. Clients persist `{run_id,last_seq}`, receive backlog before foreground follow events, and do not maintain a second run-event truth store.
 
 `memory.prepared` is runtime trace truth for prepared file-backed memory. The old `memory.lens` client projection and run-detail `memory_trace` aggregate are removed.
 

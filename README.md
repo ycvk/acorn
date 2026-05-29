@@ -132,7 +132,7 @@ Remote clients use the authenticated `/v1` API. Common endpoints include:
 | `POST /v1/threads` | Create a thread |
 | `POST /v1/threads/{thread_id}/messages` | Append a user message |
 | `POST /v1/threads/{thread_id}/runs` | Start a run |
-| `GET /v1/runs/{run_id}/events?follow=true` | Replay and follow run events |
+| `GET /v1/runs/{run_id}/events?follow=true` | Replay and follow mobile live run events |
 | `GET /v1/runs/{run_id}/detail` | Fetch a full run detail view |
 | `GET /v1/pending-actions` | List pending approvals |
 | `POST /v1/pending-actions/{action_id}:decide` | Accept or decline a pending action |

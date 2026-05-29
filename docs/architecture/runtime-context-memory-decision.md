@@ -28,7 +28,7 @@ Tool lifecycle state is derived from `tooling.ToolContract`, not tool-name hard-
 
 Tool result truth is now durable and ledger-backed. `ContextPlane.OnToolResult` writes each tool result to SQLite `tool_results` through the `internal/store.ToolResultLedger` contract, using a deterministic `tool_result_ref` plus preview, full text, token estimate, status, arguments, side-effect refs, and evidence refs. Workspace mutation checkpoint and rollback side effects ride on the same refs. The lifecycle state keeps the same durable ref in `RecentResults`; missing ledger wiring is a runtime failure, not a fallback.
 
-Procedure activation is a runtime trace, not a second durable procedure store. `memorymodule.Prepare` emits matched/selected/rejected `ProcedureActivation` records, ContextPlane appends injected activations only for procedure entries actually attached to the memory context, and runtime emits selected/used activations for executable skills chosen by Decision. These activations are projected as persisted `procedure.activation` RunEvents; they do not block execution or infer whether the model semantically followed a procedure.
+Procedure activation is a runtime trace, not a second durable procedure store. `memorymodule.Prepare` emits matched/selected/rejected `ProcedureActivation` records, ContextPlane appends injected activations only for procedure entries actually attached to the memory context, and runtime emits selected/used activations for executable skills chosen by Decision. These activations are persisted as diagnostic `procedure.activation` events; they do not enter the mobile live RunEvent subset, block execution, or infer whether the model semantically followed a procedure.
 
 Working checkpoints are owned by `internal/workingstate`. The `update_working_checkpoint` and `clear_working_checkpoint` tools are built there and registered by runtime as working-state tools, not as durable memory-module behavior.
 
@@ -42,7 +42,7 @@ ContextPlane initial assembly uses the same `TokenCounter` implementation as Bud
 
 Tool result messages are no longer passed through a character-count `toolOutputCompressor` before model calls. Current turn tool output remains the real tool result. When a tool result ages out of the live turn window, the lifecycle middleware replaces it with a durable `tool_result_ref` marker instead of a head/tail preview.
 
-Client-visible context pressure is a projection of the same `BudgetPressure` value. `context.pressure` RunEvents carry backend state, token usage, effective window, and thresholds; mobile code consumes those fields directly and does not estimate pressure from message length or token counters.
+Context pressure visibility is a projection of the same `BudgetPressure` value. `context.pressure` diagnostic events carry backend state, token usage, effective window, and thresholds; mobile code does not estimate pressure from message length or token counters.
 
 `ContextSession` is the root-run model input owner. Runtime bootstraps each run from ContextPlane assembly plus initial user messages, returns copied `ModelInput` values, binds the session into the root runner execution context, and records direct_response assistant/tool messages through `RecordAssistant` and `RecordToolResults`. For direct_response, the stable instruction is a leading system message in ContextSession bootstrap, not a local prepend in the agent loop. Resume does not read old sliding-window markers or reconstruct boundaries from event payloads.
 
@@ -174,13 +174,13 @@ Old `memory.blocks`, `memory.facts`, `memory.end_of_run`, `memory.background_rev
 - Canonical memory reads use Record V2 metadata and active selection; clients must not infer active status, relation resolution, or provenance from raw markdown.
 - Procedure durable truth is file-backed `memorymodule/skills/` with `ProcedureRecord` schema; there is no SQLite procedure table or compatibility reader for old procedure origins.
 - Agent-written procedure drafts must be `origin: agent_draft`, `status: unverified`, and include `source_run`; action-verified procedures must include `source_run` plus `evidence_refs`.
-- Procedure activation truth is observable through `procedure.activation` RunEvents; matched/selected/rejected come from memorymodule, injected comes from ContextPlane attachment, and selected/used executable-skill activations come from Decision/skill selection.
-- Native skill lifecycle truth is observable through `skill.lifecycle` RunEvents and file-backed skill frontmatter. Generated/workspace/user skills can be curated by `skill_assess`; release seed updates are delivered by the installer.
+- Procedure activation truth is observable through persisted diagnostic `procedure.activation` events; matched/selected/rejected come from memorymodule, injected comes from ContextPlane attachment, and selected/used executable-skill activations come from Decision/skill selection.
+- Native skill lifecycle truth is observable through persisted diagnostic `skill.lifecycle` events and file-backed skill frontmatter. Generated/workspace/user skills can be curated by `skill_assess`; release seed updates are delivered by the installer.
 - Memory insights route retrieval back to canonical facts, skills, and history; they are not durable facts, executable skills, or history records themselves.
 - ContextPlane does not know old memory store internals.
 - Context compact/resume work must use persisted context boundaries as runtime-history facts, not durable memory records and not `events.payload_json` reconstruction.
 - Context pressure must use BudgetGovernor effective-window thresholds from derived context policy; `threshold_pct`, client-side estimates, and character-count fallback are not active context truth.
-- Client pressure/boundary visibility must come from `context.pressure` and `context.compressed` RunEvent projections, not client-local estimation or old compact marker parsing.
+- Client pressure/boundary visibility must come from backend projections such as RunDetail trace/workbench diagnostics, not client-local estimation or old compact marker parsing.
 - Sliding-window marker compression, public `compression.*` config, `compression.max_history_turns`, `compression.hard_token_cap_pct`, and run-wide `TokenBudget` are not active runtime paths.
 - Root run initial model input must be produced through ContextSession Bootstrap; direct prepend helpers are not the execution truth.
 - Root runner execution context must carry ContextSession. direct_response must fail loudly if the binding is missing and must not fall back to ADK runner input messages.

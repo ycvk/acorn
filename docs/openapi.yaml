@@ -4,7 +4,8 @@ info:
   version: 0.1.0
   description: |
     Remote client API for Acorn's single-user self-hosted agent backend.
-    Client `/v1` run event endpoints stream persisted `RunEvent` objects.
+    Client `/v1` run event endpoints stream the mobile live `RunEvent`
+    subset projected from persisted backend events.
 servers:
   - url: http://127.0.0.1:8080
 security:
@@ -343,12 +344,14 @@ paths:
   /v1/runs/{run_id}/events:
     get:
       tags: [client]
-      summary: Replay and optionally follow persisted RunEvent SSE
+      summary: Replay and optionally follow mobile live RunEvent SSE
       description: |
         The response is `text/event-stream`. Each SSE message uses
         `id: <RunEvent.event_id>`, `event: <RunEvent.type>`, and `data:`
-        containing the full RunEvent JSON object. `after_seq` is an exclusive
-        persisted cursor over the existing events table. Mobile clients persist
+        containing the full RunEvent JSON object. The endpoint emits only the
+        mobile live event subset. `after_seq` is an exclusive persisted cursor
+        over the existing events table, so the server may advance the cursor
+        across diagnostic events that are not emitted. Mobile clients persist
         `{run_id,last_seq}` locally, pass `last_seq` as `after_seq`, receive
         backlog events first, and then receive live follow events when
         `follow=true`.
@@ -370,7 +373,7 @@ paths:
             default: false
       responses:
         '200':
-          description: Stream of persisted RunEvent records
+          description: Stream of mobile live RunEvent records
           content:
             text/event-stream:
               schema:
@@ -1099,7 +1102,7 @@ components:
                   code: invalid_request
                   message: follow must be a boolean
     RunEventProjectionFailed:
-      description: Persisted run event could not be projected into RunEvent
+      description: Persisted live run event could not be projected into RunEvent
       content:
         application/json:
           schema:
@@ -2750,11 +2753,6 @@ components:
         - $ref: '#/components/schemas/ClientRunStartedEvent'
         - $ref: '#/components/schemas/ClientAssistantDeltaEvent'
         - $ref: '#/components/schemas/ClientAgentMessageEvent'
-        - $ref: '#/components/schemas/ClientToolCallStartedEvent'
-        - $ref: '#/components/schemas/ClientToolCallProgressEvent'
-        - $ref: '#/components/schemas/ClientToolCallSucceededEvent'
-        - $ref: '#/components/schemas/ClientToolCallFailedEvent'
-        - $ref: '#/components/schemas/ClientToolCallInterruptedEvent'
         - $ref: '#/components/schemas/ClientRunCompletedEvent'
         - $ref: '#/components/schemas/ClientRunFailedEvent'
         - $ref: '#/components/schemas/ClientRunInterruptedEvent'
@@ -2763,51 +2761,13 @@ components:
         - $ref: '#/components/schemas/ClientElicitationDecidedEvent'
         - $ref: '#/components/schemas/ClientOperatorQuestionPendingEvent'
         - $ref: '#/components/schemas/ClientOperatorQuestionDecidedEvent'
-        - $ref: '#/components/schemas/ClientProviderDegradedEvent'
-        - $ref: '#/components/schemas/ClientMCPToolCatalogRefreshedEvent'
-        - $ref: '#/components/schemas/ClientMCPToolCatalogRefreshFailedEvent'
-        - $ref: '#/components/schemas/ClientMCPProviderAddedEvent'
-        - $ref: '#/components/schemas/ClientMCPProviderRemovedEvent'
-        - $ref: '#/components/schemas/ClientMCPProviderRestartedEvent'
-        - $ref: '#/components/schemas/ClientMCPResourceCatalogRefreshedEvent'
-        - $ref: '#/components/schemas/ClientMCPResourceCatalogRefreshFailedEvent'
-        - $ref: '#/components/schemas/ClientMCPPromptCatalogRefreshedEvent'
-        - $ref: '#/components/schemas/ClientMCPPromptCatalogRefreshFailedEvent'
-        - $ref: '#/components/schemas/ClientMCPAuthStatusChangedEvent'
-        - $ref: '#/components/schemas/ClientSamplingStartedEvent'
-        - $ref: '#/components/schemas/ClientSamplingCompletedEvent'
-        - $ref: '#/components/schemas/ClientSamplingFailedEvent'
-        - $ref: '#/components/schemas/ClientDecisionSelectedEvent'
         - $ref: '#/components/schemas/ClientDecisionBlockedEvent'
-        - $ref: '#/components/schemas/ClientSkillDiscoveredEvent'
-        - $ref: '#/components/schemas/ClientSkillSelectedEvent'
-        - $ref: '#/components/schemas/ClientSkillLoadedEvent'
-        - $ref: '#/components/schemas/ClientSkillFailedEvent'
-        - $ref: '#/components/schemas/ClientSkillLifecycleEvent'
-        - $ref: '#/components/schemas/ClientProcedureActivationEvent'
-        - $ref: '#/components/schemas/ClientMemoryPreparedEvent'
-        - $ref: '#/components/schemas/ClientContextPressureEvent'
-        - $ref: '#/components/schemas/ClientContextCompressedEvent'
-        - $ref: '#/components/schemas/ClientPlanCreatedEvent'
-        - $ref: '#/components/schemas/ClientPlanUpdatedEvent'
-        - $ref: '#/components/schemas/ClientPlanClearedEvent'
-        - $ref: '#/components/schemas/ClientPlanStepStartedEvent'
-        - $ref: '#/components/schemas/ClientPlanStepCompletedEvent'
-        - $ref: '#/components/schemas/ClientPlanStepFailedEvent'
-        - $ref: '#/components/schemas/ClientSubagentStartedEvent'
-        - $ref: '#/components/schemas/ClientSubagentCompletedEvent'
-        - $ref: '#/components/schemas/ClientSubagentFailedEvent'
       discriminator:
         propertyName: type
         mapping:
           run.started: '#/components/schemas/ClientRunStartedEvent'
           assistant.delta: '#/components/schemas/ClientAssistantDeltaEvent'
           agent.message: '#/components/schemas/ClientAgentMessageEvent'
-          tool.call.started: '#/components/schemas/ClientToolCallStartedEvent'
-          tool.call.progress: '#/components/schemas/ClientToolCallProgressEvent'
-          tool.call.succeeded: '#/components/schemas/ClientToolCallSucceededEvent'
-          tool.call.failed: '#/components/schemas/ClientToolCallFailedEvent'
-          tool.call.interrupted: '#/components/schemas/ClientToolCallInterruptedEvent'
           run.completed: '#/components/schemas/ClientRunCompletedEvent'
           run.failed: '#/components/schemas/ClientRunFailedEvent'
           run.interrupted: '#/components/schemas/ClientRunInterruptedEvent'
@@ -2816,40 +2776,7 @@ components:
           elicitation.decided: '#/components/schemas/ClientElicitationDecidedEvent'
           operator_question.pending: '#/components/schemas/ClientOperatorQuestionPendingEvent'
           operator_question.decided: '#/components/schemas/ClientOperatorQuestionDecidedEvent'
-          provider.degraded: '#/components/schemas/ClientProviderDegradedEvent'
-          mcp.tool_catalog_refreshed: '#/components/schemas/ClientMCPToolCatalogRefreshedEvent'
-          mcp.tool_catalog_refresh_failed: '#/components/schemas/ClientMCPToolCatalogRefreshFailedEvent'
-          mcp.provider_added: '#/components/schemas/ClientMCPProviderAddedEvent'
-          mcp.provider_removed: '#/components/schemas/ClientMCPProviderRemovedEvent'
-          mcp.provider_restarted: '#/components/schemas/ClientMCPProviderRestartedEvent'
-          mcp.resource_catalog_refreshed: '#/components/schemas/ClientMCPResourceCatalogRefreshedEvent'
-          mcp.resource_catalog_refresh_failed: '#/components/schemas/ClientMCPResourceCatalogRefreshFailedEvent'
-          mcp.prompt_catalog_refreshed: '#/components/schemas/ClientMCPPromptCatalogRefreshedEvent'
-          mcp.prompt_catalog_refresh_failed: '#/components/schemas/ClientMCPPromptCatalogRefreshFailedEvent'
-          mcp.auth_status_changed: '#/components/schemas/ClientMCPAuthStatusChangedEvent'
-          sampling.started: '#/components/schemas/ClientSamplingStartedEvent'
-          sampling.completed: '#/components/schemas/ClientSamplingCompletedEvent'
-          sampling.failed: '#/components/schemas/ClientSamplingFailedEvent'
-          decision_selected: '#/components/schemas/ClientDecisionSelectedEvent'
           decision_blocked: '#/components/schemas/ClientDecisionBlockedEvent'
-          skill.discovered: '#/components/schemas/ClientSkillDiscoveredEvent'
-          skill.selected: '#/components/schemas/ClientSkillSelectedEvent'
-          skill.loaded: '#/components/schemas/ClientSkillLoadedEvent'
-          skill.failed: '#/components/schemas/ClientSkillFailedEvent'
-          skill.lifecycle: '#/components/schemas/ClientSkillLifecycleEvent'
-          procedure.activation: '#/components/schemas/ClientProcedureActivationEvent'
-          memory.prepared: '#/components/schemas/ClientMemoryPreparedEvent'
-          context.pressure: '#/components/schemas/ClientContextPressureEvent'
-          context.compressed: '#/components/schemas/ClientContextCompressedEvent'
-          plan.created: '#/components/schemas/ClientPlanCreatedEvent'
-          plan.updated: '#/components/schemas/ClientPlanUpdatedEvent'
-          plan.cleared: '#/components/schemas/ClientPlanClearedEvent'
-          step.started: '#/components/schemas/ClientPlanStepStartedEvent'
-          step.completed: '#/components/schemas/ClientPlanStepCompletedEvent'
-          step.failed: '#/components/schemas/ClientPlanStepFailedEvent'
-          subagent.started: '#/components/schemas/ClientSubagentStartedEvent'
-          subagent.completed: '#/components/schemas/ClientSubagentCompletedEvent'
-          subagent.failed: '#/components/schemas/ClientSubagentFailedEvent'
 
     RunEventBase:
       type: object
@@ -2901,61 +2828,6 @@ components:
               const: agent.message
             data:
               $ref: '#/components/schemas/AgentMessageData'
-
-    ClientToolCallStartedEvent:
-      allOf:
-        - $ref: '#/components/schemas/RunEventBase'
-        - type: object
-          required: [type, data]
-          properties:
-            type:
-              const: tool.call.started
-            data:
-              $ref: '#/components/schemas/ToolCallStartedData'
-
-    ClientToolCallProgressEvent:
-      allOf:
-        - $ref: '#/components/schemas/RunEventBase'
-        - type: object
-          required: [type, data]
-          properties:
-            type:
-              const: tool.call.progress
-            data:
-              $ref: '#/components/schemas/ToolCallProgressData'
-
-    ClientToolCallSucceededEvent:
-      allOf:
-        - $ref: '#/components/schemas/RunEventBase'
-        - type: object
-          required: [type, data]
-          properties:
-            type:
-              const: tool.call.succeeded
-            data:
-              $ref: '#/components/schemas/ToolCallSucceededData'
-
-    ClientToolCallFailedEvent:
-      allOf:
-        - $ref: '#/components/schemas/RunEventBase'
-        - type: object
-          required: [type, data]
-          properties:
-            type:
-              const: tool.call.failed
-            data:
-              $ref: '#/components/schemas/ToolCallFailedData'
-
-    ClientToolCallInterruptedEvent:
-      allOf:
-        - $ref: '#/components/schemas/RunEventBase'
-        - type: object
-          required: [type, data]
-          properties:
-            type:
-              const: tool.call.interrupted
-            data:
-              $ref: '#/components/schemas/ToolCallInterruptedData'
 
     ClientRunCompletedEvent:
       allOf:
@@ -3045,171 +2917,6 @@ components:
             data:
               $ref: '#/components/schemas/OperatorQuestionData'
 
-    ClientProviderDegradedEvent:
-      allOf:
-        - $ref: '#/components/schemas/RunEventBase'
-        - type: object
-          required: [type, data]
-          properties:
-            type:
-              const: provider.degraded
-            data:
-              $ref: '#/components/schemas/ProviderDegradedData'
-
-    ClientMCPToolCatalogRefreshedEvent:
-      allOf:
-        - $ref: '#/components/schemas/RunEventBase'
-        - type: object
-          required: [type, data]
-          properties:
-            type:
-              const: mcp.tool_catalog_refreshed
-            data:
-              $ref: '#/components/schemas/MCPProviderLifecycleData'
-
-    ClientMCPToolCatalogRefreshFailedEvent:
-      allOf:
-        - $ref: '#/components/schemas/RunEventBase'
-        - type: object
-          required: [type, data]
-          properties:
-            type:
-              const: mcp.tool_catalog_refresh_failed
-            data:
-              $ref: '#/components/schemas/MCPProviderLifecycleData'
-
-    ClientMCPProviderAddedEvent:
-      allOf:
-        - $ref: '#/components/schemas/RunEventBase'
-        - type: object
-          required: [type, data]
-          properties:
-            type:
-              const: mcp.provider_added
-            data:
-              $ref: '#/components/schemas/MCPProviderLifecycleData'
-
-    ClientMCPProviderRemovedEvent:
-      allOf:
-        - $ref: '#/components/schemas/RunEventBase'
-        - type: object
-          required: [type, data]
-          properties:
-            type:
-              const: mcp.provider_removed
-            data:
-              $ref: '#/components/schemas/MCPProviderLifecycleData'
-
-    ClientMCPProviderRestartedEvent:
-      allOf:
-        - $ref: '#/components/schemas/RunEventBase'
-        - type: object
-          required: [type, data]
-          properties:
-            type:
-              const: mcp.provider_restarted
-            data:
-              $ref: '#/components/schemas/MCPProviderLifecycleData'
-
-    ClientMCPResourceCatalogRefreshedEvent:
-      allOf:
-        - $ref: '#/components/schemas/RunEventBase'
-        - type: object
-          required: [type, data]
-          properties:
-            type:
-              const: mcp.resource_catalog_refreshed
-            data:
-              $ref: '#/components/schemas/MCPProviderLifecycleData'
-
-    ClientMCPResourceCatalogRefreshFailedEvent:
-      allOf:
-        - $ref: '#/components/schemas/RunEventBase'
-        - type: object
-          required: [type, data]
-          properties:
-            type:
-              const: mcp.resource_catalog_refresh_failed
-            data:
-              $ref: '#/components/schemas/MCPProviderLifecycleData'
-
-    ClientMCPPromptCatalogRefreshedEvent:
-      allOf:
-        - $ref: '#/components/schemas/RunEventBase'
-        - type: object
-          required: [type, data]
-          properties:
-            type:
-              const: mcp.prompt_catalog_refreshed
-            data:
-              $ref: '#/components/schemas/MCPProviderLifecycleData'
-
-    ClientMCPPromptCatalogRefreshFailedEvent:
-      allOf:
-        - $ref: '#/components/schemas/RunEventBase'
-        - type: object
-          required: [type, data]
-          properties:
-            type:
-              const: mcp.prompt_catalog_refresh_failed
-            data:
-              $ref: '#/components/schemas/MCPProviderLifecycleData'
-
-    ClientMCPAuthStatusChangedEvent:
-      allOf:
-        - $ref: '#/components/schemas/RunEventBase'
-        - type: object
-          required: [type, data]
-          properties:
-            type:
-              const: mcp.auth_status_changed
-            data:
-              $ref: '#/components/schemas/MCPProviderLifecycleData'
-
-    ClientSamplingStartedEvent:
-      allOf:
-        - $ref: '#/components/schemas/RunEventBase'
-        - type: object
-          required: [type, data]
-          properties:
-            type:
-              const: sampling.started
-            data:
-              $ref: '#/components/schemas/SamplingData'
-
-    ClientSamplingCompletedEvent:
-      allOf:
-        - $ref: '#/components/schemas/RunEventBase'
-        - type: object
-          required: [type, data]
-          properties:
-            type:
-              const: sampling.completed
-            data:
-              $ref: '#/components/schemas/SamplingData'
-
-    ClientSamplingFailedEvent:
-      allOf:
-        - $ref: '#/components/schemas/RunEventBase'
-        - type: object
-          required: [type, data]
-          properties:
-            type:
-              const: sampling.failed
-            data:
-              $ref: '#/components/schemas/SamplingData'
-
-    ClientDecisionSelectedEvent:
-      allOf:
-        - $ref: '#/components/schemas/RunEventBase'
-        - type: object
-          required: [type, data]
-          properties:
-            type:
-              const: decision_selected
-            data:
-              $ref: '#/components/schemas/DecisionSelectedData'
-
     ClientDecisionBlockedEvent:
       allOf:
         - $ref: '#/components/schemas/RunEventBase'
@@ -3220,204 +2927,6 @@ components:
               const: decision_blocked
             data:
               $ref: '#/components/schemas/DecisionBlockedData'
-
-    ClientSkillDiscoveredEvent:
-      allOf:
-        - $ref: '#/components/schemas/RunEventBase'
-        - type: object
-          required: [type, data]
-          properties:
-            type:
-              const: skill.discovered
-            data:
-              $ref: '#/components/schemas/SkillData'
-
-    ClientSkillSelectedEvent:
-      allOf:
-        - $ref: '#/components/schemas/RunEventBase'
-        - type: object
-          required: [type, data]
-          properties:
-            type:
-              const: skill.selected
-            data:
-              $ref: '#/components/schemas/SkillData'
-
-    ClientSkillLoadedEvent:
-      allOf:
-        - $ref: '#/components/schemas/RunEventBase'
-        - type: object
-          required: [type, data]
-          properties:
-            type:
-              const: skill.loaded
-            data:
-              $ref: '#/components/schemas/SkillData'
-
-    ClientSkillFailedEvent:
-      allOf:
-        - $ref: '#/components/schemas/RunEventBase'
-        - type: object
-          required: [type, data]
-          properties:
-            type:
-              const: skill.failed
-            data:
-              $ref: '#/components/schemas/SkillData'
-
-    ClientSkillLifecycleEvent:
-      allOf:
-        - $ref: '#/components/schemas/RunEventBase'
-        - type: object
-          required: [type, data]
-          properties:
-            type:
-              const: skill.lifecycle
-            data:
-              $ref: '#/components/schemas/SkillLifecycleData'
-
-    ClientProcedureActivationEvent:
-      allOf:
-        - $ref: '#/components/schemas/RunEventBase'
-        - type: object
-          required: [type, data]
-          properties:
-            type:
-              const: procedure.activation
-            data:
-              $ref: '#/components/schemas/ProcedureActivationData'
-
-    ClientMemoryPreparedEvent:
-      allOf:
-        - $ref: '#/components/schemas/RunEventBase'
-        - type: object
-          required: [type, data]
-          properties:
-            type:
-              const: memory.prepared
-            data:
-              $ref: '#/components/schemas/MemoryPreparedData'
-
-    ClientContextPressureEvent:
-      allOf:
-        - $ref: '#/components/schemas/RunEventBase'
-        - type: object
-          required: [type, data]
-          properties:
-            type:
-              const: context.pressure
-            data:
-              $ref: '#/components/schemas/ContextPressureData'
-
-    ClientContextCompressedEvent:
-      allOf:
-        - $ref: '#/components/schemas/RunEventBase'
-        - type: object
-          required: [type, data]
-          properties:
-            type:
-              const: context.compressed
-            data:
-              $ref: '#/components/schemas/ContextCompressedData'
-
-    ClientPlanCreatedEvent:
-      allOf:
-        - $ref: '#/components/schemas/RunEventBase'
-        - type: object
-          required: [type, data]
-          properties:
-            type:
-              const: plan.created
-            data:
-              $ref: '#/components/schemas/PlanData'
-
-    ClientPlanUpdatedEvent:
-      allOf:
-        - $ref: '#/components/schemas/RunEventBase'
-        - type: object
-          required: [type, data]
-          properties:
-            type:
-              const: plan.updated
-            data:
-              $ref: '#/components/schemas/PlanData'
-
-    ClientPlanClearedEvent:
-      allOf:
-        - $ref: '#/components/schemas/RunEventBase'
-        - type: object
-          required: [type, data]
-          properties:
-            type:
-              const: plan.cleared
-            data:
-              $ref: '#/components/schemas/PlanClearedData'
-
-    ClientPlanStepStartedEvent:
-      allOf:
-        - $ref: '#/components/schemas/RunEventBase'
-        - type: object
-          required: [type, data]
-          properties:
-            type:
-              const: step.started
-            data:
-              $ref: '#/components/schemas/PlanStepData'
-
-    ClientPlanStepCompletedEvent:
-      allOf:
-        - $ref: '#/components/schemas/RunEventBase'
-        - type: object
-          required: [type, data]
-          properties:
-            type:
-              const: step.completed
-            data:
-              $ref: '#/components/schemas/PlanStepData'
-
-    ClientPlanStepFailedEvent:
-      allOf:
-        - $ref: '#/components/schemas/RunEventBase'
-        - type: object
-          required: [type, data]
-          properties:
-            type:
-              const: step.failed
-            data:
-              $ref: '#/components/schemas/PlanStepData'
-
-    ClientSubagentStartedEvent:
-      allOf:
-        - $ref: '#/components/schemas/RunEventBase'
-        - type: object
-          required: [type, data]
-          properties:
-            type:
-              const: subagent.started
-            data:
-              $ref: '#/components/schemas/SubagentData'
-
-    ClientSubagentCompletedEvent:
-      allOf:
-        - $ref: '#/components/schemas/RunEventBase'
-        - type: object
-          required: [type, data]
-          properties:
-            type:
-              const: subagent.completed
-            data:
-              $ref: '#/components/schemas/SubagentData'
-
-    ClientSubagentFailedEvent:
-      allOf:
-        - $ref: '#/components/schemas/RunEventBase'
-        - type: object
-          required: [type, data]
-          properties:
-            type:
-              const: subagent.failed
-            data:
-              $ref: '#/components/schemas/SubagentData'
 
     RunStartedData:
       type: object
@@ -3441,31 +2950,6 @@ components:
       properties:
         message:
           $ref: '#/components/schemas/StreamMessage'
-
-    ToolCallStartedData:
-      type: object
-      additionalProperties: false
-      required: [tool_call]
-      properties:
-        tool_call:
-          $ref: '#/components/schemas/StreamToolCall'
-
-    ToolCallSucceededData:
-      $ref: '#/components/schemas/ToolCallStartedData'
-
-    ToolCallProgressData:
-      type: object
-      additionalProperties: false
-      required: [tool_call]
-      properties:
-        tool_call:
-          $ref: '#/components/schemas/StreamToolCallProgress'
-
-    ToolCallFailedData:
-      $ref: '#/components/schemas/ToolCallStartedData'
-
-    ToolCallInterruptedData:
-      $ref: '#/components/schemas/ToolCallStartedData'
 
     RunCompletedData:
       type: object
@@ -3531,41 +3015,7 @@ components:
         answer:
           type: string
 
-    ProviderDegradedData:
-      type: object
-      additionalProperties: false
-      properties:
-        affected_providers:
-          type: array
-          items:
-            $ref: '#/components/schemas/ProviderDegradedEntry'
-
-    MCPProviderLifecycleData:
-      type: object
-      additionalProperties: false
-      properties:
-        provider_name:
-          type: string
-        transport:
-          type: string
-        error:
-          type: string
-        auth_status:
-          type: string
-
-    SamplingData:
-      type: object
-      additionalProperties: false
-      required: [run_id, depth]
-      properties:
-        run_id:
-          type: string
-        depth:
-          type: integer
-        model:
-          type: string
-
-    DecisionSelectedData:
+    DecisionBlockedData:
       type: object
       additionalProperties: false
       properties:
@@ -3581,197 +3031,6 @@ components:
           type: string
         explicit_skill_id:
           type: string
-
-    DecisionBlockedData:
-      $ref: '#/components/schemas/DecisionSelectedData'
-
-    SkillData:
-      type: object
-      additionalProperties: false
-      properties:
-        skill:
-          $ref: '#/components/schemas/StreamSkill'
-
-    StreamSkillLifecycle:
-      type: object
-      additionalProperties: false
-      required: [skill_id, action]
-      properties:
-        skill_id:
-          type: string
-        action:
-          type: string
-        status:
-          type: string
-        verdict:
-          type: string
-        reason:
-          type: string
-        evidence_refs:
-          type: array
-          items:
-            type: string
-        assessment_id:
-          type: string
-        changes_required:
-          type: array
-          items:
-            type: string
-        applied:
-          type: boolean
-        assessment:
-          type: object
-          additionalProperties: true
-
-    SkillLifecycleData:
-      type: object
-      additionalProperties: false
-      required: [skill_lifecycle]
-      properties:
-        skill_lifecycle:
-          $ref: '#/components/schemas/StreamSkillLifecycle'
-
-    ProcedureActivationData:
-      type: object
-      additionalProperties: false
-      required: [procedure_activation]
-      properties:
-        procedure_activation:
-          $ref: '#/components/schemas/StreamProcedureActivation'
-
-    MemoryPreparedData:
-      type: object
-      additionalProperties: false
-      required: [memory_prepared]
-      properties:
-        memory_prepared:
-          $ref: '#/components/schemas/StreamMemoryPrepared'
-
-    ContextPressureData:
-      type: object
-      additionalProperties: false
-      required: [context_pressure]
-      properties:
-        context_pressure:
-          $ref: '#/components/schemas/StreamContextPressure'
-
-    ContextCompressedData:
-      type: object
-      additionalProperties: false
-      required: [context_compressed]
-      properties:
-        context_compressed:
-          $ref: '#/components/schemas/StreamContextCompressed'
-
-    PlanData:
-      type: object
-      additionalProperties: false
-      properties:
-        plan:
-          $ref: '#/components/schemas/PlanDTO'
-
-    PlanClearedData:
-      type: object
-      additionalProperties: false
-      properties:
-        plan_id:
-          type: string
-
-    PlanStepData:
-      type: object
-      additionalProperties: false
-      properties:
-        plan_id:
-          type: string
-        session_id:
-          type: string
-        plan:
-          $ref: '#/components/schemas/PlanDTO'
-        step:
-          $ref: '#/components/schemas/PlanStepDTO'
-        updated_at:
-          type: string
-          format: date-time
-        error:
-          type: string
-
-    SubagentData:
-      type: object
-      additionalProperties: false
-      properties:
-        sub_run_id:
-          type: string
-        parent_id:
-          type: string
-        session_id:
-          type: string
-        depth:
-          type: integer
-        task:
-          type: string
-        child_run_mode:
-          type: string
-          enum: [fork]
-        workspace_mode:
-          type: string
-          enum: [shared, worktree]
-        worktree_path:
-          type: string
-        context_messages:
-          type: integer
-        summary:
-          type: string
-        final_status:
-          type: string
-        acceptance_status:
-          type: string
-        acceptance_reasons:
-          type: array
-          items:
-            type: string
-        evidence_refs:
-          type: array
-          items:
-            type: string
-        orchestration_mode:
-          type: string
-        parent_step_id:
-          type: string
-        error:
-          type: string
-
-    UnsupportedRunEvent:
-      type: object
-      additionalProperties: false
-      required: [event_id, run_id, seq, ts, type, reason]
-      properties:
-        event_id:
-          type: string
-        run_id:
-          type: string
-        seq:
-          type: integer
-          format: int64
-        ts:
-          type: string
-          format: date-time
-        type:
-          type: string
-        raw:
-          type: object
-          additionalProperties: true
-        reason:
-          type: string
-
-    RunDetailRaw:
-      type: object
-      additionalProperties: false
-      required: [unsupported_events]
-      properties:
-        unsupported_events:
-          type: array
-          items:
-            $ref: '#/components/schemas/UnsupportedRunEvent'
 
     RunDetail:
       type: object
@@ -3794,8 +3053,6 @@ components:
           oneOf:
             - $ref: '#/components/schemas/TraceSummary'
             - type: 'null'
-        raw:
-          $ref: '#/components/schemas/RunDetailRaw'
 
     TraceSummary:
       type: object
@@ -3943,63 +3200,6 @@ components:
         reason:
           type: string
 
-    StreamToolCall:
-      type: object
-      additionalProperties: false
-      properties:
-        provider:
-          type: string
-        name:
-          type: string
-        call_id:
-          type: string
-        arguments_json:
-          type: string
-        action_id:
-          type: string
-        action_kind:
-          type: string
-        interrupt_id:
-          type: string
-        mode:
-          type: string
-          enum: [inline, deferred]
-        decision:
-          type: string
-          enum: [approved, rejected]
-        decided_at:
-          type: string
-          format: date-time
-        output:
-          type: string
-        error:
-          type: string
-        reason:
-          type: string
-        rule:
-          type: string
-        duration_ms:
-          type: integer
-        interrupt_contexts:
-          type: integer
-
-    StreamToolCallProgress:
-      type: object
-      additionalProperties: false
-      properties:
-        provider:
-          type: string
-        name:
-          type: string
-        call_id:
-          type: string
-        arguments_json:
-          type: string
-        delta:
-          type: string
-        sequence:
-          type: integer
-
     StreamInterruptContext:
       type: object
       additionalProperties: true
@@ -4025,197 +3225,6 @@ components:
           items:
             $ref: '#/components/schemas/StreamInterruptContext'
 
-    StreamContextCompressed:
-      type: object
-      additionalProperties: false
-      properties:
-        boundary_id:
-          type: string
-        first_index:
-          type: integer
-        last_index:
-          type: integer
-        tokens_before:
-          type: integer
-        tokens_after:
-          type: integer
-        summary_snippet:
-          type: string
-
-    StreamContextPressure:
-      type: object
-      additionalProperties: false
-      properties:
-        state:
-          type: string
-          enum: [ok, warning, auto_compact, blocking]
-        estimated_input_tokens:
-          type: integer
-        effective_window_tokens:
-          type: integer
-        warning_threshold_tokens:
-          type: integer
-        auto_compact_threshold_tokens:
-          type: integer
-        blocking_threshold_tokens:
-          type: integer
-        percent_used:
-          type: integer
-
-    StreamSkillCandidate:
-      type: object
-      additionalProperties: false
-      properties:
-        id:
-          type: string
-        name:
-          type: string
-        score:
-          type: integer
-        matched_terms:
-          type: array
-          items:
-            type: string
-        filtered_reason:
-          type: string
-        requirements:
-          $ref: '#/components/schemas/SkillRequirements'
-        summary:
-          type: string
-        origin:
-          type: string
-          enum: [human, distilled]
-        task_pattern:
-          type: string
-
-    StreamSkill:
-      type: object
-      additionalProperties: false
-      properties:
-        selected_id:
-          type: string
-        name:
-          type: string
-        source:
-          type: string
-        origin:
-          type: string
-          enum: [human, distilled]
-        task_pattern:
-          type: string
-        path:
-          type: string
-        candidates:
-          type: array
-          items:
-            $ref: '#/components/schemas/StreamSkillCandidate'
-        no_selection_reason:
-          type: string
-        summary:
-          type: string
-        instruction:
-          type: string
-        scripts:
-          type: array
-          items:
-            type: string
-        requirements:
-          $ref: '#/components/schemas/SkillRequirements'
-        score:
-          type: integer
-        matched_terms:
-          type: array
-          items:
-            type: string
-        run_status:
-          type: string
-          enum: [running, succeeded, interrupted, failed]
-        promoted_from:
-          type: string
-        failure_reason:
-          type: string
-
-    StreamMemoryPreparedNudge:
-      type: object
-      additionalProperties: false
-      properties:
-        ref:
-          type: string
-        kind:
-          type: string
-        title:
-          type: string
-        status:
-          type: string
-        reason:
-          type: string
-
-    StreamMemoryPreparedEntry:
-      type: object
-      additionalProperties: false
-      properties:
-        ref:
-          type: string
-        kind:
-          type: string
-        title:
-          type: string
-
-    StreamProcedureActivation:
-      type: object
-      additionalProperties: false
-      properties:
-        run_id:
-          type: string
-        session_id:
-          type: string
-        procedure_ref:
-          type: string
-        title:
-          type: string
-        kind:
-          type: string
-        phase:
-          type: string
-          enum: [matched, selected, injected, used, rejected]
-        reason:
-          type: string
-        score:
-          type: number
-        status:
-          type: string
-        origin:
-          type: string
-        source_refs:
-          type: array
-          items:
-            type: string
-        evidence_refs:
-          type: array
-          items:
-            type: string
-
-    StreamMemoryPrepared:
-      type: object
-      additionalProperties: false
-      properties:
-        query:
-          type: string
-        workspace_scope:
-          type: string
-        nudge_count:
-          type: integer
-        entry_count:
-          type: integer
-        nudges:
-          type: array
-          items:
-            $ref: '#/components/schemas/StreamMemoryPreparedNudge'
-        entries:
-          type: array
-          items:
-            $ref: '#/components/schemas/StreamMemoryPreparedEntry'
-
     # --- Stream payload schemas ---
 
     ValidationError:
@@ -4226,18 +3235,6 @@ components:
         field:
           type: string
         message:
-          type: string
-
-    ProviderDegradedEntry:
-      type: object
-      additionalProperties: false
-      required: [name, transport]
-      properties:
-        name:
-          type: string
-        transport:
-          type: string
-        error:
           type: string
 
     PlanStepDTO:

@@ -105,6 +105,27 @@ void main() {
       throwsA(isA<RunEventStreamException>()),
     );
   });
+
+  test('rejects diagnostic-only RunEvent types', () {
+    for (final type in const [
+      'tool.call.progress',
+      'memory.prepared',
+      'context.pressure',
+      'plan.created',
+      'step.started',
+      'subagent.failed',
+      'skill.lifecycle',
+    ]) {
+      expect(
+        () => validateRunEvent(
+          RunEvent.fromJson(_event('event_removed', 1, type, {})),
+          expectedRunId: 'run_1',
+        ),
+        throwsA(isA<RunEventStreamException>()),
+        reason: type,
+      );
+    }
+  });
 }
 
 Map<String, Object?> _event(

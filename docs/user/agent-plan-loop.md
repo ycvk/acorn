@@ -73,11 +73,10 @@ curl -H "Authorization: Bearer $ACORN_DEVICE_TOKEN" \
 | `✗` | failed |
 | `⊘` | skipped |
 
-5. 需要离线核对计划时，可以查询标准 `/v1` run detail 或 persisted run events。除 `/healthz` 和 pairing exchange 外，`/v1` 端点需要 device bearer token：
+5. 需要离线核对计划时，可以查询标准 `/v1` run detail。除 `/healthz` 和 pairing exchange 外，`/v1` 端点需要 device bearer token：
 
 ```bash
 curl -H "Authorization: Bearer $ACORN_DEVICE_TOKEN" http://127.0.0.1:8080/v1/runs/RUN_ID/detail
-curl -H "Authorization: Bearer $ACORN_DEVICE_TOKEN" 'http://127.0.0.1:8080/v1/runs/RUN_ID/events?follow=false'
 ```
 
 ## 常见问题
@@ -108,11 +107,11 @@ A: 不会。会修改 workspace 的工具会留下 mutation checkpoint；只有�
 
 Q: Plan 面板显示 No active plan 怎么办？
 
-A: 当前 run 可能是普通问答，也可能还没有生成执行计划。先确认任务是否属于需要工具执行的类型；如果已经执行过，再用 `/v1/runs/{run_id}/detail` 或 `/v1/runs/{run_id}/events` 核对后端是否有 plan。
+A: 当前 run 可能是普通问答，也可能还没有生成执行计划。先确认任务是否属于需要工具执行的类型；如果已经执行过，再用 `/v1/runs/{run_id}/detail` 核对后端是否有 plan。
 
 ## 相关功能
 
 - `POST /v1/threads/{thread_id}/messages`：追加用户消息。
 - `POST /v1/threads/{thread_id}/runs`：启动任务执行。
 - `/v1/runs/{run_id}/detail`：查看某次 run 的 detail 聚合，包括 workbench/plan/trace。
-- `/v1/runs/{run_id}/events`：查看 persisted RunEvent 事件流。
+- `/v1/runs/{run_id}/events`：查看 mobile live RunEvent 事件流，不包含 plan/step 诊断事件。

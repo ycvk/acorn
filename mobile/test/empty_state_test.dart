@@ -18,7 +18,7 @@ void main() {
                 icon: Icons.chat_bubble_outline,
                 title: 'Start with a real backend run',
                 body:
-                    'Messages are stored in Acorn. Assistant output streams from persisted RunEvents.',
+                    'Messages are stored in Acorn. Assistant output streams from live RunEvents.',
                 action: FilledButton.icon(
                   onPressed: () {},
                   icon: const Icon(Icons.add),

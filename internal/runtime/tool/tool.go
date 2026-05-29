@@ -29,7 +29,7 @@ type auditedTool struct {
 	invokable einotool.InvokableTool
 	progress  tooling.ProgressTool
 	store     runtimeapi.EventAppender
-	validator *runtimeapi.ToolArgumentValidator
+	validator *toolArgumentValidator
 }
 
 type ToolAuditCallIDKey struct{}
@@ -66,9 +66,9 @@ func wrapToolForAudit(ctx context.Context, store runtimeapi.EventAppender, spec 
 	if !ok {
 		return spec.Tool, nil
 	}
-	var validator *runtimeapi.ToolArgumentValidator
+	var validator *toolArgumentValidator
 	if info != nil {
-		validator, err = runtimeapi.NewToolArgumentValidatorFromToolInfo(info)
+		validator, err = newToolArgumentValidatorFromToolInfo(info)
 		if err != nil {
 			return nil, fmt.Errorf("create tool argument validator for %q: %w", info.Name, err)
 		}
@@ -110,7 +110,7 @@ func (t *auditedTool) run(ctx context.Context, argumentsInJSON string, emit tool
 	}
 
 	if t.validator != nil {
-		validationErrors, validateErr := t.validator.Validate(argumentsInJSON)
+		validationErrors, validateErr := t.validator.validate(argumentsInJSON)
 		if validateErr != nil {
 			output := validateErr.Error()
 			if runID != "" {
@@ -126,7 +126,7 @@ func (t *auditedTool) run(ctx context.Context, argumentsInJSON string, emit tool
 			return output, fmt.Errorf("validate arguments for %q: %w", t.spec.Name, validateErr)
 		}
 		if len(validationErrors) > 0 {
-			output := runtimeapi.FormatValidationError(t.spec.Name, validationErrors)
+			output := formatValidationError(t.spec.Name, validationErrors)
 			if runID != "" {
 				if _, auditErr := stream.AppendStreamItem(ctx, t.store, stream.StreamSinkFromContext(ctx), stream.StreamItem{
 					RunID:     runID,

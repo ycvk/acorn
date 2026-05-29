@@ -11,7 +11,7 @@ interfaces:
   - to: store
     contract: "SQLite runs/events/pending_actions"
 owner_run: run_abc123
-last_updated: 2026-05-27
+last_updated: 2026-05-29
 ---
 
 # Web
@@ -23,6 +23,8 @@ HTTP 服务层。暴露 `/v1` 远程客户端 API、`/healthz` 健康检查、se
 ## 核心组件
 
 - `/v1/inbox`：mobile inbox aggregation
+- `/v1/runs/{run_id}/events`：mobile live RunEvent replay/follow；只暴露 run/assistant/agent/approval/resume/decision-blocker live subset
+- `/v1/runs/{run_id}`：run detail；只暴露 live events、trace summary 和 workbench facts，不携带 raw diagnostic event payload
 - `/v1/pending-actions`：pending approval list/detail/decide
 - `/v1/devices:pair`：device auth pairing
 - `/healthz`：服务健康检查
@@ -31,7 +33,7 @@ HTTP 服务层。暴露 `/v1` 远程客户端 API、`/healthz` 健康检查、se
 
 - Core logic: stable
 - 已知问题: 无
-- 最近改动: 2026-05-27 修复 CapabilitiesSummaryDTO JSON tag（invalid_count → invalid_skill_count）
+- 最近改动: 2026-05-29 `/v1/runs/{run_id}/events` hard-cut 为 mobile live subset；diagnostic-only persisted events 只进入 SQLite trace summary/workbench projection，不再进入 SSE live contract 或 RunDetail raw payload。
 
 ## 硬约束（不可违反）
 
@@ -41,6 +43,7 @@ HTTP 服务层。暴露 `/v1` 远程客户端 API、`/healthz` 健康检查、se
 4. Mobile client API/model 改动必须从 OpenAPI 重新生成 `mobile/lib/src/api/acorn_api.dart`，不得手写 parallel DTO。
 5. Push notification 只是 wake-up signal；client 必须回拉 `/v1/inbox`、RunDetail 或 RunEvent cursor。
 6. Self-hosted remote access 必须有显式 auth/device boundary；token 缺失、格式错误、未知或 revoked 必须显式失败。
+7. `/v1/runs/{run_id}/events` 的 `after_seq` 是 persisted event cursor；服务端过滤 diagnostic-only events 时仍必须推进 cursor，避免 follow/reconnect 重扫同一批诊断事件。
 
 ## 关联决策
 
