@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ycvk/acorn/internal/clientevents"
 	"github.com/ycvk/acorn/internal/decision"
 	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/model"
@@ -32,6 +33,15 @@ type ResumeStatus struct {
 	Reason       string           `json:"reason,omitempty"`
 }
 
+type RunResult struct {
+	RunID        string                     `json:"run_id"`
+	Status       events.RunStatus           `json:"status"`
+	Output       string                     `json:"output,omitempty"`
+	Error        string                     `json:"error,omitempty"`
+	Interrupted  map[string]any             `json:"interrupted,omitempty"`
+	TraceSummary *clientevents.TraceSummary `json:"trace_summary,omitempty"`
+}
+
 func NewTraceService(store traceStore) *TraceService {
 	return &TraceService{store: store}
 }
@@ -49,7 +59,7 @@ func (s *TraceService) FindPendingResume(ctx context.Context) (*runtime.PendingR
 	return runtime.FindPendingResume(ctx, s.pending)
 }
 
-func (s *TraceService) Resume(ctx context.Context, runID string, sink stream.StreamSink) (*runtime.Result, error) {
+func (s *TraceService) Resume(ctx context.Context, runID string, sink stream.StreamSink) (*RunResult, error) {
 	if s == nil || s.newExecutor == nil {
 		return nil, errors.New("resume executor factory is nil")
 	}
@@ -61,7 +71,60 @@ func (s *TraceService) Resume(ctx context.Context, runID string, sink stream.Str
 	if err != nil {
 		return nil, err
 	}
-	return exec.ResumeWithTargets(ctx, runID, targets, sink)
+	result, err := exec.ResumeWithTargets(ctx, runID, targets, sink)
+	if err != nil {
+		return nil, err
+	}
+	return runResultFromRuntime(result), nil
+}
+
+func runResultFromRuntime(result *runtime.Result) *RunResult {
+	if result == nil {
+		return nil
+	}
+	return &RunResult{
+		RunID:        result.RunID,
+		Status:       result.Status,
+		Output:       result.Output,
+		Error:        result.Error,
+		Interrupted:  cloneMap(result.Interrupted),
+		TraceSummary: traceSummaryFromRuntime(result.TraceSummary),
+	}
+}
+
+func traceSummaryFromRuntime(summary *runtime.TraceSummary) *clientevents.TraceSummary {
+	if summary == nil {
+		return nil
+	}
+	return &clientevents.TraceSummary{
+		ItemCount:                  summary.ItemCount,
+		LastKind:                   string(summary.LastKind),
+		AssistantMessageCount:      summary.AssistantMessageCount,
+		AssistantDeltaCount:        summary.AssistantDeltaCount,
+		AssistantDeltaMessageCount: summary.AssistantDeltaMessageCount,
+		AssistantDeltaCharCount:    summary.AssistantDeltaCharCount,
+		ToolCallCount:              summary.ToolCallCount,
+		DecisionEventCount:         summary.DecisionEventCount,
+		SkillEventCount:            summary.SkillEventCount,
+		PlanEventCount:             summary.PlanEventCount,
+		DecisionSelected:           summary.DecisionSelected,
+		DecisionBlocked:            summary.DecisionBlocked,
+		SkillSelected:              summary.SkillSelected,
+		Interrupted:                summary.Interrupted,
+		Failed:                     summary.Failed,
+		Completed:                  summary.Completed,
+	}
+}
+
+func cloneMap(value map[string]any) map[string]any {
+	if value == nil {
+		return nil
+	}
+	out := make(map[string]any, len(value))
+	for key, item := range value {
+		out[key] = item
+	}
+	return out
 }
 
 func (s *TraceService) Trace(ctx context.Context, runID string) (*runtime.Trace, error) {

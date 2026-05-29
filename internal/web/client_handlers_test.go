@@ -18,7 +18,6 @@ import (
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/memorymodule"
-	"github.com/ycvk/acorn/internal/runtime"
 	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 
 	"github.com/ycvk/acorn/internal/skills"
@@ -868,7 +867,7 @@ func TestClientResourceSurfaceHandlers(t *testing.T) {
 	server := &Server{
 		client:       service,
 		workbench:    &clientWorkbenchStub{workbench: &app.RuntimeWorkbench{SessionID: "thread_1", WorkspaceRoot: "/repo"}},
-		trace:        &clientTraceStub{result: &runtime.Result{RunID: "run_1", Status: "interrupted"}},
+		trace:        &clientTraceStub{result: &app.RunResult{RunID: "run_1", Status: "interrupted"}},
 		capabilities: capabilities,
 		pendingAction: &pendingActionHandlerStub{
 			summaries: []app.PendingActionSummary{{
@@ -1455,11 +1454,11 @@ func (s *clientWorkbenchStub) Load(context.Context, string) (*app.RuntimeWorkben
 }
 
 type clientTraceStub struct {
-	result *runtime.Result
+	result *app.RunResult
 	err    error
 }
 
-func (s *clientTraceStub) Resume(context.Context, string, stream.StreamSink) (*runtime.Result, error) {
+func (s *clientTraceStub) Resume(context.Context, string, stream.StreamSink) (*app.RunResult, error) {
 	return s.result, s.err
 }
 

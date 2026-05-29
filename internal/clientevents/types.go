@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/ycvk/acorn/internal/events"
-	"github.com/ycvk/acorn/internal/runtime"
+	"github.com/ycvk/acorn/internal/skills"
 )
 
 // RunEvent is the client-visible run event envelope used by /v1 run detail and SSE.
@@ -32,7 +32,44 @@ type UnsupportedRunEvent struct {
 type RunEventDetail struct {
 	Events      []RunEvent
 	Unsupported []UnsupportedRunEvent
-	Trace       *runtime.TraceSummary
+	Trace       *TraceSummary
+}
+
+type SessionState string
+
+const (
+	SessionStateNew         SessionState = "new"
+	SessionStateRunning     SessionState = "running"
+	SessionStateCompleted   SessionState = "completed"
+	SessionStateFailed      SessionState = "failed"
+	SessionStateInterrupted SessionState = "interrupted"
+	SessionStateDegraded    SessionState = "degraded"
+)
+
+// TraceSummary is the client-visible aggregate of persisted run events.
+type TraceSummary struct {
+	ItemCount                  int    `json:"item_count"`
+	LastKind                   string `json:"last_kind,omitempty"`
+	AssistantMessageCount      int    `json:"assistant_message_count,omitempty"`
+	AssistantDeltaCount        int    `json:"assistant_delta_count,omitempty"`
+	AssistantDeltaMessageCount int    `json:"assistant_delta_message_count,omitempty"`
+	AssistantDeltaCharCount    int    `json:"assistant_delta_char_count,omitempty"`
+	ToolCallCount              int    `json:"tool_call_count,omitempty"`
+	DecisionEventCount         int    `json:"decision_event_count,omitempty"`
+	SkillEventCount            int    `json:"skill_event_count,omitempty"`
+	PlanEventCount             int    `json:"plan_event_count,omitempty"`
+	DecisionSelected           bool   `json:"decision_selected,omitempty"`
+	DecisionBlocked            bool   `json:"decision_blocked,omitempty"`
+	SkillSelected              bool   `json:"skill_selected,omitempty"`
+	Interrupted                bool   `json:"interrupted,omitempty"`
+	Failed                     bool   `json:"failed,omitempty"`
+	Completed                  bool   `json:"completed,omitempty"`
+}
+
+type SelectedSkill struct {
+	Skill        skills.Spec
+	Score        int
+	MatchedTerms []string
 }
 
 // --- Event payload data types ---

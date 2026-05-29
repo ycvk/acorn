@@ -5,12 +5,10 @@ import (
 	"time"
 
 	"github.com/ycvk/acorn/internal/app"
+	"github.com/ycvk/acorn/internal/clientevents"
 	"github.com/ycvk/acorn/internal/decision"
 	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/model"
-	"github.com/ycvk/acorn/internal/runtime"
-	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
-	"github.com/ycvk/acorn/internal/stream"
 	"github.com/ycvk/acorn/internal/workspace"
 )
 
@@ -19,16 +17,16 @@ func TestRuntimeWorkbenchDTOFromDomainPreservesAggregatedSections(t *testing.T) 
 	workbench := &app.RuntimeWorkbench{
 		SessionID:       "session_42",
 		Title:           "continue runtime work",
-		State:           runtimeapi.SessionStateInterrupted,
+		State:           clientevents.SessionStateInterrupted,
 		LatestRunID:     "run_42",
 		LatestRunStatus: events.RunStatusInterrupted,
 		LatestRunMode:   "plan_execute",
 		LatestRunDepth:  0,
 		Resumable:       true,
 		ResumeReason:    "pending actions remain",
-		TraceSummary: &runtime.TraceSummary{
+		TraceSummary: &clientevents.TraceSummary{
 			ItemCount: 12,
-			LastKind:  stream.StreamKindSubagentCompleted,
+			LastKind:  "subagent.completed",
 		},
 		LatestDecision: &decision.Record{
 			RunID:               "run_42",

@@ -4,10 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/ycvk/acorn/internal/clientevents"
 	"github.com/ycvk/acorn/internal/decision"
 	"github.com/ycvk/acorn/internal/events"
-	"github.com/ycvk/acorn/internal/runtime"
-	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 )
 
 type latestRunProjectionStore interface {
@@ -21,19 +20,19 @@ type latestRunProjection struct {
 	LatestRunMode   string
 	LatestRunDepth  int
 	ParentRunID     string
-	State           runtimeapi.SessionState
+	State           clientevents.SessionState
 	Resumable       bool
 	ResumeReason    string
 	InterruptIDs    []string
 	RawEvents       []events.EventRecord
-	TraceSummary    *runtime.TraceSummary
-	SelectedSkill   *runtime.SelectedSkill
+	TraceSummary    *clientevents.TraceSummary
+	SelectedSkill   *clientevents.SelectedSkill
 	LatestDecision  *decision.Record
 }
 
 func projectLatestRun(ctx context.Context, store latestRunProjectionStore, traceSvc *TraceService, latestRun *events.RunRecord) (latestRunProjection, error) {
 	projection := latestRunProjection{
-		State: runtimeapi.DeriveSessionState(latestRun, false),
+		State: clientevents.DeriveSessionState(latestRun, false),
 	}
 	if latestRun == nil {
 		return projection, nil
@@ -73,8 +72,8 @@ func projectLatestRun(ctx context.Context, store latestRunProjectionStore, trace
 	}
 	projection.RawEvents = rawEvents
 	if len(rawEvents) > 0 {
-		projection.TraceSummary = runtime.BuildTraceSummary(rawEvents)
-		projection.SelectedSkill = runtime.SelectedSkillFromEvents(rawEvents)
+		projection.TraceSummary = clientevents.BuildTraceSummary(rawEvents)
+		projection.SelectedSkill = clientevents.SelectedSkillFromEvents(rawEvents)
 	}
 
 	decisionRecord, err := store.LoadRunDecision(ctx, latestRun.RunID)

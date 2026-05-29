@@ -4,10 +4,14 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"reflect"
+	"sort"
 	"strings"
 	"testing"
 
 	"github.com/getkin/kin-openapi/openapi3"
+	"github.com/ycvk/acorn/internal/app"
+	"github.com/ycvk/acorn/internal/clientevents"
 )
 
 func TestOpenAPIContractMatchesFileBackedMemorySurface(t *testing.T) {
@@ -249,6 +253,8 @@ func TestOpenAPIContractMatchesFileBackedMemorySurface(t *testing.T) {
 		"SymbolSearchResponse",
 		"FileSymbolsResponse",
 		"ReferenceSearchResponse",
+		"TraceWarningSummary",
+		"warning_summary",
 	} {
 		if strings.Contains(text, stale) {
 			t.Fatalf("openapi contract should not contain stale entry %q", stale)
@@ -325,4 +331,79 @@ func TestOpenAPIContractMatchesFileBackedMemorySurface(t *testing.T) {
 	if doc.Components.Parameters["DeviceID"] == nil {
 		t.Fatalf("missing DeviceID parameter")
 	}
+}
+
+func TestOpenAPITraceSummaryMatchesClientProjectionStruct(t *testing.T) {
+	path := filepath.Join("..", "..", "docs", "openapi.yaml")
+	loader := openapi3.NewLoader()
+	doc, err := loader.LoadFromFile(path)
+	if err != nil {
+		t.Fatalf("load openapi: %v", err)
+	}
+	schemaRef := doc.Components.Schemas["TraceSummary"]
+	if schemaRef == nil || schemaRef.Value == nil {
+		t.Fatal("missing TraceSummary schema")
+	}
+
+	got := sortedKeys(schemaRef.Value.Properties)
+	want := sortedStrings(jsonFieldNames(reflect.TypeOf(clientevents.TraceSummary{})))
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("TraceSummary OpenAPI fields = %v, want clientevents.TraceSummary fields %v", got, want)
+	}
+	if schemaRef.Value.AdditionalProperties.Has != nil && *schemaRef.Value.AdditionalProperties.Has {
+		t.Fatal("TraceSummary must not allow additional properties")
+	}
+}
+
+func TestOpenAPIRunResultMatchesAppProjectionStruct(t *testing.T) {
+	path := filepath.Join("..", "..", "docs", "openapi.yaml")
+	loader := openapi3.NewLoader()
+	doc, err := loader.LoadFromFile(path)
+	if err != nil {
+		t.Fatalf("load openapi: %v", err)
+	}
+	schemaRef := doc.Components.Schemas["RunResult"]
+	if schemaRef == nil || schemaRef.Value == nil {
+		t.Fatal("missing RunResult schema")
+	}
+
+	got := sortedKeys(schemaRef.Value.Properties)
+	want := sortedStrings(jsonFieldNames(reflect.TypeOf(app.RunResult{})))
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("RunResult OpenAPI fields = %v, want app.RunResult fields %v", got, want)
+	}
+}
+
+func jsonFieldNames(t reflect.Type) []string {
+	if t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+	fields := make([]string, 0, t.NumField())
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		tag := field.Tag.Get("json")
+		if tag == "-" {
+			continue
+		}
+		name := strings.Split(tag, ",")[0]
+		if name == "" {
+			name = field.Name
+		}
+		fields = append(fields, name)
+	}
+	return fields
+}
+
+func sortedKeys[V any](items map[string]V) []string {
+	keys := make([]string, 0, len(items))
+	for key := range items {
+		keys = append(keys, key)
+	}
+	return sortedStrings(keys)
+}
+
+func sortedStrings(items []string) []string {
+	out := append([]string(nil), items...)
+	sort.Strings(out)
+	return out
 }

@@ -3,9 +3,9 @@ package web
 import (
 	"time"
 
+	"github.com/ycvk/acorn/internal/clientevents"
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/decision"
-	"github.com/ycvk/acorn/internal/runtime"
 )
 
 type SelectedSkillDTO struct {
@@ -35,7 +35,7 @@ func runDecisionDTOFromDomain(record *decision.Record) *RunDecisionDTO {
 	return DefaultConverter.runDecisionDTOFromDomain(record)
 }
 
-func selectedSkillDTOFromRuntime(skill *runtime.SelectedSkill) *SelectedSkillDTO {
+func selectedSkillDTOFromClientProjection(skill *clientevents.SelectedSkill) *SelectedSkillDTO {
 	if skill == nil {
 		return nil
 	}
