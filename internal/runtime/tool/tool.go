@@ -18,7 +18,6 @@ import (
 	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/contextplane"
-	"github.com/ycvk/acorn/internal/contextplane/toollifecycle"
 	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	"github.com/ycvk/acorn/internal/stream"
 	"github.com/ycvk/acorn/internal/tooling"
@@ -778,7 +777,7 @@ type loadToolsOutput struct {
 
 func NewLoadToolsTool() (einotool.BaseTool, error) {
 	return toolutils.InferTool("load_tools", "Load deferred tool definitions by query or exact tool names.", func(ctx context.Context, input loadToolsInput) (loadToolsOutput, error) {
-		result, err := toollifecycle.DeferredLoad(ctx, contextplane.DeferredLoadRequest{
+		result, err := contextplane.DeferredLoad(ctx, contextplane.DeferredLoadRequest{
 			RunID:     getRunID(ctx),
 			SessionID: runtimeapi.SessionIDFromContext(ctx),
 			Query:     strings.TrimSpace(input.Query),

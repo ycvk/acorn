@@ -1,4 +1,4 @@
-package toollifecycle_test
+package contextplane_test
 
 import (
 	"context"
@@ -12,7 +12,6 @@ import (
 
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/contextplane"
-	"github.com/ycvk/acorn/internal/contextplane/toollifecycle"
 	"github.com/ycvk/acorn/internal/model"
 	storerepo "github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/tooling"
@@ -154,7 +153,7 @@ func TestLoadedToolInfosFromContextExcludesDeferredUntilLoaded(t *testing.T) {
 	if len(initial) != 1 || initial[0].Name != "read_file" {
 		t.Fatalf("initial loaded tool infos = %+v, want only read_file", initial)
 	}
-	if _, err := toollifecycle.DeferredLoad(ctx, contextplane.DeferredLoadRequest{ToolNames: []string{"mcp.prompt.fetch"}}); err != nil {
+	if _, err := contextplane.DeferredLoad(ctx, contextplane.DeferredLoadRequest{ToolNames: []string{"mcp.prompt.fetch"}}); err != nil {
 		t.Fatalf("DeferredLoad: %v", err)
 	}
 	loaded := contextplane.LoadedToolInfosFromContext(ctx, result.EagerToolNames)
@@ -182,37 +181,37 @@ func TestToolLifecycleOnToolCallRequiresLoadedTool(t *testing.T) {
 	}
 	ctx := contextplane.WithToolLifecycleContext(context.Background(), plane.ToolResultLedger(), result.LifecycleState, catalog, nil)
 
-	if err := toollifecycle.OnToolCall(ctx, contextplane.ToolCallEvent{ToolName: "read_file"}); err != nil {
+	if err := contextplane.OnToolCall(ctx, contextplane.ToolCallEvent{ToolName: "read_file"}); err != nil {
 		t.Fatalf("loaded tool should pass: %v", err)
 	}
-	err = toollifecycle.OnToolCall(ctx, contextplane.ToolCallEvent{ToolName: "mcp.prompt.fetch"})
-	var rejected *toollifecycle.ToolCallRejectedError
+	err = contextplane.OnToolCall(ctx, contextplane.ToolCallEvent{ToolName: "mcp.prompt.fetch"})
+	var rejected *contextplane.ToolCallRejectedError
 	if !errors.As(err, &rejected) || rejected.ToolName != "mcp.prompt.fetch" || !strings.Contains(rejected.Reason, "deferred") {
 		t.Fatalf("expected deferred tool rejection, got %v", err)
 	}
-	err = toollifecycle.OnToolCall(ctx, contextplane.ToolCallEvent{ToolName: "missing_tool"})
+	err = contextplane.OnToolCall(ctx, contextplane.ToolCallEvent{ToolName: "missing_tool"})
 	rejected = nil
 	if !errors.As(err, &rejected) || rejected.ToolName != "missing_tool" || !strings.Contains(rejected.Reason, "not loaded or enabled") {
 		t.Fatalf("expected unknown tool rejection, got %v", err)
 	}
 
-	loadResult, err := toollifecycle.DeferredLoad(ctx, contextplane.DeferredLoadRequest{ToolNames: []string{"mcp.prompt.fetch"}})
+	loadResult, err := contextplane.DeferredLoad(ctx, contextplane.DeferredLoadRequest{ToolNames: []string{"mcp.prompt.fetch"}})
 	if err != nil {
 		t.Fatalf("DeferredLoad: %v", err)
 	}
 	if !slices.Equal(loadResult.LoadedToolNames, []string{"mcp.prompt.fetch"}) {
 		t.Fatalf("loaded tool names = %+v", loadResult.LoadedToolNames)
 	}
-	if err := toollifecycle.OnToolCall(ctx, contextplane.ToolCallEvent{ToolName: "mcp.prompt.fetch"}); err != nil {
+	if err := contextplane.OnToolCall(ctx, contextplane.ToolCallEvent{ToolName: "mcp.prompt.fetch"}); err != nil {
 		t.Fatalf("deferred-loaded tool should pass: %v", err)
 	}
 }
 
 func TestDeferredLoadRejectsEmptyRequestAndInvalidLimit(t *testing.T) {
-	if _, err := toollifecycle.DeferredLoad(context.Background(), contextplane.DeferredLoadRequest{}); err == nil {
+	if _, err := contextplane.DeferredLoad(context.Background(), contextplane.DeferredLoadRequest{}); err == nil {
 		t.Fatal("expected empty request error")
 	}
-	if _, err := toollifecycle.DeferredLoad(context.Background(), contextplane.DeferredLoadRequest{
+	if _, err := contextplane.DeferredLoad(context.Background(), contextplane.DeferredLoadRequest{
 		Query: "git",
 		Limit: 6,
 	}); err == nil {
@@ -221,19 +220,19 @@ func TestDeferredLoadRejectsEmptyRequestAndInvalidLimit(t *testing.T) {
 }
 
 func TestToolLifecycleEventsRequireToolName(t *testing.T) {
-	if err := toollifecycle.OnToolCall(context.Background(), contextplane.ToolCallEvent{}); err == nil {
+	if err := contextplane.OnToolCall(context.Background(), contextplane.ToolCallEvent{}); err == nil {
 		t.Fatal("expected tool call validation error")
 	}
-	if err := toollifecycle.OnToolResult(context.Background(), contextplane.ToolResultEvent{}); err == nil {
+	if err := contextplane.OnToolResult(context.Background(), contextplane.ToolResultEvent{}); err == nil {
 		t.Fatal("expected tool result validation error")
 	}
 }
 
 func TestToolLifecycleEventsRequireStateForNamedTools(t *testing.T) {
-	if err := toollifecycle.OnToolCall(context.Background(), contextplane.ToolCallEvent{ToolName: "read_file"}); err == nil || strings.Contains(err.Error(), "rejected") {
+	if err := contextplane.OnToolCall(context.Background(), contextplane.ToolCallEvent{ToolName: "read_file"}); err == nil || strings.Contains(err.Error(), "rejected") {
 		t.Fatalf("expected lifecycle state runtime error, got %v", err)
 	}
-	if err := toollifecycle.OnToolResult(context.Background(), contextplane.ToolResultEvent{ToolName: "read_file", CallID: "call_1"}); err == nil || strings.Contains(err.Error(), "rejected") {
+	if err := contextplane.OnToolResult(context.Background(), contextplane.ToolResultEvent{ToolName: "read_file", CallID: "call_1"}); err == nil || strings.Contains(err.Error(), "rejected") {
 		t.Fatalf("expected lifecycle state runtime error, got %v", err)
 	}
 }
@@ -250,7 +249,7 @@ func TestToolLifecycleOnToolResultPersistsLedgerAndRecentResults(t *testing.T) {
 	}
 	ctx := contextplane.WithToolLifecycleContext(context.Background(), store, state, nil, nil)
 
-	if err := toollifecycle.OnToolResult(ctx, contextplane.ToolResultEvent{
+	if err := contextplane.OnToolResult(ctx, contextplane.ToolResultEvent{
 		RunID:        "run_ledger",
 		SessionID:    "sess_ledger",
 		TurnIndex:    3,
@@ -307,7 +306,7 @@ func TestToolLifecycleOnToolResultRequiresLedger(t *testing.T) {
 	}
 	ctx := contextplane.WithToolLifecycleContext(context.Background(), nil, state, nil, nil)
 
-	err := toollifecycle.OnToolResult(ctx, contextplane.ToolResultEvent{
+	err := contextplane.OnToolResult(ctx, contextplane.ToolResultEvent{
 		RunID:     "run_missing_ledger",
 		SessionID: "sess_missing_ledger",
 		CallID:    "call_1",
@@ -350,13 +349,13 @@ func TestToolLifecycleConcurrentReadAndDeferredLoad(t *testing.T) {
 		})
 	}
 	wg.Go(func() {
-		if _, err := toollifecycle.DeferredLoad(ctx, contextplane.DeferredLoadRequest{ToolNames: []string{"mcp.prompt.fetch"}}); err != nil {
+		if _, err := contextplane.DeferredLoad(ctx, contextplane.DeferredLoadRequest{ToolNames: []string{"mcp.prompt.fetch"}}); err != nil {
 			t.Errorf("DeferredLoad: %v", err)
 		}
 	})
 	wg.Wait()
 
-	if err := toollifecycle.OnToolCall(ctx, contextplane.ToolCallEvent{ToolName: "mcp.prompt.fetch"}); err != nil {
+	if err := contextplane.OnToolCall(ctx, contextplane.ToolCallEvent{ToolName: "mcp.prompt.fetch"}); err != nil {
 		t.Fatalf("deferred-loaded tool should pass after concurrent reads: %v", err)
 	}
 }
