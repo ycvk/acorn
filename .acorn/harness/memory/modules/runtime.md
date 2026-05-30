@@ -32,7 +32,7 @@ last_updated: 2026-05-30
 
 - Core logic: stable
 - 已知问题: 无
-- 最近改动: 2026-05-30 删除 per-chunk `tool.call.progress` 持久化；`tooling.ProgressTool` 只保留 in-process callback 能力，durable tool truth 由 final tool message、`tool_results` ledger 和 started/succeeded/failed/interrupted audit events 承载。同轮删除 public trace/debug surface、`runtime.Result.TraceSummary` 和 terminal trace summary 构建；`RunResumeService` 只负责从 persisted root interrupt contexts 推导 resume targets。2026-05-29 将 mobile live RunEvent contract 从 runtime diagnostic trace 中 hard-cut 出来；`/v1/runs/{run_id}/events` 只投影移动端 live 子集。
+- 最近改动: 2026-05-30 删除 push notification public surface 和重复 tool audit event 持久化；`tooling.ProgressTool` 只保留 in-process callback 能力，durable tool truth 由 terminal tool message、`tool_results` ledger、side-effect refs、artifacts 和 plan evidence backlinks 承载。同轮删除 public trace/debug surface、`runtime.Result.TraceSummary` 和 terminal trace summary 构建；`RunResumeService` 只负责从 persisted root interrupt contexts 推导 resume targets。2026-05-29 将 mobile live RunEvent contract 从 runtime diagnostic trace 中 hard-cut 出来；`/v1/runs/{run_id}/events` 只投影移动端 live 子集。
 
 ## 硬约束（不可违反）
 

@@ -16,6 +16,7 @@ import (
 	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	"github.com/ycvk/acorn/internal/runtime/graph"
 	"github.com/ycvk/acorn/internal/runtime/tool"
+	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/tooling"
 )
 
@@ -536,6 +537,58 @@ func TestActNodeEnforcesRiskyToolPlanBeforeTools(t *testing.T) {
 	}
 	if tools.callCount != 1 {
 		t.Fatalf("tools callCount = %d, want 1", tools.callCount)
+	}
+}
+
+func TestActNodeRejectsRiskyToolBeforeToolExecution(t *testing.T) {
+	toolCall := makeToolCall("call_1", "create_file", `{"path":"x.txt"}`)
+	nodeModel := &actNodeModel{response: schema.AssistantMessage("", []schema.ToolCall{toolCall})}
+	tools := &fakeToolInvoker{results: []*schema.Message{
+		schema.ToolMessage(`{"path":"x.txt","message":"ok"}`, "call_1", schema.WithToolName("create_file")),
+	}}
+	planStore := &fakePlanStore{
+		loaded: &model.Plan{
+			PlanID:    "plan_risky_reject",
+			SessionID: "sess_risky_reject",
+			RunID:     "run_risky_reject",
+			Steps: []model.PlanStep{
+				{ID: "s1", Action: "Create file", Status: model.PlanStepPending},
+			},
+			CreatedAt: time.Now().UTC(),
+			UpdatedAt: time.Now().UTC(),
+		},
+		loadErr:      store.ErrPlanNotFound,
+		loadErrAfter: 2,
+	}
+	node := NewActNode(nodeModel, tools, tool.NewDirectAssistantStreamer(nil), planStore, []tooling.ToolSpec{
+		{
+			ToolContract: tooling.ToolContract{
+				Name:          "create_file",
+				Source:        "local",
+				Kind:          tooling.ToolKindNative,
+				Category:      tooling.ToolCategoryWrite,
+				ResourceScope: tooling.ResourceScopeWorkspaceFile,
+				Profiles:      []tooling.ToolProfile{tooling.ToolProfileRun},
+				PlanPolicy:    tooling.PlanPolicyRequireActivePlan,
+				Loading:       tooling.EagerLoadingPolicy(),
+				Execution: tooling.ToolExecutionPolicy{
+					ParallelPolicy: tooling.ParallelPolicyWriteScoped,
+					PathArg:        "path",
+				},
+			},
+		},
+	}, nil)
+	ctx := runtimeapi.WithRunID(runtimeapi.WithSessionID(context.Background(), "sess_risky_reject"), "run_risky_reject")
+
+	_, err := node.Invoke(ctx, &graph.AgentGraphState{Messages: []*schema.Message{schema.UserMessage("create")}})
+	if err == nil {
+		t.Fatalf("Invoke succeeded, want risky tool rejection")
+	}
+	if !errors.Is(err, ErrRiskyToolRequiresPlan) {
+		t.Fatalf("error = %v, want ErrRiskyToolRequiresPlan", err)
+	}
+	if tools.callCount != 0 {
+		t.Fatalf("tools callCount = %d, want 0 because policy rejection must happen before execution", tools.callCount)
 	}
 }
 

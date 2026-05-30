@@ -27,7 +27,7 @@ ContextSession 拥有所有 root mode 的首轮 model input，并且 direct_resp
 
 CompactionEngine 拥有 proactive compact 的 summary/rewrite 规则。ADK handler stack 和 ContextSession direct loop 都通过 BudgetGovernor pressure 触发 engine-owned compact；summary shape、tail preservation、contextplane rehydration packets 和 token metrics 不由 adapter 自己决定。
 
-Reactive compact 是 provider overflow 专用恢复路径。`direct_response` 在 `AssistantStreamer.StreamAssistantMessage` 返回明确 context overflow 后，通过 ContextSession 执行 `CompactTriggerReactive` 并用同一个 message id、model、tool infos 重试一次；普通 model error 不重试。ADK graph modes 不把内部控制 prompt 写入 ContextSession，而是在 compaction middleware 的 `WrapModel` seam 对 `Generate` / `Stream` 的直接 overflow error 做同样的一次 reactive compact retry。
+Reactive compact 是 provider overflow 专用恢复路径。`direct_response` 和 ActNode 都围绕 `orchestration.ExecuteRound` 处理明确的 context overflow：通过 ContextSession 执行 `CompactTriggerReactive`，再用同一个 message id、model、tool infos 重试一次；普通 model error 不重试。PlanNode / ObserveNode 这类纯 graph model call 仍通过 compaction middleware 的 `WrapModel` seam 对 `Generate` / `Stream` 的直接 overflow error 做同样的一次 reactive compact retry。graph control prompt 不写入 user-facing conversation history。
 
 single_agent / plan_execute 内部的 PlanNode plan JSON、ObserveNode decision JSON、ActNode step instruction 和 plan-execute dispatch summaries 是 graph control state，不是 user-facing conversation history。它们继续由 graph state / PlanStore / evidence ledger 持有，不写入 ContextSession，避免把内部控制消息污染为会话事实。
 
@@ -38,7 +38,7 @@ single_agent / plan_execute 内部的 PlanNode plan JSON、ObserveNode decision 
 - `internal/runtime/plan/agent_graph.go` 构建 PlanNode / ActNode / ObserveNode / FinalNode。
 - graph builder 必须拿到 runtime `PlanStore`；缺 plan store 直接构建失败。
 - Procedure activation 不在 graph 内生成 synthetic plan。Learned procedures now enter the run as file-backed memory skill entries from `memorymodule.Prepare`; ordinary executable skills still come from `internal/skills` selection and ContextPlane injection.
-- ActNode 用 `SafeParallelToolsNode` 执行工具，并把 tool result 写入 step evidence ledger；同一结果同时由 ContextPlane 写入 durable `tool_results` ledger，再由 PlanStore 把 step evidence backlink 回写到同一条 tool result 记录。workspace mutation checkpoint / rollback 的 side-effect refs 也沿这条链路进入 ledger/store-owned backend truth。
+- ActNode 用 `orchestration.ExecuteRound` 共享 direct_response 的 assistant streaming -> tool submit -> result collection primitive。工具实际执行仍由 `SafeParallelToolsNode` / `StreamingToolExecutor` 完成；ActNode 只通过 `BeforeToolCall` pre-submit hook 做 active-plan policy 校验，并把终态 tool result 写入 step evidence ledger。同一结果同时由 ContextPlane 写入 durable `tool_results` ledger，再由 PlanStore 把 step evidence backlink 回写到同一条 tool result 记录。workspace mutation checkpoint / rollback 的 side-effect refs 也沿这条链路进入 ledger/store-owned backend truth。
 - `SafeParallelToolsNode` 是 Acorn-specific tool dispatch adapter；实际批次、路径冲突和结果顺序由 `internal/runtime/tool/tool.go` 的 shared scheduler core 处理，并通过 `internal/runtime/tool/streaming_tool_executor.go` 暴露实时提交接口。它从 `tooling.ExecutionPolicyResolver` 读取 `ToolContract.Execution`，保留 policy-aware parallelism、ContextPlane tool lifecycle 和 plan evidence recorder；已加载工具没有 execution policy 是 runtime wiring failure，不会默认成 read-only。真实工具执行时会显式触发 Eino Tool component callbacks，因此外部 Eino callback/DevOps handler 能看到 tool OnStart/OnEnd/OnError。模型调用 unknown/deferred tool 仍是模型可见 failed tool result，不伪造真实工具 callback success。
 
 ## plan_execute
