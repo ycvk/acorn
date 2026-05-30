@@ -203,6 +203,33 @@ func normalizePlanSteps(steps []model.PlanStep) []model.PlanStep {
 	return out
 }
 
+func clonePlanStep(step model.PlanStep) model.PlanStep {
+	return model.PlanStep{
+		ID:                 step.ID,
+		Action:             step.Action,
+		Status:             step.Status,
+		DependsOn:          append([]string(nil), step.DependsOn...),
+		RepoTargets:        append([]model.PlanRepoTarget(nil), step.RepoTargets...),
+		VerificationIntent: cloneVerificationIntents(step.VerificationIntent),
+		Risk:               step.Risk,
+		ToolHints:          append([]string(nil), step.ToolHints...),
+		Evidence:           append([]model.PlanEvidence(nil), step.Evidence...),
+	}
+}
+
+func cloneVerificationIntents(items []model.VerificationIntent) []model.VerificationIntent {
+	out := make([]model.VerificationIntent, 0, len(items))
+	for _, item := range items {
+		out = append(out, model.VerificationIntent{
+			Kind:    item.Kind,
+			Command: append([]string(nil), item.Command...),
+			Paths:   append([]string(nil), item.Paths...),
+			Reason:  item.Reason,
+		})
+	}
+	return out
+}
+
 func normalizePlanRepoTargets(items []model.PlanRepoTarget) []model.PlanRepoTarget {
 	out := make([]model.PlanRepoTarget, 0, len(items))
 	for _, item := range items {

@@ -110,9 +110,6 @@ void main() {
     for (final type in const [
       'tool.call.progress',
       'memory.prepared',
-      'context.pressure',
-      'plan.created',
-      'step.started',
       'subagent.failed',
       'skill.lifecycle',
     ]) {

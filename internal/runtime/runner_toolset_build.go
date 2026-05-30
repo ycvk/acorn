@@ -15,7 +15,6 @@ import (
 	"github.com/ycvk/acorn/internal/memorymodule"
 	"github.com/ycvk/acorn/internal/orchestration"
 	"github.com/ycvk/acorn/internal/providers"
-	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
 	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 
 	"github.com/ycvk/acorn/internal/runtime/tool"
@@ -205,39 +204,6 @@ const capabilityDiscoveryInstruction = `Capability discovery rules:
 - If a relevant skill may exist but the catalog summary is not enough, call skill_list or skill_view before answering.
 - If a relevant capability depends on deferred tools, call load_tools before concluding the capability is unavailable.
 - Prefer the matching skill and tool path over a generic limitation answer.`
-
-func emitProviderDegradedIfNeeded(ctx context.Context, store runtimeapi.EventAppender, req RunnerBuildRequest, statuses []mcpprovider.ProviderStatus) error {
-	if store == nil || strings.TrimSpace(req.RunID) == "" {
-		return nil
-	}
-	var healthy, failed bool
-	var failedEntries []map[string]any
-	for _, s := range statuses {
-		if !s.Enabled {
-			continue
-		}
-		if s.StartupStatus == "healthy" {
-			healthy = true
-		} else if s.StartupStatus == "failed" {
-			failed = true
-			failedEntries = append(failedEntries, map[string]any{
-				"name":      s.Name,
-				"transport": s.Transport,
-				"error":     s.Error,
-			})
-		}
-	}
-	if !healthy || !failed {
-		return nil
-	}
-	_, err := stream.AppendStreamItem(ctx, store, req.Sink, stream.StreamItem{
-		RunID:     req.RunID,
-		Kind:      stream.StreamKindProviderDegraded,
-		CreatedAt: time.Now().UTC(),
-		Payload:   map[string]any{"affected_providers": failedEntries},
-	})
-	return err
-}
 
 func emitMemoryPreparedEvent(ctx context.Context, store runtimeapi.EventAppender, req RunnerBuildRequest, workspaceScope string, result *memorymodule.PrepareResult) error {
 	if store == nil || strings.TrimSpace(req.RunID) == "" {

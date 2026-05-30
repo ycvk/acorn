@@ -25,11 +25,11 @@ func TestRunnerFactoryBuildsContextHandlerStackPerRun(t *testing.T) {
 		Handlers: []adk.ChatModelAgentMiddleware{staticHandler},
 	})
 
-	first, err := buildRunnerAgentHandlers(context.Background(), factory.deps.Config, factory.deps.ContextPlane, factory.deps.Handlers, factory.deps.Store, chatModel, contextplane.NewCompressionState())
+	first, err := buildRunnerAgentHandlers(context.Background(), factory.deps.Config, factory.deps.ContextPlane, factory.deps.Handlers, chatModel, contextplane.NewCompressionState())
 	if err != nil {
 		t.Fatalf("buildRunnerAgentHandlers(first): %v", err)
 	}
-	second, err := buildRunnerAgentHandlers(context.Background(), factory.deps.Config, factory.deps.ContextPlane, factory.deps.Handlers, factory.deps.Store, chatModel, contextplane.NewCompressionState())
+	second, err := buildRunnerAgentHandlers(context.Background(), factory.deps.Config, factory.deps.ContextPlane, factory.deps.Handlers, chatModel, contextplane.NewCompressionState())
 	if err != nil {
 		t.Fatalf("buildRunnerAgentHandlers(second): %v", err)
 	}
@@ -64,7 +64,7 @@ func TestCompressionAlwaysOnBuildsMiddlewareStack(t *testing.T) {
 	factory := newRunnerFactory(t, cfg, store, RunnerFactoryOptions{
 		Handlers: []adk.ChatModelAgentMiddleware{staticHandler},
 	})
-	handlers, err := buildRunnerAgentHandlers(context.Background(), factory.deps.Config, factory.deps.ContextPlane, factory.deps.Handlers, factory.deps.Store, chatModel, contextplane.NewCompressionState())
+	handlers, err := buildRunnerAgentHandlers(context.Background(), factory.deps.Config, factory.deps.ContextPlane, factory.deps.Handlers, chatModel, contextplane.NewCompressionState())
 	if err != nil {
 		t.Fatalf("buildRunnerAgentHandlers: %v", err)
 	}

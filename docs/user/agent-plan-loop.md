@@ -89,11 +89,11 @@ Q: 我还能让 agent 自己调用 `plan_write` 或 `plan_read` 吗？
 
 A: 不能。这两个工具已经移除。计划是运行时执行循环的一部分，不再是模型可选调用的普通工具。
 
-Q: `step.failed` 是否等于整次 run failed？
+Q: step failed 是否等于整次 run failed？
 
 A: 不一定。普通工具错误会让当前 step 标记为 failed，然后交给观察节点决定是否重规划。只有模型调用、计划格式、计划持久化、SQLite、graph 装配等 Acorn 自身运行时错误才会让 run failed。
 
-Q: 为什么有时会出现 `plan.updated`？
+Q: 为什么计划有时会更新？
 
 A: 当某一步失败或结果与预期不一致时，Acorn 可能选择 replan。此时它会保留 session/run 线索并更新计划。
 

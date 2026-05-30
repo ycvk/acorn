@@ -36,16 +36,14 @@ type PendingActionStore interface {
 // result synchronously to the server.
 type ElicitationHandler struct {
 	store       PendingActionStore
-	onEvent     ProviderEventCallback
 	activeRunID string
 	activeMu    sync.RWMutex
 	timeout     time.Duration
 }
 
-func newElicitationHandler(store PendingActionStore, onEvent ProviderEventCallback) *ElicitationHandler {
+func newElicitationHandler(store PendingActionStore) *ElicitationHandler {
 	return &ElicitationHandler{
 		store:   store,
-		onEvent: onEvent,
 		timeout: defaultElicitationTimeout,
 	}
 }

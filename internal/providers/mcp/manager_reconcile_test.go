@@ -21,10 +21,7 @@ func TestReconcileProvidersAddsNewProvider(t *testing.T) {
 		StartupTimeoutSeconds: 10,
 	}
 
-	var events []ProviderEvent
-	mgr, err := NewManager(context.Background(), []ProviderConfig{cfg}, WithEventCallback(func(ev ProviderEvent) {
-		events = append(events, ev)
-	}))
+	mgr, err := NewManager(context.Background(), []ProviderConfig{cfg})
 	if err != nil {
 		t.Fatalf("NewManager: %v", err)
 	}
@@ -35,7 +32,6 @@ func TestReconcileProvidersAddsNewProvider(t *testing.T) {
 		t.Fatalf("initial status count = %d, want %d", got, want)
 	}
 
-	events = events[:0]
 	err = mgr.ReconcileProviders(context.Background(), []ProviderConfig{
 		cfg,
 		{
@@ -68,25 +64,11 @@ func TestReconcileProvidersAddsNewProvider(t *testing.T) {
 		t.Fatal("beta provider not found in statuses after add")
 	}
 
-	var addedEvent *ProviderEvent
-	for i := range events {
-		if events[i].Kind == "provider_added" && events[i].Provider == "beta" {
-			addedEvent = &events[i]
-			break
-		}
-	}
-	if addedEvent == nil {
-		t.Fatalf("expected provider_added event for beta, got events: %v", events)
-	}
-	if addedEvent.Error != "" {
-		t.Fatalf("provider_added event should have no error on success, got %q", addedEvent.Error)
-	}
 }
 
 func TestReconcileProvidersRemovesProvider(t *testing.T) {
 	binary := buildFixtureServer(t)
 
-	var events []ProviderEvent
 	mgr, err := NewManager(context.Background(), []ProviderConfig{
 		{
 			Name:                  "alpha",
@@ -102,15 +84,12 @@ func TestReconcileProvidersRemovesProvider(t *testing.T) {
 			Command:               binary,
 			StartupTimeoutSeconds: 10,
 		},
-	}, WithEventCallback(func(ev ProviderEvent) {
-		events = append(events, ev)
-	}))
+	})
 	if err != nil {
 		t.Fatalf("NewManager: %v", err)
 	}
 	t.Cleanup(func() { _ = mgr.Close() })
 
-	events = events[:0]
 	err = mgr.ReconcileProviders(context.Background(), []ProviderConfig{{
 		Name:                  "alpha",
 		Enabled:               true,
@@ -130,31 +109,18 @@ func TestReconcileProvidersRemovesProvider(t *testing.T) {
 		t.Fatalf("remaining provider = %q, want alpha", statuses[0].Name)
 	}
 
-	var removedEvent *ProviderEvent
-	for i := range events {
-		if events[i].Kind == "provider_removed" && events[i].Provider == "beta" {
-			removedEvent = &events[i]
-			break
-		}
-	}
-	if removedEvent == nil {
-		t.Fatalf("expected provider_removed event for beta, got events: %v", events)
-	}
 }
 
 func TestReconcileProvidersRestartsChangedProvider(t *testing.T) {
 	binary := buildFixtureServer(t)
 
-	var events []ProviderEvent
 	mgr, err := NewManager(context.Background(), []ProviderConfig{{
 		Name:                  "alpha",
 		Enabled:               true,
 		Transport:             "stdio",
 		Command:               binary,
 		StartupTimeoutSeconds: 10,
-	}}, WithEventCallback(func(ev ProviderEvent) {
-		events = append(events, ev)
-	}))
+	}})
 	if err != nil {
 		t.Fatalf("NewManager: %v", err)
 	}
@@ -165,7 +131,6 @@ func TestReconcileProvidersRestartsChangedProvider(t *testing.T) {
 		t.Fatal("expected tools from initial provider")
 	}
 
-	events = events[:0]
 	err = mgr.ReconcileProviders(context.Background(), []ProviderConfig{{
 		Name:                  "alpha",
 		Enabled:               true,
@@ -183,17 +148,6 @@ func TestReconcileProvidersRestartsChangedProvider(t *testing.T) {
 	}
 	if statuses[0].StartupStatus != "healthy" {
 		t.Fatalf("restarted provider status = %q, want healthy", statuses[0].StartupStatus)
-	}
-
-	var restartEvent *ProviderEvent
-	for i := range events {
-		if events[i].Kind == "provider_restarted" && events[i].Provider == "alpha" {
-			restartEvent = &events[i]
-			break
-		}
-	}
-	if restartEvent == nil {
-		t.Fatalf("expected provider_restarted event for alpha, got events: %v", events)
 	}
 
 	restartedTools := mgr.Tools()
@@ -351,22 +305,18 @@ func TestReconcileProvidersRestartFailureReturnsError(t *testing.T) {
 		return connectProvider(ctx, cfg, opts, store, onAuthStatusChanged)
 	}
 
-	var events []ProviderEvent
 	mgr, err := NewManager(context.Background(), []ProviderConfig{{
 		Name:                  "alpha",
 		Enabled:               true,
 		Transport:             "stdio",
 		Command:               binary,
 		StartupTimeoutSeconds: 10,
-	}}, WithEventCallback(func(ev ProviderEvent) {
-		events = append(events, ev)
-	}))
+	}})
 	if err != nil {
 		t.Fatalf("NewManager: %v", err)
 	}
 	t.Cleanup(func() { _ = mgr.Close() })
 
-	events = events[:0]
 	err = mgr.ReconcileProviders(context.Background(), []ProviderConfig{{
 		Name:                  "alpha",
 		Enabled:               true,
@@ -392,17 +342,4 @@ func TestReconcileProvidersRestartFailureReturnsError(t *testing.T) {
 		t.Fatal("expected error to be recorded on failed restart slot")
 	}
 
-	var restartEvent *ProviderEvent
-	for i := range events {
-		if events[i].Kind == "provider_restarted" && events[i].Provider == "alpha" {
-			restartEvent = &events[i]
-			break
-		}
-	}
-	if restartEvent == nil {
-		t.Fatalf("expected provider_restarted event, got events: %v", events)
-	}
-	if restartEvent.Error == "" {
-		t.Fatal("expected error in provider_restarted event on failure")
-	}
 }

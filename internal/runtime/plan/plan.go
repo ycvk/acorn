@@ -15,13 +15,11 @@ import (
 	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	"github.com/ycvk/acorn/internal/runtime/graph"
 	"github.com/ycvk/acorn/internal/store"
-	"github.com/ycvk/acorn/internal/stream"
 )
 
 type PlanNode struct {
 	model                  einomodel.BaseChatModel
 	store                  runtimeapi.PlanStore
-	eventStore             runtimeapi.EventAppender
 	prompt                 string
 	planningPromptProvider PlanningPromptProvider
 	enabledToolNames       []string
@@ -57,7 +55,6 @@ Rules:
 func NewPlanNode(
 	model einomodel.BaseChatModel,
 	store runtimeapi.PlanStore,
-	eventStore runtimeapi.EventAppender,
 	prompt string,
 	planningPromptProvider PlanningPromptProvider,
 	enabledToolNames []string,
@@ -65,7 +62,6 @@ func NewPlanNode(
 	return &PlanNode{
 		model:                  model,
 		store:                  store,
-		eventStore:             eventStore,
 		prompt:                 strings.TrimSpace(prompt),
 		planningPromptProvider: planningPromptProvider,
 		enabledToolNames:       append([]string(nil), enabledToolNames...),
@@ -126,11 +122,6 @@ func (n *PlanNode) Invoke(ctx context.Context, state *graph.AgentGraphState) (*g
 	}
 	if err := n.store.SavePlan(ctx, plan); err != nil {
 		return nil, fmt.Errorf("save plan: %w", err)
-	}
-	if n.eventStore != nil {
-		if err := n.emitPlanEvent(ctx, plan, existing != nil); err != nil {
-			return nil, err
-		}
 	}
 
 	state.Plan = plan
@@ -249,25 +240,3 @@ Use only enabled_tools for tool_hints. Do not treat tool_hints as permission to 
 Use verification_intent kind "test" only for actual test commands. Use "checkpoint" for mutation checkpoint proof and "rollback" for rollback_workspace_checkpoint success proof. Use "verifier" only when an independent read-only verifier child run should review the step evidence.
 Do not split tool-result-dependent operations across steps. If a later tool call needs an id or output from an earlier tool call, such as checkpoint_id followed by rollback_workspace_checkpoint, keep those calls in one step.`, planningContext)
 }
-
-func (n *PlanNode) emitPlanEvent(ctx context.Context, plan *model.Plan, update bool) error {
-	payload := map[string]any{"plan": streamPlanFromDomain(plan)}
-	kind := stream.StreamKindPlanCreated
-	if update {
-		kind = stream.StreamKindPlanUpdated
-		payload = map[string]any{"plan": streamPlanFromDomain(plan)}
-	}
-	if _, err := stream.AppendStreamItem(ctx, n.eventStore, stream.StreamSinkFromContext(ctx), stream.StreamItem{
-		RunID:     plan.RunID,
-		Kind:      kind,
-		CreatedAt: plan.UpdatedAt,
-		Payload:   payload,
-	}); err != nil {
-		return fmt.Errorf("append plan event: %w", err)
-	}
-	return nil
-}
-
-var streamPlanFromDomain = stream.StreamPlanFromDomain
-var streamStepPayloadFromPlan = stream.StreamStepPayloadFromPlan
-var clonePlanStep = stream.ClonePlanStep

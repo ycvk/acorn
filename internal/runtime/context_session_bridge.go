@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/cloudwego/eino/adk"
 	einomodel "github.com/cloudwego/eino/components/model"
@@ -14,7 +13,6 @@ import (
 	"github.com/ycvk/acorn/internal/contextplane/compaction"
 	"github.com/ycvk/acorn/internal/events"
 	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
-	"github.com/ycvk/acorn/internal/stream"
 )
 
 func (e *Executor) bootstrapContextSessionMessages(
@@ -63,12 +61,6 @@ func (e *Executor) bootstrapContextSessionMessages(
 			PreserveToolPairs: true,
 		},
 		State: active.CompressionState,
-		EmitCompressed: func(ctx context.Context, outcome contextplane.CompressionOutcome) error {
-			return EmitContextCompressedEvent(ctx, e.store, outcome)
-		},
-		EmitPressure: func(ctx context.Context, pressure contextplane.BudgetPressure) error {
-			return EmitContextPressureEvent(ctx, e.store, pressure)
-		},
 	})
 	initialMessages := append([]adk.Message(nil), req.Messages...)
 	if mode == events.ModeDirectResponse {
@@ -90,61 +82,4 @@ func (e *Executor) bootstrapContextSessionMessages(
 	}
 	active.ContextSession = session
 	return input.Messages, nil
-}
-
-func EmitContextCompressedEvent(
-	ctx context.Context,
-	store runtimeapi.EventAppender,
-	outcome contextplane.CompressionOutcome,
-) error {
-	if store == nil {
-		return nil
-	}
-	runID := strings.TrimSpace(CurrentRunID(ctx))
-	if runID == "" {
-		return nil
-	}
-	_, err := stream.AppendStreamItem(ctx, store, CurrentStreamSink(ctx), stream.StreamItem{
-		RunID:     runID,
-		Kind:      stream.StreamKindContextCompressed,
-		CreatedAt: time.Now().UTC(),
-		Payload: map[string]any{"context_compressed": &stream.StreamContextCompressed{
-			BoundaryID:     outcome.BoundaryID,
-			FirstIndex:     outcome.FirstIndex,
-			LastIndex:      outcome.LastIndex,
-			TokensBefore:   outcome.TokensBefore,
-			TokensAfter:    outcome.TokensAfter,
-			SummarySnippet: outcome.SummarySnippet,
-		}},
-	})
-	return err
-}
-
-func EmitContextPressureEvent(
-	ctx context.Context,
-	store runtimeapi.EventAppender,
-	pressure contextplane.BudgetPressure,
-) error {
-	if store == nil {
-		return nil
-	}
-	runID := strings.TrimSpace(CurrentRunID(ctx))
-	if runID == "" {
-		return nil
-	}
-	_, err := stream.AppendStreamItem(ctx, store, CurrentStreamSink(ctx), stream.StreamItem{
-		RunID:     runID,
-		Kind:      stream.StreamKindContextPressure,
-		CreatedAt: time.Now().UTC(),
-		Payload: map[string]any{"context_pressure": &stream.StreamContextPressure{
-			State:                      string(pressure.State),
-			EstimatedInputTokens:       pressure.EstimatedInputTokens,
-			EffectiveWindowTokens:      pressure.EffectiveWindowTokens,
-			WarningThresholdTokens:     pressure.WarningThresholdTokens,
-			AutoCompactThresholdTokens: pressure.AutoCompactThresholdTokens,
-			BlockingThresholdTokens:    pressure.BlockingThresholdTokens,
-			PercentUsed:                pressure.PercentUsed,
-		}},
-	})
-	return err
 }

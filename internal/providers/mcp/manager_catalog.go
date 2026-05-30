@@ -30,14 +30,7 @@ func (m *Manager) RefreshProviderCatalog(ctx context.Context, providerName strin
 	}
 	slot := &m.slots[slotIdx]
 	if slot.p == nil || slot.p.session == nil {
-		cfg := slot.cfg
 		m.mu.Unlock()
-		m.emitEvent(ProviderEvent{
-			Kind:      "tool_catalog_refresh_failed",
-			Provider:  providerName,
-			Transport: NormalizeProviderTransport(cfg.Transport),
-			Error:     fmt.Sprintf("provider %q has no live session for catalog refresh", providerName),
-		})
 		return fmt.Errorf("provider %q has no live session for catalog refresh", providerName)
 	}
 	session := slot.p.session
@@ -52,23 +45,11 @@ func (m *Manager) RefreshProviderCatalog(ctx context.Context, providerName strin
 		ToolNameList: cfg.ToolNames,
 	})
 	if err != nil {
-		m.emitEvent(ProviderEvent{
-			Kind:      "tool_catalog_refresh_failed",
-			Provider:  providerName,
-			Transport: NormalizeProviderTransport(cfg.Transport),
-			Error:     err.Error(),
-		})
 		return fmt.Errorf("refresh tool catalog for provider %q: %w", providerName, err)
 	}
 
 	toolNames, err := collectToolNames(refreshCtx, rawTools)
 	if err != nil {
-		m.emitEvent(ProviderEvent{
-			Kind:      "tool_catalog_refresh_failed",
-			Provider:  providerName,
-			Transport: NormalizeProviderTransport(cfg.Transport),
-			Error:     err.Error(),
-		})
 		return fmt.Errorf("collect tool names after refresh for provider %q: %w", providerName, err)
 	}
 
@@ -81,12 +62,6 @@ func (m *Manager) RefreshProviderCatalog(ctx context.Context, providerName strin
 		}
 	}
 	m.mu.Unlock()
-
-	m.emitEvent(ProviderEvent{
-		Kind:      "tool_catalog_refreshed",
-		Provider:  providerName,
-		Transport: NormalizeProviderTransport(cfg.Transport),
-	})
 
 	return nil
 }
@@ -110,14 +85,7 @@ func (m *Manager) refreshProviderCatalogByType(ctx context.Context, providerName
 	}
 	slot := &m.slots[slotIdx]
 	if slot.p == nil || slot.p.session == nil {
-		cfg := slot.cfg
 		m.mu.Unlock()
-		m.emitEvent(ProviderEvent{
-			Kind:      catalogType + "_catalog_refresh_failed",
-			Provider:  providerName,
-			Transport: NormalizeProviderTransport(cfg.Transport),
-			Error:     fmt.Sprintf("provider %q has no live session for %s catalog refresh", providerName, catalogType),
-		})
 		return fmt.Errorf("provider %q has no live session for %s catalog refresh", providerName, catalogType)
 	}
 	session := slot.p.session
@@ -131,12 +99,6 @@ func (m *Manager) refreshProviderCatalogByType(ctx context.Context, providerName
 	case "resources":
 		resResult, err := session.ListResources(refreshCtx, nil)
 		if err != nil {
-			m.emitEvent(ProviderEvent{
-				Kind:      "resource_catalog_refresh_failed",
-				Provider:  providerName,
-				Transport: NormalizeProviderTransport(cfg.Transport),
-				Error:     err.Error(),
-			})
 			return fmt.Errorf("refresh resource catalog for provider %q: %w", providerName, err)
 		}
 		m.mu.Lock()
@@ -147,20 +109,9 @@ func (m *Manager) refreshProviderCatalogByType(ctx context.Context, providerName
 			}
 		}
 		m.mu.Unlock()
-		m.emitEvent(ProviderEvent{
-			Kind:      "resource_catalog_refreshed",
-			Provider:  providerName,
-			Transport: NormalizeProviderTransport(cfg.Transport),
-		})
 	case "prompts":
 		promptResult, err := session.ListPrompts(refreshCtx, nil)
 		if err != nil {
-			m.emitEvent(ProviderEvent{
-				Kind:      "prompt_catalog_refresh_failed",
-				Provider:  providerName,
-				Transport: NormalizeProviderTransport(cfg.Transport),
-				Error:     err.Error(),
-			})
 			return fmt.Errorf("refresh prompt catalog for provider %q: %w", providerName, err)
 		}
 		m.mu.Lock()
@@ -171,11 +122,6 @@ func (m *Manager) refreshProviderCatalogByType(ctx context.Context, providerName
 			}
 		}
 		m.mu.Unlock()
-		m.emitEvent(ProviderEvent{
-			Kind:      "prompt_catalog_refreshed",
-			Provider:  providerName,
-			Transport: NormalizeProviderTransport(cfg.Transport),
-		})
 	default:
 		return fmt.Errorf("unknown catalog type %q", catalogType)
 	}

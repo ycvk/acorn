@@ -17,13 +17,11 @@ import (
 	"github.com/ycvk/acorn/internal/orchestration"
 	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	"github.com/ycvk/acorn/internal/runtime/graph"
-	"github.com/ycvk/acorn/internal/stream"
 	"github.com/ycvk/acorn/internal/tooling"
 )
 
 type ExecuteDispatchNode struct {
 	store         runtimeapi.PlanStore
-	eventStore    runtimeapi.EventAppender
 	childExecutor orchestration.ChildAgentExecutor
 	verifier      orchestration.Verifier
 }
@@ -96,9 +94,8 @@ func BuildPlanExecuteGraph(
 			return nil, err
 		}
 	}
-	eventStore := eventAppenderFromCheckpointStore(checkpointStore)
-	plan := NewPlanNode(wrappedModel, planStore, eventStore, planPrompt, planningPromptProvider, enabledPlanToolNamesFromSpecs(toolSpecs))
-	dispatch := NewExecuteDispatchNode(planStore, eventStore, childExecutor)
+	plan := NewPlanNode(wrappedModel, planStore, planPrompt, planningPromptProvider, enabledPlanToolNamesFromSpecs(toolSpecs))
+	dispatch := NewExecuteDispatchNode(planStore, childExecutor)
 	observe := graph.NewObserveNode(wrappedModel, planStore)
 	closeout := NewCloseoutNode()
 
@@ -185,14 +182,13 @@ func BuildPlanExecuteGraph(
 	return runnable, nil
 }
 
-func NewExecuteDispatchNode(store runtimeapi.PlanStore, eventStore runtimeapi.EventAppender, childExecutor orchestration.ChildAgentExecutor) *ExecuteDispatchNode {
+func NewExecuteDispatchNode(store runtimeapi.PlanStore, childExecutor orchestration.ChildAgentExecutor) *ExecuteDispatchNode {
 	var verifier orchestration.Verifier
 	if childExecutor != nil {
 		verifier = orchestration.NewChildAgentVerifier(childExecutor)
 	}
 	return &ExecuteDispatchNode{
 		store:         store,
-		eventStore:    eventStore,
 		childExecutor: childExecutor,
 		verifier:      verifier,
 	}
@@ -227,9 +223,6 @@ func (n *ExecuteDispatchNode) Invoke(ctx context.Context, state *graph.AgentGrap
 		plan.UpdatedAt = time.Now().UTC()
 		if err := n.store.SavePlan(ctx, plan); err != nil {
 			return nil, fmt.Errorf("mark plan step started: %w", err)
-		}
-		if err := n.emitStepStarted(ctx, plan, plan.Steps[stepIndex]); err != nil {
-			return nil, err
 		}
 	}
 
@@ -295,9 +288,6 @@ func (n *ExecuteDispatchNode) Invoke(ctx context.Context, state *graph.AgentGrap
 	plan.UpdatedAt = time.Now().UTC()
 	if err := n.store.SavePlan(ctx, plan); err != nil {
 		return nil, fmt.Errorf("mark plan step completed: %w", err)
-	}
-	if err := n.emitStepCompleted(ctx, plan, plan.Steps[stepIndex]); err != nil {
-		return nil, err
 	}
 	state.Messages = append(state.Messages, schema.AssistantMessage(formatDispatchOutcome(plan.Steps[stepIndex], true), nil))
 	state.Plan = plan
@@ -391,60 +381,7 @@ func (n *ExecuteDispatchNode) failStep(ctx context.Context, plan *model.Plan, st
 	if err := n.store.SavePlan(ctx, plan); err != nil {
 		return nil, fmt.Errorf("mark plan step failed: %w", err)
 	}
-	if err := n.emitStepFailed(ctx, plan, plan.Steps[stepIndex], reason); err != nil {
-		return nil, err
-	}
 	return plan, nil
-}
-
-func (n *ExecuteDispatchNode) emitStepStarted(ctx context.Context, plan *model.Plan, step model.PlanStep) error {
-	if n.eventStore == nil {
-		return nil
-	}
-	_, err := stream.AppendStreamItem(ctx, n.eventStore, stream.StreamSinkFromContext(ctx), stream.StreamItem{
-		RunID:     plan.RunID,
-		Kind:      stream.StreamKindStepStarted,
-		CreatedAt: plan.UpdatedAt,
-		Payload:   stream.PlanStepPayloadToMap(streamStepPayloadFromPlan(plan, step)),
-	})
-	if err != nil {
-		return fmt.Errorf("append step.started event: %w", err)
-	}
-	return nil
-}
-
-func (n *ExecuteDispatchNode) emitStepCompleted(ctx context.Context, plan *model.Plan, step model.PlanStep) error {
-	if n.eventStore == nil {
-		return nil
-	}
-	_, err := stream.AppendStreamItem(ctx, n.eventStore, stream.StreamSinkFromContext(ctx), stream.StreamItem{
-		RunID:     plan.RunID,
-		Kind:      stream.StreamKindStepCompleted,
-		CreatedAt: plan.UpdatedAt,
-		Payload:   stream.PlanStepPayloadToMap(streamStepPayloadFromPlan(plan, step)),
-	})
-	if err != nil {
-		return fmt.Errorf("append step.completed event: %w", err)
-	}
-	return nil
-}
-
-func (n *ExecuteDispatchNode) emitStepFailed(ctx context.Context, plan *model.Plan, step model.PlanStep, reason string) error {
-	if n.eventStore == nil {
-		return nil
-	}
-	payload := stream.PlanStepPayloadToMap(streamStepPayloadFromPlan(plan, step))
-	payload["error"] = reason
-	_, err := stream.AppendStreamItem(ctx, n.eventStore, stream.StreamSinkFromContext(ctx), stream.StreamItem{
-		RunID:     plan.RunID,
-		Kind:      stream.StreamKindStepFailed,
-		CreatedAt: plan.UpdatedAt,
-		Payload:   payload,
-	})
-	if err != nil {
-		return fmt.Errorf("append step.failed event: %w", err)
-	}
-	return nil
 }
 
 func (n *ExecuteDispatchNode) buildChildRequest(sessionID, runID string, plan *model.Plan, step model.PlanStep, messages []*schema.Message) orchestration.ChildAgentRequest {

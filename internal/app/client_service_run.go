@@ -11,7 +11,6 @@ import (
 
 	"github.com/ycvk/acorn/internal/events"
 	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
-	"github.com/ycvk/acorn/internal/stream"
 )
 
 type clientRunStartSignal struct {
@@ -37,12 +36,9 @@ func (s *clientRunStartSignal) Failed() <-chan error {
 	return s.failed
 }
 
-func (s *clientRunStartSignal) Sink(item stream.StreamItem) error {
-	if item.Kind == stream.StreamKindRunStarted {
-		s.hasStarted.Store(true)
-		s.closeOnce.Do(func() { close(s.started) })
-	}
-	return nil
+func (s *clientRunStartSignal) RunStarted() {
+	s.hasStarted.Store(true)
+	s.closeOnce.Do(func() { close(s.started) })
 }
 
 func (s *clientRunStartSignal) MarkFailed(err error) bool {
@@ -58,18 +54,8 @@ func reportClientBackgroundError(ctx context.Context, runID string, err error) {
 }
 
 func (s *ClientService) executeRun(ctx context.Context, exec executorHandle, req runtimeapi.ExecuteRequest, started *clientRunStartSignal) {
-	result, err := exec.ExecuteMessages(ctx, req, started.Sink)
+	err := exec.ExecuteMessages(ctx, req, started)
 	if err != nil {
-		if started.MarkFailed(err) {
-			return
-		}
-		if persistErr := s.recordStartedRunFailure(ctx, req.RunID, err); persistErr != nil {
-			s.reportBackgroundRunFailure(ctx, req.RunID, err, persistErr)
-		}
-		return
-	}
-	if result == nil {
-		err := errors.New("client executor returned nil result")
 		if started.MarkFailed(err) {
 			return
 		}

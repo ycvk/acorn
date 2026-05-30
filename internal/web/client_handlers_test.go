@@ -22,7 +22,6 @@ import (
 
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/store"
-	"github.com/ycvk/acorn/internal/stream"
 )
 
 func TestThreadMessageRunHandlers(t *testing.T) {
@@ -1475,7 +1474,7 @@ type clientRunResumeStub struct {
 	err    error
 }
 
-func (s *clientRunResumeStub) Resume(context.Context, string, stream.StreamSink) (*app.RunResult, error) {
+func (s *clientRunResumeStub) Resume(context.Context, string) (*app.RunResult, error) {
 	return s.result, s.err
 }
 

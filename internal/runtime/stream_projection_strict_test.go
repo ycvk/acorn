@@ -10,9 +10,6 @@ import (
 func TestProjectStreamItemToEventFailsOnInvalidStructuredPayload(t *testing.T) {
 	for _, kind := range []stream.StreamItemKind{
 		stream.StreamKindElicitationPending,
-		stream.StreamKindSamplingStarted,
-		stream.StreamKindProviderDegraded,
-		stream.StreamKindMCPToolCatalogRefreshFailed,
 	} {
 		t.Run(string(kind), func(t *testing.T) {
 			_, _, err := stream.ProjectStreamItemToEvent(stream.StreamItem{

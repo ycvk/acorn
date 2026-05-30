@@ -88,12 +88,6 @@ func streamKindToEventKind(kind StreamItemKind) string {
 		return "procedure.activation"
 	case StreamKindMemoryPrepared:
 		return "memory.prepared"
-	case StreamKindContextPressure:
-		return "context.pressure"
-	case StreamKindContextCompressed:
-		return "context.compressed"
-	case StreamKindPlanCleared:
-		return "plan.cleared"
 	default:
 		return string(kind)
 	}

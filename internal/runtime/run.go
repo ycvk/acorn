@@ -229,7 +229,6 @@ type ActiveRunner struct {
 type RunRuntime interface {
 	New(ctx context.Context, req RunnerBuildRequest) (*ActiveRunner, error)
 	Registry() *Registry
-	ConsumeEventError(runID string) error
 	Config() *config.Config
 	MemoryModule() memorymodule.Service
 	SessionSummarySvc() *model.SessionSummaryService

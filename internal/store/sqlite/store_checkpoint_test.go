@@ -11,7 +11,7 @@ import (
 	"github.com/cloudwego/eino/compose"
 )
 
-func TestCompressionDoesNotRewriteCheckpointPayload(t *testing.T) {
+func TestEventAppendDoesNotRewriteCheckpointPayload(t *testing.T) {
 	store, err := Open(filepath.Join(t.TempDir(), "state"))
 	if err != nil {
 		t.Fatalf("open store: %v", err)
@@ -27,14 +27,8 @@ func TestCompressionDoesNotRewriteCheckpointPayload(t *testing.T) {
 	if err := store.Set(ctx, runID, original); err != nil {
 		t.Fatalf("Set: %v", err)
 	}
-	if _, err := store.AppendEventContext(context.Background(), runID, "context.compressed", map[string]any{
-		"context_compressed": map[string]any{
-			"first_index":     1,
-			"last_index":      4,
-			"tokens_before":   1200,
-			"tokens_after":    420,
-			"summary_snippet": "Older context summary",
-		},
+	if _, err := store.AppendEventContext(context.Background(), runID, "run.completed", map[string]any{
+		"message": map[string]any{"content": "done"},
 	}); err != nil {
 		t.Fatalf("AppendEvent: %v", err)
 	}
@@ -112,16 +106,10 @@ func TestResumeUsesOriginalCheckpointPayload(t *testing.T) {
 		t.Fatalf("RerunNodes = %#v, want %#v", got, want)
 	}
 
-	if _, err := store.AppendEventContext(context.Background(), checkpointID, "context.compressed", map[string]any{
-		"context_compressed": map[string]any{
-			"first_index":     0,
-			"last_index":      0,
-			"tokens_before":   10,
-			"tokens_after":    4,
-			"summary_snippet": "resume should still use original checkpoint payload",
-		},
+	if _, err := store.AppendEventContext(context.Background(), checkpointID, "run.completed", map[string]any{
+		"message": map[string]any{"content": "resume should still use original checkpoint payload"},
 	}); err != nil {
-		t.Fatalf("AppendEvent(context.compressed): %v", err)
+		t.Fatalf("AppendEvent(run.completed): %v", err)
 	}
 
 	result, err := runner.Invoke(ctx, "", compose.WithCheckPointID(checkpointID))

@@ -17,7 +17,6 @@ import (
 	"github.com/ycvk/acorn/internal/runtime/graph"
 	"github.com/ycvk/acorn/internal/runtime/tool"
 	"github.com/ycvk/acorn/internal/store"
-	"github.com/ycvk/acorn/internal/stream"
 	"github.com/ycvk/acorn/internal/tooling"
 )
 
@@ -26,7 +25,6 @@ type ActNode struct {
 	tools      orchestration.ToolInvoker
 	streamer   orchestration.AssistantStreamer
 	store      runtimeapi.PlanStore
-	eventStore runtimeapi.EventAppender
 	specs      map[string]tooling.ToolSpec
 	eagerTools []string
 }
@@ -41,7 +39,6 @@ func NewActNode(
 	tools orchestration.ToolInvoker,
 	streamer orchestration.AssistantStreamer,
 	store runtimeapi.PlanStore,
-	eventStore runtimeapi.EventAppender,
 	specs []tooling.ToolSpec,
 	eagerToolNames []string,
 ) *ActNode {
@@ -50,7 +47,6 @@ func NewActNode(
 		tools:      tools,
 		streamer:   streamer,
 		store:      store,
-		eventStore: eventStore,
 		specs:      planPolicySpecsByName(specs),
 		eagerTools: append([]string(nil), eagerToolNames...),
 	}
@@ -88,9 +84,6 @@ func (n *ActNode) Invoke(ctx context.Context, state *graph.AgentGraphState) (*gr
 		plan.UpdatedAt = time.Now().UTC()
 		if err := n.store.SavePlan(ctx, plan); err != nil {
 			return nil, fmt.Errorf("mark plan step started: %w", err)
-		}
-		if err := n.emitStepStarted(ctx, plan, plan.Steps[stepIndex]); err != nil {
-			return nil, err
 		}
 	}
 
@@ -286,9 +279,6 @@ func (n *ActNode) Invoke(ctx context.Context, state *graph.AgentGraphState) (*gr
 		if err := n.store.SavePlan(ctx, plan); err != nil {
 			return nil, fmt.Errorf("mark plan step completed: %w", err)
 		}
-		if err := n.emitStepCompleted(ctx, plan, plan.Steps[stepIndex]); err != nil {
-			return nil, err
-		}
 
 		state.Plan = plan
 		state.Phase = graph.PhaseAct
@@ -427,9 +417,6 @@ func (n *ActNode) failStep(ctx context.Context, plan *model.Plan, stepIndex int,
 	if err := n.store.SavePlan(ctx, plan); err != nil {
 		return nil, fmt.Errorf("mark plan step failed: %w", err)
 	}
-	if err := n.emitStepFailed(ctx, plan, plan.Steps[stepIndex], reason); err != nil {
-		return nil, err
-	}
 	return plan, nil
 }
 
@@ -458,56 +445,6 @@ func (n *ActNode) reloadStep(ctx context.Context, sessionID string, stepID strin
 		}
 	}
 	return nil, -1, fmt.Errorf("plan step %s no longer exists", stepID)
-}
-
-func (n *ActNode) emitStepStarted(ctx context.Context, plan *model.Plan, step model.PlanStep) error {
-	if n.eventStore == nil {
-		return nil
-	}
-	_, err := stream.AppendStreamItem(ctx, n.eventStore, stream.StreamSinkFromContext(ctx), stream.StreamItem{
-		RunID:     plan.RunID,
-		Kind:      stream.StreamKindStepStarted,
-		CreatedAt: plan.UpdatedAt,
-		Payload:   stream.PlanStepPayloadToMap(streamStepPayloadFromPlan(plan, step)),
-	})
-	if err != nil {
-		return fmt.Errorf("append step.started event: %w", err)
-	}
-	return nil
-}
-
-func (n *ActNode) emitStepCompleted(ctx context.Context, plan *model.Plan, step model.PlanStep) error {
-	if n.eventStore == nil {
-		return nil
-	}
-	_, err := stream.AppendStreamItem(ctx, n.eventStore, stream.StreamSinkFromContext(ctx), stream.StreamItem{
-		RunID:     plan.RunID,
-		Kind:      stream.StreamKindStepCompleted,
-		CreatedAt: plan.UpdatedAt,
-		Payload:   stream.PlanStepPayloadToMap(streamStepPayloadFromPlan(plan, step)),
-	})
-	if err != nil {
-		return fmt.Errorf("append step.completed event: %w", err)
-	}
-	return nil
-}
-
-func (n *ActNode) emitStepFailed(ctx context.Context, plan *model.Plan, step model.PlanStep, reason string) error {
-	if n.eventStore == nil {
-		return nil
-	}
-	payload := stream.PlanStepPayloadToMap(streamStepPayloadFromPlan(plan, step))
-	payload["error"] = reason
-	_, err := stream.AppendStreamItem(ctx, n.eventStore, stream.StreamSinkFromContext(ctx), stream.StreamItem{
-		RunID:     plan.RunID,
-		Kind:      stream.StreamKindStepFailed,
-		CreatedAt: plan.UpdatedAt,
-		Payload:   payload,
-	})
-	if err != nil {
-		return fmt.Errorf("append step.failed event: %w", err)
-	}
-	return nil
 }
 
 func planPolicySpecsByName(specs []tooling.ToolSpec) map[string]tooling.ToolSpec {

@@ -13,7 +13,6 @@ import (
 func TestRefreshProviderCatalogRefreshesOnlyAffectedProvider(t *testing.T) {
 	binary := buildFixtureServer(t)
 
-	var events []ProviderEvent
 	mgr, err := NewManager(context.Background(), []ProviderConfig{
 		{
 			Name:                  "alpha",
@@ -29,33 +28,14 @@ func TestRefreshProviderCatalogRefreshesOnlyAffectedProvider(t *testing.T) {
 			Command:               binary,
 			StartupTimeoutSeconds: 10,
 		},
-	}, WithEventCallback(func(ev ProviderEvent) {
-		events = append(events, ev)
-	}))
+	})
 	if err != nil {
 		t.Fatalf("NewManager: %v", err)
 	}
 	t.Cleanup(func() { _ = mgr.Close() })
 
-	events = events[:0]
-
 	if err := mgr.RefreshProviderCatalog(context.Background(), "alpha"); err != nil {
 		t.Fatalf("RefreshProviderCatalog: %v", err)
-	}
-
-	found := false
-	for _, ev := range events {
-		if ev.Kind == "tool_catalog_refreshed" {
-			if ev.Provider == "alpha" {
-				found = true
-			}
-			if ev.Provider == "beta" {
-				t.Fatal("beta should not have emitted a catalog refresh event")
-			}
-		}
-	}
-	if !found {
-		t.Fatalf("expected tool_catalog_refreshed event for alpha, got events: %v", events)
 	}
 
 	statuses := mgr.Statuses()
@@ -121,16 +101,13 @@ func TestRefreshProviderCatalogCopyOnWriteSafety(t *testing.T) {
 func TestRefreshProviderCatalogFailurePreservesOldTools(t *testing.T) {
 	binary := buildFixtureServer(t)
 
-	var events []ProviderEvent
 	mgr, err := NewManager(context.Background(), []ProviderConfig{{
 		Name:                  "alpha",
 		Enabled:               true,
 		Transport:             "stdio",
 		Command:               binary,
 		StartupTimeoutSeconds: 10,
-	}}, WithEventCallback(func(ev ProviderEvent) {
-		events = append(events, ev)
-	}))
+	}})
 	if err != nil {
 		t.Fatalf("NewManager: %v", err)
 	}
@@ -147,24 +124,9 @@ func TestRefreshProviderCatalogFailurePreservesOldTools(t *testing.T) {
 	slot.p.session = nil
 	mgr.mu.Unlock()
 
-	events = events[:0]
-
 	err = mgr.RefreshProviderCatalog(context.Background(), "alpha")
 	if err == nil {
 		t.Fatal("expected error when refreshing with nil session")
-	}
-
-	var foundFailed bool
-	for _, ev := range events {
-		if ev.Kind == "tool_catalog_refresh_failed" && ev.Provider == "alpha" {
-			foundFailed = true
-			if ev.Error == "" {
-				t.Fatal("tool_catalog_refresh_failed event should have Error set")
-			}
-		}
-	}
-	if !foundFailed {
-		t.Fatalf("expected tool_catalog_refresh_failed event, got events: %v", events)
 	}
 
 	mgr.mu.Lock()
@@ -198,8 +160,7 @@ func TestManagerResourcesAndPrompts(t *testing.T) {
 		Transport:             "stdio",
 		Command:               binary,
 		StartupTimeoutSeconds: 10,
-	}}, WithEventCallback(func(ev ProviderEvent) {
-	}))
+	}})
 	if err != nil {
 		t.Fatalf("new manager: %v", err)
 	}
@@ -395,52 +356,33 @@ func TestManagerNilReturnsEmpty(t *testing.T) {
 	}
 }
 
-func TestNotificationHandlersForResourceAndPrompt(t *testing.T) {
+func TestRefreshProviderCatalogByTypeUpdatesResourceAndPromptCatalog(t *testing.T) {
 	binary := buildFixtureServer(t)
 
-	var events []ProviderEvent
 	mgr, err := NewManager(context.Background(), []ProviderConfig{{
 		Name:                  "fixture",
 		Enabled:               true,
 		Transport:             "stdio",
 		Command:               binary,
 		StartupTimeoutSeconds: 10,
-	}}, WithEventCallback(func(ev ProviderEvent) {
-		events = append(events, ev)
-	}))
+	}})
 	if err != nil {
 		t.Fatalf("new manager: %v", err)
 	}
 	t.Cleanup(func() { _ = mgr.Close() })
 
-	events = events[:0]
 	if err := mgr.refreshProviderCatalogByType(context.Background(), "fixture", "resources"); err != nil {
 		t.Fatalf("refreshProviderCatalogByType resources: %v", err)
 	}
-	found := false
-	for _, ev := range events {
-		if ev.Kind == "resource_catalog_refreshed" && ev.Provider == "fixture" {
-			found = true
-			break
-		}
-	}
-	if !found {
-		t.Fatalf("expected resource_catalog_refreshed event, got events: %v", events)
+	if got, want := len(mgr.Resources()), 1; got != want {
+		t.Fatalf("resources after refresh = %d, want %d", got, want)
 	}
 
-	events = events[:0]
 	if err := mgr.refreshProviderCatalogByType(context.Background(), "fixture", "prompts"); err != nil {
 		t.Fatalf("refreshProviderCatalogByType prompts: %v", err)
 	}
-	found = false
-	for _, ev := range events {
-		if ev.Kind == "prompt_catalog_refreshed" && ev.Provider == "fixture" {
-			found = true
-			break
-		}
-	}
-	if !found {
-		t.Fatalf("expected prompt_catalog_refreshed event, got events: %v", events)
+	if got, want := len(mgr.Prompts()), 1; got != want {
+		t.Fatalf("prompts after refresh = %d, want %d", got, want)
 	}
 }
 

@@ -1,11 +1,5 @@
 package stream
 
-import (
-	"time"
-
-	"github.com/ycvk/acorn/internal/model"
-)
-
 // Shared value types used across stream payloads.
 
 type StreamPlannedToolCall struct {
@@ -138,25 +132,6 @@ type StreamMemoryPrepared struct {
 	Entries        []StreamMemoryPreparedEntry `json:"entries,omitempty"`
 }
 
-type StreamContextCompressed struct {
-	BoundaryID     string `json:"boundary_id,omitempty"`
-	FirstIndex     int    `json:"first_index,omitempty"`
-	LastIndex      int    `json:"last_index,omitempty"`
-	TokensBefore   int    `json:"tokens_before,omitempty"`
-	TokensAfter    int    `json:"tokens_after,omitempty"`
-	SummarySnippet string `json:"summary_snippet,omitempty"`
-}
-
-type StreamContextPressure struct {
-	State                      string `json:"state,omitempty"`
-	EstimatedInputTokens       int    `json:"estimated_input_tokens,omitempty"`
-	EffectiveWindowTokens      int    `json:"effective_window_tokens,omitempty"`
-	WarningThresholdTokens     int    `json:"warning_threshold_tokens,omitempty"`
-	AutoCompactThresholdTokens int    `json:"auto_compact_threshold_tokens,omitempty"`
-	BlockingThresholdTokens    int    `json:"blocking_threshold_tokens,omitempty"`
-	PercentUsed                int    `json:"percent_used,omitempty"`
-}
-
 type StreamAssistantDelta struct {
 	Role      string                  `json:"role,omitempty"`
 	Delta     string                  `json:"delta,omitempty"`
@@ -166,14 +141,4 @@ type StreamAssistantDelta struct {
 	IsFinal   bool                    `json:"is_final,omitempty"`
 	ToolCalls []StreamPlannedToolCall `json:"tool_calls,omitempty"`
 	Meta      map[string]any          `json:"meta,omitempty"`
-}
-
-// PlanStepPayload is the common base for plan step events.
-type PlanStepPayload struct {
-	PlanID    string          `json:"plan_id"`
-	SessionID string          `json:"session_id"`
-	RunID     string          `json:"run_id"`
-	Plan      *model.Plan     `json:"plan"`
-	Step      *model.PlanStep `json:"step"`
-	UpdatedAt time.Time       `json:"updated_at"`
 }

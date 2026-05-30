@@ -196,17 +196,15 @@ class _RunActivityScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final important = _importantEvents(detail.events);
-    final counts = _eventTypeCounts(detail.events.map((event) => event.type));
-    final totalCount = detail.events.length;
     return Scaffold(
       appBar: AppBar(title: Text('Run activity ${shortId(detail.run.id)}')),
       body: ListView(
         children: [
           AcornPageIntro(
             icon: Icons.timeline_outlined,
-            title: '$totalCount live events',
+            title: 'Run activity',
             body:
-                'Live activity, issue signals, and artifacts stay backed by the server.',
+                '${statusLabel(detail.run.status)} · ${shortId(detail.thread.id)}',
             tone: AcornStatusTone.neutral,
           ),
           const SectionHeader(title: 'Issues'),
@@ -225,14 +223,6 @@ class _RunActivityScreen extends StatelessWidget {
                     '${event.type} · seq ${event.seq} · ${formatTimestamp(event.ts)}${_eventDetailSuffix(event)}',
                 tone: _eventTone(event),
               ),
-          const SectionHeader(title: 'Event types'),
-          for (final entry in counts.entries)
-            AcornListRow(
-              icon: Icons.tag_outlined,
-              title: entry.key,
-              subtitle: '${entry.value} event${entry.value == 1 ? '' : 's'}',
-              tone: AcornStatusTone.neutral,
-            ),
           const SizedBox(height: 18),
         ],
       ),
@@ -300,22 +290,6 @@ List<RunEvent> _importantEvents(List<RunEvent> events) {
         return false;
       })
       .toList(growable: false);
-}
-
-Map<String, int> _eventTypeCounts(Iterable<String> eventTypes) {
-  final counts = <String, int>{};
-  for (final type in eventTypes) {
-    counts.update(type, (count) => count + 1, ifAbsent: () => 1);
-  }
-  final entries = counts.entries.toList()
-    ..sort((left, right) {
-      final countCompare = right.value.compareTo(left.value);
-      if (countCompare != 0) {
-        return countCompare;
-      }
-      return left.key.compareTo(right.key);
-    });
-  return Map<String, int>.fromEntries(entries);
 }
 
 String _formatBytes(int bytes) {

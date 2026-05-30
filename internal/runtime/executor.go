@@ -209,9 +209,6 @@ func (e *Executor) consume(ctx context.Context, runID, input string, iter *adk.A
 	if err != nil {
 		return nil, err
 	}
-	if err := e.runRuntime.ConsumeEventError(runID); err != nil {
-		state.failure = err
-	}
 	if rc, ok := e.runRuntime.Registry().Get(runID); ok {
 		rc.SetFinalizing()
 	}

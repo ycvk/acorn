@@ -69,8 +69,6 @@ type ContextSessionOptions struct {
 	BoundaryStore  ContextBoundaryStore
 	PreservePolicy PreservePolicy
 	State          any
-	EmitCompressed func(context.Context, CompressionOutcome) error
-	EmitPressure   func(context.Context, BudgetPressure) error
 }
 
 type defaultContextSession struct {
@@ -83,8 +81,6 @@ type defaultContextSession struct {
 	boundaryStore    ContextBoundaryStore
 	preservePolicy   PreservePolicy
 	state            any
-	emitCompressed   func(context.Context, CompressionOutcome) error
-	emitPressure     func(context.Context, BudgetPressure) error
 	lastSummary      string
 	lastBoundaryID   string
 	boundarySequence int
@@ -99,8 +95,6 @@ func NewDefaultContextSession(opts ContextSessionOptions) ContextSession {
 		boundaryStore:  opts.BoundaryStore,
 		preservePolicy: opts.PreservePolicy,
 		state:          opts.State,
-		emitCompressed: opts.EmitCompressed,
-		emitPressure:   opts.EmitPressure,
 	}
 	if st, ok := opts.State.(*CompressionState); ok && st != nil {
 		s.lastSummary = st.LastSummary
@@ -153,9 +147,6 @@ func (s *defaultContextSession) BeforeModelCall(ctx context.Context, req ModelCa
 	if err != nil {
 		return nil, err
 	}
-	if err := s.emitPressureEvent(ctx, pressure); err != nil {
-		return nil, err
-	}
 	if !shouldCompactForPressure(pressure.State) {
 		return s.modelInput(pressure), nil
 	}
@@ -180,9 +171,6 @@ func (s *defaultContextSession) ReactiveCompact(ctx context.Context, req ModelCa
 	}
 	pressure, err := s.evaluatePressure(ctx, req.ToolInfos)
 	if err != nil {
-		return nil, err
-	}
-	if err := s.emitPressureEvent(ctx, pressure); err != nil {
 		return nil, err
 	}
 	return s.compact(ctx, req, pressure, CompactTriggerReactive)
@@ -239,11 +227,6 @@ func (s *defaultContextSession) compact(ctx context.Context, req ModelCallReques
 		s.boundarySequence = boundary.Sequence
 		if st, ok := s.state.(*CompressionState); ok && st != nil {
 			st.RecordCompression(outcome.Summary)
-		}
-		if s.emitCompressed != nil {
-			if err := s.emitCompressed(ctx, outcome); err != nil {
-				return nil, fmt.Errorf("emit context session compression event: %w", err)
-			}
 		}
 	}
 	afterPressure, err := s.evaluatePressure(ctx, req.ToolInfos)
@@ -509,16 +492,6 @@ func (s *defaultContextSession) evaluatePressure(ctx context.Context, tools []*s
 		return BudgetPressure{}, fmt.Errorf("evaluate context session pressure: %w", err)
 	}
 	return pressure, nil
-}
-
-func (s *defaultContextSession) emitPressureEvent(ctx context.Context, pressure BudgetPressure) error {
-	if s.emitPressure == nil {
-		return nil
-	}
-	if err := s.emitPressure(ctx, pressure); err != nil {
-		return fmt.Errorf("emit context pressure event: %w", err)
-	}
-	return nil
 }
 
 func (s *defaultContextSession) modelInput(pressure BudgetPressure) *ModelInput {

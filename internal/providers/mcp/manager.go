@@ -54,25 +54,11 @@ type Manager struct {
 	mu            sync.RWMutex
 	stopped       bool
 	stoppedMu     sync.Mutex
-	onEvent       ProviderEventCallback
 	tokenStore    TokenStore
 	store         PendingActionStore
 	elicitation   *ElicitationHandler
 	sampling      *SamplingHandler
 	samplingDepth int32
-}
-
-// ProviderEventCallback is called when a provider lifecycle event occurs. It
-// must not block.
-type ProviderEventCallback func(event ProviderEvent)
-
-// ProviderEvent describes a provider lifecycle event emitted by the manager.
-type ProviderEvent struct {
-	Kind       string // "provider_added", "provider_removed", "provider_restarted", "auth_status_changed", catalog events
-	Provider   string
-	Transport  string
-	Error      string // non-empty on failure
-	AuthStatus string // new auth status for auth_status_changed events
 }
 
 type providerSlot struct {
@@ -126,14 +112,8 @@ var connectProviderFunc = func(ctx context.Context, cfg ProviderConfig, opts *mc
 type ManagerOption func(*managerOptions)
 
 type managerOptions struct {
-	onEvent    ProviderEventCallback
 	tokenStore TokenStore
 	store      PendingActionStore
-}
-
-// WithEventCallback sets the provider lifecycle event callback on the manager.
-func WithEventCallback(cb ProviderEventCallback) ManagerOption {
-	return func(o *managerOptions) { o.onEvent = cb }
 }
 
 // WithTokenStore sets the OAuth token store on the manager for HTTP providers
@@ -213,20 +193,18 @@ func NewManager(ctx context.Context, cfgs []ProviderConfig, opts ...ManagerOptio
 
 	mgr := &Manager{
 		slots:      slots,
-		onEvent:    o.onEvent,
 		tokenStore: o.tokenStore,
 		store:      o.store,
 	}
 
 	// Initialize elicitation handler if store is available
 	if o.store != nil {
-		mgr.elicitation = newElicitationHandler(o.store, o.onEvent)
+		mgr.elicitation = newElicitationHandler(o.store)
 	}
 
 	// Initialize sampling handler if store is available
 	if o.store != nil {
 		mgr.sampling = newSamplingHandler(mgr)
-		mgr.sampling.store = o.store
 	}
 
 	return mgr, nil

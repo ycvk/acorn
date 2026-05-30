@@ -92,14 +92,9 @@ func TestContextSessionRecordsAssistantAndToolResults(t *testing.T) {
 	}
 }
 
-func TestContextSessionBeforeModelCallEmitsPressure(t *testing.T) {
-	var pressures []BudgetPressure
+func TestContextSessionBeforeModelCallReturnsPressure(t *testing.T) {
 	session := NewDefaultContextSession(ContextSessionOptions{
 		BudgetGovernor: testBudgetGovernor{pressure: testPressure(PressureWarning)},
-		EmitPressure: func(_ context.Context, pressure BudgetPressure) error {
-			pressures = append(pressures, pressure)
-			return nil
-		},
 	})
 	_, err := session.Bootstrap(context.Background(), BootstrapRequest{
 		SessionID:       "session_1",
@@ -111,12 +106,12 @@ func TestContextSessionBeforeModelCallEmitsPressure(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Bootstrap: %v", err)
 	}
-	_, err = session.BeforeModelCall(context.Background(), ModelCallRequest{CallID: "call_1"})
+	input, err := session.BeforeModelCall(context.Background(), ModelCallRequest{CallID: "call_1"})
 	if err != nil {
 		t.Fatalf("BeforeModelCall: %v", err)
 	}
-	if len(pressures) != 1 || pressures[0].State != PressureWarning {
-		t.Fatalf("pressures = %+v, want one warning pressure", pressures)
+	if input.Pressure.State != PressureWarning {
+		t.Fatalf("pressure = %+v, want warning pressure", input.Pressure)
 	}
 }
 
@@ -146,7 +141,6 @@ func TestContextSessionBeforeModelCallCompactsOnPressure(t *testing.T) {
 			},
 		},
 	}
-	var outcomes []CompressionOutcome
 	store := storetest.NewFakeContextStore()
 	session := NewDefaultContextSession(ContextSessionOptions{
 		BudgetGovernor: testBudgetGovernor{pressure: testPressure(PressureAutoCompact)},
@@ -154,10 +148,6 @@ func TestContextSessionBeforeModelCallCompactsOnPressure(t *testing.T) {
 		BoundaryStore:  store,
 		PreservePolicy: PreservePolicy{RecentTurns: 1, PreserveToolPairs: true},
 		State:          state,
-		EmitCompressed: func(_ context.Context, outcome CompressionOutcome) error {
-			outcomes = append(outcomes, outcome)
-			return nil
-		},
 	})
 	_, err := session.Bootstrap(context.Background(), BootstrapRequest{
 		SessionID:       "session_1",
@@ -200,9 +190,6 @@ func TestContextSessionBeforeModelCallCompactsOnPressure(t *testing.T) {
 		t.Fatalf("compression state = %+v, want recorded summary", state)
 	}
 	wantBoundaryID := "ctxb_run_1_0001"
-	if len(outcomes) != 1 || outcomes[0].BoundaryID != wantBoundaryID {
-		t.Fatalf("outcomes = %+v, want emitted boundary", outcomes)
-	}
 	latest, err := store.LoadLatestContextBoundary(context.Background(), "session_1")
 	if err != nil {
 		t.Fatalf("LoadLatestContextBoundary: %v", err)
@@ -267,7 +254,6 @@ func TestContextSessionReactiveCompactUsesReactiveTrigger(t *testing.T) {
 			},
 		},
 	}
-	var outcomes []CompressionOutcome
 	governor := testBudgetGovernor{pressure: testPressure(PressureBlocking), dynamic: true}
 	store := storetest.NewFakeContextStore()
 	session := NewDefaultContextSession(ContextSessionOptions{
@@ -276,10 +262,6 @@ func TestContextSessionReactiveCompactUsesReactiveTrigger(t *testing.T) {
 		BoundaryStore:  store,
 		PreservePolicy: PreservePolicy{RecentTurns: 1, PreserveToolPairs: true},
 		State:          state,
-		EmitCompressed: func(_ context.Context, outcome CompressionOutcome) error {
-			outcomes = append(outcomes, outcome)
-			return nil
-		},
 	})
 	_, err := session.Bootstrap(context.Background(), BootstrapRequest{
 		SessionID: "session_1",
@@ -318,8 +300,12 @@ func TestContextSessionReactiveCompactUsesReactiveTrigger(t *testing.T) {
 		t.Fatalf("compression state = %+v, want reactive summary", state)
 	}
 	wantBoundaryID := "ctxb_run_1_0001"
-	if len(outcomes) != 1 || outcomes[0].BoundaryID != wantBoundaryID {
-		t.Fatalf("outcomes = %+v, want reactive boundary", outcomes)
+	latest, err := store.LoadLatestContextBoundary(context.Background(), "session_1")
+	if err != nil {
+		t.Fatalf("LoadLatestContextBoundary: %v", err)
+	}
+	if latest == nil || latest.BoundaryID != wantBoundaryID || latest.Trigger != string(CompactTriggerReactive) {
+		t.Fatalf("latest boundary = %+v, want reactive boundary", latest)
 	}
 }
 

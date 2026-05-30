@@ -8,15 +8,12 @@ import (
 	"strings"
 
 	"github.com/ycvk/acorn/internal/events"
-	"github.com/ycvk/acorn/internal/runtime"
 	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
-	"github.com/ycvk/acorn/internal/stream"
 )
 
 type RunResumeService struct {
 	store       runResumeStore
 	newExecutor func(context.Context) (executorHandle, error)
-	pending     runtime.PendingResumeStore
 }
 
 type ResumeStatus struct {
@@ -39,20 +36,12 @@ func NewRunResumeService(store runResumeStore) *RunResumeService {
 	return &RunResumeService{store: store}
 }
 
-func (s *RunResumeService) WithResume(newExecutor func(context.Context) (executorHandle, error), pending runtime.PendingResumeStore) *RunResumeService {
+func (s *RunResumeService) WithResume(newExecutor func(context.Context) (executorHandle, error)) *RunResumeService {
 	s.newExecutor = newExecutor
-	s.pending = pending
 	return s
 }
 
-func (s *RunResumeService) FindPendingResume(ctx context.Context) (*runtime.PendingResumeInfo, error) {
-	if s == nil || s.pending == nil {
-		return nil, errors.New("resume pending store is nil")
-	}
-	return runtime.FindPendingResume(ctx, s.pending)
-}
-
-func (s *RunResumeService) Resume(ctx context.Context, runID string, sink stream.StreamSink) (*RunResult, error) {
+func (s *RunResumeService) Resume(ctx context.Context, runID string) (*RunResult, error) {
 	if s == nil || s.newExecutor == nil {
 		return nil, errors.New("resume executor factory is nil")
 	}
@@ -64,18 +53,18 @@ func (s *RunResumeService) Resume(ctx context.Context, runID string, sink stream
 	if err != nil {
 		return nil, err
 	}
-	result, err := exec.ResumeWithTargets(ctx, runID, targets, sink)
+	result, err := exec.ResumeWithTargets(ctx, runID, targets)
 	if err != nil {
 		return nil, err
 	}
-	projected, err := runResultFromRuntime(result)
+	projected, err := runResultFromExecutor(result)
 	if err != nil {
 		return nil, err
 	}
 	return projected, nil
 }
 
-func runResultFromRuntime(result *runtime.Result) (*RunResult, error) {
+func runResultFromExecutor(result *executorRunResult) (*RunResult, error) {
 	if result == nil {
 		return nil, nil
 	}
@@ -140,7 +129,7 @@ func (s *RunResumeService) InferResumeTargets(ctx context.Context, runID string)
 	if !status.Resumable {
 		return nil, fmt.Errorf("%w: %s", runtimeapi.ErrRunNotInterrupted, status.Reason)
 	}
-	contexts, err := stream.LatestRootInterruptContexts(items)
+	contexts, err := latestRootInterruptContexts(items)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", runtimeapi.ErrRunNotInterrupted, err)
 	}
@@ -157,7 +146,7 @@ func (s *RunResumeService) InferResumeTargets(ctx context.Context, runID string)
 	return targets, nil
 }
 
-func (s *RunResumeService) resumeTargetsForContext(ctx context.Context, runID string, interrupt stream.StreamInterruptContext) (map[string]any, error) {
+func (s *RunResumeService) resumeTargetsForContext(ctx context.Context, runID string, interrupt resumeInterruptContext) (map[string]any, error) {
 	switch kind := interruptInfoKind(interrupt.Info); kind {
 	case "", "run_command_pause":
 		return defaultTargets(interrupt.ID), nil
@@ -168,7 +157,7 @@ func (s *RunResumeService) resumeTargetsForContext(ctx context.Context, runID st
 	}
 }
 
-func (s *RunResumeService) operatorQuestionTargets(ctx context.Context, runID string, interrupt stream.StreamInterruptContext) (map[string]any, error) {
+func (s *RunResumeService) operatorQuestionTargets(ctx context.Context, runID string, interrupt resumeInterruptContext) (map[string]any, error) {
 	actionID := interruptInfoField(interrupt.Info, "action_id")
 	if actionID == "" {
 		return nil, fmt.Errorf("run %s interrupt %s operator_question is missing action_id", runID, interrupt.ID)
@@ -238,7 +227,7 @@ func buildResumeStatus(runID string, run *events.RunRecord, items []events.Event
 
 	switch run.Status {
 	case events.RunStatusInterrupted:
-		interruptIDs, err := stream.LatestRootInterruptIDs(items)
+		interruptIDs, err := latestRootInterruptIDs(items)
 		if err != nil {
 			status.Reason = fmt.Sprintf("run %s is interrupted but missing resumable interrupt data: %v", runID, err)
 			return status

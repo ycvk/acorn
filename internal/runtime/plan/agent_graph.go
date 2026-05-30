@@ -87,9 +87,8 @@ func BuildAgentGraph(
 			return nil, err
 		}
 	}
-	eventStore := eventAppenderFromCheckpointStore(checkpointStore)
-	plan := NewPlanNode(wrappedModel, planStore, eventStore, planPrompt, planningPromptProvider, enabledPlanToolNamesFromSpecs(toolSpecs))
-	act := NewActNode(wrappedModel, safeToolNode, streamer, planStore, eventStore, toolSpecs, eagerToolNames)
+	plan := NewPlanNode(wrappedModel, planStore, planPrompt, planningPromptProvider, enabledPlanToolNamesFromSpecs(toolSpecs))
+	act := NewActNode(wrappedModel, safeToolNode, streamer, planStore, toolSpecs, eagerToolNames)
 	observe := graph.NewObserveNode(wrappedModel, planStore)
 
 	if err := g.AddLambdaNode(planNode, compose.InvokableLambda(func(ctx context.Context, state *graph.AgentGraphState) (*graph.AgentGraphState, error) {
@@ -174,17 +173,6 @@ func BuildAgentGraph(
 	}
 
 	return runnable, nil
-}
-
-func eventAppenderFromCheckpointStore(store compose.CheckPointStore) runtimeapi.EventAppender {
-	if isNilCheckpointStore(store) {
-		return nil
-	}
-	appender, ok := store.(runtimeapi.EventAppender)
-	if !ok {
-		return nil
-	}
-	return appender
 }
 
 func enabledPlanToolNamesFromSpecs(specs []tooling.ToolSpec) []string {

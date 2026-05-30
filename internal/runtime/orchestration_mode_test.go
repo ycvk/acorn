@@ -147,8 +147,8 @@ func TestExecuteMessagesDirectResponseExecutesToolLoop(t *testing.T) {
 	messageIndex := -1
 	completedIndex := -1
 	for _, record := range records {
-		if record.Kind == "plan.created" || strings.HasPrefix(record.Kind, "subagent.") {
-			t.Fatalf("direct response emitted planning/subagent event: %s", record.Kind)
+		if strings.HasPrefix(record.Kind, "subagent.") {
+			t.Fatalf("direct response emitted subagent event: %s", record.Kind)
 		}
 		switch record.Kind {
 		case "tool.call.started":
@@ -250,13 +250,10 @@ func TestResumeDirectResponseRebuildsContextSession(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadEvents: %v", err)
 	}
-	contexts, err := stream.LatestRootInterruptContexts(records)
-	if err != nil {
-		t.Fatalf("LatestRootInterruptContexts: %v", err)
-	}
+	interruptIDs := latestRootInterruptIDsForTest(t, records)
 
 	resumed, err := exec.ResumeWithTargets(ctx, result.RunID, map[string]any{
-		contexts[0].ID: map[string]any{},
+		interruptIDs[0]: map[string]any{},
 	}, nil)
 	if err != nil {
 		t.Fatalf("ResumeWithTargets: %v", err)
@@ -319,13 +316,10 @@ func TestResumeDirectResponseRunCommandPauseWithoutExtraPayload(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadEvents: %v", err)
 	}
-	contexts, err := stream.LatestRootInterruptContexts(records)
-	if err != nil {
-		t.Fatalf("LatestRootInterruptContexts: %v", err)
-	}
+	interruptIDs := latestRootInterruptIDsForTest(t, records)
 
 	resumed, err := exec.ResumeWithTargets(ctx, result.RunID, map[string]any{
-		contexts[0].ID: map[string]any{},
+		interruptIDs[0]: map[string]any{},
 	}, nil)
 	if err != nil {
 		t.Fatalf("ResumeWithTargets: %v", err)
@@ -339,6 +333,40 @@ func TestResumeDirectResponseRunCommandPauseWithoutExtraPayload(t *testing.T) {
 	if !pauseTool.resumeCalled {
 		t.Fatal("pause tool was not resumed")
 	}
+}
+
+func latestRootInterruptIDsForTest(t *testing.T, records []events.EventRecord) []string {
+	t.Helper()
+	for i := len(records) - 1; i >= 0; i-- {
+		item, err := stream.ProjectEventToStreamItem(records[i])
+		if err != nil {
+			t.Fatalf("ProjectEventToStreamItem: %v", err)
+		}
+		if item.Kind != stream.StreamKindRunInterrupted {
+			continue
+		}
+		interrupt := item.GetInterrupt()
+		if interrupt == nil {
+			t.Fatal("run.interrupted payload missing interrupt")
+		}
+		ids := make([]string, 0, len(interrupt.Contexts))
+		for _, ctx := range interrupt.Contexts {
+			if !ctx.IsRootCause {
+				continue
+			}
+			id := strings.TrimSpace(ctx.ID)
+			if id == "" {
+				t.Fatal("interrupt context id is empty")
+			}
+			ids = append(ids, id)
+		}
+		if len(ids) == 0 {
+			t.Fatal("run.interrupted has no root interrupt contexts")
+		}
+		return ids
+	}
+	t.Fatal("run has no interrupt event to resume")
+	return nil
 }
 
 func TestExecuteMessagesPersistsExplicitPlanExecuteMode(t *testing.T) {
