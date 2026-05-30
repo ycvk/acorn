@@ -70,8 +70,8 @@ Root mode routing 的当前事实在 `internal/runtime` 测试和 executor 路�
 - Mobile 当前通过 `mobile/lib/src/api/run_event_stream.dart` 消费 `/v1` mobile live `RunEvent` SSE，并由 chat projection 做 assistant/activity 投影；legacy `/api` request-local StreamItem stream 已删除，terminal stream 后 reload server truth。
 - `internal/stream` 是 runtime stream item、kind、payload 和 projection helper 的 canonical 包；`internal/runtime` 不再 re-export stream types。Web/OpenAPI/mobile types 只是投影，不是第二套运行时事实。
 - Builtin progress-capable tools implement `tooling.ProgressTool`; `run_command` can forward stdout/stderr chunks to an explicit in-process callback while preserving the final structured JSON tool result. Runtime does not persist those chunks as `tool.call.progress`.
-- `context.pressure` and `context.compressed` are backend-owned visibility events. Pressure payloads come from `BudgetGovernor` state/token/window facts; compressed payloads come from `CompressionOutcome` boundary/token/snippet facts. They remain persisted diagnostic events; mobile does not estimate pressure locally or consume those events from the live stream.
-- `context.compressed` is a projection of compression visibility. When compaction writes a boundary, the payload carries `boundary_id`; resume/rehydration must load the boundary from SQLite rather than reconstructing it from the stream payload.
+- Context pressure is returned inside backend model-input state and consumed by runtime decisions; it is not persisted as a RunEvent. Mobile must not estimate pressure locally.
+- Context compaction persists `ContextBoundary` records in SQLite `context_boundaries`; it no longer emits a parallel compressed visibility RunEvent.
 - `procedure.activation` is the persisted visibility event for procedure usage trace. It carries procedure ref/title/kind, phase, reason, score, status, origin, source refs, and evidence refs; it is a trace event only and does not create a second procedure truth.
 - `skill.lifecycle` is the persisted visibility event for native skill lifecycle work. It carries skill id, lifecycle action, status/verdict, `assessment_id`, evidence refs, and optional `assessment` payloads. It projects lifecycle truth from runtime tools and does not infer skill quality from assistant prose. `skill_assess` is the active lifecycle action; missing required evidence refs or invalid verdicts remain inconclusive evidence, not a promotion signal.
 - ContextPlane initial assembly budget is derived from the governor warning threshold, not a fixed percentage of the raw context window.
@@ -79,9 +79,9 @@ Root mode routing 的当前事实在 `internal/runtime` 测试和 executor 路�
 ## 不变量
 
 - run status、mode、lineage、events 和 plans 以 SQLite 为准。
-- context boundary chain、summary、transcript reference 和 preserved segment references 以 SQLite `context_boundaries` 为准；diagnostic events only project visibility snippets.
+- context boundary chain、summary、transcript reference 和 preserved segment references 以 SQLite `context_boundaries` 为准；没有 parallel compression RunEvent truth。
 - context pressure 以 BudgetGovernor 的 effective-window calculation 为准；OpenAPI/mobile 只消费后端事实。
-- context visibility 以 `context.pressure` / `context.compressed` persisted diagnostic payload 为准；mobile 不使用本地 token estimate、message count 或 assistant 文本推断 pressure/boundary。
+- context pressure/boundary 只由后端 runtime/contextplane 计算和持久化；mobile 不使用本地 token estimate、message count 或 assistant 文本推断 pressure/boundary。
 - initial model input 以 ContextSession Bootstrap 输出为准；ContextPlane assembly 不是由 executor 裸 prepend 成运行事实。
 - direct_response stable instruction 和后续 assistant/tool history 以 ContextSession 为准；缺 ContextSession 是 runtime failure。
 - provider context overflow recovery 只允许 `CompactTriggerReactive` + same-model single retry；retry 失败继续是显式 model/runtime error。

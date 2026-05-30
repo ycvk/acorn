@@ -21,7 +21,7 @@ slug: runtime-orchestration
 
 `direct_response` 读取 run tool catalog、绑定 ContextPlane tool lifecycle state，并构建 `SafeParallelToolsNode`。它不启动 PlanNode，也不调用 child-agent executor；执行时按 `ContextSession.BeforeModelCall -> AssistantStreamer.StreamAssistantInterleaved -> StreamingToolExecutor.Submit/GetRemainingResults -> ContextSession.RecordAssistant/RecordToolResults` 的 session-owned loop 推进，直到模型返回无 tool call 的最终 assistant message。`AssistantStreamer` 负责把模型 stream chunk 持久化为 `assistant.delta`，再保留最终完整 assistant message。
 
-`direct_response` 是 Acorn-specific ADK agent，不是 Eino `adk.NewChatModelAgent` 的薄封装。保留自定义 loop 的原因是：普通问答必须产出 Acorn persisted event / StreamItem truth，tool lifecycle 必须和 ContextPlane 的 loaded/deferred state 绑定，普通 tool failure 必须继续作为模型可见 failed tool result。缺 lifecycle wiring、缺 catalog、缺 tool node 或模型 streaming 失败是 runtime failure。
+`direct_response` 是 Acorn-specific ADK agent，不是 Eino `adk.NewChatModelAgent` 的薄封装。保留自定义 loop 的原因是：普通问答必须产出 Acorn persisted event truth，tool lifecycle 必须和 ContextPlane 的 loaded/deferred state 绑定，普通 tool failure 必须继续作为模型可见 failed tool result。`internal/stream.StreamItem` 只是 runtime 内部写入/投影形态，不是 app/web/OpenAPI contract。缺 lifecycle wiring、缺 catalog、缺 tool node 或模型 streaming 失败是 runtime failure。
 
 ContextSession 拥有所有 root mode 的首轮 model input，并且 direct_response 的深层 tool loop 已经不再维护 loop-local messages。缺少 root ContextSession binding 时 direct_response 直接失败，不回退到 `input.Messages`。
 

@@ -2537,7 +2537,7 @@ components:
       required: [assistant_delta]
       properties:
         assistant_delta:
-          $ref: '#/components/schemas/StreamAssistantDelta'
+          $ref: '#/components/schemas/RunEventAssistantDelta'
 
     AgentMessageData:
       type: object
@@ -2545,14 +2545,14 @@ components:
       required: [message]
       properties:
         message:
-          $ref: '#/components/schemas/StreamMessage'
+          $ref: '#/components/schemas/RunEventMessage'
 
     RunCompletedData:
       type: object
       additionalProperties: false
       properties:
         message:
-          $ref: '#/components/schemas/StreamMessage'
+          $ref: '#/components/schemas/RunEventMessage'
 
     RunFailedData:
       type: object
@@ -2566,7 +2566,7 @@ components:
       additionalProperties: false
       properties:
         interrupt:
-          $ref: '#/components/schemas/StreamInterrupt'
+          $ref: '#/components/schemas/RunEventInterrupt'
 
     RunResumeRequestedData:
       type: object
@@ -2657,7 +2657,7 @@ components:
           type: string
           enum: [interrupt_requested]
 
-    StreamMessage:
+    RunEventMessage:
       type: object
       additionalProperties: true
       properties:
@@ -2670,11 +2670,11 @@ components:
         tool_calls:
           type: array
           items:
-            $ref: '#/components/schemas/StreamPlannedToolCall'
+            $ref: '#/components/schemas/RunEventPlannedToolCall'
         warning_facts:
           type: array
           items:
-            $ref: '#/components/schemas/StreamWarningFact'
+            $ref: '#/components/schemas/RunEventMessageWarningFact'
         tool_call_id:
           type: string
         tool_name:
@@ -2683,7 +2683,7 @@ components:
           type: object
           additionalProperties: true
 
-    StreamAssistantDelta:
+    RunEventAssistantDelta:
       type: object
       additionalProperties: false
       required: [sequence]
@@ -2704,12 +2704,12 @@ components:
         tool_calls:
           type: array
           items:
-            $ref: '#/components/schemas/StreamPlannedToolCall'
+            $ref: '#/components/schemas/RunEventPlannedToolCall'
         meta:
           type: object
           additionalProperties: true
 
-    StreamPlannedToolCall:
+    RunEventPlannedToolCall:
       type: object
       additionalProperties: false
       properties:
@@ -2720,19 +2720,7 @@ components:
         arguments_json:
           type: string
 
-    StreamWarningScope:
-      type: object
-      additionalProperties: false
-      properties:
-        kind:
-          type: string
-          enum: [exact_file, directory, broad_workspace, unknown]
-        path:
-          type: string
-        reason:
-          type: string
-
-    StreamWarningFact:
+    RunEventMessageWarningFact:
       type: object
       additionalProperties: false
       properties:
@@ -2754,7 +2742,7 @@ components:
         reason:
           type: string
 
-    StreamInterruptContext:
+    RunEventInterruptContext:
       type: object
       additionalProperties: true
       properties:
@@ -2768,7 +2756,7 @@ components:
         is_root_cause:
           type: boolean
 
-    StreamInterrupt:
+    RunEventInterrupt:
       type: object
       additionalProperties: false
       properties:
@@ -2777,7 +2765,7 @@ components:
         contexts:
           type: array
           items:
-            $ref: '#/components/schemas/StreamInterruptContext'
+            $ref: '#/components/schemas/RunEventInterruptContext'
 
     # --- Stream payload schemas ---
 

@@ -2,56 +2,10 @@ package stream
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/ycvk/acorn/internal/events"
 )
-
-func LatestRootInterruptContexts(raw []events.EventRecord) ([]StreamInterruptContext, error) {
-	for i := len(raw) - 1; i >= 0; i-- {
-		item, err := ProjectEventToStreamItem(raw[i])
-		if err != nil {
-			return nil, err
-		}
-		if item.Kind != StreamKindRunInterrupted {
-			continue
-		}
-		interrupt := item.GetInterrupt()
-		if interrupt == nil {
-			return nil, errors.New("run.interrupted payload missing interrupt")
-		}
-		contexts := make([]StreamInterruptContext, 0, len(interrupt.Contexts))
-		for _, ctx := range interrupt.Contexts {
-			if !ctx.IsRootCause {
-				continue
-			}
-			id := strings.TrimSpace(ctx.ID)
-			if id == "" {
-				return nil, errors.New("interrupt context id is empty")
-			}
-			contexts = append(contexts, ctx)
-		}
-		if len(contexts) == 0 {
-			return nil, errors.New("run.interrupted has no root interrupt contexts")
-		}
-		return contexts, nil
-	}
-	return nil, errors.New("run has no interrupt event to resume")
-}
-
-func LatestRootInterruptIDs(raw []events.EventRecord) ([]string, error) {
-	contexts, err := LatestRootInterruptContexts(raw)
-	if err != nil {
-		return nil, err
-	}
-	ids := make([]string, 0, len(contexts))
-	for _, ctx := range contexts {
-		ids = append(ids, strings.TrimSpace(ctx.ID))
-	}
-	return ids, nil
-}
 
 func ProjectEventToStreamItem(event events.EventRecord) (StreamItem, error) {
 	item := StreamItem{RunID: event.RunID, Sequence: event.Sequence, CreatedAt: event.CreatedAt}
@@ -114,10 +68,6 @@ func eventKindToStreamKind(eventKind string) StreamItemKind {
 		return StreamKindSkillLifecycle
 	case "memory.prepared":
 		return StreamKindMemoryPrepared
-	case "context.pressure":
-		return StreamKindContextPressure
-	case "context.compressed":
-		return StreamKindContextCompressed
 	case "assistant.delta":
 		return StreamKindAssistantDelta
 	case "agent.message":
@@ -130,44 +80,12 @@ func eventKindToStreamKind(eventKind string) StreamItemKind {
 		return StreamKindToolCallFailed
 	case "tool.call.interrupted":
 		return StreamKindToolCallInterrupted
-	case "mcp.tool_catalog_refreshed":
-		return StreamKindMCPToolCatalogRefreshed
-	case "mcp.tool_catalog_refresh_failed":
-		return StreamKindMCPToolCatalogRefreshFailed
-	case "mcp.provider_added":
-		return StreamKindMCPProviderAdded
-	case "mcp.provider_removed":
-		return StreamKindMCPProviderRemoved
-	case "mcp.provider_restarted":
-		return StreamKindMCPProviderRestarted
-	case "mcp.resource_catalog_refreshed":
-		return StreamKindMCPResourceCatalogRefreshed
-	case "mcp.resource_catalog_refresh_failed":
-		return StreamKindMCPResourceCatalogRefreshFailed
-	case "mcp.prompt_catalog_refreshed":
-		return StreamKindMCPPromptCatalogRefreshed
-	case "mcp.prompt_catalog_refresh_failed":
-		return StreamKindMCPPromptCatalogRefreshFailed
-	case "mcp.auth_status_changed":
-		return StreamKindMCPAuthStatusChanged
 	case "subagent.started":
 		return StreamKindSubagentStarted
 	case "subagent.completed":
 		return StreamKindSubagentCompleted
 	case "subagent.failed":
 		return StreamKindSubagentFailed
-	case "plan.created":
-		return StreamKindPlanCreated
-	case "plan.updated":
-		return StreamKindPlanUpdated
-	case "plan.cleared":
-		return StreamKindPlanCleared
-	case "step.started":
-		return StreamKindStepStarted
-	case "step.completed":
-		return StreamKindStepCompleted
-	case "step.failed":
-		return StreamKindStepFailed
 	default:
 		return StreamItemKind(eventKind)
 	}

@@ -45,13 +45,7 @@ curl -H "Authorization: Bearer $ACORN_DEVICE_TOKEN" \
   http://127.0.0.1:8080/v1/threads/THREAD_ID/runs
 ```
 
-Plan 生命周期事件会持久化为后端诊断事件，但不会进入 `/v1/runs/{run_id}/events` mobile live stream，也不会作为 public RunDetail plan DTO 暴露。调试 plan 时从 SQLite 诊断路径核对原始事件：
-
-```json
-{"kind":"plan.created","plan":{"plan_id":"session_...","steps":[{"id":"s1","action":"Read README.md","status":"pending","risk":"read","repo_targets":[{"path":"README.md","reason":"summarize project skeleton","confidence":"high"}],"tool_hints":["read_file"]}]}}
-{"kind":"step.started","plan":{"steps":[{"id":"s1","status":"in_progress","risk":"read"}]},"step":{"id":"s1","status":"in_progress","risk":"read"}}
-{"kind":"step.completed","plan":{"steps":[{"id":"s1","status":"completed","risk":"read"}]},"step":{"id":"s1","status":"completed","risk":"read"}}
-```
+Plan state is a backend store fact, not a RunEvent family. Debug plan creation, status changes, and evidence through `PlanStore` / SQLite plan rows; do not reintroduce plan/step stream diagnostics or public PlanDTO/workbench projections.
 
 如果需要远程核对一次 run 的用户可见事实，可通过标准 `/v1` run detail 查看 run/thread、live event activity 和 artifacts：
 
@@ -125,18 +119,9 @@ func buildAgentGraph(
 ) (compose.Runnable[*agentGraphInput, *schema.Message], error)
 ```
 
-### Diagnostic Events
+### Diagnostics
 
-| kind | payload | 说明 |
-|---|---|---|
-| `plan.created` | `plan` | 新计划已保存 |
-| `plan.updated` | `plan` | replan 后计划已更新 |
-| `plan.cleared` | `plan_id`、`session_id`、`run_id` | 当前计划被清除 |
-| `step.started` | `plan`、`step` | step 进入 `in_progress` |
-| `step.completed` | `plan`、`step` | step 完成 |
-| `step.failed` | `plan`、`step`、`error` | step 失败 |
-
-`step.started`、`step.completed` 和 `step.failed` 都携带完整 `plan`，但它们是 persisted diagnostic events，不是 mobile live `RunEvent` contract，也不是 public RunDetail DTO。Remote clients must not consume plan/step diagnostics from the foreground SSE stream.
+Plan diagnostics are store-level facts: plan rows, step status, and `PlanEvidence`. There are no `plan.*` or `step.*` RunEvents. Remote clients must not consume plan execution state from the foreground SSE stream.
 
 ### Remote Client API
 

@@ -90,7 +90,7 @@ func TestPlanActObserveE2E(t *testing.T) {
 	for _, event := range events {
 		gotKinds = append(gotKinds, event.Kind)
 	}
-	for _, want := range []string{"plan.created", "step.started", "step.completed", "step.started", "step.completed", "run.completed"} {
+	for _, want := range []string{"run.completed"} {
 		if !containsInOrder(&gotKinds, want) {
 			t.Fatalf("event %q not found in order; remaining kinds=%v", want, gotKinds)
 		}
@@ -98,8 +98,11 @@ func TestPlanActObserveE2E(t *testing.T) {
 	if got, want := testModel.callCount, 4; got != want {
 		t.Fatalf("model callCount = %d, want %d", got, want)
 	}
-	if len(sinkItems) == 0 {
-		t.Fatal("expected stream sink items")
+	for _, item := range sinkItems {
+		switch item.Kind {
+		case "plan.created", "plan.updated", "plan.cleared", "step.started", "step.completed", "step.failed":
+			t.Fatalf("plan/step execution should not emit stream sink diagnostic %q", item.Kind)
+		}
 	}
 }
 

@@ -31,16 +31,12 @@ func TestCompressionOutcomeIncludesLayersApplied(t *testing.T) {
 		TokenCounter:     testTokenCounter(t),
 	})
 
-	var captured contextplane.CompressionOutcome
+	store := storetest.NewFakeContextStore()
 	session := contextplane.NewDefaultContextSession(contextplane.ContextSessionOptions{
 		BudgetGovernor: testBudgetGovernor{pressure: testPressure(contextplane.PressureBlocking), dynamic: true},
 		Pipeline:       pipeline,
-		BoundaryStore:  storetest.NewFakeContextStore(),
+		BoundaryStore:  store,
 		PreservePolicy: contextplane.PreservePolicy{RecentTurns: 1, PreserveToolPairs: true},
-		EmitCompressed: func(_ context.Context, outcome contextplane.CompressionOutcome) error {
-			captured = outcome
-			return nil
-		},
 	})
 	_, err := session.Bootstrap(context.Background(), contextplane.BootstrapRequest{
 		SessionID: "session_1",
@@ -66,7 +62,11 @@ func TestCompressionOutcomeIncludesLayersApplied(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BeforeModelCall: %v", err)
 	}
-	if captured.BoundaryID != "ctxb_run_1_0001" {
-		t.Fatalf("boundary id = %q, want ctxb_run_1_0001", captured.BoundaryID)
+	latest, err := store.LoadLatestContextBoundary(context.Background(), "session_1")
+	if err != nil {
+		t.Fatalf("LoadLatestContextBoundary: %v", err)
+	}
+	if latest == nil || latest.BoundaryID != "ctxb_run_1_0001" {
+		t.Fatalf("latest boundary = %+v, want ctxb_run_1_0001", latest)
 	}
 }

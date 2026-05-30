@@ -228,6 +228,4 @@ type CompressionBuildOptions struct {
 	RuntimeStorageDir string
 	TokenCounter      *CompressionTokenCounter
 	State             any
-	EmitCompressed    func(context.Context, CompressionOutcome) error
-	EmitPressure      func(context.Context, BudgetPressure) error
 }

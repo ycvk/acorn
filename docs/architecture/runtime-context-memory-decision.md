@@ -34,7 +34,7 @@ Working checkpoints are owned by `internal/workingstate`. The `update_working_ch
 
 Run archives, session summaries, run context snapshots, and context boundaries are runtime history model state owned by `internal/model` and persisted through store ports/SQLite; they are not durable file-backed memory records.
 
-Context boundaries are the persisted fact layer for compacted context segments. A boundary records the session/run identity, sequence, turn index, root mode, compact trigger, covered message range, transcript reference, summary message reference, preserved segment references, token metrics, and created timestamp. `context.compressed` stream payloads may project a boundary id, but the event is not the durable boundary truth.
+Context boundaries are the persisted fact layer for compacted context segments. A boundary records the session/run identity, sequence, turn index, root mode, compact trigger, covered message range, transcript reference, summary message reference, preserved segment references, token metrics, and created timestamp. There is no parallel compressed RunEvent truth.
 
 Context pressure is computed by `BudgetGovernor`, not by percentage thresholds. Public YAML exposes only `context.window_tokens`, `context.compact_margin_tokens`, `context.preserve_recent_turns`, and `context.summary_max_tokens`; config derives the internal policy from those fields plus the enabled provider's `max_completion_tokens` and runtime defaults. The governor derives an effective input window from model context window minus reserved output/summary tokens and static overhead, then classifies pressure as `ok`, `warning`, `auto_compact`, or `blocking` using derived buffers. Both the ADK compression adapter and `ContextSession.BeforeModelCall` consume these states; pressure requiring compact cannot silently continue with the old full history.
 
@@ -42,7 +42,7 @@ ContextPlane initial assembly uses the same `TokenCounter` implementation as Bud
 
 Tool result messages are no longer passed through a character-count `toolOutputCompressor` before model calls. Current turn tool output remains the real tool result. When a tool result ages out of the live turn window, the lifecycle middleware replaces it with a durable `tool_result_ref` marker instead of a head/tail preview.
 
-Context pressure visibility is a projection of the same `BudgetPressure` value. `context.pressure` diagnostic events carry backend state, token usage, effective window, and thresholds; mobile code does not estimate pressure from message length or token counters.
+Context pressure is the `BudgetPressure` value returned by contextplane to runtime model-call decisions. It is not persisted as a diagnostic RunEvent; mobile code does not estimate pressure from message length or token counters.
 
 `ContextSession` is the root-run model input owner. Runtime bootstraps each run from ContextPlane assembly plus initial user messages, returns copied `ModelInput` values, binds the session into the root runner execution context, and records direct_response assistant/tool messages through `RecordAssistant` and `RecordToolResults`. For direct_response, the stable instruction is a leading system message in ContextSession bootstrap, not a local prepend in the agent loop. Resume does not read old sliding-window markers or reconstruct boundaries from event payloads.
 

@@ -13,7 +13,6 @@ import (
 	"time"
 
 	storecore "github.com/ycvk/acorn/internal/store"
-	"github.com/ycvk/acorn/internal/stream"
 
 	"github.com/ycvk/acorn/internal/clientevents"
 	"github.com/ycvk/acorn/internal/config"
@@ -407,18 +406,11 @@ func TestProjectRunEventRejectsDiagnosticOnlyKinds(t *testing.T) {
 		"tool.call.progress",
 		"tool.call.succeeded",
 		"tool.call.failed",
-		"provider.degraded",
-		"mcp.provider_added",
-		"sampling.started",
 		"decision_selected",
 		"skill.selected",
 		"skill.lifecycle",
 		"procedure.activation",
 		"memory.prepared",
-		"context.pressure",
-		"context.compressed",
-		"plan.created",
-		"step.started",
 		"subagent.failed",
 	} {
 		t.Run(kind, func(t *testing.T) {
@@ -514,8 +506,8 @@ func TestLoadRunEventsAfterFiltersDiagnosticsAndAdvancesCursor(t *testing.T) {
 	if _, err := store.AppendEventContext(ctx, "run_live", "assistant.delta", map[string]any{"assistant_delta": map[string]any{"delta": "hi"}}); err != nil {
 		t.Fatalf("append assistant.delta: %v", err)
 	}
-	if _, err := store.AppendEventContext(ctx, "run_live", "context.pressure", map[string]any{"context_pressure": map[string]any{"state": "warning"}}); err != nil {
-		t.Fatalf("append context.pressure: %v", err)
+	if _, err := store.AppendEventContext(ctx, "run_live", "skill.selected", map[string]any{"skill": map[string]any{"selected_id": "skill.hidden"}}); err != nil {
+		t.Fatalf("append skill.selected: %v", err)
 	}
 
 	service := BuildClientService(store, nil, nil, "/repo")
@@ -636,7 +628,7 @@ func TestClientCreateRunUsesRealExecutorPath(t *testing.T) {
 	}
 
 	service := BuildClientService(store, func(context.Context) (executorHandle, error) {
-		return executor, nil
+		return runtimeExecutorHandle{exec: executor}, nil
 	}, nil, cfg.WorkspaceRoot())
 	service.newThreadID = func() string { return "thread_runtime" }
 	service.newRunID = func() string { return "run_runtime" }
@@ -834,11 +826,7 @@ type postStartFailingExecutor struct {
 	release chan struct{}
 }
 
-func (e *postStartFailingExecutor) Run(context.Context, string, string, stream.StreamSink) (*runtime.Result, error) {
-	return nil, errors.New("unexpected Run call")
-}
-
-func (e *postStartFailingExecutor) ExecuteMessages(ctx context.Context, req runtimeapi.ExecuteRequest, sink stream.StreamSink) (*runtime.Result, error) {
+func (e *postStartFailingExecutor) ExecuteMessages(ctx context.Context, req runtimeapi.ExecuteRequest, observer runStartObserver) error {
 	mode := req.OrchestrationMode
 	if strings.TrimSpace(string(mode)) == "" {
 		mode = events.ModeDirectResponse
@@ -850,24 +838,19 @@ func (e *postStartFailingExecutor) ExecuteMessages(ctx context.Context, req runt
 		Input:             req.Input,
 		OrchestrationMode: mode,
 	}); err != nil {
-		return nil, err
+		return err
 	}
 	if _, err := e.store.AppendEventContext(ctx, req.RunID, "run.started", map[string]any{"input": req.Input}); err != nil {
-		return nil, err
+		return err
 	}
-	if err := sink(stream.StreamItem{
-		RunID:     req.RunID,
-		Kind:      stream.StreamKindRunStarted,
-		CreatedAt: time.Now().UTC(),
-		Payload:   map[string]any{"input": req.Input},
-	}); err != nil {
-		return nil, err
+	if observer != nil {
+		observer.RunStarted()
 	}
 	<-e.release
-	return nil, errors.New("executor failed after start")
+	return errors.New("executor failed after start")
 }
 
-func (e *postStartFailingExecutor) ResumeWithTargets(context.Context, string, map[string]any, stream.StreamSink) (*runtime.Result, error) {
+func (e *postStartFailingExecutor) ResumeWithTargets(context.Context, string, map[string]any) (*executorRunResult, error) {
 	return nil, errors.New("unexpected ResumeWithTargets call")
 }
 

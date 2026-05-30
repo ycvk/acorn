@@ -58,7 +58,7 @@
 - Tool output 是模型可见 tool result truth；不要恢复字符数 `toolOutputCompressor` 或在 audit wrapper 里截断真实工具输出。需要回收上下文时只用 durable `tool_result_ref` 过期替换。
 - `CompactionEngine` 拥有 compact 规则：summary prompt、structured continuation validation、preserved tail、tool-call/tool-result pair preservation 和 compression metrics 不能散落回 middleware。
 - contextplane post-compact rehydration helper 拥有 packet 恢复。compact 后不能只靠 summary 继续，也不能扫描 workspace 猜 recent files。
-- `ContextBoundary` 是 durable compact boundary truth。`context.compressed` 只是 RunEvent projection，不能作为 loader truth。
+- `ContextBoundary` 是 durable compact boundary truth。不要恢复 `context.compressed` RunEvent projection，也不能从 RunEvent payload 恢复 boundary。
 - Reactive compact 只处理真实 provider/model context overflow，并且只允许同 provider/options 一次重试。其他 provider/runtime/tool/parser 错误必须显式失败。
 - Tool lifecycle fail-loud：unknown、disabled、deferred-before-load 是模型可见 failed tool result；runtime wiring/storage/model failure 是 run failure。
 - Tool result lifecycle 必须写入 durable ledger；ledger wiring/storage 失败是 run failure。workspace checkpoint / rollback side effects 只能从后端 ledger/store-owned projection 消费。
@@ -140,7 +140,7 @@ go test ./internal/config ./internal/contextplane ./internal/orchestration ./int
 ## 已知坑
 
 - OpenAPI/generated mobile types 漏同步会让 mobile parser 或 analyzer 失败。
-- `context.compressed` 有 `boundary_id` 不代表事件是 durable truth，真正事实在 SQLite `context_boundaries`。
+- 不要从旧 `context.compressed` 事件或任何 RunEvent payload 恢复 context boundary；真正事实在 SQLite `context_boundaries`。
 - `serve` 可以在 execution-not-ready 状态启动，执行路径会显式返回 `execution_not_ready`，不要伪造可执行状态。
 
 ## Harness Orchestrate Protocol

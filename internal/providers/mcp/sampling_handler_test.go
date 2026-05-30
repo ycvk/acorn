@@ -10,9 +10,6 @@ import (
 
 	"github.com/cloudwego/eino/schema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-
-	"github.com/ycvk/acorn/internal/events"
-	"github.com/ycvk/acorn/internal/stream"
 )
 
 // mockSamplingExecutor is a test double for SamplingExecutor.
@@ -37,42 +34,6 @@ func (m *mockSamplingExecutor) callCount() int {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.calls
-}
-
-// mockSamplingEventStore is a test double for samplingEventStore.
-type mockSamplingEventStore struct {
-	events []struct {
-		runID   string
-		kind    string
-		payload map[string]any
-	}
-	mu sync.Mutex
-}
-
-func (m *mockSamplingEventStore) AppendEventContext(_ context.Context, runID, kind string, payload any) (events.EventRecord, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	p, _ := payload.(map[string]any)
-	m.events = append(m.events, struct {
-		runID   string
-		kind    string
-		payload map[string]any
-	}{runID: runID, kind: kind, payload: p})
-	return events.EventRecord{}, nil
-}
-
-func (m *mockSamplingEventStore) getEvents() []struct {
-	runID   string
-	kind    string
-	payload map[string]any
-} {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return append([]struct {
-		runID   string
-		kind    string
-		payload map[string]any
-	}{}, m.events...)
 }
 
 // --- convertSamplingMessages tests ---
@@ -144,9 +105,7 @@ func TestConvertSamplingMessagesSkipsNonText(t *testing.T) {
 // --- SamplingHandler tests ---
 
 func newTestSamplingHandler(mgr *Manager) *SamplingHandler {
-	h := newSamplingHandler(mgr)
-	h.store = &mockSamplingEventStore{}
-	return h
+	return newSamplingHandler(mgr)
 }
 
 func TestHandleCreateMessageSucceeds(t *testing.T) {
@@ -226,60 +185,11 @@ func TestHandleCreateMessageDepthCapExceeded(t *testing.T) {
 	}
 }
 
-func TestHandleCreateMessageSubRunIDPrefix(t *testing.T) {
+func TestHandleCreateMessageExecutesOnce(t *testing.T) {
 	mgr := &Manager{samplingDepth: 0}
 	h := newTestSamplingHandler(mgr)
-
-	var capturedMessages []*schema.Message
-	h.executor = &mockSamplingExecutor{
-		output: "response",
-	}
-
-	req := &mcp.CreateMessageRequest{
-		Params: &mcp.CreateMessageParams{
-			Messages: []*mcp.SamplingMessage{
-				{Role: "user", Content: &mcp.TextContent{Text: "test"}},
-			},
-			MaxTokens: 100,
-		},
-	}
-
-	result, err := h.HandleCreateMessage(context.Background(), req)
-	if err != nil {
-		t.Fatalf("HandleCreateMessage: %v", err)
-	}
-	if result == nil {
-		t.Fatal("expected result")
-	}
-
-	// Check events emitted with sub-run ID
-	store := h.store.(*mockSamplingEventStore)
-	events := store.getEvents()
-	if got, want := len(events), 2; got != want {
-		t.Fatalf("event count = %d, want %d", got, want)
-	}
-
-	// Find the started event and verify sub-run ID is present
-	var startedFound bool
-	for _, ev := range events {
-		if ev.kind == string(stream.StreamKindSamplingStarted) {
-			startedFound = true
-			if runID, ok := ev.payload["run_id"].(string); !ok || strings.TrimSpace(runID) == "" {
-				t.Fatal("sub-run ID in sampling.started event is empty")
-			}
-		}
-	}
-	if !startedFound {
-		t.Fatal("expected sampling.started event")
-	}
-
-	_ = capturedMessages
-}
-
-func TestHandleCreateMessageEmitsEvents(t *testing.T) {
-	mgr := &Manager{samplingDepth: 0}
-	h := newTestSamplingHandler(mgr)
-	h.executor = &mockSamplingExecutor{output: "response"}
+	exec := &mockSamplingExecutor{output: "response"}
+	h.executor = exec
 
 	req := &mcp.CreateMessageRequest{
 		Params: &mcp.CreateMessageParams{
@@ -294,38 +204,8 @@ func TestHandleCreateMessageEmitsEvents(t *testing.T) {
 	if err != nil {
 		t.Fatalf("HandleCreateMessage: %v", err)
 	}
-
-	store := h.store.(*mockSamplingEventStore)
-	events := store.getEvents()
-
-	// Expect sampling.started then sampling.completed
-	if got, want := len(events), 2; got != want {
-		t.Fatalf("event count = %d, want %d", got, want)
-	}
-	if got, want := events[0].kind, string(stream.StreamKindSamplingStarted); got != want {
-		t.Fatalf("event[0].kind = %q, want %q", got, want)
-	}
-	if got, want := events[1].kind, string(stream.StreamKindSamplingCompleted); got != want {
-		t.Fatalf("event[1].kind = %q, want %q", got, want)
-	}
-	// Depth should be 1 during started event (after increment)
-	var depthVal int32
-	switch d := events[0].payload["depth"].(type) {
-	case int32:
-		depthVal = d
-	case int:
-		depthVal = int32(d)
-	case float64:
-		depthVal = int32(d)
-	default:
-		t.Fatalf("started event depth has unexpected type %T: %v", events[0].payload["depth"], events[0].payload["depth"])
-	}
-	if depthVal != 1 {
-		t.Fatalf("started event depth = %d, want 1", depthVal)
-	}
-	// Completed event should have model set
-	if model, ok := events[1].payload["model"].(string); !ok || model != "acorn-default" {
-		t.Fatalf("completed event model = %v, want acorn-default", events[1].payload["model"])
+	if got, want := exec.callCount(), 1; got != want {
+		t.Fatalf("executor call count = %d, want %d", got, want)
 	}
 }
 
@@ -349,21 +229,6 @@ func TestHandleCreateMessageExecutorError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "LLM failed") {
 		t.Fatalf("error = %q, want 'LLM failed'", err.Error())
-	}
-
-	// Verify sampling.failed event was emitted
-	store := h.store.(*mockSamplingEventStore)
-	events := store.getEvents()
-
-	// Expect sampling.started then sampling.failed
-	if got, want := len(events), 2; got != want {
-		t.Fatalf("event count = %d, want %d", got, want)
-	}
-	if got, want := events[0].kind, string(stream.StreamKindSamplingStarted); got != want {
-		t.Fatalf("event[0].kind = %q, want %q", got, want)
-	}
-	if got, want := events[1].kind, string(stream.StreamKindSamplingFailed); got != want {
-		t.Fatalf("event[1].kind = %q, want %q", got, want)
 	}
 
 	// Depth should be decremented back to 0

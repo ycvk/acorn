@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -27,7 +26,7 @@ func TestHandleElicitationCreatesPendingAction(t *testing.T) {
 		t.Fatalf("create run: %v", err)
 	}
 
-	handler := newElicitationHandler(store, nil)
+	handler := newElicitationHandler(store)
 	handler.setActiveRunID(runID)
 
 	req := &mcp.ElicitRequest{
@@ -103,7 +102,7 @@ func TestHandleElicitationTimeoutReturnsDecline(t *testing.T) {
 		t.Fatalf("create run: %v", err)
 	}
 
-	handler := newElicitationHandler(store, nil)
+	handler := newElicitationHandler(store)
 	handler.setActiveRunID(runID)
 	handler.setTimeoutForTest(100 * time.Millisecond) // short timeout for test
 
@@ -135,7 +134,7 @@ func TestHandleElicitationLoadFailureReturnsError(t *testing.T) {
 	handler := newElicitationHandler(failingPendingActionStore{
 		PendingActionStore: store,
 		loadErr:            errors.New("sqlite is locked"),
-	}, nil)
+	})
 	handler.setActiveRunID(runID)
 	handler.setTimeoutForTest(50 * time.Millisecond)
 
@@ -158,7 +157,7 @@ func TestHandleElicitationNoActiveRunReturnsDecline(t *testing.T) {
 	store, cleanup := openTestStore(t)
 	defer cleanup()
 
-	handler := newElicitationHandler(store, nil)
+	handler := newElicitationHandler(store)
 	// No active run ID set
 
 	req := &mcp.ElicitRequest{
@@ -186,15 +185,7 @@ func TestHandleElicitationEmitsStreamItems(t *testing.T) {
 		t.Fatalf("create run: %v", err)
 	}
 
-	var emitted []ProviderEvent
-	var mu sync.Mutex
-	onEvent := func(event ProviderEvent) {
-		mu.Lock()
-		emitted = append(emitted, event)
-		mu.Unlock()
-	}
-
-	handler := newElicitationHandler(store, onEvent)
+	handler := newElicitationHandler(store)
 	handler.setActiveRunID(runID)
 	handler.setTimeoutForTest(100 * time.Millisecond)
 
@@ -275,8 +266,7 @@ func TestBuildElicitationHandlerReturnsValidHandler(t *testing.T) {
 
 	mgr := &Manager{
 		store:       store,
-		onEvent:     func(event ProviderEvent) {},
-		elicitation: newElicitationHandler(store, func(event ProviderEvent) {}),
+		elicitation: newElicitationHandler(store),
 	}
 	mgr.SetActiveRunID(runID)
 

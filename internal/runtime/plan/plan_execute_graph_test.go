@@ -62,7 +62,7 @@ func TestExecuteDispatchNodeCompletesStepWithChildEvidence(t *testing.T) {
 			Acceptance:     orchestration.ChildAgentAcceptance{Status: "passed"},
 		},
 	}
-	node := NewExecuteDispatchNode(store, nil, child)
+	node := NewExecuteDispatchNode(store, child)
 	ctx := runtimeapi.WithRunID(runtimeapi.WithSessionID(context.Background(), "sess_plan_execute"), "run_parent")
 
 	state, err := node.Invoke(ctx, &graph.AgentGraphState{
@@ -121,7 +121,7 @@ func TestExecuteDispatchNodeFailsStepWhenChildFails(t *testing.T) {
 		UpdatedAt: time.Now().UTC(),
 	}}
 	child := &stubChildAgentExecutor{err: errors.New("tool run failed")}
-	node := NewExecuteDispatchNode(store, nil, child)
+	node := NewExecuteDispatchNode(store, child)
 	ctx := runtimeapi.WithRunID(runtimeapi.WithSessionID(context.Background(), "sess_plan_execute"), "run_parent")
 
 	state, err := node.Invoke(ctx, &graph.AgentGraphState{
@@ -176,7 +176,7 @@ func TestExecuteDispatchNodeRunsVerifierForVerifierIntent(t *testing.T) {
 			},
 		},
 	}
-	node := NewExecuteDispatchNode(store, nil, child)
+	node := NewExecuteDispatchNode(store, child)
 	ctx := runtimeapi.WithRunID(runtimeapi.WithSessionID(context.Background(), "sess_plan_execute"), "run_parent")
 
 	state, err := node.Invoke(ctx, &graph.AgentGraphState{
@@ -250,7 +250,7 @@ func TestExecuteDispatchNodeFailsStepWhenVerifierFails(t *testing.T) {
 			},
 		},
 	}
-	node := NewExecuteDispatchNode(store, nil, child)
+	node := NewExecuteDispatchNode(store, child)
 	ctx := runtimeapi.WithRunID(runtimeapi.WithSessionID(context.Background(), "sess_plan_execute"), "run_parent")
 
 	state, err := node.Invoke(ctx, &graph.AgentGraphState{
@@ -294,7 +294,7 @@ func TestExecuteDispatchNodeDoesNotDispatchWithoutRunnableStep(t *testing.T) {
 			OutputSummary: "should not run",
 		},
 	}
-	node := NewExecuteDispatchNode(store, nil, child)
+	node := NewExecuteDispatchNode(store, child)
 	ctx := runtimeapi.WithRunID(runtimeapi.WithSessionID(context.Background(), "sess_plan_execute"), "run_parent")
 
 	_, err := node.Invoke(ctx, &graph.AgentGraphState{

@@ -130,7 +130,7 @@ func TestPlanNodeSavesValidPlan(t *testing.T) {
 		]
 	}`}}
 	store := &fakePlanStore{}
-	node := NewPlanNode(testModel, store, nil, "Make a plan", nil, nil)
+	node := NewPlanNode(testModel, store, "Make a plan", nil, nil)
 	ctx := runtimeapi.WithRunID(runtimeapi.WithSessionID(context.Background(), "sess_plan"), "run_plan")
 	state := &graph.AgentGraphState{Messages: []*schema.Message{schema.UserMessage("do work")}}
 
@@ -177,7 +177,7 @@ func TestPlanNodeAddsPlanningPromptProviderSectionToModelInput(t *testing.T) {
 	testModel := &planNodeModel{responses: []string{`{"steps":[{"id":"s1","action":"Read runtime plan","status":"pending"}]}`}}
 	store := &fakePlanStore{}
 	provider := &fakePlanningPromptProvider{section: `{"repo_targets_hint":[{"path":"internal/model/plan.go","reason":"plan metadata"}],"enabled_tools":["read_file"]}`}
-	node := NewPlanNode(testModel, store, nil, "Make a plan", provider, []string{"read_file"})
+	node := NewPlanNode(testModel, store, "Make a plan", provider, []string{"read_file"})
 	ctx := runtimeapi.WithRunID(runtimeapi.WithSessionID(context.Background(), "sess_plan_context"), "run_plan_context")
 
 	if _, err := node.Invoke(ctx, &graph.AgentGraphState{Messages: []*schema.Message{schema.UserMessage("read runtime plan")}}); err != nil {
@@ -207,7 +207,7 @@ func TestPlanNodePlanningPromptProviderErrorFailsLoud(t *testing.T) {
 	testModel := &planNodeModel{responses: []string{`{"steps":[{"id":"s1","action":"unused","status":"pending"}]}`}}
 	store := &fakePlanStore{}
 	provider := &fakePlanningPromptProvider{err: errors.New("planning prompt unavailable")}
-	node := NewPlanNode(testModel, store, nil, "Make a plan", provider, nil)
+	node := NewPlanNode(testModel, store, "Make a plan", provider, nil)
 	ctx := runtimeapi.WithRunID(runtimeapi.WithSessionID(context.Background(), "sess_plan_context_error"), "run_plan_context_error")
 
 	_, err := node.Invoke(ctx, &graph.AgentGraphState{Messages: []*schema.Message{schema.UserMessage("work")}})
@@ -228,7 +228,7 @@ func TestPlanNodeRetriesInvalidPlanFormatOnce(t *testing.T) {
 		`{"steps":[{"id":"s1","action":"Read README","status":"pending"}]}`,
 	}}
 	store := &fakePlanStore{}
-	node := NewPlanNode(testModel, store, nil, "Make a plan", nil, nil)
+	node := NewPlanNode(testModel, store, "Make a plan", nil, nil)
 	ctx := runtimeapi.WithRunID(runtimeapi.WithSessionID(context.Background(), "sess_retry"), "run_retry")
 
 	if _, err := node.Invoke(ctx, &graph.AgentGraphState{Messages: []*schema.Message{schema.UserMessage("read")}}); err != nil {
@@ -263,7 +263,7 @@ func TestPlanNodeReusesRunnableExistingPlan(t *testing.T) {
 		},
 	}
 	store := &fakePlanStore{loaded: existing}
-	node := NewPlanNode(testModel, store, nil, "Make a plan", nil, nil)
+	node := NewPlanNode(testModel, store, "Make a plan", nil, nil)
 	ctx := runtimeapi.WithRunID(runtimeapi.WithSessionID(context.Background(), "sess_existing"), "run_continue")
 
 	out, err := node.Invoke(ctx, &graph.AgentGraphState{Messages: []*schema.Message{schema.UserMessage("continue")}})
@@ -296,7 +296,7 @@ func TestPlanNodeReusesRunnableExistingPlanWithoutPlanningPromptProvider(t *test
 	}
 	store := &fakePlanStore{loaded: existing}
 	provider := &fakePlanningPromptProvider{err: errors.New("should not load planning prompt")}
-	node := NewPlanNode(testModel, store, nil, "Make a plan", provider, nil)
+	node := NewPlanNode(testModel, store, "Make a plan", provider, nil)
 	ctx := runtimeapi.WithRunID(runtimeapi.WithSessionID(context.Background(), "sess_existing_context"), "run_continue_context")
 
 	out, err := node.Invoke(ctx, &graph.AgentGraphState{Messages: []*schema.Message{schema.UserMessage("continue")}})
@@ -327,7 +327,7 @@ func TestPlanNodeRegeneratesOnReplanDecision(t *testing.T) {
 			{ID: "retry", Action: "Could still run", Status: model.PlanStepPending},
 		},
 	}}
-	node := NewPlanNode(testModel, store, nil, "Make a plan", nil, nil)
+	node := NewPlanNode(testModel, store, "Make a plan", nil, nil)
 	ctx := runtimeapi.WithRunID(runtimeapi.WithSessionID(context.Background(), "sess_replan"), "run_replan")
 
 	out, err := node.Invoke(ctx, &graph.AgentGraphState{
@@ -354,7 +354,7 @@ func TestPlanNodeRejectsInvalidPlanAfterRetry(t *testing.T) {
 		`{"steps":[{"id":"s1","action":"one","status":"pending"},{"id":"s1","action":"duplicate","status":"pending"}]}`,
 	}}
 	store := &fakePlanStore{}
-	node := NewPlanNode(testModel, store, nil, "Make a plan", nil, nil)
+	node := NewPlanNode(testModel, store, "Make a plan", nil, nil)
 	ctx := runtimeapi.WithRunID(runtimeapi.WithSessionID(context.Background(), "sess_bad"), "run_bad")
 
 	_, err := node.Invoke(ctx, &graph.AgentGraphState{Messages: []*schema.Message{schema.UserMessage("bad")}})
@@ -378,7 +378,7 @@ func TestPlanNodeRejectsInvalidRepoTargetPath(t *testing.T) {
 		`{"steps":[{"id":"s1","action":"write temp","status":"pending","risk":"write","repo_targets":[{"path":"/tmp/x","reason":"target file","confidence":"high"}],"verification_intent":[{"kind":"test","reason":"prove it"}]}]}`,
 	}}
 	store := &fakePlanStore{}
-	node := NewPlanNode(testModel, store, nil, "Make a plan", nil, nil)
+	node := NewPlanNode(testModel, store, "Make a plan", nil, nil)
 	ctx := runtimeapi.WithRunID(runtimeapi.WithSessionID(context.Background(), "sess_bad_path"), "run_bad_path")
 
 	_, err := node.Invoke(ctx, &graph.AgentGraphState{Messages: []*schema.Message{schema.UserMessage("bad path")}})
@@ -393,7 +393,7 @@ func TestPlanNodeRejectsInvalidRepoTargetConfidence(t *testing.T) {
 		`{"steps":[{"id":"s1","action":"inspect","status":"pending","repo_targets":[{"path":"README.md","reason":"read it","confidence":"maybe"}]}]}`,
 	}}
 	store := &fakePlanStore{}
-	node := NewPlanNode(testModel, store, nil, "Make a plan", nil, nil)
+	node := NewPlanNode(testModel, store, "Make a plan", nil, nil)
 	ctx := runtimeapi.WithRunID(runtimeapi.WithSessionID(context.Background(), "sess_bad_confidence"), "run_bad_confidence")
 
 	_, err := node.Invoke(ctx, &graph.AgentGraphState{Messages: []*schema.Message{schema.UserMessage("bad confidence")}})
@@ -408,7 +408,7 @@ func TestPlanNodeRejectsWriteRiskWithoutVerificationIntent(t *testing.T) {
 		`{"steps":[{"id":"s1","action":"edit file","status":"pending","risk":"write","repo_targets":[{"path":"README.md","reason":"edit it","confidence":"high"}]}]}`,
 	}}
 	store := &fakePlanStore{}
-	node := NewPlanNode(testModel, store, nil, "Make a plan", nil, nil)
+	node := NewPlanNode(testModel, store, "Make a plan", nil, nil)
 	ctx := runtimeapi.WithRunID(runtimeapi.WithSessionID(context.Background(), "sess_write_no_intent"), "run_write_no_intent")
 
 	_, err := node.Invoke(ctx, &graph.AgentGraphState{Messages: []*schema.Message{schema.UserMessage("edit")}})
@@ -423,7 +423,7 @@ func TestPlanNodeRejectsUnknownToolHint(t *testing.T) {
 		`{"steps":[{"id":"s1","action":"read file","status":"pending","tool_hints":["not_a_tool"]}]}`,
 	}}
 	store := &fakePlanStore{}
-	node := NewPlanNode(testModel, store, nil, "Make a plan", nil, []string{"read_file"})
+	node := NewPlanNode(testModel, store, "Make a plan", nil, []string{"read_file"})
 	ctx := runtimeapi.WithRunID(runtimeapi.WithSessionID(context.Background(), "sess_unknown_tool"), "run_unknown_tool")
 
 	_, err := node.Invoke(ctx, &graph.AgentGraphState{Messages: []*schema.Message{schema.UserMessage("read")}})
@@ -445,7 +445,7 @@ func TestPlanNodeAcceptsRepoAwareMetadata(t *testing.T) {
 		}]
 	}`}}
 	store := &fakePlanStore{}
-	node := NewPlanNode(testModel, store, nil, "Make a plan", nil, []string{"read_file"})
+	node := NewPlanNode(testModel, store, "Make a plan", nil, []string{"read_file"})
 	ctx := runtimeapi.WithRunID(runtimeapi.WithSessionID(context.Background(), "sess_metadata"), "run_metadata")
 
 	if _, err := node.Invoke(ctx, &graph.AgentGraphState{Messages: []*schema.Message{schema.UserMessage("metadata")}}); err != nil {
@@ -479,7 +479,7 @@ func TestPlanNodeAcceptsVerifierVerificationIntent(t *testing.T) {
 		}]
 	}`}}
 	store := &fakePlanStore{}
-	node := NewPlanNode(testModel, store, nil, "Make a plan", nil, []string{"read_file"})
+	node := NewPlanNode(testModel, store, "Make a plan", nil, []string{"read_file"})
 	ctx := runtimeapi.WithRunID(runtimeapi.WithSessionID(context.Background(), "sess_verifier_plan"), "run_verifier_plan")
 
 	if _, err := node.Invoke(ctx, &graph.AgentGraphState{Messages: []*schema.Message{schema.UserMessage("ship change")}}); err != nil {
@@ -494,7 +494,7 @@ func TestPlanNodeAcceptsVerifierVerificationIntent(t *testing.T) {
 func TestPlanNodeReturnsModelErrorWithoutRetry(t *testing.T) {
 	testModel := &planNodeModel{err: errors.New("provider down")}
 	store := &fakePlanStore{}
-	node := NewPlanNode(testModel, store, nil, "Make a plan", nil, nil)
+	node := NewPlanNode(testModel, store, "Make a plan", nil, nil)
 	ctx := runtimeapi.WithRunID(runtimeapi.WithSessionID(context.Background(), "sess_model"), "run_model")
 
 	_, err := node.Invoke(ctx, &graph.AgentGraphState{Messages: []*schema.Message{schema.UserMessage("work")}})

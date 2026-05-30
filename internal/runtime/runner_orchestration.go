@@ -173,7 +173,6 @@ func (d defaultOrchestrationPlaneDeps) buildHandlers(
 		d.cfg,
 		d.contextPlane,
 		d.handlers,
-		d.store,
 		chatModel,
 		compressionState,
 	)
@@ -184,7 +183,6 @@ func buildRunnerAgentHandlers(
 	cfg *config.Config,
 	contextPlane contextplane.ContextPlane,
 	extraHandlers []adk.ChatModelAgentMiddleware,
-	store runtimeapi.EventAppender,
 	chatModel einomodel.BaseChatModel,
 	compressionState any,
 ) ([]adk.ChatModelAgentMiddleware, error) {
@@ -201,12 +199,6 @@ func buildRunnerAgentHandlers(
 	compressionHandlers, err := compaction.NewCompressionMiddlewareBuilder().Build(ctx, contextPolicy, chatModel, contextplane.CompressionBuildOptions{
 		RuntimeStorageDir: cfg.Runtime.StorageDir,
 		State:             compressionState,
-		EmitCompressed: func(ctx context.Context, outcome contextplane.CompressionOutcome) error {
-			return EmitContextCompressedEvent(ctx, store, outcome)
-		},
-		EmitPressure: func(ctx context.Context, pressure contextplane.BudgetPressure) error {
-			return EmitContextPressureEvent(ctx, store, pressure)
-		},
 	})
 	if err != nil {
 		return nil, err
@@ -256,5 +248,3 @@ func AssembleResultToView(result *contextplane.AssembleResult) orchestration.Ass
 		DeferredToolNames: result.DeferredToolNames,
 	}
 }
-
-const systemHotReloadRunID = "_system_hot_reload"

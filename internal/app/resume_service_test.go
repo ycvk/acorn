@@ -7,9 +7,7 @@ import (
 	"testing"
 
 	"github.com/ycvk/acorn/internal/events"
-	"github.com/ycvk/acorn/internal/runtime"
 	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
-	"github.com/ycvk/acorn/internal/stream"
 )
 
 func TestResumeServiceResumeKeepsNonApprovalInterruptDefaultTarget(t *testing.T) {
@@ -39,15 +37,15 @@ func TestResumeServiceResumeKeepsNonApprovalInterruptDefaultTarget(t *testing.T)
 	)
 	service := NewRunResumeService(store).WithResume(func(_ context.Context) (executorHandle, error) {
 		return resumeTestExecutorHandle{
-			resumeWithTargetsFn: func(ctx context.Context, targetRunID string, targets map[string]any, sink stream.StreamSink) (*runtime.Result, error) {
+			resumeWithTargetsFn: func(ctx context.Context, targetRunID string, targets map[string]any) (*executorRunResult, error) {
 				resumedRunID = targetRunID
 				resumed = targets
-				return &runtime.Result{RunID: targetRunID, Status: events.RunStatusSucceeded, Output: "done"}, nil
+				return &executorRunResult{RunID: targetRunID, Status: events.RunStatusSucceeded, Output: "done"}, nil
 			},
 		}, nil
-	}, store)
+	})
 
-	result, err := service.Resume(ctx, runID, nil)
+	result, err := service.Resume(ctx, runID)
 	if err != nil {
 		t.Fatalf("Resume: %v", err)
 	}
@@ -84,14 +82,14 @@ func TestResumeServiceRejectsFailedRun(t *testing.T) {
 	var resumed bool
 	service := NewRunResumeService(store).WithResume(func(_ context.Context) (executorHandle, error) {
 		return resumeTestExecutorHandle{
-			resumeWithTargetsFn: func(ctx context.Context, targetRunID string, targets map[string]any, sink stream.StreamSink) (*runtime.Result, error) {
+			resumeWithTargetsFn: func(ctx context.Context, targetRunID string, targets map[string]any) (*executorRunResult, error) {
 				resumed = true
-				return &runtime.Result{RunID: targetRunID, Status: events.RunStatusSucceeded}, nil
+				return &executorRunResult{RunID: targetRunID, Status: events.RunStatusSucceeded}, nil
 			},
 		}, nil
-	}, store)
+	})
 
-	_, err := service.Resume(ctx, runID, nil)
+	_, err := service.Resume(ctx, runID)
 	if !errors.Is(err, runtimeapi.ErrRunNotInterrupted) {
 		t.Fatalf("Resume error = %v, want runtimeapi.ErrRunNotInterrupted", err)
 	}
@@ -118,14 +116,14 @@ func TestResumeServiceRejectsCompletedRun(t *testing.T) {
 	var resumed bool
 	service := NewRunResumeService(store).WithResume(func(_ context.Context) (executorHandle, error) {
 		return resumeTestExecutorHandle{
-			resumeWithTargetsFn: func(ctx context.Context, targetRunID string, targets map[string]any, sink stream.StreamSink) (*runtime.Result, error) {
+			resumeWithTargetsFn: func(ctx context.Context, targetRunID string, targets map[string]any) (*executorRunResult, error) {
 				resumed = true
-				return &runtime.Result{RunID: targetRunID, Status: events.RunStatusSucceeded}, nil
+				return &executorRunResult{RunID: targetRunID, Status: events.RunStatusSucceeded}, nil
 			},
 		}, nil
-	}, store)
+	})
 
-	_, err := service.Resume(ctx, runID, nil)
+	_, err := service.Resume(ctx, runID)
 	if !errors.Is(err, runtimeapi.ErrRunNotInterrupted) {
 		t.Fatalf("Resume error = %v, want runtimeapi.ErrRunNotInterrupted", err)
 	}
@@ -138,20 +136,16 @@ func TestResumeServiceRejectsCompletedRun(t *testing.T) {
 }
 
 type resumeTestExecutorHandle struct {
-	resumeWithTargetsFn func(ctx context.Context, runID string, targets map[string]any, sink stream.StreamSink) (*runtime.Result, error)
+	resumeWithTargetsFn func(ctx context.Context, runID string, targets map[string]any) (*executorRunResult, error)
 }
 
-func (h resumeTestExecutorHandle) Run(ctx context.Context, input, skillID string, sink stream.StreamSink) (*runtime.Result, error) {
-	panic("unexpected Run call")
-}
-
-func (h resumeTestExecutorHandle) ExecuteMessages(ctx context.Context, req runtimeapi.ExecuteRequest, sink stream.StreamSink) (*runtime.Result, error) {
+func (h resumeTestExecutorHandle) ExecuteMessages(ctx context.Context, req runtimeapi.ExecuteRequest, observer runStartObserver) error {
 	panic("unexpected ExecuteMessages call")
 }
 
-func (h resumeTestExecutorHandle) ResumeWithTargets(ctx context.Context, runID string, targets map[string]any, sink stream.StreamSink) (*runtime.Result, error) {
+func (h resumeTestExecutorHandle) ResumeWithTargets(ctx context.Context, runID string, targets map[string]any) (*executorRunResult, error) {
 	if h.resumeWithTargetsFn == nil {
 		panic("unexpected ResumeWithTargets call")
 	}
-	return h.resumeWithTargetsFn(ctx, runID, targets, sink)
+	return h.resumeWithTargetsFn(ctx, runID, targets)
 }

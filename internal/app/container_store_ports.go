@@ -26,7 +26,6 @@ type containerAppStore interface {
 	runResumeStore
 	clientStore
 	pendingActionDecisionStore
-	runtime.PendingResumeStore
 	decisionStore
 	deviceAuthStore
 	inboxStore

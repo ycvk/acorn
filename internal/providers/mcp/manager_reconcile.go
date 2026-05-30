@@ -69,13 +69,13 @@ func (m *Manager) ReconcileProviders(ctx context.Context, cfgs []ProviderConfig)
 
 	for _, cfg := range toRestart {
 		m.closeSlotByName(cfg.Name)
-		if err := m.connectSlotForReconcile(ctx, cfg, "provider_restarted"); err != nil {
+		if err := m.connectSlotForReconcile(ctx, cfg); err != nil {
 			return fmt.Errorf("restart MCP provider %q: %w", cfg.Name, err)
 		}
 	}
 
 	for _, cfg := range toAdd {
-		if err := m.connectSlotForReconcile(ctx, cfg, "provider_added"); err != nil {
+		if err := m.connectSlotForReconcile(ctx, cfg); err != nil {
 			return fmt.Errorf("add MCP provider %q: %w", cfg.Name, err)
 		}
 	}
@@ -86,42 +86,27 @@ func (m *Manager) ReconcileProviders(ctx context.Context, cfgs []ProviderConfig)
 
 func (m *Manager) closeSlotByName(name string) {
 	m.mu.Lock()
-	var closed bool
-	var transport string
 	for i, slot := range m.slots {
 		if slot.cfg.Name == name {
-			transport = NormalizeProviderTransport(slot.cfg.Transport)
 			if slot.p != nil {
 				if err := slot.p.close(); err != nil {
 					slog.Warn("close MCP provider during reconciliation", "provider", name, "error", err)
 				}
 			}
 			m.slots = append(m.slots[:i], m.slots[i+1:]...)
-			closed = true
 			break
 		}
 	}
 	m.mu.Unlock()
-
-	if closed {
-		m.emitEvent(ProviderEvent{
-			Kind:      "provider_removed",
-			Provider:  name,
-			Transport: transport,
-		})
-	}
 }
 
-func (m *Manager) connectSlotForReconcile(ctx context.Context, cfg ProviderConfig, eventKind string) error {
-	var clientOpts *mcp.ClientOptions
-	if m.onEvent != nil {
-		clientOpts = &mcp.ClientOptions{
-			ToolListChangedHandler:     m.buildToolListChangedHandler(cfg.Name),
-			ResourceListChangedHandler: m.buildResourceListChangedHandler(cfg.Name),
-			PromptListChangedHandler:   m.buildPromptListChangedHandler(cfg.Name),
-			ElicitationHandler:         m.buildElicitationHandler(),
-			CreateMessageHandler:       m.buildCreateMessageHandler(),
-		}
+func (m *Manager) connectSlotForReconcile(ctx context.Context, cfg ProviderConfig) error {
+	clientOpts := &mcp.ClientOptions{
+		ToolListChangedHandler:     m.buildToolListChangedHandler(cfg.Name),
+		ResourceListChangedHandler: m.buildResourceListChangedHandler(cfg.Name),
+		PromptListChangedHandler:   m.buildPromptListChangedHandler(cfg.Name),
+		ElicitationHandler:         m.buildElicitationHandler(),
+		CreateMessageHandler:       m.buildCreateMessageHandler(),
 	}
 
 	p, err := connectProviderFunc(ctx, cfg, clientOpts, m.tokenStore, func(status string) { m.updateProviderAuthStatus(cfg.Name, status) })
@@ -136,12 +121,6 @@ func (m *Manager) connectSlotForReconcile(ctx context.Context, cfg ProviderConfi
 		slot.startupStatus = "failed"
 		m.slots = append(m.slots, slot)
 		m.mu.Unlock()
-		m.emitEvent(ProviderEvent{
-			Kind:      eventKind,
-			Provider:  cfg.Name,
-			Transport: NormalizeProviderTransport(cfg.Transport),
-			Error:     err.Error(),
-		})
 		return err
 	}
 
@@ -154,11 +133,6 @@ func (m *Manager) connectSlotForReconcile(ctx context.Context, cfg ProviderConfi
 		m.updateProviderAuthStatus(cfg.Name, "authenticated")
 	}
 
-	m.emitEvent(ProviderEvent{
-		Kind:      eventKind,
-		Provider:  cfg.Name,
-		Transport: NormalizeProviderTransport(cfg.Transport),
-	})
 	return nil
 }
 

@@ -1,11 +1,5 @@
 package stream
 
-import (
-	"encoding/json"
-
-	"github.com/ycvk/acorn/internal/model"
-)
-
 func getPayloadMap(item StreamItem) map[string]any {
 	if item.Payload == nil {
 		return nil
@@ -365,45 +359,6 @@ func (item StreamItem) GetProcedureActivation() *StreamProcedureActivation {
 	}
 }
 
-func (item StreamItem) GetContextCompressed() *StreamContextCompressed {
-	m := getPayloadMap(item)
-	if ctx, ok := m["context_compressed"].(*StreamContextCompressed); ok && ctx != nil {
-		return ctx
-	}
-	ctxMap := getNestedMap(m, "context_compressed")
-	if ctxMap == nil {
-		return nil
-	}
-	return &StreamContextCompressed{
-		BoundaryID:     getString(ctxMap, "boundary_id"),
-		FirstIndex:     getInt(ctxMap, "first_index"),
-		LastIndex:      getInt(ctxMap, "last_index"),
-		TokensBefore:   getInt(ctxMap, "tokens_before"),
-		TokensAfter:    getInt(ctxMap, "tokens_after"),
-		SummarySnippet: getString(ctxMap, "summary_snippet"),
-	}
-}
-
-func (item StreamItem) GetContextPressure() *StreamContextPressure {
-	m := getPayloadMap(item)
-	if ctx, ok := m["context_pressure"].(*StreamContextPressure); ok && ctx != nil {
-		return ctx
-	}
-	ctxMap := getNestedMap(m, "context_pressure")
-	if ctxMap == nil {
-		return nil
-	}
-	return &StreamContextPressure{
-		State:                      getString(ctxMap, "state"),
-		EstimatedInputTokens:       getInt(ctxMap, "estimated_input_tokens"),
-		EffectiveWindowTokens:      getInt(ctxMap, "effective_window_tokens"),
-		WarningThresholdTokens:     getInt(ctxMap, "warning_threshold_tokens"),
-		AutoCompactThresholdTokens: getInt(ctxMap, "auto_compact_threshold_tokens"),
-		BlockingThresholdTokens:    getInt(ctxMap, "blocking_threshold_tokens"),
-		PercentUsed:                getInt(ctxMap, "percent_used"),
-	}
-}
-
 func (item StreamItem) GetError() string {
 	return getString(getPayloadMap(item), "error")
 }
@@ -422,36 +377,4 @@ func (item StreamItem) GetTargets() map[string]any {
 		return nil
 	}
 	return v
-}
-
-func (item StreamItem) GetPlan() *model.Plan {
-	m := getPayloadMap(item)
-	if m == nil {
-		return nil
-	}
-	return planFromValue(m["plan"])
-}
-
-func planFromValue(value any) *model.Plan {
-	if value == nil {
-		return nil
-	}
-	switch plan := value.(type) {
-	case *model.Plan:
-		return plan
-	case model.Plan:
-		return &plan
-	}
-	data, err := json.Marshal(value)
-	if err != nil {
-		return nil
-	}
-	var plan model.Plan
-	if err := json.Unmarshal(data, &plan); err != nil {
-		return nil
-	}
-	if plan.PlanID == "" && plan.SessionID == "" && plan.RunID == "" && len(plan.Steps) == 0 {
-		return nil
-	}
-	return &plan
 }

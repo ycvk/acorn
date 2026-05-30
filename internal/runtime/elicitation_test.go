@@ -27,16 +27,13 @@ func TestElicitationInterruptStateGobRoundTrip(t *testing.T) {
 	}
 }
 
-func TestStreamKindElicitationAndSamplingConstants(t *testing.T) {
+func TestStreamKindElicitationConstants(t *testing.T) {
 	tests := []struct {
 		constant stream.StreamItemKind
 		want     string
 	}{
 		{stream.StreamKindElicitationPending, "elicitation.pending"},
 		{stream.StreamKindElicitationDecided, "elicitation.decided"},
-		{stream.StreamKindSamplingStarted, "sampling.started"},
-		{stream.StreamKindSamplingCompleted, "sampling.completed"},
-		{stream.StreamKindSamplingFailed, "sampling.failed"},
 	}
 	for _, tt := range tests {
 		if tt.constant != stream.StreamItemKind(tt.want) {
@@ -45,7 +42,7 @@ func TestStreamKindElicitationAndSamplingConstants(t *testing.T) {
 	}
 }
 
-func TestProjectStreamItemToEventElicitationAndSamplingKinds(t *testing.T) {
+func TestProjectStreamItemToEventElicitationKinds(t *testing.T) {
 	tests := []struct {
 		name     string
 		kind     stream.StreamItemKind
@@ -53,9 +50,6 @@ func TestProjectStreamItemToEventElicitationAndSamplingKinds(t *testing.T) {
 	}{
 		{"elicitation pending maps to elicitation.pending", stream.StreamKindElicitationPending, "elicitation.pending"},
 		{"elicitation decided maps to elicitation.decided", stream.StreamKindElicitationDecided, "elicitation.decided"},
-		{"sampling started maps to sampling.started", stream.StreamKindSamplingStarted, "sampling.started"},
-		{"sampling completed maps to sampling.completed", stream.StreamKindSamplingCompleted, "sampling.completed"},
-		{"sampling failed maps to sampling.failed", stream.StreamKindSamplingFailed, "sampling.failed"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

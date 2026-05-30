@@ -14,7 +14,6 @@ import (
 	rtool "github.com/ycvk/acorn/internal/runtime/tool"
 	"github.com/ycvk/acorn/internal/runtime/tooltest"
 	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
-	"github.com/ycvk/acorn/internal/stream"
 )
 
 func TestAgentGraphAlwaysRunsPlanNode(t *testing.T) {
@@ -71,16 +70,6 @@ func TestAgentGraphAlwaysRunsPlanNode(t *testing.T) {
 	if testModel.callCount != 2 {
 		t.Fatalf("model callCount = %d, want 2", testModel.callCount)
 	}
-	records, err := store.LoadEvents(ctx, "run_plan_gate")
-	if err != nil {
-		t.Fatalf("LoadEvents: %v", err)
-	}
-	for _, record := range records {
-		if record.Kind == string(stream.StreamKindPlanCreated) {
-			return
-		}
-	}
-	t.Fatalf("expected %s event", stream.StreamKindPlanCreated)
 }
 
 func TestAgentGraphNoExistingPlanRunsPlanNode(t *testing.T) {
@@ -123,14 +112,11 @@ func TestAgentGraphNoExistingPlanRunsPlanNode(t *testing.T) {
 	if testModel.callCount != 2 {
 		t.Fatalf("model callCount = %d, want 2", testModel.callCount)
 	}
-	records, err := store.LoadEvents(ctx, "run_plan_gate_empty")
+	plan, err := store.LoadPlanBySession(ctx, "sess_plan_gate_empty")
 	if err != nil {
-		t.Fatalf("LoadEvents: %v", err)
+		t.Fatalf("LoadPlanBySession: %v", err)
 	}
-	for _, record := range records {
-		if record.Kind == string(stream.StreamKindPlanCreated) {
-			return
-		}
+	if len(plan.Steps) != 1 {
+		t.Fatalf("step count = %d, want 1", len(plan.Steps))
 	}
-	t.Fatalf("expected %s event when SOP matches are empty", stream.StreamKindPlanCreated)
 }

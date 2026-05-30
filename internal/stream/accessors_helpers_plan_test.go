@@ -3,11 +3,8 @@ package stream
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/cloudwego/eino/schema"
-
-	"github.com/ycvk/acorn/internal/model"
 )
 
 func TestStreamSinkContext(t *testing.T) {
@@ -201,102 +198,5 @@ func TestStreamMessageFromSchema(t *testing.T) {
 	// nil message
 	if StreamMessageFromSchema(nil, "") != nil {
 		t.Fatal("nil message should return nil")
-	}
-}
-
-func TestStreamPlanFromDomain(t *testing.T) {
-	now := time.Now()
-	plan := &model.Plan{
-		PlanID:    "p1",
-		SessionID: "s1",
-		RunID:     "r1",
-		Steps: []model.PlanStep{
-			{ID: "step1", Action: "read", Status: model.PlanStepPending, DependsOn: []string{"dep1"}, ToolHints: []string{"hint1"}},
-		},
-		CreatedAt: now,
-		UpdatedAt: now,
-	}
-
-	streamPlan := StreamPlanFromDomain(plan)
-	if streamPlan == nil {
-		t.Fatal("expected non-nil")
-	}
-	if streamPlan.PlanID != "p1" {
-		t.Fatalf("plan_id = %q", streamPlan.PlanID)
-	}
-	if len(streamPlan.Steps) != 1 {
-		t.Fatalf("steps len = %d", len(streamPlan.Steps))
-	}
-	if streamPlan.Steps[0].DependsOn[0] != "dep1" {
-		t.Fatalf("depends_on = %v", streamPlan.Steps[0].DependsOn)
-	}
-
-	// nil plan
-	if StreamPlanFromDomain(nil) != nil {
-		t.Fatal("nil plan should return nil")
-	}
-}
-
-func TestClonePlanSteps(t *testing.T) {
-	original := []model.PlanStep{
-		{ID: "s1", DependsOn: []string{"d1"}, ToolHints: []string{"h1"}},
-		{ID: "s2", DependsOn: []string{"d2"}, ToolHints: []string{"h2"}},
-	}
-	cloned := ClonePlanSteps(original)
-	if len(cloned) != 2 {
-		t.Fatalf("len = %d", len(cloned))
-	}
-	// verify deep copy
-	cloned[0].DependsOn[0] = "modified"
-	if original[0].DependsOn[0] != "d1" {
-		t.Fatal("ClonePlanSteps did not deep copy DependsOn")
-	}
-}
-
-func TestClonePlanStepPtr(t *testing.T) {
-	step := model.PlanStep{ID: "s1", DependsOn: []string{"d1"}}
-	ptr := ClonePlanStepPtr(step)
-	if ptr == nil {
-		t.Fatal("expected non-nil")
-	}
-	if ptr.ID != "s1" {
-		t.Fatalf("id = %q", ptr.ID)
-	}
-	ptr.DependsOn[0] = "modified"
-	if step.DependsOn[0] != "d1" {
-		t.Fatal("ClonePlanStepPtr did not deep copy")
-	}
-}
-
-func TestStreamStepPayloadFromPlan(t *testing.T) {
-	now := time.Now()
-	plan := &model.Plan{PlanID: "p1", SessionID: "s1", RunID: "r1", UpdatedAt: now}
-	step := model.PlanStep{ID: "step1", Action: "read"}
-	payload := StreamStepPayloadFromPlan(plan, step)
-	if payload.PlanID != "p1" {
-		t.Fatalf("plan_id = %q", payload.PlanID)
-	}
-	if payload.Step == nil || payload.Step.ID != "step1" {
-		t.Fatal("step not set")
-	}
-}
-
-func TestPlanStepPayloadToMap(t *testing.T) {
-	now := time.Now()
-	plan := &model.Plan{PlanID: "p1", SessionID: "s1", RunID: "r1", UpdatedAt: now}
-	step := model.PlanStep{ID: "step1", Action: "read"}
-	p := StreamStepPayloadFromPlan(plan, step)
-	m := PlanStepPayloadToMap(p)
-	if m["plan_id"] != "p1" {
-		t.Fatalf("plan_id = %v", m["plan_id"])
-	}
-	if m["session_id"] != "s1" {
-		t.Fatalf("session_id = %v", m["session_id"])
-	}
-	if m["run_id"] != "r1" {
-		t.Fatalf("run_id = %v", m["run_id"])
-	}
-	if m["step"] == nil {
-		t.Fatal("step missing")
 	}
 }

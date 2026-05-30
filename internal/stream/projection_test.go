@@ -158,9 +158,6 @@ func TestStreamKindToEventKind(t *testing.T) {
 		{StreamKindSkillLifecycle, "skill.lifecycle"},
 		{StreamKindProcedureActivation, "procedure.activation"},
 		{StreamKindMemoryPrepared, "memory.prepared"},
-		{StreamKindContextPressure, "context.pressure"},
-		{StreamKindContextCompressed, "context.compressed"},
-		{StreamKindPlanCleared, "plan.cleared"},
 		{"unknown.kind", "unknown.kind"},
 	}
 

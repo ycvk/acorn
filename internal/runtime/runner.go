@@ -28,9 +28,6 @@ type RunnerFactory struct {
 	registry     *Registry
 	currentRunID atomic.Value
 
-	eventMu     sync.Mutex
-	eventErrors map[string]error
-
 	runChatModelBuilder       func(context.Context, RunnerBuildRequest) (einomodel.BaseChatModel, error)
 	childAgentExecutorFactory ChildAgentExecutorFactory
 }
@@ -146,10 +143,6 @@ func (f *RunnerFactory) runtimeForWorkspace(ws *workspace.Workspace) RunRuntime 
 
 func (f *RunnerFactory) Registry() *Registry {
 	return f.registry
-}
-
-func (f *RunnerFactory) ConsumeEventError(runID string) error {
-	return f.consumeEventError(runID)
 }
 
 func (f *RunnerFactory) Config() *config.Config {

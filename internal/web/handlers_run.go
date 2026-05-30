@@ -47,7 +47,7 @@ func (s *Server) handleClientResumeRun(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	result, err := s.runResume.Resume(r.Context(), runID, nil)
+	result, err := s.runResume.Resume(r.Context(), runID)
 	if err != nil {
 		s.respondClientKnownError(w, r, err)
 		return

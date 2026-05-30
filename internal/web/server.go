@@ -11,7 +11,6 @@ import (
 	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/memorymodule"
 	"github.com/ycvk/acorn/internal/skills"
-	"github.com/ycvk/acorn/internal/stream"
 )
 
 type ClientService interface {
@@ -45,7 +44,7 @@ type WorkingCheckpointService interface {
 }
 
 type RunResumeService interface {
-	Resume(ctx context.Context, runID string, sink stream.StreamSink) (*app.RunResult, error)
+	Resume(ctx context.Context, runID string) (*app.RunResult, error)
 }
 
 type CapabilityService interface {
