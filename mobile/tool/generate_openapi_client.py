@@ -27,7 +27,10 @@ REQUIRED_PATHS = [
     "/v1/threads/{thread_id}/messages",
     "/v1/threads/{thread_id}/runs",
     "/v1/runs/{run_id}",
+    "/v1/runs/{run_id}/events",
     "/v1/runs/{run_id}/detail",
+    "/v1/runs/{run_id}:interrupt",
+    "/v1/runs/{run_id}:resume",
     "/v1/system/status",
     "/v1/memory/facts",
     "/v1/memory/skills",
@@ -58,6 +61,8 @@ REQUIRED_SCHEMAS = [
     "Run",
     "RunDetail",
     "RunArtifact",
+    "InterruptRunResponse",
+    "RunResult",
     "RunEvent",
     "SystemStatus",
     "MemoryRecordRelation",
@@ -226,6 +231,16 @@ class AcornApiClient {
   Future<Run> getRun(String runId) async {
     final json = await _getJson('/v1/runs/${Uri.encodeComponent(runId)}');
     return Run.fromJson(json);
+  }
+
+  Future<InterruptRunResponse> interruptRun(String runId) async {
+    final json = await _postJson('/v1/runs/${Uri.encodeComponent(runId)}:interrupt', <String, dynamic>{});
+    return InterruptRunResponse.fromJson(json);
+  }
+
+  Future<RunResult> resumeRun(String runId) async {
+    final json = await _postJson('/v1/runs/${Uri.encodeComponent(runId)}:resume', <String, dynamic>{});
+    return RunResult.fromJson(json);
   }
 
   Future<RunDetail> getRunDetail(String runId) async {
@@ -925,6 +940,49 @@ class RunDetail {
       events: _list(json['events'], RunEvent.fromJson),
       artifacts: _list(json['artifacts'], RunArtifact.fromJson),
       raw: Map<String, dynamic>.from(json),
+    );
+  }
+}
+
+class InterruptRunResponse {
+  const InterruptRunResponse({
+    required this.runId,
+    required this.status,
+  });
+
+  final String runId;
+  final String status;
+
+  factory InterruptRunResponse.fromJson(Map<String, dynamic> json) {
+    return InterruptRunResponse(
+      runId: _string(json['run_id']),
+      status: _string(json['status']),
+    );
+  }
+}
+
+class RunResult {
+  const RunResult({
+    required this.runId,
+    required this.status,
+    this.output,
+    this.error,
+    required this.interrupted,
+  });
+
+  final String runId;
+  final String status;
+  final String? output;
+  final String? error;
+  final Map<String, dynamic> interrupted;
+
+  factory RunResult.fromJson(Map<String, dynamic> json) {
+    return RunResult(
+      runId: _string(json['run_id']),
+      status: _string(json['status']),
+      output: _nullableString(json['output']),
+      error: _nullableString(json['error']),
+      interrupted: _map(json['interrupted']),
     );
   }
 }

@@ -54,6 +54,9 @@ func TestResumeServiceResumeKeepsNonApprovalInterruptDefaultTarget(t *testing.T)
 	if result == nil || result.RunID != runID {
 		t.Fatalf("unexpected result: %#v", result)
 	}
+	if result.Status != "completed" {
+		t.Fatalf("result status = %q, want completed", result.Status)
+	}
 	if resumedRunID != runID {
 		t.Fatalf("resume called with runID %q, want %q", resumedRunID, runID)
 	}

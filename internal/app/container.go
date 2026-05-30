@@ -19,7 +19,6 @@ type Container struct {
 	runResume     *RunResumeService
 	checkpoints   *WorkingCheckpointService
 	skills        *SkillService
-	chat          *ChatService
 	client        *ClientService
 	pendingAction *PendingActionService
 	profiles      *decision.ProfileService
@@ -49,10 +48,6 @@ func (c *Container) RunResume() *RunResumeService {
 
 func (c *Container) Checkpoints() *WorkingCheckpointService {
 	return c.checkpoints
-}
-
-func (c *Container) Chat() *ChatService {
-	return c.chat
 }
 
 func (c *Container) Client() *ClientService {

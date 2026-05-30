@@ -24,7 +24,7 @@ HTTP 服务层。暴露 `/v1` 远程客户端 API、`/healthz` 健康检查、se
 
 - `/v1/inbox`：mobile inbox aggregation
 - `/v1/runs/{run_id}/events`：mobile live RunEvent replay/follow；只暴露 run/assistant/agent/approval/resume/decision-blocker live subset
-- `/v1/runs/{run_id}`：run detail；只暴露 run/thread、live events 和 top-level artifacts，不携带 trace summary、raw diagnostic event payload、runtime workbench 或 plan DTO
+- `/v1/runs/{run_id}`：run detail；只暴露 run/thread、live events 和 top-level artifacts，不携带 diagnostic summary、raw diagnostic event payload、runtime workbench 或 plan DTO
 - `/v1/pending-actions`：pending approval list/detail/decide
 - `/v1/devices:pair`：device auth pairing
 - `/healthz`：服务健康检查

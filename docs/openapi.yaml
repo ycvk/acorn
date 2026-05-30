@@ -2800,7 +2800,7 @@ components:
           type: string
         status:
           type: string
-          enum: [running, succeeded, interrupted, failed]
+          enum: [running, completed, interrupted, failed]
         output:
           type: string
         error:

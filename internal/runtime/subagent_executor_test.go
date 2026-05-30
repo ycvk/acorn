@@ -325,21 +325,6 @@ func TestSubagentExecuteJoinsEmitFailedError(t *testing.T) {
 	}
 }
 
-func TestSubagentTraceSummary(t *testing.T) {
-	t.Parallel()
-
-	items := []stream.StreamItem{
-		{Kind: stream.StreamKindSubagentStarted},
-		{Kind: stream.StreamKindSubagentCompleted},
-		{Kind: stream.StreamKindSubagentFailed},
-	}
-
-	summary := stream.SummarizeStreamItems(items)
-	if summary.ItemCount != 3 {
-		t.Fatalf("ItemCount = %d, want 3", summary.ItemCount)
-	}
-}
-
 func TestSubagentEventRecordRoundtrip(t *testing.T) {
 	t.Parallel()
 

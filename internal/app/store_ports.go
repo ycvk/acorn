@@ -23,7 +23,7 @@ type pendingActionDecisionStore interface {
 	AppendEventContext(ctx context.Context, runID, kind string, payload any) (events.EventRecord, error)
 }
 
-type traceStore interface {
+type runResumeStore interface {
 	LoadRun(ctx context.Context, runID string) (*events.RunRecord, error)
 	LoadEvents(ctx context.Context, runID string) ([]events.EventRecord, error)
 	LoadPendingAction(ctx context.Context, actionID string) (*events.PendingActionRecord, error)

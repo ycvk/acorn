@@ -115,6 +115,60 @@ void main() {
     expect(decision.answer, 'Ship it');
   });
 
+  test('interruptRun posts to run interrupt endpoint', () async {
+    final client = AcornApiClient(
+      serverUrl: 'http://acorn.local',
+      accessToken: 'device_token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(
+          request.url.toString(),
+          'http://acorn.local/v1/runs/run_1:interrupt',
+        );
+        expect(request.headers['Authorization'], 'Bearer device_token');
+        expect(jsonDecode(request.body), isEmpty);
+        return http.Response(
+          jsonEncode({'run_id': 'run_1', 'status': 'interrupt_requested'}),
+          202,
+        );
+      }),
+    );
+
+    final result = await client.interruptRun('run_1');
+    expect(result.runId, 'run_1');
+    expect(result.status, 'interrupt_requested');
+  });
+
+  test('resumeRun posts to run resume endpoint', () async {
+    final client = AcornApiClient(
+      serverUrl: 'http://acorn.local',
+      accessToken: 'device_token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(
+          request.url.toString(),
+          'http://acorn.local/v1/runs/run_1:resume',
+        );
+        expect(request.headers['Authorization'], 'Bearer device_token');
+        expect(jsonDecode(request.body), isEmpty);
+        return http.Response(
+          jsonEncode({
+            'run_id': 'run_1',
+            'status': 'completed',
+            'output': 'done',
+          }),
+          200,
+        );
+      }),
+    );
+
+    final result = await client.resumeRun('run_1');
+    expect(result.runId, 'run_1');
+    expect(result.status, 'completed');
+    expect(result.output, 'done');
+    expect(result.interrupted, isEmpty);
+  });
+
   test('getRunDetail parses artifacts', () async {
     final client = AcornApiClient(
       serverUrl: 'http://acorn.local',
@@ -131,7 +185,7 @@ void main() {
             'run': {
               'id': 'run_1',
               'thread_id': 'thread_1',
-              'status': 'succeeded',
+              'status': 'completed',
               'mode': 'plan_execute',
               'created_at': '2026-05-20T00:00:00Z',
             },

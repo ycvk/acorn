@@ -96,46 +96,6 @@ func TestStreamAssistantMessageEmitsDeltaItemsAndReturnsFinalMessage(t *testing.
 	}
 }
 
-func TestSummarizeStreamItemsCountsAssistantDeltas(t *testing.T) {
-	items := []stream.StreamItem{
-		{
-			Kind: stream.StreamKindAssistantDelta,
-			Payload: map[string]any{"assistant_delta": &stream.StreamAssistantDelta{
-				MessageID: "run_1:assistant:0",
-				Sequence:  1,
-				Delta:     "你",
-			}},
-		},
-		{
-			Kind: stream.StreamKindAssistantDelta,
-			Payload: map[string]any{"assistant_delta": &stream.StreamAssistantDelta{
-				MessageID: "run_1:assistant:0",
-				Sequence:  2,
-				Delta:     " 好",
-			}},
-		},
-		{
-			Kind: stream.StreamKindAssistantDelta,
-			Payload: map[string]any{"assistant_delta": &stream.StreamAssistantDelta{
-				MessageID: "run_1:assistant:1",
-				Sequence:  1,
-				Delta:     "\n",
-			}},
-		},
-	}
-
-	summary := summarizeStreamItems(items)
-	if summary.AssistantDeltaCount != 3 {
-		t.Fatalf("AssistantDeltaCount = %d, want 3", summary.AssistantDeltaCount)
-	}
-	if summary.AssistantDeltaMessageCount != 2 {
-		t.Fatalf("AssistantDeltaMessageCount = %d, want 2", summary.AssistantDeltaMessageCount)
-	}
-	if summary.AssistantDeltaCharCount != 4 {
-		t.Fatalf("AssistantDeltaCharCount = %d, want 4", summary.AssistantDeltaCharCount)
-	}
-}
-
 func TestStreamAssistantMessageReturnsErrorForEmptyStream(t *testing.T) {
 	reader := schema.StreamReaderFromArray([]*schema.Message{})
 	model := &assistantStreamingModel{stream: reader}
@@ -255,36 +215,6 @@ func TestRunStateApplyStreamItemAppendsAssistantDelta(t *testing.T) {
 	if state.lastOutput != "partial answer" {
 		t.Fatalf("lastOutput = %q, want %q", state.lastOutput, "partial answer")
 	}
-}
-
-// --- Test helpers duplicated from base runtime ---
-
-func summarizeStreamItems(items []stream.StreamItem) *stream.TraceSummary {
-	if len(items) == 0 {
-		return &stream.TraceSummary{}
-	}
-	summary := &stream.TraceSummary{}
-	assistantDeltaMessageIDs := make(map[string]struct{})
-	for _, item := range items {
-		switch item.Kind {
-		case stream.StreamKindAssistantDelta:
-			summary.AssistantDeltaCount++
-			if msg := item.GetAssistantDelta(); msg != nil {
-				summary.AssistantDeltaCharCount += len([]rune(msg.Delta))
-				if id := msg.MessageID; id != "" {
-					assistantDeltaMessageIDs[id] = struct{}{}
-				}
-			}
-		case stream.StreamKindAssistantMessage:
-			summary.AssistantMessageCount++
-		case stream.StreamKindToolCallStarted, stream.StreamKindToolCallSucceeded, stream.StreamKindToolCallFailed:
-			summary.ToolCallCount++
-		case stream.StreamKindStepStarted, stream.StreamKindStepCompleted, stream.StreamKindStepFailed, stream.StreamKindPlanCreated, stream.StreamKindPlanUpdated:
-			summary.PlanEventCount++
-		}
-	}
-	summary.AssistantDeltaMessageCount = len(assistantDeltaMessageIDs)
-	return summary
 }
 
 func projectEventToStreamItem(event events.EventRecord) stream.StreamItem {

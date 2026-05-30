@@ -9,6 +9,12 @@ import (
 	"github.com/ycvk/acorn/internal/events"
 )
 
+var (
+	ErrClientProjectionFailed = errors.New("client projection failed")
+	ErrClientNoPendingMessage = errors.New("client pending user message not found")
+	ErrClientInvalidRunMode   = errors.New("client run mode is invalid")
+)
+
 // projectionError wraps a format string into ErrClientProjectionFailed.
 func projectionError(format string, args ...any) error {
 	return fmt.Errorf("%w: %s", ErrClientProjectionFailed, fmt.Sprintf(format, args...))

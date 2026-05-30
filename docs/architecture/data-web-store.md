@@ -24,7 +24,7 @@ SQLite does not keep active legacy memory stores, codeintel indexes, or filesyst
 
 Cross-package store-facing records and sentinel errors live in `internal/store`, not in `internal/store/sqlite`. App/runtime/provider packages own the ports they consume:
 
-- app services use narrow ports such as `clientStore`, `traceStore`, and purpose-specific service store ports.
+- app services use narrow ports such as `clientStore`, `runResumeStore`, and purpose-specific service store ports.
 - runtime uses `executorStore`, `runnerFactoryStore`, `planRecordStore`, and `toolAuditStore`.
 - MCP provider exports `TokenStore` and `PendingActionStore` as provider contracts.
 

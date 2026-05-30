@@ -9,45 +9,6 @@ import (
 	"github.com/ycvk/acorn/internal/events"
 )
 
-type TraceSummary struct {
-	ItemCount                  int            `json:"item_count"`
-	LastKind                   StreamItemKind `json:"last_kind,omitempty"`
-	AssistantMessageCount      int            `json:"assistant_message_count,omitempty"`
-	AssistantDeltaCount        int            `json:"assistant_delta_count,omitempty"`
-	AssistantDeltaMessageCount int            `json:"assistant_delta_message_count,omitempty"`
-	AssistantDeltaCharCount    int            `json:"assistant_delta_char_count,omitempty"`
-	ToolCallCount              int            `json:"tool_call_count,omitempty"`
-	DecisionEventCount         int            `json:"decision_event_count,omitempty"`
-	SkillEventCount            int            `json:"skill_event_count,omitempty"`
-	PlanEventCount             int            `json:"plan_event_count,omitempty"`
-	DecisionSelected           bool           `json:"decision_selected,omitempty"`
-	DecisionBlocked            bool           `json:"decision_blocked,omitempty"`
-	SkillSelected              bool           `json:"skill_selected,omitempty"`
-	Interrupted                bool           `json:"interrupted,omitempty"`
-	Failed                     bool           `json:"failed,omitempty"`
-	Completed                  bool           `json:"completed,omitempty"`
-}
-
-func BuildTraceSummary(raw []events.EventRecord) (*TraceSummary, error) {
-	items, err := ProjectEventsToStreamItems(raw)
-	if err != nil {
-		return nil, err
-	}
-	return SummarizeStreamItems(items), nil
-}
-
-func ProjectEventsToStreamItems(raw []events.EventRecord) ([]StreamItem, error) {
-	items := make([]StreamItem, 0, len(raw))
-	for _, event := range raw {
-		item, err := ProjectEventToStreamItem(event)
-		if err != nil {
-			return nil, err
-		}
-		items = append(items, item)
-	}
-	return items, nil
-}
-
 func LatestRootInterruptContexts(raw []events.EventRecord) ([]StreamInterruptContext, error) {
 	for i := len(raw) - 1; i >= 0; i-- {
 		item, err := ProjectEventToStreamItem(raw[i])
@@ -232,50 +193,4 @@ func extractToolCallFromMergedPayload(payload any) (*StreamToolCall, error) {
 		return nil, nil
 	}
 	return &tool, nil
-}
-
-func SummarizeStreamItems(items []StreamItem) *TraceSummary {
-	summary := &TraceSummary{ItemCount: len(items)}
-	assistantDeltaMessageIDs := make(map[string]struct{})
-	for _, item := range items {
-		summary.LastKind = item.Kind
-		switch item.Kind {
-		case StreamKindAssistantDelta:
-			summary.AssistantDeltaCount++
-			if delta := item.GetAssistantDelta(); delta != nil {
-				summary.AssistantDeltaCharCount += len([]rune(delta.Delta))
-				messageID := strings.TrimSpace(delta.MessageID)
-				if messageID != "" {
-					assistantDeltaMessageIDs[messageID] = struct{}{}
-				}
-			}
-		case StreamKindAssistantMessage:
-			summary.AssistantMessageCount++
-		case StreamKindToolCallStarted, StreamKindToolCallSucceeded, StreamKindToolCallFailed, StreamKindToolCallInterrupted:
-			summary.ToolCallCount++
-		case StreamKindDecisionSelected, StreamKindDecisionBlocked:
-			summary.DecisionEventCount++
-			if item.Kind == StreamKindDecisionSelected {
-				summary.DecisionSelected = true
-			}
-			if item.Kind == StreamKindDecisionBlocked {
-				summary.DecisionBlocked = true
-			}
-		case StreamKindSkillDiscovered, StreamKindSkillSelected, StreamKindSkillLoaded, StreamKindSkillFailed, StreamKindSkillLifecycle:
-			summary.SkillEventCount++
-			if item.Kind == StreamKindSkillSelected {
-				summary.SkillSelected = true
-			}
-		case StreamKindRunInterrupted:
-			summary.Interrupted = true
-		case StreamKindRunFailed:
-			summary.Failed = true
-		case StreamKindRunCompleted:
-			summary.Completed = true
-		case StreamKindPlanCreated, StreamKindPlanUpdated, StreamKindPlanCleared, StreamKindStepStarted, StreamKindStepCompleted, StreamKindStepFailed:
-			summary.PlanEventCount++
-		}
-	}
-	summary.AssistantDeltaMessageCount = len(assistantDeltaMessageIDs)
-	return summary
 }
