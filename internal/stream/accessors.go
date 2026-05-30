@@ -168,25 +168,6 @@ func (item StreamItem) GetToolCall() *StreamToolCall {
 	}
 }
 
-func (item StreamItem) GetToolCallProgress() *StreamToolCallProgress {
-	m := getPayloadMap(item)
-	if call, ok := m["tool_call"].(*StreamToolCallProgress); ok && call != nil {
-		return call
-	}
-	callMap := getNestedMap(m, "tool_call")
-	if callMap == nil {
-		return nil
-	}
-	return &StreamToolCallProgress{
-		Provider:      getString(callMap, "provider"),
-		Name:          getString(callMap, "name"),
-		CallID:        getString(callMap, "call_id"),
-		ArgumentsJSON: getString(callMap, "arguments_json"),
-		Delta:         getString(callMap, "delta"),
-		Sequence:      getInt(callMap, "sequence"),
-	}
-}
-
 func (item StreamItem) GetInterrupt() *StreamInterrupt {
 	m := getPayloadMap(item)
 	if interrupt, ok := m["interrupt"].(*StreamInterrupt); ok && interrupt != nil {

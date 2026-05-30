@@ -9,12 +9,6 @@ import (
 	"github.com/ycvk/acorn/internal/events"
 )
 
-type Trace struct {
-	Run     *events.RunRecord `json:"run,omitempty"`
-	Summary *TraceSummary     `json:"summary,omitempty"`
-	Items   []StreamItem      `json:"items,omitempty"`
-}
-
 type TraceSummary struct {
 	ItemCount                  int            `json:"item_count"`
 	LastKind                   StreamItemKind `json:"last_kind,omitempty"`
@@ -32,14 +26,6 @@ type TraceSummary struct {
 	Interrupted                bool           `json:"interrupted,omitempty"`
 	Failed                     bool           `json:"failed,omitempty"`
 	Completed                  bool           `json:"completed,omitempty"`
-}
-
-func BuildTrace(run *events.RunRecord, raw []events.EventRecord) (*Trace, error) {
-	items, err := ProjectEventsToStreamItems(raw)
-	if err != nil {
-		return nil, err
-	}
-	return &Trace{Run: run, Summary: SummarizeStreamItems(items), Items: items}, nil
 }
 
 func BuildTraceSummary(raw []events.EventRecord) (*TraceSummary, error) {
@@ -132,12 +118,6 @@ func ProjectEventToStreamItem(event events.EventRecord) (StreamItem, error) {
 			return item, fmt.Errorf("project event %s seq %d tool_call: %w", event.Kind, event.Sequence, err)
 		}
 		item.Payload = map[string]any{"tool_call": toolCall}
-	case StreamKindToolCallProgress:
-		toolCall, err := extractToolCallProgressFromMergedPayload(event.Payload)
-		if err != nil {
-			return item, fmt.Errorf("project event %s seq %d tool_call_progress: %w", event.Kind, event.Sequence, err)
-		}
-		item.Payload = map[string]any{"tool_call": toolCall}
 	default:
 		item.Payload = payload
 	}
@@ -183,8 +163,6 @@ func eventKindToStreamKind(eventKind string) StreamItemKind {
 		return StreamKindAssistantMessage
 	case "tool.call.started":
 		return StreamKindToolCallStarted
-	case "tool.call.progress":
-		return StreamKindToolCallProgress
 	case "tool.call.succeeded":
 		return StreamKindToolCallSucceeded
 	case "tool.call.failed":
@@ -251,28 +229,6 @@ func extractToolCallFromMergedPayload(payload any) (*StreamToolCall, error) {
 		}
 	}
 	if tool.Name == "" && tool.Provider == "" && tool.Output == "" && tool.Error == "" {
-		return nil, nil
-	}
-	return &tool, nil
-}
-
-func extractToolCallProgressFromMergedPayload(payload any) (*StreamToolCallProgress, error) {
-	data, err := json.Marshal(payload)
-	if err != nil {
-		return nil, err
-	}
-	var tool StreamToolCallProgress
-	if err := json.Unmarshal(data, &tool); err != nil {
-		return nil, err
-	}
-	if tool.Name == "" {
-		if m, ok := payload.(map[string]any); ok {
-			if v, ok := m["tool_name"].(string); ok {
-				tool.Name = v
-			}
-		}
-	}
-	if tool.Name == "" && tool.Provider == "" && tool.Delta == "" {
 		return nil, nil
 	}
 	return &tool, nil

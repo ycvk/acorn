@@ -104,42 +104,42 @@ func TestAuditedToolRecordsSucceededEvent(t *testing.T) {
 	}
 }
 
-func TestAuditedToolRecordsProgressEvent(t *testing.T) {
+func TestAuditedToolForwardsProgressWithoutPersistingChunks(t *testing.T) {
 	store := openAuditTestStore(t)
 	wrapped := mustWrapTool(t, store, "local", progressAuditTool{})
 
-	invokable := wrapped.(einotool.InvokableTool)
+	invokable := wrapped.(tooling.ProgressTool)
 	runCtx := withToolAuditCallID(runtimeapi.WithRunID(context.Background(), "run_progress"), "call_progress")
 	if err := store.CreateRun(context.Background(), "run_progress", "input", "run_progress"); err != nil {
 		t.Fatalf("create run: %v", err)
 	}
-	result, err := invokable.InvokableRun(runCtx, `{}`)
+	var chunks []string
+	result, err := invokable.InvokableRunWithProgress(runCtx, `{}`, func(_ context.Context, event tooling.ToolProgressEvent) error {
+		chunks = append(chunks, event.Delta)
+		return nil
+	})
 	if err != nil {
 		t.Fatalf("run tool: %v", err)
 	}
 	if result != "done" {
 		t.Fatalf("unexpected tool result: %s", result)
 	}
+	if len(chunks) != 1 || chunks[0] != "chunk" {
+		t.Fatalf("progress chunks = %#v, want [chunk]", chunks)
+	}
 
 	evts, err := store.LoadEvents(context.Background(), "run_progress")
 	if err != nil {
 		t.Fatalf("load events: %v", err)
 	}
-	if got, want := len(evts), 3; got != want {
+	if got, want := len(evts), 2; got != want {
 		t.Fatalf("expected %d audit events, got %d", want, got)
 	}
-	wantKinds := []string{"tool.call.started", "tool.call.progress", "tool.call.succeeded"}
+	wantKinds := []string{"tool.call.started", "tool.call.succeeded"}
 	for i, want := range wantKinds {
 		if evts[i].Kind != want {
 			t.Fatalf("event[%d] = %s, want %s", i, evts[i].Kind, want)
 		}
-	}
-	payload := evts[1].Payload.(map[string]any)
-	if _, exists := payload["tool_call"]; exists {
-		t.Fatalf("progress event payload should be canonical top-level shape, got %#v", payload)
-	}
-	if payload["delta"] != "chunk" || payload["call_id"] != "call_progress" {
-		t.Fatalf("unexpected progress payload: %#v", payload)
 	}
 }
 

@@ -159,7 +159,6 @@ void main() {
                 'created_at': '2026-05-20T00:00:01Z',
               },
             ],
-            'trace': null,
           }),
           200,
         );

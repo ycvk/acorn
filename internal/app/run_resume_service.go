@@ -7,14 +7,13 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ycvk/acorn/internal/clientevents"
 	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/runtime"
 	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	"github.com/ycvk/acorn/internal/stream"
 )
 
-type TraceService struct {
+type RunResumeService struct {
 	store       traceStore
 	newExecutor func(context.Context) (executorHandle, error)
 	pending     runtime.PendingResumeStore
@@ -29,32 +28,31 @@ type ResumeStatus struct {
 }
 
 type RunResult struct {
-	RunID        string                     `json:"run_id"`
-	Status       events.RunStatus           `json:"status"`
-	Output       string                     `json:"output,omitempty"`
-	Error        string                     `json:"error,omitempty"`
-	Interrupted  map[string]any             `json:"interrupted,omitempty"`
-	TraceSummary *clientevents.TraceSummary `json:"trace_summary,omitempty"`
+	RunID       string           `json:"run_id"`
+	Status      events.RunStatus `json:"status"`
+	Output      string           `json:"output,omitempty"`
+	Error       string           `json:"error,omitempty"`
+	Interrupted map[string]any   `json:"interrupted,omitempty"`
 }
 
-func NewTraceService(store traceStore) *TraceService {
-	return &TraceService{store: store}
+func NewRunResumeService(store traceStore) *RunResumeService {
+	return &RunResumeService{store: store}
 }
 
-func (s *TraceService) WithResume(newExecutor func(context.Context) (executorHandle, error), pending runtime.PendingResumeStore) *TraceService {
+func (s *RunResumeService) WithResume(newExecutor func(context.Context) (executorHandle, error), pending runtime.PendingResumeStore) *RunResumeService {
 	s.newExecutor = newExecutor
 	s.pending = pending
 	return s
 }
 
-func (s *TraceService) FindPendingResume(ctx context.Context) (*runtime.PendingResumeInfo, error) {
+func (s *RunResumeService) FindPendingResume(ctx context.Context) (*runtime.PendingResumeInfo, error) {
 	if s == nil || s.pending == nil {
 		return nil, errors.New("resume pending store is nil")
 	}
 	return runtime.FindPendingResume(ctx, s.pending)
 }
 
-func (s *TraceService) Resume(ctx context.Context, runID string, sink stream.StreamSink) (*RunResult, error) {
+func (s *RunResumeService) Resume(ctx context.Context, runID string, sink stream.StreamSink) (*RunResult, error) {
 	if s == nil || s.newExecutor == nil {
 		return nil, errors.New("resume executor factory is nil")
 	}
@@ -78,12 +76,11 @@ func runResultFromRuntime(result *runtime.Result) *RunResult {
 		return nil
 	}
 	return &RunResult{
-		RunID:        result.RunID,
-		Status:       result.Status,
-		Output:       result.Output,
-		Error:        result.Error,
-		Interrupted:  cloneMap(result.Interrupted),
-		TraceSummary: clientevents.TraceSummaryFromStream(result.TraceSummary),
+		RunID:       result.RunID,
+		Status:      result.Status,
+		Output:      result.Output,
+		Error:       result.Error,
+		Interrupted: cloneMap(result.Interrupted),
 	}
 }
 
@@ -98,22 +95,7 @@ func cloneMap(value map[string]any) map[string]any {
 	return out
 }
 
-func (s *TraceService) Trace(ctx context.Context, runID string) (*stream.Trace, error) {
-	run, items, err := s.loadRunEvents(ctx, runID)
-	if err != nil {
-		return nil, err
-	}
-	trace, err := stream.BuildTrace(run, items)
-	if err != nil {
-		return nil, err
-	}
-	if trace == nil {
-		return nil, nil
-	}
-	return trace, nil
-}
-
-func (s *TraceService) ResumeStatus(ctx context.Context, runID string) (*ResumeStatus, error) {
+func (s *RunResumeService) ResumeStatus(ctx context.Context, runID string) (*ResumeStatus, error) {
 	run, items, err := s.loadRunEvents(ctx, runID)
 	if err != nil {
 		return nil, err
@@ -133,7 +115,7 @@ func (s *TraceService) ResumeStatus(ctx context.Context, runID string) (*ResumeS
 	return status, nil
 }
 
-func (s *TraceService) inferResumeTargetsOrReason(ctx context.Context, runID string) (map[string]any, string) {
+func (s *RunResumeService) inferResumeTargetsOrReason(ctx context.Context, runID string) (map[string]any, string) {
 	targets, err := s.InferResumeTargets(ctx, runID)
 	if err != nil {
 		return nil, err.Error()
@@ -141,7 +123,7 @@ func (s *TraceService) inferResumeTargetsOrReason(ctx context.Context, runID str
 	return targets, ""
 }
 
-func (s *TraceService) InferResumeTargets(ctx context.Context, runID string) (map[string]any, error) {
+func (s *RunResumeService) InferResumeTargets(ctx context.Context, runID string) (map[string]any, error) {
 	run, items, err := s.loadRunEvents(ctx, runID)
 	if err != nil {
 		return nil, err
@@ -167,7 +149,7 @@ func (s *TraceService) InferResumeTargets(ctx context.Context, runID string) (ma
 	return targets, nil
 }
 
-func (s *TraceService) resumeTargetsForContext(ctx context.Context, runID string, interrupt stream.StreamInterruptContext) (map[string]any, error) {
+func (s *RunResumeService) resumeTargetsForContext(ctx context.Context, runID string, interrupt stream.StreamInterruptContext) (map[string]any, error) {
 	switch kind := interruptInfoKind(interrupt.Info); kind {
 	case "", "run_command_pause":
 		return defaultTargets(interrupt.ID), nil
@@ -178,7 +160,7 @@ func (s *TraceService) resumeTargetsForContext(ctx context.Context, runID string
 	}
 }
 
-func (s *TraceService) operatorQuestionTargets(ctx context.Context, runID string, interrupt stream.StreamInterruptContext) (map[string]any, error) {
+func (s *RunResumeService) operatorQuestionTargets(ctx context.Context, runID string, interrupt stream.StreamInterruptContext) (map[string]any, error) {
 	actionID := interruptInfoField(interrupt.Info, "action_id")
 	if actionID == "" {
 		return nil, fmt.Errorf("run %s interrupt %s operator_question is missing action_id", runID, interrupt.ID)
@@ -223,9 +205,9 @@ func interruptInfoField(raw any, key string) string {
 	return strings.TrimSpace(value)
 }
 
-func (s *TraceService) loadRunEvents(ctx context.Context, runID string) (*events.RunRecord, []events.EventRecord, error) {
+func (s *RunResumeService) loadRunEvents(ctx context.Context, runID string) (*events.RunRecord, []events.EventRecord, error) {
 	if s == nil || s.store == nil {
-		return nil, nil, fmt.Errorf("trace store is nil")
+		return nil, nil, fmt.Errorf("run resume store is nil")
 	}
 	run, err := s.store.LoadRun(ctx, runID)
 	if err != nil {

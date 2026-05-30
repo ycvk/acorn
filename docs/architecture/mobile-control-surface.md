@@ -120,7 +120,7 @@ Current mobile surfaces:
 - Connect: scan the Acorn pairing QR or enter server URL / pairing code manually, pair a device, and persist the connection profile.
 - Chat: thread detail surface for backend message send, run start, live assistant streaming, backend-provided reasoning display, assistant Markdown rendering, and exceptional blocking activity rows.
 - Threads: first shell destination and thread-continuation surface. It uses `/v1/inbox` only for high-priority owner context (server readiness, pending decision count, active/attention runs) while still making backend threads the primary action path; it lists/creates/deletes backend threads and opens them in Chat as a pushed detail route.
-- Run detail: secondary detail surface over `GET /v1/runs/{run_id}/detail`, projecting run/thread summary, live event activity, issue signals, trace summary, and user-meaningful artifacts. Raw diagnostic event payloads, runtime workbench facts, and plan DTOs are not exposed through the mobile contract.
+- Run detail: secondary detail surface over `GET /v1/runs/{run_id}/detail`, projecting run/thread summary, live event activity, issue signals, and user-meaningful artifacts. Raw diagnostic event payloads, trace summaries, runtime workbench facts, and plan DTOs are not exposed through the mobile contract.
 - Approvals: list pending backend actions from the inbox aggregate and open the existing approval detail flow.
 - Run stream: read `GET /v1/runs/{run_id}/events?after_seq=0&follow=true` and project the mobile live RunEvent subset into the active assistant bubble.
 - Pending approval: read `GET /v1/pending-actions/{action_id}` and decide through `POST /v1/pending-actions/{action_id}:decide`.
@@ -150,7 +150,7 @@ The mobile streaming projection only accepts the live OpenAPI RunEvent subset:
 - Backend-provided reasoning renders only in a collapsed Material Thinking section on assistant messages. The client does not infer reasoning from prose, token counts, or local state.
 - Persisted thread reloads consume generated `Message.contentParts`; `kind: reasoning` parts become the same assistant reasoning field.
 
-This is a foreground follow surface only. Backend persisted event and message state remain the durable facts, while diagnostic runtime history stays backend-owned and reaches mobile only through RunDetail trace summaries and artifacts rather than raw event payloads.
+This is a foreground follow surface only. Backend persisted event and message state remain the durable facts, while diagnostic runtime history stays backend-owned. Mobile receives only the live subset and user-meaningful artifacts rather than raw diagnostic payloads or trace summaries.
 
 ## FlutterClaw Seed Boundary
 

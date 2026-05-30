@@ -35,7 +35,6 @@ type CapabilitiesModelDTO struct {
 
 type CapabilitiesFeaturesDTO struct {
 	InterruptResume bool `json:"interrupt_resume"`
-	TraceDebug      bool `json:"trace_debug"`
 	SessionHistory  bool `json:"session_history"`
 }
 

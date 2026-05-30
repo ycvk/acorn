@@ -37,7 +37,7 @@ func TestResumeServiceResumeKeepsNonApprovalInterruptDefaultTarget(t *testing.T)
 		resumedRunID string
 		resumed      map[string]any
 	)
-	service := NewTraceService(store).WithResume(func(_ context.Context) (executorHandle, error) {
+	service := NewRunResumeService(store).WithResume(func(_ context.Context) (executorHandle, error) {
 		return resumeTestExecutorHandle{
 			resumeWithTargetsFn: func(ctx context.Context, targetRunID string, targets map[string]any, sink stream.StreamSink) (*runtime.Result, error) {
 				resumedRunID = targetRunID
@@ -79,7 +79,7 @@ func TestResumeServiceRejectsFailedRun(t *testing.T) {
 	}
 
 	var resumed bool
-	service := NewTraceService(store).WithResume(func(_ context.Context) (executorHandle, error) {
+	service := NewRunResumeService(store).WithResume(func(_ context.Context) (executorHandle, error) {
 		return resumeTestExecutorHandle{
 			resumeWithTargetsFn: func(ctx context.Context, targetRunID string, targets map[string]any, sink stream.StreamSink) (*runtime.Result, error) {
 				resumed = true
@@ -113,7 +113,7 @@ func TestResumeServiceRejectsCompletedRun(t *testing.T) {
 	}
 
 	var resumed bool
-	service := NewTraceService(store).WithResume(func(_ context.Context) (executorHandle, error) {
+	service := NewRunResumeService(store).WithResume(func(_ context.Context) (executorHandle, error) {
 		return resumeTestExecutorHandle{
 			resumeWithTargetsFn: func(ctx context.Context, targetRunID string, targets map[string]any, sink stream.StreamSink) (*runtime.Result, error) {
 				resumed = true

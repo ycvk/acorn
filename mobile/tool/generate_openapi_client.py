@@ -1268,18 +1268,15 @@ class CapabilitiesSummary {
 class CapabilitiesFeatures {
   const CapabilitiesFeatures({
     required this.interruptResume,
-    required this.traceDebug,
     required this.sessionHistory,
   });
 
   final bool interruptResume;
-  final bool traceDebug;
   final bool sessionHistory;
 
   factory CapabilitiesFeatures.fromJson(Map<String, dynamic> json) {
     return CapabilitiesFeatures(
       interruptResume: _bool(json['interrupt_resume']),
-      traceDebug: _bool(json['trace_debug']),
       sessionHistory: _bool(json['session_history']),
     );
   }

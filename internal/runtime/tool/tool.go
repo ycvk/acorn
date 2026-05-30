@@ -193,44 +193,9 @@ func progressToolFromBase(tool einotool.BaseTool) tooling.ProgressTool {
 
 func (t *auditedTool) invoke(ctx context.Context, argumentsInJSON string, emit tooling.ToolProgressEmitter, opts ...einotool.Option) (string, error) {
 	if t.progress != nil {
-		return t.progress.InvokableRunWithProgress(ctx, argumentsInJSON, t.progressEmitter(ctx, argumentsInJSON, emit), opts...)
+		return t.progress.InvokableRunWithProgress(ctx, argumentsInJSON, emit, opts...)
 	}
 	return t.invokable.InvokableRun(ctx, argumentsInJSON, opts...)
-}
-
-func (t *auditedTool) progressEmitter(ctx context.Context, argumentsInJSON string, emit tooling.ToolProgressEmitter) tooling.ToolProgressEmitter {
-	sequence := 0
-	var mu sync.Mutex
-	return func(progressCtx context.Context, event tooling.ToolProgressEvent) error {
-		mu.Lock()
-		defer mu.Unlock()
-		sequence++
-		runID := getRunID(progressCtx)
-		if strings.TrimSpace(runID) == "" {
-			runID = getRunID(ctx)
-		}
-		if runID != "" {
-			if _, err := stream.AppendStreamItem(ctx, t.store, stream.StreamSinkFromContext(ctx), stream.StreamItem{
-				RunID:     runID,
-				Kind:      stream.StreamKindToolCallProgress,
-				CreatedAt: time.Now().UTC(),
-				Payload: map[string]any{"tool_call": &stream.StreamToolCallProgress{
-					Provider:      t.spec.Source,
-					Name:          t.spec.Name,
-					CallID:        ToolAuditCallID(ctx),
-					ArgumentsJSON: truncateAudit(argumentsInJSON, 8000),
-					Delta:         event.Delta,
-					Sequence:      sequence,
-				}},
-			}); err != nil {
-				return fmt.Errorf("append tool.call.progress audit event: %w", err)
-			}
-		}
-		if emit != nil {
-			return emit(progressCtx, event)
-		}
-		return nil
-	}
 }
 
 func (t *auditedTool) streamToolCall(ctx context.Context, argumentsInJSON string) *stream.StreamToolCall {

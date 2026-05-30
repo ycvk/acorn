@@ -423,7 +423,6 @@ InboxResponse _inbox() {
       ),
       features: CapabilitiesFeatures(
         interruptResume: true,
-        traceDebug: true,
         sessionHistory: true,
       ),
     ),

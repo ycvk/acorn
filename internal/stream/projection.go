@@ -68,8 +68,6 @@ func streamKindToEventKind(kind StreamItemKind) string {
 		return "agent.message"
 	case StreamKindToolCallStarted:
 		return "tool.call.started"
-	case StreamKindToolCallProgress:
-		return "tool.call.progress"
 	case StreamKindToolCallSucceeded:
 		return "tool.call.succeeded"
 	case StreamKindToolCallFailed:
@@ -115,7 +113,6 @@ func streamPayloadMap(kind StreamItemKind, payload any) (map[string]any, error) 
 func normalizeToolCallPayload(kind StreamItemKind, payload map[string]any) error {
 	switch kind {
 	case StreamKindToolCallStarted,
-		StreamKindToolCallProgress,
 		StreamKindToolCallSucceeded,
 		StreamKindToolCallFailed,
 		StreamKindToolCallInterrupted:

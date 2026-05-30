@@ -106,6 +106,22 @@ func TestStoreSchemaIncludesV2Tables(t *testing.T) {
 	}
 }
 
+func TestEventsQueriesUseRunSequenceIndex(t *testing.T) {
+	store, err := Open(filepath.Join(t.TempDir(), "state"))
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	if !indexExists(t, store, "idx_events_run_sequence") {
+		t.Fatal("events table missing idx_events_run_sequence")
+	}
+	plan := explainQueryPlan(t, store, `SELECT sequence, kind, payload_json, created_at FROM events WHERE run_id = ? AND sequence > ? ORDER BY sequence ASC`, "run_1", 10)
+	if !strings.Contains(plan, "idx_events_run_sequence") {
+		t.Fatalf("query plan = %q, want idx_events_run_sequence", plan)
+	}
+}
+
 func TestV2MigrationAddsNewColumns(t *testing.T) {
 	store, err := Open(filepath.Join(t.TempDir(), "state"))
 	if err != nil {
@@ -349,6 +365,37 @@ func tableExists(t *testing.T, store *Store, table string) bool {
 		t.Fatalf("check table %s existence: %v", table, err)
 	}
 	return count > 0
+}
+
+func indexExists(t *testing.T, store *Store, index string) bool {
+	t.Helper()
+	var count int
+	if err := store.db.QueryRowContext(t.Context(), `SELECT COUNT(1) FROM sqlite_master WHERE type = 'index' AND name = ?`, index).Scan(&count); err != nil {
+		t.Fatalf("check index %s existence: %v", index, err)
+	}
+	return count > 0
+}
+
+func explainQueryPlan(t *testing.T, store *Store, query string, args ...any) string {
+	t.Helper()
+	rows, err := store.db.QueryContext(t.Context(), "EXPLAIN QUERY PLAN "+query, args...)
+	if err != nil {
+		t.Fatalf("explain query plan: %v", err)
+	}
+	defer rows.Close()
+	var parts []string
+	for rows.Next() {
+		var id, parent, notUsed int
+		var detail string
+		if err := rows.Scan(&id, &parent, &notUsed, &detail); err != nil {
+			t.Fatalf("scan query plan: %v", err)
+		}
+		parts = append(parts, detail)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("query plan rows: %v", err)
+	}
+	return strings.Join(parts, "\n")
 }
 
 func triggerExists(t *testing.T, store *Store, trigger string) bool {

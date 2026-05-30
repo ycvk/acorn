@@ -133,7 +133,7 @@ InboxResponse _inbox() {
         status: 'running',
         mode: 'plan_execute',
         preview: 'Updating the Flutter mobile control surface.',
-        lastEventLabel: 'tool.call.progress',
+        lastEventLabel: 'Run is running',
         attentionLevel: 'running',
         durationMs: 91000,
         createdAt: '2026-05-22T08:00:00Z',
@@ -152,7 +152,6 @@ InboxResponse _inbox() {
       ),
       features: CapabilitiesFeatures(
         interruptResume: true,
-        traceDebug: true,
         sessionHistory: true,
       ),
     ),

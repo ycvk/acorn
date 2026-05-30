@@ -9,7 +9,7 @@ import (
 	"github.com/ycvk/acorn/internal/events"
 )
 
-func TestBuildTraceProjectsAndSummarizesItems(t *testing.T) {
+func TestProjectEventsToStreamItemsProjectsAndSummarizesItems(t *testing.T) {
 	run := &events.RunRecord{RunID: "run_1", Status: events.RunStatusSucceeded}
 	raw := []events.EventRecord{
 		{Sequence: 1, RunID: "run_1", Kind: "run.started", CreatedAt: time.Now(), Payload: map[string]any{"input": "hello"}},
@@ -17,9 +17,9 @@ func TestBuildTraceProjectsAndSummarizesItems(t *testing.T) {
 		{Sequence: 3, RunID: "run_1", Kind: "run.completed", CreatedAt: time.Now(), Payload: map[string]any{"message": map[string]any{"role": "assistant", "content": "hi"}}},
 	}
 
-	trace := mustBuildTrace(t, run, raw)
+	trace := mustProjectTrace(t, run, raw)
 	if trace == nil || len(trace.Items) != 3 {
-		t.Fatalf("BuildTrace returned %#v", trace)
+		t.Fatalf("projected trace returned %#v", trace)
 	}
 	if trace.Summary == nil || trace.Summary.ItemCount != 3 {
 		t.Fatalf("unexpected summary: %#v", trace.Summary)
@@ -29,8 +29,8 @@ func TestBuildTraceProjectsAndSummarizesItems(t *testing.T) {
 	}
 }
 
-func TestBuildTraceRoundTripsResumeAndInterruptContract(t *testing.T) {
-	trace := mustBuildTrace(t, &events.RunRecord{RunID: "run_3"}, []events.EventRecord{
+func TestProjectEventsToStreamItemsRoundTripsResumeAndInterruptContract(t *testing.T) {
+	trace := mustProjectTrace(t, &events.RunRecord{RunID: "run_3"}, []events.EventRecord{
 		{
 			Sequence: 1, RunID: "run_3", Kind: "run.interrupted", CreatedAt: time.Now(),
 			Payload: map[string]any{
@@ -56,7 +56,7 @@ func TestBuildTraceRoundTripsResumeAndInterruptContract(t *testing.T) {
 	})
 
 	if trace == nil || len(trace.Items) != 2 {
-		t.Fatalf("BuildTrace returned %#v", trace)
+		t.Fatalf("projected trace returned %#v", trace)
 	}
 	if !trace.Summary.Interrupted {
 		t.Fatalf("expected interrupted summary, got %#v", trace.Summary)
@@ -84,8 +84,8 @@ func TestBuildTraceRoundTripsResumeAndInterruptContract(t *testing.T) {
 	}
 }
 
-func TestBuildTraceProjectsSkillEventsAndSummary(t *testing.T) {
-	trace := mustBuildTrace(t, &events.RunRecord{RunID: "run_4"}, []events.EventRecord{
+func TestProjectEventsToStreamItemsProjectsSkillEventsAndSummary(t *testing.T) {
+	trace := mustProjectTrace(t, &events.RunRecord{RunID: "run_4"}, []events.EventRecord{
 		{
 			Sequence: 1, RunID: "run_4", Kind: "skill.discovered", CreatedAt: time.Now(),
 			Payload: map[string]any{
@@ -140,7 +140,7 @@ func TestBuildTraceProjectsSkillEventsAndSummary(t *testing.T) {
 		},
 	})
 	if trace == nil || len(trace.Items) != 5 {
-		t.Fatalf("BuildTrace returned %#v", trace)
+		t.Fatalf("projected trace returned %#v", trace)
 	}
 	skill0 := trace.Items[0].GetSkill()
 	if skill0 == nil || len(skill0.Candidates) != 1 {
@@ -159,8 +159,8 @@ func TestBuildTraceProjectsSkillEventsAndSummary(t *testing.T) {
 	}
 }
 
-func TestBuildTraceProjectsNoSelectionReason(t *testing.T) {
-	trace := mustBuildTrace(t, &events.RunRecord{RunID: "run_4b"}, []events.EventRecord{
+func TestProjectEventsToStreamItemsProjectsNoSelectionReason(t *testing.T) {
+	trace := mustProjectTrace(t, &events.RunRecord{RunID: "run_4b"}, []events.EventRecord{
 		{
 			Sequence: 1, RunID: "run_4b", Kind: "skill.discovered", CreatedAt: time.Now(),
 			Payload: map[string]any{
@@ -183,7 +183,7 @@ func TestBuildTraceProjectsNoSelectionReason(t *testing.T) {
 		},
 	})
 	if trace == nil || len(trace.Items) != 1 {
-		t.Fatalf("BuildTrace returned %#v", trace)
+		t.Fatalf("projected trace returned %#v", trace)
 	}
 	skill := trace.Items[0].GetSkill()
 	if skill == nil {
@@ -197,8 +197,8 @@ func TestBuildTraceProjectsNoSelectionReason(t *testing.T) {
 	}
 }
 
-func TestBuildTracePreservesFileWriteVerificationOutput(t *testing.T) {
-	trace := mustBuildTrace(t, &events.RunRecord{RunID: "run_write_1"}, []events.EventRecord{
+func TestProjectEventsToStreamItemsPreservesFileWriteVerificationOutput(t *testing.T) {
+	trace := mustProjectTrace(t, &events.RunRecord{RunID: "run_write_1"}, []events.EventRecord{
 		{
 			Sequence: 1, RunID: "run_write_1", Kind: "tool.call.succeeded", CreatedAt: time.Now(),
 			Payload: map[string]any{
@@ -208,7 +208,7 @@ func TestBuildTracePreservesFileWriteVerificationOutput(t *testing.T) {
 		},
 	})
 	if trace == nil || len(trace.Items) != 1 {
-		t.Fatalf("BuildTrace returned %#v", trace)
+		t.Fatalf("projected trace returned %#v", trace)
 	}
 	tc := trace.Items[0].GetToolCall()
 	if tc == nil {
@@ -235,11 +235,16 @@ func TestProjectEventToStreamItemRejectsNonObjectPayload(t *testing.T) {
 	}
 }
 
-func mustBuildTrace(t *testing.T, run *events.RunRecord, raw []events.EventRecord) *Trace {
+type projectedTrace struct {
+	Summary *TraceSummary
+	Items   []StreamItem
+}
+
+func mustProjectTrace(t *testing.T, _ *events.RunRecord, raw []events.EventRecord) *projectedTrace {
 	t.Helper()
-	trace, err := BuildTrace(run, raw)
+	items, err := ProjectEventsToStreamItems(raw)
 	if err != nil {
-		t.Fatalf("BuildTrace: %v", err)
+		t.Fatalf("ProjectEventsToStreamItems: %v", err)
 	}
-	return trace
+	return &projectedTrace{Summary: SummarizeStreamItems(items), Items: items}
 }

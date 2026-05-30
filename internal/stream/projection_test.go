@@ -148,7 +148,6 @@ func TestStreamKindToEventKind(t *testing.T) {
 		{StreamKindAssistantDelta, "assistant.delta"},
 		{StreamKindAssistantMessage, "agent.message"},
 		{StreamKindToolCallStarted, "tool.call.started"},
-		{StreamKindToolCallProgress, "tool.call.progress"},
 		{StreamKindToolCallSucceeded, "tool.call.succeeded"},
 		{StreamKindToolCallFailed, "tool.call.failed"},
 		{StreamKindToolCallInterrupted, "tool.call.interrupted"},

@@ -13,7 +13,7 @@ func buildContainerAppServices(cfg *config.Config, store containerAppStore, deps
 		runController: deps.runController,
 	}
 
-	container.trace = NewTraceService(store).WithResume(deps.executors, store)
+	container.runResume = NewRunResumeService(store).WithResume(deps.executors, store)
 	checkpoints, err := NewWorkingCheckpointService(deps.checkpointService)
 	if err != nil {
 		return nil, err

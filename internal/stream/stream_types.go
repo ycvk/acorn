@@ -22,7 +22,6 @@ const (
 	StreamKindAssistantDelta                  StreamItemKind = "assistant.delta"
 	StreamKindAssistantMessage                StreamItemKind = "assistant_message"
 	StreamKindToolCallStarted                 StreamItemKind = "tool_call_started"
-	StreamKindToolCallProgress                StreamItemKind = "tool_call_progress"
 	StreamKindToolCallSucceeded               StreamItemKind = "tool_call_succeeded"
 	StreamKindToolCallFailed                  StreamItemKind = "tool_call_failed"
 	StreamKindToolCallInterrupted             StreamItemKind = "tool_call_interrupted"

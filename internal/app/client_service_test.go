@@ -547,7 +547,7 @@ func TestLoadRunEventsAfterFiltersDiagnosticsAndAdvancesCursor(t *testing.T) {
 	}
 }
 
-func TestLoadRunEventsForDetailFiltersDiagnosticsAndKeepsTraceSummary(t *testing.T) {
+func TestLoadRunEventsForDetailFiltersDiagnostics(t *testing.T) {
 	ctx := context.Background()
 	store, err := storesqlite.Open(filepath.Join(t.TempDir(), "state"))
 	if err != nil {
@@ -573,9 +573,6 @@ func TestLoadRunEventsForDetailFiltersDiagnosticsAndKeepsTraceSummary(t *testing
 	}
 	if len(detail.Events) != 1 || detail.Events[0].Type != "run.started" {
 		t.Fatalf("events = %#v", detail.Events)
-	}
-	if detail.Trace == nil || detail.Trace.ItemCount != 3 || detail.Trace.SkillEventCount != 1 {
-		t.Fatalf("trace summary = %#v, want non-empty", detail.Trace)
 	}
 }
 

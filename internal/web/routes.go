@@ -20,8 +20,8 @@ func NewHandler(deps Dependencies) (http.Handler, error) {
 	if deps.Checkpoints == nil {
 		return nil, errors.New("web working checkpoint service is required")
 	}
-	if deps.Trace == nil {
-		return nil, errors.New("web trace service is required")
+	if deps.RunResume == nil {
+		return nil, errors.New("web run resume service is required")
 	}
 	if deps.Memory == nil {
 		return nil, errors.New("web memory service is required")
@@ -51,7 +51,7 @@ func NewHandler(deps Dependencies) (http.Handler, error) {
 		client:        deps.Client,
 		pendingAction: deps.PendingAction,
 		checkpoints:   deps.Checkpoints,
-		trace:         deps.Trace,
+		runResume:     deps.RunResume,
 		memory:        deps.Memory,
 		skills:        deps.Skills,
 		capabilities:  deps.Capabilities,

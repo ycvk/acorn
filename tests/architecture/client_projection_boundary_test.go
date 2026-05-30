@@ -11,7 +11,6 @@ import (
 var clientProjectionBoundaryFiles = []string{
 	"internal/clientevents/types.go",
 	"internal/clientevents/projector.go",
-	"internal/clientevents/trace_projection.go",
 	"internal/app/artifact_projection.go",
 	"internal/app/client_service_event.go",
 	"internal/web/dto_artifact.go",

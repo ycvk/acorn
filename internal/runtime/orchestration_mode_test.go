@@ -631,7 +631,7 @@ func (progressEmittingTool) InvokableRunWithProgress(ctx context.Context, _ stri
 	return "done", nil
 }
 
-func TestExecuteMessagesDirectResponseEmitsToolProgress(t *testing.T) {
+func TestExecuteMessagesDirectResponseDoesNotPersistToolProgressChunks(t *testing.T) {
 	ctx := context.Background()
 	store, cfg := newRunnerFactoryMemoryTestContext(t)
 	progressTool := &progressEmittingTool{}
@@ -686,8 +686,8 @@ func TestExecuteMessagesDirectResponseEmitsToolProgress(t *testing.T) {
 	if startedSeq == 0 {
 		t.Fatal("expected tool.call.started event")
 	}
-	if progressSeqs != 3 {
-		t.Fatalf("expected 3 tool.call.progress events, got %d", progressSeqs)
+	if progressSeqs != 0 {
+		t.Fatalf("expected no tool.call.progress events, got %d", progressSeqs)
 	}
 	if succeededSeq == 0 {
 		t.Fatal("expected tool.call.succeeded event")

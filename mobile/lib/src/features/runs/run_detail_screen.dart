@@ -206,7 +206,7 @@ class _RunActivityScreen extends StatelessWidget {
             icon: Icons.timeline_outlined,
             title: '$totalCount live events',
             body:
-                'Live activity, issue signals, and trace summary stay backed by the server.',
+                'Live activity, issue signals, and artifacts stay backed by the server.',
             tone: AcornStatusTone.neutral,
           ),
           const SectionHeader(title: 'Issues'),

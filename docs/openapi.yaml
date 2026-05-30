@@ -1644,12 +1644,9 @@ components:
       additionalProperties: false
       required:
         - interrupt_resume
-        - trace_debug
         - session_history
       properties:
         interrupt_resume:
-          type: boolean
-        trace_debug:
           type: boolean
         session_history:
           type: boolean
@@ -2634,7 +2631,7 @@ components:
     RunDetail:
       type: object
       additionalProperties: false
-      required: [run, thread, events, artifacts, trace]
+      required: [run, thread, events, artifacts]
       properties:
         run:
           $ref: '#/components/schemas/Run'
@@ -2648,48 +2645,6 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/RunArtifact'
-        trace:
-          oneOf:
-            - $ref: '#/components/schemas/TraceSummary'
-            - type: 'null'
-
-    TraceSummary:
-      type: object
-      additionalProperties: false
-      required: [item_count]
-      properties:
-        item_count:
-          type: integer
-        last_kind:
-          type: string
-        assistant_message_count:
-          type: integer
-        assistant_delta_count:
-          type: integer
-        assistant_delta_message_count:
-          type: integer
-        assistant_delta_char_count:
-          type: integer
-        tool_call_count:
-          type: integer
-        decision_event_count:
-          type: integer
-        skill_event_count:
-          type: integer
-        plan_event_count:
-          type: integer
-        decision_selected:
-          type: boolean
-        decision_blocked:
-          type: boolean
-        skill_selected:
-          type: boolean
-        interrupted:
-          type: boolean
-        failed:
-          type: boolean
-        completed:
-          type: boolean
 
     InterruptRunResponse:
       type: object
@@ -2853,5 +2808,3 @@ components:
         interrupted:
           type: object
           additionalProperties: true
-        trace_summary:
-          $ref: '#/components/schemas/TraceSummary'
