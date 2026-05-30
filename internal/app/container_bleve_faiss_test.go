@@ -23,9 +23,8 @@ func TestContainerBuildsCoreServices(t *testing.T) {
 	container := testContainer(t, testContainerConfig(t))
 
 	for name, service := range map[string]any{
-		"chat":         container.Chat(),
-		"run":          container.Run(),
-		"resume":       container.Resume(),
+		"client":       container.Client(),
+		"run_resume":   container.RunResume(),
 		"capabilities": container.Capabilities(),
 		"skills":       container.Skills(),
 	} {

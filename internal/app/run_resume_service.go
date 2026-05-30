@@ -14,7 +14,7 @@ import (
 )
 
 type RunResumeService struct {
-	store       traceStore
+	store       runResumeStore
 	newExecutor func(context.Context) (executorHandle, error)
 	pending     runtime.PendingResumeStore
 }
@@ -28,14 +28,14 @@ type ResumeStatus struct {
 }
 
 type RunResult struct {
-	RunID       string           `json:"run_id"`
-	Status      events.RunStatus `json:"status"`
-	Output      string           `json:"output,omitempty"`
-	Error       string           `json:"error,omitempty"`
-	Interrupted map[string]any   `json:"interrupted,omitempty"`
+	RunID       string         `json:"run_id"`
+	Status      string         `json:"status"`
+	Output      string         `json:"output,omitempty"`
+	Error       string         `json:"error,omitempty"`
+	Interrupted map[string]any `json:"interrupted,omitempty"`
 }
 
-func NewRunResumeService(store traceStore) *RunResumeService {
+func NewRunResumeService(store runResumeStore) *RunResumeService {
 	return &RunResumeService{store: store}
 }
 
@@ -68,20 +68,28 @@ func (s *RunResumeService) Resume(ctx context.Context, runID string, sink stream
 	if err != nil {
 		return nil, err
 	}
-	return runResultFromRuntime(result), nil
+	projected, err := runResultFromRuntime(result)
+	if err != nil {
+		return nil, err
+	}
+	return projected, nil
 }
 
-func runResultFromRuntime(result *runtime.Result) *RunResult {
+func runResultFromRuntime(result *runtime.Result) (*RunResult, error) {
 	if result == nil {
-		return nil
+		return nil, nil
+	}
+	status, err := projectRunStatus(result.Status)
+	if err != nil {
+		return nil, err
 	}
 	return &RunResult{
 		RunID:       result.RunID,
-		Status:      result.Status,
+		Status:      status,
 		Output:      result.Output,
 		Error:       result.Error,
 		Interrupted: cloneMap(result.Interrupted),
-	}
+	}, nil
 }
 
 func cloneMap(value map[string]any) map[string]any {

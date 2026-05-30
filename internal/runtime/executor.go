@@ -23,12 +23,11 @@ import (
 )
 
 type Result struct {
-	RunID        string               `json:"run_id"`
-	Status       events.RunStatus     `json:"status"`
-	Output       string               `json:"output,omitempty"`
-	Error        string               `json:"error,omitempty"`
-	Interrupted  map[string]any       `json:"interrupted,omitempty"`
-	TraceSummary *stream.TraceSummary `json:"trace_summary,omitempty"`
+	RunID       string           `json:"run_id"`
+	Status      events.RunStatus `json:"status"`
+	Output      string           `json:"output,omitempty"`
+	Error       string           `json:"error,omitempty"`
+	Interrupted map[string]any   `json:"interrupted,omitempty"`
 }
 
 type Executor struct {
@@ -139,14 +138,6 @@ func compactArchiveText(value string) string {
 	return trimmed[:280] + "..."
 }
 
-func (e *Executor) traceSummary(ctx context.Context, runID string) (*stream.TraceSummary, error) {
-	items, err := e.store.LoadEvents(ctx, runID)
-	if err != nil {
-		return nil, fmt.Errorf("load trace summary events: %w", err)
-	}
-	return stream.BuildTraceSummary(items)
-}
-
 func (e *Executor) failRunSetup(ctx context.Context, runID string, setupErr error, sink stream.StreamSink) error {
 	if strings.TrimSpace(runID) == "" || setupErr == nil {
 		return setupErr
@@ -167,9 +158,6 @@ func (e *Executor) recordFinalizationFailure(ctx context.Context, runID, output 
 	}
 	if err := e.emitRunFailed(durableCtx, runID, sink, message); err != nil {
 		errs = append(errs, fmt.Errorf("append finalization failure event: %w", err))
-	}
-	if _, err := e.traceSummary(durableCtx, runID); err != nil {
-		errs = append(errs, err)
 	}
 	errs = append([]error{finalizationErr}, errs...)
 	return errors.Join(errs...)
@@ -503,16 +491,11 @@ func (e *Executor) finishFailedRun(ctx context.Context, runID, input string, sta
 	if err := e.finalizePostRun(durableCtx, runID, events.RunStatusFailed, input, state.lastOutput); err != nil {
 		return nil, errors.Join(state.failure, fmt.Errorf("finalize failed run: %w", err))
 	}
-	summary, err := e.traceSummary(durableCtx, runID)
-	if err != nil {
-		return nil, err
-	}
 	return &Result{
-		RunID:        runID,
-		Status:       events.RunStatusFailed,
-		Output:       state.lastOutput,
-		Error:        state.failure.Error(),
-		TraceSummary: summary,
+		RunID:  runID,
+		Status: events.RunStatusFailed,
+		Output: state.lastOutput,
+		Error:  state.failure.Error(),
 	}, nil
 }
 
@@ -521,16 +504,11 @@ func (e *Executor) finishInterruptedRun(ctx context.Context, runID string, state
 	if err := e.store.MarkInterruptedContext(durableCtx, runID, state.lastOutput); err != nil {
 		return nil, err
 	}
-	summary, err := e.traceSummary(durableCtx, runID)
-	if err != nil {
-		return nil, err
-	}
 	return &Result{
-		RunID:        runID,
-		Status:       events.RunStatusInterrupted,
-		Output:       state.lastOutput,
-		Interrupted:  state.interrupt,
-		TraceSummary: summary,
+		RunID:       runID,
+		Status:      events.RunStatusInterrupted,
+		Output:      state.lastOutput,
+		Interrupted: state.interrupt,
 	}, nil
 }
 
@@ -551,15 +529,10 @@ func (e *Executor) finishSucceededRun(ctx context.Context, runID, input string, 
 	if err := e.store.FinishRunContext(durableCtx, runID, events.RunStatusSucceeded, state.lastOutput, ""); err != nil {
 		return nil, err
 	}
-	summary, err := e.traceSummary(durableCtx, runID)
-	if err != nil {
-		return nil, err
-	}
 	return &Result{
-		RunID:        runID,
-		Status:       events.RunStatusSucceeded,
-		Output:       state.lastOutput,
-		TraceSummary: summary,
+		RunID:  runID,
+		Status: events.RunStatusSucceeded,
+		Output: state.lastOutput,
 	}, nil
 }
 

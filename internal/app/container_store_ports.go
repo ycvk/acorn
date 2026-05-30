@@ -23,8 +23,7 @@ type containerRuntimeStore interface {
 
 type containerAppStore interface {
 	sessionStore
-	traceStore
-	ChatStore
+	runResumeStore
 	clientStore
 	pendingActionDecisionStore
 	runtime.PendingResumeStore

@@ -121,20 +121,3 @@ func TestProjectStreamItemToEventProjectsSkillLifecycle(t *testing.T) {
 		t.Fatalf("unexpected lifecycle payload: %#v", lifecycle)
 	}
 }
-
-func TestSummarizeStreamItemsCountsCurrentSkillEvents(t *testing.T) {
-	items := []stream.StreamItem{
-		{Kind: stream.StreamKindSkillDiscovered, Payload: map[string]any{"skill": &stream.StreamSkill{SelectedID: "s1"}}},
-		{Kind: stream.StreamKindSkillSelected, Payload: map[string]any{"skill": &stream.StreamSkill{SelectedID: "s1"}}},
-		{Kind: stream.StreamKindSkillLoaded, Payload: map[string]any{"skill": &stream.StreamSkill{SelectedID: "s1"}}},
-		{Kind: stream.StreamKindSkillFailed, Payload: map[string]any{"skill": &stream.StreamSkill{SelectedID: "s1"}}},
-		{Kind: stream.StreamKindSkillLifecycle, Payload: map[string]any{"skill_lifecycle": &stream.StreamSkillLifecycle{SkillID: "s1", Action: "assessed"}}},
-	}
-	summary := stream.SummarizeStreamItems(items)
-	if summary.SkillEventCount != 5 {
-		t.Fatalf("SkillEventCount = %d, want 5", summary.SkillEventCount)
-	}
-	if !summary.SkillSelected {
-		t.Fatalf("SkillSelected = false, want true")
-	}
-}

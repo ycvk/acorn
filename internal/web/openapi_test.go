@@ -356,6 +356,42 @@ func TestOpenAPIRunResultMatchesAppProjectionStruct(t *testing.T) {
 	}
 }
 
+func TestOpenAPIRunStatusEnumsUseClientProjection(t *testing.T) {
+	path := filepath.Join("..", "..", "docs", "openapi.yaml")
+	loader := openapi3.NewLoader()
+	doc, err := loader.LoadFromFile(path)
+	if err != nil {
+		t.Fatalf("load openapi: %v", err)
+	}
+	want := []string{"completed", "failed", "interrupted", "running"}
+	for _, schemaName := range []string{"Run", "RunResult"} {
+		schemaRef := doc.Components.Schemas[schemaName]
+		if schemaRef == nil || schemaRef.Value == nil {
+			t.Fatalf("missing %s schema", schemaName)
+		}
+		statusRef := schemaRef.Value.Properties["status"]
+		if statusRef == nil || statusRef.Value == nil {
+			t.Fatalf("%s missing status property", schemaName)
+		}
+		got := sortedStrings(enumStrings(statusRef.Value.Enum))
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("%s.status enum = %v, want %v", schemaName, got, want)
+		}
+	}
+}
+
+func enumStrings(items []any) []string {
+	out := make([]string, 0, len(items))
+	for _, item := range items {
+		value, ok := item.(string)
+		if !ok {
+			continue
+		}
+		out = append(out, value)
+	}
+	return out
+}
+
 func jsonFieldNames(t reflect.Type) []string {
 	if t.Kind() == reflect.Pointer {
 		t = t.Elem()

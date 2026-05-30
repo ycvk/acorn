@@ -9,7 +9,7 @@ import (
 	"github.com/ycvk/acorn/internal/events"
 )
 
-func TestProjectEventsToStreamItemsProjectsAndSummarizesItems(t *testing.T) {
+func TestProjectEventToStreamItemProjectsItems(t *testing.T) {
 	run := &events.RunRecord{RunID: "run_1", Status: events.RunStatusSucceeded}
 	raw := []events.EventRecord{
 		{Sequence: 1, RunID: "run_1", Kind: "run.started", CreatedAt: time.Now(), Payload: map[string]any{"input": "hello"}},
@@ -21,15 +21,12 @@ func TestProjectEventsToStreamItemsProjectsAndSummarizesItems(t *testing.T) {
 	if trace == nil || len(trace.Items) != 3 {
 		t.Fatalf("projected trace returned %#v", trace)
 	}
-	if trace.Summary == nil || trace.Summary.ItemCount != 3 {
-		t.Fatalf("unexpected summary: %#v", trace.Summary)
-	}
-	if trace.Summary.LastKind != StreamKindRunCompleted {
-		t.Fatalf("LastKind = %q, want %q", trace.Summary.LastKind, StreamKindRunCompleted)
+	if trace.Items[2].Kind != StreamKindRunCompleted {
+		t.Fatalf("last kind = %q, want %q", trace.Items[2].Kind, StreamKindRunCompleted)
 	}
 }
 
-func TestProjectEventsToStreamItemsRoundTripsResumeAndInterruptContract(t *testing.T) {
+func TestProjectEventToStreamItemRoundTripsResumeAndInterruptContract(t *testing.T) {
 	trace := mustProjectTrace(t, &events.RunRecord{RunID: "run_3"}, []events.EventRecord{
 		{
 			Sequence: 1, RunID: "run_3", Kind: "run.interrupted", CreatedAt: time.Now(),
@@ -58,9 +55,6 @@ func TestProjectEventsToStreamItemsRoundTripsResumeAndInterruptContract(t *testi
 	if trace == nil || len(trace.Items) != 2 {
 		t.Fatalf("projected trace returned %#v", trace)
 	}
-	if !trace.Summary.Interrupted {
-		t.Fatalf("expected interrupted summary, got %#v", trace.Summary)
-	}
 	interrupt := trace.Items[0].GetInterrupt()
 	if interrupt == nil || interrupt.ContextCount != 1 {
 		t.Fatalf("unexpected interrupt projection: %#v", interrupt)
@@ -84,7 +78,7 @@ func TestProjectEventsToStreamItemsRoundTripsResumeAndInterruptContract(t *testi
 	}
 }
 
-func TestProjectEventsToStreamItemsProjectsSkillEventsAndSummary(t *testing.T) {
+func TestProjectEventToStreamItemProjectsSkillEvents(t *testing.T) {
 	trace := mustProjectTrace(t, &events.RunRecord{RunID: "run_4"}, []events.EventRecord{
 		{
 			Sequence: 1, RunID: "run_4", Kind: "skill.discovered", CreatedAt: time.Now(),
@@ -154,12 +148,12 @@ func TestProjectEventsToStreamItemsProjectsSkillEventsAndSummary(t *testing.T) {
 	if skill3 == nil || skill3.FailureReason != "missing_tool_use:read_file" {
 		t.Fatalf("unexpected skill failed projection: %#v", skill3)
 	}
-	if trace.Summary == nil || trace.Summary.SkillEventCount != 4 || !trace.Summary.SkillSelected {
-		t.Fatalf("unexpected skill summary: %#v", trace.Summary)
+	if trace.Items[1].Kind != StreamKindSkillSelected {
+		t.Fatalf("kind = %q, want %q", trace.Items[1].Kind, StreamKindSkillSelected)
 	}
 }
 
-func TestProjectEventsToStreamItemsProjectsNoSelectionReason(t *testing.T) {
+func TestProjectEventToStreamItemProjectsNoSelectionReason(t *testing.T) {
 	trace := mustProjectTrace(t, &events.RunRecord{RunID: "run_4b"}, []events.EventRecord{
 		{
 			Sequence: 1, RunID: "run_4b", Kind: "skill.discovered", CreatedAt: time.Now(),
@@ -192,12 +186,9 @@ func TestProjectEventsToStreamItemsProjectsNoSelectionReason(t *testing.T) {
 	if got, want := skill.NoSelectionReason, "ambiguous_top_score"; got != want {
 		t.Fatalf("NoSelectionReason = %q, want %q", got, want)
 	}
-	if trace.Summary == nil || trace.Summary.SkillSelected {
-		t.Fatalf("unexpected skill summary: %#v", trace.Summary)
-	}
 }
 
-func TestProjectEventsToStreamItemsPreservesFileWriteVerificationOutput(t *testing.T) {
+func TestProjectEventToStreamItemPreservesFileWriteVerificationOutput(t *testing.T) {
 	trace := mustProjectTrace(t, &events.RunRecord{RunID: "run_write_1"}, []events.EventRecord{
 		{
 			Sequence: 1, RunID: "run_write_1", Kind: "tool.call.succeeded", CreatedAt: time.Now(),
@@ -236,15 +227,18 @@ func TestProjectEventToStreamItemRejectsNonObjectPayload(t *testing.T) {
 }
 
 type projectedTrace struct {
-	Summary *TraceSummary
-	Items   []StreamItem
+	Items []StreamItem
 }
 
 func mustProjectTrace(t *testing.T, _ *events.RunRecord, raw []events.EventRecord) *projectedTrace {
 	t.Helper()
-	items, err := ProjectEventsToStreamItems(raw)
-	if err != nil {
-		t.Fatalf("ProjectEventsToStreamItems: %v", err)
+	items := make([]StreamItem, 0, len(raw))
+	for _, event := range raw {
+		item, err := ProjectEventToStreamItem(event)
+		if err != nil {
+			t.Fatalf("ProjectEventToStreamItem: %v", err)
+		}
+		items = append(items, item)
 	}
-	return &projectedTrace{Summary: SummarizeStreamItems(items), Items: items}
+	return &projectedTrace{Items: items}
 }

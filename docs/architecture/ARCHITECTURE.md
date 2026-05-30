@@ -24,7 +24,7 @@ operator CLI / authenticated remote clients
 
 主链对应的现状代码：
 
-- `internal/app/container.go` 装配 app service、runtime executor、trace service 和 web dependencies。
+- `internal/app/container.go` 装配 app service、runtime executor、run resume service 和 web dependencies。
 - `internal/runtime/executor.go` 负责 session/run 创建、root mode routing、执行和 finalization。
 - `internal/runtime/runner.go` 的 `RunnerFactory.New` 只保留 run build 入口；`internal/runtime/run.go` 的 `RunnerFactory.buildRun` 执行 per-run assembly。当前 active execution paths 都走固定主链：model -> run tool catalog -> memorymodule prepare -> ContextPlane -> OrchestrationPlane -> ActiveRunner。`direct_response` 不进入 run selection；public `plan_execute` 和 internal child `single_agent` 会先通过 `internal/decision` policy 解析 selected skill、decision record 和 context priority，再交给 ContextPlane 渲染上下文。
 - `internal/contextplane/` 管 run 上下文、prepared file-backed memory、deferred tool loading、工具 lifecycle state 和 middleware；`internal/contextplane/compaction/` 管 proactive compact、compression pipeline 和 post-compact rehydration。
@@ -63,9 +63,9 @@ operator CLI / authenticated remote clients
 | **Store ports** | app/runtime/provider 包内定义的 consumer-owned persistence ports；`internal/app/container*.go` 是当前唯一允许直接打开/持有 sqlite adapter 的 production composition root。 |
 | **PlanStore** | runtime graph 使用的计划持久化接口，消费 `internal/model.Plan` / `PlanEvidence`；`internal/runtime/plan/` 只负责 step evidence/backlink 追加和 store port 调用，不提供迁移兼容 alias。 |
 | **ChildAgent contract** | `internal/orchestration/child_agent.go` 的 `ChildAgentRequest` / `ChildAgentResult` / `ChildAgentExecutor`，被 `delegate_task`、plan_execute 和 verifier 共用；`ChildAgentOriginVerifier` 与 `VerificationRequest` / `VerificationResult` 是只读 verifier 子 run 合同。`plan_execute` 只在 step 显式声明 `verification_intent.kind=verifier` 时运行 verifier，并把 verdict 回填为 `EvidenceKindVerifier` plan evidence。 |
-| **Runtime diagnostics** | run events 的 backend-only projection；`internal/stream` 持有 event-record -> StreamItem projection 和内部 trace summary，`internal/app.RunResumeService` 从 SQLite runs/events 推导 resume status。RunDetail 不暴露 trace summary 或 raw diagnostic payload。 |
+| **Runtime diagnostics** | run events 的 backend-only projection；`internal/stream` 持有 event-record -> StreamItem projection 和 root interrupt context projection，`internal/app.RunResumeService` 从 SQLite runs/events 推导 resume status。RunDetail 不暴露 diagnostic summary 或 raw diagnostic payload。 |
 | **Mobile Control Surface** | `mobile/` Flutter app，当前包含 connect、threads/chat detail、pending approval decision 和 settings surfaces。它通过 generated Dart client 消费 `/v1`；连接/API/stream clients 由 `ConnectionController` 承载，shell tab、inbox、threads、approvals、chat foreground streaming 和 run detail 分别由 feature controllers 隔离；mobile 不执行 runtime、不维护第二套 message lifecycle、不做 offline-first truth。 |
-| **Run detail surface** | 当前 run deep dive 入口，只消费 `GET /v1/runs/{run_id}/detail` aggregate；只暴露 run、thread、mobile live event activity 和 run artifacts，不由 client 散读 legacy endpoints，也不暴露 trace summary、raw diagnostic event payload、plan DTO 或 runtime workbench 聚合。 |
+| **Run detail surface** | 当前 run deep dive 入口，只消费 `GET /v1/runs/{run_id}/detail` aggregate；只暴露 run、thread、mobile live event activity 和 run artifacts，不由 client 散读 legacy endpoints，也不暴露 diagnostic summary、raw diagnostic event payload、plan DTO 或 runtime workbench 聚合。 |
 | **SQLite persisted truth** | 后端 runtime 事实来源；events、runs、plans、checkpoints、tool results、archives、session summaries、context boundaries 等事实由 SQLite 持久化和迁移维护。长期 memory 的 active truth 是 `memorymodule` 文件。 |
 | **SSE StreamItem** | runtime internal / legacy trace JSON 事件形态；不是 remote client 的 live stream contract。 |
 | **Client RunEvent** | `/v1` 的 client-facing live event envelope；mobile client 的 send/live stream path 只消费 mobile live subset：run lifecycle、assistant delta/message、terminal status、resume、elicitation/operator question 和 `decision_blocked`。它由 SQLite `events` table 投影，SSE `id` 是 `event_id`，`event` 是 `type`，`data` 是完整 `RunEvent` JSON；tool/memory/skill/procedure/plan/context/MCP/sampling/subagent 事件是 diagnostics，不进入 live contract。 |
@@ -83,7 +83,7 @@ operator CLI / authenticated remote clients
 
 ## 关键边界
 
-- **Runtime 只从持久化事实恢复状态**：run mode、lineage、plans、events、internal diagnostics summary、resume status 都从 store ports 或 workspace inspection 来；不能从 assistant 自然语言或前端 local state 反推。
+- **Runtime 只从持久化事实恢复状态**：run mode、lineage、plans、events、resume status 都从 store ports 或 workspace inspection 来；不能从 assistant 自然语言或前端 local state 反推。
 - **SQLite adapter 不跨层泄漏**：production direct import `internal/store/sqlite` 只允许在 `internal/app/container.go`，由 `internal/architecture/store_boundary_test.go` enforce；其他 production packages 只能依赖 consumer-owned ports 或 `internal/store` shared records/errors。
 - **Context boundary 是 compact/resume 事实**：compact boundary chain、summary、transcript reference、preserved segment references 和 token metrics 以 SQLite `context_boundaries` 为准；`context.compressed` persisted diagnostic event 是 projection，不能作为 loader truth。
 - **Context pressure 由 BudgetGovernor 计算**：compact trigger 和 ContextSession blocking 都基于 effective input window 与内部派生 policy；public YAML 只暴露 `context.window_tokens`、`context.compact_margin_tokens`、`context.preserve_recent_turns`、`context.summary_max_tokens`，不暴露 reserved/static/warning/blocking/tokenizer/reduction 细节，也不使用 `threshold_pct`、raw window percentage 或 client-local 估算。

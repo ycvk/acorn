@@ -20,7 +20,6 @@ func buildContainerAppServices(cfg *config.Config, store containerAppStore, deps
 	}
 	container.checkpoints = checkpoints
 	container.skills = NewSkillService(cfg, deps.loader)
-	container.chat = NewChatService(store, deps.executors)
 	workspaceRoot := ""
 	if deps.ws != nil {
 		workspaceRoot = deps.ws.Root()

@@ -79,7 +79,7 @@
 - Remote clients 只走 `/v1`、`/healthz` 和 serve-time `/mcp` mount。
 - 不新增 legacy `/api` alias、debug-only API、mobile fake type 或绕过 OpenAPI 的 wire shape。
 - 修改 mobile DTO、RunEvent 类型、stream payload 或 OpenAPI schema 时，必须同步 `docs/openapi.yaml`、generated mobile client 和相关 parser/projection tests。
-- Mobile 不从 local state、message length 或 token counter 猜测后端事实。context pressure、context boundary 和 run status 都消费后端 projection；trace summary 不属于 mobile/public contract。
+- Mobile 不从 local state、message length 或 token counter 猜测后端事实。context pressure、context boundary 和 run status 都消费后端 projection；diagnostic summary/raw trace 不属于 mobile/public contract。
 - Mobile memory list/search 只消费 `/v1/memory/*` 后端 projection；`include_inactive` / `include_retired`、relations、validity、source/evidence refs 都来自 OpenAPI generated client，不允许 mobile 解析 memory markdown 或自行计算 active status。
 - Mobile 是后端事实的 remote control surface，不拥有 runtime truth，不做 offline-first run execution，不维护第二套 message lifecycle。
 - Self-hosted remote access 必须有显式 auth/device boundary；token 缺失、格式错误、未知或 revoked 必须显式失败，不能 fallback 到 local/dev access。

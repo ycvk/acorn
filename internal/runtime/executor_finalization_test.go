@@ -16,24 +16,22 @@ import (
 	"github.com/ycvk/acorn/internal/stream"
 )
 
-func TestFinishCollectedRunSuccessSummaryIncludesTerminalEvent(t *testing.T) {
+func TestFinishCollectedRunSuccessPersistsTerminalEvent(t *testing.T) {
 	ctx := context.Background()
 	store, cfg := newRunnerFactoryMemoryTestContext(t)
 	exec := newFinalizationTestExecutor(t, store, cfg)
 	runID := createFinalizationRun(t, ctx, store, "session-terminal", "hello")
 
-	result, err := exec.finishCollectedRun(ctx, runID, "hello", RunState{lastOutput: "world"}, nil, nil)
+	_, err := exec.finishCollectedRun(ctx, runID, "hello", RunState{lastOutput: "world"}, nil, nil)
 	if err != nil {
 		t.Fatalf("finishCollectedRun: %v", err)
 	}
-	if result.TraceSummary == nil {
-		t.Fatal("TraceSummary is nil")
+	raw, err := store.LoadEvents(ctx, runID)
+	if err != nil {
+		t.Fatalf("LoadEvents: %v", err)
 	}
-	if !result.TraceSummary.Completed {
-		t.Fatalf("TraceSummary.Completed = false, want true")
-	}
-	if result.TraceSummary.LastKind != stream.StreamKindRunCompleted {
-		t.Fatalf("TraceSummary.LastKind = %q, want %q", result.TraceSummary.LastKind, stream.StreamKindRunCompleted)
+	if len(raw) == 0 || raw[len(raw)-1].Kind != "run.completed" {
+		t.Fatalf("last event = %#v, want run.completed", raw)
 	}
 
 	messages, err := store.ListSessionMessagesByRunID(ctx, runID)
@@ -89,15 +87,8 @@ func TestFinishCollectedRunArchiveFailureMarksRunFailed(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadEvents: %v", err)
 	}
-	summary, err := stream.BuildTraceSummary(raw)
-	if err != nil {
-		t.Fatalf("stream.BuildTraceSummary: %v", err)
-	}
-	if summary == nil || !summary.Failed {
-		t.Fatalf("trace summary = %#v, want failed summary", summary)
-	}
-	if summary.LastKind != stream.StreamKindRunFailed {
-		t.Fatalf("last kind = %q, want %q", summary.LastKind, stream.StreamKindRunFailed)
+	if len(raw) == 0 || raw[len(raw)-1].Kind != "run.failed" {
+		t.Fatalf("last event = %#v, want run.failed", raw)
 	}
 }
 
@@ -129,10 +120,6 @@ func TestFinishCollectedRunSuccessPersistsAfterContextCancellation(t *testing.T)
 	if result.Status != events.RunStatusSucceeded {
 		t.Fatalf("result status = %q, want %q", result.Status, events.RunStatusSucceeded)
 	}
-	if result.TraceSummary == nil || !result.TraceSummary.Completed {
-		t.Fatalf("trace summary = %#v, want completed summary", result.TraceSummary)
-	}
-
 	run, err := store.LoadRun(context.Background(), runID)
 	if err != nil {
 		t.Fatalf("LoadRun: %v", err)

@@ -9,7 +9,7 @@ slug: runtime-execution
 
 ## 现状
 
-Acorn 的执行层由 `internal/runtime.Executor` 启动 run，并把 run 的 root orchestration mode 写入 persisted truth。用户执行入口来自 authenticated `/v1` remote client contract；operator CLI 只保留 `doctor`、`serve`、`pair`、skills、memory rebuild 等运维/诊断命令。app container 在 `internal/app/container.go` 装配 runtime executor、trace service 和 web dependencies，Web handler 只调用 app/runtime service，不直接拼 runtime 状态。
+Acorn 的执行层由 `internal/runtime.Executor` 启动 run，并把 run 的 root orchestration mode 写入 persisted truth。用户执行入口来自 authenticated `/v1` remote client contract；operator CLI 只保留 `doctor`、`serve`、`pair`、skills、memory rebuild 等运维/诊断命令。app container 在 `internal/app/container.go` 装配 runtime executor、run resume service 和 web dependencies，Web handler 只调用 app/runtime service，不直接拼 runtime 状态。
 
 ## Run lifecycle
 
