@@ -142,10 +142,6 @@ func normalizeSpec(ctx context.Context, spec ToolSpec) (ToolSpec, error) {
 	if err := spec.ToolContract.Validate(); err != nil {
 		return ToolSpec{}, err
 	}
-	// Apply Compressible default based on Category when not explicitly set.
-	if spec.Compressible == nil {
-		spec.Compressible = new(defaultCompressibleForCategory(spec.Category))
-	}
 	if spec.Enabled() && spec.Tool == nil {
 		return ToolSpec{}, fmt.Errorf("enabled tool spec %q is missing tool implementation", spec.Name)
 	}
@@ -154,28 +150,4 @@ func normalizeSpec(ctx context.Context, spec ToolSpec) (ToolSpec, error) {
 
 func errUnknownParallelPolicy(raw string) error {
 	return fmt.Errorf("unknown tool parallel policy %q: valid values are readonly|read_only, write_scoped, never_parallel", raw)
-}
-
-// defaultCompressibleForCategory returns the default Compressible value based on tool category.
-func defaultCompressibleForCategory(cat ToolCategory) bool {
-	switch cat {
-	case ToolCategoryRead, ToolCategoryInspect, ToolCategoryExecute:
-		return true
-	case ToolCategoryWrite, ToolCategoryMemory, ToolCategorySkill, ToolCategoryIntegration:
-		return false
-	default:
-		return false
-	}
-}
-
-// IsCompressible reports whether the named tool is safe to clear during microcompact.
-func (c *Catalog) IsCompressible(name string) bool {
-	spec, ok := c.Find(name)
-	if !ok {
-		return false
-	}
-	if spec.Compressible != nil {
-		return *spec.Compressible
-	}
-	return defaultCompressibleForCategory(spec.Category)
 }

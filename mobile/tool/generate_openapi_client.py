@@ -17,8 +17,6 @@ REQUIRED_PATHS = [
     "/healthz",
     "/v1/devices:pair",
     "/v1/inbox",
-    "/v1/devices/{device_id}/push-token",
-    "/v1/devices/{device_id}/push-token/{provider}",
     "/v1/pending-actions",
     "/v1/pending-actions/{action_id}",
     "/v1/pending-actions/{action_id}:decide",
@@ -42,8 +40,6 @@ REQUIRED_SCHEMAS = [
     "PairDeviceRequest",
     "PairDeviceResponse",
     "Device",
-    "RegisterDevicePushTokenRequest",
-    "DevicePushToken",
     "InboxResponse",
     "RunSummary",
     "PendingActionSummary",
@@ -141,19 +137,6 @@ class AcornApiClient {
   Future<PairDeviceResponse> pairDevice(PairDeviceRequest request) async {
     final json = await _postJson('/v1/devices:pair', request.toJson(), authenticated: false);
     return PairDeviceResponse.fromJson(json);
-  }
-
-  Future<DevicePushToken> registerDevicePushToken(String deviceId, RegisterDevicePushTokenRequest request) async {
-    final json = await _putJson('/v1/devices/${Uri.encodeComponent(deviceId)}/push-token', request.toJson());
-    return DevicePushToken.fromJson(json);
-  }
-
-  Future<void> revokeDevicePushToken(String deviceId, String provider) async {
-    final response = await _http.delete(
-      _uri('/v1/devices/${Uri.encodeComponent(deviceId)}/push-token/${Uri.encodeComponent(provider)}', null),
-      headers: _headers(true),
-    );
-    _decodeEmptyResponse(response);
   }
 
   Future<InboxResponse> getInbox() async {
@@ -345,19 +328,6 @@ class AcornApiClient {
     return _decodeResponse(response);
   }
 
-  Future<Map<String, dynamic>> _putJson(
-    String path,
-    Map<String, dynamic> body, {
-    bool authenticated = true,
-  }) async {
-    final response = await _http.put(
-      _uri(path, null),
-      headers: _headers(authenticated),
-      body: jsonEncode(body),
-    );
-    return _decodeResponse(response);
-  }
-
   Uri _uri(String path, Map<String, String>? query) {
     final base = Uri.parse(_serverUrl);
     final normalizedPath = path.startsWith('/') ? path : '/$path';
@@ -471,47 +441,6 @@ class PairDeviceResponse {
     return PairDeviceResponse(
       device: Device.fromJson(_map(json['device'])),
       accessToken: _string(json['access_token']),
-    );
-  }
-}
-
-class RegisterDevicePushTokenRequest {
-  const RegisterDevicePushTokenRequest({
-    required this.provider,
-    required this.token,
-    this.platform,
-  });
-
-  final String provider;
-  final String token;
-  final String? platform;
-
-  Map<String, dynamic> toJson() => {
-        'provider': provider,
-        if (platform != null && platform!.trim().isNotEmpty) 'platform': platform!.trim(),
-        'token': token,
-      };
-}
-
-class DevicePushToken {
-  const DevicePushToken({
-    required this.deviceId,
-    required this.provider,
-    required this.platform,
-    required this.updatedAt,
-  });
-
-  final String deviceId;
-  final String provider;
-  final String platform;
-  final String updatedAt;
-
-  factory DevicePushToken.fromJson(Map<String, dynamic> json) {
-    return DevicePushToken(
-      deviceId: _string(json['device_id']),
-      provider: _string(json['provider']),
-      platform: _string(json['platform']),
-      updatedAt: _string(json['updated_at']),
     );
   }
 }

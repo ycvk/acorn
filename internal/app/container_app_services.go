@@ -45,7 +45,6 @@ func buildContainerAppServices(cfg *config.Config, store containerAppStore, deps
 	container.capabilities = NewCapabilitiesService(cfg, container.skills, mcpprovider.Doctor, deps.runnerFactory)
 	container.deviceAuth = NewDeviceAuthService(store)
 	container.inbox = NewInboxService(store, container.capabilities)
-	container.notifications = deps.notificationService
 
 	return container, nil
 }

@@ -50,7 +50,6 @@ func runServe(ctx context.Context, args []string) error {
 		Capabilities:  container.Capabilities(),
 		DeviceAuth:    container.DeviceAuth(),
 		Inbox:         container.Inbox(),
-		Notifications: container.Notifications(),
 		Config:        container.Config(),
 		Logger: slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
 			Level: slog.LevelInfo,

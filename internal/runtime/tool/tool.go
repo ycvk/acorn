@@ -5,21 +5,16 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 	"sync"
-	"time"
 
-	"github.com/cloudwego/eino/adk"
 	einotool "github.com/cloudwego/eino/components/tool"
 	toolutils "github.com/cloudwego/eino/components/tool/utils"
-	"github.com/cloudwego/eino/compose"
 	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/contextplane"
 	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
-	"github.com/ycvk/acorn/internal/stream"
 	"github.com/ycvk/acorn/internal/tooling"
 )
 
@@ -96,91 +91,19 @@ func (t *auditedTool) InvokableRunWithProgress(ctx context.Context, argumentsInJ
 }
 
 func (t *auditedTool) run(ctx context.Context, argumentsInJSON string, emit tooling.ToolProgressEmitter, opts ...einotool.Option) (string, error) {
-	runID := getRunID(ctx)
-	startedAt := time.Now().UTC()
-	if runID != "" {
-		if _, err := stream.AppendStreamItem(ctx, t.store, stream.StreamSinkFromContext(ctx), stream.StreamItem{
-			RunID:     runID,
-			Kind:      stream.StreamKindToolCallStarted,
-			CreatedAt: startedAt,
-			Payload:   map[string]any{"tool_call": t.streamToolCall(ctx, argumentsInJSON)},
-		}); err != nil {
-			return "", fmt.Errorf("append tool.call.started audit event: %w", err)
-		}
-	}
-
 	if t.validator != nil {
 		validationErrors, validateErr := t.validator.validate(argumentsInJSON)
 		if validateErr != nil {
-			output := validateErr.Error()
-			if runID != "" {
-				if _, auditErr := stream.AppendStreamItem(ctx, t.store, stream.StreamSinkFromContext(ctx), stream.StreamItem{
-					RunID:     runID,
-					Kind:      stream.StreamKindToolCallFailed,
-					CreatedAt: time.Now().UTC(),
-					Payload:   map[string]any{"tool_call": t.failedStreamToolCall(ctx, argumentsInJSON, output, time.Since(startedAt).Milliseconds())},
-				}); auditErr != nil {
-					return "", fmt.Errorf("append validation error audit event: %w", auditErr)
-				}
-			}
-			return output, fmt.Errorf("validate arguments for %q: %w", t.spec.Name, validateErr)
+			return validateErr.Error(), fmt.Errorf("validate arguments for %q: %w", t.spec.Name, validateErr)
 		}
 		if len(validationErrors) > 0 {
 			output := formatValidationError(t.spec.Name, validationErrors)
-			if runID != "" {
-				if _, auditErr := stream.AppendStreamItem(ctx, t.store, stream.StreamSinkFromContext(ctx), stream.StreamItem{
-					RunID:     runID,
-					Kind:      stream.StreamKindToolCallFailed,
-					CreatedAt: time.Now().UTC(),
-					Payload:   map[string]any{"tool_call": t.failedStreamToolCall(ctx, argumentsInJSON, output, time.Since(startedAt).Milliseconds())},
-				}); auditErr != nil {
-					return "", fmt.Errorf("append tool.call.failed validation event: %w", auditErr)
-				}
-			}
 			return output, fmt.Errorf("tool %q argument validation failed", t.spec.Name)
 		}
 	}
 
 	output, err := t.invoke(ctx, argumentsInJSON, emit, opts...)
-	durationMS := time.Since(startedAt).Milliseconds()
-	if runID == "" {
-		return output, err
-	}
-
-	if interruptCount, interrupted := interruptContextCount(err); interrupted {
-		if _, auditErr := stream.AppendStreamItem(ctx, t.store, stream.StreamSinkFromContext(ctx), stream.StreamItem{
-			RunID:     runID,
-			Kind:      stream.StreamKindToolCallInterrupted,
-			CreatedAt: time.Now().UTC(),
-			Payload:   map[string]any{"tool_call": t.interruptedStreamToolCall(ctx, argumentsInJSON, err.Error(), durationMS, interruptCount)},
-		}); auditErr != nil {
-			return output, errors.Join(err, fmt.Errorf("append tool.call.interrupted audit event: %w", auditErr))
-		}
-		return output, err
-	}
-
-	if err != nil {
-		if _, auditErr := stream.AppendStreamItem(ctx, t.store, stream.StreamSinkFromContext(ctx), stream.StreamItem{
-			RunID:     runID,
-			Kind:      stream.StreamKindToolCallFailed,
-			CreatedAt: time.Now().UTC(),
-			Payload:   map[string]any{"tool_call": t.failedStreamToolCall(ctx, argumentsInJSON, err.Error(), durationMS)},
-		}); auditErr != nil {
-			return output, errors.Join(err, fmt.Errorf("append tool.call.failed audit event: %w", auditErr))
-		}
-		return output, err
-	}
-
-	if _, err := stream.AppendStreamItem(ctx, t.store, stream.StreamSinkFromContext(ctx), stream.StreamItem{
-		RunID:     runID,
-		Kind:      stream.StreamKindToolCallSucceeded,
-		CreatedAt: time.Now().UTC(),
-		Payload:   map[string]any{"tool_call": t.succeededStreamToolCall(ctx, argumentsInJSON, output, durationMS)},
-	}); err != nil {
-		return output, fmt.Errorf("append tool.call.succeeded audit event: %w", err)
-	}
-
-	return output, nil
+	return output, err
 }
 
 func progressToolFromBase(tool einotool.BaseTool) tooling.ProgressTool {
@@ -196,56 +119,6 @@ func (t *auditedTool) invoke(ctx context.Context, argumentsInJSON string, emit t
 		return t.progress.InvokableRunWithProgress(ctx, argumentsInJSON, emit, opts...)
 	}
 	return t.invokable.InvokableRun(ctx, argumentsInJSON, opts...)
-}
-
-func (t *auditedTool) streamToolCall(ctx context.Context, argumentsInJSON string) *stream.StreamToolCall {
-	return &stream.StreamToolCall{
-		Provider:      t.spec.Source,
-		Name:          t.spec.Name,
-		CallID:        ToolAuditCallID(ctx),
-		ArgumentsJSON: truncateAudit(argumentsInJSON, 8000),
-	}
-}
-
-func (t *auditedTool) failedStreamToolCall(ctx context.Context, argumentsInJSON string, message string, durationMS int64) *stream.StreamToolCall {
-	toolCall := t.streamToolCall(ctx, argumentsInJSON)
-	toolCall.Error = message
-	toolCall.DurationMS = durationMS
-	return toolCall
-}
-
-func (t *auditedTool) succeededStreamToolCall(ctx context.Context, argumentsInJSON string, output string, durationMS int64) *stream.StreamToolCall {
-	toolCall := t.streamToolCall(ctx, argumentsInJSON)
-	toolCall.Output = truncateAudit(output, 12000)
-	toolCall.DurationMS = durationMS
-	return toolCall
-}
-
-func (t *auditedTool) interruptedStreamToolCall(ctx context.Context, argumentsInJSON string, message string, durationMS int64, interruptCount int) *stream.StreamToolCall {
-	toolCall := t.failedStreamToolCall(ctx, argumentsInJSON, message, durationMS)
-	toolCall.InterruptContexts = interruptCount
-	return toolCall
-}
-
-func truncateAudit(value string, limit int) string {
-	if limit <= 0 || len(value) <= limit {
-		return value
-	}
-	return value[:limit] + "..."
-}
-
-func interruptContextCount(err error) (int, bool) {
-	if err == nil {
-		return 0, false
-	}
-	if interruptInfo, ok := compose.ExtractInterruptInfo(err); ok {
-		return len(interruptInfo.InterruptContexts), true
-	}
-	interruptSignal, ok := errors.AsType[*adk.InterruptSignal](err)
-	if ok && interruptSignal != nil {
-		return 1, true
-	}
-	return 0, false
 }
 
 func BuildAuditedTools(

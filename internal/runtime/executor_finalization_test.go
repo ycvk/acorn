@@ -12,8 +12,10 @@ import (
 
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/events"
+	storecore "github.com/ycvk/acorn/internal/store"
 	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
 	"github.com/ycvk/acorn/internal/stream"
+	"github.com/ycvk/acorn/internal/workspace"
 )
 
 func TestFinishCollectedRunSuccessPersistsTerminalEvent(t *testing.T) {
@@ -180,16 +182,21 @@ func createFinalizationRun(t *testing.T, ctx context.Context, store *storesqlite
 
 func appendSuccessfulToolEvent(t *testing.T, ctx context.Context, store *storesqlite.Store, runID, name, argumentsJSON string) {
 	t.Helper()
-	if _, err := stream.AppendStreamItem(ctx, store, nil, stream.StreamItem{
-		RunID: runID,
-		Kind:  stream.StreamKindToolCallSucceeded,
-		Payload: map[string]any{"tool_call": &stream.StreamToolCall{
-			Name:          name,
-			ArgumentsJSON: argumentsJSON,
-			Output:        "ok",
+	if _, err := store.Append(ctx, storecore.ToolResultAppendRequest{
+		RunID:         runID,
+		SessionID:     "session-history",
+		TurnIndex:     1,
+		CallID:        "call_" + name,
+		ToolName:      name,
+		ArgumentsJSON: argumentsJSON,
+		Status:        storecore.ToolResultStatusSucceeded,
+		FullText:      "ok",
+		SideEffects: []storecore.SideEffectRef{{
+			Kind: workspace.MutationCheckpointEffect,
+			Path: "internal/runtime/executor_terminal.go",
 		}},
 	}); err != nil {
-		t.Fatalf("append tool_call_succeeded: %v", err)
+		t.Fatalf("append tool result: %v", err)
 	}
 }
 

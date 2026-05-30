@@ -72,7 +72,7 @@ func (s *fakeAuditTestStore) LoadEvents(_ context.Context, runID string) ([]even
 	return append([]events.EventRecord(nil), s.events[runID]...), nil
 }
 
-func TestAuditedToolRecordsSucceededEvent(t *testing.T) {
+func TestAuditedToolDoesNotPersistToolCallEvents(t *testing.T) {
 	store := openAuditTestStore(t)
 	tool := mustInferTool(t, "echo", func(ctx context.Context, input map[string]any) (string, error) {
 		return "ok", nil
@@ -96,11 +96,8 @@ func TestAuditedToolRecordsSucceededEvent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load events: %v", err)
 	}
-	if got, want := len(evts), 2; got != want {
-		t.Fatalf("expected %d audit events, got %d", want, got)
-	}
-	if evts[0].Kind != "tool.call.started" || evts[1].Kind != "tool.call.succeeded" {
-		t.Fatalf("unexpected event kinds: %s, %s", evts[0].Kind, evts[1].Kind)
+	if len(evts) != 0 {
+		t.Fatalf("expected no persisted tool call audit events, got %#v", evts)
 	}
 }
 
@@ -132,18 +129,12 @@ func TestAuditedToolForwardsProgressWithoutPersistingChunks(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load events: %v", err)
 	}
-	if got, want := len(evts), 2; got != want {
-		t.Fatalf("expected %d audit events, got %d", want, got)
-	}
-	wantKinds := []string{"tool.call.started", "tool.call.succeeded"}
-	for i, want := range wantKinds {
-		if evts[i].Kind != want {
-			t.Fatalf("event[%d] = %s, want %s", i, evts[i].Kind, want)
-		}
+	if len(evts) != 0 {
+		t.Fatalf("expected no persisted tool call audit events, got %#v", evts)
 	}
 }
 
-func TestAuditedToolRecordsInterruptedEvent(t *testing.T) {
+func TestAuditedToolPropagatesInterruptWithoutPersistingEvents(t *testing.T) {
 	store := openAuditTestStore(t)
 	tool := mustInferTool(t, "pause_tool", func(ctx context.Context, input map[string]any) (string, error) {
 		return "", einotool.Interrupt(ctx, "need approval")
@@ -164,18 +155,8 @@ func TestAuditedToolRecordsInterruptedEvent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load events: %v", err)
 	}
-	if got, want := len(evts), 2; got != want {
-		t.Fatalf("expected %d audit events, got %d", want, got)
-	}
-	if evts[1].Kind != "tool.call.interrupted" {
-		t.Fatalf("unexpected interrupt event kind: %s", evts[1].Kind)
-	}
-	payload := evts[1].Payload.(map[string]any)
-	if _, exists := payload["tool_call"]; exists {
-		t.Fatalf("interrupt event payload should be canonical top-level shape, got %#v", payload)
-	}
-	if !strings.Contains(fmt.Sprint(payload["error"]), "need approval") {
-		t.Fatalf("unexpected interrupt error payload: %#v", payload)
+	if len(evts) != 0 {
+		t.Fatalf("expected no persisted tool call audit events, got %#v", evts)
 	}
 }
 
@@ -394,21 +375,8 @@ func TestValidationBlocksInvalidArguments(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load events: %v", err)
 	}
-	if got, want := len(evts), 2; got != want {
-		t.Fatalf("expected %d audit events, got %d", want, got)
-	}
-	if evts[0].Kind != "tool.call.started" {
-		t.Fatalf("expected started event, got %s", evts[0].Kind)
-	}
-	if evts[1].Kind != "tool.call.failed" {
-		t.Fatalf("expected tool.call.failed event, got %s", evts[1].Kind)
-	}
-	payload := evts[1].Payload.(map[string]any)
-	if _, exists := payload["tool_call"]; exists {
-		t.Fatalf("failed event payload should be canonical top-level shape, got %#v", payload)
-	}
-	if !strings.Contains(fmt.Sprint(payload["error"]), "validation_failed") {
-		t.Fatalf("failed event does not expose validation failure: %#v", evts[1].Payload)
+	if len(evts) != 0 {
+		t.Fatalf("expected no persisted tool call audit events, got %#v", evts)
 	}
 }
 
@@ -474,11 +442,8 @@ func TestValidationFailureThroughSafeParallelNodeIsModelVisibleFailedToolResult(
 	if err != nil {
 		t.Fatalf("load events: %v", err)
 	}
-	if got, want := len(evts), 2; got != want {
-		t.Fatalf("expected %d audit events, got %d", want, got)
-	}
-	if evts[0].Kind != "tool.call.started" || evts[1].Kind != "tool.call.failed" {
-		t.Fatalf("unexpected audit events: %s, %s", evts[0].Kind, evts[1].Kind)
+	if len(evts) != 0 {
+		t.Fatalf("expected no persisted tool call audit events, got %#v", evts)
 	}
 }
 
@@ -509,11 +474,8 @@ func TestValidationAllowsValidArguments(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load events: %v", err)
 	}
-	if got, want := len(evts), 2; got != want {
-		t.Fatalf("expected %d audit events, got %d", want, got)
-	}
-	if evts[0].Kind != "tool.call.started" || evts[1].Kind != "tool.call.succeeded" {
-		t.Fatalf("unexpected event kinds: %s, %s", evts[0].Kind, evts[1].Kind)
+	if len(evts) != 0 {
+		t.Fatalf("expected no persisted tool call audit events, got %#v", evts)
 	}
 }
 
@@ -552,17 +514,7 @@ func TestValidationFailuresDoNotCreateRepairState(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load events: %v", err)
 	}
-	if got, want := len(evts), 6; got != want {
-		t.Fatalf("expected %d audit events, got %d", want, got)
-	}
-	wantKinds := []string{
-		"tool.call.started", "tool.call.failed",
-		"tool.call.started", "tool.call.failed",
-		"tool.call.started", "tool.call.succeeded",
-	}
-	for i, want := range wantKinds {
-		if evts[i].Kind != want {
-			t.Fatalf("event[%d]: expected %s, got %s", i, want, evts[i].Kind)
-		}
+	if len(evts) != 0 {
+		t.Fatalf("expected no persisted tool call audit events, got %#v", evts)
 	}
 }

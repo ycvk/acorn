@@ -141,8 +141,17 @@ func TestExecuteMessagesDirectResponseExecutesToolLoop(t *testing.T) {
 	if lookup.lastCallCount() != 1 {
 		t.Fatalf("tool call count = %d, want 1", lookup.lastCallCount())
 	}
-	toolStartedIndex := -1
-	toolSucceededIndex := -1
+	results, err := store.ListByRun(ctx, result.RunID)
+	if err != nil {
+		t.Fatalf("ListByRun: %v", err)
+	}
+	if got, want := len(results), 1; got != want {
+		t.Fatalf("tool results = %d, want %d", got, want)
+	}
+	if results[0].ToolName != "lookup" || results[0].Status != storecore.ToolResultStatusSucceeded {
+		t.Fatalf("tool result = %+v, want lookup succeeded", results[0])
+	}
+	toolAuditCount := 0
 	messageIndex := -1
 	completedIndex := -1
 	for _, record := range records {
@@ -150,14 +159,6 @@ func TestExecuteMessagesDirectResponseExecutesToolLoop(t *testing.T) {
 			t.Fatalf("direct response emitted subagent event: %s", record.Kind)
 		}
 		switch record.Kind {
-		case "tool.call.started":
-			if toolStartedIndex < 0 {
-				toolStartedIndex = int(record.Sequence)
-			}
-		case "tool.call.succeeded":
-			if toolSucceededIndex < 0 {
-				toolSucceededIndex = int(record.Sequence)
-			}
 		case "agent.message":
 			if messageIndex < 0 && strings.Contains(fmt.Sprint(record.Payload), "lookup result: acorn") {
 				messageIndex = int(record.Sequence)
@@ -166,16 +167,17 @@ func TestExecuteMessagesDirectResponseExecutesToolLoop(t *testing.T) {
 			if completedIndex < 0 {
 				completedIndex = int(record.Sequence)
 			}
+		default:
+			if strings.HasPrefix(record.Kind, "tool.call") {
+				toolAuditCount++
+			}
 		}
 	}
-	if toolStartedIndex <= 0 {
-		t.Fatal("direct response did not emit tool.call.started")
+	if toolAuditCount != 0 {
+		t.Fatalf("expected no persisted tool.call audit events, got %d", toolAuditCount)
 	}
-	if toolSucceededIndex <= toolStartedIndex {
-		t.Fatalf("tool.call.succeeded sequence = %d, want after started %d", toolSucceededIndex, toolStartedIndex)
-	}
-	if messageIndex <= toolSucceededIndex {
-		t.Fatalf("agent.message sequence = %d, want after tool success %d", messageIndex, toolSucceededIndex)
+	if messageIndex <= 0 {
+		t.Fatal("direct response did not emit agent.message")
 	}
 	if completedIndex <= messageIndex {
 		t.Fatalf("run.completed sequence = %d, want after agent.message %d", completedIndex, messageIndex)
@@ -711,29 +713,28 @@ func TestExecuteMessagesDirectResponseDoesNotPersistToolProgressChunks(t *testin
 	if err != nil {
 		t.Fatalf("LoadEvents: %v", err)
 	}
-
-	var startedSeq, progressSeqs, succeededSeq int
-	for _, r := range records {
-		switch r.Kind {
-		case "tool.call.started":
-			startedSeq = int(r.Sequence)
-		case "tool.call.progress":
-			progressSeqs++
-		case "tool.call.succeeded":
-			succeededSeq = int(r.Sequence)
-		}
+	results, err := store.ListByRun(ctx, result.RunID)
+	if err != nil {
+		t.Fatalf("ListByRun: %v", err)
 	}
-	if startedSeq == 0 {
-		t.Fatal("expected tool.call.started event")
+	if got, want := len(results), 1; got != want {
+		t.Fatalf("tool results = %d, want %d", got, want)
+	}
+	if results[0].ToolName != "progress_tool" || results[0].Status != storecore.ToolResultStatusSucceeded {
+		t.Fatalf("tool result = %+v, want progress_tool succeeded", results[0])
+	}
+
+	var progressSeqs int
+	for _, r := range records {
+		if strings.HasPrefix(r.Kind, "tool.call") {
+			t.Fatalf("unexpected persisted tool audit event: %s", r.Kind)
+		}
+		if r.Kind == "tool.call.progress" {
+			progressSeqs++
+		}
 	}
 	if progressSeqs != 0 {
 		t.Fatalf("expected no tool.call.progress events, got %d", progressSeqs)
-	}
-	if succeededSeq == 0 {
-		t.Fatal("expected tool.call.succeeded event")
-	}
-	if succeededSeq <= startedSeq {
-		t.Fatalf("succeeded sequence %d should be after started %d", succeededSeq, startedSeq)
 	}
 }
 

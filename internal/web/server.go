@@ -55,11 +55,6 @@ type InboxService interface {
 	Load(ctx context.Context) (*app.MobileInbox, error)
 }
 
-type NotificationService interface {
-	RegisterDevicePushToken(ctx context.Context, auth *app.DeviceAuthContext, input app.DevicePushTokenInput) (*app.DevicePushTokenView, error)
-	RevokeDevicePushToken(ctx context.Context, auth *app.DeviceAuthContext, deviceID, provider string) error
-}
-
 type MemoryService interface {
 	ListFacts(ctx context.Context, selection memorymodule.RecordSelection) ([]memorymodule.Record, error)
 	ListSkills(ctx context.Context, selection memorymodule.RecordSelection) ([]memorymodule.Record, error)
@@ -92,7 +87,6 @@ type Dependencies struct {
 	Capabilities  CapabilityService
 	DeviceAuth    DeviceAuthService
 	Inbox         InboxService
-	Notifications NotificationService
 	Logger        *slog.Logger
 	Config        *config.Config
 }
@@ -107,7 +101,6 @@ type Server struct {
 	capabilities  CapabilityService
 	deviceAuth    DeviceAuthService
 	inbox         InboxService
-	notifications NotificationService
 	logger        *slog.Logger
 	cfg           *config.Config
 }

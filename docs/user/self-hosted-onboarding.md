@@ -257,7 +257,6 @@ sudo systemctl start acorn
 
 - Host commands are host dependencies. If the model tries to run a command that is not installed on the VPS, the command fails explicitly when used.
 - Web search requires a configured Tavily API key. Browser actions require an operator-installed Chrome/Chromium executable.
-- The backend records notification wake-up facts and push delivery status, but concrete APNs/FCM network adapters are not configured by this binary service path.
-- The Flutter app does not yet include platform notification plugins.
+- The mobile app refreshes backend truth through `/v1/inbox`, RunDetail, and RunEvent cursors; this release path does not include APNs/FCM push notification registration.
 - Mobile is a remote control surface. It does not execute runs locally, own memory truth, or merge offline runtime state.
 - The old React/Vite Web client has been removed; Flutter mobile is the product control surface.

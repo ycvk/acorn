@@ -71,13 +71,3 @@ type deviceAuthStore interface {
 	TouchDevice(ctx context.Context, deviceID string, seenAt time.Time) error
 	RevokeDevice(ctx context.Context, deviceID string, revokedAt time.Time) error
 }
-
-type notificationStore interface {
-	UpsertDevicePushToken(ctx context.Context, token *store.DevicePushToken) (*store.DevicePushToken, error)
-	LoadDevicePushToken(ctx context.Context, deviceID, provider string) (*store.DevicePushToken, error)
-	RevokeDevicePushToken(ctx context.Context, deviceID, provider string, revokedAt time.Time) error
-	ListActiveDevicePushTokens(ctx context.Context) ([]store.DevicePushToken, error)
-	CreateNotification(ctx context.Context, notification *store.Notification) error
-	CreateNotificationDelivery(ctx context.Context, delivery *store.NotificationDelivery) error
-	UpdateNotificationDeliveryStatus(ctx context.Context, deliveryID, status, errorText string, updatedAt time.Time) error
-}

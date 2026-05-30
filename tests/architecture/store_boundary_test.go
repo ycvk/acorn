@@ -23,10 +23,9 @@ var sqliteImportAllowlist = map[string]struct{}{
 	"internal/providers/mcp/elicitation_handler_test.go":   {},
 	"internal/tools/tools_test.go":                         {},
 	// App/service integration tests validate persisted /v1 projections and
-	// notification/session state against the SQLite store contract.
+	// session state against the SQLite store contract.
 	"internal/app/client_service_test.go":         {},
 	"internal/app/helpers_test.go":                {},
-	"internal/app/notification_service_test.go":   {},
 	"internal/app/pending_action_service_test.go": {},
 }
 

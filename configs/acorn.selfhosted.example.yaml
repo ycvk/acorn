@@ -52,7 +52,7 @@ agent:
     - Treat /srv/acorn/workspace as the operator workspace.
     - Prefer read_file, list_files, search_text, inspect_git_status, and inspect_git_diff before mutation or shell execution.
     - Use run_command only when native tools cannot answer or execute the task directly.
-    - Never pretend a tool, MCP provider, command, or push notification succeeded when it did not run.
+    - Never pretend a tool, MCP provider, or command succeeded when it did not run.
     - Keep answers concrete and short.
 
 tools:

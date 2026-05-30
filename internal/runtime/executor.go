@@ -2,7 +2,6 @@ package runtime
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -66,56 +65,26 @@ func NewExecutorWithRunRuntimeAndController(cfg *config.Config, store ExecutorSt
 	return exec, nil
 }
 
-func archiveSignalsFromEvents(records []events.EventRecord) ([]string, []string) {
+func archiveSignalsFromToolResults(records []store.ToolResultRecord) []string {
 	pathSet := make(map[string]struct{})
-	toolSet := make(map[string]struct{})
 	for _, record := range records {
-		payload, ok := record.Payload.(map[string]any)
-		if !ok {
-			continue
-		}
-		toolName := strings.TrimSpace(ExtractString(payload["tool_name"]))
-		argumentsJSON := strings.TrimSpace(ExtractString(payload["arguments_json"]))
-		if toolName == "" && argumentsJSON == "" {
-			if toolCallMap, ok := payload["tool_call"].(map[string]any); ok {
-				toolName = strings.TrimSpace(ExtractString(toolCallMap["name"]))
-				argumentsJSON = strings.TrimSpace(ExtractString(toolCallMap["arguments_json"]))
-			} else if toolCall, ok := payload["tool_call"].(*stream.StreamToolCall); ok && toolCall != nil {
-				toolName = strings.TrimSpace(toolCall.Name)
-				argumentsJSON = strings.TrimSpace(toolCall.ArgumentsJSON)
-			}
-		}
-		if toolName == "" && strings.HasPrefix(record.Kind, "tool.call") {
-			toolName = strings.TrimSpace(ExtractString(payload["name"]))
-		}
-		if toolName != "" {
-			toolSet[toolName] = struct{}{}
-		}
-		if argumentsJSON != "" {
-			for _, path := range extractTouchedPaths(argumentsJSON) {
+		for _, effect := range record.SideEffects {
+			if path := strings.TrimSpace(effect.Path); path != "" {
 				pathSet[path] = struct{}{}
 			}
 		}
 	}
-	return sortedKeys(pathSet), sortedKeys(toolSet)
+	return sortedKeys(pathSet)
 }
 
-func extractTouchedPaths(argumentsJSON string) []string {
-	if strings.TrimSpace(argumentsJSON) == "" {
-		return nil
-	}
-	var payload map[string]any
-	if err := json.Unmarshal([]byte(argumentsJSON), &payload); err != nil {
-		return nil
-	}
-	paths := make([]string, 0, 2)
-	for _, key := range []string{"path", "file_path", "target", "root_dir", "work_dir"} {
-		value := strings.TrimSpace(ExtractString(payload[key]))
-		if value != "" {
-			paths = append(paths, value)
+func toolNamesFromToolResults(records []store.ToolResultRecord) []string {
+	toolSet := make(map[string]struct{})
+	for _, record := range records {
+		if toolName := strings.TrimSpace(record.ToolName); toolName != "" {
+			toolSet[toolName] = struct{}{}
 		}
 	}
-	return paths
+	return sortedKeys(toolSet)
 }
 
 func sortedKeys(values map[string]struct{}) []string {
@@ -593,11 +562,12 @@ func (e *Executor) archiveRun(ctx context.Context, runID string, runStatus event
 	if err != nil {
 		return fmt.Errorf("archive run: load run: %w", err)
 	}
-	records, err := e.store.LoadEvents(ctx, runID)
+	records, err := e.store.ListByRun(ctx, runID)
 	if err != nil {
-		return fmt.Errorf("archive run: load events: %w", err)
+		return fmt.Errorf("archive run: list tool results: %w", err)
 	}
-	touchedPaths, toolNames := archiveSignalsFromEvents(records)
+	touchedPaths := archiveSignalsFromToolResults(records)
+	toolNames := toolNamesFromToolResults(records)
 	archive := model.RunArchive{
 		RunID:         run.RunID,
 		SessionID:     run.SessionID,

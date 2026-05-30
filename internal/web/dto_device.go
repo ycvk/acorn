@@ -30,19 +30,6 @@ type DeviceListResponse struct {
 	Items []DeviceDTO `json:"items"`
 }
 
-type RegisterDevicePushTokenRequest struct {
-	Provider string `json:"provider"`
-	Platform string `json:"platform"`
-	Token    string `json:"token"`
-}
-
-type DevicePushTokenDTO struct {
-	DeviceID  string `json:"device_id"`
-	Provider  string `json:"provider"`
-	Platform  string `json:"platform"`
-	UpdatedAt string `json:"updated_at"`
-}
-
 func deviceDTOFromView(view app.DeviceView) DeviceDTO {
 	return DeviceDTO{
 		DeviceID:   view.DeviceID,
@@ -51,14 +38,5 @@ func deviceDTOFromView(view app.DeviceView) DeviceDTO {
 		CreatedAt:  view.CreatedAt.UTC().Format(time.RFC3339Nano),
 		LastSeenAt: view.LastSeenAt.UTC().Format(time.RFC3339Nano),
 		RevokedAt:  optionalDeviceTime(view.RevokedAt),
-	}
-}
-
-func devicePushTokenDTOFromView(view app.DevicePushTokenView) DevicePushTokenDTO {
-	return DevicePushTokenDTO{
-		DeviceID:  view.DeviceID,
-		Provider:  view.Provider,
-		Platform:  view.Platform,
-		UpdatedAt: view.UpdatedAt.UTC().Format(time.RFC3339Nano),
 	}
 }

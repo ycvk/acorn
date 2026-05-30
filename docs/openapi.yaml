@@ -96,59 +96,6 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
-  /v1/devices/{device_id}/push-token:
-    put:
-      tags: [devices]
-      summary: Register the authenticated device push token
-      operationId: clientRegisterDevicePushToken
-      parameters:
-        - $ref: '#/components/parameters/DeviceID'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/RegisterDevicePushTokenRequest'
-      responses:
-        '200':
-          description: Push token registered without echoing the token value
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/DevicePushToken'
-        '400':
-          $ref: '#/components/responses/InvalidPushProvider'
-        '401':
-          $ref: '#/components/responses/Unauthenticated'
-        '403':
-          $ref: '#/components/responses/DevicePushTokenForbidden'
-        '404':
-          $ref: '#/components/responses/DeviceNotFound'
-        '500':
-          $ref: '#/components/responses/InternalError'
-
-  /v1/devices/{device_id}/push-token/{provider}:
-    delete:
-      tags: [devices]
-      summary: Revoke the authenticated device push token for one provider
-      operationId: clientRevokeDevicePushToken
-      parameters:
-        - $ref: '#/components/parameters/DeviceID'
-        - $ref: '#/components/parameters/PushProvider'
-      responses:
-        '204':
-          description: Device push token revoked
-        '400':
-          $ref: '#/components/responses/InvalidPushProvider'
-        '401':
-          $ref: '#/components/responses/Unauthenticated'
-        '403':
-          $ref: '#/components/responses/DevicePushTokenForbidden'
-        '404':
-          $ref: '#/components/responses/DevicePushTokenNotFound'
-        '500':
-          $ref: '#/components/responses/InternalError'
-
   /v1/threads:
     get:
       tags: [client]
@@ -964,42 +911,6 @@ components:
                 error:
                   code: device_not_found
                   message: device not found
-    InvalidPushProvider:
-      description: Push provider is not supported
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-          examples:
-            invalidPushProvider:
-              value:
-                error:
-                  code: invalid_push_provider
-                  message: invalid push provider
-    DevicePushTokenForbidden:
-      description: Authenticated device cannot mutate another device's push token
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-          examples:
-            devicePushTokenForbidden:
-              value:
-                error:
-                  code: device_push_token_forbidden
-                  message: device push token belongs to another device
-    DevicePushTokenNotFound:
-      description: Device push token not found
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-          examples:
-            devicePushTokenNotFound:
-              value:
-                error:
-                  code: device_push_token_not_found
-                  message: device push token not found
     InvalidRequest:
       description: Invalid request
       content:
@@ -1235,36 +1146,6 @@ components:
           $ref: '#/components/schemas/Device'
         access_token:
           type: string
-
-    RegisterDevicePushTokenRequest:
-      type: object
-      additionalProperties: false
-      required: [provider, token]
-      properties:
-        provider:
-          type: string
-          enum: [apns, fcm]
-        platform:
-          type: string
-        token:
-          type: string
-          description: APNs or FCM token. Accepted on write and never returned.
-
-    DevicePushToken:
-      type: object
-      additionalProperties: false
-      required: [device_id, provider, platform, updated_at]
-      properties:
-        device_id:
-          type: string
-        provider:
-          type: string
-          enum: [apns, fcm]
-        platform:
-          type: string
-        updated_at:
-          type: string
-          format: date-time
 
     MemoryScope:
       type: object

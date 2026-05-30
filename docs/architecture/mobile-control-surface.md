@@ -158,24 +158,11 @@ FlutterClaw is used as an MIT-licensed seed/reference for native mobile shell or
 
 Acorn does not import FlutterClaw runtime code or domain architecture. The mobile app does not include FlutterClaw-style on-device gateway, local agent loop, provider registry, channel adapters, sandbox, MCP client, local tools, or mobile-owned memory. Those concerns remain backend-owned Acorn runtime facts.
 
-## Notification Wake-up
-
-The backend contract for push wake-up is active:
-
-```text
-PUT    /v1/devices/{device_id}/push-token
-DELETE /v1/devices/{device_id}/push-token/{provider}
-```
-
-The generated mobile API client exposes push-token register/revoke methods. The token write response never echoes the token value. Push is a wake-up signal only: payload data contains notification id, kind, and `reload=inbox`; the app must reload `/v1/inbox`, RunDetail, or RunEvent cursor for truth.
-
-The current Flutter UI has not integrated iOS/Android platform notification plugins yet. Backend notification records and delivery statuses are current truth; local notification rendering remains outside the current mobile shell.
-
 ## Data Rules
 
 - OpenAPI is the only wire contract. Mobile DTO/model changes must regenerate `mobile/lib/src/api/acorn_api.dart`.
 - Backend readiness, run status, pending approval state, thread/message state, and event timelines come from backend projection.
-- Backend push notification wake-up support is implemented, but mobile platform notification plugin integration is not.
+- Mobile refreshes backend truth through `/v1/inbox`, RunDetail, and RunEvent cursors; there is no active push-notification wire contract.
 - Offline-first run execution, local truth merge, embedded Web client, skill authoring, memory editing, provider config editing, and trace explorer are outside the current mobile shell.
 
 ## Verification

@@ -33,7 +33,6 @@ type ToolContract struct {
 	PlanPolicy    PlanPolicy
 	Loading       ToolLoadingPolicy
 	Execution     ToolExecutionPolicy
-	Compressible  *bool
 }
 
 func (c ToolContract) normalized() ToolContract {
