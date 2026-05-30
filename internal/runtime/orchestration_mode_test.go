@@ -13,7 +13,6 @@ import (
 	"time"
 
 	storecore "github.com/ycvk/acorn/internal/store"
-	"github.com/ycvk/acorn/internal/stream"
 
 	"github.com/cloudwego/eino/adk"
 	einomodel "github.com/cloudwego/eino/components/model"
@@ -338,23 +337,33 @@ func TestResumeDirectResponseRunCommandPauseWithoutExtraPayload(t *testing.T) {
 func latestRootInterruptIDsForTest(t *testing.T, records []events.EventRecord) []string {
 	t.Helper()
 	for i := len(records) - 1; i >= 0; i-- {
-		item, err := stream.ProjectEventToStreamItem(records[i])
-		if err != nil {
-			t.Fatalf("ProjectEventToStreamItem: %v", err)
-		}
-		if item.Kind != stream.StreamKindRunInterrupted {
+		record := records[i]
+		if record.Kind != "run.interrupted" {
 			continue
 		}
-		interrupt := item.GetInterrupt()
-		if interrupt == nil {
+		payload, ok := record.Payload.(map[string]any)
+		if !ok {
+			t.Fatalf("run.interrupted payload must be object: %#v", record.Payload)
+		}
+		interrupt, ok := payload["interrupt"].(map[string]any)
+		if !ok {
 			t.Fatal("run.interrupted payload missing interrupt")
 		}
-		ids := make([]string, 0, len(interrupt.Contexts))
-		for _, ctx := range interrupt.Contexts {
-			if !ctx.IsRootCause {
+		contexts, ok := interrupt["contexts"].([]any)
+		if !ok {
+			t.Fatalf("run.interrupted contexts must be array: %#v", interrupt["contexts"])
+		}
+		ids := make([]string, 0, len(contexts))
+		for _, ctxRaw := range contexts {
+			ctxItem, ok := ctxRaw.(map[string]any)
+			if !ok {
+				t.Fatalf("interrupt context must be object: %#v", ctxRaw)
+			}
+			isRootCause, _ := ctxItem["is_root_cause"].(bool)
+			if !isRootCause {
 				continue
 			}
-			id := strings.TrimSpace(ctx.ID)
+			id := strings.TrimSpace(ExtractString(ctxItem["id"]))
 			if id == "" {
 				t.Fatal("interrupt context id is empty")
 			}
@@ -611,12 +620,15 @@ func TestSubagentExecuteUsesRealChildRunIDInEvents(t *testing.T) {
 	}
 	var started, failed map[string]any
 	for _, record := range raw {
-		item := mustProjectEventToStreamItem(t, record)
-		if item.Kind == stream.StreamKindSubagentStarted {
-			started = item.Payload
+		payload, ok := record.Payload.(map[string]any)
+		if !ok {
+			t.Fatalf("event %q payload must be object: %#v", record.Kind, record.Payload)
 		}
-		if item.Kind == stream.StreamKindSubagentFailed {
-			failed = item.Payload
+		if record.Kind == "subagent.started" {
+			started = payload
+		}
+		if record.Kind == "subagent.failed" {
+			failed = payload
 		}
 	}
 	if started == nil || failed == nil {

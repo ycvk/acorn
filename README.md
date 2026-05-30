@@ -186,7 +186,7 @@ flutter build apk --debug
 | `cmd/acorn/` | CLI entrypoint |
 | `internal/app/` | Application container and client-facing services |
 | `internal/runtime/` | Executor lifecycle, run builder, root mode routing, and resume execution |
-| `internal/stream/` | Backend stream item schema, event projection, and trace summaries |
+| `internal/stream/` | Backend stream item schema and stream-item-to-event write projection |
 | `internal/contextplane/` | Context session, compaction, rehydration, and budget logic |
 | `internal/orchestration/` | Root mode and child-run assembly |
 | `internal/memorymodule/` | File-backed memory records and semantic retrieval |

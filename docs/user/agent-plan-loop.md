@@ -3,18 +3,20 @@ doc_type: user-guide
 slug: agent-plan-loop
 component: agent-plan-loop
 status: current
-summary: 说明 Acorn 如何先生成计划、按步骤执行，并通过 mobile 和 authenticated /v1 后端事实展示计划状态
+summary: 说明 Acorn 如何在 plan_execute 运行中先生成计划、按步骤执行，并通过 mobile 和 authenticated /v1 展示 live activity 与 artifacts
 tags: [runtime, plan, execution]
-last_reviewed: 2026-05-16
+last_reviewed: 2026-05-30
 ---
 
 # 执行前先计划再行动
 
 ## 功能简介
 
-Acorn 现在每次执行任务都会先形成一个可追踪计划，再按步骤行动。计划会记录每一步的状态、依赖和验证证据；如果某一步失败，Acorn 会把失败暴露出来并决定是否重规划，而不是悄悄跳过。
+Acorn 在 `plan_execute` 运行和显式 skill 运行中会先形成一个后端计划，再按步骤行动。计划会记录每一步的状态、依赖和验证证据；如果某一步失败，Acorn 会把失败暴露出来并决定是否重规划，而不是悄悄跳过。
 
 这适用于 Flutter mobile 和其他 authenticated `/v1` remote client 发起的 run。CLI 只保留 operator/admin 命令，不再作为用户执行客户端。
+
+计划细节是后端诊断事实，用于执行、调试、resume 和审计；mobile/public `/v1` 不暴露完整 plan DTO。remote client 看到的是 run/thread、mobile live activity events 和 artifacts。
 
 ## 前置条件
 
@@ -36,7 +38,7 @@ go run ./cmd/acorn serve -c configs/acorn.example.yaml
 go run ./cmd/acorn pair -c configs/acorn.example.yaml --server-url http://127.0.0.1:8080 --qr
 ```
 
-2. 在 mobile 中扫码/手输 pairing code，或者用自定义客户端调用 `POST /v1/devices:pair` 换取 bearer token。后续请求都要带：
+2. 在 mobile 中手输 server URL 和 pairing code，或者用自定义客户端调用 `POST /v1/devices:pair` 换取 bearer token。后续请求都要带：
 
 ```http
 Authorization: Bearer <access_token>
@@ -63,17 +65,9 @@ curl -H "Authorization: Bearer $ACORN_DEVICE_TOKEN" \
 
 下一轮继续对话时，Acorn 会优先复用还可继续的计划；只有观察结果要求重规划时才生成新计划。
 
-4. 在 mobile control surface 打开对应 run 的 detail / activity 视图；如果使用 API 调试，读取 `/v1/runs/{run_id}/detail`。后端 RunDetail 会投影每个 step 的状态、依赖和验证证据。常见状态含义如下：
+4. 在 mobile control surface 打开对应 run 的 detail / activity 视图；如果使用 API 调试，读取 `/v1/runs/{run_id}/detail`。后端 RunDetail 只返回 run、thread、mobile live events 和 top-level artifacts，不返回完整 plan step 状态表。
 
-| 符号 | 状态 |
-|---|---|
-| `·` | pending |
-| `→` | in_progress |
-| `✓` | completed |
-| `✗` | failed |
-| `⊘` | skipped |
-
-5. 需要离线核对计划时，可以查询标准 `/v1` run detail。除 `/healthz` 和 pairing exchange 外，`/v1` 端点需要 device bearer token：
+5. 需要离线核对一次 run 的公开执行事实时，可以查询标准 `/v1` run detail。除 `/healthz` 和 pairing exchange 外，`/v1` 端点需要 device bearer token：
 
 ```bash
 curl -H "Authorization: Bearer $ACORN_DEVICE_TOKEN" http://127.0.0.1:8080/v1/runs/RUN_ID/detail
@@ -99,7 +93,7 @@ A: 当某一步失败或结果与预期不一致时，Acorn 可能选择 replan�
 
 Q: 计划里的 verification 是什么？
 
-A: verification 是某个 step 留下的执行证据，例如工具名、命令摘要、工具输出摘要、verifier verdict、mutation checkpoint、rollback result 和来源 run。它用于解释“这一步为什么算执行过”，也方便后续调试。
+A: verification 是某个 step 留下的后端执行证据，例如工具名、命令摘要、工具输出摘要、verifier verdict、mutation checkpoint、rollback result 和来源 run。它用于解释“这一步为什么算执行过”，也方便后续调试。它不是 mobile/public RunDetail 的字段。
 
 Q: Acorn 会自动回滚修改吗？
 
