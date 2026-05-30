@@ -25,7 +25,6 @@ type containerRuntimeDeps struct {
 	semanticEmbedder       memorymodule.Embedder
 	decisionProfileService *decision.ProfileService
 	contextPlane           contextplane.ContextPlane
-	notificationService    *NotificationService
 	mcpPendingActionStore  PendingActionCreateStore
 	runnerFactory          *runtime.RunnerFactory
 	runController          *runtime.RunController
@@ -54,8 +53,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, store co
 		return nil, err
 	}
 
-	notificationService := NewNotificationService(store, newNotificationRouter(nil))
-	mcpPendingActionStore := NewNotifyingPendingActionStore(store, notificationService)
+	mcpPendingActionStore := PendingActionCreateStore(store)
 	childAgentExecutorFactory := runtime.NewSubagentExecutorFactory(cfg, store, nil)
 
 	runnerFactory, err := runtime.NewRunnerFactory(cfg, store, runtime.RunnerFactoryOptions{
@@ -85,7 +83,6 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, store co
 		semanticEmbedder:       semanticEmbedder,
 		decisionProfileService: decisionProfileService,
 		contextPlane:           contextPlane,
-		notificationService:    notificationService,
 		mcpPendingActionStore:  mcpPendingActionStore,
 		runnerFactory:          runnerFactory,
 		runController:          runController,

@@ -46,10 +46,8 @@ func (e *Executor) bootstrapContextSessionMessages(
 			HandoffFrameDisabled: contextPolicy.HandoffFrameDisabled,
 			MaxSummaryTokens:     contextPolicy.SummaryMaxTokens,
 		}),
-		TokenCounter:         counter,
-		Catalog:              active.ToolCatalog,
-		MicrocompactInterval: 5,
-		ModelProfile:         modelProfile,
+		TokenCounter: counter,
+		ModelProfile: modelProfile,
 	})
 
 	session := contextplane.NewDefaultContextSession(contextplane.ContextSessionOptions{

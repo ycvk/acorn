@@ -12,6 +12,7 @@ import (
 	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/model"
 	storecore "github.com/ycvk/acorn/internal/store"
+	"github.com/ycvk/acorn/internal/workspace"
 )
 
 func TestSessionQueries(t *testing.T) {
@@ -259,25 +260,46 @@ func TestSyncAssistantMessageForRunBuildsResultSummaryFromEvidence(t *testing.T)
 	if err := store.BindLatestUserMessageRunID(context.Background(), session.SessionID, 1, "run_evidence"); err != nil {
 		t.Fatalf("bind run: %v", err)
 	}
-	if _, err := store.AppendEventContext(context.Background(), "run_evidence", "tool.call.succeeded", map[string]any{
-		"tool_name":      "write_file",
-		"arguments_json": `{"path":"internal/store/sqlite/store_session_result_summary.go"}`,
-		"output":         "wrote file",
+	if _, err := store.Append(context.Background(), storecore.ToolResultAppendRequest{
+		RunID:         "run_evidence",
+		SessionID:     session.SessionID,
+		TurnIndex:     1,
+		CallID:        "call_write",
+		ToolName:      "write_file",
+		ArgumentsJSON: `{"path":"internal/store/sqlite/store_session_result_summary.go"}`,
+		Status:        storecore.ToolResultStatusSucceeded,
+		FullText:      "wrote file",
+		SideEffects: []storecore.SideEffectRef{{
+			Kind: workspace.MutationCheckpointEffect,
+			Path: "internal/store/sqlite/store_session_result_summary.go",
+		}},
 	}); err != nil {
-		t.Fatalf("append write event: %v", err)
+		t.Fatalf("append write tool result: %v", err)
 	}
-	if _, err := store.AppendEventContext(context.Background(), "run_evidence", "tool.call.succeeded", map[string]any{
-		"tool_name":      "run_command",
-		"arguments_json": `{"command":["go","test","./internal/store/sqlite"]}`,
-		"output":         "ok",
+	if _, err := store.Append(context.Background(), storecore.ToolResultAppendRequest{
+		RunID:         "run_evidence",
+		SessionID:     session.SessionID,
+		TurnIndex:     1,
+		CallID:        "call_command",
+		ToolName:      "run_command",
+		ArgumentsJSON: `{"command":["go","test","./internal/store/sqlite"]}`,
+		Status:        storecore.ToolResultStatusSucceeded,
+		FullText:      "ok",
 	}); err != nil {
-		t.Fatalf("append command event: %v", err)
+		t.Fatalf("append command tool result: %v", err)
 	}
-	if _, err := store.AppendEventContext(context.Background(), "run_evidence", "tool.call.failed", map[string]any{
-		"tool_name": "run_command",
-		"error":     "go test ./internal/store/sqlite failed once",
+	if _, err := store.Append(context.Background(), storecore.ToolResultAppendRequest{
+		RunID:         "run_evidence",
+		SessionID:     session.SessionID,
+		TurnIndex:     1,
+		CallID:        "call_failed",
+		ToolName:      "run_command",
+		ArgumentsJSON: `{"command":["go","test","./internal/store/sqlite"]}`,
+		Status:        storecore.ToolResultStatusFailed,
+		ErrorReason:   "go test ./internal/store/sqlite failed once",
+		FullText:      "go test ./internal/store/sqlite failed once",
 	}); err != nil {
-		t.Fatalf("append failed event: %v", err)
+		t.Fatalf("append failed tool result: %v", err)
 	}
 	if err := store.SavePlan(context.Background(), &model.Plan{
 		PlanID:    "plan_evidence",
@@ -705,13 +727,25 @@ func TestSyncAssistantMessageForRunFailsOnCorruptEvidenceEvent(t *testing.T) {
 		t.Fatalf("bind run: %v", err)
 	}
 	if _, err := store.db.Exec(
-		`INSERT INTO events(run_id, kind, payload_json, created_at) VALUES(?, ?, ?, ?)`,
+		`INSERT INTO tool_results(result_ref, run_id, session_id, turn_index, call_id, tool_name, arguments_json, status, error_reason, preview, full_text, token_estimate, side_effects_json, evidence_refs_json, created_at)
+		 VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		"tool_result:run_corrupt_evidence:call_1",
 		"run_corrupt_evidence",
-		"tool.call.succeeded",
-		`{"tool_name":"run_command",`,
+		session.SessionID,
+		1,
+		"call_1",
+		"run_command",
+		`{"command":`,
+		"succeeded",
+		"",
+		"",
+		"",
+		0,
+		"[]",
+		"[]",
 		formatTimestamp(time.Now()),
 	); err != nil {
-		t.Fatalf("insert corrupt event: %v", err)
+		t.Fatalf("insert corrupt tool result: %v", err)
 	}
 	if err := store.FinishRunContext(context.Background(), "run_corrupt_evidence", events.RunStatusSucceeded, "done", ""); err != nil {
 		t.Fatalf("finish run: %v", err)
@@ -721,8 +755,8 @@ func TestSyncAssistantMessageForRunFailsOnCorruptEvidenceEvent(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected corrupt evidence event error")
 	}
-	if !strings.Contains(err.Error(), "unmarshal event payload") {
-		t.Fatalf("error = %v, want corrupt payload context", err)
+	if !strings.Contains(err.Error(), "tool_result=tool_result:run_corrupt_evidence:call_1") {
+		t.Fatalf("error = %v, want corrupt tool result context", err)
 	}
 	items, err := store.ListSessionMessages(context.Background(), session.SessionID, 10)
 	if err != nil {

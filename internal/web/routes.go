@@ -38,9 +38,6 @@ func NewHandler(deps Dependencies) (http.Handler, error) {
 	if deps.Inbox == nil {
 		return nil, errors.New("web inbox service is required")
 	}
-	if deps.Notifications == nil {
-		return nil, errors.New("web notification service is required")
-	}
 
 	logger := deps.Logger
 	if logger == nil {
@@ -57,7 +54,6 @@ func NewHandler(deps Dependencies) (http.Handler, error) {
 		capabilities:  deps.Capabilities,
 		deviceAuth:    deps.DeviceAuth,
 		inbox:         deps.Inbox,
-		notifications: deps.Notifications,
 		logger:        logger,
 		cfg:           deps.Config,
 	}
@@ -86,8 +82,6 @@ func (s *Server) registerRoutes(router chi.Router) {
 			r.Use(s.requireDeviceAuth)
 			r.Get("/devices", s.handleListDevices)
 			r.Delete("/devices/{device_id}", s.handleRevokeDevice)
-			r.Put("/devices/{device_id}/push-token", s.handleRegisterDevicePushToken)
-			r.Delete("/devices/{device_id}/push-token/{provider}", s.handleRevokeDevicePushToken)
 			r.Route("/threads", func(r chi.Router) {
 				r.Get("/", s.handleClientListThreads)
 				r.Post("/", s.handleClientCreateThread)

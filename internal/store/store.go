@@ -23,8 +23,6 @@ var (
 	ErrPairingCodeNotFound      = errors.New("pairing code not found")
 	ErrPairingCodeUsed          = errors.New("pairing code already used")
 	ErrPairingCodeExpired       = errors.New("pairing code expired")
-	ErrDevicePushTokenNotFound  = errors.New("device push token not found")
-	ErrNotificationNotFound     = errors.New("notification not found")
 )
 
 // Types
@@ -62,43 +60,11 @@ type Device struct {
 	RevokedAt  *time.Time
 }
 
-type DevicePushToken struct {
-	PushTokenID string
-	DeviceID    string
-	Provider    string
-	Platform    string
-	TokenValue  string
-	TokenHash   string
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-	RevokedAt   *time.Time
-}
-
 type PairingCode struct {
 	CodeHash  string
 	ExpiresAt time.Time
 	UsedAt    *time.Time
 	CreatedAt time.Time
-}
-
-type Notification struct {
-	NotificationID string
-	Kind           string
-	RunID          string
-	ActionID       string
-	CreatedAt      time.Time
-}
-
-type NotificationDelivery struct {
-	DeliveryID     string
-	NotificationID string
-	DeviceID       string
-	PushTokenID    string
-	Provider       string
-	Status         string
-	Error          string
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
 }
 
 type CreatePendingActionInput struct {

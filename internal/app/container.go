@@ -26,7 +26,6 @@ type Container struct {
 	capabilities  *CapabilitiesService
 	deviceAuth    *DeviceAuthService
 	inbox         *InboxService
-	notifications *NotificationService
 	mcpServer     *mcp.Server
 	serveToolset  *runtime.Toolset
 }
@@ -90,10 +89,6 @@ func (c *Container) DeviceAuth() *DeviceAuthService {
 
 func (c *Container) Inbox() *InboxService {
 	return c.inbox
-}
-
-func (c *Container) Notifications() *NotificationService {
-	return c.notifications
 }
 
 func (c *Container) MCPServer() *mcp.Server {

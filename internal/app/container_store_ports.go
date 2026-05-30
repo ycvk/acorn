@@ -17,7 +17,6 @@ type containerRuntimeStore interface {
 	runtime.RunnerFactoryStore
 	workingstate.Store
 	model.SessionSummaryStore
-	notificationStore
 	PendingActionCreateStore
 }
 

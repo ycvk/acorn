@@ -370,44 +370,6 @@ CREATE TABLE IF NOT EXISTS devices (
     revoked_at TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_devices_token_hash ON devices(token_hash);
-CREATE TABLE IF NOT EXISTS device_push_tokens (
-    push_token_id TEXT PRIMARY KEY,
-    device_id TEXT NOT NULL,
-    provider TEXT NOT NULL,
-    platform TEXT NOT NULL,
-    token_value TEXT NOT NULL,
-    token_hash TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
-    revoked_at TEXT NOT NULL DEFAULT '',
-    UNIQUE(device_id, provider),
-    FOREIGN KEY(device_id) REFERENCES devices(device_id)
-);
-CREATE INDEX IF NOT EXISTS idx_device_push_tokens_device_active ON device_push_tokens(device_id, revoked_at);
-CREATE TABLE IF NOT EXISTS notifications (
-    notification_id TEXT PRIMARY KEY,
-    kind TEXT NOT NULL,
-    run_id TEXT NOT NULL DEFAULT '',
-    action_id TEXT NOT NULL DEFAULT '',
-    created_at TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_notifications_kind_created_at ON notifications(kind, created_at DESC);
-CREATE TABLE IF NOT EXISTS notification_deliveries (
-    delivery_id TEXT PRIMARY KEY,
-    notification_id TEXT NOT NULL,
-    device_id TEXT NOT NULL,
-    push_token_id TEXT NOT NULL,
-    provider TEXT NOT NULL,
-    status TEXT NOT NULL,
-    error TEXT NOT NULL DEFAULT '',
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
-    FOREIGN KEY(notification_id) REFERENCES notifications(notification_id),
-    FOREIGN KEY(device_id) REFERENCES devices(device_id),
-    FOREIGN KEY(push_token_id) REFERENCES device_push_tokens(push_token_id)
-);
-CREATE INDEX IF NOT EXISTS idx_notification_deliveries_notification ON notification_deliveries(notification_id);
-CREATE INDEX IF NOT EXISTS idx_notification_deliveries_status ON notification_deliveries(status, updated_at DESC);
 CREATE TABLE IF NOT EXISTS pairing_codes (
     code_hash TEXT PRIMARY KEY,
     expires_at TEXT NOT NULL,
@@ -566,31 +528,28 @@ CREATE INDEX IF NOT EXISTS idx_plan_steps_session ON plan_steps(session_id);
 
 func (s *Store) validateSchema() error {
 	requiredTables := map[string][]string{
-		"runs":                    {"run_id", "session_id", "turn_index", "status", "input_text", "output_text", "error_text", "checkpoint_id", "orchestration_mode", "created_at", "updated_at", "parent_run_id", "depth"},
-		"events":                  {"sequence", "run_id", "kind", "payload_json", "created_at"},
-		"checkpoints":             {"checkpoint_id", "run_id", "payload", "created_at", "updated_at"},
-		"sessions":                {"session_id", "title", "created_at", "updated_at"},
-		"session_messages":        {"id", "session_id", "turn_index", "role", "content", "content_parts", "run_id", "created_at"},
-		"pending_actions":         {"action_id", "run_id", "interrupt_id", "kind", "subject", "payload_json", "status", "mode", "reason", "rule", "decision_json", "created_at", "decided_at", "resolved_at"},
-		"mcp_oauth_tokens":        {"provider_name", "access_token", "refresh_token", "expiry", "updated_at"},
-		"owner_profile":           {"owner_id", "created_at"},
-		"devices":                 {"device_id", "name", "platform", "token_hash", "created_at", "last_seen_at", "revoked_at"},
-		"device_push_tokens":      {"push_token_id", "device_id", "provider", "platform", "token_value", "token_hash", "created_at", "updated_at", "revoked_at"},
-		"notifications":           {"notification_id", "kind", "run_id", "action_id", "created_at"},
-		"notification_deliveries": {"delivery_id", "notification_id", "device_id", "push_token_id", "provider", "status", "error", "created_at", "updated_at"},
-		"pairing_codes":           {"code_hash", "expires_at", "used_at", "created_at"},
-		"conversation_segments":   {"id", "session_id", "run_id", "user_content", "assistant_content", "run_status", "created_at"},
-		"working_checkpoints":     {"session_id", "content", "related_skill_id", "updated_at"},
-		"run_context_snapshots":   {"run_id", "working_checkpoint_content", "working_checkpoint_skill_id", "decision_profile_hash", "decision_action", "decision_skill_id", "created_at"},
-		"context_boundaries":      {"boundary_id", "session_id", "run_id", "sequence", "turn_index", "mode", "trigger", "first_index", "last_index", "covered_first_message_id", "covered_last_message_id", "previous_boundary_id", "summary_message_id", "transcript_ref", "preserved_from_index", "preserved_to_index", "preserved_head_message_id", "preserved_anchor_message_id", "preserved_tail_message_id", "tokens_before", "tokens_after", "effective_window_tokens", "summary", "summary_snippet", "created_at"},
-		"tool_results":            {"result_ref", "run_id", "session_id", "turn_index", "call_id", "tool_name", "arguments_json", "status", "error_reason", "preview", "full_text", "token_estimate", "side_effects_json", "evidence_refs_json", "created_at"},
-		"artifacts":               {"artifact_id", "run_id", "session_id", "source_tool_result_ref", "kind", "title", "mime_type", "relative_path", "size_bytes", "sha256", "created_at"},
-		"provider_usages":         {"usage_id", "run_id", "session_id", "call_site", "provider_name", "model_name", "prompt_tokens", "completion_tokens", "total_tokens", "cached_tokens", "reasoning_tokens", "created_at"},
-		"run_decisions":           {"run_id", "session_id", "action", "intent", "selected_skill_id", "decision_reason", "decision_profile_hash", "created_at"},
-		"run_archives":            {"run_id", "session_id", "input_excerpt", "output_excerpt", "touched_paths_json", "tool_names_json", "run_status", "created_at"},
-		"session_summaries":       {"session_id", "source_run_id", "run_status", "summary", "updated_at"},
-		"schema_migrations":       {"version", "applied_at"},
-		"plan_steps":              {"plan_id", "session_id", "run_id", "steps_json", "created_at", "updated_at"},
+		"runs":                  {"run_id", "session_id", "turn_index", "status", "input_text", "output_text", "error_text", "checkpoint_id", "orchestration_mode", "created_at", "updated_at", "parent_run_id", "depth"},
+		"events":                {"sequence", "run_id", "kind", "payload_json", "created_at"},
+		"checkpoints":           {"checkpoint_id", "run_id", "payload", "created_at", "updated_at"},
+		"sessions":              {"session_id", "title", "created_at", "updated_at"},
+		"session_messages":      {"id", "session_id", "turn_index", "role", "content", "content_parts", "run_id", "created_at"},
+		"pending_actions":       {"action_id", "run_id", "interrupt_id", "kind", "subject", "payload_json", "status", "mode", "reason", "rule", "decision_json", "created_at", "decided_at", "resolved_at"},
+		"mcp_oauth_tokens":      {"provider_name", "access_token", "refresh_token", "expiry", "updated_at"},
+		"owner_profile":         {"owner_id", "created_at"},
+		"devices":               {"device_id", "name", "platform", "token_hash", "created_at", "last_seen_at", "revoked_at"},
+		"pairing_codes":         {"code_hash", "expires_at", "used_at", "created_at"},
+		"conversation_segments": {"id", "session_id", "run_id", "user_content", "assistant_content", "run_status", "created_at"},
+		"working_checkpoints":   {"session_id", "content", "related_skill_id", "updated_at"},
+		"run_context_snapshots": {"run_id", "working_checkpoint_content", "working_checkpoint_skill_id", "decision_profile_hash", "decision_action", "decision_skill_id", "created_at"},
+		"context_boundaries":    {"boundary_id", "session_id", "run_id", "sequence", "turn_index", "mode", "trigger", "first_index", "last_index", "covered_first_message_id", "covered_last_message_id", "previous_boundary_id", "summary_message_id", "transcript_ref", "preserved_from_index", "preserved_to_index", "preserved_head_message_id", "preserved_anchor_message_id", "preserved_tail_message_id", "tokens_before", "tokens_after", "effective_window_tokens", "summary", "summary_snippet", "created_at"},
+		"tool_results":          {"result_ref", "run_id", "session_id", "turn_index", "call_id", "tool_name", "arguments_json", "status", "error_reason", "preview", "full_text", "token_estimate", "side_effects_json", "evidence_refs_json", "created_at"},
+		"artifacts":             {"artifact_id", "run_id", "session_id", "source_tool_result_ref", "kind", "title", "mime_type", "relative_path", "size_bytes", "sha256", "created_at"},
+		"provider_usages":       {"usage_id", "run_id", "session_id", "call_site", "provider_name", "model_name", "prompt_tokens", "completion_tokens", "total_tokens", "cached_tokens", "reasoning_tokens", "created_at"},
+		"run_decisions":         {"run_id", "session_id", "action", "intent", "selected_skill_id", "decision_reason", "decision_profile_hash", "created_at"},
+		"run_archives":          {"run_id", "session_id", "input_excerpt", "output_excerpt", "touched_paths_json", "tool_names_json", "run_status", "created_at"},
+		"session_summaries":     {"session_id", "source_run_id", "run_status", "summary", "updated_at"},
+		"schema_migrations":     {"version", "applied_at"},
+		"plan_steps":            {"plan_id", "session_id", "run_id", "steps_json", "created_at", "updated_at"},
 	}
 	for table, columns := range requiredTables {
 		if err := s.requireColumns(table, columns); err != nil {

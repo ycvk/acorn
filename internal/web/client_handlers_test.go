@@ -407,48 +407,6 @@ func TestDeviceAuthPairListAndRevokeHandlers(t *testing.T) {
 	}
 }
 
-func TestDevicePushTokenHandlers(t *testing.T) {
-	notifications := &notificationHandlerStub{
-		view: &app.DevicePushTokenView{
-			DeviceID:  "device_test",
-			Provider:  "apns",
-			Platform:  "ios",
-			UpdatedAt: time.Date(2026, 5, 15, 10, 2, 0, 0, time.UTC),
-		},
-	}
-	server := &Server{
-		deviceAuth:    &deviceAuthHandlerStub{},
-		notifications: notifications,
-		logger:        slog.New(slog.NewTextHandler(bytes.NewBuffer(nil), nil)),
-	}
-	router := chi.NewRouter()
-	server.registerRoutes(router)
-
-	register := performClientRequest(router, http.MethodPut, "/v1/devices/device_test/push-token", `{"provider":"apns","platform":"ios","token":"secret-token"}`)
-	if register.Code != http.StatusOK {
-		t.Fatalf("register status = %d body=%s", register.Code, register.Body.String())
-	}
-	var response DevicePushTokenDTO
-	decodeClientTestJSON(t, register, &response)
-	if response.DeviceID != "device_test" || response.Provider != "apns" || response.Platform != "ios" {
-		t.Fatalf("unexpected push token response: %#v", response)
-	}
-	if strings.Contains(register.Body.String(), "secret-token") {
-		t.Fatalf("push token response leaked token: %s", register.Body.String())
-	}
-	if notifications.registerAuthDeviceID != "device_test" || notifications.registerInput.Token != "secret-token" {
-		t.Fatalf("unexpected register call: auth=%q input=%#v", notifications.registerAuthDeviceID, notifications.registerInput)
-	}
-
-	revoke := performClientRequest(router, http.MethodDelete, "/v1/devices/device_test/push-token/apns", "")
-	if revoke.Code != http.StatusNoContent {
-		t.Fatalf("revoke status = %d body=%s", revoke.Code, revoke.Body.String())
-	}
-	if notifications.revokedDeviceID != "device_test" || notifications.revokedProvider != "apns" {
-		t.Fatalf("unexpected revoke call: device=%q provider=%q", notifications.revokedDeviceID, notifications.revokedProvider)
-	}
-}
-
 func TestDeviceAuthRevokedTokenFailsProtectedRoutes(t *testing.T) {
 	server := &Server{
 		client:     &clientHandlerStub{},
@@ -1433,41 +1391,6 @@ func (s *inboxHandlerStub) Load(context.Context) (*app.MobileInbox, error) {
 }
 
 var _ InboxService = (*inboxHandlerStub)(nil)
-
-type notificationHandlerStub struct {
-	view                 *app.DevicePushTokenView
-	err                  error
-	registerAuthDeviceID string
-	registerInput        app.DevicePushTokenInput
-	revokedAuthDeviceID  string
-	revokedDeviceID      string
-	revokedProvider      string
-}
-
-func (s *notificationHandlerStub) RegisterDevicePushToken(_ context.Context, auth *app.DeviceAuthContext, input app.DevicePushTokenInput) (*app.DevicePushTokenView, error) {
-	if s.err != nil {
-		return nil, s.err
-	}
-	if auth != nil {
-		s.registerAuthDeviceID = auth.Device.DeviceID
-	}
-	s.registerInput = input
-	return s.view, nil
-}
-
-func (s *notificationHandlerStub) RevokeDevicePushToken(_ context.Context, auth *app.DeviceAuthContext, deviceID, provider string) error {
-	if s.err != nil {
-		return s.err
-	}
-	if auth != nil {
-		s.revokedAuthDeviceID = auth.Device.DeviceID
-	}
-	s.revokedDeviceID = deviceID
-	s.revokedProvider = provider
-	return nil
-}
-
-var _ NotificationService = (*notificationHandlerStub)(nil)
 
 type clientRunResumeStub struct {
 	result *app.RunResult

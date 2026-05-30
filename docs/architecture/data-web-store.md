@@ -142,18 +142,6 @@ The Flutter mobile client generates its Dart API/model layer from the OpenAPI co
 
 `GET /v1/system/status` and the `system` field inside `GET /v1/inbox` are also part of that client data boundary. The public payload carries typed `runtime_readiness` and `provider_readiness`; legacy `execution_ready` / `execution_error` fields have been removed. Mobile DTOs and generated client types project these fields directly from `CapabilitiesService.Snapshot`; client code must not reinvent runtime-vs-provider semantics from prose, message text, or local heuristics.
 
-## Notification Wake-up Truth
-
-SQLite now persists mobile wake-up state:
-
-- `device_push_tokens`: authenticated device-owned APNs/FCM token registration. `token_value` is backend-private and never returned by `/v1`.
-- `notifications`: durable wake-up facts such as `pending_action`.
-- `notification_deliveries`: per-device delivery attempts with `pending`, `sent`, `failed`, or `not_configured`.
-
-`internal/app.NotificationService` owns token registration and pending-action wake-up creation. `internal/app` also owns the APNs/FCM dispatcher port; when no concrete dispatcher is configured, delivery rows are updated to `not_configured` instead of pretending push succeeded.
-
-MCP elicitation pending actions are wired through a notification-aware pending action store wrapper passed via `runtime.RunnerFactoryOptions.MCPPendingActionStore`. Runtime still does not know APNs/FCM details; it only receives the same pending-action store contract.
-
 ## Store Boundary
 
 Store code persists records and performs schema migrations. It does not decide memory admission, assemble prompts, choose skills, or hide corrupted rows behind empty results. Runtime/app/web services own business projection through their own ports.

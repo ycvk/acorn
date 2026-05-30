@@ -56,8 +56,6 @@ func TestOpenAPIContractMatchesFileBackedMemorySurface(t *testing.T) {
 		"/v1/devices:pair",
 		"/v1/devices",
 		"/v1/devices/{device_id}",
-		"/v1/devices/{device_id}/push-token",
-		"/v1/devices/{device_id}/push-token/{provider}",
 		"/v1/threads",
 		"/v1/threads/{thread_id}",
 		"/v1/threads/{thread_id}/messages",
@@ -111,11 +109,6 @@ func TestOpenAPIContractMatchesFileBackedMemorySurface(t *testing.T) {
 		"device_revoked",
 		"invalid_pairing_code",
 		"device_not_found",
-		"invalid_push_provider",
-		"device_push_token_forbidden",
-		"device_push_token_not_found",
-		"RegisterDevicePushTokenRequest",
-		"DevicePushToken",
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("openapi contract should contain %q", want)

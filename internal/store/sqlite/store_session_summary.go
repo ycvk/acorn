@@ -118,6 +118,13 @@ func (s *Store) buildSessionMessageResultSummary(ctx context.Context, runID stri
 	if err := builder.addEvents(records); err != nil {
 		return sessionMessageResultSummary{}, err
 	}
+	toolResults, err := s.ListByRun(ctx, runID)
+	if err != nil {
+		return sessionMessageResultSummary{}, fmt.Errorf("build session result summary: list tool results: %w", err)
+	}
+	if err := builder.addToolResults(toolResults); err != nil {
+		return sessionMessageResultSummary{}, err
+	}
 
 	plan, err := s.LoadPlanByRun(ctx, runID)
 	if err != nil && !errors.Is(err, store.ErrPlanNotFound) {
@@ -146,25 +153,7 @@ func (b *sessionMessageResultSummaryBuilder) addEvents(records []events.EventRec
 		if err != nil {
 			return err
 		}
-		toolName := sessionSummaryToolName(payload)
-		args := strings.TrimSpace(sessionSummaryString(payload["arguments_json"]))
-
 		switch record.Kind {
-		case "tool.call.succeeded":
-			if command, err := sessionSummaryCommand(toolName, args); err != nil {
-				return fmt.Errorf("build session result summary: event sequence=%d command: %w", record.Sequence, err)
-			} else if command != "" {
-				b.addVerified(command)
-			}
-			if sessionSummaryMutationTool(toolName) {
-				paths, err := sessionSummaryPathsFromArguments(args)
-				if err != nil {
-					return fmt.Errorf("build session result summary: event sequence=%d paths: %w", record.Sequence, err)
-				}
-				b.addChanged(paths...)
-			}
-		case "tool.call.failed", "tool.call.interrupted":
-			b.addRisk(sessionSummaryToolRisk(toolName, payload))
 		case "subagent.completed":
 			if summary := strings.TrimSpace(sessionSummaryString(payload["summary"])); summary != "" {
 				b.addVerified(summary)
@@ -181,6 +170,35 @@ func (b *sessionMessageResultSummaryBuilder) addEvents(records []events.EventRec
 			}
 		case "agent.message", "run.completed":
 			b.addReasoning(payload)
+		}
+	}
+	return nil
+}
+
+func (b *sessionMessageResultSummaryBuilder) addToolResults(records []store.ToolResultRecord) error {
+	for _, record := range records {
+		toolName := strings.TrimSpace(record.ToolName)
+		args := strings.TrimSpace(record.ArgumentsJSON)
+		switch record.Status {
+		case store.ToolResultStatusSucceeded:
+			command, err := sessionSummaryCommand(toolName, args)
+			if err != nil {
+				return fmt.Errorf("build session result summary: tool_result=%s command: %w", record.ResultRef, err)
+			}
+			if command != "" {
+				b.addVerified(command)
+			}
+			paths := sessionSummaryPathsFromSideEffects(record.SideEffects)
+			if len(paths) == 0 && sessionSummaryMutationTool(toolName) {
+				var err error
+				paths, err = sessionSummaryPathsFromArguments(args)
+				if err != nil {
+					return fmt.Errorf("build session result summary: tool_result=%s paths: %w", record.ResultRef, err)
+				}
+			}
+			b.addChanged(paths...)
+		case store.ToolResultStatusFailed:
+			b.addRisk(sessionSummaryToolResultRisk(record))
 		}
 	}
 	return nil
@@ -324,10 +342,7 @@ func (b *sessionMessageResultSummaryBuilder) addSkillDisclosure(sequence int64, 
 
 func sessionSummaryKnownEvent(kind string) bool {
 	switch kind {
-	case "tool.call.succeeded",
-		"tool.call.failed",
-		"tool.call.interrupted",
-		"subagent.completed",
+	case "subagent.completed",
 		"subagent.failed",
 		"memory.prepared",
 		"skill.selected",
@@ -348,33 +363,16 @@ func sessionSummaryPayload(record events.EventRecord) (map[string]any, error) {
 	return payload, nil
 }
 
-func sessionSummaryToolName(payload map[string]any) string {
-	for _, key := range []string{"tool_name", "name"} {
-		if value := strings.TrimSpace(sessionSummaryString(payload[key])); value != "" {
-			return value
-		}
-	}
-	toolCall, ok := payload["tool_call"].(map[string]any)
-	if !ok {
-		return ""
-	}
-	for _, key := range []string{"tool_name", "name"} {
-		if value := strings.TrimSpace(sessionSummaryString(toolCall[key])); value != "" {
-			return value
-		}
-	}
-	return ""
-}
-
-func sessionSummaryToolRisk(toolName string, payload map[string]any) string {
-	name := strings.TrimSpace(toolName)
+func sessionSummaryToolResultRisk(record store.ToolResultRecord) string {
+	name := strings.TrimSpace(record.ToolName)
 	if name == "" {
 		name = "tool"
 	}
-	for _, key := range []string{"error", "reason"} {
-		if value := compactContinuationText(sessionSummaryString(payload[key]), 180); value != "" {
-			return fmt.Sprintf("%s failed: %s", name, value)
-		}
+	if value := compactContinuationText(record.ErrorReason, 180); value != "" {
+		return fmt.Sprintf("%s failed: %s", name, value)
+	}
+	if value := compactContinuationText(record.Preview, 180); value != "" {
+		return fmt.Sprintf("%s failed: %s", name, value)
 	}
 	return fmt.Sprintf("%s failed", name)
 }
@@ -405,6 +403,16 @@ func sessionSummaryPlanRisk(item model.PlanEvidence) string {
 		return kind + " failed"
 	}
 	return "plan evidence failed"
+}
+
+func sessionSummaryPathsFromSideEffects(items []store.SideEffectRef) []string {
+	paths := make([]string, 0, len(items))
+	for _, item := range items {
+		if path := strings.TrimSpace(item.Path); path != "" {
+			paths = append(paths, path)
+		}
+	}
+	return paths
 }
 
 func sessionSummaryCommand(toolName string, argumentsJSON string) (string, error) {

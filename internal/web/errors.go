@@ -19,12 +19,6 @@ func (s *Server) respondKnownError(w http.ResponseWriter, r *http.Request, err e
 		s.respondError(w, r, http.StatusBadRequest, "invalid_pairing_code", err.Error())
 	case errors.Is(err, app.ErrDeviceNotFound):
 		s.respondNotFound(w, r, "device_not_found", err.Error())
-	case errors.Is(err, app.ErrDevicePushTokenForbidden):
-		s.respondError(w, r, http.StatusForbidden, "device_push_token_forbidden", err.Error())
-	case errors.Is(err, app.ErrInvalidPushProvider):
-		s.respondError(w, r, http.StatusBadRequest, "invalid_push_provider", err.Error())
-	case errors.Is(err, store.ErrDevicePushTokenNotFound):
-		s.respondNotFound(w, r, "device_push_token_not_found", err.Error())
 	case errors.Is(err, store.ErrSessionNotFound):
 		s.respondNotFound(w, r, "session_not_found", err.Error())
 	case errors.Is(err, store.ErrRunNotFound):
