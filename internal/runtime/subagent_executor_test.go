@@ -145,28 +145,6 @@ func TestSubagentStreamItemProjection(t *testing.T) {
 	}
 }
 
-func TestSubagentEventKindToStreamKind(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		eventKind string
-		want      stream.StreamItemKind
-	}{
-		{"subagent.started", stream.StreamKindSubagentStarted},
-		{"subagent.completed", stream.StreamKindSubagentCompleted},
-		{"subagent.failed", stream.StreamKindSubagentFailed},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.eventKind, func(t *testing.T) {
-			got := mustProjectEventToStreamItem(t, events.EventRecord{Kind: tt.eventKind}).Kind
-			if got != tt.want {
-				t.Fatalf("eventKindToStreamKind(%q) = %q, want %q", tt.eventKind, got, tt.want)
-			}
-		})
-	}
-}
-
 func TestSubagentStreamItemJSONRoundtrip(t *testing.T) {
 	t.Parallel()
 
@@ -322,49 +300,6 @@ func TestSubagentExecuteJoinsEmitFailedError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "emit subagent.failed") {
 		t.Fatalf("expected joined emit subagent.failed error, got %v", err)
-	}
-}
-
-func TestSubagentEventRecordRoundtrip(t *testing.T) {
-	t.Parallel()
-
-	now := time.Date(2026, 4, 27, 12, 0, 0, 0, time.UTC)
-
-	original := stream.StreamItem{
-		RunID: "run_rt", Sequence: 1, Kind: stream.StreamKindSubagentStarted, CreatedAt: now,
-		Payload: map[string]any{"sub_run_id": "sub_1", "parent_id": "run_rt", "depth": 1, "task": "inspect", "child_run_mode": "fork", "workspace_mode": "worktree", "context_messages": 2},
-	}
-
-	eventKind, payload, err := stream.ProjectStreamItemToEvent(original)
-	if err != nil {
-		t.Fatalf("stream.ProjectStreamItemToEvent: %v", err)
-	}
-
-	event := events.EventRecord{
-		RunID:     original.RunID,
-		Sequence:  original.Sequence,
-		Kind:      eventKind,
-		Payload:   payload,
-		CreatedAt: original.CreatedAt,
-	}
-
-	reconstructed := mustProjectEventToStreamItem(t, event)
-	if reconstructed.Kind != stream.StreamKindSubagentStarted {
-		t.Fatalf("reconstructed Kind = %q, want %q", reconstructed.Kind, stream.StreamKindSubagentStarted)
-	}
-
-	p := reconstructed.Payload
-	if p["sub_run_id"] != "sub_1" {
-		t.Fatalf("sub_run_id = %q, want %q", p["sub_run_id"], "sub_1")
-	}
-	if p["depth"] != float64(1) {
-		t.Fatalf("depth = %v, want 1", p["depth"])
-	}
-	if p["child_run_mode"] != "fork" || p["context_messages"] != float64(2) {
-		t.Fatalf("lineage fields = mode:%v context:%v", p["child_run_mode"], p["context_messages"])
-	}
-	if p["workspace_mode"] != "worktree" {
-		t.Fatalf("workspace_mode = %q, want worktree", p["workspace_mode"])
 	}
 }
 

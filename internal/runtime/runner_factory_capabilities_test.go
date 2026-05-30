@@ -140,22 +140,38 @@ func TestEmitMemoryPreparedEventWritesPreparedPayload(t *testing.T) {
 	if len(records) != 1 {
 		t.Fatalf("events = %#v", records)
 	}
-	item := mustProjectEventToStreamItem(t, records[0])
-	prepared := item.GetMemoryPrepared()
-	if prepared == nil {
-		t.Fatalf("event payload = %#v", item.Payload)
+	if records[0].Kind != "memory.prepared" {
+		t.Fatalf("event kind = %q, want memory.prepared", records[0].Kind)
 	}
-	if prepared.Query != "release closeout" || prepared.WorkspaceScope != "workspace:acorn" {
+	payload, ok := records[0].Payload.(map[string]any)
+	if !ok {
+		t.Fatalf("event payload must be object: %#v", records[0].Payload)
+	}
+	prepared, ok := payload["memory_prepared"].(map[string]any)
+	if !ok {
+		t.Fatalf("event payload = %#v", payload)
+	}
+	if prepared["query"] != "release closeout" || prepared["workspace_scope"] != "workspace:acorn" {
 		t.Fatalf("prepared identity = %#v", prepared)
 	}
-	if prepared.NudgeCount != 1 || prepared.EntryCount != 1 {
+	if prepared["nudge_count"] != float64(1) || prepared["entry_count"] != float64(1) {
 		t.Fatalf("prepared counts = %#v", prepared)
 	}
-	if len(prepared.Nudges) != 1 || prepared.Nudges[0].Ref != "facts/workspaces/acorn/runtime.md" {
-		t.Fatalf("prepared nudges = %#v", prepared.Nudges)
+	nudges, ok := prepared["nudges"].([]any)
+	if !ok || len(nudges) != 1 {
+		t.Fatalf("prepared nudges = %#v", prepared["nudges"])
 	}
-	if len(prepared.Entries) != 1 || prepared.Entries[0].Title != "Runtime" {
-		t.Fatalf("prepared entries = %#v", prepared.Entries)
+	nudge, ok := nudges[0].(map[string]any)
+	if !ok || nudge["ref"] != "facts/workspaces/acorn/runtime.md" {
+		t.Fatalf("prepared nudges = %#v", nudges)
+	}
+	entries, ok := prepared["entries"].([]any)
+	if !ok || len(entries) != 1 {
+		t.Fatalf("prepared entries = %#v", prepared["entries"])
+	}
+	entry, ok := entries[0].(map[string]any)
+	if !ok || entry["title"] != "Runtime" {
+		t.Fatalf("prepared entries = %#v", entries)
 	}
 }
 
@@ -185,16 +201,23 @@ func TestEmitProcedureActivationEventsWritesActivationPayload(t *testing.T) {
 	if len(records) != 1 {
 		t.Fatalf("events = %#v", records)
 	}
-	item := mustProjectEventToStreamItem(t, records[0])
-	activation := item.GetProcedureActivation()
-	if activation == nil {
-		t.Fatalf("event payload = %#v", item.Payload)
+	if records[0].Kind != "procedure.activation" {
+		t.Fatalf("event kind = %q, want procedure.activation", records[0].Kind)
 	}
-	if activation.Phase != "injected" || activation.ProcedureRef != "skills/learned/sqlite.md#sqlite" {
+	payload, ok := records[0].Payload.(map[string]any)
+	if !ok {
+		t.Fatalf("event payload must be object: %#v", records[0].Payload)
+	}
+	activation, ok := payload["procedure_activation"].(map[string]any)
+	if !ok {
+		t.Fatalf("event payload = %#v", payload)
+	}
+	if activation["phase"] != "injected" || activation["procedure_ref"] != "skills/learned/sqlite.md#sqlite" {
 		t.Fatalf("activation = %#v", activation)
 	}
-	if len(activation.EvidenceRefs) != 1 || activation.EvidenceRefs[0] != "tool-result:run_proc:call_1" {
-		t.Fatalf("evidence refs = %#v", activation.EvidenceRefs)
+	evidenceRefs, ok := activation["evidence_refs"].([]any)
+	if !ok || len(evidenceRefs) != 1 || evidenceRefs[0] != "tool-result:run_proc:call_1" {
+		t.Fatalf("evidence refs = %#v", activation["evidence_refs"])
 	}
 }
 
