@@ -43,18 +43,25 @@ func (m *planNodeModel) Stream(ctx context.Context, messages []*schema.Message, 
 }
 
 type fakePlanStore struct {
-	loaded    *model.Plan
-	saved     *model.Plan
-	loadErr   error
-	saveErr   error
-	loadCount int
+	loaded       *model.Plan
+	saved        *model.Plan
+	loadErr      error
+	saveErr      error
+	loadCount    int
+	loadErrAfter int
 }
 
 func (s *fakePlanStore) OrchestrationPlanStore() {}
 
 func (s *fakePlanStore) LoadPlan(_ context.Context, _ string) (*model.Plan, error) {
 	s.loadCount++
-	if s.loadErr != nil {
+	if s.loadErrAfter > 0 && s.loadCount >= s.loadErrAfter {
+		if s.loadErr != nil {
+			return nil, s.loadErr
+		}
+		return nil, store.ErrPlanNotFound
+	}
+	if s.loadErrAfter == 0 && s.loadErr != nil {
 		return nil, s.loadErr
 	}
 	if s.loaded == nil {

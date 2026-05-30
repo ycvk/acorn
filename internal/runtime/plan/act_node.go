@@ -3,6 +3,7 @@ package plan
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -62,6 +63,9 @@ func (n *ActNode) Invoke(ctx context.Context, state *graph.AgentGraphState) (*gr
 	if n.tools == nil {
 		return nil, fmt.Errorf("act node requires a tool node")
 	}
+	if n.streamer == nil {
+		return nil, fmt.Errorf("act node requires assistant streamer")
+	}
 	if n.store == nil {
 		return nil, fmt.Errorf("act node requires a plan store")
 	}
@@ -88,7 +92,6 @@ func (n *ActNode) Invoke(ctx context.Context, state *graph.AgentGraphState) (*gr
 	}
 
 	step := plan.Steps[stepIndex]
-	var toolMessages []*schema.Message
 	for round := 0; round < maxActionRoundsPerStep; round++ {
 		toolInfos := contextplane.LoadedToolInfosFromContext(ctx, n.eagerTools)
 		messageID := fmt.Sprintf("act-%s-%d", step.ID, round)
@@ -97,41 +100,40 @@ func (n *ActNode) Invoke(ctx context.Context, state *graph.AgentGraphState) (*gr
 		if err != nil {
 			return nil, fmt.Errorf("act before model call: %w", err)
 		}
-		assistantResult, err := n.streamer.StreamAssistantMessage(ctx, orchestration.AssistantStreamRequest{
-			RunID:     runID,
-			MessageID: messageID,
-			Model:     n.model,
-			Messages:  n.buildModelInput(baseMessages, step),
-			ToolInfos: toolInfos,
-			CallSite:  providers.CallSiteAct,
-		})
-		if contextplane.IsContextOverflowError(err) && session != nil {
-			baseMessages, err = graph.GraphSessionReactiveBaseMessages(ctx, session, state, modelReq, err)
+		assistant, toolMessages, outputLimitReached, roundErr := n.executeActionRound(ctx, runID, messageID, baseMessages, step, toolInfos)
+		if contextplane.IsContextOverflowError(roundErr) && session != nil {
+			baseMessages, err = graph.GraphSessionReactiveBaseMessages(ctx, session, state, modelReq, roundErr)
 			if err != nil {
 				return nil, fmt.Errorf("act reactive compact: %w", err)
 			}
-			assistantResult, err = n.streamer.StreamAssistantMessage(ctx, orchestration.AssistantStreamRequest{
-				RunID:     runID,
-				MessageID: messageID,
-				Model:     n.model,
-				Messages:  n.buildModelInput(baseMessages, step),
-				ToolInfos: toolInfos,
-				CallSite:  providers.CallSiteAct,
-			})
+			assistant, toolMessages, outputLimitReached, roundErr = n.executeActionRound(ctx, runID, messageID, baseMessages, step, toolInfos)
 		}
-		if err != nil {
-			return nil, fmt.Errorf("stream step action: %w", err)
+		if assistant != nil {
+			state.Messages = append(state.Messages, assistant)
+			if err := graph.GraphSessionRecordAssistant(ctx, session, assistant); err != nil {
+				return nil, err
+			}
 		}
-		if assistantResult == nil || assistantResult.Message == nil {
+		if roundErr != nil {
+			var toolExecErr *orchestration.ToolExecutionError
+			if errors.As(roundErr, &toolExecErr) {
+				if tool.IsInterruptError(roundErr) {
+					return nil, roundErr
+				}
+				plan, failErr := n.failStep(ctx, plan, stepIndex, roundErr.Error())
+				if failErr != nil {
+					return nil, failErr
+				}
+				state.Plan = plan
+				state.Phase = graph.PhaseAct
+				return state, nil
+			}
+			return nil, fmt.Errorf("stream step action: %w", roundErr)
+		}
+		if assistant == nil {
 			return nil, fmt.Errorf("stream step action returned nil assistant message")
 		}
-		assistant := assistantResult.Message
-		state.Messages = append(state.Messages, assistant)
-		if err := graph.GraphSessionRecordAssistant(ctx, session, assistant); err != nil {
-			return nil, err
-		}
-		switch assistantResult.StopReason {
-		case orchestration.AssistantStopReasonMaxOutput:
+		if outputLimitReached {
 			plan, err = n.failStep(ctx, plan, stepIndex, "act node model hit output token limit before completing tool calls")
 			if err != nil {
 				return nil, err
@@ -139,11 +141,6 @@ func (n *ActNode) Invoke(ctx context.Context, state *graph.AgentGraphState) (*gr
 			state.Plan = plan
 			state.Phase = graph.PhaseAct
 			return state, nil
-		case orchestration.AssistantStopReasonEndTurn, orchestration.AssistantStopReasonToolCalls:
-		case orchestration.AssistantStopReasonUnknown:
-			return nil, fmt.Errorf("act node unsupported assistant finish reason %q", assistantResult.RawReason)
-		default:
-			return nil, fmt.Errorf("act node unsupported assistant stop reason %q", assistantResult.StopReason)
 		}
 		if len(assistant.ToolCalls) == 0 {
 			plan, err = n.failStep(ctx, plan, stepIndex, "act node model returned no tool calls")
@@ -154,24 +151,7 @@ func (n *ActNode) Invoke(ctx context.Context, state *graph.AgentGraphState) (*gr
 			state.Phase = graph.PhaseAct
 			return state, nil
 		}
-		if err := n.enforceToolCalls(ctx, assistant.ToolCalls); err != nil {
-			return nil, err
-		}
 		toolCallArguments := toolCallArgumentsByID(assistant.ToolCalls)
-
-		toolMessages, err = n.streamToolMessages(ctx, assistant)
-		if err != nil {
-			if tool.IsInterruptError(err) {
-				return nil, err
-			}
-			plan, failErr := n.failStep(ctx, plan, stepIndex, err.Error())
-			if failErr != nil {
-				return nil, failErr
-			}
-			state.Plan = plan
-			state.Phase = graph.PhaseAct
-			return state, nil
-		}
 		state.Messages = append(state.Messages, toolMessages...)
 		if err := graph.GraphSessionRecordToolResults(ctx, session, toolMessages); err != nil {
 			return nil, err
@@ -298,6 +278,32 @@ func (n *ActNode) Invoke(ctx context.Context, state *graph.AgentGraphState) (*gr
 	return state, nil
 }
 
+func (n *ActNode) executeActionRound(
+	ctx context.Context,
+	runID string,
+	messageID string,
+	baseMessages []*schema.Message,
+	step model.PlanStep,
+	toolInfos []*schema.ToolInfo,
+) (*schema.Message, []*schema.Message, bool, error) {
+	return orchestration.ExecuteRound(
+		ctx,
+		n.model,
+		n.streamer,
+		n.tools,
+		n.buildModelInput(baseMessages, step),
+		toolInfos,
+		runID,
+		messageID,
+		orchestration.RoundOptions{
+			CallSite: providers.CallSiteAct,
+			BeforeToolCall: func(ctx context.Context, call schema.ToolCall) error {
+				return n.enforceToolCall(ctx, call)
+			},
+		},
+	)
+}
+
 func formatVerificationContinuationPrompt(step model.PlanStep, coverageErr error) string {
 	var b strings.Builder
 	b.WriteString("The active plan step is not complete yet. Continue the same step and call the missing tool(s) needed to satisfy verification before finalizing.")
@@ -320,19 +326,6 @@ func formatVerificationContinuationPrompt(step model.PlanStep, coverageErr error
 		}
 	}
 	return b.String()
-}
-
-func (n *ActNode) streamToolMessages(ctx context.Context, assistant *schema.Message) ([]*schema.Message, error) {
-	executor := n.tools.NewStreamingExecutor(ctx)
-	for _, call := range assistant.ToolCalls {
-		executor.Submit(call)
-	}
-	results, err := executor.GetRemainingResults(ctx)
-	if err != nil {
-		executor.Discard()
-		return nil, err
-	}
-	return results, nil
 }
 
 func deferredDefinitionMessages(toolMessages []*schema.Message) []*schema.Message {
@@ -398,17 +391,13 @@ func (n *ActNode) buildModelInput(messages []*schema.Message, step model.PlanSte
 	return out
 }
 
-func (n *ActNode) enforceToolCalls(ctx context.Context, calls []schema.ToolCall) error {
-	for _, call := range calls {
-		spec, ok := n.specs[strings.TrimSpace(call.Function.Name)]
-		if !ok {
-			continue
-		}
-		if _, _, err := enforceRiskyToolPlan(ctx, n.store, spec); err != nil {
-			return err
-		}
+func (n *ActNode) enforceToolCall(ctx context.Context, call schema.ToolCall) error {
+	spec, ok := n.specs[strings.TrimSpace(call.Function.Name)]
+	if !ok {
+		return nil
 	}
-	return nil
+	_, _, err := enforceRiskyToolPlan(ctx, n.store, spec)
+	return err
 }
 
 func (n *ActNode) failStep(ctx context.Context, plan *model.Plan, stepIndex int, reason string) (*model.Plan, error) {

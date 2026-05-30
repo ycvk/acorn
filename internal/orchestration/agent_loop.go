@@ -36,6 +36,36 @@ type AgentLoopIteration struct {
 	OutputLimitReached bool
 }
 
+type RoundOptions struct {
+	CallSite       string
+	BeforeToolCall func(context.Context, schema.ToolCall) error
+}
+
+type ToolCallRejectedError struct {
+	Call schema.ToolCall
+	Err  error
+}
+
+func (e *ToolCallRejectedError) Error() string {
+	return fmt.Sprintf("agent loop rejected tool call %q (%s) before execution: %v", e.Call.ID, e.Call.Function.Name, e.Err)
+}
+
+func (e *ToolCallRejectedError) Unwrap() error {
+	return e.Err
+}
+
+type ToolExecutionError struct {
+	Err error
+}
+
+func (e *ToolExecutionError) Error() string {
+	return fmt.Sprintf("agent loop get tool results: %v", e.Err)
+}
+
+func (e *ToolExecutionError) Unwrap() error {
+	return e.Err
+}
+
 func (l *AgentLoop) RunOneIteration(ctx context.Context, toolInfos []*schema.ToolInfo, runID string, messageID string, allowCompact bool) (*AgentLoopIteration, error) {
 	modelReq := contextplane.ModelCallRequest{
 		CallID:       messageID,
@@ -48,7 +78,7 @@ func (l *AgentLoop) RunOneIteration(ctx context.Context, toolInfos []*schema.Too
 		return nil, fmt.Errorf("agent loop before model call: %w", err)
 	}
 
-	msg, toolMessages, outputLimitReached, streamErr := ExecuteRound(ctx, l.model, l.streamer, l.toolNode, modelInput.Messages, toolInfos, runID, messageID)
+	msg, toolMessages, outputLimitReached, streamErr := ExecuteRound(ctx, l.model, l.streamer, l.toolNode, modelInput.Messages, toolInfos, runID, messageID, RoundOptions{})
 	if streamErr == nil {
 		if err := l.session.RecordAssistant(ctx, msg); err != nil {
 			return nil, fmt.Errorf("agent loop record assistant: %w", err)
@@ -77,7 +107,7 @@ func (l *AgentLoop) RunOneIteration(ctx context.Context, toolInfos []*schema.Too
 	if compactErr != nil {
 		return nil, fmt.Errorf("agent loop reactive compact: %w", compactErr)
 	}
-	msg, toolMessages, outputLimitReached, streamErr = ExecuteRound(ctx, l.model, l.streamer, l.toolNode, recovered.Messages, toolInfos, runID, messageID)
+	msg, toolMessages, outputLimitReached, streamErr = ExecuteRound(ctx, l.model, l.streamer, l.toolNode, recovered.Messages, toolInfos, runID, messageID, RoundOptions{})
 	if streamErr != nil {
 		return &AgentLoopIteration{Message: msg, ToolMessages: toolMessages}, streamErr
 	}
@@ -101,19 +131,23 @@ func (l *AgentLoop) RunOneIteration(ctx context.Context, toolInfos []*schema.Too
 	}, nil
 }
 
-func ExecuteRound(ctx context.Context, model einomodel.BaseChatModel, streamer AssistantStreamer, toolNode ToolInvoker, messages []*schema.Message, toolInfos []*schema.ToolInfo, runID string, messageID string) (*schema.Message, []*schema.Message, bool, error) {
+func ExecuteRound(ctx context.Context, model einomodel.BaseChatModel, streamer AssistantStreamer, toolNode ToolInvoker, messages []*schema.Message, toolInfos []*schema.ToolInfo, runID string, messageID string, opts RoundOptions) (*schema.Message, []*schema.Message, bool, error) {
 	interleaved := streamer.StreamAssistantInterleaved(ctx, AssistantStreamRequest{
 		RunID:     runID,
 		MessageID: messageID,
 		Model:     model,
 		Messages:  messages,
 		ToolInfos: toolInfos,
+		CallSite:  opts.CallSite,
 	})
 
 	executor := toolNode.NewStreamingExecutor(ctx)
-	result, err := consumeInterleavedForAgentLoop(ctx, interleaved, executor)
+	result, err := consumeInterleavedForAgentLoop(ctx, interleaved, executor, opts.BeforeToolCall)
 	if err != nil {
 		executor.Discard()
+		if result != nil && result.Message != nil {
+			return result.Message, nil, false, err
+		}
 		return nil, nil, false, err
 	}
 	if result == nil || result.Message == nil {
@@ -139,7 +173,7 @@ func ExecuteRound(ctx context.Context, model einomodel.BaseChatModel, streamer A
 
 	toolMessages, err := executor.GetRemainingResults(ctx)
 	if err != nil {
-		return msg, nil, false, fmt.Errorf("agent loop get tool results: %w", err)
+		return msg, nil, false, &ToolExecutionError{Err: err}
 	}
 
 	return msg, toolMessages, false, nil
@@ -188,7 +222,7 @@ func outputLimitContinuationMessage() *schema.Message {
 	return msg
 }
 
-func consumeInterleavedForAgentLoop(ctx context.Context, interleaved *InterleavedStream, executor StreamingExecutor) (*AssistantStreamResult, error) {
+func consumeInterleavedForAgentLoop(ctx context.Context, interleaved *InterleavedStream, executor StreamingExecutor, beforeToolCall func(context.Context, schema.ToolCall) error) (*AssistantStreamResult, error) {
 	var finalResult *AssistantStreamResult
 	for {
 		select {
@@ -199,6 +233,12 @@ func consumeInterleavedForAgentLoop(ctx context.Context, interleaved *Interleave
 					return finalResult, nil
 				}
 				continue
+			}
+			if beforeToolCall != nil {
+				if err := beforeToolCall(ctx, call); err != nil {
+					executor.Discard()
+					return finalResult, &ToolCallRejectedError{Call: call, Err: err}
+				}
 			}
 			executor.Submit(call)
 		case result, ok := <-interleaved.FinalMessageCh:
