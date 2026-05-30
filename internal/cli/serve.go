@@ -44,7 +44,7 @@ func runServe(ctx context.Context, args []string) error {
 		Client:        container.Client(),
 		PendingAction: container.PendingAction(),
 		Checkpoints:   container.Checkpoints(),
-		Trace:         container.Trace(),
+		RunResume:     container.RunResume(),
 		Memory:        container.Memory(),
 		Skills:        container.Skills(),
 		Capabilities:  container.Capabilities(),

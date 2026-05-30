@@ -11,7 +11,6 @@ import (
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/ycvk/acorn/internal/app"
-	"github.com/ycvk/acorn/internal/clientevents"
 )
 
 func TestOpenAPIContractMatchesFileBackedMemorySurface(t *testing.T) {
@@ -262,7 +261,10 @@ func TestOpenAPIContractMatchesFileBackedMemorySurface(t *testing.T) {
 		"FileSymbolsResponse",
 		"ReferenceSearchResponse",
 		"TraceWarningSummary",
+		"TraceSummary",
 		"warning_summary",
+		"trace_summary",
+		"trace_debug",
 	} {
 		if strings.Contains(text, stale) {
 			t.Fatalf("openapi contract should not contain stale entry %q", stale)
@@ -317,7 +319,6 @@ func TestOpenAPIContractMatchesFileBackedMemorySurface(t *testing.T) {
 		"ClientSettings",
 		"InterruptRunResponse",
 		"RunResult",
-		"TraceSummary",
 		"RunArtifact",
 	} {
 		if doc.Components.Schemas[schemaName] == nil {
@@ -333,28 +334,6 @@ func TestOpenAPIContractMatchesFileBackedMemorySurface(t *testing.T) {
 	}
 	if doc.Components.Parameters["DeviceID"] == nil {
 		t.Fatalf("missing DeviceID parameter")
-	}
-}
-
-func TestOpenAPITraceSummaryMatchesClientProjectionStruct(t *testing.T) {
-	path := filepath.Join("..", "..", "docs", "openapi.yaml")
-	loader := openapi3.NewLoader()
-	doc, err := loader.LoadFromFile(path)
-	if err != nil {
-		t.Fatalf("load openapi: %v", err)
-	}
-	schemaRef := doc.Components.Schemas["TraceSummary"]
-	if schemaRef == nil || schemaRef.Value == nil {
-		t.Fatal("missing TraceSummary schema")
-	}
-
-	got := sortedKeys(schemaRef.Value.Properties)
-	want := sortedStrings(jsonFieldNames(reflect.TypeOf(clientevents.TraceSummary{})))
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("TraceSummary OpenAPI fields = %v, want clientevents.TraceSummary fields %v", got, want)
-	}
-	if schemaRef.Value.AdditionalProperties.Has != nil && *schemaRef.Value.AdditionalProperties.Has {
-		t.Fatal("TraceSummary must not allow additional properties")
 	}
 }
 

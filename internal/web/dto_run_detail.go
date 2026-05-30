@@ -8,11 +8,10 @@ import (
 )
 
 type RunDetailDTO struct {
-	Run       RunDTO                     `json:"run"`
-	Thread    ThreadDTO                  `json:"thread"`
-	Events    []clientevents.RunEvent    `json:"events"`
-	Artifacts []ArtifactSummaryDTO       `json:"artifacts"`
-	Trace     *clientevents.TraceSummary `json:"trace"`
+	Run       RunDTO                  `json:"run"`
+	Thread    ThreadDTO               `json:"thread"`
+	Events    []clientevents.RunEvent `json:"events"`
+	Artifacts []ArtifactSummaryDTO    `json:"artifacts"`
 }
 
 // InterruptRunResponse is returned after requesting a run interruption.

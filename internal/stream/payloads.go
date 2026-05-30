@@ -36,15 +36,6 @@ type StreamToolCall struct {
 	InterruptContexts int    `json:"interrupt_contexts,omitempty"`
 }
 
-type StreamToolCallProgress struct {
-	Provider      string `json:"provider,omitempty"`
-	Name          string `json:"name,omitempty"`
-	CallID        string `json:"call_id,omitempty"`
-	ArgumentsJSON string `json:"arguments_json,omitempty"`
-	Delta         string `json:"delta,omitempty"`
-	Sequence      int    `json:"sequence"`
-}
-
 type StreamInterruptContext struct {
 	ID          string `json:"id,omitempty"`
 	Address     string `json:"address,omitempty"`

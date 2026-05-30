@@ -173,7 +173,6 @@ func (c *ConverterImpl) artifactSummaryDTOsFromDomain(source []app.ArtifactSumma
 func (c *ConverterImpl) capabilitiesFeaturesDTOFromSnapshot(source app.SystemFeatureCapabilities) CapabilitiesFeaturesDTO {
 	var webCapabilitiesFeaturesDTO CapabilitiesFeaturesDTO
 	webCapabilitiesFeaturesDTO.InterruptResume = source.InterruptResume
-	webCapabilitiesFeaturesDTO.TraceDebug = source.TraceDebug
 	webCapabilitiesFeaturesDTO.SessionHistory = source.SessionHistory
 	return webCapabilitiesFeaturesDTO
 }

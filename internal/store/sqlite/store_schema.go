@@ -305,6 +305,7 @@ CREATE TABLE IF NOT EXISTS events (
     payload_json TEXT NOT NULL,
     created_at TEXT NOT NULL
 );
+CREATE INDEX IF NOT EXISTS idx_events_run_sequence ON events(run_id, sequence ASC);
 CREATE TABLE IF NOT EXISTS checkpoints (
     checkpoint_id TEXT PRIMARY KEY,
     run_id TEXT NOT NULL,

@@ -22,10 +22,9 @@ type RunEventBatch struct {
 	CursorSeq int64
 }
 
-// RunEventDetail aggregates live events and trace summary for a run detail view.
+// RunEventDetail aggregates client-visible live events for a run detail view.
 type RunEventDetail struct {
 	Events []RunEvent
-	Trace  *TraceSummary
 }
 
 type SessionState string
@@ -38,26 +37,6 @@ const (
 	SessionStateInterrupted SessionState = "interrupted"
 	SessionStateDegraded    SessionState = "degraded"
 )
-
-// TraceSummary is the client-visible aggregate of persisted run events.
-type TraceSummary struct {
-	ItemCount                  int    `json:"item_count"`
-	LastKind                   string `json:"last_kind,omitempty"`
-	AssistantMessageCount      int    `json:"assistant_message_count,omitempty"`
-	AssistantDeltaCount        int    `json:"assistant_delta_count,omitempty"`
-	AssistantDeltaMessageCount int    `json:"assistant_delta_message_count,omitempty"`
-	AssistantDeltaCharCount    int    `json:"assistant_delta_char_count,omitempty"`
-	ToolCallCount              int    `json:"tool_call_count,omitempty"`
-	DecisionEventCount         int    `json:"decision_event_count,omitempty"`
-	SkillEventCount            int    `json:"skill_event_count,omitempty"`
-	PlanEventCount             int    `json:"plan_event_count,omitempty"`
-	DecisionSelected           bool   `json:"decision_selected,omitempty"`
-	DecisionBlocked            bool   `json:"decision_blocked,omitempty"`
-	SkillSelected              bool   `json:"skill_selected,omitempty"`
-	Interrupted                bool   `json:"interrupted,omitempty"`
-	Failed                     bool   `json:"failed,omitempty"`
-	Completed                  bool   `json:"completed,omitempty"`
-}
 
 // --- Event payload data types ---
 

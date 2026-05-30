@@ -232,20 +232,6 @@ func TestStreamProjectionRoundtrip(t *testing.T) {
 			},
 		},
 		{
-			name: "tool_call_progress",
-			item: stream.StreamItem{
-				RunID: "run_rt", Sequence: 21, Kind: stream.StreamKindToolCallProgress, CreatedAt: now,
-				Payload: map[string]any{"tool_call": &stream.StreamToolCallProgress{
-					Provider:      "local",
-					Name:          "run_command",
-					CallID:        "call_1",
-					ArgumentsJSON: `{"command":"go test ./internal/runtime"}`,
-					Delta:         "ok github.com/ycvk/acorn/internal/runtime",
-					Sequence:      1,
-				}},
-			},
-		},
-		{
 			name: "tool_call_failed",
 			item: stream.StreamItem{
 				RunID: "run_rt", Sequence: 22, Kind: stream.StreamKindToolCallFailed, CreatedAt: now,
@@ -773,20 +759,6 @@ func TestStreamProjectionRoundtrip_ToolCallMerge(t *testing.T) {
 			},
 		},
 		{
-			name: "tool_call_progress_full",
-			item: stream.StreamItem{
-				RunID: "run_tc", Sequence: 3, Kind: stream.StreamKindToolCallProgress, CreatedAt: now,
-				Payload: map[string]any{"tool_call": &stream.StreamToolCallProgress{
-					Provider:      "local",
-					Name:          "run_command",
-					CallID:        "call_1",
-					ArgumentsJSON: `{"command":"make test"}`,
-					Delta:         "running package internal/runtime",
-					Sequence:      7,
-				}},
-			},
-		},
-		{
 			name: "tool_call_failed_full",
 			item: stream.StreamItem{
 				RunID: "run_tc", Sequence: 4, Kind: stream.StreamKindToolCallFailed, CreatedAt: now,
@@ -831,7 +803,7 @@ func TestStreamProjectionRoundtrip_ToolCallMerge(t *testing.T) {
 
 			result := mustProjectEventToStreamItem(t, event)
 
-			if result.GetToolCall() == nil && result.GetToolCallProgress() == nil {
+			if result.GetToolCall() == nil {
 				t.Fatalf("ToolCall is nil after roundtrip; expected non-nil")
 			}
 

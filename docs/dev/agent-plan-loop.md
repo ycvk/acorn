@@ -45,7 +45,7 @@ curl -H "Authorization: Bearer $ACORN_DEVICE_TOKEN" \
   http://127.0.0.1:8080/v1/threads/THREAD_ID/runs
 ```
 
-Plan 生命周期事件会持久化为后端诊断事件，但不会进入 `/v1/runs/{run_id}/events` mobile live stream，也不会作为 public RunDetail plan DTO 暴露。调试 plan 时从后端 trace/SQLite 诊断路径核对原始事件：
+Plan 生命周期事件会持久化为后端诊断事件，但不会进入 `/v1/runs/{run_id}/events` mobile live stream，也不会作为 public RunDetail plan DTO 暴露。调试 plan 时从 SQLite 诊断路径核对原始事件：
 
 ```json
 {"kind":"plan.created","plan":{"plan_id":"session_...","steps":[{"id":"s1","action":"Read README.md","status":"pending","risk":"read","repo_targets":[{"path":"README.md","reason":"summarize project skeleton","confidence":"high"}],"tool_hints":["read_file"]}]}}
@@ -53,7 +53,7 @@ Plan 生命周期事件会持久化为后端诊断事件，但不会进入 `/v1/
 {"kind":"step.completed","plan":{"steps":[{"id":"s1","status":"completed","risk":"read"}]},"step":{"id":"s1","status":"completed","risk":"read"}}
 ```
 
-如果需要远程核对一次 run 的用户可见事实，可通过标准 `/v1` run detail 查看 run/thread、live event activity、trace summary 和 artifacts：
+如果需要远程核对一次 run 的用户可见事实，可通过标准 `/v1` run detail 查看 run/thread、live event activity 和 artifacts：
 
 ```bash
 curl -H "Authorization: Bearer $ACORN_DEVICE_TOKEN" \
@@ -142,7 +142,7 @@ func buildAgentGraph(
 
 | endpoint | 返回 | 用途 |
 |---|---|---|
-| `GET /v1/runs/{run_id}/detail` | `RunDetail` | 查询 run detail 聚合，包含 run/thread、live events、artifacts 和 trace summary |
+| `GET /v1/runs/{run_id}/detail` | `RunDetail` | 查询 run detail 聚合，包含 run/thread、live events 和 artifacts |
 | `GET /v1/runs/{run_id}/events` | `RunEvent` SSE/历史事件 | 查询 mobile live event subset，不包含 plan/step diagnostics |
 
 `RunDetail` 和 `RunEvent` 的字段以 `docs/openapi.yaml` 为准，mobile Dart client 由 `mobile/tool/generate_openapi_client.py` 生成。不要恢复 legacy `/api/sessions/*/plan`、`/api/runs/*/plan`、public `PlanDTO` 或 runtime workbench 平行查询面。
@@ -156,11 +156,11 @@ curl -H "Authorization: Bearer $ACORN_DEVICE_TOKEN" \
   http://127.0.0.1:8080/v1/runs/RUN_ID/detail
 ```
 
-Run detail 是 remote client 的 run/thread、activity、artifact 和 trace-summary source。完整 run 成败仍以 run status、terminal live event 和 RunDetail trace 为准。
+Run detail 是 remote client 的 run/thread、activity 和 artifact source。完整 run 成败以 run status 和 terminal live event 为准。
 
 ### 让 remote client 消费 plan state
 
-当前 mobile control surface 通过 `/v1/runs/{run_id}/detail` 消费 run/thread、artifacts 和 trace summary，通过 `/v1/runs/{run_id}/events` 只消费 foreground live subset。扩展 plan state 时必须先明确新的 product surface 和 OpenAPI contract，不要恢复旧 frontend dispatcher、legacy `StreamItem` reducer、public PlanDTO/workbench aggregate，或把 plan/step diagnostics 重新塞进 live RunEvent。
+当前 mobile control surface 通过 `/v1/runs/{run_id}/detail` 消费 run/thread 和 artifacts，通过 `/v1/runs/{run_id}/events` 只消费 foreground live subset。扩展 plan state 时必须先明确新的 product surface 和 OpenAPI contract，不要恢复旧 frontend dispatcher、legacy `StreamItem` reducer、public PlanDTO/workbench aggregate，或把 plan/step diagnostics 重新塞进 live RunEvent。
 
 新增 public plan surface 时必须同步三处：
 

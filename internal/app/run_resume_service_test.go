@@ -11,39 +11,7 @@ import (
 	storecore "github.com/ycvk/acorn/internal/store"
 )
 
-func TestTraceServiceWorksWithoutExecutionConfig(t *testing.T) {
-	store := openTestStore(t)
-
-	const runID = "run_trace_only"
-	if err := store.CreateRun(context.Background(), runID, "hello", runID); err != nil {
-		t.Fatalf("create run: %v", err)
-	}
-	if _, err := store.AppendEventContext(context.Background(), runID, "run.started", map[string]any{"input": "hello"}); err != nil {
-		t.Fatalf("append run.started: %v", err)
-	}
-	if _, err := store.AppendEventContext(context.Background(), runID, "run.completed", map[string]any{
-		"message": map[string]any{"role": "assistant", "content": "done"},
-	}); err != nil {
-		t.Fatalf("append run.completed: %v", err)
-	}
-	if err := store.FinishRunContext(context.Background(), runID, events.RunStatusSucceeded, "done", ""); err != nil {
-		t.Fatalf("finish run: %v", err)
-	}
-
-	service := NewTraceService(store)
-	trace, err := service.Trace(context.Background(), runID)
-	if err != nil {
-		t.Fatalf("Trace: %v", err)
-	}
-	if trace.Run == nil || trace.Run.RunID != runID {
-		t.Fatalf("unexpected trace run: %#v", trace.Run)
-	}
-	if trace.Summary == nil || !trace.Summary.Completed {
-		t.Fatalf("unexpected trace summary: %#v", trace.Summary)
-	}
-}
-
-func TestTraceServiceInfersResumeTargetsForGenericInterrupt(t *testing.T) {
+func TestRunResumeServiceInfersResumeTargetsForGenericInterrupt(t *testing.T) {
 	store := openTestStore(t)
 
 	const runID = "run_resume"
@@ -64,7 +32,7 @@ func TestTraceServiceInfersResumeTargetsForGenericInterrupt(t *testing.T) {
 		t.Fatalf("mark interrupted: %v", err)
 	}
 
-	service := NewTraceService(store)
+	service := NewRunResumeService(store)
 	status, err := service.ResumeStatus(context.Background(), runID)
 	if err != nil {
 		t.Fatalf("ResumeStatus: %v", err)
@@ -88,7 +56,7 @@ func TestTraceServiceInfersResumeTargetsForGenericInterrupt(t *testing.T) {
 	}
 }
 
-func TestTraceServiceInfersResumeTargetsForKnownRunCommandInterruptKinds(t *testing.T) {
+func TestRunResumeServiceInfersResumeTargetsForKnownRunCommandInterruptKinds(t *testing.T) {
 	tests := []struct {
 		name string
 		info map[string]any
@@ -130,7 +98,7 @@ func TestTraceServiceInfersResumeTargetsForKnownRunCommandInterruptKinds(t *test
 				t.Fatalf("mark interrupted: %v", err)
 			}
 
-			service := NewTraceService(store)
+			service := NewRunResumeService(store)
 			status, err := service.ResumeStatus(context.Background(), runID)
 			if err != nil {
 				t.Fatalf("ResumeStatus: %v", err)
@@ -153,7 +121,7 @@ func TestTraceServiceInfersResumeTargetsForKnownRunCommandInterruptKinds(t *test
 	}
 }
 
-func TestTraceServiceInfersResumeTargetsForDecidedOperatorQuestion(t *testing.T) {
+func TestRunResumeServiceInfersResumeTargetsForDecidedOperatorQuestion(t *testing.T) {
 	store := openTestStore(t)
 
 	const runID = "run_operator_question_resume"
@@ -193,7 +161,7 @@ func TestTraceServiceInfersResumeTargetsForDecidedOperatorQuestion(t *testing.T)
 		t.Fatalf("mark interrupted: %v", err)
 	}
 
-	targets, err := NewTraceService(store).InferResumeTargets(context.Background(), runID)
+	targets, err := NewRunResumeService(store).InferResumeTargets(context.Background(), runID)
 	if err != nil {
 		t.Fatalf("InferResumeTargets: %v", err)
 	}
@@ -206,7 +174,7 @@ func TestTraceServiceInfersResumeTargetsForDecidedOperatorQuestion(t *testing.T)
 	}
 }
 
-func TestTraceServiceInferResumeTargetsRejectsUnknownInterruptKind(t *testing.T) {
+func TestRunResumeServiceInferResumeTargetsRejectsUnknownInterruptKind(t *testing.T) {
 	store := openTestStore(t)
 
 	const runID = "run_resume_unknown"
@@ -232,14 +200,14 @@ func TestTraceServiceInferResumeTargetsRejectsUnknownInterruptKind(t *testing.T)
 		t.Fatalf("mark interrupted: %v", err)
 	}
 
-	service := NewTraceService(store)
+	service := NewRunResumeService(store)
 	_, err := service.InferResumeTargets(context.Background(), runID)
 	if err == nil || !strings.Contains(err.Error(), `unsupported kind "manual_gate"`) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
-func TestTraceServiceResumeStatusRejectsFailedRun(t *testing.T) {
+func TestRunResumeServiceResumeStatusRejectsFailedRun(t *testing.T) {
 	store := openTestStore(t)
 
 	const runID = "run_failed"
@@ -250,7 +218,7 @@ func TestTraceServiceResumeStatusRejectsFailedRun(t *testing.T) {
 		t.Fatalf("finish run: %v", err)
 	}
 
-	service := NewTraceService(store)
+	service := NewRunResumeService(store)
 	status, err := service.ResumeStatus(context.Background(), runID)
 	if err != nil {
 		t.Fatalf("ResumeStatus: %v", err)
@@ -274,7 +242,7 @@ func TestTraceServiceResumeStatusRejectsFailedRun(t *testing.T) {
 	}
 }
 
-func TestTraceServiceResumeStatusExplainsCompletedRun(t *testing.T) {
+func TestRunResumeServiceResumeStatusExplainsCompletedRun(t *testing.T) {
 	store := openTestStore(t)
 
 	const runID = "run_completed"
@@ -285,7 +253,7 @@ func TestTraceServiceResumeStatusExplainsCompletedRun(t *testing.T) {
 		t.Fatalf("finish run: %v", err)
 	}
 
-	service := NewTraceService(store)
+	service := NewRunResumeService(store)
 	status, err := service.ResumeStatus(context.Background(), runID)
 	if err != nil {
 		t.Fatalf("ResumeStatus: %v", err)

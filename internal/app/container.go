@@ -16,7 +16,7 @@ type Container struct {
 	store         *storesqlite.Store
 	runnerFactory *runtime.RunnerFactory
 	runController *runtime.RunController
-	trace         *TraceService
+	runResume     *RunResumeService
 	checkpoints   *WorkingCheckpointService
 	skills        *SkillService
 	chat          *ChatService
@@ -43,8 +43,8 @@ func (c *Container) Config() *config.Config {
 	return c.cfg
 }
 
-func (c *Container) Trace() *TraceService {
-	return c.trace
+func (c *Container) RunResume() *RunResumeService {
+	return c.runResume
 }
 
 func (c *Container) Checkpoints() *WorkingCheckpointService {

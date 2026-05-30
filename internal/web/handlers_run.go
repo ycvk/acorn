@@ -47,7 +47,7 @@ func (s *Server) handleClientResumeRun(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	result, err := s.trace.Resume(r.Context(), runID, nil)
+	result, err := s.runResume.Resume(r.Context(), runID, nil)
 	if err != nil {
 		s.respondClientKnownError(w, r, err)
 		return
@@ -82,7 +82,6 @@ func (s *Server) handleClientRunDetail(w http.ResponseWriter, r *http.Request) {
 		Thread:    threadDTOFromDomain(*thread),
 		Events:    eventDetail.Events,
 		Artifacts: artifactSummaryDTOsFromDomain(artifacts),
-		Trace:     eventDetail.Trace,
 	}
 	s.respondJSON(w, r, http.StatusOK, detail)
 }

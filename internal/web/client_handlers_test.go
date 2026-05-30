@@ -769,7 +769,7 @@ func TestClientResourceSurfaceHandlers(t *testing.T) {
 			EnabledToolCount: 1,
 			SkillCount:       1,
 		},
-		Features: app.SystemFeatureCapabilities{InterruptResume: true, TraceDebug: true, SessionHistory: true},
+		Features: app.SystemFeatureCapabilities{InterruptResume: true, SessionHistory: true},
 		Tools: []app.SystemToolCapability{{
 			Name:        "run_command",
 			Source:      "builtin",
@@ -860,7 +860,7 @@ func TestClientResourceSurfaceHandlers(t *testing.T) {
 	}
 	server := &Server{
 		client:       service,
-		trace:        &clientTraceStub{result: &app.RunResult{RunID: "run_1", Status: "interrupted"}},
+		runResume:    &clientRunResumeStub{result: &app.RunResult{RunID: "run_1", Status: "interrupted"}},
 		capabilities: capabilities,
 		pendingAction: &pendingActionHandlerStub{
 			summaries: []app.PendingActionSummary{{
@@ -971,7 +971,7 @@ func TestClientResourceSurfaceHandlers(t *testing.T) {
 	}{
 		{name: "interrupt", method: http.MethodPost, path: "/v1/runs/run_1:interrupt", wantStatus: http.StatusAccepted, want: "interrupt_requested"},
 		{name: "resume", method: http.MethodPost, path: "/v1/runs/run_1:resume", body: `{}`, wantStatus: http.StatusOK, want: `"run_id":"run_1"`},
-		{name: "detail", method: http.MethodGet, path: "/v1/runs/run_1/detail", wantStatus: http.StatusOK, want: `"trace"`},
+		{name: "detail", method: http.MethodGet, path: "/v1/runs/run_1/detail", wantStatus: http.StatusOK, want: `"artifacts"`},
 		{name: "inbox", method: http.MethodGet, path: "/v1/inbox", wantStatus: http.StatusOK, want: `"pending_actions":[{"action_id":"action_1"`},
 		{name: "pending actions", method: http.MethodGet, path: "/v1/pending-actions", wantStatus: http.StatusOK, want: `"items":[{"action_id":"action_1"`},
 		{name: "system status", method: http.MethodGet, path: "/v1/system/status", wantStatus: http.StatusOK, want: `"runtime_readiness":{"status":"ready"}`},
@@ -1470,12 +1470,12 @@ func (s *notificationHandlerStub) RevokeDevicePushToken(_ context.Context, auth 
 
 var _ NotificationService = (*notificationHandlerStub)(nil)
 
-type clientTraceStub struct {
+type clientRunResumeStub struct {
 	result *app.RunResult
 	err    error
 }
 
-func (s *clientTraceStub) Resume(context.Context, string, stream.StreamSink) (*app.RunResult, error) {
+func (s *clientRunResumeStub) Resume(context.Context, string, stream.StreamSink) (*app.RunResult, error) {
 	return s.result, s.err
 }
 

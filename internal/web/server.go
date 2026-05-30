@@ -44,7 +44,7 @@ type WorkingCheckpointService interface {
 	Clear(ctx context.Context, threadID string) error
 }
 
-type TraceService interface {
+type RunResumeService interface {
 	Resume(ctx context.Context, runID string, sink stream.StreamSink) (*app.RunResult, error)
 }
 
@@ -87,7 +87,7 @@ type Dependencies struct {
 	Client        ClientService
 	PendingAction PendingActionService
 	Checkpoints   WorkingCheckpointService
-	Trace         TraceService
+	RunResume     RunResumeService
 	Memory        MemoryService
 	Skills        SkillService
 	Capabilities  CapabilityService
@@ -102,7 +102,7 @@ type Server struct {
 	client        ClientService
 	pendingAction PendingActionService
 	checkpoints   WorkingCheckpointService
-	trace         TraceService
+	runResume     RunResumeService
 	memory        MemoryService
 	skills        SkillService
 	capabilities  CapabilityService
