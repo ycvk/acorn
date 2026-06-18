@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -162,6 +163,21 @@ func TestLoadSelfHostedExample(t *testing.T) {
 	}
 	if got := cfg.Tools.RunCommand.WorkDir; got != "/srv/acorn/workspace" {
 		t.Fatalf("tools.run_command.work_dir = %q, want /srv/acorn/workspace", got)
+	}
+}
+
+func TestLoadReportsUnknownField(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "acorn.yaml")
+	if err := os.WriteFile(path, []byte("totally_unknown_field: 1\n"), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	_, err := Load(path)
+	if err == nil {
+		t.Fatal("expected error for unknown config field")
+	}
+	if !strings.Contains(err.Error(), "totally_unknown_field") {
+		t.Fatalf("error should name the unknown field, got: %v", err)
 	}
 }
 
