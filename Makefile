@@ -45,7 +45,6 @@ release-linux-arm64:
 	$(MAKE) release RELEASE_GOOS=linux RELEASE_GOARCH=arm64
 
 dev-faiss-artifacts:
-	rm -rf "$(DEV_FAISS_ARTIFACT_DIR)"
 	sh scripts/build-faiss-artifacts.sh "$(DEV_FAISS_ARTIFACT_DIR)" "$$(go env GOOS)" "$$(go env GOARCH)"
 
 dev-build-faiss:

@@ -5,6 +5,16 @@ root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 output_dir=${1:-}
 target_goos=${2:-linux}
 target_goarch=${3:-amd64}
+
+# Pinned FAISS source lives in deploy/faiss.version (single source of truth,
+# shared by release packaging and local dev). Env vars override the file.
+faiss_version_file="$root/deploy/faiss.version"
+if [ -z "${FAISS_REPO:-}" ] && [ -f "$faiss_version_file" ]; then
+	FAISS_REPO=$(grep '^FAISS_REPO=' "$faiss_version_file" | cut -d= -f2-)
+fi
+if [ -z "${FAISS_COMMIT:-}" ] && [ -f "$faiss_version_file" ]; then
+	FAISS_COMMIT=$(grep '^FAISS_COMMIT=' "$faiss_version_file" | cut -d= -f2-)
+fi
 faiss_repo=${FAISS_REPO:-https://github.com/blevesearch/faiss.git}
 faiss_commit=${FAISS_COMMIT:-ffd910a91f1acf49b9898a7e514e462db89ee7b3}
 
@@ -65,6 +75,17 @@ case "$output_dir" in
 		output_dir=$root/$output_dir
 		;;
 esac
+
+# Idempotent cache: if the output already holds artifacts built from this exact
+# FAISS commit, skip the slow rebuild. A stale/partial dir is removed and rebuilt.
+faiss_stamp="$output_dir/.faiss-commit"
+if [ -f "$faiss_stamp" ] && [ "$(cat "$faiss_stamp" 2>/dev/null)" = "$faiss_commit" ]; then
+	printf "FAISS %s artifacts already built at %s (commit %s); skipping rebuild\n" "$target_goos/$target_goarch" "$output_dir" "$faiss_commit"
+	exit 0
+fi
+if [ -d "$output_dir" ]; then
+	rm -rf "$output_dir"
+fi
 
 if [ -e "$output_dir" ] && [ ! -d "$output_dir" ]; then
 	echo "FAISS artifact output path is not a directory: $output_dir" >&2
@@ -305,5 +326,6 @@ case "$target_goos" in
 		;;
 esac
 
+printf "%s" "$faiss_commit" > "$output_dir/.faiss-commit"
 printf "built FAISS %s artifacts from %s to %s\n" "$target_goos/$target_goarch" "$faiss_commit" "$output_dir"
 find "$target_dir" -maxdepth 1 -type f \( -name "libfaiss*.so*" -o -name "libfaiss*.dylib*" \) -print | sort
