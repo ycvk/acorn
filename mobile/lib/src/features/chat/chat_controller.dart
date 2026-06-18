@@ -29,10 +29,12 @@ class ChatController extends ChangeNotifier {
 
   bool loading = false;
   bool sending = false;
+  bool cancelling = false;
   String? errorMessage;
   String? noticeMessage;
   Thread? thread;
   List<ChatItem> chatItems = const [];
+  String? activeRunId;
 
   Future<void> loadActiveThread({bool force = false}) async {
     final activeThread = _threadsController.activeThread;
@@ -108,6 +110,7 @@ class ChatController extends ChangeNotifier {
         activeThread.id,
         mode: 'direct_response',
       );
+      activeRunId = run.id;
       _appendLiveAssistant(run);
       await _followRun(run);
       noticeMessage = null;
@@ -118,7 +121,32 @@ class ChatController extends ChangeNotifier {
       errorMessage = acornUserFacingErrorText(error);
       _markStreamingAssistantFailed();
     } finally {
+      activeRunId = null;
+      cancelling = false;
       sending = false;
+      notifyListeners();
+    }
+  }
+
+  /// Requests the backend to interrupt the currently active run.
+  ///
+  /// This does not locally tear down the event stream. We rely on the backend
+  /// emitting a terminal `run.interrupted` event so that [_followRun] unwinds
+  /// naturally; if the backend never responds, the UI stays in the sending
+  /// state and the stall is visible (fail-loud) rather than hidden.
+  Future<void> cancelActiveRun() async {
+    final runId = activeRunId;
+    if (runId == null || cancelling) {
+      return;
+    }
+    cancelling = true;
+    errorMessage = null;
+    notifyListeners();
+    try {
+      await _connectionController.api.interruptRun(runId);
+    } catch (error) {
+      cancelling = false;
+      errorMessage = acornUserFacingErrorText(error);
       notifyListeners();
     }
   }
@@ -417,6 +445,8 @@ class ChatController extends ChangeNotifier {
   void clear() {
     loading = false;
     sending = false;
+    cancelling = false;
+    activeRunId = null;
     errorMessage = null;
     noticeMessage = null;
     thread = null;

@@ -114,7 +114,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               controller: _composer,
               focusNode: _focusNode,
               sending: chat.sending,
+              cancelling: chat.cancelling,
               onSend: () => _send(chat),
+              onStop: () => _stop(chat),
             ),
           ],
         ),
@@ -172,6 +174,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _composer.clear();
     _focusNode.requestFocus();
     await controller.sendChatMessage(text);
+  }
+
+  Future<void> _stop(ChatController controller) async {
+    HapticFeedback.mediumImpact();
+    await controller.cancelActiveRun();
   }
 
   Future<void> _refresh(ChatController chatController) async {
@@ -329,13 +336,17 @@ class _ChatInputBar extends StatefulWidget {
     required this.controller,
     required this.focusNode,
     required this.sending,
+    required this.cancelling,
     required this.onSend,
+    required this.onStop,
   });
 
   final TextEditingController controller;
   final FocusNode focusNode;
   final bool sending;
+  final bool cancelling;
   final VoidCallback onSend;
+  final VoidCallback onStop;
 
   @override
   State<_ChatInputBar> createState() => _ChatInputBarState();
@@ -396,13 +407,16 @@ class _ChatInputBarState extends State<_ChatInputBar> {
           ),
           const SizedBox(width: 8),
           if (widget.sending)
-            const SizedBox(
-              width: 48,
-              height: 48,
-              child: Padding(
-                padding: EdgeInsets.all(12),
-                child: CircularProgressIndicator(strokeWidth: 2.4),
-              ),
+            IconButton.filled(
+              tooltip: 'Stop',
+              onPressed: widget.cancelling ? null : widget.onStop,
+              icon: widget.cancelling
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2.4),
+                    )
+                  : const Icon(Icons.stop),
             )
           else
             IconButton.filled(

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../api/acorn_api.dart';
+import '../../core/connection_controller.dart';
 import '../../core/providers.dart';
 import '../../ui/theme/acorn_theme.dart';
 import '../../ui/widgets/acorn_formatters.dart';
@@ -40,6 +41,8 @@ class _RunDetailScreenState extends ConsumerState<RunDetailScreen> {
     }
   }
 
+  bool _actionPending = false;
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(
@@ -68,6 +71,42 @@ class _RunDetailScreenState extends ConsumerState<RunDetailScreen> {
     );
   }
 
+  Future<void> _interrupt() async {
+    await _runLifecycleAction(
+      (api) => api.interruptRun(widget.runId),
+    );
+  }
+
+  Future<void> _resume() async {
+    await _runLifecycleAction(
+      (api) => api.resumeRun(widget.runId),
+    );
+  }
+
+  Future<void> _runLifecycleAction(
+    Future<void> Function(AcornApiClient api) action,
+  ) async {
+    if (_actionPending) {
+      return;
+    }
+    setState(() => _actionPending = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await action(ref.read(connectionControllerProvider).api);
+      await ref
+          .read(runDetailControllerProvider)
+          .load(widget.runId, force: true);
+    } catch (error) {
+      messenger.showSnackBar(
+        SnackBar(content: Text(acornUserFacingErrorText(error))),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _actionPending = false);
+      }
+    }
+  }
+
   Widget _buildBody(BuildContext context, RunDetailState state) {
     final detail = state.detail;
     if (detail == null) {
@@ -90,6 +129,17 @@ class _RunDetailScreenState extends ConsumerState<RunDetailScreen> {
       return const Center(child: CircularProgressIndicator());
     }
 
+    final interruptResumeEnabled =
+        ref
+            .watch(
+              inboxControllerProvider.select(
+                (controller) => controller.system,
+              ),
+            )
+            ?.features
+            .interruptResume ??
+        false;
+
     return Column(
       children: [
         if (state.loading) const LinearProgressIndicator(minHeight: 2),
@@ -99,6 +149,10 @@ class _RunDetailScreenState extends ConsumerState<RunDetailScreen> {
           child: _RunDetailBody(
             detail: detail,
             onOpenThread: () => _openThread(context, detail.thread),
+            interruptResumeEnabled: interruptResumeEnabled,
+            actionPending: _actionPending,
+            onInterrupt: _interrupt,
+            onResume: _resume,
           ),
         ),
       ],
@@ -117,10 +171,21 @@ class _RunDetailScreenState extends ConsumerState<RunDetailScreen> {
 }
 
 class _RunDetailBody extends StatelessWidget {
-  const _RunDetailBody({required this.detail, required this.onOpenThread});
+  const _RunDetailBody({
+    required this.detail,
+    required this.onOpenThread,
+    required this.interruptResumeEnabled,
+    required this.actionPending,
+    required this.onInterrupt,
+    required this.onResume,
+  });
 
   final RunDetail detail;
   final VoidCallback onOpenThread;
+  final bool interruptResumeEnabled;
+  final bool actionPending;
+  final VoidCallback onInterrupt;
+  final VoidCallback onResume;
 
   @override
   Widget build(BuildContext context) {
@@ -152,6 +217,28 @@ class _RunDetailBody extends StatelessWidget {
             ),
           ),
         ),
+        if (interruptResumeEnabled && run.status == 'running')
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: FilledButton.icon(
+                onPressed: actionPending ? null : onInterrupt,
+                icon: const Icon(Icons.stop_circle_outlined),
+                label: const Text('中断'),
+              ),
+            ),
+          ),
+        if (interruptResumeEnabled && run.status == 'interrupted')
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: FilledButton.icon(
+                onPressed: actionPending ? null : onResume,
+                icon: const Icon(Icons.play_circle_outline),
+                label: const Text('恢复'),
+              ),
+            ),
+          ),
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
