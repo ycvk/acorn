@@ -57,10 +57,6 @@ func (p *DefaultPlane) BuildDirectResponse(ctx context.Context, req DirectRespon
 		toolInfos = append(toolInfos, info)
 	}
 
-	if p.toolSchemaChangeDetector != nil && p.toolSchemaChangeDetector(ctx, allTools) && p.instructionCacheInvalidator != nil {
-		p.instructionCacheInvalidator()
-	}
-
 	safeToolNode, err := p.toolNodeFactory(ctx, allTools, req.Catalog)
 	if err != nil {
 		return nil, fmt.Errorf("build safe parallel tools node: %w", err)

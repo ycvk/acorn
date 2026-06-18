@@ -20,9 +20,7 @@ import (
 func TestSubagentExecutorEmptyTask(t *testing.T) {
 	t.Parallel()
 
-	se := &SubagentExecutor{
-		depths: make(map[string]int),
-	}
+	se := &SubagentExecutor{}
 
 	_, err := se.Execute(context.Background(), orchestration.ChildAgentRequest{
 		ParentRunID:        "parent_run",
@@ -37,9 +35,7 @@ func TestSubagentExecutorEmptyTask(t *testing.T) {
 func TestSubagentExecutorEmptyParentRunID(t *testing.T) {
 	t.Parallel()
 
-	se := &SubagentExecutor{
-		depths: make(map[string]int),
-	}
+	se := &SubagentExecutor{}
 
 	_, err := se.Execute(context.Background(), orchestration.ChildAgentRequest{
 		ParentRunID:        "",
@@ -51,32 +47,40 @@ func TestSubagentExecutorEmptyParentRunID(t *testing.T) {
 	}
 }
 
-func TestSubagentExecutorDepthTracking(t *testing.T) {
+func TestSubagentExecutorDepthFromResolver(t *testing.T) {
 	t.Parallel()
 
 	se := &SubagentExecutor{
-		depths: make(map[string]int),
+		parentDepth: func(parentRunID string) int {
+			if parentRunID == "deep_parent" {
+				return 2
+			}
+			return 0
+		},
 	}
 
-	parentRunID := "run_depth_test"
+	if d := se.currentDepth("shallow"); d != 0 {
+		t.Fatalf("shallow depth = %d, want 0", d)
+	}
+	if d := se.currentDepth("deep_parent"); d != 2 {
+		t.Fatalf("deep depth = %d, want 2", d)
+	}
+}
 
-	if d := se.currentDepth(parentRunID); d != 0 {
-		t.Fatalf("initial depth = %d, want 0", d)
+func TestSubagentExecutorRejectsDepthOverLimit(t *testing.T) {
+	t.Parallel()
+
+	se := &SubagentExecutor{
+		// Parent already at the limit, so the child would exceed it.
+		parentDepth: func(string) int { return maxSubagentDepth },
 	}
 
-	d1 := se.incrementDepth(parentRunID)
-	if d1 != 1 {
-		t.Fatalf("first increment = %d, want 1", d1)
-	}
-
-	d2 := se.incrementDepth(parentRunID)
-	if d2 != 2 {
-		t.Fatalf("second increment = %d, want 2", d2)
-	}
-
-	se.decrementDepth(parentRunID)
-	if d := se.currentDepth(parentRunID); d != 1 {
-		t.Fatalf("after decrement = %d, want 1", d)
+	_, err := se.Execute(context.Background(), orchestration.ChildAgentRequest{
+		ParentRunID: "deep_parent",
+		Task:        "recurse",
+	})
+	if err == nil || !strings.Contains(err.Error(), "exceeds limit") {
+		t.Fatalf("error = %v, want depth limit error", err)
 	}
 }
 
@@ -209,9 +213,7 @@ func TestSubagentStreamItemJSONRoundtrip(t *testing.T) {
 func TestSubagentAdapterExtractsRunID(t *testing.T) {
 	t.Parallel()
 
-	se := &SubagentExecutor{
-		depths: make(map[string]int),
-	}
+	se := &SubagentExecutor{}
 	adapter := subagentExecutorAdapter{exec: se}
 
 	ctx := runtimeapi.WithRunID(context.Background(), "test_parent")
@@ -230,9 +232,7 @@ func TestSubagentAdapterExtractsRunID(t *testing.T) {
 func TestSubagentAdapterDefaultParentRunID(t *testing.T) {
 	t.Parallel()
 
-	se := &SubagentExecutor{
-		depths: make(map[string]int),
-	}
+	se := &SubagentExecutor{}
 	adapter := subagentExecutorAdapter{exec: se}
 
 	_, err := adapter.ExecuteMessages(context.Background(), []*schema.Message{
@@ -285,8 +285,7 @@ func TestSubagentExecuteJoinsEmitFailedError(t *testing.T) {
 	})
 
 	se := &SubagentExecutor{
-		store:  store,
-		depths: make(map[string]int),
+		store: store,
 	}
 	_, err := se.Execute(ctx, orchestration.ChildAgentRequest{
 		ParentRunID: "parent_run",

@@ -178,9 +178,6 @@ func (e *Executor) consume(ctx context.Context, runID, input string, iter *adk.A
 	if err != nil {
 		return nil, err
 	}
-	if rc, ok := e.runRuntime.Registry().Get(runID); ok {
-		rc.SetFinalizing()
-	}
 	return e.finishCollectedRun(ctx, runID, input, state, selectedSkill, sink)
 }
 
