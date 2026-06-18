@@ -84,7 +84,7 @@ operator CLI / authenticated remote clients
 ## 关键边界
 
 - **Runtime 只从持久化事实恢复状态**：run mode、lineage、plans、events、resume status 都从 store ports 或 workspace inspection 来；不能从 assistant 自然语言或前端 local state 反推。
-- **SQLite adapter 不跨层泄漏**：production direct import `internal/store/sqlite` 只允许在 `internal/app/container.go`，由 `internal/architecture/store_boundary_test.go` enforce；其他 production packages 只能依赖 consumer-owned ports 或 `internal/store` shared records/errors。
+- **SQLite adapter 不跨层泄漏**：production direct import `internal/store/sqlite` 只允许在 `internal/app/container.go`，由 `tests/architecture/store_boundary_test.go` enforce；其他 production packages 只能依赖 consumer-owned ports 或 `internal/store` shared records/errors。
 - **Context boundary 是 compact/resume 事实**：compact boundary chain、summary、transcript reference、preserved segment references 和 token metrics 以 SQLite `context_boundaries` 为准；不能从 RunEvent 恢复 boundary。
 - **Context pressure 由 BudgetGovernor 计算**：compact trigger 和 ContextSession blocking 都基于 effective input window 与内部派生 policy；public YAML 只暴露 `context.window_tokens`、`context.compact_margin_tokens`、`context.preserve_recent_turns`、`context.summary_max_tokens`，不暴露 reserved/static/warning/blocking/tokenizer/reduction 细节，也不使用 `threshold_pct`、raw window percentage 或 client-local 估算。
 - **没有旧压缩兜底**：runtime 不再有 sliding-window marker、`max_history_turns`、`hard_token_cap_pct`、run-wide `TokenBudget` 或 `token_budget.exceeded` 事件；压力和恢复只走 context protocol。

@@ -796,13 +796,6 @@ components:
       required: true
       schema:
         type: string
-    PushProvider:
-      name: provider
-      in: path
-      required: true
-      schema:
-        type: string
-        enum: [apns, fcm]
     ThreadID:
       name: thread_id
       in: path
