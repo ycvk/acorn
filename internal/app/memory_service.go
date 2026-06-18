@@ -9,20 +9,10 @@ import (
 
 type MemoryService struct {
 	module   memorymodule.Service
-	semantic MemoryServiceSemanticOptions
+	semantic memorymodule.SemanticRuntimeOptions
 }
 
-type MemoryServiceSemanticOptions struct {
-	Index      memorymodule.SemanticIndex
-	Embedder   memorymodule.Embedder
-	Model      string
-	Dimensions int
-	BatchSize  int
-	Schema     string
-	IndexName  string
-}
-
-func NewMemoryService(module memorymodule.Service, semantic MemoryServiceSemanticOptions) (*MemoryService, error) {
+func NewMemoryService(module memorymodule.Service, semantic memorymodule.SemanticRuntimeOptions) (*MemoryService, error) {
 	if module == nil {
 		return nil, errors.New("memory module service is required")
 	}
