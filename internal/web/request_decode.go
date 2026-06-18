@@ -61,18 +61,6 @@ func (s *Server) decodeCreateRunRequest(w http.ResponseWriter, r *http.Request) 
 	return req, true
 }
 
-func (s *Server) decodeResumeRunRequest(w http.ResponseWriter, r *http.Request) (ResumeRunRequest, bool) {
-	if r == nil || r.Body == nil || r.ContentLength == 0 {
-		return ResumeRunRequest{}, true
-	}
-	var req ResumeRunRequest
-	if err := decodeJSONBody(r, &req); err != nil {
-		s.respondBadRequest(w, r, err.Error())
-		return ResumeRunRequest{}, false
-	}
-	return req, true
-}
-
 func (s *Server) decodeDecidePendingActionRequest(w http.ResponseWriter, r *http.Request) (DecidePendingActionRequest, bool) {
 	if r == nil || r.Body == nil || r.ContentLength == 0 {
 		s.respondBadRequest(w, r, "request body is required")
