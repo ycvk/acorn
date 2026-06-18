@@ -131,8 +131,6 @@ Seed skills include `skill.creator` and `skill.procedure.curator` plus inspectio
 
 Executable skill health is a deterministic `internal/skills` contract. `BuildHealthReport` consumes the current `ScanResult`, eligibility context, and optional routing fixtures; it reports loader problems, eligibility failures, unreachable skills, exact duplicate trigger/task-pattern failures, and expected-skill routing fixture misses. Health checks do not mutate skill files, do not promote lifecycle status, and do not restore `skill_eval` / `skill_curate`; `skill_assess` remains the active lifecycle action.
 
-Skill pack install/update governance is Acorn-native and scoped to mutable executable skill sources: workspace, generated, and user. `PlanSkillPack` produces a dry-run create/update/noop file plan after dependency closure checks. `ApplySkillPack` uses the same planner, rejects unmanaged overwrites unless destructive mode is explicit, validates installed skills through the normal loader, and writes a managed receipt with file hashes. Builtin skill sources remain immutable and there is no gbrain skillpack compatibility layer.
-
 Skill retrieval capture uses the same explicit `internal/memorymodule` eval sample schema. `internal/skills` can convert candidate retrieval results into capture samples, but the selector does not record samples unless a caller explicitly provides and invokes a sink.
 
 Learned memory skills are still file-backed memory records under `memorymodule/skills/`; they are procedures, not executable `internal/skills` specs. Runtime exposes memory file tools so the agent can create or edit procedure records as files. The skill lifecycle path does not move builtin executable skills into `memorymodule`.

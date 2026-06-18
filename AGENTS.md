@@ -72,7 +72,7 @@ make dev-serve-faiss / make dev-doctor-faiss   # 用 FAISS dev 二进制 serve /
 - procedure 使用事实是 `memorymodule` file-backed skills + `procedure.activation` RunEvent;verifier 是只读 child run contract。executable native skills 归 `internal/skills`,learned procedures 归 `internal/memorymodule/skills` 的 `ProcedureRecord`,两者可互相引用但不能混成一个 durable truth。
 - `lifecycle_status: verified` 对非 builtin skill 必须有 `evidence_refs`;无 evidence 只能是 `draft`/`unverified`/`needs_eval`。skill 质量默认由 LLM 基于 durable evidence 判断,不要求用户确认「好不好」;用户 override 必须是显式、可审计的 lifecycle action。
 - `skill_assess` 是唯一 active runtime lifecycle action;`skill_create`/`skill_assess`/`skill.lifecycle` RunEvent 维护生命周期。**不要恢复 `skill_eval`/`skill_curate` / judge child-run 评测平台,不要把 gbrain skillpack 格式当兼容目标**。
-- skill health / routing fixture / skill pack governance 是 deterministic 检查和 operator contract,不是 lifecycle promotion;pack install/update 只面向 workspace/generated/user mutable sources,必须 dry-run 可见、dependency closure 通过、receipt/hash 写入成功;release seed updates 走 release installer。
+- skill health / routing fixture 是 deterministic 检查和 operator contract,不是 lifecycle promotion;release seed updates 走 release installer。
 - `skill.lifecycle` 是 RunEvent visibility truth;OpenAPI/mobile client/projection 必须同步,不允许客户端从 prose 推断 skill 状态。
 
 ### 记忆 & 检索
