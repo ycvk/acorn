@@ -2187,6 +2187,11 @@ components:
         mode:
           type: string
           enum: [direct_response, plan_execute]
+        input:
+          type: string
+          description: >-
+            Optional run input. When set, the run records it as the pending user
+            message in one step, so a separate POST /messages is not required.
 
     Run:
       type: object
