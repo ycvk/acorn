@@ -642,7 +642,7 @@ func TestClientCreateRunUsesRealExecutorPath(t *testing.T) {
 		t.Fatalf("CreateMessage: %v", err)
 	}
 
-	run, err := service.CreateRun(ctx, thread.ID, "", "")
+	run, err := service.CreateRun(ctx, thread.ID, "", "", "")
 	if err != nil {
 		t.Fatalf("CreateRun: %v", err)
 	}
@@ -708,7 +708,7 @@ func TestClientCreateRunReturnsExecutionNotReady(t *testing.T) {
 	if _, err := service.CreateMessage(ctx, thread.ID, "hello"); err != nil {
 		t.Fatalf("CreateMessage: %v", err)
 	}
-	_, err = service.CreateRun(ctx, thread.ID, "", "")
+	_, err = service.CreateRun(ctx, thread.ID, "", "", "")
 	if !errors.Is(err, runtimeapi.ErrExecutionNotReady) {
 		t.Fatalf("CreateRun error = %v, want ErrExecutionNotReady", err)
 	}
@@ -754,7 +754,7 @@ func TestClientCreateRunReportsPostStartPersistenceFailure(t *testing.T) {
 	if _, err := service.CreateMessage(ctx, thread.ID, "hello"); err != nil {
 		t.Fatalf("CreateMessage: %v", err)
 	}
-	run, err := service.CreateRun(ctx, thread.ID, "", "")
+	run, err := service.CreateRun(ctx, thread.ID, "", "", "")
 	if err != nil {
 		t.Fatalf("CreateRun: %v", err)
 	}
@@ -810,7 +810,7 @@ func TestClientCreateRunRejectsInvalidModes(t *testing.T) {
 			if _, err := service.CreateMessage(ctx, thread.ID, "hello"); err != nil {
 				t.Fatalf("CreateMessage: %v", err)
 			}
-			_, err = service.CreateRun(ctx, thread.ID, "", tt.mode)
+			_, err = service.CreateRun(ctx, thread.ID, "", tt.mode, "")
 			if !errors.Is(err, ErrClientInvalidRunMode) {
 				t.Fatalf("CreateRun error = %v, want ErrClientInvalidRunMode", err)
 			}
