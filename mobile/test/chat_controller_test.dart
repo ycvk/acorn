@@ -33,15 +33,41 @@ void main() {
 
     expect(chat.sending, isFalse);
     expect(chat.errorMessage, isNull);
-    expect(threads.threads.single.title, 'Backend title');
     expect(inbox.inbox, isNotNull);
-    expect(chat.thread?.title, 'Backend title');
+    // Single-step send forwards the message as the run input and the selected
+    // mode; no separate createMessage call is made.
+    expect(api.lastRunInput, 'hello');
+    expect(api.lastRunMode, 'direct_response');
+    expect(chat.thread?.id, 'thread_1');
     expect(chat.chatItems.map((item) => item.text), ['hello', 'done']);
     expect(chat.chatItems.last.status, ChatRunStatus.completed);
   });
 
+  test('sendChatMessage forwards the selected plan_execute mode', () async {
+    final api = _FakeChatApi();
+    final app = _FakeConnectionController(api);
+    final inbox = InboxController(connectionController: app);
+    final threads = ThreadsController(connectionController: app)
+      ..activeThread = _thread('');
+    final chat = ChatController(
+      connectionController: app,
+      threadsController: threads,
+      inboxController: inbox,
+    )..setMode(ChatRunMode.planExecute);
+    addTearDown(app.dispose);
+    addTearDown(inbox.dispose);
+    addTearDown(threads.dispose);
+    addTearDown(chat.dispose);
+
+    await chat.sendChatMessage('plan this');
+
+    expect(api.lastRunInput, 'plan this');
+    expect(api.lastRunMode, 'plan_execute');
+    expect(chat.errorMessage, isNull);
+  });
+
   test(
-    'draft chat creates backend thread on first message and adopts title',
+    'draft chat creates backend thread on first message in one step',
     () async {
       final api = _FakeChatApi();
       final app = _FakeConnectionController(api);
@@ -61,8 +87,9 @@ void main() {
       await chat.sendChatMessage('first real request');
 
       expect(api.createThreadCount, 1);
-      expect(threads.threads.single.title, 'Backend title');
-      expect(chat.thread?.title, 'Backend title');
+      expect(threads.threads, hasLength(1));
+      expect(api.lastRunInput, 'first real request');
+      expect(chat.thread?.id, 'thread_1');
       expect(chat.chatItems.map((item) => item.text), [
         'first real request',
         'done',
@@ -328,31 +355,42 @@ class _FakeChatApi extends AcornApiClient {
     return Future.value(MessageListResponse(items: messages));
   }
 
-  @override
-  Future<Message> createMessage(String threadId, String text) async {
-    final message = Message(
-      id: 'msg_user',
-      threadId: threadId,
-      role: 'user',
-      contentText: text,
-      contentParts: [MessagePart(kind: 'text', text: text)],
-      createdAt: '2026-05-20T00:00:00Z',
-    );
-    messages.add(message);
-    return message;
-  }
+  Run? lastRun;
+  String? lastRunInput;
+  String? lastRunMode;
 
   @override
-  Future<Run> createRun(String threadId, {String? skillId, String? mode}) {
-    return Future.value(
-      Run(
-        id: 'run_1',
-        threadId: threadId,
-        status: 'running',
-        mode: mode ?? 'direct_response',
-        createdAt: '2026-05-20T00:00:01Z',
-      ),
+  Future<Run> createRun(
+    String threadId, {
+    String? skillId,
+    String? mode,
+    String? input,
+  }) {
+    lastRunInput = input;
+    lastRunMode = mode;
+    // Single-step run records the input as the pending user message, mirroring
+    // the backend's CreateRunRequest.input behaviour.
+    if (input != null && input.trim().isNotEmpty) {
+      messages.add(
+        Message(
+          id: 'msg_user',
+          threadId: threadId,
+          role: 'user',
+          contentText: input.trim(),
+          contentParts: [MessagePart(kind: 'text', text: input.trim())],
+          createdAt: '2026-05-20T00:00:00Z',
+        ),
+      );
+    }
+    final run = Run(
+      id: 'run_1',
+      threadId: threadId,
+      status: 'running',
+      mode: mode ?? 'direct_response',
+      createdAt: '2026-05-20T00:00:01Z',
     );
+    lastRun = run;
+    return Future.value(run);
   }
 
   @override

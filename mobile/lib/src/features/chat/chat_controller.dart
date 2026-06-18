@@ -35,6 +35,15 @@ class ChatController extends ChangeNotifier {
   Thread? thread;
   List<ChatItem> chatItems = const [];
   String? activeRunId;
+  ChatRunMode mode = ChatRunMode.directResponse;
+
+  void setMode(ChatRunMode next) {
+    if (mode == next) {
+      return;
+    }
+    mode = next;
+    notifyListeners();
+  }
 
   Future<void> loadActiveThread({bool force = false}) async {
     final activeThread = _threadsController.activeThread;
@@ -91,24 +100,21 @@ class ChatController extends ChangeNotifier {
       final activeThread = await _threadsController.ensureActiveThread();
       thread = activeThread;
 
-      final userMessage = await _connectionController.api.createMessage(
-        activeThread.id,
-        trimmed,
-      );
       chatItems = [
         ...chatItems,
-        ...chatItemsFromMessages([userMessage]),
+        ChatItem.message(
+          id: 'local_user:${DateTime.now().microsecondsSinceEpoch}',
+          role: ChatRole.user,
+          text: trimmed,
+          createdAt: DateTime.now().toUtc().toIso8601String(),
+        ),
       ];
       notifyListeners();
-      await _threadsController.refresh();
-      final refreshedThread = _threadsController.activeThread;
-      if (refreshedThread != null && refreshedThread.id == activeThread.id) {
-        thread = refreshedThread;
-      }
 
       final run = await _connectionController.api.createRun(
         activeThread.id,
-        mode: 'direct_response',
+        input: trimmed,
+        mode: mode.wireValue,
       );
       activeRunId = run.id;
       _appendLiveAssistant(run);

@@ -4,6 +4,20 @@ enum ChatItemKind { message, activity }
 
 enum ChatRole { user, assistant, system }
 
+enum ChatRunMode { directResponse, planExecute }
+
+extension ChatRunModeWire on ChatRunMode {
+  String get wireValue => switch (this) {
+    ChatRunMode.directResponse => 'direct_response',
+    ChatRunMode.planExecute => 'plan_execute',
+  };
+
+  String get label => switch (this) {
+    ChatRunMode.directResponse => 'Direct',
+    ChatRunMode.planExecute => 'Plan',
+  };
+}
+
 enum ChatRunStatus {
   idle,
   streaming,

@@ -94,6 +94,15 @@ class AcornApiClient {
     return Thread.fromJson(json);
   }
 
+  Future<Thread> updateThread(String threadId, {required String title}) async {
+    final response = await _http.patch(
+      _uri('/v1/threads/${Uri.encodeComponent(threadId)}', null),
+      headers: _headers(true),
+      body: jsonEncode({'title': title.trim()}),
+    );
+    return Thread.fromJson(_decodeResponse(response));
+  }
+
   Future<void> deleteThread(String threadId) async {
     final response = await _http.delete(
       _uri('/v1/threads/${Uri.encodeComponent(threadId)}', null),
@@ -127,12 +136,14 @@ class AcornApiClient {
     String threadId, {
     String? skillId,
     String? mode,
+    String? input,
   }) async {
     final json =
         await _postJson('/v1/threads/${Uri.encodeComponent(threadId)}/runs', {
           if (skillId != null && skillId.trim().isNotEmpty)
             'skill_id': skillId.trim(),
           if (mode != null && mode.trim().isNotEmpty) 'mode': mode.trim(),
+          if (input != null && input.trim().isNotEmpty) 'input': input.trim(),
         });
     return Run.fromJson(json);
   }

@@ -115,6 +115,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               focusNode: _focusNode,
               sending: chat.sending,
               cancelling: chat.cancelling,
+              mode: chat.mode,
+              onModeChanged: chat.setMode,
               onSend: () => _send(chat),
               onStop: () => _stop(chat),
             ),
@@ -337,6 +339,8 @@ class _ChatInputBar extends StatefulWidget {
     required this.focusNode,
     required this.sending,
     required this.cancelling,
+    required this.mode,
+    required this.onModeChanged,
     required this.onSend,
     required this.onStop,
   });
@@ -345,6 +349,8 @@ class _ChatInputBar extends StatefulWidget {
   final FocusNode focusNode;
   final bool sending;
   final bool cancelling;
+  final ChatRunMode mode;
+  final ValueChanged<ChatRunMode> onModeChanged;
   final VoidCallback onSend;
   final VoidCallback onStop;
 
@@ -370,60 +376,75 @@ class _ChatInputBarState extends State<_ChatInputBar> {
     final hasText = widget.controller.text.trim().isNotEmpty;
     final colors = Theme.of(context).colorScheme;
     return AcornBottomSurface(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Expanded(
-            child: TextField(
-              controller: widget.controller,
-              focusNode: widget.focusNode,
+          Align(
+            alignment: Alignment.centerLeft,
+            child: _ModeSelector(
+              mode: widget.mode,
               enabled: !widget.sending,
-              minLines: 1,
-              maxLines: 5,
-              textInputAction: TextInputAction.send,
-              onSubmitted: widget.sending ? null : (_) => widget.onSend(),
-              decoration: InputDecoration(
-                hintText: 'Message Acorn',
-                filled: true,
-                fillColor: colors.surfaceContainerLowest,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AcornRadius.lg),
-                  borderSide: BorderSide(color: colors.outlineVariant),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AcornRadius.lg),
-                  borderSide: BorderSide(color: colors.outlineVariant),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AcornRadius.lg),
-                  borderSide: BorderSide(color: colors.primary, width: 1.4),
-                ),
-              ),
+              onChanged: widget.onModeChanged,
             ),
           ),
-          const SizedBox(width: 8),
-          if (widget.sending)
-            IconButton.filled(
-              tooltip: 'Stop',
-              onPressed: widget.cancelling ? null : widget.onStop,
-              icon: widget.cancelling
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2.4),
-                    )
-                  : const Icon(Icons.stop),
-            )
-          else
-            IconButton.filled(
-              tooltip: 'Send',
-              onPressed: hasText ? widget.onSend : null,
-              icon: const Icon(Icons.arrow_upward),
-            ),
+          const SizedBox(height: 8),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: widget.controller,
+                  focusNode: widget.focusNode,
+                  enabled: !widget.sending,
+                  minLines: 1,
+                  maxLines: 5,
+                  textInputAction: TextInputAction.send,
+                  onSubmitted: widget.sending ? null : (_) => widget.onSend(),
+                  decoration: InputDecoration(
+                    hintText: 'Message Acorn',
+                    filled: true,
+                    fillColor: colors.surfaceContainerLowest,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(AcornRadius.lg),
+                      borderSide: BorderSide(color: colors.outlineVariant),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(AcornRadius.lg),
+                      borderSide: BorderSide(color: colors.outlineVariant),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(AcornRadius.lg),
+                      borderSide: BorderSide(color: colors.primary, width: 1.4),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              if (widget.sending)
+                IconButton.filled(
+                  tooltip: 'Stop',
+                  onPressed: widget.cancelling ? null : widget.onStop,
+                  icon: widget.cancelling
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2.4),
+                        )
+                      : const Icon(Icons.stop),
+                )
+              else
+                IconButton.filled(
+                  tooltip: 'Send',
+                  onPressed: hasText ? widget.onSend : null,
+                  icon: const Icon(Icons.arrow_upward),
+                ),
+            ],
+          ),
         ],
       ),
     );
@@ -431,6 +452,45 @@ class _ChatInputBarState extends State<_ChatInputBar> {
 
   void _onTextChanged() {
     setState(() {});
+  }
+}
+
+class _ModeSelector extends StatelessWidget {
+  const _ModeSelector({
+    required this.mode,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  final ChatRunMode mode;
+  final bool enabled;
+  final ValueChanged<ChatRunMode> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return SegmentedButton<ChatRunMode>(
+      showSelectedIcon: false,
+      style: ButtonStyle(
+        visualDensity: VisualDensity.compact,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+      segments: const [
+        ButtonSegment<ChatRunMode>(
+          value: ChatRunMode.directResponse,
+          icon: Icon(Icons.bolt_outlined, size: 18),
+          label: Text('Direct'),
+        ),
+        ButtonSegment<ChatRunMode>(
+          value: ChatRunMode.planExecute,
+          icon: Icon(Icons.checklist_outlined, size: 18),
+          label: Text('Plan'),
+        ),
+      ],
+      selected: {mode},
+      onSelectionChanged: enabled
+          ? (selection) => onChanged(selection.first)
+          : null,
+    );
   }
 }
 

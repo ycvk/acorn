@@ -89,8 +89,17 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
     if (!mounted || payload == null) {
       return;
     }
+    // Backfill the form first so a failed auto-pair leaves editable values.
     _serverUrl.text = payload.serverUrl;
     _pairingCode.text = payload.pairingCode;
+    await ref
+        .read(connectionControllerProvider)
+        .pair(
+          serverUrl: payload.serverUrl,
+          pairingCode: payload.pairingCode,
+          deviceName: _deviceName.text,
+          platform: _platformName(),
+        );
   }
 }
 
