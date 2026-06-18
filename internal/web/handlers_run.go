@@ -43,10 +43,6 @@ func (s *Server) handleClientInterruptRun(w http.ResponseWriter, r *http.Request
 
 func (s *Server) handleClientResumeRun(w http.ResponseWriter, r *http.Request) {
 	runID := chi.URLParam(r, "run_id")
-	_, ok := s.decodeResumeRunRequest(w, r)
-	if !ok {
-		return
-	}
 	result, err := s.runResume.Resume(r.Context(), runID)
 	if err != nil {
 		s.respondClientKnownError(w, r, err)

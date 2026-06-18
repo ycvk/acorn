@@ -42,9 +42,6 @@ type CreateRunRequest struct {
 	Mode    string `json:"mode,omitempty"`
 }
 
-// ResumeRunRequest is the body for resuming an interrupted run.
-type ResumeRunRequest struct{}
-
 // RunDTO represents a client-visible run summary.
 type RunDTO struct {
 	ID          string     `json:"id"`

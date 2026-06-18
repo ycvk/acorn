@@ -360,14 +360,6 @@ paths:
       operationId: clientResumeRun
       parameters:
         - $ref: '#/components/parameters/RunID'
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema:
-              type: object
-              additionalProperties: false
-              properties: {}
       responses:
         '200':
           description: Resume result
