@@ -8,14 +8,3 @@ func IsContinuableAction(action Action) bool {
 		return false
 	}
 }
-
-func ContextPriorityForAction(action Action) ContextPriority {
-	switch action {
-	case ActionExecuteWithSkill:
-		return PrioritySkill
-	case ActionAskUser:
-		return PriorityConversation
-	default:
-		return PriorityBalanced
-	}
-}
