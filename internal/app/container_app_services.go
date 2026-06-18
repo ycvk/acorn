@@ -2,7 +2,6 @@ package app
 
 import (
 	"github.com/ycvk/acorn/internal/config"
-	"github.com/ycvk/acorn/internal/memorymodule"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
 )
 
@@ -28,15 +27,7 @@ func buildContainerAppServices(cfg *config.Config, store containerAppStore, deps
 	container.pendingAction = NewPendingActionService(store)
 	container.profiles = deps.decisionProfileService
 
-	memoryService, err := NewMemoryService(deps.memoryModule, MemoryServiceSemanticOptions{
-		Index:      deps.semanticIndex,
-		Embedder:   deps.semanticEmbedder,
-		Model:      cfg.Memory.Semantic.Embedding.Model,
-		Dimensions: cfg.Memory.Semantic.Embedding.Dimensions,
-		BatchSize:  cfg.Memory.Semantic.Embedding.BatchSize,
-		Schema:     memorymodule.SemanticSchemaMemoryRecordsV1,
-		IndexName:  cfg.Memory.Semantic.Bleve.IndexName,
-	})
+	memoryService, err := NewMemoryService(deps.memoryModule, semanticRuntimeOptions(cfg, deps.semanticIndex, deps.semanticEmbedder))
 	if err != nil {
 		return nil, err
 	}
