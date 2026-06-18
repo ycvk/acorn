@@ -428,6 +428,10 @@ func RuntimeToolSpec(
 		return localSpec, nil
 	}
 
+	if contract, ok := tooling.BuiltinToolSpec(name, source, profiles); ok {
+		return tooling.ToolSpec{ToolContract: contract, Tool: tool}, nil
+	}
+
 	spec := tooling.ToolSpec{
 		ToolContract: tooling.ToolContract{
 			Name:          name,
@@ -445,57 +449,21 @@ func RuntimeToolSpec(
 		Tool: tool,
 	}
 
-	switch name {
-	case "delegate_task":
-		spec.Kind = tooling.ToolKindSkill
-		spec.Category = tooling.ToolCategorySkill
-		spec.ResourceScope = tooling.ResourceScopeSkill
-		spec.Execution.ParallelPolicy = tooling.ParallelPolicyNeverParallel
-		spec.PlanPolicy = tooling.PlanPolicyRequireActivePlan
-	case "load_tools":
-		spec.Kind = tooling.ToolKindNative
+	switch kind {
+	case tooling.ToolKindMCP, tooling.ToolKindMCPResource, tooling.ToolKindMCPPrompt:
+		spec.Kind = kind
+		spec.Category = tooling.ToolCategoryIntegration
+		spec.ResourceScope = tooling.ResourceScopeMCP
+		spec.Execution.ParallelPolicy = tooling.ParallelPolicyReadOnly
+		spec.Execution.PathArg = "path"
+		if kind == tooling.ToolKindMCPResource || kind == tooling.ToolKindMCPPrompt {
+			spec.Loading = tooling.DeferredLoadingPolicy("deferred_mcp_catalog")
+		}
+	default:
 		spec.Category = tooling.ToolCategoryInspect
 		spec.ResourceScope = tooling.ResourceScopeWorkspaceFile
-		spec.Execution.ParallelPolicy = tooling.ParallelPolicyNeverParallel
-	case "update_working_checkpoint", "clear_working_checkpoint":
-		spec.Kind = tooling.ToolKindMemory
-		spec.Category = tooling.ToolCategoryMemory
-		spec.ResourceScope = tooling.ResourceScopeMemory
-		spec.Loading = tooling.DeferredLoadingPolicy("working_state_tool")
-		spec.Execution.ParallelPolicy = tooling.ParallelPolicyNeverParallel
-	case "memory_search", "memory_read_file", "memory_list_files":
-		spec.Kind = tooling.ToolKindMemory
-		spec.Category = tooling.ToolCategoryMemory
-		spec.ResourceScope = tooling.ResourceScopeMemory
 		spec.Execution.ParallelPolicy = tooling.ParallelPolicyReadOnly
-	case "memory_create_file", "memory_replace_span":
-		spec.Kind = tooling.ToolKindMemory
-		spec.Category = tooling.ToolCategoryMemory
-		spec.ResourceScope = tooling.ResourceScopeMemory
-		spec.Execution.ParallelPolicy = tooling.ParallelPolicyWriteScoped
 		spec.Execution.PathArg = "path"
-	case "skill_list", "skill_view":
-		spec.Kind = tooling.ToolKindSkill
-		spec.Category = tooling.ToolCategorySkill
-		spec.ResourceScope = tooling.ResourceScopeSkill
-		spec.Execution.ParallelPolicy = tooling.ParallelPolicyReadOnly
-	default:
-		switch kind {
-		case tooling.ToolKindMCP, tooling.ToolKindMCPResource, tooling.ToolKindMCPPrompt:
-			spec.Kind = kind
-			spec.Category = tooling.ToolCategoryIntegration
-			spec.ResourceScope = tooling.ResourceScopeMCP
-			spec.Execution.ParallelPolicy = tooling.ParallelPolicyReadOnly
-			spec.Execution.PathArg = "path"
-			if kind == tooling.ToolKindMCPResource || kind == tooling.ToolKindMCPPrompt {
-				spec.Loading = tooling.DeferredLoadingPolicy("deferred_mcp_catalog")
-			}
-		default:
-			spec.Category = tooling.ToolCategoryInspect
-			spec.ResourceScope = tooling.ResourceScopeWorkspaceFile
-			spec.Execution.ParallelPolicy = tooling.ParallelPolicyReadOnly
-			spec.Execution.PathArg = "path"
-		}
 	}
 	return spec, nil
 }

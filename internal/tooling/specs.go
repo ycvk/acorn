@@ -1,6 +1,7 @@
 package tooling
 
 import (
+	"slices"
 	"strings"
 
 	einotool "github.com/cloudwego/eino/components/tool"
@@ -114,12 +115,7 @@ func (s ToolSpec) HasProfile(profile ToolProfile) bool {
 	if strings.TrimSpace(string(profile)) == "" {
 		return true
 	}
-	for _, candidate := range s.Profiles {
-		if candidate == profile {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(s.Profiles, profile)
 }
 
 func healthyTool(reason string) ToolHealth {
@@ -130,52 +126,66 @@ func disabledTool(reason string) ToolHealth {
 	return ToolHealth{State: HealthStateDisabled, Reason: strings.TrimSpace(reason)}
 }
 
+// localToolDef declares a static local tool plus whether the given config
+// enables it. localToolDefs is the single source of truth for the static local
+// toolset: both ConfiguredLocalSpecs and ConfiguredLocalSpec derive from it, so
+// the tool list and its enable rules live in exactly one place (no parallel
+// switch to drift out of sync).
+type localToolDef struct {
+	name    string
+	enabled bool
+}
+
+func localToolDefs(cfg *config.Config) []localToolDef {
+	mutation := !cfg.Tools.Mutation.Disabled
+	runCommand := !cfg.Tools.RunCommand.Disabled
+	return []localToolDef{
+		{"read_file", true},
+		{"list_files", true},
+		{"search_text", true},
+		{"inspect_git_status", true},
+		{"inspect_git_diff", true},
+		{"git_summary", true},
+		{"artifact_write", true},
+		{"artifact_read", true},
+		{"artifact_list", true},
+		{"ask_operator", true},
+		{"web_fetch", true},
+		{"web_search", true},
+		{"browser", true},
+		{"create_file", mutation},
+		{"replace_span", mutation},
+		{"apply_unified_patch", mutation},
+		{"multi_edit", mutation},
+		{"rollback_workspace_checkpoint", mutation},
+		{"run_command", runCommand},
+		{"run_verification", runCommand},
+	}
+}
+
 func ConfiguredLocalSpecs(cfg *config.Config) []ToolSpec {
 	if cfg == nil {
 		return nil
 	}
-	return []ToolSpec{
-		configuredLocalSpec("read_file", true),
-		configuredLocalSpec("list_files", true),
-		configuredLocalSpec("search_text", true),
-		configuredLocalSpec("inspect_git_status", true),
-		configuredLocalSpec("inspect_git_diff", true),
-		configuredLocalSpec("git_summary", true),
-		configuredLocalSpec("artifact_write", true),
-		configuredLocalSpec("artifact_read", true),
-		configuredLocalSpec("artifact_list", true),
-		configuredLocalSpec("ask_operator", true),
-		configuredLocalSpec("web_fetch", true),
-		configuredLocalSpec("web_search", true),
-		configuredLocalSpec("browser", true),
-		configuredLocalSpec("create_file", !cfg.Tools.Mutation.Disabled),
-		configuredLocalSpec("replace_span", !cfg.Tools.Mutation.Disabled),
-		configuredLocalSpec("apply_unified_patch", !cfg.Tools.Mutation.Disabled),
-		configuredLocalSpec("multi_edit", !cfg.Tools.Mutation.Disabled),
-		configuredLocalSpec("rollback_workspace_checkpoint", !cfg.Tools.Mutation.Disabled),
-		configuredLocalSpec("run_command", !cfg.Tools.RunCommand.Disabled),
-		configuredLocalSpec("run_verification", !cfg.Tools.RunCommand.Disabled),
+	defs := localToolDefs(cfg)
+	specs := make([]ToolSpec, 0, len(defs))
+	for _, def := range defs {
+		specs = append(specs, configuredLocalSpec(def.name, def.enabled))
 	}
+	return specs
 }
 
 func ConfiguredLocalSpec(cfg *config.Config, name string) (ToolSpec, bool) {
 	if cfg == nil {
 		return ToolSpec{}, false
 	}
-	switch strings.TrimSpace(name) {
-	case "read_file", "list_files", "search_text", "inspect_git_status", "inspect_git_diff", "git_summary", "artifact_write", "artifact_read", "artifact_list", "ask_operator", "web_fetch", "web_search", "browser":
-		return configuredLocalSpec(strings.TrimSpace(name), true), true
-	case "create_file", "replace_span":
-		return configuredLocalSpec(strings.TrimSpace(name), !cfg.Tools.Mutation.Disabled), true
-	case "apply_unified_patch", "multi_edit":
-		return configuredLocalSpec(strings.TrimSpace(name), !cfg.Tools.Mutation.Disabled), true
-	case "rollback_workspace_checkpoint":
-		return configuredLocalSpec("rollback_workspace_checkpoint", !cfg.Tools.Mutation.Disabled), true
-	case "run_command", "run_verification":
-		return configuredLocalSpec(strings.TrimSpace(name), !cfg.Tools.RunCommand.Disabled), true
-	default:
-		return ToolSpec{}, false
+	name = strings.TrimSpace(name)
+	for _, def := range localToolDefs(cfg) {
+		if def.name == name {
+			return configuredLocalSpec(name, def.enabled), true
+		}
 	}
+	return ToolSpec{}, false
 }
 
 func configuredLocalSpec(name string, enabled bool) ToolSpec {
