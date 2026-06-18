@@ -76,62 +76,52 @@ type ToolBuilder func(
 
 type InstructionBuilder func(base string, suffix string) string
 
-type InstructionCacheInvalidator func()
-
-type ToolSchemaChangeDetector func(ctx context.Context, tools []einotool.BaseTool) bool
-
 type HandlersBuilder func(ctx context.Context, chatModel einomodel.BaseChatModel, compressionState any) ([]adk.ChatModelAgentMiddleware, error)
 
 type DefaultPlaneOptions struct {
-	SystemPrompt                string
-	MaxIterations               int
-	CheckpointStore             adk.CheckPointStore
-	PlanStore                   PlanStore
-	ToolBuilder                 ToolBuilder
-	ToolNodeFactory             ToolNodeFactory
-	GraphBuilder                GraphBuilder
-	PlanExecuteGraphBuilder     PlanExecuteGraphBuilder
-	HandlersBuilder             HandlersBuilder
-	InstructionBuilder          InstructionBuilder
-	InstructionCacheInvalidator InstructionCacheInvalidator
-	ToolSchemaChangeDetector    ToolSchemaChangeDetector
-	ToolLifecycleBinder         ToolLifecycleBinder
-	SessionContextBinder        func(ctx context.Context, sessionID string) context.Context
+	SystemPrompt            string
+	MaxIterations           int
+	CheckpointStore         adk.CheckPointStore
+	PlanStore               PlanStore
+	ToolBuilder             ToolBuilder
+	ToolNodeFactory         ToolNodeFactory
+	GraphBuilder            GraphBuilder
+	PlanExecuteGraphBuilder PlanExecuteGraphBuilder
+	HandlersBuilder         HandlersBuilder
+	InstructionBuilder      InstructionBuilder
+	ToolLifecycleBinder     ToolLifecycleBinder
+	SessionContextBinder    func(ctx context.Context, sessionID string) context.Context
 }
 
 type DefaultPlane struct {
-	systemPrompt                string
-	maxIterations               int
-	checkpointStore             adk.CheckPointStore
-	planStore                   PlanStore
-	toolBuilder                 ToolBuilder
-	toolNodeFactory             ToolNodeFactory
-	graphBuilder                GraphBuilder
-	planExecuteGraphBuilder     PlanExecuteGraphBuilder
-	handlersBuilder             HandlersBuilder
-	instructionBuilder          InstructionBuilder
-	instructionCacheInvalidator InstructionCacheInvalidator
-	toolSchemaChangeDetector    ToolSchemaChangeDetector
-	toolLifecycleBinder         ToolLifecycleBinder
-	sessionContextBinder        func(ctx context.Context, sessionID string) context.Context
+	systemPrompt            string
+	maxIterations           int
+	checkpointStore         adk.CheckPointStore
+	planStore               PlanStore
+	toolBuilder             ToolBuilder
+	toolNodeFactory         ToolNodeFactory
+	graphBuilder            GraphBuilder
+	planExecuteGraphBuilder PlanExecuteGraphBuilder
+	handlersBuilder         HandlersBuilder
+	instructionBuilder      InstructionBuilder
+	toolLifecycleBinder     ToolLifecycleBinder
+	sessionContextBinder    func(ctx context.Context, sessionID string) context.Context
 }
 
 func NewDefaultPlane(opts DefaultPlaneOptions) *DefaultPlane {
 	return &DefaultPlane{
-		systemPrompt:                opts.SystemPrompt,
-		maxIterations:               opts.MaxIterations,
-		checkpointStore:             opts.CheckpointStore,
-		planStore:                   opts.PlanStore,
-		toolBuilder:                 opts.ToolBuilder,
-		toolNodeFactory:             opts.ToolNodeFactory,
-		graphBuilder:                opts.GraphBuilder,
-		planExecuteGraphBuilder:     opts.PlanExecuteGraphBuilder,
-		handlersBuilder:             opts.HandlersBuilder,
-		instructionBuilder:          opts.InstructionBuilder,
-		instructionCacheInvalidator: opts.InstructionCacheInvalidator,
-		toolSchemaChangeDetector:    opts.ToolSchemaChangeDetector,
-		toolLifecycleBinder:         opts.ToolLifecycleBinder,
-		sessionContextBinder:        opts.SessionContextBinder,
+		systemPrompt:            opts.SystemPrompt,
+		maxIterations:           opts.MaxIterations,
+		checkpointStore:         opts.CheckpointStore,
+		planStore:               opts.PlanStore,
+		toolBuilder:             opts.ToolBuilder,
+		toolNodeFactory:         opts.ToolNodeFactory,
+		graphBuilder:            opts.GraphBuilder,
+		planExecuteGraphBuilder: opts.PlanExecuteGraphBuilder,
+		handlersBuilder:         opts.HandlersBuilder,
+		instructionBuilder:      opts.InstructionBuilder,
+		toolLifecycleBinder:     opts.ToolLifecycleBinder,
+		sessionContextBinder:    opts.SessionContextBinder,
 	}
 }
 
@@ -176,10 +166,6 @@ func (p *DefaultPlane) BuildSingleAgent(ctx context.Context, req SingleAgentRequ
 			return nil, fmt.Errorf("read tool info for BindTools: %w", err)
 		}
 		toolInfos = append(toolInfos, info)
-	}
-
-	if p.toolSchemaChangeDetector != nil && p.toolSchemaChangeDetector(ctx, allTools) && p.instructionCacheInvalidator != nil {
-		p.instructionCacheInvalidator()
 	}
 
 	instruction := p.instructionBuilder(p.systemPrompt, req.InstructionSuffix)
@@ -274,10 +260,6 @@ func (p *DefaultPlane) BuildPlanExecute(ctx context.Context, req PlanExecuteRequ
 			return nil, fmt.Errorf("read tool info for BindTools: %w", err)
 		}
 		toolInfos = append(toolInfos, info)
-	}
-
-	if p.toolSchemaChangeDetector != nil && p.toolSchemaChangeDetector(ctx, allTools) && p.instructionCacheInvalidator != nil {
-		p.instructionCacheInvalidator()
 	}
 
 	instruction := p.instructionBuilder(p.systemPrompt, req.InstructionSuffix)
