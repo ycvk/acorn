@@ -58,6 +58,7 @@ func (s *Server) decodeCreateRunRequest(w http.ResponseWriter, r *http.Request) 
 	}
 	req.SkillID = strings.TrimSpace(req.SkillID)
 	req.Mode = strings.TrimSpace(req.Mode)
+	req.Input = strings.TrimSpace(req.Input)
 	return req, true
 }
 

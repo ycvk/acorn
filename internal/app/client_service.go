@@ -86,7 +86,7 @@ func (s *ClientService) InterruptRun(ctx context.Context, runID string) error {
 	return s.controller.Interrupt(runID)
 }
 
-func (s *ClientService) CreateRun(ctx context.Context, threadID, skillID, mode string) (*Run, error) {
+func (s *ClientService) CreateRun(ctx context.Context, threadID, skillID, mode, input string) (*Run, error) {
 	if s == nil || s.store == nil || s.newExecutor == nil || s.newRunID == nil {
 		return nil, errors.New("client service is not initialized")
 	}
@@ -98,6 +98,15 @@ func (s *ClientService) CreateRun(ctx context.Context, threadID, skillID, mode s
 	}
 	if _, err := s.store.LoadSession(ctx, threadID); err != nil {
 		return nil, err
+	}
+	// Single-step create: when the run carries its own input, record it as the
+	// pending user message first, so clients no longer need a separate
+	// POST /messages call. An empty input keeps the two-step flow intact (the
+	// caller posted the message beforehand).
+	if strings.TrimSpace(input) != "" {
+		if _, err := s.CreateMessage(ctx, threadID, input); err != nil {
+			return nil, err
+		}
 	}
 	message, err := s.store.LoadLatestUnboundUserMessage(ctx, threadID)
 	if err != nil {
