@@ -106,23 +106,23 @@ func captureMemoryMutationRollback(path string) (*memoryMutationRollback, error)
 // rollback-on-failure as the raw memory tools. Without this, a structured write
 // would land on disk and in the in-memory index but leave the semantic index
 // stale, making the just-written record unfindable by memory_search/Prepare. It
-// is create-only: an existing record at the path is an error, not a replace.
+// accepts a planner noop_duplicate for an equivalent existing record, but still
+// rejects replace/retire actions so structured writers cannot silently mutate an
+// existing record's durable content.
 func (s *LocalService) applyNewMemoryRecord(ctx context.Context, relPath string, content string, kind Kind) (*Record, *MemoryMutationPlan, error) {
 	absPath := filepath.Join(s.root, filepath.FromSlash(relPath))
-	if _, err := os.Stat(absPath); err == nil {
-		return nil, nil, fmt.Errorf("memory record already exists: %s", relPath)
-	} else if !os.IsNotExist(err) {
-		return nil, nil, fmt.Errorf("stat memory record %s: %w", relPath, err)
-	}
 	result, err := s.ApplyMemoryMutation(ctx, PlanMemoryMutationRequest{Path: relPath, Content: content})
 	if err != nil {
 		return nil, nil, err
 	}
-	if result.MutationPlan == nil || result.MutationPlan.Action != MemoryMutationCreate {
+	if result == nil || result.MutationPlan == nil {
+		return nil, nil, fmt.Errorf("memory record mutation returned nil plan")
+	}
+	switch result.MutationPlan.Action {
+	case MemoryMutationCreate, MemoryMutationNoopDuplicate:
+	default:
 		action, reason := MemoryMutationAction(""), ""
-		if result.MutationPlan != nil {
-			action, reason = result.MutationPlan.Action, result.MutationPlan.Reason
-		}
+		action, reason = result.MutationPlan.Action, result.MutationPlan.Reason
 		return nil, nil, fmt.Errorf("memory record mutation %q: %s", action, reason)
 	}
 	record, err := readMemoryRecord(s.root, kind, absPath)

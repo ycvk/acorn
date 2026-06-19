@@ -73,6 +73,41 @@ func TestMemoryRememberCreatesFactWithoutFrontmatter(t *testing.T) {
 	}
 }
 
+func TestMemoryRememberEquivalentDuplicateSucceeds(t *testing.T) {
+	service := newMemoryToolTestService(t)
+	tool := memoryToolByName(t, service, "remember")
+	args := `{"title":"VPS IP","text":"The VPS IP is 1.2.3.4","tags":["infra"]}`
+
+	first, err := tool.InvokableRun(context.Background(), args)
+	if err != nil {
+		t.Fatalf("first remember: %v", err)
+	}
+	second, err := tool.InvokableRun(context.Background(), args)
+	if err != nil {
+		t.Fatalf("duplicate remember must noop, got error: %v", err)
+	}
+	var firstOut, secondOut struct {
+		Ref  string `json:"ref"`
+		Path string `json:"path"`
+	}
+	if err := json.Unmarshal([]byte(first), &firstOut); err != nil {
+		t.Fatalf("decode first remember output: %v", err)
+	}
+	if err := json.Unmarshal([]byte(second), &secondOut); err != nil {
+		t.Fatalf("decode second remember output: %v", err)
+	}
+	if firstOut != secondOut {
+		t.Fatalf("duplicate remember returned different record: first=%#v second=%#v", firstOut, secondOut)
+	}
+	facts, err := service.ListFacts(t.Context(), memorymodule.RecordSelection{IncludeInactive: true})
+	if err != nil {
+		t.Fatalf("ListFacts: %v", err)
+	}
+	if len(facts) != 1 {
+		t.Fatalf("len(facts) = %d, want 1 after duplicate remember noop", len(facts))
+	}
+}
+
 func TestMemoryCreateFileReturnsMutationPlan(t *testing.T) {
 	service := newMemoryToolTestService(t)
 	writeMemoryToolFile(t, service, "facts/workspaces/existing.md", `---

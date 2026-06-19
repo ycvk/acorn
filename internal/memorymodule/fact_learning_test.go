@@ -129,6 +129,36 @@ func TestCreateFactRejectsBlankBody(t *testing.T) {
 	}
 }
 
+func TestCreateFactEquivalentDuplicateIsNoop(t *testing.T) {
+	service := newTestService(t)
+	first, err := service.CreateFact(t.Context(), CreateFactRequest{
+		Title: "VPS IP",
+		Body:  "The VPS IP is 1.2.3.4",
+		Tags:  []string{"infra"},
+	})
+	if err != nil {
+		t.Fatalf("first CreateFact: %v", err)
+	}
+	second, err := service.CreateFact(t.Context(), CreateFactRequest{
+		Title: "VPS IP",
+		Body:  "The VPS IP is 1.2.3.4",
+		Tags:  []string{"infra"},
+	})
+	if err != nil {
+		t.Fatalf("duplicate CreateFact must noop, got error: %v", err)
+	}
+	if second.Ref != first.Ref || second.RelPath != first.RelPath {
+		t.Fatalf("duplicate CreateFact returned different record: first=%#v second=%#v", first, second)
+	}
+	facts, err := service.ListFacts(t.Context(), RecordSelection{IncludeInactive: true})
+	if err != nil {
+		t.Fatalf("ListFacts: %v", err)
+	}
+	if len(facts) != 1 {
+		t.Fatalf("len(facts) = %d, want 1 after duplicate noop", len(facts))
+	}
+}
+
 // TestPlanMemoryMutationIgnoresTimestampsForNoop verifies the dedup fix: a
 // re-write of substantively identical content that differs only in the updated
 // timestamp is judged noop, not a churny replace (Created/Updated are excluded
