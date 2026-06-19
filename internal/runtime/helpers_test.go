@@ -1,12 +1,29 @@
 package runtime
 
 import (
+	"context"
 	"strings"
 	"testing"
 
 	"github.com/cloudwego/eino/schema"
+	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	"github.com/ycvk/acorn/internal/stream"
 )
+
+// TestBuildExecutionContextPropagatesTurnIndexToReader guards the turn-index wiring
+// bug: buildExecutionContext must set the turn index under the SAME context key that
+// the tool lifecycle reads via runtimeapi.TurnIndexFromContext. Previously the executor
+// used a runtime-local setter writing a different key type, so the reader always saw 0
+// and tool-result TurnIndex was silently 0 in production for multi-turn sessions.
+func TestBuildExecutionContextPropagatesTurnIndexToReader(t *testing.T) {
+	ctx := buildExecutionContext(context.Background(), "run_x", "sess_x", 7, nil)
+	if got := runtimeapi.TurnIndexFromContext(ctx); got != 7 {
+		t.Fatalf("turn index from context = %d, want 7 (executor must set the key the lifecycle reader reads)", got)
+	}
+	if got := runtimeapi.GetRunID(ctx); got != "run_x" {
+		t.Fatalf("run id from context = %q, want run_x", got)
+	}
+}
 
 func TestMessageToMapPreservesToolContent(t *testing.T) {
 	msg := &schema.Message{
@@ -20,34 +37,6 @@ func TestMessageToMapPreservesToolContent(t *testing.T) {
 	}
 	if len(message.Meta) > 0 {
 		t.Fatalf("expected no meta, got %#v", message.Meta)
-	}
-}
-
-func TestCompactInterruptInfoKeepsUsefulKeysOnly(t *testing.T) {
-	payload := compactInterruptInfo(map[string]any{
-		"kind":           "elicitation_request",
-		"action_id":      "action_1",
-		"message":        "resume to continue",
-		"question":       "continue?",
-		"tool_name":      "run_command",
-		"arguments_json": `{"command":["pwd"]}`,
-		"reason":         "elicitation_required",
-		"command":        []string{"pwd"},
-		"cwd":            "/tmp",
-		"huge_state":     strings.Repeat("x", 5000),
-	})
-	data, ok := payload.(map[string]any)
-	if !ok {
-		t.Fatalf("expected compact interrupt info map, got %#v", payload)
-	}
-	if _, ok := data["huge_state"]; ok {
-		t.Fatalf("unexpected huge_state in compact interrupt info: %#v", data)
-	}
-	if got := data["kind"]; got != "elicitation_request" {
-		t.Fatalf("unexpected kind: %#v", got)
-	}
-	if got := data["action_id"]; got != "action_1" {
-		t.Fatalf("unexpected action_id: %#v", got)
 	}
 }
 

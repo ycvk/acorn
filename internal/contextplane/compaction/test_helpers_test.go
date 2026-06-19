@@ -16,16 +16,26 @@ import (
 
 type testCompactionEngine struct {
 	called  bool
+	calls   int
 	request CompactRequest
+	results []*CompactionResult
 	result  *CompactionResult
 	err     error
 }
 
 func (e *testCompactionEngine) Compact(_ context.Context, req CompactRequest) (*CompactionResult, error) {
 	e.called = true
+	e.calls++
 	e.request = req
 	if e.err != nil {
 		return nil, e.err
+	}
+	if len(e.results) > 0 {
+		index := e.calls - 1
+		if index >= len(e.results) {
+			index = len(e.results) - 1
+		}
+		return e.results[index], nil
 	}
 	return e.result, nil
 }
@@ -44,19 +54,10 @@ func (g testBudgetGovernor) Evaluate(_ context.Context, req contextplane.BudgetE
 	return g.pressure, nil
 }
 
-func (g testBudgetGovernor) AutoCompactThreshold(contextplane.ModelProfile) (int, error) {
-	return g.pressure.AutoCompactThresholdTokens, nil
-}
-
 func testPressure(state contextplane.BudgetPressureState) contextplane.BudgetPressure {
 	return contextplane.BudgetPressure{
-		EstimatedInputTokens:       100,
-		EffectiveWindowTokens:      1000,
-		WarningThresholdTokens:     800,
-		AutoCompactThresholdTokens: 900,
-		BlockingThresholdTokens:    990,
-		PercentUsed:                10,
-		State:                      state,
+		EffectiveWindowTokens: 1000,
+		State:                 state,
 	}
 }
 
@@ -77,7 +78,6 @@ func testContextSessionProfile() contextplane.ModelProfile {
 		StaticOverheadTokens:        4096,
 		WarningBufferTokens:         20000,
 		AutoCompactBufferTokens:     13000,
-		BlockingBufferTokens:        3000,
 	}
 }
 

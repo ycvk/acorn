@@ -365,7 +365,8 @@ func latestRootInterruptIDsForTest(t *testing.T, records []events.EventRecord) [
 			if !isRootCause {
 				continue
 			}
-			id := strings.TrimSpace(ExtractString(ctxItem["id"]))
+			idValue, _ := ctxItem["id"].(string)
+			id := strings.TrimSpace(idValue)
 			if id == "" {
 				t.Fatal("interrupt context id is empty")
 			}

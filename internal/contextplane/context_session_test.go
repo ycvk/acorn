@@ -94,7 +94,7 @@ func TestContextSessionRecordsAssistantAndToolResults(t *testing.T) {
 
 func TestContextSessionBeforeModelCallReturnsPressure(t *testing.T) {
 	session := NewDefaultContextSession(ContextSessionOptions{
-		BudgetGovernor: testBudgetGovernor{pressure: testPressure(PressureWarning)},
+		BudgetGovernor: testBudgetGovernor{pressure: testPressure(PressureOK)},
 	})
 	_, err := session.Bootstrap(context.Background(), BootstrapRequest{
 		SessionID:       "session_1",
@@ -110,8 +110,8 @@ func TestContextSessionBeforeModelCallReturnsPressure(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BeforeModelCall: %v", err)
 	}
-	if input.Pressure.State != PressureWarning {
-		t.Fatalf("pressure = %+v, want warning pressure", input.Pressure)
+	if input.Pressure.State != PressureOK {
+		t.Fatalf("pressure = %+v, want ok pressure", input.Pressure)
 	}
 }
 
@@ -201,7 +201,7 @@ func TestContextSessionBeforeModelCallCompactsOnPressure(t *testing.T) {
 
 func TestContextSessionBeforeModelCallFailsWhenCompactionRequiredButDisabled(t *testing.T) {
 	session := NewDefaultContextSession(ContextSessionOptions{
-		BudgetGovernor: testBudgetGovernor{pressure: testPressure(PressureBlocking)},
+		BudgetGovernor: testBudgetGovernor{pressure: testPressure(PressureAutoCompact)},
 	})
 	_, err := session.Bootstrap(context.Background(), BootstrapRequest{
 		SessionID:       "session_1",
@@ -254,7 +254,7 @@ func TestContextSessionReactiveCompactUsesReactiveTrigger(t *testing.T) {
 			},
 		},
 	}
-	governor := testBudgetGovernor{pressure: testPressure(PressureBlocking), dynamic: true}
+	governor := testBudgetGovernor{pressure: testPressure(PressureAutoCompact), dynamic: true}
 	store := storetest.NewFakeContextStore()
 	session := NewDefaultContextSession(ContextSessionOptions{
 		BudgetGovernor: governor,
@@ -306,6 +306,69 @@ func TestContextSessionReactiveCompactUsesReactiveTrigger(t *testing.T) {
 	}
 	if latest == nil || latest.BoundaryID != wantBoundaryID || latest.Trigger != string(CompactTriggerReactive) {
 		t.Fatalf("latest boundary = %+v, want reactive boundary", latest)
+	}
+}
+
+func TestContextSessionReactiveCompactPersistsSecondPassOutcome(t *testing.T) {
+	state := NewCompressionState()
+	pipeline := &testCompressionPipeline{
+		result: &PipelineResult{
+			Messages:    []adk.Message{schema.SystemMessage("system"), schema.UserMessage("reactive second-pass summary")},
+			TokensFreed: 100,
+			Outcome: &CompressionOutcome{
+				BoundaryID:     "ctxb_reactive_second",
+				TokensBefore:   120,
+				TokensAfter:    40,
+				Summary:        "reactive second-pass summary",
+				SummarySnippet: "reactive second-pass summary",
+			},
+		},
+	}
+	governor := testBudgetGovernor{pressure: testPressure(PressureAutoCompact), dynamic: true}
+	store := storetest.NewFakeContextStore()
+	session := NewDefaultContextSession(ContextSessionOptions{
+		BudgetGovernor: governor,
+		Pipeline:       pipeline,
+		BoundaryStore:  store,
+		PreservePolicy: PreservePolicy{RecentTurns: 1, PreserveToolPairs: true},
+		State:          state,
+	})
+	_, err := session.Bootstrap(context.Background(), BootstrapRequest{
+		SessionID: "session_1",
+		RunID:     "run_1",
+		Mode:      "direct_response",
+		InitialMessages: []adk.Message{
+			schema.UserMessage("old request 1"),
+			schema.AssistantMessage("old response 1", nil),
+			schema.UserMessage("old request 2"),
+			schema.AssistantMessage("old response 2", nil),
+			schema.UserMessage("request"),
+		},
+		ModelProfile: testContextSessionProfile(),
+	})
+	if err != nil {
+		t.Fatalf("Bootstrap: %v", err)
+	}
+	_, err = session.ReactiveCompact(context.Background(), ModelCallRequest{
+		CallID:       "call_1",
+		QuerySource:  "direct_response",
+		AllowCompact: true,
+	}, errors.New("model_context_window_exceeded"))
+	if err != nil {
+		t.Fatalf("ReactiveCompact: %v", err)
+	}
+	if state.CompressionCount != 1 || state.LastSummary != "reactive second-pass summary" {
+		t.Fatalf("compression state = %+v, want recorded second-pass summary", state)
+	}
+	latest, err := store.LoadLatestContextBoundary(context.Background(), "session_1")
+	if err != nil {
+		t.Fatalf("LoadLatestContextBoundary: %v", err)
+	}
+	if latest == nil {
+		t.Fatal("expected persisted context boundary")
+	}
+	if latest.Summary != "reactive second-pass summary" || latest.Trigger != string(CompactTriggerReactive) {
+		t.Fatalf("latest boundary = %+v, want second-pass reactive boundary", latest)
 	}
 }
 
@@ -460,7 +523,6 @@ func testContextSessionProfile() ModelProfile {
 		StaticOverheadTokens:        4096,
 		WarningBufferTokens:         20000,
 		AutoCompactBufferTokens:     13000,
-		BlockingBufferTokens:        3000,
 	}
 }
 
@@ -488,19 +550,10 @@ func (g testBudgetGovernor) Evaluate(_ context.Context, req BudgetEvaluateReques
 	return g.pressure, nil
 }
 
-func (g testBudgetGovernor) AutoCompactThreshold(ModelProfile) (int, error) {
-	return g.pressure.AutoCompactThresholdTokens, nil
-}
-
 func testPressure(state BudgetPressureState) BudgetPressure {
 	return BudgetPressure{
-		EstimatedInputTokens:       100,
-		EffectiveWindowTokens:      1000,
-		WarningThresholdTokens:     800,
-		AutoCompactThresholdTokens: 900,
-		BlockingThresholdTokens:    990,
-		PercentUsed:                10,
-		State:                      state,
+		EffectiveWindowTokens: 1000,
+		State:                 state,
 	}
 }
 

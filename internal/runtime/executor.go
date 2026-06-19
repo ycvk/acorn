@@ -395,7 +395,7 @@ func (e *Executor) newManagedRunContext(ctx context.Context, runID string) (cont
 func buildExecutionContext(runCtxBase context.Context, runID, sessionID string, turnIndex int, sink stream.StreamSink) context.Context {
 	runCtx := runtimeapi.WithRunID(runCtxBase, runID)
 	runCtx = runtimeapi.WithSessionID(runCtx, sessionID)
-	runCtx = withTurnIndex(runCtx, turnIndex)
+	runCtx = runtimeapi.WithTurnIndex(runCtx, turnIndex)
 	return stream.WithStreamSink(runCtx, sink)
 }
 

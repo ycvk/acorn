@@ -863,18 +863,9 @@ type directResponseNoPressureGovernor struct{}
 
 func (directResponseNoPressureGovernor) Evaluate(context.Context, contextplane.BudgetEvaluateRequest) (contextplane.BudgetPressure, error) {
 	return contextplane.BudgetPressure{
-		EstimatedInputTokens:       10,
-		EffectiveWindowTokens:      1000,
-		WarningThresholdTokens:     800,
-		AutoCompactThresholdTokens: 900,
-		BlockingThresholdTokens:    990,
-		PercentUsed:                1,
-		State:                      contextplane.PressureOK,
+		EffectiveWindowTokens: 1000,
+		State:                 contextplane.PressureOK,
 	}, nil
-}
-
-func (directResponseNoPressureGovernor) AutoCompactThreshold(contextplane.ModelProfile) (int, error) {
-	return 900, nil
 }
 
 func directResponseTestModelProfile() contextplane.ModelProfile {
@@ -885,7 +876,6 @@ func directResponseTestModelProfile() contextplane.ModelProfile {
 		StaticOverheadTokens:        4096,
 		WarningBufferTokens:         20000,
 		AutoCompactBufferTokens:     13000,
-		BlockingBufferTokens:        3000,
 	}
 }
 
