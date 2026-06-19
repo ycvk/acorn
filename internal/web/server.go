@@ -21,7 +21,7 @@ type ClientService interface {
 	DeleteThread(ctx context.Context, threadID string) error
 	ListMessages(ctx context.Context, threadID string, limit int) ([]app.Message, error)
 	CreateMessage(ctx context.Context, threadID, content string) (*app.Message, error)
-	CreateRun(ctx context.Context, threadID, skillID, mode string) (*app.Run, error)
+	CreateRun(ctx context.Context, threadID, skillID, mode, input string) (*app.Run, error)
 	GetRun(ctx context.Context, runID string) (*app.Run, error)
 	LoadRunEventsAfter(ctx context.Context, runID string, afterSeq int64) (*clientevents.RunEventBatch, error)
 	LoadRunEventsForDetail(ctx context.Context, runID string) (*clientevents.RunEventDetail, error)

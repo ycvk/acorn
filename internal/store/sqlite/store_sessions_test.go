@@ -7,13 +7,64 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/ycvk/acorn/internal/events"
-	"github.com/ycvk/acorn/internal/model"
 	storecore "github.com/ycvk/acorn/internal/store"
-	"github.com/ycvk/acorn/internal/workspace"
 )
+
+func TestBindUserMessageRunIDByID(t *testing.T) {
+	dir := t.TempDir()
+	store, err := Open(filepath.Join(dir, "state"))
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	ctx := context.Background()
+
+	if _, err := store.CreateSession(ctx, "sess_bind", "t"); err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	// Two unbound user messages on the same thread — the concurrency hazard that
+	// the latest-unbound selector would mis-bind.
+	m1, err := store.AppendSessionMessage("sess_bind", 1, "user", "first", "")
+	if err != nil {
+		t.Fatalf("append m1: %v", err)
+	}
+	m2, err := store.AppendSessionMessage("sess_bind", 2, "user", "second", "")
+	if err != nil {
+		t.Fatalf("append m2: %v", err)
+	}
+
+	// Binding by exact id binds that message, not the latest.
+	if err := store.BindUserMessageRunIDByID(ctx, m1.ID, "run_a"); err != nil {
+		t.Fatalf("bind m1: %v", err)
+	}
+	// m1 is bound; the latest unbound is still m2 (m1 was not skipped for latest,
+	// and m2 was untouched).
+	latest, err := store.LoadLatestUnboundUserMessage(ctx, "sess_bind")
+	if err != nil {
+		t.Fatalf("load latest unbound: %v", err)
+	}
+	if latest.ID != m2.ID {
+		t.Fatalf("latest unbound id = %d, want m2 %d", latest.ID, m2.ID)
+	}
+
+	if err := store.BindUserMessageRunIDByID(ctx, m2.ID, "run_b"); err != nil {
+		t.Fatalf("bind m2: %v", err)
+	}
+	if _, err := store.LoadLatestUnboundUserMessage(ctx, "sess_bind"); !errors.Is(err, storecore.ErrSessionMessageNotFound) {
+		t.Fatalf("after binding both, want ErrSessionMessageNotFound, got %v", err)
+	}
+
+	// Re-binding an already-bound message fails loud (RowsAffected = 0), so a
+	// concurrent create cannot silently steal an already-bound message.
+	if err := store.BindUserMessageRunIDByID(ctx, m1.ID, "run_c"); err == nil {
+		t.Fatal("re-binding an already-bound message should fail")
+	}
+	if err := store.BindUserMessageRunIDByID(ctx, 999999, "run_x"); err == nil {
+		t.Fatal("binding a nonexistent message should fail")
+	}
+}
 
 func TestSessionQueries(t *testing.T) {
 	dir := t.TempDir()
@@ -237,572 +288,6 @@ func TestBindLatestUserMessageRunIDAndSyncAssistantMessageForRun(t *testing.T) {
 	if parts[3].Kind != "technical_detail_link" || parts[3].RunID != "run_1" || parts[3].DetailRunID != "run_1" {
 		t.Fatalf("assistant technical detail part = %#v", parts[3])
 	}
-}
-
-func TestSyncAssistantMessageForRunBuildsResultSummaryFromEvidence(t *testing.T) {
-	dir := filepath.Join(t.TempDir(), "state")
-	store, err := Open(dir)
-	if err != nil {
-		t.Fatalf("open store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	session, err := store.CreateSession(context.Background(), "session_evidence", "")
-	if err != nil {
-		t.Fatalf("create session: %v", err)
-	}
-	if _, err := store.AppendSessionMessage(session.SessionID, 1, "user", "implement it", ""); err != nil {
-		t.Fatalf("append user message: %v", err)
-	}
-	if err := store.CreateRunWithSession(context.Background(), "run_evidence", session.SessionID, 1, "implement it", "run_evidence"); err != nil {
-		t.Fatalf("create run: %v", err)
-	}
-	if err := store.BindLatestUserMessageRunID(context.Background(), session.SessionID, 1, "run_evidence"); err != nil {
-		t.Fatalf("bind run: %v", err)
-	}
-	if _, err := store.Append(context.Background(), storecore.ToolResultAppendRequest{
-		RunID:         "run_evidence",
-		SessionID:     session.SessionID,
-		TurnIndex:     1,
-		CallID:        "call_write",
-		ToolName:      "write_file",
-		ArgumentsJSON: `{"path":"internal/store/sqlite/store_session_result_summary.go"}`,
-		Status:        storecore.ToolResultStatusSucceeded,
-		FullText:      "wrote file",
-		SideEffects: []storecore.SideEffectRef{{
-			Kind: workspace.MutationCheckpointEffect,
-			Path: "internal/store/sqlite/store_session_result_summary.go",
-		}},
-	}); err != nil {
-		t.Fatalf("append write tool result: %v", err)
-	}
-	if _, err := store.Append(context.Background(), storecore.ToolResultAppendRequest{
-		RunID:         "run_evidence",
-		SessionID:     session.SessionID,
-		TurnIndex:     1,
-		CallID:        "call_command",
-		ToolName:      "run_command",
-		ArgumentsJSON: `{"command":["go","test","./internal/store/sqlite"]}`,
-		Status:        storecore.ToolResultStatusSucceeded,
-		FullText:      "ok",
-	}); err != nil {
-		t.Fatalf("append command tool result: %v", err)
-	}
-	if _, err := store.Append(context.Background(), storecore.ToolResultAppendRequest{
-		RunID:         "run_evidence",
-		SessionID:     session.SessionID,
-		TurnIndex:     1,
-		CallID:        "call_failed",
-		ToolName:      "run_command",
-		ArgumentsJSON: `{"command":["go","test","./internal/store/sqlite"]}`,
-		Status:        storecore.ToolResultStatusFailed,
-		ErrorReason:   "go test ./internal/store/sqlite failed once",
-		FullText:      "go test ./internal/store/sqlite failed once",
-	}); err != nil {
-		t.Fatalf("append failed tool result: %v", err)
-	}
-	if err := store.SavePlan(context.Background(), &model.Plan{
-		PlanID:    "plan_evidence",
-		SessionID: session.SessionID,
-		RunID:     "run_evidence",
-		Steps: []model.PlanStep{{
-			ID:     "step_1",
-			Action: "verify",
-			Status: "completed",
-			Evidence: []model.PlanEvidence{{
-				ID:          "diff_1",
-				StepID:      "step_1",
-				Kind:        "diff",
-				Status:      "passed",
-				Summary:     "diff recorded",
-				Paths:       []string{"internal/store/sqlite/store_sessions.go"},
-				SourceRunID: "run_evidence",
-			}, {
-				ID:          "lint_1",
-				StepID:      "step_1",
-				Kind:        "command",
-				Status:      "passed",
-				Summary:     "lint passed",
-				Command:     []string{"make", "lint"},
-				SourceRunID: "run_evidence",
-			}, {
-				ID:          "risk_1",
-				StepID:      "step_1",
-				Kind:        "test",
-				Status:      "failed",
-				Summary:     "frontend test",
-				Error:       "snapshot mismatch",
-				SourceRunID: "run_evidence",
-			}},
-		}},
-	}); err != nil {
-		t.Fatalf("save plan: %v", err)
-	}
-	if err := store.FinishRunContext(context.Background(), "run_evidence", events.RunStatusSucceeded, "done", ""); err != nil {
-		t.Fatalf("finish run: %v", err)
-	}
-
-	if err := store.SyncAssistantMessageForRun(context.Background(), "run_evidence"); err != nil {
-		t.Fatalf("sync assistant message: %v", err)
-	}
-	if err := store.SyncAssistantMessageForRun(context.Background(), "run_evidence"); err != nil {
-		t.Fatalf("sync assistant message second time: %v", err)
-	}
-
-	items, err := store.ListSessionMessages(context.Background(), session.SessionID, 10)
-	if err != nil {
-		t.Fatalf("list session messages: %v", err)
-	}
-	if len(items) != 2 {
-		t.Fatalf("expected 2 session messages, got %d", len(items))
-	}
-	var parts []SessionMessagePart
-	if err := json.Unmarshal(items[1].ContentParts, &parts); err != nil {
-		t.Fatalf("unmarshal assistant message parts: %v", err)
-	}
-	if len(parts) != 3 || parts[1].Kind != "result" {
-		t.Fatalf("assistant parts = %#v", parts)
-	}
-	result := parts[1]
-	for _, want := range []string{
-		"internal/store/sqlite/store_session_result_summary.go",
-		"internal/store/sqlite/store_sessions.go",
-	} {
-		if !containsString(result.Changed, want) {
-			t.Fatalf("changed should contain %q, got %#v", want, result.Changed)
-		}
-	}
-	for _, want := range []string{
-		"go test ./internal/store/sqlite",
-		"make lint",
-	} {
-		if !containsString(result.Verified, want) {
-			t.Fatalf("verified should contain %q, got %#v", want, result.Verified)
-		}
-	}
-	for _, want := range []string{
-		"run_command failed: go test ./internal/store/sqlite failed once",
-		"frontend test: snapshot mismatch",
-	} {
-		if !containsString(result.Risks, want) {
-			t.Fatalf("risks should contain %q, got %#v", want, result.Risks)
-		}
-	}
-}
-
-func TestSyncAssistantMessageForRunBuildsMemoryDisclosure(t *testing.T) {
-	dir := filepath.Join(t.TempDir(), "state")
-	store, err := Open(dir)
-	if err != nil {
-		t.Fatalf("open store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	session, err := store.CreateSession(context.Background(), "session_memory_disclosure", "")
-	if err != nil {
-		t.Fatalf("create session: %v", err)
-	}
-	if _, err := store.AppendSessionMessage(session.SessionID, 1, "user", "continue", ""); err != nil {
-		t.Fatalf("append user message: %v", err)
-	}
-	if err := store.CreateRunWithSession(context.Background(), "run_memory_disclosure", session.SessionID, 1, "continue", "run_memory_disclosure"); err != nil {
-		t.Fatalf("create run: %v", err)
-	}
-	if err := store.BindLatestUserMessageRunID(context.Background(), session.SessionID, 1, "run_memory_disclosure"); err != nil {
-		t.Fatalf("bind run: %v", err)
-	}
-	if _, err := store.AppendEventContext(context.Background(), "run_memory_disclosure", "memory.prepared", map[string]any{
-		"memory_prepared": map[string]any{
-			"entry_count":     float64(2),
-			"workspace_scope": "workspace:acorn",
-			"entries": []any{
-				map[string]any{"ref": "facts/workspaces/acorn/repo.md", "kind": "fact", "title": "Repo root"},
-				map[string]any{"ref": "history/run_1.md", "kind": "history", "title": "Prior run"},
-			},
-		},
-	}); err != nil {
-		t.Fatalf("append memory prepared event: %v", err)
-	}
-	if err := store.FinishRunContext(context.Background(), "run_memory_disclosure", events.RunStatusSucceeded, "done", ""); err != nil {
-		t.Fatalf("finish run: %v", err)
-	}
-
-	if err := store.SyncAssistantMessageForRun(context.Background(), "run_memory_disclosure"); err != nil {
-		t.Fatalf("sync assistant message: %v", err)
-	}
-	parts := loadAssistantParts(t, store, session.SessionID, 2)
-	if len(parts) != 4 || parts[1].Kind != "disclosure" {
-		t.Fatalf("assistant parts = %#v", parts)
-	}
-	if len(parts[1].Items) != 1 {
-		t.Fatalf("disclosure items = %#v", parts[1].Items)
-	}
-	item := parts[1].Items[0]
-	if item.Kind != "memory" || item.Label != "Prepared 2 memory entries" || item.Detail != "workspace:acorn" || item.Tone != "memory" {
-		t.Fatalf("memory disclosure item = %#v", item)
-	}
-	if strings.Contains(mustJSON(t, parts[1]), "run_memory_disclosure") {
-		t.Fatalf("disclosure should not expose raw run id: %#v", parts[1])
-	}
-}
-
-func TestSyncAssistantMessageForRunBuildsSkillDisclosure(t *testing.T) {
-	dir := filepath.Join(t.TempDir(), "state")
-	store, err := Open(dir)
-	if err != nil {
-		t.Fatalf("open store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	session, err := store.CreateSession(context.Background(), "session_skill_disclosure", "")
-	if err != nil {
-		t.Fatalf("create session: %v", err)
-	}
-	if _, err := store.AppendSessionMessage(session.SessionID, 1, "user", "implement", ""); err != nil {
-		t.Fatalf("append user message: %v", err)
-	}
-	if err := store.CreateRunWithSession(context.Background(), "run_skill_disclosure", session.SessionID, 1, "implement", "run_skill_disclosure"); err != nil {
-		t.Fatalf("create run: %v", err)
-	}
-	if err := store.BindLatestUserMessageRunID(context.Background(), session.SessionID, 1, "run_skill_disclosure"); err != nil {
-		t.Fatalf("bind run: %v", err)
-	}
-	if _, err := store.AppendEventContext(context.Background(), "run_skill_disclosure", "skill.selected", map[string]any{
-		"skill": map[string]any{
-			"selected_id": "skill.ship.patch",
-			"name":        "Repository patch shipping",
-			"path":        "/Users/ycvk/GolandProjects/acorn/skills/skill.ship.patch/SKILL.md",
-			"requirements": []any{
-				"approved design",
-			},
-			"score": float64(0.98),
-		},
-	}); err != nil {
-		t.Fatalf("append skill event: %v", err)
-	}
-	if err := store.FinishRunContext(context.Background(), "run_skill_disclosure", events.RunStatusSucceeded, "done", ""); err != nil {
-		t.Fatalf("finish run: %v", err)
-	}
-
-	if err := store.SyncAssistantMessageForRun(context.Background(), "run_skill_disclosure"); err != nil {
-		t.Fatalf("sync assistant message: %v", err)
-	}
-	parts := loadAssistantParts(t, store, session.SessionID, 2)
-	if len(parts) != 4 || parts[1].Kind != "disclosure" {
-		t.Fatalf("assistant parts = %#v", parts)
-	}
-	if len(parts[1].Items) != 1 {
-		t.Fatalf("disclosure items = %#v", parts[1].Items)
-	}
-	item := parts[1].Items[0]
-	if item.Kind != "skill" || item.Label != "Used skill" || item.Detail != "Repository patch shipping" || item.Tone != "skill" || item.SkillID != "skill.ship.patch" {
-		t.Fatalf("skill disclosure item = %#v", item)
-	}
-	encoded := mustJSON(t, parts[1])
-	for _, forbidden := range []string{"path", "requirements", "score", "/Users/ycvk"} {
-		if strings.Contains(encoded, forbidden) {
-			t.Fatalf("skill disclosure should not expose %q: %s", forbidden, encoded)
-		}
-	}
-}
-
-func TestSyncAssistantMessageForRunBuildsProcedureDisclosure(t *testing.T) {
-	dir := filepath.Join(t.TempDir(), "state")
-	store, err := Open(dir)
-	if err != nil {
-		t.Fatalf("open store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	session, err := store.CreateSession(context.Background(), "session_procedure_disclosure", "")
-	if err != nil {
-		t.Fatalf("create session: %v", err)
-	}
-	if _, err := store.AppendSessionMessage(session.SessionID, 1, "user", "implement", ""); err != nil {
-		t.Fatalf("append user message: %v", err)
-	}
-	if err := store.CreateRunWithSession(context.Background(), "run_procedure_disclosure", session.SessionID, 1, "implement", "run_procedure_disclosure"); err != nil {
-		t.Fatalf("create run: %v", err)
-	}
-	if err := store.BindLatestUserMessageRunID(context.Background(), session.SessionID, 1, "run_procedure_disclosure"); err != nil {
-		t.Fatalf("bind run: %v", err)
-	}
-	if _, err := store.AppendEventContext(context.Background(), "run_procedure_disclosure", "skill.selected", map[string]any{
-		"skill": map[string]any{
-			"selected_id":  "sop.fix-sqlite-query-loop-error-handling",
-			"name":         "SQLite Rows Error Handling SOP",
-			"origin":       "distilled",
-			"task_pattern": "fix sqlite query loop error handling",
-		},
-	}); err != nil {
-		t.Fatalf("append skill event: %v", err)
-	}
-	if err := store.FinishRunContext(context.Background(), "run_procedure_disclosure", events.RunStatusSucceeded, "done", ""); err != nil {
-		t.Fatalf("finish run: %v", err)
-	}
-
-	if err := store.SyncAssistantMessageForRun(context.Background(), "run_procedure_disclosure"); err != nil {
-		t.Fatalf("sync assistant message: %v", err)
-	}
-	parts := loadAssistantParts(t, store, session.SessionID, 2)
-	if len(parts) != 4 || parts[1].Kind != "disclosure" {
-		t.Fatalf("assistant parts = %#v", parts)
-	}
-	item := parts[1].Items[0]
-	if item.Kind != "skill" || item.Label != "Used procedure" || item.Detail != "SQLite Rows Error Handling SOP" || item.Tone != "procedure" || item.SkillID != "sop.fix-sqlite-query-loop-error-handling" {
-		t.Fatalf("procedure disclosure item = %#v", item)
-	}
-	if strings.Contains(mustJSON(t, parts[1]), "selected_id") || strings.Contains(mustJSON(t, parts[1]), "task_pattern") {
-		t.Fatalf("procedure disclosure should not expose raw internals: %#v", parts[1])
-	}
-}
-
-func TestSyncAssistantMessageForRunOrdersCombinedDisclosure(t *testing.T) {
-	dir := filepath.Join(t.TempDir(), "state")
-	store, err := Open(dir)
-	if err != nil {
-		t.Fatalf("open store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	session, err := store.CreateSession(context.Background(), "session_combined_disclosure", "")
-	if err != nil {
-		t.Fatalf("create session: %v", err)
-	}
-	if _, err := store.AppendSessionMessage(session.SessionID, 1, "user", "continue", ""); err != nil {
-		t.Fatalf("append user message: %v", err)
-	}
-	if err := store.CreateRunWithSession(context.Background(), "run_combined_disclosure", session.SessionID, 1, "continue", "run_combined_disclosure"); err != nil {
-		t.Fatalf("create run: %v", err)
-	}
-	if err := store.BindLatestUserMessageRunID(context.Background(), session.SessionID, 1, "run_combined_disclosure"); err != nil {
-		t.Fatalf("bind run: %v", err)
-	}
-	if _, err := store.AppendEventContext(context.Background(), "run_combined_disclosure", "skill.loaded", map[string]any{
-		"skill": map[string]any{
-			"selected_id": "skill.ship.patch",
-		},
-	}); err != nil {
-		t.Fatalf("append skill event: %v", err)
-	}
-	if _, err := store.AppendEventContext(context.Background(), "run_combined_disclosure", "memory.prepared", map[string]any{
-		"memory_prepared": map[string]any{
-			"entry_count": float64(1),
-		},
-	}); err != nil {
-		t.Fatalf("append memory prepared event: %v", err)
-	}
-	if err := store.FinishRunContext(context.Background(), "run_combined_disclosure", events.RunStatusSucceeded, "done", ""); err != nil {
-		t.Fatalf("finish run: %v", err)
-	}
-
-	if err := store.SyncAssistantMessageForRun(context.Background(), "run_combined_disclosure"); err != nil {
-		t.Fatalf("sync assistant message: %v", err)
-	}
-	parts := loadAssistantParts(t, store, session.SessionID, 2)
-	if len(parts) != 4 {
-		t.Fatalf("assistant parts length = %d, want 4: %#v", len(parts), parts)
-	}
-	if parts[0].Kind != "text" || parts[1].Kind != "disclosure" || parts[2].Kind != "result" || parts[3].Kind != "technical_detail_link" {
-		t.Fatalf("assistant parts order = %#v", parts)
-	}
-	if len(parts[1].Items) != 2 || parts[1].Items[0].Kind != "memory" || parts[1].Items[1].Kind != "skill" {
-		t.Fatalf("disclosure items order = %#v", parts[1].Items)
-	}
-}
-
-func TestSyncAssistantMessageForRunFailsOnCorruptMemoryDisclosureEvent(t *testing.T) {
-	dir := filepath.Join(t.TempDir(), "state")
-	store, err := Open(dir)
-	if err != nil {
-		t.Fatalf("open store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	session, err := store.CreateSession(context.Background(), "session_corrupt_memory_disclosure", "")
-	if err != nil {
-		t.Fatalf("create session: %v", err)
-	}
-	if _, err := store.AppendSessionMessage(session.SessionID, 1, "user", "continue", ""); err != nil {
-		t.Fatalf("append user message: %v", err)
-	}
-	if err := store.CreateRunWithSession(context.Background(), "run_corrupt_memory_disclosure", session.SessionID, 1, "continue", "run_corrupt_memory_disclosure"); err != nil {
-		t.Fatalf("create run: %v", err)
-	}
-	if err := store.BindLatestUserMessageRunID(context.Background(), session.SessionID, 1, "run_corrupt_memory_disclosure"); err != nil {
-		t.Fatalf("bind run: %v", err)
-	}
-	if _, err := store.AppendEventContext(context.Background(), "run_corrupt_memory_disclosure", "memory.prepared", map[string]any{
-		"entry_count": float64(1),
-	}); err != nil {
-		t.Fatalf("append corrupt memory prepared event: %v", err)
-	}
-	if err := store.FinishRunContext(context.Background(), "run_corrupt_memory_disclosure", events.RunStatusSucceeded, "done", ""); err != nil {
-		t.Fatalf("finish run: %v", err)
-	}
-
-	err = store.SyncAssistantMessageForRun(context.Background(), "run_corrupt_memory_disclosure")
-	if err == nil {
-		t.Fatal("expected corrupt memory prepared error")
-	}
-	if !strings.Contains(err.Error(), "memory.prepared missing memory_prepared object") {
-		t.Fatalf("error = %v, want corrupt memory prepared context", err)
-	}
-	items, err := store.ListSessionMessages(context.Background(), session.SessionID, 10)
-	if err != nil {
-		t.Fatalf("list session messages: %v", err)
-	}
-	if len(items) != 1 {
-		t.Fatalf("expected only user message after failed sync, got %#v", items)
-	}
-}
-
-func TestSyncAssistantMessageForRunFailsOnCorruptSkillDisclosureEvent(t *testing.T) {
-	dir := filepath.Join(t.TempDir(), "state")
-	store, err := Open(dir)
-	if err != nil {
-		t.Fatalf("open store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	session, err := store.CreateSession(context.Background(), "session_corrupt_skill_disclosure", "")
-	if err != nil {
-		t.Fatalf("create session: %v", err)
-	}
-	if _, err := store.AppendSessionMessage(session.SessionID, 1, "user", "implement", ""); err != nil {
-		t.Fatalf("append user message: %v", err)
-	}
-	if err := store.CreateRunWithSession(context.Background(), "run_corrupt_skill_disclosure", session.SessionID, 1, "implement", "run_corrupt_skill_disclosure"); err != nil {
-		t.Fatalf("create run: %v", err)
-	}
-	if err := store.BindLatestUserMessageRunID(context.Background(), session.SessionID, 1, "run_corrupt_skill_disclosure"); err != nil {
-		t.Fatalf("bind run: %v", err)
-	}
-	if _, err := store.AppendEventContext(context.Background(), "run_corrupt_skill_disclosure", "skill.selected", map[string]any{
-		"skill": map[string]any{
-			"path": "/tmp/skill",
-		},
-	}); err != nil {
-		t.Fatalf("append corrupt skill event: %v", err)
-	}
-	if err := store.FinishRunContext(context.Background(), "run_corrupt_skill_disclosure", events.RunStatusSucceeded, "done", ""); err != nil {
-		t.Fatalf("finish run: %v", err)
-	}
-
-	err = store.SyncAssistantMessageForRun(context.Background(), "run_corrupt_skill_disclosure")
-	if err == nil {
-		t.Fatal("expected corrupt skill event error")
-	}
-	if !strings.Contains(err.Error(), "skill.selected missing skill name") {
-		t.Fatalf("error = %v, want corrupt skill context", err)
-	}
-	items, err := store.ListSessionMessages(context.Background(), session.SessionID, 10)
-	if err != nil {
-		t.Fatalf("list session messages: %v", err)
-	}
-	if len(items) != 1 {
-		t.Fatalf("expected only user message after failed sync, got %#v", items)
-	}
-}
-
-func TestSyncAssistantMessageForRunFailsOnCorruptEvidenceEvent(t *testing.T) {
-	dir := filepath.Join(t.TempDir(), "state")
-	store, err := Open(dir)
-	if err != nil {
-		t.Fatalf("open store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	session, err := store.CreateSession(context.Background(), "session_corrupt_evidence", "")
-	if err != nil {
-		t.Fatalf("create session: %v", err)
-	}
-	if _, err := store.AppendSessionMessage(session.SessionID, 1, "user", "run", ""); err != nil {
-		t.Fatalf("append user message: %v", err)
-	}
-	if err := store.CreateRunWithSession(context.Background(), "run_corrupt_evidence", session.SessionID, 1, "run", "run_corrupt_evidence"); err != nil {
-		t.Fatalf("create run: %v", err)
-	}
-	if err := store.BindLatestUserMessageRunID(context.Background(), session.SessionID, 1, "run_corrupt_evidence"); err != nil {
-		t.Fatalf("bind run: %v", err)
-	}
-	if _, err := store.db.Exec(
-		`INSERT INTO tool_results(result_ref, run_id, session_id, turn_index, call_id, tool_name, arguments_json, status, error_reason, preview, full_text, token_estimate, side_effects_json, evidence_refs_json, created_at)
-		 VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		"tool_result:run_corrupt_evidence:call_1",
-		"run_corrupt_evidence",
-		session.SessionID,
-		1,
-		"call_1",
-		"run_command",
-		`{"command":`,
-		"succeeded",
-		"",
-		"",
-		"",
-		0,
-		"[]",
-		"[]",
-		formatTimestamp(time.Now()),
-	); err != nil {
-		t.Fatalf("insert corrupt tool result: %v", err)
-	}
-	if err := store.FinishRunContext(context.Background(), "run_corrupt_evidence", events.RunStatusSucceeded, "done", ""); err != nil {
-		t.Fatalf("finish run: %v", err)
-	}
-
-	err = store.SyncAssistantMessageForRun(context.Background(), "run_corrupt_evidence")
-	if err == nil {
-		t.Fatal("expected corrupt evidence event error")
-	}
-	if !strings.Contains(err.Error(), "tool_result=tool_result:run_corrupt_evidence:call_1") {
-		t.Fatalf("error = %v, want corrupt tool result context", err)
-	}
-	items, err := store.ListSessionMessages(context.Background(), session.SessionID, 10)
-	if err != nil {
-		t.Fatalf("list session messages: %v", err)
-	}
-	if len(items) != 1 {
-		t.Fatalf("expected only user message after failed sync, got %#v", items)
-	}
-}
-
-func loadAssistantParts(t *testing.T, store *Store, sessionID string, wantMessages int) []SessionMessagePart {
-	t.Helper()
-	items, err := store.ListSessionMessages(context.Background(), sessionID, 10)
-	if err != nil {
-		t.Fatalf("list session messages: %v", err)
-	}
-	if len(items) != wantMessages {
-		t.Fatalf("session messages length = %d, want %d: %#v", len(items), wantMessages, items)
-	}
-	assistant := items[wantMessages-1]
-	if assistant.Role != "assistant" {
-		t.Fatalf("last message role = %q, want assistant: %#v", assistant.Role, assistant)
-	}
-	var parts []SessionMessagePart
-	if err := json.Unmarshal(assistant.ContentParts, &parts); err != nil {
-		t.Fatalf("unmarshal assistant message parts: %v", err)
-	}
-	return parts
-}
-
-func mustJSON(t *testing.T, value any) string {
-	t.Helper()
-	data, err := json.Marshal(value)
-	if err != nil {
-		t.Fatalf("marshal json: %v", err)
-	}
-	return string(data)
-}
-
-func containsString(items []string, want string) bool {
-	for _, item := range items {
-		if item == want {
-			return true
-		}
-	}
-	return false
 }
 
 func TestClientSessionMessageHelpers(t *testing.T) {

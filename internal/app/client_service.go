@@ -86,7 +86,7 @@ func (s *ClientService) InterruptRun(ctx context.Context, runID string) error {
 	return s.controller.Interrupt(runID)
 }
 
-func (s *ClientService) CreateRun(ctx context.Context, threadID, skillID, mode string) (*Run, error) {
+func (s *ClientService) CreateRun(ctx context.Context, threadID, skillID, mode, input string) (*Run, error) {
 	if s == nil || s.store == nil || s.newExecutor == nil || s.newRunID == nil {
 		return nil, errors.New("client service is not initialized")
 	}
@@ -99,12 +99,27 @@ func (s *ClientService) CreateRun(ctx context.Context, threadID, skillID, mode s
 	if _, err := s.store.LoadSession(ctx, threadID); err != nil {
 		return nil, err
 	}
-	message, err := s.store.LoadLatestUnboundUserMessage(ctx, threadID)
-	if err != nil {
-		if errors.Is(err, store.ErrSessionMessageNotFound) {
-			return nil, fmt.Errorf("%w: thread %s", ErrClientNoPendingMessage, threadID)
+	// Resolve the user message this run binds to, then bind by its exact id (see
+	// req.BoundMessageID below). Single-step (input set) records a fresh message
+	// and binds that id — race-free, no separate POST /messages needed. The
+	// two-step flow (empty input, message posted via POST /messages) reads the
+	// latest unbound message and binds by its id; concurrent two-step creates on
+	// one thread bind the same id and the second fails loud (RowsAffected=0 -> run
+	// rolled back), never silently mis-binding.
+	var message *events.SessionMessageRecord
+	if strings.TrimSpace(input) != "" {
+		message, err = s.createUserMessage(ctx, threadID, input)
+		if err != nil {
+			return nil, err
 		}
-		return nil, err
+	} else {
+		message, err = s.store.LoadLatestUnboundUserMessage(ctx, threadID)
+		if err != nil {
+			if errors.Is(err, store.ErrSessionMessageNotFound) {
+				return nil, fmt.Errorf("%w: thread %s", ErrClientNoPendingMessage, threadID)
+			}
+			return nil, err
+		}
 	}
 	history, err := s.store.ListSessionMessages(ctx, threadID, chatHistoryLimit)
 	if err != nil {
@@ -124,6 +139,7 @@ func (s *ClientService) CreateRun(ctx context.Context, threadID, skillID, mode s
 		SessionID:         threadID,
 		TurnIndex:         message.TurnIndex,
 		Input:             message.Content,
+		BoundMessageID:    message.ID,
 		SkillID:           skillID,
 		Messages:          buildChatMessages(history),
 		OrchestrationMode: orchestrationMode,

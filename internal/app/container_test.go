@@ -3,23 +3,23 @@ package app
 import (
 	"context"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/ycvk/acorn/internal/config"
 )
 
-func TestNewContainerFailsWhenMemorySemanticConfigMissing(t *testing.T) {
+// TestNewContainerStartsWithoutSemanticConfig verifies missing semantic config no
+// longer blocks startup: the container builds without a semantic runtime, and
+// Search/Prepare fail loud only when actually used (not at construction).
+func TestNewContainerStartsWithoutSemanticConfig(t *testing.T) {
 	cfg := testContainerConfig(t)
 	cfg.Memory.Semantic = config.MemorySemanticConfig{}
 
-	_, err := NewContainer(context.Background(), cfg)
-	if err == nil {
-		t.Fatal("expected missing memory semantic config to fail")
+	c, err := NewContainer(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("NewContainer should succeed without semantic config: %v", err)
 	}
-	if !strings.Contains(err.Error(), "memory.semantic.bleve.index_name is required") {
-		t.Fatalf("NewContainer error = %v, want missing semantic config error", err)
-	}
+	t.Cleanup(func() { _ = c.Close() })
 }
 
 func testContainerConfig(t *testing.T) *config.Config {

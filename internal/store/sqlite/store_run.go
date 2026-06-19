@@ -78,11 +78,17 @@ func (s *Store) CreateBoundRunWithParams(ctx context.Context, params store.RunCr
 	if strings.TrimSpace(params.SessionID) == "" {
 		return nil
 	}
-	if err := s.BindLatestUserMessageRunID(ctx, params.SessionID, params.TurnIndex, params.RunID); err != nil {
+	var bindErr error
+	if params.BoundMessageID > 0 {
+		bindErr = s.BindUserMessageRunIDByID(ctx, params.BoundMessageID, params.RunID)
+	} else {
+		bindErr = s.BindLatestUserMessageRunID(ctx, params.SessionID, params.TurnIndex, params.RunID)
+	}
+	if bindErr != nil {
 		if _, cleanupErr := s.db.Exec(`DELETE FROM runs WHERE run_id = ?`, params.RunID); cleanupErr != nil {
-			return fmt.Errorf("bind latest user message run id: %w (cleanup failed: %v)", err, cleanupErr)
+			return fmt.Errorf("bind user message run id: %w (cleanup failed: %v)", bindErr, cleanupErr)
 		}
-		return err
+		return bindErr
 	}
 	return nil
 }

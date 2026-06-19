@@ -38,8 +38,6 @@ func (f *RunnerFactory) buildRun(ctx context.Context, req RunnerBuildRequest) (*
 	rc := &RunContext{
 		RunID:    req.RunID,
 		ParentID: strings.TrimSpace(req.ParentRunID),
-		Budget:   NewRunBudget(f.deps.Config.Agent.MaxIterations),
-		Sink:     req.Sink,
 	}
 	if err := f.registry.Register(rc); err != nil {
 		return nil, fmt.Errorf("register run context: %w", err)
