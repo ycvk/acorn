@@ -47,6 +47,13 @@ func New(cfg Config) (*Workspace, error) {
 	if err != nil {
 		return nil, fmt.Errorf("resolve workspace root dir: %w", err)
 	}
+	// Ensure the operator workspace exists so the first real tool task (run_command,
+	// read_file, list_files) does not fail with a cryptic chdir/open error on a
+	// missing directory — and so readiness ("acorn doctor") reflects a usable
+	// workspace. Consistent with sqlite.Open creating the storage dir. Idempotent.
+	if err := os.MkdirAll(absRoot, 0o755); err != nil {
+		return nil, fmt.Errorf("create workspace root dir %s: %w", absRoot, err)
+	}
 
 	storageDir := strings.TrimSpace(cfg.StorageDir)
 	if storageDir != "" {
