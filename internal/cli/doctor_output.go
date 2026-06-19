@@ -7,15 +7,29 @@ import (
 	"github.com/ycvk/acorn/internal/app"
 )
 
-func printDoctorOutput(snapshot app.SystemCapabilities, jsonMode bool) error {
+func printDoctorOutput(snapshot app.SystemCapabilities, configPath string, jsonMode bool) error {
 	if jsonMode {
 		return printJSON(snapshot)
 	}
-	fmt.Println(renderDoctorSummary(snapshot))
+	fmt.Println(renderDoctorSummary(snapshot, configPath))
 	return nil
 }
 
-func renderDoctorSummary(snapshot app.SystemCapabilities) string {
+// doctorRemediationLines tells the owner WHAT to type to fix a not-ready verdict,
+// naming the active config path. JSON output is untouched (printJSON returns first).
+func doctorRemediationLines(configPath string) []string {
+	cfgPath := strings.TrimSpace(configPath)
+	if cfgPath == "" {
+		cfgPath = "your config"
+	}
+	return []string{
+		fmt.Sprintf("  Fix:   edit %s, then re-run 'acorn doctor' (or 'acorn smoke \"hello\"' to test a real run).", cfgPath),
+		"         api_key fields read env vars (e.g. OPENAI_API_KEY; systemd installs read ~/.acorn/acorn.env — restart with 'sudo systemctl restart acorn').",
+		"         No config yet? run 'acorn init'.",
+	}
+}
+
+func renderDoctorSummary(snapshot app.SystemCapabilities, configPath string) string {
 	lines := []string{
 		"Acorn doctor",
 		"",
@@ -34,6 +48,7 @@ func renderDoctorSummary(snapshot app.SystemCapabilities) string {
 	))
 	if errText := runtimeReadinessReason(snapshot.RuntimeReadiness); errText != "" {
 		lines = append(lines, fmt.Sprintf("  Error: %s", errText))
+		lines = append(lines, doctorRemediationLines(configPath)...)
 	}
 	if errText := strings.TrimSpace(snapshot.ToolCatalogError); errText != "" {
 		lines = append(lines, fmt.Sprintf("  Tool catalog: %s", errText))

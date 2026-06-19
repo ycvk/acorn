@@ -90,6 +90,14 @@ func runServe(ctx context.Context, args []string) error {
 		}
 	}()
 
+	// Surface execution readiness at startup so the owner is not surprised by a
+	// mid-run execution_not_ready. serve intentionally stays up when not ready
+	// (pairing/inbox/approvals remain usable), so this is a loud warning, not a stop.
+	if readyErr := cfg.ValidateExecutionReady(); readyErr != nil {
+		fmt.Fprintf(os.Stderr, "WARNING: execution NOT ready — tasks will be rejected with execution_not_ready until fixed.\n  Reason: %s\n  Run 'acorn doctor' for detail.\n", readyErr)
+	} else {
+		fmt.Println("Execution: ready")
+	}
 	fmt.Printf("Acorn Web 服务监听于 http://%s\n", addr)
 	err = server.ListenAndServe()
 	if errors.Is(err, http.ErrServerClosed) {

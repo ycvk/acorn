@@ -123,7 +123,7 @@ func TestRenderDoctorProviderLineErrorSubline(t *testing.T) {
 		},
 	}
 
-	summary := renderDoctorSummary(snapshot)
+	summary := renderDoctorSummary(snapshot, "")
 	mustContainAll(t, summary, []string{
 		"[sse] failed",
 		"Error:",
