@@ -17,6 +17,7 @@ func TestBuiltinToolNamesSnapshot(t *testing.T) {
 		"memory_list_files",
 		"memory_create_file",
 		"memory_replace_span",
+		"remember",
 		"skill_list",
 		"skill_view",
 		"load_tools",
