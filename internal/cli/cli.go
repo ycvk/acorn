@@ -31,6 +31,10 @@ func Run(ctx context.Context, args []string) error {
 		return runMemory(ctx, args[1:])
 	case "pair":
 		return runPair(ctx, args[1:])
+	case "token":
+		return runToken(ctx, args[1:])
+	case "devices":
+		return runDevices(ctx, args[1:])
 	case "smoke":
 		return runSmoke(ctx, args[1:])
 	case "serve":
@@ -59,6 +63,9 @@ Usage:
   acorn skills patch [-c path] SKILL_ID "patch text"
   acorn skills delete [-c path] SKILL_ID
   acorn pair [-c path] [--json] [--qr] [--ttl duration] [--server-url url]
+  acorn token issue [-c path] [--json] [--name name] [--ttl duration]
+  acorn devices list [-c path] [--json]
+  acorn devices revoke [-c path] DEVICE_ID
   acorn smoke [-c path] [--json] [--mode direct_response|plan_execute] "task input"
   acorn memory procedure create [-c path] [--json] --title title --task-pattern pattern --source-run run --evidence-refs refs "procedure body"
   acorn memory semantic rebuild [-c path] [--json]
