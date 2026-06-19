@@ -27,7 +27,6 @@ type RunStore interface {
 	FinishRunContext(ctx context.Context, runID string, status events.RunStatus, output, errText string) error
 	MarkInterruptedContext(ctx context.Context, runID, output string) error
 	UpdateRunOutputContext(ctx context.Context, runID, output string) error
-	FindLatestInterruptedRun(ctx context.Context) (*events.RunRecord, error)
 }
 
 // EventStore queries and syncs events.
@@ -53,11 +52,6 @@ type EvidenceStore interface {
 // ProviderUsageStore queries provider usage records.
 type ProviderUsageStore interface {
 	ListProviderUsagesByRun(ctx context.Context, runID string) ([]providers.UsageRecord, error)
-}
-
-// PendingResumeStore reads the persisted interrupted run truth required by resume discovery.
-type PendingResumeStore interface {
-	FindLatestInterruptedRun(ctx context.Context) (*events.RunRecord, error)
 }
 
 // ExecutorStore is the store contract required by the Executor.
