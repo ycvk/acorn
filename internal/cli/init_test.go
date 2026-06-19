@@ -57,3 +57,14 @@ func TestInitWritesConfigAndRefusesClobber(t *testing.T) {
 		t.Fatalf("init --force: %v", err)
 	}
 }
+
+func TestInitPrintDoesNotWriteFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "acorn.yaml")
+	if err := runInit(t.Context(), []string{"-c", path, "--print"}); err != nil {
+		t.Fatalf("init --print: %v", err)
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("--print must not write the config file, stat err = %v", err)
+	}
+}

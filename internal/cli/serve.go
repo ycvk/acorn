@@ -92,16 +92,24 @@ func runServe(ctx context.Context, args []string) error {
 
 	// Surface execution readiness at startup so the owner is not surprised by a
 	// mid-run execution_not_ready. serve intentionally stays up when not ready
-	// (pairing/inbox/approvals remain usable), so this is a loud warning, not a stop.
-	if readyErr := cfg.ValidateExecutionReady(); readyErr != nil {
-		fmt.Fprintf(os.Stderr, "WARNING: execution NOT ready — tasks will be rejected with execution_not_ready until fixed.\n  Reason: %s\n  Run 'acorn doctor' for detail.\n", readyErr)
-	} else {
-		fmt.Println("Execution: ready")
-	}
+	// (pairing/inbox/approvals remain usable), so this is a loud banner, not a stop.
+	// Printed to stdout alongside the listen banner so `serve 2>/dev/null` cannot
+	// hide a NOT-READY while the listen line implies everything is fine.
+	fmt.Println(executionReadinessBanner(cfg.ValidateExecutionReady()))
 	fmt.Printf("Acorn Web 服务监听于 http://%s\n", addr)
 	err = server.ListenAndServe()
 	if errors.Is(err, http.ErrServerClosed) {
 		return nil
 	}
 	return err
+}
+
+// executionReadinessBanner renders the startup readiness line. A nil error means
+// the runtime can execute tasks; a non-nil error is a loud (non-fatal) warning that
+// every run will be rejected with execution_not_ready until the reason is fixed.
+func executionReadinessBanner(readyErr error) string {
+	if readyErr != nil {
+		return fmt.Sprintf("Execution: NOT READY — tasks will be rejected with execution_not_ready until fixed.\n  Reason: %s\n  Run 'acorn doctor' for detail.", readyErr)
+	}
+	return "Execution: ready"
 }
