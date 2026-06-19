@@ -191,7 +191,7 @@ func TestRenderDoctorSummaryIncludesGroupedSectionsAndProviderErrors(t *testing.
 			{Name: "healthy", Configured: true, Enabled: true, Transport: "stdio", StartupStatus: "healthy", ToolCount: 2, DiscoveredToolNames: []string{"echo", "inspect"}},
 			{Name: "broken", Configured: true, Enabled: true, Transport: "stdio", StartupStatus: "failed", ToolCount: 0, ConfiguredToolNames: []string{"search"}, Error: "discover MCP tools: boom"},
 		},
-	})
+	}, "")
 
 	for _, want := range []string{
 		"Execution",

@@ -307,6 +307,10 @@ func TestLoadExamplesConfigureMemorySemantic(t *testing.T) {
 func validSemanticConfig() *Config {
 	cfg := defaultConfig()
 	cfg.Providers[0].APIKey = "sk-chat"
+	// Semantic is OFF by default now (no model/base_url defaults); set them to
+	// represent an explicitly semantic-enabled config for these checks.
+	cfg.Memory.Semantic.Embedding.Model = "text-embedding-3-small"
+	cfg.Memory.Semantic.Embedding.BaseURL = "https://api.openai.com/v1"
 	cfg.Memory.Semantic.Embedding.APIKey = "sk-embedding"
 	cfg.Agent.MaxIterations = 4
 	cfg.Tools.RunCommand.Disabled = true

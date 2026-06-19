@@ -38,6 +38,19 @@ func runSmoke(ctx context.Context, args []string) error {
 	return withContainer(ctx, *configPath, func(container *app.Container) error {
 		result, err := container.RunOnce(ctx, text, *mode)
 		if err != nil {
+			// In --json mode the run could not start (e.g. execution_not_ready); a
+			// scripted consumer still expects parseable JSON on stdout, not just a
+			// stderr string. Emit a failed-status object, then return the error so
+			// the exit code stays non-zero.
+			if *jsonMode {
+				if body, mErr := json.MarshalIndent(smokeCommandOutput{
+					Status: "failed",
+					Mode:   displayMode,
+					Error:  err.Error(),
+				}, "", "  "); mErr == nil {
+					fmt.Println(string(body))
+				}
+			}
 			return err
 		}
 		out, err := renderSmokeResult(result, displayMode, *jsonMode)
