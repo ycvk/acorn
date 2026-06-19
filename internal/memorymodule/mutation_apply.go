@@ -100,6 +100,38 @@ func captureMemoryMutationRollback(path string) (*memoryMutationRollback, error)
 	return &memoryMutationRollback{path: path, exists: true, body: body}, nil
 }
 
+// applyNewMemoryRecord writes a brand-new memory record at relPath through the
+// full mutation pipeline (ApplyMemoryMutation), so structured writers (CreateFact,
+// CreateProcedure) get the same atomic write + BuildIndex + semantic rebuild +
+// rollback-on-failure as the raw memory tools. Without this, a structured write
+// would land on disk and in the in-memory index but leave the semantic index
+// stale, making the just-written record unfindable by memory_search/Prepare. It
+// is create-only: an existing record at the path is an error, not a replace.
+func (s *LocalService) applyNewMemoryRecord(ctx context.Context, relPath string, content string, kind Kind) (*Record, *MemoryMutationPlan, error) {
+	absPath := filepath.Join(s.root, filepath.FromSlash(relPath))
+	if _, err := os.Stat(absPath); err == nil {
+		return nil, nil, fmt.Errorf("memory record already exists: %s", relPath)
+	} else if !os.IsNotExist(err) {
+		return nil, nil, fmt.Errorf("stat memory record %s: %w", relPath, err)
+	}
+	result, err := s.ApplyMemoryMutation(ctx, PlanMemoryMutationRequest{Path: relPath, Content: content})
+	if err != nil {
+		return nil, nil, err
+	}
+	if result.MutationPlan == nil || result.MutationPlan.Action != MemoryMutationCreate {
+		action, reason := MemoryMutationAction(""), ""
+		if result.MutationPlan != nil {
+			action, reason = result.MutationPlan.Action, result.MutationPlan.Reason
+		}
+		return nil, nil, fmt.Errorf("memory record mutation %q: %s", action, reason)
+	}
+	record, err := readMemoryRecord(s.root, kind, absPath)
+	if err != nil {
+		return nil, nil, err
+	}
+	return record, result.MutationPlan, nil
+}
+
 func writeMemoryMutationFile(path string, action MemoryMutationAction, content string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return fmt.Errorf("prepare memory mutation parent dir: %w", err)
