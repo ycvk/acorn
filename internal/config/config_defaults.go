@@ -48,9 +48,10 @@ func defaultConfig() *Config {
 			DefaultTimeoutSeconds: 20,
 		},
 		Agent: AgentConfig{
-			Name:          "coordinator",
-			Description:   "A local operator agent that can inspect files and execute commands.",
-			MaxIterations: 70,
+			Name:             "coordinator",
+			Description:      "A local operator agent that can inspect files and execute commands.",
+			MaxIterations:    70,
+			MaxSubagentDepth: 3,
 		},
 		Tools: ToolsConfig{
 			Workspace:  WorkspaceToolConfig{RootDir: "."},

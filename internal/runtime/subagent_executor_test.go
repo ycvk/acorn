@@ -72,14 +72,14 @@ func TestSubagentExecutorRejectsDepthOverLimit(t *testing.T) {
 
 	se := &SubagentExecutor{
 		// Parent already at the limit, so the child would exceed it.
-		parentDepth: func(string) int { return maxSubagentDepth },
+		parentDepth: func(string) int { return defaultMaxSubagentDepth },
 	}
 
 	_, err := se.Execute(context.Background(), orchestration.ChildAgentRequest{
 		ParentRunID: "deep_parent",
 		Task:        "recurse",
 	})
-	if err == nil || !strings.Contains(err.Error(), "exceeds limit") {
+	if err == nil || !strings.Contains(err.Error(), "exceeds configured limit") {
 		t.Fatalf("error = %v, want depth limit error", err)
 	}
 }
