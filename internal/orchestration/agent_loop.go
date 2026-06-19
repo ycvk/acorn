@@ -13,20 +13,18 @@ import (
 )
 
 type AgentLoop struct {
-	model     einomodel.BaseChatModel
-	toolNode  ToolInvoker
-	streamer  AssistantStreamer
-	session   contextplane.ContextSession
-	maxRounds int
+	model    einomodel.BaseChatModel
+	toolNode ToolInvoker
+	streamer AssistantStreamer
+	session  contextplane.ContextSession
 }
 
 func NewAgentLoop(model einomodel.BaseChatModel, toolNode ToolInvoker, streamer AssistantStreamer, session contextplane.ContextSession) *AgentLoop {
 	return &AgentLoop{
-		model:     model,
-		toolNode:  toolNode,
-		streamer:  streamer,
-		session:   session,
-		maxRounds: 10,
+		model:    model,
+		toolNode: toolNode,
+		streamer: streamer,
+		session:  session,
 	}
 }
 
