@@ -28,36 +28,34 @@ type PlanStore interface {
 }
 
 type GraphBuildRequest struct {
-	AgentName              string
-	AgentDescription       string
-	ChatModel              einomodel.BaseChatModel
-	Tools                  []einotool.BaseTool
-	SafeToolNode           ToolInvoker
-	AssistantStreamer      AssistantStreamer
-	MaxIterations          int
-	Handlers               []adk.ChatModelAgentMiddleware
-	CheckpointStore        adk.CheckPointStore
-	PlanStore              PlanStore
-	PlanPrompt             string
-	PlanningPromptProvider PlanningPromptProvider
-	EagerToolNames         []string
-	ToolSpecs              []tooling.ToolSpec
+	AgentName         string
+	AgentDescription  string
+	ChatModel         einomodel.BaseChatModel
+	Tools             []einotool.BaseTool
+	SafeToolNode      ToolInvoker
+	AssistantStreamer AssistantStreamer
+	MaxIterations     int
+	Handlers          []adk.ChatModelAgentMiddleware
+	CheckpointStore   adk.CheckPointStore
+	PlanStore         PlanStore
+	PlanPrompt        string
+	EagerToolNames    []string
+	ToolSpecs         []tooling.ToolSpec
 }
 
 type PlanExecuteGraphBuildRequest struct {
-	AgentName              string
-	AgentDescription       string
-	ChatModel              einomodel.BaseChatModel
-	Tools                  []einotool.BaseTool
-	MaxIterations          int
-	Handlers               []adk.ChatModelAgentMiddleware
-	CheckpointStore        adk.CheckPointStore
-	PlanStore              PlanStore
-	PlanPrompt             string
-	PlanningPromptProvider PlanningPromptProvider
-	EagerToolNames         []string
-	ToolSpecs              []tooling.ToolSpec
-	ChildExecutor          ChildAgentExecutor
+	AgentName        string
+	AgentDescription string
+	ChatModel        einomodel.BaseChatModel
+	Tools            []einotool.BaseTool
+	MaxIterations    int
+	Handlers         []adk.ChatModelAgentMiddleware
+	CheckpointStore  adk.CheckPointStore
+	PlanStore        PlanStore
+	PlanPrompt       string
+	EagerToolNames   []string
+	ToolSpecs        []tooling.ToolSpec
+	ChildExecutor    ChildAgentExecutor
 }
 
 type GraphBuilder func(ctx context.Context, req GraphBuildRequest) (adk.Agent, error)
@@ -168,20 +166,19 @@ func (p *DefaultPlane) BuildSingleAgent(ctx context.Context, req SingleAgentRequ
 	}
 
 	agent, err := p.graphBuilder(assembled.runCtx, GraphBuildRequest{
-		AgentName:              req.AgentName,
-		AgentDescription:       req.AgentDescription,
-		ChatModel:              req.ChatModel,
-		Tools:                  append([]einotool.BaseTool(nil), assembled.allTools...),
-		SafeToolNode:           safeToolNode,
-		AssistantStreamer:      req.AssistantStreamer,
-		MaxIterations:          p.maxIterations,
-		Handlers:               append([]adk.ChatModelAgentMiddleware(nil), assembled.handlers...),
-		CheckpointStore:        p.checkpointStore,
-		PlanStore:              p.planStore,
-		PlanPrompt:             assembled.instruction,
-		PlanningPromptProvider: req.PlanningPromptProvider,
-		EagerToolNames:         append([]string(nil), req.ContextResult.EagerToolNames...),
-		ToolSpecs:              req.Catalog.EnabledSpecsForProfile(tooling.ToolProfileRun),
+		AgentName:         req.AgentName,
+		AgentDescription:  req.AgentDescription,
+		ChatModel:         req.ChatModel,
+		Tools:             append([]einotool.BaseTool(nil), assembled.allTools...),
+		SafeToolNode:      safeToolNode,
+		AssistantStreamer: req.AssistantStreamer,
+		MaxIterations:     p.maxIterations,
+		Handlers:          append([]adk.ChatModelAgentMiddleware(nil), assembled.handlers...),
+		CheckpointStore:   p.checkpointStore,
+		PlanStore:         p.planStore,
+		PlanPrompt:        assembled.instruction,
+		EagerToolNames:    append([]string(nil), req.ContextResult.EagerToolNames...),
+		ToolSpecs:         req.Catalog.EnabledSpecsForProfile(tooling.ToolProfileRun),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("build agent graph: %w", err)
@@ -236,19 +233,18 @@ func (p *DefaultPlane) BuildPlanExecute(ctx context.Context, req PlanExecuteRequ
 	}
 
 	agent, err := p.planExecuteGraphBuilder(assembled.runCtx, PlanExecuteGraphBuildRequest{
-		AgentName:              req.AgentName,
-		AgentDescription:       req.AgentDescription,
-		ChatModel:              req.ChatModel,
-		Tools:                  append([]einotool.BaseTool(nil), assembled.allTools...),
-		MaxIterations:          p.maxIterations,
-		Handlers:               append([]adk.ChatModelAgentMiddleware(nil), assembled.handlers...),
-		CheckpointStore:        p.checkpointStore,
-		PlanStore:              p.planStore,
-		PlanPrompt:             assembled.instruction,
-		PlanningPromptProvider: req.PlanningPromptProvider,
-		EagerToolNames:         append([]string(nil), req.ContextResult.EagerToolNames...),
-		ToolSpecs:              req.Catalog.EnabledSpecsForProfile(tooling.ToolProfileRun),
-		ChildExecutor:          req.ChildExecutor,
+		AgentName:        req.AgentName,
+		AgentDescription: req.AgentDescription,
+		ChatModel:        req.ChatModel,
+		Tools:            append([]einotool.BaseTool(nil), assembled.allTools...),
+		MaxIterations:    p.maxIterations,
+		Handlers:         append([]adk.ChatModelAgentMiddleware(nil), assembled.handlers...),
+		CheckpointStore:  p.checkpointStore,
+		PlanStore:        p.planStore,
+		PlanPrompt:       assembled.instruction,
+		EagerToolNames:   append([]string(nil), req.ContextResult.EagerToolNames...),
+		ToolSpecs:        req.Catalog.EnabledSpecsForProfile(tooling.ToolProfileRun),
+		ChildExecutor:    req.ChildExecutor,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("build plan-execute graph: %w", err)

@@ -18,15 +18,10 @@ import (
 )
 
 type PlanNode struct {
-	model                  einomodel.BaseChatModel
-	store                  runtimeapi.PlanStore
-	prompt                 string
-	planningPromptProvider PlanningPromptProvider
-	enabledToolNames       []string
-}
-
-type PlanningPromptProvider interface {
-	BuildPlanningPromptSection(enabledToolNames []string) (string, error)
+	model            einomodel.BaseChatModel
+	store            runtimeapi.PlanStore
+	prompt           string
+	enabledToolNames []string
 }
 
 const planNodeSystemPrompt = `You are Acorn's internal planning node.
@@ -56,15 +51,13 @@ func NewPlanNode(
 	model einomodel.BaseChatModel,
 	store runtimeapi.PlanStore,
 	prompt string,
-	planningPromptProvider PlanningPromptProvider,
 	enabledToolNames []string,
 ) *PlanNode {
 	return &PlanNode{
-		model:                  model,
-		store:                  store,
-		prompt:                 strings.TrimSpace(prompt),
-		planningPromptProvider: planningPromptProvider,
-		enabledToolNames:       append([]string(nil), enabledToolNames...),
+		model:            model,
+		store:            store,
+		prompt:           strings.TrimSpace(prompt),
+		enabledToolNames: append([]string(nil), enabledToolNames...),
 	}
 }
 
@@ -146,10 +139,7 @@ func (n *PlanNode) generatePlanSteps(ctx context.Context, state *graph.AgentGrap
 	if err != nil {
 		return nil, fmt.Errorf("plan before model call: %w", err)
 	}
-	modelInput, err := n.buildModelInput(baseMessages)
-	if err != nil {
-		return nil, err
-	}
+	modelInput := n.buildModelInput(baseMessages)
 	var lastErr error
 	for attempt := 0; attempt < 2; attempt++ {
 		input := modelInput
@@ -162,10 +152,7 @@ func (n *PlanNode) generatePlanSteps(ctx context.Context, state *graph.AgentGrap
 			if err != nil {
 				return nil, fmt.Errorf("plan reactive compact: %w", err)
 			}
-			modelInput, err = n.buildModelInput(baseMessages)
-			if err != nil {
-				return nil, err
-			}
+			modelInput = n.buildModelInput(baseMessages)
 			input = modelInput
 			if attempt > 0 {
 				input = appendPlanRepairMessage(modelInput, lastErr)
@@ -190,25 +177,18 @@ func (n *PlanNode) generatePlanSteps(ctx context.Context, state *graph.AgentGrap
 	return nil, fmt.Errorf("new plan format: %w", lastErr)
 }
 
-func (n *PlanNode) buildModelInput(messages []*schema.Message) ([]*schema.Message, error) {
+func (n *PlanNode) buildModelInput(messages []*schema.Message) []*schema.Message {
 	out := make([]*schema.Message, 0, len(messages)+1)
 	promptParts := []string{planNodeSystemPrompt}
 	if n.prompt != "" {
 		promptParts = append(promptParts, fmt.Sprintf("<agent-instructions>\n%s\n</agent-instructions>\nUse these instructions only as execution constraints when drafting plan steps. They do not override the JSON-only output contract.", n.prompt))
-	}
-	if n.planningPromptProvider != nil {
-		section, err := n.planningPromptProvider.BuildPlanningPromptSection(n.enabledToolNames)
-		if err != nil {
-			return nil, err
-		}
-		promptParts = append(promptParts, repoAwarePlanPromptInstruction(section))
 	}
 	prompt := strings.Join(promptParts, "\n\n")
 	if prompt != "" {
 		out = append(out, schema.SystemMessage(prompt))
 	}
 	out = append(out, messages...)
-	return out, nil
+	return out
 }
 
 func appendPlanRepairMessage(base []*schema.Message, lastErr error) []*schema.Message {
@@ -222,21 +202,4 @@ func appendPlanRepairMessage(base []*schema.Message, lastErr error) []*schema.Me
 		strings.TrimSpace(reason),
 	)))
 	return out
-}
-
-func repoAwarePlanPromptInstruction(planningContext string) string {
-	return fmt.Sprintf(`<planning-context>
-%s
-</planning-context>
-
-Return a JSON object with a "steps" array. Each step must include:
-- id, action, status, depends_on
-- repo_targets: workspace-relative paths with reason and confidence
-- verification_intent: planned verification actions for write/execute/delegate steps
-- risk: read, write, execute, or delegate
-- tool_hints: enabled tools likely useful for the step
-
-Use only enabled_tools for tool_hints. Do not treat tool_hints as permission to bypass runtime tool policy.
-Use verification_intent kind "test" only for actual test commands. Use "checkpoint" for mutation checkpoint proof and "rollback" for rollback_workspace_checkpoint success proof. Use "verifier" only when an independent read-only verifier child run should review the step evidence.
-Do not split tool-result-dependent operations across steps. If a later tool call needs an id or output from an earlier tool call, such as checkpoint_id followed by rollback_workspace_checkpoint, keep those calls in one step.`, planningContext)
 }

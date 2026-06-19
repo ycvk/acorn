@@ -37,7 +37,6 @@ func BuildPlanExecuteGraph(
 	handlers []adk.ChatModelAgentMiddleware,
 	planStore runtimeapi.PlanStore,
 	planPrompt string,
-	planningPromptProvider PlanningPromptProvider,
 	eagerToolNames []string,
 	toolSpecs []tooling.ToolSpec,
 	childExecutor orchestration.ChildAgentExecutor,
@@ -94,7 +93,7 @@ func BuildPlanExecuteGraph(
 			return nil, err
 		}
 	}
-	plan := NewPlanNode(wrappedModel, planStore, planPrompt, planningPromptProvider, enabledPlanToolNamesFromSpecs(toolSpecs))
+	plan := NewPlanNode(wrappedModel, planStore, planPrompt, enabledPlanToolNamesFromSpecs(toolSpecs))
 	dispatch := NewExecuteDispatchNode(planStore, childExecutor)
 	observe := graph.NewObserveNode(wrappedModel, planStore)
 	closeout := NewCloseoutNode()
