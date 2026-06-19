@@ -257,14 +257,3 @@ func hashSecret(secret string) string {
 	sum := sha256.Sum256([]byte(secret))
 	return hex.EncodeToString(sum[:])
 }
-
-type deviceAuthContextKey struct{}
-
-func ContextWithDeviceAuth(ctx context.Context, auth *DeviceAuthContext) context.Context {
-	return context.WithValue(ctx, deviceAuthContextKey{}, auth)
-}
-
-func DeviceAuthFromContext(ctx context.Context) (*DeviceAuthContext, bool) {
-	auth, ok := ctx.Value(deviceAuthContextKey{}).(*DeviceAuthContext)
-	return auth, ok && auth != nil
-}

@@ -20,12 +20,11 @@ func (s *Server) requireDeviceAuth(next http.Handler) http.Handler {
 			s.respondKnownError(w, r, err)
 			return
 		}
-		auth, err := s.deviceAuth.Authenticate(r.Context(), token)
-		if err != nil {
+		if _, err := s.deviceAuth.Authenticate(r.Context(), token); err != nil {
 			s.respondKnownError(w, r, err)
 			return
 		}
-		next.ServeHTTP(w, r.WithContext(app.ContextWithDeviceAuth(r.Context(), auth)))
+		next.ServeHTTP(w, r)
 	})
 }
 

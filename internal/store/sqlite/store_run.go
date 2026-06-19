@@ -269,22 +269,6 @@ func scanEventRows(rows *sql.Rows, runID string) ([]events.EventRecord, error) {
 	return items, rows.Err()
 }
 
-func (s *Store) FindLatestInterruptedRun(ctx context.Context) (*events.RunRecord, error) {
-	row := s.db.QueryRowContext(ctx,
-		`SELECT run_id, session_id, turn_index, status, input_text, output_text, error_text, checkpoint_id, orchestration_mode, parent_run_id, depth, created_at, updated_at
-			 FROM runs WHERE status = ? ORDER BY created_at DESC LIMIT 1`,
-		string(events.RunStatusInterrupted),
-	)
-	rec, err := scanRunRecord(row)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("find latest interrupted run: %w", err)
-	}
-	return rec, nil
-}
-
 func (s *Store) Set(ctx context.Context, key string, value []byte) error {
 	now := formatTimestamp(time.Now())
 	_, err := s.db.ExecContext(

@@ -160,7 +160,7 @@ func makeToolCall(id, name, args string) schema.ToolCall {
 
 func safeParallelLifecycleContext(t *testing.T, node *SafeParallelToolsNode) context.Context {
 	t.Helper()
-	ctx := runtimeapi.WithTurnIndex(withRunID(runtimeapi.WithSessionID(context.Background(), "sess_safe_parallel"), "run_safe_parallel"), 1)
+	ctx := runtimeapi.WithTurnIndex(runtimeapi.WithRunID(runtimeapi.WithSessionID(context.Background(), "sess_safe_parallel"), "run_safe_parallel"), 1)
 	return safeParallelLifecycleContextFrom(t, ctx, node)
 }
 
@@ -193,7 +193,7 @@ func safeParallelLifecycleContextFromWithLedger(t *testing.T, ctx context.Contex
 	runID := getRunID(ctx)
 	if strings.TrimSpace(runID) == "" {
 		runID = "run_safe_parallel"
-		ctx = withRunID(ctx, runID)
+		ctx = runtimeapi.WithRunID(ctx, runID)
 	}
 	state := &contextplane.ToolLifecycleState{
 		RunID:         runID,
@@ -376,7 +376,7 @@ func TestSafeParallelMutationToolAttachesSideEffects(t *testing.T) {
 	}
 
 	ledger := storetest.NewMemoryToolResultLedger()
-	ctx := safeParallelLifecycleContextFromWithLedger(t, runtimeapi.WithTurnIndex(withRunID(runtimeapi.WithSessionID(context.Background(), "sess_safe_parallel"), "run_safe_parallel"), 1), node, ledger)
+	ctx := safeParallelLifecycleContextFromWithLedger(t, runtimeapi.WithTurnIndex(runtimeapi.WithRunID(runtimeapi.WithSessionID(context.Background(), "sess_safe_parallel"), "run_safe_parallel"), 1), node, ledger)
 	results, err := invokeViaStreaming(node, ctx, makeAssistantMessage(
 		makeToolCall("call_1", "create_file", `{"path":"a.go","content":"hello"}`),
 	))
@@ -1466,7 +1466,7 @@ func TestSafeParallel_EmitsLifecycleTurnIndexFromContext(t *testing.T) {
 			"read_file": {Name: "read_file", LoadSource: "eager"},
 		},
 	}
-	ctx := runtimeapi.WithTurnIndex(withRunID(runtimeapi.WithSessionID(context.Background(), "sess_turn"), "run_turn"), 7)
+	ctx := runtimeapi.WithTurnIndex(runtimeapi.WithRunID(runtimeapi.WithSessionID(context.Background(), "sess_turn"), "run_turn"), 7)
 	ctx = contextplane.WithToolLifecycleContext(ctx, storetest.NewMemoryToolResultLedger(), state, nil, []*schema.ToolInfo{{Name: "read_file"}})
 
 	results, err := invokeViaStreaming(node, ctx, makeAssistantMessage(makeToolCall("call_1", "read_file", `{"path":"README.md"}`)))

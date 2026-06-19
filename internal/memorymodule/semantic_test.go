@@ -106,26 +106,6 @@ func TestValidateEmbedResult(t *testing.T) {
 	}
 }
 
-func TestCloneEmbedResultCopiesVectors(t *testing.T) {
-	result := &EmbedResult{
-		Model:      "text-embedding-3-small",
-		Dimensions: 2,
-		Vectors: []EmbeddingVector{
-			{Ref: "facts/a.md#a", Values: []float32{1, 2}},
-		},
-	}
-	clone := CloneEmbedResult(result)
-	result.Vectors[0].Values[0] = 99
-	result.Vectors[0].Ref = "changed"
-
-	if got, want := clone.Vectors[0].Ref, "facts/a.md#a"; got != want {
-		t.Fatalf("cloned ref = %q, want %q", got, want)
-	}
-	if got, want := clone.Vectors[0].Values[0], float32(1); got != want {
-		t.Fatalf("cloned vector[0] = %v, want %v", got, want)
-	}
-}
-
 func TestSemanticRecordFromRecordCopiesRefs(t *testing.T) {
 	record := Record{
 		Ref:          "facts/a.md#a",
@@ -194,38 +174,6 @@ func TestSemanticRecordFromRecordCopiesV2Metadata(t *testing.T) {
 		t.Fatalf("created = %q, want %q", got, want)
 	}
 	if got, want := semantic.Relations[0].Target, "facts/a.md#a"; got != want {
-		t.Fatalf("relation target = %q, want %q", got, want)
-	}
-}
-
-func TestCloneSemanticRecordsCopiesRefs(t *testing.T) {
-	records := []SemanticRecord{{
-		Ref:          "facts/a.md#a",
-		SourceRefs:   []string{"history/h.md#h"},
-		EvidenceRefs: []string{"tool_result:1"},
-		Tags:         []string{"go"},
-		Relations: []RecordRelation{{
-			Type:   RelationSupports,
-			Target: "facts/b.md#b",
-			Reason: "supports",
-		}},
-	}}
-	cloned := CloneSemanticRecords(records)
-	records[0].SourceRefs[0] = "changed"
-	records[0].EvidenceRefs[0] = "changed"
-	records[0].Tags[0] = "changed"
-	records[0].Relations[0].Target = "changed"
-
-	if got, want := cloned[0].SourceRefs[0], "history/h.md#h"; got != want {
-		t.Fatalf("source ref = %q, want %q", got, want)
-	}
-	if got, want := cloned[0].EvidenceRefs[0], "tool_result:1"; got != want {
-		t.Fatalf("evidence ref = %q, want %q", got, want)
-	}
-	if got, want := cloned[0].Tags[0], "go"; got != want {
-		t.Fatalf("tag = %q, want %q", got, want)
-	}
-	if got, want := cloned[0].Relations[0].Target, "facts/b.md#b"; got != want {
 		t.Fatalf("relation target = %q, want %q", got, want)
 	}
 }
@@ -308,18 +256,6 @@ func TestSemanticRecordContentHashIsSensitiveToV2Metadata(t *testing.T) {
 	}
 	if first == second {
 		t.Fatal("hash did not change after valid_until changed")
-	}
-}
-
-func TestCloneIndexedSemanticRecordsCopiesVectors(t *testing.T) {
-	records := []IndexedSemanticRecord{{
-		Record: SemanticRecord{Ref: "facts/a.md#a"},
-		Vector: []float32{1, 2, 3},
-	}}
-	cloned := CloneIndexedSemanticRecords(records)
-	records[0].Vector[0] = 9
-	if got, want := cloned[0].Vector[0], float32(1); got != want {
-		t.Fatalf("vector[0] = %v, want %v", got, want)
 	}
 }
 

@@ -25,10 +25,6 @@ type auditedTool struct {
 
 type ToolAuditCallIDKey struct{}
 
-func withRunID(ctx context.Context, runID string) context.Context {
-	return runtimeapi.WithRunID(ctx, runID)
-}
-
 func getRunID(ctx context.Context) string {
 	return runtimeapi.GetRunID(ctx)
 }
