@@ -16,16 +16,26 @@ import (
 
 type testCompactionEngine struct {
 	called  bool
+	calls   int
 	request CompactRequest
+	results []*CompactionResult
 	result  *CompactionResult
 	err     error
 }
 
 func (e *testCompactionEngine) Compact(_ context.Context, req CompactRequest) (*CompactionResult, error) {
 	e.called = true
+	e.calls++
 	e.request = req
 	if e.err != nil {
 		return nil, e.err
+	}
+	if len(e.results) > 0 {
+		index := e.calls - 1
+		if index >= len(e.results) {
+			index = len(e.results) - 1
+		}
+		return e.results[index], nil
 	}
 	return e.result, nil
 }
