@@ -3,7 +3,6 @@ package memorymodule
 import (
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -38,37 +37,18 @@ func (s *LocalService) CreateProcedure(ctx context.Context, req CreateProcedureR
 	if err := validateCreateProcedureRecord(record); err != nil {
 		return nil, err
 	}
-	slug := sanitizeProcedureSlug(title)
+	slug := sanitizeMemorySlug(title)
 	if slug == "" {
 		return nil, fmt.Errorf("procedure title cannot produce a file name")
-	}
-	path := s.path("skills", "learned", slug+".md")
-	if _, err := os.Stat(path); err == nil {
-		return nil, fmt.Errorf("procedure file already exists: %s", path)
-	} else if !os.IsNotExist(err) {
-		return nil, fmt.Errorf("stat procedure file %s: %w", path, err)
 	}
 	content, err := renderProcedureFile(record)
 	if err != nil {
 		return nil, err
 	}
 	relPath := filepath.ToSlash(filepath.Join("skills", "learned", slug+".md"))
-	plan, err := s.PlanMemoryMutation(ctx, PlanMemoryMutationRequest{Path: relPath, Content: content})
+	memoryRecord, plan, err := s.applyNewMemoryRecord(ctx, relPath, content, KindSkill)
 	if err != nil {
 		return nil, err
-	}
-	if plan.Action != MemoryMutationCreate {
-		return nil, fmt.Errorf("procedure mutation plan action %q: %s", plan.Action, plan.Reason)
-	}
-	if err := writeNewMemoryFile(path, []byte(content)); err != nil {
-		return nil, fmt.Errorf("write procedure file %s: %w", path, err)
-	}
-	memoryRecord, err := readMemoryRecord(s.root, KindSkill, path)
-	if err != nil {
-		return nil, err
-	}
-	if err := s.BuildIndex(ctx); err != nil {
-		return nil, fmt.Errorf("refresh index after create procedure: %w", err)
 	}
 	procedure, err := ProcedureRecordFromMemoryRecord(*memoryRecord)
 	if err != nil {
@@ -112,23 +92,10 @@ func renderProcedureFile(record Record) (string, error) {
 	return "---\n" + string(frontmatter) + "---\n\n# " + strings.TrimSpace(record.Title) + "\n\n" + strings.TrimSpace(record.Body) + "\n", nil
 }
 
-func sanitizeProcedureSlug(value string) string {
+// sanitizeMemorySlug derives a filesystem-safe slug from a record title, shared by
+// the structured fact and procedure writers.
+func sanitizeMemorySlug(value string) string {
 	slug := strings.ToLower(sanitizeName(value))
 	slug = strings.Trim(slug, ".-_")
 	return filepath.Base(slug)
-}
-
-func writeNewMemoryFile(path string, body []byte) error {
-	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
-	if err != nil {
-		return err
-	}
-	if _, err := file.Write(body); err != nil {
-		closeErr := file.Close()
-		if closeErr != nil {
-			return fmt.Errorf("%w; close failed: %v", err, closeErr)
-		}
-		return err
-	}
-	return file.Close()
 }
