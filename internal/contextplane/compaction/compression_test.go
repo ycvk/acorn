@@ -177,6 +177,75 @@ func TestContextCompressionPipelineReactiveTrigger(t *testing.T) {
 	}
 }
 
+func TestContextCompressionPipelineReactiveSecondPassPreservesOutcome(t *testing.T) {
+	engine := &testCompactionEngine{
+		results: []*CompactionResult{
+			{
+				Messages: []adk.Message{
+					schema.SystemMessage("system"),
+					schema.UserMessage("first-pass summary"),
+					schema.UserMessage("still too large"),
+					schema.AssistantMessage("carry one more turn", nil),
+				},
+				SummaryText: "first-pass summary",
+				Outcome: contextplane.CompressionOutcome{
+					BoundaryID:     "ctxb_reactive_first",
+					TokensBefore:   140,
+					TokensAfter:    120,
+					Summary:        "first-pass summary",
+					SummarySnippet: "first-pass summary",
+				},
+			},
+			{
+				Messages:    []adk.Message{schema.SystemMessage("system"), schema.UserMessage("second-pass summary")},
+				SummaryText: "second-pass summary",
+				Outcome: contextplane.CompressionOutcome{
+					BoundaryID:     "ctxb_reactive_second",
+					TokensBefore:   120,
+					TokensAfter:    40,
+					Summary:        "second-pass summary",
+					SummarySnippet: "second-pass summary",
+				},
+			},
+		},
+	}
+	pipeline := NewDefaultContextCompressionPipeline(CompressionPipelineOptions{
+		Governor:         testBudgetGovernor{pressure: testPressure(contextplane.PressureAutoCompact), dynamic: true},
+		CompactionEngine: engine,
+		TokenCounter:     testTokenCounter(t),
+	})
+
+	result, err := pipeline.Compress(context.Background(), contextplane.PipelineRequest{
+		Trigger:        contextplane.CompactTriggerReactive,
+		TurnIndex:      15,
+		PreservePolicy: contextplane.PreservePolicy{RecentTurns: 4, PreserveToolPairs: true},
+		Messages: []adk.Message{
+			schema.SystemMessage("system"),
+			schema.UserMessage("old 1"),
+			schema.AssistantMessage("old resp 1", nil),
+			schema.UserMessage("old 2"),
+			schema.AssistantMessage("old resp 2", nil),
+			schema.UserMessage("recent"),
+			schema.AssistantMessage("recent resp", nil),
+		},
+	})
+	if err != nil {
+		t.Fatalf("Compress: %v", err)
+	}
+	if engine.calls != 2 {
+		t.Fatalf("compaction calls = %d, want 2", engine.calls)
+	}
+	if result == nil || result.Outcome == nil {
+		t.Fatalf("result outcome = %#v, want second-pass outcome", result)
+	}
+	if result.Outcome.Summary != "second-pass summary" {
+		t.Fatalf("outcome summary = %q, want second-pass summary", result.Outcome.Summary)
+	}
+	if result.TokensFreed != 100 {
+		t.Fatalf("tokens freed = %d, want 100 (20 + 80)", result.TokensFreed)
+	}
+}
+
 func TestContextCompressionPipelineReactiveTriggerHalvesRecentTurns(t *testing.T) {
 	engine := &testCompactionEngine{
 		result: &CompactionResult{
@@ -211,8 +280,8 @@ func TestContextCompressionPipelineReactiveTriggerHalvesRecentTurns(t *testing.T
 			schema.AssistantMessage("recent resp", nil),
 		},
 	})
-	if err == nil || !strings.Contains(err.Error(), "context pressure remains blocking") {
-		t.Fatalf("Compress error = %v, want blocking pressure after reactive layers", err)
+	if err == nil || !strings.Contains(err.Error(), "still requires compaction") {
+		t.Fatalf("Compress error = %v, want compact-now pressure after reactive layers", err)
 	}
 	if engine.request.PreservePolicy.RecentTurns != 2 {
 		t.Fatalf("recent turns = %d, want 2 (halved from 4)", engine.request.PreservePolicy.RecentTurns)
