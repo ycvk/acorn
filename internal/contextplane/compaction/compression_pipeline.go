@@ -117,7 +117,7 @@ func (p *defaultContextCompressionPipeline) shouldAutocompact(ctx context.Contex
 	if err != nil {
 		return false, err
 	}
-	return pressure.State == contextplane.PressureAutoCompact || pressure.State == contextplane.PressureBlocking, nil
+	return pressure.State == contextplane.PressureAutoCompact, nil
 }
 
 func (p *defaultContextCompressionPipeline) runAutocompact(ctx context.Context, messages []adk.Message, req contextplane.PipelineRequest) (*CompactionResult, error) {
@@ -156,7 +156,7 @@ func (p *defaultContextCompressionPipeline) pressureOK(ctx context.Context, mess
 	if err != nil {
 		return false, err
 	}
-	return pressure.State == contextplane.PressureOK || pressure.State == contextplane.PressureWarning, nil
+	return pressure.State == contextplane.PressureOK, nil
 }
 
 func (p *defaultContextCompressionPipeline) profileForRequest(req contextplane.PipelineRequest) contextplane.ModelProfile {

@@ -15,14 +15,11 @@ type BudgetPressureState string
 
 const (
 	PressureOK          BudgetPressureState = "ok"
-	PressureWarning     BudgetPressureState = "warning"
 	PressureAutoCompact BudgetPressureState = "auto_compact"
-	PressureBlocking    BudgetPressureState = "blocking"
 )
 
 type BudgetGovernor interface {
 	Evaluate(context.Context, BudgetEvaluateRequest) (BudgetPressure, error)
-	AutoCompactThreshold(ModelProfile) (int, error)
 }
 
 type ModelProfile struct {
@@ -33,7 +30,6 @@ type ModelProfile struct {
 	StaticOverheadTokens        int
 	WarningBufferTokens         int
 	AutoCompactBufferTokens     int
-	BlockingBufferTokens        int
 }
 
 type BudgetEvaluateRequest struct {
@@ -42,14 +38,15 @@ type BudgetEvaluateRequest struct {
 	Tools    []*schema.ToolInfo
 }
 
+// BudgetPressure is the binary compaction decision plus the effective window the
+// boundary record needs. The pressure ladder is intentionally two-state: OK (no
+// action) and AutoCompact (compact now). There is no separate warning/blocking
+// state because no consumer ever distinguished them — they only ever asked
+// "compact or not". The warning *threshold* still exists (see pressureThresholdSet)
+// but feeds the context-assembly budget, not a pressure state.
 type BudgetPressure struct {
-	EstimatedInputTokens       int
-	EffectiveWindowTokens      int
-	WarningThresholdTokens     int
-	AutoCompactThresholdTokens int
-	BlockingThresholdTokens    int
-	PercentUsed                int
-	State                      BudgetPressureState
+	EffectiveWindowTokens int
+	State                 BudgetPressureState
 }
 
 type budgetGovernor struct {
@@ -63,17 +60,9 @@ func NewBudgetGovernor(tokenCounter *CompressionTokenCounter) BudgetGovernor {
 const (
 	defaultStaticOverheadTokens = 4096
 	defaultWarningGapTokens     = 7000
-	defaultBlockingBufferMax    = 3000
 )
 
 func ModelProfileFromContextPolicy(cfg config.ContextConfig) ModelProfile {
-	blockingBuffer := cfg.CompactMarginTokens / 4
-	if blockingBuffer < 1 {
-		blockingBuffer = 1
-	}
-	if blockingBuffer > defaultBlockingBufferMax {
-		blockingBuffer = defaultBlockingBufferMax
-	}
 	return ModelProfile{
 		ContextWindowTokens:         cfg.WindowTokens,
 		ReservedOutputTokens:        cfg.ReservedOutputTokens,
@@ -81,7 +70,6 @@ func ModelProfileFromContextPolicy(cfg config.ContextConfig) ModelProfile {
 		StaticOverheadTokens:        defaultStaticOverheadTokens,
 		WarningBufferTokens:         cfg.CompactMarginTokens + defaultWarningGapTokens,
 		AutoCompactBufferTokens:     cfg.CompactMarginTokens,
-		BlockingBufferTokens:        blockingBuffer,
 	}
 }
 
@@ -105,31 +93,16 @@ func (g *budgetGovernor) Evaluate(ctx context.Context, req BudgetEvaluateRequest
 	if err != nil {
 		return BudgetPressure{}, fmt.Errorf("count budget pressure tokens: %w", err)
 	}
-	pressure := BudgetPressure{
-		EstimatedInputTokens:       estimated,
-		EffectiveWindowTokens:      thresholds.effectiveWindow,
-		WarningThresholdTokens:     thresholds.warning,
-		AutoCompactThresholdTokens: thresholds.autoCompact,
-		BlockingThresholdTokens:    thresholds.blocking,
-		PercentUsed:                estimated * 100 / thresholds.effectiveWindow,
-		State:                      pressureState(estimated, thresholds),
-	}
-	return pressure, nil
-}
-
-func (g *budgetGovernor) AutoCompactThreshold(profile ModelProfile) (int, error) {
-	thresholds, err := pressureThresholds(profile)
-	if err != nil {
-		return 0, err
-	}
-	return thresholds.autoCompact, nil
+	return BudgetPressure{
+		EffectiveWindowTokens: thresholds.effectiveWindow,
+		State:                 pressureState(estimated, thresholds),
+	}, nil
 }
 
 type pressureThresholdSet struct {
 	effectiveWindow int
 	warning         int
 	autoCompact     int
-	blocking        int
 }
 
 func pressureThresholds(profile ModelProfile) (pressureThresholdSet, error) {
@@ -151,14 +124,8 @@ func pressureThresholds(profile ModelProfile) (pressureThresholdSet, error) {
 	if profile.AutoCompactBufferTokens <= 0 {
 		return pressureThresholdSet{}, errors.New("model profile auto compact buffer tokens must be positive")
 	}
-	if profile.BlockingBufferTokens <= 0 {
-		return pressureThresholdSet{}, errors.New("model profile blocking buffer tokens must be positive")
-	}
 	if profile.WarningBufferTokens <= profile.AutoCompactBufferTokens {
 		return pressureThresholdSet{}, errors.New("model profile warning buffer must be greater than auto compact buffer")
-	}
-	if profile.AutoCompactBufferTokens <= profile.BlockingBufferTokens {
-		return pressureThresholdSet{}, errors.New("model profile auto compact buffer must be greater than blocking buffer")
 	}
 
 	reservedOutput := max(profile.ReservedOutputTokens, profile.ReservedSummaryOutputTokens)
@@ -170,19 +137,12 @@ func pressureThresholds(profile ModelProfile) (pressureThresholdSet, error) {
 		effectiveWindow: effectiveWindow,
 		warning:         effectiveWindow - profile.WarningBufferTokens,
 		autoCompact:     effectiveWindow - profile.AutoCompactBufferTokens,
-		blocking:        effectiveWindow - profile.BlockingBufferTokens,
 	}, nil
 }
 
 func pressureState(tokens int, thresholds pressureThresholdSet) BudgetPressureState {
-	switch {
-	case tokens >= thresholds.blocking:
-		return PressureBlocking
-	case tokens >= thresholds.autoCompact:
+	if tokens >= thresholds.autoCompact {
 		return PressureAutoCompact
-	case tokens >= thresholds.warning:
-		return PressureWarning
-	default:
-		return PressureOK
 	}
+	return PressureOK
 }

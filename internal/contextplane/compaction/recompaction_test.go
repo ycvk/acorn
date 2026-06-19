@@ -66,7 +66,7 @@ func TestContextSessionPassesPreviousSummary(t *testing.T) {
 			},
 		},
 	}
-	governor := testBudgetGovernor{pressure: testPressure(contextplane.PressureBlocking), dynamic: true}
+	governor := testBudgetGovernor{pressure: testPressure(contextplane.PressureAutoCompact), dynamic: true}
 	session := contextplane.NewDefaultContextSession(contextplane.ContextSessionOptions{
 		BudgetGovernor: governor,
 		Pipeline: NewDefaultContextCompressionPipeline(CompressionPipelineOptions{
