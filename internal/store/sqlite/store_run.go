@@ -350,31 +350,6 @@ func (s *Store) GetRunArchive(ctx context.Context, runID string) (*model.RunArch
 	return archive, nil
 }
 
-func (s *Store) ListAllRunArchives(ctx context.Context) ([]model.RunArchive, error) {
-	rows, err := s.db.QueryContext(ctx,
-		`SELECT run_id, session_id, input_excerpt, output_excerpt, touched_paths_json, tool_names_json, run_status, created_at
-			 FROM run_archives
-			 ORDER BY created_at, run_id`,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("list all run archives: %w", err)
-	}
-	defer rows.Close()
-
-	items := make([]model.RunArchive, 0)
-	for rows.Next() {
-		archive, err := scanRunArchive(rows)
-		if err != nil {
-			return nil, fmt.Errorf("scan run archive: %w", err)
-		}
-		items = append(items, *archive)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate run archives: %w", err)
-	}
-	return items, nil
-}
-
 func scanRunArchive(scanner interface{ Scan(dest ...any) error }) (*model.RunArchive, error) {
 	var (
 		archive         model.RunArchive

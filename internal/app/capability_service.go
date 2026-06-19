@@ -121,16 +121,11 @@ type skillSnapshotStore interface {
 
 type providerStatusDoctor func(ctx context.Context, cfgs []mcpprovider.ProviderConfig) []mcpprovider.ProviderStatus
 
-type liveMCPManager interface {
-	Statuses() []mcpprovider.ProviderStatus
-}
-
 type CapabilitiesService struct {
 	cfg            *config.Config
 	skills         skillSnapshotStore
 	probeProviders providerStatusDoctor
 	catalogBuilder *runtime.RunnerFactory
-	liveManager    liveMCPManager
 }
 
 func NewCapabilitiesService(cfg *config.Config, skills skillSnapshotStore, probeProviders providerStatusDoctor, catalogBuilder *runtime.RunnerFactory) *CapabilitiesService {
@@ -142,10 +137,6 @@ func NewCapabilitiesService(cfg *config.Config, skills skillSnapshotStore, probe
 	}
 }
 
-func (s *CapabilitiesService) SetLiveManager(mgr liveMCPManager) {
-	s.liveManager = mgr
-}
-
 func (s *CapabilitiesService) Snapshot(ctx context.Context, opts CapabilitySnapshotOptions) SystemCapabilities {
 	if s == nil || s.cfg == nil {
 		return SystemCapabilities{}
@@ -155,7 +146,7 @@ func (s *CapabilitiesService) Snapshot(ctx context.Context, opts CapabilitySnaps
 	providers := s.snapshotMCPProviders(ctx, opts)
 	tools, catalogErr := s.snapshotTools(ctx, providers)
 	healthyProviderCount := 0
-	if opts.ProbeMCP || s.liveManager != nil {
+	if opts.ProbeMCP {
 		healthyProviderCount = healthyCapabilityProviderCount(providers)
 	}
 	runtimeReadinessReason := errorString(executionErr)
@@ -392,9 +383,7 @@ func (s *CapabilitiesService) snapshotMCPProviders(ctx context.Context, opts Cap
 		return nil
 	}
 	var statuses []mcpprovider.ProviderStatus
-	if s.liveManager != nil {
-		statuses = s.liveManager.Statuses()
-	} else if opts.ProbeMCP && s.probeProviders != nil {
+	if opts.ProbeMCP && s.probeProviders != nil {
 		statuses = s.probeProviders(ctx, configured)
 	} else {
 		statuses = make([]mcpprovider.ProviderStatus, 0, len(configured))
