@@ -74,6 +74,20 @@ func TestValidateMemorySemanticReadyDoesNotRequireChatProviderAPIKey(t *testing.
 	}
 }
 
+func TestValidateExecutionReadyAllowsUnconfiguredMemorySemantic(t *testing.T) {
+	cfg := validSemanticConfig()
+	cfg.Memory.Semantic.Embedding.Model = ""
+	cfg.Memory.Semantic.Embedding.BaseURL = ""
+	cfg.Memory.Semantic.Embedding.APIKey = ""
+
+	if cfg.MemorySemanticConfigured() {
+		t.Fatal("clearing embedding model+base_url should report semantic retrieval as unconfigured")
+	}
+	if err := cfg.ValidateExecutionReady(); err != nil {
+		t.Fatalf("unconfigured semantic retrieval must not block execution readiness: %v", err)
+	}
+}
+
 func TestValidateExecutionReadyMemorySemanticRequiresIndependentAPIKey(t *testing.T) {
 	cfg := validSemanticConfig()
 	cfg.Memory.Semantic.Embedding.APIKey = ""

@@ -75,6 +75,10 @@ mcp:
 memory:
   search:
     memory_context_token_budget: 2000
+  # Semantic memory retrieval is an OPTIONAL enhancement, not required to run tasks.
+  # Leave embedding.model and embedding.base_url empty to disable it: runs proceed with
+  # no recalled memory (the implicit hot-path Prepare degrades to an empty result).
+  # When set, the whole embedding block is validated and an embedding api_key is required.
   semantic:
     bleve:
       path: ""               # Empty resolves to runtime.storage_dir/bleve-semantic
@@ -83,7 +87,7 @@ memory:
       provider: openai_compatible
       model: text-embedding-3-small
       base_url: https://api.openai.com/v1
-      api_key: ${OPENAI_API_KEY}
+      api_key: ${OPENAI_API_KEY}  # Independent embedding key; may equal the chat OPENAI_API_KEY
       dimensions: 1536
       timeout_seconds: 30
       batch_size: 64

@@ -158,10 +158,30 @@ func (c *Config) ValidateExecutionReady() error {
 	if err := c.validateContext(); err != nil {
 		return err
 	}
-	if err := c.validateMemorySemanticExecution(); err != nil {
-		return err
+	// Semantic retrieval is an optional enhancement. Only enforce its full field
+	// contract when the operator actually configured it; an unconfigured semantic
+	// section must not block execution readiness (the run hot-path Prepare degrades
+	// to an empty memory result instead). When configured, every field is still
+	// validated so a half-configured semantic section fails loud.
+	if c.MemorySemanticConfigured() {
+		if err := c.validateMemorySemanticExecution(); err != nil {
+			return err
+		}
 	}
 	return nil
+}
+
+// MemorySemanticConfigured reports whether the operator intends to use semantic
+// retrieval. Presence of an embedding model or base_url is the signal. When this
+// is false, semantic retrieval is an unwired optional capability: it does not
+// block execution readiness, and the run hot-path Prepare degrades to an empty
+// memory result. Explicit Search/SearchSemantic callers still fail loud.
+func (c *Config) MemorySemanticConfigured() bool {
+	if c == nil {
+		return false
+	}
+	embedding := c.Memory.Semantic.Embedding
+	return strings.TrimSpace(embedding.Model) != "" || strings.TrimSpace(embedding.BaseURL) != ""
 }
 
 func (c *Config) ValidateMemorySemanticReady() error {

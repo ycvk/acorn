@@ -98,26 +98,6 @@ func (s *LocalService) allRecordsFromFS(ctx context.Context) ([]Record, error) {
 	return records, nil
 }
 
-func queryTerms(query string) []string {
-	fields := strings.FieldsFunc(strings.ToLower(query), func(r rune) bool {
-		return !(r >= 'a' && r <= 'z') && !(r >= '0' && r <= '9') && !(r >= '\u4e00' && r <= '\u9fff')
-	})
-	result := make([]string, 0, len(fields))
-	seen := map[string]struct{}{}
-	for _, field := range fields {
-		trimmed := strings.TrimSpace(field)
-		if trimmed == "" {
-			continue
-		}
-		if _, exists := seen[trimmed]; exists {
-			continue
-		}
-		seen[trimmed] = struct{}{}
-		result = append(result, trimmed)
-	}
-	return result
-}
-
 func kindSet(kinds []Kind) map[Kind]struct{} {
 	result := make(map[Kind]struct{}, len(kinds))
 	for _, kind := range kinds {
@@ -151,7 +131,7 @@ func SearchItemFromRecord(record Record, score float64) SearchItem {
 }
 
 const (
-	searchStageInsightSource      = "insight_source"
+	searchStageSemanticUnwired    = "semantic_runtime_unwired"
 	searchStageSourceRefBacklink  = "source_ref_backlink"
 	searchStageSemanticVector     = "semantic_vector"
 	searchStageSemanticFTS        = "semantic_fts"
@@ -162,14 +142,12 @@ const (
 	searchStageRelationContradict = "relation_contradicts"
 )
 
-func buildSearchExplain(query string, scope string, items []SearchItem, stages []SearchStageExplain, contributions map[string][]ScoreContribution) *SearchExplain {
+func buildSearchExplain(query string, scope string, items []SearchItem, stages []SearchStageExplain) *SearchExplain {
 	explainItems := make([]SearchItemExplain, 0, len(items))
 	for _, item := range items {
-		itemContributions := append([]ScoreContribution(nil), contributions[item.Ref]...)
 		explainItems = append(explainItems, SearchItemExplain{
-			Ref:           item.Ref,
-			FinalScore:    item.Score,
-			Contributions: itemContributions,
+			Ref:        item.Ref,
+			FinalScore: item.Score,
 		})
 	}
 	return &SearchExplain{
@@ -180,41 +158,22 @@ func buildSearchExplain(query string, scope string, items []SearchItem, stages [
 	}
 }
 
-func contributionMapFromExplain(explain *SearchExplain) map[string][]ScoreContribution {
-	result := make(map[string][]ScoreContribution)
-	if explain == nil {
-		return result
+func sourceStatusScore(record Record) float64 {
+	var score float64
+	if record.Status == StatusVerified {
+		score += 0.5
 	}
-	for _, item := range explain.Items {
-		if item.Ref == "" {
-			continue
-		}
-		result[item.Ref] = append(result[item.Ref], item.Contributions...)
+	if record.Kind == KindSkill {
+		score += 0.25
 	}
-	return result
+	return score
 }
 
-func appendContribution(target map[string][]ScoreContribution, ref string, contribution ScoreContribution) {
-	if target == nil || strings.TrimSpace(ref) == "" || contribution.Delta == 0 {
-		return
+func scopeMatches(requestScope string, itemScope string) bool {
+	scope := strings.TrimSpace(requestScope)
+	if scope == "" {
+		return true
 	}
-	contribution.Stage = strings.TrimSpace(contribution.Stage)
-	contribution.Reason = strings.TrimSpace(contribution.Reason)
-	contribution.SourceRefs = normalizeRefs(contribution.SourceRefs)
-	target[ref] = append(target[ref], contribution)
-}
-
-func appendContributions(target map[string][]ScoreContribution, ref string, contributions []ScoreContribution) {
-	for _, contribution := range contributions {
-		appendContribution(target, ref, contribution)
-	}
-}
-
-func mergeContributionMaps(target map[string][]ScoreContribution, source map[string][]ScoreContribution) {
-	if target == nil {
-		return
-	}
-	for ref, contributions := range source {
-		appendContributions(target, ref, contributions)
-	}
+	item := strings.TrimSpace(itemScope)
+	return item == "" || item == scope
 }

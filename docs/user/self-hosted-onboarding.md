@@ -136,11 +136,13 @@ Check runtime readiness:
 acorn doctor
 ```
 
-The semantic index must exist before the first backend run. The installer creates it automatically when `OPENAI_API_KEY` is supplied at install time. If you installed without starting the service, or if you later modify memory records directly, explicitly rebuild the semantic index:
+Semantic memory retrieval is optional. When embedding is configured (the installer sets it up when `OPENAI_API_KEY` is supplied at install time), the semantic index powers memory recall; if you installed without starting the service, or if you later modify memory records directly, rebuild the index explicitly:
 
 ```bash
 acorn memory semantic rebuild --json
 ```
+
+If embedding is not configured at all, backend runs still proceed — they simply run with no memory recall (semantic retrieval stays off until you configure `memory.semantic`). Explicit memory search commands fail loud until then.
 
 Bleve+FAISS is a rebuildable retrieval index. SQLite still owns runtime persisted truth, and file-backed `facts/`, `skills/`, and `history/` remain durable memory truth.
 
