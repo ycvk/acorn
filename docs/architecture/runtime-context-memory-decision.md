@@ -88,8 +88,6 @@ SQLite `conversation_segments` remains a runtime persisted fact table written at
 
 Release packaging always includes Bleve+FAISS. `scripts/build-release.sh` always builds with `CGO_ENABLED=1` and `-tags "bleve_faiss vectors"`. `scripts/build-faiss-artifacts.sh` builds the Bleve-compatible FAISS fork at the pinned checkpoint and validates `include/faiss/c_api/Index_c.h`, `lib/${GOOS}_${GOARCH}/libfaiss_c.so`, and `lib/${GOOS}_${GOARCH}/libfaiss.so` for each requested Linux target. `linux/amd64` and `linux/arm64` GitHub Release assets therefore include the native `libfaiss*.so*` runtime libraries; missing native artifacts or toolchain failures are release failures, not reasons to publish a non-FAISS fallback package.
 
-Retrieval capture is explicit opt-in. `internal/memorymodule` defines the shared eval sample schema and JSONL sink; `memorymodule` can convert Search/Prepare results into samples, but no runtime path creates a sink or records samples by default. Capture writes return ordinary errors to the caller and are not best-effort background work.
-
 Terminal finalization appends a compact Record V2-compatible history event through `memorymodule.AppendHistory`. Durable fact/learned-skill updates are done by the agent through `memory_search`, `memory_read_file`, `memory_create_file`, and `memory_replace_span`; there is no separate memory-root grep tool and no backend LLM distillation worker in the ordinary run path. Memory write helpers run service-owned mutation application: they plan first, reject invalid Record V2 writes before touching disk, write only inside `facts/` or `skills/`, refresh the in-memory canonical index after successful writes, and rebuild the semantic retrieval index when semantic runtime is configured. The planner is a validation boundary for file writes, not a candidate inbox or automatic memory writer.
 
 ## Removed Old Memory Path
@@ -109,6 +107,7 @@ The following old paths are no longer active runtime truth:
 - one-shot `acorn memory migrate`
 - runtime sliding-window marker compression (`[Earlier conversation compressed]`)
 - run-wide cumulative `TokenBudget` hard stop and `token_budget.exceeded` events
+- the never-wired opt-in retrieval/skill-routing eval sample schema + JSONL sink (`memorymodule` capture, `skills` candidate capture); no runtime path ever created a sink, so the speculative infrastructure was removed rather than parked
 
 SQLite legacy memory tables/readers are removed, not parked behind a migration command. The schema migration drops leftover old memory/search/patch-history tables on open.
 
@@ -127,8 +126,6 @@ Procedure records now enter through the active `memorymodule` and skill lifecycl
 Seed skills include `skill.creator` and `skill.procedure.curator` plus inspection/debug/patch defaults. `skill.creator` writes Acorn-native `SKILL.md` and supporting files through the `skill_create` runtime tool. `skill_assess` applies evidence-backed lifecycle updates to mutable skill sources. Non-builtin `lifecycle_status: verified` requires `evidence_refs`.
 
 Executable skill health is a deterministic `internal/skills` contract. `BuildHealthReport` consumes the current `ScanResult`, eligibility context, and optional routing fixtures; it reports loader problems, eligibility failures, unreachable skills, exact duplicate trigger/task-pattern failures, and expected-skill routing fixture misses. Health checks do not mutate skill files, do not promote lifecycle status, and do not restore `skill_eval` / `skill_curate`; `skill_assess` remains the active lifecycle action.
-
-Skill retrieval capture uses the same explicit `internal/memorymodule` eval sample schema. `internal/skills` can convert candidate retrieval results into capture samples, but the selector does not record samples unless a caller explicitly provides and invokes a sink.
 
 Learned memory skills are still file-backed memory records under `memorymodule/skills/`; they are procedures, not executable `internal/skills` specs. Runtime exposes memory file tools so the agent can create or edit procedure records as files. The skill lifecycle path does not move builtin executable skills into `memorymodule`.
 
