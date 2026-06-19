@@ -375,9 +375,6 @@ Matched source.
 	if !explainHasStage(result.Explain, searchStageRelationSupports) {
 		t.Fatalf("explain stages = %#v, want relation supports", result.Explain.Stages)
 	}
-	if !explainHasContributionSource(result.Explain, "facts/workspaces/target.md#supported-target", "facts/workspaces/matched.md#matched-source") {
-		t.Fatalf("explain missing matched relation source: %#v", result.Explain)
-	}
 }
 
 func TestSearchSemanticRelationBoostRespectsInactiveSelection(t *testing.T) {

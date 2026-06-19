@@ -31,7 +31,7 @@ func buildMemoryModule(ctx context.Context, cfg *config.Config) (memorymodule.Se
 	// embedding is not configured at all, no semantic runtime is wired and
 	// Search/Prepare fail loud ("semantic search runtime is required") — no silent
 	// degradation, but the pair/inbox/approvals control surface stays usable.
-	if !semanticConfigured(cfg) {
+	if !cfg.MemorySemanticConfigured() {
 		return memoryModule, nil, nil, nil
 	}
 
@@ -45,17 +45,6 @@ func buildMemoryModule(ctx context.Context, cfg *config.Config) (memorymodule.Se
 		return nil, nil, nil, fmt.Errorf("set semantic runtime: %w", err)
 	}
 	return memoryModule, lazyIndex, lazyEmbedder, nil
-}
-
-// semanticConfigured reports whether the operator intends to use semantic
-// retrieval (embedding base_url/model present). Full validation happens lazily
-// at first use via ValidateMemorySemanticReady.
-func semanticConfigured(cfg *config.Config) bool {
-	if cfg == nil {
-		return false
-	}
-	embedding := cfg.Memory.Semantic.Embedding
-	return strings.TrimSpace(embedding.Model) != "" || strings.TrimSpace(embedding.BaseURL) != ""
 }
 
 // semanticRuntimeOptions builds the single SemanticRuntimeOptions from config so

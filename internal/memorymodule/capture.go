@@ -88,30 +88,9 @@ func digestSearchExplain(explain *SearchExplain) EvalExplainDigest {
 		digest.Stages = append(digest.Stages, EvalStageDigest(stage))
 	}
 	for _, item := range explain.Items {
-		digest.Items = append(digest.Items, EvalItemDigest{
-			Ref:               item.Ref,
-			FinalScore:        item.FinalScore,
-			ContributionCount: len(item.Contributions),
-			Stages:            contributionStages(item.Contributions),
-		})
+		digest.Items = append(digest.Items, EvalItemDigest(item))
 	}
 	return digest
-}
-
-func contributionStages(items []ScoreContribution) []string {
-	seen := make(map[string]struct{}, len(items))
-	stages := make([]string, 0, len(items))
-	for _, item := range items {
-		if item.Stage == "" {
-			continue
-		}
-		if _, exists := seen[item.Stage]; exists {
-			continue
-		}
-		seen[item.Stage] = struct{}{}
-		stages = append(stages, item.Stage)
-	}
-	return stages
 }
 
 func firstNonEmptyString(values ...string) string {
