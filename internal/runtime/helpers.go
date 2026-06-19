@@ -30,17 +30,6 @@ func newSessionID() string {
 	return fmt.Sprintf("session_%d", time.Now().UTC().UnixNano())
 }
 
-func ExtractString(value any) string {
-	switch typed := value.(type) {
-	case nil:
-		return ""
-	case string:
-		return strings.TrimSpace(typed)
-	default:
-		return strings.TrimSpace(fmt.Sprint(typed))
-	}
-}
-
 func InterruptPayloadFromStream(interrupt *stream.StreamInterrupt) map[string]any {
 	if interrupt == nil {
 		return nil
@@ -68,10 +57,4 @@ func DurableContext(ctx context.Context) context.Context {
 
 func CurrentRunID(ctx context.Context) string {
 	return runtimeapi.GetRunID(ctx)
-}
-
-type turnIndexContextKey struct{}
-
-func withTurnIndex(ctx context.Context, turnIndex int) context.Context {
-	return context.WithValue(ctx, turnIndexContextKey{}, turnIndex)
 }
