@@ -65,6 +65,7 @@ make dev-serve-faiss / make dev-doctor-faiss   # 用 FAISS dev 二进制 serve /
 - `ContextSession` 是 root-run model input 的唯一 owner,root mode 不允许绕过它维护第二套 message lifecycle。
 - 工具执行合同是 `ToolContract -> ToolExecutionScheduler -> ToolResultLedger`(合同/策略定义在 `internal/tooling`,调度由 `SafeParallelToolsNode`/`internal/runtime/tool` 按 parallel policy + 路径冲突执行);tool result refs、side effects、plan evidence backlinks 是持久化事实。普通工具失败是模型可见 failed result(让模型自纠),不是 run failure。
 - workspace mutation 恢复是 scoped mutation checkpoint + 显式 `rollback_workspace_checkpoint`,不是旧 snapshot / auto rollback。
+- plan_execute 委派 subagent 的递归深度受 `agent.max_subagent_depth`(默认 3,root=0)限制,防止无界 worktree 创建耗尽磁盘;超限 fail-loud(error 作为 failed tool result / plan evidence 对模型可见)。需要更深委派时显式调高该配置,不要在代码里硬编码新上限。
 
 ### 工具 & 技能
 

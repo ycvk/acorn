@@ -105,6 +105,9 @@ type AgentConfig struct {
 	Description   string `yaml:"description"`
 	SystemPrompt  string `yaml:"system_prompt"`
 	MaxIterations int    `yaml:"max_iterations"`
+	// MaxSubagentDepth caps plan_execute -> subagent recursion depth (root = 0)
+	// to prevent unbounded worktree creation. <= 0 falls back to the default (3).
+	MaxSubagentDepth int `yaml:"max_subagent_depth"`
 }
 
 type ToolsConfig struct {

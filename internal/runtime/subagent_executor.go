@@ -18,10 +18,13 @@ import (
 	"github.com/ycvk/acorn/internal/workspace"
 )
 
-// maxSubagentDepth caps plan_execute -> subagent recursion. Without it a
-// delegating subagent that itself delegates can recurse without bound and
-// create worktrees until the disk fills. Exceeding it fails loud.
-const maxSubagentDepth = 3
+// defaultMaxSubagentDepth caps plan_execute -> subagent recursion (root = 0)
+// when agent.max_subagent_depth is unset. Without a cap a delegating subagent
+// that itself delegates can recurse without bound and create worktrees until the
+// disk fills. The limit is configurable via agent.max_subagent_depth; exceeding
+// it fails loud and the error surfaces to the model as a failed tool result /
+// plan evidence.
+const defaultMaxSubagentDepth = 3
 
 type SubagentExecutor struct {
 	cfg                  *config.Config
@@ -100,6 +103,15 @@ func (se *SubagentExecutor) currentDepth(parentRunID string) int {
 	return se.parentDepth(parentRunID)
 }
 
+// maxSubagentDepth returns the configured recursion cap, falling back to the
+// default when agent.max_subagent_depth is unset (<= 0).
+func (se *SubagentExecutor) maxSubagentDepth() int {
+	if se != nil && se.cfg != nil && se.cfg.Agent.MaxSubagentDepth > 0 {
+		return se.cfg.Agent.MaxSubagentDepth
+	}
+	return defaultMaxSubagentDepth
+}
+
 func (se *SubagentExecutor) Execute(ctx context.Context, req orchestration.ChildAgentRequest) (*orchestration.ChildAgentResult, error) {
 	req = normalizeChildAgentRequest(req)
 	task := strings.TrimSpace(req.Task)
@@ -112,8 +124,8 @@ func (se *SubagentExecutor) Execute(ctx context.Context, req orchestration.Child
 	}
 
 	newDepth := se.currentDepth(parentRunID) + 1
-	if newDepth > maxSubagentDepth {
-		return nil, fmt.Errorf("subagent recursion depth %d exceeds limit %d (parent run %s)", newDepth, maxSubagentDepth, parentRunID)
+	if limit := se.maxSubagentDepth(); newDepth > limit {
+		return nil, fmt.Errorf("subagent recursion depth %d exceeds configured limit %d (agent.max_subagent_depth) for parent run %s; raise the limit if deeper delegation is intended", newDepth, limit, parentRunID)
 	}
 
 	if se.store == nil {
