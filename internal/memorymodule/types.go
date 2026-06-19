@@ -194,7 +194,6 @@ const (
 	ProcedureActivationSelected ProcedureActivationPhase = "selected"
 	ProcedureActivationInjected ProcedureActivationPhase = "injected"
 	ProcedureActivationUsed     ProcedureActivationPhase = "used"
-	ProcedureActivationRejected ProcedureActivationPhase = "rejected"
 )
 
 type ProcedureActivation struct {
