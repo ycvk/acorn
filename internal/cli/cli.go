@@ -19,6 +19,8 @@ func Run(ctx context.Context, args []string) error {
 		return usageError()
 	}
 	switch args[0] {
+	case "init":
+		return runInit(ctx, args[1:])
 	case "doctor":
 		return runDoctor(ctx, args[1:])
 	case "decision":
@@ -46,6 +48,7 @@ func usageText() string {
 	return strings.TrimSpace(`acorn - self-hosted Go + Eino agent backend
 
 Usage:
+  acorn init [-c path] [--force] [--print]
   acorn doctor [-c path] [--json]
   acorn decision check [-c path] [--json]
   acorn decision inspect [-c path] [--json] RUN_ID
@@ -71,6 +74,6 @@ func runDoctor(ctx context.Context, args []string) error {
 	}
 	return withContainer(ctx, *configPath, func(container *app.Container) error {
 		snapshot := container.Capabilities().Snapshot(ctx, app.CapabilitySnapshotOptions{ProbeMCP: true})
-		return printDoctorOutput(snapshot, *jsonMode)
+		return printDoctorOutput(snapshot, container.Config().ConfigPath, *jsonMode)
 	})
 }

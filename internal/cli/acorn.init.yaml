@@ -1,3 +1,11 @@
+# Acorn self-hosted starter config (created by `acorn init`).
+#
+# Quick start:
+#   1. Set OPENAI_API_KEY in your environment (self-hosted systemd reads ~/.acorn/acorn.env).
+#   2. Run `acorn doctor`   — should report `Ready: ready`.
+#   3. Run `acorn smoke "hello, are you working?"` — runs a real task end-to-end.
+#   4. Run `acorn serve` to start the /v1 API, then `acorn pair --qr` to pair a phone.
+
 runtime:
   storage_dir: ~/.acorn
   run_timeout_seconds: 900
@@ -20,26 +28,6 @@ context:
 
 web:
   listen_addr: 127.0.0.1:8080
-  # Optional CORS origins for trusted browser tooling behind a reverse proxy.
-  # Mobile clients do not use browser CORS, and the React/Vite frontend has been removed.
-  # allowed_origins:
-  #   - https://acorn.example.com
-
-web_access:
-  user_agent: "Acorn/0.x (+https://github.com/ycvk/acorn)"
-  timeout_seconds: 20
-  max_response_bytes: 10485760
-  allow_private_networks: false
-  search:
-    provider: tavily
-    api_key: ${TAVILY_API_KEY}
-    timeout_seconds: 10
-    max_results: 10
-
-browser:
-  executable_path: ""        # Set to /usr/bin/chromium to enable browser tool calls.
-  headless: true
-  default_timeout_seconds: 20
 
 agent:
   name: coordinator
@@ -49,7 +37,7 @@ agent:
     You are Acorn's coordinator agent running in a self-hosted backend.
 
     Rules:
-    - Treat /srv/acorn/workspace as the operator workspace.
+    - Treat the configured workspace as the operator workspace.
     - Prefer read_file, list_files, search_text, inspect_git_status, and inspect_git_diff before mutation or shell execution.
     - Use run_command only when native tools cannot answer or execute the task directly.
     - Never pretend a tool, MCP provider, or command succeeded when it did not run.
@@ -58,15 +46,15 @@ agent:
 tools:
   run_command:
     default_timeout: 30
-    work_dir: /srv/acorn/workspace
+    work_dir: ~/.acorn/workspace
     env_whitelist:
       - PATH
       - HOME
       - GIT_EDITOR
   workspace:
-    root_dir: /srv/acorn/workspace
+    root_dir: ~/.acorn/workspace
   mutation:
-    root_dir: /srv/acorn/workspace
+    root_dir: ~/.acorn/workspace
     denylist: []
 
 mcp:
@@ -75,11 +63,10 @@ mcp:
 memory:
   search:
     memory_context_token_budget: 2000
-  # Semantic memory retrieval is an OPTIONAL enhancement and is OFF by default:
-  # with embedding.model and embedding.base_url unset, runs proceed with no recalled
-  # memory (the implicit hot-path Prepare degrades to an empty result). Uncomment
-  # model + base_url below to enable it — then embedding.api_key/dimensions/
-  # timeout_seconds/batch_size are validated.
+  # Semantic memory recall is an OPTIONAL enhancement. It is OFF by default:
+  # runs proceed with no recalled memory (the run hot-path degrades to empty).
+  # To enable it, uncomment embedding.model + embedding.base_url below — then
+  # embedding.api_key/dimensions/timeout_seconds/batch_size are validated.
   semantic:
     bleve:
       path: ""               # Empty resolves to runtime.storage_dir/bleve-semantic

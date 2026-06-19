@@ -7,15 +7,36 @@ import (
 	"github.com/ycvk/acorn/internal/app"
 )
 
-func printDoctorOutput(snapshot app.SystemCapabilities, jsonMode bool) error {
+func printDoctorOutput(snapshot app.SystemCapabilities, configPath string, jsonMode bool) error {
 	if jsonMode {
 		return printJSON(snapshot)
 	}
-	fmt.Println(renderDoctorSummary(snapshot))
+	fmt.Println(renderDoctorSummary(snapshot, configPath))
 	return nil
 }
 
-func renderDoctorSummary(snapshot app.SystemCapabilities) string {
+// doctorRemediationLines tells the owner WHAT to type to fix a not-ready verdict,
+// naming the active config path. The hint is tailored to the failure reason so it
+// is not misleading for non-api_key failures (e.g. max_iterations, workspace).
+// JSON output is untouched (printJSON returns first).
+func doctorRemediationLines(reason, configPath string) []string {
+	cfgPath := strings.TrimSpace(configPath)
+	if cfgPath == "" {
+		cfgPath = "your config"
+	}
+	lines := []string{
+		fmt.Sprintf("  Fix:   edit %s, then re-run 'acorn doctor' (or 'acorn smoke \"hello\"' to test a real run). No config yet? run 'acorn init'.", cfgPath),
+	}
+	switch {
+	case strings.Contains(reason, "embedding") && strings.Contains(reason, "api_key"):
+		lines = append(lines, "         Set the embedding api_key, or remove memory.semantic.embedding.model+base_url to run without semantic recall.")
+	case strings.Contains(reason, "api_key"):
+		lines = append(lines, "         api_key fields read env vars (e.g. OPENAI_API_KEY; systemd installs read ~/.acorn/acorn.env — restart with 'sudo systemctl restart acorn').")
+	}
+	return lines
+}
+
+func renderDoctorSummary(snapshot app.SystemCapabilities, configPath string) string {
 	lines := []string{
 		"Acorn doctor",
 		"",
@@ -34,6 +55,7 @@ func renderDoctorSummary(snapshot app.SystemCapabilities) string {
 	))
 	if errText := runtimeReadinessReason(snapshot.RuntimeReadiness); errText != "" {
 		lines = append(lines, fmt.Sprintf("  Error: %s", errText))
+		lines = append(lines, doctorRemediationLines(errText, configPath)...)
 	}
 	if errText := strings.TrimSpace(snapshot.ToolCatalogError); errText != "" {
 		lines = append(lines, fmt.Sprintf("  Tool catalog: %s", errText))

@@ -264,7 +264,7 @@ func (c *Config) validateMemorySemanticExecution() error {
 		return errors.New("memory.semantic.embedding.base_url is required")
 	}
 	if strings.TrimSpace(semantic.Embedding.APIKey) == "" {
-		return errors.New("memory.semantic.embedding.api_key is required")
+		return errors.New("memory.semantic.embedding.api_key is required (semantic recall is configured because embedding.model/base_url are set) — set the key, or remove embedding.model+base_url to run without semantic recall")
 	}
 	if semantic.Embedding.Dimensions <= 0 {
 		return errors.New("memory.semantic.embedding.dimensions must be > 0")

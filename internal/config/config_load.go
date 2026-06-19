@@ -24,7 +24,10 @@ func Load(path string) (*Config, error) {
 
 	raw, err := os.ReadFile(absPath)
 	if err != nil {
-		return nil, fmt.Errorf("read config: %w", err)
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, fmt.Errorf("config file not found at %s — run 'acorn init -c %s' to create one (or pass -c <path> to point elsewhere): %w", absPath, absPath, err)
+		}
+		return nil, fmt.Errorf("read config %s: %w", absPath, err)
 	}
 
 	cfg := defaultConfig()
