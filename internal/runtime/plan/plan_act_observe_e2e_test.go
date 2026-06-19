@@ -54,7 +54,7 @@ func TestPlanActObserveE2E(t *testing.T) {
 	if err != nil {
 		t.Fatalf("tool Info: %v", err)
 	}
-	runnable, err := BuildAgentGraph(runCtx, "test-agent", testModel, safeNode, rtool.NewDirectAssistantStreamer(nil), 10, store, nil, NewPlanStore(store), "Make a plan", nil, []string{info.Name}, nil)
+	runnable, err := BuildAgentGraph(runCtx, "test-agent", testModel, safeNode, rtool.NewDirectAssistantStreamer(nil), 10, store, nil, NewPlanStore(store), "Make a plan", []string{info.Name}, nil)
 	if err != nil {
 		t.Fatalf("buildAgentGraph: %v", err)
 	}
@@ -135,7 +135,7 @@ func TestPlanActObserveE2ESingleStep(t *testing.T) {
 	if err != nil {
 		t.Fatalf("tool Info: %v", err)
 	}
-	runnable, err := BuildAgentGraph(runCtx, "test-agent", testModel, safeNode, rtool.NewDirectAssistantStreamer(nil), 10, store, nil, NewPlanStore(store), "Make a plan", nil, []string{info.Name}, nil)
+	runnable, err := BuildAgentGraph(runCtx, "test-agent", testModel, safeNode, rtool.NewDirectAssistantStreamer(nil), 10, store, nil, NewPlanStore(store), "Make a plan", []string{info.Name}, nil)
 	if err != nil {
 		t.Fatalf("buildAgentGraph: %v", err)
 	}
@@ -187,7 +187,7 @@ func TestPlanActObserveE2EReplanConsumesOneAdditionalIteration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("tool Info: %v", err)
 	}
-	runnable, err := BuildAgentGraph(runCtx, "test-agent", testModel, safeNode, rtool.NewDirectAssistantStreamer(nil), 2, store, nil, NewPlanStore(store), "Make a plan", nil, []string{info.Name}, nil)
+	runnable, err := BuildAgentGraph(runCtx, "test-agent", testModel, safeNode, rtool.NewDirectAssistantStreamer(nil), 2, store, nil, NewPlanStore(store), "Make a plan", []string{info.Name}, nil)
 	if err != nil {
 		t.Fatalf("buildAgentGraph: %v", err)
 	}

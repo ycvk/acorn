@@ -26,10 +26,9 @@ func providerConfigFromAppConfig(item config.MCPProviderConfig) ProviderConfig {
 		ToolNames:             append([]string(nil), item.ToolNames...),
 		StartupTimeoutSeconds: item.StartupTimeoutSeconds,
 		Auth: AuthConfig{
-			Type:       item.Auth.Type,
-			ClientID:   item.Auth.ClientID,
-			Scopes:     append([]string(nil), item.Auth.Scopes...),
-			TokenStore: item.Auth.TokenStore,
+			Type:     item.Auth.Type,
+			ClientID: item.Auth.ClientID,
+			Scopes:   append([]string(nil), item.Auth.Scopes...),
 		},
 	}
 }

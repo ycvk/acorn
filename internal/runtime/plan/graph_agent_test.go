@@ -164,7 +164,7 @@ func buildTestAgentGraph(
 			eagerToolNames = append(eagerToolNames, info.Name)
 		}
 	}
-	runnable, err := BuildAgentGraph(ctx, "test-agent", model, safeNode, rtool.NewDirectAssistantStreamer(nil), maxIter, store, nil, planStore, "Make a plan", nil, eagerToolNames, toolSpecs)
+	runnable, err := BuildAgentGraph(ctx, "test-agent", model, safeNode, rtool.NewDirectAssistantStreamer(nil), maxIter, store, nil, planStore, "Make a plan", eagerToolNames, toolSpecs)
 	if err != nil {
 		t.Fatalf("buildAgentGraph: %v", err)
 	}

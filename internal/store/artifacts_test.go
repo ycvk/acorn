@@ -4,13 +4,11 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"os"
-	"path/filepath"
 	"testing"
 	"time"
 )
 
-func TestArtifactServiceWriteReadRangeVerifyAndList(t *testing.T) {
+func TestArtifactServiceWriteReadRangeAndList(t *testing.T) {
 	ctx := context.Background()
 	store := newMemoryArtifactStore()
 	root := t.TempDir()
@@ -63,9 +61,6 @@ func TestArtifactServiceWriteReadRangeVerifyAndList(t *testing.T) {
 		t.Fatal("final range should be EOF")
 	}
 
-	if _, err := service.Verify(ctx, record.ArtifactID); err != nil {
-		t.Fatalf("verify artifact: %v", err)
-	}
 	byRun, err := service.ListByRun(ctx, "run_1")
 	if err != nil {
 		t.Fatalf("list by run: %v", err)
@@ -79,31 +74,6 @@ func TestArtifactServiceWriteReadRangeVerifyAndList(t *testing.T) {
 	}
 	if len(bySession) != 1 || bySession[0].ArtifactID != record.ArtifactID {
 		t.Fatalf("by session = %#v", bySession)
-	}
-}
-
-func TestArtifactServiceVerifyDetectsTamperedContent(t *testing.T) {
-	ctx := context.Background()
-	store := newMemoryArtifactStore()
-	root := t.TempDir()
-	service, err := NewArtifactService(root, store)
-	if err != nil {
-		t.Fatalf("new service: %v", err)
-	}
-	record, err := service.Write(ctx, ArtifactWriteRequest{
-		ArtifactID: "artifact_1",
-		RunID:      "run_1",
-		Kind:       ArtifactKindText,
-		Content:    []byte("original"),
-	})
-	if err != nil {
-		t.Fatalf("write artifact: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(root, filepath.FromSlash(record.RelativePath)), []byte("tampered"), 0o600); err != nil {
-		t.Fatalf("tamper content: %v", err)
-	}
-	if _, err := service.Verify(ctx, record.ArtifactID); err == nil {
-		t.Fatal("expected verify error for tampered content")
 	}
 }
 
