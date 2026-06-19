@@ -243,7 +243,7 @@ paths:
   /v1/threads/{thread_id}/runs:
     post:
       tags: [client]
-      summary: Start a real runtime run for the latest unbound user message
+      summary: Start a runtime run; with input set, record the user message and run in one step (otherwise run the latest unbound user message)
       operationId: clientCreateRun
       parameters:
         - $ref: '#/components/parameters/ThreadID'

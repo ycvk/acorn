@@ -103,6 +103,13 @@ func (s *ClientService) CreateRun(ctx context.Context, threadID, skillID, mode, 
 	// pending user message first, so clients no longer need a separate
 	// POST /messages call. An empty input keeps the two-step flow intact (the
 	// caller posted the message beforehand).
+	//
+	// Both flows bind via the latest-unbound-message selector (a pre-existing
+	// mechanism). On the single-owner / single-connection deployment this is
+	// safe. Truly concurrent CreateRun on one thread is a pre-existing race whose
+	// worst case is a RowsAffected=0 bind failure (the run is rolled back, not
+	// silently mis-bound); full atomicity would require binding by message id in a
+	// store transaction spanning CreateRun + executor.
 	if strings.TrimSpace(input) != "" {
 		if _, err := s.CreateMessage(ctx, threadID, input); err != nil {
 			return nil, err
