@@ -94,7 +94,7 @@ func TestContextSessionRecordsAssistantAndToolResults(t *testing.T) {
 
 func TestContextSessionBeforeModelCallReturnsPressure(t *testing.T) {
 	session := NewDefaultContextSession(ContextSessionOptions{
-		BudgetGovernor: testBudgetGovernor{pressure: testPressure(PressureWarning)},
+		BudgetGovernor: testBudgetGovernor{pressure: testPressure(PressureOK)},
 	})
 	_, err := session.Bootstrap(context.Background(), BootstrapRequest{
 		SessionID:       "session_1",
@@ -110,8 +110,8 @@ func TestContextSessionBeforeModelCallReturnsPressure(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BeforeModelCall: %v", err)
 	}
-	if input.Pressure.State != PressureWarning {
-		t.Fatalf("pressure = %+v, want warning pressure", input.Pressure)
+	if input.Pressure.State != PressureOK {
+		t.Fatalf("pressure = %+v, want ok pressure", input.Pressure)
 	}
 }
 
@@ -201,7 +201,7 @@ func TestContextSessionBeforeModelCallCompactsOnPressure(t *testing.T) {
 
 func TestContextSessionBeforeModelCallFailsWhenCompactionRequiredButDisabled(t *testing.T) {
 	session := NewDefaultContextSession(ContextSessionOptions{
-		BudgetGovernor: testBudgetGovernor{pressure: testPressure(PressureBlocking)},
+		BudgetGovernor: testBudgetGovernor{pressure: testPressure(PressureAutoCompact)},
 	})
 	_, err := session.Bootstrap(context.Background(), BootstrapRequest{
 		SessionID:       "session_1",
@@ -254,7 +254,7 @@ func TestContextSessionReactiveCompactUsesReactiveTrigger(t *testing.T) {
 			},
 		},
 	}
-	governor := testBudgetGovernor{pressure: testPressure(PressureBlocking), dynamic: true}
+	governor := testBudgetGovernor{pressure: testPressure(PressureAutoCompact), dynamic: true}
 	store := storetest.NewFakeContextStore()
 	session := NewDefaultContextSession(ContextSessionOptions{
 		BudgetGovernor: governor,
@@ -460,7 +460,6 @@ func testContextSessionProfile() ModelProfile {
 		StaticOverheadTokens:        4096,
 		WarningBufferTokens:         20000,
 		AutoCompactBufferTokens:     13000,
-		BlockingBufferTokens:        3000,
 	}
 }
 
@@ -488,19 +487,10 @@ func (g testBudgetGovernor) Evaluate(_ context.Context, req BudgetEvaluateReques
 	return g.pressure, nil
 }
 
-func (g testBudgetGovernor) AutoCompactThreshold(ModelProfile) (int, error) {
-	return g.pressure.AutoCompactThresholdTokens, nil
-}
-
 func testPressure(state BudgetPressureState) BudgetPressure {
 	return BudgetPressure{
-		EstimatedInputTokens:       100,
-		EffectiveWindowTokens:      1000,
-		WarningThresholdTokens:     800,
-		AutoCompactThresholdTokens: 900,
-		BlockingThresholdTokens:    990,
-		PercentUsed:                10,
-		State:                      state,
+		EffectiveWindowTokens: 1000,
+		State:                 state,
 	}
 }
 

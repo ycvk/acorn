@@ -44,19 +44,10 @@ func (g testBudgetGovernor) Evaluate(_ context.Context, req contextplane.BudgetE
 	return g.pressure, nil
 }
 
-func (g testBudgetGovernor) AutoCompactThreshold(contextplane.ModelProfile) (int, error) {
-	return g.pressure.AutoCompactThresholdTokens, nil
-}
-
 func testPressure(state contextplane.BudgetPressureState) contextplane.BudgetPressure {
 	return contextplane.BudgetPressure{
-		EstimatedInputTokens:       100,
-		EffectiveWindowTokens:      1000,
-		WarningThresholdTokens:     800,
-		AutoCompactThresholdTokens: 900,
-		BlockingThresholdTokens:    990,
-		PercentUsed:                10,
-		State:                      state,
+		EffectiveWindowTokens: 1000,
+		State:                 state,
 	}
 }
 
@@ -77,7 +68,6 @@ func testContextSessionProfile() contextplane.ModelProfile {
 		StaticOverheadTokens:        4096,
 		WarningBufferTokens:         20000,
 		AutoCompactBufferTokens:     13000,
-		BlockingBufferTokens:        3000,
 	}
 }
 

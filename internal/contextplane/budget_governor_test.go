@@ -31,9 +31,7 @@ func TestBudgetGovernorEvaluatePressureStates(t *testing.T) {
 		want    BudgetPressureState
 	}{
 		{name: "ok", profile: profileForEstimatedState(estimated, PressureOK), want: PressureOK},
-		{name: "warning", profile: profileForEstimatedState(estimated, PressureWarning), want: PressureWarning},
 		{name: "auto", profile: profileForEstimatedState(estimated, PressureAutoCompact), want: PressureAutoCompact},
-		{name: "blocking", profile: profileForEstimatedState(estimated, PressureBlocking), want: PressureBlocking},
 	}
 	governor := NewBudgetGovernor(counter)
 	for _, tc := range cases {
@@ -48,14 +46,11 @@ func TestBudgetGovernorEvaluatePressureStates(t *testing.T) {
 			if pressure.State != tc.want {
 				t.Fatalf("state = %q, want %q; pressure=%+v estimated=%d", pressure.State, tc.want, pressure, estimated)
 			}
-			if pressure.EstimatedInputTokens != estimated {
-				t.Fatalf("estimated = %d, want %d", pressure.EstimatedInputTokens, estimated)
-			}
 		})
 	}
 }
 
-func TestBudgetGovernorAutoCompactThreshold(t *testing.T) {
+func TestPressureThresholds(t *testing.T) {
 	profile := ModelProfile{
 		ContextWindowTokens:         200000,
 		ReservedOutputTokens:        4096,
@@ -63,18 +58,20 @@ func TestBudgetGovernorAutoCompactThreshold(t *testing.T) {
 		StaticOverheadTokens:        4096,
 		WarningBufferTokens:         20000,
 		AutoCompactBufferTokens:     13000,
-		BlockingBufferTokens:        3000,
 	}
-	got, err := NewBudgetGovernor(nil).AutoCompactThreshold(profile)
+	thresholds, err := pressureThresholds(profile)
 	if err != nil {
-		t.Fatalf("AutoCompactThreshold: %v", err)
+		t.Fatalf("pressureThresholds: %v", err)
 	}
-	if got != 178808 {
-		t.Fatalf("auto threshold = %d, want 178808", got)
+	if thresholds.autoCompact != 178808 {
+		t.Fatalf("auto threshold = %d, want 178808", thresholds.autoCompact)
+	}
+	if thresholds.warning != 171808 {
+		t.Fatalf("warning (assembly) threshold = %d, want 171808", thresholds.warning)
 	}
 }
 
-func TestBudgetGovernorRejectsInvalidProfile(t *testing.T) {
+func TestPressureThresholdsRejectsInvalidProfile(t *testing.T) {
 	profile := ModelProfile{
 		ContextWindowTokens:         100,
 		ReservedOutputTokens:        0,
@@ -82,9 +79,8 @@ func TestBudgetGovernorRejectsInvalidProfile(t *testing.T) {
 		StaticOverheadTokens:        0,
 		WarningBufferTokens:         10,
 		AutoCompactBufferTokens:     20,
-		BlockingBufferTokens:        5,
 	}
-	_, err := NewBudgetGovernor(nil).AutoCompactThreshold(profile)
+	_, err := pressureThresholds(profile)
 	if err == nil || !strings.Contains(err.Error(), "warning buffer must be greater than auto compact buffer") {
 		t.Fatalf("error = %v, want warning/auto buffer error", err)
 	}
@@ -119,21 +115,14 @@ func profileForEstimatedState(estimated int, state BudgetPressureState) ModelPro
 	const (
 		warningBuffer = 300
 		autoBuffer    = 200
-		blockBuffer   = 100
 	)
 	effective := estimated + 400
-	switch state {
-	case PressureWarning:
-		effective = estimated + warningBuffer
-	case PressureAutoCompact:
+	if state == PressureAutoCompact {
 		effective = estimated + autoBuffer
-	case PressureBlocking:
-		effective = estimated + blockBuffer
 	}
 	return ModelProfile{
 		ContextWindowTokens:     effective,
 		WarningBufferTokens:     warningBuffer,
 		AutoCompactBufferTokens: autoBuffer,
-		BlockingBufferTokens:    blockBuffer,
 	}
 }

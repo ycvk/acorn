@@ -150,7 +150,7 @@ func TestContextCompressionPipelineReactiveTrigger(t *testing.T) {
 		},
 	}
 	pipeline := NewDefaultContextCompressionPipeline(CompressionPipelineOptions{
-		Governor:         testBudgetGovernor{pressure: testPressure(contextplane.PressureBlocking), dynamic: true},
+		Governor:         testBudgetGovernor{pressure: testPressure(contextplane.PressureAutoCompact), dynamic: true},
 		CompactionEngine: engine,
 		TokenCounter:     testTokenCounter(t),
 	})
@@ -192,7 +192,7 @@ func TestContextCompressionPipelineReactiveTriggerHalvesRecentTurns(t *testing.T
 		},
 	}
 	pipeline := NewDefaultContextCompressionPipeline(CompressionPipelineOptions{
-		Governor:         testBudgetGovernor{pressure: testPressure(contextplane.PressureBlocking)},
+		Governor:         testBudgetGovernor{pressure: testPressure(contextplane.PressureAutoCompact)},
 		CompactionEngine: engine,
 		TokenCounter:     testTokenCounter(t),
 	})
