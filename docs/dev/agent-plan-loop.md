@@ -58,7 +58,7 @@ curl -H "Authorization: Bearer $ACORN_DEVICE_TOKEN" \
 
 `PlanNode` 负责用专用 plan prompt 生成 JSON plan steps，校验后保存到 `PlanStore`。如果 session 已有可继续的 runnable plan，且当前不是 replan 决策，它会复用已有计划，不覆盖未完成状态。
 
-当需要生成新计划或 replan 时，`PlanNode` 用专用 system prompt、当前 conversation context 和可见工具名生成计划。`PlanningPromptProvider` 仍是可测试的可选扩展 seam；当前 RunnerFactory 不注入 repo-map/codeintel planning context，已有 runnable plan 被复用时也不会调用 provider。
+当需要生成新计划或 replan 时，`PlanNode` 用专用 system prompt、当前 conversation context 和可见工具名生成计划。
 
 `ActNode` 每次只推进一个 runnable step。它先把 step 标记为 `in_progress`，再用 `orchestration.ExecuteRound` 让模型为该 step 选择工具调用并收集终态 tool results；工具实际执行仍通过 `SafeParallelToolsNode` / `StreamingToolExecutor`。高风险工具的 active-plan policy 在 `BeforeToolCall` pre-submit hook 中检查，校验失败时工具不会被提交。工具结果会写入 step-scoped evidence ledger：基础 tool evidence、`run_command` 的 command/test evidence、`inspect_git_diff` 的 diff evidence、workspace mutation checkpoint / rollback evidence，以及到 durable tool result record 的 `tool_result_ref` backlink。普通工具错误仍作为 tool result 返回给模型，同时写 failed evidence 并把 step 标成 `failed`；没有 tool error 时还要检查 `verification_intent` coverage，只有 evidence 覆盖到位才会把 step 标成 `completed`。
 
@@ -100,7 +100,7 @@ Workspace mutation tools 会创建 scoped mutation checkpoint 并把 checkpoint 
 
 ### Graph 装配合同
 
-`buildAgentGraph` 需要显式传入 `PlanStore`、`planPrompt`、可选 `PlanningPromptProvider` 和当前工具 catalog。没有 `PlanStore` 时 graph 构建失败，不会回退到旧 ReAct loop。
+`buildAgentGraph` 需要显式传入 `PlanStore`、`planPrompt` 和当前工具 catalog。没有 `PlanStore` 时 graph 构建失败，不会回退到旧 ReAct loop。
 
 ```go
 func buildAgentGraph(
@@ -113,7 +113,6 @@ func buildAgentGraph(
     handlers []adk.ChatModelAgentMiddleware,
     planStore PlanStore,
     planPrompt string,
-    planningPromptProvider PlanningPromptProvider,
     eagerToolNames []string,
     toolSpecs []tooling.ToolSpec,
 ) (compose.Runnable[*agentGraphInput, *schema.Message], error)
