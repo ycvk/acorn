@@ -22,33 +22,64 @@ func buildMemoryModule(ctx context.Context, cfg *config.Config) (memorymodule.Se
 	if err := memoryModule.BuildIndex(ctx); err != nil {
 		return nil, nil, nil, err
 	}
-	semanticIndex, semanticEmbedder, err := buildMemorySemanticDependencies(ctx, cfg)
-	if err != nil {
-		return nil, nil, nil, err
+
+	// Semantic deps (embedder + FAISS/Bleve index) are constructed lazily on the
+	// first real Search/Prepare/Rebuild rather than at container construction, so
+	// `acorn pair` / `acorn doctor` / serve startup is never blocked by embedding
+	// config or FAISS availability. A real semantic query still constructs them
+	// and fails loud (ValidateMemorySemanticReady) if misconfigured. When
+	// embedding is not configured at all, no semantic runtime is wired and
+	// Search/Prepare fail loud ("semantic search runtime is required") — no silent
+	// degradation, but the pair/inbox/approvals control surface stays usable.
+	if !semanticConfigured(cfg) {
+		return memoryModule, nil, nil, nil
 	}
-	if semanticIndex != nil {
-		if err := memoryModule.SetSemanticRuntime(memorymodule.SemanticRuntimeOptions{
-			Index:      semanticIndex,
-			Embedder:   semanticEmbedder,
-			Model:      cfg.Memory.Semantic.Embedding.Model,
-			Dimensions: cfg.Memory.Semantic.Embedding.Dimensions,
-			BatchSize:  cfg.Memory.Semantic.Embedding.BatchSize,
-			Schema:     memorymodule.SemanticSchemaMemoryRecordsV1,
-			IndexName:  cfg.Memory.Semantic.Bleve.IndexName,
-			Mode:       "hybrid",
-		}); err != nil {
-			return nil, nil, nil, fmt.Errorf("set semantic runtime: %w", err)
-		}
+
+	lazyIndex := newLazySemanticIndex(func(ctx context.Context) (memorymodule.SemanticIndex, error) {
+		return buildBleveSemanticIndex(ctx, cfg)
+	})
+	lazyEmbedder := newLazyEmbedder(func() (memorymodule.Embedder, error) {
+		return buildSemanticEmbedder(cfg)
+	})
+	if err := memoryModule.SetSemanticRuntime(semanticRuntimeOptions(cfg, lazyIndex, lazyEmbedder)); err != nil {
+		return nil, nil, nil, fmt.Errorf("set semantic runtime: %w", err)
 	}
-	return memoryModule, semanticIndex, semanticEmbedder, nil
+	return memoryModule, lazyIndex, lazyEmbedder, nil
 }
 
-func buildMemorySemanticDependencies(ctx context.Context, cfg *config.Config) (memorymodule.SemanticIndex, memorymodule.Embedder, error) {
+// semanticConfigured reports whether the operator intends to use semantic
+// retrieval (embedding base_url/model present). Full validation happens lazily
+// at first use via ValidateMemorySemanticReady.
+func semanticConfigured(cfg *config.Config) bool {
 	if cfg == nil {
-		return nil, nil, errors.New("config is required")
+		return false
+	}
+	embedding := cfg.Memory.Semantic.Embedding
+	return strings.TrimSpace(embedding.Model) != "" || strings.TrimSpace(embedding.BaseURL) != ""
+}
+
+// semanticRuntimeOptions builds the single SemanticRuntimeOptions from config so
+// the config field reads live in one place, shared by the memory module runtime
+// (SetSemanticRuntime) and the rebuild-capable MemoryService.
+func semanticRuntimeOptions(cfg *config.Config, index memorymodule.SemanticIndex, embedder memorymodule.Embedder) memorymodule.SemanticRuntimeOptions {
+	return memorymodule.SemanticRuntimeOptions{
+		Index:      index,
+		Embedder:   embedder,
+		Model:      cfg.Memory.Semantic.Embedding.Model,
+		Dimensions: cfg.Memory.Semantic.Embedding.Dimensions,
+		BatchSize:  cfg.Memory.Semantic.Embedding.BatchSize,
+		Schema:     memorymodule.SemanticSchemaMemoryRecordsV1,
+		IndexName:  cfg.Memory.Semantic.Bleve.IndexName,
+		Mode:       "hybrid",
+	}
+}
+
+func buildSemanticEmbedder(cfg *config.Config) (memorymodule.Embedder, error) {
+	if cfg == nil {
+		return nil, errors.New("config is required")
 	}
 	if err := cfg.ValidateMemorySemanticReady(); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	embedding := cfg.Memory.Semantic.Embedding
 	embedder, err := memorymodule.NewOpenAICompatibleEmbedder(memorymodule.OpenAICompatibleEmbedderConfig{
@@ -59,7 +90,17 @@ func buildMemorySemanticDependencies(ctx context.Context, cfg *config.Config) (m
 		TimeoutSeconds: embedding.TimeoutSeconds,
 	})
 	if err != nil {
-		return nil, nil, fmt.Errorf("build semantic embedder: %w", err)
+		return nil, fmt.Errorf("build semantic embedder: %w", err)
+	}
+	return embedder, nil
+}
+
+func buildBleveSemanticIndex(ctx context.Context, cfg *config.Config) (memorymodule.SemanticIndex, error) {
+	if cfg == nil {
+		return nil, errors.New("config is required")
+	}
+	if err := cfg.ValidateMemorySemanticReady(); err != nil {
+		return nil, err
 	}
 	blevePath := strings.TrimSpace(cfg.Memory.Semantic.Bleve.Path)
 	if blevePath == "" {
@@ -71,7 +112,7 @@ func buildMemorySemanticDependencies(ctx context.Context, cfg *config.Config) (m
 		Dimensions: cfg.Memory.Semantic.Embedding.Dimensions,
 	})
 	if err != nil {
-		return nil, nil, fmt.Errorf("build bleve semantic index: %w", err)
+		return nil, fmt.Errorf("build bleve semantic index: %w", err)
 	}
-	return index, embedder, nil
+	return index, nil
 }

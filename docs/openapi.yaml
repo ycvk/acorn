@@ -243,7 +243,7 @@ paths:
   /v1/threads/{thread_id}/runs:
     post:
       tags: [client]
-      summary: Start a real runtime run for the latest unbound user message
+      summary: Start a runtime run; with input set, record the user message and run in one step (otherwise run the latest unbound user message)
       operationId: clientCreateRun
       parameters:
         - $ref: '#/components/parameters/ThreadID'
@@ -360,14 +360,6 @@ paths:
       operationId: clientResumeRun
       parameters:
         - $ref: '#/components/parameters/RunID'
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema:
-              type: object
-              additionalProperties: false
-              properties: {}
       responses:
         '200':
           description: Resume result
@@ -796,13 +788,6 @@ components:
       required: true
       schema:
         type: string
-    PushProvider:
-      name: provider
-      in: path
-      required: true
-      schema:
-        type: string
-        enum: [apns, fcm]
     ThreadID:
       name: thread_id
       in: path
@@ -2202,6 +2187,11 @@ components:
         mode:
           type: string
           enum: [direct_response, plan_execute]
+        input:
+          type: string
+          description: >-
+            Optional run input. When set, the run records it as the pending user
+            message in one step, so a separate POST /messages is not required.
 
     Run:
       type: object

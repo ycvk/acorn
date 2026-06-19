@@ -1,0 +1,7 @@
+# Pinned FAISS source for the bleve_faiss build — single source of truth.
+# Both release packaging (scripts/build-release.sh) and local dev
+# (make dev-faiss-artifacts) build from this exact commit via
+# scripts/build-faiss-artifacts.sh. Override per-invocation with the
+# FAISS_REPO / FAISS_COMMIT environment variables.
+FAISS_REPO=https://github.com/blevesearch/faiss.git
+FAISS_COMMIT=ffd910a91f1acf49b9898a7e514e462db89ee7b3

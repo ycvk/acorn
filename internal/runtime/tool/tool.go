@@ -2,12 +2,8 @@ package tool
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"strings"
-	"sync"
 
 	einotool "github.com/cloudwego/eino/components/tool"
 	toolutils "github.com/cloudwego/eino/components/tool/utils"
@@ -388,87 +384,6 @@ func (t *mcpNamespacedTool) InvokableRun(ctx context.Context, argumentsInJSON st
 	return t.invokable.InvokableRun(ctx, argumentsInJSON, opts...)
 }
 
-// ToolSchemaCache detects when tool schemas change between runs.
-type ToolSchemaCache struct {
-	lastHashes map[string]string
-	mu         sync.RWMutex
-}
-
-func NewToolSchemaCache() *ToolSchemaCache {
-	return &ToolSchemaCache{
-		lastHashes: make(map[string]string),
-	}
-}
-
-// ComputeHash returns a SHA-256 hash of the tool name + schema JSON,
-// truncated to 16 hex characters.
-func (c *ToolSchemaCache) ComputeHash(toolName, schemaJSON string) string {
-	h := sha256.Sum256([]byte(toolName + ":" + schemaJSON))
-	return hex.EncodeToString(h[:])[:16]
-}
-
-// HasChanged returns true if the current schema hash differs from the
-// last recorded hash for this tool.
-func (c *ToolSchemaCache) HasChanged(toolName, currentSchemaJSON string) bool {
-	current := c.ComputeHash(toolName, currentSchemaJSON)
-	c.mu.RLock()
-	last, ok := c.lastHashes[toolName]
-	c.mu.RUnlock()
-	return !ok || last != current
-}
-
-// UpdateHash records the current schema hash for the given tool.
-func (c *ToolSchemaCache) UpdateHash(toolName, schemaJSON string) {
-	h := c.ComputeHash(toolName, schemaJSON)
-	c.mu.Lock()
-	c.lastHashes[toolName] = h
-	c.mu.Unlock()
-}
-
-// AnyChanged checks whether any tool in the list has a schema that
-// differs from the last recorded hash. It also updates hashes for
-// all tools so subsequent calls reflect the current state.
-func (c *ToolSchemaCache) AnyChanged(ctx context.Context, tools []einotool.BaseTool) bool {
-	anyChanged := false
-	for _, t := range tools {
-		info, err := t.Info(ctx)
-		if err != nil {
-			anyChanged = true
-			continue
-		}
-		schemaJSON := toolSchemaJSON(info)
-		if c.HasChanged(info.Name, schemaJSON) {
-			anyChanged = true
-		}
-		c.UpdateHash(info.Name, schemaJSON)
-	}
-	return anyChanged
-}
-
-// toolSchemaJSON serializes a ToolInfo's parameter schema to JSON.
-// Returns empty string if the tool has no parameters.
-func toolSchemaJSON(info *schema.ToolInfo) string {
-	if info == nil {
-		return ""
-	}
-	payload := map[string]any{
-		"name": info.Name,
-		"desc": info.Desc,
-	}
-	if info.ParamsOneOf != nil {
-		schema, err := info.ToJSONSchema()
-		if err != nil {
-			return info.Name + ":" + info.Desc
-		}
-		payload["params"] = schema
-	}
-	data, err := json.Marshal(payload)
-	if err != nil {
-		return info.Name + ":" + info.Desc
-	}
-	return string(data)
-}
-
 func BuildCatalogSpecs(
 	ctx context.Context,
 	cfg *config.Config,
@@ -513,6 +428,10 @@ func RuntimeToolSpec(
 		return localSpec, nil
 	}
 
+	if contract, ok := tooling.BuiltinToolSpec(name, source, profiles); ok {
+		return tooling.ToolSpec{ToolContract: contract, Tool: tool}, nil
+	}
+
 	spec := tooling.ToolSpec{
 		ToolContract: tooling.ToolContract{
 			Name:          name,
@@ -530,57 +449,21 @@ func RuntimeToolSpec(
 		Tool: tool,
 	}
 
-	switch name {
-	case "delegate_task":
-		spec.Kind = tooling.ToolKindSkill
-		spec.Category = tooling.ToolCategorySkill
-		spec.ResourceScope = tooling.ResourceScopeSkill
-		spec.Execution.ParallelPolicy = tooling.ParallelPolicyNeverParallel
-		spec.PlanPolicy = tooling.PlanPolicyRequireActivePlan
-	case "load_tools":
-		spec.Kind = tooling.ToolKindNative
+	switch kind {
+	case tooling.ToolKindMCP, tooling.ToolKindMCPResource, tooling.ToolKindMCPPrompt:
+		spec.Kind = kind
+		spec.Category = tooling.ToolCategoryIntegration
+		spec.ResourceScope = tooling.ResourceScopeMCP
+		spec.Execution.ParallelPolicy = tooling.ParallelPolicyReadOnly
+		spec.Execution.PathArg = "path"
+		if kind == tooling.ToolKindMCPResource || kind == tooling.ToolKindMCPPrompt {
+			spec.Loading = tooling.DeferredLoadingPolicy("deferred_mcp_catalog")
+		}
+	default:
 		spec.Category = tooling.ToolCategoryInspect
 		spec.ResourceScope = tooling.ResourceScopeWorkspaceFile
-		spec.Execution.ParallelPolicy = tooling.ParallelPolicyNeverParallel
-	case "update_working_checkpoint", "clear_working_checkpoint":
-		spec.Kind = tooling.ToolKindMemory
-		spec.Category = tooling.ToolCategoryMemory
-		spec.ResourceScope = tooling.ResourceScopeMemory
-		spec.Loading = tooling.DeferredLoadingPolicy("working_state_tool")
-		spec.Execution.ParallelPolicy = tooling.ParallelPolicyNeverParallel
-	case "memory_search", "memory_read_file", "memory_list_files":
-		spec.Kind = tooling.ToolKindMemory
-		spec.Category = tooling.ToolCategoryMemory
-		spec.ResourceScope = tooling.ResourceScopeMemory
 		spec.Execution.ParallelPolicy = tooling.ParallelPolicyReadOnly
-	case "memory_create_file", "memory_replace_span":
-		spec.Kind = tooling.ToolKindMemory
-		spec.Category = tooling.ToolCategoryMemory
-		spec.ResourceScope = tooling.ResourceScopeMemory
-		spec.Execution.ParallelPolicy = tooling.ParallelPolicyWriteScoped
 		spec.Execution.PathArg = "path"
-	case "skill_list", "skill_view":
-		spec.Kind = tooling.ToolKindSkill
-		spec.Category = tooling.ToolCategorySkill
-		spec.ResourceScope = tooling.ResourceScopeSkill
-		spec.Execution.ParallelPolicy = tooling.ParallelPolicyReadOnly
-	default:
-		switch kind {
-		case tooling.ToolKindMCP, tooling.ToolKindMCPResource, tooling.ToolKindMCPPrompt:
-			spec.Kind = kind
-			spec.Category = tooling.ToolCategoryIntegration
-			spec.ResourceScope = tooling.ResourceScopeMCP
-			spec.Execution.ParallelPolicy = tooling.ParallelPolicyReadOnly
-			spec.Execution.PathArg = "path"
-			if kind == tooling.ToolKindMCPResource || kind == tooling.ToolKindMCPPrompt {
-				spec.Loading = tooling.DeferredLoadingPolicy("deferred_mcp_catalog")
-			}
-		default:
-			spec.Category = tooling.ToolCategoryInspect
-			spec.ResourceScope = tooling.ResourceScopeWorkspaceFile
-			spec.Execution.ParallelPolicy = tooling.ParallelPolicyReadOnly
-			spec.Execution.PathArg = "path"
-		}
 	}
 	return spec, nil
 }

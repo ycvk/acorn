@@ -15,6 +15,8 @@ import 'thread_titles.dart';
 
 const _approvalsTabIndex = 1;
 
+enum _ThreadAction { rename, delete }
+
 class ThreadsScreen extends ConsumerWidget {
   const ThreadsScreen({super.key});
 
@@ -162,6 +164,7 @@ class ThreadsScreen extends ConsumerWidget {
                       selected: activeThreadId == thread.id,
                       busy: busy,
                       onTap: () => _openThread(context, ref, thread),
+                      onRename: () => _renameThread(context, ref, thread),
                       onDelete: () =>
                           _confirmDeleteThread(context, ref, thread),
                     );
@@ -221,6 +224,45 @@ class ThreadsScreen extends ConsumerWidget {
         builder: (_) => RunDetailScreen(runId: run.runId),
       ),
     );
+  }
+
+  Future<void> _renameThread(
+    BuildContext context,
+    WidgetRef ref,
+    Thread thread,
+  ) async {
+    final editing = TextEditingController(text: thread.title);
+    final newTitle = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        icon: const Icon(Icons.drive_file_rename_outline),
+        title: const Text('Rename thread'),
+        content: TextField(
+          controller: editing,
+          autofocus: true,
+          textCapitalization: TextCapitalization.sentences,
+          decoration: const InputDecoration(labelText: 'Thread title'),
+          onSubmitted: (value) =>
+              Navigator.of(dialogContext).pop(value.trim()),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () =>
+                Navigator.of(dialogContext).pop(editing.text.trim()),
+            child: const Text('Rename'),
+          ),
+        ],
+      ),
+    );
+    editing.dispose();
+    if (newTitle == null || newTitle.isEmpty || !context.mounted) {
+      return;
+    }
+    await ref.read(threadsControllerProvider).renameThread(thread, newTitle);
   }
 
   Future<void> _confirmDeleteThread(
@@ -668,6 +710,7 @@ class _ThreadCard extends StatelessWidget {
     required this.selected,
     required this.busy,
     required this.onTap,
+    required this.onRename,
     required this.onDelete,
   });
 
@@ -675,6 +718,7 @@ class _ThreadCard extends StatelessWidget {
   final bool selected;
   final bool busy;
   final VoidCallback onTap;
+  final VoidCallback onRename;
   final VoidCallback onDelete;
 
   @override
@@ -705,6 +749,7 @@ class _ThreadCard extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
+          onLongPress: busy ? null : onRename,
           child: Padding(
             padding: const EdgeInsets.fromLTRB(14, 14, 10, 12),
             child: Row(
@@ -746,10 +791,36 @@ class _ThreadCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 8),
-                IconButton(
-                  tooltip: 'Delete thread',
-                  icon: const Icon(Icons.delete_outline),
-                  onPressed: busy ? null : onDelete,
+                PopupMenuButton<_ThreadAction>(
+                  tooltip: 'Thread actions',
+                  enabled: !busy,
+                  icon: const Icon(Icons.more_vert),
+                  onSelected: (action) {
+                    switch (action) {
+                      case _ThreadAction.rename:
+                        onRename();
+                      case _ThreadAction.delete:
+                        onDelete();
+                    }
+                  },
+                  itemBuilder: (context) => const [
+                    PopupMenuItem<_ThreadAction>(
+                      value: _ThreadAction.rename,
+                      child: ListTile(
+                        leading: Icon(Icons.drive_file_rename_outline),
+                        title: Text('Rename'),
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                    ),
+                    PopupMenuItem<_ThreadAction>(
+                      value: _ThreadAction.delete,
+                      child: ListTile(
+                        leading: Icon(Icons.delete_outline),
+                        title: Text('Delete'),
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                    ),
+                  ],
                 ),
                 Icon(
                   selected ? Icons.check_circle_rounded : Icons.chevron_right,

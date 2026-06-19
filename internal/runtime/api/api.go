@@ -30,6 +30,7 @@ type ExecuteRequest struct {
 	SessionID         string
 	TurnIndex         int
 	Input             string
+	BoundMessageID    int64
 	SkillID           string
 	AllowedToolNames  []string
 	Messages          []adk.Message

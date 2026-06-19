@@ -40,10 +40,8 @@ func runSummaryDTOsFromDomain(items []app.RunSummary) []RunSummaryDTO {
 type CreateRunRequest struct {
 	SkillID string `json:"skill_id,omitempty"`
 	Mode    string `json:"mode,omitempty"`
+	Input   string `json:"input,omitempty"`
 }
-
-// ResumeRunRequest is the body for resuming an interrupted run.
-type ResumeRunRequest struct{}
 
 // RunDTO represents a client-visible run summary.
 type RunDTO struct {

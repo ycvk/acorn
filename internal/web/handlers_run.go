@@ -12,7 +12,7 @@ func (s *Server) handleClientCreateRun(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	item, err := s.client.CreateRun(r.Context(), chi.URLParam(r, "thread_id"), req.SkillID, req.Mode)
+	item, err := s.client.CreateRun(r.Context(), chi.URLParam(r, "thread_id"), req.SkillID, req.Mode, req.Input)
 	if err != nil {
 		s.respondClientKnownError(w, r, err)
 		return
@@ -43,10 +43,6 @@ func (s *Server) handleClientInterruptRun(w http.ResponseWriter, r *http.Request
 
 func (s *Server) handleClientResumeRun(w http.ResponseWriter, r *http.Request) {
 	runID := chi.URLParam(r, "run_id")
-	_, ok := s.decodeResumeRunRequest(w, r)
-	if !ok {
-		return
-	}
 	result, err := s.runResume.Resume(r.Context(), runID)
 	if err != nil {
 		s.respondClientKnownError(w, r, err)

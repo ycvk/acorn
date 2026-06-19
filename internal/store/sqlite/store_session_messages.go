@@ -193,6 +193,31 @@ func (s *Store) BindLatestUserMessageRunID(ctx context.Context, sessionID string
 	return nil
 }
 
+// BindUserMessageRunIDByID binds a run to an exact user message id. The
+// WHERE run_id = ” guard makes it race-free: a concurrent create that already
+// bound this message yields RowsAffected = 0 and an error (so the caller rolls
+// the run back) instead of silently mis-binding.
+func (s *Store) BindUserMessageRunIDByID(ctx context.Context, messageID int64, runID string) error {
+	result, err := s.db.ExecContext(ctx,
+		`UPDATE session_messages
+		 SET run_id = ?
+		 WHERE id = ? AND role = 'user' AND run_id = ''`,
+		runID,
+		messageID,
+	)
+	if err != nil {
+		return fmt.Errorf("bind user message run id by id: %w", err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("bind user message run id by id rows affected: %w", err)
+	}
+	if affected == 0 {
+		return fmt.Errorf("user session message %d not found or already bound", messageID)
+	}
+	return nil
+}
+
 func encodeSessionMessageParts(parts []SessionMessagePart) (json.RawMessage, error) {
 	if len(parts) == 0 {
 		return nil, nil

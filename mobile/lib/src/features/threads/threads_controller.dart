@@ -72,6 +72,33 @@ class ThreadsController extends ChangeNotifier {
     }
   }
 
+  Future<void> renameThread(Thread thread, String title) async {
+    final trimmed = title.trim();
+    if (trimmed.isEmpty || trimmed == thread.title) {
+      return;
+    }
+    loading = true;
+    errorMessage = null;
+    notifyListeners();
+    try {
+      final updated = await _connectionController.api.updateThread(
+        thread.id,
+        title: trimmed,
+      );
+      threads = threads
+          .map((candidate) => candidate.id == updated.id ? updated : candidate)
+          .toList(growable: false);
+      if (activeThread?.id == updated.id) {
+        activeThread = updated;
+      }
+    } catch (error) {
+      errorMessage = acornUserFacingErrorText(error);
+    } finally {
+      loading = false;
+      notifyListeners();
+    }
+  }
+
   Future<void> deleteThread(Thread thread) async {
     loading = true;
     errorMessage = null;

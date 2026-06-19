@@ -1256,7 +1256,7 @@ func (s *clientHandlerStub) CreateMessage(_ context.Context, threadID, content s
 	return &s.message, nil
 }
 
-func (s *clientHandlerStub) CreateRun(_ context.Context, threadID, skillID, mode string) (*app.Run, error) {
+func (s *clientHandlerStub) CreateRun(_ context.Context, threadID, skillID, mode, _ string) (*app.Run, error) {
 	if s.err != nil {
 		return nil, s.err
 	}

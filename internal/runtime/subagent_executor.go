@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/cloudwego/eino/schema"
@@ -19,6 +18,14 @@ import (
 	"github.com/ycvk/acorn/internal/workspace"
 )
 
+// defaultMaxSubagentDepth caps plan_execute -> subagent recursion (root = 0)
+// when agent.max_subagent_depth is unset. Without a cap a delegating subagent
+// that itself delegates can recurse without bound and create worktrees until the
+// disk fills. The limit is configurable via agent.max_subagent_depth; exceeding
+// it fails loud and the error surfaces to the model as a failed tool result /
+// plan evidence.
+const defaultMaxSubagentDepth = 3
+
 type SubagentExecutor struct {
 	cfg                  *config.Config
 	store                ExecutorStore
@@ -27,9 +34,6 @@ type SubagentExecutor struct {
 	parentDepth          func(parentRunID string) int
 	createChildWorkspace func(context.Context, string) (*workspace.Workspace, error)
 	runtimeForWorkspace  func(*workspace.Workspace) RunRuntime
-
-	depthMu sync.Mutex
-	depths  map[string]int
 }
 
 type SubagentExecutorOptions struct {
@@ -73,7 +77,6 @@ func NewSubagentExecutor(opts SubagentExecutorOptions) (*SubagentExecutor, error
 		parentDepth:          opts.ParentDepth,
 		createChildWorkspace: opts.CreateChildWorkspace,
 		runtimeForWorkspace:  opts.RuntimeForWorkspace,
-		depths:               make(map[string]int),
 	}, nil
 }
 
@@ -91,28 +94,22 @@ func NewSubagentExecutorFactory(cfg *config.Config, store ExecutorStore, ctrl *R
 	}
 }
 
+// currentDepth returns the execution-tree depth of the parent run, sourced
+// from the runtime Registry via the injected resolver.
 func (se *SubagentExecutor) currentDepth(parentRunID string) int {
-	if se != nil && se.parentDepth != nil {
-		return se.parentDepth(parentRunID)
+	if se == nil || se.parentDepth == nil {
+		return 0
 	}
-	se.depthMu.Lock()
-	defer se.depthMu.Unlock()
-	return se.depths[parentRunID]
+	return se.parentDepth(parentRunID)
 }
 
-func (se *SubagentExecutor) incrementDepth(parentRunID string) int {
-	se.depthMu.Lock()
-	defer se.depthMu.Unlock()
-	se.depths[parentRunID]++
-	return se.depths[parentRunID]
-}
-
-func (se *SubagentExecutor) decrementDepth(parentRunID string) {
-	se.depthMu.Lock()
-	defer se.depthMu.Unlock()
-	if se.depths[parentRunID] > 0 {
-		se.depths[parentRunID]--
+// maxSubagentDepth returns the configured recursion cap, falling back to the
+// default when agent.max_subagent_depth is unset (<= 0).
+func (se *SubagentExecutor) maxSubagentDepth() int {
+	if se != nil && se.cfg != nil && se.cfg.Agent.MaxSubagentDepth > 0 {
+		return se.cfg.Agent.MaxSubagentDepth
 	}
+	return defaultMaxSubagentDepth
 }
 
 func (se *SubagentExecutor) Execute(ctx context.Context, req orchestration.ChildAgentRequest) (*orchestration.ChildAgentResult, error) {
@@ -126,8 +123,10 @@ func (se *SubagentExecutor) Execute(ctx context.Context, req orchestration.Child
 		return nil, errors.New("parent run ID is required for subagent execution")
 	}
 
-	newDepth := se.incrementDepth(parentRunID)
-	defer se.decrementDepth(parentRunID)
+	newDepth := se.currentDepth(parentRunID) + 1
+	if limit := se.maxSubagentDepth(); newDepth > limit {
+		return nil, fmt.Errorf("subagent recursion depth %d exceeds configured limit %d (agent.max_subagent_depth) for parent run %s; raise the limit if deeper delegation is intended", newDepth, limit, parentRunID)
+	}
 
 	if se.store == nil {
 		return nil, errors.New("subagent executor store is not initialized")
@@ -213,7 +212,7 @@ func (se *SubagentExecutor) Execute(ctx context.Context, req orchestration.Child
 		AllowedToolNames:  req.AllowedToolNames,
 		OrchestrationMode: requestedMode,
 		ParentRunID:       parentRunID,
-		Depth:             se.currentDepth(parentRunID) + 1,
+		Depth:             newDepth,
 	}, nil)
 	if err != nil {
 		if emitErr := se.emitFailed(ctx, parentRunID, subRunID, childSessionID, req.ParentStepID, childRunMode, workspaceMode, worktreePath, requestedMode, err.Error(), sink); emitErr != nil {

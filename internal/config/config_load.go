@@ -2,6 +2,7 @@ package config
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -30,7 +31,15 @@ func Load(path string) (*Config, error) {
 	decoder := yaml.NewDecoder(bytes.NewReader(raw))
 	decoder.KnownFields(true)
 	if err := decoder.Decode(cfg); err != nil {
-		return nil, fmt.Errorf("parse config: %w", err)
+		// KnownFields(true) reports unknown/misspelled keys as a *yaml.TypeError
+		// whose Errors carry "line N: field X not found in type ...". Surface
+		// those (with the file path) instead of a single opaque wrapped error so
+		// a typo points straight at the offending field and line.
+		var typeErr *yaml.TypeError
+		if errors.As(err, &typeErr) && len(typeErr.Errors) > 0 {
+			return nil, fmt.Errorf("parse config %s: %s", absPath, strings.Join(typeErr.Errors, "; "))
+		}
+		return nil, fmt.Errorf("parse config %s: %w", absPath, err)
 	}
 
 	expandConfigEnv(cfg)

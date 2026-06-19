@@ -34,21 +34,19 @@ type defaultOrchestrationPlaneDeps struct {
 }
 
 func newDefaultOrchestrationPlane(deps defaultOrchestrationPlaneDeps) *orchestration.DefaultPlane {
-	toolSchemaCache := tool.NewToolSchemaCache()
 	return orchestration.NewDefaultPlane(orchestration.DefaultPlaneOptions{
-		SystemPrompt:             deps.cfg.Agent.SystemPrompt,
-		MaxIterations:            deps.cfg.Agent.MaxIterations,
-		CheckpointStore:          deps.store,
-		PlanStore:                plan.NewPlanStore(deps.store),
-		ToolBuilder:              deps.buildAuditedTools,
-		ToolNodeFactory:          deps.buildToolNode,
-		GraphBuilder:             BuildRuntimeAgentGraph,
-		PlanExecuteGraphBuilder:  BuildRuntimePlanExecuteGraph,
-		HandlersBuilder:          deps.buildHandlers,
-		InstructionBuilder:       buildStableInstruction,
-		ToolSchemaChangeDetector: toolSchemaCache.AnyChanged,
-		ToolLifecycleBinder:      deps.bindToolLifecycle,
-		SessionContextBinder:     bindSessionID,
+		SystemPrompt:            deps.cfg.Agent.SystemPrompt,
+		MaxIterations:           deps.cfg.Agent.MaxIterations,
+		CheckpointStore:         deps.store,
+		PlanStore:               plan.NewPlanStore(deps.store),
+		ToolBuilder:             deps.buildAuditedTools,
+		ToolNodeFactory:         deps.buildToolNode,
+		GraphBuilder:            BuildRuntimeAgentGraph,
+		PlanExecuteGraphBuilder: BuildRuntimePlanExecuteGraph,
+		HandlersBuilder:         deps.buildHandlers,
+		InstructionBuilder:      buildStableInstruction,
+		ToolLifecycleBinder:     deps.bindToolLifecycle,
+		SessionContextBinder:    bindSessionID,
 	})
 }
 

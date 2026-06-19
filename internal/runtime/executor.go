@@ -178,9 +178,6 @@ func (e *Executor) consume(ctx context.Context, runID, input string, iter *adk.A
 	if err != nil {
 		return nil, err
 	}
-	if rc, ok := e.runRuntime.Registry().Get(runID); ok {
-		rc.SetFinalizing()
-	}
 	return e.finishCollectedRun(ctx, runID, input, state, selectedSkill, sink)
 }
 
@@ -263,6 +260,7 @@ func (e *Executor) ExecuteMessages(ctx context.Context, req runtimeapi.ExecuteRe
 		SessionID:         req.SessionID,
 		TurnIndex:         req.TurnIndex,
 		Input:             req.Input,
+		BoundMessageID:    req.BoundMessageID,
 		CheckpointID:      runID,
 		OrchestrationMode: mode,
 		ParentRunID:       req.ParentRunID,

@@ -354,6 +354,37 @@ void main() {
     expect(item.relations.single.type, 'derived_from');
   });
 
+  test('updateThread patches the thread title and parses the result', () async {
+    final client = AcornApiClient(
+      serverUrl: 'http://acorn.local',
+      accessToken: 'device_token',
+      httpClient: MockClient((request) async {
+        expect(request.method, 'PATCH');
+        expect(
+          request.url.toString(),
+          'http://acorn.local/v1/threads/thread_1',
+        );
+        expect(request.headers['Authorization'], 'Bearer device_token');
+        expect(jsonDecode(request.body), {'title': 'Renamed thread'});
+        return http.Response(
+          jsonEncode({
+            'id': 'thread_1',
+            'title': 'Renamed thread',
+            'workspace_root': '/repo',
+            'created_at': '2026-05-20T00:00:00Z',
+            'updated_at': '2026-05-20T00:01:00Z',
+            'state': 'active',
+          }),
+          200,
+        );
+      }),
+    );
+
+    final thread = await client.updateThread('thread_1', title: ' Renamed thread ');
+    expect(thread.id, 'thread_1');
+    expect(thread.title, 'Renamed thread');
+  });
+
   test('deleteThread sends authenticated delete request', () async {
     final client = AcornApiClient(
       serverUrl: 'http://acorn.local',

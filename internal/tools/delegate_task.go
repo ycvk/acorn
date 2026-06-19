@@ -33,7 +33,7 @@ func NewDelegateTool(exec orchestration.ChildAgentExecutor, bridge DelegateTaskC
 	if exec == nil {
 		return nil, errors.New("delegate_task requires child executor")
 	}
-	return toolutils.InferTool("delegate_task", "Delegate a subtask to a subagent for parallel or nested execution.", func(ctx context.Context, input DelegateTaskInput) (string, error) {
+	return toolutils.InferTool("delegate_task", "Delegate a subtask to a subagent for parallel or nested execution (nesting depth is bounded by agent.max_subagent_depth, default 3).", func(ctx context.Context, input DelegateTaskInput) (string, error) {
 		spec := normalizedDelegationSpec(input)
 		if strings.TrimSpace(spec.Task) == "" {
 			return "", errors.New("task is required")
