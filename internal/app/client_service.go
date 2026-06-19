@@ -99,28 +99,27 @@ func (s *ClientService) CreateRun(ctx context.Context, threadID, skillID, mode, 
 	if _, err := s.store.LoadSession(ctx, threadID); err != nil {
 		return nil, err
 	}
-	// Single-step create: when the run carries its own input, record it as the
-	// pending user message first, so clients no longer need a separate
-	// POST /messages call. An empty input keeps the two-step flow intact (the
-	// caller posted the message beforehand).
-	//
-	// Both flows bind via the latest-unbound-message selector (a pre-existing
-	// mechanism). On the single-owner / single-connection deployment this is
-	// safe. Truly concurrent CreateRun on one thread is a pre-existing race whose
-	// worst case is a RowsAffected=0 bind failure (the run is rolled back, not
-	// silently mis-bound); full atomicity would require binding by message id in a
-	// store transaction spanning CreateRun + executor.
+	// Resolve the user message this run binds to, then bind by its exact id (see
+	// req.BoundMessageID below). Single-step (input set) records a fresh message
+	// and binds that id — race-free, no separate POST /messages needed. The
+	// two-step flow (empty input, message posted via POST /messages) reads the
+	// latest unbound message and binds by its id; concurrent two-step creates on
+	// one thread bind the same id and the second fails loud (RowsAffected=0 -> run
+	// rolled back), never silently mis-binding.
+	var message *events.SessionMessageRecord
 	if strings.TrimSpace(input) != "" {
-		if _, err := s.CreateMessage(ctx, threadID, input); err != nil {
+		message, err = s.createUserMessage(ctx, threadID, input)
+		if err != nil {
 			return nil, err
 		}
-	}
-	message, err := s.store.LoadLatestUnboundUserMessage(ctx, threadID)
-	if err != nil {
-		if errors.Is(err, store.ErrSessionMessageNotFound) {
-			return nil, fmt.Errorf("%w: thread %s", ErrClientNoPendingMessage, threadID)
+	} else {
+		message, err = s.store.LoadLatestUnboundUserMessage(ctx, threadID)
+		if err != nil {
+			if errors.Is(err, store.ErrSessionMessageNotFound) {
+				return nil, fmt.Errorf("%w: thread %s", ErrClientNoPendingMessage, threadID)
+			}
+			return nil, err
 		}
-		return nil, err
 	}
 	history, err := s.store.ListSessionMessages(ctx, threadID, chatHistoryLimit)
 	if err != nil {
@@ -140,6 +139,7 @@ func (s *ClientService) CreateRun(ctx context.Context, threadID, skillID, mode, 
 		SessionID:         threadID,
 		TurnIndex:         message.TurnIndex,
 		Input:             message.Content,
+		BoundMessageID:    message.ID,
 		SkillID:           skillID,
 		Messages:          buildChatMessages(history),
 		OrchestrationMode: orchestrationMode,

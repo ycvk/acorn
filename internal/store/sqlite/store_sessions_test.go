@@ -12,6 +12,60 @@ import (
 	storecore "github.com/ycvk/acorn/internal/store"
 )
 
+func TestBindUserMessageRunIDByID(t *testing.T) {
+	dir := t.TempDir()
+	store, err := Open(filepath.Join(dir, "state"))
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	ctx := context.Background()
+
+	if _, err := store.CreateSession(ctx, "sess_bind", "t"); err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	// Two unbound user messages on the same thread — the concurrency hazard that
+	// the latest-unbound selector would mis-bind.
+	m1, err := store.AppendSessionMessage("sess_bind", 1, "user", "first", "")
+	if err != nil {
+		t.Fatalf("append m1: %v", err)
+	}
+	m2, err := store.AppendSessionMessage("sess_bind", 2, "user", "second", "")
+	if err != nil {
+		t.Fatalf("append m2: %v", err)
+	}
+
+	// Binding by exact id binds that message, not the latest.
+	if err := store.BindUserMessageRunIDByID(ctx, m1.ID, "run_a"); err != nil {
+		t.Fatalf("bind m1: %v", err)
+	}
+	// m1 is bound; the latest unbound is still m2 (m1 was not skipped for latest,
+	// and m2 was untouched).
+	latest, err := store.LoadLatestUnboundUserMessage(ctx, "sess_bind")
+	if err != nil {
+		t.Fatalf("load latest unbound: %v", err)
+	}
+	if latest.ID != m2.ID {
+		t.Fatalf("latest unbound id = %d, want m2 %d", latest.ID, m2.ID)
+	}
+
+	if err := store.BindUserMessageRunIDByID(ctx, m2.ID, "run_b"); err != nil {
+		t.Fatalf("bind m2: %v", err)
+	}
+	if _, err := store.LoadLatestUnboundUserMessage(ctx, "sess_bind"); !errors.Is(err, storecore.ErrSessionMessageNotFound) {
+		t.Fatalf("after binding both, want ErrSessionMessageNotFound, got %v", err)
+	}
+
+	// Re-binding an already-bound message fails loud (RowsAffected = 0), so a
+	// concurrent create cannot silently steal an already-bound message.
+	if err := store.BindUserMessageRunIDByID(ctx, m1.ID, "run_c"); err == nil {
+		t.Fatal("re-binding an already-bound message should fail")
+	}
+	if err := store.BindUserMessageRunIDByID(ctx, 999999, "run_x"); err == nil {
+		t.Fatal("binding a nonexistent message should fail")
+	}
+}
+
 func TestSessionQueries(t *testing.T) {
 	dir := t.TempDir()
 	store, err := Open(filepath.Join(dir, "state"))
