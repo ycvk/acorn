@@ -982,8 +982,3 @@ func snapshotScript(limit int) string {
   return out;
 })()`, limit)
 }
-
-func ValidURL(rawURL string) bool {
-	parsed, err := url.Parse(strings.TrimSpace(rawURL))
-	return err == nil && parsed.Scheme != "" && parsed.Host != ""
-}
