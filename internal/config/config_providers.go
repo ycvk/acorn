@@ -33,7 +33,7 @@ func (c *Config) validateProviders() error {
 			return fmt.Errorf("provider %s: base_url is required", name)
 		}
 		if strings.TrimSpace(p.APIKey) == "" {
-			return fmt.Errorf("provider %s: api_key is required", name)
+			return fmt.Errorf("provider %s: api_key is required — set it in the config or export the env var it references (the example config uses ${OPENAI_API_KEY}; self-hosted reads it from ~/.acorn/acorn.env)", name)
 		}
 		if p.TimeoutSeconds <= 0 {
 			return fmt.Errorf("provider %s: timeout_seconds must be > 0", name)

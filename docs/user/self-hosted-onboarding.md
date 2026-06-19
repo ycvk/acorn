@@ -130,19 +130,27 @@ Check process health:
 curl http://127.0.0.1:8080/healthz
 ```
 
-Check runtime readiness:
+Check runtime readiness (static config validation — `acorn doctor` never calls the model):
 
 ```bash
 acorn doctor
 ```
 
-Semantic memory retrieval is optional. When embedding is configured (the installer sets it up when `OPENAI_API_KEY` is supplied at install time), the semantic index powers memory recall; if you installed without starting the service, or if you later modify memory records directly, rebuild the index explicitly:
+Prove a task actually executes end-to-end with a real model call:
+
+```bash
+acorn smoke "hello, are you working?"
+```
+
+`acorn smoke` exits non-zero on any non-succeeded status, so it catches a wrong `api_key` or unreachable `base_url` that static validation cannot. (Building from source without the installer? Run `acorn init` first to scaffold `~/.acorn/acorn.yaml`.)
+
+Semantic memory retrieval is OFF by default — backend runs proceed with no memory recall. To enable it, uncomment `memory.semantic.embedding.model` and `base_url` in `~/.acorn/acorn.yaml` (the embedding `api_key` is then required), restart the service, and build the index:
 
 ```bash
 acorn memory semantic rebuild --json
 ```
 
-If embedding is not configured at all, backend runs still proceed — they simply run with no memory recall (semantic retrieval stays off until you configure `memory.semantic`). Explicit memory search commands fail loud until then.
+Explicit memory search commands (`acorn memory`, `/v1/memory/search`) fail loud until semantic is configured.
 
 Bleve+FAISS is a rebuildable retrieval index. SQLite still owns runtime persisted truth, and file-backed `facts/`, `skills/`, and `history/` remain durable memory truth.
 

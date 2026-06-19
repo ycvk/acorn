@@ -982,6 +982,11 @@ func clientRuntimeTestConfig(t *testing.T, baseURL string) *config.Config {
 	cfg.Providers[0].APIKey = "test-key"
 	cfg.Providers[0].MaxCompletionTokens = 32
 	cfg.Providers[0].TimeoutSeconds = 5
+	// Semantic is OFF by default now (no embedding model/base_url defaults); this
+	// test wires a semantic runtime, so set them explicitly.
+	cfg.Memory.Semantic.Embedding.Model = "text-embedding-test"
+	cfg.Memory.Semantic.Embedding.BaseURL = baseURL
+	cfg.Memory.Semantic.Embedding.APIKey = "test-key"
 	cfg.Runtime.StorageDir = filepath.Join(root, "state")
 	cfg.Runtime.RunTimeoutSeconds = 5
 	cfg.Tools.Workspace.RootDir = root

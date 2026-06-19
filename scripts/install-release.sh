@@ -271,8 +271,9 @@ memory:
       index_name: memory_records
     embedding:
       provider: openai_compatible
-      model: text-embedding-3-small
-      base_url: https://api.openai.com/v1
+      # Semantic recall is OFF by default; uncomment model + base_url to enable it.
+      # model: text-embedding-3-small
+      # base_url: https://api.openai.com/v1
       api_key: ${OPENAI_API_KEY}
       dimensions: 1536
       timeout_seconds: 30
@@ -470,7 +471,7 @@ exec "\$bin" "\$@"' sh "\$env_path" "\$bin" "\$@"
 
 if [ "\$#" -gt 0 ]; then
 	case "\$1" in
-		decision|doctor|memory|pair|skills)
+		decision|doctor|memory|pair|skills|smoke)
 			command_name=\$1
 			shift
 			if ! has_config_flag "\$@"; then
@@ -514,16 +515,19 @@ if [ "$start_service" != "1" ]; then
 	log "Installed Acorn without starting service because ACORN_START_SERVICE=$start_service"
 	log "Config: $config_path"
 	log "Env:    $env_path"
-	log "Before starting the service, rebuild the initial semantic index:"
-	log "  acorn memory semantic rebuild --json"
+	log "Verify, then start the service:"
+	log "  acorn doctor"
+	log '  acorn smoke "hello"'
+	log "  sudo systemctl enable --now acorn"
 	exit 0
 fi
 
 if [ -z "${OPENAI_API_KEY:-}" ]; then
 	log "Installed Acorn but did not start the service because OPENAI_API_KEY was not provided."
-	log "Edit the env file, rebuild the initial semantic index, then start the service:"
+	log "Set the key, verify, then start the service:"
 	log "  sudoedit $env_path"
-	log "  acorn memory semantic rebuild --json"
+	log "  acorn doctor"
+	log '  acorn smoke "hello"'
 	log "  sudo systemctl enable --now acorn"
 	exit 0
 fi
