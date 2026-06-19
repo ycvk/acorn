@@ -193,13 +193,6 @@ func (s *SkillService) ReadFile(ctx context.Context, id, relativePath string) (*
 	return &SkillFileView{SkillID: strings.TrimSpace(id), Path: path, Content: content}, nil
 }
 
-func (s *SkillService) WriteFile(ctx context.Context, id, relativePath, content string) error {
-	if s == nil || s.scanner == nil {
-		return errors.New("stable skill scanner is nil")
-	}
-	return translateSkillStoreError(s.scanner.WriteSkillFile(ctx, id, relativePath, content))
-}
-
 func translateSkillStoreError(err error) error {
 	switch {
 	case err == nil:

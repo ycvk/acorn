@@ -10,10 +10,6 @@ import (
 	"github.com/ycvk/acorn/internal/tooling"
 )
 
-type PlanningPromptProvider interface {
-	BuildPlanningPromptSection(enabledToolNames []string) (string, error)
-}
-
 type DirectResponseRequest struct {
 	AgentName         string
 	AgentDescription  string
@@ -64,33 +60,31 @@ type AssistantStreamer interface {
 }
 
 type SingleAgentRequest struct {
-	AgentName              string
-	AgentDescription       string
-	SessionID              string
-	RunID                  string
-	ChatModel              einomodel.BaseChatModel
-	AssistantStreamer      AssistantStreamer
-	Catalog                *tooling.Catalog
-	ContextResult          AssembleResultView
-	AllowedToolNames       []string
-	ExcludedToolNames      []string
-	InstructionSuffix      string
-	PlanningPromptProvider PlanningPromptProvider
+	AgentName         string
+	AgentDescription  string
+	SessionID         string
+	RunID             string
+	ChatModel         einomodel.BaseChatModel
+	AssistantStreamer AssistantStreamer
+	Catalog           *tooling.Catalog
+	ContextResult     AssembleResultView
+	AllowedToolNames  []string
+	ExcludedToolNames []string
+	InstructionSuffix string
 }
 
 type PlanExecuteRequest struct {
-	AgentName              string
-	AgentDescription       string
-	SessionID              string
-	RunID                  string
-	ChatModel              einomodel.BaseChatModel
-	Catalog                *tooling.Catalog
-	ContextResult          AssembleResultView
-	AllowedToolNames       []string
-	ExcludedToolNames      []string
-	InstructionSuffix      string
-	PlanningPromptProvider PlanningPromptProvider
-	ChildExecutor          ChildAgentExecutor
+	AgentName         string
+	AgentDescription  string
+	SessionID         string
+	RunID             string
+	ChatModel         einomodel.BaseChatModel
+	Catalog           *tooling.Catalog
+	ContextResult     AssembleResultView
+	AllowedToolNames  []string
+	ExcludedToolNames []string
+	InstructionSuffix string
+	ChildExecutor     ChildAgentExecutor
 }
 
 type RunAssembly struct {

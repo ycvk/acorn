@@ -76,7 +76,7 @@ func (d defaultOrchestrationPlaneDeps) buildToolNode(
 }
 
 func BuildRuntimeAgentGraph(ctx context.Context, req orchestration.GraphBuildRequest) (adk.Agent, error) {
-	typedPlanStore, typedPromptProvider, err := runtimeGraphDependencies(req.PlanStore, req.PlanningPromptProvider)
+	typedPlanStore, err := runtimeGraphDependencies(req.PlanStore)
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +91,6 @@ func BuildRuntimeAgentGraph(ctx context.Context, req orchestration.GraphBuildReq
 		req.Handlers,
 		typedPlanStore,
 		req.PlanPrompt,
-		typedPromptProvider,
 		req.EagerToolNames,
 		req.ToolSpecs,
 	)
@@ -112,7 +111,7 @@ func BuildRuntimeAgentGraph(ctx context.Context, req orchestration.GraphBuildReq
 }
 
 func BuildRuntimePlanExecuteGraph(ctx context.Context, req orchestration.PlanExecuteGraphBuildRequest) (adk.Agent, error) {
-	typedPlanStore, typedPromptProvider, err := runtimeGraphDependencies(req.PlanStore, req.PlanningPromptProvider)
+	typedPlanStore, err := runtimeGraphDependencies(req.PlanStore)
 	if err != nil {
 		return nil, err
 	}
@@ -125,7 +124,6 @@ func BuildRuntimePlanExecuteGraph(ctx context.Context, req orchestration.PlanExe
 		req.Handlers,
 		typedPlanStore,
 		req.PlanPrompt,
-		typedPromptProvider,
 		req.EagerToolNames,
 		req.ToolSpecs,
 		req.ChildExecutor,
@@ -146,19 +144,12 @@ func BuildRuntimePlanExecuteGraph(ctx context.Context, req orchestration.PlanExe
 	), nil
 }
 
-func runtimeGraphDependencies(
-	planStore orchestration.PlanStore,
-	promptProvider orchestration.PlanningPromptProvider,
-) (runtimeapi.PlanStore, plan.PlanningPromptProvider, error) {
+func runtimeGraphDependencies(planStore orchestration.PlanStore) (runtimeapi.PlanStore, error) {
 	typedPlanStore, ok := planStore.(runtimeapi.PlanStore)
 	if !ok {
-		return nil, nil, fmt.Errorf("orchestration plane requires runtime plan store")
+		return nil, fmt.Errorf("orchestration plane requires runtime plan store")
 	}
-	typedPromptProvider, ok := promptProvider.(plan.PlanningPromptProvider)
-	if promptProvider != nil && !ok {
-		return nil, nil, fmt.Errorf("orchestration plane requires runtime planning prompt provider")
-	}
-	return typedPlanStore, typedPromptProvider, nil
+	return typedPlanStore, nil
 }
 
 func (d defaultOrchestrationPlaneDeps) buildHandlers(

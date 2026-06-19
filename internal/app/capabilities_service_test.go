@@ -216,57 +216,6 @@ func TestCapabilitiesSnapshotExposesSkillLoadError(t *testing.T) {
 	}
 }
 
-func TestCapabilitiesSnapshotReadsLiveManager(t *testing.T) {
-	cfg := baseCapabilitiesConfig("test-key")
-	cfg.MCP.Providers = []config.MCPProviderConfig{
-		{
-			Name:                  "live-provider",
-			Enabled:               true,
-			Transport:             "stdio",
-			Command:               "/bin/live",
-			ToolNames:             []string{"configured_live"},
-			StartupTimeoutSeconds: 10,
-			ToolSafety:            "read_only",
-		},
-	}
-
-	probeCalls := 0
-	service := NewCapabilitiesService(cfg, fakeSkillSnapshotStore{}, func(ctx context.Context, providers []mcpprovider.ProviderConfig) []mcpprovider.ProviderStatus {
-		probeCalls++
-		return nil
-	}, nil)
-	service.SetLiveManager(&fakeLiveMCPManager{
-		statuses: []mcpprovider.ProviderStatus{{
-			Name:                "live-provider",
-			Configured:          true,
-			Enabled:             true,
-			Command:             "/bin/live",
-			StartupStatus:       "healthy",
-			DiscoveredToolNames: []string{"live_tool"},
-			ToolCount:           1,
-		}},
-	})
-
-	snapshot := service.Snapshot(context.Background(), CapabilitySnapshotOptions{})
-
-	if probeCalls != 0 {
-		t.Fatalf("expected live manager to bypass probe, got %d probe calls", probeCalls)
-	}
-	if got, want := snapshot.Summary.MCPHealthyProviderCount, 1; got != want {
-		t.Fatalf("healthy provider count = %d, want %d", got, want)
-	}
-	if !hasTool(snapshot.Tools, "live_tool") {
-		t.Fatal("expected live MCP tool to appear in tool catalog snapshot")
-	}
-	passed := providerReadinessByName(snapshot.ProviderReadiness, "live-provider")
-	if passed == nil {
-		t.Fatal("expected live provider readiness summary")
-	}
-	if got, want := passed.Status, ProviderReadinessPassed; got != want {
-		t.Fatalf("live provider readiness = %q, want %q", got, want)
-	}
-}
-
 func TestCapabilitiesSnapshotRuntimeReadinessBlocked(t *testing.T) {
 	service := NewCapabilitiesService(baseCapabilitiesConfig(""), fakeSkillSnapshotStore{}, nil, nil)
 
@@ -281,17 +230,6 @@ func TestCapabilitiesSnapshotRuntimeReadinessBlocked(t *testing.T) {
 	if !strings.Contains(snapshot.RuntimeReadiness.Reason, "api_key is required") {
 		t.Fatalf("runtime readiness reason = %q, want missing api key", snapshot.RuntimeReadiness.Reason)
 	}
-}
-
-type fakeLiveMCPManager struct {
-	statuses []mcpprovider.ProviderStatus
-}
-
-func (m *fakeLiveMCPManager) Statuses() []mcpprovider.ProviderStatus {
-	if m == nil {
-		return nil
-	}
-	return append([]mcpprovider.ProviderStatus(nil), m.statuses...)
 }
 
 type failingSkillSnapshotStore struct {

@@ -11,10 +11,9 @@ import (
 )
 
 type AuthConfig struct {
-	Type       string // "none" | "oauth" | "api_key"
-	ClientID   string
-	Scopes     []string
-	TokenStore string // reserved for future use
+	Type     string // "none" | "oauth" | "api_key"
+	ClientID string
+	Scopes   []string
 }
 
 type ProviderConfig struct {

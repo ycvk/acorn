@@ -69,10 +69,7 @@ func scanPendingActionRecord(scanner interface{ Scan(dest ...any) error }) (*eve
 	record.InterruptID = interrupt
 	record.Kind = events.PendingActionKind(kind)
 	record.Subject = subject
-	record.ToolName = subject
 	record.PayloadJSON = payload
-	record.ArgumentsJSON = payload
-	record.RequestID = record.ActionID
 	record.Mode = events.PendingActionDecisionMode(mode)
 	record.Status = events.PendingActionStatus(status)
 	record.DecisionJSON = decision

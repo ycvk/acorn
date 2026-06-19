@@ -31,7 +31,6 @@ func BuildAgentGraph(
 	handlers []adk.ChatModelAgentMiddleware,
 	planStore runtimeapi.PlanStore,
 	planPrompt string,
-	planningPromptProvider PlanningPromptProvider,
 	eagerToolNames []string,
 	toolSpecs []tooling.ToolSpec,
 ) (compose.Runnable[*graph.AgentGraphInput, *schema.Message], error) {
@@ -87,7 +86,7 @@ func BuildAgentGraph(
 			return nil, err
 		}
 	}
-	plan := NewPlanNode(wrappedModel, planStore, planPrompt, planningPromptProvider, enabledPlanToolNamesFromSpecs(toolSpecs))
+	plan := NewPlanNode(wrappedModel, planStore, planPrompt, enabledPlanToolNamesFromSpecs(toolSpecs))
 	act := NewActNode(wrappedModel, safeToolNode, streamer, planStore, toolSpecs, eagerToolNames)
 	observe := graph.NewObserveNode(wrappedModel, planStore)
 

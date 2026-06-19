@@ -213,45 +213,6 @@ func (s *ArtifactService) ReadRange(ctx context.Context, req ArtifactReadRangeRe
 	}, nil
 }
 
-func (s *ArtifactService) Verify(ctx context.Context, artifactID string) (ArtifactRecord, error) {
-	if s == nil {
-		return ArtifactRecord{}, fmt.Errorf("artifact service is nil")
-	}
-	if err := ctx.Err(); err != nil {
-		return ArtifactRecord{}, err
-	}
-	artifactID = strings.TrimSpace(artifactID)
-	if artifactID == "" {
-		return ArtifactRecord{}, fmt.Errorf("artifact_id is required")
-	}
-	record, err := s.store.LoadArtifact(ctx, artifactID)
-	if err != nil {
-		return ArtifactRecord{}, err
-	}
-	artifactPath, err := s.pathFor(record.RelativePath)
-	if err != nil {
-		return ArtifactRecord{}, err
-	}
-	file, err := os.Open(artifactPath)
-	if err != nil {
-		return ArtifactRecord{}, fmt.Errorf("open artifact content %s: %w", record.ArtifactID, err)
-	}
-	defer file.Close()
-	hash := sha256.New()
-	size, err := io.Copy(hash, file)
-	if err != nil {
-		return ArtifactRecord{}, fmt.Errorf("hash artifact content %s: %w", record.ArtifactID, err)
-	}
-	if size != record.SizeBytes {
-		return ArtifactRecord{}, fmt.Errorf("artifact content size mismatch for %s: got %d want %d", record.ArtifactID, size, record.SizeBytes)
-	}
-	gotHash := hex.EncodeToString(hash.Sum(nil))
-	if gotHash != record.SHA256 {
-		return ArtifactRecord{}, fmt.Errorf("artifact content sha256 mismatch for %s: got %s want %s", record.ArtifactID, gotHash, record.SHA256)
-	}
-	return record, nil
-}
-
 func (s *ArtifactService) ListByRun(ctx context.Context, runID string) ([]ArtifactRecord, error) {
 	runID = strings.TrimSpace(runID)
 	if runID == "" {

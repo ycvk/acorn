@@ -150,10 +150,9 @@ type ServeToolsConfig struct {
 }
 
 type MCPAuthConfig struct {
-	Type       string   `yaml:"type"` // "none" | "oauth" | "api_key"
-	ClientID   string   `yaml:"client_id"`
-	Scopes     []string `yaml:"scopes"`
-	TokenStore string   `yaml:"token_store"` // reserved for future use
+	Type     string   `yaml:"type"` // "none" | "oauth" | "api_key"
+	ClientID string   `yaml:"client_id"`
+	Scopes   []string `yaml:"scopes"`
 }
 
 type MCPProviderConfig struct {
