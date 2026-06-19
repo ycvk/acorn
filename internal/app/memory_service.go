@@ -50,10 +50,6 @@ func (s *MemoryService) RebuildSemanticIndex(ctx context.Context) (*memorymodule
 	})
 }
 
-func (s *MemoryService) PlanMemoryMutation(ctx context.Context, req memorymodule.PlanMemoryMutationRequest) (*memorymodule.MemoryMutationPlan, error) {
-	return s.module.PlanMemoryMutation(ctx, req)
-}
-
 func (s *MemoryService) CreateProcedure(ctx context.Context, req memorymodule.CreateProcedureRequest) (*memorymodule.ProcedureRecord, error) {
 	return s.module.CreateProcedure(ctx, req)
 }
