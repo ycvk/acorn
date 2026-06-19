@@ -168,9 +168,8 @@ func validateCommon(record *Record) error {
 	if record.Status != StatusUnverified && record.Status != StatusVerified && record.Status != StatusRetired {
 		return fmt.Errorf("status must be unverified, verified, or retired")
 	}
-	if len(record.Tags) == 0 {
-		return fmt.Errorf("tags are required")
-	}
+	// tags are optional: a record with no tags is still searchable by title/body
+	// (bleve five-field match) and discoverable; tags only add FTS/category boost.
 	if strings.TrimSpace(record.Created) == "" {
 		return fmt.Errorf("created is required")
 	}

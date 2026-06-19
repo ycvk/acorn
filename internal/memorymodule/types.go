@@ -152,6 +152,17 @@ type CreateProcedureRequest struct {
 	EvidenceRefs []string
 }
 
+// CreateFactRequest is the minimal structured input for writing a fact. The
+// backend generates Record V2 frontmatter and auto-stamps created/updated/status/
+// scope, so callers never hand-author YAML, dates, or status. Tags are optional;
+// an empty Scope defaults to "user".
+type CreateFactRequest struct {
+	Title string
+	Body  string
+	Tags  []string
+	Scope string
+}
+
 type MemoryMutationAction string
 
 const (
