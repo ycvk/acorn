@@ -39,6 +39,40 @@ Bad.
 	}
 }
 
+func TestMemoryRememberCreatesFactWithoutFrontmatter(t *testing.T) {
+	service := newMemoryToolTestService(t)
+	tool := memoryToolByName(t, service, "remember")
+
+	output, err := tool.InvokableRun(context.Background(), `{"title":"VPS IP","text":"The VPS IP is 1.2.3.4","tags":["infra"]}`)
+	if err != nil {
+		t.Fatalf("remember error = %v", err)
+	}
+	var out struct {
+		Ref   string `json:"ref"`
+		Path  string `json:"path"`
+		Scope string `json:"scope"`
+	}
+	if err := json.Unmarshal([]byte(output), &out); err != nil {
+		t.Fatalf("decode remember output: %v", err)
+	}
+	if out.Scope != "user" {
+		t.Fatalf("default scope = %q, want user", out.Scope)
+	}
+	if !strings.HasPrefix(out.Path, "facts/user/") {
+		t.Fatalf("remember path = %q, want under facts/user/", out.Path)
+	}
+	// The file must exist on disk and carry backend-generated, valid frontmatter.
+	data, err := os.ReadFile(filepath.Join(service.Root(), filepath.FromSlash(out.Path)))
+	if err != nil {
+		t.Fatalf("remembered fact not written: %v", err)
+	}
+	for _, want := range []string{"status: unverified", "created:", "updated:", "scope: user"} {
+		if !strings.Contains(string(data), want) {
+			t.Fatalf("remembered fact missing %q:\n%s", want, string(data))
+		}
+	}
+}
+
 func TestMemoryCreateFileReturnsMutationPlan(t *testing.T) {
 	service := newMemoryToolTestService(t)
 	writeMemoryToolFile(t, service, "facts/workspaces/existing.md", `---
