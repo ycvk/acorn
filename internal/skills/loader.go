@@ -11,11 +11,10 @@ import (
 )
 
 const (
-	BuiltinScope         = string(SourceBuiltin)
-	WorkspaceScope       = string(SourceWorkspace)
-	GeneratedScope       = string(SourceGenerated)
-	MemoryProcedureScope = string(SourceMemoryProcedure)
-	UserScope            = string(SourceUser)
+	BuiltinScope   = string(SourceBuiltin)
+	WorkspaceScope = string(SourceWorkspace)
+	GeneratedScope = string(SourceGenerated)
+	UserScope      = string(SourceUser)
 )
 
 var ErrAlreadyExists = errors.New("skill already exists")
