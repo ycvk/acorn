@@ -260,6 +260,7 @@ func (e *Executor) ExecuteMessages(ctx context.Context, req runtimeapi.ExecuteRe
 		SessionID:         req.SessionID,
 		TurnIndex:         req.TurnIndex,
 		Input:             req.Input,
+		BoundMessageID:    req.BoundMessageID,
 		CheckpointID:      runID,
 		OrchestrationMode: mode,
 		ParentRunID:       req.ParentRunID,
