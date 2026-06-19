@@ -107,20 +107,17 @@ func (s *Store) CreatePendingAction(ctx context.Context, input store.CreatePendi
 
 	now := time.Now().UTC()
 	record := &events.PendingActionRecord{
-		ActionID:      strings.TrimSpace(input.ActionID),
-		RequestID:     strings.TrimSpace(input.ActionID),
-		RunID:         strings.TrimSpace(input.RunID),
-		InterruptID:   strings.TrimSpace(input.InterruptID),
-		Kind:          kind,
-		Subject:       strings.TrimSpace(input.Subject),
-		ToolName:      strings.TrimSpace(input.Subject),
-		PayloadJSON:   input.PayloadJSON,
-		ArgumentsJSON: input.PayloadJSON,
-		Status:        status,
-		Mode:          mode,
-		Reason:        strings.TrimSpace(input.Reason),
-		Rule:          strings.TrimSpace(input.Rule),
-		CreatedAt:     now,
+		ActionID:    strings.TrimSpace(input.ActionID),
+		RunID:       strings.TrimSpace(input.RunID),
+		InterruptID: strings.TrimSpace(input.InterruptID),
+		Kind:        kind,
+		Subject:     strings.TrimSpace(input.Subject),
+		PayloadJSON: input.PayloadJSON,
+		Status:      status,
+		Mode:        mode,
+		Reason:      strings.TrimSpace(input.Reason),
+		Rule:        strings.TrimSpace(input.Rule),
+		CreatedAt:   now,
 	}
 	_, err = s.db.ExecContext(
 		ctx,
@@ -395,8 +392,6 @@ func normalizePendingActionMode(mode events.PendingActionDecisionMode) (events.P
 	switch strings.TrimSpace(string(mode)) {
 	case "":
 		return "", nil
-	case string(events.PendingActionModeInline):
-		return events.PendingActionModeInline, nil
 	case string(events.PendingActionModeDeferred):
 		return events.PendingActionModeDeferred, nil
 	default:
