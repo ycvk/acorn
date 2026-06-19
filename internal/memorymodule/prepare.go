@@ -26,6 +26,23 @@ func (s *LocalService) Prepare(ctx context.Context, req PrepareRequest) (*Prepar
 		return nil, err
 	}
 
+	// Semantic retrieval is an optional enhancement on the run hot path. When no
+	// semantic runtime is wired (embedding not configured), degrade to an empty
+	// memory result so the run still proceeds — zero recalled memory is a legal
+	// baseline, not silent degradation. Request validation above still runs. This is
+	// NOT a keyword/fake-vector fallback: explicit Search/SearchSemantic callers still
+	// fail loud, and a wired-but-failing semantic call still fails loud. Only this
+	// implicit Prepare path degrades. When the caller asked for Explain (eval /
+	// replay / debug; the run hot path never does), record a marker stage so a
+	// degraded sample is distinguishable from a genuine empty-hit result.
+	if s.semanticRuntimeSnapshot() == nil {
+		result := &PrepareResult{SkillTree: s.GetSkillTree()}
+		if req.Explain {
+			result.Explain = buildSearchExplain(query, WorkspaceScope(req.WorkspaceSlug), nil, []SearchStageExplain{{Name: searchStageSemanticUnwired}})
+		}
+		return result, nil
+	}
+
 	search, err := s.Search(ctx, SearchRequest{
 		Query:   query,
 		Scope:   WorkspaceScope(req.WorkspaceSlug),
@@ -35,22 +52,7 @@ func (s *LocalService) Prepare(ctx context.Context, req PrepareRequest) (*Prepar
 	if err != nil {
 		return nil, err
 	}
-	insights, err := s.searchInsights(ctx, insightSearchRequest{
-		Query: query,
-		Scope: WorkspaceScope(req.WorkspaceSlug),
-		Limit: maxNudges + maxEntries + 4,
-	})
-	if err != nil {
-		return nil, err
-	}
-	scope := WorkspaceScope(req.WorkspaceSlug)
-	insightItems, insightContributions := searchItemsFromInsightHitsWithContributions(insights.Hits, scope)
-	items, contributions := mergeSearchItemsWithContributions(
-		contributionMapFromExplain(search.Explain),
-		search.Items,
-		insightItems,
-	)
-	mergeContributionMaps(contributions, insightContributions)
+	items := search.Items
 
 	result := &PrepareResult{
 		Nudges:    make([]Nudge, 0, maxNudges),
@@ -58,15 +60,11 @@ func (s *LocalService) Prepare(ctx context.Context, req PrepareRequest) (*Prepar
 		SkillTree: s.GetSkillTree(),
 	}
 	if req.Explain {
-		stages := make([]SearchStageExplain, 0, len(search.Explain.Stages)+1)
+		var stages []SearchStageExplain
 		if search.Explain != nil {
 			stages = append(stages, search.Explain.Stages...)
 		}
-		stages = append(stages, SearchStageExplain{
-			Name:           searchStageInsightSource,
-			CandidateCount: len(insightItems),
-		})
-		result.Explain = buildSearchExplain(query, scope, items, stages, contributions)
+		result.Explain = buildSearchExplain(query, WorkspaceScope(req.WorkspaceSlug), items, stages)
 	}
 
 	for _, item := range items {

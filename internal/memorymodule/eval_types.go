@@ -41,10 +41,8 @@ type EvalStageDigest struct {
 }
 
 type EvalItemDigest struct {
-	Ref               string   `json:"ref"`
-	FinalScore        float64  `json:"final_score"`
-	ContributionCount int      `json:"contribution_count"`
-	Stages            []string `json:"stages,omitempty"`
+	Ref        string  `json:"ref"`
+	FinalScore float64 `json:"final_score"`
 }
 
 type EvalFileSink struct {

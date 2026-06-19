@@ -396,7 +396,7 @@ func (st *SkillTreeIndex) clone() *SkillTreeIndex {
 	return clone
 }
 
-func (s *LocalService) applySourceRefBoost(ctx context.Context, items *[]SearchItem, contributions map[string][]ScoreContribution, matchedRefs []string, scope string, selectedRefs map[string]struct{}) (int, error) {
+func (s *LocalService) applySourceRefBoost(ctx context.Context, items *[]SearchItem, matchedRefs []string, scope string, selectedRefs map[string]struct{}) (int, error) {
 	if len(matchedRefs) == 0 {
 		return 0, nil
 	}
@@ -422,26 +422,19 @@ func (s *LocalService) applySourceRefBoost(ctx context.Context, items *[]SearchI
 				continue
 			}
 			delta := 2.0
-			contribution := ScoreContribution{
-				Stage:      searchStageSourceRefBacklink,
-				Delta:      delta,
-				Reason:     fmt.Sprintf("matched record %s cites source ref", matchedRef),
-				SourceRefs: []string{matchedRef, target.Ref},
-			}
 			if index, exists := byRef[target.Ref]; exists {
 				(*items)[index].Score += delta
 			} else {
 				*items = append(*items, SearchItemFromRecord(*target, delta))
 				byRef[target.Ref] = len(*items) - 1
 			}
-			appendContribution(contributions, target.Ref, contribution)
 			seenTargets[target.Ref] = struct{}{}
 		}
 	}
 	return len(seenTargets), nil
 }
 
-func (s *LocalService) applyRelationBoost(ctx context.Context, items *[]SearchItem, contributions map[string][]ScoreContribution, matchedRefs []string, scope string, selectedRefs map[string]struct{}) (map[string]int, error) {
+func (s *LocalService) applyRelationBoost(ctx context.Context, items *[]SearchItem, matchedRefs []string, scope string, selectedRefs map[string]struct{}) (map[string]int, error) {
 	counts := make(map[string]int)
 	if len(matchedRefs) == 0 {
 		return counts, nil
@@ -476,19 +469,12 @@ func (s *LocalService) applyRelationBoost(ctx context.Context, items *[]SearchIt
 				continue
 			}
 			seen[key] = struct{}{}
-			contribution := ScoreContribution{
-				Stage:      stage,
-				Delta:      delta,
-				Reason:     fmt.Sprintf("matched record %s has %s relation", matchedRef, relation.Type),
-				SourceRefs: []string{matchedRef, target.Ref},
-			}
 			if index, exists := byRef[target.Ref]; exists {
 				(*items)[index].Score += delta
 			} else {
 				*items = append(*items, SearchItemFromRecord(*target, delta))
 				byRef[target.Ref] = len(*items) - 1
 			}
-			appendContribution(contributions, target.Ref, contribution)
 			counts[stage]++
 		}
 	}

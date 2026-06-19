@@ -16,7 +16,7 @@ func (s *LocalService) SearchSemantic(ctx context.Context, req SearchRequest) (*
 	if query == "" {
 		result := &SearchResult{}
 		if req.Explain {
-			result.Explain = buildSearchExplain(req.Query, req.Scope, nil, nil, nil)
+			result.Explain = buildSearchExplain(req.Query, req.Scope, nil, nil)
 		}
 		return result, nil
 	}
@@ -59,7 +59,7 @@ func (s *LocalService) SearchSemantic(ctx context.Context, req SearchRequest) (*
 	if err != nil {
 		return nil, fmt.Errorf("select semantic search records: %w", err)
 	}
-	items, contributions, matchedRefs, err := s.searchItemsFromSemanticHits(ctx, semanticResult, req, selectedRefs)
+	items, matchedRefs, err := s.searchItemsFromSemanticHits(ctx, semanticResult, req, selectedRefs)
 	if err != nil {
 		return nil, err
 	}
@@ -67,14 +67,14 @@ func (s *LocalService) SearchSemantic(ctx context.Context, req SearchRequest) (*
 		Name:           semanticStageForMode(runtime.Mode),
 		CandidateCount: len(items),
 	}}
-	boosted, err := s.applySourceRefBoost(ctx, &items, contributions, matchedRefs, req.Scope, selectedRefs)
+	boosted, err := s.applySourceRefBoost(ctx, &items, matchedRefs, req.Scope, selectedRefs)
 	if err != nil {
 		return nil, err
 	}
 	if boosted > 0 {
 		stages = append(stages, SearchStageExplain{Name: searchStageSourceRefBacklink, CandidateCount: boosted})
 	}
-	relationCounts, err := s.applyRelationBoost(ctx, &items, contributions, matchedRefs, req.Scope, selectedRefs)
+	relationCounts, err := s.applyRelationBoost(ctx, &items, matchedRefs, req.Scope, selectedRefs)
 	if err != nil {
 		return nil, err
 	}
@@ -99,26 +99,25 @@ func (s *LocalService) SearchSemantic(ctx context.Context, req SearchRequest) (*
 	}
 	result := &SearchResult{Items: items}
 	if req.Explain {
-		result.Explain = buildSearchExplain(req.Query, req.Scope, items, stages, contributions)
+		result.Explain = buildSearchExplain(req.Query, req.Scope, items, stages)
 	}
 	return result, nil
 }
 
-func (s *LocalService) searchItemsFromSemanticHits(ctx context.Context, result *SemanticSearchResult, req SearchRequest, selectedRefs map[string]struct{}) ([]SearchItem, map[string][]ScoreContribution, []string, error) {
+func (s *LocalService) searchItemsFromSemanticHits(ctx context.Context, result *SemanticSearchResult, req SearchRequest, selectedRefs map[string]struct{}) ([]SearchItem, []string, error) {
 	if result == nil {
-		return nil, nil, nil, fmt.Errorf("semantic search result is required")
+		return nil, nil, fmt.Errorf("semantic search result is required")
 	}
 	kindFilter := kindSet(req.Kinds)
 	items := make([]SearchItem, 0, len(result.Hits))
-	contributions := make(map[string][]ScoreContribution)
 	matchedRefs := make([]string, 0, len(result.Hits))
 	for _, hit := range result.Hits {
 		if strings.TrimSpace(hit.Ref) == "" {
-			return nil, nil, nil, fmt.Errorf("semantic hit ref is required")
+			return nil, nil, fmt.Errorf("semantic hit ref is required")
 		}
 		record, err := s.GetRecordByRef(ctx, hit.Ref)
 		if err != nil {
-			return nil, nil, nil, fmt.Errorf("resolve semantic hit %q: %w", hit.Ref, err)
+			return nil, nil, fmt.Errorf("resolve semantic hit %q: %w", hit.Ref, err)
 		}
 		if _, ok := selectedRefs[record.Ref]; !ok {
 			continue
@@ -138,22 +137,8 @@ func (s *LocalService) searchItemsFromSemanticHits(ctx context.Context, result *
 		score += sourceStatusScore(*record)
 		items = append(items, SearchItemFromRecord(*record, score))
 		matchedRefs = append(matchedRefs, record.Ref)
-		appendContribution(contributions, record.Ref, ScoreContribution{
-			Stage:      firstNonEmpty(hit.Stage, searchStageSemanticVector),
-			Delta:      hit.Score,
-			Reason:     "semantic vector match",
-			SourceRefs: []string{record.Ref},
-		})
-		if statusScore := sourceStatusScore(*record); statusScore > 0 {
-			appendContribution(contributions, record.Ref, ScoreContribution{
-				Stage:      firstNonEmpty(hit.Stage, searchStageSemanticVector),
-				Delta:      statusScore,
-				Reason:     "semantic record status/kind boost",
-				SourceRefs: []string{record.Ref},
-			})
-		}
 	}
-	return items, contributions, matchedRefs, nil
+	return items, matchedRefs, nil
 }
 
 func semanticStageForMode(mode string) string {

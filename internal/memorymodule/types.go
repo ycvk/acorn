@@ -262,16 +262,8 @@ type SearchStageExplain struct {
 }
 
 type SearchItemExplain struct {
-	Ref           string
-	FinalScore    float64
-	Contributions []ScoreContribution
-}
-
-type ScoreContribution struct {
-	Stage      string
-	Delta      float64
-	Reason     string
-	SourceRefs []string
+	Ref        string
+	FinalScore float64
 }
 
 type HistoryEvent struct {
