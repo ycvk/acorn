@@ -468,7 +468,7 @@ func contextBoundaryMessageID(runID string, index int) string {
 }
 
 func shouldCompactForPressure(state BudgetPressureState) bool {
-	return state == PressureAutoCompact || state == PressureBlocking
+	return state == PressureAutoCompact
 }
 
 func (s *defaultContextSession) currentInput(ctx context.Context, tools []*schema.ToolInfo) (*ModelInput, error) {

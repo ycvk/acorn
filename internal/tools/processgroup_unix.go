@@ -43,18 +43,3 @@ func SignalCommandGroup(cmd *exec.Cmd, signal os.Signal) error {
 	}
 	return nil
 }
-
-func ParseSignal(raw string) (os.Signal, error) {
-	switch raw {
-	case "", "TERM", "SIGTERM":
-		return syscall.SIGTERM, nil
-	case "INT", "SIGINT":
-		return syscall.SIGINT, nil
-	case "KILL", "SIGKILL":
-		return syscall.SIGKILL, nil
-	case "HUP", "SIGHUP":
-		return syscall.SIGHUP, nil
-	default:
-		return nil, fmt.Errorf("unsupported process signal %q", raw)
-	}
-}

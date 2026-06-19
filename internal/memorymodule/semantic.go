@@ -164,24 +164,6 @@ func ValidateEmbedResult(req EmbedRequest, result *EmbedResult, dimensions int) 
 	return nil
 }
 
-func CloneEmbedResult(result *EmbedResult) *EmbedResult {
-	if result == nil {
-		return nil
-	}
-	clone := &EmbedResult{
-		Model:      result.Model,
-		Dimensions: result.Dimensions,
-		Vectors:    make([]EmbeddingVector, 0, len(result.Vectors)),
-	}
-	for _, vector := range result.Vectors {
-		clone.Vectors = append(clone.Vectors, EmbeddingVector{
-			Ref:    vector.Ref,
-			Values: append([]float32(nil), vector.Values...),
-		})
-	}
-	return clone
-}
-
 func SemanticRecordFromRecord(record Record) SemanticRecord {
 	return SemanticRecord{
 		Ref:          record.Ref,
@@ -274,51 +256,6 @@ func SemanticRecordContentHash(record SemanticRecord) (string, error) {
 	}
 	sum := sha256.Sum256(data)
 	return hex.EncodeToString(sum[:]), nil
-}
-
-func CloneSemanticRecords(records []SemanticRecord) []SemanticRecord {
-	if len(records) == 0 {
-		return nil
-	}
-	cloned := make([]SemanticRecord, 0, len(records))
-	for _, record := range records {
-		cloned = append(cloned, SemanticRecord{
-			Ref:          record.Ref,
-			Kind:         record.Kind,
-			Scope:        record.Scope,
-			Status:       record.Status,
-			Origin:       record.Origin,
-			Title:        record.Title,
-			Body:         record.Body,
-			Path:         record.Path,
-			Tags:         append([]string(nil), record.Tags...),
-			TaskPattern:  record.TaskPattern,
-			SourceRun:    record.SourceRun,
-			SourceRefs:   append([]string(nil), record.SourceRefs...),
-			EvidenceRefs: append([]string(nil), record.EvidenceRefs...),
-			Relations:    append([]RecordRelation(nil), record.Relations...),
-			ContentHash:  record.ContentHash,
-			Created:      record.Created,
-			Updated:      record.Updated,
-			ValidFrom:    record.ValidFrom,
-			ValidUntil:   record.ValidUntil,
-		})
-	}
-	return cloned
-}
-
-func CloneIndexedSemanticRecords(records []IndexedSemanticRecord) []IndexedSemanticRecord {
-	if len(records) == 0 {
-		return nil
-	}
-	cloned := make([]IndexedSemanticRecord, 0, len(records))
-	for _, record := range records {
-		cloned = append(cloned, IndexedSemanticRecord{
-			Record: CloneSemanticRecords([]SemanticRecord{record.Record})[0],
-			Vector: append([]float32(nil), record.Vector...),
-		})
-	}
-	return cloned
 }
 
 func semanticRelationHashPayloads(relations []RecordRelation) []semanticRelationHashPayload {

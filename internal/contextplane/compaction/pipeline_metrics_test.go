@@ -26,14 +26,14 @@ func TestCompressionOutcomeIncludesLayersApplied(t *testing.T) {
 		},
 	}
 	pipeline := NewDefaultContextCompressionPipeline(CompressionPipelineOptions{
-		Governor:         testBudgetGovernor{pressure: testPressure(contextplane.PressureBlocking), dynamic: true},
+		Governor:         testBudgetGovernor{pressure: testPressure(contextplane.PressureAutoCompact), dynamic: true},
 		CompactionEngine: engine,
 		TokenCounter:     testTokenCounter(t),
 	})
 
 	store := storetest.NewFakeContextStore()
 	session := contextplane.NewDefaultContextSession(contextplane.ContextSessionOptions{
-		BudgetGovernor: testBudgetGovernor{pressure: testPressure(contextplane.PressureBlocking), dynamic: true},
+		BudgetGovernor: testBudgetGovernor{pressure: testPressure(contextplane.PressureAutoCompact), dynamic: true},
 		Pipeline:       pipeline,
 		BoundaryStore:  store,
 		PreservePolicy: contextplane.PreservePolicy{RecentTurns: 1, PreserveToolPairs: true},

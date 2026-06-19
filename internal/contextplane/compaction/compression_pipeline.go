@@ -88,17 +88,19 @@ func (p *defaultContextCompressionPipeline) Compress(ctx context.Context, req co
 			return nil, fmt.Errorf("reactivecompact: %w", err)
 		}
 		messages = rcResult.Messages
+		totalFreed += rcResult.Outcome.TokensBefore - rcResult.Outcome.TokensAfter
+		finalOutcome = &rcResult.Outcome
 
 		if ok, err := p.pressureOK(ctx, messages, req); err != nil {
 			return nil, fmt.Errorf("pressure check after reactivecompact: %w", err)
 		} else if ok {
-			return p.buildResult(messages, totalFreed, nil), nil
+			return p.buildResult(messages, totalFreed, finalOutcome), nil
 		}
 	}
 
-	// If reactive trigger and we still cannot get pressure below blocking, fail loudly.
+	// If reactive trigger and we still cannot get pressure below the compact-now threshold, fail loudly.
 	if req.Trigger == contextplane.CompactTriggerReactive {
-		return nil, errors.New("reactive compact exhausted all layers but context pressure remains blocking")
+		return nil, errors.New("reactive compact exhausted all layers but context pressure still requires compaction")
 	}
 
 	return p.buildResult(messages, totalFreed, finalOutcome), nil
@@ -117,7 +119,7 @@ func (p *defaultContextCompressionPipeline) shouldAutocompact(ctx context.Contex
 	if err != nil {
 		return false, err
 	}
-	return pressure.State == contextplane.PressureAutoCompact || pressure.State == contextplane.PressureBlocking, nil
+	return pressure.State == contextplane.PressureAutoCompact, nil
 }
 
 func (p *defaultContextCompressionPipeline) runAutocompact(ctx context.Context, messages []adk.Message, req contextplane.PipelineRequest) (*CompactionResult, error) {
@@ -156,7 +158,7 @@ func (p *defaultContextCompressionPipeline) pressureOK(ctx context.Context, mess
 	if err != nil {
 		return false, err
 	}
-	return pressure.State == contextplane.PressureOK || pressure.State == contextplane.PressureWarning, nil
+	return pressure.State == contextplane.PressureOK, nil
 }
 
 func (p *defaultContextCompressionPipeline) profileForRequest(req contextplane.PipelineRequest) contextplane.ModelProfile {
