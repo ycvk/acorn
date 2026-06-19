@@ -3,7 +3,7 @@ id: skill.memory.fact.writer
 name: Memory Fact Writer
 version: v1
 category: native
-summary: Create, replace, or retire durable fact records under `facts/` using the current Record V2 schema.
+summary: Store durable facts under `facts/` with the structured `remember` tool; Acorn generates the Record V2 frontmatter.
 lifecycle_status: verified
 evidence_refs:
   - builtin:acorn-native-skill-seed-pack
@@ -17,36 +17,34 @@ trigger_hints:
 requires:
   tools:
     - memory_search
+    - remember
     - memory_read_file
     - memory_create_file
     - memory_replace_span
 ---
 # Memory Fact Writer
 
-Use this skill when the task is to add or update durable factual memory.
+Use this skill when the task is to store durable factual memory.
 
 Work loop:
 
-1. Search for an existing fact before writing a new one.
-2. Choose the narrowest valid scope, usually `user` or `workspace:{slug}`.
-3. Draft valid Record V2 frontmatter before prose body content.
-4. Write only under `facts/` and only with a `.md` file path.
-5. Use the current schema fields: `scope`, `tags`, `status`, `created`, `updated`, `valid_from`, `valid_until`, `source_run`, `source_refs`, `evidence_refs`, and `relations`.
-6. Call `memory_create_file` for new records or `memory_replace_span` for existing ones.
-7. If the planner rejects the write, read the reason, fix the schema, and try again.
+1. Search with `memory_search` for an existing fact before storing a new one.
+2. To store a new fact, call `remember` with a `title`, the `text`, and optional
+   `tags` (and an optional `scope` of `user` or `workspace:{slug}`). Acorn generates
+   the record frontmatter and stamps status/created/updated/scope — do not hand-write
+   YAML or dates.
+3. To edit or retire an existing fact, use `memory_replace_span` (precise patch) or
+   `memory_create_file` (full record); these advanced paths take complete frontmatter.
 
 Hard rules:
 
-- Do not use old fields like `source`.
+- Prefer `remember` for new facts; reach for the raw `memory_*` tools only for
+  precise edits, retirement, or non-fact files.
 - Do not write run-only noise as a durable fact.
-- Do not change the ref unless you are intentionally retiring and recreating the record.
-- Do not bypass rejection with fallback prose or a second schema.
+- Do not change a record's ref unless you are intentionally retiring and recreating it.
 
 Output should include:
 
-- path
-- ref
-- action taken
-- resulting status
-- evidence refs used
-- whether a rebuild or verification step succeeded
+- the stored fact's ref and path
+- the action taken
+- whether anything was skipped (for example, an equivalent fact already existed)
