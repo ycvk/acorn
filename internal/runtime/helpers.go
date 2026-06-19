@@ -10,23 +10,6 @@ import (
 	"github.com/ycvk/acorn/internal/stream"
 )
 
-func compactInterruptInfo(value any) any {
-	data, ok := value.(map[string]any)
-	if !ok {
-		return nil
-	}
-	out := make(map[string]any)
-	for _, key := range []string{"kind", "message", "question", "action_id", "command", "command_name", "command_args", "cwd", "url", "tool_name", "interrupt_id", "arguments_json", "reason", "rule"} {
-		if current, exists := data[key]; exists {
-			out[key] = current
-		}
-	}
-	if len(out) == 0 {
-		return nil
-	}
-	return out
-}
-
 func compactText(value string, limit int) (string, bool) {
 	trimmed := strings.TrimSpace(value)
 	if trimmed == "" {
@@ -85,10 +68,6 @@ func DurableContext(ctx context.Context) context.Context {
 
 func CurrentRunID(ctx context.Context) string {
 	return runtimeapi.GetRunID(ctx)
-}
-
-func CurrentStreamSink(ctx context.Context) stream.StreamSink {
-	return stream.StreamSinkFromContext(ctx)
 }
 
 type turnIndexContextKey struct{}

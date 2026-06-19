@@ -24,7 +24,3 @@ func KillCommandGroup(cmd *exec.Cmd) error {
 func SignalCommandGroup(cmd *exec.Cmd, signal os.Signal) error {
 	return ErrUnsupportedPlatform
 }
-
-func ParseSignal(raw string) (os.Signal, error) {
-	return nil, ErrUnsupportedPlatform
-}
