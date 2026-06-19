@@ -15,12 +15,10 @@ const (
 type Source string
 
 const (
-	SourceBuiltin         Source = "builtin"
-	SourceWorkspace       Source = "workspace"
-	SourceGenerated       Source = "generated"
-	SourceMemoryProcedure Source = "memory_procedure"
-	SourceUser            Source = "user"
-	SourceExternal        Source = "external"
+	SourceBuiltin   Source = "builtin"
+	SourceWorkspace Source = "workspace"
+	SourceGenerated Source = "generated"
+	SourceUser      Source = "user"
 )
 
 type LifecycleStatus string
