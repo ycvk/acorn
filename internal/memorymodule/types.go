@@ -68,6 +68,7 @@ type Service interface {
 	PlanMemoryMutation(ctx context.Context, req PlanMemoryMutationRequest) (*MemoryMutationPlan, error)
 	ApplyMemoryMutation(ctx context.Context, req PlanMemoryMutationRequest) (*MemoryMutationResult, error)
 	CreateProcedure(ctx context.Context, req CreateProcedureRequest) (*ProcedureRecord, error)
+	CreateFact(ctx context.Context, req CreateFactRequest) (*Record, error)
 	BuildMemoryInstruction(ctx context.Context, workspaceSlug string) (string, error)
 }
 
@@ -150,6 +151,17 @@ type CreateProcedureRequest struct {
 	SourceRun    string
 	SourceRefs   []string
 	EvidenceRefs []string
+}
+
+// CreateFactRequest is the minimal structured input for writing a fact. The
+// backend generates Record V2 frontmatter and auto-stamps created/updated/status/
+// scope, so callers never hand-author YAML, dates, or status. Tags are optional;
+// an empty Scope defaults to "user".
+type CreateFactRequest struct {
+	Title string
+	Body  string
+	Tags  []string
+	Scope string
 }
 
 type MemoryMutationAction string

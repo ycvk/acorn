@@ -183,6 +183,11 @@ func recordsEquivalent(left Record, right Record) bool {
 	return reflect.DeepEqual(canonicalComparableRecord(left), canonicalComparableRecord(right))
 }
 
+// comparableRecord is the canonical projection used to detect noop-duplicate
+// writes. Created/Updated are deliberately excluded: with backend auto-stamping,
+// two writes of the same substantive content (body/tags/scope/status/relations/
+// provenance) are duplicates even though their timestamps differ, so re-writing
+// identical content is correctly judged noop instead of a churny replace.
 type comparableRecord struct {
 	Ref          string
 	Kind         Kind
@@ -197,8 +202,6 @@ type comparableRecord struct {
 	EvidenceRefs []string
 	Relations    []RecordRelation
 	Body         string
-	Created      string
-	Updated      string
 	ValidFrom    string
 	ValidUntil   string
 	SourceRun    string
@@ -219,8 +222,6 @@ func canonicalComparableRecord(record Record) comparableRecord {
 		EvidenceRefs: append([]string(nil), record.EvidenceRefs...),
 		Relations:    append([]RecordRelation(nil), record.Relations...),
 		Body:         strings.TrimSpace(record.Body),
-		Created:      strings.TrimSpace(record.Created),
-		Updated:      strings.TrimSpace(record.Updated),
 		ValidFrom:    strings.TrimSpace(record.ValidFrom),
 		ValidUntil:   strings.TrimSpace(record.ValidUntil),
 		SourceRun:    strings.TrimSpace(record.SourceRun),

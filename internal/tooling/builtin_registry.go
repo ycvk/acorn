@@ -15,6 +15,7 @@ var builtinToolOrder = []string{
 	"memory_list_files",
 	"memory_create_file",
 	"memory_replace_span",
+	"remember",
 	"skill_list",
 	"skill_view",
 	"load_tools",
@@ -61,6 +62,13 @@ func builtinToolContract(name string) (ToolContract, bool) {
 		c.ResourceScope = ResourceScopeMemory
 		c.Execution.ParallelPolicy = ParallelPolicyWriteScoped
 		c.Execution.PathArg = "path"
+	case "remember":
+		// Structured fact writer: the file path is backend-derived (no path arg),
+		// so it cannot be path-scoped; serialize memory writes instead.
+		c.Kind = ToolKindMemory
+		c.Category = ToolCategoryMemory
+		c.ResourceScope = ResourceScopeMemory
+		c.Execution.ParallelPolicy = ParallelPolicyNeverParallel
 	case "skill_list", "skill_view":
 		c.Kind = ToolKindSkill
 		c.Category = ToolCategorySkill
