@@ -23,17 +23,6 @@ func valueOrNone(value string) string {
 	return value
 }
 
-func compactCLIText(value string, limit int) string {
-	trimmed := strings.Join(strings.Fields(strings.TrimSpace(value)), " ")
-	if trimmed == "" {
-		return ""
-	}
-	if limit <= 0 || len(trimmed) <= limit {
-		return trimmed
-	}
-	return trimmed[:limit] + "..."
-}
-
 func formatTime(value time.Time) string {
 	if value.IsZero() {
 		return "none"

@@ -9,6 +9,7 @@ import (
 	einomodel "github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/schema"
 
+	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/contextplane"
 	"github.com/ycvk/acorn/internal/contextplane/compaction"
 	"github.com/ycvk/acorn/internal/events"
@@ -22,11 +23,8 @@ func (e *Executor) bootstrapContextSessionMessages(
 	mode events.OrchestrationMode,
 	active *ActiveRunner,
 ) ([]adk.Message, error) {
-	if e == nil || e.runRuntime == nil || e.runRuntime.Config() == nil {
-		return nil, fmt.Errorf("context session bootstrap requires runtime config")
-	}
-	if active == nil {
-		return nil, fmt.Errorf("context session bootstrap requires active runner")
+	if err := e.validateBootstrapDeps(active); err != nil {
+		return nil, err
 	}
 	contextPolicy, err := e.runRuntime.Config().ContextPolicy()
 	if err != nil {
@@ -37,6 +35,38 @@ func (e *Executor) bootstrapContextSessionMessages(
 	if err != nil {
 		return nil, fmt.Errorf("build context session token counter: %w", err)
 	}
+	session := e.buildContextSession(active, contextPolicy, modelProfile, counter)
+	input, err := e.bootstrapSession(ctx, session, req, runID, mode, active, modelProfile)
+	if err != nil {
+		return nil, err
+	}
+	active.ContextSession = session
+	return input.Messages, nil
+}
+
+func (e *Executor) bootstrapSession(ctx context.Context, session contextplane.ContextSession, req runtimeapi.ExecuteRequest, runID string, mode events.OrchestrationMode, active *ActiveRunner, modelProfile contextplane.ModelProfile) (*contextplane.ModelInput, error) {
+	return session.Bootstrap(ctx, contextplane.BootstrapRequest{
+		SessionID:       req.SessionID,
+		RunID:           runID,
+		TurnIndex:       req.TurnIndex,
+		Mode:            string(mode),
+		InitialMessages: prepareInitialMessages(req, mode, active),
+		Assembly:        active.ContextResult,
+		ModelProfile:    modelProfile,
+	})
+}
+
+func (e *Executor) validateBootstrapDeps(active *ActiveRunner) error {
+	if e == nil || e.runRuntime == nil || e.runRuntime.Config() == nil {
+		return fmt.Errorf("context session bootstrap requires runtime config")
+	}
+	if active == nil {
+		return fmt.Errorf("context session bootstrap requires active runner")
+	}
+	return nil
+}
+
+func (e *Executor) buildContextSession(active *ActiveRunner, contextPolicy config.ContextConfig, modelProfile contextplane.ModelProfile, counter *contextplane.CompressionTokenCounter) contextplane.ContextSession {
 	pipeline := compaction.NewDefaultContextCompressionPipeline(compaction.CompressionPipelineOptions{
 		Governor: contextplane.NewBudgetGovernor(counter),
 		CompactionEngine: compaction.NewDefaultCompactionEngine(compaction.CompactionEngineOptions{
@@ -49,8 +79,7 @@ func (e *Executor) bootstrapContextSessionMessages(
 		TokenCounter: counter,
 		ModelProfile: modelProfile,
 	})
-
-	session := contextplane.NewDefaultContextSession(contextplane.ContextSessionOptions{
+	return contextplane.NewDefaultContextSession(contextplane.ContextSessionOptions{
 		BudgetGovernor: contextplane.NewBudgetGovernor(counter),
 		Pipeline:       pipeline,
 		BoundaryStore:  e.store,
@@ -60,24 +89,14 @@ func (e *Executor) bootstrapContextSessionMessages(
 		},
 		State: active.CompressionState,
 	})
+}
+
+func prepareInitialMessages(req runtimeapi.ExecuteRequest, mode events.OrchestrationMode, active *ActiveRunner) []adk.Message {
 	initialMessages := append([]adk.Message(nil), req.Messages...)
 	if mode == events.ModeDirectResponse {
 		if instruction := strings.TrimSpace(active.Instruction); instruction != "" {
 			initialMessages = append([]adk.Message{schema.SystemMessage(instruction)}, initialMessages...)
 		}
 	}
-	input, err := session.Bootstrap(ctx, contextplane.BootstrapRequest{
-		SessionID:       req.SessionID,
-		RunID:           runID,
-		TurnIndex:       req.TurnIndex,
-		Mode:            string(mode),
-		InitialMessages: initialMessages,
-		Assembly:        active.ContextResult,
-		ModelProfile:    modelProfile,
-	})
-	if err != nil {
-		return nil, err
-	}
-	active.ContextSession = session
-	return input.Messages, nil
+	return initialMessages
 }

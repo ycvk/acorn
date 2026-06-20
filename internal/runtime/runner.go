@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -82,65 +81,6 @@ func (f *RunnerFactory) BuildCapabilitySpecs(ctx context.Context) ([]tooling.Too
 	return specs, nil
 }
 
-func (f *RunnerFactory) newChildAgentExecutor() (orchestration.ChildAgentExecutor, error) {
-	if f == nil || f.childAgentExecutorFactory == nil {
-		return nil, errors.New("child agent executor factory is not initialized")
-	}
-	childExec, err := f.childAgentExecutorFactory(ChildAgentRuntimeDeps{
-		RunRuntime:           f,
-		ParentDepth:          f.parentRunDepth,
-		CreateChildWorkspace: f.createChildWorkspace,
-		RuntimeForWorkspace:  f.runtimeForWorkspace,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("create child agent executor: %w", err)
-	}
-	if childExec == nil {
-		return nil, errors.New("child agent executor factory returned nil")
-	}
-	return childExec, nil
-}
-
-func (f *RunnerFactory) cloneForWorkspace(ws *workspace.Workspace) *RunnerFactory {
-	cloneDeps := f.deps.CloneForWorkspace(ws)
-	clone := &RunnerFactory{
-		deps:                      cloneDeps,
-		registry:                  f.registry,
-		runChatModelBuilder:       f.runChatModelBuilder,
-		childAgentExecutorFactory: f.childAgentExecutorFactory,
-	}
-	return clone
-}
-
-func (f *RunnerFactory) parentRunDepth(parentRunID string) int {
-	if f == nil || f.registry == nil {
-		return 0
-	}
-	if rc, ok := f.registry.Get(strings.TrimSpace(parentRunID)); ok {
-		return rc.Depth
-	}
-	return 0
-}
-
-func (f *RunnerFactory) createChildWorkspace(ctx context.Context, subRunID string) (*workspace.Workspace, error) {
-	if f == nil || f.deps.Workspace == nil {
-		return nil, errors.New("child worktree requires an initialized workspace")
-	}
-	worktree, err := f.deps.Workspace.CreateChildWorktree(ctx, subRunID)
-	if err != nil {
-		return nil, fmt.Errorf("create child worktree: %w", err)
-	}
-	childWorkspace, err := f.deps.Workspace.OpenWorktree(worktree)
-	if err != nil {
-		return nil, fmt.Errorf("open child worktree: %w", err)
-	}
-	return childWorkspace, nil
-}
-
-func (f *RunnerFactory) runtimeForWorkspace(ws *workspace.Workspace) RunRuntime {
-	return f.cloneForWorkspace(ws)
-}
-
 func (f *RunnerFactory) Registry() *Registry {
 	return f.registry
 }
@@ -159,57 +99,4 @@ func (f *RunnerFactory) SessionSummarySvc() *model.SessionSummaryService {
 
 func (f *RunnerFactory) NewChatModel(ctx context.Context) (einomodel.BaseChatModel, error) {
 	return f.newChatModel(ctx)
-}
-
-func (f *RunnerFactory) hasWorkingContext(ctx context.Context, sessionID string) (bool, error) {
-	if strings.TrimSpace(sessionID) == "" || f.deps.CheckpointService == nil {
-		return false, nil
-	}
-	checkpoint, err := f.deps.CheckpointService.Get(ctx, sessionID)
-	if err != nil {
-		return false, fmt.Errorf("load working checkpoint: %w", err)
-	}
-	if checkpoint == nil {
-		return false, nil
-	}
-	return strings.TrimSpace(checkpoint.Content) != "", nil
-}
-
-func (r *ActiveRunner) Close() error {
-	var closeErr error
-	if r.CloseRunTools != nil {
-		closeErr = r.CloseRunTools()
-		r.CloseRunTools = nil
-	}
-	if r.Factory != nil && r.RunID != "" {
-		r.Factory.registry.Clear(r.RunID)
-		r.Factory.ClearCurrentRunID(r.RunID)
-	}
-	return closeErr
-}
-
-func (f *RunnerFactory) setCurrentRunID(runID string) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.currentRunID.Store(runID)
-}
-
-func (f *RunnerFactory) ClearCurrentRunID(runID string) {
-	if runID == "" {
-		return
-	}
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	if f.currentRunIDValue() == runID {
-		f.currentRunID.Store("")
-	}
-}
-
-func (f *RunnerFactory) currentRunIDValue() string {
-	value := f.currentRunID.Load()
-	runID, ok := value.(string)
-	if !ok {
-		return ""
-	}
-	return runID
 }

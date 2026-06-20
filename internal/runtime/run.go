@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/cloudwego/eino/adk"
 	einomodel "github.com/cloudwego/eino/components/model"
@@ -24,105 +23,35 @@ import (
 	"github.com/ycvk/acorn/internal/workspace"
 )
 
-func (f *RunnerFactory) buildRun(ctx context.Context, req RunnerBuildRequest) (*ActiveRunner, error) {
+func (f *RunnerFactory) buildRun(ctx context.Context, req RunnerBuildRequest) (active *ActiveRunner, err error) {
 	if f == nil {
 		return nil, errors.New("runner factory is not initialized")
 	}
 	mode := events.OrchestrationMode(req.OrchestrationMode).Normalize()
-	if mode != events.ModeDirectResponse {
-		if f.deps.Workspace == nil {
-			return nil, errors.New("workspace contract is not initialized")
-		}
+	if err = f.validateRunMode(mode); err != nil {
+		return nil, err
 	}
-
-	rc := &RunContext{
-		RunID:    req.RunID,
-		ParentID: strings.TrimSpace(req.ParentRunID),
+	cleanup, regErr := f.registerRunForBuild(req)
+	if regErr != nil {
+		return nil, regErr
 	}
-	if err := f.registry.Register(rc); err != nil {
-		return nil, fmt.Errorf("register run context: %w", err)
-	}
-	registeredRunContext := true
-	keepRunContext := false
+	var capabilities *runCapabilities
 	defer func() {
-		if keepRunContext {
+		if err == nil {
 			return
 		}
-		if registeredRunContext {
-			f.registry.Clear(req.RunID)
+		cleanup()
+		if capabilities != nil {
+			_ = capabilities.Close()
 		}
-		f.ClearCurrentRunID(req.RunID)
 	}()
-
-	f.setCurrentRunID(req.RunID)
-
-	switch mode {
-	case events.ModeDirectResponse, events.ModeSingleAgent, events.ModePlanExecute:
-	default:
-		return nil, fmt.Errorf("unsupported orchestration mode %q", mode)
+	chatModel, capabilityAssembly, prereqErr := f.buildRunPrerequisites(ctx, req)
+	if prereqErr != nil {
+		return nil, prereqErr
 	}
-
-	chatModel, err := f.buildRunChatModel(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-
-	capabilityAssembly, err := f.buildRunCapabilityAssembly(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-	capabilities := capabilityAssembly.capabilities
-	defer func() {
-		if keepRunContext || capabilities == nil {
-			return
-		}
-		_ = capabilities.Close()
-	}()
-
-	if mode == events.ModeDirectResponse {
-		activeRunner, err := f.newDirectResponseRunner(ctx, req, chatModel, capabilityAssembly)
-		if err != nil {
-			return nil, err
-		}
-		keepRunContext = true
-		return activeRunner, nil
-	}
-
-	memoryPrepared, err := f.prepareRunMemory(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-
-	selection, err := f.resolveRunSelection(ctx, req, capabilities)
-	if err != nil {
-		return nil, err
-	}
-
-	contextResult, err := f.assembleToolContext(ctx, req, capabilities, selection, memoryPrepared)
-	if err != nil {
-		return nil, err
-	}
-
-	agentAssembly, err := f.buildToolEnabledAssembly(ctx, mode, req, capabilities, chatModel, contextResult)
-	if err != nil {
-		return nil, err
-	}
-
-	activeRunner := &ActiveRunner{
-		Mcp:              capabilityAssembly.mcpManager,
-		Runner:           agentAssembly.Runner,
-		SelectedSkill:    CopySelectedSkill(selection.selectedSkill),
-		Instruction:      agentAssembly.Instruction,
-		ChatModel:        chatModel,
-		Factory:          f,
-		ContextResult:    contextResult,
-		RunID:            req.RunID,
-		CompressionState: agentAssembly.CompressionState,
-		ToolCatalog:      capabilities.catalog,
-		CloseRunTools:    capabilities.Close,
-	}
-	keepRunContext = true
-	return activeRunner, nil
+	capabilities = capabilityAssembly.capabilities
+	active, err = f.assembleRunnerByMode(ctx, req, mode, chatModel, capabilityAssembly)
+	return active, err
 }
 
 func (f *RunnerFactory) newDirectResponseRunner(ctx context.Context, req RunnerBuildRequest, chatModel einomodel.BaseChatModel, capabilityAssembly *capabilityAssembly) (*ActiveRunner, error) {

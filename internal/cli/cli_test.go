@@ -16,12 +16,12 @@ func TestRunWithoutArgsReturnsUsage(t *testing.T) {
 	if err == nil {
 		t.Fatal("Run() without args should return usage error")
 	}
-	for _, want := range []string{"Usage:", "acorn doctor", "acorn pair", "acorn serve", "acorn memory semantic rebuild"} {
+	for _, want := range []string{"Usage:", "acorn doctor", "acorn pair", "acorn run", "acorn serve", "acorn memory semantic rebuild"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Fatalf("Run() usage error should contain %q, got %q", want, err.Error())
 		}
 	}
-	for _, removed := range []string{"acorn run", "acorn chat", "acorn continue"} {
+	for _, removed := range []string{"acorn chat", "acorn continue"} {
 		if strings.Contains(err.Error(), removed) {
 			t.Fatalf("Run() usage error should not contain removed command %q, got %q", removed, err.Error())
 		}
@@ -50,7 +50,10 @@ func TestRunUsageIncludesOperatorCommands(t *testing.T) {
 			t.Fatalf("usageText should contain %q, got:\n%s", want, body)
 		}
 	}
-	for _, removed := range []string{"acorn run", "acorn chat", "acorn continue"} {
+	if !strings.Contains(body, `acorn run [-c path] [--json] "task input"`) {
+		t.Fatalf("usageText should contain acorn run, got:\n%s", body)
+	}
+	for _, removed := range []string{"acorn chat", "acorn continue"} {
 		if strings.Contains(body, removed) {
 			t.Fatalf("usageText should not contain removed command %q, got:\n%s", removed, body)
 		}

@@ -80,10 +80,6 @@ func renderDecisionProfile(profile *decision.ParsedProfile) string {
 		fmt.Sprintf("  Hash: %s", valueOrNone(profile.Hash)),
 		fmt.Sprintf("  Missing context: %s", profile.Profile.Defaults.MissingContext),
 		fmt.Sprintf("  Missing capability: %s", profile.Profile.Defaults.MissingRequiredCapability),
-		fmt.Sprintf("  Routes: %d", len(profile.Profile.Routes)),
-	}
-	for _, route := range profile.Profile.Routes {
-		lines = append(lines, fmt.Sprintf("    - %s -> %s %s", route.Intent, route.Action, compactCLIText(route.SkillID, 80)))
 	}
 	return strings.Join(lines, "\n")
 }

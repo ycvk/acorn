@@ -249,19 +249,17 @@ func TestSubagentEmitFailedReturnsDurableWriteError(t *testing.T) {
 	t.Parallel()
 
 	se := &SubagentExecutor{}
-	err := se.emitFailed(
-		context.Background(),
-		"parent_run",
-		"sub_run",
-		"delegate_sub_run",
-		"step_1",
-		orchestration.ChildRunModeFork,
-		orchestration.ChildWorkspaceModeWorktree,
-		"",
-		events.ModeSingleAgent,
-		"boom",
-		nil,
-	)
+	run := &subagentRunContext{
+		parentRunID:    "parent_run",
+		subRunID:       "sub_run",
+		childSessionID: "delegate_sub_run",
+		parentStepID:   "step_1",
+		childRunMode:   orchestration.ChildRunModeFork,
+		workspaceMode:  orchestration.ChildWorkspaceModeWorktree,
+		worktreePath:   "",
+		requestedMode:  events.ModeSingleAgent,
+	}
+	err := se.emitFailed(context.Background(), run, "boom")
 	if err == nil {
 		t.Fatal("expected emitFailed to return error when store append fails")
 	}

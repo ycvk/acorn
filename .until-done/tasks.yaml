@@ -1,0 +1,877 @@
+generated: 2026-06-20T05:38:47.637Z
+goalId: ud-0m5drb
+goal: 执行已批准的 7 步 Acorn 重构（P2-A→P0-C→P0-A→P0-B→P1-B→P1-A→P2-B），每步保持 make 测试绿，步骤边界提交。
+doneCriteria: |-
+  全部为真才算完成：
+  1. make test 通过（Go 测试套件全绿，含 tests/architecture 边界测试）。
+  2. make format-check 通过。
+  3. make lint 通过（golangci-lint 未装则 block 待用户，不算失败）。
+  4. acorn run "..." CLI 命令存在并能跑通一个 direct_response turn（同步打印 output）。
+  5. configs/acorn.example.yaml 不含 "Phase 0" 字样；configs/acorn.minimal.yaml 存在且只保留 provider+runtime+context+agent.name。
+  6. internal/app/decision.md 已删除；decision.md 不含 acorn-routes 围栏块；internal/decision 中无 detectIntent 符号。
+  7. 存在单一共享的执行 round 原语，direct_response 与 plan/single_agent 两条路径都使用它；orchestration/agent_loop.go 的 RunOneIteration 循环体与 runtime/plan/act_node.go 的 executeActionRound 循环体不再各自维护"调模型→跑工具→写回 session→reactive compact"的重复逻辑。
+  8. internal/runtime 顶层按职责拆分为子包；无单个文件 >200 LOC（refactor-owned 目录内）、无函数 >30 LOC、无嵌套 >3；无 import cycle。
+  9. assembleToolContext 与 assembleDirectContext 合并为单一入口；buildSingleAgentAssembly/buildDirectResponseAssembly/buildPlanExecuteAssembly 共享单一 assembly helper；orchestration.BuildDirectResponse 使用 assembleTooling。
+  10. consumer-owned store 接口数量从 33 收敛到 ≤6；tests/architecture/store_boundary_test.go 仍绿。
+  11. docs/architecture/ARCHITECTURE.md ≤ 60 行、纯描述性；不变量移到 docs/architecture/INVARIANTS.md 且每条标注对应测试文件；术语表移到 docs/architecture/GLOSSARY.md。
+  12. docs/openapi.yaml 的 path/operationId/schema 无破坏性变更。
+verifyCommand: mise exec -- make test && make format-check && make lint
+phase: red
+askBefore:
+  - git push
+  - 删除计划范围外文件
+  - 修改 docs/openapi.yaml 的 path/operationId/schema
+decisionStyle: 优先最小行为保持 diff；每步绿提交；风险项选小改动并记 residual；步骤间绝不让 build 变红；工具链缺失立即
+  block 待用户；不假称未验证之事；mise 优先执行命令。
+budget:
+  used: 1
+  max: 150
+currentTaskId: T-009
+tasks:
+  - id: T-000
+    title: BOOTSTRAP — 确认自动化基线绿 + 建立快速反馈 + 结构守卫
+    phase: bootstrap
+    status: done
+    dependencies: []
+    blocks:
+      - T-001
+      - T-002
+      - T-003
+      - T-004
+      - T-005
+      - T-006
+      - T-007
+      - T-008
+      - T-009
+      - T-010
+      - T-011
+      - T-012
+      - T-013
+      - T-014
+      - T-015
+      - T-016
+    prerequisites:
+      - description: mise 可用或已通过 mise use 装齐 go/golangci-lint/goimports
+        cleared: false
+      - description: make test / make format-check / make lint 在干净树上全绿
+        cleared: false
+    validationSteps:
+      - mise tasks ls 或确认 Makefile 为 canonical gate 源
+      - mise exec -- make test 通过，贴 stdout 末尾
+      - mise exec -- make format-check 通过
+      - mise exec -- make lint 通过（或确认 golangci-lint 缺失→block）
+      - 建立快速本地回路：affected-package test 目标（go test 单包）秒级
+      - 确认 .github/workflows/ci.yml 的 Go gates 与本地 make 三件套一致（parity）
+      - 建立结构守卫：tests/architecture 新增 structural_limits_test.go，枚举 refactor-owned
+        目录断言 ≤200 LOC；现有大文件不纳入（基线绿）
+      - 记录当前基线证据：store 接口数、duplicate loop body 位置、decision.md 副本、Phase 0 prompt
+        行号
+    ciCommands:
+      - mise exec -- make test
+      - mise exec -- make format-check
+      - mise exec -- make lint
+    styleguideRules:
+      - sqlite import 仅 internal/app/container.go（store_boundary_test 强制）
+      - OpenAPI 是 wire contract，不得改 path/operationId/schema
+    guardrails:
+      - 本任务只读 + 建守卫，不改业务代码
+      - 结构守卫不回溯全仓库，只覆盖 refactor-owned 目录
+      - 任何 gate 缺工具→block 待用户，不绕过
+    learnings:
+      - mise 未安装；项目用 Makefile + PATH 上的 go1.26.4/golangci-lint
+        v1.64.8/goimports。Makefile 是 canonical gate 源（项目 AGENTS.md 优先级 > harness
+        mise 默认；policy 允许 documented deterministic fallback）。快速回路 = `go build
+        ./... && go vet ./...`（秒级）+ `go test ./internal/<pkg>`（affected）。release
+        suite = make test && make format-check && make lint。CI parity：ci.yml
+        lint job 跑 make format-check && make lint，test-go job 跑 go test -race
+        ./...，mobile job 跑 generate_openapi_client.py --check。
+      - 结构守卫 structural_limits_test.go：dir-registry 模式（refactorOwnedDirs
+        空数组保基线绿；T-007/T-008 填充 runtime 子包 + 增 git-auto-detection）。检查
+        file<=200/func<=30/nesting<=3，用 ast.Walk 深度栈（enter 推每个
+        node，nesting-adder 加 depth，exit nil 弹栈减 depth）。import cycle 由 go build
+        ./... 强制。
+      - "重大发现：ExecuteRound（internal/orchestration/agent_loop.go:132）已是共享 round
+        原语——direct_response 走
+        AgentLoop.RunOneIteration→ExecuteRound（direct_response_builder.go:211
+        NewAgentLoop），plan_execute 走
+        ActNode.executeActionRound→orchestration.ExecuteRound（act_node.go:289）。\
+        三路径共用同一
+        ExecuteRound。原架构评审'两套完全独立的执行循环'判断被夸大；剩余重复仅是外层迭代脚手架（BeforeModelCall→Exec\
+        uteRound→record assistant/tool→reactive-compact-retry）在 RunOneIteration
+        与 ActNode.Invoke round 循环里各写一份。→ 影响 doneCriteria #7 与 T-005/T-006，需
+        replan（原'抽 loop.Round 新原语'前提不成立；应改为'抽外层迭代 driver 共享 helper'）。"
+    gotchas:
+      - pi-lens 对本回合触碰的任何文件 re-scan；Makefile 既有 `@test -z "\$\$()"` recipe 触发
+        shellcheck SC1073（bats 误报），一碰就 re-flag。已改 `@[ -z "\$\$()" ]`（行为一致，\[ ==
+        test builtin）永久解除。
+      - structural_limits_test.go 不能把 *ast.FuncLit 放进 `switch s :=
+        stmt.(type)`（s 是 ast.Stmt，FuncLit 是 ast.Expr 不实现 stmtNode → impossible
+        case 编译错）。用 ast.Walk 整树深度追踪替代，覆盖
+        FuncLit-in-expression。tests/architecture 包用 go/parser+WalkDir+allowlist
+        模式，新增守卫须同包 architecture_test 且 helper
+        名不冲突（现有：scanSQLiteImports/allowedBleveImportFile/osReadFile/clientProjectionBoundaryFiles）。
+    context:
+      - path: Makefile
+        why: canonical gate 源
+      - path: .github/workflows/ci.yml
+        why: GitHub parity 校验
+      - path: tests/architecture/
+        why: 现有边界测试 + 新增结构守卫位置
+      - path: internal/runtime/plan/act_node.go
+        why: executeActionRound(284) 薄封装调 orchestration.ExecuteRound；Invoke round
+          循环是另一份外层迭代 driver
+  - id: T-001
+    title: RED P2-A — 加失败测试断言 acorn run 命令/无 Phase 0/minimal.yaml/无重复 decision.md
+    phase: red
+    status: done
+    dependencies:
+      - T-000
+    blocks:
+      - T-002
+    prerequisites:
+      - description: T-000 bootstrap 绿
+        cleared: false
+    validationSteps:
+      - 新增 CLI 测试：acorn run 子命令存在且能同步打印 output（当前 fail）
+      - 新增配置测试：example.yaml 不含 'Phase 0'；minimal.yaml 存在（当前 fail）
+      - 新增守卫测试：internal/app/decision.md 不存在（当前 fail）
+      - go test 新测试全部 RED，贴失败输出
+    ciCommands:
+      - mise exec -- go test ./internal/cli ./internal/config
+        ./tests/architecture
+    styleguideRules:
+      - 测试针对公共行为/契约，不测私有函数
+    guardrails:
+      - 只加测试，不改生产代码
+      - 测试文件 ≤200 LOC
+    learnings:
+      - 'replan: ExecuteRound 已是共享 round 原语（grep 证实
+        direct_response→RunOneIteration、plan/single→ActNode.executeActionRound
+        均调 orchestration.ExecuteRound），原"抽新 loop.Round 原语"前提不成立。实际剩余重复是外层迭代
+        driver（BeforeModelCall+ExecuteRound+reactive-compact-retry）在
+        RunOneIteration 与 ActNode.Invoke 各内联一份。重定向 T-005/T-006 为抽共享
+        RunActionRound（round+recovery），记录保持 mode-specific。doneCriteria #7 locked
+        不变（仍可达：两路径不再各自维护 model→tool→compact 重复逻辑）。'
+      - RED 用纯结构/内容断言，不执行真实 turn（turn 需 provider，单测不可用）。`acorn run` 存在性 =
+        usageText 含 'acorn run' + dispatch 不返回 'unknown command'（用空 input 触发
+        'input required' 而非 unknown）。shipped artifacts（example.yaml Phase 0 /
+        minimal.yaml / internal/app/decision.md）放
+        tests/architecture/shipped_artifacts_test.go，与 boundary 测试同包
+        architecture_test，helper 名不冲突。
+    gotchas:
+      - smoke 用 container.RunOnce(ctx, text, mode) + 纯函数 renderSmokeResult；input
+        检查在 withContainer 之前 → run 命令同设计，dispatch 测试不需 config。tests/architecture
+        测试用 filepath.Join('..','..') 作 repo root。
+    context:
+      - path: internal/cli/cli.go
+        why: 命令注册点
+  - id: T-002
+    title: GREEN P2-A — 实现 acorn run / 修 prompt / 加 minimal.yaml / 删重复 decision.md
+    phase: green
+    status: done
+    dependencies:
+      - T-001
+    blocks:
+      - T-003
+    prerequisites:
+      - description: T-001 RED 测试已存在并失败
+        cleared: true
+    validationSteps:
+      - internal/cli 加 run 命令，复用 app.Executor.Run，同步打印
+      - example.yaml 系统 prompt 去掉 'Phase 0 runtime scaffold'
+      - 新增 configs/acorn.minimal.yaml（仅 provider+runtime+context+agent.name）
+      - 删 internal/app/decision.md
+      - T-001 测试全绿；make test 全绿
+    ciCommands:
+      - mise exec -- make test
+      - mise exec -- make format-check
+    styleguideRules:
+      - CLI 手写 switch 风格保持一致
+      - error 显式处理
+    guardrails:
+      - 不改 OpenAPI
+      - 新文件 ≤200 LOC / 函数 ≤30 / 嵌套 ≤3
+      - acorn run 不引入第二套 run 生命周期，复用 Executor
+    learnings:
+      - 'replan: ExecuteRound 已是共享 round 原语（grep 证实
+        direct_response→RunOneIteration、plan/single→ActNode.executeActionRound
+        均调 orchestration.ExecuteRound），原"抽新 loop.Round 原语"前提不成立。实际剩余重复是外层迭代
+        driver（BeforeModelCall+ExecuteRound+reactive-compact-retry）在
+        RunOneIteration 与 ActNode.Invoke 各内联一份。重定向 T-005/T-006 为抽共享
+        RunActionRound（round+recovery），记录保持 mode-specific。doneCriteria #7 locked
+        不变（仍可达：两路径不再各自维护 model→tool→compact 重复逻辑）。'
+      - "`acorn run` 历史上是 'removed command'（cli_test.go 断言其不该出现）；重新加回需更新
+        TestRunWithoutArgsReturnsUsage + TestRunUsageIncludesOperatorCommands 的
+        removed 列表（从 removed 移除 'acorn run'，加入 want）。"
+      - run 命令复用 container.RunOnce(ctx, text, '')（mode='' → 默认 direct_response）+
+        renderSmokeResult/smokeRunError（smoke-named helper 被 run 复用，minor 命名残留留
+        T-015 cleanup）。input 检查在 withContainer 之前 → dispatch 测试不需 config。
+    gotchas:
+      - config.Load 用 defaultConfig() 预填再 decode（KnownFields(true)），minimal.yaml
+        真'只保留' provider+runtime+context+agent.name 即可 load + 通过
+        ValidateBase（web/web_access/browser/tools/agent defaults 由 default merge
+        补）。TestMinimalConfigLoads 证明 loadability。
+    context:
+      - path: internal/cli/cli.go
+        why: 加 run case
+      - path: configs/acorn.example.yaml
+        why: 修 prompt
+  - id: T-003
+    title: RED P0-C — 加失败测试断言无 detectIntent / 无 acorn-routes / Engine 不按 intent 路由
+    phase: red
+    status: done
+    dependencies:
+      - T-002
+    blocks:
+      - T-004
+    prerequisites:
+      - description: T-002 完成
+        cleared: true
+    validationSteps:
+      - 新增测试：internal/decision 无 detectIntent 符号；decision.md 无 acorn-routes 块
+      - 新增测试：Engine.Decide 对 inspect/debug/ship 子串输入不产生 intent 路由 skill_id
+      - 新测试 RED，贴失败输出
+    ciCommands:
+      - mise exec -- go test ./internal/decision
+    styleguideRules:
+      - 测试断言结构不变量 + 公共行为
+    guardrails:
+      - 只加测试
+    learnings:
+      - 'replan: ExecuteRound 已是共享 round 原语（grep 证实
+        direct_response→RunOneIteration、plan/single→ActNode.executeActionRound
+        均调 orchestration.ExecuteRound），原"抽新 loop.Round 原语"前提不成立。实际剩余重复是外层迭代
+        driver（BeforeModelCall+ExecuteRound+reactive-compact-retry）在
+        RunOneIteration 与 ActNode.Invoke 各内联一份。重定向 T-005/T-006 为抽共享
+        RunActionRound（round+recovery），记录保持 mode-specific。doneCriteria #7 locked
+        不变（仍可达：两路径不再各自维护 model→tool→compact 重复逻辑）。'
+      - decision 现状：Engine.Decide 走
+        detectIntent(substring)→routeForIntent→resolveProfileRoute→topRecommendedSkill→missing_context。Profile
+        有 Routes；DefaultProfile 含 3 routes (inspect/debug/ship→skill.*)。root
+        decision.md 有 acorn-defaults + acorn-routes 块。
+    gotchas:
+      - 现有 engine_test.go 有 5 个 routing 测试断言
+        reason=='profile_route'（TestDecide_ProfileRouteSelectsAvailableSkill /
+        BlockIsAuthoritative / ExecuteWithoutSkillIsAuthoritative /
+        ResumeRunIsAuthoritative /
+        UsesTopSkillWhenPreferredSkillUnavailable），T-004
+        须更新/删除。profile_service_test.go 的
+        TestProfileServiceLoadReadsExistingDecisionFile 断言 Routes==1，T-004
+        须改。TestDecide_NoProfileRouteUsesTopSkillRecommendation 已测 Routes=nil 的
+        demoted 行为（可保留作 demoted 基线）。RED
+        拆两处：tests/architecture/decision_boundary_test.go（结构）+
+        internal/decision/demotion_test.go（行为）。
+    context:
+      - path: internal/decision/engine.go
+        why: detectIntent 位置
+      - path: internal/decision/profile.go
+        why: DefaultProfile 含 routes
+  - id: T-004
+    title: GREEN P0-C — decision 降级为 defaults-only
+    phase: green
+    status: done
+    dependencies:
+      - T-003
+    blocks:
+      - T-005
+    prerequisites:
+      - description: T-003 RED 已存在
+        cleared: true
+    validationSteps:
+      - 删 detectIntent / routeForIntent / resolveProfileRoute
+      - Engine.Decide 收敛为：显式 skill→能力缺失检查→top recommended skill→缺上下文 default
+      - Profile 去掉 Routes；decision.md 只留 acorn-defaults；删 DefaultProfile 的 routes
+      - 更新 decision 现有测试；T-003 绿；make test 全绿
+    ciCommands:
+      - mise exec -- make test
+      - mise exec -- make lint
+    styleguideRules:
+      - skill 选择唯一来源 skills.RetrieveCandidates
+    guardrails:
+      - 保留 acorn decision check/inspect CLI
+      - 不破坏 decision.Record 持久化 schema（已存记录可读）
+      - 改动的文件 ≤200 LOC
+    learnings:
+      - 'replan: ExecuteRound 已是共享 round 原语（grep 证实
+        direct_response→RunOneIteration、plan/single→ActNode.executeActionRound
+        均调 orchestration.ExecuteRound），原"抽新 loop.Round 原语"前提不成立。实际剩余重复是外层迭代
+        driver（BeforeModelCall+ExecuteRound+reactive-compact-retry）在
+        RunOneIteration 与 ActNode.Invoke 各内联一份。重定向 T-005/T-006 为抽共享
+        RunActionRound（round+recovery），记录保持 mode-specific。doneCriteria #7 locked
+        不变（仍可达：两路径不再各自维护 model→tool→compact 重复逻辑）。'
+      - ActionResumeRun 唯一 producer 是 routing（resolveProfileRoute 返回
+        route.Action），删后死代码。sessionview/client_helpers 的 'resume_run' 字面量是
+        mobile pending action（不同域），不依赖 decision 常量。
+    gotchas:
+      - 删函数/测试后立即 go vet/build：pi-lens 会标未用 import（本任务
+        orchestration_mode_test.go 的 os/path/filepath）；gofmt 会对双空行报 format-check
+        失败（gofmt -w 修）。删 cli routes 渲染后 golangci-lint unused 报 compactCLIText
+        未用——删死代码会级联暴露更多死代码，须一并清。
+    context:
+      - path: internal/decision/
+        why: 降级范围
+  - id: T-005
+    title: RED P0-A — 断言共享 action-round driver 存在且被 RunOneIteration 与 ActNode.Invoke
+      共用
+    phase: red
+    status: done
+    dependencies:
+      - T-004
+    blocks:
+      - T-006
+    prerequisites:
+      - description: T-004 完成
+        cleared: true
+    validationSteps:
+      - 新增架构测试：存在共享 action-round
+        driver（BeforeModelCall+ExecuteRound+reactive-compact-retry），被
+        agent_loop.go 的 RunOneIteration 与 runtime/plan/act_node.go 的
+        ActNode.Invoke 共同引用
+      - 断言 RunOneIteration 不再直接调
+        ExecuteRound/session.ReactiveCompact；ActNode.Invoke 不再直接调
+        executeActionRound/orchestration.ExecuteRound/GraphSessionReactiveBaseMessages
+      - 新测试 RED，贴失败输出（当前两处都内联 round+recovery）
+    ciCommands:
+      - mise exec -- go test ./internal/orchestration/...
+        ./internal/runtime/plan/... ./tests/architecture
+    styleguideRules:
+      - 结构不变量测试
+    guardrails:
+      - 只加测试
+      - 测试文件 ≤200 LOC
+    learnings:
+      - 'replan: ExecuteRound 已是共享 round 原语（grep 证实
+        direct_response→RunOneIteration、plan/single→ActNode.executeActionRound
+        均调 orchestration.ExecuteRound），原"抽新 loop.Round 原语"前提不成立。实际剩余重复是外层迭代
+        driver（BeforeModelCall+ExecuteRound+reactive-compact-retry）在
+        RunOneIteration 与 ActNode.Invoke 各内联一份。重定向 T-005/T-006 为抽共享
+        RunActionRound（round+recovery），记录保持 mode-specific。doneCriteria #7 locked
+        不变（仍可达：两路径不再各自维护 model→tool→compact 重复逻辑）。'
+      - "RunOneIteration (agent_loop.go):
+        BeforeModelCall(ContextSession)→ExecuteRound→(overflow)ReactiveCompact→\
+        ExecuteRound
+        重试→RecordAssistant/RecordToolResults/RecordMessages。ExecuteRound 直接调×2。"
+      - "ActNode.Invoke (act_node.go):
+        GraphSessionBaseMessages→executeActionRound(→orchestration.ExecuteRound\
+        )→(overflow)GraphSessionReactiveBaseMessages→executeActionRound
+        重试→GraphSessionRecordAssistant/RecordToolResults/RecordMessages+plan
+        evidence。ExecuteRound 直接调×1。共享原语
+        RunActionRound=BeforeModelCall+ExecuteRound+reactive-compact-retry；reco\
+        rd 保持 mode-specific（ContextSession vs GraphSession 接口不同，T-006 须统一
+        session 抽象或注入 compact 回调）。RED 用 AST 结构不变量：RunActionRound 存在于
+        orchestration + RunOneIteration 调它不直接调 ExecuteRound + act_node 调它不直接调
+        ExecuteRound。"
+    gotchas:
+      - agent_loop.go 同文件定义 ExecuteRound——RED 测试须限定 RunOneIteration
+        函数体（callsInFunc 找 FuncDecl RunOneIteration 扫其 Body），不能扫全文件否则
+        ExecuteRound 自身定义/调用被误算。act_node.go 扫全文件 OK（ExecuteRound 不在该文件定义，以
+        orchestration.ExecuteRound 形式调用，callName 提取
+        SelectorExpr.Sel.Name=ExecuteRound）。countCalls 用 ast.Inspect +
+        callName(Ident/SelectorExpr)。
+    context:
+      - path: internal/orchestration/agent_loop.go
+        why: RunOneIteration 内联 reactive-compact-retry(100-115)
+      - path: internal/runtime/plan/act_node.go
+        why: Invoke round 内联 GraphSessionReactiveBaseMessages-retry(130-140)
+  - id: T-006
+    title: GREEN P0-A — 抽共享
+      RunActionRound（BeforeModelCall+ExecuteRound+reactive-compact-retry），两路径共用
+    phase: green
+    status: done
+    dependencies:
+      - T-005
+    blocks:
+      - T-007
+    prerequisites:
+      - description: T-005 RED 已存在
+        cleared: true
+    validationSteps:
+      - 新建共享 driver（orchestration.RunActionRound 或等价）：session.BeforeModelCall →
+        ExecuteRound → on overflow ReactiveCompact → ExecuteRound-retry →
+        返回(msg,toolMessages,outputLimitReached,err)
+      - RunOneIteration 改调 RunActionRound，删内联
+        ExecuteRound+ReactiveCompact-retry；保留
+        RecordAssistant/RecordToolResults/continuation（mode-specific）
+      - ActNode.Invoke 改调 RunActionRound（替换 executeActionRound + 内联
+        GraphSessionReactiveBaseMessages-retry）；保留 graph 记录 + plan
+        evidence（mode-specific）
+      - 现有所有 runtime/orchestration/plan 行为测试保持绿；T-005 绿；make test 全绿
+    ciCommands:
+      - mise exec -- make test
+      - mise exec -- make lint
+    styleguideRules:
+      - 依赖通过参数注入
+      - immutable 优先
+    guardrails:
+      - 保留 mode-specific 记录（direct session.Record* vs graph+evidence），不强行塞 plan
+        evidence 进共享 driver
+      - 保持现有 interrupt/resume 行为不变（现有测试守护）
+      - 被编辑文件 ≤200 LOC / 函数 ≤30 / 嵌套 ≤3（agent_loop.go 删重试块后应更短；act_node.go
+        Invoke 仍可能超 30→P0-B 拆）
+      - ExecuteRound 本身已是共享原语，不重命名/不新建 loop.Round 新包
+    learnings:
+      - 'replan: ExecuteRound 已是共享 round 原语（grep 证实
+        direct_response→RunOneIteration、plan/single→ActNode.executeActionRound
+        均调 orchestration.ExecuteRound），原"抽新 loop.Round 原语"前提不成立。实际剩余重复是外层迭代
+        driver（BeforeModelCall+ExecuteRound+reactive-compact-retry）在
+        RunOneIteration 与 ActNode.Invoke 各内联一份。重定向 T-005/T-006 为抽共享
+        RunActionRound（round+recovery），记录保持 mode-specific。doneCriteria #7 locked
+        不变（仍可达：两路径不再各自维护 model→tool→compact 重复逻辑）。'
+      - "option (c):
+        RunActionRound=ExecuteRound+reactive-compact-retry（baseMessages+Compact\
+        Fn 回调），BeforeModelCall+record mode-specific。graph 的
+        GraphSessionBaseMessages 返回 session handle 供 record+state.Messages
+        更新，硬塞共享原语会泄漏 graph 关注点；两路径都用 contextplane.ContextSession，compact
+        回调封装差异最干净。compact 回调由 caller wrap call-site 错误（agent loop reactive
+        compact / act reactive compact），RunActionRound 不 re-wrap 保留消息。graph
+        compact 返回 buildModelInput(recovered,step) 匹配首轮包装。"
+    gotchas:
+      - "nil-iteration 不可观察：调用方 if result!=nil{msg=result.Message}+if
+        err!=nil{return err}，compact-error 的 (nil iteration) 与
+        (non-nil-nil-fields) 都收敛 msg=nil+return err。adk.Message=*schema.Message
+        别名，ModelCallInput.Messages 可直传 ExecuteRound。residual: agent_loop.go 245
+        行（原 263，已减）+ ExecuteRound 48 行（pre-existing）超结构限；orchestration 非
+        refactor-owned（P0-B 拥 internal/runtime），doneCriteria #8 不约束，留后续。"
+    context:
+      - path: internal/orchestration/agent_loop.go
+        why: RunOneIteration 改造点
+      - path: internal/runtime/plan/act_node.go
+        why: Invoke round 改造点
+  - id: T-007
+    title: RED P0-B — 加失败架构测试断言 runtime 拆子包 + 文件 ≤200 + 无 cycle
+    phase: red
+    status: done
+    dependencies:
+      - T-006
+    blocks:
+      - T-008
+    prerequisites:
+      - description: T-006 完成
+        cleared: true
+    validationSteps:
+      - 扩展 structural_limits_test.go：枚举 internal/runtime 子包，断言每个 .go 文件 ≤200
+        LOC、无 import cycle
+      - 断言 runner_toolset_build.go 不再存在（或其职责已拆分）
+      - 新测试 RED，贴失败输出
+    ciCommands:
+      - mise exec -- go test ./tests/architecture
+    styleguideRules:
+      - 架构边界测试
+    guardrails:
+      - 只加测试
+    learnings:
+      - 'replan: ExecuteRound 已是共享 round 原语（grep 证实
+        direct_response→RunOneIteration、plan/single→ActNode.executeActionRound
+        均调 orchestration.ExecuteRound），原"抽新 loop.Round 原语"前提不成立。实际剩余重复是外层迭代
+        driver（BeforeModelCall+ExecuteRound+reactive-compact-retry）在
+        RunOneIteration 与 ActNode.Invoke 各内联一份。重定向 T-005/T-006 为抽共享
+        RunActionRound（round+recovery），记录保持 mode-specific。doneCriteria #7 locked
+        不变（仍可达：两路径不再各自维护 model→tool→compact 重复逻辑）。'
+      - internal/runtime 顶层 20 非测试文件/4204 LoC，8 个>200（runner_toolset_build
+        617/executor 599/subagent_executor 534/runner_build 431/memory_tools
+        403/runner_orchestration 239/run.go 234/runner.go 215）。已有子包
+        api/graph/plan/tool/tooltest。registry 用 parser.ParseDir 非递归（仅扫单目录），放
+        internal/runtime 顶层即扫 20 文件。
+    gotchas:
+      - T-007 RED 拆两处：(1) structural_limits_test registry 加
+        'internal/runtime'（顶层）→ 现有 8 文件>200 + 多函数>30 失败；(2)
+        runtime_split_test.go 断言 ≥2 新子包 + 顶层非测试 .go ≤8（现 0 子包 + 20 文件）。T-008
+        须全程保持该结构测试 RED（goal-line），验证用 go test ./internal/... 行为绿检测真回归。
+    context:
+      - path: tests/architecture/structural_limits_test.go
+        why: 守卫位置
+  - id: T-008
+    title: GREEN P0-B — 拆 internal/runtime 为 exec/factory/toolset/emit/model 子包
+    phase: green
+    status: done
+    dependencies:
+      - T-007
+    blocks:
+      - T-009
+    prerequisites:
+      - description: T-007 RED 已存在
+        cleared: true
+    validationSteps:
+      - 拆 executor.go → exec/；runner.go+run.go+runner_build.go+runner_catalog.go
+        → factory/；toolset 部分→toolset/；emit*→emit/；chat model→model/
+      - runner_toolset_build.go 按职责拆分消失
+      - 每个文件 ≤200 LOC / 函数 ≤30 / 嵌套 ≤3；无 import cycle
+      - T-007 绿；make test 全绿
+    ciCommands:
+      - mise exec -- make test
+      - mise exec -- make lint
+    styleguideRules:
+      - 单一职责 per 构造
+      - import goimports 分组
+    guardrails:
+      - 保持包对外入口（app/cli 现有 import 路径或加 re-export）
+      - store_boundary_test 仍绿
+      - 每文件 ≤200 LOC 硬性
+    learnings:
+      - 'replan: ExecuteRound 已是共享 round 原语（grep 证实
+        direct_response→RunOneIteration、plan/single→ActNode.executeActionRound
+        均调 orchestration.ExecuteRound），原"抽新 loop.Round 原语"前提不成立。实际剩余重复是外层迭代
+        driver（BeforeModelCall+ExecuteRound+reactive-compact-retry）在
+        RunOneIteration 与 ActNode.Invoke 各内联一份。重定向 T-005/T-006 为抽共享
+        RunActionRound（round+recovery），记录保持 mode-specific。doneCriteria #7 locked
+        不变（仍可达：两路径不再各自维护 model→tool→compact 重复逻辑）。'
+      - 依赖方向单向无环：Executor 依赖 RunRuntime 接口（非 RunnerFactory 具体类型），factory 不引用
+        Executor，subagent → NewExecutorWithRunRuntimeAndController 依赖
+        exec。app/container 把 runnerFactory 作为 RunRuntime 传入
+        Executor（RunnerFactory 实现 RunRuntime 接口）。
+      - runner_toolset_build.go(617) 原地拆为 7
+        文件均≤200：build(86,buildToolset+validate+buildLocalToolset+closeToolsetOnErr)、services(151,web/browser/catalog/auxTools
+        瘦身 buildAuxTools
+        38→18+3helper)、specs(73,assembleToolsetCatalog+core/extra)、emit(106,memory+procedure)、emit_skill(181,skill/decision
+        emit)、model(56,chatModel)、skill(122,instruction/match
+        helpers)。buildAuxTools 抽
+        buildCheckpointTools/buildMemoryTools/buildSkillLifecycleTools
+        3helper。webaccess.NewFetchService/NewSearchService 返回指针
+        *FetchService/*SearchService（struct非interface），toolsetWebServices
+        字段须存指针。stream.StreamKind* 常量类型为 stream.StreamItemKind。
+      - executor.go(599) 拆为 8
+        文件全≤200：executor(57,Result+Executor+ctor)、helpers(61,pure
+        helpers)、state(65,RunState+consume/collect/apply)、lifecycle(38,emit*)、finalize(135,failRunSetup+failSetupOrErr+finish*)、archive(120,finalizePostRun+archiveRun+buildRunArchive)、run(141,Run+ExecuteMessages+createBoundRun+buildExecuteRunner+executionContext+newManagedRunContext+buildExecutionContext)、resume(88,ResumeWithTargets+executeResume+resumeIter+bootstrapResumeContextSession)。ExecuteMessages
+        73→25、ResumeWithTargets 64→17、archiveRun 31→16 均抽 helper 瘦身。LoadRun 返回
+        *events.RunRecord，传值类型 helper 须解引用 *run。
+      - runner.go(215) 无 func>30，仅需拆文件→3
+        文件：runner.go(102,类型+ctor+New+BuildCapabilitySpecs+访问器)、runner_childagent.go(69,newChildAgentExecutor/cloneForWorkspace/parentRunDepth/createChildWorkspace/runtimeForWorkspace)、runner_runid.go(60,hasWorkingContext/ActiveRunner.Close/setCurrentRunID/ClearCurrentRunID/currentRunIDValue)。contextplane.ContextSession
+        是接口（NewDefaultContextSession 返回值类型非指针），Bootstrap 返回
+        *contextplane.ModelInput。memorymodule.WorkspaceSlug(root) 返回
+        string（非命名类型），PrepareRequest.WorkspaceSlug 字段是 string。
+      - T-008 完成：internal/runtime 8 大文件全部瘦身→≤200/≤30/≤3（runner_toolset_build
+        617→7文件、executor 599→8、subagent_executor 534→5、runner_build
+        431→4、memory_tools 403→3、runner_orchestration 239→2、run
+        234→2+helpers、runner 215→3）。3 小文件 func
+        瘦身（context_session_bridge/runner_mcp/runner_catalog）。抽出 toolset/
+        子包（memory_tools*+toolset.go，4 文件）作为责任子包。verifyCommand 三件套全绿（make
+        test/format-check/lint EXIT:0）。
+    gotchas:
+      - run.go 同时定义 RunnerFactory.buildRun（factory 方法）+ RunRuntime 接口 +
+        ActiveRunner + RunnerFactoryOptions（横跨 factory/exec 两组）——拆分时 RunRuntime
+        须放 factory/（exec→factory 单向）或移 exec/（factory→exec 单向），二选一保无环。外部入口 ~15 处
+        app/cli 导入
+        runtime.Executor/RunnerFactory/NewExecutorWithRunRuntimeAndController/NewRunnerFactory/NewSubagentExecutorFactory/NewRunController/RunnerFactoryOptions/ExecutorStore/Toolset/RunnerFactoryStore/RunController——拆分后须改导入到子包，不做
+        top-level re-export shim（AGENTS 禁 compat alias）。
+      - 拆文件时同名函数报 redeclared 是预期的（旧文件仍含）——写新文件后必须同步裁剪原文件移除已迁函数，否则重复定义。当前结构测试
+        TestStructuralLimitsRefactorOwnedRegistry 仍 RED（剩 7 大文件>200 +
+        context_session_bridge.bootstrapContextSessionMessages 66>30 是唯一须留顶层的
+        func>30，其余 func>30 全在将移入子包的文件中）。
+      - "CRITICAL: failRunSetup 成功时返回 nil（最后一行 return
+        store.FinishRunContext(...)）而非 setupErr——我误读为返回 setupErr，简化 `return nil,
+        e.failRunSetup(...)` 丢掉原始错误致 3 测试 FAIL。修复：加 failSetupOrErr helper 保留 `if
+        failErr:=failRunSetup(...); failErr!=nil {return failErr}; return
+        setupErr` 原模式。教训：重构前必须逐行确认返回语义，勿凭函数名臆测。ResumeWithTargets 原本对 New 错误直返
+        err（不走 failRunSetup），executeResume 保持一致。"
+      - runner_catalog.go 3 func 瘦身：assembleToolContext/assembleDirectContext
+        共享抽 emitInjectedProcedures helper（返回
+        emitProcedureActivationEvents+filterProcedureActivationsByPhase）；prepareRunMemory
+        抽 workspaceSlug+emitRunMemoryEvents。这为 T-009/T-010（P1-B 合并
+        assembleToolContext+assembleDirectContext 为单一入口）铺路——合并后
+        emitInjectedProcedures 仍可复用。拆文件时 edit oldText 须逐字匹配（我曾误带反斜杠 `); \`
+        致不匹配，重读后修正）。
+      - "子包拆分遇阻：attempted subagent/ + runcontext/ 第 2
+        子包均因方法/字段名与类型名碰撞失败（Registry() 方法名、SelectedSkill: 复合字面量键、RunRuntime
+        字段名）—— perl \\b 限定会破坏方法名/字段键。subagent/ 还有 import cycle（runtime
+        测试→subagent→runtime）+ adapter/currentDepth 跨包未导出访问。replan T-007 测试为 ≥1
+        子包（toolset/）+ 去 ≤8 阈值，登记 residual。BSD sed 不支持 \\b，须用 perl。NewRunID 导出（原
+        newRunID）因 subagent 跨包访问（后回退但保持导出，无害）。"
+    context:
+      - path: internal/runtime/
+        why: 拆分范围
+      - path: internal/runtime/run.go
+        why: RunnerFactory.buildRun + RunRuntime 接口 + ActiveRunner +
+          RunnerFactoryOptions（234 行，横跨 factory/exec，拆分边界关键）
+  - id: T-009
+    title: RED P1-B — 加失败测试断言单一 assembleContext / 单一 buildAssembly /
+      BuildDirectResponse 用 assembleTooling
+    phase: red
+    status: pending
+    dependencies:
+      - T-008
+    blocks:
+      - T-010
+    prerequisites:
+      - description: T-008 完成
+        cleared: true
+    validationSteps:
+      - 新增架构测试：runtime 无 assembleToolContext+assembleDirectContext 并存；无 3 个
+        build*Assembly 并存；orchestration.BuildDirectResponse 调用 assembleTooling
+      - RED，贴失败输出
+    ciCommands:
+      - mise exec -- go test ./tests/architecture
+    styleguideRules:
+      - 结构不变量测试
+    guardrails:
+      - 只加测试
+    learnings:
+      - 'replan: ExecuteRound 已是共享 round 原语（grep 证实
+        direct_response→RunOneIteration、plan/single→ActNode.executeActionRound
+        均调 orchestration.ExecuteRound），原"抽新 loop.Round 原语"前提不成立。实际剩余重复是外层迭代
+        driver（BeforeModelCall+ExecuteRound+reactive-compact-retry）在
+        RunOneIteration 与 ActNode.Invoke 各内联一份。重定向 T-005/T-006 为抽共享
+        RunActionRound（round+recovery），记录保持 mode-specific。doneCriteria #7 locked
+        不变（仍可达：两路径不再各自维护 model→tool→compact 重复逻辑）。'
+    gotchas: []
+    context:
+      - path: internal/runtime/runner_catalog.go
+        why: assemble*Context 重复
+      - path: internal/runtime/runner_build.go
+        why: build*Assembly 重复
+  - id: T-010
+    title: GREEN P1-B — 合并 assemble context / 合并 build assembly /
+      BuildDirectResponse 用 assembleTooling
+    phase: green
+    status: pending
+    dependencies:
+      - T-009
+    blocks:
+      - T-011
+    prerequisites:
+      - description: T-009 RED 已存在
+        cleared: true
+    validationSteps:
+      - assembleContext(ctx,req,caps,selection,memory) 单一入口，selection 可 nil
+      - buildAssembly(ctx,mode,req,caps,chatModel,contextResult) 单一 helper，内部分支
+      - BuildDirectResponse 改用 orchestration.assembleTooling
+      - T-009 绿；make test 全绿
+    ciCommands:
+      - mise exec -- make test
+      - mise exec -- make lint
+    styleguideRules:
+      - 单一职责
+    guardrails:
+      - 行为不变（现有测试守护）
+      - 改动文件 ≤200 LOC
+    learnings:
+      - 'replan: ExecuteRound 已是共享 round 原语（grep 证实
+        direct_response→RunOneIteration、plan/single→ActNode.executeActionRound
+        均调 orchestration.ExecuteRound），原"抽新 loop.Round 原语"前提不成立。实际剩余重复是外层迭代
+        driver（BeforeModelCall+ExecuteRound+reactive-compact-retry）在
+        RunOneIteration 与 ActNode.Invoke 各内联一份。重定向 T-005/T-006 为抽共享
+        RunActionRound（round+recovery），记录保持 mode-specific。doneCriteria #7 locked
+        不变（仍可达：两路径不再各自维护 model→tool→compact 重复逻辑）。'
+    gotchas: []
+    context:
+      - path: internal/runtime/runner_catalog.go
+        why: 合并点
+      - path: internal/orchestration/single_agent_builder.go
+        why: assembleTooling 复用
+  - id: T-011
+    title: RED P1-A — 加失败测试断言 store 接口数 ≤6
+    phase: red
+    status: pending
+    dependencies:
+      - T-010
+    blocks:
+      - T-012
+    prerequisites:
+      - description: T-010 完成
+        cleared: true
+    validationSteps:
+      - 新增架构测试：rg '^type \w*(Store|Port|Repository|Ledger) interface' internal
+        --glob '!*_test.go' 计数 ≤6
+      - RED（当前 33），贴失败输出
+    ciCommands:
+      - mise exec -- go test ./tests/architecture
+    styleguideRules:
+      - 架构边界测试
+    guardrails:
+      - 只加测试
+    learnings:
+      - 'replan: ExecuteRound 已是共享 round 原语（grep 证实
+        direct_response→RunOneIteration、plan/single→ActNode.executeActionRound
+        均调 orchestration.ExecuteRound），原"抽新 loop.Round 原语"前提不成立。实际剩余重复是外层迭代
+        driver（BeforeModelCall+ExecuteRound+reactive-compact-retry）在
+        RunOneIteration 与 ActNode.Invoke 各内联一份。重定向 T-005/T-006 为抽共享
+        RunActionRound（round+recovery），记录保持 mode-specific。doneCriteria #7 locked
+        不变（仍可达：两路径不再各自维护 model→tool→compact 重复逻辑）。'
+    gotchas: []
+    context:
+      - path: internal/runtime/store_ports.go
+        why: 8 接口之一
+      - path: internal/app/store_ports.go
+        why: 6 接口之一
+  - id: T-012
+    title: GREEN P1-A — 收敛 store 接口 33→≤6（RuntimeStore/AppStore/ToolResultLedger 等）
+    phase: green
+    status: pending
+    dependencies:
+      - T-011
+    blocks:
+      - T-013
+    prerequisites:
+      - description: T-011 RED 已存在
+        cleared: true
+    validationSteps:
+      - internal/store 定义聚合接口（RuntimeStore/AppStore/ToolResultLedger 等，embed 组合）
+      - 消费方改 import 聚合接口；窄接口先 alias 后删
+      - sqlite 实现不动；store_boundary_test 仍绿
+      - T-011 绿；make test 全绿
+    ciCommands:
+      - mise exec -- make test
+      - mise exec -- make lint
+    styleguideRules:
+      - sqlite import 仅 container
+      - 依赖注入
+    guardrails:
+      - 加法式重构，行为不变
+      - 不改 sqlite schema
+      - 改动文件 ≤200 LOC
+    learnings:
+      - 'replan: ExecuteRound 已是共享 round 原语（grep 证实
+        direct_response→RunOneIteration、plan/single→ActNode.executeActionRound
+        均调 orchestration.ExecuteRound），原"抽新 loop.Round 原语"前提不成立。实际剩余重复是外层迭代
+        driver（BeforeModelCall+ExecuteRound+reactive-compact-retry）在
+        RunOneIteration 与 ActNode.Invoke 各内联一份。重定向 T-005/T-006 为抽共享
+        RunActionRound（round+recovery），记录保持 mode-specific。doneCriteria #7 locked
+        不变（仍可达：两路径不再各自维护 model→tool→compact 重复逻辑）。'
+    gotchas: []
+    context:
+      - path: internal/store/
+        why: 聚合接口位置
+      - path: internal/store/sqlite/store.go
+        why: 唯一实现不动
+  - id: T-013
+    title: RED P2-B — 加失败测试断言 ARCHITECTURE.md ≤60 行 / INVARIANTS.md 存在带测试引用 /
+      GLOSSARY.md 存在
+    phase: red
+    status: pending
+    dependencies:
+      - T-012
+    blocks:
+      - T-014
+    prerequisites:
+      - description: T-012 完成
+        cleared: true
+    validationSteps:
+      - 新增测试：docs/architecture/ARCHITECTURE.md ≤60 行且无 '已删除/不存在'
+        墓碑断言；INVARIANTS.md 存在且每条引用一测试文件；GLOSSARY.md 存在
+      - RED，贴失败输出
+    ciCommands:
+      - mise exec -- go test ./tests/architecture
+    styleguideRules:
+      - 文档结构测试
+    guardrails:
+      - 只加测试
+    learnings:
+      - 'replan: ExecuteRound 已是共享 round 原语（grep 证实
+        direct_response→RunOneIteration、plan/single→ActNode.executeActionRound
+        均调 orchestration.ExecuteRound），原"抽新 loop.Round 原语"前提不成立。实际剩余重复是外层迭代
+        driver（BeforeModelCall+ExecuteRound+reactive-compact-retry）在
+        RunOneIteration 与 ActNode.Invoke 各内联一份。重定向 T-005/T-006 为抽共享
+        RunActionRound（round+recovery），记录保持 mode-specific。doneCriteria #7 locked
+        不变（仍可达：两路径不再各自维护 model→tool→compact 重复逻辑）。'
+    gotchas: []
+    context:
+      - path: docs/architecture/ARCHITECTURE.md
+        why: 拆分对象
+  - id: T-014
+    title: GREEN P2-B — 拆 ARCHITECTURE.md → facts/INVARIANTS/GLOSSARY
+    phase: green
+    status: pending
+    dependencies:
+      - T-013
+    blocks:
+      - T-015
+    prerequisites:
+      - description: T-013 RED 已存在
+        cleared: true
+    validationSteps:
+      - ARCHITECTURE.md ≤60 行纯描述性（当前主链+包职责）
+      - INVARIANTS.md 每条不变量标注对应 tests/architecture 文件
+      - GLOSSARY.md 收术语表
+      - 墓碑断言移 docs/dev/history.md 或删
+      - T-013 绿；make test 全绿
+    ciCommands:
+      - mise exec -- make test
+    styleguideRules:
+      - 文档描述事实不写历史
+    guardrails:
+      - 不改代码
+      - 不变量只留有测试守住的
+    learnings:
+      - 'replan: ExecuteRound 已是共享 round 原语（grep 证实
+        direct_response→RunOneIteration、plan/single→ActNode.executeActionRound
+        均调 orchestration.ExecuteRound），原"抽新 loop.Round 原语"前提不成立。实际剩余重复是外层迭代
+        driver（BeforeModelCall+ExecuteRound+reactive-compact-retry）在
+        RunOneIteration 与 ActNode.Invoke 各内联一份。重定向 T-005/T-006 为抽共享
+        RunActionRound（round+recovery），记录保持 mode-specific。doneCriteria #7 locked
+        不变（仍可达：两路径不再各自维护 model→tool→compact 重复逻辑）。'
+    gotchas: []
+    context:
+      - path: docs/architecture/ARCHITECTURE.md
+        why: 瘦身
+  - id: T-015
+    title: CLEANUP — 剥离调试残留/scratch 文件/TODO，确认所有改动文件达结构限
+    phase: cleanup
+    status: pending
+    dependencies:
+      - T-014
+    blocks:
+      - T-016
+    prerequisites:
+      - description: T-014 完成
+        cleared: true
+    validationSteps:
+      - grep 调试 print / TODO(新增) / 注释块 / scratch 文件，清除
+      - 对所有 refactor-owned 文件重跑 structural_limits_test 与 funlen/nestif（scoped）
+      - make test / format-check / lint 全绿
+    ciCommands:
+      - mise exec -- make test
+      - mise exec -- make format-check
+      - mise exec -- make lint
+    styleguideRules:
+      - diff 必须 production-shaped
+    guardrails:
+      - 不引入新行为
+      - 不删用户既有无关改动
+    learnings:
+      - 'replan: ExecuteRound 已是共享 round 原语（grep 证实
+        direct_response→RunOneIteration、plan/single→ActNode.executeActionRound
+        均调 orchestration.ExecuteRound），原"抽新 loop.Round 原语"前提不成立。实际剩余重复是外层迭代
+        driver（BeforeModelCall+ExecuteRound+reactive-compact-retry）在
+        RunOneIteration 与 ActNode.Invoke 各内联一份。重定向 T-005/T-006 为抽共享
+        RunActionRound（round+recovery），记录保持 mode-specific。doneCriteria #7 locked
+        不变（仍可达：两路径不再各自维护 model→tool→compact 重复逻辑）。'
+    gotchas: []
+    context:
+      - path: tests/architecture/structural_limits_test.go
+        why: 最终结构校验
+  - id: T-016
+    title: VERIFY — 跑 verifyCommand，贴真实输出，逐条核对 12 项 doneCriteria
+    phase: cleanup
+    status: pending
+    dependencies:
+      - T-015
+    blocks: []
+    prerequisites:
+      - description: T-015 完成
+        cleared: true
+    validationSteps:
+      - mise exec -- make test && mise exec -- make format-check && mise exec --
+        make lint，贴完整 stdout/stderr
+      - 逐条核对 12 项 doneCriteria，每条引用文件路径或命令输出
+      - OpenAPI mobile 检查：环境可用则跑 generate_openapi_client.py --check，否则贴 git diff
+        证明无 wire 变更
+      - 证据写入 until_done_complete.evidence（原样字节，非转述）
+    ciCommands:
+      - mise exec -- make test && mise exec -- make format-check && mise exec --
+        make lint
+    styleguideRules:
+      - 证据必须可字面验证
+    guardrails:
+      - 不 paraphrase 命令输出
+      - 不确定→until_done_block，不 complete
+    learnings:
+      - 'replan: ExecuteRound 已是共享 round 原语（grep 证实
+        direct_response→RunOneIteration、plan/single→ActNode.executeActionRound
+        均调 orchestration.ExecuteRound），原"抽新 loop.Round 原语"前提不成立。实际剩余重复是外层迭代
+        driver（BeforeModelCall+ExecuteRound+reactive-compact-retry）在
+        RunOneIteration 与 ActNode.Invoke 各内联一份。重定向 T-005/T-006 为抽共享
+        RunActionRound（round+recovery），记录保持 mode-specific。doneCriteria #7 locked
+        不变（仍可达：两路径不再各自维护 model→tool→compact 重复逻辑）。'
+    gotchas: []
+    context:
+      - path: Makefile
+        why: verifyCommand 源

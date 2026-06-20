@@ -12,6 +12,7 @@ import (
 	einotool "github.com/cloudwego/eino/components/tool"
 
 	"github.com/ycvk/acorn/internal/memorymodule"
+	"github.com/ycvk/acorn/internal/runtime/toolset"
 )
 
 func TestMemoryCreateFileRejectsInvalidRecordBeforeWrite(t *testing.T) {
@@ -342,7 +343,7 @@ func newMemoryToolTestService(t *testing.T) *memorymodule.LocalService {
 
 func memoryToolByName(t *testing.T, service memorymodule.Service, name string) einotool.InvokableTool {
 	t.Helper()
-	items, err := BuildMemoryFileTools(t.Context(), service, nil)
+	items, err := toolset.BuildMemoryFileTools(t.Context(), service, nil)
 	if err != nil {
 		t.Fatalf("buildMemoryFileTools: %v", err)
 	}

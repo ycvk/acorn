@@ -38,10 +38,7 @@ func (s *ProfileService) Load() (*ParsedProfile, error) {
 	return LoadWorkspaceProfile(s.workspaceRoot)
 }
 
-const (
-	BlockDefaults = "acorn-defaults"
-	BlockRoutes   = "acorn-routes"
-)
+const BlockDefaults = "acorn-defaults"
 
 type ParsedProfile struct {
 	Profile Profile
@@ -55,11 +52,6 @@ func DefaultProfile() Profile {
 		Defaults: Defaults{
 			MissingContext:            ActionInspectFirst,
 			MissingRequiredCapability: ActionBlock,
-		},
-		Routes: []Route{
-			{Intent: "inspect", Action: ActionExecuteWithSkill, SkillID: "skill.inspect.repo"},
-			{Intent: "debug", Action: ActionExecuteWithSkill, SkillID: "skill.debug.backend"},
-			{Intent: "ship", Action: ActionExecuteWithSkill, SkillID: "skill.ship.patch"},
 		},
 	}
 }
@@ -106,13 +98,6 @@ func ParseProfileMarkdown(raw string) (Profile, error) {
 			return Profile{}, fmt.Errorf("parse %s: %w", BlockDefaults, err)
 		}
 	}
-	if block, ok := extractBlock(raw, BlockRoutes); ok {
-		var routes []Route
-		if err := yaml.Unmarshal([]byte(block), &routes); err != nil {
-			return Profile{}, fmt.Errorf("parse %s: %w", BlockRoutes, err)
-		}
-		profile.Routes = routes
-	}
 	if err := validateProfile(profile); err != nil {
 		return Profile{}, err
 	}
@@ -124,10 +109,6 @@ func RenderProfileMarkdown(profile Profile) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("marshal defaults: %w", err)
 	}
-	routes, err := yaml.Marshal(profile.Routes)
-	if err != nil {
-		return "", fmt.Errorf("marshal routes: %w", err)
-	}
 	raw := strings.Join([]string{
 		"# Acorn Decision Profile",
 		"",
@@ -137,10 +118,6 @@ func RenderProfileMarkdown(profile Profile) (string, error) {
 		"## Defaults",
 		"",
 		fmt.Sprintf("```%s\n%s```", BlockDefaults, defaults),
-		"",
-		"## Routes",
-		"",
-		fmt.Sprintf("```%s\n%s```", BlockRoutes, routes),
 	}, "\n")
 	return strings.TrimSpace(raw) + "\n", nil
 }
@@ -150,7 +127,6 @@ func validateProfile(profile Profile) error {
 		ActionExecuteWithSkill:    {},
 		ActionInspectFirst:        {},
 		ActionExecuteWithoutSkill: {},
-		ActionResumeRun:           {},
 		ActionAskUser:             {},
 		ActionBlock:               {},
 	}
@@ -160,17 +136,6 @@ func validateProfile(profile Profile) error {
 	} {
 		if _, ok := validAction[action]; !ok {
 			return fmt.Errorf("invalid decision action %q", action)
-		}
-	}
-	for _, route := range profile.Routes {
-		if strings.TrimSpace(route.Intent) == "" {
-			return fmt.Errorf("route intent is required")
-		}
-		if _, ok := validAction[route.Action]; !ok {
-			return fmt.Errorf("invalid route action %q", route.Action)
-		}
-		if route.Action == ActionExecuteWithSkill && strings.TrimSpace(route.SkillID) == "" {
-			return fmt.Errorf("route %q requires skill_id", route.Intent)
 		}
 	}
 	return nil

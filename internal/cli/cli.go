@@ -35,6 +35,8 @@ func Run(ctx context.Context, args []string) error {
 		return runToken(ctx, args[1:])
 	case "devices":
 		return runDevices(ctx, args[1:])
+	case "run":
+		return runRun(ctx, args[1:])
 	case "smoke":
 		return runSmoke(ctx, args[1:])
 	case "serve":
@@ -67,6 +69,7 @@ Usage:
   acorn devices list [-c path] [--json]
   acorn devices revoke [-c path] DEVICE_ID
   acorn smoke [-c path] [--json] [--mode direct_response|plan_execute] "task input"
+  acorn run [-c path] [--json] "task input"
   acorn memory procedure create [-c path] [--json] --title title --task-pattern pattern --source-run run --evidence-refs refs "procedure body"
   acorn memory semantic rebuild [-c path] [--json]
   acorn serve [-c path] [--listen addr]`)
