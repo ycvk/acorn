@@ -9,7 +9,6 @@ import (
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/contextplane"
-	"github.com/ycvk/acorn/internal/decision"
 	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/memorymodule"
 	"github.com/ycvk/acorn/internal/model"
@@ -102,7 +101,6 @@ func (f *RunnerFactory) buildToolEnabledAssembly(
 // RunnerFactoryOptions holds the optional dependencies for creating a RunnerFactory.
 type RunnerFactoryOptions struct {
 	Loader                    *skills.Loader
-	DecisionProfileService    *decision.ProfileService
 	ExtraLocalTools           []einotool.BaseTool
 	Workspace                 *workspace.Workspace
 	Handlers                  []adk.ChatModelAgentMiddleware

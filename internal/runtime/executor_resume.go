@@ -35,6 +35,7 @@ func (e *Executor) executeResume(ctx context.Context, runCtxBase context.Context
 		RunID:             runID,
 		OrchestrationMode: run.OrchestrationMode,
 		ParentRunID:       run.ParentRunID,
+		SkillID:           run.SkillID,
 	})
 	if err != nil {
 		return nil, err

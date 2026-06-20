@@ -6,7 +6,6 @@ import (
 
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/contextplane"
-	"github.com/ycvk/acorn/internal/decision"
 	"github.com/ycvk/acorn/internal/memorymodule"
 	"github.com/ycvk/acorn/internal/model"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
@@ -20,7 +19,6 @@ type RuntimeDeps struct {
 	Config            *config.Config
 	Store             RunnerFactoryStore
 	Loader            *skills.Loader
-	DecisionProfiles  *decision.ProfileService
 	CheckpointService *workingstate.Service
 	SessionSummarySvc *model.SessionSummaryService
 	MemoryModule      memorymodule.Service
@@ -36,6 +34,5 @@ type RuntimeDeps struct {
 func (d RuntimeDeps) CloneForWorkspace(ws *workspace.Workspace) RuntimeDeps {
 	clone := d
 	clone.Workspace = ws
-	clone.DecisionProfiles = decision.NewProfileService(ws.Root())
 	return clone
 }

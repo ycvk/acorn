@@ -42,6 +42,7 @@ type RunRecord struct {
 	CheckpointID      string            `json:"checkpoint_id,omitempty"`
 	OrchestrationMode OrchestrationMode `json:"orchestration_mode,omitempty"`
 	ParentRunID       string            `json:"parent_run_id,omitempty"`
+	SkillID           string            `json:"skill_id,omitempty"`
 	Depth             int               `json:"depth,omitempty"`
 	CreatedAt         time.Time         `json:"created_at"`
 	UpdatedAt         time.Time         `json:"updated_at"`

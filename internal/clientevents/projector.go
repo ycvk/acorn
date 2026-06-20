@@ -113,11 +113,8 @@ func projectOperatorQuestionData(payload map[string]any) OperatorQuestionData {
 
 func projectDecisionBlockedData(payload map[string]any) DecisionBlockedData {
 	return DecisionBlockedData{
-		Action:              topLevelString(payload, "action"),
-		Intent:              topLevelString(payload, "intent"),
-		SelectedSkillID:     topLevelString(payload, "selected_skill_id"),
-		DecisionReason:      topLevelString(payload, "decision_reason"),
-		DecisionProfileHash: topLevelString(payload, "decision_profile_hash"),
-		ExplicitSkillID:     topLevelString(payload, "explicit_skill_id"),
+		Action:          topLevelString(payload, "action"),
+		DecisionReason:  topLevelString(payload, "decision_reason"),
+		ExplicitSkillID: topLevelString(payload, "explicit_skill_id"),
 	}
 }

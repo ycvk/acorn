@@ -19,7 +19,7 @@
 | **assembleTooling** | `internal/orchestration` 的共享 tool/handler/instruction/run-context assembly helper；`BuildDirectResponse`、`BuildSingleAgent`、`BuildPlanExecute` 都调用它。 |
 | **MemoryModule** | `internal/memorymodule` 的 file-backed memory 模块；管理 facts、skills、history、search、prepare、memory file tools。Canonical Memory Record V2 metadata 包含 validity、provenance、typed relations、lifecycle timestamps。 |
 | **Bleve+FAISS semantic index** | 必接入的 rebuildable retrieval index，由 `memory.semantic` 配置、`acorn memory semantic rebuild` 重建，为 `memorymodule.Search`/`Prepare` 提供 hybrid text/vector semantic candidates。 |
-| **Run selection policy** | `internal/decision` 的小型选择策略（defaults-only），由 runtime 在 tool-enabled mode 调用；消费 explicit skill、skill candidates、working context，持久化 decision record。 |
+| **Run selection policy** | runtime 内联的选择逻辑（`internal/runtime/runner_build_selection.go:resolveRunSelectionByDecision`），在 tool-enabled mode 消费 explicit skill、skill candidates、working context；不持久化 decision record（selected skill id 持久化在 `runs.skill_id`）。 |
 | **Store ports** | app/runtime 顶层定义的 consumer-owned persistence 接口（ExecutorStore、RunnerFactoryStore、containerRuntimeStore、containerAppStore 等）；`internal/app/container*.go` 是唯一允许直接持有 sqlite adapter 的 composition root。 |
 | **PlanStore** | runtime graph 使用的计划持久化接口，消费 `internal/model.Plan`/`PlanEvidence`；`internal/runtime/plan/` 负责 step evidence/backlink 追加。 |
 | **ChildAgent contract** | `internal/orchestration/child_agent.go` 的 `ChildAgentRequest`/`ChildAgentResult`/`ChildAgentExecutor`，被 `delegate_task`、plan_execute、verifier 共用。 |

@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/ycvk/acorn/internal/decision"
 	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/model"
 	"github.com/ycvk/acorn/internal/runtime"
@@ -23,14 +22,14 @@ type containerRuntimeStore interface {
 }
 
 // containerAppStore is the store contract required by the app-facing services
-// (client, inbox, pending-action, run-resume, decision). The previously narrow
-// sessionStore/runResumeStore/clientStore/pendingActionDecisionStore/
-// decisionStore/deviceAuthStore/inboxStore interfaces are inlined here (they
-// were only embedded, never used standalone except as service dependencies which
-// now depend on this wider composite), collapsing the consumer-owned port
-// surface. This is an intentional trade-off (doneCriteria #10): ISP regression
-// is accepted in exchange for consolidating consumer-owned store interfaces
-// to <=6, enforced by store_interface_count_test.go.
+// (client, inbox, pending-action, run-resume). The previously narrow
+// sessionStore/runResumeStore/clientStore/deviceAuthStore/inboxStore
+// interfaces are inlined here (they were only embedded, never used standalone
+// except as service dependencies which now depend on this wider composite),
+// collapsing the consumer-owned port surface. This is an intentional trade-off
+// (doneCriteria #10): ISP regression is accepted in exchange for consolidating
+// consumer-owned store interfaces to <=6, enforced by
+// store_interface_count_test.go.
 type containerAppStore interface {
 	CreateSession(ctx context.Context, sessionID, title string) (*events.SessionRecord, error)
 	ListSessions(ctx context.Context, limit int) ([]events.SessionRecord, error)
@@ -56,7 +55,6 @@ type containerAppStore interface {
 	SyncDecisionMessageForPendingAction(ctx context.Context, actionID string) error
 	ListActiveRuns(ctx context.Context, limit int) ([]events.RunRecord, error)
 	ListRecentTerminalRuns(ctx context.Context, limit int) ([]events.RunRecord, error)
-	LoadRunDecision(ctx context.Context, runID string) (*decision.Record, error)
 	SavePairingCode(ctx context.Context, code *storecore.PairingCode) error
 	ConsumePairingCode(ctx context.Context, codeHash string, now time.Time) (*storecore.PairingCode, error)
 	SaveDevice(ctx context.Context, device *storecore.Device) error

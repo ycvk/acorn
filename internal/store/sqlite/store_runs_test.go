@@ -89,6 +89,60 @@ func TestCreateRunWithParamsPersistsLineageAndMode(t *testing.T) {
 	}
 }
 
+func TestCreateRunWithParamsPersistsSkillID(t *testing.T) {
+	dir := t.TempDir()
+	store, err := Open(filepath.Join(dir, "state"))
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	if err := store.CreateRunWithParams(context.Background(), storecore.RunCreateParams{
+		RunID:             "run_skill",
+		SessionID:         "session_skill",
+		TurnIndex:         1,
+		Input:             "fix sqlite bug",
+		CheckpointID:      "run_skill",
+		OrchestrationMode: events.ModePlanExecute,
+		SkillID:           "skill.fix-sqlite",
+	}); err != nil {
+		t.Fatalf("CreateRunWithParams: %v", err)
+	}
+
+	run, err := store.LoadRun(context.Background(), "run_skill")
+	if err != nil {
+		t.Fatalf("LoadRun: %v", err)
+	}
+	if run.SkillID != "skill.fix-sqlite" {
+		t.Fatalf("SkillID = %q, want skill.fix-sqlite", run.SkillID)
+	}
+
+	// UpdateRunSkillID simulates the post-selection writeback when selection
+	// resolves to a top recommended skill different from the explicit input.
+	if err := store.UpdateRunSkillID(context.Background(), "run_skill", "skill.recommended"); err != nil {
+		t.Fatalf("UpdateRunSkillID: %v", err)
+	}
+	updated, err := store.LoadRun(context.Background(), "run_skill")
+	if err != nil {
+		t.Fatalf("LoadRun after update: %v", err)
+	}
+	if updated.SkillID != "skill.recommended" {
+		t.Fatalf("SkillID after update = %q, want skill.recommended", updated.SkillID)
+	}
+
+	// Clearing the skill id (selection resolved to no skill) must persist too.
+	if err := store.UpdateRunSkillID(context.Background(), "run_skill", ""); err != nil {
+		t.Fatalf("UpdateRunSkillID clear: %v", err)
+	}
+	cleared, err := store.LoadRun(context.Background(), "run_skill")
+	if err != nil {
+		t.Fatalf("LoadRun after clear: %v", err)
+	}
+	if cleared.SkillID != "" {
+		t.Fatalf("SkillID after clear = %q, want empty", cleared.SkillID)
+	}
+}
+
 func TestCreateRunWithParamsRejectsMissingMode(t *testing.T) {
 	dir := t.TempDir()
 	store, err := Open(filepath.Join(dir, "state"))

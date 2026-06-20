@@ -1,25 +1,5 @@
 package runtime
 
-import (
-	"context"
-	"fmt"
-	"strings"
-)
-
-func (f *RunnerFactory) hasWorkingContext(ctx context.Context, sessionID string) (bool, error) {
-	if strings.TrimSpace(sessionID) == "" || f.deps.CheckpointService == nil {
-		return false, nil
-	}
-	checkpoint, err := f.deps.CheckpointService.Get(ctx, sessionID)
-	if err != nil {
-		return false, fmt.Errorf("load working checkpoint: %w", err)
-	}
-	if checkpoint == nil {
-		return false, nil
-	}
-	return strings.TrimSpace(checkpoint.Content) != "", nil
-}
-
 func (r *ActiveRunner) Close() error {
 	var closeErr error
 	if r.CloseRunTools != nil {

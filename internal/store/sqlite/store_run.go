@@ -41,7 +41,7 @@ func (s *Store) CreateRunWithParams(ctx context.Context, params store.RunCreateP
 	}
 	now := formatTimestamp(time.Now())
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO runs(run_id, session_id, turn_index, status, input_text, output_text, error_text, checkpoint_id, orchestration_mode, parent_run_id, depth, created_at, updated_at) VALUES(?, ?, ?, ?, ?, '', '', ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO runs(run_id, session_id, turn_index, status, input_text, output_text, error_text, checkpoint_id, orchestration_mode, skill_id, parent_run_id, depth, created_at, updated_at) VALUES(?, ?, ?, ?, ?, '', '', ?, ?, ?, ?, ?, ?, ?)`,
 		params.RunID,
 		params.SessionID,
 		params.TurnIndex,
@@ -49,6 +49,7 @@ func (s *Store) CreateRunWithParams(ctx context.Context, params store.RunCreateP
 		params.Input,
 		params.CheckpointID,
 		string(mode),
+		params.SkillID,
 		params.ParentRunID,
 		params.Depth,
 		now,
@@ -144,6 +145,19 @@ func (s *Store) UpdateRunOutputContext(ctx context.Context, runID, output string
 	return nil
 }
 
+func (s *Store) UpdateRunSkillID(ctx context.Context, runID, skillID string) error {
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE runs SET skill_id = ?, updated_at = ? WHERE run_id = ?`,
+		skillID,
+		formatTimestamp(time.Now()),
+		runID,
+	)
+	if err != nil {
+		return fmt.Errorf("update run skill id: %w", err)
+	}
+	return nil
+}
+
 func (s *Store) MarkInterruptedContext(ctx context.Context, runID, output string) error {
 	_, err := s.db.ExecContext(ctx,
 		`UPDATE runs SET status = ?, output_text = ?, updated_at = ? WHERE run_id = ?`,
@@ -159,7 +173,7 @@ func (s *Store) MarkInterruptedContext(ctx context.Context, runID, output string
 }
 
 func (s *Store) LoadRun(ctx context.Context, runID string) (*events.RunRecord, error) {
-	row := s.db.QueryRowContext(ctx, `SELECT run_id, session_id, turn_index, status, input_text, output_text, error_text, checkpoint_id, orchestration_mode, parent_run_id, depth, created_at, updated_at FROM runs WHERE run_id = ?`, runID)
+	row := s.db.QueryRowContext(ctx, `SELECT run_id, session_id, turn_index, status, input_text, output_text, error_text, checkpoint_id, orchestration_mode, skill_id, parent_run_id, depth, created_at, updated_at FROM runs WHERE run_id = ?`, runID)
 	rec, err := scanRunRecord(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -172,7 +186,7 @@ func (s *Store) LoadRun(ctx context.Context, runID string) (*events.RunRecord, e
 
 func (s *Store) ListActiveRuns(ctx context.Context, limit int) ([]events.RunRecord, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT run_id, session_id, turn_index, status, input_text, output_text, error_text, checkpoint_id, orchestration_mode, parent_run_id, depth, created_at, updated_at
+		`SELECT run_id, session_id, turn_index, status, input_text, output_text, error_text, checkpoint_id, orchestration_mode, skill_id, parent_run_id, depth, created_at, updated_at
 			 FROM runs
 			 WHERE status = ? AND session_id <> '' AND parent_run_id = ''
 			 ORDER BY updated_at DESC
@@ -188,7 +202,7 @@ func (s *Store) ListActiveRuns(ctx context.Context, limit int) ([]events.RunReco
 
 func (s *Store) ListRecentTerminalRuns(ctx context.Context, limit int) ([]events.RunRecord, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT run_id, session_id, turn_index, status, input_text, output_text, error_text, checkpoint_id, orchestration_mode, parent_run_id, depth, created_at, updated_at
+		`SELECT run_id, session_id, turn_index, status, input_text, output_text, error_text, checkpoint_id, orchestration_mode, skill_id, parent_run_id, depth, created_at, updated_at
 			 FROM runs
 			 WHERE status IN (?, ?, ?) AND session_id <> '' AND parent_run_id = ''
 			 ORDER BY updated_at DESC
@@ -380,21 +394,15 @@ func scanRunArchive(scanner interface{ Scan(dest ...any) error }) (*model.RunArc
 
 func (s *Store) SaveRunContextSnapshot(ctx context.Context, snapshot model.RunContextSnapshot) error {
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO run_context_snapshots(run_id, working_checkpoint_content, working_checkpoint_skill_id, decision_profile_hash, decision_action, decision_skill_id, created_at)
-				 VALUES(?, ?, ?, ?, ?, ?, ?)
+		`INSERT INTO run_context_snapshots(run_id, working_checkpoint_content, working_checkpoint_skill_id, created_at)
+				 VALUES(?, ?, ?, ?)
 				 ON CONFLICT(run_id) DO UPDATE SET
 				     working_checkpoint_content = excluded.working_checkpoint_content,
 				     working_checkpoint_skill_id = excluded.working_checkpoint_skill_id,
-				     decision_profile_hash = excluded.decision_profile_hash,
-				     decision_action = excluded.decision_action,
-				     decision_skill_id = excluded.decision_skill_id,
 			     created_at = excluded.created_at`,
 		snapshot.RunID,
 		snapshot.WorkingCheckpointContent,
 		snapshot.WorkingCheckpointSkillID,
-		snapshot.DecisionProfileHash,
-		snapshot.DecisionAction,
-		snapshot.DecisionSkillID,
 		formatTimestamp(snapshot.CreatedAt),
 	)
 	if err != nil {
@@ -405,8 +413,8 @@ func (s *Store) SaveRunContextSnapshot(ctx context.Context, snapshot model.RunCo
 
 func (s *Store) LoadRunContextSnapshot(ctx context.Context, runID string) (*model.RunContextSnapshot, error) {
 	row := s.db.QueryRowContext(ctx,
-		`SELECT run_id, working_checkpoint_content, working_checkpoint_skill_id, decision_profile_hash, decision_action, decision_skill_id, created_at
-				 FROM run_context_snapshots WHERE run_id = ?`,
+		`SELECT run_id, working_checkpoint_content, working_checkpoint_skill_id, created_at
+		 FROM run_context_snapshots WHERE run_id = ?`,
 		runID,
 	)
 	var (
@@ -417,9 +425,6 @@ func (s *Store) LoadRunContextSnapshot(ctx context.Context, runID string) (*mode
 		&snapshot.RunID,
 		&snapshot.WorkingCheckpointContent,
 		&snapshot.WorkingCheckpointSkillID,
-		&snapshot.DecisionProfileHash,
-		&snapshot.DecisionAction,
-		&snapshot.DecisionSkillID,
 		&createdAt,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {

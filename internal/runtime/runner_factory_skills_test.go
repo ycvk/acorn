@@ -5,7 +5,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ycvk/acorn/internal/decision"
 	"github.com/ycvk/acorn/internal/runtime/tooltest"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/tooling"
@@ -129,22 +128,14 @@ func TestRetrieveCandidatesTaskPatternForDecision(t *testing.T) {
 	if !result.Candidates[0].TriggerMatched {
 		t.Fatalf("SOP candidate should be trigger matched: %#v", result.Candidates[0])
 	}
-	profile := decision.DefaultProfile()
-	engine := decision.NewEngine(profile)
-	record, err := engine.Decide(context.Background(), decision.DecideInput{
-		RunID:             "run_1",
-		Input:             "please fix sqlite query loop error handling",
-		HasWorkingContext: true,
-		AvailableSkills:   recommendedSkillsFromMatches(runtimeMatchesFromRecommendations(result.Candidates)),
-	})
-	if err != nil {
-		t.Fatalf("Decide: %v", err)
+	// Verify inline selection: top recommended skill should be selected.
+	matches := runtimeMatchesFromRecommendations(result.Candidates)
+	top, ok := topRecommendedSkill(matches)
+	if !ok {
+		t.Fatalf("topRecommendedSkill returned false, want a match")
 	}
-	if record.Action != decision.ActionExecuteWithSkill {
-		t.Fatalf("action = %q, want execute_with_skill", record.Action)
-	}
-	if record.SelectedSkillID != "sop.fix-sqlite-query-loop-error-handling" {
-		t.Fatalf("selected skill = %q", record.SelectedSkillID)
+	if top.Skill.ID != "sop.fix-sqlite-query-loop-error-handling" {
+		t.Fatalf("selected skill = %q", top.Skill.ID)
 	}
 }
 

@@ -8,7 +8,6 @@ const (
 	StreamKindRunFailed           StreamItemKind = "run_failed"
 	StreamKindRunInterrupted      StreamItemKind = "run_interrupted"
 	StreamKindRunResumeRequested  StreamItemKind = "run_resume_requested"
-	StreamKindDecisionSelected    StreamItemKind = "decision_selected"
 	StreamKindDecisionBlocked     StreamItemKind = "decision_blocked"
 	StreamKindSkillDiscovered     StreamItemKind = "skill_discovered"
 	StreamKindSkillSelected       StreamItemKind = "skill_selected"

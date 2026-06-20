@@ -3,8 +3,6 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
-	"time"
 )
 
 func printJSON(value any) error {
@@ -14,18 +12,4 @@ func printJSON(value any) error {
 	}
 	fmt.Println(string(body))
 	return nil
-}
-
-func valueOrNone(value string) string {
-	if strings.TrimSpace(value) == "" {
-		return "none"
-	}
-	return value
-}
-
-func formatTime(value time.Time) string {
-	if value.IsZero() {
-		return "none"
-	}
-	return value.UTC().Format(time.RFC3339)
 }

@@ -35,9 +35,6 @@ type RunContextSnapshot struct {
 	RunID                    string    `json:"run_id"`
 	WorkingCheckpointContent string    `json:"working_checkpoint_content"`
 	WorkingCheckpointSkillID string    `json:"working_checkpoint_skill_id"`
-	DecisionProfileHash      string    `json:"decision_profile_hash"`
-	DecisionAction           string    `json:"decision_action"`
-	DecisionSkillID          string    `json:"decision_skill_id"`
 	CreatedAt                time.Time `json:"created_at"`
 }
 

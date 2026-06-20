@@ -44,6 +44,7 @@ func (s *Store) migrateV2() error {
 		{"runs", "parent_run_id", "TEXT NOT NULL DEFAULT ''", "v2_runs_parent_run_id"},
 		{"runs", "depth", "INTEGER NOT NULL DEFAULT 0", "v2_runs_depth"},
 		{"runs", "orchestration_mode", "TEXT NOT NULL DEFAULT 'direct_response'", "v2_runs_orchestration_mode"},
+		{"runs", "skill_id", "TEXT NOT NULL DEFAULT ''", "v2_runs_skill_id"},
 		{"session_messages", "content_parts", "TEXT NOT NULL DEFAULT ''", "v2_session_messages_content_parts"},
 	}
 	for _, m := range v2Migrations {
@@ -63,7 +64,52 @@ func (s *Store) migrateV2() error {
 	if err := s.dropRemovedCodeintelTables(); err != nil {
 		return err
 	}
-	return s.dropRemovedConversationFTS()
+	if err := s.dropRemovedConversationFTS(); err != nil {
+		return err
+	}
+	return s.dropDecisionTables()
+}
+
+func (s *Store) dropDecisionTables() (err error) {
+	const version = "v2_drop_decision_tables"
+	var count int
+	row := s.db.QueryRow("SELECT COUNT(*) FROM schema_migrations WHERE version = ?", version)
+	if err := row.Scan(&count); err == nil && count > 0 {
+		return nil
+	}
+
+	tx, err := s.db.Begin()
+	if err != nil {
+		return fmt.Errorf("begin decision table drop: %w", err)
+	}
+	defer func() {
+		if rollbackErr := tx.Rollback(); rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
+			err = errors.Join(err, fmt.Errorf("decision table drop rollback: %w", rollbackErr))
+		}
+	}()
+
+	if _, err := tx.Exec(`DROP TABLE IF EXISTS run_decisions`); err != nil {
+		return fmt.Errorf("drop run_decisions table: %w", err)
+	}
+
+	// run_context_snapshots decision_* columns are removed. ALTER TABLE DROP
+	// COLUMN is supported by modernc.org/sqlite (SQLite 3.35+). A column that
+	// was already dropped on a prior run is a no-op error we swallow.
+	for _, col := range []string{"decision_profile_hash", "decision_action", "decision_skill_id"} {
+		if _, err := tx.Exec(fmt.Sprintf("ALTER TABLE run_context_snapshots DROP COLUMN %s", col)); err != nil {
+			if !strings.Contains(err.Error(), "no such column") {
+				return fmt.Errorf("drop run_context_snapshots column %s: %w", col, err)
+			}
+		}
+	}
+
+	if _, err := tx.Exec("INSERT INTO schema_migrations (version, applied_at) VALUES (?, datetime('now'))", version); err != nil {
+		return fmt.Errorf("record decision table drop migration: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit decision table drop: %w", err)
+	}
+	return nil
 }
 
 func (s *Store) dropLegacyMemoryTables() (err error) {
@@ -293,6 +339,7 @@ CREATE TABLE IF NOT EXISTS runs (
     error_text TEXT NOT NULL DEFAULT '',
     checkpoint_id TEXT NOT NULL DEFAULT '',
     orchestration_mode TEXT NOT NULL DEFAULT 'direct_response',
+    skill_id TEXT NOT NULL DEFAULT '',
     parent_run_id TEXT NOT NULL DEFAULT '',
     depth INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL,
@@ -397,9 +444,6 @@ CREATE TABLE IF NOT EXISTS run_context_snapshots (
     run_id TEXT PRIMARY KEY,
     working_checkpoint_content TEXT NOT NULL DEFAULT '',
     working_checkpoint_skill_id TEXT NOT NULL DEFAULT '',
-    decision_profile_hash TEXT NOT NULL DEFAULT '',
-    decision_action TEXT NOT NULL DEFAULT '',
-    decision_skill_id TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS context_boundaries (
@@ -482,17 +526,6 @@ CREATE TABLE IF NOT EXISTS provider_usages (
 );
 CREATE INDEX IF NOT EXISTS idx_provider_usages_run ON provider_usages(run_id, created_at ASC);
 CREATE INDEX IF NOT EXISTS idx_provider_usages_session ON provider_usages(session_id, created_at ASC);
-CREATE TABLE IF NOT EXISTS run_decisions (
-    run_id TEXT PRIMARY KEY,
-    session_id TEXT NOT NULL DEFAULT '',
-    action TEXT NOT NULL,
-    intent TEXT NOT NULL DEFAULT '',
-    selected_skill_id TEXT NOT NULL DEFAULT '',
-    decision_reason TEXT NOT NULL DEFAULT '',
-    decision_profile_hash TEXT NOT NULL DEFAULT '',
-    created_at TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_run_decisions_session_created_at ON run_decisions(session_id, created_at DESC);
 CREATE TABLE IF NOT EXISTS run_archives (
     run_id TEXT PRIMARY KEY,
     session_id TEXT NOT NULL,
@@ -528,7 +561,7 @@ CREATE INDEX IF NOT EXISTS idx_plan_steps_session ON plan_steps(session_id);
 
 func (s *Store) validateSchema() error {
 	requiredTables := map[string][]string{
-		"runs":                  {"run_id", "session_id", "turn_index", "status", "input_text", "output_text", "error_text", "checkpoint_id", "orchestration_mode", "created_at", "updated_at", "parent_run_id", "depth"},
+		"runs":                  {"run_id", "session_id", "turn_index", "status", "input_text", "output_text", "error_text", "checkpoint_id", "orchestration_mode", "skill_id", "created_at", "updated_at", "parent_run_id", "depth"},
 		"events":                {"sequence", "run_id", "kind", "payload_json", "created_at"},
 		"checkpoints":           {"checkpoint_id", "run_id", "payload", "created_at", "updated_at"},
 		"sessions":              {"session_id", "title", "created_at", "updated_at"},
@@ -540,12 +573,11 @@ func (s *Store) validateSchema() error {
 		"pairing_codes":         {"code_hash", "expires_at", "used_at", "created_at"},
 		"conversation_segments": {"id", "session_id", "run_id", "user_content", "assistant_content", "run_status", "created_at"},
 		"working_checkpoints":   {"session_id", "content", "related_skill_id", "updated_at"},
-		"run_context_snapshots": {"run_id", "working_checkpoint_content", "working_checkpoint_skill_id", "decision_profile_hash", "decision_action", "decision_skill_id", "created_at"},
+		"run_context_snapshots": {"run_id", "working_checkpoint_content", "working_checkpoint_skill_id", "created_at"},
 		"context_boundaries":    {"boundary_id", "session_id", "run_id", "sequence", "turn_index", "mode", "trigger", "first_index", "last_index", "covered_first_message_id", "covered_last_message_id", "previous_boundary_id", "summary_message_id", "transcript_ref", "preserved_from_index", "preserved_to_index", "preserved_head_message_id", "preserved_anchor_message_id", "preserved_tail_message_id", "tokens_before", "tokens_after", "effective_window_tokens", "summary", "summary_snippet", "created_at"},
 		"tool_results":          {"result_ref", "run_id", "session_id", "turn_index", "call_id", "tool_name", "arguments_json", "status", "error_reason", "preview", "full_text", "token_estimate", "side_effects_json", "evidence_refs_json", "created_at"},
 		"artifacts":             {"artifact_id", "run_id", "session_id", "source_tool_result_ref", "kind", "title", "mime_type", "relative_path", "size_bytes", "sha256", "created_at"},
 		"provider_usages":       {"usage_id", "run_id", "session_id", "call_site", "provider_name", "model_name", "prompt_tokens", "completion_tokens", "total_tokens", "cached_tokens", "reasoning_tokens", "created_at"},
-		"run_decisions":         {"run_id", "session_id", "action", "intent", "selected_skill_id", "decision_reason", "decision_profile_hash", "created_at"},
 		"run_archives":          {"run_id", "session_id", "input_excerpt", "output_excerpt", "touched_paths_json", "tool_names_json", "run_status", "created_at"},
 		"session_summaries":     {"session_id", "source_run_id", "run_status", "summary", "updated_at"},
 		"schema_migrations":     {"version", "applied_at"},

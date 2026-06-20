@@ -2488,13 +2488,7 @@ components:
       properties:
         action:
           type: string
-        intent:
-          type: string
-        selected_skill_id:
-          type: string
         decision_reason:
-          type: string
-        decision_profile_hash:
           type: string
         explicit_skill_id:
           type: string

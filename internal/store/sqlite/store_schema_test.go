@@ -88,9 +88,8 @@ func TestStoreSchemaIncludesV2Tables(t *testing.T) {
 
 	for table, column := range map[string]string{
 		"working_checkpoints":   "related_skill_id",
-		"run_context_snapshots": "decision_skill_id",
+		"run_context_snapshots": "working_checkpoint_skill_id",
 		"context_boundaries":    "boundary_id",
-		"run_decisions":         "decision_reason",
 		"run_archives":          "tool_names_json",
 		"session_summaries":     "source_run_id",
 		"provider_usages":       "cached_tokens",
@@ -132,6 +131,7 @@ func TestV2MigrationAddsNewColumns(t *testing.T) {
 	v2Checks := []struct{ table, column string }{
 		{"runs", "parent_run_id"},
 		{"runs", "depth"},
+		{"runs", "skill_id"},
 		{"schema_migrations", "version"},
 		{"schema_migrations", "applied_at"},
 	}
@@ -356,6 +356,70 @@ func TestMigrationIdempotent(t *testing.T) {
 		t.Fatalf("reopen (idempotent): %v", err)
 	}
 	t.Cleanup(func() { _ = reopened.Close() })
+}
+
+func TestMigrationDropsDecisionTables(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "state")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("mkdir state dir: %v", err)
+	}
+	db, err := sql.Open("sqlite", filepath.Join(dir, "acorn.db"))
+	if err != nil {
+		t.Fatalf("open sqlite directly: %v", err)
+	}
+	// Seed a pre-migration schema that still has run_decisions and decision_* columns.
+	if _, err := db.Exec(storeBootstrapSchema); err != nil {
+		_ = db.Close()
+		t.Fatalf("seed current schema: %v", err)
+	}
+	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS run_decisions (
+    run_id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL DEFAULT '',
+    action TEXT NOT NULL,
+    intent TEXT NOT NULL DEFAULT '',
+    selected_skill_id TEXT NOT NULL DEFAULT '',
+    decision_reason TEXT NOT NULL DEFAULT '',
+    decision_profile_hash TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+);`); err != nil {
+		_ = db.Close()
+		t.Fatalf("seed run_decisions: %v", err)
+	}
+	// Add legacy decision columns to run_context_snapshots
+	if _, err := db.Exec(`ALTER TABLE run_context_snapshots ADD COLUMN decision_profile_hash TEXT NOT NULL DEFAULT ''`); err != nil {
+		_ = db.Close()
+		t.Fatalf("add decision_profile_hash: %v", err)
+	}
+	if _, err := db.Exec(`ALTER TABLE run_context_snapshots ADD COLUMN decision_action TEXT NOT NULL DEFAULT ''`); err != nil {
+		_ = db.Close()
+		t.Fatalf("add decision_action: %v", err)
+	}
+	if _, err := db.Exec(`ALTER TABLE run_context_snapshots ADD COLUMN decision_skill_id TEXT NOT NULL DEFAULT ''`); err != nil {
+		_ = db.Close()
+		t.Fatalf("add decision_skill_id: %v", err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatalf("close seeded db: %v", err)
+	}
+
+	store, err := Open(dir)
+	if err != nil {
+		t.Fatalf("open migrated store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	if tableExists(t, store, "run_decisions") {
+		t.Fatal("run_decisions table still exists after migration")
+	}
+	cols, err := store.tableColumns("run_context_snapshots")
+	if err != nil {
+		t.Fatalf("table info run_context_snapshots: %v", err)
+	}
+	for _, col := range []string{"decision_profile_hash", "decision_action", "decision_skill_id"} {
+		if _, ok := cols[col]; ok {
+			t.Fatalf("run_context_snapshots column %s still exists after migration", col)
+		}
+	}
 }
 
 func tableExists(t *testing.T, store *Store, table string) bool {
