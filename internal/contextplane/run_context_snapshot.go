@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ycvk/acorn/internal/decision"
 	"github.com/ycvk/acorn/internal/model"
 	"github.com/ycvk/acorn/internal/workingstate"
 )
@@ -23,7 +22,7 @@ type assembledRunContext struct {
 
 func (a runContextAssembler) Assemble(ctx context.Context, req AssembleRequest) (*assembledRunContext, error) {
 	if strings.TrimSpace(req.Input) != "" {
-		return a.createSnapshot(ctx, req, req.SelectedSkill, req.DecisionRecord)
+		return a.createSnapshot(ctx, req, req.SelectedSkill)
 	}
 	if strings.TrimSpace(req.RunID) != "" {
 		return a.loadSnapshot(ctx, req)
@@ -31,7 +30,7 @@ func (a runContextAssembler) Assemble(ctx context.Context, req AssembleRequest) 
 	return &assembledRunContext{}, nil
 }
 
-func (a runContextAssembler) createSnapshot(ctx context.Context, req AssembleRequest, selectedSkill *SelectedSkill, record *decision.Record) (*assembledRunContext, error) {
+func (a runContextAssembler) createSnapshot(ctx context.Context, req AssembleRequest, selectedSkill *SelectedSkill) (*assembledRunContext, error) {
 	snapshot := model.RunContextSnapshot{
 		RunID:     req.RunID,
 		CreatedAt: time.Now().UTC(),
@@ -49,16 +48,6 @@ func (a runContextAssembler) createSnapshot(ctx context.Context, req AssembleReq
 		}
 	}
 
-	if selectedSkill != nil {
-		snapshot.DecisionSkillID = selectedSkill.Skill.ID
-	}
-	if record != nil {
-		snapshot.DecisionProfileHash = record.DecisionProfileHash
-		snapshot.DecisionAction = string(record.Action)
-		if strings.TrimSpace(record.SelectedSkillID) != "" {
-			snapshot.DecisionSkillID = record.SelectedSkillID
-		}
-	}
 	if strings.TrimSpace(req.RunID) != "" {
 		if a.store == nil {
 			return nil, fmt.Errorf("save run context snapshot: store is nil")

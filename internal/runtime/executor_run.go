@@ -74,6 +74,9 @@ func (e *Executor) ExecuteMessages(ctx context.Context, req runtimeapi.ExecuteRe
 		return nil, e.failSetupOrErr(ctx, runID, err, sink)
 	}
 	defer active.Close()
+	if err := e.persistSelectedSkillID(ctx, runID, active.SelectedSkill); err != nil {
+		return nil, err
+	}
 	messages, err := e.bootstrapContextSessionMessages(ctx, req, runID, mode, active)
 	if err != nil {
 		return nil, e.failSetupOrErr(ctx, runID, err, sink)
@@ -92,8 +95,21 @@ func (e *Executor) createBoundRun(ctx context.Context, runID string, req runtime
 		CheckpointID:      runID,
 		OrchestrationMode: mode,
 		ParentRunID:       req.ParentRunID,
+		SkillID:           req.SkillID,
 		Depth:             req.Depth,
 	})
+}
+
+// persistSelectedSkillID records the run's resolved skill id so resume can
+// recover it without the deleted run_decisions table. The explicit skill id
+// from req.SkillID is already persisted by createBoundRun; this updates it
+// when selection resolves to a different (top recommended) skill or clears it.
+func (e *Executor) persistSelectedSkillID(ctx context.Context, runID string, selected *SelectedSkill) error {
+	resolved := ""
+	if selected != nil {
+		resolved = selected.Skill.ID
+	}
+	return e.store.UpdateRunSkillID(ctx, runID, resolved)
 }
 
 func (e *Executor) buildExecuteRunner(runCtxBase context.Context, req runtimeapi.ExecuteRequest, runID string, mode events.OrchestrationMode, sink stream.StreamSink) (*ActiveRunner, error) {

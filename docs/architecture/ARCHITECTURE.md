@@ -22,7 +22,7 @@ operator CLI / authenticated remote clients
 - `internal/contextplane/` — run 上下文边界、prepared memory、deferred tool loading、tool lifecycle、budget governance；`compaction/` 子包管 proactive compact + post-compact rehydration。
 - `internal/orchestration/` — public root `direct_response` / `plan_execute` assembly + 内部 child-run `single_agent` assembly。
 - `internal/memorymodule/` — file-backed memory（facts/skills/history）、search、prepare、semantic retrieval（Bleve+FAISS）。
-- `internal/decision/` — 小型 run selection policy（defaults-only，消费 explicit skill + skill candidates + working context）。
+- `internal/runtime/` 的 `RunnerFactory` 内联 run selection 逻辑（`runner_build_selection.go` 的 `resolveRunSelectionByDecision`），消费 explicit skill + skill candidates + working context，不持久化 decision record。
 - `internal/store/` + `internal/store/sqlite/` — 跨包 store-facing records、ledger contracts、sentinel errors + SQLite adapter（sessions/runs/events/plans/checkpoints/archives/context boundaries/tool results/artifacts）。
 - `internal/web/` — `/v1` client surface + device bearer auth middleware；live RunEvent 从 `events` 表投影 mobile live subset。
 - `mobile/` — Flutter app，通过 generated Dart client 消费 `/v1`；不执行 runtime、不维护第二套 message lifecycle。

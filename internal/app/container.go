@@ -6,7 +6,6 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/ycvk/acorn/internal/config"
-	"github.com/ycvk/acorn/internal/decision"
 	"github.com/ycvk/acorn/internal/runtime"
 	"github.com/ycvk/acorn/internal/runtime/toolset"
 	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
@@ -22,7 +21,6 @@ type Container struct {
 	skills        *SkillService
 	client        *ClientService
 	pendingAction *PendingActionService
-	profiles      *decision.ProfileService
 	memory        *MemoryService
 	capabilities  *CapabilitiesService
 	deviceAuth    *DeviceAuthService
@@ -64,20 +62,6 @@ func (c *Container) Skills() *SkillService {
 
 func (c *Container) Memory() *MemoryService {
 	return c.memory
-}
-
-func (c *Container) DecisionProfile() (*decision.ParsedProfile, error) {
-	if c == nil || c.profiles == nil {
-		return nil, errors.New("decision profile service is nil")
-	}
-	return c.profiles.Load()
-}
-
-func (c *Container) InspectRunDecision(ctx context.Context, runID string) (*decision.Record, error) {
-	if c == nil || c.store == nil {
-		return nil, errors.New("store is nil")
-	}
-	return c.store.LoadRunDecision(ctx, runID)
 }
 
 func (c *Container) Capabilities() *CapabilitiesService {

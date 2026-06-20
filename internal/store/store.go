@@ -39,6 +39,7 @@ type RunCreateParams struct {
 	CheckpointID      string
 	OrchestrationMode events.OrchestrationMode
 	ParentRunID       string
+	SkillID           string
 	Depth             int
 }
 

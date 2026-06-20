@@ -5,7 +5,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ycvk/acorn/internal/decision"
 	"github.com/ycvk/acorn/internal/memorymodule"
 	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	"github.com/ycvk/acorn/internal/skills"
@@ -146,27 +145,24 @@ func procedureActivationFromSelectedSkill(req RunnerBuildRequest, selected *Sele
 	}
 }
 
-func emitDecisionEvents(ctx context.Context, store runtimeapi.EventAppender, req RunnerBuildRequest, record *decision.Record, explicitSkillID string) error {
-	if store == nil || strings.TrimSpace(req.RunID) == "" || record == nil {
+// emitDecisionBlockedEvent emits a decision_blocked stream event when the run
+// selection blocks execution (missing required capability or unavailable
+// explicit skill). The payload is simplified: profile hash and intent are no
+// longer relevant since the decision engine was removed.
+func emitDecisionBlockedEvent(ctx context.Context, store runtimeapi.EventAppender, req RunnerBuildRequest, action, reason, explicitSkillID string) error {
+	if store == nil || strings.TrimSpace(req.RunID) == "" {
 		return nil
 	}
-	finalKind := stream.StreamKindDecisionSelected
-	if record.Action == decision.ActionAskUser || record.Action == decision.ActionBlock {
-		finalKind = stream.StreamKindDecisionBlocked
-	}
-	decisionPayload := map[string]any{
-		"action":                string(record.Action),
-		"intent":                record.Intent,
-		"selected_skill_id":     record.SelectedSkillID,
-		"decision_reason":       record.DecisionReason,
-		"decision_profile_hash": record.DecisionProfileHash,
-		"explicit_skill_id":     strings.TrimSpace(explicitSkillID),
+	payload := map[string]any{
+		"action":            action,
+		"decision_reason":   reason,
+		"explicit_skill_id": strings.TrimSpace(explicitSkillID),
 	}
 	_, err := stream.AppendStreamItem(ctx, store, req.Sink, stream.StreamItem{
 		RunID:     req.RunID,
-		Kind:      finalKind,
+		Kind:      stream.StreamKindDecisionBlocked,
 		CreatedAt: time.Now().UTC(),
-		Payload:   decisionPayload,
+		Payload:   payload,
 	})
 	return err
 }

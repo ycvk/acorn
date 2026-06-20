@@ -23,8 +23,6 @@ func Run(ctx context.Context, args []string) error {
 		return runInit(ctx, args[1:])
 	case "doctor":
 		return runDoctor(ctx, args[1:])
-	case "decision":
-		return runDecision(ctx, args[1:])
 	case "skills":
 		return runSkills(ctx, args[1:])
 	case "memory":
@@ -56,8 +54,6 @@ func usageText() string {
 Usage:
   acorn init [-c path] [--force] [--print]
   acorn doctor [-c path] [--json]
-  acorn decision check [-c path] [--json]
-  acorn decision inspect [-c path] [--json] RUN_ID
   acorn skills list [-c path] [--json]
   acorn skills inspect [-c path] [--json] SKILL_ID
   acorn skills check [-c path] [--json] [--fixtures path]

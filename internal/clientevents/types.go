@@ -90,10 +90,7 @@ type OperatorQuestionPendingData = OperatorQuestionData
 type OperatorQuestionDecidedData = OperatorQuestionData
 
 type DecisionBlockedData struct {
-	Action              string `json:"action,omitempty"`
-	Intent              string `json:"intent,omitempty"`
-	SelectedSkillID     string `json:"selected_skill_id,omitempty"`
-	DecisionReason      string `json:"decision_reason,omitempty"`
-	DecisionProfileHash string `json:"decision_profile_hash,omitempty"`
-	ExplicitSkillID     string `json:"explicit_skill_id,omitempty"`
+	Action          string `json:"action,omitempty"`
+	DecisionReason  string `json:"decision_reason,omitempty"`
+	ExplicitSkillID string `json:"explicit_skill_id,omitempty"`
 }

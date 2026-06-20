@@ -255,7 +255,7 @@ func (s *Store) LoadLatestRunsForSessions(ctx context.Context, sessionIDs []stri
 
 	query := fmt.Sprintf(
 		`WITH ranked_runs AS (
-			SELECT run_id, session_id, turn_index, status, input_text, output_text, error_text, checkpoint_id, orchestration_mode, parent_run_id, depth, created_at, updated_at,
+			SELECT run_id, session_id, turn_index, status, input_text, output_text, error_text, checkpoint_id, orchestration_mode, skill_id, parent_run_id, depth, created_at, updated_at,
 				ROW_NUMBER() OVER (
 					PARTITION BY session_id
 					ORDER BY turn_index DESC, updated_at DESC
@@ -263,7 +263,7 @@ func (s *Store) LoadLatestRunsForSessions(ctx context.Context, sessionIDs []stri
 			FROM runs
 			WHERE session_id IN (%s)
 		)
-		SELECT run_id, session_id, turn_index, status, input_text, output_text, error_text, checkpoint_id, orchestration_mode, parent_run_id, depth, created_at, updated_at
+		SELECT run_id, session_id, turn_index, status, input_text, output_text, error_text, checkpoint_id, orchestration_mode, skill_id, parent_run_id, depth, created_at, updated_at
 		FROM ranked_runs
 		WHERE row_num = 1`,
 		strings.Join(placeholders, ", "),
@@ -290,7 +290,7 @@ func (s *Store) LoadLatestRunsForSessions(ctx context.Context, sessionIDs []stri
 
 func (s *Store) LoadLatestRunForSession(ctx context.Context, sessionID string) (*events.RunRecord, error) {
 	row := s.db.QueryRowContext(ctx,
-		`SELECT run_id, session_id, turn_index, status, input_text, output_text, error_text, checkpoint_id, orchestration_mode, parent_run_id, depth, created_at, updated_at
+		`SELECT run_id, session_id, turn_index, status, input_text, output_text, error_text, checkpoint_id, orchestration_mode, skill_id, parent_run_id, depth, created_at, updated_at
          FROM runs
          WHERE session_id = ?
          ORDER BY turn_index DESC, updated_at DESC

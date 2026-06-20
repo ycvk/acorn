@@ -17,7 +17,6 @@ import (
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/schema"
 
-	"github.com/ycvk/acorn/internal/decision"
 	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/model"
 	"github.com/ycvk/acorn/internal/orchestration"
@@ -484,14 +483,6 @@ func TestResumeWithTargetsRoutesPlanExecuteRunByPersistedMode(t *testing.T) {
 	if err := store.MarkInterruptedContext(context.Background(), runID, "partial"); err != nil {
 		t.Fatalf("MarkInterrupted: %v", err)
 	}
-	if err := store.SaveRunDecision(ctx, decision.Record{
-		RunID:     runID,
-		SessionID: "session_resume",
-		Action:    decision.ActionExecuteWithoutSkill,
-		CreatedAt: time.Now().UTC(),
-	}); err != nil {
-		t.Fatalf("SaveRunDecision: %v", err)
-	}
 	if err := store.SaveRunContextSnapshot(ctx, model.RunContextSnapshot{
 		RunID:     runID,
 		CreatedAt: time.Now().UTC(),
@@ -530,14 +521,6 @@ func TestResumeWithTargetsRejectsRemovedWorkflowMode(t *testing.T) {
 	}
 	if err := store.MarkInterruptedContext(context.Background(), runID, "partial"); err != nil {
 		t.Fatalf("MarkInterrupted: %v", err)
-	}
-	if err := store.SaveRunDecision(ctx, decision.Record{
-		RunID:     runID,
-		SessionID: "session_workflow",
-		Action:    decision.ActionExecuteWithoutSkill,
-		CreatedAt: time.Now().UTC(),
-	}); err != nil {
-		t.Fatalf("SaveRunDecision: %v", err)
 	}
 	if err := store.SaveRunContextSnapshot(ctx, model.RunContextSnapshot{
 		RunID:     runID,

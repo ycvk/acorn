@@ -348,9 +348,9 @@ func TestProjectRunEventAcceptsDecisionBlocked(t *testing.T) {
 		Kind:      "decision_blocked",
 		CreatedAt: now,
 		Payload: map[string]any{
-			"action":          "ask_user",
-			"intent":          "implement",
-			"decision_reason": "operator confirmation required",
+			"action":            "block",
+			"decision_reason":   "missing_required_capability",
+			"explicit_skill_id": "skill.missing",
 		},
 	})
 	if err != nil {
@@ -363,7 +363,7 @@ func TestProjectRunEventAcceptsDecisionBlocked(t *testing.T) {
 	if !ok {
 		t.Fatalf("event data = %T, want clientevents.DecisionBlockedData", event.Data)
 	}
-	if data.Action != "ask_user" || data.DecisionReason != "operator confirmation required" {
+	if data.Action != "block" || data.DecisionReason != "missing_required_capability" || data.ExplicitSkillID != "skill.missing" {
 		t.Fatalf("event data = %#v", data)
 	}
 }

@@ -16,7 +16,7 @@ func scanRunRecord(scanner interface{ Scan(dest ...any) error }) (*events.RunRec
 		created              string
 		updated              string
 	)
-	if err := scanner.Scan(&rec.RunID, &rec.SessionID, &rec.TurnIndex, &status, &rec.Input, &rec.Output, &rec.Error, &rec.CheckpointID, &orchestrationModeRaw, &rec.ParentRunID, &rec.Depth, &created, &updated); err != nil {
+	if err := scanner.Scan(&rec.RunID, &rec.SessionID, &rec.TurnIndex, &status, &rec.Input, &rec.Output, &rec.Error, &rec.CheckpointID, &orchestrationModeRaw, &rec.SkillID, &rec.ParentRunID, &rec.Depth, &created, &updated); err != nil {
 		return nil, err
 	}
 	rec.Status = events.RunStatus(status)

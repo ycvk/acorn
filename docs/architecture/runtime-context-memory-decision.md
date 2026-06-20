@@ -28,7 +28,7 @@ Tool lifecycle state is derived from `tooling.ToolContract`, not tool-name hard-
 
 Tool result truth is now durable and ledger-backed. `ContextPlane.OnToolResult` writes each tool result to SQLite `tool_results` through the `internal/store.ToolResultLedger` contract, using a deterministic `tool_result_ref` plus preview, full text, token estimate, status, arguments, side-effect refs, and evidence refs. Workspace mutation checkpoint and rollback side effects ride on the same refs. The lifecycle state keeps the same durable ref in `RecentResults`; missing ledger wiring is a runtime failure, not a fallback.
 
-Procedure activation is a runtime trace, not a second durable procedure store. `memorymodule.Prepare` emits matched `ProcedureActivation` records, ContextPlane appends injected activations only for procedure entries actually attached to the memory context, and runtime emits selected/used activations for executable skills chosen by Decision. These activations are persisted as diagnostic `procedure.activation` events; they do not enter the mobile live RunEvent subset, block execution, or infer whether the model semantically followed a procedure.
+Procedure activation is a runtime trace, not a second durable procedure store. `memorymodule.Prepare` emits matched `ProcedureActivation` records, ContextPlane appends injected activations only for procedure entries actually attached to the memory context, and runtime emits selected/used activations for executable skills chosen by run selection. These activations are persisted as diagnostic `procedure.activation` events; they do not enter the mobile live RunEvent subset, block execution, or infer whether the model semantically followed a procedure.
 
 Working checkpoints are owned by `internal/workingstate`. The `update_working_checkpoint` and `clear_working_checkpoint` tools are built there and registered by runtime as working-state tools, not as durable memory-module behavior.
 
@@ -90,28 +90,6 @@ Release packaging always includes Bleve+FAISS. `scripts/build-release.sh` always
 
 Terminal finalization appends a compact Record V2-compatible history event through `memorymodule.AppendHistory`. Durable fact/learned-skill updates are done by the agent through `memory_search`, `memory_read_file`, `memory_create_file`, and `memory_replace_span`; there is no separate memory-root grep tool and no backend LLM distillation worker in the ordinary run path. Memory write helpers run service-owned mutation application: they plan first, reject invalid Record V2 writes before touching disk, write only inside `facts/` or `skills/`, refresh the in-memory canonical index after successful writes, and rebuild the semantic retrieval index when semantic runtime is configured. The planner is a validation boundary for file writes, not a candidate inbox or automatic memory writer.
 
-## Removed Old Memory Path
-
-The following old paths are no longer active runtime truth:
-
-- `internal/reflection`
-- reflection proposal staging / approve / reject / rollback
-- background review daemon
-- decision `ActionEvolve`
-- memory candidate review / backend admission queue / background distillation
-- old FactService-backed execution-path crystallization
-- the removed optional auto-crystallization pipeline
-- MemoryLens, read plans, access logs, usage envelope
-- `search_knowledge` and `RetrievalService`
-- SQLite core-memory injection into prompt context
-- one-shot `acorn memory migrate`
-- runtime sliding-window marker compression (`[Earlier conversation compressed]`)
-- run-wide cumulative `TokenBudget` hard stop and `token_budget.exceeded` events
-- the never-wired opt-in retrieval/skill-routing eval sample schema + JSONL sink (`memorymodule` capture, `skills` candidate capture); no runtime path ever created a sink, so the speculative infrastructure was removed rather than parked
-
-SQLite legacy memory tables/readers are removed, not parked behind a migration command. The schema migration drops leftover old memory/search/patch-history tables on open.
-
-Procedure records now enter through the active `memorymodule` and skill lifecycle paths. There is no separate runtime auto-crystallization service, insight-index adapter, or `crystallization.*` RunEvent contract.
 
 ## Skills
 
@@ -129,9 +107,6 @@ Executable skill health is a deterministic `internal/skills` contract. `BuildHea
 
 Learned memory skills are still file-backed memory records under `memorymodule/skills/`; they are procedures, not executable `internal/skills` specs. Runtime exposes memory file tools so the agent can create or edit procedure records as files. The skill lifecycle path does not move builtin executable skills into `memorymodule`.
 
-## Decision
-
-`internal/decision` is a small run selection policy for tool-enabled modes. It selects direct execution, skill execution, ask-user, block, or resume behavior from explicit skill input, eligible skill candidates, workspace decision profile, and working context state. Runtime persists the decision record, resolves the selected skill and context priority, then ContextPlane assembles messages from the current decision, current skill catalog inventory, working checkpoint, session summary, and prepared file-backed memory.
 
 ## Config
 
@@ -161,12 +136,11 @@ Old `memory.blocks`, `memory.facts`, `memory.end_of_run`, `memory.background_rev
 
 ## Invariants
 
-- Runtime memory reads go through `memorymodule.Service.Prepare`.
 - Runtime memory writes go through `memorymodule.AppendHistory` or explicit file-backed memory tools.
 - Canonical memory reads use Record V2 metadata and active selection; clients must not infer active status, relation resolution, or provenance from raw markdown.
 - Procedure durable truth is file-backed `memorymodule/skills/` with `ProcedureRecord` schema; there is no SQLite procedure table or compatibility reader for old procedure origins.
 - Agent-written procedure drafts must be `origin: agent_draft`, `status: unverified`, and include `source_run`; action-verified procedures must include `source_run` plus `evidence_refs`.
-- Procedure activation truth is observable through persisted diagnostic `procedure.activation` events; matched comes from memorymodule, injected comes from ContextPlane attachment, and selected/used executable-skill activations come from Decision/skill selection.
+- Procedure activation truth is observable through persisted diagnostic `procedure.activation` events; matched comes from memorymodule, injected comes from ContextPlane attachment, and selected/used executable-skill activations come from run selection.
 - Native skill lifecycle truth is observable through persisted diagnostic `skill.lifecycle` events and file-backed skill frontmatter. Generated/workspace/user skills can be curated by `skill_assess`; release seed updates are delivered by the installer.
 - ContextPlane does not know old memory store internals.
 - Context compact/resume work must use persisted context boundaries as runtime-history facts, not durable memory records and not `events.payload_json` reconstruction.

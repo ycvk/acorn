@@ -7,7 +7,6 @@ import (
 
 	einomodel "github.com/cloudwego/eino/components/model"
 	"github.com/ycvk/acorn/internal/contextplane"
-	"github.com/ycvk/acorn/internal/decision"
 	"github.com/ycvk/acorn/internal/memorymodule"
 	"github.com/ycvk/acorn/internal/providers"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
@@ -122,10 +121,8 @@ func (f *RunnerFactory) assembleContext(
 
 func buildAssembleRequest(req RunnerBuildRequest, caps *runCapabilities, selection *runSelection, memoryPrepared *memorymodule.PrepareResult) contextplane.AssembleRequest {
 	var selectedSkill *SelectedSkill
-	var decisionRecord *decision.Record
 	if selection != nil {
 		selectedSkill = selection.selectedSkill
-		decisionRecord = selection.decisionRecord
 	}
 	return contextplane.AssembleRequest{
 		RunID:          req.RunID,
@@ -133,7 +130,6 @@ func buildAssembleRequest(req RunnerBuildRequest, caps *runCapabilities, selecti
 		Input:          req.Input,
 		SelectedSkill:  selectedSkill,
 		SkillSnapshot:  caps.skillSnapshot,
-		DecisionRecord: decisionRecord,
 		MemoryPrepared: memoryPrepared,
 		ToolCatalog:    caps.catalog,
 	}

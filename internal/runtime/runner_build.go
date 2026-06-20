@@ -11,7 +11,6 @@ import (
 
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/contextplane"
-	"github.com/ycvk/acorn/internal/decision"
 	"github.com/ycvk/acorn/internal/skills"
 	corestore "github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/workspace"
@@ -36,7 +35,6 @@ func buildRuntimeDeps(cfg *config.Config, store RunnerFactoryStore, opts RunnerF
 		return RuntimeDeps{}, errors.New("memory module is required")
 	}
 	loader := resolveLoader(cfg, opts.Loader)
-	decisionProfiles := resolveDecisionProfiles(opts.DecisionProfileService, ws)
 	contextPlane, err := resolveContextPlane(cfg, store, opts)
 	if err != nil {
 		return RuntimeDeps{}, fmt.Errorf("context plane: %w", err)
@@ -44,7 +42,7 @@ func buildRuntimeDeps(cfg *config.Config, store RunnerFactoryStore, opts RunnerF
 	orchestrationPlane := newDefaultOrchestrationPlane(defaultOrchestrationPlaneDeps{
 		cfg: cfg, store: store, contextPlane: contextPlane, handlers: opts.Handlers,
 	})
-	return assembleRuntimeDeps(cfg, store, opts, ws, loader, decisionProfiles, artifactService, contextPlane, orchestrationPlane), nil
+	return assembleRuntimeDeps(cfg, store, opts, ws, loader, artifactService, contextPlane, orchestrationPlane), nil
 }
 
 func resolveLoader(cfg *config.Config, loader *skills.Loader) *skills.Loader {
@@ -54,17 +52,6 @@ func resolveLoader(cfg *config.Config, loader *skills.Loader) *skills.Loader {
 	return loader
 }
 
-func resolveDecisionProfiles(svc *decision.ProfileService, ws *workspace.Workspace) *decision.ProfileService {
-	if svc != nil {
-		return svc
-	}
-	root := ""
-	if ws != nil {
-		root = ws.Root()
-	}
-	return decision.NewProfileService(root)
-}
-
 func resolveContextPlane(cfg *config.Config, store RunnerFactoryStore, opts RunnerFactoryOptions) (contextplane.ContextPlane, error) {
 	if opts.ContextPlane != nil {
 		return opts.ContextPlane, nil
@@ -72,12 +59,11 @@ func resolveContextPlane(cfg *config.Config, store RunnerFactoryStore, opts Runn
 	return buildDefaultContextPlane(cfg, store, opts)
 }
 
-func assembleRuntimeDeps(cfg *config.Config, store RunnerFactoryStore, opts RunnerFactoryOptions, ws *workspace.Workspace, loader *skills.Loader, decisionProfiles *decision.ProfileService, artifactService *corestore.ArtifactService, contextPlane contextplane.ContextPlane, orchestrationPlane orchestrationPlane) RuntimeDeps {
+func assembleRuntimeDeps(cfg *config.Config, store RunnerFactoryStore, opts RunnerFactoryOptions, ws *workspace.Workspace, loader *skills.Loader, artifactService *corestore.ArtifactService, contextPlane contextplane.ContextPlane, orchestrationPlane orchestrationPlane) RuntimeDeps {
 	return RuntimeDeps{
 		Config:            cfg,
 		Store:             store,
 		Loader:            loader,
-		DecisionProfiles:  decisionProfiles,
 		CheckpointService: opts.CheckpointService,
 		SessionSummarySvc: opts.SessionSummaryService,
 		MemoryModule:      opts.MemoryModule,

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ycvk/acorn/internal/decision"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/tooling"
 )
@@ -66,20 +65,6 @@ func stableSkillsFromSnapshot(snapshot *skills.Snapshot) []skills.Spec {
 	items := make([]skills.Spec, 0, len(snapshot.Skills))
 	for _, item := range snapshot.Skills {
 		items = append(items, skills.CopySpec(item.Spec))
-	}
-	return items
-}
-
-func recommendedSkillsFromMatches(matches []SkillMatch) []decision.RecommendedSkill {
-	items := make([]decision.RecommendedSkill, 0, len(matches))
-	for _, item := range matches {
-		items = append(items, decision.RecommendedSkill{
-			ID:             item.Skill.ID,
-			Name:           item.Skill.Name,
-			Score:          item.Score,
-			TriggerMatched: item.TriggerMatched,
-			FilteredReason: item.FilteredReason,
-		})
 	}
 	return items
 }
