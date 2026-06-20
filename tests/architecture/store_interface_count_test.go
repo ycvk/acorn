@@ -37,7 +37,6 @@ func TestConsumerStoreInterfaceCount(t *testing.T) {
 		t.Fatalf("consumer-owned store interfaces (Store/Port/Repository/Ledger) in internal/runtime + internal/app top-level must consolidate to <=%d; found %d", maxConsumerStoreInterfaces, count)
 	}
 }
-
 func countTopLevelStoreInterfaces(t *testing.T, dir string) int {
 	t.Helper()
 	entries, err := os.ReadDir(dir)

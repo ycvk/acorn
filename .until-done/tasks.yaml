@@ -1,4 +1,4 @@
-generated: 2026-06-20T06:13:50.445Z
+generated: 2026-06-20T06:17:23.748Z
 goalId: ud-0m5drb
 goal: 执行已批准的 7 步 Acorn 重构（P2-A→P0-C→P0-A→P0-B→P1-B→P1-A→P2-B），每步保持 make 测试绿，步骤边界提交。
 doneCriteria: |-
@@ -851,7 +851,7 @@ tasks:
   - id: T-015
     title: CLEANUP — 剥离调试残留/scratch 文件/TODO，确认所有改动文件达结构限
     phase: cleanup
-    status: pending
+    status: done
     dependencies:
       - T-014
     blocks:
@@ -880,6 +880,10 @@ tasks:
         RunOneIteration 与 ActNode.Invoke 各内联一份。重定向 T-005/T-006 为抽共享
         RunActionRound（round+recovery），记录保持 mode-specific。doneCriteria #7 locked
         不变（仍可达：两路径不再各自维护 model→tool→compact 重复逻辑）。'
+      - T-015 CLEANUP 完成：扫描调试 print/TODO/注释块/scratch 文件——均无（var _
+        均为合法接口断言：directResponseAgent/graphAgent/JSONSerializer，非调试残留）。structural_limits_test
+        对 internal/runtime + internal/runtime/toolset 全绿。verifyCommand
+        三件套全绿。无新改动需提交。
     gotchas: []
     context:
       - path: tests/architecture/structural_limits_test.go
@@ -887,7 +891,7 @@ tasks:
   - id: T-016
     title: VERIFY — 跑 verifyCommand，贴真实输出，逐条核对 12 项 doneCriteria
     phase: cleanup
-    status: pending
+    status: done
     dependencies:
       - T-015
     blocks: []

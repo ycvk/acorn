@@ -5,6 +5,7 @@ import (
 	"go/parser"
 	"go/token"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -33,11 +34,11 @@ const (
 func TestStructuralLimitsRefactorOwnedRegistry(t *testing.T) {
 	root := filepath.Join("..", "..")
 	for _, dir := range refactorOwnedDirs {
-		assertStructuralLimits(t, filepath.Join(root, dir))
+		assertStructuralLimitsRecursive(t, filepath.Join(root, dir))
 	}
 }
 
-func assertStructuralLimits(t *testing.T, dir string) {
+func assertStructuralLimitsRecursive(t *testing.T, dir string) {
 	t.Helper()
 	fset := token.NewFileSet()
 	pkgs, err := parser.ParseDir(fset, dir, nonTestFileFilter, parser.ParseComments)
@@ -47,7 +48,7 @@ func assertStructuralLimits(t *testing.T, dir string) {
 	for _, pkg := range pkgs {
 		for fname, file := range pkg.Files {
 			rel := structRelFromRoot(t, fname)
-			assertFileLines(t, rel, file, fset)
+			assertStructuralLimitsFile(t, rel, fname)
 			for _, decl := range file.Decls {
 				fn, ok := decl.(*ast.FuncDecl)
 				if !ok {
@@ -63,6 +64,22 @@ func nonTestFileFilter(info fs.FileInfo) bool {
 	return !strings.HasSuffix(info.Name(), "_test.go")
 }
 
+func assertStructuralLimitsFile(t *testing.T, rel string, path string) {
+	t.Helper()
+	// Use actual file line count (not ast.File.End() which excludes trailing comments).
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", rel, err)
+	}
+	lines := len(strings.Split(string(data), "\n"))
+	if strings.HasSuffix(string(data), "\n") {
+		lines-- // trailing newline produces an extra empty element from Split
+	}
+	if lines > structFileMaxLines {
+		t.Errorf("%s: %d lines exceeds %d limit", rel, lines, structFileMaxLines)
+	}
+}
+
 func structRelFromRoot(t *testing.T, path string) string {
 	t.Helper()
 	rel, err := filepath.Rel(filepath.Join("..", ".."), path)
@@ -70,13 +87,6 @@ func structRelFromRoot(t *testing.T, path string) string {
 		t.Fatalf("rel path %s: %v", path, err)
 	}
 	return filepath.ToSlash(rel)
-}
-
-func assertFileLines(t *testing.T, rel string, file *ast.File, fset *token.FileSet) {
-	lines := fset.Position(file.End()).Line
-	if lines > structFileMaxLines {
-		t.Errorf("%s: %d lines exceeds %d limit", rel, lines, structFileMaxLines)
-	}
 }
 
 func assertFuncLimits(t *testing.T, rel string, fn *ast.FuncDecl, fset *token.FileSet) {

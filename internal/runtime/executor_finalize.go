@@ -43,7 +43,6 @@ func (e *Executor) recordFinalizationFailure(ctx context.Context, runID, output 
 }
 
 func (e *Executor) verifyAndRecordSkill(ctx context.Context, runID string, selected *SelectedSkill, status events.RunStatus, output string, sink stream.StreamSink) error {
-	_ = ctx
 	if selected == nil || strings.TrimSpace(runID) == "" || status != events.RunStatusFailed {
 		return nil
 	}

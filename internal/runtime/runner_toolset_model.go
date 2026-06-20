@@ -53,4 +53,4 @@ func (f *RunnerFactory) newChatModel(ctx context.Context) (einomodel.BaseChatMod
 }
 
 // Subagent execution is now handled by SubagentExecutor in subagent_executor.go.
-// The samplingExecutorAdapter has been replaced.
+// The subagentExecutorAdapter bridges MCP sampling requests to SubagentExecutor.

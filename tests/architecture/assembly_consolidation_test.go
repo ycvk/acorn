@@ -43,8 +43,8 @@ func TestAssemblyContextConsolidated(t *testing.T) {
 			})
 		}
 	}
-	if found["assembleToolContext"] > 0 && found["assembleDirectContext"] > 0 {
-		t.Fatalf("internal/runtime must not define both assembleToolContext (%d) and assembleDirectContext (%d); merge into a single entry", found["assembleToolContext"], found["assembleDirectContext"])
+	if found["assembleToolContext"] > 0 || found["assembleDirectContext"] > 0 {
+		t.Fatalf("internal/runtime must not define assembleToolContext (%d) or assembleDirectContext (%d); both must be merged into assembleContext", found["assembleToolContext"], found["assembleDirectContext"])
 	}
 }
 

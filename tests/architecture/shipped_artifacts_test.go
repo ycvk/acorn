@@ -3,6 +3,7 @@ package architecture_test
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -17,7 +18,7 @@ func TestExampleConfigHasNoPhase0Scaffold(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read example config: %v", err)
 	}
-	if strings.Contains(string(data), "Phase 0") {
+	if regexp.MustCompile(`(?i)phase\s*0`).MatchString(string(data)) {
 		t.Fatalf("configs/acorn.example.yaml must not carry stale 'Phase 0' scaffold prompt")
 	}
 }

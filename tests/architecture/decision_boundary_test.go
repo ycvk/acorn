@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -20,6 +21,8 @@ var intentRoutingFuncs = map[string]struct{}{
 	"routeForIntent":      {},
 	"resolveProfileRoute": {},
 }
+
+var intentRoutingPattern = regexp.MustCompile(`(?i)\b\w*(intent|route|classify)\w*\b`)
 
 func TestDecisionPackageHasNoIntentRouting(t *testing.T) {
 	dir := filepath.Join("..", "..", "internal", "decision")
@@ -43,6 +46,8 @@ func TestDecisionPackageHasNoIntentRouting(t *testing.T) {
 			}
 			if _, bad := intentRoutingFuncs[fn.Name.Name]; bad {
 				offenders = append(offenders, structRelFromRoot(t, path)+": "+fn.Name.Name)
+			} else if intentRoutingPattern.MatchString(fn.Name.Name) {
+				offenders = append(offenders, structRelFromRoot(t, path)+": "+fn.Name.Name+" (matches intent/route/classify pattern)")
 			}
 		}
 		return nil
@@ -60,7 +65,7 @@ func TestDecisionMdHasNoAcornRoutes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read decision.md: %v", err)
 	}
-	if strings.Contains(string(body), "acorn-routes") {
+	if regexp.MustCompile(`(?i)acorn[-_]?routes`).MatchString(string(body)) {
 		t.Fatalf("decision.md must not carry an acorn-routes block (decision is defaults-only)")
 	}
 }

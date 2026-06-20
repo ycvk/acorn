@@ -229,7 +229,7 @@ func (s *Store) PrepareChatTurn(ctx context.Context, sessionID, input, title str
 	if err != nil {
 		return 0, nil, err
 	}
-	if _, err := s.AppendSessionMessage(sessionID, turnIndex, "user", input, ""); err != nil {
+	if _, err := s.AppendSessionMessage(ctx, sessionID, turnIndex, "user", input, ""); err != nil {
 		return 0, nil, err
 	}
 	if err := s.UpdateSessionTitleIfEmpty(ctx, sessionID, title); err != nil {

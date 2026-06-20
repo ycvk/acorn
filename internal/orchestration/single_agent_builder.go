@@ -312,11 +312,9 @@ func (p *DefaultPlane) assembleTooling(ctx context.Context, params toolAssemblyP
 	instruction := p.instructionBuilder(p.systemPrompt, params.instructionSuffix)
 	compressionState := contextplane.NewCompressionState()
 	var handlers []adk.ChatModelAgentMiddleware
-	if p.handlersBuilder != nil {
-		handlers, err = p.handlersBuilder(ctx, params.chatModel, compressionState)
-		if err != nil {
-			return nil, err
-		}
+	handlers, err = p.handlersBuilder(ctx, params.chatModel, compressionState)
+	if err != nil {
+		return nil, err
 	}
 
 	runCtx := ctx

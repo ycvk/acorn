@@ -30,7 +30,7 @@ func (p *DefaultPlane) BuildDirectResponse(ctx context.Context, req DirectRespon
 	if req.ContextResult.LifecycleState == nil {
 		return nil, fmt.Errorf("context plane lifecycle state is required")
 	}
-	if p.toolBuilder == nil || p.toolNodeFactory == nil || p.instructionBuilder == nil {
+	if p.toolBuilder == nil || p.toolNodeFactory == nil || p.instructionBuilder == nil || p.handlersBuilder == nil {
 		return nil, fmt.Errorf("orchestration plane is missing required dependencies")
 	}
 	if p.checkpointStore == nil {

@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/ycvk/acorn/internal/contextplane"
 	"github.com/ycvk/acorn/internal/decision"
 	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/model"
@@ -18,8 +17,6 @@ import (
 // state, session-summary, and pending-action-create ports.
 type containerRuntimeStore interface {
 	runtime.RunnerFactoryStore
-	contextplane.RunContextSnapshotStore
-	storecore.ToolResultLedger
 	workingstate.Store
 	model.SessionSummaryStore
 	PendingActionCreateStore
@@ -31,7 +28,9 @@ type containerRuntimeStore interface {
 // decisionStore/deviceAuthStore/inboxStore interfaces are inlined here (they
 // were only embedded, never used standalone except as service dependencies which
 // now depend on this wider composite), collapsing the consumer-owned port
-// surface.
+// surface. This is an intentional trade-off (doneCriteria #10): ISP regression
+// is accepted in exchange for consolidating consumer-owned store interfaces
+// to <=6, enforced by store_interface_count_test.go.
 type containerAppStore interface {
 	CreateSession(ctx context.Context, sessionID, title string) (*events.SessionRecord, error)
 	ListSessions(ctx context.Context, limit int) ([]events.SessionRecord, error)
@@ -43,7 +42,7 @@ type containerAppStore interface {
 	DeleteSession(ctx context.Context, sessionID string) error
 	ListSessionMessages(ctx context.Context, sessionID string, limit int) ([]events.SessionMessageRecord, error)
 	NextSessionMessageTurnIndex(ctx context.Context, sessionID string) (int, error)
-	AppendSessionMessage(sessionID string, turnIndex int, role, content, runID string) (*events.SessionMessageRecord, error)
+	AppendSessionMessage(ctx context.Context, sessionID string, turnIndex int, role, content, runID string) (*events.SessionMessageRecord, error)
 	LoadRun(ctx context.Context, runID string) (*events.RunRecord, error)
 	LoadEvents(ctx context.Context, runID string) ([]events.EventRecord, error)
 	LoadEventsAfter(ctx context.Context, runID string, afterSeq int64) ([]events.EventRecord, error)

@@ -12,17 +12,18 @@ import (
 	"github.com/ycvk/acorn/internal/store"
 )
 
-func (s *Store) AppendSessionMessage(sessionID string, turnIndex int, role, content, runID string) (*events.SessionMessageRecord, error) {
-	return s.AppendSessionMessageWithParts(sessionID, turnIndex, role, content, nil, runID)
+func (s *Store) AppendSessionMessage(ctx context.Context, sessionID string, turnIndex int, role, content, runID string) (*events.SessionMessageRecord, error) {
+	return s.AppendSessionMessageWithParts(ctx, sessionID, turnIndex, role, content, nil, runID)
 }
 
-func (s *Store) AppendSessionMessageWithParts(sessionID string, turnIndex int, role, content string, parts []SessionMessagePart, runID string) (*events.SessionMessageRecord, error) {
+func (s *Store) AppendSessionMessageWithParts(ctx context.Context, sessionID string, turnIndex int, role, content string, parts []SessionMessagePart, runID string) (*events.SessionMessageRecord, error) {
 	now := time.Now().UTC()
 	contentParts, err := encodeSessionMessageParts(parts)
 	if err != nil {
 		return nil, err
 	}
-	result, err := s.db.Exec(
+	result, err := s.db.ExecContext(
+		ctx,
 		`INSERT INTO session_messages(session_id, turn_index, role, content, content_parts, run_id, created_at) VALUES(?, ?, ?, ?, ?, ?, ?)`,
 		sessionID,
 		turnIndex,
@@ -39,7 +40,7 @@ func (s *Store) AppendSessionMessageWithParts(sessionID string, turnIndex int, r
 	if err != nil {
 		return nil, fmt.Errorf("read session message id: %w", err)
 	}
-	if _, err := s.db.Exec(`UPDATE sessions SET updated_at = ? WHERE session_id = ?`, formatTimestamp(now), sessionID); err != nil {
+	if _, err := s.db.ExecContext(ctx, `UPDATE sessions SET updated_at = ? WHERE session_id = ?`, formatTimestamp(now), sessionID); err != nil {
 		return nil, fmt.Errorf("touch session updated_at: %w", err)
 	}
 	return &events.SessionMessageRecord{

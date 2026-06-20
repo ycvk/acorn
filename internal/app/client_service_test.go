@@ -86,7 +86,7 @@ func TestClientListThreadsProjectsTitleFromRecentUserMessage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateSession: %v", err)
 	}
-	if _, err := store.AppendSessionMessage(session.SessionID, 1, "user", "How do I configure pairing on the VPS?", ""); err != nil {
+	if _, err := store.AppendSessionMessage(ctx, session.SessionID, 1, "user", "How do I configure pairing on the VPS?", ""); err != nil {
 		t.Fatalf("AppendSessionMessage: %v", err)
 	}
 	service := BuildClientService(store, nil, nil, "/repo")

@@ -17,7 +17,11 @@ import (
 // SelectedSkill: composite-literal key) made clean cross-package qualification
 // risky without large-scale API renames. The structural_limits test enforces
 // file<=200/func<=30/nesting<=3 on the internal/runtime top-level dir.
-
+//
+// The threshold is >=1 because only toolset/ was cleanly extractable in this
+// refactor pass. subagent/ and runcontext/ extractions were attempted but
+// reverted due to naming collisions. Raising the threshold would require
+// resolving those collisions first (out of scope for this refactor).
 var preExistingRuntimeSubpackages = map[string]bool{
 	"api": true, "graph": true, "plan": true, "tool": true, "tooltest": true,
 }
