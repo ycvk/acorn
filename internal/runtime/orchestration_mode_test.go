@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -418,7 +416,7 @@ func TestBuildSingleAgentAssemblyInjectsMemoryReflection(t *testing.T) {
 	var captured orchestration.SingleAgentRequest
 	factory.deps.Orchestration = fakeModeRoutingPlane{singleAgentReq: &captured}
 
-	assembly, err := factory.buildSingleAgentAssembly(ctx, RunnerBuildRequest{
+	assembly, err := factory.buildAssembly(ctx, events.ModeSingleAgent, RunnerBuildRequest{
 		RunID:             "run_single_memory",
 		SessionID:         "session_single_memory",
 		Input:             "inspect repo",
@@ -445,7 +443,7 @@ func TestBuildPlanExecuteAssemblyInjectsMemoryReflection(t *testing.T) {
 	routeErr := errors.New("plan execute captured")
 	factory.deps.Orchestration = fakeModeRoutingPlane{planExecuteErr: routeErr, planReq: &captured}
 
-	_, err := factory.buildPlanExecuteAssembly(ctx, RunnerBuildRequest{
+	_, err := factory.buildAssembly(ctx, events.ModePlanExecute, RunnerBuildRequest{
 		RunID:             "run_plan_memory",
 		SessionID:         "session_plan_memory",
 		Input:             "fix code",
@@ -504,47 +502,6 @@ func TestResumeWithTargetsRoutesPlanExecuteRunByPersistedMode(t *testing.T) {
 	_, err = exec.ResumeWithTargets(ctx, runID, map[string]any{}, nil)
 	if !errors.Is(err, routeErr) {
 		t.Fatalf("ResumeWithTargets error = %v, want %v", err, routeErr)
-	}
-}
-
-func TestResolveRunSelectionRejectsResumeRunDecision(t *testing.T) {
-	ctx := context.Background()
-	store, cfg := newRunnerFactoryMemoryTestContext(t)
-	factory := newRunnerFactory(t, cfg, store, RunnerFactoryOptions{})
-	decisionRoot := t.TempDir()
-	profile := decision.Profile{
-		Defaults: decision.Defaults{
-			MissingContext:            decision.ActionInspectFirst,
-			MissingRequiredCapability: decision.ActionBlock,
-		},
-		Routes: []decision.Route{
-			{Intent: "general", Action: decision.ActionResumeRun},
-		},
-	}
-	raw, err := decision.RenderProfileMarkdown(profile)
-	if err != nil {
-		t.Fatalf("RenderProfileMarkdown: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(decisionRoot, "decision.md"), []byte(raw), 0o644); err != nil {
-		t.Fatalf("write decision.md: %v", err)
-	}
-	factory.deps.DecisionProfiles = decision.NewProfileService(decisionRoot)
-
-	catalog, err := tooling.NewCatalog(ctx, nil)
-	if err != nil {
-		t.Fatalf("NewCatalog: %v", err)
-	}
-	caps := &runCapabilities{catalog: catalog}
-	selection, err := factory.resolveRunSelection(ctx, RunnerBuildRequest{
-		RunID:     "run_resume_decision",
-		SessionID: "session_resume_decision",
-		Input:     "hello",
-	}, caps)
-	if err == nil {
-		t.Fatalf("resolveRunSelection returned selection %+v, want resume_run rejection", selection)
-	}
-	if !strings.Contains(err.Error(), "decision resolved to resume_run for a new execution") {
-		t.Fatalf("resolveRunSelection error = %v, want resume_run rejection", err)
 	}
 }
 

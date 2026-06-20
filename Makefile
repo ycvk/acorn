@@ -91,8 +91,8 @@ endif
 	goimports -w ./cmd ./internal ./tests
 
 format-check:
-	@test -z "$$(gofmt -l ./cmd ./internal ./tests)" || (gofmt -l ./cmd ./internal ./tests && false)
+	@[ -z "$$(gofmt -l ./cmd ./internal ./tests)" ] || (gofmt -l ./cmd ./internal ./tests && false)
 ifndef GOIMPORTS
 	$(error goimports not found — install: go install golang.org/x/tools/cmd/goimports@latest)
 endif
-	@test -z "$$(goimports -l ./cmd ./internal ./tests)" || (goimports -l ./cmd ./internal ./tests && false)
+	@[ -z "$$(goimports -l ./cmd ./internal ./tests)" ] || (goimports -l ./cmd ./internal ./tests && false)

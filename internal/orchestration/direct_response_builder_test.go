@@ -273,6 +273,9 @@ func TestBuildDirectResponseContinuesAfterOutputLimit(t *testing.T) {
 			}
 			return ctx
 		},
+		HandlersBuilder: func(context.Context, einomodel.BaseChatModel, any) ([]adk.ChatModelAgentMiddleware, error) {
+			return nil, nil
+		},
 	})
 	assembly, err := plane.BuildDirectResponse(ctx, DirectResponseRequest{
 		AgentName:         "agent",
@@ -345,6 +348,9 @@ func TestBuildDirectResponseDoesNotExecuteTruncatedToolCalls(t *testing.T) {
 				return contextplane.WithToolLifecycleContext(ctx, contextPlane.ToolResultLedger(), t.state, catalog, infos)
 			}
 			return ctx
+		},
+		HandlersBuilder: func(context.Context, einomodel.BaseChatModel, any) ([]adk.ChatModelAgentMiddleware, error) {
+			return nil, nil
 		},
 	})
 	assembly, err := plane.BuildDirectResponse(ctx, DirectResponseRequest{
@@ -420,6 +426,9 @@ func TestBuildDirectResponseRunsToolCallLoop(t *testing.T) {
 			}
 			return ctx
 		},
+		HandlersBuilder: func(context.Context, einomodel.BaseChatModel, any) ([]adk.ChatModelAgentMiddleware, error) {
+			return nil, nil
+		},
 	})
 	assembly, err := plane.BuildDirectResponse(ctx, DirectResponseRequest{
 		AgentName:         "agent",
@@ -491,6 +500,9 @@ func TestBuildDirectResponsePropagatesModelError(t *testing.T) {
 			}
 			return ctx
 		},
+		HandlersBuilder: func(context.Context, einomodel.BaseChatModel, any) ([]adk.ChatModelAgentMiddleware, error) {
+			return nil, nil
+		},
 	})
 	assembly, err := plane.BuildDirectResponse(ctx, DirectResponseRequest{
 		AgentName:         "agent",
@@ -544,6 +556,9 @@ func TestBuildDirectResponseReactiveCompactsAndRetriesOverflow(t *testing.T) {
 				return contextplane.WithToolLifecycleContext(ctx, contextPlane.ToolResultLedger(), t.state, catalog, infos)
 			}
 			return ctx
+		},
+		HandlersBuilder: func(context.Context, einomodel.BaseChatModel, any) ([]adk.ChatModelAgentMiddleware, error) {
+			return nil, nil
 		},
 	})
 	assembly, err := plane.BuildDirectResponse(ctx, DirectResponseRequest{
@@ -626,6 +641,9 @@ func TestBuildDirectResponseFailsWithoutContextSession(t *testing.T) {
 				return contextplane.WithToolLifecycleContext(ctx, contextPlane.ToolResultLedger(), t.state, catalog, infos)
 			}
 			return ctx
+		},
+		HandlersBuilder: func(context.Context, einomodel.BaseChatModel, any) ([]adk.ChatModelAgentMiddleware, error) {
+			return nil, nil
 		},
 	})
 	assembly, err := plane.BuildDirectResponse(ctx, DirectResponseRequest{
@@ -1015,6 +1033,9 @@ func TestBuildDirectResponseHandlesInterrupt(t *testing.T) {
 			}
 			return ctx
 		},
+		HandlersBuilder: func(context.Context, einomodel.BaseChatModel, any) ([]adk.ChatModelAgentMiddleware, error) {
+			return nil, nil
+		},
 	})
 	assembly, err := plane.BuildDirectResponse(ctx, DirectResponseRequest{
 		AgentName:         "agent",
@@ -1090,6 +1111,9 @@ func TestBuildDirectResponsePreservesNestedInterruptContexts(t *testing.T) {
 				return contextplane.WithToolLifecycleContext(ctx, contextPlane.ToolResultLedger(), t.state, catalog, infos)
 			}
 			return ctx
+		},
+		HandlersBuilder: func(context.Context, einomodel.BaseChatModel, any) ([]adk.ChatModelAgentMiddleware, error) {
+			return nil, nil
 		},
 	})
 	assembly, err := plane.BuildDirectResponse(ctx, DirectResponseRequest{
@@ -1221,6 +1245,9 @@ func TestBuildDirectResponseResumeContinuesFromPendingToolCalls(t *testing.T) {
 				return contextplane.WithToolLifecycleContext(ctx, contextPlane.ToolResultLedger(), t.state, catalog, infos)
 			}
 			return ctx
+		},
+		HandlersBuilder: func(context.Context, einomodel.BaseChatModel, any) ([]adk.ChatModelAgentMiddleware, error) {
+			return nil, nil
 		},
 	})
 	assembly, err := plane.BuildDirectResponse(ctx, DirectResponseRequest{

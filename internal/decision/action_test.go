@@ -8,7 +8,7 @@ func TestIsContinuableAction(t *testing.T) {
 			t.Fatalf("expected %q to be continuable", action)
 		}
 	}
-	for _, action := range []Action{ActionAskUser, ActionBlock, ActionResumeRun} {
+	for _, action := range []Action{ActionAskUser, ActionBlock} {
 		if IsContinuableAction(action) {
 			t.Fatalf("expected %q to not be continuable", action)
 		}

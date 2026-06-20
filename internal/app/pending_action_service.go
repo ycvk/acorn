@@ -15,10 +15,10 @@ import (
 var ErrPendingActionDecisionInvalid = errors.New("pending action decision invalid")
 
 type PendingActionService struct {
-	store pendingActionDecisionStore
+	store containerAppStore
 }
 
-func NewPendingActionService(store pendingActionDecisionStore) *PendingActionService {
+func NewPendingActionService(store containerAppStore) *PendingActionService {
 	return &PendingActionService{store: store}
 }
 
@@ -257,7 +257,7 @@ const (
 )
 
 type InboxService struct {
-	store        inboxStore
+	store        containerAppStore
 	capabilities inboxCapabilityService
 }
 
@@ -304,7 +304,7 @@ type PendingActionOption struct {
 	Description string
 }
 
-func NewInboxService(store inboxStore, capabilities inboxCapabilityService) *InboxService {
+func NewInboxService(store containerAppStore, capabilities inboxCapabilityService) *InboxService {
 	return &InboxService{store: store, capabilities: capabilities}
 }
 

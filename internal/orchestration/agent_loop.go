@@ -75,58 +75,40 @@ func (l *AgentLoop) RunOneIteration(ctx context.Context, toolInfos []*schema.Too
 	if err != nil {
 		return nil, fmt.Errorf("agent loop before model call: %w", err)
 	}
+	msg, toolMessages, outputLimitReached, err := RunActionRound(ctx, l.model, l.streamer, l.toolNode, modelInput.Messages, toolInfos, runID, messageID, allowCompact, l.agentLoopCompact(modelReq), RoundOptions{})
+	if err == nil {
+		if err := l.recordRoundResults(ctx, msg, toolMessages, outputLimitReached); err != nil {
+			return nil, err
+		}
+	}
+	return &AgentLoopIteration{Message: msg, ToolMessages: toolMessages, OutputLimitReached: outputLimitReached}, err
+}
 
-	msg, toolMessages, outputLimitReached, streamErr := ExecuteRound(ctx, l.model, l.streamer, l.toolNode, modelInput.Messages, toolInfos, runID, messageID, RoundOptions{})
-	if streamErr == nil {
-		if err := l.session.RecordAssistant(ctx, msg); err != nil {
-			return nil, fmt.Errorf("agent loop record assistant: %w", err)
+func (l *AgentLoop) agentLoopCompact(modelReq contextplane.ModelCallRequest) CompactFn {
+	return func(ctx context.Context, streamErr error) ([]*schema.Message, error) {
+		recovered, err := l.session.ReactiveCompact(ctx, modelReq, streamErr)
+		if err != nil {
+			return nil, fmt.Errorf("agent loop reactive compact: %w", err)
 		}
-		if len(toolMessages) > 0 {
-			if err := l.session.RecordToolResults(ctx, toolMessages); err != nil {
-				return nil, fmt.Errorf("agent loop record tool results: %w", err)
-			}
-		}
-		if outputLimitReached {
-			if err := l.session.RecordMessages(ctx, []adk.Message{outputLimitContinuationMessage()}); err != nil {
-				return nil, fmt.Errorf("agent loop record output limit continuation: %w", err)
-			}
-		}
-		return &AgentLoopIteration{
-			Message:            msg,
-			ToolMessages:       toolMessages,
-			OutputLimitReached: outputLimitReached,
-		}, nil
+		return recovered.Messages, nil
 	}
+}
 
-	if !contextplane.IsContextOverflowError(streamErr) || !allowCompact {
-		return &AgentLoopIteration{Message: msg, ToolMessages: toolMessages}, streamErr
-	}
-	recovered, compactErr := l.session.ReactiveCompact(ctx, modelReq, streamErr)
-	if compactErr != nil {
-		return nil, fmt.Errorf("agent loop reactive compact: %w", compactErr)
-	}
-	msg, toolMessages, outputLimitReached, streamErr = ExecuteRound(ctx, l.model, l.streamer, l.toolNode, recovered.Messages, toolInfos, runID, messageID, RoundOptions{})
-	if streamErr != nil {
-		return &AgentLoopIteration{Message: msg, ToolMessages: toolMessages}, streamErr
-	}
+func (l *AgentLoop) recordRoundResults(ctx context.Context, msg *schema.Message, toolMessages []*schema.Message, outputLimitReached bool) error {
 	if err := l.session.RecordAssistant(ctx, msg); err != nil {
-		return nil, fmt.Errorf("agent loop record assistant: %w", err)
+		return fmt.Errorf("agent loop record assistant: %w", err)
 	}
 	if len(toolMessages) > 0 {
 		if err := l.session.RecordToolResults(ctx, toolMessages); err != nil {
-			return nil, fmt.Errorf("agent loop record tool results: %w", err)
+			return fmt.Errorf("agent loop record tool results: %w", err)
 		}
 	}
 	if outputLimitReached {
 		if err := l.session.RecordMessages(ctx, []adk.Message{outputLimitContinuationMessage()}); err != nil {
-			return nil, fmt.Errorf("agent loop record output limit continuation: %w", err)
+			return fmt.Errorf("agent loop record output limit continuation: %w", err)
 		}
 	}
-	return &AgentLoopIteration{
-		Message:            msg,
-		ToolMessages:       toolMessages,
-		OutputLimitReached: outputLimitReached,
-	}, nil
+	return nil
 }
 
 func ExecuteRound(ctx context.Context, model einomodel.BaseChatModel, streamer AssistantStreamer, toolNode ToolInvoker, messages []*schema.Message, toolInfos []*schema.ToolInfo, runID string, messageID string, opts RoundOptions) (*schema.Message, []*schema.Message, bool, error) {

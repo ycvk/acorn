@@ -1,0 +1,25 @@
+# Minimal Acorn config — the smallest loadable starting point.
+#
+# Only the sections a single-owner direct_response run must override are listed
+# here. Every other field (web, web_access, browser, tools, agent defaults,
+# memory) falls back to built-in defaults via config.Load's defaultConfig merge,
+# so this file loads and passes ValidateBase as-is. To make the install
+# execution-ready, set OPENAI_API_KEY (referenced below) in the environment.
+runtime:
+  storage_dir: ~/.acorn
+
+providers:
+  - name: primary
+    model: gpt-4o
+    base_url: https://api.openai.com/v1
+    api_key: ${OPENAI_API_KEY}
+    enabled: true
+
+context:
+  window_tokens: 200000
+  compact_margin_tokens: 13000
+  preserve_recent_turns: 3
+  summary_max_tokens: 2048
+
+agent:
+  name: coordinator

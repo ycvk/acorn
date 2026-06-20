@@ -8,6 +8,7 @@ import (
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/decision"
 	"github.com/ycvk/acorn/internal/runtime"
+	"github.com/ycvk/acorn/internal/runtime/toolset"
 	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
 )
 
@@ -27,7 +28,7 @@ type Container struct {
 	deviceAuth    *DeviceAuthService
 	inbox         *InboxService
 	mcpServer     *mcp.Server
-	serveToolset  *runtime.Toolset
+	serveToolset  *toolset.Toolset
 }
 
 func NewContainer(ctx context.Context, cfg *config.Config) (*Container, error) {
