@@ -1,4 +1,4 @@
-generated: 2026-06-20T05:38:47.637Z
+generated: 2026-06-20T05:55:15.603Z
 goalId: ud-0m5drb
 goal: 执行已批准的 7 步 Acorn 重构（P2-A→P0-C→P0-A→P0-B→P1-B→P1-A→P2-B），每步保持 make 测试绿，步骤边界提交。
 doneCriteria: |-
@@ -26,7 +26,7 @@ decisionStyle: 优先最小行为保持 diff；每步绿提交；风险项选小
 budget:
   used: 1
   max: 150
-currentTaskId: T-009
+currentTaskId: T-011
 tasks:
   - id: T-000
     title: BOOTSTRAP — 确认自动化基线绿 + 建立快速反馈 + 结构守卫
@@ -586,7 +586,7 @@ tasks:
     title: RED P1-B — 加失败测试断言单一 assembleContext / 单一 buildAssembly /
       BuildDirectResponse 用 assembleTooling
     phase: red
-    status: pending
+    status: done
     dependencies:
       - T-008
     blocks:
@@ -612,6 +612,15 @@ tasks:
         RunOneIteration 与 ActNode.Invoke 各内联一份。重定向 T-005/T-006 为抽共享
         RunActionRound（round+recovery），记录保持 mode-specific。doneCriteria #7 locked
         不变（仍可达：两路径不再各自维护 model→tool→compact 重复逻辑）。'
+      - T-009 RED 完成：tests/architecture/assembly_consolidation_test.go
+        两测试均正确失败：(1) TestAssemblyContextConsolidated —
+        assembleToolContext+assembleDirectContext
+        并存（runner_catalog.go:104+140）需合并为单一入口；(2)
+        TestBuildDirectResponseUsesAssembleTooling —
+        BuildDirectResponse（direct_response_builder.go:17）内联自己的
+        toolBuilder/toolNodeFactory/instructionBuilder+directResponseAgent，不调
+        assembleTooling（仅 single_agent_builder.go:149,221 调）。用
+        go/parser+ast.Inspect 扫描 FuncDecl/CallExpr。
     gotchas: []
     context:
       - path: internal/runtime/runner_catalog.go
@@ -622,7 +631,7 @@ tasks:
     title: GREEN P1-B — 合并 assemble context / 合并 build assembly /
       BuildDirectResponse 用 assembleTooling
     phase: green
-    status: pending
+    status: done
     dependencies:
       - T-009
     blocks:
@@ -651,6 +660,17 @@ tasks:
         RunOneIteration 与 ActNode.Invoke 各内联一份。重定向 T-005/T-006 为抽共享
         RunActionRound（round+recovery），记录保持 mode-specific。doneCriteria #7 locked
         不变（仍可达：两路径不再各自维护 model→tool→compact 重复逻辑）。'
+      - T-010 GREEN 完成：(1) assembleToolContext+assembleDirectContext 合并为单一
+        assembleContext(ctx,req,caps,selection,memory)（selection 可 nil，direct
+        模式传 nil）；(2) 3 build*Assembly 合并为单一
+        buildAssembly(ctx,mode,req,catalog,chatModel,contextResult) 分发 +
+        baseAssemblyFields 共享
+        helper（directResponseRequest/buildSingleAgentRun/buildPlanExecuteRun）；(3)
+        BuildDirectResponse 改用 orchestration.assembleTooling（加 toolInfos 到
+        assembledTooling 供 direct 复用）。assembleTooling 对 handlersBuilder 做 nil
+        检查（direct 模式不用 handlers，测试构造 DefaultPlane 不设 HandlersBuilder 也不
+        panic——合法可选依赖处理）。orchestration_mode_test 改调 buildAssembly 传
+        mode。verifyCommand 三件套全绿。
     gotchas: []
     context:
       - path: internal/runtime/runner_catalog.go

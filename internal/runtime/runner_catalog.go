@@ -7,11 +7,10 @@ import (
 
 	einomodel "github.com/cloudwego/eino/components/model"
 	"github.com/ycvk/acorn/internal/contextplane"
+	"github.com/ycvk/acorn/internal/decision"
 	"github.com/ycvk/acorn/internal/memorymodule"
 	"github.com/ycvk/acorn/internal/providers"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
-	"github.com/ycvk/acorn/internal/skills"
-	"github.com/ycvk/acorn/internal/tooling"
 )
 
 func (f *RunnerFactory) buildRunChatModel(ctx context.Context, req RunnerBuildRequest) (einomodel.BaseChatModel, error) {
@@ -101,7 +100,7 @@ func (f *RunnerFactory) emitRunMemoryEvents(ctx context.Context, req RunnerBuild
 	return nil
 }
 
-func (f *RunnerFactory) assembleToolContext(
+func (f *RunnerFactory) assembleContext(
 	ctx context.Context,
 	req RunnerBuildRequest,
 	caps *runCapabilities,
@@ -114,51 +113,30 @@ func (f *RunnerFactory) assembleToolContext(
 	if caps == nil {
 		return nil, errors.New("run capabilities are required")
 	}
-	if selection == nil {
-		selection = &runSelection{}
-	}
-	result, err := f.deps.ContextPlane.Assemble(ctx, buildToolContextAssembleRequest(req, caps, selection, memoryPrepared))
+	result, err := f.deps.ContextPlane.Assemble(ctx, buildAssembleRequest(req, caps, selection, memoryPrepared))
 	if err != nil {
 		return nil, err
 	}
 	return result, f.emitInjectedProcedures(ctx, req, result.ProcedureActivations)
 }
 
-func buildToolContextAssembleRequest(req RunnerBuildRequest, caps *runCapabilities, selection *runSelection, memoryPrepared *memorymodule.PrepareResult) contextplane.AssembleRequest {
+func buildAssembleRequest(req RunnerBuildRequest, caps *runCapabilities, selection *runSelection, memoryPrepared *memorymodule.PrepareResult) contextplane.AssembleRequest {
+	var selectedSkill *SelectedSkill
+	var decisionRecord *decision.Record
+	if selection != nil {
+		selectedSkill = selection.selectedSkill
+		decisionRecord = selection.decisionRecord
+	}
 	return contextplane.AssembleRequest{
 		RunID:          req.RunID,
 		SessionID:      req.SessionID,
 		Input:          req.Input,
-		SelectedSkill:  selection.selectedSkill,
+		SelectedSkill:  selectedSkill,
 		SkillSnapshot:  caps.skillSnapshot,
-		DecisionRecord: selection.decisionRecord,
+		DecisionRecord: decisionRecord,
 		MemoryPrepared: memoryPrepared,
 		ToolCatalog:    caps.catalog,
 	}
-}
-
-func (f *RunnerFactory) assembleDirectContext(
-	ctx context.Context,
-	req RunnerBuildRequest,
-	memoryPrepared *memorymodule.PrepareResult,
-	skillSnapshot *skills.Snapshot,
-	catalog *tooling.Catalog,
-) (*contextplane.AssembleResult, error) {
-	if f == nil || f.deps.ContextPlane == nil {
-		return nil, errors.New("context plane is not initialized")
-	}
-	result, err := f.deps.ContextPlane.Assemble(ctx, contextplane.AssembleRequest{
-		RunID:          req.RunID,
-		SessionID:      req.SessionID,
-		Input:          req.Input,
-		SkillSnapshot:  skillSnapshot,
-		MemoryPrepared: memoryPrepared,
-		ToolCatalog:    catalog,
-	})
-	if err != nil {
-		return nil, err
-	}
-	return result, f.emitInjectedProcedures(ctx, req, result.ProcedureActivations)
 }
 
 func (f *RunnerFactory) emitInjectedProcedures(ctx context.Context, req RunnerBuildRequest, activations []memorymodule.ProcedureActivation) error {

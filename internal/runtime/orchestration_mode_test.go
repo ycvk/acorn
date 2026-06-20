@@ -416,7 +416,7 @@ func TestBuildSingleAgentAssemblyInjectsMemoryReflection(t *testing.T) {
 	var captured orchestration.SingleAgentRequest
 	factory.deps.Orchestration = fakeModeRoutingPlane{singleAgentReq: &captured}
 
-	assembly, err := factory.buildSingleAgentAssembly(ctx, RunnerBuildRequest{
+	assembly, err := factory.buildAssembly(ctx, events.ModeSingleAgent, RunnerBuildRequest{
 		RunID:             "run_single_memory",
 		SessionID:         "session_single_memory",
 		Input:             "inspect repo",
@@ -443,7 +443,7 @@ func TestBuildPlanExecuteAssemblyInjectsMemoryReflection(t *testing.T) {
 	routeErr := errors.New("plan execute captured")
 	factory.deps.Orchestration = fakeModeRoutingPlane{planExecuteErr: routeErr, planReq: &captured}
 
-	_, err := factory.buildPlanExecuteAssembly(ctx, RunnerBuildRequest{
+	_, err := factory.buildAssembly(ctx, events.ModePlanExecute, RunnerBuildRequest{
 		RunID:             "run_plan_memory",
 		SessionID:         "session_plan_memory",
 		Input:             "fix code",

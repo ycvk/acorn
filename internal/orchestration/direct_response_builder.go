@@ -37,32 +37,23 @@ func (p *DefaultPlane) BuildDirectResponse(ctx context.Context, req DirectRespon
 		return nil, fmt.Errorf("orchestration plane requires checkpoint store")
 	}
 
-	allTools, err := p.toolBuilder(
-		ctx,
-		req.Catalog.EnabledSpecsForProfile(tooling.ToolProfileRun),
-		req.ExcludedToolNames,
-		req.AllowedToolNames,
-		req.RunID,
-	)
+	assembled, err := p.assembleTooling(ctx, toolAssemblyParams{
+		catalog:           req.Catalog,
+		contextResult:     req.ContextResult,
+		allowedToolNames:  req.AllowedToolNames,
+		excludedToolNames: req.ExcludedToolNames,
+		runID:             req.RunID,
+		chatModel:         req.ChatModel,
+		instructionSuffix: req.InstructionSuffix,
+		sessionID:         req.SessionID,
+	})
 	if err != nil {
 		return nil, err
 	}
-
-	toolInfos := make([]*schema.ToolInfo, 0, len(allTools))
-	for _, tool := range allTools {
-		info, err := tool.Info(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("read tool info for BindTools: %w", err)
-		}
-		toolInfos = append(toolInfos, info)
-	}
-
-	safeToolNode, err := p.toolNodeFactory(ctx, allTools, req.Catalog)
+	safeToolNode, err := p.toolNodeFactory(ctx, assembled.allTools, req.Catalog)
 	if err != nil {
 		return nil, fmt.Errorf("build safe parallel tools node: %w", err)
 	}
-
-	instruction := p.instructionBuilder(p.systemPrompt, req.InstructionSuffix)
 	agent := &directResponseAgent{
 		name:                 req.AgentName,
 		description:          req.AgentDescription,
@@ -71,16 +62,15 @@ func (p *DefaultPlane) BuildDirectResponse(ctx context.Context, req DirectRespon
 		sessionID:            req.SessionID,
 		runID:                req.RunID,
 		toolNode:             safeToolNode,
-		instruction:          instruction,
+		instruction:          assembled.instruction,
 		sessionContextBinder: p.sessionContextBinder,
 		lifecycleBinder:      p.toolLifecycleBinder,
 		lifecycleState:       req.ContextResult.LifecycleState,
 		catalog:              req.Catalog,
-		toolInfos:            append([]*schema.ToolInfo(nil), toolInfos...),
+		toolInfos:            append([]*schema.ToolInfo(nil), assembled.toolInfos...),
 		eagerToolNames:       append([]string(nil), req.ContextResult.EagerToolNames...),
 		maxIterations:        p.maxIterations,
 	}
-	compressionState := contextplane.NewCompressionState()
 
 	return &RunAssembly{
 		Runner: adk.NewRunner(ctx, adk.RunnerConfig{
@@ -88,8 +78,8 @@ func (p *DefaultPlane) BuildDirectResponse(ctx context.Context, req DirectRespon
 			EnableStreaming: false,
 			CheckPointStore: p.checkpointStore,
 		}),
-		Instruction:      instruction,
-		CompressionState: compressionState,
+		Instruction:      assembled.instruction,
+		CompressionState: assembled.compressionState,
 	}, nil
 }
 

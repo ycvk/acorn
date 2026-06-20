@@ -3,7 +3,6 @@ package runtime
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/cloudwego/eino/adk"
 	einomodel "github.com/cloudwego/eino/components/model"
@@ -63,11 +62,11 @@ func (f *RunnerFactory) newDirectResponseRunner(ctx context.Context, req RunnerB
 	if err != nil {
 		return nil, err
 	}
-	contextResult, err := f.assembleDirectContext(ctx, req, memoryPrepared, capabilities.skillSnapshot, capabilities.catalog)
+	contextResult, err := f.assembleContext(ctx, req, capabilities, nil, memoryPrepared)
 	if err != nil {
 		return nil, err
 	}
-	agentAssembly, err := f.buildDirectResponseAssembly(ctx, req, capabilities.catalog, chatModel, contextResult)
+	agentAssembly, err := f.buildAssembly(ctx, events.ModeDirectResponse, req, capabilities.catalog, chatModel, contextResult)
 	if err != nil {
 		return nil, err
 	}
@@ -97,14 +96,7 @@ func (f *RunnerFactory) buildToolEnabledAssembly(
 	if caps != nil {
 		catalog = caps.catalog
 	}
-	switch mode {
-	case events.ModePlanExecute:
-		return f.buildPlanExecuteAssembly(ctx, req, catalog, chatModel, contextResult)
-	case events.ModeSingleAgent:
-		return f.buildSingleAgentAssembly(ctx, req, catalog, chatModel, contextResult)
-	default:
-		return nil, fmt.Errorf("unsupported orchestration mode %q", mode)
-	}
+	return f.buildAssembly(ctx, mode, req, catalog, chatModel, contextResult)
 }
 
 // RunnerFactoryOptions holds the optional dependencies for creating a RunnerFactory.

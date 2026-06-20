@@ -80,7 +80,7 @@ func (f *RunnerFactory) buildToolEnabledRunner(ctx context.Context, req RunnerBu
 	if err != nil {
 		return nil, err
 	}
-	contextResult, err := f.assembleToolContext(ctx, req, capabilities, selection, memoryPrepared)
+	contextResult, err := f.assembleContext(ctx, req, capabilities, selection, memoryPrepared)
 	if err != nil {
 		return nil, err
 	}

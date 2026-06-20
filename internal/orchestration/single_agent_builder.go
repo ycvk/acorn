@@ -276,6 +276,7 @@ type toolAssemblyParams struct {
 
 type assembledTooling struct {
 	allTools         []einotool.BaseTool
+	toolInfos        []*schema.ToolInfo
 	instruction      string
 	compressionState *contextplane.CompressionState
 	handlers         []adk.ChatModelAgentMiddleware
@@ -310,9 +311,12 @@ func (p *DefaultPlane) assembleTooling(ctx context.Context, params toolAssemblyP
 
 	instruction := p.instructionBuilder(p.systemPrompt, params.instructionSuffix)
 	compressionState := contextplane.NewCompressionState()
-	handlers, err := p.handlersBuilder(ctx, params.chatModel, compressionState)
-	if err != nil {
-		return nil, err
+	var handlers []adk.ChatModelAgentMiddleware
+	if p.handlersBuilder != nil {
+		handlers, err = p.handlersBuilder(ctx, params.chatModel, compressionState)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	runCtx := ctx
@@ -325,6 +329,7 @@ func (p *DefaultPlane) assembleTooling(ctx context.Context, params toolAssemblyP
 
 	return &assembledTooling{
 		allTools:         allTools,
+		toolInfos:        toolInfos,
 		instruction:      instruction,
 		compressionState: compressionState,
 		handlers:         handlers,
