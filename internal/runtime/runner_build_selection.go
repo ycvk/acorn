@@ -51,6 +51,9 @@ func (f *RunnerFactory) resolveRunSelectionByDecision(ctx context.Context, req R
 	if top, ok := topRecommendedSkill(discovered); ok {
 		return f.resolveTopSkill(ctx, req, caps, discovered, top)
 	}
+	if emitErr := emitSkillSelectionEvents(ctx, f.deps.Store, req, nil, discovered); emitErr != nil {
+		return nil, emitErr
+	}
 	return &runSelection{}, nil
 }
 

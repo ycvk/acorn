@@ -2,12 +2,23 @@ package runtime
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"io"
+	"strings"
+	"time"
 
+	einotool "github.com/cloudwego/eino/components/tool"
+	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/orchestration"
 	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	"github.com/ycvk/acorn/internal/runtime/tool"
 	"github.com/ycvk/acorn/internal/runtime/toolset"
+	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/tooling"
+	"github.com/ycvk/acorn/internal/tools"
+	"github.com/ycvk/acorn/internal/webaccess"
+	"github.com/ycvk/acorn/internal/workingstate"
 )
 
 func (f *RunnerFactory) BuildServeToolset(ctx context.Context) (*toolset.Toolset, error) {
@@ -40,4 +51,274 @@ func (artifactToolBridge) CurrentToolCallID(ctx context.Context) string {
 
 func (f *RunnerFactory) buildRunToolset(ctx context.Context, sessionID string, childExec orchestration.ChildAgentExecutor) (*toolset.Toolset, error) {
 	return f.buildToolset(ctx, sessionID, childExec, true, tooling.ToolProfileRun)
+}
+
+type localToolset struct {
+	catalog *tools.Catalog
+	closers []io.Closer
+}
+
+func (f *RunnerFactory) buildToolset(
+	ctx context.Context,
+	sessionID string,
+	childExec orchestration.ChildAgentExecutor,
+	includePlanning bool,
+	profile tooling.ToolProfile,
+) (_ *toolset.Toolset, err error) {
+	if err := f.validateToolsetDeps(); err != nil {
+		return nil, err
+	}
+	var closers []io.Closer
+	defer func() { closeToolsetOnErr(closers, &err) }()
+	local, err := f.buildLocalToolset(childExec)
+	if err != nil {
+		return nil, err
+	}
+	closers = append(closers, local.closers...)
+	aux, err := f.buildAuxTools(ctx, sessionID, includePlanning)
+	if err != nil {
+		return nil, err
+	}
+	catalog, err := assembleToolsetCatalog(ctx, f.deps.Config, local.catalog, aux, includePlanning)
+	if err != nil {
+		return nil, err
+	}
+	return toolset.NewToolset(catalog, profile, closers...), nil
+}
+
+func (f *RunnerFactory) validateToolsetDeps() error {
+	if f == nil || f.deps.Config == nil {
+		return errors.New("runner factory is not initialized")
+	}
+	if f.deps.Workspace == nil {
+		return errors.New("workspace contract is not initialized")
+	}
+	if f.deps.ArtifactService == nil {
+		return errors.New("artifact service is not initialized")
+	}
+	return nil
+}
+
+func (f *RunnerFactory) buildLocalToolset(childExec orchestration.ChildAgentExecutor) (localToolset, error) {
+	var out localToolset
+	services, err := f.buildToolsetWebServices()
+	if err != nil {
+		return out, err
+	}
+	out.catalog, out.closers, err = f.buildLocalCatalog(services, childExec)
+	return out, err
+}
+
+func closeToolsetOnErr(closers []io.Closer, err *error) {
+	if *err == nil {
+		return
+	}
+	var closeErrs []error
+	for i := len(closers) - 1; i >= 0; i-- {
+		if closers[i] == nil {
+			continue
+		}
+		if closeErr := closers[i].Close(); closeErr != nil {
+			closeErrs = append(closeErrs, closeErr)
+		}
+	}
+	if len(closeErrs) > 0 {
+		*err = errors.Join(*err, fmt.Errorf("close toolset after build failure: %w", errors.Join(closeErrs...)))
+	}
+}
+
+func assembleToolsetCatalog(ctx context.Context, cfg *config.Config, localCatalog *tools.Catalog, aux auxTools, includePlanning bool) (*tooling.Catalog, error) {
+	core, err := buildCoreToolSpecs(ctx, cfg, localCatalog, aux)
+	if err != nil {
+		return nil, err
+	}
+	extra, err := buildExtraToolSpecs(ctx, cfg, aux, includePlanning)
+	if err != nil {
+		return nil, err
+	}
+	specs := append(core, extra...)
+	catalog, err := tooling.NewCatalog(ctx, specs)
+	if err != nil {
+		return nil, fmt.Errorf("build toolset catalog: %w", err)
+	}
+	return catalog, nil
+}
+
+func buildCoreToolSpecs(ctx context.Context, cfg *config.Config, localCatalog *tools.Catalog, aux auxTools) ([]tooling.ToolSpec, error) {
+	profiles := []tooling.ToolProfile{tooling.ToolProfileRun, tooling.ToolProfileServe}
+	specs, err := tool.BuildCatalogSpecs(ctx, cfg, "local", tooling.ToolKindNative, profiles, append([]einotool.BaseTool(nil), localCatalog.Tools...))
+	if err != nil {
+		return nil, err
+	}
+	checkpointSpecs, err := tool.BuildCatalogSpecs(ctx, cfg, "workingstate", tooling.ToolKindMemory, profiles, aux.checkpoint)
+	if err != nil {
+		return nil, err
+	}
+	memorySpecs, err := tool.BuildCatalogSpecs(ctx, cfg, "memory", tooling.ToolKindMemory, profiles, aux.memory)
+	if err != nil {
+		return nil, err
+	}
+	skillSpecs, err := tool.BuildCatalogSpecs(ctx, cfg, "skill", tooling.ToolKindSkill, profiles, aux.skill)
+	if err != nil {
+		return nil, err
+	}
+	specs = append(specs, checkpointSpecs...)
+	specs = append(specs, memorySpecs...)
+	specs = append(specs, skillSpecs...)
+	return specs, nil
+}
+
+func buildExtraToolSpecs(ctx context.Context, cfg *config.Config, aux auxTools, includePlanning bool) ([]tooling.ToolSpec, error) {
+	lifecycleSpecs, err := tool.BuildCatalogSpecs(ctx, cfg, "skill.lifecycle", tooling.ToolKindSkill, []tooling.ToolProfile{tooling.ToolProfileRun}, aux.lifecycle)
+	if err != nil {
+		return nil, err
+	}
+	specs := lifecycleSpecs
+	if !includePlanning {
+		return specs, nil
+	}
+	loadToolsTool, err := tool.NewLoadToolsTool()
+	if err != nil {
+		return nil, fmt.Errorf("build load_tools tool: %w", err)
+	}
+	planningSpecs, err := tool.BuildCatalogSpecs(ctx, cfg, "runtime", tooling.ToolKindNative, []tooling.ToolProfile{tooling.ToolProfileRun}, []einotool.BaseTool{loadToolsTool})
+	if err != nil {
+		return nil, err
+	}
+	return append(specs, planningSpecs...), nil
+}
+
+type toolsetWebServices struct {
+	fetch  *webaccess.FetchService
+	search *webaccess.SearchService
+}
+
+type auxTools struct {
+	checkpoint []einotool.BaseTool
+	memory     []einotool.BaseTool
+	skill      []einotool.BaseTool
+	lifecycle  []einotool.BaseTool
+}
+
+func (f *RunnerFactory) buildToolsetWebServices() (toolsetWebServices, error) {
+	cfg := f.deps.Config.WebAccess
+	fetch, err := webaccess.NewFetchService(webaccess.FetchConfig{
+		UserAgent:        cfg.UserAgent,
+		Timeout:          time.Duration(cfg.TimeoutSeconds) * time.Second,
+		MaxResponseBytes: cfg.MaxResponseBytes,
+		Policy:           webaccess.URLPolicy{AllowPrivateNetworks: cfg.AllowPrivateNetworks},
+	})
+	if err != nil {
+		return toolsetWebServices{}, fmt.Errorf("web fetch service: %w", err)
+	}
+	search, err := webaccess.NewSearchService(webaccess.SearchConfig{
+		APIKey:           cfg.Search.APIKey,
+		Timeout:          time.Duration(cfg.Search.TimeoutSeconds) * time.Second,
+		MaxResults:       cfg.Search.MaxResults,
+		MaxResponseBytes: cfg.MaxResponseBytes,
+		Policy:           webaccess.URLPolicy{AllowPrivateNetworks: cfg.AllowPrivateNetworks},
+	})
+	if err != nil {
+		return toolsetWebServices{}, fmt.Errorf("web search service: %w", err)
+	}
+	return toolsetWebServices{fetch: fetch, search: search}, nil
+}
+
+func (f *RunnerFactory) buildBrowserService() (*tools.Service, error) {
+	browserCfg := f.deps.Config.Browser
+	webCfg := f.deps.Config.WebAccess
+	return tools.NewService(tools.Config{
+		ExecutablePath: strings.TrimSpace(browserCfg.ExecutablePath),
+		Headless:       browserCfg.Headless,
+		Timeout:        time.Duration(browserCfg.DefaultTimeoutSeconds) * time.Second,
+		UserAgent:      webCfg.UserAgent,
+		Policy:         webaccess.URLPolicy{AllowPrivateNetworks: webCfg.AllowPrivateNetworks},
+	})
+}
+
+func (f *RunnerFactory) resolveOperatorStore() tools.OperatorQuestionStore {
+	if f.deps.MCPPendingActions != nil {
+		return f.deps.MCPPendingActions
+	}
+	return f.deps.Store
+}
+
+func (f *RunnerFactory) buildLocalCatalog(services toolsetWebServices, childExec orchestration.ChildAgentExecutor) (*tools.Catalog, []io.Closer, error) {
+	browser, err := f.buildBrowserService()
+	if err != nil {
+		return nil, nil, fmt.Errorf("browser service: %w", err)
+	}
+	catalog, err := tools.BuildCatalog(tools.CatalogConfig{
+		Workspace:         f.deps.Workspace,
+		MutationEnabled:   !f.deps.Config.Tools.Mutation.Disabled,
+		RunCommandEnabled: !f.deps.Config.Tools.RunCommand.Disabled,
+		ArtifactService:   f.deps.ArtifactService,
+		ArtifactContext:   artifactToolBridge{},
+		OperatorStore:     f.resolveOperatorStore(),
+		OperatorContext:   artifactToolBridge{},
+		WebFetchService:   services.fetch,
+		WebSearchService:  services.search,
+		BrowserService:    browser,
+	}, f.deps.ExtraLocalTools, childExec, delegateTaskBridge{})
+	return catalog, []io.Closer{browser}, err
+}
+
+func (f *RunnerFactory) buildAuxTools(ctx context.Context, sessionID string, includePlanning bool) (auxTools, error) {
+	var out auxTools
+	checkpoint, err := f.buildCheckpointTools(sessionID, includePlanning)
+	if err != nil {
+		return out, err
+	}
+	out.checkpoint = checkpoint
+	memory, err := f.buildMemoryTools(ctx)
+	if err != nil {
+		return out, err
+	}
+	out.memory = memory
+	skillTools, err := skills.BuildAgentTools(f.deps.Loader)
+	if err != nil {
+		return out, fmt.Errorf("build skill tools: %w", err)
+	}
+	out.skill = skillTools
+	if includePlanning {
+		lifecycle, err := f.buildSkillLifecycleTools()
+		if err != nil {
+			return out, err
+		}
+		out.lifecycle = lifecycle
+	}
+	return out, nil
+}
+
+func (f *RunnerFactory) buildCheckpointTools(sessionID string, includePlanning bool) ([]einotool.BaseTool, error) {
+	checkpointService := f.deps.CheckpointService
+	effectiveSessionID := sessionID
+	if !includePlanning {
+		checkpointService = nil
+		effectiveSessionID = ""
+	}
+	tools, err := workingstate.BuildWorkingCheckpointTools(checkpointService, effectiveSessionID)
+	if err != nil {
+		return nil, fmt.Errorf("build working checkpoint tools: %w", err)
+	}
+	return tools, nil
+}
+
+func (f *RunnerFactory) buildMemoryTools(ctx context.Context) ([]einotool.BaseTool, error) {
+	if f.deps.MemoryModule == nil {
+		return nil, nil
+	}
+	return toolset.BuildMemoryFileTools(ctx, f.deps.MemoryModule, delegateTaskBridge{})
+}
+
+func (f *RunnerFactory) buildSkillLifecycleTools() ([]einotool.BaseTool, error) {
+	lifecycle, err := skills.BuildSkillLifecycleTools(skills.ToolOptions{
+		Loader: f.deps.Loader,
+		Store:  f.deps.Store,
+		Bridge: delegateTaskBridge{},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("build skill lifecycle tools: %w", err)
+	}
+	return lifecycle, nil
 }
