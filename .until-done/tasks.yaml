@@ -1,4 +1,4 @@
-generated: 2026-06-20T06:08:35.098Z
+generated: 2026-06-20T06:13:50.445Z
 goalId: ud-0m5drb
 goal: 执行已批准的 7 步 Acorn 重构（P2-A→P0-C→P0-A→P0-B→P1-B→P1-A→P2-B），每步保持 make 测试绿，步骤边界提交。
 doneCriteria: |-
@@ -16,7 +16,7 @@ doneCriteria: |-
   11. docs/architecture/ARCHITECTURE.md ≤ 60 行、纯描述性；不变量移到 docs/architecture/INVARIANTS.md 且每条标注对应测试文件；术语表移到 docs/architecture/GLOSSARY.md。
   12. docs/openapi.yaml 的 path/operationId/schema 无破坏性变更。
 verifyCommand: mise exec -- make test && make format-check && make lint
-phase: red
+phase: green
 askBefore:
   - git push
   - 删除计划范围外文件
@@ -26,7 +26,7 @@ decisionStyle: 优先最小行为保持 diff；每步绿提交；风险项选小
 budget:
   used: 1
   max: 150
-currentTaskId: T-013
+currentTaskId: T-014
 tasks:
   - id: T-000
     title: BOOTSTRAP — 确认自动化基线绿 + 建立快速反馈 + 结构守卫
@@ -773,7 +773,7 @@ tasks:
     title: RED P2-B — 加失败测试断言 ARCHITECTURE.md ≤60 行 / INVARIANTS.md 存在带测试引用 /
       GLOSSARY.md 存在
     phase: red
-    status: pending
+    status: done
     dependencies:
       - T-012
     blocks:
@@ -799,6 +799,10 @@ tasks:
         RunOneIteration 与 ActNode.Invoke 各内联一份。重定向 T-005/T-006 为抽共享
         RunActionRound（round+recovery），记录保持 mode-specific。doneCriteria #7 locked
         不变（仍可达：两路径不再各自维护 model→tool→compact 重复逻辑）。'
+      - T-013 RED 完成：tests/architecture/docs_structure_test.go
+        两测试正确失败。TestArchitectureDocStructure：ARCHITECTURE.md 118>60 行 +
+        含墓碑标记（不能/已删除/不存在/唯一事实源）+ INVARIANTS.md 不存在 + GLOSSARY.md
+        不存在。TestInvariantsAnnotatedWithTests：INVARIANTS.md 不存在被 skip。
     gotchas: []
     context:
       - path: docs/architecture/ARCHITECTURE.md
@@ -835,6 +839,11 @@ tasks:
         RunOneIteration 与 ActNode.Invoke 各内联一份。重定向 T-005/T-006 为抽共享
         RunActionRound（round+recovery），记录保持 mode-specific。doneCriteria #7 locked
         不变（仍可达：两路径不再各自维护 model→tool→compact 重复逻辑）。'
+      - T-014 GREEN 完成：ARCHITECTURE.md 118→1
+        行（纯描述：intro+主链+包职责+子文档链接，无墓碑断言）；INVARIANTS.md
+        新建（不变量按运行时/编排、持久化/store、上下文/记忆、remote/mobile、发布分组，每条标 _test.go
+        引用）；GLOSSARY.md 新建（术语表 25 条）。docs_structure_test 两测试绿。verifyCommand
+        三件套全绿。
     gotchas: []
     context:
       - path: docs/architecture/ARCHITECTURE.md
