@@ -14,7 +14,7 @@ import (
 )
 
 type ClientService struct {
-	store         clientStore
+	store         containerAppStore
 	newExecutor   func(context.Context) (executorHandle, error)
 	controller    *runtime.RunController
 	workspaceRoot string
@@ -24,7 +24,7 @@ type ClientService struct {
 	reportError   func(context.Context, string, error)
 }
 
-func BuildClientService(store clientStore, newExecutor func(context.Context) (executorHandle, error), controller *runtime.RunController, workspaceRoot string) *ClientService {
+func BuildClientService(store containerAppStore, newExecutor func(context.Context) (executorHandle, error), controller *runtime.RunController, workspaceRoot string) *ClientService {
 	return &ClientService{
 		store:         store,
 		newExecutor:   newExecutor,

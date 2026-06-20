@@ -9,7 +9,7 @@ import (
 	"github.com/ycvk/acorn/internal/workingstate"
 )
 
-func buildContextPlane(cfg *config.Config, store contextPlaneStore, checkpointService *workingstate.Service, sessionSummaryService *model.SessionSummaryService) (contextplane.ContextPlane, error) {
+func buildContextPlane(cfg *config.Config, store containerRuntimeStore, checkpointService *workingstate.Service, sessionSummaryService *model.SessionSummaryService) (contextplane.ContextPlane, error) {
 	contextPolicy, err := cfg.ContextPolicy()
 	if err != nil {
 		return nil, fmt.Errorf("context policy: %w", err)

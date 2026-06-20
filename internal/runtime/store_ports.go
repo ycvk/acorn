@@ -15,71 +15,43 @@ import (
 	"github.com/ycvk/acorn/internal/store"
 )
 
-// SessionTurnStore creates fresh session turns.
-type SessionTurnStore interface {
-	CreateFreshSessionTurn(ctx context.Context, sessionID, title, input string) (int, error)
-}
-
-// RunStore manages run lifecycle.
-type RunStore interface {
-	CreateBoundRunWithParams(ctx context.Context, params store.RunCreateParams) error
-	LoadRun(ctx context.Context, runID string) (*events.RunRecord, error)
-	FinishRunContext(ctx context.Context, runID string, status events.RunStatus, output, errText string) error
-	MarkInterruptedContext(ctx context.Context, runID, output string) error
-	UpdateRunOutputContext(ctx context.Context, runID, output string) error
-}
-
-// EventStore queries and syncs events.
-type EventStore interface {
-	LoadEvents(ctx context.Context, runID string) ([]events.EventRecord, error)
-	LoadEventsAfter(ctx context.Context, runID string, afterSeq int64) ([]events.EventRecord, error)
-	SyncAssistantMessageForRun(ctx context.Context, runID string) error
-	SyncAssistantMessageForRunStatus(ctx context.Context, runID string, status events.RunStatus) error
-	CreateSegmentFromRun(ctx context.Context, runID string, runStatus events.RunStatus) (int64, error)
-}
-
-// ArchiveStore manages run archives.
-type ArchiveStore interface {
-	GetRunArchive(ctx context.Context, runID string) (*model.RunArchive, error)
-	UpsertRunArchive(ctx context.Context, archive model.RunArchive) error
-}
-
-// EvidenceStore appends evidence references.
-type EvidenceStore interface {
-	AppendEvidenceRef(ctx context.Context, resultRef string, ref store.EvidenceRef) (store.ToolResultRecord, error)
-}
-
-// ProviderUsageStore queries provider usage records.
-type ProviderUsageStore interface {
-	ListProviderUsagesByRun(ctx context.Context, runID string) ([]providers.UsageRecord, error)
-}
-
-// ExecutorStore is the store contract required by the Executor.
+// ExecutorStore is the store contract required by the Executor. The previously
+// narrow SessionTurnStore/RunStore/EventStore/ArchiveStore/EvidenceStore/
+// ProviderUsageStore/runDecisionStore interfaces are inlined here (they were
+// only embedded, never used standalone), collapsing the consumer-owned port
+// surface.
 type ExecutorStore interface {
 	adk.CheckPointStore
 	contextplane.RunContextSnapshotStore
 	contextplane.ContextBoundaryStore
 	store.ToolResultLedger
 	providers.UsageRecorder
-	runDecisionStore
 	runtimeapi.EventAppender
-	SessionTurnStore
-	RunStore
-	EventStore
-	ArchiveStore
 	runtimeapi.PlanPersistenceStore
-	EvidenceStore
-	ProviderUsageStore
+	CreateFreshSessionTurn(ctx context.Context, sessionID, title, input string) (int, error)
+	CreateBoundRunWithParams(ctx context.Context, params store.RunCreateParams) error
+	LoadRun(ctx context.Context, runID string) (*events.RunRecord, error)
+	FinishRunContext(ctx context.Context, runID string, status events.RunStatus, output, errText string) error
+	MarkInterruptedContext(ctx context.Context, runID, output string) error
+	UpdateRunOutputContext(ctx context.Context, runID, output string) error
+	LoadEvents(ctx context.Context, runID string) ([]events.EventRecord, error)
+	LoadEventsAfter(ctx context.Context, runID string, afterSeq int64) ([]events.EventRecord, error)
+	SyncAssistantMessageForRun(ctx context.Context, runID string) error
+	SyncAssistantMessageForRunStatus(ctx context.Context, runID string, status events.RunStatus) error
+	CreateSegmentFromRun(ctx context.Context, runID string, runStatus events.RunStatus) (int64, error)
+	GetRunArchive(ctx context.Context, runID string) (*model.RunArchive, error)
+	UpsertRunArchive(ctx context.Context, archive model.RunArchive) error
+	AppendEvidenceRef(ctx context.Context, resultRef string, ref store.EvidenceRef) (store.ToolResultRecord, error)
+	ListProviderUsagesByRun(ctx context.Context, runID string) ([]providers.UsageRecord, error)
+	SaveRunDecision(context.Context, decision.Record) error
+	LoadRunDecision(context.Context, string) (*decision.Record, error)
 }
 
-// RunnerFactoryStore is the store contract required by the RunnerFactory.
+// RunnerFactoryStore is the store contract required by the RunnerFactory. It
+// extends ExecutorStore with the MCP token + pending-action stores needed for
+// run bootstrapping.
 type RunnerFactoryStore interface {
 	ExecutorStore
 	mcpprovider.TokenStore
 	mcpprovider.PendingActionStore
-}
-
-type runDecisionStore interface {
-	SaveRunDecision(context.Context, decision.Record) error
-	LoadRunDecision(context.Context, string) (*decision.Record, error)
 }

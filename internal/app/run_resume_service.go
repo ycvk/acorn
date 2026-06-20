@@ -12,7 +12,7 @@ import (
 )
 
 type RunResumeService struct {
-	store       runResumeStore
+	store       containerAppStore
 	newExecutor func(context.Context) (executorHandle, error)
 }
 
@@ -32,7 +32,7 @@ type RunResult struct {
 	Interrupted map[string]any `json:"interrupted,omitempty"`
 }
 
-func NewRunResumeService(store runResumeStore) *RunResumeService {
+func NewRunResumeService(store containerAppStore) *RunResumeService {
 	return &RunResumeService{store: store}
 }
 
