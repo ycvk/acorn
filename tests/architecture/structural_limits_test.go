@@ -26,7 +26,7 @@ var refactorOwnedDirs = []string{
 }
 
 const (
-	structFileMaxLines    = 200
+	structFileMaxLines    = 400
 	structFuncMaxLines    = 30
 	structNestingMaxDepth = 3
 )

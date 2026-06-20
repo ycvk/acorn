@@ -8,54 +8,8 @@ import (
 
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
 	"github.com/ycvk/acorn/internal/runtime/tool"
-	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/tooling"
 )
-
-type runCapabilities struct {
-	catalog       *tooling.Catalog
-	skillSnapshot *skills.Snapshot
-	stableSkills  []skills.Spec
-	close         func() error
-}
-
-func (c *runCapabilities) Close() error {
-	if c == nil || c.close == nil {
-		return nil
-	}
-	return c.close()
-}
-
-func (f *RunnerFactory) buildRunCapabilities(ctx context.Context, sessionID string, mcpManager *mcpprovider.Manager) (*runCapabilities, error) {
-	childExec, err := f.newChildAgentExecutor()
-	if err != nil {
-		return nil, err
-	}
-	toolset, err := f.buildRunToolset(ctx, sessionID, childExec)
-	if err != nil {
-		return nil, err
-	}
-	specs := append([]tooling.ToolSpec(nil), toolset.Catalog().Specs()...)
-	mcpSpecs, err := f.buildMCPToolSpecs(ctx, mcpManager)
-	if err != nil {
-		return nil, err
-	}
-	specs = append(specs, mcpSpecs...)
-	catalog, err := tooling.NewCatalog(ctx, specs)
-	if err != nil {
-		return nil, err
-	}
-	skillSnapshot, err := loadStableSkillSnapshot(ctx, f.deps.Loader, skillEligibilityContextFromCatalog(catalog))
-	if err != nil {
-		return nil, err
-	}
-	return &runCapabilities{
-		catalog:       catalog,
-		skillSnapshot: skillSnapshot,
-		stableSkills:  stableSkillsFromSnapshot(skillSnapshot),
-		close:         toolset.Close,
-	}, nil
-}
 
 func (f *RunnerFactory) buildMCPToolSpecs(ctx context.Context, mcpManager *mcpprovider.Manager) ([]tooling.ToolSpec, error) {
 	var resourceTools, promptTools []einotool.BaseTool

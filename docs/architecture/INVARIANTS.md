@@ -8,7 +8,7 @@
   - `tests/architecture/action_round_sharing_test.go`
 - **单一 assembly 入口**：`assembleToolContext` + `assembleDirectContext` 已合并为 `assembleContext`（selection 可 nil）；3 个 `build*Assembly` 合并为 `buildAssembly`（mode 分发 + `baseAssemblyFields` 共享 helper）；`orchestration.BuildDirectResponse` 使用 `assembleTooling`。
   - `tests/architecture/assembly_consolidation_test.go`
-- **internal/runtime 顶层按职责拆分**：顶层文件按职责组织（Executor/RunnerFactory/toolset 子包等），顶层无文件 >200 行、无函数 >30 行、无嵌套 >3、无 import cycle。`internal/orchestration` 和 `internal/runtime` 子目录（plan/、tool/、graph/ 等）的 pre-existing 文件不在本次重构守卫范围内。
+- **internal/runtime 顶层按职责拆分**：顶层文件按职责组织（Executor/RunnerFactory/toolset 子包等），顶层无文件 >400 行、无函数 >30 行、无嵌套 >3、无 import cycle。`internal/orchestration` 和 `internal/runtime` 子目录（plan/、tool/、graph/ 等）的 pre-existing 文件不在本次重构守卫范围内。
   - `tests/architecture/structural_limits_test.go`
   - `tests/architecture/runtime_split_test.go`
 

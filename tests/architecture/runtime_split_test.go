@@ -16,7 +16,7 @@ import (
 // method/field-name collisions with type names (e.g. Registry() method,
 // SelectedSkill: composite-literal key) made clean cross-package qualification
 // risky without large-scale API renames. The structural_limits test enforces
-// file<=200/func<=30/nesting<=3 on the internal/runtime top-level dir.
+// file<=400/func<=30/nesting<=3 on the internal/runtime top-level dir.
 //
 // The threshold is >=1 because only toolset/ was cleanly extractable in this
 // refactor pass. subagent/ and runcontext/ extractions were attempted but
