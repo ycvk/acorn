@@ -43,14 +43,6 @@ func TestProfileServiceLoadReadsExistingDecisionFile(t *testing.T) {
 		"missing_required_capability: block",
 		"```",
 		"",
-		"## Routes",
-		"",
-		"```acorn-routes",
-		"- intent: inspect",
-		"  action: execute_with_skill",
-		"  skill_id: skill.inspect.repo",
-		"```",
-		"",
 	}, "\n")
 	path := filepath.Join(root, "decision.md")
 	if err := os.WriteFile(path, []byte(expected), 0o644); err != nil {
@@ -67,12 +59,15 @@ func TestProfileServiceLoadReadsExistingDecisionFile(t *testing.T) {
 	if parsed.Hash == "" {
 		t.Fatal("expected profile hash")
 	}
-	if len(parsed.Profile.Routes) != 1 {
-		t.Fatalf("routes = %d, want 1", len(parsed.Profile.Routes))
+	if parsed.Profile.Defaults.MissingContext != ActionInspectFirst {
+		t.Fatalf("missing_context = %q, want inspect_first", parsed.Profile.Defaults.MissingContext)
+	}
+	if parsed.Profile.Defaults.MissingRequiredCapability != ActionBlock {
+		t.Fatalf("missing_required_capability = %q, want block", parsed.Profile.Defaults.MissingRequiredCapability)
 	}
 }
 
-func TestDefaultProfileRendersWithoutReflectionBlock(t *testing.T) {
+func TestDefaultProfileRendersWithoutRoutesOrReflectionBlock(t *testing.T) {
 	profile := DefaultProfile()
 	raw, err := RenderProfileMarkdown(profile)
 	if err != nil {
@@ -80,5 +75,8 @@ func TestDefaultProfileRendersWithoutReflectionBlock(t *testing.T) {
 	}
 	if strings.Contains(raw, "acorn-reflection") {
 		t.Fatalf("rendered profile still contains reflection block:\n%s", raw)
+	}
+	if strings.Contains(raw, "acorn-routes") {
+		t.Fatalf("rendered profile must not contain routes block (defaults-only):\n%s", raw)
 	}
 }

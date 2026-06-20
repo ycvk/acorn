@@ -100,14 +100,16 @@ func (n *ActNode) Invoke(ctx context.Context, state *graph.AgentGraphState) (*gr
 		if err != nil {
 			return nil, fmt.Errorf("act before model call: %w", err)
 		}
-		assistant, toolMessages, outputLimitReached, roundErr := n.executeActionRound(ctx, runID, messageID, baseMessages, step, toolInfos)
-		if contextplane.IsContextOverflowError(roundErr) && session != nil {
-			baseMessages, err = graph.GraphSessionReactiveBaseMessages(ctx, session, state, modelReq, roundErr)
-			if err != nil {
-				return nil, fmt.Errorf("act reactive compact: %w", err)
-			}
-			assistant, toolMessages, outputLimitReached, roundErr = n.executeActionRound(ctx, runID, messageID, baseMessages, step, toolInfos)
-		}
+		assistant, toolMessages, outputLimitReached, roundErr := orchestration.RunActionRound(
+			ctx, n.model, n.streamer, n.tools, n.buildModelInput(baseMessages, step),
+			toolInfos, runID, messageID, true, n.actCompact(session, state, modelReq, step),
+			orchestration.RoundOptions{
+				CallSite: providers.CallSiteAct,
+				BeforeToolCall: func(ctx context.Context, call schema.ToolCall) error {
+					return n.enforceToolCall(ctx, call)
+				},
+			},
+		)
 		if assistant != nil {
 			state.Messages = append(state.Messages, assistant)
 			if err := graph.GraphSessionRecordAssistant(ctx, session, assistant); err != nil {
@@ -278,30 +280,17 @@ func (n *ActNode) Invoke(ctx context.Context, state *graph.AgentGraphState) (*gr
 	return state, nil
 }
 
-func (n *ActNode) executeActionRound(
-	ctx context.Context,
-	runID string,
-	messageID string,
-	baseMessages []*schema.Message,
-	step model.PlanStep,
-	toolInfos []*schema.ToolInfo,
-) (*schema.Message, []*schema.Message, bool, error) {
-	return orchestration.ExecuteRound(
-		ctx,
-		n.model,
-		n.streamer,
-		n.tools,
-		n.buildModelInput(baseMessages, step),
-		toolInfos,
-		runID,
-		messageID,
-		orchestration.RoundOptions{
-			CallSite: providers.CallSiteAct,
-			BeforeToolCall: func(ctx context.Context, call schema.ToolCall) error {
-				return n.enforceToolCall(ctx, call)
-			},
-		},
-	)
+func (n *ActNode) actCompact(session contextplane.ContextSession, state *graph.AgentGraphState, modelReq contextplane.ModelCallRequest, step model.PlanStep) orchestration.CompactFn {
+	if session == nil {
+		return nil
+	}
+	return func(ctx context.Context, streamErr error) ([]*schema.Message, error) {
+		recovered, err := graph.GraphSessionReactiveBaseMessages(ctx, session, state, modelReq, streamErr)
+		if err != nil {
+			return nil, fmt.Errorf("act reactive compact: %w", err)
+		}
+		return n.buildModelInput(recovered, step), nil
+	}
 }
 
 func formatVerificationContinuationPrompt(step model.PlanStep, coverageErr error) string {

@@ -184,6 +184,23 @@ acorn pair --server-url https://acorn.example.com --json
 
 Pairing codes are short-lived and one-time. The HTTP API does not expose pairing-code creation. After pairing, the device receives a bearer token once; the backend stores only token hashes.
 
+### Token without a phone, and device recovery
+
+To drive `/v1` from a script (or without a phone), mint a bearer token directly on the box in one step:
+
+```bash
+acorn token issue --json   # prints {device_id, name, platform, access_token}
+```
+
+The token is shown once. Use it as `Authorization: Bearer <token>` against `/v1`.
+
+List and revoke paired devices (runs against local SQLite — no token needed, so a lost token is recoverable from the box):
+
+```bash
+acorn devices list
+acorn devices revoke DEVICE_ID   # the device's bearer token stops authenticating immediately
+```
+
 ## 6. Android APK
 
 The same GitHub Release publishes the signed Android APK:

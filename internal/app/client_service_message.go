@@ -58,7 +58,7 @@ func (s *ClientService) createUserMessage(ctx context.Context, threadID, content
 		return nil, err
 	}
 	trimmed := strings.TrimSpace(content)
-	record, err := s.store.AppendSessionMessage(threadID, turnIndex, "user", trimmed, "")
+	record, err := s.store.AppendSessionMessage(ctx, threadID, turnIndex, "user", trimmed, "")
 	if err != nil {
 		return nil, err
 	}

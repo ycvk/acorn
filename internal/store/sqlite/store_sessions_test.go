@@ -26,11 +26,11 @@ func TestBindUserMessageRunIDByID(t *testing.T) {
 	}
 	// Two unbound user messages on the same thread — the concurrency hazard that
 	// the latest-unbound selector would mis-bind.
-	m1, err := store.AppendSessionMessage("sess_bind", 1, "user", "first", "")
+	m1, err := store.AppendSessionMessage(ctx, "sess_bind", 1, "user", "first", "")
 	if err != nil {
 		t.Fatalf("append m1: %v", err)
 	}
-	m2, err := store.AppendSessionMessage("sess_bind", 2, "user", "second", "")
+	m2, err := store.AppendSessionMessage(ctx, "sess_bind", 2, "user", "second", "")
 	if err != nil {
 		t.Fatalf("append m2: %v", err)
 	}
@@ -78,7 +78,7 @@ func TestSessionQueries(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create session 1: %v", err)
 	}
-	if _, err := store.AppendSessionMessage(s1.SessionID, 1, "user", "hello", ""); err != nil {
+	if _, err := store.AppendSessionMessage(context.Background(), s1.SessionID, 1, "user", "hello", ""); err != nil {
 		t.Fatalf("append message: %v", err)
 	}
 	if err := store.CreateRunWithSession(context.Background(), "run_1", s1.SessionID, 1, "hello", "run_1"); err != nil {
@@ -92,7 +92,7 @@ func TestSessionQueries(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create session 2: %v", err)
 	}
-	if _, err := store.AppendSessionMessage(s2.SessionID, 1, "user", "later", ""); err != nil {
+	if _, err := store.AppendSessionMessage(context.Background(), s2.SessionID, 1, "user", "later", ""); err != nil {
 		t.Fatalf("append session 2 message: %v", err)
 	}
 
@@ -228,7 +228,7 @@ func TestBindLatestUserMessageRunIDAndSyncAssistantMessageForRun(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create session: %v", err)
 	}
-	if _, err := store.AppendSessionMessage(session.SessionID, 1, "user", "hello", ""); err != nil {
+	if _, err := store.AppendSessionMessage(context.Background(), session.SessionID, 1, "user", "hello", ""); err != nil {
 		t.Fatalf("append user message: %v", err)
 	}
 	if err := store.CreateRunWithSession(context.Background(), "run_1", session.SessionID, 1, "hello", "run_1"); err != nil {
@@ -320,7 +320,7 @@ func TestClientSessionMessageHelpers(t *testing.T) {
 	if turnIndex != 1 {
 		t.Fatalf("first turn index = %d, want 1", turnIndex)
 	}
-	first, err := store.AppendSessionMessage(session.SessionID, turnIndex, "user", "hello", "")
+	first, err := store.AppendSessionMessage(context.Background(), session.SessionID, turnIndex, "user", "hello", "")
 	if err != nil {
 		t.Fatalf("AppendSessionMessage first: %v", err)
 	}
@@ -331,7 +331,7 @@ func TestClientSessionMessageHelpers(t *testing.T) {
 	if next != 2 {
 		t.Fatalf("next turn index = %d, want 2", next)
 	}
-	second, err := store.AppendSessionMessage(session.SessionID, next, "user", "run this", "")
+	second, err := store.AppendSessionMessage(context.Background(), session.SessionID, next, "user", "run this", "")
 	if err != nil {
 		t.Fatalf("AppendSessionMessage second: %v", err)
 	}

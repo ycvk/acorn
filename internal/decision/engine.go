@@ -13,9 +13,11 @@ func NewEngine(profile Profile) *Engine {
 	return &Engine{profile: profile}
 }
 
+// Decide resolves a run's decision action from capability state, an explicit
+// skill, or the top recommended skill. It never classifies intent by substring
+// nor routes by intent (P0-C demotion). Intent is always "general".
 func (e *Engine) Decide(ctx context.Context, input DecideInput) (*Record, error) {
 	_ = ctx
-	intent := detectIntent(input.Input)
 	action := ActionExecuteWithoutSkill
 	skillID := ""
 	reason := "general_execution"
@@ -32,12 +34,6 @@ func (e *Engine) Decide(ctx context.Context, input DecideInput) (*Record, error)
 			action = ActionBlock
 			reason = "explicit_skill_unavailable"
 		}
-	} else if route := routeForIntent(e.profile.Routes, intent); route != nil {
-		if routedAction, routedSkillID, routedReason := e.resolveProfileRoute(*route, input.AvailableSkills); routedAction != "" {
-			action = routedAction
-			skillID = routedSkillID
-			reason = routedReason
-		}
 	} else if top, ok := topRecommendedSkill(input.AvailableSkills); ok {
 		action = ActionExecuteWithSkill
 		skillID = top.ID
@@ -51,29 +47,10 @@ func (e *Engine) Decide(ctx context.Context, input DecideInput) (*Record, error)
 		RunID:           strings.TrimSpace(input.RunID),
 		SessionID:       strings.TrimSpace(input.SessionID),
 		Action:          action,
-		Intent:          intent,
+		Intent:          "general",
 		SelectedSkillID: skillID,
 		DecisionReason:  reason,
 	}, nil
-}
-
-func (e *Engine) resolveProfileRoute(route Route, skills []RecommendedSkill) (string, string, string) {
-	switch route.Action {
-	case ActionExecuteWithSkill:
-		skillID := strings.TrimSpace(route.SkillID)
-		if skillID == "" {
-			return ActionBlock, "", "profile_route_missing_skill"
-		}
-		if _, ok := eligibleSkillByID(skills, skillID); !ok {
-			if top, topOK := topRecommendedSkill(skills); topOK {
-				return ActionExecuteWithSkill, top.ID, "top_skill_recommendation"
-			}
-			return ActionBlock, "", "profile_route_skill_unavailable"
-		}
-		return ActionExecuteWithSkill, skillID, "profile_route"
-	default:
-		return route.Action, "", "profile_route"
-	}
 }
 
 func (e *Engine) defaultMissingContextAction() string {
@@ -88,20 +65,6 @@ func (e *Engine) defaultMissingCapabilityAction() string {
 		return e.profile.Defaults.MissingRequiredCapability
 	}
 	return ActionBlock
-}
-
-func detectIntent(input string) string {
-	normalized := strings.ToLower(strings.TrimSpace(input))
-	switch {
-	case strings.Contains(normalized, "inspect"), strings.Contains(normalized, "analyze"), strings.Contains(normalized, "read"):
-		return "inspect"
-	case strings.Contains(normalized, "debug"), strings.Contains(normalized, "fix"), strings.Contains(normalized, "error"):
-		return "debug"
-	case strings.Contains(normalized, "ship"), strings.Contains(normalized, "commit"), strings.Contains(normalized, "patch"):
-		return "ship"
-	default:
-		return "general"
-	}
 }
 
 func topRecommendedSkill(items []RecommendedSkill) (RecommendedSkill, bool) {
@@ -149,13 +112,4 @@ func hasCapabilityFailure(items []RecommendedSkill) bool {
 		}
 	}
 	return false
-}
-
-func routeForIntent(routes []Route, intent string) *Route {
-	for i := range routes {
-		if strings.TrimSpace(routes[i].Intent) == strings.TrimSpace(intent) {
-			return &routes[i]
-		}
-	}
-	return nil
 }

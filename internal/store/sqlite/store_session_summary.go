@@ -145,7 +145,7 @@ func (s *Store) SyncDecisionMessageForPendingAction(ctx context.Context, actionI
 	if found {
 		return s.UpdateSessionMessageWithParts(ctx, messageID, content, parts)
 	}
-	_, err = s.AppendSessionMessageWithParts(run.SessionID, run.TurnIndex, "assistant", content, parts, action.RunID)
+	_, err = s.AppendSessionMessageWithParts(ctx, run.SessionID, run.TurnIndex, "assistant", content, parts, action.RunID)
 	return err
 }
 
@@ -225,7 +225,7 @@ func (s *Store) syncAssistantMessageForRun(ctx context.Context, runID string, st
 	if exists {
 		return nil
 	}
-	_, err = s.AppendSessionMessageWithParts(run.SessionID, run.TurnIndex, "assistant", content, parts, runID)
+	_, err = s.AppendSessionMessageWithParts(ctx, run.SessionID, run.TurnIndex, "assistant", content, parts, runID)
 	return err
 }
 

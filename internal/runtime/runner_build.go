@@ -1,25 +1,19 @@
 package runtime
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
 
 	"github.com/cloudwego/eino/adk"
-	einomodel "github.com/cloudwego/eino/components/model"
 	einotool "github.com/cloudwego/eino/components/tool"
+
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/contextplane"
 	"github.com/ycvk/acorn/internal/decision"
-	"github.com/ycvk/acorn/internal/memorymodule"
-	"github.com/ycvk/acorn/internal/orchestration"
-	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
-	"github.com/ycvk/acorn/internal/runtime/tool"
 	"github.com/ycvk/acorn/internal/skills"
 	corestore "github.com/ycvk/acorn/internal/store"
-	"github.com/ycvk/acorn/internal/tooling"
 	"github.com/ycvk/acorn/internal/workspace"
 )
 
@@ -30,50 +24,55 @@ func buildRuntimeDeps(cfg *config.Config, store RunnerFactoryStore, opts RunnerF
 	if store == nil {
 		return RuntimeDeps{}, errors.New("store is required")
 	}
-
 	ws, err := resolveWorkspace(cfg, opts.Workspace)
 	if err != nil {
 		return RuntimeDeps{}, fmt.Errorf("workspace: %w", err)
 	}
-
 	artifactService, err := buildArtifactService(cfg, store)
 	if err != nil {
 		return RuntimeDeps{}, fmt.Errorf("artifact service: %w", err)
 	}
-
-	loader := opts.Loader
-	if loader == nil {
-		loader = skills.NewLoader(cfg)
-	}
-
-	decisionProfiles := opts.DecisionProfileService
-	if decisionProfiles == nil {
-		root := ""
-		if ws != nil {
-			root = ws.Root()
-		}
-		decisionProfiles = decision.NewProfileService(root)
-	}
-
 	if opts.MemoryModule == nil {
 		return RuntimeDeps{}, errors.New("memory module is required")
 	}
-
-	contextPlane := opts.ContextPlane
-	if contextPlane == nil {
-		contextPlane, err = buildDefaultContextPlane(cfg, store, opts)
-		if err != nil {
-			return RuntimeDeps{}, fmt.Errorf("context plane: %w", err)
-		}
+	loader := resolveLoader(cfg, opts.Loader)
+	decisionProfiles := resolveDecisionProfiles(opts.DecisionProfileService, ws)
+	contextPlane, err := resolveContextPlane(cfg, store, opts)
+	if err != nil {
+		return RuntimeDeps{}, fmt.Errorf("context plane: %w", err)
 	}
-
 	orchestrationPlane := newDefaultOrchestrationPlane(defaultOrchestrationPlaneDeps{
-		cfg:          cfg,
-		store:        store,
-		contextPlane: contextPlane,
-		handlers:     opts.Handlers,
+		cfg: cfg, store: store, contextPlane: contextPlane, handlers: opts.Handlers,
 	})
+	return assembleRuntimeDeps(cfg, store, opts, ws, loader, decisionProfiles, artifactService, contextPlane, orchestrationPlane), nil
+}
 
+func resolveLoader(cfg *config.Config, loader *skills.Loader) *skills.Loader {
+	if loader == nil {
+		return skills.NewLoader(cfg)
+	}
+	return loader
+}
+
+func resolveDecisionProfiles(svc *decision.ProfileService, ws *workspace.Workspace) *decision.ProfileService {
+	if svc != nil {
+		return svc
+	}
+	root := ""
+	if ws != nil {
+		root = ws.Root()
+	}
+	return decision.NewProfileService(root)
+}
+
+func resolveContextPlane(cfg *config.Config, store RunnerFactoryStore, opts RunnerFactoryOptions) (contextplane.ContextPlane, error) {
+	if opts.ContextPlane != nil {
+		return opts.ContextPlane, nil
+	}
+	return buildDefaultContextPlane(cfg, store, opts)
+}
+
+func assembleRuntimeDeps(cfg *config.Config, store RunnerFactoryStore, opts RunnerFactoryOptions, ws *workspace.Workspace, loader *skills.Loader, decisionProfiles *decision.ProfileService, artifactService *corestore.ArtifactService, contextPlane contextplane.ContextPlane, orchestrationPlane orchestrationPlane) RuntimeDeps {
 	return RuntimeDeps{
 		Config:            cfg,
 		Store:             store,
@@ -89,7 +88,7 @@ func buildRuntimeDeps(cfg *config.Config, store RunnerFactoryStore, opts RunnerF
 		ArtifactService:   artifactService,
 		ExtraLocalTools:   append([]einotool.BaseTool(nil), opts.ExtraLocalTools...),
 		Handlers:          append([]adk.ChatModelAgentMiddleware(nil), opts.Handlers...),
-	}, nil
+	}
 }
 
 func resolveWorkspace(cfg *config.Config, override *workspace.Workspace) (*workspace.Workspace, error) {
@@ -114,23 +113,9 @@ func buildArtifactService(cfg *config.Config, store RunnerFactoryStore) (*corest
 }
 
 func buildDefaultContextPlane(cfg *config.Config, store RunnerFactoryStore, opts RunnerFactoryOptions) (contextplane.ContextPlane, error) {
-	memoryBudget := 0
-	maxContextTokens := 0
-	var tokenCounter contextplane.TokenCounter
-	if cfg != nil {
-		memoryBudget = cfg.Memory.Search.MemoryContextTokenBudget
-		contextPolicy, err := cfg.ContextPolicy()
-		if err != nil {
-			return nil, fmt.Errorf("context policy: %w", err)
-		}
-		maxContextTokens, err = contextplane.ContextAssemblyTokenLimitFromContextPolicy(contextPolicy)
-		if err != nil {
-			return nil, fmt.Errorf("token limit: %w", err)
-		}
-		tokenCounter, err = contextplane.NewCompressionTokenCounter(contextPolicy)
-		if err != nil {
-			return nil, fmt.Errorf("token counter: %w", err)
-		}
+	memoryBudget, maxContextTokens, tokenCounter, err := resolveContextPlaneTokenPolicy(cfg)
+	if err != nil {
+		return nil, err
 	}
 	return contextplane.NewDefaultContextPlane(contextplane.DefaultOptions{
 		MemoryContextTokenBudget: memoryBudget,
@@ -143,291 +128,29 @@ func buildDefaultContextPlane(cfg *config.Config, store RunnerFactoryStore, opts
 	}), nil
 }
 
+func resolveContextPlaneTokenPolicy(cfg *config.Config) (memoryBudget, maxContextTokens int, tokenCounter contextplane.TokenCounter, err error) {
+	if cfg == nil {
+		return 0, 0, nil, nil
+	}
+	memoryBudget = cfg.Memory.Search.MemoryContextTokenBudget
+	contextPolicy, policyErr := cfg.ContextPolicy()
+	if policyErr != nil {
+		return 0, 0, nil, fmt.Errorf("context policy: %w", policyErr)
+	}
+	maxContextTokens, err = contextplane.ContextAssemblyTokenLimitFromContextPolicy(contextPolicy)
+	if err != nil {
+		return 0, 0, nil, fmt.Errorf("token limit: %w", err)
+	}
+	tokenCounter, err = contextplane.NewCompressionTokenCounter(contextPolicy)
+	if err != nil {
+		return 0, 0, nil, fmt.Errorf("token counter: %w", err)
+	}
+	return memoryBudget, maxContextTokens, tokenCounter, nil
+}
+
 func assembleRunnerFactory(deps RuntimeDeps) *RunnerFactory {
 	return &RunnerFactory{
 		deps:     deps,
 		registry: NewRegistry(),
 	}
-}
-
-type runCapabilities struct {
-	catalog       *tooling.Catalog
-	skillSnapshot *skills.Snapshot
-	stableSkills  []skills.Spec
-	close         func() error
-}
-
-func (c *runCapabilities) Close() error {
-	if c == nil || c.close == nil {
-		return nil
-	}
-	return c.close()
-}
-
-type runSelection struct {
-	decisionRecord *decision.Record
-	selectedSkill  *SelectedSkill
-}
-
-func (f *RunnerFactory) buildRunCapabilities(ctx context.Context, sessionID string, mcpManager *mcpprovider.Manager) (*runCapabilities, error) {
-	childExec, err := f.newChildAgentExecutor()
-	if err != nil {
-		return nil, err
-	}
-	toolset, err := f.buildRunToolset(ctx, sessionID, childExec)
-	if err != nil {
-		return nil, err
-	}
-	specs := append([]tooling.ToolSpec(nil), toolset.Catalog().Specs()...)
-	var resourceTools []einotool.BaseTool
-	var promptTools []einotool.BaseTool
-	if mcpManager != nil {
-		resourceTools = mcpManager.ResourceTools()
-		promptTools = mcpManager.PromptTools()
-	}
-
-	for _, registration := range mcpManagerRegistrations(mcpManager) {
-		info, err := registration.Tool.Info(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("read MCP tool info for provider %q: %w", registration.ProviderName, err)
-		}
-		namespaced, err := tool.NewMCPNamespacedTool(ctx, registration.Tool, registration.ProviderName, info.Name)
-		if err != nil {
-			return nil, fmt.Errorf("namespace MCP tool %q for provider %q: %w", info.Name, registration.ProviderName, err)
-		}
-		spec, err := tool.RuntimeToolSpec(ctx, f.deps.Config, registration.ProviderName, tooling.ToolKindMCP, []tooling.ToolProfile{tooling.ToolProfileRun}, namespaced)
-		if err != nil {
-			return nil, err
-		}
-		parallelPolicy, err := tool.MCPToolParallelPolicy(f.deps.Config, registration.ProviderName)
-		if err != nil {
-			return nil, fmt.Errorf("resolve MCP tool safety for provider %q: %w", registration.ProviderName, err)
-		}
-		spec.Execution.ParallelPolicy = parallelPolicy
-		specs = append(specs, spec)
-	}
-	resourceSpecs, err := tool.BuildCatalogSpecs(ctx, f.deps.Config, "mcp.resource", tooling.ToolKindMCPResource, []tooling.ToolProfile{tooling.ToolProfileRun}, resourceTools)
-	if err != nil {
-		return nil, err
-	}
-	promptSpecs, err := tool.BuildCatalogSpecs(ctx, f.deps.Config, "mcp.prompt", tooling.ToolKindMCPPrompt, []tooling.ToolProfile{tooling.ToolProfileRun}, promptTools)
-	if err != nil {
-		return nil, err
-	}
-	specs = append(specs, resourceSpecs...)
-	specs = append(specs, promptSpecs...)
-
-	catalog, err := tooling.NewCatalog(ctx, specs)
-	if err != nil {
-		return nil, err
-	}
-	skillSnapshot, err := loadStableSkillSnapshot(ctx, f.deps.Loader, skillEligibilityContextFromCatalog(catalog))
-	if err != nil {
-		return nil, err
-	}
-	return &runCapabilities{
-		catalog:       catalog,
-		skillSnapshot: skillSnapshot,
-		stableSkills:  stableSkillsFromSnapshot(skillSnapshot),
-		close:         toolset.Close,
-	}, nil
-}
-
-func mcpManagerRegistrations(manager *mcpprovider.Manager) []mcpprovider.ToolRegistration {
-	if manager == nil {
-		return nil
-	}
-	return manager.Registrations()
-}
-
-func (f *RunnerFactory) resolveRunSelection(
-	ctx context.Context,
-	req RunnerBuildRequest,
-	caps *runCapabilities,
-) (*runSelection, error) {
-	if caps == nil {
-		return nil, fmt.Errorf("run capabilities are required")
-	}
-
-	if strings.TrimSpace(req.Input) == "" && strings.TrimSpace(req.SkillID) == "" && strings.TrimSpace(req.RunID) == "" {
-		return &runSelection{}, nil
-	}
-
-	if strings.TrimSpace(req.Input) != "" || strings.TrimSpace(req.SkillID) != "" {
-		engine, parsed, err := buildDecisionEngine(f.deps.DecisionProfiles)
-		if err != nil {
-			return nil, err
-		}
-		hasWorkingContext, err := f.hasWorkingContext(ctx, req.SessionID)
-		if err != nil {
-			return nil, err
-		}
-		retrieved, err := skills.RetrieveCandidates(skills.CandidateQuery{
-			Input:           req.Input,
-			ExplicitSkillID: req.SkillID,
-			Eligibility:     skillEligibilityContextFromCatalog(caps.catalog),
-		}, caps.stableSkills)
-		var discovered []SkillMatch
-		if retrieved != nil {
-			discovered = runtimeMatchesFromRecommendations(retrieved.Candidates)
-		}
-		if err != nil {
-			return nil, err
-		}
-		input := buildDecisionInput(req, discovered, hasWorkingContext)
-		record, err := engine.Decide(ctx, input)
-		if err != nil {
-			return nil, err
-		}
-		fillRecordMetadata(record, parsed.Hash)
-		if err := f.deps.Store.SaveRunDecision(ctx, *record); err != nil {
-			return nil, err
-		}
-		if err := emitDecisionEvents(ctx, f.deps.Store, req, record, req.SkillID); err != nil {
-			return nil, err
-		}
-		selectedSkill, err := selectedSkillFromDecisionRecord(record, discovered, caps.stableSkills)
-		if err != nil {
-			return nil, err
-		}
-		if emitErr := emitSkillSelectionEvents(ctx, f.deps.Store, req, selectedSkill, discovered); emitErr != nil {
-			return nil, emitErr
-		}
-		if !decision.IsContinuableAction(record.Action) {
-			switch record.Action {
-			case decision.ActionAskUser:
-				return nil, fmt.Errorf("decision requires operator confirmation: %s", record.DecisionReason)
-			case decision.ActionBlock:
-				return nil, fmt.Errorf("decision blocked execution: %s", record.DecisionReason)
-			case decision.ActionResumeRun:
-				return nil, fmt.Errorf("decision resolved to resume_run for a new execution")
-			default:
-				return nil, fmt.Errorf("decision action %q is not continuable", record.Action)
-			}
-		}
-		return &runSelection{
-			decisionRecord: record,
-			selectedSkill:  selectedSkill,
-		}, nil
-	} else if strings.TrimSpace(req.RunID) != "" {
-		var err error
-		decisionRecord, err := f.deps.Store.LoadRunDecision(ctx, req.RunID)
-		if err != nil {
-			return nil, err
-		}
-		if decisionRecord == nil {
-			return nil, fmt.Errorf("run decision missing for %s", req.RunID)
-		}
-		selectedSkill, err := selectedSkillFromDecisionRecord(decisionRecord, nil, caps.stableSkills)
-		if err != nil {
-			return nil, err
-		}
-		return &runSelection{
-			decisionRecord: decisionRecord,
-			selectedSkill:  selectedSkill,
-		}, nil
-	}
-	return &runSelection{}, nil
-}
-
-func (f *RunnerFactory) buildSingleAgentAssembly(
-	ctx context.Context,
-	req RunnerBuildRequest,
-	catalog *tooling.Catalog,
-	chatModel einomodel.BaseChatModel,
-	contextResult *contextplane.AssembleResult,
-) (*orchestration.RunAssembly, error) {
-	if f == nil || f.deps.Orchestration == nil {
-		return nil, fmt.Errorf("orchestration plane is not initialized")
-	}
-	instructionSuffix, err := f.withMemoryInstruction(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-	return f.deps.Orchestration.BuildSingleAgent(ctx, orchestration.SingleAgentRequest{
-		AgentName:         f.deps.Config.Agent.Name,
-		AgentDescription:  f.deps.Config.Agent.Description,
-		SessionID:         req.SessionID,
-		RunID:             req.RunID,
-		ChatModel:         chatModel,
-		AssistantStreamer: tool.NewDirectAssistantStreamer(f.deps.Store),
-		Catalog:           catalog,
-		ContextResult:     AssembleResultToView(contextResult),
-		AllowedToolNames:  append([]string(nil), req.AllowedToolNames...),
-		ExcludedToolNames: append([]string(nil), req.ExcludedToolNames...),
-		InstructionSuffix: instructionSuffix,
-	})
-}
-
-func (f *RunnerFactory) buildDirectResponseAssembly(
-	ctx context.Context,
-	req RunnerBuildRequest,
-	catalog *tooling.Catalog,
-	chatModel einomodel.BaseChatModel,
-	contextResult *contextplane.AssembleResult,
-) (*orchestration.RunAssembly, error) {
-	if f == nil || f.deps.Orchestration == nil {
-		return nil, fmt.Errorf("orchestration plane is not initialized")
-	}
-	return f.deps.Orchestration.BuildDirectResponse(ctx, orchestration.DirectResponseRequest{
-		AgentName:         f.deps.Config.Agent.Name,
-		AgentDescription:  f.deps.Config.Agent.Description,
-		SessionID:         req.SessionID,
-		RunID:             req.RunID,
-		ChatModel:         chatModel,
-		AssistantStreamer: tool.NewDirectAssistantStreamer(f.deps.Store),
-		Catalog:           catalog,
-		ContextResult:     AssembleResultToView(contextResult),
-		AllowedToolNames:  append([]string(nil), req.AllowedToolNames...),
-		ExcludedToolNames: append([]string(nil), req.ExcludedToolNames...),
-		InstructionSuffix: req.InstructionSuffix,
-	})
-}
-
-func (f *RunnerFactory) buildPlanExecuteAssembly(
-	ctx context.Context,
-	req RunnerBuildRequest,
-	catalog *tooling.Catalog,
-	chatModel einomodel.BaseChatModel,
-	contextResult *contextplane.AssembleResult,
-) (*orchestration.RunAssembly, error) {
-	if f == nil || f.deps.Orchestration == nil {
-		return nil, fmt.Errorf("orchestration plane is not initialized")
-	}
-	instructionSuffix, err := f.withMemoryInstruction(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-	childExec, err := f.newChildAgentExecutor()
-	if err != nil {
-		return nil, err
-	}
-	return f.deps.Orchestration.BuildPlanExecute(ctx, orchestration.PlanExecuteRequest{
-		AgentName:         f.deps.Config.Agent.Name,
-		AgentDescription:  f.deps.Config.Agent.Description,
-		SessionID:         req.SessionID,
-		RunID:             req.RunID,
-		ChatModel:         chatModel,
-		Catalog:           catalog,
-		ContextResult:     AssembleResultToView(contextResult),
-		AllowedToolNames:  append([]string(nil), req.AllowedToolNames...),
-		ExcludedToolNames: append([]string(nil), req.ExcludedToolNames...),
-		InstructionSuffix: instructionSuffix,
-		ChildExecutor:     childExec,
-	})
-}
-
-func (f *RunnerFactory) withMemoryInstruction(ctx context.Context, req RunnerBuildRequest) (string, error) {
-	if f == nil || f.deps.MemoryModule == nil {
-		return "", errors.New("memory module is not initialized")
-	}
-	workspaceSlug := ""
-	if f.deps.Workspace != nil {
-		workspaceSlug = memorymodule.WorkspaceSlug(f.deps.Workspace.Root())
-	}
-	instruction, err := f.deps.MemoryModule.BuildMemoryInstruction(ctx, workspaceSlug)
-	if err != nil {
-		return "", fmt.Errorf("build memory instruction: %w", err)
-	}
-	return buildStableInstruction(req.InstructionSuffix, instruction), nil
 }

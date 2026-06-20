@@ -8,7 +8,6 @@ const (
 	ActionExecuteWithSkill    Action = "execute_with_skill"
 	ActionInspectFirst        Action = "inspect_first"
 	ActionExecuteWithoutSkill Action = "execute_without_skill"
-	ActionResumeRun           Action = "resume_run"
 	ActionAskUser             Action = "ask_user"
 	ActionBlock               Action = "block"
 )
@@ -18,15 +17,10 @@ type Defaults struct {
 	MissingRequiredCapability string `yaml:"missing_required_capability" json:"missing_required_capability"`
 }
 
-type Route struct {
-	Intent  string `yaml:"intent" json:"intent"`
-	Action  string `yaml:"action" json:"action"`
-	SkillID string `yaml:"skill_id,omitempty" json:"skill_id,omitempty"`
-}
-
+// Profile is the defaults-only decision profile. Intent routing was removed
+// (P0-C): skill selection now comes solely from skills.RetrieveCandidates.
 type Profile struct {
 	Defaults Defaults `json:"defaults"`
-	Routes   []Route  `json:"routes,omitempty"`
 }
 
 type Record struct {

@@ -7,11 +7,10 @@ import (
 
 	einomodel "github.com/cloudwego/eino/components/model"
 	"github.com/ycvk/acorn/internal/contextplane"
+	"github.com/ycvk/acorn/internal/decision"
 	"github.com/ycvk/acorn/internal/memorymodule"
 	"github.com/ycvk/acorn/internal/providers"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
-	"github.com/ycvk/acorn/internal/skills"
-	"github.com/ycvk/acorn/internal/tooling"
 )
 
 func (f *RunnerFactory) buildRunChatModel(ctx context.Context, req RunnerBuildRequest) (einomodel.BaseChatModel, error) {
@@ -67,10 +66,7 @@ func (f *RunnerFactory) prepareRunMemory(ctx context.Context, req RunnerBuildReq
 	if f.deps.MemoryModule == nil {
 		return nil, errors.New("memory module is not initialized")
 	}
-	workspaceSlug := ""
-	if f.deps.Workspace != nil {
-		workspaceSlug = memorymodule.WorkspaceSlug(f.deps.Workspace.Root())
-	}
+	workspaceSlug := f.workspaceSlug()
 	result, err := f.deps.MemoryModule.Prepare(ctx, memorymodule.PrepareRequest{
 		RunID:         req.RunID,
 		SessionID:     req.SessionID,
@@ -81,18 +77,30 @@ func (f *RunnerFactory) prepareRunMemory(ctx context.Context, req RunnerBuildReq
 	if err != nil {
 		return nil, fmt.Errorf("prepare memory: %w", err)
 	}
-	if err := emitMemoryPreparedEvent(ctx, f.deps.Store, req, memorymodule.WorkspaceScope(workspaceSlug), result); err != nil {
+	if err := f.emitRunMemoryEvents(ctx, req, workspaceSlug, result); err != nil {
 		return nil, err
-	}
-	if result != nil {
-		if err := emitProcedureActivationEvents(ctx, f.deps.Store, req.Sink, req.RunID, result.ProcedureActivations); err != nil {
-			return nil, err
-		}
 	}
 	return result, nil
 }
 
-func (f *RunnerFactory) assembleToolContext(
+func (f *RunnerFactory) workspaceSlug() string {
+	if f.deps.Workspace == nil {
+		return ""
+	}
+	return memorymodule.WorkspaceSlug(f.deps.Workspace.Root())
+}
+
+func (f *RunnerFactory) emitRunMemoryEvents(ctx context.Context, req RunnerBuildRequest, workspaceSlug string, result *memorymodule.PrepareResult) error {
+	if err := emitMemoryPreparedEvent(ctx, f.deps.Store, req, memorymodule.WorkspaceScope(workspaceSlug), result); err != nil {
+		return err
+	}
+	if result != nil {
+		return emitProcedureActivationEvents(ctx, f.deps.Store, req.Sink, req.RunID, result.ProcedureActivations)
+	}
+	return nil
+}
+
+func (f *RunnerFactory) assembleContext(
 	ctx context.Context,
 	req RunnerBuildRequest,
 	caps *runCapabilities,
@@ -105,63 +113,32 @@ func (f *RunnerFactory) assembleToolContext(
 	if caps == nil {
 		return nil, errors.New("run capabilities are required")
 	}
-	if selection == nil {
-		selection = &runSelection{}
-	}
-	result, err := f.deps.ContextPlane.Assemble(ctx, contextplane.AssembleRequest{
-		RunID:          req.RunID,
-		SessionID:      req.SessionID,
-		Input:          req.Input,
-		SelectedSkill:  selection.selectedSkill,
-		SkillSnapshot:  caps.skillSnapshot,
-		DecisionRecord: selection.decisionRecord,
-		MemoryPrepared: memoryPrepared,
-		ToolCatalog:    caps.catalog,
-	})
+	result, err := f.deps.ContextPlane.Assemble(ctx, buildAssembleRequest(req, caps, selection, memoryPrepared))
 	if err != nil {
 		return nil, err
 	}
-	if err := emitProcedureActivationEvents(
-		ctx,
-		f.deps.Store,
-		req.Sink,
-		req.RunID,
-		filterProcedureActivationsByPhase(result.ProcedureActivations, memorymodule.ProcedureActivationInjected),
-	); err != nil {
-		return nil, err
-	}
-	return result, nil
+	return result, f.emitInjectedProcedures(ctx, req, result.ProcedureActivations)
 }
 
-func (f *RunnerFactory) assembleDirectContext(
-	ctx context.Context,
-	req RunnerBuildRequest,
-	memoryPrepared *memorymodule.PrepareResult,
-	skillSnapshot *skills.Snapshot,
-	catalog *tooling.Catalog,
-) (*contextplane.AssembleResult, error) {
-	if f == nil || f.deps.ContextPlane == nil {
-		return nil, errors.New("context plane is not initialized")
+func buildAssembleRequest(req RunnerBuildRequest, caps *runCapabilities, selection *runSelection, memoryPrepared *memorymodule.PrepareResult) contextplane.AssembleRequest {
+	var selectedSkill *SelectedSkill
+	var decisionRecord *decision.Record
+	if selection != nil {
+		selectedSkill = selection.selectedSkill
+		decisionRecord = selection.decisionRecord
 	}
-	result, err := f.deps.ContextPlane.Assemble(ctx, contextplane.AssembleRequest{
+	return contextplane.AssembleRequest{
 		RunID:          req.RunID,
 		SessionID:      req.SessionID,
 		Input:          req.Input,
-		SkillSnapshot:  skillSnapshot,
+		SelectedSkill:  selectedSkill,
+		SkillSnapshot:  caps.skillSnapshot,
+		DecisionRecord: decisionRecord,
 		MemoryPrepared: memoryPrepared,
-		ToolCatalog:    catalog,
-	})
-	if err != nil {
-		return nil, err
+		ToolCatalog:    caps.catalog,
 	}
-	if err := emitProcedureActivationEvents(
-		ctx,
-		f.deps.Store,
-		req.Sink,
-		req.RunID,
-		filterProcedureActivationsByPhase(result.ProcedureActivations, memorymodule.ProcedureActivationInjected),
-	); err != nil {
-		return nil, err
-	}
-	return result, nil
+}
+
+func (f *RunnerFactory) emitInjectedProcedures(ctx context.Context, req RunnerBuildRequest, activations []memorymodule.ProcedureActivation) error {
+	return emitProcedureActivationEvents(ctx, f.deps.Store, req.Sink, req.RunID, filterProcedureActivationsByPhase(activations, memorymodule.ProcedureActivationInjected))
 }

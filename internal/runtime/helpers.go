@@ -22,7 +22,7 @@ func compactText(value string, limit int) (string, bool) {
 	return string(runes[:limit]) + "...", true
 }
 
-func newRunID() string {
+func NewRunID() string {
 	return fmt.Sprintf("run_%d", time.Now().UTC().UnixNano())
 }
 
