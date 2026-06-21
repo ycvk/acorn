@@ -18,7 +18,6 @@ var (
 	ErrPendingActionDecided     = errors.New("pending action already decided")
 	ErrUnsupportedStorageSchema = errors.New("unsupported storage schema")
 	ErrOAuthTokenNotFound       = errors.New("oauth token not found")
-	ErrPlanNotFound             = errors.New("plan not found")
 	ErrDeviceNotFound           = errors.New("device not found")
 	ErrPairingCodeNotFound      = errors.New("pairing code not found")
 	ErrPairingCodeUsed          = errors.New("pairing code already used")
@@ -35,12 +34,7 @@ type RunCreateParams struct {
 	// (race-free). When 0, binding falls back to the latest unbound user message
 	// for TurnIndex (used by fresh-session / subagent paths where the message is
 	// the only one at that turn).
-	BoundMessageID    int64
-	CheckpointID      string
-	OrchestrationMode events.OrchestrationMode
-	ParentRunID       string
-	SkillID           string
-	Depth             int
+	BoundMessageID int64
 }
 
 type OAuthToken struct {
@@ -81,7 +75,5 @@ type CreatePendingActionInput struct {
 	Subject     string
 	PayloadJSON string
 	Status      events.PendingActionStatus
-	Mode        events.PendingActionDecisionMode
 	Reason      string
-	Rule        string
 }
