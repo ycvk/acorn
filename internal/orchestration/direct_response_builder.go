@@ -29,12 +29,11 @@ type toolAssemblyParams struct {
 }
 
 type assembledTooling struct {
-	allTools         []einotool.BaseTool
-	toolInfos        []*schema.ToolInfo
-	instruction      string
-	compressionState *contextplane.CompressionState
-	handlers         []adk.ChatModelAgentMiddleware
-	runCtx           context.Context
+	allTools    []einotool.BaseTool
+	toolInfos   []*schema.ToolInfo
+	instruction string
+	handlers    []adk.ChatModelAgentMiddleware
+	runCtx      context.Context
 }
 
 // assembleTooling builds the tool set, instruction, handlers, and the run context
@@ -59,14 +58,11 @@ func (p *DefaultPlane) assembleTooling(ctx context.Context, params toolAssemblyP
 		}
 		toolInfos = append(toolInfos, info)
 	}
-
 	instruction := p.instructionBuilder(p.systemPrompt, params.instructionSuffix)
-	compressionState := contextplane.NewCompressionState()
-	handlers, err := p.handlersBuilder(ctx, params.chatModel, compressionState)
+	handlers, err := p.handlersBuilder(ctx, params.chatModel, nil)
 	if err != nil {
 		return nil, err
 	}
-
 	runCtx := ctx
 	if p.sessionContextBinder != nil {
 		runCtx = p.sessionContextBinder(runCtx, params.sessionID)
@@ -76,12 +72,11 @@ func (p *DefaultPlane) assembleTooling(ctx context.Context, params toolAssemblyP
 	}
 
 	return &assembledTooling{
-		allTools:         allTools,
-		toolInfos:        toolInfos,
-		instruction:      instruction,
-		compressionState: compressionState,
-		handlers:         handlers,
-		runCtx:           runCtx,
+		allTools:    allTools,
+		toolInfos:   toolInfos,
+		instruction: instruction,
+		handlers:    handlers,
+		runCtx:      runCtx,
 	}, nil
 }
 
@@ -149,8 +144,7 @@ func (p *DefaultPlane) BuildDirectResponse(ctx context.Context, req DirectRespon
 			EnableStreaming: false,
 			CheckPointStore: p.checkpointStore,
 		}),
-		Instruction:      assembled.instruction,
-		CompressionState: assembled.compressionState,
+		Instruction: assembled.instruction,
 	}, nil
 }
 
@@ -269,7 +263,7 @@ func (a *directResponseAgent) runFromState(ctx context.Context, generator *adk.A
 
 	for iteration := startIteration; iteration < a.maxIterations; iteration++ {
 		toolInfos := contextplane.LoadedToolInfosFromContext(runCtx, a.eagerToolNames)
-		result, err := loop.RunOneIteration(runCtx, toolInfos, a.runID, directResponseMessageID(a.runID, iteration), true)
+		result, err := loop.RunOneIteration(runCtx, toolInfos, a.runID, directResponseMessageID(a.runID, iteration))
 		var msg *schema.Message
 		if result != nil {
 			msg = result.Message

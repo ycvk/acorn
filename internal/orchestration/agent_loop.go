@@ -64,34 +64,22 @@ func (e *ToolExecutionError) Unwrap() error {
 	return e.Err
 }
 
-func (l *AgentLoop) RunOneIteration(ctx context.Context, toolInfos []*schema.ToolInfo, runID string, messageID string, allowCompact bool) (*AgentLoopIteration, error) {
+func (l *AgentLoop) RunOneIteration(ctx context.Context, toolInfos []*schema.ToolInfo, runID string, messageID string) (*AgentLoopIteration, error) {
 	modelReq := contextplane.ModelCallRequest{
-		CallID:       messageID,
-		QuerySource:  "agent_loop",
-		AllowCompact: allowCompact,
-		ToolInfos:    toolInfos,
+		CallID:    messageID,
+		ToolInfos: toolInfos,
 	}
 	modelInput, err := l.session.BeforeModelCall(ctx, modelReq)
 	if err != nil {
 		return nil, fmt.Errorf("agent loop before model call: %w", err)
 	}
-	msg, toolMessages, outputLimitReached, err := RunActionRound(ctx, l.model, l.streamer, l.toolNode, modelInput.Messages, toolInfos, runID, messageID, allowCompact, l.agentLoopCompact(modelReq), RoundOptions{})
+	msg, toolMessages, outputLimitReached, err := RunActionRound(ctx, l.model, l.streamer, l.toolNode, modelInput.Messages, toolInfos, runID, messageID, RoundOptions{})
 	if err == nil {
 		if err := l.recordRoundResults(ctx, msg, toolMessages, outputLimitReached); err != nil {
 			return nil, err
 		}
 	}
 	return &AgentLoopIteration{Message: msg, ToolMessages: toolMessages, OutputLimitReached: outputLimitReached}, err
-}
-
-func (l *AgentLoop) agentLoopCompact(modelReq contextplane.ModelCallRequest) CompactFn {
-	return func(ctx context.Context, streamErr error) ([]*schema.Message, error) {
-		recovered, err := l.session.ReactiveCompact(ctx, modelReq, streamErr)
-		if err != nil {
-			return nil, fmt.Errorf("agent loop reactive compact: %w", err)
-		}
-		return recovered.Messages, nil
-	}
 }
 
 func (l *AgentLoop) recordRoundResults(ctx context.Context, msg *schema.Message, toolMessages []*schema.Message, outputLimitReached bool) error {
@@ -226,7 +214,8 @@ func consumeInterleavedForAgentLoop(ctx context.Context, interleaved *Interleave
 				interleaved.FinalMessageCh = nil
 				continue
 			}
-			finalResult = new(result)
+			finalResult = new(AssistantStreamResult)
+			*finalResult = result
 			if interleaved.ToolCallCh == nil {
 				return finalResult, nil
 			}

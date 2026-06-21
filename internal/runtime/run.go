@@ -65,16 +65,15 @@ func (f *RunnerFactory) newDirectResponseRunner(ctx context.Context, req RunnerB
 		return nil, err
 	}
 	return &ActiveRunner{
-		Mcp:              capabilityAssembly.mcpManager,
-		Runner:           agentAssembly.Runner,
-		Instruction:      agentAssembly.Instruction,
-		ChatModel:        chatModel,
-		Factory:          f,
-		ContextResult:    contextResult,
-		RunID:            req.RunID,
-		CompressionState: agentAssembly.CompressionState,
-		ToolCatalog:      capabilities.catalog,
-		CloseRunTools:    capabilities.Close,
+		Mcp:           capabilityAssembly.mcpManager,
+		Runner:        agentAssembly.Runner,
+		Instruction:   agentAssembly.Instruction,
+		ChatModel:     chatModel,
+		Factory:       f,
+		ContextResult: contextResult,
+		RunID:         req.RunID,
+		ToolCatalog:   capabilities.catalog,
+		CloseRunTools: capabilities.Close,
 	}, nil
 }
 
@@ -103,20 +102,18 @@ type RunnerBuildRequest struct {
 	InstructionSuffix string
 }
 
-// ActiveRunner represents a fully built and ready-to-execute run.
 type ActiveRunner struct {
-	Mcp              *mcpprovider.Manager
-	Runner           *adk.Runner
-	SelectedSkill    *SelectedSkill
-	Instruction      string
-	ChatModel        einomodel.BaseChatModel
-	Factory          *RunnerFactory
-	ContextResult    *contextplane.AssembleResult
-	ContextSession   contextplane.ContextSession
-	RunID            string
-	CompressionState any
-	ToolCatalog      *tooling.Catalog
-	CloseRunTools    func() error
+	Mcp            *mcpprovider.Manager
+	Runner         *adk.Runner
+	SelectedSkill  *SelectedSkill
+	Instruction    string
+	ChatModel      einomodel.BaseChatModel
+	Factory        *RunnerFactory
+	ContextResult  *contextplane.AssembleResult
+	ContextSession contextplane.ContextSession
+	RunID          string
+	ToolCatalog    *tooling.Catalog
+	CloseRunTools  func() error
 }
 
 // RunRuntime is the execution runtime facade required by Executor.

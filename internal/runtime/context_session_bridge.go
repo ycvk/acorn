@@ -22,7 +22,7 @@ func (e *Executor) bootstrapContextSessionMessages(
 	if err := e.validateBootstrapDeps(active); err != nil {
 		return nil, err
 	}
-	counter, err := contextplane.NewCompressionTokenCounter()
+	counter, err := contextplane.NewTokenCounter()
 	if err != nil {
 		return nil, fmt.Errorf("build context session token counter: %w", err)
 	}
@@ -51,13 +51,14 @@ func (e *Executor) validateBootstrapDeps(active *ActiveRunner) error {
 	return nil
 }
 
-func (e *Executor) buildContextSession(active *ActiveRunner, contextPolicy config.ContextConfig, counter *contextplane.CompressionTokenCounter) contextplane.ContextSession {
+func (e *Executor) buildContextSession(active *ActiveRunner, contextPolicy config.ContextConfig, counter contextplane.TokenCounter) contextplane.ContextSession {
 	return contextplane.NewDefaultContextSession(contextplane.ContextSessionOptions{
-		PreservePolicy: contextplane.PreservePolicy{
-			RecentTurns:       contextPolicy.PreserveRecentTurns,
-			PreserveToolPairs: true,
-		},
-		State: active.CompressionState,
+		TokenCounter:         counter,
+		Model:                active.ChatModel,
+		WindowTokens:         contextPolicy.WindowTokens,
+		CompactMargin:        contextPolicy.CompactMarginTokens,
+		MaskAfterTurns:       contextPolicy.MaskAfterTurns,
+		PreserveRecentTurns:  contextPolicy.PreserveRecentTurns,
 	})
 }
 

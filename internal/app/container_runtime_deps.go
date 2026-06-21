@@ -39,7 +39,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, store co
 	if err != nil {
 		return nil, err
 	}
-	contextPlane, err := buildContextPlane(cfg, store, checkpointService, sessionSummaryService)
+	contextPlane, err := buildContextPlane(cfg)
 	if err != nil {
 		return nil, err
 	}

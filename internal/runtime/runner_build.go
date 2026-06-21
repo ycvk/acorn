@@ -116,8 +116,6 @@ func buildDefaultContextPlane(cfg *config.Config, store RunnerFactoryStore, opts
 		MemoryContextTokenBudget: memoryBudget,
 		MaxContextTokens:         maxContextTokens,
 		TokenCounter:             tokenCounter,
-		CheckpointService:        opts.CheckpointService,
-		SessionSummaryService:    opts.SessionSummaryService,
 	}), nil
 }
 
@@ -126,15 +124,8 @@ func resolveContextPlaneTokenPolicy(cfg *config.Config) (memoryBudget, maxContex
 		return 0, 0, nil, nil
 	}
 	memoryBudget = cfg.Memory.Search.MemoryContextTokenBudget
-	contextPolicy, policyErr := cfg.ContextPolicy()
-	if policyErr != nil {
-		return 0, 0, nil, fmt.Errorf("context policy: %w", policyErr)
-	}
-	maxContextTokens, err = contextplane.ContextAssemblyTokenLimitFromContextPolicy(contextPolicy)
-	if err != nil {
-		return 0, 0, nil, fmt.Errorf("token limit: %w", err)
-	}
-	tokenCounter, err = contextplane.NewCompressionTokenCounter()
+	maxContextTokens = cfg.Context.WindowTokens
+	tokenCounter, err = contextplane.NewTokenCounter()
 	if err != nil {
 		return 0, 0, nil, fmt.Errorf("token counter: %w", err)
 	}

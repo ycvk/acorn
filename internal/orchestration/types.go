@@ -61,9 +61,8 @@ type AssistantStreamer interface {
 }
 
 type RunAssembly struct {
-	Runner           *adk.Runner
-	Instruction      string
-	CompressionState any
+	Runner      *adk.Runner
+	Instruction string
 }
 
 // StreamingExecutor submits tool calls and collects results in streaming fashion.

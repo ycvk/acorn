@@ -5,12 +5,10 @@ import (
 
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/contextplane"
-	"github.com/ycvk/acorn/internal/model"
-	"github.com/ycvk/acorn/internal/workingstate"
 )
 
-func buildContextPlane(cfg *config.Config, store containerRuntimeStore, checkpointService *workingstate.Service, sessionSummaryService *model.SessionSummaryService) (contextplane.ContextPlane, error) {
-	contextCounter, err := contextplane.NewCompressionTokenCounter()
+func buildContextPlane(cfg *config.Config) (contextplane.ContextPlane, error) {
+	contextCounter, err := contextplane.NewTokenCounter()
 	if err != nil {
 		return nil, fmt.Errorf("context plane token counter: %w", err)
 	}
@@ -22,8 +20,6 @@ func buildContextPlane(cfg *config.Config, store containerRuntimeStore, checkpoi
 		MemoryContextTokenBudget: cfg.Memory.Search.MemoryContextTokenBudget,
 		MaxContextTokens:         maxContextTokens,
 		TokenCounter:             contextCounter,
-		CheckpointService:        checkpointService,
-		SessionSummaryService:    sessionSummaryService,
 	})
 	return contextPlane, nil
 }
