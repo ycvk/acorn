@@ -56,15 +56,15 @@ type ToolResultEvent struct {
 }
 
 type DeferredLoadRequest struct {
-	RunID      string
-	SessionID  string
-	Query      string
-	ToolNames  []string
-	Limit      int
+	RunID     string
+	SessionID string
+	Query     string
+	ToolNames []string
+	Limit     int
 }
 
 type DeferredLoadResult struct {
-	Messages         []*schema.Message
+	Messages        []*schema.Message
 	LoadedToolNames []string
 	AlreadyLoaded   []string
 }

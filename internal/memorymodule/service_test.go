@@ -30,7 +30,6 @@ func TestEnsureLayoutCreatesMemoryDirectories(t *testing.T) {
 	}
 }
 
-
 func TestListFactsRejectsInvalidFrontmatter(t *testing.T) {
 	service := newTestService(t)
 	path := filepath.Join(service.Root(), "facts", "workspaces", "bad.md")
@@ -186,7 +185,6 @@ Retired fact.
 	}
 }
 
-
 func TestBuildIndexFailsOnMissingSupersedesTarget(t *testing.T) {
 	service := newTestService(t)
 	path := filepath.Join(service.Root(), "facts", "workspaces", "bad-supersedes.md")
@@ -240,9 +238,6 @@ relations:
 		t.Fatalf("BuildIndex error = %v, want missing relation target", err)
 	}
 }
-
-
-
 
 func TestPlanMemoryMutationCreateFactDoesNotWrite(t *testing.T) {
 	service := newTestService(t)
@@ -539,9 +534,6 @@ func TestSearchRejectsLimitAboveExplicitMaximum(t *testing.T) {
 	}
 }
 
-
-
-
 func TestListSkillsFailsWhenIndexedFileDisappears(t *testing.T) {
 	service := newTestService(t)
 	writeFile(t, service, "skills/learned/sqlite.md", `---
@@ -578,7 +570,6 @@ func TestPrepareRejectsLimitAboveExplicitMaximum(t *testing.T) {
 		t.Fatalf("Prepare error = %v, want explicit nudges limit error", err)
 	}
 }
-
 
 func TestBuildMemoryInstruction(t *testing.T) {
 	service := newTestService(t)
@@ -631,46 +622,12 @@ func writeFile(t *testing.T, service *LocalService, rel string, content string) 
 	}
 }
 
-
-func assertSearchRefs(t *testing.T, items []SearchItem, expected []string) {
-	t.Helper()
-	if len(items) < len(expected) {
-		t.Fatalf("len(items) = %d, want at least %d: %#v", len(items), len(expected), items)
-	}
-	for i, want := range expected {
-		if items[i].Ref != want {
-			t.Fatalf("items[%d].Ref = %q, want %q; items=%#v", i, items[i].Ref, want, items)
-		}
-	}
-}
-
-func assertEntryRefs(t *testing.T, items []Entry, expected []string) {
-	t.Helper()
-	if len(items) < len(expected) {
-		t.Fatalf("len(entries) = %d, want at least %d: %#v", len(items), len(expected), items)
-	}
-	for i, want := range expected {
-		if items[i].Ref != want {
-			t.Fatalf("entries[%d].Ref = %q, want %q; entries=%#v", i, items[i].Ref, want, items)
-		}
-	}
-}
-
 func explainHasStage(explain *SearchExplain, stage string) bool {
 	if explain == nil {
 		return false
 	}
 	for _, item := range explain.Stages {
 		if item.Name == stage {
-			return true
-		}
-	}
-	return false
-}
-
-func containsSearchRef(items []SearchItem, ref string) bool {
-	for _, item := range items {
-		if item.Ref == ref {
 			return true
 		}
 	}

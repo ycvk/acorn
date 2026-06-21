@@ -50,34 +50,34 @@ type ModelInput struct {
 
 // ContextSessionOptions configures a defaultContextSession.
 type ContextSessionOptions struct {
-	TokenCounter      TokenCounter
-	Model             einomodel.BaseChatModel // used for auto-compact summary generation; nil disables compact
-	WindowTokens      int                      // provider context window (effective)
-	CompactMargin     int                      // auto-compact triggers when tokens exceed WindowTokens - CompactMargin
-	MaskAfterTurns    int                      // tool results older than this many turns are masked
-	PreserveRecentTurns int                   // recent turns kept verbatim after compact
+	TokenCounter        TokenCounter
+	Model               einomodel.BaseChatModel // used for auto-compact summary generation; nil disables compact
+	WindowTokens        int                     // provider context window (effective)
+	CompactMargin       int                     // auto-compact triggers when tokens exceed WindowTokens - CompactMargin
+	MaskAfterTurns      int                     // tool results older than this many turns are masked
+	PreserveRecentTurns int                     // recent turns kept verbatim after compact
 }
 
 type defaultContextSession struct {
-	id                 ContextSessionID
-	turnIndex          int
-	messages           []adk.Message
-	tokenCounter       TokenCounter
-	compactor          *autoCompactor
-	windowTokens       int
-	compactMargin      int
-	maskAfterTurns     int
+	id                  ContextSessionID
+	turnIndex           int
+	messages            []adk.Message
+	tokenCounter        TokenCounter
+	compactor           *autoCompactor
+	windowTokens        int
+	compactMargin       int
+	maskAfterTurns      int
 	preserveRecentTurns int
-	bootstrapped       bool
+	bootstrapped        bool
 }
 
 func NewDefaultContextSession(opts ContextSessionOptions) ContextSession {
 	s := &defaultContextSession{
-		tokenCounter:         opts.TokenCounter,
-		windowTokens:         opts.WindowTokens,
-		compactMargin:        opts.CompactMargin,
-		maskAfterTurns:       opts.MaskAfterTurns,
-		preserveRecentTurns:  opts.PreserveRecentTurns,
+		tokenCounter:        opts.TokenCounter,
+		windowTokens:        opts.WindowTokens,
+		compactMargin:       opts.CompactMargin,
+		maskAfterTurns:      opts.MaskAfterTurns,
+		preserveRecentTurns: opts.PreserveRecentTurns,
 	}
 	if opts.Model != nil && opts.TokenCounter != nil {
 		s.compactor = newAutoCompactor(opts.Model, opts.TokenCounter, opts.PreserveRecentTurns)
@@ -135,12 +135,11 @@ func (s *defaultContextSession) BeforeModelCall(ctx context.Context, req ModelCa
 	threshold := s.compactThreshold()
 	if total > threshold && s.compactor != nil {
 		compacted, compactErr := s.compactor.compact(ctx, masked)
-		if compactErr != nil {
-			// compact failure is non-fatal: fall through with masked messages.
-			// The circuit breaker inside compactor tracks consecutive failures.
-		} else {
+		if compactErr == nil {
 			masked = compacted
 		}
+		// compact failure is non-fatal: fall through with masked messages.
+		// The circuit breaker inside compactor tracks consecutive failures.
 	}
 	s.messages = masked
 	return s.modelInput(), nil

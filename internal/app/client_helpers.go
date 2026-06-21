@@ -35,15 +35,6 @@ func projectRunStatus(status events.RunStatus) (string, error) {
 	}
 }
 
-func projectRunMode(mode events.OrchestrationMode) (string, error) {
-	switch mode {
-	case events.ModeDirectResponse:
-		return "direct", nil
-	default:
-		return "", projectionError("unknown run mode %q", mode)
-	}
-}
-
 func validateMessagePart(part MessagePart) error {
 	switch part.Kind {
 	case "text":

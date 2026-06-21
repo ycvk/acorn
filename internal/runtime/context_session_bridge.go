@@ -53,12 +53,12 @@ func (e *Executor) validateBootstrapDeps(active *ActiveRunner) error {
 
 func (e *Executor) buildContextSession(active *ActiveRunner, contextPolicy config.ContextConfig, counter contextplane.TokenCounter) contextplane.ContextSession {
 	return contextplane.NewDefaultContextSession(contextplane.ContextSessionOptions{
-		TokenCounter:         counter,
-		Model:                active.ChatModel,
-		WindowTokens:         contextPolicy.WindowTokens,
-		CompactMargin:        contextPolicy.CompactMarginTokens,
-		MaskAfterTurns:       contextPolicy.MaskAfterTurns,
-		PreserveRecentTurns:  contextPolicy.PreserveRecentTurns,
+		TokenCounter:        counter,
+		Model:               active.ChatModel,
+		WindowTokens:        contextPolicy.WindowTokens,
+		CompactMargin:       contextPolicy.CompactMarginTokens,
+		MaskAfterTurns:      contextPolicy.MaskAfterTurns,
+		PreserveRecentTurns: contextPolicy.PreserveRecentTurns,
 	})
 }
 

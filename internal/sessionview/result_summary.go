@@ -1,7 +1,6 @@
 package sessionview
 
 import (
-	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -17,7 +16,6 @@ func summaryEventRisk(kind string, payload map[string]any) string {
 	}
 	return kind
 }
-
 
 // ResultSummary is the projected, deduplicated outcome of a run, ready to be
 // rendered into assistant message parts.
@@ -87,8 +85,6 @@ func (b *resultSummaryBuilder) addEvents(records []events.EventRecord) error {
 	return nil
 }
 
-
-
 func (b *resultSummaryBuilder) summary() ResultSummary {
 	disclosures := make([]DisclosureItem, 0, 2)
 	if b.memory != nil {
@@ -104,10 +100,6 @@ func (b *resultSummaryBuilder) summary() ResultSummary {
 		Disclosures: disclosures,
 		Reasoning:   b.reasoning,
 	}
-}
-
-func (b *resultSummaryBuilder) addChanged(items ...string) {
-	summaryAddTrimmed(b.changed, items...)
 }
 
 func (b *resultSummaryBuilder) addVerified(items ...string) {
@@ -218,82 +210,6 @@ func summaryPayload(record events.EventRecord) (map[string]any, error) {
 	return payload, nil
 }
 
-
-func summaryCommand(toolName string, argumentsJSON string) (string, error) {
-	if strings.TrimSpace(toolName) != "run_command" {
-		return "", nil
-	}
-	if strings.TrimSpace(argumentsJSON) == "" {
-		return "", nil
-	}
-	var payload struct {
-		Command any `json:"command"`
-	}
-	if err := json.Unmarshal([]byte(argumentsJSON), &payload); err != nil {
-		return "", err
-	}
-	return summaryCommandValue(payload.Command), nil
-}
-
-func summaryCommandValue(value any) string {
-	switch v := value.(type) {
-	case string:
-		return strings.TrimSpace(v)
-	case []string:
-		return summaryCommandText(v)
-	case []any:
-		parts := make([]string, 0, len(v))
-		for _, item := range v {
-			parts = append(parts, summaryString(item))
-		}
-		return summaryCommandText(parts)
-	default:
-		return ""
-	}
-}
-
-func summaryCommandText(command []string) string {
-	parts := make([]string, 0, len(command))
-	for _, item := range command {
-		if trimmed := strings.TrimSpace(item); trimmed != "" {
-			parts = append(parts, trimmed)
-		}
-	}
-	return strings.Join(parts, " ")
-}
-
-func summaryMutationTool(toolName string) bool {
-	name := strings.TrimSpace(toolName)
-	switch name {
-	case "create_file", "write_file", "edit_file", "delete_file", "move_file", "rename_file", "apply_patch":
-		return true
-	}
-	for _, token := range []string{"create", "write", "edit", "delete", "move", "rename", "patch"} {
-		if strings.Contains(name, token) {
-			return true
-		}
-	}
-	return false
-}
-
-func summaryPathsFromArguments(argumentsJSON string) ([]string, error) {
-	if strings.TrimSpace(argumentsJSON) == "" {
-		return nil, nil
-	}
-	var payload map[string]any
-	if err := json.Unmarshal([]byte(argumentsJSON), &payload); err != nil {
-		return nil, err
-	}
-	paths := make([]string, 0, 4)
-	for _, key := range []string{"path", "file_path", "target", "root_dir", "work_dir"} {
-		if value := strings.TrimSpace(summaryString(payload[key])); value != "" {
-			paths = append(paths, value)
-		}
-	}
-	paths = append(paths, summaryStringSlice(payload["paths"])...)
-	return paths, nil
-}
-
 func summaryString(value any) string {
 	switch v := value.(type) {
 	case string:
@@ -324,21 +240,6 @@ func summaryInt(value any) int {
 		return int(v)
 	default:
 		return 0
-	}
-}
-
-func summaryStringSlice(value any) []string {
-	switch v := value.(type) {
-	case []string:
-		return append([]string(nil), v...)
-	case []any:
-		out := make([]string, 0, len(v))
-		for _, item := range v {
-			out = append(out, summaryString(item))
-		}
-		return out
-	default:
-		return nil
 	}
 }
 

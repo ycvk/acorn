@@ -47,13 +47,13 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, store co
 	mcpPendingActionStore := PendingActionCreateStore(store)
 
 	runnerFactory, err := runtime.NewRunnerFactory(cfg, store, runtime.RunnerFactoryOptions{
-		Loader:                    loader,
-		Workspace:                 ws,
-		CheckpointService:         checkpointService,
-		SessionSummaryService:     sessionSummaryService,
-		MemoryModule:              memoryModule,
-		ContextPlane:              contextPlane,
-		MCPPendingActionStore:     mcpPendingActionStore,
+		Loader:                loader,
+		Workspace:             ws,
+		CheckpointService:     checkpointService,
+		SessionSummaryService: sessionSummaryService,
+		MemoryModule:          memoryModule,
+		ContextPlane:          contextPlane,
+		MCPPendingActionStore: mcpPendingActionStore,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("init runner factory: %w", err)

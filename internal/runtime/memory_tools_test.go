@@ -211,7 +211,6 @@ Existing fact.
 	}
 }
 
-
 func newMemoryToolTestService(t *testing.T) *memorymodule.LocalService {
 	t.Helper()
 	root := t.TempDir()
@@ -320,4 +319,3 @@ func (e memoryToolEmbedder) Embed(ctx context.Context, req memorymodule.EmbedReq
 	}
 	return &memorymodule.EmbedResult{Model: e.model, Dimensions: e.dimensions, Vectors: vectors}, nil
 }
-

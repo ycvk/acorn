@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/cloudwego/eino/adk"
-	einomodel "github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/schema"
 )
 
@@ -104,7 +103,7 @@ func TestContextSessionBootstrapRejectsMissingIdentity(t *testing.T) {
 func TestContextSessionRequiresTokenCounter(t *testing.T) {
 	_, err := NewDefaultContextSession(ContextSessionOptions{}).Bootstrap(context.Background(), BootstrapRequest{
 		SessionID: "session_1",
-		RunID:    "run_1",
+		RunID:     "run_1",
 	})
 	if err == nil || !strings.Contains(err.Error(), "token counter is required") {
 		t.Fatalf("error = %v, want token counter required", err)
@@ -147,14 +146,4 @@ func newTestContextSession(t *testing.T) ContextSession {
 		MaskAfterTurns:      2,
 		PreserveRecentTurns: 3,
 	})
-}
-
-// stubModelSummary is a minimal model that returns a fixed summary for
-// auto-compact tests.
-type stubModelSummary struct {
-	response string
-}
-
-func (m *stubModelSummary) Generate(_ context.Context, _ []*schema.Message, _ ...einomodel.Option) (*schema.Message, error) {
-	return schema.AssistantMessage(m.response, nil), nil
 }

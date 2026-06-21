@@ -20,17 +20,6 @@ import (
 	"github.com/ycvk/acorn/internal/workingstate"
 )
 
-
-type delegateTaskBridge struct{}
-
-func (delegateTaskBridge) CurrentRunID(ctx context.Context) string {
-	return CurrentRunID(ctx)
-}
-
-func (delegateTaskBridge) CurrentSessionID(ctx context.Context) string {
-	return runtimeapi.SessionIDFromContext(ctx)
-}
-
 type artifactToolBridge struct{}
 
 func (artifactToolBridge) CurrentRunID(ctx context.Context) string {
@@ -290,4 +279,3 @@ func (f *RunnerFactory) buildMemoryTools(ctx context.Context) ([]einotool.BaseTo
 	}
 	return toolset.BuildMemoryFileTools(ctx, f.deps.MemoryModule)
 }
-

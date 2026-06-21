@@ -79,7 +79,6 @@ func (s *LocalService) ApplyMemoryMutation(ctx context.Context, req PlanMemoryMu
 		VerifiedBytes:         len(body),
 		VerifiedContent:       verifiedContent,
 		VerificationTruncated: truncated,
-
 	}, nil
 }
 

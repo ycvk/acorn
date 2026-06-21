@@ -126,7 +126,7 @@ type DefaultPlaneOptions struct {
 // DefaultPlane is the single orchestration plane for direct_response mode.
 type DefaultPlane struct {
 	systemPrompt         string
-	maxIterations         int
+	maxIterations        int
 	checkpointStore      adk.CheckPointStore
 	toolBuilder          ToolBuilder
 	toolNodeFactory      ToolNodeFactory
@@ -149,4 +149,3 @@ func NewDefaultPlane(opts DefaultPlaneOptions) *DefaultPlane {
 		sessionContextBinder: opts.SessionContextBinder,
 	}
 }
-

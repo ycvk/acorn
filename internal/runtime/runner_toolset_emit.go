@@ -54,7 +54,6 @@ func streamMemoryEntries(entries []memorymodule.Entry) []stream.StreamMemoryPrep
 	return out
 }
 
-
 func emitSkillSelectionEvents(ctx context.Context, store runtimeapi.EventAppender, req RunnerBuildRequest, selected *SelectedSkill, matches []SkillMatch) error {
 	if store == nil || strings.TrimSpace(req.RunID) == "" {
 		return nil
@@ -167,7 +166,6 @@ func streamSkillFromSelected(selected *SelectedSkill, candidates []stream.Stream
 		MatchedTerms: append([]string(nil), selected.MatchedTerms...),
 	}
 }
-
 
 // emitDecisionBlockedEvent emits a decision_blocked stream event when the run
 // selection blocks execution (missing required capability or unavailable

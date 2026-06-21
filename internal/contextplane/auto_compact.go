@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	autoCompactMaxFailures = 3
+	autoCompactMaxFailures   = 3
 	autoCompactSummaryPrompt = "Summarize the conversation so far, preserving key decisions, facts, and pending work. Be concise."
 )
 

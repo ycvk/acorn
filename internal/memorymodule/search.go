@@ -246,21 +246,21 @@ func kindSet(kinds []Kind) map[Kind]struct{} {
 
 func SearchItemFromRecord(record Record, score float64) SearchItem {
 	return SearchItem{
-		Ref:        record.Ref,
-		Kind:       string(record.Kind),
-		Title:      record.Title,
-		Status:     string(record.Status),
-		Scope:      record.Scope,
-		Tags:       append([]string(nil), record.Tags...),
-		Origin:     record.Origin,
+		Ref:         record.Ref,
+		Kind:        string(record.Kind),
+		Title:       record.Title,
+		Status:      string(record.Status),
+		Scope:       record.Scope,
+		Tags:        append([]string(nil), record.Tags...),
+		Origin:      record.Origin,
 		TaskPattern: record.TaskPattern,
-		Path:       record.RelPath,
-		Snippet:    snippet(record.Body),
-		Score:      score,
-		SourceRun:  record.SourceRun,
-		SourceRefs: append([]string(nil), record.SourceRefs...),
-		Created:    record.Created,
-		Updated:    record.Updated,
+		Path:        record.RelPath,
+		Snippet:     snippet(record.Body),
+		Score:       score,
+		SourceRun:   record.SourceRun,
+		SourceRefs:  append([]string(nil), record.SourceRefs...),
+		Created:     record.Created,
+		Updated:     record.Updated,
 	}
 }
 

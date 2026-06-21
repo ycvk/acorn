@@ -481,8 +481,6 @@ func TestSyncAssistantMessageForRunAllowsFinalSuccessAfterInterruptedContext(t *
 	}
 }
 
-
-
 func TestPrepareChatTurnAndCreateBoundRun(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "state")
 	store, err := Open(dir)

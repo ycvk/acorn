@@ -428,11 +428,11 @@ func RuntimeToolSpec(
 
 	spec := tooling.ToolSpec{
 		ToolContract: tooling.ToolContract{
-			Name:      name,
-			Source:    source,
-			Kind:      kind,
-			Category:  tooling.ToolCategoryInspect,
-			Loading:   tooling.EagerLoadingPolicy(),
+			Name:     name,
+			Source:   source,
+			Kind:     kind,
+			Category: tooling.ToolCategoryInspect,
+			Loading:  tooling.EagerLoadingPolicy(),
 			Execution: tooling.ToolExecutionPolicy{
 				ParallelPolicy: tooling.ParallelPolicyReadOnly,
 			},

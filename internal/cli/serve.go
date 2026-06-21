@@ -56,7 +56,6 @@ func runServe(ctx context.Context, args []string) error {
 		return err
 	}
 
-
 	server := &http.Server{
 		Addr:              addr,
 		Handler:           handler,

@@ -160,4 +160,3 @@ func buildBrowserToolEntry(cfg CatalogConfig) ([]einotool.BaseTool, error) {
 	}
 	return []einotool.BaseTool{browserTool}, nil
 }
-

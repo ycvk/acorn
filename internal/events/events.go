@@ -70,18 +70,18 @@ const (
 )
 
 type PendingActionRecord struct {
-	ActionID     string                    `json:"action_id"`
-	RunID        string                    `json:"run_id"`
-	InterruptID  string                    `json:"interrupt_id,omitempty"`
-	Kind         PendingActionKind         `json:"kind"`
-	Subject      string                    `json:"subject,omitempty"`
-	PayloadJSON  string                    `json:"payload_json"`
-	Status       PendingActionStatus       `json:"status"`
-	Reason       string                    `json:"reason,omitempty"`
-	DecisionJSON string                    `json:"decision_json,omitempty"`
-	CreatedAt    time.Time                 `json:"created_at"`
-	DecidedAt    *time.Time                `json:"decided_at,omitempty"`
-	ResolvedAt   *time.Time                `json:"resolved_at,omitempty"`
+	ActionID     string              `json:"action_id"`
+	RunID        string              `json:"run_id"`
+	InterruptID  string              `json:"interrupt_id,omitempty"`
+	Kind         PendingActionKind   `json:"kind"`
+	Subject      string              `json:"subject,omitempty"`
+	PayloadJSON  string              `json:"payload_json"`
+	Status       PendingActionStatus `json:"status"`
+	Reason       string              `json:"reason,omitempty"`
+	DecisionJSON string              `json:"decision_json,omitempty"`
+	CreatedAt    time.Time           `json:"created_at"`
+	DecidedAt    *time.Time          `json:"decided_at,omitempty"`
+	ResolvedAt   *time.Time          `json:"resolved_at,omitempty"`
 }
 
 type SessionMessageRecord struct {

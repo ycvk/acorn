@@ -3,8 +3,6 @@ package runtime
 import (
 	"context"
 
-	
-
 	"github.com/ycvk/acorn/internal/events"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
 	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
@@ -13,7 +11,6 @@ import (
 
 // ExecutorStore is the store contract required by the Executor.
 type ExecutorStore interface {
-	
 	runtimeapi.EventAppender
 	CreateFreshSessionTurn(ctx context.Context, sessionID, title, input string) (int, error)
 	CreateBoundRunWithParams(ctx context.Context, params store.RunCreateParams) error

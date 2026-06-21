@@ -84,18 +84,18 @@ func (s *Store) validateSchema() error {
 // context_boundaries, tool_results, provider_usages, run_archives) are dropped
 // by migrations and intentionally absent.
 var schemaRequiredTables = map[string][]string{
-	"runs":               {"run_id", "session_id", "turn_index", "status", "input_text", "output_text", "error_text", "created_at", "updated_at"},
-	"events":             {"sequence", "run_id", "kind", "payload_json", "created_at"},
-	"sessions":           {"session_id", "title", "created_at", "updated_at"},
-	"session_messages":   {"id", "session_id", "turn_index", "role", "content", "content_parts", "run_id", "created_at"},
-	"pending_actions":    {"action_id", "run_id", "interrupt_id", "kind", "subject", "payload_json", "status", "reason", "decision_json", "created_at", "decided_at", "resolved_at"},
-	"mcp_oauth_tokens":   {"provider_name", "access_token", "refresh_token", "expiry", "updated_at"},
-	"owner_profile":      {"owner_id", "created_at"},
-	"devices":            {"device_id", "name", "platform", "token_hash", "created_at", "last_seen_at", "revoked_at"},
-	"pairing_codes":      {"code_hash", "expires_at", "used_at", "created_at"},
-	"artifacts":          {"artifact_id", "run_id", "session_id", "source_tool_result_ref", "kind", "title", "mime_type", "relative_path", "size_bytes", "sha256", "created_at"},
-	"session_summaries":  {"session_id", "source_run_id", "run_status", "summary", "updated_at"},
-	"schema_migrations":  {"version", "applied_at"},
+	"runs":              {"run_id", "session_id", "turn_index", "status", "input_text", "output_text", "error_text", "created_at", "updated_at"},
+	"events":            {"sequence", "run_id", "kind", "payload_json", "created_at"},
+	"sessions":          {"session_id", "title", "created_at", "updated_at"},
+	"session_messages":  {"id", "session_id", "turn_index", "role", "content", "content_parts", "run_id", "created_at"},
+	"pending_actions":   {"action_id", "run_id", "interrupt_id", "kind", "subject", "payload_json", "status", "reason", "decision_json", "created_at", "decided_at", "resolved_at"},
+	"mcp_oauth_tokens":  {"provider_name", "access_token", "refresh_token", "expiry", "updated_at"},
+	"owner_profile":     {"owner_id", "created_at"},
+	"devices":           {"device_id", "name", "platform", "token_hash", "created_at", "last_seen_at", "revoked_at"},
+	"pairing_codes":     {"code_hash", "expires_at", "used_at", "created_at"},
+	"artifacts":         {"artifact_id", "run_id", "session_id", "source_tool_result_ref", "kind", "title", "mime_type", "relative_path", "size_bytes", "sha256", "created_at"},
+	"session_summaries": {"session_id", "source_run_id", "run_status", "summary", "updated_at"},
+	"schema_migrations": {"version", "applied_at"},
 }
 
 func (s *Store) requireColumns(table string, columns []string) error {

@@ -48,18 +48,18 @@ type SystemFeatureCapabilities struct {
 }
 
 type SystemToolCapability struct {
-	Name           string   `json:"name"`
-	Source         string   `json:"source"`
-	Kind           string   `json:"kind"`
-	Category       string   `json:"category"`
-	Enabled        bool     `json:"enabled"`
-	HealthState    string   `json:"health_state"`
-	HealthReason   string   `json:"health_reason,omitempty"`
-	ParallelPolicy string   `json:"parallel_policy,omitempty"`
-	Risk           string   `json:"risk"`
-	RootDir        string   `json:"root_dir,omitempty"`
-	WorkDir        string   `json:"work_dir,omitempty"`
-	DefaultTimeout int      `json:"default_timeout,omitempty"`
+	Name           string `json:"name"`
+	Source         string `json:"source"`
+	Kind           string `json:"kind"`
+	Category       string `json:"category"`
+	Enabled        bool   `json:"enabled"`
+	HealthState    string `json:"health_state"`
+	HealthReason   string `json:"health_reason,omitempty"`
+	ParallelPolicy string `json:"parallel_policy,omitempty"`
+	Risk           string `json:"risk"`
+	RootDir        string `json:"root_dir,omitempty"`
+	WorkDir        string `json:"work_dir,omitempty"`
+	DefaultTimeout int    `json:"default_timeout,omitempty"`
 }
 
 type SystemSkillCapabilities struct {

@@ -132,13 +132,13 @@ func (h *ElicitationHandler) waitForDecision(ctx context.Context, actionID strin
 				"action": "decline",
 				"reason": "timeout",
 			})
-		if err != nil {
-			return nil, fmt.Errorf("marshal elicitation timeout decision: %w", err)
-		}
-		if _, err := h.store.DecidePendingAction(ctx, actionID, events.PendingActionStatusRejected, string(decisionJSON)); err != nil {
-			return nil, err
-		}
-		return &mcp.ElicitResult{Action: "decline"}, nil
+			if err != nil {
+				return nil, fmt.Errorf("marshal elicitation timeout decision: %w", err)
+			}
+			if _, err := h.store.DecidePendingAction(ctx, actionID, events.PendingActionStatusRejected, string(decisionJSON)); err != nil {
+				return nil, err
+			}
+			return &mcp.ElicitResult{Action: "decline"}, nil
 		}
 
 		select {

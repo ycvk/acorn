@@ -79,15 +79,15 @@ func (f *RunnerFactory) newDirectResponseRunner(ctx context.Context, req RunnerB
 
 // RunnerFactoryOptions holds the optional dependencies for creating a RunnerFactory.
 type RunnerFactoryOptions struct {
-	Loader                    *skills.Loader
-	ExtraLocalTools           []einotool.BaseTool
-	Workspace                 *workspace.Workspace
-	Handlers                  []adk.ChatModelAgentMiddleware
-	CheckpointService         *workingstate.Service
-	SessionSummaryService     *model.SessionSummaryService
-	MemoryModule              memorymodule.Service
-	ContextPlane              contextplane.ContextPlane
-	MCPPendingActionStore     mcpprovider.PendingActionStore
+	Loader                *skills.Loader
+	ExtraLocalTools       []einotool.BaseTool
+	Workspace             *workspace.Workspace
+	Handlers              []adk.ChatModelAgentMiddleware
+	CheckpointService     *workingstate.Service
+	SessionSummaryService *model.SessionSummaryService
+	MemoryModule          memorymodule.Service
+	ContextPlane          contextplane.ContextPlane
+	MCPPendingActionStore mcpprovider.PendingActionStore
 }
 
 // RunnerBuildRequest holds the parameters for building a new run.

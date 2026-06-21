@@ -2,7 +2,6 @@ package sessionview_test
 
 import (
 	"encoding/json"
-	"slices"
 	"strings"
 	"testing"
 
@@ -157,7 +156,6 @@ func TestBuildResultSummaryFailsOnCorruptSkillEvent(t *testing.T) {
 		t.Fatalf("error = %v, want corrupt skill context", err)
 	}
 }
-
 
 func TestAssistantMessageForRunSucceededShape(t *testing.T) {
 	run := &events.RunRecord{RunID: "run_1", Status: events.RunStatusSucceeded, Output: "done"}
@@ -347,8 +345,4 @@ func mustJSON(t *testing.T, value any) string {
 		t.Fatalf("marshal json: %v", err)
 	}
 	return string(data)
-}
-
-func containsString(items []string, want string) bool {
-	return slices.Contains(items, want)
 }

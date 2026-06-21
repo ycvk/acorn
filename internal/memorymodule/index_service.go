@@ -191,7 +191,6 @@ func (s *LocalService) GetSkillTree() *SkillTreeIndex {
 	return idx.skillTree.clone()
 }
 
-
 func readHistoryRecordForIndex(root string, p string) *Record {
 	data, err := os.ReadFile(p)
 	if err != nil {

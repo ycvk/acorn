@@ -118,6 +118,7 @@ func renderFactFile(record Record) (string, error) {
 	}
 	return "---\n" + string(frontmatter) + "---\n\n# " + strings.TrimSpace(record.Title) + "\n\n" + strings.TrimSpace(record.Body) + "\n", nil
 }
+
 // sanitizeMemorySlug derives a filesystem-safe slug from a record title.
 func sanitizeMemorySlug(value string) string {
 	slug := strings.ToLower(sanitizeName(value))

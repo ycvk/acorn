@@ -6,7 +6,6 @@ import (
 	"testing"
 )
 
-
 func TestCreateFactAutoStampsStatusScopeAndTimestamps(t *testing.T) {
 	service := newTestService(t)
 	rec, err := service.CreateFact(t.Context(), CreateFactRequest{
@@ -56,7 +55,6 @@ func TestCreateFactWorkspaceScopeNestsPath(t *testing.T) {
 		t.Fatalf("workspace fact relpath = %q, want under facts/workspaces/acorn/", rec.RelPath)
 	}
 }
-
 
 // TestCreateFactCanonicalizesWorkspaceScope verifies that a non-canonical workspace
 // scope is stored in the canonical form queries use (WorkspaceScope), otherwise the

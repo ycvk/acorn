@@ -765,7 +765,7 @@ func TestClientResourceSurfaceHandlers(t *testing.T) {
 			Title:       "Release closeout",
 			Status:      memorymodule.StatusUnverified,
 			Origin:      "agent_draft",
-			TaskPattern:  "release closeout",
+			TaskPattern: "release closeout",
 			Tags:        []string{"release", "closeout"},
 			Body:        "先验证再提交",
 			Created:     "2026-05-02T10:00:00Z",

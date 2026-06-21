@@ -60,11 +60,11 @@ type LocalService struct {
 // (embedding not configured), Search falls back to keyword matching and
 // Prepare degrades to an empty memory result.
 type SemanticRuntimeOptions struct {
-	Embedder   Embedder
+	Embedder    Embedder
 	VectorStore VectorStore
-	Model      string
-	Dimensions int
-	BatchSize  int
+	Model       string
+	Dimensions  int
+	BatchSize   int
 }
 
 type PrepareRequest struct {
@@ -161,21 +161,21 @@ type SearchResult struct {
 }
 
 type SearchItem struct {
-	Ref       string
-	Kind      string
-	Title     string
-	Status    string
-	Scope     string
-	Tags      []string
-	Origin    string
+	Ref         string
+	Kind        string
+	Title       string
+	Status      string
+	Scope       string
+	Tags        []string
+	Origin      string
 	TaskPattern string
-	Path      string
-	Snippet   string
-	Score     float64
-	SourceRun string
-	SourceRefs []string
-	Created   string
-	Updated   string
+	Path        string
+	Snippet     string
+	Score       float64
+	SourceRun   string
+	SourceRefs  []string
+	Created     string
+	Updated     string
 }
 
 type SearchExplain struct {
@@ -207,19 +207,19 @@ type HistoryEvent struct {
 // Record is the simplified V2 memory record. Procedure records, relations,
 // evidence_refs, and validity windows have been removed.
 type Record struct {
-	Ref        string
-	Kind       Kind
-	RootPath   string
-	RelPath    string
-	Title      string
-	Status     Status
-	Scope      string
-	Tags       []string
-	Origin     string
+	Ref         string
+	Kind        Kind
+	RootPath    string
+	RelPath     string
+	Title       string
+	Status      Status
+	Scope       string
+	Tags        []string
+	Origin      string
 	TaskPattern string
-	SourceRefs []string
-	Body       string
-	Created    string
-	Updated    string
-	SourceRun  string
+	SourceRefs  []string
+	Body        string
+	Created     string
+	Updated     string
+	SourceRun   string
 }

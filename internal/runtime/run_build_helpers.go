@@ -2,7 +2,6 @@ package runtime
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -10,32 +9,6 @@ import (
 
 	"github.com/ycvk/acorn/internal/events"
 )
-
-func (f *RunnerFactory) validateRunMode(mode events.OrchestrationMode) error {
-	if err := f.validateRunWorkspace(mode); err != nil {
-		return err
-	}
-	return validateOrchestrationMode(mode)
-}
-
-func (f *RunnerFactory) validateRunWorkspace(mode events.OrchestrationMode) error {
-	if mode == events.ModeDirectResponse {
-		return nil
-	}
-	if f.deps.Workspace == nil {
-		return errors.New("workspace contract is not initialized")
-	}
-	return nil
-}
-
-func validateOrchestrationMode(mode events.OrchestrationMode) error {
-	switch mode {
-	case events.ModeDirectResponse:
-		return nil
-	default:
-		return fmt.Errorf("unsupported orchestration mode %q", mode)
-	}
-}
 
 func (f *RunnerFactory) registerRunForBuild(req RunnerBuildRequest) (func(), error) {
 	rc := &RunContext{RunID: req.RunID, ParentID: strings.TrimSpace("")}

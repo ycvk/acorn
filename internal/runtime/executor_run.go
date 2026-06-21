@@ -8,7 +8,7 @@ import (
 	"github.com/cloudwego/eino/adk"
 	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/contextplane"
-	
+
 	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/stream"
@@ -93,12 +93,12 @@ func (e *Executor) createBoundRun(ctx context.Context, runID string, req runtime
 
 func (e *Executor) buildExecuteRunner(runCtxBase context.Context, req runtimeapi.ExecuteRequest, runID string, sink stream.StreamSink) (*ActiveRunner, error) {
 	return e.runRuntime.New(runCtxBase, RunnerBuildRequest{
-		SessionID:         req.SessionID,
-		RunID:             runID,
-		Input:             req.Input,
-		SkillID:           req.SkillID,
-		AllowedToolNames:  append([]string(nil), req.AllowedToolNames...),
-		Sink:              sink,
+		SessionID:        req.SessionID,
+		RunID:            runID,
+		Input:            req.Input,
+		SkillID:          req.SkillID,
+		AllowedToolNames: append([]string(nil), req.AllowedToolNames...),
+		Sink:             sink,
 	})
 }
 

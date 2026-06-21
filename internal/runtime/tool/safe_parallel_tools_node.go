@@ -259,19 +259,6 @@ func emitToolResultLifecycle(ctx context.Context, msg *schema.Message) error {
 			arguments = value
 		}
 	}
-	var sideEffects []SideEffectRef
-	if rawSideEffects, ok := msg.Extra["tool_side_effects"]; ok {
-		switch value := rawSideEffects.(type) {
-		case []SideEffectRef:
-			sideEffects = append(sideEffects, value...)
-		case []*SideEffectRef:
-			for _, item := range value {
-				if item != nil {
-					sideEffects = append(sideEffects, *item)
-				}
-			}
-		}
-	}
 	return contextplane.OnToolResult(ctx, contextplane.ToolResultEvent{
 		RunID:        getRunID(ctx),
 		SessionID:    runtimeapi.SessionIDFromContext(ctx),

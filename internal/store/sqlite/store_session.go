@@ -17,22 +17,22 @@ import (
 // The sessionview projection was retired with the architecture refactor; this
 // local type keeps the persisted content_parts shape stable.
 type SessionMessagePart struct {
-	Kind             string `json:"kind"`
-	Text             string `json:"text,omitempty"`
-	Reasoning        string `json:"reasoning,omitempty"`
-	Status           string `json:"status,omitempty"`
-	Title            string `json:"title,omitempty"`
-	Summary          string `json:"summary,omitempty"`
+	Kind             string   `json:"kind"`
+	Text             string   `json:"text,omitempty"`
+	Reasoning        string   `json:"reasoning,omitempty"`
+	Status           string   `json:"status,omitempty"`
+	Title            string   `json:"title,omitempty"`
+	Summary          string   `json:"summary,omitempty"`
 	Changed          []string `json:"changed,omitempty"`
 	Verified         []string `json:"verified,omitempty"`
 	Risks            []string `json:"risks,omitempty"`
-	DetailRunID      string `json:"detail_run_id,omitempty"`
-	RunID            string `json:"run_id,omitempty"`
-	Label            string `json:"label,omitempty"`
-	DecisionID       string `json:"decision_id,omitempty"`
-	Question         string `json:"question,omitempty"`
-	SelectedOptionID string `json:"selected_option_id,omitempty"`
-	Answer           string `json:"answer,omitempty"`
+	DetailRunID      string   `json:"detail_run_id,omitempty"`
+	RunID            string   `json:"run_id,omitempty"`
+	Label            string   `json:"label,omitempty"`
+	DecisionID       string   `json:"decision_id,omitempty"`
+	Question         string   `json:"question,omitempty"`
+	SelectedOptionID string   `json:"selected_option_id,omitempty"`
+	Answer           string   `json:"answer,omitempty"`
 }
 
 func (s *Store) CreateSession(ctx context.Context, sessionID, title string) (*events.SessionRecord, error) {
