@@ -7,94 +7,80 @@ import (
 	"strings"
 
 	"github.com/cloudwego/eino/adk"
+	einomodel "github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/schema"
 )
 
+// ContextSession is the sole owner of root-run model input. It bootstraps
+// from an assembly result, applies observation masking + auto-compact before
+// each model call, and records assistant/tool messages.
 type ContextSession interface {
 	ID() ContextSessionID
 	Bootstrap(context.Context, BootstrapRequest) (*ModelInput, error)
 	BeforeModelCall(context.Context, ModelCallRequest) (*ModelInput, error)
-	ReactiveCompact(context.Context, ModelCallRequest, error) (*ModelInput, error)
 	RecordMessages(context.Context, []adk.Message) error
 	RecordAssistant(context.Context, adk.Message) error
 	RecordToolResults(context.Context, []adk.Message) error
-	Resume(context.Context, ResumeContextRequest) (*ModelInput, error)
 }
 
 type ContextSessionID struct {
 	SessionID string
 	RunID     string
-	Mode      string
 }
 
 type BootstrapRequest struct {
 	SessionID       string
 	RunID           string
 	TurnIndex       int
-	Mode            string
 	InitialMessages []adk.Message
 	Assembly        *AssembleResult
-	ModelProfile    ModelProfile
 }
 
+// ModelCallRequest carries per-call metadata. AllowCompact is gone:
+// auto-compact is always permitted when the token threshold is crossed.
 type ModelCallRequest struct {
-	CallID             string
-	QuerySource        string
-	AllowCompact       bool
-	ToolInfos          []*schema.ToolInfo
-	ToolState          *ToolLifecycleState
-	CurrentPlan        string
-	RecentTouchedPaths []string
+	CallID    string
+	ToolInfos []*schema.ToolInfo
 }
 
-type ResumeContextRequest struct {
-	SessionID    string
-	RunID        string
-	Mode         string
-	BoundaryID   string
-	ModelProfile ModelProfile
-}
-
+// ModelInput is the prepared message list handed to the model.
 type ModelInput struct {
 	Messages []adk.Message
-	Pressure BudgetPressure
 }
 
+// ContextSessionOptions configures a defaultContextSession.
 type ContextSessionOptions struct {
-	BudgetGovernor BudgetGovernor
-	Pipeline       CompressionPipeline
-	BoundaryStore  ContextBoundaryStore
-	PreservePolicy PreservePolicy
-	State          any
+	TokenCounter      TokenCounter
+	Model             einomodel.BaseChatModel // used for auto-compact summary generation; nil disables compact
+	WindowTokens      int                      // provider context window (effective)
+	CompactMargin     int                      // auto-compact triggers when tokens exceed WindowTokens - CompactMargin
+	MaskAfterTurns    int                      // tool results older than this many turns are masked
+	PreserveRecentTurns int                   // recent turns kept verbatim after compact
 }
 
 type defaultContextSession struct {
-	id               ContextSessionID
-	turnIndex        int
-	modelProfile     ModelProfile
-	messages         []adk.Message
-	budgetGovernor   BudgetGovernor
-	pipeline         CompressionPipeline
-	boundaryStore    ContextBoundaryStore
-	preservePolicy   PreservePolicy
-	state            any
-	lastSummary      string
-	lastBoundaryID   string
-	boundarySequence int
-	lastCompactTurn  int
-	bootstrapped     bool
+	id                 ContextSessionID
+	turnIndex          int
+	messages           []adk.Message
+	tokenCounter       TokenCounter
+	compactor          *autoCompactor
+	windowTokens       int
+	compactMargin      int
+	maskAfterTurns     int
+	preserveRecentTurns int
+	bootstrapped       bool
 }
 
 func NewDefaultContextSession(opts ContextSessionOptions) ContextSession {
 	s := &defaultContextSession{
-		budgetGovernor: opts.BudgetGovernor,
-		pipeline:       opts.Pipeline,
-		boundaryStore:  opts.BoundaryStore,
-		preservePolicy: opts.PreservePolicy,
-		state:          opts.State,
+		tokenCounter:         opts.TokenCounter,
+		windowTokens:         opts.WindowTokens,
+		compactMargin:        opts.CompactMargin,
+		maskAfterTurns:       opts.MaskAfterTurns,
+		preserveRecentTurns:  opts.PreserveRecentTurns,
 	}
-	if st, ok := opts.State.(*CompressionState); ok && st != nil {
-		s.lastSummary = st.LastSummary
+	if opts.Model != nil && opts.TokenCounter != nil {
+		s.compactor = newAutoCompactor(opts.Model, opts.TokenCounter, opts.PreserveRecentTurns)
 	}
 	return s
 }
@@ -104,10 +90,10 @@ func (s *defaultContextSession) ID() ContextSessionID {
 }
 
 func (s *defaultContextSession) Bootstrap(ctx context.Context, req BootstrapRequest) (*ModelInput, error) {
-	if s.budgetGovernor == nil {
-		return nil, errors.New("context session budget governor is required")
+	if s.tokenCounter == nil {
+		return nil, errors.New("context session token counter is required")
 	}
-	id, err := validateContextSessionIdentity(req.SessionID, req.RunID, req.Mode)
+	id, err := validateContextSessionIdentity(req.SessionID, req.RunID)
 	if err != nil {
 		return nil, err
 	}
@@ -130,47 +116,34 @@ func (s *defaultContextSession) Bootstrap(ctx context.Context, req BootstrapRequ
 	}
 	s.id = id
 	s.turnIndex = req.TurnIndex
-	s.modelProfile = req.ModelProfile
 	s.messages = messages
 	s.bootstrapped = true
-	return s.currentInput(ctx, nil)
+	return s.modelInput(), nil
 }
 
 func (s *defaultContextSession) BeforeModelCall(ctx context.Context, req ModelCallRequest) (*ModelInput, error) {
 	if !s.bootstrapped {
 		return nil, errors.New("context session must be bootstrapped before model calls")
 	}
-	pressure, err := s.evaluatePressure(ctx, req.ToolInfos)
+	// 1. Apply observation masking to old tool results.
+	masked := applyMasking(s.messages, s.turnIndex, s.maskAfterTurns)
+	// 2. Count tokens; if over threshold, auto-compact.
+	total, err := s.tokenCounter.CountMessages(ctx, masked, req.ToolInfos)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("count context tokens: %w", err)
 	}
-	if !shouldCompactForPressure(pressure.State) {
-		return s.modelInput(pressure), nil
+	threshold := s.compactThreshold()
+	if total > threshold && s.compactor != nil {
+		compacted, compactErr := s.compactor.compact(ctx, masked)
+		if compactErr != nil {
+			// compact failure is non-fatal: fall through with masked messages.
+			// The circuit breaker inside compactor tracks consecutive failures.
+		} else {
+			masked = compacted
+		}
 	}
-	if !req.AllowCompact {
-		return nil, fmt.Errorf("context pressure %s requires compaction but compact is disabled", pressure.State)
-	}
-	if s.pipeline == nil {
-		return nil, errors.New("context session compression pipeline is required")
-	}
-	return s.compact(ctx, req, pressure, CompactTriggerAuto)
-}
-
-func (s *defaultContextSession) ReactiveCompact(ctx context.Context, req ModelCallRequest, cause error) (*ModelInput, error) {
-	if !s.bootstrapped {
-		return nil, errors.New("context session must be bootstrapped before reactive compact")
-	}
-	if !IsContextOverflowError(cause) {
-		return nil, fmt.Errorf("reactive compact requires context overflow error: %w", cause)
-	}
-	if !req.AllowCompact {
-		return nil, errors.New("reactive compact requires AllowCompact")
-	}
-	pressure, err := s.evaluatePressure(ctx, req.ToolInfos)
-	if err != nil {
-		return nil, err
-	}
-	return s.compact(ctx, req, pressure, CompactTriggerReactive)
+	s.messages = masked
+	return s.modelInput(), nil
 }
 
 func (s *defaultContextSession) RecordAssistant(_ context.Context, msg adk.Message) error {
@@ -214,50 +187,37 @@ func (s *defaultContextSession) annotateTurnIndex(msg adk.Message) adk.Message {
 	return AnnotateMessageTurn(msg, s.turnIndex)
 }
 
-func (s *defaultContextSession) currentInput(ctx context.Context, tools []*schema.ToolInfo) (*ModelInput, error) {
-	pressure, err := s.evaluatePressure(ctx, tools)
-	if err != nil {
-		return nil, err
-	}
-	return s.modelInput(pressure), nil
-}
-
-func (s *defaultContextSession) evaluatePressure(ctx context.Context, tools []*schema.ToolInfo) (BudgetPressure, error) {
-	if s.budgetGovernor == nil {
-		return BudgetPressure{}, errors.New("context session budget governor is required")
-	}
-	pressure, err := s.budgetGovernor.Evaluate(ctx, BudgetEvaluateRequest{
-		Profile:  s.modelProfile,
-		Messages: CloneContextSessionMessages(s.messages),
-		Tools:    append([]*schema.ToolInfo(nil), tools...),
-	})
-	if err != nil {
-		return BudgetPressure{}, fmt.Errorf("evaluate context session pressure: %w", err)
-	}
-	return pressure, nil
-}
-
-func (s *defaultContextSession) modelInput(pressure BudgetPressure) *ModelInput {
+func (s *defaultContextSession) modelInput() *ModelInput {
 	return &ModelInput{
 		Messages: CloneContextSessionMessages(s.messages),
-		Pressure: pressure,
 	}
 }
 
-func validateContextSessionIdentity(sessionID, runID, mode string) (ContextSessionID, error) {
+func (s *defaultContextSession) compactThreshold() int {
+	if s.windowTokens <= 0 {
+		return 1 << 30 // effectively unlimited if not configured
+	}
+	margin := s.compactMargin
+	if margin <= 0 {
+		margin = 13000
+	}
+	threshold := s.windowTokens - margin
+	if threshold <= 0 {
+		threshold = s.windowTokens * 9 / 10
+	}
+	return threshold
+}
+
+func validateContextSessionIdentity(sessionID, runID string) (ContextSessionID, error) {
 	id := ContextSessionID{
 		SessionID: strings.TrimSpace(sessionID),
 		RunID:     strings.TrimSpace(runID),
-		Mode:      strings.TrimSpace(mode),
 	}
 	if id.SessionID == "" {
 		return ContextSessionID{}, errors.New("context session id is required")
 	}
 	if id.RunID == "" {
 		return ContextSessionID{}, errors.New("context session run id is required")
-	}
-	if id.Mode == "" {
-		return ContextSessionID{}, errors.New("context session mode is required")
 	}
 	return id, nil
 }
@@ -286,24 +246,6 @@ func AnnotateMessageTurn(msg adk.Message, turnIndex int) adk.Message {
 	}
 	msg.Extra[TurnIndexExtraKey] = turnIndex
 	return msg
-}
-
-// CompressionState tracks compression history within a single run so later
-// compressions can update the latest sanitized summary incrementally.
-type CompressionState struct {
-	LastSummary      string
-	CompressionCount int
-}
-
-// NewCompressionState creates a zero-value CompressionState.
-func NewCompressionState() *CompressionState {
-	return &CompressionState{}
-}
-
-// RecordCompression updates state after a successful compression.
-func (s *CompressionState) RecordCompression(summary string) {
-	s.LastSummary = summary
-	s.CompressionCount++
 }
 
 type contextSessionContextKey struct{}
