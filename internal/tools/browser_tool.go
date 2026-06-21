@@ -113,7 +113,7 @@ func buildBrowserTool(service BrowserService, artifactService ArtifactService, b
 			record, err := artifactService.Write(ctx, store.ArtifactWriteRequest{
 				RunID:               runID,
 				SessionID:           strings.TrimSpace(bridge.CurrentSessionID(ctx)),
-				SourceToolResultRef: store.BuildToolResultRef(runID, callID),
+				SourceToolResultRef: "tool_result:" + strings.TrimSpace(runID) + ":" + strings.TrimSpace(callID),
 				Kind:                store.ArtifactKindMarkdown,
 				Title:               artifactTitle("browser scan", scan.Extracted.Title, scan.URL),
 				MIMEType:            "text/markdown; charset=utf-8",
@@ -175,7 +175,7 @@ func buildBrowserTool(service BrowserService, artifactService ArtifactService, b
 			record, err := artifactService.Write(ctx, store.ArtifactWriteRequest{
 				RunID:               runID,
 				SessionID:           strings.TrimSpace(bridge.CurrentSessionID(ctx)),
-				SourceToolResultRef: store.BuildToolResultRef(runID, callID),
+				SourceToolResultRef: "tool_result:" + strings.TrimSpace(runID) + ":" + strings.TrimSpace(callID),
 				Kind:                store.ArtifactKindBinary,
 				Title:               "browser screenshot",
 				MIMEType:            "image/png",
