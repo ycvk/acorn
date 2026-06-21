@@ -18,7 +18,10 @@ func (f *RunnerFactory) buildRunChatModel(ctx context.Context, req RunnerBuildRe
 	if f.runChatModelBuilder != nil {
 		return f.runChatModelBuilder(ctx, req)
 	}
-	return nil, errors.New("no chat model builder configured")
+	// No explicit run-scoped chat model builder was injected; fall back to the
+	// config-driven chat model used by NewChatModel. Usage-wrapping was removed
+	// with the provider_usages table, so the raw model is returned directly.
+	return f.newChatModel(ctx)
 }
 
 type capabilityAssembly struct {

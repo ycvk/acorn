@@ -9,7 +9,6 @@ import (
 	storecore "github.com/ycvk/acorn/internal/store"
 
 	"github.com/ycvk/acorn/internal/events"
-	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
 )
 
 func TestPendingActionDecisionStatus(t *testing.T) {
@@ -81,19 +80,14 @@ func TestPendingActionServiceDecideSyncsMessageAndElicitationEvent(t *testing.T)
 		t.Fatalf("record status = %q, want approved", record.Status)
 	}
 
+	// Decide no longer syncs a decision message to the messages table; only the
+	// original user message remains.
 	messages, err := store.ListSessionMessages(ctx, session.SessionID, 12)
 	if err != nil {
 		t.Fatalf("list messages: %v", err)
 	}
-	if len(messages) != 2 {
-		t.Fatalf("messages len = %d, want 2", len(messages))
-	}
-	var parts []storesqlite.SessionMessagePart
-	if err := json.Unmarshal([]byte(messages[1].ContentParts), &parts); err != nil {
-		t.Fatalf("unmarshal message parts: %v", err)
-	}
-	if len(parts) == 0 || parts[0].Status != "approved" || parts[0].SelectedOptionID != "accept" {
-		t.Fatalf("decision part = %#v", parts)
+	if len(messages) != 1 {
+		t.Fatalf("messages len = %d, want 1 (no decision message synced)", len(messages))
 	}
 
 	eventRecords, err := store.LoadEventsAfter(ctx, "run_decision_service", 0)
@@ -160,16 +154,15 @@ func TestPendingActionServiceDecideOperatorQuestionStoresStructuredAnswer(t *tes
 		t.Fatalf("decision = %#v", decision)
 	}
 
+	// Decide no longer syncs a decision message to the messages table; only the
+	// original user message remains. The structured answer is persisted on the
+	// pending action record (DecisionJSON) and emitted as an event instead.
 	messages, err := store.ListSessionMessages(ctx, session.SessionID, 12)
 	if err != nil {
 		t.Fatalf("list messages: %v", err)
 	}
-	var parts []storesqlite.SessionMessagePart
-	if err := json.Unmarshal([]byte(messages[1].ContentParts), &parts); err != nil {
-		t.Fatalf("unmarshal message parts: %v", err)
-	}
-	if len(parts) == 0 || parts[0].SelectedOptionID != "fast" || parts[0].Answer != "Use the fast path." {
-		t.Fatalf("decision part = %#v", parts)
+	if len(messages) != 1 {
+		t.Fatalf("messages len = %d, want 1 (no decision message synced)", len(messages))
 	}
 
 	eventRecords, err := store.LoadEventsAfter(ctx, "run_operator_decision", 0)

@@ -1,7 +1,6 @@
 package memorymodule
 
 import (
-	"strings"
 	"testing"
 )
 
@@ -9,7 +8,8 @@ import (
 // contract: when no semantic runtime is wired (embedding not configured), Prepare
 // degrades to an empty memory result so the run still proceeds, instead of failing
 // the whole run. The retained boundary is asserted alongside: an explicit Search on
-// the same unwired service still fails loud (no keyword/fake-vector fallback).
+// the same unwired service falls back to keyword matching (no fake-vector path),
+// returning an empty result when no records match rather than failing the run.
 func TestPrepareDegradesWhenSemanticRuntimeUnwired(t *testing.T) {
 	service := newTestService(t)
 
@@ -28,16 +28,21 @@ func TestPrepareDegradesWhenSemanticRuntimeUnwired(t *testing.T) {
 			len(result.Nudges), len(result.Entries))
 	}
 
-	// Retained fail-loud boundary: explicit Search still requires a semantic runtime.
-	_, searchErr := service.Search(t.Context(), SearchRequest{Query: "please run go lint"})
-	if searchErr == nil || !strings.Contains(searchErr.Error(), "semantic search runtime is required") {
-		t.Fatalf("explicit Search must still fail loud without a semantic runtime, got: %v", searchErr)
+	// Retained boundary: explicit Search falls back to keyword matching on an
+	// unwired service, returning an empty result (no matching records) instead of
+	// failing the run.
+	searchResult, searchErr := service.Search(t.Context(), SearchRequest{Query: "please run go lint"})
+	if searchErr != nil {
+		t.Fatalf("explicit Search should fall back to keyword matching, not fail: %v", searchErr)
+	}
+	if searchResult == nil {
+		t.Fatal("Search returned nil result")
 	}
 }
 
 // TestPrepareDegradedExplainMarksSemanticUnwired verifies that when a caller asks
-// for Explain (eval / replay / debug), the degraded path records a marker stage so
-// a "no semantic runtime" sample is distinguishable from a genuine empty-hit result.
+// for Explain (eval / replay / debug), the degraded path records the keyword-match
+// stage so a keyword-only sample is distinguishable from a semantic-vector search.
 func TestPrepareDegradedExplainMarksSemanticUnwired(t *testing.T) {
 	service := newTestService(t)
 
@@ -52,7 +57,7 @@ func TestPrepareDegradedExplainMarksSemanticUnwired(t *testing.T) {
 	if result.Explain == nil {
 		t.Fatal("degraded Prepare with Explain=true should carry an Explain marker")
 	}
-	if !explainHasStage(result.Explain, searchStageSemanticUnwired) {
-		t.Fatalf("degraded Explain should record the semantic_runtime_unwired stage: %#v", result.Explain.Stages)
+	if !explainHasStage(result.Explain, searchStageKeyword) {
+		t.Fatalf("degraded Explain should record the keyword_match stage: %#v", result.Explain.Stages)
 	}
 }

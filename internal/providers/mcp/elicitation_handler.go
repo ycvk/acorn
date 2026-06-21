@@ -94,6 +94,9 @@ func (h *ElicitationHandler) HandleElicitation(ctx context.Context, req *mcp.Eli
 	if err != nil {
 		return nil, fmt.Errorf("create elicitation pending action: %w", err)
 	}
+	if err := h.emitElicitationEvent(ctx, runID, record.ActionID, req.Params, string(stream.StreamKindElicitationPending)); err != nil {
+		return nil, err
+	}
 
 	// Poll until decided or timeout
 	result, err := h.waitForDecision(ctx, actionID, h.timeout)

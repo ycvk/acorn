@@ -101,14 +101,17 @@ relations:
 		t.Fatalf("WriteFile: %v", err)
 	}
 	err := service.BuildIndex(t.Context())
-	if err == nil || !strings.Contains(err.Error(), "relation type must be") {
-		t.Fatalf("BuildIndex error = %v, want relation type rejection", err)
+	// Relations have been removed from the V2 fact schema; strict frontmatter
+	// decoding rejects the legacy `relations` field so a stale record never
+	// silently drops its relation metadata.
+	if err == nil || !strings.Contains(err.Error(), "field relations not found") {
+		t.Fatalf("BuildIndex error = %v, want relations field rejection", err)
 	}
 }
 
 func TestListFactsReturnsActiveRecordsOnly(t *testing.T) {
 	service := newTestService(t)
-	writeFile(t, service, "facts/workspaces/old.md", `---
+	writeFile(t, service, "facts/workspaces/active.md", `---
 scope: workspace:acorn
 tags: [memory]
 status: verified
@@ -116,50 +119,9 @@ created: 2026-05-07
 updated: 2026-05-07
 ---
 
-# Old Fact
+# Active Fact
 
-Old active fact.
-`)
-	writeFile(t, service, "facts/workspaces/new.md", `---
-scope: workspace:acorn
-tags: [memory]
-status: verified
-created: 2026-05-07
-updated: 2026-05-07
-relations:
-  - type: supersedes
-    target: facts/workspaces/old.md#old-fact
----
-
-# New Fact
-
-Replacement fact.
-`)
-	writeFile(t, service, "facts/workspaces/expired.md", `---
-scope: workspace:acorn
-tags: [memory]
-status: verified
-created: 2020-01-01
-updated: 2020-01-01
-valid_until: 2020-01-02
----
-
-# Expired Fact
-
-Expired fact.
-`)
-	writeFile(t, service, "facts/workspaces/future.md", `---
-scope: workspace:acorn
-tags: [memory]
-status: verified
-created: 2026-05-07
-updated: 2026-05-07
-valid_from: 2999-01-01
----
-
-# Future Fact
-
-Future fact.
+Active fact.
 `)
 	writeFile(t, service, "facts/workspaces/retired.md", `---
 scope: workspace:acorn
@@ -177,65 +139,13 @@ Retired fact.
 	if err != nil {
 		t.Fatalf("ListFacts: %v", err)
 	}
+	// V2 records no longer carry relations, validity windows, or supersede
+	// semantics; the only out-of-scope exclusion is status: retired.
 	if len(facts) != 1 {
 		t.Fatalf("len(facts) = %d, want 1: %#v", len(facts), facts)
 	}
-	if got, want := facts[0].Ref, "facts/workspaces/new.md#new-fact"; got != want {
+	if got, want := facts[0].Ref, "facts/workspaces/active.md#active-fact"; got != want {
 		t.Fatalf("active ref = %q, want %q", got, want)
-	}
-}
-
-func TestBuildIndexFailsOnMissingSupersedesTarget(t *testing.T) {
-	service := newTestService(t)
-	path := filepath.Join(service.Root(), "facts", "workspaces", "bad-supersedes.md")
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		t.Fatalf("MkdirAll: %v", err)
-	}
-	if err := os.WriteFile(path, []byte(`---
-scope: workspace:acorn
-tags: [memory]
-status: verified
-created: 2026-05-07
-updated: 2026-05-07
-relations:
-  - type: supersedes
-    target: facts/workspaces/missing.md#missing
----
-
-# Bad Supersedes
-`), 0o644); err != nil {
-		t.Fatalf("WriteFile: %v", err)
-	}
-	err := service.BuildIndex(t.Context())
-	if err == nil || !strings.Contains(err.Error(), "supersedes relation target") {
-		t.Fatalf("BuildIndex error = %v, want missing supersedes target", err)
-	}
-}
-
-func TestBuildIndexFailsOnMissingRelationTarget(t *testing.T) {
-	service := newTestService(t)
-	path := filepath.Join(service.Root(), "facts", "workspaces", "bad-supports.md")
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		t.Fatalf("MkdirAll: %v", err)
-	}
-	if err := os.WriteFile(path, []byte(`---
-scope: workspace:acorn
-tags: [memory]
-status: verified
-created: 2026-05-07
-updated: 2026-05-07
-relations:
-  - type: supports
-    target: facts/workspaces/missing.md#missing
----
-
-# Bad Supports
-`), 0o644); err != nil {
-		t.Fatalf("WriteFile: %v", err)
-	}
-	err := service.BuildIndex(t.Context())
-	if err == nil || !strings.Contains(err.Error(), "supports relation target") {
-		t.Fatalf("BuildIndex error = %v, want missing relation target", err)
 	}
 }
 
@@ -328,7 +238,7 @@ Bad.
 			want: "field source not found",
 		},
 		{
-			name: "missing relation target",
+			name: "relations field removed",
 			path: "facts/workspaces/relation.md",
 			content: `---
 scope: workspace:acorn
@@ -345,7 +255,7 @@ relations:
 
 Bad relation.
 `,
-			want: "supports relation target",
+			want: "field relations not found",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -406,79 +316,6 @@ legacy_field: nope
 	}
 }
 
-func TestListSkillsRejectsOldProcedureOrigin(t *testing.T) {
-	service := newTestService(t)
-	path := filepath.Join(service.Root(), "skills", "learned", "deploy.md")
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		t.Fatalf("MkdirAll: %v", err)
-	}
-	if err := os.WriteFile(path, []byte(`---
-origin: learned
-task_pattern: deploy
-status: verified
-created: 2026-05-08
-updated: 2026-05-08
----
-
-# Deploy
-`), 0o644); err != nil {
-		t.Fatalf("WriteFile: %v", err)
-	}
-	err := service.BuildIndex(t.Context())
-	if err == nil || !strings.Contains(err.Error(), "procedure origin must be human, agent_draft, or action_verified") {
-		t.Fatalf("BuildIndex error = %v, want old origin rejection", err)
-	}
-}
-
-func TestListSkillsRejectsAgentDraftWithoutSourceRun(t *testing.T) {
-	service := newTestService(t)
-	path := filepath.Join(service.Root(), "skills", "learned", "draft.md")
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		t.Fatalf("MkdirAll: %v", err)
-	}
-	if err := os.WriteFile(path, []byte(`---
-origin: agent_draft
-task_pattern: draft
-status: unverified
-created: 2026-05-08
-updated: 2026-05-08
----
-
-# Draft
-`), 0o644); err != nil {
-		t.Fatalf("WriteFile: %v", err)
-	}
-	err := service.BuildIndex(t.Context())
-	if err == nil || !strings.Contains(err.Error(), "agent_draft procedure source_run is required") {
-		t.Fatalf("BuildIndex error = %v, want source_run rejection", err)
-	}
-}
-
-func TestListSkillsRejectsActionVerifiedWithoutEvidenceRefs(t *testing.T) {
-	service := newTestService(t)
-	path := filepath.Join(service.Root(), "skills", "learned", "verified.md")
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		t.Fatalf("MkdirAll: %v", err)
-	}
-	if err := os.WriteFile(path, []byte(`---
-origin: action_verified
-task_pattern: verify
-status: verified
-created: 2026-05-08
-updated: 2026-05-08
-source_run: run_verify
----
-
-# Verified
-`), 0o644); err != nil {
-		t.Fatalf("WriteFile: %v", err)
-	}
-	err := service.BuildIndex(t.Context())
-	if err == nil || !strings.Contains(err.Error(), "action_verified procedure evidence_refs are required") {
-		t.Fatalf("BuildIndex error = %v, want evidence refs error", err)
-	}
-}
-
 func TestSkillTreeContainsActiveSkillsOnly(t *testing.T) {
 	service := newTestService(t)
 	writeFile(t, service, "skills/learned/active.md", `---
@@ -488,40 +325,37 @@ status: verified
 created: 2026-05-08
 updated: 2026-05-08
 source_run: run_active
-evidence_refs:
-  - tool_result:run_active:call_test
 ---
 
 # Active Procedure
 
 Active skill.
 `)
-	writeFile(t, service, "skills/learned/expired.md", `---
+	writeFile(t, service, "skills/learned/retired.md", `---
 origin: action_verified
-task_pattern: expired, procedure
-status: verified
-created: 2020-01-01
-updated: 2020-01-01
-valid_until: 2020-01-02
-source_run: run_expired
-evidence_refs:
-  - tool_result:run_expired:call_test
+task_pattern: retired, procedure
+status: retired
+created: 2026-05-08
+updated: 2026-05-08
+source_run: run_retired
 ---
 
-# Expired Procedure
+# Retired Procedure
 
-Expired skill.
+Retired skill.
 `)
 	tree := service.GetSkillTree()
 	if tree == nil {
 		t.Fatalf("skill tree is nil")
 	}
+	// V2 skill records carry no validity windows or evidence refs; the skill
+	// tree excludes only status: retired records.
 	if _, ok := tree.Categories["active"].Skills["active procedure"]; !ok {
 		t.Fatalf("active skill missing from tree: %#v", tree.Categories)
 	}
-	if category, ok := tree.Categories["expired"]; ok {
-		if _, exists := category.Skills["expired procedure"]; exists {
-			t.Fatalf("expired skill should not be in tree: %#v", tree.Categories)
+	if category, ok := tree.Categories["retired"]; ok {
+		if _, exists := category.Skills["retired procedure"]; exists {
+			t.Fatalf("retired skill should not be in tree: %#v", tree.Categories)
 		}
 	}
 }
@@ -543,8 +377,6 @@ status: verified
 created: 2026-05-08
 updated: 2026-05-08
 source_run: run_verified
-evidence_refs:
-  - tool-result:run_verified:call_test
 ---
 
 # SQLite Query Loop Procedure
@@ -578,14 +410,12 @@ func TestBuildMemoryInstruction(t *testing.T) {
 		t.Fatalf("BuildMemoryInstruction: %v", err)
 	}
 	for _, want := range []string{
+		"Before your final answer, check whether this run produced stable memory.",
 		"memory_search",
 		"memory_read_file",
 		"memory_replace_span",
-		"procedure skill",
 		"leave memory unchanged",
-		"status: unverified",
-		"origin: agent_draft",
-		"evidence_refs",
+		"Do not rewrite an entire facts file",
 	} {
 		if !strings.Contains(instruction, want) {
 			t.Fatalf("instruction missing %q:\n%s", want, instruction)

@@ -3,6 +3,7 @@ package runtime
 import (
 	"context"
 	"errors"
+	"sync"
 
 	"github.com/cloudwego/eino/adk"
 	einomodel "github.com/cloudwego/eino/components/model"
@@ -32,7 +33,7 @@ func newDefaultOrchestrationPlane(deps defaultOrchestrationPlaneDeps) *orchestra
 	return orchestration.NewDefaultPlane(orchestration.DefaultPlaneOptions{
 		SystemPrompt:         deps.cfg.Agent.SystemPrompt,
 		MaxIterations:        deps.cfg.Agent.MaxIterations,
-		CheckpointStore:      nil,
+		CheckpointStore:      newInMemoryCheckpointStore(),
 		ToolBuilder:          deps.buildAuditedTools,
 		ToolNodeFactory:      deps.buildToolNode,
 		HandlersBuilder:      deps.buildHandlers,
@@ -40,6 +41,40 @@ func newDefaultOrchestrationPlane(deps defaultOrchestrationPlaneDeps) *orchestra
 		ToolLifecycleBinder:  deps.bindToolLifecycle,
 		SessionContextBinder: bindSessionID,
 	})
+}
+
+// inMemoryCheckpointStore is a process-local adk.CheckPointStore. The schema
+// reduction removed the SQLite-backed checkpoints table; runs re-bootstrap
+// their context from persisted messages on resume, so a volatile store is
+// sufficient for within-process run/resume continuity.
+type inMemoryCheckpointStore struct {
+	mu   sync.Mutex
+	data map[string][]byte
+}
+
+func newInMemoryCheckpointStore() *inMemoryCheckpointStore {
+	return &inMemoryCheckpointStore{data: make(map[string][]byte)}
+}
+
+func (s *inMemoryCheckpointStore) Get(_ context.Context, checkPointID string) ([]byte, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	payload, ok := s.data[checkPointID]
+	if !ok {
+		return nil, false, nil
+	}
+	cp := make([]byte, len(payload))
+	copy(cp, payload)
+	return cp, true, nil
+}
+
+func (s *inMemoryCheckpointStore) Set(_ context.Context, checkPointID string, checkPoint []byte) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	cp := make([]byte, len(checkPoint))
+	copy(cp, checkPoint)
+	s.data[checkPointID] = cp
+	return nil
 }
 
 func (d defaultOrchestrationPlaneDeps) buildAuditedTools(

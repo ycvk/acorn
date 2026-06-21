@@ -111,27 +111,28 @@ download_release_files() {
 
 write_config_template() {
 	target=$1
-	cat > "$target" <<EOF
+	cat > "$target" <<'EOF'
 providers:
   - name: default
     model: gpt-4o
     base_url: https://api.openai.com/v1
-    api_key: \${OPENAI_API_KEY}
+    api_key: ${OPENAI_API_KEY}
 runtime:
-  storage_dir: $workspace_dir
+  storage_dir: /srv/acorn/workspace
 web:
   listen_addr: 127.0.0.1:8080
 memory:
   search:
     memory_context_token_budget: 2000
-  embedding:
-    provider: openai_compatible
-    model: text-embedding-3-small
-    base_url: https://api.openai.com/v1
-    api_key: \${OPENAI_API_KEY}
-    dimensions: 1536
-    timeout_seconds: 30
-    batch_size: 64
+  semantic:
+    embedding:
+      provider: openai_compatible
+      model: text-embedding-3-small
+      base_url: https://api.openai.com/v1
+      api_key: ${OPENAI_API_KEY}
+      dimensions: 1536
+      timeout_seconds: 30
+      batch_size: 64
 context:
   window_tokens: 200000
   compact_margin_tokens: 13000
@@ -143,12 +144,12 @@ agent:
   max_iterations: 30
 tools:
   workspace:
-    root_dir: $workspace_dir
+    root_dir: /srv/acorn/workspace
   mutation:
-    enabled: true
+    disabled: false
   run_command:
-    enabled: true
-    pause_before_exec: false
+    disabled: false
+    default_timeout: 120
 EOF
 }
 

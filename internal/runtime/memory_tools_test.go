@@ -234,10 +234,11 @@ func newMemoryToolTestService(t *testing.T) *memorymodule.LocalService {
 		t.Fatalf("BuildIndex: %v", err)
 	}
 	if err := service.SetSemanticRuntime(memorymodule.SemanticRuntimeOptions{
-		Embedder:   memoryToolEmbedder{model: "test-embedding", dimensions: 3},
-		Model:      "test-embedding",
-		Dimensions: 3,
-		BatchSize:  64,
+		Embedder:    memoryToolEmbedder{model: "test-embedding", dimensions: 3},
+		VectorStore: memoryToolVectorStore{},
+		Model:       "test-embedding",
+		Dimensions:  3,
+		BatchSize:   64,
 	}); err != nil {
 		t.Fatalf("SetSemanticRuntime: %v", err)
 	}
@@ -318,4 +319,22 @@ func (e memoryToolEmbedder) Embed(ctx context.Context, req memorymodule.EmbedReq
 		vectors = append(vectors, memorymodule.EmbeddingVector{Ref: input.Ref, Values: values})
 	}
 	return &memorymodule.EmbedResult{Model: e.model, Dimensions: e.dimensions, Vectors: vectors}, nil
+}
+
+// memoryToolVectorStore is an in-process VectorStore for the memory tool tests.
+// It accepts all writes and returns empty search results, which is sufficient
+// for the create/replace/noop tests that exercise mutation planning rather than
+// semantic retrieval.
+type memoryToolVectorStore struct{}
+
+func (memoryToolVectorStore) Store(_ context.Context, _ string, _ memorymodule.Kind, _ string, _ []float32, _ string, _ int) error {
+	return nil
+}
+
+func (memoryToolVectorStore) Search(_ context.Context, _ []float32, limit int) ([]memorymodule.VectorSearchResult, error) {
+	return make([]memorymodule.VectorSearchResult, 0, limit), nil
+}
+
+func (memoryToolVectorStore) Delete(_ context.Context, _ string) error {
+	return nil
 }

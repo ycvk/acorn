@@ -70,7 +70,7 @@ func TestInboxServiceLoadProjectsMobileAggregate(t *testing.T) {
 	if len(action.Options) != 2 || action.Options[0].ID != "accept" || action.Options[1].ID != "decline" {
 		t.Fatalf("pending options = %#v", action.Options)
 	}
-	if len(inbox.ActiveRuns) != 1 || inbox.ActiveRuns[0].RunID != "run_active" || inbox.ActiveRuns[0].Mode != "plan_execute" {
+	if len(inbox.ActiveRuns) != 1 || inbox.ActiveRuns[0].RunID != "run_active" || inbox.ActiveRuns[0].Mode != "" {
 		t.Fatalf("active runs = %#v", inbox.ActiveRuns)
 	}
 	active := inbox.ActiveRuns[0]
