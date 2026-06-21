@@ -2,13 +2,11 @@ package contextplane
 
 import (
 	"testing"
-
-	"github.com/ycvk/acorn/internal/config"
 )
 
 func testTokenCounter(t *testing.T) *CompressionTokenCounter {
 	t.Helper()
-	counter, err := NewCompressionTokenCounter(config.ContextConfig{TokenEncoding: "o200k_base"})
+	counter, err := NewCompressionTokenCounter()
 	if err != nil {
 		t.Fatalf("NewCompressionTokenCounter: %v", err)
 	}

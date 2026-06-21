@@ -23,13 +23,11 @@ type BudgetGovernor interface {
 }
 
 type ModelProfile struct {
-	Name                        string
-	ContextWindowTokens         int
-	ReservedOutputTokens        int
-	ReservedSummaryOutputTokens int
-	StaticOverheadTokens        int
-	WarningBufferTokens         int
-	AutoCompactBufferTokens     int
+	Name                    string
+	ContextWindowTokens     int
+	StaticOverheadTokens    int
+	WarningBufferTokens     int
+	AutoCompactBufferTokens int
 }
 
 type BudgetEvaluateRequest struct {
@@ -64,12 +62,10 @@ const (
 
 func ModelProfileFromContextPolicy(cfg config.ContextConfig) ModelProfile {
 	return ModelProfile{
-		ContextWindowTokens:         cfg.WindowTokens,
-		ReservedOutputTokens:        cfg.ReservedOutputTokens,
-		ReservedSummaryOutputTokens: cfg.SummaryMaxTokens,
-		StaticOverheadTokens:        defaultStaticOverheadTokens,
-		WarningBufferTokens:         cfg.CompactMarginTokens + defaultWarningGapTokens,
-		AutoCompactBufferTokens:     cfg.CompactMarginTokens,
+		ContextWindowTokens:     cfg.WindowTokens,
+		StaticOverheadTokens:    defaultStaticOverheadTokens,
+		WarningBufferTokens:     cfg.CompactMarginTokens + defaultWarningGapTokens,
+		AutoCompactBufferTokens: cfg.CompactMarginTokens,
 	}
 }
 
@@ -109,12 +105,6 @@ func pressureThresholds(profile ModelProfile) (pressureThresholdSet, error) {
 	if profile.ContextWindowTokens <= 0 {
 		return pressureThresholdSet{}, errors.New("model profile context window tokens must be positive")
 	}
-	if profile.ReservedOutputTokens < 0 {
-		return pressureThresholdSet{}, errors.New("model profile reserved output tokens must be non-negative")
-	}
-	if profile.ReservedSummaryOutputTokens < 0 {
-		return pressureThresholdSet{}, errors.New("model profile reserved summary output tokens must be non-negative")
-	}
 	if profile.StaticOverheadTokens < 0 {
 		return pressureThresholdSet{}, errors.New("model profile static overhead tokens must be non-negative")
 	}
@@ -128,8 +118,7 @@ func pressureThresholds(profile ModelProfile) (pressureThresholdSet, error) {
 		return pressureThresholdSet{}, errors.New("model profile warning buffer must be greater than auto compact buffer")
 	}
 
-	reservedOutput := max(profile.ReservedOutputTokens, profile.ReservedSummaryOutputTokens)
-	effectiveWindow := profile.ContextWindowTokens - reservedOutput - profile.StaticOverheadTokens
+	effectiveWindow := profile.ContextWindowTokens - profile.StaticOverheadTokens
 	if effectiveWindow <= profile.WarningBufferTokens {
 		return pressureThresholdSet{}, errors.New("model profile effective window must be greater than warning buffer")
 	}

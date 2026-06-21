@@ -11,14 +11,12 @@ import (
 	"github.com/ycvk/acorn/internal/memorymodule"
 	"github.com/ycvk/acorn/internal/model"
 	"github.com/ycvk/acorn/internal/skills"
-	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/tooling"
 	"github.com/ycvk/acorn/internal/workingstate"
 )
 
 type ContextPlane interface {
 	Assemble(context.Context, AssembleRequest) (*AssembleResult, error)
-	ToolResultLedger() store.ToolResultLedger
 }
 
 type AssembleRequest struct {
@@ -59,7 +57,6 @@ type ToolResultEvent struct {
 	IsError      bool
 	ErrorReason  string
 	ResultTokens int
-	SideEffects  []store.SideEffectRef
 }
 
 type DeferredLoadRequest struct {
@@ -103,7 +100,6 @@ type DefaultOptions struct {
 	Store                    RunContextSnapshotStore
 	CheckpointService        CheckpointService
 	SessionSummaryService    SessionSummaryService
-	ToolResultLedger         store.ToolResultLedger
 }
 
 type defaultContextPlane struct {
@@ -113,7 +109,6 @@ type defaultContextPlane struct {
 	store                    RunContextSnapshotStore
 	checkpointService        CheckpointService
 	sessionSummaryService    SessionSummaryService
-	toolResultLedger         store.ToolResultLedger
 	memoryBudget             int
 }
 
@@ -164,14 +159,9 @@ func NewDefaultContextPlane(opts DefaultOptions) ContextPlane {
 		store:                    opts.Store,
 		checkpointService:        opts.CheckpointService,
 		sessionSummaryService:    opts.SessionSummaryService,
-		toolResultLedger:         opts.ToolResultLedger,
 		memoryBudget:             opts.MemoryContextTokenBudget,
 	}
 	return p
-}
-
-func (p *defaultContextPlane) ToolResultLedger() store.ToolResultLedger {
-	return p.toolResultLedger
 }
 
 type PipelineRequest struct {

@@ -8,7 +8,6 @@ import (
 
 	"github.com/cloudwego/eino/schema"
 
-	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/tooling"
 )
 
@@ -20,13 +19,12 @@ const (
 type toolLifecycleContextKey struct{}
 
 type ToolLifecycleContext struct {
-	Ledger          store.ToolResultLedger
 	State           *ToolLifecycleState
 	Catalog         *tooling.Catalog
 	ToolInfosByName map[string]*schema.ToolInfo
 }
 
-func WithToolLifecycleContext(ctx context.Context, ledger store.ToolResultLedger, state *ToolLifecycleState, catalog *tooling.Catalog, infos []*schema.ToolInfo) context.Context {
+func WithToolLifecycleContext(ctx context.Context, state *ToolLifecycleState, catalog *tooling.Catalog, infos []*schema.ToolInfo) context.Context {
 	infoMap := make(map[string]*schema.ToolInfo, len(infos))
 	for _, info := range infos {
 		if info == nil || strings.TrimSpace(info.Name) == "" {
@@ -35,7 +33,6 @@ func WithToolLifecycleContext(ctx context.Context, ledger store.ToolResultLedger
 		infoMap[strings.TrimSpace(info.Name)] = info
 	}
 	return context.WithValue(ctx, toolLifecycleContextKey{}, &ToolLifecycleContext{
-		Ledger:          ledger,
 		State:           state,
 		Catalog:         catalog,
 		ToolInfosByName: infoMap,
@@ -144,7 +141,7 @@ func newToolLifecycleState(ctx context.Context, req AssembleRequest) *ToolLifecy
 		return state
 	}
 
-	eagerNames, deferred := splitToolDefinitions(ctx, req.ToolCatalog.EnabledSpecsForProfile(tooling.ToolProfileRun))
+	eagerNames, deferred := splitToolDefinitions(ctx, req.ToolCatalog.EnabledSpecs())
 	now := time.Now().UTC()
 	for _, name := range eagerNames {
 		state.LoadedTools[name] = LoadedToolRecord{

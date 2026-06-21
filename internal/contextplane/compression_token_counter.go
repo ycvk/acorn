@@ -3,17 +3,13 @@ package contextplane
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"strings"
 	"sync"
 
 	"github.com/cloudwego/eino/adk"
 	"github.com/cloudwego/eino/schema"
 	"github.com/localit-io/tiktoken-go"
 	tiktokenloader "github.com/pkoukk/tiktoken-go-loader"
-
-	"github.com/ycvk/acorn/internal/config"
 )
 
 var compressionTokenLoaderOnce sync.Once
@@ -28,14 +24,11 @@ type TokenCounter interface {
 	CountMessages(context.Context, []adk.Message, []*schema.ToolInfo) (int, error)
 }
 
-func NewCompressionTokenCounter(cfg config.ContextConfig) (*CompressionTokenCounter, error) {
+func NewCompressionTokenCounter() (*CompressionTokenCounter, error) {
 	if err := ensureCompressionTokenLoader(); err != nil {
 		return nil, err
 	}
-	encoding := strings.TrimSpace(cfg.TokenEncoding)
-	if encoding == "" {
-		return nil, errors.New("compression token encoding is required")
-	}
+	encoding := "o200k_base"
 	encoder, err := tiktoken.GetEncoding(encoding)
 	if err != nil {
 		return nil, fmt.Errorf("initialize tiktoken encoding %q: %w", encoding, err)

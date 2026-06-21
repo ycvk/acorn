@@ -9,8 +9,6 @@ import (
 	"time"
 
 	"github.com/cloudwego/eino/schema"
-
-	"github.com/ycvk/acorn/internal/store"
 )
 
 type ToolCallRejectedError struct {
@@ -78,35 +76,20 @@ func OnToolResult(ctx context.Context, event ToolResultEvent) error {
 	if strings.TrimSpace(event.RunID) == "" {
 		return errors.New("tool result event requires run_id")
 	}
-	if lifecycleCtx.Ledger == nil {
-		return errors.New("tool result ledger is not initialized")
+	preview := event.Result
+	if len(preview) > 256 {
+		preview = preview[:256]
 	}
-	status := store.ToolResultStatusSucceeded
-	if event.IsError {
-		status = store.ToolResultStatusFailed
-	}
-	ledgerRecord, err := lifecycleCtx.Ledger.Append(ctx, store.ToolResultAppendRequest{
-		RunID:         event.RunID,
-		SessionID:     event.SessionID,
-		TurnIndex:     event.TurnIndex,
-		CallID:        event.CallID,
-		ToolName:      event.ToolName,
-		ArgumentsJSON: event.Arguments,
-		Status:        status,
-		ErrorReason:   event.ErrorReason,
-		FullText:      event.Result,
-		TokenEstimate: event.ResultTokens,
-		SideEffects:   append([]store.SideEffectRef(nil), event.SideEffects...),
-	})
-	if err != nil {
-		return fmt.Errorf("append tool result ledger: %w", err)
+	resultRef := ""
+	if strings.TrimSpace(event.Result) != "" {
+		resultRef = fmt.Sprintf("result:%s:%s", event.RunID, event.CallID)
 	}
 	record := ToolResultRecord{
 		CallID:    strings.TrimSpace(event.CallID),
 		ToolName:  strings.TrimSpace(event.ToolName),
 		TurnIndex: event.TurnIndex,
-		ResultRef: ledgerRecord.ResultRef,
-		Summary:   ledgerRecord.Preview,
+		ResultRef: resultRef,
+		Summary:   preview,
 		FullText:  event.Result,
 		IsError:   event.IsError,
 		Prunable:  true,

@@ -10,7 +10,6 @@ import (
 	"github.com/cloudwego/eino/adk"
 	"github.com/cloudwego/eino/schema"
 
-	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/model"
 	"github.com/ycvk/acorn/internal/store/storetest"
 )
@@ -508,7 +507,7 @@ func testContextBoundary(boundaryID, sessionID, runID string, sequence int, summ
 
 func newTestContextSession(t *testing.T) ContextSession {
 	t.Helper()
-	counter, err := NewCompressionTokenCounter(config.ContextConfig{TokenEncoding: "o200k_base"})
+	counter, err := NewCompressionTokenCounter()
 	if err != nil {
 		t.Fatalf("NewCompressionTokenCounter: %v", err)
 	}
@@ -517,12 +516,10 @@ func newTestContextSession(t *testing.T) ContextSession {
 
 func testContextSessionProfile() ModelProfile {
 	return ModelProfile{
-		ContextWindowTokens:         200000,
-		ReservedOutputTokens:        4096,
-		ReservedSummaryOutputTokens: 2048,
-		StaticOverheadTokens:        4096,
-		WarningBufferTokens:         20000,
-		AutoCompactBufferTokens:     13000,
+		ContextWindowTokens:     200000,
+		StaticOverheadTokens:    4096,
+		WarningBufferTokens:     20000,
+		AutoCompactBufferTokens: 13000,
 	}
 }
 

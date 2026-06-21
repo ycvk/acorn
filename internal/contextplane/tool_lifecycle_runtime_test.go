@@ -10,10 +10,8 @@ import (
 
 	"github.com/cloudwego/eino/schema"
 
-	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/contextplane"
 	"github.com/ycvk/acorn/internal/model"
-	storerepo "github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/tooling"
 )
 
@@ -38,7 +36,7 @@ func (lifecycleSnapshotStore) LoadRunContextSnapshot(context.Context, string) (*
 
 func testTokenCounter(t *testing.T) *contextplane.CompressionTokenCounter {
 	t.Helper()
-	counter, err := contextplane.NewCompressionTokenCounter(config.ContextConfig{TokenEncoding: "o200k_base"})
+	counter, err := contextplane.NewCompressionTokenCounter()
 	if err != nil {
 		t.Fatalf("NewCompressionTokenCounter: %v", err)
 	}
@@ -54,7 +52,7 @@ func newLifecycleCatalogForTest(t *testing.T) *tooling.Catalog {
 			Health:       tooling.ToolHealth{State: tooling.HealthStateHealthy},
 		},
 		{
-			ToolContract: lifecycleToolContract("mcp.prompt.fetch", "mcp.prompt", tooling.ToolKindMCPPrompt, tooling.DeferredLoadingPolicy("deferred_mcp_catalog")),
+			ToolContract: lifecycleToolContract("mcp.prompt.fetch", "mcp.prompt", tooling.ToolKindMCP, tooling.DeferredLoadingPolicy("deferred_mcp_catalog")),
 			Tool:         lifecycleStubTool{name: "mcp.prompt.fetch", desc: "Fetch MCP prompt"},
 			Health:       tooling.ToolHealth{State: tooling.HealthStateHealthy},
 		},
@@ -67,60 +65,13 @@ func newLifecycleCatalogForTest(t *testing.T) *tooling.Catalog {
 
 func lifecycleToolContract(name string, source string, kind tooling.ToolKind, loading tooling.ToolLoadingPolicy) tooling.ToolContract {
 	return tooling.ToolContract{
-		Name:          name,
-		Source:        source,
-		Kind:          kind,
-		Category:      tooling.ToolCategoryRead,
-		ResourceScope: tooling.ResourceScopeWorkspaceFile,
-		Profiles:      []tooling.ToolProfile{tooling.ToolProfileRun},
-		PlanPolicy:    tooling.PlanPolicyNone,
-		Loading:       loading,
-		Execution:     tooling.ToolExecutionPolicy{ParallelPolicy: tooling.ParallelPolicyReadOnly},
+		Name:      name,
+		Source:    source,
+		Kind:      kind,
+		Category:  tooling.ToolCategoryRead,
+		Loading:   loading,
+		Execution: tooling.ToolExecutionPolicy{ParallelPolicy: tooling.ParallelPolicyReadOnly},
 	}
-}
-
-type fakeContextStore struct {
-	records map[string]storerepo.ToolResultRecord
-}
-
-func newFakeContextStore() *fakeContextStore {
-	return &fakeContextStore{records: make(map[string]storerepo.ToolResultRecord)}
-}
-
-func (s *fakeContextStore) Append(_ context.Context, req storerepo.ToolResultAppendRequest) (storerepo.ToolResultRecord, error) {
-	ref := "tool_result:" + req.RunID + ":" + req.CallID
-	record := storerepo.ToolResultRecord{
-		ResultRef:     ref,
-		FullText:      req.FullText,
-		Preview:       req.FullText,
-		ArgumentsJSON: req.ArgumentsJSON,
-		TokenEstimate: req.TokenEstimate,
-		SideEffects:   append([]storerepo.SideEffectRef(nil), req.SideEffects...),
-	}
-	s.records[ref] = record
-	return record, nil
-}
-
-func (s *fakeContextStore) Load(_ context.Context, ref string) (storerepo.ToolResultRecord, error) {
-	record, ok := s.records[ref]
-	if !ok {
-		return storerepo.ToolResultRecord{}, errors.New("not found")
-	}
-	return record, nil
-}
-
-func (s *fakeContextStore) ListByRun(_ context.Context, _ string) ([]storerepo.ToolResultRecord, error) {
-	return nil, nil
-}
-
-func (s *fakeContextStore) AppendEvidenceRef(_ context.Context, ref string, ev storerepo.EvidenceRef) (storerepo.ToolResultRecord, error) {
-	record, ok := s.records[ref]
-	if !ok {
-		return storerepo.ToolResultRecord{}, errors.New("not found")
-	}
-	record.EvidenceRefs = append(record.EvidenceRefs, ev)
-	s.records[ref] = record
-	return record, nil
 }
 
 func TestLoadedToolInfosFromContextExcludesDeferredUntilLoaded(t *testing.T) {
@@ -140,14 +91,14 @@ func TestLoadedToolInfosFromContextExcludesDeferredUntilLoaded(t *testing.T) {
 		t.Fatalf("Assemble: %v", err)
 	}
 	var toolInfos []*schema.ToolInfo
-	for _, spec := range catalog.EnabledSpecsForProfile(tooling.ToolProfileRun) {
+	for _, spec := range catalog.EnabledSpecs() {
 		info, err := spec.Tool.Info(context.Background())
 		if err != nil {
 			t.Fatalf("tool info %s: %v", spec.Name, err)
 		}
 		toolInfos = append(toolInfos, info)
 	}
-	ctx := contextplane.WithToolLifecycleContext(context.Background(), plane.ToolResultLedger(), result.LifecycleState, catalog, toolInfos)
+	ctx := contextplane.WithToolLifecycleContext(context.Background(), result.LifecycleState, catalog, toolInfos)
 
 	initial := contextplane.LoadedToolInfosFromContext(ctx, result.EagerToolNames)
 	if len(initial) != 1 || initial[0].Name != "read_file" {
@@ -179,7 +130,7 @@ func TestToolLifecycleOnToolCallRequiresLoadedTool(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Assemble: %v", err)
 	}
-	ctx := contextplane.WithToolLifecycleContext(context.Background(), plane.ToolResultLedger(), result.LifecycleState, catalog, nil)
+	ctx := contextplane.WithToolLifecycleContext(context.Background(), result.LifecycleState, catalog, nil)
 
 	if err := contextplane.OnToolCall(ctx, contextplane.ToolCallEvent{ToolName: "read_file"}); err != nil {
 		t.Fatalf("loaded tool should pass: %v", err)
@@ -237,9 +188,7 @@ func TestToolLifecycleEventsRequireStateForNamedTools(t *testing.T) {
 	}
 }
 
-func TestToolLifecycleOnToolResultPersistsLedgerAndRecentResults(t *testing.T) {
-	store := newFakeContextStore()
-
+func TestToolLifecycleOnToolResultPersistsRecentResults(t *testing.T) {
 	state := &contextplane.ToolLifecycleState{
 		RunID:         "run_ledger",
 		SessionID:     "sess_ledger",
@@ -247,7 +196,7 @@ func TestToolLifecycleOnToolResultPersistsLedgerAndRecentResults(t *testing.T) {
 		DeferredTools: map[string]contextplane.DeferredToolRecord{},
 		MaxResultRefs: 32,
 	}
-	ctx := contextplane.WithToolLifecycleContext(context.Background(), store, state, nil, nil)
+	ctx := contextplane.WithToolLifecycleContext(context.Background(), state, nil, nil)
 
 	if err := contextplane.OnToolResult(ctx, contextplane.ToolResultEvent{
 		RunID:        "run_ledger",
@@ -258,10 +207,6 @@ func TestToolLifecycleOnToolResultPersistsLedgerAndRecentResults(t *testing.T) {
 		Arguments:    `{"path":"README.md"}`,
 		Result:       "tool output body",
 		ResultTokens: 4,
-		SideEffects: []storerepo.SideEffectRef{{
-			Kind: "workspace_read",
-			Path: "README.md",
-		}},
 	}); err != nil {
 		t.Fatalf("OnToolResult: %v", err)
 	}
@@ -269,52 +214,20 @@ func TestToolLifecycleOnToolResultPersistsLedgerAndRecentResults(t *testing.T) {
 	if len(state.RecentResults) != 1 {
 		t.Fatalf("recent result count = %d, want 1", len(state.RecentResults))
 	}
-	if got, want := state.RecentResults[0].ResultRef, "tool_result:run_ledger:call_1"; got != want {
+	if got, want := state.RecentResults[0].ResultRef, "result:run_ledger:call_1"; got != want {
 		t.Fatalf("recent result ref = %q, want %q", got, want)
 	}
 	if got, want := state.RecentResults[0].Summary, "tool output body"; got != want {
 		t.Fatalf("recent result summary = %q, want %q", got, want)
 	}
-
-	record, err := store.Load(context.Background(), "tool_result:run_ledger:call_1")
-	if err != nil {
-		t.Fatalf("Load: %v", err)
+	if got, want := state.RecentResults[0].FullText, "tool output body"; got != want {
+		t.Fatalf("recent result full text = %q, want %q", got, want)
 	}
-	if got, want := record.FullText, "tool output body"; got != want {
-		t.Fatalf("ledger full text = %q, want %q", got, want)
+	if got, want := state.RecentResults[0].ToolName, "read_file"; got != want {
+		t.Fatalf("recent result tool name = %q, want %q", got, want)
 	}
-	if got, want := record.Preview, "tool output body"; got != want {
-		t.Fatalf("ledger preview = %q, want %q", got, want)
-	}
-	if got, want := record.ArgumentsJSON, `{"path":"README.md"}`; got != want {
-		t.Fatalf("ledger arguments json = %q, want %q", got, want)
-	}
-	if got, want := record.TokenEstimate, 4; got != want {
-		t.Fatalf("ledger token estimate = %d, want %d", got, want)
-	}
-	if len(record.SideEffects) != 1 || record.SideEffects[0].Kind != "workspace_read" || record.SideEffects[0].Path != "README.md" {
-		t.Fatalf("ledger side effects = %+v", record.SideEffects)
-	}
-}
-
-func TestToolLifecycleOnToolResultRequiresLedger(t *testing.T) {
-	state := &contextplane.ToolLifecycleState{
-		RunID:         "run_missing_ledger",
-		SessionID:     "sess_missing_ledger",
-		LoadedTools:   map[string]contextplane.LoadedToolRecord{"read_file": {Name: "read_file"}},
-		DeferredTools: map[string]contextplane.DeferredToolRecord{},
-	}
-	ctx := contextplane.WithToolLifecycleContext(context.Background(), nil, state, nil, nil)
-
-	err := contextplane.OnToolResult(ctx, contextplane.ToolResultEvent{
-		RunID:     "run_missing_ledger",
-		SessionID: "sess_missing_ledger",
-		CallID:    "call_1",
-		ToolName:  "read_file",
-		Result:    "tool output body",
-	})
-	if err == nil || !strings.Contains(err.Error(), "tool result ledger is not initialized") {
-		t.Fatalf("expected missing ledger error, got %v", err)
+	if got, want := state.RecentResults[0].TurnIndex, 3; got != want {
+		t.Fatalf("recent result turn index = %d, want %d", got, want)
 	}
 }
 
@@ -335,7 +248,7 @@ func TestToolLifecycleConcurrentReadAndDeferredLoad(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Assemble: %v", err)
 	}
-	ctx := contextplane.WithToolLifecycleContext(context.Background(), plane.ToolResultLedger(), result.LifecycleState, catalog, []*schema.ToolInfo{
+	ctx := contextplane.WithToolLifecycleContext(context.Background(), result.LifecycleState, catalog, []*schema.ToolInfo{
 		{Name: "read_file"},
 		{Name: "mcp.prompt.fetch"},
 	})

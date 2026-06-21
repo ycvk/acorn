@@ -10,9 +10,8 @@ import (
 
 	"github.com/ycvk/acorn/internal/config"
 )
-
 func TestBudgetGovernorEvaluatePressureStates(t *testing.T) {
-	counter, err := NewCompressionTokenCounter(config.ContextConfig{TokenEncoding: "o200k_base"})
+	counter, err := NewCompressionTokenCounter()
 	if err != nil {
 		t.Fatalf("NewCompressionTokenCounter: %v", err)
 	}
@@ -52,33 +51,29 @@ func TestBudgetGovernorEvaluatePressureStates(t *testing.T) {
 
 func TestPressureThresholds(t *testing.T) {
 	profile := ModelProfile{
-		ContextWindowTokens:         200000,
-		ReservedOutputTokens:        4096,
-		ReservedSummaryOutputTokens: 2048,
-		StaticOverheadTokens:        4096,
-		WarningBufferTokens:         20000,
-		AutoCompactBufferTokens:     13000,
+		ContextWindowTokens:     200000,
+		StaticOverheadTokens:    4096,
+		WarningBufferTokens:     20000,
+		AutoCompactBufferTokens: 13000,
 	}
 	thresholds, err := pressureThresholds(profile)
 	if err != nil {
 		t.Fatalf("pressureThresholds: %v", err)
 	}
-	if thresholds.autoCompact != 178808 {
-		t.Fatalf("auto threshold = %d, want 178808", thresholds.autoCompact)
+	if thresholds.autoCompact != 182904 {
+		t.Fatalf("auto threshold = %d, want 182904", thresholds.autoCompact)
 	}
-	if thresholds.warning != 171808 {
-		t.Fatalf("warning (assembly) threshold = %d, want 171808", thresholds.warning)
+	if thresholds.warning != 175904 {
+		t.Fatalf("warning (assembly) threshold = %d, want 175904", thresholds.warning)
 	}
 }
 
 func TestPressureThresholdsRejectsInvalidProfile(t *testing.T) {
 	profile := ModelProfile{
-		ContextWindowTokens:         100,
-		ReservedOutputTokens:        0,
-		ReservedSummaryOutputTokens: 0,
-		StaticOverheadTokens:        0,
-		WarningBufferTokens:         10,
-		AutoCompactBufferTokens:     20,
+		ContextWindowTokens:     100,
+		StaticOverheadTokens:    0,
+		WarningBufferTokens:     10,
+		AutoCompactBufferTokens: 20,
 	}
 	_, err := pressureThresholds(profile)
 	if err == nil || !strings.Contains(err.Error(), "warning buffer must be greater than auto compact buffer") {
@@ -97,17 +92,15 @@ func TestBudgetGovernorRequiresTokenCounter(t *testing.T) {
 
 func TestContextAssemblyTokenLimitFromContextPolicy(t *testing.T) {
 	got, err := ContextAssemblyTokenLimitFromContextPolicy(config.ContextConfig{
-		WindowTokens:         200000,
-		CompactMarginTokens:  13000,
-		PreserveRecentTurns:  3,
-		SummaryMaxTokens:     2048,
-		ReservedOutputTokens: 4096,
+		WindowTokens:        200000,
+		CompactMarginTokens: 13000,
+		PreserveRecentTurns: 3,
 	})
 	if err != nil {
 		t.Fatalf("ContextAssemblyTokenLimitFromContextPolicy: %v", err)
 	}
-	if got != 171808 {
-		t.Fatalf("assembly limit = %d, want 171808", got)
+	if got != 175904 {
+		t.Fatalf("assembly limit = %d, want 175904", got)
 	}
 }
 

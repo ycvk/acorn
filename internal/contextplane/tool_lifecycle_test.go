@@ -38,7 +38,7 @@ func newLifecycleCatalogForTest(t *testing.T) *tooling.Catalog {
 			Health:       tooling.ToolHealth{State: tooling.HealthStateHealthy},
 		},
 		{
-			ToolContract: lifecycleToolContract("mcp.prompt.fetch", "mcp.prompt", tooling.ToolKindMCPPrompt, tooling.DeferredLoadingPolicy("deferred_mcp_catalog")),
+			ToolContract: lifecycleToolContract("mcp.prompt.fetch", "mcp.prompt", tooling.ToolKindMCP, tooling.DeferredLoadingPolicy("deferred_mcp_catalog")),
 			Tool:         lifecycleStubTool{name: "mcp.prompt.fetch", desc: "Fetch MCP prompt"},
 			Health:       tooling.ToolHealth{State: tooling.HealthStateHealthy},
 		},
@@ -51,15 +51,12 @@ func newLifecycleCatalogForTest(t *testing.T) *tooling.Catalog {
 
 func lifecycleToolContract(name string, source string, kind tooling.ToolKind, loading tooling.ToolLoadingPolicy) tooling.ToolContract {
 	return tooling.ToolContract{
-		Name:          name,
-		Source:        source,
-		Kind:          kind,
-		Category:      tooling.ToolCategoryRead,
-		ResourceScope: tooling.ResourceScopeWorkspaceFile,
-		Profiles:      []tooling.ToolProfile{tooling.ToolProfileRun},
-		PlanPolicy:    tooling.PlanPolicyNone,
-		Loading:       loading,
-		Execution:     tooling.ToolExecutionPolicy{ParallelPolicy: tooling.ParallelPolicyReadOnly},
+		Name:      name,
+		Source:    source,
+		Kind:      kind,
+		Category:  tooling.ToolCategoryRead,
+		Loading:   loading,
+		Execution: tooling.ToolExecutionPolicy{ParallelPolicy: tooling.ParallelPolicyReadOnly},
 	}
 }
 
