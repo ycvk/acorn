@@ -18,11 +18,6 @@
   - `tests/architecture/store_boundary_test.go`
 - **Consumer-owned store 接口收敛**：`internal/runtime` + `internal/app` 顶层定义的 consumer-owned store 接口（Store/Port/Repository/Ledger）≤6（ExecutorStore、RunnerFactoryStore、containerRuntimeStore、containerAppStore、PendingActionCreateStore、skillSnapshotStore）。
   - `tests/architecture/store_interface_count_test.go`
-- **Context boundary 是 compact/resume 事实**：compact boundary chain、summary、transcript reference、preserved refs、token metrics 以 SQLite `context_boundaries` 为准。
-  - `internal/contextplane/compaction/compression_test.go`
-  - `internal/store/sqlite/store_context_boundaries_test.go`
-- **Tool result ledger 是工具结果事实**：tool result refs、arguments、side effects、evidence backlinks 以 SQLite `tool_results` 为准；tool output 不经字符数 compressor，过期 tool message 只替换为 durable `tool_result_ref`。
-  - `internal/store/sqlite/store_tool_results_test.go`
 
 ## 上下文与记忆
 
@@ -39,11 +34,6 @@
   - `tests/architecture/client_projection_boundary_test.go`
 - **Mobile 是 control surface 不是 runtime**：mobile 不执行 run、不持 runtime truth、不做 offline-first run execution、不维护第二套 message lifecycle；context pressure/boundary/run status 都消费后端 projection。
   - `mobile/test/...`（flutter test）
-
-## 发布
-
-- **Self-hosted release 固定 FAISS**：release build 固定 `-tags "bleve_faiss vectors"` + FAISS C API libs；缺失 artifact/build tags/CGO toolchain 显式失败，不发布 non-FAISS fallback。
-  - `tests/architecture/bleve_faiss_release_guard_test.go`
 
 ## 代码规范
 
