@@ -61,7 +61,7 @@ func (e *Executor) ExecuteMessages(ctx context.Context, req runtimeapi.ExecuteRe
 		return nil, err
 	}
 	mode := resolveRootOrchestrationMode(req)
-	if err := e.createBoundRun(ctx, runID, req, mode); err != nil {
+	if err := e.createBoundRun(ctx, runID, req); err != nil {
 		return nil, err
 	}
 	runCtxBase, cleanup := e.newManagedRunContext(ctx, runID)

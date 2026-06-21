@@ -34,7 +34,7 @@ func skillEligibilityContextFromCatalog(catalog *tooling.Catalog) skills.Eligibi
 	if catalog == nil {
 		return skills.EligibilityContext{}
 	}
-	return tooling.EligibilityContextForProfile(catalog, tooling.ToolProfileRun, nil)
+	return tooling.EligibilityContext(catalog, nil)
 }
 
 func loadStableSkillSnapshot(ctx context.Context, loader interface {

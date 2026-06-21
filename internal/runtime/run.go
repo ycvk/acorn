@@ -12,7 +12,6 @@ import (
 	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/memorymodule"
 	"github.com/ycvk/acorn/internal/model"
-	"github.com/ycvk/acorn/internal/orchestration"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/stream"
@@ -94,7 +93,6 @@ type RunnerFactoryOptions struct {
 	MemoryModule              memorymodule.Service
 	ContextPlane              contextplane.ContextPlane
 	MCPPendingActionStore     mcpprovider.PendingActionStore
-	ChildAgentExecutorFactory ChildAgentExecutorFactory
 }
 
 // RunnerBuildRequest holds the parameters for building a new run.

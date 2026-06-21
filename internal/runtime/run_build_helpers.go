@@ -8,9 +8,7 @@ import (
 
 	einomodel "github.com/cloudwego/eino/components/model"
 
-	"github.com/ycvk/acorn/internal/contextplane"
 	"github.com/ycvk/acorn/internal/events"
-	"github.com/ycvk/acorn/internal/orchestration"
 )
 
 func (f *RunnerFactory) validateRunMode(mode events.OrchestrationMode) error {
