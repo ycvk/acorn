@@ -12,7 +12,7 @@ install_host_tools=${ACORN_INSTALL_HOST_TOOLS:-1}
 start_service=${ACORN_START_SERVICE:-1}
 
 die() {
-	printf 'error: %s\n' "$*" >&2
+	printf '%s\n' "$*" >&2
 	exit 1
 }
 
@@ -42,31 +42,13 @@ skills_dir=$config_dir/skills
 run_root() {
 	if [ "$(id -u)" -eq 0 ]; then
 		"$@"
-		return
+	else
+		sudo "$@"
 	fi
-	if ! command -v sudo >/dev/null 2>&1; then
-		die "sudo is required when the installer is not run as root"
-	fi
-	sudo "$@"
 }
 
 need_command() {
 	command -v "$1" >/dev/null 2>&1 || die "$1 is required"
-}
-
-select_openblas_runtime_package() {
-	if ! command -v apt-cache >/dev/null 2>&1; then
-		die "apt-cache is required to select the OpenBLAS runtime package"
-	fi
-	if apt-cache show libopenblas0-pthread >/dev/null 2>&1; then
-		printf '%s\n' "libopenblas0-pthread"
-		return
-	fi
-	if apt-cache show libopenblas0 >/dev/null 2>&1; then
-		printf '%s\n' "libopenblas0"
-		return
-	fi
-	die "could not find an OpenBLAS runtime package; expected libopenblas0-pthread or libopenblas0"
 }
 
 install_debian_host_tools() {
@@ -74,92 +56,38 @@ install_debian_host_tools() {
 		return
 	fi
 	if ! command -v apt-get >/dev/null 2>&1; then
-		die "automatic host package installation requires apt-get; set ACORN_INSTALL_HOST_TOOLS=0 after installing curl tar sha256sum systemctl git ripgrep python3 make bash libgomp1 and an OpenBLAS runtime package that provides libopenblas.so.0"
+		die "automatic host package installation requires apt-get; set ACORN_INSTALL_HOST_TOOLS=0 after installing curl tar sha256sum systemctl git ripgrep python3 make bash"
 	fi
 	run_root apt-get update
-	openblas_package=$(select_openblas_runtime_package)
-	run_root apt-get install -y ca-certificates curl git ripgrep python3 make bash libgomp1 "$openblas_package"
-}
-
-verify_runtime_link() {
-	target=$1
-	link_dir=${2:-}
-	need_command ldd
-	if [ -n "$link_dir" ]; then
-		output=$(LD_LIBRARY_PATH="$link_dir${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" ldd "$target" 2>&1) || {
-			printf '%s\n' "$output" >&2
-			die "could not inspect runtime shared libraries for $target"
-		}
-	else
-		output=$(ldd "$target" 2>&1) || {
-			printf '%s\n' "$output" >&2
-			die "could not inspect runtime shared libraries for $target"
-		}
-	fi
-	if printf '%s\n' "$output" | grep -q "not found"; then
-		printf '%s\n' "$output" >&2
-		die "missing runtime shared library for $target"
-	fi
-}
-
-verify_package_runtime_links() {
-	package_root=$1
-	package_runtime_lib_dir=$package_root/lib/linux_${arch}
-	verify_runtime_link "$package_root/acorn"
-	verify_runtime_link "$package_runtime_lib_dir/libfaiss_c.so" "$package_runtime_lib_dir"
-	verify_runtime_link "$package_runtime_lib_dir/libfaiss.so" "$package_runtime_lib_dir"
+	run_root apt-get install -y ca-certificates curl git ripgrep python3 make bash
 }
 
 install_packaged_skills() {
 	source_dir=$1
 	target_dir=$2
 	if [ ! -d "$source_dir" ]; then
-		die "release package is missing bundled skills directory"
+		die "packaged skills directory not found: $source_dir"
 	fi
-	run_root install -d -m 0755 -o "$service_user" -g "$service_group" "$target_dir"
-	found=0
-	for skill_dir in "$source_dir"/*; do
-		if [ ! -d "$skill_dir" ]; then
-			continue
-		fi
-		skill_name=${skill_dir##*/}
-		if [ ! -f "$skill_dir/SKILL.md" ]; then
-			die "bundled skill $skill_name is missing SKILL.md"
-		fi
-		found=1
-		run_root rm -rf "$target_dir/$skill_name"
-		run_root cp -R "$skill_dir" "$target_dir/$skill_name"
-		run_root chown -R "$service_user:$service_group" "$target_dir/$skill_name"
-	done
-	if [ "$found" != "1" ]; then
-		die "release package bundled skills directory is empty"
-	fi
+	run_root install -d "$target_dir"
+	run_root cp -R "$source_dir/." "$target_dir/"
+	run_root chown -R "$service_user:$service_group" "$target_dir"
 }
 
 detect_arch() {
-	if [ -n "$arch" ]; then
-		case "$arch" in
-			amd64|arm64)
-				printf '%s\n' "$arch"
-				return
-				;;
-			*)
-				die "unsupported ACORN_ARCH: $arch"
-				;;
+	raw=${ACORN_ARCH:-}
+	if [ -n "$raw" ]; then
+		case "$raw" in
+			amd64|arm64) printf '%s\n' "$raw" ;;
+			x86_64) printf 'amd64\n' ;;
+			aarch64) printf 'arm64\n' ;;
+			*) die "unsupported ACORN_ARCH: $raw" ;;
 		esac
+		return
 	fi
-
-	machine=$(uname -m)
-	case "$machine" in
-		x86_64|amd64)
-			printf 'amd64\n'
-			;;
-		aarch64|arm64)
-			printf 'arm64\n'
-			;;
-		*)
-			die "unsupported machine architecture: $machine"
-			;;
+	case "$(uname -m)" in
+		x86_64) printf 'amd64\n' ;;
+		aarch64|arm64) printf 'arm64\n' ;;
+		*) die "could not detect architecture from $(uname -m)" ;;
 	esac
 }
 
@@ -168,113 +96,59 @@ resolve_version() {
 		printf '%s\n' "$version"
 		return
 	fi
-
-	if latest_url=$(curl -fsSLo /dev/null -w '%{url_effective}' "https://github.com/$repo/releases/latest" 2>/dev/null); then
-		resolved=${latest_url##*/}
-		case "$resolved" in
-			v*) printf '%s\n' "$resolved"; return ;;
-		esac
+	latest=$(curl -fsSL "https://api.github.com/repos/$repo/releases/latest" 2>/dev/null | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -1)
+	if [ -z "$latest" ]; then
+		die "could not determine latest release version; set ACORN_VERSION"
 	fi
-
-	if command -v gh >/dev/null 2>&1; then
-		log "Direct latest-release resolution failed; trying GitHub CLI" >&2
-		if resolved=$(gh release view --repo "$repo" --json tagName --jq .tagName 2>/dev/null); then
-			case "$resolved" in
-				v*) printf '%s\n' "$resolved"; return ;;
-			esac
-		fi
-	fi
-
-	die "could not resolve latest release tag for $repo"
+	printf '%s\n' "$latest"
 }
 
 download_release_files() {
-	log "Downloading release assets with curl"
-	if curl -fL --retry 3 --retry-delay 2 -o "$work_dir/$package.tar.gz" "$base_url/$package.tar.gz" &&
-		curl -fL --retry 3 --retry-delay 2 -o "$work_dir/$package.tar.gz.sha256" "$base_url/$package.tar.gz.sha256"; then
-		return
-	fi
-	log "Direct release asset download failed; trying GitHub CLI"
-
-	if command -v gh >/dev/null 2>&1; then
-		if gh release download "$version" --repo "$repo" --pattern "$package.tar.gz" --pattern "$package.tar.gz.sha256" --dir "$work_dir" --clobber; then
-			return
-		fi
-	fi
-
-	die "could not download $package release assets from $repo@$version"
+	url_base="$base_url/$package"
+	curl -fsSL -o "$work_dir/$package.tar.gz" "$url_base.tar.gz"
+	curl -fsSL -o "$work_dir/$package.tar.gz.sha256" "$url_base.tar.gz.sha256"
 }
 
 write_config_template() {
 	target=$1
-	cat > "$target" <<'EOF'
-runtime:
-  storage_dir: ~/.acorn
-  run_timeout_seconds: 900
-
+	cat > "$target" <<EOF
 providers:
-  - name: primary
+  - name: default
     model: gpt-4o
     base_url: https://api.openai.com/v1
-    api_key: ${OPENAI_API_KEY}
-    timeout_seconds: 30
-    temperature: 0.1
-    max_completion_tokens: 2048
-    enabled: true
-
-context:
-  window_tokens: 200000
-  compact_margin_tokens: 13000
-  preserve_recent_turns: 3
-  mask_after_turns: 2
-
+    api_key: \${OPENAI_API_KEY}
+runtime:
+  storage_dir: $workspace_dir
 web:
   listen_addr: 127.0.0.1:8080
-
-agent:
-  name: coordinator
-  description: Self-hosted operator agent for files, shell tasks, and external MCP tools.
-  max_iterations: 90
-  system_prompt: |
-    You are Acorn's coordinator agent running in a self-hosted backend.
-
-    Rules:
-    - Treat /srv/acorn/workspace as the operator workspace.
-    - Prefer read_file, list_files, search_text, inspect_git_status, and inspect_git_diff before mutation or shell execution.
-    - Use run_command only when native tools cannot answer or execute the task directly.
-    - Never pretend a tool, MCP provider, command, or push notification succeeded when it did not run.
-    - Keep answers concrete and short.
-
-tools:
-  run_command:
-    default_timeout: 30
-    work_dir: /srv/acorn/workspace
-    env_whitelist:
-      - PATH
-      - HOME
-      - GIT_EDITOR
-  workspace:
-    root_dir: /srv/acorn/workspace
-  mutation:
-    root_dir: /srv/acorn/workspace
-    denylist: []
-
-mcp:
-  providers: []
-
 memory:
   search:
     memory_context_token_budget: 2000
-  semantic:
-    embedding:
-      provider: openai_compatible
-      # Semantic recall is OFF by default; uncomment model + base_url to enable it.
-      # model: text-embedding-3-small
-      # base_url: https://api.openai.com/v1
-      api_key: ${OPENAI_API_KEY}
-      dimensions: 1536
-      timeout_seconds: 30
-      batch_size: 64
+  embedding:
+    provider: openai_compatible
+    model: text-embedding-3-small
+    base_url: https://api.openai.com/v1
+    api_key: \${OPENAI_API_KEY}
+    dimensions: 1536
+    timeout_seconds: 30
+    batch_size: 64
+context:
+  window_tokens: 200000
+  compact_margin_tokens: 13000
+  mask_after_turns: 2
+  preserve_recent_turns: 3
+agent:
+  name: acorn
+  description: Self-hosted AI agent
+  max_iterations: 30
+tools:
+  workspace:
+    root_dir: $workspace_dir
+  mutation:
+    enabled: true
+  run_command:
+    enabled: true
+    pause_before_exec: false
 EOF
 }
 
@@ -315,44 +189,6 @@ write_env_template() {
 	else
 		printf 'OPENAI_API_KEY=replace-with-your-provider-key\n' > "$target"
 	fi
-}
-
-run_service_user_semantic_rebuild() {
-	rebuild_command='set -eu
-env_path=$1
-bin_path=$2
-config_path=$3
-set -a
-[ -f "$env_path" ] && . "$env_path"
-set +a
-exec "$bin_path" memory semantic rebuild -c "$config_path" --json'
-
-	if [ "$(id -un)" = "$service_user" ]; then
-		env HOME="$service_home" sh -c "$rebuild_command" sh "$env_path" "$bin_path" "$config_path"
-		return
-	fi
-
-	if [ "$(id -u)" -eq 0 ]; then
-		if [ "$service_user" = "root" ]; then
-			env HOME="$service_home" sh -c "$rebuild_command" sh "$env_path" "$bin_path" "$config_path"
-			return
-		fi
-		if command -v runuser >/dev/null 2>&1; then
-			runuser -u "$service_user" -- env HOME="$service_home" sh -c "$rebuild_command" sh "$env_path" "$bin_path" "$config_path"
-			return
-		fi
-		if command -v sudo >/dev/null 2>&1; then
-			sudo -u "$service_user" env HOME="$service_home" sh -c "$rebuild_command" sh "$env_path" "$bin_path" "$config_path"
-			return
-		fi
-		die "runuser or sudo is required to rebuild the semantic index as $service_user"
-	fi
-
-	if command -v sudo >/dev/null 2>&1; then
-		sudo -u "$service_user" env HOME="$service_home" sh -c "$rebuild_command" sh "$env_path" "$bin_path" "$config_path"
-		return
-	fi
-	die "sudo is required to rebuild the semantic index as $service_user"
 }
 
 case "$repo" in
@@ -397,10 +233,7 @@ download_release_files
 	cd "$package"
 	sha256sum -c CHECKSUMS
 	test -x acorn
-	test -f "lib/linux_${arch}/libfaiss_c.so"
-	test -f "lib/linux_${arch}/libfaiss.so"
 	test -f "skills/skill_creator/SKILL.md"
-	verify_package_runtime_links "$PWD"
 )
 
 package_dir=$work_dir/$package
@@ -486,10 +319,6 @@ run_root install -d -o "$service_user" -g "$service_group" "$config_dir"
 run_root chmod 0700 "$config_dir"
 run_root install -d -m 0755 -o "$service_user" -g "$service_group" "$workspace_dir"
 run_root install -m 0755 "$package_dir/acorn" "$bin_path"
-run_root rm -rf "$install_dir/lib"
-run_root mkdir -p "$install_dir/lib"
-run_root cp -R "$package_dir/lib/linux_${arch}" "$install_dir/lib/"
-run_root chown -R root:root "$install_dir/lib"
 run_root install -m 0755 "$wrapper_template" "$wrapper_path"
 install_packaged_skills "$package_dir/skills" "$skills_dir"
 
@@ -528,9 +357,6 @@ if [ -z "${OPENAI_API_KEY:-}" ]; then
 	log "  sudo systemctl enable --now acorn"
 	exit 0
 fi
-
-log "Rebuilding initial semantic index"
-run_service_user_semantic_rebuild
 
 run_root systemctl enable --now acorn
 sleep 2
