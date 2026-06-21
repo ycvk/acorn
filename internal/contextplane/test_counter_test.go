@@ -4,11 +4,11 @@ import (
 	"testing"
 )
 
-func testTokenCounter(t *testing.T) *CompressionTokenCounter {
+func testTokenCounter(t *testing.T) TokenCounter {
 	t.Helper()
-	counter, err := NewCompressionTokenCounter()
+	counter, err := NewTokenCounter()
 	if err != nil {
-		t.Fatalf("NewCompressionTokenCounter: %v", err)
+		t.Fatalf("NewTokenCounter: %v", err)
 	}
 	return counter
 }
