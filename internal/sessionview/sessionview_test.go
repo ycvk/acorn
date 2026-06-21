@@ -7,77 +7,8 @@ import (
 	"testing"
 
 	"github.com/ycvk/acorn/internal/events"
-	"github.com/ycvk/acorn/internal/model"
 	"github.com/ycvk/acorn/internal/sessionview"
-	"github.com/ycvk/acorn/internal/store"
 )
-
-func TestBuildResultSummaryFromEvidence(t *testing.T) {
-	toolResults := []store.ToolResultRecord{
-		{
-			ResultRef:     "tool_result:run:call_write",
-			ToolName:      "write_file",
-			ArgumentsJSON: `{"path":"internal/store/sqlite/store_session_result_summary.go"}`,
-			Status:        store.ToolResultStatusSucceeded,
-			SideEffects: []store.SideEffectRef{{
-				Kind: "workspace_checkpoint",
-				Path: "internal/store/sqlite/store_session_result_summary.go",
-			}},
-		},
-		{
-			ResultRef:     "tool_result:run:call_command",
-			ToolName:      "run_command",
-			ArgumentsJSON: `{"command":["go","test","./internal/store/sqlite"]}`,
-			Status:        store.ToolResultStatusSucceeded,
-		},
-		{
-			ResultRef:     "tool_result:run:call_failed",
-			ToolName:      "run_command",
-			ArgumentsJSON: `{"command":["go","test","./internal/store/sqlite"]}`,
-			Status:        store.ToolResultStatusFailed,
-			ErrorReason:   "go test ./internal/store/sqlite failed once",
-		},
-	}
-	plan := &model.Plan{
-		Steps: []model.PlanStep{{
-			Evidence: []model.PlanEvidence{
-				{Kind: "diff", Status: "passed", Summary: "diff recorded", Paths: []string{"internal/store/sqlite/store_sessions.go"}},
-				{Kind: "command", Status: "passed", Summary: "lint passed", Command: []string{"make", "lint"}},
-				{Kind: "test", Status: "failed", Summary: "frontend test", Error: "snapshot mismatch"},
-			},
-		}},
-	}
-
-	summary, err := sessionview.BuildResultSummary(nil, toolResults, plan)
-	if err != nil {
-		t.Fatalf("BuildResultSummary: %v", err)
-	}
-
-	for _, want := range []string{
-		"internal/store/sqlite/store_session_result_summary.go",
-		"internal/store/sqlite/store_sessions.go",
-	} {
-		if !containsString(summary.Changed, want) {
-			t.Fatalf("changed should contain %q, got %#v", want, summary.Changed)
-		}
-	}
-	for _, want := range []string{
-		"go test ./internal/store/sqlite",
-		"make lint",
-	} {
-		if !containsString(summary.Verified, want) {
-			t.Fatalf("verified should contain %q, got %#v", want, summary.Verified)
-		}
-	}
-	for _, want := range []string{
-		"run_command failed: go test ./internal/store/sqlite failed once",
-		"frontend test: snapshot mismatch",
-	} {
-		if !containsString(summary.Risks, want) {
-			t.Fatalf("risks should contain %q, got %#v", want, summary.Risks)
-		}
-	}
-}
 
 func TestBuildResultSummaryMemoryDisclosure(t *testing.T) {
 	records := []events.EventRecord{{
@@ -95,7 +26,7 @@ func TestBuildResultSummaryMemoryDisclosure(t *testing.T) {
 		},
 	}}
 
-	summary, err := sessionview.BuildResultSummary(records, nil, nil)
+	summary, err := sessionview.BuildResultSummary(records)
 	if err != nil {
 		t.Fatalf("BuildResultSummary: %v", err)
 	}
@@ -123,7 +54,7 @@ func TestBuildResultSummarySkillDisclosure(t *testing.T) {
 		},
 	}}
 
-	summary, err := sessionview.BuildResultSummary(records, nil, nil)
+	summary, err := sessionview.BuildResultSummary(records)
 	if err != nil {
 		t.Fatalf("BuildResultSummary: %v", err)
 	}
@@ -156,7 +87,7 @@ func TestBuildResultSummaryProcedureDisclosure(t *testing.T) {
 		},
 	}}
 
-	summary, err := sessionview.BuildResultSummary(records, nil, nil)
+	summary, err := sessionview.BuildResultSummary(records)
 	if err != nil {
 		t.Fatalf("BuildResultSummary: %v", err)
 	}
@@ -184,7 +115,7 @@ func TestBuildResultSummaryOrdersMemoryBeforeSkill(t *testing.T) {
 		},
 	}
 
-	summary, err := sessionview.BuildResultSummary(records, nil, nil)
+	summary, err := sessionview.BuildResultSummary(records)
 	if err != nil {
 		t.Fatalf("BuildResultSummary: %v", err)
 	}
@@ -201,7 +132,7 @@ func TestBuildResultSummaryFailsOnCorruptMemoryEvent(t *testing.T) {
 		Payload:  map[string]any{"entry_count": float64(1)},
 	}}
 
-	_, err := sessionview.BuildResultSummary(records, nil, nil)
+	_, err := sessionview.BuildResultSummary(records)
 	if err == nil {
 		t.Fatal("expected corrupt memory prepared error")
 	}
@@ -218,7 +149,7 @@ func TestBuildResultSummaryFailsOnCorruptSkillEvent(t *testing.T) {
 		Payload:  map[string]any{"skill": map[string]any{"path": "/tmp/skill"}},
 	}}
 
-	_, err := sessionview.BuildResultSummary(records, nil, nil)
+	_, err := sessionview.BuildResultSummary(records)
 	if err == nil {
 		t.Fatal("expected corrupt skill event error")
 	}
@@ -227,22 +158,6 @@ func TestBuildResultSummaryFailsOnCorruptSkillEvent(t *testing.T) {
 	}
 }
 
-func TestBuildResultSummaryFailsOnCorruptToolResultArguments(t *testing.T) {
-	toolResults := []store.ToolResultRecord{{
-		ResultRef:     "tool_result:run_corrupt:call_1",
-		ToolName:      "run_command",
-		ArgumentsJSON: `{"command":`,
-		Status:        store.ToolResultStatusSucceeded,
-	}}
-
-	_, err := sessionview.BuildResultSummary(nil, toolResults, nil)
-	if err == nil {
-		t.Fatal("expected corrupt tool result error")
-	}
-	if !strings.Contains(err.Error(), "tool_result=tool_result:run_corrupt:call_1") {
-		t.Fatalf("error = %v, want corrupt tool result context", err)
-	}
-}
 
 func TestAssistantMessageForRunSucceededShape(t *testing.T) {
 	run := &events.RunRecord{RunID: "run_1", Status: events.RunStatusSucceeded, Output: "done"}

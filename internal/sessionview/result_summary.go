@@ -7,9 +7,17 @@ import (
 	"strings"
 
 	"github.com/ycvk/acorn/internal/events"
-	"github.com/ycvk/acorn/internal/model"
-	"github.com/ycvk/acorn/internal/store"
 )
+
+func summaryEventRisk(kind string, payload map[string]any) string {
+	for _, key := range []string{"error", "summary"} {
+		if value := compactContinuationText(summaryString(payload[key]), 180); value != "" {
+			return fmt.Sprintf("%s: %s", kind, value)
+		}
+	}
+	return kind
+}
+
 
 // ResultSummary is the projected, deduplicated outcome of a run, ready to be
 // rendered into assistant message parts.
@@ -31,18 +39,11 @@ type resultSummaryBuilder struct {
 }
 
 // BuildResultSummary projects the loaded runtime artifacts of a run into a
-// ResultSummary. It is pure: callers provide the already-loaded events, tool
-// results, and (optional) plan.
-func BuildResultSummary(records []events.EventRecord, toolResults []store.ToolResultRecord, plan *model.Plan) (ResultSummary, error) {
+// ResultSummary. It is pure: callers provide the already-loaded events.
+func BuildResultSummary(records []events.EventRecord) (ResultSummary, error) {
 	builder := newResultSummaryBuilder()
 	if err := builder.addEvents(records); err != nil {
 		return ResultSummary{}, err
-	}
-	if err := builder.addToolResults(toolResults); err != nil {
-		return ResultSummary{}, err
-	}
-	if plan != nil {
-		builder.addPlan(plan)
 	}
 	return builder.summary(), nil
 }
@@ -86,64 +87,7 @@ func (b *resultSummaryBuilder) addEvents(records []events.EventRecord) error {
 	return nil
 }
 
-func (b *resultSummaryBuilder) addToolResults(records []store.ToolResultRecord) error {
-	for _, record := range records {
-		toolName := strings.TrimSpace(record.ToolName)
-		args := strings.TrimSpace(record.ArgumentsJSON)
-		switch record.Status {
-		case store.ToolResultStatusSucceeded:
-			command, err := summaryCommand(toolName, args)
-			if err != nil {
-				return fmt.Errorf("build session result summary: tool_result=%s command: %w", record.ResultRef, err)
-			}
-			if command != "" {
-				b.addVerified(command)
-			}
-			paths := summaryPathsFromSideEffects(record.SideEffects)
-			if len(paths) == 0 && summaryMutationTool(toolName) {
-				var err error
-				paths, err = summaryPathsFromArguments(args)
-				if err != nil {
-					return fmt.Errorf("build session result summary: tool_result=%s paths: %w", record.ResultRef, err)
-				}
-			}
-			b.addChanged(paths...)
-		case store.ToolResultStatusFailed:
-			b.addRisk(summaryToolResultRisk(record))
-		}
-	}
-	return nil
-}
 
-func (b *resultSummaryBuilder) addPlan(plan *model.Plan) {
-	for _, step := range plan.Steps {
-		for _, item := range step.Evidence {
-			status := strings.TrimSpace(string(item.Status))
-			kind := strings.TrimSpace(string(item.Kind))
-			if status == "failed" {
-				b.addRisk(summaryPlanRisk(item))
-				continue
-			}
-			switch kind {
-			case "diff":
-				b.addChanged(item.Paths...)
-			}
-			if status != "passed" && status != "confirmed" {
-				continue
-			}
-			switch kind {
-			case "command", "test":
-				if command := summaryCommandText(item.Command); command != "" {
-					b.addVerified(command)
-				} else {
-					b.addVerified(item.Summary)
-				}
-			case "manual", "subagent":
-				b.addVerified(item.Summary)
-			}
-		}
-	}
-}
 
 func (b *resultSummaryBuilder) summary() ResultSummary {
 	disclosures := make([]DisclosureItem, 0, 2)
@@ -274,57 +218,6 @@ func summaryPayload(record events.EventRecord) (map[string]any, error) {
 	return payload, nil
 }
 
-func summaryToolResultRisk(record store.ToolResultRecord) string {
-	name := strings.TrimSpace(record.ToolName)
-	if name == "" {
-		name = "tool"
-	}
-	if value := compactContinuationText(record.ErrorReason, 180); value != "" {
-		return fmt.Sprintf("%s failed: %s", name, value)
-	}
-	if value := compactContinuationText(record.Preview, 180); value != "" {
-		return fmt.Sprintf("%s failed: %s", name, value)
-	}
-	return fmt.Sprintf("%s failed", name)
-}
-
-func summaryEventRisk(kind string, payload map[string]any) string {
-	for _, key := range []string{"error", "summary"} {
-		if value := compactContinuationText(summaryString(payload[key]), 180); value != "" {
-			return fmt.Sprintf("%s: %s", kind, value)
-		}
-	}
-	return kind
-}
-
-func summaryPlanRisk(item model.PlanEvidence) string {
-	if errText := compactContinuationText(item.Error, 180); errText != "" {
-		if summary := strings.TrimSpace(item.Summary); summary != "" {
-			return fmt.Sprintf("%s: %s", summary, errText)
-		}
-		return errText
-	}
-	if summary := strings.TrimSpace(item.Summary); summary != "" {
-		return summary
-	}
-	if command := summaryCommandText(item.Command); command != "" {
-		return command
-	}
-	if kind := strings.TrimSpace(string(item.Kind)); kind != "" {
-		return kind + " failed"
-	}
-	return "plan evidence failed"
-}
-
-func summaryPathsFromSideEffects(items []store.SideEffectRef) []string {
-	paths := make([]string, 0, len(items))
-	for _, item := range items {
-		if path := strings.TrimSpace(item.Path); path != "" {
-			paths = append(paths, path)
-		}
-	}
-	return paths
-}
 
 func summaryCommand(toolName string, argumentsJSON string) (string, error) {
 	if strings.TrimSpace(toolName) != "run_command" {
