@@ -23,10 +23,8 @@ import (
 var refactorOwnedDirs = []string{
 	"internal/runtime",
 	"internal/runtime/toolset",
-	"internal/runtime/plan",
 	"internal/tools",
 	"internal/contextplane",
-	"internal/contextplane/compaction",
 	"internal/store/sqlite",
 	"internal/memorymodule",
 	"internal/app",

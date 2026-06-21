@@ -4,11 +4,9 @@
 
 ## 运行时与编排
 
-- **单一共享执行 round 原语**：`direct_response`（`AgentLoop.RunOneIteration`）与 `plan_execute`/`single_agent`（`ActNode.Invoke`）均通过 `orchestration.RunActionRound`（ExecuteRound + reactive-compact-retry）执行模型回合，不各自内联重复逻辑。记录（BeforeModelCall/RecordAssistant/RecordToolResults）保持 mode-specific。
-  - `tests/architecture/action_round_sharing_test.go`
-- **单一 assembly 入口**：`assembleToolContext` + `assembleDirectContext` 已合并为 `assembleContext`（selection 可 nil）；3 个 `build*Assembly` 合并为 `buildAssembly`（mode 分发 + `baseAssemblyFields` 共享 helper）；`orchestration.BuildDirectResponse` 使用 `assembleTooling`。
-  - `tests/architecture/assembly_consolidation_test.go`
-- **结构守卫覆盖全包**：`tests/architecture/structural_limits_test.go` 的 `refactorOwnedDirs` 覆盖 `internal/runtime`、`internal/runtime/toolset`、`internal/runtime/plan`、`internal/tools`、`internal/contextplane`、`internal/contextplane/compaction`、`internal/store/sqlite`、`internal/memorymodule`、`internal/app`、`internal/orchestration`、`internal/providers/mcp`、`internal/web`、`internal/config`、`internal/workspace`、`internal/skills`、`internal/webaccess`。所有目录强制文件 ≤400 行；`internal/runtime` 和 `internal/runtime/toolset` 额外强制函数 ≤30 行、嵌套 ≤3 层。其余目录的函数/嵌套限制待增量清理后加入 `dirsEnforcingFuncLimits`（技术债）。`internal/runtime/tool` 含 pre-existing 超限文件（`tool.go` 524 行、`safe_parallel_tools_node.go` 478 行），待后续拆分后加入守卫。generated files（`*_gen.go`）被守卫排除。
+- **单一编排模式 direct_response**：`AgentLoop.RunOneIteration` 通过 `orchestration.RunActionRound`（ExecuteRound）执行模型回合。plan_execute/single_agent 模式已删除。ContextSession 在 BeforeModelCall 中执行 masking + auto-compact。
+  - `tests/architecture/runtime_split_test.go`
+- **结构守卫覆盖全包**：`tests/architecture/structural_limits_test.go` 的 `refactorOwnedDirs` 覆盖 `internal/runtime`、`internal/runtime/toolset`、`internal/tools`、`internal/contextplane`、`internal/store/sqlite`、`internal/memorymodule`、`internal/app`、`internal/orchestration`、`internal/providers/mcp`、`internal/web`、`internal/config`、`internal/workspace`、`internal/skills`、`internal/webaccess`。所有目录强制文件 ≤400 行；`internal/runtime` 和 `internal/runtime/toolset` 额外强制函数 ≤30 行、嵌套 ≤3 层。generated files（`*_gen.go`）被守卫排除。
   - `tests/architecture/structural_limits_test.go`
   - `tests/architecture/runtime_split_test.go`
 
@@ -21,9 +19,11 @@
 
 ## 上下文与记忆
 
-- **Context pressure 由 BudgetGovernor 计算**：compact trigger + ContextSession blocking 基于 effective input window 与内部派生 policy；public YAML 只暴露 `context.window_tokens`、`context.compact_margin_tokens`、`context.preserve_recent_turns`、`context.summary_max_tokens`。
-  - `internal/contextplane/budget_governor_test.go`
-- **Memory Record V2 是长期记忆事实**：facts/procedures/history 的 validity、source/evidence refs、typed relations、active/retired 状态由 `internal/memorymodule` 解析和投影；client/ContextPlane/run selection/semantic index 不解析 markdown 或自行推断 active status。
+- **Hybrid context: masking + auto-compact**：ContextSession 在 BeforeModelCall 中执行 observation masking（旧 tool result 替换为占位符）+ LLM auto-compact（token 超阈值时生成 summary，circuit breaker 3 次失败后停止）；public YAML 只暴露 `context.window_tokens`、`context.compact_margin_tokens`、`context.mask_after_turns`、`context.preserve_recent_turns`。
+  - `internal/contextplane/context_session_test.go`
+  - `internal/contextplane/masking_test.go`
+  - `internal/contextplane/auto_compact_test.go`
+- **Memory Record V2 是长期记忆事实**：facts/history frontmatter 由 `internal/memorymodule` 解析；semantic search 走 embedding + SQLite 暴力余弦相似度。
   - `internal/memorymodule/fact_learning_test.go`
 
 ## Remote API 与 mobile
