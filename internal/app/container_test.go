@@ -61,16 +61,12 @@ func testContainerConfig(t *testing.T) *config.Config {
 			WindowTokens:        200000,
 			CompactMarginTokens: 13000,
 			PreserveRecentTurns: 3,
-			SummaryMaxTokens:    2048,
 		},
 		Memory: config.MemoryConfig{
 			Search: config.MemorySearchConfig{
 				MemoryContextTokenBudget: 2000,
 			},
 			Semantic: config.MemorySemanticConfig{
-				Bleve: config.BleveSemanticConfig{
-					IndexName: "memory_records",
-				},
 				Embedding: config.EmbeddingProviderConfig{
 					Provider:       "openai_compatible",
 					Model:          "text-embedding-3-small",

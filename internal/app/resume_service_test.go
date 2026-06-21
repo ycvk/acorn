@@ -15,7 +15,7 @@ func TestResumeServiceResumeKeepsNonApprovalInterruptDefaultTarget(t *testing.T)
 	store := openTestStore(t)
 
 	const runID = "run_resume"
-	if err := store.CreateRun(context.Background(), runID, "need approval", runID); err != nil {
+	if err := store.CreateRun(context.Background(), runID, "need approval"); err != nil {
 		t.Fatalf("create run: %v", err)
 	}
 	if _, err := store.AppendEventContext(context.Background(), runID, "run.interrupted", map[string]any{
@@ -72,7 +72,7 @@ func TestResumeServiceRejectsFailedRun(t *testing.T) {
 	store := openTestStore(t)
 
 	const runID = "run_failed"
-	if err := store.CreateRun(context.Background(), runID, "inspect repo", runID); err != nil {
+	if err := store.CreateRun(context.Background(), runID, "inspect repo"); err != nil {
 		t.Fatalf("create run: %v", err)
 	}
 	if err := store.FinishRunContext(context.Background(), runID, events.RunStatusFailed, "partial output", "shell exited with status 1"); err != nil {
@@ -106,7 +106,7 @@ func TestResumeServiceRejectsCompletedRun(t *testing.T) {
 	store := openTestStore(t)
 
 	const runID = "run_completed"
-	if err := store.CreateRun(context.Background(), runID, "inspect repo", runID); err != nil {
+	if err := store.CreateRun(context.Background(), runID, "inspect repo"); err != nil {
 		t.Fatalf("create run: %v", err)
 	}
 	if err := store.FinishRunContext(context.Background(), runID, events.RunStatusSucceeded, "done", ""); err != nil {

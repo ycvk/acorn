@@ -24,7 +24,6 @@ context:
   window_tokens: 200000
   compact_margin_tokens: 13000
   preserve_recent_turns: 3
-  summary_max_tokens: 2048
 
 web:
   listen_addr: 127.0.0.1:8080
@@ -68,9 +67,6 @@ memory:
   # To enable it, uncomment embedding.model + embedding.base_url below — then
   # embedding.api_key/dimensions/timeout_seconds/batch_size are validated.
   semantic:
-    bleve:
-      path: ""               # Empty resolves to runtime.storage_dir/bleve-semantic
-      index_name: memory_records
     embedding:
       provider: openai_compatible
       # model: text-embedding-3-small

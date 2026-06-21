@@ -605,8 +605,7 @@ func TestClientCreateRunUsesRealExecutorPath(t *testing.T) {
 	modelServer := newClientOpenAITestServer(t, "client runtime answer")
 	cfg := clientRuntimeTestConfig(t, modelServer.URL+"/v1")
 	runnerFactory, err := runtime.NewRunnerFactory(cfg, store, runtime.RunnerFactoryOptions{
-		MemoryModule:              newClientRuntimeMemoryModule(t, cfg),
-		ChildAgentExecutorFactory: runtime.NewSubagentExecutorFactory(cfg, store, nil),
+		MemoryModule: newClientRuntimeMemoryModule(t, cfg),
 	})
 	if err != nil {
 		t.Fatalf("NewRunnerFactory: %v", err)
