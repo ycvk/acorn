@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -18,7 +17,6 @@ import (
 	"github.com/cloudwego/eino/schema"
 
 	"github.com/ycvk/acorn/internal/contextplane"
-	"github.com/ycvk/acorn/internal/model"
 	"github.com/ycvk/acorn/internal/tooling"
 )
 
@@ -521,96 +519,6 @@ func TestBuildDirectResponsePropagatesModelError(t *testing.T) {
 	}
 }
 
-func TestBuildDirectResponseReactiveCompactsAndRetriesOverflow(t *testing.T) {
-	ctx := context.Background()
-	tool := directResponseTestTool{name: "lookup", result: "lookup result: acorn"}
-	catalog := directResponseCatalogForTest(t, ctx, tool)
-	contextResult := directResponseContextResultForTest("run", "session", "lookup")
-	model := &directResponseTestModel{
-		streamErrors: []error{errors.New("model_context_window_exceeded")},
-		responses: []*schema.Message{
-			schema.AssistantMessage("not used", nil),
-			schema.AssistantMessage("recovered after compact", nil),
-		},
-	}
-	streamer := &directResponseTestStreamer{}
-	plane := NewDefaultPlane(DefaultPlaneOptions{
-		SystemPrompt:       "system",
-		MaxIterations:      4,
-		CheckpointStore:    &directResponseTestCheckpointStore{},
-		InstructionBuilder: func(base string, suffix string) string { return strings.TrimSpace(base + "\n" + suffix) },
-		ToolBuilder: func(context.Context, []tooling.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
-			return []einotool.BaseTool{tool}, nil
-		},
-		ToolNodeFactory: func(context.Context, []einotool.BaseTool, tooling.ExecutionPolicyResolver) (ToolInvoker, error) {
-			return &directResponseTestToolNode{}, nil
-		},
-		ToolLifecycleBinder: func(ctx context.Context, state ToolLifecycleStateView, catalog *tooling.Catalog, infos []*schema.ToolInfo) context.Context {
-			if t, ok := state.(testToolLifecycleStateView); ok && t.state != nil {
-				return contextplane.WithToolLifecycleContext(ctx, t.state, catalog, infos)
-			}
-			return ctx
-		},
-		HandlersBuilder: func(context.Context, einomodel.BaseChatModel, any) ([]adk.ChatModelAgentMiddleware, error) {
-			return nil, nil
-		},
-	})
-	assembly, err := plane.BuildDirectResponse(ctx, DirectResponseRequest{
-		AgentName:         "agent",
-		AgentDescription:  "agent",
-		SessionID:         "session",
-		RunID:             "run",
-		ChatModel:         model,
-		AssistantStreamer: streamer,
-		Catalog:           catalog,
-		ContextResult:     contextResult,
-		InstructionSuffix: "suffix",
-	})
-	if err != nil {
-		t.Fatalf("BuildDirectResponse: %v", err)
-	}
-	engine := &directResponseReactiveEngine{
-		result: &contextplane.PipelineResult{
-			Messages:    []adk.Message{schema.UserMessage("reactive compact summary")},
-			TokensFreed: 80,
-			Outcome: &contextplane.CompressionOutcome{
-				BoundaryID:     "ctxb_reactive",
-				TokensBefore:   120,
-				TokensAfter:    40,
-				Summary:        "reactive compact summary",
-				SummarySnippet: "reactive compact summary",
-			},
-		},
-	}
-	session := newDirectResponseTestSession(t, ctx, assembly, contextplane.ContextSessionOptions{
-		BudgetGovernor: directResponseNoPressureGovernor{},
-		Pipeline:       engine,
-		PreservePolicy: contextplane.PreservePolicy{RecentTurns: 1, PreserveToolPairs: true},
-	})
-	ctx = contextplane.WithContextSession(ctx, session)
-
-	iter := assembly.Runner.Run(ctx, []adk.Message{schema.UserMessage("fallback should not be used")}, adk.WithCheckPointID("run"))
-	events := collectDirectResponseEvents(iter)
-	if !eventsContainMessage(events, "recovered after compact") {
-		t.Fatalf("direct response events missing recovered assistant message: %+v", events)
-	}
-	if len(model.inputs) != 2 {
-		t.Fatalf("model calls = %d, want overflow call plus one retry", len(model.inputs))
-	}
-	if !messagesContainContent(model.inputs[1], "reactive compact summary") {
-		t.Fatalf("retry input = %+v, want compacted summary", model.inputs[1])
-	}
-	if !engine.called {
-		t.Fatal("reactive compaction engine was not called")
-	}
-	if engine.request.Trigger != contextplane.CompactTriggerReactive {
-		t.Fatalf("trigger = %q, want reactive", engine.request.Trigger)
-	}
-	if len(streamer.messageIDs) != 2 || streamer.messageIDs[0] != "run:assistant:0" || streamer.messageIDs[1] != "run:assistant:0" {
-		t.Fatalf("message IDs = %#v, want retry of same assistant id", streamer.messageIDs)
-	}
-}
-
 func TestBuildDirectResponseFailsWithoutContextSession(t *testing.T) {
 	ctx := context.Background()
 	tool := directResponseTestTool{name: "lookup", result: "lookup result: acorn"}
@@ -701,7 +609,6 @@ func directResponseContextResultForTest(runID string, sessionID string, eagerToo
 		LoadedTools:   loaded,
 		DeferredTools: map[string]contextplane.DeferredToolRecord{},
 		MaxAgeTurns:   2,
-		MaxResultRefs: 32,
 	}
 	return AssembleResultView{
 		LifecycleState: testToolLifecycleStateView{state: state},
@@ -761,96 +668,39 @@ func directResponseAssistantWithFinishReason(content string, toolCalls []schema.
 
 func runDirectResponseAssembly(t *testing.T, ctx context.Context, assembly *RunAssembly) []*adk.AgentEvent {
 	t.Helper()
-	session := newDirectResponseTestSession(t, ctx, assembly, contextplane.ContextSessionOptions{
-		BudgetGovernor: directResponseNoPressureGovernor{},
-	})
+	session := newDirectResponseTestSession(t, ctx, assembly)
 	ctx = contextplane.WithContextSession(ctx, session)
 	iter := assembly.Runner.Run(ctx, []adk.Message{schema.UserMessage("runner input must not be used")}, adk.WithCheckPointID("run"))
 	return collectDirectResponseEvents(iter)
 }
 
-func newDirectResponseTestSession(t *testing.T, ctx context.Context, assembly *RunAssembly, opts contextplane.ContextSessionOptions) contextplane.ContextSession {
+func newDirectResponseTestSession(t *testing.T, ctx context.Context, assembly *RunAssembly) contextplane.ContextSession {
 	t.Helper()
-	if opts.BoundaryStore == nil {
-		opts.BoundaryStore = newDirectResponseContextBoundaryStore()
+	counter, err := contextplane.NewTokenCounter()
+	if err != nil {
+		t.Fatalf("NewTokenCounter: %v", err)
 	}
-	session := contextplane.NewDefaultContextSession(opts)
+	session := contextplane.NewDefaultContextSession(contextplane.ContextSessionOptions{
+		TokenCounter:        counter,
+		WindowTokens:        200000,
+		CompactMargin:       13000,
+		MaskAfterTurns:      2,
+		PreserveRecentTurns: 3,
+	})
 	initialMessages := []adk.Message{schema.UserMessage("root task")}
 	if assembly != nil && strings.TrimSpace(assembly.Instruction) != "" {
 		initialMessages = append([]adk.Message{schema.SystemMessage(assembly.Instruction)}, initialMessages...)
 	}
-	_, err := session.Bootstrap(ctx, contextplane.BootstrapRequest{
+	_, err = session.Bootstrap(ctx, contextplane.BootstrapRequest{
 		SessionID:       "session",
 		RunID:           "run",
-		Mode:            "direct_response",
 		InitialMessages: initialMessages,
-		ModelProfile:    directResponseTestModelProfile(),
 	})
 	if err != nil {
 		t.Fatalf("Bootstrap context session: %v", err)
 	}
 	return session
 }
-
-type directResponseContextBoundaryStore struct {
-	mu         sync.RWMutex
-	boundaries map[string]model.ContextBoundary
-}
-
-func newDirectResponseContextBoundaryStore() *directResponseContextBoundaryStore {
-	return &directResponseContextBoundaryStore{boundaries: make(map[string]model.ContextBoundary)}
-}
-
-func (s *directResponseContextBoundaryStore) SaveContextBoundary(_ context.Context, boundary model.ContextBoundary) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.boundaries == nil {
-		s.boundaries = make(map[string]model.ContextBoundary)
-	}
-	s.boundaries[boundary.BoundaryID] = boundary
-	return nil
-}
-
-func (s *directResponseContextBoundaryStore) LoadContextBoundary(_ context.Context, boundaryID string) (*model.ContextBoundary, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	boundary, ok := s.boundaries[boundaryID]
-	if !ok {
-		return nil, nil
-	}
-	return &boundary, nil
-}
-
-func (s *directResponseContextBoundaryStore) LoadLatestContextBoundary(ctx context.Context, sessionID string) (*model.ContextBoundary, error) {
-	boundaries, err := s.ListContextBoundaries(ctx, sessionID)
-	if err != nil {
-		return nil, err
-	}
-	if len(boundaries) == 0 {
-		return nil, nil
-	}
-	latest := boundaries[len(boundaries)-1]
-	return &latest, nil
-}
-
-func (s *directResponseContextBoundaryStore) ListContextBoundaries(_ context.Context, sessionID string) ([]model.ContextBoundary, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	var out []model.ContextBoundary
-	for _, boundary := range s.boundaries {
-		if boundary.SessionID == sessionID {
-			out = append(out, boundary)
-		}
-	}
-	sort.Slice(out, func(i, j int) bool {
-		if out[i].Sequence == out[j].Sequence {
-			return out[i].CreatedAt.Before(out[j].CreatedAt)
-		}
-		return out[i].Sequence < out[j].Sequence
-	})
-	return out, nil
-}
-
 func runDirectResponseAssemblyWithoutSession(ctx context.Context, assembly *RunAssembly) []*adk.AgentEvent {
 	iter := assembly.Runner.Run(ctx, []adk.Message{schema.UserMessage("fallback should fail")}, adk.WithCheckPointID("run"))
 	return collectDirectResponseEvents(iter)
@@ -865,36 +715,6 @@ func collectDirectResponseEvents(iter *adk.AsyncIterator[*adk.AgentEvent]) []*ad
 		}
 		events = append(events, event)
 	}
-}
-
-type directResponseNoPressureGovernor struct{}
-
-func (directResponseNoPressureGovernor) Evaluate(context.Context, contextplane.BudgetEvaluateRequest) (contextplane.BudgetPressure, error) {
-	return contextplane.BudgetPressure{
-		EffectiveWindowTokens: 1000,
-		State:                 contextplane.PressureOK,
-	}, nil
-}
-
-func directResponseTestModelProfile() contextplane.ModelProfile {
-	return contextplane.ModelProfile{
-		ContextWindowTokens:     200000,
-		StaticOverheadTokens:    4096,
-		WarningBufferTokens:     20000,
-		AutoCompactBufferTokens: 13000,
-	}
-}
-
-type directResponseReactiveEngine struct {
-	called  bool
-	request contextplane.PipelineRequest
-	result  *contextplane.PipelineResult
-}
-
-func (e *directResponseReactiveEngine) Compress(_ context.Context, req contextplane.PipelineRequest) (*contextplane.PipelineResult, error) {
-	e.called = true
-	e.request = req
-	return e.result, nil
 }
 
 func eventsContainMessage(events []*adk.AgentEvent, want string) bool {
@@ -1248,9 +1068,7 @@ func TestBuildDirectResponseResumeContinuesFromPendingToolCalls(t *testing.T) {
 		t.Fatalf("BuildDirectResponse: %v", err)
 	}
 
-	session := newDirectResponseTestSession(t, ctx, assembly, contextplane.ContextSessionOptions{
-		BudgetGovernor: directResponseNoPressureGovernor{},
-	})
+	session := newDirectResponseTestSession(t, ctx, assembly)
 	runCtx := contextplane.WithContextSession(ctx, session)
 	initial := collectDirectResponseEvents(assembly.Runner.Run(runCtx, []adk.Message{schema.UserMessage("runner input must not be used")}, adk.WithCheckPointID("run")))
 	info := firstInterruptedInfo(initial)

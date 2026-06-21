@@ -4,44 +4,17 @@ import (
 	"context"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/cloudwego/eino/schema"
 
 	"github.com/ycvk/acorn/internal/memorymodule"
-	"github.com/ycvk/acorn/internal/model"
 	"github.com/ycvk/acorn/internal/skills"
 )
-
-type snapshotStoreStub struct{}
-
-func (snapshotStoreStub) SaveRunContextSnapshot(context.Context, model.RunContextSnapshot) error {
-	return nil
-}
-
-func (snapshotStoreStub) LoadRunContextSnapshot(context.Context, string) (*model.RunContextSnapshot, error) {
-	return nil, nil
-}
-
-type fakeSessionSummaryService struct {
-	summary *model.SessionSummary
-}
-
-func (s fakeSessionSummaryService) Get(context.Context, string) (*model.SessionSummary, error) {
-	return s.summary, nil
-}
 
 func TestDefaultContextPlaneAssembleBuildsContextMessagesWithPreparedMemory(t *testing.T) {
 	plane := NewDefaultContextPlane(DefaultOptions{
 		MemoryContextTokenBudget: 2000,
 		TokenCounter:             testTokenCounter(t),
-		SessionSummaryService: fakeSessionSummaryService{summary: &model.SessionSummary{
-			SessionID:   "session-1",
-			SourceRunID: "run-prev",
-			RunStatus:   "succeeded",
-			Summary:     "previous summary",
-			UpdatedAt:   time.Now().UTC(),
-		}},
 	})
 
 	result, err := plane.Assemble(context.Background(), AssembleRequest{
@@ -93,7 +66,7 @@ func TestDefaultContextPlaneAssembleBuildsContextMessagesWithPreparedMemory(t *t
 		t.Fatalf("skill catalog missing expected entry: %q", result.Messages[1].Content)
 	}
 	memoryContent := result.Messages[2].Content
-	for _, fragment := range []string{"<memory-context>", "previous summary", "## Memory Nudges", "## Memory Entries", "facts/workspaces/acorn/runtime.md", "verified prepared memory"} {
+	for _, fragment := range []string{"<memory-context>", "## Memory Nudges", "## Memory Entries", "facts/workspaces/acorn/runtime.md", "verified prepared memory"} {
 		if !strings.Contains(memoryContent, fragment) {
 			t.Fatalf("memory content missing %q:\n%s", fragment, memoryContent)
 		}
@@ -109,7 +82,6 @@ func TestDefaultContextPlaneAssembleInjectsPreparedMemoryEntry(t *testing.T) {
 	plane := NewDefaultContextPlane(DefaultOptions{
 		MemoryContextTokenBudget: 2000,
 		TokenCounter:             testTokenCounter(t),
-		Store:                    snapshotStoreStub{},
 	})
 	result, err := plane.Assemble(context.Background(), AssembleRequest{
 		RunID:     "run_context",
@@ -122,17 +94,6 @@ func TestDefaultContextPlaneAssembleInjectsPreparedMemoryEntry(t *testing.T) {
 				Title:   "Preference",
 				Content: "Use concise Chinese responses.",
 			}},
-			ProcedureActivations: []memorymodule.ProcedureActivation{{
-				RunID:        "run_context",
-				SessionID:    "session_context",
-				ProcedureRef: "skills/learned/preference.md#preference",
-				Title:        "Preference",
-				Kind:         "skill",
-				Phase:        memorymodule.ProcedureActivationSelected,
-				Reason:       "selected_for_prepared_memory_entry",
-				Status:       memorymodule.StatusVerified,
-				Origin:       memorymodule.ProcedureOriginActionVerified,
-			}},
 		},
 	})
 	if err != nil {
@@ -144,16 +105,12 @@ func TestDefaultContextPlaneAssembleInjectsPreparedMemoryEntry(t *testing.T) {
 	if !strings.Contains(result.Messages[0].Content, "Use concise Chinese responses.") {
 		t.Fatalf("prepared memory missing:\n%s", result.Messages[0].Content)
 	}
-	if !hasContextProcedureActivation(result.ProcedureActivations, memorymodule.ProcedureActivationInjected, "skills/learned/preference.md#preference") {
-		t.Fatalf("missing injected activation: %#v", result.ProcedureActivations)
-	}
 }
 
 func TestDefaultContextPlaneAssembleWorksWithoutPreparedMemory(t *testing.T) {
 	plane := NewDefaultContextPlane(DefaultOptions{
 		MemoryContextTokenBudget: 2000,
 		TokenCounter:             testTokenCounter(t),
-		Store:                    snapshotStoreStub{},
 	})
 	result, err := plane.Assemble(context.Background(), AssembleRequest{
 		RunID:     "run_sop_only",
@@ -198,11 +155,10 @@ func TestBudgetedContextMessagesFailsWhenAssembledContextExceedsBudget(t *testin
 	}
 }
 
-func hasContextProcedureActivation(items []memorymodule.ProcedureActivation, phase memorymodule.ProcedureActivationPhase, ref string) bool {
-	for _, item := range items {
-		if item.Phase == phase && item.ProcedureRef == ref {
-			return true
-		}
+func skillsSpecWithBrief(id, summary string) skills.Spec {
+	return skills.Spec{
+		ID:      id,
+		Name:    id,
+		Summary: summary,
 	}
-	return false
 }

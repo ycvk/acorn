@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/cloudwego/eino/schema"
-	"github.com/ycvk/acorn/internal/model"
 	"github.com/ycvk/acorn/internal/tooling"
 )
 
@@ -17,16 +16,6 @@ type lifecycleStubTool struct {
 
 func (t lifecycleStubTool) Info(context.Context) (*schema.ToolInfo, error) {
 	return &schema.ToolInfo{Name: t.name, Desc: t.desc}, nil
-}
-
-type lifecycleSnapshotStore struct{}
-
-func (lifecycleSnapshotStore) SaveRunContextSnapshot(context.Context, model.RunContextSnapshot) error {
-	return nil
-}
-
-func (lifecycleSnapshotStore) LoadRunContextSnapshot(context.Context, string) (*model.RunContextSnapshot, error) {
-	return nil, nil
 }
 
 func newLifecycleCatalogForTest(t *testing.T) *tooling.Catalog {
@@ -64,7 +53,6 @@ func TestDefaultContextPlaneAssembleBuildsLifecycleToolSplit(t *testing.T) {
 	plane := NewDefaultContextPlane(DefaultOptions{
 		MemoryContextTokenBudget: 100,
 		TokenCounter:             testTokenCounter(t),
-		Store:                    lifecycleSnapshotStore{},
 	})
 
 	catalog := newLifecycleCatalogForTest(t)
