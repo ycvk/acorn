@@ -20,7 +20,7 @@ func TestNewCatalogNormalizesToolNames(t *testing.T) {
 		t.Fatalf("NewCatalog: %v", err)
 	}
 
-	items := catalog.EnabledSpecsForProfile(ToolProfileRun)
+	items := catalog.EnabledSpecs()
 	if got, want := len(items), 1; got != want {
 		t.Fatalf("tool spec count = %d, want %d", got, want)
 	}
@@ -83,13 +83,10 @@ func TestNewCatalogRejectsIncompleteContract(t *testing.T) {
 	tool := mustInferTool(t, "local_echo")
 	_, err := NewCatalog(context.Background(), []ToolSpec{{
 		ToolContract: ToolContract{
-			Source:        "local",
-			Kind:          ToolKindNative,
-			Category:      ToolCategoryRead,
-			ResourceScope: ResourceScopeWorkspaceFile,
-			Profiles:      []ToolProfile{ToolProfileRun},
-			PlanPolicy:    PlanPolicyNone,
-			Loading:       EagerLoadingPolicy(),
+			Source:   "local",
+			Kind:     ToolKindNative,
+			Category: ToolCategoryRead,
+			Loading:  EagerLoadingPolicy(),
 		},
 		Tool: tool,
 	}})
@@ -101,38 +98,15 @@ func TestNewCatalogRejectsIncompleteContract(t *testing.T) {
 	}
 }
 
-func TestNewCatalogRejectsWriteScopedContractWithoutPathArg(t *testing.T) {
-	tool := mustInferTool(t, "create_file")
-	contract := testToolContract("create_file", "local", ParallelPolicyWriteScoped)
-	contract.Execution.PathArg = ""
-
-	_, err := NewCatalog(context.Background(), []ToolSpec{{
-		ToolContract: contract,
-		Tool:         tool,
-	}})
-	if err == nil {
-		t.Fatal("expected missing path arg error")
-	}
-	if !strings.Contains(err.Error(), "write-scoped execution requires path arg") {
-		t.Fatalf("unexpected error: %v", err)
-	}
-}
-
 func testToolContract(name string, source string, parallel ParallelPolicy) ToolContract {
 	execution := ToolExecutionPolicy{ParallelPolicy: parallel}
-	if parallel == ParallelPolicyWriteScoped {
-		execution.PathArg = "path"
-	}
 	return ToolContract{
-		Name:          name,
-		Source:        source,
-		Kind:          ToolKindNative,
-		Category:      ToolCategoryRead,
-		ResourceScope: ResourceScopeWorkspaceFile,
-		Profiles:      []ToolProfile{ToolProfileRun},
-		PlanPolicy:    PlanPolicyNone,
-		Loading:       EagerLoadingPolicy(),
-		Execution:     execution,
+		Name:      name,
+		Source:    source,
+		Kind:      ToolKindNative,
+		Category:  ToolCategoryRead,
+		Loading:   EagerLoadingPolicy(),
+		Execution: execution,
 	}
 }
 

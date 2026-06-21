@@ -2,11 +2,11 @@ package tooling
 
 import "github.com/ycvk/acorn/internal/skills"
 
-func EligibilityContextForProfile(catalog *Catalog, profile ToolProfile, env map[string]string) skills.EligibilityContext {
+func EligibilityContext(catalog *Catalog, env map[string]string) skills.EligibilityContext {
 	if catalog == nil {
 		return skills.EligibilityContext{Env: copyEnv(env)}
 	}
-	specs := catalog.EnabledSpecsForProfile(profile)
+	specs := catalog.EnabledSpecs()
 	availableTools := make([]string, 0, len(specs))
 	availableToolsets := make([]string, 0, len(specs))
 	seenTools := make(map[string]struct{}, len(specs))

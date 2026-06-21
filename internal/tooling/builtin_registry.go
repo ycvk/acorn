@@ -9,7 +9,6 @@ package tooling
 // Static local tools (read_file, create_file, run_command, ...) are declared
 // separately in localToolDefs/configuredLocalSpec.
 var builtinToolOrder = []string{
-	"delegate_task",
 	"memory_search",
 	"memory_read_file",
 	"memory_list_files",
@@ -28,51 +27,38 @@ var builtinToolOrder = []string{
 // is not a built-in tool (e.g. MCP tools), which callers resolve elsewhere.
 func builtinToolContract(name string) (ToolContract, bool) {
 	c := ToolContract{
-		Name:       name,
-		PlanPolicy: PlanPolicyNone,
-		Loading:    EagerLoadingPolicy(),
-		Execution:  ToolExecutionPolicy{ParallelPolicy: ParallelPolicyReadOnly},
+		Name:      name,
+		Loading:   EagerLoadingPolicy(),
+		Execution: ToolExecutionPolicy{ParallelPolicy: ParallelPolicyReadOnly},
 	}
 	switch name {
-	case "delegate_task":
-		c.Kind = ToolKindSkill
-		c.Category = ToolCategorySkill
-		c.ResourceScope = ResourceScopeSkill
-		c.Execution.ParallelPolicy = ParallelPolicyNeverParallel
-		c.PlanPolicy = PlanPolicyRequireActivePlan
 	case "load_tools":
 		c.Kind = ToolKindNative
 		c.Category = ToolCategoryInspect
-		c.ResourceScope = ResourceScopeWorkspaceFile
-		c.Execution.ParallelPolicy = ParallelPolicyNeverParallel
+		c.Execution.ParallelPolicy = ParallelPolicySerial
 	case "update_working_checkpoint", "clear_working_checkpoint":
 		c.Kind = ToolKindMemory
 		c.Category = ToolCategoryMemory
-		c.ResourceScope = ResourceScopeMemory
 		c.Loading = DeferredLoadingPolicy("working_state_tool")
-		c.Execution.ParallelPolicy = ParallelPolicyNeverParallel
+		c.Execution.ParallelPolicy = ParallelPolicySerial
 	case "memory_search", "memory_read_file", "memory_list_files":
 		c.Kind = ToolKindMemory
 		c.Category = ToolCategoryMemory
-		c.ResourceScope = ResourceScopeMemory
 		c.Execution.ParallelPolicy = ParallelPolicyReadOnly
 	case "memory_create_file", "memory_replace_span":
 		c.Kind = ToolKindMemory
 		c.Category = ToolCategoryMemory
-		c.ResourceScope = ResourceScopeMemory
-		c.Execution.ParallelPolicy = ParallelPolicyWriteScoped
+		c.Execution.ParallelPolicy = ParallelPolicySerial
 		c.Execution.PathArg = "path"
 	case "remember":
 		// Structured fact writer: the file path is backend-derived (no path arg),
 		// so it cannot be path-scoped; serialize memory writes instead.
 		c.Kind = ToolKindMemory
 		c.Category = ToolCategoryMemory
-		c.ResourceScope = ResourceScopeMemory
-		c.Execution.ParallelPolicy = ParallelPolicyNeverParallel
+		c.Execution.ParallelPolicy = ParallelPolicySerial
 	case "skill_list", "skill_view":
 		c.Kind = ToolKindSkill
 		c.Category = ToolCategorySkill
-		c.ResourceScope = ResourceScopeSkill
 		c.Execution.ParallelPolicy = ParallelPolicyReadOnly
 	default:
 		return ToolContract{}, false
@@ -81,15 +67,14 @@ func builtinToolContract(name string) (ToolContract, bool) {
 }
 
 // BuiltinToolSpec resolves the full contract for a built-in tool, applying the
-// caller-supplied source and profiles to the canonical contract template. It
-// returns ok=false for names that are not built-in tools.
-func BuiltinToolSpec(name, source string, profiles []ToolProfile) (ToolContract, bool) {
+// caller-supplied source to the canonical contract template. It returns ok=false
+// for names that are not built-in tools.
+func BuiltinToolSpec(name, source string) (ToolContract, bool) {
 	c, ok := builtinToolContract(name)
 	if !ok {
 		return ToolContract{}, false
 	}
 	c.Source = source
-	c.Profiles = append([]ToolProfile(nil), profiles...)
 	return c, true
 }
 

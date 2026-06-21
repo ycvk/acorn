@@ -47,27 +47,12 @@ func (c *Catalog) Specs() []ToolSpec {
 	return out
 }
 
-func (c *Catalog) SpecsForProfile(profile ToolProfile) []ToolSpec {
-	if c == nil {
+func (c *Catalog) EnabledSpecs() []ToolSpec {
+	if c == nil || len(c.specs) == 0 {
 		return nil
 	}
 	out := make([]ToolSpec, 0, len(c.specs))
 	for _, spec := range c.specs {
-		if !spec.HasProfile(profile) {
-			continue
-		}
-		out = append(out, spec)
-	}
-	return out
-}
-
-func (c *Catalog) EnabledSpecsForProfile(profile ToolProfile) []ToolSpec {
-	items := c.SpecsForProfile(profile)
-	if len(items) == 0 {
-		return nil
-	}
-	out := make([]ToolSpec, 0, len(items))
-	for _, spec := range items {
 		if !spec.Enabled() {
 			continue
 		}
@@ -76,8 +61,8 @@ func (c *Catalog) EnabledSpecsForProfile(profile ToolProfile) []ToolSpec {
 	return out
 }
 
-func (c *Catalog) ToolsForProfile(profile ToolProfile) []einotool.BaseTool {
-	specs := c.EnabledSpecsForProfile(profile)
+func (c *Catalog) Tools() []einotool.BaseTool {
+	specs := c.EnabledSpecs()
 	if len(specs) == 0 {
 		return nil
 	}
@@ -149,5 +134,5 @@ func normalizeSpec(ctx context.Context, spec ToolSpec) (ToolSpec, error) {
 }
 
 func errUnknownParallelPolicy(raw string) error {
-	return fmt.Errorf("unknown tool parallel policy %q: valid values are readonly|read_only, write_scoped, never_parallel", raw)
+	return fmt.Errorf("unknown tool parallel policy %q: valid values are readonly|read_only, serial", raw)
 }

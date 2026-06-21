@@ -11,7 +11,6 @@ import (
 func TestBuiltinToolNamesSnapshot(t *testing.T) {
 	got := BuiltinToolNames()
 	want := []string{
-		"delegate_task",
 		"memory_search",
 		"memory_read_file",
 		"memory_list_files",
@@ -37,7 +36,7 @@ func TestBuiltinToolNamesSnapshot(t *testing.T) {
 // added without a complete, correct contract.
 func TestBuiltinToolContractsAreValid(t *testing.T) {
 	for _, name := range builtinToolOrder {
-		contract, ok := BuiltinToolSpec(name, "local", []ToolProfile{ToolProfileRun, ToolProfileServe})
+		contract, ok := BuiltinToolSpec(name, "local")
 		if !ok {
 			t.Fatalf("BuiltinToolSpec(%q) not found", name)
 		}
@@ -48,7 +47,7 @@ func TestBuiltinToolContractsAreValid(t *testing.T) {
 }
 
 func TestBuiltinToolSpecUnknownReturnsFalse(t *testing.T) {
-	if _, ok := BuiltinToolSpec("not_a_real_tool", "local", nil); ok {
+	if _, ok := BuiltinToolSpec("not_a_real_tool", "local"); ok {
 		t.Fatal("BuiltinToolSpec for unknown tool should return ok=false")
 	}
 }
