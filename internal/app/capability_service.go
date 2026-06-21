@@ -2,14 +2,12 @@ package app
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"github.com/ycvk/acorn/internal/config"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
 	"github.com/ycvk/acorn/internal/runtime"
 	"github.com/ycvk/acorn/internal/skills"
-	"github.com/ycvk/acorn/internal/tooling"
 )
 
 type CapabilitySnapshotOptions struct {
@@ -142,30 +140,24 @@ func (s *CapabilitiesService) Snapshot(ctx context.Context, opts CapabilitySnaps
 		return SystemCapabilities{}
 	}
 	executionErr := s.cfg.ValidateExecutionReady()
-	skills := s.snapshotSkills(ctx)
+	skillsCap := s.snapshotSkills(ctx)
 	providers := s.snapshotMCPProviders(ctx, opts)
 	tools, catalogErr := s.snapshotTools(ctx, providers)
 	healthyProviderCount := 0
 	if opts.ProbeMCP {
 		healthyProviderCount = healthyCapabilityProviderCount(providers)
 	}
-	runtimeReadinessReason := errorString(executionErr)
-	if catalogErr != nil {
-		if runtimeReadinessReason == "" {
-			runtimeReadinessReason = catalogErr.Error()
-		}
-	}
-	runtimeReadiness := buildRuntimeReadiness(runtimeReadinessReason)
+	runtimeReadiness := buildRuntimeReadiness(s.runtimeReadinessReason(executionErr, catalogErr))
 	providerReadiness := buildProviderReadiness(providers)
 
 	return SystemCapabilities{
 		Summary: SystemCapabilitySummary{
 			ToolCount:                  len(tools),
 			EnabledToolCount:           enabledToolCount(tools),
-			SkillCount:                 skills.Count,
-			EligibleSkillCount:         skills.EligibleCount,
-			IneligibleSkillCount:       skills.IneligibleCount,
-			InvalidSkillCount:          skills.InvalidCount,
+			SkillCount:                 skillsCap.Count,
+			EligibleSkillCount:         skillsCap.EligibleCount,
+			IneligibleSkillCount:       skillsCap.IneligibleCount,
+			InvalidSkillCount:          skillsCap.InvalidCount,
 			MCPConfiguredProviderCount: len(providers),
 			MCPEnabledProviderCount:    enabledCapabilityProviderCount(providers),
 			MCPHealthyProviderCount:    healthyProviderCount,
@@ -177,308 +169,20 @@ func (s *CapabilitiesService) Snapshot(ctx context.Context, opts CapabilitySnaps
 		Features:          SystemFeatureCapabilities{InterruptResume: true, SessionHistory: true},
 		ToolCatalogError:  errorString(catalogErr),
 		Tools:             tools,
-		Skills:            skills,
+		Skills:            skillsCap,
 		MCPProviders:      providers,
 		ProviderReadiness: providerReadiness,
 	}
 }
 
-func (s *CapabilitiesService) snapshotTools(ctx context.Context, providers []SystemMCPProviderCapability) ([]SystemToolCapability, error) {
-	workspaceRoot := ""
-	runCommandTimeout := 0
-	if ws, err := s.cfg.Workspace(); err == nil && ws != nil {
-		workspaceRoot = ws.Root()
-		runCommandTimeout = ws.RunCommandDefaultTimeout()
-	}
-
-	var specs []tooling.ToolSpec
-	if s.catalogBuilder != nil {
-		liveSpecs, err := s.catalogBuilder.BuildCapabilitySpecs(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("build tool catalog: %w", err)
-		}
-		specs = liveSpecs
-	} else {
-		specs = tooling.ConfiguredLocalSpecs(s.cfg)
-	}
-
-	items := make([]SystemToolCapability, 0, len(specs)+providerToolCount(providers))
-	for _, spec := range specs {
-		items = append(items, toolCapabilityFromSpec(spec, workspaceRoot, runCommandTimeout))
-	}
-	for _, provider := range providers {
-		toolNames := provider.DiscoveredToolNames
-		if len(toolNames) == 0 {
-			toolNames = provider.ConfiguredToolNames
-		}
-		parallelPolicy, err := mcpProviderParallelPolicy(s.cfg, provider.Name)
-		if err != nil {
-			return nil, err
-		}
-		for _, toolName := range toolNames {
-			items = append(items, SystemToolCapability{
-				Name:           toolName,
-				Source:         provider.Name,
-				Kind:           string(tooling.ToolKindMCP),
-				Category:       string(tooling.ToolCategoryIntegration),
-				ResourceScope:  string(tooling.ResourceScopeMCP),
-				Profiles:       []string{string(tooling.ToolProfileRun)},
-				Enabled:        provider.Enabled && provider.Error == "",
-				HealthState:    providerHealthState(provider),
-				HealthReason:   strings.TrimSpace(provider.Error),
-				ParallelPolicy: parallelPolicy,
-				PlanPolicy:     string(tooling.PlanPolicyNone),
-				Risk:           "integration",
-			})
+func (s *CapabilitiesService) runtimeReadinessReason(executionErr error, catalogErr error) string {
+	reason := errorString(executionErr)
+	if catalogErr != nil {
+		if reason == "" {
+			reason = catalogErr.Error()
 		}
 	}
-	return items, nil
-}
-
-func mcpProviderParallelPolicy(cfg *config.Config, providerName string) (string, error) {
-	if cfg == nil {
-		return "", fmt.Errorf("MCP provider %q requires configured tool_safety", strings.TrimSpace(providerName))
-	}
-	for _, provider := range cfg.MCP.Providers {
-		if strings.TrimSpace(provider.Name) != strings.TrimSpace(providerName) {
-			continue
-		}
-		policy, err := tooling.ParseParallelPolicy(provider.ToolSafety)
-		if err != nil {
-			return "", err
-		}
-		return string(policy), nil
-	}
-	return "", fmt.Errorf("MCP provider %q is not configured", strings.TrimSpace(providerName))
-}
-
-func toolCapabilityFromSpec(spec tooling.ToolSpec, workspaceRoot string, runCommandTimeout int) SystemToolCapability {
-	item := SystemToolCapability{
-		Name:           spec.Name,
-		Source:         spec.Source,
-		Kind:           string(spec.Kind),
-		Category:       string(spec.Category),
-		ResourceScope:  string(spec.ResourceScope),
-		Profiles:       profileStrings(spec.Profiles),
-		Enabled:        spec.Enabled(),
-		HealthState:    string(spec.Health.State),
-		HealthReason:   spec.Health.Reason,
-		ParallelPolicy: string(spec.Execution.ParallelPolicy),
-		PlanPolicy:     string(spec.PlanPolicy),
-		Risk:           toolRisk(spec),
-	}
-	switch spec.ResourceScope {
-	case tooling.ResourceScopeWorkspaceFile:
-		item.RootDir = workspaceRoot
-	case tooling.ResourceScopeWorkspaceCommand:
-		item.WorkDir = workspaceRoot
-		item.DefaultTimeout = runCommandTimeout
-	}
-	return item
-}
-
-func toolRisk(spec tooling.ToolSpec) string {
-	switch spec.Category {
-	case tooling.ToolCategoryRead, tooling.ToolCategoryInspect:
-		return "read_only"
-	case tooling.ToolCategoryWrite:
-		return "mutation"
-	case tooling.ToolCategoryExecute:
-		return "escape_hatch"
-	case tooling.ToolCategoryMemory:
-		return "memory"
-	case tooling.ToolCategorySkill:
-		return "skill"
-	default:
-		return "integration"
-	}
-}
-
-func profileStrings(items []tooling.ToolProfile) []string {
-	if len(items) == 0 {
-		return nil
-	}
-	out := make([]string, 0, len(items))
-	for _, item := range items {
-		out = append(out, string(item))
-	}
-	return out
-}
-
-func providerHealthState(provider SystemMCPProviderCapability) string {
-	switch {
-	case !provider.Enabled:
-		return string(tooling.HealthStateDisabled)
-	case strings.TrimSpace(provider.Error) != "":
-		return string(tooling.HealthStateDegraded)
-	default:
-		return string(tooling.HealthStateHealthy)
-	}
-}
-
-func providerToolCount(providers []SystemMCPProviderCapability) int {
-	total := 0
-	for _, provider := range providers {
-		if len(provider.DiscoveredToolNames) > 0 {
-			total += len(provider.DiscoveredToolNames)
-			continue
-		}
-		total += len(provider.ConfiguredToolNames)
-	}
-	return total
-}
-
-func (s *CapabilitiesService) snapshotSkills(ctx context.Context) SystemSkillCapabilities {
-	if s == nil || s.skills == nil {
-		return SystemSkillCapabilities{}
-	}
-	snapshot, err := s.skills.Snapshot(ctx)
-	if err != nil {
-		return SystemSkillCapabilities{
-			LoadError: fmt.Sprintf("load stable skills: %v", err),
-		}
-	}
-	out := make([]SystemSkillSummary, 0, len(snapshot.Skills))
-	eligibleCount := 0
-	for _, item := range snapshot.Skills {
-		if item.Eligible {
-			eligibleCount++
-		}
-		out = append(out, SystemSkillSummary{
-			ID:              item.ID,
-			Name:            item.Name,
-			Version:         item.Version,
-			Source:          item.Source,
-			Origin:          string(item.Origin),
-			TaskPattern:     item.TaskPattern,
-			Summary:         item.Summary,
-			PromotedFrom:    item.PromotedFrom,
-			Eligible:        item.Eligible,
-			DisabledReasons: append([]string(nil), item.DisabledReasons...),
-		})
-	}
-	problems := make([]SystemSkillProblem, 0, len(snapshot.Problems))
-	for _, item := range snapshot.Problems {
-		problems = append(problems, SystemSkillProblem{
-			ID:     item.ID,
-			Name:   item.Name,
-			Source: item.Source,
-			Path:   item.Path,
-			Error:  item.Error,
-		})
-	}
-	return SystemSkillCapabilities{
-		Count:           len(out),
-		EligibleCount:   eligibleCount,
-		IneligibleCount: len(out) - eligibleCount,
-		InvalidCount:    len(problems),
-		Items:           out,
-		Problems:        problems,
-	}
-}
-
-func (s *CapabilitiesService) snapshotMCPProviders(ctx context.Context, opts CapabilitySnapshotOptions) []SystemMCPProviderCapability {
-	configured := configuredProviderConfigs(s.cfg)
-	if len(configured) == 0 {
-		return nil
-	}
-	var statuses []mcpprovider.ProviderStatus
-	if opts.ProbeMCP && s.probeProviders != nil {
-		statuses = s.probeProviders(ctx, configured)
-	} else {
-		statuses = make([]mcpprovider.ProviderStatus, 0, len(configured))
-		for _, cfg := range configured {
-			statuses = append(statuses, mcpprovider.ProviderStatus{
-				Name:                cfg.Name,
-				Configured:          true,
-				Enabled:             cfg.Enabled,
-				Transport:           cfg.Transport,
-				Command:             cfg.Command,
-				Args:                append([]string(nil), cfg.Args...),
-				WorkDir:             cfg.WorkDir,
-				ConfiguredToolNames: append([]string(nil), cfg.ToolNames...),
-			})
-		}
-	}
-	out := make([]SystemMCPProviderCapability, 0, len(statuses))
-	for _, status := range statuses {
-		out = append(out, SystemMCPProviderCapability{
-			Name:                status.Name,
-			Configured:          status.Configured,
-			Enabled:             status.Enabled,
-			Transport:           status.Transport,
-			StartupStatus:       status.StartupStatus,
-			Command:             status.Command,
-			Args:                append([]string(nil), status.Args...),
-			WorkDir:             status.WorkDir,
-			CommandPath:         status.CommandPath,
-			ConfiguredToolNames: append([]string(nil), status.ConfiguredToolNames...),
-			DiscoveredToolNames: append([]string(nil), status.DiscoveredToolNames...),
-			ToolCount:           status.ToolCount,
-			Error:               status.Error,
-			AuthStatus:          status.AuthStatus,
-		})
-	}
-	return out
-}
-
-func configuredProviderConfigs(cfg *config.Config) []mcpprovider.ProviderConfig {
-	if cfg == nil {
-		return nil
-	}
-	return mcpprovider.ProviderConfigsFromConfig(cfg.MCP.Providers)
-}
-
-func enabledToolCount(items []SystemToolCapability) int {
-	count := 0
-	for _, item := range items {
-		if item.Enabled {
-			count++
-		}
-	}
-	return count
-}
-
-func enabledCapabilityProviderCount(items []SystemMCPProviderCapability) int {
-	count := 0
-	for _, item := range items {
-		if item.Enabled {
-			count++
-		}
-	}
-	return count
-}
-
-func healthyCapabilityProviderCount(items []SystemMCPProviderCapability) int {
-	count := 0
-	for _, item := range items {
-		if item.Enabled && item.Error == "" {
-			count++
-		}
-	}
-	return count
-}
-
-func firstEnabledProviderModel(cfg *config.Config) string {
-	if cfg == nil {
-		return ""
-	}
-	for _, item := range cfg.Providers {
-		if !item.Enabled {
-			continue
-		}
-		if name := strings.TrimSpace(item.Name); name != "" {
-			return name
-		}
-	}
-	return ""
-}
-
-func errorString(err error) string {
-	if err == nil {
-		return ""
-	}
-	return err.Error()
+	return strings.TrimSpace(reason)
 }
 
 type RuntimeReadinessStatus string
@@ -510,71 +214,4 @@ type ProviderReadinessSummary struct {
 	Reason        string                  `json:"reason,omitempty"`
 	StartupStatus string                  `json:"startup_status,omitempty"`
 	AuthStatus    string                  `json:"auth_status,omitempty"`
-}
-
-func buildRuntimeReadiness(blockedReason string) *RuntimeReadiness {
-	reason := strings.TrimSpace(blockedReason)
-	if reason == "" {
-		return &RuntimeReadiness{Status: RuntimeReadinessReady}
-	}
-	return &RuntimeReadiness{
-		Status: RuntimeReadinessBlocked,
-		Reason: reason,
-	}
-}
-
-func buildProviderReadiness(items []SystemMCPProviderCapability) []ProviderReadinessSummary {
-	if len(items) == 0 {
-		return nil
-	}
-	out := make([]ProviderReadinessSummary, 0, len(items))
-	for _, item := range items {
-		out = append(out, providerReadinessFromCapability(item))
-	}
-	return out
-}
-
-func providerReadinessFromCapability(provider SystemMCPProviderCapability) ProviderReadinessSummary {
-	summary := ProviderReadinessSummary{
-		Scope:         providerReadinessScopeMCP,
-		Provider:      provider.Name,
-		StartupStatus: strings.TrimSpace(provider.StartupStatus),
-		AuthStatus:    strings.TrimSpace(provider.AuthStatus),
-	}
-
-	switch {
-	case !provider.Configured:
-		summary.Status = ProviderReadinessBlocked
-		summary.Reason = "provider is not configured"
-	case !provider.Enabled:
-		summary.Status = ProviderReadinessBlocked
-		summary.Reason = "provider is disabled"
-	case strings.TrimSpace(provider.Error) != "":
-		summary.Status = ProviderReadinessFailed
-		summary.Reason = strings.TrimSpace(provider.Error)
-	case summary.AuthStatus == "expired":
-		summary.Status = ProviderReadinessFailed
-		summary.Reason = "provider auth expired"
-	case summary.StartupStatus == "":
-		summary.Status = ProviderReadinessBlocked
-		summary.Reason = "provider status has not been probed"
-	case summary.StartupStatus == "failed" || summary.StartupStatus == "degraded":
-		summary.Status = ProviderReadinessFailed
-		summary.Reason = providerStartupReason(summary.StartupStatus)
-	default:
-		summary.Status = ProviderReadinessPassed
-	}
-
-	return summary
-}
-
-func providerStartupReason(status string) string {
-	switch strings.TrimSpace(status) {
-	case "failed":
-		return "provider startup failed"
-	case "degraded":
-		return "provider startup degraded"
-	default:
-		return ""
-	}
 }

@@ -14,11 +14,18 @@ import (
 	"github.com/ycvk/acorn/internal/events"
 )
 
+// RunContextBridge is structurally identical to runtimeapi.RunContextBridge.
+// skills cannot import runtime/api because runtime imports skills (cycle);
+// the duplicate definition is a deliberate consumer-owned port seam.
 type RunContextBridge interface {
 	CurrentRunID(context.Context) string
 	CurrentSessionID(context.Context) string
 }
 
+// LifecycleEventAppender is structurally identical to runtimeapi.EventAppender.
+// skills does not import runtime/api to keep the dependency direction clean;
+// any concrete type implementing one implements the other via Go's structural
+// typing. This is a consumer-owned port, not a duplicate definition.
 type LifecycleEventAppender interface {
 	AppendEventContext(ctx context.Context, runID, kind string, payload any) (events.EventRecord, error)
 }

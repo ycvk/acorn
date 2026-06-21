@@ -3,7 +3,6 @@ package tools
 import (
 	"encoding/gob"
 	"errors"
-	"fmt"
 
 	einotool "github.com/cloudwego/eino/components/tool"
 
@@ -280,136 +279,28 @@ func init() {
 }
 
 func BuildCatalog(cfg CatalogConfig, extraTools []einotool.BaseTool, childExec orchestration.ChildAgentExecutor, bridge DelegateTaskContext) (*Catalog, error) {
-	items := make([]einotool.BaseTool, 0, 10+len(extraTools))
-	ws := cfg.Workspace
-	if ws == nil && (cfg.MutationEnabled || cfg.RunCommandEnabled) {
+	if cfg.Workspace == nil && (cfg.MutationEnabled || cfg.RunCommandEnabled) {
 		return nil, errors.New("workspace is required when mutation or run_command tools are enabled")
 	}
-
-	if ws != nil {
-		readTool, err := buildReadFileTool(ws)
-		if err != nil {
-			return nil, err
-		}
-		listTool, err := buildListFilesTool(ws)
-		if err != nil {
-			return nil, err
-		}
-		searchTool, err := buildSearchTextTool(ws)
-		if err != nil {
-			return nil, err
-		}
-		gitStatusTool, err := buildInspectGitStatusTool(ws)
-		if err != nil {
-			return nil, err
-		}
-		gitDiffTool, err := buildInspectGitDiffTool(ws)
-		if err != nil {
-			return nil, err
-		}
-		gitSummaryTool, err := buildGitSummaryTool(ws, cfg.ArtifactService, cfg.ArtifactContext)
-		if err != nil {
-			return nil, err
-		}
-		items = append(items, readTool, listTool, searchTool, gitStatusTool, gitDiffTool, gitSummaryTool)
-
-		if cfg.MutationEnabled {
-			createTool, err := buildCreateFileTool(ws)
-			if err != nil {
-				return nil, err
-			}
-			replaceTool, err := buildReplaceSpanTool(ws)
-			if err != nil {
-				return nil, err
-			}
-			patchTool, err := buildApplyUnifiedPatchTool(ws)
-			if err != nil {
-				return nil, err
-			}
-			multiEditTool, err := buildMultiEditTool(ws)
-			if err != nil {
-				return nil, err
-			}
-			rollbackTool, err := buildRollbackWorkspaceCheckpointTool(ws)
-			if err != nil {
-				return nil, err
-			}
-			items = append(items, createTool, replaceTool, patchTool, multiEditTool, rollbackTool)
-		}
-
-		if cfg.RunCommandEnabled {
-			runTool, err := buildRunCommandTool(ws)
-			if err != nil {
-				return nil, err
-			}
-			items = append(items, runTool)
-			if cfg.ArtifactService != nil {
-				verifyTool, err := buildRunVerificationTool(ws, cfg.ArtifactService, cfg.ArtifactContext)
-				if err != nil {
-					return nil, err
-				}
-				items = append(items, verifyTool)
-			}
-		}
+	items := make([]einotool.BaseTool, 0, 10+len(extraTools))
+	groups := []func() ([]einotool.BaseTool, error){
+		func() ([]einotool.BaseTool, error) { return buildWorkspaceTools(cfg) },
+		func() ([]einotool.BaseTool, error) { return buildMutationTools(cfg) },
+		func() ([]einotool.BaseTool, error) { return buildRunCommandTools(cfg) },
+		func() ([]einotool.BaseTool, error) { return buildArtifactServiceTools(cfg) },
+		func() ([]einotool.BaseTool, error) { return buildOperatorTool(cfg) },
+		func() ([]einotool.BaseTool, error) { return buildWebFetchToolEntry(cfg) },
+		func() ([]einotool.BaseTool, error) { return buildWebSearchToolEntry(cfg) },
+		func() ([]einotool.BaseTool, error) { return buildBrowserToolEntry(cfg) },
+		func() ([]einotool.BaseTool, error) { return buildDelegateToolEntry(childExec, bridge) },
 	}
-
-	if cfg.ArtifactService != nil {
-		artifactTools, err := buildArtifactTools(cfg.ArtifactService, cfg.ArtifactContext)
+	for _, group := range groups {
+		built, err := group()
 		if err != nil {
 			return nil, err
 		}
-		items = append(items, artifactTools...)
+		items = append(items, built...)
 	}
-
-	if cfg.OperatorStore != nil {
-		operatorTool, err := buildAskOperatorTool(cfg.OperatorStore, cfg.OperatorContext)
-		if err != nil {
-			return nil, err
-		}
-		items = append(items, operatorTool)
-	}
-
-	if cfg.WebFetchService != nil {
-		if cfg.ArtifactService == nil {
-			return nil, errors.New("artifact service is required when web_fetch is enabled")
-		}
-		webFetchTool, err := buildWebFetchTool(cfg.WebFetchService, cfg.ArtifactService, cfg.ArtifactContext)
-		if err != nil {
-			return nil, err
-		}
-		items = append(items, webFetchTool)
-	}
-
-	if cfg.WebSearchService != nil {
-		if cfg.ArtifactService == nil {
-			return nil, errors.New("artifact service is required when web_search is enabled")
-		}
-		webSearchTool, err := buildWebSearchTool(cfg.WebSearchService, cfg.ArtifactService, cfg.ArtifactContext)
-		if err != nil {
-			return nil, err
-		}
-		items = append(items, webSearchTool)
-	}
-
-	if cfg.BrowserService != nil {
-		if cfg.ArtifactService == nil {
-			return nil, errors.New("artifact service is required when browser is enabled")
-		}
-		browserTool, err := buildBrowserTool(cfg.BrowserService, cfg.ArtifactService, cfg.ArtifactContext)
-		if err != nil {
-			return nil, err
-		}
-		items = append(items, browserTool)
-	}
-
-	if childExec != nil {
-		delegateTool, err := NewDelegateTool(childExec, bridge)
-		if err != nil {
-			return nil, fmt.Errorf("build delegate_task tool: %w", err)
-		}
-		items = append(items, delegateTool)
-	}
-
 	items = append(items, extraTools...)
 	return &Catalog{Tools: items}, nil
 }

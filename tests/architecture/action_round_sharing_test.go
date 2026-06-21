@@ -37,13 +37,24 @@ func TestRunOneIterationUsesSharedActionRound(t *testing.T) {
 }
 
 func TestActNodeUsesSharedActionRound(t *testing.T) {
-	path := filepath.Join("..", "..", "internal", "runtime", "plan", "act_node.go")
-	calls := callsInFile(t, path)
-	if calls[actionRoundSharedFunc] == 0 {
+	// RunActionRound may live in act_node.go or act_node_invoke.go (split file)
+	base := filepath.Join("..", "..", "internal", "runtime", "plan")
+	files := []string{
+		filepath.Join(base, "act_node.go"),
+		filepath.Join(base, "act_node_invoke.go"),
+	}
+	totalCalls := 0
+	totalExecuteRound := 0
+	for _, path := range files {
+		calls := callsInFile(t, path)
+		totalCalls += calls[actionRoundSharedFunc]
+		totalExecuteRound += calls["ExecuteRound"]
+	}
+	if totalCalls == 0 {
 		t.Fatalf("act_node action round must call shared %s (not inline ExecuteRound+compact)", actionRoundSharedFunc)
 	}
-	if calls["ExecuteRound"] > 0 {
-		t.Fatalf("act_node must not call ExecuteRound directly (use %s); found %d direct call(s)", actionRoundSharedFunc, calls["ExecuteRound"])
+	if totalExecuteRound > 0 {
+		t.Fatalf("act_node must not call ExecuteRound directly (use %s); found %d direct call(s)", actionRoundSharedFunc, totalExecuteRound)
 	}
 }
 

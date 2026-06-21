@@ -23,6 +23,11 @@ type ToolInvoker interface {
 	NewStreamingExecutor(ctx context.Context) StreamingExecutor
 }
 
+// PlanStore is a marker interface that keeps orchestration free of
+// runtime/api imports. The concrete value always implements
+// runtimeapi.PlanStore; runtimeGraphDependencies recovers the real type
+// via type assertion. This is a deliberate dependency-inversion seam:
+// runtime → orchestration (allowed), orchestration → runtime/api (forbidden).
 type PlanStore interface {
 	OrchestrationPlanStore()
 }

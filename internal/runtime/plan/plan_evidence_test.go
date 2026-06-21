@@ -381,3 +381,44 @@ func TestVerifierEvidenceFromNilResultIsRecordedFailureEvidence(t *testing.T) {
 		t.Fatalf("error = %q", evidence.Error)
 	}
 }
+
+// TestEvidenceForToolMessageDerivesInspectGitDiffEvidence guards that inspect_git_diff tool
+// results produce a Diff evidence item (with paths, empty DiffRef). The pre-split
+// diffEvidenceFromTool only short-circuited to nil for git_summary without a diff artifact;
+// inspect_git_diff always emitted Diff evidence.
+func TestEvidenceForToolMessageDerivesInspectGitDiffEvidence(t *testing.T) {
+	recordedAt := time.Now().UTC()
+	items, err := evidenceForToolMessage(toolMessageEvidenceInput{
+		Step:          model.PlanStep{ID: "s1"},
+		RunID:         "run_parent",
+		ToolName:      "inspect_git_diff",
+		ToolCallID:    "call_diff",
+		ArgumentsJSON: `{"path":"src/app.go"}`,
+		Message: &planToolMessage{
+			Content: "diff --git a/src/app.go b/src/app.go",
+			Extra: map[string]any{
+				"tool_result_ref": "tool_result:run_parent:call_diff",
+			},
+		},
+		RecordedAt: recordedAt,
+	})
+	if err != nil {
+		t.Fatalf("evidenceForToolMessage: %v", err)
+	}
+	var diff *model.PlanEvidence
+	for i := range items {
+		if items[i].Kind == model.EvidenceKindDiff {
+			diff = &items[i]
+			break
+		}
+	}
+	if diff == nil {
+		t.Fatalf("inspect_git_diff diff evidence missing: %+v", items)
+	}
+	if diff.DiffRef != "" {
+		t.Fatalf("diff DiffRef = %q, want empty", diff.DiffRef)
+	}
+	if len(diff.Paths) != 1 || diff.Paths[0] != "src/app.go" {
+		t.Fatalf("diff Paths = %+v, want [src/app.go]", diff.Paths)
+	}
+}

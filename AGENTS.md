@@ -87,8 +87,11 @@ make dev-faiss-artifacts && make dev-build-faiss && make dev-serve-faiss
 
 ## 代码规范
 
-- Go 1.26,tab 缩进;前端 2 空格;import 按 goimports 分组。
-- error 必须显式处理;`ErrXxx` 命名。SQLite 关闭 Rows/Stmt 并检查 `rows.Err()`;HTTP 带 context,关闭 body。
+ - Go 1.26,tab 缩进;前端 2 空格;import 按 goimports 分组。
+ - error 必须显式处理,分两类:
+   - **Exported sentinel error**(需要被 `errors.Is` 比对):必须是包级 `var ErrXxx = errors.New(...)` 或 `fmt.Errorf("...: %w", ...)`;命名 `ErrXxx`;放在定义它的包的 errors.go 或对应文件顶部。
+   - **Precondition/internal-config error**(不该发生的编程错误:依赖未注入、配置缺失、前置条件违反):用 inline `errors.New("...")` 直接返回,不需要 `errors.Is` 比对;消息要可定位(含字段名/参数名)。
+ - SQLite 关闭 Rows/Stmt 并检查 `rows.Err()`;HTTP 带 context,关闭 body。
 
 ## 配置和文档
 

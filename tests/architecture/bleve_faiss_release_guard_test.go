@@ -60,7 +60,9 @@ func TestProductionBleveImportsStayBuildTagged(t *testing.T) {
 }
 
 func allowedBleveImportFile(path string, rel string) bool {
-	if rel != "internal/memorymodule/bleve_index.go" {
+	// Allow any file matching bleve_index*.go pattern in memorymodule,
+	// as long as it carries the bleve_faiss,vectors,cgo build tag.
+	if !strings.HasPrefix(rel, "internal/memorymodule/bleve_index") || !strings.HasSuffix(rel, ".go") {
 		return false
 	}
 	data, err := osReadFile(path)

@@ -749,3 +749,76 @@ func makeToolCall(id, name, args string) schema.ToolCall {
 		},
 	}
 }
+
+// TestActNodeRecordsAssistantBeforeFailingOnToolExecutionError guards the state-mutation
+// ordering: when RunActionRound returns a non-nil assistant message together with a
+// ToolExecutionError (a tool call that failed mid-execution), the assistant message must
+// still be appended to state.Messages and recorded into the session BEFORE the step is
+// failed. The pre-split Invoke recorded assistant first, then handled roundErr.
+func TestActNodeRecordsAssistantBeforeFailingOnToolExecutionError(t *testing.T) {
+	toolCall := makeToolCall("call_1", "read_file", `{"path":"README.md"}`)
+	nodeModel := &actNodeModel{response: schema.AssistantMessage("thinking about README", []schema.ToolCall{toolCall})}
+	tools := &fakeToolInvoker{err: errors.New("tool node failed")}
+	store := &fakePlanStore{loaded: &model.Plan{
+		PlanID:    "plan_order",
+		SessionID: "sess_order",
+		RunID:     "run_order",
+		Steps:     []model.PlanStep{{ID: "s1", Action: "Read README", Status: model.PlanStepPending}},
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
+	}}
+	node := NewActNode(nodeModel, tools, tool.NewDirectAssistantStreamer(nil), store, nil, nil)
+	ctx := runtimeapi.WithRunID(runtimeapi.WithSessionID(context.Background(), "sess_order"), "run_order")
+
+	out, err := node.Invoke(ctx, &graph.AgentGraphState{Messages: []*schema.Message{schema.UserMessage("read")}})
+	if err != nil {
+		t.Fatalf("Invoke: %v", err)
+	}
+	if out.Plan.Steps[0].Status != model.PlanStepFailed {
+		t.Fatalf("step status = %q, want failed", out.Plan.Steps[0].Status)
+	}
+	// The assistant message produced in the failing round must be preserved in state.Messages.
+	var sawAssistant bool
+	for _, msg := range out.Messages {
+		if msg != nil && msg.Role == schema.Assistant && strings.Contains(msg.Content, "thinking about README") {
+			sawAssistant = true
+			break
+		}
+	}
+	if !sawAssistant {
+		t.Fatalf("assistant message not recorded before step failure: %+v", out.Messages)
+	}
+}
+
+// TestActNodePersistsRunIDOnCompletedStep guards that completing an act step stamps the
+// current run_id onto plan.RunID, matching the pre-split Invoke (which set
+// plan.RunID = runID before SavePlan on completion). On a resumed step that was started
+// under a previous run, markActStepStarted is a no-op (status already InProgress), so
+// the completion path is the only place that re-stamps the current run_id.
+func TestActNodePersistsRunIDOnCompletedStep(t *testing.T) {
+	toolCall := makeToolCall("call_1", "read_file", `{"path":"README.md"}`)
+	nodeModel := &actNodeModel{response: schema.AssistantMessage("", []schema.ToolCall{toolCall})}
+	tools := &fakeToolInvoker{results: []*schema.Message{schema.ToolMessage("ok", "call_1", schema.WithToolName("read_file"))}}
+	// Step already InProgress under a stale run id (resumed step).
+	store := &fakePlanStore{loaded: &model.Plan{
+		PlanID:    "plan_runid",
+		SessionID: "sess_runid",
+		RunID:     "run_stale_previous",
+		Steps:     []model.PlanStep{{ID: "s1", Action: "Read README", Status: model.PlanStepInProgress}},
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
+	}}
+	node := NewActNode(nodeModel, tools, tool.NewDirectAssistantStreamer(nil), store, nil, nil)
+	ctx := runtimeapi.WithRunID(runtimeapi.WithSessionID(context.Background(), "sess_runid"), "run_current")
+
+	out, err := node.Invoke(ctx, &graph.AgentGraphState{Messages: []*schema.Message{schema.UserMessage("read")}})
+	if err != nil {
+		t.Fatalf("Invoke: %v", err)
+	}
+	if out.Plan.Steps[0].Status != model.PlanStepCompleted {
+		t.Fatalf("step status = %q, want completed", out.Plan.Steps[0].Status)
+	}
+	if out.Plan.RunID != "run_current" {
+		t.Fatalf("plan.RunID = %q, want run_current", out.Plan.RunID)
+	}
+}

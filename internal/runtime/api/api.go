@@ -23,6 +23,24 @@ type EventAppender interface {
 	AppendEventContext(ctx context.Context, runID, kind string, payload any) (events.EventRecord, error)
 }
 
+// --- RunContextBridge port ---
+
+// RunContextBridge provides access to the current run and session identifiers
+// from a context. It is the single canonical interface for tools and skills
+// that need run/session context. Consumers should embed this interface rather
+// than re-declaring CurrentRunID/CurrentSessionID.
+type RunContextBridge interface {
+	CurrentRunID(ctx context.Context) string
+	CurrentSessionID(ctx context.Context) string
+}
+
+// ToolCallContextBridge extends RunContextBridge with tool-call-scoped identity.
+// Tools that need to attribute side-effects to a specific tool call embed this.
+type ToolCallContextBridge interface {
+	RunContextBridge
+	CurrentToolCallID(ctx context.Context) string
+}
+
 // --- ExecuteRequest ---
 
 type ExecuteRequest struct {

@@ -8,7 +8,7 @@
   - `tests/architecture/action_round_sharing_test.go`
 - **单一 assembly 入口**：`assembleToolContext` + `assembleDirectContext` 已合并为 `assembleContext`（selection 可 nil）；3 个 `build*Assembly` 合并为 `buildAssembly`（mode 分发 + `baseAssemblyFields` 共享 helper）；`orchestration.BuildDirectResponse` 使用 `assembleTooling`。
   - `tests/architecture/assembly_consolidation_test.go`
-- **internal/runtime 顶层按职责拆分**：顶层文件按职责组织（Executor/RunnerFactory/toolset 子包等），顶层无文件 >400 行、无函数 >30 行、无嵌套 >3、无 import cycle。`internal/orchestration` 和 `internal/runtime` 子目录（plan/、tool/、graph/ 等）的 pre-existing 文件不在本次重构守卫范围内。
+- **结构守卫覆盖全包**：`tests/architecture/structural_limits_test.go` 的 `refactorOwnedDirs` 覆盖 `internal/runtime`、`internal/runtime/toolset`、`internal/runtime/plan`、`internal/tools`、`internal/contextplane`、`internal/contextplane/compaction`、`internal/store/sqlite`、`internal/memorymodule`、`internal/app`、`internal/orchestration`、`internal/providers/mcp`、`internal/web`、`internal/config`、`internal/workspace`、`internal/skills`、`internal/webaccess`。所有目录强制文件 ≤400 行；`internal/runtime` 和 `internal/runtime/toolset` 额外强制函数 ≤30 行、嵌套 ≤3 层。其余目录的函数/嵌套限制待增量清理后加入 `dirsEnforcingFuncLimits`（技术债）。`internal/runtime/tool` 含 pre-existing 超限文件（`tool.go` 524 行、`safe_parallel_tools_node.go` 478 行），待后续拆分后加入守卫。generated files（`*_gen.go`）被守卫排除。
   - `tests/architecture/structural_limits_test.go`
   - `tests/architecture/runtime_split_test.go`
 
@@ -44,3 +44,10 @@
 
 - **Self-hosted release 固定 FAISS**：release build 固定 `-tags "bleve_faiss vectors"` + FAISS C API libs；缺失 artifact/build tags/CGO toolchain 显式失败，不发布 non-FAISS fallback。
   - `tests/architecture/bleve_faiss_release_guard_test.go`
+
+## 代码规范
+
+- **Error 分两类**：Exported sentinel error（需要被 `errors.Is` 比对）必须是包级 `var ErrXxx`；precondition/internal-config error（不该发生的编程错误）用 inline `errors.New("...")` 直接返回。`.golangci.yml` 的 `errname` linter 强制导出 sentinel 命名。
+  - `.golangci.yml`（errname linter）
+- **Consumer-owned port 接口重复是故意的**：`tools.DelegateTaskContext`、`tools.OperatorQuestionContext`、`tools.ArtifactContext`、`skills.RunContextBridge`、`skills.LifecycleEventAppender` 与 `runtime/api.RunContextBridge`、`runtime/api.EventAppender` 结构相同但不可合并——合并会创建 import cycle（`runtime → tools/skills → runtime/api`）。`orchestration.PlanStore` 空标记接口同理（`orchestration → runtime/api` 禁止）。
+  - `tests/architecture/store_boundary_test.go`（import direction 不可破坏）
