@@ -20,19 +20,10 @@ type MemoryRecordDTO struct {
 	Body         string                    `json:"body"`
 	Created      string                    `json:"created,omitempty"`
 	Updated      string                    `json:"updated,omitempty"`
-	ValidFrom    string                    `json:"valid_from,omitempty"`
-	ValidUntil   string                    `json:"valid_until,omitempty"`
 	SourceRun    string                    `json:"source_run,omitempty"`
 	SourceRefs   []string                  `json:"source_refs,omitempty"`
-	EvidenceRefs []string                  `json:"evidence_refs,omitempty"`
-	Relations    []MemoryRecordRelationDTO `json:"relations,omitempty"`
 }
 
-type MemoryRecordRelationDTO struct {
-	Type   string `json:"type"`
-	Target string `json:"target"`
-	Reason string `json:"reason,omitempty"`
-}
 
 type MemoryRecordListResponse struct {
 	Items []MemoryRecordDTO `json:"items"`
@@ -52,12 +43,8 @@ type MemorySearchItemDTO struct {
 	Score        float64                   `json:"score"`
 	Created      string                    `json:"created,omitempty"`
 	Updated      string                    `json:"updated,omitempty"`
-	ValidFrom    string                    `json:"valid_from,omitempty"`
-	ValidUntil   string                    `json:"valid_until,omitempty"`
 	SourceRun    string                    `json:"source_run,omitempty"`
 	SourceRefs   []string                  `json:"source_refs,omitempty"`
-	EvidenceRefs []string                  `json:"evidence_refs,omitempty"`
-	Relations    []MemoryRecordRelationDTO `json:"relations,omitempty"`
 }
 
 type MemorySearchResponse struct {

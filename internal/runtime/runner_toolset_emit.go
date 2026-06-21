@@ -54,57 +54,6 @@ func streamMemoryEntries(entries []memorymodule.Entry) []stream.StreamMemoryPrep
 	return out
 }
 
-func emitProcedureActivationEvents(ctx context.Context, store runtimeapi.EventAppender, sink stream.StreamSink, runID string, activations []memorymodule.ProcedureActivation) error {
-	if store == nil || strings.TrimSpace(runID) == "" || len(activations) == 0 {
-		return nil
-	}
-	for _, activation := range activations {
-		_, err := stream.AppendStreamItem(ctx, store, sink, stream.StreamItem{
-			RunID:     runID,
-			Kind:      stream.StreamKindProcedureActivation,
-			CreatedAt: time.Now().UTC(),
-			Payload:   map[string]any{"procedure_activation": streamProcedureActivationFromDomain(runID, activation)},
-		})
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func filterProcedureActivationsByPhase(items []memorymodule.ProcedureActivation, phase memorymodule.ProcedureActivationPhase) []memorymodule.ProcedureActivation {
-	if len(items) == 0 {
-		return nil
-	}
-	out := make([]memorymodule.ProcedureActivation, 0, len(items))
-	for _, item := range items {
-		if item.Phase == phase {
-			out = append(out, item)
-		}
-	}
-	return out
-}
-
-func streamProcedureActivationFromDomain(runID string, item memorymodule.ProcedureActivation) *stream.StreamProcedureActivation {
-	effectiveRunID := strings.TrimSpace(item.RunID)
-	if effectiveRunID == "" {
-		effectiveRunID = strings.TrimSpace(runID)
-	}
-	return &stream.StreamProcedureActivation{
-		RunID:        effectiveRunID,
-		SessionID:    strings.TrimSpace(item.SessionID),
-		ProcedureRef: strings.TrimSpace(item.ProcedureRef),
-		Title:        strings.TrimSpace(item.Title),
-		Kind:         strings.TrimSpace(item.Kind),
-		Phase:        string(item.Phase),
-		Reason:       strings.TrimSpace(item.Reason),
-		Score:        item.Score,
-		Status:       string(item.Status),
-		Origin:       string(item.Origin),
-		SourceRefs:   append([]string(nil), item.SourceRefs...),
-		EvidenceRefs: append([]string(nil), item.EvidenceRefs...),
-	}
-}
 
 func emitSkillSelectionEvents(ctx context.Context, store runtimeapi.EventAppender, req RunnerBuildRequest, selected *SelectedSkill, matches []SkillMatch) error {
 	if store == nil || strings.TrimSpace(req.RunID) == "" {
@@ -146,10 +95,7 @@ func emitSkillSelected(ctx context.Context, store runtimeapi.EventAppender, req 
 			return err
 		}
 	}
-	return emitProcedureActivationEvents(ctx, store, req.Sink, req.RunID, []memorymodule.ProcedureActivation{
-		procedureActivationFromSelectedSkill(req, selected, memorymodule.ProcedureActivationSelected, "decision_selected_skill"),
-		procedureActivationFromSelectedSkill(req, selected, memorymodule.ProcedureActivationUsed, "skill_loaded_for_run"),
-	})
+	return nil
 }
 
 func deriveNoSelectionReason(req RunnerBuildRequest, matches []SkillMatch) string {
@@ -222,23 +168,6 @@ func streamSkillFromSelected(selected *SelectedSkill, candidates []stream.Stream
 	}
 }
 
-func procedureActivationFromSelectedSkill(req RunnerBuildRequest, selected *SelectedSkill, phase memorymodule.ProcedureActivationPhase, reason string) memorymodule.ProcedureActivation {
-	if selected == nil {
-		return memorymodule.ProcedureActivation{}
-	}
-	return memorymodule.ProcedureActivation{
-		RunID:        strings.TrimSpace(req.RunID),
-		SessionID:    strings.TrimSpace(req.SessionID),
-		ProcedureRef: strings.TrimSpace(selected.Skill.ID),
-		Title:        strings.TrimSpace(selected.Skill.Name),
-		Kind:         "executable_skill",
-		Phase:        phase,
-		Reason:       reason,
-		Score:        float64(selected.Score),
-		Origin:       memorymodule.ProcedureOrigin(strings.TrimSpace(string(selected.Skill.Origin))),
-		SourceRefs:   nonEmptyStrings(selected.Skill.PromotedFrom, selected.Skill.Path),
-	}
-}
 
 // emitDecisionBlockedEvent emits a decision_blocked stream event when the run
 // selection blocks execution (missing required capability or unavailable

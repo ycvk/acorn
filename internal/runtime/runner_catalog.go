@@ -75,9 +75,6 @@ func (f *RunnerFactory) emitRunMemoryEvents(ctx context.Context, req RunnerBuild
 	if err := emitMemoryPreparedEvent(ctx, f.deps.Store, req, memorymodule.WorkspaceScope(workspaceSlug), result); err != nil {
 		return err
 	}
-	if result != nil {
-		return emitProcedureActivationEvents(ctx, f.deps.Store, req.Sink, req.RunID, result.ProcedureActivations)
-	}
 	return nil
 }
 
@@ -98,7 +95,7 @@ func (f *RunnerFactory) assembleContext(
 	if err != nil {
 		return nil, err
 	}
-	return result, f.emitInjectedProcedures(ctx, req, result.ProcedureActivations)
+	return result, nil
 }
 
 func buildAssembleRequest(req RunnerBuildRequest, caps *runCapabilities, selection *runSelection, memoryPrepared *memorymodule.PrepareResult) contextplane.AssembleRequest {
@@ -115,8 +112,4 @@ func buildAssembleRequest(req RunnerBuildRequest, caps *runCapabilities, selecti
 		MemoryPrepared: memoryPrepared,
 		ToolCatalog:    caps.catalog,
 	}
-}
-
-func (f *RunnerFactory) emitInjectedProcedures(ctx context.Context, req RunnerBuildRequest, activations []memorymodule.ProcedureActivation) error {
-	return emitProcedureActivationEvents(ctx, f.deps.Store, req.Sink, req.RunID, filterProcedureActivationsByPhase(activations, memorymodule.ProcedureActivationInjected))
 }
