@@ -9,8 +9,6 @@ import (
 
 	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/model"
-	"github.com/ycvk/acorn/internal/sessionview"
-	"github.com/ycvk/acorn/internal/store"
 )
 
 func (s *Store) UpsertSessionSummary(ctx context.Context, summary model.SessionSummary) error {
@@ -91,24 +89,6 @@ func (s *Store) ListAllSessionSummaries(ctx context.Context) ([]model.SessionSum
 	return items, nil
 }
 
-// buildSessionMessageResultSummary reads the three runtime tables for a run and
-// delegates the pure UI projection to internal/sessionview.
-func (s *Store) buildSessionMessageResultSummary(ctx context.Context, runID string) (sessionview.ResultSummary, error) {
-	records, err := s.LoadEvents(ctx, runID)
-	if err != nil {
-		return sessionview.ResultSummary{}, fmt.Errorf("build session result summary: load events: %w", err)
-	}
-	toolResults, err := s.ListByRun(ctx, runID)
-	if err != nil {
-		return sessionview.ResultSummary{}, fmt.Errorf("build session result summary: list tool results: %w", err)
-	}
-	plan, err := s.LoadPlanByRun(ctx, runID)
-	if err != nil && !errors.Is(err, store.ErrPlanNotFound) {
-		return sessionview.ResultSummary{}, fmt.Errorf("build session result summary: load plan: %w", err)
-	}
-	return sessionview.BuildResultSummary(records, toolResults, plan)
-}
-
 func (s *Store) HasAssistantMessageForRunContent(runID, content string) (bool, error) {
 	row := s.db.QueryRow(`SELECT COUNT(1) FROM session_messages WHERE run_id = ? AND role = 'assistant' AND content = ?`, runID, content)
 	var count int
@@ -116,73 +96,6 @@ func (s *Store) HasAssistantMessageForRunContent(runID, content string) (bool, e
 		return false, fmt.Errorf("assistant message for run: %w", err)
 	}
 	return count > 0, nil
-}
-
-func (s *Store) SyncDecisionMessageForPendingAction(ctx context.Context, actionID string) error {
-	action, err := s.LoadPendingAction(ctx, actionID)
-	if err != nil {
-		return err
-	}
-	run, err := s.LoadRun(ctx, action.RunID)
-	if err != nil {
-		return err
-	}
-	if strings.TrimSpace(run.SessionID) == "" {
-		return nil
-	}
-	content, parts, err := sessionview.DecisionMessageForPendingAction(action)
-	if err != nil {
-		return err
-	}
-	if strings.TrimSpace(content) == "" {
-		return nil
-	}
-
-	messageID, found, err := s.findDecisionSessionMessageID(ctx, action.RunID, action.ActionID)
-	if err != nil {
-		return err
-	}
-	if found {
-		return s.UpdateSessionMessageWithParts(ctx, messageID, content, parts)
-	}
-	_, err = s.AppendSessionMessageWithParts(ctx, run.SessionID, run.TurnIndex, "assistant", content, parts, action.RunID)
-	return err
-}
-
-func (s *Store) findDecisionSessionMessageID(ctx context.Context, runID, actionID string) (int64, bool, error) {
-	rows, err := s.db.QueryContext(
-		ctx,
-		`SELECT id, content_parts
-		 FROM session_messages
-		 WHERE run_id = ? AND role = 'assistant'
-		 ORDER BY id ASC`,
-		runID,
-	)
-	if err != nil {
-		return 0, false, fmt.Errorf("find decision session message: %w", err)
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var (
-			id           int64
-			contentParts string
-		)
-		if err := rows.Scan(&id, &contentParts); err != nil {
-			return 0, false, fmt.Errorf("find decision session message scan: %w", err)
-		}
-		matches, err := sessionview.DecisionMessageHasActionID(contentParts, actionID)
-		if err != nil {
-			return 0, false, fmt.Errorf("find decision session message %d content parts: %w", id, err)
-		}
-		if matches {
-			return id, true, nil
-		}
-	}
-	if err := rows.Err(); err != nil {
-		return 0, false, fmt.Errorf("find decision session message rows: %w", err)
-	}
-	return 0, false, nil
 }
 
 func (s *Store) SyncAssistantMessageForRun(ctx context.Context, runID string) error {
@@ -193,6 +106,10 @@ func (s *Store) SyncAssistantMessageForRunStatus(ctx context.Context, runID stri
 	return s.syncAssistantMessageForRun(ctx, runID, status)
 }
 
+// syncAssistantMessageForRun persists the assistant turn message for a run.
+// The result-summary projection (tool results, plan evidence) was retired
+// with the architecture refactor; the assistant message is now derived purely
+// from the run record.
 func (s *Store) syncAssistantMessageForRun(ctx context.Context, runID string, statusOverride events.RunStatus) error {
 	run, err := s.LoadRun(ctx, runID)
 	if err != nil {
@@ -204,17 +121,7 @@ func (s *Store) syncAssistantMessageForRun(ctx context.Context, runID string, st
 	if strings.TrimSpace(run.SessionID) == "" {
 		return nil
 	}
-	summary := sessionview.ResultSummary{}
-	if run.Status == events.RunStatusSucceeded {
-		summary, err = s.buildSessionMessageResultSummary(ctx, run.RunID)
-		if err != nil {
-			return err
-		}
-	}
-	content, parts, err := sessionview.AssistantMessageForRun(run, summary)
-	if err != nil {
-		return err
-	}
+	content := run.Output
 	if strings.TrimSpace(content) == "" {
 		return nil
 	}
@@ -225,7 +132,7 @@ func (s *Store) syncAssistantMessageForRun(ctx context.Context, runID string, st
 	if exists {
 		return nil
 	}
-	_, err = s.AppendSessionMessageWithParts(ctx, run.SessionID, run.TurnIndex, "assistant", content, parts, runID)
+	_, err = s.AppendSessionMessage(ctx, run.SessionID, run.TurnIndex, "assistant", content, runID)
 	return err
 }
 
@@ -255,7 +162,7 @@ func (s *Store) LoadLatestRunsForSessions(ctx context.Context, sessionIDs []stri
 
 	query := fmt.Sprintf(
 		`WITH ranked_runs AS (
-			SELECT run_id, session_id, turn_index, status, input_text, output_text, error_text, checkpoint_id, orchestration_mode, skill_id, parent_run_id, depth, created_at, updated_at,
+			SELECT run_id, session_id, turn_index, status, input_text, output_text, error_text, created_at, updated_at,
 				ROW_NUMBER() OVER (
 					PARTITION BY session_id
 					ORDER BY turn_index DESC, updated_at DESC
@@ -263,7 +170,7 @@ func (s *Store) LoadLatestRunsForSessions(ctx context.Context, sessionIDs []stri
 			FROM runs
 			WHERE session_id IN (%s)
 		)
-		SELECT run_id, session_id, turn_index, status, input_text, output_text, error_text, checkpoint_id, orchestration_mode, skill_id, parent_run_id, depth, created_at, updated_at
+		SELECT run_id, session_id, turn_index, status, input_text, output_text, error_text, created_at, updated_at
 		FROM ranked_runs
 		WHERE row_num = 1`,
 		strings.Join(placeholders, ", "),
@@ -290,7 +197,7 @@ func (s *Store) LoadLatestRunsForSessions(ctx context.Context, sessionIDs []stri
 
 func (s *Store) LoadLatestRunForSession(ctx context.Context, sessionID string) (*events.RunRecord, error) {
 	row := s.db.QueryRowContext(ctx,
-		`SELECT run_id, session_id, turn_index, status, input_text, output_text, error_text, checkpoint_id, orchestration_mode, skill_id, parent_run_id, depth, created_at, updated_at
+		`SELECT run_id, session_id, turn_index, status, input_text, output_text, error_text, created_at, updated_at
          FROM runs
          WHERE session_id = ?
          ORDER BY turn_index DESC, updated_at DESC
@@ -305,56 +212,4 @@ func (s *Store) LoadLatestRunForSession(ctx context.Context, sessionID string) (
 		return nil, fmt.Errorf("load latest run for session: %w", err)
 	}
 	return rec, nil
-}
-
-func (s *Store) GetConversationHistorySegment(ctx context.Context, segmentID int64) (*model.HistoryHit, error) {
-	row := s.db.QueryRowContext(ctx,
-		`SELECT id, session_id, run_id, run_status, user_content || char(10) || assistant_content, created_at
-		 FROM conversation_segments WHERE id = ?`,
-		segmentID,
-	)
-	hit, err := scanHistoryHit(row)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("get conversation history segment: %w", err)
-	}
-	return hit, nil
-}
-
-func (s *Store) GetConversationHistorySegmentByRunID(ctx context.Context, runID string) (*model.HistoryHit, error) {
-	trimmedRunID := strings.TrimSpace(runID)
-	if trimmedRunID == "" {
-		return nil, errors.New("run id is required")
-	}
-	row := s.db.QueryRowContext(ctx,
-		`SELECT id, session_id, run_id, run_status, user_content || char(10) || assistant_content, created_at
-		 FROM conversation_segments WHERE run_id = ?`,
-		trimmedRunID,
-	)
-	hit, err := scanHistoryHit(row)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("get conversation history segment by run: %w", err)
-	}
-	return hit, nil
-}
-
-func scanHistoryHit(scanner interface{ Scan(dest ...any) error }) (*model.HistoryHit, error) {
-	var (
-		hit       model.HistoryHit
-		createdAt string
-	)
-	if err := scanner.Scan(&hit.SegmentID, &hit.SessionID, &hit.RunID, &hit.RunStatus, &hit.Content, &createdAt); err != nil {
-		return nil, err
-	}
-	timestamp, err := parseTimestamp(fixedTimestampLayout, createdAt, "conversation_segment.created_at")
-	if err != nil {
-		return nil, err
-	}
-	hit.Timestamp = timestamp
-	return &hit, nil
 }

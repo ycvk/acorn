@@ -14,7 +14,7 @@ import (
 )
 
 func (s *Store) CreatePendingAction(ctx context.Context, input store.CreatePendingActionInput) (*events.PendingActionRecord, error) {
-	kind, status, mode, err := normalizeCreatePendingActionInput(input)
+	kind, status, err := normalizeCreatePendingActionInput(input)
 	if err != nil {
 		return nil, err
 	}
@@ -31,9 +31,7 @@ func (s *Store) CreatePendingAction(ctx context.Context, input store.CreatePendi
 		Subject:     strings.TrimSpace(input.Subject),
 		PayloadJSON: input.PayloadJSON,
 		Status:      status,
-		Mode:        mode,
 		Reason:      strings.TrimSpace(input.Reason),
-		Rule:        strings.TrimSpace(input.Rule),
 		CreatedAt:   now,
 	}
 	if err := s.insertPendingAction(ctx, record); err != nil {
@@ -45,7 +43,7 @@ func (s *Store) CreatePendingAction(ctx context.Context, input store.CreatePendi
 func (s *Store) insertPendingAction(ctx context.Context, record *events.PendingActionRecord) error {
 	_, err := s.db.ExecContext(
 		ctx,
-		`INSERT INTO pending_actions(action_id, run_id, interrupt_id, kind, subject, payload_json, status, mode, reason, rule, decision_json, created_at, decided_at, resolved_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', ?, '', '')`,
+		`INSERT INTO pending_actions(action_id, run_id, interrupt_id, kind, subject, payload_json, status, reason, decision_json, created_at, decided_at, resolved_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, '', ?, '', '')`,
 		record.ActionID,
 		record.RunID,
 		record.InterruptID,
@@ -53,9 +51,7 @@ func (s *Store) insertPendingAction(ctx context.Context, record *events.PendingA
 		record.Subject,
 		record.PayloadJSON,
 		string(record.Status),
-		string(record.Mode),
 		record.Reason,
-		record.Rule,
 		formatTimestamp(record.CreatedAt),
 	)
 	if err != nil {
@@ -67,22 +63,18 @@ func (s *Store) insertPendingAction(ctx context.Context, record *events.PendingA
 	return nil
 }
 
-// normalizeCreatePendingActionInput normalizes the kind/status/mode fields of
-// a CreatePendingActionInput, returning them together with any error.
-func normalizeCreatePendingActionInput(input store.CreatePendingActionInput) (events.PendingActionKind, events.PendingActionStatus, events.PendingActionDecisionMode, error) {
+// normalizeCreatePendingActionInput normalizes the kind/status fields of a
+// CreatePendingActionInput, returning them together with any error.
+func normalizeCreatePendingActionInput(input store.CreatePendingActionInput) (events.PendingActionKind, events.PendingActionStatus, error) {
 	kind, err := normalizePendingActionKind(input.Kind)
 	if err != nil {
-		return "", "", "", fmt.Errorf("create pending action: %w", err)
+		return "", "", fmt.Errorf("create pending action: %w", err)
 	}
 	status, err := normalizePendingActionStatus(input.Status)
 	if err != nil {
-		return "", "", "", fmt.Errorf("create pending action: %w", err)
+		return "", "", fmt.Errorf("create pending action: %w", err)
 	}
-	mode, err := normalizePendingActionMode(input.Mode)
-	if err != nil {
-		return "", "", "", fmt.Errorf("create pending action: %w", err)
-	}
-	return kind, status, mode, nil
+	return kind, status, nil
 }
 
 func (s *Store) AttachPendingActionInterrupt(ctx context.Context, actionID, interruptID string) error {
@@ -158,7 +150,7 @@ func (s *Store) ListPendingActions(ctx context.Context, limit int) ([]events.Pen
 
 // pendingActionColumns is the shared column list for all pending_actions
 // SELECTs, matching the field order scanned by scanPendingActionRecord.
-const pendingActionColumns = `action_id, run_id, interrupt_id, kind, subject, payload_json, status, mode, reason, rule, decision_json, created_at, decided_at, resolved_at`
+const pendingActionColumns = `action_id, run_id, interrupt_id, kind, subject, payload_json, status, reason, decision_json, created_at, decided_at, resolved_at`
 
 // scanPendingActionRows scans all rows from a pending_actions query into a
 // slice, closing the rows and wrapping the scan error with source.
@@ -193,8 +185,8 @@ func (s *Store) ListPendingActionsByRun(ctx context.Context, runID string) ([]ev
 // DecidePendingAction records a decision on a pending action inside a
 // transaction: it loads and validates the action, applies the decision update,
 // appends an action.decided event, and commits.
-func (s *Store) DecidePendingAction(ctx context.Context, actionID string, status events.PendingActionStatus, mode events.PendingActionDecisionMode, decisionJSON string) (out *events.PendingActionRecord, err error) {
-	normalizedStatus, normalizedMode, err := normalizePendingActionDecisionInput(status, mode)
+func (s *Store) DecidePendingAction(ctx context.Context, actionID string, status events.PendingActionStatus, decisionJSON string) (out *events.PendingActionRecord, err error) {
+	normalizedStatus, err := normalizePendingActionDecisionInput(status)
 	if err != nil {
 		return nil, err
 	}
@@ -210,36 +202,31 @@ func (s *Store) DecidePendingAction(ctx context.Context, actionID string, status
 	if err != nil {
 		return nil, err
 	}
-	if err := decideApplyUpdate(ctx, tx, record, normalizedStatus, normalizedMode, decisionJSON, decidedAt); err != nil {
+	if err := decideApplyUpdate(ctx, tx, record, normalizedStatus, decisionJSON, decidedAt); err != nil {
 		return nil, err
 	}
-	if err := decideAppendEvent(tx, record, normalizedStatus, normalizedMode, decidedAt); err != nil {
+	if err := decideAppendEvent(tx, record, normalizedStatus, decidedAt); err != nil {
 		return nil, err
 	}
-	return decideCommit(tx, record, normalizedStatus, normalizedMode, decisionJSON, decidedAt)
+	return decideCommit(tx, record, normalizedStatus, decisionJSON, decidedAt)
 }
 
-// normalizePendingActionDecisionInput normalizes the decision status and mode
-// together, wrapping any error with the "decide pending action" context.
-func normalizePendingActionDecisionInput(status events.PendingActionStatus, mode events.PendingActionDecisionMode) (events.PendingActionStatus, events.PendingActionDecisionMode, error) {
+// normalizePendingActionDecisionInput normalizes the decision status,
+// wrapping any error with the "decide pending action" context.
+func normalizePendingActionDecisionInput(status events.PendingActionStatus) (events.PendingActionStatus, error) {
 	normalizedStatus, err := normalizePendingActionDecision(status)
 	if err != nil {
-		return "", "", fmt.Errorf("decide pending action: %w", err)
+		return "", fmt.Errorf("decide pending action: %w", err)
 	}
-	normalizedMode, err := normalizePendingActionMode(mode)
-	if err != nil {
-		return "", "", fmt.Errorf("decide pending action: %w", err)
-	}
-	return normalizedStatus, normalizedMode, nil
+	return normalizedStatus, nil
 }
 
 // decideCommit commits the tx and returns the finalized record.
-func decideCommit(tx *sql.Tx, record *events.PendingActionRecord, status events.PendingActionStatus, mode events.PendingActionDecisionMode, decisionJSON string, decidedAt time.Time) (*events.PendingActionRecord, error) {
+func decideCommit(tx *sql.Tx, record *events.PendingActionRecord, status events.PendingActionStatus, decisionJSON string, decidedAt time.Time) (*events.PendingActionRecord, error) {
 	if err := tx.Commit(); err != nil {
 		return nil, fmt.Errorf("decide pending action commit: %w", err)
 	}
 	record.Status = status
-	record.Mode = mode
 	record.DecisionJSON = decisionJSON
 	record.DecidedAt = &decidedAt
 	return record, nil
@@ -264,12 +251,11 @@ func decideLoadPendingAction(ctx context.Context, tx *sql.Tx, actionID string) (
 }
 
 // decideApplyUpdate runs the conditional status update within the tx.
-func decideApplyUpdate(ctx context.Context, tx *sql.Tx, record *events.PendingActionRecord, status events.PendingActionStatus, mode events.PendingActionDecisionMode, decisionJSON string, decidedAt time.Time) error {
+func decideApplyUpdate(ctx context.Context, tx *sql.Tx, record *events.PendingActionRecord, status events.PendingActionStatus, decisionJSON string, decidedAt time.Time) error {
 	result, err := tx.ExecContext(
 		ctx,
-		`UPDATE pending_actions SET status = ?, mode = ?, decision_json = ?, decided_at = ? WHERE action_id = ? AND status = ?`,
+		`UPDATE pending_actions SET status = ?, decision_json = ?, decided_at = ? WHERE action_id = ? AND status = ?`,
 		string(status),
-		string(mode),
 		decisionJSON,
 		formatTimestamp(decidedAt),
 		record.ActionID,
@@ -289,16 +275,14 @@ func decideApplyUpdate(ctx context.Context, tx *sql.Tx, record *events.PendingAc
 }
 
 // decideAppendEvent marshals and inserts the action.decided event row.
-func decideAppendEvent(tx *sql.Tx, record *events.PendingActionRecord, status events.PendingActionStatus, mode events.PendingActionDecisionMode, decidedAt time.Time) error {
+func decideAppendEvent(tx *sql.Tx, record *events.PendingActionRecord, status events.PendingActionStatus, decidedAt time.Time) error {
 	eventPayload, err := json.Marshal(map[string]any{
 		"action_id":    record.ActionID,
 		"interrupt_id": record.InterruptID,
 		"kind":         record.Kind,
 		"subject":      record.Subject,
 		"decision":     string(status),
-		"mode":         string(mode),
 		"reason":       record.Reason,
-		"rule":         record.Rule,
 		"decided_at":   decidedAt.UTC().Format(time.RFC3339Nano),
 	})
 	if err != nil {
@@ -346,17 +330,6 @@ func normalizePendingActionKind(kind events.PendingActionKind) (events.PendingAc
 		return events.PendingActionKindOperatorQuestion, nil
 	default:
 		return "", fmt.Errorf("unsupported pending action kind %q", kind)
-	}
-}
-
-func normalizePendingActionMode(mode events.PendingActionDecisionMode) (events.PendingActionDecisionMode, error) {
-	switch strings.TrimSpace(string(mode)) {
-	case "":
-		return "", nil
-	case string(events.PendingActionModeDeferred):
-		return events.PendingActionModeDeferred, nil
-	default:
-		return "", fmt.Errorf("unsupported pending action mode %q", mode)
 	}
 }
 

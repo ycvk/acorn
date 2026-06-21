@@ -2,7 +2,6 @@ package sqlite
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"path/filepath"
 	"strings"
@@ -81,7 +80,7 @@ func TestSessionQueries(t *testing.T) {
 	if _, err := store.AppendSessionMessage(context.Background(), s1.SessionID, 1, "user", "hello", ""); err != nil {
 		t.Fatalf("append message: %v", err)
 	}
-	if err := store.CreateRunWithSession(context.Background(), "run_1", s1.SessionID, 1, "hello", "run_1"); err != nil {
+	if err := store.CreateRunWithSession(context.Background(), "run_1", s1.SessionID, 1, "hello"); err != nil {
 		t.Fatalf("create session run: %v", err)
 	}
 	if err := store.FinishRunContext(context.Background(), "run_1", events.RunStatusSucceeded, "done", ""); err != nil {
@@ -136,13 +135,13 @@ func TestLoadLatestRunsForSessionsReturnsNewestRunPerSession(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create alpha session: %v", err)
 	}
-	if err := store.CreateRunWithSession(context.Background(), "run_alpha_1", alpha.SessionID, 1, "first", "run_alpha_1"); err != nil {
+	if err := store.CreateRunWithSession(context.Background(), "run_alpha_1", alpha.SessionID, 1, "first"); err != nil {
 		t.Fatalf("create alpha run 1: %v", err)
 	}
 	if err := store.FinishRunContext(context.Background(), "run_alpha_1", events.RunStatusSucceeded, "done", ""); err != nil {
 		t.Fatalf("finish alpha run 1: %v", err)
 	}
-	if err := store.CreateRunWithSession(context.Background(), "run_alpha_2", alpha.SessionID, 2, "second", "run_alpha_2"); err != nil {
+	if err := store.CreateRunWithSession(context.Background(), "run_alpha_2", alpha.SessionID, 2, "second"); err != nil {
 		t.Fatalf("create alpha run 2: %v", err)
 	}
 	if err := store.FinishRunContext(context.Background(), "run_alpha_2", events.RunStatusFailed, "partial", "command failed"); err != nil {
@@ -153,7 +152,7 @@ func TestLoadLatestRunsForSessionsReturnsNewestRunPerSession(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create beta session: %v", err)
 	}
-	if err := store.CreateRunWithSession(context.Background(), "run_beta_1", beta.SessionID, 1, "approval", "run_beta_1"); err != nil {
+	if err := store.CreateRunWithSession(context.Background(), "run_beta_1", beta.SessionID, 1, "approval"); err != nil {
 		t.Fatalf("create beta run: %v", err)
 	}
 	if err := store.MarkInterruptedContext(context.Background(), "run_beta_1", "waiting"); err != nil {
@@ -164,7 +163,7 @@ func TestLoadLatestRunsForSessionsReturnsNewestRunPerSession(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create gamma session: %v", err)
 	}
-	if err := store.CreateRunWithSession(context.Background(), "run_gamma_1", gamma.SessionID, 1, "still going", "run_gamma_1"); err != nil {
+	if err := store.CreateRunWithSession(context.Background(), "run_gamma_1", gamma.SessionID, 1, "still going"); err != nil {
 		t.Fatalf("create gamma run: %v", err)
 	}
 
@@ -231,7 +230,7 @@ func TestBindLatestUserMessageRunIDAndSyncAssistantMessageForRun(t *testing.T) {
 	if _, err := store.AppendSessionMessage(context.Background(), session.SessionID, 1, "user", "hello", ""); err != nil {
 		t.Fatalf("append user message: %v", err)
 	}
-	if err := store.CreateRunWithSession(context.Background(), "run_1", session.SessionID, 1, "hello", "run_1"); err != nil {
+	if err := store.CreateRunWithSession(context.Background(), "run_1", session.SessionID, 1, "hello"); err != nil {
 		t.Fatalf("create run: %v", err)
 	}
 	if err := store.BindLatestUserMessageRunID(context.Background(), session.SessionID, 1, "run_1"); err != nil {
@@ -269,24 +268,8 @@ func TestBindLatestUserMessageRunIDAndSyncAssistantMessageForRun(t *testing.T) {
 	if items[1].RunID != "run_1" || items[1].Role != "assistant" || items[1].Content != "done" {
 		t.Fatalf("unexpected synced assistant message: %#v", items[1])
 	}
-	var parts []SessionMessagePart
-	if err := json.Unmarshal(items[1].ContentParts, &parts); err != nil {
-		t.Fatalf("unmarshal assistant message parts: %v", err)
-	}
-	if len(parts) != 4 {
-		t.Fatalf("assistant parts length = %d, want 4: %#v", len(parts), parts)
-	}
-	if parts[0].Kind != "text" || parts[0].Text != "done" {
-		t.Fatalf("assistant text part = %#v", parts[0])
-	}
-	if parts[1].Kind != "reasoning" || parts[1].Reasoning != "checked the repository state before answering" {
-		t.Fatalf("assistant reasoning part = %#v", parts[1])
-	}
-	if parts[2].Kind != "result" || parts[2].Title != "Task completed" || len(parts[2].Changed) != 0 || len(parts[2].Verified) != 0 || len(parts[2].Risks) != 0 {
-		t.Fatalf("assistant result part = %#v", parts[2])
-	}
-	if parts[3].Kind != "technical_detail_link" || parts[3].RunID != "run_1" || parts[3].DetailRunID != "run_1" {
-		t.Fatalf("assistant technical detail part = %#v", parts[3])
+	if len(items[1].ContentParts) != 0 {
+		t.Fatalf("assistant message should have no parts, got %#v", items[1].ContentParts)
 	}
 }
 
@@ -413,7 +396,7 @@ func TestSyncAssistantMessageForRunPersistsFailureContext(t *testing.T) {
 	if err != nil {
 		t.Fatalf("prepare chat turn: %v", err)
 	}
-	if err := store.CreateBoundRun(context.Background(), "run_failed", session.SessionID, turnIndex, "inspect repo", "run_failed"); err != nil {
+	if err := store.CreateBoundRun(context.Background(), "run_failed", session.SessionID, turnIndex, "inspect repo"); err != nil {
 		t.Fatalf("create bound run: %v", err)
 	}
 	if err := store.FinishRunContext(context.Background(), "run_failed", events.RunStatusFailed, "rg stdout", "shell exited with status 1"); err != nil {
@@ -437,33 +420,11 @@ func TestSyncAssistantMessageForRunPersistsFailureContext(t *testing.T) {
 	if assistant.RunID != "run_failed" || assistant.Role != "assistant" {
 		t.Fatalf("unexpected assistant message: %#v", assistant)
 	}
-	for _, want := range []string{
-		"Acorn could not finish this turn.",
-	} {
-		if !strings.Contains(assistant.Content, want) {
-			t.Fatalf("assistant failure context should contain %q, got %q", want, assistant.Content)
-		}
+	if assistant.Content != "rg stdout" {
+		t.Fatalf("assistant content = %q, want run output", assistant.Content)
 	}
-	for _, forbidden := range []string{"[run failed]", "run_failed", "last_output"} {
-		if strings.Contains(assistant.Content, forbidden) {
-			t.Fatalf("assistant failure content should not expose %q, got %q", forbidden, assistant.Content)
-		}
-	}
-	var parts []SessionMessagePart
-	if err := json.Unmarshal(assistant.ContentParts, &parts); err != nil {
-		t.Fatalf("unmarshal failure parts: %v", err)
-	}
-	if len(parts) != 2 {
-		t.Fatalf("failure parts length = %d, want 2: %#v", len(parts), parts)
-	}
-	if parts[0].Kind != "work_status" || parts[0].Status != "failed" || parts[0].Title != "Acorn could not finish" {
-		t.Fatalf("failure status part = %#v", parts[0])
-	}
-	if parts[0].Summary != "shell exited with status 1" || parts[0].Action != nil {
-		t.Fatalf("failure status summary/action = %#v", parts[0])
-	}
-	if parts[1].Kind != "technical_detail_link" || parts[1].RunID != "run_failed" {
-		t.Fatalf("failure technical detail part = %#v", parts[1])
+	if len(assistant.ContentParts) != 0 {
+		t.Fatalf("assistant message should have no parts, got %#v", assistant.ContentParts)
 	}
 }
 
@@ -483,7 +444,7 @@ func TestSyncAssistantMessageForRunAllowsFinalSuccessAfterInterruptedContext(t *
 	if err != nil {
 		t.Fatalf("prepare chat turn: %v", err)
 	}
-	if err := store.CreateBoundRun(context.Background(), "run_resume", session.SessionID, turnIndex, "fix the command", "run_resume"); err != nil {
+	if err := store.CreateBoundRun(context.Background(), "run_resume", session.SessionID, turnIndex, "fix the command"); err != nil {
 		t.Fatalf("create bound run: %v", err)
 	}
 	if err := store.MarkInterruptedContext(context.Background(), "run_resume", "partial output"); err != nil {
@@ -509,110 +470,18 @@ func TestSyncAssistantMessageForRunAllowsFinalSuccessAfterInterruptedContext(t *
 	if len(items) != 3 {
 		t.Fatalf("expected 3 session messages, got %d", len(items))
 	}
-	if !strings.Contains(items[1].Content, "Acorn paused before continuing.") {
-		t.Fatalf("unexpected interrupted context: %q", items[1].Content)
-	}
-	if strings.Contains(items[1].Content, "[run interrupted]") || strings.Contains(items[1].Content, "run_resume") {
-		t.Fatalf("interrupted content should not expose raw run id: %q", items[1].Content)
+	if items[1].Content != "partial output" {
+		t.Fatalf("unexpected interrupted content: %q", items[1].Content)
 	}
 	if items[2].Content != "final answer" {
 		t.Fatalf("unexpected final assistant content: %#v", items[2])
 	}
-	var interruptedParts []SessionMessagePart
-	if err := json.Unmarshal(items[1].ContentParts, &interruptedParts); err != nil {
-		t.Fatalf("unmarshal interrupted parts: %v", err)
-	}
-	if len(interruptedParts) != 2 || interruptedParts[0].Kind != "work_status" || interruptedParts[0].Status != "interrupted" {
-		t.Fatalf("interrupted parts = %#v", interruptedParts)
-	}
-	if interruptedParts[0].Action == nil || interruptedParts[0].Action.Kind != "resume_run" || interruptedParts[0].Action.RunID != "run_resume" {
-		t.Fatalf("interrupted action = %#v", interruptedParts[0].Action)
-	}
-	var finalParts []SessionMessagePart
-	if err := json.Unmarshal(items[2].ContentParts, &finalParts); err != nil {
-		t.Fatalf("unmarshal final parts: %v", err)
-	}
-	if len(finalParts) != 3 || finalParts[1].Kind != "result" || finalParts[2].Kind != "technical_detail_link" {
-		t.Fatalf("final parts = %#v", finalParts)
+	if len(items[1].ContentParts) != 0 || len(items[2].ContentParts) != 0 {
+		t.Fatalf("assistant messages should have no parts")
 	}
 }
 
-func TestSyncDecisionMessageForPendingActionCreatesAndUpdatesDecisionPart(t *testing.T) {
-	store, err := Open(filepath.Join(t.TempDir(), "state"))
-	if err != nil {
-		t.Fatalf("open store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
 
-	session, err := store.CreateSession(context.Background(), "session_decision", "")
-	if err != nil {
-		t.Fatalf("create session: %v", err)
-	}
-	turnIndex, _, err := store.PrepareChatTurn(context.Background(), session.SessionID, "run tool", "run tool", 12)
-	if err != nil {
-		t.Fatalf("prepare chat turn: %v", err)
-	}
-	if err := store.CreateBoundRun(context.Background(), "run_decision", session.SessionID, turnIndex, "run tool", "run_decision"); err != nil {
-		t.Fatalf("create bound run: %v", err)
-	}
-	_, err = store.CreatePendingAction(context.Background(), storecore.CreatePendingActionInput{
-		ActionID:    "action_decision",
-		RunID:       "run_decision",
-		Kind:        events.PendingActionKindElicitation,
-		Subject:     "elicitation",
-		PayloadJSON: `{"message":"Allow Acorn to continue?"}`,
-		Status:      events.PendingActionStatusPending,
-		Mode:        events.PendingActionModeDeferred,
-	})
-	if err != nil {
-		t.Fatalf("create pending action: %v", err)
-	}
-	if err := store.SyncDecisionMessageForPendingAction(context.Background(), "action_decision"); err != nil {
-		t.Fatalf("sync pending decision message: %v", err)
-	}
-
-	items, err := store.ListSessionMessages(context.Background(), session.SessionID, 12)
-	if err != nil {
-		t.Fatalf("list messages: %v", err)
-	}
-	if len(items) != 2 {
-		t.Fatalf("messages len = %d, want 2", len(items))
-	}
-	var parts []SessionMessagePart
-	if err := json.Unmarshal(items[1].ContentParts, &parts); err != nil {
-		t.Fatalf("unmarshal pending parts: %v", err)
-	}
-	if len(parts) != 2 || parts[0].Kind != "decision" {
-		t.Fatalf("pending decision parts = %#v", parts)
-	}
-	if parts[0].DecisionID != "action_decision" || parts[0].Status != "pending" || parts[0].SelectedOptionID != "" {
-		t.Fatalf("pending decision part = %#v", parts[0])
-	}
-	if parts[0].Options[0].ID != "accept" || parts[0].Options[1].ID != "decline" {
-		t.Fatalf("pending options = %#v", parts[0].Options)
-	}
-
-	if _, err := store.DecidePendingAction(context.Background(), "action_decision", events.PendingActionStatusApproved, events.PendingActionModeDeferred, `{"action":"accept"}`); err != nil {
-		t.Fatalf("decide pending action: %v", err)
-	}
-	if err := store.SyncDecisionMessageForPendingAction(context.Background(), "action_decision"); err != nil {
-		t.Fatalf("sync decided decision message: %v", err)
-	}
-	items, err = store.ListSessionMessages(context.Background(), session.SessionID, 12)
-	if err != nil {
-		t.Fatalf("list messages after decide: %v", err)
-	}
-	if len(items) != 2 {
-		t.Fatalf("messages len after decide = %d, want 2", len(items))
-	}
-	parts = nil
-	if err := json.Unmarshal(items[1].ContentParts, &parts); err != nil {
-		t.Fatalf("unmarshal decided parts: %v", err)
-	}
-	if parts[0].Status != "approved" || parts[0].SelectedOptionID != "accept" {
-		t.Fatalf("decided decision part = %#v", parts[0])
-	}
-}
 
 func TestPrepareChatTurnAndCreateBoundRun(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "state")
@@ -638,7 +507,7 @@ func TestPrepareChatTurnAndCreateBoundRun(t *testing.T) {
 		t.Fatalf("unexpected prepared items: %#v", items)
 	}
 
-	if err := store.CreateBoundRun(context.Background(), "run_1", session.SessionID, turnIndex, "hello acorn", "run_1"); err != nil {
+	if err := store.CreateBoundRun(context.Background(), "run_1", session.SessionID, turnIndex, "hello acorn"); err != nil {
 		t.Fatalf("create bound run: %v", err)
 	}
 
@@ -699,7 +568,7 @@ func TestCreateBoundRunCleansUpRunWhenBindingFails(t *testing.T) {
 		t.Fatalf("create session: %v", err)
 	}
 
-	err = store.CreateBoundRun(context.Background(), "run_orphan", session.SessionID, 1, "hello acorn", "run_orphan")
+	err = store.CreateBoundRun(context.Background(), "run_orphan", session.SessionID, 1, "hello acorn")
 	if err == nil {
 		t.Fatal("expected bind failure")
 	}

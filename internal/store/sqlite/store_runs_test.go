@@ -19,18 +19,11 @@ func TestStoreLifecycle(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = store.Close() })
 
-	if err := store.CreateRun(context.Background(), "run_1", "hello", "run_1"); err != nil {
+	if err := store.CreateRun(context.Background(), "run_1", "hello"); err != nil {
 		t.Fatalf("create run: %v", err)
 	}
 	if _, err := store.AppendEventContext(context.Background(), "run_1", "run.started", map[string]any{"input": "hello"}); err != nil {
 		t.Fatalf("append event: %v", err)
-	}
-	if err := store.Set(context.Background(), "run_1", []byte("checkpoint")); err != nil {
-		t.Fatalf("set checkpoint: %v", err)
-	}
-	payload, ok, err := store.Get(context.Background(), "run_1")
-	if err != nil || !ok || string(payload) != "checkpoint" {
-		t.Fatalf("get checkpoint: ok=%v payload=%q err=%v", ok, string(payload), err)
 	}
 	if err := store.FinishRunContext(context.Background(), "run_1", events.RunStatusSucceeded, "done", ""); err != nil {
 		t.Fatalf("finish run: %v", err)
@@ -47,12 +40,15 @@ func TestStoreLifecycle(t *testing.T) {
 	if run == nil || len(items) != 1 {
 		t.Fatalf("expected run and one event, got run=%#v items=%#v", run, items)
 	}
-	if run.OrchestrationMode != events.ModeDirectResponse {
-		t.Fatalf("OrchestrationMode = %q, want %q", run.OrchestrationMode, events.ModeDirectResponse)
+	if run.Status != events.RunStatusSucceeded {
+		t.Fatalf("Status = %q, want %q", run.Status, events.RunStatusSucceeded)
+	}
+	if run.Output != "done" {
+		t.Fatalf("Output = %q, want %q", run.Output, "done")
 	}
 }
 
-func TestCreateRunWithParamsPersistsLineageAndMode(t *testing.T) {
+func TestCreateRunWithParamsPersistsFields(t *testing.T) {
 	dir := t.TempDir()
 	store, err := Open(filepath.Join(dir, "state"))
 	if err != nil {
@@ -61,14 +57,10 @@ func TestCreateRunWithParamsPersistsLineageAndMode(t *testing.T) {
 	t.Cleanup(func() { _ = store.Close() })
 
 	err = store.CreateRunWithParams(context.Background(), storecore.RunCreateParams{
-		RunID:             "run_child",
-		SessionID:         "session_child",
-		TurnIndex:         2,
-		Input:             "child task",
-		CheckpointID:      "run_child",
-		OrchestrationMode: events.ModeSingleAgent,
-		ParentRunID:       "run_parent",
-		Depth:             1,
+		RunID:     "run_child",
+		SessionID: "session_child",
+		TurnIndex: 2,
+		Input:     "child task",
 	})
 	if err != nil {
 		t.Fatalf("CreateRunWithParams: %v", err)
@@ -78,89 +70,17 @@ func TestCreateRunWithParamsPersistsLineageAndMode(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadRun: %v", err)
 	}
-	if run.ParentRunID != "run_parent" {
-		t.Fatalf("ParentRunID = %q, want run_parent", run.ParentRunID)
+	if run.SessionID != "session_child" {
+		t.Fatalf("SessionID = %q, want session_child", run.SessionID)
 	}
-	if run.Depth != 1 {
-		t.Fatalf("Depth = %d, want 1", run.Depth)
+	if run.TurnIndex != 2 {
+		t.Fatalf("TurnIndex = %d, want 2", run.TurnIndex)
 	}
-	if run.OrchestrationMode != events.ModeSingleAgent {
-		t.Fatalf("OrchestrationMode = %q, want %q", run.OrchestrationMode, events.ModeSingleAgent)
+	if run.Input != "child task" {
+		t.Fatalf("Input = %q, want child task", run.Input)
 	}
-}
-
-func TestCreateRunWithParamsPersistsSkillID(t *testing.T) {
-	dir := t.TempDir()
-	store, err := Open(filepath.Join(dir, "state"))
-	if err != nil {
-		t.Fatalf("open store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	if err := store.CreateRunWithParams(context.Background(), storecore.RunCreateParams{
-		RunID:             "run_skill",
-		SessionID:         "session_skill",
-		TurnIndex:         1,
-		Input:             "fix sqlite bug",
-		CheckpointID:      "run_skill",
-		OrchestrationMode: events.ModePlanExecute,
-		SkillID:           "skill.fix-sqlite",
-	}); err != nil {
-		t.Fatalf("CreateRunWithParams: %v", err)
-	}
-
-	run, err := store.LoadRun(context.Background(), "run_skill")
-	if err != nil {
-		t.Fatalf("LoadRun: %v", err)
-	}
-	if run.SkillID != "skill.fix-sqlite" {
-		t.Fatalf("SkillID = %q, want skill.fix-sqlite", run.SkillID)
-	}
-
-	// UpdateRunSkillID simulates the post-selection writeback when selection
-	// resolves to a top recommended skill different from the explicit input.
-	if err := store.UpdateRunSkillID(context.Background(), "run_skill", "skill.recommended"); err != nil {
-		t.Fatalf("UpdateRunSkillID: %v", err)
-	}
-	updated, err := store.LoadRun(context.Background(), "run_skill")
-	if err != nil {
-		t.Fatalf("LoadRun after update: %v", err)
-	}
-	if updated.SkillID != "skill.recommended" {
-		t.Fatalf("SkillID after update = %q, want skill.recommended", updated.SkillID)
-	}
-
-	// Clearing the skill id (selection resolved to no skill) must persist too.
-	if err := store.UpdateRunSkillID(context.Background(), "run_skill", ""); err != nil {
-		t.Fatalf("UpdateRunSkillID clear: %v", err)
-	}
-	cleared, err := store.LoadRun(context.Background(), "run_skill")
-	if err != nil {
-		t.Fatalf("LoadRun after clear: %v", err)
-	}
-	if cleared.SkillID != "" {
-		t.Fatalf("SkillID after clear = %q, want empty", cleared.SkillID)
-	}
-}
-
-func TestCreateRunWithParamsRejectsMissingMode(t *testing.T) {
-	dir := t.TempDir()
-	store, err := Open(filepath.Join(dir, "state"))
-	if err != nil {
-		t.Fatalf("open store: %v", err)
-	}
-	t.Cleanup(func() { _ = store.Close() })
-
-	err = store.CreateRunWithParams(context.Background(), storecore.RunCreateParams{
-		RunID:        "run_missing_mode",
-		Input:        "hello",
-		CheckpointID: "run_missing_mode",
-	})
-	if err == nil {
-		t.Fatal("expected missing mode to fail")
-	}
-	if !strings.Contains(err.Error(), "orchestration mode is required") {
-		t.Fatalf("unexpected error: %v", err)
+	if run.Status != events.RunStatusRunning {
+		t.Fatalf("Status = %q, want %q", run.Status, events.RunStatusRunning)
 	}
 }
 
@@ -172,7 +92,7 @@ func TestLoadEventsFailsLoudlyOnCorruptPayloadJSON(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = store.Close() })
 
-	if err := store.CreateRun(context.Background(), "run_bad_event", "hello", "run_bad_event"); err != nil {
+	if err := store.CreateRun(context.Background(), "run_bad_event", "hello"); err != nil {
 		t.Fatalf("create run: %v", err)
 	}
 	_, err = store.db.Exec(
@@ -205,7 +125,7 @@ func TestLoadEventsAfterFiltersExclusiveCursor(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = store.Close() })
 
-	if err := store.CreateRun(context.Background(), "run_after", "hello", "run_after"); err != nil {
+	if err := store.CreateRun(context.Background(), "run_after", "hello"); err != nil {
 		t.Fatalf("create run: %v", err)
 	}
 	first, err := store.AppendEventContext(context.Background(), "run_after", "run.started", map[string]any{"input": "hello"})
@@ -233,7 +153,7 @@ func TestLoadEventsAfterFiltersExclusiveCursor(t *testing.T) {
 	}
 }
 
-func TestListInboxRunsFiltersRootSessionRunsByStatus(t *testing.T) {
+func TestListInboxRunsFiltersSessionRunsByStatus(t *testing.T) {
 	dir := t.TempDir()
 	store, err := Open(filepath.Join(dir, "state"))
 	if err != nil {
@@ -247,34 +167,22 @@ func TestListInboxRunsFiltersRootSessionRunsByStatus(t *testing.T) {
 			t.Fatalf("create session %s: %v", sessionID, err)
 		}
 	}
-	if err := store.CreateRunWithSession(ctx, "run_active", "session_active", 1, "working", "run_active"); err != nil {
+	if err := store.CreateRunWithSession(ctx, "run_active", "session_active", 1, "working"); err != nil {
 		t.Fatalf("create active run: %v", err)
 	}
-	if err := store.CreateRunWithSession(ctx, "run_done", "session_done", 1, "done", "run_done"); err != nil {
+	if err := store.CreateRunWithSession(ctx, "run_done", "session_done", 1, "done"); err != nil {
 		t.Fatalf("create done run: %v", err)
 	}
 	if err := store.FinishRunContext(ctx, "run_done", events.RunStatusSucceeded, "done", ""); err != nil {
 		t.Fatalf("finish done run: %v", err)
 	}
-	if err := store.CreateRunWithSession(ctx, "run_failed", "session_failed", 1, "failed", "run_failed"); err != nil {
+	if err := store.CreateRunWithSession(ctx, "run_failed", "session_failed", 1, "failed"); err != nil {
 		t.Fatalf("create failed run: %v", err)
 	}
 	if err := store.FinishRunContext(ctx, "run_failed", events.RunStatusFailed, "", "boom"); err != nil {
 		t.Fatalf("finish failed run: %v", err)
 	}
-	if err := store.CreateRunWithParams(ctx, storecore.RunCreateParams{
-		RunID:             "run_child",
-		SessionID:         "session_active",
-		TurnIndex:         2,
-		Input:             "child",
-		CheckpointID:      "run_child",
-		OrchestrationMode: events.ModeSingleAgent,
-		ParentRunID:       "run_active",
-		Depth:             1,
-	}); err != nil {
-		t.Fatalf("create child run: %v", err)
-	}
-	if err := store.CreateRun(ctx, "run_cli", "cli", "run_cli"); err != nil {
+	if err := store.CreateRun(ctx, "run_cli", "cli"); err != nil {
 		t.Fatalf("create cli run: %v", err)
 	}
 
@@ -313,7 +221,7 @@ func TestLoadEventsAfterFailsLoudlyOnCorruptPayloadJSON(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = store.Close() })
 
-	if err := store.CreateRun(context.Background(), "run_bad_event_after", "hello", "run_bad_event_after"); err != nil {
+	if err := store.CreateRun(context.Background(), "run_bad_event_after", "hello"); err != nil {
 		t.Fatalf("create run: %v", err)
 	}
 	_, err = store.db.Exec(
@@ -346,7 +254,7 @@ func TestLoadEventsAfterFailsLoudlyOnBadTimestamp(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = store.Close() })
 
-	if err := store.CreateRun(context.Background(), "run_bad_timestamp", "hello", "run_bad_timestamp"); err != nil {
+	if err := store.CreateRun(context.Background(), "run_bad_timestamp", "hello"); err != nil {
 		t.Fatalf("create run: %v", err)
 	}
 	_, err = store.db.Exec(

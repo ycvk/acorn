@@ -34,22 +34,11 @@ func (s *Store) ensureOwnerProfile() error {
 }
 
 func (s *Store) migrateV2() error {
-	v2Migrations := []struct {
-		table   string
-		column  string
-		def     string
-		version string
-	}{
-		{"runs", "parent_run_id", "TEXT NOT NULL DEFAULT ''", "v2_runs_parent_run_id"},
-		{"runs", "depth", "INTEGER NOT NULL DEFAULT 0", "v2_runs_depth"},
-		{"runs", "orchestration_mode", "TEXT NOT NULL DEFAULT 'direct_response'", "v2_runs_orchestration_mode"},
-		{"runs", "skill_id", "TEXT NOT NULL DEFAULT ''", "v2_runs_skill_id"},
-		{"session_messages", "content_parts", "TEXT NOT NULL DEFAULT ''", "v2_session_messages_content_parts"},
-	}
-	for _, m := range v2Migrations {
-		if err := s.addColumnIfNotExists(m.table, m.column, m.def, m.version); err != nil {
-			return err
-		}
+	// The only remaining v2 column addition is session_messages.content_parts;
+	// the runs columns (parent_run_id, depth, orchestration_mode, skill_id)
+	// were retired by the architecture refactor and are no longer created.
+	if err := s.addColumnIfNotExists("session_messages", "content_parts", "TEXT NOT NULL DEFAULT ''", "v2_session_messages_content_parts"); err != nil {
+		return err
 	}
 	if err := s.dropLegacyTablesChain(); err != nil {
 		return err
@@ -58,7 +47,10 @@ func (s *Store) migrateV2() error {
 }
 
 // dropLegacyTablesChain runs the sequence of legacy/removed table drops that
-// follow the v2 column additions, in migration order.
+// follow the v2 column additions, in migration order. The final step drops
+// the tables retired by the architecture refactor (plan_steps, checkpoints,
+// tool_results, conversation_segments, run_archives, working_checkpoints,
+// provider_usages, run_context_snapshots, context_boundaries).
 func (s *Store) dropLegacyTablesChain() error {
 	drops := []func() error{
 		s.dropLegacyMemoryTables,
@@ -66,6 +58,7 @@ func (s *Store) dropLegacyTablesChain() error {
 		s.dropRemovedTerminalSessionTables,
 		s.dropRemovedCodeintelTables,
 		s.dropRemovedConversationFTS,
+		s.dropRefactoredTables,
 	}
 	for _, drop := range drops {
 		if err := drop(); err != nil {
@@ -86,29 +79,23 @@ func (s *Store) validateSchema() error {
 
 // schemaRequiredTables maps each required table to the columns that must exist
 // after migration; validateSchema enforces presence to detect a stale or
-// incompatible local database.
+// incompatible local database. Retired tables (checkpoints, plan_steps,
+// conversation_segments, working_checkpoints, run_context_snapshots,
+// context_boundaries, tool_results, provider_usages, run_archives) are dropped
+// by migrations and intentionally absent.
 var schemaRequiredTables = map[string][]string{
-	"runs":                  {"run_id", "session_id", "turn_index", "status", "input_text", "output_text", "error_text", "checkpoint_id", "orchestration_mode", "skill_id", "created_at", "updated_at", "parent_run_id", "depth"},
-	"events":                {"sequence", "run_id", "kind", "payload_json", "created_at"},
-	"checkpoints":           {"checkpoint_id", "run_id", "payload", "created_at", "updated_at"},
-	"sessions":              {"session_id", "title", "created_at", "updated_at"},
-	"session_messages":      {"id", "session_id", "turn_index", "role", "content", "content_parts", "run_id", "created_at"},
-	"pending_actions":       {"action_id", "run_id", "interrupt_id", "kind", "subject", "payload_json", "status", "mode", "reason", "rule", "decision_json", "created_at", "decided_at", "resolved_at"},
-	"mcp_oauth_tokens":      {"provider_name", "access_token", "refresh_token", "expiry", "updated_at"},
-	"owner_profile":         {"owner_id", "created_at"},
-	"devices":               {"device_id", "name", "platform", "token_hash", "created_at", "last_seen_at", "revoked_at"},
-	"pairing_codes":         {"code_hash", "expires_at", "used_at", "created_at"},
-	"conversation_segments": {"id", "session_id", "run_id", "user_content", "assistant_content", "run_status", "created_at"},
-	"working_checkpoints":   {"session_id", "content", "related_skill_id", "updated_at"},
-	"run_context_snapshots": {"run_id", "working_checkpoint_content", "working_checkpoint_skill_id", "created_at"},
-	"context_boundaries":    {"boundary_id", "session_id", "run_id", "sequence", "turn_index", "mode", "trigger", "first_index", "last_index", "covered_first_message_id", "covered_last_message_id", "previous_boundary_id", "summary_message_id", "transcript_ref", "preserved_from_index", "preserved_to_index", "preserved_head_message_id", "preserved_anchor_message_id", "preserved_tail_message_id", "tokens_before", "tokens_after", "effective_window_tokens", "summary", "summary_snippet", "created_at"},
-	"tool_results":          {"result_ref", "run_id", "session_id", "turn_index", "call_id", "tool_name", "arguments_json", "status", "error_reason", "preview", "full_text", "token_estimate", "side_effects_json", "evidence_refs_json", "created_at"},
-	"artifacts":             {"artifact_id", "run_id", "session_id", "source_tool_result_ref", "kind", "title", "mime_type", "relative_path", "size_bytes", "sha256", "created_at"},
-	"provider_usages":       {"usage_id", "run_id", "session_id", "call_site", "provider_name", "model_name", "prompt_tokens", "completion_tokens", "total_tokens", "cached_tokens", "reasoning_tokens", "created_at"},
-	"run_archives":          {"run_id", "session_id", "input_excerpt", "output_excerpt", "touched_paths_json", "tool_names_json", "run_status", "created_at"},
-	"session_summaries":     {"session_id", "source_run_id", "run_status", "summary", "updated_at"},
-	"schema_migrations":     {"version", "applied_at"},
-	"plan_steps":            {"plan_id", "session_id", "run_id", "steps_json", "created_at", "updated_at"},
+	"runs":               {"run_id", "session_id", "turn_index", "status", "input_text", "output_text", "error_text", "created_at", "updated_at"},
+	"events":             {"sequence", "run_id", "kind", "payload_json", "created_at"},
+	"sessions":           {"session_id", "title", "created_at", "updated_at"},
+	"session_messages":   {"id", "session_id", "turn_index", "role", "content", "content_parts", "run_id", "created_at"},
+	"pending_actions":    {"action_id", "run_id", "interrupt_id", "kind", "subject", "payload_json", "status", "reason", "decision_json", "created_at", "decided_at", "resolved_at"},
+	"mcp_oauth_tokens":   {"provider_name", "access_token", "refresh_token", "expiry", "updated_at"},
+	"owner_profile":      {"owner_id", "created_at"},
+	"devices":            {"device_id", "name", "platform", "token_hash", "created_at", "last_seen_at", "revoked_at"},
+	"pairing_codes":      {"code_hash", "expires_at", "used_at", "created_at"},
+	"artifacts":          {"artifact_id", "run_id", "session_id", "source_tool_result_ref", "kind", "title", "mime_type", "relative_path", "size_bytes", "sha256", "created_at"},
+	"session_summaries":  {"session_id", "source_run_id", "run_status", "summary", "updated_at"},
+	"schema_migrations":  {"version", "applied_at"},
 }
 
 func (s *Store) requireColumns(table string, columns []string) error {

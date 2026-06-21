@@ -6,51 +6,37 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/store"
 )
 
-func (s *Store) CreateRun(ctx context.Context, runID, input, checkpointID string) error {
+func (s *Store) CreateRun(ctx context.Context, runID, input string) error {
 	return s.CreateRunWithParams(ctx, store.RunCreateParams{
-		RunID:             runID,
-		Input:             input,
-		CheckpointID:      checkpointID,
-		OrchestrationMode: events.ModeDirectResponse,
+		RunID: runID,
+		Input: input,
 	})
 }
 
-func (s *Store) CreateRunWithSession(ctx context.Context, runID, sessionID string, turnIndex int, input, checkpointID string) error {
+func (s *Store) CreateRunWithSession(ctx context.Context, runID, sessionID string, turnIndex int, input string) error {
 	return s.CreateRunWithParams(ctx, store.RunCreateParams{
-		RunID:             runID,
-		SessionID:         sessionID,
-		TurnIndex:         turnIndex,
-		Input:             input,
-		CheckpointID:      checkpointID,
-		OrchestrationMode: events.ModeDirectResponse,
+		RunID:     runID,
+		SessionID: sessionID,
+		TurnIndex: turnIndex,
+		Input:     input,
 	})
 }
 
 func (s *Store) CreateRunWithParams(ctx context.Context, params store.RunCreateParams) error {
-	mode := params.OrchestrationMode.Normalize()
-	if strings.TrimSpace(string(mode)) == "" {
-		return fmt.Errorf("orchestration mode is required")
-	}
 	now := formatTimestamp(time.Now())
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO runs(run_id, session_id, turn_index, status, input_text, output_text, error_text, checkpoint_id, orchestration_mode, skill_id, parent_run_id, depth, created_at, updated_at) VALUES(?, ?, ?, ?, ?, '', '', ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO runs(run_id, session_id, turn_index, status, input_text, output_text, error_text, created_at, updated_at) VALUES(?, ?, ?, ?, ?, '', '', ?, ?)`,
 		params.RunID,
 		params.SessionID,
 		params.TurnIndex,
 		string(events.RunStatusRunning),
 		params.Input,
-		params.CheckpointID,
-		string(mode),
-		params.SkillID,
-		params.ParentRunID,
-		params.Depth,
 		now,
 		now,
 	)
@@ -60,14 +46,12 @@ func (s *Store) CreateRunWithParams(ctx context.Context, params store.RunCreateP
 	return nil
 }
 
-func (s *Store) CreateBoundRun(ctx context.Context, runID, sessionID string, turnIndex int, input, checkpointID string) error {
+func (s *Store) CreateBoundRun(ctx context.Context, runID, sessionID string, turnIndex int, input string) error {
 	return s.CreateBoundRunWithParams(ctx, store.RunCreateParams{
-		RunID:             runID,
-		SessionID:         sessionID,
-		TurnIndex:         turnIndex,
-		Input:             input,
-		CheckpointID:      checkpointID,
-		OrchestrationMode: events.ModeDirectResponse,
+		RunID:     runID,
+		SessionID: sessionID,
+		TurnIndex: turnIndex,
+		Input:     input,
 	})
 }
 
@@ -75,7 +59,7 @@ func (s *Store) CreateBoundRunWithParams(ctx context.Context, params store.RunCr
 	if err := s.CreateRunWithParams(ctx, params); err != nil {
 		return err
 	}
-	if strings.TrimSpace(params.SessionID) == "" {
+	if params.SessionID == "" {
 		return nil
 	}
 	var bindErr error
@@ -144,19 +128,6 @@ func (s *Store) UpdateRunOutputContext(ctx context.Context, runID, output string
 	return nil
 }
 
-func (s *Store) UpdateRunSkillID(ctx context.Context, runID, skillID string) error {
-	_, err := s.db.ExecContext(ctx,
-		`UPDATE runs SET skill_id = ?, updated_at = ? WHERE run_id = ?`,
-		skillID,
-		formatTimestamp(time.Now()),
-		runID,
-	)
-	if err != nil {
-		return fmt.Errorf("update run skill id: %w", err)
-	}
-	return nil
-}
-
 func (s *Store) MarkInterruptedContext(ctx context.Context, runID, output string) error {
 	_, err := s.db.ExecContext(ctx,
 		`UPDATE runs SET status = ?, output_text = ?, updated_at = ? WHERE run_id = ?`,
@@ -172,7 +143,7 @@ func (s *Store) MarkInterruptedContext(ctx context.Context, runID, output string
 }
 
 func (s *Store) LoadRun(ctx context.Context, runID string) (*events.RunRecord, error) {
-	row := s.db.QueryRowContext(ctx, `SELECT run_id, session_id, turn_index, status, input_text, output_text, error_text, checkpoint_id, orchestration_mode, skill_id, parent_run_id, depth, created_at, updated_at FROM runs WHERE run_id = ?`, runID)
+	row := s.db.QueryRowContext(ctx, `SELECT run_id, session_id, turn_index, status, input_text, output_text, error_text, created_at, updated_at FROM runs WHERE run_id = ?`, runID)
 	rec, err := scanRunRecord(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -185,11 +156,11 @@ func (s *Store) LoadRun(ctx context.Context, runID string) (*events.RunRecord, e
 
 func (s *Store) ListActiveRuns(ctx context.Context, limit int) ([]events.RunRecord, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT run_id, session_id, turn_index, status, input_text, output_text, error_text, checkpoint_id, orchestration_mode, skill_id, parent_run_id, depth, created_at, updated_at
-			 FROM runs
-			 WHERE status = ? AND session_id <> '' AND parent_run_id = ''
-			 ORDER BY updated_at DESC
-			 LIMIT ?`,
+		`SELECT run_id, session_id, turn_index, status, input_text, output_text, error_text, created_at, updated_at
+		 FROM runs
+		 WHERE status = ? AND session_id <> ''
+		 ORDER BY updated_at DESC
+		 LIMIT ?`,
 		string(events.RunStatusRunning),
 		normalizeRunListLimit(limit),
 	)
@@ -201,11 +172,11 @@ func (s *Store) ListActiveRuns(ctx context.Context, limit int) ([]events.RunReco
 
 func (s *Store) ListRecentTerminalRuns(ctx context.Context, limit int) ([]events.RunRecord, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT run_id, session_id, turn_index, status, input_text, output_text, error_text, checkpoint_id, orchestration_mode, skill_id, parent_run_id, depth, created_at, updated_at
-			 FROM runs
-			 WHERE status IN (?, ?, ?) AND session_id <> '' AND parent_run_id = ''
-			 ORDER BY updated_at DESC
-			 LIMIT ?`,
+		`SELECT run_id, session_id, turn_index, status, input_text, output_text, error_text, created_at, updated_at
+		 FROM runs
+		 WHERE status IN (?, ?, ?) AND session_id <> ''
+		 ORDER BY updated_at DESC
+		 LIMIT ?`,
 		string(events.RunStatusSucceeded),
 		string(events.RunStatusInterrupted),
 		string(events.RunStatusFailed),
@@ -280,34 +251,4 @@ func scanEventRows(rows *sql.Rows, runID string) ([]events.EventRecord, error) {
 		items = append(items, events.EventRecord{Sequence: seq, RunID: runID, Kind: kind, Payload: body, CreatedAt: parsed})
 	}
 	return items, rows.Err()
-}
-
-func (s *Store) Set(ctx context.Context, key string, value []byte) error {
-	now := formatTimestamp(time.Now())
-	_, err := s.db.ExecContext(
-		ctx,
-		`INSERT INTO checkpoints(checkpoint_id, run_id, payload, created_at, updated_at) VALUES(?, ?, ?, ?, ?)
-         ON CONFLICT(checkpoint_id) DO UPDATE SET payload = excluded.payload, updated_at = excluded.updated_at`,
-		key,
-		key,
-		value,
-		now,
-		now,
-	)
-	if err != nil {
-		return fmt.Errorf("save checkpoint %s: %w", key, err)
-	}
-	return nil
-}
-
-func (s *Store) Get(ctx context.Context, key string) ([]byte, bool, error) {
-	row := s.db.QueryRowContext(ctx, `SELECT payload FROM checkpoints WHERE checkpoint_id = ?`, key)
-	var payload []byte
-	if err := row.Scan(&payload); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, false, nil
-		}
-		return nil, false, fmt.Errorf("load checkpoint %s: %w", key, err)
-	}
-	return payload, true, nil
 }

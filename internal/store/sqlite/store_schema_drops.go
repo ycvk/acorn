@@ -28,15 +28,45 @@ func (s *Store) dropDecisionTables() (err error) {
 	return commitDropMigration(tx, version, "decision table drop")
 }
 
+func (s *Store) dropRefactoredTables() (err error) {
+	const version = "v3_drop_refactored_tables"
+	if migrationApplied(s.db, version) {
+		return nil
+	}
+	tx, err := s.db.Begin()
+	if err != nil {
+		return fmt.Errorf("begin refactored table drop: %w", err)
+	}
+	defer rollbackOnErr(tx, &err, "refactored table drop")
+	statements := []string{
+		`DROP TABLE IF EXISTS plan_steps`,
+		`DROP TABLE IF EXISTS context_boundaries`,
+		`DROP TABLE IF EXISTS tool_results`,
+		`DROP TABLE IF EXISTS conversation_segments`,
+		`DROP TABLE IF EXISTS run_archives`,
+		`DROP TABLE IF EXISTS working_checkpoints`,
+		`DROP TABLE IF EXISTS provider_usages`,
+		`DROP TABLE IF EXISTS run_context_snapshots`,
+		`DROP TABLE IF EXISTS checkpoints`,
+	}
+	if err := execDropStatements(tx, statements, "refactored table"); err != nil {
+		return err
+	}
+	return commitDropMigration(tx, version, "refactored table drop")
+}
+
 // dropDecisionSnapshotColumns drops the legacy decision_* columns from
-// run_context_snapshots, swallowing the benign "no such column" error that
-// fires when a column was already dropped on a prior run.
+// run_context_snapshots, swallowing the benign "no such column"/"no such
+// table" errors that fire when a column was already dropped or the table no
+// longer exists (post-refactor fresh databases never create it).
 func dropDecisionSnapshotColumns(tx *sql.Tx) error {
 	for _, col := range []string{"decision_profile_hash", "decision_action", "decision_skill_id"} {
 		if _, err := tx.Exec(fmt.Sprintf("ALTER TABLE run_context_snapshots DROP COLUMN %s", col)); err != nil {
-			if !strings.Contains(err.Error(), "no such column") {
-				return fmt.Errorf("drop run_context_snapshots column %s: %w", col, err)
+			msg := err.Error()
+			if strings.Contains(msg, "no such column") || strings.Contains(msg, "no such table") {
+				continue
 			}
+			return fmt.Errorf("drop run_context_snapshots column %s: %w", col, err)
 		}
 	}
 	return nil
