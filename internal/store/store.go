@@ -2,10 +2,18 @@ package store
 
 import (
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/ycvk/acorn/internal/events"
 )
+
+// BuildToolResultRef constructs the stable opaque reference for a tool-result
+// record from its run and tool-call ids. It is a pure string helper used by
+// tools that attribute artifacts and evidence to a specific tool call.
+func BuildToolResultRef(runID string, callID string) string {
+	return "tool_result:" + strings.TrimSpace(runID) + ":" + strings.TrimSpace(callID)
+}
 
 // Sentinel errors
 var (

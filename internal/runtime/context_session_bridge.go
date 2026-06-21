@@ -6,12 +6,10 @@ import (
 	"strings"
 
 	"github.com/cloudwego/eino/adk"
-	einomodel "github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/schema"
 
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/contextplane"
-	"github.com/ycvk/acorn/internal/contextplane/compaction"
 	"github.com/ycvk/acorn/internal/events"
 	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 )
@@ -31,7 +29,7 @@ func (e *Executor) bootstrapContextSessionMessages(
 		return nil, fmt.Errorf("context policy: %w", err)
 	}
 	modelProfile := contextplane.ModelProfileFromContextPolicy(contextPolicy)
-	counter, err := contextplane.NewCompressionTokenCounter(contextPolicy)
+	counter, err := contextplane.NewCompressionTokenCounter()
 	if err != nil {
 		return nil, fmt.Errorf("build context session token counter: %w", err)
 	}
@@ -66,22 +64,14 @@ func (e *Executor) validateBootstrapDeps(active *ActiveRunner) error {
 	return nil
 }
 
+// buildContextSession assembles the context session. With the compaction
+// subpackage removed, no LLM-driven compression pipeline is wired here: the
+// session falls back to plain budget-gated message passing, and compaction
+// is a no-op until a pipeline is supplied. The boundary store (e.store)
+// preserves context-boundary persistence across runs.
 func (e *Executor) buildContextSession(active *ActiveRunner, contextPolicy config.ContextConfig, modelProfile contextplane.ModelProfile, counter *contextplane.CompressionTokenCounter) contextplane.ContextSession {
-	pipeline := compaction.NewDefaultContextCompressionPipeline(compaction.CompressionPipelineOptions{
-		Governor: contextplane.NewBudgetGovernor(counter),
-		CompactionEngine: compaction.NewDefaultCompactionEngine(compaction.CompactionEngineOptions{
-			Model:                active.ChatModel,
-			ModelOptions:         []einomodel.Option{einomodel.WithMaxTokens(contextPolicy.SummaryMaxTokens)},
-			TokenCounter:         counter,
-			HandoffFrameDisabled: contextPolicy.HandoffFrameDisabled,
-			MaxSummaryTokens:     contextPolicy.SummaryMaxTokens,
-		}),
-		TokenCounter: counter,
-		ModelProfile: modelProfile,
-	})
 	return contextplane.NewDefaultContextSession(contextplane.ContextSessionOptions{
 		BudgetGovernor: contextplane.NewBudgetGovernor(counter),
-		Pipeline:       pipeline,
 		BoundaryStore:  e.store,
 		PreservePolicy: contextplane.PreservePolicy{
 			RecentTurns:       contextPolicy.PreserveRecentTurns,

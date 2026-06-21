@@ -84,3 +84,24 @@ func (c *Config) EnabledProvider() (ProviderConfig, error) {
 	}
 	return enabled[0], nil
 }
+
+// ContextPolicy returns the validated context configuration used by the
+// context plane to derive token budgets and pressure thresholds. It validates
+// the context fields and resolves the provider's output token cap so callers
+// receive a complete, ready-to-use policy.
+func (c *Config) ContextPolicy() (ContextConfig, error) {
+	if c == nil {
+		return ContextConfig{}, errors.New("config is required")
+	}
+	provider, err := c.EnabledProvider()
+	if err != nil {
+		return ContextConfig{}, fmt.Errorf("resolve context provider: %w", err)
+	}
+	if provider.MaxCompletionTokens <= 0 {
+		return ContextConfig{}, fmt.Errorf("provider %s: max_completion_tokens must be > 0 for context policy", provider.Name)
+	}
+	if err := c.validateContext(); err != nil {
+		return ContextConfig{}, err
+	}
+	return c.Context, nil
+}

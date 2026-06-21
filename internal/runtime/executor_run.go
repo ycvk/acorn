@@ -85,18 +85,13 @@ func (e *Executor) ExecuteMessages(ctx context.Context, req runtimeapi.ExecuteRe
 	return e.consume(ctx, runID, req.Input, iter, active.SelectedSkill, sink, active.ChatModel)
 }
 
-func (e *Executor) createBoundRun(ctx context.Context, runID string, req runtimeapi.ExecuteRequest, mode events.OrchestrationMode) error {
+func (e *Executor) createBoundRun(ctx context.Context, runID string, req runtimeapi.ExecuteRequest) error {
 	return e.store.CreateBoundRunWithParams(ctx, store.RunCreateParams{
-		RunID:             runID,
-		SessionID:         req.SessionID,
-		TurnIndex:         req.TurnIndex,
-		Input:             req.Input,
-		BoundMessageID:    req.BoundMessageID,
-		CheckpointID:      runID,
-		OrchestrationMode: mode,
-		ParentRunID:       req.ParentRunID,
-		SkillID:           req.SkillID,
-		Depth:             req.Depth,
+		RunID:          runID,
+		SessionID:      req.SessionID,
+		TurnIndex:      req.TurnIndex,
+		Input:          req.Input,
+		BoundMessageID: req.BoundMessageID,
 	})
 }
 

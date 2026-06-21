@@ -9,20 +9,19 @@ import (
 	"github.com/ycvk/acorn/internal/tooling"
 )
 
-func NewToolset(catalog *tooling.Catalog, profile tooling.ToolProfile, closers ...io.Closer) *Toolset {
+func NewToolset(catalog *tooling.Catalog, closers ...io.Closer) *Toolset {
 	c := make([]io.Closer, 0, len(closers))
 	for _, cl := range closers {
 		if cl != nil {
 			c = append(c, cl)
 		}
 	}
-	return &Toolset{catalog: catalog, profile: profile, closers: c}
+	return &Toolset{catalog: catalog, closers: c}
 }
 
-// Toolset is a built collection of tools for a run or serve profile.
+// Toolset is a built collection of tools for a run or serve context.
 type Toolset struct {
 	catalog *tooling.Catalog
-	profile tooling.ToolProfile
 	closers []io.Closer
 }
 
@@ -30,7 +29,7 @@ func (t Toolset) All() []einotool.BaseTool {
 	if t.catalog == nil {
 		return nil
 	}
-	return t.catalog.ToolsForProfile(t.profile)
+	return t.catalog.Tools()
 }
 
 func (t Toolset) Catalog() *tooling.Catalog {

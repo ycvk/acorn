@@ -5,8 +5,6 @@ import (
 	"errors"
 
 	einotool "github.com/cloudwego/eino/components/tool"
-
-	"github.com/ycvk/acorn/internal/orchestration"
 )
 
 const defaultVerificationPreviewBytes = 2000
@@ -278,7 +276,7 @@ func init() {
 	gob.Register([]any{})
 }
 
-func BuildCatalog(cfg CatalogConfig, extraTools []einotool.BaseTool, childExec orchestration.ChildAgentExecutor, bridge DelegateTaskContext) (*Catalog, error) {
+func BuildCatalog(cfg CatalogConfig, extraTools []einotool.BaseTool) (*Catalog, error) {
 	if cfg.Workspace == nil && (cfg.MutationEnabled || cfg.RunCommandEnabled) {
 		return nil, errors.New("workspace is required when mutation or run_command tools are enabled")
 	}
@@ -292,7 +290,6 @@ func BuildCatalog(cfg CatalogConfig, extraTools []einotool.BaseTool, childExec o
 		func() ([]einotool.BaseTool, error) { return buildWebFetchToolEntry(cfg) },
 		func() ([]einotool.BaseTool, error) { return buildWebSearchToolEntry(cfg) },
 		func() ([]einotool.BaseTool, error) { return buildBrowserToolEntry(cfg) },
-		func() ([]einotool.BaseTool, error) { return buildDelegateToolEntry(childExec, bridge) },
 	}
 	for _, group := range groups {
 		built, err := group()

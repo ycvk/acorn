@@ -25,7 +25,6 @@ type Executor struct {
 	runRuntime        RunRuntime
 	controller        *RunController
 	newChatModel      func(ctx context.Context) (einomodel.BaseChatModel, error)
-	archiveRunFunc    func(ctx context.Context, runID string, runStatus events.RunStatus) error
 	sessionSummarySvc *model.SessionSummaryService
 }
 
@@ -52,6 +51,5 @@ func NewExecutorWithRunRuntimeAndController(cfg *config.Config, store ExecutorSt
 		sessionSummarySvc: runRuntime.SessionSummarySvc(),
 		newChatModel:      runRuntime.NewChatModel,
 	}
-	exec.archiveRunFunc = exec.archiveRun
 	return exec, nil
 }

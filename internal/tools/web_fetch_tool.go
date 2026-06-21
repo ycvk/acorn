@@ -62,7 +62,7 @@ func buildWebFetchTool(fetcher WebFetchService, artifactService ArtifactService,
 		if callID == "" {
 			return WebFetchOutput{}, errors.New("web_fetch requires current tool call context")
 		}
-		sourceRef := store.BuildToolResultRef(runID, callID)
+		sourceRef := "tool_result:" + runID + ":" + callID
 		result, err := fetcher.Fetch(ctx, webaccess.FetchRequest{
 			URL:         input.URL,
 			ExtractMode: webaccess.ExtractionMode(strings.TrimSpace(input.ExtractMode)),

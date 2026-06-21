@@ -73,7 +73,7 @@ func writeWorkflowArtifact(ctx context.Context, service ArtifactService, bridge 
 	return service.Write(ctx, store.ArtifactWriteRequest{
 		RunID:               runID,
 		SessionID:           strings.TrimSpace(bridge.CurrentSessionID(ctx)),
-		SourceToolResultRef: store.BuildToolResultRef(runID, callID),
+		SourceToolResultRef: "tool_result:" + runID + ":" + callID,
 		Kind:                kind,
 		Title:               title,
 		MIMEType:            mimeType,
@@ -214,4 +214,14 @@ func gitSummaryDiff(ctx context.Context, ws WorkspaceView, scopedPath string, ca
 		return "", err
 	}
 	return strings.TrimSpace(strings.Join(trimmedNonEmptyStrings([]string{worktreeDiff, cachedDiff}), "\n")), nil
+}
+
+func trimmedNonEmptyStrings(values []string) []string {
+	out := make([]string, 0, len(values))
+	for _, v := range values {
+		if s := strings.TrimSpace(v); s != "" {
+			out = append(out, s)
+		}
+	}
+	return out
 }

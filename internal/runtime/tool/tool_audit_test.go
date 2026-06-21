@@ -304,8 +304,8 @@ func TestRuntimeToolSpecLoadToolsIsNeverParallel(t *testing.T) {
 	if err != nil {
 		t.Fatalf("runtimeToolSpec: %v", err)
 	}
-	if spec.Execution.ParallelPolicy != tooling.ParallelPolicyNeverParallel {
-		t.Fatalf("load_tools parallel policy = %q, want %q", spec.Execution.ParallelPolicy, tooling.ParallelPolicyNeverParallel)
+	if spec.Execution.ParallelPolicy != tooling.ParallelPolicySerial {
+		t.Fatalf("load_tools parallel policy = %q, want %q", spec.Execution.ParallelPolicy, tooling.ParallelPolicySerial)
 	}
 	if spec.Execution.PathArg != "" {
 		t.Fatalf("load_tools path arg = %q, want empty", spec.Execution.PathArg)

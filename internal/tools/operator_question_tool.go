@@ -97,9 +97,7 @@ func interruptAskOperator(ctx context.Context, store OperatorQuestionStore, brid
 		Subject:     strings.TrimSpace(input.Title),
 		PayloadJSON: string(payloadJSON),
 		Status:      events.PendingActionStatusPending,
-		Mode:        events.PendingActionModeDeferred,
 		Reason:      "operator_question",
-		Rule:        "ask_operator",
 	})
 	if err != nil {
 		return AskOperatorOutput{}, err

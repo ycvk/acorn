@@ -83,21 +83,6 @@ func (f *RunnerFactory) newDirectResponseRunner(ctx context.Context, req RunnerB
 	}, nil
 }
 
-func (f *RunnerFactory) buildToolEnabledAssembly(
-	ctx context.Context,
-	mode events.OrchestrationMode,
-	req RunnerBuildRequest,
-	caps *runCapabilities,
-	chatModel einomodel.BaseChatModel,
-	contextResult *contextplane.AssembleResult,
-) (*orchestration.RunAssembly, error) {
-	var catalog *tooling.Catalog
-	if caps != nil {
-		catalog = caps.catalog
-	}
-	return f.buildAssembly(ctx, mode, req, catalog, chatModel, contextResult)
-}
-
 // RunnerFactoryOptions holds the optional dependencies for creating a RunnerFactory.
 type RunnerFactoryOptions struct {
 	Loader                    *skills.Loader

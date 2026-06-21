@@ -71,13 +71,13 @@ type fixedClassifier struct {
 func (c *fixedClassifier) ExecutionPolicy(toolName string, args map[string]any) (tooling.ToolExecutionPolicy, error) {
 	if s, ok := c.rules[toolName]; ok {
 		policy := tooling.ToolExecutionPolicy{ParallelPolicy: s}
-		if s != tooling.ParallelPolicyNeverParallel {
+		if s != tooling.ParallelPolicySerial {
 			policy.PathArg = "path"
 		}
 		if toolName == "apply_unified_patch" {
 			policy.PathArg = "paths"
 		}
-		if s == tooling.ParallelPolicyWriteScoped && toolName != "apply_unified_patch" {
+		if s == tooling.ParallelPolicySerial && toolName != "apply_unified_patch" {
 			policy.PathArg = "path"
 		}
 		return policy, nil
@@ -137,8 +137,8 @@ var kernel = struct {
 	ToolSafetyNeverParallel tooling.ParallelPolicy
 }{
 	ToolSafetyReadOnly:      tooling.ParallelPolicyReadOnly,
-	ToolSafetyWriteScoped:   tooling.ParallelPolicyWriteScoped,
-	ToolSafetyNeverParallel: tooling.ParallelPolicyNeverParallel,
+	ToolSafetyWriteScoped:   tooling.ParallelPolicySerial,
+	ToolSafetyNeverParallel: tooling.ParallelPolicySerial,
 }
 
 func makeAssistantMessage(calls ...schema.ToolCall) *schema.Message {

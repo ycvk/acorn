@@ -2,11 +2,8 @@ package tools
 
 import (
 	"errors"
-	"fmt"
 
 	einotool "github.com/cloudwego/eino/components/tool"
-
-	"github.com/ycvk/acorn/internal/orchestration"
 )
 
 func buildWorkspaceTools(cfg CatalogConfig) ([]einotool.BaseTool, error) {
@@ -164,15 +161,3 @@ func buildBrowserToolEntry(cfg CatalogConfig) ([]einotool.BaseTool, error) {
 	return []einotool.BaseTool{browserTool}, nil
 }
 
-func buildDelegateToolEntry(childExec orchestrationChildExec, bridge DelegateTaskContext) ([]einotool.BaseTool, error) {
-	if childExec == nil {
-		return nil, nil
-	}
-	delegateTool, err := NewDelegateTool(childExec, bridge)
-	if err != nil {
-		return nil, fmt.Errorf("build delegate_task tool: %w", err)
-	}
-	return []einotool.BaseTool{delegateTool}, nil
-}
-
-type orchestrationChildExec = orchestration.ChildAgentExecutor
