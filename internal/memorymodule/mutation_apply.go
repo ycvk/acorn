@@ -59,17 +59,11 @@ func (s *LocalService) ApplyMemoryMutation(ctx context.Context, req PlanMemoryMu
 		return nil, err
 	}
 
-	var semanticRebuild *SemanticRebuildResult
+	// Index rebuild keeps the in-memory index current; semantic (vector) index
+	// is rebuilt lazily on next search via content-hash skipping, so no eager
+	// rebuild is needed here.
 	if err := s.BuildIndex(ctx); err != nil {
 		return nil, s.rollbackAppliedMemoryMutation(ctx, rollback, fmt.Errorf("build index after memory mutation: %w", err))
-	}
-	if opts, ok, err := s.semanticRebuildOptionsFromRuntime(); err != nil {
-		return nil, s.rollbackAppliedMemoryMutation(ctx, rollback, err)
-	} else if ok {
-		semanticRebuild, err = s.RebuildSemanticIndex(ctx, opts)
-		if err != nil {
-			return nil, s.rollbackAppliedMemoryMutation(ctx, rollback, fmt.Errorf("rebuild semantic index after memory mutation: %w", err))
-		}
 	}
 
 	body, err := os.ReadFile(path)
@@ -85,7 +79,7 @@ func (s *LocalService) ApplyMemoryMutation(ctx context.Context, req PlanMemoryMu
 		VerifiedBytes:         len(body),
 		VerifiedContent:       verifiedContent,
 		VerificationTruncated: truncated,
-		SemanticRebuild:       semanticRebuild,
+
 	}, nil
 }
 
@@ -212,26 +206,6 @@ func (s *LocalService) rollbackAppliedMemoryMutation(ctx context.Context, rollba
 		return errors.Join(cause, fmt.Errorf("rollback memory mutation: %w", rollbackErr))
 	}
 	return cause
-}
-
-func (s *LocalService) semanticRebuildOptionsFromRuntime() (SemanticRebuildOptions, bool, error) {
-	runtime := s.semanticRuntimeSnapshot()
-	if runtime == nil {
-		return SemanticRebuildOptions{}, false, nil
-	}
-	opts := SemanticRebuildOptions{
-		Index:      runtime.Index,
-		Embedder:   runtime.Embedder,
-		Model:      runtime.Model,
-		Dimensions: runtime.Dimensions,
-		BatchSize:  runtime.BatchSize,
-		Schema:     runtime.Schema,
-		IndexName:  runtime.IndexName,
-	}
-	if err := validateSemanticRebuildOptions(opts); err != nil {
-		return SemanticRebuildOptions{}, false, fmt.Errorf("semantic runtime rebuild options: %w", err)
-	}
-	return opts, true, nil
 }
 
 func previewMemoryMutationBytes(body []byte) (string, bool) {

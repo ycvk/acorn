@@ -104,21 +104,23 @@ func factRelPath(scope string, slug string) string {
 
 func renderFactFile(record Record) (string, error) {
 	meta := factFrontmatter{
-		Scope:        record.Scope,
-		Tags:         append([]string(nil), record.Tags...),
-		Status:       string(record.Status),
-		Created:      record.Created,
-		Updated:      record.Updated,
-		ValidFrom:    record.ValidFrom,
-		ValidUntil:   record.ValidUntil,
-		SourceRun:    record.SourceRun,
-		SourceRefs:   append([]string(nil), record.SourceRefs...),
-		EvidenceRefs: append([]string(nil), record.EvidenceRefs...),
-		Relations:    relationFrontmatterFromDomain(record.Relations),
+		Scope:      record.Scope,
+		Tags:       append([]string(nil), record.Tags...),
+		Status:     string(record.Status),
+		Created:    record.Created,
+		Updated:    record.Updated,
+		SourceRun:  record.SourceRun,
+		SourceRefs: append([]string(nil), record.SourceRefs...),
 	}
 	frontmatter, err := yaml.Marshal(meta)
 	if err != nil {
 		return "", fmt.Errorf("marshal fact frontmatter: %w", err)
 	}
 	return "---\n" + string(frontmatter) + "---\n\n# " + strings.TrimSpace(record.Title) + "\n\n" + strings.TrimSpace(record.Body) + "\n", nil
+}
+// sanitizeMemorySlug derives a filesystem-safe slug from a record title.
+func sanitizeMemorySlug(value string) string {
+	slug := strings.ToLower(sanitizeName(value))
+	slug = strings.Trim(slug, ".-_")
+	return filepath.Base(slug)
 }

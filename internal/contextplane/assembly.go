@@ -60,10 +60,6 @@ func (p *defaultContextPlane) Assemble(ctx context.Context, req AssembleRequest)
 		LifecycleState:    lifecycleState,
 		EagerToolNames:    sortedLoadedToolNames(lifecycleState),
 		DeferredToolNames: deferredNames,
-		ProcedureActivations: procedureActivationsForMemoryPacket(
-			req.MemoryPrepared,
-			memoryPacket,
-		),
 	}, nil
 }
 

@@ -240,36 +240,6 @@ func hasPreparedMemory(prepared *memorymodule.PrepareResult) bool {
 	return prepared != nil && (len(prepared.Nudges) > 0 || len(prepared.Entries) > 0 || prepared.SkillTree != nil)
 }
 
-func procedureActivationsForMemoryPacket(prepared *memorymodule.PrepareResult, packet *memoryContextPacket) []memorymodule.ProcedureActivation {
-	if prepared == nil {
-		return nil
-	}
-	result := append([]memorymodule.ProcedureActivation(nil), prepared.ProcedureActivations...)
-	if packet == nil || len(packet.AttachedEntryRefs) == 0 {
-		return result
-	}
-	attached := make(map[string]struct{}, len(packet.AttachedEntryRefs))
-	for _, ref := range packet.AttachedEntryRefs {
-		trimmed := strings.TrimSpace(ref)
-		if trimmed != "" {
-			attached[trimmed] = struct{}{}
-		}
-	}
-	for _, activation := range prepared.ProcedureActivations {
-		if activation.Phase != memorymodule.ProcedureActivationSelected {
-			continue
-		}
-		if _, ok := attached[strings.TrimSpace(activation.ProcedureRef)]; !ok {
-			continue
-		}
-		injected := activation
-		injected.Phase = memorymodule.ProcedureActivationInjected
-		injected.Reason = "injected_into_memory_context"
-		result = append(result, injected)
-	}
-	return result
-}
-
 func formatMemoryNudge(nudge memorymodule.Nudge) string {
 	parts := []string{strings.TrimSpace(nudge.Ref)}
 	if kind := strings.TrimSpace(nudge.Kind); kind != "" {

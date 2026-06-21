@@ -30,11 +30,10 @@ type AssembleRequest struct {
 }
 
 type AssembleResult struct {
-	Messages             []*schema.Message
-	LifecycleState       *ToolLifecycleState
-	EagerToolNames       []string
-	DeferredToolNames    []string
-	ProcedureActivations []memorymodule.ProcedureActivation
+	Messages          []*schema.Message
+	LifecycleState    *ToolLifecycleState
+	EagerToolNames    []string
+	DeferredToolNames []string
 }
 
 type ToolCallEvent struct {

@@ -185,46 +185,38 @@ func recordsEquivalent(left Record, right Record) bool {
 
 // comparableRecord is the canonical projection used to detect noop-duplicate
 // writes. Created/Updated are deliberately excluded: with backend auto-stamping,
-// two writes of the same substantive content (body/tags/scope/status/relations/
-// provenance) are duplicates even though their timestamps differ, so re-writing
-// identical content is correctly judged noop instead of a churny replace.
+// two writes of the same substantive content (body/tags/scope/status/provenance)
+// are duplicates even though their timestamps differ, so re-writing identical
+// content is correctly judged noop instead of a churny replace.
 type comparableRecord struct {
-	Ref          string
-	Kind         Kind
-	RelPath      string
-	Title        string
-	Status       Status
-	Scope        string
-	Tags         []string
-	Origin       string
-	TaskPattern  string
-	SourceRefs   []string
-	EvidenceRefs []string
-	Relations    []RecordRelation
-	Body         string
-	ValidFrom    string
-	ValidUntil   string
-	SourceRun    string
+	Ref         string
+	Kind        Kind
+	RelPath     string
+	Title       string
+	Status      Status
+	Scope       string
+	Tags        []string
+	Origin      string
+	TaskPattern string
+	SourceRefs  []string
+	Body        string
+	SourceRun   string
 }
 
 func canonicalComparableRecord(record Record) comparableRecord {
 	return comparableRecord{
-		Ref:          strings.TrimSpace(record.Ref),
-		Kind:         record.Kind,
-		RelPath:      strings.TrimSpace(record.RelPath),
-		Title:        strings.TrimSpace(record.Title),
-		Status:       record.Status,
-		Scope:        strings.TrimSpace(record.Scope),
-		Tags:         append([]string(nil), record.Tags...),
-		Origin:       strings.TrimSpace(record.Origin),
-		TaskPattern:  strings.TrimSpace(record.TaskPattern),
-		SourceRefs:   append([]string(nil), record.SourceRefs...),
-		EvidenceRefs: append([]string(nil), record.EvidenceRefs...),
-		Relations:    append([]RecordRelation(nil), record.Relations...),
-		Body:         strings.TrimSpace(record.Body),
-		ValidFrom:    strings.TrimSpace(record.ValidFrom),
-		ValidUntil:   strings.TrimSpace(record.ValidUntil),
-		SourceRun:    strings.TrimSpace(record.SourceRun),
+		Ref:         strings.TrimSpace(record.Ref),
+		Kind:        record.Kind,
+		RelPath:     strings.TrimSpace(record.RelPath),
+		Title:       strings.TrimSpace(record.Title),
+		Status:      record.Status,
+		Scope:       strings.TrimSpace(record.Scope),
+		Tags:        append([]string(nil), record.Tags...),
+		Origin:      strings.TrimSpace(record.Origin),
+		TaskPattern: strings.TrimSpace(record.TaskPattern),
+		SourceRefs:  append([]string(nil), record.SourceRefs...),
+		Body:        strings.TrimSpace(record.Body),
+		SourceRun:   strings.TrimSpace(record.SourceRun),
 	}
 }
 

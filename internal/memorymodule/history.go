@@ -127,18 +127,17 @@ func historyRecordFromFile(root string, path string, data []byte, modTime time.T
 	date := historyRecordDate(body, modTime)
 	title := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
 	return &Record{
-		Ref:       rel,
-		Kind:      KindHistory,
-		RootPath:  root,
-		RelPath:   rel,
-		Title:     title,
-		Status:    StatusVerified,
-		Scope:     "user",
-		Tags:      []string{"history"},
-		Body:      body,
-		Created:   date,
-		Updated:   date,
-		ValidFrom: date,
+		Ref:      rel,
+		Kind:     KindHistory,
+		RootPath: root,
+		RelPath:  rel,
+		Title:    title,
+		Status:   StatusVerified,
+		Scope:    "user",
+		Tags:     []string{"history"},
+		Body:     body,
+		Created:  date,
+		Updated:  date,
 	}, nil
 }
 

@@ -29,53 +29,44 @@ type memorySearchOutput struct {
 }
 
 type memorySearchOutputItem struct {
-	Ref          string                        `json:"ref"`
-	Kind         string                        `json:"kind"`
-	Title        string                        `json:"title"`
-	Status       string                        `json:"status,omitempty"`
-	Scope        string                        `json:"scope,omitempty"`
-	Tags         []string                      `json:"tags,omitempty"`
-	Origin       string                        `json:"origin,omitempty"`
-	TaskPattern  string                        `json:"task_pattern,omitempty"`
-	Path         string                        `json:"path,omitempty"`
-	Snippet      string                        `json:"snippet,omitempty"`
-	Score        float64                       `json:"score"`
-	SourceRun    string                        `json:"source_run,omitempty"`
-	SourceRefs   []string                      `json:"source_refs,omitempty"`
-	EvidenceRefs []string                      `json:"evidence_refs,omitempty"`
-	CreatedAt    string                        `json:"created_at,omitempty"`
-	UpdatedAt    string                        `json:"updated_at,omitempty"`
-	ValidFrom    string                        `json:"valid_from,omitempty"`
-	ValidUntil   string                        `json:"valid_until,omitempty"`
-	Relations    []memorymodule.RecordRelation `json:"relations,omitempty"`
+	Ref         string   `json:"ref"`
+	Kind        string   `json:"kind"`
+	Title       string   `json:"title"`
+	Status      string   `json:"status,omitempty"`
+	Scope       string   `json:"scope,omitempty"`
+	Tags        []string `json:"tags,omitempty"`
+	Origin      string   `json:"origin,omitempty"`
+	TaskPattern string   `json:"task_pattern,omitempty"`
+	Path        string   `json:"path,omitempty"`
+	Snippet     string   `json:"snippet,omitempty"`
+	Score       float64  `json:"score"`
+	SourceRun   string   `json:"source_run,omitempty"`
+	SourceRefs  []string `json:"source_refs,omitempty"`
+	CreatedAt   string   `json:"created_at,omitempty"`
+	UpdatedAt   string   `json:"updated_at,omitempty"`
 }
 
 func memorySearchOutputItemFromSearchItem(item memorymodule.SearchItem) memorySearchOutputItem {
 	return memorySearchOutputItem{
-		Ref:          item.Ref,
-		Kind:         item.Kind,
-		Title:        item.Title,
-		Status:       item.Status,
-		Scope:        item.Scope,
-		Tags:         append([]string(nil), item.Tags...),
-		Origin:       item.Origin,
-		TaskPattern:  item.TaskPattern,
-		Path:         item.Path,
-		Snippet:      item.Snippet,
-		Score:        item.Score,
-		SourceRun:    item.SourceRun,
-		SourceRefs:   append([]string(nil), item.SourceRefs...),
-		EvidenceRefs: append([]string(nil), item.EvidenceRefs...),
-		CreatedAt:    item.Created,
-		UpdatedAt:    item.Updated,
-		ValidFrom:    item.ValidFrom,
-		ValidUntil:   item.ValidUntil,
-		Relations:    append([]memorymodule.RecordRelation(nil), item.Relations...),
+		Ref:         item.Ref,
+		Kind:        item.Kind,
+		Title:       item.Title,
+		Status:      item.Status,
+		Scope:       item.Scope,
+		Tags:        append([]string(nil), item.Tags...),
+		Origin:      item.Origin,
+		TaskPattern: item.TaskPattern,
+		Path:        item.Path,
+		Snippet:     item.Snippet,
+		Score:       item.Score,
+		SourceRun:   item.SourceRun,
+		SourceRefs:  append([]string(nil), item.SourceRefs...),
+		CreatedAt:   item.Created,
+		UpdatedAt:   item.Updated,
 	}
 }
-
 func buildMemorySearchOutput(result *memorymodule.SearchResult) memorySearchOutput {
-	output := memorySearchOutput{}
+	var output memorySearchOutput
 	if result == nil {
 		return output
 	}
