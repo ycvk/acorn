@@ -18,34 +18,22 @@ type OrchestrationMode string
 
 const (
 	ModeDirectResponse OrchestrationMode = "direct_response"
-	ModeSingleAgent    OrchestrationMode = "single_agent"
-	ModePlanExecute    OrchestrationMode = "plan_execute"
 )
 
 func (m OrchestrationMode) Normalize() OrchestrationMode {
-	switch m {
-	case ModeDirectResponse, ModeSingleAgent, ModePlanExecute:
-		return m
-	default:
-		return m
-	}
+	return m
 }
 
 type RunRecord struct {
-	RunID             string            `json:"run_id"`
-	SessionID         string            `json:"session_id,omitempty"`
-	TurnIndex         int               `json:"turn_index,omitempty"`
-	Status            RunStatus         `json:"status"`
-	Input             string            `json:"input"`
-	Output            string            `json:"output,omitempty"`
-	Error             string            `json:"error,omitempty"`
-	CheckpointID      string            `json:"checkpoint_id,omitempty"`
-	OrchestrationMode OrchestrationMode `json:"orchestration_mode,omitempty"`
-	ParentRunID       string            `json:"parent_run_id,omitempty"`
-	SkillID           string            `json:"skill_id,omitempty"`
-	Depth             int               `json:"depth,omitempty"`
-	CreatedAt         time.Time         `json:"created_at"`
-	UpdatedAt         time.Time         `json:"updated_at"`
+	RunID     string    `json:"run_id"`
+	SessionID string    `json:"session_id,omitempty"`
+	TurnIndex int       `json:"turn_index,omitempty"`
+	Status    RunStatus `json:"status"`
+	Input     string    `json:"input"`
+	Output    string    `json:"output,omitempty"`
+	Error     string    `json:"error,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 type EventRecord struct {
@@ -81,12 +69,6 @@ const (
 	PendingActionStatusResolved PendingActionStatus = "resolved"
 )
 
-type PendingActionDecisionMode string
-
-const (
-	PendingActionModeDeferred PendingActionDecisionMode = "deferred"
-)
-
 type PendingActionRecord struct {
 	ActionID     string                    `json:"action_id"`
 	RunID        string                    `json:"run_id"`
@@ -95,9 +77,7 @@ type PendingActionRecord struct {
 	Subject      string                    `json:"subject,omitempty"`
 	PayloadJSON  string                    `json:"payload_json"`
 	Status       PendingActionStatus       `json:"status"`
-	Mode         PendingActionDecisionMode `json:"mode,omitempty"`
 	Reason       string                    `json:"reason,omitempty"`
-	Rule         string                    `json:"rule,omitempty"`
 	DecisionJSON string                    `json:"decision_json,omitempty"`
 	CreatedAt    time.Time                 `json:"created_at"`
 	DecidedAt    *time.Time                `json:"decided_at,omitempty"`
