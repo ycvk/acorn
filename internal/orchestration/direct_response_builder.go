@@ -8,11 +8,82 @@ import (
 
 	"github.com/cloudwego/eino/adk"
 	einomodel "github.com/cloudwego/eino/components/model"
+	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/schema"
 
 	"github.com/ycvk/acorn/internal/contextplane"
 	"github.com/ycvk/acorn/internal/tooling"
 )
+
+// toolAssemblyParams holds the fields BuildDirectResponse shares when
+// assembling tools, instruction, handlers, and the bound run context.
+type toolAssemblyParams struct {
+	catalog           *tooling.Catalog
+	contextResult     AssembleResultView
+	allowedToolNames  []string
+	excludedToolNames []string
+	runID             string
+	chatModel         einomodel.BaseChatModel
+	instructionSuffix string
+	sessionID         string
+}
+
+type assembledTooling struct {
+	allTools         []einotool.BaseTool
+	toolInfos        []*schema.ToolInfo
+	instruction      string
+	compressionState *contextplane.CompressionState
+	handlers         []adk.ChatModelAgentMiddleware
+	runCtx           context.Context
+}
+
+// assembleTooling builds the tool set, instruction, handlers, and the run context
+// bound with session + tool lifecycle.
+func (p *DefaultPlane) assembleTooling(ctx context.Context, params toolAssemblyParams) (*assembledTooling, error) {
+	allTools, err := p.toolBuilder(
+		ctx,
+		params.catalog.EnabledSpecs(),
+		params.excludedToolNames,
+		params.allowedToolNames,
+		params.runID,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	toolInfos := make([]*schema.ToolInfo, 0, len(allTools))
+	for _, tool := range allTools {
+		info, err := tool.Info(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("read tool info for BindTools: %w", err)
+		}
+		toolInfos = append(toolInfos, info)
+	}
+
+	instruction := p.instructionBuilder(p.systemPrompt, params.instructionSuffix)
+	compressionState := contextplane.NewCompressionState()
+	handlers, err := p.handlersBuilder(ctx, params.chatModel, compressionState)
+	if err != nil {
+		return nil, err
+	}
+
+	runCtx := ctx
+	if p.sessionContextBinder != nil {
+		runCtx = p.sessionContextBinder(runCtx, params.sessionID)
+	}
+	if p.toolLifecycleBinder != nil {
+		runCtx = p.toolLifecycleBinder(runCtx, params.contextResult.LifecycleState, params.catalog, toolInfos)
+	}
+
+	return &assembledTooling{
+		allTools:         allTools,
+		toolInfos:        toolInfos,
+		instruction:      instruction,
+		compressionState: compressionState,
+		handlers:         handlers,
+		runCtx:           runCtx,
+	}, nil
+}
 
 func (p *DefaultPlane) BuildDirectResponse(ctx context.Context, req DirectResponseRequest) (*RunAssembly, error) {
 	if p == nil {

@@ -19,7 +19,6 @@ import (
 
 	"github.com/ycvk/acorn/internal/contextplane"
 	"github.com/ycvk/acorn/internal/model"
-	"github.com/ycvk/acorn/internal/store/storetest"
 	"github.com/ycvk/acorn/internal/tooling"
 )
 
@@ -247,7 +246,6 @@ func TestBuildDirectResponseContinuesAfterOutputLimit(t *testing.T) {
 	ctx := context.Background()
 	tool := directResponseTestTool{name: "lookup", result: "lookup result: acorn"}
 	catalog := directResponseCatalogForTest(t, ctx, tool)
-	contextPlane := contextplane.NewDefaultContextPlane(contextplane.DefaultOptions{ToolResultLedger: storetest.NewMemoryToolResultLedger()})
 	contextResult := directResponseContextResultForTest("run", "session", "lookup")
 	model := &directResponseTestModel{
 		responses: []*schema.Message{
@@ -269,7 +267,7 @@ func TestBuildDirectResponseContinuesAfterOutputLimit(t *testing.T) {
 		},
 		ToolLifecycleBinder: func(ctx context.Context, state ToolLifecycleStateView, catalog *tooling.Catalog, infos []*schema.ToolInfo) context.Context {
 			if t, ok := state.(testToolLifecycleStateView); ok && t.state != nil {
-				return contextplane.WithToolLifecycleContext(ctx, contextPlane.ToolResultLedger(), t.state, catalog, infos)
+				return contextplane.WithToolLifecycleContext(ctx, t.state, catalog, infos)
 			}
 			return ctx
 		},
@@ -317,7 +315,6 @@ func TestBuildDirectResponseDoesNotExecuteTruncatedToolCalls(t *testing.T) {
 	ctx := context.Background()
 	tool := directResponseTestTool{name: "lookup", result: "lookup result: acorn"}
 	catalog := directResponseCatalogForTest(t, ctx, tool)
-	contextPlane := contextplane.NewDefaultContextPlane(contextplane.DefaultOptions{ToolResultLedger: storetest.NewMemoryToolResultLedger()})
 	contextResult := directResponseContextResultForTest("run", "session", "lookup")
 	model := &directResponseTestModel{
 		responses: []*schema.Message{
@@ -345,7 +342,7 @@ func TestBuildDirectResponseDoesNotExecuteTruncatedToolCalls(t *testing.T) {
 		},
 		ToolLifecycleBinder: func(ctx context.Context, state ToolLifecycleStateView, catalog *tooling.Catalog, infos []*schema.ToolInfo) context.Context {
 			if t, ok := state.(testToolLifecycleStateView); ok && t.state != nil {
-				return contextplane.WithToolLifecycleContext(ctx, contextPlane.ToolResultLedger(), t.state, catalog, infos)
+				return contextplane.WithToolLifecycleContext(ctx, t.state, catalog, infos)
 			}
 			return ctx
 		},
@@ -390,7 +387,6 @@ func TestBuildDirectResponseRunsToolCallLoop(t *testing.T) {
 	ctx := context.Background()
 	tool := directResponseTestTool{name: "lookup", result: "lookup result: acorn"}
 	catalog := directResponseCatalogForTest(t, ctx, tool)
-	contextPlane := contextplane.NewDefaultContextPlane(contextplane.DefaultOptions{ToolResultLedger: storetest.NewMemoryToolResultLedger()})
 	contextResult := directResponseContextResultForTest("run", "session", "lookup")
 	model := &directResponseTestModel{
 		responses: []*schema.Message{
@@ -422,7 +418,7 @@ func TestBuildDirectResponseRunsToolCallLoop(t *testing.T) {
 		},
 		ToolLifecycleBinder: func(ctx context.Context, state ToolLifecycleStateView, catalog *tooling.Catalog, infos []*schema.ToolInfo) context.Context {
 			if t, ok := state.(testToolLifecycleStateView); ok && t.state != nil {
-				return contextplane.WithToolLifecycleContext(ctx, contextPlane.ToolResultLedger(), t.state, catalog, infos)
+				return contextplane.WithToolLifecycleContext(ctx, t.state, catalog, infos)
 			}
 			return ctx
 		},
@@ -481,7 +477,6 @@ func TestBuildDirectResponsePropagatesModelError(t *testing.T) {
 	model := &directResponseTestModel{err: modelErr}
 	tool := directResponseTestTool{name: "lookup", result: "lookup result: acorn"}
 	catalog := directResponseCatalogForTest(t, ctx, tool)
-	contextPlane := contextplane.NewDefaultContextPlane(contextplane.DefaultOptions{ToolResultLedger: storetest.NewMemoryToolResultLedger()})
 	contextResult := directResponseContextResultForTest("run", "session", "lookup")
 	plane := NewDefaultPlane(DefaultPlaneOptions{
 		SystemPrompt:       "system",
@@ -496,7 +491,7 @@ func TestBuildDirectResponsePropagatesModelError(t *testing.T) {
 		},
 		ToolLifecycleBinder: func(ctx context.Context, state ToolLifecycleStateView, catalog *tooling.Catalog, infos []*schema.ToolInfo) context.Context {
 			if t, ok := state.(testToolLifecycleStateView); ok && t.state != nil {
-				return contextplane.WithToolLifecycleContext(ctx, contextPlane.ToolResultLedger(), t.state, catalog, infos)
+				return contextplane.WithToolLifecycleContext(ctx, t.state, catalog, infos)
 			}
 			return ctx
 		},
@@ -530,7 +525,6 @@ func TestBuildDirectResponseReactiveCompactsAndRetriesOverflow(t *testing.T) {
 	ctx := context.Background()
 	tool := directResponseTestTool{name: "lookup", result: "lookup result: acorn"}
 	catalog := directResponseCatalogForTest(t, ctx, tool)
-	contextPlane := contextplane.NewDefaultContextPlane(contextplane.DefaultOptions{ToolResultLedger: storetest.NewMemoryToolResultLedger()})
 	contextResult := directResponseContextResultForTest("run", "session", "lookup")
 	model := &directResponseTestModel{
 		streamErrors: []error{errors.New("model_context_window_exceeded")},
@@ -553,7 +547,7 @@ func TestBuildDirectResponseReactiveCompactsAndRetriesOverflow(t *testing.T) {
 		},
 		ToolLifecycleBinder: func(ctx context.Context, state ToolLifecycleStateView, catalog *tooling.Catalog, infos []*schema.ToolInfo) context.Context {
 			if t, ok := state.(testToolLifecycleStateView); ok && t.state != nil {
-				return contextplane.WithToolLifecycleContext(ctx, contextPlane.ToolResultLedger(), t.state, catalog, infos)
+				return contextplane.WithToolLifecycleContext(ctx, t.state, catalog, infos)
 			}
 			return ctx
 		},
@@ -621,7 +615,6 @@ func TestBuildDirectResponseFailsWithoutContextSession(t *testing.T) {
 	ctx := context.Background()
 	tool := directResponseTestTool{name: "lookup", result: "lookup result: acorn"}
 	catalog := directResponseCatalogForTest(t, ctx, tool)
-	contextPlane := contextplane.NewDefaultContextPlane(contextplane.DefaultOptions{ToolResultLedger: storetest.NewMemoryToolResultLedger()})
 	contextResult := directResponseContextResultForTest("run", "session", "lookup")
 	plane := NewDefaultPlane(DefaultPlaneOptions{
 		SystemPrompt:    "system",
@@ -638,7 +631,7 @@ func TestBuildDirectResponseFailsWithoutContextSession(t *testing.T) {
 		},
 		ToolLifecycleBinder: func(ctx context.Context, state ToolLifecycleStateView, catalog *tooling.Catalog, infos []*schema.ToolInfo) context.Context {
 			if t, ok := state.(testToolLifecycleStateView); ok && t.state != nil {
-				return contextplane.WithToolLifecycleContext(ctx, contextPlane.ToolResultLedger(), t.state, catalog, infos)
+				return contextplane.WithToolLifecycleContext(ctx, t.state, catalog, infos)
 			}
 			return ctx
 		},
@@ -673,15 +666,12 @@ func directResponseCatalogForTest(t *testing.T, ctx context.Context, tool einoto
 	}
 	catalog, err := tooling.NewCatalog(ctx, []tooling.ToolSpec{{
 		ToolContract: tooling.ToolContract{
-			Name:          info.Name,
-			Source:        "test",
-			Kind:          tooling.ToolKindNative,
-			Category:      tooling.ToolCategoryRead,
-			ResourceScope: tooling.ResourceScopeWorkspaceFile,
-			Profiles:      []tooling.ToolProfile{tooling.ToolProfileRun},
-			PlanPolicy:    tooling.PlanPolicyNone,
-			Loading:       tooling.EagerLoadingPolicy(),
-			Execution:     tooling.ToolExecutionPolicy{ParallelPolicy: tooling.ParallelPolicyReadOnly},
+			Name:      info.Name,
+			Source:    "test",
+			Kind:      tooling.ToolKindNative,
+			Category:  tooling.ToolCategoryRead,
+			Loading:   tooling.EagerLoadingPolicy(),
+			Execution: tooling.ToolExecutionPolicy{ParallelPolicy: tooling.ParallelPolicyReadOnly},
 		},
 		Tool: tool,
 	}})
@@ -888,12 +878,10 @@ func (directResponseNoPressureGovernor) Evaluate(context.Context, contextplane.B
 
 func directResponseTestModelProfile() contextplane.ModelProfile {
 	return contextplane.ModelProfile{
-		ContextWindowTokens:         200000,
-		ReservedOutputTokens:        4096,
-		ReservedSummaryOutputTokens: 2048,
-		StaticOverheadTokens:        4096,
-		WarningBufferTokens:         20000,
-		AutoCompactBufferTokens:     13000,
+		ContextWindowTokens:     200000,
+		StaticOverheadTokens:    4096,
+		WarningBufferTokens:     20000,
+		AutoCompactBufferTokens: 13000,
 	}
 }
 
@@ -998,7 +986,6 @@ func TestBuildDirectResponseHandlesInterrupt(t *testing.T) {
 	ctx := context.Background()
 	tool := directResponseTestTool{name: "lookup", result: "lookup result: acorn"}
 	catalog := directResponseCatalogForTest(t, ctx, tool)
-	contextPlane := contextplane.NewDefaultContextPlane(contextplane.DefaultOptions{ToolResultLedger: storetest.NewMemoryToolResultLedger()})
 	contextResult := directResponseContextResultForTest("run", "session", "lookup")
 	model := &directResponseTestModel{
 		responses: []*schema.Message{
@@ -1029,7 +1016,7 @@ func TestBuildDirectResponseHandlesInterrupt(t *testing.T) {
 		},
 		ToolLifecycleBinder: func(ctx context.Context, state ToolLifecycleStateView, catalog *tooling.Catalog, infos []*schema.ToolInfo) context.Context {
 			if t, ok := state.(testToolLifecycleStateView); ok && t.state != nil {
-				return contextplane.WithToolLifecycleContext(ctx, contextPlane.ToolResultLedger(), t.state, catalog, infos)
+				return contextplane.WithToolLifecycleContext(ctx, t.state, catalog, infos)
 			}
 			return ctx
 		},
@@ -1063,7 +1050,6 @@ func TestBuildDirectResponsePreservesNestedInterruptContexts(t *testing.T) {
 	ctx := context.Background()
 	tool := directResponseTestTool{name: "lookup", result: "lookup result: acorn"}
 	catalog := directResponseCatalogForTest(t, ctx, tool)
-	contextPlane := contextplane.NewDefaultContextPlane(contextplane.DefaultOptions{ToolResultLedger: storetest.NewMemoryToolResultLedger()})
 	contextResult := directResponseContextResultForTest("run", "session", "lookup")
 	model := &directResponseTestModel{
 		responses: []*schema.Message{
@@ -1108,7 +1094,7 @@ func TestBuildDirectResponsePreservesNestedInterruptContexts(t *testing.T) {
 		},
 		ToolLifecycleBinder: func(ctx context.Context, state ToolLifecycleStateView, catalog *tooling.Catalog, infos []*schema.ToolInfo) context.Context {
 			if t, ok := state.(testToolLifecycleStateView); ok && t.state != nil {
-				return contextplane.WithToolLifecycleContext(ctx, contextPlane.ToolResultLedger(), t.state, catalog, infos)
+				return contextplane.WithToolLifecycleContext(ctx, t.state, catalog, infos)
 			}
 			return ctx
 		},
@@ -1208,7 +1194,6 @@ func TestBuildDirectResponseResumeContinuesFromPendingToolCalls(t *testing.T) {
 	ctx := context.Background()
 	tool := directResponseTestTool{name: "lookup", result: "unused"}
 	catalog := directResponseCatalogForTest(t, ctx, tool)
-	contextPlane := contextplane.NewDefaultContextPlane(contextplane.DefaultOptions{ToolResultLedger: storetest.NewMemoryToolResultLedger()})
 	contextResult := directResponseContextResultForTest("run", "session", "lookup")
 	model := &directResponseTestModel{
 		responses: []*schema.Message{
@@ -1242,7 +1227,7 @@ func TestBuildDirectResponseResumeContinuesFromPendingToolCalls(t *testing.T) {
 		},
 		ToolLifecycleBinder: func(ctx context.Context, state ToolLifecycleStateView, catalog *tooling.Catalog, infos []*schema.ToolInfo) context.Context {
 			if t, ok := state.(testToolLifecycleStateView); ok && t.state != nil {
-				return contextplane.WithToolLifecycleContext(ctx, contextPlane.ToolResultLedger(), t.state, catalog, infos)
+				return contextplane.WithToolLifecycleContext(ctx, t.state, catalog, infos)
 			}
 			return ctx
 		},
