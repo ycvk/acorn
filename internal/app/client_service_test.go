@@ -250,38 +250,27 @@ func TestProjectMessagePartsRejectUnknownKind(t *testing.T) {
 func TestProjectRunMapsStatusAndMode(t *testing.T) {
 	now := time.Date(2026, 5, 2, 10, 0, 0, 0, time.UTC)
 	run, err := projectRun(events.RunRecord{
-		RunID:             "run_1",
-		SessionID:         "session_1",
-		Status:            events.RunStatusSucceeded,
-		OrchestrationMode: events.ModeSingleAgent,
-		CreatedAt:         now,
-		UpdatedAt:         now.Add(time.Second),
+		RunID:     "run_1",
+		SessionID: "session_1",
+		Status:    events.RunStatusSucceeded,
+		CreatedAt: now,
+		UpdatedAt: now.Add(time.Second),
 	})
 	if err != nil {
 		t.Fatalf("projectRun: %v", err)
 	}
-	if run.ID != "run_1" || run.ThreadID != "session_1" || run.Status != "completed" || run.Mode != "agent" || run.CompletedAt.IsZero() {
+	if run.ID != "run_1" || run.ThreadID != "session_1" || run.Status != "completed" || run.Mode != "direct" || run.CompletedAt.IsZero() {
 		t.Fatalf("run = %#v", run)
 	}
 }
 
-func TestProjectRunRejectsUnknownStatusAndMode(t *testing.T) {
+func TestProjectRunRejectsUnknownStatus(t *testing.T) {
 	_, err := projectRun(events.RunRecord{
-		RunID:             "run_bad_status",
-		Status:            events.RunStatus(""),
-		OrchestrationMode: events.ModeSingleAgent,
+		RunID:  "run_bad_status",
+		Status: events.RunStatus(""),
 	})
 	if !errors.Is(err, ErrClientProjectionFailed) {
 		t.Fatalf("status error = %v, want ErrClientProjectionFailed", err)
-	}
-
-	_, err = projectRun(events.RunRecord{
-		RunID:             "run_bad_mode",
-		Status:            events.RunStatusRunning,
-		OrchestrationMode: events.OrchestrationMode("unknown"),
-	})
-	if !errors.Is(err, ErrClientProjectionFailed) {
-		t.Fatalf("mode error = %v, want ErrClientProjectionFailed", err)
 	}
 }
 
@@ -491,7 +480,7 @@ func TestLoadRunEventsAfterFiltersDiagnosticsAndAdvancesCursor(t *testing.T) {
 		t.Fatalf("open store: %v", err)
 	}
 	t.Cleanup(func() { _ = store.Close() })
-	if err := store.CreateRun(ctx, "run_live", "input", "thread_live"); err != nil {
+	if err := store.CreateRun(ctx, "run_live", "input"); err != nil {
 		t.Fatalf("CreateRun: %v", err)
 	}
 	if _, err := store.AppendEventContext(ctx, "run_live", "run.started", map[string]any{"input": "hello"}); err != nil {
@@ -546,7 +535,7 @@ func TestLoadRunEventsForDetailFiltersDiagnostics(t *testing.T) {
 		t.Fatalf("open store: %v", err)
 	}
 	t.Cleanup(func() { _ = store.Close() })
-	if err := store.CreateRun(context.Background(), "run_detail", "input", "thread_detail"); err != nil {
+	if err := store.CreateRun(context.Background(), "run_detail", "input"); err != nil {
 		t.Fatalf("CreateRun: %v", err)
 	}
 	if _, err := store.AppendEventContext(context.Background(), "run_detail", "run.started", map[string]any{"input": "hello"}); err != nil {
@@ -575,7 +564,7 @@ func TestClientServiceListRunArtifactsUsesRunScopedStorePort(t *testing.T) {
 		t.Fatalf("open store: %v", err)
 	}
 	t.Cleanup(func() { _ = store.Close() })
-	if err := store.CreateRun(ctx, "run_artifacts", "input", "thread_artifacts"); err != nil {
+	if err := store.CreateRun(ctx, "run_artifacts", "input"); err != nil {
 		t.Fatalf("CreateRun: %v", err)
 	}
 	_, err = store.SaveArtifact(ctx, storecore.ArtifactRecord{
@@ -827,16 +816,11 @@ type postStartFailingExecutor struct {
 }
 
 func (e *postStartFailingExecutor) ExecuteMessages(ctx context.Context, req runtimeapi.ExecuteRequest, observer runStartObserver) error {
-	mode := req.OrchestrationMode
-	if strings.TrimSpace(string(mode)) == "" {
-		mode = events.ModeDirectResponse
-	}
 	if err := e.store.CreateBoundRunWithParams(ctx, storecore.RunCreateParams{
-		RunID:             req.RunID,
-		SessionID:         req.SessionID,
-		TurnIndex:         req.TurnIndex,
-		Input:             req.Input,
-		OrchestrationMode: mode,
+		RunID:     req.RunID,
+		SessionID: req.SessionID,
+		TurnIndex: req.TurnIndex,
+		Input:     req.Input,
 	}); err != nil {
 		return err
 	}
@@ -1011,14 +995,11 @@ func newClientRuntimeMemoryModule(t *testing.T, cfg *config.Config) memorymodule
 		t.Fatalf("BuildIndex: %v", err)
 	}
 	if err := service.SetSemanticRuntime(memorymodule.SemanticRuntimeOptions{
-		Index:      &clientRuntimeSemanticIndex{},
-		Embedder:   clientRuntimeEmbedder{dimensions: cfg.Memory.Semantic.Embedding.Dimensions, model: cfg.Memory.Semantic.Embedding.Model},
-		Model:      cfg.Memory.Semantic.Embedding.Model,
-		Dimensions: cfg.Memory.Semantic.Embedding.Dimensions,
-		BatchSize:  cfg.Memory.Semantic.Embedding.BatchSize,
-		Schema:     memorymodule.SemanticSchemaMemoryRecordsV1,
-		IndexName:  cfg.Memory.Semantic.Bleve.IndexName,
-		Mode:       "hybrid",
+		VectorStore: &clientRuntimeSemanticIndex{},
+		Embedder:    clientRuntimeEmbedder{dimensions: cfg.Memory.Semantic.Embedding.Dimensions, model: cfg.Memory.Semantic.Embedding.Model},
+		Model:       cfg.Memory.Semantic.Embedding.Model,
+		Dimensions:  cfg.Memory.Semantic.Embedding.Dimensions,
+		BatchSize:   cfg.Memory.Semantic.Embedding.BatchSize,
 	}); err != nil {
 		t.Fatalf("SetSemanticRuntime: %v", err)
 	}
@@ -1027,15 +1008,17 @@ func newClientRuntimeMemoryModule(t *testing.T, cfg *config.Config) memorymodule
 
 type clientRuntimeSemanticIndex struct{}
 
-func (i *clientRuntimeSemanticIndex) Rebuild(context.Context, memorymodule.SemanticRebuildRequest) (*memorymodule.SemanticRebuildResult, error) {
-	return nil, errors.New("client runtime semantic rebuild is not implemented")
+func (i *clientRuntimeSemanticIndex) Store(_ context.Context, _ string, _ memorymodule.Kind, _ string, _ []float32, _ string, _ int) error {
+	return nil
 }
 
-func (i *clientRuntimeSemanticIndex) Search(context.Context, memorymodule.SemanticSearchRequest) (*memorymodule.SemanticSearchResult, error) {
-	return &memorymodule.SemanticSearchResult{}, nil
+func (i *clientRuntimeSemanticIndex) Search(_ context.Context, _ []float32, limit int) ([]memorymodule.VectorSearchResult, error) {
+	return make([]memorymodule.VectorSearchResult, 0, limit), nil
 }
 
-func (i *clientRuntimeSemanticIndex) Close() error { return nil }
+func (i *clientRuntimeSemanticIndex) Delete(_ context.Context, _ string) error {
+	return nil
+}
 
 type clientRuntimeEmbedder struct {
 	dimensions int

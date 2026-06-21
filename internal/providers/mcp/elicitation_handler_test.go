@@ -22,7 +22,7 @@ func TestHandleElicitationCreatesPendingAction(t *testing.T) {
 
 	ctx := context.Background()
 	runID := "run_test_elicitation_001"
-	if err := store.CreateRun(ctx, runID, "test elicitation", ""); err != nil {
+	if err := store.CreateRun(ctx, runID, "test elicitation"); err != nil {
 		t.Fatalf("create run: %v", err)
 	}
 
@@ -74,7 +74,7 @@ func TestHandleElicitationCreatesPendingAction(t *testing.T) {
 	}
 
 	// Decide the action to unblock the handler
-	_, err = store.DecidePendingAction(ctx, foundAction.ActionID, events.PendingActionStatusApproved, events.PendingActionModeDeferred, `{"action":"accept"}`)
+	_, err = store.DecidePendingAction(ctx, foundAction.ActionID, events.PendingActionStatusApproved, `{"action":"accept"}`)
 	if err != nil {
 		t.Fatalf("decide pending action: %v", err)
 	}
@@ -98,7 +98,7 @@ func TestHandleElicitationTimeoutReturnsDecline(t *testing.T) {
 
 	ctx := context.Background()
 	runID := "run_test_elicitation_timeout_001"
-	if err := store.CreateRun(ctx, runID, "test timeout", ""); err != nil {
+	if err := store.CreateRun(ctx, runID, "test timeout"); err != nil {
 		t.Fatalf("create run: %v", err)
 	}
 
@@ -127,7 +127,7 @@ func TestHandleElicitationLoadFailureReturnsError(t *testing.T) {
 
 	ctx := context.Background()
 	runID := "run_test_elicitation_load_error_001"
-	if err := store.CreateRun(ctx, runID, "test load error", ""); err != nil {
+	if err := store.CreateRun(ctx, runID, "test load error"); err != nil {
 		t.Fatalf("create run: %v", err)
 	}
 
@@ -181,7 +181,7 @@ func TestHandleElicitationEmitsStreamItems(t *testing.T) {
 
 	ctx := context.Background()
 	runID := "run_test_elicitation_stream_001"
-	if err := store.CreateRun(ctx, runID, "test stream", ""); err != nil {
+	if err := store.CreateRun(ctx, runID, "test stream"); err != nil {
 		t.Fatalf("create run: %v", err)
 	}
 
@@ -260,7 +260,7 @@ func TestBuildElicitationHandlerReturnsValidHandler(t *testing.T) {
 
 	ctx := context.Background()
 	runID := "run_test_build_handler_001"
-	if err := store.CreateRun(ctx, runID, "test build handler", ""); err != nil {
+	if err := store.CreateRun(ctx, runID, "test build handler"); err != nil {
 		t.Fatalf("create run: %v", err)
 	}
 
@@ -298,7 +298,7 @@ func TestBuildElicitationHandlerReturnsValidHandler(t *testing.T) {
 	actions, _ := store.ListPendingActions(ctx, 10)
 	for _, a := range actions {
 		if a.Kind == events.PendingActionKindElicitation && a.Status == events.PendingActionStatusPending {
-			store.DecidePendingAction(ctx, a.ActionID, events.PendingActionStatusRejected, events.PendingActionModeDeferred, `{"action":"decline"}`)
+			store.DecidePendingAction(ctx, a.ActionID, events.PendingActionStatusRejected, `{"action":"decline"}`)
 			break
 		}
 	}

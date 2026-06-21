@@ -1,29 +1,11 @@
 package memorymodule
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"testing"
 )
 
-// rebuildCountingIndex is a SemanticIndex whose Rebuild succeeds and counts calls,
-// so a test can assert that a structured write actually refreshed the semantic
-// index (the real fakeSearchSemanticIndex.Rebuild returns "not implemented").
-type rebuildCountingIndex struct {
-	rebuilds int
-}
-
-func (i *rebuildCountingIndex) Rebuild(_ context.Context, _ SemanticRebuildRequest) (*SemanticRebuildResult, error) {
-	i.rebuilds++
-	return &SemanticRebuildResult{}, nil
-}
-
-func (i *rebuildCountingIndex) Search(_ context.Context, _ SemanticSearchRequest) (*SemanticSearchResult, error) {
-	return &SemanticSearchResult{}, nil
-}
-
-func (i *rebuildCountingIndex) Close() error { return nil }
 
 func TestCreateFactAutoStampsStatusScopeAndTimestamps(t *testing.T) {
 	service := newTestService(t)
@@ -75,32 +57,6 @@ func TestCreateFactWorkspaceScopeNestsPath(t *testing.T) {
 	}
 }
 
-// TestCreateFactRebuildsSemanticIndexWhenWired is the regression test for the
-// "wrote it but can't recall it" bug: CreateFact must drive the full mutation
-// pipeline so a wired semantic runtime is rebuilt, otherwise the just-remembered
-// fact is invisible to memory_search/Prepare (which go through the semantic index).
-func TestCreateFactRebuildsSemanticIndexWhenWired(t *testing.T) {
-	service := newTestService(t)
-	index := &rebuildCountingIndex{}
-	if err := service.SetSemanticRuntime(SemanticRuntimeOptions{
-		Index:      index,
-		Embedder:   deterministicEmbedder{dimensions: 3, model: "text-embedding-3-small"},
-		Model:      "text-embedding-3-small",
-		Dimensions: 3,
-		BatchSize:  64,
-		Schema:     SemanticSchemaMemoryRecordsV1,
-		IndexName:  "memory_records",
-		Mode:       "hybrid",
-	}); err != nil {
-		t.Fatalf("SetSemanticRuntime: %v", err)
-	}
-	if _, err := service.CreateFact(t.Context(), CreateFactRequest{Title: "VPS", Body: "the ip is 1.2.3.4", Tags: []string{"infra"}}); err != nil {
-		t.Fatalf("CreateFact: %v", err)
-	}
-	if index.rebuilds == 0 {
-		t.Fatal("CreateFact must rebuild the semantic index when a runtime is wired, so the new fact is searchable")
-	}
-}
 
 // TestCreateFactCanonicalizesWorkspaceScope verifies that a non-canonical workspace
 // scope is stored in the canonical form queries use (WorkspaceScope), otherwise the

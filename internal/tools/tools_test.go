@@ -36,7 +36,7 @@ func TestBuildCatalogIncludesReadOnlySuiteAndOptionalTools(t *testing.T) {
 		Workspace:         ws,
 		MutationEnabled:   false,
 		RunCommandEnabled: true,
-	}, nil, nil, nil)
+	}, nil)
 	if err != nil {
 		t.Fatalf("build catalog: %v", err)
 	}
@@ -46,7 +46,7 @@ func TestBuildCatalogIncludesReadOnlySuiteAndOptionalTools(t *testing.T) {
 }
 
 func TestBuildCatalogAllowsEmptyCatalog(t *testing.T) {
-	catalog, err := BuildCatalog(CatalogConfig{}, nil, nil, nil)
+	catalog, err := BuildCatalog(CatalogConfig{}, nil)
 	if err != nil {
 		t.Fatalf("build empty catalog: %v", err)
 	}
@@ -65,7 +65,7 @@ func TestBuildCatalogAppendsExtraTools(t *testing.T) {
 
 	catalog, err := BuildCatalog(CatalogConfig{
 		Workspace: testWorkspace(t, t.TempDir()),
-	}, []einotool.BaseTool{extra}, nil, nil)
+	}, []einotool.BaseTool{extra})
 	if err != nil {
 		t.Fatalf("build catalog with extra tools: %v", err)
 	}
@@ -81,7 +81,7 @@ func TestReadFileReturnsStructuredLineRange(t *testing.T) {
 		t.Fatalf("write fixture: %v", err)
 	}
 	ws := testWorkspace(t, root)
-	catalog, err := BuildCatalog(CatalogConfig{Workspace: ws}, nil, nil, nil)
+	catalog, err := BuildCatalog(CatalogConfig{Workspace: ws}, nil)
 	if err != nil {
 		t.Fatalf("BuildCatalog: %v", err)
 	}
@@ -111,7 +111,7 @@ func TestCreateFileReturnsVerificationPreview(t *testing.T) {
 	catalog, err := BuildCatalog(CatalogConfig{
 		Workspace:       ws,
 		MutationEnabled: true,
-	}, nil, nil, nil)
+	}, nil)
 	if err != nil {
 		t.Fatalf("BuildCatalog: %v", err)
 	}
@@ -153,7 +153,7 @@ func TestRollbackWorkspaceCheckpointRestoresMutationToolCheckpoint(t *testing.T)
 	catalog, err := BuildCatalog(CatalogConfig{
 		Workspace:       ws,
 		MutationEnabled: true,
-	}, nil, nil, nil)
+	}, nil)
 	if err != nil {
 		t.Fatalf("BuildCatalog: %v", err)
 	}
@@ -200,7 +200,7 @@ func TestMultiEditWritesMultipleFilesWithOneCheckpoint(t *testing.T) {
 	catalog, err := BuildCatalog(CatalogConfig{
 		Workspace:       ws,
 		MutationEnabled: true,
-	}, nil, nil, nil)
+	}, nil)
 	if err != nil {
 		t.Fatalf("BuildCatalog: %v", err)
 	}
@@ -254,7 +254,7 @@ func TestMultiEditRejectsOverlappingSpansBeforeWriting(t *testing.T) {
 	catalog, err := BuildCatalog(CatalogConfig{
 		Workspace:       ws,
 		MutationEnabled: true,
-	}, nil, nil, nil)
+	}, nil)
 	if err != nil {
 		t.Fatalf("BuildCatalog: %v", err)
 	}
@@ -285,7 +285,7 @@ func TestSearchTextReturnsStructuredMatches(t *testing.T) {
 		t.Fatalf("write fixture: %v", err)
 	}
 	ws := testWorkspace(t, root)
-	catalog, err := BuildCatalog(CatalogConfig{Workspace: ws}, nil, nil, nil)
+	catalog, err := BuildCatalog(CatalogConfig{Workspace: ws}, nil)
 	if err != nil {
 		t.Fatalf("BuildCatalog: %v", err)
 	}
@@ -310,7 +310,7 @@ func TestSearchTextEmitsMatchProgress(t *testing.T) {
 		t.Fatalf("write fixture: %v", err)
 	}
 	ws := testWorkspace(t, root)
-	catalog, err := BuildCatalog(CatalogConfig{Workspace: ws}, nil, nil, nil)
+	catalog, err := BuildCatalog(CatalogConfig{Workspace: ws}, nil)
 	if err != nil {
 		t.Fatalf("BuildCatalog: %v", err)
 	}
@@ -343,7 +343,7 @@ func TestNativeWorkspaceToolsExposeProgressInterface(t *testing.T) {
 		RunCommandEnabled: true,
 		ArtifactService:   artifactService,
 		ArtifactContext:   fixedArtifactContext{runID: "run_1", sessionID: "session_1", callID: "call_1"},
-	}, nil, nil, nil)
+	}, nil)
 	if err != nil {
 		t.Fatalf("BuildCatalog: %v", err)
 	}
@@ -377,7 +377,7 @@ func TestArtifactToolsWriteReadAndList(t *testing.T) {
 			sessionID: "session_1",
 			callID:    "call_1",
 		},
-	}, nil, nil, nil)
+	}, nil)
 	if err != nil {
 		t.Fatalf("BuildCatalog: %v", err)
 	}
@@ -459,7 +459,7 @@ func TestWebFetchToolPersistsRawAndMarkdownArtifacts(t *testing.T) {
 		ArtifactService: artifactService,
 		ArtifactContext: fixedArtifactContext{runID: "run_web", sessionID: "session_web", callID: "call_web"},
 		WebFetchService: fetchService,
-	}, nil, nil, nil)
+	}, nil)
 	if err != nil {
 		t.Fatalf("BuildCatalog: %v", err)
 	}
@@ -521,7 +521,7 @@ func TestWebSearchToolPersistsRawProviderArtifact(t *testing.T) {
 		ArtifactService:  artifactService,
 		ArtifactContext:  fixedArtifactContext{runID: "run_search", sessionID: "session_search", callID: "call_search"},
 		WebSearchService: searchService,
-	}, nil, nil, nil)
+	}, nil)
 	if err != nil {
 		t.Fatalf("BuildCatalog: %v", err)
 	}
@@ -565,7 +565,7 @@ func TestBrowserToolFailsLoudlyWhenExecutableIsMissing(t *testing.T) {
 		ArtifactService: artifactService,
 		ArtifactContext: fixedArtifactContext{runID: "run_browser", sessionID: "session_browser", callID: "call_browser"},
 		BrowserService:  browserService,
-	}, nil, nil, nil)
+	}, nil)
 	if err != nil {
 		t.Fatalf("BuildCatalog: %v", err)
 	}
@@ -582,13 +582,13 @@ func TestAskOperatorCreatesPendingActionAndInterrupts(t *testing.T) {
 		t.Fatalf("sqlite.Open: %v", err)
 	}
 	t.Cleanup(func() { _ = store.Close() })
-	if err := store.CreateRun(context.Background(), "run_ask_operator", "choose path", "run_ask_operator"); err != nil {
+	if err := store.CreateRun(context.Background(), "run_ask_operator", "choose path"); err != nil {
 		t.Fatalf("create run: %v", err)
 	}
 	catalog, err := BuildCatalog(CatalogConfig{
 		OperatorStore:   store,
 		OperatorContext: fixedArtifactContext{runID: "run_ask_operator", sessionID: "session_ask_operator", callID: "call_question"},
-	}, nil, nil, nil)
+	}, nil)
 	if err != nil {
 		t.Fatalf("BuildCatalog: %v", err)
 	}
@@ -654,7 +654,7 @@ func TestInspectGitStatusReturnsStructuredOutput(t *testing.T) {
 	}
 
 	ws := testWorkspace(t, root)
-	catalog, err := BuildCatalog(CatalogConfig{Workspace: ws}, nil, nil, nil)
+	catalog, err := BuildCatalog(CatalogConfig{Workspace: ws}, nil)
 	if err != nil {
 		t.Fatalf("BuildCatalog: %v", err)
 	}
@@ -703,7 +703,7 @@ func TestGitSummaryReturnsStatusDiffStatAndDiffArtifact(t *testing.T) {
 		Workspace:       testWorkspace(t, root),
 		ArtifactService: artifactService,
 		ArtifactContext: fixedArtifactContext{runID: "run_git", sessionID: "session_git", callID: "call_git"},
-	}, nil, nil, nil)
+	}, nil)
 	if err != nil {
 		t.Fatalf("BuildCatalog: %v", err)
 	}
@@ -755,7 +755,7 @@ func TestRunVerificationWritesArtifactsAndKeepsFailureAsResult(t *testing.T) {
 		RunCommandEnabled: true,
 		ArtifactService:   artifactService,
 		ArtifactContext:   fixedArtifactContext{runID: "run_verify", sessionID: "session_verify", callID: "call_verify"},
-	}, nil, nil, nil)
+	}, nil)
 	if err != nil {
 		t.Fatalf("BuildCatalog: %v", err)
 	}
@@ -797,7 +797,7 @@ func TestRunCommandReturnsExactFailureTruth(t *testing.T) {
 	catalog, err := BuildCatalog(CatalogConfig{
 		Workspace:         ws,
 		RunCommandEnabled: true,
-	}, nil, nil, nil)
+	}, nil)
 	if err != nil {
 		t.Fatalf("BuildCatalog: %v", err)
 	}
@@ -838,7 +838,7 @@ func TestRunCommandDoesNotRequireCommandNameList(t *testing.T) {
 	catalog, err := BuildCatalog(CatalogConfig{
 		Workspace:         ws,
 		RunCommandEnabled: true,
-	}, nil, nil, nil)
+	}, nil)
 	if err != nil {
 		t.Fatalf("BuildCatalog: %v", err)
 	}
@@ -867,7 +867,7 @@ func TestRunCommandEmitsProgressChunks(t *testing.T) {
 	catalog, err := BuildCatalog(CatalogConfig{
 		Workspace:         ws,
 		RunCommandEnabled: true,
-	}, nil, nil, nil)
+	}, nil)
 	if err != nil {
 		t.Fatalf("BuildCatalog: %v", err)
 	}
@@ -909,7 +909,7 @@ func TestRunCommandCancellationKillsProcessGroup(t *testing.T) {
 	catalog, err := BuildCatalog(CatalogConfig{
 		Workspace:         ws,
 		RunCommandEnabled: true,
-	}, nil, nil, nil)
+	}, nil)
 	if err != nil {
 		t.Fatalf("BuildCatalog: %v", err)
 	}
@@ -960,7 +960,7 @@ func TestRunCommandUsesWhitelistedEnvOnly(t *testing.T) {
 	catalog, err := BuildCatalog(CatalogConfig{
 		Workspace:         ws,
 		RunCommandEnabled: true,
-	}, nil, nil, nil)
+	}, nil)
 	if err != nil {
 		t.Fatalf("BuildCatalog: %v", err)
 	}
@@ -988,7 +988,7 @@ func TestRunCommandKeepsInheritedEnvWhenWhitelistEmpty(t *testing.T) {
 	catalog, err := BuildCatalog(CatalogConfig{
 		Workspace:         ws,
 		RunCommandEnabled: true,
-	}, nil, nil, nil)
+	}, nil)
 	if err != nil {
 		t.Fatalf("BuildCatalog: %v", err)
 	}
