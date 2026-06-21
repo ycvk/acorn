@@ -16,6 +16,7 @@ var sqliteImportAllowlist = map[string]struct{}{
 	// SQLite-backed integration tests intentionally exercise persisted runtime
 	// behavior that unit fakes cannot validate.
 	"internal/runtime/executor_finalization_test.go":       {},
+	"internal/runtime/executor_run_e2e_test.go":            {},
 	"internal/runtime/runner_factory_test_helpers_test.go": {},
 	"internal/runtime/plan/graph_agent_test.go":            {},
 	"internal/runtime/plan/plan_act_observe_e2e_test.go":   {},
