@@ -72,7 +72,6 @@ func resolveContextPlane(cfg *config.Config, store RunnerFactoryStore, opts Runn
 func assembleRuntimeDeps(cfg *config.Config, store RunnerFactoryStore, opts RunnerFactoryOptions, ws *workspace.Workspace, loader *skills.Loader, artifactService *corestore.ArtifactService, contextPlane contextplane.ContextPlane, orchestrationPlane orchestrationPlane) RuntimeDeps {
 	return RuntimeDeps{
 		Config:            cfg,
-		Store:             store,
 		Loader:            loader,
 		CheckpointService: opts.CheckpointService,
 		SessionSummarySvc: opts.SessionSummaryService,
@@ -117,7 +116,6 @@ func buildDefaultContextPlane(cfg *config.Config, store RunnerFactoryStore, opts
 		MemoryContextTokenBudget: memoryBudget,
 		MaxContextTokens:         maxContextTokens,
 		TokenCounter:             tokenCounter,
-		Store:                    store,
 		CheckpointService:        opts.CheckpointService,
 		SessionSummaryService:    opts.SessionSummaryService,
 	}), nil

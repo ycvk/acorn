@@ -57,13 +57,10 @@ type CapabilitiesToolDTO struct {
 	Source         string   `json:"source"`
 	Kind           string   `json:"kind"`
 	Category       string   `json:"category"`
-	ResourceScope  string   `json:"resource_scope,omitempty"`
-	Profiles       []string `json:"profiles,omitempty"`
 	Enabled        bool     `json:"enabled"`
 	HealthState    string   `json:"health_state"`
 	HealthReason   string   `json:"health_reason,omitempty"`
 	ParallelPolicy string   `json:"parallel_policy,omitempty"`
-	PlanPolicy     string   `json:"plan_policy,omitempty"`
 	Risk           string   `json:"risk"`
 	RootDir        string   `json:"root_dir,omitempty"`
 	WorkDir        string   `json:"work_dir,omitempty"`

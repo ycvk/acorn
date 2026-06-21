@@ -142,18 +142,10 @@ func (c *ConverterImpl) appSystemToolCapabilityToWebCapabilitiesToolDTO(source a
 	webCapabilitiesToolDTO.Source = source.Source
 	webCapabilitiesToolDTO.Kind = source.Kind
 	webCapabilitiesToolDTO.Category = source.Category
-	webCapabilitiesToolDTO.ResourceScope = source.ResourceScope
-	if source.Profiles != nil {
-		webCapabilitiesToolDTO.Profiles = make([]string, len(source.Profiles))
-		for i := 0; i < len(source.Profiles); i++ {
-			webCapabilitiesToolDTO.Profiles[i] = source.Profiles[i]
-		}
-	}
 	webCapabilitiesToolDTO.Enabled = source.Enabled
 	webCapabilitiesToolDTO.HealthState = source.HealthState
 	webCapabilitiesToolDTO.HealthReason = source.HealthReason
 	webCapabilitiesToolDTO.ParallelPolicy = source.ParallelPolicy
-	webCapabilitiesToolDTO.PlanPolicy = source.PlanPolicy
 	webCapabilitiesToolDTO.Risk = source.Risk
 	webCapabilitiesToolDTO.RootDir = source.RootDir
 	webCapabilitiesToolDTO.WorkDir = source.WorkDir

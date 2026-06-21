@@ -10,26 +10,20 @@ import (
 )
 
 func buildContextPlane(cfg *config.Config, store containerRuntimeStore, checkpointService *workingstate.Service, sessionSummaryService *model.SessionSummaryService) (contextplane.ContextPlane, error) {
-	contextPolicy, err := cfg.ContextPolicy()
-	if err != nil {
-		return nil, fmt.Errorf("context policy: %w", err)
-	}
-	maxContextTokens, err := contextplane.ContextAssemblyTokenLimitFromContextPolicy(contextPolicy)
-	if err != nil {
-		return nil, fmt.Errorf("context plane budget: %w", err)
-	}
-	contextCounter, err := contextplane.NewCompressionTokenCounter(contextPolicy)
+	contextCounter, err := contextplane.NewCompressionTokenCounter()
 	if err != nil {
 		return nil, fmt.Errorf("context plane token counter: %w", err)
+	}
+	maxContextTokens := cfg.Context.WindowTokens - cfg.Context.CompactMarginTokens
+	if maxContextTokens <= 0 {
+		return nil, fmt.Errorf("context effective window must be positive: window=%d margin=%d", cfg.Context.WindowTokens, cfg.Context.CompactMarginTokens)
 	}
 	contextPlane := contextplane.NewDefaultContextPlane(contextplane.DefaultOptions{
 		MemoryContextTokenBudget: cfg.Memory.Search.MemoryContextTokenBudget,
 		MaxContextTokens:         maxContextTokens,
 		TokenCounter:             contextCounter,
-		Store:                    store,
 		CheckpointService:        checkpointService,
 		SessionSummaryService:    sessionSummaryService,
-		ToolResultLedger:         store,
 	})
 	return contextPlane, nil
 }

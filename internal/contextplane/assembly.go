@@ -23,7 +23,6 @@ func (p *defaultContextPlane) Assemble(ctx context.Context, req AssembleRequest)
 	)
 
 	assembledContext, err := runContextAssembler{
-		store:             p.store,
 		checkpointService: p.checkpointService,
 	}.Assemble(ctx, req)
 	if err != nil {

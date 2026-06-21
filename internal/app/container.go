@@ -133,12 +133,9 @@ func buildContainer(ctx context.Context, cfg *config.Config) (*Container, error)
 	}
 	container.store = store
 
-	mcpServer, serveToolset, err := buildContainerMCPServer(cfg, deps.runnerFactory)
 	if err != nil {
 		return nil, err
 	}
-	container.mcpServer = mcpServer
-	container.serveToolset = serveToolset
 
 	committed = true
 	return container, nil

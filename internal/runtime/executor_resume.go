@@ -78,6 +78,6 @@ func (e *Executor) bootstrapResumeContextSession(ctx context.Context, run events
 		TurnIndex: run.TurnIndex,
 		Input:     run.Input,
 		Messages:  messages,
-	}, runID, events.ModeDirectResponse, active)
+	}, runID, active)
 	return err
 }

@@ -11,7 +11,6 @@ import (
 )
 
 type runContextAssembler struct {
-	store             RunContextSnapshotStore
 	checkpointService CheckpointService
 }
 
@@ -25,7 +24,7 @@ func (a runContextAssembler) Assemble(ctx context.Context, req AssembleRequest) 
 		return a.createSnapshot(ctx, req, req.SelectedSkill)
 	}
 	if strings.TrimSpace(req.RunID) != "" {
-		return a.loadSnapshot(ctx, req)
+		return &assembledRunContext{}, nil
 	}
 	return &assembledRunContext{}, nil
 }
@@ -48,38 +47,9 @@ func (a runContextAssembler) createSnapshot(ctx context.Context, req AssembleReq
 		}
 	}
 
-	if strings.TrimSpace(req.RunID) != "" {
-		if a.store == nil {
-			return nil, fmt.Errorf("save run context snapshot: store is nil")
-		}
-		if err := a.store.SaveRunContextSnapshot(ctx, snapshot); err != nil {
-			return nil, fmt.Errorf("save run context snapshot: %w", err)
-		}
-	}
 	return &assembledRunContext{
 		snapshot:          &snapshot,
 		checkpointSection: checkpointSection,
 	}, nil
 }
 
-func (a runContextAssembler) loadSnapshot(ctx context.Context, req AssembleRequest) (*assembledRunContext, error) {
-	if a.store == nil {
-		return nil, fmt.Errorf("load run context snapshot: store is nil")
-	}
-	snapshot, err := a.store.LoadRunContextSnapshot(ctx, req.RunID)
-	if err != nil {
-		return nil, fmt.Errorf("load run context snapshot: %w", err)
-	}
-	if snapshot == nil {
-		return nil, fmt.Errorf("run context snapshot missing for %s", req.RunID)
-	}
-	checkpointSection := workingstate.FormatForPrompt(&workingstate.Checkpoint{
-		ThreadID:       req.SessionID,
-		Content:        snapshot.WorkingCheckpointContent,
-		RelatedSkillID: snapshot.WorkingCheckpointSkillID,
-	})
-	return &assembledRunContext{
-		snapshot:          snapshot,
-		checkpointSection: checkpointSection,
-	}, nil
-}

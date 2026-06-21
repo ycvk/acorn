@@ -8,7 +8,6 @@ import (
 	einomodel "github.com/cloudwego/eino/components/model"
 	"github.com/ycvk/acorn/internal/contextplane"
 	"github.com/ycvk/acorn/internal/memorymodule"
-	"github.com/ycvk/acorn/internal/providers"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
 )
 
@@ -19,23 +18,7 @@ func (f *RunnerFactory) buildRunChatModel(ctx context.Context, req RunnerBuildRe
 	if f.runChatModelBuilder != nil {
 		return f.runChatModelBuilder(ctx, req)
 	}
-	model, provider, err := buildRuntimeChatModelWithProvider(ctx, f.deps.Config, nil)
-	if err != nil {
-		return nil, err
-	}
-	metadata := providers.UsageRunMetadata{
-		RunID:        req.RunID,
-		SessionID:    req.SessionID,
-		ProviderName: provider.Name,
-		ModelName:    provider.Model,
-	}
-	if req.RunID != "" && f.deps.Store != nil {
-		existing, err := f.deps.Store.ListProviderUsagesByRun(ctx, req.RunID)
-		if err == nil {
-			metadata.InitialSequence = uint64(len(existing))
-		}
-	}
-	return providers.WrapModelWithUsage(model, f.deps.Store, metadata)
+	return nil, errors.New("no chat model builder configured")
 }
 
 type capabilityAssembly struct {
@@ -71,7 +54,6 @@ func (f *RunnerFactory) prepareRunMemory(ctx context.Context, req RunnerBuildReq
 		SessionID:     req.SessionID,
 		WorkspaceSlug: workspaceSlug,
 		UserInput:     req.Input,
-		Mode:          string(req.OrchestrationMode),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("prepare memory: %w", err)

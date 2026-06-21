@@ -15,17 +15,7 @@ func (e *Executor) finalizePostRun(ctx context.Context, runID string, runStatus 
 	if err := e.store.SyncAssistantMessageForRunStatus(ctx, runID, runStatus); err != nil {
 		return fmt.Errorf("sync assistant message: %w", err)
 	}
-	if err := e.persistConversationSegment(ctx, runID, runStatus); err != nil {
-		return err
-	}
 	return e.appendRunHistory(ctx, runID, runStatus, input, output)
-}
-
-func (e *Executor) persistConversationSegment(ctx context.Context, runID string, runStatus events.RunStatus) error {
-	if _, err := e.store.CreateSegmentFromRun(ctx, runID, runStatus); err != nil {
-		return fmt.Errorf("create conversation segment: %w", err)
-	}
-	return nil
 }
 
 func (e *Executor) appendRunHistory(ctx context.Context, runID string, runStatus events.RunStatus, input, output string) error {

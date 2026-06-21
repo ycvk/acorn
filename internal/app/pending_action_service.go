@@ -87,7 +87,7 @@ func (s *PendingActionService) Get(ctx context.Context, actionID string) (*Pendi
 		PendingActionSummary: summary,
 		Payload:              payload,
 		Reason:               record.Reason,
-		Rule:                 record.Rule,
+		Rule:                 "",
 	}, nil
 }
 
@@ -110,11 +110,8 @@ func (s *PendingActionService) Decide(ctx context.Context, actionID string, inpu
 		return nil, err
 	}
 
-	record, err = s.store.DecidePendingAction(ctx, actionID, status, events.PendingActionModeDeferred, string(decisionJSON))
+	record, err = s.store.DecidePendingAction(ctx, actionID, status, string(decisionJSON))
 	if err != nil {
-		return nil, err
-	}
-	if err := s.store.SyncDecisionMessageForPendingAction(ctx, actionID); err != nil {
 		return nil, err
 	}
 	if _, err := s.store.AppendEventContext(ctx, record.RunID, eventKind, eventPayload); err != nil {

@@ -24,10 +24,6 @@ func (f *RunnerFactory) buildRun(ctx context.Context, req RunnerBuildRequest) (a
 	if f == nil {
 		return nil, errors.New("runner factory is not initialized")
 	}
-	mode := events.OrchestrationMode(req.OrchestrationMode).Normalize()
-	if err = f.validateRunMode(mode); err != nil {
-		return nil, err
-	}
 	cleanup, regErr := f.registerRunForBuild(req)
 	if regErr != nil {
 		return nil, regErr
@@ -47,7 +43,7 @@ func (f *RunnerFactory) buildRun(ctx context.Context, req RunnerBuildRequest) (a
 		return nil, prereqErr
 	}
 	capabilities = capabilityAssembly.capabilities
-	active, err = f.assembleRunnerByMode(ctx, req, mode, chatModel, capabilityAssembly)
+	active, err = f.assembleRunnerByMode(ctx, req, events.ModeDirectResponse, chatModel, capabilityAssembly)
 	return active, err
 }
 
@@ -105,8 +101,6 @@ type RunnerBuildRequest struct {
 	Sink              stream.StreamSink
 	ExcludedToolNames []string
 	InstructionSuffix string
-	OrchestrationMode events.OrchestrationMode
-	ParentRunID       string
 }
 
 // ActiveRunner represents a fully built and ready-to-execute run.

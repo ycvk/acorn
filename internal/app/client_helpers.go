@@ -39,10 +39,6 @@ func projectRunMode(mode events.OrchestrationMode) (string, error) {
 	switch mode {
 	case events.ModeDirectResponse:
 		return "direct", nil
-	case events.ModeSingleAgent:
-		return "agent", nil
-	case events.ModePlanExecute:
-		return "plan_execute", nil
 	default:
 		return "", projectionError("unknown run mode %q", mode)
 	}

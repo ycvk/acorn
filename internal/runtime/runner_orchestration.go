@@ -32,7 +32,7 @@ func newDefaultOrchestrationPlane(deps defaultOrchestrationPlaneDeps) *orchestra
 	return orchestration.NewDefaultPlane(orchestration.DefaultPlaneOptions{
 		SystemPrompt:         deps.cfg.Agent.SystemPrompt,
 		MaxIterations:        deps.cfg.Agent.MaxIterations,
-		CheckpointStore:      deps.store,
+		CheckpointStore:      nil,
 		ToolBuilder:          deps.buildAuditedTools,
 		ToolNodeFactory:      deps.buildToolNode,
 		HandlersBuilder:      deps.buildHandlers,

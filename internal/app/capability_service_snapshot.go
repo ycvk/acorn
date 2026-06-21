@@ -69,13 +69,10 @@ func (s *CapabilitiesService) providerToolCapabilities(provider SystemMCPProvide
 			Source:         provider.Name,
 			Kind:           string(tooling.ToolKindMCP),
 			Category:       string(tooling.ToolCategoryIntegration),
-			ResourceScope:  string(tooling.ResourceScopeMCP),
-			Profiles:       []string{string(tooling.ToolProfileRun)},
 			Enabled:        provider.Enabled && provider.Error == "",
 			HealthState:    providerHealthState(provider),
 			HealthReason:   strings.TrimSpace(provider.Error),
 			ParallelPolicy: parallelPolicy,
-			PlanPolicy:     string(tooling.PlanPolicyNone),
 			Risk:           "integration",
 		})
 	}
@@ -105,21 +102,11 @@ func toolCapabilityFromSpec(spec tooling.ToolSpec, workspaceRoot string, runComm
 		Source:         spec.Source,
 		Kind:           string(spec.Kind),
 		Category:       string(spec.Category),
-		ResourceScope:  string(spec.ResourceScope),
-		Profiles:       profileStrings(spec.Profiles),
 		Enabled:        spec.Enabled(),
 		HealthState:    string(spec.Health.State),
 		HealthReason:   spec.Health.Reason,
 		ParallelPolicy: string(spec.Execution.ParallelPolicy),
-		PlanPolicy:     string(spec.PlanPolicy),
 		Risk:           toolRisk(spec),
-	}
-	switch spec.ResourceScope {
-	case tooling.ResourceScopeWorkspaceFile:
-		item.RootDir = workspaceRoot
-	case tooling.ResourceScopeWorkspaceCommand:
-		item.WorkDir = workspaceRoot
-		item.DefaultTimeout = runCommandTimeout
 	}
 	return item
 }
@@ -139,17 +126,6 @@ func toolRisk(spec tooling.ToolSpec) string {
 	default:
 		return "integration"
 	}
-}
-
-func profileStrings(items []tooling.ToolProfile) []string {
-	if len(items) == 0 {
-		return nil
-	}
-	out := make([]string, 0, len(items))
-	for _, item := range items {
-		out = append(out, string(item))
-	}
-	return out
 }
 
 func providerHealthState(provider SystemMCPProviderCapability) string {

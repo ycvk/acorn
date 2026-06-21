@@ -23,7 +23,6 @@ type PendingActionStore interface {
 	CreatePendingAction(ctx context.Context, input store.CreatePendingActionInput) (*events.PendingActionRecord, error)
 	LoadPendingAction(ctx context.Context, actionID string) (*events.PendingActionRecord, error)
 	DecidePendingAction(ctx context.Context, actionID string, status events.PendingActionStatus, decisionJSON string) (*events.PendingActionRecord, error)
-	SyncDecisionMessageForPendingAction(ctx context.Context, actionID string) error
 	AppendEventContext(ctx context.Context, runID, kind string, payload any) (events.EventRecord, error)
 }
 
@@ -95,21 +94,11 @@ func (h *ElicitationHandler) HandleElicitation(ctx context.Context, req *mcp.Eli
 	if err != nil {
 		return nil, fmt.Errorf("create elicitation pending action: %w", err)
 	}
-	if err := h.store.SyncDecisionMessageForPendingAction(ctx, record.ActionID); err != nil {
-		return nil, fmt.Errorf("sync elicitation pending action message: %w", err)
-	}
-
-	if err := h.emitElicitationEvent(ctx, runID, record.ActionID, req.Params, string(stream.StreamKindElicitationPending)); err != nil {
-		return nil, err
-	}
 
 	// Poll until decided or timeout
 	result, err := h.waitForDecision(ctx, actionID, h.timeout)
 	if err != nil {
 		return nil, err
-	}
-	if err := h.store.SyncDecisionMessageForPendingAction(ctx, record.ActionID); err != nil {
-		return nil, fmt.Errorf("sync elicitation decided message: %w", err)
 	}
 
 	if err := h.emitElicitationEvent(ctx, runID, record.ActionID, req.Params, string(stream.StreamKindElicitationDecided)); err != nil {

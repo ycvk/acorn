@@ -97,7 +97,6 @@ type DefaultOptions struct {
 	MemoryContextTokenBudget int
 	MaxContextTokens         int
 	TokenCounter             TokenCounter
-	Store                    RunContextSnapshotStore
 	CheckpointService        CheckpointService
 	SessionSummaryService    SessionSummaryService
 }
@@ -106,7 +105,6 @@ type defaultContextPlane struct {
 	memoryContextTokenBudget int
 	maxContextTokens         int
 	tokenCounter             TokenCounter
-	store                    RunContextSnapshotStore
 	checkpointService        CheckpointService
 	sessionSummaryService    SessionSummaryService
 	memoryBudget             int
@@ -156,7 +154,6 @@ func NewDefaultContextPlane(opts DefaultOptions) ContextPlane {
 		memoryContextTokenBudget: opts.MemoryContextTokenBudget,
 		maxContextTokens:         opts.MaxContextTokens,
 		tokenCounter:             opts.TokenCounter,
-		store:                    opts.Store,
 		checkpointService:        opts.CheckpointService,
 		sessionSummaryService:    opts.SessionSummaryService,
 		memoryBudget:             opts.MemoryContextTokenBudget,

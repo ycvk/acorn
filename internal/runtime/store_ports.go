@@ -3,23 +3,17 @@ package runtime
 import (
 	"context"
 
-	"github.com/cloudwego/eino/adk"
+	
 
-	"github.com/ycvk/acorn/internal/contextplane"
 	"github.com/ycvk/acorn/internal/events"
-	"github.com/ycvk/acorn/internal/providers"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
 	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	"github.com/ycvk/acorn/internal/store"
 )
-// narrow SessionTurnStore/RunStore/EventStore/ProviderUsageStore interfaces
-// are inlined here (they were only embedded, never used standalone), collapsing
-// the consumer-owned port surface.
+
+// ExecutorStore is the store contract required by the Executor.
 type ExecutorStore interface {
-	adk.CheckPointStore
-	contextplane.RunContextSnapshotStore
-	contextplane.ContextBoundaryStore
-	providers.UsageRecorder
+	
 	runtimeapi.EventAppender
 	CreateFreshSessionTurn(ctx context.Context, sessionID, title, input string) (int, error)
 	CreateBoundRunWithParams(ctx context.Context, params store.RunCreateParams) error
@@ -27,18 +21,15 @@ type ExecutorStore interface {
 	FinishRunContext(ctx context.Context, runID string, status events.RunStatus, output, errText string) error
 	MarkInterruptedContext(ctx context.Context, runID, output string) error
 	UpdateRunOutputContext(ctx context.Context, runID, output string) error
-	UpdateRunSkillID(ctx context.Context, runID, skillID string) error
 	LoadEvents(ctx context.Context, runID string) ([]events.EventRecord, error)
 	LoadEventsAfter(ctx context.Context, runID string, afterSeq int64) ([]events.EventRecord, error)
 	SyncAssistantMessageForRun(ctx context.Context, runID string) error
 	SyncAssistantMessageForRunStatus(ctx context.Context, runID string, status events.RunStatus) error
-	CreateSegmentFromRun(ctx context.Context, runID string, runStatus events.RunStatus) (int64, error)
-	ListProviderUsagesByRun(ctx context.Context, runID string) ([]providers.UsageRecord, error)
 }
 
-// RunnerFactoryStore is the store contract required by the RunnerFactory. It
-// extends ExecutorStore with the MCP token + pending-action stores needed for
-// run bootstrapping.
+// RunnerFactoryStore is the store contract required by the RunnerFactory.
+// It extends ExecutorStore with the MCP token + pending-action stores needed
+// for run bootstrapping.
 type RunnerFactoryStore interface {
 	ExecutorStore
 	mcpprovider.TokenStore

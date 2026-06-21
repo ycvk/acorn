@@ -38,7 +38,7 @@ func validateOrchestrationMode(mode events.OrchestrationMode) error {
 }
 
 func (f *RunnerFactory) registerRunForBuild(req RunnerBuildRequest) (func(), error) {
-	rc := &RunContext{RunID: req.RunID, ParentID: strings.TrimSpace(req.ParentRunID)}
+	rc := &RunContext{RunID: req.RunID, ParentID: strings.TrimSpace("")}
 	if err := f.registry.Register(rc); err != nil {
 		return nil, fmt.Errorf("register run context: %w", err)
 	}

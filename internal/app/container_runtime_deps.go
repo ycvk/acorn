@@ -20,8 +20,6 @@ type containerRuntimeDeps struct {
 	checkpointService     *workingstate.Service
 	sessionSummaryService *model.SessionSummaryService
 	memoryModule          memorymodule.Service
-	semanticIndex         memorymodule.SemanticIndex
-	semanticEmbedder      memorymodule.Embedder
 	contextPlane          contextplane.ContextPlane
 	mcpPendingActionStore PendingActionCreateStore
 	runnerFactory         *runtime.RunnerFactory
@@ -35,9 +33,9 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, store co
 		return nil, err
 	}
 	loader := skills.NewLoader(cfg)
-	checkpointService := workingstate.NewService(store, 4000)
+	var checkpointService *workingstate.Service
 	sessionSummaryService := model.NewSessionSummaryService(store, 2000)
-	memoryModule, semanticIndex, semanticEmbedder, err := buildMemoryModule(ctx, cfg)
+	memoryModule, err := buildMemoryService(ctx, cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -47,7 +45,6 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, store co
 	}
 
 	mcpPendingActionStore := PendingActionCreateStore(store)
-	childAgentExecutorFactory := runtime.NewSubagentExecutorFactory(cfg, store, nil)
 
 	runnerFactory, err := runtime.NewRunnerFactory(cfg, store, runtime.RunnerFactoryOptions{
 		Loader:                    loader,
@@ -57,7 +54,6 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, store co
 		MemoryModule:              memoryModule,
 		ContextPlane:              contextPlane,
 		MCPPendingActionStore:     mcpPendingActionStore,
-		ChildAgentExecutorFactory: childAgentExecutorFactory,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("init runner factory: %w", err)
@@ -71,8 +67,6 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, store co
 		checkpointService:     checkpointService,
 		sessionSummaryService: sessionSummaryService,
 		memoryModule:          memoryModule,
-		semanticIndex:         semanticIndex,
-		semanticEmbedder:      semanticEmbedder,
 		contextPlane:          contextPlane,
 		mcpPendingActionStore: mcpPendingActionStore,
 		runnerFactory:         runnerFactory,
