@@ -84,9 +84,9 @@ func (c *Config) ValidateBase() error {
 			return fmt.Errorf("mcp.providers[%s].tool_safety is required", name)
 		}
 		switch safety {
-		case "readonly", "read_only", "write_scoped", "never_parallel":
+		case "readonly", "read_only", "serial":
 		default:
-			return fmt.Errorf("mcp.providers[%s].tool_safety must be one of readonly|read_only|write_scoped|never_parallel, got %q", name, safety)
+			return fmt.Errorf("mcp.providers[%s].tool_safety must be one of readonly|read_only|serial, got %q", name, safety)
 		}
 	}
 	if c.Memory.Search.MemoryContextTokenBudget <= 0 {
@@ -95,45 +95,7 @@ func (c *Config) ValidateBase() error {
 	if err := c.validateMemorySemanticBase(); err != nil {
 		return err
 	}
-	// Validate serve.tools.allowlist -- reject duplicates and empty entries
-	if len(c.Serve.Tools.Allowlist) > 0 {
-		seen := make(map[string]bool, len(c.Serve.Tools.Allowlist))
-		for _, name := range c.Serve.Tools.Allowlist {
-			normalized := strings.TrimSpace(name)
-			if normalized == "" {
-				return errors.New("serve.tools.allowlist contains empty entry")
-			}
-			if seen[normalized] {
-				return fmt.Errorf("serve.tools.allowlist contains duplicate %q", normalized)
-			}
-			seen[normalized] = true
-		}
-		c.Serve.Tools.Allowlist = normalizePermissionToolNames(c.Serve.Tools.Allowlist)
-	}
 	return nil
-}
-
-func normalizePermissionToolNames(values []string) []string {
-	if len(values) == 0 {
-		return nil
-	}
-	seen := make(map[string]struct{}, len(values))
-	normalized := make([]string, 0, len(values))
-	for _, value := range values {
-		trimmed := strings.TrimSpace(value)
-		if trimmed == "" {
-			continue
-		}
-		if _, exists := seen[trimmed]; exists {
-			continue
-		}
-		seen[trimmed] = struct{}{}
-		normalized = append(normalized, trimmed)
-	}
-	if len(normalized) == 0 {
-		return nil
-	}
-	return normalized
 }
 
 func (c *Config) ValidateExecutionReady() error {
@@ -219,18 +181,8 @@ func (c *Config) validateContext() error {
 	if c.Context.PreserveRecentTurns < 1 {
 		return errors.New("context.preserve_recent_turns must be >= 1")
 	}
-	if c.Context.SummaryMaxTokens <= 0 {
-		return errors.New("context.summary_max_tokens must be > 0")
-	}
-	policy, err := c.ContextPolicy()
-	if err != nil {
-		return err
-	}
-	reserved := max(policy.ReservedOutputTokens, policy.SummaryMaxTokens)
-	effectiveWindow := policy.WindowTokens - reserved - defaultContextStaticOverheadTokens
-	warningThreshold := policy.CompactMarginTokens + defaultContextWarningGapTokens
-	if effectiveWindow <= warningThreshold {
-		return errors.New("context effective window must be greater than derived warning threshold buffer")
+	if c.Context.MaskAfterTurns < 0 {
+		return errors.New("context.mask_after_turns must be >= 0")
 	}
 	return nil
 }
@@ -251,9 +203,6 @@ func (c *Config) validateMemorySemanticExecution() error {
 		return nil
 	}
 	semantic := c.Memory.Semantic
-	if strings.TrimSpace(semantic.Bleve.IndexName) == "" {
-		return errors.New("memory.semantic.bleve.index_name is required")
-	}
 	if strings.TrimSpace(semantic.Embedding.Provider) == "" {
 		return errors.New("memory.semantic.embedding.provider is required")
 	}

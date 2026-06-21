@@ -226,7 +226,7 @@ context:
   window_tokens: 200000
   compact_margin_tokens: 13000
   preserve_recent_turns: 3
-  summary_max_tokens: 2048
+  mask_after_turns: 2
 
 web:
   listen_addr: 127.0.0.1:8080
@@ -266,9 +266,6 @@ memory:
   search:
     memory_context_token_budget: 2000
   semantic:
-    bleve:
-      path: ""
-      index_name: memory_records
     embedding:
       provider: openai_compatible
       # Semantic recall is OFF by default; uncomment model + base_url to enable it.

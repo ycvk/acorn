@@ -11,7 +11,6 @@ type Config struct {
 	Tools     ToolsConfig      `yaml:"tools"`
 	MCP       MCPConfig        `yaml:"mcp"`
 	Memory    MemoryConfig     `yaml:"memory"`
-	Serve     ServeConfig      `yaml:"serve"`
 
 	ConfigPath string `yaml:"-"`
 	ConfigDir  string `yaml:"-"`
@@ -31,13 +30,10 @@ type ProviderConfig struct {
 }
 
 type ContextConfig struct {
-	WindowTokens         int    `yaml:"window_tokens"`
-	CompactMarginTokens  int    `yaml:"compact_margin_tokens"`
-	PreserveRecentTurns  int    `yaml:"preserve_recent_turns"`
-	SummaryMaxTokens     int    `yaml:"summary_max_tokens"`
-	ReservedOutputTokens int    `yaml:"-"`
-	TokenEncoding        string `yaml:"-"`
-	HandoffFrameDisabled bool   `yaml:"-"`
+	WindowTokens        int `yaml:"window_tokens"`
+	CompactMarginTokens int `yaml:"compact_margin_tokens"`
+	PreserveRecentTurns int `yaml:"preserve_recent_turns"`
+	MaskAfterTurns      int `yaml:"mask_after_turns"`
 }
 
 type MemoryConfig struct {
@@ -50,13 +46,7 @@ type MemorySearchConfig struct {
 }
 
 type MemorySemanticConfig struct {
-	Bleve     BleveSemanticConfig     `yaml:"bleve"`
 	Embedding EmbeddingProviderConfig `yaml:"embedding"`
-}
-
-type BleveSemanticConfig struct {
-	Path      string `yaml:"path"`
-	IndexName string `yaml:"index_name"`
 }
 
 type EmbeddingProviderConfig struct {
@@ -105,9 +95,6 @@ type AgentConfig struct {
 	Description   string `yaml:"description"`
 	SystemPrompt  string `yaml:"system_prompt"`
 	MaxIterations int    `yaml:"max_iterations"`
-	// MaxSubagentDepth caps plan_execute -> subagent recursion depth (root = 0)
-	// to prevent unbounded worktree creation. <= 0 falls back to the default (3).
-	MaxSubagentDepth int `yaml:"max_subagent_depth"`
 }
 
 type ToolsConfig struct {
@@ -135,18 +122,6 @@ type RunCommandToolConfig struct {
 
 type MCPConfig struct {
 	Providers []MCPProviderConfig `yaml:"providers"`
-}
-
-// ServeConfig configures the MCP server mode for Acorn. When serve.tools.allowlist
-// is non-empty, Acorn exposes a curated subset of its tools to external MCP clients
-// via StreamableHTTP on the /mcp/* path.
-type ServeConfig struct {
-	Tools ServeToolsConfig `yaml:"tools"`
-}
-
-// ServeToolsConfig defines which tools the MCP server exposes.
-type ServeToolsConfig struct {
-	Allowlist []string `yaml:"allowlist"`
 }
 
 type MCPAuthConfig struct {

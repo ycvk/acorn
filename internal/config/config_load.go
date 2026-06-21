@@ -49,9 +49,6 @@ func Load(path string) (*Config, error) {
 	cfg.ConfigPath = absPath
 	cfg.ConfigDir = filepath.Dir(absPath)
 	cfg.Runtime.StorageDir = resolveDir(cfg.ConfigDir, cfg.Runtime.StorageDir)
-	if strings.TrimSpace(cfg.Memory.Semantic.Bleve.Path) != "" {
-		cfg.Memory.Semantic.Bleve.Path = resolveDir(cfg.ConfigDir, cfg.Memory.Semantic.Bleve.Path)
-	}
 	cfg.Browser.ExecutablePath = resolveExecutable(cfg.ConfigDir, cfg.Browser.ExecutablePath)
 	cfg.Tools.Workspace.RootDir = resolveDir(cfg.ConfigDir, cfg.Tools.Workspace.RootDir)
 	cfg.Tools.Mutation.RootDir = resolveDir(cfg.ConfigDir, cfg.Tools.Mutation.RootDir)
