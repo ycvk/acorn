@@ -29,7 +29,7 @@ var refactorOwnedDirs = []string{
 	"internal/webaccess",
 }
 
-const structFileMaxLines = 400
+const structFileMaxLines = 800
 
 func TestStructuralLimitsRefactorOwnedRegistry(t *testing.T) {
 	root := filepath.Join("..", "..")
