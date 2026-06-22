@@ -10,3 +10,9 @@
 - [ADR-0007: 移动端 Flutter → Kotlin + Jetpack Compose](adr/ADR-0007-mobile-flutter-to-kotlin-compose.md) — Hilt + Material 3 + OkHttp SSE + openapi-generator-cli
 - [ADR-0008: 删 mode 路由壳](adr/ADR-0008-remove-mode-routing-shell.md) — OrchestrationMode + parseClientRunMode + assembleRunnerByMode
 - [ADR-0009: 删 skill lifecycle/assess 企业级机制](adr/ADR-0009-remove-skill-lifecycle-assess.md) — lifecycle_tools + RoutingFixture + LifecycleStatus + AssessmentVerdict
+
+## Specs
+- [Structural Convergence Design Spec](specs/2026-06-22-structural-convergence-design.md) — 4→2 tool packages, runner file merge, duplicate port elimination, guard 400→800
+
+## Plans
+- [Structural Convergence Refactor Plan](plans/2026-06-22-structural-convergence.md) — 11 tasks: port elimination, guard relax, tool/toolset rename, runtime subpackage promotion, file merges, docs
