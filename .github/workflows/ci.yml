@@ -46,6 +46,8 @@ jobs:
         uses: android-actions/setup-android@v3
         with:
           packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+      - name: Install openapi-generator-cli
+        run: npm install -g @openapitools/openapi-generator-cli
       - name: Verify generated mobile client
         run: cd mobile-kotlin && ./tool/generate_openapi_client.sh --check
       - name: Build debug APK
