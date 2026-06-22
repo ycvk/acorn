@@ -8,7 +8,6 @@ import (
 
 	einotool "github.com/cloudwego/eino/components/tool"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
-	"github.com/ycvk/acorn/internal/runtime/tool"
 	"github.com/ycvk/acorn/internal/toolkit"
 )
 
@@ -22,11 +21,11 @@ func (f *RunnerFactory) buildMCPToolSpecs(ctx context.Context, mcpManager *mcppr
 	if err != nil {
 		return nil, err
 	}
-	resourceSpecs, err := tool.BuildCatalogSpecs(ctx, f.deps.Config, "mcp.resource", toolkit.ToolKindMCP, resourceTools)
+	resourceSpecs, err := BuildCatalogSpecs(ctx, f.deps.Config, "mcp.resource", toolkit.ToolKindMCP, resourceTools)
 	if err != nil {
 		return nil, err
 	}
-	promptSpecs, err := tool.BuildCatalogSpecs(ctx, f.deps.Config, "mcp.prompt", toolkit.ToolKindMCP, promptTools)
+	promptSpecs, err := BuildCatalogSpecs(ctx, f.deps.Config, "mcp.prompt", toolkit.ToolKindMCP, promptTools)
 	if err != nil {
 		return nil, err
 	}
@@ -52,15 +51,15 @@ func (f *RunnerFactory) buildMCPRegistrationSpec(ctx context.Context, registrati
 	if err != nil {
 		return toolkit.ToolSpec{}, fmt.Errorf("read MCP tool info for provider %q: %w", registration.ProviderName, err)
 	}
-	namespaced, err := tool.NewMCPNamespacedTool(ctx, registration.Tool, registration.ProviderName, info.Name)
+	namespaced, err := NewMCPNamespacedTool(ctx, registration.Tool, registration.ProviderName, info.Name)
 	if err != nil {
 		return toolkit.ToolSpec{}, fmt.Errorf("namespace MCP tool %q for provider %q: %w", info.Name, registration.ProviderName, err)
 	}
-	spec, err := tool.RuntimeToolSpec(ctx, f.deps.Config, registration.ProviderName, toolkit.ToolKindMCP, namespaced)
+	spec, err := RuntimeToolSpec(ctx, f.deps.Config, registration.ProviderName, toolkit.ToolKindMCP, namespaced)
 	if err != nil {
 		return toolkit.ToolSpec{}, err
 	}
-	parallelPolicy, err := tool.MCPToolParallelPolicy(f.deps.Config, registration.ProviderName)
+	parallelPolicy, err := MCPToolParallelPolicy(f.deps.Config, registration.ProviderName)
 	if err != nil {
 		return toolkit.ToolSpec{}, fmt.Errorf("resolve MCP tool safety for provider %q: %w", registration.ProviderName, err)
 	}

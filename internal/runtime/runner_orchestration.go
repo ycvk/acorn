@@ -13,7 +13,6 @@ import (
 	"github.com/ycvk/acorn/internal/contextplane"
 	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/runtime/orchestration"
-	"github.com/ycvk/acorn/internal/runtime/tool"
 	"github.com/ycvk/acorn/internal/toolkit"
 )
 
@@ -79,7 +78,7 @@ func (d defaultOrchestrationPlaneDeps) buildAuditedTools(
 	allowedToolNames []string,
 	runID string,
 ) ([]einotool.BaseTool, error) {
-	return tool.BuildAuditedTools(ctx, d.store, specs, excludedToolNames, allowedToolNames, runID)
+	return BuildAuditedTools(ctx, d.store, specs, excludedToolNames, allowedToolNames, runID)
 }
 
 func (d defaultOrchestrationPlaneDeps) buildToolNode(
@@ -87,7 +86,7 @@ func (d defaultOrchestrationPlaneDeps) buildToolNode(
 	tools []einotool.BaseTool,
 	resolver toolkit.ExecutionPolicyResolver,
 ) (orchestration.ToolInvoker, error) {
-	return tool.NewSafeParallelToolsNode(ctx, tools, resolver)
+	return NewSafeParallelToolsNode(ctx, tools, resolver)
 }
 
 func (d defaultOrchestrationPlaneDeps) buildHandlers(

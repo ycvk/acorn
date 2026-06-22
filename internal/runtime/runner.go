@@ -15,7 +15,6 @@ import (
 	"github.com/ycvk/acorn/internal/memorymodule"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
 	"github.com/ycvk/acorn/internal/runtime/orchestration"
-	"github.com/ycvk/acorn/internal/runtime/tool"
 	"github.com/ycvk/acorn/internal/runtime/toolset"
 	"github.com/ycvk/acorn/internal/toolkit"
 	"github.com/ycvk/acorn/internal/tools"
@@ -262,7 +261,7 @@ func (f *RunnerFactory) directResponseRequest(bf baseAssemblyFields, req RunnerB
 		SessionID:         bf.sessionID,
 		RunID:             bf.runID,
 		ChatModel:         bf.chatModel,
-		AssistantStreamer: tool.NewDirectAssistantStreamer(f.deps.Store),
+		AssistantStreamer: NewDirectAssistantStreamer(f.deps.Store),
 		Catalog:           bf.catalog,
 		ContextResult:     bf.contextResult,
 		AllowedToolNames:  bf.allowedToolNames,

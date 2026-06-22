@@ -11,7 +11,6 @@ import (
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/domain"
-	"github.com/ycvk/acorn/internal/runtime/tool"
 	"github.com/ycvk/acorn/internal/runtime/toolset"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/toolkit"
@@ -30,7 +29,7 @@ func (artifactToolBridge) CurrentSessionID(ctx context.Context) string {
 }
 
 func (artifactToolBridge) CurrentToolCallID(ctx context.Context) string {
-	return tool.ToolAuditCallID(ctx)
+	return ToolAuditCallID(ctx)
 }
 
 func (f *RunnerFactory) buildRunToolset(ctx context.Context, sessionID string) (*toolset.Toolset, error) {
@@ -122,15 +121,15 @@ func assembleToolsetCatalog(ctx context.Context, cfg *config.Config, localCatalo
 }
 
 func buildCoreToolSpecs(ctx context.Context, cfg *config.Config, localCatalog *tools.Catalog, aux auxTools) ([]toolkit.ToolSpec, error) {
-	specs, err := tool.BuildCatalogSpecs(ctx, cfg, "local", toolkit.ToolKindNative, append([]einotool.BaseTool(nil), localCatalog.Tools...))
+	specs, err := BuildCatalogSpecs(ctx, cfg, "local", toolkit.ToolKindNative, append([]einotool.BaseTool(nil), localCatalog.Tools...))
 	if err != nil {
 		return nil, err
 	}
-	memorySpecs, err := tool.BuildCatalogSpecs(ctx, cfg, "memory", toolkit.ToolKindMemory, aux.memory)
+	memorySpecs, err := BuildCatalogSpecs(ctx, cfg, "memory", toolkit.ToolKindMemory, aux.memory)
 	if err != nil {
 		return nil, err
 	}
-	skillSpecs, err := tool.BuildCatalogSpecs(ctx, cfg, "skill", toolkit.ToolKindSkill, aux.skill)
+	skillSpecs, err := BuildCatalogSpecs(ctx, cfg, "skill", toolkit.ToolKindSkill, aux.skill)
 	if err != nil {
 		return nil, err
 	}
@@ -143,11 +142,11 @@ func buildExtraToolSpecs(ctx context.Context, cfg *config.Config, aux auxTools, 
 	if !includePlanning {
 		return nil, nil
 	}
-	loadToolsTool, err := tool.NewLoadToolsTool()
+	loadToolsTool, err := NewLoadToolsTool()
 	if err != nil {
 		return nil, fmt.Errorf("build load_tools tool: %w", err)
 	}
-	planningSpecs, err := tool.BuildCatalogSpecs(ctx, cfg, "runtime", toolkit.ToolKindNative, []einotool.BaseTool{loadToolsTool})
+	planningSpecs, err := BuildCatalogSpecs(ctx, cfg, "runtime", toolkit.ToolKindNative, []einotool.BaseTool{loadToolsTool})
 	if err != nil {
 		return nil, err
 	}
