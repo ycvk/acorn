@@ -8,6 +8,7 @@ import (
 
 	einotool "github.com/cloudwego/eino/components/tool"
 
+	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/tooling"
 	"github.com/ycvk/acorn/internal/webaccess"
@@ -43,7 +44,7 @@ type WebFetchOutput struct {
 	Links              []webaccess.PageLink `json:"links,omitempty"`
 }
 
-func buildWebFetchTool(fetcher WebFetchService, artifactService ArtifactService, bridge ArtifactContext) (einotool.BaseTool, error) {
+func buildWebFetchTool(fetcher WebFetchService, artifactService ArtifactService, bridge domain.ToolCallContextBridge) (einotool.BaseTool, error) {
 	if fetcher == nil {
 		return nil, errors.New("web fetch service is required")
 	}

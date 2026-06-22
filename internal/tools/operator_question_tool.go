@@ -14,12 +14,6 @@ import (
 	"github.com/ycvk/acorn/internal/tooling"
 )
 
-type OperatorQuestionContext interface {
-	CurrentRunID(context.Context) string
-	CurrentSessionID(context.Context) string
-	CurrentToolCallID(context.Context) string
-}
-
 type OperatorQuestionStore interface {
 	CreatePendingAction(ctx context.Context, input storecore.CreatePendingActionInput) (*domain.PendingActionRecord, error)
 	AppendEventContext(ctx context.Context, runID, kind string, payload any) (domain.EventRecord, error)
@@ -51,7 +45,7 @@ type AskOperatorOutput struct {
 	Answer           string `json:"answer,omitempty"`
 }
 
-func buildAskOperatorTool(store OperatorQuestionStore, bridge OperatorQuestionContext) (einotool.BaseTool, error) {
+func buildAskOperatorTool(store OperatorQuestionStore, bridge domain.ToolCallContextBridge) (einotool.BaseTool, error) {
 	if store == nil {
 		return nil, errors.New("operator question store is required")
 	}
@@ -71,7 +65,7 @@ func buildAskOperatorTool(store OperatorQuestionStore, bridge OperatorQuestionCo
 	return tool, nil
 }
 
-func interruptAskOperator(ctx context.Context, store OperatorQuestionStore, bridge OperatorQuestionContext, input AskOperatorInput, emit tooling.ToolProgressEmitter) (AskOperatorOutput, error) {
+func interruptAskOperator(ctx context.Context, store OperatorQuestionStore, bridge domain.ToolCallContextBridge, input AskOperatorInput, emit tooling.ToolProgressEmitter) (AskOperatorOutput, error) {
 	payload, err := normalizeAskOperatorInput(input)
 	if err != nil {
 		return AskOperatorOutput{}, err

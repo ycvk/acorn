@@ -5,6 +5,8 @@ import (
 	"errors"
 
 	einotool "github.com/cloudwego/eino/components/tool"
+
+	"github.com/ycvk/acorn/internal/domain"
 )
 
 const defaultVerificationPreviewBytes = 2000
@@ -257,9 +259,9 @@ type CatalogConfig struct {
 	MutationEnabled   bool
 	RunCommandEnabled bool
 	ArtifactService   ArtifactService
-	ArtifactContext   ArtifactContext
+	ArtifactContext   domain.ToolCallContextBridge
 	OperatorStore     OperatorQuestionStore
-	OperatorContext   OperatorQuestionContext
+	OperatorContext   domain.ToolCallContextBridge
 	WebFetchService   WebFetchService
 	WebSearchService  WebSearchService
 	BrowserService    BrowserService

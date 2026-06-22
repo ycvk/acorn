@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/tooling"
 )
@@ -61,7 +62,7 @@ func verificationSummary(kind string, status string, exitCode int) string {
 	return fmt.Sprintf("%s verification %s with exit code %d", kind, status, exitCode)
 }
 
-func writeWorkflowArtifact(ctx context.Context, service ArtifactService, bridge ArtifactContext, kind store.ArtifactKind, title string, mimeType string, content string) (store.ArtifactRecord, error) {
+func writeWorkflowArtifact(ctx context.Context, service ArtifactService, bridge domain.ToolCallContextBridge, kind store.ArtifactKind, title string, mimeType string, content string) (store.ArtifactRecord, error) {
 	runID := strings.TrimSpace(bridge.CurrentRunID(ctx))
 	if runID == "" {
 		return store.ArtifactRecord{}, errors.New("workflow artifact write requires current run context")

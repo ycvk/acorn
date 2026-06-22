@@ -8,6 +8,7 @@ import (
 
 	einotool "github.com/cloudwego/eino/components/tool"
 
+	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/tooling"
 	"github.com/ycvk/acorn/internal/webaccess"
@@ -60,7 +61,7 @@ type BrowserOutput struct {
 	Message    string                   `json:"message,omitempty"`
 }
 
-func buildBrowserTool(service BrowserService, artifactService ArtifactService, bridge ArtifactContext) (einotool.BaseTool, error) {
+func buildBrowserTool(service BrowserService, artifactService ArtifactService, bridge domain.ToolCallContextBridge) (einotool.BaseTool, error) {
 	if service == nil {
 		return nil, errors.New("browser service is required")
 	}

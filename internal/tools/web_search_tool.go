@@ -8,6 +8,7 @@ import (
 
 	einotool "github.com/cloudwego/eino/components/tool"
 
+	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/tooling"
 	"github.com/ycvk/acorn/internal/webaccess"
@@ -30,7 +31,7 @@ type WebSearchOutput struct {
 	ResponseTime    float64                          `json:"response_time,omitempty"`
 }
 
-func buildWebSearchTool(search WebSearchService, artifactService ArtifactService, bridge ArtifactContext) (einotool.BaseTool, error) {
+func buildWebSearchTool(search WebSearchService, artifactService ArtifactService, bridge domain.ToolCallContextBridge) (einotool.BaseTool, error) {
 	if search == nil {
 		return nil, errors.New("web search service is required")
 	}
