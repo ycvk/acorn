@@ -30,8 +30,8 @@ P0 不做 repo context、LSP、repo map、persistent code index、`/v1/codeintel
 
 - `ToolContract` 是工具 loading、execution、result、boundary、projection 的唯一工具合同入口。
 - `ToolExecutionScheduler` 拥有工具并发和 path conflict 调度。
-- `ToolResultLedger` 是模型可见工具结果的持久事实层。
-- SQLite 是 runs、events、plans、pending actions、tool results、context boundaries 等 runtime truth 的本地事实源。
+- Tool results stay in the message stream; observation masking replaces old results with placeholders. No durable ledger.
+- SQLite 是 runs、events、messages、pending actions 等 runtime truth 的本地事实源（~8 张表）。
 - `memorymodule` file-backed records 是长期 memory truth。
 - `/v1` 和 generated mobile client 是 remote client wire contract。
 - mobile 是后端事实的 control surface，不拥有 runtime truth。
@@ -95,7 +95,7 @@ Artifact content 存在 runtime storage 的文件系统目录；SQLite 只保存
 - `sha256`
 - `created_at`
 
-ToolResultLedger side effects 必须能 backlink 到 artifact ids。RunDetail/mobile 只消费后端 artifact projection。
+Tool side effects backlink to artifact ids. RunDetail/mobile 只消费后端 artifact projection.
 
 ### 4. Process execution stays explicit
 
@@ -128,8 +128,8 @@ P0 不重写 workspace mutation 系统。
 - explicit rollback
 - `inspect_git_status`
 - `inspect_git_diff`
-- ToolResultLedger evidence refs
-- plan evidence backlinks
+- Tool side-effect refs
+
 
 `multi_edit` 必须一次生成一个 mutation checkpoint。`run_verification` 必须保存 command、exit code、stdout/stderr artifact refs 和 normalized verification summary。`git_summary` 只投影 status/diffstat/key paths，不自动 stage、commit 或 merge。
 
@@ -205,7 +205,7 @@ P0 允许的 contract 扩展：
 - 新增 `ResourceScopeArtifact`
 - 新增 `ResourceScopeOperator`
 - 新增 artifact/operator side effect constants
-- 新增 artifact side-effect refs for `ToolResultLedger`
+- 新增 artifact side-effect refs for `Tool results`
 - 为 artifact/operator tools 在 `runtimeToolSpec` 中设置显式 policy
 - 新增 SQLite canonical tables，而不是复用 old/legacy tables
 - 新增 `/v1` artifact/operator projections，只描述 active remote contract

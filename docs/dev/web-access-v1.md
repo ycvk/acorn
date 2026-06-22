@@ -40,8 +40,8 @@ Acorn already has the runtime foundations this feature must reuse:
 
 - `ToolContract` is the loading, execution, result, boundary, and projection
   contract.
-- `ToolExecutionScheduler` owns tool ordering and parallel policy.
-- `ToolResultLedger` is the durable truth for model-visible tool results.
+- `ToolExecutionScheduler` owns tool ordering and parallel policy (read_only / serial).
+- Tool results stay in the message stream; observation masking replaces old results with placeholders.
 - Runtime artifacts are run evidence and are stored through the artifact store.
 - `/v1` and the generated mobile client expose backend projections; mobile does
   not own runtime truth.
@@ -182,7 +182,7 @@ implemented, and selected debug artifacts later if implemented.
 - returns a compressed list of visible, actionable elements.
 - creates run-local element refs such as `@e1`.
 - binds refs to browser session, tab, URL, and snapshot generation.
-- stores only the bounded tool result in `ToolResultLedger`.
+- stores only the bounded tool result in the message stream.
 - does not persist full DOM, full accessibility tree, backend DOM node ids, or
   run-end snapshot dumps.
 

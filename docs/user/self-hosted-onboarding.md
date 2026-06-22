@@ -1,12 +1,12 @@
 ---
 title: Self-hosted onboarding
 status: current
-last_reviewed: 2026-05-19
+last_reviewed: 2026-06-21
 ---
 
 # Self-hosted Onboarding
 
-Acorn's primary product path is a single-user self-hosted backend with authenticated mobile clients. The backend owns runtime truth: threads, runs, events, pending approvals, memory, skills, tool results, context boundaries, and workspace mutation state.
+Acorn's primary product path is a single-user self-hosted backend with authenticated mobile clients. The backend owns runtime truth: threads, runs, events, pending approvals, memory, skills, and workspace mutation state.
 
 This path installs Acorn as a Linux binary managed by `systemd`. It does not create a hosted account, public unauthenticated API, multi-user boundary, Docker service, or packaged execution sandbox.
 
@@ -20,12 +20,12 @@ curl -fsSL https://github.com/ycvk/acorn/releases/latest/download/install-releas
 
 The installer:
 
-- installs common host tools with `apt-get`: `ca-certificates`, `curl`, `git`, `ripgrep`, `python3`, `make`, `bash`, `libgomp1`, and the OpenBLAS runtime package that provides `libopenblas.so.0`;
+- installs common host tools with `apt-get`: `ca-certificates`, `curl`, `git`, `ripgrep`, `python3`, `make`, `bash`;
 - resolves the latest GitHub Release tag from `https://github.com/ycvk/acorn/releases/latest`;
 - detects `amd64` or `arm64` from the VPS architecture;
 - downloads `acorn_${VERSION}_linux_${ARCH}.tar.gz` and its `.sha256`;
-- verifies the outer release checksum, package `CHECKSUMS`, and runtime shared-library links;
-- installs `/opt/acorn/acorn` plus `/opt/acorn/lib/linux_${ARCH}/libfaiss*.so*`;
+- verifies the outer release checksum and package `CHECKSUMS`;
+- installs `/opt/acorn/acorn` (pure Go binary, no shared libraries);
 - installs `/usr/local/bin/acorn` as a global wrapper command;
 - writes config under the installing user's `~/.acorn`;
 - installs bundled native skills under `~/.acorn/skills`;
@@ -49,13 +49,10 @@ If you pass the provider key at install time, the script starts the service imme
 curl -fsSL https://github.com/ycvk/acorn/releases/latest/download/install-release.sh | OPENAI_API_KEY=your-provider-key sh
 ```
 
-In this mode, the installer also rebuilds the initial empty semantic index before starting `systemd`. This makes first-run memory preparation work even before any memory records exist.
-
 Without `OPENAI_API_KEY`, the script installs files only. Edit the env file and start the service yourself:
 
 ```bash
 sudoedit ~/.acorn/acorn.env
-acorn memory semantic rebuild --json
 sudo systemctl enable --now acorn
 ```
 
@@ -85,7 +82,7 @@ Skip host package installation after installing dependencies yourself:
 curl -fsSL https://github.com/ycvk/acorn/releases/latest/download/install-release.sh | ACORN_INSTALL_HOST_TOOLS=0 sh
 ```
 
-Only use this after installing `curl`, `tar`, `sha256sum`, `systemctl`, `git`, `ripgrep`, `python3`, `make`, `bash`, `libgomp1`, and an OpenBLAS runtime package that exposes `libopenblas.so.0`.
+Only use this after installing `curl`, `tar`, `sha256sum`, `systemctl`, `git`, `ripgrep`, `python3`, `make`, `bash`.
 
 Install files without starting `systemd`:
 
@@ -97,17 +94,17 @@ curl -fsSL https://github.com/ycvk/acorn/releases/latest/download/install-releas
 
 The installed service uses:
 
-- `/opt/acorn/acorn` for the release binary and bundled FAISS libraries.
+- `/opt/acorn/acorn` for the release binary (pure Go, no shared libraries).
 - `/usr/local/bin/acorn` as the global command wrapper.
 - the installing user's home as the service `HOME`.
 - `~/.acorn/acorn.yaml` for config.
 - `~/.acorn/acorn.env` for provider secrets.
 - `~/.acorn/skills` for bundled native skills and user-local skills.
-- `~/.acorn` for runtime storage, SQLite state, generated skills, and the Bleve+FAISS index.
+- `~/.acorn` for runtime storage, SQLite state, and generated skills.
 - `/srv/acorn/workspace` for the operator workspace that tools may read and mutate.
 - `127.0.0.1:8080` for the HTTP listener.
 
-The wrapper runs service-backed operator commands such as `acorn pair`, `acorn doctor`, `acorn memory`, `acorn skills`, and `acorn decision` against the same installer-owned `~/.acorn/acorn.yaml` when you do not pass an explicit `-c` config path. If you install as root, that means `/root/.acorn/acorn.yaml`.
+The wrapper runs service-backed operator commands such as `acorn pair`, `acorn doctor`, `acorn memory`, `acorn skills`, and `acorn smoke` against the same installer-owned `~/.acorn/acorn.yaml` when you do not pass an explicit `-c` config path. If you install as root, that means `/root/.acorn/acorn.yaml`.
 
 If you intentionally serve directly on a trusted private interface, edit `~/.acorn/acorn.yaml` and set:
 
@@ -144,15 +141,13 @@ acorn smoke "hello, are you working?"
 
 `acorn smoke` exits non-zero on any non-succeeded status, so it catches a wrong `api_key` or unreachable `base_url` that static validation cannot. (Building from source without the installer? Run `acorn init` first to scaffold `~/.acorn/acorn.yaml`.)
 
-Semantic memory retrieval is OFF by default — backend runs proceed with no memory recall. To enable it, uncomment `memory.semantic.embedding.model` and `base_url` in `~/.acorn/acorn.yaml` (the embedding `api_key` is then required), restart the service, and build the index:
+Semantic memory retrieval is OFF by default — backend runs proceed with no memory recall. To enable it, configure `memory.semantic.embedding` in `~/.acorn/acorn.yaml` (model, base_url, api_key, dimensions are required), restart the service, and build the index:
 
 ```bash
 acorn memory semantic rebuild --json
 ```
 
-Explicit memory search commands (`acorn memory`, `/v1/memory/search`) fail loud until semantic is configured.
-
-Bleve+FAISS is a rebuildable retrieval index. SQLite still owns runtime persisted truth, and file-backed `facts/`, `skills/`, and `history/` remain durable memory truth.
+The embedding index is stored in SQLite `memory_vectors` table. SQLite owns runtime persisted truth, and file-backed `facts/` and `history/` remain durable memory truth.
 
 ## 5. Pair Mobile
 
@@ -267,8 +262,6 @@ sudo systemctl restart acorn
 
 `browser.executable_path` and `TAVILY_API_KEY` are optional at backend startup. Calling `browser` without an executable path or `web_search` without a key fails explicitly as a tool result. `web_fetch` does not require Tavily.
 
-Outbound web access is limited to HTTP(S) public network targets by default. Localhost, link-local, cloud metadata addresses, private IPs, `file:`, raw JavaScript, raw CDP, cookie tools, persistent browser profiles, and bundled Chromium are not part of this release path.
-
 ## 9. Backup
 
 Stop the backend before filesystem-level backups:
@@ -286,4 +279,3 @@ sudo systemctl start acorn
 - Web search requires a configured Tavily API key. Browser actions require an operator-installed Chrome/Chromium executable.
 - The mobile app refreshes backend truth through `/v1/inbox`, RunDetail, and RunEvent cursors; this release path does not include APNs/FCM push notification registration.
 - Mobile is a remote control surface. It does not execute runs locally, own memory truth, or merge offline runtime state.
-- The old React/Vite Web client has been removed; Flutter mobile is the product control surface.
