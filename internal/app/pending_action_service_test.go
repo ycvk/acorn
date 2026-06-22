@@ -9,7 +9,6 @@ import (
 	storecore "github.com/ycvk/acorn/internal/store"
 
 	"github.com/ycvk/acorn/internal/events"
-	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
 )
 
 func TestPendingActionDecisionStatus(t *testing.T) {
@@ -59,7 +58,7 @@ func TestPendingActionServiceDecideSyncsMessageAndElicitationEvent(t *testing.T)
 	if err != nil {
 		t.Fatalf("prepare chat turn: %v", err)
 	}
-	if err := store.CreateBoundRun(context.Background(), "run_decision_service", session.SessionID, turnIndex, "run tool", "run_decision_service"); err != nil {
+	if err := store.CreateBoundRun(context.Background(), "run_decision_service", session.SessionID, turnIndex, "run tool"); err != nil {
 		t.Fatalf("create bound run: %v", err)
 	}
 	if _, err := store.CreatePendingAction(ctx, storecore.CreatePendingActionInput{
@@ -69,7 +68,6 @@ func TestPendingActionServiceDecideSyncsMessageAndElicitationEvent(t *testing.T)
 		Subject:     "elicitation",
 		PayloadJSON: `{"message":"Allow Acorn to continue?"}`,
 		Status:      events.PendingActionStatusPending,
-		Mode:        events.PendingActionModeDeferred,
 	}); err != nil {
 		t.Fatalf("create pending action: %v", err)
 	}
@@ -82,19 +80,14 @@ func TestPendingActionServiceDecideSyncsMessageAndElicitationEvent(t *testing.T)
 		t.Fatalf("record status = %q, want approved", record.Status)
 	}
 
+	// Decide no longer syncs a decision message to the messages table; only the
+	// original user message remains.
 	messages, err := store.ListSessionMessages(ctx, session.SessionID, 12)
 	if err != nil {
 		t.Fatalf("list messages: %v", err)
 	}
-	if len(messages) != 2 {
-		t.Fatalf("messages len = %d, want 2", len(messages))
-	}
-	var parts []storesqlite.SessionMessagePart
-	if err := json.Unmarshal([]byte(messages[1].ContentParts), &parts); err != nil {
-		t.Fatalf("unmarshal message parts: %v", err)
-	}
-	if len(parts) == 0 || parts[0].Status != "approved" || parts[0].SelectedOptionID != "accept" {
-		t.Fatalf("decision part = %#v", parts)
+	if len(messages) != 1 {
+		t.Fatalf("messages len = %d, want 1 (no decision message synced)", len(messages))
 	}
 
 	eventRecords, err := store.LoadEventsAfter(ctx, "run_decision_service", 0)
@@ -124,7 +117,7 @@ func TestPendingActionServiceDecideOperatorQuestionStoresStructuredAnswer(t *tes
 	if err != nil {
 		t.Fatalf("prepare chat turn: %v", err)
 	}
-	if err := store.CreateBoundRun(context.Background(), "run_operator_decision", session.SessionID, turnIndex, "choose", "run_operator_decision"); err != nil {
+	if err := store.CreateBoundRun(context.Background(), "run_operator_decision", session.SessionID, turnIndex, "choose"); err != nil {
 		t.Fatalf("create bound run: %v", err)
 	}
 	if _, err := store.CreatePendingAction(ctx, storecore.CreatePendingActionInput{
@@ -138,7 +131,6 @@ func TestPendingActionServiceDecideOperatorQuestionStoresStructuredAnswer(t *tes
 			"allow_freeform":true
 		}`,
 		Status: events.PendingActionStatusPending,
-		Mode:   events.PendingActionModeDeferred,
 	}); err != nil {
 		t.Fatalf("create pending action: %v", err)
 	}
@@ -162,16 +154,15 @@ func TestPendingActionServiceDecideOperatorQuestionStoresStructuredAnswer(t *tes
 		t.Fatalf("decision = %#v", decision)
 	}
 
+	// Decide no longer syncs a decision message to the messages table; only the
+	// original user message remains. The structured answer is persisted on the
+	// pending action record (DecisionJSON) and emitted as an event instead.
 	messages, err := store.ListSessionMessages(ctx, session.SessionID, 12)
 	if err != nil {
 		t.Fatalf("list messages: %v", err)
 	}
-	var parts []storesqlite.SessionMessagePart
-	if err := json.Unmarshal([]byte(messages[1].ContentParts), &parts); err != nil {
-		t.Fatalf("unmarshal message parts: %v", err)
-	}
-	if len(parts) == 0 || parts[0].SelectedOptionID != "fast" || parts[0].Answer != "Use the fast path." {
-		t.Fatalf("decision part = %#v", parts)
+	if len(messages) != 1 {
+		t.Fatalf("messages len = %d, want 1 (no decision message synced)", len(messages))
 	}
 
 	eventRecords, err := store.LoadEventsAfter(ctx, "run_operator_decision", 0)
@@ -197,7 +188,7 @@ func TestPendingActionServiceListAndGetProjectActionableRecords(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create session: %v", err)
 	}
-	if err := store.CreateRunWithSession(ctx, "run_pending_surface", session.SessionID, 1, "approve", "run_pending_surface"); err != nil {
+	if err := store.CreateRunWithSession(ctx, "run_pending_surface", session.SessionID, 1, "approve"); err != nil {
 		t.Fatalf("create run: %v", err)
 	}
 	if _, err := store.CreatePendingAction(ctx, storecore.CreatePendingActionInput{
@@ -207,9 +198,7 @@ func TestPendingActionServiceListAndGetProjectActionableRecords(t *testing.T) {
 		Subject:     "Approval required",
 		PayloadJSON: `{"message":"Allow Acorn to continue?","requested_schema":{"type":"object"}}`,
 		Status:      events.PendingActionStatusPending,
-		Mode:        events.PendingActionModeDeferred,
 		Reason:      "needs owner approval",
-		Rule:        "mobile_control",
 	}); err != nil {
 		t.Fatalf("create pending action: %v", err)
 	}
@@ -230,7 +219,7 @@ func TestPendingActionServiceListAndGetProjectActionableRecords(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
-	if detail.ActionID != "action_pending_surface" || detail.Reason != "needs owner approval" || detail.Rule != "mobile_control" {
+	if detail.ActionID != "action_pending_surface" || detail.Reason != "needs owner approval" || detail.Rule != "" {
 		t.Fatalf("detail = %#v", detail)
 	}
 	if detail.Payload["message"] != "Allow Acorn to continue?" {
@@ -246,7 +235,7 @@ func TestPendingActionServiceGetRejectsDecidedAction(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create session: %v", err)
 	}
-	if err := store.CreateRunWithSession(ctx, "run_decided_surface", session.SessionID, 1, "approve", "run_decided_surface"); err != nil {
+	if err := store.CreateRunWithSession(ctx, "run_decided_surface", session.SessionID, 1, "approve"); err != nil {
 		t.Fatalf("create run: %v", err)
 	}
 	if _, err := store.CreatePendingAction(ctx, storecore.CreatePendingActionInput{
@@ -255,11 +244,10 @@ func TestPendingActionServiceGetRejectsDecidedAction(t *testing.T) {
 		Kind:        events.PendingActionKindElicitation,
 		PayloadJSON: `{"message":"Allow Acorn to continue?"}`,
 		Status:      events.PendingActionStatusPending,
-		Mode:        events.PendingActionModeDeferred,
 	}); err != nil {
 		t.Fatalf("create pending action: %v", err)
 	}
-	if _, err := store.DecidePendingAction(ctx, "action_decided_surface", events.PendingActionStatusApproved, events.PendingActionModeDeferred, `{"action":"accept"}`); err != nil {
+	if _, err := store.DecidePendingAction(ctx, "action_decided_surface", events.PendingActionStatusApproved, `{"action":"accept"}`); err != nil {
 		t.Fatalf("decide pending action: %v", err)
 	}
 

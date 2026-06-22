@@ -27,7 +27,6 @@ func (s *InboxService) projectRunSummary(ctx context.Context, record events.RunR
 	if err != nil {
 		return RunSummary{}, err
 	}
-	mode, err := projectRunMode(record.OrchestrationMode)
 	if err != nil {
 		return RunSummary{}, err
 	}
@@ -40,7 +39,6 @@ func (s *InboxService) projectRunSummary(ctx context.Context, record events.RunR
 		ThreadID:       record.SessionID,
 		ThreadTitle:    runSummaryThreadTitle(*session, record),
 		Status:         status,
-		Mode:           mode,
 		Preview:        runSummaryPreview(record),
 		LastEventLabel: runSummaryLastEventLabel(record.Status),
 		AttentionLevel: runSummaryAttentionLevel(record.Status),

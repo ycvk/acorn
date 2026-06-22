@@ -83,7 +83,7 @@ func (e *StreamingToolExecutor) Submit(call schema.ToolCall) {
 		argsErr = unmarshalErr.Error()
 	}
 
-	policy := tooling.ToolExecutionPolicy{ParallelPolicy: tooling.ParallelPolicyNeverParallel}
+	policy := tooling.ToolExecutionPolicy{ParallelPolicy: tooling.ParallelPolicySerial}
 	isSafe := false
 	var paths []string
 	if argsErr == "" {
@@ -94,10 +94,8 @@ func (e *StreamingToolExecutor) Submit(call schema.ToolCall) {
 			policy = resolvedPolicy
 		}
 		isSafe = policy.ParallelPolicy == tooling.ParallelPolicyReadOnly
-		if policy.ParallelPolicy == tooling.ParallelPolicyWriteScoped && strings.TrimSpace(policy.PathArg) == "" {
-			argsErr = fmt.Sprintf("write-scoped tool %q is missing path arg", call.Function.Name)
-		} else {
-			paths, pathErr = executionPathsFromArgs(args, policy.PathArg, policy.ParallelPolicy == tooling.ParallelPolicyWriteScoped)
+		if strings.TrimSpace(policy.PathArg) != "" {
+			paths, pathErr = executionPathsFromArgs(args, policy.PathArg, policy.ParallelPolicy == tooling.ParallelPolicySerial)
 			if pathErr != nil {
 				argsErr = pathErr.Error()
 			}
@@ -155,12 +153,12 @@ func (e *StreamingToolExecutor) startExecution(st *submittedTool) {
 		call := classifiedCall{
 			index:    st.index,
 			toolCall: st.call,
-			safety:   tooling.ParallelPolicyNeverParallel,
+			safety:   tooling.ParallelPolicySerial,
 			argsErr:  st.argsErr,
 			paths:    st.paths,
 		}
 		if len(st.paths) > 0 {
-			call.safety = tooling.ParallelPolicyWriteScoped
+			call.safety = tooling.ParallelPolicySerial
 		} else if st.isSafe {
 			call.safety = tooling.ParallelPolicyReadOnly
 		}

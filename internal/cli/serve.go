@@ -10,9 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/modelcontextprotocol/go-sdk/mcp"
-
 	"github.com/ycvk/acorn/internal/app"
 	"github.com/ycvk/acorn/internal/web"
 )
@@ -57,20 +54,6 @@ func runServe(ctx context.Context, args []string) error {
 	})
 	if err != nil {
 		return err
-	}
-
-	// Mount MCP server on /mcp/* if configured (MCPSV-04, D-07, D-08)
-	if mcpSrv := container.MCPServer(); mcpSrv != nil {
-		streamableHandler := mcp.NewStreamableHTTPHandler(
-			func(_ *http.Request) *mcp.Server { return mcpSrv },
-			nil,
-		)
-		if mux, ok := handler.(*chi.Mux); ok {
-			mux.Route("/mcp", func(r chi.Router) {
-				r.Handle("/*", http.StripPrefix("/mcp", streamableHandler))
-			})
-		}
-		fmt.Printf("MCP server exposed at http://%s/mcp/\n", addr)
 	}
 
 	server := &http.Server{

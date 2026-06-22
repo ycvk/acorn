@@ -21,11 +21,11 @@ func (f *RunnerFactory) buildMCPToolSpecs(ctx context.Context, mcpManager *mcppr
 	if err != nil {
 		return nil, err
 	}
-	resourceSpecs, err := tool.BuildCatalogSpecs(ctx, f.deps.Config, "mcp.resource", tooling.ToolKindMCPResource, []tooling.ToolProfile{tooling.ToolProfileRun}, resourceTools)
+	resourceSpecs, err := tool.BuildCatalogSpecs(ctx, f.deps.Config, "mcp.resource", tooling.ToolKindMCP, resourceTools)
 	if err != nil {
 		return nil, err
 	}
-	promptSpecs, err := tool.BuildCatalogSpecs(ctx, f.deps.Config, "mcp.prompt", tooling.ToolKindMCPPrompt, []tooling.ToolProfile{tooling.ToolProfileRun}, promptTools)
+	promptSpecs, err := tool.BuildCatalogSpecs(ctx, f.deps.Config, "mcp.prompt", tooling.ToolKindMCP, promptTools)
 	if err != nil {
 		return nil, err
 	}
@@ -55,7 +55,7 @@ func (f *RunnerFactory) buildMCPRegistrationSpec(ctx context.Context, registrati
 	if err != nil {
 		return tooling.ToolSpec{}, fmt.Errorf("namespace MCP tool %q for provider %q: %w", info.Name, registration.ProviderName, err)
 	}
-	spec, err := tool.RuntimeToolSpec(ctx, f.deps.Config, registration.ProviderName, tooling.ToolKindMCP, []tooling.ToolProfile{tooling.ToolProfileRun}, namespaced)
+	spec, err := tool.RuntimeToolSpec(ctx, f.deps.Config, registration.ProviderName, tooling.ToolKindMCP, namespaced)
 	if err != nil {
 		return tooling.ToolSpec{}, err
 	}

@@ -128,7 +128,6 @@ func TestRetrieveCandidatesTaskPatternForDecision(t *testing.T) {
 	if !result.Candidates[0].TriggerMatched {
 		t.Fatalf("SOP candidate should be trigger matched: %#v", result.Candidates[0])
 	}
-	// Verify inline selection: top recommended skill should be selected.
 	matches := runtimeMatchesFromRecommendations(result.Candidates)
 	top, ok := topRecommendedSkill(matches)
 	if !ok {
@@ -218,15 +217,15 @@ func newSkillSelectionRegistry(t *testing.T) *tooling.Catalog {
 	t.Helper()
 	items := []tooling.ToolSpec{
 		{
-			ToolContract: skillSelectionToolContract("read_file", tooling.ToolCategoryRead, tooling.ResourceScopeWorkspaceFile, tooling.ParallelPolicyReadOnly, tooling.PlanPolicyNone),
+			ToolContract: skillSelectionToolContract("read_file", tooling.ToolCategoryRead, tooling.ParallelPolicyReadOnly),
 			Tool:         tooltest.MustInferTool(t, "read_file", func(context.Context, map[string]any) (string, error) { return "ok", nil }),
 		},
 		{
-			ToolContract: skillSelectionToolContract("create_file", tooling.ToolCategoryWrite, tooling.ResourceScopeWorkspaceFile, tooling.ParallelPolicyWriteScoped, tooling.PlanPolicyRequireActivePlan),
+			ToolContract: skillSelectionToolContract("create_file", tooling.ToolCategoryWrite, tooling.ParallelPolicySerial),
 			Tool:         tooltest.MustInferTool(t, "create_file", func(context.Context, map[string]any) (string, error) { return "ok", nil }),
 		},
 		{
-			ToolContract: skillSelectionToolContract("run_command", tooling.ToolCategoryExecute, tooling.ResourceScopeWorkspaceCommand, tooling.ParallelPolicyNeverParallel, tooling.PlanPolicyRequireActivePlan),
+			ToolContract: skillSelectionToolContract("run_command", tooling.ToolCategoryExecute, tooling.ParallelPolicySerial),
 			Tool:         tooltest.MustInferTool(t, "run_command", func(context.Context, map[string]any) (string, error) { return "ok", nil }),
 		},
 	}
@@ -240,23 +239,14 @@ func newSkillSelectionRegistry(t *testing.T) *tooling.Catalog {
 func skillSelectionToolContract(
 	name string,
 	category tooling.ToolCategory,
-	scope tooling.ResourceScope,
 	parallel tooling.ParallelPolicy,
-	plan tooling.PlanPolicy,
 ) tooling.ToolContract {
-	execution := tooling.ToolExecutionPolicy{ParallelPolicy: parallel}
-	if parallel == tooling.ParallelPolicyWriteScoped {
-		execution.PathArg = "path"
-	}
 	return tooling.ToolContract{
-		Name:          name,
-		Source:        "local",
-		Kind:          tooling.ToolKindNative,
-		Category:      category,
-		ResourceScope: scope,
-		Profiles:      []tooling.ToolProfile{tooling.ToolProfileRun},
-		PlanPolicy:    plan,
-		Loading:       tooling.EagerLoadingPolicy(),
-		Execution:     execution,
+		Name:      name,
+		Source:    "local",
+		Kind:      tooling.ToolKindNative,
+		Category:  category,
+		Loading:   tooling.EagerLoadingPolicy(),
+		Execution: tooling.ToolExecutionPolicy{ParallelPolicy: parallel},
 	}
 }

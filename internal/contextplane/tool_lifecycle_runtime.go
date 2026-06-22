@@ -9,10 +9,10 @@ import (
 	"time"
 
 	"github.com/cloudwego/eino/schema"
-
-	"github.com/ycvk/acorn/internal/store"
 )
 
+// ToolCallRejectedError indicates a tool call was rejected by the lifecycle
+// guard (e.g. deferred tool not yet loaded).
 type ToolCallRejectedError struct {
 	ToolName string
 	Reason   string
@@ -36,6 +36,7 @@ func (e *ToolCallRejectedError) Error() string {
 	return fmt.Sprintf("tool %q rejected by lifecycle: %s", toolName, reason)
 }
 
+// OnToolCall validates that a tool is loaded (not deferred) before execution.
 func OnToolCall(ctx context.Context, event ToolCallEvent) error {
 	toolName := strings.TrimSpace(event.ToolName)
 	if toolName == "" {
@@ -64,13 +65,12 @@ func OnToolCall(ctx context.Context, event ToolCallEvent) error {
 	}
 }
 
+// OnToolResult records a tool result event. The durable ledger was removed;
+// this now only validates the event payload. The result content stays in the
+// message stream and is subject to observation masking by ContextSession.
 func OnToolResult(ctx context.Context, event ToolResultEvent) error {
 	if strings.TrimSpace(event.ToolName) == "" {
 		return errors.New("tool result event requires tool_name")
-	}
-	lifecycleCtx := ToolLifecycleContextFromContext(ctx)
-	if lifecycleCtx == nil || lifecycleCtx.State == nil {
-		return errors.New("tool lifecycle state is not initialized")
 	}
 	if strings.TrimSpace(event.CallID) == "" {
 		return errors.New("tool result event requires call_id")
@@ -78,43 +78,10 @@ func OnToolResult(ctx context.Context, event ToolResultEvent) error {
 	if strings.TrimSpace(event.RunID) == "" {
 		return errors.New("tool result event requires run_id")
 	}
-	if lifecycleCtx.Ledger == nil {
-		return errors.New("tool result ledger is not initialized")
-	}
-	status := store.ToolResultStatusSucceeded
-	if event.IsError {
-		status = store.ToolResultStatusFailed
-	}
-	ledgerRecord, err := lifecycleCtx.Ledger.Append(ctx, store.ToolResultAppendRequest{
-		RunID:         event.RunID,
-		SessionID:     event.SessionID,
-		TurnIndex:     event.TurnIndex,
-		CallID:        event.CallID,
-		ToolName:      event.ToolName,
-		ArgumentsJSON: event.Arguments,
-		Status:        status,
-		ErrorReason:   event.ErrorReason,
-		FullText:      event.Result,
-		TokenEstimate: event.ResultTokens,
-		SideEffects:   append([]store.SideEffectRef(nil), event.SideEffects...),
-	})
-	if err != nil {
-		return fmt.Errorf("append tool result ledger: %w", err)
-	}
-	record := ToolResultRecord{
-		CallID:    strings.TrimSpace(event.CallID),
-		ToolName:  strings.TrimSpace(event.ToolName),
-		TurnIndex: event.TurnIndex,
-		ResultRef: ledgerRecord.ResultRef,
-		Summary:   ledgerRecord.Preview,
-		FullText:  event.Result,
-		IsError:   event.IsError,
-		Prunable:  true,
-	}
-	UpdateToolResultRecord(lifecycleCtx.State, record)
 	return nil
 }
 
+// DeferredLoad loads deferred tools into the loaded set by name or query match.
 func DeferredLoad(ctx context.Context, req DeferredLoadRequest) (*DeferredLoadResult, error) {
 	if len(req.ToolNames) == 0 && strings.TrimSpace(req.Query) == "" {
 		return nil, errors.New("deferred load requires tool_names or query")

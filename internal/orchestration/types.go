@@ -5,6 +5,7 @@ import (
 
 	"github.com/cloudwego/eino/adk"
 	einomodel "github.com/cloudwego/eino/components/model"
+	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/schema"
 
 	"github.com/ycvk/acorn/internal/tooling"
@@ -59,41 +60,22 @@ type AssistantStreamer interface {
 	StreamAssistantInterleaved(ctx context.Context, req AssistantStreamRequest) *InterleavedStream
 }
 
-type SingleAgentRequest struct {
-	AgentName         string
-	AgentDescription  string
-	SessionID         string
-	RunID             string
-	ChatModel         einomodel.BaseChatModel
-	AssistantStreamer AssistantStreamer
-	Catalog           *tooling.Catalog
-	ContextResult     AssembleResultView
-	AllowedToolNames  []string
-	ExcludedToolNames []string
-	InstructionSuffix string
-}
-
-type PlanExecuteRequest struct {
-	AgentName         string
-	AgentDescription  string
-	SessionID         string
-	RunID             string
-	ChatModel         einomodel.BaseChatModel
-	Catalog           *tooling.Catalog
-	ContextResult     AssembleResultView
-	AllowedToolNames  []string
-	ExcludedToolNames []string
-	InstructionSuffix string
-	ChildExecutor     ChildAgentExecutor
-}
-
 type RunAssembly struct {
-	Runner           *adk.Runner
-	Instruction      string
-	CompressionState any
+	Runner      *adk.Runner
+	Instruction string
 }
 
-type SingleAgentAssembly = RunAssembly
+// StreamingExecutor submits tool calls and collects results in streaming fashion.
+type StreamingExecutor interface {
+	Submit(call schema.ToolCall)
+	GetRemainingResults(ctx context.Context) ([]*schema.Message, error)
+	Discard()
+}
+
+// ToolInvoker creates streaming executors for parallel tool execution.
+type ToolInvoker interface {
+	NewStreamingExecutor(ctx context.Context) StreamingExecutor
+}
 
 // ToolLifecycleStateView is the read-only view of tool lifecycle state.
 type ToolLifecycleStateView interface {
@@ -109,3 +91,61 @@ type AssembleResultView struct {
 }
 
 type ToolLifecycleBinder func(ctx context.Context, state ToolLifecycleStateView, catalog *tooling.Catalog, infos []*schema.ToolInfo) context.Context
+
+// ToolBuilder constructs the concrete tool set from specs.
+type ToolBuilder func(
+	ctx context.Context,
+	specs []tooling.ToolSpec,
+	excludedToolNames []string,
+	allowedToolNames []string,
+	runID string,
+) ([]einotool.BaseTool, error)
+
+// ToolNodeFactory creates a ToolInvoker from concrete tools.
+type ToolNodeFactory func(ctx context.Context, tools []einotool.BaseTool, resolver tooling.ExecutionPolicyResolver) (ToolInvoker, error)
+
+// InstructionBuilder builds the system instruction from base prompt and suffix.
+type InstructionBuilder func(base string, suffix string) string
+
+// HandlersBuilder constructs middleware handlers for the agent.
+type HandlersBuilder func(ctx context.Context, chatModel einomodel.BaseChatModel, compressionState any) ([]adk.ChatModelAgentMiddleware, error)
+
+// DefaultPlaneOptions configures a DefaultPlane.
+type DefaultPlaneOptions struct {
+	SystemPrompt         string
+	MaxIterations        int
+	CheckpointStore      adk.CheckPointStore
+	ToolBuilder          ToolBuilder
+	ToolNodeFactory      ToolNodeFactory
+	HandlersBuilder      HandlersBuilder
+	InstructionBuilder   InstructionBuilder
+	ToolLifecycleBinder  ToolLifecycleBinder
+	SessionContextBinder func(ctx context.Context, sessionID string) context.Context
+}
+
+// DefaultPlane is the single orchestration plane for direct_response mode.
+type DefaultPlane struct {
+	systemPrompt         string
+	maxIterations        int
+	checkpointStore      adk.CheckPointStore
+	toolBuilder          ToolBuilder
+	toolNodeFactory      ToolNodeFactory
+	handlersBuilder      HandlersBuilder
+	instructionBuilder   InstructionBuilder
+	toolLifecycleBinder  ToolLifecycleBinder
+	sessionContextBinder func(ctx context.Context, sessionID string) context.Context
+}
+
+func NewDefaultPlane(opts DefaultPlaneOptions) *DefaultPlane {
+	return &DefaultPlane{
+		systemPrompt:         opts.SystemPrompt,
+		maxIterations:        opts.MaxIterations,
+		checkpointStore:      opts.CheckpointStore,
+		toolBuilder:          opts.ToolBuilder,
+		toolNodeFactory:      opts.ToolNodeFactory,
+		handlersBuilder:      opts.HandlersBuilder,
+		instructionBuilder:   opts.InstructionBuilder,
+		toolLifecycleBinder:  opts.ToolLifecycleBinder,
+		sessionContextBinder: opts.SessionContextBinder,
+	}
+}

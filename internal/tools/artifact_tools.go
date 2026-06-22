@@ -99,7 +99,7 @@ func buildArtifactWriteTool(service ArtifactService, bridge ArtifactContext) (ei
 		if callID == "" {
 			return ArtifactWriteOutput{}, errors.New("artifact_write requires current tool call context")
 		}
-		sourceRef := store.BuildToolResultRef(runID, callID)
+		sourceRef := "tool_result:" + strings.TrimSpace(runID) + ":" + strings.TrimSpace(callID)
 		record, err := service.Write(ctx, store.ArtifactWriteRequest{
 			RunID:               runID,
 			SessionID:           strings.TrimSpace(bridge.CurrentSessionID(ctx)),

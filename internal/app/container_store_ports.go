@@ -8,7 +8,6 @@ import (
 	"github.com/ycvk/acorn/internal/model"
 	"github.com/ycvk/acorn/internal/runtime"
 	storecore "github.com/ycvk/acorn/internal/store"
-	"github.com/ycvk/acorn/internal/workingstate"
 )
 
 // containerRuntimeStore is the store contract required by the runtime container
@@ -16,7 +15,6 @@ import (
 // state, session-summary, and pending-action-create ports.
 type containerRuntimeStore interface {
 	runtime.RunnerFactoryStore
-	workingstate.Store
 	model.SessionSummaryStore
 	PendingActionCreateStore
 }
@@ -51,8 +49,7 @@ type containerAppStore interface {
 	AppendEventContext(ctx context.Context, runID, kind string, payload any) (events.EventRecord, error)
 	ListPendingActions(ctx context.Context, limit int) ([]events.PendingActionRecord, error)
 	LoadPendingAction(ctx context.Context, actionID string) (*events.PendingActionRecord, error)
-	DecidePendingAction(ctx context.Context, actionID string, status events.PendingActionStatus, mode events.PendingActionDecisionMode, decisionJSON string) (*events.PendingActionRecord, error)
-	SyncDecisionMessageForPendingAction(ctx context.Context, actionID string) error
+	DecidePendingAction(ctx context.Context, actionID string, status events.PendingActionStatus, decisionJSON string) (*events.PendingActionRecord, error)
 	ListActiveRuns(ctx context.Context, limit int) ([]events.RunRecord, error)
 	ListRecentTerminalRuns(ctx context.Context, limit int) ([]events.RunRecord, error)
 	SavePairingCode(ctx context.Context, code *storecore.PairingCode) error

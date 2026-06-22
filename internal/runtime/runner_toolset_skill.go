@@ -34,7 +34,7 @@ func skillEligibilityContextFromCatalog(catalog *tooling.Catalog) skills.Eligibi
 	if catalog == nil {
 		return skills.EligibilityContext{}
 	}
-	return tooling.EligibilityContextForProfile(catalog, tooling.ToolProfileRun, nil)
+	return tooling.EligibilityContext(catalog, nil)
 }
 
 func loadStableSkillSnapshot(ctx context.Context, loader interface {
@@ -84,24 +84,4 @@ func runtimeMatchesFromRecommendations(items []skills.Recommendation) []SkillMat
 		})
 	}
 	return out
-}
-
-func nonEmptyStrings(items ...string) []string {
-	out := make([]string, 0, len(items))
-	for _, item := range items {
-		trimmed := strings.TrimSpace(item)
-		if trimmed != "" {
-			out = append(out, trimmed)
-		}
-	}
-	return out
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if trimmed := strings.TrimSpace(value); trimmed != "" {
-			return value
-		}
-	}
-	return ""
 }

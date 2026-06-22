@@ -8,7 +8,7 @@ import (
 	"github.com/cloudwego/eino/adk"
 	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/contextplane"
-	"github.com/ycvk/acorn/internal/events"
+
 	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/stream"
@@ -60,8 +60,7 @@ func (e *Executor) ExecuteMessages(ctx context.Context, req runtimeapi.ExecuteRe
 	if err != nil {
 		return nil, err
 	}
-	mode := resolveRootOrchestrationMode(req)
-	if err := e.createBoundRun(ctx, runID, req, mode); err != nil {
+	if err := e.createBoundRun(ctx, runID, req); err != nil {
 		return nil, err
 	}
 	runCtxBase, cleanup := e.newManagedRunContext(ctx, runID)
@@ -69,15 +68,12 @@ func (e *Executor) ExecuteMessages(ctx context.Context, req runtimeapi.ExecuteRe
 	if err := e.emitRunStarted(ctx, runID, req.Input, sink); err != nil {
 		return nil, err
 	}
-	active, err := e.buildExecuteRunner(runCtxBase, req, runID, mode, sink)
+	active, err := e.buildExecuteRunner(runCtxBase, req, runID, sink)
 	if err != nil {
 		return nil, e.failSetupOrErr(ctx, runID, err, sink)
 	}
 	defer active.Close()
-	if err := e.persistSelectedSkillID(ctx, runID, active.SelectedSkill); err != nil {
-		return nil, err
-	}
-	messages, err := e.bootstrapContextSessionMessages(ctx, req, runID, mode, active)
+	messages, err := e.bootstrapContextSessionMessages(ctx, req, runID, active)
 	if err != nil {
 		return nil, e.failSetupOrErr(ctx, runID, err, sink)
 	}
@@ -85,43 +81,24 @@ func (e *Executor) ExecuteMessages(ctx context.Context, req runtimeapi.ExecuteRe
 	return e.consume(ctx, runID, req.Input, iter, active.SelectedSkill, sink, active.ChatModel)
 }
 
-func (e *Executor) createBoundRun(ctx context.Context, runID string, req runtimeapi.ExecuteRequest, mode events.OrchestrationMode) error {
+func (e *Executor) createBoundRun(ctx context.Context, runID string, req runtimeapi.ExecuteRequest) error {
 	return e.store.CreateBoundRunWithParams(ctx, store.RunCreateParams{
-		RunID:             runID,
-		SessionID:         req.SessionID,
-		TurnIndex:         req.TurnIndex,
-		Input:             req.Input,
-		BoundMessageID:    req.BoundMessageID,
-		CheckpointID:      runID,
-		OrchestrationMode: mode,
-		ParentRunID:       req.ParentRunID,
-		SkillID:           req.SkillID,
-		Depth:             req.Depth,
+		RunID:          runID,
+		SessionID:      req.SessionID,
+		TurnIndex:      req.TurnIndex,
+		Input:          req.Input,
+		BoundMessageID: req.BoundMessageID,
 	})
 }
 
-// persistSelectedSkillID records the run's resolved skill id so resume can
-// recover it without the deleted run_decisions table. The explicit skill id
-// from req.SkillID is already persisted by createBoundRun; this updates it
-// when selection resolves to a different (top recommended) skill or clears it.
-func (e *Executor) persistSelectedSkillID(ctx context.Context, runID string, selected *SelectedSkill) error {
-	resolved := ""
-	if selected != nil {
-		resolved = selected.Skill.ID
-	}
-	return e.store.UpdateRunSkillID(ctx, runID, resolved)
-}
-
-func (e *Executor) buildExecuteRunner(runCtxBase context.Context, req runtimeapi.ExecuteRequest, runID string, mode events.OrchestrationMode, sink stream.StreamSink) (*ActiveRunner, error) {
+func (e *Executor) buildExecuteRunner(runCtxBase context.Context, req runtimeapi.ExecuteRequest, runID string, sink stream.StreamSink) (*ActiveRunner, error) {
 	return e.runRuntime.New(runCtxBase, RunnerBuildRequest{
-		SessionID:         req.SessionID,
-		RunID:             runID,
-		Input:             req.Input,
-		SkillID:           req.SkillID,
-		AllowedToolNames:  append([]string(nil), req.AllowedToolNames...),
-		Sink:              sink,
-		OrchestrationMode: mode,
-		ParentRunID:       req.ParentRunID,
+		SessionID:        req.SessionID,
+		RunID:            runID,
+		Input:            req.Input,
+		SkillID:          req.SkillID,
+		AllowedToolNames: append([]string(nil), req.AllowedToolNames...),
+		Sink:             sink,
 	})
 }
 

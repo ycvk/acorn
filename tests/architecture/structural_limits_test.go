@@ -23,6 +23,18 @@ import (
 var refactorOwnedDirs = []string{
 	"internal/runtime",
 	"internal/runtime/toolset",
+	"internal/tools",
+	"internal/contextplane",
+	"internal/store/sqlite",
+	"internal/memorymodule",
+	"internal/app",
+	"internal/orchestration",
+	"internal/providers/mcp",
+	"internal/web",
+	"internal/config",
+	"internal/workspace",
+	"internal/skills",
+	"internal/webaccess",
 }
 
 const (
@@ -31,14 +43,25 @@ const (
 	structNestingMaxDepth = 3
 )
 
+// dirsEnforcingFuncLimits are directories where the function-length and
+// nesting-depth limits are already green and enforced. Newly added
+// directories in refactorOwnedDirs enforce only the file-length limit until
+// their function-level violations are incrementally cleaned up.
+var dirsEnforcingFuncLimits = map[string]bool{
+	"internal/runtime":         true,
+	"internal/runtime/toolset": true,
+}
+
 func TestStructuralLimitsRefactorOwnedRegistry(t *testing.T) {
 	root := filepath.Join("..", "..")
 	for _, dir := range refactorOwnedDirs {
-		assertStructuralLimitsRecursive(t, filepath.Join(root, dir))
+		relDir := filepath.ToSlash(dir)
+		enforceFuncLimits := dirsEnforcingFuncLimits[relDir]
+		assertStructuralLimitsRecursive(t, filepath.Join(root, dir), enforceFuncLimits)
 	}
 }
 
-func assertStructuralLimitsRecursive(t *testing.T, dir string) {
+func assertStructuralLimitsRecursive(t *testing.T, dir string, enforceFuncLimits bool) {
 	t.Helper()
 	fset := token.NewFileSet()
 	pkgs, err := parser.ParseDir(fset, dir, nonTestFileFilter, parser.ParseComments)
@@ -49,6 +72,9 @@ func assertStructuralLimitsRecursive(t *testing.T, dir string) {
 		for fname, file := range pkg.Files {
 			rel := structRelFromRoot(t, fname)
 			assertStructuralLimitsFile(t, rel, fname)
+			if !enforceFuncLimits {
+				continue
+			}
 			for _, decl := range file.Decls {
 				fn, ok := decl.(*ast.FuncDecl)
 				if !ok {
@@ -61,7 +87,13 @@ func assertStructuralLimitsRecursive(t *testing.T, dir string) {
 }
 
 func nonTestFileFilter(info fs.FileInfo) bool {
-	return !strings.HasSuffix(info.Name(), "_test.go")
+	if strings.HasSuffix(info.Name(), "_test.go") {
+		return false
+	}
+	// Skip generated files — they are not hand-maintained and must not be
+	// retrofitted to structural limits. We approximate by filename suffix
+	// `_gen.go` (the only generated-file convention currently in use).
+	return !strings.HasSuffix(info.Name(), "_gen.go")
 }
 
 func assertStructuralLimitsFile(t *testing.T, rel string, path string) {

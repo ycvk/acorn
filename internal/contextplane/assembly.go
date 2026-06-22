@@ -4,12 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/cloudwego/eino/adk"
 	"github.com/cloudwego/eino/schema"
-
-	"github.com/ycvk/acorn/internal/model"
 )
 
 func (p *defaultContextPlane) Assemble(ctx context.Context, req AssembleRequest) (*AssembleResult, error) {
@@ -17,30 +14,7 @@ func (p *defaultContextPlane) Assemble(ctx context.Context, req AssembleRequest)
 		return nil, errors.New("context plane token counter is required")
 	}
 
-	var (
-		sessionSummary    string
-		checkpointSection string
-	)
-
-	assembledContext, err := runContextAssembler{
-		store:             p.store,
-		checkpointService: p.checkpointService,
-	}.Assemble(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-	if assembledContext != nil {
-		checkpointSection = assembledContext.checkpointSection
-	}
-	if strings.TrimSpace(req.Input) != "" && strings.TrimSpace(req.SessionID) != "" && !IsNilInterface(p.sessionSummaryService) {
-		summary, summaryErr := p.sessionSummaryService.Get(ctx, req.SessionID)
-		if summaryErr != nil {
-			return nil, fmt.Errorf("load session summary for %q: %w", req.SessionID, summaryErr)
-		}
-		sessionSummary = model.FormatSessionSummaryForPrompt(summary)
-	}
-
-	memoryPacket, err := buildMemoryContextPacket(ctx, p.tokenCounter, p.memoryBudget, sessionSummary, checkpointSection, req.MemoryPrepared)
+	memoryPacket, err := buildMemoryContextPacket(ctx, p.tokenCounter, p.memoryBudget, "", req.MemoryPrepared)
 	if err != nil {
 		return nil, err
 	}
@@ -61,13 +35,10 @@ func (p *defaultContextPlane) Assemble(ctx context.Context, req AssembleRequest)
 		LifecycleState:    lifecycleState,
 		EagerToolNames:    sortedLoadedToolNames(lifecycleState),
 		DeferredToolNames: deferredNames,
-		ProcedureActivations: procedureActivationsForMemoryPacket(
-			req.MemoryPrepared,
-			memoryPacket,
-		),
 	}, nil
 }
 
+// filterMessages drops nil entries.
 func filterMessages(messages ...*schema.Message) []*schema.Message {
 	result := make([]*schema.Message, 0, len(messages))
 	for _, msg := range messages {
@@ -78,6 +49,8 @@ func filterMessages(messages ...*schema.Message) []*schema.Message {
 	return result
 }
 
+// budgetedContextMessages clones messages and verifies they fit within the
+// token budget. When maxTokens <= 0 the budget check is skipped.
 func budgetedContextMessages(ctx context.Context, counter TokenCounter, maxTokens int, messages []*schema.Message) ([]*schema.Message, error) {
 	if counter == nil {
 		return nil, errors.New("context message token counter is required")
@@ -102,13 +75,16 @@ func budgetedContextMessages(ctx context.Context, counter TokenCounter, maxToken
 	return cloned, nil
 }
 
+// CloneMessages returns a copy of the slice with cloned message structs,
+// dropping nil entries.
 func CloneMessages(messages []*schema.Message) []*schema.Message {
 	out := make([]*schema.Message, 0, len(messages))
 	for _, msg := range messages {
 		if msg == nil {
 			continue
 		}
-		out = append(out, new(*msg))
+		clone := *msg
+		out = append(out, &clone)
 	}
 	return out
 }

@@ -1,7 +1,6 @@
 package tooling
 
 import (
-	"slices"
 	"strings"
 
 	einotool "github.com/cloudwego/eino/components/tool"
@@ -12,12 +11,10 @@ import (
 type ToolKind string
 
 const (
-	ToolKindNative      ToolKind = "native"
-	ToolKindMemory      ToolKind = "memory"
-	ToolKindSkill       ToolKind = "skill"
-	ToolKindMCP         ToolKind = "mcp"
-	ToolKindMCPResource ToolKind = "mcp_resource"
-	ToolKindMCPPrompt   ToolKind = "mcp_prompt"
+	ToolKindNative ToolKind = "native"
+	ToolKindMemory ToolKind = "memory"
+	ToolKindSkill  ToolKind = "skill"
+	ToolKindMCP    ToolKind = "mcp"
 )
 
 type ToolCategory string
@@ -32,61 +29,23 @@ const (
 	ToolCategoryIntegration ToolCategory = "integration"
 )
 
-type ToolProfile string
-
-const (
-	ToolProfileRun   ToolProfile = "run"
-	ToolProfileServe ToolProfile = "serve"
-)
-
 type ParallelPolicy string
 
 const (
-	ParallelPolicyReadOnly      ParallelPolicy = "read_only"
-	ParallelPolicyWriteScoped   ParallelPolicy = "write_scoped"
-	ParallelPolicyNeverParallel ParallelPolicy = "never_parallel"
+	ParallelPolicyReadOnly ParallelPolicy = "read_only"
+	ParallelPolicySerial   ParallelPolicy = "serial"
 )
 
 func ParseParallelPolicy(raw string) (ParallelPolicy, error) {
 	switch strings.ToLower(strings.TrimSpace(raw)) {
 	case "readonly", "read_only":
 		return ParallelPolicyReadOnly, nil
-	case "write_scoped":
-		return ParallelPolicyWriteScoped, nil
-	case "never_parallel":
-		return ParallelPolicyNeverParallel, nil
+	case "serial":
+		return ParallelPolicySerial, nil
 	default:
 		return "", errUnknownParallelPolicy(raw)
 	}
 }
-
-type PlanPolicy string
-
-const (
-	PlanPolicyNone              PlanPolicy = "none"
-	PlanPolicyRequireActivePlan PlanPolicy = "require_active_plan"
-)
-
-type FactPolicy string
-
-const (
-	FactPolicyAuto     FactPolicy = "auto"
-	FactPolicySuppress FactPolicy = "suppress"
-)
-
-type ResourceScope string
-
-const (
-	ResourceScopeWorkspaceFile    ResourceScope = "workspace_file"
-	ResourceScopeWorkspaceCommand ResourceScope = "workspace_command"
-	ResourceScopeMemory           ResourceScope = "memory"
-	ResourceScopeSkill            ResourceScope = "skill"
-	ResourceScopeMCP              ResourceScope = "mcp"
-	ResourceScopeArtifact         ResourceScope = "artifact"
-	ResourceScopeOperator         ResourceScope = "operator"
-	ResourceScopeWeb              ResourceScope = "web"
-	ResourceScopeBrowser          ResourceScope = "browser"
-)
 
 type HealthState string
 
@@ -109,13 +68,6 @@ type ToolSpec struct {
 
 func (s ToolSpec) Enabled() bool {
 	return s.Health.State != HealthStateDisabled
-}
-
-func (s ToolSpec) HasProfile(profile ToolProfile) bool {
-	if strings.TrimSpace(string(profile)) == "" {
-		return true
-	}
-	return slices.Contains(s.Profiles, profile)
 }
 
 func healthyTool(reason string) ToolHealth {
@@ -191,14 +143,11 @@ func ConfiguredLocalSpec(cfg *config.Config, name string) (ToolSpec, bool) {
 func configuredLocalSpec(name string, enabled bool) ToolSpec {
 	spec := ToolSpec{
 		ToolContract: ToolContract{
-			Name:          name,
-			Source:        "local",
-			Kind:          ToolKindNative,
-			Category:      ToolCategoryInspect,
-			ResourceScope: ResourceScopeWorkspaceFile,
-			Profiles:      []ToolProfile{ToolProfileRun, ToolProfileServe},
-			PlanPolicy:    PlanPolicyNone,
-			Loading:       EagerLoadingPolicy(),
+			Name:     name,
+			Source:   "local",
+			Kind:     ToolKindNative,
+			Category: ToolCategoryInspect,
+			Loading:  EagerLoadingPolicy(),
 			Execution: ToolExecutionPolicy{
 				ParallelPolicy: ParallelPolicyReadOnly,
 			},
@@ -208,99 +157,63 @@ func configuredLocalSpec(name string, enabled bool) ToolSpec {
 	case "read_file", "list_files", "search_text", "inspect_git_status", "inspect_git_diff":
 		spec.Kind = ToolKindNative
 		spec.Category = ToolCategoryRead
-		spec.ResourceScope = ResourceScopeWorkspaceFile
 		spec.Execution.ParallelPolicy = ParallelPolicyReadOnly
 		spec.Execution.PathArg = "path"
-		spec.PlanPolicy = PlanPolicyNone
 	case "git_summary":
 		spec.Kind = ToolKindNative
 		spec.Category = ToolCategoryInspect
-		spec.ResourceScope = ResourceScopeWorkspaceFile
-		spec.Execution.ParallelPolicy = ParallelPolicyNeverParallel
-		spec.PlanPolicy = PlanPolicyNone
+		spec.Execution.ParallelPolicy = ParallelPolicySerial
 	case "artifact_read", "artifact_list":
 		spec.Kind = ToolKindNative
 		spec.Category = ToolCategoryRead
-		spec.ResourceScope = ResourceScopeArtifact
 		spec.Execution.ParallelPolicy = ParallelPolicyReadOnly
-		spec.PlanPolicy = PlanPolicyNone
 	case "artifact_write":
 		spec.Kind = ToolKindNative
 		spec.Category = ToolCategoryWrite
-		spec.ResourceScope = ResourceScopeArtifact
-		spec.Execution.ParallelPolicy = ParallelPolicyNeverParallel
-		spec.PlanPolicy = PlanPolicyNone
+		spec.Execution.ParallelPolicy = ParallelPolicySerial
 	case "ask_operator":
 		spec.Kind = ToolKindNative
 		spec.Category = ToolCategoryIntegration
-		spec.ResourceScope = ResourceScopeOperator
-		spec.Execution.ParallelPolicy = ParallelPolicyNeverParallel
-		spec.PlanPolicy = PlanPolicyNone
-	case "web_fetch":
+		spec.Execution.ParallelPolicy = ParallelPolicySerial
+	case "web_fetch", "web_search":
 		spec.Kind = ToolKindNative
 		spec.Category = ToolCategoryRead
-		spec.ResourceScope = ResourceScopeWeb
-		spec.Profiles = []ToolProfile{ToolProfileRun}
 		spec.Loading = DeferredLoadingPolicy("web_access")
 		spec.Execution.ParallelPolicy = ParallelPolicyReadOnly
-		spec.PlanPolicy = PlanPolicyNone
-	case "web_search":
-		spec.Kind = ToolKindNative
-		spec.Category = ToolCategoryRead
-		spec.ResourceScope = ResourceScopeWeb
-		spec.Profiles = []ToolProfile{ToolProfileRun}
-		spec.Loading = DeferredLoadingPolicy("web_access")
-		spec.Execution.ParallelPolicy = ParallelPolicyReadOnly
-		spec.PlanPolicy = PlanPolicyNone
 	case "browser":
 		spec.Kind = ToolKindNative
 		spec.Category = ToolCategoryIntegration
-		spec.ResourceScope = ResourceScopeBrowser
-		spec.Profiles = []ToolProfile{ToolProfileRun}
 		spec.Loading = DeferredLoadingPolicy("web_access")
-		spec.Execution.ParallelPolicy = ParallelPolicyNeverParallel
-		spec.PlanPolicy = PlanPolicyNone
+		spec.Execution.ParallelPolicy = ParallelPolicySerial
 	case "create_file", "replace_span", "apply_unified_patch":
 		spec.Kind = ToolKindNative
 		spec.Category = ToolCategoryWrite
-		spec.ResourceScope = ResourceScopeWorkspaceFile
-		spec.Execution.ParallelPolicy = ParallelPolicyWriteScoped
+		spec.Execution.ParallelPolicy = ParallelPolicySerial
 		if name == "apply_unified_patch" {
 			spec.Execution.PathArg = "paths"
 		} else {
 			spec.Execution.PathArg = "path"
 		}
-		spec.PlanPolicy = PlanPolicyRequireActivePlan
 	case "multi_edit":
 		spec.Kind = ToolKindNative
 		spec.Category = ToolCategoryWrite
-		spec.ResourceScope = ResourceScopeWorkspaceFile
-		spec.Execution.ParallelPolicy = ParallelPolicyNeverParallel
-		spec.PlanPolicy = PlanPolicyRequireActivePlan
+		spec.Execution.ParallelPolicy = ParallelPolicySerial
 	case "rollback_workspace_checkpoint":
 		spec.Kind = ToolKindNative
 		spec.Category = ToolCategoryWrite
-		spec.ResourceScope = ResourceScopeWorkspaceFile
-		spec.Execution.ParallelPolicy = ParallelPolicyNeverParallel
-		spec.PlanPolicy = PlanPolicyRequireActivePlan
+		spec.Execution.ParallelPolicy = ParallelPolicySerial
 	case "run_command":
 		spec.Kind = ToolKindNative
 		spec.Category = ToolCategoryExecute
-		spec.ResourceScope = ResourceScopeWorkspaceCommand
-		spec.Execution.ParallelPolicy = ParallelPolicyNeverParallel
-		spec.PlanPolicy = PlanPolicyRequireActivePlan
+		spec.Execution.ParallelPolicy = ParallelPolicySerial
 	case "run_verification":
 		spec.Kind = ToolKindNative
 		spec.Category = ToolCategoryExecute
-		spec.ResourceScope = ResourceScopeWorkspaceCommand
-		spec.Execution.ParallelPolicy = ParallelPolicyNeverParallel
-		spec.PlanPolicy = PlanPolicyRequireActivePlan
+		spec.Execution.ParallelPolicy = ParallelPolicySerial
 	default:
 		spec.Kind = ToolKindNative
 		spec.Category = ToolCategoryInspect
-		spec.ResourceScope = ResourceScopeWorkspaceFile
 		spec.Execution.ParallelPolicy = ParallelPolicyReadOnly
-		spec.PlanPolicy = PlanPolicyNone
 	}
 	if enabled {
 		spec.Health = healthyTool("")

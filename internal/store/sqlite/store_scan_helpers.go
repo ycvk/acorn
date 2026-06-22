@@ -10,17 +10,15 @@ import (
 
 func scanRunRecord(scanner interface{ Scan(dest ...any) error }) (*events.RunRecord, error) {
 	var (
-		rec                  events.RunRecord
-		status               string
-		orchestrationModeRaw string
-		created              string
-		updated              string
+		rec     events.RunRecord
+		status  string
+		created string
+		updated string
 	)
-	if err := scanner.Scan(&rec.RunID, &rec.SessionID, &rec.TurnIndex, &status, &rec.Input, &rec.Output, &rec.Error, &rec.CheckpointID, &orchestrationModeRaw, &rec.SkillID, &rec.ParentRunID, &rec.Depth, &created, &updated); err != nil {
+	if err := scanner.Scan(&rec.RunID, &rec.SessionID, &rec.TurnIndex, &status, &rec.Input, &rec.Output, &rec.Error, &created, &updated); err != nil {
 		return nil, err
 	}
 	rec.Status = events.RunStatus(status)
-	rec.OrchestrationMode = events.OrchestrationMode(orchestrationModeRaw).Normalize()
 	createdAt, err := parseTimestamp(time.RFC3339Nano, created, "run.created_at")
 	if err != nil {
 		return nil, err
@@ -38,7 +36,6 @@ func scanPendingActionRecord(scanner interface{ Scan(dest ...any) error }) (*eve
 	var (
 		record     events.PendingActionRecord
 		kind       string
-		mode       string
 		status     string
 		payload    string
 		decision   string
@@ -56,9 +53,7 @@ func scanPendingActionRecord(scanner interface{ Scan(dest ...any) error }) (*eve
 		&subject,
 		&payload,
 		&status,
-		&mode,
 		&record.Reason,
-		&record.Rule,
 		&decision,
 		&createdAt,
 		&decidedAt,
@@ -70,7 +65,6 @@ func scanPendingActionRecord(scanner interface{ Scan(dest ...any) error }) (*eve
 	record.Kind = events.PendingActionKind(kind)
 	record.Subject = subject
 	record.PayloadJSON = payload
-	record.Mode = events.PendingActionDecisionMode(mode)
 	record.Status = events.PendingActionStatus(status)
 	record.DecisionJSON = decision
 	createdParsed, err := parseTimestamp(fixedTimestampLayout, createdAt, "pending_action.created_at")

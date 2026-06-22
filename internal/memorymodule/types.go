@@ -2,8 +2,6 @@ package memorymodule
 
 import (
 	"context"
-	"fmt"
-	"strings"
 	"sync"
 	"time"
 )
@@ -33,29 +31,6 @@ const (
 	StatusRetired    Status = "retired"
 )
 
-type ProcedureOrigin string
-
-const (
-	ProcedureOriginHuman          ProcedureOrigin = "human"
-	ProcedureOriginAgentDraft     ProcedureOrigin = "agent_draft"
-	ProcedureOriginActionVerified ProcedureOrigin = "action_verified"
-)
-
-type RelationType string
-
-const (
-	RelationSupports    RelationType = "supports"
-	RelationDerivedFrom RelationType = "derived_from"
-	RelationSupersedes  RelationType = "supersedes"
-	RelationContradicts RelationType = "contradicts"
-)
-
-type RecordRelation struct {
-	Type   RelationType
-	Target string
-	Reason string
-}
-
 type Service interface {
 	Root() string
 	ListFacts(ctx context.Context, selection RecordSelection) ([]Record, error)
@@ -63,11 +38,9 @@ type Service interface {
 	ListHistory(ctx context.Context, selection RecordSelection) ([]Record, error)
 	Prepare(ctx context.Context, req PrepareRequest) (*PrepareResult, error)
 	Search(ctx context.Context, req SearchRequest) (*SearchResult, error)
-	RebuildSemanticIndex(ctx context.Context, opts SemanticRebuildOptions) (*SemanticRebuildResult, error)
 	AppendHistory(ctx context.Context, event HistoryEvent) error
 	PlanMemoryMutation(ctx context.Context, req PlanMemoryMutationRequest) (*MemoryMutationPlan, error)
 	ApplyMemoryMutation(ctx context.Context, req PlanMemoryMutationRequest) (*MemoryMutationResult, error)
-	CreateProcedure(ctx context.Context, req CreateProcedureRequest) (*ProcedureRecord, error)
 	CreateFact(ctx context.Context, req CreateFactRequest) (*Record, error)
 	BuildMemoryInstruction(ctx context.Context, workspaceSlug string) (string, error)
 }
@@ -83,15 +56,15 @@ type LocalService struct {
 	index           *MemoryIndex
 }
 
+// SemanticRuntimeOptions wires an optional embedder + vector store. When nil
+// (embedding not configured), Search falls back to keyword matching and
+// Prepare degrades to an empty memory result.
 type SemanticRuntimeOptions struct {
-	Index      SemanticIndex
-	Embedder   Embedder
-	Model      string
-	Dimensions int
-	BatchSize  int
-	Schema     string
-	IndexName  string
-	Mode       string
+	Embedder    Embedder
+	VectorStore VectorStore
+	Model       string
+	Dimensions  int
+	BatchSize   int
 }
 
 type PrepareRequest struct {
@@ -106,11 +79,10 @@ type PrepareRequest struct {
 }
 
 type PrepareResult struct {
-	Nudges               []Nudge
-	Entries              []Entry
-	SkillTree            *SkillTreeIndex
-	ProcedureActivations []ProcedureActivation
-	Explain              *SearchExplain
+	Nudges    []Nudge
+	Entries   []Entry
+	SkillTree *SkillTreeIndex
+	Explain   *SearchExplain
 }
 
 type Nudge struct {
@@ -126,31 +98,6 @@ type Entry struct {
 	Kind    string
 	Title   string
 	Content string
-}
-
-type ProcedureRecord struct {
-	Ref          string
-	Title        string
-	Status       Status
-	TaskPattern  string
-	Body         string
-	Origin       ProcedureOrigin
-	SourceRun    string
-	SourceRefs   []string
-	EvidenceRefs []string
-	Tags         []string
-	Created      string
-	Updated      string
-	MutationPlan *MemoryMutationPlan
-}
-
-type CreateProcedureRequest struct {
-	Title        string
-	TaskPattern  string
-	Body         string
-	SourceRun    string
-	SourceRefs   []string
-	EvidenceRefs []string
 }
 
 // CreateFactRequest is the minimal structured input for writing a fact. The
@@ -189,38 +136,13 @@ type MemoryMutationPlan struct {
 }
 
 type MemoryMutationResult struct {
-	Message               string                 `json:"message"`
-	MutationPlan          *MemoryMutationPlan    `json:"mutation_plan"`
-	Path                  string                 `json:"path"`
-	Bytes                 int                    `json:"bytes"`
-	VerifiedBytes         int                    `json:"verified_bytes"`
-	VerifiedContent       string                 `json:"verified_content,omitempty"`
-	VerificationTruncated bool                   `json:"verification_truncated,omitempty"`
-	SemanticRebuild       *SemanticRebuildResult `json:"semantic_rebuild,omitempty"`
-}
-
-type ProcedureActivationPhase string
-
-const (
-	ProcedureActivationMatched  ProcedureActivationPhase = "matched"
-	ProcedureActivationSelected ProcedureActivationPhase = "selected"
-	ProcedureActivationInjected ProcedureActivationPhase = "injected"
-	ProcedureActivationUsed     ProcedureActivationPhase = "used"
-)
-
-type ProcedureActivation struct {
-	RunID        string
-	SessionID    string
-	ProcedureRef string
-	Title        string
-	Kind         string
-	Phase        ProcedureActivationPhase
-	Reason       string
-	Score        float64
-	Status       Status
-	Origin       ProcedureOrigin
-	SourceRefs   []string
-	EvidenceRefs []string
+	Message               string              `json:"message"`
+	MutationPlan          *MemoryMutationPlan `json:"mutation_plan"`
+	Path                  string              `json:"path"`
+	Bytes                 int                 `json:"bytes"`
+	VerifiedBytes         int                 `json:"verified_bytes"`
+	VerifiedContent       string              `json:"verified_content,omitempty"`
+	VerificationTruncated bool                `json:"verification_truncated,omitempty"`
 }
 
 type SearchRequest struct {
@@ -239,25 +161,21 @@ type SearchResult struct {
 }
 
 type SearchItem struct {
-	Ref          string
-	Kind         string
-	Title        string
-	Status       string
-	Scope        string
-	Tags         []string
-	Origin       string
-	TaskPattern  string
-	Path         string
-	Snippet      string
-	Score        float64
-	SourceRun    string
-	SourceRefs   []string
-	EvidenceRefs []string
-	Relations    []RecordRelation
-	Created      string
-	Updated      string
-	ValidFrom    string
-	ValidUntil   string
+	Ref         string
+	Kind        string
+	Title       string
+	Status      string
+	Scope       string
+	Tags        []string
+	Origin      string
+	TaskPattern string
+	Path        string
+	Snippet     string
+	Score       float64
+	SourceRun   string
+	SourceRefs  []string
+	Created     string
+	Updated     string
 }
 
 type SearchExplain struct {
@@ -286,110 +204,22 @@ type HistoryEvent struct {
 	Timestamp    time.Time
 }
 
+// Record is the simplified V2 memory record. Procedure records, relations,
+// evidence_refs, and validity windows have been removed.
 type Record struct {
-	Ref          string
-	Kind         Kind
-	RootPath     string
-	RelPath      string
-	Title        string
-	Status       Status
-	Scope        string
-	Tags         []string
-	Origin       string
-	TaskPattern  string
-	SourceRefs   []string
-	EvidenceRefs []string
-	Relations    []RecordRelation
-	Body         string
-	Created      string
-	Updated      string
-	ValidFrom    string
-	ValidUntil   string
-	SourceRun    string
-}
-
-func ProcedureRecordFromMemoryRecord(record Record) (*ProcedureRecord, error) {
-	if record.Kind != KindSkill {
-		return nil, fmt.Errorf("memory record %q is %q, not skill procedure", record.Ref, record.Kind)
-	}
-	if err := validateProcedureRecord(record); err != nil {
-		return nil, err
-	}
-	return &ProcedureRecord{
-		Ref:          record.Ref,
-		Title:        record.Title,
-		Status:       record.Status,
-		TaskPattern:  record.TaskPattern,
-		Body:         record.Body,
-		Origin:       ProcedureOrigin(record.Origin),
-		SourceRun:    record.SourceRun,
-		SourceRefs:   append([]string(nil), record.SourceRefs...),
-		EvidenceRefs: append([]string(nil), record.EvidenceRefs...),
-		Tags:         append([]string(nil), record.Tags...),
-		Created:      record.Created,
-		Updated:      record.Updated,
-	}, nil
-}
-
-func ProcedureActivationFromRecord(runID string, sessionID string, record Record, phase ProcedureActivationPhase, reason string, score float64) ProcedureActivation {
-	return ProcedureActivation{
-		RunID:        strings.TrimSpace(runID),
-		SessionID:    strings.TrimSpace(sessionID),
-		ProcedureRef: strings.TrimSpace(record.Ref),
-		Title:        strings.TrimSpace(record.Title),
-		Kind:         string(record.Kind),
-		Phase:        phase,
-		Reason:       strings.TrimSpace(reason),
-		Score:        score,
-		Status:       record.Status,
-		Origin:       ProcedureOrigin(record.Origin),
-		SourceRefs:   append([]string(nil), record.SourceRefs...),
-		EvidenceRefs: append([]string(nil), record.EvidenceRefs...),
-	}
-}
-
-func procedureInjectable(record Record) bool {
-	if record.Kind != KindSkill || record.Status != StatusVerified {
-		return false
-	}
-	switch ProcedureOrigin(record.Origin) {
-	case ProcedureOriginHuman:
-		return true
-	case ProcedureOriginActionVerified:
-		return strings.TrimSpace(record.SourceRun) != "" && len(record.EvidenceRefs) > 0
-	default:
-		return false
-	}
-}
-
-func validateProcedureRecord(record Record) error {
-	if record.Kind != KindSkill {
-		return nil
-	}
-	switch ProcedureOrigin(record.Origin) {
-	case ProcedureOriginHuman:
-	case ProcedureOriginAgentDraft:
-		if record.Status != StatusUnverified {
-			return fmt.Errorf("agent_draft procedure status must be unverified")
-		}
-		if strings.TrimSpace(record.SourceRun) == "" {
-			return fmt.Errorf("agent_draft procedure source_run is required")
-		}
-	case ProcedureOriginActionVerified:
-		if record.Status != StatusVerified {
-			return fmt.Errorf("action_verified procedure status must be verified")
-		}
-		if strings.TrimSpace(record.SourceRun) == "" {
-			return fmt.Errorf("action_verified procedure source_run is required")
-		}
-		if len(record.EvidenceRefs) == 0 {
-			return fmt.Errorf("action_verified procedure evidence_refs are required")
-		}
-	default:
-		return fmt.Errorf("procedure origin must be human, agent_draft, or action_verified")
-	}
-	if strings.TrimSpace(record.TaskPattern) == "" {
-		return fmt.Errorf("skill task_pattern is required")
-	}
-	return nil
+	Ref         string
+	Kind        Kind
+	RootPath    string
+	RelPath     string
+	Title       string
+	Status      Status
+	Scope       string
+	Tags        []string
+	Origin      string
+	TaskPattern string
+	SourceRefs  []string
+	Body        string
+	Created     string
+	Updated     string
+	SourceRun   string
 }

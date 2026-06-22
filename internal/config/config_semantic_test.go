@@ -42,9 +42,6 @@ memory:
   search:
     memory_context_token_budget: 2000
   semantic:
-    bleve:
-      path: semantic-index
-      index_name: memory_records
     embedding:
       provider: openai_compatible
       model: text-embedding-3-small
@@ -59,9 +56,6 @@ memory:
 	}
 	if got, want := cfg.Memory.Semantic.Embedding.APIKey, "sk-embedding"; got != want {
 		t.Fatalf("embedding api_key = %q, want %q", got, want)
-	}
-	if got, want := cfg.Memory.Semantic.Bleve.Path, filepath.Join(filepath.Dir(cfg.ConfigPath), "semantic-index"); got != want {
-		t.Fatalf("bleve path = %q, want %q", got, want)
 	}
 }
 
@@ -105,13 +99,6 @@ func TestValidateExecutionReadyMemorySemanticRequiredFields(t *testing.T) {
 		mutate  func(*Config)
 		wantErr string
 	}{
-		{
-			name: "bleve index name",
-			mutate: func(cfg *Config) {
-				cfg.Memory.Semantic.Bleve.IndexName = ""
-			},
-			wantErr: "memory.semantic.bleve.index_name is required",
-		},
 		{
 			name: "embedding model",
 			mutate: func(cfg *Config) {
@@ -267,8 +254,6 @@ memory:
     memory_context_token_budget: 2000
     `+field+`: 100
   semantic:
-    bleve:
-      index_name: memory_records
     embedding:
       provider: openai_compatible
       model: text-embedding-3-small

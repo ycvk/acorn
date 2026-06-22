@@ -8,7 +8,6 @@ import (
 	einomodel "github.com/cloudwego/eino/components/model"
 	"github.com/ycvk/acorn/internal/contextplane"
 	"github.com/ycvk/acorn/internal/memorymodule"
-	"github.com/ycvk/acorn/internal/providers"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
 )
 
@@ -19,23 +18,10 @@ func (f *RunnerFactory) buildRunChatModel(ctx context.Context, req RunnerBuildRe
 	if f.runChatModelBuilder != nil {
 		return f.runChatModelBuilder(ctx, req)
 	}
-	model, provider, err := buildRuntimeChatModelWithProvider(ctx, f.deps.Config, nil)
-	if err != nil {
-		return nil, err
-	}
-	metadata := providers.UsageRunMetadata{
-		RunID:        req.RunID,
-		SessionID:    req.SessionID,
-		ProviderName: provider.Name,
-		ModelName:    provider.Model,
-	}
-	if req.RunID != "" && f.deps.Store != nil {
-		existing, err := f.deps.Store.ListProviderUsagesByRun(ctx, req.RunID)
-		if err == nil {
-			metadata.InitialSequence = uint64(len(existing))
-		}
-	}
-	return providers.WrapModelWithUsage(model, f.deps.Store, metadata)
+	// No explicit run-scoped chat model builder was injected; fall back to the
+	// config-driven chat model used by NewChatModel. Usage-wrapping was removed
+	// with the provider_usages table, so the raw model is returned directly.
+	return f.newChatModel(ctx)
 }
 
 type capabilityAssembly struct {
@@ -71,7 +57,6 @@ func (f *RunnerFactory) prepareRunMemory(ctx context.Context, req RunnerBuildReq
 		SessionID:     req.SessionID,
 		WorkspaceSlug: workspaceSlug,
 		UserInput:     req.Input,
-		Mode:          string(req.OrchestrationMode),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("prepare memory: %w", err)
@@ -93,9 +78,6 @@ func (f *RunnerFactory) emitRunMemoryEvents(ctx context.Context, req RunnerBuild
 	if err := emitMemoryPreparedEvent(ctx, f.deps.Store, req, memorymodule.WorkspaceScope(workspaceSlug), result); err != nil {
 		return err
 	}
-	if result != nil {
-		return emitProcedureActivationEvents(ctx, f.deps.Store, req.Sink, req.RunID, result.ProcedureActivations)
-	}
 	return nil
 }
 
@@ -116,7 +98,7 @@ func (f *RunnerFactory) assembleContext(
 	if err != nil {
 		return nil, err
 	}
-	return result, f.emitInjectedProcedures(ctx, req, result.ProcedureActivations)
+	return result, nil
 }
 
 func buildAssembleRequest(req RunnerBuildRequest, caps *runCapabilities, selection *runSelection, memoryPrepared *memorymodule.PrepareResult) contextplane.AssembleRequest {
@@ -133,8 +115,4 @@ func buildAssembleRequest(req RunnerBuildRequest, caps *runCapabilities, selecti
 		MemoryPrepared: memoryPrepared,
 		ToolCatalog:    caps.catalog,
 	}
-}
-
-func (f *RunnerFactory) emitInjectedProcedures(ctx context.Context, req RunnerBuildRequest, activations []memorymodule.ProcedureActivation) error {
-	return emitProcedureActivationEvents(ctx, f.deps.Store, req.Sink, req.RunID, filterProcedureActivationsByPhase(activations, memorymodule.ProcedureActivationInjected))
 }

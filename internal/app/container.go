@@ -4,10 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/runtime"
-	"github.com/ycvk/acorn/internal/runtime/toolset"
 	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
 )
 
@@ -25,8 +23,6 @@ type Container struct {
 	capabilities  *CapabilitiesService
 	deviceAuth    *DeviceAuthService
 	inbox         *InboxService
-	mcpServer     *mcp.Server
-	serveToolset  *toolset.Toolset
 }
 
 func NewContainer(ctx context.Context, cfg *config.Config) (*Container, error) {
@@ -76,20 +72,11 @@ func (c *Container) Inbox() *InboxService {
 	return c.inbox
 }
 
-func (c *Container) MCPServer() *mcp.Server {
-	return c.mcpServer
-}
-
 func (c *Container) Close() error {
 	if c == nil {
 		return nil
 	}
 	var errs []error
-	if c.serveToolset != nil {
-		if err := c.serveToolset.Close(); err != nil {
-			errs = append(errs, err)
-		}
-	}
 	if c.runnerFactory != nil {
 		if err := c.runnerFactory.Close(); err != nil {
 			errs = append(errs, err)
@@ -132,13 +119,6 @@ func buildContainer(ctx context.Context, cfg *config.Config) (*Container, error)
 		return nil, err
 	}
 	container.store = store
-
-	mcpServer, serveToolset, err := buildContainerMCPServer(cfg, deps.runnerFactory)
-	if err != nil {
-		return nil, err
-	}
-	container.mcpServer = mcpServer
-	container.serveToolset = serveToolset
 
 	committed = true
 	return container, nil

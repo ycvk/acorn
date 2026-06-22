@@ -22,8 +22,7 @@ const defaultElicitationTimeout = 30 * time.Second
 type PendingActionStore interface {
 	CreatePendingAction(ctx context.Context, input store.CreatePendingActionInput) (*events.PendingActionRecord, error)
 	LoadPendingAction(ctx context.Context, actionID string) (*events.PendingActionRecord, error)
-	DecidePendingAction(ctx context.Context, actionID string, status events.PendingActionStatus, mode events.PendingActionDecisionMode, decisionJSON string) (*events.PendingActionRecord, error)
-	SyncDecisionMessageForPendingAction(ctx context.Context, actionID string) error
+	DecidePendingAction(ctx context.Context, actionID string, status events.PendingActionStatus, decisionJSON string) (*events.PendingActionRecord, error)
 	AppendEventContext(ctx context.Context, runID, kind string, payload any) (events.EventRecord, error)
 }
 
@@ -91,15 +90,10 @@ func (h *ElicitationHandler) HandleElicitation(ctx context.Context, req *mcp.Eli
 		Subject:     "elicitation",
 		PayloadJSON: string(paramsJSON),
 		Status:      events.PendingActionStatusPending,
-		Mode:        events.PendingActionModeDeferred,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create elicitation pending action: %w", err)
 	}
-	if err := h.store.SyncDecisionMessageForPendingAction(ctx, record.ActionID); err != nil {
-		return nil, fmt.Errorf("sync elicitation pending action message: %w", err)
-	}
-
 	if err := h.emitElicitationEvent(ctx, runID, record.ActionID, req.Params, string(stream.StreamKindElicitationPending)); err != nil {
 		return nil, err
 	}
@@ -108,9 +102,6 @@ func (h *ElicitationHandler) HandleElicitation(ctx context.Context, req *mcp.Eli
 	result, err := h.waitForDecision(ctx, actionID, h.timeout)
 	if err != nil {
 		return nil, err
-	}
-	if err := h.store.SyncDecisionMessageForPendingAction(ctx, record.ActionID); err != nil {
-		return nil, fmt.Errorf("sync elicitation decided message: %w", err)
 	}
 
 	if err := h.emitElicitationEvent(ctx, runID, record.ActionID, req.Params, string(stream.StreamKindElicitationDecided)); err != nil {
@@ -147,7 +138,7 @@ func (h *ElicitationHandler) waitForDecision(ctx context.Context, actionID strin
 			if err != nil {
 				return nil, fmt.Errorf("marshal elicitation timeout decision: %w", err)
 			}
-			if _, err := h.store.DecidePendingAction(ctx, actionID, events.PendingActionStatusRejected, events.PendingActionModeDeferred, string(decisionJSON)); err != nil {
+			if _, err := h.store.DecidePendingAction(ctx, actionID, events.PendingActionStatusRejected, string(decisionJSON)); err != nil {
 				return nil, err
 			}
 			return &mcp.ElicitResult{Action: "decline"}, nil

@@ -16,18 +16,18 @@ import (
 	"github.com/ycvk/acorn/internal/workspace"
 )
 
-func BuildMemoryFileTools(ctx context.Context, memory memorymodule.Service, delegate tools.DelegateTaskContext) ([]einotool.BaseTool, error) {
+func BuildMemoryFileTools(ctx context.Context, memory memorymodule.Service) ([]einotool.BaseTool, error) {
 	if memory == nil {
 		return nil, fmt.Errorf("memory service is required")
 	}
-	catalog, err := buildMemoryToolCatalog(ctx, memory, delegate)
+	catalog, err := buildMemoryToolCatalog(ctx, memory)
 	if err != nil {
 		return nil, err
 	}
 	return collectMemoryFileTools(ctx, memory, catalog)
 }
 
-func buildMemoryToolCatalog(ctx context.Context, memory memorymodule.Service, delegate tools.DelegateTaskContext) (*tools.Catalog, error) {
+func buildMemoryToolCatalog(ctx context.Context, memory memorymodule.Service) (*tools.Catalog, error) {
 	trimmedRoot := strings.TrimSpace(memory.Root())
 	if trimmedRoot == "" {
 		return nil, fmt.Errorf("memory root is required")
@@ -39,7 +39,7 @@ func buildMemoryToolCatalog(ctx context.Context, memory memorymodule.Service, de
 	if err != nil {
 		return nil, fmt.Errorf("build memory workspace: %w", err)
 	}
-	catalog, err := tools.BuildCatalog(tools.CatalogConfig{Workspace: ws, MutationEnabled: true}, nil, nil, delegate)
+	catalog, err := tools.BuildCatalog(tools.CatalogConfig{Workspace: ws, MutationEnabled: true}, nil)
 	if err != nil {
 		return nil, fmt.Errorf("build memory tools: %w", err)
 	}

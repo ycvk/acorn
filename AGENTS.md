@@ -12,61 +12,60 @@ Go 命令在仓库根目录;Flutter 命令在 `mobile/`。
 
 ```bash
 make build && make serve && make doctor
-make test                          # go test ./...(普通构建,无需 FAISS)
+make test                          # go test ./...
 go test -race ./...                # CI 竞争检测版本
 make lint && make format-check     # CI 门禁
 make test-architecture             # 架构边界守卫
 make generate                      # go generate ./internal/web
+make release-linux-amd64           # 纯 Go 交叉编译(无 CGO)
 
 # Mobile(在 mobile/)
 python3 mobile/tool/generate_openapi_client.py --check   # CI 门禁
 flutter test && flutter analyze && flutter build apk --debug
-
-# FAISS 本地 dev(make build/test 不含 FAISS)
-make dev-faiss-artifacts && make dev-build-faiss && make dev-serve-faiss
 ```
 
 ## 架构大图
 
-- **组合根**:`internal/app.Container` 是唯一实例化具体实现的地方(SQLite store、RunnerFactory、Bleve/FAISS、OpenAI client)。`cmd/acorn → cli → app.Container → {web, runtime, store}`。`serve` 是唯一长驻命令。
-- **运行时主链**:`Executor → RunnerFactory.buildRun → run selection + ContextPlane + OrchestrationPlane → ContextSession → SQLite/file-backed memory`。
-- **3 个 root mode**(`resolveRootOrchestrationMode`,`internal/runtime/resume.go`):显式 mode 优先 → 有 `parent_run_id` 走 `single_agent` → 有 `skill_id` 走 `plan_execute` → 默认 `direct_response`。
-- **职责边界**:OrchestrationPlane(`internal/orchestration`)做装配+执行编排;ContextPlane(`internal/contextplane`)拥有上下文事实(首轮装配、tool lifecycle、tool-result ledger、`ContextSession`)。
-- **两套真相**:SQLite(`internal/store`,modernc.org/sqlite,单连接串行化)是 runtime 真相(~23 张表,schema 在 `store/sqlite/store_schema.go`,缺列 fail-loud);文件型长期记忆(`internal/memorymodule`)是 `facts/`/`skills/`/`history/`;Bleve+FAISS 是可重建语义索引。
+- **组合根**:`internal/app.Container` 是唯一实例化具体实现的地方(SQLite store、RunnerFactory、embedding client)。`cmd/acorn → cli → app.Container → {web, runtime, store}`。`serve` 是唯一长驻命令。
+- **运行时主链**:`Executor → RunnerFactory.buildRun → ContextPlane + direct_response → ContextSession → SQLite/file-backed memory`。
+- **单一编排模式**:`direct_response`。model → tool loop → record → 下一轮。`AgentLoop.RunOneIteration` 每轮 `BeforeModelCall → RunActionRound(ExecuteRound) → RecordAssistant/RecordToolResults`。plan_execute/single_agent/child_agent/verifier 已全部删除。
+- **职责边界**:orchestration(`internal/orchestration`)做装配+执行编排;ContextPlane(`internal/contextplane`)拥有上下文事实(首轮装配、tool lifecycle、`ContextSession`)。
+- **两套真相**:SQLite(`internal/store`,modernc.org/sqlite,单连接串行化)是 runtime 真相(~8 张表,schema 在 `store/sqlite/store_schema.go`,缺列 fail-loud);文件型长期记忆(`internal/memorymodule`)是 `facts/`/`history/`;embedding 向量存 SQLite `memory_vectors` 表。
 - **API 契约**:`docs/openapi.yaml` 是唯一 wire contract,`mobile/lib/src/api/acorn_api.dart` 由它生成。客户端只收 `internal/clientevents` 投影的 live RunEvent;RunEvent SSE 用 `follow=true` 轮询 + `after_seq` 游标续读。
 
 ## 硬边界
 
 ### 运行时 & 编排
 
-- public root modes:`direct_response`、`plan_execute`;`single_agent` 是内部 child-run 模式。
+- 只有一个 root mode:`direct_response`。不存在 plan_execute/single_agent/child_agent/subagent。
 - `ContextSession` 是 root-run model input 的唯一 owner,不允许绕过它维护第二套 message lifecycle。
-- 工具执行:`ToolContract → ToolExecutionScheduler → ToolResultLedger`,按 parallel policy + 路径冲突执行。tool result refs、side effects、plan evidence backlinks 是持久化事实。普通工具失败是模型可见 failed result,不是 run failure。
+- 工具执行:`ToolContract → toolExecutionScheduler`,按 parallel policy(read_only 并行 / serial 串行)执行。普通工具失败是模型可见 failed result,不是 run failure。
 - workspace mutation 恢复是 scoped checkpoint + 显式 `rollback_workspace_checkpoint`。
-- plan_execute subagent 递归深度受 `agent.max_subagent_depth`(默认 3)限制。
 
 ### 工具 & 技能
 
 - native skill truth 是 `internal/skills` file-backed loader。repo `./skills` 是 release seed pack;release installer 安装到 `~/.acorn/skills`;generated skills 写入 `{storage_dir}/skills/generated`;workspace skills 写入 `./.acorn/skills/workspace`。**不要把 generated skill 写回 repo root `skills/`**。
-- `skill_assess` 是唯一 active runtime lifecycle action;`skill.lifecycle` 是 RunEvent visibility truth,OpenAPI/mobile 必须同步。
-- `lifecycle_status: verified` 对非 builtin skill 必须有 `evidence_refs`。
+- skill 是只读 markdown + 简单关键词匹配,无 lifecycle/evidence/assess。
 
 ### 记忆 & 检索
 
-- 长期 memory 是 `internal/memorymodule` 的 file-backed `facts/`/`skills/`/`history/`。Canonical Memory Record V2 frontmatter。fact 写入走结构化 `remember`/`CreateFact` 工具;raw `memory_create_file` 仍要求完整 frontmatter。
-- 语义检索配置 `memory.semantic` 是语义检索前提,但**惰性接线**:embedder/FAISS 在首次 `Search`/`Prepare`/rebuild 时才构造,serve 启动不被阻塞。语义检索是可选增强,不是发任务的前置闸门。未配置 embedding 时 `Prepare` 降级为返回空 memory 结果(零召回是合法 baseline)。
-- **不要引入 pgvector/LanceDB 或第二套 retrieval store**。
+- 长期 memory 是 `internal/memorymodule` 的 file-backed `facts/`/`history/`。Canonical Memory Record V2 frontmatter(简化:status / tags / created / updated / source_run / source_refs)。fact 写入走结构化 `remember` 工具;raw `memory_create_file` 仍要求完整 frontmatter。
+- 语义检索配置 `memory.semantic.embedding` 是语义检索前提,但**惰性接线**:embedder/VectorStore 在首次 `Search`/`Prepare`/rebuild 时才构造,serve 启动不被阻塞。语义检索是可选增强,不是发任务的前置闸门。未配置 embedding 时 `Prepare` 降级为返回空 memory 结果(零召回是合法 baseline)。
+- 语义检索实现:OpenAI embedding 调用 → SQLite `memory_vectors` 表 BLOB 存储 → 纯 Go 暴力余弦相似度检索。零 CGO。
+- **不要引入 pgvector/LanceDB/Bleve/FAISS 或第二套 retrieval store**。
 
 ### 上下文 & 压缩
 
-- `BudgetGovernor` 是 context pressure 唯一计算入口。context assembly/rehydration 预算必须用后端统一 token counter。
-- `CompactionEngine` 拥有 compact 规则;post-compact rehydration 拥有 packet 恢复。
-- `ContextBoundary`(SQLite `context_boundaries`)是 durable compact/resume boundary truth。
-- reactive compact 只处理真实 provider context overflow,只允许同 provider 一次重试。
+- **Hybrid context 方案**(替代旧 CompactionEngine):
+  1. **Observation masking**:tool result 超 `mask_after_turns`(默认 2)轮后用占位符替换。纯内存操作,不写 SQLite。
+  2. **LLM auto-compact**:token 超 `window_tokens - compact_margin`(默认 margin 13000)时用一次 model 调用生成 summary,替换旧消息。circuit breaker:连续 3 次失败停止。
+  3. **关键上下文 re-inject**:compact 后从 disk/memory 重新注入 system prompt + memory context + skill context。
+- `ContextSession` 接口:`Bootstrap` / `BeforeModelCall`(masking + auto-compact) / `RecordAssistant` / `RecordToolResults`。无 `ReactiveCompact`。
+- context boundary 不持久化(compact 边界是内存状态)。
 
 ### Remote API & Mobile
 
-- remote client wire contract 是 `docs/openapi.yaml`。Remote clients 只走 `/v1`、`/healthz`、serve-time `/mcp`。改 mobile DTO/RunEvent/OpenAPI schema 必须同步 openapi.yaml、generated client 和相关测试。
+- remote client wire contract 是 `docs/openapi.yaml`。Remote clients 只走 `/v1`、`/healthz`。`/mcp` server mode 已删除。改 mobile DTO/RunEvent/OpenAPI schema 必须同步 openapi.yaml、generated client 和相关测试。
 - auth 是 single-owner device auth:pairing code → bearer token,SQLite 只存 hash。token 缺失/未知/revoked 必须显式失败。
 - mobile inbox truth 是 `GET /v1/inbox`,后端聚合 pending actions + active/recent runs + system status。
 - pending approval truth 是 `GET /v1/pending-actions` + `:decide`,消费 SQLite `pending_actions`。
@@ -75,7 +74,7 @@ make dev-faiss-artifacts && make dev-build-faiss && make dev-serve-faiss
 
 ### 自托管发布
 
-- GitHub Release 预构建 tarball + Linux binary + signed Android APK + `systemd`。Release build 固定 `-tags "bleve_faiss vectors"` + FAISS libs。**缺 artifact/CGO/build tags 显式失败,不发布 non-FAISS fallback**。
+- GitHub Release 预构建 tarball + Linux binary + signed Android APK + `systemd`。Release build 是纯 Go 交叉编译(`CGO_ENABLED=0`),无 FAISS/CGO/build tags。
 - installer 安装 `/opt/acorn`、`~/.acorn/skills`、`/usr/local/bin/acorn` wrapper;默认读 `~/.acorn/acorn.yaml`;root VPS 用 `/root/.acorn`,workspace 是 `/srv/acorn/workspace`。
 
 ## 工作方式
@@ -87,21 +86,24 @@ make dev-faiss-artifacts && make dev-build-faiss && make dev-serve-faiss
 
 ## 代码规范
 
-- Go 1.26,tab 缩进;前端 2 空格;import 按 goimports 分组。
-- error 必须显式处理;`ErrXxx` 命名。SQLite 关闭 Rows/Stmt 并检查 `rows.Err()`;HTTP 带 context,关闭 body。
+ - Go 1.26,tab 缩进;前端 2 空格;import 按 goimports 分组。
+ - error 必须显式处理,分两类:
+   - **Exported sentinel error**(需要被 `errors.Is` 比对):必须是包级 `var ErrXxx = errors.New(...)` 或 `fmt.Errorf("...: %w", ...)`;命名 `ErrXxx`;放在定义它的包的 errors.go 或对应文件顶部。
+   - **Precondition/internal-config error**(不该发生的编程错误:依赖未注入、配置缺失、前置条件违反):用 inline `errors.New("...")` 直接返回,不需要 `errors.Is` 比对;消息要可定位(含字段名/参数名)。
+ - SQLite 关闭 Rows/Stmt 并检查 `rows.Err()`;HTTP 带 context,关闭 body。
 
 ## 配置和文档
 
 - `configs/acorn.local.yaml` 在 `.gitignore` 中。`configs/acorn.example.yaml` 和 `configs/acorn.selfhosted.example.yaml` 修改时同步 config struct、defaults、validation 和 tests。
 - provider `api_key` 与 `memory.semantic.embedding.api_key` 都支持环境变量展开;embedding key 是独立 key,不能从 chat provider key 静默复用。
-- public context config 只保留 `window_tokens`、`compact_margin_tokens`、`preserve_recent_turns`、`summary_max_tokens`。删除配置字段不保留兼容读取。
+- public context config 只保留 `window_tokens`、`compact_margin_tokens`、`mask_after_turns`、`preserve_recent_turns`。删除配置字段不保留兼容读取。
 - 架构现状 → `docs/architecture/`,用户指南 → `docs/user/`,开发者指南 → `docs/dev/`。不要把未来计划写成 current truth。
 
 ## 验证要求
 
 提交前必须通过 `make format-check` 和 `make lint`。context/runtime 改动至少跑 `go test ./internal/config ./internal/contextplane ./internal/orchestration ./internal/runtime ./internal/cli`。
 
-**CI 守卫**(`tests/architecture/`):`store_boundary_test.go`(只允许 container.go import sqlite)、`bleve_faiss_release_guard_test.go`、`client_projection_boundary_test.go`。
+**CI 守卫**(`tests/architecture/`):`store_boundary_test.go`(只允许 container.go import sqlite)、`structural_limits_test.go`、`client_projection_boundary_test.go`。
 
 ## Harness 自演化系统
 

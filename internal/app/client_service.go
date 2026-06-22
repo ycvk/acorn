@@ -162,7 +162,7 @@ func parseClientRunMode(raw string) (events.OrchestrationMode, error) {
 	switch mode {
 	case "":
 		return "", nil
-	case events.ModeDirectResponse, events.ModePlanExecute:
+	case events.ModeDirectResponse:
 		return mode, nil
 	default:
 		return "", fmt.Errorf("%w: %s", ErrClientInvalidRunMode, raw)
@@ -174,15 +174,11 @@ func projectRun(record events.RunRecord) (Run, error) {
 	if err != nil {
 		return Run{}, err
 	}
-	mode, err := projectRunMode(record.OrchestrationMode)
-	if err != nil {
-		return Run{}, err
-	}
 	run := Run{
 		ID:        record.RunID,
 		ThreadID:  record.SessionID,
 		Status:    status,
-		Mode:      mode,
+		Mode:      "direct",
 		CreatedAt: record.CreatedAt,
 	}
 	if record.Status != events.RunStatusRunning {

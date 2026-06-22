@@ -22,7 +22,6 @@ type OperatorQuestionContext interface {
 
 type OperatorQuestionStore interface {
 	CreatePendingAction(ctx context.Context, input storecore.CreatePendingActionInput) (*events.PendingActionRecord, error)
-	SyncDecisionMessageForPendingAction(ctx context.Context, actionID string) error
 	AppendEventContext(ctx context.Context, runID, kind string, payload any) (events.EventRecord, error)
 }
 
@@ -97,14 +96,9 @@ func interruptAskOperator(ctx context.Context, store OperatorQuestionStore, brid
 		Subject:     strings.TrimSpace(input.Title),
 		PayloadJSON: string(payloadJSON),
 		Status:      events.PendingActionStatusPending,
-		Mode:        events.PendingActionModeDeferred,
 		Reason:      "operator_question",
-		Rule:        "ask_operator",
 	})
 	if err != nil {
-		return AskOperatorOutput{}, err
-	}
-	if err := store.SyncDecisionMessageForPendingAction(ctx, record.ActionID); err != nil {
 		return AskOperatorOutput{}, err
 	}
 	eventPayload := map[string]any{

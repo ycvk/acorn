@@ -10,7 +10,6 @@ import (
 
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/ycvk/acorn/internal/config"
-	"github.com/ycvk/acorn/internal/orchestration"
 	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	"github.com/ycvk/acorn/internal/runtime/tool"
 	"github.com/ycvk/acorn/internal/runtime/toolset"
@@ -20,20 +19,6 @@ import (
 	"github.com/ycvk/acorn/internal/webaccess"
 	"github.com/ycvk/acorn/internal/workingstate"
 )
-
-func (f *RunnerFactory) BuildServeToolset(ctx context.Context) (*toolset.Toolset, error) {
-	return f.buildToolset(ctx, "", nil, false, tooling.ToolProfileServe)
-}
-
-type delegateTaskBridge struct{}
-
-func (delegateTaskBridge) CurrentRunID(ctx context.Context) string {
-	return CurrentRunID(ctx)
-}
-
-func (delegateTaskBridge) CurrentSessionID(ctx context.Context) string {
-	return runtimeapi.SessionIDFromContext(ctx)
-}
 
 type artifactToolBridge struct{}
 
@@ -49,8 +34,8 @@ func (artifactToolBridge) CurrentToolCallID(ctx context.Context) string {
 	return tool.ToolAuditCallID(ctx)
 }
 
-func (f *RunnerFactory) buildRunToolset(ctx context.Context, sessionID string, childExec orchestration.ChildAgentExecutor) (*toolset.Toolset, error) {
-	return f.buildToolset(ctx, sessionID, childExec, true, tooling.ToolProfileRun)
+func (f *RunnerFactory) buildRunToolset(ctx context.Context, sessionID string) (*toolset.Toolset, error) {
+	return f.buildToolset(ctx, sessionID, true)
 }
 
 type localToolset struct {
@@ -61,16 +46,14 @@ type localToolset struct {
 func (f *RunnerFactory) buildToolset(
 	ctx context.Context,
 	sessionID string,
-	childExec orchestration.ChildAgentExecutor,
 	includePlanning bool,
-	profile tooling.ToolProfile,
 ) (_ *toolset.Toolset, err error) {
 	if err := f.validateToolsetDeps(); err != nil {
 		return nil, err
 	}
 	var closers []io.Closer
 	defer func() { closeToolsetOnErr(closers, &err) }()
-	local, err := f.buildLocalToolset(childExec)
+	local, err := f.buildLocalToolset()
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +66,7 @@ func (f *RunnerFactory) buildToolset(
 	if err != nil {
 		return nil, err
 	}
-	return toolset.NewToolset(catalog, profile, closers...), nil
+	return toolset.NewToolset(catalog, closers...), nil
 }
 
 func (f *RunnerFactory) validateToolsetDeps() error {
@@ -99,13 +82,13 @@ func (f *RunnerFactory) validateToolsetDeps() error {
 	return nil
 }
 
-func (f *RunnerFactory) buildLocalToolset(childExec orchestration.ChildAgentExecutor) (localToolset, error) {
+func (f *RunnerFactory) buildLocalToolset() (localToolset, error) {
 	var out localToolset
 	services, err := f.buildToolsetWebServices()
 	if err != nil {
 		return out, err
 	}
-	out.catalog, out.closers, err = f.buildLocalCatalog(services, childExec)
+	out.catalog, out.closers, err = f.buildLocalCatalog(services)
 	return out, err
 }
 
@@ -145,20 +128,19 @@ func assembleToolsetCatalog(ctx context.Context, cfg *config.Config, localCatalo
 }
 
 func buildCoreToolSpecs(ctx context.Context, cfg *config.Config, localCatalog *tools.Catalog, aux auxTools) ([]tooling.ToolSpec, error) {
-	profiles := []tooling.ToolProfile{tooling.ToolProfileRun, tooling.ToolProfileServe}
-	specs, err := tool.BuildCatalogSpecs(ctx, cfg, "local", tooling.ToolKindNative, profiles, append([]einotool.BaseTool(nil), localCatalog.Tools...))
+	specs, err := tool.BuildCatalogSpecs(ctx, cfg, "local", tooling.ToolKindNative, append([]einotool.BaseTool(nil), localCatalog.Tools...))
 	if err != nil {
 		return nil, err
 	}
-	checkpointSpecs, err := tool.BuildCatalogSpecs(ctx, cfg, "workingstate", tooling.ToolKindMemory, profiles, aux.checkpoint)
+	checkpointSpecs, err := tool.BuildCatalogSpecs(ctx, cfg, "workingstate", tooling.ToolKindMemory, aux.checkpoint)
 	if err != nil {
 		return nil, err
 	}
-	memorySpecs, err := tool.BuildCatalogSpecs(ctx, cfg, "memory", tooling.ToolKindMemory, profiles, aux.memory)
+	memorySpecs, err := tool.BuildCatalogSpecs(ctx, cfg, "memory", tooling.ToolKindMemory, aux.memory)
 	if err != nil {
 		return nil, err
 	}
-	skillSpecs, err := tool.BuildCatalogSpecs(ctx, cfg, "skill", tooling.ToolKindSkill, profiles, aux.skill)
+	skillSpecs, err := tool.BuildCatalogSpecs(ctx, cfg, "skill", tooling.ToolKindSkill, aux.skill)
 	if err != nil {
 		return nil, err
 	}
@@ -169,23 +151,18 @@ func buildCoreToolSpecs(ctx context.Context, cfg *config.Config, localCatalog *t
 }
 
 func buildExtraToolSpecs(ctx context.Context, cfg *config.Config, aux auxTools, includePlanning bool) ([]tooling.ToolSpec, error) {
-	lifecycleSpecs, err := tool.BuildCatalogSpecs(ctx, cfg, "skill.lifecycle", tooling.ToolKindSkill, []tooling.ToolProfile{tooling.ToolProfileRun}, aux.lifecycle)
-	if err != nil {
-		return nil, err
-	}
-	specs := lifecycleSpecs
 	if !includePlanning {
-		return specs, nil
+		return nil, nil
 	}
 	loadToolsTool, err := tool.NewLoadToolsTool()
 	if err != nil {
 		return nil, fmt.Errorf("build load_tools tool: %w", err)
 	}
-	planningSpecs, err := tool.BuildCatalogSpecs(ctx, cfg, "runtime", tooling.ToolKindNative, []tooling.ToolProfile{tooling.ToolProfileRun}, []einotool.BaseTool{loadToolsTool})
+	planningSpecs, err := tool.BuildCatalogSpecs(ctx, cfg, "runtime", tooling.ToolKindNative, []einotool.BaseTool{loadToolsTool})
 	if err != nil {
 		return nil, err
 	}
-	return append(specs, planningSpecs...), nil
+	return planningSpecs, nil
 }
 
 type toolsetWebServices struct {
@@ -197,7 +174,6 @@ type auxTools struct {
 	checkpoint []einotool.BaseTool
 	memory     []einotool.BaseTool
 	skill      []einotool.BaseTool
-	lifecycle  []einotool.BaseTool
 }
 
 func (f *RunnerFactory) buildToolsetWebServices() (toolsetWebServices, error) {
@@ -243,7 +219,7 @@ func (f *RunnerFactory) resolveOperatorStore() tools.OperatorQuestionStore {
 	return f.deps.Store
 }
 
-func (f *RunnerFactory) buildLocalCatalog(services toolsetWebServices, childExec orchestration.ChildAgentExecutor) (*tools.Catalog, []io.Closer, error) {
+func (f *RunnerFactory) buildLocalCatalog(services toolsetWebServices) (*tools.Catalog, []io.Closer, error) {
 	browser, err := f.buildBrowserService()
 	if err != nil {
 		return nil, nil, fmt.Errorf("browser service: %w", err)
@@ -259,7 +235,7 @@ func (f *RunnerFactory) buildLocalCatalog(services toolsetWebServices, childExec
 		WebFetchService:   services.fetch,
 		WebSearchService:  services.search,
 		BrowserService:    browser,
-	}, f.deps.ExtraLocalTools, childExec, delegateTaskBridge{})
+	}, f.deps.ExtraLocalTools)
 	return catalog, []io.Closer{browser}, err
 }
 
@@ -280,13 +256,6 @@ func (f *RunnerFactory) buildAuxTools(ctx context.Context, sessionID string, inc
 		return out, fmt.Errorf("build skill tools: %w", err)
 	}
 	out.skill = skillTools
-	if includePlanning {
-		lifecycle, err := f.buildSkillLifecycleTools()
-		if err != nil {
-			return out, err
-		}
-		out.lifecycle = lifecycle
-	}
 	return out, nil
 }
 
@@ -308,17 +277,5 @@ func (f *RunnerFactory) buildMemoryTools(ctx context.Context) ([]einotool.BaseTo
 	if f.deps.MemoryModule == nil {
 		return nil, nil
 	}
-	return toolset.BuildMemoryFileTools(ctx, f.deps.MemoryModule, delegateTaskBridge{})
-}
-
-func (f *RunnerFactory) buildSkillLifecycleTools() ([]einotool.BaseTool, error) {
-	lifecycle, err := skills.BuildSkillLifecycleTools(skills.ToolOptions{
-		Loader: f.deps.Loader,
-		Store:  f.deps.Store,
-		Bridge: delegateTaskBridge{},
-	})
-	if err != nil {
-		return nil, fmt.Errorf("build skill lifecycle tools: %w", err)
-	}
-	return lifecycle, nil
+	return toolset.BuildMemoryFileTools(ctx, f.deps.MemoryModule)
 }

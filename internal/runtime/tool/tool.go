@@ -385,12 +385,11 @@ func BuildCatalogSpecs(
 	cfg *config.Config,
 	source string,
 	kind tooling.ToolKind,
-	profiles []tooling.ToolProfile,
 	tools []einotool.BaseTool,
 ) ([]tooling.ToolSpec, error) {
 	specs := make([]tooling.ToolSpec, 0, len(tools))
 	for _, tool := range tools {
-		spec, err := RuntimeToolSpec(ctx, cfg, source, kind, profiles, tool)
+		spec, err := RuntimeToolSpec(ctx, cfg, source, kind, tool)
 		if err != nil {
 			return nil, err
 		}
@@ -404,7 +403,6 @@ func RuntimeToolSpec(
 	cfg *config.Config,
 	source string,
 	kind tooling.ToolKind,
-	profiles []tooling.ToolProfile,
 	tool einotool.BaseTool,
 ) (tooling.ToolSpec, error) {
 	info, err := tool.Info(ctx)
@@ -424,20 +422,17 @@ func RuntimeToolSpec(
 		return localSpec, nil
 	}
 
-	if contract, ok := tooling.BuiltinToolSpec(name, source, profiles); ok {
+	if contract, ok := tooling.BuiltinToolSpec(name, source); ok {
 		return tooling.ToolSpec{ToolContract: contract, Tool: tool}, nil
 	}
 
 	spec := tooling.ToolSpec{
 		ToolContract: tooling.ToolContract{
-			Name:          name,
-			Source:        source,
-			Kind:          kind,
-			Category:      tooling.ToolCategoryInspect,
-			ResourceScope: tooling.ResourceScopeWorkspaceFile,
-			Profiles:      append([]tooling.ToolProfile(nil), profiles...),
-			PlanPolicy:    tooling.PlanPolicyNone,
-			Loading:       tooling.EagerLoadingPolicy(),
+			Name:     name,
+			Source:   source,
+			Kind:     kind,
+			Category: tooling.ToolCategoryInspect,
+			Loading:  tooling.EagerLoadingPolicy(),
 			Execution: tooling.ToolExecutionPolicy{
 				ParallelPolicy: tooling.ParallelPolicyReadOnly,
 			},
@@ -446,18 +441,13 @@ func RuntimeToolSpec(
 	}
 
 	switch kind {
-	case tooling.ToolKindMCP, tooling.ToolKindMCPResource, tooling.ToolKindMCPPrompt:
+	case tooling.ToolKindMCP:
 		spec.Kind = kind
 		spec.Category = tooling.ToolCategoryIntegration
-		spec.ResourceScope = tooling.ResourceScopeMCP
 		spec.Execution.ParallelPolicy = tooling.ParallelPolicyReadOnly
 		spec.Execution.PathArg = "path"
-		if kind == tooling.ToolKindMCPResource || kind == tooling.ToolKindMCPPrompt {
-			spec.Loading = tooling.DeferredLoadingPolicy("deferred_mcp_catalog")
-		}
 	default:
 		spec.Category = tooling.ToolCategoryInspect
-		spec.ResourceScope = tooling.ResourceScopeWorkspaceFile
 		spec.Execution.ParallelPolicy = tooling.ParallelPolicyReadOnly
 		spec.Execution.PathArg = "path"
 	}

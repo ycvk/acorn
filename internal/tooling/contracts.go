@@ -24,15 +24,12 @@ type ToolExecutionPolicy struct {
 }
 
 type ToolContract struct {
-	Name          string
-	Source        string
-	Kind          ToolKind
-	Category      ToolCategory
-	ResourceScope ResourceScope
-	Profiles      []ToolProfile
-	PlanPolicy    PlanPolicy
-	Loading       ToolLoadingPolicy
-	Execution     ToolExecutionPolicy
+	Name      string
+	Source    string
+	Kind      ToolKind
+	Category  ToolCategory
+	Loading   ToolLoadingPolicy
+	Execution ToolExecutionPolicy
 }
 
 func (c ToolContract) normalized() ToolContract {
@@ -40,7 +37,6 @@ func (c ToolContract) normalized() ToolContract {
 	c.Source = strings.TrimSpace(c.Source)
 	c.Loading.Reason = strings.TrimSpace(c.Loading.Reason)
 	c.Execution.PathArg = strings.TrimSpace(c.Execution.PathArg)
-	c.Profiles = append([]ToolProfile(nil), c.Profiles...)
 	return c
 }
 
@@ -58,37 +54,6 @@ func (c ToolContract) Validate() error {
 	if c.Category == "" {
 		return fmt.Errorf("tool contract %q has empty category", c.Name)
 	}
-	if c.ResourceScope == "" {
-		return fmt.Errorf("tool contract %q has empty resource scope", c.Name)
-	}
-	switch c.ResourceScope {
-	case ResourceScopeWorkspaceFile,
-		ResourceScopeWorkspaceCommand,
-		ResourceScopeMemory,
-		ResourceScopeSkill,
-		ResourceScopeMCP,
-		ResourceScopeArtifact,
-		ResourceScopeOperator,
-		ResourceScopeWeb,
-		ResourceScopeBrowser:
-	default:
-		return fmt.Errorf("tool contract %q has unknown resource scope %q", c.Name, c.ResourceScope)
-	}
-	if len(c.Profiles) == 0 {
-		return fmt.Errorf("tool contract %q has no profiles", c.Name)
-	}
-	for _, profile := range c.Profiles {
-		switch profile {
-		case ToolProfileRun, ToolProfileServe:
-		default:
-			return fmt.Errorf("tool contract %q has unknown profile %q", c.Name, profile)
-		}
-	}
-	switch c.PlanPolicy {
-	case PlanPolicyNone, PlanPolicyRequireActivePlan:
-	default:
-		return fmt.Errorf("tool contract %q has unknown plan policy %q", c.Name, c.PlanPolicy)
-	}
 	switch c.Loading.Mode {
 	case ToolLoadingModeEager, ToolLoadingModeHidden:
 	case ToolLoadingModeDeferred:
@@ -99,12 +64,9 @@ func (c ToolContract) Validate() error {
 		return fmt.Errorf("tool contract %q has unknown loading mode %q", c.Name, c.Loading.Mode)
 	}
 	switch c.Execution.ParallelPolicy {
-	case ParallelPolicyReadOnly, ParallelPolicyWriteScoped, ParallelPolicyNeverParallel:
+	case ParallelPolicyReadOnly, ParallelPolicySerial:
 	default:
 		return fmt.Errorf("tool contract %q has unknown parallel policy %q", c.Name, c.Execution.ParallelPolicy)
-	}
-	if c.Execution.ParallelPolicy == ParallelPolicyWriteScoped && c.Execution.PathArg == "" {
-		return fmt.Errorf("tool contract %q write-scoped execution requires path arg", c.Name)
 	}
 	return nil
 }

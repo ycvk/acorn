@@ -3,29 +3,23 @@ package runtime
 import (
 	"context"
 	"errors"
-	"fmt"
+	"sync"
 
 	"github.com/cloudwego/eino/adk"
 	einomodel "github.com/cloudwego/eino/components/model"
 	einotool "github.com/cloudwego/eino/components/tool"
-	"github.com/cloudwego/eino/compose"
 	"github.com/cloudwego/eino/schema"
 
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/contextplane"
-	"github.com/ycvk/acorn/internal/contextplane/compaction"
 	"github.com/ycvk/acorn/internal/orchestration"
 	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
-	"github.com/ycvk/acorn/internal/runtime/graph"
-	"github.com/ycvk/acorn/internal/runtime/plan"
 	"github.com/ycvk/acorn/internal/runtime/tool"
 	"github.com/ycvk/acorn/internal/tooling"
 )
 
 type orchestrationPlane interface {
 	BuildDirectResponse(ctx context.Context, req orchestration.DirectResponseRequest) (*orchestration.RunAssembly, error)
-	BuildSingleAgent(ctx context.Context, req orchestration.SingleAgentRequest) (*orchestration.RunAssembly, error)
-	BuildPlanExecute(ctx context.Context, req orchestration.PlanExecuteRequest) (*orchestration.RunAssembly, error)
 }
 
 type defaultOrchestrationPlaneDeps struct {
@@ -37,19 +31,50 @@ type defaultOrchestrationPlaneDeps struct {
 
 func newDefaultOrchestrationPlane(deps defaultOrchestrationPlaneDeps) *orchestration.DefaultPlane {
 	return orchestration.NewDefaultPlane(orchestration.DefaultPlaneOptions{
-		SystemPrompt:            deps.cfg.Agent.SystemPrompt,
-		MaxIterations:           deps.cfg.Agent.MaxIterations,
-		CheckpointStore:         deps.store,
-		PlanStore:               plan.NewPlanStore(deps.store),
-		ToolBuilder:             deps.buildAuditedTools,
-		ToolNodeFactory:         deps.buildToolNode,
-		GraphBuilder:            BuildRuntimeAgentGraph,
-		PlanExecuteGraphBuilder: BuildRuntimePlanExecuteGraph,
-		HandlersBuilder:         deps.buildHandlers,
-		InstructionBuilder:      buildStableInstruction,
-		ToolLifecycleBinder:     deps.bindToolLifecycle,
-		SessionContextBinder:    bindSessionID,
+		SystemPrompt:         deps.cfg.Agent.SystemPrompt,
+		MaxIterations:        deps.cfg.Agent.MaxIterations,
+		CheckpointStore:      newInMemoryCheckpointStore(),
+		ToolBuilder:          deps.buildAuditedTools,
+		ToolNodeFactory:      deps.buildToolNode,
+		HandlersBuilder:      deps.buildHandlers,
+		InstructionBuilder:   buildStableInstruction,
+		ToolLifecycleBinder:  deps.bindToolLifecycle,
+		SessionContextBinder: bindSessionID,
 	})
+}
+
+// inMemoryCheckpointStore is a process-local adk.CheckPointStore. The schema
+// reduction removed the SQLite-backed checkpoints table; runs re-bootstrap
+// their context from persisted messages on resume, so a volatile store is
+// sufficient for within-process run/resume continuity.
+type inMemoryCheckpointStore struct {
+	mu   sync.Mutex
+	data map[string][]byte
+}
+
+func newInMemoryCheckpointStore() *inMemoryCheckpointStore {
+	return &inMemoryCheckpointStore{data: make(map[string][]byte)}
+}
+
+func (s *inMemoryCheckpointStore) Get(_ context.Context, checkPointID string) ([]byte, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	payload, ok := s.data[checkPointID]
+	if !ok {
+		return nil, false, nil
+	}
+	cp := make([]byte, len(payload))
+	copy(cp, payload)
+	return cp, true, nil
+}
+
+func (s *inMemoryCheckpointStore) Set(_ context.Context, checkPointID string, checkPoint []byte) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	cp := make([]byte, len(checkPoint))
+	copy(cp, checkPoint)
+	s.data[checkPointID] = cp
+	return nil
 }
 
 func (d defaultOrchestrationPlaneDeps) buildAuditedTools(
@@ -78,6 +103,10 @@ func (d defaultOrchestrationPlaneDeps) buildHandlers(
 	return buildRunnerAgentHandlers(ctx, d.cfg, d.contextPlane, d.handlers, chatModel, compressionState)
 }
 
+// buildRunnerAgentHandlers assembles the chat-model middleware chain. With the
+// compaction subpackage removed, compression is driven by the context session
+// (see context_session_bridge.go) rather than by model-call middleware; this
+// builder now only appends the caller-supplied extra handlers.
 func buildRunnerAgentHandlers(
 	ctx context.Context,
 	cfg *config.Config,
@@ -92,19 +121,10 @@ func buildRunnerAgentHandlers(
 	if contextPlane == nil {
 		return nil, errors.New("context plane is not initialized")
 	}
-	contextPolicy, err := cfg.ContextPolicy()
-	if err != nil {
-		return nil, fmt.Errorf("context policy: %w", err)
-	}
-	compressionHandlers, err := compaction.NewCompressionMiddlewareBuilder().Build(ctx, contextPolicy, chatModel, contextplane.CompressionBuildOptions{
-		RuntimeStorageDir: cfg.Runtime.StorageDir,
-		State:             compressionState,
-	})
-	if err != nil {
-		return nil, err
-	}
-	handlers := make([]adk.ChatModelAgentMiddleware, 0, len(compressionHandlers)+len(extraHandlers)+2)
-	handlers = append(handlers, compressionHandlers...)
+	_ = ctx
+	_ = chatModel
+	_ = compressionState
+	handlers := make([]adk.ChatModelAgentMiddleware, 0, len(extraHandlers))
 	handlers = append(handlers, extraHandlers...)
 	return handlers, nil
 }
@@ -116,71 +136,13 @@ func (d defaultOrchestrationPlaneDeps) bindToolLifecycle(
 	infos []*schema.ToolInfo,
 ) context.Context {
 	if adapter, ok := state.(toolLifecycleStateAdapter); ok && adapter.state != nil {
-		return contextplane.WithToolLifecycleContext(ctx, d.contextPlane.ToolResultLedger(), adapter.state, catalog, infos)
+		return contextplane.WithToolLifecycleContext(ctx, adapter.state, catalog, infos)
 	}
 	return ctx
 }
 
 func bindSessionID(ctx context.Context, sessionID string) context.Context {
 	return runtimeapi.WithSessionID(ctx, sessionID)
-}
-
-// --- graph build bridges ---
-
-func BuildRuntimeAgentGraph(ctx context.Context, req orchestration.GraphBuildRequest) (adk.Agent, error) {
-	typedPlanStore, err := runtimeGraphDependencies(req.PlanStore)
-	if err != nil {
-		return nil, err
-	}
-	runnable, err := plan.BuildAgentGraph(
-		ctx, req.AgentName, req.ChatModel, req.SafeToolNode, req.AssistantStreamer,
-		req.MaxIterations, req.CheckpointStore, req.Handlers, typedPlanStore,
-		req.PlanPrompt, req.EagerToolNames, req.ToolSpecs,
-	)
-	if err != nil {
-		return nil, err
-	}
-	return wrapGraphAgent(ctx, req.AgentName, req.AgentDescription, runnable, req.ChatModel, req.Tools, req.Handlers, req.MaxIterations, req.CheckpointStore)
-}
-
-func BuildRuntimePlanExecuteGraph(ctx context.Context, req orchestration.PlanExecuteGraphBuildRequest) (adk.Agent, error) {
-	typedPlanStore, err := runtimeGraphDependencies(req.PlanStore)
-	if err != nil {
-		return nil, err
-	}
-	runnable, err := plan.BuildPlanExecuteGraph(
-		ctx, req.AgentName, req.ChatModel, req.MaxIterations, req.CheckpointStore,
-		req.Handlers, typedPlanStore, req.PlanPrompt, req.EagerToolNames, req.ToolSpecs, req.ChildExecutor,
-	)
-	if err != nil {
-		return nil, err
-	}
-	return wrapGraphAgent(ctx, req.AgentName, req.AgentDescription, runnable, req.ChatModel, req.Tools, req.Handlers, req.MaxIterations, req.CheckpointStore)
-}
-
-func wrapGraphAgent(
-	ctx context.Context,
-	agentName, agentDescription string,
-	runnable compose.Runnable[*graph.AgentGraphInput, *schema.Message],
-	chatModel einomodel.BaseChatModel,
-	tools []einotool.BaseTool,
-	handlers []adk.ChatModelAgentMiddleware,
-	maxIterations int,
-	checkpointStore adk.CheckPointStore,
-) (adk.Agent, error) {
-	return graph.NewGraphAgent(
-		agentName, agentDescription, runnable, chatModel,
-		tools, handlers, maxIterations, checkpointStore,
-		graph.GraphAgentContextBinder(ctx),
-	), nil
-}
-
-func runtimeGraphDependencies(planStore orchestration.PlanStore) (runtimeapi.PlanStore, error) {
-	typedPlanStore, ok := planStore.(runtimeapi.PlanStore)
-	if !ok {
-		return nil, fmt.Errorf("orchestration plane requires runtime plan store")
-	}
-	return typedPlanStore, nil
 }
 
 type toolLifecycleStateAdapter struct {

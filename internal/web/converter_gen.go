@@ -142,18 +142,10 @@ func (c *ConverterImpl) appSystemToolCapabilityToWebCapabilitiesToolDTO(source a
 	webCapabilitiesToolDTO.Source = source.Source
 	webCapabilitiesToolDTO.Kind = source.Kind
 	webCapabilitiesToolDTO.Category = source.Category
-	webCapabilitiesToolDTO.ResourceScope = source.ResourceScope
-	if source.Profiles != nil {
-		webCapabilitiesToolDTO.Profiles = make([]string, len(source.Profiles))
-		for i := 0; i < len(source.Profiles); i++ {
-			webCapabilitiesToolDTO.Profiles[i] = source.Profiles[i]
-		}
-	}
 	webCapabilitiesToolDTO.Enabled = source.Enabled
 	webCapabilitiesToolDTO.HealthState = source.HealthState
 	webCapabilitiesToolDTO.HealthReason = source.HealthReason
 	webCapabilitiesToolDTO.ParallelPolicy = source.ParallelPolicy
-	webCapabilitiesToolDTO.PlanPolicy = source.PlanPolicy
 	webCapabilitiesToolDTO.Risk = source.Risk
 	webCapabilitiesToolDTO.RootDir = source.RootDir
 	webCapabilitiesToolDTO.WorkDir = source.WorkDir
@@ -243,8 +235,6 @@ func (c *ConverterImpl) memoryRecordDTOFromDomain(source memorymodule.Record) Me
 	webMemoryRecordDTO.Body = source.Body
 	webMemoryRecordDTO.Created = source.Created
 	webMemoryRecordDTO.Updated = source.Updated
-	webMemoryRecordDTO.ValidFrom = source.ValidFrom
-	webMemoryRecordDTO.ValidUntil = source.ValidUntil
 	webMemoryRecordDTO.SourceRun = source.SourceRun
 	if source.SourceRefs != nil {
 		webMemoryRecordDTO.SourceRefs = make([]string, len(source.SourceRefs))
@@ -252,13 +242,6 @@ func (c *ConverterImpl) memoryRecordDTOFromDomain(source memorymodule.Record) Me
 			webMemoryRecordDTO.SourceRefs[j] = source.SourceRefs[j]
 		}
 	}
-	if source.EvidenceRefs != nil {
-		webMemoryRecordDTO.EvidenceRefs = make([]string, len(source.EvidenceRefs))
-		for k := 0; k < len(source.EvidenceRefs); k++ {
-			webMemoryRecordDTO.EvidenceRefs[k] = source.EvidenceRefs[k]
-		}
-	}
-	webMemoryRecordDTO.Relations = c.memoryRecordRelationDTOsFromDomain(source.Relations)
 	return webMemoryRecordDTO
 }
 func (c *ConverterImpl) memoryRecordDTOsFromDomain(source []memorymodule.Record) []MemoryRecordDTO {
@@ -271,16 +254,6 @@ func (c *ConverterImpl) memoryRecordDTOsFromDomain(source []memorymodule.Record)
 	}
 	return webMemoryRecordDTOList
 }
-func (c *ConverterImpl) memoryRecordRelationDTOsFromDomain(source []memorymodule.RecordRelation) []MemoryRecordRelationDTO {
-	var webMemoryRecordRelationDTOList []MemoryRecordRelationDTO
-	if source != nil {
-		webMemoryRecordRelationDTOList = make([]MemoryRecordRelationDTO, len(source))
-		for i := 0; i < len(source); i++ {
-			webMemoryRecordRelationDTOList[i] = c.memorymoduleRecordRelationToWebMemoryRecordRelationDTO(source[i])
-		}
-	}
-	return webMemoryRecordRelationDTOList
-}
 func (c *ConverterImpl) memorySearchItemDTOsFromDomain(source []memorymodule.SearchItem) []MemorySearchItemDTO {
 	var webMemorySearchItemDTOList []MemorySearchItemDTO
 	if source != nil {
@@ -290,13 +263,6 @@ func (c *ConverterImpl) memorySearchItemDTOsFromDomain(source []memorymodule.Sea
 		}
 	}
 	return webMemorySearchItemDTOList
-}
-func (c *ConverterImpl) memorymoduleRecordRelationToWebMemoryRecordRelationDTO(source memorymodule.RecordRelation) MemoryRecordRelationDTO {
-	var webMemoryRecordRelationDTO MemoryRecordRelationDTO
-	webMemoryRecordRelationDTO.Type = string(source.Type)
-	webMemoryRecordRelationDTO.Target = source.Target
-	webMemoryRecordRelationDTO.Reason = source.Reason
-	return webMemoryRecordRelationDTO
 }
 func (c *ConverterImpl) memorymoduleSearchItemToWebMemorySearchItemDTO(source memorymodule.SearchItem) MemorySearchItemDTO {
 	var webMemorySearchItemDTO MemorySearchItemDTO
@@ -318,8 +284,6 @@ func (c *ConverterImpl) memorymoduleSearchItemToWebMemorySearchItemDTO(source me
 	webMemorySearchItemDTO.Score = source.Score
 	webMemorySearchItemDTO.Created = source.Created
 	webMemorySearchItemDTO.Updated = source.Updated
-	webMemorySearchItemDTO.ValidFrom = source.ValidFrom
-	webMemorySearchItemDTO.ValidUntil = source.ValidUntil
 	webMemorySearchItemDTO.SourceRun = source.SourceRun
 	if source.SourceRefs != nil {
 		webMemorySearchItemDTO.SourceRefs = make([]string, len(source.SourceRefs))
@@ -327,13 +291,6 @@ func (c *ConverterImpl) memorymoduleSearchItemToWebMemorySearchItemDTO(source me
 			webMemorySearchItemDTO.SourceRefs[j] = source.SourceRefs[j]
 		}
 	}
-	if source.EvidenceRefs != nil {
-		webMemorySearchItemDTO.EvidenceRefs = make([]string, len(source.EvidenceRefs))
-		for k := 0; k < len(source.EvidenceRefs); k++ {
-			webMemorySearchItemDTO.EvidenceRefs[k] = source.EvidenceRefs[k]
-		}
-	}
-	webMemorySearchItemDTO.Relations = c.memoryRecordRelationDTOsFromDomain(source.Relations)
 	return webMemorySearchItemDTO
 }
 func (c *ConverterImpl) messageDTOFromDomain(source app.Message) MessageDTO {

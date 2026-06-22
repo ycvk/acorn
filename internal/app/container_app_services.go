@@ -26,7 +26,7 @@ func buildContainerAppServices(cfg *config.Config, store containerAppStore, deps
 	container.client = BuildClientService(store, deps.executors, deps.runController, workspaceRoot)
 	container.pendingAction = NewPendingActionService(store)
 
-	memoryService, err := NewMemoryService(deps.memoryModule, semanticRuntimeOptions(cfg, deps.semanticIndex, deps.semanticEmbedder))
+	memoryService, err := NewMemoryService(deps.memoryModule)
 	if err != nil {
 		return nil, err
 	}

@@ -2,7 +2,6 @@ package runtime
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -11,10 +10,8 @@ import (
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/memorymodule"
 	"github.com/ycvk/acorn/internal/model"
-	"github.com/ycvk/acorn/internal/orchestration"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
 	"github.com/ycvk/acorn/internal/tooling"
-	"github.com/ycvk/acorn/internal/workspace"
 )
 
 type RunnerFactory struct {
@@ -27,17 +24,7 @@ type RunnerFactory struct {
 	registry     *Registry
 	currentRunID atomic.Value
 
-	runChatModelBuilder       func(context.Context, RunnerBuildRequest) (einomodel.BaseChatModel, error)
-	childAgentExecutorFactory ChildAgentExecutorFactory
-}
-
-type ChildAgentExecutorFactory func(ChildAgentRuntimeDeps) (orchestration.ChildAgentExecutor, error)
-
-type ChildAgentRuntimeDeps struct {
-	RunRuntime           RunRuntime
-	ParentDepth          func(parentRunID string) int
-	CreateChildWorkspace func(context.Context, string) (*workspace.Workspace, error)
-	RuntimeForWorkspace  func(*workspace.Workspace) RunRuntime
+	runChatModelBuilder func(context.Context, RunnerBuildRequest) (einomodel.BaseChatModel, error)
 }
 
 const (
@@ -46,16 +33,11 @@ const (
 )
 
 func NewRunnerFactory(cfg *config.Config, store RunnerFactoryStore, opts RunnerFactoryOptions) (*RunnerFactory, error) {
-	if opts.ChildAgentExecutorFactory == nil {
-		return nil, errors.New("child agent executor factory is required")
-	}
 	deps, err := buildRuntimeDeps(cfg, store, opts)
 	if err != nil {
 		return nil, fmt.Errorf("build runtime deps: %w", err)
 	}
-	factory := assembleRunnerFactory(deps)
-	factory.childAgentExecutorFactory = opts.ChildAgentExecutorFactory
-	return factory, nil
+	return assembleRunnerFactory(deps), nil
 }
 
 func (f *RunnerFactory) New(ctx context.Context, req RunnerBuildRequest) (*ActiveRunner, error) {
@@ -63,11 +45,7 @@ func (f *RunnerFactory) New(ctx context.Context, req RunnerBuildRequest) (*Activ
 }
 
 func (f *RunnerFactory) BuildCapabilitySpecs(ctx context.Context) ([]tooling.ToolSpec, error) {
-	childExec, err := f.newChildAgentExecutor()
-	if err != nil {
-		return nil, err
-	}
-	toolset, err := f.buildToolset(ctx, "", childExec, true, tooling.ToolProfileRun)
+	toolset, err := f.buildToolset(ctx, "", true)
 	if err != nil {
 		return nil, err
 	}

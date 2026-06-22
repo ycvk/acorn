@@ -23,7 +23,7 @@ func defaultConfig() *Config {
 			WindowTokens:        200000,
 			CompactMarginTokens: 13000,
 			PreserveRecentTurns: 3,
-			SummaryMaxTokens:    2048,
+			MaskAfterTurns:      2,
 		},
 		Runtime: RuntimeConfig{
 			StorageDir:        "~/.acorn",
@@ -48,10 +48,9 @@ func defaultConfig() *Config {
 			DefaultTimeoutSeconds: 20,
 		},
 		Agent: AgentConfig{
-			Name:             "coordinator",
-			Description:      "A local operator agent that can inspect files and execute commands.",
-			MaxIterations:    70,
-			MaxSubagentDepth: 3,
+			Name:          "coordinator",
+			Description:   "A local operator agent that can inspect files and execute commands.",
+			MaxIterations: 70,
 		},
 		Tools: ToolsConfig{
 			Workspace:  WorkspaceToolConfig{RootDir: "."},
@@ -63,10 +62,6 @@ func defaultConfig() *Config {
 				MemoryContextTokenBudget: 2000,
 			},
 			Semantic: MemorySemanticConfig{
-				Bleve: BleveSemanticConfig{
-					Path:      "",
-					IndexName: "memory_records",
-				},
 				// Semantic recall is OPTIONAL and OFF by default: model and base_url are
 				// intentionally empty so MemorySemanticConfigured() is false unless the
 				// operator explicitly sets them (matching the documented "embedding 未配置时

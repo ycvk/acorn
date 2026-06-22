@@ -15,7 +15,7 @@ func (s *LocalService) Prepare(ctx context.Context, req PrepareRequest) (*Prepar
 	}
 	query := strings.TrimSpace(req.UserInput)
 	if query == "" {
-		return &PrepareResult{}, nil
+		return &PrepareResult{SkillTree: s.GetSkillTree()}, nil
 	}
 	maxNudges, err := resolveLimit("prepare nudges", req.MaxNudges, defaultMaxNudges, maxPrepareNudges)
 	if err != nil {
@@ -27,22 +27,10 @@ func (s *LocalService) Prepare(ctx context.Context, req PrepareRequest) (*Prepar
 	}
 
 	// Semantic retrieval is an optional enhancement on the run hot path. When no
-	// semantic runtime is wired (embedding not configured), degrade to an empty
-	// memory result so the run still proceeds — zero recalled memory is a legal
-	// baseline, not silent degradation. Request validation above still runs. This is
-	// NOT a keyword/fake-vector fallback: explicit Search/SearchSemantic callers still
-	// fail loud, and a wired-but-failing semantic call still fails loud. Only this
-	// implicit Prepare path degrades. When the caller asked for Explain (eval /
-	// replay / debug; the run hot path never does), record a marker stage so a
-	// degraded sample is distinguishable from a genuine empty-hit result.
-	if s.semanticRuntimeSnapshot() == nil {
-		result := &PrepareResult{SkillTree: s.GetSkillTree()}
-		if req.Explain {
-			result.Explain = buildSearchExplain(query, WorkspaceScope(req.WorkspaceSlug), nil, []SearchStageExplain{{Name: searchStageSemanticUnwired}})
-		}
-		return result, nil
-	}
-
+	// embedder/vector store is wired, Search falls back to keyword matching, so
+	// Prepare still returns useful recalls. When the caller asked for Explain
+	// (eval / replay / debug; the run hot path never does), the search explain
+	// is forwarded.
 	search, err := s.Search(ctx, SearchRequest{
 		Query:   query,
 		Scope:   WorkspaceScope(req.WorkspaceSlug),
@@ -76,20 +64,6 @@ func (s *LocalService) Prepare(ctx context.Context, req PrepareRequest) (*Prepar
 				Status: item.Status,
 				Reason: fmt.Sprintf("matched %q", strings.TrimSpace(req.UserInput)),
 			})
-			if item.Kind == string(KindSkill) {
-				record, err := s.GetRecordByRef(ctx, item.Ref)
-				if err != nil {
-					return nil, fmt.Errorf("load skill record %q for activation: %w", item.Ref, err)
-				}
-				result.ProcedureActivations = append(result.ProcedureActivations, ProcedureActivationFromRecord(
-					req.RunID,
-					req.SessionID,
-					*record,
-					ProcedureActivationMatched,
-					"matched_prepare_query",
-					item.Score,
-				))
-			}
 		}
 		if len(result.Entries) < maxEntries && item.Score >= 3 {
 			if item.Kind != string(KindSkill) {
@@ -116,7 +90,7 @@ func prepareRecordInjectable(record Record) bool {
 		return false
 	}
 	if record.Kind == KindSkill {
-		return procedureInjectable(record)
+		return false
 	}
 	return true
 }

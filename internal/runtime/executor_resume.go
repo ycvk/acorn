@@ -31,11 +31,8 @@ func (e *Executor) ResumeWithTargets(ctx context.Context, runID string, targets 
 
 func (e *Executor) executeResume(ctx context.Context, runCtxBase context.Context, run events.RunRecord, runID string, targets map[string]any, sink stream.StreamSink) (*Result, error) {
 	active, err := e.runRuntime.New(runCtxBase, RunnerBuildRequest{
-		SessionID:         run.SessionID,
-		RunID:             runID,
-		OrchestrationMode: run.OrchestrationMode,
-		ParentRunID:       run.ParentRunID,
-		SkillID:           run.SkillID,
+		SessionID: run.SessionID,
+		RunID:     runID,
 	})
 	if err != nil {
 		return nil, err
@@ -77,13 +74,10 @@ func (e *Executor) bootstrapResumeContextSession(ctx context.Context, run events
 		messages = []adk.Message{schema.UserMessage(run.Input)}
 	}
 	_, err := e.bootstrapContextSessionMessages(ctx, runtimeapi.ExecuteRequest{
-		SessionID:         run.SessionID,
-		TurnIndex:         run.TurnIndex,
-		Input:             run.Input,
-		Messages:          messages,
-		OrchestrationMode: run.OrchestrationMode,
-		ParentRunID:       run.ParentRunID,
-		Depth:             run.Depth,
-	}, runID, run.OrchestrationMode, active)
+		SessionID: run.SessionID,
+		TurnIndex: run.TurnIndex,
+		Input:     run.Input,
+		Messages:  messages,
+	}, runID, active)
 	return err
 }

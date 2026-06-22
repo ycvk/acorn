@@ -2,17 +2,13 @@ package memorymodule
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"sort"
 	"strings"
 )
 
-const SemanticSchemaMemoryRecordsV1 = "memory_records_v1"
-
+// Embedder converts text inputs into dense float32 vectors via an external
+// embedding model (e.g. an OpenAI-compatible embeddings API).
 type Embedder interface {
 	Embed(ctx context.Context, req EmbedRequest) (*EmbedResult, error)
 }
@@ -37,105 +33,7 @@ type EmbeddingVector struct {
 	Values []float32
 }
 
-type SemanticIndex interface {
-	Rebuild(ctx context.Context, req SemanticRebuildRequest) (*SemanticRebuildResult, error)
-	Search(ctx context.Context, req SemanticSearchRequest) (*SemanticSearchResult, error)
-	Close() error
-}
-
-type SemanticRecord struct {
-	Ref          string
-	Kind         Kind
-	Scope        string
-	Status       Status
-	Origin       string
-	Title        string
-	Body         string
-	Path         string
-	Tags         []string
-	TaskPattern  string
-	SourceRun    string
-	SourceRefs   []string
-	EvidenceRefs []string
-	Relations    []RecordRelation
-	ContentHash  string
-	Created      string
-	Updated      string
-	ValidFrom    string
-	ValidUntil   string
-}
-
-type semanticRelationHashPayload struct {
-	Type   RelationType `json:"type"`
-	Target string       `json:"target"`
-	Reason string       `json:"reason,omitempty"`
-}
-
-type IndexedSemanticRecord struct {
-	Record SemanticRecord
-	Vector []float32
-}
-
-type SemanticRebuildRequest struct {
-	Records    []IndexedSemanticRecord
-	Model      string
-	Dimensions int
-	Schema     string
-	IndexName  string
-}
-
-type SemanticRebuildResult struct {
-	Model        string
-	Dimensions   int
-	Schema       string
-	IndexName    string
-	IndexedCount int
-	DeletedCount int
-	SkippedCount int
-}
-
-type SemanticSearchRequest struct {
-	Query           string
-	Vector          []float32
-	Scope           string
-	Kinds           []Kind
-	Limit           int
-	IncludeInactive bool
-	IncludeRetired  bool
-	Mode            string
-	Model           string
-	Dimensions      int
-	Explain         bool
-}
-
-type SemanticSearchResult struct {
-	Hits []SemanticHit
-}
-
-type SemanticHit struct {
-	Ref        string
-	Kind       Kind
-	Score      float64
-	Distance   float64
-	Stage      string
-	SourceRefs []string
-}
-
-type SemanticRebuildOptions struct {
-	Index      SemanticIndex
-	Embedder   Embedder
-	Model      string
-	Dimensions int
-	BatchSize  int
-	Schema     string
-	IndexName  string
-}
-
-type BleveSemanticIndexConfig struct {
-	Path       string
-	IndexName  string
-	Dimensions int
-}
+const SemanticSchemaMemoryRecordsV1 = "memory_records_v1"
 
 func ValidateEmbedResult(req EmbedRequest, result *EmbedResult, dimensions int) error {
 	if result == nil {
@@ -162,141 +60,4 @@ func ValidateEmbedResult(req EmbedRequest, result *EmbedResult, dimensions int) 
 		}
 	}
 	return nil
-}
-
-func SemanticRecordFromRecord(record Record) SemanticRecord {
-	return SemanticRecord{
-		Ref:          record.Ref,
-		Kind:         record.Kind,
-		Scope:        record.Scope,
-		Status:       record.Status,
-		Origin:       record.Origin,
-		Title:        record.Title,
-		Body:         record.Body,
-		Path:         record.RelPath,
-		Tags:         append([]string(nil), record.Tags...),
-		TaskPattern:  record.TaskPattern,
-		SourceRun:    record.SourceRun,
-		SourceRefs:   append([]string(nil), record.SourceRefs...),
-		EvidenceRefs: append([]string(nil), record.EvidenceRefs...),
-		Relations:    append([]RecordRelation(nil), record.Relations...),
-		Created:      record.Created,
-		Updated:      record.Updated,
-		ValidFrom:    record.ValidFrom,
-		ValidUntil:   record.ValidUntil,
-	}
-}
-
-func SemanticRecordText(record SemanticRecord) string {
-	parts := []string{
-		"kind: " + string(record.Kind),
-		"scope: " + strings.TrimSpace(record.Scope),
-		"status: " + string(record.Status),
-		"origin: " + strings.TrimSpace(record.Origin),
-		"path: " + strings.TrimSpace(record.Path),
-		"title: " + strings.TrimSpace(record.Title),
-		"tags: " + strings.Join(record.Tags, ", "),
-		"task_pattern: " + strings.TrimSpace(record.TaskPattern),
-		"source_run: " + strings.TrimSpace(record.SourceRun),
-		"source_refs: " + strings.Join(record.SourceRefs, ", "),
-		"evidence_refs: " + strings.Join(record.EvidenceRefs, ", "),
-		"relations: " + semanticRelationText(record.Relations),
-		"created: " + strings.TrimSpace(record.Created),
-		"updated: " + strings.TrimSpace(record.Updated),
-		"valid_from: " + strings.TrimSpace(record.ValidFrom),
-		"valid_until: " + strings.TrimSpace(record.ValidUntil),
-		"body: " + strings.TrimSpace(record.Body),
-	}
-	return compactSemanticText(parts)
-}
-
-func SemanticRecordContentHash(record SemanticRecord) (string, error) {
-	payload := struct {
-		Ref          string                        `json:"ref"`
-		Kind         Kind                          `json:"kind"`
-		Scope        string                        `json:"scope"`
-		Status       Status                        `json:"status"`
-		Origin       string                        `json:"origin"`
-		Title        string                        `json:"title"`
-		Body         string                        `json:"body"`
-		Path         string                        `json:"path"`
-		Tags         []string                      `json:"tags"`
-		TaskPattern  string                        `json:"task_pattern"`
-		SourceRun    string                        `json:"source_run"`
-		SourceRefs   []string                      `json:"source_refs"`
-		EvidenceRefs []string                      `json:"evidence_refs"`
-		Relations    []semanticRelationHashPayload `json:"relations"`
-		Created      string                        `json:"created"`
-		Updated      string                        `json:"updated"`
-		ValidFrom    string                        `json:"valid_from"`
-		ValidUntil   string                        `json:"valid_until"`
-	}{
-		Ref:          strings.TrimSpace(record.Ref),
-		Kind:         record.Kind,
-		Scope:        strings.TrimSpace(record.Scope),
-		Status:       record.Status,
-		Origin:       strings.TrimSpace(record.Origin),
-		Title:        strings.TrimSpace(record.Title),
-		Body:         strings.TrimSpace(record.Body),
-		Path:         strings.TrimSpace(record.Path),
-		Tags:         append([]string(nil), record.Tags...),
-		TaskPattern:  strings.TrimSpace(record.TaskPattern),
-		SourceRun:    strings.TrimSpace(record.SourceRun),
-		SourceRefs:   append([]string(nil), record.SourceRefs...),
-		EvidenceRefs: append([]string(nil), record.EvidenceRefs...),
-		Relations:    semanticRelationHashPayloads(record.Relations),
-		Created:      strings.TrimSpace(record.Created),
-		Updated:      strings.TrimSpace(record.Updated),
-		ValidFrom:    strings.TrimSpace(record.ValidFrom),
-		ValidUntil:   strings.TrimSpace(record.ValidUntil),
-	}
-	data, err := json.Marshal(payload)
-	if err != nil {
-		return "", fmt.Errorf("marshal semantic record hash payload: %w", err)
-	}
-	sum := sha256.Sum256(data)
-	return hex.EncodeToString(sum[:]), nil
-}
-
-func semanticRelationHashPayloads(relations []RecordRelation) []semanticRelationHashPayload {
-	if len(relations) == 0 {
-		return nil
-	}
-	out := make([]semanticRelationHashPayload, 0, len(relations))
-	for _, relation := range relations {
-		out = append(out, semanticRelationHashPayload(relation))
-	}
-	return out
-}
-
-func semanticRelationText(relations []RecordRelation) string {
-	if len(relations) == 0 {
-		return ""
-	}
-	parts := make([]string, 0, len(relations))
-	for _, relation := range relations {
-		part := string(relation.Type) + " " + strings.TrimSpace(relation.Target)
-		if reason := strings.TrimSpace(relation.Reason); reason != "" {
-			part += " " + reason
-		}
-		parts = append(parts, part)
-	}
-	return strings.Join(parts, "; ")
-}
-
-func SortSemanticRecordsByRef(records []SemanticRecord) {
-	sort.Slice(records, func(i, j int) bool {
-		return records[i].Ref < records[j].Ref
-	})
-}
-
-func compactSemanticText(parts []string) string {
-	lines := make([]string, 0, len(parts))
-	for _, part := range parts {
-		trimmed := strings.TrimSpace(part)
-		if trimmed != "" && !strings.HasSuffix(trimmed, ":") {
-			lines = append(lines, trimmed)
-		}
-	}
-	return strings.Join(lines, "\n")
 }

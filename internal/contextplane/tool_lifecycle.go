@@ -8,25 +8,20 @@ import (
 
 	"github.com/cloudwego/eino/schema"
 
-	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/tooling"
 )
 
-const (
-	defaultToolLifecycleMaxTurns = 2
-	defaultToolLifecycleMaxRefs  = 32
-)
+const defaultToolLifecycleMaxTurns = 2
 
 type toolLifecycleContextKey struct{}
 
 type ToolLifecycleContext struct {
-	Ledger          store.ToolResultLedger
 	State           *ToolLifecycleState
 	Catalog         *tooling.Catalog
 	ToolInfosByName map[string]*schema.ToolInfo
 }
 
-func WithToolLifecycleContext(ctx context.Context, ledger store.ToolResultLedger, state *ToolLifecycleState, catalog *tooling.Catalog, infos []*schema.ToolInfo) context.Context {
+func WithToolLifecycleContext(ctx context.Context, state *ToolLifecycleState, catalog *tooling.Catalog, infos []*schema.ToolInfo) context.Context {
 	infoMap := make(map[string]*schema.ToolInfo, len(infos))
 	for _, info := range infos {
 		if info == nil || strings.TrimSpace(info.Name) == "" {
@@ -35,7 +30,6 @@ func WithToolLifecycleContext(ctx context.Context, ledger store.ToolResultLedger
 		infoMap[strings.TrimSpace(info.Name)] = info
 	}
 	return context.WithValue(ctx, toolLifecycleContextKey{}, &ToolLifecycleContext{
-		Ledger:          ledger,
 		State:           state,
 		Catalog:         catalog,
 		ToolInfosByName: infoMap,
@@ -91,46 +85,6 @@ func LoadedToolInfosFromContext(ctx context.Context, always []string) []*schema.
 	return infos
 }
 
-func PruneToolMessages(ctx context.Context, messages []*schema.Message, currentTurn int) []*schema.Message {
-	lifecycleCtx := ToolLifecycleContextFromContext(ctx)
-	if lifecycleCtx == nil || lifecycleCtx.State == nil || len(messages) == 0 {
-		return messages
-	}
-	lifecycleCtx.State.Mu().Lock()
-	records := make(map[string]ToolResultRecord, len(lifecycleCtx.State.RecentResults))
-	maxAgeTurns := lifecycleCtx.State.MaxAgeTurns
-	for _, item := range lifecycleCtx.State.RecentResults {
-		if strings.TrimSpace(item.CallID) == "" {
-			continue
-		}
-		records[item.CallID] = item
-	}
-	lifecycleCtx.State.Mu().Unlock()
-	if len(records) == 0 {
-		return messages
-	}
-	pruned := append([]*schema.Message(nil), messages...)
-	for i, msg := range pruned {
-		if msg == nil || msg.Role != schema.Tool || strings.TrimSpace(msg.ToolCallID) == "" {
-			continue
-		}
-		record, ok := records[msg.ToolCallID]
-		if !ok {
-			continue
-		}
-		shouldPrune := currentTurn-record.TurnIndex > maxAgeTurns
-		if !shouldPrune {
-			continue
-		}
-		clone := *msg
-		clone.Content = formatPrunedToolResult(record)
-		record.PrunedAt = new(time.Now().UTC())
-		UpdateToolResultRecord(lifecycleCtx.State, record)
-		pruned[i] = &clone
-	}
-	return pruned
-}
-
 func newToolLifecycleState(ctx context.Context, req AssembleRequest) *ToolLifecycleState {
 	state := &ToolLifecycleState{
 		RunID:         strings.TrimSpace(req.RunID),
@@ -138,13 +92,12 @@ func newToolLifecycleState(ctx context.Context, req AssembleRequest) *ToolLifecy
 		LoadedTools:   make(map[string]LoadedToolRecord),
 		DeferredTools: make(map[string]DeferredToolRecord),
 		MaxAgeTurns:   defaultToolLifecycleMaxTurns,
-		MaxResultRefs: defaultToolLifecycleMaxRefs,
 	}
 	if req.ToolCatalog == nil {
 		return state
 	}
 
-	eagerNames, deferred := splitToolDefinitions(ctx, req.ToolCatalog.EnabledSpecsForProfile(tooling.ToolProfileRun))
+	eagerNames, deferred := splitToolDefinitions(ctx, req.ToolCatalog.EnabledSpecs())
 	now := time.Now().UTC()
 	for _, name := range eagerNames {
 		state.LoadedTools[name] = LoadedToolRecord{
@@ -196,39 +149,6 @@ func toolDescription(ctx context.Context, spec tooling.ToolSpec) string {
 		return ""
 	}
 	return strings.TrimSpace(info.Desc)
-}
-
-func formatPrunedToolResult(record ToolResultRecord) string {
-	var b strings.Builder
-	b.WriteString("[tool result pruned]\n")
-	b.WriteString("tool: ")
-	b.WriteString(strings.TrimSpace(record.ToolName))
-	b.WriteString("\ncall_id: ")
-	b.WriteString(strings.TrimSpace(record.CallID))
-	if ref := strings.TrimSpace(record.ResultRef); ref != "" {
-		b.WriteString("\nresult_ref: ")
-		b.WriteString(ref)
-	}
-	b.WriteString("\nnote: original output removed from live context after turn window expiry")
-	return b.String()
-}
-
-func UpdateToolResultRecord(state *ToolLifecycleState, record ToolResultRecord) {
-	if state == nil {
-		return
-	}
-	state.Mu().Lock()
-	defer state.Mu().Unlock()
-	for i, item := range state.RecentResults {
-		if item.CallID == record.CallID {
-			state.RecentResults[i] = record
-			return
-		}
-	}
-	state.RecentResults = append(state.RecentResults, record)
-	if state.MaxResultRefs > 0 && len(state.RecentResults) > state.MaxResultRefs {
-		state.RecentResults = append([]ToolResultRecord(nil), state.RecentResults[len(state.RecentResults)-state.MaxResultRefs:]...)
-	}
 }
 
 func sortedLoadedToolNames(state *ToolLifecycleState) []string {

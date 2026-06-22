@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/ycvk/acorn/internal/app"
-	"github.com/ycvk/acorn/internal/memorymodule"
 )
 
 func TestRunWithoutArgsReturnsUsage(t *testing.T) {
@@ -63,32 +62,6 @@ func TestRunUsageIncludesOperatorCommands(t *testing.T) {
 func TestDefaultConfigPathUsesHomeAcorn(t *testing.T) {
 	if defaultConfigPath != "~/.acorn/acorn.yaml" {
 		t.Fatalf("defaultConfigPath = %q, want ~/.acorn/acorn.yaml", defaultConfigPath)
-	}
-}
-
-func TestRenderSemanticRebuildResult(t *testing.T) {
-	out := renderSemanticRebuildResult(&memorymodule.SemanticRebuildResult{
-		IndexName:    "memory_records",
-		Schema:       memorymodule.SemanticSchemaMemoryRecordsV1,
-		Model:        "text-embedding-3-small",
-		Dimensions:   1536,
-		IndexedCount: 7,
-		DeletedCount: 1,
-		SkippedCount: 2,
-	})
-	for _, want := range []string{
-		"Semantic index rebuild complete",
-		"Index: memory_records",
-		"Schema: memory_records_v1",
-		"Model: text-embedding-3-small",
-		"Dimensions: 1536",
-		"Indexed: 7",
-		"Deleted: 1",
-		"Skipped: 2",
-	} {
-		if !strings.Contains(out, want) {
-			t.Fatalf("renderSemanticRebuildResult missing %q:\n%s", want, out)
-		}
 	}
 }
 

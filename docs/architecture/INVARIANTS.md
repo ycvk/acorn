@@ -4,11 +4,9 @@
 
 ## 运行时与编排
 
-- **单一共享执行 round 原语**：`direct_response`（`AgentLoop.RunOneIteration`）与 `plan_execute`/`single_agent`（`ActNode.Invoke`）均通过 `orchestration.RunActionRound`（ExecuteRound + reactive-compact-retry）执行模型回合，不各自内联重复逻辑。记录（BeforeModelCall/RecordAssistant/RecordToolResults）保持 mode-specific。
-  - `tests/architecture/action_round_sharing_test.go`
-- **单一 assembly 入口**：`assembleToolContext` + `assembleDirectContext` 已合并为 `assembleContext`（selection 可 nil）；3 个 `build*Assembly` 合并为 `buildAssembly`（mode 分发 + `baseAssemblyFields` 共享 helper）；`orchestration.BuildDirectResponse` 使用 `assembleTooling`。
-  - `tests/architecture/assembly_consolidation_test.go`
-- **internal/runtime 顶层按职责拆分**：顶层文件按职责组织（Executor/RunnerFactory/toolset 子包等），顶层无文件 >400 行、无函数 >30 行、无嵌套 >3、无 import cycle。`internal/orchestration` 和 `internal/runtime` 子目录（plan/、tool/、graph/ 等）的 pre-existing 文件不在本次重构守卫范围内。
+- **单一编排模式 direct_response**：`AgentLoop.RunOneIteration` 通过 `orchestration.RunActionRound`（ExecuteRound）执行模型回合。plan_execute/single_agent 模式已删除。ContextSession 在 BeforeModelCall 中执行 masking + auto-compact。
+  - `tests/architecture/runtime_split_test.go`
+- **结构守卫覆盖全包**：`tests/architecture/structural_limits_test.go` 的 `refactorOwnedDirs` 覆盖 `internal/runtime`、`internal/runtime/toolset`、`internal/tools`、`internal/contextplane`、`internal/store/sqlite`、`internal/memorymodule`、`internal/app`、`internal/orchestration`、`internal/providers/mcp`、`internal/web`、`internal/config`、`internal/workspace`、`internal/skills`、`internal/webaccess`。所有目录强制文件 ≤400 行；`internal/runtime` 和 `internal/runtime/toolset` 额外强制函数 ≤30 行、嵌套 ≤3 层。generated files（`*_gen.go`）被守卫排除。
   - `tests/architecture/structural_limits_test.go`
   - `tests/architecture/runtime_split_test.go`
 
@@ -18,17 +16,14 @@
   - `tests/architecture/store_boundary_test.go`
 - **Consumer-owned store 接口收敛**：`internal/runtime` + `internal/app` 顶层定义的 consumer-owned store 接口（Store/Port/Repository/Ledger）≤6（ExecutorStore、RunnerFactoryStore、containerRuntimeStore、containerAppStore、PendingActionCreateStore、skillSnapshotStore）。
   - `tests/architecture/store_interface_count_test.go`
-- **Context boundary 是 compact/resume 事实**：compact boundary chain、summary、transcript reference、preserved refs、token metrics 以 SQLite `context_boundaries` 为准。
-  - `internal/contextplane/compaction/compression_test.go`
-  - `internal/store/sqlite/store_context_boundaries_test.go`
-- **Tool result ledger 是工具结果事实**：tool result refs、arguments、side effects、evidence backlinks 以 SQLite `tool_results` 为准；tool output 不经字符数 compressor，过期 tool message 只替换为 durable `tool_result_ref`。
-  - `internal/store/sqlite/store_tool_results_test.go`
 
 ## 上下文与记忆
 
-- **Context pressure 由 BudgetGovernor 计算**：compact trigger + ContextSession blocking 基于 effective input window 与内部派生 policy；public YAML 只暴露 `context.window_tokens`、`context.compact_margin_tokens`、`context.preserve_recent_turns`、`context.summary_max_tokens`。
-  - `internal/contextplane/budget_governor_test.go`
-- **Memory Record V2 是长期记忆事实**：facts/procedures/history 的 validity、source/evidence refs、typed relations、active/retired 状态由 `internal/memorymodule` 解析和投影；client/ContextPlane/run selection/semantic index 不解析 markdown 或自行推断 active status。
+- **Hybrid context: masking + auto-compact**：ContextSession 在 BeforeModelCall 中执行 observation masking（旧 tool result 替换为占位符）+ LLM auto-compact（token 超阈值时生成 summary，circuit breaker 3 次失败后停止）；public YAML 只暴露 `context.window_tokens`、`context.compact_margin_tokens`、`context.mask_after_turns`、`context.preserve_recent_turns`。
+  - `internal/contextplane/context_session_test.go`
+  - `internal/contextplane/masking_test.go`
+  - `internal/contextplane/auto_compact_test.go`
+- **Memory Record V2 是长期记忆事实**：facts/history frontmatter 由 `internal/memorymodule` 解析；semantic search 走 embedding + SQLite 暴力余弦相似度。
   - `internal/memorymodule/fact_learning_test.go`
 
 ## Remote API 与 mobile
@@ -40,7 +35,9 @@
 - **Mobile 是 control surface 不是 runtime**：mobile 不执行 run、不持 runtime truth、不做 offline-first run execution、不维护第二套 message lifecycle；context pressure/boundary/run status 都消费后端 projection。
   - `mobile/test/...`（flutter test）
 
-## 发布
+## 代码规范
 
-- **Self-hosted release 固定 FAISS**：release build 固定 `-tags "bleve_faiss vectors"` + FAISS C API libs；缺失 artifact/build tags/CGO toolchain 显式失败，不发布 non-FAISS fallback。
-  - `tests/architecture/bleve_faiss_release_guard_test.go`
+- **Error 分两类**：Exported sentinel error（需要被 `errors.Is` 比对）必须是包级 `var ErrXxx`；precondition/internal-config error（不该发生的编程错误）用 inline `errors.New("...")` 直接返回。`.golangci.yml` 的 `errname` linter 强制导出 sentinel 命名。
+  - `.golangci.yml`（errname linter）
+- **Consumer-owned port 接口重复是故意的**：`tools.DelegateTaskContext`、`tools.OperatorQuestionContext`、`tools.ArtifactContext`、`skills.RunContextBridge`、`skills.LifecycleEventAppender` 与 `runtime/api.RunContextBridge`、`runtime/api.EventAppender` 结构相同但不可合并——合并会创建 import cycle（`runtime → tools/skills → runtime/api`）。`orchestration.PlanStore` 空标记接口同理（`orchestration → runtime/api` 禁止）。
+  - `tests/architecture/store_boundary_test.go`（import direction 不可破坏）

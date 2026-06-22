@@ -12,7 +12,6 @@ import (
 	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/memorymodule"
 	"github.com/ycvk/acorn/internal/model"
-	"github.com/ycvk/acorn/internal/orchestration"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/stream"
@@ -24,10 +23,6 @@ import (
 func (f *RunnerFactory) buildRun(ctx context.Context, req RunnerBuildRequest) (active *ActiveRunner, err error) {
 	if f == nil {
 		return nil, errors.New("runner factory is not initialized")
-	}
-	mode := events.OrchestrationMode(req.OrchestrationMode).Normalize()
-	if err = f.validateRunMode(mode); err != nil {
-		return nil, err
 	}
 	cleanup, regErr := f.registerRunForBuild(req)
 	if regErr != nil {
@@ -48,7 +43,7 @@ func (f *RunnerFactory) buildRun(ctx context.Context, req RunnerBuildRequest) (a
 		return nil, prereqErr
 	}
 	capabilities = capabilityAssembly.capabilities
-	active, err = f.assembleRunnerByMode(ctx, req, mode, chatModel, capabilityAssembly)
+	active, err = f.assembleRunnerByMode(ctx, req, events.ModeDirectResponse, chatModel, capabilityAssembly)
 	return active, err
 }
 
@@ -70,46 +65,29 @@ func (f *RunnerFactory) newDirectResponseRunner(ctx context.Context, req RunnerB
 		return nil, err
 	}
 	return &ActiveRunner{
-		Mcp:              capabilityAssembly.mcpManager,
-		Runner:           agentAssembly.Runner,
-		Instruction:      agentAssembly.Instruction,
-		ChatModel:        chatModel,
-		Factory:          f,
-		ContextResult:    contextResult,
-		RunID:            req.RunID,
-		CompressionState: agentAssembly.CompressionState,
-		ToolCatalog:      capabilities.catalog,
-		CloseRunTools:    capabilities.Close,
+		Mcp:           capabilityAssembly.mcpManager,
+		Runner:        agentAssembly.Runner,
+		Instruction:   agentAssembly.Instruction,
+		ChatModel:     chatModel,
+		Factory:       f,
+		ContextResult: contextResult,
+		RunID:         req.RunID,
+		ToolCatalog:   capabilities.catalog,
+		CloseRunTools: capabilities.Close,
 	}, nil
-}
-
-func (f *RunnerFactory) buildToolEnabledAssembly(
-	ctx context.Context,
-	mode events.OrchestrationMode,
-	req RunnerBuildRequest,
-	caps *runCapabilities,
-	chatModel einomodel.BaseChatModel,
-	contextResult *contextplane.AssembleResult,
-) (*orchestration.RunAssembly, error) {
-	var catalog *tooling.Catalog
-	if caps != nil {
-		catalog = caps.catalog
-	}
-	return f.buildAssembly(ctx, mode, req, catalog, chatModel, contextResult)
 }
 
 // RunnerFactoryOptions holds the optional dependencies for creating a RunnerFactory.
 type RunnerFactoryOptions struct {
-	Loader                    *skills.Loader
-	ExtraLocalTools           []einotool.BaseTool
-	Workspace                 *workspace.Workspace
-	Handlers                  []adk.ChatModelAgentMiddleware
-	CheckpointService         *workingstate.Service
-	SessionSummaryService     *model.SessionSummaryService
-	MemoryModule              memorymodule.Service
-	ContextPlane              contextplane.ContextPlane
-	MCPPendingActionStore     mcpprovider.PendingActionStore
-	ChildAgentExecutorFactory ChildAgentExecutorFactory
+	Loader                *skills.Loader
+	ExtraLocalTools       []einotool.BaseTool
+	Workspace             *workspace.Workspace
+	Handlers              []adk.ChatModelAgentMiddleware
+	CheckpointService     *workingstate.Service
+	SessionSummaryService *model.SessionSummaryService
+	MemoryModule          memorymodule.Service
+	ContextPlane          contextplane.ContextPlane
+	MCPPendingActionStore mcpprovider.PendingActionStore
 }
 
 // RunnerBuildRequest holds the parameters for building a new run.
@@ -122,24 +100,20 @@ type RunnerBuildRequest struct {
 	Sink              stream.StreamSink
 	ExcludedToolNames []string
 	InstructionSuffix string
-	OrchestrationMode events.OrchestrationMode
-	ParentRunID       string
 }
 
-// ActiveRunner represents a fully built and ready-to-execute run.
 type ActiveRunner struct {
-	Mcp              *mcpprovider.Manager
-	Runner           *adk.Runner
-	SelectedSkill    *SelectedSkill
-	Instruction      string
-	ChatModel        einomodel.BaseChatModel
-	Factory          *RunnerFactory
-	ContextResult    *contextplane.AssembleResult
-	ContextSession   contextplane.ContextSession
-	RunID            string
-	CompressionState any
-	ToolCatalog      *tooling.Catalog
-	CloseRunTools    func() error
+	Mcp            *mcpprovider.Manager
+	Runner         *adk.Runner
+	SelectedSkill  *SelectedSkill
+	Instruction    string
+	ChatModel      einomodel.BaseChatModel
+	Factory        *RunnerFactory
+	ContextResult  *contextplane.AssembleResult
+	ContextSession contextplane.ContextSession
+	RunID          string
+	ToolCatalog    *tooling.Catalog
+	CloseRunTools  func() error
 }
 
 // RunRuntime is the execution runtime facade required by Executor.

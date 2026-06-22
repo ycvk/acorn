@@ -14,10 +14,12 @@ func TestParallelPolicyStringParsing(t *testing.T) {
 	}{
 		{"read_only", ParallelPolicyReadOnly, false},
 		{"readonly", ParallelPolicyReadOnly, false},
-		{"write_scoped", ParallelPolicyWriteScoped, false},
-		{"never_parallel", ParallelPolicyNeverParallel, false},
+		{"serial", ParallelPolicySerial, false},
+		{"SERIAL", ParallelPolicySerial, false},
 		{"READ_ONLY", ParallelPolicyReadOnly, false},
 		{"unknown", "", true},
+		{"write_scoped", "", true},
+		{"never_parallel", "", true},
 	}
 	for _, tt := range tests {
 		got, err := ParseParallelPolicy(tt.input)
@@ -47,83 +49,71 @@ func TestConfiguredLocalSpecsCarryCanonicalPolicies(t *testing.T) {
 	if !ok {
 		t.Fatal("create_file spec missing")
 	}
-	if createFile.Execution.ParallelPolicy != ParallelPolicyWriteScoped {
-		t.Fatalf("create_file parallel = %q, want %q", createFile.Execution.ParallelPolicy, ParallelPolicyWriteScoped)
-	}
-	if createFile.PlanPolicy != PlanPolicyRequireActivePlan {
-		t.Fatalf("create_file plan = %q, want %q", createFile.PlanPolicy, PlanPolicyRequireActivePlan)
+	if createFile.Execution.ParallelPolicy != ParallelPolicySerial {
+		t.Fatalf("create_file parallel = %q, want %q", createFile.Execution.ParallelPolicy, ParallelPolicySerial)
 	}
 	runCommand, ok := ConfiguredLocalSpec(cfg, "run_command")
 	if !ok {
 		t.Fatal("run_command spec missing")
 	}
-	if runCommand.Execution.ParallelPolicy != ParallelPolicyNeverParallel {
-		t.Fatalf("run_command parallel = %q, want %q", runCommand.Execution.ParallelPolicy, ParallelPolicyNeverParallel)
+	if runCommand.Execution.ParallelPolicy != ParallelPolicySerial {
+		t.Fatalf("run_command parallel = %q, want %q", runCommand.Execution.ParallelPolicy, ParallelPolicySerial)
 	}
 	runVerification, ok := ConfiguredLocalSpec(cfg, "run_verification")
 	if !ok {
 		t.Fatal("run_verification spec missing")
 	}
-	if runVerification.Execution.ParallelPolicy != ParallelPolicyNeverParallel || runVerification.PlanPolicy != PlanPolicyRequireActivePlan {
-		t.Fatalf("run_verification policy = parallel:%q plan:%q", runVerification.Execution.ParallelPolicy, runVerification.PlanPolicy)
+	if runVerification.Execution.ParallelPolicy != ParallelPolicySerial {
+		t.Fatalf("run_verification parallel = %q, want %q", runVerification.Execution.ParallelPolicy, ParallelPolicySerial)
 	}
 	multiEdit, ok := ConfiguredLocalSpec(cfg, "multi_edit")
 	if !ok {
 		t.Fatal("multi_edit spec missing")
 	}
-	if multiEdit.Execution.ParallelPolicy != ParallelPolicyNeverParallel || multiEdit.PlanPolicy != PlanPolicyRequireActivePlan {
-		t.Fatalf("multi_edit policy = parallel:%q plan:%q", multiEdit.Execution.ParallelPolicy, multiEdit.PlanPolicy)
+	if multiEdit.Execution.ParallelPolicy != ParallelPolicySerial {
+		t.Fatalf("multi_edit parallel = %q, want %q", multiEdit.Execution.ParallelPolicy, ParallelPolicySerial)
 	}
 	gitSummary, ok := ConfiguredLocalSpec(cfg, "git_summary")
 	if !ok {
 		t.Fatal("git_summary spec missing")
 	}
-	if gitSummary.PlanPolicy != PlanPolicyNone || gitSummary.Execution.ParallelPolicy != ParallelPolicyNeverParallel {
-		t.Fatalf("git_summary policy = parallel:%q plan:%q", gitSummary.Execution.ParallelPolicy, gitSummary.PlanPolicy)
+	if gitSummary.Execution.ParallelPolicy != ParallelPolicySerial {
+		t.Fatalf("git_summary parallel = %q, want %q", gitSummary.Execution.ParallelPolicy, ParallelPolicySerial)
 	}
 	rollbackCheckpoint, ok := ConfiguredLocalSpec(cfg, "rollback_workspace_checkpoint")
 	if !ok {
 		t.Fatal("rollback_workspace_checkpoint spec missing")
 	}
-	if rollbackCheckpoint.Execution.ParallelPolicy != ParallelPolicyNeverParallel {
-		t.Fatalf("rollback_workspace_checkpoint parallel = %q, want %q", rollbackCheckpoint.Execution.ParallelPolicy, ParallelPolicyNeverParallel)
-	}
-	if rollbackCheckpoint.PlanPolicy != PlanPolicyRequireActivePlan {
-		t.Fatalf("rollback_workspace_checkpoint plan = %q, want %q", rollbackCheckpoint.PlanPolicy, PlanPolicyRequireActivePlan)
+	if rollbackCheckpoint.Execution.ParallelPolicy != ParallelPolicySerial {
+		t.Fatalf("rollback_workspace_checkpoint parallel = %q, want %q", rollbackCheckpoint.Execution.ParallelPolicy, ParallelPolicySerial)
 	}
 	artifactWrite, ok := ConfiguredLocalSpec(cfg, "artifact_write")
 	if !ok {
 		t.Fatal("artifact_write spec missing")
 	}
-	if artifactWrite.ResourceScope != ResourceScopeArtifact || artifactWrite.Execution.ParallelPolicy != ParallelPolicyNeverParallel {
-		t.Fatalf("artifact_write policy = scope:%q parallel:%q", artifactWrite.ResourceScope, artifactWrite.Execution.ParallelPolicy)
-	}
-	if artifactWrite.PlanPolicy != PlanPolicyNone {
-		t.Fatalf("artifact_write plan = %q, want %q", artifactWrite.PlanPolicy, PlanPolicyNone)
+	if artifactWrite.Execution.ParallelPolicy != ParallelPolicySerial {
+		t.Fatalf("artifact_write parallel = %q, want %q", artifactWrite.Execution.ParallelPolicy, ParallelPolicySerial)
 	}
 	artifactRead, ok := ConfiguredLocalSpec(cfg, "artifact_read")
 	if !ok {
 		t.Fatal("artifact_read spec missing")
 	}
-	if artifactRead.ResourceScope != ResourceScopeArtifact || artifactRead.Execution.ParallelPolicy != ParallelPolicyReadOnly {
-		t.Fatalf("artifact_read policy = scope:%q parallel:%q", artifactRead.ResourceScope, artifactRead.Execution.ParallelPolicy)
+	if artifactRead.Execution.ParallelPolicy != ParallelPolicyReadOnly {
+		t.Fatalf("artifact_read parallel = %q, want %q", artifactRead.Execution.ParallelPolicy, ParallelPolicyReadOnly)
 	}
 	askOperator, ok := ConfiguredLocalSpec(cfg, "ask_operator")
 	if !ok {
 		t.Fatal("ask_operator spec missing")
 	}
-	if askOperator.ResourceScope != ResourceScopeOperator || askOperator.Execution.ParallelPolicy != ParallelPolicyNeverParallel {
-		t.Fatalf("ask_operator policy = scope:%q parallel:%q", askOperator.ResourceScope, askOperator.Execution.ParallelPolicy)
-	}
-	if askOperator.PlanPolicy != PlanPolicyNone {
-		t.Fatalf("ask_operator plan = %q, want %q", askOperator.PlanPolicy, PlanPolicyNone)
+	if askOperator.Execution.ParallelPolicy != ParallelPolicySerial {
+		t.Fatalf("ask_operator parallel = %q, want %q", askOperator.Execution.ParallelPolicy, ParallelPolicySerial)
 	}
 	webFetch, ok := ConfiguredLocalSpec(cfg, "web_fetch")
 	if !ok {
 		t.Fatal("web_fetch spec missing")
 	}
-	if webFetch.ResourceScope != ResourceScopeWeb || webFetch.Loading.Mode != ToolLoadingModeDeferred || webFetch.Loading.Reason != "web_access" {
-		t.Fatalf("web_fetch contract = scope:%q loading:%+v", webFetch.ResourceScope, webFetch.Loading)
+	if webFetch.Loading.Mode != ToolLoadingModeDeferred || webFetch.Loading.Reason != "web_access" {
+		t.Fatalf("web_fetch loading = %+v, want deferred/web_access", webFetch.Loading)
 	}
 	if webFetch.Execution.ParallelPolicy != ParallelPolicyReadOnly {
 		t.Fatalf("web_fetch parallel = %q, want %q", webFetch.Execution.ParallelPolicy, ParallelPolicyReadOnly)
@@ -132,8 +122,8 @@ func TestConfiguredLocalSpecsCarryCanonicalPolicies(t *testing.T) {
 	if !ok {
 		t.Fatal("web_search spec missing")
 	}
-	if webSearch.ResourceScope != ResourceScopeWeb || webSearch.Loading.Mode != ToolLoadingModeDeferred || webSearch.Loading.Reason != "web_access" {
-		t.Fatalf("web_search contract = scope:%q loading:%+v", webSearch.ResourceScope, webSearch.Loading)
+	if webSearch.Loading.Mode != ToolLoadingModeDeferred || webSearch.Loading.Reason != "web_access" {
+		t.Fatalf("web_search loading = %+v, want deferred/web_access", webSearch.Loading)
 	}
 	if webSearch.Execution.ParallelPolicy != ParallelPolicyReadOnly {
 		t.Fatalf("web_search parallel = %q, want %q", webSearch.Execution.ParallelPolicy, ParallelPolicyReadOnly)
@@ -142,62 +132,11 @@ func TestConfiguredLocalSpecsCarryCanonicalPolicies(t *testing.T) {
 	if !ok {
 		t.Fatal("browser spec missing")
 	}
-	if browser.ResourceScope != ResourceScopeBrowser || browser.Loading.Mode != ToolLoadingModeDeferred || browser.Loading.Reason != "web_access" {
-		t.Fatalf("browser contract = scope:%q loading:%+v", browser.ResourceScope, browser.Loading)
+	if browser.Loading.Mode != ToolLoadingModeDeferred || browser.Loading.Reason != "web_access" {
+		t.Fatalf("browser loading = %+v, want deferred/web_access", browser.Loading)
 	}
-	if browser.Execution.ParallelPolicy != ParallelPolicyNeverParallel {
-		t.Fatalf("browser parallel = %q, want %q", browser.Execution.ParallelPolicy, ParallelPolicyNeverParallel)
-	}
-}
-
-func TestToolContractAcceptsNativeDeveloperToolScopes(t *testing.T) {
-	tests := []struct {
-		name  string
-		scope ResourceScope
-	}{
-		{"artifact", ResourceScopeArtifact},
-		{"operator", ResourceScopeOperator},
-		{"web", ResourceScopeWeb},
-		{"browser", ResourceScopeBrowser},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			contract := ToolContract{
-				Name:          tt.name + "_tool",
-				Source:        "local",
-				Kind:          ToolKindNative,
-				Category:      ToolCategoryExecute,
-				ResourceScope: tt.scope,
-				Profiles:      []ToolProfile{ToolProfileRun},
-				PlanPolicy:    PlanPolicyRequireActivePlan,
-				Loading:       EagerLoadingPolicy(),
-				Execution: ToolExecutionPolicy{
-					ParallelPolicy: ParallelPolicyNeverParallel,
-				},
-			}
-			if err := contract.Validate(); err != nil {
-				t.Fatalf("validate contract: %v", err)
-			}
-		})
-	}
-}
-
-func TestToolContractRejectsUnknownResourceScope(t *testing.T) {
-	contract := ToolContract{
-		Name:          "bad_scope_tool",
-		Source:        "local",
-		Kind:          ToolKindNative,
-		Category:      ToolCategoryRead,
-		ResourceScope: ResourceScope("bad"),
-		Profiles:      []ToolProfile{ToolProfileRun},
-		PlanPolicy:    PlanPolicyNone,
-		Loading:       EagerLoadingPolicy(),
-		Execution: ToolExecutionPolicy{
-			ParallelPolicy: ParallelPolicyReadOnly,
-		},
-	}
-	if err := contract.Validate(); err == nil {
-		t.Fatal("expected unknown resource scope error")
+	if browser.Execution.ParallelPolicy != ParallelPolicySerial {
+		t.Fatalf("browser parallel = %q, want %q", browser.Execution.ParallelPolicy, ParallelPolicySerial)
 	}
 }
 

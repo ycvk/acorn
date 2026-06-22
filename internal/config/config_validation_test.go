@@ -21,7 +21,7 @@ func TestValidateExecutionReadyContextConfig(t *testing.T) {
 			WindowTokens:        200000,
 			CompactMarginTokens: 13000,
 			PreserveRecentTurns: 3,
-			SummaryMaxTokens:    2048,
+			MaskAfterTurns:      2,
 		},
 		Memory: defaultConfig().Memory,
 		Runtime: RuntimeConfig{
@@ -71,18 +71,11 @@ func TestValidateExecutionReadyContextConfig(t *testing.T) {
 			wantErr: "context.preserve_recent_turns must be >= 1",
 		},
 		{
-			name: "summary max tokens",
+			name: "mask after turns",
 			mutate: func(cfg *Config) {
-				cfg.Context.SummaryMaxTokens = 0
+				cfg.Context.MaskAfterTurns = -1
 			},
-			wantErr: "context.summary_max_tokens must be > 0",
-		},
-		{
-			name: "effective window too small",
-			mutate: func(cfg *Config) {
-				cfg.Context.WindowTokens = cfg.Context.CompactMarginTokens + defaultContextWarningGapTokens + defaultContextStaticOverheadTokens
-			},
-			wantErr: "context effective window must be greater than derived warning threshold buffer",
+			wantErr: "context.mask_after_turns must be >= 0",
 		},
 	}
 
@@ -115,7 +108,7 @@ func TestValidateExecutionReadyRejectsInvalidExecutionFields(t *testing.T) {
 			WindowTokens:        200000,
 			CompactMarginTokens: 13000,
 			PreserveRecentTurns: 3,
-			SummaryMaxTokens:    2048,
+			MaskAfterTurns:      2,
 		},
 		Web:       WebConfig{ListenAddr: "127.0.0.1:8080"},
 		WebAccess: defaultConfig().WebAccess,

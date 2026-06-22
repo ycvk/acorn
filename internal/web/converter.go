@@ -49,7 +49,6 @@ type Converter interface {
 	capabilitiesToolsDTOFromSnapshot(source []app.SystemToolCapability) []CapabilitiesToolDTO
 
 	// Memory
-	memoryRecordRelationDTOsFromDomain(source []memorymodule.RecordRelation) []MemoryRecordRelationDTO
 	//goverter:map RelPath Path
 	memoryRecordDTOFromDomain(source memorymodule.Record) MemoryRecordDTO
 	memoryRecordDTOsFromDomain(source []memorymodule.Record) []MemoryRecordDTO

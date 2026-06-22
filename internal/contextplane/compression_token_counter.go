@@ -3,92 +3,77 @@ package contextplane
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"strings"
 	"sync"
 
 	"github.com/cloudwego/eino/adk"
 	"github.com/cloudwego/eino/schema"
 	"github.com/localit-io/tiktoken-go"
 	tiktokenloader "github.com/pkoukk/tiktoken-go-loader"
-
-	"github.com/ycvk/acorn/internal/config"
 )
 
-var compressionTokenLoaderOnce sync.Once
+var tokenLoaderOnce sync.Once
 
-type CompressionTokenCounter struct {
-	encodingName string
-	encoder      *tiktoken.Tiktoken
-}
-
+// TokenCounter counts tokens for text and messages.
 type TokenCounter interface {
 	CountText(context.Context, string) (int, error)
 	CountMessages(context.Context, []adk.Message, []*schema.ToolInfo) (int, error)
 }
 
-func NewCompressionTokenCounter(cfg config.ContextConfig) (*CompressionTokenCounter, error) {
-	if err := ensureCompressionTokenLoader(); err != nil {
+// tiktokenCounter is the production TokenCounter backed by tiktoken-go.
+type tiktokenCounter struct {
+	encodingName string
+	encoder      *tiktoken.Tiktoken
+}
+
+// NewTokenCounter creates a tiktoken-backed TokenCounter using o200k_base
+// (the encoding used by GPT-4o / o1 and a reasonable approximation for other providers).
+func NewTokenCounter() (TokenCounter, error) {
+	if err := ensureTokenLoader(); err != nil {
 		return nil, err
 	}
-	encoding := strings.TrimSpace(cfg.TokenEncoding)
-	if encoding == "" {
-		return nil, errors.New("compression token encoding is required")
-	}
+	encoding := "o200k_base"
 	encoder, err := tiktoken.GetEncoding(encoding)
 	if err != nil {
 		return nil, fmt.Errorf("initialize tiktoken encoding %q: %w", encoding, err)
 	}
-	return &CompressionTokenCounter{
+	return &tiktokenCounter{
 		encodingName: encoding,
 		encoder:      encoder,
 	}, nil
 }
 
-func (c *CompressionTokenCounter) CountText(_ context.Context, text string) (int, error) {
+func (c *tiktokenCounter) CountText(_ context.Context, text string) (int, error) {
 	return len(c.encoder.Encode(text, nil, nil)), nil
 }
 
-func (c *CompressionTokenCounter) CountMessages(ctx context.Context, messages []adk.Message, tools []*schema.ToolInfo) (int, error) {
-	return c.count(ctx, messages, tools)
-}
-
-func (c *CompressionTokenCounter) CountReduction(ctx context.Context, messages []adk.Message, tools []*schema.ToolInfo) (int64, error) {
-	total, err := c.count(ctx, messages, tools)
-	if err != nil {
-		return 0, err
-	}
-	return int64(total), nil
-}
-
-func (c *CompressionTokenCounter) count(_ context.Context, messages []adk.Message, tools []*schema.ToolInfo) (int, error) {
+func (c *tiktokenCounter) CountMessages(ctx context.Context, messages []adk.Message, tools []*schema.ToolInfo) (int, error) {
 	total := 0
 	for _, msg := range messages {
-		payload, err := json.Marshal(normalizeCompressionMessage(msg))
+		payload, err := json.Marshal(normalizeMessage(msg))
 		if err != nil {
-			return 0, fmt.Errorf("marshal compression message: %w", err)
+			return 0, fmt.Errorf("marshal message for token count: %w", err)
 		}
 		total += len(c.encoder.Encode(string(payload), nil, nil))
 	}
 	for _, tool := range tools {
-		payload, err := json.Marshal(normalizeCompressionTool(tool))
+		payload, err := json.Marshal(normalizeTool(tool))
 		if err != nil {
-			return 0, fmt.Errorf("marshal compression tool: %w", err)
+			return 0, fmt.Errorf("marshal tool for token count: %w", err)
 		}
 		total += len(c.encoder.Encode(string(payload), nil, nil))
 	}
 	return total, nil
 }
 
-func ensureCompressionTokenLoader() error {
-	compressionTokenLoaderOnce.Do(func() {
+func ensureTokenLoader() error {
+	tokenLoaderOnce.Do(func() {
 		tiktoken.SetBpeLoader(tiktokenloader.NewOfflineLoader())
 	})
 	return nil
 }
 
-func normalizeCompressionMessage(msg adk.Message) *schema.Message {
+func normalizeMessage(msg adk.Message) *schema.Message {
 	if msg == nil {
 		return &schema.Message{}
 	}
@@ -105,7 +90,7 @@ func normalizeCompressionMessage(msg adk.Message) *schema.Message {
 	}
 }
 
-func normalizeCompressionTool(tool *schema.ToolInfo) *schema.ToolInfo {
+func normalizeTool(tool *schema.ToolInfo) *schema.ToolInfo {
 	if tool == nil {
 		return &schema.ToolInfo{}
 	}

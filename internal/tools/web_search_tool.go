@@ -49,7 +49,7 @@ func buildWebSearchTool(search WebSearchService, artifactService ArtifactService
 		if callID == "" {
 			return WebSearchOutput{}, errors.New("web_search requires current tool call context")
 		}
-		sourceRef := store.BuildToolResultRef(runID, callID)
+		sourceRef := "tool_result:" + runID + ":" + callID
 		result, err := search.Search(ctx, webaccess.SearchRequest{
 			Query:      input.Query,
 			MaxResults: input.MaxResults,

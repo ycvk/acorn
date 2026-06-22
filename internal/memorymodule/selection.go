@@ -19,15 +19,10 @@ func SelectRecords(records []Record, selection RecordSelection) ([]Record, error
 	if len(records) == 0 {
 		return nil, nil
 	}
-	byRef := make(map[string]Record, len(records))
 	for _, record := range records {
 		if strings.TrimSpace(record.Ref) == "" {
 			return nil, fmt.Errorf("memory record ref is required")
 		}
-		byRef[record.Ref] = record
-	}
-	if err := validateRelationTargets(byRef); err != nil {
-		return nil, err
 	}
 	if normalized.IncludeRetired {
 		return cloneAndSortRecords(records), nil
@@ -43,7 +38,7 @@ func SelectRecords(records []Record, selection RecordSelection) ([]Record, error
 		sortRecordsByRef(selected)
 		return selected, nil
 	}
-	active, err := activeRecords(records, byRef, normalized.Now)
+	active, err := activeRecords(records, normalized.Now)
 	if err != nil {
 		return nil, err
 	}
@@ -62,96 +57,22 @@ func normalizeRecordSelection(selection RecordSelection) RecordSelection {
 	return selection
 }
 
-func activeRecords(records []Record, byRef map[string]Record, now time.Time) ([]Record, error) {
+func activeRecords(records []Record, now time.Time) ([]Record, error) {
 	selected := make([]Record, 0, len(records))
-	superseded := make(map[string]struct{})
 	for _, record := range records {
-		if !recordIsDateActive(record, now) {
-			continue
-		}
 		if record.Status == StatusRetired {
 			continue
 		}
 		selected = append(selected, cloneRecord(record))
 	}
-	for _, record := range selected {
-		for _, relation := range record.Relations {
-			if relation.Type != RelationSupersedes {
-				continue
-			}
-			target := strings.TrimSpace(relation.Target)
-			if target == "" {
-				return nil, fmt.Errorf("supersedes relation target is required")
-			}
-			if target == record.Ref {
-				return nil, fmt.Errorf("record %q cannot supersede itself", record.Ref)
-			}
-			if _, ok := byRef[target]; !ok {
-				return nil, fmt.Errorf("supersedes relation target %q not found", target)
-			}
-			superseded[target] = struct{}{}
-		}
-	}
-	filtered := make([]Record, 0, len(selected))
-	for _, record := range selected {
-		if _, ok := superseded[record.Ref]; ok {
-			continue
-		}
-		filtered = append(filtered, record)
-	}
-	sortRecordsByRef(filtered)
-	return filtered, nil
-}
-
-func validateRelationTargets(byRef map[string]Record) error {
-	for ref, record := range byRef {
-		if strings.TrimSpace(ref) == "" {
-			return fmt.Errorf("memory record ref is required")
-		}
-		for _, relation := range record.Relations {
-			target := strings.TrimSpace(relation.Target)
-			if target == "" {
-				return fmt.Errorf("%s relation target is required", relation.Type)
-			}
-			if target == ref {
-				return fmt.Errorf("record %q cannot relate to itself", ref)
-			}
-			if _, ok := byRef[target]; !ok {
-				return fmt.Errorf("%s relation target %q not found", relation.Type, target)
-			}
-		}
-	}
-	return nil
-}
-
-func recordIsDateActive(record Record, now time.Time) bool {
-	if strings.TrimSpace(record.ValidFrom) != "" {
-		validFrom, err := time.Parse("2006-01-02", strings.TrimSpace(record.ValidFrom))
-		if err != nil {
-			return false
-		}
-		if now.Before(validFrom.UTC()) {
-			return false
-		}
-	}
-	if strings.TrimSpace(record.ValidUntil) != "" {
-		validUntil, err := time.Parse("2006-01-02", strings.TrimSpace(record.ValidUntil))
-		if err != nil {
-			return false
-		}
-		if now.After(validUntil.UTC().Add(23*time.Hour + 59*time.Minute + 59*time.Second)) {
-			return false
-		}
-	}
-	return true
+	sortRecordsByRef(selected)
+	return selected, nil
 }
 
 func cloneRecord(record Record) Record {
 	clone := record
 	clone.Tags = append([]string(nil), record.Tags...)
 	clone.SourceRefs = append([]string(nil), record.SourceRefs...)
-	clone.EvidenceRefs = append([]string(nil), record.EvidenceRefs...)
-	clone.Relations = append([]RecordRelation(nil), record.Relations...)
 	return clone
 }
 

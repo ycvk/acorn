@@ -8,15 +8,14 @@ import (
 )
 
 type MemoryService struct {
-	module   memorymodule.Service
-	semantic memorymodule.SemanticRuntimeOptions
+	module memorymodule.Service
 }
 
-func NewMemoryService(module memorymodule.Service, semantic memorymodule.SemanticRuntimeOptions) (*MemoryService, error) {
+func NewMemoryService(module memorymodule.Service) (*MemoryService, error) {
 	if module == nil {
 		return nil, errors.New("memory module service is required")
 	}
-	return &MemoryService{module: module, semantic: semantic}, nil
+	return &MemoryService{module: module}, nil
 }
 
 func (s *MemoryService) ListFacts(ctx context.Context, selection memorymodule.RecordSelection) ([]memorymodule.Record, error) {
@@ -33,23 +32,4 @@ func (s *MemoryService) ListHistory(ctx context.Context, selection memorymodule.
 
 func (s *MemoryService) Search(ctx context.Context, req memorymodule.SearchRequest) (*memorymodule.SearchResult, error) {
 	return s.module.Search(ctx, req)
-}
-
-func (s *MemoryService) RebuildSemanticIndex(ctx context.Context) (*memorymodule.SemanticRebuildResult, error) {
-	if s == nil || s.module == nil {
-		return nil, errors.New("memory service is required")
-	}
-	return s.module.RebuildSemanticIndex(ctx, memorymodule.SemanticRebuildOptions{
-		Index:      s.semantic.Index,
-		Embedder:   s.semantic.Embedder,
-		Model:      s.semantic.Model,
-		Dimensions: s.semantic.Dimensions,
-		BatchSize:  s.semantic.BatchSize,
-		Schema:     s.semantic.Schema,
-		IndexName:  s.semantic.IndexName,
-	})
-}
-
-func (s *MemoryService) CreateProcedure(ctx context.Context, req memorymodule.CreateProcedureRequest) (*memorymodule.ProcedureRecord, error) {
-	return s.module.CreateProcedure(ctx, req)
 }

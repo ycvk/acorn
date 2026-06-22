@@ -79,7 +79,7 @@ CREATE TABLE runs (
 	}
 }
 
-func TestStoreSchemaIncludesV2Tables(t *testing.T) {
+func TestStoreSchemaIncludesCoreTables(t *testing.T) {
 	store, err := Open(filepath.Join(t.TempDir(), "state"))
 	if err != nil {
 		t.Fatalf("open store: %v", err)
@@ -87,13 +87,14 @@ func TestStoreSchemaIncludesV2Tables(t *testing.T) {
 	t.Cleanup(func() { _ = store.Close() })
 
 	for table, column := range map[string]string{
-		"working_checkpoints":   "related_skill_id",
-		"run_context_snapshots": "working_checkpoint_skill_id",
-		"context_boundaries":    "boundary_id",
-		"run_archives":          "tool_names_json",
-		"session_summaries":     "source_run_id",
-		"provider_usages":       "cached_tokens",
-		"artifacts":             "source_tool_result_ref",
+		"runs":              "turn_index",
+		"events":            "payload_json",
+		"sessions":          "title",
+		"session_messages":  "content_parts",
+		"pending_actions":   "decision_json",
+		"session_summaries": "source_run_id",
+		"artifacts":         "source_tool_result_ref",
+		"schema_migrations": "version",
 	} {
 		columns, err := store.tableColumns(table)
 		if err != nil {
@@ -120,8 +121,7 @@ func TestEventsQueriesUseRunSequenceIndex(t *testing.T) {
 		t.Fatalf("query plan = %q, want idx_events_run_sequence", plan)
 	}
 }
-
-func TestV2MigrationAddsNewColumns(t *testing.T) {
+func TestV2MigrationAddsContentPartsColumn(t *testing.T) {
 	store, err := Open(filepath.Join(t.TempDir(), "state"))
 	if err != nil {
 		t.Fatalf("open store: %v", err)
@@ -129,9 +129,7 @@ func TestV2MigrationAddsNewColumns(t *testing.T) {
 	t.Cleanup(func() { _ = store.Close() })
 
 	v2Checks := []struct{ table, column string }{
-		{"runs", "parent_run_id"},
-		{"runs", "depth"},
-		{"runs", "skill_id"},
+		{"session_messages", "content_parts"},
 		{"schema_migrations", "version"},
 		{"schema_migrations", "applied_at"},
 	}
@@ -299,6 +297,20 @@ func TestMigrationDropsRemovedConversationFTS(t *testing.T) {
 		_ = db.Close()
 		t.Fatalf("seed current schema: %v", err)
 	}
+	// conversation_segments is no longer in the bootstrap schema; create it
+	// manually so the legacy FTS triggers can attach before migration drops it.
+	if _, err := db.Exec(`CREATE TABLE conversation_segments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT NOT NULL,
+    run_id TEXT NOT NULL UNIQUE,
+    user_content TEXT NOT NULL DEFAULT '',
+    assistant_content TEXT NOT NULL DEFAULT '',
+    run_status TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+);`); err != nil {
+		_ = db.Close()
+		t.Fatalf("seed conversation_segments: %v", err)
+	}
 	if _, err := db.Exec(`
 CREATE VIRTUAL TABLE conversation_segments_idx
     USING fts5(user_content, assistant_content,
@@ -372,20 +384,17 @@ func TestMigrationDropsDecisionTables(t *testing.T) {
 		_ = db.Close()
 		t.Fatalf("seed current schema: %v", err)
 	}
-	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS run_decisions (
+	// run_context_snapshots is no longer in the bootstrap schema; create it
+	// manually so the legacy decision_* columns can be added before migration.
+	if _, err := db.Exec(`CREATE TABLE run_context_snapshots (
     run_id TEXT PRIMARY KEY,
-    session_id TEXT NOT NULL DEFAULT '',
-    action TEXT NOT NULL,
-    intent TEXT NOT NULL DEFAULT '',
-    selected_skill_id TEXT NOT NULL DEFAULT '',
-    decision_reason TEXT NOT NULL DEFAULT '',
-    decision_profile_hash TEXT NOT NULL DEFAULT '',
+    working_checkpoint_content TEXT NOT NULL DEFAULT '',
+    working_checkpoint_skill_id TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL
 );`); err != nil {
 		_ = db.Close()
-		t.Fatalf("seed run_decisions: %v", err)
+		t.Fatalf("seed run_context_snapshots: %v", err)
 	}
-	// Add legacy decision columns to run_context_snapshots
 	if _, err := db.Exec(`ALTER TABLE run_context_snapshots ADD COLUMN decision_profile_hash TEXT NOT NULL DEFAULT ''`); err != nil {
 		_ = db.Close()
 		t.Fatalf("add decision_profile_hash: %v", err)
@@ -411,14 +420,9 @@ func TestMigrationDropsDecisionTables(t *testing.T) {
 	if tableExists(t, store, "run_decisions") {
 		t.Fatal("run_decisions table still exists after migration")
 	}
-	cols, err := store.tableColumns("run_context_snapshots")
-	if err != nil {
-		t.Fatalf("table info run_context_snapshots: %v", err)
-	}
-	for _, col := range []string{"decision_profile_hash", "decision_action", "decision_skill_id"} {
-		if _, ok := cols[col]; ok {
-			t.Fatalf("run_context_snapshots column %s still exists after migration", col)
-		}
+	// run_context_snapshots is dropped entirely by the refactored table drop.
+	if tableExists(t, store, "run_context_snapshots") {
+		t.Fatal("run_context_snapshots table still exists after migration")
 	}
 }
 

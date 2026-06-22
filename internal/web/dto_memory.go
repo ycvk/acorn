@@ -8,30 +8,20 @@ import (
 )
 
 type MemoryRecordDTO struct {
-	Ref          string                    `json:"ref"`
-	Kind         string                    `json:"kind"`
-	Title        string                    `json:"title"`
-	Status       string                    `json:"status"`
-	Scope        string                    `json:"scope,omitempty"`
-	Tags         []string                  `json:"tags,omitempty"`
-	Origin       string                    `json:"origin,omitempty"`
-	TaskPattern  string                    `json:"task_pattern,omitempty"`
-	Path         string                    `json:"path"`
-	Body         string                    `json:"body"`
-	Created      string                    `json:"created,omitempty"`
-	Updated      string                    `json:"updated,omitempty"`
-	ValidFrom    string                    `json:"valid_from,omitempty"`
-	ValidUntil   string                    `json:"valid_until,omitempty"`
-	SourceRun    string                    `json:"source_run,omitempty"`
-	SourceRefs   []string                  `json:"source_refs,omitempty"`
-	EvidenceRefs []string                  `json:"evidence_refs,omitempty"`
-	Relations    []MemoryRecordRelationDTO `json:"relations,omitempty"`
-}
-
-type MemoryRecordRelationDTO struct {
-	Type   string `json:"type"`
-	Target string `json:"target"`
-	Reason string `json:"reason,omitempty"`
+	Ref         string   `json:"ref"`
+	Kind        string   `json:"kind"`
+	Title       string   `json:"title"`
+	Status      string   `json:"status"`
+	Scope       string   `json:"scope,omitempty"`
+	Tags        []string `json:"tags,omitempty"`
+	Origin      string   `json:"origin,omitempty"`
+	TaskPattern string   `json:"task_pattern,omitempty"`
+	Path        string   `json:"path"`
+	Body        string   `json:"body"`
+	Created     string   `json:"created,omitempty"`
+	Updated     string   `json:"updated,omitempty"`
+	SourceRun   string   `json:"source_run,omitempty"`
+	SourceRefs  []string `json:"source_refs,omitempty"`
 }
 
 type MemoryRecordListResponse struct {
@@ -39,25 +29,21 @@ type MemoryRecordListResponse struct {
 }
 
 type MemorySearchItemDTO struct {
-	Ref          string                    `json:"ref"`
-	Kind         string                    `json:"kind"`
-	Title        string                    `json:"title"`
-	Status       string                    `json:"status"`
-	Scope        string                    `json:"scope,omitempty"`
-	Tags         []string                  `json:"tags,omitempty"`
-	Origin       string                    `json:"origin,omitempty"`
-	TaskPattern  string                    `json:"task_pattern,omitempty"`
-	Path         string                    `json:"path"`
-	Snippet      string                    `json:"snippet"`
-	Score        float64                   `json:"score"`
-	Created      string                    `json:"created,omitempty"`
-	Updated      string                    `json:"updated,omitempty"`
-	ValidFrom    string                    `json:"valid_from,omitempty"`
-	ValidUntil   string                    `json:"valid_until,omitempty"`
-	SourceRun    string                    `json:"source_run,omitempty"`
-	SourceRefs   []string                  `json:"source_refs,omitempty"`
-	EvidenceRefs []string                  `json:"evidence_refs,omitempty"`
-	Relations    []MemoryRecordRelationDTO `json:"relations,omitempty"`
+	Ref         string   `json:"ref"`
+	Kind        string   `json:"kind"`
+	Title       string   `json:"title"`
+	Status      string   `json:"status"`
+	Scope       string   `json:"scope,omitempty"`
+	Tags        []string `json:"tags,omitempty"`
+	Origin      string   `json:"origin,omitempty"`
+	TaskPattern string   `json:"task_pattern,omitempty"`
+	Path        string   `json:"path"`
+	Snippet     string   `json:"snippet"`
+	Score       float64  `json:"score"`
+	Created     string   `json:"created,omitempty"`
+	Updated     string   `json:"updated,omitempty"`
+	SourceRun   string   `json:"source_run,omitempty"`
+	SourceRefs  []string `json:"source_refs,omitempty"`
 }
 
 type MemorySearchResponse struct {

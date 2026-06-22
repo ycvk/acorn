@@ -14,7 +14,6 @@ import (
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/contextplane"
 	"github.com/ycvk/acorn/internal/events"
-	"github.com/ycvk/acorn/internal/memorymodule"
 	"github.com/ycvk/acorn/internal/orchestration"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
 	"github.com/ycvk/acorn/internal/runtime/tool"
@@ -73,7 +72,6 @@ func resolveContextPlane(cfg *config.Config, store RunnerFactoryStore, opts Runn
 func assembleRuntimeDeps(cfg *config.Config, store RunnerFactoryStore, opts RunnerFactoryOptions, ws *workspace.Workspace, loader *skills.Loader, artifactService *corestore.ArtifactService, contextPlane contextplane.ContextPlane, orchestrationPlane orchestrationPlane) RuntimeDeps {
 	return RuntimeDeps{
 		Config:            cfg,
-		Store:             store,
 		Loader:            loader,
 		CheckpointService: opts.CheckpointService,
 		SessionSummarySvc: opts.SessionSummaryService,
@@ -118,10 +116,6 @@ func buildDefaultContextPlane(cfg *config.Config, store RunnerFactoryStore, opts
 		MemoryContextTokenBudget: memoryBudget,
 		MaxContextTokens:         maxContextTokens,
 		TokenCounter:             tokenCounter,
-		Store:                    store,
-		CheckpointService:        opts.CheckpointService,
-		SessionSummaryService:    opts.SessionSummaryService,
-		ToolResultLedger:         store,
 	}), nil
 }
 
@@ -130,15 +124,8 @@ func resolveContextPlaneTokenPolicy(cfg *config.Config) (memoryBudget, maxContex
 		return 0, 0, nil, nil
 	}
 	memoryBudget = cfg.Memory.Search.MemoryContextTokenBudget
-	contextPolicy, policyErr := cfg.ContextPolicy()
-	if policyErr != nil {
-		return 0, 0, nil, fmt.Errorf("context policy: %w", policyErr)
-	}
-	maxContextTokens, err = contextplane.ContextAssemblyTokenLimitFromContextPolicy(contextPolicy)
-	if err != nil {
-		return 0, 0, nil, fmt.Errorf("token limit: %w", err)
-	}
-	tokenCounter, err = contextplane.NewCompressionTokenCounter(contextPolicy)
+	maxContextTokens = cfg.Context.WindowTokens
+	tokenCounter, err = contextplane.NewTokenCounter()
 	if err != nil {
 		return 0, 0, nil, fmt.Errorf("token counter: %w", err)
 	}
@@ -154,10 +141,9 @@ func assembleRunnerFactory(deps RuntimeDeps) *RunnerFactory {
 
 // --- assembly dispatch ---
 
-// buildAssembly is the single assembly entry shared by all orchestration modes.
-// It dispatches to the mode-specific orchestration.Build* call, reusing the
-// common baseAssemblyFields helper so agent/session/tool fields are not
-// duplicated across the three request constructors.
+// buildAssembly dispatches to the direct_response orchestration plane,
+// reusing the common baseAssemblyFields helper so agent/session/tool fields
+// are not duplicated across request constructors.
 func (f *RunnerFactory) buildAssembly(
 	ctx context.Context,
 	mode events.OrchestrationMode,
@@ -170,16 +156,7 @@ func (f *RunnerFactory) buildAssembly(
 		return nil, fmt.Errorf("orchestration plane is not initialized")
 	}
 	bf := f.baseAssemblyFields(req, catalog, chatModel, contextResult)
-	switch mode {
-	case events.ModeDirectResponse:
-		return f.deps.Orchestration.BuildDirectResponse(ctx, f.directResponseRequest(bf, req))
-	case events.ModeSingleAgent:
-		return f.buildSingleAgentRun(ctx, bf, req)
-	case events.ModePlanExecute:
-		return f.buildPlanExecuteRun(ctx, bf, req)
-	default:
-		return nil, fmt.Errorf("unsupported orchestration mode %q", mode)
-	}
+	return f.deps.Orchestration.BuildDirectResponse(ctx, f.directResponseRequest(bf, req))
 }
 
 type baseAssemblyFields struct {
@@ -224,65 +201,6 @@ func (f *RunnerFactory) directResponseRequest(bf baseAssemblyFields, req RunnerB
 	}
 }
 
-func (f *RunnerFactory) buildSingleAgentRun(ctx context.Context, bf baseAssemblyFields, req RunnerBuildRequest) (*orchestration.RunAssembly, error) {
-	instructionSuffix, err := f.withMemoryInstruction(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-	return f.deps.Orchestration.BuildSingleAgent(ctx, orchestration.SingleAgentRequest{
-		AgentName:         bf.agentName,
-		AgentDescription:  bf.agentDescription,
-		SessionID:         bf.sessionID,
-		RunID:             bf.runID,
-		ChatModel:         bf.chatModel,
-		AssistantStreamer: tool.NewDirectAssistantStreamer(f.deps.Store),
-		Catalog:           bf.catalog,
-		ContextResult:     bf.contextResult,
-		AllowedToolNames:  bf.allowedToolNames,
-		ExcludedToolNames: bf.excludedToolNames,
-		InstructionSuffix: instructionSuffix,
-	})
-}
-
-func (f *RunnerFactory) buildPlanExecuteRun(ctx context.Context, bf baseAssemblyFields, req RunnerBuildRequest) (*orchestration.RunAssembly, error) {
-	instructionSuffix, err := f.withMemoryInstruction(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-	childExec, err := f.newChildAgentExecutor()
-	if err != nil {
-		return nil, err
-	}
-	return f.deps.Orchestration.BuildPlanExecute(ctx, orchestration.PlanExecuteRequest{
-		AgentName:         bf.agentName,
-		AgentDescription:  bf.agentDescription,
-		SessionID:         bf.sessionID,
-		RunID:             bf.runID,
-		ChatModel:         bf.chatModel,
-		Catalog:           bf.catalog,
-		ContextResult:     bf.contextResult,
-		AllowedToolNames:  bf.allowedToolNames,
-		ExcludedToolNames: bf.excludedToolNames,
-		InstructionSuffix: instructionSuffix,
-		ChildExecutor:     childExec,
-	})
-}
-
-func (f *RunnerFactory) withMemoryInstruction(ctx context.Context, req RunnerBuildRequest) (string, error) {
-	if f == nil || f.deps.MemoryModule == nil {
-		return "", errors.New("memory module is not initialized")
-	}
-	workspaceSlug := ""
-	if f.deps.Workspace != nil {
-		workspaceSlug = memorymodule.WorkspaceSlug(f.deps.Workspace.Root())
-	}
-	instruction, err := f.deps.MemoryModule.BuildMemoryInstruction(ctx, workspaceSlug)
-	if err != nil {
-		return "", fmt.Errorf("build memory instruction: %w", err)
-	}
-	return buildStableInstruction(req.InstructionSuffix, instruction), nil
-}
-
 // --- run capabilities ---
 
 type runCapabilities struct {
@@ -300,11 +218,7 @@ func (c *runCapabilities) Close() error {
 }
 
 func (f *RunnerFactory) buildRunCapabilities(ctx context.Context, sessionID string, mcpManager *mcpprovider.Manager) (*runCapabilities, error) {
-	childExec, err := f.newChildAgentExecutor()
-	if err != nil {
-		return nil, err
-	}
-	toolset, err := f.buildRunToolset(ctx, sessionID, childExec)
+	toolset, err := f.buildRunToolset(ctx, sessionID)
 	if err != nil {
 		return nil, err
 	}

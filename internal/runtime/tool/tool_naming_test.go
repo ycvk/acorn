@@ -248,7 +248,7 @@ func buildCapabilityRegistryForTest(
 	specs := make([]tooling.ToolSpec, 0, len(localTools)+len(registrations)+len(resourceTools)+len(promptTools))
 	for _, tool := range localTools {
 		specs = append(specs, tooling.ToolSpec{
-			ToolContract: toolNamingContract("", "local", tooling.ToolKindNative, tooling.ToolCategoryRead, tooling.ResourceScopeWorkspaceFile, tooling.EagerLoadingPolicy()),
+			ToolContract: toolNamingContract("", "local", tooling.ToolKindNative, tooling.ToolCategoryRead, tooling.EagerLoadingPolicy()),
 			Tool:         tool,
 		})
 	}
@@ -262,7 +262,7 @@ func buildCapabilityRegistryForTest(
 			return nil, fmt.Errorf("namespace MCP tool %q for provider %q: %w", info.Name, registration.ProviderName, err)
 		}
 		specs = append(specs, tooling.ToolSpec{
-			ToolContract: toolNamingContract("", registration.ProviderName, tooling.ToolKindMCP, tooling.ToolCategoryIntegration, tooling.ResourceScopeMCP, tooling.EagerLoadingPolicy()),
+			ToolContract: toolNamingContract("", registration.ProviderName, tooling.ToolKindMCP, tooling.ToolCategoryIntegration, tooling.EagerLoadingPolicy()),
 			Tool:         namespaced,
 		})
 	}
@@ -275,7 +275,7 @@ func buildCapabilityRegistryForTest(
 			return nil, fmt.Errorf("read resource tool info: nil ToolInfo")
 		}
 		specs = append(specs, tooling.ToolSpec{
-			ToolContract: toolNamingContract("", info.Name, tooling.ToolKindMCPResource, tooling.ToolCategoryIntegration, tooling.ResourceScopeMCP, tooling.DeferredLoadingPolicy("deferred_mcp_catalog")),
+			ToolContract: toolNamingContract("", info.Name, tooling.ToolKindMCP, tooling.ToolCategoryIntegration, tooling.DeferredLoadingPolicy("deferred_mcp_catalog")),
 			Tool:         tool,
 		})
 	}
@@ -288,7 +288,7 @@ func buildCapabilityRegistryForTest(
 			return nil, fmt.Errorf("read prompt tool info: nil ToolInfo")
 		}
 		specs = append(specs, tooling.ToolSpec{
-			ToolContract: toolNamingContract("", info.Name, tooling.ToolKindMCPPrompt, tooling.ToolCategoryIntegration, tooling.ResourceScopeMCP, tooling.DeferredLoadingPolicy("deferred_mcp_catalog")),
+			ToolContract: toolNamingContract("", info.Name, tooling.ToolKindMCP, tooling.ToolCategoryIntegration, tooling.DeferredLoadingPolicy("deferred_mcp_catalog")),
 			Tool:         tool,
 		})
 	}
@@ -300,18 +300,14 @@ func toolNamingContract(
 	source string,
 	kind tooling.ToolKind,
 	category tooling.ToolCategory,
-	scope tooling.ResourceScope,
 	loading tooling.ToolLoadingPolicy,
 ) tooling.ToolContract {
 	return tooling.ToolContract{
-		Name:          name,
-		Source:        source,
-		Kind:          kind,
-		Category:      category,
-		ResourceScope: scope,
-		Profiles:      []tooling.ToolProfile{tooling.ToolProfileRun},
-		PlanPolicy:    tooling.PlanPolicyNone,
-		Loading:       loading,
-		Execution:     tooling.ToolExecutionPolicy{ParallelPolicy: tooling.ParallelPolicyReadOnly},
+		Name:      name,
+		Source:    source,
+		Kind:      kind,
+		Category:  category,
+		Loading:   loading,
+		Execution: tooling.ToolExecutionPolicy{ParallelPolicy: tooling.ParallelPolicyReadOnly},
 	}
 }
