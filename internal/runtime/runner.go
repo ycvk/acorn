@@ -15,7 +15,6 @@ import (
 	"github.com/ycvk/acorn/internal/memorymodule"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
 	"github.com/ycvk/acorn/internal/runtime/orchestration"
-	"github.com/ycvk/acorn/internal/runtime/toolset"
 	"github.com/ycvk/acorn/internal/toolkit"
 	"github.com/ycvk/acorn/internal/tools"
 )
@@ -296,7 +295,7 @@ func (f *RunnerFactory) buildRunCapabilities(ctx context.Context, sessionID stri
 	}, nil
 }
 
-func (f *RunnerFactory) assembleRunCapabilitiesCatalog(ctx context.Context, toolset *toolset.Toolset, mcpManager *mcpprovider.Manager) (*toolkit.Catalog, error) {
+func (f *RunnerFactory) assembleRunCapabilitiesCatalog(ctx context.Context, toolset *Toolset, mcpManager *mcpprovider.Manager) (*toolkit.Catalog, error) {
 	specs := append([]toolkit.ToolSpec(nil), toolset.Catalog().Specs()...)
 	mcpSpecs, err := f.buildMCPToolSpecs(ctx, mcpManager)
 	if err != nil {

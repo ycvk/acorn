@@ -11,7 +11,6 @@ import (
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/domain"
-	"github.com/ycvk/acorn/internal/runtime/toolset"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/toolkit"
 	"github.com/ycvk/acorn/internal/tools"
@@ -32,7 +31,7 @@ func (artifactToolBridge) CurrentToolCallID(ctx context.Context) string {
 	return ToolAuditCallID(ctx)
 }
 
-func (f *RunnerFactory) buildRunToolset(ctx context.Context, sessionID string) (*toolset.Toolset, error) {
+func (f *RunnerFactory) buildRunToolset(ctx context.Context, sessionID string) (*Toolset, error) {
 	return f.buildToolset(ctx, sessionID, true)
 }
 
@@ -40,7 +39,7 @@ func (f *RunnerFactory) buildToolset(
 	ctx context.Context,
 	sessionID string,
 	includePlanning bool,
-) (_ *toolset.Toolset, err error) {
+) (_ *Toolset, err error) {
 	if err := f.validateToolsetDeps(); err != nil {
 		return nil, err
 	}
@@ -59,7 +58,7 @@ func (f *RunnerFactory) buildToolset(
 	if err != nil {
 		return nil, err
 	}
-	return toolset.NewToolset(catalog, closers...), nil
+	return NewToolset(catalog, closers...), nil
 }
 
 func (f *RunnerFactory) validateToolsetDeps() error {
@@ -245,5 +244,5 @@ func (f *RunnerFactory) buildMemoryTools(ctx context.Context) ([]einotool.BaseTo
 	if f.deps.MemoryModule == nil {
 		return nil, nil
 	}
-	return toolset.BuildMemoryFileTools(ctx, f.deps.MemoryModule)
+	return BuildMemoryFileTools(ctx, f.deps.MemoryModule)
 }
