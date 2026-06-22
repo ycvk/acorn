@@ -39,8 +39,10 @@ func runSummaryDTOsFromDomain(items []app.RunSummary) []RunSummaryDTO {
 
 type CreateRunRequest struct {
 	SkillID string `json:"skill_id,omitempty"`
-	Mode    string `json:"mode,omitempty"`
-	Input   string `json:"input,omitempty"`
+	// Mode is accepted for backward compatibility with old clients but no
+	// longer read — the runtime always uses direct_response.
+	Mode  string `json:"mode,omitempty"`
+	Input string `json:"input,omitempty"`
 }
 
 // RunDTO represents a client-visible run summary.
