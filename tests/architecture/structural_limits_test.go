@@ -21,8 +21,7 @@ import (
 // large files are NOT retroactively covered (out of refactor scope).
 // Import cycles are enforced by `go build ./...` (compiler fails on cycles).
 var refactorOwnedDirs = []string{
-	"internal/runtime",
-	"internal/runtime/toolset",
+	"internal/runtime/tool",
 	"internal/tools",
 	"internal/contextplane",
 	"internal/store/sqlite",
