@@ -6,7 +6,7 @@
 
 - **单一编排模式 direct_response**：`AgentLoop.RunOneIteration` 通过 `orchestration.RunActionRound`（ExecuteRound）执行模型回合。plan_execute/single_agent 模式已删除。ContextSession 在 BeforeModelCall 中执行 masking + auto-compact。
   - `tests/architecture/runtime_split_test.go`
-- **结构守卫覆盖全包**：`tests/architecture/structural_limits_test.go` 的 `refactorOwnedDirs` 覆盖 `internal/runtime`、`internal/runtime/toolset`、`internal/tools`、`internal/contextplane`、`internal/store/sqlite`、`internal/memorymodule`、`internal/app`、`internal/runtime/orchestration`、`internal/providers/mcp`、`internal/web`、`internal/config`、`internal/workspace`、`internal/skills`、`internal/webaccess`。所有目录强制文件 ≤400 行；`internal/runtime` 和 `internal/runtime/toolset` 额外强制函数 ≤30 行、嵌套 ≤3 层。generated files（`*_gen.go`）被守卫排除。
+- **结构守卫覆盖全包**：`tests/architecture/structural_limits_test.go` 的 `refactorOwnedDirs` 覆盖所有 `internal/` 重构目录。所有目录强制文件 ≤400 行。generated files（`*_gen.go`）和 test 文件被守卫排除。
   - `tests/architecture/structural_limits_test.go`
   - `tests/architecture/runtime_split_test.go`
 
