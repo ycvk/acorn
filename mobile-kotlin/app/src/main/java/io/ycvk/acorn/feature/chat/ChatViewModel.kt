@@ -145,7 +145,8 @@ class ChatViewModel @Inject constructor(
             onEvent = { packet ->
                 _chatState.value = projection.apply(_chatState.value, packet)
                 // On a terminal event, fold the streamed assistant text into the
-                // persisted message list and clear the streaming bubble.
+                // persisted message list and clear the streaming bubble so the
+                // finalized message is the only copy shown.
                 if (packet is RunEventPacket.RunCompleted || packet is RunEventPacket.RunFailed) {
                     val finalText = _chatState.value.assistantText
                     val finalReasoning = _chatState.value.assistantReasoning.ifBlank { null }
@@ -153,6 +154,7 @@ class ChatViewModel @Inject constructor(
                         _messages.value = _messages.value +
                             ChatMessage.Assistant(finalText, finalReasoning)
                     }
+                    _chatState.value = ChatState(runStatus = _chatState.value.runStatus)
                 }
             },
             onError = { t -> _error.value = t.message ?: "SSE error" },

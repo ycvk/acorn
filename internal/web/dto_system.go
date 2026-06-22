@@ -23,7 +23,7 @@ type CapabilitiesSummaryDTO struct {
 	SkillCount                 int `json:"skill_count"`
 	EligibleSkillCount         int `json:"eligible_skill_count"`
 	IneligibleSkillCount       int `json:"ineligible_skill_count"`
-	InvalidSkillCount          int `json:"invalid_count"`
+	InvalidSkillCount          int `json:"invalid_skill_count"`
 	MCPConfiguredProviderCount int `json:"mcp_configured_provider_count"`
 	MCPEnabledProviderCount    int `json:"mcp_enabled_provider_count"`
 	MCPHealthyProviderCount    int `json:"mcp_healthy_provider_count"`

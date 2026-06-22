@@ -47,12 +47,16 @@ class SettingsViewModel @Inject constructor(
                 val (status, settings) = withContext(Dispatchers.IO) {
                     ApiClient.accessToken = profile.accessToken
                     val api = ClientApi(basePath = profile.serverUrl)
-                    Pair(api.clientGetSystemStatus(), api.clientGetSettings())
+                    val s = api.clientGetSystemStatus()
+                    val c = api.clientGetSettings()
+                    android.util.Log.d("AcornSettings", "status=${s}, settings=${c}")
+                    Pair(s, c)
                 }
                 _systemStatus.value = status
                 _settings.value = settings
                 _error.value = null
             } catch (e: Exception) {
+                android.util.Log.e("AcornSettings", "loadSettings failed", e)
                 _error.value = e.message ?: "Failed to load settings"
             }
         }
