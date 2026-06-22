@@ -6,7 +6,7 @@
 
 - **单一编排模式 direct_response**：`AgentLoop.RunOneIteration` 通过 `orchestration.RunActionRound`（ExecuteRound）执行模型回合。plan_execute/single_agent 模式已删除。ContextSession 在 BeforeModelCall 中执行 masking + auto-compact。
   - `tests/architecture/runtime_split_test.go`
-- **结构守卫覆盖全包**：`tests/architecture/structural_limits_test.go` 的 `refactorOwnedDirs` 覆盖所有 `internal/` 重构目录。所有目录强制文件 ≤400 行。generated files（`*_gen.go`）和 test 文件被守卫排除。
+- **结构守卫覆盖全包**：`tests/architecture/structural_limits_test.go` 的 `refactorOwnedDirs` 覆盖所有 `internal/` 重构目录。所有目录强制文件 ≤800 行。generated files（`*_gen.go`）和 test 文件被守卫排除。
   - `tests/architecture/structural_limits_test.go`
   - `tests/architecture/runtime_split_test.go`
 
@@ -39,5 +39,3 @@
 
 - **Error 分两类**：Exported sentinel error（需要被 `errors.Is` 比对）必须是包级 `var ErrXxx`；precondition/internal-config error（不该发生的编程错误）用 inline `errors.New("...")` 直接返回。`.golangci.yml` 的 `errname` linter 强制导出 sentinel 命名。
   - `.golangci.yml`（errname linter）
-- **Consumer-owned port 接口重复是故意的**：`tools.DelegateTaskContext`、`tools.OperatorQuestionContext`、`tools.ArtifactContext`、`skills.RunContextBridge`、`skills.LifecycleEventAppender` 与 `domain.RunContextBridge`、`domain.EventAppender` 结构相同但不可合并——合并会创建 import cycle（`runtime → tools/skills → runtime/api`）。`orchestration.PlanStore` 空标记接口同理（`orchestration → runtime/api` 禁止）。
-  - `tests/architecture/store_boundary_test.go`（import direction 不可破坏）
