@@ -20,3 +20,6 @@
 - [ADR-0004: 砍掉 MCP server mode](adr/ADR-0004-remove-mcp-server-mode.md) — keep MCP client only
 - [ADR-0005: SQLite schema 从 ~23 表精简到 ~8 表](adr/ADR-0005-sqlite-schema-simplify.md) — drop dead tables, clean cutover
 - [ADR-0006: Release 简化为纯 Go build](adr/ADR-0006-pure-go-release.md) — no FAISS/CGO/build tags
+- [ADR-0007: 移动端 Flutter → Kotlin + Jetpack Compose](adr/ADR-0007-mobile-flutter-to-kotlin-compose.md) — Hilt + Material 3 + OkHttp SSE + openapi-generator-cli
+- [ADR-0008: 删 mode 路由壳](adr/ADR-0008-remove-mode-routing-shell.md) — OrchestrationMode + parseClientRunMode + assembleRunnerByMode
+- [ADR-0009: 删 skill lifecycle/assess 企业级机制](adr/ADR-0009-remove-skill-lifecycle-assess.md) — lifecycle_tools + RoutingFixture + LifecycleStatus + AssessmentVerdict
