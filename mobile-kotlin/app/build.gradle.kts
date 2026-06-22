@@ -70,8 +70,10 @@ dependencies {
     // EncryptedSharedPreferences
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
 
+    // Markdown rendering for assistant messages (JitPack).
+    implementation("com.github.jeziellago:compose-markdown:0.5.7")
+
     // ML Kit QR scanning
-    implementation("com.google.mlkit:barcode-scanning:17.3.0")
 
     // CameraX (for QR scanner)
     val cameraxVersion = "1.4.1"

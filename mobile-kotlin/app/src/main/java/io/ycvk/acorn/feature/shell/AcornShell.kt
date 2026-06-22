@@ -25,6 +25,7 @@ import io.ycvk.acorn.feature.approvals.ApprovalsScreen
 import io.ycvk.acorn.feature.pairing.PairingScreen
 import io.ycvk.acorn.feature.settings.SettingsScreen
 import io.ycvk.acorn.feature.threads.ThreadsScreen
+import io.ycvk.acorn.feature.chat.ChatScreen
 
 @Composable
 fun AcornShell(
@@ -61,15 +62,25 @@ fun AcornShell(
         )
     }
 }
-
 @Composable
 private fun ConnectedShell(
     shellViewModel: ShellViewModel,
     @Suppress("UNUSED_PARAMETER") profile: io.ycvk.acorn.core.auth.ConnectionProfile,
 ) {
     val selectedTab by shellViewModel.selectedTab.collectAsStateWithLifecycle()
+    val openThreadId by shellViewModel.openThreadId.collectAsStateWithLifecycle()
     val screens = listOf("Threads", "Approvals", "Settings")
     val icons = listOf(Icons.Filled.Email, Icons.Filled.CheckCircle, Icons.Filled.Settings)
+
+    // If a chat thread is open, show the chat screen instead of the tabbed shell.
+    val currentThreadId = openThreadId
+    if (currentThreadId != null) {
+        ChatScreen(
+            threadId = currentThreadId,
+            onBack = { shellViewModel.closeThread() },
+        )
+        return
+    }
 
     Scaffold(
         bottomBar = {
@@ -86,7 +97,10 @@ private fun ConnectedShell(
         },
     ) { innerPadding ->
         when (selectedTab) {
-            ShellViewModel.TAB_THREADS -> ThreadsScreen(Modifier.padding(innerPadding))
+            ShellViewModel.TAB_THREADS -> ThreadsScreen(
+                onThreadClick = { id -> shellViewModel.openThread(id) },
+                modifier = Modifier.padding(innerPadding),
+            )
             ShellViewModel.TAB_APPROVALS -> ApprovalsScreen(Modifier.padding(innerPadding))
             ShellViewModel.TAB_SETTINGS -> SettingsScreen(Modifier.padding(innerPadding))
         }
