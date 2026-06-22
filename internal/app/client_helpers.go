@@ -12,7 +12,6 @@ import (
 var (
 	ErrClientProjectionFailed = errors.New("client projection failed")
 	ErrClientNoPendingMessage = errors.New("client pending user message not found")
-	ErrClientInvalidRunMode   = errors.New("client run mode is invalid")
 )
 
 // projectionError wraps a format string into ErrClientProjectionFailed.

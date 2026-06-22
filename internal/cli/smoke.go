@@ -19,7 +19,6 @@ func runSmoke(ctx context.Context, args []string) error {
 	fs := newFlagSet("smoke")
 	configPath := addConfigFlag(fs)
 	input := fs.String("input", "", "task input to send (or pass as positional args)")
-	mode := fs.String("mode", "", "orchestration mode: direct_response (default) or plan_execute")
 	jsonMode := fs.Bool("json", false, "print the run result as JSON")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -31,12 +30,8 @@ func runSmoke(ctx context.Context, args []string) error {
 	if text == "" {
 		return errors.New(`smoke input is required: acorn smoke "your task" or acorn smoke --input "..."`)
 	}
-	displayMode := strings.TrimSpace(*mode)
-	if displayMode == "" {
-		displayMode = "direct_response"
-	}
 	return withContainer(ctx, *configPath, func(container *app.Container) error {
-		result, err := container.RunOnce(ctx, text, *mode)
+		result, err := container.RunOnce(ctx, text)
 		if err != nil {
 			// In --json mode the run could not start (e.g. execution_not_ready); a
 			// scripted consumer still expects parseable JSON on stdout, not just a
@@ -45,7 +40,6 @@ func runSmoke(ctx context.Context, args []string) error {
 			if *jsonMode {
 				if body, mErr := json.MarshalIndent(smokeCommandOutput{
 					Status: "failed",
-					Mode:   displayMode,
 					Error:  err.Error(),
 				}, "", "  "); mErr == nil {
 					fmt.Println(string(body))
@@ -53,7 +47,7 @@ func runSmoke(ctx context.Context, args []string) error {
 			}
 			return err
 		}
-		out, err := renderSmokeResult(result, displayMode, *jsonMode)
+		out, err := renderSmokeResult(result, *jsonMode)
 		if err != nil {
 			return err
 		}
@@ -88,7 +82,7 @@ type smokeCommandOutput struct {
 
 // renderSmokeResult renders a smoke run outcome as human text or JSON. It is a
 // pure function so the formatting is unit-testable without a live runtime.
-func renderSmokeResult(result *app.RunOnceResult, mode string, jsonMode bool) (string, error) {
+func renderSmokeResult(result *app.RunOnceResult, jsonMode bool) (string, error) {
 	if result == nil {
 		return "", errors.New("smoke result is nil")
 	}
@@ -96,7 +90,7 @@ func renderSmokeResult(result *app.RunOnceResult, mode string, jsonMode bool) (s
 		body, err := json.MarshalIndent(smokeCommandOutput{
 			RunID:  result.RunID,
 			Status: result.Status,
-			Mode:   mode,
+			Mode:   "direct_response",
 			Output: result.Output,
 			Error:  result.Error,
 		}, "", "  ")
@@ -107,7 +101,7 @@ func renderSmokeResult(result *app.RunOnceResult, mode string, jsonMode bool) (s
 	}
 
 	var b strings.Builder
-	fmt.Fprintf(&b, "Run: %s  (mode=%s)\n", result.RunID, mode)
+	fmt.Fprintf(&b, "Run: %s  (mode=direct_response)\n", result.RunID)
 	fmt.Fprintf(&b, "Status: %s\n", result.Status)
 	if strings.TrimSpace(result.Output) != "" {
 		fmt.Fprintf(&b, "Output:\n%s\n", result.Output)

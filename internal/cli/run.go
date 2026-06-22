@@ -29,11 +29,11 @@ func runRun(ctx context.Context, args []string) error {
 		return errors.New(`run input is required: acorn run "your task" or acorn run --input "..."`)
 	}
 	return withContainer(ctx, *configPath, func(container *app.Container) error {
-		result, err := container.RunOnce(ctx, text, "")
+		result, err := container.RunOnce(ctx, text)
 		if err != nil {
 			return err
 		}
-		out, err := renderSmokeResult(result, "direct_response", *jsonMode)
+		out, err := renderSmokeResult(result, *jsonMode)
 		if err != nil {
 			return err
 		}

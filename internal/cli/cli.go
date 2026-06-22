@@ -64,7 +64,7 @@ Usage:
   acorn token issue [-c path] [--json] [--name name] [--ttl duration]
   acorn devices list [-c path] [--json]
   acorn devices revoke [-c path] DEVICE_ID
-  acorn smoke [-c path] [--json] [--mode direct_response|plan_execute] "task input"
+  acorn smoke [-c path] [--json] "task input"
   acorn run [-c path] [--json] "task input"
   acorn memory procedure create [-c path] [--json] --title title --task-pattern pattern --source-run run --evidence-refs refs "procedure body"
   acorn memory semantic rebuild [-c path] [--json]

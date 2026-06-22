@@ -86,16 +86,12 @@ func (s *ClientService) InterruptRun(ctx context.Context, runID string) error {
 	return s.controller.Interrupt(runID)
 }
 
-func (s *ClientService) CreateRun(ctx context.Context, threadID, skillID, mode, input string) (*Run, error) {
+func (s *ClientService) CreateRun(ctx context.Context, threadID, skillID, input string) (*Run, error) {
 	if s == nil || s.store == nil || s.newExecutor == nil || s.newRunID == nil {
 		return nil, errors.New("client service is not initialized")
 	}
 	threadID = strings.TrimSpace(threadID)
 	skillID = strings.TrimSpace(skillID)
-	orchestrationMode, err := parseClientRunMode(mode)
-	if err != nil {
-		return nil, err
-	}
 	if _, err := s.store.LoadSession(ctx, threadID); err != nil {
 		return nil, err
 	}
@@ -107,6 +103,7 @@ func (s *ClientService) CreateRun(ctx context.Context, threadID, skillID, mode, 
 	// one thread bind the same id and the second fails loud (RowsAffected=0 -> run
 	// rolled back), never silently mis-binding.
 	var message *events.SessionMessageRecord
+	var err error
 	if strings.TrimSpace(input) != "" {
 		message, err = s.createUserMessage(ctx, threadID, input)
 		if err != nil {
@@ -135,14 +132,13 @@ func (s *ClientService) CreateRun(ctx context.Context, threadID, skillID, mode, 
 	}
 	started := newRunStartSignal()
 	req := runtimeapi.ExecuteRequest{
-		RunID:             runID,
-		SessionID:         threadID,
-		TurnIndex:         message.TurnIndex,
-		Input:             message.Content,
-		BoundMessageID:    message.ID,
-		SkillID:           skillID,
-		Messages:          buildChatMessages(history),
-		OrchestrationMode: orchestrationMode,
+		RunID:          runID,
+		SessionID:      threadID,
+		TurnIndex:      message.TurnIndex,
+		Input:          message.Content,
+		BoundMessageID: message.ID,
+		SkillID:        skillID,
+		Messages:       buildChatMessages(history),
 	}
 	runCtx := context.WithoutCancel(ctx)
 	go s.executeRun(runCtx, exec, req, started)
@@ -154,18 +150,6 @@ func (s *ClientService) CreateRun(ctx context.Context, threadID, skillID, mode, 
 		return nil, err
 	case <-ctx.Done():
 		return nil, ctx.Err()
-	}
-}
-
-func parseClientRunMode(raw string) (events.OrchestrationMode, error) {
-	mode := events.OrchestrationMode(strings.TrimSpace(raw))
-	switch mode {
-	case "":
-		return "", nil
-	case events.ModeDirectResponse:
-		return mode, nil
-	default:
-		return "", fmt.Errorf("%w: %s", ErrClientInvalidRunMode, raw)
 	}
 }
 

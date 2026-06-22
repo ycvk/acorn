@@ -14,16 +14,6 @@ const (
 	RunStatusFailed      RunStatus = "failed"
 )
 
-type OrchestrationMode string
-
-const (
-	ModeDirectResponse OrchestrationMode = "direct_response"
-)
-
-func (m OrchestrationMode) Normalize() OrchestrationMode {
-	return m
-}
-
 type RunRecord struct {
 	RunID     string    `json:"run_id"`
 	SessionID string    `json:"session_id,omitempty"`

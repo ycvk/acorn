@@ -21,8 +21,6 @@ func (s *Server) respondClientKnownError(w http.ResponseWriter, r *http.Request,
 		s.respondBadRequest(w, r, err.Error())
 	case errors.Is(err, app.ErrPendingActionDecisionInvalid):
 		s.respondBadRequest(w, r, err.Error())
-	case errors.Is(err, app.ErrClientInvalidRunMode):
-		s.respondBadRequest(w, r, err.Error())
 	case errors.Is(err, app.ErrClientProjectionFailed):
 		s.respondError(w, r, http.StatusInternalServerError, "run_event_projection_failed", err.Error())
 	case errors.Is(err, runtimeapi.ErrExecutionNotReady):

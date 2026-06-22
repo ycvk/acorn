@@ -133,8 +133,8 @@ func TestThreadMessageRunHandlers(t *testing.T) {
 	if run.ID != "run_1" || run.ThreadID != "thread_1" || run.Status != "running" || run.Mode != "direct" {
 		t.Fatalf("unexpected create run response: %#v", run)
 	}
-	if service.createRunThreadID != "thread_1" || service.createRunSkillID != "skill.inspect" || service.createRunMode != "plan_execute" {
-		t.Fatalf("unexpected create run call: thread=%q skill=%q mode=%q", service.createRunThreadID, service.createRunSkillID, service.createRunMode)
+	if service.createRunThreadID != "thread_1" || service.createRunSkillID != "skill.inspect" {
+		t.Fatalf("unexpected create run call: thread=%q skill=%q", service.createRunThreadID, service.createRunSkillID)
 	}
 
 	getRun := performClientRequest(router, http.MethodGet, "/v1/runs/run_1", "")
@@ -1183,7 +1183,6 @@ type clientHandlerStub struct {
 	createMessageContent      string
 	createRunThreadID         string
 	createRunSkillID          string
-	createRunMode             string
 }
 
 func (s *clientHandlerStub) ListThreads(context.Context, int) ([]app.Thread, error) {
@@ -1241,13 +1240,12 @@ func (s *clientHandlerStub) CreateMessage(_ context.Context, threadID, content s
 	return &s.message, nil
 }
 
-func (s *clientHandlerStub) CreateRun(_ context.Context, threadID, skillID, mode, _ string) (*app.Run, error) {
+func (s *clientHandlerStub) CreateRun(_ context.Context, threadID, skillID, _ string) (*app.Run, error) {
 	if s.err != nil {
 		return nil, s.err
 	}
 	s.createRunThreadID = threadID
 	s.createRunSkillID = skillID
-	s.createRunMode = mode
 	return &s.run, nil
 }
 

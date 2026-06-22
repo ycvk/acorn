@@ -12,7 +12,7 @@ func TestRenderSmokeResultSucceeded(t *testing.T) {
 		RunID:  "run_123",
 		Status: "succeeded",
 		Output: "Hi there!",
-	}, "direct_response", false)
+	}, false)
 	if err != nil {
 		t.Fatalf("renderSmokeResult error = %v", err)
 	}
@@ -35,7 +35,7 @@ func TestRenderSmokeResultFailedSurfacesError(t *testing.T) {
 		RunID:  "run_456",
 		Status: "failed",
 		Error:  "semantic search runtime is required",
-	}, "direct_response", false)
+	}, false)
 	if err != nil {
 		t.Fatalf("renderSmokeResult error = %v", err)
 	}
@@ -54,14 +54,14 @@ func TestRenderSmokeResultJSON(t *testing.T) {
 		RunID:  "run_789",
 		Status: "failed",
 		Error:  "execution_not_ready: model.api_key is required",
-	}, "plan_execute", true)
+	}, true)
 	if err != nil {
 		t.Fatalf("renderSmokeResult json error = %v", err)
 	}
 	for _, want := range []string{
 		`"run_id": "run_789"`,
 		`"status": "failed"`,
-		`"mode": "plan_execute"`,
+		`"mode": "direct_response"`,
 		`"error": "execution_not_ready: model.api_key is required"`,
 	} {
 		if !strings.Contains(out, want) {

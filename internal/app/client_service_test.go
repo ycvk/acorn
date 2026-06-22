@@ -630,7 +630,7 @@ func TestClientCreateRunUsesRealExecutorPath(t *testing.T) {
 		t.Fatalf("CreateMessage: %v", err)
 	}
 
-	run, err := service.CreateRun(ctx, thread.ID, "", "", "")
+	run, err := service.CreateRun(ctx, thread.ID, "", "")
 	if err != nil {
 		t.Fatalf("CreateRun: %v", err)
 	}
@@ -696,7 +696,7 @@ func TestClientCreateRunReturnsExecutionNotReady(t *testing.T) {
 	if _, err := service.CreateMessage(ctx, thread.ID, "hello"); err != nil {
 		t.Fatalf("CreateMessage: %v", err)
 	}
-	_, err = service.CreateRun(ctx, thread.ID, "", "", "")
+	_, err = service.CreateRun(ctx, thread.ID, "", "")
 	if !errors.Is(err, runtimeapi.ErrExecutionNotReady) {
 		t.Fatalf("CreateRun error = %v, want ErrExecutionNotReady", err)
 	}
@@ -742,7 +742,7 @@ func TestClientCreateRunReportsPostStartPersistenceFailure(t *testing.T) {
 	if _, err := service.CreateMessage(ctx, thread.ID, "hello"); err != nil {
 		t.Fatalf("CreateMessage: %v", err)
 	}
-	run, err := service.CreateRun(ctx, thread.ID, "", "", "")
+	run, err := service.CreateRun(ctx, thread.ID, "", "")
 	if err != nil {
 		t.Fatalf("CreateRun: %v", err)
 	}
@@ -763,49 +763,6 @@ func TestClientCreateRunReportsPostStartPersistenceFailure(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for background failure report")
-	}
-}
-
-func TestClientCreateRunRejectsInvalidModes(t *testing.T) {
-	tests := []struct {
-		name string
-		mode string
-	}{
-		{name: "unknown mode", mode: "workflow"},
-		{name: "single agent is internal only", mode: "single_agent"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ctx := context.Background()
-			store, err := storesqlite.Open(filepath.Join(t.TempDir(), "state"))
-			if err != nil {
-				t.Fatalf("open store: %v", err)
-			}
-			t.Cleanup(func() { _ = store.Close() })
-
-			service := BuildClientService(store, func(context.Context) (executorHandle, error) {
-				t.Fatal("executor factory should not be called for invalid mode")
-				return nil, nil
-			}, nil, "/repo")
-			service.newThreadID = func() string { return "thread_invalid_mode" }
-			service.newRunID = func() string { return "run_invalid_mode" }
-
-			thread, err := service.CreateThread(ctx, "invalid mode")
-			if err != nil {
-				t.Fatalf("CreateThread: %v", err)
-			}
-			if _, err := service.CreateMessage(ctx, thread.ID, "hello"); err != nil {
-				t.Fatalf("CreateMessage: %v", err)
-			}
-			_, err = service.CreateRun(ctx, thread.ID, "", tt.mode, "")
-			if !errors.Is(err, ErrClientInvalidRunMode) {
-				t.Fatalf("CreateRun error = %v, want ErrClientInvalidRunMode", err)
-			}
-			if _, loadErr := store.LoadRun(ctx, "run_invalid_mode"); !errors.Is(loadErr, storecore.ErrRunNotFound) {
-				t.Fatalf("LoadRun after invalid mode = %v, want ErrRunNotFound", loadErr)
-			}
-		})
 	}
 }
 

@@ -11,7 +11,6 @@ import (
 	einomodel "github.com/cloudwego/eino/components/model"
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/contextplane"
-	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/memorymodule"
 	"github.com/ycvk/acorn/internal/model"
 	"github.com/ycvk/acorn/internal/orchestration"
@@ -230,7 +229,6 @@ func (f *RunnerFactory) assembleContext(
 // are not duplicated across request constructors.
 func (f *RunnerFactory) buildAssembly(
 	ctx context.Context,
-	mode events.OrchestrationMode,
 	req RunnerBuildRequest,
 	catalog *tooling.Catalog,
 	chatModel einomodel.BaseChatModel,

@@ -11,7 +11,6 @@ import (
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/contextplane"
-	"github.com/ycvk/acorn/internal/events"
 	"github.com/ycvk/acorn/internal/memorymodule"
 	"github.com/ycvk/acorn/internal/model"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
@@ -45,7 +44,7 @@ func (f *RunnerFactory) buildRun(ctx context.Context, req RunnerBuildRequest) (a
 		return nil, prereqErr
 	}
 	capabilities = capabilityAssembly.capabilities
-	active, err = f.assembleRunnerByMode(ctx, req, events.ModeDirectResponse, chatModel, capabilityAssembly)
+	active, err = f.newDirectResponseRunner(ctx, req, chatModel, capabilityAssembly)
 	return active, err
 }
 
@@ -62,7 +61,7 @@ func (f *RunnerFactory) newDirectResponseRunner(ctx context.Context, req RunnerB
 	if err != nil {
 		return nil, err
 	}
-	agentAssembly, err := f.buildAssembly(ctx, events.ModeDirectResponse, req, capabilities.catalog, chatModel, contextResult)
+	agentAssembly, err := f.buildAssembly(ctx, req, capabilities.catalog, chatModel, contextResult)
 	if err != nil {
 		return nil, err
 	}
@@ -150,8 +149,4 @@ func (f *RunnerFactory) buildRunPrerequisites(ctx context.Context, req RunnerBui
 		return nil, nil, err
 	}
 	return chatModel, capabilityAssembly, nil
-}
-
-func (f *RunnerFactory) assembleRunnerByMode(ctx context.Context, req RunnerBuildRequest, mode events.OrchestrationMode, chatModel einomodel.BaseChatModel, capabilityAssembly *capabilityAssembly) (*ActiveRunner, error) {
-	return f.newDirectResponseRunner(ctx, req, chatModel, capabilityAssembly)
 }

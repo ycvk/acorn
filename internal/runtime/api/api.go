@@ -44,17 +44,14 @@ type ToolCallContextBridge interface {
 // --- ExecuteRequest ---
 
 type ExecuteRequest struct {
-	RunID             string
-	SessionID         string
-	TurnIndex         int
-	Input             string
-	BoundMessageID    int64
-	SkillID           string
-	AllowedToolNames  []string
-	Messages          []adk.Message
-	OrchestrationMode events.OrchestrationMode
-	ParentRunID       string
-	Depth             int
+	RunID            string
+	SessionID        string
+	TurnIndex        int
+	Input            string
+	BoundMessageID   int64
+	SkillID          string
+	AllowedToolNames []string
+	Messages         []adk.Message
 }
 
 // --- Context plumbing helpers ---
