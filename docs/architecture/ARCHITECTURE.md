@@ -21,7 +21,6 @@ operator CLI / authenticated remote clients
 - `internal/runtime/` — Executor（session/run 创建、执行、finalization）+ RunnerFactory（per-run assembly）+ tool 执行运行时（scheduler/validator/audit/stream）+ Toolset 容器 + memory tools。
 - `internal/contextplane/` — run 上下文装配、observation masking、LLM auto-compact、deferred tool loading、tool lifecycle。
 - `internal/runtime/orchestration/` — direct_response assembly + AgentLoop + ExecuteRound。单一编排模式。
-INS.POST 24:
 - `internal/toolkit/` — 工具契约层（ToolContract/Catalog/ToolSpec/loading+execution policy）。
 - `internal/toolset/` — 工具实现层（file/git/browser/web/command/artifact/memory 工具实现）。
 - `internal/memorymodule/` — file-backed memory（facts/history）、search、prepare、semantic retrieval（embedding + SQLite 暴力余弦相似度）。
