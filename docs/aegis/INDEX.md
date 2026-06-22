@@ -2,6 +2,7 @@
 
 ## Specs
 - [2026-06-21 Acorn 全面重构设计](specs/2026-06-21-acorn-refactor-design.md) — backend + frontend architecture refactor, scope: full
+- [2026-06-22 后端残留清理 + Kotlin 移动端迁移](specs/2026-06-22-backend-cleanup-kotlin-migration-design.md) — dead-shell removal + Flutter→Kotlin migration
 
 ## Plans
 - [Phase 1: 后端基础层清理](plans/2026-06-21-phase1-baseline-layer-cleanup.md) — config/store/events/tooling schema simplification
