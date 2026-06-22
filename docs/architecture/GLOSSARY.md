@@ -20,4 +20,4 @@
 | **Device Auth** | Single-owner self-hosted auth boundary：`acorn pair` 写一次性 pairing code hash，`POST /v1/devices:pair` 换取一次性展示的 bearer token；SQLite 只保存 token hash。 |
 | **Client RunEvent** | `/v1` 的 client-facing live event envelope；mobile client 只消费 mobile live subset（run lifecycle、assistant delta/message、terminal status、resume、elicitation/operator question、decision_blocked）；由 SQLite `events` 表投影。 |
 | **SQLite persisted truth** | 后端 runtime 事实来源（~8 张表）；events、runs、messages、sessions、pending_actions、devices、pairing_codes、owner_profile。长期 memory 的 active truth 是 `memorymodule` 文件 + `memory_vectors` 向量。 |
-| **Mobile Control Surface** | `mobile/` Flutter app，通过 generated Dart client 消费 `/v1`；不执行 runtime、不维护第二套 message lifecycle、不做 offline-first truth。 |
+| **Mobile Control Surface** | `mobile-kotlin/` Kotlin + Jetpack Compose app，通过 openapi-generator 生成的 client 消费 `/v1`；不执行 runtime、不维护第二套 message lifecycle、不做 offline-first truth。 |

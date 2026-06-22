@@ -138,7 +138,7 @@ P0 不重写 workspace mutation 系统。
 涉及 operator question、artifact projection 的 client-visible 字段时，必须同步：
 
 - `docs/openapi.yaml`
-- generated `mobile/lib/src/api/acorn_api.dart`
+- generated `mobile-kotlin/app/src/main/java/io/ycvk/acorn/api/`
 - mobile parser/projection tests
 - relevant widget/controller tests
 
@@ -224,15 +224,15 @@ P0 不允许的 contract 扩展：
 
 ```bash
 go test ./internal/tooling ./internal/tools ./internal/runtime ./internal/contextplane ./internal/store/sqlite ./internal/app ./internal/web
-python3 mobile/tool/generate_openapi_client.py --check
+cd mobile-kotlin && ./tool/generate_openapi_client.sh --check
 git diff --check
 ```
 
 涉及 mobile projection 或 pending action UI 时还要跑：
 
 ```bash
-cd mobile && flutter test
-cd mobile && flutter analyze
+cd mobile-kotlin && ./gradlew test
+cd mobile-kotlin && ./gradlew lint
 ```
 
 提交前仍以 repo 级 gate 为准：

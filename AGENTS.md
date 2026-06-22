@@ -19,8 +19,8 @@ make test-architecture             # 架构边界守卫
 make generate                      # go generate ./internal/web
 make release-linux-amd64           # 纯 Go 交叉编译(无 CGO)
 
-# Mobile(在 mobile/)
-python3 mobile-kotlin/tool/generate_openapi_client.sh --check   # CI 门禁
+# Mobile(在 mobile-kotlin/)
+cd mobile-kotlin && ./tool/generate_openapi_client.sh --check   # CI 门禁
 ./gradlew assembleDebug  # in mobile-kotlin/
 ```
 

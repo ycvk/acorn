@@ -33,7 +33,7 @@
 - **OpenAPI 是 wire contract**：remote client DTO 只投影 app/runtime domain；改 wire shape 须同步 `docs/openapi.yaml` + generated mobile client。
   - `tests/architecture/client_projection_boundary_test.go`
 - **Mobile 是 control surface 不是 runtime**：mobile 不执行 run、不持 runtime truth、不做 offline-first run execution、不维护第二套 message lifecycle；context pressure/boundary/run status 都消费后端 projection。
-  - `mobile/test/...`（flutter test）
+  - `mobile-kotlin/app/src/test/...`（JUnit）
 
 ## 代码规范
 

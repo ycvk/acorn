@@ -169,7 +169,7 @@ The QR contains compact JSON:
 {"pairing_code":"ABCD-EFGH-IJKL-MNOP","expires_at":"2026-05-15T12:00:00Z","server_url":"https://acorn.example.com"}
 ```
 
-Flutter mobile can scan this terminal QR with the in-app camera scanner, or the same server URL and pairing code can be entered manually.
+The mobile app can scan this terminal QR with the in-app camera scanner, or the same server URL and pairing code can be entered manually.
 
 Machine-readable output is available for scripts:
 

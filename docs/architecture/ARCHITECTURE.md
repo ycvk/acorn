@@ -1,6 +1,6 @@
 # Acorn 架构总入口
 
-Acorn 是 **single-user self-hosted agent backend + authenticated remote client API + Flutter mobile control surface**。后端以 Go/Eino 运行 agent、工具、file-backed memory 和可选的 embedding+SQLite 语义检索。SQLite 是 runtime 事实来源（~8 张表）；file-backed memory 是长期记忆事实。当前产品 control surface 是 `mobile/` Flutter app，通过 generated Dart client 消费 authenticated `/v1`。
+Acorn 是 **single-user self-hosted agent backend + authenticated remote client API + Kotlin mobile control surface**。后端以 Go/Eino 运行 agent、工具、file-backed memory 和可选的 embedding+SQLite 语义检索。SQLite 是 runtime 事实来源（~8 张表）；file-backed memory 是长期记忆事实。当前产品 control surface 是 `mobile-kotlin/` Kotlin + Jetpack Compose app，通过 openapi-generator 生成的 client 消费 authenticated `/v1`。
 
 ## 主链
 
@@ -12,7 +12,7 @@ operator CLI / authenticated remote clients
   -> RunnerFactory.buildRun (per-run assembly)
   -> ContextPlane + direct_response
   -> SQLite adapter / persisted truth
-  -> Flutter mobile control surface
+  -> Kotlin mobile control surface
 ```
 
 ## 主要包职责
@@ -24,7 +24,7 @@ operator CLI / authenticated remote clients
 - `internal/memorymodule/` — file-backed memory（facts/history）、search、prepare、semantic retrieval（embedding + SQLite 暴力余弦相似度）。
 - `internal/store/` + `internal/store/sqlite/` — 跨包 store-facing records、sentinel errors + SQLite adapter（sessions/messages/runs/events/pending_actions/devices/pairing_codes/owner_profile）。
 - `internal/web/` — `/v1` client surface + device bearer auth middleware；live RunEvent 从 `events` 表投影 mobile live subset。
-- `mobile/` — Flutter app，通过 generated Dart client 消费 `/v1`；不执行 runtime、不维护第二套 message lifecycle。
+- `mobile-kotlin/` — Kotlin + Jetpack Compose app，通过 openapi-generator 生成的 client 消费 `/v1`；不执行 runtime、不维护第二套 message lifecycle。
 
 ## 子架构文档
 
@@ -32,7 +32,7 @@ operator CLI / authenticated remote clients
 - [runtime-orchestration.md](runtime-orchestration.md) — direct_response assembly、AgentLoop。
 - [runtime-context-memory-decision.md](runtime-context-memory-decision.md) — ContextPlane、hybrid context、MemoryModule。
 - [data-web-store.md](data-web-store.md) — SQLite truth、events/runs、remote client DTO/API。
-- [mobile-control-surface.md](mobile-control-surface.md) — Flutter app、generated client、事实边界。
+- [mobile-control-surface.md](mobile-control-surface.md) — Kotlin app、generated client、事实边界。
 - [self-hosted onboarding](../user/self-hosted-onboarding.md) — VPS binary service、pairing、storage。
 
 ## 边界与术语

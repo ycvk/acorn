@@ -1,18 +1,5 @@
 # Aegis Workspace Index
 
-## Specs
-- [2026-06-21 Acorn 全面重构设计](specs/2026-06-21-acorn-refactor-design.md) — backend + frontend architecture refactor, scope: full
-- [2026-06-22 后端残留清理 + Kotlin 移动端迁移](specs/2026-06-22-backend-cleanup-kotlin-migration-design.md) — dead-shell removal + Flutter→Kotlin migration
-
-## Plans
-- [Phase 1: 后端基础层清理](plans/2026-06-21-phase1-baseline-layer-cleanup.md) — config/store/events/tooling schema simplification
-- [Phase 2: Runtime + Orchestration 清理](plans/2026-06-21-phase2-runtime-orchestration-cleanup.md) — delete plan_execute/single_agent, keep direct_response only
-- [Phase 3: ContextPlane 清理 + Hybrid Context](plans/2026-06-21-phase3-contextplane-hybrid-context.md) — masking + auto-compact + re-inject
-- [Phase 4: MemoryModule 清理 + Embedding+SQLite](plans/2026-06-21-phase4-memorymodule-embedding-sqlite.md) — replace bleve/faiss with embedding+sqlite
-- [Phase 5: App + Web + OpenAPI 清理](plans/2026-06-21-phase5-app-web-openapi-cleanup.md) — remove mcp server/plan/skill-lifecycle API
-- [Phase 6: Flutter 重写 + Release 简化](plans/2026-06-21-phase6-flutter-rewrite-release.md) — modular flutter + pure go release
-- [Phase A: 后端残留死壳清理](plans/2026-06-22-phase-a-backend-dead-shell-cleanup.md) — mode routing shell + dead files + skill lifecycle + capability_service
-
 ## ADRs
 - [ADR-0001: 砍掉 plan_execute / single_agent 编排模式](adr/ADR-0001-remove-plan-execute-single-agent.md) — keep direct_response only
 - [ADR-0002: 砍掉 CompactionEngine，改为 hybrid masking + auto-compact](adr/ADR-0002-hybrid-context-masking-auto-compact.md) — observation masking + LLM summary + re-inject

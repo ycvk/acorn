@@ -191,7 +191,7 @@ Mobile checks run from `mobile-kotlin/`:
 | `internal/orchestration/` | Root mode and child-run assembly |
 | `internal/memorymodule/` | File-backed memory records and semantic retrieval |
 | `internal/store/sqlite/` | SQLite persisted state |
-| `internal/web/` | HTTP server, `/healthz`, `/v1`, and optional `/mcp` mount |
+| `internal/web/` | HTTP server, `/healthz`, `/v1` |
 | `mobile-kotlin/` | Kotlin + Jetpack Compose mobile app |
 | `skills/` | Built-in Acorn skill seed pack |
 | `docs/` | User guides, developer guides, OpenAPI, and architecture notes |
@@ -202,8 +202,6 @@ Mobile checks run from `mobile-kotlin/`:
 - [OpenAPI contract](docs/openapi.yaml)
 - [Architecture overview](docs/architecture/ARCHITECTURE.md)
 - [Mobile control surface architecture](docs/architecture/mobile-control-surface.md)
-- [Agent plan loop user guide](docs/user/agent-plan-loop.md)
-- [Agent plan loop developer guide](docs/dev/agent-plan-loop.md)
 
 ## License
 
