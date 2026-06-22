@@ -49,12 +49,9 @@ HANDWRIFT_FILES=(
 # MessagePartAdapter (the generator output doesn't know about it).
 patch_serializer() {
     local file="$1"
-    # Add import for MessagePartAdapter after the KotlinJsonAdapterFactory import.
-    sed -i '' 's|import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory|import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory\
-import io.ycvk.acorn.api.models.MessagePartAdapter|' "$file"
-    # Register the adapter factory as the first entry in moshiBuilder.
-    sed -i '' 's|val moshiBuilder: Moshi.Builder = Moshi.Builder()|val moshiBuilder: Moshi.Builder = Moshi.Builder()\
-        .add(MessagePartAdapter.FACTORY)|' "$file"
+    # Use perl for portable multi-line substitution (BSD sed and GNU sed differ on -i).
+    perl -i -pe 's/import com\.squareup\.moshi\.kotlin\.reflect\.KotlinJsonAdapterFactory/import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory\nimport io.ycvk.acorn.api.models.MessagePartAdapter/' "$file"
+    perl -i -pe 's/val moshiBuilder: Moshi\.Builder = Moshi\.Builder\(\)/val moshiBuilder: Moshi.Builder = Moshi.Builder()\n        .add(MessagePartAdapter.FACTORY)/' "$file"
 }
 
 if [ "${1:-}" = "--check" ]; then
