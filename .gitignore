@@ -29,3 +29,10 @@ configs/acorn.local.yaml
 *.test
 /untitled.pen
 coverage.out
+
+# mobile-kotlin (Android)
+/mobile-kotlin/build/
+/mobile-kotlin/.gradle/
+/mobile-kotlin/app/build/
+/mobile-kotlin/local.properties
+/mobile-kotlin/.cxx/

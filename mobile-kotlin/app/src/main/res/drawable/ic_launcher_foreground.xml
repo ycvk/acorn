@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Simple acorn-ish glyph: a circle cap over a tapered body. -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M54,28 C44,28 36,34 36,42 C36,44 37,46 38,47 C33,51 30,58 30,66 C30,79 41,88 54,88 C67,88 78,79 78,66 C78,58 75,51 70,47 C71,46 72,44 72,42 C72,34 64,28 54,28 Z" />
+</vector>
