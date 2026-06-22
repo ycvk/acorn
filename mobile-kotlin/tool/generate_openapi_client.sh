@@ -14,8 +14,19 @@ DEST="$ROOT/mobile-kotlin/app/src/main/java/io/ycvk/acorn/api"
 export JAVA_HOME="${JAVA_HOME:-/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home}"
 export PATH="$JAVA_HOME/bin:$PATH"
 
+# Resolve the openapi-generator command. Homebrew installs `openapi-generator`;
+# the npm package @openapitools/openapi-generator-cli installs `openapi-generator-cli`.
+if command -v openapi-generator >/dev/null 2>&1; then
+    OPENAPI_GEN="openapi-generator"
+elif command -v openapi-generator-cli >/dev/null 2>&1; then
+    OPENAPI_GEN="openapi-generator-cli"
+else
+    echo "ERROR: openapi-generator not found. Install via 'brew install openapi-generator' or 'npm install -g @openapitools/openapi-generator-cli'." >&2
+    exit 1
+fi
+
 # openapi-generator 7.23's --silent flag aborts the run, so we discard logs via redirection instead.
-openapi-generator generate \
+$OPENAPI_GEN generate \
   -g kotlin \
   -i "$OPENAPI" \
   -o "$OUTPUT" \
