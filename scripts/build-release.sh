@@ -65,6 +65,8 @@ commit=$commit
 goos=$goos
 goarch=$goarch
 cgo_enabled=0
+installer=install-release.sh
+skills_dir=skills
 EOF
 
 hash_file() {
@@ -73,7 +75,7 @@ hash_file() {
 
 (
 	cd "$package_dir"
-	find . -type f | sort | while read -r f; do
+	find . -type f ! -name CHECKSUMS | sort | while read -r f; do
 		hash_file "$package_dir" "$f"
 	done
 ) > "$package_dir/CHECKSUMS"
