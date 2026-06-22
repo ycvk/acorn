@@ -16,7 +16,7 @@ import (
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
 	"github.com/ycvk/acorn/internal/runtime/orchestration"
 	"github.com/ycvk/acorn/internal/toolkit"
-	"github.com/ycvk/acorn/internal/tools"
+	"github.com/ycvk/acorn/internal/toolset"
 )
 
 type RunnerFactory struct {
@@ -128,7 +128,7 @@ func newInMemoryCheckpointStore() *inMemoryCheckpointStore {
 }
 
 type localToolset struct {
-	catalog *tools.Catalog
+	catalog *toolset.Catalog
 	closers []io.Closer
 }
 

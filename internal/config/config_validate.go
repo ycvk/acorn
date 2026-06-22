@@ -106,10 +106,10 @@ func (c *Config) ValidateExecutionReady() error {
 		return errors.New("agent.max_iterations must be > 0")
 	}
 	if strings.TrimSpace(c.Tools.Workspace.RootDir) == "" {
-		return errors.New("tools.workspace.root_dir is required")
+		return errors.New("toolset.workspace.root_dir is required")
 	}
 	if !c.Tools.RunCommand.Disabled && strings.TrimSpace(c.Tools.RunCommand.WorkDir) == "" {
-		return errors.New("tools.run_command.work_dir is required when run_command is not disabled")
+		return errors.New("toolset.run_command.work_dir is required when run_command is not disabled")
 	}
 	if _, err := c.Workspace(); err != nil {
 		return err

@@ -13,7 +13,7 @@ import (
 // Import cycles are enforced by `go build ./...` (compiler fails on cycles).
 var refactorOwnedDirs = []string{
 	"internal/runtime",
-	"internal/tools",
+	"internal/toolset",
 	"internal/contextplane",
 	"internal/store/sqlite",
 	"internal/memorymodule",

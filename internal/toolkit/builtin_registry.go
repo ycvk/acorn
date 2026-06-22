@@ -71,7 +71,7 @@ func builtinToolContract(name string) (ToolContract, bool) {
 
 // BuiltinToolSpec resolves the full contract for a built-in tool, applying the
 // caller-supplied source to the canonical contract template. It returns ok=false
-// for names that are not built-in tools.
+// for names that are not built-in toolset.
 func BuiltinToolSpec(name, source string) (ToolContract, bool) {
 	c, ok := builtinToolContract(name)
 	if !ok {

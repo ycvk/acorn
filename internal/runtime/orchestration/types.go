@@ -101,7 +101,7 @@ type ToolBuilder func(
 	runID string,
 ) ([]einotool.BaseTool, error)
 
-// ToolNodeFactory creates a ToolInvoker from concrete tools.
+// ToolNodeFactory creates a ToolInvoker from concrete toolset.
 type ToolNodeFactory func(ctx context.Context, tools []einotool.BaseTool, resolver toolkit.ExecutionPolicyResolver) (ToolInvoker, error)
 
 // InstructionBuilder builds the system instruction from base prompt and suffix.

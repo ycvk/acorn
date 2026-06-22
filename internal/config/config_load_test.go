@@ -159,10 +159,10 @@ func TestLoadSelfHostedExample(t *testing.T) {
 		t.Fatalf("web.listen_addr = %q, want 127.0.0.1:8080", got)
 	}
 	if got := cfg.Tools.Workspace.RootDir; got != "/srv/acorn/workspace" {
-		t.Fatalf("tools.workspace.root_dir = %q, want /srv/acorn/workspace", got)
+		t.Fatalf("toolset.workspace.root_dir = %q, want /srv/acorn/workspace", got)
 	}
 	if got := cfg.Tools.RunCommand.WorkDir; got != "/srv/acorn/workspace" {
-		t.Fatalf("tools.run_command.work_dir = %q, want /srv/acorn/workspace", got)
+		t.Fatalf("toolset.run_command.work_dir = %q, want /srv/acorn/workspace", got)
 	}
 }
 
