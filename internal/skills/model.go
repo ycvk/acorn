@@ -57,6 +57,7 @@ type Spec struct {
 	TriggerHints   []string
 	Requires       Requirements
 	CreatedByRunID string
+	Replaces       []string
 }
 
 type Requirements struct {
@@ -117,8 +118,8 @@ func NormalizeSpec(item Spec) (Spec, error) {
 	item.Tags = uniqueNonEmpty(item.Tags)
 	item.Platforms = uniqueLowerNonEmpty(item.Platforms)
 	item.TriggerHints = uniqueNonEmpty(item.TriggerHints)
-	item.Requires = NormalizeRequirements(item.Requires)
 	item.CreatedByRunID = strings.TrimSpace(item.CreatedByRunID)
+	item.Replaces = uniqueNonEmpty(item.Replaces)
 	if item.ID == "" {
 		return Spec{}, fmt.Errorf("skill id is required")
 	}
@@ -165,6 +166,7 @@ func CopySpec(item Spec) Spec {
 	copy.Platforms = append([]string(nil), item.Platforms...)
 	copy.TriggerHints = append([]string(nil), item.TriggerHints...)
 	copy.Requires = CopyRequirements(item.Requires)
+	copy.Replaces = append([]string(nil), item.Replaces...)
 	return copy
 }
 

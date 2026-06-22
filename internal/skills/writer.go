@@ -74,6 +74,7 @@ func buildCreateFrontmatter(normalized CreateInput) frontmatter {
 		},
 		TriggerHints:   append([]string(nil), normalized.TriggerHints...),
 		CreatedByRunID: normalized.CreatedByRunID,
+		Replaces:       append([]string(nil), normalized.Replaces...),
 	}
 }
 

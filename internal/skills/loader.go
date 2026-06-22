@@ -49,6 +49,7 @@ type CreateInput struct {
 	TriggerHints   []string
 	Requires       Requirements
 	CreatedByRunID string
+	Replaces       []string
 }
 
 type sourceRoot struct {

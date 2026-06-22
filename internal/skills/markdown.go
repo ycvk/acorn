@@ -21,6 +21,7 @@ type frontmatter struct {
 	Requires       frontRequirements `yaml:"requires,omitempty"`
 	TriggerHints   []string          `yaml:"trigger_hints,omitempty"`
 	CreatedByRunID string            `yaml:"created_by_run_id,omitempty"`
+	Replaces       []string          `yaml:"replaces,omitempty"`
 }
 
 type frontRequirements struct {

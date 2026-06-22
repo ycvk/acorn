@@ -104,6 +104,7 @@ func buildNormalizedCreateInput(input CreateInput, normalizedID string) CreateIn
 		TriggerHints:   uniqueNonEmpty(input.TriggerHints),
 		Requires:       NormalizeRequirements(input.Requires),
 		CreatedByRunID: strings.TrimSpace(input.CreatedByRunID),
+		Replaces:       uniqueNonEmpty(input.Replaces),
 	}
 }
 

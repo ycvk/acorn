@@ -173,6 +173,7 @@ func loadSkillDir(dir, scope string) (Spec, *Problem) {
 			Env:      append([]string(nil), meta.Requires.Env...),
 		},
 		CreatedByRunID: strings.TrimSpace(meta.CreatedByRunID),
+		Replaces:       append([]string(nil), meta.Replaces...),
 	}
 	if strings.TrimSpace(spec.Instruction) == "" && strings.TrimSpace(markdownBody) != "" {
 		spec.Instruction = strings.TrimSpace(markdownBody)

@@ -26,6 +26,7 @@ type SkillSummaryDTO struct {
 	Requirements    SkillRequirementsDTO `json:"requirements,omitempty"`
 	DisabledReasons []string             `json:"disabled_reasons,omitempty"`
 	CreatedByRunID  string               `json:"created_by_run_id,omitempty"`
+	Replaces        []string             `json:"replaces,omitempty"`
 }
 
 type SkillDetailDTO struct {
@@ -54,19 +55,19 @@ type SkillFileResponse struct {
 
 func skillSummaryDTOFromView(item skills.View) SkillSummaryDTO {
 	return SkillSummaryDTO{
-		ID:              item.ID,
-		Name:            item.Name,
-		Version:         item.Version,
-		Category:        item.Category,
-		Source:          item.Source,
-		Origin:          item.Origin,
-		TaskPattern:     item.TaskPattern,
-		Summary:         item.Summary,
-		PromotedFrom:    item.PromotedFrom,
-		Eligible:        item.Eligible,
-		Requirements:    skillRequirementsDTOFromDomain(item.Requires),
-		DisabledReasons: append([]string(nil), item.DisabledReasons...),
-		CreatedByRunID:  item.CreatedByRunID,
+		ID:             item.ID,
+		Name:           item.Name,
+		Version:        item.Version,
+		Category:       item.Category,
+		Source:         item.Source,
+		Origin:         item.Origin,
+		TaskPattern:    item.TaskPattern,
+		Summary:        item.Summary,
+		PromotedFrom:   item.PromotedFrom,
+		Eligible:       item.Eligible,
+		Requirements:   skillRequirementsDTOFromDomain(item.Requires),
+		CreatedByRunID: item.CreatedByRunID,
+		Replaces:       append([]string(nil), item.Replaces...),
 	}
 }
 
