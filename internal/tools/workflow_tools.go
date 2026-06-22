@@ -14,7 +14,7 @@ import (
 
 	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/store"
-	"github.com/ycvk/acorn/internal/tooling"
+	"github.com/ycvk/acorn/internal/toolkit"
 	"github.com/ycvk/acorn/internal/workspace"
 )
 
@@ -25,7 +25,7 @@ const (
 )
 
 func buildMultiEditTool(ws WorkspaceView) (einotool.BaseTool, error) {
-	tool, err := inferProgressTool("multi_edit", "Atomically replace multiple explicit line ranges across workspace files with one mutation checkpoint.", func(ctx context.Context, input MultiEditInput, emit tooling.ToolProgressEmitter) (MultiEditOutput, error) {
+	tool, err := inferProgressTool("multi_edit", "Atomically replace multiple explicit line ranges across workspace files with one mutation checkpoint.", func(ctx context.Context, input MultiEditInput, emit toolkit.ToolProgressEmitter) (MultiEditOutput, error) {
 		return runMultiEdit(ctx, ws, input, emit)
 	})
 	if err != nil {
@@ -34,7 +34,7 @@ func buildMultiEditTool(ws WorkspaceView) (einotool.BaseTool, error) {
 	return tool, nil
 }
 
-func runMultiEdit(ctx context.Context, ws WorkspaceView, input MultiEditInput, emit tooling.ToolProgressEmitter) (MultiEditOutput, error) {
+func runMultiEdit(ctx context.Context, ws WorkspaceView, input MultiEditInput, emit toolkit.ToolProgressEmitter) (MultiEditOutput, error) {
 	plans, appliedEdits, paths, err := prepareMultiEditPlans(ws, input.Edits)
 	if err != nil {
 		return MultiEditOutput{}, err
@@ -140,7 +140,7 @@ func buildRunVerificationTool(ws WorkspaceView, service ArtifactService, bridge 
 	if bridge == nil {
 		return nil, errors.New("artifact context bridge is required")
 	}
-	tool, err := inferProgressTool("run_verification", "Run a verification command and persist stdout/stderr as artifacts with normalized status.", func(ctx context.Context, input RunVerificationInput, emit tooling.ToolProgressEmitter) (RunVerificationOutput, error) {
+	tool, err := inferProgressTool("run_verification", "Run a verification command and persist stdout/stderr as artifacts with normalized status.", func(ctx context.Context, input RunVerificationInput, emit toolkit.ToolProgressEmitter) (RunVerificationOutput, error) {
 		return runVerification(ctx, ws, service, bridge, input, emit)
 	})
 	if err != nil {
@@ -149,7 +149,7 @@ func buildRunVerificationTool(ws WorkspaceView, service ArtifactService, bridge 
 	return tool, nil
 }
 
-func runVerification(ctx context.Context, ws WorkspaceView, service ArtifactService, bridge domain.ToolCallContextBridge, input RunVerificationInput, emit tooling.ToolProgressEmitter) (RunVerificationOutput, error) {
+func runVerification(ctx context.Context, ws WorkspaceView, service ArtifactService, bridge domain.ToolCallContextBridge, input RunVerificationInput, emit toolkit.ToolProgressEmitter) (RunVerificationOutput, error) {
 	kind, err := normalizeVerificationKind(input.Kind)
 	if err != nil {
 		return RunVerificationOutput{}, err
@@ -177,7 +177,7 @@ func runVerification(ctx context.Context, ws WorkspaceView, service ArtifactServ
 	return buildVerificationOutput(ctx, ws, service, bridge, emit, input, result, kind, command, cwd, paths, started)
 }
 
-func buildVerificationOutput(ctx context.Context, ws WorkspaceView, service ArtifactService, bridge domain.ToolCallContextBridge, emit tooling.ToolProgressEmitter, input RunVerificationInput, result verificationCommandResult, kind string, command []string, cwd string, paths []string, started time.Time) (RunVerificationOutput, error) {
+func buildVerificationOutput(ctx context.Context, ws WorkspaceView, service ArtifactService, bridge domain.ToolCallContextBridge, emit toolkit.ToolProgressEmitter, input RunVerificationInput, result verificationCommandResult, kind string, command []string, cwd string, paths []string, started time.Time) (RunVerificationOutput, error) {
 	duration := time.Since(started)
 	stdoutArtifact, err := writeWorkflowArtifact(ctx, service, bridge, store.ArtifactKindLog, fmt.Sprintf("%s verification stdout", kind), "text/plain", result.stdout)
 	if err != nil {
@@ -209,7 +209,7 @@ func buildVerificationOutput(ctx context.Context, ws WorkspaceView, service Arti
 }
 
 func buildGitSummaryTool(ws WorkspaceView, service ArtifactService, bridge domain.ToolCallContextBridge) (einotool.BaseTool, error) {
-	tool, err := inferProgressTool("git_summary", "Summarize workspace git status, diffstat, changed paths, and optionally persist a scoped diff artifact.", func(ctx context.Context, input GitSummaryInput, emit tooling.ToolProgressEmitter) (GitSummaryOutput, error) {
+	tool, err := inferProgressTool("git_summary", "Summarize workspace git status, diffstat, changed paths, and optionally persist a scoped diff artifact.", func(ctx context.Context, input GitSummaryInput, emit toolkit.ToolProgressEmitter) (GitSummaryOutput, error) {
 		return runGitSummary(ctx, ws, service, bridge, input, emit)
 	})
 	if err != nil {
@@ -218,7 +218,7 @@ func buildGitSummaryTool(ws WorkspaceView, service ArtifactService, bridge domai
 	return tool, nil
 }
 
-func runGitSummary(ctx context.Context, ws WorkspaceView, service ArtifactService, bridge domain.ToolCallContextBridge, input GitSummaryInput, emit tooling.ToolProgressEmitter) (GitSummaryOutput, error) {
+func runGitSummary(ctx context.Context, ws WorkspaceView, service ArtifactService, bridge domain.ToolCallContextBridge, input GitSummaryInput, emit toolkit.ToolProgressEmitter) (GitSummaryOutput, error) {
 	if input.ContextLines < 0 {
 		return GitSummaryOutput{}, errors.New("context_lines must be >= 0")
 	}
@@ -288,7 +288,7 @@ func gitSummaryEntries(entries []workspace.GitStatusEntry) ([]GitStatusEntry, []
 	return out, changedPaths
 }
 
-func applyGitSummaryDiff(ctx context.Context, ws WorkspaceView, service ArtifactService, bridge domain.ToolCallContextBridge, emit tooling.ToolProgressEmitter, input GitSummaryInput, output *GitSummaryOutput, scopedPath string) error {
+func applyGitSummaryDiff(ctx context.Context, ws WorkspaceView, service ArtifactService, bridge domain.ToolCallContextBridge, emit toolkit.ToolProgressEmitter, input GitSummaryInput, output *GitSummaryOutput, scopedPath string) error {
 	if !input.IncludeDiff {
 		return nil
 	}

@@ -8,7 +8,7 @@ import (
 
 	"github.com/cloudwego/eino/schema"
 
-	"github.com/ycvk/acorn/internal/tooling"
+	"github.com/ycvk/acorn/internal/toolkit"
 )
 
 const defaultToolLifecycleMaxTurns = 2
@@ -17,11 +17,11 @@ type toolLifecycleContextKey struct{}
 
 type ToolLifecycleContext struct {
 	State           *ToolLifecycleState
-	Catalog         *tooling.Catalog
+	Catalog         *toolkit.Catalog
 	ToolInfosByName map[string]*schema.ToolInfo
 }
 
-func WithToolLifecycleContext(ctx context.Context, state *ToolLifecycleState, catalog *tooling.Catalog, infos []*schema.ToolInfo) context.Context {
+func WithToolLifecycleContext(ctx context.Context, state *ToolLifecycleState, catalog *toolkit.Catalog, infos []*schema.ToolInfo) context.Context {
 	infoMap := make(map[string]*schema.ToolInfo, len(infos))
 	for _, info := range infos {
 		if info == nil || strings.TrimSpace(info.Name) == "" {
@@ -112,7 +112,7 @@ func newToolLifecycleState(ctx context.Context, req AssembleRequest) *ToolLifecy
 	return state
 }
 
-func splitToolDefinitions(ctx context.Context, specs []tooling.ToolSpec) ([]string, map[string]DeferredToolRecord) {
+func splitToolDefinitions(ctx context.Context, specs []toolkit.ToolSpec) ([]string, map[string]DeferredToolRecord) {
 	if len(specs) == 0 {
 		return nil, nil
 	}
@@ -124,14 +124,14 @@ func splitToolDefinitions(ctx context.Context, specs []tooling.ToolSpec) ([]stri
 			continue
 		}
 		switch spec.Loading.Mode {
-		case tooling.ToolLoadingModeDeferred:
+		case toolkit.ToolLoadingModeDeferred:
 			deferred[name] = DeferredToolRecord{
 				Name:        name,
 				Reason:      spec.Loading.Reason,
 				Description: toolDescription(ctx, spec),
 			}
 			continue
-		case tooling.ToolLoadingModeHidden:
+		case toolkit.ToolLoadingModeHidden:
 			continue
 		}
 		eager = append(eager, name)
@@ -140,7 +140,7 @@ func splitToolDefinitions(ctx context.Context, specs []tooling.ToolSpec) ([]stri
 	return eager, deferred
 }
 
-func toolDescription(ctx context.Context, spec tooling.ToolSpec) string {
+func toolDescription(ctx context.Context, spec toolkit.ToolSpec) string {
 	if spec.Tool == nil {
 		return ""
 	}

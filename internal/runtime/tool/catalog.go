@@ -11,17 +11,17 @@ import (
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/contextplane"
 	"github.com/ycvk/acorn/internal/domain"
-	"github.com/ycvk/acorn/internal/tooling"
+	"github.com/ycvk/acorn/internal/toolkit"
 )
 
 func BuildCatalogSpecs(
 	ctx context.Context,
 	cfg *config.Config,
 	source string,
-	kind tooling.ToolKind,
+	kind toolkit.ToolKind,
 	tools []einotool.BaseTool,
-) ([]tooling.ToolSpec, error) {
-	specs := make([]tooling.ToolSpec, 0, len(tools))
+) ([]toolkit.ToolSpec, error) {
+	specs := make([]toolkit.ToolSpec, 0, len(tools))
 	for _, tool := range tools {
 		spec, err := RuntimeToolSpec(ctx, cfg, source, kind, tool)
 		if err != nil {
@@ -36,59 +36,59 @@ func RuntimeToolSpec(
 	ctx context.Context,
 	cfg *config.Config,
 	source string,
-	kind tooling.ToolKind,
+	kind toolkit.ToolKind,
 	tool einotool.BaseTool,
-) (tooling.ToolSpec, error) {
+) (toolkit.ToolSpec, error) {
 	info, err := tool.Info(ctx)
 	if err != nil {
-		return tooling.ToolSpec{}, fmt.Errorf("read tool info for %s spec: %w", source, err)
+		return toolkit.ToolSpec{}, fmt.Errorf("read tool info for %s spec: %w", source, err)
 	}
 	if info == nil {
-		return tooling.ToolSpec{}, fmt.Errorf("read tool info for %s spec: nil ToolInfo", source)
+		return toolkit.ToolSpec{}, fmt.Errorf("read tool info for %s spec: nil ToolInfo", source)
 	}
 	name := strings.TrimSpace(info.Name)
 	if name == "" {
-		return tooling.ToolSpec{}, fmt.Errorf("%s tool has empty name", source)
+		return toolkit.ToolSpec{}, fmt.Errorf("%s tool has empty name", source)
 	}
 
-	if localSpec, ok := tooling.ConfiguredLocalSpec(cfg, name); ok {
+	if localSpec, ok := toolkit.ConfiguredLocalSpec(cfg, name); ok {
 		localSpec.Tool = tool
 		return localSpec, nil
 	}
 
-	if contract, ok := tooling.BuiltinToolSpec(name, source); ok {
-		return tooling.ToolSpec{ToolContract: contract, Tool: tool}, nil
+	if contract, ok := toolkit.BuiltinToolSpec(name, source); ok {
+		return toolkit.ToolSpec{ToolContract: contract, Tool: tool}, nil
 	}
 
-	spec := tooling.ToolSpec{
-		ToolContract: tooling.ToolContract{
+	spec := toolkit.ToolSpec{
+		ToolContract: toolkit.ToolContract{
 			Name:     name,
 			Source:   source,
 			Kind:     kind,
-			Category: tooling.ToolCategoryInspect,
-			Loading:  tooling.EagerLoadingPolicy(),
-			Execution: tooling.ToolExecutionPolicy{
-				ParallelPolicy: tooling.ParallelPolicyReadOnly,
+			Category: toolkit.ToolCategoryInspect,
+			Loading:  toolkit.EagerLoadingPolicy(),
+			Execution: toolkit.ToolExecutionPolicy{
+				ParallelPolicy: toolkit.ParallelPolicyReadOnly,
 			},
 		},
 		Tool: tool,
 	}
 
 	switch kind {
-	case tooling.ToolKindMCP:
+	case toolkit.ToolKindMCP:
 		spec.Kind = kind
-		spec.Category = tooling.ToolCategoryIntegration
-		spec.Execution.ParallelPolicy = tooling.ParallelPolicyReadOnly
+		spec.Category = toolkit.ToolCategoryIntegration
+		spec.Execution.ParallelPolicy = toolkit.ParallelPolicyReadOnly
 		spec.Execution.PathArg = "path"
 	default:
-		spec.Category = tooling.ToolCategoryInspect
-		spec.Execution.ParallelPolicy = tooling.ParallelPolicyReadOnly
+		spec.Category = toolkit.ToolCategoryInspect
+		spec.Execution.ParallelPolicy = toolkit.ParallelPolicyReadOnly
 		spec.Execution.PathArg = "path"
 	}
 	return spec, nil
 }
 
-func MCPToolParallelPolicy(cfg *config.Config, providerName string) (tooling.ParallelPolicy, error) {
+func MCPToolParallelPolicy(cfg *config.Config, providerName string) (toolkit.ParallelPolicy, error) {
 	if cfg == nil {
 		return "", fmt.Errorf("resolve MCP tool safety for provider %q: config is required", strings.TrimSpace(providerName))
 	}
@@ -99,7 +99,7 @@ func MCPToolParallelPolicy(cfg *config.Config, providerName string) (tooling.Par
 		if strings.TrimSpace(provider.ToolSafety) == "" {
 			return "", fmt.Errorf("mcp provider %q must declare tool_safety", strings.TrimSpace(providerName))
 		}
-		return tooling.ParseParallelPolicy(provider.ToolSafety)
+		return toolkit.ParseParallelPolicy(provider.ToolSafety)
 	}
 	return "", fmt.Errorf("mcp provider %q is not configured", strings.TrimSpace(providerName))
 }

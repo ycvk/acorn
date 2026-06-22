@@ -11,12 +11,12 @@ import (
 
 	einotool "github.com/cloudwego/eino/components/tool"
 
-	"github.com/ycvk/acorn/internal/tooling"
+	"github.com/ycvk/acorn/internal/toolkit"
 	"github.com/ycvk/acorn/internal/workspace"
 )
 
 func buildCreateFileTool(ws WorkspaceView) (einotool.BaseTool, error) {
-	tool, err := inferProgressTool("create_file", "Create a new workspace file. Fails if the target already exists.", func(ctx context.Context, input CreateFileInput, emit tooling.ToolProgressEmitter) (CreateFileOutput, error) {
+	tool, err := inferProgressTool("create_file", "Create a new workspace file. Fails if the target already exists.", func(ctx context.Context, input CreateFileInput, emit toolkit.ToolProgressEmitter) (CreateFileOutput, error) {
 		if strings.TrimSpace(input.Path) == "" {
 			return CreateFileOutput{}, errors.New("path is required")
 		}
@@ -75,7 +75,7 @@ func buildCreateFileTool(ws WorkspaceView) (einotool.BaseTool, error) {
 }
 
 func buildReplaceSpanTool(ws WorkspaceView) (einotool.BaseTool, error) {
-	tool, err := inferProgressTool("replace_span", "Replace an explicit inclusive line range within a workspace file.", func(ctx context.Context, input ReplaceSpanInput, emit tooling.ToolProgressEmitter) (ReplaceSpanOutput, error) {
+	tool, err := inferProgressTool("replace_span", "Replace an explicit inclusive line range within a workspace file.", func(ctx context.Context, input ReplaceSpanInput, emit toolkit.ToolProgressEmitter) (ReplaceSpanOutput, error) {
 		if strings.TrimSpace(input.Path) == "" {
 			return ReplaceSpanOutput{}, errors.New("path is required")
 		}
@@ -145,7 +145,7 @@ func buildReplaceSpanTool(ws WorkspaceView) (einotool.BaseTool, error) {
 }
 
 func buildApplyUnifiedPatchTool(ws WorkspaceView) (einotool.BaseTool, error) {
-	tool, err := inferProgressTool("apply_unified_patch", "Apply a unified git patch to explicit workspace paths.", func(ctx context.Context, input ApplyUnifiedPatchInput, emit tooling.ToolProgressEmitter) (ApplyUnifiedPatchOutput, error) {
+	tool, err := inferProgressTool("apply_unified_patch", "Apply a unified git patch to explicit workspace paths.", func(ctx context.Context, input ApplyUnifiedPatchInput, emit toolkit.ToolProgressEmitter) (ApplyUnifiedPatchOutput, error) {
 		if strings.TrimSpace(input.Patch) == "" {
 			return ApplyUnifiedPatchOutput{}, errors.New("patch is required")
 		}
@@ -232,7 +232,7 @@ func buildApplyUnifiedPatchTool(ws WorkspaceView) (einotool.BaseTool, error) {
 }
 
 func buildRollbackWorkspaceCheckpointTool(ws WorkspaceView) (einotool.BaseTool, error) {
-	tool, err := inferProgressTool("rollback_workspace_checkpoint", "Explicitly rollback a workspace mutation checkpoint. Fails if current workspace state conflicts with the checkpoint.", func(ctx context.Context, input RollbackWorkspaceCheckpointInput, emit tooling.ToolProgressEmitter) (RollbackWorkspaceCheckpointOutput, error) {
+	tool, err := inferProgressTool("rollback_workspace_checkpoint", "Explicitly rollback a workspace mutation checkpoint. Fails if current workspace state conflicts with the checkpoint.", func(ctx context.Context, input RollbackWorkspaceCheckpointInput, emit toolkit.ToolProgressEmitter) (RollbackWorkspaceCheckpointOutput, error) {
 		if strings.TrimSpace(input.CheckpointID) == "" {
 			return RollbackWorkspaceCheckpointOutput{}, errors.New("checkpoint_id is required")
 		}

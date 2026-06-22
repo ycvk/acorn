@@ -17,7 +17,7 @@ import (
 	"github.com/ycvk/acorn/internal/runtime/orchestration"
 	"github.com/ycvk/acorn/internal/runtime/tool"
 	"github.com/ycvk/acorn/internal/runtime/toolset"
-	"github.com/ycvk/acorn/internal/tooling"
+	"github.com/ycvk/acorn/internal/toolkit"
 	"github.com/ycvk/acorn/internal/tools"
 )
 
@@ -51,7 +51,7 @@ func (f *RunnerFactory) New(ctx context.Context, req RunnerBuildRequest) (*Activ
 	return f.buildRun(ctx, req)
 }
 
-func (f *RunnerFactory) BuildCapabilitySpecs(ctx context.Context) ([]tooling.ToolSpec, error) {
+func (f *RunnerFactory) BuildCapabilitySpecs(ctx context.Context) ([]toolkit.ToolSpec, error) {
 	toolset, err := f.buildToolset(ctx, "", true)
 	if err != nil {
 		return nil, err
@@ -230,7 +230,7 @@ func (f *RunnerFactory) assembleContext(
 func (f *RunnerFactory) buildAssembly(
 	ctx context.Context,
 	req RunnerBuildRequest,
-	catalog *tooling.Catalog,
+	catalog *toolkit.Catalog,
 	chatModel einomodel.BaseChatModel,
 	contextResult *contextplane.AssembleResult,
 ) (*orchestration.RunAssembly, error) {
@@ -241,7 +241,7 @@ func (f *RunnerFactory) buildAssembly(
 	return f.deps.Orchestration.BuildDirectResponse(ctx, f.directResponseRequest(bf, req))
 }
 
-func (f *RunnerFactory) baseAssemblyFields(req RunnerBuildRequest, catalog *tooling.Catalog, chatModel einomodel.BaseChatModel, contextResult *contextplane.AssembleResult) baseAssemblyFields {
+func (f *RunnerFactory) baseAssemblyFields(req RunnerBuildRequest, catalog *toolkit.Catalog, chatModel einomodel.BaseChatModel, contextResult *contextplane.AssembleResult) baseAssemblyFields {
 	return baseAssemblyFields{
 		agentName:         f.deps.Config.Agent.Name,
 		agentDescription:  f.deps.Config.Agent.Description,
@@ -297,12 +297,12 @@ func (f *RunnerFactory) buildRunCapabilities(ctx context.Context, sessionID stri
 	}, nil
 }
 
-func (f *RunnerFactory) assembleRunCapabilitiesCatalog(ctx context.Context, toolset *toolset.Toolset, mcpManager *mcpprovider.Manager) (*tooling.Catalog, error) {
-	specs := append([]tooling.ToolSpec(nil), toolset.Catalog().Specs()...)
+func (f *RunnerFactory) assembleRunCapabilitiesCatalog(ctx context.Context, toolset *toolset.Toolset, mcpManager *mcpprovider.Manager) (*toolkit.Catalog, error) {
+	specs := append([]toolkit.ToolSpec(nil), toolset.Catalog().Specs()...)
 	mcpSpecs, err := f.buildMCPToolSpecs(ctx, mcpManager)
 	if err != nil {
 		return nil, err
 	}
 	specs = append(specs, mcpSpecs...)
-	return tooling.NewCatalog(ctx, specs)
+	return toolkit.NewCatalog(ctx, specs)
 }

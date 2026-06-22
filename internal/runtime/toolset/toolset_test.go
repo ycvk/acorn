@@ -7,7 +7,7 @@ import (
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/schema"
 
-	"github.com/ycvk/acorn/internal/tooling"
+	"github.com/ycvk/acorn/internal/toolkit"
 )
 
 type testTool struct {
@@ -27,27 +27,27 @@ func buildTestTool(t *testing.T, name string) einotool.BaseTool {
 	return &testTool{name: name}
 }
 
-func buildTestCatalog(t *testing.T, tools ...einotool.BaseTool) *tooling.Catalog {
+func buildTestCatalog(t *testing.T, tools ...einotool.BaseTool) *toolkit.Catalog {
 	t.Helper()
-	specs := make([]tooling.ToolSpec, len(tools))
+	specs := make([]toolkit.ToolSpec, len(tools))
 	for i, tool := range tools {
 		info, err := tool.Info(context.Background())
 		if err != nil {
 			t.Fatalf("read tool info: %v", err)
 		}
-		specs[i] = tooling.ToolSpec{
-			ToolContract: tooling.ToolContract{
+		specs[i] = toolkit.ToolSpec{
+			ToolContract: toolkit.ToolContract{
 				Name:      info.Name,
 				Source:    "test",
-				Kind:      tooling.ToolKindNative,
-				Category:  tooling.ToolCategoryInspect,
-				Loading:   tooling.EagerLoadingPolicy(),
-				Execution: tooling.ToolExecutionPolicy{ParallelPolicy: tooling.ParallelPolicyReadOnly},
+				Kind:      toolkit.ToolKindNative,
+				Category:  toolkit.ToolCategoryInspect,
+				Loading:   toolkit.EagerLoadingPolicy(),
+				Execution: toolkit.ToolExecutionPolicy{ParallelPolicy: toolkit.ParallelPolicyReadOnly},
 			},
 			Tool: tool,
 		}
 	}
-	catalog, err := tooling.NewCatalog(context.Background(), specs)
+	catalog, err := toolkit.NewCatalog(context.Background(), specs)
 	if err != nil {
 		t.Fatalf("build catalog: %v", err)
 	}

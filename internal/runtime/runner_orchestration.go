@@ -14,7 +14,7 @@ import (
 	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/runtime/orchestration"
 	"github.com/ycvk/acorn/internal/runtime/tool"
-	"github.com/ycvk/acorn/internal/tooling"
+	"github.com/ycvk/acorn/internal/toolkit"
 )
 
 type orchestrationPlane interface {
@@ -74,7 +74,7 @@ func (s *inMemoryCheckpointStore) Set(_ context.Context, checkPointID string, ch
 
 func (d defaultOrchestrationPlaneDeps) buildAuditedTools(
 	ctx context.Context,
-	specs []tooling.ToolSpec,
+	specs []toolkit.ToolSpec,
 	excludedToolNames []string,
 	allowedToolNames []string,
 	runID string,
@@ -85,7 +85,7 @@ func (d defaultOrchestrationPlaneDeps) buildAuditedTools(
 func (d defaultOrchestrationPlaneDeps) buildToolNode(
 	ctx context.Context,
 	tools []einotool.BaseTool,
-	resolver tooling.ExecutionPolicyResolver,
+	resolver toolkit.ExecutionPolicyResolver,
 ) (orchestration.ToolInvoker, error) {
 	return tool.NewSafeParallelToolsNode(ctx, tools, resolver)
 }
@@ -127,7 +127,7 @@ func buildRunnerAgentHandlers(
 func (d defaultOrchestrationPlaneDeps) bindToolLifecycle(
 	ctx context.Context,
 	state orchestration.ToolLifecycleStateView,
-	catalog *tooling.Catalog,
+	catalog *toolkit.Catalog,
 	infos []*schema.ToolInfo,
 ) context.Context {
 	if adapter, ok := state.(toolLifecycleStateAdapter); ok && adapter.state != nil {

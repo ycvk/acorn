@@ -17,7 +17,7 @@ import (
 	"github.com/cloudwego/eino/schema"
 
 	"github.com/ycvk/acorn/internal/contextplane"
-	"github.com/ycvk/acorn/internal/tooling"
+	"github.com/ycvk/acorn/internal/toolkit"
 )
 
 type directResponseTestModel struct {
@@ -257,13 +257,13 @@ func TestBuildDirectResponseContinuesAfterOutputLimit(t *testing.T) {
 		MaxIterations:      4,
 		CheckpointStore:    &directResponseTestCheckpointStore{},
 		InstructionBuilder: func(base string, suffix string) string { return strings.TrimSpace(base + "\n" + suffix) },
-		ToolBuilder: func(context.Context, []tooling.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
+		ToolBuilder: func(context.Context, []toolkit.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
 			return []einotool.BaseTool{tool}, nil
 		},
-		ToolNodeFactory: func(context.Context, []einotool.BaseTool, tooling.ExecutionPolicyResolver) (ToolInvoker, error) {
+		ToolNodeFactory: func(context.Context, []einotool.BaseTool, toolkit.ExecutionPolicyResolver) (ToolInvoker, error) {
 			return &directResponseTestToolNode{}, nil
 		},
-		ToolLifecycleBinder: func(ctx context.Context, state ToolLifecycleStateView, catalog *tooling.Catalog, infos []*schema.ToolInfo) context.Context {
+		ToolLifecycleBinder: func(ctx context.Context, state ToolLifecycleStateView, catalog *toolkit.Catalog, infos []*schema.ToolInfo) context.Context {
 			if t, ok := state.(testToolLifecycleStateView); ok && t.state != nil {
 				return contextplane.WithToolLifecycleContext(ctx, t.state, catalog, infos)
 			}
@@ -332,13 +332,13 @@ func TestBuildDirectResponseDoesNotExecuteTruncatedToolCalls(t *testing.T) {
 		MaxIterations:      4,
 		CheckpointStore:    &directResponseTestCheckpointStore{},
 		InstructionBuilder: func(base string, suffix string) string { return strings.TrimSpace(base + "\n" + suffix) },
-		ToolBuilder: func(context.Context, []tooling.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
+		ToolBuilder: func(context.Context, []toolkit.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
 			return []einotool.BaseTool{tool}, nil
 		},
-		ToolNodeFactory: func(context.Context, []einotool.BaseTool, tooling.ExecutionPolicyResolver) (ToolInvoker, error) {
+		ToolNodeFactory: func(context.Context, []einotool.BaseTool, toolkit.ExecutionPolicyResolver) (ToolInvoker, error) {
 			return toolNode, nil
 		},
-		ToolLifecycleBinder: func(ctx context.Context, state ToolLifecycleStateView, catalog *tooling.Catalog, infos []*schema.ToolInfo) context.Context {
+		ToolLifecycleBinder: func(ctx context.Context, state ToolLifecycleStateView, catalog *toolkit.Catalog, infos []*schema.ToolInfo) context.Context {
 			if t, ok := state.(testToolLifecycleStateView); ok && t.state != nil {
 				return contextplane.WithToolLifecycleContext(ctx, t.state, catalog, infos)
 			}
@@ -408,13 +408,13 @@ func TestBuildDirectResponseRunsToolCallLoop(t *testing.T) {
 		MaxIterations:      4,
 		CheckpointStore:    &directResponseTestCheckpointStore{},
 		InstructionBuilder: func(base string, suffix string) string { return strings.TrimSpace(base + "\n" + suffix) },
-		ToolBuilder: func(context.Context, []tooling.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
+		ToolBuilder: func(context.Context, []toolkit.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
 			return []einotool.BaseTool{tool}, nil
 		},
-		ToolNodeFactory: func(context.Context, []einotool.BaseTool, tooling.ExecutionPolicyResolver) (ToolInvoker, error) {
+		ToolNodeFactory: func(context.Context, []einotool.BaseTool, toolkit.ExecutionPolicyResolver) (ToolInvoker, error) {
 			return toolNode, nil
 		},
-		ToolLifecycleBinder: func(ctx context.Context, state ToolLifecycleStateView, catalog *tooling.Catalog, infos []*schema.ToolInfo) context.Context {
+		ToolLifecycleBinder: func(ctx context.Context, state ToolLifecycleStateView, catalog *toolkit.Catalog, infos []*schema.ToolInfo) context.Context {
 			if t, ok := state.(testToolLifecycleStateView); ok && t.state != nil {
 				return contextplane.WithToolLifecycleContext(ctx, t.state, catalog, infos)
 			}
@@ -481,13 +481,13 @@ func TestBuildDirectResponsePropagatesModelError(t *testing.T) {
 		MaxIterations:      4,
 		CheckpointStore:    &directResponseTestCheckpointStore{},
 		InstructionBuilder: func(base string, suffix string) string { return strings.TrimSpace(base + "\n" + suffix) },
-		ToolBuilder: func(context.Context, []tooling.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
+		ToolBuilder: func(context.Context, []toolkit.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
 			return []einotool.BaseTool{tool}, nil
 		},
-		ToolNodeFactory: func(context.Context, []einotool.BaseTool, tooling.ExecutionPolicyResolver) (ToolInvoker, error) {
+		ToolNodeFactory: func(context.Context, []einotool.BaseTool, toolkit.ExecutionPolicyResolver) (ToolInvoker, error) {
 			return &directResponseTestToolNode{}, nil
 		},
-		ToolLifecycleBinder: func(ctx context.Context, state ToolLifecycleStateView, catalog *tooling.Catalog, infos []*schema.ToolInfo) context.Context {
+		ToolLifecycleBinder: func(ctx context.Context, state ToolLifecycleStateView, catalog *toolkit.Catalog, infos []*schema.ToolInfo) context.Context {
 			if t, ok := state.(testToolLifecycleStateView); ok && t.state != nil {
 				return contextplane.WithToolLifecycleContext(ctx, t.state, catalog, infos)
 			}
@@ -531,13 +531,13 @@ func TestBuildDirectResponseFailsWithoutContextSession(t *testing.T) {
 		InstructionBuilder: func(base string, suffix string) string {
 			return strings.TrimSpace(base + "\n" + suffix)
 		},
-		ToolBuilder: func(context.Context, []tooling.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
+		ToolBuilder: func(context.Context, []toolkit.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
 			return []einotool.BaseTool{tool}, nil
 		},
-		ToolNodeFactory: func(context.Context, []einotool.BaseTool, tooling.ExecutionPolicyResolver) (ToolInvoker, error) {
+		ToolNodeFactory: func(context.Context, []einotool.BaseTool, toolkit.ExecutionPolicyResolver) (ToolInvoker, error) {
 			return &directResponseTestToolNode{}, nil
 		},
-		ToolLifecycleBinder: func(ctx context.Context, state ToolLifecycleStateView, catalog *tooling.Catalog, infos []*schema.ToolInfo) context.Context {
+		ToolLifecycleBinder: func(ctx context.Context, state ToolLifecycleStateView, catalog *toolkit.Catalog, infos []*schema.ToolInfo) context.Context {
 			if t, ok := state.(testToolLifecycleStateView); ok && t.state != nil {
 				return contextplane.WithToolLifecycleContext(ctx, t.state, catalog, infos)
 			}
@@ -566,20 +566,20 @@ func TestBuildDirectResponseFailsWithoutContextSession(t *testing.T) {
 	}
 }
 
-func directResponseCatalogForTest(t *testing.T, ctx context.Context, tool einotool.BaseTool) *tooling.Catalog {
+func directResponseCatalogForTest(t *testing.T, ctx context.Context, tool einotool.BaseTool) *toolkit.Catalog {
 	t.Helper()
 	info, err := tool.Info(ctx)
 	if err != nil {
 		t.Fatalf("Info: %v", err)
 	}
-	catalog, err := tooling.NewCatalog(ctx, []tooling.ToolSpec{{
-		ToolContract: tooling.ToolContract{
+	catalog, err := toolkit.NewCatalog(ctx, []toolkit.ToolSpec{{
+		ToolContract: toolkit.ToolContract{
 			Name:      info.Name,
 			Source:    "test",
-			Kind:      tooling.ToolKindNative,
-			Category:  tooling.ToolCategoryRead,
-			Loading:   tooling.EagerLoadingPolicy(),
-			Execution: tooling.ToolExecutionPolicy{ParallelPolicy: tooling.ParallelPolicyReadOnly},
+			Kind:      toolkit.ToolKindNative,
+			Category:  toolkit.ToolCategoryRead,
+			Loading:   toolkit.EagerLoadingPolicy(),
+			Execution: toolkit.ToolExecutionPolicy{ParallelPolicy: toolkit.ParallelPolicyReadOnly},
 		},
 		Tool: tool,
 	}})
@@ -828,13 +828,13 @@ func TestBuildDirectResponseHandlesInterrupt(t *testing.T) {
 		InstructionBuilder: func(base string, suffix string) string {
 			return strings.TrimSpace(base + "\n" + suffix)
 		},
-		ToolBuilder: func(context.Context, []tooling.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
+		ToolBuilder: func(context.Context, []toolkit.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
 			return []einotool.BaseTool{tool}, nil
 		},
-		ToolNodeFactory: func(context.Context, []einotool.BaseTool, tooling.ExecutionPolicyResolver) (ToolInvoker, error) {
+		ToolNodeFactory: func(context.Context, []einotool.BaseTool, toolkit.ExecutionPolicyResolver) (ToolInvoker, error) {
 			return &directResponseInterruptToolNode{}, nil
 		},
-		ToolLifecycleBinder: func(ctx context.Context, state ToolLifecycleStateView, catalog *tooling.Catalog, infos []*schema.ToolInfo) context.Context {
+		ToolLifecycleBinder: func(ctx context.Context, state ToolLifecycleStateView, catalog *toolkit.Catalog, infos []*schema.ToolInfo) context.Context {
 			if t, ok := state.(testToolLifecycleStateView); ok && t.state != nil {
 				return contextplane.WithToolLifecycleContext(ctx, t.state, catalog, infos)
 			}
@@ -906,13 +906,13 @@ func TestBuildDirectResponsePreservesNestedInterruptContexts(t *testing.T) {
 		InstructionBuilder: func(base string, suffix string) string {
 			return strings.TrimSpace(base + "\n" + suffix)
 		},
-		ToolBuilder: func(context.Context, []tooling.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
+		ToolBuilder: func(context.Context, []toolkit.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
 			return []einotool.BaseTool{tool}, nil
 		},
-		ToolNodeFactory: func(context.Context, []einotool.BaseTool, tooling.ExecutionPolicyResolver) (ToolInvoker, error) {
+		ToolNodeFactory: func(context.Context, []einotool.BaseTool, toolkit.ExecutionPolicyResolver) (ToolInvoker, error) {
 			return &directResponseInterruptToolNode{signal: interruptSignal}, nil
 		},
-		ToolLifecycleBinder: func(ctx context.Context, state ToolLifecycleStateView, catalog *tooling.Catalog, infos []*schema.ToolInfo) context.Context {
+		ToolLifecycleBinder: func(ctx context.Context, state ToolLifecycleStateView, catalog *toolkit.Catalog, infos []*schema.ToolInfo) context.Context {
 			if t, ok := state.(testToolLifecycleStateView); ok && t.state != nil {
 				return contextplane.WithToolLifecycleContext(ctx, t.state, catalog, infos)
 			}
@@ -1039,13 +1039,13 @@ func TestBuildDirectResponseResumeContinuesFromPendingToolCalls(t *testing.T) {
 		InstructionBuilder: func(base string, suffix string) string {
 			return strings.TrimSpace(base + "\n" + suffix)
 		},
-		ToolBuilder: func(context.Context, []tooling.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
+		ToolBuilder: func(context.Context, []toolkit.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
 			return []einotool.BaseTool{tool}, nil
 		},
-		ToolNodeFactory: func(context.Context, []einotool.BaseTool, tooling.ExecutionPolicyResolver) (ToolInvoker, error) {
+		ToolNodeFactory: func(context.Context, []einotool.BaseTool, toolkit.ExecutionPolicyResolver) (ToolInvoker, error) {
 			return toolNode, nil
 		},
-		ToolLifecycleBinder: func(ctx context.Context, state ToolLifecycleStateView, catalog *tooling.Catalog, infos []*schema.ToolInfo) context.Context {
+		ToolLifecycleBinder: func(ctx context.Context, state ToolLifecycleStateView, catalog *toolkit.Catalog, infos []*schema.ToolInfo) context.Context {
 			if t, ok := state.(testToolLifecycleStateView); ok && t.state != nil {
 				return contextplane.WithToolLifecycleContext(ctx, t.state, catalog, infos)
 			}

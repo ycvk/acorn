@@ -17,7 +17,7 @@ import (
 	"github.com/ycvk/acorn/internal/runtime/orchestration"
 	"github.com/ycvk/acorn/internal/skills"
 	corestore "github.com/ycvk/acorn/internal/store"
-	"github.com/ycvk/acorn/internal/tooling"
+	"github.com/ycvk/acorn/internal/toolkit"
 	"github.com/ycvk/acorn/internal/workspace"
 )
 
@@ -195,14 +195,14 @@ type baseAssemblyFields struct {
 	sessionID         string
 	runID             string
 	chatModel         einomodel.BaseChatModel
-	catalog           *tooling.Catalog
+	catalog           *toolkit.Catalog
 	contextResult     orchestration.AssembleResultView
 	allowedToolNames  []string
 	excludedToolNames []string
 }
 
 type runCapabilities struct {
-	catalog       *tooling.Catalog
+	catalog       *toolkit.Catalog
 	skillSnapshot *skills.Snapshot
 	stableSkills  []skills.Spec
 	close         func() error

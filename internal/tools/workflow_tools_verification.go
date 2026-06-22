@@ -12,7 +12,7 @@ import (
 
 	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/store"
-	"github.com/ycvk/acorn/internal/tooling"
+	"github.com/ycvk/acorn/internal/toolkit"
 )
 
 type verificationCommandResult struct {
@@ -82,7 +82,7 @@ func writeWorkflowArtifact(ctx context.Context, service ArtifactService, bridge 
 	})
 }
 
-func executeVerificationCommand(ctx context.Context, ws WorkspaceView, command []string, cwd string, timeoutSeconds int, emit tooling.ToolProgressEmitter) (verificationCommandResult, error) {
+func executeVerificationCommand(ctx context.Context, ws WorkspaceView, command []string, cwd string, timeoutSeconds int, emit toolkit.ToolProgressEmitter) (verificationCommandResult, error) {
 	if timeoutSeconds <= 0 {
 		timeoutSeconds = ws.RunCommandDefaultTimeout()
 	}
@@ -95,7 +95,7 @@ func executeVerificationCommand(ctx context.Context, ws WorkspaceView, command [
 	return waitVerificationCommand(execCtx, cmd, command, stdoutBuf, stderrBuf)
 }
 
-func buildVerificationCommand(ws WorkspaceView, command []string, cwd string, ctx context.Context, emit tooling.ToolProgressEmitter) (*exec.Cmd, *runCommandProgressBuffer, *runCommandProgressBuffer) {
+func buildVerificationCommand(ws WorkspaceView, command []string, cwd string, ctx context.Context, emit toolkit.ToolProgressEmitter) (*exec.Cmd, *runCommandProgressBuffer, *runCommandProgressBuffer) {
 	cmd := exec.Command(command[0], command[1:]...)
 	ConfigureCommand(cmd)
 	cmd.Dir = cwd

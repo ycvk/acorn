@@ -16,7 +16,7 @@ import (
 	"github.com/ycvk/acorn/internal/contextplane"
 	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/runtime/orchestration"
-	"github.com/ycvk/acorn/internal/tooling"
+	"github.com/ycvk/acorn/internal/toolkit"
 )
 
 // SafeParallelToolsNode dispatches tool calls with safety-aware parallelism.
@@ -41,7 +41,7 @@ type toolEntry struct {
 func NewSafeParallelToolsNode(
 	ctx context.Context,
 	tools []einotool.BaseTool,
-	resolver tooling.ExecutionPolicyResolver,
+	resolver toolkit.ExecutionPolicyResolver,
 ) (*SafeParallelToolsNode, error) {
 	if ctx == nil {
 		return nil, fmt.Errorf("safe parallel tools node: context is required")

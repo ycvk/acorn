@@ -6,10 +6,10 @@ import (
 
 	einotool "github.com/cloudwego/eino/components/tool"
 
-	"github.com/ycvk/acorn/internal/tooling"
+	"github.com/ycvk/acorn/internal/toolkit"
 )
 
-func NewToolset(catalog *tooling.Catalog, closers ...io.Closer) *Toolset {
+func NewToolset(catalog *toolkit.Catalog, closers ...io.Closer) *Toolset {
 	c := make([]io.Closer, 0, len(closers))
 	for _, cl := range closers {
 		if cl != nil {
@@ -21,7 +21,7 @@ func NewToolset(catalog *tooling.Catalog, closers ...io.Closer) *Toolset {
 
 // Toolset is a built collection of tools for a run or serve context.
 type Toolset struct {
-	catalog *tooling.Catalog
+	catalog *toolkit.Catalog
 	closers []io.Closer
 }
 
@@ -32,7 +32,7 @@ func (t Toolset) All() []einotool.BaseTool {
 	return t.catalog.Tools()
 }
 
-func (t Toolset) Catalog() *tooling.Catalog {
+func (t Toolset) Catalog() *toolkit.Catalog {
 	return t.catalog
 }
 

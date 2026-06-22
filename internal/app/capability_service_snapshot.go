@@ -7,7 +7,7 @@ import (
 
 	"github.com/ycvk/acorn/internal/config"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
-	"github.com/ycvk/acorn/internal/tooling"
+	"github.com/ycvk/acorn/internal/toolkit"
 )
 
 func (s *CapabilitiesService) snapshotTools(ctx context.Context, providers []SystemMCPProviderCapability) ([]SystemToolCapability, error) {
@@ -42,7 +42,7 @@ func (s *CapabilitiesService) workspaceSettings() (string, int) {
 	return workspaceRoot, runCommandTimeout
 }
 
-func (s *CapabilitiesService) loadToolSpecs(ctx context.Context) ([]tooling.ToolSpec, error) {
+func (s *CapabilitiesService) loadToolSpecs(ctx context.Context) ([]toolkit.ToolSpec, error) {
 	if s.catalogBuilder != nil {
 		specs, err := s.catalogBuilder.BuildCapabilitySpecs(ctx)
 		if err != nil {
@@ -50,7 +50,7 @@ func (s *CapabilitiesService) loadToolSpecs(ctx context.Context) ([]tooling.Tool
 		}
 		return specs, nil
 	}
-	return tooling.ConfiguredLocalSpecs(s.cfg), nil
+	return toolkit.ConfiguredLocalSpecs(s.cfg), nil
 }
 
 func (s *CapabilitiesService) providerToolCapabilities(provider SystemMCPProviderCapability) ([]SystemToolCapability, error) {
@@ -67,8 +67,8 @@ func (s *CapabilitiesService) providerToolCapabilities(provider SystemMCPProvide
 		items = append(items, SystemToolCapability{
 			Name:           toolName,
 			Source:         provider.Name,
-			Kind:           string(tooling.ToolKindMCP),
-			Category:       string(tooling.ToolCategoryIntegration),
+			Kind:           string(toolkit.ToolKindMCP),
+			Category:       string(toolkit.ToolCategoryIntegration),
 			Enabled:        provider.Enabled && provider.Error == "",
 			HealthState:    providerHealthState(provider),
 			HealthReason:   strings.TrimSpace(provider.Error),
@@ -87,7 +87,7 @@ func mcpProviderParallelPolicy(cfg *config.Config, providerName string) (string,
 		if strings.TrimSpace(provider.Name) != strings.TrimSpace(providerName) {
 			continue
 		}
-		policy, err := tooling.ParseParallelPolicy(provider.ToolSafety)
+		policy, err := toolkit.ParseParallelPolicy(provider.ToolSafety)
 		if err != nil {
 			return "", err
 		}
@@ -96,7 +96,7 @@ func mcpProviderParallelPolicy(cfg *config.Config, providerName string) (string,
 	return "", fmt.Errorf("MCP provider %q is not configured", strings.TrimSpace(providerName))
 }
 
-func toolCapabilityFromSpec(spec tooling.ToolSpec, workspaceRoot string, runCommandTimeout int) SystemToolCapability {
+func toolCapabilityFromSpec(spec toolkit.ToolSpec, workspaceRoot string, runCommandTimeout int) SystemToolCapability {
 	item := SystemToolCapability{
 		Name:           spec.Name,
 		Source:         spec.Source,
@@ -111,17 +111,17 @@ func toolCapabilityFromSpec(spec tooling.ToolSpec, workspaceRoot string, runComm
 	return item
 }
 
-func toolRisk(spec tooling.ToolSpec) string {
+func toolRisk(spec toolkit.ToolSpec) string {
 	switch spec.Category {
-	case tooling.ToolCategoryRead, tooling.ToolCategoryInspect:
+	case toolkit.ToolCategoryRead, toolkit.ToolCategoryInspect:
 		return "read_only"
-	case tooling.ToolCategoryWrite:
+	case toolkit.ToolCategoryWrite:
 		return "mutation"
-	case tooling.ToolCategoryExecute:
+	case toolkit.ToolCategoryExecute:
 		return "escape_hatch"
-	case tooling.ToolCategoryMemory:
+	case toolkit.ToolCategoryMemory:
 		return "memory"
-	case tooling.ToolCategorySkill:
+	case toolkit.ToolCategorySkill:
 		return "skill"
 	default:
 		return "integration"
@@ -131,11 +131,11 @@ func toolRisk(spec tooling.ToolSpec) string {
 func providerHealthState(provider SystemMCPProviderCapability) string {
 	switch {
 	case !provider.Enabled:
-		return string(tooling.HealthStateDisabled)
+		return string(toolkit.HealthStateDisabled)
 	case strings.TrimSpace(provider.Error) != "":
-		return string(tooling.HealthStateDegraded)
+		return string(toolkit.HealthStateDegraded)
 	default:
-		return string(tooling.HealthStateHealthy)
+		return string(toolkit.HealthStateHealthy)
 	}
 }
 

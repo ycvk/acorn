@@ -25,7 +25,7 @@ import (
 	"github.com/ycvk/acorn/internal/domain"
 	corestore "github.com/ycvk/acorn/internal/store"
 	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
-	"github.com/ycvk/acorn/internal/tooling"
+	"github.com/ycvk/acorn/internal/toolkit"
 	"github.com/ycvk/acorn/internal/webaccess"
 	workspacepkg "github.com/ycvk/acorn/internal/workspace"
 )
@@ -317,7 +317,7 @@ func TestSearchTextEmitsMatchProgress(t *testing.T) {
 	tool := mustProgressToolByName(t, catalog.Tools, "search_text")
 
 	var chunks []string
-	_, err = tool.InvokableRunWithProgress(context.Background(), `{"query":"beta","limit":10}`, func(_ context.Context, event tooling.ToolProgressEvent) error {
+	_, err = tool.InvokableRunWithProgress(context.Background(), `{"query":"beta","limit":10}`, func(_ context.Context, event toolkit.ToolProgressEvent) error {
 		chunks = append(chunks, event.Delta)
 		return nil
 	})
@@ -875,7 +875,7 @@ func TestRunCommandEmitsProgressChunks(t *testing.T) {
 
 	var mu sync.Mutex
 	var chunks []string
-	output, err := tool.InvokableRunWithProgress(context.Background(), `{"command":["sh","-lc","printf out; printf err 1>&2"]}`, func(_ context.Context, event tooling.ToolProgressEvent) error {
+	output, err := tool.InvokableRunWithProgress(context.Background(), `{"command":["sh","-lc","printf out; printf err 1>&2"]}`, func(_ context.Context, event toolkit.ToolProgressEvent) error {
 		mu.Lock()
 		defer mu.Unlock()
 		chunks = append(chunks, event.Delta)
@@ -1027,7 +1027,7 @@ func mustToolByName(t *testing.T, tools []einotool.BaseTool, name string) einoto
 	return nil
 }
 
-func mustProgressToolByName(t *testing.T, tools []einotool.BaseTool, name string) tooling.ProgressTool {
+func mustProgressToolByName(t *testing.T, tools []einotool.BaseTool, name string) toolkit.ProgressTool {
 	t.Helper()
 	for _, tool := range tools {
 		info, err := tool.Info(context.Background())
@@ -1035,7 +1035,7 @@ func mustProgressToolByName(t *testing.T, tools []einotool.BaseTool, name string
 			t.Fatalf("tool.Info(%q): %v", name, err)
 		}
 		if info != nil && info.Name == name {
-			progress, ok := tool.(tooling.ProgressTool)
+			progress, ok := tool.(toolkit.ProgressTool)
 			if !ok {
 				t.Fatalf("%s tool is not progress-capable", name)
 			}

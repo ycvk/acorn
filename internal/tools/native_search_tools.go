@@ -14,11 +14,11 @@ import (
 
 	einotool "github.com/cloudwego/eino/components/tool"
 
-	"github.com/ycvk/acorn/internal/tooling"
+	"github.com/ycvk/acorn/internal/toolkit"
 )
 
 func buildSearchTextTool(ws WorkspaceView) (einotool.BaseTool, error) {
-	tool, err := inferProgressTool("search_text", "Search workspace text files without dropping to raw command execution.", func(ctx context.Context, input SearchTextInput, emit tooling.ToolProgressEmitter) (SearchTextOutput, error) {
+	tool, err := inferProgressTool("search_text", "Search workspace text files without dropping to raw command execution.", func(ctx context.Context, input SearchTextInput, emit toolkit.ToolProgressEmitter) (SearchTextOutput, error) {
 		return runSearchText(ctx, ws, input, emit)
 	})
 	if err != nil {
@@ -27,7 +27,7 @@ func buildSearchTextTool(ws WorkspaceView) (einotool.BaseTool, error) {
 	return tool, nil
 }
 
-func runSearchText(ctx context.Context, ws WorkspaceView, input SearchTextInput, emit tooling.ToolProgressEmitter) (SearchTextOutput, error) {
+func runSearchText(ctx context.Context, ws WorkspaceView, input SearchTextInput, emit toolkit.ToolProgressEmitter) (SearchTextOutput, error) {
 	query := strings.TrimSpace(input.Query)
 	if query == "" {
 		return SearchTextOutput{}, errors.New("query is required")
@@ -47,7 +47,7 @@ func runSearchText(ctx context.Context, ws WorkspaceView, input SearchTextInput,
 	return searchWorkspaceFiles(ctx, ws, basePath, baseRel, query, input, matcher, limit, emit)
 }
 
-func searchWorkspaceFiles(ctx context.Context, ws WorkspaceView, basePath, baseRel, query string, input SearchTextInput, matcher func(string) (int, bool), limit int, emit tooling.ToolProgressEmitter) (SearchTextOutput, error) {
+func searchWorkspaceFiles(ctx context.Context, ws WorkspaceView, basePath, baseRel, query string, input SearchTextInput, matcher func(string) (int, bool), limit int, emit toolkit.ToolProgressEmitter) (SearchTextOutput, error) {
 	state := &searchState{matches: make([]SearchTextMatch, 0, minInt(limit, 16))}
 	err := walkWorkspaceFiles(basePath, func(current string, entry fs.DirEntry) error {
 		return scanSearchFile(ctx, ws, current, matcher, state, limit, emit)
@@ -64,7 +64,7 @@ type searchState struct {
 	skippedBinaryFileCount int
 }
 
-func scanSearchFile(ctx context.Context, ws WorkspaceView, current string, matcher func(string) (int, bool), state *searchState, limit int, emit tooling.ToolProgressEmitter) error {
+func scanSearchFile(ctx context.Context, ws WorkspaceView, current string, matcher func(string) (int, bool), state *searchState, limit int, emit toolkit.ToolProgressEmitter) error {
 	if len(state.matches) >= limit {
 		return nil
 	}
@@ -84,7 +84,7 @@ func scanSearchFile(ctx context.Context, ws WorkspaceView, current string, match
 	return collectSearchMatches(ctx, rel, body, matcher, state, limit, emit)
 }
 
-func collectSearchMatches(ctx context.Context, rel string, body []byte, matcher func(string) (int, bool), state *searchState, limit int, emit tooling.ToolProgressEmitter) error {
+func collectSearchMatches(ctx context.Context, rel string, body []byte, matcher func(string) (int, bool), state *searchState, limit int, emit toolkit.ToolProgressEmitter) error {
 	lineNo := 1
 	for _, line := range splitLinesForSearch(body) {
 		column, ok := matcher(line)

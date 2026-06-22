@@ -8,14 +8,14 @@ import (
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/domain"
-	"github.com/ycvk/acorn/internal/tooling"
+	"github.com/ycvk/acorn/internal/toolkit"
 )
 
 type auditedTool struct {
-	spec      tooling.ToolSpec
+	spec      toolkit.ToolSpec
 	tool      einotool.BaseTool
 	invokable einotool.InvokableTool
-	progress  tooling.ProgressTool
+	progress  toolkit.ProgressTool
 	store     domain.EventAppender
 	validator *toolArgumentValidator
 }
@@ -41,7 +41,7 @@ func ToolAuditCallID(ctx context.Context) string {
 	return strings.TrimSpace(value)
 }
 
-func wrapToolForAudit(ctx context.Context, store domain.EventAppender, spec tooling.ToolSpec) (einotool.BaseTool, error) {
+func wrapToolForAudit(ctx context.Context, store domain.EventAppender, spec toolkit.ToolSpec) (einotool.BaseTool, error) {
 	info, err := spec.Tool.Info(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("read tool info for audit: %w", err)
@@ -75,11 +75,11 @@ func (t *auditedTool) InvokableRun(ctx context.Context, argumentsInJSON string, 
 	return t.run(ctx, argumentsInJSON, nil, opts...)
 }
 
-func (t *auditedTool) InvokableRunWithProgress(ctx context.Context, argumentsInJSON string, emit tooling.ToolProgressEmitter, opts ...einotool.Option) (string, error) {
+func (t *auditedTool) InvokableRunWithProgress(ctx context.Context, argumentsInJSON string, emit toolkit.ToolProgressEmitter, opts ...einotool.Option) (string, error) {
 	return t.run(ctx, argumentsInJSON, emit, opts...)
 }
 
-func (t *auditedTool) run(ctx context.Context, argumentsInJSON string, emit tooling.ToolProgressEmitter, opts ...einotool.Option) (string, error) {
+func (t *auditedTool) run(ctx context.Context, argumentsInJSON string, emit toolkit.ToolProgressEmitter, opts ...einotool.Option) (string, error) {
 	if t.validator != nil {
 		validationErrors, validateErr := t.validator.validate(argumentsInJSON)
 		if validateErr != nil {
@@ -95,15 +95,15 @@ func (t *auditedTool) run(ctx context.Context, argumentsInJSON string, emit tool
 	return output, err
 }
 
-func progressToolFromBase(tool einotool.BaseTool) tooling.ProgressTool {
-	progress, ok := tool.(tooling.ProgressTool)
+func progressToolFromBase(tool einotool.BaseTool) toolkit.ProgressTool {
+	progress, ok := tool.(toolkit.ProgressTool)
 	if !ok {
 		return nil
 	}
 	return progress
 }
 
-func (t *auditedTool) invoke(ctx context.Context, argumentsInJSON string, emit tooling.ToolProgressEmitter, opts ...einotool.Option) (string, error) {
+func (t *auditedTool) invoke(ctx context.Context, argumentsInJSON string, emit toolkit.ToolProgressEmitter, opts ...einotool.Option) (string, error) {
 	if t.progress != nil {
 		return t.progress.InvokableRunWithProgress(ctx, argumentsInJSON, emit, opts...)
 	}
@@ -113,7 +113,7 @@ func (t *auditedTool) invoke(ctx context.Context, argumentsInJSON string, emit t
 func BuildAuditedTools(
 	ctx context.Context,
 	store domain.EventAppender,
-	specs []tooling.ToolSpec,
+	specs []toolkit.ToolSpec,
 	excludedToolNames []string,
 	allowedToolNames []string,
 	_ string,

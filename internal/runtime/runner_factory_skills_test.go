@@ -7,7 +7,7 @@ import (
 
 	"github.com/ycvk/acorn/internal/runtime/tooltest"
 	"github.com/ycvk/acorn/internal/skills"
-	"github.com/ycvk/acorn/internal/tooling"
+	"github.com/ycvk/acorn/internal/toolkit"
 )
 
 func TestRetrieveCandidatesExplicitSkill(t *testing.T) {
@@ -213,23 +213,23 @@ func TestRetrieveCandidatesWebCapabilityPromptMatchesWebSkill(t *testing.T) {
 	}
 }
 
-func newSkillSelectionRegistry(t *testing.T) *tooling.Catalog {
+func newSkillSelectionRegistry(t *testing.T) *toolkit.Catalog {
 	t.Helper()
-	items := []tooling.ToolSpec{
+	items := []toolkit.ToolSpec{
 		{
-			ToolContract: skillSelectionToolContract("read_file", tooling.ToolCategoryRead, tooling.ParallelPolicyReadOnly),
+			ToolContract: skillSelectionToolContract("read_file", toolkit.ToolCategoryRead, toolkit.ParallelPolicyReadOnly),
 			Tool:         tooltest.MustInferTool(t, "read_file", func(context.Context, map[string]any) (string, error) { return "ok", nil }),
 		},
 		{
-			ToolContract: skillSelectionToolContract("create_file", tooling.ToolCategoryWrite, tooling.ParallelPolicySerial),
+			ToolContract: skillSelectionToolContract("create_file", toolkit.ToolCategoryWrite, toolkit.ParallelPolicySerial),
 			Tool:         tooltest.MustInferTool(t, "create_file", func(context.Context, map[string]any) (string, error) { return "ok", nil }),
 		},
 		{
-			ToolContract: skillSelectionToolContract("run_command", tooling.ToolCategoryExecute, tooling.ParallelPolicySerial),
+			ToolContract: skillSelectionToolContract("run_command", toolkit.ToolCategoryExecute, toolkit.ParallelPolicySerial),
 			Tool:         tooltest.MustInferTool(t, "run_command", func(context.Context, map[string]any) (string, error) { return "ok", nil }),
 		},
 	}
-	registry, err := tooling.NewCatalog(context.Background(), items)
+	registry, err := toolkit.NewCatalog(context.Background(), items)
 	if err != nil {
 		t.Fatalf("NewCatalog: %v", err)
 	}
@@ -238,15 +238,15 @@ func newSkillSelectionRegistry(t *testing.T) *tooling.Catalog {
 
 func skillSelectionToolContract(
 	name string,
-	category tooling.ToolCategory,
-	parallel tooling.ParallelPolicy,
-) tooling.ToolContract {
-	return tooling.ToolContract{
+	category toolkit.ToolCategory,
+	parallel toolkit.ParallelPolicy,
+) toolkit.ToolContract {
+	return toolkit.ToolContract{
 		Name:      name,
 		Source:    "local",
-		Kind:      tooling.ToolKindNative,
+		Kind:      toolkit.ToolKindNative,
 		Category:  category,
-		Loading:   tooling.EagerLoadingPolicy(),
-		Execution: tooling.ToolExecutionPolicy{ParallelPolicy: parallel},
+		Loading:   toolkit.EagerLoadingPolicy(),
+		Execution: toolkit.ToolExecutionPolicy{ParallelPolicy: parallel},
 	}
 }
