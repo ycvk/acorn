@@ -65,7 +65,7 @@ jobs:
           echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
 
   build:
-    name: Build Bleve FAISS ${{ matrix.goos }}/${{ matrix.goarch }}
+    name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
     runs-on: ${{ matrix.runner }}
     needs: metadata
     strategy:
@@ -84,42 +84,12 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Install Bleve FAISS native build tools
-        env:
-          RELEASE_GOOS: ${{ matrix.goos }}
-          RELEASE_GOARCH: ${{ matrix.goarch }}
-        shell: bash
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y cmake build-essential pkg-config libopenblas-dev
-
-      - name: Prepare Bleve FAISS native artifacts
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          RELEASE_GOOS: ${{ matrix.goos }}
-          RELEASE_GOARCH: ${{ matrix.goarch }}
-        shell: bash
-        run: |
-          artifact_dir="$RUNNER_TEMP/faiss-native"
-          scripts/build-faiss-artifacts.sh "$artifact_dir" "$RELEASE_GOOS" "$RELEASE_GOARCH"
-          echo "FAISS_ARTIFACT_DIR=$artifact_dir" >> "$GITHUB_ENV"
-
-      - name: Verify Bleve FAISS target artifact
-        env:
-          RELEASE_GOOS: ${{ matrix.goos }}
-          RELEASE_GOARCH: ${{ matrix.goarch }}
-        shell: bash
-        run: |
-          test -f "$FAISS_ARTIFACT_DIR/include/faiss/c_api/Index_c.h"
-          test -f "$FAISS_ARTIFACT_DIR/lib/${RELEASE_GOOS}_${RELEASE_GOARCH}/libfaiss_c.so"
-          test -f "$FAISS_ARTIFACT_DIR/lib/${RELEASE_GOOS}_${RELEASE_GOARCH}/libfaiss.so"
-
-      - name: Build Bleve FAISS release package
+      - name: Build release package
         env:
           VERSION: ${{ needs.metadata.outputs.version }}
           RELEASE_GOOS: ${{ matrix.goos }}
           RELEASE_GOARCH: ${{ matrix.goarch }}
-        run: make release VERSION="$VERSION" RELEASE_GOOS="$RELEASE_GOOS" RELEASE_GOARCH="$RELEASE_GOARCH" FAISS_ARTIFACT_DIR="$FAISS_ARTIFACT_DIR"
+        run: make release VERSION="$VERSION" RELEASE_GOOS="$RELEASE_GOOS" RELEASE_GOARCH="$RELEASE_GOARCH"
 
       - name: Verify release package
         env:
@@ -138,45 +108,13 @@ jobs:
 
           tar -xzf "$archive" -C "$tmpdir"
           package_dir="$tmpdir/acorn_${VERSION}_${RELEASE_GOOS}_${RELEASE_GOARCH}"
-          grep -qx "semantic_index_backend=bleve_faiss" "$package_dir/RELEASE"
-          grep -qx "native_lib_dir=lib/${RELEASE_GOOS}_${RELEASE_GOARCH}" "$package_dir/RELEASE"
           grep -qx "installer=install-release.sh" "$package_dir/RELEASE"
           grep -qx "skills_dir=skills" "$package_dir/RELEASE"
-          test -f "$package_dir/lib/${RELEASE_GOOS}_${RELEASE_GOARCH}/libfaiss_c.so"
-          test -f "$package_dir/lib/${RELEASE_GOOS}_${RELEASE_GOARCH}/libfaiss.so"
           test -f "$package_dir/skills/skill_creator/SKILL.md"
           test -f "$package_dir/skills/web_browser_research/SKILL.md"
           test -x "$package_dir/install-release.sh"
           grep -qx "ExecStart=/opt/acorn/acorn serve" "$package_dir/acorn.service"
           (cd "$package_dir" && sha256sum -c CHECKSUMS)
-
-          verify_runtime_links() {
-            local elf="$1"
-            local link_dir="${2:-}"
-            local output
-            if [ -n "$link_dir" ]; then
-              if ! output="$(LD_LIBRARY_PATH="$link_dir${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" ldd "$elf" 2>&1)"; then
-                printf '%s\n' "$output" >&2
-                echo "could not inspect runtime dependencies for $elf" >&2
-                exit 1
-              fi
-            else
-              if ! output="$(ldd "$elf" 2>&1)"; then
-                printf '%s\n' "$output" >&2
-                echo "could not inspect runtime dependencies for $elf" >&2
-                exit 1
-              fi
-            fi
-            printf '%s\n' "$output"
-            if printf '%s\n' "$output" | grep -q "not found"; then
-              echo "missing runtime dependency for $elf" >&2
-              exit 1
-            fi
-          }
-          package_runtime_lib_dir="$package_dir/lib/${RELEASE_GOOS}_${RELEASE_GOARCH}"
-          verify_runtime_links "$package_dir/acorn"
-          verify_runtime_links "$package_runtime_lib_dir/libfaiss_c.so" "$package_runtime_lib_dir"
-          verify_runtime_links "$package_runtime_lib_dir/libfaiss.so" "$package_runtime_lib_dir"
 
       - uses: actions/upload-artifact@v7.0.1
         with:
@@ -329,14 +267,14 @@ jobs:
 
           Assets:
           - install-release.sh (downloads and installs the latest release by default)
-          - acorn_${VERSION}_linux_amd64.tar.gz (includes Bleve+FAISS)
-          - acorn_${VERSION}_linux_arm64.tar.gz (includes Bleve+FAISS)
+          - acorn_${VERSION}_linux_amd64.tar.gz (pure Go binary, no CGO)
+          - acorn_${VERSION}_linux_arm64.tar.gz (pure Go binary, no CGO)
           - acorn_mobile_${VERSION}_android.apk (signed Flutter mobile APK)
           - bundled native skills installed under ~/.acorn/skills by install-release.sh
 
-          Packages are built with Bleve vector search using the required bleve_faiss and vectors Go build tags.
-          FAISS C API shared libraries are built from the Bleve-compatible FAISS checkpoint and packaged under lib/linux_amd64 or lib/linux_arm64.
-          Android APKs are built from mobile/ with Flutter stable and signed from repository secrets.
+          Packages are built with CGO_ENABLED=0 (pure Go cross-compile).
+          Semantic search uses OpenAI embedding + SQLite vector storage.
+          Android APK is built from mobile/ with Flutter stable and signed from repository secrets.
           EOF
 
           create_args=("$VERSION" dist/* --title "$VERSION" --notes-file "$notes_file")

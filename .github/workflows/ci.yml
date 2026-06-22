@@ -84,30 +84,12 @@ jobs:
       - uses: actions/setup-go@v6.4.0
         with:
           go-version-file: go.mod
-      - name: Install Bleve FAISS native build tools
-        env:
-          RELEASE_GOOS: ${{ matrix.goos }}
-          RELEASE_GOARCH: ${{ matrix.goarch }}
-        shell: bash
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y cmake build-essential pkg-config libopenblas-dev
-      - name: Prepare Bleve FAISS native artifacts
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          RELEASE_GOOS: ${{ matrix.goos }}
-          RELEASE_GOARCH: ${{ matrix.goarch }}
-        shell: bash
-        run: |
-          artifact_dir="$RUNNER_TEMP/faiss-native"
-          scripts/build-faiss-artifacts.sh "$artifact_dir" "$RELEASE_GOOS" "$RELEASE_GOARCH"
-          echo "FAISS_ARTIFACT_DIR=$artifact_dir" >> "$GITHUB_ENV"
       - name: Build release package
         env:
           VERSION: ${{ github.sha }}
           RELEASE_GOOS: ${{ matrix.goos }}
           RELEASE_GOARCH: ${{ matrix.goarch }}
-        run: make release VERSION="$VERSION" RELEASE_GOOS="$RELEASE_GOOS" RELEASE_GOARCH="$RELEASE_GOARCH" FAISS_ARTIFACT_DIR="$FAISS_ARTIFACT_DIR"
+        run: make release VERSION="$VERSION" RELEASE_GOOS="$RELEASE_GOOS" RELEASE_GOARCH="$RELEASE_GOARCH"
       - name: Verify release package
         env:
           VERSION: ${{ github.sha }}
@@ -125,42 +107,10 @@ jobs:
 
           tar -xzf "$archive" -C "$tmpdir"
           package_dir="$tmpdir/acorn_${VERSION}_${RELEASE_GOOS}_${RELEASE_GOARCH}"
-          grep -qx "semantic_index_backend=bleve_faiss" "$package_dir/RELEASE"
-          grep -qx "native_lib_dir=lib/${RELEASE_GOOS}_${RELEASE_GOARCH}" "$package_dir/RELEASE"
           grep -qx "skills_dir=skills" "$package_dir/RELEASE"
-          test -f "$package_dir/lib/${RELEASE_GOOS}_${RELEASE_GOARCH}/libfaiss_c.so"
-          test -f "$package_dir/lib/${RELEASE_GOOS}_${RELEASE_GOARCH}/libfaiss.so"
           test -f "$package_dir/skills/skill_creator/SKILL.md"
           test -f "$package_dir/skills/web_browser_research/SKILL.md"
           (cd "$package_dir" && sha256sum -c CHECKSUMS)
-
-          verify_runtime_links() {
-            local elf="$1"
-            local link_dir="${2:-}"
-            local output
-            if [ -n "$link_dir" ]; then
-              if ! output="$(LD_LIBRARY_PATH="$link_dir${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" ldd "$elf" 2>&1)"; then
-                printf '%s\n' "$output" >&2
-                echo "could not inspect runtime dependencies for $elf" >&2
-                exit 1
-              fi
-            else
-              if ! output="$(ldd "$elf" 2>&1)"; then
-                printf '%s\n' "$output" >&2
-                echo "could not inspect runtime dependencies for $elf" >&2
-                exit 1
-              fi
-            fi
-            printf '%s\n' "$output"
-            if printf '%s\n' "$output" | grep -q "not found"; then
-              echo "missing runtime dependency for $elf" >&2
-              exit 1
-            fi
-          }
-          package_runtime_lib_dir="$package_dir/lib/${RELEASE_GOOS}_${RELEASE_GOARCH}"
-          verify_runtime_links "$package_dir/acorn"
-          verify_runtime_links "$package_runtime_lib_dir/libfaiss_c.so" "$package_runtime_lib_dir"
-          verify_runtime_links "$package_runtime_lib_dir/libfaiss.so" "$package_runtime_lib_dir"
       - uses: actions/upload-artifact@v7.0.1
         with:
           name: acorn-${{ matrix.goos }}-${{ matrix.goarch }}
