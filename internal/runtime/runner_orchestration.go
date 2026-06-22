@@ -9,7 +9,6 @@ import (
 	einomodel "github.com/cloudwego/eino/components/model"
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/schema"
-
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/contextplane"
 	"github.com/ycvk/acorn/internal/orchestration"
@@ -50,10 +49,6 @@ func newDefaultOrchestrationPlane(deps defaultOrchestrationPlaneDeps) *orchestra
 type inMemoryCheckpointStore struct {
 	mu   sync.Mutex
 	data map[string][]byte
-}
-
-func newInMemoryCheckpointStore() *inMemoryCheckpointStore {
-	return &inMemoryCheckpointStore{data: make(map[string][]byte)}
 }
 
 func (s *inMemoryCheckpointStore) Get(_ context.Context, checkPointID string) ([]byte, bool, error) {

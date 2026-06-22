@@ -38,11 +38,6 @@ func (f *RunnerFactory) buildRunToolset(ctx context.Context, sessionID string) (
 	return f.buildToolset(ctx, sessionID, true)
 }
 
-type localToolset struct {
-	catalog *tools.Catalog
-	closers []io.Closer
-}
-
 func (f *RunnerFactory) buildToolset(
 	ctx context.Context,
 	sessionID string,
