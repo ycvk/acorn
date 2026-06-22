@@ -20,6 +20,7 @@ func TestBuiltinToolNamesSnapshot(t *testing.T) {
 		"skill_list",
 		"skill_view",
 		"load_tools",
+		"ask_operator",
 	}
 	if len(got) != len(want) {
 		t.Fatalf("BuiltinToolNames() = %v, want %v", got, want)

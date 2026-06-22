@@ -18,6 +18,7 @@ var builtinToolOrder = []string{
 	"skill_list",
 	"skill_view",
 	"load_tools",
+	"ask_operator",
 	"update_working_checkpoint",
 	"clear_working_checkpoint",
 }
@@ -36,6 +37,10 @@ func builtinToolContract(name string) (ToolContract, bool) {
 		c.Kind = ToolKindNative
 		c.Category = ToolCategoryInspect
 		c.Execution.ParallelPolicy = ParallelPolicySerial
+	case "ask_operator":
+		c.Kind = ToolKindNative
+		c.Category = ToolCategoryIntegration
+		c.Execution.ParallelPolicy = ParallelPolicySerial
 	case "update_working_checkpoint", "clear_working_checkpoint":
 		c.Kind = ToolKindMemory
 		c.Category = ToolCategoryMemory
@@ -51,8 +56,6 @@ func builtinToolContract(name string) (ToolContract, bool) {
 		c.Execution.ParallelPolicy = ParallelPolicySerial
 		c.Execution.PathArg = "path"
 	case "remember":
-		// Structured fact writer: the file path is backend-derived (no path arg),
-		// so it cannot be path-scoped; serialize memory writes instead.
 		c.Kind = ToolKindMemory
 		c.Category = ToolCategoryMemory
 		c.Execution.ParallelPolicy = ParallelPolicySerial

@@ -94,9 +94,7 @@ func (e *StreamingToolExecutor) Submit(call schema.ToolCall) {
 			policy = resolvedPolicy
 		}
 		isSafe = policy.ParallelPolicy == tooling.ParallelPolicyReadOnly
-		if policy.ParallelPolicy == tooling.ParallelPolicySerial && strings.TrimSpace(policy.PathArg) == "" {
-			argsErr = fmt.Sprintf("write-scoped tool %q is missing path arg", call.Function.Name)
-		} else {
+		if strings.TrimSpace(policy.PathArg) != "" {
 			paths, pathErr = executionPathsFromArgs(args, policy.PathArg, policy.ParallelPolicy == tooling.ParallelPolicySerial)
 			if pathErr != nil {
 				argsErr = pathErr.Error()
