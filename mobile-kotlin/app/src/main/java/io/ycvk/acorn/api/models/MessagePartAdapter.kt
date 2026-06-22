@@ -10,11 +10,20 @@ import com.squareup.moshi.Moshi
  *
  * The OpenAPI generator emits MessagePart as an interface with concrete subtypes
  * (TextMessagePart, ReasoningMessagePart, etc.) discriminated by the `kind` JSON
- * field. Moshi cannot deserialize interfaces on its own, so this adapter peeks
- * the `kind` field, selects the matching data class, and delegates.
+ * field. However, the generated subtypes do NOT implement the MessagePart interface,
+ * so Moshi cannot deserialize to it directly.
+ *
+ * This adapter peeks the `kind` field, selects the matching data class, and delegates
+ * to its own adapter. It returns `Any?` because the subtypes don't share a common
+ * supertype. Callers use `filterIsInstance<TextMessagePart>()` etc. to access
+ * typed fields.
+ *
+ * Registered as a Factory for `MessagePart::class.java` so Moshi uses it whenever
+ * a `MessagePart` field is encountered during deserialization.
  */
-class MessagePartAdapter(private val moshi: Moshi) : JsonAdapter<MessagePart>() {
+class MessagePartAdapter(private val moshi: Moshi) : JsonAdapter<Any>() {
 
+    @Suppress("UNCHECKED_CAST")
     private val kindAdapters: Map<String, JsonAdapter<*>> = mapOf(
         "text" to moshi.adapter(TextMessagePart::class.java),
         "reasoning" to moshi.adapter(ReasoningMessagePart::class.java),
@@ -25,8 +34,12 @@ class MessagePartAdapter(private val moshi: Moshi) : JsonAdapter<MessagePart>() 
         "technical_detail_link" to moshi.adapter(TechnicalDetailLinkMessagePart::class.java),
     )
 
-    @Suppress("UNCHECKED_CAST")
-    override fun fromJson(reader: JsonReader): MessagePart? {
+    override fun fromJson(reader: JsonReader): Any? {
+        if (reader.peek() == JsonReader.Token.NULL) {
+            reader.nextNull<Any>()
+            return null
+        }
+
         val peeked = reader.peekJson()
         peeked.beginObject()
         var kind = ""
@@ -42,10 +55,10 @@ class MessagePartAdapter(private val moshi: Moshi) : JsonAdapter<MessagePart>() 
         val adapter = kindAdapters[kind]
             ?: throw IllegalArgumentException("Unknown MessagePart kind: $kind")
 
-        return adapter.fromJson(reader) as? MessagePart
+        return adapter.fromJson(reader)
     }
 
-    override fun toJson(writer: JsonWriter, value: MessagePart?) {
+    override fun toJson(writer: JsonWriter, value: Any?) {
         if (value == null) {
             writer.nullValue()
             return
