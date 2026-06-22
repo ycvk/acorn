@@ -137,7 +137,7 @@ Remote clients use the authenticated `/v1` API. Common endpoints include:
 | `GET /v1/pending-actions` | List pending approvals |
 | `POST /v1/pending-actions/{action_id}:decide` | Accept or decline a pending action |
 
-The full client contract is defined in [docs/openapi.yaml](docs/openapi.yaml). The Flutter mobile client is generated from that file.
+The full client contract is defined in [docs/openapi.yaml](docs/openapi.yaml). The Kotlin + Jetpack Compose mobile client is generated from that file.
 
 ## Develop From Source
 
@@ -146,7 +146,7 @@ Prerequisites:
 - Go 1.26
 - `golangci-lint`
 - `goimports`
-- Flutter, if you work on the mobile app
+- Kotlin + Jetpack Compose, if you work on the mobile app
 
 Run the backend locally:
 
@@ -167,16 +167,16 @@ Run checks before sending changes:
 make test
 make format-check
 make lint
-python3 mobile/tool/generate_openapi_client.py --check
+python3 mobile-kotlin/tool/generate_openapi_client.sh --check
 git diff --check
 ```
 
-Mobile checks run from `mobile/`:
+Mobile checks run from `mobile-kotlin/`:
 
 ```bash
-flutter test
-flutter analyze
-flutter build apk --debug
+./gradlew test
+./gradlew lint
+./gradlew assembleDebug
 ```
 
 ## Repository Layout
@@ -192,7 +192,7 @@ flutter build apk --debug
 | `internal/memorymodule/` | File-backed memory records and semantic retrieval |
 | `internal/store/sqlite/` | SQLite persisted state |
 | `internal/web/` | HTTP server, `/healthz`, `/v1`, and optional `/mcp` mount |
-| `mobile/` | Flutter mobile app |
+| `mobile-kotlin/` | Kotlin + Jetpack Compose mobile app |
 | `skills/` | Built-in Acorn skill seed pack |
 | `docs/` | User guides, developer guides, OpenAPI, and architecture notes |
 

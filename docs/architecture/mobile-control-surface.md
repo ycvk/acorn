@@ -9,14 +9,14 @@ slug: mobile-control-surface
 
 ## Current Shape
 
-The mobile client lives in `mobile/` and is a Flutter app for single-user self-hosted Acorn. It is a product-grade remote control surface over authenticated `/v1`; it does not execute runs locally, does not own runtime truth, and does not maintain a second message lifecycle.
+The mobile client lives in `mobile/` and is a Kotlin app for single-user self-hosted Acorn. It is a product-grade remote control surface over authenticated `/v1`; it does not execute runs locally, does not own runtime truth, and does not maintain a second message lifecycle.
 
 Current entrypoints:
 
 ```text
-mobile/lib/main.dart
+mobile-kotlin/app/src/main/java/io/ycvk/acorn/main.dart
   -> AcornApp
-  -> ProviderScope
+  -> Hilt
   -> ConnectionController
   -> InboxController / ThreadsController / ApprovalsController
   -> ChatController
@@ -28,7 +28,7 @@ mobile/lib/main.dart
 The generated API/model file is:
 
 ```text
-mobile/lib/src/api/acorn_api.dart
+mobile-kotlin/app/src/main/java/io/ycvk/acorn/src/api/acorn_api.dart
 ```
 
 It is produced by:
@@ -42,19 +42,19 @@ python3 mobile/tool/generate_openapi_client.py
 Current mobile shell structure:
 
 ```text
-mobile/lib/app.dart
+mobile-kotlin/app/src/main/java/io/ycvk/acorn/app.dart
 
-mobile/lib/src/core/
+mobile-kotlin/app/src/main/java/io/ycvk/acorn/src/core/
   connection_controller.dart
   connection_profile.dart
   connection_store.dart
   providers.dart
 
-mobile/lib/src/api/
+mobile-kotlin/app/src/main/java/io/ycvk/acorn/src/api/
   acorn_api.dart
   run_event_stream.dart
 
-mobile/lib/src/features/
+mobile-kotlin/app/src/main/java/io/ycvk/acorn/src/features/
   pairing/
   shell/
   inbox/
@@ -64,22 +64,22 @@ mobile/lib/src/features/
   approvals/
   settings/
 
-mobile/lib/src/ui/
+mobile-kotlin/app/src/main/java/io/ycvk/acorn/src/ui/
   theme/
   widgets/
 ```
 
-`ConnectionController` owns connection lifecycle, the active API/RunEvent clients, pairing, and disconnect. `ShellController` owns tab selection. Feature controllers own feature state: `InboxController` owns `/v1/inbox`, `ThreadsController` owns thread list/active thread, `ApprovalsController` owns pending-action detail/decision commands, `ChatController` owns chat message loading, send/run start, foreground RunEvent streaming projection, and chat-local errors, and `RunDetailController` owns per-run detail loading/cache/error state. `mobile/lib/src/ui/` owns reusable theme and widgets for status pills, empty states, section headers, list rows, and chat rendering. Feature files own backend-backed screens only.
+`ConnectionController` owns connection lifecycle, the active API/RunEvent clients, pairing, and disconnect. `ShellController` owns tab selection. Feature controllers own feature state: `InboxController` owns `/v1/inbox`, `ThreadsController` owns thread list/active thread, `ApprovalsController` owns pending-action detail/decision commands, `ChatController` owns chat message loading, send/run start, foreground RunEvent streaming projection, and chat-local errors, and `RunDetailController` owns per-run detail loading/cache/error state. `mobile-kotlin/app/src/main/java/io/ycvk/acorn/src/ui/` owns reusable theme and widgets for status pills, empty states, section headers, list rows, and chat rendering. Feature files own backend-backed screens only.
 
 The current state split keeps streaming assistant deltas inside `ChatController`; Threads, Approvals, Settings, and shell navigation do not rebuild for every streamed token. Inbox refreshes notify only inbox consumers, thread list mutations notify only thread consumers, pending-action decisions notify the approval sheet plus the inbox refresh they trigger, and run-detail refreshes notify only consumers of the affected `runId`.
 
 ## Material 3 UI System
 
-The Flutter mobile shell uses Material 3 as the active UI system. `mobile/lib/src/ui/theme/acorn_theme.dart` owns the FlexColorScheme-backed `ThemeData`, Acorn color scheme values, component sub-themes, spacing/radius constants, and semantic status color tokens. The app uses system/Material typography through `ThemeData.textTheme` and keeps status vocabulary centralized as success, warning, info, neutral, and error.
+The Kotlin mobile shell uses Material 3 as the active UI system. `mobile-kotlin/app/src/main/java/io/ycvk/acorn/src/ui/theme/acorn_theme.dart` owns the FlexColorScheme-backed `ThemeData`, Acorn color scheme values, component sub-themes, spacing/radius constants, and semantic status color tokens. The app uses system/Material typography through `ThemeData.textTheme` and keeps status vocabulary centralized as success, warning, info, neutral, and error.
 
 The connected UI should read as a Material control surface: app bars use standard icon actions, settings uses grouped `Card` + `ListTile` sections, chat uses paper-like assistant surfaces and primary-container user messages, and the composer is a bottom Material surface. Avoid oversized custom pill cards for ordinary settings rows, chat reasoning blocks, or toolbar actions; reserve prominent filled/tonal controls for primary actions and status.
 
-Reusable presentation widgets live under `mobile/lib/src/ui/widgets/`:
+Reusable presentation widgets live under `mobile-kotlin/app/src/main/java/io/ycvk/acorn/src/ui/widgets/`:
 
 ```text
 acorn_surfaces.dart   # Material-backed tonal surfaces, bottom surface, tonal icon, scanner instruction surface
@@ -101,7 +101,7 @@ device_id
 access_token
 ```
 
-`SecureConnectionStore` persists that profile through `flutter_secure_storage`. `MemoryConnectionStore` exists for tests only. The app never falls back to unauthenticated `/v1`, local dev bypass, or Web local state.
+`SecureConnectionStore` persists that profile through `EncryptedSharedPreferences`. `MemoryConnectionStore` exists for tests only. The app never falls back to unauthenticated `/v1`, local dev bypass, or Web local state.
 
 `ConnectionController` owns one active `AcornApiClient` and one active `RunEventStreamClient` per connection profile and closes both on disconnect/dispose. Pairing uses a temporary unauthenticated client and closes it after the exchange.
 
@@ -146,21 +146,21 @@ The mobile streaming projection only accepts the live OpenAPI RunEvent subset:
 - `run.resume_requested`, `elicitation.pending`, `operator_question.pending`, and `decision_blocked` may render compact activity rows because they affect the next owner action.
 - Routine tool, memory, skill, procedure, plan, context compression, MCP, sampling, and subagent events are diagnostic-only backend events. They stay out of the live stream and the default chat transcript.
 - Malformed JSON, SSE id/type mismatch, unsupported event type, or wrong run id throws a visible client error.
-- Assistant message text renders GitHub-flavored Markdown through `flutter_markdown_plus`; code blocks expose a copy action, long assistant messages use a bounded internal Markdown viewport, `http` and `https` links open through `url_launcher`, and user messages remain plain text.
+- Assistant message text renders GitHub-flavored Markdown through `compose-markdown`; code blocks expose a copy action, long assistant messages use a bounded internal Markdown viewport, `http` and `https` links open through `url_launcher`, and user messages remain plain text.
 - Backend-provided reasoning renders only in a collapsed Material Thinking section on assistant messages. The client does not infer reasoning from prose, token counts, or local state.
 - Persisted thread reloads consume generated `Message.contentParts`; `kind: reasoning` parts become the same assistant reasoning field.
 
 This is a foreground follow surface only. Backend persisted event and message state remain the durable facts, while diagnostic runtime history stays backend-owned. Mobile receives only the live subset and user-meaningful artifacts rather than raw diagnostic payloads or trace summaries.
 
-## FlutterClaw Seed Boundary
+## Kotlin + Jetpack ComposeClaw Seed Boundary
 
-FlutterClaw is used as an MIT-licensed seed/reference for native mobile shell organization, theme/token separation, bottom navigation, message composition, empty states, and settings grouping. Attribution lives in `mobile/THIRD_PARTY_NOTICES.md`.
+Kotlin + Jetpack ComposeClaw is used as an MIT-licensed seed/reference for native mobile shell organization, theme/token separation, bottom navigation, message composition, empty states, and settings grouping. Attribution lives in `mobile/THIRD_PARTY_NOTICES.md`.
 
-Acorn does not import FlutterClaw runtime code or domain architecture. The mobile app does not include FlutterClaw-style on-device gateway, local agent loop, provider registry, channel adapters, sandbox, MCP client, local tools, or mobile-owned memory. Those concerns remain backend-owned Acorn runtime facts.
+Acorn does not import Kotlin + Jetpack ComposeClaw runtime code or domain architecture. The mobile app does not include Kotlin + Jetpack ComposeClaw-style on-device gateway, local agent loop, provider registry, channel adapters, sandbox, MCP client, local tools, or mobile-owned memory. Those concerns remain backend-owned Acorn runtime facts.
 
 ## Data Rules
 
-- OpenAPI is the only wire contract. Mobile DTO/model changes must regenerate `mobile/lib/src/api/acorn_api.dart`.
+- OpenAPI is the only wire contract. Mobile DTO/model changes must regenerate `mobile-kotlin/app/src/main/java/io/ycvk/acorn/src/api/acorn_api.dart`.
 - Backend readiness, run status, pending approval state, thread/message state, and event timelines come from backend projection.
 - Mobile refreshes backend truth through `/v1/inbox`, RunDetail, and RunEvent cursors; there is no active push-notification wire contract.
 - Offline-first run execution, local truth merge, embedded Web client, skill authoring, memory editing, provider config editing, and trace explorer are outside the current mobile shell.
@@ -176,9 +176,9 @@ python3 mobile/tool/generate_openapi_client.py --check
 From `mobile/`:
 
 ```bash
-flutter test
-flutter analyze
-flutter build apk --debug
+./gradlew test
+./gradlew lint
+./gradlew assembleDebug
 ```
 
 Repo submit gates still require the root checks from README/AGENTS.

@@ -133,15 +133,15 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
-      - uses: subosito/flutter-action@v2
+          java-version: "21"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
         with:
-          flutter-version: "3.41.6"
-          channel: stable
-          cache: true
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
 
       - name: Verify generated mobile client
-        run: python3 mobile/tool/generate_openapi_client.py --check
+        run: cd mobile-kotlin && ./tool/generate_openapi_client.sh --check
 
       - name: Configure Android release signing
         env:
@@ -164,40 +164,34 @@ jobs:
             fi
           done
 
-          keystore_path="mobile/android/app/release.jks"
+          keystore_path="mobile-kotlin/app/release.jks"
           printf '%s' "$ANDROID_RELEASE_KEYSTORE_BASE64" | base64 -d > "$keystore_path"
-          cat > mobile/android/key.properties <<EOF
+          cat > mobile-kotlin/app/key.properties <<EOF
           storePassword=$ANDROID_RELEASE_KEYSTORE_PASSWORD
           keyPassword=$ANDROID_RELEASE_KEY_PASSWORD
           keyAlias=$ANDROID_RELEASE_KEY_ALIAS
-          storeFile=app/release.jks
+          storeFile=release.jks
           storeType=pkcs12
           EOF
-
-      - name: Flutter pub get
-        working-directory: mobile
-        run: flutter pub get
-
-      - name: Test mobile
-        working-directory: mobile
-        run: flutter test
-
-      - name: Analyze mobile
-        working-directory: mobile
-        run: flutter analyze
 
       - name: Build signed release APK
         env:
           VERSION: ${{ needs.metadata.outputs.version }}
-        working-directory: mobile
+        working-directory: mobile-kotlin
         shell: bash
         run: |
           build_name="${VERSION#v}"
-          flutter build apk --release --build-name "$build_name" --build-number "$GITHUB_RUN_NUMBER"
+          build_number="$GITHUB_RUN_NUMBER"
+
+          # Update versionCode and versionName in build.gradle.kts
+          sed -i "s/versionCode = 1/versionCode = $build_number/" app/build.gradle.kts
+          sed -i "s/versionName = \"[^\"]*\"/versionName = \"$build_name\"/" app/build.gradle.kts
+
+          ./gradlew assembleRelease
 
           mkdir -p ../dist
           apk_name="acorn_mobile_${VERSION}_android.apk"
-          cp build/app/outputs/flutter-apk/app-release.apk "../dist/$apk_name"
+          cp app/build/outputs/apk/release/app-release.apk "../dist/$apk_name"
           (cd ../dist && sha256sum "$apk_name" > "$apk_name.sha256")
 
       - uses: actions/upload-artifact@v7.0.1
@@ -269,12 +263,12 @@ jobs:
           - install-release.sh (downloads and installs the latest release by default)
           - acorn_${VERSION}_linux_amd64.tar.gz (pure Go binary, no CGO)
           - acorn_${VERSION}_linux_arm64.tar.gz (pure Go binary, no CGO)
-          - acorn_mobile_${VERSION}_android.apk (signed Flutter mobile APK)
+          - acorn_mobile_${VERSION}_android.apk (signed Kotlin/Compose mobile APK)
           - bundled native skills installed under ~/.acorn/skills by install-release.sh
 
           Packages are built with CGO_ENABLED=0 (pure Go cross-compile).
           Semantic search uses OpenAI embedding + SQLite vector storage.
-          Android APK is built from mobile/ with Flutter stable and signed from repository secrets.
+          Android APK is built from mobile-kotlin/ with Kotlin + Jetpack Compose and signed from repository secrets.
           EOF
 
           create_args=("$VERSION" dist/* --title "$VERSION" --notes-file "$notes_file")

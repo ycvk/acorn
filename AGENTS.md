@@ -4,11 +4,11 @@ Acorn 的 AI 协作硬约束入口。`CLAUDE.md` 软链接至此,单一真相源
 
 ## 项目概览
 
-Go 1.26 + Eino ADK 的单用户自托管 AI agent 后端,module `github.com/ycvk/acorn`。owner 在 VPS 跑后端,Flutter App 配对手机后远程发起任务、看运行、批审批。入口:CLI、authenticated `/v1` API、mobile inbox、persisted RunEvent SSE、Flutter mobile。
+Go 1.26 + Eino ADK 的单用户自托管 AI agent 后端,module `github.com/ycvk/acorn`。owner 在 VPS 跑后端,Kotlin App 配对手机后远程发起任务、看运行、批审批。入口:CLI、authenticated `/v1` API、mobile inbox、persisted RunEvent SSE、Kotlin mobile。
 
 ## 常用命令
 
-Go 命令在仓库根目录;Flutter 命令在 `mobile/`。
+Go 命令在仓库根目录;Android/Kotlin 命令在 `mobile-kotlin/`。
 
 ```bash
 make build && make serve && make doctor
@@ -20,8 +20,8 @@ make generate                      # go generate ./internal/web
 make release-linux-amd64           # 纯 Go 交叉编译(无 CGO)
 
 # Mobile(在 mobile/)
-python3 mobile/tool/generate_openapi_client.py --check   # CI 门禁
-flutter test && flutter analyze && flutter build apk --debug
+python3 mobile-kotlin/tool/generate_openapi_client.sh --check   # CI 门禁
+./gradlew assembleDebug  # in mobile-kotlin/
 ```
 
 ## 架构大图
@@ -31,7 +31,7 @@ flutter test && flutter analyze && flutter build apk --debug
 - **单一编排模式**:`direct_response`。model → tool loop → record → 下一轮。`AgentLoop.RunOneIteration` 每轮 `BeforeModelCall → RunActionRound(ExecuteRound) → RecordAssistant/RecordToolResults`。plan_execute/single_agent/child_agent/verifier 已全部删除。
 - **职责边界**:orchestration(`internal/orchestration`)做装配+执行编排;ContextPlane(`internal/contextplane`)拥有上下文事实(首轮装配、tool lifecycle、`ContextSession`)。
 - **两套真相**:SQLite(`internal/store`,modernc.org/sqlite,单连接串行化)是 runtime 真相(~8 张表,schema 在 `store/sqlite/store_schema.go`,缺列 fail-loud);文件型长期记忆(`internal/memorymodule`)是 `facts/`/`history/`;embedding 向量存 SQLite `memory_vectors` 表。
-- **API 契约**:`docs/openapi.yaml` 是唯一 wire contract,`mobile/lib/src/api/acorn_api.dart` 由它生成。客户端只收 `internal/clientevents` 投影的 live RunEvent;RunEvent SSE 用 `follow=true` 轮询 + `after_seq` 游标续读。
+- **API 契约**:`docs/openapi.yaml` 是唯一 wire contract,`mobile-kotlin/app/src/main/java/io/ycvk/acorn/api/` 由它生成。客户端只收 `internal/clientevents` 投影的 live RunEvent;RunEvent SSE 用 `follow=true` 轮询 + `after_seq` 游标续读。
 
 ## 硬边界
 

@@ -41,31 +41,21 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
-      - uses: subosito/flutter-action@v2
+          java-version: "21"
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
         with:
-          flutter-version: "3.41.6"
-          channel: stable
-          cache: true
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
       - name: Verify generated mobile client
-        run: python3 mobile/tool/generate_openapi_client.py --check
-      - name: Flutter pub get
-        working-directory: mobile
-        run: flutter pub get
-      - name: Test mobile
-        working-directory: mobile
-        run: flutter test
-      - name: Analyze mobile
-        working-directory: mobile
-        run: flutter analyze
+        run: cd mobile-kotlin && ./tool/generate_openapi_client.sh --check
       - name: Build debug APK
-        working-directory: mobile
-        run: flutter build apk --debug
+        working-directory: mobile-kotlin
+        run: ./gradlew assembleDebug
       - uses: actions/upload-artifact@v7.0.1
         with:
           name: acorn-mobile-android-debug
           retention-days: 14
-          path: mobile/build/app/outputs/flutter-apk/app-debug.apk
+          path: mobile-kotlin/app/build/outputs/apk/debug/app-debug.apk
 
   release-artifacts:
     name: Build Release Artifacts
@@ -115,5 +105,5 @@ jobs:
         with:
           name: acorn-${{ matrix.goos }}-${{ matrix.goarch }}
           path: |
-            dist/acorn_${{ github.sha }}_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz
-            dist/acorn_${{ github.sha }}_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz.sha256
+            dist/acorn_${{ github.sha }}_${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz
+            dist/acorn_${{ github.sha }}_${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz.sha256
