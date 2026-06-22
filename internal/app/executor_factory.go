@@ -5,14 +5,13 @@ import (
 	"errors"
 
 	"github.com/ycvk/acorn/internal/config"
-	"github.com/ycvk/acorn/internal/events"
+	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/runtime"
-	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
-	"github.com/ycvk/acorn/internal/stream"
+	"github.com/ycvk/acorn/internal/runtime/eventstream"
 )
 
 type executorHandle interface {
-	ExecuteMessages(ctx context.Context, req runtimeapi.ExecuteRequest, observer runStartObserver) error
+	ExecuteMessages(ctx context.Context, req domain.ExecuteRequest, observer runStartObserver) error
 	ResumeWithTargets(ctx context.Context, runID string, targets map[string]any) (*executorRunResult, error)
 }
 
@@ -22,7 +21,7 @@ type runStartObserver interface {
 
 type executorRunResult struct {
 	RunID       string
-	Status      events.RunStatus
+	Status      domain.RunStatus
 	Output      string
 	Error       string
 	Interrupted map[string]any
@@ -42,7 +41,7 @@ func newExecutorFactory(cfg *config.Config, store runtime.ExecutorStore, runnerF
 	}
 }
 
-func (h runtimeExecutorHandle) ExecuteMessages(ctx context.Context, req runtimeapi.ExecuteRequest, observer runStartObserver) error {
+func (h runtimeExecutorHandle) ExecuteMessages(ctx context.Context, req domain.ExecuteRequest, observer runStartObserver) error {
 	result, err := h.exec.ExecuteMessages(ctx, req, streamSinkForRunStart(observer))
 	if err != nil {
 		return err
@@ -61,12 +60,12 @@ func (h runtimeExecutorHandle) ResumeWithTargets(ctx context.Context, runID stri
 	return executorRunResultFromRuntime(result)
 }
 
-func streamSinkForRunStart(observer runStartObserver) stream.StreamSink {
+func streamSinkForRunStart(observer runStartObserver) eventstream.StreamSink {
 	if observer == nil {
 		return nil
 	}
-	return func(item stream.StreamItem) error {
-		if item.Kind == stream.StreamKindRunStarted {
+	return func(item eventstream.StreamItem) error {
+		if item.Kind == eventstream.StreamKindRunStarted {
 			observer.RunStarted()
 		}
 		return nil

@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ycvk/acorn/internal/events"
+	"github.com/ycvk/acorn/internal/domain"
 )
 
-func buildElicitationDecision(record events.PendingActionRecord, input PendingActionDecisionInput) (events.PendingActionStatus, []byte, string, map[string]any, error) {
+func buildElicitationDecision(record domain.PendingActionRecord, input PendingActionDecisionInput) (domain.PendingActionStatus, []byte, string, map[string]any, error) {
 	if strings.TrimSpace(input.SelectedOptionID) != "" || strings.TrimSpace(input.Answer) != "" {
 		return "", nil, "", nil, fmt.Errorf("%w: elicitation accepts decision only", ErrPendingActionDecisionInvalid)
 	}
@@ -32,7 +32,7 @@ func buildElicitationDecision(record events.PendingActionRecord, input PendingAc
 	}, nil
 }
 
-func buildOperatorQuestionDecision(record events.PendingActionRecord, input PendingActionDecisionInput) (events.PendingActionStatus, []byte, string, map[string]any, error) {
+func buildOperatorQuestionDecision(record domain.PendingActionRecord, input PendingActionDecisionInput) (domain.PendingActionStatus, []byte, string, map[string]any, error) {
 	payload, err := operatorQuestionPayload(record)
 	if err != nil {
 		return "", nil, "", nil, err
@@ -46,7 +46,7 @@ func buildOperatorQuestionDecision(record events.PendingActionRecord, input Pend
 		return "", nil, "", nil, err
 	}
 
-	decision := events.OperatorQuestionDecision{
+	decision := domain.OperatorQuestionDecision{
 		Action:           action,
 		SelectedOptionID: selectedOptionID,
 		Answer:           answer,
@@ -59,24 +59,24 @@ func buildOperatorQuestionDecision(record events.PendingActionRecord, input Pend
 	return status, decisionJSON, "operator_question.decided", eventPayload, nil
 }
 
-func resolveOperatorDecisionStatus(action, rawDecision string, payload events.OperatorQuestionPayload, selectedOptionID string, answer string) (events.PendingActionStatus, error) {
+func resolveOperatorDecisionStatus(action, rawDecision string, payload domain.OperatorQuestionPayload, selectedOptionID string, answer string) (domain.PendingActionStatus, error) {
 	switch action {
-	case events.OperatorQuestionDecisionAnswer:
+	case domain.OperatorQuestionDecisionAnswer:
 		if err := validateOperatorAnswer(payload, selectedOptionID, answer); err != nil {
 			return "", err
 		}
-		return events.PendingActionStatusApproved, nil
-	case events.OperatorQuestionDecisionDecline:
+		return domain.PendingActionStatusApproved, nil
+	case domain.OperatorQuestionDecisionDecline:
 		if selectedOptionID != "" || answer != "" {
 			return "", fmt.Errorf("%w: declined operator question must not include selected_option_id or answer", ErrPendingActionDecisionInvalid)
 		}
-		return events.PendingActionStatusRejected, nil
+		return domain.PendingActionStatusRejected, nil
 	default:
 		return "", fmt.Errorf("%w: %q", ErrPendingActionDecisionInvalid, rawDecision)
 	}
 }
 
-func buildOperatorQuestionEventPayload(record events.PendingActionRecord, payload events.OperatorQuestionPayload, action string, selectedOptionID string, answer string) map[string]any {
+func buildOperatorQuestionEventPayload(record domain.PendingActionRecord, payload domain.OperatorQuestionPayload, action string, selectedOptionID string, answer string) map[string]any {
 	eventPayload := map[string]any{
 		"action_id": record.ActionID,
 		"question":  payload.Question,
@@ -91,7 +91,7 @@ func buildOperatorQuestionEventPayload(record events.PendingActionRecord, payloa
 	return eventPayload
 }
 
-func validateOperatorAnswer(payload events.OperatorQuestionPayload, selectedOptionID string, answer string) error {
+func validateOperatorAnswer(payload domain.OperatorQuestionPayload, selectedOptionID string, answer string) error {
 	if selectedOptionID == "" && answer == "" {
 		return fmt.Errorf("%w: operator answer requires selected_option_id or answer", ErrPendingActionDecisionInvalid)
 	}
@@ -112,22 +112,22 @@ func validateOperatorAnswer(payload events.OperatorQuestionPayload, selectedOpti
 	return fmt.Errorf("%w: unknown selected_option_id %q", ErrPendingActionDecisionInvalid, selectedOptionID)
 }
 
-func pendingActionDecisionStatus(decision string) (events.PendingActionStatus, error) {
+func pendingActionDecisionStatus(decision string) (domain.PendingActionStatus, error) {
 	switch strings.TrimSpace(strings.ToLower(decision)) {
 	case "accept":
-		return events.PendingActionStatusApproved, nil
+		return domain.PendingActionStatusApproved, nil
 	case "decline":
-		return events.PendingActionStatusRejected, nil
+		return domain.PendingActionStatusRejected, nil
 	default:
 		return "", fmt.Errorf("%w: %q", ErrPendingActionDecisionInvalid, decision)
 	}
 }
 
-func statusToDecisionAction(status events.PendingActionStatus) string {
+func statusToDecisionAction(status domain.PendingActionStatus) string {
 	switch status {
-	case events.PendingActionStatusApproved:
+	case domain.PendingActionStatusApproved:
 		return "accept"
-	case events.PendingActionStatusRejected:
+	case domain.PendingActionStatusRejected:
 		return "decline"
 	default:
 		return "decline"
@@ -235,7 +235,7 @@ func (s *InboxService) loadPendingActionSummaries(ctx context.Context) ([]Pendin
 	return items, nil
 }
 
-type runListFunc func(context.Context, int) ([]events.RunRecord, error)
+type runListFunc func(context.Context, int) ([]domain.RunRecord, error)
 
 func (s *InboxService) loadRunSummaries(ctx context.Context, list runListFunc, limit int) ([]RunSummary, error) {
 	records, err := list(ctx, limit)
@@ -253,7 +253,7 @@ func (s *InboxService) loadRunSummaries(ctx context.Context, list runListFunc, l
 	return items, nil
 }
 
-func (s *InboxService) projectPendingActionSummary(ctx context.Context, record events.PendingActionRecord) (PendingActionSummary, error) {
+func (s *InboxService) projectPendingActionSummary(ctx context.Context, record domain.PendingActionRecord) (PendingActionSummary, error) {
 	run, err := s.store.LoadRun(ctx, record.RunID)
 	if err != nil {
 		return PendingActionSummary{}, err
@@ -261,21 +261,21 @@ func (s *InboxService) projectPendingActionSummary(ctx context.Context, record e
 	return buildPendingActionSummary(record, *run)
 }
 
-func buildPendingActionSummary(record events.PendingActionRecord, run events.RunRecord) (PendingActionSummary, error) {
-	if record.Status != events.PendingActionStatusPending {
+func buildPendingActionSummary(record domain.PendingActionRecord, run domain.RunRecord) (PendingActionSummary, error) {
+	if record.Status != domain.PendingActionStatusPending {
 		return PendingActionSummary{}, fmt.Errorf("%w: unsupported pending action status %q", ErrClientProjectionFailed, record.Status)
 	}
 	switch record.Kind {
-	case events.PendingActionKindElicitation:
+	case domain.PendingActionKindElicitation:
 		return buildElicitationPendingActionSummary(record, run)
-	case events.PendingActionKindOperatorQuestion:
+	case domain.PendingActionKindOperatorQuestion:
 		return buildOperatorQuestionPendingActionSummary(record, run)
 	default:
 		return PendingActionSummary{}, fmt.Errorf("%w: unsupported pending action kind %q", ErrClientProjectionFailed, record.Kind)
 	}
 }
 
-func buildElicitationPendingActionSummary(record events.PendingActionRecord, run events.RunRecord) (PendingActionSummary, error) {
+func buildElicitationPendingActionSummary(record domain.PendingActionRecord, run domain.RunRecord) (PendingActionSummary, error) {
 	body, err := pendingActionBody(record)
 	if err != nil {
 		return PendingActionSummary{}, err
@@ -300,7 +300,7 @@ func buildElicitationPendingActionSummary(record events.PendingActionRecord, run
 	}, nil
 }
 
-func buildOperatorQuestionPendingActionSummary(record events.PendingActionRecord, run events.RunRecord) (PendingActionSummary, error) {
+func buildOperatorQuestionPendingActionSummary(record domain.PendingActionRecord, run domain.RunRecord) (PendingActionSummary, error) {
 	payload, err := operatorQuestionPayload(record)
 	if err != nil {
 		return PendingActionSummary{}, err
@@ -322,7 +322,7 @@ func buildOperatorQuestionPendingActionSummary(record events.PendingActionRecord
 	}, nil
 }
 
-func pendingActionBody(record events.PendingActionRecord) (string, error) {
+func pendingActionBody(record domain.PendingActionRecord) (string, error) {
 	payload, err := pendingActionPayload(record)
 	if err != nil {
 		return "", err
@@ -334,7 +334,7 @@ func pendingActionBody(record events.PendingActionRecord) (string, error) {
 	return strings.TrimSpace(message), nil
 }
 
-func pendingActionPayload(record events.PendingActionRecord) (map[string]any, error) {
+func pendingActionPayload(record domain.PendingActionRecord) (map[string]any, error) {
 	raw := strings.TrimSpace(record.PayloadJSON)
 	if raw == "" {
 		return map[string]any{}, nil
@@ -346,17 +346,17 @@ func pendingActionPayload(record events.PendingActionRecord) (map[string]any, er
 	return payload, nil
 }
 
-func operatorQuestionPayload(record events.PendingActionRecord) (events.OperatorQuestionPayload, error) {
+func operatorQuestionPayload(record domain.PendingActionRecord) (domain.OperatorQuestionPayload, error) {
 	raw := strings.TrimSpace(record.PayloadJSON)
 	if raw == "" {
-		return events.OperatorQuestionPayload{}, fmt.Errorf("%w: pending action %s payload_json is empty", ErrClientProjectionFailed, record.ActionID)
+		return domain.OperatorQuestionPayload{}, fmt.Errorf("%w: pending action %s payload_json is empty", ErrClientProjectionFailed, record.ActionID)
 	}
-	var payload events.OperatorQuestionPayload
+	var payload domain.OperatorQuestionPayload
 	if err := json.Unmarshal([]byte(raw), &payload); err != nil {
-		return events.OperatorQuestionPayload{}, fmt.Errorf("%w: pending action %s payload_json: %v", ErrClientProjectionFailed, record.ActionID, err)
+		return domain.OperatorQuestionPayload{}, fmt.Errorf("%w: pending action %s payload_json: %v", ErrClientProjectionFailed, record.ActionID, err)
 	}
 	if strings.TrimSpace(payload.Question) == "" {
-		return events.OperatorQuestionPayload{}, fmt.Errorf("%w: pending action %s operator question is empty", ErrClientProjectionFailed, record.ActionID)
+		return domain.OperatorQuestionPayload{}, fmt.Errorf("%w: pending action %s operator question is empty", ErrClientProjectionFailed, record.ActionID)
 	}
 	return payload, nil
 }

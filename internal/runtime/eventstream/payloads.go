@@ -1,4 +1,4 @@
-package stream
+package eventstream
 
 // Shared value types used across stream payloads.
 

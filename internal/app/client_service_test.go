@@ -16,10 +16,9 @@ import (
 
 	"github.com/ycvk/acorn/internal/clientevents"
 	"github.com/ycvk/acorn/internal/config"
-	"github.com/ycvk/acorn/internal/events"
+	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/memorymodule"
 	"github.com/ycvk/acorn/internal/runtime"
-	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
 )
 
@@ -27,14 +26,14 @@ func TestProjectThread(t *testing.T) {
 	now := time.Date(2026, 5, 2, 10, 0, 0, 0, time.UTC)
 	service := BuildClientService(nil, nil, nil, "/repo")
 
-	thread, err := service.projectThread(events.SessionRecord{
+	thread, err := service.projectThread(domain.SessionRecord{
 		SessionID: "session_1",
 		Title:     "Inspect repo",
 		CreatedAt: now,
 		UpdatedAt: now,
-	}, &events.RunRecord{
+	}, &domain.RunRecord{
 		RunID:     "run_1",
-		Status:    events.RunStatusSucceeded,
+		Status:    domain.RunStatusSucceeded,
 		CreatedAt: now,
 		UpdatedAt: now,
 	})
@@ -115,7 +114,7 @@ func TestGeneratedThreadTitleTruncatesLongText(t *testing.T) {
 
 func TestProjectMessage(t *testing.T) {
 	now := time.Date(2026, 5, 2, 10, 0, 0, 0, time.UTC)
-	message, err := projectMessage(events.SessionMessageRecord{
+	message, err := projectMessage(domain.SessionMessageRecord{
 		ID:        42,
 		SessionID: "session_1",
 		Role:      "user",
@@ -133,7 +132,7 @@ func TestProjectMessage(t *testing.T) {
 
 func TestProjectMessageParts(t *testing.T) {
 	now := time.Date(2026, 5, 2, 10, 0, 0, 0, time.UTC)
-	message, err := projectMessage(events.SessionMessageRecord{
+	message, err := projectMessage(domain.SessionMessageRecord{
 		ID:        42,
 		SessionID: "session_1",
 		Role:      "assistant",
@@ -159,7 +158,7 @@ func TestProjectMessageParts(t *testing.T) {
 
 func TestProjectMessagePartsAcceptsDisclosure(t *testing.T) {
 	now := time.Date(2026, 5, 2, 10, 0, 0, 0, time.UTC)
-	message, err := projectMessage(events.SessionMessageRecord{
+	message, err := projectMessage(domain.SessionMessageRecord{
 		ID:        44,
 		SessionID: "session_1",
 		Role:      "assistant",
@@ -195,7 +194,7 @@ func TestProjectMessagePartsAcceptsDisclosure(t *testing.T) {
 }
 
 func TestProjectMessagePartsRejectsInvalidDisclosure(t *testing.T) {
-	_, err := projectMessage(events.SessionMessageRecord{
+	_, err := projectMessage(domain.SessionMessageRecord{
 		ID:           45,
 		SessionID:    "session_1",
 		Role:         "assistant",
@@ -210,7 +209,7 @@ func TestProjectMessagePartsRejectsInvalidDisclosure(t *testing.T) {
 
 func TestProjectMessagePartsAcceptsWorkStatusAction(t *testing.T) {
 	now := time.Date(2026, 5, 2, 10, 0, 0, 0, time.UTC)
-	message, err := projectMessage(events.SessionMessageRecord{
+	message, err := projectMessage(domain.SessionMessageRecord{
 		ID:        43,
 		SessionID: "session_1",
 		Role:      "assistant",
@@ -234,7 +233,7 @@ func TestProjectMessagePartsAcceptsWorkStatusAction(t *testing.T) {
 }
 
 func TestProjectMessagePartsRejectUnknownKind(t *testing.T) {
-	_, err := projectMessage(events.SessionMessageRecord{
+	_, err := projectMessage(domain.SessionMessageRecord{
 		ID:           42,
 		SessionID:    "session_1",
 		Role:         "assistant",
@@ -249,10 +248,10 @@ func TestProjectMessagePartsRejectUnknownKind(t *testing.T) {
 
 func TestProjectRunMapsStatusAndMode(t *testing.T) {
 	now := time.Date(2026, 5, 2, 10, 0, 0, 0, time.UTC)
-	run, err := projectRun(events.RunRecord{
+	run, err := projectRun(domain.RunRecord{
 		RunID:     "run_1",
 		SessionID: "session_1",
-		Status:    events.RunStatusSucceeded,
+		Status:    domain.RunStatusSucceeded,
 		CreatedAt: now,
 		UpdatedAt: now.Add(time.Second),
 	})
@@ -265,9 +264,9 @@ func TestProjectRunMapsStatusAndMode(t *testing.T) {
 }
 
 func TestProjectRunRejectsUnknownStatus(t *testing.T) {
-	_, err := projectRun(events.RunRecord{
+	_, err := projectRun(domain.RunRecord{
 		RunID:  "run_bad_status",
-		Status: events.RunStatus(""),
+		Status: domain.RunStatus(""),
 	})
 	if !errors.Is(err, ErrClientProjectionFailed) {
 		t.Fatalf("status error = %v, want ErrClientProjectionFailed", err)
@@ -276,7 +275,7 @@ func TestProjectRunRejectsUnknownStatus(t *testing.T) {
 
 func TestProjectRunEvent(t *testing.T) {
 	now := time.Date(2026, 5, 2, 10, 0, 0, 0, time.UTC)
-	event, err := clientevents.ProjectRunEvent(events.EventRecord{
+	event, err := clientevents.ProjectRunEvent(domain.EventRecord{
 		Sequence:  7,
 		RunID:     "run_1",
 		Kind:      "assistant.delta",
@@ -303,7 +302,7 @@ func TestProjectRunEvent(t *testing.T) {
 
 func TestProjectRunEventAcceptsResumeRequested(t *testing.T) {
 	now := time.Date(2026, 5, 2, 10, 0, 0, 0, time.UTC)
-	event, err := clientevents.ProjectRunEvent(events.EventRecord{
+	event, err := clientevents.ProjectRunEvent(domain.EventRecord{
 		Sequence:  8,
 		RunID:     "run_1",
 		Kind:      "run.resume_requested",
@@ -331,7 +330,7 @@ func TestProjectRunEventAcceptsResumeRequested(t *testing.T) {
 
 func TestProjectRunEventAcceptsDecisionBlocked(t *testing.T) {
 	now := time.Date(2026, 5, 2, 10, 0, 0, 0, time.UTC)
-	event, err := clientevents.ProjectRunEvent(events.EventRecord{
+	event, err := clientevents.ProjectRunEvent(domain.EventRecord{
 		Sequence:  9,
 		RunID:     "run_1",
 		Kind:      "decision_blocked",
@@ -361,7 +360,7 @@ func TestProjectRunEventAcceptsElicitationEvents(t *testing.T) {
 	now := time.Date(2026, 5, 2, 10, 0, 0, 0, time.UTC)
 	for _, kind := range []string{"elicitation.pending", "elicitation.decided"} {
 		t.Run(kind, func(t *testing.T) {
-			event, err := clientevents.ProjectRunEvent(events.EventRecord{
+			event, err := clientevents.ProjectRunEvent(domain.EventRecord{
 				Sequence:  11,
 				RunID:     "run_1",
 				Kind:      kind,
@@ -403,7 +402,7 @@ func TestProjectRunEventRejectsDiagnosticOnlyKinds(t *testing.T) {
 		"subagent.failed",
 	} {
 		t.Run(kind, func(t *testing.T) {
-			_, err := clientevents.ProjectRunEvent(events.EventRecord{
+			_, err := clientevents.ProjectRunEvent(domain.EventRecord{
 				Sequence:  12,
 				RunID:     "run_1",
 				Kind:      kind,
@@ -419,7 +418,7 @@ func TestProjectRunEventRejectsDiagnosticOnlyKinds(t *testing.T) {
 
 func TestProjectRunEventAcceptsOperatorQuestionEvents(t *testing.T) {
 	now := time.Date(2026, 5, 20, 10, 0, 0, 0, time.UTC)
-	event, err := clientevents.ProjectRunEvent(events.EventRecord{
+	event, err := clientevents.ProjectRunEvent(domain.EventRecord{
 		Sequence:  12,
 		RunID:     "run_1",
 		Kind:      "operator_question.decided",
@@ -449,7 +448,7 @@ func TestProjectRunEventAcceptsOperatorQuestionEvents(t *testing.T) {
 }
 
 func TestProjectRunEventRejectsNonObjectPayload(t *testing.T) {
-	_, err := clientevents.ProjectRunEvent(events.EventRecord{
+	_, err := clientevents.ProjectRunEvent(domain.EventRecord{
 		Sequence: 1,
 		RunID:    "run_1",
 		Kind:     "assistant.delta",
@@ -461,7 +460,7 @@ func TestProjectRunEventRejectsNonObjectPayload(t *testing.T) {
 }
 
 func TestProjectRunEventRejectsUnsupportedLiveKind(t *testing.T) {
-	_, err := clientevents.ProjectRunEvent(events.EventRecord{
+	_, err := clientevents.ProjectRunEvent(domain.EventRecord{
 		Sequence:  1,
 		RunID:     "run_1",
 		Kind:      "future.kind",
@@ -638,7 +637,7 @@ func TestClientCreateRunUsesRealExecutorPath(t *testing.T) {
 		t.Fatalf("created run = %#v", run)
 	}
 
-	waitForRunStatus(t, store, "run_runtime", events.RunStatusSucceeded)
+	waitForRunStatus(t, store, "run_runtime", domain.RunStatusSucceeded)
 	records, err := store.LoadEvents(ctx, "run_runtime")
 	if err != nil {
 		t.Fatalf("LoadEvents: %v", err)
@@ -684,7 +683,7 @@ func TestClientCreateRunReturnsExecutionNotReady(t *testing.T) {
 	t.Cleanup(func() { _ = store.Close() })
 
 	service := BuildClientService(store, func(context.Context) (executorHandle, error) {
-		return nil, runtimeapi.ErrExecutionNotReady
+		return nil, domain.ErrExecutionNotReady
 	}, nil, "/repo")
 	service.newThreadID = func() string { return "thread_not_ready" }
 	service.newRunID = func() string { return "run_not_ready" }
@@ -697,7 +696,7 @@ func TestClientCreateRunReturnsExecutionNotReady(t *testing.T) {
 		t.Fatalf("CreateMessage: %v", err)
 	}
 	_, err = service.CreateRun(ctx, thread.ID, "", "")
-	if !errors.Is(err, runtimeapi.ErrExecutionNotReady) {
+	if !errors.Is(err, domain.ErrExecutionNotReady) {
 		t.Fatalf("CreateRun error = %v, want ErrExecutionNotReady", err)
 	}
 	if _, loadErr := store.LoadRun(ctx, "run_not_ready"); !errors.Is(loadErr, storecore.ErrRunNotFound) {
@@ -771,7 +770,7 @@ type postStartFailingExecutor struct {
 	release chan struct{}
 }
 
-func (e *postStartFailingExecutor) ExecuteMessages(ctx context.Context, req runtimeapi.ExecuteRequest, observer runStartObserver) error {
+func (e *postStartFailingExecutor) ExecuteMessages(ctx context.Context, req domain.ExecuteRequest, observer runStartObserver) error {
 	if err := e.store.CreateBoundRunWithParams(ctx, storecore.RunCreateParams{
 		RunID:     req.RunID,
 		SessionID: req.SessionID,
@@ -992,7 +991,7 @@ func (e clientRuntimeEmbedder) Embed(_ context.Context, req memorymodule.EmbedRe
 	return &memorymodule.EmbedResult{Model: e.model, Dimensions: e.dimensions, Vectors: vectors}, nil
 }
 
-func waitForRunStatus(t *testing.T, store *storesqlite.Store, runID string, want events.RunStatus) {
+func waitForRunStatus(t *testing.T, store *storesqlite.Store, runID string, want domain.RunStatus) {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {

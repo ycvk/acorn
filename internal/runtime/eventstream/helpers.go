@@ -1,4 +1,4 @@
-package stream
+package eventstream
 
 func compactInterruptInfo(value any) any {
 	data, ok := value.(map[string]any)

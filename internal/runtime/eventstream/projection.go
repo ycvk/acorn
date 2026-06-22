@@ -1,34 +1,33 @@
-package stream
+package eventstream
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
 
-	"github.com/ycvk/acorn/internal/events"
-	"github.com/ycvk/acorn/internal/runtime/api"
+	"github.com/ycvk/acorn/internal/domain"
 )
 
 // StreamSink receives a StreamItem for delivery.
 type StreamSink func(item StreamItem) error
 
-func AppendStreamItem(ctx context.Context, store api.EventAppender, sink StreamSink, item StreamItem) (events.EventRecord, error) {
+func AppendStreamItem(ctx context.Context, store domain.EventAppender, sink StreamSink, item StreamItem) (domain.EventRecord, error) {
 	if store == nil {
-		return events.EventRecord{}, fmt.Errorf("append stream item: nil store")
+		return domain.EventRecord{}, fmt.Errorf("append stream item: nil store")
 	}
 	kind, payload, err := ProjectStreamItemToEvent(item)
 	if err != nil {
-		return events.EventRecord{}, err
+		return domain.EventRecord{}, err
 	}
 	saved, err := store.AppendEventContext(ctx, item.RunID, kind, payload)
 	if err != nil {
-		return events.EventRecord{}, err
+		return domain.EventRecord{}, err
 	}
 	item.Sequence = saved.Sequence
 	item.CreatedAt = saved.CreatedAt
 	if sink != nil {
 		if err := sink(item); err != nil {
-			return events.EventRecord{}, err
+			return domain.EventRecord{}, err
 		}
 	}
 	return saved, nil

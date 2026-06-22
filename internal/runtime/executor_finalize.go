@@ -7,12 +7,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ycvk/acorn/internal/events"
+	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/memorymodule"
-	"github.com/ycvk/acorn/internal/stream"
+	"github.com/ycvk/acorn/internal/runtime/eventstream"
 )
 
-func (e *Executor) failRunSetup(ctx context.Context, runID string, setupErr error, sink stream.StreamSink) error {
+func (e *Executor) failRunSetup(ctx context.Context, runID string, setupErr error, sink eventstream.StreamSink) error {
 	if strings.TrimSpace(runID) == "" || setupErr == nil {
 		return setupErr
 	}
@@ -20,21 +20,21 @@ func (e *Executor) failRunSetup(ctx context.Context, runID string, setupErr erro
 	if err := e.emitRunFailed(durableCtx, runID, sink, setupErr.Error()); err != nil {
 		return err
 	}
-	return e.store.FinishRunContext(durableCtx, runID, events.RunStatusFailed, "", setupErr.Error())
+	return e.store.FinishRunContext(durableCtx, runID, domain.RunStatusFailed, "", setupErr.Error())
 }
 
-func (e *Executor) failSetupOrErr(ctx context.Context, runID string, setupErr error, sink stream.StreamSink) error {
+func (e *Executor) failSetupOrErr(ctx context.Context, runID string, setupErr error, sink eventstream.StreamSink) error {
 	if failErr := e.failRunSetup(ctx, runID, setupErr, sink); failErr != nil {
 		return failErr
 	}
 	return setupErr
 }
 
-func (e *Executor) recordFinalizationFailure(ctx context.Context, runID, output string, finalizationErr error, sink stream.StreamSink) error {
+func (e *Executor) recordFinalizationFailure(ctx context.Context, runID, output string, finalizationErr error, sink eventstream.StreamSink) error {
 	durableCtx := DurableContext(ctx)
 	message := fmt.Sprintf("run finalization failed: %v", finalizationErr)
 	var errs []error
-	if err := e.store.FinishRunContext(durableCtx, runID, events.RunStatusFailed, output, message); err != nil {
+	if err := e.store.FinishRunContext(durableCtx, runID, domain.RunStatusFailed, output, message); err != nil {
 		errs = append(errs, fmt.Errorf("mark run failed after finalization failure: %w", err))
 	}
 	if err := e.emitRunFailed(durableCtx, runID, sink, message); err != nil {
@@ -44,14 +44,14 @@ func (e *Executor) recordFinalizationFailure(ctx context.Context, runID, output 
 	return errors.Join(errs...)
 }
 
-func (e *Executor) verifyAndRecordSkill(ctx context.Context, runID string, selected *SelectedSkill, status events.RunStatus, output string, sink stream.StreamSink) error {
-	if selected == nil || strings.TrimSpace(runID) == "" || status != events.RunStatusFailed {
+func (e *Executor) verifyAndRecordSkill(ctx context.Context, runID string, selected *SelectedSkill, status domain.RunStatus, output string, sink eventstream.StreamSink) error {
+	if selected == nil || strings.TrimSpace(runID) == "" || status != domain.RunStatusFailed {
 		return nil
 	}
-	_, err := stream.AppendStreamItem(ctx, e.store, sink, stream.StreamItem{
+	_, err := eventstream.AppendStreamItem(ctx, e.store, sink, eventstream.StreamItem{
 		RunID: runID,
-		Kind:  stream.StreamKindSkillFailed,
-		Payload: map[string]any{"skill": &stream.StreamSkill{
+		Kind:  eventstream.StreamKindSkillFailed,
+		Payload: map[string]any{"skill": &eventstream.StreamSkill{
 			SelectedID:    selected.Skill.ID,
 			Name:          selected.Skill.Name,
 			Source:        selected.Skill.Source,
@@ -64,7 +64,7 @@ func (e *Executor) verifyAndRecordSkill(ctx context.Context, runID string, selec
 	return err
 }
 
-func (e *Executor) finishCollectedRun(ctx context.Context, runID, input string, state RunState, selectedSkill *SelectedSkill, sink stream.StreamSink) (*Result, error) {
+func (e *Executor) finishCollectedRun(ctx context.Context, runID, input string, state RunState, selectedSkill *SelectedSkill, sink eventstream.StreamSink) (*Result, error) {
 	switch {
 	case state.failure != nil:
 		return e.finishFailedRun(ctx, runID, input, state, selectedSkill, sink)
@@ -75,25 +75,25 @@ func (e *Executor) finishCollectedRun(ctx context.Context, runID, input string, 
 	}
 }
 
-func (e *Executor) finishFailedRun(ctx context.Context, runID, input string, state RunState, selectedSkill *SelectedSkill, sink stream.StreamSink) (*Result, error) {
+func (e *Executor) finishFailedRun(ctx context.Context, runID, input string, state RunState, selectedSkill *SelectedSkill, sink eventstream.StreamSink) (*Result, error) {
 	durableCtx := DurableContext(ctx)
 	if !state.emittedRunFailed && state.failure != nil {
 		if err := e.emitRunFailed(durableCtx, runID, sink, state.failure.Error()); err != nil {
 			return nil, err
 		}
 	}
-	if err := e.store.FinishRunContext(durableCtx, runID, events.RunStatusFailed, state.lastOutput, state.failure.Error()); err != nil {
+	if err := e.store.FinishRunContext(durableCtx, runID, domain.RunStatusFailed, state.lastOutput, state.failure.Error()); err != nil {
 		return nil, err
 	}
-	if err := e.verifyAndRecordSkill(durableCtx, runID, selectedSkill, events.RunStatusFailed, state.lastOutput, sink); err != nil {
+	if err := e.verifyAndRecordSkill(durableCtx, runID, selectedSkill, domain.RunStatusFailed, state.lastOutput, sink); err != nil {
 		return nil, err
 	}
-	if err := e.finalizePostRun(durableCtx, runID, events.RunStatusFailed, input, state.lastOutput); err != nil {
+	if err := e.finalizePostRun(durableCtx, runID, domain.RunStatusFailed, input, state.lastOutput); err != nil {
 		return nil, errors.Join(state.failure, fmt.Errorf("finalize failed run: %w", err))
 	}
 	return &Result{
 		RunID:  runID,
-		Status: events.RunStatusFailed,
+		Status: domain.RunStatusFailed,
 		Output: state.lastOutput,
 		Error:  state.failure.Error(),
 	}, nil
@@ -106,44 +106,44 @@ func (e *Executor) finishInterruptedRun(ctx context.Context, runID string, state
 	}
 	return &Result{
 		RunID:       runID,
-		Status:      events.RunStatusInterrupted,
+		Status:      domain.RunStatusInterrupted,
 		Output:      state.lastOutput,
 		Interrupted: state.interrupt,
 	}, nil
 }
 
-func (e *Executor) finishSucceededRun(ctx context.Context, runID, input string, state RunState, selectedSkill *SelectedSkill, sink stream.StreamSink) (*Result, error) {
+func (e *Executor) finishSucceededRun(ctx context.Context, runID, input string, state RunState, selectedSkill *SelectedSkill, sink eventstream.StreamSink) (*Result, error) {
 	durableCtx := DurableContext(ctx)
 	if err := e.store.UpdateRunOutputContext(durableCtx, runID, state.lastOutput); err != nil {
 		return nil, err
 	}
-	if err := e.verifyAndRecordSkill(durableCtx, runID, selectedSkill, events.RunStatusSucceeded, state.lastOutput, sink); err != nil {
+	if err := e.verifyAndRecordSkill(durableCtx, runID, selectedSkill, domain.RunStatusSucceeded, state.lastOutput, sink); err != nil {
 		return nil, err
 	}
-	if err := e.finalizePostRun(durableCtx, runID, events.RunStatusSucceeded, input, state.lastOutput); err != nil {
+	if err := e.finalizePostRun(durableCtx, runID, domain.RunStatusSucceeded, input, state.lastOutput); err != nil {
 		return nil, e.recordFinalizationFailure(durableCtx, runID, state.lastOutput, err, sink)
 	}
 	if err := e.emitRunCompleted(durableCtx, runID, state.lastOutput, sink); err != nil {
 		return nil, err
 	}
-	if err := e.store.FinishRunContext(durableCtx, runID, events.RunStatusSucceeded, state.lastOutput, ""); err != nil {
+	if err := e.store.FinishRunContext(durableCtx, runID, domain.RunStatusSucceeded, state.lastOutput, ""); err != nil {
 		return nil, err
 	}
 	return &Result{
 		RunID:  runID,
-		Status: events.RunStatusSucceeded,
+		Status: domain.RunStatusSucceeded,
 		Output: state.lastOutput,
 	}, nil
 }
 
-func (e *Executor) finalizePostRun(ctx context.Context, runID string, runStatus events.RunStatus, input, output string) error {
+func (e *Executor) finalizePostRun(ctx context.Context, runID string, runStatus domain.RunStatus, input, output string) error {
 	if err := e.store.SyncAssistantMessageForRunStatus(ctx, runID, runStatus); err != nil {
 		return fmt.Errorf("sync assistant message: %w", err)
 	}
 	return e.appendRunHistory(ctx, runID, runStatus, input, output)
 }
 
-func (e *Executor) appendRunHistory(ctx context.Context, runID string, runStatus events.RunStatus, input, output string) error {
+func (e *Executor) appendRunHistory(ctx context.Context, runID string, runStatus domain.RunStatus, input, output string) error {
 	if e.runRuntime.MemoryModule() == nil {
 		return errors.New("memory module is not initialized")
 	}
@@ -170,8 +170,8 @@ func compactArchiveText(value string) string {
 	return trimmed[:280] + "..."
 }
 
-func failureReasonForStatus(status events.RunStatus, output string) string {
-	if status != events.RunStatusFailed {
+func failureReasonForStatus(status domain.RunStatus, output string) string {
+	if status != domain.RunStatusFailed {
 		return ""
 	}
 	if strings.TrimSpace(output) == "" {

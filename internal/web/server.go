@@ -8,7 +8,7 @@ import (
 	"github.com/ycvk/acorn/internal/app"
 	"github.com/ycvk/acorn/internal/clientevents"
 	"github.com/ycvk/acorn/internal/config"
-	"github.com/ycvk/acorn/internal/events"
+	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/memorymodule"
 	"github.com/ycvk/acorn/internal/skills"
 )
@@ -34,13 +34,7 @@ type ClientService interface {
 type PendingActionService interface {
 	List(ctx context.Context, limit int) ([]app.PendingActionSummary, error)
 	Get(ctx context.Context, actionID string) (*app.PendingActionDetail, error)
-	Decide(ctx context.Context, actionID string, input app.PendingActionDecisionInput) (*events.PendingActionRecord, error)
-}
-
-type WorkingCheckpointService interface {
-	Get(ctx context.Context, threadID string) (*app.WorkingCheckpointView, error)
-	Update(ctx context.Context, threadID, content, relatedSkillID string) (*app.WorkingCheckpointView, error)
-	Clear(ctx context.Context, threadID string) error
+	Decide(ctx context.Context, actionID string, input app.PendingActionDecisionInput) (*domain.PendingActionRecord, error)
 }
 
 type RunResumeService interface {
@@ -80,7 +74,6 @@ type DeviceAuthService interface {
 type Dependencies struct {
 	Client        ClientService
 	PendingAction PendingActionService
-	Checkpoints   WorkingCheckpointService
 	RunResume     RunResumeService
 	Memory        MemoryService
 	Skills        SkillService
@@ -94,7 +87,6 @@ type Dependencies struct {
 type Server struct {
 	client        ClientService
 	pendingAction PendingActionService
-	checkpoints   WorkingCheckpointService
 	runResume     RunResumeService
 	memory        MemoryService
 	skills        SkillService

@@ -11,8 +11,8 @@ import (
 	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/contextplane"
-	"github.com/ycvk/acorn/internal/orchestration"
-	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
+	"github.com/ycvk/acorn/internal/domain"
+	"github.com/ycvk/acorn/internal/runtime/orchestration"
 	"github.com/ycvk/acorn/internal/runtime/tool"
 	"github.com/ycvk/acorn/internal/tooling"
 )
@@ -137,7 +137,7 @@ func (d defaultOrchestrationPlaneDeps) bindToolLifecycle(
 }
 
 func bindSessionID(ctx context.Context, sessionID string) context.Context {
-	return runtimeapi.WithSessionID(ctx, sessionID)
+	return domain.WithSessionID(ctx, sessionID)
 }
 
 type toolLifecycleStateAdapter struct {

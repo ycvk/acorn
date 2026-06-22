@@ -6,19 +6,17 @@ import (
 
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/contextplane"
+	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/memorymodule"
-	"github.com/ycvk/acorn/internal/model"
 	"github.com/ycvk/acorn/internal/runtime"
 	"github.com/ycvk/acorn/internal/skills"
-	"github.com/ycvk/acorn/internal/workingstate"
 	"github.com/ycvk/acorn/internal/workspace"
 )
 
 type containerRuntimeDeps struct {
 	ws                    *workspace.Workspace
 	loader                *skills.Loader
-	checkpointService     *workingstate.Service
-	sessionSummaryService *model.SessionSummaryService
+	sessionSummaryService *domain.SessionSummaryService
 	memoryModule          memorymodule.Service
 	contextPlane          contextplane.ContextPlane
 	mcpPendingActionStore PendingActionCreateStore
@@ -33,8 +31,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, store co
 		return nil, err
 	}
 	loader := skills.NewLoader(cfg)
-	var checkpointService *workingstate.Service
-	sessionSummaryService := model.NewSessionSummaryService(store, 2000)
+	sessionSummaryService := domain.NewSessionSummaryService(store, 2000)
 	memoryModule, err := buildMemoryService(ctx, cfg)
 	if err != nil {
 		return nil, err
@@ -49,7 +46,6 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, store co
 	runnerFactory, err := runtime.NewRunnerFactory(cfg, store, runtime.RunnerFactoryOptions{
 		Loader:                loader,
 		Workspace:             ws,
-		CheckpointService:     checkpointService,
 		SessionSummaryService: sessionSummaryService,
 		MemoryModule:          memoryModule,
 		ContextPlane:          contextPlane,
@@ -64,7 +60,6 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, store co
 	return &containerRuntimeDeps{
 		ws:                    ws,
 		loader:                loader,
-		checkpointService:     checkpointService,
 		sessionSummaryService: sessionSummaryService,
 		memoryModule:          memoryModule,
 		contextPlane:          contextPlane,

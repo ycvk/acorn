@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ycvk/acorn/internal/events"
+	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/store"
 )
 
@@ -68,7 +68,7 @@ func (s *PendingActionService) Get(ctx context.Context, actionID string) (*Pendi
 	if err != nil {
 		return nil, err
 	}
-	if record.Status != events.PendingActionStatusPending {
+	if record.Status != domain.PendingActionStatusPending {
 		return nil, fmt.Errorf("%w: status %q", store.ErrPendingActionDecided, record.Status)
 	}
 	run, err := s.store.LoadRun(ctx, record.RunID)
@@ -91,7 +91,7 @@ func (s *PendingActionService) Get(ctx context.Context, actionID string) (*Pendi
 	}, nil
 }
 
-func (s *PendingActionService) Decide(ctx context.Context, actionID string, input PendingActionDecisionInput) (*events.PendingActionRecord, error) {
+func (s *PendingActionService) Decide(ctx context.Context, actionID string, input PendingActionDecisionInput) (*domain.PendingActionRecord, error) {
 	if s == nil || s.store == nil {
 		return nil, errors.New("pending action store is nil")
 	}
@@ -120,11 +120,11 @@ func (s *PendingActionService) Decide(ctx context.Context, actionID string, inpu
 	return record, nil
 }
 
-func buildPendingActionDecision(record events.PendingActionRecord, input PendingActionDecisionInput) (events.PendingActionStatus, []byte, string, map[string]any, error) {
+func buildPendingActionDecision(record domain.PendingActionRecord, input PendingActionDecisionInput) (domain.PendingActionStatus, []byte, string, map[string]any, error) {
 	switch record.Kind {
-	case events.PendingActionKindElicitation:
+	case domain.PendingActionKindElicitation:
 		return buildElicitationDecision(record, input)
-	case events.PendingActionKindOperatorQuestion:
+	case domain.PendingActionKindOperatorQuestion:
 		return buildOperatorQuestionDecision(record, input)
 	default:
 		return "", nil, "", nil, fmt.Errorf("unsupported pending action kind %q", record.Kind)

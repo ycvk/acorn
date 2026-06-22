@@ -413,15 +413,3 @@ func (c *ConverterImpl) threadDTOsFromDomain(source []app.Thread) []ThreadDTO {
 	}
 	return webThreadDTOList
 }
-func (c *ConverterImpl) workingCheckpointDTOFromView(source *app.WorkingCheckpointView) *WorkingCheckpointDTO {
-	var pWebWorkingCheckpointDTO *WorkingCheckpointDTO
-	if source != nil {
-		var webWorkingCheckpointDTO WorkingCheckpointDTO
-		webWorkingCheckpointDTO.ThreadID = (*source).ThreadID
-		webWorkingCheckpointDTO.Content = (*source).Content
-		webWorkingCheckpointDTO.RelatedSkillID = (*source).RelatedSkillID
-		webWorkingCheckpointDTO.UpdatedAt = TimeToTime((*source).UpdatedAt)
-		pWebWorkingCheckpointDTO = &webWorkingCheckpointDTO
-	}
-	return pWebWorkingCheckpointDTO
-}

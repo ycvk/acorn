@@ -7,9 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ycvk/acorn/internal/events"
+	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/runtime"
-	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 	"github.com/ycvk/acorn/internal/store"
 )
 
@@ -69,9 +68,9 @@ func (s *ClientService) RunIsTerminal(ctx context.Context, runID string) (bool, 
 		return false, err
 	}
 	switch record.Status {
-	case events.RunStatusRunning:
+	case domain.RunStatusRunning:
 		return false, nil
-	case events.RunStatusSucceeded, events.RunStatusInterrupted, events.RunStatusFailed:
+	case domain.RunStatusSucceeded, domain.RunStatusInterrupted, domain.RunStatusFailed:
 		return true, nil
 	default:
 		return false, projectionError("unknown run status %q", record.Status)
@@ -102,7 +101,7 @@ func (s *ClientService) CreateRun(ctx context.Context, threadID, skillID, input 
 	// latest unbound message and binds by its id; concurrent two-step creates on
 	// one thread bind the same id and the second fails loud (RowsAffected=0 -> run
 	// rolled back), never silently mis-binding.
-	var message *events.SessionMessageRecord
+	var message *domain.SessionMessageRecord
 	var err error
 	if strings.TrimSpace(input) != "" {
 		message, err = s.createUserMessage(ctx, threadID, input)
@@ -131,7 +130,7 @@ func (s *ClientService) CreateRun(ctx context.Context, threadID, skillID, input 
 		return nil, errors.New("client run id is empty")
 	}
 	started := newRunStartSignal()
-	req := runtimeapi.ExecuteRequest{
+	req := domain.ExecuteRequest{
 		RunID:          runID,
 		SessionID:      threadID,
 		TurnIndex:      message.TurnIndex,
@@ -153,7 +152,7 @@ func (s *ClientService) CreateRun(ctx context.Context, threadID, skillID, input 
 	}
 }
 
-func projectRun(record events.RunRecord) (Run, error) {
+func projectRun(record domain.RunRecord) (Run, error) {
 	status, err := projectRunStatus(record.Status)
 	if err != nil {
 		return Run{}, err
@@ -165,7 +164,7 @@ func projectRun(record events.RunRecord) (Run, error) {
 		Mode:      "direct",
 		CreatedAt: record.CreatedAt,
 	}
-	if record.Status != events.RunStatusRunning {
+	if record.Status != domain.RunStatusRunning {
 		run.CompletedAt = record.UpdatedAt
 	}
 	return run, nil

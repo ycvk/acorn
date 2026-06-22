@@ -49,8 +49,6 @@ import io.ycvk.acorn.api.models.Thread
 import io.ycvk.acorn.api.models.ThreadListResponse
 import io.ycvk.acorn.api.models.ToolListResponse
 import io.ycvk.acorn.api.models.UpdateThreadRequest
-import io.ycvk.acorn.api.models.UpdateWorkingCheckpointRequest
-import io.ycvk.acorn.api.models.WorkingCheckpointEnvelope
 
 import com.squareup.moshi.Json
 
@@ -445,77 +443,6 @@ open class ClientApi(basePath: kotlin.String = defaultBasePath, client: Call.Fac
         return RequestConfig(
             method = RequestMethod.DELETE,
             path = "/v1/threads/{thread_id}".replace("{"+"thread_id"+"}", encodeURIComponent(threadId.toString())),
-            query = localVariableQuery,
-            headers = localVariableHeaders,
-            requiresAuthentication = true,
-            body = localVariableBody
-        )
-    }
-
-    /**
-     * DELETE /v1/threads/{thread_id}/checkpoint
-     * Clear the current working checkpoint for a thread
-     * 
-     * @param threadId 
-     * @return void
-     * @throws IllegalStateException If the request is not correctly configured
-     * @throws IOException Rethrows the OkHttp execute method exception
-     * @throws UnsupportedOperationException If the API returns an informational or redirection response
-     * @throws ClientException If the API returns a client error response
-     * @throws ServerException If the API returns a server error response
-     */
-    @Throws(IllegalStateException::class, IOException::class, UnsupportedOperationException::class, ClientException::class, ServerException::class)
-    fun clientDeleteThreadCheckpoint(threadId: kotlin.String) : Unit {
-        val localVarResponse = clientDeleteThreadCheckpointWithHttpInfo(threadId = threadId)
-
-        return when (localVarResponse.responseType) {
-            ResponseType.Success -> Unit
-            ResponseType.Informational -> throw UnsupportedOperationException("Client does not support Informational responses.")
-            ResponseType.Redirection -> throw UnsupportedOperationException("Client does not support Redirection responses.")
-            ResponseType.ClientError -> {
-                val localVarError = localVarResponse as ClientError<*>
-                throw ClientException("Client error : ${localVarError.statusCode} ${localVarError.message.orEmpty()}", localVarError.statusCode, localVarResponse)
-            }
-            ResponseType.ServerError -> {
-                val localVarError = localVarResponse as ServerError<*>
-                throw ServerException("Server error : ${localVarError.statusCode} ${localVarError.message.orEmpty()} ${localVarError.body}", localVarError.statusCode, localVarResponse)
-            }
-        }
-    }
-
-    /**
-     * DELETE /v1/threads/{thread_id}/checkpoint
-     * Clear the current working checkpoint for a thread
-     * 
-     * @param threadId 
-     * @return ApiResponse<Unit?>
-     * @throws IllegalStateException If the request is not correctly configured
-     * @throws IOException Rethrows the OkHttp execute method exception
-     */
-    @Throws(IllegalStateException::class, IOException::class)
-    fun clientDeleteThreadCheckpointWithHttpInfo(threadId: kotlin.String) : ApiResponse<Unit?> {
-        val localVariableConfig = clientDeleteThreadCheckpointRequestConfig(threadId = threadId)
-
-        return request<Unit, Unit>(
-            localVariableConfig
-        )
-    }
-
-    /**
-     * To obtain the request config of the operation clientDeleteThreadCheckpoint
-     *
-     * @param threadId 
-     * @return RequestConfig
-     */
-    fun clientDeleteThreadCheckpointRequestConfig(threadId: kotlin.String) : RequestConfig<Unit> {
-        val localVariableBody = null
-        val localVariableQuery: MultiValueMap = mutableMapOf()
-        val localVariableHeaders: MutableMap<String, String> = mutableMapOf()
-        localVariableHeaders["Accept"] = "application/json"
-
-        return RequestConfig(
-            method = RequestMethod.DELETE,
-            path = "/v1/threads/{thread_id}/checkpoint".replace("{"+"thread_id"+"}", encodeURIComponent(threadId.toString())),
             query = localVariableQuery,
             headers = localVariableHeaders,
             requiresAuthentication = true,
@@ -1129,79 +1056,6 @@ open class ClientApi(basePath: kotlin.String = defaultBasePath, client: Call.Fac
         return RequestConfig(
             method = RequestMethod.GET,
             path = "/v1/threads/{thread_id}".replace("{"+"thread_id"+"}", encodeURIComponent(threadId.toString())),
-            query = localVariableQuery,
-            headers = localVariableHeaders,
-            requiresAuthentication = true,
-            body = localVariableBody
-        )
-    }
-
-    /**
-     * GET /v1/threads/{thread_id}/checkpoint
-     * Load the current working checkpoint for a thread
-     * 
-     * @param threadId 
-     * @return WorkingCheckpointEnvelope
-     * @throws IllegalStateException If the request is not correctly configured
-     * @throws IOException Rethrows the OkHttp execute method exception
-     * @throws UnsupportedOperationException If the API returns an informational or redirection response
-     * @throws ClientException If the API returns a client error response
-     * @throws ServerException If the API returns a server error response
-     */
-    @Suppress("UNCHECKED_CAST")
-    @Throws(IllegalStateException::class, IOException::class, UnsupportedOperationException::class, ClientException::class, ServerException::class)
-    fun clientGetThreadCheckpoint(threadId: kotlin.String) : WorkingCheckpointEnvelope {
-        val localVarResponse = clientGetThreadCheckpointWithHttpInfo(threadId = threadId)
-
-        return when (localVarResponse.responseType) {
-            ResponseType.Success -> (localVarResponse as Success<*>).data as WorkingCheckpointEnvelope
-            ResponseType.Informational -> throw UnsupportedOperationException("Client does not support Informational responses.")
-            ResponseType.Redirection -> throw UnsupportedOperationException("Client does not support Redirection responses.")
-            ResponseType.ClientError -> {
-                val localVarError = localVarResponse as ClientError<*>
-                throw ClientException("Client error : ${localVarError.statusCode} ${localVarError.message.orEmpty()}", localVarError.statusCode, localVarResponse)
-            }
-            ResponseType.ServerError -> {
-                val localVarError = localVarResponse as ServerError<*>
-                throw ServerException("Server error : ${localVarError.statusCode} ${localVarError.message.orEmpty()} ${localVarError.body}", localVarError.statusCode, localVarResponse)
-            }
-        }
-    }
-
-    /**
-     * GET /v1/threads/{thread_id}/checkpoint
-     * Load the current working checkpoint for a thread
-     * 
-     * @param threadId 
-     * @return ApiResponse<WorkingCheckpointEnvelope?>
-     * @throws IllegalStateException If the request is not correctly configured
-     * @throws IOException Rethrows the OkHttp execute method exception
-     */
-    @Suppress("UNCHECKED_CAST")
-    @Throws(IllegalStateException::class, IOException::class)
-    fun clientGetThreadCheckpointWithHttpInfo(threadId: kotlin.String) : ApiResponse<WorkingCheckpointEnvelope?> {
-        val localVariableConfig = clientGetThreadCheckpointRequestConfig(threadId = threadId)
-
-        return request<Unit, WorkingCheckpointEnvelope>(
-            localVariableConfig
-        )
-    }
-
-    /**
-     * To obtain the request config of the operation clientGetThreadCheckpoint
-     *
-     * @param threadId 
-     * @return RequestConfig
-     */
-    fun clientGetThreadCheckpointRequestConfig(threadId: kotlin.String) : RequestConfig<Unit> {
-        val localVariableBody = null
-        val localVariableQuery: MultiValueMap = mutableMapOf()
-        val localVariableHeaders: MutableMap<String, String> = mutableMapOf()
-        localVariableHeaders["Accept"] = "application/json"
-
-        return RequestConfig(
-            method = RequestMethod.GET,
-            path = "/v1/threads/{thread_id}/checkpoint".replace("{"+"thread_id"+"}", encodeURIComponent(threadId.toString())),
             query = localVariableQuery,
             headers = localVariableHeaders,
             requiresAuthentication = true,
@@ -1828,83 +1682,6 @@ open class ClientApi(basePath: kotlin.String = defaultBasePath, client: Call.Fac
         return RequestConfig(
             method = RequestMethod.PATCH,
             path = "/v1/threads/{thread_id}".replace("{"+"thread_id"+"}", encodeURIComponent(threadId.toString())),
-            query = localVariableQuery,
-            headers = localVariableHeaders,
-            requiresAuthentication = true,
-            body = localVariableBody
-        )
-    }
-
-    /**
-     * PUT /v1/threads/{thread_id}/checkpoint
-     * Replace the current working checkpoint for a thread
-     * 
-     * @param threadId 
-     * @param updateWorkingCheckpointRequest 
-     * @return WorkingCheckpointEnvelope
-     * @throws IllegalStateException If the request is not correctly configured
-     * @throws IOException Rethrows the OkHttp execute method exception
-     * @throws UnsupportedOperationException If the API returns an informational or redirection response
-     * @throws ClientException If the API returns a client error response
-     * @throws ServerException If the API returns a server error response
-     */
-    @Suppress("UNCHECKED_CAST")
-    @Throws(IllegalStateException::class, IOException::class, UnsupportedOperationException::class, ClientException::class, ServerException::class)
-    fun clientUpdateThreadCheckpoint(threadId: kotlin.String, updateWorkingCheckpointRequest: UpdateWorkingCheckpointRequest) : WorkingCheckpointEnvelope {
-        val localVarResponse = clientUpdateThreadCheckpointWithHttpInfo(threadId = threadId, updateWorkingCheckpointRequest = updateWorkingCheckpointRequest)
-
-        return when (localVarResponse.responseType) {
-            ResponseType.Success -> (localVarResponse as Success<*>).data as WorkingCheckpointEnvelope
-            ResponseType.Informational -> throw UnsupportedOperationException("Client does not support Informational responses.")
-            ResponseType.Redirection -> throw UnsupportedOperationException("Client does not support Redirection responses.")
-            ResponseType.ClientError -> {
-                val localVarError = localVarResponse as ClientError<*>
-                throw ClientException("Client error : ${localVarError.statusCode} ${localVarError.message.orEmpty()}", localVarError.statusCode, localVarResponse)
-            }
-            ResponseType.ServerError -> {
-                val localVarError = localVarResponse as ServerError<*>
-                throw ServerException("Server error : ${localVarError.statusCode} ${localVarError.message.orEmpty()} ${localVarError.body}", localVarError.statusCode, localVarResponse)
-            }
-        }
-    }
-
-    /**
-     * PUT /v1/threads/{thread_id}/checkpoint
-     * Replace the current working checkpoint for a thread
-     * 
-     * @param threadId 
-     * @param updateWorkingCheckpointRequest 
-     * @return ApiResponse<WorkingCheckpointEnvelope?>
-     * @throws IllegalStateException If the request is not correctly configured
-     * @throws IOException Rethrows the OkHttp execute method exception
-     */
-    @Suppress("UNCHECKED_CAST")
-    @Throws(IllegalStateException::class, IOException::class)
-    fun clientUpdateThreadCheckpointWithHttpInfo(threadId: kotlin.String, updateWorkingCheckpointRequest: UpdateWorkingCheckpointRequest) : ApiResponse<WorkingCheckpointEnvelope?> {
-        val localVariableConfig = clientUpdateThreadCheckpointRequestConfig(threadId = threadId, updateWorkingCheckpointRequest = updateWorkingCheckpointRequest)
-
-        return request<UpdateWorkingCheckpointRequest, WorkingCheckpointEnvelope>(
-            localVariableConfig
-        )
-    }
-
-    /**
-     * To obtain the request config of the operation clientUpdateThreadCheckpoint
-     *
-     * @param threadId 
-     * @param updateWorkingCheckpointRequest 
-     * @return RequestConfig
-     */
-    fun clientUpdateThreadCheckpointRequestConfig(threadId: kotlin.String, updateWorkingCheckpointRequest: UpdateWorkingCheckpointRequest) : RequestConfig<UpdateWorkingCheckpointRequest> {
-        val localVariableBody = updateWorkingCheckpointRequest
-        val localVariableQuery: MultiValueMap = mutableMapOf()
-        val localVariableHeaders: MutableMap<String, String> = mutableMapOf()
-        localVariableHeaders["Content-Type"] = "application/json"
-        localVariableHeaders["Accept"] = "application/json"
-
-        return RequestConfig(
-            method = RequestMethod.PUT,
-            path = "/v1/threads/{thread_id}/checkpoint".replace("{"+"thread_id"+"}", encodeURIComponent(threadId.toString())),
             query = localVariableQuery,
             headers = localVariableHeaders,
             requiresAuthentication = true,

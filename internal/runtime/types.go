@@ -13,16 +13,13 @@ import (
 	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/contextplane"
-	"github.com/ycvk/acorn/internal/events"
+	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/memorymodule"
-	"github.com/ycvk/acorn/internal/model"
-	"github.com/ycvk/acorn/internal/orchestration"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
-	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
+	"github.com/ycvk/acorn/internal/runtime/eventstream"
+	"github.com/ycvk/acorn/internal/runtime/orchestration"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/store"
-	"github.com/ycvk/acorn/internal/stream"
-	"github.com/ycvk/acorn/internal/workingstate"
 	"github.com/ycvk/acorn/internal/workspace"
 )
 
@@ -46,7 +43,7 @@ func newSessionID() string {
 	return fmt.Sprintf("session_%d", time.Now().UTC().UnixNano())
 }
 
-func InterruptPayloadFromStream(interrupt *stream.StreamInterrupt) map[string]any {
+func InterruptPayloadFromStream(interrupt *eventstream.StreamInterrupt) map[string]any {
 	if interrupt == nil {
 		return nil
 	}
@@ -72,7 +69,7 @@ func DurableContext(ctx context.Context) context.Context {
 }
 
 func CurrentRunID(ctx context.Context) string {
-	return runtimeapi.GetRunID(ctx)
+	return domain.GetRunID(ctx)
 }
 
 var registerOnce sync.Once
@@ -114,17 +111,17 @@ func CopySelectedSkill(selected *SelectedSkill) *SelectedSkill {
 
 // ExecutorStore is the store contract required by the Executor.
 type ExecutorStore interface {
-	runtimeapi.EventAppender
+	domain.EventAppender
 	CreateFreshSessionTurn(ctx context.Context, sessionID, title, input string) (int, error)
 	CreateBoundRunWithParams(ctx context.Context, params store.RunCreateParams) error
-	LoadRun(ctx context.Context, runID string) (*events.RunRecord, error)
-	FinishRunContext(ctx context.Context, runID string, status events.RunStatus, output, errText string) error
+	LoadRun(ctx context.Context, runID string) (*domain.RunRecord, error)
+	FinishRunContext(ctx context.Context, runID string, status domain.RunStatus, output, errText string) error
 	MarkInterruptedContext(ctx context.Context, runID, output string) error
 	UpdateRunOutputContext(ctx context.Context, runID, output string) error
-	LoadEvents(ctx context.Context, runID string) ([]events.EventRecord, error)
-	LoadEventsAfter(ctx context.Context, runID string, afterSeq int64) ([]events.EventRecord, error)
+	LoadEvents(ctx context.Context, runID string) ([]domain.EventRecord, error)
+	LoadEventsAfter(ctx context.Context, runID string, afterSeq int64) ([]domain.EventRecord, error)
 	SyncAssistantMessageForRun(ctx context.Context, runID string) error
-	SyncAssistantMessageForRunStatus(ctx context.Context, runID string, status events.RunStatus) error
+	SyncAssistantMessageForRunStatus(ctx context.Context, runID string, status domain.RunStatus) error
 }
 
 // RunnerFactoryStore is the store contract required by the RunnerFactory.
@@ -139,8 +136,7 @@ type RuntimeDeps struct {
 	Config            *config.Config
 	Store             RunnerFactoryStore
 	Loader            *skills.Loader
-	CheckpointService *workingstate.Service
-	SessionSummarySvc *model.SessionSummaryService
+	SessionSummarySvc *domain.SessionSummaryService
 	MemoryModule      memorymodule.Service
 	ContextPlane      contextplane.ContextPlane
 	Orchestration     orchestrationPlane
@@ -278,20 +274,20 @@ func (c *RunController) Interrupt(runID string) error {
 	}
 	runID = strings.TrimSpace(runID)
 	if runID == "" {
-		return fmt.Errorf("%w: empty run id", runtimeapi.ErrRunNotActive)
+		return fmt.Errorf("%w: empty run id", domain.ErrRunNotActive)
 	}
 	c.activeMu.Lock()
 	cancel, ok := c.activeCancels[runID]
 	c.activeMu.Unlock()
 	if !ok {
-		return fmt.Errorf("%w: %s", runtimeapi.ErrRunNotActive, runID)
+		return fmt.Errorf("%w: %s", domain.ErrRunNotActive, runID)
 	}
 	cancel()
 	return nil
 }
 func (e *Executor) bootstrapContextSessionMessages(
 	ctx context.Context,
-	req runtimeapi.ExecuteRequest,
+	req domain.ExecuteRequest,
 	runID string,
 	active *ActiveRunner,
 ) ([]adk.Message, error) {
@@ -338,7 +334,7 @@ func (e *Executor) buildContextSession(active *ActiveRunner, contextPolicy confi
 	})
 }
 
-func prepareInitialMessages(req runtimeapi.ExecuteRequest, active *ActiveRunner) []adk.Message {
+func prepareInitialMessages(req domain.ExecuteRequest, active *ActiveRunner) []adk.Message {
 	initialMessages := append([]adk.Message(nil), req.Messages...)
 	if instruction := strings.TrimSpace(active.Instruction); instruction != "" {
 		initialMessages = append([]adk.Message{schema.SystemMessage(instruction)}, initialMessages...)

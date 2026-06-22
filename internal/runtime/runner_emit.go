@@ -5,17 +5,17 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/memorymodule"
-	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
+	"github.com/ycvk/acorn/internal/runtime/eventstream"
 	"github.com/ycvk/acorn/internal/skills"
-	"github.com/ycvk/acorn/internal/stream"
 )
 
-func emitMemoryPreparedEvent(ctx context.Context, store runtimeapi.EventAppender, req RunnerBuildRequest, workspaceScope string, result *memorymodule.PrepareResult) error {
+func emitMemoryPreparedEvent(ctx context.Context, store domain.EventAppender, req RunnerBuildRequest, workspaceScope string, result *memorymodule.PrepareResult) error {
 	if store == nil || strings.TrimSpace(req.RunID) == "" {
 		return nil
 	}
-	prepared := &stream.StreamMemoryPrepared{
+	prepared := &eventstream.StreamMemoryPrepared{
 		Query:          strings.TrimSpace(req.Input),
 		WorkspaceScope: strings.TrimSpace(workspaceScope),
 	}
@@ -25,36 +25,36 @@ func emitMemoryPreparedEvent(ctx context.Context, store runtimeapi.EventAppender
 		prepared.Nudges = streamMemoryNudges(result.Nudges)
 		prepared.Entries = streamMemoryEntries(result.Entries)
 	}
-	_, err := stream.AppendStreamItem(ctx, store, req.Sink, stream.StreamItem{
+	_, err := eventstream.AppendStreamItem(ctx, store, req.Sink, eventstream.StreamItem{
 		RunID:     req.RunID,
-		Kind:      stream.StreamKindMemoryPrepared,
+		Kind:      eventstream.StreamKindMemoryPrepared,
 		CreatedAt: time.Now().UTC(),
 		Payload:   map[string]any{"memory_prepared": prepared},
 	})
 	return err
 }
 
-func streamMemoryNudges(nudges []memorymodule.Nudge) []stream.StreamMemoryPreparedNudge {
-	out := make([]stream.StreamMemoryPreparedNudge, 0, len(nudges))
+func streamMemoryNudges(nudges []memorymodule.Nudge) []eventstream.StreamMemoryPreparedNudge {
+	out := make([]eventstream.StreamMemoryPreparedNudge, 0, len(nudges))
 	for _, n := range nudges {
-		out = append(out, stream.StreamMemoryPreparedNudge{
+		out = append(out, eventstream.StreamMemoryPreparedNudge{
 			Ref: n.Ref, Kind: n.Kind, Title: n.Title, Status: n.Status, Reason: n.Reason,
 		})
 	}
 	return out
 }
 
-func streamMemoryEntries(entries []memorymodule.Entry) []stream.StreamMemoryPreparedEntry {
-	out := make([]stream.StreamMemoryPreparedEntry, 0, len(entries))
+func streamMemoryEntries(entries []memorymodule.Entry) []eventstream.StreamMemoryPreparedEntry {
+	out := make([]eventstream.StreamMemoryPreparedEntry, 0, len(entries))
 	for _, e := range entries {
-		out = append(out, stream.StreamMemoryPreparedEntry{
+		out = append(out, eventstream.StreamMemoryPreparedEntry{
 			Ref: e.Ref, Kind: e.Kind, Title: e.Title,
 		})
 	}
 	return out
 }
 
-func emitSkillSelectionEvents(ctx context.Context, store runtimeapi.EventAppender, req RunnerBuildRequest, selected *SelectedSkill, matches []SkillMatch) error {
+func emitSkillSelectionEvents(ctx context.Context, store domain.EventAppender, req RunnerBuildRequest, selected *SelectedSkill, matches []SkillMatch) error {
 	if store == nil || strings.TrimSpace(req.RunID) == "" {
 		return nil
 	}
@@ -68,24 +68,24 @@ func emitSkillSelectionEvents(ctx context.Context, store runtimeapi.EventAppende
 	return emitSkillSelected(ctx, store, req, selected, candidates)
 }
 
-func emitSkillDiscovered(ctx context.Context, store runtimeapi.EventAppender, req RunnerBuildRequest, candidates []stream.StreamSkillCandidate, selected *SelectedSkill, matches []SkillMatch) error {
-	discovered := &stream.StreamSkill{Candidates: candidates}
+func emitSkillDiscovered(ctx context.Context, store domain.EventAppender, req RunnerBuildRequest, candidates []eventstream.StreamSkillCandidate, selected *SelectedSkill, matches []SkillMatch) error {
+	discovered := &eventstream.StreamSkill{Candidates: candidates}
 	if selected == nil {
 		discovered.NoSelectionReason = deriveNoSelectionReason(req, matches)
 	}
-	_, err := stream.AppendStreamItem(ctx, store, req.Sink, stream.StreamItem{
+	_, err := eventstream.AppendStreamItem(ctx, store, req.Sink, eventstream.StreamItem{
 		RunID:     req.RunID,
-		Kind:      stream.StreamKindSkillDiscovered,
+		Kind:      eventstream.StreamKindSkillDiscovered,
 		CreatedAt: time.Now().UTC(),
 		Payload:   map[string]any{"skill": discovered},
 	})
 	return err
 }
 
-func emitSkillSelected(ctx context.Context, store runtimeapi.EventAppender, req RunnerBuildRequest, selected *SelectedSkill, candidates []stream.StreamSkillCandidate) error {
+func emitSkillSelected(ctx context.Context, store domain.EventAppender, req RunnerBuildRequest, selected *SelectedSkill, candidates []eventstream.StreamSkillCandidate) error {
 	streamSkill := streamSkillFromSelected(selected, candidates)
-	for _, kind := range []stream.StreamItemKind{stream.StreamKindSkillSelected, stream.StreamKindSkillLoaded} {
-		if _, err := stream.AppendStreamItem(ctx, store, req.Sink, stream.StreamItem{
+	for _, kind := range []eventstream.StreamItemKind{eventstream.StreamKindSkillSelected, eventstream.StreamKindSkillLoaded} {
+		if _, err := eventstream.AppendStreamItem(ctx, store, req.Sink, eventstream.StreamItem{
 			RunID:     req.RunID,
 			Kind:      kind,
 			CreatedAt: time.Now().UTC(),
@@ -122,16 +122,16 @@ func deriveNoSelectionReason(req RunnerBuildRequest, matches []SkillMatch) strin
 	return ""
 }
 
-func topSkillCandidates(matches []SkillMatch, limit int) []stream.StreamSkillCandidate {
+func topSkillCandidates(matches []SkillMatch, limit int) []eventstream.StreamSkillCandidate {
 	if limit <= 0 || len(matches) == 0 {
 		return nil
 	}
 	if len(matches) < limit {
 		limit = len(matches)
 	}
-	items := make([]stream.StreamSkillCandidate, 0, limit)
+	items := make([]eventstream.StreamSkillCandidate, 0, limit)
 	for _, item := range matches[:limit] {
-		items = append(items, stream.StreamSkillCandidate{
+		items = append(items, eventstream.StreamSkillCandidate{
 			ID:             item.Skill.ID,
 			Name:           item.Skill.Name,
 			Score:          item.Score,
@@ -146,11 +146,11 @@ func topSkillCandidates(matches []SkillMatch, limit int) []stream.StreamSkillCan
 	return items
 }
 
-func streamSkillFromSelected(selected *SelectedSkill, candidates []stream.StreamSkillCandidate) *stream.StreamSkill {
+func streamSkillFromSelected(selected *SelectedSkill, candidates []eventstream.StreamSkillCandidate) *eventstream.StreamSkill {
 	if selected == nil {
 		return nil
 	}
-	return &stream.StreamSkill{
+	return &eventstream.StreamSkill{
 		SelectedID:   selected.Skill.ID,
 		Name:         selected.Skill.Name,
 		Candidates:   candidates,
@@ -172,7 +172,7 @@ func streamSkillFromSelected(selected *SelectedSkill, candidates []stream.Stream
 // explicit skill). Profile hash and intent were dropped when decision.Engine
 // was inlined into run selection; only the block action/reason/explicit skill
 // id remain in the payload.
-func emitDecisionBlockedEvent(ctx context.Context, store runtimeapi.EventAppender, req RunnerBuildRequest, action, reason, explicitSkillID string) error {
+func emitDecisionBlockedEvent(ctx context.Context, store domain.EventAppender, req RunnerBuildRequest, action, reason, explicitSkillID string) error {
 	if store == nil || strings.TrimSpace(req.RunID) == "" {
 		return nil
 	}
@@ -181,17 +181,17 @@ func emitDecisionBlockedEvent(ctx context.Context, store runtimeapi.EventAppende
 		"decision_reason":   reason,
 		"explicit_skill_id": strings.TrimSpace(explicitSkillID),
 	}
-	_, err := stream.AppendStreamItem(ctx, store, req.Sink, stream.StreamItem{
+	_, err := eventstream.AppendStreamItem(ctx, store, req.Sink, eventstream.StreamItem{
 		RunID:     req.RunID,
-		Kind:      stream.StreamKindDecisionBlocked,
+		Kind:      eventstream.StreamKindDecisionBlocked,
 		CreatedAt: time.Now().UTC(),
 		Payload:   payload,
 	})
 	return err
 }
 
-func StreamSkillRequirementsFromDomain(item skills.Requirements) stream.StreamSkillRequirements {
-	return stream.StreamSkillRequirements{
+func StreamSkillRequirementsFromDomain(item skills.Requirements) eventstream.StreamSkillRequirements {
+	return eventstream.StreamSkillRequirements{
 		Tools:    append([]string(nil), item.Tools...),
 		Toolsets: append([]string(nil), item.Toolsets...),
 		Bins:     append([]string(nil), item.Bins...),

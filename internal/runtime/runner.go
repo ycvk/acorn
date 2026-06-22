@@ -11,10 +11,10 @@ import (
 	einomodel "github.com/cloudwego/eino/components/model"
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/contextplane"
+	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/memorymodule"
-	"github.com/ycvk/acorn/internal/model"
-	"github.com/ycvk/acorn/internal/orchestration"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
+	"github.com/ycvk/acorn/internal/runtime/orchestration"
 	"github.com/ycvk/acorn/internal/runtime/tool"
 	"github.com/ycvk/acorn/internal/runtime/toolset"
 	"github.com/ycvk/acorn/internal/tooling"
@@ -78,7 +78,7 @@ func (f *RunnerFactory) MemoryModule() memorymodule.Service {
 	return f.deps.MemoryModule
 }
 
-func (f *RunnerFactory) SessionSummarySvc() *model.SessionSummaryService {
+func (f *RunnerFactory) SessionSummarySvc() *domain.SessionSummaryService {
 	return f.deps.SessionSummarySvc
 }
 

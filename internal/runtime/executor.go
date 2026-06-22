@@ -12,16 +12,14 @@ import (
 	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/contextplane"
-	"github.com/ycvk/acorn/internal/events"
-	"github.com/ycvk/acorn/internal/model"
-	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
+	"github.com/ycvk/acorn/internal/domain"
+	"github.com/ycvk/acorn/internal/runtime/eventstream"
 	"github.com/ycvk/acorn/internal/store"
-	"github.com/ycvk/acorn/internal/stream"
 )
 
 type Result struct {
 	RunID       string           `json:"run_id"`
-	Status      events.RunStatus `json:"status"`
+	Status      domain.RunStatus `json:"status"`
 	Output      string           `json:"output,omitempty"`
 	Error       string           `json:"error,omitempty"`
 	Interrupted map[string]any   `json:"interrupted,omitempty"`
@@ -32,7 +30,7 @@ type Executor struct {
 	runRuntime        RunRuntime
 	controller        *RunController
 	newChatModel      func(ctx context.Context) (einomodel.BaseChatModel, error)
-	sessionSummarySvc *model.SessionSummaryService
+	sessionSummarySvc *domain.SessionSummaryService
 }
 
 func NewExecutorWithRunRuntimeAndController(cfg *config.Config, store ExecutorStore, runRuntime RunRuntime, controller *RunController) (*Executor, error) {
@@ -49,7 +47,7 @@ func NewExecutorWithRunRuntimeAndController(cfg *config.Config, store ExecutorSt
 		controller = NewRunController()
 	}
 	if err := cfg.ValidateExecutionReady(); err != nil {
-		return nil, fmt.Errorf("%w: %v", runtimeapi.ErrExecutionNotReady, err)
+		return nil, fmt.Errorf("%w: %v", domain.ErrExecutionNotReady, err)
 	}
 	exec := &Executor{
 		store:             store,
@@ -60,14 +58,14 @@ func NewExecutorWithRunRuntimeAndController(cfg *config.Config, store ExecutorSt
 	}
 	return exec, nil
 }
-func (e *Executor) Run(ctx context.Context, input, skillID string, sink stream.StreamSink) (*Result, error) {
+func (e *Executor) Run(ctx context.Context, input, skillID string, sink eventstream.StreamSink) (*Result, error) {
 	sessionID := newSessionID()
 	title, _ := compactText(input, 48)
 	turnIndex, err := e.store.CreateFreshSessionTurn(ctx, sessionID, title, input)
 	if err != nil {
 		return nil, err
 	}
-	return e.ExecuteMessages(ctx, runtimeapi.ExecuteRequest{
+	return e.ExecuteMessages(ctx, domain.ExecuteRequest{
 		SessionID: sessionID,
 		TurnIndex: turnIndex,
 		Input:     input,
@@ -76,14 +74,14 @@ func (e *Executor) Run(ctx context.Context, input, skillID string, sink stream.S
 	}, sink)
 }
 
-func resolveRunID(req runtimeapi.ExecuteRequest) string {
+func resolveRunID(req domain.ExecuteRequest) string {
 	if id := strings.TrimSpace(req.RunID); id != "" {
 		return id
 	}
 	return NewRunID()
 }
 
-func (e *Executor) prepareExecuteRequest(ctx context.Context, req runtimeapi.ExecuteRequest) (runtimeapi.ExecuteRequest, error) {
+func (e *Executor) prepareExecuteRequest(ctx context.Context, req domain.ExecuteRequest) (domain.ExecuteRequest, error) {
 	if strings.TrimSpace(req.SessionID) != "" {
 		return req, nil
 	}
@@ -100,7 +98,7 @@ func (e *Executor) prepareExecuteRequest(ctx context.Context, req runtimeapi.Exe
 	return req, nil
 }
 
-func (e *Executor) ExecuteMessages(ctx context.Context, req runtimeapi.ExecuteRequest, sink stream.StreamSink) (*Result, error) {
+func (e *Executor) ExecuteMessages(ctx context.Context, req domain.ExecuteRequest, sink eventstream.StreamSink) (*Result, error) {
 	runID := resolveRunID(req)
 	req, err := e.prepareExecuteRequest(ctx, req)
 	if err != nil {
@@ -127,7 +125,7 @@ func (e *Executor) ExecuteMessages(ctx context.Context, req runtimeapi.ExecuteRe
 	return e.consume(ctx, runID, req.Input, iter, active.SelectedSkill, sink, active.ChatModel)
 }
 
-func (e *Executor) createBoundRun(ctx context.Context, runID string, req runtimeapi.ExecuteRequest) error {
+func (e *Executor) createBoundRun(ctx context.Context, runID string, req domain.ExecuteRequest) error {
 	return e.store.CreateBoundRunWithParams(ctx, store.RunCreateParams{
 		RunID:          runID,
 		SessionID:      req.SessionID,
@@ -137,7 +135,7 @@ func (e *Executor) createBoundRun(ctx context.Context, runID string, req runtime
 	})
 }
 
-func (e *Executor) buildExecuteRunner(runCtxBase context.Context, req runtimeapi.ExecuteRequest, runID string, sink stream.StreamSink) (*ActiveRunner, error) {
+func (e *Executor) buildExecuteRunner(runCtxBase context.Context, req domain.ExecuteRequest, runID string, sink eventstream.StreamSink) (*ActiveRunner, error) {
 	return e.runRuntime.New(runCtxBase, RunnerBuildRequest{
 		SessionID:        req.SessionID,
 		RunID:            runID,
@@ -148,7 +146,7 @@ func (e *Executor) buildExecuteRunner(runCtxBase context.Context, req runtimeapi
 	})
 }
 
-func (e *Executor) executionContext(runCtxBase context.Context, runID string, req runtimeapi.ExecuteRequest, active *ActiveRunner, sink stream.StreamSink) context.Context {
+func (e *Executor) executionContext(runCtxBase context.Context, runID string, req domain.ExecuteRequest, active *ActiveRunner, sink eventstream.StreamSink) context.Context {
 	executionCtx := buildExecutionContext(runCtxBase, runID, req.SessionID, req.TurnIndex, sink)
 	if active.ContextSession != nil {
 		executionCtx = contextplane.WithContextSession(executionCtx, active.ContextSession)
@@ -172,20 +170,20 @@ func (e *Executor) newManagedRunContext(ctx context.Context, runID string) (cont
 	}
 }
 
-func buildExecutionContext(runCtxBase context.Context, runID, sessionID string, turnIndex int, sink stream.StreamSink) context.Context {
-	runCtx := runtimeapi.WithRunID(runCtxBase, runID)
-	runCtx = runtimeapi.WithSessionID(runCtx, sessionID)
-	runCtx = runtimeapi.WithTurnIndex(runCtx, turnIndex)
-	return stream.WithStreamSink(runCtx, sink)
+func buildExecutionContext(runCtxBase context.Context, runID, sessionID string, turnIndex int, sink eventstream.StreamSink) context.Context {
+	runCtx := domain.WithRunID(runCtxBase, runID)
+	runCtx = domain.WithSessionID(runCtx, sessionID)
+	runCtx = domain.WithTurnIndex(runCtx, turnIndex)
+	return eventstream.WithStreamSink(runCtx, sink)
 }
 
-func (e *Executor) ResumeWithTargets(ctx context.Context, runID string, targets map[string]any, sink stream.StreamSink) (*Result, error) {
+func (e *Executor) ResumeWithTargets(ctx context.Context, runID string, targets map[string]any, sink eventstream.StreamSink) (*Result, error) {
 	run, err := e.store.LoadRun(ctx, runID)
 	if err != nil {
 		return nil, err
 	}
-	if run.Status != events.RunStatusInterrupted {
-		return nil, fmt.Errorf("%w: %s", runtimeapi.ErrRunNotInterrupted, runID)
+	if run.Status != domain.RunStatusInterrupted {
+		return nil, fmt.Errorf("%w: %s", domain.ErrRunNotInterrupted, runID)
 	}
 	runCtxBase, cleanup := e.newManagedRunContext(ctx, runID)
 	defer cleanup()
@@ -195,7 +193,7 @@ func (e *Executor) ResumeWithTargets(ctx context.Context, runID string, targets 
 	return e.executeResume(ctx, runCtxBase, *run, runID, targets, sink)
 }
 
-func (e *Executor) executeResume(ctx context.Context, runCtxBase context.Context, run events.RunRecord, runID string, targets map[string]any, sink stream.StreamSink) (*Result, error) {
+func (e *Executor) executeResume(ctx context.Context, runCtxBase context.Context, run domain.RunRecord, runID string, targets map[string]any, sink eventstream.StreamSink) (*Result, error) {
 	active, err := e.runRuntime.New(runCtxBase, RunnerBuildRequest{
 		SessionID: run.SessionID,
 		RunID:     runID,
@@ -221,7 +219,7 @@ func (e *Executor) executeResume(ctx context.Context, runCtxBase context.Context
 	return result, nil
 }
 
-func (e *Executor) resumeIter(runCtxBase context.Context, run events.RunRecord, runID string, active *ActiveRunner, targets map[string]any, sink stream.StreamSink) (*adk.AsyncIterator[*adk.AgentEvent], error) {
+func (e *Executor) resumeIter(runCtxBase context.Context, run domain.RunRecord, runID string, active *ActiveRunner, targets map[string]any, sink eventstream.StreamSink) (*adk.AsyncIterator[*adk.AgentEvent], error) {
 	executionCtx := contextplane.WithContextSession(
 		buildExecutionContext(runCtxBase, runID, run.SessionID, run.TurnIndex, sink), active.ContextSession)
 	iter, err := active.Runner.ResumeWithParams(executionCtx, runID, &adk.ResumeParams{Targets: targets})
@@ -231,7 +229,7 @@ func (e *Executor) resumeIter(runCtxBase context.Context, run events.RunRecord, 
 	return iter, nil
 }
 
-func (e *Executor) bootstrapResumeContextSession(ctx context.Context, run events.RunRecord, runID string, active *ActiveRunner) error {
+func (e *Executor) bootstrapResumeContextSession(ctx context.Context, run domain.RunRecord, runID string, active *ActiveRunner) error {
 	if active.ContextSession != nil {
 		return nil
 	}
@@ -239,7 +237,7 @@ func (e *Executor) bootstrapResumeContextSession(ctx context.Context, run events
 	if strings.TrimSpace(run.Input) != "" {
 		messages = []adk.Message{schema.UserMessage(run.Input)}
 	}
-	_, err := e.bootstrapContextSessionMessages(ctx, runtimeapi.ExecuteRequest{
+	_, err := e.bootstrapContextSessionMessages(ctx, domain.ExecuteRequest{
 		SessionID: run.SessionID,
 		TurnIndex: run.TurnIndex,
 		Input:     run.Input,
@@ -255,7 +253,7 @@ type RunState struct {
 	emittedRunFailed bool
 }
 
-func (e *Executor) consume(ctx context.Context, runID, input string, iter *adk.AsyncIterator[*adk.AgentEvent], selectedSkill *SelectedSkill, sink stream.StreamSink, chatModel einomodel.BaseChatModel) (*Result, error) {
+func (e *Executor) consume(ctx context.Context, runID, input string, iter *adk.AsyncIterator[*adk.AgentEvent], selectedSkill *SelectedSkill, sink eventstream.StreamSink, chatModel einomodel.BaseChatModel) (*Result, error) {
 	state, err := e.collectRunState(ctx, runID, iter, sink, chatModel)
 	if err != nil {
 		return nil, err
@@ -263,23 +261,23 @@ func (e *Executor) consume(ctx context.Context, runID, input string, iter *adk.A
 	return e.finishCollectedRun(ctx, runID, input, state, selectedSkill, sink)
 }
 
-func (e *Executor) collectRunState(ctx context.Context, runID string, iter *adk.AsyncIterator[*adk.AgentEvent], sink stream.StreamSink, chatModel einomodel.BaseChatModel) (RunState, error) {
+func (e *Executor) collectRunState(ctx context.Context, runID string, iter *adk.AsyncIterator[*adk.AgentEvent], sink eventstream.StreamSink, chatModel einomodel.BaseChatModel) (RunState, error) {
 	state := RunState{}
 	for {
 		event, ok := iter.Next()
 		if !ok {
 			return state, nil
 		}
-		if err := e.applyAgentEvent(ctx, runID, stream.StreamItemsFromAgentEvent(event, chatModel), sink, &state); err != nil {
+		if err := e.applyAgentEvent(ctx, runID, eventstream.StreamItemsFromAgentEvent(event, chatModel), sink, &state); err != nil {
 			return RunState{}, err
 		}
 	}
 }
 
-func (e *Executor) applyAgentEvent(ctx context.Context, runID string, items []stream.StreamItem, sink stream.StreamSink, state *RunState) error {
+func (e *Executor) applyAgentEvent(ctx context.Context, runID string, items []eventstream.StreamItem, sink eventstream.StreamSink, state *RunState) error {
 	for _, item := range items {
 		item.RunID = runID
-		if _, err := stream.AppendStreamItem(ctx, e.store, sink, item); err != nil {
+		if _, err := eventstream.AppendStreamItem(ctx, e.store, sink, item); err != nil {
 			return err
 		}
 		state.applyStreamItem(item)
@@ -287,7 +285,7 @@ func (e *Executor) applyAgentEvent(ctx context.Context, runID string, items []st
 	return nil
 }
 
-func (s *RunState) applyStreamItem(item stream.StreamItem) {
+func (s *RunState) applyStreamItem(item eventstream.StreamItem) {
 	if delta := item.GetAssistantDelta(); delta != nil {
 		s.lastOutput += delta.Delta
 	}
@@ -297,7 +295,7 @@ func (s *RunState) applyStreamItem(item stream.StreamItem) {
 	if interrupt := item.GetInterrupt(); interrupt != nil {
 		s.interrupt = InterruptPayloadFromStream(interrupt)
 	}
-	if item.Kind == stream.StreamKindRunFailed && item.GetError() != "" {
+	if item.Kind == eventstream.StreamKindRunFailed && item.GetError() != "" {
 		s.failure = errors.New(item.GetError())
 		s.emittedRunFailed = true
 	}

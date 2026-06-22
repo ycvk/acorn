@@ -5,8 +5,8 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/runtime"
-	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 )
 
 // RunOnceResult is the terminal outcome of an owner-local smoke run.
@@ -35,7 +35,7 @@ func (c *Container) RunOnce(ctx context.Context, input string) (*RunOnceResult, 
 	if err != nil {
 		return nil, err
 	}
-	result, err := exec.ExecuteMessages(ctx, runtimeapi.ExecuteRequest{
+	result, err := exec.ExecuteMessages(ctx, domain.ExecuteRequest{
 		Input: trimmed,
 	}, nil)
 	if err != nil {

@@ -6,8 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ycvk/acorn/internal/events"
-	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
+	"github.com/ycvk/acorn/internal/domain"
 )
 
 func TestResumeServiceResumeKeepsNonApprovalInterruptDefaultTarget(t *testing.T) {
@@ -40,7 +39,7 @@ func TestResumeServiceResumeKeepsNonApprovalInterruptDefaultTarget(t *testing.T)
 			resumeWithTargetsFn: func(ctx context.Context, targetRunID string, targets map[string]any) (*executorRunResult, error) {
 				resumedRunID = targetRunID
 				resumed = targets
-				return &executorRunResult{RunID: targetRunID, Status: events.RunStatusSucceeded, Output: "done"}, nil
+				return &executorRunResult{RunID: targetRunID, Status: domain.RunStatusSucceeded, Output: "done"}, nil
 			},
 		}, nil
 	})
@@ -75,7 +74,7 @@ func TestResumeServiceRejectsFailedRun(t *testing.T) {
 	if err := store.CreateRun(context.Background(), runID, "inspect repo"); err != nil {
 		t.Fatalf("create run: %v", err)
 	}
-	if err := store.FinishRunContext(context.Background(), runID, events.RunStatusFailed, "partial output", "shell exited with status 1"); err != nil {
+	if err := store.FinishRunContext(context.Background(), runID, domain.RunStatusFailed, "partial output", "shell exited with status 1"); err != nil {
 		t.Fatalf("finish run: %v", err)
 	}
 
@@ -84,14 +83,14 @@ func TestResumeServiceRejectsFailedRun(t *testing.T) {
 		return resumeTestExecutorHandle{
 			resumeWithTargetsFn: func(ctx context.Context, targetRunID string, targets map[string]any) (*executorRunResult, error) {
 				resumed = true
-				return &executorRunResult{RunID: targetRunID, Status: events.RunStatusSucceeded}, nil
+				return &executorRunResult{RunID: targetRunID, Status: domain.RunStatusSucceeded}, nil
 			},
 		}, nil
 	})
 
 	_, err := service.Resume(ctx, runID)
-	if !errors.Is(err, runtimeapi.ErrRunNotInterrupted) {
-		t.Fatalf("Resume error = %v, want runtimeapi.ErrRunNotInterrupted", err)
+	if !errors.Is(err, domain.ErrRunNotInterrupted) {
+		t.Fatalf("Resume error = %v, want domain.ErrRunNotInterrupted", err)
 	}
 	if err == nil || !strings.Contains(err.Error(), "failed and cannot be resumed") {
 		t.Fatalf("unexpected resume error: %v", err)
@@ -109,7 +108,7 @@ func TestResumeServiceRejectsCompletedRun(t *testing.T) {
 	if err := store.CreateRun(context.Background(), runID, "inspect repo"); err != nil {
 		t.Fatalf("create run: %v", err)
 	}
-	if err := store.FinishRunContext(context.Background(), runID, events.RunStatusSucceeded, "done", ""); err != nil {
+	if err := store.FinishRunContext(context.Background(), runID, domain.RunStatusSucceeded, "done", ""); err != nil {
 		t.Fatalf("finish run: %v", err)
 	}
 
@@ -118,14 +117,14 @@ func TestResumeServiceRejectsCompletedRun(t *testing.T) {
 		return resumeTestExecutorHandle{
 			resumeWithTargetsFn: func(ctx context.Context, targetRunID string, targets map[string]any) (*executorRunResult, error) {
 				resumed = true
-				return &executorRunResult{RunID: targetRunID, Status: events.RunStatusSucceeded}, nil
+				return &executorRunResult{RunID: targetRunID, Status: domain.RunStatusSucceeded}, nil
 			},
 		}, nil
 	})
 
 	_, err := service.Resume(ctx, runID)
-	if !errors.Is(err, runtimeapi.ErrRunNotInterrupted) {
-		t.Fatalf("Resume error = %v, want runtimeapi.ErrRunNotInterrupted", err)
+	if !errors.Is(err, domain.ErrRunNotInterrupted) {
+		t.Fatalf("Resume error = %v, want domain.ErrRunNotInterrupted", err)
 	}
 	if err == nil || !strings.Contains(err.Error(), "completed and does not need resume") {
 		t.Fatalf("unexpected resume error: %v", err)
@@ -139,7 +138,7 @@ type resumeTestExecutorHandle struct {
 	resumeWithTargetsFn func(ctx context.Context, runID string, targets map[string]any) (*executorRunResult, error)
 }
 
-func (h resumeTestExecutorHandle) ExecuteMessages(ctx context.Context, req runtimeapi.ExecuteRequest, observer runStartObserver) error {
+func (h resumeTestExecutorHandle) ExecuteMessages(ctx context.Context, req domain.ExecuteRequest, observer runStartObserver) error {
 	panic("unexpected ExecuteMessages call")
 }
 

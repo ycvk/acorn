@@ -7,7 +7,7 @@ import (
 
 	storecore "github.com/ycvk/acorn/internal/store"
 
-	"github.com/ycvk/acorn/internal/events"
+	"github.com/ycvk/acorn/internal/domain"
 )
 
 func TestInboxServiceLoadProjectsMobileAggregate(t *testing.T) {
@@ -36,16 +36,16 @@ func TestInboxServiceLoadProjectsMobileAggregate(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("create terminal run: %v", err)
 	}
-	if err := store.FinishRunContext(ctx, "run_terminal", events.RunStatusSucceeded, "done", ""); err != nil {
+	if err := store.FinishRunContext(ctx, "run_terminal", domain.RunStatusSucceeded, "done", ""); err != nil {
 		t.Fatalf("finish terminal run: %v", err)
 	}
 	if _, err := store.CreatePendingAction(ctx, storecore.CreatePendingActionInput{
 		ActionID:    "action_1",
 		RunID:       "run_active",
-		Kind:        events.PendingActionKindElicitation,
+		Kind:        domain.PendingActionKindElicitation,
 		Subject:     "Approval required",
 		PayloadJSON: `{"message":"Allow Acorn to continue?"}`,
-		Status:      events.PendingActionStatusPending,
+		Status:      domain.PendingActionStatusPending,
 	}); err != nil {
 		t.Fatalf("create pending action: %v", err)
 	}
@@ -102,9 +102,9 @@ func TestInboxServiceFailsOnInvalidPendingActionPayload(t *testing.T) {
 	if _, err := store.CreatePendingAction(ctx, storecore.CreatePendingActionInput{
 		ActionID:    "action_invalid_payload",
 		RunID:       "run_invalid_payload",
-		Kind:        events.PendingActionKindElicitation,
+		Kind:        domain.PendingActionKindElicitation,
 		PayloadJSON: `{"message":`,
-		Status:      events.PendingActionStatusPending,
+		Status:      domain.PendingActionStatusPending,
 	}); err != nil {
 		t.Fatalf("create pending action: %v", err)
 	}
@@ -128,14 +128,14 @@ func TestInboxServiceProjectsOperatorQuestionPendingAction(t *testing.T) {
 	if _, err := store.CreatePendingAction(ctx, storecore.CreatePendingActionInput{
 		ActionID: "action_operator_pending",
 		RunID:    "run_operator_pending",
-		Kind:     events.PendingActionKindOperatorQuestion,
+		Kind:     domain.PendingActionKindOperatorQuestion,
 		Subject:  "Choose path",
 		PayloadJSON: `{
 			"question":"Which path should Acorn take?",
 			"options":[{"id":"fast","label":"Fast","description":"Ship the focused change"}],
 			"allow_freeform":true
 		}`,
-		Status: events.PendingActionStatusPending,
+		Status: domain.PendingActionStatusPending,
 	}); err != nil {
 		t.Fatalf("create pending action: %v", err)
 	}

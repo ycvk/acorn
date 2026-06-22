@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ycvk/acorn/internal/events"
+	"github.com/ycvk/acorn/internal/domain"
 )
 
 type resumeInterruptContext struct {
@@ -22,7 +22,7 @@ type runInterruptedPayload struct {
 	} `json:"interrupt,omitempty"`
 }
 
-func latestRootInterruptContexts(raw []events.EventRecord) ([]resumeInterruptContext, error) {
+func latestRootInterruptContexts(raw []domain.EventRecord) ([]resumeInterruptContext, error) {
 	for i := len(raw) - 1; i >= 0; i-- {
 		record := raw[i]
 		if record.Kind != "run.interrupted" {
@@ -60,7 +60,7 @@ func latestRootInterruptContexts(raw []events.EventRecord) ([]resumeInterruptCon
 	return nil, errors.New("run has no interrupt event to resume")
 }
 
-func latestRootInterruptIDs(raw []events.EventRecord) ([]string, error) {
+func latestRootInterruptIDs(raw []domain.EventRecord) ([]string, error) {
 	contexts, err := latestRootInterruptContexts(raw)
 	if err != nil {
 		return nil, err

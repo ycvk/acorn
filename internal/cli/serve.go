@@ -40,7 +40,6 @@ func runServe(ctx context.Context, args []string) error {
 	handler, err := web.NewHandler(web.Dependencies{
 		Client:        container.Client(),
 		PendingAction: container.PendingAction(),
-		Checkpoints:   container.Checkpoints(),
 		RunResume:     container.RunResume(),
 		Memory:        container.Memory(),
 		Skills:        container.Skills(),

@@ -7,7 +7,7 @@ import (
 
 	"github.com/ycvk/acorn/internal/app"
 	"github.com/ycvk/acorn/internal/config"
-	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
+	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/store"
 )
 
@@ -23,7 +23,7 @@ func (s *Server) respondClientKnownError(w http.ResponseWriter, r *http.Request,
 		s.respondBadRequest(w, r, err.Error())
 	case errors.Is(err, app.ErrClientProjectionFailed):
 		s.respondError(w, r, http.StatusInternalServerError, "run_event_projection_failed", err.Error())
-	case errors.Is(err, runtimeapi.ErrExecutionNotReady):
+	case errors.Is(err, domain.ErrExecutionNotReady):
 		s.respondError(w, r, http.StatusServiceUnavailable, "execution_not_ready", err.Error())
 	default:
 		s.respondKnownError(w, r, err)

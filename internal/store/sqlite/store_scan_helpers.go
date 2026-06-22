@@ -5,12 +5,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ycvk/acorn/internal/events"
+	"github.com/ycvk/acorn/internal/domain"
 )
 
-func scanRunRecord(scanner interface{ Scan(dest ...any) error }) (*events.RunRecord, error) {
+func scanRunRecord(scanner interface{ Scan(dest ...any) error }) (*domain.RunRecord, error) {
 	var (
-		rec     events.RunRecord
+		rec     domain.RunRecord
 		status  string
 		created string
 		updated string
@@ -18,7 +18,7 @@ func scanRunRecord(scanner interface{ Scan(dest ...any) error }) (*events.RunRec
 	if err := scanner.Scan(&rec.RunID, &rec.SessionID, &rec.TurnIndex, &status, &rec.Input, &rec.Output, &rec.Error, &created, &updated); err != nil {
 		return nil, err
 	}
-	rec.Status = events.RunStatus(status)
+	rec.Status = domain.RunStatus(status)
 	createdAt, err := parseTimestamp(time.RFC3339Nano, created, "run.created_at")
 	if err != nil {
 		return nil, err
@@ -32,9 +32,9 @@ func scanRunRecord(scanner interface{ Scan(dest ...any) error }) (*events.RunRec
 	return &rec, nil
 }
 
-func scanPendingActionRecord(scanner interface{ Scan(dest ...any) error }) (*events.PendingActionRecord, error) {
+func scanPendingActionRecord(scanner interface{ Scan(dest ...any) error }) (*domain.PendingActionRecord, error) {
 	var (
-		record     events.PendingActionRecord
+		record     domain.PendingActionRecord
 		kind       string
 		status     string
 		payload    string
@@ -62,10 +62,10 @@ func scanPendingActionRecord(scanner interface{ Scan(dest ...any) error }) (*eve
 		return nil, err
 	}
 	record.InterruptID = interrupt
-	record.Kind = events.PendingActionKind(kind)
+	record.Kind = domain.PendingActionKind(kind)
 	record.Subject = subject
 	record.PayloadJSON = payload
-	record.Status = events.PendingActionStatus(status)
+	record.Status = domain.PendingActionStatus(status)
 	record.DecisionJSON = decision
 	createdParsed, err := parseTimestamp(fixedTimestampLayout, createdAt, "pending_action.created_at")
 	if err != nil {

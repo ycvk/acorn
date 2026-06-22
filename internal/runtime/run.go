@@ -11,13 +11,12 @@ import (
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/contextplane"
+	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/memorymodule"
-	"github.com/ycvk/acorn/internal/model"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
+	"github.com/ycvk/acorn/internal/runtime/eventstream"
 	"github.com/ycvk/acorn/internal/skills"
-	"github.com/ycvk/acorn/internal/stream"
 	"github.com/ycvk/acorn/internal/tooling"
-	"github.com/ycvk/acorn/internal/workingstate"
 	"github.com/ycvk/acorn/internal/workspace"
 )
 
@@ -78,14 +77,12 @@ func (f *RunnerFactory) newDirectResponseRunner(ctx context.Context, req RunnerB
 	}, nil
 }
 
-// RunnerFactoryOptions holds the optional dependencies for creating a RunnerFactory.
 type RunnerFactoryOptions struct {
 	Loader                *skills.Loader
 	ExtraLocalTools       []einotool.BaseTool
 	Workspace             *workspace.Workspace
 	Handlers              []adk.ChatModelAgentMiddleware
-	CheckpointService     *workingstate.Service
-	SessionSummaryService *model.SessionSummaryService
+	SessionSummaryService *domain.SessionSummaryService
 	MemoryModule          memorymodule.Service
 	ContextPlane          contextplane.ContextPlane
 	MCPPendingActionStore mcpprovider.PendingActionStore
@@ -98,7 +95,7 @@ type RunnerBuildRequest struct {
 	Input             string
 	SkillID           string
 	AllowedToolNames  []string
-	Sink              stream.StreamSink
+	Sink              eventstream.StreamSink
 	ExcludedToolNames []string
 	InstructionSuffix string
 }
@@ -123,7 +120,7 @@ type RunRuntime interface {
 	Registry() *Registry
 	Config() *config.Config
 	MemoryModule() memorymodule.Service
-	SessionSummarySvc() *model.SessionSummaryService
+	SessionSummarySvc() *domain.SessionSummaryService
 	NewChatModel(ctx context.Context) (einomodel.BaseChatModel, error)
 }
 

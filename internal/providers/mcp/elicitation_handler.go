@@ -11,19 +11,19 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/ycvk/acorn/internal/events"
+	"github.com/ycvk/acorn/internal/domain"
+	"github.com/ycvk/acorn/internal/runtime/eventstream"
 	"github.com/ycvk/acorn/internal/store"
-	"github.com/ycvk/acorn/internal/stream"
 )
 
 const defaultElicitationTimeout = 30 * time.Second
 
 // PendingActionStore is the pending-action persistence port required by MCP elicitation.
 type PendingActionStore interface {
-	CreatePendingAction(ctx context.Context, input store.CreatePendingActionInput) (*events.PendingActionRecord, error)
-	LoadPendingAction(ctx context.Context, actionID string) (*events.PendingActionRecord, error)
-	DecidePendingAction(ctx context.Context, actionID string, status events.PendingActionStatus, decisionJSON string) (*events.PendingActionRecord, error)
-	AppendEventContext(ctx context.Context, runID, kind string, payload any) (events.EventRecord, error)
+	CreatePendingAction(ctx context.Context, input store.CreatePendingActionInput) (*domain.PendingActionRecord, error)
+	LoadPendingAction(ctx context.Context, actionID string) (*domain.PendingActionRecord, error)
+	DecidePendingAction(ctx context.Context, actionID string, status domain.PendingActionStatus, decisionJSON string) (*domain.PendingActionRecord, error)
+	AppendEventContext(ctx context.Context, runID, kind string, payload any) (domain.EventRecord, error)
 }
 
 // ElicitationHandler handles MCP server elicitation/create requests by creating
@@ -86,15 +86,15 @@ func (h *ElicitationHandler) HandleElicitation(ctx context.Context, req *mcp.Eli
 	record, err := h.store.CreatePendingAction(ctx, store.CreatePendingActionInput{
 		ActionID:    actionID,
 		RunID:       runID,
-		Kind:        events.PendingActionKindElicitation,
+		Kind:        domain.PendingActionKindElicitation,
 		Subject:     "elicitation",
 		PayloadJSON: string(paramsJSON),
-		Status:      events.PendingActionStatusPending,
+		Status:      domain.PendingActionStatusPending,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create elicitation pending action: %w", err)
 	}
-	if err := h.emitElicitationEvent(ctx, runID, record.ActionID, req.Params, string(stream.StreamKindElicitationPending)); err != nil {
+	if err := h.emitElicitationEvent(ctx, runID, record.ActionID, req.Params, string(eventstream.StreamKindElicitationPending)); err != nil {
 		return nil, err
 	}
 
@@ -104,7 +104,7 @@ func (h *ElicitationHandler) HandleElicitation(ctx context.Context, req *mcp.Eli
 		return nil, err
 	}
 
-	if err := h.emitElicitationEvent(ctx, runID, record.ActionID, req.Params, string(stream.StreamKindElicitationDecided)); err != nil {
+	if err := h.emitElicitationEvent(ctx, runID, record.ActionID, req.Params, string(eventstream.StreamKindElicitationDecided)); err != nil {
 		return nil, err
 	}
 
@@ -123,7 +123,7 @@ func (h *ElicitationHandler) waitForDecision(ctx context.Context, actionID strin
 			return nil, fmt.Errorf("load elicitation pending action %s: %w", actionID, err)
 		}
 
-		if action.Status != events.PendingActionStatusPending {
+		if action.Status != domain.PendingActionStatusPending {
 			return pendingActionStatusToElicitResult(action.Status), nil
 		}
 
@@ -138,7 +138,7 @@ func (h *ElicitationHandler) waitForDecision(ctx context.Context, actionID strin
 			if err != nil {
 				return nil, fmt.Errorf("marshal elicitation timeout decision: %w", err)
 			}
-			if _, err := h.store.DecidePendingAction(ctx, actionID, events.PendingActionStatusRejected, string(decisionJSON)); err != nil {
+			if _, err := h.store.DecidePendingAction(ctx, actionID, domain.PendingActionStatusRejected, string(decisionJSON)); err != nil {
 				return nil, err
 			}
 			return &mcp.ElicitResult{Action: "decline"}, nil
@@ -154,11 +154,11 @@ func (h *ElicitationHandler) waitForDecision(ctx context.Context, actionID strin
 }
 
 // pendingActionStatusToElicitResult maps PendingAction status to ElicitResult action.
-func pendingActionStatusToElicitResult(status events.PendingActionStatus) *mcp.ElicitResult {
+func pendingActionStatusToElicitResult(status domain.PendingActionStatus) *mcp.ElicitResult {
 	switch status {
-	case events.PendingActionStatusApproved:
+	case domain.PendingActionStatusApproved:
 		return &mcp.ElicitResult{Action: "accept"}
-	case events.PendingActionStatusRejected:
+	case domain.PendingActionStatusRejected:
 		return &mcp.ElicitResult{Action: "decline"}
 	default:
 		return &mcp.ElicitResult{Action: "decline"}

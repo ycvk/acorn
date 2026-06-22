@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ycvk/acorn/internal/events"
+	"github.com/ycvk/acorn/internal/domain"
 )
 
 var ErrProjectionFailed = errors.New("client projection failed")
@@ -43,18 +43,18 @@ func cloneMap(payload map[string]any) map[string]any {
 	return out
 }
 
-func pendingActionOptionsFromAny(raw any) []events.PendingActionOption {
+func pendingActionOptionsFromAny(raw any) []domain.PendingActionOption {
 	items, ok := raw.([]any)
 	if !ok {
 		return nil
 	}
-	out := make([]events.PendingActionOption, 0, len(items))
+	out := make([]domain.PendingActionOption, 0, len(items))
 	for _, item := range items {
 		option, ok := item.(map[string]any)
 		if !ok {
 			continue
 		}
-		out = append(out, events.PendingActionOption{
+		out = append(out, domain.PendingActionOption{
 			ID:          topLevelString(option, "id"),
 			Label:       topLevelString(option, "label"),
 			Description: topLevelString(option, "description"),

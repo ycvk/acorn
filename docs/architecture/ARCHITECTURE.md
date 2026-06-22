@@ -20,7 +20,7 @@ operator CLI / authenticated remote clients
 - `internal/app/` — 装配 app service、runtime executor、run resume service、web dependencies；唯一允许直接 import sqlite 的 composition root。
 - `internal/runtime/` — Executor（session/run 创建、执行、finalization）+ RunnerFactory（per-run assembly）+ toolset/ 子包（memory tools + Toolset 容器）。
 - `internal/contextplane/` — run 上下文装配、observation masking、LLM auto-compact、deferred tool loading、tool lifecycle。
-- `internal/orchestration/` — direct_response assembly + AgentLoop + ExecuteRound。单一编排模式。
+- `internal/runtime/orchestration/` — direct_response assembly + AgentLoop + ExecuteRound。单一编排模式。
 - `internal/memorymodule/` — file-backed memory（facts/history）、search、prepare、semantic retrieval（embedding + SQLite 暴力余弦相似度）。
 - `internal/store/` + `internal/store/sqlite/` — 跨包 store-facing records、sentinel errors + SQLite adapter（sessions/messages/runs/events/pending_actions/devices/pairing_codes/owner_profile）。
 - `internal/web/` — `/v1` client surface + device bearer auth middleware；live RunEvent 从 `events` 表投影 mobile live subset。

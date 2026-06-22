@@ -3,7 +3,7 @@ package clientevents
 import (
 	"time"
 
-	"github.com/ycvk/acorn/internal/events"
+	"github.com/ycvk/acorn/internal/domain"
 )
 
 // RunEvent is the client-visible live event envelope used by /v1 run detail and SSE.
@@ -79,7 +79,7 @@ type ElicitationDecidedData = ElicitationPendingData
 type OperatorQuestionData struct {
 	ActionID         string                       `json:"action_id"`
 	Question         string                       `json:"question,omitempty"`
-	Options          []events.PendingActionOption `json:"options,omitempty"`
+	Options          []domain.PendingActionOption `json:"options,omitempty"`
 	AllowFreeform    bool                         `json:"allow_freeform,omitempty"`
 	Decision         string                       `json:"decision,omitempty"`
 	SelectedOptionID string                       `json:"selected_option_id,omitempty"`

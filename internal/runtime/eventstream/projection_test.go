@@ -1,4 +1,4 @@
-package stream
+package eventstream
 
 import (
 	"context"
@@ -6,16 +6,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ycvk/acorn/internal/events"
+	"github.com/ycvk/acorn/internal/domain"
 )
 
 // mockEventAppender implements api.EventAppender for testing.
 type mockEventAppender struct {
-	record events.EventRecord
+	record domain.EventRecord
 	err    error
 }
 
-func (m *mockEventAppender) AppendEventContext(ctx context.Context, runID, kind string, payload any) (events.EventRecord, error) {
+func (m *mockEventAppender) AppendEventContext(ctx context.Context, runID, kind string, payload any) (domain.EventRecord, error) {
 	return m.record, m.err
 }
 
@@ -30,7 +30,7 @@ func TestAppendStreamItemNilStore(t *testing.T) {
 func TestAppendStreamItemSuccess(t *testing.T) {
 	now := time.Now()
 	store := &mockEventAppender{
-		record: events.EventRecord{
+		record: domain.EventRecord{
 			Sequence:  42,
 			RunID:     "run_1",
 			Kind:      "run.started",
@@ -70,7 +70,7 @@ func TestAppendStreamItemStoreError(t *testing.T) {
 }
 
 func TestAppendStreamItemSinkError(t *testing.T) {
-	store := &mockEventAppender{record: events.EventRecord{Sequence: 1}}
+	store := &mockEventAppender{record: domain.EventRecord{Sequence: 1}}
 	sink := func(item StreamItem) error { return errors.New("sink error") }
 	item := StreamItem{RunID: "run_1", Kind: StreamKindRunStarted}
 	_, err := AppendStreamItem(context.Background(), store, sink, item)
@@ -80,7 +80,7 @@ func TestAppendStreamItemSinkError(t *testing.T) {
 }
 
 func TestAppendStreamItemNoSink(t *testing.T) {
-	store := &mockEventAppender{record: events.EventRecord{Sequence: 1}}
+	store := &mockEventAppender{record: domain.EventRecord{Sequence: 1}}
 	item := StreamItem{RunID: "run_1", Kind: StreamKindRunCompleted}
 	record, err := AppendStreamItem(context.Background(), store, nil, item)
 	if err != nil {

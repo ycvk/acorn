@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ycvk/acorn/internal/events"
+	"github.com/ycvk/acorn/internal/domain"
 )
 
 var (
@@ -19,15 +19,15 @@ func projectionError(format string, args ...any) error {
 	return fmt.Errorf("%w: %s", ErrClientProjectionFailed, fmt.Sprintf(format, args...))
 }
 
-func projectRunStatus(status events.RunStatus) (string, error) {
+func projectRunStatus(status domain.RunStatus) (string, error) {
 	switch status {
-	case events.RunStatusRunning:
+	case domain.RunStatusRunning:
 		return "running", nil
-	case events.RunStatusSucceeded:
+	case domain.RunStatusSucceeded:
 		return "completed", nil
-	case events.RunStatusInterrupted:
+	case domain.RunStatusInterrupted:
 		return "interrupted", nil
-	case events.RunStatusFailed:
+	case domain.RunStatusFailed:
 		return "failed", nil
 	default:
 		return "", projectionError("unknown run status %q", status)
@@ -61,7 +61,7 @@ func validateMessagePart(part MessagePart) error {
 			return errors.New("decision part requires decision_id and question")
 		}
 		switch part.Status {
-		case "", string(events.PendingActionStatusPending), string(events.PendingActionStatusApproved), string(events.PendingActionStatusRejected), string(events.PendingActionStatusResolved):
+		case "", string(domain.PendingActionStatusPending), string(domain.PendingActionStatusApproved), string(domain.PendingActionStatusRejected), string(domain.PendingActionStatusResolved):
 		default:
 			return fmt.Errorf("decision part has unsupported status %q", part.Status)
 		}

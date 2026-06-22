@@ -1,4 +1,4 @@
-package providers
+package runtime
 
 import (
 	"context"
@@ -11,7 +11,8 @@ import (
 	"github.com/ycvk/acorn/internal/config"
 )
 
-func NewOpenAIChatModel(ctx context.Context, cfg config.ProviderConfig) (einomodel.BaseChatModel, error) {
+// newOpenAIChatModel builds an OpenAI-compatible chat model from provider config.
+func newOpenAIChatModel(ctx context.Context, cfg config.ProviderConfig) (einomodel.BaseChatModel, error) {
 	chatCfg := &openai.ChatModelConfig{
 		APIKey:              cfg.APIKey,
 		BaseURL:             cfg.BaseURL,

@@ -9,11 +9,11 @@ slug: runtime-orchestration
 
 ## OrchestrationPlane
 
-`internal/orchestration` 是编排唯一 builder 入口。当前实现是 concrete `DefaultPlane`，由 `NewDefaultPlane(DefaultPlaneOptions)` 构造；RunnerFactory 在 `internal/runtime/runner_orchestration.go` 注入 tool builder、tool node factory、handlers builder 和 context binders。
+`internal/runtime/orchestration` 是编排唯一 builder 入口。当前实现是 concrete `DefaultPlane`，由 `NewDefaultPlane(DefaultPlaneOptions)` 构造；RunnerFactory 在 `internal/runtime/runner_orchestration.go` 注入 tool builder、tool node factory、handlers builder 和 context binders。
 
 只有一个 build 方法：
 
-- `BuildDirectResponse`：`internal/orchestration/direct_response_builder.go`，构建 `directResponseAgent`，执行 model → tool loop → record 循环。
+- `BuildDirectResponse`：`internal/runtime/orchestration/direct_response_builder.go`，构建 `directResponseAgent`，执行 model → tool loop → record 循环。
 
 ## direct_response
 

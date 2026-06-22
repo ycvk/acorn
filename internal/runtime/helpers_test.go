@@ -6,21 +6,21 @@ import (
 	"testing"
 
 	"github.com/cloudwego/eino/schema"
-	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
-	"github.com/ycvk/acorn/internal/stream"
+	"github.com/ycvk/acorn/internal/domain"
+	"github.com/ycvk/acorn/internal/runtime/eventstream"
 )
 
 // TestBuildExecutionContextPropagatesTurnIndexToReader guards the turn-index wiring
 // bug: buildExecutionContext must set the turn index under the SAME context key that
-// the tool lifecycle reads via runtimeapi.TurnIndexFromContext. Previously the executor
+// the tool lifecycle reads via domain.TurnIndexFromContext. Previously the executor
 // used a runtime-local setter writing a different key type, so the reader always saw 0
 // and tool-result TurnIndex was silently 0 in production for multi-turn sessions.
 func TestBuildExecutionContextPropagatesTurnIndexToReader(t *testing.T) {
 	ctx := buildExecutionContext(context.Background(), "run_x", "sess_x", 7, nil)
-	if got := runtimeapi.TurnIndexFromContext(ctx); got != 7 {
+	if got := domain.TurnIndexFromContext(ctx); got != 7 {
 		t.Fatalf("turn index from context = %d, want 7 (executor must set the key the lifecycle reader reads)", got)
 	}
-	if got := runtimeapi.GetRunID(ctx); got != "run_x" {
+	if got := domain.GetRunID(ctx); got != "run_x" {
 		t.Fatalf("run id from context = %q, want run_x", got)
 	}
 }
@@ -30,7 +30,7 @@ func TestMessageToMapPreservesToolContent(t *testing.T) {
 		Role:    schema.Tool,
 		Content: strings.Repeat("a", 1200),
 	}
-	message := stream.StreamMessageFromSchema(msg, "")
+	message := eventstream.StreamMessageFromSchema(msg, "")
 	content := message.Content
 	if len(content) != 1200 {
 		t.Fatalf("expected full tool content, got len=%d", len(content))

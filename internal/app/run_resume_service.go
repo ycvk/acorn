@@ -7,8 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ycvk/acorn/internal/events"
-	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
+	"github.com/ycvk/acorn/internal/domain"
 )
 
 type RunResumeService struct {
@@ -18,7 +17,7 @@ type RunResumeService struct {
 
 type ResumeStatus struct {
 	RunID        string           `json:"run_id,omitempty"`
-	Status       events.RunStatus `json:"status,omitempty"`
+	Status       domain.RunStatus `json:"status,omitempty"`
 	Resumable    bool             `json:"resumable"`
 	InterruptIDs []string         `json:"interrupt_ids,omitempty"`
 	Reason       string           `json:"reason,omitempty"`
@@ -98,7 +97,7 @@ func (s *RunResumeService) ResumeStatus(ctx context.Context, runID string) (*Res
 		return nil, err
 	}
 	status := buildResumeStatus(runID, run, items)
-	if status == nil || run == nil || run.Status != events.RunStatusInterrupted {
+	if status == nil || run == nil || run.Status != domain.RunStatusInterrupted {
 		return status, nil
 	}
 	targets, inferReason := s.inferResumeTargetsOrReason(ctx, runID)
@@ -127,11 +126,11 @@ func (s *RunResumeService) InferResumeTargets(ctx context.Context, runID string)
 	}
 	status := buildResumeStatus(runID, run, items)
 	if !status.Resumable {
-		return nil, fmt.Errorf("%w: %s", runtimeapi.ErrRunNotInterrupted, status.Reason)
+		return nil, fmt.Errorf("%w: %s", domain.ErrRunNotInterrupted, status.Reason)
 	}
 	contexts, err := latestRootInterruptContexts(items)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", runtimeapi.ErrRunNotInterrupted, err)
+		return nil, fmt.Errorf("%w: %v", domain.ErrRunNotInterrupted, err)
 	}
 	targets := make(map[string]any, len(contexts))
 	for _, ctxItem := range contexts {
@@ -169,13 +168,13 @@ func (s *RunResumeService) operatorQuestionTargets(ctx context.Context, runID st
 	if record.RunID != runID {
 		return nil, fmt.Errorf("run %s interrupt %s operator_question action %s belongs to run %s", runID, interrupt.ID, actionID, record.RunID)
 	}
-	if record.Kind != events.PendingActionKindOperatorQuestion {
+	if record.Kind != domain.PendingActionKindOperatorQuestion {
 		return nil, fmt.Errorf("run %s interrupt %s action %s has kind %q", runID, interrupt.ID, actionID, record.Kind)
 	}
-	if record.Status == events.PendingActionStatusPending {
+	if record.Status == domain.PendingActionStatusPending {
 		return nil, fmt.Errorf("run %s interrupt %s operator_question action %s is still pending", runID, interrupt.ID, actionID)
 	}
-	if record.Status != events.PendingActionStatusApproved && record.Status != events.PendingActionStatusRejected {
+	if record.Status != domain.PendingActionStatusApproved && record.Status != domain.PendingActionStatusRejected {
 		return nil, fmt.Errorf("run %s interrupt %s operator_question action %s has unsupported status %q", runID, interrupt.ID, actionID, record.Status)
 	}
 	var decision map[string]any
@@ -202,7 +201,7 @@ func interruptInfoField(raw any, key string) string {
 	return strings.TrimSpace(value)
 }
 
-func (s *RunResumeService) loadRunEvents(ctx context.Context, runID string) (*events.RunRecord, []events.EventRecord, error) {
+func (s *RunResumeService) loadRunEvents(ctx context.Context, runID string) (*domain.RunRecord, []domain.EventRecord, error) {
 	if s == nil || s.store == nil {
 		return nil, nil, fmt.Errorf("run resume store is nil")
 	}
@@ -217,7 +216,7 @@ func (s *RunResumeService) loadRunEvents(ctx context.Context, runID string) (*ev
 	return run, items, nil
 }
 
-func buildResumeStatus(runID string, run *events.RunRecord, items []events.EventRecord) *ResumeStatus {
+func buildResumeStatus(runID string, run *domain.RunRecord, items []domain.EventRecord) *ResumeStatus {
 	status := &ResumeStatus{RunID: runID}
 	if run == nil {
 		status.Reason = fmt.Sprintf("run %s is unavailable", runID)
@@ -226,7 +225,7 @@ func buildResumeStatus(runID string, run *events.RunRecord, items []events.Event
 	status.Status = run.Status
 
 	switch run.Status {
-	case events.RunStatusInterrupted:
+	case domain.RunStatusInterrupted:
 		interruptIDs, err := latestRootInterruptIDs(items)
 		if err != nil {
 			status.Reason = fmt.Sprintf("run %s is interrupted but missing resumable interrupt data: %v", runID, err)
@@ -236,11 +235,11 @@ func buildResumeStatus(runID string, run *events.RunRecord, items []events.Event
 		status.InterruptIDs = append(status.InterruptIDs, interruptIDs...)
 		status.Reason = fmt.Sprintf("run %s is interrupted and waiting on %d root actions", runID, len(interruptIDs))
 		return status
-	case events.RunStatusFailed:
+	case domain.RunStatusFailed:
 		status.Reason = fmt.Sprintf("run %s failed and cannot be resumed; inspect run detail or start a new client run", runID)
-	case events.RunStatusSucceeded:
+	case domain.RunStatusSucceeded:
 		status.Reason = fmt.Sprintf("run %s completed and does not need resume", runID)
-	case events.RunStatusRunning:
+	case domain.RunStatusRunning:
 		status.Reason = fmt.Sprintf("run %s is still running and has no persisted interrupt to resume", runID)
 	default:
 		status.Reason = fmt.Sprintf("run %s is not resumable from status %s", runID, run.Status)

@@ -53,7 +53,6 @@ type Converter interface {
 	memoryRecordDTOFromDomain(source memorymodule.Record) MemoryRecordDTO
 	memoryRecordDTOsFromDomain(source []memorymodule.Record) []MemoryRecordDTO
 	memorySearchItemDTOsFromDomain(source []memorymodule.SearchItem) []MemorySearchItemDTO
-	workingCheckpointDTOFromView(source *app.WorkingCheckpointView) *WorkingCheckpointDTO
 
 	// Artifacts
 	artifactSummaryDTOsFromDomain(source []app.ArtifactSummary) []ArtifactSummaryDTO

@@ -9,10 +9,9 @@ import (
 	einomodel "github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/schema"
 
-	"github.com/ycvk/acorn/internal/orchestration"
-	"github.com/ycvk/acorn/internal/providers"
-	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
-	"github.com/ycvk/acorn/internal/stream"
+	"github.com/ycvk/acorn/internal/domain"
+	"github.com/ycvk/acorn/internal/runtime/eventstream"
+	"github.com/ycvk/acorn/internal/runtime/orchestration"
 )
 
 type assistantStreamAccumulator struct {
@@ -38,8 +37,8 @@ func (a *assistantStreamAccumulator) append(delta string) int {
 type assistantStreamOptions struct {
 	MessageID string
 	RunID     string
-	Appender  runtimeapi.EventAppender
-	Sink      stream.StreamSink
+	Appender  domain.EventAppender
+	Sink      eventstream.StreamSink
 	ToolInfos []*schema.ToolInfo
 	CallSite  string
 }
@@ -59,9 +58,9 @@ func streamAssistantMessage(
 	}
 	callSite := opts.CallSite
 	if callSite == "" {
-		callSite = providers.CallSiteAssistant
+		callSite = domain.CallSiteAssistant
 	}
-	modelStream, err := model.Stream(providers.WithCallSite(ctx, callSite), messages, streamOpts...)
+	modelStream, err := model.Stream(domain.WithCallSite(ctx, callSite), messages, streamOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -90,11 +89,11 @@ func streamAssistantMessage(
 		}
 		if opts.Appender != nil || opts.Sink != nil {
 			sequence := accumulator.append(frame.Content)
-			item := stream.StreamItem{
+			item := eventstream.StreamItem{
 				RunID: opts.RunID,
-				Kind:  stream.StreamKindAssistantDelta,
+				Kind:  eventstream.StreamKindAssistantDelta,
 				Payload: map[string]any{
-					"assistant_delta": &stream.StreamAssistantDelta{
+					"assistant_delta": &eventstream.StreamAssistantDelta{
 						Role:      string(frame.Role),
 						Delta:     frame.Content,
 						Reasoning: frame.ReasoningContent,
@@ -106,7 +105,7 @@ func streamAssistantMessage(
 				},
 			}
 			if opts.Appender != nil {
-				if _, err := stream.AppendStreamItem(ctx, opts.Appender, opts.Sink, item); err != nil {
+				if _, err := eventstream.AppendStreamItem(ctx, opts.Appender, opts.Sink, item); err != nil {
 					return nil, err
 				}
 				continue
@@ -160,13 +159,13 @@ func assistantRawFinishReason(message *schema.Message) string {
 	return strings.TrimSpace(strings.ToLower(message.ResponseMeta.FinishReason))
 }
 
-func streamPlannedToolCalls(calls []schema.ToolCall) []stream.StreamPlannedToolCall {
+func streamPlannedToolCalls(calls []schema.ToolCall) []eventstream.StreamPlannedToolCall {
 	if len(calls) == 0 {
 		return nil
 	}
-	out := make([]stream.StreamPlannedToolCall, 0, len(calls))
+	out := make([]eventstream.StreamPlannedToolCall, 0, len(calls))
 	for _, call := range calls {
-		out = append(out, stream.StreamPlannedToolCall{
+		out = append(out, eventstream.StreamPlannedToolCall{
 			ID:            call.ID,
 			Name:          call.Function.Name,
 			ArgumentsJSON: call.Function.Arguments,

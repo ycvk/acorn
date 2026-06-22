@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ycvk/acorn/internal/events"
+	"github.com/ycvk/acorn/internal/domain"
 )
 
 func (s *ClientService) ListMessages(ctx context.Context, threadID string, limit int) ([]Message, error) {
@@ -46,7 +46,7 @@ func (s *ClientService) CreateMessage(ctx context.Context, threadID, content str
 
 // createUserMessage records a pending user message and returns the stored record
 // (including its id and turn index) so a run can bind to that exact message id.
-func (s *ClientService) createUserMessage(ctx context.Context, threadID, content string) (*events.SessionMessageRecord, error) {
+func (s *ClientService) createUserMessage(ctx context.Context, threadID, content string) (*domain.SessionMessageRecord, error) {
 	if s == nil || s.store == nil {
 		return nil, errors.New("client store is nil")
 	}
@@ -68,7 +68,7 @@ func (s *ClientService) createUserMessage(ctx context.Context, threadID, content
 	return record, nil
 }
 
-func projectMessage(record events.SessionMessageRecord) (Message, error) {
+func projectMessage(record domain.SessionMessageRecord) (Message, error) {
 	switch record.Role {
 	case "user", "assistant", "system", "tool":
 	default:
@@ -92,7 +92,7 @@ func projectMessage(record events.SessionMessageRecord) (Message, error) {
 	}, nil
 }
 
-func projectMessageParts(record events.SessionMessageRecord) ([]MessagePart, error) {
+func projectMessageParts(record domain.SessionMessageRecord) ([]MessagePart, error) {
 	if len(record.ContentParts) == 0 {
 		return nil, nil
 	}

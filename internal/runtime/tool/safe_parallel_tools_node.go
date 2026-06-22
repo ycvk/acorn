@@ -16,8 +16,8 @@ import (
 	"github.com/cloudwego/eino/compose"
 	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/contextplane"
-	"github.com/ycvk/acorn/internal/orchestration"
-	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
+	"github.com/ycvk/acorn/internal/domain"
+	"github.com/ycvk/acorn/internal/runtime/orchestration"
 	"github.com/ycvk/acorn/internal/tooling"
 	"github.com/ycvk/acorn/internal/workspace"
 )
@@ -147,7 +147,7 @@ func (n *SafeParallelToolsNode) invokeSingle(ctx context.Context, call classifie
 		}
 		msg := schema.ToolMessage(errorContent, call.toolCall.ID, schema.WithToolName(call.toolCall.Function.Name))
 		attachToolMessageLedgerMeta(msg, call, resultRef)
-		contextplane.AnnotateMessageTurn(msg, runtimeapi.TurnIndexFromContext(ctx))
+		contextplane.AnnotateMessageTurn(msg, domain.TurnIndexFromContext(ctx))
 		markToolMessageFailed(msg, err.Error())
 		if err := emitToolResultLifecycle(ctx, msg); err != nil {
 			return nil, err
@@ -156,7 +156,7 @@ func (n *SafeParallelToolsNode) invokeSingle(ctx context.Context, call classifie
 	}
 	msg := schema.ToolMessage(result, call.toolCall.ID, schema.WithToolName(call.toolCall.Function.Name))
 	attachToolMessageLedgerMeta(msg, call, resultRef)
-	contextplane.AnnotateMessageTurn(msg, runtimeapi.TurnIndexFromContext(ctx))
+	contextplane.AnnotateMessageTurn(msg, domain.TurnIndexFromContext(ctx))
 	if err := attachToolSideEffects(msg, call.toolCall.Function.Name, result); err != nil {
 		return nil, err
 	}
@@ -229,8 +229,8 @@ func toolCallbackType(tool einotool.InvokableTool) string {
 func emitToolCallLifecycle(ctx context.Context, call classifiedCall) error {
 	return contextplane.OnToolCall(ctx, contextplane.ToolCallEvent{
 		RunID:     getRunID(ctx),
-		SessionID: runtimeapi.SessionIDFromContext(ctx),
-		TurnIndex: runtimeapi.TurnIndexFromContext(ctx),
+		SessionID: domain.SessionIDFromContext(ctx),
+		TurnIndex: domain.TurnIndexFromContext(ctx),
 		CallID:    call.toolCall.ID,
 		ToolName:  call.toolCall.Function.Name,
 		Arguments: call.toolCall.Function.Arguments,
@@ -261,8 +261,8 @@ func emitToolResultLifecycle(ctx context.Context, msg *schema.Message) error {
 	}
 	return contextplane.OnToolResult(ctx, contextplane.ToolResultEvent{
 		RunID:        getRunID(ctx),
-		SessionID:    runtimeapi.SessionIDFromContext(ctx),
-		TurnIndex:    runtimeapi.TurnIndexFromContext(ctx),
+		SessionID:    domain.SessionIDFromContext(ctx),
+		TurnIndex:    domain.TurnIndexFromContext(ctx),
 		CallID:       msg.ToolCallID,
 		ToolName:     msg.ToolName,
 		Arguments:    arguments,

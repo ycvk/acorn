@@ -18,9 +18,6 @@ var sqliteImportAllowlist = map[string]struct{}{
 	"internal/runtime/executor_finalization_test.go":       {},
 	"internal/runtime/executor_run_e2e_test.go":            {},
 	"internal/runtime/runner_factory_test_helpers_test.go": {},
-	"internal/runtime/plan/graph_agent_test.go":            {},
-	"internal/runtime/plan/plan_act_observe_e2e_test.go":   {},
-	"internal/runtime/plan/plan_gate_test.go":              {},
 	"internal/providers/mcp/elicitation_handler_test.go":   {},
 	"internal/tools/tools_test.go":                         {},
 	// App/service integration tests validate persisted /v1 projections and

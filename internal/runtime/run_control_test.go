@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
+	"github.com/ycvk/acorn/internal/domain"
 )
 
 func TestRunControllerInterruptsRegisteredRun(t *testing.T) {
@@ -29,7 +29,7 @@ func TestRunControllerInterruptsRegisteredRun(t *testing.T) {
 func TestRunControllerReturnsErrRunNotActive(t *testing.T) {
 	controller := NewRunController()
 	err := controller.Interrupt("run_missing")
-	if !errors.Is(err, runtimeapi.ErrRunNotActive) {
+	if !errors.Is(err, domain.ErrRunNotActive) {
 		t.Fatalf("Interrupt error = %v, want ErrRunNotActive", err)
 	}
 }

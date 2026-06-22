@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/ycvk/acorn/internal/events"
+	"github.com/ycvk/acorn/internal/domain"
 	storecore "github.com/ycvk/acorn/internal/store"
 )
 
@@ -36,10 +36,10 @@ func TestCreatePendingAction(t *testing.T) {
 		ActionID:    "action_1",
 		RunID:       runID,
 		InterruptID: "interrupt_1",
-		Kind:        events.PendingActionKindElicitation,
+		Kind:        domain.PendingActionKindElicitation,
 		Subject:     "test elicitation",
 		PayloadJSON: `{"question":"what is 2+2?"}`,
-		Status:      events.PendingActionStatusPending,
+		Status:      domain.PendingActionStatusPending,
 		Reason:      "model needs user input",
 	})
 	if err != nil {
@@ -48,11 +48,11 @@ func TestCreatePendingAction(t *testing.T) {
 	if record.ActionID != "action_1" {
 		t.Errorf("ActionID = %q, want action_1", record.ActionID)
 	}
-	if record.Kind != events.PendingActionKindElicitation {
-		t.Errorf("Kind = %q, want %q", record.Kind, events.PendingActionKindElicitation)
+	if record.Kind != domain.PendingActionKindElicitation {
+		t.Errorf("Kind = %q, want %q", record.Kind, domain.PendingActionKindElicitation)
 	}
-	if record.Status != events.PendingActionStatusPending {
-		t.Errorf("Status = %q, want %q", record.Status, events.PendingActionStatusPending)
+	if record.Status != domain.PendingActionStatusPending {
+		t.Errorf("Status = %q, want %q", record.Status, domain.PendingActionStatusPending)
 	}
 	if record.Subject != "test elicitation" {
 		t.Errorf("Subject = %q, want test elicitation", record.Subject)
@@ -75,7 +75,7 @@ func TestCreatePendingActionDuplicate(t *testing.T) {
 	input := storecore.CreatePendingActionInput{
 		ActionID: "action_dup",
 		RunID:    runID,
-		Kind:     events.PendingActionKindOperatorQuestion,
+		Kind:     domain.PendingActionKindOperatorQuestion,
 		Subject:  "first",
 	}
 	if _, err := store.CreatePendingAction(ctx, input); err != nil {
@@ -108,7 +108,7 @@ func TestCreatePendingActionNonexistentRun(t *testing.T) {
 	_, err := store.CreatePendingAction(ctx, storecore.CreatePendingActionInput{
 		ActionID: "action_no_run",
 		RunID:    "nonexistent_run",
-		Kind:     events.PendingActionKindElicitation,
+		Kind:     domain.PendingActionKindElicitation,
 	})
 	if err == nil {
 		t.Fatal("expected error for nonexistent run, got nil")
@@ -122,15 +122,15 @@ func TestCreatePendingActionDefaultStatus(t *testing.T) {
 	record, err := store.CreatePendingAction(ctx, storecore.CreatePendingActionInput{
 		ActionID: "action_default_status",
 		RunID:    runID,
-		Kind:     events.PendingActionKindElicitation,
+		Kind:     domain.PendingActionKindElicitation,
 		Subject:  "test",
 		Status:   "",
 	})
 	if err != nil {
 		t.Fatalf("create with empty status: %v", err)
 	}
-	if record.Status != events.PendingActionStatusPending {
-		t.Errorf("Status = %q, want %q (default)", record.Status, events.PendingActionStatusPending)
+	if record.Status != domain.PendingActionStatusPending {
+		t.Errorf("Status = %q, want %q (default)", record.Status, domain.PendingActionStatusPending)
 	}
 }
 
@@ -142,7 +142,7 @@ func TestLoadPendingAction(t *testing.T) {
 		ActionID:    "action_load",
 		RunID:       runID,
 		InterruptID: "int_load",
-		Kind:        events.PendingActionKindOperatorQuestion,
+		Kind:        domain.PendingActionKindOperatorQuestion,
 		Subject:     "load test",
 		PayloadJSON: `{"q":"hello"}`,
 	}); err != nil {
@@ -179,7 +179,7 @@ func TestLoadPendingActionByInterrupt(t *testing.T) {
 		ActionID:    "action_by_int",
 		RunID:       runID,
 		InterruptID: "int_unique",
-		Kind:        events.PendingActionKindElicitation,
+		Kind:        domain.PendingActionKindElicitation,
 	}); err != nil {
 		t.Fatalf("create: %v", err)
 	}
@@ -210,7 +210,7 @@ func TestAttachPendingActionInterrupt(t *testing.T) {
 	if _, err := store.CreatePendingAction(ctx, storecore.CreatePendingActionInput{
 		ActionID: "action_attach",
 		RunID:    runID,
-		Kind:     events.PendingActionKindElicitation,
+		Kind:     domain.PendingActionKindElicitation,
 	}); err != nil {
 		t.Fatalf("create: %v", err)
 	}
@@ -244,11 +244,11 @@ func TestListPendingActions(t *testing.T) {
 
 	for _, tc := range []struct {
 		id   string
-		kind events.PendingActionKind
+		kind domain.PendingActionKind
 	}{
-		{"action_list_1", events.PendingActionKindElicitation},
-		{"action_list_2", events.PendingActionKindOperatorQuestion},
-		{"action_list_3", events.PendingActionKindElicitation},
+		{"action_list_1", domain.PendingActionKindElicitation},
+		{"action_list_2", domain.PendingActionKindOperatorQuestion},
+		{"action_list_3", domain.PendingActionKindElicitation},
 	} {
 		if _, err := store.CreatePendingAction(ctx, storecore.CreatePendingActionInput{
 			ActionID: tc.id,
@@ -268,8 +268,8 @@ func TestListPendingActions(t *testing.T) {
 		t.Fatalf("len = %d, want 3", len(actions))
 	}
 	for _, a := range actions {
-		if a.Status != events.PendingActionStatusPending {
-			t.Errorf("Status = %q, want %q", a.Status, events.PendingActionStatusPending)
+		if a.Status != domain.PendingActionStatusPending {
+			t.Errorf("Status = %q, want %q", a.Status, domain.PendingActionStatusPending)
 		}
 	}
 }
@@ -281,18 +281,18 @@ func TestListPendingActionsExcludesDecided(t *testing.T) {
 	if _, err := store.CreatePendingAction(ctx, storecore.CreatePendingActionInput{
 		ActionID: "action_pending",
 		RunID:    runID,
-		Kind:     events.PendingActionKindElicitation,
+		Kind:     domain.PendingActionKindElicitation,
 	}); err != nil {
 		t.Fatalf("create pending: %v", err)
 	}
 	if _, err := store.CreatePendingAction(ctx, storecore.CreatePendingActionInput{
 		ActionID: "action_decided",
 		RunID:    runID,
-		Kind:     events.PendingActionKindElicitation,
+		Kind:     domain.PendingActionKindElicitation,
 	}); err != nil {
 		t.Fatalf("create decided: %v", err)
 	}
-	if _, err := store.DecidePendingAction(ctx, "action_decided", events.PendingActionStatusApproved, `{"answer":"yes"}`); err != nil {
+	if _, err := store.DecidePendingAction(ctx, "action_decided", domain.PendingActionStatusApproved, `{"answer":"yes"}`); err != nil {
 		t.Fatalf("decide: %v", err)
 	}
 
@@ -315,14 +315,14 @@ func TestListPendingActionsByRun(t *testing.T) {
 	if _, err := store.CreatePendingAction(ctx, storecore.CreatePendingActionInput{
 		ActionID: "action_run_1",
 		RunID:    runID,
-		Kind:     events.PendingActionKindElicitation,
+		Kind:     domain.PendingActionKindElicitation,
 	}); err != nil {
 		t.Fatalf("create 1: %v", err)
 	}
 	if _, err := store.CreatePendingAction(ctx, storecore.CreatePendingActionInput{
 		ActionID: "action_run_2",
 		RunID:    runID,
-		Kind:     events.PendingActionKindOperatorQuestion,
+		Kind:     domain.PendingActionKindOperatorQuestion,
 	}); err != nil {
 		t.Fatalf("create 2: %v", err)
 	}
@@ -356,18 +356,18 @@ func TestDecidePendingActionApprove(t *testing.T) {
 	if _, err := store.CreatePendingAction(ctx, storecore.CreatePendingActionInput{
 		ActionID: "action_decide_ok",
 		RunID:    runID,
-		Kind:     events.PendingActionKindElicitation,
+		Kind:     domain.PendingActionKindElicitation,
 		Subject:  "approve me",
 	}); err != nil {
 		t.Fatalf("create: %v", err)
 	}
 
-	record, err := store.DecidePendingAction(ctx, "action_decide_ok", events.PendingActionStatusApproved, `{"answer":"yes"}`)
+	record, err := store.DecidePendingAction(ctx, "action_decide_ok", domain.PendingActionStatusApproved, `{"answer":"yes"}`)
 	if err != nil {
 		t.Fatalf("decide: %v", err)
 	}
-	if record.Status != events.PendingActionStatusApproved {
-		t.Errorf("Status = %q, want %q", record.Status, events.PendingActionStatusApproved)
+	if record.Status != domain.PendingActionStatusApproved {
+		t.Errorf("Status = %q, want %q", record.Status, domain.PendingActionStatusApproved)
 	}
 	if record.DecisionJSON != `{"answer":"yes"}` {
 		t.Errorf("DecisionJSON = %q", record.DecisionJSON)
@@ -380,8 +380,8 @@ func TestDecidePendingActionApprove(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reload: %v", err)
 	}
-	if reloaded.Status != events.PendingActionStatusApproved {
-		t.Errorf("reloaded Status = %q, want %q", reloaded.Status, events.PendingActionStatusApproved)
+	if reloaded.Status != domain.PendingActionStatusApproved {
+		t.Errorf("reloaded Status = %q, want %q", reloaded.Status, domain.PendingActionStatusApproved)
 	}
 }
 
@@ -392,17 +392,17 @@ func TestDecidePendingActionReject(t *testing.T) {
 	if _, err := store.CreatePendingAction(ctx, storecore.CreatePendingActionInput{
 		ActionID: "action_reject",
 		RunID:    runID,
-		Kind:     events.PendingActionKindOperatorQuestion,
+		Kind:     domain.PendingActionKindOperatorQuestion,
 	}); err != nil {
 		t.Fatalf("create: %v", err)
 	}
 
-	record, err := store.DecidePendingAction(ctx, "action_reject", events.PendingActionStatusRejected, `{"answer":"no"}`)
+	record, err := store.DecidePendingAction(ctx, "action_reject", domain.PendingActionStatusRejected, `{"answer":"no"}`)
 	if err != nil {
 		t.Fatalf("decide: %v", err)
 	}
-	if record.Status != events.PendingActionStatusRejected {
-		t.Errorf("Status = %q, want %q", record.Status, events.PendingActionStatusRejected)
+	if record.Status != domain.PendingActionStatusRejected {
+		t.Errorf("Status = %q, want %q", record.Status, domain.PendingActionStatusRejected)
 	}
 }
 
@@ -413,14 +413,14 @@ func TestDecidePendingActionAlreadyDecided(t *testing.T) {
 	if _, err := store.CreatePendingAction(ctx, storecore.CreatePendingActionInput{
 		ActionID: "action_double",
 		RunID:    runID,
-		Kind:     events.PendingActionKindElicitation,
+		Kind:     domain.PendingActionKindElicitation,
 	}); err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	if _, err := store.DecidePendingAction(ctx, "action_double", events.PendingActionStatusApproved, `{}`); err != nil {
+	if _, err := store.DecidePendingAction(ctx, "action_double", domain.PendingActionStatusApproved, `{}`); err != nil {
 		t.Fatalf("first decide: %v", err)
 	}
-	_, err := store.DecidePendingAction(ctx, "action_double", events.PendingActionStatusRejected, `{}`)
+	_, err := store.DecidePendingAction(ctx, "action_double", domain.PendingActionStatusRejected, `{}`)
 	if !errors.Is(err, storecore.ErrPendingActionDecided) {
 		t.Fatalf("second decide error = %v, want ErrPendingActionDecided", err)
 	}
@@ -430,7 +430,7 @@ func TestDecidePendingActionNotFound(t *testing.T) {
 	store, _ := setupPendingActionStore(t)
 	ctx := context.Background()
 
-	_, err := store.DecidePendingAction(ctx, "nonexistent", events.PendingActionStatusApproved, `{}`)
+	_, err := store.DecidePendingAction(ctx, "nonexistent", domain.PendingActionStatusApproved, `{}`)
 	if !errors.Is(err, storecore.ErrPendingActionNotFound) {
 		t.Fatalf("error = %v, want ErrPendingActionNotFound", err)
 	}
@@ -443,16 +443,16 @@ func TestDecidePendingActionInvalidStatus(t *testing.T) {
 	if _, err := store.CreatePendingAction(ctx, storecore.CreatePendingActionInput{
 		ActionID: "action_invalid_status",
 		RunID:    runID,
-		Kind:     events.PendingActionKindElicitation,
+		Kind:     domain.PendingActionKindElicitation,
 	}); err != nil {
 		t.Fatalf("create: %v", err)
 	}
 
-	_, err := store.DecidePendingAction(ctx, "action_invalid_status", events.PendingActionStatusPending, `{}`)
+	_, err := store.DecidePendingAction(ctx, "action_invalid_status", domain.PendingActionStatusPending, `{}`)
 	if err == nil {
 		t.Fatal("expected error for invalid decision status (pending), got nil")
 	}
-	_, err = store.DecidePendingAction(ctx, "action_invalid_status", events.PendingActionStatusResolved, `{}`)
+	_, err = store.DecidePendingAction(ctx, "action_invalid_status", domain.PendingActionStatusResolved, `{}`)
 	if err == nil {
 		t.Fatal("expected error for invalid decision status (resolved), got nil")
 	}
@@ -466,13 +466,13 @@ func TestDecidePendingActionAppendsEvent(t *testing.T) {
 		ActionID:    "action_event",
 		RunID:       runID,
 		InterruptID: "int_event",
-		Kind:        events.PendingActionKindElicitation,
+		Kind:        domain.PendingActionKindElicitation,
 		Subject:     "event test",
 	}); err != nil {
 		t.Fatalf("create: %v", err)
 	}
 
-	if _, err := store.DecidePendingAction(ctx, "action_event", events.PendingActionStatusApproved, `{"answer":"ok"}`); err != nil {
+	if _, err := store.DecidePendingAction(ctx, "action_event", domain.PendingActionStatusApproved, `{"answer":"ok"}`); err != nil {
 		t.Fatalf("decide: %v", err)
 	}
 
@@ -499,11 +499,11 @@ func TestResolvePendingAction(t *testing.T) {
 	if _, err := store.CreatePendingAction(ctx, storecore.CreatePendingActionInput{
 		ActionID: "action_resolve",
 		RunID:    runID,
-		Kind:     events.PendingActionKindElicitation,
+		Kind:     domain.PendingActionKindElicitation,
 	}); err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	if _, err := store.DecidePendingAction(ctx, "action_resolve", events.PendingActionStatusApproved, `{}`); err != nil {
+	if _, err := store.DecidePendingAction(ctx, "action_resolve", domain.PendingActionStatusApproved, `{}`); err != nil {
 		t.Fatalf("decide: %v", err)
 	}
 
@@ -515,8 +515,8 @@ func TestResolvePendingAction(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load after resolve: %v", err)
 	}
-	if record.Status != events.PendingActionStatusResolved {
-		t.Errorf("Status = %q, want %q", record.Status, events.PendingActionStatusResolved)
+	if record.Status != domain.PendingActionStatusResolved {
+		t.Errorf("Status = %q, want %q", record.Status, domain.PendingActionStatusResolved)
 	}
 	if record.ResolvedAt == nil {
 		t.Error("ResolvedAt should not be nil after resolve")
@@ -535,13 +535,13 @@ func TestResolvePendingActionNotFound(t *testing.T) {
 
 func TestNormalizePendingActionKind(t *testing.T) {
 	tests := []struct {
-		input events.PendingActionKind
-		want  events.PendingActionKind
+		input domain.PendingActionKind
+		want  domain.PendingActionKind
 		err   bool
 	}{
-		{events.PendingActionKindElicitation, events.PendingActionKindElicitation, false},
-		{events.PendingActionKindOperatorQuestion, events.PendingActionKindOperatorQuestion, false},
-		{"  elicitation  ", events.PendingActionKindElicitation, false},
+		{domain.PendingActionKindElicitation, domain.PendingActionKindElicitation, false},
+		{domain.PendingActionKindOperatorQuestion, domain.PendingActionKindOperatorQuestion, false},
+		{"  elicitation  ", domain.PendingActionKindElicitation, false},
 		{"invalid", "", true},
 		{"", "", true},
 	}
@@ -564,16 +564,16 @@ func TestNormalizePendingActionKind(t *testing.T) {
 
 func TestNormalizePendingActionStatus(t *testing.T) {
 	tests := []struct {
-		input events.PendingActionStatus
-		want  events.PendingActionStatus
+		input domain.PendingActionStatus
+		want  domain.PendingActionStatus
 		err   bool
 	}{
-		{"", events.PendingActionStatusPending, false},
-		{events.PendingActionStatusPending, events.PendingActionStatusPending, false},
-		{events.PendingActionStatusApproved, events.PendingActionStatusApproved, false},
-		{events.PendingActionStatusRejected, events.PendingActionStatusRejected, false},
-		{events.PendingActionStatusResolved, events.PendingActionStatusResolved, false},
-		{"  approved  ", events.PendingActionStatusApproved, false},
+		{"", domain.PendingActionStatusPending, false},
+		{domain.PendingActionStatusPending, domain.PendingActionStatusPending, false},
+		{domain.PendingActionStatusApproved, domain.PendingActionStatusApproved, false},
+		{domain.PendingActionStatusRejected, domain.PendingActionStatusRejected, false},
+		{domain.PendingActionStatusResolved, domain.PendingActionStatusResolved, false},
+		{"  approved  ", domain.PendingActionStatusApproved, false},
 		{"invalid", "", true},
 	}
 	for _, tc := range tests {
@@ -595,15 +595,15 @@ func TestNormalizePendingActionStatus(t *testing.T) {
 
 func TestNormalizePendingActionDecision(t *testing.T) {
 	tests := []struct {
-		input events.PendingActionStatus
-		want  events.PendingActionStatus
+		input domain.PendingActionStatus
+		want  domain.PendingActionStatus
 		err   bool
 	}{
-		{events.PendingActionStatusApproved, events.PendingActionStatusApproved, false},
-		{events.PendingActionStatusRejected, events.PendingActionStatusRejected, false},
-		{"  approved  ", events.PendingActionStatusApproved, false},
-		{events.PendingActionStatusPending, "", true},
-		{events.PendingActionStatusResolved, "", true},
+		{domain.PendingActionStatusApproved, domain.PendingActionStatusApproved, false},
+		{domain.PendingActionStatusRejected, domain.PendingActionStatusRejected, false},
+		{"  approved  ", domain.PendingActionStatusApproved, false},
+		{domain.PendingActionStatusPending, "", true},
+		{domain.PendingActionStatusResolved, "", true},
 		{"invalid", "", true},
 	}
 	for _, tc := range tests {

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/ycvk/acorn/internal/events"
+	"github.com/ycvk/acorn/internal/domain"
 )
 
 var liveRunEventKinds = []string{
@@ -28,7 +28,7 @@ func IsLiveRunEventKind(kind string) bool {
 }
 
 // ProjectRunEvent converts an EventRecord into the /v1 client run event contract.
-func ProjectRunEvent(record events.EventRecord) (RunEvent, error) {
+func ProjectRunEvent(record domain.EventRecord) (RunEvent, error) {
 	payload, ok := record.Payload.(map[string]any)
 	if !ok {
 		return RunEvent{}, projectionError("run event payload must be object: run_id=%s sequence=%d kind=%s", record.RunID, record.Sequence, record.Kind)

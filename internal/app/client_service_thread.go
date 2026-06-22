@@ -7,7 +7,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/ycvk/acorn/internal/clientevents"
-	"github.com/ycvk/acorn/internal/events"
+	"github.com/ycvk/acorn/internal/domain"
 )
 
 const generatedThreadTitleMaxRunes = 64
@@ -133,7 +133,7 @@ func generatedThreadTitle(content string) string {
 	return string(runes[:generatedThreadTitleMaxRunes]) + "..."
 }
 
-func (s *ClientService) projectThread(record events.SessionRecord, latestRun *events.RunRecord) (Thread, error) {
+func (s *ClientService) projectThread(record domain.SessionRecord, latestRun *domain.RunRecord) (Thread, error) {
 	thread := Thread{
 		ID:            record.SessionID,
 		Title:         record.Title,
@@ -154,15 +154,15 @@ func (s *ClientService) projectThread(record events.SessionRecord, latestRun *ev
 	return thread, nil
 }
 
-func projectThreadState(status events.RunStatus) (string, error) {
+func projectThreadState(status domain.RunStatus) (string, error) {
 	switch status {
-	case events.RunStatusRunning:
+	case domain.RunStatusRunning:
 		return string(clientevents.SessionStateRunning), nil
-	case events.RunStatusSucceeded:
+	case domain.RunStatusSucceeded:
 		return string(clientevents.SessionStateCompleted), nil
-	case events.RunStatusFailed:
+	case domain.RunStatusFailed:
 		return string(clientevents.SessionStateFailed), nil
-	case events.RunStatusInterrupted:
+	case domain.RunStatusInterrupted:
 		return string(clientevents.SessionStateInterrupted), nil
 	default:
 		return "", projectionError("unknown run status %q", status)

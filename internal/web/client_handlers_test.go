@@ -16,9 +16,8 @@ import (
 	"github.com/ycvk/acorn/internal/app"
 	"github.com/ycvk/acorn/internal/clientevents"
 	"github.com/ycvk/acorn/internal/config"
-	"github.com/ycvk/acorn/internal/events"
+	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/memorymodule"
-	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
 
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/store"
@@ -145,10 +144,10 @@ func TestThreadMessageRunHandlers(t *testing.T) {
 
 func TestDecidePendingActionHandler(t *testing.T) {
 	service := &pendingActionHandlerStub{
-		record: events.PendingActionRecord{
+		record: domain.PendingActionRecord{
 			ActionID:     "action_1",
 			RunID:        "run_1",
-			Status:       events.PendingActionStatusApproved,
+			Status:       domain.PendingActionStatusApproved,
 			DecisionJSON: `{"action":"accept"}`,
 		},
 	}
@@ -458,7 +457,7 @@ func TestClientHandlersReturnClientErrorCodes(t *testing.T) {
 			method:     http.MethodPost,
 			path:       "/v1/threads/thread_1/runs",
 			body:       `{}`,
-			err:        runtimeapi.ErrExecutionNotReady,
+			err:        domain.ErrExecutionNotReady,
 			wantStatus: http.StatusServiceUnavailable,
 			wantCode:   "execution_not_ready",
 		},
@@ -889,13 +888,7 @@ func TestClientResourceSurfaceHandlers(t *testing.T) {
 			},
 			Eligible: true,
 		}}},
-		memory: memory,
-		checkpoints: &clientCheckpointStub{item: &app.WorkingCheckpointView{
-			ThreadID:       "thread_1",
-			Content:        "focus",
-			RelatedSkillID: "skill.inspect",
-			UpdatedAt:      time.Date(2026, 5, 2, 10, 0, 0, 0, time.UTC),
-		}},
+		memory:     memory,
 		deviceAuth: &deviceAuthHandlerStub{},
 		cfg:        cfg,
 		logger:     slog.New(slog.NewTextHandler(bytes.NewBuffer(nil), nil)),
@@ -949,9 +942,6 @@ func TestClientResourceSurfaceHandlers(t *testing.T) {
 		{name: "reflection approve removed", method: http.MethodPost, path: "/v1/reflections/7:approve", body: `{}`, wantStatus: http.StatusNotFound},
 		{name: "reflection reject removed", method: http.MethodPost, path: "/v1/reflections/7:reject", body: `{}`, wantStatus: http.StatusNotFound},
 		{name: "reflection rollback removed", method: http.MethodPost, path: "/v1/reflections/7:rollback", wantStatus: http.StatusNotFound},
-		{name: "checkpoint get", method: http.MethodGet, path: "/v1/threads/thread_1/checkpoint", wantStatus: http.StatusOK, want: `"thread_id":"thread_1"`},
-		{name: "checkpoint update", method: http.MethodPut, path: "/v1/threads/thread_1/checkpoint", body: `{"content":"focus","related_skill_id":"skill.inspect"}`, wantStatus: http.StatusOK, want: "focus"},
-		{name: "checkpoint delete", method: http.MethodDelete, path: "/v1/threads/thread_1/checkpoint", wantStatus: http.StatusNoContent},
 		{name: "settings", method: http.MethodGet, path: "/v1/settings", wantStatus: http.StatusOK, want: "gpt-test"},
 		{name: "settings patch unsupported", method: http.MethodPatch, path: "/v1/settings", body: `{}`, wantStatus: http.StatusNotImplemented, want: "settings_write_unsupported"},
 	} {
@@ -1019,11 +1009,10 @@ func TestClientResourceSurfaceHandlers(t *testing.T) {
 
 func TestLegacyRouteGroupIsNotMounted(t *testing.T) {
 	server := &Server{
-		client:      &clientHandlerStub{},
-		skills:      &clientSkillStub{},
-		memory:      &clientMemoryStub{},
-		checkpoints: &clientCheckpointStub{},
-		logger:      slog.New(slog.NewTextHandler(bytes.NewBuffer(nil), nil)),
+		client: &clientHandlerStub{},
+		skills: &clientSkillStub{},
+		memory: &clientMemoryStub{},
+		logger: slog.New(slog.NewTextHandler(bytes.NewBuffer(nil), nil)),
 	}
 	router := chi.NewRouter()
 	server.registerRoutes(router)
@@ -1324,7 +1313,7 @@ func (s *clientHandlerStub) EventPollInterval() time.Duration {
 var _ ClientService = (*clientHandlerStub)(nil)
 
 type pendingActionHandlerStub struct {
-	record      events.PendingActionRecord
+	record      domain.PendingActionRecord
 	summaries   []app.PendingActionSummary
 	detail      *app.PendingActionDetail
 	err         error
@@ -1350,7 +1339,7 @@ func (s *pendingActionHandlerStub) Get(_ context.Context, actionID string) (*app
 	return s.detail, nil
 }
 
-func (s *pendingActionHandlerStub) Decide(_ context.Context, actionID string, decision app.PendingActionDecisionInput) (*events.PendingActionRecord, error) {
+func (s *pendingActionHandlerStub) Decide(_ context.Context, actionID string, decision app.PendingActionDecisionInput) (*domain.PendingActionRecord, error) {
 	s.actionID = actionID
 	s.decision = decision
 	if s.err != nil {
@@ -1448,24 +1437,4 @@ func (s *clientMemoryStub) ListHistory(_ context.Context, selection memorymodule
 func (s *clientMemoryStub) Search(_ context.Context, req memorymodule.SearchRequest) (*memorymodule.SearchResult, error) {
 	s.searchReq = req
 	return &memorymodule.SearchResult{Items: append([]memorymodule.SearchItem(nil), s.search...)}, nil
-}
-
-type clientCheckpointStub struct {
-	item *app.WorkingCheckpointView
-}
-
-func (s *clientCheckpointStub) Get(context.Context, string) (*app.WorkingCheckpointView, error) {
-	return s.item, nil
-}
-
-func (s *clientCheckpointStub) Update(_ context.Context, threadID, content, relatedSkillID string) (*app.WorkingCheckpointView, error) {
-	item := *s.item
-	item.ThreadID = threadID
-	item.Content = content
-	item.RelatedSkillID = relatedSkillID
-	return &item, nil
-}
-
-func (s *clientCheckpointStub) Clear(context.Context, string) error {
-	return nil
 }

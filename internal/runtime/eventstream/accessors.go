@@ -1,4 +1,4 @@
-package stream
+package eventstream
 
 func getPayloadMap(item StreamItem) map[string]any {
 	if item.Payload == nil {

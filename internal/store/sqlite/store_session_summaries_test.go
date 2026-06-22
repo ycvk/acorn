@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ycvk/acorn/internal/model"
+	"github.com/ycvk/acorn/internal/domain"
 )
 
 func TestUpsertAndGetSessionSummary(t *testing.T) {
@@ -17,7 +17,7 @@ func TestUpsertAndGetSessionSummary(t *testing.T) {
 	t.Cleanup(func() { _ = store.Close() })
 
 	now := time.Now().UTC().Truncate(time.Second)
-	if err := store.UpsertSessionSummary(context.Background(), model.SessionSummary{
+	if err := store.UpsertSessionSummary(context.Background(), domain.SessionSummary{
 		SessionID:   "session_1",
 		SourceRunID: "run_1",
 		RunStatus:   "succeeded",

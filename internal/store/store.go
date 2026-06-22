@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ycvk/acorn/internal/events"
+	"github.com/ycvk/acorn/internal/domain"
 )
 
 // BuildToolResultRef constructs the stable opaque reference for a tool-result
@@ -79,9 +79,9 @@ type CreatePendingActionInput struct {
 	ActionID    string
 	RunID       string
 	InterruptID string
-	Kind        events.PendingActionKind
+	Kind        domain.PendingActionKind
 	Subject     string
 	PayloadJSON string
-	Status      events.PendingActionStatus
+	Status      domain.PendingActionStatus
 	Reason      string
 }

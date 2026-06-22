@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ycvk/acorn/internal/events"
+	"github.com/ycvk/acorn/internal/domain"
 	storecore "github.com/ycvk/acorn/internal/store"
 )
 
@@ -83,7 +83,7 @@ func TestSessionQueries(t *testing.T) {
 	if err := store.CreateRunWithSession(context.Background(), "run_1", s1.SessionID, 1, "hello"); err != nil {
 		t.Fatalf("create session run: %v", err)
 	}
-	if err := store.FinishRunContext(context.Background(), "run_1", events.RunStatusSucceeded, "done", ""); err != nil {
+	if err := store.FinishRunContext(context.Background(), "run_1", domain.RunStatusSucceeded, "done", ""); err != nil {
 		t.Fatalf("finish session run: %v", err)
 	}
 
@@ -138,13 +138,13 @@ func TestLoadLatestRunsForSessionsReturnsNewestRunPerSession(t *testing.T) {
 	if err := store.CreateRunWithSession(context.Background(), "run_alpha_1", alpha.SessionID, 1, "first"); err != nil {
 		t.Fatalf("create alpha run 1: %v", err)
 	}
-	if err := store.FinishRunContext(context.Background(), "run_alpha_1", events.RunStatusSucceeded, "done", ""); err != nil {
+	if err := store.FinishRunContext(context.Background(), "run_alpha_1", domain.RunStatusSucceeded, "done", ""); err != nil {
 		t.Fatalf("finish alpha run 1: %v", err)
 	}
 	if err := store.CreateRunWithSession(context.Background(), "run_alpha_2", alpha.SessionID, 2, "second"); err != nil {
 		t.Fatalf("create alpha run 2: %v", err)
 	}
-	if err := store.FinishRunContext(context.Background(), "run_alpha_2", events.RunStatusFailed, "partial", "command failed"); err != nil {
+	if err := store.FinishRunContext(context.Background(), "run_alpha_2", domain.RunStatusFailed, "partial", "command failed"); err != nil {
 		t.Fatalf("finish alpha run 2: %v", err)
 	}
 
@@ -194,7 +194,7 @@ func TestLoadLatestRunsForSessionsReturnsNewestRunPerSession(t *testing.T) {
 	if alphaRun == nil {
 		t.Fatalf("missing alpha latest run")
 	}
-	if alphaRun.RunID != "run_alpha_2" || alphaRun.TurnIndex != 2 || alphaRun.Status != events.RunStatusFailed {
+	if alphaRun.RunID != "run_alpha_2" || alphaRun.TurnIndex != 2 || alphaRun.Status != domain.RunStatusFailed {
 		t.Fatalf("unexpected alpha latest run: %#v", alphaRun)
 	}
 
@@ -202,7 +202,7 @@ func TestLoadLatestRunsForSessionsReturnsNewestRunPerSession(t *testing.T) {
 	if betaRun == nil {
 		t.Fatalf("missing beta latest run")
 	}
-	if betaRun.RunID != "run_beta_1" || betaRun.Status != events.RunStatusInterrupted {
+	if betaRun.RunID != "run_beta_1" || betaRun.Status != domain.RunStatusInterrupted {
 		t.Fatalf("unexpected beta latest run: %#v", betaRun)
 	}
 
@@ -210,7 +210,7 @@ func TestLoadLatestRunsForSessionsReturnsNewestRunPerSession(t *testing.T) {
 	if gammaRun == nil {
 		t.Fatalf("missing gamma latest run")
 	}
-	if gammaRun.RunID != "run_gamma_1" || gammaRun.Status != events.RunStatusRunning {
+	if gammaRun.RunID != "run_gamma_1" || gammaRun.Status != domain.RunStatusRunning {
 		t.Fatalf("unexpected gamma latest run: %#v", gammaRun)
 	}
 }
@@ -236,7 +236,7 @@ func TestBindLatestUserMessageRunIDAndSyncAssistantMessageForRun(t *testing.T) {
 	if err := store.BindLatestUserMessageRunID(context.Background(), session.SessionID, 1, "run_1"); err != nil {
 		t.Fatalf("bind latest user message run id: %v", err)
 	}
-	if err := store.FinishRunContext(context.Background(), "run_1", events.RunStatusSucceeded, "done", ""); err != nil {
+	if err := store.FinishRunContext(context.Background(), "run_1", domain.RunStatusSucceeded, "done", ""); err != nil {
 		t.Fatalf("finish run: %v", err)
 	}
 	if _, err := store.AppendEventContext(context.Background(), "run_1", "agent.message", map[string]any{
@@ -399,7 +399,7 @@ func TestSyncAssistantMessageForRunPersistsFailureContext(t *testing.T) {
 	if err := store.CreateBoundRun(context.Background(), "run_failed", session.SessionID, turnIndex, "inspect repo"); err != nil {
 		t.Fatalf("create bound run: %v", err)
 	}
-	if err := store.FinishRunContext(context.Background(), "run_failed", events.RunStatusFailed, "rg stdout", "shell exited with status 1"); err != nil {
+	if err := store.FinishRunContext(context.Background(), "run_failed", domain.RunStatusFailed, "rg stdout", "shell exited with status 1"); err != nil {
 		t.Fatalf("finish run: %v", err)
 	}
 	if err := store.SyncAssistantMessageForRun(context.Background(), "run_failed"); err != nil {
@@ -453,7 +453,7 @@ func TestSyncAssistantMessageForRunAllowsFinalSuccessAfterInterruptedContext(t *
 	if err := store.SyncAssistantMessageForRun(context.Background(), "run_resume"); err != nil {
 		t.Fatalf("sync interrupted message: %v", err)
 	}
-	if err := store.FinishRunContext(context.Background(), "run_resume", events.RunStatusSucceeded, "final answer", ""); err != nil {
+	if err := store.FinishRunContext(context.Background(), "run_resume", domain.RunStatusSucceeded, "final answer", ""); err != nil {
 		t.Fatalf("finish resumed run: %v", err)
 	}
 	if err := store.SyncAssistantMessageForRun(context.Background(), "run_resume"); err != nil {

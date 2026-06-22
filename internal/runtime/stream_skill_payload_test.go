@@ -3,21 +3,21 @@ package runtime
 import (
 	"testing"
 
-	"github.com/ycvk/acorn/internal/stream"
+	"github.com/ycvk/acorn/internal/runtime/eventstream"
 )
 
 func TestProjectStreamItemToEventProjectsSkillPayload(t *testing.T) {
-	kind, payload := mustProjectStreamItemToEvent(t, stream.StreamItem{
+	kind, payload := mustProjectStreamItemToEvent(t, eventstream.StreamItem{
 		RunID: "run_5",
-		Kind:  stream.StreamKindSkillSelected,
-		Payload: map[string]any{"skill": &stream.StreamSkill{
+		Kind:  eventstream.StreamKindSkillSelected,
+		Payload: map[string]any{"skill": &eventstream.StreamSkill{
 			SelectedID:   "skill.inspect.repo",
 			Name:         "Inspect Repo",
 			Source:       "workspace",
 			Path:         "/tmp/skills/inspect_repo",
 			Instruction:  "Read README.md first.",
 			Scripts:      []string{"scripts/quick_map.sh"},
-			Requirements: stream.StreamSkillRequirements{Tools: []string{"read_file", "run_command"}},
+			Requirements: eventstream.StreamSkillRequirements{Tools: []string{"read_file", "run_command"}},
 			Score:        145,
 		}},
 	})
@@ -25,7 +25,7 @@ func TestProjectStreamItemToEventProjectsSkillPayload(t *testing.T) {
 		t.Fatalf("kind = %q, want skill.selected", kind)
 	}
 	body := payload.(map[string]any)
-	skill := stream.StreamItem{Payload: body}.GetSkill()
+	skill := eventstream.StreamItem{Payload: body}.GetSkill()
 	if skill == nil {
 		t.Fatalf("unexpected payload: %#v", body)
 	}
@@ -41,12 +41,12 @@ func TestProjectStreamItemToEventProjectsSkillPayload(t *testing.T) {
 }
 
 func TestProjectStreamItemToEventProjectsNoSelectionReason(t *testing.T) {
-	kind, payload := mustProjectStreamItemToEvent(t, stream.StreamItem{
+	kind, payload := mustProjectStreamItemToEvent(t, eventstream.StreamItem{
 		RunID: "run_5b",
-		Kind:  stream.StreamKindSkillDiscovered,
-		Payload: map[string]any{"skill": &stream.StreamSkill{
+		Kind:  eventstream.StreamKindSkillDiscovered,
+		Payload: map[string]any{"skill": &eventstream.StreamSkill{
 			NoSelectionReason: "no_eligible_match",
-			Candidates: []stream.StreamSkillCandidate{
+			Candidates: []eventstream.StreamSkillCandidate{
 				{ID: "skill.inspect.repo", FilteredReason: "missing_required_tools:read_file"},
 			},
 		}},
@@ -55,7 +55,7 @@ func TestProjectStreamItemToEventProjectsNoSelectionReason(t *testing.T) {
 		t.Fatalf("kind = %q, want skill.discovered", kind)
 	}
 	body := payload.(map[string]any)
-	skill := stream.StreamItem{Payload: body}.GetSkill()
+	skill := eventstream.StreamItem{Payload: body}.GetSkill()
 	if skill == nil {
 		t.Fatalf("unexpected payload: %#v", body)
 	}
@@ -71,10 +71,10 @@ func TestProjectStreamItemToEventProjectsNoSelectionReason(t *testing.T) {
 }
 
 func TestProjectStreamItemToEventProjectsSkillFailureReason(t *testing.T) {
-	kind, payload := mustProjectStreamItemToEvent(t, stream.StreamItem{
+	kind, payload := mustProjectStreamItemToEvent(t, eventstream.StreamItem{
 		RunID: "run_6",
-		Kind:  stream.StreamKindSkillFailed,
-		Payload: map[string]any{"skill": &stream.StreamSkill{
+		Kind:  eventstream.StreamKindSkillFailed,
+		Payload: map[string]any{"skill": &eventstream.StreamSkill{
 			SelectedID:    "skill.inspect.repo",
 			FailureReason: "missing_output_term:entrypoint",
 		}},
@@ -83,7 +83,7 @@ func TestProjectStreamItemToEventProjectsSkillFailureReason(t *testing.T) {
 		t.Fatalf("kind = %q, want skill.failed", kind)
 	}
 	body := payload.(map[string]any)
-	skill := stream.StreamItem{Payload: body}.GetSkill()
+	skill := eventstream.StreamItem{Payload: body}.GetSkill()
 	if skill == nil {
 		t.Fatalf("unexpected payload: %#v", body)
 	}

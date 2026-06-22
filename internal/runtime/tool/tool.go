@@ -10,7 +10,7 @@ import (
 	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/contextplane"
-	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
+	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/tooling"
 )
 
@@ -19,14 +19,14 @@ type auditedTool struct {
 	tool      einotool.BaseTool
 	invokable einotool.InvokableTool
 	progress  tooling.ProgressTool
-	store     runtimeapi.EventAppender
+	store     domain.EventAppender
 	validator *toolArgumentValidator
 }
 
 type ToolAuditCallIDKey struct{}
 
 func getRunID(ctx context.Context) string {
-	return runtimeapi.GetRunID(ctx)
+	return domain.GetRunID(ctx)
 }
 
 func withToolAuditCallID(ctx context.Context, callID string) context.Context {
@@ -44,7 +44,7 @@ func ToolAuditCallID(ctx context.Context) string {
 	return strings.TrimSpace(value)
 }
 
-func wrapToolForAudit(ctx context.Context, store runtimeapi.EventAppender, spec tooling.ToolSpec) (einotool.BaseTool, error) {
+func wrapToolForAudit(ctx context.Context, store domain.EventAppender, spec tooling.ToolSpec) (einotool.BaseTool, error) {
 	info, err := spec.Tool.Info(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("read tool info for audit: %w", err)
@@ -115,7 +115,7 @@ func (t *auditedTool) invoke(ctx context.Context, argumentsInJSON string, emit t
 
 func BuildAuditedTools(
 	ctx context.Context,
-	store runtimeapi.EventAppender,
+	store domain.EventAppender,
 	specs []tooling.ToolSpec,
 	excludedToolNames []string,
 	allowedToolNames []string,
@@ -486,7 +486,7 @@ func NewLoadToolsTool() (einotool.BaseTool, error) {
 	return toolutils.InferTool("load_tools", "Load deferred tool definitions by query or exact tool names.", func(ctx context.Context, input loadToolsInput) (loadToolsOutput, error) {
 		result, err := contextplane.DeferredLoad(ctx, contextplane.DeferredLoadRequest{
 			RunID:     getRunID(ctx),
-			SessionID: runtimeapi.SessionIDFromContext(ctx),
+			SessionID: domain.SessionIDFromContext(ctx),
 			Query:     strings.TrimSpace(input.Query),
 			ToolNames: append([]string(nil), input.ToolNames...),
 			Limit:     input.Limit,

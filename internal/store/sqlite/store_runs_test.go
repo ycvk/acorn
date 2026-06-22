@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ycvk/acorn/internal/events"
+	"github.com/ycvk/acorn/internal/domain"
 	storecore "github.com/ycvk/acorn/internal/store"
 )
 
@@ -25,7 +25,7 @@ func TestStoreLifecycle(t *testing.T) {
 	if _, err := store.AppendEventContext(context.Background(), "run_1", "run.started", map[string]any{"input": "hello"}); err != nil {
 		t.Fatalf("append event: %v", err)
 	}
-	if err := store.FinishRunContext(context.Background(), "run_1", events.RunStatusSucceeded, "done", ""); err != nil {
+	if err := store.FinishRunContext(context.Background(), "run_1", domain.RunStatusSucceeded, "done", ""); err != nil {
 		t.Fatalf("finish run: %v", err)
 	}
 
@@ -40,8 +40,8 @@ func TestStoreLifecycle(t *testing.T) {
 	if run == nil || len(items) != 1 {
 		t.Fatalf("expected run and one event, got run=%#v items=%#v", run, items)
 	}
-	if run.Status != events.RunStatusSucceeded {
-		t.Fatalf("Status = %q, want %q", run.Status, events.RunStatusSucceeded)
+	if run.Status != domain.RunStatusSucceeded {
+		t.Fatalf("Status = %q, want %q", run.Status, domain.RunStatusSucceeded)
 	}
 	if run.Output != "done" {
 		t.Fatalf("Output = %q, want %q", run.Output, "done")
@@ -79,8 +79,8 @@ func TestCreateRunWithParamsPersistsFields(t *testing.T) {
 	if run.Input != "child task" {
 		t.Fatalf("Input = %q, want child task", run.Input)
 	}
-	if run.Status != events.RunStatusRunning {
-		t.Fatalf("Status = %q, want %q", run.Status, events.RunStatusRunning)
+	if run.Status != domain.RunStatusRunning {
+		t.Fatalf("Status = %q, want %q", run.Status, domain.RunStatusRunning)
 	}
 }
 
@@ -173,13 +173,13 @@ func TestListInboxRunsFiltersSessionRunsByStatus(t *testing.T) {
 	if err := store.CreateRunWithSession(ctx, "run_done", "session_done", 1, "done"); err != nil {
 		t.Fatalf("create done run: %v", err)
 	}
-	if err := store.FinishRunContext(ctx, "run_done", events.RunStatusSucceeded, "done", ""); err != nil {
+	if err := store.FinishRunContext(ctx, "run_done", domain.RunStatusSucceeded, "done", ""); err != nil {
 		t.Fatalf("finish done run: %v", err)
 	}
 	if err := store.CreateRunWithSession(ctx, "run_failed", "session_failed", 1, "failed"); err != nil {
 		t.Fatalf("create failed run: %v", err)
 	}
-	if err := store.FinishRunContext(ctx, "run_failed", events.RunStatusFailed, "", "boom"); err != nil {
+	if err := store.FinishRunContext(ctx, "run_failed", domain.RunStatusFailed, "", "boom"); err != nil {
 		t.Fatalf("finish failed run: %v", err)
 	}
 	if err := store.CreateRun(ctx, "run_cli", "cli"); err != nil {
@@ -205,7 +205,7 @@ func TestListInboxRunsFiltersSessionRunsByStatus(t *testing.T) {
 	}
 }
 
-func runIDs(items []events.RunRecord) []string {
+func runIDs(items []domain.RunRecord) []string {
 	out := make([]string, 0, len(items))
 	for _, item := range items {
 		out = append(out, item.RunID)

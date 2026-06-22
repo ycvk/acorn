@@ -9,8 +9,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/ycvk/acorn/internal/events"
-	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
+	"github.com/ycvk/acorn/internal/domain"
 )
 
 type clientRunStartSignal struct {
@@ -53,7 +52,7 @@ func reportClientBackgroundError(ctx context.Context, runID string, err error) {
 	slog.Default().ErrorContext(ctx, "client background run failure was not persisted", "run_id", runID, "error", err)
 }
 
-func (s *ClientService) executeRun(ctx context.Context, exec executorHandle, req runtimeapi.ExecuteRequest, started *clientRunStartSignal) {
+func (s *ClientService) executeRun(ctx context.Context, exec executorHandle, req domain.ExecuteRequest, started *clientRunStartSignal) {
 	err := exec.ExecuteMessages(ctx, req, started)
 	if err != nil {
 		if started.MarkFailed(err) {
@@ -89,10 +88,10 @@ func (s *ClientService) recordStartedRunFailure(ctx context.Context, runID strin
 	if err != nil {
 		return err
 	}
-	if record.Status != events.RunStatusRunning {
+	if record.Status != domain.RunStatusRunning {
 		return nil
 	}
-	if err := s.store.FinishRunContext(ctx, runID, events.RunStatusFailed, "", cause.Error()); err != nil {
+	if err := s.store.FinishRunContext(ctx, runID, domain.RunStatusFailed, "", cause.Error()); err != nil {
 		return fmt.Errorf("mark client run failed after background error: %w", err)
 	}
 	if _, err := s.store.AppendEventContext(ctx, runID, "run.failed", map[string]any{"error": cause.Error()}); err != nil {

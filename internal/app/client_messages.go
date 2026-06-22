@@ -3,12 +3,12 @@ package app
 import (
 	"github.com/cloudwego/eino/adk"
 	"github.com/cloudwego/eino/schema"
-	"github.com/ycvk/acorn/internal/events"
+	"github.com/ycvk/acorn/internal/domain"
 )
 
 const chatHistoryLimit = 12
 
-func buildChatMessages(items []events.SessionMessageRecord) []adk.Message {
+func buildChatMessages(items []domain.SessionMessageRecord) []adk.Message {
 	messages := make([]adk.Message, 0, len(items))
 	for _, item := range items {
 		switch item.Role {

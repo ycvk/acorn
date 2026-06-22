@@ -15,7 +15,6 @@ type Container struct {
 	runnerFactory *runtime.RunnerFactory
 	runController *runtime.RunController
 	runResume     *RunResumeService
-	checkpoints   *WorkingCheckpointService
 	skills        *SkillService
 	client        *ClientService
 	pendingAction *PendingActionService
@@ -38,10 +37,6 @@ func (c *Container) Config() *config.Config {
 
 func (c *Container) RunResume() *RunResumeService {
 	return c.runResume
-}
-
-func (c *Container) Checkpoints() *WorkingCheckpointService {
-	return c.checkpoints
 }
 
 func (c *Container) Client() *ClientService {

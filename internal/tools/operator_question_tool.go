@@ -9,7 +9,7 @@ import (
 
 	einotool "github.com/cloudwego/eino/components/tool"
 
-	"github.com/ycvk/acorn/internal/events"
+	"github.com/ycvk/acorn/internal/domain"
 	storecore "github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/tooling"
 )
@@ -21,8 +21,8 @@ type OperatorQuestionContext interface {
 }
 
 type OperatorQuestionStore interface {
-	CreatePendingAction(ctx context.Context, input storecore.CreatePendingActionInput) (*events.PendingActionRecord, error)
-	AppendEventContext(ctx context.Context, runID, kind string, payload any) (events.EventRecord, error)
+	CreatePendingAction(ctx context.Context, input storecore.CreatePendingActionInput) (*domain.PendingActionRecord, error)
+	AppendEventContext(ctx context.Context, runID, kind string, payload any) (domain.EventRecord, error)
 }
 
 type AskOperatorInput struct {
@@ -92,10 +92,10 @@ func interruptAskOperator(ctx context.Context, store OperatorQuestionStore, brid
 	record, err := store.CreatePendingAction(ctx, storecore.CreatePendingActionInput{
 		ActionID:    actionID,
 		RunID:       runID,
-		Kind:        events.PendingActionKindOperatorQuestion,
+		Kind:        domain.PendingActionKindOperatorQuestion,
 		Subject:     strings.TrimSpace(input.Title),
 		PayloadJSON: string(payloadJSON),
-		Status:      events.PendingActionStatusPending,
+		Status:      domain.PendingActionStatusPending,
 		Reason:      "operator_question",
 	})
 	if err != nil {
@@ -143,7 +143,7 @@ func resumeAskOperator(ctx context.Context, state AskOperatorState, hasState boo
 	}
 	decision := stringFromMap(data, "action")
 	switch decision {
-	case events.OperatorQuestionDecisionAnswer:
+	case domain.OperatorQuestionDecisionAnswer:
 		selectedOptionID := stringFromMap(data, "selected_option_id")
 		answer := stringFromMap(data, "answer")
 		if selectedOptionID == "" && answer == "" {
@@ -156,7 +156,7 @@ func resumeAskOperator(ctx context.Context, state AskOperatorState, hasState boo
 			SelectedOptionID: selectedOptionID,
 			Answer:           answer,
 		}, nil
-	case events.OperatorQuestionDecisionDecline:
+	case domain.OperatorQuestionDecisionDecline:
 		return AskOperatorOutput{
 			ActionID: actionID,
 			Status:   "declined",
@@ -167,30 +167,30 @@ func resumeAskOperator(ctx context.Context, state AskOperatorState, hasState boo
 	}
 }
 
-func normalizeAskOperatorInput(input AskOperatorInput) (events.OperatorQuestionPayload, error) {
+func normalizeAskOperatorInput(input AskOperatorInput) (domain.OperatorQuestionPayload, error) {
 	question := strings.TrimSpace(input.Question)
 	if question == "" {
-		return events.OperatorQuestionPayload{}, errors.New("question is required")
+		return domain.OperatorQuestionPayload{}, errors.New("question is required")
 	}
 	options, err := normalizeAskOperatorOptions(input.Options)
 	if err != nil {
-		return events.OperatorQuestionPayload{}, err
+		return domain.OperatorQuestionPayload{}, err
 	}
 	if len(options) == 0 && !input.AllowFreeform {
-		return events.OperatorQuestionPayload{}, errors.New("ask_operator requires options or allow_freeform=true")
+		return domain.OperatorQuestionPayload{}, errors.New("ask_operator requires options or allow_freeform=true")
 	}
-	return events.OperatorQuestionPayload{
+	return domain.OperatorQuestionPayload{
 		Question:      question,
 		Options:       options,
 		AllowFreeform: input.AllowFreeform,
 	}, nil
 }
 
-func normalizeAskOperatorOptions(items []AskOperatorOptionInput) ([]events.PendingActionOption, error) {
+func normalizeAskOperatorOptions(items []AskOperatorOptionInput) ([]domain.PendingActionOption, error) {
 	if len(items) == 0 {
 		return nil, nil
 	}
-	out := make([]events.PendingActionOption, 0, len(items))
+	out := make([]domain.PendingActionOption, 0, len(items))
 	seen := make(map[string]struct{}, len(items))
 	for _, item := range items {
 		id := strings.TrimSpace(item.ID)
@@ -202,7 +202,7 @@ func normalizeAskOperatorOptions(items []AskOperatorOptionInput) ([]events.Pendi
 			return nil, fmt.Errorf("ask_operator option id %q is duplicated", id)
 		}
 		seen[id] = struct{}{}
-		out = append(out, events.PendingActionOption{
+		out = append(out, domain.PendingActionOption{
 			ID:          id,
 			Label:       label,
 			Description: strings.TrimSpace(item.Description),

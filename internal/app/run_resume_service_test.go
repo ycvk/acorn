@@ -6,8 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ycvk/acorn/internal/events"
-	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
+	"github.com/ycvk/acorn/internal/domain"
 	storecore "github.com/ycvk/acorn/internal/store"
 )
 
@@ -131,13 +130,13 @@ func TestRunResumeServiceInfersResumeTargetsForDecidedOperatorQuestion(t *testin
 	if _, err := store.CreatePendingAction(context.Background(), storecore.CreatePendingActionInput{
 		ActionID:    "action_operator_resume",
 		RunID:       runID,
-		Kind:        events.PendingActionKindOperatorQuestion,
+		Kind:        domain.PendingActionKindOperatorQuestion,
 		PayloadJSON: `{"question":"Which path?","allow_freeform":true}`,
-		Status:      events.PendingActionStatusPending,
+		Status:      domain.PendingActionStatusPending,
 	}); err != nil {
 		t.Fatalf("create pending action: %v", err)
 	}
-	if _, err := store.DecidePendingAction(context.Background(), "action_operator_resume", events.PendingActionStatusApproved, `{"action":"answer","answer":"ship it"}`); err != nil {
+	if _, err := store.DecidePendingAction(context.Background(), "action_operator_resume", domain.PendingActionStatusApproved, `{"action":"answer","answer":"ship it"}`); err != nil {
 		t.Fatalf("decide pending action: %v", err)
 	}
 	if _, err := store.AppendEventContext(context.Background(), runID, "run.interrupted", map[string]any{
@@ -213,7 +212,7 @@ func TestRunResumeServiceResumeStatusRejectsFailedRun(t *testing.T) {
 	if err := store.CreateRun(context.Background(), runID, "inspect repo"); err != nil {
 		t.Fatalf("create run: %v", err)
 	}
-	if err := store.FinishRunContext(context.Background(), runID, events.RunStatusFailed, "partial output", "shell exited with status 1"); err != nil {
+	if err := store.FinishRunContext(context.Background(), runID, domain.RunStatusFailed, "partial output", "shell exited with status 1"); err != nil {
 		t.Fatalf("finish run: %v", err)
 	}
 
@@ -225,7 +224,7 @@ func TestRunResumeServiceResumeStatusRejectsFailedRun(t *testing.T) {
 	if status.Resumable {
 		t.Fatalf("failed run should not be resumable: %#v", status)
 	}
-	if status.Status != events.RunStatusFailed {
+	if status.Status != domain.RunStatusFailed {
 		t.Fatalf("status = %q, want failed", status.Status)
 	}
 	if !strings.Contains(status.Reason, "failed and cannot be resumed") {
@@ -233,8 +232,8 @@ func TestRunResumeServiceResumeStatusRejectsFailedRun(t *testing.T) {
 	}
 
 	_, err = service.InferResumeTargets(context.Background(), runID)
-	if !errors.Is(err, runtimeapi.ErrRunNotInterrupted) {
-		t.Fatalf("InferResumeTargets error = %v, want runtimeapi.ErrRunNotInterrupted", err)
+	if !errors.Is(err, domain.ErrRunNotInterrupted) {
+		t.Fatalf("InferResumeTargets error = %v, want domain.ErrRunNotInterrupted", err)
 	}
 	if err == nil || !strings.Contains(err.Error(), "failed and cannot be resumed") {
 		t.Fatalf("unexpected infer error: %v", err)
@@ -248,7 +247,7 @@ func TestRunResumeServiceResumeStatusExplainsCompletedRun(t *testing.T) {
 	if err := store.CreateRun(context.Background(), runID, "summarize repo"); err != nil {
 		t.Fatalf("create run: %v", err)
 	}
-	if err := store.FinishRunContext(context.Background(), runID, events.RunStatusSucceeded, "done", ""); err != nil {
+	if err := store.FinishRunContext(context.Background(), runID, domain.RunStatusSucceeded, "done", ""); err != nil {
 		t.Fatalf("finish run: %v", err)
 	}
 
@@ -260,7 +259,7 @@ func TestRunResumeServiceResumeStatusExplainsCompletedRun(t *testing.T) {
 	if status.Resumable {
 		t.Fatalf("completed run should not be resumable: %#v", status)
 	}
-	if status.Status != events.RunStatusSucceeded {
+	if status.Status != domain.RunStatusSucceeded {
 		t.Fatalf("status = %q, want succeeded", status.Status)
 	}
 	if !strings.Contains(status.Reason, "completed and does not need resume") {

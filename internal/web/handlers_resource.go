@@ -197,37 +197,6 @@ func limitRecords(items []memorymodule.Record, limit int) []memorymodule.Record 
 	return items[:limit]
 }
 
-func (s *Server) handleGetWorkingCheckpoint(w http.ResponseWriter, r *http.Request) {
-	item, err := s.checkpoints.Get(r.Context(), chi.URLParam(r, "thread_id"))
-	if err != nil {
-		s.respondKnownError(w, r, err)
-		return
-	}
-	s.respondJSON(w, r, http.StatusOK, WorkingCheckpointEnvelope{Item: workingCheckpointDTOFromView(item)})
-}
-
-func (s *Server) handleUpdateWorkingCheckpoint(w http.ResponseWriter, r *http.Request) {
-	var req UpdateWorkingCheckpointRequest
-	if err := decodeJSONBody(r, &req); err != nil {
-		s.respondBadRequest(w, r, err.Error())
-		return
-	}
-	item, err := s.checkpoints.Update(r.Context(), chi.URLParam(r, "thread_id"), req.Content, req.RelatedSkillID)
-	if err != nil {
-		s.respondKnownError(w, r, err)
-		return
-	}
-	s.respondJSON(w, r, http.StatusOK, WorkingCheckpointEnvelope{Item: workingCheckpointDTOFromView(item)})
-}
-
-func (s *Server) handleDeleteWorkingCheckpoint(w http.ResponseWriter, r *http.Request) {
-	if err := s.checkpoints.Clear(r.Context(), chi.URLParam(r, "thread_id")); err != nil {
-		s.respondKnownError(w, r, err)
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
-}
-
 func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {
 	s.respondJSON(w, r, http.StatusOK, HealthResponse{OK: true})
 }

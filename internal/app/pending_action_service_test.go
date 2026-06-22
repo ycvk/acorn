@@ -8,7 +8,7 @@ import (
 
 	storecore "github.com/ycvk/acorn/internal/store"
 
-	"github.com/ycvk/acorn/internal/events"
+	"github.com/ycvk/acorn/internal/domain"
 )
 
 func TestPendingActionDecisionStatus(t *testing.T) {
@@ -17,10 +17,10 @@ func TestPendingActionDecisionStatus(t *testing.T) {
 	tests := []struct {
 		name     string
 		decision string
-		want     events.PendingActionStatus
+		want     domain.PendingActionStatus
 	}{
-		{name: "accept", decision: "accept", want: events.PendingActionStatusApproved},
-		{name: "decline", decision: "decline", want: events.PendingActionStatusRejected},
+		{name: "accept", decision: "accept", want: domain.PendingActionStatusApproved},
+		{name: "decline", decision: "decline", want: domain.PendingActionStatusRejected},
 	}
 
 	for _, test := range tests {
@@ -64,10 +64,10 @@ func TestPendingActionServiceDecideSyncsMessageAndElicitationEvent(t *testing.T)
 	if _, err := store.CreatePendingAction(ctx, storecore.CreatePendingActionInput{
 		ActionID:    "action_decision_service",
 		RunID:       "run_decision_service",
-		Kind:        events.PendingActionKindElicitation,
+		Kind:        domain.PendingActionKindElicitation,
 		Subject:     "elicitation",
 		PayloadJSON: `{"message":"Allow Acorn to continue?"}`,
-		Status:      events.PendingActionStatusPending,
+		Status:      domain.PendingActionStatusPending,
 	}); err != nil {
 		t.Fatalf("create pending action: %v", err)
 	}
@@ -76,7 +76,7 @@ func TestPendingActionServiceDecideSyncsMessageAndElicitationEvent(t *testing.T)
 	if err != nil {
 		t.Fatalf("Decide: %v", err)
 	}
-	if record.Status != events.PendingActionStatusApproved {
+	if record.Status != domain.PendingActionStatusApproved {
 		t.Fatalf("record status = %q, want approved", record.Status)
 	}
 
@@ -123,34 +123,34 @@ func TestPendingActionServiceDecideOperatorQuestionStoresStructuredAnswer(t *tes
 	if _, err := store.CreatePendingAction(ctx, storecore.CreatePendingActionInput{
 		ActionID: "action_operator_decision",
 		RunID:    "run_operator_decision",
-		Kind:     events.PendingActionKindOperatorQuestion,
+		Kind:     domain.PendingActionKindOperatorQuestion,
 		Subject:  "Pick path",
 		PayloadJSON: `{
 			"question":"Which path should Acorn take?",
 			"options":[{"id":"fast","label":"Fast path","description":"Ship the narrow fix"}],
 			"allow_freeform":true
 		}`,
-		Status: events.PendingActionStatusPending,
+		Status: domain.PendingActionStatusPending,
 	}); err != nil {
 		t.Fatalf("create pending action: %v", err)
 	}
 
 	record, err := NewPendingActionService(store).Decide(ctx, "action_operator_decision", PendingActionDecisionInput{
-		Decision:         events.OperatorQuestionDecisionAnswer,
+		Decision:         domain.OperatorQuestionDecisionAnswer,
 		SelectedOptionID: "fast",
 		Answer:           "Use the fast path.",
 	})
 	if err != nil {
 		t.Fatalf("Decide: %v", err)
 	}
-	if record.Status != events.PendingActionStatusApproved {
+	if record.Status != domain.PendingActionStatusApproved {
 		t.Fatalf("record status = %q, want approved", record.Status)
 	}
-	var decision events.OperatorQuestionDecision
+	var decision domain.OperatorQuestionDecision
 	if err := json.Unmarshal([]byte(record.DecisionJSON), &decision); err != nil {
 		t.Fatalf("unmarshal decision_json: %v", err)
 	}
-	if decision.Action != events.OperatorQuestionDecisionAnswer || decision.SelectedOptionID != "fast" || decision.Answer != "Use the fast path." {
+	if decision.Action != domain.OperatorQuestionDecisionAnswer || decision.SelectedOptionID != "fast" || decision.Answer != "Use the fast path." {
 		t.Fatalf("decision = %#v", decision)
 	}
 
@@ -194,10 +194,10 @@ func TestPendingActionServiceListAndGetProjectActionableRecords(t *testing.T) {
 	if _, err := store.CreatePendingAction(ctx, storecore.CreatePendingActionInput{
 		ActionID:    "action_pending_surface",
 		RunID:       "run_pending_surface",
-		Kind:        events.PendingActionKindElicitation,
+		Kind:        domain.PendingActionKindElicitation,
 		Subject:     "Approval required",
 		PayloadJSON: `{"message":"Allow Acorn to continue?","requested_schema":{"type":"object"}}`,
-		Status:      events.PendingActionStatusPending,
+		Status:      domain.PendingActionStatusPending,
 		Reason:      "needs owner approval",
 	}); err != nil {
 		t.Fatalf("create pending action: %v", err)
@@ -241,13 +241,13 @@ func TestPendingActionServiceGetRejectsDecidedAction(t *testing.T) {
 	if _, err := store.CreatePendingAction(ctx, storecore.CreatePendingActionInput{
 		ActionID:    "action_decided_surface",
 		RunID:       "run_decided_surface",
-		Kind:        events.PendingActionKindElicitation,
+		Kind:        domain.PendingActionKindElicitation,
 		PayloadJSON: `{"message":"Allow Acorn to continue?"}`,
-		Status:      events.PendingActionStatusPending,
+		Status:      domain.PendingActionStatusPending,
 	}); err != nil {
 		t.Fatalf("create pending action: %v", err)
 	}
-	if _, err := store.DecidePendingAction(ctx, "action_decided_surface", events.PendingActionStatusApproved, `{"action":"accept"}`); err != nil {
+	if _, err := store.DecidePendingAction(ctx, "action_decided_surface", domain.PendingActionStatusApproved, `{"action":"accept"}`); err != nil {
 		t.Fatalf("decide pending action: %v", err)
 	}
 
@@ -260,10 +260,10 @@ func TestPendingActionServiceGetRejectsDecidedAction(t *testing.T) {
 func TestStatusToDecisionAction(t *testing.T) {
 	t.Parallel()
 
-	if got := statusToDecisionAction(events.PendingActionStatusApproved); got != "accept" {
+	if got := statusToDecisionAction(domain.PendingActionStatusApproved); got != "accept" {
 		t.Fatalf("statusToDecisionAction(approved) = %q", got)
 	}
-	if got := statusToDecisionAction(events.PendingActionStatusRejected); got != "decline" {
+	if got := statusToDecisionAction(domain.PendingActionStatusRejected); got != "decline" {
 		t.Fatalf("statusToDecisionAction(rejected) = %q", got)
 	}
 }

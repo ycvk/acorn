@@ -8,10 +8,9 @@ import (
 	einomodel "github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/schema"
 
-	"github.com/ycvk/acorn/internal/orchestration"
-	"github.com/ycvk/acorn/internal/providers"
-	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
-	"github.com/ycvk/acorn/internal/stream"
+	"github.com/ycvk/acorn/internal/domain"
+	"github.com/ycvk/acorn/internal/runtime/eventstream"
+	"github.com/ycvk/acorn/internal/runtime/orchestration"
 )
 
 func streamAssistantInterleaved(
@@ -26,9 +25,9 @@ func streamAssistantInterleaved(
 	}
 	callSite := opts.CallSite
 	if callSite == "" {
-		callSite = providers.CallSiteAssistant
+		callSite = domain.CallSiteAssistant
 	}
-	modelStream, err := model.Stream(providers.WithCallSite(ctx, callSite), messages, streamOpts...)
+	modelStream, err := model.Stream(domain.WithCallSite(ctx, callSite), messages, streamOpts...)
 
 	s := &orchestration.InterleavedStream{
 		ToolCallCh:     make(chan schema.ToolCall, 8),
@@ -59,7 +58,7 @@ func streamAssistantInterleaved(
 
 		accumulator := newAssistantStreamAccumulator(opts.MessageID)
 		frames := make([]*schema.Message, 0, 4)
-		sink := stream.StreamSinkFromContext(ctx)
+		sink := eventstream.StreamSinkFromContext(ctx)
 
 		for {
 			frame, recvErr := modelStream.Recv()
@@ -86,11 +85,11 @@ func streamAssistantInterleaved(
 				continue
 			}
 			sequence := accumulator.append(frame.Content)
-			item := stream.StreamItem{
+			item := eventstream.StreamItem{
 				RunID: opts.RunID,
-				Kind:  stream.StreamKindAssistantDelta,
+				Kind:  eventstream.StreamKindAssistantDelta,
 				Payload: map[string]any{
-					"assistant_delta": &stream.StreamAssistantDelta{
+					"assistant_delta": &eventstream.StreamAssistantDelta{
 						Role:      string(frame.Role),
 						Delta:     frame.Content,
 						Reasoning: frame.ReasoningContent,
@@ -102,7 +101,7 @@ func streamAssistantInterleaved(
 				},
 			}
 			if opts.Appender != nil {
-				if _, appendErr := stream.AppendStreamItem(ctx, opts.Appender, opts.Sink, item); appendErr != nil {
+				if _, appendErr := eventstream.AppendStreamItem(ctx, opts.Appender, opts.Sink, item); appendErr != nil {
 					select {
 					case s.ErrCh <- appendErr:
 					case <-ctx.Done():
@@ -161,10 +160,10 @@ func streamAssistantInterleaved(
 }
 
 type directAssistantStreamer struct {
-	appender runtimeapi.EventAppender
+	appender domain.EventAppender
 }
 
-func NewDirectAssistantStreamer(appender runtimeapi.EventAppender) *directAssistantStreamer {
+func NewDirectAssistantStreamer(appender domain.EventAppender) *directAssistantStreamer {
 	return &directAssistantStreamer{appender: appender}
 }
 
@@ -173,7 +172,7 @@ func (s *directAssistantStreamer) StreamAssistantMessage(ctx context.Context, re
 		MessageID: req.MessageID,
 		RunID:     req.RunID,
 		Appender:  s.appender,
-		Sink:      stream.StreamSinkFromContext(ctx),
+		Sink:      eventstream.StreamSinkFromContext(ctx),
 		ToolInfos: req.ToolInfos,
 		CallSite:  req.CallSite,
 	})
@@ -184,7 +183,7 @@ func (s *directAssistantStreamer) StreamAssistantInterleaved(ctx context.Context
 		MessageID: req.MessageID,
 		RunID:     req.RunID,
 		Appender:  s.appender,
-		Sink:      stream.StreamSinkFromContext(ctx),
+		Sink:      eventstream.StreamSinkFromContext(ctx),
 		ToolInfos: req.ToolInfos,
 		CallSite:  req.CallSite,
 	})

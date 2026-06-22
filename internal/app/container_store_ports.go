@@ -4,8 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/ycvk/acorn/internal/events"
-	"github.com/ycvk/acorn/internal/model"
+	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/runtime"
 	storecore "github.com/ycvk/acorn/internal/store"
 )
@@ -15,7 +14,7 @@ import (
 // state, session-summary, and pending-action-create ports.
 type containerRuntimeStore interface {
 	runtime.RunnerFactoryStore
-	model.SessionSummaryStore
+	domain.SessionSummaryStore
 	PendingActionCreateStore
 }
 
@@ -29,29 +28,29 @@ type containerRuntimeStore interface {
 // consumer-owned store interfaces to <=6, enforced by
 // store_interface_count_test.go.
 type containerAppStore interface {
-	CreateSession(ctx context.Context, sessionID, title string) (*events.SessionRecord, error)
-	ListSessions(ctx context.Context, limit int) ([]events.SessionRecord, error)
-	LoadSession(ctx context.Context, sessionID string) (*events.SessionRecord, error)
-	LoadLatestRunForSession(ctx context.Context, sessionID string) (*events.RunRecord, error)
-	LoadLatestRunsForSessions(ctx context.Context, sessionIDs []string) (map[string]*events.RunRecord, error)
+	CreateSession(ctx context.Context, sessionID, title string) (*domain.SessionRecord, error)
+	ListSessions(ctx context.Context, limit int) ([]domain.SessionRecord, error)
+	LoadSession(ctx context.Context, sessionID string) (*domain.SessionRecord, error)
+	LoadLatestRunForSession(ctx context.Context, sessionID string) (*domain.RunRecord, error)
+	LoadLatestRunsForSessions(ctx context.Context, sessionIDs []string) (map[string]*domain.RunRecord, error)
 	UpdateSessionTitle(ctx context.Context, sessionID, title string) error
 	UpdateSessionTitleIfEmpty(ctx context.Context, sessionID, title string) error
 	DeleteSession(ctx context.Context, sessionID string) error
-	ListSessionMessages(ctx context.Context, sessionID string, limit int) ([]events.SessionMessageRecord, error)
+	ListSessionMessages(ctx context.Context, sessionID string, limit int) ([]domain.SessionMessageRecord, error)
 	NextSessionMessageTurnIndex(ctx context.Context, sessionID string) (int, error)
-	AppendSessionMessage(ctx context.Context, sessionID string, turnIndex int, role, content, runID string) (*events.SessionMessageRecord, error)
-	LoadRun(ctx context.Context, runID string) (*events.RunRecord, error)
-	LoadEvents(ctx context.Context, runID string) ([]events.EventRecord, error)
-	LoadEventsAfter(ctx context.Context, runID string, afterSeq int64) ([]events.EventRecord, error)
+	AppendSessionMessage(ctx context.Context, sessionID string, turnIndex int, role, content, runID string) (*domain.SessionMessageRecord, error)
+	LoadRun(ctx context.Context, runID string) (*domain.RunRecord, error)
+	LoadEvents(ctx context.Context, runID string) ([]domain.EventRecord, error)
+	LoadEventsAfter(ctx context.Context, runID string, afterSeq int64) ([]domain.EventRecord, error)
 	ListArtifactsByRun(ctx context.Context, runID string) ([]storecore.ArtifactRecord, error)
-	LoadLatestUnboundUserMessage(ctx context.Context, sessionID string) (*events.SessionMessageRecord, error)
-	FinishRunContext(ctx context.Context, runID string, status events.RunStatus, output, errText string) error
-	AppendEventContext(ctx context.Context, runID, kind string, payload any) (events.EventRecord, error)
-	ListPendingActions(ctx context.Context, limit int) ([]events.PendingActionRecord, error)
-	LoadPendingAction(ctx context.Context, actionID string) (*events.PendingActionRecord, error)
-	DecidePendingAction(ctx context.Context, actionID string, status events.PendingActionStatus, decisionJSON string) (*events.PendingActionRecord, error)
-	ListActiveRuns(ctx context.Context, limit int) ([]events.RunRecord, error)
-	ListRecentTerminalRuns(ctx context.Context, limit int) ([]events.RunRecord, error)
+	LoadLatestUnboundUserMessage(ctx context.Context, sessionID string) (*domain.SessionMessageRecord, error)
+	FinishRunContext(ctx context.Context, runID string, status domain.RunStatus, output, errText string) error
+	AppendEventContext(ctx context.Context, runID, kind string, payload any) (domain.EventRecord, error)
+	ListPendingActions(ctx context.Context, limit int) ([]domain.PendingActionRecord, error)
+	LoadPendingAction(ctx context.Context, actionID string) (*domain.PendingActionRecord, error)
+	DecidePendingAction(ctx context.Context, actionID string, status domain.PendingActionStatus, decisionJSON string) (*domain.PendingActionRecord, error)
+	ListActiveRuns(ctx context.Context, limit int) ([]domain.RunRecord, error)
+	ListRecentTerminalRuns(ctx context.Context, limit int) ([]domain.RunRecord, error)
 	SavePairingCode(ctx context.Context, code *storecore.PairingCode) error
 	ConsumePairingCode(ctx context.Context, codeHash string, now time.Time) (*storecore.PairingCode, error)
 	SaveDevice(ctx context.Context, device *storecore.Device) error

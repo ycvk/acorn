@@ -10,14 +10,13 @@ import (
 
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/ycvk/acorn/internal/config"
-	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
+	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/runtime/tool"
 	"github.com/ycvk/acorn/internal/runtime/toolset"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/tooling"
 	"github.com/ycvk/acorn/internal/tools"
 	"github.com/ycvk/acorn/internal/webaccess"
-	"github.com/ycvk/acorn/internal/workingstate"
 )
 
 type artifactToolBridge struct{}
@@ -27,7 +26,7 @@ func (artifactToolBridge) CurrentRunID(ctx context.Context) string {
 }
 
 func (artifactToolBridge) CurrentSessionID(ctx context.Context) string {
-	return runtimeapi.SessionIDFromContext(ctx)
+	return domain.SessionIDFromContext(ctx)
 }
 
 func (artifactToolBridge) CurrentToolCallID(ctx context.Context) string {
@@ -53,7 +52,7 @@ func (f *RunnerFactory) buildToolset(
 		return nil, err
 	}
 	closers = append(closers, local.closers...)
-	aux, err := f.buildAuxTools(ctx, sessionID, includePlanning)
+	aux, err := f.buildAuxTools(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -127,10 +126,6 @@ func buildCoreToolSpecs(ctx context.Context, cfg *config.Config, localCatalog *t
 	if err != nil {
 		return nil, err
 	}
-	checkpointSpecs, err := tool.BuildCatalogSpecs(ctx, cfg, "workingstate", tooling.ToolKindMemory, aux.checkpoint)
-	if err != nil {
-		return nil, err
-	}
 	memorySpecs, err := tool.BuildCatalogSpecs(ctx, cfg, "memory", tooling.ToolKindMemory, aux.memory)
 	if err != nil {
 		return nil, err
@@ -139,7 +134,6 @@ func buildCoreToolSpecs(ctx context.Context, cfg *config.Config, localCatalog *t
 	if err != nil {
 		return nil, err
 	}
-	specs = append(specs, checkpointSpecs...)
 	specs = append(specs, memorySpecs...)
 	specs = append(specs, skillSpecs...)
 	return specs, nil
@@ -166,9 +160,8 @@ type toolsetWebServices struct {
 }
 
 type auxTools struct {
-	checkpoint []einotool.BaseTool
-	memory     []einotool.BaseTool
-	skill      []einotool.BaseTool
+	memory []einotool.BaseTool
+	skill  []einotool.BaseTool
 }
 
 func (f *RunnerFactory) buildToolsetWebServices() (toolsetWebServices, error) {
@@ -234,13 +227,8 @@ func (f *RunnerFactory) buildLocalCatalog(services toolsetWebServices) (*tools.C
 	return catalog, []io.Closer{browser}, err
 }
 
-func (f *RunnerFactory) buildAuxTools(ctx context.Context, sessionID string, includePlanning bool) (auxTools, error) {
+func (f *RunnerFactory) buildAuxTools(ctx context.Context) (auxTools, error) {
 	var out auxTools
-	checkpoint, err := f.buildCheckpointTools(sessionID, includePlanning)
-	if err != nil {
-		return out, err
-	}
-	out.checkpoint = checkpoint
 	memory, err := f.buildMemoryTools(ctx)
 	if err != nil {
 		return out, err
@@ -252,20 +240,6 @@ func (f *RunnerFactory) buildAuxTools(ctx context.Context, sessionID string, inc
 	}
 	out.skill = skillTools
 	return out, nil
-}
-
-func (f *RunnerFactory) buildCheckpointTools(sessionID string, includePlanning bool) ([]einotool.BaseTool, error) {
-	checkpointService := f.deps.CheckpointService
-	effectiveSessionID := sessionID
-	if !includePlanning {
-		checkpointService = nil
-		effectiveSessionID = ""
-	}
-	tools, err := workingstate.BuildWorkingCheckpointTools(checkpointService, effectiveSessionID)
-	if err != nil {
-		return nil, fmt.Errorf("build working checkpoint tools: %w", err)
-	}
-	return tools, nil
 }
 
 func (f *RunnerFactory) buildMemoryTools(ctx context.Context) ([]einotool.BaseTool, error) {

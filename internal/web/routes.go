@@ -17,9 +17,6 @@ func NewHandler(deps Dependencies) (http.Handler, error) {
 	if deps.PendingAction == nil {
 		return nil, errors.New("web pending action service is required")
 	}
-	if deps.Checkpoints == nil {
-		return nil, errors.New("web working checkpoint service is required")
-	}
 	if deps.RunResume == nil {
 		return nil, errors.New("web run resume service is required")
 	}
@@ -47,7 +44,6 @@ func NewHandler(deps Dependencies) (http.Handler, error) {
 	server := &Server{
 		client:        deps.Client,
 		pendingAction: deps.PendingAction,
-		checkpoints:   deps.Checkpoints,
 		runResume:     deps.RunResume,
 		memory:        deps.Memory,
 		skills:        deps.Skills,
@@ -92,18 +88,15 @@ func (s *Server) registerRoutes(router chi.Router) {
 					r.Get("/messages", s.handleClientListMessages)
 					r.Post("/messages", s.handleClientCreateMessage)
 					r.Post("/runs", s.handleClientCreateRun)
-					r.Get("/checkpoint", s.handleGetWorkingCheckpoint)
-					r.Put("/checkpoint", s.handleUpdateWorkingCheckpoint)
-					r.Delete("/checkpoint", s.handleDeleteWorkingCheckpoint)
 				})
 			})
+			r.Post("/runs/{run_id}:interrupt", s.handleClientInterruptRun)
+			r.Post("/runs/{run_id}:resume", s.handleClientResumeRun)
 			r.Route("/runs/{run_id}", func(r chi.Router) {
 				r.Get("/", s.handleClientGetRun)
 				r.Get("/events", s.handleRunEvents)
 				r.Get("/detail", s.handleClientRunDetail)
 			})
-			r.Post("/runs/{run_id}:interrupt", s.handleClientInterruptRun)
-			r.Post("/runs/{run_id}:resume", s.handleClientResumeRun)
 			r.Get("/pending-actions", s.handleListPendingActions)
 			r.Get("/pending-actions/{action_id}", s.handleGetPendingAction)
 			r.Post("/pending-actions/{action_id}:decide", s.handleDecidePendingAction)

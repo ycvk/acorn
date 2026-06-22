@@ -4,30 +4,29 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ycvk/acorn/internal/events"
-	runtimeapi "github.com/ycvk/acorn/internal/runtime/api"
-	"github.com/ycvk/acorn/internal/stream"
+	"github.com/ycvk/acorn/internal/domain"
+	"github.com/ycvk/acorn/internal/runtime/eventstream"
 )
 
 func TestResolveRunID(t *testing.T) {
 	tests := []struct {
 		name string
-		req  runtimeapi.ExecuteRequest
+		req  domain.ExecuteRequest
 		want string
 	}{
 		{
 			name: "uses provided run id",
-			req:  runtimeapi.ExecuteRequest{RunID: "run_123"},
+			req:  domain.ExecuteRequest{RunID: "run_123"},
 			want: "run_123",
 		},
 		{
 			name: "uses provided run id with whitespace",
-			req:  runtimeapi.ExecuteRequest{RunID: "  run_trim  "},
+			req:  domain.ExecuteRequest{RunID: "  run_trim  "},
 			want: "run_trim",
 		},
 		{
 			name: "generates new run id when empty",
-			req:  runtimeapi.ExecuteRequest{},
+			req:  domain.ExecuteRequest{},
 			want: "",
 		},
 	}
@@ -52,10 +51,10 @@ func TestResolveRunID(t *testing.T) {
 
 func TestRunStateApplyAssistantDelta(t *testing.T) {
 	state := RunState{}
-	item := stream.StreamItem{
-		Kind: stream.StreamKindAssistantDelta,
+	item := eventstream.StreamItem{
+		Kind: eventstream.StreamKindAssistantDelta,
 		Payload: map[string]any{
-			"assistant_delta": &stream.StreamAssistantDelta{
+			"assistant_delta": &eventstream.StreamAssistantDelta{
 				Delta: "Hello",
 			},
 		},
@@ -68,18 +67,18 @@ func TestRunStateApplyAssistantDelta(t *testing.T) {
 
 func TestRunStateApplyAssistantDeltaAccumulates(t *testing.T) {
 	state := RunState{}
-	state.applyStreamItem(stream.StreamItem{
-		Kind: stream.StreamKindAssistantDelta,
+	state.applyStreamItem(eventstream.StreamItem{
+		Kind: eventstream.StreamKindAssistantDelta,
 		Payload: map[string]any{
-			"assistant_delta": &stream.StreamAssistantDelta{
+			"assistant_delta": &eventstream.StreamAssistantDelta{
 				Delta: "Hello",
 			},
 		},
 	})
-	state.applyStreamItem(stream.StreamItem{
-		Kind: stream.StreamKindAssistantDelta,
+	state.applyStreamItem(eventstream.StreamItem{
+		Kind: eventstream.StreamKindAssistantDelta,
 		Payload: map[string]any{
-			"assistant_delta": &stream.StreamAssistantDelta{
+			"assistant_delta": &eventstream.StreamAssistantDelta{
 				Delta: " world",
 			},
 		},
@@ -91,10 +90,10 @@ func TestRunStateApplyAssistantDeltaAccumulates(t *testing.T) {
 
 func TestRunStateApplyMessageReplacesOutput(t *testing.T) {
 	state := RunState{lastOutput: "streaming partial..."}
-	state.applyStreamItem(stream.StreamItem{
-		Kind: stream.StreamKindAssistantMessage,
+	state.applyStreamItem(eventstream.StreamItem{
+		Kind: eventstream.StreamKindAssistantMessage,
 		Payload: map[string]any{
-			"message": &stream.StreamMessage{
+			"message": &eventstream.StreamMessage{
 				Role:    "assistant",
 				Content: "final answer",
 			},
@@ -107,10 +106,10 @@ func TestRunStateApplyMessageReplacesOutput(t *testing.T) {
 
 func TestRunStateApplyMessageEmptyContentPreservesOutput(t *testing.T) {
 	state := RunState{lastOutput: "existing output"}
-	state.applyStreamItem(stream.StreamItem{
-		Kind: stream.StreamKindAssistantMessage,
+	state.applyStreamItem(eventstream.StreamItem{
+		Kind: eventstream.StreamKindAssistantMessage,
 		Payload: map[string]any{
-			"message": &stream.StreamMessage{
+			"message": &eventstream.StreamMessage{
 				Role:    "assistant",
 				Content: "",
 			},
@@ -123,12 +122,12 @@ func TestRunStateApplyMessageEmptyContentPreservesOutput(t *testing.T) {
 
 func TestRunStateApplyInterrupt(t *testing.T) {
 	state := RunState{}
-	state.applyStreamItem(stream.StreamItem{
-		Kind: stream.StreamKindRunInterrupted,
+	state.applyStreamItem(eventstream.StreamItem{
+		Kind: eventstream.StreamKindRunInterrupted,
 		Payload: map[string]any{
-			"interrupt": &stream.StreamInterrupt{
+			"interrupt": &eventstream.StreamInterrupt{
 				ContextCount: 1,
-				Contexts: []stream.StreamInterruptContext{
+				Contexts: []eventstream.StreamInterruptContext{
 					{ID: "ictx_1", Address: "0x123", IsRootCause: true},
 				},
 			},
@@ -144,8 +143,8 @@ func TestRunStateApplyInterrupt(t *testing.T) {
 
 func TestRunStateApplyRunFailed(t *testing.T) {
 	state := RunState{}
-	state.applyStreamItem(stream.StreamItem{
-		Kind: stream.StreamKindRunFailed,
+	state.applyStreamItem(eventstream.StreamItem{
+		Kind: eventstream.StreamKindRunFailed,
 		Payload: map[string]any{
 			"error": "model stream error: connection reset",
 		},
@@ -163,8 +162,8 @@ func TestRunStateApplyRunFailed(t *testing.T) {
 
 func TestRunStateApplyRunFailedEmptyError(t *testing.T) {
 	state := RunState{}
-	state.applyStreamItem(stream.StreamItem{
-		Kind: stream.StreamKindRunFailed,
+	state.applyStreamItem(eventstream.StreamItem{
+		Kind: eventstream.StreamKindRunFailed,
 		Payload: map[string]any{
 			"error": "",
 		},
@@ -179,8 +178,8 @@ func TestRunStateApplyRunFailedEmptyError(t *testing.T) {
 
 func TestRunStateApplyRunFailedNoErrorField(t *testing.T) {
 	state := RunState{}
-	state.applyStreamItem(stream.StreamItem{
-		Kind:    stream.StreamKindRunFailed,
+	state.applyStreamItem(eventstream.StreamItem{
+		Kind:    eventstream.StreamKindRunFailed,
 		Payload: map[string]any{},
 	})
 	if state.failure != nil {
@@ -192,8 +191,8 @@ func TestRunStateApplyUnknownItemIsNoOp(t *testing.T) {
 	state := RunState{
 		lastOutput: "existing",
 	}
-	state.applyStreamItem(stream.StreamItem{
-		Kind:    stream.StreamKindToolCallStarted,
+	state.applyStreamItem(eventstream.StreamItem{
+		Kind:    eventstream.StreamKindToolCallStarted,
 		Payload: map[string]any{},
 	})
 	if state.lastOutput != "existing" {
@@ -210,26 +209,26 @@ func TestRunStateApplyUnknownItemIsNoOp(t *testing.T) {
 func TestRunStateApplyMultipleItemsLifecycle(t *testing.T) {
 	state := RunState{}
 
-	state.applyStreamItem(stream.StreamItem{
-		Kind: stream.StreamKindAssistantDelta,
+	state.applyStreamItem(eventstream.StreamItem{
+		Kind: eventstream.StreamKindAssistantDelta,
 		Payload: map[string]any{
-			"assistant_delta": &stream.StreamAssistantDelta{Delta: "Hello"},
+			"assistant_delta": &eventstream.StreamAssistantDelta{Delta: "Hello"},
 		},
 	})
-	state.applyStreamItem(stream.StreamItem{
-		Kind: stream.StreamKindAssistantDelta,
+	state.applyStreamItem(eventstream.StreamItem{
+		Kind: eventstream.StreamKindAssistantDelta,
 		Payload: map[string]any{
-			"assistant_delta": &stream.StreamAssistantDelta{Delta: " world"},
+			"assistant_delta": &eventstream.StreamAssistantDelta{Delta: " world"},
 		},
 	})
 	if state.lastOutput != "Hello world" {
 		t.Fatalf("after deltas: lastOutput = %q, want 'Hello world'", state.lastOutput)
 	}
 
-	state.applyStreamItem(stream.StreamItem{
-		Kind: stream.StreamKindAssistantMessage,
+	state.applyStreamItem(eventstream.StreamItem{
+		Kind: eventstream.StreamKindAssistantMessage,
 		Payload: map[string]any{
-			"message": &stream.StreamMessage{Content: "Hello world!"},
+			"message": &eventstream.StreamMessage{Content: "Hello world!"},
 		},
 	})
 	if state.lastOutput != "Hello world!" {
@@ -293,31 +292,31 @@ func TestCompactArchiveTextWhitespaceOnly(t *testing.T) {
 }
 
 func TestFailureReasonForStatusFailedWithOutput(t *testing.T) {
-	reason := failureReasonForStatus(events.RunStatusFailed, "some output")
+	reason := failureReasonForStatus(domain.RunStatusFailed, "some output")
 	if reason != "run_failed:with_output" {
 		t.Errorf("failureReasonForStatus(failed, 'some output') = %q, want 'run_failed:with_output'", reason)
 	}
 }
 
 func TestFailureReasonForStatusFailedEmptyOutput(t *testing.T) {
-	reason := failureReasonForStatus(events.RunStatusFailed, "")
+	reason := failureReasonForStatus(domain.RunStatusFailed, "")
 	if reason != "run_failed" {
 		t.Errorf("failureReasonForStatus(failed, '') = %q, want 'run_failed'", reason)
 	}
 }
 
 func TestFailureReasonForStatusFailedWhitespaceOutput(t *testing.T) {
-	reason := failureReasonForStatus(events.RunStatusFailed, "   ")
+	reason := failureReasonForStatus(domain.RunStatusFailed, "   ")
 	if reason != "run_failed" {
 		t.Errorf("failureReasonForStatus(failed, '   ') = %q, want 'run_failed'", reason)
 	}
 }
 
 func TestFailureReasonForStatusNonFailedReturnsEmpty(t *testing.T) {
-	for _, status := range []events.RunStatus{
-		events.RunStatusSucceeded,
-		events.RunStatusInterrupted,
-		events.RunStatusRunning,
+	for _, status := range []domain.RunStatus{
+		domain.RunStatusSucceeded,
+		domain.RunStatusInterrupted,
+		domain.RunStatusRunning,
 	} {
 		reason := failureReasonForStatus(status, "some output")
 		if reason != "" {

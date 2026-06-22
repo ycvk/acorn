@@ -724,57 +724,6 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
-  /v1/threads/{thread_id}/checkpoint:
-    get:
-      tags: [client]
-      summary: Load the current working checkpoint for a thread
-      operationId: clientGetThreadCheckpoint
-      parameters:
-        - $ref: '#/components/parameters/ThreadID'
-      responses:
-        '200':
-          description: Working checkpoint payload
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WorkingCheckpointEnvelope'
-        '500':
-          $ref: '#/components/responses/InternalError'
-    put:
-      tags: [client]
-      summary: Replace the current working checkpoint for a thread
-      operationId: clientUpdateThreadCheckpoint
-      parameters:
-        - $ref: '#/components/parameters/ThreadID'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdateWorkingCheckpointRequest'
-      responses:
-        '200':
-          description: Updated working checkpoint
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WorkingCheckpointEnvelope'
-        '400':
-          $ref: '#/components/responses/InvalidRequest'
-        '500':
-          $ref: '#/components/responses/InternalError'
-    delete:
-      tags: [client]
-      summary: Clear the current working checkpoint for a thread
-      operationId: clientDeleteThreadCheckpoint
-      parameters:
-        - $ref: '#/components/parameters/ThreadID'
-      responses:
-        '204':
-          description: Working checkpoint cleared
-        '500':
-          $ref: '#/components/responses/InternalError'
-
 components:
   securitySchemes:
     bearerAuth:
@@ -1284,40 +1233,6 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/MemorySearchItem'
-
-    WorkingCheckpoint:
-      type: object
-      additionalProperties: false
-      required: [thread_id, content, related_skill_id, updated_at]
-      properties:
-        thread_id:
-          type: string
-        content:
-          type: string
-        related_skill_id:
-          type: string
-        updated_at:
-          type: string
-          format: date-time
-
-    WorkingCheckpointEnvelope:
-      type: object
-      additionalProperties: false
-      properties:
-        item:
-          oneOf:
-            - $ref: '#/components/schemas/WorkingCheckpoint'
-            - type: 'null'
-
-    UpdateWorkingCheckpointRequest:
-      type: object
-      additionalProperties: false
-      required: [content]
-      properties:
-        content:
-          type: string
-        related_skill_id:
-          type: string
 
     SkillRequirements:
       type: object

@@ -4,7 +4,7 @@ Acorn 的 AI 协作硬约束入口。`CLAUDE.md` 软链接至此,单一真相源
 
 ## 项目概览
 
-Go 1.26 + Eino ADK 的单用户自托管 AI agent 后端,module `github.com/ycvk/acorn`。owner 在 VPS 跑后端,Kotlin App 配对手机后远程发起任务、看运行、批审批。入口:CLI、authenticated `/v1` API、mobile inbox、persisted RunEvent SSE、Kotlin mobile。
+Go 1.26 + Eino ADK 的单用户自托管 AI agent 后端,module `github.com/ycvk/acorn`。owner 在 VPS 跑后端,Kotlin App 配对手机后远程发起任务、看运行、批审批。入口:operator CLI(`serve` 长驻 / `run`·`smoke` 一次性 direct_response / `init`·`pair`·`devices`·`token` 运维 / `skills`·`memory`·`doctor` 诊断)、authenticated `/v1` API、mobile inbox、persisted RunEvent SSE、Kotlin mobile。
 
 ## 常用命令
 
@@ -19,6 +19,18 @@ make test-architecture             # 架构边界守卫
 make generate                      # go generate ./internal/web
 make release-linux-amd64           # 纯 Go 交叉编译(无 CGO)
 
+# acorn CLI(根目录 acorn / make build 产出 ./bin/acorn)
+acorn serve [-c path] [--listen addr]   # 长驻 remote API,唯一常驻命令
+acorn run [-c path] [--json] "task"      # 一次性 direct_response 执行
+acorn smoke [-c path] [--json] "task"   # 安装探活:真实跑一次 run,非零退出即失败
+acorn init [-c path] [--force] [--print] # 生成 starter config
+acorn doctor [-c path] [--json]          # 能力快照 + MCP 健康探活
+acorn skills {list|inspect|check|create|patch|delete} [-c path] [--json]
+acorn memory semantic rebuild [-c path]  # 重建 embedding 向量库(memory_vectors)
+acorn pair [-c path] [--qr] [--server-url url]  # 生成设备配对码
+acorn token issue [-c path] [--name n] [--ttl d]  # 颁发 device token
+acorn devices {list|revoke} [-c path]
+
 # Mobile(在 mobile-kotlin/)
 cd mobile-kotlin && ./tool/generate_openapi_client.sh --check   # CI 门禁
 ./gradlew assembleDebug  # in mobile-kotlin/
@@ -29,8 +41,9 @@ cd mobile-kotlin && ./tool/generate_openapi_client.sh --check   # CI 门禁
 - **组合根**:`internal/app.Container` 是唯一实例化具体实现的地方(SQLite store、RunnerFactory、embedding client)。`cmd/acorn → cli → app.Container → {web, runtime, store}`。`serve` 是唯一长驻命令。
 - **运行时主链**:`Executor → RunnerFactory.buildRun → ContextPlane + direct_response → ContextSession → SQLite/file-backed memory`。
 - **单一编排模式**:`direct_response`。model → tool loop → record → 下一轮。`AgentLoop.RunOneIteration` 每轮 `BeforeModelCall → RunActionRound(ExecuteRound) → RecordAssistant/RecordToolResults`。plan_execute/single_agent/child_agent/verifier 已全部删除。
-- **职责边界**:orchestration(`internal/orchestration`)做装配+执行编排;ContextPlane(`internal/contextplane`)拥有上下文事实(首轮装配、tool lifecycle、`ContextSession`)。
-- **两套真相**:SQLite(`internal/store`,modernc.org/sqlite,单连接串行化)是 runtime 真相(~8 张表,schema 在 `store/sqlite/store_schema.go`,缺列 fail-loud);文件型长期记忆(`internal/memorymodule`)是 `facts/`/`history/`;embedding 向量存 SQLite `memory_vectors` 表。
+- **职责边界**:`internal/runtime/orchestration` 做装配+执行编排;ContextPlane(`internal/contextplane`)拥有上下文事实(首轮装配、tool lifecycle、`ContextSession`)。
+- **关键包**:`internal/domain` 拥有核心 domain 类型(`RunRecord`/`EventRecord`/`SessionRecord`/`PendingActionRecord`/`SessionSummary`)+ context plumbing(`WithRunID`/`WithSessionID`/`WithCallSite`)+ ports(`EventAppender`/`RunContextBridge`/`ToolCallContextBridge`);`internal/tooling` 拥有 `ToolContract`;`internal/runtime/eventstream` 拥有 `StreamItem` + 投影逻辑;`internal/clientevents` 把 live RunEvent 投影为 mobile live subset;`internal/workspace` 拥有 mutation checkpoint + worktree;`internal/webaccess` 拥有 `web_search`/`web_fetch`/`browser` 工具与共享 URL policy;`internal/providers/mcp` 拥有 MCP provider lifecycle + OAuth token store + pending action store。
+- **两套真相**:SQLite(`internal/store`,modernc.org/sqlite,单连接串行化)是 runtime 真相(12 张表:runs/events/sessions/session_messages/pending_actions/mcp_oauth_tokens/owner_profile/devices/pairing_codes/artifacts/session_summaries/schema_migrations;schema 在 `store/sqlite/store_schema.go`,`schemaRequiredTables` 强制列存在、缺列 fail-loud);文件型长期记忆(`internal/memorymodule`)是 `facts/`/`history/`;embedding 向量存 SQLite `memory_vectors` 表。
 - **API 契约**:`docs/openapi.yaml` 是唯一 wire contract,`mobile-kotlin/app/src/main/java/io/ycvk/acorn/api/` 由它生成。客户端只收 `internal/clientevents` 投影的 live RunEvent;RunEvent SSE 用 `follow=true` 轮询 + `after_seq` 游标续读。
 
 ## 硬边界
@@ -101,7 +114,7 @@ cd mobile-kotlin && ./tool/generate_openapi_client.sh --check   # CI 门禁
 
 ## 验证要求
 
-提交前必须通过 `make format-check` 和 `make lint`。context/runtime 改动至少跑 `go test ./internal/config ./internal/contextplane ./internal/orchestration ./internal/runtime ./internal/cli`。
+提交前必须通过 `make format-check` 和 `make lint`。context/runtime 改动至少跑 `go test ./internal/config ./internal/contextplane ./internal/orchestration ./internal/runtime ./internal/cli ./internal/tooling ./internal/tools ./internal/store ./internal/memorymodule ./internal/app ./internal/web`。
 
 **CI 守卫**(`tests/architecture/`):`store_boundary_test.go`(只允许 container.go import sqlite)、`structural_limits_test.go`、`client_projection_boundary_test.go`。
 

@@ -3,13 +3,13 @@ package sqlite
 import (
 	"testing"
 
-	"github.com/ycvk/acorn/internal/events"
+	"github.com/ycvk/acorn/internal/domain"
 )
 
 func TestNormalizePendingActionKindElicitation(t *testing.T) {
-	tests := []events.PendingActionKind{
-		events.PendingActionKindElicitation,
-		events.PendingActionKindOperatorQuestion,
+	tests := []domain.PendingActionKind{
+		domain.PendingActionKindElicitation,
+		domain.PendingActionKindOperatorQuestion,
 	}
 	for _, want := range tests {
 		got, err := normalizePendingActionKind(want)

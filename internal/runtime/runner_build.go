@@ -13,9 +13,8 @@ import (
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/contextplane"
 	"github.com/ycvk/acorn/internal/memorymodule"
-	"github.com/ycvk/acorn/internal/orchestration"
-	"github.com/ycvk/acorn/internal/providers"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
+	"github.com/ycvk/acorn/internal/runtime/orchestration"
 	"github.com/ycvk/acorn/internal/skills"
 	corestore "github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/tooling"
@@ -34,7 +33,7 @@ func buildRuntimeChatModelWithProvider(ctx context.Context, cfg *config.Config, 
 		return nil, config.ProviderConfig{}, errors.New("config is required")
 	}
 	if newModel == nil {
-		newModel = providers.NewOpenAIChatModel
+		newModel = newOpenAIChatModel
 	}
 
 	provider, err := cfg.EnabledProvider()
@@ -125,7 +124,6 @@ func assembleRuntimeDeps(cfg *config.Config, store RunnerFactoryStore, opts Runn
 	return RuntimeDeps{
 		Config:            cfg,
 		Loader:            loader,
-		CheckpointService: opts.CheckpointService,
 		SessionSummarySvc: opts.SessionSummaryService,
 		MemoryModule:      opts.MemoryModule,
 		ContextPlane:      contextPlane,

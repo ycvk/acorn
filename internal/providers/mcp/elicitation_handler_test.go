@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"github.com/ycvk/acorn/internal/events"
+	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/store/sqlite"
 )
 
@@ -56,9 +56,9 @@ func TestHandleElicitationCreatesPendingAction(t *testing.T) {
 		t.Fatalf("list pending actions: %v", err)
 	}
 
-	var foundAction *events.PendingActionRecord
+	var foundAction *domain.PendingActionRecord
 	for i := range actions {
-		if actions[i].Kind == events.PendingActionKindElicitation {
+		if actions[i].Kind == domain.PendingActionKindElicitation {
 			foundAction = &actions[i]
 			break
 		}
@@ -74,7 +74,7 @@ func TestHandleElicitationCreatesPendingAction(t *testing.T) {
 	}
 
 	// Decide the action to unblock the handler
-	_, err = store.DecidePendingAction(ctx, foundAction.ActionID, events.PendingActionStatusApproved, `{"action":"accept"}`)
+	_, err = store.DecidePendingAction(ctx, foundAction.ActionID, domain.PendingActionStatusApproved, `{"action":"accept"}`)
 	if err != nil {
 		t.Fatalf("decide pending action: %v", err)
 	}
@@ -236,7 +236,7 @@ type failingPendingActionStore struct {
 	loadErr error
 }
 
-func (s failingPendingActionStore) LoadPendingAction(ctx context.Context, actionID string) (*events.PendingActionRecord, error) {
+func (s failingPendingActionStore) LoadPendingAction(ctx context.Context, actionID string) (*domain.PendingActionRecord, error) {
 	if s.loadErr != nil {
 		return nil, s.loadErr
 	}
@@ -297,8 +297,8 @@ func TestBuildElicitationHandlerReturnsValidHandler(t *testing.T) {
 
 	actions, _ := store.ListPendingActions(ctx, 10)
 	for _, a := range actions {
-		if a.Kind == events.PendingActionKindElicitation && a.Status == events.PendingActionStatusPending {
-			store.DecidePendingAction(ctx, a.ActionID, events.PendingActionStatusRejected, `{"action":"decline"}`)
+		if a.Kind == domain.PendingActionKindElicitation && a.Status == domain.PendingActionStatusPending {
+			store.DecidePendingAction(ctx, a.ActionID, domain.PendingActionStatusRejected, `{"action":"decline"}`)
 			break
 		}
 	}

@@ -3,14 +3,14 @@ package runtime
 import (
 	"testing"
 
-	"github.com/ycvk/acorn/internal/stream"
+	"github.com/ycvk/acorn/internal/runtime/eventstream"
 )
 
-func mustProjectStreamItemToEvent(t *testing.T, item stream.StreamItem) (string, any) {
+func mustProjectStreamItemToEvent(t *testing.T, item eventstream.StreamItem) (string, any) {
 	t.Helper()
-	kind, payload, err := stream.ProjectStreamItemToEvent(item)
+	kind, payload, err := eventstream.ProjectStreamItemToEvent(item)
 	if err != nil {
-		t.Fatalf("stream.ProjectStreamItemToEvent(%q): %v", item.Kind, err)
+		t.Fatalf("eventstream.ProjectStreamItemToEvent(%q): %v", item.Kind, err)
 	}
 	return kind, payload
 }

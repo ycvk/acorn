@@ -4,10 +4,10 @@ import (
 	"context"
 	"strings"
 
-	"github.com/ycvk/acorn/internal/events"
+	"github.com/ycvk/acorn/internal/domain"
 )
 
-func pendingActionOptionsFromEventOptions(items []events.PendingActionOption) []PendingActionOption {
+func pendingActionOptionsFromEventOptions(items []domain.PendingActionOption) []PendingActionOption {
 	if len(items) == 0 {
 		return nil
 	}
@@ -22,7 +22,7 @@ func pendingActionOptionsFromEventOptions(items []events.PendingActionOption) []
 	return out
 }
 
-func (s *InboxService) projectRunSummary(ctx context.Context, record events.RunRecord) (RunSummary, error) {
+func (s *InboxService) projectRunSummary(ctx context.Context, record domain.RunRecord) (RunSummary, error) {
 	status, err := projectRunStatus(record.Status)
 	if err != nil {
 		return RunSummary{}, err
@@ -48,7 +48,7 @@ func (s *InboxService) projectRunSummary(ctx context.Context, record events.RunR
 	}, nil
 }
 
-func runSummaryThreadTitle(session events.SessionRecord, run events.RunRecord) string {
+func runSummaryThreadTitle(session domain.SessionRecord, run domain.RunRecord) string {
 	title := strings.TrimSpace(session.Title)
 	if title != "" {
 		return truncateRunes(title, runSummaryTitleMaxRunes)
@@ -60,20 +60,20 @@ func runSummaryThreadTitle(session events.SessionRecord, run events.RunRecord) s
 	return "Untitled thread"
 }
 
-func runSummaryPreview(record events.RunRecord) string {
+func runSummaryPreview(record domain.RunRecord) string {
 	switch record.Status {
-	case events.RunStatusFailed:
+	case domain.RunStatusFailed:
 		if preview := previewText(record.Error); preview != "" {
 			return preview
 		}
 		if preview := previewText(record.Output); preview != "" {
 			return preview
 		}
-	case events.RunStatusSucceeded:
+	case domain.RunStatusSucceeded:
 		if preview := previewText(record.Output); preview != "" {
 			return preview
 		}
-	case events.RunStatusInterrupted, events.RunStatusRunning:
+	case domain.RunStatusInterrupted, domain.RunStatusRunning:
 		if preview := previewText(record.Input); preview != "" {
 			return preview
 		}
@@ -109,35 +109,35 @@ func truncateRunes(value string, maxRunes int) string {
 	return string(runes[:maxRunes-3]) + "..."
 }
 
-func runSummaryLastEventLabel(status events.RunStatus) string {
+func runSummaryLastEventLabel(status domain.RunStatus) string {
 	switch status {
-	case events.RunStatusRunning:
+	case domain.RunStatusRunning:
 		return "Run is running"
-	case events.RunStatusSucceeded:
+	case domain.RunStatusSucceeded:
 		return "Run completed"
-	case events.RunStatusInterrupted:
+	case domain.RunStatusInterrupted:
 		return "Run interrupted"
-	case events.RunStatusFailed:
+	case domain.RunStatusFailed:
 		return "Run failed"
 	default:
 		return string(status)
 	}
 }
 
-func runSummaryAttentionLevel(status events.RunStatus) string {
+func runSummaryAttentionLevel(status domain.RunStatus) string {
 	switch status {
-	case events.RunStatusRunning:
+	case domain.RunStatusRunning:
 		return "running"
-	case events.RunStatusFailed:
+	case domain.RunStatusFailed:
 		return "failed"
-	case events.RunStatusInterrupted:
+	case domain.RunStatusInterrupted:
 		return "needs_action"
 	default:
 		return "normal"
 	}
 }
 
-func runSummaryDurationMS(record events.RunRecord) int64 {
+func runSummaryDurationMS(record domain.RunRecord) int64 {
 	if record.UpdatedAt.IsZero() || record.CreatedAt.IsZero() {
 		return 0
 	}

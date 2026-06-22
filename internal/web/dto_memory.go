@@ -1,9 +1,6 @@
 package web
 
 import (
-	"time"
-
-	"github.com/ycvk/acorn/internal/app"
 	"github.com/ycvk/acorn/internal/memorymodule"
 )
 
@@ -48,26 +45,6 @@ type MemorySearchItemDTO struct {
 
 type MemorySearchResponse struct {
 	Items []MemorySearchItemDTO `json:"items"`
-}
-
-type WorkingCheckpointEnvelope struct {
-	Item *WorkingCheckpointDTO `json:"item,omitempty"`
-}
-
-type UpdateWorkingCheckpointRequest struct {
-	Content        string `json:"content"`
-	RelatedSkillID string `json:"related_skill_id"`
-}
-
-type WorkingCheckpointDTO struct {
-	ThreadID       string    `json:"thread_id"`
-	Content        string    `json:"content"`
-	RelatedSkillID string    `json:"related_skill_id"`
-	UpdatedAt      time.Time `json:"updated_at"`
-}
-
-func workingCheckpointDTOFromView(view *app.WorkingCheckpointView) *WorkingCheckpointDTO {
-	return DefaultConverter.workingCheckpointDTOFromView(view)
 }
 
 func memoryRecordDTOsFromDomain(records []memorymodule.Record) []MemoryRecordDTO {

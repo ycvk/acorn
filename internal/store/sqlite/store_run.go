@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ycvk/acorn/internal/events"
+	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/store"
 )
 
@@ -35,7 +35,7 @@ func (s *Store) CreateRunWithParams(ctx context.Context, params store.RunCreateP
 		params.RunID,
 		params.SessionID,
 		params.TurnIndex,
-		string(events.RunStatusRunning),
+		string(domain.RunStatusRunning),
 		params.Input,
 		now,
 		now,
@@ -77,10 +77,10 @@ func (s *Store) CreateBoundRunWithParams(ctx context.Context, params store.RunCr
 	return nil
 }
 
-func (s *Store) AppendEventContext(ctx context.Context, runID, kind string, payload any) (events.EventRecord, error) {
+func (s *Store) AppendEventContext(ctx context.Context, runID, kind string, payload any) (domain.EventRecord, error) {
 	body, err := json.Marshal(payload)
 	if err != nil {
-		return events.EventRecord{}, fmt.Errorf("marshal event payload: %w", err)
+		return domain.EventRecord{}, fmt.Errorf("marshal event payload: %w", err)
 	}
 	now := time.Now().UTC()
 	result, err := s.db.ExecContext(ctx,
@@ -91,16 +91,16 @@ func (s *Store) AppendEventContext(ctx context.Context, runID, kind string, payl
 		formatTimestamp(now),
 	)
 	if err != nil {
-		return events.EventRecord{}, fmt.Errorf("append event: %w", err)
+		return domain.EventRecord{}, fmt.Errorf("append event: %w", err)
 	}
 	seq, err := result.LastInsertId()
 	if err != nil {
-		return events.EventRecord{}, fmt.Errorf("read event sequence: %w", err)
+		return domain.EventRecord{}, fmt.Errorf("read event sequence: %w", err)
 	}
-	return events.EventRecord{Sequence: seq, RunID: runID, Kind: kind, Payload: payload, CreatedAt: now}, nil
+	return domain.EventRecord{Sequence: seq, RunID: runID, Kind: kind, Payload: payload, CreatedAt: now}, nil
 }
 
-func (s *Store) FinishRunContext(ctx context.Context, runID string, status events.RunStatus, output, errText string) error {
+func (s *Store) FinishRunContext(ctx context.Context, runID string, status domain.RunStatus, output, errText string) error {
 	_, err := s.db.ExecContext(ctx,
 		`UPDATE runs SET status = ?, output_text = ?, error_text = ?, updated_at = ? WHERE run_id = ?`,
 		string(status),
@@ -131,7 +131,7 @@ func (s *Store) UpdateRunOutputContext(ctx context.Context, runID, output string
 func (s *Store) MarkInterruptedContext(ctx context.Context, runID, output string) error {
 	_, err := s.db.ExecContext(ctx,
 		`UPDATE runs SET status = ?, output_text = ?, updated_at = ? WHERE run_id = ?`,
-		string(events.RunStatusInterrupted),
+		string(domain.RunStatusInterrupted),
 		output,
 		formatTimestamp(time.Now()),
 		runID,
@@ -142,7 +142,7 @@ func (s *Store) MarkInterruptedContext(ctx context.Context, runID, output string
 	return nil
 }
 
-func (s *Store) LoadRun(ctx context.Context, runID string) (*events.RunRecord, error) {
+func (s *Store) LoadRun(ctx context.Context, runID string) (*domain.RunRecord, error) {
 	row := s.db.QueryRowContext(ctx, `SELECT run_id, session_id, turn_index, status, input_text, output_text, error_text, created_at, updated_at FROM runs WHERE run_id = ?`, runID)
 	rec, err := scanRunRecord(row)
 	if err != nil {
@@ -154,14 +154,14 @@ func (s *Store) LoadRun(ctx context.Context, runID string) (*events.RunRecord, e
 	return rec, nil
 }
 
-func (s *Store) ListActiveRuns(ctx context.Context, limit int) ([]events.RunRecord, error) {
+func (s *Store) ListActiveRuns(ctx context.Context, limit int) ([]domain.RunRecord, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT run_id, session_id, turn_index, status, input_text, output_text, error_text, created_at, updated_at
 		 FROM runs
 		 WHERE status = ? AND session_id <> ''
 		 ORDER BY updated_at DESC
 		 LIMIT ?`,
-		string(events.RunStatusRunning),
+		string(domain.RunStatusRunning),
 		normalizeRunListLimit(limit),
 	)
 	if err != nil {
@@ -170,16 +170,16 @@ func (s *Store) ListActiveRuns(ctx context.Context, limit int) ([]events.RunReco
 	return scanRunRows(rows, "list active runs")
 }
 
-func (s *Store) ListRecentTerminalRuns(ctx context.Context, limit int) ([]events.RunRecord, error) {
+func (s *Store) ListRecentTerminalRuns(ctx context.Context, limit int) ([]domain.RunRecord, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT run_id, session_id, turn_index, status, input_text, output_text, error_text, created_at, updated_at
 		 FROM runs
 		 WHERE status IN (?, ?, ?) AND session_id <> ''
 		 ORDER BY updated_at DESC
 		 LIMIT ?`,
-		string(events.RunStatusSucceeded),
-		string(events.RunStatusInterrupted),
-		string(events.RunStatusFailed),
+		string(domain.RunStatusSucceeded),
+		string(domain.RunStatusInterrupted),
+		string(domain.RunStatusFailed),
 		normalizeRunListLimit(limit),
 	)
 	if err != nil {
@@ -195,9 +195,9 @@ func normalizeRunListLimit(limit int) int {
 	return limit
 }
 
-func scanRunRows(rows *sql.Rows, source string) ([]events.RunRecord, error) {
+func scanRunRows(rows *sql.Rows, source string) ([]domain.RunRecord, error) {
 	defer rows.Close()
-	items := make([]events.RunRecord, 0)
+	items := make([]domain.RunRecord, 0)
 	for rows.Next() {
 		record, err := scanRunRecord(rows)
 		if err != nil {
@@ -211,7 +211,7 @@ func scanRunRows(rows *sql.Rows, source string) ([]events.RunRecord, error) {
 	return items, nil
 }
 
-func (s *Store) LoadEvents(ctx context.Context, runID string) ([]events.EventRecord, error) {
+func (s *Store) LoadEvents(ctx context.Context, runID string) ([]domain.EventRecord, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT sequence, kind, payload_json, created_at FROM events WHERE run_id = ? ORDER BY sequence ASC`, runID)
 	if err != nil {
 		return nil, fmt.Errorf("query events: %w", err)
@@ -219,7 +219,7 @@ func (s *Store) LoadEvents(ctx context.Context, runID string) ([]events.EventRec
 	return scanEventRows(rows, runID)
 }
 
-func (s *Store) LoadEventsAfter(ctx context.Context, runID string, afterSeq int64) ([]events.EventRecord, error) {
+func (s *Store) LoadEventsAfter(ctx context.Context, runID string, afterSeq int64) ([]domain.EventRecord, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT sequence, kind, payload_json, created_at FROM events WHERE run_id = ? AND sequence > ? ORDER BY sequence ASC`, runID, afterSeq)
 	if err != nil {
 		return nil, fmt.Errorf("query events after: %w", err)
@@ -227,9 +227,9 @@ func (s *Store) LoadEventsAfter(ctx context.Context, runID string, afterSeq int6
 	return scanEventRows(rows, runID)
 }
 
-func scanEventRows(rows *sql.Rows, runID string) ([]events.EventRecord, error) {
+func scanEventRows(rows *sql.Rows, runID string) ([]domain.EventRecord, error) {
 	defer rows.Close()
-	items := make([]events.EventRecord, 0)
+	items := make([]domain.EventRecord, 0)
 	for rows.Next() {
 		var (
 			seq     int64
@@ -248,7 +248,7 @@ func scanEventRows(rows *sql.Rows, runID string) ([]events.EventRecord, error) {
 		if err != nil {
 			return nil, err
 		}
-		items = append(items, events.EventRecord{Sequence: seq, RunID: runID, Kind: kind, Payload: body, CreatedAt: parsed})
+		items = append(items, domain.EventRecord{Sequence: seq, RunID: runID, Kind: kind, Payload: body, CreatedAt: parsed})
 	}
 	return items, rows.Err()
 }

@@ -13,11 +13,6 @@ func buildContainerAppServices(cfg *config.Config, store containerAppStore, deps
 	}
 
 	container.runResume = NewRunResumeService(store).WithResume(deps.executors)
-	checkpoints, err := NewWorkingCheckpointService(deps.checkpointService)
-	if err != nil {
-		return nil, err
-	}
-	container.checkpoints = checkpoints
 	container.skills = NewSkillService(cfg, deps.loader)
 	workspaceRoot := ""
 	if deps.ws != nil {

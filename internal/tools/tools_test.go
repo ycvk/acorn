@@ -22,7 +22,7 @@ import (
 	einotool "github.com/cloudwego/eino/components/tool"
 	toolutils "github.com/cloudwego/eino/components/tool/utils"
 
-	"github.com/ycvk/acorn/internal/events"
+	"github.com/ycvk/acorn/internal/domain"
 	corestore "github.com/ycvk/acorn/internal/store"
 	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
 	"github.com/ycvk/acorn/internal/tooling"
@@ -614,10 +614,10 @@ func TestAskOperatorCreatesPendingActionAndInterrupts(t *testing.T) {
 		t.Fatalf("pending actions = %#v, want one", actions)
 	}
 	action := actions[0]
-	if action.Kind != events.PendingActionKindOperatorQuestion || action.ActionID != "operator_question:run_ask_operator:call_question" {
+	if action.Kind != domain.PendingActionKindOperatorQuestion || action.ActionID != "operator_question:run_ask_operator:call_question" {
 		t.Fatalf("pending action = %#v", action)
 	}
-	var payload events.OperatorQuestionPayload
+	var payload domain.OperatorQuestionPayload
 	if err := json.Unmarshal([]byte(action.PayloadJSON), &payload); err != nil {
 		t.Fatalf("unmarshal payload: %v", err)
 	}

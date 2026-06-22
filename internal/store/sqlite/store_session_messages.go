@@ -8,15 +8,15 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ycvk/acorn/internal/events"
+	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/store"
 )
 
-func (s *Store) AppendSessionMessage(ctx context.Context, sessionID string, turnIndex int, role, content, runID string) (*events.SessionMessageRecord, error) {
+func (s *Store) AppendSessionMessage(ctx context.Context, sessionID string, turnIndex int, role, content, runID string) (*domain.SessionMessageRecord, error) {
 	return s.AppendSessionMessageWithParts(ctx, sessionID, turnIndex, role, content, nil, runID)
 }
 
-func (s *Store) AppendSessionMessageWithParts(ctx context.Context, sessionID string, turnIndex int, role, content string, parts []SessionMessagePart, runID string) (*events.SessionMessageRecord, error) {
+func (s *Store) AppendSessionMessageWithParts(ctx context.Context, sessionID string, turnIndex int, role, content string, parts []SessionMessagePart, runID string) (*domain.SessionMessageRecord, error) {
 	now := time.Now().UTC()
 	contentParts, err := encodeSessionMessageParts(parts)
 	if err != nil {
@@ -43,7 +43,7 @@ func (s *Store) AppendSessionMessageWithParts(ctx context.Context, sessionID str
 	if _, err := s.db.ExecContext(ctx, `UPDATE sessions SET updated_at = ? WHERE session_id = ?`, formatTimestamp(now), sessionID); err != nil {
 		return nil, fmt.Errorf("touch session updated_at: %w", err)
 	}
-	return &events.SessionMessageRecord{
+	return &domain.SessionMessageRecord{
 		ID:           id,
 		SessionID:    sessionID,
 		TurnIndex:    turnIndex,
@@ -79,7 +79,7 @@ func (s *Store) UpdateSessionMessageWithParts(ctx context.Context, id int64, con
 	return nil
 }
 
-func (s *Store) ListSessionMessages(ctx context.Context, sessionID string, limit int) ([]events.SessionMessageRecord, error) {
+func (s *Store) ListSessionMessages(ctx context.Context, sessionID string, limit int) ([]domain.SessionMessageRecord, error) {
 	if limit <= 0 {
 		limit = 20
 	}
@@ -98,10 +98,10 @@ func (s *Store) ListSessionMessages(ctx context.Context, sessionID string, limit
 	}
 	defer rows.Close()
 
-	items := make([]events.SessionMessageRecord, 0)
+	items := make([]domain.SessionMessageRecord, 0)
 	for rows.Next() {
 		var (
-			rec          events.SessionMessageRecord
+			rec          domain.SessionMessageRecord
 			contentParts string
 			created      string
 		)
@@ -134,7 +134,7 @@ func (s *Store) NextSessionMessageTurnIndex(ctx context.Context, sessionID strin
 	return current + 1, nil
 }
 
-func (s *Store) LoadLatestUnboundUserMessage(ctx context.Context, sessionID string) (*events.SessionMessageRecord, error) {
+func (s *Store) LoadLatestUnboundUserMessage(ctx context.Context, sessionID string) (*domain.SessionMessageRecord, error) {
 	row := s.db.QueryRowContext(ctx,
 		`SELECT id, session_id, turn_index, role, content, content_parts, run_id, created_at
 		 FROM session_messages
@@ -144,7 +144,7 @@ func (s *Store) LoadLatestUnboundUserMessage(ctx context.Context, sessionID stri
 		sessionID,
 	)
 	var (
-		rec          events.SessionMessageRecord
+		rec          domain.SessionMessageRecord
 		contentParts string
 		created      string
 	)
