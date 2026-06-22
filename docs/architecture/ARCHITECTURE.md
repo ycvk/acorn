@@ -1,16 +1,16 @@
 # Acorn 架构总入口
 
-Acorn 是 **single-user self-hosted agent backend + authenticated remote client API + Flutter mobile control surface**。后端以 Go/Eino 运行 agent、工具、计划、证据、trace、working checkpoint、file-backed memory 和必接入的 Bleve+FAISS semantic retrieval index。SQLite 是 runtime 事实来源；file-backed memory 是长期记忆事实。当前产品 control surface 是 `mobile/` Flutter app，通过 generated Dart client 消费 authenticated `/v1`。
+Acorn 是 **single-user self-hosted agent backend + authenticated remote client API + Flutter mobile control surface**。后端以 Go/Eino 运行 agent、工具、file-backed memory 和可选的 embedding+SQLite 语义检索。SQLite 是 runtime 事实来源（~8 张表）；file-backed memory 是长期记忆事实。当前产品 control surface 是 `mobile/` Flutter app，通过 generated Dart client 消费 authenticated `/v1`。
 
 ## 主链
 
 ```text
 operator CLI / authenticated remote clients
   -> app Container
-  -> remote client contracts (/healthz + /v1 + optional /mcp)
+  -> remote client contracts (/healthz + /v1)
   -> runtime Executor (consumer-owned store ports)
   -> RunnerFactory.buildRun (per-run assembly)
-  -> run selection policy + ContextPlane + OrchestrationPlane
+  -> ContextPlane + direct_response
   -> SQLite adapter / persisted truth
   -> Flutter mobile control surface
 ```
@@ -18,21 +18,20 @@ operator CLI / authenticated remote clients
 ## 主要包职责
 
 - `internal/app/` — 装配 app service、runtime executor、run resume service、web dependencies；唯一允许直接 import sqlite 的 composition root。
-- `internal/runtime/` — Executor（session/run 创建、root mode routing、执行、finalization）+ RunnerFactory（per-run assembly）+ toolset/ 子包（memory tools + Toolset 容器）。
-- `internal/contextplane/` — run 上下文边界、prepared memory、deferred tool loading、tool lifecycle、budget governance；`compaction/` 子包管 proactive compact + post-compact rehydration。
-- `internal/orchestration/` — public root `direct_response` / `plan_execute` assembly + 内部 child-run `single_agent` assembly。
-- `internal/memorymodule/` — file-backed memory（facts/skills/history）、search、prepare、semantic retrieval（Bleve+FAISS）。
-- `internal/runtime/` 的 `RunnerFactory` 内联 run selection 逻辑（`runner_build_selection.go` 的 `resolveRunSelectionByDecision`），消费 explicit skill + skill candidates + working context，不持久化 decision record。
-- `internal/store/` + `internal/store/sqlite/` — 跨包 store-facing records、ledger contracts、sentinel errors + SQLite adapter（sessions/runs/events/plans/checkpoints/archives/context boundaries/tool results/artifacts）。
+- `internal/runtime/` — Executor（session/run 创建、执行、finalization）+ RunnerFactory（per-run assembly）+ toolset/ 子包（memory tools + Toolset 容器）。
+- `internal/contextplane/` — run 上下文装配、observation masking、LLM auto-compact、deferred tool loading、tool lifecycle。
+- `internal/orchestration/` — direct_response assembly + AgentLoop + ExecuteRound。单一编排模式。
+- `internal/memorymodule/` — file-backed memory（facts/history）、search、prepare、semantic retrieval（embedding + SQLite 暴力余弦相似度）。
+- `internal/store/` + `internal/store/sqlite/` — 跨包 store-facing records、sentinel errors + SQLite adapter（sessions/messages/runs/events/pending_actions/devices/pairing_codes/owner_profile）。
 - `internal/web/` — `/v1` client surface + device bearer auth middleware；live RunEvent 从 `events` 表投影 mobile live subset。
 - `mobile/` — Flutter app，通过 generated Dart client 消费 `/v1`；不执行 runtime、不维护第二套 message lifecycle。
 
 ## 子架构文档
 
-- [runtime-execution.md](runtime-execution.md) — Executor、run lifecycle、root mode routing。
-- [runtime-orchestration.md](runtime-orchestration.md) — OrchestrationPlane、assembly、child-agent contract。
-- [runtime-context-memory-decision.md](runtime-context-memory-decision.md) — ContextPlane、MemoryModule、run selection、tool lifecycle。
-- [data-web-store.md](data-web-store.md) — SQLite truth、events/runs/plans、remote client DTO/API。
+- [runtime-execution.md](runtime-execution.md) — Executor、run lifecycle。
+- [runtime-orchestration.md](runtime-orchestration.md) — direct_response assembly、AgentLoop。
+- [runtime-context-memory-decision.md](runtime-context-memory-decision.md) — ContextPlane、hybrid context、MemoryModule。
+- [data-web-store.md](data-web-store.md) — SQLite truth、events/runs、remote client DTO/API。
 - [mobile-control-surface.md](mobile-control-surface.md) — Flutter app、generated client、事实边界。
 - [self-hosted onboarding](../user/self-hosted-onboarding.md) — VPS binary service、pairing、storage。
 
