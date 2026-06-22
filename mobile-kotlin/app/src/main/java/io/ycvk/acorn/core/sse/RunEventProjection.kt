@@ -1,29 +1,121 @@
 package io.ycvk.acorn.core.sse
 
-import io.ycvk.acorn.api.models.ClientRunStartedEvent
-
 /**
- * Projects a stream of run events into UI state.
+ * Projects a stream of [RunEventPacket]s into [ChatState] for a chat screen.
  *
- * Skeleton for B2: the concrete projection (assistant message assembly, run lifecycle,
- * pending-action surfacing) is implemented alongside the real RunEvent deserializer.
+ * Accumulates assistant text from streaming deltas, finalises on agent.message /
+ * run.completed, tracks run lifecycle, and surfaces pending actions as activity rows.
  */
 class RunEventProjection {
 
-    /**
-     * Applies [event] to the projection. Returns the new accumulated state, or the
-     * previous state if the event is ignored. B2 will populate the real state machine.
-     */
-    fun apply(state: RunEventProjectionState, event: ClientRunStartedEvent): RunEventProjectionState {
-        // TODO(b2): implement run-event → UI state projection.
-        return state.copy(lastSeq = event.seq)
+    fun apply(state: ChatState, packet: RunEventPacket): ChatState {
+        return when (packet) {
+            is RunEventPacket.Started -> state.copy(
+                isStreaming = true,
+                runStatus = RunStatus.Running,
+                assistantText = "",
+                assistantReasoning = "",
+            )
+
+            is RunEventPacket.AssistantDelta -> {
+                val delta = packet.event.data.assistantDelta
+                state.copy(
+                    assistantText = state.assistantText + (delta.delta ?: ""),
+                    assistantReasoning = state.assistantReasoning + (delta.reasoning ?: ""),
+                    isStreaming = true,
+                )
+            }
+
+            is RunEventPacket.AgentMessage -> {
+                val msg = packet.event.data.message
+                state.copy(
+                    assistantText = msg?.content ?: state.assistantText,
+                    assistantReasoning = msg?.reasoning ?: state.assistantReasoning,
+                )
+            }
+
+            is RunEventPacket.RunCompleted -> {
+                val msg = packet.event.data.message
+                state.copy(
+                    assistantText = msg?.content ?: state.assistantText,
+                    assistantReasoning = msg?.reasoning ?: state.assistantReasoning,
+                    isStreaming = false,
+                    runStatus = RunStatus.Completed,
+                )
+            }
+
+            is RunEventPacket.RunFailed -> state.copy(
+                isStreaming = false,
+                runStatus = RunStatus.Failed,
+            )
+
+            is RunEventPacket.RunInterrupted -> state.copy(
+                isStreaming = false,
+                runStatus = RunStatus.Interrupted,
+            )
+
+            is RunEventPacket.RunResumeRequested -> state.copy(
+                activities = state.activities + ActivityItem(
+                    id = packet.eventId,
+                    label = "Resume requested",
+                    kind = ActivityKind.ResumeRequested,
+                ),
+            )
+
+            is RunEventPacket.ElicitationPending -> state.copy(
+                activities = state.activities + ActivityItem(
+                    id = packet.eventId,
+                    label = "Elicitation pending",
+                    kind = ActivityKind.Elicitation,
+                ),
+            )
+
+            is RunEventPacket.ElicitationDecided -> state.copy(
+                activities = state.activities.filter { it.id != packet.eventId },
+            )
+
+            is RunEventPacket.OperatorQuestionPending -> state.copy(
+                activities = state.activities + ActivityItem(
+                    id = packet.eventId,
+                    label = "Operator question",
+                    kind = ActivityKind.OperatorQuestion,
+                ),
+            )
+
+            is RunEventPacket.OperatorQuestionDecided -> state.copy(
+                activities = state.activities.filter { it.id != packet.eventId },
+            )
+
+            is RunEventPacket.DecisionBlocked -> state.copy(
+                activities = state.activities + ActivityItem(
+                    id = packet.eventId,
+                    label = "Decision blocked",
+                    kind = ActivityKind.DecisionBlocked,
+                ),
+            )
+
+            is RunEventPacket.Unknown -> state // ignore unknown events
+        }
     }
 }
 
 /**
- * Snapshot of the projected run state. B2 will expand this into the real view model.
+ * Snapshot of the projected chat state for a single run.
  */
-data class RunEventProjectionState(
-    val lastSeq: Long = 0L,
-    val terminal: Boolean = false,
+data class ChatState(
+    val assistantText: String = "",
+    val assistantReasoning: String = "",
+    val isStreaming: Boolean = false,
+    val runStatus: RunStatus = RunStatus.Idle,
+    val activities: List<ActivityItem> = emptyList(),
 )
+
+enum class RunStatus { Idle, Running, Completed, Failed, Interrupted }
+
+data class ActivityItem(
+    val id: String,
+    val label: String,
+    val kind: ActivityKind,
+)
+
+enum class ActivityKind { ResumeRequested, Elicitation, OperatorQuestion, DecisionBlocked }
