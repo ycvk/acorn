@@ -32,29 +32,23 @@ type SkillLoader interface {
 	ScanSkills(context.Context) (*ScanResult, error)
 	CreateSkill(context.Context, CreateInput) (*Spec, error)
 	WriteSkillFile(context.Context, string, string, string) error
-	UpdateSkillLifecycle(context.Context, string, LifecycleUpdate) (*Spec, error)
 }
 
 type CreateInput struct {
-	ID              string
-	Name            string
-	Version         string
-	Category        string
-	Summary         string
-	PromotedFrom    string
-	Origin          Origin
-	LifecycleStatus LifecycleStatus
-	TaskPattern     string
-	Instruction     string
-	Tags            []string
-	Platforms       []string
-	TriggerHints    []string
-	Requires        Requirements
-	CreatedByRunID  string
-	UpdatedByRunID  string
-	EvidenceRefs    []string
-	Replaces        []string
-	ReplacedBy      []string
+	ID             string
+	Name           string
+	Version        string
+	Category       string
+	Summary        string
+	PromotedFrom   string
+	Origin         Origin
+	TaskPattern    string
+	Instruction    string
+	Tags           []string
+	Platforms      []string
+	TriggerHints   []string
+	Requires       Requirements
+	CreatedByRunID string
 }
 
 type sourceRoot struct {

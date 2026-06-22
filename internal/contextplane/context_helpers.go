@@ -126,9 +126,6 @@ func skillCatalogBrief(snapshot *skills.Snapshot) string {
 	}
 	views := make([]skills.View, 0, len(snapshot.Skills))
 	for _, item := range snapshot.Skills {
-		if item.LifecycleStatus == skills.LifecycleRetired {
-			continue
-		}
 		views = append(views, skills.CopyView(item))
 	}
 	if len(views) == 0 {

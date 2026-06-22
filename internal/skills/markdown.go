@@ -8,24 +8,19 @@ import (
 )
 
 type frontmatter struct {
-	ID              string            `yaml:"id"`
-	Name            string            `yaml:"name"`
-	Version         string            `yaml:"version,omitempty"`
-	Category        string            `yaml:"category,omitempty"`
-	Summary         string            `yaml:"summary,omitempty"`
-	PromotedFrom    string            `yaml:"promoted_from,omitempty"`
-	Origin          Origin            `yaml:"origin,omitempty"`
-	LifecycleStatus LifecycleStatus   `yaml:"lifecycle_status,omitempty"`
-	TaskPattern     string            `yaml:"task_pattern,omitempty"`
-	Tags            []string          `yaml:"tags,omitempty"`
-	Platforms       []string          `yaml:"platforms,omitempty"`
-	Requires        frontRequirements `yaml:"requires,omitempty"`
-	TriggerHints    []string          `yaml:"trigger_hints,omitempty"`
-	CreatedByRunID  string            `yaml:"created_by_run_id,omitempty"`
-	UpdatedByRunID  string            `yaml:"updated_by_run_id,omitempty"`
-	EvidenceRefs    []string          `yaml:"evidence_refs,omitempty"`
-	Replaces        []string          `yaml:"replaces,omitempty"`
-	ReplacedBy      []string          `yaml:"replaced_by,omitempty"`
+	ID             string            `yaml:"id"`
+	Name           string            `yaml:"name"`
+	Version        string            `yaml:"version,omitempty"`
+	Category       string            `yaml:"category,omitempty"`
+	Summary        string            `yaml:"summary,omitempty"`
+	PromotedFrom   string            `yaml:"promoted_from,omitempty"`
+	Origin         Origin            `yaml:"origin,omitempty"`
+	TaskPattern    string            `yaml:"task_pattern,omitempty"`
+	Tags           []string          `yaml:"tags,omitempty"`
+	Platforms      []string          `yaml:"platforms,omitempty"`
+	Requires       frontRequirements `yaml:"requires,omitempty"`
+	TriggerHints   []string          `yaml:"trigger_hints,omitempty"`
+	CreatedByRunID string            `yaml:"created_by_run_id,omitempty"`
 }
 
 type frontRequirements struct {

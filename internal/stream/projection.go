@@ -82,8 +82,6 @@ func streamKindToEventKind(kind StreamItemKind) string {
 		return "skill.loaded"
 	case StreamKindSkillFailed:
 		return "skill.failed"
-	case StreamKindSkillLifecycle:
-		return "skill.lifecycle"
 	case StreamKindProcedureActivation:
 		return "procedure.activation"
 	case StreamKindMemoryPrepared:

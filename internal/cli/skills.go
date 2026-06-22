@@ -4,13 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/ycvk/acorn/internal/app"
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/skills"
-	"gopkg.in/yaml.v3"
 )
 
 func runSkills(ctx context.Context, args []string) error {
@@ -83,12 +81,7 @@ func runSkillsCheck(ctx context.Context, args []string) error {
 	fs := newFlagSet("skills check")
 	configPath := addConfigFlag(fs)
 	jsonMode := fs.Bool("json", false, "print skill health report as JSON")
-	fixturesPath := fs.String("fixtures", "", "YAML file with routing fixtures")
 	if err := fs.Parse(args); err != nil {
-		return err
-	}
-	fixtures, err := loadRoutingFixtures(*fixturesPath)
-	if err != nil {
 		return err
 	}
 	cfg, err := config.Load(*configPath)
@@ -96,7 +89,7 @@ func runSkillsCheck(ctx context.Context, args []string) error {
 		return err
 	}
 	service := app.NewSkillService(cfg, skills.NewLoader(cfg))
-	report, err := service.Health(ctx, fixtures)
+	report, err := service.Health(ctx)
 	if err != nil {
 		return err
 	}
@@ -108,22 +101,6 @@ func runSkillsCheck(ctx context.Context, args []string) error {
 		fmt.Println(renderSkillsCheck(*report))
 	}
 	return skillCheckError(*report)
-}
-
-func loadRoutingFixtures(path string) ([]skills.RoutingFixture, error) {
-	path = strings.TrimSpace(path)
-	if path == "" {
-		return nil, nil
-	}
-	body, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("read skill routing fixtures %s: %w", path, err)
-	}
-	var fixtures []skills.RoutingFixture
-	if err := yaml.Unmarshal(body, &fixtures); err != nil {
-		return nil, fmt.Errorf("parse skill routing fixtures %s: %w", path, err)
-	}
-	return fixtures, nil
 }
 
 func runSkillsCreate(ctx context.Context, args []string) error {
@@ -264,13 +241,7 @@ func renderSkillsCheck(report skills.HealthReport) string {
 	for _, failure := range report.Failures {
 		lines = append(lines, "- failure "+renderHealthFailure(failure))
 	}
-	for _, observation := range report.Observations {
-		lines = append(lines, "- observation "+renderHealthObservation(observation))
-	}
-	for _, fixture := range report.Fixtures {
-		lines = append(lines, "- fixture "+renderRoutingFixtureResult(fixture))
-	}
-	if len(report.Failures) == 0 && len(report.Observations) == 0 && len(report.Fixtures) == 0 {
+	if len(report.Failures) == 0 {
 		lines = append(lines, "- no health findings")
 	}
 	return strings.Join(lines, "\n")
@@ -278,41 +249,13 @@ func renderSkillsCheck(report skills.HealthReport) string {
 
 func renderHealthFailure(failure skills.HealthFailure) string {
 	parts := []string{string(failure.Kind)}
-	if label := firstNonEmpty(failure.SkillID, failure.Fixture, failure.Path); label != "" {
+	if label := firstNonEmpty(failure.SkillID, failure.Path); label != "" {
 		parts = append(parts, label)
 	}
 	if failure.Message != "" {
 		parts = append(parts, failure.Message)
 	}
 	return strings.Join(parts, ": ")
-}
-
-func renderHealthObservation(observation skills.HealthObservation) string {
-	parts := []string{string(observation.Kind)}
-	if label := firstNonEmpty(observation.SkillID, observation.Path); label != "" {
-		parts = append(parts, label)
-	}
-	if observation.Message != "" {
-		parts = append(parts, observation.Message)
-	}
-	return strings.Join(parts, ": ")
-}
-
-func renderRoutingFixtureResult(fixture skills.RoutingFixtureResult) string {
-	parts := []string{fixture.ID, string(fixture.Status)}
-	if fixture.ExpectedSkill != "" {
-		parts = append(parts, "expected="+fixture.ExpectedSkill)
-	}
-	if fixture.ActualSkill != "" {
-		parts = append(parts, "actual="+fixture.ActualSkill)
-	}
-	if len(fixture.Candidates) > 0 {
-		parts = append(parts, "candidates="+strings.Join(fixture.Candidates, ","))
-	}
-	if fixture.Error != "" {
-		parts = append(parts, "error="+fixture.Error)
-	}
-	return strings.Join(parts, " ")
 }
 
 func skillCheckError(report skills.HealthReport) error {

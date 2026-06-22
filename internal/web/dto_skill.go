@@ -13,24 +13,19 @@ type SkillRequirementsDTO struct {
 }
 
 type SkillSummaryDTO struct {
-	ID              string                 `json:"id"`
-	Name            string                 `json:"name"`
-	Version         string                 `json:"version"`
-	Category        string                 `json:"category,omitempty"`
-	Source          string                 `json:"source"`
-	Origin          skills.Origin          `json:"origin"`
-	LifecycleStatus skills.LifecycleStatus `json:"lifecycle_status"`
-	TaskPattern     string                 `json:"task_pattern,omitempty"`
-	Summary         string                 `json:"summary,omitempty"`
-	PromotedFrom    string                 `json:"promoted_from,omitempty"`
-	Eligible        bool                   `json:"eligible"`
-	Requirements    SkillRequirementsDTO   `json:"requirements,omitempty"`
-	DisabledReasons []string               `json:"disabled_reasons,omitempty"`
-	CreatedByRunID  string                 `json:"created_by_run_id,omitempty"`
-	UpdatedByRunID  string                 `json:"updated_by_run_id,omitempty"`
-	EvidenceRefs    []string               `json:"evidence_refs,omitempty"`
-	Replaces        []string               `json:"replaces,omitempty"`
-	ReplacedBy      []string               `json:"replaced_by,omitempty"`
+	ID              string               `json:"id"`
+	Name            string               `json:"name"`
+	Version         string               `json:"version"`
+	Category        string               `json:"category,omitempty"`
+	Source          string               `json:"source"`
+	Origin          skills.Origin        `json:"origin"`
+	TaskPattern     string               `json:"task_pattern,omitempty"`
+	Summary         string               `json:"summary,omitempty"`
+	PromotedFrom    string               `json:"promoted_from,omitempty"`
+	Eligible        bool                 `json:"eligible"`
+	Requirements    SkillRequirementsDTO `json:"requirements,omitempty"`
+	DisabledReasons []string             `json:"disabled_reasons,omitempty"`
+	CreatedByRunID  string               `json:"created_by_run_id,omitempty"`
 }
 
 type SkillDetailDTO struct {
@@ -65,7 +60,6 @@ func skillSummaryDTOFromView(item skills.View) SkillSummaryDTO {
 		Category:        item.Category,
 		Source:          item.Source,
 		Origin:          item.Origin,
-		LifecycleStatus: item.LifecycleStatus,
 		TaskPattern:     item.TaskPattern,
 		Summary:         item.Summary,
 		PromotedFrom:    item.PromotedFrom,
@@ -73,10 +67,6 @@ func skillSummaryDTOFromView(item skills.View) SkillSummaryDTO {
 		Requirements:    skillRequirementsDTOFromDomain(item.Requires),
 		DisabledReasons: append([]string(nil), item.DisabledReasons...),
 		CreatedByRunID:  item.CreatedByRunID,
-		UpdatedByRunID:  item.UpdatedByRunID,
-		EvidenceRefs:    append([]string(nil), item.EvidenceRefs...),
-		Replaces:        append([]string(nil), item.Replaces...),
-		ReplacedBy:      append([]string(nil), item.ReplacedBy...),
 	}
 }
 

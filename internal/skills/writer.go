@@ -56,17 +56,16 @@ func (l *Loader) writeSkillDir(dir string, normalized CreateInput) (*Spec, error
 
 func buildCreateFrontmatter(normalized CreateInput) frontmatter {
 	return frontmatter{
-		ID:              normalized.ID,
-		Name:            normalized.Name,
-		Version:         normalized.Version,
-		Category:        normalized.Category,
-		Summary:         normalized.Summary,
-		PromotedFrom:    normalized.PromotedFrom,
-		Origin:          normalized.Origin,
-		LifecycleStatus: normalized.LifecycleStatus,
-		TaskPattern:     normalized.TaskPattern,
-		Tags:            append([]string(nil), normalized.Tags...),
-		Platforms:       append([]string(nil), normalized.Platforms...),
+		ID:           normalized.ID,
+		Name:         normalized.Name,
+		Version:      normalized.Version,
+		Category:     normalized.Category,
+		Summary:      normalized.Summary,
+		PromotedFrom: normalized.PromotedFrom,
+		Origin:       normalized.Origin,
+		TaskPattern:  normalized.TaskPattern,
+		Tags:         append([]string(nil), normalized.Tags...),
+		Platforms:    append([]string(nil), normalized.Platforms...),
 		Requires: frontRequirements{
 			Tools:    append([]string(nil), normalized.Requires.Tools...),
 			Toolsets: append([]string(nil), normalized.Requires.Toolsets...),
@@ -75,10 +74,6 @@ func buildCreateFrontmatter(normalized CreateInput) frontmatter {
 		},
 		TriggerHints:   append([]string(nil), normalized.TriggerHints...),
 		CreatedByRunID: normalized.CreatedByRunID,
-		UpdatedByRunID: normalized.UpdatedByRunID,
-		EvidenceRefs:   append([]string(nil), normalized.EvidenceRefs...),
-		Replaces:       append([]string(nil), normalized.Replaces...),
-		ReplacedBy:     append([]string(nil), normalized.ReplacedBy...),
 	}
 }
 

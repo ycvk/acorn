@@ -141,9 +141,6 @@ func TestScanSkillsLoadsBuiltinAndGeneratedSources(t *testing.T) {
 	writeTestSkillDir(t, filepath.Join(root, "skills", "skill.inspect"), `---
 id: skill.inspect
 name: Inspect
-lifecycle_status: verified
-evidence_refs:
-  - builtin:test
 ---
 
 # Inspect
@@ -153,7 +150,6 @@ Inspect the repo.
 	writeTestSkillDir(t, filepath.Join(root, ".acorn", "skills", "generated", "skill.generated"), `---
 id: skill.generated
 name: Generated
-lifecycle_status: draft
 ---
 
 # Generated
@@ -175,14 +171,8 @@ Use generated instructions.
 	if byID["skill.inspect"].Source != BuiltinScope {
 		t.Fatalf("builtin source = %q", byID["skill.inspect"].Source)
 	}
-	if byID["skill.inspect"].LifecycleStatus != LifecycleVerified {
-		t.Fatalf("builtin lifecycle = %q", byID["skill.inspect"].LifecycleStatus)
-	}
 	if byID["skill.generated"].Source != GeneratedScope {
 		t.Fatalf("generated source = %q", byID["skill.generated"].Source)
-	}
-	if byID["skill.generated"].LifecycleStatus != LifecycleDraft {
-		t.Fatalf("generated lifecycle = %q", byID["skill.generated"].LifecycleStatus)
 	}
 }
 
@@ -191,9 +181,6 @@ func TestGeneratedSkillCannotShadowBuiltin(t *testing.T) {
 	writeTestSkillDir(t, filepath.Join(root, "skills", "skill.inspect"), `---
 id: skill.inspect
 name: Builtin Inspect
-lifecycle_status: verified
-evidence_refs:
-  - builtin:test
 ---
 
 # Builtin Inspect
@@ -203,7 +190,6 @@ Builtin instructions.
 	writeTestSkillDir(t, filepath.Join(root, ".acorn", "skills", "generated", "skill.inspect"), `---
 id: skill.inspect
 name: Generated Inspect
-lifecycle_status: draft
 ---
 
 # Generated Inspect
@@ -231,9 +217,6 @@ func TestBuiltinSkillIsReadOnly(t *testing.T) {
 	writeTestSkillDir(t, filepath.Join(root, "skills", "skill.inspect"), `---
 id: skill.inspect
 name: Builtin Inspect
-lifecycle_status: verified
-evidence_refs:
-  - builtin:test
 ---
 
 # Builtin Inspect
@@ -250,70 +233,6 @@ Builtin instructions.
 	}
 	if !strings.Contains(err.Error(), "source=builtin") {
 		t.Fatalf("error = %v, want source=builtin", err)
-	}
-	if _, err := loader.UpdateSkillLifecycle(context.Background(), "skill.inspect", LifecycleUpdate{Status: LifecycleRetired}); err == nil {
-		t.Fatal("expected builtin lifecycle update to fail")
-	}
-}
-
-func TestVerifiedGeneratedSkillRequiresEvidence(t *testing.T) {
-	dir := t.TempDir()
-	writeTestSkill(t, dir, `---
-id: skill.generated
-name: Generated Skill
-lifecycle_status: verified
----
-
-# Generated Skill
-
-Use generated instructions.
-`)
-	_, problem := loadSkillDir(dir, GeneratedScope)
-	if problem == nil {
-		t.Fatal("expected skill problem")
-	}
-	if !strings.Contains(problem.Error, "verified requires evidence_refs") {
-		t.Fatalf("problem = %q, want evidence failure", problem.Error)
-	}
-}
-
-func TestUpdateSkillLifecyclePersistsEvidence(t *testing.T) {
-	root := t.TempDir()
-	cfg := config.DefaultConfig()
-	cfg.Tools.Workspace.RootDir = root
-	cfg.Runtime.StorageDir = filepath.Join(root, ".acorn")
-	loader := newTestLoader(t, cfg)
-	ctx := context.Background()
-
-	created, err := loader.CreateSkill(ctx, CreateInput{
-		ID:              "skill.generated",
-		Name:            "Generated",
-		Instruction:     "Use generated workflow.",
-		LifecycleStatus: LifecycleDraft,
-	})
-	if err != nil {
-		t.Fatalf("CreateSkill: %v", err)
-	}
-	if created.LifecycleStatus != LifecycleDraft {
-		t.Fatalf("created lifecycle = %q", created.LifecycleStatus)
-	}
-
-	updated, err := loader.UpdateSkillLifecycle(ctx, "skill.generated", LifecycleUpdate{
-		Status:         LifecycleVerified,
-		EvidenceRefs:   []string{"child_run:run_eval"},
-		UpdatedByRunID: "run_parent",
-	})
-	if err != nil {
-		t.Fatalf("UpdateSkillLifecycle: %v", err)
-	}
-	if updated.LifecycleStatus != LifecycleVerified {
-		t.Fatalf("updated lifecycle = %q", updated.LifecycleStatus)
-	}
-	if !reflect.DeepEqual(updated.EvidenceRefs, []string{"child_run:run_eval"}) {
-		t.Fatalf("evidence refs = %#v", updated.EvidenceRefs)
-	}
-	if updated.UpdatedByRunID != "run_parent" {
-		t.Fatalf("updated_by_run_id = %q", updated.UpdatedByRunID)
 	}
 }
 
@@ -347,7 +266,7 @@ func TestSkillCreateToolWritesGeneratedPackage(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &spec); err != nil {
 		t.Fatalf("unmarshal output: %v", err)
 	}
-	if spec.ID != "skill.generated" || spec.Source != GeneratedScope || spec.LifecycleStatus != LifecycleDraft {
+	if spec.ID != "skill.generated" || spec.Source != GeneratedScope {
 		t.Fatalf("spec = %#v", spec)
 	}
 	if !reflect.DeepEqual(spec.Files, []string{"SKILL.md", "references/notes.md"}) {

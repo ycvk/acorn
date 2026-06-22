@@ -13,7 +13,6 @@ const (
 	StreamKindSkillSelected       StreamItemKind = "skill_selected"
 	StreamKindSkillLoaded         StreamItemKind = "skill_loaded"
 	StreamKindSkillFailed         StreamItemKind = "skill_failed"
-	StreamKindSkillLifecycle      StreamItemKind = "skill.lifecycle"
 	StreamKindProcedureActivation StreamItemKind = "procedure.activation"
 	StreamKindMemoryPrepared      StreamItemKind = "memory_prepared"
 	StreamKindAssistantDelta      StreamItemKind = "assistant.delta"

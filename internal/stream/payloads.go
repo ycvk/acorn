@@ -74,19 +74,6 @@ type StreamSkill struct {
 	FailureReason     string                  `json:"failure_reason,omitempty"`
 }
 
-type StreamSkillLifecycle struct {
-	SkillID         string         `json:"skill_id"`
-	Action          string         `json:"action"`
-	Status          string         `json:"status,omitempty"`
-	Verdict         string         `json:"verdict,omitempty"`
-	Reason          string         `json:"reason,omitempty"`
-	EvidenceRefs    []string       `json:"evidence_refs,omitempty"`
-	AssessmentID    string         `json:"assessment_id,omitempty"`
-	ChangesRequired []string       `json:"changes_required,omitempty"`
-	Applied         bool           `json:"applied,omitempty"`
-	Assessment      map[string]any `json:"assessment,omitempty"`
-}
-
 type StreamSkillRequirements struct {
 	Tools    []string `json:"tools,omitempty"`
 	Toolsets []string `json:"toolsets,omitempty"`

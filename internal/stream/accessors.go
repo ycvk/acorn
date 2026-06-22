@@ -261,29 +261,6 @@ func (item StreamItem) GetSkill() *StreamSkill {
 	return skill
 }
 
-func (item StreamItem) GetSkillLifecycle() *StreamSkillLifecycle {
-	m := getPayloadMap(item)
-	if lc, ok := m["skill_lifecycle"].(*StreamSkillLifecycle); ok && lc != nil {
-		return lc
-	}
-	lcMap := getNestedMap(m, "skill_lifecycle")
-	if lcMap == nil {
-		return nil
-	}
-	return &StreamSkillLifecycle{
-		SkillID:         getString(lcMap, "skill_id"),
-		Action:          getString(lcMap, "action"),
-		Status:          getString(lcMap, "status"),
-		Verdict:         getString(lcMap, "verdict"),
-		Reason:          getString(lcMap, "reason"),
-		EvidenceRefs:    getStringSlice(lcMap, "evidence_refs"),
-		AssessmentID:    getString(lcMap, "assessment_id"),
-		ChangesRequired: getStringSlice(lcMap, "changes_required"),
-		Applied:         getBool(lcMap, "applied"),
-		Assessment:      getNestedMap(lcMap, "assessment"),
-	}
-}
-
 func (item StreamItem) GetMemoryPrepared() *StreamMemoryPrepared {
 	m := getPayloadMap(item)
 	if mem, ok := m["memory_prepared"].(*StreamMemoryPrepared); ok && mem != nil {

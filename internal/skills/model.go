@@ -21,16 +21,6 @@ const (
 	SourceUser      Source = "user"
 )
 
-type LifecycleStatus string
-
-const (
-	LifecycleDraft      LifecycleStatus = "draft"
-	LifecycleVerified   LifecycleStatus = "verified"
-	LifecycleUnverified LifecycleStatus = "unverified"
-	LifecycleNeedsEval  LifecycleStatus = "needs_eval"
-	LifecycleRetired    LifecycleStatus = "retired"
-)
-
 type ResourceSpec struct {
 	Path string `json:"path"`
 	Kind string `json:"kind,omitempty"`
@@ -45,66 +35,28 @@ type CreatorOutput struct {
 	Resources     []ResourceSpec `json:"resources,omitempty"`
 	Scripts       []ResourceSpec `json:"scripts,omitempty"`
 	SourceRunID   string         `json:"source_run_id,omitempty"`
-	EvidenceRefs  []string       `json:"evidence_refs,omitempty"`
-}
-
-type AssessmentVerdict string
-
-const (
-	AssessmentVerified  AssessmentVerdict = "verified"
-	AssessmentNeedsEval AssessmentVerdict = "needs_eval"
-	AssessmentRetired   AssessmentVerdict = "retired"
-)
-
-type SkillAssessment struct {
-	AssessmentID    string            `json:"assessment_id"`
-	SkillID         string            `json:"skill_id"`
-	Verdict         AssessmentVerdict `json:"verdict"`
-	Reason          string            `json:"reason"`
-	SourceRunID     string            `json:"source_run_id,omitempty"`
-	EvidenceRefs    []string          `json:"evidence_refs,omitempty"`
-	ChangesRequired []string          `json:"changes_required,omitempty"`
-	Applied         bool              `json:"applied"`
-}
-
-type LifecycleEvent struct {
-	SkillID         string           `json:"skill_id"`
-	Action          string           `json:"action"`
-	Status          string           `json:"status,omitempty"`
-	Verdict         string           `json:"verdict,omitempty"`
-	Reason          string           `json:"reason,omitempty"`
-	EvidenceRefs    []string         `json:"evidence_refs,omitempty"`
-	AssessmentID    string           `json:"assessment_id,omitempty"`
-	ChangesRequired []string         `json:"changes_required,omitempty"`
-	Applied         bool             `json:"applied"`
-	Assessment      *SkillAssessment `json:"assessment,omitempty"`
 }
 
 type Spec struct {
-	ID              string
-	Name            string
-	Version         string
-	Category        string
-	Summary         string
-	Description     string
-	Instruction     string
-	PromotedFrom    string
-	Source          string
-	Origin          Origin
-	LifecycleStatus LifecycleStatus
-	TaskPattern     string
-	Path            string
-	Scripts         []string
-	Files           []string
-	Tags            []string
-	Platforms       []string
-	TriggerHints    []string
-	Requires        Requirements
-	CreatedByRunID  string
-	UpdatedByRunID  string
-	EvidenceRefs    []string
-	Replaces        []string
-	ReplacedBy      []string
+	ID             string
+	Name           string
+	Version        string
+	Category       string
+	Summary        string
+	Description    string
+	Instruction    string
+	PromotedFrom   string
+	Source         string
+	Origin         Origin
+	TaskPattern    string
+	Path           string
+	Scripts        []string
+	Files          []string
+	Tags           []string
+	Platforms      []string
+	TriggerHints   []string
+	Requires       Requirements
+	CreatedByRunID string
 }
 
 type Requirements struct {
@@ -158,7 +110,6 @@ func NormalizeSpec(item Spec) (Spec, error) {
 	item.PromotedFrom = strings.TrimSpace(item.PromotedFrom)
 	item.Source = strings.TrimSpace(item.Source)
 	item.Origin = normalizeOrigin(item.Origin)
-	item.LifecycleStatus = normalizeLifecycleStatus(item.LifecycleStatus)
 	item.TaskPattern = strings.TrimSpace(item.TaskPattern)
 	item.Path = strings.TrimSpace(item.Path)
 	item.Scripts = uniqueNonEmpty(item.Scripts)
@@ -168,10 +119,6 @@ func NormalizeSpec(item Spec) (Spec, error) {
 	item.TriggerHints = uniqueNonEmpty(item.TriggerHints)
 	item.Requires = NormalizeRequirements(item.Requires)
 	item.CreatedByRunID = strings.TrimSpace(item.CreatedByRunID)
-	item.UpdatedByRunID = strings.TrimSpace(item.UpdatedByRunID)
-	item.EvidenceRefs = uniqueNonEmpty(item.EvidenceRefs)
-	item.Replaces = uniqueNonEmpty(item.Replaces)
-	item.ReplacedBy = uniqueNonEmpty(item.ReplacedBy)
 	if item.ID == "" {
 		return Spec{}, fmt.Errorf("skill id is required")
 	}
@@ -183,15 +130,6 @@ func NormalizeSpec(item Spec) (Spec, error) {
 	}
 	if item.Source == "" {
 		item.Source = "unknown"
-	}
-	if item.LifecycleStatus == "" {
-		item.LifecycleStatus = defaultLifecycleStatus(item.Source)
-	}
-	if err := validateLifecycleStatus(item.LifecycleStatus); err != nil {
-		return Spec{}, fmt.Errorf("skill %s %w", item.ID, err)
-	}
-	if item.LifecycleStatus == LifecycleVerified && item.Source != string(SourceBuiltin) && len(item.EvidenceRefs) == 0 {
-		return Spec{}, fmt.Errorf("skill %s lifecycle_status verified requires evidence_refs", item.ID)
 	}
 	switch item.Origin {
 	case "", OriginHuman:
@@ -208,30 +146,6 @@ func NormalizeSpec(item Spec) (Spec, error) {
 
 func normalizeOrigin(origin Origin) Origin {
 	return Origin(strings.TrimSpace(string(origin)))
-}
-
-func normalizeLifecycleStatus(status LifecycleStatus) LifecycleStatus {
-	return LifecycleStatus(strings.TrimSpace(string(status)))
-}
-
-func defaultLifecycleStatus(source string) LifecycleStatus {
-	switch strings.TrimSpace(source) {
-	case string(SourceBuiltin):
-		return LifecycleVerified
-	case string(SourceGenerated):
-		return LifecycleDraft
-	default:
-		return LifecycleUnverified
-	}
-}
-
-func validateLifecycleStatus(status LifecycleStatus) error {
-	switch status {
-	case LifecycleDraft, LifecycleVerified, LifecycleUnverified, LifecycleNeedsEval, LifecycleRetired:
-		return nil
-	default:
-		return fmt.Errorf("lifecycle_status %q is invalid", status)
-	}
 }
 
 func NormalizeRequirements(item Requirements) Requirements {
@@ -251,9 +165,6 @@ func CopySpec(item Spec) Spec {
 	copy.Platforms = append([]string(nil), item.Platforms...)
 	copy.TriggerHints = append([]string(nil), item.TriggerHints...)
 	copy.Requires = CopyRequirements(item.Requires)
-	copy.EvidenceRefs = append([]string(nil), item.EvidenceRefs...)
-	copy.Replaces = append([]string(nil), item.Replaces...)
-	copy.ReplacedBy = append([]string(nil), item.ReplacedBy...)
 	return copy
 }
 

@@ -40,7 +40,7 @@ func (s *SkillService) Snapshot(ctx context.Context) (*skills.Snapshot, error) {
 	return &copied, nil
 }
 
-func (s *SkillService) Health(ctx context.Context, fixtures []skills.RoutingFixture) (*skills.HealthReport, error) {
+func (s *SkillService) Health(ctx context.Context) (*skills.HealthReport, error) {
 	if s == nil || s.scanner == nil {
 		return nil, errors.New("stable skill scanner is nil")
 	}
@@ -48,7 +48,7 @@ func (s *SkillService) Health(ctx context.Context, fixtures []skills.RoutingFixt
 	if err != nil {
 		return nil, err
 	}
-	report, err := skills.BuildHealthReport(*scan, staticSkillEligibilityContext(s.cfg), fixtures)
+	report, err := skills.BuildHealthReport(*scan, staticSkillEligibilityContext(s.cfg))
 	if err != nil {
 		return nil, err
 	}

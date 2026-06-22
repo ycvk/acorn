@@ -155,7 +155,6 @@ func TestStreamKindToEventKind(t *testing.T) {
 		{StreamKindSkillSelected, "skill.selected"},
 		{StreamKindSkillLoaded, "skill.loaded"},
 		{StreamKindSkillFailed, "skill.failed"},
-		{StreamKindSkillLifecycle, "skill.lifecycle"},
 		{StreamKindProcedureActivation, "procedure.activation"},
 		{StreamKindMemoryPrepared, "memory.prepared"},
 		{"unknown.kind", "unknown.kind"},

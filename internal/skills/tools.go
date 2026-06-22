@@ -29,7 +29,6 @@ type ToolCreateInput struct {
 	Platforms    []string          `json:"platforms,omitempty" jsonschema:"description=Supported platforms"`
 	TriggerHints []string          `json:"trigger_hints,omitempty" jsonschema:"description=Selection trigger hints"`
 	Requires     Requirements      `json:"requirements,omitempty" jsonschema:"description=Required tools, toolsets, binaries, and env vars"`
-	EvidenceRefs []string          `json:"evidence_refs,omitempty" jsonschema:"description=Evidence refs supporting verified lifecycle status"`
 	Files        map[string]string `json:"files,omitempty" jsonschema:"description=Additional relative files to create inside the skill package"`
 }
 
@@ -90,7 +89,6 @@ func BuildAgentTools(loader SkillLoader) ([]einotool.BaseTool, error) {
 			Platforms:    append([]string(nil), input.Platforms...),
 			TriggerHints: append([]string(nil), input.TriggerHints...),
 			Requires:     CopyRequirements(input.Requires),
-			EvidenceRefs: append([]string(nil), input.EvidenceRefs...),
 		})
 		if err != nil {
 			return "", err

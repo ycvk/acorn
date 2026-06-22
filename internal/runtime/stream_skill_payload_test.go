@@ -91,33 +91,3 @@ func TestProjectStreamItemToEventProjectsSkillFailureReason(t *testing.T) {
 		t.Fatalf("unexpected failure_reason: %#v", skill)
 	}
 }
-
-func TestProjectStreamItemToEventProjectsSkillLifecycle(t *testing.T) {
-	kind, payload := mustProjectStreamItemToEvent(t, stream.StreamItem{
-		RunID: "run_7",
-		Kind:  stream.StreamKindSkillLifecycle,
-		Payload: map[string]any{"skill_lifecycle": &stream.StreamSkillLifecycle{
-			SkillID:         "skill.generated",
-			Action:          "assessed",
-			Status:          "verified",
-			Verdict:         "verified",
-			Reason:          "durable evidence-backed promotion",
-			EvidenceRefs:    []string{"child_run:run_eval"},
-			AssessmentID:    "skill_assessment_1",
-			ChangesRequired: []string{"none"},
-			Applied:         true,
-			Assessment:      map[string]any{"assessment_id": "skill_assessment_1"},
-		}},
-	})
-	if kind != "skill.lifecycle" {
-		t.Fatalf("kind = %q, want skill.lifecycle", kind)
-	}
-	body := payload.(map[string]any)
-	lifecycle := stream.StreamItem{Payload: body}.GetSkillLifecycle()
-	if lifecycle == nil {
-		t.Fatalf("unexpected payload: %#v", body)
-	}
-	if lifecycle.SkillID != "skill.generated" || lifecycle.Action != "assessed" {
-		t.Fatalf("unexpected lifecycle payload: %#v", lifecycle)
-	}
-}
