@@ -11,6 +11,7 @@
 - [Phase 4: MemoryModule 清理 + Embedding+SQLite](plans/2026-06-21-phase4-memorymodule-embedding-sqlite.md) — replace bleve/faiss with embedding+sqlite
 - [Phase 5: App + Web + OpenAPI 清理](plans/2026-06-21-phase5-app-web-openapi-cleanup.md) — remove mcp server/plan/skill-lifecycle API
 - [Phase 6: Flutter 重写 + Release 简化](plans/2026-06-21-phase6-flutter-rewrite-release.md) — modular flutter + pure go release
+- [Phase A: 后端残留死壳清理](plans/2026-06-22-phase-a-backend-dead-shell-cleanup.md) — mode routing shell + dead files + skill lifecycle + capability_service
 
 ## ADRs
 - [ADR-0001: 砍掉 plan_execute / single_agent 编排模式](adr/ADR-0001-remove-plan-execute-single-agent.md) — keep direct_response only
