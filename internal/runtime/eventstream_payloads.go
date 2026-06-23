@@ -81,21 +81,6 @@ type StreamSkillRequirements struct {
 	Env      []string `json:"env,omitempty"`
 }
 
-type StreamProcedureActivation struct {
-	RunID        string   `json:"run_id,omitempty"`
-	SessionID    string   `json:"session_id,omitempty"`
-	ProcedureRef string   `json:"procedure_ref,omitempty"`
-	Title        string   `json:"title,omitempty"`
-	Kind         string   `json:"kind,omitempty"`
-	Phase        string   `json:"phase,omitempty"`
-	Reason       string   `json:"reason,omitempty"`
-	Score        float64  `json:"score,omitempty"`
-	Status       string   `json:"status,omitempty"`
-	Origin       string   `json:"origin,omitempty"`
-	SourceRefs   []string `json:"source_refs,omitempty"`
-	EvidenceRefs []string `json:"evidence_refs,omitempty"`
-}
-
 type StreamMemoryPreparedNudge struct {
 	Ref    string `json:"ref,omitempty"`
 	Kind   string `json:"kind,omitempty"`

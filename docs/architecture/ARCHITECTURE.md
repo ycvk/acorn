@@ -17,14 +17,13 @@ operator CLI / authenticated remote clients
 
 ## 主要包职责
 
-- `internal/app/` — 装配 app service、runtime executor、run resume service、web dependencies；唯一允许直接 import sqlite 的 composition root。
-- `internal/runtime/` — Executor（session/run 创建、执行、finalization）+ RunnerFactory（per-run assembly）+ tool 执行运行时（scheduler/validator/audit/stream）+ Toolset 容器 + memory tools。
+- `internal/app/` — 装配 app service、runtime executor、run resume service、api dependencies；composition root。
+- `internal/runtime/` — Executor（session/run 创建、执行、finalization）+ RunnerFactory（per-run assembly）+ direct_response assembly + ExecuteRound + tool 执行运行时（scheduler/validator/audit/stream）+ Toolset 容器 + memory tools + StreamItem 投影逻辑。
 - `internal/contextplane/` — run 上下文装配、observation masking、LLM auto-compact、deferred tool loading、tool lifecycle。
-- `internal/runtime/` — direct_response assembly + ExecuteRound。单一编排模式。
 - `internal/toolkit/` — 工具契约层（ToolContract/Catalog/ToolSpec/loading+execution policy）。
 - `internal/toolset/` — 工具实现层（file/git/browser/web/command/artifact/memory 工具实现）。
 - `internal/memory/` — file-backed memory（facts/history）、search、prepare、semantic retrieval（embedding + SQLite 暴力余弦相似度）。
-- `internal/store/` + `internal/store/` — 跨包 store-facing records、sentinel errors + SQLite adapter（sessions/messages/runs/events/pending_actions/devices/pairing_codes/owner_profile）。
+- `internal/store/` — SQLite adapter + 跨包 store-facing records、sentinel errors（sessions/messages/runs/events/pending_actions/devices/pairing_codes/owner_profile）。
 - `internal/api/` — `/v1` client surface + device bearer auth middleware；live RunEvent 从 `events` 表投影 mobile live subset。
 - `mobile-kotlin/` — Kotlin + Jetpack Compose app，通过 openapi-generator 生成的 client 消费 `/v1`；不执行 runtime、不维护第二套 message lifecycle。
 

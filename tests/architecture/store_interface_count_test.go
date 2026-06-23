@@ -8,17 +8,8 @@ import (
 	"testing"
 )
 
-// T-011 RED -> GREEN: doneCriteria #10 — consumer-owned store interfaces
-// (Store/Port/Repository/Ledger) defined by CONSUMERS (internal/runtime +
-// internal/app) to access the store must consolidate to <=6. The
-// "consumer-owned" scope is the narrow ports consumers define as subsets of
-// the concrete store; interfaces owned by the store package itself
-// (ArtifactStore) or by other infrastructure packages (contextplane, mcp,
-// model, workingstate) are NOT consumer-owned — they are the canonical
-// contracts consumers depend on. After P1-A inlining the duplicated narrow
-// ports, runtime defines 2 (ExecutorStore, RunnerFactoryStore) and app
-// defines 4 (containerRuntimeStore, containerAppStore,
-// PendingActionCreateStore, skillSnapshotStore) = 6.
+// Consumer-owned store interfaces (Store/Port/Repository/Ledger) defined by
+// CONSUMERS (internal/runtime + internal/app) must consolidate to <=6.
 
 var storeInterfacePattern = regexp.MustCompile(`^type \w*(Store|Port|Repository|Ledger) interface`)
 

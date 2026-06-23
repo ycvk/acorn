@@ -23,7 +23,7 @@ Cross-package store-facing records and sentinel errors live in `internal/store`,
 - runtime uses `executorStore`, `runnerFactoryStore`, and `toolAuditStore`.
 - MCP provider exports `TokenStore` and `PendingActionStore` as provider contracts.
 
-Production code may directly import `internal/store` only from the app composition root: `internal/app/container.go`. `tests/architecture/store_boundary_test.go` scans production Go imports and fails if sqlite is imported elsewhere.
+Production code may directly import `internal/store` only from the app composition root: `internal/app/container.go`.
 
 ## Remote Client Memory Surface
 
