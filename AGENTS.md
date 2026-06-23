@@ -117,11 +117,3 @@ cd mobile-kotlin && ./tool/generate_openapi_client.sh --check   # CI 门禁
 提交前必须通过 `make format-check` 和 `make lint`。context/runtime 改动至少跑 `go test ./internal/config ./internal/contextplane ./internal/orchestration ./internal/runtime ./internal/cli ./internal/toolkit ./internal/toolset ./internal/store ./internal/memorymodule ./internal/app ./internal/web`。
 
 **CI 守卫**(`tests/architecture/`):`store_boundary_test.go`(只允许 container.go import sqlite)、`structural_limits_test.go`、`client_projection_boundary_test.go`。
-
-## Harness 自演化系统
-
-Acorn 自带 AI 协作 harness。运行细节以 `.claude/skills/<name>/SKILL.md` 为真相源。
-
-- 状态在 `.acorn/harness/state/current.md`,模块记忆在 `.acorn/harness/memory/modules/`,架构决策在 `.acorn/harness/memory/decisions/`。
-- reflexion 在改 ≥2 模块 / 改了 web·openapi·mobile / 测试非全绿 / 用户负面反馈时触发。meta-review:计数 ≥2 的 pattern 可自动升级为 RISK;硬约束升级与新建决策必须等人确认。
-- 新 skill 走「AI 生成 → skill-validator 验不变量 → 人确认后激活」三层。skill 不变量:不修改 AGENTS.md 或 hooks.json、无 destructive 命令、无循环依赖。
