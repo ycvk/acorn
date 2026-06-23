@@ -1,4 +1,4 @@
-package runtime
+package stream
 
 import (
 	"context"
@@ -81,8 +81,8 @@ func TestStreamAssistantMessageEmitsDeltaItemsAndReturnsFinalMessage(t *testing.
 	if items[0].Kind != domain.StreamKindAssistantDelta || items[1].Kind != domain.StreamKindAssistantDelta {
 		t.Fatalf("unexpected kinds: %#v", items)
 	}
-	first := streamItemGetAssistantDelta(items[0])
-	second := streamItemGetAssistantDelta(items[1])
+	first := ItemGetAssistantDelta(items[0])
+	second := ItemGetAssistantDelta(items[1])
 	if first == nil || second == nil {
 		t.Fatalf("expected assistant deltas, got %#v", items)
 	}
@@ -130,7 +130,7 @@ func TestStreamAssistantMessageAppendsDeltaWithoutLiveSink(t *testing.T) {
 		t.Fatalf("appended record count = %d, want 1", len(appender.records))
 	}
 	item := projectEventToStreamItem(appender.records[0])
-	delta := streamItemGetAssistantDelta(item)
+	delta := ItemGetAssistantDelta(item)
 	if item.Kind != domain.StreamKindAssistantDelta || delta == nil {
 		t.Fatalf("appended item = %#v, want assistant delta", item)
 	}
@@ -168,8 +168,8 @@ func TestDirectAssistantStreamerPersistsAndSinksDeltas(t *testing.T) {
 	if len(sinkItems) != 2 {
 		t.Fatalf("sink delta count = %d, want 2", len(sinkItems))
 	}
-	first := streamItemGetAssistantDelta(projectEventToStreamItem(appender.records[0]))
-	second := streamItemGetAssistantDelta(projectEventToStreamItem(appender.records[1]))
+	first := ItemGetAssistantDelta(projectEventToStreamItem(appender.records[0]))
+	second := ItemGetAssistantDelta(projectEventToStreamItem(appender.records[1]))
 	if first == nil || second == nil {
 		t.Fatalf("persisted events are not assistant deltas: %#v", appender.records)
 	}
@@ -235,10 +235,10 @@ type runState struct {
 }
 
 func (s *runState) applyStreamItem(item domain.StreamItem) {
-	if delta := streamItemGetAssistantDelta(item); delta != nil {
+	if delta := ItemGetAssistantDelta(item); delta != nil {
 		s.lastOutput += delta.Delta
 	}
-	if msg := streamItemGetMessage(item); msg != nil && msg.Content != "" {
+	if msg := ItemGetMessage(item); msg != nil && msg.Content != "" {
 		s.lastOutput = msg.Content
 	}
 }

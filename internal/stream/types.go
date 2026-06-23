@@ -1,6 +1,13 @@
-package runtime
+package stream
 
-// Shared value types used across stream payloads.
+import (
+	"context"
+
+	einomodel "github.com/cloudwego/eino/components/model"
+	"github.com/cloudwego/eino/schema"
+)
+
+// --- Stream payload value types ---
 
 type StreamPlannedToolCall struct {
 	ID            string `json:"id,omitempty"`
@@ -113,4 +120,42 @@ type StreamAssistantDelta struct {
 	IsFinal   bool                    `json:"is_final,omitempty"`
 	ToolCalls []StreamPlannedToolCall `json:"tool_calls,omitempty"`
 	Meta      map[string]any          `json:"meta,omitempty"`
+}
+
+// --- Assistant stream types ---
+
+type AssistantStreamRequest struct {
+	RunID     string
+	MessageID string
+	Model     einomodel.BaseChatModel
+	Messages  []*schema.Message
+	ToolInfos []*schema.ToolInfo
+	CallSite  string
+}
+
+type AssistantStopReason string
+
+const (
+	AssistantStopReasonEndTurn   AssistantStopReason = "end_turn"
+	AssistantStopReasonToolCalls AssistantStopReason = "tool_calls"
+	AssistantStopReasonMaxOutput AssistantStopReason = "max_output"
+	AssistantStopReasonUnknown   AssistantStopReason = "unknown"
+)
+
+type AssistantStreamResult struct {
+	Message    *schema.Message
+	StopReason AssistantStopReason
+	RawReason  string
+}
+
+type InterleavedStream struct {
+	ToolCallCh     chan schema.ToolCall
+	FinalMessageCh chan AssistantStreamResult
+	ErrCh          chan error
+}
+
+// AssistantStreamer streams assistant messages and interleaved tool calls.
+type AssistantStreamer interface {
+	StreamAssistantMessage(ctx context.Context, req AssistantStreamRequest) (*AssistantStreamResult, error)
+	StreamAssistantInterleaved(ctx context.Context, req AssistantStreamRequest) *InterleavedStream
 }

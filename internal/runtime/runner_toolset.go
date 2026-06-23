@@ -11,6 +11,8 @@ import (
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/domain"
+	"github.com/ycvk/acorn/internal/runtime/factextract"
+	"github.com/ycvk/acorn/internal/runtime/tooldispatch"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/toolkit"
 	"github.com/ycvk/acorn/internal/toolset"
@@ -28,7 +30,7 @@ func (artifactToolBridge) CurrentSessionID(ctx context.Context) string {
 }
 
 func (artifactToolBridge) CurrentToolCallID(ctx context.Context) string {
-	return ToolAuditCallID(ctx)
+	return tooldispatch.ToolAuditCallID(ctx)
 }
 
 func (f *RunnerFactory) buildRunToolset(ctx context.Context, sessionID string) (*Toolset, error) {
@@ -244,7 +246,7 @@ func (f *RunnerFactory) buildMemoryTools(ctx context.Context) ([]einotool.BaseTo
 	if f.deps.MemoryModule == nil {
 		return nil, nil
 	}
-	return BuildMemoryFileTools(ctx, f.deps.MemoryModule)
+	return factextract.BuildMemoryFileTools(ctx, f.deps.MemoryModule)
 }
 
 func NewToolset(catalog *toolkit.Catalog, closers ...io.Closer) *Toolset {

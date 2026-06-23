@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/ycvk/acorn/internal/domain"
+	"github.com/ycvk/acorn/internal/stream"
 )
 
 func TestResolveRunID(t *testing.T) {
@@ -53,7 +54,7 @@ func TestRunStateApplyAssistantDelta(t *testing.T) {
 	item := domain.StreamItem{
 		Kind: domain.StreamKindAssistantDelta,
 		Payload: map[string]any{
-			"assistant_delta": &StreamAssistantDelta{
+			"assistant_delta": &stream.StreamAssistantDelta{
 				Delta: "Hello",
 			},
 		},
@@ -69,7 +70,7 @@ func TestRunStateApplyAssistantDeltaAccumulates(t *testing.T) {
 	state.applyStreamItem(domain.StreamItem{
 		Kind: domain.StreamKindAssistantDelta,
 		Payload: map[string]any{
-			"assistant_delta": &StreamAssistantDelta{
+			"assistant_delta": &stream.StreamAssistantDelta{
 				Delta: "Hello",
 			},
 		},
@@ -77,7 +78,7 @@ func TestRunStateApplyAssistantDeltaAccumulates(t *testing.T) {
 	state.applyStreamItem(domain.StreamItem{
 		Kind: domain.StreamKindAssistantDelta,
 		Payload: map[string]any{
-			"assistant_delta": &StreamAssistantDelta{
+			"assistant_delta": &stream.StreamAssistantDelta{
 				Delta: " world",
 			},
 		},
@@ -92,7 +93,7 @@ func TestRunStateApplyMessageReplacesOutput(t *testing.T) {
 	state.applyStreamItem(domain.StreamItem{
 		Kind: domain.StreamKindAssistantMessage,
 		Payload: map[string]any{
-			"message": &StreamMessage{
+			"message": &stream.StreamMessage{
 				Role:    "assistant",
 				Content: "final answer",
 			},
@@ -108,7 +109,7 @@ func TestRunStateApplyMessageEmptyContentPreservesOutput(t *testing.T) {
 	state.applyStreamItem(domain.StreamItem{
 		Kind: domain.StreamKindAssistantMessage,
 		Payload: map[string]any{
-			"message": &StreamMessage{
+			"message": &stream.StreamMessage{
 				Role:    "assistant",
 				Content: "",
 			},
@@ -124,9 +125,9 @@ func TestRunStateApplyInterrupt(t *testing.T) {
 	state.applyStreamItem(domain.StreamItem{
 		Kind: domain.StreamKindRunInterrupted,
 		Payload: map[string]any{
-			"interrupt": &StreamInterrupt{
+			"interrupt": &stream.StreamInterrupt{
 				ContextCount: 1,
-				Contexts: []StreamInterruptContext{
+				Contexts: []stream.StreamInterruptContext{
 					{ID: "ictx_1", Address: "0x123", IsRootCause: true},
 				},
 			},
@@ -211,13 +212,13 @@ func TestRunStateApplyMultipleItemsLifecycle(t *testing.T) {
 	state.applyStreamItem(domain.StreamItem{
 		Kind: domain.StreamKindAssistantDelta,
 		Payload: map[string]any{
-			"assistant_delta": &StreamAssistantDelta{Delta: "Hello"},
+			"assistant_delta": &stream.StreamAssistantDelta{Delta: "Hello"},
 		},
 	})
 	state.applyStreamItem(domain.StreamItem{
 		Kind: domain.StreamKindAssistantDelta,
 		Payload: map[string]any{
-			"assistant_delta": &StreamAssistantDelta{Delta: " world"},
+			"assistant_delta": &stream.StreamAssistantDelta{Delta: " world"},
 		},
 	})
 	if state.lastOutput != "Hello world" {
@@ -227,7 +228,7 @@ func TestRunStateApplyMultipleItemsLifecycle(t *testing.T) {
 	state.applyStreamItem(domain.StreamItem{
 		Kind: domain.StreamKindAssistantMessage,
 		Payload: map[string]any{
-			"message": &StreamMessage{Content: "Hello world!"},
+			"message": &stream.StreamMessage{Content: "Hello world!"},
 		},
 	})
 	if state.lastOutput != "Hello world!" {

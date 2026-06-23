@@ -12,6 +12,8 @@ import (
 	"github.com/cloudwego/eino/schema"
 
 	"github.com/ycvk/acorn/internal/contextplane"
+	"github.com/ycvk/acorn/internal/runtime/tooldispatch"
+	"github.com/ycvk/acorn/internal/stream"
 	"github.com/ycvk/acorn/internal/toolkit"
 )
 
@@ -107,8 +109,8 @@ func buildDirectResponse(ctx context.Context, deps RuntimeDeps, req DirectRespon
 	}
 	toolNodeFactory := deps.ToolNodeFactory
 	if toolNodeFactory == nil {
-		toolNodeFactory = func(ctx context.Context, tools []einotool.BaseTool, resolver toolkit.ExecutionPolicyResolver) (ToolInvoker, error) {
-			return NewSafeParallelToolsNode(ctx, tools, resolver)
+		toolNodeFactory = func(ctx context.Context, tools []einotool.BaseTool, resolver toolkit.ExecutionPolicyResolver) (tooldispatch.ToolInvoker, error) {
+			return tooldispatch.NewSafeParallelToolsNode(ctx, tools, resolver)
 		}
 	}
 	safeToolNode, err := toolNodeFactory(ctx, assembled.allTools, req.Catalog)
@@ -145,10 +147,10 @@ type directResponseAgent struct {
 	name           string
 	description    string
 	model          einomodel.BaseChatModel
-	streamer       AssistantStreamer
+	streamer       stream.AssistantStreamer
 	sessionID      string
 	runID          string
-	toolNode       ToolInvoker
+	toolNode       tooldispatch.ToolInvoker
 	instruction    string
 	lifecycleState ToolLifecycleStateView
 	catalog        *toolkit.Catalog

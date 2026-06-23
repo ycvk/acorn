@@ -1,4 +1,4 @@
-package runtime
+package factextract
 
 import (
 	"context"
@@ -65,6 +65,7 @@ func memorySearchOutputItemFromSearchItem(item memory.SearchItem) memorySearchOu
 		UpdatedAt:   item.Updated,
 	}
 }
+
 func buildMemorySearchOutput(result *memory.SearchResult) memorySearchOutput {
 	var output memorySearchOutput
 	if result == nil {
@@ -169,10 +170,6 @@ type memoryRememberTool struct {
 	memory     memory.Service
 }
 
-// newMemoryRememberTool builds the structured fact writer exposed to the model.
-// The model supplies only title/text/tags/scope; Acorn generates Record V2
-// frontmatter and auto-stamps created/updated/status/scope, so the model never
-// hand-authors YAML, dates, or status (which previously caused reject loops).
 func newMemoryRememberTool(memory memory.Service) (einotool.BaseTool, error) {
 	infoSource, err := toolutils.InferTool("remember", "Store a new long-term fact. Provide title and text (and optional tags/scope); Acorn generates the record metadata and timestamps — do not hand-write frontmatter or dates. Use memory_search to recall.", func(ctx context.Context, input memoryRememberInput) (memoryRememberOutput, error) {
 		return memoryRememberOutput{}, nil

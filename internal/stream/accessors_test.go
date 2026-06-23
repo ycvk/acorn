@@ -1,4 +1,4 @@
-package runtime
+package stream
 
 import (
 	"context"
@@ -89,22 +89,22 @@ func TestAccessors(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := streamItemGetMessage(tc.item); (got != nil) != tc.wantMessage {
+			if got := ItemGetMessage(tc.item); (got != nil) != tc.wantMessage {
 				t.Fatalf("GetMessage() = %v, want %v", got != nil, tc.wantMessage)
 			}
-			if got := streamItemGetAssistantDelta(tc.item); (got != nil) != tc.wantDelta {
+			if got := ItemGetAssistantDelta(tc.item); (got != nil) != tc.wantDelta {
 				t.Fatalf("GetAssistantDelta() = %v, want %v", got != nil, tc.wantDelta)
 			}
-			if got := streamItemGetToolCall(tc.item); (got != nil) != tc.wantTool {
+			if got := ItemGetToolCall(tc.item); (got != nil) != tc.wantTool {
 				t.Fatalf("GetToolCall() = %v, want %v", got != nil, tc.wantTool)
 			}
-			if got := streamItemGetSkill(tc.item); (got != nil) != tc.wantSkill {
+			if got := ItemGetSkill(tc.item); (got != nil) != tc.wantSkill {
 				t.Fatalf("GetSkill() = %v, want %v", got != nil, tc.wantSkill)
 			}
-			if got := streamItemGetInterrupt(tc.item); (got != nil) != tc.wantInterrupt {
+			if got := ItemGetInterrupt(tc.item); (got != nil) != tc.wantInterrupt {
 				t.Fatalf("GetInterrupt() = %v, want %v", got != nil, tc.wantInterrupt)
 			}
-			if got := streamItemGetMemoryPrepared(tc.item); (got != nil) != tc.wantMemory {
+			if got := ItemGetMemoryPrepared(tc.item); (got != nil) != tc.wantMemory {
 				t.Fatalf("GetMemoryPrepared() = %v, want %v", got != nil, tc.wantMemory)
 			}
 		})

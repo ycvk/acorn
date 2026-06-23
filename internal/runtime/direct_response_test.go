@@ -18,6 +18,8 @@ import (
 
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/contextplane"
+	"github.com/ycvk/acorn/internal/runtime/tooldispatch"
+	"github.com/ycvk/acorn/internal/stream"
 	"github.com/ycvk/acorn/internal/toolkit"
 )
 
@@ -116,7 +118,7 @@ type directResponseTestStreamer struct {
 	deltas      []string
 }
 
-func (s *directResponseTestStreamer) StreamAssistantMessage(ctx context.Context, req AssistantStreamRequest) (*AssistantStreamResult, error) {
+func (s *directResponseTestStreamer) StreamAssistantMessage(ctx context.Context, req stream.AssistantStreamRequest) (*stream.AssistantStreamResult, error) {
 	s.modelInputs = append(s.modelInputs, append([]*schema.Message(nil), req.Messages...))
 	s.toolInfos = append(s.toolInfos, append([]*schema.ToolInfo(nil), req.ToolInfos...))
 	s.messageIDs = append(s.messageIDs, req.MessageID)
@@ -152,10 +154,10 @@ func (s *directResponseTestStreamer) StreamAssistantMessage(ctx context.Context,
 	return directResponseTestStreamResult(msg), nil
 }
 
-func (s *directResponseTestStreamer) StreamAssistantInterleaved(ctx context.Context, req AssistantStreamRequest) *InterleavedStream {
-	interleaved := &InterleavedStream{
+func (s *directResponseTestStreamer) StreamAssistantInterleaved(ctx context.Context, req stream.AssistantStreamRequest) *stream.InterleavedStream {
+	interleaved := &stream.InterleavedStream{
 		ToolCallCh:     make(chan schema.ToolCall, 8),
-		FinalMessageCh: make(chan AssistantStreamResult, 1),
+		FinalMessageCh: make(chan stream.AssistantStreamResult, 1),
 		ErrCh:          make(chan error, 1),
 	}
 	go func() {
@@ -179,25 +181,25 @@ func (s *directResponseTestStreamer) StreamAssistantInterleaved(ctx context.Cont
 	return interleaved
 }
 
-func directResponseTestStreamResult(msg *schema.Message) *AssistantStreamResult {
+func directResponseTestStreamResult(msg *schema.Message) *stream.AssistantStreamResult {
 	raw := ""
 	if msg != nil && msg.ResponseMeta != nil {
 		raw = strings.TrimSpace(strings.ToLower(msg.ResponseMeta.FinishReason))
 	}
-	stopReason := AssistantStopReasonEndTurn
+	stopReason := stream.AssistantStopReasonEndTurn
 	switch raw {
 	case "tool_calls", "tool_use":
-		stopReason = AssistantStopReasonToolCalls
+		stopReason = stream.AssistantStopReasonToolCalls
 	case "length", "max_tokens", "max_output_tokens", "model_context_window_exceeded":
-		stopReason = AssistantStopReasonMaxOutput
+		stopReason = stream.AssistantStopReasonMaxOutput
 	case "", "stop", "end_turn", "null":
 		if msg != nil && len(msg.ToolCalls) > 0 {
-			stopReason = AssistantStopReasonToolCalls
+			stopReason = stream.AssistantStopReasonToolCalls
 		}
 	default:
-		stopReason = AssistantStopReasonUnknown
+		stopReason = stream.AssistantStopReasonUnknown
 	}
-	return &AssistantStreamResult{
+	return &stream.AssistantStreamResult{
 		Message:    msg,
 		StopReason: stopReason,
 		RawReason:  raw,
@@ -224,7 +226,7 @@ func (n *directResponseTestToolNode) Stream(ctx context.Context, input *schema.M
 	return schema.StreamReaderFromArray([][]*schema.Message{results}), nil
 }
 
-func (n *directResponseTestToolNode) NewStreamingExecutor(ctx context.Context) StreamingExecutor {
+func (n *directResponseTestToolNode) NewStreamingExecutor(ctx context.Context) tooldispatch.StreamingExecutor {
 	return &directResponseTestStreamingExecutor{node: n, ctx: ctx}
 }
 
@@ -269,7 +271,7 @@ func TestBuildDirectResponseContinuesAfterOutputLimit(t *testing.T) {
 		ToolBuilder: func(context.Context, RunnerFactoryStore, []toolkit.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
 			return []einotool.BaseTool{tool}, nil
 		},
-		ToolNodeFactory: func(context.Context, []einotool.BaseTool, toolkit.ExecutionPolicyResolver) (ToolInvoker, error) {
+		ToolNodeFactory: func(context.Context, []einotool.BaseTool, toolkit.ExecutionPolicyResolver) (tooldispatch.ToolInvoker, error) {
 			return &directResponseTestToolNode{}, nil
 		},
 	}
@@ -333,7 +335,7 @@ func TestBuildDirectResponseDoesNotExecuteTruncatedToolCalls(t *testing.T) {
 		ToolBuilder: func(context.Context, RunnerFactoryStore, []toolkit.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
 			return []einotool.BaseTool{tool}, nil
 		},
-		ToolNodeFactory: func(context.Context, []einotool.BaseTool, toolkit.ExecutionPolicyResolver) (ToolInvoker, error) {
+		ToolNodeFactory: func(context.Context, []einotool.BaseTool, toolkit.ExecutionPolicyResolver) (tooldispatch.ToolInvoker, error) {
 			return toolNode, nil
 		},
 	}
@@ -398,7 +400,7 @@ func TestBuildDirectResponseRunsToolCallLoop(t *testing.T) {
 		ToolBuilder: func(context.Context, RunnerFactoryStore, []toolkit.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
 			return []einotool.BaseTool{tool}, nil
 		},
-		ToolNodeFactory: func(context.Context, []einotool.BaseTool, toolkit.ExecutionPolicyResolver) (ToolInvoker, error) {
+		ToolNodeFactory: func(context.Context, []einotool.BaseTool, toolkit.ExecutionPolicyResolver) (tooldispatch.ToolInvoker, error) {
 			return toolNode, nil
 		},
 	}
@@ -460,7 +462,7 @@ func TestBuildDirectResponsePropagatesModelError(t *testing.T) {
 		ToolBuilder: func(context.Context, RunnerFactoryStore, []toolkit.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
 			return []einotool.BaseTool{tool}, nil
 		},
-		ToolNodeFactory: func(context.Context, []einotool.BaseTool, toolkit.ExecutionPolicyResolver) (ToolInvoker, error) {
+		ToolNodeFactory: func(context.Context, []einotool.BaseTool, toolkit.ExecutionPolicyResolver) (tooldispatch.ToolInvoker, error) {
 			return &directResponseTestToolNode{}, nil
 		},
 	}
@@ -497,7 +499,7 @@ func TestBuildDirectResponseFailsWithoutContextSession(t *testing.T) {
 		ToolBuilder: func(context.Context, RunnerFactoryStore, []toolkit.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
 			return []einotool.BaseTool{tool}, nil
 		},
-		ToolNodeFactory: func(context.Context, []einotool.BaseTool, toolkit.ExecutionPolicyResolver) (ToolInvoker, error) {
+		ToolNodeFactory: func(context.Context, []einotool.BaseTool, toolkit.ExecutionPolicyResolver) (tooldispatch.ToolInvoker, error) {
 			return &directResponseTestToolNode{}, nil
 		},
 	}
@@ -717,7 +719,7 @@ func (n *directResponseInterruptToolNode) Invoke(_ context.Context, input *schem
 	return nil, signal
 }
 
-func (n *directResponseInterruptToolNode) NewStreamingExecutor(ctx context.Context) StreamingExecutor {
+func (n *directResponseInterruptToolNode) NewStreamingExecutor(ctx context.Context) tooldispatch.StreamingExecutor {
 	return &directResponseInterruptStreamingExecutor{node: n, ctx: ctx}
 }
 
@@ -769,7 +771,7 @@ func TestBuildDirectResponseHandlesInterrupt(t *testing.T) {
 		ToolBuilder: func(context.Context, RunnerFactoryStore, []toolkit.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
 			return []einotool.BaseTool{tool}, nil
 		},
-		ToolNodeFactory: func(context.Context, []einotool.BaseTool, toolkit.ExecutionPolicyResolver) (ToolInvoker, error) {
+		ToolNodeFactory: func(context.Context, []einotool.BaseTool, toolkit.ExecutionPolicyResolver) (tooldispatch.ToolInvoker, error) {
 			return &directResponseInterruptToolNode{}, nil
 		},
 	}
@@ -834,7 +836,7 @@ func TestBuildDirectResponsePreservesNestedInterruptContexts(t *testing.T) {
 		ToolBuilder: func(context.Context, RunnerFactoryStore, []toolkit.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
 			return []einotool.BaseTool{tool}, nil
 		},
-		ToolNodeFactory: func(context.Context, []einotool.BaseTool, toolkit.ExecutionPolicyResolver) (ToolInvoker, error) {
+		ToolNodeFactory: func(context.Context, []einotool.BaseTool, toolkit.ExecutionPolicyResolver) (tooldispatch.ToolInvoker, error) {
 			return &directResponseInterruptToolNode{signal: interruptSignal}, nil
 		},
 	}
@@ -899,7 +901,7 @@ func (n *directResponseApprovalToolNode) Invoke(ctx context.Context, input *sche
 	}, nil
 }
 
-func (n *directResponseApprovalToolNode) NewStreamingExecutor(ctx context.Context) StreamingExecutor {
+func (n *directResponseApprovalToolNode) NewStreamingExecutor(ctx context.Context) tooldispatch.StreamingExecutor {
 	return &directResponseApprovalStreamingExecutor{node: n, ctx: ctx}
 }
 
@@ -954,7 +956,7 @@ func TestBuildDirectResponseResumeContinuesFromPendingToolCalls(t *testing.T) {
 		ToolBuilder: func(context.Context, RunnerFactoryStore, []toolkit.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
 			return []einotool.BaseTool{tool}, nil
 		},
-		ToolNodeFactory: func(context.Context, []einotool.BaseTool, toolkit.ExecutionPolicyResolver) (ToolInvoker, error) {
+		ToolNodeFactory: func(context.Context, []einotool.BaseTool, toolkit.ExecutionPolicyResolver) (tooldispatch.ToolInvoker, error) {
 			return toolNode, nil
 		},
 	}

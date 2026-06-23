@@ -17,8 +17,10 @@ import (
 	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/memory"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
+	"github.com/ycvk/acorn/internal/runtime/tooldispatch"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/store"
+	"github.com/ycvk/acorn/internal/stream"
 	"github.com/ycvk/acorn/internal/toolkit"
 	"github.com/ycvk/acorn/internal/workspace"
 )
@@ -43,7 +45,7 @@ func newSessionID() string {
 	return fmt.Sprintf("session_%d", time.Now().UTC().UnixNano())
 }
 
-func InterruptPayloadFromStream(interrupt *StreamInterrupt) map[string]any {
+func InterruptPayloadFromStream(interrupt *stream.StreamInterrupt) map[string]any {
 	if interrupt == nil {
 		return nil
 	}
@@ -150,7 +152,7 @@ type RuntimeDeps struct {
 	ToolBuilder func(ctx context.Context, store RunnerFactoryStore, specs []toolkit.ToolSpec, excludedToolNames []string, allowedToolNames []string, runID string) ([]einotool.BaseTool, error)
 	// ToolNodeFactory overrides the default safe parallel tools node for testing.
 	// nil means use NewSafeParallelToolsNode.
-	ToolNodeFactory func(ctx context.Context, tools []einotool.BaseTool, resolver toolkit.ExecutionPolicyResolver) (ToolInvoker, error)
+	ToolNodeFactory func(ctx context.Context, tools []einotool.BaseTool, resolver toolkit.ExecutionPolicyResolver) (tooldispatch.ToolInvoker, error)
 	// CheckpointStore overrides the default in-memory checkpoint store for testing.
 	CheckpointStore adk.CheckPointStore
 }
@@ -350,7 +352,7 @@ func prepareInitialMessages(req domain.ExecuteRequest, active *ActiveRunner) []a
 	return initialMessages
 }
 
-// --- direct_response orchestration types (merged from orchestration package) ---
+// --- direct_response orchestration types ---
 
 type DirectResponseRequest struct {
 	AgentName         string
@@ -358,7 +360,7 @@ type DirectResponseRequest struct {
 	SessionID         string
 	RunID             string
 	ChatModel         einomodel.BaseChatModel
-	AssistantStreamer AssistantStreamer
+	AssistantStreamer stream.AssistantStreamer
 	Catalog           *toolkit.Catalog
 	ContextResult     AssembleResultView
 	AllowedToolNames  []string
@@ -366,56 +368,9 @@ type DirectResponseRequest struct {
 	InstructionSuffix string
 }
 
-type AssistantStreamRequest struct {
-	RunID     string
-	MessageID string
-	Model     einomodel.BaseChatModel
-	Messages  []*schema.Message
-	ToolInfos []*schema.ToolInfo
-	CallSite  string
-}
-
-type AssistantStopReason string
-
-const (
-	AssistantStopReasonEndTurn   AssistantStopReason = "end_turn"
-	AssistantStopReasonToolCalls AssistantStopReason = "tool_calls"
-	AssistantStopReasonMaxOutput AssistantStopReason = "max_output"
-	AssistantStopReasonUnknown   AssistantStopReason = "unknown"
-)
-
-type AssistantStreamResult struct {
-	Message    *schema.Message
-	StopReason AssistantStopReason
-	RawReason  string
-}
-
-type InterleavedStream struct {
-	ToolCallCh     chan schema.ToolCall
-	FinalMessageCh chan AssistantStreamResult
-	ErrCh          chan error
-}
-
-type AssistantStreamer interface {
-	StreamAssistantMessage(ctx context.Context, req AssistantStreamRequest) (*AssistantStreamResult, error)
-	StreamAssistantInterleaved(ctx context.Context, req AssistantStreamRequest) *InterleavedStream
-}
-
 type RunAssembly struct {
 	Runner      *adk.Runner
 	Instruction string
-}
-
-// StreamingExecutor submits tool calls and collects results in streaming fashion.
-type StreamingExecutor interface {
-	Submit(call schema.ToolCall)
-	GetRemainingResults(ctx context.Context) ([]*schema.Message, error)
-	Discard()
-}
-
-// ToolInvoker creates streaming executors for parallel tool execution.
-type ToolInvoker interface {
-	NewStreamingExecutor(ctx context.Context) StreamingExecutor
 }
 
 // ToolLifecycleStateView is the read-only view of tool lifecycle state.

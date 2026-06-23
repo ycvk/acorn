@@ -1,4 +1,4 @@
-package runtime
+package stream
 
 import (
 	"testing"
@@ -25,7 +25,7 @@ func TestProjectStreamItemToEventProjectsSkillPayload(t *testing.T) {
 		t.Fatalf("kind = %q, want skill.selected", kind)
 	}
 	body := payload.(map[string]any)
-	skill := streamItemGetSkill(domain.StreamItem{Payload: body})
+	skill := ItemGetSkill(domain.StreamItem{Payload: body})
 	if skill == nil {
 		t.Fatalf("unexpected payload: %#v", body)
 	}
@@ -55,7 +55,7 @@ func TestProjectStreamItemToEventProjectsNoSelectionReason(t *testing.T) {
 		t.Fatalf("kind = %q, want skill.discovered", kind)
 	}
 	body := payload.(map[string]any)
-	skill := streamItemGetSkill(domain.StreamItem{Payload: body})
+	skill := ItemGetSkill(domain.StreamItem{Payload: body})
 	if skill == nil {
 		t.Fatalf("unexpected payload: %#v", body)
 	}
@@ -83,7 +83,7 @@ func TestProjectStreamItemToEventProjectsSkillFailureReason(t *testing.T) {
 		t.Fatalf("kind = %q, want skill.failed", kind)
 	}
 	body := payload.(map[string]any)
-	skill := streamItemGetSkill(domain.StreamItem{Payload: body})
+	skill := ItemGetSkill(domain.StreamItem{Payload: body})
 	if skill == nil {
 		t.Fatalf("unexpected payload: %#v", body)
 	}

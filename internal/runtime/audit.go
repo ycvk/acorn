@@ -20,25 +20,8 @@ type auditedTool struct {
 	validator *toolArgumentValidator
 }
 
-type ToolAuditCallIDKey struct{}
-
 func getRunID(ctx context.Context) string {
 	return domain.GetRunID(ctx)
-}
-
-func withToolAuditCallID(ctx context.Context, callID string) context.Context {
-	return context.WithValue(ctx, ToolAuditCallIDKey{}, strings.TrimSpace(callID))
-}
-
-func ToolAuditCallID(ctx context.Context) string {
-	if ctx == nil {
-		return ""
-	}
-	value, ok := ctx.Value(ToolAuditCallIDKey{}).(string)
-	if !ok {
-		return ""
-	}
-	return strings.TrimSpace(value)
 }
 
 func wrapToolForAudit(ctx context.Context, store domain.EventAppender, spec toolkit.ToolSpec) (einotool.BaseTool, error) {

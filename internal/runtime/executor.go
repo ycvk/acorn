@@ -15,6 +15,7 @@ import (
 	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/memory"
 	"github.com/ycvk/acorn/internal/store"
+	"github.com/ycvk/acorn/internal/stream"
 )
 
 type Result struct {
@@ -268,7 +269,7 @@ func (e *Executor) collectRunState(ctx context.Context, runID string, iter *adk.
 		if !ok {
 			return state, nil
 		}
-		if err := e.applyAgentEvent(ctx, runID, StreamItemsFromAgentEvent(event, chatModel), sink, &state); err != nil {
+		if err := e.applyAgentEvent(ctx, runID, stream.StreamItemsFromAgentEvent(event, chatModel), sink, &state); err != nil {
 			return RunState{}, err
 		}
 	}
@@ -277,7 +278,7 @@ func (e *Executor) collectRunState(ctx context.Context, runID string, iter *adk.
 func (e *Executor) applyAgentEvent(ctx context.Context, runID string, items []domain.StreamItem, sink domain.StreamSink, state *RunState) error {
 	for _, item := range items {
 		item.RunID = runID
-		if _, err := AppendStreamItem(ctx, e.store, sink, item); err != nil {
+		if _, err := stream.AppendStreamItem(ctx, e.store, sink, item); err != nil {
 			return err
 		}
 		state.applyStreamItem(item)
@@ -286,23 +287,23 @@ func (e *Executor) applyAgentEvent(ctx context.Context, runID string, items []do
 }
 
 func (s *RunState) applyStreamItem(item domain.StreamItem) {
-	if delta := streamItemGetAssistantDelta(item); delta != nil {
+	if delta := stream.ItemGetAssistantDelta(item); delta != nil {
 		s.lastOutput += delta.Delta
 	}
-	if msg := streamItemGetMessage(item); msg != nil && msg.Content != "" {
+	if msg := stream.ItemGetMessage(item); msg != nil && msg.Content != "" {
 		s.lastOutput = msg.Content
 	}
-	if interrupt := streamItemGetInterrupt(item); interrupt != nil {
+	if interrupt := stream.ItemGetInterrupt(item); interrupt != nil {
 		s.interrupt = InterruptPayloadFromStream(interrupt)
 	}
-	if item.Kind == domain.StreamKindRunFailed && streamItemGetError(item) != "" {
-		s.failure = errors.New(streamItemGetError(item))
+	if item.Kind == domain.StreamKindRunFailed && stream.ItemGetError(item) != "" {
+		s.failure = errors.New(stream.ItemGetError(item))
 		s.emittedRunFailed = true
 	}
 }
 
 func (e *Executor) emitLifecyclePayload(ctx context.Context, runID string, sink domain.StreamSink, kind domain.StreamItemKind, payload map[string]any) error {
-	_, err := AppendStreamItem(ctx, e.store, sink, domain.StreamItem{
+	_, err := stream.AppendStreamItem(ctx, e.store, sink, domain.StreamItem{
 		RunID:     runID,
 		Kind:      kind,
 		CreatedAt: time.Now().UTC(),
@@ -320,7 +321,7 @@ func (e *Executor) emitRunResumeRequested(ctx context.Context, runID string, tar
 }
 
 func (e *Executor) emitRunCompleted(ctx context.Context, runID, output string, sink domain.StreamSink) error {
-	return e.emitLifecyclePayload(ctx, runID, sink, domain.StreamKindRunCompleted, map[string]any{"message": &StreamMessage{
+	return e.emitLifecyclePayload(ctx, runID, sink, domain.StreamKindRunCompleted, map[string]any{"message": &stream.StreamMessage{
 		Role:    string(schema.Assistant),
 		Content: output,
 	}})
@@ -366,16 +367,16 @@ func (e *Executor) verifyAndRecordSkill(ctx context.Context, runID string, selec
 	if selected == nil || strings.TrimSpace(runID) == "" || status != domain.RunStatusFailed {
 		return nil
 	}
-	_, err := AppendStreamItem(ctx, e.store, sink, domain.StreamItem{
+	_, err := stream.AppendStreamItem(ctx, e.store, sink, domain.StreamItem{
 		RunID: runID,
 		Kind:  domain.StreamKindSkillFailed,
-		Payload: map[string]any{"skill": &StreamSkill{
+		Payload: map[string]any{"skill": &stream.StreamSkill{
 			SelectedID:    selected.Skill.ID,
 			Name:          selected.Skill.Name,
 			Source:        selected.Skill.Source,
 			Path:          selected.Skill.Path,
 			Summary:       selected.Skill.Summary,
-			Requirements:  StreamSkillRequirementsFromDomain(selected.Skill.Requires),
+			Requirements:  streamSkillRequirementsFromDomain(selected.Skill.Requires),
 			FailureReason: failureReasonForStatus(status, output),
 		}},
 	})

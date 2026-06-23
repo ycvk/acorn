@@ -24,6 +24,7 @@ import (
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
 	"github.com/ycvk/acorn/internal/skills"
 	corestore "github.com/ycvk/acorn/internal/store"
+	"github.com/ycvk/acorn/internal/stream"
 	"github.com/ycvk/acorn/internal/toolkit"
 	"github.com/ycvk/acorn/internal/toolset"
 	"github.com/ycvk/acorn/internal/workspace"
@@ -270,7 +271,7 @@ func (f *RunnerFactory) directResponseRequest(bf baseAssemblyFields, req RunnerB
 		SessionID:         bf.sessionID,
 		RunID:             bf.runID,
 		ChatModel:         bf.chatModel,
-		AssistantStreamer: NewDirectAssistantStreamer(f.deps.Store),
+		AssistantStreamer: stream.NewDirectAssistantStreamer(f.deps.Store),
 		Catalog:           bf.catalog,
 		ContextResult:     bf.contextResult,
 		AllowedToolNames:  bf.allowedToolNames,

@@ -7,6 +7,9 @@ import (
 
 	einomodel "github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/schema"
+
+	"github.com/ycvk/acorn/internal/runtime/tooldispatch"
+	"github.com/ycvk/acorn/internal/stream"
 )
 
 type RoundOptions struct {
@@ -39,8 +42,8 @@ func (e *ToolExecutionError) Unwrap() error {
 	return e.Err
 }
 
-func ExecuteRound(ctx context.Context, model einomodel.BaseChatModel, streamer AssistantStreamer, toolNode ToolInvoker, messages []*schema.Message, toolInfos []*schema.ToolInfo, runID string, messageID string, opts RoundOptions) (*schema.Message, []*schema.Message, bool, error) {
-	interleaved := streamer.StreamAssistantInterleaved(ctx, AssistantStreamRequest{
+func ExecuteRound(ctx context.Context, model einomodel.BaseChatModel, streamer stream.AssistantStreamer, toolNode tooldispatch.ToolInvoker, messages []*schema.Message, toolInfos []*schema.ToolInfo, runID string, messageID string, opts RoundOptions) (*schema.Message, []*schema.Message, bool, error) {
+	interleaved := streamer.StreamAssistantInterleaved(ctx, stream.AssistantStreamRequest{
 		RunID:     runID,
 		MessageID: messageID,
 		Model:     model,
@@ -64,11 +67,11 @@ func ExecuteRound(ctx context.Context, model einomodel.BaseChatModel, streamer A
 
 	msg := result.Message
 	switch result.StopReason {
-	case AssistantStopReasonMaxOutput:
+	case stream.AssistantStopReasonMaxOutput:
 		executor.Discard()
 		return assistantMessageWithoutToolCalls(msg), nil, true, nil
-	case AssistantStopReasonEndTurn, AssistantStopReasonToolCalls:
-	case AssistantStopReasonUnknown:
+	case stream.AssistantStopReasonEndTurn, stream.AssistantStopReasonToolCalls:
+	case stream.AssistantStopReasonUnknown:
 		executor.Discard()
 		return msg, nil, false, fmt.Errorf("agent loop unsupported assistant finish reason %q", result.RawReason)
 	default:
@@ -102,7 +105,7 @@ func assistantMessageWithoutToolCalls(msg *schema.Message) *schema.Message {
 	return &sanitized
 }
 
-func ExecuteToolCalls(ctx context.Context, toolNode ToolInvoker, msg *schema.Message) ([]*schema.Message, error) {
+func ExecuteToolCalls(ctx context.Context, toolNode tooldispatch.ToolInvoker, msg *schema.Message) ([]*schema.Message, error) {
 	if toolNode == nil {
 		return nil, errors.New("direct response requires tool node")
 	}
@@ -130,8 +133,8 @@ func outputLimitContinuationMessage() *schema.Message {
 	return msg
 }
 
-func consumeInterleavedForAgentLoop(ctx context.Context, interleaved *InterleavedStream, executor StreamingExecutor, beforeToolCall func(context.Context, schema.ToolCall) error) (*AssistantStreamResult, error) {
-	var finalResult *AssistantStreamResult
+func consumeInterleavedForAgentLoop(ctx context.Context, interleaved *stream.InterleavedStream, executor tooldispatch.StreamingExecutor, beforeToolCall func(context.Context, schema.ToolCall) error) (*stream.AssistantStreamResult, error) {
+	var finalResult *stream.AssistantStreamResult
 	for {
 		select {
 		case call, ok := <-interleaved.ToolCallCh:
@@ -154,7 +157,7 @@ func consumeInterleavedForAgentLoop(ctx context.Context, interleaved *Interleave
 				interleaved.FinalMessageCh = nil
 				continue
 			}
-			finalResult = new(AssistantStreamResult)
+			finalResult = new(stream.AssistantStreamResult)
 			*finalResult = result
 			if interleaved.ToolCallCh == nil {
 				return finalResult, nil

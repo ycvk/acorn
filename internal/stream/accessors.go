@@ -1,4 +1,4 @@
-package runtime
+package stream
 
 import "github.com/ycvk/acorn/internal/domain"
 
@@ -89,7 +89,7 @@ func getStringSlice(m map[string]any, key string) []string {
 	return out
 }
 
-func streamItemGetMessage(item domain.StreamItem) *StreamMessage {
+func ItemGetMessage(item domain.StreamItem) *StreamMessage {
 	m := getPayloadMap(item)
 	if msg, ok := m["message"].(*StreamMessage); ok && msg != nil {
 		return msg
@@ -107,7 +107,7 @@ func streamItemGetMessage(item domain.StreamItem) *StreamMessage {
 	}
 }
 
-func streamItemGetAssistantDelta(item domain.StreamItem) *StreamAssistantDelta {
+func ItemGetAssistantDelta(item domain.StreamItem) *StreamAssistantDelta {
 	m := getPayloadMap(item)
 	if delta, ok := m["assistant_delta"].(*StreamAssistantDelta); ok && delta != nil {
 		return delta
@@ -127,7 +127,7 @@ func streamItemGetAssistantDelta(item domain.StreamItem) *StreamAssistantDelta {
 	}
 }
 
-func streamItemGetToolCall(item domain.StreamItem) *StreamToolCall {
+func ItemGetToolCall(item domain.StreamItem) *StreamToolCall {
 	m := getPayloadMap(item)
 	if call, ok := m["tool_call"].(*StreamToolCall); ok && call != nil {
 		return call
@@ -149,7 +149,7 @@ func streamItemGetToolCall(item domain.StreamItem) *StreamToolCall {
 	}
 }
 
-func streamItemGetInterrupt(item domain.StreamItem) *StreamInterrupt {
+func ItemGetInterrupt(item domain.StreamItem) *StreamInterrupt {
 	m := getPayloadMap(item)
 	if interrupt, ok := m["interrupt"].(*StreamInterrupt); ok && interrupt != nil {
 		return interrupt
@@ -180,7 +180,7 @@ func streamItemGetInterrupt(item domain.StreamItem) *StreamInterrupt {
 	return interrupt
 }
 
-func streamItemGetSkill(item domain.StreamItem) *StreamSkill {
+func ItemGetSkill(item domain.StreamItem) *StreamSkill {
 	m := getPayloadMap(item)
 	if skill, ok := m["skill"].(*StreamSkill); ok && skill != nil {
 		return skill
@@ -248,7 +248,7 @@ func streamItemGetSkill(item domain.StreamItem) *StreamSkill {
 	return skill
 }
 
-func streamItemGetMemoryPrepared(item domain.StreamItem) *StreamMemoryPrepared {
+func ItemGetMemoryPrepared(item domain.StreamItem) *StreamMemoryPrepared {
 	m := getPayloadMap(item)
 	if mem, ok := m["memory_prepared"].(*StreamMemoryPrepared); ok && mem != nil {
 		return mem
@@ -298,7 +298,7 @@ func streamItemGetMemoryPrepared(item domain.StreamItem) *StreamMemoryPrepared {
 	return mem
 }
 
-func streamItemGetError(item domain.StreamItem) string {
+func ItemGetError(item domain.StreamItem) string {
 	return getString(getPayloadMap(item), "error")
 }
 
