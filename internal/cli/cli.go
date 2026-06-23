@@ -3,10 +3,15 @@ package cli
 import (
 	"context"
 	"errors"
+	"flag"
 	"fmt"
+	"os"
 	"strings"
 
+	"encoding/json"
+
 	"github.com/ycvk/acorn/internal/app"
+	"github.com/ycvk/acorn/internal/config"
 )
 
 const defaultConfigPath = "~/.acorn/acorn.yaml"
@@ -82,4 +87,47 @@ func runDoctor(ctx context.Context, args []string) error {
 		snapshot := container.Capabilities().Snapshot(ctx, app.CapabilitySnapshotOptions{ProbeMCP: true})
 		return printDoctorOutput(snapshot, container.Config().ConfigPath, *jsonMode)
 	})
+}
+
+func printJSON(value any) error {
+	body, err := json.MarshalIndent(value, "", "  ")
+	if err != nil {
+		return err
+	}
+	fmt.Println(string(body))
+	return nil
+}
+
+func runMemory(ctx context.Context, args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("memory requires a subcommand")
+	}
+	return fmt.Errorf("unknown memory subcommand %q", args[0])
+}
+
+func newFlagSet(name string) *flag.FlagSet {
+	fs := flag.NewFlagSet(name, flag.ContinueOnError)
+	fs.SetOutput(os.Stdout)
+	return fs
+}
+
+func addConfigFlag(fs *flag.FlagSet) *string {
+	return fs.String("c", defaultConfigPath, "config file path")
+}
+
+func loadConfig(configPath string) (*config.Config, error) {
+	return config.Load(configPath)
+}
+
+func withContainer(ctx context.Context, configPath string, fn func(*app.Container) error) error {
+	cfg, err := loadConfig(configPath)
+	if err != nil {
+		return err
+	}
+	container, err := app.NewContainer(ctx, cfg)
+	if err != nil {
+		return err
+	}
+	defer container.Close()
+	return fn(container)
 }

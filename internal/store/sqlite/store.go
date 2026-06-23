@@ -1,11 +1,12 @@
 package sqlite
 
 import (
-	"database/sql"
 	"fmt"
 	"os"
-	"path/filepath"
 	"time"
+
+	"database/sql"
+	"path/filepath"
 
 	_ "modernc.org/sqlite"
 )
@@ -52,4 +53,12 @@ func (s *Store) Close() error {
 		return nil
 	}
 	return s.db.Close()
+}
+
+func parseTimestamp(layout, value, field string) (time.Time, error) {
+	t, err := time.Parse(layout, value)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("parse %s timestamp %q: %w", field, value, err)
+	}
+	return t, nil
 }

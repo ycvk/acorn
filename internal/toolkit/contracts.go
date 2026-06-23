@@ -1,8 +1,11 @@
 package toolkit
 
 import (
+	"context"
 	"fmt"
 	"strings"
+
+	einotool "github.com/cloudwego/eino/components/tool"
 )
 
 type ToolLoadingMode string
@@ -77,4 +80,15 @@ func EagerLoadingPolicy() ToolLoadingPolicy {
 
 func DeferredLoadingPolicy(reason string) ToolLoadingPolicy {
 	return ToolLoadingPolicy{Mode: ToolLoadingModeDeferred, Reason: strings.TrimSpace(reason)}
+}
+
+type ToolProgressEvent struct {
+	Delta string
+}
+
+type ToolProgressEmitter func(ctx context.Context, event ToolProgressEvent) error
+
+type ProgressTool interface {
+	einotool.BaseTool
+	InvokableRunWithProgress(ctx context.Context, argumentsInJSON string, emit ToolProgressEmitter, opts ...einotool.Option) (string, error)
 }
