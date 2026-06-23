@@ -23,8 +23,8 @@ import (
 	toolutils "github.com/cloudwego/eino/components/tool/utils"
 
 	"github.com/ycvk/acorn/internal/domain"
+	"github.com/ycvk/acorn/internal/store"
 	corestore "github.com/ycvk/acorn/internal/store"
-	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
 	"github.com/ycvk/acorn/internal/toolkit"
 	"github.com/ycvk/acorn/internal/webaccess"
 	workspacepkg "github.com/ycvk/acorn/internal/workspace"
@@ -577,7 +577,7 @@ func TestBrowserToolFailsLoudlyWhenExecutableIsMissing(t *testing.T) {
 }
 
 func TestAskOperatorCreatesPendingActionAndInterrupts(t *testing.T) {
-	store, err := storesqlite.Open(filepath.Join(t.TempDir(), "state"))
+	store, err := store.Open(filepath.Join(t.TempDir(), "state"))
 	if err != nil {
 		t.Fatalf("sqlite.Open: %v", err)
 	}

@@ -19,7 +19,7 @@ import (
 	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/memory"
 	"github.com/ycvk/acorn/internal/runtime"
-	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
+	"github.com/ycvk/acorn/internal/store"
 )
 
 func TestProjectThread(t *testing.T) {
@@ -47,7 +47,7 @@ func TestProjectThread(t *testing.T) {
 
 func TestClientCreateMessageBackfillsEmptyThreadTitle(t *testing.T) {
 	ctx := context.Background()
-	store, err := storesqlite.Open(filepath.Join(t.TempDir(), "state"))
+	store, err := store.Open(filepath.Join(t.TempDir(), "state"))
 	if err != nil {
 		t.Fatalf("open store: %v", err)
 	}
@@ -75,7 +75,7 @@ func TestClientCreateMessageBackfillsEmptyThreadTitle(t *testing.T) {
 
 func TestClientListThreadsProjectsTitleFromRecentUserMessage(t *testing.T) {
 	ctx := context.Background()
-	store, err := storesqlite.Open(filepath.Join(t.TempDir(), "state"))
+	store, err := store.Open(filepath.Join(t.TempDir(), "state"))
 	if err != nil {
 		t.Fatalf("open store: %v", err)
 	}
@@ -474,7 +474,7 @@ func TestProjectRunEventRejectsUnsupportedLiveKind(t *testing.T) {
 
 func TestLoadRunEventsAfterFiltersDiagnosticsAndAdvancesCursor(t *testing.T) {
 	ctx := context.Background()
-	store, err := storesqlite.Open(filepath.Join(t.TempDir(), "state"))
+	store, err := store.Open(filepath.Join(t.TempDir(), "state"))
 	if err != nil {
 		t.Fatalf("open store: %v", err)
 	}
@@ -529,7 +529,7 @@ func TestLoadRunEventsAfterFiltersDiagnosticsAndAdvancesCursor(t *testing.T) {
 
 func TestLoadRunEventsForDetailFiltersDiagnostics(t *testing.T) {
 	ctx := context.Background()
-	store, err := storesqlite.Open(filepath.Join(t.TempDir(), "state"))
+	store, err := store.Open(filepath.Join(t.TempDir(), "state"))
 	if err != nil {
 		t.Fatalf("open store: %v", err)
 	}
@@ -558,7 +558,7 @@ func TestLoadRunEventsForDetailFiltersDiagnostics(t *testing.T) {
 
 func TestClientServiceListRunArtifactsUsesRunScopedStorePort(t *testing.T) {
 	ctx := context.Background()
-	store, err := storesqlite.Open(filepath.Join(t.TempDir(), "state"))
+	store, err := store.Open(filepath.Join(t.TempDir(), "state"))
 	if err != nil {
 		t.Fatalf("open store: %v", err)
 	}
@@ -595,7 +595,7 @@ func TestClientServiceListRunArtifactsUsesRunScopedStorePort(t *testing.T) {
 
 func TestClientCreateRunUsesRealExecutorPath(t *testing.T) {
 	ctx := context.Background()
-	store, err := storesqlite.Open(filepath.Join(t.TempDir(), "state"))
+	store, err := store.Open(filepath.Join(t.TempDir(), "state"))
 	if err != nil {
 		t.Fatalf("open store: %v", err)
 	}
@@ -676,7 +676,7 @@ func TestClientCreateRunUsesRealExecutorPath(t *testing.T) {
 
 func TestClientCreateRunReturnsExecutionNotReady(t *testing.T) {
 	ctx := context.Background()
-	store, err := storesqlite.Open(filepath.Join(t.TempDir(), "state"))
+	store, err := store.Open(filepath.Join(t.TempDir(), "state"))
 	if err != nil {
 		t.Fatalf("open store: %v", err)
 	}
@@ -706,7 +706,7 @@ func TestClientCreateRunReturnsExecutionNotReady(t *testing.T) {
 
 func TestClientCreateRunReportsPostStartPersistenceFailure(t *testing.T) {
 	ctx := context.Background()
-	db, err := storesqlite.Open(filepath.Join(t.TempDir(), "state"))
+	db, err := store.Open(filepath.Join(t.TempDir(), "state"))
 	if err != nil {
 		t.Fatalf("open store: %v", err)
 	}
@@ -766,7 +766,7 @@ func TestClientCreateRunReportsPostStartPersistenceFailure(t *testing.T) {
 }
 
 type postStartFailingExecutor struct {
-	store   *storesqlite.Store
+	store   *store.Store
 	release chan struct{}
 }
 
@@ -991,7 +991,7 @@ func (e clientRuntimeEmbedder) Embed(_ context.Context, req memory.EmbedRequest)
 	return &memory.EmbedResult{Model: e.model, Dimensions: e.dimensions, Vectors: vectors}, nil
 }
 
-func waitForRunStatus(t *testing.T, store *storesqlite.Store, runID string, want domain.RunStatus) {
+func waitForRunStatus(t *testing.T, store *store.Store, runID string, want domain.RunStatus) {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {

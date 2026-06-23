@@ -1,4 +1,4 @@
-package sqlite
+package store
 
 import (
 	"context"
@@ -6,11 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"time"
-
-	"github.com/ycvk/acorn/internal/store"
 )
 
-func (s *Store) GetOAuthToken(ctx context.Context, providerName string) (*store.OAuthToken, error) {
+func (s *Store) GetOAuthToken(ctx context.Context, providerName string) (*OAuthToken, error) {
 	row := s.db.QueryRowContext(ctx,
 		`SELECT provider_name, access_token, refresh_token, expiry, updated_at
 	     FROM mcp_oauth_tokens
@@ -18,13 +16,13 @@ func (s *Store) GetOAuthToken(ctx context.Context, providerName string) (*store.
 		providerName,
 	)
 	var (
-		token   store.OAuthToken
+		token   OAuthToken
 		expiry  string
 		updated string
 	)
 	if err := row.Scan(&token.ProviderName, &token.AccessToken, &token.RefreshToken, &expiry, &updated); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, store.ErrOAuthTokenNotFound
+			return nil, ErrOAuthTokenNotFound
 		}
 		return nil, fmt.Errorf("get oauth token: %w", err)
 	}
@@ -41,7 +39,7 @@ func (s *Store) GetOAuthToken(ctx context.Context, providerName string) (*store.
 	return &token, nil
 }
 
-func (s *Store) SaveOAuthToken(ctx context.Context, token *store.OAuthToken) error {
+func (s *Store) SaveOAuthToken(ctx context.Context, token *OAuthToken) error {
 	now := formatTimestamp(time.Now())
 	_, err := s.db.ExecContext(
 		ctx,
@@ -77,7 +75,7 @@ func (s *Store) DeleteOAuthToken(ctx context.Context, providerName string) error
 		return fmt.Errorf("delete oauth token rows affected: %w", err)
 	}
 	if affected == 0 {
-		return store.ErrOAuthTokenNotFound
+		return ErrOAuthTokenNotFound
 	}
 	return nil
 }

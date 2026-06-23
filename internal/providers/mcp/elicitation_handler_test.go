@@ -7,9 +7,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ycvk/acorn/internal/store"
+
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/ycvk/acorn/internal/domain"
-	"github.com/ycvk/acorn/internal/store/sqlite"
 )
 
 func (h *ElicitationHandler) setTimeoutForTest(d time.Duration) {
@@ -221,10 +222,10 @@ func TestHandleElicitationEmitsStreamItems(t *testing.T) {
 }
 
 // openTestStore creates a temporary SQLite store for testing.
-func openTestStore(t *testing.T) (*sqlite.Store, func()) {
+func openTestStore(t *testing.T) (*store.Store, func()) {
 	t.Helper()
 	dir := t.TempDir()
-	store, err := sqlite.Open(dir)
+	store, err := store.Open(dir)
 	if err != nil {
 		t.Fatalf("open test store: %v", err)
 	}

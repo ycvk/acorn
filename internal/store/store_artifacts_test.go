@@ -1,4 +1,4 @@
-package sqlite
+package store
 
 import (
 	"context"
@@ -8,8 +8,6 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
-
-	corestore "github.com/ycvk/acorn/internal/store"
 )
 
 func TestStoreArtifactsSaveLoadAndList(t *testing.T) {
@@ -20,12 +18,12 @@ func TestStoreArtifactsSaveLoadAndList(t *testing.T) {
 	t.Cleanup(func() { _ = store.Close() })
 
 	createdAt := time.Unix(1_710_000_000, 0).UTC()
-	record, err := store.SaveArtifact(context.Background(), corestore.ArtifactRecord{
+	record, err := store.SaveArtifact(context.Background(), ArtifactRecord{
 		ArtifactID:          "artifact_1",
 		RunID:               "run_1",
 		SessionID:           "session_1",
 		SourceToolResultRef: "tool_result:run_1:call_1",
-		Kind:                corestore.ArtifactKindJSON,
+		Kind:                ArtifactKindJSON,
 		Title:               "verification",
 		MIMEType:            "application/json",
 		RelativePath:        "runs/run_1/artifact_1",
@@ -71,7 +69,7 @@ func TestStoreArtifactsRejectsInvalidRecord(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = store.Close() })
 
-	_, err = store.SaveArtifact(context.Background(), corestore.ArtifactRecord{
+	_, err = store.SaveArtifact(context.Background(), ArtifactRecord{
 		ArtifactID:   "artifact_1",
 		RunID:        "run_1",
 		Kind:         "bad",
@@ -92,7 +90,7 @@ func TestStoreArtifactsLoadMissing(t *testing.T) {
 	t.Cleanup(func() { _ = store.Close() })
 
 	_, err = store.LoadArtifact(context.Background(), "missing")
-	if !errors.Is(err, corestore.ErrArtifactNotFound) {
+	if !errors.Is(err, ErrArtifactNotFound) {
 		t.Fatalf("load missing err = %v, want ErrArtifactNotFound", err)
 	}
 }

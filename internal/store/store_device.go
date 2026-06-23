@@ -1,4 +1,4 @@
-package sqlite
+package store
 
 import (
 	"context"
@@ -6,17 +6,15 @@ import (
 	"errors"
 	"fmt"
 	"time"
-
-	"github.com/ycvk/acorn/internal/store"
 )
 
-func (s *Store) LoadOwnerProfile(ctx context.Context) (*store.OwnerProfile, error) {
+func (s *Store) LoadOwnerProfile(ctx context.Context) (*OwnerProfile, error) {
 	row := s.db.QueryRowContext(ctx,
 		`SELECT owner_id, created_at FROM owner_profile WHERE owner_id = ?`,
 		"owner",
 	)
 	var (
-		profile store.OwnerProfile
+		profile OwnerProfile
 		created string
 	)
 	if err := row.Scan(&profile.OwnerID, &created); err != nil {
@@ -30,7 +28,7 @@ func (s *Store) LoadOwnerProfile(ctx context.Context) (*store.OwnerProfile, erro
 	return &profile, nil
 }
 
-func (s *Store) SavePairingCode(ctx context.Context, code *store.PairingCode) error {
+func (s *Store) SavePairingCode(ctx context.Context, code *PairingCode) error {
 	if code == nil {
 		return errors.New("pairing code is nil")
 	}
@@ -48,7 +46,7 @@ func (s *Store) SavePairingCode(ctx context.Context, code *store.PairingCode) er
 	return nil
 }
 
-func (s *Store) LoadPairingCode(ctx context.Context, codeHash string) (*store.PairingCode, error) {
+func (s *Store) LoadPairingCode(ctx context.Context, codeHash string) (*PairingCode, error) {
 	row := s.db.QueryRowContext(ctx,
 		`SELECT code_hash, expires_at, used_at, created_at
 		 FROM pairing_codes
@@ -58,23 +56,23 @@ func (s *Store) LoadPairingCode(ctx context.Context, codeHash string) (*store.Pa
 	code, err := scanPairingCode(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, store.ErrPairingCodeNotFound
+			return nil, ErrPairingCodeNotFound
 		}
 		return nil, fmt.Errorf("load pairing code: %w", err)
 	}
 	return code, nil
 }
 
-func (s *Store) ConsumePairingCode(ctx context.Context, codeHash string, now time.Time) (*store.PairingCode, error) {
+func (s *Store) ConsumePairingCode(ctx context.Context, codeHash string, now time.Time) (*PairingCode, error) {
 	code, err := s.LoadPairingCode(ctx, codeHash)
 	if err != nil {
 		return nil, err
 	}
 	if code.UsedAt != nil {
-		return nil, store.ErrPairingCodeUsed
+		return nil, ErrPairingCodeUsed
 	}
 	if !now.Before(code.ExpiresAt) {
-		return nil, store.ErrPairingCodeExpired
+		return nil, ErrPairingCodeExpired
 	}
 	usedAt := now.UTC()
 	result, err := s.db.ExecContext(ctx,
@@ -90,13 +88,13 @@ func (s *Store) ConsumePairingCode(ctx context.Context, codeHash string, now tim
 		return nil, fmt.Errorf("consume pairing code rows affected: %w", err)
 	}
 	if affected == 0 {
-		return nil, store.ErrPairingCodeUsed
+		return nil, ErrPairingCodeUsed
 	}
 	code.UsedAt = &usedAt
 	return code, nil
 }
 
-func (s *Store) SaveDevice(ctx context.Context, device *store.Device) error {
+func (s *Store) SaveDevice(ctx context.Context, device *Device) error {
 	if device == nil {
 		return errors.New("device is nil")
 	}
@@ -117,7 +115,7 @@ func (s *Store) SaveDevice(ctx context.Context, device *store.Device) error {
 	return nil
 }
 
-func (s *Store) LoadDeviceByTokenHash(ctx context.Context, tokenHash string) (*store.Device, error) {
+func (s *Store) LoadDeviceByTokenHash(ctx context.Context, tokenHash string) (*Device, error) {
 	row := s.db.QueryRowContext(ctx,
 		`SELECT device_id, name, platform, token_hash, created_at, last_seen_at, revoked_at
 		 FROM devices
@@ -127,14 +125,14 @@ func (s *Store) LoadDeviceByTokenHash(ctx context.Context, tokenHash string) (*s
 	device, err := scanDevice(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, store.ErrDeviceNotFound
+			return nil, ErrDeviceNotFound
 		}
 		return nil, fmt.Errorf("load device by token hash: %w", err)
 	}
 	return device, nil
 }
 
-func (s *Store) LoadDevice(ctx context.Context, deviceID string) (*store.Device, error) {
+func (s *Store) LoadDevice(ctx context.Context, deviceID string) (*Device, error) {
 	row := s.db.QueryRowContext(ctx,
 		`SELECT device_id, name, platform, token_hash, created_at, last_seen_at, revoked_at
 		 FROM devices
@@ -144,14 +142,14 @@ func (s *Store) LoadDevice(ctx context.Context, deviceID string) (*store.Device,
 	device, err := scanDevice(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, store.ErrDeviceNotFound
+			return nil, ErrDeviceNotFound
 		}
 		return nil, fmt.Errorf("load device: %w", err)
 	}
 	return device, nil
 }
 
-func (s *Store) ListDevices(ctx context.Context) ([]store.Device, error) {
+func (s *Store) ListDevices(ctx context.Context) ([]Device, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT device_id, name, platform, token_hash, created_at, last_seen_at, revoked_at
 		 FROM devices
@@ -162,7 +160,7 @@ func (s *Store) ListDevices(ctx context.Context) ([]store.Device, error) {
 	}
 	defer rows.Close()
 
-	var devices []store.Device
+	var devices []Device
 	for rows.Next() {
 		device, err := scanDevice(rows)
 		if err != nil {
@@ -190,7 +188,7 @@ func (s *Store) TouchDevice(ctx context.Context, deviceID string, seenAt time.Ti
 		return fmt.Errorf("touch device rows affected: %w", err)
 	}
 	if affected == 0 {
-		return store.ErrDeviceNotFound
+		return ErrDeviceNotFound
 	}
 	return nil
 }
@@ -209,14 +207,14 @@ func (s *Store) RevokeDevice(ctx context.Context, deviceID string, revokedAt tim
 		return fmt.Errorf("revoke device rows affected: %w", err)
 	}
 	if affected == 0 {
-		return store.ErrDeviceNotFound
+		return ErrDeviceNotFound
 	}
 	return nil
 }
 
-func scanPairingCode(scanner interface{ Scan(dest ...any) error }) (*store.PairingCode, error) {
+func scanPairingCode(scanner interface{ Scan(dest ...any) error }) (*PairingCode, error) {
 	var (
-		code      store.PairingCode
+		code      PairingCode
 		expiresAt string
 		usedAt    string
 		createdAt string
@@ -242,9 +240,9 @@ func scanPairingCode(scanner interface{ Scan(dest ...any) error }) (*store.Pairi
 	return &code, nil
 }
 
-func scanDevice(scanner interface{ Scan(dest ...any) error }) (*store.Device, error) {
+func scanDevice(scanner interface{ Scan(dest ...any) error }) (*Device, error) {
 	var (
-		device     store.Device
+		device     Device
 		createdAt  string
 		lastSeenAt string
 		revokedAt  string

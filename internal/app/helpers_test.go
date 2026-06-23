@@ -4,12 +4,12 @@ import (
 	"path/filepath"
 	"testing"
 
-	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
+	"github.com/ycvk/acorn/internal/store"
 )
 
-func openTestStore(t *testing.T) *storesqlite.Store {
+func openTestStore(t *testing.T) *store.Store {
 	t.Helper()
-	store, err := storesqlite.Open(filepath.Join(t.TempDir(), ".acorn"))
+	store, err := store.Open(filepath.Join(t.TempDir(), ".acorn"))
 	if err != nil {
 		t.Fatalf("open store: %v", err)
 	}

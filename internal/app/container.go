@@ -14,14 +14,14 @@ import (
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
 	"github.com/ycvk/acorn/internal/runtime"
 	"github.com/ycvk/acorn/internal/skills"
+	"github.com/ycvk/acorn/internal/store"
 	storecore "github.com/ycvk/acorn/internal/store"
-	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
 	"github.com/ycvk/acorn/internal/workspace"
 )
 
 type Container struct {
 	cfg           *config.Config
-	store         *storesqlite.Store
+	store         *store.Store
 	runnerFactory *runtime.RunnerFactory
 	runController *runtime.RunController
 	runResume     *RunResumeService
@@ -102,7 +102,7 @@ func buildContainer(ctx context.Context, cfg *config.Config) (*Container, error)
 
 	runtime.RegisterTypes()
 
-	store, err := storesqlite.Open(cfg.Runtime.StorageDir)
+	store, err := store.Open(cfg.Runtime.StorageDir)
 	if err != nil {
 		return nil, err
 	}

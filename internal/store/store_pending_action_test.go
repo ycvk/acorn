@@ -1,4 +1,4 @@
-package sqlite
+package store
 
 import (
 	"context"
@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/ycvk/acorn/internal/domain"
-	storecore "github.com/ycvk/acorn/internal/store"
 )
 
 func setupPendingActionStore(t *testing.T) (*Store, string) {
@@ -32,7 +31,7 @@ func TestCreatePendingAction(t *testing.T) {
 	store, runID := setupPendingActionStore(t)
 	ctx := context.Background()
 
-	record, err := store.CreatePendingAction(ctx, storecore.CreatePendingActionInput{
+	record, err := store.CreatePendingAction(ctx, CreatePendingActionInput{
 		ActionID:    "action_1",
 		RunID:       runID,
 		InterruptID: "interrupt_1",
@@ -72,7 +71,7 @@ func TestCreatePendingActionDuplicate(t *testing.T) {
 	store, runID := setupPendingActionStore(t)
 	ctx := context.Background()
 
-	input := storecore.CreatePendingActionInput{
+	input := CreatePendingActionInput{
 		ActionID: "action_dup",
 		RunID:    runID,
 		Kind:     domain.PendingActionKindOperatorQuestion,
@@ -82,7 +81,7 @@ func TestCreatePendingActionDuplicate(t *testing.T) {
 		t.Fatalf("create first: %v", err)
 	}
 	_, err := store.CreatePendingAction(ctx, input)
-	if !errors.Is(err, storecore.ErrPendingActionExists) {
+	if !errors.Is(err, ErrPendingActionExists) {
 		t.Fatalf("duplicate create error = %v, want ErrPendingActionExists", err)
 	}
 }
@@ -91,7 +90,7 @@ func TestCreatePendingActionInvalidKind(t *testing.T) {
 	store, runID := setupPendingActionStore(t)
 	ctx := context.Background()
 
-	_, err := store.CreatePendingAction(ctx, storecore.CreatePendingActionInput{
+	_, err := store.CreatePendingAction(ctx, CreatePendingActionInput{
 		ActionID: "action_bad_kind",
 		RunID:    runID,
 		Kind:     "invalid_kind",
@@ -105,7 +104,7 @@ func TestCreatePendingActionNonexistentRun(t *testing.T) {
 	store, _ := setupPendingActionStore(t)
 	ctx := context.Background()
 
-	_, err := store.CreatePendingAction(ctx, storecore.CreatePendingActionInput{
+	_, err := store.CreatePendingAction(ctx, CreatePendingActionInput{
 		ActionID: "action_no_run",
 		RunID:    "nonexistent_run",
 		Kind:     domain.PendingActionKindElicitation,
@@ -119,7 +118,7 @@ func TestCreatePendingActionDefaultStatus(t *testing.T) {
 	store, runID := setupPendingActionStore(t)
 	ctx := context.Background()
 
-	record, err := store.CreatePendingAction(ctx, storecore.CreatePendingActionInput{
+	record, err := store.CreatePendingAction(ctx, CreatePendingActionInput{
 		ActionID: "action_default_status",
 		RunID:    runID,
 		Kind:     domain.PendingActionKindElicitation,
@@ -138,7 +137,7 @@ func TestLoadPendingAction(t *testing.T) {
 	store, runID := setupPendingActionStore(t)
 	ctx := context.Background()
 
-	if _, err := store.CreatePendingAction(ctx, storecore.CreatePendingActionInput{
+	if _, err := store.CreatePendingAction(ctx, CreatePendingActionInput{
 		ActionID:    "action_load",
 		RunID:       runID,
 		InterruptID: "int_load",
@@ -166,7 +165,7 @@ func TestLoadPendingActionNotFound(t *testing.T) {
 	ctx := context.Background()
 
 	_, err := store.LoadPendingAction(ctx, "nonexistent")
-	if !errors.Is(err, storecore.ErrPendingActionNotFound) {
+	if !errors.Is(err, ErrPendingActionNotFound) {
 		t.Fatalf("error = %v, want ErrPendingActionNotFound", err)
 	}
 }
@@ -175,7 +174,7 @@ func TestLoadPendingActionByInterrupt(t *testing.T) {
 	store, runID := setupPendingActionStore(t)
 	ctx := context.Background()
 
-	if _, err := store.CreatePendingAction(ctx, storecore.CreatePendingActionInput{
+	if _, err := store.CreatePendingAction(ctx, CreatePendingActionInput{
 		ActionID:    "action_by_int",
 		RunID:       runID,
 		InterruptID: "int_unique",
@@ -198,7 +197,7 @@ func TestLoadPendingActionByInterruptNotFound(t *testing.T) {
 	ctx := context.Background()
 
 	_, err := store.LoadPendingActionByInterrupt(ctx, "nonexistent_int")
-	if !errors.Is(err, storecore.ErrPendingActionNotFound) {
+	if !errors.Is(err, ErrPendingActionNotFound) {
 		t.Fatalf("error = %v, want ErrPendingActionNotFound", err)
 	}
 }
@@ -207,7 +206,7 @@ func TestAttachPendingActionInterrupt(t *testing.T) {
 	store, runID := setupPendingActionStore(t)
 	ctx := context.Background()
 
-	if _, err := store.CreatePendingAction(ctx, storecore.CreatePendingActionInput{
+	if _, err := store.CreatePendingAction(ctx, CreatePendingActionInput{
 		ActionID: "action_attach",
 		RunID:    runID,
 		Kind:     domain.PendingActionKindElicitation,
@@ -233,7 +232,7 @@ func TestAttachPendingActionInterruptNotFound(t *testing.T) {
 	ctx := context.Background()
 
 	err := store.AttachPendingActionInterrupt(ctx, "nonexistent", "int_x")
-	if !errors.Is(err, storecore.ErrPendingActionNotFound) {
+	if !errors.Is(err, ErrPendingActionNotFound) {
 		t.Fatalf("error = %v, want ErrPendingActionNotFound", err)
 	}
 }
@@ -250,7 +249,7 @@ func TestListPendingActions(t *testing.T) {
 		{"action_list_2", domain.PendingActionKindOperatorQuestion},
 		{"action_list_3", domain.PendingActionKindElicitation},
 	} {
-		if _, err := store.CreatePendingAction(ctx, storecore.CreatePendingActionInput{
+		if _, err := store.CreatePendingAction(ctx, CreatePendingActionInput{
 			ActionID: tc.id,
 			RunID:    runID,
 			Kind:     tc.kind,
@@ -278,14 +277,14 @@ func TestListPendingActionsExcludesDecided(t *testing.T) {
 	store, runID := setupPendingActionStore(t)
 	ctx := context.Background()
 
-	if _, err := store.CreatePendingAction(ctx, storecore.CreatePendingActionInput{
+	if _, err := store.CreatePendingAction(ctx, CreatePendingActionInput{
 		ActionID: "action_pending",
 		RunID:    runID,
 		Kind:     domain.PendingActionKindElicitation,
 	}); err != nil {
 		t.Fatalf("create pending: %v", err)
 	}
-	if _, err := store.CreatePendingAction(ctx, storecore.CreatePendingActionInput{
+	if _, err := store.CreatePendingAction(ctx, CreatePendingActionInput{
 		ActionID: "action_decided",
 		RunID:    runID,
 		Kind:     domain.PendingActionKindElicitation,
@@ -312,14 +311,14 @@ func TestListPendingActionsByRun(t *testing.T) {
 	store, runID := setupPendingActionStore(t)
 	ctx := context.Background()
 
-	if _, err := store.CreatePendingAction(ctx, storecore.CreatePendingActionInput{
+	if _, err := store.CreatePendingAction(ctx, CreatePendingActionInput{
 		ActionID: "action_run_1",
 		RunID:    runID,
 		Kind:     domain.PendingActionKindElicitation,
 	}); err != nil {
 		t.Fatalf("create 1: %v", err)
 	}
-	if _, err := store.CreatePendingAction(ctx, storecore.CreatePendingActionInput{
+	if _, err := store.CreatePendingAction(ctx, CreatePendingActionInput{
 		ActionID: "action_run_2",
 		RunID:    runID,
 		Kind:     domain.PendingActionKindOperatorQuestion,
@@ -353,7 +352,7 @@ func TestDecidePendingActionApprove(t *testing.T) {
 	store, runID := setupPendingActionStore(t)
 	ctx := context.Background()
 
-	if _, err := store.CreatePendingAction(ctx, storecore.CreatePendingActionInput{
+	if _, err := store.CreatePendingAction(ctx, CreatePendingActionInput{
 		ActionID: "action_decide_ok",
 		RunID:    runID,
 		Kind:     domain.PendingActionKindElicitation,
@@ -389,7 +388,7 @@ func TestDecidePendingActionReject(t *testing.T) {
 	store, runID := setupPendingActionStore(t)
 	ctx := context.Background()
 
-	if _, err := store.CreatePendingAction(ctx, storecore.CreatePendingActionInput{
+	if _, err := store.CreatePendingAction(ctx, CreatePendingActionInput{
 		ActionID: "action_reject",
 		RunID:    runID,
 		Kind:     domain.PendingActionKindOperatorQuestion,
@@ -410,7 +409,7 @@ func TestDecidePendingActionAlreadyDecided(t *testing.T) {
 	store, runID := setupPendingActionStore(t)
 	ctx := context.Background()
 
-	if _, err := store.CreatePendingAction(ctx, storecore.CreatePendingActionInput{
+	if _, err := store.CreatePendingAction(ctx, CreatePendingActionInput{
 		ActionID: "action_double",
 		RunID:    runID,
 		Kind:     domain.PendingActionKindElicitation,
@@ -421,7 +420,7 @@ func TestDecidePendingActionAlreadyDecided(t *testing.T) {
 		t.Fatalf("first decide: %v", err)
 	}
 	_, err := store.DecidePendingAction(ctx, "action_double", domain.PendingActionStatusRejected, `{}`)
-	if !errors.Is(err, storecore.ErrPendingActionDecided) {
+	if !errors.Is(err, ErrPendingActionDecided) {
 		t.Fatalf("second decide error = %v, want ErrPendingActionDecided", err)
 	}
 }
@@ -431,7 +430,7 @@ func TestDecidePendingActionNotFound(t *testing.T) {
 	ctx := context.Background()
 
 	_, err := store.DecidePendingAction(ctx, "nonexistent", domain.PendingActionStatusApproved, `{}`)
-	if !errors.Is(err, storecore.ErrPendingActionNotFound) {
+	if !errors.Is(err, ErrPendingActionNotFound) {
 		t.Fatalf("error = %v, want ErrPendingActionNotFound", err)
 	}
 }
@@ -440,7 +439,7 @@ func TestDecidePendingActionInvalidStatus(t *testing.T) {
 	store, runID := setupPendingActionStore(t)
 	ctx := context.Background()
 
-	if _, err := store.CreatePendingAction(ctx, storecore.CreatePendingActionInput{
+	if _, err := store.CreatePendingAction(ctx, CreatePendingActionInput{
 		ActionID: "action_invalid_status",
 		RunID:    runID,
 		Kind:     domain.PendingActionKindElicitation,
@@ -462,7 +461,7 @@ func TestDecidePendingActionAppendsEvent(t *testing.T) {
 	store, runID := setupPendingActionStore(t)
 	ctx := context.Background()
 
-	if _, err := store.CreatePendingAction(ctx, storecore.CreatePendingActionInput{
+	if _, err := store.CreatePendingAction(ctx, CreatePendingActionInput{
 		ActionID:    "action_event",
 		RunID:       runID,
 		InterruptID: "int_event",
@@ -496,7 +495,7 @@ func TestResolvePendingAction(t *testing.T) {
 	store, runID := setupPendingActionStore(t)
 	ctx := context.Background()
 
-	if _, err := store.CreatePendingAction(ctx, storecore.CreatePendingActionInput{
+	if _, err := store.CreatePendingAction(ctx, CreatePendingActionInput{
 		ActionID: "action_resolve",
 		RunID:    runID,
 		Kind:     domain.PendingActionKindElicitation,
@@ -528,7 +527,7 @@ func TestResolvePendingActionNotFound(t *testing.T) {
 	ctx := context.Background()
 
 	err := store.ResolvePendingAction(ctx, "nonexistent")
-	if !errors.Is(err, storecore.ErrPendingActionNotFound) {
+	if !errors.Is(err, ErrPendingActionNotFound) {
 		t.Fatalf("error = %v, want ErrPendingActionNotFound", err)
 	}
 }

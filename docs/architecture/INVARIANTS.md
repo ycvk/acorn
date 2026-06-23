@@ -11,7 +11,7 @@
 ## 持久化与 store 边界
 
 - **SQLite adapter 不跨层泄漏**：production 代码只允许 `internal/app/container.go` 直接 import `internal/store/sqlite`；其他包只依赖 consumer-owned ports 或 `internal/store` shared records/errors。
-  - `tests/architecture/store_boundary_test.go`
+  - ``
 - **Consumer-owned store 接口收敛**：`internal/runtime` + `internal/app` 顶层定义的 consumer-owned store 接口（Store/Port/Repository/Ledger）≤6（ExecutorStore、RunnerFactoryStore、containerRuntimeStore、containerAppStore、PendingActionCreateStore、skillSnapshotStore）。
   - `tests/architecture/store_interface_count_test.go`
 

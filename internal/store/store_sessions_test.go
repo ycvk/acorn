@@ -1,4 +1,4 @@
-package sqlite
+package store
 
 import (
 	"context"
@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/ycvk/acorn/internal/domain"
-	storecore "github.com/ycvk/acorn/internal/store"
 )
 
 func TestBindUserMessageRunIDByID(t *testing.T) {
@@ -51,7 +50,7 @@ func TestBindUserMessageRunIDByID(t *testing.T) {
 	if err := store.BindUserMessageRunIDByID(ctx, m2.ID, "run_b"); err != nil {
 		t.Fatalf("bind m2: %v", err)
 	}
-	if _, err := store.LoadLatestUnboundUserMessage(ctx, "sess_bind"); !errors.Is(err, storecore.ErrSessionMessageNotFound) {
+	if _, err := store.LoadLatestUnboundUserMessage(ctx, "sess_bind"); !errors.Is(err, ErrSessionMessageNotFound) {
 		t.Fatalf("after binding both, want ErrSessionMessageNotFound, got %v", err)
 	}
 
@@ -339,8 +338,8 @@ func TestClientSessionMessageHelpers(t *testing.T) {
 		t.Fatalf("BindLatestUserMessageRunID first: %v", err)
 	}
 	_, err = store.LoadLatestUnboundUserMessage(context.Background(), session.SessionID)
-	if !errors.Is(err, storecore.ErrSessionMessageNotFound) {
-		t.Fatalf("LoadLatestUnboundUserMessage exhausted error = %v, want storecore.ErrSessionMessageNotFound", err)
+	if !errors.Is(err, ErrSessionMessageNotFound) {
+		t.Fatalf("LoadLatestUnboundUserMessage exhausted error = %v, want ErrSessionMessageNotFound", err)
 	}
 }
 
@@ -575,8 +574,8 @@ func TestCreateBoundRunCleansUpRunWhenBindingFails(t *testing.T) {
 	}
 
 	run, loadErr := store.LoadRun(context.Background(), "run_orphan")
-	if !errors.Is(loadErr, storecore.ErrRunNotFound) {
-		t.Fatalf("LoadRun error = %v, want storecore.ErrRunNotFound", loadErr)
+	if !errors.Is(loadErr, ErrRunNotFound) {
+		t.Fatalf("LoadRun error = %v, want ErrRunNotFound", loadErr)
 	}
 	if run != nil {
 		t.Fatalf("expected orphaned run cleanup, got %#v", run)

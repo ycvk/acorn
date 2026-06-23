@@ -1,4 +1,4 @@
-package sqlite
+package store
 
 import (
 	"context"
@@ -9,18 +9,17 @@ import (
 	"time"
 
 	"github.com/ycvk/acorn/internal/domain"
-	"github.com/ycvk/acorn/internal/store"
 )
 
 func (s *Store) CreateRun(ctx context.Context, runID, input string) error {
-	return s.CreateRunWithParams(ctx, store.RunCreateParams{
+	return s.CreateRunWithParams(ctx, RunCreateParams{
 		RunID: runID,
 		Input: input,
 	})
 }
 
 func (s *Store) CreateRunWithSession(ctx context.Context, runID, sessionID string, turnIndex int, input string) error {
-	return s.CreateRunWithParams(ctx, store.RunCreateParams{
+	return s.CreateRunWithParams(ctx, RunCreateParams{
 		RunID:     runID,
 		SessionID: sessionID,
 		TurnIndex: turnIndex,
@@ -28,7 +27,7 @@ func (s *Store) CreateRunWithSession(ctx context.Context, runID, sessionID strin
 	})
 }
 
-func (s *Store) CreateRunWithParams(ctx context.Context, params store.RunCreateParams) error {
+func (s *Store) CreateRunWithParams(ctx context.Context, params RunCreateParams) error {
 	now := formatTimestamp(time.Now())
 	_, err := s.db.ExecContext(ctx,
 		`INSERT INTO runs(run_id, session_id, turn_index, status, input_text, output_text, error_text, created_at, updated_at) VALUES(?, ?, ?, ?, ?, '', '', ?, ?)`,
@@ -47,7 +46,7 @@ func (s *Store) CreateRunWithParams(ctx context.Context, params store.RunCreateP
 }
 
 func (s *Store) CreateBoundRun(ctx context.Context, runID, sessionID string, turnIndex int, input string) error {
-	return s.CreateBoundRunWithParams(ctx, store.RunCreateParams{
+	return s.CreateBoundRunWithParams(ctx, RunCreateParams{
 		RunID:     runID,
 		SessionID: sessionID,
 		TurnIndex: turnIndex,
@@ -55,7 +54,7 @@ func (s *Store) CreateBoundRun(ctx context.Context, runID, sessionID string, tur
 	})
 }
 
-func (s *Store) CreateBoundRunWithParams(ctx context.Context, params store.RunCreateParams) error {
+func (s *Store) CreateBoundRunWithParams(ctx context.Context, params RunCreateParams) error {
 	if err := s.CreateRunWithParams(ctx, params); err != nil {
 		return err
 	}
@@ -147,7 +146,7 @@ func (s *Store) LoadRun(ctx context.Context, runID string) (*domain.RunRecord, e
 	rec, err := scanRunRecord(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("%w: %s", store.ErrRunNotFound, runID)
+			return nil, fmt.Errorf("%w: %s", ErrRunNotFound, runID)
 		}
 		return nil, fmt.Errorf("load run: %w", err)
 	}

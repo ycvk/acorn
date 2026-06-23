@@ -1,4 +1,4 @@
-package sqlite
+package store
 
 import (
 	"context"
@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/ycvk/acorn/internal/domain"
-	"github.com/ycvk/acorn/internal/store"
 )
 
 func (s *Store) AppendSessionMessage(ctx context.Context, sessionID string, turnIndex int, role, content, runID string) (*domain.SessionMessageRecord, error) {
@@ -74,7 +73,7 @@ func (s *Store) UpdateSessionMessageWithParts(ctx context.Context, id int64, con
 		return fmt.Errorf("update session message rows affected: %w", err)
 	}
 	if affected == 0 {
-		return fmt.Errorf("%w: %d", store.ErrSessionMessageNotFound, id)
+		return fmt.Errorf("%w: %d", ErrSessionMessageNotFound, id)
 	}
 	return nil
 }
@@ -150,7 +149,7 @@ func (s *Store) LoadLatestUnboundUserMessage(ctx context.Context, sessionID stri
 	)
 	if err := row.Scan(&rec.ID, &rec.SessionID, &rec.TurnIndex, &rec.Role, &rec.Content, &contentParts, &rec.RunID, &created); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("%w: latest unbound user message for %s", store.ErrSessionMessageNotFound, sessionID)
+			return nil, fmt.Errorf("%w: latest unbound user message for %s", ErrSessionMessageNotFound, sessionID)
 		}
 		return nil, fmt.Errorf("load latest unbound user message: %w", err)
 	}

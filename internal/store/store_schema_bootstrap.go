@@ -1,4 +1,4 @@
-package sqlite
+package store
 
 // storeBootstrapSchema is the bootstrap DDL executed on every store open. It
 // creates only the core + supporting tables if they do not already exist;

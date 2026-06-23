@@ -1,4 +1,4 @@
-package sqlite
+package store
 
 import (
 	"database/sql"
@@ -7,8 +7,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/ycvk/acorn/internal/store"
 )
 
 func TestOpenConfiguresAndKeepsWALMode(t *testing.T) {
@@ -71,8 +69,8 @@ CREATE TABLE runs (
 	}
 
 	_, err = Open(dir)
-	if !errors.Is(err, store.ErrUnsupportedStorageSchema) {
-		t.Fatalf("Open error = %v, want store.ErrUnsupportedStorageSchema", err)
+	if !errors.Is(err, ErrUnsupportedStorageSchema) {
+		t.Fatalf("Open error = %v, want ErrUnsupportedStorageSchema", err)
 	}
 	if !strings.Contains(err.Error(), "runs") || !strings.Contains(err.Error(), "session_id") {
 		t.Fatalf("unexpected error detail: %v", err)

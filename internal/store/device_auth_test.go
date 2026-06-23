@@ -1,12 +1,10 @@
-package sqlite
+package store
 
 import (
 	"context"
 	"errors"
 	"testing"
 	"time"
-
-	storecore "github.com/ycvk/acorn/internal/store"
 )
 
 func TestDeviceAuthOwnerProfileExistsOnOpen(t *testing.T) {
@@ -29,7 +27,7 @@ func TestDeviceAuthPairingCodeLifecycle(t *testing.T) {
 	store := openTestStore(t)
 	ctx := context.Background()
 	now := time.Date(2026, 5, 15, 10, 0, 0, 0, time.UTC)
-	code := &storecore.PairingCode{
+	code := &PairingCode{
 		CodeHash:  "hash-code",
 		ExpiresAt: now.Add(10 * time.Minute),
 		CreatedAt: now,
@@ -53,8 +51,8 @@ func TestDeviceAuthPairingCodeLifecycle(t *testing.T) {
 	if consumed.UsedAt == nil || !consumed.UsedAt.Equal(now.Add(time.Minute)) {
 		t.Fatalf("used_at = %v, want %v", consumed.UsedAt, now.Add(time.Minute))
 	}
-	if _, err := store.ConsumePairingCode(ctx, "hash-code", now.Add(2*time.Minute)); !errors.Is(err, storecore.ErrPairingCodeUsed) {
-		t.Fatalf("second consume error = %v, want storecore.ErrPairingCodeUsed", err)
+	if _, err := store.ConsumePairingCode(ctx, "hash-code", now.Add(2*time.Minute)); !errors.Is(err, ErrPairingCodeUsed) {
+		t.Fatalf("second consume error = %v, want ErrPairingCodeUsed", err)
 	}
 }
 
@@ -63,18 +61,18 @@ func TestDeviceAuthPairingCodeExpiryAndMissing(t *testing.T) {
 	ctx := context.Background()
 	now := time.Date(2026, 5, 15, 10, 0, 0, 0, time.UTC)
 
-	if _, err := store.LoadPairingCode(ctx, "missing"); !errors.Is(err, storecore.ErrPairingCodeNotFound) {
-		t.Fatalf("load missing code error = %v, want storecore.ErrPairingCodeNotFound", err)
+	if _, err := store.LoadPairingCode(ctx, "missing"); !errors.Is(err, ErrPairingCodeNotFound) {
+		t.Fatalf("load missing code error = %v, want ErrPairingCodeNotFound", err)
 	}
-	if err := store.SavePairingCode(ctx, &storecore.PairingCode{
+	if err := store.SavePairingCode(ctx, &PairingCode{
 		CodeHash:  "expired",
 		ExpiresAt: now.Add(-time.Second),
 		CreatedAt: now.Add(-time.Minute),
 	}); err != nil {
 		t.Fatalf("save expired code: %v", err)
 	}
-	if _, err := store.ConsumePairingCode(ctx, "expired", now); !errors.Is(err, storecore.ErrPairingCodeExpired) {
-		t.Fatalf("consume expired code error = %v, want storecore.ErrPairingCodeExpired", err)
+	if _, err := store.ConsumePairingCode(ctx, "expired", now); !errors.Is(err, ErrPairingCodeExpired) {
+		t.Fatalf("consume expired code error = %v, want ErrPairingCodeExpired", err)
 	}
 }
 
@@ -82,7 +80,7 @@ func TestDeviceAuthDeviceLifecycle(t *testing.T) {
 	store := openTestStore(t)
 	ctx := context.Background()
 	now := time.Date(2026, 5, 15, 10, 0, 0, 0, time.UTC)
-	device := &storecore.Device{
+	device := &Device{
 		DeviceID:   "device_1",
 		Name:       "iPhone",
 		Platform:   "ios",
@@ -139,13 +137,13 @@ func TestDeviceAuthDeviceNotFound(t *testing.T) {
 	store := openTestStore(t)
 	ctx := context.Background()
 
-	if _, err := store.LoadDeviceByTokenHash(ctx, "missing"); !errors.Is(err, storecore.ErrDeviceNotFound) {
-		t.Fatalf("load missing device error = %v, want storecore.ErrDeviceNotFound", err)
+	if _, err := store.LoadDeviceByTokenHash(ctx, "missing"); !errors.Is(err, ErrDeviceNotFound) {
+		t.Fatalf("load missing device error = %v, want ErrDeviceNotFound", err)
 	}
-	if err := store.TouchDevice(ctx, "missing", time.Now().UTC()); !errors.Is(err, storecore.ErrDeviceNotFound) {
-		t.Fatalf("touch missing device error = %v, want storecore.ErrDeviceNotFound", err)
+	if err := store.TouchDevice(ctx, "missing", time.Now().UTC()); !errors.Is(err, ErrDeviceNotFound) {
+		t.Fatalf("touch missing device error = %v, want ErrDeviceNotFound", err)
 	}
-	if err := store.RevokeDevice(ctx, "missing", time.Now().UTC()); !errors.Is(err, storecore.ErrDeviceNotFound) {
-		t.Fatalf("revoke missing device error = %v, want storecore.ErrDeviceNotFound", err)
+	if err := store.RevokeDevice(ctx, "missing", time.Now().UTC()); !errors.Is(err, ErrDeviceNotFound) {
+		t.Fatalf("revoke missing device error = %v, want ErrDeviceNotFound", err)
 	}
 }

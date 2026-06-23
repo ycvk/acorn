@@ -1,4 +1,4 @@
-package sqlite
+package store
 
 import (
 	"context"
@@ -10,10 +10,9 @@ import (
 	"time"
 
 	"github.com/ycvk/acorn/internal/domain"
-	"github.com/ycvk/acorn/internal/store"
 )
 
-func (s *Store) CreatePendingAction(ctx context.Context, input store.CreatePendingActionInput) (*domain.PendingActionRecord, error) {
+func (s *Store) CreatePendingAction(ctx context.Context, input CreatePendingActionInput) (*domain.PendingActionRecord, error) {
 	kind, status, err := normalizeCreatePendingActionInput(input)
 	if err != nil {
 		return nil, err
@@ -56,7 +55,7 @@ func (s *Store) insertPendingAction(ctx context.Context, record *domain.PendingA
 	)
 	if err != nil {
 		if isPendingActionUniqueConstraint(err) {
-			return store.ErrPendingActionExists
+			return ErrPendingActionExists
 		}
 		return fmt.Errorf("create pending action: %w", err)
 	}
@@ -65,7 +64,7 @@ func (s *Store) insertPendingAction(ctx context.Context, record *domain.PendingA
 
 // normalizeCreatePendingActionInput normalizes the kind/status fields of a
 // CreatePendingActionInput, returning them together with any error.
-func normalizeCreatePendingActionInput(input store.CreatePendingActionInput) (domain.PendingActionKind, domain.PendingActionStatus, error) {
+func normalizeCreatePendingActionInput(input CreatePendingActionInput) (domain.PendingActionKind, domain.PendingActionStatus, error) {
 	kind, err := normalizePendingActionKind(input.Kind)
 	if err != nil {
 		return "", "", fmt.Errorf("create pending action: %w", err)
@@ -86,7 +85,7 @@ func (s *Store) AttachPendingActionInterrupt(ctx context.Context, actionID, inte
 	)
 	if err != nil {
 		if isPendingActionUniqueConstraint(err) {
-			return store.ErrPendingActionExists
+			return ErrPendingActionExists
 		}
 		return fmt.Errorf("attach pending action interrupt: %w", err)
 	}
@@ -95,7 +94,7 @@ func (s *Store) AttachPendingActionInterrupt(ctx context.Context, actionID, inte
 		return fmt.Errorf("attach pending action interrupt rows affected: %w", err)
 	}
 	if affected == 0 {
-		return fmt.Errorf("attach pending action interrupt: %w: %s", store.ErrPendingActionNotFound, actionID)
+		return fmt.Errorf("attach pending action interrupt: %w: %s", ErrPendingActionNotFound, actionID)
 	}
 	return nil
 }
@@ -109,7 +108,7 @@ func (s *Store) LoadPendingAction(ctx context.Context, actionID string) (*domain
 	record, err := scanPendingActionRecord(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("%w: %s", store.ErrPendingActionNotFound, actionID)
+			return nil, fmt.Errorf("%w: %s", ErrPendingActionNotFound, actionID)
 		}
 		return nil, fmt.Errorf("load pending action: %w", err)
 	}
@@ -125,7 +124,7 @@ func (s *Store) LoadPendingActionByInterrupt(ctx context.Context, interruptID st
 	record, err := scanPendingActionRecord(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("%w: %s", store.ErrPendingActionNotFound, interruptID)
+			return nil, fmt.Errorf("%w: %s", ErrPendingActionNotFound, interruptID)
 		}
 		return nil, fmt.Errorf("load pending action by interrupt: %w", err)
 	}
@@ -240,12 +239,12 @@ func decideLoadPendingAction(ctx context.Context, tx *sql.Tx, actionID string) (
 	))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("decide pending action: %w: %s", store.ErrPendingActionNotFound, actionID)
+			return nil, fmt.Errorf("decide pending action: %w: %s", ErrPendingActionNotFound, actionID)
 		}
 		return nil, fmt.Errorf("decide pending action load: %w", err)
 	}
 	if record.Status != domain.PendingActionStatusPending {
-		return nil, fmt.Errorf("decide pending action: %w: status %q", store.ErrPendingActionDecided, record.Status)
+		return nil, fmt.Errorf("decide pending action: %w: status %q", ErrPendingActionDecided, record.Status)
 	}
 	return record, nil
 }
@@ -269,7 +268,7 @@ func decideApplyUpdate(ctx context.Context, tx *sql.Tx, record *domain.PendingAc
 		return fmt.Errorf("decide pending action rows affected: %w", err)
 	}
 	if affected == 0 {
-		return fmt.Errorf("decide pending action: %w", store.ErrPendingActionDecided)
+		return fmt.Errorf("decide pending action: %w", ErrPendingActionDecided)
 	}
 	return nil
 }
@@ -317,7 +316,7 @@ func (s *Store) ResolvePendingAction(ctx context.Context, actionID string) error
 		return fmt.Errorf("resolve pending action rows affected: %w", err)
 	}
 	if affected == 0 {
-		return fmt.Errorf("resolve pending action: %w: %s", store.ErrPendingActionNotFound, actionID)
+		return fmt.Errorf("resolve pending action: %w: %s", ErrPendingActionNotFound, actionID)
 	}
 	return nil
 }

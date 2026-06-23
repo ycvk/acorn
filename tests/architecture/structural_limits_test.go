@@ -15,7 +15,7 @@ var refactorOwnedDirs = []string{
 	"internal/runtime",
 	"internal/toolset",
 	"internal/toolkit",
-	"internal/store/sqlite",
+
 	"internal/memory",
 	"internal/app",
 	"internal/providers/mcp",

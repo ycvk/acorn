@@ -1,12 +1,10 @@
-package sqlite
+package store
 
 import (
 	"fmt"
 	"strings"
 
 	"database/sql"
-
-	"github.com/ycvk/acorn/internal/store"
 )
 
 func (s *Store) migrate() error {
@@ -108,7 +106,7 @@ func (s *Store) requireColumns(table string, columns []string) error {
 		if _, ok := existing[column]; ok {
 			continue
 		}
-		return fmt.Errorf("%w: table %s is missing required column %s; rebuild the local database with a clean current storage directory", store.ErrUnsupportedStorageSchema, table, column)
+		return fmt.Errorf("%w: table %s is missing required column %s; rebuild the local database with a clean current storage directory", ErrUnsupportedStorageSchema, table, column)
 	}
 	return nil
 }

@@ -1,4 +1,4 @@
-package sqlite
+package store
 
 import (
 	"context"
@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/ycvk/acorn/internal/domain"
-	storecore "github.com/ycvk/acorn/internal/store"
 )
 
 func TestStoreLifecycle(t *testing.T) {
@@ -56,7 +55,7 @@ func TestCreateRunWithParamsPersistsFields(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = store.Close() })
 
-	err = store.CreateRunWithParams(context.Background(), storecore.RunCreateParams{
+	err = store.CreateRunWithParams(context.Background(), RunCreateParams{
 		RunID:     "run_child",
 		SessionID: "session_child",
 		TurnIndex: 2,
