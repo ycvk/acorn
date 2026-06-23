@@ -20,7 +20,7 @@ import (
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/contextplane"
 	"github.com/ycvk/acorn/internal/domain"
-	"github.com/ycvk/acorn/internal/memorymodule"
+	"github.com/ycvk/acorn/internal/memory"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
 	"github.com/ycvk/acorn/internal/skills"
 	corestore "github.com/ycvk/acorn/internal/store"
@@ -82,7 +82,7 @@ func (f *RunnerFactory) Config() *config.Config {
 	return f.deps.Config
 }
 
-func (f *RunnerFactory) MemoryModule() memorymodule.Service {
+func (f *RunnerFactory) MemoryModule() memory.Service {
 	return f.deps.MemoryModule
 }
 
@@ -175,7 +175,7 @@ func (f *RunnerFactory) buildRunCapabilityAssembly(ctx context.Context, req Runn
 	return &capabilityAssembly{mcpManager: mcpManager, capabilities: capabilities}, nil
 }
 
-func (f *RunnerFactory) prepareRunMemory(ctx context.Context, req RunnerBuildRequest) (*memorymodule.PrepareResult, error) {
+func (f *RunnerFactory) prepareRunMemory(ctx context.Context, req RunnerBuildRequest) (*memory.PrepareResult, error) {
 	if f == nil {
 		return nil, errors.New("runner factory is not initialized")
 	}
@@ -183,7 +183,7 @@ func (f *RunnerFactory) prepareRunMemory(ctx context.Context, req RunnerBuildReq
 		return nil, errors.New("memory module is not initialized")
 	}
 	workspaceSlug := f.workspaceSlug()
-	result, err := f.deps.MemoryModule.Prepare(ctx, memorymodule.PrepareRequest{
+	result, err := f.deps.MemoryModule.Prepare(ctx, memory.PrepareRequest{
 		RunID:         req.RunID,
 		SessionID:     req.SessionID,
 		WorkspaceSlug: workspaceSlug,
@@ -202,11 +202,11 @@ func (f *RunnerFactory) workspaceSlug() string {
 	if f.deps.Workspace == nil {
 		return ""
 	}
-	return memorymodule.WorkspaceSlug(f.deps.Workspace.Root())
+	return memory.WorkspaceSlug(f.deps.Workspace.Root())
 }
 
-func (f *RunnerFactory) emitRunMemoryEvents(ctx context.Context, req RunnerBuildRequest, workspaceSlug string, result *memorymodule.PrepareResult) error {
-	if err := emitMemoryPreparedEvent(ctx, f.deps.Store, req, memorymodule.WorkspaceScope(workspaceSlug), result); err != nil {
+func (f *RunnerFactory) emitRunMemoryEvents(ctx context.Context, req RunnerBuildRequest, workspaceSlug string, result *memory.PrepareResult) error {
+	if err := emitMemoryPreparedEvent(ctx, f.deps.Store, req, memory.WorkspaceScope(workspaceSlug), result); err != nil {
 		return err
 	}
 	return nil
@@ -217,7 +217,7 @@ func (f *RunnerFactory) assembleContext(
 	req RunnerBuildRequest,
 	caps *runCapabilities,
 	selection *runSelection,
-	memoryPrepared *memorymodule.PrepareResult,
+	memoryPrepared *memory.PrepareResult,
 ) (*contextplane.AssembleResult, error) {
 	if f == nil || f.deps.ContextPlane == nil {
 		return nil, errors.New("context plane is not initialized")
@@ -355,7 +355,7 @@ type capabilityAssembly struct {
 	capabilities *runCapabilities
 }
 
-func buildAssembleRequest(req RunnerBuildRequest, caps *runCapabilities, selection *runSelection, memoryPrepared *memorymodule.PrepareResult) contextplane.AssembleRequest {
+func buildAssembleRequest(req RunnerBuildRequest, caps *runCapabilities, selection *runSelection, memoryPrepared *memory.PrepareResult) contextplane.AssembleRequest {
 	var selectedSkill *SelectedSkill
 	if selection != nil {
 		selectedSkill = selection.selectedSkill

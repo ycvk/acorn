@@ -12,9 +12,9 @@ var clientProjectionBoundaryFiles = []string{
 	"internal/clientevents/types.go",
 	"internal/clientevents/projector.go",
 	"internal/app/client_helpers.go",
-	"internal/web/dto_run.go",
-	"internal/web/dto_pending.go",
-	"internal/web/server.go",
+	"internal/api/dto_run.go",
+	"internal/api/dto_pending.go",
+	"internal/api/server.go",
 }
 
 func TestClientProjectionBoundaryDoesNotImportRuntimeTypes(t *testing.T) {

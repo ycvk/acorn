@@ -10,7 +10,7 @@ import (
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/contextplane"
 	"github.com/ycvk/acorn/internal/domain"
-	"github.com/ycvk/acorn/internal/memorymodule"
+	"github.com/ycvk/acorn/internal/memory"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
 	"github.com/ycvk/acorn/internal/runtime"
 	"github.com/ycvk/acorn/internal/skills"
@@ -148,12 +148,12 @@ func buildContextPlane(cfg *config.Config) (contextplane.ContextPlane, error) {
 
 // buildMemoryService constructs the file-backed memory service.
 // Semantic retrieval (embedding + vector store) will be wired in Phase 4.
-func buildMemoryService(ctx context.Context, cfg *config.Config) (memorymodule.Service, error) {
+func buildMemoryService(ctx context.Context, cfg *config.Config) (memory.Service, error) {
 	if cfg == nil {
 		return nil, errors.New("config is required")
 	}
 	memoryRoot := strings.TrimSpace(cfg.Runtime.StorageDir)
-	svc, err := memorymodule.NewLocalService(memorymodule.Config{
+	svc, err := memory.NewLocalService(memory.Config{
 		Root: memoryRoot,
 	})
 	if err != nil {
@@ -192,29 +192,29 @@ func buildContainerAppServices(cfg *config.Config, store containerAppStore, deps
 }
 
 type MemoryService struct {
-	module memorymodule.Service
+	module memory.Service
 }
 
-func NewMemoryService(module memorymodule.Service) (*MemoryService, error) {
+func NewMemoryService(module memory.Service) (*MemoryService, error) {
 	if module == nil {
 		return nil, errors.New("memory module service is required")
 	}
 	return &MemoryService{module: module}, nil
 }
 
-func (s *MemoryService) ListFacts(ctx context.Context, selection memorymodule.RecordSelection) ([]memorymodule.Record, error) {
+func (s *MemoryService) ListFacts(ctx context.Context, selection memory.RecordSelection) ([]memory.Record, error) {
 	return s.module.ListFacts(ctx, selection)
 }
 
-func (s *MemoryService) ListSkills(ctx context.Context, selection memorymodule.RecordSelection) ([]memorymodule.Record, error) {
+func (s *MemoryService) ListSkills(ctx context.Context, selection memory.RecordSelection) ([]memory.Record, error) {
 	return s.module.ListSkills(ctx, selection)
 }
 
-func (s *MemoryService) ListHistory(ctx context.Context, selection memorymodule.RecordSelection) ([]memorymodule.Record, error) {
+func (s *MemoryService) ListHistory(ctx context.Context, selection memory.RecordSelection) ([]memory.Record, error) {
 	return s.module.ListHistory(ctx, selection)
 }
 
-func (s *MemoryService) Search(ctx context.Context, req memorymodule.SearchRequest) (*memorymodule.SearchResult, error) {
+func (s *MemoryService) Search(ctx context.Context, req memory.SearchRequest) (*memory.SearchResult, error) {
 	return s.module.Search(ctx, req)
 }
 
@@ -316,7 +316,7 @@ type containerRuntimeDeps struct {
 	ws                    *workspace.Workspace
 	loader                *skills.Loader
 	sessionSummaryService *domain.SessionSummaryService
-	memoryModule          memorymodule.Service
+	memoryModule          memory.Service
 	contextPlane          contextplane.ContextPlane
 	mcpPendingActionStore PendingActionCreateStore
 	runnerFactory         *runtime.RunnerFactory

@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ycvk/acorn/internal/api"
 	"github.com/ycvk/acorn/internal/app"
-	"github.com/ycvk/acorn/internal/web"
 )
 
 func runServe(ctx context.Context, args []string) error {
@@ -37,7 +37,7 @@ func runServe(ctx context.Context, args []string) error {
 	}
 	defer container.Close()
 
-	handler, err := web.NewHandler(web.Dependencies{
+	handler, err := api.NewHandler(api.Dependencies{
 		Client:        container.Client(),
 		PendingAction: container.PendingAction(),
 		RunResume:     container.RunResume(),

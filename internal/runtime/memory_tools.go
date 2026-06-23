@@ -11,12 +11,12 @@ import (
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/schema"
 
-	"github.com/ycvk/acorn/internal/memorymodule"
+	"github.com/ycvk/acorn/internal/memory"
 	"github.com/ycvk/acorn/internal/toolset"
 	"github.com/ycvk/acorn/internal/workspace"
 )
 
-func BuildMemoryFileTools(ctx context.Context, memory memorymodule.Service) ([]einotool.BaseTool, error) {
+func BuildMemoryFileTools(ctx context.Context, memory memory.Service) ([]einotool.BaseTool, error) {
 	if memory == nil {
 		return nil, fmt.Errorf("memory service is required")
 	}
@@ -27,7 +27,7 @@ func BuildMemoryFileTools(ctx context.Context, memory memorymodule.Service) ([]e
 	return collectMemoryFileTools(ctx, memory, catalog)
 }
 
-func buildMemoryToolCatalog(ctx context.Context, memory memorymodule.Service) (*toolset.Catalog, error) {
+func buildMemoryToolCatalog(ctx context.Context, memory memory.Service) (*toolset.Catalog, error) {
 	trimmedRoot := strings.TrimSpace(memory.Root())
 	if trimmedRoot == "" {
 		return nil, fmt.Errorf("memory root is required")
@@ -46,7 +46,7 @@ func buildMemoryToolCatalog(ctx context.Context, memory memorymodule.Service) (*
 	return catalog, nil
 }
 
-func collectMemoryFileTools(ctx context.Context, memory memorymodule.Service, catalog *toolset.Catalog) ([]einotool.BaseTool, error) {
+func collectMemoryFileTools(ctx context.Context, memory memory.Service, catalog *toolset.Catalog) ([]einotool.BaseTool, error) {
 	searchTool, err := newMemorySearchTool(memory)
 	if err != nil {
 		return nil, err
@@ -71,13 +71,13 @@ func collectMemoryFileTools(ctx context.Context, memory memorymodule.Service, ca
 type memoryNamespacedTool struct {
 	inner        einotool.BaseTool
 	invokable    einotool.InvokableTool
-	memory       memorymodule.Service
+	memory       memory.Service
 	name         string
 	description  string
 	originalName string
 }
 
-func wrapMemoryFileTool(ctx context.Context, memory memorymodule.Service, inner einotool.BaseTool) (*memoryNamespacedTool, bool, error) {
+func wrapMemoryFileTool(ctx context.Context, memory memory.Service, inner einotool.BaseTool) (*memoryNamespacedTool, bool, error) {
 	info, err := inner.Info(ctx)
 	if err != nil {
 		return nil, false, fmt.Errorf("read memory tool info: %w", err)
@@ -129,7 +129,7 @@ func (t *memoryNamespacedTool) runMemoryCreateFile(ctx context.Context, argument
 	if err := json.Unmarshal([]byte(argumentsInJSON), &input); err != nil {
 		return "", fmt.Errorf("parse memory_create_file arguments: %w", err)
 	}
-	result, err := t.memory.ApplyMemoryMutation(ctx, memorymodule.PlanMemoryMutationRequest{Path: input.Path, Content: input.Content})
+	result, err := t.memory.ApplyMemoryMutation(ctx, memory.PlanMemoryMutationRequest{Path: input.Path, Content: input.Content})
 	if err != nil {
 		return "", err
 	}
@@ -156,7 +156,7 @@ func (t *memoryNamespacedTool) runMemoryReplaceSpan(ctx context.Context, argumen
 	if err != nil {
 		return "", fmt.Errorf("apply line range replacement: %w", err)
 	}
-	result, err := t.memory.ApplyMemoryMutation(ctx, memorymodule.PlanMemoryMutationRequest{Path: input.Path, Content: replaced})
+	result, err := t.memory.ApplyMemoryMutation(ctx, memory.PlanMemoryMutationRequest{Path: input.Path, Content: replaced})
 	if err != nil {
 		return "", err
 	}
@@ -170,11 +170,11 @@ func (t *memoryNamespacedTool) runMemoryReplaceSpan(ctx context.Context, argumen
 	return string(body), nil
 }
 
-func memoryMutationRejection(result *memorymodule.MemoryMutationResult) string {
+func memoryMutationRejection(result *memory.MemoryMutationResult) string {
 	if result == nil || result.MutationPlan == nil {
 		return ""
 	}
-	if result.MutationPlan.Action == memorymodule.MemoryMutationRejectInvalid {
+	if result.MutationPlan.Action == memory.MemoryMutationRejectInvalid {
 		return result.MutationPlan.Reason
 	}
 	return ""

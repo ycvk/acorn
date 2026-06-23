@@ -6,11 +6,11 @@ import (
 	"time"
 
 	"github.com/ycvk/acorn/internal/domain"
-	"github.com/ycvk/acorn/internal/memorymodule"
+	"github.com/ycvk/acorn/internal/memory"
 	"github.com/ycvk/acorn/internal/skills"
 )
 
-func emitMemoryPreparedEvent(ctx context.Context, store domain.EventAppender, req RunnerBuildRequest, workspaceScope string, result *memorymodule.PrepareResult) error {
+func emitMemoryPreparedEvent(ctx context.Context, store domain.EventAppender, req RunnerBuildRequest, workspaceScope string, result *memory.PrepareResult) error {
 	if store == nil || strings.TrimSpace(req.RunID) == "" {
 		return nil
 	}
@@ -33,7 +33,7 @@ func emitMemoryPreparedEvent(ctx context.Context, store domain.EventAppender, re
 	return err
 }
 
-func streamMemoryNudges(nudges []memorymodule.Nudge) []StreamMemoryPreparedNudge {
+func streamMemoryNudges(nudges []memory.Nudge) []StreamMemoryPreparedNudge {
 	out := make([]StreamMemoryPreparedNudge, 0, len(nudges))
 	for _, n := range nudges {
 		out = append(out, StreamMemoryPreparedNudge{
@@ -43,7 +43,7 @@ func streamMemoryNudges(nudges []memorymodule.Nudge) []StreamMemoryPreparedNudge
 	return out
 }
 
-func streamMemoryEntries(entries []memorymodule.Entry) []StreamMemoryPreparedEntry {
+func streamMemoryEntries(entries []memory.Entry) []StreamMemoryPreparedEntry {
 	out := make([]StreamMemoryPreparedEntry, 0, len(entries))
 	for _, e := range entries {
 		out = append(out, StreamMemoryPreparedEntry{

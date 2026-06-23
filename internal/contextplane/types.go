@@ -9,7 +9,7 @@ import (
 
 	"github.com/cloudwego/eino/adk"
 	"github.com/cloudwego/eino/schema"
-	"github.com/ycvk/acorn/internal/memorymodule"
+	"github.com/ycvk/acorn/internal/memory"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/toolkit"
 )
@@ -24,7 +24,7 @@ type AssembleRequest struct {
 	Input          string
 	SelectedSkill  *SelectedSkill
 	SkillSnapshot  *skills.Snapshot
-	MemoryPrepared *memorymodule.PrepareResult
+	MemoryPrepared *memory.PrepareResult
 	ToolCatalog    *toolkit.Catalog
 }
 

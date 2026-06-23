@@ -17,7 +17,7 @@ import (
 	"github.com/ycvk/acorn/internal/clientevents"
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/domain"
-	"github.com/ycvk/acorn/internal/memorymodule"
+	"github.com/ycvk/acorn/internal/memory"
 	"github.com/ycvk/acorn/internal/runtime"
 	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
 )
@@ -937,9 +937,9 @@ func clientRuntimeTestConfig(t *testing.T, baseURL string) *config.Config {
 	return cfg
 }
 
-func newClientRuntimeMemoryModule(t *testing.T, cfg *config.Config) memorymodule.Service {
+func newClientRuntimeMemoryModule(t *testing.T, cfg *config.Config) memory.Service {
 	t.Helper()
-	service, err := memorymodule.NewLocalService(memorymodule.Config{Root: filepath.Join(cfg.Runtime.StorageDir, "memory")})
+	service, err := memory.NewLocalService(memory.Config{Root: filepath.Join(cfg.Runtime.StorageDir, "memory")})
 	if err != nil {
 		t.Fatalf("NewLocalService: %v", err)
 	}
@@ -949,7 +949,7 @@ func newClientRuntimeMemoryModule(t *testing.T, cfg *config.Config) memorymodule
 	if err := service.BuildIndex(t.Context()); err != nil {
 		t.Fatalf("BuildIndex: %v", err)
 	}
-	if err := service.SetSemanticRuntime(memorymodule.SemanticRuntimeOptions{
+	if err := service.SetSemanticRuntime(memory.SemanticRuntimeOptions{
 		VectorStore: &clientRuntimeSemanticIndex{},
 		Embedder:    clientRuntimeEmbedder{dimensions: cfg.Memory.Semantic.Embedding.Dimensions, model: cfg.Memory.Semantic.Embedding.Model},
 		Model:       cfg.Memory.Semantic.Embedding.Model,
@@ -963,12 +963,12 @@ func newClientRuntimeMemoryModule(t *testing.T, cfg *config.Config) memorymodule
 
 type clientRuntimeSemanticIndex struct{}
 
-func (i *clientRuntimeSemanticIndex) Store(_ context.Context, _ string, _ memorymodule.Kind, _ string, _ []float32, _ string, _ int) error {
+func (i *clientRuntimeSemanticIndex) Store(_ context.Context, _ string, _ memory.Kind, _ string, _ []float32, _ string, _ int) error {
 	return nil
 }
 
-func (i *clientRuntimeSemanticIndex) Search(_ context.Context, _ []float32, limit int) ([]memorymodule.VectorSearchResult, error) {
-	return make([]memorymodule.VectorSearchResult, 0, limit), nil
+func (i *clientRuntimeSemanticIndex) Search(_ context.Context, _ []float32, limit int) ([]memory.VectorSearchResult, error) {
+	return make([]memory.VectorSearchResult, 0, limit), nil
 }
 
 func (i *clientRuntimeSemanticIndex) Delete(_ context.Context, _ string) error {
@@ -980,15 +980,15 @@ type clientRuntimeEmbedder struct {
 	model      string
 }
 
-func (e clientRuntimeEmbedder) Embed(_ context.Context, req memorymodule.EmbedRequest) (*memorymodule.EmbedResult, error) {
-	vectors := make([]memorymodule.EmbeddingVector, 0, len(req.Inputs))
+func (e clientRuntimeEmbedder) Embed(_ context.Context, req memory.EmbedRequest) (*memory.EmbedResult, error) {
+	vectors := make([]memory.EmbeddingVector, 0, len(req.Inputs))
 	for _, input := range req.Inputs {
-		vectors = append(vectors, memorymodule.EmbeddingVector{
+		vectors = append(vectors, memory.EmbeddingVector{
 			Ref:    input.Ref,
 			Values: make([]float32, e.dimensions),
 		})
 	}
-	return &memorymodule.EmbedResult{Model: e.model, Dimensions: e.dimensions, Vectors: vectors}, nil
+	return &memory.EmbedResult{Model: e.model, Dimensions: e.dimensions, Vectors: vectors}, nil
 }
 
 func waitForRunStatus(t *testing.T, store *storesqlite.Store, runID string, want domain.RunStatus) {

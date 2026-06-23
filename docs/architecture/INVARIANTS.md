@@ -22,7 +22,7 @@
   - `internal/contextplane/masking_test.go`
   - `internal/contextplane/auto_compact_test.go`
 - **Memory Record V2 是长期记忆事实**：facts/history frontmatter 由 `internal/memorymodule` 解析；semantic search 走 embedding + SQLite 暴力余弦相似度。
-  - `internal/memorymodule/fact_learning_test.go`
+  - `internal/memory/fact_learning_test.go`
 
 ## Remote API 与 mobile
 

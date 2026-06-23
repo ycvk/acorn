@@ -11,7 +11,7 @@ import (
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/ycvk/acorn/internal/contextplane"
 	"github.com/ycvk/acorn/internal/domain"
-	"github.com/ycvk/acorn/internal/memorymodule"
+	"github.com/ycvk/acorn/internal/memory"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/toolkit"
@@ -81,7 +81,7 @@ type RunnerFactoryOptions struct {
 	Workspace             *workspace.Workspace
 	Handlers              []adk.ChatModelAgentMiddleware
 	SessionSummaryService *domain.SessionSummaryService
-	MemoryModule          memorymodule.Service
+	MemoryModule          memory.Service
 	ContextPlane          contextplane.ContextPlane
 	MCPPendingActionStore mcpprovider.PendingActionStore
 }

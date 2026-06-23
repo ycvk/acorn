@@ -10,7 +10,7 @@ import (
 	einotool "github.com/cloudwego/eino/components/tool"
 	toolutils "github.com/cloudwego/eino/components/tool/utils"
 	"github.com/cloudwego/eino/schema"
-	"github.com/ycvk/acorn/internal/memorymodule"
+	"github.com/ycvk/acorn/internal/memory"
 )
 
 type memorySearchInput struct {
@@ -24,8 +24,8 @@ type memorySearchInput struct {
 }
 
 type memorySearchOutput struct {
-	Items   []memorySearchOutputItem    `json:"items"`
-	Explain *memorymodule.SearchExplain `json:"explain,omitempty"`
+	Items   []memorySearchOutputItem `json:"items"`
+	Explain *memory.SearchExplain    `json:"explain,omitempty"`
 }
 
 type memorySearchOutputItem struct {
@@ -46,7 +46,7 @@ type memorySearchOutputItem struct {
 	UpdatedAt   string   `json:"updated_at,omitempty"`
 }
 
-func memorySearchOutputItemFromSearchItem(item memorymodule.SearchItem) memorySearchOutputItem {
+func memorySearchOutputItemFromSearchItem(item memory.SearchItem) memorySearchOutputItem {
 	return memorySearchOutputItem{
 		Ref:         item.Ref,
 		Kind:        item.Kind,
@@ -65,7 +65,7 @@ func memorySearchOutputItemFromSearchItem(item memorymodule.SearchItem) memorySe
 		UpdatedAt:   item.Updated,
 	}
 }
-func buildMemorySearchOutput(result *memorymodule.SearchResult) memorySearchOutput {
+func buildMemorySearchOutput(result *memory.SearchResult) memorySearchOutput {
 	var output memorySearchOutput
 	if result == nil {
 		return output
@@ -82,10 +82,10 @@ func buildMemorySearchOutput(result *memorymodule.SearchResult) memorySearchOutp
 
 type memorySearchTool struct {
 	infoSource einotool.BaseTool
-	memory     memorymodule.Service
+	memory     memory.Service
 }
 
-func newMemorySearchTool(memory memorymodule.Service) (einotool.BaseTool, error) {
+func newMemorySearchTool(memory memory.Service) (einotool.BaseTool, error) {
 	infoSource, err := toolutils.InferTool("memory_search", "Search Acorn memory records through the canonical semantic retrieval path.", func(ctx context.Context, input memorySearchInput) (memorySearchOutput, error) {
 		return memorySearchOutput{}, nil
 	})
@@ -111,7 +111,7 @@ func (t *memorySearchTool) InvokableRun(ctx context.Context, argumentsInJSON str
 	if err != nil {
 		return "", err
 	}
-	result, err := t.memory.Search(ctx, memorymodule.SearchRequest{
+	result, err := t.memory.Search(ctx, memory.SearchRequest{
 		Query:           input.Query,
 		Scope:           strings.TrimSpace(input.Scope),
 		Kinds:           kinds,
@@ -130,19 +130,19 @@ func (t *memorySearchTool) InvokableRun(ctx context.Context, argumentsInJSON str
 	return string(body), nil
 }
 
-func parseMemorySearchKinds(values []string) ([]memorymodule.Kind, error) {
+func parseMemorySearchKinds(values []string) ([]memory.Kind, error) {
 	if len(values) == 0 {
 		return nil, nil
 	}
-	result := make([]memorymodule.Kind, 0, len(values))
+	result := make([]memory.Kind, 0, len(values))
 	for _, v := range values {
 		switch strings.ToLower(strings.TrimSpace(v)) {
 		case "fact":
-			result = append(result, memorymodule.KindFact)
+			result = append(result, memory.KindFact)
 		case "skill":
-			result = append(result, memorymodule.KindSkill)
+			result = append(result, memory.KindSkill)
 		case "history":
-			result = append(result, memorymodule.KindHistory)
+			result = append(result, memory.KindHistory)
 		default:
 			return nil, fmt.Errorf("unknown memory search kind %q", v)
 		}
@@ -166,14 +166,14 @@ type memoryRememberOutput struct {
 
 type memoryRememberTool struct {
 	infoSource einotool.BaseTool
-	memory     memorymodule.Service
+	memory     memory.Service
 }
 
 // newMemoryRememberTool builds the structured fact writer exposed to the model.
 // The model supplies only title/text/tags/scope; Acorn generates Record V2
 // frontmatter and auto-stamps created/updated/status/scope, so the model never
 // hand-authors YAML, dates, or status (which previously caused reject loops).
-func newMemoryRememberTool(memory memorymodule.Service) (einotool.BaseTool, error) {
+func newMemoryRememberTool(memory memory.Service) (einotool.BaseTool, error) {
 	infoSource, err := toolutils.InferTool("remember", "Store a new long-term fact. Provide title and text (and optional tags/scope); Acorn generates the record metadata and timestamps — do not hand-write frontmatter or dates. Use memory_search to recall.", func(ctx context.Context, input memoryRememberInput) (memoryRememberOutput, error) {
 		return memoryRememberOutput{}, nil
 	})
@@ -195,7 +195,7 @@ func (t *memoryRememberTool) InvokableRun(ctx context.Context, argumentsInJSON s
 	if err := json.Unmarshal([]byte(argumentsInJSON), &input); err != nil {
 		return "", fmt.Errorf("parse remember arguments: %w", err)
 	}
-	record, err := t.memory.CreateFact(ctx, memorymodule.CreateFactRequest{
+	record, err := t.memory.CreateFact(ctx, memory.CreateFactRequest{
 		Title: input.Title,
 		Body:  input.Text,
 		Tags:  input.Tags,

@@ -11,7 +11,7 @@ import (
 
 	einotool "github.com/cloudwego/eino/components/tool"
 
-	"github.com/ycvk/acorn/internal/memorymodule"
+	"github.com/ycvk/acorn/internal/memory"
 )
 
 func TestMemoryCreateFileRejectsInvalidRecordBeforeWrite(t *testing.T) {
@@ -99,7 +99,7 @@ func TestMemoryRememberEquivalentDuplicateSucceeds(t *testing.T) {
 	if firstOut != secondOut {
 		t.Fatalf("duplicate remember returned different record: first=%#v second=%#v", firstOut, secondOut)
 	}
-	facts, err := service.ListFacts(t.Context(), memorymodule.RecordSelection{IncludeInactive: true})
+	facts, err := service.ListFacts(t.Context(), memory.RecordSelection{IncludeInactive: true})
 	if err != nil {
 		t.Fatalf("ListFacts: %v", err)
 	}
@@ -140,18 +140,18 @@ New fact.
 		t.Fatalf("memory_create_file: %v", err)
 	}
 	var decoded struct {
-		MutationPlan memorymodule.MemoryMutationPlan `json:"mutation_plan"`
+		MutationPlan memory.MemoryMutationPlan `json:"mutation_plan"`
 	}
 	if err := json.Unmarshal([]byte(output), &decoded); err != nil {
 		t.Fatalf("json.Unmarshal: %v\n%s", err, output)
 	}
-	if decoded.MutationPlan.Action != memorymodule.MemoryMutationCreate || decoded.MutationPlan.Ref != "facts/workspaces/new.md#new-fact" {
+	if decoded.MutationPlan.Action != memory.MemoryMutationCreate || decoded.MutationPlan.Ref != "facts/workspaces/new.md#new-fact" {
 		t.Fatalf("mutation plan = %#v, want create new fact", decoded.MutationPlan)
 	}
 	if _, err := os.Stat(filepath.Join(service.Root(), "facts", "workspaces", "new.md")); err != nil {
 		t.Fatalf("created file missing: %v", err)
 	}
-	facts, err := service.ListFacts(t.Context(), memorymodule.RecordSelection{})
+	facts, err := service.ListFacts(t.Context(), memory.RecordSelection{})
 	if err != nil {
 		t.Fatalf("ListFacts: %v", err)
 	}
@@ -192,13 +192,13 @@ Existing fact.
 		t.Fatalf("memory_replace_span: %v", err)
 	}
 	var decoded struct {
-		Message      string                          `json:"message"`
-		MutationPlan memorymodule.MemoryMutationPlan `json:"mutation_plan"`
+		Message      string                    `json:"message"`
+		MutationPlan memory.MemoryMutationPlan `json:"mutation_plan"`
 	}
 	if err := json.Unmarshal([]byte(output), &decoded); err != nil {
 		t.Fatalf("json.Unmarshal: %v\n%s", err, output)
 	}
-	if decoded.Message != string(memorymodule.MemoryMutationNoopDuplicate) || decoded.MutationPlan.Action != memorymodule.MemoryMutationNoopDuplicate {
+	if decoded.Message != string(memory.MemoryMutationNoopDuplicate) || decoded.MutationPlan.Action != memory.MemoryMutationNoopDuplicate {
 		t.Fatalf("decoded = %#v, want noop_duplicate", decoded)
 	}
 	body, err := os.ReadFile(filepath.Join(service.Root(), filepath.FromSlash(rel)))
@@ -210,7 +210,7 @@ Existing fact.
 	}
 }
 
-func newMemoryToolTestService(t *testing.T) *memorymodule.LocalService {
+func newMemoryToolTestService(t *testing.T) *memory.LocalService {
 	t.Helper()
 	root := t.TempDir()
 	runMemoryToolGit(t, root, "init")
@@ -222,7 +222,7 @@ func newMemoryToolTestService(t *testing.T) *memorymodule.LocalService {
 	runMemoryToolGit(t, root, "add", ".gitkeep")
 	runMemoryToolGit(t, root, "commit", "-m", "initial")
 
-	service, err := memorymodule.NewLocalService(memorymodule.Config{Root: root})
+	service, err := memory.NewLocalService(memory.Config{Root: root})
 	if err != nil {
 		t.Fatalf("NewLocalService: %v", err)
 	}
@@ -232,7 +232,7 @@ func newMemoryToolTestService(t *testing.T) *memorymodule.LocalService {
 	if err := service.BuildIndex(t.Context()); err != nil {
 		t.Fatalf("BuildIndex: %v", err)
 	}
-	if err := service.SetSemanticRuntime(memorymodule.SemanticRuntimeOptions{
+	if err := service.SetSemanticRuntime(memory.SemanticRuntimeOptions{
 		Embedder:    memoryToolEmbedder{model: "test-embedding", dimensions: 3},
 		VectorStore: memoryToolVectorStore{},
 		Model:       "test-embedding",
@@ -244,7 +244,7 @@ func newMemoryToolTestService(t *testing.T) *memorymodule.LocalService {
 	return service
 }
 
-func memoryToolByName(t *testing.T, service memorymodule.Service, name string) einotool.InvokableTool {
+func memoryToolByName(t *testing.T, service memory.Service, name string) einotool.InvokableTool {
 	t.Helper()
 	items, err := BuildMemoryFileTools(t.Context(), service)
 	if err != nil {
@@ -268,7 +268,7 @@ func memoryToolByName(t *testing.T, service memorymodule.Service, name string) e
 	return nil
 }
 
-func writeMemoryToolFile(t *testing.T, service *memorymodule.LocalService, rel string, content string) {
+func writeMemoryToolFile(t *testing.T, service *memory.LocalService, rel string, content string) {
 	t.Helper()
 	path := filepath.Join(service.Root(), filepath.FromSlash(rel))
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -308,16 +308,16 @@ type memoryToolEmbedder struct {
 	dimensions int
 }
 
-func (e memoryToolEmbedder) Embed(ctx context.Context, req memorymodule.EmbedRequest) (*memorymodule.EmbedResult, error) {
-	vectors := make([]memorymodule.EmbeddingVector, 0, len(req.Inputs))
+func (e memoryToolEmbedder) Embed(ctx context.Context, req memory.EmbedRequest) (*memory.EmbedResult, error) {
+	vectors := make([]memory.EmbeddingVector, 0, len(req.Inputs))
 	for i, input := range req.Inputs {
 		values := make([]float32, e.dimensions)
 		for j := range values {
 			values[j] = float32(i + j + 1)
 		}
-		vectors = append(vectors, memorymodule.EmbeddingVector{Ref: input.Ref, Values: values})
+		vectors = append(vectors, memory.EmbeddingVector{Ref: input.Ref, Values: values})
 	}
-	return &memorymodule.EmbedResult{Model: e.model, Dimensions: e.dimensions, Vectors: vectors}, nil
+	return &memory.EmbedResult{Model: e.model, Dimensions: e.dimensions, Vectors: vectors}, nil
 }
 
 // memoryToolVectorStore is an in-process VectorStore for the memory tool tests.
@@ -326,12 +326,12 @@ func (e memoryToolEmbedder) Embed(ctx context.Context, req memorymodule.EmbedReq
 // semantic retrieval.
 type memoryToolVectorStore struct{}
 
-func (memoryToolVectorStore) Store(_ context.Context, _ string, _ memorymodule.Kind, _ string, _ []float32, _ string, _ int) error {
+func (memoryToolVectorStore) Store(_ context.Context, _ string, _ memory.Kind, _ string, _ []float32, _ string, _ int) error {
 	return nil
 }
 
-func (memoryToolVectorStore) Search(_ context.Context, _ []float32, limit int) ([]memorymodule.VectorSearchResult, error) {
-	return make([]memorymodule.VectorSearchResult, 0, limit), nil
+func (memoryToolVectorStore) Search(_ context.Context, _ []float32, limit int) ([]memory.VectorSearchResult, error) {
+	return make([]memory.VectorSearchResult, 0, limit), nil
 }
 
 func (memoryToolVectorStore) Delete(_ context.Context, _ string) error {

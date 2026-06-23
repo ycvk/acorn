@@ -46,7 +46,7 @@ serve: build
 generate: generate-web
 
 generate-web:
-	go generate ./internal/web
+	go generate ./internal/api
 
 test:
 	go test $(GO_PACKAGES)

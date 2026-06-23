@@ -13,7 +13,7 @@ import (
 
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/domain"
-	"github.com/ycvk/acorn/internal/memorymodule"
+	"github.com/ycvk/acorn/internal/memory"
 	"github.com/ycvk/acorn/internal/store"
 )
 
@@ -121,7 +121,7 @@ func (m *fakeChatModel) BindTools(_ []*schema.ToolInfo, _ ...einomodel.Option) e
 
 // newTestRunnerFactory builds a minimal RunnerFactory for executor tests.
 // Only MemoryModule and Config are exercised by consume/finishCollectedRun.
-func newTestRunnerFactory(memSvc memorymodule.Service, chatFunc func(context.Context) (einomodel.BaseChatModel, error)) *RunnerFactory {
+func newTestRunnerFactory(memSvc memory.Service, chatFunc func(context.Context) (einomodel.BaseChatModel, error)) *RunnerFactory {
 	return &RunnerFactory{
 		deps: RuntimeDeps{
 			Config:       &config.Config{},
@@ -139,7 +139,7 @@ func newTestRunnerFactory(memSvc memorymodule.Service, chatFunc func(context.Con
 
 func newTestExecutor(t *testing.T) (*Executor, *fakeExecutorStore) {
 	t.Helper()
-	memSvc, err := memorymodule.NewLocalService(memorymodule.Config{Root: t.TempDir()})
+	memSvc, err := memory.NewLocalService(memory.Config{Root: t.TempDir()})
 	if err != nil {
 		t.Fatalf("NewLocalService: %v", err)
 	}

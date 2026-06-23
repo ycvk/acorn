@@ -7,10 +7,10 @@ import (
 	"testing"
 
 	"github.com/ycvk/acorn/internal/config"
-	"github.com/ycvk/acorn/internal/memorymodule"
+	"github.com/ycvk/acorn/internal/memory"
 )
 
-func newTestMemoryModule(t *testing.T) memorymodule.Service {
+func newTestMemoryModule(t *testing.T) memory.Service {
 	t.Helper()
 	dir := t.TempDir()
 	memoryRoot := filepath.Join(dir, "memory")
@@ -19,7 +19,7 @@ func newTestMemoryModule(t *testing.T) memorymodule.Service {
 			t.Fatalf("mkdir %s: %v", sub, err)
 		}
 	}
-	module, err := memorymodule.NewLocalService(memorymodule.Config{Root: memoryRoot})
+	module, err := memory.NewLocalService(memory.Config{Root: memoryRoot})
 	if err != nil {
 		t.Fatalf("create local service: %v", err)
 	}
@@ -48,7 +48,7 @@ func TestMemoryServiceListFactsEmpty(t *testing.T) {
 	module := newTestMemoryModule(t)
 	svc, _ := NewMemoryService(module)
 
-	facts, err := svc.ListFacts(context.Background(), memorymodule.RecordSelection{})
+	facts, err := svc.ListFacts(context.Background(), memory.RecordSelection{})
 	if err != nil {
 		t.Fatalf("list facts: %v", err)
 	}
@@ -62,7 +62,7 @@ func TestMemoryServiceListFactsAfterCreate(t *testing.T) {
 	svc, _ := NewMemoryService(module)
 
 	ctx := context.Background()
-	if _, err := module.CreateFact(ctx, memorymodule.CreateFactRequest{
+	if _, err := module.CreateFact(ctx, memory.CreateFactRequest{
 		Title: "Go typing",
 		Body:  "Go is statically typed",
 		Tags:  []string{"language", "go"},
@@ -70,7 +70,7 @@ func TestMemoryServiceListFactsAfterCreate(t *testing.T) {
 		t.Fatalf("create fact: %v", err)
 	}
 
-	facts, err := svc.ListFacts(ctx, memorymodule.RecordSelection{})
+	facts, err := svc.ListFacts(ctx, memory.RecordSelection{})
 	if err != nil {
 		t.Fatalf("list facts: %v", err)
 	}
@@ -83,7 +83,7 @@ func TestMemoryServiceListSkillsEmpty(t *testing.T) {
 	module := newTestMemoryModule(t)
 	svc, _ := NewMemoryService(module)
 
-	skills, err := svc.ListSkills(context.Background(), memorymodule.RecordSelection{})
+	skills, err := svc.ListSkills(context.Background(), memory.RecordSelection{})
 	if err != nil {
 		t.Fatalf("list skills: %v", err)
 	}
@@ -96,7 +96,7 @@ func TestMemoryServiceListHistoryEmpty(t *testing.T) {
 	module := newTestMemoryModule(t)
 	svc, _ := NewMemoryService(module)
 
-	history, err := svc.ListHistory(context.Background(), memorymodule.RecordSelection{})
+	history, err := svc.ListHistory(context.Background(), memory.RecordSelection{})
 	if err != nil {
 		t.Fatalf("list history: %v", err)
 	}
@@ -110,7 +110,7 @@ func TestMemoryServiceListHistoryAfterAppend(t *testing.T) {
 	svc, _ := NewMemoryService(module)
 
 	ctx := context.Background()
-	if err := module.AppendHistory(ctx, memorymodule.HistoryEvent{
+	if err := module.AppendHistory(ctx, memory.HistoryEvent{
 		SessionID: "sess_1",
 		RunID:     "run_1",
 		Status:    "succeeded",
@@ -119,7 +119,7 @@ func TestMemoryServiceListHistoryAfterAppend(t *testing.T) {
 		t.Fatalf("append history: %v", err)
 	}
 
-	history, err := svc.ListHistory(ctx, memorymodule.RecordSelection{})
+	history, err := svc.ListHistory(ctx, memory.RecordSelection{})
 	if err != nil {
 		t.Fatalf("list history: %v", err)
 	}
@@ -133,7 +133,7 @@ func TestMemoryServiceSearchNoEmbedding(t *testing.T) {
 	svc, _ := NewMemoryService(module)
 
 	ctx := context.Background()
-	if _, err := module.CreateFact(ctx, memorymodule.CreateFactRequest{
+	if _, err := module.CreateFact(ctx, memory.CreateFactRequest{
 		Title: "Go typing",
 		Body:  "Go is statically typed",
 		Tags:  []string{"go"},
@@ -141,7 +141,7 @@ func TestMemoryServiceSearchNoEmbedding(t *testing.T) {
 		t.Fatalf("create fact: %v", err)
 	}
 
-	result, err := svc.Search(ctx, memorymodule.SearchRequest{
+	result, err := svc.Search(ctx, memory.SearchRequest{
 		Query: "Go",
 		Limit: 10,
 	})
@@ -159,7 +159,7 @@ func TestMemoryServiceRoot(t *testing.T) {
 	for _, sub := range []string{"facts", "skills", "history"} {
 		_ = os.MkdirAll(filepath.Join(memoryRoot, sub), 0o755)
 	}
-	module, err := memorymodule.NewLocalService(memorymodule.Config{Root: memoryRoot})
+	module, err := memory.NewLocalService(memory.Config{Root: memoryRoot})
 	if err != nil {
 		t.Fatalf("create local service: %v", err)
 	}

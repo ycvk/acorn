@@ -13,7 +13,7 @@ import (
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/contextplane"
 	"github.com/ycvk/acorn/internal/domain"
-	"github.com/ycvk/acorn/internal/memorymodule"
+	"github.com/ycvk/acorn/internal/memory"
 	"github.com/ycvk/acorn/internal/store"
 )
 
@@ -469,7 +469,7 @@ func (e *Executor) appendRunHistory(ctx context.Context, runID string, runStatus
 	if err != nil {
 		return fmt.Errorf("load run for memory history: %w", err)
 	}
-	if err := e.runRuntime.MemoryModule().AppendHistory(ctx, memorymodule.HistoryEvent{
+	if err := e.runRuntime.MemoryModule().AppendHistory(ctx, memory.HistoryEvent{
 		SessionID: run.SessionID,
 		RunID:     runID,
 		Status:    string(runStatus),

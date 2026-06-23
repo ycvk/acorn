@@ -7,7 +7,7 @@ import (
 
 	"github.com/cloudwego/eino/schema"
 
-	"github.com/ycvk/acorn/internal/memorymodule"
+	"github.com/ycvk/acorn/internal/memory"
 	"github.com/ycvk/acorn/internal/skills"
 )
 
@@ -34,15 +34,15 @@ func TestDefaultContextPlaneAssembleBuildsContextMessagesWithPreparedMemory(t *t
 				Eligible: true,
 			}},
 		},
-		MemoryPrepared: &memorymodule.PrepareResult{
-			Nudges: []memorymodule.Nudge{{
+		MemoryPrepared: &memory.PrepareResult{
+			Nudges: []memory.Nudge{{
 				Ref:    "facts/workspaces/acorn/runtime.md",
 				Kind:   "fact",
 				Title:  "Runtime contract",
 				Status: "verified",
 				Reason: "matched input",
 			}},
-			Entries: []memorymodule.Entry{{
+			Entries: []memory.Entry{{
 				Ref:     "facts/workspaces/acorn/runtime.md",
 				Kind:    "fact",
 				Title:   "Runtime contract",
@@ -87,8 +87,8 @@ func TestDefaultContextPlaneAssembleInjectsPreparedMemoryEntry(t *testing.T) {
 		RunID:     "run_context",
 		SessionID: "session_context",
 		Input:     "known preference",
-		MemoryPrepared: &memorymodule.PrepareResult{
-			Entries: []memorymodule.Entry{{
+		MemoryPrepared: &memory.PrepareResult{
+			Entries: []memory.Entry{{
 				Ref:     "skills/learned/preference.md#preference",
 				Kind:    "skill",
 				Title:   "Preference",

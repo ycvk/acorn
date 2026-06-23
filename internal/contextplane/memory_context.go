@@ -8,7 +8,7 @@ import (
 
 	"github.com/cloudwego/eino/schema"
 
-	"github.com/ycvk/acorn/internal/memorymodule"
+	"github.com/ycvk/acorn/internal/memory"
 )
 
 const defaultMemoryContextTokenBudget = 2000
@@ -30,7 +30,7 @@ type memoryContextPacket struct {
 	AttachedEntryRefs []string
 }
 
-func buildMemoryContextPacket(ctx context.Context, counter TokenCounter, budget int, sessionSummarySection string, prepared *memorymodule.PrepareResult) (*memoryContextPacket, error) {
+func buildMemoryContextPacket(ctx context.Context, counter TokenCounter, budget int, sessionSummarySection string, prepared *memory.PrepareResult) (*memoryContextPacket, error) {
 	if counter == nil {
 		return nil, errors.New("memory context token counter is required")
 	}
@@ -103,7 +103,7 @@ func buildMemoryMessageFromPacket(packet *memoryContextPacket) *schema.Message {
 	return buildContextEnvelopeMessage("memory-context", parts...)
 }
 
-func fitPreparedMemoryToBudget(ctx context.Context, counter TokenCounter, prepared *memorymodule.PrepareResult, maxTokens int) (string, []string, error) {
+func fitPreparedMemoryToBudget(ctx context.Context, counter TokenCounter, prepared *memory.PrepareResult, maxTokens int) (string, []string, error) {
 	if counter == nil {
 		return "", nil, errors.New("prepared memory token counter is required")
 	}
@@ -186,7 +186,7 @@ func fitPreparedMemoryToBudget(ctx context.Context, counter TokenCounter, prepar
 	return strings.TrimSpace(strings.Join(lines, "\n")), attachedRefs, nil
 }
 
-func formatSkillTree(tree *memorymodule.SkillTreeIndex) string {
+func formatSkillTree(tree *memory.SkillTreeIndex) string {
 	if tree == nil || len(tree.Categories) == 0 {
 		return ""
 	}
@@ -204,11 +204,11 @@ func formatSkillTree(tree *memorymodule.SkillTreeIndex) string {
 	return strings.Join(parts, "\n")
 }
 
-func hasPreparedMemory(prepared *memorymodule.PrepareResult) bool {
+func hasPreparedMemory(prepared *memory.PrepareResult) bool {
 	return prepared != nil && (len(prepared.Nudges) > 0 || len(prepared.Entries) > 0 || prepared.SkillTree != nil)
 }
 
-func formatMemoryNudge(nudge memorymodule.Nudge) string {
+func formatMemoryNudge(nudge memory.Nudge) string {
 	parts := []string{strings.TrimSpace(nudge.Ref)}
 	if kind := strings.TrimSpace(nudge.Kind); kind != "" {
 		parts = append(parts, "kind="+kind)
@@ -225,7 +225,7 @@ func formatMemoryNudge(nudge memorymodule.Nudge) string {
 	return "- " + strings.Join(NonEmptyMemoryParts(parts), " ")
 }
 
-func formatMemoryEntry(entry memorymodule.Entry) string {
+func formatMemoryEntry(entry memory.Entry) string {
 	parts := []string{strings.TrimSpace(entry.Ref)}
 	if kind := strings.TrimSpace(entry.Kind); kind != "" {
 		parts = append(parts, "kind="+kind)

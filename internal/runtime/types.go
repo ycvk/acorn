@@ -15,7 +15,7 @@ import (
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/contextplane"
 	"github.com/ycvk/acorn/internal/domain"
-	"github.com/ycvk/acorn/internal/memorymodule"
+	"github.com/ycvk/acorn/internal/memory"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/store"
@@ -137,7 +137,7 @@ type RuntimeDeps struct {
 	Store             RunnerFactoryStore
 	Loader            *skills.Loader
 	SessionSummarySvc *domain.SessionSummaryService
-	MemoryModule      memorymodule.Service
+	MemoryModule      memory.Service
 	ContextPlane      contextplane.ContextPlane
 	Orchestration     *DefaultPlane
 	MCPPendingActions mcpprovider.PendingActionStore
