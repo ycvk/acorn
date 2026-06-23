@@ -13,14 +13,17 @@ import (
 	"github.com/ycvk/acorn/internal/skills"
 )
 
-type ClientService interface {
+type RunService interface {
 	CreateRun(ctx context.Context, threadID, skillID, input string) (*app.Run, error)
 	GetRun(ctx context.Context, runID string) (*app.Run, error)
+	RunIsTerminal(ctx context.Context, runID string) (bool, error)
+	InterruptRun(ctx context.Context, runID string) error
+}
+
+type EventService interface {
 	LoadRunEventsAfter(ctx context.Context, runID string, afterSeq int64) (*clientevents.RunEventBatch, error)
 	LoadRunEventsForDetail(ctx context.Context, runID string) (*clientevents.RunEventDetail, error)
 	ListRunArtifacts(ctx context.Context, runID string) ([]app.ArtifactSummary, error)
-	RunIsTerminal(ctx context.Context, runID string) (bool, error)
-	InterruptRun(ctx context.Context, runID string) error
 	EventPollInterval() time.Duration
 }
 
@@ -75,8 +78,9 @@ type DeviceAuthService interface {
 }
 
 type Dependencies struct {
-	Client        ClientService
 	Threads       ThreadService
+	Runs          RunService
+	Events        EventService
 	PendingAction PendingActionService
 	RunResume     RunResumeService
 	Memory        MemoryService
@@ -89,8 +93,9 @@ type Dependencies struct {
 }
 
 type Server struct {
-	client        ClientService
 	threads       ThreadService
+	runs          RunService
+	events        EventService
 	pendingAction PendingActionService
 	runResume     RunResumeService
 	memory        MemoryService

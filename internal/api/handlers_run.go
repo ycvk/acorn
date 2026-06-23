@@ -12,7 +12,7 @@ func (s *Server) handleClientCreateRun(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	item, err := s.client.CreateRun(r.Context(), chi.URLParam(r, "thread_id"), req.SkillID, req.Input)
+	item, err := s.runs.CreateRun(r.Context(), chi.URLParam(r, "thread_id"), req.SkillID, req.Input)
 	if err != nil {
 		s.respondClientKnownError(w, r, err)
 		return
@@ -21,7 +21,7 @@ func (s *Server) handleClientCreateRun(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleClientGetRun(w http.ResponseWriter, r *http.Request) {
-	item, err := s.client.GetRun(r.Context(), chi.URLParam(r, "run_id"))
+	item, err := s.runs.GetRun(r.Context(), chi.URLParam(r, "run_id"))
 	if err != nil {
 		s.respondClientKnownError(w, r, err)
 		return
@@ -31,7 +31,7 @@ func (s *Server) handleClientGetRun(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleClientInterruptRun(w http.ResponseWriter, r *http.Request) {
 	runID := chi.URLParam(r, "run_id")
-	if err := s.client.InterruptRun(r.Context(), runID); err != nil {
+	if err := s.runs.InterruptRun(r.Context(), runID); err != nil {
 		s.respondClientKnownError(w, r, err)
 		return
 	}
@@ -53,7 +53,7 @@ func (s *Server) handleClientResumeRun(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleClientRunDetail(w http.ResponseWriter, r *http.Request) {
 	runID := chi.URLParam(r, "run_id")
-	run, err := s.client.GetRun(r.Context(), runID)
+	run, err := s.runs.GetRun(r.Context(), runID)
 	if err != nil {
 		s.respondClientKnownError(w, r, err)
 		return
@@ -63,12 +63,12 @@ func (s *Server) handleClientRunDetail(w http.ResponseWriter, r *http.Request) {
 		s.respondClientKnownError(w, r, err)
 		return
 	}
-	eventDetail, err := s.client.LoadRunEventsForDetail(r.Context(), runID)
+	eventDetail, err := s.events.LoadRunEventsForDetail(r.Context(), runID)
 	if err != nil {
 		s.respondClientKnownError(w, r, err)
 		return
 	}
-	artifacts, err := s.client.ListRunArtifacts(r.Context(), runID)
+	artifacts, err := s.events.ListRunArtifacts(r.Context(), runID)
 	if err != nil {
 		s.respondClientKnownError(w, r, err)
 		return
@@ -94,7 +94,7 @@ func (s *Server) handleRunEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	runID := chi.URLParam(r, "run_id")
-	batch, err := s.client.LoadRunEventsAfter(r.Context(), runID, afterSeq)
+	batch, err := s.events.LoadRunEventsAfter(r.Context(), runID, afterSeq)
 	if err != nil {
 		s.respondClientKnownError(w, r, err)
 		return
@@ -130,7 +130,7 @@ func (s *Server) handleRunEvents(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) followRunEvents(r *http.Request, writer *clientSSEWriter, runID string, lastSeq int64) {
-	interval := s.client.EventPollInterval()
+	interval := s.events.EventPollInterval()
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
@@ -139,7 +139,7 @@ func (s *Server) followRunEvents(r *http.Request, writer *clientSSEWriter, runID
 		case <-r.Context().Done():
 			return
 		case <-ticker.C:
-			batch, err := s.client.LoadRunEventsAfter(r.Context(), runID, lastSeq)
+			batch, err := s.events.LoadRunEventsAfter(r.Context(), runID, lastSeq)
 			if err != nil {
 				s.logInternalError(r, "client_sse_follow_load_failed", err)
 				return
@@ -151,7 +151,7 @@ func (s *Server) followRunEvents(r *http.Request, writer *clientSSEWriter, runID
 					return
 				}
 			}
-			terminal, err := s.client.RunIsTerminal(r.Context(), runID)
+			terminal, err := s.runs.RunIsTerminal(r.Context(), runID)
 			if err != nil {
 				s.logInternalError(r, "client_sse_follow_status_failed", err)
 				return

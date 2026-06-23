@@ -12,33 +12,69 @@ import (
 
 	"github.com/cloudwego/eino/adk"
 	"github.com/cloudwego/eino/schema"
-	"github.com/ycvk/acorn/internal/clientevents"
 	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/runtime"
 	"github.com/ycvk/acorn/internal/store"
 )
 
-type ClientService struct {
-	store         containerAppStore
-	threads       *ThreadService
-	newExecutor   func(context.Context) (executorHandle, error)
-	controller    *runtime.RunController
-	workspaceRoot string
-	eventPoll     time.Duration
-	newRunID      func() string
-	reportError   func(context.Context, string, error)
+var (
+	ErrClientProjectionFailed = errors.New("client projection failed")
+	ErrClientNoPendingMessage = errors.New("client pending user message not found")
+)
+
+// projectionError wraps a format string into ErrClientProjectionFailed.
+func projectionError(format string, args ...any) error {
+	return fmt.Errorf("%w: %s", ErrClientProjectionFailed, fmt.Sprintf(format, args...))
 }
 
-func BuildClientService(store containerAppStore, newExecutor func(context.Context) (executorHandle, error), controller *runtime.RunController, workspaceRoot string) *ClientService {
-	return &ClientService{
-		store:         store,
-		threads:       NewThreadService(store, workspaceRoot),
-		newExecutor:   newExecutor,
-		controller:    controller,
-		workspaceRoot: workspaceRoot,
-		eventPoll:     100 * time.Millisecond,
-		newRunID:      newRunID,
-		reportError:   reportClientBackgroundError,
+func projectRunStatus(status domain.RunStatus) (string, error) {
+	switch status {
+	case domain.RunStatusRunning:
+		return "running", nil
+	case domain.RunStatusSucceeded:
+		return "completed", nil
+	case domain.RunStatusInterrupted:
+		return "interrupted", nil
+	case domain.RunStatusFailed:
+		return "failed", nil
+	default:
+		return "", projectionError("unknown run status %q", status)
+	}
+}
+
+// Run is a user-facing run DTO.
+type Run struct {
+	ID          string
+	ThreadID    string
+	SkillID     string
+	Status      string
+	Mode        string
+	CreatedAt   time.Time
+	CompletedAt time.Time
+}
+
+// RunService owns run lifecycle: creating runs against a thread, probing run
+// terminality, and interrupting in-flight runs. It binds a run to its
+// originating user message via the ThreadService and drives the executor.
+type RunService struct {
+	store       containerAppStore
+	threads     *ThreadService
+	newExecutor func(context.Context) (executorHandle, error)
+	controller  *runtime.RunController
+	newRunID    func() string
+	reportError func(context.Context, string, error)
+}
+
+// NewRunService constructs a RunService backed by the given store, executor
+// factory, and run controller.
+func NewRunService(store containerAppStore, threads *ThreadService, newExecutor func(context.Context) (executorHandle, error), controller *runtime.RunController) *RunService {
+	return &RunService{
+		store:       store,
+		threads:     threads,
+		newExecutor: newExecutor,
+		controller:  controller,
+		newRunID:    newRunID,
+		reportError: reportClientBackgroundError,
 	}
 }
 
@@ -46,7 +82,7 @@ func newRunID() string {
 	return fmt.Sprintf("run_%d", time.Now().UTC().UnixNano())
 }
 
-func (s *ClientService) GetRun(ctx context.Context, runID string) (*Run, error) {
+func (s *RunService) GetRun(ctx context.Context, runID string) (*Run, error) {
 	if s == nil || s.store == nil {
 		return nil, errors.New("client store is nil")
 	}
@@ -61,7 +97,7 @@ func (s *ClientService) GetRun(ctx context.Context, runID string) (*Run, error) 
 	return &run, nil
 }
 
-func (s *ClientService) RunIsTerminal(ctx context.Context, runID string) (bool, error) {
+func (s *RunService) RunIsTerminal(ctx context.Context, runID string) (bool, error) {
 	if s == nil || s.store == nil {
 		return false, errors.New("client store is nil")
 	}
@@ -79,7 +115,7 @@ func (s *ClientService) RunIsTerminal(ctx context.Context, runID string) (bool, 
 	}
 }
 
-func (s *ClientService) InterruptRun(ctx context.Context, runID string) error {
+func (s *RunService) InterruptRun(ctx context.Context, runID string) error {
 	_ = ctx
 	if s == nil || s.controller == nil {
 		return errors.New("run controller is nil")
@@ -87,7 +123,7 @@ func (s *ClientService) InterruptRun(ctx context.Context, runID string) error {
 	return s.controller.Interrupt(runID)
 }
 
-func (s *ClientService) CreateRun(ctx context.Context, threadID, skillID, input string) (*Run, error) {
+func (s *RunService) CreateRun(ctx context.Context, threadID, skillID, input string) (*Run, error) {
 	if s == nil || s.store == nil || s.newExecutor == nil || s.newRunID == nil {
 		return nil, errors.New("client service is not initialized")
 	}
@@ -212,7 +248,7 @@ func reportClientBackgroundError(ctx context.Context, runID string, err error) {
 	slog.Default().ErrorContext(ctx, "client background run failure was not persisted", "run_id", runID, "error", err)
 }
 
-func (s *ClientService) executeRun(ctx context.Context, exec executorHandle, req domain.ExecuteRequest, started *clientRunStartSignal) {
+func (s *RunService) executeRun(ctx context.Context, exec executorHandle, req domain.ExecuteRequest, started *clientRunStartSignal) {
 	err := exec.ExecuteMessages(ctx, req, started)
 	if err != nil {
 		if started.MarkFailed(err) {
@@ -225,7 +261,7 @@ func (s *ClientService) executeRun(ctx context.Context, exec executorHandle, req
 	}
 }
 
-func (s *ClientService) reportBackgroundRunFailure(ctx context.Context, runID string, cause, persistErr error) {
+func (s *RunService) reportBackgroundRunFailure(ctx context.Context, runID string, cause, persistErr error) {
 	err := errors.Join(
 		fmt.Errorf("client executor failed after run start: %w", cause),
 		fmt.Errorf("record started client run failure: %w", persistErr),
@@ -237,7 +273,7 @@ func (s *ClientService) reportBackgroundRunFailure(ctx context.Context, runID st
 	report(ctx, runID, err)
 }
 
-func (s *ClientService) recordStartedRunFailure(ctx context.Context, runID string, cause error) error {
+func (s *RunService) recordStartedRunFailure(ctx context.Context, runID string, cause error) error {
 	if s == nil || s.store == nil {
 		return errors.New("client store is nil")
 	}
@@ -258,72 +294,6 @@ func (s *ClientService) recordStartedRunFailure(ctx context.Context, runID strin
 		return fmt.Errorf("append client run failed event after background error: %w", err)
 	}
 	return nil
-}
-
-func (s *ClientService) LoadRunEventsAfter(ctx context.Context, runID string, afterSeq int64) (*clientevents.RunEventBatch, error) {
-	if s == nil || s.store == nil {
-		return nil, errors.New("client store is nil")
-	}
-	if _, err := s.store.LoadRun(ctx, runID); err != nil {
-		return nil, err
-	}
-	records, err := s.store.LoadEventsAfter(ctx, runID, afterSeq)
-	if err != nil {
-		return nil, fmt.Errorf("%w: load persisted run events: %v", ErrClientProjectionFailed, err)
-	}
-	events := make([]clientevents.RunEvent, 0, len(records))
-	cursorSeq := afterSeq
-	for _, record := range records {
-		if record.Sequence > cursorSeq {
-			cursorSeq = record.Sequence
-		}
-		if !clientevents.IsLiveRunEventKind(record.Kind) {
-			continue
-		}
-		event, err := clientevents.ProjectRunEvent(record)
-		if err != nil {
-			return nil, fmt.Errorf("%w: project persisted run event: %v", ErrClientProjectionFailed, err)
-		}
-		events = append(events, event)
-	}
-	return &clientevents.RunEventBatch{
-		Events:    events,
-		CursorSeq: cursorSeq,
-	}, nil
-}
-
-func (s *ClientService) LoadRunEventsForDetail(ctx context.Context, runID string) (*clientevents.RunEventDetail, error) {
-	if s == nil || s.store == nil {
-		return nil, errors.New("client store is nil")
-	}
-	if _, err := s.store.LoadRun(ctx, runID); err != nil {
-		return nil, err
-	}
-	records, err := s.store.LoadEvents(ctx, runID)
-	if err != nil {
-		return nil, fmt.Errorf("%w: load persisted run events: %v", ErrClientProjectionFailed, err)
-	}
-	events := make([]clientevents.RunEvent, 0, len(records))
-	for _, record := range records {
-		if !clientevents.IsLiveRunEventKind(record.Kind) {
-			continue
-		}
-		event, err := clientevents.ProjectRunEvent(record)
-		if err != nil {
-			return nil, fmt.Errorf("%w: project persisted run event: %v", ErrClientProjectionFailed, err)
-		}
-		events = append(events, event)
-	}
-	return &clientevents.RunEventDetail{
-		Events: events,
-	}, nil
-}
-
-func (s *ClientService) EventPollInterval() time.Duration {
-	if s == nil || s.eventPoll <= 0 {
-		return 100 * time.Millisecond
-	}
-	return s.eventPoll
 }
 
 const chatHistoryLimit = 12
