@@ -85,3 +85,28 @@ func hasHealthFailure(report *HealthReport, kind HealthFailureKind, skillID stri
 	}
 	return false
 }
+
+func TestCopyHealthReportDeepCopy(t *testing.T) {
+	original := HealthReport{
+		Status: HealthFailed,
+		Failures: []HealthFailure{
+			{Kind: HealthFailureEligibility, SkillID: "x", Message: "msg"},
+		},
+	}
+	copy := CopyHealthReport(original)
+	copy.Failures[0].SkillID = "mutated"
+	if original.Failures[0].SkillID != "x" {
+		t.Error("CopyHealthReport did not deep-copy Failures slice")
+	}
+}
+
+func TestAddFailureAppends(t *testing.T) {
+	report := &HealthReport{Status: HealthPassed}
+	report.addFailure(HealthFailure{Kind: HealthFailureLoaderProblem, Message: "err"})
+	if report.Status != HealthFailed {
+		t.Errorf("Status = %q, addFailure should set Status to failed", report.Status)
+	}
+	if len(report.Failures) != 1 {
+		t.Fatalf("Failures = %d, want 1", len(report.Failures))
+	}
+}
