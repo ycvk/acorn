@@ -246,8 +246,6 @@ func (a *directResponseAgent) runFromState(ctx context.Context, generator *adk.A
 		generator.Send(&adk.AgentEvent{AgentName: a.Name(ctx), Err: errors.New("direct response requires context session")})
 		return
 	}
-
-	loop := NewAgentLoop(a.model, a.toolNode, a.streamer, session)
 	startIteration := 0
 	if resumeData != nil {
 		if err := a.resumePendingToolCalls(runCtx, session, resumeData); err != nil {
@@ -263,10 +261,33 @@ func (a *directResponseAgent) runFromState(ctx context.Context, generator *adk.A
 
 	for iteration := startIteration; iteration < a.maxIterations; iteration++ {
 		toolInfos := contextplane.LoadedToolInfosFromContext(runCtx, a.eagerToolNames)
-		result, err := loop.RunOneIteration(runCtx, toolInfos, a.runID, directResponseMessageID(a.runID, iteration))
-		var msg *schema.Message
-		if result != nil {
-			msg = result.Message
+		messageID := directResponseMessageID(a.runID, iteration)
+		modelInput, err := session.BeforeModelCall(runCtx, contextplane.ModelCallRequest{
+			CallID:    messageID,
+			ToolInfos: toolInfos,
+		})
+		if err != nil {
+			generator.Send(&adk.AgentEvent{AgentName: a.Name(ctx), Err: fmt.Errorf("agent loop before model call: %w", err)})
+			return
+		}
+		msg, toolMessages, outputLimitReached, err := ExecuteRound(runCtx, a.model, a.streamer, a.toolNode, modelInput.Messages, toolInfos, a.runID, messageID, RoundOptions{})
+		if err == nil {
+			if err := session.RecordAssistant(runCtx, msg); err != nil {
+				generator.Send(&adk.AgentEvent{AgentName: a.Name(ctx), Err: fmt.Errorf("agent loop record assistant: %w", err)})
+				return
+			}
+			if len(toolMessages) > 0 {
+				if err := session.RecordToolResults(runCtx, toolMessages); err != nil {
+					generator.Send(&adk.AgentEvent{AgentName: a.Name(ctx), Err: fmt.Errorf("agent loop record tool results: %w", err)})
+					return
+				}
+			}
+			if outputLimitReached {
+				if err := session.RecordMessages(runCtx, []adk.Message{outputLimitContinuationMessage()}); err != nil {
+					generator.Send(&adk.AgentEvent{AgentName: a.Name(ctx), Err: fmt.Errorf("agent loop record output limit continuation: %w", err)})
+					return
+				}
+			}
 		}
 		if err != nil {
 			if signal, ok := errors.AsType[*adk.InterruptSignal](err); ok {
@@ -284,13 +305,13 @@ func (a *directResponseAgent) runFromState(ctx context.Context, generator *adk.A
 			return
 		}
 		generator.Send(adk.EventFromMessage(msg, nil, schema.Assistant, ""))
-		if result.OutputLimitReached {
+		if outputLimitReached {
 			continue
 		}
 		if len(msg.ToolCalls) == 0 {
 			return
 		}
-		if len(result.ToolMessages) == 0 {
+		if len(toolMessages) == 0 {
 			generator.Send(&adk.AgentEvent{AgentName: a.Name(ctx), Err: errors.New("direct response tool loop returned no tool messages")})
 			return
 		}

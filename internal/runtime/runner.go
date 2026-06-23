@@ -5,11 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"path/filepath"
 	"strings"
 	"sync"
+	"time"
+
+	"path/filepath"
 	"sync/atomic"
 
+	"github.com/cloudwego/eino-ext/components/model/openai"
 	"github.com/cloudwego/eino/adk"
 	einomodel "github.com/cloudwego/eino/components/model"
 	einotool "github.com/cloudwego/eino/components/tool"
@@ -412,7 +415,7 @@ func resolveContextPlane(cfg *config.Config, store RunnerFactoryStore, opts Runn
 	return buildDefaultContextPlane(cfg, store, opts)
 }
 
-func assembleRuntimeDeps(cfg *config.Config, store RunnerFactoryStore, opts RunnerFactoryOptions, ws *workspace.Workspace, loader *skills.Loader, artifactService *corestore.ArtifactService, contextPlane contextplane.ContextPlane, orchestrationPlane orchestrationPlane) RuntimeDeps {
+func assembleRuntimeDeps(cfg *config.Config, store RunnerFactoryStore, opts RunnerFactoryOptions, ws *workspace.Workspace, loader *skills.Loader, artifactService *corestore.ArtifactService, contextPlane contextplane.ContextPlane, orchestrationPlane *orchestration.DefaultPlane) RuntimeDeps {
 	return RuntimeDeps{
 		Config:            cfg,
 		Loader:            loader,
@@ -505,10 +508,6 @@ func (c *runCapabilities) Close() error {
 		return nil
 	}
 	return c.close()
-}
-
-type orchestrationPlane interface {
-	BuildDirectResponse(ctx context.Context, req orchestration.DirectResponseRequest) (*orchestration.RunAssembly, error)
 }
 
 type defaultOrchestrationPlaneDeps struct {
@@ -652,4 +651,27 @@ func AssembleResultToView(result *contextplane.AssembleResult) orchestration.Ass
 		EagerToolNames:    result.EagerToolNames,
 		DeferredToolNames: result.DeferredToolNames,
 	}
+}
+
+// newOpenAIChatModel builds an OpenAI-compatible chat model from provider config.
+func newOpenAIChatModel(ctx context.Context, cfg config.ProviderConfig) (einomodel.BaseChatModel, error) {
+	chatCfg := &openai.ChatModelConfig{
+		APIKey:              cfg.APIKey,
+		BaseURL:             cfg.BaseURL,
+		Model:               cfg.Model,
+		Timeout:             time.Duration(cfg.TimeoutSeconds) * time.Second,
+		MaxCompletionTokens: new(cfg.MaxCompletionTokens),
+		Temperature:         new(cfg.Temperature),
+	}
+	if cfg.ReasoningEffort != "" {
+		chatCfg.ReasoningEffort = openai.ReasoningEffortLevel(cfg.ReasoningEffort)
+	}
+	if len(cfg.ExtraFields) > 0 {
+		chatCfg.ExtraFields = cfg.ExtraFields
+	}
+	model, err := openai.NewChatModel(ctx, chatCfg)
+	if err != nil {
+		return nil, fmt.Errorf("build openai-compatible chat model: %w", err)
+	}
+	return model, nil
 }

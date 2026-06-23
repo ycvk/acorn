@@ -20,7 +20,7 @@ operator CLI / authenticated remote clients
 - `internal/app/` — 装配 app service、runtime executor、run resume service、web dependencies；唯一允许直接 import sqlite 的 composition root。
 - `internal/runtime/` — Executor（session/run 创建、执行、finalization）+ RunnerFactory（per-run assembly）+ tool 执行运行时（scheduler/validator/audit/stream）+ Toolset 容器 + memory tools。
 - `internal/contextplane/` — run 上下文装配、observation masking、LLM auto-compact、deferred tool loading、tool lifecycle。
-- `internal/runtime/orchestration/` — direct_response assembly + AgentLoop + ExecuteRound。单一编排模式。
+- `internal/runtime/orchestration/` — direct_response assembly + ExecuteRound。单一编排模式。
 - `internal/toolkit/` — 工具契约层（ToolContract/Catalog/ToolSpec/loading+execution policy）。
 - `internal/toolset/` — 工具实现层（file/git/browser/web/command/artifact/memory 工具实现）。
 - `internal/memorymodule/` — file-backed memory（facts/history）、search、prepare、semantic retrieval（embedding + SQLite 暴力余弦相似度）。
@@ -31,7 +31,7 @@ operator CLI / authenticated remote clients
 ## 子架构文档
 
 - [runtime-execution.md](runtime-execution.md) — Executor、run lifecycle。
-- [runtime-orchestration.md](runtime-orchestration.md) — direct_response assembly、AgentLoop。
+- [runtime-orchestration.md](runtime-orchestration.md) — direct_response assembly、ExecuteRound。
 - [runtime-context-memory-decision.md](runtime-context-memory-decision.md) — ContextPlane、hybrid context、MemoryModule。
 - [data-web-store.md](data-web-store.md) — SQLite truth、events/runs、remote client DTO/API。
 - [mobile-control-surface.md](mobile-control-surface.md) — Kotlin app、generated client、事实边界。

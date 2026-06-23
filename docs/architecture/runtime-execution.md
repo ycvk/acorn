@@ -30,6 +30,6 @@ Acorn 的执行层由 `internal/runtime.Executor` 启动 run。用户执行入�
 
 ## Tool Execution
 
-- Tool execution is stream-first and unified through `AgentLoop` / `ExecuteRound`. `StreamingToolExecutor` interleaves assistant streaming with tool submission via `Submit(call)`, then collects final results with `GetRemainingResults`.
+- Tool execution is stream-first and unified through `ExecuteRound`. `StreamingToolExecutor` interleaves assistant streaming with tool submission via `Submit(call)`, then collects final results with `GetRemainingResults`.
 - `read_only` tools execute in parallel; `serial` tools execute serially. No path conflict detection — serial tools without `PathArg` (like `ask_operator`, `load_tools`, `remember`) execute without path validation.
 - Tool progress callbacks are ephemeral and are not persisted as run events; durable tool truth is the terminal `schema.ToolMessage` and run events.

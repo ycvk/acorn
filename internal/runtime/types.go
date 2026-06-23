@@ -139,7 +139,7 @@ type RuntimeDeps struct {
 	SessionSummarySvc *domain.SessionSummaryService
 	MemoryModule      memorymodule.Service
 	ContextPlane      contextplane.ContextPlane
-	Orchestration     orchestrationPlane
+	Orchestration     *orchestration.DefaultPlane
 	MCPPendingActions mcpprovider.PendingActionStore
 	Workspace         *workspace.Workspace
 	ArtifactService   *store.ArtifactService

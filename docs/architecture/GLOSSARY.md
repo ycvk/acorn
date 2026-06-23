@@ -6,7 +6,7 @@
 | **RunnerFactory** | `internal/runtime.RunnerFactory`，持有 runtime 共享依赖、registry、workspace、provider 和 concrete orchestration builder；每次 run 的具体装配由 `buildRun` 执行。 |
 | **buildRun** | `internal/runtime/run.go` 的 per-run assembly 入口，按固定主链接 model、tool catalog、prepared memory、ContextPlane、OrchestrationPlane，返回 `ActiveRunner`。 |
 | **direct_response** | 唯一编排模式。model → tool loop → record → 下一轮。不存在 plan_execute/single_agent/child_agent。 |
-| **RunActionRound** | `internal/runtime/orchestration` 的执行回合原语（ExecuteRound）；direct_response 通过它执行模型回合。 |
+| **ExecuteRound** | `internal/runtime/orchestration` 的执行回合原语；direct_response 通过它执行模型回合。 |
 | **ContextPlane** | `internal/contextplane` 的运行时上下文边界，负责 context assembly、observation masking、LLM auto-compact、deferred tool loading、tool lifecycle。 |
 | **ContextSession** | root-run model input 的唯一 owner。`BeforeModelCall` 中执行 masking → count tokens → auto-compact → return ModelInput。 |
 | **Observation masking** | tool result 超 `mask_after_turns`（默认 2）轮后用占位符替换。纯内存操作，不写 SQLite。 |

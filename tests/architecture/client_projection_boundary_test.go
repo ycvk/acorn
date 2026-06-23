@@ -11,10 +11,9 @@ import (
 var clientProjectionBoundaryFiles = []string{
 	"internal/clientevents/types.go",
 	"internal/clientevents/projector.go",
-	"internal/app/artifact_projection.go",
-	"internal/web/dto_artifact.go",
-	"internal/web/dto_decision.go",
-	"internal/web/dto_run_detail.go",
+	"internal/app/client_helpers.go",
+	"internal/web/dto_run.go",
+	"internal/web/dto_pending.go",
 	"internal/web/server.go",
 }
 
@@ -54,7 +53,7 @@ func TestAppServicesDoNotImportStreamOutsideRuntimeAdapter(t *testing.T) {
 			t.Fatalf("relative path for %s: %v", path, err)
 		}
 		rel = filepath.ToSlash(rel)
-		if strings.HasSuffix(rel, "_test.go") || rel == "internal/app/executor_factory.go" {
+		if strings.HasSuffix(rel, "_test.go") {
 			continue
 		}
 		file, err := parser.ParseFile(fset, path, nil, parser.ImportsOnly)

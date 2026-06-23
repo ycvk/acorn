@@ -120,25 +120,22 @@ func (m *fakeChatModel) Stream(_ context.Context, _ []*schema.Message, _ ...eino
 
 func (m *fakeChatModel) BindTools(_ []*schema.ToolInfo, _ ...einomodel.Option) error { return nil }
 
-// fakeRunRuntime implements RunRuntime for testing. Only MemoryModule is real;
-// other methods are not exercised by consume/finishCollectedRun tests.
-type fakeRunRuntime struct {
-	mem      memorymodule.Service
-	chatFunc func(context.Context) (einomodel.BaseChatModel, error)
-}
-
-func (f *fakeRunRuntime) New(context.Context, RunnerBuildRequest) (*ActiveRunner, error) {
-	return nil, nil
-}
-func (f *fakeRunRuntime) Registry() *Registry                              { return NewRegistry() }
-func (f *fakeRunRuntime) Config() *config.Config                           { return &config.Config{} }
-func (f *fakeRunRuntime) MemoryModule() memorymodule.Service               { return f.mem }
-func (f *fakeRunRuntime) SessionSummarySvc() *domain.SessionSummaryService { return nil }
-func (f *fakeRunRuntime) NewChatModel(ctx context.Context) (einomodel.BaseChatModel, error) {
-	if f.chatFunc != nil {
-		return f.chatFunc(ctx)
+// newTestRunnerFactory builds a minimal RunnerFactory for executor tests.
+// Only MemoryModule and Config are exercised by consume/finishCollectedRun.
+func newTestRunnerFactory(memSvc memorymodule.Service, chatFunc func(context.Context) (einomodel.BaseChatModel, error)) *RunnerFactory {
+	return &RunnerFactory{
+		deps: RuntimeDeps{
+			Config:       &config.Config{},
+			MemoryModule: memSvc,
+		},
+		registry: NewRegistry(),
+		runChatModelBuilder: func(context.Context, RunnerBuildRequest) (einomodel.BaseChatModel, error) {
+			if chatFunc != nil {
+				return chatFunc(context.Background())
+			}
+			return &fakeChatModel{}, nil
+		},
 	}
-	return &fakeChatModel{}, nil
 }
 
 func newTestExecutor(t *testing.T) (*Executor, *fakeExecutorStore) {
@@ -150,7 +147,7 @@ func newTestExecutor(t *testing.T) (*Executor, *fakeExecutorStore) {
 	st := &fakeExecutorStore{}
 	return &Executor{
 		store:        st,
-		runRuntime:   &fakeRunRuntime{mem: memSvc},
+		runRuntime:   newTestRunnerFactory(memSvc, nil),
 		controller:   NewRunController(),
 		newChatModel: func(context.Context) (einomodel.BaseChatModel, error) { return &fakeChatModel{}, nil },
 	}, st

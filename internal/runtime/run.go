@@ -9,7 +9,6 @@ import (
 	"github.com/cloudwego/eino/adk"
 	einomodel "github.com/cloudwego/eino/components/model"
 	einotool "github.com/cloudwego/eino/components/tool"
-	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/contextplane"
 	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/memorymodule"
@@ -112,16 +111,6 @@ type ActiveRunner struct {
 	RunID          string
 	ToolCatalog    *toolkit.Catalog
 	CloseRunTools  func() error
-}
-
-// RunRuntime is the execution runtime facade required by Executor.
-type RunRuntime interface {
-	New(ctx context.Context, req RunnerBuildRequest) (*ActiveRunner, error)
-	Registry() *Registry
-	Config() *config.Config
-	MemoryModule() memorymodule.Service
-	SessionSummarySvc() *domain.SessionSummaryService
-	NewChatModel(ctx context.Context) (einomodel.BaseChatModel, error)
 }
 
 func (f *RunnerFactory) registerRunForBuild(req RunnerBuildRequest) (func(), error) {

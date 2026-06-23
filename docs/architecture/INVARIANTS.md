@@ -4,7 +4,7 @@
 
 ## 运行时与编排
 
-- **单一编排模式 direct_response**：`AgentLoop.RunOneIteration` 通过 `orchestration.RunActionRound`（ExecuteRound）执行模型回合。plan_execute/single_agent 模式已删除。ContextSession 在 BeforeModelCall 中执行 masking + auto-compact。
+- **单一编排模式 direct_response**：`directResponseAgent.runFromState` 直接调用 `ExecuteRound` 执行模型回合（`AgentLoop` 中间层已内联删除）。plan_execute/single_agent 模式已删除。ContextSession 在 BeforeModelCall 中执行 masking + auto-compact。
   - `tests/architecture/runtime_split_test.go`
 - **结构守卫覆盖全包**：`tests/architecture/structural_limits_test.go` 的 `refactorOwnedDirs` 覆盖所有 `internal/` 重构目录。所有目录强制文件 ≤800 行。generated files（`*_gen.go`）和 test 文件被守卫排除。
   - `tests/architecture/structural_limits_test.go`

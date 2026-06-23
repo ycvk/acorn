@@ -5,34 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/cloudwego/eino/adk"
 	einomodel "github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/schema"
-
-	"github.com/ycvk/acorn/internal/contextplane"
 )
-
-type AgentLoop struct {
-	model    einomodel.BaseChatModel
-	toolNode ToolInvoker
-	streamer AssistantStreamer
-	session  contextplane.ContextSession
-}
-
-func NewAgentLoop(model einomodel.BaseChatModel, toolNode ToolInvoker, streamer AssistantStreamer, session contextplane.ContextSession) *AgentLoop {
-	return &AgentLoop{
-		model:    model,
-		toolNode: toolNode,
-		streamer: streamer,
-		session:  session,
-	}
-}
-
-type AgentLoopIteration struct {
-	Message            *schema.Message
-	ToolMessages       []*schema.Message
-	OutputLimitReached bool
-}
 
 type RoundOptions struct {
 	CallSite       string
@@ -62,41 +37,6 @@ func (e *ToolExecutionError) Error() string {
 
 func (e *ToolExecutionError) Unwrap() error {
 	return e.Err
-}
-
-func (l *AgentLoop) RunOneIteration(ctx context.Context, toolInfos []*schema.ToolInfo, runID string, messageID string) (*AgentLoopIteration, error) {
-	modelReq := contextplane.ModelCallRequest{
-		CallID:    messageID,
-		ToolInfos: toolInfos,
-	}
-	modelInput, err := l.session.BeforeModelCall(ctx, modelReq)
-	if err != nil {
-		return nil, fmt.Errorf("agent loop before model call: %w", err)
-	}
-	msg, toolMessages, outputLimitReached, err := RunActionRound(ctx, l.model, l.streamer, l.toolNode, modelInput.Messages, toolInfos, runID, messageID, RoundOptions{})
-	if err == nil {
-		if err := l.recordRoundResults(ctx, msg, toolMessages, outputLimitReached); err != nil {
-			return nil, err
-		}
-	}
-	return &AgentLoopIteration{Message: msg, ToolMessages: toolMessages, OutputLimitReached: outputLimitReached}, err
-}
-
-func (l *AgentLoop) recordRoundResults(ctx context.Context, msg *schema.Message, toolMessages []*schema.Message, outputLimitReached bool) error {
-	if err := l.session.RecordAssistant(ctx, msg); err != nil {
-		return fmt.Errorf("agent loop record assistant: %w", err)
-	}
-	if len(toolMessages) > 0 {
-		if err := l.session.RecordToolResults(ctx, toolMessages); err != nil {
-			return fmt.Errorf("agent loop record tool results: %w", err)
-		}
-	}
-	if outputLimitReached {
-		if err := l.session.RecordMessages(ctx, []adk.Message{outputLimitContinuationMessage()}); err != nil {
-			return fmt.Errorf("agent loop record output limit continuation: %w", err)
-		}
-	}
-	return nil
 }
 
 func ExecuteRound(ctx context.Context, model einomodel.BaseChatModel, streamer AssistantStreamer, toolNode ToolInvoker, messages []*schema.Message, toolInfos []*schema.ToolInfo, runID string, messageID string, opts RoundOptions) (*schema.Message, []*schema.Message, bool, error) {
