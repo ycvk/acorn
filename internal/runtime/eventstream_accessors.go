@@ -1,6 +1,8 @@
-package eventstream
+package runtime
 
-func getPayloadMap(item StreamItem) map[string]any {
+import "github.com/ycvk/acorn/internal/domain"
+
+func getPayloadMap(item domain.StreamItem) map[string]any {
 	if item.Payload == nil {
 		return nil
 	}
@@ -27,21 +29,6 @@ func getString(m map[string]any, key string) string {
 		return ""
 	}
 	return v
-}
-
-func getFloat64(m map[string]any, key string) float64 {
-	if m == nil {
-		return 0
-	}
-	switch v := m[key].(type) {
-	case float64:
-		return v
-	case int:
-		return float64(v)
-	case int64:
-		return float64(v)
-	}
-	return 0
 }
 
 func getInt(m map[string]any, key string) int {
@@ -102,7 +89,7 @@ func getStringSlice(m map[string]any, key string) []string {
 	return out
 }
 
-func (item StreamItem) GetMessage() *StreamMessage {
+func streamItemGetMessage(item domain.StreamItem) *StreamMessage {
 	m := getPayloadMap(item)
 	if msg, ok := m["message"].(*StreamMessage); ok && msg != nil {
 		return msg
@@ -120,7 +107,7 @@ func (item StreamItem) GetMessage() *StreamMessage {
 	}
 }
 
-func (item StreamItem) GetAssistantDelta() *StreamAssistantDelta {
+func streamItemGetAssistantDelta(item domain.StreamItem) *StreamAssistantDelta {
 	m := getPayloadMap(item)
 	if delta, ok := m["assistant_delta"].(*StreamAssistantDelta); ok && delta != nil {
 		return delta
@@ -140,7 +127,7 @@ func (item StreamItem) GetAssistantDelta() *StreamAssistantDelta {
 	}
 }
 
-func (item StreamItem) GetToolCall() *StreamToolCall {
+func streamItemGetToolCall(item domain.StreamItem) *StreamToolCall {
 	m := getPayloadMap(item)
 	if call, ok := m["tool_call"].(*StreamToolCall); ok && call != nil {
 		return call
@@ -162,7 +149,7 @@ func (item StreamItem) GetToolCall() *StreamToolCall {
 	}
 }
 
-func (item StreamItem) GetInterrupt() *StreamInterrupt {
+func streamItemGetInterrupt(item domain.StreamItem) *StreamInterrupt {
 	m := getPayloadMap(item)
 	if interrupt, ok := m["interrupt"].(*StreamInterrupt); ok && interrupt != nil {
 		return interrupt
@@ -193,7 +180,7 @@ func (item StreamItem) GetInterrupt() *StreamInterrupt {
 	return interrupt
 }
 
-func (item StreamItem) GetSkill() *StreamSkill {
+func streamItemGetSkill(item domain.StreamItem) *StreamSkill {
 	m := getPayloadMap(item)
 	if skill, ok := m["skill"].(*StreamSkill); ok && skill != nil {
 		return skill
@@ -261,7 +248,7 @@ func (item StreamItem) GetSkill() *StreamSkill {
 	return skill
 }
 
-func (item StreamItem) GetMemoryPrepared() *StreamMemoryPrepared {
+func streamItemGetMemoryPrepared(item domain.StreamItem) *StreamMemoryPrepared {
 	m := getPayloadMap(item)
 	if mem, ok := m["memory_prepared"].(*StreamMemoryPrepared); ok && mem != nil {
 		return mem
@@ -311,47 +298,23 @@ func (item StreamItem) GetMemoryPrepared() *StreamMemoryPrepared {
 	return mem
 }
 
-func (item StreamItem) GetProcedureActivation() *StreamProcedureActivation {
-	m := getPayloadMap(item)
-	if proc, ok := m["procedure_activation"].(*StreamProcedureActivation); ok && proc != nil {
-		return proc
-	}
-	procMap := getNestedMap(m, "procedure_activation")
-	if procMap == nil {
-		return nil
-	}
-	return &StreamProcedureActivation{
-		RunID:        getString(procMap, "run_id"),
-		SessionID:    getString(procMap, "session_id"),
-		ProcedureRef: getString(procMap, "procedure_ref"),
-		Title:        getString(procMap, "title"),
-		Kind:         getString(procMap, "kind"),
-		Phase:        getString(procMap, "phase"),
-		Reason:       getString(procMap, "reason"),
-		Score:        getFloat64(procMap, "score"),
-		Status:       getString(procMap, "status"),
-		Origin:       getString(procMap, "origin"),
-		SourceRefs:   getStringSlice(procMap, "source_refs"),
-		EvidenceRefs: getStringSlice(procMap, "evidence_refs"),
-	}
-}
-
-func (item StreamItem) GetError() string {
+func streamItemGetError(item domain.StreamItem) string {
 	return getString(getPayloadMap(item), "error")
 }
 
-func (item StreamItem) GetInput() string {
-	return getString(getPayloadMap(item), "input")
-}
-
-func (item StreamItem) GetTargets() map[string]any {
-	m := getPayloadMap(item)
-	if m == nil {
-		return nil
-	}
-	v, ok := m["targets"].(map[string]any)
+func compactInterruptInfo(value any) any {
+	data, ok := value.(map[string]any)
 	if !ok {
 		return nil
 	}
-	return v
+	out := make(map[string]any)
+	for _, key := range []string{"kind", "message", "question", "action_id", "command", "command_name", "command_args", "cwd", "url", "tool_name", "interrupt_id", "arguments_json", "reason", "rule"} {
+		if current, exists := data[key]; exists {
+			out[key] = current
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }

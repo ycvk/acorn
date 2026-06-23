@@ -11,7 +11,6 @@ import (
 	"github.com/cloudwego/eino/schema"
 
 	"github.com/ycvk/acorn/internal/domain"
-	"github.com/ycvk/acorn/internal/runtime/eventstream"
 )
 
 type assistantStreamingModel struct {
@@ -56,12 +55,12 @@ func TestStreamAssistantMessageEmitsDeltaItemsAndReturnsFinalMessage(t *testing.
 		schema.AssistantMessage("好", nil),
 	})
 	model := &assistantStreamingModel{stream: reader}
-	var items []eventstream.StreamItem
+	var items []domain.StreamItem
 
 	result, err := streamAssistantMessage(context.Background(), model, []*schema.Message{schema.UserMessage("hi")}, assistantStreamOptions{
 		MessageID: "run_1:assistant:0",
 		RunID:     "run_1",
-		Sink: func(item eventstream.StreamItem) error {
+		Sink: func(item domain.StreamItem) error {
 			items = append(items, item)
 			return nil
 		},
@@ -79,11 +78,11 @@ func TestStreamAssistantMessageEmitsDeltaItemsAndReturnsFinalMessage(t *testing.
 	if len(items) != 2 {
 		t.Fatalf("delta item count = %d, want 2", len(items))
 	}
-	if items[0].Kind != eventstream.StreamKindAssistantDelta || items[1].Kind != eventstream.StreamKindAssistantDelta {
+	if items[0].Kind != domain.StreamKindAssistantDelta || items[1].Kind != domain.StreamKindAssistantDelta {
 		t.Fatalf("unexpected kinds: %#v", items)
 	}
-	first := items[0].GetAssistantDelta()
-	second := items[1].GetAssistantDelta()
+	first := streamItemGetAssistantDelta(items[0])
+	second := streamItemGetAssistantDelta(items[1])
 	if first == nil || second == nil {
 		t.Fatalf("expected assistant deltas, got %#v", items)
 	}
@@ -131,8 +130,8 @@ func TestStreamAssistantMessageAppendsDeltaWithoutLiveSink(t *testing.T) {
 		t.Fatalf("appended record count = %d, want 1", len(appender.records))
 	}
 	item := projectEventToStreamItem(appender.records[0])
-	delta := item.GetAssistantDelta()
-	if item.Kind != eventstream.StreamKindAssistantDelta || delta == nil {
+	delta := streamItemGetAssistantDelta(item)
+	if item.Kind != domain.StreamKindAssistantDelta || delta == nil {
 		t.Fatalf("appended item = %#v, want assistant delta", item)
 	}
 	if delta.Delta != "Budget exhausted." || delta.Sequence != 1 {
@@ -148,8 +147,8 @@ func TestDirectAssistantStreamerPersistsAndSinksDeltas(t *testing.T) {
 	model := &assistantStreamingModel{stream: reader}
 	appender := &assistantStreamAppenderSpy{}
 	streamer := NewDirectAssistantStreamer(appender)
-	var sinkItems []eventstream.StreamItem
-	ctx := eventstream.WithStreamSink(context.Background(), func(item eventstream.StreamItem) error {
+	var sinkItems []domain.StreamItem
+	ctx := domain.WithStreamSink(context.Background(), func(item domain.StreamItem) error {
 		sinkItems = append(sinkItems, item)
 		return nil
 	})
@@ -169,8 +168,8 @@ func TestDirectAssistantStreamerPersistsAndSinksDeltas(t *testing.T) {
 	if len(sinkItems) != 2 {
 		t.Fatalf("sink delta count = %d, want 2", len(sinkItems))
 	}
-	first := projectEventToStreamItem(appender.records[0]).GetAssistantDelta()
-	second := projectEventToStreamItem(appender.records[1]).GetAssistantDelta()
+	first := streamItemGetAssistantDelta(projectEventToStreamItem(appender.records[0]))
+	second := streamItemGetAssistantDelta(projectEventToStreamItem(appender.records[1]))
 	if first == nil || second == nil {
 		t.Fatalf("persisted events are not assistant deltas: %#v", appender.records)
 	}
@@ -197,16 +196,16 @@ func orchestrationAssistantStreamRequestForTest(runID string, model *assistantSt
 
 func TestRunStateApplyStreamItemAppendsAssistantDelta(t *testing.T) {
 	var state runState
-	state.applyStreamItem(eventstream.StreamItem{
-		Kind: eventstream.StreamKindAssistantDelta,
-		Payload: map[string]any{"assistant_delta": &eventstream.StreamAssistantDelta{
+	state.applyStreamItem(domain.StreamItem{
+		Kind: domain.StreamKindAssistantDelta,
+		Payload: map[string]any{"assistant_delta": &StreamAssistantDelta{
 			Delta:    "partial ",
 			Sequence: 1,
 		}},
 	})
-	state.applyStreamItem(eventstream.StreamItem{
-		Kind: eventstream.StreamKindAssistantDelta,
-		Payload: map[string]any{"assistant_delta": &eventstream.StreamAssistantDelta{
+	state.applyStreamItem(domain.StreamItem{
+		Kind: domain.StreamKindAssistantDelta,
+		Payload: map[string]any{"assistant_delta": &StreamAssistantDelta{
 			Delta:    "answer",
 			Sequence: 2,
 		}},
@@ -216,10 +215,10 @@ func TestRunStateApplyStreamItemAppendsAssistantDelta(t *testing.T) {
 	}
 }
 
-func projectEventToStreamItem(event domain.EventRecord) eventstream.StreamItem {
-	item := eventstream.StreamItem{
+func projectEventToStreamItem(event domain.EventRecord) domain.StreamItem {
+	item := domain.StreamItem{
 		RunID:     event.RunID,
-		Kind:      eventstream.StreamItemKind(event.Kind),
+		Kind:      domain.StreamItemKind(event.Kind),
 		CreatedAt: event.CreatedAt,
 	}
 	data, _ := json.Marshal(event.Payload)
@@ -235,11 +234,11 @@ type runState struct {
 	lastOutput string
 }
 
-func (s *runState) applyStreamItem(item eventstream.StreamItem) {
-	if delta := item.GetAssistantDelta(); delta != nil {
+func (s *runState) applyStreamItem(item domain.StreamItem) {
+	if delta := streamItemGetAssistantDelta(item); delta != nil {
 		s.lastOutput += delta.Delta
 	}
-	if msg := item.GetMessage(); msg != nil && msg.Content != "" {
+	if msg := streamItemGetMessage(item); msg != nil && msg.Content != "" {
 		s.lastOutput = msg.Content
 	}
 }

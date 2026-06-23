@@ -1,4 +1,4 @@
-package eventstream
+package runtime
 
 import (
 	"context"
@@ -8,10 +8,7 @@ import (
 	"github.com/ycvk/acorn/internal/domain"
 )
 
-// StreamSink receives a StreamItem for delivery.
-type StreamSink func(item StreamItem) error
-
-func AppendStreamItem(ctx context.Context, store domain.EventAppender, sink StreamSink, item StreamItem) (domain.EventRecord, error) {
+func AppendStreamItem(ctx context.Context, store domain.EventAppender, sink domain.StreamSink, item domain.StreamItem) (domain.EventRecord, error) {
 	if store == nil {
 		return domain.EventRecord{}, fmt.Errorf("append stream item: nil store")
 	}
@@ -33,7 +30,7 @@ func AppendStreamItem(ctx context.Context, store domain.EventAppender, sink Stre
 	return saved, nil
 }
 
-func ProjectStreamItemToEvent(item StreamItem) (string, any, error) {
+func ProjectStreamItemToEvent(item domain.StreamItem) (string, any, error) {
 	if item.Payload == nil {
 		return streamKindToEventKind(item.Kind), map[string]any{}, nil
 	}
@@ -49,48 +46,48 @@ func ProjectStreamItemToEvent(item StreamItem) (string, any, error) {
 	return streamKindToEventKind(item.Kind), payload, nil
 }
 
-func streamKindToEventKind(kind StreamItemKind) string {
+func streamKindToEventKind(kind domain.StreamItemKind) string {
 	switch kind {
-	case StreamKindRunStarted:
+	case domain.StreamKindRunStarted:
 		return "run.started"
-	case StreamKindRunCompleted:
+	case domain.StreamKindRunCompleted:
 		return "run.completed"
-	case StreamKindRunFailed:
+	case domain.StreamKindRunFailed:
 		return "run.failed"
-	case StreamKindRunInterrupted:
+	case domain.StreamKindRunInterrupted:
 		return "run.interrupted"
-	case StreamKindRunResumeRequested:
+	case domain.StreamKindRunResumeRequested:
 		return "run.resume_requested"
-	case StreamKindAssistantDelta:
+	case domain.StreamKindAssistantDelta:
 		return string(kind)
-	case StreamKindAssistantMessage:
+	case domain.StreamKindAssistantMessage:
 		return "agent.message"
-	case StreamKindToolCallStarted:
+	case domain.StreamKindToolCallStarted:
 		return "tool.call.started"
-	case StreamKindToolCallSucceeded:
+	case domain.StreamKindToolCallSucceeded:
 		return "tool.call.succeeded"
-	case StreamKindToolCallFailed:
+	case domain.StreamKindToolCallFailed:
 		return "tool.call.failed"
-	case StreamKindToolCallInterrupted:
+	case domain.StreamKindToolCallInterrupted:
 		return "tool.call.interrupted"
-	case StreamKindSkillDiscovered:
+	case domain.StreamKindSkillDiscovered:
 		return "skill.discovered"
-	case StreamKindSkillSelected:
+	case domain.StreamKindSkillSelected:
 		return "skill.selected"
-	case StreamKindSkillLoaded:
+	case domain.StreamKindSkillLoaded:
 		return "skill.loaded"
-	case StreamKindSkillFailed:
+	case domain.StreamKindSkillFailed:
 		return "skill.failed"
-	case StreamKindProcedureActivation:
+	case domain.StreamKindProcedureActivation:
 		return "procedure.activation"
-	case StreamKindMemoryPrepared:
+	case domain.StreamKindMemoryPrepared:
 		return "memory.prepared"
 	default:
 		return string(kind)
 	}
 }
 
-func streamPayloadMap(kind StreamItemKind, payload any) (map[string]any, error) {
+func streamPayloadMap(kind domain.StreamItemKind, payload any) (map[string]any, error) {
 	out := map[string]any{}
 	if payload == nil {
 		return out, nil
@@ -101,12 +98,12 @@ func streamPayloadMap(kind StreamItemKind, payload any) (map[string]any, error) 
 	return out, nil
 }
 
-func normalizeToolCallPayload(kind StreamItemKind, payload map[string]any) error {
+func normalizeToolCallPayload(kind domain.StreamItemKind, payload map[string]any) error {
 	switch kind {
-	case StreamKindToolCallStarted,
-		StreamKindToolCallSucceeded,
-		StreamKindToolCallFailed,
-		StreamKindToolCallInterrupted:
+	case domain.StreamKindToolCallStarted,
+		domain.StreamKindToolCallSucceeded,
+		domain.StreamKindToolCallFailed,
+		domain.StreamKindToolCallInterrupted:
 	default:
 		return nil
 	}

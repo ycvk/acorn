@@ -4,12 +4,11 @@ import (
 	"testing"
 
 	"github.com/cloudwego/eino/schema"
-	"github.com/ycvk/acorn/internal/runtime/eventstream"
 )
 
 func TestActiveProviderInMeta(t *testing.T) {
 	msg := schema.AssistantMessage("hello", nil)
-	message := eventstream.StreamMessageFromSchema(msg, "primary")
+	message := StreamMessageFromSchema(msg, "primary")
 	if message == nil {
 		t.Fatal("expected stream message")
 	}

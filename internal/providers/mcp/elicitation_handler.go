@@ -12,7 +12,6 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/ycvk/acorn/internal/domain"
-	"github.com/ycvk/acorn/internal/runtime/eventstream"
 	"github.com/ycvk/acorn/internal/store"
 )
 
@@ -94,7 +93,7 @@ func (h *ElicitationHandler) HandleElicitation(ctx context.Context, req *mcp.Eli
 	if err != nil {
 		return nil, fmt.Errorf("create elicitation pending action: %w", err)
 	}
-	if err := h.emitElicitationEvent(ctx, runID, record.ActionID, req.Params, string(eventstream.StreamKindElicitationPending)); err != nil {
+	if err := h.emitElicitationEvent(ctx, runID, record.ActionID, req.Params, string(domain.StreamKindElicitationPending)); err != nil {
 		return nil, err
 	}
 
@@ -104,7 +103,7 @@ func (h *ElicitationHandler) HandleElicitation(ctx context.Context, req *mcp.Eli
 		return nil, err
 	}
 
-	if err := h.emitElicitationEvent(ctx, runID, record.ActionID, req.Params, string(eventstream.StreamKindElicitationDecided)); err != nil {
+	if err := h.emitElicitationEvent(ctx, runID, record.ActionID, req.Params, string(domain.StreamKindElicitationDecided)); err != nil {
 		return nil, err
 	}
 

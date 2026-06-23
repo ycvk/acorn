@@ -14,7 +14,6 @@ import (
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/memorymodule"
-	"github.com/ycvk/acorn/internal/runtime/eventstream"
 	"github.com/ycvk/acorn/internal/store"
 )
 
@@ -285,7 +284,7 @@ func TestConsumeStreamingEventThenMessageReplacesOutput(t *testing.T) {
 	iter, gen := adk.NewAsyncIteratorPair[*adk.AgentEvent]()
 	// First event: streaming output — IsStreaming=true causes GetMessage() to
 	// consume the stream via concatMessageStream, producing an assistant_message
-	// StreamItem whose Content replaces lastOutput.
+	// domain.StreamItem whose Content replaces lastOutput.
 	gen.Send(&adk.AgentEvent{
 		Output: &adk.AgentOutput{
 			MessageOutput: &adk.MessageVariant{
@@ -336,8 +335,8 @@ func TestConsumeSinkReceivesEvents(t *testing.T) {
 	exec, _ := newTestExecutor(t)
 
 	var sinkMu sync.Mutex
-	var sinkItems []eventstream.StreamItem
-	sink := func(item eventstream.StreamItem) error {
+	var sinkItems []domain.StreamItem
+	sink := func(item domain.StreamItem) error {
 		sinkMu.Lock()
 		sinkItems = append(sinkItems, item)
 		sinkMu.Unlock()

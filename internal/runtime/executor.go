@@ -14,7 +14,6 @@ import (
 	"github.com/ycvk/acorn/internal/contextplane"
 	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/memorymodule"
-	"github.com/ycvk/acorn/internal/runtime/eventstream"
 	"github.com/ycvk/acorn/internal/store"
 )
 
@@ -59,7 +58,7 @@ func NewExecutorWithRunRuntimeAndController(cfg *config.Config, store ExecutorSt
 	}
 	return exec, nil
 }
-func (e *Executor) Run(ctx context.Context, input, skillID string, sink eventstream.StreamSink) (*Result, error) {
+func (e *Executor) Run(ctx context.Context, input, skillID string, sink domain.StreamSink) (*Result, error) {
 	sessionID := newSessionID()
 	title, _ := compactText(input, 48)
 	turnIndex, err := e.store.CreateFreshSessionTurn(ctx, sessionID, title, input)
@@ -99,7 +98,7 @@ func (e *Executor) prepareExecuteRequest(ctx context.Context, req domain.Execute
 	return req, nil
 }
 
-func (e *Executor) ExecuteMessages(ctx context.Context, req domain.ExecuteRequest, sink eventstream.StreamSink) (*Result, error) {
+func (e *Executor) ExecuteMessages(ctx context.Context, req domain.ExecuteRequest, sink domain.StreamSink) (*Result, error) {
 	runID := resolveRunID(req)
 	req, err := e.prepareExecuteRequest(ctx, req)
 	if err != nil {
@@ -136,7 +135,7 @@ func (e *Executor) createBoundRun(ctx context.Context, runID string, req domain.
 	})
 }
 
-func (e *Executor) buildExecuteRunner(runCtxBase context.Context, req domain.ExecuteRequest, runID string, sink eventstream.StreamSink) (*ActiveRunner, error) {
+func (e *Executor) buildExecuteRunner(runCtxBase context.Context, req domain.ExecuteRequest, runID string, sink domain.StreamSink) (*ActiveRunner, error) {
 	return e.runRuntime.New(runCtxBase, RunnerBuildRequest{
 		SessionID:        req.SessionID,
 		RunID:            runID,
@@ -147,7 +146,7 @@ func (e *Executor) buildExecuteRunner(runCtxBase context.Context, req domain.Exe
 	})
 }
 
-func (e *Executor) executionContext(runCtxBase context.Context, runID string, req domain.ExecuteRequest, active *ActiveRunner, sink eventstream.StreamSink) context.Context {
+func (e *Executor) executionContext(runCtxBase context.Context, runID string, req domain.ExecuteRequest, active *ActiveRunner, sink domain.StreamSink) context.Context {
 	executionCtx := buildExecutionContext(runCtxBase, runID, req.SessionID, req.TurnIndex, sink)
 	if active.ContextSession != nil {
 		executionCtx = contextplane.WithContextSession(executionCtx, active.ContextSession)
@@ -171,14 +170,14 @@ func (e *Executor) newManagedRunContext(ctx context.Context, runID string) (cont
 	}
 }
 
-func buildExecutionContext(runCtxBase context.Context, runID, sessionID string, turnIndex int, sink eventstream.StreamSink) context.Context {
+func buildExecutionContext(runCtxBase context.Context, runID, sessionID string, turnIndex int, sink domain.StreamSink) context.Context {
 	runCtx := domain.WithRunID(runCtxBase, runID)
 	runCtx = domain.WithSessionID(runCtx, sessionID)
 	runCtx = domain.WithTurnIndex(runCtx, turnIndex)
-	return eventstream.WithStreamSink(runCtx, sink)
+	return domain.WithStreamSink(runCtx, sink)
 }
 
-func (e *Executor) ResumeWithTargets(ctx context.Context, runID string, targets map[string]any, sink eventstream.StreamSink) (*Result, error) {
+func (e *Executor) ResumeWithTargets(ctx context.Context, runID string, targets map[string]any, sink domain.StreamSink) (*Result, error) {
 	run, err := e.store.LoadRun(ctx, runID)
 	if err != nil {
 		return nil, err
@@ -194,7 +193,7 @@ func (e *Executor) ResumeWithTargets(ctx context.Context, runID string, targets 
 	return e.executeResume(ctx, runCtxBase, *run, runID, targets, sink)
 }
 
-func (e *Executor) executeResume(ctx context.Context, runCtxBase context.Context, run domain.RunRecord, runID string, targets map[string]any, sink eventstream.StreamSink) (*Result, error) {
+func (e *Executor) executeResume(ctx context.Context, runCtxBase context.Context, run domain.RunRecord, runID string, targets map[string]any, sink domain.StreamSink) (*Result, error) {
 	active, err := e.runRuntime.New(runCtxBase, RunnerBuildRequest{
 		SessionID: run.SessionID,
 		RunID:     runID,
@@ -220,7 +219,7 @@ func (e *Executor) executeResume(ctx context.Context, runCtxBase context.Context
 	return result, nil
 }
 
-func (e *Executor) resumeIter(runCtxBase context.Context, run domain.RunRecord, runID string, active *ActiveRunner, targets map[string]any, sink eventstream.StreamSink) (*adk.AsyncIterator[*adk.AgentEvent], error) {
+func (e *Executor) resumeIter(runCtxBase context.Context, run domain.RunRecord, runID string, active *ActiveRunner, targets map[string]any, sink domain.StreamSink) (*adk.AsyncIterator[*adk.AgentEvent], error) {
 	executionCtx := contextplane.WithContextSession(
 		buildExecutionContext(runCtxBase, runID, run.SessionID, run.TurnIndex, sink), active.ContextSession)
 	iter, err := active.Runner.ResumeWithParams(executionCtx, runID, &adk.ResumeParams{Targets: targets})
@@ -254,7 +253,7 @@ type RunState struct {
 	emittedRunFailed bool
 }
 
-func (e *Executor) consume(ctx context.Context, runID, input string, iter *adk.AsyncIterator[*adk.AgentEvent], selectedSkill *SelectedSkill, sink eventstream.StreamSink, chatModel einomodel.BaseChatModel) (*Result, error) {
+func (e *Executor) consume(ctx context.Context, runID, input string, iter *adk.AsyncIterator[*adk.AgentEvent], selectedSkill *SelectedSkill, sink domain.StreamSink, chatModel einomodel.BaseChatModel) (*Result, error) {
 	state, err := e.collectRunState(ctx, runID, iter, sink, chatModel)
 	if err != nil {
 		return nil, err
@@ -262,23 +261,23 @@ func (e *Executor) consume(ctx context.Context, runID, input string, iter *adk.A
 	return e.finishCollectedRun(ctx, runID, input, state, selectedSkill, sink)
 }
 
-func (e *Executor) collectRunState(ctx context.Context, runID string, iter *adk.AsyncIterator[*adk.AgentEvent], sink eventstream.StreamSink, chatModel einomodel.BaseChatModel) (RunState, error) {
+func (e *Executor) collectRunState(ctx context.Context, runID string, iter *adk.AsyncIterator[*adk.AgentEvent], sink domain.StreamSink, chatModel einomodel.BaseChatModel) (RunState, error) {
 	state := RunState{}
 	for {
 		event, ok := iter.Next()
 		if !ok {
 			return state, nil
 		}
-		if err := e.applyAgentEvent(ctx, runID, eventstream.StreamItemsFromAgentEvent(event, chatModel), sink, &state); err != nil {
+		if err := e.applyAgentEvent(ctx, runID, StreamItemsFromAgentEvent(event, chatModel), sink, &state); err != nil {
 			return RunState{}, err
 		}
 	}
 }
 
-func (e *Executor) applyAgentEvent(ctx context.Context, runID string, items []eventstream.StreamItem, sink eventstream.StreamSink, state *RunState) error {
+func (e *Executor) applyAgentEvent(ctx context.Context, runID string, items []domain.StreamItem, sink domain.StreamSink, state *RunState) error {
 	for _, item := range items {
 		item.RunID = runID
-		if _, err := eventstream.AppendStreamItem(ctx, e.store, sink, item); err != nil {
+		if _, err := AppendStreamItem(ctx, e.store, sink, item); err != nil {
 			return err
 		}
 		state.applyStreamItem(item)
@@ -286,24 +285,24 @@ func (e *Executor) applyAgentEvent(ctx context.Context, runID string, items []ev
 	return nil
 }
 
-func (s *RunState) applyStreamItem(item eventstream.StreamItem) {
-	if delta := item.GetAssistantDelta(); delta != nil {
+func (s *RunState) applyStreamItem(item domain.StreamItem) {
+	if delta := streamItemGetAssistantDelta(item); delta != nil {
 		s.lastOutput += delta.Delta
 	}
-	if msg := item.GetMessage(); msg != nil && msg.Content != "" {
+	if msg := streamItemGetMessage(item); msg != nil && msg.Content != "" {
 		s.lastOutput = msg.Content
 	}
-	if interrupt := item.GetInterrupt(); interrupt != nil {
+	if interrupt := streamItemGetInterrupt(item); interrupt != nil {
 		s.interrupt = InterruptPayloadFromStream(interrupt)
 	}
-	if item.Kind == eventstream.StreamKindRunFailed && item.GetError() != "" {
-		s.failure = errors.New(item.GetError())
+	if item.Kind == domain.StreamKindRunFailed && streamItemGetError(item) != "" {
+		s.failure = errors.New(streamItemGetError(item))
 		s.emittedRunFailed = true
 	}
 }
 
-func (e *Executor) emitLifecyclePayload(ctx context.Context, runID string, sink eventstream.StreamSink, kind eventstream.StreamItemKind, payload map[string]any) error {
-	_, err := eventstream.AppendStreamItem(ctx, e.store, sink, eventstream.StreamItem{
+func (e *Executor) emitLifecyclePayload(ctx context.Context, runID string, sink domain.StreamSink, kind domain.StreamItemKind, payload map[string]any) error {
+	_, err := AppendStreamItem(ctx, e.store, sink, domain.StreamItem{
 		RunID:     runID,
 		Kind:      kind,
 		CreatedAt: time.Now().UTC(),
@@ -312,26 +311,26 @@ func (e *Executor) emitLifecyclePayload(ctx context.Context, runID string, sink 
 	return err
 }
 
-func (e *Executor) emitRunStarted(ctx context.Context, runID, input string, sink eventstream.StreamSink) error {
-	return e.emitLifecyclePayload(ctx, runID, sink, eventstream.StreamKindRunStarted, map[string]any{"input": input})
+func (e *Executor) emitRunStarted(ctx context.Context, runID, input string, sink domain.StreamSink) error {
+	return e.emitLifecyclePayload(ctx, runID, sink, domain.StreamKindRunStarted, map[string]any{"input": input})
 }
 
-func (e *Executor) emitRunResumeRequested(ctx context.Context, runID string, targets map[string]any, sink eventstream.StreamSink) error {
-	return e.emitLifecyclePayload(ctx, runID, sink, eventstream.StreamKindRunResumeRequested, map[string]any{"targets": targets})
+func (e *Executor) emitRunResumeRequested(ctx context.Context, runID string, targets map[string]any, sink domain.StreamSink) error {
+	return e.emitLifecyclePayload(ctx, runID, sink, domain.StreamKindRunResumeRequested, map[string]any{"targets": targets})
 }
 
-func (e *Executor) emitRunCompleted(ctx context.Context, runID, output string, sink eventstream.StreamSink) error {
-	return e.emitLifecyclePayload(ctx, runID, sink, eventstream.StreamKindRunCompleted, map[string]any{"message": &eventstream.StreamMessage{
+func (e *Executor) emitRunCompleted(ctx context.Context, runID, output string, sink domain.StreamSink) error {
+	return e.emitLifecyclePayload(ctx, runID, sink, domain.StreamKindRunCompleted, map[string]any{"message": &StreamMessage{
 		Role:    string(schema.Assistant),
 		Content: output,
 	}})
 }
 
-func (e *Executor) emitRunFailed(ctx context.Context, runID string, sink eventstream.StreamSink, message string) error {
-	return e.emitLifecyclePayload(ctx, runID, sink, eventstream.StreamKindRunFailed, map[string]any{"error": message})
+func (e *Executor) emitRunFailed(ctx context.Context, runID string, sink domain.StreamSink, message string) error {
+	return e.emitLifecyclePayload(ctx, runID, sink, domain.StreamKindRunFailed, map[string]any{"error": message})
 }
 
-func (e *Executor) failRunSetup(ctx context.Context, runID string, setupErr error, sink eventstream.StreamSink) error {
+func (e *Executor) failRunSetup(ctx context.Context, runID string, setupErr error, sink domain.StreamSink) error {
 	if strings.TrimSpace(runID) == "" || setupErr == nil {
 		return setupErr
 	}
@@ -342,14 +341,14 @@ func (e *Executor) failRunSetup(ctx context.Context, runID string, setupErr erro
 	return e.store.FinishRunContext(durableCtx, runID, domain.RunStatusFailed, "", setupErr.Error())
 }
 
-func (e *Executor) failSetupOrErr(ctx context.Context, runID string, setupErr error, sink eventstream.StreamSink) error {
+func (e *Executor) failSetupOrErr(ctx context.Context, runID string, setupErr error, sink domain.StreamSink) error {
 	if failErr := e.failRunSetup(ctx, runID, setupErr, sink); failErr != nil {
 		return failErr
 	}
 	return setupErr
 }
 
-func (e *Executor) recordFinalizationFailure(ctx context.Context, runID, output string, finalizationErr error, sink eventstream.StreamSink) error {
+func (e *Executor) recordFinalizationFailure(ctx context.Context, runID, output string, finalizationErr error, sink domain.StreamSink) error {
 	durableCtx := DurableContext(ctx)
 	message := fmt.Sprintf("run finalization failed: %v", finalizationErr)
 	var errs []error
@@ -363,14 +362,14 @@ func (e *Executor) recordFinalizationFailure(ctx context.Context, runID, output 
 	return errors.Join(errs...)
 }
 
-func (e *Executor) verifyAndRecordSkill(ctx context.Context, runID string, selected *SelectedSkill, status domain.RunStatus, output string, sink eventstream.StreamSink) error {
+func (e *Executor) verifyAndRecordSkill(ctx context.Context, runID string, selected *SelectedSkill, status domain.RunStatus, output string, sink domain.StreamSink) error {
 	if selected == nil || strings.TrimSpace(runID) == "" || status != domain.RunStatusFailed {
 		return nil
 	}
-	_, err := eventstream.AppendStreamItem(ctx, e.store, sink, eventstream.StreamItem{
+	_, err := AppendStreamItem(ctx, e.store, sink, domain.StreamItem{
 		RunID: runID,
-		Kind:  eventstream.StreamKindSkillFailed,
-		Payload: map[string]any{"skill": &eventstream.StreamSkill{
+		Kind:  domain.StreamKindSkillFailed,
+		Payload: map[string]any{"skill": &StreamSkill{
 			SelectedID:    selected.Skill.ID,
 			Name:          selected.Skill.Name,
 			Source:        selected.Skill.Source,
@@ -383,7 +382,7 @@ func (e *Executor) verifyAndRecordSkill(ctx context.Context, runID string, selec
 	return err
 }
 
-func (e *Executor) finishCollectedRun(ctx context.Context, runID, input string, state RunState, selectedSkill *SelectedSkill, sink eventstream.StreamSink) (*Result, error) {
+func (e *Executor) finishCollectedRun(ctx context.Context, runID, input string, state RunState, selectedSkill *SelectedSkill, sink domain.StreamSink) (*Result, error) {
 	switch {
 	case state.failure != nil:
 		return e.finishFailedRun(ctx, runID, input, state, selectedSkill, sink)
@@ -394,7 +393,7 @@ func (e *Executor) finishCollectedRun(ctx context.Context, runID, input string, 
 	}
 }
 
-func (e *Executor) finishFailedRun(ctx context.Context, runID, input string, state RunState, selectedSkill *SelectedSkill, sink eventstream.StreamSink) (*Result, error) {
+func (e *Executor) finishFailedRun(ctx context.Context, runID, input string, state RunState, selectedSkill *SelectedSkill, sink domain.StreamSink) (*Result, error) {
 	durableCtx := DurableContext(ctx)
 	if !state.emittedRunFailed && state.failure != nil {
 		if err := e.emitRunFailed(durableCtx, runID, sink, state.failure.Error()); err != nil {
@@ -431,7 +430,7 @@ func (e *Executor) finishInterruptedRun(ctx context.Context, runID string, state
 	}, nil
 }
 
-func (e *Executor) finishSucceededRun(ctx context.Context, runID, input string, state RunState, selectedSkill *SelectedSkill, sink eventstream.StreamSink) (*Result, error) {
+func (e *Executor) finishSucceededRun(ctx context.Context, runID, input string, state RunState, selectedSkill *SelectedSkill, sink domain.StreamSink) (*Result, error) {
 	durableCtx := DurableContext(ctx)
 	if err := e.store.UpdateRunOutputContext(durableCtx, runID, state.lastOutput); err != nil {
 		return nil, err

@@ -1,28 +1,31 @@
-package eventstream
+package runtime
 
 import (
 	"context"
+
 	"testing"
+
+	"github.com/ycvk/acorn/internal/domain"
 
 	"github.com/cloudwego/eino/schema"
 )
 
 func TestStreamSinkContext(t *testing.T) {
-	sink := func(item StreamItem) error { return nil }
-	ctx := WithStreamSink(context.Background(), sink)
-	got := StreamSinkFromContext(ctx)
+	sink := func(item domain.StreamItem) error { return nil }
+	ctx := domain.WithStreamSink(context.Background(), sink)
+	got := domain.StreamSinkFromContext(ctx)
 	if got == nil {
 		t.Fatal("expected sink from context")
 	}
 
 	// nil sink should not panic
-	ctx2 := WithStreamSink(context.Background(), nil)
-	if StreamSinkFromContext(ctx2) != nil {
+	ctx2 := domain.WithStreamSink(context.Background(), nil)
+	if domain.StreamSinkFromContext(ctx2) != nil {
 		t.Fatal("nil sink should not be stored")
 	}
 
 	// no sink attached
-	if StreamSinkFromContext(context.Background()) != nil {
+	if domain.StreamSinkFromContext(context.Background()) != nil {
 		t.Fatal("no sink should return nil")
 	}
 }
@@ -30,7 +33,7 @@ func TestStreamSinkContext(t *testing.T) {
 func TestAccessors(t *testing.T) {
 	cases := []struct {
 		name          string
-		item          StreamItem
+		item          domain.StreamItem
 		wantMessage   bool
 		wantDelta     bool
 		wantTool      bool
@@ -40,68 +43,68 @@ func TestAccessors(t *testing.T) {
 	}{
 		{
 			name:        "assistant_message",
-			item:        StreamItem{Payload: map[string]any{"message": &StreamMessage{Role: "assistant", Content: "hi"}}},
+			item:        domain.StreamItem{Payload: map[string]any{"message": &StreamMessage{Role: "assistant", Content: "hi"}}},
 			wantMessage: true,
 		},
 		{
 			name:        "run_completed",
-			item:        StreamItem{Payload: map[string]any{"message": &StreamMessage{Role: "assistant", Content: "done"}}},
+			item:        domain.StreamItem{Payload: map[string]any{"message": &StreamMessage{Role: "assistant", Content: "done"}}},
 			wantMessage: true,
 		},
 		{
 			name:      "assistant_delta",
-			item:      StreamItem{Payload: map[string]any{"assistant_delta": &StreamAssistantDelta{Delta: "delta"}}},
+			item:      domain.StreamItem{Payload: map[string]any{"assistant_delta": &StreamAssistantDelta{Delta: "delta"}}},
 			wantDelta: true,
 		},
 		{
 			name:     "tool_call_started",
-			item:     StreamItem{Payload: map[string]any{"tool_call": &StreamToolCall{Name: "t1"}}},
+			item:     domain.StreamItem{Payload: map[string]any{"tool_call": &StreamToolCall{Name: "t1"}}},
 			wantTool: true,
 		},
 		{
 			name:     "tool_call_succeeded",
-			item:     StreamItem{Payload: map[string]any{"tool_call": &StreamToolCall{Name: "t1"}}},
+			item:     domain.StreamItem{Payload: map[string]any{"tool_call": &StreamToolCall{Name: "t1"}}},
 			wantTool: true,
 		},
 		{
 			name:      "skill_discovered",
-			item:      StreamItem{Payload: map[string]any{"skill": &StreamSkill{SelectedID: "s1"}}},
+			item:      domain.StreamItem{Payload: map[string]any{"skill": &StreamSkill{SelectedID: "s1"}}},
 			wantSkill: true,
 		},
 		{
 			name:          "run_interrupted",
-			item:          StreamItem{Payload: map[string]any{"interrupt": &StreamInterrupt{ContextCount: 1}}},
+			item:          domain.StreamItem{Payload: map[string]any{"interrupt": &StreamInterrupt{ContextCount: 1}}},
 			wantInterrupt: true,
 		},
 		{
 			name:       "memory_prepared",
-			item:       StreamItem{Payload: map[string]any{"memory_prepared": &StreamMemoryPrepared{Query: "ok"}}},
+			item:       domain.StreamItem{Payload: map[string]any{"memory_prepared": &StreamMemoryPrepared{Query: "ok"}}},
 			wantMemory: true,
 		},
 		{
 			name: "no_payload",
-			item: StreamItem{Payload: nil},
+			item: domain.StreamItem{Payload: nil},
 		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := tc.item.GetMessage(); (got != nil) != tc.wantMessage {
+			if got := streamItemGetMessage(tc.item); (got != nil) != tc.wantMessage {
 				t.Fatalf("GetMessage() = %v, want %v", got != nil, tc.wantMessage)
 			}
-			if got := tc.item.GetAssistantDelta(); (got != nil) != tc.wantDelta {
+			if got := streamItemGetAssistantDelta(tc.item); (got != nil) != tc.wantDelta {
 				t.Fatalf("GetAssistantDelta() = %v, want %v", got != nil, tc.wantDelta)
 			}
-			if got := tc.item.GetToolCall(); (got != nil) != tc.wantTool {
+			if got := streamItemGetToolCall(tc.item); (got != nil) != tc.wantTool {
 				t.Fatalf("GetToolCall() = %v, want %v", got != nil, tc.wantTool)
 			}
-			if got := tc.item.GetSkill(); (got != nil) != tc.wantSkill {
+			if got := streamItemGetSkill(tc.item); (got != nil) != tc.wantSkill {
 				t.Fatalf("GetSkill() = %v, want %v", got != nil, tc.wantSkill)
 			}
-			if got := tc.item.GetInterrupt(); (got != nil) != tc.wantInterrupt {
+			if got := streamItemGetInterrupt(tc.item); (got != nil) != tc.wantInterrupt {
 				t.Fatalf("GetInterrupt() = %v, want %v", got != nil, tc.wantInterrupt)
 			}
-			if got := tc.item.GetMemoryPrepared(); (got != nil) != tc.wantMemory {
+			if got := streamItemGetMemoryPrepared(tc.item); (got != nil) != tc.wantMemory {
 				t.Fatalf("GetMemoryPrepared() = %v, want %v", got != nil, tc.wantMemory)
 			}
 		})

@@ -17,7 +17,6 @@ import (
 	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/memorymodule"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
-	"github.com/ycvk/acorn/internal/runtime/eventstream"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/toolkit"
@@ -44,7 +43,7 @@ func newSessionID() string {
 	return fmt.Sprintf("session_%d", time.Now().UTC().UnixNano())
 }
 
-func InterruptPayloadFromStream(interrupt *eventstream.StreamInterrupt) map[string]any {
+func InterruptPayloadFromStream(interrupt *StreamInterrupt) map[string]any {
 	if interrupt == nil {
 		return nil
 	}

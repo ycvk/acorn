@@ -13,7 +13,6 @@ import (
 	"github.com/ycvk/acorn/internal/memorymodule"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
 	"github.com/ycvk/acorn/internal/runtime"
-	"github.com/ycvk/acorn/internal/runtime/eventstream"
 	"github.com/ycvk/acorn/internal/skills"
 	storecore "github.com/ycvk/acorn/internal/store"
 	storesqlite "github.com/ycvk/acorn/internal/store/sqlite"
@@ -420,12 +419,12 @@ func (h runtimeExecutorHandle) ResumeWithTargets(ctx context.Context, runID stri
 	return executorRunResultFromRuntime(result)
 }
 
-func streamSinkForRunStart(observer runStartObserver) eventstream.StreamSink {
+func streamSinkForRunStart(observer runStartObserver) domain.StreamSink {
 	if observer == nil {
 		return nil
 	}
-	return func(item eventstream.StreamItem) error {
-		if item.Kind == eventstream.StreamKindRunStarted {
+	return func(item domain.StreamItem) error {
+		if item.Kind == domain.StreamKindRunStarted {
 			observer.RunStarted()
 		}
 		return nil

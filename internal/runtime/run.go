@@ -13,7 +13,6 @@ import (
 	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/memorymodule"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
-	"github.com/ycvk/acorn/internal/runtime/eventstream"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/toolkit"
 	"github.com/ycvk/acorn/internal/workspace"
@@ -94,7 +93,7 @@ type RunnerBuildRequest struct {
 	Input             string
 	SkillID           string
 	AllowedToolNames  []string
-	Sink              eventstream.StreamSink
+	Sink              domain.StreamSink
 	ExcludedToolNames []string
 	InstructionSuffix string
 }

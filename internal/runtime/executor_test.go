@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/ycvk/acorn/internal/domain"
-	"github.com/ycvk/acorn/internal/runtime/eventstream"
 )
 
 func TestResolveRunID(t *testing.T) {
@@ -51,10 +50,10 @@ func TestResolveRunID(t *testing.T) {
 
 func TestRunStateApplyAssistantDelta(t *testing.T) {
 	state := RunState{}
-	item := eventstream.StreamItem{
-		Kind: eventstream.StreamKindAssistantDelta,
+	item := domain.StreamItem{
+		Kind: domain.StreamKindAssistantDelta,
 		Payload: map[string]any{
-			"assistant_delta": &eventstream.StreamAssistantDelta{
+			"assistant_delta": &StreamAssistantDelta{
 				Delta: "Hello",
 			},
 		},
@@ -67,18 +66,18 @@ func TestRunStateApplyAssistantDelta(t *testing.T) {
 
 func TestRunStateApplyAssistantDeltaAccumulates(t *testing.T) {
 	state := RunState{}
-	state.applyStreamItem(eventstream.StreamItem{
-		Kind: eventstream.StreamKindAssistantDelta,
+	state.applyStreamItem(domain.StreamItem{
+		Kind: domain.StreamKindAssistantDelta,
 		Payload: map[string]any{
-			"assistant_delta": &eventstream.StreamAssistantDelta{
+			"assistant_delta": &StreamAssistantDelta{
 				Delta: "Hello",
 			},
 		},
 	})
-	state.applyStreamItem(eventstream.StreamItem{
-		Kind: eventstream.StreamKindAssistantDelta,
+	state.applyStreamItem(domain.StreamItem{
+		Kind: domain.StreamKindAssistantDelta,
 		Payload: map[string]any{
-			"assistant_delta": &eventstream.StreamAssistantDelta{
+			"assistant_delta": &StreamAssistantDelta{
 				Delta: " world",
 			},
 		},
@@ -90,10 +89,10 @@ func TestRunStateApplyAssistantDeltaAccumulates(t *testing.T) {
 
 func TestRunStateApplyMessageReplacesOutput(t *testing.T) {
 	state := RunState{lastOutput: "streaming partial..."}
-	state.applyStreamItem(eventstream.StreamItem{
-		Kind: eventstream.StreamKindAssistantMessage,
+	state.applyStreamItem(domain.StreamItem{
+		Kind: domain.StreamKindAssistantMessage,
 		Payload: map[string]any{
-			"message": &eventstream.StreamMessage{
+			"message": &StreamMessage{
 				Role:    "assistant",
 				Content: "final answer",
 			},
@@ -106,10 +105,10 @@ func TestRunStateApplyMessageReplacesOutput(t *testing.T) {
 
 func TestRunStateApplyMessageEmptyContentPreservesOutput(t *testing.T) {
 	state := RunState{lastOutput: "existing output"}
-	state.applyStreamItem(eventstream.StreamItem{
-		Kind: eventstream.StreamKindAssistantMessage,
+	state.applyStreamItem(domain.StreamItem{
+		Kind: domain.StreamKindAssistantMessage,
 		Payload: map[string]any{
-			"message": &eventstream.StreamMessage{
+			"message": &StreamMessage{
 				Role:    "assistant",
 				Content: "",
 			},
@@ -122,12 +121,12 @@ func TestRunStateApplyMessageEmptyContentPreservesOutput(t *testing.T) {
 
 func TestRunStateApplyInterrupt(t *testing.T) {
 	state := RunState{}
-	state.applyStreamItem(eventstream.StreamItem{
-		Kind: eventstream.StreamKindRunInterrupted,
+	state.applyStreamItem(domain.StreamItem{
+		Kind: domain.StreamKindRunInterrupted,
 		Payload: map[string]any{
-			"interrupt": &eventstream.StreamInterrupt{
+			"interrupt": &StreamInterrupt{
 				ContextCount: 1,
-				Contexts: []eventstream.StreamInterruptContext{
+				Contexts: []StreamInterruptContext{
 					{ID: "ictx_1", Address: "0x123", IsRootCause: true},
 				},
 			},
@@ -143,8 +142,8 @@ func TestRunStateApplyInterrupt(t *testing.T) {
 
 func TestRunStateApplyRunFailed(t *testing.T) {
 	state := RunState{}
-	state.applyStreamItem(eventstream.StreamItem{
-		Kind: eventstream.StreamKindRunFailed,
+	state.applyStreamItem(domain.StreamItem{
+		Kind: domain.StreamKindRunFailed,
 		Payload: map[string]any{
 			"error": "model stream error: connection reset",
 		},
@@ -162,8 +161,8 @@ func TestRunStateApplyRunFailed(t *testing.T) {
 
 func TestRunStateApplyRunFailedEmptyError(t *testing.T) {
 	state := RunState{}
-	state.applyStreamItem(eventstream.StreamItem{
-		Kind: eventstream.StreamKindRunFailed,
+	state.applyStreamItem(domain.StreamItem{
+		Kind: domain.StreamKindRunFailed,
 		Payload: map[string]any{
 			"error": "",
 		},
@@ -178,8 +177,8 @@ func TestRunStateApplyRunFailedEmptyError(t *testing.T) {
 
 func TestRunStateApplyRunFailedNoErrorField(t *testing.T) {
 	state := RunState{}
-	state.applyStreamItem(eventstream.StreamItem{
-		Kind:    eventstream.StreamKindRunFailed,
+	state.applyStreamItem(domain.StreamItem{
+		Kind:    domain.StreamKindRunFailed,
 		Payload: map[string]any{},
 	})
 	if state.failure != nil {
@@ -191,8 +190,8 @@ func TestRunStateApplyUnknownItemIsNoOp(t *testing.T) {
 	state := RunState{
 		lastOutput: "existing",
 	}
-	state.applyStreamItem(eventstream.StreamItem{
-		Kind:    eventstream.StreamKindToolCallStarted,
+	state.applyStreamItem(domain.StreamItem{
+		Kind:    domain.StreamKindToolCallStarted,
 		Payload: map[string]any{},
 	})
 	if state.lastOutput != "existing" {
@@ -209,26 +208,26 @@ func TestRunStateApplyUnknownItemIsNoOp(t *testing.T) {
 func TestRunStateApplyMultipleItemsLifecycle(t *testing.T) {
 	state := RunState{}
 
-	state.applyStreamItem(eventstream.StreamItem{
-		Kind: eventstream.StreamKindAssistantDelta,
+	state.applyStreamItem(domain.StreamItem{
+		Kind: domain.StreamKindAssistantDelta,
 		Payload: map[string]any{
-			"assistant_delta": &eventstream.StreamAssistantDelta{Delta: "Hello"},
+			"assistant_delta": &StreamAssistantDelta{Delta: "Hello"},
 		},
 	})
-	state.applyStreamItem(eventstream.StreamItem{
-		Kind: eventstream.StreamKindAssistantDelta,
+	state.applyStreamItem(domain.StreamItem{
+		Kind: domain.StreamKindAssistantDelta,
 		Payload: map[string]any{
-			"assistant_delta": &eventstream.StreamAssistantDelta{Delta: " world"},
+			"assistant_delta": &StreamAssistantDelta{Delta: " world"},
 		},
 	})
 	if state.lastOutput != "Hello world" {
 		t.Fatalf("after deltas: lastOutput = %q, want 'Hello world'", state.lastOutput)
 	}
 
-	state.applyStreamItem(eventstream.StreamItem{
-		Kind: eventstream.StreamKindAssistantMessage,
+	state.applyStreamItem(domain.StreamItem{
+		Kind: domain.StreamKindAssistantMessage,
 		Payload: map[string]any{
-			"message": &eventstream.StreamMessage{Content: "Hello world!"},
+			"message": &StreamMessage{Content: "Hello world!"},
 		},
 	})
 	if state.lastOutput != "Hello world!" {

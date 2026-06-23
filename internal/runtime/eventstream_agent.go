@@ -1,4 +1,4 @@
-package eventstream
+package runtime
 
 import (
 	"fmt"
@@ -8,6 +8,8 @@ import (
 	"github.com/cloudwego/eino/adk"
 	einomodel "github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/schema"
+
+	"github.com/ycvk/acorn/internal/domain"
 )
 
 func activeProviderName(chatModel einomodel.BaseChatModel) string {
@@ -17,13 +19,13 @@ func activeProviderName(chatModel einomodel.BaseChatModel) string {
 	return ""
 }
 
-func StreamItemsFromAgentEvent(event *adk.AgentEvent, chatModel einomodel.BaseChatModel) []StreamItem {
-	items := make([]StreamItem, 0, 3)
+func StreamItemsFromAgentEvent(event *adk.AgentEvent, chatModel einomodel.BaseChatModel) []domain.StreamItem {
+	items := make([]domain.StreamItem, 0, 3)
 	createdAt := time.Now().UTC()
 	if event.Output != nil && event.Output.MessageOutput != nil {
 		if message, err := event.Output.MessageOutput.GetMessage(); err == nil && message != nil {
-			items = append(items, StreamItem{
-				Kind:      StreamKindAssistantMessage,
+			items = append(items, domain.StreamItem{
+				Kind:      domain.StreamKindAssistantMessage,
 				CreatedAt: createdAt,
 				Payload: map[string]any{
 					"message": StreamMessageFromSchema(message, activeProviderName(chatModel)),
@@ -32,8 +34,8 @@ func StreamItemsFromAgentEvent(event *adk.AgentEvent, chatModel einomodel.BaseCh
 		}
 	}
 	if event.Action != nil && event.Action.Interrupted != nil {
-		items = append(items, StreamItem{
-			Kind:      StreamKindRunInterrupted,
+		items = append(items, domain.StreamItem{
+			Kind:      domain.StreamKindRunInterrupted,
 			CreatedAt: createdAt,
 			Payload: map[string]any{
 				"interrupt": streamInterruptFromInfo(event.Action.Interrupted),
@@ -41,8 +43,8 @@ func StreamItemsFromAgentEvent(event *adk.AgentEvent, chatModel einomodel.BaseCh
 		})
 	}
 	if event.Err != nil {
-		items = append(items, StreamItem{
-			Kind:      StreamKindRunFailed,
+		items = append(items, domain.StreamItem{
+			Kind:      domain.StreamKindRunFailed,
 			CreatedAt: createdAt,
 			Payload: map[string]any{
 				"error": event.Err.Error(),

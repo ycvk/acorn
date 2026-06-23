@@ -3,14 +3,14 @@ package runtime
 import (
 	"testing"
 
-	"github.com/ycvk/acorn/internal/runtime/eventstream"
+	"github.com/ycvk/acorn/internal/domain"
 )
 
 func TestProjectStreamItemToEventNormalizesToolInterruptPayload(t *testing.T) {
-	kind, payload := mustProjectStreamItemToEvent(t, eventstream.StreamItem{
+	kind, payload := mustProjectStreamItemToEvent(t, domain.StreamItem{
 		RunID: "run_1",
-		Kind:  eventstream.StreamKindToolCallInterrupted,
-		Payload: map[string]any{"tool_call": &eventstream.StreamToolCall{
+		Kind:  domain.StreamKindToolCallInterrupted,
+		Payload: map[string]any{"tool_call": &StreamToolCall{
 			Name:              "run_command",
 			Error:             "need approval",
 			InterruptContexts: 1,

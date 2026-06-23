@@ -7,7 +7,6 @@ import (
 
 	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/domain"
-	"github.com/ycvk/acorn/internal/runtime/eventstream"
 )
 
 // TestBuildExecutionContextPropagatesTurnIndexToReader guards the turn-index wiring
@@ -30,7 +29,7 @@ func TestMessageToMapPreservesToolContent(t *testing.T) {
 		Role:    schema.Tool,
 		Content: strings.Repeat("a", 1200),
 	}
-	message := eventstream.StreamMessageFromSchema(msg, "")
+	message := StreamMessageFromSchema(msg, "")
 	content := message.Content
 	if len(content) != 1200 {
 		t.Fatalf("expected full tool content, got len=%d", len(content))

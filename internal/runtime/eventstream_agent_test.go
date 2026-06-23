@@ -1,9 +1,11 @@
-package eventstream
+package runtime
 
 import (
 	"context"
 	"errors"
 	"testing"
+
+	"github.com/ycvk/acorn/internal/domain"
 
 	"github.com/cloudwego/eino/adk"
 	einomodel "github.com/cloudwego/eino/components/model"
@@ -33,7 +35,7 @@ func TestStreamItemsFromAgentEvent(t *testing.T) {
 	cases := []struct {
 		name     string
 		event    *adk.AgentEvent
-		wantKind StreamItemKind
+		wantKind domain.StreamItemKind
 		wantLen  int
 	}{
 		{
@@ -45,7 +47,7 @@ func TestStreamItemsFromAgentEvent(t *testing.T) {
 					},
 				},
 			},
-			wantKind: StreamKindAssistantMessage,
+			wantKind: domain.StreamKindAssistantMessage,
 			wantLen:  1,
 		},
 		{
@@ -59,13 +61,13 @@ func TestStreamItemsFromAgentEvent(t *testing.T) {
 					},
 				},
 			},
-			wantKind: StreamKindRunInterrupted,
+			wantKind: domain.StreamKindRunInterrupted,
 			wantLen:  1,
 		},
 		{
 			name:     "error",
 			event:    &adk.AgentEvent{Err: errors.New("boom")},
-			wantKind: StreamKindRunFailed,
+			wantKind: domain.StreamKindRunFailed,
 			wantLen:  1,
 		},
 		{

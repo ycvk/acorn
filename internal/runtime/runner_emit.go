@@ -7,7 +7,6 @@ import (
 
 	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/memorymodule"
-	"github.com/ycvk/acorn/internal/runtime/eventstream"
 	"github.com/ycvk/acorn/internal/skills"
 )
 
@@ -15,7 +14,7 @@ func emitMemoryPreparedEvent(ctx context.Context, store domain.EventAppender, re
 	if store == nil || strings.TrimSpace(req.RunID) == "" {
 		return nil
 	}
-	prepared := &eventstream.StreamMemoryPrepared{
+	prepared := &StreamMemoryPrepared{
 		Query:          strings.TrimSpace(req.Input),
 		WorkspaceScope: strings.TrimSpace(workspaceScope),
 	}
@@ -25,29 +24,29 @@ func emitMemoryPreparedEvent(ctx context.Context, store domain.EventAppender, re
 		prepared.Nudges = streamMemoryNudges(result.Nudges)
 		prepared.Entries = streamMemoryEntries(result.Entries)
 	}
-	_, err := eventstream.AppendStreamItem(ctx, store, req.Sink, eventstream.StreamItem{
+	_, err := AppendStreamItem(ctx, store, req.Sink, domain.StreamItem{
 		RunID:     req.RunID,
-		Kind:      eventstream.StreamKindMemoryPrepared,
+		Kind:      domain.StreamKindMemoryPrepared,
 		CreatedAt: time.Now().UTC(),
 		Payload:   map[string]any{"memory_prepared": prepared},
 	})
 	return err
 }
 
-func streamMemoryNudges(nudges []memorymodule.Nudge) []eventstream.StreamMemoryPreparedNudge {
-	out := make([]eventstream.StreamMemoryPreparedNudge, 0, len(nudges))
+func streamMemoryNudges(nudges []memorymodule.Nudge) []StreamMemoryPreparedNudge {
+	out := make([]StreamMemoryPreparedNudge, 0, len(nudges))
 	for _, n := range nudges {
-		out = append(out, eventstream.StreamMemoryPreparedNudge{
+		out = append(out, StreamMemoryPreparedNudge{
 			Ref: n.Ref, Kind: n.Kind, Title: n.Title, Status: n.Status, Reason: n.Reason,
 		})
 	}
 	return out
 }
 
-func streamMemoryEntries(entries []memorymodule.Entry) []eventstream.StreamMemoryPreparedEntry {
-	out := make([]eventstream.StreamMemoryPreparedEntry, 0, len(entries))
+func streamMemoryEntries(entries []memorymodule.Entry) []StreamMemoryPreparedEntry {
+	out := make([]StreamMemoryPreparedEntry, 0, len(entries))
 	for _, e := range entries {
-		out = append(out, eventstream.StreamMemoryPreparedEntry{
+		out = append(out, StreamMemoryPreparedEntry{
 			Ref: e.Ref, Kind: e.Kind, Title: e.Title,
 		})
 	}
@@ -68,24 +67,24 @@ func emitSkillSelectionEvents(ctx context.Context, store domain.EventAppender, r
 	return emitSkillSelected(ctx, store, req, selected, candidates)
 }
 
-func emitSkillDiscovered(ctx context.Context, store domain.EventAppender, req RunnerBuildRequest, candidates []eventstream.StreamSkillCandidate, selected *SelectedSkill, matches []SkillMatch) error {
-	discovered := &eventstream.StreamSkill{Candidates: candidates}
+func emitSkillDiscovered(ctx context.Context, store domain.EventAppender, req RunnerBuildRequest, candidates []StreamSkillCandidate, selected *SelectedSkill, matches []SkillMatch) error {
+	discovered := &StreamSkill{Candidates: candidates}
 	if selected == nil {
 		discovered.NoSelectionReason = deriveNoSelectionReason(req, matches)
 	}
-	_, err := eventstream.AppendStreamItem(ctx, store, req.Sink, eventstream.StreamItem{
+	_, err := AppendStreamItem(ctx, store, req.Sink, domain.StreamItem{
 		RunID:     req.RunID,
-		Kind:      eventstream.StreamKindSkillDiscovered,
+		Kind:      domain.StreamKindSkillDiscovered,
 		CreatedAt: time.Now().UTC(),
 		Payload:   map[string]any{"skill": discovered},
 	})
 	return err
 }
 
-func emitSkillSelected(ctx context.Context, store domain.EventAppender, req RunnerBuildRequest, selected *SelectedSkill, candidates []eventstream.StreamSkillCandidate) error {
+func emitSkillSelected(ctx context.Context, store domain.EventAppender, req RunnerBuildRequest, selected *SelectedSkill, candidates []StreamSkillCandidate) error {
 	streamSkill := streamSkillFromSelected(selected, candidates)
-	for _, kind := range []eventstream.StreamItemKind{eventstream.StreamKindSkillSelected, eventstream.StreamKindSkillLoaded} {
-		if _, err := eventstream.AppendStreamItem(ctx, store, req.Sink, eventstream.StreamItem{
+	for _, kind := range []domain.StreamItemKind{domain.StreamKindSkillSelected, domain.StreamKindSkillLoaded} {
+		if _, err := AppendStreamItem(ctx, store, req.Sink, domain.StreamItem{
 			RunID:     req.RunID,
 			Kind:      kind,
 			CreatedAt: time.Now().UTC(),
@@ -122,16 +121,16 @@ func deriveNoSelectionReason(req RunnerBuildRequest, matches []SkillMatch) strin
 	return ""
 }
 
-func topSkillCandidates(matches []SkillMatch, limit int) []eventstream.StreamSkillCandidate {
+func topSkillCandidates(matches []SkillMatch, limit int) []StreamSkillCandidate {
 	if limit <= 0 || len(matches) == 0 {
 		return nil
 	}
 	if len(matches) < limit {
 		limit = len(matches)
 	}
-	items := make([]eventstream.StreamSkillCandidate, 0, limit)
+	items := make([]StreamSkillCandidate, 0, limit)
 	for _, item := range matches[:limit] {
-		items = append(items, eventstream.StreamSkillCandidate{
+		items = append(items, StreamSkillCandidate{
 			ID:             item.Skill.ID,
 			Name:           item.Skill.Name,
 			Score:          item.Score,
@@ -146,11 +145,11 @@ func topSkillCandidates(matches []SkillMatch, limit int) []eventstream.StreamSki
 	return items
 }
 
-func streamSkillFromSelected(selected *SelectedSkill, candidates []eventstream.StreamSkillCandidate) *eventstream.StreamSkill {
+func streamSkillFromSelected(selected *SelectedSkill, candidates []StreamSkillCandidate) *StreamSkill {
 	if selected == nil {
 		return nil
 	}
-	return &eventstream.StreamSkill{
+	return &StreamSkill{
 		SelectedID:   selected.Skill.ID,
 		Name:         selected.Skill.Name,
 		Candidates:   candidates,
@@ -181,17 +180,17 @@ func emitDecisionBlockedEvent(ctx context.Context, store domain.EventAppender, r
 		"decision_reason":   reason,
 		"explicit_skill_id": strings.TrimSpace(explicitSkillID),
 	}
-	_, err := eventstream.AppendStreamItem(ctx, store, req.Sink, eventstream.StreamItem{
+	_, err := AppendStreamItem(ctx, store, req.Sink, domain.StreamItem{
 		RunID:     req.RunID,
-		Kind:      eventstream.StreamKindDecisionBlocked,
+		Kind:      domain.StreamKindDecisionBlocked,
 		CreatedAt: time.Now().UTC(),
 		Payload:   payload,
 	})
 	return err
 }
 
-func StreamSkillRequirementsFromDomain(item skills.Requirements) eventstream.StreamSkillRequirements {
-	return eventstream.StreamSkillRequirements{
+func StreamSkillRequirementsFromDomain(item skills.Requirements) StreamSkillRequirements {
+	return StreamSkillRequirements{
 		Tools:    append([]string(nil), item.Tools...),
 		Toolsets: append([]string(nil), item.Toolsets...),
 		Bins:     append([]string(nil), item.Bins...),

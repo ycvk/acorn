@@ -1,4 +1,4 @@
-package eventstream
+package runtime
 
 import (
 	"context"
@@ -20,7 +20,7 @@ func (m *mockEventAppender) AppendEventContext(ctx context.Context, runID, kind 
 }
 
 func TestAppendStreamItemNilStore(t *testing.T) {
-	item := StreamItem{RunID: "run_1", Kind: StreamKindRunStarted}
+	item := domain.StreamItem{RunID: "run_1", Kind: domain.StreamKindRunStarted}
 	_, err := AppendStreamItem(context.Background(), nil, nil, item)
 	if err == nil {
 		t.Fatal("expected error for nil store")
@@ -39,7 +39,7 @@ func TestAppendStreamItemSuccess(t *testing.T) {
 	}
 
 	var sinkCalled bool
-	sink := func(item StreamItem) error {
+	sink := func(item domain.StreamItem) error {
 		sinkCalled = true
 		if item.Sequence != 42 {
 			t.Fatalf("sink: sequence = %d, want 42", item.Sequence)
@@ -47,7 +47,7 @@ func TestAppendStreamItemSuccess(t *testing.T) {
 		return nil
 	}
 
-	item := StreamItem{RunID: "run_1", Kind: StreamKindRunStarted, Payload: map[string]any{"input": "hello"}}
+	item := domain.StreamItem{RunID: "run_1", Kind: domain.StreamKindRunStarted, Payload: map[string]any{"input": "hello"}}
 	record, err := AppendStreamItem(context.Background(), store, sink, item)
 	if err != nil {
 		t.Fatalf("AppendStreamItem: %v", err)
@@ -62,7 +62,7 @@ func TestAppendStreamItemSuccess(t *testing.T) {
 
 func TestAppendStreamItemStoreError(t *testing.T) {
 	store := &mockEventAppender{err: errors.New("db error")}
-	item := StreamItem{RunID: "run_1", Kind: StreamKindRunStarted}
+	item := domain.StreamItem{RunID: "run_1", Kind: domain.StreamKindRunStarted}
 	_, err := AppendStreamItem(context.Background(), store, nil, item)
 	if err == nil {
 		t.Fatal("expected error")
@@ -71,8 +71,8 @@ func TestAppendStreamItemStoreError(t *testing.T) {
 
 func TestAppendStreamItemSinkError(t *testing.T) {
 	store := &mockEventAppender{record: domain.EventRecord{Sequence: 1}}
-	sink := func(item StreamItem) error { return errors.New("sink error") }
-	item := StreamItem{RunID: "run_1", Kind: StreamKindRunStarted}
+	sink := func(item domain.StreamItem) error { return errors.New("sink error") }
+	item := domain.StreamItem{RunID: "run_1", Kind: domain.StreamKindRunStarted}
 	_, err := AppendStreamItem(context.Background(), store, sink, item)
 	if err == nil {
 		t.Fatal("expected sink error")
@@ -81,7 +81,7 @@ func TestAppendStreamItemSinkError(t *testing.T) {
 
 func TestAppendStreamItemNoSink(t *testing.T) {
 	store := &mockEventAppender{record: domain.EventRecord{Sequence: 1}}
-	item := StreamItem{RunID: "run_1", Kind: StreamKindRunCompleted}
+	item := domain.StreamItem{RunID: "run_1", Kind: domain.StreamKindRunCompleted}
 	record, err := AppendStreamItem(context.Background(), store, nil, item)
 	if err != nil {
 		t.Fatalf("AppendStreamItem: %v", err)
@@ -94,27 +94,27 @@ func TestAppendStreamItemNoSink(t *testing.T) {
 func TestProjectStreamItemToEvent(t *testing.T) {
 	cases := []struct {
 		name     string
-		item     StreamItem
+		item     domain.StreamItem
 		wantKind string
 	}{
 		{
 			name:     "nil_payload",
-			item:     StreamItem{Kind: StreamKindRunCompleted},
+			item:     domain.StreamItem{Kind: domain.StreamKindRunCompleted},
 			wantKind: "run.completed",
 		},
 		{
 			name:     "run_started",
-			item:     StreamItem{Kind: StreamKindRunStarted, Payload: map[string]any{"input": "hello"}},
+			item:     domain.StreamItem{Kind: domain.StreamKindRunStarted, Payload: map[string]any{"input": "hello"}},
 			wantKind: "run.started",
 		},
 		{
 			name:     "tool_call_started",
-			item:     StreamItem{Kind: StreamKindToolCallStarted, Payload: map[string]any{"tool_call": &StreamToolCall{Name: "t1", CallID: "c1"}}},
+			item:     domain.StreamItem{Kind: domain.StreamKindToolCallStarted, Payload: map[string]any{"tool_call": &StreamToolCall{Name: "t1", CallID: "c1"}}},
 			wantKind: "tool.call.started",
 		},
 		{
 			name:     "assistant_message",
-			item:     StreamItem{Kind: StreamKindAssistantMessage, Payload: map[string]any{"message": &StreamMessage{Content: "hi"}}},
+			item:     domain.StreamItem{Kind: domain.StreamKindAssistantMessage, Payload: map[string]any{"message": &StreamMessage{Content: "hi"}}},
 			wantKind: "agent.message",
 		},
 	}
@@ -137,26 +137,26 @@ func TestProjectStreamItemToEvent(t *testing.T) {
 
 func TestStreamKindToEventKind(t *testing.T) {
 	cases := []struct {
-		kind StreamItemKind
+		kind domain.StreamItemKind
 		want string
 	}{
-		{StreamKindRunStarted, "run.started"},
-		{StreamKindRunCompleted, "run.completed"},
-		{StreamKindRunFailed, "run.failed"},
-		{StreamKindRunInterrupted, "run.interrupted"},
-		{StreamKindRunResumeRequested, "run.resume_requested"},
-		{StreamKindAssistantDelta, "assistant.delta"},
-		{StreamKindAssistantMessage, "agent.message"},
-		{StreamKindToolCallStarted, "tool.call.started"},
-		{StreamKindToolCallSucceeded, "tool.call.succeeded"},
-		{StreamKindToolCallFailed, "tool.call.failed"},
-		{StreamKindToolCallInterrupted, "tool.call.interrupted"},
-		{StreamKindSkillDiscovered, "skill.discovered"},
-		{StreamKindSkillSelected, "skill.selected"},
-		{StreamKindSkillLoaded, "skill.loaded"},
-		{StreamKindSkillFailed, "skill.failed"},
-		{StreamKindProcedureActivation, "procedure.activation"},
-		{StreamKindMemoryPrepared, "memory.prepared"},
+		{domain.StreamKindRunStarted, "run.started"},
+		{domain.StreamKindRunCompleted, "run.completed"},
+		{domain.StreamKindRunFailed, "run.failed"},
+		{domain.StreamKindRunInterrupted, "run.interrupted"},
+		{domain.StreamKindRunResumeRequested, "run.resume_requested"},
+		{domain.StreamKindAssistantDelta, "assistant.delta"},
+		{domain.StreamKindAssistantMessage, "agent.message"},
+		{domain.StreamKindToolCallStarted, "tool.call.started"},
+		{domain.StreamKindToolCallSucceeded, "tool.call.succeeded"},
+		{domain.StreamKindToolCallFailed, "tool.call.failed"},
+		{domain.StreamKindToolCallInterrupted, "tool.call.interrupted"},
+		{domain.StreamKindSkillDiscovered, "skill.discovered"},
+		{domain.StreamKindSkillSelected, "skill.selected"},
+		{domain.StreamKindSkillLoaded, "skill.loaded"},
+		{domain.StreamKindSkillFailed, "skill.failed"},
+		{domain.StreamKindProcedureActivation, "procedure.activation"},
+		{domain.StreamKindMemoryPrepared, "memory.prepared"},
 		{"unknown.kind", "unknown.kind"},
 	}
 

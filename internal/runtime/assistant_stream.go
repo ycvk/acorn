@@ -10,7 +10,6 @@ import (
 	"github.com/cloudwego/eino/schema"
 
 	"github.com/ycvk/acorn/internal/domain"
-	"github.com/ycvk/acorn/internal/runtime/eventstream"
 )
 
 type assistantStreamAccumulator struct {
@@ -37,7 +36,7 @@ type assistantStreamOptions struct {
 	MessageID string
 	RunID     string
 	Appender  domain.EventAppender
-	Sink      eventstream.StreamSink
+	Sink      domain.StreamSink
 	ToolInfos []*schema.ToolInfo
 	CallSite  string
 }
@@ -88,11 +87,11 @@ func streamAssistantMessage(
 		}
 		if opts.Appender != nil || opts.Sink != nil {
 			sequence := accumulator.append(frame.Content)
-			item := eventstream.StreamItem{
+			item := domain.StreamItem{
 				RunID: opts.RunID,
-				Kind:  eventstream.StreamKindAssistantDelta,
+				Kind:  domain.StreamKindAssistantDelta,
 				Payload: map[string]any{
-					"assistant_delta": &eventstream.StreamAssistantDelta{
+					"assistant_delta": &StreamAssistantDelta{
 						Role:      string(frame.Role),
 						Delta:     frame.Content,
 						Reasoning: frame.ReasoningContent,
@@ -104,7 +103,7 @@ func streamAssistantMessage(
 				},
 			}
 			if opts.Appender != nil {
-				if _, err := eventstream.AppendStreamItem(ctx, opts.Appender, opts.Sink, item); err != nil {
+				if _, err := AppendStreamItem(ctx, opts.Appender, opts.Sink, item); err != nil {
 					return nil, err
 				}
 				continue
@@ -158,13 +157,13 @@ func assistantRawFinishReason(message *schema.Message) string {
 	return strings.TrimSpace(strings.ToLower(message.ResponseMeta.FinishReason))
 }
 
-func streamPlannedToolCalls(calls []schema.ToolCall) []eventstream.StreamPlannedToolCall {
+func streamPlannedToolCalls(calls []schema.ToolCall) []StreamPlannedToolCall {
 	if len(calls) == 0 {
 		return nil
 	}
-	out := make([]eventstream.StreamPlannedToolCall, 0, len(calls))
+	out := make([]StreamPlannedToolCall, 0, len(calls))
 	for _, call := range calls {
-		out = append(out, eventstream.StreamPlannedToolCall{
+		out = append(out, StreamPlannedToolCall{
 			ID:            call.ID,
 			Name:          call.Function.Name,
 			ArgumentsJSON: call.Function.Arguments,

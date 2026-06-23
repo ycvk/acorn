@@ -9,7 +9,6 @@ import (
 	"github.com/cloudwego/eino/schema"
 
 	"github.com/ycvk/acorn/internal/domain"
-	"github.com/ycvk/acorn/internal/runtime/eventstream"
 )
 
 func streamAssistantInterleaved(
@@ -57,7 +56,7 @@ func streamAssistantInterleaved(
 
 		accumulator := newAssistantStreamAccumulator(opts.MessageID)
 		frames := make([]*schema.Message, 0, 4)
-		sink := eventstream.StreamSinkFromContext(ctx)
+		sink := domain.StreamSinkFromContext(ctx)
 
 		for {
 			frame, recvErr := modelStream.Recv()
@@ -84,11 +83,11 @@ func streamAssistantInterleaved(
 				continue
 			}
 			sequence := accumulator.append(frame.Content)
-			item := eventstream.StreamItem{
+			item := domain.StreamItem{
 				RunID: opts.RunID,
-				Kind:  eventstream.StreamKindAssistantDelta,
+				Kind:  domain.StreamKindAssistantDelta,
 				Payload: map[string]any{
-					"assistant_delta": &eventstream.StreamAssistantDelta{
+					"assistant_delta": &StreamAssistantDelta{
 						Role:      string(frame.Role),
 						Delta:     frame.Content,
 						Reasoning: frame.ReasoningContent,
@@ -100,7 +99,7 @@ func streamAssistantInterleaved(
 				},
 			}
 			if opts.Appender != nil {
-				if _, appendErr := eventstream.AppendStreamItem(ctx, opts.Appender, opts.Sink, item); appendErr != nil {
+				if _, appendErr := AppendStreamItem(ctx, opts.Appender, opts.Sink, item); appendErr != nil {
 					select {
 					case s.ErrCh <- appendErr:
 					case <-ctx.Done():
@@ -171,7 +170,7 @@ func (s *directAssistantStreamer) StreamAssistantMessage(ctx context.Context, re
 		MessageID: req.MessageID,
 		RunID:     req.RunID,
 		Appender:  s.appender,
-		Sink:      eventstream.StreamSinkFromContext(ctx),
+		Sink:      domain.StreamSinkFromContext(ctx),
 		ToolInfos: req.ToolInfos,
 		CallSite:  req.CallSite,
 	})
@@ -182,7 +181,7 @@ func (s *directAssistantStreamer) StreamAssistantInterleaved(ctx context.Context
 		MessageID: req.MessageID,
 		RunID:     req.RunID,
 		Appender:  s.appender,
-		Sink:      eventstream.StreamSinkFromContext(ctx),
+		Sink:      domain.StreamSinkFromContext(ctx),
 		ToolInfos: req.ToolInfos,
 		CallSite:  req.CallSite,
 	})
