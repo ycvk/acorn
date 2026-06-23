@@ -22,7 +22,6 @@ import (
 	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/memorymodule"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
-	"github.com/ycvk/acorn/internal/runtime/orchestration"
 	"github.com/ycvk/acorn/internal/skills"
 	corestore "github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/toolkit"
@@ -242,7 +241,7 @@ func (f *RunnerFactory) buildAssembly(
 	catalog *toolkit.Catalog,
 	chatModel einomodel.BaseChatModel,
 	contextResult *contextplane.AssembleResult,
-) (*orchestration.RunAssembly, error) {
+) (*RunAssembly, error) {
 	if f == nil || f.deps.Orchestration == nil {
 		return nil, fmt.Errorf("orchestration plane is not initialized")
 	}
@@ -264,8 +263,8 @@ func (f *RunnerFactory) baseAssemblyFields(req RunnerBuildRequest, catalog *tool
 	}
 }
 
-func (f *RunnerFactory) directResponseRequest(bf baseAssemblyFields, req RunnerBuildRequest) orchestration.DirectResponseRequest {
-	return orchestration.DirectResponseRequest{
+func (f *RunnerFactory) directResponseRequest(bf baseAssemblyFields, req RunnerBuildRequest) DirectResponseRequest {
+	return DirectResponseRequest{
 		AgentName:         bf.agentName,
 		AgentDescription:  bf.agentDescription,
 		SessionID:         bf.sessionID,
@@ -415,7 +414,7 @@ func resolveContextPlane(cfg *config.Config, store RunnerFactoryStore, opts Runn
 	return buildDefaultContextPlane(cfg, store, opts)
 }
 
-func assembleRuntimeDeps(cfg *config.Config, store RunnerFactoryStore, opts RunnerFactoryOptions, ws *workspace.Workspace, loader *skills.Loader, artifactService *corestore.ArtifactService, contextPlane contextplane.ContextPlane, orchestrationPlane *orchestration.DefaultPlane) RuntimeDeps {
+func assembleRuntimeDeps(cfg *config.Config, store RunnerFactoryStore, opts RunnerFactoryOptions, ws *workspace.Workspace, loader *skills.Loader, artifactService *corestore.ArtifactService, contextPlane contextplane.ContextPlane, orchestrationPlane *DefaultPlane) RuntimeDeps {
 	return RuntimeDeps{
 		Config:            cfg,
 		Loader:            loader,
@@ -491,7 +490,7 @@ type baseAssemblyFields struct {
 	runID             string
 	chatModel         einomodel.BaseChatModel
 	catalog           *toolkit.Catalog
-	contextResult     orchestration.AssembleResultView
+	contextResult     AssembleResultView
 	allowedToolNames  []string
 	excludedToolNames []string
 }
@@ -517,8 +516,8 @@ type defaultOrchestrationPlaneDeps struct {
 	handlers     []adk.ChatModelAgentMiddleware
 }
 
-func newDefaultOrchestrationPlane(deps defaultOrchestrationPlaneDeps) *orchestration.DefaultPlane {
-	return orchestration.NewDefaultPlane(orchestration.DefaultPlaneOptions{
+func newDefaultOrchestrationPlane(deps defaultOrchestrationPlaneDeps) *DefaultPlane {
+	return NewDefaultPlane(DefaultPlaneOptions{
 		SystemPrompt:         deps.cfg.Agent.SystemPrompt,
 		MaxIterations:        deps.cfg.Agent.MaxIterations,
 		CheckpointStore:      newInMemoryCheckpointStore(),
@@ -575,7 +574,7 @@ func (d defaultOrchestrationPlaneDeps) buildToolNode(
 	ctx context.Context,
 	tools []einotool.BaseTool,
 	resolver toolkit.ExecutionPolicyResolver,
-) (orchestration.ToolInvoker, error) {
+) (ToolInvoker, error) {
 	return NewSafeParallelToolsNode(ctx, tools, resolver)
 }
 
@@ -615,7 +614,7 @@ func buildRunnerAgentHandlers(
 
 func (d defaultOrchestrationPlaneDeps) bindToolLifecycle(
 	ctx context.Context,
-	state orchestration.ToolLifecycleStateView,
+	state ToolLifecycleStateView,
 	catalog *toolkit.Catalog,
 	infos []*schema.ToolInfo,
 ) context.Context {
@@ -641,11 +640,11 @@ func (a toolLifecycleStateAdapter) IsLoaded(toolName string) bool {
 	return ok
 }
 
-func AssembleResultToView(result *contextplane.AssembleResult) orchestration.AssembleResultView {
+func AssembleResultToView(result *contextplane.AssembleResult) AssembleResultView {
 	if result == nil {
-		return orchestration.AssembleResultView{}
+		return AssembleResultView{}
 	}
-	return orchestration.AssembleResultView{
+	return AssembleResultView{
 		Messages:          result.Messages,
 		LifecycleState:    toolLifecycleStateAdapter{state: result.LifecycleState},
 		EagerToolNames:    result.EagerToolNames,

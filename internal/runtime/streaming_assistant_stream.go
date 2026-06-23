@@ -10,7 +10,6 @@ import (
 
 	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/runtime/eventstream"
-	"github.com/ycvk/acorn/internal/runtime/orchestration"
 )
 
 func streamAssistantInterleaved(
@@ -18,7 +17,7 @@ func streamAssistantInterleaved(
 	model einomodel.BaseChatModel,
 	messages []*schema.Message,
 	opts assistantStreamOptions,
-) *orchestration.InterleavedStream {
+) *InterleavedStream {
 	streamOpts := make([]einomodel.Option, 0, 1)
 	if len(opts.ToolInfos) > 0 {
 		streamOpts = append(streamOpts, einomodel.WithTools(opts.ToolInfos))
@@ -29,9 +28,9 @@ func streamAssistantInterleaved(
 	}
 	modelStream, err := model.Stream(domain.WithCallSite(ctx, callSite), messages, streamOpts...)
 
-	s := &orchestration.InterleavedStream{
+	s := &InterleavedStream{
 		ToolCallCh:     make(chan schema.ToolCall, 8),
-		FinalMessageCh: make(chan orchestration.AssistantStreamResult, 1),
+		FinalMessageCh: make(chan AssistantStreamResult, 1),
 		ErrCh:          make(chan error, 1),
 	}
 
@@ -147,7 +146,7 @@ func streamAssistantInterleaved(
 		}
 
 		select {
-		case s.FinalMessageCh <- orchestration.AssistantStreamResult{
+		case s.FinalMessageCh <- AssistantStreamResult{
 			Message:    finalMessage,
 			StopReason: normalizeAssistantStopReason(finalMessage),
 			RawReason:  assistantRawFinishReason(finalMessage),
@@ -167,7 +166,7 @@ func NewDirectAssistantStreamer(appender domain.EventAppender) *directAssistantS
 	return &directAssistantStreamer{appender: appender}
 }
 
-func (s *directAssistantStreamer) StreamAssistantMessage(ctx context.Context, req orchestration.AssistantStreamRequest) (*orchestration.AssistantStreamResult, error) {
+func (s *directAssistantStreamer) StreamAssistantMessage(ctx context.Context, req AssistantStreamRequest) (*AssistantStreamResult, error) {
 	return streamAssistantMessage(ctx, req.Model, req.Messages, assistantStreamOptions{
 		MessageID: req.MessageID,
 		RunID:     req.RunID,
@@ -178,7 +177,7 @@ func (s *directAssistantStreamer) StreamAssistantMessage(ctx context.Context, re
 	})
 }
 
-func (s *directAssistantStreamer) StreamAssistantInterleaved(ctx context.Context, req orchestration.AssistantStreamRequest) *orchestration.InterleavedStream {
+func (s *directAssistantStreamer) StreamAssistantInterleaved(ctx context.Context, req AssistantStreamRequest) *InterleavedStream {
 	return streamAssistantInterleaved(ctx, req.Model, req.Messages, assistantStreamOptions{
 		MessageID: req.MessageID,
 		RunID:     req.RunID,

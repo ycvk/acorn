@@ -19,7 +19,6 @@ import (
 	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/contextplane"
 	"github.com/ycvk/acorn/internal/domain"
-	"github.com/ycvk/acorn/internal/runtime/orchestration"
 	"github.com/ycvk/acorn/internal/toolkit"
 )
 
@@ -89,7 +88,7 @@ func NewSafeParallelToolsNode(
 	}, nil
 }
 
-func (n *SafeParallelToolsNode) NewStreamingExecutor(ctx context.Context) orchestration.StreamingExecutor {
+func (n *SafeParallelToolsNode) NewStreamingExecutor(ctx context.Context) StreamingExecutor {
 	return NewStreamingToolExecutor(n, n.scheduler, ctx)
 }
 

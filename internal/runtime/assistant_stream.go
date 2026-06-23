@@ -11,7 +11,6 @@ import (
 
 	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/runtime/eventstream"
-	"github.com/ycvk/acorn/internal/runtime/orchestration"
 )
 
 type assistantStreamAccumulator struct {
@@ -48,7 +47,7 @@ func streamAssistantMessage(
 	model einomodel.BaseChatModel,
 	messages []*schema.Message,
 	opts assistantStreamOptions,
-) (*orchestration.AssistantStreamResult, error) {
+) (*AssistantStreamResult, error) {
 	if model == nil {
 		return nil, fmt.Errorf("assistant stream requires chat model")
 	}
@@ -125,30 +124,30 @@ func streamAssistantMessage(
 	if err != nil {
 		return nil, fmt.Errorf("concat assistant stream: %w", err)
 	}
-	return &orchestration.AssistantStreamResult{
+	return &AssistantStreamResult{
 		Message:    finalMessage,
 		StopReason: normalizeAssistantStopReason(finalMessage),
 		RawReason:  assistantRawFinishReason(finalMessage),
 	}, nil
 }
 
-func normalizeAssistantStopReason(message *schema.Message) orchestration.AssistantStopReason {
+func normalizeAssistantStopReason(message *schema.Message) AssistantStopReason {
 	if message == nil {
-		return orchestration.AssistantStopReasonEndTurn
+		return AssistantStopReasonEndTurn
 	}
 	raw := assistantRawFinishReason(message)
 	switch raw {
 	case "", "stop", "end_turn", "null":
 		if len(message.ToolCalls) > 0 {
-			return orchestration.AssistantStopReasonToolCalls
+			return AssistantStopReasonToolCalls
 		}
-		return orchestration.AssistantStopReasonEndTurn
+		return AssistantStopReasonEndTurn
 	case "tool_calls", "tool_use":
-		return orchestration.AssistantStopReasonToolCalls
+		return AssistantStopReasonToolCalls
 	case "length", "max_tokens", "max_output_tokens", "model_context_window_exceeded":
-		return orchestration.AssistantStopReasonMaxOutput
+		return AssistantStopReasonMaxOutput
 	default:
-		return orchestration.AssistantStopReasonUnknown
+		return AssistantStopReasonUnknown
 	}
 }
 

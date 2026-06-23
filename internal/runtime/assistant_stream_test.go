@@ -12,7 +12,6 @@ import (
 
 	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/runtime/eventstream"
-	"github.com/ycvk/acorn/internal/runtime/orchestration"
 )
 
 type assistantStreamingModel struct {
@@ -74,7 +73,7 @@ func TestStreamAssistantMessageEmitsDeltaItemsAndReturnsFinalMessage(t *testing.
 	if msg == nil || msg.Content != "你好" {
 		t.Fatalf("final message = %#v, want content 你好", msg)
 	}
-	if result.StopReason != orchestration.AssistantStopReasonEndTurn {
+	if result.StopReason != AssistantStopReasonEndTurn {
 		t.Fatalf("stop reason = %q, want end_turn", result.StopReason)
 	}
 	if len(items) != 2 {
@@ -186,8 +185,8 @@ func TestDirectAssistantStreamerPersistsAndSinksDeltas(t *testing.T) {
 	}
 }
 
-func orchestrationAssistantStreamRequestForTest(runID string, model *assistantStreamingModel, toolInfo *schema.ToolInfo) orchestration.AssistantStreamRequest {
-	return orchestration.AssistantStreamRequest{
+func orchestrationAssistantStreamRequestForTest(runID string, model *assistantStreamingModel, toolInfo *schema.ToolInfo) AssistantStreamRequest {
+	return AssistantStreamRequest{
 		RunID:     runID,
 		MessageID: runID + ":assistant:0",
 		Model:     model,
