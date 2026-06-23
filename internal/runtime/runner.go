@@ -7,12 +7,10 @@ import (
 	"io"
 	"strings"
 	"sync"
-	"time"
 
 	"path/filepath"
 	"sync/atomic"
 
-	"github.com/cloudwego/eino-ext/components/model/openai"
 	"github.com/cloudwego/eino/adk"
 	einomodel "github.com/cloudwego/eino/components/model"
 	einotool "github.com/cloudwego/eino/components/tool"
@@ -39,7 +37,7 @@ type RunnerFactory struct {
 	registry     *Registry
 	currentRunID atomic.Value
 
-	runChatModelBuilder func(context.Context, RunnerBuildRequest) (einomodel.BaseChatModel, error)
+	modelBuilder *ModelBuilder
 }
 
 const (
@@ -91,7 +89,7 @@ func (f *RunnerFactory) SessionSummarySvc() *domain.SessionSummaryService {
 }
 
 func (f *RunnerFactory) NewChatModel(ctx context.Context) (einomodel.BaseChatModel, error) {
-	return f.newChatModel(ctx)
+	return f.modelBuilder.newChatModel(ctx)
 }
 
 func (r *ActiveRunner) Close() error {
@@ -140,24 +138,6 @@ func newInMemoryCheckpointStore() *inMemoryCheckpointStore {
 type localToolset struct {
 	catalog *tools.LocalCatalog
 	closers []io.Closer
-}
-
-func (f *RunnerFactory) newChatModel(ctx context.Context) (einomodel.BaseChatModel, error) {
-	if f == nil || f.deps.Config == nil {
-		return nil, errors.New("runner factory is not initialized")
-	}
-	return newRuntimeChatModel(ctx, f.deps.Config, nil, nil)
-}
-
-func (f *RunnerFactory) buildRunChatModel(ctx context.Context, req RunnerBuildRequest) (einomodel.BaseChatModel, error) {
-	if f == nil || f.deps.Config == nil {
-		return nil, errors.New("runner factory is not initialized")
-	}
-	if f.runChatModelBuilder != nil {
-		return f.runChatModelBuilder(ctx, req)
-	}
-
-	return f.newChatModel(ctx)
 }
 
 func (f *RunnerFactory) buildRunCapabilityAssembly(ctx context.Context, req RunnerBuildRequest) (*capabilityAssembly, error) {
@@ -315,41 +295,6 @@ func (f *RunnerFactory) assembleRunCapabilitiesCatalog(ctx context.Context, tool
 	return tools.NewCatalog(ctx, specs)
 }
 
-type chatModelBuilder func(context.Context, config.ProviderConfig) (einomodel.BaseChatModel, error)
-
-func buildRuntimeChatModel(ctx context.Context, cfg *config.Config, newModel chatModelBuilder) (einomodel.BaseChatModel, error) {
-	model, _, err := buildRuntimeChatModelWithProvider(ctx, cfg, newModel)
-	return model, err
-}
-
-func buildRuntimeChatModelWithProvider(ctx context.Context, cfg *config.Config, newModel chatModelBuilder) (einomodel.BaseChatModel, config.ProviderConfig, error) {
-	if cfg == nil {
-		return nil, config.ProviderConfig{}, errors.New("config is required")
-	}
-	if newModel == nil {
-		newModel = newOpenAIChatModel
-	}
-
-	provider, err := cfg.EnabledProvider()
-	if err != nil {
-		return nil, config.ProviderConfig{}, err
-	}
-	model, err := newModel(ctx, provider)
-	if err != nil {
-		return nil, config.ProviderConfig{}, fmt.Errorf("init provider %s: %w", provider.Name, err)
-	}
-	return model, provider, nil
-}
-
-func newRuntimeChatModel(
-	ctx context.Context,
-	cfg *config.Config,
-	newModel chatModelBuilder,
-	_ any,
-) (einomodel.BaseChatModel, error) {
-	return buildRuntimeChatModel(ctx, cfg, newModel)
-}
-
 type capabilityAssembly struct {
 	mcpManager   *mcpprovider.Manager
 	capabilities *runCapabilities
@@ -475,8 +420,9 @@ func resolveContextPlaneTokenPolicy(cfg *config.Config) (memoryBudget, maxContex
 
 func assembleRunnerFactory(deps RuntimeDeps) *RunnerFactory {
 	return &RunnerFactory{
-		deps:     deps,
-		registry: NewRegistry(),
+		deps:         deps,
+		registry:     NewRegistry(),
+		modelBuilder: NewModelBuilder(deps.Config),
 	}
 }
 
@@ -535,27 +481,6 @@ func (s *inMemoryCheckpointStore) Set(_ context.Context, checkPointID string, ch
 	s.data[checkPointID] = cp
 	return nil
 }
-
-// buildRunnerAgentHandlers assembles the chat-model middleware chain. With the
-// compaction subpackage removed, compression is driven by the context session
-// rather than by model-call middleware; this builder now only appends the
-// caller-supplied extra handlers.
-func buildRunnerAgentHandlers(
-	_ context.Context,
-	cfg *config.Config,
-	_ contextplane.ContextPlane,
-	extraHandlers []adk.ChatModelAgentMiddleware,
-	_ einomodel.BaseChatModel,
-	_ any,
-) ([]adk.ChatModelAgentMiddleware, error) {
-	if cfg == nil {
-		return nil, errors.New("runner factory is not initialized")
-	}
-	handlers := make([]adk.ChatModelAgentMiddleware, 0, len(extraHandlers))
-	handlers = append(handlers, extraHandlers...)
-	return handlers, nil
-}
-
 func bindToolLifecycle(
 	ctx context.Context,
 	state ToolLifecycleStateView,
@@ -594,27 +519,4 @@ func AssembleResultToView(result *contextplane.AssembleResult) AssembleResultVie
 		EagerToolNames:    result.EagerToolNames,
 		DeferredToolNames: result.DeferredToolNames,
 	}
-}
-
-// newOpenAIChatModel builds an OpenAI-compatible chat model from provider config.
-func newOpenAIChatModel(ctx context.Context, cfg config.ProviderConfig) (einomodel.BaseChatModel, error) {
-	chatCfg := &openai.ChatModelConfig{
-		APIKey:              cfg.APIKey,
-		BaseURL:             cfg.BaseURL,
-		Model:               cfg.Model,
-		Timeout:             time.Duration(cfg.TimeoutSeconds) * time.Second,
-		MaxCompletionTokens: new(cfg.MaxCompletionTokens),
-		Temperature:         new(cfg.Temperature),
-	}
-	if cfg.ReasoningEffort != "" {
-		chatCfg.ReasoningEffort = openai.ReasoningEffortLevel(cfg.ReasoningEffort)
-	}
-	if len(cfg.ExtraFields) > 0 {
-		chatCfg.ExtraFields = cfg.ExtraFields
-	}
-	model, err := openai.NewChatModel(ctx, chatCfg)
-	if err != nil {
-		return nil, fmt.Errorf("build openai-compatible chat model: %w", err)
-	}
-	return model, nil
 }

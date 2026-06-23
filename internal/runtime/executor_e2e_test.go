@@ -128,11 +128,14 @@ func newTestRunnerFactory(memSvc memory.Service, chatFunc func(context.Context) 
 			MemoryModule: memSvc,
 		},
 		registry: NewRegistry(),
-		runChatModelBuilder: func(context.Context, RunnerBuildRequest) (einomodel.BaseChatModel, error) {
-			if chatFunc != nil {
-				return chatFunc(context.Background())
-			}
-			return &fakeChatModel{}, nil
+		modelBuilder: &ModelBuilder{
+			cfg: &config.Config{},
+			runChatModelBuilder: func(context.Context, RunnerBuildRequest) (einomodel.BaseChatModel, error) {
+				if chatFunc != nil {
+					return chatFunc(context.Background())
+				}
+				return &fakeChatModel{}, nil
+			},
 		},
 	}
 }

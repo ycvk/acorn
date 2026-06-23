@@ -1,0 +1,133 @@
+package runtime
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"time"
+
+	"github.com/cloudwego/eino-ext/components/model/openai"
+	"github.com/cloudwego/eino/adk"
+	einomodel "github.com/cloudwego/eino/components/model"
+
+	"github.com/ycvk/acorn/internal/config"
+	"github.com/ycvk/acorn/internal/contextplane"
+)
+
+// ModelBuilder owns chat-model construction for a RunnerFactory. It isolates
+// provider resolution and the model-call middleware chain from the run
+// pipeline so RunnerFactory stays a thin coordinator.
+type ModelBuilder struct {
+	cfg                 *config.Config
+	runChatModelBuilder func(context.Context, RunnerBuildRequest) (einomodel.BaseChatModel, error)
+}
+
+// NewModelBuilder assembles a ModelBuilder with the default provider-aware
+// model factory (resolves the enabled provider via newRuntimeChatModel).
+func NewModelBuilder(cfg *config.Config) *ModelBuilder {
+	return &ModelBuilder{
+		cfg: cfg,
+		runChatModelBuilder: func(ctx context.Context, _ RunnerBuildRequest) (einomodel.BaseChatModel, error) {
+			return newRuntimeChatModel(ctx, cfg, nil, nil)
+		},
+	}
+}
+
+// buildRunChatModel selects the chat model for a run, honoring an injected
+// builder override (used by tests) before falling back to the default provider.
+func (b *ModelBuilder) buildRunChatModel(ctx context.Context, req RunnerBuildRequest) (einomodel.BaseChatModel, error) {
+	if b == nil || b.cfg == nil {
+		return nil, errors.New("runner factory is not initialized")
+	}
+	if b.runChatModelBuilder != nil {
+		return b.runChatModelBuilder(ctx, req)
+	}
+	return b.newChatModel(ctx)
+}
+
+// newChatModel builds a chat model from the configured primary provider.
+func (b *ModelBuilder) newChatModel(ctx context.Context) (einomodel.BaseChatModel, error) {
+	if b == nil || b.cfg == nil {
+		return nil, errors.New("runner factory is not initialized")
+	}
+	return newRuntimeChatModel(ctx, b.cfg, nil, nil)
+}
+
+// chatModelBuilder constructs a chat model for a given provider config.
+type chatModelBuilder func(context.Context, config.ProviderConfig) (einomodel.BaseChatModel, error)
+
+func buildRuntimeChatModel(ctx context.Context, cfg *config.Config, newModel chatModelBuilder) (einomodel.BaseChatModel, error) {
+	model, _, err := buildRuntimeChatModelWithProvider(ctx, cfg, newModel)
+	return model, err
+}
+
+func buildRuntimeChatModelWithProvider(ctx context.Context, cfg *config.Config, newModel chatModelBuilder) (einomodel.BaseChatModel, config.ProviderConfig, error) {
+	if cfg == nil {
+		return nil, config.ProviderConfig{}, errors.New("config is required")
+	}
+	if newModel == nil {
+		newModel = newOpenAIChatModel
+	}
+
+	provider, err := cfg.EnabledProvider()
+	if err != nil {
+		return nil, config.ProviderConfig{}, err
+	}
+	model, err := newModel(ctx, provider)
+	if err != nil {
+		return nil, config.ProviderConfig{}, fmt.Errorf("init provider %s: %w", provider.Name, err)
+	}
+	return model, provider, nil
+}
+
+func newRuntimeChatModel(
+	ctx context.Context,
+	cfg *config.Config,
+	newModel chatModelBuilder,
+	_ any,
+) (einomodel.BaseChatModel, error) {
+	return buildRuntimeChatModel(ctx, cfg, newModel)
+}
+
+// buildRunnerAgentHandlers assembles the chat-model middleware chain. With the
+// compaction subpackage removed, compression is driven by the context session
+// rather than by model-call middleware; this builder now only appends the
+// caller-supplied extra handlers.
+func buildRunnerAgentHandlers(
+	_ context.Context,
+	cfg *config.Config,
+	_ contextplane.ContextPlane,
+	extraHandlers []adk.ChatModelAgentMiddleware,
+	_ einomodel.BaseChatModel,
+	_ any,
+) ([]adk.ChatModelAgentMiddleware, error) {
+	if cfg == nil {
+		return nil, errors.New("runner factory is not initialized")
+	}
+	handlers := make([]adk.ChatModelAgentMiddleware, 0, len(extraHandlers))
+	handlers = append(handlers, extraHandlers...)
+	return handlers, nil
+}
+
+// newOpenAIChatModel builds an OpenAI-compatible chat model from provider config.
+func newOpenAIChatModel(ctx context.Context, cfg config.ProviderConfig) (einomodel.BaseChatModel, error) {
+	chatCfg := &openai.ChatModelConfig{
+		APIKey:              cfg.APIKey,
+		BaseURL:             cfg.BaseURL,
+		Model:               cfg.Model,
+		Timeout:             time.Duration(cfg.TimeoutSeconds) * time.Second,
+		MaxCompletionTokens: new(cfg.MaxCompletionTokens),
+		Temperature:         new(cfg.Temperature),
+	}
+	if cfg.ReasoningEffort != "" {
+		chatCfg.ReasoningEffort = openai.ReasoningEffortLevel(cfg.ReasoningEffort)
+	}
+	if len(cfg.ExtraFields) > 0 {
+		chatCfg.ExtraFields = cfg.ExtraFields
+	}
+	model, err := openai.NewChatModel(ctx, chatCfg)
+	if err != nil {
+		return nil, fmt.Errorf("build openai-compatible chat model: %w", err)
+	}
+	return model, nil
+}

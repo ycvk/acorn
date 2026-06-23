@@ -125,7 +125,7 @@ func (f *RunnerFactory) registerRunForBuild(req RunnerBuildRequest) (func(), err
 }
 
 func (f *RunnerFactory) buildRunPrerequisites(ctx context.Context, req RunnerBuildRequest) (einomodel.BaseChatModel, *capabilityAssembly, error) {
-	chatModel, err := f.buildRunChatModel(ctx, req)
+	chatModel, err := f.modelBuilder.buildRunChatModel(ctx, req)
 	if err != nil {
 		return nil, nil, err
 	}
