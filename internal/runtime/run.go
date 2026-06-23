@@ -50,15 +50,15 @@ func (f *RunnerFactory) newDirectResponseRunner(ctx context.Context, req RunnerB
 		return nil, errors.New("run capabilities are required")
 	}
 	capabilities := capabilityAssembly.capabilities
-	memoryPrepared, err := f.prepareRunMemory(ctx, req)
+	memoryPrepared, err := f.contextAsm.prepareRunMemory(ctx, req)
 	if err != nil {
 		return nil, err
 	}
-	contextResult, err := f.assembleContext(ctx, req, capabilities, nil, memoryPrepared)
+	contextResult, err := f.contextAsm.assembleContext(ctx, req, capabilities, nil, memoryPrepared)
 	if err != nil {
 		return nil, err
 	}
-	agentAssembly, err := f.buildAssembly(ctx, req, capabilities.catalog, chatModel, contextResult)
+	agentAssembly, err := f.contextAsm.buildAssembly(ctx, req, capabilities.catalog, chatModel, contextResult)
 	if err != nil {
 		return nil, err
 	}

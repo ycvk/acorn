@@ -22,7 +22,6 @@ import (
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
 	"github.com/ycvk/acorn/internal/skills"
 	corestore "github.com/ycvk/acorn/internal/store"
-	"github.com/ycvk/acorn/internal/stream"
 	"github.com/ycvk/acorn/internal/tools"
 	"github.com/ycvk/acorn/internal/workspace"
 )
@@ -40,6 +39,7 @@ type RunnerFactory struct {
 	modelBuilder  *ModelBuilder
 	capabilityAsm *CapabilityAssembler
 	toolAssembler *ToolAssembler
+	contextAsm    *ContextAssembler
 }
 
 const (
@@ -157,129 +157,9 @@ func (f *RunnerFactory) buildRunCapabilityAssembly(ctx context.Context, req Runn
 	return &capabilityAssembly{mcpManager: mcpManager, capabilities: capabilities}, nil
 }
 
-func (f *RunnerFactory) prepareRunMemory(ctx context.Context, req RunnerBuildRequest) (*memory.PrepareResult, error) {
-	if f == nil {
-		return nil, errors.New("runner factory is not initialized")
-	}
-	if f.deps.MemoryModule == nil {
-		return nil, errors.New("memory module is not initialized")
-	}
-	workspaceSlug := f.workspaceSlug()
-	result, err := f.deps.MemoryModule.Prepare(ctx, memory.PrepareRequest{
-		RunID:         req.RunID,
-		SessionID:     req.SessionID,
-		WorkspaceSlug: workspaceSlug,
-		UserInput:     req.Input,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("prepare memory: %w", err)
-	}
-	if err := f.emitRunMemoryEvents(ctx, req, workspaceSlug, result); err != nil {
-		return nil, err
-	}
-	return result, nil
-}
-
-func (f *RunnerFactory) workspaceSlug() string {
-	if f.deps.Workspace == nil {
-		return ""
-	}
-	return memory.WorkspaceSlug(f.deps.Workspace.Root())
-}
-
-func (f *RunnerFactory) emitRunMemoryEvents(ctx context.Context, req RunnerBuildRequest, workspaceSlug string, result *memory.PrepareResult) error {
-	if err := emitMemoryPreparedEvent(ctx, f.deps.Store, req, memory.WorkspaceScope(workspaceSlug), result); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (f *RunnerFactory) assembleContext(
-	ctx context.Context,
-	req RunnerBuildRequest,
-	caps *runCapabilities,
-	selection *runSelection,
-	memoryPrepared *memory.PrepareResult,
-) (*contextplane.AssembleResult, error) {
-	if f == nil || f.deps.ContextPlane == nil {
-		return nil, errors.New("context plane is not initialized")
-	}
-	if caps == nil {
-		return nil, errors.New("run capabilities are required")
-	}
-	result, err := f.deps.ContextPlane.Assemble(ctx, buildAssembleRequest(req, caps, selection, memoryPrepared))
-	if err != nil {
-		return nil, err
-	}
-	return result, nil
-}
-
-// buildAssembly dispatches to the direct_response orchestration plane,
-// reusing the common baseAssemblyFields helper so agent/session/tool fields
-// are not duplicated across request constructors.
-func (f *RunnerFactory) buildAssembly(
-	ctx context.Context,
-	req RunnerBuildRequest,
-	catalog *tools.Catalog,
-	chatModel einomodel.BaseChatModel,
-	contextResult *contextplane.AssembleResult,
-) (*RunAssembly, error) {
-	if f == nil || f.deps.Config == nil {
-		return nil, fmt.Errorf("runner factory is not initialized")
-	}
-	bf := f.baseAssemblyFields(req, catalog, chatModel, contextResult)
-	return buildDirectResponse(ctx, f.deps, f.directResponseRequest(bf, req))
-}
-
-func (f *RunnerFactory) baseAssemblyFields(req RunnerBuildRequest, catalog *tools.Catalog, chatModel einomodel.BaseChatModel, contextResult *contextplane.AssembleResult) baseAssemblyFields {
-	return baseAssemblyFields{
-		agentName:         f.deps.Config.Agent.Name,
-		agentDescription:  f.deps.Config.Agent.Description,
-		sessionID:         req.SessionID,
-		runID:             req.RunID,
-		chatModel:         chatModel,
-		catalog:           catalog,
-		contextResult:     AssembleResultToView(contextResult),
-		allowedToolNames:  append([]string(nil), req.AllowedToolNames...),
-		excludedToolNames: append([]string(nil), req.ExcludedToolNames...),
-	}
-}
-
-func (f *RunnerFactory) directResponseRequest(bf baseAssemblyFields, req RunnerBuildRequest) DirectResponseRequest {
-	return DirectResponseRequest{
-		AgentName:         bf.agentName,
-		AgentDescription:  bf.agentDescription,
-		SessionID:         bf.sessionID,
-		RunID:             bf.runID,
-		ChatModel:         bf.chatModel,
-		AssistantStreamer: stream.NewDirectAssistantStreamer(f.deps.Store),
-		Catalog:           bf.catalog,
-		ContextResult:     bf.contextResult,
-		AllowedToolNames:  bf.allowedToolNames,
-		ExcludedToolNames: bf.excludedToolNames,
-		InstructionSuffix: req.InstructionSuffix,
-	}
-}
-
 type capabilityAssembly struct {
 	mcpManager   *mcpprovider.Manager
 	capabilities *runCapabilities
-}
-
-func buildAssembleRequest(req RunnerBuildRequest, caps *runCapabilities, selection *runSelection, memoryPrepared *memory.PrepareResult) contextplane.AssembleRequest {
-	var selectedSkill *SelectedSkill
-	if selection != nil {
-		selectedSkill = selection.selectedSkill
-	}
-	return contextplane.AssembleRequest{
-		RunID:          req.RunID,
-		SessionID:      req.SessionID,
-		Input:          req.Input,
-		SelectedSkill:  selectedSkill,
-		SkillSnapshot:  caps.skillSnapshot,
-		MemoryPrepared: memoryPrepared,
-		ToolCatalog:    caps.catalog,
-	}
 }
 
 func buildRuntimeDeps(cfg *config.Config, store RunnerFactoryStore, opts RunnerFactoryOptions) (RuntimeDeps, error) {
@@ -391,19 +271,8 @@ func assembleRunnerFactory(deps RuntimeDeps) *RunnerFactory {
 		modelBuilder:  NewModelBuilder(deps.Config),
 		capabilityAsm: NewCapabilityAssembler(deps),
 		toolAssembler: NewToolAssembler(deps),
+		contextAsm:    NewContextAssembler(deps),
 	}
-}
-
-type baseAssemblyFields struct {
-	agentName         string
-	agentDescription  string
-	sessionID         string
-	runID             string
-	chatModel         einomodel.BaseChatModel
-	catalog           *tools.Catalog
-	contextResult     AssembleResultView
-	allowedToolNames  []string
-	excludedToolNames []string
 }
 
 type runCapabilities struct {
