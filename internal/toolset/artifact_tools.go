@@ -10,7 +10,7 @@ import (
 
 	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/store"
-	"github.com/ycvk/acorn/internal/toolkit"
+	"github.com/ycvk/acorn/internal/tools"
 )
 
 type ArtifactWriteInput struct {
@@ -85,7 +85,7 @@ func buildArtifactTools(service ArtifactService, bridge domain.ToolCallContextBr
 }
 
 func buildArtifactWriteTool(service ArtifactService, bridge domain.ToolCallContextBridge) (einotool.BaseTool, error) {
-	tool, err := inferProgressTool("artifact_write", "Persist run-scoped artifact content and return an opaque artifact id.", func(ctx context.Context, input ArtifactWriteInput, emit toolkit.ToolProgressEmitter) (ArtifactWriteOutput, error) {
+	tool, err := inferProgressTool("artifact_write", "Persist run-scoped artifact content and return an opaque artifact id.", func(ctx context.Context, input ArtifactWriteInput, emit tools.ToolProgressEmitter) (ArtifactWriteOutput, error) {
 		runID := strings.TrimSpace(bridge.CurrentRunID(ctx))
 		if runID == "" {
 			return ArtifactWriteOutput{}, errors.New("artifact_write requires current run context")
@@ -119,7 +119,7 @@ func buildArtifactWriteTool(service ArtifactService, bridge domain.ToolCallConte
 }
 
 func buildArtifactReadTool(service ArtifactService) (einotool.BaseTool, error) {
-	tool, err := inferProgressTool("artifact_read", "Read an explicit byte range from a persisted artifact.", func(ctx context.Context, input ArtifactReadInput, emit toolkit.ToolProgressEmitter) (ArtifactReadOutput, error) {
+	tool, err := inferProgressTool("artifact_read", "Read an explicit byte range from a persisted artifact.", func(ctx context.Context, input ArtifactReadInput, emit tools.ToolProgressEmitter) (ArtifactReadOutput, error) {
 		result, err := service.ReadRange(ctx, store.ArtifactReadRangeRequest{
 			ArtifactID: input.ArtifactID,
 			Offset:     input.Offset,
@@ -146,7 +146,7 @@ func buildArtifactReadTool(service ArtifactService) (einotool.BaseTool, error) {
 }
 
 func buildArtifactListTool(service ArtifactService, bridge domain.ToolCallContextBridge) (einotool.BaseTool, error) {
-	tool, err := inferProgressTool("artifact_list", "List artifacts for a run or session.", func(ctx context.Context, input ArtifactListInput, emit toolkit.ToolProgressEmitter) (ArtifactListOutput, error) {
+	tool, err := inferProgressTool("artifact_list", "List artifacts for a run or session.", func(ctx context.Context, input ArtifactListInput, emit tools.ToolProgressEmitter) (ArtifactListOutput, error) {
 		runID := strings.TrimSpace(input.RunID)
 		sessionID := strings.TrimSpace(input.SessionID)
 		if runID != "" && sessionID != "" {

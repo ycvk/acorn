@@ -14,7 +14,7 @@ import (
 	"github.com/ycvk/acorn/internal/runtime/factextract"
 	"github.com/ycvk/acorn/internal/runtime/tooldispatch"
 	"github.com/ycvk/acorn/internal/skills"
-	"github.com/ycvk/acorn/internal/toolkit"
+	"github.com/ycvk/acorn/internal/tools"
 	"github.com/ycvk/acorn/internal/toolset"
 	"github.com/ycvk/acorn/internal/webaccess"
 )
@@ -104,7 +104,7 @@ func closeToolsetOnErr(closers []io.Closer, err *error) {
 	}
 }
 
-func assembleToolsetCatalog(ctx context.Context, cfg *config.Config, localCatalog *toolset.Catalog, aux auxTools, includePlanning bool) (*toolkit.Catalog, error) {
+func assembleToolsetCatalog(ctx context.Context, cfg *config.Config, localCatalog *toolset.Catalog, aux auxTools, includePlanning bool) (*tools.Catalog, error) {
 	core, err := buildCoreToolSpecs(ctx, cfg, localCatalog, aux)
 	if err != nil {
 		return nil, err
@@ -114,23 +114,23 @@ func assembleToolsetCatalog(ctx context.Context, cfg *config.Config, localCatalo
 		return nil, err
 	}
 	specs := append(core, extra...)
-	catalog, err := toolkit.NewCatalog(ctx, specs)
+	catalog, err := tools.NewCatalog(ctx, specs)
 	if err != nil {
 		return nil, fmt.Errorf("build toolset catalog: %w", err)
 	}
 	return catalog, nil
 }
 
-func buildCoreToolSpecs(ctx context.Context, cfg *config.Config, localCatalog *toolset.Catalog, aux auxTools) ([]toolkit.ToolSpec, error) {
-	specs, err := BuildCatalogSpecs(ctx, cfg, "local", toolkit.ToolKindNative, append([]einotool.BaseTool(nil), localCatalog.Tools...))
+func buildCoreToolSpecs(ctx context.Context, cfg *config.Config, localCatalog *toolset.Catalog, aux auxTools) ([]tools.ToolSpec, error) {
+	specs, err := BuildCatalogSpecs(ctx, cfg, "local", tools.ToolKindNative, append([]einotool.BaseTool(nil), localCatalog.Tools...))
 	if err != nil {
 		return nil, err
 	}
-	memorySpecs, err := BuildCatalogSpecs(ctx, cfg, "memory", toolkit.ToolKindMemory, aux.memory)
+	memorySpecs, err := BuildCatalogSpecs(ctx, cfg, "memory", tools.ToolKindMemory, aux.memory)
 	if err != nil {
 		return nil, err
 	}
-	skillSpecs, err := BuildCatalogSpecs(ctx, cfg, "skill", toolkit.ToolKindSkill, aux.skill)
+	skillSpecs, err := BuildCatalogSpecs(ctx, cfg, "skill", tools.ToolKindSkill, aux.skill)
 	if err != nil {
 		return nil, err
 	}
@@ -139,7 +139,7 @@ func buildCoreToolSpecs(ctx context.Context, cfg *config.Config, localCatalog *t
 	return specs, nil
 }
 
-func buildExtraToolSpecs(ctx context.Context, cfg *config.Config, aux auxTools, includePlanning bool) ([]toolkit.ToolSpec, error) {
+func buildExtraToolSpecs(ctx context.Context, cfg *config.Config, aux auxTools, includePlanning bool) ([]tools.ToolSpec, error) {
 	if !includePlanning {
 		return nil, nil
 	}
@@ -147,7 +147,7 @@ func buildExtraToolSpecs(ctx context.Context, cfg *config.Config, aux auxTools, 
 	if err != nil {
 		return nil, fmt.Errorf("build load_tools tool: %w", err)
 	}
-	planningSpecs, err := BuildCatalogSpecs(ctx, cfg, "runtime", toolkit.ToolKindNative, []einotool.BaseTool{loadToolsTool})
+	planningSpecs, err := BuildCatalogSpecs(ctx, cfg, "runtime", tools.ToolKindNative, []einotool.BaseTool{loadToolsTool})
 	if err != nil {
 		return nil, err
 	}
@@ -249,7 +249,7 @@ func (f *RunnerFactory) buildMemoryTools(ctx context.Context) ([]einotool.BaseTo
 	return factextract.BuildMemoryFileTools(ctx, f.deps.MemoryModule)
 }
 
-func NewToolset(catalog *toolkit.Catalog, closers ...io.Closer) *Toolset {
+func NewToolset(catalog *tools.Catalog, closers ...io.Closer) *Toolset {
 	c := make([]io.Closer, 0, len(closers))
 	for _, cl := range closers {
 		if cl != nil {
@@ -261,7 +261,7 @@ func NewToolset(catalog *toolkit.Catalog, closers ...io.Closer) *Toolset {
 
 // Toolset is a built collection of tools for a run or serve context.
 type Toolset struct {
-	catalog *toolkit.Catalog
+	catalog *tools.Catalog
 	closers []io.Closer
 }
 
@@ -272,7 +272,7 @@ func (t Toolset) All() []einotool.BaseTool {
 	return t.catalog.Tools()
 }
 
-func (t Toolset) Catalog() *toolkit.Catalog {
+func (t Toolset) Catalog() *tools.Catalog {
 	return t.catalog
 }
 

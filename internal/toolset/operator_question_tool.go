@@ -11,7 +11,7 @@ import (
 
 	"github.com/ycvk/acorn/internal/domain"
 	storecore "github.com/ycvk/acorn/internal/store"
-	"github.com/ycvk/acorn/internal/toolkit"
+	"github.com/ycvk/acorn/internal/tools"
 )
 
 type OperatorQuestionStore interface {
@@ -52,7 +52,7 @@ func buildAskOperatorTool(store OperatorQuestionStore, bridge domain.ToolCallCon
 	if bridge == nil {
 		return nil, errors.New("operator question context bridge is required")
 	}
-	tool, err := inferProgressTool("ask_operator", "Ask the human operator a blocking question and resume with a structured answer.", func(ctx context.Context, input AskOperatorInput, emit toolkit.ToolProgressEmitter) (AskOperatorOutput, error) {
+	tool, err := inferProgressTool("ask_operator", "Ask the human operator a blocking question and resume with a structured answer.", func(ctx context.Context, input AskOperatorInput, emit tools.ToolProgressEmitter) (AskOperatorOutput, error) {
 		wasInterrupted, hasState, state := einotool.GetInterruptState[AskOperatorState](ctx)
 		if wasInterrupted {
 			return resumeAskOperator(ctx, state, hasState)
@@ -65,7 +65,7 @@ func buildAskOperatorTool(store OperatorQuestionStore, bridge domain.ToolCallCon
 	return tool, nil
 }
 
-func interruptAskOperator(ctx context.Context, store OperatorQuestionStore, bridge domain.ToolCallContextBridge, input AskOperatorInput, emit toolkit.ToolProgressEmitter) (AskOperatorOutput, error) {
+func interruptAskOperator(ctx context.Context, store OperatorQuestionStore, bridge domain.ToolCallContextBridge, input AskOperatorInput, emit tools.ToolProgressEmitter) (AskOperatorOutput, error) {
 	payload, err := normalizeAskOperatorInput(input)
 	if err != nil {
 		return AskOperatorOutput{}, err

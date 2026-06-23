@@ -1,4 +1,4 @@
-package toolkit
+package tools
 
 import "github.com/ycvk/acorn/internal/skills"
 

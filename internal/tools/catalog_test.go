@@ -1,4 +1,4 @@
-package toolkit
+package tools_test
 
 import (
 	"context"
@@ -7,13 +7,15 @@ import (
 
 	einotool "github.com/cloudwego/eino/components/tool"
 	toolutils "github.com/cloudwego/eino/components/tool/utils"
+
+	"github.com/ycvk/acorn/internal/tools"
 )
 
 func TestNewCatalogNormalizesToolNames(t *testing.T) {
 	tool := mustInferTool(t, "local_echo")
 
-	catalog, err := NewCatalog(context.Background(), []ToolSpec{{
-		ToolContract: testToolContract("", "local", ParallelPolicyReadOnly),
+	catalog, err := tools.NewCatalog(context.Background(), []tools.ToolSpec{{
+		ToolContract: testToolContract("", "local", tools.ParallelPolicyReadOnly),
 		Tool:         tool,
 	}})
 	if err != nil {
@@ -33,13 +35,13 @@ func TestNewCatalogRejectsDuplicateNames(t *testing.T) {
 	first := mustInferTool(t, "shared_name")
 	second := mustInferTool(t, "shared_name")
 
-	_, err := NewCatalog(context.Background(), []ToolSpec{
+	_, err := tools.NewCatalog(context.Background(), []tools.ToolSpec{
 		{
-			ToolContract: testToolContract("", "local", ParallelPolicyReadOnly),
+			ToolContract: testToolContract("", "local", tools.ParallelPolicyReadOnly),
 			Tool:         first,
 		},
 		{
-			ToolContract: testToolContract("", "fixture", ParallelPolicyReadOnly),
+			ToolContract: testToolContract("", "fixture", tools.ParallelPolicyReadOnly),
 			Tool:         second,
 		},
 	})
@@ -52,9 +54,9 @@ func TestNewCatalogRejectsDuplicateNames(t *testing.T) {
 }
 
 func TestNewCatalogRejectsEnabledSpecWithoutTool(t *testing.T) {
-	_, err := NewCatalog(context.Background(), []ToolSpec{{
-		ToolContract: testToolContract("read_file", "local", ParallelPolicyReadOnly),
-		Health:       healthyTool(""),
+	_, err := tools.NewCatalog(context.Background(), []tools.ToolSpec{{
+		ToolContract: testToolContract("read_file", "local", tools.ParallelPolicyReadOnly),
+		Health:       tools.ToolHealth{State: tools.HealthStateHealthy},
 	}})
 	if err == nil {
 		t.Fatal("expected missing tool error")
@@ -66,8 +68,8 @@ func TestNewCatalogRejectsEnabledSpecWithoutTool(t *testing.T) {
 
 func TestCatalogExecutionPolicyRejectsUnknownTool(t *testing.T) {
 	tool := mustInferTool(t, "local_echo")
-	catalog, err := NewCatalog(context.Background(), []ToolSpec{{
-		ToolContract: testToolContract("", "local", ParallelPolicyReadOnly),
+	catalog, err := tools.NewCatalog(context.Background(), []tools.ToolSpec{{
+		ToolContract: testToolContract("", "local", tools.ParallelPolicyReadOnly),
 		Tool:         tool,
 	}})
 	if err != nil {
@@ -81,12 +83,12 @@ func TestCatalogExecutionPolicyRejectsUnknownTool(t *testing.T) {
 
 func TestNewCatalogRejectsIncompleteContract(t *testing.T) {
 	tool := mustInferTool(t, "local_echo")
-	_, err := NewCatalog(context.Background(), []ToolSpec{{
-		ToolContract: ToolContract{
+	_, err := tools.NewCatalog(context.Background(), []tools.ToolSpec{{
+		ToolContract: tools.ToolContract{
 			Source:   "local",
-			Kind:     ToolKindNative,
-			Category: ToolCategoryRead,
-			Loading:  EagerLoadingPolicy(),
+			Kind:     tools.ToolKindNative,
+			Category: tools.ToolCategoryRead,
+			Loading:  tools.EagerLoadingPolicy(),
 		},
 		Tool: tool,
 	}})
@@ -98,14 +100,14 @@ func TestNewCatalogRejectsIncompleteContract(t *testing.T) {
 	}
 }
 
-func testToolContract(name string, source string, parallel ParallelPolicy) ToolContract {
-	execution := ToolExecutionPolicy{ParallelPolicy: parallel}
-	return ToolContract{
+func testToolContract(name string, source string, parallel tools.ParallelPolicy) tools.ToolContract {
+	execution := tools.ToolExecutionPolicy{ParallelPolicy: parallel}
+	return tools.ToolContract{
 		Name:      name,
 		Source:    source,
-		Kind:      ToolKindNative,
-		Category:  ToolCategoryRead,
-		Loading:   EagerLoadingPolicy(),
+		Kind:      tools.ToolKindNative,
+		Category:  tools.ToolCategoryRead,
+		Loading:   tools.EagerLoadingPolicy(),
 		Execution: execution,
 	}
 }

@@ -12,7 +12,7 @@ import (
 
 	einotool "github.com/cloudwego/eino/components/tool"
 
-	"github.com/ycvk/acorn/internal/toolkit"
+	"github.com/ycvk/acorn/internal/tools"
 )
 
 const (
@@ -35,7 +35,7 @@ var skippedReadOnlyDirectoryNames = map[string]struct{}{
 }
 
 func buildReadFileTool(ws WorkspaceView) (einotool.BaseTool, error) {
-	tool, err := inferProgressTool("read_file", "Read a workspace file with explicit line-range and preview controls.", func(ctx context.Context, input ReadFileInput, emit toolkit.ToolProgressEmitter) (ReadFileOutput, error) {
+	tool, err := inferProgressTool("read_file", "Read a workspace file with explicit line-range and preview controls.", func(ctx context.Context, input ReadFileInput, emit tools.ToolProgressEmitter) (ReadFileOutput, error) {
 		return runReadFile(ctx, ws, input, emit)
 	})
 	if err != nil {
@@ -44,7 +44,7 @@ func buildReadFileTool(ws WorkspaceView) (einotool.BaseTool, error) {
 	return tool, nil
 }
 
-func runReadFile(ctx context.Context, ws WorkspaceView, input ReadFileInput, emit toolkit.ToolProgressEmitter) (ReadFileOutput, error) {
+func runReadFile(ctx context.Context, ws WorkspaceView, input ReadFileInput, emit tools.ToolProgressEmitter) (ReadFileOutput, error) {
 	if strings.TrimSpace(input.Path) == "" {
 		return ReadFileOutput{}, errors.New("path is required")
 	}
@@ -62,7 +62,7 @@ func runReadFile(ctx context.Context, ws WorkspaceView, input ReadFileInput, emi
 	return readResolvedFile(ctx, resolved, body, input, emit)
 }
 
-func readResolvedFile(ctx context.Context, resolved string, body []byte, input ReadFileInput, emit toolkit.ToolProgressEmitter) (ReadFileOutput, error) {
+func readResolvedFile(ctx context.Context, resolved string, body []byte, input ReadFileInput, emit tools.ToolProgressEmitter) (ReadFileOutput, error) {
 	totalLines := countLines(body)
 	startLine, endLine, err := normalizeLineRange(totalLines, input.StartLine, input.EndLine)
 	if err != nil {
@@ -92,7 +92,7 @@ func readResolvedFile(ctx context.Context, resolved string, body []byte, input R
 }
 
 func buildListFilesTool(ws WorkspaceView) (einotool.BaseTool, error) {
-	tool, err := inferProgressTool("list_files", "List workspace files and directories under an optional path prefix.", func(ctx context.Context, input ListFilesInput, emit toolkit.ToolProgressEmitter) (ListFilesOutput, error) {
+	tool, err := inferProgressTool("list_files", "List workspace files and directories under an optional path prefix.", func(ctx context.Context, input ListFilesInput, emit tools.ToolProgressEmitter) (ListFilesOutput, error) {
 		return runListFiles(ctx, ws, input, emit)
 	})
 	if err != nil {
@@ -101,7 +101,7 @@ func buildListFilesTool(ws WorkspaceView) (einotool.BaseTool, error) {
 	return tool, nil
 }
 
-func runListFiles(ctx context.Context, ws WorkspaceView, input ListFilesInput, emit toolkit.ToolProgressEmitter) (ListFilesOutput, error) {
+func runListFiles(ctx context.Context, ws WorkspaceView, input ListFilesInput, emit tools.ToolProgressEmitter) (ListFilesOutput, error) {
 	basePath, baseRel, err := resolveListBase(ws, input.Path)
 	if err != nil {
 		return ListFilesOutput{}, err
@@ -136,7 +136,7 @@ type listFilesState struct {
 	total   int
 }
 
-func visitListFile(ctx context.Context, ws WorkspaceView, basePath, current string, entry fs.DirEntry, pattern string, state *listFilesState, limit int, emit toolkit.ToolProgressEmitter) error {
+func visitListFile(ctx context.Context, ws WorkspaceView, basePath, current string, entry fs.DirEntry, pattern string, state *listFilesState, limit int, emit tools.ToolProgressEmitter) error {
 	if current == basePath {
 		return nil
 	}
@@ -158,7 +158,7 @@ func visitListFile(ctx context.Context, ws WorkspaceView, basePath, current stri
 	return appendListEntry(ctx, state, rel, entry, info, emit)
 }
 
-func appendListEntry(ctx context.Context, state *listFilesState, rel string, entry fs.DirEntry, info fs.FileInfo, emit toolkit.ToolProgressEmitter) error {
+func appendListEntry(ctx context.Context, state *listFilesState, rel string, entry fs.DirEntry, info fs.FileInfo, emit tools.ToolProgressEmitter) error {
 	entryPath := filepath.ToSlash(rel)
 	state.entries = append(state.entries, ListFileEntry{
 		Path:  entryPath,

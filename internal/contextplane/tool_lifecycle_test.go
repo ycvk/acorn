@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/cloudwego/eino/schema"
-	"github.com/ycvk/acorn/internal/toolkit"
+	"github.com/ycvk/acorn/internal/tools"
 )
 
 type lifecycleStubTool struct {
@@ -18,18 +18,18 @@ func (t lifecycleStubTool) Info(context.Context) (*schema.ToolInfo, error) {
 	return &schema.ToolInfo{Name: t.name, Desc: t.desc}, nil
 }
 
-func newLifecycleCatalogForTest(t *testing.T) *toolkit.Catalog {
+func newLifecycleCatalogForTest(t *testing.T) *tools.Catalog {
 	t.Helper()
-	catalog, err := toolkit.NewCatalog(context.Background(), []toolkit.ToolSpec{
+	catalog, err := tools.NewCatalog(context.Background(), []tools.ToolSpec{
 		{
-			ToolContract: lifecycleToolContract("read_file", "local", toolkit.ToolKindNative, toolkit.EagerLoadingPolicy()),
+			ToolContract: lifecycleToolContract("read_file", "local", tools.ToolKindNative, tools.EagerLoadingPolicy()),
 			Tool:         lifecycleStubTool{name: "read_file", desc: "Read a file"},
-			Health:       toolkit.ToolHealth{State: toolkit.HealthStateHealthy},
+			Health:       tools.ToolHealth{State: tools.HealthStateHealthy},
 		},
 		{
-			ToolContract: lifecycleToolContract("mcp.prompt.fetch", "mcp.prompt", toolkit.ToolKindMCP, toolkit.DeferredLoadingPolicy("deferred_mcp_catalog")),
+			ToolContract: lifecycleToolContract("mcp.prompt.fetch", "mcp.prompt", tools.ToolKindMCP, tools.DeferredLoadingPolicy("deferred_mcp_catalog")),
 			Tool:         lifecycleStubTool{name: "mcp.prompt.fetch", desc: "Fetch MCP prompt"},
-			Health:       toolkit.ToolHealth{State: toolkit.HealthStateHealthy},
+			Health:       tools.ToolHealth{State: tools.HealthStateHealthy},
 		},
 	})
 	if err != nil {
@@ -38,14 +38,14 @@ func newLifecycleCatalogForTest(t *testing.T) *toolkit.Catalog {
 	return catalog
 }
 
-func lifecycleToolContract(name string, source string, kind toolkit.ToolKind, loading toolkit.ToolLoadingPolicy) toolkit.ToolContract {
-	return toolkit.ToolContract{
+func lifecycleToolContract(name string, source string, kind tools.ToolKind, loading tools.ToolLoadingPolicy) tools.ToolContract {
+	return tools.ToolContract{
 		Name:      name,
 		Source:    source,
 		Kind:      kind,
-		Category:  toolkit.ToolCategoryRead,
+		Category:  tools.ToolCategoryRead,
 		Loading:   loading,
-		Execution: toolkit.ToolExecutionPolicy{ParallelPolicy: toolkit.ParallelPolicyReadOnly},
+		Execution: tools.ToolExecutionPolicy{ParallelPolicy: tools.ParallelPolicyReadOnly},
 	}
 }
 

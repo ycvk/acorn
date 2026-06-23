@@ -25,7 +25,7 @@ import (
 	"github.com/ycvk/acorn/internal/skills"
 	corestore "github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/stream"
-	"github.com/ycvk/acorn/internal/toolkit"
+	"github.com/ycvk/acorn/internal/tools"
 	"github.com/ycvk/acorn/internal/toolset"
 	"github.com/ycvk/acorn/internal/workspace"
 )
@@ -60,7 +60,7 @@ func (f *RunnerFactory) New(ctx context.Context, req RunnerBuildRequest) (*Activ
 	return f.buildRun(ctx, req)
 }
 
-func (f *RunnerFactory) BuildCapabilitySpecs(ctx context.Context) ([]toolkit.ToolSpec, error) {
+func (f *RunnerFactory) BuildCapabilitySpecs(ctx context.Context) ([]tools.ToolSpec, error) {
 	toolset, err := f.buildToolset(ctx, "", true)
 	if err != nil {
 		return nil, err
@@ -239,7 +239,7 @@ func (f *RunnerFactory) assembleContext(
 func (f *RunnerFactory) buildAssembly(
 	ctx context.Context,
 	req RunnerBuildRequest,
-	catalog *toolkit.Catalog,
+	catalog *tools.Catalog,
 	chatModel einomodel.BaseChatModel,
 	contextResult *contextplane.AssembleResult,
 ) (*RunAssembly, error) {
@@ -250,7 +250,7 @@ func (f *RunnerFactory) buildAssembly(
 	return buildDirectResponse(ctx, f.deps, f.directResponseRequest(bf, req))
 }
 
-func (f *RunnerFactory) baseAssemblyFields(req RunnerBuildRequest, catalog *toolkit.Catalog, chatModel einomodel.BaseChatModel, contextResult *contextplane.AssembleResult) baseAssemblyFields {
+func (f *RunnerFactory) baseAssemblyFields(req RunnerBuildRequest, catalog *tools.Catalog, chatModel einomodel.BaseChatModel, contextResult *contextplane.AssembleResult) baseAssemblyFields {
 	return baseAssemblyFields{
 		agentName:         f.deps.Config.Agent.Name,
 		agentDescription:  f.deps.Config.Agent.Description,
@@ -306,14 +306,14 @@ func (f *RunnerFactory) buildRunCapabilities(ctx context.Context, sessionID stri
 	}, nil
 }
 
-func (f *RunnerFactory) assembleRunCapabilitiesCatalog(ctx context.Context, toolset *Toolset, mcpManager *mcpprovider.Manager) (*toolkit.Catalog, error) {
-	specs := append([]toolkit.ToolSpec(nil), toolset.Catalog().Specs()...)
+func (f *RunnerFactory) assembleRunCapabilitiesCatalog(ctx context.Context, toolset *Toolset, mcpManager *mcpprovider.Manager) (*tools.Catalog, error) {
+	specs := append([]tools.ToolSpec(nil), toolset.Catalog().Specs()...)
 	mcpSpecs, err := f.buildMCPToolSpecs(ctx, mcpManager)
 	if err != nil {
 		return nil, err
 	}
 	specs = append(specs, mcpSpecs...)
-	return toolkit.NewCatalog(ctx, specs)
+	return tools.NewCatalog(ctx, specs)
 }
 
 type chatModelBuilder func(context.Context, config.ProviderConfig) (einomodel.BaseChatModel, error)
@@ -487,14 +487,14 @@ type baseAssemblyFields struct {
 	sessionID         string
 	runID             string
 	chatModel         einomodel.BaseChatModel
-	catalog           *toolkit.Catalog
+	catalog           *tools.Catalog
 	contextResult     AssembleResultView
 	allowedToolNames  []string
 	excludedToolNames []string
 }
 
 type runCapabilities struct {
-	catalog       *toolkit.Catalog
+	catalog       *tools.Catalog
 	skillSnapshot *skills.Snapshot
 	stableSkills  []skills.Spec
 	close         func() error
@@ -560,7 +560,7 @@ func buildRunnerAgentHandlers(
 func bindToolLifecycle(
 	ctx context.Context,
 	state ToolLifecycleStateView,
-	catalog *toolkit.Catalog,
+	catalog *tools.Catalog,
 	infos []*schema.ToolInfo,
 ) context.Context {
 	if adapter, ok := state.(toolLifecycleStateAdapter); ok && adapter.state != nil {

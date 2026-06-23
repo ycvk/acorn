@@ -20,7 +20,7 @@ import (
 	"github.com/ycvk/acorn/internal/contextplane"
 	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/runtime/tooldispatch"
-	"github.com/ycvk/acorn/internal/toolkit"
+	"github.com/ycvk/acorn/internal/tools"
 )
 
 func directResponseTestConfig(systemPrompt string, maxIterations int) *config.Config {
@@ -268,10 +268,10 @@ func TestBuildDirectResponseContinuesAfterOutputLimit(t *testing.T) {
 	deps := RuntimeDeps{
 		Config:          directResponseTestConfig("system", 4),
 		CheckpointStore: &directResponseTestCheckpointStore{},
-		ToolBuilder: func(context.Context, RunnerFactoryStore, []toolkit.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
+		ToolBuilder: func(context.Context, RunnerFactoryStore, []tools.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
 			return []einotool.BaseTool{tool}, nil
 		},
-		ToolNodeFactory: func(context.Context, []einotool.BaseTool, toolkit.ExecutionPolicyResolver) (tooldispatch.ToolInvoker, error) {
+		ToolNodeFactory: func(context.Context, []einotool.BaseTool, tools.ExecutionPolicyResolver) (tooldispatch.ToolInvoker, error) {
 			return &directResponseTestToolNode{}, nil
 		},
 	}
@@ -332,10 +332,10 @@ func TestBuildDirectResponseDoesNotExecuteTruncatedToolCalls(t *testing.T) {
 	deps := RuntimeDeps{
 		Config:          directResponseTestConfig("system", 4),
 		CheckpointStore: &directResponseTestCheckpointStore{},
-		ToolBuilder: func(context.Context, RunnerFactoryStore, []toolkit.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
+		ToolBuilder: func(context.Context, RunnerFactoryStore, []tools.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
 			return []einotool.BaseTool{tool}, nil
 		},
-		ToolNodeFactory: func(context.Context, []einotool.BaseTool, toolkit.ExecutionPolicyResolver) (tooldispatch.ToolInvoker, error) {
+		ToolNodeFactory: func(context.Context, []einotool.BaseTool, tools.ExecutionPolicyResolver) (tooldispatch.ToolInvoker, error) {
 			return toolNode, nil
 		},
 	}
@@ -397,10 +397,10 @@ func TestBuildDirectResponseRunsToolCallLoop(t *testing.T) {
 	deps := RuntimeDeps{
 		Config:          directResponseTestConfig("system", 4),
 		CheckpointStore: &directResponseTestCheckpointStore{},
-		ToolBuilder: func(context.Context, RunnerFactoryStore, []toolkit.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
+		ToolBuilder: func(context.Context, RunnerFactoryStore, []tools.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
 			return []einotool.BaseTool{tool}, nil
 		},
-		ToolNodeFactory: func(context.Context, []einotool.BaseTool, toolkit.ExecutionPolicyResolver) (tooldispatch.ToolInvoker, error) {
+		ToolNodeFactory: func(context.Context, []einotool.BaseTool, tools.ExecutionPolicyResolver) (tooldispatch.ToolInvoker, error) {
 			return toolNode, nil
 		},
 	}
@@ -459,10 +459,10 @@ func TestBuildDirectResponsePropagatesModelError(t *testing.T) {
 	deps := RuntimeDeps{
 		Config:          directResponseTestConfig("system", 4),
 		CheckpointStore: &directResponseTestCheckpointStore{},
-		ToolBuilder: func(context.Context, RunnerFactoryStore, []toolkit.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
+		ToolBuilder: func(context.Context, RunnerFactoryStore, []tools.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
 			return []einotool.BaseTool{tool}, nil
 		},
-		ToolNodeFactory: func(context.Context, []einotool.BaseTool, toolkit.ExecutionPolicyResolver) (tooldispatch.ToolInvoker, error) {
+		ToolNodeFactory: func(context.Context, []einotool.BaseTool, tools.ExecutionPolicyResolver) (tooldispatch.ToolInvoker, error) {
 			return &directResponseTestToolNode{}, nil
 		},
 	}
@@ -496,10 +496,10 @@ func TestBuildDirectResponseFailsWithoutContextSession(t *testing.T) {
 	deps := RuntimeDeps{
 		Config:          directResponseTestConfig("system", 4),
 		CheckpointStore: &directResponseTestCheckpointStore{},
-		ToolBuilder: func(context.Context, RunnerFactoryStore, []toolkit.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
+		ToolBuilder: func(context.Context, RunnerFactoryStore, []tools.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
 			return []einotool.BaseTool{tool}, nil
 		},
-		ToolNodeFactory: func(context.Context, []einotool.BaseTool, toolkit.ExecutionPolicyResolver) (tooldispatch.ToolInvoker, error) {
+		ToolNodeFactory: func(context.Context, []einotool.BaseTool, tools.ExecutionPolicyResolver) (tooldispatch.ToolInvoker, error) {
 			return &directResponseTestToolNode{}, nil
 		},
 	}
@@ -522,20 +522,20 @@ func TestBuildDirectResponseFailsWithoutContextSession(t *testing.T) {
 	}
 }
 
-func directResponseCatalogForTest(t *testing.T, ctx context.Context, tool einotool.BaseTool) *toolkit.Catalog {
+func directResponseCatalogForTest(t *testing.T, ctx context.Context, tool einotool.BaseTool) *tools.Catalog {
 	t.Helper()
 	info, err := tool.Info(ctx)
 	if err != nil {
 		t.Fatalf("Info: %v", err)
 	}
-	catalog, err := toolkit.NewCatalog(ctx, []toolkit.ToolSpec{{
-		ToolContract: toolkit.ToolContract{
+	catalog, err := tools.NewCatalog(ctx, []tools.ToolSpec{{
+		ToolContract: tools.ToolContract{
 			Name:      info.Name,
 			Source:    "test",
-			Kind:      toolkit.ToolKindNative,
-			Category:  toolkit.ToolCategoryRead,
-			Loading:   toolkit.EagerLoadingPolicy(),
-			Execution: toolkit.ToolExecutionPolicy{ParallelPolicy: toolkit.ParallelPolicyReadOnly},
+			Kind:      tools.ToolKindNative,
+			Category:  tools.ToolCategoryRead,
+			Loading:   tools.EagerLoadingPolicy(),
+			Execution: tools.ToolExecutionPolicy{ParallelPolicy: tools.ParallelPolicyReadOnly},
 		},
 		Tool: tool,
 	}})
@@ -768,10 +768,10 @@ func TestBuildDirectResponseHandlesInterrupt(t *testing.T) {
 	deps := RuntimeDeps{
 		Config:          directResponseTestConfig("system", 4),
 		CheckpointStore: &directResponseTestCheckpointStore{},
-		ToolBuilder: func(context.Context, RunnerFactoryStore, []toolkit.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
+		ToolBuilder: func(context.Context, RunnerFactoryStore, []tools.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
 			return []einotool.BaseTool{tool}, nil
 		},
-		ToolNodeFactory: func(context.Context, []einotool.BaseTool, toolkit.ExecutionPolicyResolver) (tooldispatch.ToolInvoker, error) {
+		ToolNodeFactory: func(context.Context, []einotool.BaseTool, tools.ExecutionPolicyResolver) (tooldispatch.ToolInvoker, error) {
 			return &directResponseInterruptToolNode{}, nil
 		},
 	}
@@ -833,10 +833,10 @@ func TestBuildDirectResponsePreservesNestedInterruptContexts(t *testing.T) {
 	deps := RuntimeDeps{
 		Config:          directResponseTestConfig("system", 4),
 		CheckpointStore: &directResponseTestCheckpointStore{},
-		ToolBuilder: func(context.Context, RunnerFactoryStore, []toolkit.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
+		ToolBuilder: func(context.Context, RunnerFactoryStore, []tools.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
 			return []einotool.BaseTool{tool}, nil
 		},
-		ToolNodeFactory: func(context.Context, []einotool.BaseTool, toolkit.ExecutionPolicyResolver) (tooldispatch.ToolInvoker, error) {
+		ToolNodeFactory: func(context.Context, []einotool.BaseTool, tools.ExecutionPolicyResolver) (tooldispatch.ToolInvoker, error) {
 			return &directResponseInterruptToolNode{signal: interruptSignal}, nil
 		},
 	}
@@ -953,10 +953,10 @@ func TestBuildDirectResponseResumeContinuesFromPendingToolCalls(t *testing.T) {
 	deps := RuntimeDeps{
 		Config:          directResponseTestConfig("system", 4),
 		CheckpointStore: store,
-		ToolBuilder: func(context.Context, RunnerFactoryStore, []toolkit.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
+		ToolBuilder: func(context.Context, RunnerFactoryStore, []tools.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
 			return []einotool.BaseTool{tool}, nil
 		},
-		ToolNodeFactory: func(context.Context, []einotool.BaseTool, toolkit.ExecutionPolicyResolver) (tooldispatch.ToolInvoker, error) {
+		ToolNodeFactory: func(context.Context, []einotool.BaseTool, tools.ExecutionPolicyResolver) (tooldispatch.ToolInvoker, error) {
 			return toolNode, nil
 		},
 	}

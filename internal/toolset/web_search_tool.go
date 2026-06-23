@@ -10,7 +10,7 @@ import (
 
 	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/store"
-	"github.com/ycvk/acorn/internal/toolkit"
+	"github.com/ycvk/acorn/internal/tools"
 	"github.com/ycvk/acorn/internal/webaccess"
 )
 
@@ -41,7 +41,7 @@ func buildWebSearchTool(search WebSearchService, artifactService ArtifactService
 	if bridge == nil {
 		return nil, errors.New("artifact context bridge is required for web_search")
 	}
-	tool, err := inferProgressTool("web_search", "Search public web sources through the configured provider and persist the raw provider response.", func(ctx context.Context, input WebSearchInput, emit toolkit.ToolProgressEmitter) (WebSearchOutput, error) {
+	tool, err := inferProgressTool("web_search", "Search public web sources through the configured provider and persist the raw provider response.", func(ctx context.Context, input WebSearchInput, emit tools.ToolProgressEmitter) (WebSearchOutput, error) {
 		runID := strings.TrimSpace(bridge.CurrentRunID(ctx))
 		if runID == "" {
 			return WebSearchOutput{}, errors.New("web_search requires current run context")

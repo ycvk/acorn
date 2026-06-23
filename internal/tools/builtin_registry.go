@@ -1,4 +1,4 @@
-package toolkit
+package tools
 
 // builtinToolOrder is the canonical list of dynamically-registered built-in
 // tools (delegate_task, load_tools, working-state, memory, skill). It is the

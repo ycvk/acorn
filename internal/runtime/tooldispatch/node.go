@@ -15,7 +15,7 @@ import (
 	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/contextplane"
 	"github.com/ycvk/acorn/internal/domain"
-	"github.com/ycvk/acorn/internal/toolkit"
+	"github.com/ycvk/acorn/internal/tools"
 )
 
 // SafeParallelToolsNode dispatches tool calls with safety-aware parallelism.
@@ -35,7 +35,7 @@ type toolEntry struct {
 func NewSafeParallelToolsNode(
 	ctx context.Context,
 	tools []einotool.BaseTool,
-	resolver toolkit.ExecutionPolicyResolver,
+	resolver tools.ExecutionPolicyResolver,
 ) (*SafeParallelToolsNode, error) {
 	if ctx == nil {
 		return nil, fmt.Errorf("safe parallel tools node: context is required")

@@ -9,10 +9,10 @@ import (
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/schema"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
-	"github.com/ycvk/acorn/internal/toolkit"
+	"github.com/ycvk/acorn/internal/tools"
 )
 
-func (f *RunnerFactory) buildMCPToolSpecs(ctx context.Context, mcpManager *mcpprovider.Manager) ([]toolkit.ToolSpec, error) {
+func (f *RunnerFactory) buildMCPToolSpecs(ctx context.Context, mcpManager *mcpprovider.Manager) ([]tools.ToolSpec, error) {
 	var resourceTools, promptTools []einotool.BaseTool
 	if mcpManager != nil {
 		resourceTools = mcpManager.ResourceTools()
@@ -22,11 +22,11 @@ func (f *RunnerFactory) buildMCPToolSpecs(ctx context.Context, mcpManager *mcppr
 	if err != nil {
 		return nil, err
 	}
-	resourceSpecs, err := BuildCatalogSpecs(ctx, f.deps.Config, "mcp.resource", toolkit.ToolKindMCP, resourceTools)
+	resourceSpecs, err := BuildCatalogSpecs(ctx, f.deps.Config, "mcp.resource", tools.ToolKindMCP, resourceTools)
 	if err != nil {
 		return nil, err
 	}
-	promptSpecs, err := BuildCatalogSpecs(ctx, f.deps.Config, "mcp.prompt", toolkit.ToolKindMCP, promptTools)
+	promptSpecs, err := BuildCatalogSpecs(ctx, f.deps.Config, "mcp.prompt", tools.ToolKindMCP, promptTools)
 	if err != nil {
 		return nil, err
 	}
@@ -35,8 +35,8 @@ func (f *RunnerFactory) buildMCPToolSpecs(ctx context.Context, mcpManager *mcppr
 	return specs, nil
 }
 
-func (f *RunnerFactory) buildMCPRegistrationsSpecs(ctx context.Context, mcpManager *mcpprovider.Manager) ([]toolkit.ToolSpec, error) {
-	var specs []toolkit.ToolSpec
+func (f *RunnerFactory) buildMCPRegistrationsSpecs(ctx context.Context, mcpManager *mcpprovider.Manager) ([]tools.ToolSpec, error) {
+	var specs []tools.ToolSpec
 	for _, registration := range mcpManagerRegistrations(mcpManager) {
 		spec, err := f.buildMCPRegistrationSpec(ctx, registration)
 		if err != nil {
@@ -47,22 +47,22 @@ func (f *RunnerFactory) buildMCPRegistrationsSpecs(ctx context.Context, mcpManag
 	return specs, nil
 }
 
-func (f *RunnerFactory) buildMCPRegistrationSpec(ctx context.Context, registration mcpprovider.ToolRegistration) (toolkit.ToolSpec, error) {
+func (f *RunnerFactory) buildMCPRegistrationSpec(ctx context.Context, registration mcpprovider.ToolRegistration) (tools.ToolSpec, error) {
 	info, err := registration.Tool.Info(ctx)
 	if err != nil {
-		return toolkit.ToolSpec{}, fmt.Errorf("read MCP tool info for provider %q: %w", registration.ProviderName, err)
+		return tools.ToolSpec{}, fmt.Errorf("read MCP tool info for provider %q: %w", registration.ProviderName, err)
 	}
 	namespaced, err := NewMCPNamespacedTool(ctx, registration.Tool, registration.ProviderName, info.Name)
 	if err != nil {
-		return toolkit.ToolSpec{}, fmt.Errorf("namespace MCP tool %q for provider %q: %w", info.Name, registration.ProviderName, err)
+		return tools.ToolSpec{}, fmt.Errorf("namespace MCP tool %q for provider %q: %w", info.Name, registration.ProviderName, err)
 	}
-	spec, err := RuntimeToolSpec(ctx, f.deps.Config, registration.ProviderName, toolkit.ToolKindMCP, namespaced)
+	spec, err := RuntimeToolSpec(ctx, f.deps.Config, registration.ProviderName, tools.ToolKindMCP, namespaced)
 	if err != nil {
-		return toolkit.ToolSpec{}, err
+		return tools.ToolSpec{}, err
 	}
 	parallelPolicy, err := MCPToolParallelPolicy(f.deps.Config, registration.ProviderName)
 	if err != nil {
-		return toolkit.ToolSpec{}, fmt.Errorf("resolve MCP tool safety for provider %q: %w", registration.ProviderName, err)
+		return tools.ToolSpec{}, fmt.Errorf("resolve MCP tool safety for provider %q: %w", registration.ProviderName, err)
 	}
 	spec.Execution.ParallelPolicy = parallelPolicy
 	return spec, nil

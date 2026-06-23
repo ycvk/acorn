@@ -10,7 +10,7 @@ import (
 
 	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/store"
-	"github.com/ycvk/acorn/internal/toolkit"
+	"github.com/ycvk/acorn/internal/tools"
 	"github.com/ycvk/acorn/internal/webaccess"
 )
 
@@ -54,7 +54,7 @@ func buildWebFetchTool(fetcher WebFetchService, artifactService ArtifactService,
 	if bridge == nil {
 		return nil, errors.New("artifact context bridge is required for web_fetch")
 	}
-	tool, err := inferProgressTool("web_fetch", "Fetch a public HTTP(S) URL, extract Markdown, and persist raw/Markdown artifacts.", func(ctx context.Context, input WebFetchInput, emit toolkit.ToolProgressEmitter) (WebFetchOutput, error) {
+	tool, err := inferProgressTool("web_fetch", "Fetch a public HTTP(S) URL, extract Markdown, and persist raw/Markdown artifacts.", func(ctx context.Context, input WebFetchInput, emit tools.ToolProgressEmitter) (WebFetchOutput, error) {
 		runID := strings.TrimSpace(bridge.CurrentRunID(ctx))
 		if runID == "" {
 			return WebFetchOutput{}, errors.New("web_fetch requires current run context")

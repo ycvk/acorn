@@ -14,13 +14,13 @@ import (
 	"github.com/ycvk/acorn/internal/contextplane"
 	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/runtime/tooldispatch"
-	"github.com/ycvk/acorn/internal/toolkit"
+	"github.com/ycvk/acorn/internal/tools"
 )
 
 // toolAssemblyParams holds the fields BuildDirectResponse shares when
 // assembling tools, instruction, handlers, and the bound run context.
 type toolAssemblyParams struct {
-	catalog           *toolkit.Catalog
+	catalog           *tools.Catalog
 	contextResult     AssembleResultView
 	allowedToolNames  []string
 	excludedToolNames []string
@@ -43,7 +43,7 @@ type assembledTooling struct {
 func assembleTooling(ctx context.Context, deps RuntimeDeps, params toolAssemblyParams) (*assembledTooling, error) {
 	toolBuilder := deps.ToolBuilder
 	if toolBuilder == nil {
-		toolBuilder = func(ctx context.Context, store RunnerFactoryStore, specs []toolkit.ToolSpec, excludedToolNames []string, allowedToolNames []string, runID string) ([]einotool.BaseTool, error) {
+		toolBuilder = func(ctx context.Context, store RunnerFactoryStore, specs []tools.ToolSpec, excludedToolNames []string, allowedToolNames []string, runID string) ([]einotool.BaseTool, error) {
 			return BuildAuditedTools(ctx, store, specs, excludedToolNames, allowedToolNames, runID)
 		}
 	}
@@ -109,7 +109,7 @@ func buildDirectResponse(ctx context.Context, deps RuntimeDeps, req DirectRespon
 	}
 	toolNodeFactory := deps.ToolNodeFactory
 	if toolNodeFactory == nil {
-		toolNodeFactory = func(ctx context.Context, tools []einotool.BaseTool, resolver toolkit.ExecutionPolicyResolver) (tooldispatch.ToolInvoker, error) {
+		toolNodeFactory = func(ctx context.Context, tools []einotool.BaseTool, resolver tools.ExecutionPolicyResolver) (tooldispatch.ToolInvoker, error) {
 			return tooldispatch.NewSafeParallelToolsNode(ctx, tools, resolver)
 		}
 	}
@@ -153,7 +153,7 @@ type directResponseAgent struct {
 	toolNode       tooldispatch.ToolInvoker
 	instruction    string
 	lifecycleState ToolLifecycleStateView
-	catalog        *toolkit.Catalog
+	catalog        *tools.Catalog
 	toolInfos      []*schema.ToolInfo
 	eagerToolNames []string
 	maxIterations  int

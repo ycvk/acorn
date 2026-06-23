@@ -14,7 +14,7 @@ import (
 	"github.com/ycvk/acorn/internal/memory"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
 	"github.com/ycvk/acorn/internal/skills"
-	"github.com/ycvk/acorn/internal/toolkit"
+	"github.com/ycvk/acorn/internal/tools"
 	"github.com/ycvk/acorn/internal/workspace"
 )
 
@@ -108,7 +108,7 @@ type ActiveRunner struct {
 	ContextResult  *contextplane.AssembleResult
 	ContextSession contextplane.ContextSession
 	RunID          string
-	ToolCatalog    *toolkit.Catalog
+	ToolCatalog    *tools.Catalog
 	CloseRunTools  func() error
 }
 

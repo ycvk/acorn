@@ -9,10 +9,10 @@ import (
 	toolutils "github.com/cloudwego/eino/components/tool/utils"
 	"github.com/cloudwego/eino/schema"
 
-	"github.com/ycvk/acorn/internal/toolkit"
+	"github.com/ycvk/acorn/internal/tools"
 )
 
-type progressToolFunc[I, O any] func(ctx context.Context, input I, emit toolkit.ToolProgressEmitter) (O, error)
+type progressToolFunc[I, O any] func(ctx context.Context, input I, emit tools.ToolProgressEmitter) (O, error)
 
 type localProgressTool[I, O any] struct {
 	infoSource einotool.BaseTool
@@ -42,7 +42,7 @@ func (t *localProgressTool[I, O]) InvokableRun(ctx context.Context, argumentsInJ
 	return t.InvokableRunWithProgress(ctx, argumentsInJSON, nil, opts...)
 }
 
-func (t *localProgressTool[I, O]) InvokableRunWithProgress(ctx context.Context, argumentsInJSON string, emit toolkit.ToolProgressEmitter, _ ...einotool.Option) (string, error) {
+func (t *localProgressTool[I, O]) InvokableRunWithProgress(ctx context.Context, argumentsInJSON string, emit tools.ToolProgressEmitter, _ ...einotool.Option) (string, error) {
 	var input I
 	if err := json.Unmarshal([]byte(argumentsInJSON), &input); err != nil {
 		return "", fmt.Errorf("parse %s arguments: %w", t.name, err)
@@ -58,9 +58,9 @@ func (t *localProgressTool[I, O]) InvokableRunWithProgress(ctx context.Context, 
 	return string(body), nil
 }
 
-func emitToolProgress(ctx context.Context, emit toolkit.ToolProgressEmitter, delta string) error {
+func emitToolProgress(ctx context.Context, emit tools.ToolProgressEmitter, delta string) error {
 	if emit == nil || delta == "" {
 		return nil
 	}
-	return emit(ctx, toolkit.ToolProgressEvent{Delta: delta})
+	return emit(ctx, tools.ToolProgressEvent{Delta: delta})
 }

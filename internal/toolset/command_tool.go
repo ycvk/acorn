@@ -16,7 +16,7 @@ import (
 	toolutils "github.com/cloudwego/eino/components/tool/utils"
 	"github.com/cloudwego/eino/schema"
 
-	"github.com/ycvk/acorn/internal/toolkit"
+	"github.com/ycvk/acorn/internal/tools"
 )
 
 const runCommandDescription = "Execute a local command as an explicit escape hatch. Set pause_before_exec=true to force an interrupt before execution."
@@ -48,7 +48,7 @@ func (t *runCommandTool) InvokableRun(ctx context.Context, argumentsInJSON strin
 	return t.InvokableRunWithProgress(ctx, argumentsInJSON, nil, opts...)
 }
 
-func (t *runCommandTool) InvokableRunWithProgress(ctx context.Context, argumentsInJSON string, emit toolkit.ToolProgressEmitter, _ ...einotool.Option) (string, error) {
+func (t *runCommandTool) InvokableRunWithProgress(ctx context.Context, argumentsInJSON string, emit tools.ToolProgressEmitter, _ ...einotool.Option) (string, error) {
 	var input RunCommandInput
 	if err := json.Unmarshal([]byte(argumentsInJSON), &input); err != nil {
 		return "", fmt.Errorf("parse run_command arguments: %w", err)
@@ -64,7 +64,7 @@ func (t *runCommandTool) InvokableRunWithProgress(ctx context.Context, arguments
 	return string(body), nil
 }
 
-func (t *runCommandTool) run(ctx context.Context, input RunCommandInput, emit toolkit.ToolProgressEmitter) (RunCommandOutput, error) {
+func (t *runCommandTool) run(ctx context.Context, input RunCommandInput, emit tools.ToolProgressEmitter) (RunCommandOutput, error) {
 	if len(input.Command) == 0 {
 		return RunCommandOutput{}, errors.New("command is required")
 	}
@@ -147,13 +147,13 @@ func (t *runCommandTool) run(ctx context.Context, input RunCommandInput, emit to
 
 type runCommandProgressBuffer struct {
 	ctx  context.Context
-	emit toolkit.ToolProgressEmitter
+	emit tools.ToolProgressEmitter
 	mu   sync.Mutex
 	buf  bytes.Buffer
 	err  error
 }
 
-func newRunCommandProgressBuffer(ctx context.Context, emit toolkit.ToolProgressEmitter) *runCommandProgressBuffer {
+func newRunCommandProgressBuffer(ctx context.Context, emit tools.ToolProgressEmitter) *runCommandProgressBuffer {
 	return &runCommandProgressBuffer{ctx: ctx, emit: emit}
 }
 
@@ -162,7 +162,7 @@ func (b *runCommandProgressBuffer) Write(p []byte) (int, error) {
 	defer b.mu.Unlock()
 	n, writeErr := b.buf.Write(p)
 	if b.emit != nil && len(p) > 0 {
-		if err := b.emit(b.ctx, toolkit.ToolProgressEvent{Delta: string(p)}); err != nil && b.err == nil {
+		if err := b.emit(b.ctx, tools.ToolProgressEvent{Delta: string(p)}); err != nil && b.err == nil {
 			b.err = err
 		}
 	}
