@@ -9,11 +9,6 @@ import (
 
 const TurnIndexExtraKey = "acorn_turn_index"
 
-const (
-	CompressionSummaryMarkerKey   = "acorn.context_compression.kind"
-	CompressionSummaryMarkerValue = "summary"
-)
-
 var (
 	privateKeyBlockRe = regexp.MustCompile(`(?is)-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----`)
 	apiKeyTokenRe     = regexp.MustCompile(`(?i)\b(?:sk-proj|sk-ant|sk-live|sk-test|sk|ak)-[A-Za-z0-9_\-]{3,}\b`)
@@ -59,18 +54,6 @@ func CloneAnyMap(in map[string]any) map[string]any {
 	return out
 }
 
-func MarkCompressionSummary(msg adk.Message) adk.Message {
-	if msg == nil {
-		return nil
-	}
-	message := CloneMessage(msg)
-	if message.Extra == nil {
-		message.Extra = map[string]any{}
-	}
-	message.Extra[CompressionSummaryMarkerKey] = CompressionSummaryMarkerValue
-	return message
-}
-
 func SanitizeSummaryMessage(msg adk.Message) adk.Message {
 	if msg == nil {
 		return nil
@@ -89,22 +72,6 @@ func SanitizeSummaryMessage(msg adk.Message) adk.Message {
 		}
 	}
 	return message
-}
-
-func CompactionSummaryMessage(summaryText string) adk.Message {
-	return &schema.Message{
-		Role: schema.User,
-		UserInputMultiContent: []schema.MessageInputPart{
-			{
-				Type: schema.ChatMessagePartTypeText,
-				Text: summaryText,
-			},
-			{
-				Type: schema.ChatMessagePartTypeText,
-				Text: "Continue the conversation from this context checkpoint. Do not ask the user to repeat already summarized information.",
-			},
-		},
-	}
 }
 
 func RedactSecrets(s string) string {

@@ -32,7 +32,7 @@ P0 不做 repo context、LSP、repo map、persistent code index、`/v1/codeintel
 - `ToolExecutionScheduler` 拥有工具并发和 path conflict 调度。
 - Tool results stay in the message stream; observation masking replaces old results with placeholders. No durable ledger.
 - SQLite 是 runs、events、messages、pending actions 等 runtime truth 的本地事实源（~8 张表）。
-- `memorymodule` file-backed records 是长期 memory truth。
+- `internal/memory` file-backed records 是长期 memory truth。
 - `/v1` 和 generated mobile client 是 remote client wire contract。
 - mobile 是后端事实的 control surface，不拥有 runtime truth。
 

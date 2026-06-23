@@ -62,24 +62,3 @@ func (s *SessionSummaryService) Update(ctx context.Context, sessionID, sourceRun
 	}
 	return &record, nil
 }
-
-func FormatSessionSummaryForPrompt(summary *SessionSummary) string {
-	if summary == nil || strings.TrimSpace(summary.Summary) == "" {
-		return ""
-	}
-	lines := []string{
-		"<session-summary>",
-		"Previous session continuity summary. Treat this as durable recall context, not new user input.",
-		"",
-		"Latest session state:",
-		strings.TrimSpace(summary.Summary),
-	}
-	if status := strings.TrimSpace(summary.RunStatus); status != "" {
-		lines = append(lines, "", "Last run status: "+status)
-	}
-	if sourceRunID := strings.TrimSpace(summary.SourceRunID); sourceRunID != "" {
-		lines = append(lines, "Source run: "+sourceRunID)
-	}
-	lines = append(lines, "</session-summary>")
-	return strings.Join(lines, "\n")
-}

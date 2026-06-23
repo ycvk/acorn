@@ -7,7 +7,6 @@ import (
 
 	einotool "github.com/cloudwego/eino/components/tool"
 	toolutils "github.com/cloudwego/eino/components/tool/utils"
-	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/contextplane"
 	"github.com/ycvk/acorn/internal/domain"
@@ -141,8 +140,4 @@ func NewLoadToolsTool() (einotool.BaseTool, error) {
 			AlreadyLoaded:   append([]string(nil), result.AlreadyLoaded...),
 		}, nil
 	})
-}
-
-func IsLoadToolsCall(call schema.ToolCall) bool {
-	return strings.TrimSpace(call.Function.Name) == "load_tools"
 }

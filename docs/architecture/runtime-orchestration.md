@@ -29,7 +29,7 @@ ContextSession 在 `BeforeModelCall` 中执行三层 context 策略：
 
 ## 工具调度
 
-`SafeParallelToolsNode`（`safe_parallel_tools_node.go`）是 Acorn-specific tool dispatch adapter，通过 `StreamingExecutor` 暴露实时提交接口。它从 `toolkit.ExecutionPolicyResolver` 读取 `ToolContract.Execution`：
+`SafeParallelToolsNode`（`internal/runtime/tooldispatch/node.go`）是 Acorn-specific tool dispatch adapter，通过 `StreamingExecutor` 暴露实时提交接口。它从 `toolkit.ExecutionPolicyResolver` 读取 `ToolContract.Execution`：
 
 - `read_only`：可并行执行
 - `serial`：串行执行（所有 write/execute/integration 工具）

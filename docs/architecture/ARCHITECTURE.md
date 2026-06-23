@@ -18,7 +18,10 @@ operator CLI / authenticated remote clients
 ## 主要包职责
 
 - `internal/app/` — 装配 app service、runtime executor、run resume service、api dependencies；composition root。
-- `internal/runtime/` — Executor（session/run 创建、执行、finalization）+ RunnerFactory（per-run assembly）+ direct_response assembly + ExecuteRound + tool 执行运行时（scheduler/validator/audit/stream）+ Toolset 容器 + memory tools + StreamItem 投影逻辑。
+- `internal/runtime/` — Executor（session/run 创建、执行、finalization）+ RunnerFactory（per-run assembly）+ direct_response assembly + ExecuteRound + tool audit/validator + StreamItem 投影逻辑。
+- `internal/runtime/tooldispatch/` — SafeParallelToolsNode、streaming executor、scheduler、side-effect extraction、ToolInvoker/StreamingExecutor 接口。
+- `internal/runtime/factextract/` — fact extraction + memory file tools + memory search/remember tools。
+- `internal/stream/` — Stream* 值类型、StreamItem→event 投影、typed accessors、AgentEvent→StreamItem 转换、assistant streaming。
 - `internal/contextplane/` — run 上下文装配、observation masking、LLM auto-compact、deferred tool loading、tool lifecycle。
 - `internal/toolkit/` — 工具契约层（ToolContract/Catalog/ToolSpec/loading+execution policy）。
 - `internal/toolset/` — 工具实现层（file/git/browser/web/command/artifact/memory 工具实现）。

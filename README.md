@@ -185,13 +185,14 @@ Mobile checks run from `mobile-kotlin/`:
 | --- | --- |
 | `cmd/acorn/` | CLI entrypoint |
 | `internal/app/` | Application container and client-facing services |
-| `internal/runtime/` | Executor lifecycle, run builder, root mode routing, and resume execution |
-| `internal/stream/` | Backend stream item schema and stream-item-to-event write projection |
-| `internal/contextplane/` | Context session, compaction, rehydration, and budget logic |
-| `internal/orchestration/` | Root mode and child-run assembly |
-| `internal/memorymodule/` | File-backed memory records and semantic retrieval |
-| `internal/store/sqlite/` | SQLite persisted state |
-| `internal/web/` | HTTP server, `/healthz`, `/v1` |
+| `internal/runtime/` | Executor lifecycle, run builder, direct_response, and resume execution |
+| `internal/runtime/tooldispatch/` | Safety-aware parallel tool dispatch, streaming executor, side effects |
+| `internal/runtime/factextract/` | Fact extraction and memory file/search/remember tools |
+| `internal/stream/` | Stream item types, event projection, accessors, assistant streaming |
+| `internal/contextplane/` | Context session, masking, auto-compact, tool lifecycle |
+| `internal/memory/` | File-backed memory records and semantic retrieval |
+| `internal/store/` | SQLite persisted state |
+| `internal/api/` | HTTP server, `/healthz`, `/v1` |
 | `mobile-kotlin/` | Kotlin + Jetpack Compose mobile app |
 | `skills/` | Built-in Acorn skill seed pack |
 | `docs/` | User guides, developer guides, OpenAPI, and architecture notes |
