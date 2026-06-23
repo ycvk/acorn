@@ -13,13 +13,14 @@ import (
 
 func TestCapabilitiesSnapshotContract(t *testing.T) {
 	t.Run("execution not ready still returns catalog snapshot", func(t *testing.T) {
-		service := NewCapabilitiesService(baseCapabilitiesConfig(""), fakeSkillSnapshotStore{
-			snapshot: skills.Snapshot{
+		service := NewCapabilitiesService(baseCapabilitiesConfig(""), func(ctx context.Context) (*skills.Snapshot, error) {
+			copied := skills.CopySnapshot(skills.Snapshot{
 				Skills: []skills.View{{
 					Spec:     skills.Spec{ID: "inspect_repo", Name: "Inspect Repo", Source: "workspace"},
 					Eligible: true,
 				}},
-			},
+			})
+			return &copied, nil
 		}, nil, nil)
 
 		snapshot := service.Snapshot(context.Background(), CapabilitySnapshotOptions{})
@@ -60,14 +61,15 @@ func TestCapabilitiesSnapshotContract(t *testing.T) {
 	})
 
 	t.Run("disabled skill reasons remain visible", func(t *testing.T) {
-		service := NewCapabilitiesService(baseCapabilitiesConfig("test-key"), fakeSkillSnapshotStore{
-			snapshot: skills.Snapshot{
+		service := NewCapabilitiesService(baseCapabilitiesConfig("test-key"), func(ctx context.Context) (*skills.Snapshot, error) {
+			copied := skills.CopySnapshot(skills.Snapshot{
 				Skills: []skills.View{{
 					Spec:            skills.Spec{ID: "edit_repo", Name: "Edit Repo", Source: "workspace"},
 					Eligible:        false,
 					DisabledReasons: []string{"run_command is disabled", "missing rg"},
 				}},
-			},
+			})
+			return &copied, nil
 		}, nil, nil)
 
 		snapshot := service.Snapshot(context.Background(), CapabilitySnapshotOptions{})
@@ -104,7 +106,10 @@ func TestCapabilitiesSnapshotContract(t *testing.T) {
 				ToolSafety:            "read_only",
 			},
 		}
-		service := NewCapabilitiesService(cfg, fakeSkillSnapshotStore{}, func(ctx context.Context, providers []mcpprovider.ProviderConfig) []mcpprovider.ProviderStatus {
+		service := NewCapabilitiesService(cfg, func(ctx context.Context) (*skills.Snapshot, error) {
+			copied := skills.CopySnapshot(skills.Snapshot{})
+			return &copied, nil
+		}, func(ctx context.Context, providers []mcpprovider.ProviderConfig) []mcpprovider.ProviderStatus {
 			if got, want := len(providers), 2; got != want {
 				t.Fatalf("provider count passed to doctor = %d, want %d", got, want)
 			}
@@ -178,7 +183,10 @@ func TestCapabilitiesSnapshotProbeMCPOnlyWhenExplicit(t *testing.T) {
 		ToolSafety:            "read_only",
 	}}
 	probeCalls := 0
-	service := NewCapabilitiesService(cfg, fakeSkillSnapshotStore{}, func(ctx context.Context, providers []mcpprovider.ProviderConfig) []mcpprovider.ProviderStatus {
+	service := NewCapabilitiesService(cfg, func(ctx context.Context) (*skills.Snapshot, error) {
+		copied := skills.CopySnapshot(skills.Snapshot{})
+		return &copied, nil
+	}, func(ctx context.Context, providers []mcpprovider.ProviderConfig) []mcpprovider.ProviderStatus {
 		probeCalls++
 		return nil
 	}, nil)
@@ -207,7 +215,9 @@ func TestCapabilitiesSnapshotProbeMCPOnlyWhenExplicit(t *testing.T) {
 }
 
 func TestCapabilitiesSnapshotExposesSkillLoadError(t *testing.T) {
-	service := NewCapabilitiesService(baseCapabilitiesConfig("test-key"), failingSkillSnapshotStore{err: errors.New("loader failed")}, nil, nil)
+	service := NewCapabilitiesService(baseCapabilitiesConfig("test-key"), func(ctx context.Context) (*skills.Snapshot, error) {
+		return nil, errors.New("loader failed")
+	}, nil, nil)
 
 	snapshot := service.Snapshot(context.Background(), CapabilitySnapshotOptions{})
 
@@ -217,7 +227,10 @@ func TestCapabilitiesSnapshotExposesSkillLoadError(t *testing.T) {
 }
 
 func TestCapabilitiesSnapshotRuntimeReadinessBlocked(t *testing.T) {
-	service := NewCapabilitiesService(baseCapabilitiesConfig(""), fakeSkillSnapshotStore{}, nil, nil)
+	service := NewCapabilitiesService(baseCapabilitiesConfig(""), func(ctx context.Context) (*skills.Snapshot, error) {
+		copied := skills.CopySnapshot(skills.Snapshot{})
+		return &copied, nil
+	}, nil, nil)
 
 	snapshot := service.Snapshot(context.Background(), CapabilitySnapshotOptions{})
 
@@ -230,22 +243,6 @@ func TestCapabilitiesSnapshotRuntimeReadinessBlocked(t *testing.T) {
 	if !strings.Contains(snapshot.RuntimeReadiness.Reason, "api_key is required") {
 		t.Fatalf("runtime readiness reason = %q, want missing api key", snapshot.RuntimeReadiness.Reason)
 	}
-}
-
-type failingSkillSnapshotStore struct {
-	err error
-}
-
-type fakeSkillSnapshotStore struct {
-	snapshot skills.Snapshot
-}
-
-func (s failingSkillSnapshotStore) Snapshot(ctx context.Context) (*skills.Snapshot, error) {
-	return nil, s.err
-}
-
-func (s fakeSkillSnapshotStore) Snapshot(ctx context.Context) (*skills.Snapshot, error) {
-	return new(skills.CopySnapshot(s.snapshot)), nil
 }
 
 func baseCapabilitiesConfig(apiKey string) *config.Config {

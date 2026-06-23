@@ -180,7 +180,7 @@ func buildContainerAppServices(cfg *config.Config, store containerAppStore, deps
 	}
 	container.memory = memoryService
 
-	container.capabilities = NewCapabilitiesService(cfg, container.skills, mcpprovider.Doctor, deps.runnerFactory)
+	container.capabilities = NewCapabilitiesService(cfg, container.skills.Snapshot, mcpprovider.Doctor, deps.runnerFactory)
 	container.deviceAuth = NewDeviceAuthService(store)
 	container.inbox = NewInboxService(store, container.capabilities)
 

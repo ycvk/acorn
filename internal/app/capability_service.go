@@ -112,20 +112,16 @@ type SystemMCPProviderCapability struct {
 	AuthStatus          string   `json:"auth_status,omitempty"`
 }
 
-type skillSnapshotStore interface {
-	Snapshot(ctx context.Context) (*skills.Snapshot, error)
-}
-
 type providerStatusDoctor func(ctx context.Context, cfgs []mcpprovider.ProviderConfig) []mcpprovider.ProviderStatus
 
 type CapabilitiesService struct {
 	cfg            *config.Config
-	skills         skillSnapshotStore
+	skills         func(ctx context.Context) (*skills.Snapshot, error)
 	probeProviders providerStatusDoctor
 	catalogBuilder *runtime.RunnerFactory
 }
 
-func NewCapabilitiesService(cfg *config.Config, skills skillSnapshotStore, probeProviders providerStatusDoctor, catalogBuilder *runtime.RunnerFactory) *CapabilitiesService {
+func NewCapabilitiesService(cfg *config.Config, skills func(ctx context.Context) (*skills.Snapshot, error), probeProviders providerStatusDoctor, catalogBuilder *runtime.RunnerFactory) *CapabilitiesService {
 	return &CapabilitiesService{
 		cfg:            cfg,
 		skills:         skills,
@@ -360,7 +356,7 @@ func (s *CapabilitiesService) snapshotSkills(ctx context.Context) SystemSkillCap
 	if s == nil || s.skills == nil {
 		return SystemSkillCapabilities{}
 	}
-	snapshot, err := s.skills.Snapshot(ctx)
+	snapshot, err := s.skills(ctx)
 	if err != nil {
 		return SystemSkillCapabilities{
 			LoadError: fmt.Sprintf("load stable skills: %v", err),

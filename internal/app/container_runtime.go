@@ -33,7 +33,7 @@ type containerRuntimeStore interface {
 // except as service dependencies which now depend on this wider composite),
 // collapsing the consumer-owned port surface. This is an intentional trade-off
 // (doneCriteria #10): ISP regression is accepted in exchange for consolidating
-// consumer-owned store interfaces to <=5, enforced by
+// consumer-owned store interfaces to <=4, enforced by
 // store_interface_count_test.go.
 type containerAppStore interface {
 	CreateSession(ctx context.Context, sessionID, title string) (*domain.SessionRecord, error)
