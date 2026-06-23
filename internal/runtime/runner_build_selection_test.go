@@ -9,14 +9,14 @@ import (
 )
 
 // runSelectionAsserter is a minimal helper that invokes resolveRunSelectionByResume
-// without wiring a full RunnerFactory. resolveRunSelectionByResume only reads
-// caps.stableSkills and req.SkillID — it does not touch f.deps — so a nil
-// RunnerFactory is safe for this path.
+// without wiring a full SkillSelector. resolveRunSelectionByResume only reads
+// caps.stableSkills and req.SkillID — it does not touch s.deps — so a nil
+// SkillSelector is safe for this path.
 func runSelectionByResume(t *testing.T, req RunnerBuildRequest, stableSkills []skills.Spec) (*runSelection, error) {
 	t.Helper()
-	f := &RunnerFactory{}
+	s := &SkillSelector{}
 	caps := &runCapabilities{stableSkills: stableSkills}
-	return f.resolveRunSelectionByResume(context.Background(), req, caps)
+	return s.resolveRunSelectionByResume(context.Background(), req, caps)
 }
 
 func TestResolveRunSelectionByResumeEmptySkillIDReturnsEmptySelection(t *testing.T) {
@@ -178,8 +178,8 @@ func TestSelectedSkillFromMatchFallbackWhenNotInStable(t *testing.T) {
 
 // Ensure resolveRunSelection guards against nil caps.
 func TestResolveRunSelectionRejectsNilCaps(t *testing.T) {
-	f := &RunnerFactory{}
-	_, err := f.resolveRunSelection(context.Background(), RunnerBuildRequest{Input: "x"}, nil)
+	s := &SkillSelector{}
+	_, err := s.resolveRunSelection(context.Background(), RunnerBuildRequest{Input: "x"}, nil)
 	if err == nil {
 		t.Fatal("resolveRunSelection: expected error for nil caps")
 	}

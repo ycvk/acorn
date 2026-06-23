@@ -29,17 +29,17 @@ import (
 type RunnerFactory struct {
 	deps RuntimeDeps
 
-	mu                 sync.Mutex
-	cachedManager      *mcpprovider.Manager
-	lastSessionOverlay string
-
 	registry     *Registry
 	currentRunID atomic.Value
+	runIDMu      sync.Mutex
 
 	modelBuilder  *ModelBuilder
 	capabilityAsm *CapabilityAssembler
 	toolAssembler *ToolAssembler
 	contextAsm    *ContextAssembler
+	mcpAssembler  *MCPAssembler
+	skillSelector *SkillSelector
+	emitter       *RunEmitter
 }
 
 const (
@@ -108,8 +108,8 @@ func (r *ActiveRunner) Close() error {
 }
 
 func (f *RunnerFactory) setCurrentRunID(runID string) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
+	f.runIDMu.Lock()
+	defer f.runIDMu.Unlock()
 	f.currentRunID.Store(runID)
 }
 
@@ -117,8 +117,8 @@ func (f *RunnerFactory) ClearCurrentRunID(runID string) {
 	if runID == "" {
 		return
 	}
-	f.mu.Lock()
-	defer f.mu.Unlock()
+	f.runIDMu.Lock()
+	defer f.runIDMu.Unlock()
 	if f.currentRunIDValue() == runID {
 		f.currentRunID.Store("")
 	}
@@ -131,6 +131,16 @@ func (f *RunnerFactory) currentRunIDValue() string {
 		return ""
 	}
 	return runID
+}
+
+// Close releases the cached MCP manager owned by the MCPAssembler.
+func (f *RunnerFactory) Close() error {
+	return f.mcpAssembler.Close()
+}
+
+// ReconcileMCPProviders reconciles the cached MCP manager's providers.
+func (f *RunnerFactory) ReconcileMCPProviders(ctx context.Context, providerConfigs []mcpprovider.ProviderConfig) error {
+	return f.mcpAssembler.ReconcileMCPProviders(ctx, providerConfigs)
 }
 
 func newInMemoryCheckpointStore() *inMemoryCheckpointStore {
@@ -146,7 +156,7 @@ func (f *RunnerFactory) buildRunCapabilityAssembly(ctx context.Context, req Runn
 	if f == nil {
 		return nil, errors.New("runner factory is not initialized")
 	}
-	mcpManager, err := f.bootstrapRunMCP(ctx, req)
+	mcpManager, err := f.mcpAssembler.bootstrapRunMCP(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -272,6 +282,9 @@ func assembleRunnerFactory(deps RuntimeDeps) *RunnerFactory {
 		capabilityAsm: NewCapabilityAssembler(deps),
 		toolAssembler: NewToolAssembler(deps),
 		contextAsm:    NewContextAssembler(deps),
+		mcpAssembler:  NewMCPAssembler(deps),
+		skillSelector: NewSkillSelector(deps),
+		emitter:       NewRunEmitter(deps),
 	}
 }
 

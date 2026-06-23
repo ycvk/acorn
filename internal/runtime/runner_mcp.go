@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/schema"
@@ -84,8 +85,25 @@ func hasEnabledProviders(cfgs []mcpprovider.ProviderConfig) bool {
 	return false
 }
 
-func (f *RunnerFactory) bootstrapRunMCP(ctx context.Context, req RunnerBuildRequest) (*mcpprovider.Manager, error) {
-	providerConfigs := mcpprovider.ProviderConfigsFromConfig(f.deps.Config.MCP.Providers)
+// MCPAssembler owns MCP provider manager lifecycle for a RunnerFactory. It
+// caches a single mcpprovider.Manager and reconciles it across session
+// overlays, isolating MCP bootstrap/close from the factory so the factory
+// stays a thin coordinator.
+type MCPAssembler struct {
+	deps RuntimeDeps
+
+	mu                 sync.Mutex
+	cachedManager      *mcpprovider.Manager
+	lastSessionOverlay string
+}
+
+// NewMCPAssembler assembles an MCPAssembler from runtime deps.
+func NewMCPAssembler(deps RuntimeDeps) *MCPAssembler {
+	return &MCPAssembler{deps: deps}
+}
+
+func (m *MCPAssembler) bootstrapRunMCP(ctx context.Context, req RunnerBuildRequest) (*mcpprovider.Manager, error) {
+	providerConfigs := mcpprovider.ProviderConfigsFromConfig(m.deps.Config.MCP.Providers)
 	if !hasEnabledProviders(providerConfigs) {
 		return nil, nil
 	}
@@ -94,7 +112,7 @@ func (f *RunnerFactory) bootstrapRunMCP(ctx context.Context, req RunnerBuildRequ
 	if strings.TrimSpace(req.SessionID) != "" {
 		sessionOverlay = req.SessionID
 	}
-	manager, err := f.getOrCreateMCPManager(ctx, providerConfigs, sessionOverlay)
+	manager, err := m.getOrCreateMCPManager(ctx, providerConfigs, sessionOverlay)
 	if err != nil {
 		return nil, err
 	}
@@ -102,39 +120,39 @@ func (f *RunnerFactory) bootstrapRunMCP(ctx context.Context, req RunnerBuildRequ
 	return manager, nil
 }
 
-func (f *RunnerFactory) getOrCreateMCPManager(ctx context.Context, providerConfigs []mcpprovider.ProviderConfig, sessionOverlay string) (*mcpprovider.Manager, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	if f.cachedManager == nil {
-		return f.createMCPManager(ctx, providerConfigs, sessionOverlay)
+func (m *MCPAssembler) getOrCreateMCPManager(ctx context.Context, providerConfigs []mcpprovider.ProviderConfig, sessionOverlay string) (*mcpprovider.Manager, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.cachedManager == nil {
+		return m.createMCPManager(ctx, providerConfigs, sessionOverlay)
 	}
-	if f.lastSessionOverlay != sessionOverlay {
-		if err := f.cachedManager.ReconcileProviders(ctx, providerConfigs); err != nil {
+	if m.lastSessionOverlay != sessionOverlay {
+		if err := m.cachedManager.ReconcileProviders(ctx, providerConfigs); err != nil {
 			return nil, fmt.Errorf("reconcile MCP providers for new session overlay: %w", err)
 		}
-		f.lastSessionOverlay = sessionOverlay
+		m.lastSessionOverlay = sessionOverlay
 	}
-	return f.cachedManager, nil
+	return m.cachedManager, nil
 }
 
-func (f *RunnerFactory) createMCPManager(ctx context.Context, providerConfigs []mcpprovider.ProviderConfig, sessionOverlay string) (*mcpprovider.Manager, error) {
-	pendingActionStore := mcpprovider.PendingActionStore(f.deps.Store)
-	if f.deps.MCPPendingActions != nil {
-		pendingActionStore = f.deps.MCPPendingActions
+func (m *MCPAssembler) createMCPManager(ctx context.Context, providerConfigs []mcpprovider.ProviderConfig, sessionOverlay string) (*mcpprovider.Manager, error) {
+	pendingActionStore := mcpprovider.PendingActionStore(m.deps.Store)
+	if m.deps.MCPPendingActions != nil {
+		pendingActionStore = m.deps.MCPPendingActions
 	}
-	mgr, err := mcpprovider.NewManager(ctx, providerConfigs, mcpprovider.WithTokenStore(f.deps.Store), mcpprovider.WithStore(pendingActionStore))
+	mgr, err := mcpprovider.NewManager(ctx, providerConfigs, mcpprovider.WithTokenStore(m.deps.Store), mcpprovider.WithStore(pendingActionStore))
 	if err != nil {
 		return nil, err
 	}
-	f.cachedManager = mgr
-	f.lastSessionOverlay = sessionOverlay
+	m.cachedManager = mgr
+	m.lastSessionOverlay = sessionOverlay
 	return mgr, nil
 }
 
-func (f *RunnerFactory) ReconcileMCPProviders(ctx context.Context, providerConfigs []mcpprovider.ProviderConfig) error {
-	f.mu.Lock()
-	mgr := f.cachedManager
-	f.mu.Unlock()
+func (m *MCPAssembler) ReconcileMCPProviders(ctx context.Context, providerConfigs []mcpprovider.ProviderConfig) error {
+	m.mu.Lock()
+	mgr := m.cachedManager
+	m.mu.Unlock()
 
 	if mgr == nil {
 		return nil
@@ -143,15 +161,15 @@ func (f *RunnerFactory) ReconcileMCPProviders(ctx context.Context, providerConfi
 	return mgr.ReconcileProviders(ctx, providerConfigs)
 }
 
-func (f *RunnerFactory) Close() error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
+func (m *MCPAssembler) Close() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
 	var closeErr error
-	if f.cachedManager != nil {
-		closeErr = errors.Join(closeErr, f.cachedManager.Close())
-		f.cachedManager = nil
-		f.lastSessionOverlay = ""
+	if m.cachedManager != nil {
+		closeErr = errors.Join(closeErr, m.cachedManager.Close())
+		m.cachedManager = nil
+		m.lastSessionOverlay = ""
 	}
 	return closeErr
 }
