@@ -282,20 +282,24 @@ func TestConsumeEmptyIteratorReturnsSucceededWithEmptyOutput(t *testing.T) {
 	}
 }
 
-func TestConsumeMessageReplacesDeltaOutput(t *testing.T) {
-
+func TestConsumeStreamingEventThenMessageReplacesOutput(t *testing.T) {
 	exec, _ := newTestExecutor(t)
 
 	iter, gen := adk.NewAsyncIteratorPair[*adk.AgentEvent]()
+	// First event: streaming output — IsStreaming=true causes GetMessage() to
+	// consume the stream via concatMessageStream, producing an assistant_message
+	// StreamItem whose Content replaces lastOutput.
 	gen.Send(&adk.AgentEvent{
 		Output: &adk.AgentOutput{
 			MessageOutput: &adk.MessageVariant{
+				IsStreaming: true,
 				MessageStream: schema.StreamReaderFromArray([]*schema.Message{
-					schema.AssistantMessage("partial", nil),
+					schema.AssistantMessage("partial stream output", nil),
 				}),
 			},
 		},
 	})
+	// Second event: non-streaming message — replaces the streamed output.
 	gen.Send(&adk.AgentEvent{
 		Output: &adk.AgentOutput{
 			MessageOutput: &adk.MessageVariant{
@@ -313,7 +317,20 @@ func TestConsumeMessageReplacesDeltaOutput(t *testing.T) {
 		t.Errorf("status = %q, want succeeded", result.Status)
 	}
 	if result.Output != "final answer" {
-		t.Errorf("output = %q, want 'final answer' (message replaces delta)", result.Output)
+		t.Errorf("output = %q, want 'final answer' (non-streaming message replaces streamed output)", result.Output)
+	}
+	// Verify both events produced StreamItems appended to the store.
+	st := exec.store.(*fakeExecutorStore)
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	assistantMsgCount := 0
+	for _, ev := range st.appendedEvents {
+		if ev.kind == "agent.message" {
+			assistantMsgCount++
+		}
+	}
+	if assistantMsgCount != 2 {
+		t.Errorf("assistant_message events = %d, want 2 (streaming + final)", assistantMsgCount)
 	}
 }
 
