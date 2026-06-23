@@ -14,13 +14,6 @@ import (
 )
 
 type ClientService interface {
-	ListThreads(ctx context.Context, limit int) ([]app.Thread, error)
-	CreateThread(ctx context.Context, title string) (*app.Thread, error)
-	GetThread(ctx context.Context, threadID string) (*app.Thread, error)
-	UpdateThread(ctx context.Context, threadID, title string) (*app.Thread, error)
-	DeleteThread(ctx context.Context, threadID string) error
-	ListMessages(ctx context.Context, threadID string, limit int) ([]app.Message, error)
-	CreateMessage(ctx context.Context, threadID, content string) (*app.Message, error)
 	CreateRun(ctx context.Context, threadID, skillID, input string) (*app.Run, error)
 	GetRun(ctx context.Context, runID string) (*app.Run, error)
 	LoadRunEventsAfter(ctx context.Context, runID string, afterSeq int64) (*clientevents.RunEventBatch, error)
@@ -29,6 +22,16 @@ type ClientService interface {
 	RunIsTerminal(ctx context.Context, runID string) (bool, error)
 	InterruptRun(ctx context.Context, runID string) error
 	EventPollInterval() time.Duration
+}
+
+type ThreadService interface {
+	ListThreads(ctx context.Context, limit int) ([]app.Thread, error)
+	CreateThread(ctx context.Context, title string) (*app.Thread, error)
+	GetThread(ctx context.Context, threadID string) (*app.Thread, error)
+	UpdateThread(ctx context.Context, threadID, title string) (*app.Thread, error)
+	DeleteThread(ctx context.Context, threadID string) error
+	ListMessages(ctx context.Context, threadID string, limit int) ([]app.Message, error)
+	CreateMessage(ctx context.Context, threadID, content string) (*app.Message, error)
 }
 
 type PendingActionService interface {
@@ -73,6 +76,7 @@ type DeviceAuthService interface {
 
 type Dependencies struct {
 	Client        ClientService
+	Threads       ThreadService
 	PendingAction PendingActionService
 	RunResume     RunResumeService
 	Memory        MemoryService
@@ -86,6 +90,7 @@ type Dependencies struct {
 
 type Server struct {
 	client        ClientService
+	threads       ThreadService
 	pendingAction PendingActionService
 	runResume     RunResumeService
 	memory        MemoryService

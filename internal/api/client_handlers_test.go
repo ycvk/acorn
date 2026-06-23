@@ -801,6 +801,7 @@ func TestClientResourceSurfaceHandlers(t *testing.T) {
 	}
 	server := &Server{
 		client:       service,
+		threads:      service,
 		runResume:    &clientRunResumeStub{result: &app.RunResult{RunID: "run_1", Status: "interrupted"}},
 		capabilities: capabilities,
 		pendingAction: &pendingActionHandlerStub{
@@ -1009,10 +1010,11 @@ func TestClientResourceSurfaceHandlers(t *testing.T) {
 
 func TestLegacyRouteGroupIsNotMounted(t *testing.T) {
 	server := &Server{
-		client: &clientHandlerStub{},
-		skills: &clientSkillStub{},
-		memory: &clientMemoryStub{},
-		logger: slog.New(slog.NewTextHandler(bytes.NewBuffer(nil), nil)),
+		client:  &clientHandlerStub{},
+		threads: &clientHandlerStub{},
+		skills:  &clientSkillStub{},
+		memory:  &clientMemoryStub{},
+		logger:  slog.New(slog.NewTextHandler(bytes.NewBuffer(nil), nil)),
 	}
 	router := chi.NewRouter()
 	server.registerRoutes(router)
@@ -1051,9 +1053,10 @@ func TestLegacyRouteGroupIsNotMounted(t *testing.T) {
 	}
 }
 
-func newClientHandlerTestRouter(service ClientService) http.Handler {
+func newClientHandlerTestRouter(service *clientHandlerStub) http.Handler {
 	server := &Server{
 		client:     service,
+		threads:    service,
 		deviceAuth: &deviceAuthHandlerStub{},
 		logger:     slog.New(slog.NewTextHandler(bytes.NewBuffer(nil), nil)),
 	}
@@ -1311,6 +1314,7 @@ func (s *clientHandlerStub) EventPollInterval() time.Duration {
 }
 
 var _ ClientService = (*clientHandlerStub)(nil)
+var _ ThreadService = (*clientHandlerStub)(nil)
 
 type pendingActionHandlerStub struct {
 	record      domain.PendingActionRecord

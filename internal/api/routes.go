@@ -14,6 +14,9 @@ func NewHandler(deps Dependencies) (http.Handler, error) {
 	if deps.Client == nil {
 		return nil, errors.New("web client service is required")
 	}
+	if deps.Threads == nil {
+		return nil, errors.New("web thread service is required")
+	}
 	if deps.PendingAction == nil {
 		return nil, errors.New("web pending action service is required")
 	}
@@ -43,6 +46,7 @@ func NewHandler(deps Dependencies) (http.Handler, error) {
 
 	server := &Server{
 		client:        deps.Client,
+		threads:       deps.Threads,
 		pendingAction: deps.PendingAction,
 		runResume:     deps.RunResume,
 		memory:        deps.Memory,

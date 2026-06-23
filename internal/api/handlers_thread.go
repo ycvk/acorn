@@ -12,7 +12,7 @@ func (s *Server) handleClientListThreads(w http.ResponseWriter, r *http.Request)
 		s.respondBadRequest(w, r, err.Error())
 		return
 	}
-	items, err := s.client.ListThreads(r.Context(), limit)
+	items, err := s.threads.ListThreads(r.Context(), limit)
 	if err != nil {
 		s.respondClientKnownError(w, r, err)
 		return
@@ -25,7 +25,7 @@ func (s *Server) handleClientCreateThread(w http.ResponseWriter, r *http.Request
 	if !ok {
 		return
 	}
-	item, err := s.client.CreateThread(r.Context(), req.Title)
+	item, err := s.threads.CreateThread(r.Context(), req.Title)
 	if err != nil {
 		s.respondClientKnownError(w, r, err)
 		return
@@ -34,7 +34,7 @@ func (s *Server) handleClientCreateThread(w http.ResponseWriter, r *http.Request
 }
 
 func (s *Server) handleClientGetThread(w http.ResponseWriter, r *http.Request) {
-	item, err := s.client.GetThread(r.Context(), chi.URLParam(r, "thread_id"))
+	item, err := s.threads.GetThread(r.Context(), chi.URLParam(r, "thread_id"))
 	if err != nil {
 		s.respondClientKnownError(w, r, err)
 		return
@@ -47,7 +47,7 @@ func (s *Server) handleClientUpdateThread(w http.ResponseWriter, r *http.Request
 	if !ok {
 		return
 	}
-	item, err := s.client.UpdateThread(r.Context(), chi.URLParam(r, "thread_id"), req.Title)
+	item, err := s.threads.UpdateThread(r.Context(), chi.URLParam(r, "thread_id"), req.Title)
 	if err != nil {
 		s.respondClientKnownError(w, r, err)
 		return
@@ -56,7 +56,7 @@ func (s *Server) handleClientUpdateThread(w http.ResponseWriter, r *http.Request
 }
 
 func (s *Server) handleClientDeleteThread(w http.ResponseWriter, r *http.Request) {
-	if err := s.client.DeleteThread(r.Context(), chi.URLParam(r, "thread_id")); err != nil {
+	if err := s.threads.DeleteThread(r.Context(), chi.URLParam(r, "thread_id")); err != nil {
 		s.respondClientKnownError(w, r, err)
 		return
 	}

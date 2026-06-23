@@ -24,7 +24,7 @@ import (
 
 func TestProjectThread(t *testing.T) {
 	now := time.Date(2026, 5, 2, 10, 0, 0, 0, time.UTC)
-	service := BuildClientService(nil, nil, nil, "/repo")
+	service := NewThreadService(nil, "/repo")
 
 	thread, err := service.projectThread(domain.SessionRecord{
 		SessionID: "session_1",
@@ -53,7 +53,7 @@ func TestClientCreateMessageBackfillsEmptyThreadTitle(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = store.Close() })
 
-	service := BuildClientService(store, nil, nil, "/repo")
+	service := NewThreadService(store, "/repo")
 	service.newThreadID = func() string { return "thread_title" }
 
 	thread, err := service.CreateThread(ctx, "")
@@ -88,7 +88,7 @@ func TestClientListThreadsProjectsTitleFromRecentUserMessage(t *testing.T) {
 	if _, err := store.AppendSessionMessage(ctx, session.SessionID, 1, "user", "How do I configure pairing on the VPS?", ""); err != nil {
 		t.Fatalf("AppendSessionMessage: %v", err)
 	}
-	service := BuildClientService(store, nil, nil, "/repo")
+	service := NewThreadService(store, "/repo")
 
 	threads, err := service.ListThreads(ctx, 10)
 	if err != nil {
@@ -617,14 +617,14 @@ func TestClientCreateRunUsesRealExecutorPath(t *testing.T) {
 	service := BuildClientService(store, func(context.Context) (executorHandle, error) {
 		return runtimeExecutorHandle{exec: executor}, nil
 	}, nil, cfg.WorkspaceRoot())
-	service.newThreadID = func() string { return "thread_runtime" }
+	service.threads.newThreadID = func() string { return "thread_runtime" }
 	service.newRunID = func() string { return "run_runtime" }
 
-	thread, err := service.CreateThread(ctx, "runtime")
+	thread, err := service.threads.CreateThread(ctx, "runtime")
 	if err != nil {
 		t.Fatalf("CreateThread: %v", err)
 	}
-	message, err := service.CreateMessage(ctx, thread.ID, "hello")
+	message, err := service.threads.CreateMessage(ctx, thread.ID, "hello")
 	if err != nil {
 		t.Fatalf("CreateMessage: %v", err)
 	}
@@ -685,14 +685,14 @@ func TestClientCreateRunReturnsExecutionNotReady(t *testing.T) {
 	service := BuildClientService(store, func(context.Context) (executorHandle, error) {
 		return nil, domain.ErrExecutionNotReady
 	}, nil, "/repo")
-	service.newThreadID = func() string { return "thread_not_ready" }
+	service.threads.newThreadID = func() string { return "thread_not_ready" }
 	service.newRunID = func() string { return "run_not_ready" }
 
-	thread, err := service.CreateThread(ctx, "not ready")
+	thread, err := service.threads.CreateThread(ctx, "not ready")
 	if err != nil {
 		t.Fatalf("CreateThread: %v", err)
 	}
-	if _, err := service.CreateMessage(ctx, thread.ID, "hello"); err != nil {
+	if _, err := service.threads.CreateMessage(ctx, thread.ID, "hello"); err != nil {
 		t.Fatalf("CreateMessage: %v", err)
 	}
 	_, err = service.CreateRun(ctx, thread.ID, "", "")
@@ -724,7 +724,7 @@ func TestClientCreateRunReportsPostStartPersistenceFailure(t *testing.T) {
 	service := BuildClientService(db, func(context.Context) (executorHandle, error) {
 		return exec, nil
 	}, nil, "/repo")
-	service.newThreadID = func() string { return "thread_post_start_failure" }
+	service.threads.newThreadID = func() string { return "thread_post_start_failure" }
 	service.newRunID = func() string { return "run_post_start_failure" }
 	reported := make(chan error, 1)
 	service.reportError = func(_ context.Context, runID string, err error) {
@@ -734,11 +734,11 @@ func TestClientCreateRunReportsPostStartPersistenceFailure(t *testing.T) {
 		reported <- err
 	}
 
-	thread, err := service.CreateThread(ctx, "post-start failure")
+	thread, err := service.threads.CreateThread(ctx, "post-start failure")
 	if err != nil {
 		t.Fatalf("CreateThread: %v", err)
 	}
-	if _, err := service.CreateMessage(ctx, thread.ID, "hello"); err != nil {
+	if _, err := service.threads.CreateMessage(ctx, thread.ID, "hello"); err != nil {
 		t.Fatalf("CreateMessage: %v", err)
 	}
 	run, err := service.CreateRun(ctx, thread.ID, "", "")

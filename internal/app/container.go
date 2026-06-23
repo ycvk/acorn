@@ -23,6 +23,7 @@ type Container struct {
 	runResume     *RunResumeService
 	skills        *SkillService
 	client        *ClientService
+	threads       *ThreadService
 	pendingAction *PendingActionService
 	memory        *MemoryService
 	capabilities  *CapabilitiesService
@@ -44,9 +45,12 @@ func (c *Container) Config() *config.Config {
 func (c *Container) RunResume() *RunResumeService {
 	return c.runResume
 }
-
 func (c *Container) Client() *ClientService {
 	return c.client
+}
+
+func (c *Container) Threads() *ThreadService {
+	return c.threads
 }
 
 func (c *Container) PendingAction() *PendingActionService {
@@ -172,6 +176,7 @@ func buildContainerAppServices(cfg *config.Config, store containerAppStore, deps
 		workspaceRoot = deps.ws.Root()
 	}
 	container.client = BuildClientService(store, deps.executors, deps.runController, workspaceRoot)
+	container.threads = container.client.threads
 	container.pendingAction = NewPendingActionService(store)
 
 	memoryService, err := NewMemoryService(deps.memoryModule)

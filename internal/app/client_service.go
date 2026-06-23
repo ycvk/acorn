@@ -20,11 +20,11 @@ import (
 
 type ClientService struct {
 	store         containerAppStore
+	threads       *ThreadService
 	newExecutor   func(context.Context) (executorHandle, error)
 	controller    *runtime.RunController
 	workspaceRoot string
 	eventPoll     time.Duration
-	newThreadID   func() string
 	newRunID      func() string
 	reportError   func(context.Context, string, error)
 }
@@ -32,18 +32,14 @@ type ClientService struct {
 func BuildClientService(store containerAppStore, newExecutor func(context.Context) (executorHandle, error), controller *runtime.RunController, workspaceRoot string) *ClientService {
 	return &ClientService{
 		store:         store,
+		threads:       NewThreadService(store, workspaceRoot),
 		newExecutor:   newExecutor,
 		controller:    controller,
 		workspaceRoot: workspaceRoot,
 		eventPoll:     100 * time.Millisecond,
-		newThreadID:   newThreadID,
 		newRunID:      newRunID,
 		reportError:   reportClientBackgroundError,
 	}
-}
-
-func newThreadID() string {
-	return fmt.Sprintf("session_%d", time.Now().UTC().UnixNano())
 }
 
 func newRunID() string {
@@ -110,7 +106,7 @@ func (s *ClientService) CreateRun(ctx context.Context, threadID, skillID, input 
 	var message *domain.SessionMessageRecord
 	var err error
 	if strings.TrimSpace(input) != "" {
-		message, err = s.createUserMessage(ctx, threadID, input)
+		message, err = s.threads.createUserMessage(ctx, threadID, input)
 		if err != nil {
 			return nil, err
 		}

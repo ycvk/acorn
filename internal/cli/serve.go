@@ -39,6 +39,7 @@ func runServe(ctx context.Context, args []string) error {
 
 	handler, err := api.NewHandler(api.Dependencies{
 		Client:        container.Client(),
+		Threads:       container.Threads(),
 		PendingAction: container.PendingAction(),
 		RunResume:     container.RunResume(),
 		Memory:        container.Memory(),

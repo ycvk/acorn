@@ -58,7 +58,7 @@ func (s *Server) handleClientRunDetail(w http.ResponseWriter, r *http.Request) {
 		s.respondClientKnownError(w, r, err)
 		return
 	}
-	thread, err := s.client.GetThread(r.Context(), run.ThreadID)
+	thread, err := s.threads.GetThread(r.Context(), run.ThreadID)
 	if err != nil {
 		s.respondClientKnownError(w, r, err)
 		return
