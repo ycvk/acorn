@@ -17,6 +17,19 @@ import (
 	"github.com/ycvk/acorn/internal/tools"
 )
 
+// ToolAssembler owns tool assembly for a run: building audited tools from
+// catalog specs, binding session/tool-lifecycle context, and assembling the
+// instruction + middleware chain. It isolates tool wiring from the
+// RunnerFactory so the factory stays a thin coordinator.
+type ToolAssembler struct {
+	deps RuntimeDeps
+}
+
+// NewToolAssembler assembles a ToolAssembler from runtime deps.
+func NewToolAssembler(deps RuntimeDeps) *ToolAssembler {
+	return &ToolAssembler{deps: deps}
+}
+
 // toolAssemblyParams holds the fields BuildDirectResponse shares when
 // assembling tools, instruction, handlers, and the bound run context.
 type toolAssemblyParams struct {
@@ -40,7 +53,8 @@ type assembledTooling struct {
 
 // assembleTooling builds the tool set, instruction, handlers, and the run context
 // bound with session + tool lifecycle.
-func assembleTooling(ctx context.Context, deps RuntimeDeps, params toolAssemblyParams) (*assembledTooling, error) {
+func (a *ToolAssembler) assembleTooling(ctx context.Context, params toolAssemblyParams) (*assembledTooling, error) {
+	deps := a.deps
 	toolBuilder := deps.ToolBuilder
 	if toolBuilder == nil {
 		toolBuilder = func(ctx context.Context, store RunnerFactoryStore, specs []tools.ToolSpec, excludedToolNames []string, allowedToolNames []string, runID string) ([]einotool.BaseTool, error) {
@@ -94,7 +108,7 @@ func buildDirectResponse(ctx context.Context, deps RuntimeDeps, req DirectRespon
 		return nil, fmt.Errorf("context plane lifecycle state is required")
 	}
 
-	assembled, err := assembleTooling(ctx, deps, toolAssemblyParams{
+	assembled, err := (&ToolAssembler{deps: deps}).assembleTooling(ctx, toolAssemblyParams{
 		catalog:           req.Catalog,
 		contextResult:     req.ContextResult,
 		allowedToolNames:  req.AllowedToolNames,

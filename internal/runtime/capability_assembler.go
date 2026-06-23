@@ -11,12 +11,25 @@ import (
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/domain"
+	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
 	"github.com/ycvk/acorn/internal/runtime/factextract"
 	"github.com/ycvk/acorn/internal/runtime/tooldispatch"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/tools"
 	"github.com/ycvk/acorn/internal/webaccess"
 )
+
+// CapabilityAssembler owns toolset/capability construction for a run. It
+// isolates the local tool catalog, aux tool, and MCP-augmented capability
+// assembly from the RunnerFactory so the factory stays a thin coordinator.
+type CapabilityAssembler struct {
+	deps RuntimeDeps
+}
+
+// NewCapabilityAssembler assembles a CapabilityAssembler from runtime deps.
+func NewCapabilityAssembler(deps RuntimeDeps) *CapabilityAssembler {
+	return &CapabilityAssembler{deps: deps}
+}
 
 type artifactToolBridge struct{}
 
@@ -32,56 +45,56 @@ func (artifactToolBridge) CurrentToolCallID(ctx context.Context) string {
 	return tooldispatch.ToolAuditCallID(ctx)
 }
 
-func (f *RunnerFactory) buildRunToolset(ctx context.Context, sessionID string) (*Toolset, error) {
-	return f.buildToolset(ctx, sessionID, true)
+func (a *CapabilityAssembler) buildRunToolset(ctx context.Context, sessionID string) (*Toolset, error) {
+	return a.buildToolset(ctx, sessionID, true)
 }
 
-func (f *RunnerFactory) buildToolset(
+func (a *CapabilityAssembler) buildToolset(
 	ctx context.Context,
 	sessionID string,
 	includePlanning bool,
 ) (_ *Toolset, err error) {
-	if err := f.validateToolsetDeps(); err != nil {
+	if err := a.validateToolsetDeps(); err != nil {
 		return nil, err
 	}
 	var closers []io.Closer
 	defer func() { closeToolsetOnErr(closers, &err) }()
-	local, err := f.buildLocalToolset()
+	local, err := a.buildLocalToolset()
 	if err != nil {
 		return nil, err
 	}
 	closers = append(closers, local.closers...)
-	aux, err := f.buildAuxTools(ctx)
+	aux, err := a.buildAuxTools(ctx)
 	if err != nil {
 		return nil, err
 	}
-	catalog, err := assembleToolsetCatalog(ctx, f.deps.Config, local.catalog, aux, includePlanning)
+	catalog, err := assembleToolsetCatalog(ctx, a.deps.Config, local.catalog, aux, includePlanning)
 	if err != nil {
 		return nil, err
 	}
 	return NewToolset(catalog, closers...), nil
 }
 
-func (f *RunnerFactory) validateToolsetDeps() error {
-	if f == nil || f.deps.Config == nil {
+func (a *CapabilityAssembler) validateToolsetDeps() error {
+	if a == nil || a.deps.Config == nil {
 		return errors.New("runner factory is not initialized")
 	}
-	if f.deps.Workspace == nil {
+	if a.deps.Workspace == nil {
 		return errors.New("workspace contract is not initialized")
 	}
-	if f.deps.ArtifactService == nil {
+	if a.deps.ArtifactService == nil {
 		return errors.New("artifact service is not initialized")
 	}
 	return nil
 }
 
-func (f *RunnerFactory) buildLocalToolset() (localToolset, error) {
+func (a *CapabilityAssembler) buildLocalToolset() (localToolset, error) {
 	var out localToolset
-	services, err := f.buildToolsetWebServices()
+	services, err := a.buildToolsetWebServices()
 	if err != nil {
 		return out, err
 	}
-	out.catalog, out.closers, err = f.buildLocalCatalog(services)
+	out.catalog, out.closers, err = a.buildLocalCatalog(services)
 	return out, err
 }
 
@@ -163,8 +176,8 @@ type auxTools struct {
 	skill  []einotool.BaseTool
 }
 
-func (f *RunnerFactory) buildToolsetWebServices() (toolsetWebServices, error) {
-	cfg := f.deps.Config.WebAccess
+func (a *CapabilityAssembler) buildToolsetWebServices() (toolsetWebServices, error) {
+	cfg := a.deps.Config.WebAccess
 	fetch, err := webaccess.NewFetchService(webaccess.FetchConfig{
 		UserAgent:        cfg.UserAgent,
 		Timeout:          time.Duration(cfg.TimeoutSeconds) * time.Second,
@@ -187,9 +200,9 @@ func (f *RunnerFactory) buildToolsetWebServices() (toolsetWebServices, error) {
 	return toolsetWebServices{fetch: fetch, search: search}, nil
 }
 
-func (f *RunnerFactory) buildBrowserService() (*tools.Service, error) {
-	browserCfg := f.deps.Config.Browser
-	webCfg := f.deps.Config.WebAccess
+func (a *CapabilityAssembler) buildBrowserService() (*tools.Service, error) {
+	browserCfg := a.deps.Config.Browser
+	webCfg := a.deps.Config.WebAccess
 	return tools.NewService(tools.Config{
 		ExecutablePath: strings.TrimSpace(browserCfg.ExecutablePath),
 		Headless:       browserCfg.Headless,
@@ -199,41 +212,41 @@ func (f *RunnerFactory) buildBrowserService() (*tools.Service, error) {
 	})
 }
 
-func (f *RunnerFactory) resolveOperatorStore() tools.OperatorQuestionStore {
-	if f.deps.MCPPendingActions != nil {
-		return f.deps.MCPPendingActions
+func (a *CapabilityAssembler) resolveOperatorStore() tools.OperatorQuestionStore {
+	if a.deps.MCPPendingActions != nil {
+		return a.deps.MCPPendingActions
 	}
-	return f.deps.Store
+	return a.deps.Store
 }
 
-func (f *RunnerFactory) buildLocalCatalog(services toolsetWebServices) (*tools.LocalCatalog, []io.Closer, error) {
-	browser, err := f.buildBrowserService()
+func (a *CapabilityAssembler) buildLocalCatalog(services toolsetWebServices) (*tools.LocalCatalog, []io.Closer, error) {
+	browser, err := a.buildBrowserService()
 	if err != nil {
 		return nil, nil, fmt.Errorf("browser service: %w", err)
 	}
 	catalog, err := tools.BuildCatalog(tools.CatalogConfig{
-		Workspace:         f.deps.Workspace,
-		MutationEnabled:   !f.deps.Config.Tools.Mutation.Disabled,
-		RunCommandEnabled: !f.deps.Config.Tools.RunCommand.Disabled,
-		ArtifactService:   f.deps.ArtifactService,
+		Workspace:         a.deps.Workspace,
+		MutationEnabled:   !a.deps.Config.Tools.Mutation.Disabled,
+		RunCommandEnabled: !a.deps.Config.Tools.RunCommand.Disabled,
+		ArtifactService:   a.deps.ArtifactService,
 		ArtifactContext:   artifactToolBridge{},
-		OperatorStore:     f.resolveOperatorStore(),
+		OperatorStore:     a.resolveOperatorStore(),
 		OperatorContext:   artifactToolBridge{},
 		WebFetchService:   services.fetch,
 		WebSearchService:  services.search,
 		BrowserService:    browser,
-	}, f.deps.ExtraLocalTools)
+	}, a.deps.ExtraLocalTools)
 	return catalog, []io.Closer{browser}, err
 }
 
-func (f *RunnerFactory) buildAuxTools(ctx context.Context) (auxTools, error) {
+func (a *CapabilityAssembler) buildAuxTools(ctx context.Context) (auxTools, error) {
 	var out auxTools
-	memory, err := f.buildMemoryTools(ctx)
+	memory, err := a.buildMemoryTools(ctx)
 	if err != nil {
 		return out, err
 	}
 	out.memory = memory
-	skillTools, err := skills.BuildAgentTools(f.deps.Loader)
+	skillTools, err := skills.BuildAgentTools(a.deps.Loader)
 	if err != nil {
 		return out, fmt.Errorf("build skill tools: %w", err)
 	}
@@ -241,11 +254,51 @@ func (f *RunnerFactory) buildAuxTools(ctx context.Context) (auxTools, error) {
 	return out, nil
 }
 
-func (f *RunnerFactory) buildMemoryTools(ctx context.Context) ([]einotool.BaseTool, error) {
-	if f.deps.MemoryModule == nil {
+func (a *CapabilityAssembler) buildMemoryTools(ctx context.Context) ([]einotool.BaseTool, error) {
+	if a.deps.MemoryModule == nil {
 		return nil, nil
 	}
-	return factextract.BuildMemoryFileTools(ctx, f.deps.MemoryModule)
+	return factextract.BuildMemoryFileTools(ctx, a.deps.MemoryModule)
+}
+
+// buildRunCapabilities builds the run's tool catalog (local tools + MCP specs)
+// and resolves a stable skill snapshot for capability eligibility.
+func (a *CapabilityAssembler) buildRunCapabilities(ctx context.Context, sessionID string, mcpManager *mcpprovider.Manager) (*runCapabilities, error) {
+	toolset, err := a.buildRunToolset(ctx, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if err != nil {
+			_ = toolset.Close()
+		}
+	}()
+	catalog, err := a.assembleRunCapabilitiesCatalog(ctx, toolset, mcpManager)
+	if err != nil {
+		return nil, err
+	}
+	skillSnapshot, err := loadStableSkillSnapshot(ctx, a.deps.Loader, skillEligibilityContextFromCatalog(catalog))
+	if err != nil {
+		return nil, err
+	}
+	return &runCapabilities{
+		catalog:       catalog,
+		skillSnapshot: skillSnapshot,
+		stableSkills:  stableSkillsFromSnapshot(skillSnapshot),
+		close:         toolset.Close,
+	}, nil
+}
+
+// assembleRunCapabilitiesCatalog merges the local toolset catalog with MCP tool
+// specs into the final run capability catalog.
+func (a *CapabilityAssembler) assembleRunCapabilitiesCatalog(ctx context.Context, toolset *Toolset, mcpManager *mcpprovider.Manager) (*tools.Catalog, error) {
+	specs := append([]tools.ToolSpec(nil), toolset.Catalog().Specs()...)
+	mcpSpecs, err := buildMCPToolSpecs(ctx, a.deps.Config, mcpManager)
+	if err != nil {
+		return nil, err
+	}
+	specs = append(specs, mcpSpecs...)
+	return tools.NewCatalog(ctx, specs)
 }
 
 func NewToolset(catalog *tools.Catalog, closers ...io.Closer) *Toolset {

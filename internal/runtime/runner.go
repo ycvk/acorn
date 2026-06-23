@@ -37,7 +37,9 @@ type RunnerFactory struct {
 	registry     *Registry
 	currentRunID atomic.Value
 
-	modelBuilder *ModelBuilder
+	modelBuilder  *ModelBuilder
+	capabilityAsm *CapabilityAssembler
+	toolAssembler *ToolAssembler
 }
 
 const (
@@ -58,7 +60,7 @@ func (f *RunnerFactory) New(ctx context.Context, req RunnerBuildRequest) (*Activ
 }
 
 func (f *RunnerFactory) BuildCapabilitySpecs(ctx context.Context) ([]tools.ToolSpec, error) {
-	toolset, err := f.buildToolset(ctx, "", true)
+	toolset, err := f.capabilityAsm.buildToolset(ctx, "", true)
 	if err != nil {
 		return nil, err
 	}
@@ -148,7 +150,7 @@ func (f *RunnerFactory) buildRunCapabilityAssembly(ctx context.Context, req Runn
 	if err != nil {
 		return nil, err
 	}
-	capabilities, err := f.buildRunCapabilities(ctx, req.SessionID, mcpManager)
+	capabilities, err := f.capabilityAsm.buildRunCapabilities(ctx, req.SessionID, mcpManager)
 	if err != nil {
 		return nil, err
 	}
@@ -257,42 +259,6 @@ func (f *RunnerFactory) directResponseRequest(bf baseAssemblyFields, req RunnerB
 		ExcludedToolNames: bf.excludedToolNames,
 		InstructionSuffix: req.InstructionSuffix,
 	}
-}
-
-func (f *RunnerFactory) buildRunCapabilities(ctx context.Context, sessionID string, mcpManager *mcpprovider.Manager) (*runCapabilities, error) {
-	toolset, err := f.buildRunToolset(ctx, sessionID)
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		if err != nil {
-			_ = toolset.Close()
-		}
-	}()
-	catalog, err := f.assembleRunCapabilitiesCatalog(ctx, toolset, mcpManager)
-	if err != nil {
-		return nil, err
-	}
-	skillSnapshot, err := loadStableSkillSnapshot(ctx, f.deps.Loader, skillEligibilityContextFromCatalog(catalog))
-	if err != nil {
-		return nil, err
-	}
-	return &runCapabilities{
-		catalog:       catalog,
-		skillSnapshot: skillSnapshot,
-		stableSkills:  stableSkillsFromSnapshot(skillSnapshot),
-		close:         toolset.Close,
-	}, nil
-}
-
-func (f *RunnerFactory) assembleRunCapabilitiesCatalog(ctx context.Context, toolset *Toolset, mcpManager *mcpprovider.Manager) (*tools.Catalog, error) {
-	specs := append([]tools.ToolSpec(nil), toolset.Catalog().Specs()...)
-	mcpSpecs, err := f.buildMCPToolSpecs(ctx, mcpManager)
-	if err != nil {
-		return nil, err
-	}
-	specs = append(specs, mcpSpecs...)
-	return tools.NewCatalog(ctx, specs)
 }
 
 type capabilityAssembly struct {
@@ -420,9 +386,11 @@ func resolveContextPlaneTokenPolicy(cfg *config.Config) (memoryBudget, maxContex
 
 func assembleRunnerFactory(deps RuntimeDeps) *RunnerFactory {
 	return &RunnerFactory{
-		deps:         deps,
-		registry:     NewRegistry(),
-		modelBuilder: NewModelBuilder(deps.Config),
+		deps:          deps,
+		registry:      NewRegistry(),
+		modelBuilder:  NewModelBuilder(deps.Config),
+		capabilityAsm: NewCapabilityAssembler(deps),
+		toolAssembler: NewToolAssembler(deps),
 	}
 }
 
