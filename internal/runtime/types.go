@@ -20,7 +20,6 @@ import (
 	"github.com/ycvk/acorn/internal/runtime/tooldispatch"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/store"
-	"github.com/ycvk/acorn/internal/stream"
 	"github.com/ycvk/acorn/internal/toolkit"
 	"github.com/ycvk/acorn/internal/workspace"
 )
@@ -45,7 +44,7 @@ func newSessionID() string {
 	return fmt.Sprintf("session_%d", time.Now().UTC().UnixNano())
 }
 
-func InterruptPayloadFromStream(interrupt *stream.StreamInterrupt) map[string]any {
+func InterruptPayloadFromStream(interrupt *domain.StreamInterrupt) map[string]any {
 	if interrupt == nil {
 		return nil
 	}
@@ -360,7 +359,7 @@ type DirectResponseRequest struct {
 	SessionID         string
 	RunID             string
 	ChatModel         einomodel.BaseChatModel
-	AssistantStreamer stream.AssistantStreamer
+	AssistantStreamer domain.AssistantStreamer
 	Catalog           *toolkit.Catalog
 	ContextResult     AssembleResultView
 	AllowedToolNames  []string

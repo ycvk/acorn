@@ -1,8 +1,6 @@
-package stream
+package domain
 
-import "github.com/ycvk/acorn/internal/domain"
-
-func getPayloadMap(item domain.StreamItem) map[string]any {
+func getPayloadMap(item StreamItem) map[string]any {
 	if item.Payload == nil {
 		return nil
 	}
@@ -89,7 +87,7 @@ func getStringSlice(m map[string]any, key string) []string {
 	return out
 }
 
-func ItemGetMessage(item domain.StreamItem) *StreamMessage {
+func ItemGetMessage(item StreamItem) *StreamMessage {
 	m := getPayloadMap(item)
 	if msg, ok := m["message"].(*StreamMessage); ok && msg != nil {
 		return msg
@@ -107,7 +105,7 @@ func ItemGetMessage(item domain.StreamItem) *StreamMessage {
 	}
 }
 
-func ItemGetAssistantDelta(item domain.StreamItem) *StreamAssistantDelta {
+func ItemGetAssistantDelta(item StreamItem) *StreamAssistantDelta {
 	m := getPayloadMap(item)
 	if delta, ok := m["assistant_delta"].(*StreamAssistantDelta); ok && delta != nil {
 		return delta
@@ -127,7 +125,7 @@ func ItemGetAssistantDelta(item domain.StreamItem) *StreamAssistantDelta {
 	}
 }
 
-func ItemGetToolCall(item domain.StreamItem) *StreamToolCall {
+func ItemGetToolCall(item StreamItem) *StreamToolCall {
 	m := getPayloadMap(item)
 	if call, ok := m["tool_call"].(*StreamToolCall); ok && call != nil {
 		return call
@@ -149,7 +147,7 @@ func ItemGetToolCall(item domain.StreamItem) *StreamToolCall {
 	}
 }
 
-func ItemGetInterrupt(item domain.StreamItem) *StreamInterrupt {
+func ItemGetInterrupt(item StreamItem) *StreamInterrupt {
 	m := getPayloadMap(item)
 	if interrupt, ok := m["interrupt"].(*StreamInterrupt); ok && interrupt != nil {
 		return interrupt
@@ -172,7 +170,7 @@ func ItemGetInterrupt(item domain.StreamItem) *StreamInterrupt {
 			interrupt.Contexts = append(interrupt.Contexts, StreamInterruptContext{
 				ID:          getString(ctxMap, "id"),
 				Address:     getString(ctxMap, "address"),
-				Info:        compactInterruptInfo(ctxMap["info"]),
+				Info:        CompactInterruptInfo(ctxMap["info"]),
 				IsRootCause: getBool(ctxMap, "is_root_cause"),
 			})
 		}
@@ -180,7 +178,7 @@ func ItemGetInterrupt(item domain.StreamItem) *StreamInterrupt {
 	return interrupt
 }
 
-func ItemGetSkill(item domain.StreamItem) *StreamSkill {
+func ItemGetSkill(item StreamItem) *StreamSkill {
 	m := getPayloadMap(item)
 	if skill, ok := m["skill"].(*StreamSkill); ok && skill != nil {
 		return skill
@@ -248,7 +246,7 @@ func ItemGetSkill(item domain.StreamItem) *StreamSkill {
 	return skill
 }
 
-func ItemGetMemoryPrepared(item domain.StreamItem) *StreamMemoryPrepared {
+func ItemGetMemoryPrepared(item StreamItem) *StreamMemoryPrepared {
 	m := getPayloadMap(item)
 	if mem, ok := m["memory_prepared"].(*StreamMemoryPrepared); ok && mem != nil {
 		return mem
@@ -298,11 +296,14 @@ func ItemGetMemoryPrepared(item domain.StreamItem) *StreamMemoryPrepared {
 	return mem
 }
 
-func ItemGetError(item domain.StreamItem) string {
+func ItemGetError(item StreamItem) string {
 	return getString(getPayloadMap(item), "error")
 }
 
-func compactInterruptInfo(value any) any {
+// CompactInterruptInfo filters an interrupt info value down to the known
+// interrupt payload keys, dropping everything else. Returns nil if the input
+// is not a map or no known keys are present.
+func CompactInterruptInfo(value any) any {
 	data, ok := value.(map[string]any)
 	if !ok {
 		return nil

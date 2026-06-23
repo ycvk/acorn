@@ -46,7 +46,7 @@ func streamAssistantMessage(
 	model einomodel.BaseChatModel,
 	messages []*schema.Message,
 	opts assistantStreamOptions,
-) (*AssistantStreamResult, error) {
+) (*domain.AssistantStreamResult, error) {
 	if model == nil {
 		return nil, fmt.Errorf("assistant stream requires chat model")
 	}
@@ -91,7 +91,7 @@ func streamAssistantMessage(
 				RunID: opts.RunID,
 				Kind:  domain.StreamKindAssistantDelta,
 				Payload: map[string]any{
-					"assistant_delta": &StreamAssistantDelta{
+					"assistant_delta": &domain.StreamAssistantDelta{
 						Role:      string(frame.Role),
 						Delta:     frame.Content,
 						Reasoning: frame.ReasoningContent,
@@ -123,30 +123,30 @@ func streamAssistantMessage(
 	if err != nil {
 		return nil, fmt.Errorf("concat assistant stream: %w", err)
 	}
-	return &AssistantStreamResult{
+	return &domain.AssistantStreamResult{
 		Message:    finalMessage,
 		StopReason: normalizeAssistantStopReason(finalMessage),
 		RawReason:  assistantRawFinishReason(finalMessage),
 	}, nil
 }
 
-func normalizeAssistantStopReason(message *schema.Message) AssistantStopReason {
+func normalizeAssistantStopReason(message *schema.Message) domain.AssistantStopReason {
 	if message == nil {
-		return AssistantStopReasonEndTurn
+		return domain.AssistantStopReasonEndTurn
 	}
 	raw := assistantRawFinishReason(message)
 	switch raw {
 	case "", "stop", "end_turn", "null":
 		if len(message.ToolCalls) > 0 {
-			return AssistantStopReasonToolCalls
+			return domain.AssistantStopReasonToolCalls
 		}
-		return AssistantStopReasonEndTurn
+		return domain.AssistantStopReasonEndTurn
 	case "tool_calls", "tool_use":
-		return AssistantStopReasonToolCalls
+		return domain.AssistantStopReasonToolCalls
 	case "length", "max_tokens", "max_output_tokens", "model_context_window_exceeded":
-		return AssistantStopReasonMaxOutput
+		return domain.AssistantStopReasonMaxOutput
 	default:
-		return AssistantStopReasonUnknown
+		return domain.AssistantStopReasonUnknown
 	}
 }
 
@@ -157,13 +157,13 @@ func assistantRawFinishReason(message *schema.Message) string {
 	return strings.TrimSpace(strings.ToLower(message.ResponseMeta.FinishReason))
 }
 
-func streamPlannedToolCalls(calls []schema.ToolCall) []StreamPlannedToolCall {
+func streamPlannedToolCalls(calls []schema.ToolCall) []domain.StreamPlannedToolCall {
 	if len(calls) == 0 {
 		return nil
 	}
-	out := make([]StreamPlannedToolCall, 0, len(calls))
+	out := make([]domain.StreamPlannedToolCall, 0, len(calls))
 	for _, call := range calls {
-		out = append(out, StreamPlannedToolCall{
+		out = append(out, domain.StreamPlannedToolCall{
 			ID:            call.ID,
 			Name:          call.Function.Name,
 			ArgumentsJSON: call.Function.Arguments,

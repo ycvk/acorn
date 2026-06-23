@@ -18,8 +18,8 @@ import (
 
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/contextplane"
+	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/runtime/tooldispatch"
-	"github.com/ycvk/acorn/internal/stream"
 	"github.com/ycvk/acorn/internal/toolkit"
 )
 
@@ -118,7 +118,7 @@ type directResponseTestStreamer struct {
 	deltas      []string
 }
 
-func (s *directResponseTestStreamer) StreamAssistantMessage(ctx context.Context, req stream.AssistantStreamRequest) (*stream.AssistantStreamResult, error) {
+func (s *directResponseTestStreamer) StreamAssistantMessage(ctx context.Context, req domain.AssistantStreamRequest) (*domain.AssistantStreamResult, error) {
 	s.modelInputs = append(s.modelInputs, append([]*schema.Message(nil), req.Messages...))
 	s.toolInfos = append(s.toolInfos, append([]*schema.ToolInfo(nil), req.ToolInfos...))
 	s.messageIDs = append(s.messageIDs, req.MessageID)
@@ -154,10 +154,10 @@ func (s *directResponseTestStreamer) StreamAssistantMessage(ctx context.Context,
 	return directResponseTestStreamResult(msg), nil
 }
 
-func (s *directResponseTestStreamer) StreamAssistantInterleaved(ctx context.Context, req stream.AssistantStreamRequest) *stream.InterleavedStream {
-	interleaved := &stream.InterleavedStream{
+func (s *directResponseTestStreamer) StreamAssistantInterleaved(ctx context.Context, req domain.AssistantStreamRequest) *domain.InterleavedStream {
+	interleaved := &domain.InterleavedStream{
 		ToolCallCh:     make(chan schema.ToolCall, 8),
-		FinalMessageCh: make(chan stream.AssistantStreamResult, 1),
+		FinalMessageCh: make(chan domain.AssistantStreamResult, 1),
 		ErrCh:          make(chan error, 1),
 	}
 	go func() {
@@ -181,25 +181,25 @@ func (s *directResponseTestStreamer) StreamAssistantInterleaved(ctx context.Cont
 	return interleaved
 }
 
-func directResponseTestStreamResult(msg *schema.Message) *stream.AssistantStreamResult {
+func directResponseTestStreamResult(msg *schema.Message) *domain.AssistantStreamResult {
 	raw := ""
 	if msg != nil && msg.ResponseMeta != nil {
 		raw = strings.TrimSpace(strings.ToLower(msg.ResponseMeta.FinishReason))
 	}
-	stopReason := stream.AssistantStopReasonEndTurn
+	stopReason := domain.AssistantStopReasonEndTurn
 	switch raw {
 	case "tool_calls", "tool_use":
-		stopReason = stream.AssistantStopReasonToolCalls
+		stopReason = domain.AssistantStopReasonToolCalls
 	case "length", "max_tokens", "max_output_tokens", "model_context_window_exceeded":
-		stopReason = stream.AssistantStopReasonMaxOutput
+		stopReason = domain.AssistantStopReasonMaxOutput
 	case "", "stop", "end_turn", "null":
 		if msg != nil && len(msg.ToolCalls) > 0 {
-			stopReason = stream.AssistantStopReasonToolCalls
+			stopReason = domain.AssistantStopReasonToolCalls
 		}
 	default:
-		stopReason = stream.AssistantStopReasonUnknown
+		stopReason = domain.AssistantStopReasonUnknown
 	}
-	return &stream.AssistantStreamResult{
+	return &domain.AssistantStreamResult{
 		Message:    msg,
 		StopReason: stopReason,
 		RawReason:  raw,

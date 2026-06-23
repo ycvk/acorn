@@ -72,7 +72,7 @@ func TestStreamAssistantMessageEmitsDeltaItemsAndReturnsFinalMessage(t *testing.
 	if msg == nil || msg.Content != "你好" {
 		t.Fatalf("final message = %#v, want content 你好", msg)
 	}
-	if result.StopReason != AssistantStopReasonEndTurn {
+	if result.StopReason != domain.AssistantStopReasonEndTurn {
 		t.Fatalf("stop reason = %q, want end_turn", result.StopReason)
 	}
 	if len(items) != 2 {
@@ -81,8 +81,8 @@ func TestStreamAssistantMessageEmitsDeltaItemsAndReturnsFinalMessage(t *testing.
 	if items[0].Kind != domain.StreamKindAssistantDelta || items[1].Kind != domain.StreamKindAssistantDelta {
 		t.Fatalf("unexpected kinds: %#v", items)
 	}
-	first := ItemGetAssistantDelta(items[0])
-	second := ItemGetAssistantDelta(items[1])
+	first := domain.ItemGetAssistantDelta(items[0])
+	second := domain.ItemGetAssistantDelta(items[1])
 	if first == nil || second == nil {
 		t.Fatalf("expected assistant deltas, got %#v", items)
 	}
@@ -130,7 +130,7 @@ func TestStreamAssistantMessageAppendsDeltaWithoutLiveSink(t *testing.T) {
 		t.Fatalf("appended record count = %d, want 1", len(appender.records))
 	}
 	item := projectEventToStreamItem(appender.records[0])
-	delta := ItemGetAssistantDelta(item)
+	delta := domain.ItemGetAssistantDelta(item)
 	if item.Kind != domain.StreamKindAssistantDelta || delta == nil {
 		t.Fatalf("appended item = %#v, want assistant delta", item)
 	}
@@ -168,8 +168,8 @@ func TestDirectAssistantStreamerPersistsAndSinksDeltas(t *testing.T) {
 	if len(sinkItems) != 2 {
 		t.Fatalf("sink delta count = %d, want 2", len(sinkItems))
 	}
-	first := ItemGetAssistantDelta(projectEventToStreamItem(appender.records[0]))
-	second := ItemGetAssistantDelta(projectEventToStreamItem(appender.records[1]))
+	first := domain.ItemGetAssistantDelta(projectEventToStreamItem(appender.records[0]))
+	second := domain.ItemGetAssistantDelta(projectEventToStreamItem(appender.records[1]))
 	if first == nil || second == nil {
 		t.Fatalf("persisted events are not assistant deltas: %#v", appender.records)
 	}
@@ -184,8 +184,8 @@ func TestDirectAssistantStreamerPersistsAndSinksDeltas(t *testing.T) {
 	}
 }
 
-func orchestrationAssistantStreamRequestForTest(runID string, model *assistantStreamingModel, toolInfo *schema.ToolInfo) AssistantStreamRequest {
-	return AssistantStreamRequest{
+func orchestrationAssistantStreamRequestForTest(runID string, model *assistantStreamingModel, toolInfo *schema.ToolInfo) domain.AssistantStreamRequest {
+	return domain.AssistantStreamRequest{
 		RunID:     runID,
 		MessageID: runID + ":assistant:0",
 		Model:     model,
@@ -198,14 +198,14 @@ func TestRunStateApplyStreamItemAppendsAssistantDelta(t *testing.T) {
 	var state runState
 	state.applyStreamItem(domain.StreamItem{
 		Kind: domain.StreamKindAssistantDelta,
-		Payload: map[string]any{"assistant_delta": &StreamAssistantDelta{
+		Payload: map[string]any{"assistant_delta": &domain.StreamAssistantDelta{
 			Delta:    "partial ",
 			Sequence: 1,
 		}},
 	})
 	state.applyStreamItem(domain.StreamItem{
 		Kind: domain.StreamKindAssistantDelta,
-		Payload: map[string]any{"assistant_delta": &StreamAssistantDelta{
+		Payload: map[string]any{"assistant_delta": &domain.StreamAssistantDelta{
 			Delta:    "answer",
 			Sequence: 2,
 		}},
@@ -235,10 +235,10 @@ type runState struct {
 }
 
 func (s *runState) applyStreamItem(item domain.StreamItem) {
-	if delta := ItemGetAssistantDelta(item); delta != nil {
+	if delta := domain.ItemGetAssistantDelta(item); delta != nil {
 		s.lastOutput += delta.Delta
 	}
-	if msg := ItemGetMessage(item); msg != nil && msg.Content != "" {
+	if msg := domain.ItemGetMessage(item); msg != nil && msg.Content != "" {
 		s.lastOutput = msg.Content
 	}
 }

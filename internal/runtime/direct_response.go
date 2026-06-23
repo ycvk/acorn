@@ -12,8 +12,8 @@ import (
 	"github.com/cloudwego/eino/schema"
 
 	"github.com/ycvk/acorn/internal/contextplane"
+	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/runtime/tooldispatch"
-	"github.com/ycvk/acorn/internal/stream"
 	"github.com/ycvk/acorn/internal/toolkit"
 )
 
@@ -147,7 +147,7 @@ type directResponseAgent struct {
 	name           string
 	description    string
 	model          einomodel.BaseChatModel
-	streamer       stream.AssistantStreamer
+	streamer       domain.AssistantStreamer
 	sessionID      string
 	runID          string
 	toolNode       tooldispatch.ToolInvoker

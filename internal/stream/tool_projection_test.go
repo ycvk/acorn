@@ -10,7 +10,7 @@ func TestProjectStreamItemToEventNormalizesToolInterruptPayload(t *testing.T) {
 	kind, payload := mustProjectStreamItemToEvent(t, domain.StreamItem{
 		RunID: "run_1",
 		Kind:  domain.StreamKindToolCallInterrupted,
-		Payload: map[string]any{"tool_call": &StreamToolCall{
+		Payload: map[string]any{"tool_call": &domain.StreamToolCall{
 			Name:              "run_command",
 			Error:             "need approval",
 			InterruptContexts: 1,
