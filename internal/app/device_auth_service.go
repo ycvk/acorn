@@ -13,18 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/store"
 )
-
-type PendingActionCreateStore interface {
-	ListPendingActions(ctx context.Context, limit int) ([]domain.PendingActionRecord, error)
-	LoadPendingAction(ctx context.Context, actionID string) (*domain.PendingActionRecord, error)
-	LoadRun(ctx context.Context, runID string) (*domain.RunRecord, error)
-	DecidePendingAction(ctx context.Context, actionID string, status domain.PendingActionStatus, decisionJSON string) (*domain.PendingActionRecord, error)
-	AppendEventContext(ctx context.Context, runID, kind string, payload any) (domain.EventRecord, error)
-	CreatePendingAction(context.Context, store.CreatePendingActionInput) (*domain.PendingActionRecord, error)
-}
 
 var (
 	ErrUnauthenticated    = errors.New("unauthenticated")
