@@ -12,7 +12,7 @@
 | **Observation masking** | tool result 超 `mask_after_turns`（默认 2）轮后用占位符替换。纯内存操作，不写 SQLite。 |
 | **LLM auto-compact** | token 超 `window_tokens - compact_margin`（默认 13000）时用一次 model 调用生成 summary。Circuit breaker：连续 3 次失败停止。 |
 | **Tool lifecycle state** | `internal/contextplane` 管理的 run-scoped 工具可见性状态（loaded/deferred tools）；执行前由 `SafeParallelToolsNode` 校验。不写 durable ledger。 |
-| **ToolExecutionScheduler** | `internal/runtime/tool/` 的共享调度核；通过 `ToolContract.Execution` 消费 parallel policy（read_only 并行 / serial 串行）。 |
+| **ToolExecutionScheduler** | `internal/runtime` 的共享调度核；通过 `ToolContract.Execution` 消费 parallel policy（read_only 并行 / serial 串行）。 |
 | **OrchestrationPlane** | `internal/runtime/orchestration` 的编排入口；RunnerFactory 委托它构建 direct_response assembly。只有一个 `BuildDirectResponse` 方法。 |
 | **MemoryModule** | `internal/memorymodule` 的 file-backed memory 模块；管理 facts、history、search、prepare、memory file tools。Canonical Memory Record V2 frontmatter（简化：status / tags / created / updated / source_run / source_refs）。 |
 | **Embedding+SQLite semantic search** | 可选的 rebuildable retrieval index，由 `memory.semantic.embedding` 配置、`acorn memory semantic rebuild` 重建，为 `memorymodule.Search`/`Prepare` 提供 embedding 向量 + 暴力余弦相似度检索。零 CGO。 |

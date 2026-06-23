@@ -11,11 +11,9 @@ import (
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/domain"
-	"github.com/ycvk/acorn/internal/runtime/tool"
-	"github.com/ycvk/acorn/internal/runtime/toolset"
 	"github.com/ycvk/acorn/internal/skills"
-	"github.com/ycvk/acorn/internal/tooling"
-	"github.com/ycvk/acorn/internal/tools"
+	"github.com/ycvk/acorn/internal/toolkit"
+	"github.com/ycvk/acorn/internal/toolset"
 	"github.com/ycvk/acorn/internal/webaccess"
 )
 
@@ -30,10 +28,10 @@ func (artifactToolBridge) CurrentSessionID(ctx context.Context) string {
 }
 
 func (artifactToolBridge) CurrentToolCallID(ctx context.Context) string {
-	return tool.ToolAuditCallID(ctx)
+	return ToolAuditCallID(ctx)
 }
 
-func (f *RunnerFactory) buildRunToolset(ctx context.Context, sessionID string) (*toolset.Toolset, error) {
+func (f *RunnerFactory) buildRunToolset(ctx context.Context, sessionID string) (*Toolset, error) {
 	return f.buildToolset(ctx, sessionID, true)
 }
 
@@ -41,7 +39,7 @@ func (f *RunnerFactory) buildToolset(
 	ctx context.Context,
 	sessionID string,
 	includePlanning bool,
-) (_ *toolset.Toolset, err error) {
+) (_ *Toolset, err error) {
 	if err := f.validateToolsetDeps(); err != nil {
 		return nil, err
 	}
@@ -60,7 +58,7 @@ func (f *RunnerFactory) buildToolset(
 	if err != nil {
 		return nil, err
 	}
-	return toolset.NewToolset(catalog, closers...), nil
+	return NewToolset(catalog, closers...), nil
 }
 
 func (f *RunnerFactory) validateToolsetDeps() error {
@@ -104,7 +102,7 @@ func closeToolsetOnErr(closers []io.Closer, err *error) {
 	}
 }
 
-func assembleToolsetCatalog(ctx context.Context, cfg *config.Config, localCatalog *tools.Catalog, aux auxTools, includePlanning bool) (*tooling.Catalog, error) {
+func assembleToolsetCatalog(ctx context.Context, cfg *config.Config, localCatalog *toolset.Catalog, aux auxTools, includePlanning bool) (*toolkit.Catalog, error) {
 	core, err := buildCoreToolSpecs(ctx, cfg, localCatalog, aux)
 	if err != nil {
 		return nil, err
@@ -114,23 +112,23 @@ func assembleToolsetCatalog(ctx context.Context, cfg *config.Config, localCatalo
 		return nil, err
 	}
 	specs := append(core, extra...)
-	catalog, err := tooling.NewCatalog(ctx, specs)
+	catalog, err := toolkit.NewCatalog(ctx, specs)
 	if err != nil {
 		return nil, fmt.Errorf("build toolset catalog: %w", err)
 	}
 	return catalog, nil
 }
 
-func buildCoreToolSpecs(ctx context.Context, cfg *config.Config, localCatalog *tools.Catalog, aux auxTools) ([]tooling.ToolSpec, error) {
-	specs, err := tool.BuildCatalogSpecs(ctx, cfg, "local", tooling.ToolKindNative, append([]einotool.BaseTool(nil), localCatalog.Tools...))
+func buildCoreToolSpecs(ctx context.Context, cfg *config.Config, localCatalog *toolset.Catalog, aux auxTools) ([]toolkit.ToolSpec, error) {
+	specs, err := BuildCatalogSpecs(ctx, cfg, "local", toolkit.ToolKindNative, append([]einotool.BaseTool(nil), localCatalog.Tools...))
 	if err != nil {
 		return nil, err
 	}
-	memorySpecs, err := tool.BuildCatalogSpecs(ctx, cfg, "memory", tooling.ToolKindMemory, aux.memory)
+	memorySpecs, err := BuildCatalogSpecs(ctx, cfg, "memory", toolkit.ToolKindMemory, aux.memory)
 	if err != nil {
 		return nil, err
 	}
-	skillSpecs, err := tool.BuildCatalogSpecs(ctx, cfg, "skill", tooling.ToolKindSkill, aux.skill)
+	skillSpecs, err := BuildCatalogSpecs(ctx, cfg, "skill", toolkit.ToolKindSkill, aux.skill)
 	if err != nil {
 		return nil, err
 	}
@@ -139,15 +137,15 @@ func buildCoreToolSpecs(ctx context.Context, cfg *config.Config, localCatalog *t
 	return specs, nil
 }
 
-func buildExtraToolSpecs(ctx context.Context, cfg *config.Config, aux auxTools, includePlanning bool) ([]tooling.ToolSpec, error) {
+func buildExtraToolSpecs(ctx context.Context, cfg *config.Config, aux auxTools, includePlanning bool) ([]toolkit.ToolSpec, error) {
 	if !includePlanning {
 		return nil, nil
 	}
-	loadToolsTool, err := tool.NewLoadToolsTool()
+	loadToolsTool, err := NewLoadToolsTool()
 	if err != nil {
 		return nil, fmt.Errorf("build load_tools tool: %w", err)
 	}
-	planningSpecs, err := tool.BuildCatalogSpecs(ctx, cfg, "runtime", tooling.ToolKindNative, []einotool.BaseTool{loadToolsTool})
+	planningSpecs, err := BuildCatalogSpecs(ctx, cfg, "runtime", toolkit.ToolKindNative, []einotool.BaseTool{loadToolsTool})
 	if err != nil {
 		return nil, err
 	}
@@ -188,10 +186,10 @@ func (f *RunnerFactory) buildToolsetWebServices() (toolsetWebServices, error) {
 	return toolsetWebServices{fetch: fetch, search: search}, nil
 }
 
-func (f *RunnerFactory) buildBrowserService() (*tools.Service, error) {
+func (f *RunnerFactory) buildBrowserService() (*toolset.Service, error) {
 	browserCfg := f.deps.Config.Browser
 	webCfg := f.deps.Config.WebAccess
-	return tools.NewService(tools.Config{
+	return toolset.NewService(toolset.Config{
 		ExecutablePath: strings.TrimSpace(browserCfg.ExecutablePath),
 		Headless:       browserCfg.Headless,
 		Timeout:        time.Duration(browserCfg.DefaultTimeoutSeconds) * time.Second,
@@ -200,19 +198,19 @@ func (f *RunnerFactory) buildBrowserService() (*tools.Service, error) {
 	})
 }
 
-func (f *RunnerFactory) resolveOperatorStore() tools.OperatorQuestionStore {
+func (f *RunnerFactory) resolveOperatorStore() toolset.OperatorQuestionStore {
 	if f.deps.MCPPendingActions != nil {
 		return f.deps.MCPPendingActions
 	}
 	return f.deps.Store
 }
 
-func (f *RunnerFactory) buildLocalCatalog(services toolsetWebServices) (*tools.Catalog, []io.Closer, error) {
+func (f *RunnerFactory) buildLocalCatalog(services toolsetWebServices) (*toolset.Catalog, []io.Closer, error) {
 	browser, err := f.buildBrowserService()
 	if err != nil {
 		return nil, nil, fmt.Errorf("browser service: %w", err)
 	}
-	catalog, err := tools.BuildCatalog(tools.CatalogConfig{
+	catalog, err := toolset.BuildCatalog(toolset.CatalogConfig{
 		Workspace:         f.deps.Workspace,
 		MutationEnabled:   !f.deps.Config.Tools.Mutation.Disabled,
 		RunCommandEnabled: !f.deps.Config.Tools.RunCommand.Disabled,
@@ -246,5 +244,5 @@ func (f *RunnerFactory) buildMemoryTools(ctx context.Context) ([]einotool.BaseTo
 	if f.deps.MemoryModule == nil {
 		return nil, nil
 	}
-	return toolset.BuildMemoryFileTools(ctx, f.deps.MemoryModule)
+	return BuildMemoryFileTools(ctx, f.deps.MemoryModule)
 }

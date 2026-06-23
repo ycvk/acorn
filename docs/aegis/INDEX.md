@@ -10,6 +10,9 @@
 - [ADR-0007: 移动端 Flutter → Kotlin + Jetpack Compose](adr/ADR-0007-mobile-flutter-to-kotlin-compose.md) — Hilt + Material 3 + OkHttp SSE + openapi-generator-cli
 - [ADR-0008: 删 mode 路由壳](adr/ADR-0008-remove-mode-routing-shell.md) — OrchestrationMode + parseClientRunMode + assembleRunnerByMode
 - [ADR-0009: 删 skill lifecycle/assess 企业级机制](adr/ADR-0009-remove-skill-lifecycle-assess.md) — lifecycle_tools + RoutingFixture + LifecycleStatus + AssessmentVerdict
+- [ADR-0010: tool 包从 4 合并到 2](adr/ADR-0010-tool-packages-merge-to-toolkit-toolset.md) — toolkit 契约 + toolset 实现, runtime/tool + runtime/toolset 提升到 runtime 根
+- [ADR-0011: 结构守卫文件行数上限 400 → 800](adr/ADR-0011-structural-file-limit-400-to-800.md) — 消除碎片化文件, RunnerFactory 7→5, browser_service 5→3, client_service 5→1
+- [ADR-0012: 消除 duplicate port](adr/ADR-0012-eliminate-duplicate-ports.md) — 推翻"不可合并"声明, OperatorQuestionContext/ArtifactContext 统一为 domain.ToolCallContextBridge
 
 ## Specs
 - [Structural Convergence Design Spec](specs/2026-06-22-structural-convergence-design.md) — 4→2 tool packages, runner file merge, duplicate port elimination, guard 400→800

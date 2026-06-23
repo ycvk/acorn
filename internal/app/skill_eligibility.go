@@ -6,7 +6,7 @@ import (
 
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/skills"
-	"github.com/ycvk/acorn/internal/tooling"
+	"github.com/ycvk/acorn/internal/toolkit"
 )
 
 func environmentMap() map[string]string {
@@ -22,7 +22,7 @@ func environmentMap() map[string]string {
 }
 
 func localEligibilityToolNames(cfg *config.Config) []string {
-	specs := tooling.ConfiguredLocalSpecs(cfg)
+	specs := toolkit.ConfiguredLocalSpecs(cfg)
 	names := make([]string, 0, len(specs)+11)
 	seen := make(map[string]struct{}, len(specs)+11)
 	for _, spec := range specs {
@@ -34,7 +34,7 @@ func localEligibilityToolNames(cfg *config.Config) []string {
 			names = append(names, spec.Name)
 		}
 	}
-	for _, name := range tooling.BuiltinToolNames() {
+	for _, name := range toolkit.BuiltinToolNames() {
 		if _, ok := seen[name]; ok {
 			continue
 		}

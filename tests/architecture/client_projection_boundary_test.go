@@ -12,7 +12,6 @@ var clientProjectionBoundaryFiles = []string{
 	"internal/clientevents/types.go",
 	"internal/clientevents/projector.go",
 	"internal/app/artifact_projection.go",
-	"internal/app/client_service_event.go",
 	"internal/web/dto_artifact.go",
 	"internal/web/dto_decision.go",
 	"internal/web/dto_run_detail.go",

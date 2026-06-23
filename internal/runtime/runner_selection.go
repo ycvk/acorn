@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/ycvk/acorn/internal/skills"
-	"github.com/ycvk/acorn/internal/tooling"
+	"github.com/ycvk/acorn/internal/toolkit"
 )
 
 const capabilityDiscoveryInstruction = `Capability discovery rules:
@@ -30,11 +30,11 @@ func buildStableInstruction(base string, instructionSuffix string) string {
 	return strings.Join(out, "\n\n")
 }
 
-func skillEligibilityContextFromCatalog(catalog *tooling.Catalog) skills.EligibilityContext {
+func skillEligibilityContextFromCatalog(catalog *toolkit.Catalog) skills.EligibilityContext {
 	if catalog == nil {
 		return skills.EligibilityContext{}
 	}
-	return tooling.EligibilityContext(catalog, nil)
+	return toolkit.EligibilityContext(catalog, nil)
 }
 
 func loadStableSkillSnapshot(ctx context.Context, loader interface {

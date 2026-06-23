@@ -9,7 +9,7 @@ import (
 
 	"github.com/ycvk/acorn/internal/memorymodule"
 	"github.com/ycvk/acorn/internal/skills"
-	"github.com/ycvk/acorn/internal/tooling"
+	"github.com/ycvk/acorn/internal/toolkit"
 )
 
 type ContextPlane interface {
@@ -23,7 +23,7 @@ type AssembleRequest struct {
 	SelectedSkill  *SelectedSkill
 	SkillSnapshot  *skills.Snapshot
 	MemoryPrepared *memorymodule.PrepareResult
-	ToolCatalog    *tooling.Catalog
+	ToolCatalog    *toolkit.Catalog
 }
 
 type AssembleResult struct {

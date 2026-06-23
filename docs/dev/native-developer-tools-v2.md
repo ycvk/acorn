@@ -223,7 +223,7 @@ P0 不允许的 contract 扩展：
 每个 slice 至少要有：
 
 ```bash
-go test ./internal/tooling ./internal/tools ./internal/runtime ./internal/contextplane ./internal/store/sqlite ./internal/app ./internal/web
+go test ./internal/toolkit ./internal/toolset ./internal/runtime ./internal/contextplane ./internal/store/sqlite ./internal/app ./internal/web
 cd mobile-kotlin && ./tool/generate_openapi_client.sh --check
 git diff --check
 ```

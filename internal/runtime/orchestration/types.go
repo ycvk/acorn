@@ -8,7 +8,7 @@ import (
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/schema"
 
-	"github.com/ycvk/acorn/internal/tooling"
+	"github.com/ycvk/acorn/internal/toolkit"
 )
 
 type DirectResponseRequest struct {
@@ -18,7 +18,7 @@ type DirectResponseRequest struct {
 	RunID             string
 	ChatModel         einomodel.BaseChatModel
 	AssistantStreamer AssistantStreamer
-	Catalog           *tooling.Catalog
+	Catalog           *toolkit.Catalog
 	ContextResult     AssembleResultView
 	AllowedToolNames  []string
 	ExcludedToolNames []string
@@ -90,19 +90,19 @@ type AssembleResultView struct {
 	DeferredToolNames []string
 }
 
-type ToolLifecycleBinder func(ctx context.Context, state ToolLifecycleStateView, catalog *tooling.Catalog, infos []*schema.ToolInfo) context.Context
+type ToolLifecycleBinder func(ctx context.Context, state ToolLifecycleStateView, catalog *toolkit.Catalog, infos []*schema.ToolInfo) context.Context
 
 // ToolBuilder constructs the concrete tool set from specs.
 type ToolBuilder func(
 	ctx context.Context,
-	specs []tooling.ToolSpec,
+	specs []toolkit.ToolSpec,
 	excludedToolNames []string,
 	allowedToolNames []string,
 	runID string,
 ) ([]einotool.BaseTool, error)
 
-// ToolNodeFactory creates a ToolInvoker from concrete tools.
-type ToolNodeFactory func(ctx context.Context, tools []einotool.BaseTool, resolver tooling.ExecutionPolicyResolver) (ToolInvoker, error)
+// ToolNodeFactory creates a ToolInvoker from concrete toolset.
+type ToolNodeFactory func(ctx context.Context, tools []einotool.BaseTool, resolver toolkit.ExecutionPolicyResolver) (ToolInvoker, error)
 
 // InstructionBuilder builds the system instruction from base prompt and suffix.
 type InstructionBuilder func(base string, suffix string) string

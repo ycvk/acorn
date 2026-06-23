@@ -12,13 +12,13 @@ import (
 	"github.com/cloudwego/eino/schema"
 
 	"github.com/ycvk/acorn/internal/contextplane"
-	"github.com/ycvk/acorn/internal/tooling"
+	"github.com/ycvk/acorn/internal/toolkit"
 )
 
 // toolAssemblyParams holds the fields BuildDirectResponse shares when
 // assembling tools, instruction, handlers, and the bound run context.
 type toolAssemblyParams struct {
-	catalog           *tooling.Catalog
+	catalog           *toolkit.Catalog
 	contextResult     AssembleResultView
 	allowedToolNames  []string
 	excludedToolNames []string
@@ -160,7 +160,7 @@ type directResponseAgent struct {
 	sessionContextBinder func(ctx context.Context, sessionID string) context.Context
 	lifecycleBinder      ToolLifecycleBinder
 	lifecycleState       ToolLifecycleStateView
-	catalog              *tooling.Catalog
+	catalog              *toolkit.Catalog
 	toolInfos            []*schema.ToolInfo
 	eagerToolNames       []string
 	maxIterations        int

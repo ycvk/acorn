@@ -5,20 +5,26 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 
+	"github.com/cloudwego/eino/adk"
 	einomodel "github.com/cloudwego/eino/components/model"
+	einotool "github.com/cloudwego/eino/components/tool"
+	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/contextplane"
 	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/memorymodule"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
 	"github.com/ycvk/acorn/internal/runtime/orchestration"
-	"github.com/ycvk/acorn/internal/runtime/tool"
-	"github.com/ycvk/acorn/internal/runtime/toolset"
-	"github.com/ycvk/acorn/internal/tooling"
-	"github.com/ycvk/acorn/internal/tools"
+	"github.com/ycvk/acorn/internal/skills"
+	corestore "github.com/ycvk/acorn/internal/store"
+	"github.com/ycvk/acorn/internal/toolkit"
+	"github.com/ycvk/acorn/internal/toolset"
+	"github.com/ycvk/acorn/internal/workspace"
 )
 
 type RunnerFactory struct {
@@ -51,7 +57,7 @@ func (f *RunnerFactory) New(ctx context.Context, req RunnerBuildRequest) (*Activ
 	return f.buildRun(ctx, req)
 }
 
-func (f *RunnerFactory) BuildCapabilitySpecs(ctx context.Context) ([]tooling.ToolSpec, error) {
+func (f *RunnerFactory) BuildCapabilitySpecs(ctx context.Context) ([]toolkit.ToolSpec, error) {
 	toolset, err := f.buildToolset(ctx, "", true)
 	if err != nil {
 		return nil, err
@@ -130,7 +136,7 @@ func newInMemoryCheckpointStore() *inMemoryCheckpointStore {
 }
 
 type localToolset struct {
-	catalog *tools.Catalog
+	catalog *toolset.Catalog
 	closers []io.Closer
 }
 
@@ -230,7 +236,7 @@ func (f *RunnerFactory) assembleContext(
 func (f *RunnerFactory) buildAssembly(
 	ctx context.Context,
 	req RunnerBuildRequest,
-	catalog *tooling.Catalog,
+	catalog *toolkit.Catalog,
 	chatModel einomodel.BaseChatModel,
 	contextResult *contextplane.AssembleResult,
 ) (*orchestration.RunAssembly, error) {
@@ -241,7 +247,7 @@ func (f *RunnerFactory) buildAssembly(
 	return f.deps.Orchestration.BuildDirectResponse(ctx, f.directResponseRequest(bf, req))
 }
 
-func (f *RunnerFactory) baseAssemblyFields(req RunnerBuildRequest, catalog *tooling.Catalog, chatModel einomodel.BaseChatModel, contextResult *contextplane.AssembleResult) baseAssemblyFields {
+func (f *RunnerFactory) baseAssemblyFields(req RunnerBuildRequest, catalog *toolkit.Catalog, chatModel einomodel.BaseChatModel, contextResult *contextplane.AssembleResult) baseAssemblyFields {
 	return baseAssemblyFields{
 		agentName:         f.deps.Config.Agent.Name,
 		agentDescription:  f.deps.Config.Agent.Description,
@@ -262,7 +268,7 @@ func (f *RunnerFactory) directResponseRequest(bf baseAssemblyFields, req RunnerB
 		SessionID:         bf.sessionID,
 		RunID:             bf.runID,
 		ChatModel:         bf.chatModel,
-		AssistantStreamer: tool.NewDirectAssistantStreamer(f.deps.Store),
+		AssistantStreamer: NewDirectAssistantStreamer(f.deps.Store),
 		Catalog:           bf.catalog,
 		ContextResult:     bf.contextResult,
 		AllowedToolNames:  bf.allowedToolNames,
@@ -297,12 +303,353 @@ func (f *RunnerFactory) buildRunCapabilities(ctx context.Context, sessionID stri
 	}, nil
 }
 
-func (f *RunnerFactory) assembleRunCapabilitiesCatalog(ctx context.Context, toolset *toolset.Toolset, mcpManager *mcpprovider.Manager) (*tooling.Catalog, error) {
-	specs := append([]tooling.ToolSpec(nil), toolset.Catalog().Specs()...)
+func (f *RunnerFactory) assembleRunCapabilitiesCatalog(ctx context.Context, toolset *Toolset, mcpManager *mcpprovider.Manager) (*toolkit.Catalog, error) {
+	specs := append([]toolkit.ToolSpec(nil), toolset.Catalog().Specs()...)
 	mcpSpecs, err := f.buildMCPToolSpecs(ctx, mcpManager)
 	if err != nil {
 		return nil, err
 	}
 	specs = append(specs, mcpSpecs...)
-	return tooling.NewCatalog(ctx, specs)
+	return toolkit.NewCatalog(ctx, specs)
+}
+
+type chatModelBuilder func(context.Context, config.ProviderConfig) (einomodel.BaseChatModel, error)
+
+func buildRuntimeChatModel(ctx context.Context, cfg *config.Config, newModel chatModelBuilder) (einomodel.BaseChatModel, error) {
+	model, _, err := buildRuntimeChatModelWithProvider(ctx, cfg, newModel)
+	return model, err
+}
+
+func buildRuntimeChatModelWithProvider(ctx context.Context, cfg *config.Config, newModel chatModelBuilder) (einomodel.BaseChatModel, config.ProviderConfig, error) {
+	if cfg == nil {
+		return nil, config.ProviderConfig{}, errors.New("config is required")
+	}
+	if newModel == nil {
+		newModel = newOpenAIChatModel
+	}
+
+	provider, err := cfg.EnabledProvider()
+	if err != nil {
+		return nil, config.ProviderConfig{}, err
+	}
+	model, err := newModel(ctx, provider)
+	if err != nil {
+		return nil, config.ProviderConfig{}, fmt.Errorf("init provider %s: %w", provider.Name, err)
+	}
+	return model, provider, nil
+}
+
+func newRuntimeChatModel(
+	ctx context.Context,
+	cfg *config.Config,
+	newModel chatModelBuilder,
+	_ any,
+) (einomodel.BaseChatModel, error) {
+	return buildRuntimeChatModel(ctx, cfg, newModel)
+}
+
+type capabilityAssembly struct {
+	mcpManager   *mcpprovider.Manager
+	capabilities *runCapabilities
+}
+
+func buildAssembleRequest(req RunnerBuildRequest, caps *runCapabilities, selection *runSelection, memoryPrepared *memorymodule.PrepareResult) contextplane.AssembleRequest {
+	var selectedSkill *SelectedSkill
+	if selection != nil {
+		selectedSkill = selection.selectedSkill
+	}
+	return contextplane.AssembleRequest{
+		RunID:          req.RunID,
+		SessionID:      req.SessionID,
+		Input:          req.Input,
+		SelectedSkill:  selectedSkill,
+		SkillSnapshot:  caps.skillSnapshot,
+		MemoryPrepared: memoryPrepared,
+		ToolCatalog:    caps.catalog,
+	}
+}
+
+func buildRuntimeDeps(cfg *config.Config, store RunnerFactoryStore, opts RunnerFactoryOptions) (RuntimeDeps, error) {
+	if cfg == nil {
+		return RuntimeDeps{}, errors.New("config is required")
+	}
+	if store == nil {
+		return RuntimeDeps{}, errors.New("store is required")
+	}
+	ws, err := resolveWorkspace(cfg, opts.Workspace)
+	if err != nil {
+		return RuntimeDeps{}, fmt.Errorf("workspace: %w", err)
+	}
+	artifactService, err := buildArtifactService(cfg, store)
+	if err != nil {
+		return RuntimeDeps{}, fmt.Errorf("artifact service: %w", err)
+	}
+	if opts.MemoryModule == nil {
+		return RuntimeDeps{}, errors.New("memory module is required")
+	}
+	loader := resolveLoader(cfg, opts.Loader)
+	contextPlane, err := resolveContextPlane(cfg, store, opts)
+	if err != nil {
+		return RuntimeDeps{}, fmt.Errorf("context plane: %w", err)
+	}
+	orchestrationPlane := newDefaultOrchestrationPlane(defaultOrchestrationPlaneDeps{
+		cfg: cfg, store: store, contextPlane: contextPlane, handlers: opts.Handlers,
+	})
+	return assembleRuntimeDeps(cfg, store, opts, ws, loader, artifactService, contextPlane, orchestrationPlane), nil
+}
+
+func resolveLoader(cfg *config.Config, loader *skills.Loader) *skills.Loader {
+	if loader == nil {
+		return skills.NewLoader(cfg)
+	}
+	return loader
+}
+
+func resolveContextPlane(cfg *config.Config, store RunnerFactoryStore, opts RunnerFactoryOptions) (contextplane.ContextPlane, error) {
+	if opts.ContextPlane != nil {
+		return opts.ContextPlane, nil
+	}
+	return buildDefaultContextPlane(cfg, store, opts)
+}
+
+func assembleRuntimeDeps(cfg *config.Config, store RunnerFactoryStore, opts RunnerFactoryOptions, ws *workspace.Workspace, loader *skills.Loader, artifactService *corestore.ArtifactService, contextPlane contextplane.ContextPlane, orchestrationPlane orchestrationPlane) RuntimeDeps {
+	return RuntimeDeps{
+		Config:            cfg,
+		Loader:            loader,
+		SessionSummarySvc: opts.SessionSummaryService,
+		MemoryModule:      opts.MemoryModule,
+		ContextPlane:      contextPlane,
+		Orchestration:     orchestrationPlane,
+		MCPPendingActions: opts.MCPPendingActionStore,
+		Workspace:         ws,
+		ArtifactService:   artifactService,
+		ExtraLocalTools:   append([]einotool.BaseTool(nil), opts.ExtraLocalTools...),
+		Handlers:          append([]adk.ChatModelAgentMiddleware(nil), opts.Handlers...),
+	}
+}
+
+func resolveWorkspace(cfg *config.Config, override *workspace.Workspace) (*workspace.Workspace, error) {
+	if override != nil {
+		return override, nil
+	}
+	return cfg.Workspace()
+}
+
+func buildArtifactService(cfg *config.Config, store RunnerFactoryStore) (*corestore.ArtifactService, error) {
+	if cfg == nil {
+		return nil, errors.New("config is required")
+	}
+	if strings.TrimSpace(cfg.Runtime.StorageDir) == "" {
+		return nil, errors.New("storage_dir is required")
+	}
+	artifactStore, ok := store.(corestore.ArtifactStore)
+	if !ok {
+		return nil, errors.New("store must implement corestore.ArtifactStore")
+	}
+	return corestore.NewArtifactService(filepath.Join(cfg.Runtime.StorageDir, "artifacts"), artifactStore)
+}
+
+func buildDefaultContextPlane(cfg *config.Config, store RunnerFactoryStore, opts RunnerFactoryOptions) (contextplane.ContextPlane, error) {
+	memoryBudget, maxContextTokens, tokenCounter, err := resolveContextPlaneTokenPolicy(cfg)
+	if err != nil {
+		return nil, err
+	}
+	return contextplane.NewDefaultContextPlane(contextplane.DefaultOptions{
+		MemoryContextTokenBudget: memoryBudget,
+		MaxContextTokens:         maxContextTokens,
+		TokenCounter:             tokenCounter,
+	}), nil
+}
+
+func resolveContextPlaneTokenPolicy(cfg *config.Config) (memoryBudget, maxContextTokens int, tokenCounter contextplane.TokenCounter, err error) {
+	if cfg == nil {
+		return 0, 0, nil, nil
+	}
+	memoryBudget = cfg.Memory.Search.MemoryContextTokenBudget
+	maxContextTokens = cfg.Context.WindowTokens
+	tokenCounter, err = contextplane.NewTokenCounter()
+	if err != nil {
+		return 0, 0, nil, fmt.Errorf("token counter: %w", err)
+	}
+	return memoryBudget, maxContextTokens, tokenCounter, nil
+}
+
+func assembleRunnerFactory(deps RuntimeDeps) *RunnerFactory {
+	return &RunnerFactory{
+		deps:     deps,
+		registry: NewRegistry(),
+	}
+}
+
+type baseAssemblyFields struct {
+	agentName         string
+	agentDescription  string
+	sessionID         string
+	runID             string
+	chatModel         einomodel.BaseChatModel
+	catalog           *toolkit.Catalog
+	contextResult     orchestration.AssembleResultView
+	allowedToolNames  []string
+	excludedToolNames []string
+}
+
+type runCapabilities struct {
+	catalog       *toolkit.Catalog
+	skillSnapshot *skills.Snapshot
+	stableSkills  []skills.Spec
+	close         func() error
+}
+
+func (c *runCapabilities) Close() error {
+	if c == nil || c.close == nil {
+		return nil
+	}
+	return c.close()
+}
+
+type orchestrationPlane interface {
+	BuildDirectResponse(ctx context.Context, req orchestration.DirectResponseRequest) (*orchestration.RunAssembly, error)
+}
+
+type defaultOrchestrationPlaneDeps struct {
+	cfg          *config.Config
+	store        RunnerFactoryStore
+	contextPlane contextplane.ContextPlane
+	handlers     []adk.ChatModelAgentMiddleware
+}
+
+func newDefaultOrchestrationPlane(deps defaultOrchestrationPlaneDeps) *orchestration.DefaultPlane {
+	return orchestration.NewDefaultPlane(orchestration.DefaultPlaneOptions{
+		SystemPrompt:         deps.cfg.Agent.SystemPrompt,
+		MaxIterations:        deps.cfg.Agent.MaxIterations,
+		CheckpointStore:      newInMemoryCheckpointStore(),
+		ToolBuilder:          deps.buildAuditedTools,
+		ToolNodeFactory:      deps.buildToolNode,
+		HandlersBuilder:      deps.buildHandlers,
+		InstructionBuilder:   buildStableInstruction,
+		ToolLifecycleBinder:  deps.bindToolLifecycle,
+		SessionContextBinder: bindSessionID,
+	})
+}
+
+// inMemoryCheckpointStore is a process-local adk.CheckPointStore. The schema
+// reduction removed the SQLite-backed checkpoints table; runs re-bootstrap
+// their context from persisted messages on resume, so a volatile store is
+// sufficient for within-process run/resume continuity.
+type inMemoryCheckpointStore struct {
+	mu   sync.Mutex
+	data map[string][]byte
+}
+
+func (s *inMemoryCheckpointStore) Get(_ context.Context, checkPointID string) ([]byte, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	payload, ok := s.data[checkPointID]
+	if !ok {
+		return nil, false, nil
+	}
+	cp := make([]byte, len(payload))
+	copy(cp, payload)
+	return cp, true, nil
+}
+
+func (s *inMemoryCheckpointStore) Set(_ context.Context, checkPointID string, checkPoint []byte) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	cp := make([]byte, len(checkPoint))
+	copy(cp, checkPoint)
+	s.data[checkPointID] = cp
+	return nil
+}
+
+func (d defaultOrchestrationPlaneDeps) buildAuditedTools(
+	ctx context.Context,
+	specs []toolkit.ToolSpec,
+	excludedToolNames []string,
+	allowedToolNames []string,
+	runID string,
+) ([]einotool.BaseTool, error) {
+	return BuildAuditedTools(ctx, d.store, specs, excludedToolNames, allowedToolNames, runID)
+}
+
+func (d defaultOrchestrationPlaneDeps) buildToolNode(
+	ctx context.Context,
+	tools []einotool.BaseTool,
+	resolver toolkit.ExecutionPolicyResolver,
+) (orchestration.ToolInvoker, error) {
+	return NewSafeParallelToolsNode(ctx, tools, resolver)
+}
+
+func (d defaultOrchestrationPlaneDeps) buildHandlers(
+	ctx context.Context,
+	chatModel einomodel.BaseChatModel,
+	compressionState any,
+) ([]adk.ChatModelAgentMiddleware, error) {
+	return buildRunnerAgentHandlers(ctx, d.cfg, d.contextPlane, d.handlers, chatModel, compressionState)
+}
+
+// buildRunnerAgentHandlers assembles the chat-model middleware chain. With the
+// compaction subpackage removed, compression is driven by the context session
+// (see context_session_bridge.go) rather than by model-call middleware; this
+// builder now only appends the caller-supplied extra handlers.
+func buildRunnerAgentHandlers(
+	ctx context.Context,
+	cfg *config.Config,
+	contextPlane contextplane.ContextPlane,
+	extraHandlers []adk.ChatModelAgentMiddleware,
+	chatModel einomodel.BaseChatModel,
+	compressionState any,
+) ([]adk.ChatModelAgentMiddleware, error) {
+	if cfg == nil {
+		return nil, errors.New("runner factory is not initialized")
+	}
+	if contextPlane == nil {
+		return nil, errors.New("context plane is not initialized")
+	}
+	_ = ctx
+	_ = chatModel
+	_ = compressionState
+	handlers := make([]adk.ChatModelAgentMiddleware, 0, len(extraHandlers))
+	handlers = append(handlers, extraHandlers...)
+	return handlers, nil
+}
+
+func (d defaultOrchestrationPlaneDeps) bindToolLifecycle(
+	ctx context.Context,
+	state orchestration.ToolLifecycleStateView,
+	catalog *toolkit.Catalog,
+	infos []*schema.ToolInfo,
+) context.Context {
+	if adapter, ok := state.(toolLifecycleStateAdapter); ok && adapter.state != nil {
+		return contextplane.WithToolLifecycleContext(ctx, adapter.state, catalog, infos)
+	}
+	return ctx
+}
+
+func bindSessionID(ctx context.Context, sessionID string) context.Context {
+	return domain.WithSessionID(ctx, sessionID)
+}
+
+type toolLifecycleStateAdapter struct {
+	state *contextplane.ToolLifecycleState
+}
+
+func (a toolLifecycleStateAdapter) IsLoaded(toolName string) bool {
+	if a.state == nil {
+		return false
+	}
+	_, ok := a.state.LoadedTools[toolName]
+	return ok
+}
+
+func AssembleResultToView(result *contextplane.AssembleResult) orchestration.AssembleResultView {
+	if result == nil {
+		return orchestration.AssembleResultView{}
+	}
+	return orchestration.AssembleResultView{
+		Messages:          result.Messages,
+		LifecycleState:    toolLifecycleStateAdapter{state: result.LifecycleState},
+		EagerToolNames:    result.EagerToolNames,
+		DeferredToolNames: result.DeferredToolNames,
+	}
 }

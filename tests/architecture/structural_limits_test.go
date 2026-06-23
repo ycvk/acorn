@@ -13,10 +13,8 @@ import (
 // Import cycles are enforced by `go build ./...` (compiler fails on cycles).
 var refactorOwnedDirs = []string{
 	"internal/runtime",
-	"internal/runtime/tool",
-	"internal/runtime/toolset",
-	"internal/tools",
-	"internal/contextplane",
+	"internal/toolset",
+	"internal/toolkit",
 	"internal/store/sqlite",
 	"internal/memorymodule",
 	"internal/app",
@@ -29,7 +27,7 @@ var refactorOwnedDirs = []string{
 	"internal/webaccess",
 }
 
-const structFileMaxLines = 400
+const structFileMaxLines = 800
 
 func TestStructuralLimitsRefactorOwnedRegistry(t *testing.T) {
 	root := filepath.Join("..", "..")

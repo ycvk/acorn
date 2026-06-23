@@ -96,7 +96,7 @@ func captureMemoryMutationRollback(path string) (*memoryMutationRollback, error)
 // applyNewMemoryRecord writes a brand-new memory record at relPath through the
 // full mutation pipeline (ApplyMemoryMutation), so structured writers (CreateFact,
 // CreateProcedure) get the same atomic write + BuildIndex + semantic rebuild +
-// rollback-on-failure as the raw memory tools. Without this, a structured write
+// rollback-on-failure as the raw memory toolset. Without this, a structured write
 // would land on disk and in the in-memory index but leave the semantic index
 // stale, making the just-written record unfindable by memory_search/Prepare. It
 // accepts a planner noop_duplicate for an equivalent existing record, but still
