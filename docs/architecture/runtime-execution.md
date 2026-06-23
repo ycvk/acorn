@@ -14,7 +14,7 @@ Acorn 的执行层由 `internal/runtime.Executor` 启动 run。用户执行入�
 ## Run lifecycle
 
 - `internal/runtime/executor.go` 创建或恢复 session/run，写入 `events.RunRecord`。只有一个编排模式 `direct_response`。
-- `RunnerFactory.New` 在 `internal/runtime/runner.go` 中只保留入口委托；`internal/runtime/run.go` 的 `RunnerFactory.buildRun` 构建 `ActiveRunner`。主链是：创建 chat model；bootstrap MCP 并构建 run tool catalog；调用 `memorymodule.Service.Prepare` 得到 file-backed prepared memory；assemble ContextPlane；委托给 `orchestration.DefaultPlane.BuildDirectResponse`。
+- `RunnerFactory.New` 在 `internal/runtime/runner.go` 中只保留入口委托；`internal/runtime/run.go` 的 `RunnerFactory.buildRun` 构建 `ActiveRunner`。主链是：创建 chat model；bootstrap MCP 并构建 run tool catalog；调用 `memory.Service.Prepare` 得到 file-backed prepared memory；assemble ContextPlane；委托给 `orchestration.DefaultPlane.BuildDirectResponse`。
 - Run tool catalog is built from `tooling.ToolContract`. Each enabled tool has explicit identity, source, kind, category, loading policy, and execution policy; incomplete contracts fail catalog construction.
 - Executor 在 model run 前通过 ContextSession Bootstrap 生成首轮 `ModelInput`。Bootstrap 合并 ContextPlane assembly 与 initial user messages；`direct_response` 额外把 stable instruction 作为 leading system message 交给 ContextSession。
 - Chat model 只来自配置中唯一 enabled LLM provider；runtime 不提供 priority、backoff、透明 failover 或 provider retry/switch。MCP provider 只暴露 startup health、catalog/auth lifecycle 和真实错误。

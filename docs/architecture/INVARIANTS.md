@@ -10,7 +10,7 @@
 
 ## 持久化与 store 边界
 
-- **SQLite adapter 不跨层泄漏**：production 代码只允许 `internal/app/container.go` 直接 import `internal/store/sqlite`；其他包只依赖 consumer-owned ports 或 `internal/store` shared records/errors。
+- **SQLite adapter 不跨层泄漏**：production 代码只允许 `internal/app/container.go` 直接 import `internal/store`；其他包只依赖 consumer-owned ports 或 `internal/store` shared records/errors。
   - ``
 - **Consumer-owned store 接口收敛**：`internal/runtime` + `internal/app` 顶层定义的 consumer-owned store 接口（Store/Port/Repository/Ledger）≤6（ExecutorStore、RunnerFactoryStore、containerRuntimeStore、containerAppStore、PendingActionCreateStore、skillSnapshotStore）。
   - `tests/architecture/store_interface_count_test.go`
@@ -21,7 +21,7 @@
   - `internal/contextplane/context_session_test.go`
   - `internal/contextplane/masking_test.go`
   - `internal/contextplane/auto_compact_test.go`
-- **Memory Record V2 是长期记忆事实**：facts/history frontmatter 由 `internal/memorymodule` 解析；semantic search 走 embedding + SQLite 暴力余弦相似度。
+- **Memory Record V2 是长期记忆事实**：facts/history frontmatter 由 `internal/memory` 解析；semantic search 走 embedding + SQLite 暴力余弦相似度。
   - `internal/memory/fact_learning_test.go`
 
 ## Remote API 与 mobile

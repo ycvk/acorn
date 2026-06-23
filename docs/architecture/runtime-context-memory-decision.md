@@ -16,7 +16,7 @@ slug: runtime-context-memory
 - memory context
 - deferred tool lifecycle messages
 
-Memory context consists of file-backed prepared memory from `memorymodule.Service.Prepare`. Working checkpoint and session summary sections have been removed.
+Memory context consists of file-backed prepared memory from `memory.Service.Prepare`. Working checkpoint and session summary sections have been removed.
 
 Tool lifecycle state is derived from `tooling.ToolContract`. Runtime builds each enabled tool with explicit identity, source, kind, category, loading policy, and execution policy. ContextPlane splits eager/deferred tools only from `ToolContract.Loading.Mode`.
 
@@ -36,7 +36,7 @@ Context pressure is a simple token threshold (`window_tokens - compact_margin`),
 
 ## MemoryModule
 
-`internal/memorymodule` owns file-backed memory:
+`internal/memory` owns file-backed memory:
 
 - `facts/` — structured facts (Record V2 frontmatter: status / tags / created / updated / source_run / source_refs)
 - `history/` — run history records

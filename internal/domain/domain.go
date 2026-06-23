@@ -244,22 +244,6 @@ func WithCallSite(ctx context.Context, callSite string) context.Context {
 	return context.WithValue(ctx, callSiteContextKey{}, trimmed)
 }
 
-func CallSiteFromContext(ctx context.Context) string {
-	if ctx == nil {
-		return CallSiteRuntime
-	}
-	v, ok := ctx.Value(callSiteContextKey{}).(string)
-	if !ok {
-		return CallSiteRuntime
-	}
-	if v = strings.TrimSpace(v); v == "" {
-		return CallSiteRuntime
-	}
-	return v
-}
-
-// --- Stream types (run event stream) ---
-
 type StreamItemKind string
 
 const (

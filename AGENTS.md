@@ -41,9 +41,9 @@ cd mobile-kotlin && ./tool/generate_openapi_client.sh --check   # CI 门禁
 - **组合根**:`internal/app.Container` 是唯一实例化具体实现的地方(SQLite store、RunnerFactory、embedding client)。`cmd/acorn → cli → app.Container → {web, runtime, store}`。`serve` 是唯一长驻命令。
 - **运行时主链**:`Executor → RunnerFactory.buildRun → ContextPlane + direct_response → ContextSession → SQLite/file-backed memory`。
 - **单一编排模式**:`direct_response`。model → tool loop → record → 下一轮。`AgentLoop.RunOneIteration` 每轮 `BeforeModelCall → RunActionRound(ExecuteRound) → RecordAssistant/RecordToolResults`。plan_execute/single_agent/child_agent/verifier 已全部删除。
-- **职责边界**:`internal/runtime/orchestration` 做装配+执行编排;ContextPlane(`internal/contextplane`)拥有上下文事实(首轮装配、tool lifecycle、`ContextSession`)。
-- **关键包**:`internal/domain` 拥有核心 domain 类型(`RunRecord`/`EventRecord`/`SessionRecord`/`PendingActionRecord`/`SessionSummary`)+ context plumbing(`WithRunID`/`WithSessionID`/`WithCallSite`)+ ports(`EventAppender`/`RunContextBridge`/`ToolCallContextBridge`);`internal/toolkit` 拥有 `ToolContract`/`Catalog`/`ToolSpec`;`internal/toolset` 拥有工具实现(file/git/browser/web/command/artifact);`internal/runtime/eventstream` 拥有 `StreamItem` + 投影逻辑;`internal/clientevents` 把 live RunEvent 投影为 mobile live subset;`internal/workspace` 拥有 mutation checkpoint + worktree;`internal/webaccess` 拥有 `web_search`/`web_fetch`/`browser` 工具与共享 URL policy;`internal/providers/mcp` 拥有 MCP provider lifecycle + OAuth token store + pending action store。
-- **两套真相**:SQLite(`internal/store`,modernc.org/sqlite,单连接串行化)是 runtime 真相(12 张表:runs/events/sessions/session_messages/pending_actions/mcp_oauth_tokens/owner_profile/devices/pairing_codes/artifacts/session_summaries/schema_migrations;schema 在 `store/sqlite/store_schema.go`,`schemaRequiredTables` 强制列存在、缺列 fail-loud);文件型长期记忆(`internal/memorymodule`)是 `facts/`/`history/`;embedding 向量存 SQLite `memory_vectors` 表。
+- **职责边界**:`internal/runtime` 做装配+执行编排;ContextPlane(`internal/contextplane`)拥有上下文事实(首轮装配、tool lifecycle、`ContextSession`)。
+- **关键包**:`internal/domain` 拥有核心 domain 类型(`RunRecord`/`EventRecord`/`SessionRecord`/`PendingActionRecord`/`SessionSummary`)+ context plumbing(`WithRunID`/`WithSessionID`/`WithCallSite`)+ ports(`EventAppender`/`RunContextBridge`/`ToolCallContextBridge`);`internal/toolkit` 拥有 `ToolContract`/`Catalog`/`ToolSpec`;`internal/toolset` 拥有工具实现(file/git/browser/web/command/artifact);`internal/runtime` 拥有 `StreamItem` + 投影逻辑;`internal/clientevents` 把 live RunEvent 投影为 mobile live subset;`internal/workspace` 拥有 mutation checkpoint + worktree;`internal/webaccess` 拥有 `web_search`/`web_fetch`/`browser` 工具与共享 URL policy;`internal/providers/mcp` 拥有 MCP provider lifecycle + OAuth token store + pending action store。
+- **两套真相**:SQLite(`internal/store`,modernc.org/sqlite,单连接串行化)是 runtime 真相(12 张表:runs/events/sessions/session_messages/pending_actions/mcp_oauth_tokens/owner_profile/devices/pairing_codes/artifacts/session_summaries/schema_migrations;schema 在 `store/sqlite/store_schema.go`,`schemaRequiredTables` 强制列存在、缺列 fail-loud);文件型长期记忆(`internal/memory`)是 `facts/`/`history/`;embedding 向量存 SQLite `memory_vectors` 表。
 - **API 契约**:`docs/openapi.yaml` 是唯一 wire contract,`mobile-kotlin/app/src/main/java/io/ycvk/acorn/api/` 由它生成。客户端只收 `internal/clientevents` 投影的 live RunEvent;RunEvent SSE 用 `follow=true` 轮询 + `after_seq` 游标续读。
 
 ## 硬边界
@@ -62,7 +62,7 @@ cd mobile-kotlin && ./tool/generate_openapi_client.sh --check   # CI 门禁
 
 ### 记忆 & 检索
 
-- 长期 memory 是 `internal/memorymodule` 的 file-backed `facts/`/`history/`。Canonical Memory Record V2 frontmatter(简化:status / tags / created / updated / source_run / source_refs)。fact 写入走结构化 `remember` 工具;raw `memory_create_file` 仍要求完整 frontmatter。
+- 长期 memory 是 `internal/memory` 的 file-backed `facts/`/`history/`。Canonical Memory Record V2 frontmatter(简化:status / tags / created / updated / source_run / source_refs)。fact 写入走结构化 `remember` 工具;raw `memory_create_file` 仍要求完整 frontmatter。
 - 语义检索配置 `memory.semantic.embedding` 是语义检索前提,但**惰性接线**:embedder/VectorStore 在首次 `Search`/`Prepare`/rebuild 时才构造,serve 启动不被阻塞。语义检索是可选增强,不是发任务的前置闸门。未配置 embedding 时 `Prepare` 降级为返回空 memory 结果(零召回是合法 baseline)。
 - 语义检索实现:OpenAI embedding 调用 → SQLite `memory_vectors` 表 BLOB 存储 → 纯 Go 暴力余弦相似度检索。零 CGO。
 - **不要引入 pgvector/LanceDB/Bleve/FAISS 或第二套 retrieval store**。
@@ -114,6 +114,6 @@ cd mobile-kotlin && ./tool/generate_openapi_client.sh --check   # CI 门禁
 
 ## 验证要求
 
-提交前必须通过 `make format-check` 和 `make lint`。context/runtime 改动至少跑 `go test ./internal/config ./internal/contextplane ./internal/orchestration ./internal/runtime ./internal/cli ./internal/toolkit ./internal/toolset ./internal/store ./internal/memorymodule ./internal/app ./internal/web`。
+提交前必须通过 `make format-check` 和 `make lint`。context/runtime 改动至少跑 `go test ./internal/config ./internal/contextplane ./internal/orchestration ./internal/runtime ./internal/cli ./internal/toolkit ./internal/toolset ./internal/store ./internal/memory ./internal/app ./internal/web`。
 
 **CI 守卫**(`tests/architecture/`):`store_boundary_test.go`(只允许 container.go import sqlite)、`structural_limits_test.go`、`client_projection_boundary_test.go`。

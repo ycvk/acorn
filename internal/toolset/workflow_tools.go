@@ -5,13 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
 	"time"
 
 	einotool "github.com/cloudwego/eino/components/tool"
-
 	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/toolkit"
@@ -307,4 +307,411 @@ func applyGitSummaryDiff(ctx context.Context, ws WorkspaceView, service Artifact
 	diffSummary := artifactSummaryFromRecord(record)
 	output.DiffArtifact = &diffSummary
 	return emitToolProgress(ctx, emit, fmt.Sprintf("wrote diff artifact %s", record.ArtifactID))
+}
+
+type multiEditPlan struct {
+	path     string
+	resolved string
+	before   []byte
+	after    []byte
+	mode     os.FileMode
+	edits    []multiEditPreparedSpan
+}
+
+type multiEditPreparedSpan struct {
+	path        string
+	startLine   int
+	endLine     int
+	replacement string
+}
+
+type multiEditTempFile struct {
+	target string
+	path   string
+	mode   os.FileMode
+}
+
+func prepareMultiEditPlans(ws WorkspaceView, spans []MultiEditSpan) ([]multiEditPlan, []MultiEditAppliedSpan, []string, error) {
+	if len(spans) == 0 {
+		return nil, nil, nil, errors.New("edits are required")
+	}
+	plansByPath, err := collectMultiEditPlans(ws, spans)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	paths := sortedMultiEditPaths(plansByPath)
+	return finalizeMultiEditPlans(plansByPath, paths, spans)
+}
+
+func collectMultiEditPlans(ws WorkspaceView, spans []MultiEditSpan) (map[string]*multiEditPlan, error) {
+	plansByPath := make(map[string]*multiEditPlan, len(spans))
+	for index, span := range spans {
+		plan, rel, err := resolveMultiEditSpanPlan(ws, plansByPath, span, index)
+		if err != nil {
+			return nil, err
+		}
+		if err := appendMultiEditSpan(plan, rel, span, index); err != nil {
+			return nil, err
+		}
+		plansByPath[rel] = plan
+	}
+	return plansByPath, nil
+}
+
+func resolveMultiEditSpanPlan(ws WorkspaceView, plansByPath map[string]*multiEditPlan, span MultiEditSpan, index int) (*multiEditPlan, string, error) {
+	if strings.TrimSpace(span.Path) == "" {
+		return nil, "", fmt.Errorf("edits[%d].path is required", index)
+	}
+	if span.StartLine <= 0 || span.EndLine <= 0 {
+		return nil, "", fmt.Errorf("edits[%d] start_line and end_line must be > 0", index)
+	}
+	resolved, err := ws.ResolveWritePath(span.Path)
+	if err != nil {
+		return nil, "", err
+	}
+	rel, err := ws.RelativePath(resolved)
+	if err != nil {
+		return nil, "", err
+	}
+	rel = filepath.ToSlash(rel)
+	plan := plansByPath[rel]
+	if plan == nil {
+		var err error
+		plan, err = loadMultiEditPlanBody(rel, resolved)
+		if err != nil {
+			return nil, "", err
+		}
+	}
+	return plan, rel, nil
+}
+
+func loadMultiEditPlanBody(rel, resolved string) (*multiEditPlan, error) {
+	body, err := os.ReadFile(resolved)
+	if err != nil {
+		return nil, fmt.Errorf("read file %s: %w", resolved, err)
+	}
+	info, err := os.Stat(resolved)
+	if err != nil {
+		return nil, fmt.Errorf("stat file %s: %w", resolved, err)
+	}
+	return &multiEditPlan{
+		path:     rel,
+		resolved: resolved,
+		before:   body,
+		mode:     info.Mode().Perm(),
+	}, nil
+}
+
+func appendMultiEditSpan(plan *multiEditPlan, rel string, span MultiEditSpan, index int) error {
+	offsets := lineStartOffsets(plan.before)
+	startLine, endLine, err := normalizeLineRange(len(offsets), span.StartLine, span.EndLine)
+	if err != nil {
+		return fmt.Errorf("edits[%d] %s: %w", index, rel, err)
+	}
+	plan.edits = append(plan.edits, multiEditPreparedSpan{
+		path:        rel,
+		startLine:   startLine,
+		endLine:     endLine,
+		replacement: span.Replacement,
+	})
+	return nil
+}
+
+func sortedMultiEditPaths(plansByPath map[string]*multiEditPlan) []string {
+	paths := make([]string, 0, len(plansByPath))
+	for path := range plansByPath {
+		paths = append(paths, path)
+	}
+	slices.Sort(paths)
+	return paths
+}
+
+func finalizeMultiEditPlans(plansByPath map[string]*multiEditPlan, paths []string, spans []MultiEditSpan) ([]multiEditPlan, []MultiEditAppliedSpan, []string, error) {
+	plans := make([]multiEditPlan, 0, len(paths))
+	applied := make([]MultiEditAppliedSpan, 0, len(spans))
+	for _, path := range paths {
+		plan := plansByPath[path]
+		if err := sortMultiEditPlanEdits(path, plan); err != nil {
+			return nil, nil, nil, err
+		}
+		plan.after = applyPreparedSpans(plan.before, plan.edits)
+		for _, edit := range plan.edits {
+			applied = append(applied, appliedSpanFromEdit(edit))
+		}
+		plans = append(plans, *plan)
+	}
+	return plans, applied, paths, nil
+}
+
+func sortMultiEditPlanEdits(path string, plan *multiEditPlan) error {
+	slices.SortFunc(plan.edits, func(left, right multiEditPreparedSpan) int {
+		if left.startLine != right.startLine {
+			return left.startLine - right.startLine
+		}
+		return left.endLine - right.endLine
+	})
+	for i := 1; i < len(plan.edits); i++ {
+		previous := plan.edits[i-1]
+		current := plan.edits[i]
+		if current.startLine <= previous.endLine {
+			return fmt.Errorf("multi_edit spans overlap in %s: %d-%d and %d-%d", path, previous.startLine, previous.endLine, current.startLine, current.endLine)
+		}
+	}
+	return nil
+}
+
+func appliedSpanFromEdit(edit multiEditPreparedSpan) MultiEditAppliedSpan {
+	return MultiEditAppliedSpan{
+		Path:             edit.path,
+		StartLine:        edit.startLine,
+		EndLine:          edit.endLine,
+		ReplacementBytes: len(edit.replacement),
+	}
+}
+
+func applyPreparedSpans(body []byte, edits []multiEditPreparedSpan) []byte {
+	result := append([]byte(nil), body...)
+	offsets := lineStartOffsets(body)
+	totalLines := len(offsets)
+	for i := len(edits) - 1; i >= 0; i-- {
+		edit := edits[i]
+		startByte := offsets[edit.startLine-1]
+		endByte := len(body)
+		if edit.endLine < totalLines {
+			endByte = offsets[edit.endLine]
+		}
+		replaced := append([]byte(nil), result[:startByte]...)
+		replaced = append(replaced, []byte(edit.replacement)...)
+		replaced = append(replaced, result[endByte:]...)
+		result = replaced
+	}
+	return result
+}
+
+func cleanupTempFiles(items []multiEditTempFile) {
+	for _, item := range items {
+		_ = os.Remove(item.path)
+	}
+}
+
+func restoreMultiEditPlans(plans []multiEditPlan) error {
+	var joined error
+	for _, plan := range plans {
+		if err := os.WriteFile(plan.resolved, plan.before, plan.mode); err != nil {
+			joined = errors.Join(joined, fmt.Errorf("restore %s after failed multi_edit: %w", plan.path, err))
+		}
+	}
+	return joined
+}
+
+type verificationCommandResult struct {
+	stdout   string
+	stderr   string
+	exitCode int
+	status   string
+	timedOut bool
+}
+
+func normalizeVerificationKind(value string) (string, error) {
+	switch strings.TrimSpace(value) {
+	case "test", "lint", "build", "format_check", "custom":
+		return strings.TrimSpace(value), nil
+	default:
+		return "", fmt.Errorf("verification kind %q is invalid", strings.TrimSpace(value))
+	}
+}
+
+func normalizeCommand(command []string) ([]string, error) {
+	if len(command) == 0 {
+		return nil, errors.New("command is required")
+	}
+	normalized := make([]string, 0, len(command))
+	for index, item := range command {
+		trimmed := strings.TrimSpace(item)
+		if trimmed == "" {
+			return nil, errors.New("command arguments must not be empty")
+		}
+		if index == 0 {
+			normalized = append(normalized, trimmed)
+			continue
+		}
+		normalized = append(normalized, item)
+	}
+	return normalized, nil
+}
+
+func normalizeVerificationPaths(ws WorkspaceView, values []string) ([]string, error) {
+	if len(values) == 0 {
+		return nil, nil
+	}
+	return normalizePatchPaths(ws, values)
+}
+
+func verificationSummary(kind string, status string, exitCode int) string {
+	return fmt.Sprintf("%s verification %s with exit code %d", kind, status, exitCode)
+}
+
+func writeWorkflowArtifact(ctx context.Context, service ArtifactService, bridge domain.ToolCallContextBridge, kind store.ArtifactKind, title string, mimeType string, content string) (store.ArtifactRecord, error) {
+	runID := strings.TrimSpace(bridge.CurrentRunID(ctx))
+	if runID == "" {
+		return store.ArtifactRecord{}, errors.New("workflow artifact write requires current run context")
+	}
+	callID := strings.TrimSpace(bridge.CurrentToolCallID(ctx))
+	if callID == "" {
+		return store.ArtifactRecord{}, errors.New("workflow artifact write requires current tool call context")
+	}
+	return service.Write(ctx, store.ArtifactWriteRequest{
+		RunID:               runID,
+		SessionID:           strings.TrimSpace(bridge.CurrentSessionID(ctx)),
+		SourceToolResultRef: "tool_result:" + runID + ":" + callID,
+		Kind:                kind,
+		Title:               title,
+		MIMEType:            mimeType,
+		Content:             []byte(content),
+	})
+}
+
+func executeVerificationCommand(ctx context.Context, ws WorkspaceView, command []string, cwd string, timeoutSeconds int, emit toolkit.ToolProgressEmitter) (verificationCommandResult, error) {
+	if timeoutSeconds <= 0 {
+		timeoutSeconds = ws.RunCommandDefaultTimeout()
+	}
+	execCtx, cancel := context.WithTimeout(ctx, time.Duration(timeoutSeconds)*time.Second)
+	defer cancel()
+	cmd, stdoutBuf, stderrBuf := buildVerificationCommand(ws, command, cwd, ctx, emit)
+	if err := cmd.Start(); err != nil {
+		return verificationCommandResult{}, fmt.Errorf("start verification command %v: %w", command, err)
+	}
+	return waitVerificationCommand(execCtx, cmd, command, stdoutBuf, stderrBuf)
+}
+
+func buildVerificationCommand(ws WorkspaceView, command []string, cwd string, ctx context.Context, emit toolkit.ToolProgressEmitter) (*exec.Cmd, *runCommandProgressBuffer, *runCommandProgressBuffer) {
+	cmd := exec.Command(command[0], command[1:]...)
+	ConfigureCommand(cmd)
+	cmd.Dir = cwd
+	cmd.Env = filterWhitelistedEnv(os.Environ(), ws.RunCommandEnvWhitelist())
+	stdoutBuf := newRunCommandProgressBuffer(ctx, emit)
+	stderrBuf := newRunCommandProgressBuffer(ctx, emit)
+	cmd.Stdout = stdoutBuf
+	cmd.Stderr = stderrBuf
+	return cmd, stdoutBuf, stderrBuf
+}
+
+func waitVerificationCommand(execCtx context.Context, cmd *exec.Cmd, command []string, stdoutBuf, stderrBuf *runCommandProgressBuffer) (verificationCommandResult, error) {
+	waitCh := spawnVerificationWait(cmd)
+	select {
+	case waitErr := <-waitCh:
+		if err := errors.Join(stdoutBuf.Err(), stderrBuf.Err()); err != nil {
+			return verificationCommandResult{}, err
+		}
+		return verificationCommandResultFromWait(command, stdoutBuf.String(), stderrBuf.String(), waitErr)
+	case <-execCtx.Done():
+		return verificationResultOnTimeout(execCtx, cmd, waitCh, command, stdoutBuf, stderrBuf)
+	}
+}
+
+func spawnVerificationWait(cmd *exec.Cmd) chan error {
+	waitCh := make(chan error, 1)
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				waitCh <- fmt.Errorf("verification command wait panic: %v", r)
+			}
+		}()
+		waitCh <- cmd.Wait()
+	}()
+	return waitCh
+}
+
+func verificationResultOnTimeout(ctx context.Context, cmd *exec.Cmd, waitCh chan error, command []string, stdoutBuf, stderrBuf *runCommandProgressBuffer) (verificationCommandResult, error) {
+	killErr := KillCommandGroup(cmd)
+	waitErr := <-waitCh
+	if err := errors.Join(stdoutBuf.Err(), stderrBuf.Err()); err != nil {
+		return verificationCommandResult{}, err
+	}
+	if killErr != nil {
+		return verificationCommandResult{}, errors.Join(ctx.Err(), killErr)
+	}
+	if waitErr != nil {
+		if exitErr, ok := errors.AsType[*exec.ExitError](waitErr); !ok || exitErr == nil {
+			return verificationCommandResult{}, errors.Join(ctx.Err(), waitErr)
+		}
+	}
+	return verificationCommandResult{
+		stdout:   stdoutBuf.String(),
+		stderr:   stderrBuf.String(),
+		exitCode: -1,
+		status:   verificationStatusTimedOut,
+		timedOut: true,
+	}, nil
+}
+
+func verificationCommandResultFromWait(command []string, stdout string, stderr string, waitErr error) (verificationCommandResult, error) {
+	result := verificationCommandResult{
+		stdout: stdout,
+		stderr: stderr,
+		status: verificationStatusPassed,
+	}
+	if waitErr == nil {
+		return result, nil
+	}
+	if exitErr, ok := errors.AsType[*exec.ExitError](waitErr); ok {
+		result.exitCode = exitErr.ExitCode()
+		result.status = verificationStatusFailed
+		return result, nil
+	}
+	return verificationCommandResult{}, fmt.Errorf("exec verification command %v: %w", command, waitErr)
+}
+
+func appendGitPathspec(args []string, scopedPath string) []string {
+	args = append(args, "--")
+	if strings.TrimSpace(scopedPath) != "" {
+		args = append(args, filepath.ToSlash(strings.TrimSpace(scopedPath)))
+	}
+	return args
+}
+
+func gitSummaryDiffStat(ctx context.Context, ws WorkspaceView, scopedPath string, cached bool) (string, error) {
+	args := []string{"diff", "--stat"}
+	if cached {
+		args = append(args, "--cached")
+	}
+	args = appendGitPathspec(args, scopedPath)
+	worktreeStat, err := runGitCommand(ctx, ws.Root(), args...)
+	if err != nil || cached {
+		return worktreeStat, err
+	}
+	cachedArgs := appendGitPathspec([]string{"diff", "--cached", "--stat"}, scopedPath)
+	cachedStat, err := runGitCommand(ctx, ws.Root(), cachedArgs...)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(strings.Join(trimmedNonEmptyStrings([]string{worktreeStat, cachedStat}), "\n")), nil
+}
+
+func gitSummaryDiff(ctx context.Context, ws WorkspaceView, scopedPath string, cached bool, contextLines int) (string, error) {
+	args := []string{"diff", "--no-ext-diff", fmt.Sprintf("--unified=%d", contextLines)}
+	if cached {
+		args = append(args, "--cached")
+	}
+	args = appendGitPathspec(args, scopedPath)
+	worktreeDiff, err := runGitCommand(ctx, ws.Root(), args...)
+	if err != nil || cached {
+		return worktreeDiff, err
+	}
+	cachedArgs := appendGitPathspec([]string{"diff", "--no-ext-diff", fmt.Sprintf("--unified=%d", contextLines), "--cached"}, scopedPath)
+	cachedDiff, err := runGitCommand(ctx, ws.Root(), cachedArgs...)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(strings.Join(trimmedNonEmptyStrings([]string{worktreeDiff, cachedDiff}), "\n")), nil
+}
+
+func trimmedNonEmptyStrings(values []string) []string {
+	out := make([]string, 0, len(values))
+	for _, v := range values {
+		if s := strings.TrimSpace(v); s != "" {
+			out = append(out, s)
+		}
+	}
+	return out
 }
