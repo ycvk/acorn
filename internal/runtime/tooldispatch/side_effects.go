@@ -27,7 +27,7 @@ func buildToolResultRef(runID, callID string) string {
 	return "tool_result:" + strings.TrimSpace(runID) + ":" + strings.TrimSpace(callID)
 }
 
-func ToolSideEffectsFromResult(toolName string, result string) ([]SideEffectRef, error) {
+func toolSideEffectsFromResult(toolName string, result string) ([]SideEffectRef, error) {
 	switch strings.TrimSpace(toolName) {
 	case "create_file", "replace_span", "apply_unified_patch", "multi_edit":
 		return mutationCheckpointSideEffects(toolName, result)

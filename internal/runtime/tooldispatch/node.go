@@ -162,7 +162,7 @@ func attachToolMessageLedgerMeta(msg *schema.Message, call classifiedCall, resul
 }
 
 func attachToolSideEffects(msg *schema.Message, toolName string, result string) error {
-	sideEffects, err := ToolSideEffectsFromResult(toolName, result)
+	sideEffects, err := toolSideEffectsFromResult(toolName, result)
 	if err != nil {
 		return err
 	}

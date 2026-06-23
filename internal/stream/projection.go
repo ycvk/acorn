@@ -24,7 +24,7 @@ func AppendStreamItem(ctx context.Context, store domain.EventAppender, sink doma
 	item.CreatedAt = saved.CreatedAt
 	if sink != nil {
 		if err := sink(item); err != nil {
-			return saved, fmt.Errorf("stream sink: %w", err)
+			return domain.EventRecord{}, err
 		}
 	}
 	return saved, nil
