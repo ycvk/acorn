@@ -139,12 +139,20 @@ type RuntimeDeps struct {
 	SessionSummarySvc *domain.SessionSummaryService
 	MemoryModule      memory.Service
 	ContextPlane      contextplane.ContextPlane
-	Orchestration     *DefaultPlane
 	MCPPendingActions mcpprovider.PendingActionStore
 	Workspace         *workspace.Workspace
 	ArtifactService   *store.ArtifactService
 	ExtraLocalTools   []einotool.BaseTool
 	Handlers          []adk.ChatModelAgentMiddleware
+
+	// ToolBuilder overrides the default audited tool builder for testing.
+	// nil means use BuildAuditedTools.
+	ToolBuilder func(ctx context.Context, store RunnerFactoryStore, specs []toolkit.ToolSpec, excludedToolNames []string, allowedToolNames []string, runID string) ([]einotool.BaseTool, error)
+	// ToolNodeFactory overrides the default safe parallel tools node for testing.
+	// nil means use NewSafeParallelToolsNode.
+	ToolNodeFactory func(ctx context.Context, tools []einotool.BaseTool, resolver toolkit.ExecutionPolicyResolver) (ToolInvoker, error)
+	// CheckpointStore overrides the default in-memory checkpoint store for testing.
+	CheckpointStore adk.CheckPointStore
 }
 
 func (d RuntimeDeps) CloneForWorkspace(ws *workspace.Workspace) RuntimeDeps {
@@ -421,64 +429,4 @@ type AssembleResultView struct {
 	LifecycleState    ToolLifecycleStateView
 	EagerToolNames    []string
 	DeferredToolNames []string
-}
-
-type ToolLifecycleBinder func(ctx context.Context, state ToolLifecycleStateView, catalog *toolkit.Catalog, infos []*schema.ToolInfo) context.Context
-
-// ToolBuilder constructs the concrete tool set from specs.
-type ToolBuilder func(
-	ctx context.Context,
-	specs []toolkit.ToolSpec,
-	excludedToolNames []string,
-	allowedToolNames []string,
-	runID string,
-) ([]einotool.BaseTool, error)
-
-// ToolNodeFactory creates a ToolInvoker from concrete toolset.
-type ToolNodeFactory func(ctx context.Context, tools []einotool.BaseTool, resolver toolkit.ExecutionPolicyResolver) (ToolInvoker, error)
-
-// InstructionBuilder builds the system instruction from base prompt and suffix.
-type InstructionBuilder func(base string, suffix string) string
-
-// HandlersBuilder constructs middleware handlers for the agent.
-type HandlersBuilder func(ctx context.Context, chatModel einomodel.BaseChatModel, compressionState any) ([]adk.ChatModelAgentMiddleware, error)
-
-// DefaultPlaneOptions configures a DefaultPlane.
-type DefaultPlaneOptions struct {
-	SystemPrompt         string
-	MaxIterations        int
-	CheckpointStore      adk.CheckPointStore
-	ToolBuilder          ToolBuilder
-	ToolNodeFactory      ToolNodeFactory
-	HandlersBuilder      HandlersBuilder
-	InstructionBuilder   InstructionBuilder
-	ToolLifecycleBinder  ToolLifecycleBinder
-	SessionContextBinder func(ctx context.Context, sessionID string) context.Context
-}
-
-// DefaultPlane is the single orchestration plane for direct_response mode.
-type DefaultPlane struct {
-	systemPrompt         string
-	maxIterations        int
-	checkpointStore      adk.CheckPointStore
-	toolBuilder          ToolBuilder
-	toolNodeFactory      ToolNodeFactory
-	handlersBuilder      HandlersBuilder
-	instructionBuilder   InstructionBuilder
-	toolLifecycleBinder  ToolLifecycleBinder
-	sessionContextBinder func(ctx context.Context, sessionID string) context.Context
-}
-
-func NewDefaultPlane(opts DefaultPlaneOptions) *DefaultPlane {
-	return &DefaultPlane{
-		systemPrompt:         opts.SystemPrompt,
-		maxIterations:        opts.MaxIterations,
-		checkpointStore:      opts.CheckpointStore,
-		toolBuilder:          opts.ToolBuilder,
-		toolNodeFactory:      opts.ToolNodeFactory,
-		handlersBuilder:      opts.HandlersBuilder,
-		instructionBuilder:   opts.InstructionBuilder,
-		toolLifecycleBinder:  opts.ToolLifecycleBinder,
-		sessionContextBinder: opts.SessionContextBinder,
-	}
 }

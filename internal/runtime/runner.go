@@ -242,11 +242,11 @@ func (f *RunnerFactory) buildAssembly(
 	chatModel einomodel.BaseChatModel,
 	contextResult *contextplane.AssembleResult,
 ) (*RunAssembly, error) {
-	if f == nil || f.deps.Orchestration == nil {
-		return nil, fmt.Errorf("orchestration plane is not initialized")
+	if f == nil || f.deps.Config == nil {
+		return nil, fmt.Errorf("runner factory is not initialized")
 	}
 	bf := f.baseAssemblyFields(req, catalog, chatModel, contextResult)
-	return f.deps.Orchestration.BuildDirectResponse(ctx, f.directResponseRequest(bf, req))
+	return buildDirectResponse(ctx, f.deps, f.directResponseRequest(bf, req))
 }
 
 func (f *RunnerFactory) baseAssemblyFields(req RunnerBuildRequest, catalog *toolkit.Catalog, chatModel einomodel.BaseChatModel, contextResult *contextplane.AssembleResult) baseAssemblyFields {
@@ -394,10 +394,7 @@ func buildRuntimeDeps(cfg *config.Config, store RunnerFactoryStore, opts RunnerF
 	if err != nil {
 		return RuntimeDeps{}, fmt.Errorf("context plane: %w", err)
 	}
-	orchestrationPlane := newDefaultOrchestrationPlane(defaultOrchestrationPlaneDeps{
-		cfg: cfg, store: store, contextPlane: contextPlane, handlers: opts.Handlers,
-	})
-	return assembleRuntimeDeps(cfg, store, opts, ws, loader, artifactService, contextPlane, orchestrationPlane), nil
+	return assembleRuntimeDeps(cfg, store, opts, ws, loader, artifactService, contextPlane), nil
 }
 
 func resolveLoader(cfg *config.Config, loader *skills.Loader) *skills.Loader {
@@ -414,14 +411,14 @@ func resolveContextPlane(cfg *config.Config, store RunnerFactoryStore, opts Runn
 	return buildDefaultContextPlane(cfg, store, opts)
 }
 
-func assembleRuntimeDeps(cfg *config.Config, store RunnerFactoryStore, opts RunnerFactoryOptions, ws *workspace.Workspace, loader *skills.Loader, artifactService *corestore.ArtifactService, contextPlane contextplane.ContextPlane, orchestrationPlane *DefaultPlane) RuntimeDeps {
+func assembleRuntimeDeps(cfg *config.Config, store RunnerFactoryStore, opts RunnerFactoryOptions, ws *workspace.Workspace, loader *skills.Loader, artifactService *corestore.ArtifactService, contextPlane contextplane.ContextPlane) RuntimeDeps {
 	return RuntimeDeps{
 		Config:            cfg,
+		Store:             store,
 		Loader:            loader,
 		SessionSummarySvc: opts.SessionSummaryService,
 		MemoryModule:      opts.MemoryModule,
 		ContextPlane:      contextPlane,
-		Orchestration:     orchestrationPlane,
 		MCPPendingActions: opts.MCPPendingActionStore,
 		Workspace:         ws,
 		ArtifactService:   artifactService,
@@ -509,27 +506,6 @@ func (c *runCapabilities) Close() error {
 	return c.close()
 }
 
-type defaultOrchestrationPlaneDeps struct {
-	cfg          *config.Config
-	store        RunnerFactoryStore
-	contextPlane contextplane.ContextPlane
-	handlers     []adk.ChatModelAgentMiddleware
-}
-
-func newDefaultOrchestrationPlane(deps defaultOrchestrationPlaneDeps) *DefaultPlane {
-	return NewDefaultPlane(DefaultPlaneOptions{
-		SystemPrompt:         deps.cfg.Agent.SystemPrompt,
-		MaxIterations:        deps.cfg.Agent.MaxIterations,
-		CheckpointStore:      newInMemoryCheckpointStore(),
-		ToolBuilder:          deps.buildAuditedTools,
-		ToolNodeFactory:      deps.buildToolNode,
-		HandlersBuilder:      deps.buildHandlers,
-		InstructionBuilder:   buildStableInstruction,
-		ToolLifecycleBinder:  deps.bindToolLifecycle,
-		SessionContextBinder: bindSessionID,
-	})
-}
-
 // inMemoryCheckpointStore is a process-local adk.CheckPointStore. The schema
 // reduction removed the SQLite-backed checkpoints table; runs re-bootstrap
 // their context from persisted messages on resume, so a volatile store is
@@ -560,59 +536,27 @@ func (s *inMemoryCheckpointStore) Set(_ context.Context, checkPointID string, ch
 	return nil
 }
 
-func (d defaultOrchestrationPlaneDeps) buildAuditedTools(
-	ctx context.Context,
-	specs []toolkit.ToolSpec,
-	excludedToolNames []string,
-	allowedToolNames []string,
-	runID string,
-) ([]einotool.BaseTool, error) {
-	return BuildAuditedTools(ctx, d.store, specs, excludedToolNames, allowedToolNames, runID)
-}
-
-func (d defaultOrchestrationPlaneDeps) buildToolNode(
-	ctx context.Context,
-	tools []einotool.BaseTool,
-	resolver toolkit.ExecutionPolicyResolver,
-) (ToolInvoker, error) {
-	return NewSafeParallelToolsNode(ctx, tools, resolver)
-}
-
-func (d defaultOrchestrationPlaneDeps) buildHandlers(
-	ctx context.Context,
-	chatModel einomodel.BaseChatModel,
-	compressionState any,
-) ([]adk.ChatModelAgentMiddleware, error) {
-	return buildRunnerAgentHandlers(ctx, d.cfg, d.contextPlane, d.handlers, chatModel, compressionState)
-}
-
 // buildRunnerAgentHandlers assembles the chat-model middleware chain. With the
 // compaction subpackage removed, compression is driven by the context session
-// (see context_session_bridge.go) rather than by model-call middleware; this
-// builder now only appends the caller-supplied extra handlers.
+// rather than by model-call middleware; this builder now only appends the
+// caller-supplied extra handlers.
 func buildRunnerAgentHandlers(
-	ctx context.Context,
+	_ context.Context,
 	cfg *config.Config,
-	contextPlane contextplane.ContextPlane,
+	_ contextplane.ContextPlane,
 	extraHandlers []adk.ChatModelAgentMiddleware,
-	chatModel einomodel.BaseChatModel,
-	compressionState any,
+	_ einomodel.BaseChatModel,
+	_ any,
 ) ([]adk.ChatModelAgentMiddleware, error) {
 	if cfg == nil {
 		return nil, errors.New("runner factory is not initialized")
 	}
-	if contextPlane == nil {
-		return nil, errors.New("context plane is not initialized")
-	}
-	_ = ctx
-	_ = chatModel
-	_ = compressionState
 	handlers := make([]adk.ChatModelAgentMiddleware, 0, len(extraHandlers))
 	handlers = append(handlers, extraHandlers...)
 	return handlers, nil
 }
 
-func (d defaultOrchestrationPlaneDeps) bindToolLifecycle(
+func bindToolLifecycle(
 	ctx context.Context,
 	state ToolLifecycleStateView,
 	catalog *toolkit.Catalog,

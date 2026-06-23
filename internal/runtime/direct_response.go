@@ -38,14 +38,14 @@ type assembledTooling struct {
 
 // assembleTooling builds the tool set, instruction, handlers, and the run context
 // bound with session + tool lifecycle.
-func (p *DefaultPlane) assembleTooling(ctx context.Context, params toolAssemblyParams) (*assembledTooling, error) {
-	allTools, err := p.toolBuilder(
-		ctx,
-		params.catalog.EnabledSpecs(),
-		params.excludedToolNames,
-		params.allowedToolNames,
-		params.runID,
-	)
+func assembleTooling(ctx context.Context, deps RuntimeDeps, params toolAssemblyParams) (*assembledTooling, error) {
+	toolBuilder := deps.ToolBuilder
+	if toolBuilder == nil {
+		toolBuilder = func(ctx context.Context, store RunnerFactoryStore, specs []toolkit.ToolSpec, excludedToolNames []string, allowedToolNames []string, runID string) ([]einotool.BaseTool, error) {
+			return BuildAuditedTools(ctx, store, specs, excludedToolNames, allowedToolNames, runID)
+		}
+	}
+	allTools, err := toolBuilder(ctx, deps.Store, params.catalog.EnabledSpecs(), params.excludedToolNames, params.allowedToolNames, params.runID)
 	if err != nil {
 		return nil, err
 	}
@@ -58,18 +58,13 @@ func (p *DefaultPlane) assembleTooling(ctx context.Context, params toolAssemblyP
 		}
 		toolInfos = append(toolInfos, info)
 	}
-	instruction := p.instructionBuilder(p.systemPrompt, params.instructionSuffix)
-	handlers, err := p.handlersBuilder(ctx, params.chatModel, nil)
+	instruction := buildStableInstruction(deps.Config.Agent.SystemPrompt, params.instructionSuffix)
+	handlers, err := buildRunnerAgentHandlers(ctx, deps.Config, deps.ContextPlane, deps.Handlers, params.chatModel, nil)
 	if err != nil {
 		return nil, err
 	}
-	runCtx := ctx
-	if p.sessionContextBinder != nil {
-		runCtx = p.sessionContextBinder(runCtx, params.sessionID)
-	}
-	if p.toolLifecycleBinder != nil {
-		runCtx = p.toolLifecycleBinder(runCtx, params.contextResult.LifecycleState, params.catalog, toolInfos)
-	}
+	runCtx := bindSessionID(ctx, params.sessionID)
+	runCtx = bindToolLifecycle(runCtx, params.contextResult.LifecycleState, params.catalog, toolInfos)
 
 	return &assembledTooling{
 		allTools:    allTools,
@@ -80,9 +75,9 @@ func (p *DefaultPlane) assembleTooling(ctx context.Context, params toolAssemblyP
 	}, nil
 }
 
-func (p *DefaultPlane) BuildDirectResponse(ctx context.Context, req DirectResponseRequest) (*RunAssembly, error) {
-	if p == nil {
-		return nil, fmt.Errorf("orchestration plane is not initialized")
+func buildDirectResponse(ctx context.Context, deps RuntimeDeps, req DirectResponseRequest) (*RunAssembly, error) {
+	if deps.Config == nil {
+		return nil, fmt.Errorf("runtime deps config is required")
 	}
 	if req.ChatModel == nil {
 		return nil, fmt.Errorf("chat model is required")
@@ -96,14 +91,8 @@ func (p *DefaultPlane) BuildDirectResponse(ctx context.Context, req DirectRespon
 	if req.ContextResult.LifecycleState == nil {
 		return nil, fmt.Errorf("context plane lifecycle state is required")
 	}
-	if p.toolBuilder == nil || p.toolNodeFactory == nil || p.instructionBuilder == nil || p.handlersBuilder == nil {
-		return nil, fmt.Errorf("orchestration plane is missing required dependencies")
-	}
-	if p.checkpointStore == nil {
-		return nil, fmt.Errorf("orchestration plane requires checkpoint store")
-	}
 
-	assembled, err := p.assembleTooling(ctx, toolAssemblyParams{
+	assembled, err := assembleTooling(ctx, deps, toolAssemblyParams{
 		catalog:           req.Catalog,
 		contextResult:     req.ContextResult,
 		allowedToolNames:  req.AllowedToolNames,
@@ -116,54 +105,56 @@ func (p *DefaultPlane) BuildDirectResponse(ctx context.Context, req DirectRespon
 	if err != nil {
 		return nil, err
 	}
-	safeToolNode, err := p.toolNodeFactory(ctx, assembled.allTools, req.Catalog)
+	toolNodeFactory := deps.ToolNodeFactory
+	if toolNodeFactory == nil {
+		toolNodeFactory = func(ctx context.Context, tools []einotool.BaseTool, resolver toolkit.ExecutionPolicyResolver) (ToolInvoker, error) {
+			return NewSafeParallelToolsNode(ctx, tools, resolver)
+		}
+	}
+	safeToolNode, err := toolNodeFactory(ctx, assembled.allTools, req.Catalog)
 	if err != nil {
 		return nil, fmt.Errorf("build safe parallel tools node: %w", err)
 	}
 	agent := &directResponseAgent{
-		name:                 req.AgentName,
-		description:          req.AgentDescription,
-		model:                req.ChatModel,
-		streamer:             req.AssistantStreamer,
-		sessionID:            req.SessionID,
-		runID:                req.RunID,
-		toolNode:             safeToolNode,
-		instruction:          assembled.instruction,
-		sessionContextBinder: p.sessionContextBinder,
-		lifecycleBinder:      p.toolLifecycleBinder,
-		lifecycleState:       req.ContextResult.LifecycleState,
-		catalog:              req.Catalog,
-		toolInfos:            append([]*schema.ToolInfo(nil), assembled.toolInfos...),
-		eagerToolNames:       append([]string(nil), req.ContextResult.EagerToolNames...),
-		maxIterations:        p.maxIterations,
+		name:           req.AgentName,
+		description:    req.AgentDescription,
+		model:          req.ChatModel,
+		streamer:       req.AssistantStreamer,
+		sessionID:      req.SessionID,
+		runID:          req.RunID,
+		toolNode:       safeToolNode,
+		instruction:    assembled.instruction,
+		lifecycleState: req.ContextResult.LifecycleState,
+		catalog:        req.Catalog,
+		toolInfos:      append([]*schema.ToolInfo(nil), assembled.toolInfos...),
+		eagerToolNames: append([]string(nil), req.ContextResult.EagerToolNames...),
+		maxIterations:  deps.Config.Agent.MaxIterations,
 	}
 
 	return &RunAssembly{
 		Runner: adk.NewRunner(ctx, adk.RunnerConfig{
 			Agent:           agent,
 			EnableStreaming: false,
-			CheckPointStore: p.checkpointStore,
+			CheckPointStore: checkpointStore(deps),
 		}),
 		Instruction: assembled.instruction,
 	}, nil
 }
 
 type directResponseAgent struct {
-	name                 string
-	description          string
-	model                einomodel.BaseChatModel
-	streamer             AssistantStreamer
-	sessionID            string
-	runID                string
-	toolNode             ToolInvoker
-	instruction          string
-	sessionContextBinder func(ctx context.Context, sessionID string) context.Context
-	lifecycleBinder      ToolLifecycleBinder
-	lifecycleState       ToolLifecycleStateView
-	catalog              *toolkit.Catalog
-	toolInfos            []*schema.ToolInfo
-	eagerToolNames       []string
-	maxIterations        int
+	name           string
+	description    string
+	model          einomodel.BaseChatModel
+	streamer       AssistantStreamer
+	sessionID      string
+	runID          string
+	toolNode       ToolInvoker
+	instruction    string
+	lifecycleState ToolLifecycleStateView
+	catalog        *toolkit.Catalog
+	toolInfos      []*schema.ToolInfo
+	eagerToolNames []string
+	maxIterations  int
 }
 
 type DirectResponseInterruptData struct {
@@ -234,13 +225,8 @@ func (a *directResponseAgent) runFromState(ctx context.Context, generator *adk.A
 		return
 	}
 
-	runCtx := ctx
-	if a.sessionContextBinder != nil {
-		runCtx = a.sessionContextBinder(runCtx, a.sessionID)
-	}
-	if a.lifecycleBinder != nil {
-		runCtx = a.lifecycleBinder(runCtx, a.lifecycleState, a.catalog, a.toolInfos)
-	}
+	runCtx := bindSessionID(ctx, a.sessionID)
+	runCtx = bindToolLifecycle(runCtx, a.lifecycleState, a.catalog, a.toolInfos)
 	session := contextplane.ContextSessionFromContext(runCtx)
 	if session == nil {
 		generator.Send(&adk.AgentEvent{AgentName: a.Name(ctx), Err: errors.New("direct response requires context session")})
@@ -377,4 +363,10 @@ func directResponseMessageID(runID string, iteration int) string {
 		return fmt.Sprintf("direct_response:assistant:%d", iteration)
 	}
 	return fmt.Sprintf("%s:assistant:%d", trimmed, iteration)
+}
+func checkpointStore(deps RuntimeDeps) adk.CheckPointStore {
+	if deps.CheckpointStore != nil {
+		return deps.CheckpointStore
+	}
+	return newInMemoryCheckpointStore()
 }

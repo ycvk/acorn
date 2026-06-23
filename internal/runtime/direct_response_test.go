@@ -16,9 +16,20 @@ import (
 	"github.com/cloudwego/eino/compose"
 	"github.com/cloudwego/eino/schema"
 
+	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/contextplane"
 	"github.com/ycvk/acorn/internal/toolkit"
 )
+
+func directResponseTestConfig(systemPrompt string, maxIterations int) *config.Config {
+	return &config.Config{
+		Agent: config.AgentConfig{
+			Name:          "test-agent",
+			SystemPrompt:  systemPrompt,
+			MaxIterations: maxIterations,
+		},
+	}
+}
 
 type directResponseTestModel struct {
 	responses    []*schema.Message
@@ -252,28 +263,17 @@ func TestBuildDirectResponseContinuesAfterOutputLimit(t *testing.T) {
 		},
 	}
 	streamer := &directResponseTestStreamer{}
-	plane := NewDefaultPlane(DefaultPlaneOptions{
-		SystemPrompt:       "system",
-		MaxIterations:      4,
-		CheckpointStore:    &directResponseTestCheckpointStore{},
-		InstructionBuilder: func(base string, suffix string) string { return strings.TrimSpace(base + "\n" + suffix) },
-		ToolBuilder: func(context.Context, []toolkit.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
+	deps := RuntimeDeps{
+		Config:          directResponseTestConfig("system", 4),
+		CheckpointStore: &directResponseTestCheckpointStore{},
+		ToolBuilder: func(context.Context, RunnerFactoryStore, []toolkit.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
 			return []einotool.BaseTool{tool}, nil
 		},
 		ToolNodeFactory: func(context.Context, []einotool.BaseTool, toolkit.ExecutionPolicyResolver) (ToolInvoker, error) {
 			return &directResponseTestToolNode{}, nil
 		},
-		ToolLifecycleBinder: func(ctx context.Context, state ToolLifecycleStateView, catalog *toolkit.Catalog, infos []*schema.ToolInfo) context.Context {
-			if t, ok := state.(testToolLifecycleStateView); ok && t.state != nil {
-				return contextplane.WithToolLifecycleContext(ctx, t.state, catalog, infos)
-			}
-			return ctx
-		},
-		HandlersBuilder: func(context.Context, einomodel.BaseChatModel, any) ([]adk.ChatModelAgentMiddleware, error) {
-			return nil, nil
-		},
-	})
-	assembly, err := plane.BuildDirectResponse(ctx, DirectResponseRequest{
+	}
+	assembly, err := buildDirectResponse(ctx, deps, DirectResponseRequest{
 		AgentName:         "agent",
 		AgentDescription:  "agent",
 		SessionID:         "session",
@@ -327,28 +327,17 @@ func TestBuildDirectResponseDoesNotExecuteTruncatedToolCalls(t *testing.T) {
 		},
 	}
 	toolNode := &directResponseTestToolNode{}
-	plane := NewDefaultPlane(DefaultPlaneOptions{
-		SystemPrompt:       "system",
-		MaxIterations:      4,
-		CheckpointStore:    &directResponseTestCheckpointStore{},
-		InstructionBuilder: func(base string, suffix string) string { return strings.TrimSpace(base + "\n" + suffix) },
-		ToolBuilder: func(context.Context, []toolkit.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
+	deps := RuntimeDeps{
+		Config:          directResponseTestConfig("system", 4),
+		CheckpointStore: &directResponseTestCheckpointStore{},
+		ToolBuilder: func(context.Context, RunnerFactoryStore, []toolkit.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
 			return []einotool.BaseTool{tool}, nil
 		},
 		ToolNodeFactory: func(context.Context, []einotool.BaseTool, toolkit.ExecutionPolicyResolver) (ToolInvoker, error) {
 			return toolNode, nil
 		},
-		ToolLifecycleBinder: func(ctx context.Context, state ToolLifecycleStateView, catalog *toolkit.Catalog, infos []*schema.ToolInfo) context.Context {
-			if t, ok := state.(testToolLifecycleStateView); ok && t.state != nil {
-				return contextplane.WithToolLifecycleContext(ctx, t.state, catalog, infos)
-			}
-			return ctx
-		},
-		HandlersBuilder: func(context.Context, einomodel.BaseChatModel, any) ([]adk.ChatModelAgentMiddleware, error) {
-			return nil, nil
-		},
-	})
-	assembly, err := plane.BuildDirectResponse(ctx, DirectResponseRequest{
+	}
+	assembly, err := buildDirectResponse(ctx, deps, DirectResponseRequest{
 		AgentName:         "agent",
 		AgentDescription:  "agent",
 		SessionID:         "session",
@@ -403,28 +392,17 @@ func TestBuildDirectResponseRunsToolCallLoop(t *testing.T) {
 	}
 	toolNode := &directResponseTestToolNode{}
 	streamer := &directResponseTestStreamer{}
-	plane := NewDefaultPlane(DefaultPlaneOptions{
-		SystemPrompt:       "system",
-		MaxIterations:      4,
-		CheckpointStore:    &directResponseTestCheckpointStore{},
-		InstructionBuilder: func(base string, suffix string) string { return strings.TrimSpace(base + "\n" + suffix) },
-		ToolBuilder: func(context.Context, []toolkit.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
+	deps := RuntimeDeps{
+		Config:          directResponseTestConfig("system", 4),
+		CheckpointStore: &directResponseTestCheckpointStore{},
+		ToolBuilder: func(context.Context, RunnerFactoryStore, []toolkit.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
 			return []einotool.BaseTool{tool}, nil
 		},
 		ToolNodeFactory: func(context.Context, []einotool.BaseTool, toolkit.ExecutionPolicyResolver) (ToolInvoker, error) {
 			return toolNode, nil
 		},
-		ToolLifecycleBinder: func(ctx context.Context, state ToolLifecycleStateView, catalog *toolkit.Catalog, infos []*schema.ToolInfo) context.Context {
-			if t, ok := state.(testToolLifecycleStateView); ok && t.state != nil {
-				return contextplane.WithToolLifecycleContext(ctx, t.state, catalog, infos)
-			}
-			return ctx
-		},
-		HandlersBuilder: func(context.Context, einomodel.BaseChatModel, any) ([]adk.ChatModelAgentMiddleware, error) {
-			return nil, nil
-		},
-	})
-	assembly, err := plane.BuildDirectResponse(ctx, DirectResponseRequest{
+	}
+	assembly, err := buildDirectResponse(ctx, deps, DirectResponseRequest{
 		AgentName:         "agent",
 		AgentDescription:  "agent",
 		SessionID:         "session",
@@ -476,28 +454,17 @@ func TestBuildDirectResponsePropagatesModelError(t *testing.T) {
 	tool := directResponseTestTool{name: "lookup", result: "lookup result: acorn"}
 	catalog := directResponseCatalogForTest(t, ctx, tool)
 	contextResult := directResponseContextResultForTest("run", "session", "lookup")
-	plane := NewDefaultPlane(DefaultPlaneOptions{
-		SystemPrompt:       "system",
-		MaxIterations:      4,
-		CheckpointStore:    &directResponseTestCheckpointStore{},
-		InstructionBuilder: func(base string, suffix string) string { return strings.TrimSpace(base + "\n" + suffix) },
-		ToolBuilder: func(context.Context, []toolkit.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
+	deps := RuntimeDeps{
+		Config:          directResponseTestConfig("system", 4),
+		CheckpointStore: &directResponseTestCheckpointStore{},
+		ToolBuilder: func(context.Context, RunnerFactoryStore, []toolkit.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
 			return []einotool.BaseTool{tool}, nil
 		},
 		ToolNodeFactory: func(context.Context, []einotool.BaseTool, toolkit.ExecutionPolicyResolver) (ToolInvoker, error) {
 			return &directResponseTestToolNode{}, nil
 		},
-		ToolLifecycleBinder: func(ctx context.Context, state ToolLifecycleStateView, catalog *toolkit.Catalog, infos []*schema.ToolInfo) context.Context {
-			if t, ok := state.(testToolLifecycleStateView); ok && t.state != nil {
-				return contextplane.WithToolLifecycleContext(ctx, t.state, catalog, infos)
-			}
-			return ctx
-		},
-		HandlersBuilder: func(context.Context, einomodel.BaseChatModel, any) ([]adk.ChatModelAgentMiddleware, error) {
-			return nil, nil
-		},
-	})
-	assembly, err := plane.BuildDirectResponse(ctx, DirectResponseRequest{
+	}
+	assembly, err := buildDirectResponse(ctx, deps, DirectResponseRequest{
 		AgentName:         "agent",
 		SessionID:         "session",
 		RunID:             "run",
@@ -524,30 +491,17 @@ func TestBuildDirectResponseFailsWithoutContextSession(t *testing.T) {
 	tool := directResponseTestTool{name: "lookup", result: "lookup result: acorn"}
 	catalog := directResponseCatalogForTest(t, ctx, tool)
 	contextResult := directResponseContextResultForTest("run", "session", "lookup")
-	plane := NewDefaultPlane(DefaultPlaneOptions{
-		SystemPrompt:    "system",
-		MaxIterations:   4,
+	deps := RuntimeDeps{
+		Config:          directResponseTestConfig("system", 4),
 		CheckpointStore: &directResponseTestCheckpointStore{},
-		InstructionBuilder: func(base string, suffix string) string {
-			return strings.TrimSpace(base + "\n" + suffix)
-		},
-		ToolBuilder: func(context.Context, []toolkit.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
+		ToolBuilder: func(context.Context, RunnerFactoryStore, []toolkit.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
 			return []einotool.BaseTool{tool}, nil
 		},
 		ToolNodeFactory: func(context.Context, []einotool.BaseTool, toolkit.ExecutionPolicyResolver) (ToolInvoker, error) {
 			return &directResponseTestToolNode{}, nil
 		},
-		ToolLifecycleBinder: func(ctx context.Context, state ToolLifecycleStateView, catalog *toolkit.Catalog, infos []*schema.ToolInfo) context.Context {
-			if t, ok := state.(testToolLifecycleStateView); ok && t.state != nil {
-				return contextplane.WithToolLifecycleContext(ctx, t.state, catalog, infos)
-			}
-			return ctx
-		},
-		HandlersBuilder: func(context.Context, einomodel.BaseChatModel, any) ([]adk.ChatModelAgentMiddleware, error) {
-			return nil, nil
-		},
-	})
-	assembly, err := plane.BuildDirectResponse(ctx, DirectResponseRequest{
+	}
+	assembly, err := buildDirectResponse(ctx, deps, DirectResponseRequest{
 		AgentName:         "agent",
 		SessionID:         "session",
 		RunID:             "run",
@@ -611,21 +565,9 @@ func directResponseContextResultForTest(runID string, sessionID string, eagerToo
 		MaxAgeTurns:   2,
 	}
 	return AssembleResultView{
-		LifecycleState: testToolLifecycleStateView{state: state},
+		LifecycleState: toolLifecycleStateAdapter{state: state},
 		EagerToolNames: append([]string(nil), eagerTools...),
 	}
-}
-
-type testToolLifecycleStateView struct {
-	state *contextplane.ToolLifecycleState
-}
-
-func (t testToolLifecycleStateView) IsLoaded(toolName string) bool {
-	if t.state == nil {
-		return false
-	}
-	_, ok := t.state.LoadedTools[toolName]
-	return ok
 }
 
 func messagesContainToolResult(messages []*schema.Message, want string) bool {
@@ -821,30 +763,17 @@ func TestBuildDirectResponseHandlesInterrupt(t *testing.T) {
 			},
 		},
 	}
-	plane := NewDefaultPlane(DefaultPlaneOptions{
-		SystemPrompt:    "system",
-		MaxIterations:   4,
+	deps := RuntimeDeps{
+		Config:          directResponseTestConfig("system", 4),
 		CheckpointStore: &directResponseTestCheckpointStore{},
-		InstructionBuilder: func(base string, suffix string) string {
-			return strings.TrimSpace(base + "\n" + suffix)
-		},
-		ToolBuilder: func(context.Context, []toolkit.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
+		ToolBuilder: func(context.Context, RunnerFactoryStore, []toolkit.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
 			return []einotool.BaseTool{tool}, nil
 		},
 		ToolNodeFactory: func(context.Context, []einotool.BaseTool, toolkit.ExecutionPolicyResolver) (ToolInvoker, error) {
 			return &directResponseInterruptToolNode{}, nil
 		},
-		ToolLifecycleBinder: func(ctx context.Context, state ToolLifecycleStateView, catalog *toolkit.Catalog, infos []*schema.ToolInfo) context.Context {
-			if t, ok := state.(testToolLifecycleStateView); ok && t.state != nil {
-				return contextplane.WithToolLifecycleContext(ctx, t.state, catalog, infos)
-			}
-			return ctx
-		},
-		HandlersBuilder: func(context.Context, einomodel.BaseChatModel, any) ([]adk.ChatModelAgentMiddleware, error) {
-			return nil, nil
-		},
-	})
-	assembly, err := plane.BuildDirectResponse(ctx, DirectResponseRequest{
+	}
+	assembly, err := buildDirectResponse(ctx, deps, DirectResponseRequest{
 		AgentName:         "agent",
 		SessionID:         "session",
 		RunID:             "run",
@@ -899,30 +828,17 @@ func TestBuildDirectResponsePreservesNestedInterruptContexts(t *testing.T) {
 	ctx21.IsRootCause = false
 	ctx2.Subs = []*adk.InterruptSignal{ctx21}
 	interruptSignal.Subs = []*adk.InterruptSignal{ctx1, ctx2}
-	plane := NewDefaultPlane(DefaultPlaneOptions{
-		SystemPrompt:    "system",
-		MaxIterations:   4,
+	deps := RuntimeDeps{
+		Config:          directResponseTestConfig("system", 4),
 		CheckpointStore: &directResponseTestCheckpointStore{},
-		InstructionBuilder: func(base string, suffix string) string {
-			return strings.TrimSpace(base + "\n" + suffix)
-		},
-		ToolBuilder: func(context.Context, []toolkit.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
+		ToolBuilder: func(context.Context, RunnerFactoryStore, []toolkit.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
 			return []einotool.BaseTool{tool}, nil
 		},
 		ToolNodeFactory: func(context.Context, []einotool.BaseTool, toolkit.ExecutionPolicyResolver) (ToolInvoker, error) {
 			return &directResponseInterruptToolNode{signal: interruptSignal}, nil
 		},
-		ToolLifecycleBinder: func(ctx context.Context, state ToolLifecycleStateView, catalog *toolkit.Catalog, infos []*schema.ToolInfo) context.Context {
-			if t, ok := state.(testToolLifecycleStateView); ok && t.state != nil {
-				return contextplane.WithToolLifecycleContext(ctx, t.state, catalog, infos)
-			}
-			return ctx
-		},
-		HandlersBuilder: func(context.Context, einomodel.BaseChatModel, any) ([]adk.ChatModelAgentMiddleware, error) {
-			return nil, nil
-		},
-	})
-	assembly, err := plane.BuildDirectResponse(ctx, DirectResponseRequest{
+	}
+	assembly, err := buildDirectResponse(ctx, deps, DirectResponseRequest{
 		AgentName:         "agent",
 		SessionID:         "session",
 		RunID:             "run",
@@ -1032,30 +948,17 @@ func TestBuildDirectResponseResumeContinuesFromPendingToolCalls(t *testing.T) {
 	}
 	toolNode := &directResponseApprovalToolNode{}
 	store := &directResponseTestCheckpointStore{}
-	plane := NewDefaultPlane(DefaultPlaneOptions{
-		SystemPrompt:    "system",
-		MaxIterations:   4,
+	deps := RuntimeDeps{
+		Config:          directResponseTestConfig("system", 4),
 		CheckpointStore: store,
-		InstructionBuilder: func(base string, suffix string) string {
-			return strings.TrimSpace(base + "\n" + suffix)
-		},
-		ToolBuilder: func(context.Context, []toolkit.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
+		ToolBuilder: func(context.Context, RunnerFactoryStore, []toolkit.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
 			return []einotool.BaseTool{tool}, nil
 		},
 		ToolNodeFactory: func(context.Context, []einotool.BaseTool, toolkit.ExecutionPolicyResolver) (ToolInvoker, error) {
 			return toolNode, nil
 		},
-		ToolLifecycleBinder: func(ctx context.Context, state ToolLifecycleStateView, catalog *toolkit.Catalog, infos []*schema.ToolInfo) context.Context {
-			if t, ok := state.(testToolLifecycleStateView); ok && t.state != nil {
-				return contextplane.WithToolLifecycleContext(ctx, t.state, catalog, infos)
-			}
-			return ctx
-		},
-		HandlersBuilder: func(context.Context, einomodel.BaseChatModel, any) ([]adk.ChatModelAgentMiddleware, error) {
-			return nil, nil
-		},
-	})
-	assembly, err := plane.BuildDirectResponse(ctx, DirectResponseRequest{
+	}
+	assembly, err := buildDirectResponse(ctx, deps, DirectResponseRequest{
 		AgentName:         "agent",
 		SessionID:         "session",
 		RunID:             "run",
