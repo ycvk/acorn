@@ -15,7 +15,6 @@ import (
 	"github.com/ycvk/acorn/internal/runtime/tooldispatch"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/tools"
-	"github.com/ycvk/acorn/internal/toolset"
 	"github.com/ycvk/acorn/internal/webaccess"
 )
 
@@ -104,7 +103,7 @@ func closeToolsetOnErr(closers []io.Closer, err *error) {
 	}
 }
 
-func assembleToolsetCatalog(ctx context.Context, cfg *config.Config, localCatalog *toolset.Catalog, aux auxTools, includePlanning bool) (*tools.Catalog, error) {
+func assembleToolsetCatalog(ctx context.Context, cfg *config.Config, localCatalog *tools.LocalCatalog, aux auxTools, includePlanning bool) (*tools.Catalog, error) {
 	core, err := buildCoreToolSpecs(ctx, cfg, localCatalog, aux)
 	if err != nil {
 		return nil, err
@@ -121,7 +120,7 @@ func assembleToolsetCatalog(ctx context.Context, cfg *config.Config, localCatalo
 	return catalog, nil
 }
 
-func buildCoreToolSpecs(ctx context.Context, cfg *config.Config, localCatalog *toolset.Catalog, aux auxTools) ([]tools.ToolSpec, error) {
+func buildCoreToolSpecs(ctx context.Context, cfg *config.Config, localCatalog *tools.LocalCatalog, aux auxTools) ([]tools.ToolSpec, error) {
 	specs, err := BuildCatalogSpecs(ctx, cfg, "local", tools.ToolKindNative, append([]einotool.BaseTool(nil), localCatalog.Tools...))
 	if err != nil {
 		return nil, err
@@ -188,10 +187,10 @@ func (f *RunnerFactory) buildToolsetWebServices() (toolsetWebServices, error) {
 	return toolsetWebServices{fetch: fetch, search: search}, nil
 }
 
-func (f *RunnerFactory) buildBrowserService() (*toolset.Service, error) {
+func (f *RunnerFactory) buildBrowserService() (*tools.Service, error) {
 	browserCfg := f.deps.Config.Browser
 	webCfg := f.deps.Config.WebAccess
-	return toolset.NewService(toolset.Config{
+	return tools.NewService(tools.Config{
 		ExecutablePath: strings.TrimSpace(browserCfg.ExecutablePath),
 		Headless:       browserCfg.Headless,
 		Timeout:        time.Duration(browserCfg.DefaultTimeoutSeconds) * time.Second,
@@ -200,19 +199,19 @@ func (f *RunnerFactory) buildBrowserService() (*toolset.Service, error) {
 	})
 }
 
-func (f *RunnerFactory) resolveOperatorStore() toolset.OperatorQuestionStore {
+func (f *RunnerFactory) resolveOperatorStore() tools.OperatorQuestionStore {
 	if f.deps.MCPPendingActions != nil {
 		return f.deps.MCPPendingActions
 	}
 	return f.deps.Store
 }
 
-func (f *RunnerFactory) buildLocalCatalog(services toolsetWebServices) (*toolset.Catalog, []io.Closer, error) {
+func (f *RunnerFactory) buildLocalCatalog(services toolsetWebServices) (*tools.LocalCatalog, []io.Closer, error) {
 	browser, err := f.buildBrowserService()
 	if err != nil {
 		return nil, nil, fmt.Errorf("browser service: %w", err)
 	}
-	catalog, err := toolset.BuildCatalog(toolset.CatalogConfig{
+	catalog, err := tools.BuildCatalog(tools.CatalogConfig{
 		Workspace:         f.deps.Workspace,
 		MutationEnabled:   !f.deps.Config.Tools.Mutation.Disabled,
 		RunCommandEnabled: !f.deps.Config.Tools.RunCommand.Disabled,

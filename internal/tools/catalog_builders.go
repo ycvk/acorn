@@ -1,9 +1,11 @@
-package toolset
+package tools
 
 import (
+	"encoding/gob"
 	"errors"
 
 	einotool "github.com/cloudwego/eino/components/tool"
+	"github.com/ycvk/acorn/internal/domain"
 )
 
 func buildWorkspaceTools(cfg CatalogConfig) ([]einotool.BaseTool, error) {
@@ -159,4 +161,54 @@ func buildBrowserToolEntry(cfg CatalogConfig) ([]einotool.BaseTool, error) {
 		return nil, err
 	}
 	return []einotool.BaseTool{browserTool}, nil
+}
+
+type CatalogConfig struct {
+	Workspace         WorkspaceView
+	MutationEnabled   bool
+	RunCommandEnabled bool
+	ArtifactService   ArtifactService
+	ArtifactContext   domain.ToolCallContextBridge
+	OperatorStore     OperatorQuestionStore
+	OperatorContext   domain.ToolCallContextBridge
+	WebFetchService   WebFetchService
+	WebSearchService  WebSearchService
+	BrowserService    BrowserService
+}
+
+type LocalCatalog struct {
+	Tools []einotool.BaseTool
+}
+
+func init() {
+	gob.Register(RunCommandInput{})
+	gob.Register(AskOperatorState{})
+	gob.Register(map[string]any{})
+	gob.Register([]any{})
+}
+
+func BuildCatalog(cfg CatalogConfig, extraTools []einotool.BaseTool) (*LocalCatalog, error) {
+	if cfg.Workspace == nil && (cfg.MutationEnabled || cfg.RunCommandEnabled) {
+		return nil, errors.New("workspace is required when mutation or run_command tools are enabled")
+	}
+	items := make([]einotool.BaseTool, 0, 10+len(extraTools))
+	groups := []func() ([]einotool.BaseTool, error){
+		func() ([]einotool.BaseTool, error) { return buildWorkspaceTools(cfg) },
+		func() ([]einotool.BaseTool, error) { return buildMutationTools(cfg) },
+		func() ([]einotool.BaseTool, error) { return buildRunCommandTools(cfg) },
+		func() ([]einotool.BaseTool, error) { return buildArtifactServiceTools(cfg) },
+		func() ([]einotool.BaseTool, error) { return buildOperatorTool(cfg) },
+		func() ([]einotool.BaseTool, error) { return buildWebFetchToolEntry(cfg) },
+		func() ([]einotool.BaseTool, error) { return buildWebSearchToolEntry(cfg) },
+		func() ([]einotool.BaseTool, error) { return buildBrowserToolEntry(cfg) },
+	}
+	for _, group := range groups {
+		built, err := group()
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, built...)
+	}
+	items = append(items, extraTools...)
+	return &LocalCatalog{Tools: items}, nil
 }

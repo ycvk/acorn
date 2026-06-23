@@ -26,7 +26,6 @@ import (
 	corestore "github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/stream"
 	"github.com/ycvk/acorn/internal/tools"
-	"github.com/ycvk/acorn/internal/toolset"
 	"github.com/ycvk/acorn/internal/workspace"
 )
 
@@ -139,7 +138,7 @@ func newInMemoryCheckpointStore() *inMemoryCheckpointStore {
 }
 
 type localToolset struct {
-	catalog *toolset.Catalog
+	catalog *tools.LocalCatalog
 	closers []io.Closer
 }
 

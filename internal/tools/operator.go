@@ -1,4 +1,4 @@
-package toolset
+package tools
 
 import (
 	"context"
@@ -8,11 +8,64 @@ import (
 	"strings"
 
 	einotool "github.com/cloudwego/eino/components/tool"
-
+	toolutils "github.com/cloudwego/eino/components/tool/utils"
+	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/domain"
 	storecore "github.com/ycvk/acorn/internal/store"
-	"github.com/ycvk/acorn/internal/tools"
 )
+
+type progressToolFunc[I, O any] func(ctx context.Context, input I, emit ToolProgressEmitter) (O, error)
+
+type localProgressTool[I, O any] struct {
+	infoSource einotool.BaseTool
+	name       string
+	fn         progressToolFunc[I, O]
+}
+
+func inferProgressTool[I, O any](name string, desc string, fn progressToolFunc[I, O]) (einotool.BaseTool, error) {
+	infoSource, err := toolutils.InferTool(name, desc, func(ctx context.Context, input I) (O, error) {
+		return fn(ctx, input, nil)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &localProgressTool[I, O]{
+		infoSource: infoSource,
+		name:       name,
+		fn:         fn,
+	}, nil
+}
+
+func (t *localProgressTool[I, O]) Info(ctx context.Context) (*schema.ToolInfo, error) {
+	return t.infoSource.Info(ctx)
+}
+
+func (t *localProgressTool[I, O]) InvokableRun(ctx context.Context, argumentsInJSON string, opts ...einotool.Option) (string, error) {
+	return t.InvokableRunWithProgress(ctx, argumentsInJSON, nil, opts...)
+}
+
+func (t *localProgressTool[I, O]) InvokableRunWithProgress(ctx context.Context, argumentsInJSON string, emit ToolProgressEmitter, _ ...einotool.Option) (string, error) {
+	var input I
+	if err := json.Unmarshal([]byte(argumentsInJSON), &input); err != nil {
+		return "", fmt.Errorf("parse %s arguments: %w", t.name, err)
+	}
+	output, err := t.fn(ctx, input, emit)
+	if err != nil {
+		return "", err
+	}
+	body, err := json.Marshal(output)
+	if err != nil {
+		return "", fmt.Errorf("marshal %s output: %w", t.name, err)
+	}
+	return string(body), nil
+}
+
+func emitToolProgress(ctx context.Context, emit ToolProgressEmitter, delta string) error {
+	if emit == nil || delta == "" {
+		return nil
+	}
+	return emit(ctx, ToolProgressEvent{Delta: delta})
+}
 
 type OperatorQuestionStore interface {
 	CreatePendingAction(ctx context.Context, input storecore.CreatePendingActionInput) (*domain.PendingActionRecord, error)
@@ -52,7 +105,7 @@ func buildAskOperatorTool(store OperatorQuestionStore, bridge domain.ToolCallCon
 	if bridge == nil {
 		return nil, errors.New("operator question context bridge is required")
 	}
-	tool, err := inferProgressTool("ask_operator", "Ask the human operator a blocking question and resume with a structured answer.", func(ctx context.Context, input AskOperatorInput, emit tools.ToolProgressEmitter) (AskOperatorOutput, error) {
+	tool, err := inferProgressTool("ask_operator", "Ask the human operator a blocking question and resume with a structured answer.", func(ctx context.Context, input AskOperatorInput, emit ToolProgressEmitter) (AskOperatorOutput, error) {
 		wasInterrupted, hasState, state := einotool.GetInterruptState[AskOperatorState](ctx)
 		if wasInterrupted {
 			return resumeAskOperator(ctx, state, hasState)
@@ -65,7 +118,7 @@ func buildAskOperatorTool(store OperatorQuestionStore, bridge domain.ToolCallCon
 	return tool, nil
 }
 
-func interruptAskOperator(ctx context.Context, store OperatorQuestionStore, bridge domain.ToolCallContextBridge, input AskOperatorInput, emit tools.ToolProgressEmitter) (AskOperatorOutput, error) {
+func interruptAskOperator(ctx context.Context, store OperatorQuestionStore, bridge domain.ToolCallContextBridge, input AskOperatorInput, emit ToolProgressEmitter) (AskOperatorOutput, error) {
 	payload, err := normalizeAskOperatorInput(input)
 	if err != nil {
 		return AskOperatorOutput{}, err

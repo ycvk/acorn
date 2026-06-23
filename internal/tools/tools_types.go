@@ -1,13 +1,4 @@
-package toolset
-
-import (
-	"encoding/gob"
-	"errors"
-
-	einotool "github.com/cloudwego/eino/components/tool"
-
-	"github.com/ycvk/acorn/internal/domain"
-)
+package tools
 
 const defaultVerificationPreviewBytes = 2000
 
@@ -252,54 +243,4 @@ type GitSummaryOutput struct {
 	DiffStat       string           `json:"diff_stat,omitempty"`
 	DiffArtifactID string           `json:"diff_artifact_id,omitempty"`
 	DiffArtifact   *ArtifactSummary `json:"diff_artifact,omitempty"`
-}
-
-type CatalogConfig struct {
-	Workspace         WorkspaceView
-	MutationEnabled   bool
-	RunCommandEnabled bool
-	ArtifactService   ArtifactService
-	ArtifactContext   domain.ToolCallContextBridge
-	OperatorStore     OperatorQuestionStore
-	OperatorContext   domain.ToolCallContextBridge
-	WebFetchService   WebFetchService
-	WebSearchService  WebSearchService
-	BrowserService    BrowserService
-}
-
-type Catalog struct {
-	Tools []einotool.BaseTool
-}
-
-func init() {
-	gob.Register(RunCommandInput{})
-	gob.Register(AskOperatorState{})
-	gob.Register(map[string]any{})
-	gob.Register([]any{})
-}
-
-func BuildCatalog(cfg CatalogConfig, extraTools []einotool.BaseTool) (*Catalog, error) {
-	if cfg.Workspace == nil && (cfg.MutationEnabled || cfg.RunCommandEnabled) {
-		return nil, errors.New("workspace is required when mutation or run_command tools are enabled")
-	}
-	items := make([]einotool.BaseTool, 0, 10+len(extraTools))
-	groups := []func() ([]einotool.BaseTool, error){
-		func() ([]einotool.BaseTool, error) { return buildWorkspaceTools(cfg) },
-		func() ([]einotool.BaseTool, error) { return buildMutationTools(cfg) },
-		func() ([]einotool.BaseTool, error) { return buildRunCommandTools(cfg) },
-		func() ([]einotool.BaseTool, error) { return buildArtifactServiceTools(cfg) },
-		func() ([]einotool.BaseTool, error) { return buildOperatorTool(cfg) },
-		func() ([]einotool.BaseTool, error) { return buildWebFetchToolEntry(cfg) },
-		func() ([]einotool.BaseTool, error) { return buildWebSearchToolEntry(cfg) },
-		func() ([]einotool.BaseTool, error) { return buildBrowserToolEntry(cfg) },
-	}
-	for _, group := range groups {
-		built, err := group()
-		if err != nil {
-			return nil, err
-		}
-		items = append(items, built...)
-	}
-	items = append(items, extraTools...)
-	return &Catalog{Tools: items}, nil
 }

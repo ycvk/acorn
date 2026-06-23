@@ -1,6 +1,6 @@
 //go:build !darwin && !linux
 
-package toolset
+package tools
 
 import (
 	"errors"

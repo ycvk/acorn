@@ -1,4 +1,4 @@
-package toolset
+package tools
 
 import (
 	"context"

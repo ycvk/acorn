@@ -12,7 +12,7 @@ import (
 	"github.com/cloudwego/eino/schema"
 
 	"github.com/ycvk/acorn/internal/memory"
-	"github.com/ycvk/acorn/internal/toolset"
+	"github.com/ycvk/acorn/internal/tools"
 	"github.com/ycvk/acorn/internal/workspace"
 )
 
@@ -27,7 +27,7 @@ func BuildMemoryFileTools(ctx context.Context, memory memory.Service) ([]einotoo
 	return collectMemoryFileTools(ctx, memory, catalog)
 }
 
-func buildMemoryToolCatalog(ctx context.Context, memory memory.Service) (*toolset.Catalog, error) {
+func buildMemoryToolCatalog(ctx context.Context, memory memory.Service) (*tools.LocalCatalog, error) {
 	trimmedRoot := strings.TrimSpace(memory.Root())
 	if trimmedRoot == "" {
 		return nil, fmt.Errorf("memory root is required")
@@ -39,14 +39,14 @@ func buildMemoryToolCatalog(ctx context.Context, memory memory.Service) (*toolse
 	if err != nil {
 		return nil, fmt.Errorf("build memory workspace: %w", err)
 	}
-	catalog, err := toolset.BuildCatalog(toolset.CatalogConfig{Workspace: ws, MutationEnabled: true}, nil)
+	catalog, err := tools.BuildCatalog(tools.CatalogConfig{Workspace: ws, MutationEnabled: true}, nil)
 	if err != nil {
 		return nil, fmt.Errorf("build memory tools: %w", err)
 	}
 	return catalog, nil
 }
 
-func collectMemoryFileTools(ctx context.Context, memory memory.Service, catalog *toolset.Catalog) ([]einotool.BaseTool, error) {
+func collectMemoryFileTools(ctx context.Context, memory memory.Service, catalog *tools.LocalCatalog) ([]einotool.BaseTool, error) {
 	searchTool, err := newMemorySearchTool(memory)
 	if err != nil {
 		return nil, err
@@ -125,7 +125,7 @@ func (t *memoryNamespacedTool) InvokableRun(ctx context.Context, argumentsInJSON
 }
 
 func (t *memoryNamespacedTool) runMemoryCreateFile(ctx context.Context, argumentsInJSON string, _ ...einotool.Option) (string, error) {
-	var input toolset.CreateFileInput
+	var input tools.CreateFileInput
 	if err := json.Unmarshal([]byte(argumentsInJSON), &input); err != nil {
 		return "", fmt.Errorf("parse memory_create_file arguments: %w", err)
 	}
@@ -144,7 +144,7 @@ func (t *memoryNamespacedTool) runMemoryCreateFile(ctx context.Context, argument
 }
 
 func (t *memoryNamespacedTool) runMemoryReplaceSpan(ctx context.Context, argumentsInJSON string, _ ...einotool.Option) (string, error) {
-	var input toolset.ReplaceSpanInput
+	var input tools.ReplaceSpanInput
 	if err := json.Unmarshal([]byte(argumentsInJSON), &input); err != nil {
 		return "", fmt.Errorf("parse memory_replace_span arguments: %w", err)
 	}

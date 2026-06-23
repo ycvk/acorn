@@ -1,4 +1,4 @@
-package toolset
+package tools
 
 import (
 	"context"
@@ -12,8 +12,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/chromedp/cdproto/network"
-	cruntime "github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/chromedp"
 
 	"github.com/ycvk/acorn/internal/webaccess"
@@ -301,78 +299,6 @@ func (s *Service) actionContext(parent context.Context, browserCtx context.Conte
 		stop()
 		cancel()
 	}
-}
-
-func (s *Service) ConsoleStart(ctx context.Context) (ConsoleResult, error) {
-	browserCtx, err := s.ensureStarted(ctx)
-	if err != nil {
-		return ConsoleResult{}, err
-	}
-	actionCtx, cancel := s.actionContext(ctx, browserCtx)
-	defer cancel()
-	if err := chromedp.Run(actionCtx, cruntime.Enable()); err != nil {
-		return ConsoleResult{}, err
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.consoleEnabled = true
-	s.consoleEntries = nil
-	return ConsoleResult{Enabled: true}, nil
-}
-
-func (s *Service) ConsoleList() ConsoleResult {
-	if s == nil {
-		return ConsoleResult{}
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return ConsoleResult{Enabled: s.consoleEnabled, Entries: append([]ConsoleEntry(nil), s.consoleEntries...)}
-}
-
-func (s *Service) ConsoleStop() ConsoleResult {
-	if s == nil {
-		return ConsoleResult{}
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.consoleEnabled = false
-	return ConsoleResult{Enabled: false, Entries: append([]ConsoleEntry(nil), s.consoleEntries...)}
-}
-
-func (s *Service) NetworkStart(ctx context.Context) (NetworkResult, error) {
-	browserCtx, err := s.ensureStarted(ctx)
-	if err != nil {
-		return NetworkResult{}, err
-	}
-	actionCtx, cancel := s.actionContext(ctx, browserCtx)
-	defer cancel()
-	if err := chromedp.Run(actionCtx, network.Enable()); err != nil {
-		return NetworkResult{}, err
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.networkEnabled = true
-	s.networkEntries = nil
-	return NetworkResult{Enabled: true}, nil
-}
-
-func (s *Service) NetworkList() NetworkResult {
-	if s == nil {
-		return NetworkResult{}
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return NetworkResult{Enabled: s.networkEnabled, Entries: append([]NetworkEntry(nil), s.networkEntries...)}
-}
-
-func (s *Service) NetworkStop() NetworkResult {
-	if s == nil {
-		return NetworkResult{}
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.networkEnabled = false
-	return NetworkResult{Enabled: false, Entries: append([]NetworkEntry(nil), s.networkEntries...)}
 }
 
 func (s *Service) Scan(ctx context.Context, req ScanRequest) (ScanResult, error) {

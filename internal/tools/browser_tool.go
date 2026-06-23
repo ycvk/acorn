@@ -1,4 +1,4 @@
-package toolset
+package tools
 
 import (
 	"context"
@@ -10,7 +10,6 @@ import (
 
 	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/store"
-	"github.com/ycvk/acorn/internal/tools"
 	"github.com/ycvk/acorn/internal/webaccess"
 )
 
@@ -71,7 +70,7 @@ func buildBrowserTool(service BrowserService, artifactService ArtifactService, b
 	if bridge == nil {
 		return nil, errors.New("artifact context bridge is required for browser")
 	}
-	tool, err := inferProgressTool("browser", "Operate one run-scoped backend-owned Chromium session through fixed actions and persist explicit page/screenshot artifacts.", func(ctx context.Context, input BrowserInput, emit tools.ToolProgressEmitter) (BrowserOutput, error) {
+	tool, err := inferProgressTool("browser", "Operate one run-scoped backend-owned Chromium session through fixed actions and persist explicit page/screenshot artifacts.", func(ctx context.Context, input BrowserInput, emit ToolProgressEmitter) (BrowserOutput, error) {
 		runID := strings.TrimSpace(bridge.CurrentRunID(ctx))
 		if runID == "" {
 			return BrowserOutput{}, errors.New("browser requires current run context")
