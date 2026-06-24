@@ -26,3 +26,4 @@
 - [Runtime God-Package Split Plan](plans/2026-06-23-runtime-split.md) — split runtime into stream + tooldispatch + factextract sub-packages
 - [Modular Refactor Plan](plans/2026-06-23-modular-refactor.md) — 5 phases: stream/domain type convergence, toolkit+toolset merge, store interface consolidation, client_service split, RunnerFactory god-object split
 - [Greenfield Architecture Refactor Plan](plans/2026-06-24-greenfield-architecture-refactor.md) — 12 phases: port package, domain expansion, store rewrite, memory/mcp adaptation, tools contract split, contextplane→context rename, agent extraction, api service absorption, wire composition root, cli adaptation, architecture guards, docs sync
+- [Convergent Core/Runtime Refactor Plan](plans/2026-06-24-convergent-core-runtime-refactor.md) — 8 phases: core package, runtime merge, store adapt, ToolRegistry, mcp promote, api merge, wire rewire + delete old packages, guards + docs
