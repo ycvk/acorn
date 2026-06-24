@@ -1,7 +1,13 @@
 package tools
 
 import (
-	"github.com/ycvk/acorn/internal/port"
+	"context"
+	"fmt"
+
+	einotool "github.com/cloudwego/eino/components/tool"
+
+	"github.com/ycvk/acorn/internal/config"
+	"github.com/ycvk/acorn/internal/core"
 )
 
 // builtinToolOrder is the canonical list of dynamically-registered built-in
@@ -30,45 +36,45 @@ var builtinToolOrder = []string{
 // builtinToolContract returns the contract template (without Source/Profiles,
 // which are caller-supplied) for a built-in tool. ok is false for any name that
 // is not a built-in tool (e.g. MCP tools), which callers resolve elsewhere.
-func builtinToolContract(name string) (port.ToolContract, bool) {
-	c := port.ToolContract{
+func builtinToolContract(name string) (core.ToolContract, bool) {
+	c := core.ToolContract{
 		Name:      name,
-		Loading:   port.EagerLoadingPolicy(),
-		Execution: port.ToolExecutionPolicy{ParallelPolicy: port.ParallelPolicyReadOnly},
+		Loading:   core.EagerLoadingPolicy(),
+		Execution: core.ToolExecutionPolicy{ParallelPolicy: core.ParallelPolicyReadOnly},
 	}
 	switch name {
 	case "load_tools":
-		c.Kind = port.ToolKindNative
-		c.Category = port.ToolCategoryInspect
-		c.Execution.ParallelPolicy = port.ParallelPolicySerial
+		c.Kind = core.ToolKindNative
+		c.Category = core.ToolCategoryInspect
+		c.Execution.ParallelPolicy = core.ParallelPolicySerial
 	case "ask_operator":
-		c.Kind = port.ToolKindNative
-		c.Category = port.ToolCategoryIntegration
-		c.Execution.ParallelPolicy = port.ParallelPolicySerial
+		c.Kind = core.ToolKindNative
+		c.Category = core.ToolCategoryIntegration
+		c.Execution.ParallelPolicy = core.ParallelPolicySerial
 	case "update_working_checkpoint", "clear_working_checkpoint":
-		c.Kind = port.ToolKindMemory
-		c.Category = port.ToolCategoryMemory
-		c.Loading = port.DeferredLoadingPolicy("working_state_tool")
-		c.Execution.ParallelPolicy = port.ParallelPolicySerial
+		c.Kind = core.ToolKindMemory
+		c.Category = core.ToolCategoryMemory
+		c.Loading = core.DeferredLoadingPolicy("working_state_tool")
+		c.Execution.ParallelPolicy = core.ParallelPolicySerial
 	case "memory_search", "memory_read_file", "memory_list_files":
-		c.Kind = port.ToolKindMemory
-		c.Category = port.ToolCategoryMemory
-		c.Execution.ParallelPolicy = port.ParallelPolicyReadOnly
+		c.Kind = core.ToolKindMemory
+		c.Category = core.ToolCategoryMemory
+		c.Execution.ParallelPolicy = core.ParallelPolicyReadOnly
 	case "memory_create_file", "memory_replace_span":
-		c.Kind = port.ToolKindMemory
-		c.Category = port.ToolCategoryMemory
-		c.Execution.ParallelPolicy = port.ParallelPolicySerial
+		c.Kind = core.ToolKindMemory
+		c.Category = core.ToolCategoryMemory
+		c.Execution.ParallelPolicy = core.ParallelPolicySerial
 		c.Execution.PathArg = "path"
 	case "remember":
-		c.Kind = port.ToolKindMemory
-		c.Category = port.ToolCategoryMemory
-		c.Execution.ParallelPolicy = port.ParallelPolicySerial
+		c.Kind = core.ToolKindMemory
+		c.Category = core.ToolCategoryMemory
+		c.Execution.ParallelPolicy = core.ParallelPolicySerial
 	case "skill_list", "skill_view":
-		c.Kind = port.ToolKindSkill
-		c.Category = port.ToolCategorySkill
-		c.Execution.ParallelPolicy = port.ParallelPolicyReadOnly
+		c.Kind = core.ToolKindSkill
+		c.Category = core.ToolCategorySkill
+		c.Execution.ParallelPolicy = core.ParallelPolicyReadOnly
 	default:
-		return port.ToolContract{}, false
+		return core.ToolContract{}, false
 	}
 	return c, true
 }
@@ -76,10 +82,10 @@ func builtinToolContract(name string) (port.ToolContract, bool) {
 // BuiltinToolSpec resolves the full contract for a built-in tool, applying the
 // caller-supplied source to the canonical contract template. It returns ok=false
 // for names that are not built-in toolset.
-func BuiltinToolSpec(name, source string) (port.ToolContract, bool) {
+func BuiltinToolSpec(name, source string) (core.ToolContract, bool) {
 	c, ok := builtinToolContract(name)
 	if !ok {
-		return port.ToolContract{}, false
+		return core.ToolContract{}, false
 	}
 	c.Source = source
 	return c, true
@@ -93,9 +99,235 @@ func BuiltinToolNames() []string {
 	names := make([]string, 0, len(builtinToolOrder))
 	for _, name := range builtinToolOrder {
 		contract, ok := builtinToolContract(name)
-		if ok && contract.Loading.Mode == port.ToolLoadingModeEager {
+		if ok && contract.Loading.Mode == core.ToolLoadingModeEager {
 			names = append(names, name)
 		}
 	}
 	return names
+}
+
+// nativeToolBuilder maps a static local tool name to the single-tool builder
+// that produces its einotool.BaseTool. It is the bridge between the existing
+// port-backed builders (which take a CatalogConfig) and the core.ToolRegistry,
+// which constructs tools lazily via a Factory. Each entry mirrors the call the
+// corresponding group builder (buildWorkspaceTools, buildMutationTools, ...)
+// would make for that single name, so the registry produces byte-for-byte the
+// same tool instances the existing Catalog path does.
+//
+// A nil service dependency makes the builder return (nil, nil): the tool is
+// registered (so its contract/health is visible) but Resolve yields no
+// instance for it, matching the existing Catalog behavior of silently omitting
+// tools whose backing service is absent.
+func nativeToolBuilder(name string, cfg CatalogConfig) func(context.Context, core.RunContext) (einotool.BaseTool, error) {
+	switch name {
+	case "read_file":
+		return func(_ context.Context, _ core.RunContext) (einotool.BaseTool, error) {
+			if cfg.Workspace == nil {
+				return nil, nil
+			}
+			return buildReadFileTool(cfg.Workspace)
+		}
+	case "list_files":
+		return func(_ context.Context, _ core.RunContext) (einotool.BaseTool, error) {
+			if cfg.Workspace == nil {
+				return nil, nil
+			}
+			return buildListFilesTool(cfg.Workspace)
+		}
+	case "search_text":
+		return func(_ context.Context, _ core.RunContext) (einotool.BaseTool, error) {
+			if cfg.Workspace == nil {
+				return nil, nil
+			}
+			return buildSearchTextTool(cfg.Workspace)
+		}
+	case "inspect_git_status":
+		return func(_ context.Context, _ core.RunContext) (einotool.BaseTool, error) {
+			if cfg.Workspace == nil {
+				return nil, nil
+			}
+			return buildInspectGitStatusTool(cfg.Workspace)
+		}
+	case "inspect_git_diff":
+		return func(_ context.Context, _ core.RunContext) (einotool.BaseTool, error) {
+			if cfg.Workspace == nil {
+				return nil, nil
+			}
+			return buildInspectGitDiffTool(cfg.Workspace)
+		}
+	case "git_summary":
+		return func(_ context.Context, _ core.RunContext) (einotool.BaseTool, error) {
+			if cfg.Workspace == nil || cfg.ArtifactService == nil {
+				return nil, nil
+			}
+			return buildGitSummaryTool(cfg.Workspace, cfg.ArtifactService, cfg.ArtifactContext)
+		}
+	case "artifact_write":
+		return func(_ context.Context, _ core.RunContext) (einotool.BaseTool, error) {
+			if cfg.ArtifactService == nil {
+				return nil, nil
+			}
+			return buildArtifactWriteTool(cfg.ArtifactService, cfg.ArtifactContext)
+		}
+	case "artifact_read":
+		return func(_ context.Context, _ core.RunContext) (einotool.BaseTool, error) {
+			if cfg.ArtifactService == nil {
+				return nil, nil
+			}
+			return buildArtifactReadTool(cfg.ArtifactService)
+		}
+	case "artifact_list":
+		return func(_ context.Context, _ core.RunContext) (einotool.BaseTool, error) {
+			if cfg.ArtifactService == nil {
+				return nil, nil
+			}
+			return buildArtifactListTool(cfg.ArtifactService, cfg.ArtifactContext)
+		}
+	case "ask_operator":
+		return func(_ context.Context, _ core.RunContext) (einotool.BaseTool, error) {
+			if cfg.OperatorStore == nil {
+				return nil, nil
+			}
+			return buildAskOperatorTool(cfg.OperatorStore, cfg.OperatorContext)
+		}
+	case "web_fetch":
+		return func(_ context.Context, _ core.RunContext) (einotool.BaseTool, error) {
+			if cfg.WebFetchService == nil || cfg.ArtifactService == nil {
+				return nil, nil
+			}
+			return buildWebFetchTool(cfg.WebFetchService, cfg.ArtifactService, cfg.ArtifactContext)
+		}
+	case "web_search":
+		return func(_ context.Context, _ core.RunContext) (einotool.BaseTool, error) {
+			if cfg.WebSearchService == nil || cfg.ArtifactService == nil {
+				return nil, nil
+			}
+			return buildWebSearchTool(cfg.WebSearchService, cfg.ArtifactService, cfg.ArtifactContext)
+		}
+	case "browser":
+		return func(_ context.Context, _ core.RunContext) (einotool.BaseTool, error) {
+			if cfg.BrowserService == nil || cfg.ArtifactService == nil {
+				return nil, nil
+			}
+			return buildBrowserTool(cfg.BrowserService, cfg.ArtifactService, cfg.ArtifactContext)
+		}
+	case "create_file":
+		return func(_ context.Context, _ core.RunContext) (einotool.BaseTool, error) {
+			if cfg.Workspace == nil {
+				return nil, nil
+			}
+			return buildCreateFileTool(cfg.Workspace)
+		}
+	case "replace_span":
+		return func(_ context.Context, _ core.RunContext) (einotool.BaseTool, error) {
+			if cfg.Workspace == nil {
+				return nil, nil
+			}
+			return buildReplaceSpanTool(cfg.Workspace)
+		}
+	case "apply_unified_patch":
+		return func(_ context.Context, _ core.RunContext) (einotool.BaseTool, error) {
+			if cfg.Workspace == nil {
+				return nil, nil
+			}
+			return buildApplyUnifiedPatchTool(cfg.Workspace)
+		}
+	case "multi_edit":
+		return func(_ context.Context, _ core.RunContext) (einotool.BaseTool, error) {
+			if cfg.Workspace == nil {
+				return nil, nil
+			}
+			return buildMultiEditTool(cfg.Workspace)
+		}
+	case "rollback_workspace_checkpoint":
+		return func(_ context.Context, _ core.RunContext) (einotool.BaseTool, error) {
+			if cfg.Workspace == nil {
+				return nil, nil
+			}
+			return buildRollbackWorkspaceCheckpointTool(cfg.Workspace)
+		}
+	case "run_command":
+		return func(_ context.Context, _ core.RunContext) (einotool.BaseTool, error) {
+			if cfg.Workspace == nil {
+				return nil, nil
+			}
+			return buildRunCommandTool(cfg.Workspace)
+		}
+	case "run_verification":
+		return func(_ context.Context, _ core.RunContext) (einotool.BaseTool, error) {
+			if cfg.Workspace == nil || cfg.ArtifactService == nil {
+				return nil, nil
+			}
+			return buildRunVerificationTool(cfg.Workspace, cfg.ArtifactService, cfg.ArtifactContext)
+		}
+	default:
+		return nil
+	}
+}
+
+// portSpecToCoreSpec converts a core.ToolSpec into a core.ToolSpec, attaching
+// the given factory. port and core define their enums as identical string
+// values (verified constant-for-constant), so the conversion is a direct type
+// cast with no remapping. If the two packages ever diverge, this is the single
+// place to add a mapping table.
+func portSpecToCoreSpec(spec core.ToolSpec, factory core.ToolFactory) core.ToolSpec {
+	return core.ToolSpec{
+		ToolContract: core.ToolContract{
+			Name:      spec.Name,
+			Source:    spec.Source,
+			Kind:      core.ToolKind(spec.Kind),
+			Category:  core.ToolCategory(spec.Category),
+			Loading:   core.ToolLoadingPolicy{Mode: core.ToolLoadingMode(spec.Loading.Mode), Reason: spec.Loading.Reason},
+			Execution: core.ToolExecutionPolicy{ParallelPolicy: core.ParallelPolicy(spec.Execution.ParallelPolicy), PathArg: spec.Execution.PathArg},
+		},
+		Factory: factory,
+		Health:  core.ToolHealth{State: core.HealthState(spec.Health.State), Reason: spec.Health.Reason},
+	}
+}
+
+// RegisterNativeTools registers every static local tool declared by
+// localToolDefs/configuredLocalSpec into the core.ToolRegistry. For each tool
+// it derives the core.ToolSpec (the existing single source of truth for tool
+// identity and enable rules), converts it to a core.ToolSpec, and attaches a
+// Factory that calls the existing per-tool builder under the supplied
+// CatalogConfig.
+//
+// This is the additive Phase 4 entry point: the existing Catalog/configured
+// path is untouched and remains the runtime's active path; the registry is a
+// parallel construction path the runtime will switch to once it is wired.
+//
+// cfg may be zero-valued: tools whose backing service is nil are still
+// registered (their contract and health are visible) but their Factory returns
+// (nil, nil), so Resolve omits them. This mirrors how the existing Catalog
+// silently drops tools when their service is absent.
+func RegisterNativeTools(registry core.ToolRegistry, cfg CatalogConfig) error {
+	if registry == nil {
+		return fmt.Errorf("RegisterNativeTools: registry is nil")
+	}
+	// localToolDefs returns the canonical name list in canonical order; reuse it
+	// rather than re-declaring the names so the registry never drifts from
+	// configuredLocalSpec. localToolDefs dereferences its *config.Config, so we
+	// synthesize a minimal one whose Mutation/RunCommand Disabled flags mirror
+	// CatalogConfig (Disabled == !enabled); the always-on baseline tools are
+	// governed by the per-tool Factory's nil-service guard instead.
+	toolCfg := &config.Config{}
+	toolCfg.Tools.Mutation.Disabled = !cfg.MutationEnabled
+	toolCfg.Tools.RunCommand.Disabled = !cfg.RunCommandEnabled
+	for _, def := range localToolDefs(toolCfg) {
+		portSpec := configuredLocalSpec(def.name, def.enabled)
+		build := nativeToolBuilder(def.name, cfg)
+		if build == nil {
+			// Unknown name: skip rather than fail the whole registration so a
+			// future localToolDefs entry without a builder doesn't block the
+			// known tools. This is defensive; localToolDefs and
+			// nativeToolBuilder are kept in sync.
+			continue
+		}
+		factory := core.ToolFactory(build)
+		spec := portSpecToCoreSpec(portSpec, factory)
+		if err := registry.Register(spec); err != nil {
+			return fmt.Errorf("RegisterNativeTools: register %q: %w", def.name, err)
+		}
+	}
+	return nil
 }

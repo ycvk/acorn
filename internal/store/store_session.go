@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ycvk/acorn/internal/domain"
+	"github.com/ycvk/acorn/internal/core"
 )
 
 // SessionMessagePart is one renderable fragment of a session message. Its JSON
@@ -34,7 +34,7 @@ type SessionMessagePart struct {
 	Answer           string   `json:"answer,omitempty"`
 }
 
-func (s *Store) CreateSession(ctx context.Context, sessionID, title string) (*domain.SessionRecord, error) {
+func (s *Store) CreateSession(ctx context.Context, sessionID, title string) (*core.SessionRecord, error) {
 	now := time.Now().UTC()
 	_, err := s.db.ExecContext(
 		ctx,
@@ -47,13 +47,13 @@ func (s *Store) CreateSession(ctx context.Context, sessionID, title string) (*do
 	if err != nil {
 		return nil, fmt.Errorf("create session: %w", err)
 	}
-	return &domain.SessionRecord{SessionID: sessionID, Title: title, CreatedAt: now, UpdatedAt: now}, nil
+	return &core.SessionRecord{SessionID: sessionID, Title: title, CreatedAt: now, UpdatedAt: now}, nil
 }
 
-func (s *Store) LoadSession(ctx context.Context, sessionID string) (*domain.SessionRecord, error) {
+func (s *Store) LoadSession(ctx context.Context, sessionID string) (*core.SessionRecord, error) {
 	row := s.db.QueryRowContext(ctx, `SELECT session_id, title, created_at, updated_at FROM sessions WHERE session_id = ?`, sessionID)
 	var (
-		rec     domain.SessionRecord
+		rec     core.SessionRecord
 		created string
 		updated string
 	)
@@ -76,7 +76,7 @@ func (s *Store) LoadSession(ctx context.Context, sessionID string) (*domain.Sess
 	return &rec, nil
 }
 
-func (s *Store) ListSessions(ctx context.Context, limit int) ([]domain.SessionRecord, error) {
+func (s *Store) ListSessions(ctx context.Context, limit int) ([]core.SessionRecord, error) {
 	if limit <= 0 {
 		limit = 100
 	}
@@ -93,10 +93,10 @@ func (s *Store) ListSessions(ctx context.Context, limit int) ([]domain.SessionRe
 	}
 	defer rows.Close()
 
-	items := make([]domain.SessionRecord, 0)
+	items := make([]core.SessionRecord, 0)
 	for rows.Next() {
 		var (
-			rec     domain.SessionRecord
+			rec     core.SessionRecord
 			created string
 			updated string
 		)
@@ -246,7 +246,7 @@ func (s *Store) NextTurnIndex(ctx context.Context, sessionID string) (int, error
 	return current + 1, nil
 }
 
-func (s *Store) PrepareChatTurn(ctx context.Context, sessionID, input, title string, historyLimit int) (int, []domain.SessionMessageRecord, error) {
+func (s *Store) PrepareChatTurn(ctx context.Context, sessionID, input, title string, historyLimit int) (int, []core.SessionMessageRecord, error) {
 	if _, err := s.LoadSession(ctx, sessionID); err != nil {
 		return 0, nil, err
 	}

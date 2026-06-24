@@ -25,7 +25,7 @@ func TestDefaultConfigValues(t *testing.T) {
 		{"context.compact_margin_tokens", cfg.Context.CompactMarginTokens, 13000},
 		{"context.preserve_recent_turns", cfg.Context.PreserveRecentTurns, 3},
 		{"context.mask_after_turns", cfg.Context.MaskAfterTurns, 2},
-		{"agent.max_iterations", cfg.Agent.MaxIterations, 70},
+		{"runtime.max_iterations", cfg.Agent.MaxIterations, 70},
 		{"memory.semantic.embedding.provider", cfg.Memory.Semantic.Embedding.Provider, "openai_compatible"},
 		{"memory.semantic.embedding.model", cfg.Memory.Semantic.Embedding.Model, ""},
 		{"memory.semantic.embedding.base_url", cfg.Memory.Semantic.Embedding.BaseURL, ""},

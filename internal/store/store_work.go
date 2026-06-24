@@ -7,13 +7,13 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ycvk/acorn/internal/domain"
+	"github.com/ycvk/acorn/internal/core"
 )
 
-func (s *Store) SaveArtifact(ctx context.Context, record domain.ArtifactRecord) (domain.ArtifactRecord, error) {
+func (s *Store) SaveArtifact(ctx context.Context, record core.ArtifactRecord) (core.ArtifactRecord, error) {
 	normalized, err := NormalizeArtifactRecord(record)
 	if err != nil {
-		return domain.ArtifactRecord{}, err
+		return core.ArtifactRecord{}, err
 	}
 	_, err = s.db.ExecContext(ctx, `
 		INSERT INTO artifacts (
@@ -36,15 +36,15 @@ func (s *Store) SaveArtifact(ctx context.Context, record domain.ArtifactRecord) 
 		string(normalized.Kind), normalized.Title, normalized.MIMEType, normalized.RelativePath,
 		normalized.SizeBytes, normalized.SHA256, formatTimestamp(normalized.CreatedAt))
 	if err != nil {
-		return domain.ArtifactRecord{}, fmt.Errorf("save artifact %s: %w", normalized.ArtifactID, err)
+		return core.ArtifactRecord{}, fmt.Errorf("save artifact %s: %w", normalized.ArtifactID, err)
 	}
 	return s.LoadArtifact(ctx, normalized.ArtifactID)
 }
 
-func (s *Store) LoadArtifact(ctx context.Context, artifactID string) (domain.ArtifactRecord, error) {
+func (s *Store) LoadArtifact(ctx context.Context, artifactID string) (core.ArtifactRecord, error) {
 	artifactID = strings.TrimSpace(artifactID)
 	if artifactID == "" {
-		return domain.ArtifactRecord{}, fmt.Errorf("artifact_id is required")
+		return core.ArtifactRecord{}, fmt.Errorf("artifact_id is required")
 	}
 	row := s.db.QueryRowContext(ctx, `
 		SELECT artifact_id, run_id, session_id, source_tool_result_ref, kind, title,
@@ -55,14 +55,14 @@ func (s *Store) LoadArtifact(ctx context.Context, artifactID string) (domain.Art
 	record, err := scanArtifact(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return domain.ArtifactRecord{}, fmt.Errorf("%w: %s", ErrArtifactNotFound, artifactID)
+			return core.ArtifactRecord{}, fmt.Errorf("%w: %s", ErrArtifactNotFound, artifactID)
 		}
-		return domain.ArtifactRecord{}, err
+		return core.ArtifactRecord{}, err
 	}
 	return record, nil
 }
 
-func (s *Store) ListArtifactsByRun(ctx context.Context, runID string) ([]domain.ArtifactRecord, error) {
+func (s *Store) ListArtifactsByRun(ctx context.Context, runID string) ([]core.ArtifactRecord, error) {
 	runID = strings.TrimSpace(runID)
 	if runID == "" {
 		return nil, fmt.Errorf("artifact run_id is required")
@@ -79,7 +79,7 @@ func (s *Store) ListArtifactsByRun(ctx context.Context, runID string) ([]domain.
 	}
 	defer rows.Close()
 
-	var items []domain.ArtifactRecord
+	var items []core.ArtifactRecord
 	for rows.Next() {
 		record, err := scanArtifact(rows)
 		if err != nil {
@@ -93,7 +93,7 @@ func (s *Store) ListArtifactsByRun(ctx context.Context, runID string) ([]domain.
 	return items, nil
 }
 
-func (s *Store) ListArtifactsBySession(ctx context.Context, sessionID string) ([]domain.ArtifactRecord, error) {
+func (s *Store) ListArtifactsBySession(ctx context.Context, sessionID string) ([]core.ArtifactRecord, error) {
 	sessionID = strings.TrimSpace(sessionID)
 	if sessionID == "" {
 		return nil, fmt.Errorf("artifact session_id is required")
@@ -110,7 +110,7 @@ func (s *Store) ListArtifactsBySession(ctx context.Context, sessionID string) ([
 	}
 	defer rows.Close()
 
-	var items []domain.ArtifactRecord
+	var items []core.ArtifactRecord
 	for rows.Next() {
 		record, err := scanArtifact(rows)
 		if err != nil {
@@ -124,8 +124,8 @@ func (s *Store) ListArtifactsBySession(ctx context.Context, sessionID string) ([
 	return items, nil
 }
 
-func scanArtifact(scanner interface{ Scan(dest ...any) error }) (domain.ArtifactRecord, error) {
-	var record domain.ArtifactRecord
+func scanArtifact(scanner interface{ Scan(dest ...any) error }) (core.ArtifactRecord, error) {
+	var record core.ArtifactRecord
 	var kind string
 	var createdAt string
 	if err := scanner.Scan(
@@ -141,25 +141,25 @@ func scanArtifact(scanner interface{ Scan(dest ...any) error }) (domain.Artifact
 		&record.SHA256,
 		&createdAt,
 	); err != nil {
-		return domain.ArtifactRecord{}, err
+		return core.ArtifactRecord{}, err
 	}
 	record.Kind = kind
 	parsed, err := parseTimestamp(fixedTimestampLayout, createdAt, "artifact.created_at")
 	if err != nil {
-		return domain.ArtifactRecord{}, err
+		return core.ArtifactRecord{}, err
 	}
 	record.CreatedAt = parsed
 	return NormalizeArtifactRecord(record)
 }
 
-// WriteArtifact implements port.ArtifactRepo. It writes the artifact content
+// WriteArtifact implements core.ArtifactRepo. It writes the artifact content
 // to the filesystem and persists the metadata record in the artifacts table.
-func (s *Store) WriteArtifact(ctx context.Context, req domain.ArtifactWriteRequest) (domain.ArtifactRecord, error) {
+func (s *Store) WriteArtifact(ctx context.Context, req core.ArtifactWriteRequest) (core.ArtifactRecord, error) {
 	return s.artifactSvc.WriteArtifact(ctx, req)
 }
 
-// ReadArtifactRange implements port.ArtifactRepo. It reads a byte range from
+// ReadArtifactRange implements core.ArtifactRepo. It reads a byte range from
 // the artifact content file on the filesystem.
-func (s *Store) ReadArtifactRange(ctx context.Context, req domain.ArtifactReadRangeRequest) (domain.ArtifactReadRangeResult, error) {
+func (s *Store) ReadArtifactRange(ctx context.Context, req core.ArtifactReadRangeRequest) (core.ArtifactReadRangeResult, error) {
 	return s.artifactSvc.ReadArtifactRange(ctx, req)
 }

@@ -6,14 +6,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ycvk/acorn/internal/domain"
+	"github.com/ycvk/acorn/internal/core"
 )
 
 func TestDeviceAuthPairingCodeLifecycle(t *testing.T) {
 	store := openTestStore(t)
 	ctx := context.Background()
 	now := time.Date(2026, 5, 15, 10, 0, 0, 0, time.UTC)
-	code := &domain.PairingCode{
+	code := &core.PairingCode{
 		CodeHash:  "hash-code",
 		ExpiresAt: now.Add(10 * time.Minute),
 		CreatedAt: now,
@@ -50,7 +50,7 @@ func TestDeviceAuthPairingCodeExpiryAndMissing(t *testing.T) {
 	if _, err := store.LoadPairingCode(ctx, "missing"); !errors.Is(err, ErrPairingCodeNotFound) {
 		t.Fatalf("load missing code error = %v, want ErrPairingCodeNotFound", err)
 	}
-	if err := store.SavePairingCode(ctx, &domain.PairingCode{
+	if err := store.SavePairingCode(ctx, &core.PairingCode{
 		CodeHash:  "expired",
 		ExpiresAt: now.Add(-time.Second),
 		CreatedAt: now.Add(-time.Minute),
@@ -66,7 +66,7 @@ func TestDeviceAuthDeviceLifecycle(t *testing.T) {
 	store := openTestStore(t)
 	ctx := context.Background()
 	now := time.Date(2026, 5, 15, 10, 0, 0, 0, time.UTC)
-	device := &domain.Device{
+	device := &core.Device{
 		DeviceID:   "device_1",
 		Name:       "iPhone",
 		Platform:   "ios",

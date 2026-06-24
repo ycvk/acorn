@@ -7,11 +7,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ycvk/acorn/internal/domain"
+	"github.com/ycvk/acorn/internal/core"
 )
 
-// LoadOAuthToken implements port.OAuthRepo.
-func (s *Store) GetOAuthToken(ctx context.Context, providerName string) (*domain.OAuthToken, error) {
+// LoadOAuthToken implements core.OAuthRepo.
+func (s *Store) GetOAuthToken(ctx context.Context, providerName string) (*core.OAuthToken, error) {
 	row := s.db.QueryRowContext(ctx,
 		`SELECT provider_name, access_token, refresh_token, expiry, updated_at
      FROM mcp_oauth_tokens
@@ -19,7 +19,7 @@ func (s *Store) GetOAuthToken(ctx context.Context, providerName string) (*domain
 		providerName,
 	)
 	var (
-		token   domain.OAuthToken
+		token   core.OAuthToken
 		expiry  string
 		updated string
 	)
@@ -42,8 +42,8 @@ func (s *Store) GetOAuthToken(ctx context.Context, providerName string) (*domain
 	return &token, nil
 }
 
-// SaveOAuthToken implements port.OAuthRepo.
-func (s *Store) SaveOAuthToken(ctx context.Context, token domain.OAuthToken) error {
+// SaveOAuthToken implements core.OAuthRepo.
+func (s *Store) SaveOAuthToken(ctx context.Context, token core.OAuthToken) error {
 	now := formatTimestamp(time.Now())
 	_, err := s.db.ExecContext(
 		ctx,

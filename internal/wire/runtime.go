@@ -4,28 +4,30 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 
-	"github.com/ycvk/acorn/internal/agent"
+	"github.com/ycvk/acorn/internal/api"
 	"github.com/ycvk/acorn/internal/config"
-	cp "github.com/ycvk/acorn/internal/context"
-	"github.com/ycvk/acorn/internal/contract"
-	"github.com/ycvk/acorn/internal/domain"
+	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/memory"
+	"github.com/ycvk/acorn/internal/runtime"
 	"github.com/ycvk/acorn/internal/skills"
+	"github.com/ycvk/acorn/internal/store"
+	"github.com/ycvk/acorn/internal/tools"
 	"github.com/ycvk/acorn/internal/workspace"
 )
 
 // containerRuntimeStore is the store contract required by the runtime container
-// wiring. It composes RunnerFactoryStore with the context-plane store,
-// session-summary, and the app-facing contract.StoreView (which subsumes the
+// wiring. It composes RunnerFactoryStore with the context-plane db,
+// session-summary, and the app-facing api.StoreView (which subsumes the
 // former pending-action-create port).
 type containerRuntimeStore interface {
-	agent.RunnerFactoryStore
-	domain.SessionSummaryStore
-	contract.StoreView
+	runtime.RunnerFactoryStore
+	core.SessionSummaryStore
+	api.StoreView
 }
 
-// contract.StoreView is the store contract required by the app-facing services
+// api.StoreView is the store contract required by the app-facing services
 // (client, inbox, pending-action, run-resume). The previously narrow
 // sessionStore/runResumeStore/clientStore/deviceAuthStore/inboxStore
 // interfaces are inlined here (they were only embedded, never used standalone
@@ -34,27 +36,28 @@ type containerRuntimeStore interface {
 // (doneCriteria #10): ISP regression is accepted in exchange for consolidating
 // consumer-owned store interfaces to <=4, enforced by
 // store_interface_count_test.go.
-// contract.StoreView moved to api package
+// api.StoreView moved to api package
 
 type containerRuntimeDeps struct {
 	ws                    *workspace.Workspace
 	loader                *skills.Loader
-	sessionSummaryService *domain.SessionSummaryService
+	sessionSummaryService *core.SessionSummaryService
 	memoryModule          memory.Service
-	contextPlane          cp.Plane
-	mcpPendingActionStore contract.StoreView
-	runnerFactory         *agent.RunnerFactory
-	runController         *agent.RunController
-	executors             func(context.Context) (contract.ExecutorHandle, error)
+	contextPlane          runtime.Plane
+	mcpPendingActionStore api.StoreView
+	toolRegistry          core.ToolRegistry
+	runnerFactory         *runtime.RunnerFactory
+	runController         *runtime.RunController
+	executors             func(context.Context) (api.ExecutorHandle, error)
 }
 
-func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, store containerRuntimeStore) (*containerRuntimeDeps, error) {
+func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *store.Store) (*containerRuntimeDeps, error) {
 	ws, err := cfg.Workspace()
 	if err != nil {
 		return nil, err
 	}
 	loader := skills.NewLoader(cfg)
-	sessionSummaryService := domain.NewSessionSummaryService(store, 2000)
+	sessionSummaryService := core.NewSessionSummaryService(db, 2000)
 	memoryModule, err := buildMemoryService(ctx, cfg)
 	if err != nil {
 		return nil, err
@@ -64,21 +67,42 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, store co
 		return nil, err
 	}
 
-	mcpPendingActionStore := contract.StoreView(store)
+	mcpPendingActionStore := api.StoreView(db)
 
-	runnerFactory, err := agent.NewRunnerFactory(cfg, store, agent.RunnerFactoryOptions{
+	artifactSvc, err := store.NewArtifactService(
+		filepath.Join(cfg.Runtime.StorageDir, "artifacts"),
+		db,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("artifact service: %w", err)
+	}
+
+	toolRegistry := tools.NewToolRegistry()
+	if err := tools.RegisterNativeTools(toolRegistry, tools.CatalogConfig{
+		Workspace:         ws,
+		MutationEnabled:   !cfg.Tools.Mutation.Disabled,
+		RunCommandEnabled: !cfg.Tools.RunCommand.Disabled,
+		ArtifactService:   artifactSvc,
+		OperatorStore:     mcpPendingActionStore,
+	}); err != nil {
+		return nil, fmt.Errorf("register native tools: %w", err)
+	}
+
+	runnerFactory, err := runtime.NewRunnerFactory(cfg, db, runtime.RunnerFactoryOptions{
 		Loader:                loader,
 		Workspace:             ws,
 		SessionSummaryService: sessionSummaryService,
 		MemoryModule:          memoryModule,
 		ContextPlane:          contextPlane,
 		MCPPendingActionStore: mcpPendingActionStore,
+		ArtifactService:       artifactSvc,
+		ToolRegistry:          toolRegistry,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("init runner factory: %w", err)
 	}
-	runController := agent.NewRunController()
-	executors := newExecutorFactory(cfg, store, runnerFactory, runController)
+	runController := runtime.NewRunController()
+	executors := newExecutorFactory(cfg, db, runnerFactory, runController)
 
 	return &containerRuntimeDeps{
 		ws:                    ws,
@@ -87,21 +111,22 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, store co
 		memoryModule:          memoryModule,
 		contextPlane:          contextPlane,
 		mcpPendingActionStore: mcpPendingActionStore,
+		toolRegistry:          toolRegistry,
 		runnerFactory:         runnerFactory,
 		runController:         runController,
 		executors:             executors,
 	}, nil
 }
 
-// contract.ExecutorHandle moved to api package
+// api.ExecutorHandle moved to api package
 
 type runtimeExecutorHandle struct {
-	exec *agent.Executor
+	exec *runtime.Executor
 }
 
-func newExecutorFactory(cfg *config.Config, store agent.ExecutorStore, runnerFactory *agent.RunnerFactory, controller *agent.RunController) func(context.Context) (contract.ExecutorHandle, error) {
-	return func(_ context.Context) (contract.ExecutorHandle, error) {
-		exec, err := agent.NewExecutorWithRunRuntimeAndController(cfg, store, runnerFactory, controller)
+func newExecutorFactory(cfg *config.Config, store runtime.ExecutorStore, runnerFactory *runtime.RunnerFactory, controller *runtime.RunController) func(context.Context) (api.ExecutorHandle, error) {
+	return func(_ context.Context) (api.ExecutorHandle, error) {
+		exec, err := runtime.NewExecutorWithRunRuntimeAndController(cfg, store, runnerFactory, controller)
 		if err != nil {
 			return nil, err
 		}
@@ -109,7 +134,7 @@ func newExecutorFactory(cfg *config.Config, store agent.ExecutorStore, runnerFac
 	}
 }
 
-func (h runtimeExecutorHandle) ExecuteMessages(ctx context.Context, req domain.ExecuteRequest, observer contract.RunStartObserver) error {
+func (h runtimeExecutorHandle) ExecuteMessages(ctx context.Context, req core.ExecuteRequest, observer api.RunStartObserver) error {
 	result, err := h.exec.ExecuteMessages(ctx, req, streamSinkForRunStart(observer))
 	if err != nil {
 		return err
@@ -120,7 +145,7 @@ func (h runtimeExecutorHandle) ExecuteMessages(ctx context.Context, req domain.E
 	return nil
 }
 
-func (h runtimeExecutorHandle) ResumeWithTargets(ctx context.Context, runID string, targets map[string]any) (*contract.ExecutorRunResult, error) {
+func (h runtimeExecutorHandle) ResumeWithTargets(ctx context.Context, runID string, targets map[string]any) (*api.ExecutorRunResult, error) {
 	result, err := h.exec.ResumeWithTargets(ctx, runID, targets, nil)
 	if err != nil {
 		return nil, err
@@ -128,23 +153,23 @@ func (h runtimeExecutorHandle) ResumeWithTargets(ctx context.Context, runID stri
 	return executorRunResultFromRuntime(result)
 }
 
-func streamSinkForRunStart(observer contract.RunStartObserver) domain.StreamSink {
+func streamSinkForRunStart(observer api.RunStartObserver) core.StreamSink {
 	if observer == nil {
 		return nil
 	}
-	return func(item domain.StreamItem) error {
-		if item.Kind == domain.StreamKindRunStarted {
+	return func(item core.StreamItem) error {
+		if item.Kind == core.StreamKindRunStarted {
 			observer.RunStarted()
 		}
 		return nil
 	}
 }
 
-func executorRunResultFromRuntime(result *agent.Result) (*contract.ExecutorRunResult, error) {
+func executorRunResultFromRuntime(result *runtime.Result) (*api.ExecutorRunResult, error) {
 	if result == nil {
 		return nil, errors.New("runtime executor returned nil result")
 	}
-	return &contract.ExecutorRunResult{
+	return &api.ExecutorRunResult{
 		RunID:       result.RunID,
 		Status:      result.Status,
 		Output:      result.Output,

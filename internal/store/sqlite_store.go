@@ -10,20 +10,14 @@ import (
 
 	_ "modernc.org/sqlite"
 
-	"github.com/ycvk/acorn/internal/port"
+	"github.com/ycvk/acorn/internal/core"
 )
 
-// Compile-time assertions that *Store implements every port.*Repo interface.
+// Compile-time assertions that *Store implements the core capability interfaces.
 var (
-	_ port.SessionRepo       = (*Store)(nil)
-	_ port.MessageRepo       = (*Store)(nil)
-	_ port.RunRepo           = (*Store)(nil)
-	_ port.EventRepo         = (*Store)(nil)
-	_ port.PendingActionRepo = (*Store)(nil)
-	_ port.DeviceRepo        = (*Store)(nil)
-	_ port.ArtifactRepo      = (*Store)(nil)
-	_ port.OAuthRepo         = (*Store)(nil)
-	_ port.SummaryRepo       = (*Store)(nil)
+	_ core.SessionStore  = (*Store)(nil)
+	_ core.IdentityStore = (*Store)(nil)
+	_ core.ArtifactStore = (*Store)(nil)
 )
 
 type Store struct {

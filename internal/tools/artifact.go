@@ -8,7 +8,7 @@ import (
 
 	einotool "github.com/cloudwego/eino/components/tool"
 
-	"github.com/ycvk/acorn/internal/domain"
+	"github.com/ycvk/acorn/internal/core"
 )
 
 type ArtifactWriteInput struct {
@@ -60,7 +60,7 @@ type ArtifactListOutput struct {
 	Items     []ArtifactSummary `json:"items"`
 }
 
-func buildArtifactTools(service ArtifactService, bridge domain.ToolCallContextBridge) ([]einotool.BaseTool, error) {
+func buildArtifactTools(service ArtifactService, bridge core.ToolCallContextBridge) ([]einotool.BaseTool, error) {
 	if service == nil {
 		return nil, errors.New("artifact service is required")
 	}
@@ -82,7 +82,7 @@ func buildArtifactTools(service ArtifactService, bridge domain.ToolCallContextBr
 	return []einotool.BaseTool{writeTool, readTool, listTool}, nil
 }
 
-func buildArtifactWriteTool(service ArtifactService, bridge domain.ToolCallContextBridge) (einotool.BaseTool, error) {
+func buildArtifactWriteTool(service ArtifactService, bridge core.ToolCallContextBridge) (einotool.BaseTool, error) {
 	tool, err := inferProgressTool("artifact_write", "Persist run-scoped artifact content and return an opaque artifact id.", func(ctx context.Context, input ArtifactWriteInput, emit ToolProgressEmitter) (ArtifactWriteOutput, error) {
 		runID := strings.TrimSpace(bridge.CurrentRunID(ctx))
 		if runID == "" {
@@ -93,7 +93,7 @@ func buildArtifactWriteTool(service ArtifactService, bridge domain.ToolCallConte
 			return ArtifactWriteOutput{}, errors.New("artifact_write requires current tool call context")
 		}
 		sourceRef := "tool_result:" + strings.TrimSpace(runID) + ":" + strings.TrimSpace(callID)
-		record, err := service.WriteArtifact(ctx, domain.ArtifactWriteRequest{
+		record, err := service.WriteArtifact(ctx, core.ArtifactWriteRequest{
 			RunID:               runID,
 			SessionID:           strings.TrimSpace(bridge.CurrentSessionID(ctx)),
 			SourceToolResultRef: sourceRef,
@@ -118,7 +118,7 @@ func buildArtifactWriteTool(service ArtifactService, bridge domain.ToolCallConte
 
 func buildArtifactReadTool(service ArtifactService) (einotool.BaseTool, error) {
 	tool, err := inferProgressTool("artifact_read", "Read an explicit byte range from a persisted artifact.", func(ctx context.Context, input ArtifactReadInput, emit ToolProgressEmitter) (ArtifactReadOutput, error) {
-		result, err := service.ReadArtifactRange(ctx, domain.ArtifactReadRangeRequest{
+		result, err := service.ReadArtifactRange(ctx, core.ArtifactReadRangeRequest{
 			ArtifactID: input.ArtifactID,
 			Offset:     input.Offset,
 			Limit:      input.Limit,
@@ -143,7 +143,7 @@ func buildArtifactReadTool(service ArtifactService) (einotool.BaseTool, error) {
 	return tool, nil
 }
 
-func buildArtifactListTool(service ArtifactService, bridge domain.ToolCallContextBridge) (einotool.BaseTool, error) {
+func buildArtifactListTool(service ArtifactService, bridge core.ToolCallContextBridge) (einotool.BaseTool, error) {
 	tool, err := inferProgressTool("artifact_list", "List artifacts for a run or session.", func(ctx context.Context, input ArtifactListInput, emit ToolProgressEmitter) (ArtifactListOutput, error) {
 		runID := strings.TrimSpace(input.RunID)
 		sessionID := strings.TrimSpace(input.SessionID)
@@ -157,7 +157,7 @@ func buildArtifactListTool(service ArtifactService, bridge domain.ToolCallContex
 			}
 		}
 		var (
-			records []domain.ArtifactRecord
+			records []core.ArtifactRecord
 			err     error
 		)
 		if runID != "" {
@@ -185,7 +185,7 @@ func buildArtifactListTool(service ArtifactService, bridge domain.ToolCallContex
 	return tool, nil
 }
 
-func artifactSummaryFromRecord(record domain.ArtifactRecord) ArtifactSummary {
+func artifactSummaryFromRecord(record core.ArtifactRecord) ArtifactSummary {
 	return ArtifactSummary{
 		ArtifactID:          record.ArtifactID,
 		RunID:               record.RunID,

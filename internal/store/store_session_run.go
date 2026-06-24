@@ -8,7 +8,7 @@ import (
 
 	"database/sql"
 
-	"github.com/ycvk/acorn/internal/domain"
+	"github.com/ycvk/acorn/internal/core"
 )
 
 func (s *Store) HasAssistantMessageForRunContent(runID, content string) (bool, error) {
@@ -24,7 +24,7 @@ func (s *Store) SyncAssistantMessageForRun(ctx context.Context, runID string) er
 	return s.syncAssistantMessageForRun(ctx, runID, "")
 }
 
-func (s *Store) SyncAssistantMessageForRunStatus(ctx context.Context, runID string, status domain.RunStatus) error {
+func (s *Store) SyncAssistantMessageForRunStatus(ctx context.Context, runID string, status core.RunStatus) error {
 	return s.syncAssistantMessageForRun(ctx, runID, status)
 }
 
@@ -32,7 +32,7 @@ func (s *Store) SyncAssistantMessageForRunStatus(ctx context.Context, runID stri
 // The result-summary projection (tool results, plan evidence) was retired
 // with the architecture refactor; the assistant message is now derived purely
 // from the run record.
-func (s *Store) syncAssistantMessageForRun(ctx context.Context, runID string, statusOverride domain.RunStatus) error {
+func (s *Store) syncAssistantMessageForRun(ctx context.Context, runID string, statusOverride core.RunStatus) error {
 	run, err := s.LoadRun(ctx, runID)
 	if err != nil {
 		return err
@@ -58,9 +58,9 @@ func (s *Store) syncAssistantMessageForRun(ctx context.Context, runID string, st
 	return err
 }
 
-func (s *Store) LoadLatestRunsForSessions(ctx context.Context, sessionIDs []string) (map[string]*domain.RunRecord, error) {
+func (s *Store) LoadLatestRunsForSessions(ctx context.Context, sessionIDs []string) (map[string]*core.RunRecord, error) {
 	if len(sessionIDs) == 0 {
-		return map[string]*domain.RunRecord{}, nil
+		return map[string]*core.RunRecord{}, nil
 	}
 
 	seen := make(map[string]struct{}, len(sessionIDs))
@@ -79,7 +79,7 @@ func (s *Store) LoadLatestRunsForSessions(ctx context.Context, sessionIDs []stri
 		placeholders = append(placeholders, "?")
 	}
 	if len(placeholders) == 0 {
-		return map[string]*domain.RunRecord{}, nil
+		return map[string]*core.RunRecord{}, nil
 	}
 
 	query := fmt.Sprintf(
@@ -103,7 +103,7 @@ func (s *Store) LoadLatestRunsForSessions(ctx context.Context, sessionIDs []stri
 	}
 	defer rows.Close()
 
-	result := make(map[string]*domain.RunRecord, len(placeholders))
+	result := make(map[string]*core.RunRecord, len(placeholders))
 	for rows.Next() {
 		rec, err := scanRunRecord(rows)
 		if err != nil {
@@ -117,7 +117,7 @@ func (s *Store) LoadLatestRunsForSessions(ctx context.Context, sessionIDs []stri
 	return result, nil
 }
 
-func (s *Store) LoadLatestRunForSession(ctx context.Context, sessionID string) (*domain.RunRecord, error) {
+func (s *Store) LoadLatestRunForSession(ctx context.Context, sessionID string) (*core.RunRecord, error) {
 	row := s.db.QueryRowContext(ctx,
 		`SELECT run_id, session_id, turn_index, status, input_text, output_text, error_text, created_at, finished_at
          FROM runs

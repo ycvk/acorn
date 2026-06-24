@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ycvk/acorn/internal/domain"
+	"github.com/ycvk/acorn/internal/core"
 )
 
 func TestOAuthTokenGetNotFound(t *testing.T) {
@@ -24,7 +24,7 @@ func TestOAuthTokenSaveAndGetRoundTrip(t *testing.T) {
 	ctx := context.Background()
 
 	expiry := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
-	token := domain.OAuthToken{
+	token := core.OAuthToken{
 		ProviderName: "test-provider",
 		AccessToken:  "access-abc",
 		RefreshToken: "refresh-xyz",
@@ -59,7 +59,7 @@ func TestOAuthTokenSaveUpserts(t *testing.T) {
 	store := openTestStore(t)
 	ctx := context.Background()
 
-	token1 := domain.OAuthToken{
+	token1 := core.OAuthToken{
 		ProviderName: "upsert-provider",
 		AccessToken:  "first-access",
 		RefreshToken: "first-refresh",
@@ -70,7 +70,7 @@ func TestOAuthTokenSaveUpserts(t *testing.T) {
 		t.Fatalf("first save: %v", err)
 	}
 
-	token2 := domain.OAuthToken{
+	token2 := core.OAuthToken{
 		ProviderName: "upsert-provider",
 		AccessToken:  "second-access",
 		RefreshToken: "second-refresh",
@@ -98,7 +98,7 @@ func TestOAuthTokenDelete(t *testing.T) {
 	store := openTestStore(t)
 	ctx := context.Background()
 
-	token := domain.OAuthToken{
+	token := core.OAuthToken{
 		ProviderName: "delete-provider",
 		AccessToken:  "to-delete",
 		RefreshToken: "to-delete-refresh",

@@ -9,7 +9,7 @@ slug: runtime-context-memory
 
 ## Plane
 
-`internal/context` assembles the context messages that are prepended to a run:
+`internal/runtime` assembles the context messages that are prepended to a run:
 
 - selected skill context
 - skill catalog inventory

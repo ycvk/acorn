@@ -13,8 +13,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 
 	"github.com/ycvk/acorn/internal/config"
-	"github.com/ycvk/acorn/internal/domain"
-	"github.com/ycvk/acorn/internal/store"
+	"github.com/ycvk/acorn/internal/core"
 )
 
 const (
@@ -158,9 +157,9 @@ func decodeJSONBody(r *http.Request, out any) error {
 
 func (s *Server) respondClientKnownError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
-	case errors.Is(err, store.ErrSessionNotFound):
+	case errors.Is(err, core.ErrSessionNotFound):
 		s.respondError(w, r, http.StatusNotFound, "thread_not_found", err.Error())
-	case errors.Is(err, store.ErrRunNotFound):
+	case errors.Is(err, core.ErrRunNotFound):
 		s.respondError(w, r, http.StatusNotFound, "run_not_found", err.Error())
 	case errors.Is(err, ErrClientNoPendingMessage):
 		s.respondBadRequest(w, r, err.Error())
@@ -168,7 +167,7 @@ func (s *Server) respondClientKnownError(w http.ResponseWriter, r *http.Request,
 		s.respondBadRequest(w, r, err.Error())
 	case errors.Is(err, ErrClientProjectionFailed):
 		s.respondError(w, r, http.StatusInternalServerError, "run_event_projection_failed", err.Error())
-	case errors.Is(err, domain.ErrExecutionNotReady):
+	case errors.Is(err, core.ErrExecutionNotReady):
 		s.respondError(w, r, http.StatusServiceUnavailable, "execution_not_ready", err.Error())
 	default:
 		s.respondKnownError(w, r, err)

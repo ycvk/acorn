@@ -8,22 +8,22 @@ import (
 
 	einotool "github.com/cloudwego/eino/components/tool"
 
-	"github.com/ycvk/acorn/internal/port"
+	"github.com/ycvk/acorn/internal/core"
 )
 
-// Catalog is the concrete implementation of port.Catalog. It holds normalized
+// Catalog is the concrete implementation of core.Catalog. It holds normalized
 // tool specs indexed by name for fast lookup.
 type Catalog struct {
-	specs  []port.ToolSpec
-	byName map[string]port.ToolSpec
+	specs  []core.ToolSpec
+	byName map[string]core.ToolSpec
 }
 
-// compile-time assertion that *Catalog satisfies port.Catalog.
-var _ port.Catalog = (*Catalog)(nil)
+// compile-time assertion that *Catalog satisfies core.Catalog.
+var _ core.Catalog = (*Catalog)(nil)
 
-func NewCatalog(ctx context.Context, specs []port.ToolSpec) (*Catalog, error) {
-	normalized := make([]port.ToolSpec, 0, len(specs))
-	byName := make(map[string]port.ToolSpec, len(specs))
+func NewCatalog(ctx context.Context, specs []core.ToolSpec) (*Catalog, error) {
+	normalized := make([]core.ToolSpec, 0, len(specs))
+	byName := make(map[string]core.ToolSpec, len(specs))
 	for _, spec := range specs {
 		current, err := normalizeSpec(ctx, spec)
 		if err != nil {
@@ -41,20 +41,20 @@ func NewCatalog(ctx context.Context, specs []port.ToolSpec) (*Catalog, error) {
 	return &Catalog{specs: normalized, byName: byName}, nil
 }
 
-func (c *Catalog) Specs() []port.ToolSpec {
+func (c *Catalog) Specs() []core.ToolSpec {
 	if c == nil || len(c.specs) == 0 {
 		return nil
 	}
-	out := make([]port.ToolSpec, len(c.specs))
+	out := make([]core.ToolSpec, len(c.specs))
 	copy(out, c.specs)
 	return out
 }
 
-func (c *Catalog) EnabledSpecs() []port.ToolSpec {
+func (c *Catalog) EnabledSpecs() []core.ToolSpec {
 	if c == nil || len(c.specs) == 0 {
 		return nil
 	}
-	out := make([]port.ToolSpec, 0, len(c.specs))
+	out := make([]core.ToolSpec, 0, len(c.specs))
 	for _, spec := range c.specs {
 		if !spec.Enabled() {
 			continue
@@ -79,59 +79,59 @@ func (c *Catalog) Tools() []einotool.BaseTool {
 	return out
 }
 
-func (c *Catalog) Find(name string) (port.ToolSpec, bool) {
+func (c *Catalog) Find(name string) (core.ToolSpec, bool) {
 	if c == nil {
-		return port.ToolSpec{}, false
+		return core.ToolSpec{}, false
 	}
 	spec, ok := c.byName[strings.TrimSpace(name)]
 	return spec, ok
 }
 
-func (c *Catalog) ExecutionPolicy(toolName string, args map[string]any) (port.ToolExecutionPolicy, error) {
+func (c *Catalog) ExecutionPolicy(toolName string, args map[string]any) (core.ToolExecutionPolicy, error) {
 	spec, ok := c.Find(toolName)
 	if !ok {
-		return port.ToolExecutionPolicy{}, fmt.Errorf("tool execution policy for %q is not registered", strings.TrimSpace(toolName))
+		return core.ToolExecutionPolicy{}, fmt.Errorf("tool execution policy for %q is not registered", strings.TrimSpace(toolName))
 	}
 	if err := spec.Validate(); err != nil {
-		return port.ToolExecutionPolicy{}, err
+		return core.ToolExecutionPolicy{}, err
 	}
 	return spec.Execution, nil
 }
 
-func normalizeSpec(ctx context.Context, spec port.ToolSpec) (port.ToolSpec, error) {
+func normalizeSpec(ctx context.Context, spec core.ToolSpec) (core.ToolSpec, error) {
 	spec.Name = strings.TrimSpace(spec.Name)
 	spec.Source = strings.TrimSpace(spec.Source)
 	if spec.Health.State == "" {
 		if spec.Tool != nil {
-			spec.Health = port.ToolHealth{State: port.HealthStateHealthy}
+			spec.Health = core.ToolHealth{State: core.HealthStateHealthy}
 		} else {
-			spec.Health = port.ToolHealth{State: port.HealthStateDisabled, Reason: "tool implementation missing"}
+			spec.Health = core.ToolHealth{State: core.HealthStateDisabled, Reason: "tool implementation missing"}
 		}
 	}
 	if spec.Tool != nil {
 		info, err := spec.Tool.Info(ctx)
 		if err != nil {
-			return port.ToolSpec{}, fmt.Errorf("read tool info for %q: %w", spec.Source, err)
+			return core.ToolSpec{}, fmt.Errorf("read tool info for %q: %w", spec.Source, err)
 		}
 		if info == nil {
-			return port.ToolSpec{}, fmt.Errorf("tool info for %q is nil", spec.Source)
+			return core.ToolSpec{}, fmt.Errorf("tool info for %q is nil", spec.Source)
 		}
 		actualName := strings.TrimSpace(info.Name)
 		if spec.Name == "" {
 			spec.Name = actualName
 		} else if actualName != "" && actualName != spec.Name {
-			return port.ToolSpec{}, fmt.Errorf("tool spec name %q does not match tool info %q", spec.Name, actualName)
+			return core.ToolSpec{}, fmt.Errorf("tool spec name %q does not match tool info %q", spec.Name, actualName)
 		}
 	}
 	if spec.Name == "" {
-		return port.ToolSpec{}, fmt.Errorf("tool spec from %s has empty name", spec.Source)
+		return core.ToolSpec{}, fmt.Errorf("tool spec from %s has empty name", spec.Source)
 	}
 	spec.ToolContract = spec.ToolContract.Normalized()
 	if err := spec.Validate(); err != nil {
-		return port.ToolSpec{}, err
+		return core.ToolSpec{}, err
 	}
 	if spec.Enabled() && spec.Tool == nil {
-		return port.ToolSpec{}, fmt.Errorf("enabled tool spec %q is missing tool implementation", spec.Name)
+		return core.ToolSpec{}, fmt.Errorf("enabled tool spec %q is missing tool implementation", spec.Name)
 	}
 	return spec, nil
 }

@@ -12,10 +12,8 @@ import (
 
 	"github.com/cloudwego/eino/adk"
 	"github.com/cloudwego/eino/schema"
-	"github.com/ycvk/acorn/internal/agent"
-	"github.com/ycvk/acorn/internal/contract"
-	"github.com/ycvk/acorn/internal/domain"
-	"github.com/ycvk/acorn/internal/store"
+	"github.com/ycvk/acorn/internal/core"
+	"github.com/ycvk/acorn/internal/runtime"
 )
 
 var (
@@ -28,15 +26,15 @@ func projectionError(format string, args ...any) error {
 	return fmt.Errorf("%w: %s", ErrClientProjectionFailed, fmt.Sprintf(format, args...))
 }
 
-func projectRunStatus(status domain.RunStatus) (string, error) {
+func projectRunStatus(status core.RunStatus) (string, error) {
 	switch status {
-	case domain.RunStatusRunning:
+	case core.RunStatusRunning:
 		return "running", nil
-	case domain.RunStatusSucceeded:
+	case core.RunStatusSucceeded:
 		return "completed", nil
-	case domain.RunStatusInterrupted:
+	case core.RunStatusInterrupted:
 		return "interrupted", nil
-	case domain.RunStatusFailed:
+	case core.RunStatusFailed:
 		return "failed", nil
 	default:
 		return "", projectionError("unknown run status %q", status)
@@ -57,17 +55,17 @@ type Run struct {
 // terminality, and interrupting in-flight runs. It binds a run to its
 // originating user message via the ThreadService and drives the executor.
 type RunService struct {
-	store       contract.StoreView
+	store       StoreView
 	threads     *ThreadService
-	newExecutor func(context.Context) (contract.ExecutorHandle, error)
-	controller  *agent.RunController
+	newExecutor func(context.Context) (ExecutorHandle, error)
+	controller  *runtime.RunController
 	newRunID    func() string
 	reportError func(context.Context, string, error)
 }
 
 // NewRunService constructs a RunService backed by the given store, executor
 // factory, and run controller.
-func NewRunService(store contract.StoreView, threads *ThreadService, newExecutor func(context.Context) (contract.ExecutorHandle, error), controller *agent.RunController) *RunService {
+func NewRunService(store StoreView, threads *ThreadService, newExecutor func(context.Context) (ExecutorHandle, error), controller *runtime.RunController) *RunService {
 	return &RunService{
 		store:       store,
 		threads:     threads,
@@ -106,9 +104,9 @@ func (s *RunService) RunIsTerminal(ctx context.Context, runID string) (bool, err
 		return false, err
 	}
 	switch record.Status {
-	case domain.RunStatusRunning:
+	case core.RunStatusRunning:
 		return false, nil
-	case domain.RunStatusSucceeded, domain.RunStatusInterrupted, domain.RunStatusFailed:
+	case core.RunStatusSucceeded, core.RunStatusInterrupted, core.RunStatusFailed:
 		return true, nil
 	default:
 		return false, projectionError("unknown run status %q", record.Status)
@@ -139,7 +137,7 @@ func (s *RunService) CreateRun(ctx context.Context, threadID, skillID, input str
 	// latest unbound message and binds by its id; concurrent two-step creates on
 	// one thread bind the same id and the second fails loud (RowsAffected=0 -> run
 	// rolled back), never silently mis-binding.
-	var message *domain.SessionMessageRecord
+	var message *core.SessionMessageRecord
 	var err error
 	if strings.TrimSpace(input) != "" {
 		message, err = s.threads.createUserMessage(ctx, threadID, input)
@@ -149,7 +147,7 @@ func (s *RunService) CreateRun(ctx context.Context, threadID, skillID, input str
 	} else {
 		message, err = s.store.LoadLatestUnboundUserMessage(ctx, threadID)
 		if err != nil {
-			if errors.Is(err, store.ErrSessionMessageNotFound) {
+			if errors.Is(err, core.ErrSessionMessageNotFound) {
 				return nil, fmt.Errorf("%w: thread %s", ErrClientNoPendingMessage, threadID)
 			}
 			return nil, err
@@ -168,7 +166,7 @@ func (s *RunService) CreateRun(ctx context.Context, threadID, skillID, input str
 		return nil, errors.New("client run id is empty")
 	}
 	started := newRunStartSignal()
-	req := domain.ExecuteRequest{
+	req := core.ExecuteRequest{
 		RunID:          runID,
 		SessionID:      threadID,
 		TurnIndex:      message.TurnIndex,
@@ -190,7 +188,7 @@ func (s *RunService) CreateRun(ctx context.Context, threadID, skillID, input str
 	}
 }
 
-func projectRun(record domain.RunRecord) (Run, error) {
+func projectRun(record core.RunRecord) (Run, error) {
 	status, err := projectRunStatus(record.Status)
 	if err != nil {
 		return Run{}, err
@@ -202,7 +200,7 @@ func projectRun(record domain.RunRecord) (Run, error) {
 		Mode:      "direct",
 		CreatedAt: record.CreatedAt,
 	}
-	if record.Status != domain.RunStatusRunning {
+	if record.Status != core.RunStatusRunning {
 		run.CompletedAt = record.FinishedAt
 	}
 	return run, nil
@@ -248,7 +246,7 @@ func reportClientBackgroundError(ctx context.Context, runID string, err error) {
 	slog.Default().ErrorContext(ctx, "client background run failure was not persisted", "run_id", runID, "error", err)
 }
 
-func (s *RunService) executeRun(ctx context.Context, exec contract.ExecutorHandle, req domain.ExecuteRequest, started *clientRunStartSignal) {
+func (s *RunService) executeRun(ctx context.Context, exec ExecutorHandle, req core.ExecuteRequest, started *clientRunStartSignal) {
 	err := exec.ExecuteMessages(ctx, req, started)
 	if err != nil {
 		if started.MarkFailed(err) {
@@ -284,10 +282,10 @@ func (s *RunService) recordStartedRunFailure(ctx context.Context, runID string, 
 	if err != nil {
 		return err
 	}
-	if record.Status != domain.RunStatusRunning {
+	if record.Status != core.RunStatusRunning {
 		return nil
 	}
-	if err := s.store.FinishRun(ctx, runID, domain.RunStatusFailed, "", cause.Error()); err != nil {
+	if err := s.store.FinishRun(ctx, runID, core.RunStatusFailed, "", cause.Error()); err != nil {
 		return fmt.Errorf("mark client run failed after background error: %w", err)
 	}
 	if _, err := s.store.AppendEvent(ctx, runID, "run.failed", map[string]any{"error": cause.Error()}); err != nil {
@@ -298,7 +296,7 @@ func (s *RunService) recordStartedRunFailure(ctx context.Context, runID string, 
 
 const chatHistoryLimit = 12
 
-func buildChatMessages(items []domain.SessionMessageRecord) []adk.Message {
+func buildChatMessages(items []core.SessionMessageRecord) []adk.Message {
 	messages := make([]adk.Message, 0, len(items))
 	for _, item := range items {
 		switch item.Role {

@@ -8,21 +8,20 @@ import (
 
 	"encoding/json"
 
-	"github.com/ycvk/acorn/internal/contract"
-	"github.com/ycvk/acorn/internal/domain"
+	"github.com/ycvk/acorn/internal/core"
 )
 
 type RunResumeService struct {
-	store       contract.StoreView
-	newExecutor func(context.Context) (contract.ExecutorHandle, error)
+	store       StoreView
+	newExecutor func(context.Context) (ExecutorHandle, error)
 }
 
 type ResumeStatus struct {
-	RunID        string           `json:"run_id,omitempty"`
-	Status       domain.RunStatus `json:"status,omitempty"`
-	Resumable    bool             `json:"resumable"`
-	InterruptIDs []string         `json:"interrupt_ids,omitempty"`
-	Reason       string           `json:"reason,omitempty"`
+	RunID        string         `json:"run_id,omitempty"`
+	Status       core.RunStatus `json:"status,omitempty"`
+	Resumable    bool           `json:"resumable"`
+	InterruptIDs []string       `json:"interrupt_ids,omitempty"`
+	Reason       string         `json:"reason,omitempty"`
 }
 
 type RunResult struct {
@@ -33,11 +32,11 @@ type RunResult struct {
 	Interrupted map[string]any `json:"interrupted,omitempty"`
 }
 
-func NewRunResumeService(store contract.StoreView) *RunResumeService {
+func NewRunResumeService(store StoreView) *RunResumeService {
 	return &RunResumeService{store: store}
 }
 
-func (s *RunResumeService) WithResume(newExecutor func(context.Context) (contract.ExecutorHandle, error)) *RunResumeService {
+func (s *RunResumeService) WithResume(newExecutor func(context.Context) (ExecutorHandle, error)) *RunResumeService {
 	s.newExecutor = newExecutor
 	return s
 }
@@ -65,7 +64,7 @@ func (s *RunResumeService) Resume(ctx context.Context, runID string) (*RunResult
 	return projected, nil
 }
 
-func runResultFromExecutor(result *contract.ExecutorRunResult) (*RunResult, error) {
+func runResultFromExecutor(result *ExecutorRunResult) (*RunResult, error) {
 	if result == nil {
 		return nil, nil
 	}
@@ -99,7 +98,7 @@ func (s *RunResumeService) ResumeStatus(ctx context.Context, runID string) (*Res
 		return nil, err
 	}
 	status := buildResumeStatus(runID, run, items)
-	if status == nil || run == nil || run.Status != domain.RunStatusInterrupted {
+	if status == nil || run == nil || run.Status != core.RunStatusInterrupted {
 		return status, nil
 	}
 	targets, inferReason := s.inferResumeTargetsOrReason(ctx, runID)
@@ -128,11 +127,11 @@ func (s *RunResumeService) InferResumeTargets(ctx context.Context, runID string)
 	}
 	status := buildResumeStatus(runID, run, items)
 	if !status.Resumable {
-		return nil, fmt.Errorf("%w: %s", domain.ErrRunNotInterrupted, status.Reason)
+		return nil, fmt.Errorf("%w: %s", core.ErrRunNotInterrupted, status.Reason)
 	}
 	contexts, err := latestRootInterruptContexts(items)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", domain.ErrRunNotInterrupted, err)
+		return nil, fmt.Errorf("%w: %v", core.ErrRunNotInterrupted, err)
 	}
 	targets := make(map[string]any, len(contexts))
 	for _, ctxItem := range contexts {
@@ -170,13 +169,13 @@ func (s *RunResumeService) operatorQuestionTargets(ctx context.Context, runID st
 	if record.RunID != runID {
 		return nil, fmt.Errorf("run %s interrupt %s operator_question action %s belongs to run %s", runID, interrupt.ID, actionID, record.RunID)
 	}
-	if record.Kind != domain.PendingActionKindOperatorQuestion {
+	if record.Kind != core.PendingActionKindOperatorQuestion {
 		return nil, fmt.Errorf("run %s interrupt %s action %s has kind %q", runID, interrupt.ID, actionID, record.Kind)
 	}
-	if record.Status == domain.PendingActionStatusPending {
+	if record.Status == core.PendingActionStatusPending {
 		return nil, fmt.Errorf("run %s interrupt %s operator_question action %s is still pending", runID, interrupt.ID, actionID)
 	}
-	if record.Status != domain.PendingActionStatusApproved && record.Status != domain.PendingActionStatusRejected {
+	if record.Status != core.PendingActionStatusApproved && record.Status != core.PendingActionStatusRejected {
 		return nil, fmt.Errorf("run %s interrupt %s operator_question action %s has unsupported status %q", runID, interrupt.ID, actionID, record.Status)
 	}
 	var decision map[string]any
@@ -203,7 +202,7 @@ func interruptInfoField(raw any, key string) string {
 	return strings.TrimSpace(value)
 }
 
-func (s *RunResumeService) loadRunEvents(ctx context.Context, runID string) (*domain.RunRecord, []domain.EventRecord, error) {
+func (s *RunResumeService) loadRunEvents(ctx context.Context, runID string) (*core.RunRecord, []core.EventRecord, error) {
 	if s == nil || s.store == nil {
 		return nil, nil, fmt.Errorf("run resume store is nil")
 	}
@@ -218,7 +217,7 @@ func (s *RunResumeService) loadRunEvents(ctx context.Context, runID string) (*do
 	return run, items, nil
 }
 
-func buildResumeStatus(runID string, run *domain.RunRecord, items []domain.EventRecord) *ResumeStatus {
+func buildResumeStatus(runID string, run *core.RunRecord, items []core.EventRecord) *ResumeStatus {
 	status := &ResumeStatus{RunID: runID}
 	if run == nil {
 		status.Reason = fmt.Sprintf("run %s is unavailable", runID)
@@ -227,7 +226,7 @@ func buildResumeStatus(runID string, run *domain.RunRecord, items []domain.Event
 	status.Status = run.Status
 
 	switch run.Status {
-	case domain.RunStatusInterrupted:
+	case core.RunStatusInterrupted:
 		interruptIDs, err := latestRootInterruptIDs(items)
 		if err != nil {
 			status.Reason = fmt.Sprintf("run %s is interrupted but missing resumable interrupt data: %v", runID, err)
@@ -237,11 +236,11 @@ func buildResumeStatus(runID string, run *domain.RunRecord, items []domain.Event
 		status.InterruptIDs = append(status.InterruptIDs, interruptIDs...)
 		status.Reason = fmt.Sprintf("run %s is interrupted and waiting on %d root actions", runID, len(interruptIDs))
 		return status
-	case domain.RunStatusFailed:
+	case core.RunStatusFailed:
 		status.Reason = fmt.Sprintf("run %s failed and cannot be resumed; inspect run detail or start a new client run", runID)
-	case domain.RunStatusSucceeded:
+	case core.RunStatusSucceeded:
 		status.Reason = fmt.Sprintf("run %s completed and does not need resume", runID)
-	case domain.RunStatusRunning:
+	case core.RunStatusRunning:
 		status.Reason = fmt.Sprintf("run %s is still running and has no persisted interrupt to resume", runID)
 	default:
 		status.Reason = fmt.Sprintf("run %s is not resumable from status %s", runID, run.Status)
@@ -268,7 +267,7 @@ type runInterruptedPayload struct {
 	} `json:"interrupt,omitempty"`
 }
 
-func latestRootInterruptContexts(raw []domain.EventRecord) ([]resumeInterruptContext, error) {
+func latestRootInterruptContexts(raw []core.EventRecord) ([]resumeInterruptContext, error) {
 	for i := len(raw) - 1; i >= 0; i-- {
 		record := raw[i]
 		if record.Kind != "run.interrupted" {
@@ -306,7 +305,7 @@ func latestRootInterruptContexts(raw []domain.EventRecord) ([]resumeInterruptCon
 	return nil, errors.New("run has no interrupt event to resume")
 }
 
-func latestRootInterruptIDs(raw []domain.EventRecord) ([]string, error) {
+func latestRootInterruptIDs(raw []core.EventRecord) ([]string, error) {
 	contexts, err := latestRootInterruptContexts(raw)
 	if err != nil {
 		return nil, err

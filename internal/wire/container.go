@@ -6,22 +6,20 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ycvk/acorn/internal/agent"
 	"github.com/ycvk/acorn/internal/api"
 	"github.com/ycvk/acorn/internal/config"
-	cp "github.com/ycvk/acorn/internal/context"
-	"github.com/ycvk/acorn/internal/contract"
-	"github.com/ycvk/acorn/internal/domain"
+	"github.com/ycvk/acorn/internal/core"
+	mcpprovider "github.com/ycvk/acorn/internal/mcp"
 	"github.com/ycvk/acorn/internal/memory"
-	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
+	"github.com/ycvk/acorn/internal/runtime"
 	"github.com/ycvk/acorn/internal/store"
 )
 
 type Container struct {
 	cfg           *config.Config
 	store         *store.Store
-	runnerFactory *agent.RunnerFactory
-	runController *agent.RunController
+	runnerFactory *runtime.RunnerFactory
+	runController *runtime.RunController
 	runResume     *api.RunResumeService
 	skills        *api.SkillService
 	threads       *api.ThreadService
@@ -108,7 +106,7 @@ func buildContainer(ctx context.Context, cfg *config.Config) (*Container, error)
 		return nil, errors.New("config is required")
 	}
 
-	agent.RegisterTypes()
+	runtime.RegisterTypes()
 
 	store, err := store.Open(cfg.Runtime.StorageDir)
 	if err != nil {
@@ -137,8 +135,8 @@ func buildContainer(ctx context.Context, cfg *config.Config) (*Container, error)
 	return container, nil
 }
 
-func buildContextPlane(cfg *config.Config) (cp.Plane, error) {
-	contextCounter, err := cp.NewTokenCounter()
+func buildContextPlane(cfg *config.Config) (runtime.Plane, error) {
+	contextCounter, err := runtime.NewTokenCounter()
 	if err != nil {
 		return nil, err
 	}
@@ -146,7 +144,7 @@ func buildContextPlane(cfg *config.Config) (cp.Plane, error) {
 	if maxContextTokens <= 0 {
 		return nil, fmt.Errorf("context effective window must be positive: window=%d margin=%d", cfg.Context.WindowTokens, cfg.Context.CompactMarginTokens)
 	}
-	contextPlane := cp.NewDefaultPlane(cp.DefaultOptions{
+	contextPlane := runtime.NewDefaultPlane(runtime.DefaultOptions{
 		MemoryContextTokenBudget: cfg.Memory.Search.MemoryContextTokenBudget,
 		MaxContextTokens:         maxContextTokens,
 		TokenCounter:             contextCounter,
@@ -170,7 +168,7 @@ func buildMemoryService(ctx context.Context, cfg *config.Config) (memory.Service
 	return svc, nil
 }
 
-func buildContainerAppServices(cfg *config.Config, store contract.StoreView, deps *containerRuntimeDeps) (*Container, error) {
+func buildContainerAppServices(cfg *config.Config, store api.StoreView, deps *containerRuntimeDeps) (*Container, error) {
 	container := &Container{
 		cfg:           cfg,
 		runnerFactory: deps.runnerFactory,
@@ -219,11 +217,11 @@ func (c *Container) RunOnce(ctx context.Context, input string) (*RunOnceResult, 
 	if trimmed == "" {
 		return nil, errors.New("run input is required")
 	}
-	exec, err := agent.NewExecutorWithRunRuntimeAndController(c.cfg, c.store, c.runnerFactory, c.runController)
+	exec, err := runtime.NewExecutorWithRunRuntimeAndController(c.cfg, c.store, c.runnerFactory, c.runController)
 	if err != nil {
 		return nil, err
 	}
-	result, err := exec.ExecuteMessages(ctx, domain.ExecuteRequest{
+	result, err := exec.ExecuteMessages(ctx, core.ExecuteRequest{
 		Input: trimmed,
 	}, nil)
 	if err != nil {

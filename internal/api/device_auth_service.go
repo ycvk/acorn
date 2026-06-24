@@ -13,9 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ycvk/acorn/internal/contract"
-	"github.com/ycvk/acorn/internal/domain"
-	"github.com/ycvk/acorn/internal/store"
+	"github.com/ycvk/acorn/internal/core"
 )
 
 var (
@@ -55,12 +53,12 @@ type DeviceView struct {
 }
 
 type DeviceAuthService struct {
-	store contract.StoreView
+	store StoreView
 	now   func() time.Time
 	rand  io.Reader
 }
 
-func NewDeviceAuthService(store contract.StoreView) *DeviceAuthService {
+func NewDeviceAuthService(store StoreView) *DeviceAuthService {
 	return &DeviceAuthService{
 		store: store,
 		now:   func() time.Time { return time.Now().UTC() },
@@ -80,7 +78,7 @@ func (s *DeviceAuthService) CreatePairingCode(ctx context.Context, ttl time.Dura
 		return nil, err
 	}
 	now := s.now()
-	record := &domain.PairingCode{
+	record := &core.PairingCode{
 		CodeHash:  hashSecret(normalizePairingCode(code)),
 		ExpiresAt: now.Add(ttl),
 		CreatedAt: now,
@@ -109,7 +107,7 @@ func (s *DeviceAuthService) PairDevice(ctx context.Context, input PairDeviceInpu
 	}
 	now := s.now()
 	if _, err := s.store.ConsumePairingCode(ctx, hashSecret(code), now); err != nil {
-		if errors.Is(err, store.ErrPairingCodeNotFound) || errors.Is(err, store.ErrPairingCodeUsed) || errors.Is(err, store.ErrPairingCodeExpired) {
+		if errors.Is(err, core.ErrPairingCodeNotFound) || errors.Is(err, core.ErrPairingCodeUsed) || errors.Is(err, core.ErrPairingCodeExpired) {
 			return nil, ErrInvalidPairingCode
 		}
 		return nil, err
@@ -122,7 +120,7 @@ func (s *DeviceAuthService) PairDevice(ctx context.Context, input PairDeviceInpu
 	if err != nil {
 		return nil, err
 	}
-	device := &domain.Device{
+	device := &core.Device{
 		DeviceID:   deviceID,
 		Name:       name,
 		Platform:   platform,
@@ -149,7 +147,7 @@ func (s *DeviceAuthService) Authenticate(ctx context.Context, rawToken string) (
 	}
 	device, err := s.store.LoadDeviceByTokenHash(ctx, hashSecret(token))
 	if err != nil {
-		if errors.Is(err, store.ErrDeviceNotFound) {
+		if errors.Is(err, core.ErrDeviceNotFound) {
 			return nil, ErrUnauthenticated
 		}
 		return nil, err
@@ -189,7 +187,7 @@ func (s *DeviceAuthService) RevokeDevice(ctx context.Context, deviceID string) e
 		return ErrDeviceNotFound
 	}
 	if err := s.store.RevokeDevice(ctx, trimmed, s.now()); err != nil {
-		if errors.Is(err, store.ErrDeviceNotFound) {
+		if errors.Is(err, core.ErrDeviceNotFound) {
 			return ErrDeviceNotFound
 		}
 		return err
@@ -197,7 +195,7 @@ func (s *DeviceAuthService) RevokeDevice(ctx context.Context, deviceID string) e
 	return nil
 }
 
-func deviceViewFromRecord(record domain.Device) DeviceView {
+func deviceViewFromRecord(record core.Device) DeviceView {
 	return DeviceView{
 		DeviceID:   record.DeviceID,
 		Name:       record.Name,

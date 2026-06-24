@@ -9,22 +9,20 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/ycvk/acorn/internal/clientevents"
-	"github.com/ycvk/acorn/internal/contract"
-	"github.com/ycvk/acorn/internal/domain"
+	"github.com/ycvk/acorn/internal/core"
 )
 
 // ThreadService owns thread and message CRUD: it reads/writes session records,
 // derives thread state from the latest run, and projects stored messages into
 // client-facing DTOs.
 type ThreadService struct {
-	store         contract.StoreView
+	store         StoreView
 	workspaceRoot string
 	newThreadID   func() string
 }
 
 // NewThreadService constructs a ThreadService backed by the given store.
-func NewThreadService(store contract.StoreView, workspaceRoot string) *ThreadService {
+func NewThreadService(store StoreView, workspaceRoot string) *ThreadService {
 	return &ThreadService{
 		store:         store,
 		workspaceRoot: workspaceRoot,
@@ -159,14 +157,14 @@ func generatedThreadTitle(content string) string {
 	return string(runes[:generatedThreadTitleMaxRunes]) + "..."
 }
 
-func (s *ThreadService) projectThread(record domain.SessionRecord, latestRun *domain.RunRecord) (Thread, error) {
+func (s *ThreadService) projectThread(record core.SessionRecord, latestRun *core.RunRecord) (Thread, error) {
 	thread := Thread{
 		ID:            record.SessionID,
 		Title:         record.Title,
 		WorkspaceRoot: s.workspaceRoot,
 		CreatedAt:     record.CreatedAt,
 		UpdatedAt:     record.UpdatedAt,
-		State:         string(clientevents.SessionStateNew),
+		State:         string(core.SessionStateNew),
 	}
 	if latestRun == nil {
 		return thread, nil
@@ -180,16 +178,16 @@ func (s *ThreadService) projectThread(record domain.SessionRecord, latestRun *do
 	return thread, nil
 }
 
-func projectThreadState(status domain.RunStatus) (string, error) {
+func projectThreadState(status core.RunStatus) (string, error) {
 	switch status {
-	case domain.RunStatusRunning:
-		return string(clientevents.SessionStateRunning), nil
-	case domain.RunStatusSucceeded:
-		return string(clientevents.SessionStateCompleted), nil
-	case domain.RunStatusFailed:
-		return string(clientevents.SessionStateFailed), nil
-	case domain.RunStatusInterrupted:
-		return string(clientevents.SessionStateInterrupted), nil
+	case core.RunStatusRunning:
+		return string(core.SessionStateRunning), nil
+	case core.RunStatusSucceeded:
+		return string(core.SessionStateCompleted), nil
+	case core.RunStatusFailed:
+		return string(core.SessionStateFailed), nil
+	case core.RunStatusInterrupted:
+		return string(core.SessionStateInterrupted), nil
 	default:
 		return "", projectionError("unknown run status %q", status)
 	}
@@ -231,7 +229,7 @@ func (s *ThreadService) CreateMessage(ctx context.Context, threadID, content str
 
 // createUserMessage records a pending user message and returns the stored record
 // (including its id and turn index) so a run can bind to that exact message id.
-func (s *ThreadService) createUserMessage(ctx context.Context, threadID, content string) (*domain.SessionMessageRecord, error) {
+func (s *ThreadService) createUserMessage(ctx context.Context, threadID, content string) (*core.SessionMessageRecord, error) {
 	if s == nil || s.store == nil {
 		return nil, errors.New("client store is nil")
 	}
@@ -253,7 +251,7 @@ func (s *ThreadService) createUserMessage(ctx context.Context, threadID, content
 	return record, nil
 }
 
-func projectMessage(record domain.SessionMessageRecord) (Message, error) {
+func projectMessage(record core.SessionMessageRecord) (Message, error) {
 	switch record.Role {
 	case "user", "assistant", "system", "tool":
 	default:
@@ -277,7 +275,7 @@ func projectMessage(record domain.SessionMessageRecord) (Message, error) {
 	}, nil
 }
 
-func projectMessageParts(record domain.SessionMessageRecord) ([]MessagePart, error) {
+func projectMessageParts(record core.SessionMessageRecord) ([]MessagePart, error) {
 	if len(record.ContentParts) == 0 {
 		return nil, nil
 	}
@@ -320,7 +318,7 @@ func validateMessagePart(part MessagePart) error {
 			return errors.New("decision part requires decision_id and question")
 		}
 		switch part.Status {
-		case "", string(domain.PendingActionStatusPending), string(domain.PendingActionStatusApproved), string(domain.PendingActionStatusRejected), string(domain.PendingActionStatusResolved):
+		case "", string(core.PendingActionStatusPending), string(core.PendingActionStatusApproved), string(core.PendingActionStatusRejected), string(core.PendingActionStatusResolved):
 		default:
 			return fmt.Errorf("decision part has unsupported status %q", part.Status)
 		}

@@ -1,7 +1,7 @@
 ---
 doc_type: architecture
 status: current
-last_reviewed: 2026-06-23
+last_reviewed: 2026-06-24
 slug: runtime-execution
 ---
 
@@ -9,13 +9,13 @@ slug: runtime-execution
 
 ## 现状
 
-Acorn 的执行层由 `internal/agent.Executor` 启动 run。用户执行入口来自 authenticated `/v1` remote client contract；operator CLI 只保留 `doctor`、`serve`、`pair`、skills、memory rebuild 等运维/诊断命令。app container 在 `internal/wire/container.go` 装配 runtime executor、run resume service 和 web dependencies，Web handler 只调用 app/runtime service，不直接拼 runtime 状态。
+Acorn 的执行层由 `internal/runtime.Executor` 启动 run。用户执行入口来自 authenticated `/v1` remote client contract；operator CLI 只保留 `doctor`、`serve`、`pair`、skills、memory rebuild 等运维/诊断命令。wire container 在 `internal/wire/container.go` 装配 runtime executor、run resume service 和 web dependencies，Web handler 只调用 runtime service，不直接拼 runtime 状态。
 
 ## Run lifecycle
 
-- `internal/runtime/executor.go` 创建或恢复 session/run，写入 `events.RunRecord`。只有一个编排模式 `direct_response`。
+- `internal/runtime/executor.go` 创建或恢复 session/run，写入 `core.EventRecord`。只有一个编排模式 `direct_response`。
 - `RunnerFactory.New` 在 `internal/runtime/runner.go` 中只保留入口委托；`internal/runtime/run.go` 的 `RunnerFactory.buildRun` 构建 `ActiveRunner`。主链是：创建 chat model；bootstrap MCP 并构建 run tool catalog；调用 `memory.Service.Prepare` 得到 file-backed prepared memory；assemble Plane；委托给 `buildDirectResponse`。
-- Run tool catalog is built from `tooling.ToolContract`. Each enabled tool has explicit identity, source, kind, category, loading policy, and execution policy; incomplete contracts fail catalog construction.
+- Run tool catalog is built from `core.ToolContract`. Each enabled tool has explicit identity, source, kind, category, loading policy, and execution policy; incomplete contracts fail catalog construction.
 - Executor 在 model run 前通过 Session Bootstrap 生成首轮 `ModelInput`。Bootstrap 合并 Plane assembly 与 initial user messages；`direct_response` 额外把 stable instruction 作为 leading system message 交给 Session。
 - Chat model 只来自配置中唯一 enabled LLM provider；runtime 不提供 priority、backoff、透明 failover 或 provider retry/switch。MCP provider 只暴露 startup health、catalog/auth lifecycle 和真实错误。
 - `internal/runtime/executor.go` 和 executor finalization 路径负责把 ADK events、assistant message、run terminal status 和 `internal/memory` history append 收口到 persisted truth。
