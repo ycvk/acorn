@@ -12,10 +12,19 @@ import (
 	"github.com/ycvk/acorn/internal/core"
 )
 
-// toolRegistry is the concrete implementation of core.ToolRegistry. It holds
-// core.ToolSpec entries indexed by name under a mutex. Specs are the source of
-// truth for metadata; concrete einotool.BaseTool instances are produced lazily
-// via each spec's Factory (see Resolve).
+// ResolvingToolRegistry extends the read-write core.ToolRegistry with lazy
+// tool resolution: Resolve invokes each registered spec's Factory under a run
+// context to produce concrete einotool.BaseTool instances on demand. The
+// runtime uses this to build per-run tool sets from names.
+type ResolvingToolRegistry interface {
+	core.ToolRegistry
+	Resolve(ctx context.Context, runCtx core.RunContext, names []string) ([]einotool.BaseTool, error)
+}
+
+// toolRegistry is the concrete implementation of ResolvingToolRegistry. It
+// holds core.ToolSpec entries indexed by name under a mutex. Specs are the
+// source of truth for metadata; concrete einotool.BaseTool instances are
+// produced lazily via each spec's Factory (see Resolve).
 //
 // It deliberately mirrors the existing port-backed Catalog shape (Catalog in
 // catalog.go) so the runtime can adopt the registry as a drop-in replacement
@@ -25,13 +34,16 @@ type toolRegistry struct {
 	byName map[string]core.ToolSpec
 }
 
-// NewToolRegistry returns an empty, ready-to-use core.ToolRegistry.
-func NewToolRegistry() core.ToolRegistry {
+// NewToolRegistry returns an empty, ready-to-use registry. The return type is
+// ResolvingToolRegistry (which embeds core.ToolRegistry) so callers that only
+// need the read-write catalog interface still get it, while the runtime can
+// use Resolve for lazy tool construction.
+func NewToolRegistry() ResolvingToolRegistry {
 	return &toolRegistry{byName: make(map[string]core.ToolSpec)}
 }
 
-// compile-time assertion that *toolRegistry satisfies core.ToolRegistry.
-var _ core.ToolRegistry = (*toolRegistry)(nil)
+// compile-time assertion that *toolRegistry satisfies ResolvingToolRegistry.
+var _ ResolvingToolRegistry = (*toolRegistry)(nil)
 
 // Register stores spec under its (normalized) name. A spec whose name is empty
 // or that already exists is rejected. The spec's Factory is kept as-is so later
@@ -161,7 +173,9 @@ func (r *toolRegistry) ExecutionPolicy(toolName string, args map[string]any) (co
 // by invoking each spec's Factory under the given run context. Names that are
 // not registered are skipped (not an error): the runtime requests tool sets by
 // name and tolerates providers that were never registered. A spec whose Factory
-// is nil but whose Tool is pre-built returns that Tool instance instead.
+// is nil but whose Tool is pre-built returns that Tool instance instead. A
+// factory that returns (nil, nil) — e.g. when its backing service is absent —
+// is also skipped, so callers receive only usable tool instances.
 func (r *toolRegistry) Resolve(ctx context.Context, runCtx core.RunContext, names []string) ([]einotool.BaseTool, error) {
 	if r == nil {
 		return nil, nil
@@ -181,6 +195,12 @@ func (r *toolRegistry) Resolve(ctx context.Context, runCtx core.RunContext, name
 		tool, err := spec.Factory(ctx, runCtx)
 		if err != nil {
 			return nil, fmt.Errorf("tool registry: resolve %q: %w", name, err)
+		}
+		// A factory may return (nil, nil) when its backing service is absent
+		// (e.g. no workspace configured). Skip nil instances so callers receive
+		// only usable tools, matching the existing Catalog's silent-omit behavior.
+		if tool == nil {
+			continue
 		}
 		out = append(out, tool)
 	}
