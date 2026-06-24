@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"github.com/ycvk/acorn/internal/port"
 )
 
 func TestReconcileProvidersAddsNewProvider(t *testing.T) {
@@ -163,7 +165,7 @@ func TestReconcileProvidersPreservesUnchangedSlots(t *testing.T) {
 	t.Cleanup(func() { connectProviderFunc = origFunc })
 
 	var connectCalls atomic.Int32
-	connectProviderFunc = func(ctx context.Context, cfg ProviderConfig, opts *mcp.ClientOptions, store TokenStore, onAuthStatusChanged func(status string)) (*provider, error) {
+	connectProviderFunc = func(ctx context.Context, cfg ProviderConfig, opts *mcp.ClientOptions, store port.MCPTokenStore, onAuthStatusChanged func(status string)) (*provider, error) {
 		connectCalls.Add(1)
 		return connectProvider(ctx, cfg, opts, store, onAuthStatusChanged)
 	}
@@ -297,7 +299,7 @@ func TestReconcileProvidersRestartFailureReturnsError(t *testing.T) {
 	t.Cleanup(func() { connectProviderFunc = origFunc })
 
 	var connectCalls atomic.Int32
-	connectProviderFunc = func(ctx context.Context, cfg ProviderConfig, opts *mcp.ClientOptions, store TokenStore, onAuthStatusChanged func(status string)) (*provider, error) {
+	connectProviderFunc = func(ctx context.Context, cfg ProviderConfig, opts *mcp.ClientOptions, store port.MCPTokenStore, onAuthStatusChanged func(status string)) (*provider, error) {
 		connectCalls.Add(1)
 		if connectCalls.Load() == 2 {
 			return nil, errors.New("restart connection failed")

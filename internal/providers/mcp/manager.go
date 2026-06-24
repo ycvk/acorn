@@ -8,6 +8,8 @@ import (
 
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"github.com/ycvk/acorn/internal/port"
 )
 
 type AuthConfig struct {
@@ -53,8 +55,8 @@ type Manager struct {
 	mu            sync.RWMutex
 	stopped       bool
 	stoppedMu     sync.Mutex
-	tokenStore    TokenStore
-	store         PendingActionStore
+	tokenStore    port.MCPTokenStore
+	store         port.MCPPendingActionStore
 	elicitation   *ElicitationHandler
 	sampling      *SamplingHandler
 	samplingDepth int32
@@ -103,7 +105,7 @@ type provider struct {
 // The third parameter allows the caller to supply ClientOptions (e.g. for
 // notification handler registration). When nil, the client is created with
 // no options.
-var connectProviderFunc = func(ctx context.Context, cfg ProviderConfig, opts *mcp.ClientOptions, store TokenStore, onAuthStatusChanged func(status string)) (*provider, error) {
+var connectProviderFunc = func(ctx context.Context, cfg ProviderConfig, opts *mcp.ClientOptions, store port.MCPTokenStore, onAuthStatusChanged func(status string)) (*provider, error) {
 	return connectProvider(ctx, cfg, opts, store, onAuthStatusChanged)
 }
 
@@ -111,21 +113,21 @@ var connectProviderFunc = func(ctx context.Context, cfg ProviderConfig, opts *mc
 type ManagerOption func(*managerOptions)
 
 type managerOptions struct {
-	tokenStore TokenStore
-	store      PendingActionStore
+	tokenStore port.MCPTokenStore
+	store      port.MCPPendingActionStore
 }
 
 // WithTokenStore sets the OAuth token store on the manager for HTTP providers
 // that require OAuth authentication. The store is passed to NewTransportWithStore
 // when connecting OAuth-configured providers.
-func WithTokenStore(store TokenStore) ManagerOption {
+func WithTokenStore(store port.MCPTokenStore) ManagerOption {
 	return func(o *managerOptions) { o.tokenStore = store }
 }
 
 // WithStore sets the pending action store on the manager for elicitation handler
 // support. The store is used to create, load, and decide PendingActions when
 // MCP servers send elicitation/create requests.
-func WithStore(store PendingActionStore) ManagerOption {
+func WithStore(store port.MCPPendingActionStore) ManagerOption {
 	return func(o *managerOptions) { o.store = store }
 }
 

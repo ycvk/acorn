@@ -12,18 +12,10 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/ycvk/acorn/internal/domain"
-	"github.com/ycvk/acorn/internal/store"
+	"github.com/ycvk/acorn/internal/port"
 )
 
 const defaultElicitationTimeout = 30 * time.Second
-
-// PendingActionStore is the pending-action persistence port required by MCP elicitation.
-type PendingActionStore interface {
-	CreatePendingAction(ctx context.Context, input store.CreatePendingActionInput) (*domain.PendingActionRecord, error)
-	LoadPendingAction(ctx context.Context, actionID string) (*domain.PendingActionRecord, error)
-	DecidePendingAction(ctx context.Context, actionID string, status domain.PendingActionStatus, decisionJSON string) (*domain.PendingActionRecord, error)
-	AppendEventContext(ctx context.Context, runID, kind string, payload any) (domain.EventRecord, error)
-}
 
 // ElicitationHandler handles MCP server elicitation/create requests by creating
 // a PendingAction, emitting stream items, and blocking until the operator decides
@@ -33,18 +25,19 @@ type PendingActionStore interface {
 // instead of StatefulInterrupt, because MCP client callbacks must return a
 // result synchronously to the server.
 type ElicitationHandler struct {
-	store       PendingActionStore
+	store       port.MCPPendingActionStore
 	activeRunID string
 	activeMu    sync.RWMutex
 	timeout     time.Duration
 }
 
-func newElicitationHandler(store PendingActionStore) *ElicitationHandler {
+func newElicitationHandler(store port.MCPPendingActionStore) *ElicitationHandler {
 	return &ElicitationHandler{
 		store:   store,
 		timeout: defaultElicitationTimeout,
 	}
 }
+
 
 func (h *ElicitationHandler) setActiveRunID(runID string) {
 	h.activeMu.Lock()
@@ -82,7 +75,7 @@ func (h *ElicitationHandler) HandleElicitation(ctx context.Context, req *mcp.Eli
 		return nil, fmt.Errorf("marshal elicitation params: %w", err)
 	}
 
-	record, err := h.store.CreatePendingAction(ctx, store.CreatePendingActionInput{
+	record, err := h.store.CreatePendingAction(ctx, domain.PendingActionInput{
 		ActionID:    actionID,
 		RunID:       runID,
 		Kind:        domain.PendingActionKindElicitation,
@@ -164,7 +157,7 @@ func pendingActionStatusToElicitResult(status domain.PendingActionStatus) *mcp.E
 	}
 }
 
-// emitElicitationEvent emits an elicitation event via the store's AppendEventContext.
+// emitElicitationEvent emits an elicitation event via the store's AppendEvent.
 func (h *ElicitationHandler) emitElicitationEvent(ctx context.Context, runID, actionID string, params *mcp.ElicitParams, eventKind string) error {
 	if h.store == nil {
 		return fmt.Errorf("elicitation event store not configured")
@@ -177,7 +170,7 @@ func (h *ElicitationHandler) emitElicitationEvent(ctx context.Context, runID, ac
 		payload["requested_schema"] = params.RequestedSchema
 	}
 
-	_, err := h.store.AppendEventContext(ctx, runID, eventKind, payload)
+	_, err := h.store.AppendEvent(ctx, runID, eventKind, payload)
 	if err != nil {
 		return fmt.Errorf("append elicitation event %s: %w", eventKind, err)
 	}
