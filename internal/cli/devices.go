@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ycvk/acorn/internal/app"
+	"github.com/ycvk/acorn/internal/wire"
 )
 
 type deviceListItem struct {
@@ -45,7 +45,7 @@ func runDevicesList(ctx context.Context, args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	return withContainer(ctx, *configPath, func(container *app.Container) error {
+	return withContainer(ctx, *configPath, func(container *wire.Container) error {
 		devices, err := container.DeviceAuth().ListDevices(ctx)
 		if err != nil {
 			return err
@@ -103,7 +103,7 @@ func runDevicesRevoke(ctx context.Context, args []string) error {
 	if deviceID == "" {
 		return fmt.Errorf("usage: acorn devices revoke [-c path] DEVICE_ID")
 	}
-	return withContainer(ctx, *configPath, func(container *app.Container) error {
+	return withContainer(ctx, *configPath, func(container *wire.Container) error {
 		if err := container.DeviceAuth().RevokeDevice(ctx, deviceID); err != nil {
 			return err
 		}

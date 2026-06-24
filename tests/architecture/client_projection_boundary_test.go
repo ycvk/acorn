@@ -11,8 +11,8 @@ import (
 var clientProjectionBoundaryFiles = []string{
 	"internal/clientevents/types.go",
 	"internal/clientevents/projector.go",
-	"internal/app/thread_service.go",
-	"internal/app/event_service.go",
+	"internal/api/thread_service.go",
+	"internal/api/event_service.go",
 	"internal/api/dto_run.go",
 	"internal/api/dto_pending.go",
 	"internal/api/server.go",
@@ -29,7 +29,7 @@ func TestClientProjectionBoundaryDoesNotImportRuntimeTypes(t *testing.T) {
 		}
 		for _, item := range file.Imports {
 			importPath := strings.Trim(item.Path.Value, `"`)
-			if importPath == "github.com/ycvk/acorn/internal/runtime" || importPath == "github.com/ycvk/acorn/internal/runtime/api" {
+			if importPath == "github.com/ycvk/acorn/internal/agent" || importPath == "github.com/ycvk/acorn/internal/agent/api" {
 				offenders = append(offenders, rel+" imports "+importPath)
 			}
 		}

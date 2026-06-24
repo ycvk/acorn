@@ -3,7 +3,6 @@ package api
 import (
 	"time"
 
-	"github.com/ycvk/acorn/internal/app"
 	"github.com/ycvk/acorn/internal/clientevents"
 )
 
@@ -34,7 +33,7 @@ type PendingActionSummaryDTO struct {
 	CreatedAt time.Time                `json:"created_at"`
 }
 
-func runSummaryDTOsFromDomain(items []app.RunSummary) []RunSummaryDTO {
+func runSummaryDTOsFromDomain(items []RunSummary) []RunSummaryDTO {
 	return DefaultConverter.runSummaryDTOsFromDomain(items)
 }
 
@@ -69,7 +68,7 @@ type ArtifactSummaryDTO struct {
 	CreatedAt           time.Time `json:"created_at"`
 }
 
-func artifactSummaryDTOsFromDomain(items []app.ArtifactSummary) []ArtifactSummaryDTO {
+func artifactSummaryDTOsFromDomain(items []ArtifactSummary) []ArtifactSummaryDTO {
 	return DefaultConverter.artifactSummaryDTOsFromDomain(items)
 }
 
@@ -86,7 +85,7 @@ type InterruptRunResponse struct {
 	Status string `json:"status"`
 }
 
-func runDTOFromDomain(run app.Run) RunDTO {
+func runDTOFromDomain(run Run) RunDTO {
 	dto := RunDTO{
 		ID:        run.ID,
 		ThreadID:  run.ThreadID,
@@ -125,11 +124,11 @@ type UpdateThreadRequest struct {
 	Title string `json:"title"`
 }
 
-func threadDTOFromDomain(thread app.Thread) ThreadDTO {
+func threadDTOFromDomain(thread Thread) ThreadDTO {
 	return DefaultConverter.threadDTOFromDomain(thread)
 }
 
-func threadDTOsFromDomain(items []app.Thread) []ThreadDTO {
+func threadDTOsFromDomain(items []Thread) []ThreadDTO {
 	return DefaultConverter.threadDTOsFromDomain(items)
 }
 
@@ -212,7 +211,7 @@ func nonNilStrings(values []string) []string {
 	return values
 }
 
-func messageDTOFromDomain(message app.Message) MessageDTO {
+func messageDTOFromDomain(message Message) MessageDTO {
 	return MessageDTO{
 		ID:       message.ID,
 		ThreadID: message.ThreadID,
@@ -227,7 +226,7 @@ func messageDTOFromDomain(message app.Message) MessageDTO {
 	}
 }
 
-func messagePartDTOsFromDomain(parts []app.MessagePart) []MessagePartDTO {
+func messagePartDTOsFromDomain(parts []MessagePart) []MessagePartDTO {
 	if len(parts) == 0 {
 		return nil
 	}
@@ -264,11 +263,11 @@ func messagePartDTOsFromDomain(parts []app.MessagePart) []MessagePartDTO {
 	return items
 }
 
-func disclosureItemDTOsFromDomain(items []app.DisclosureItem) []DisclosureItemDTO {
+func disclosureItemDTOsFromDomain(items []DisclosureItem) []DisclosureItemDTO {
 	return DefaultConverter.disclosureItemDTOsFromDomain(items)
 }
 
-func messageActionDTOFromDomain(action *app.MessageAction) *MessageActionDTO {
+func messageActionDTOFromDomain(action *MessageAction) *MessageActionDTO {
 	if action == nil {
 		return nil
 	}
@@ -279,7 +278,7 @@ func messageActionDTOFromDomain(action *app.MessageAction) *MessageActionDTO {
 	}
 }
 
-func messageDTOsFromDomain(items []app.Message) []MessageDTO {
+func messageDTOsFromDomain(items []Message) []MessageDTO {
 	result := make([]MessageDTO, 0, len(items))
 	for _, item := range items {
 		result = append(result, messageDTOFromDomain(item))

@@ -5,7 +5,6 @@ import (
 
 	"encoding/json"
 
-	"github.com/ycvk/acorn/internal/app"
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/domain"
 )
@@ -79,7 +78,7 @@ func parsePendingActionDecision(record domain.PendingActionRecord) (string, stri
 	return "", "", ""
 }
 
-func pendingActionDetailDTOFromDomain(item app.PendingActionDetail) PendingActionDetailDTO {
+func pendingActionDetailDTOFromDomain(item PendingActionDetail) PendingActionDetailDTO {
 	return PendingActionDetailDTO{
 		ActionID:  item.ActionID,
 		RunID:     item.RunID,
@@ -96,19 +95,19 @@ func pendingActionDetailDTOFromDomain(item app.PendingActionDetail) PendingActio
 	}
 }
 
-func pendingActionListResponseFromDomain(items []app.PendingActionSummary) PendingActionListResponse {
+func pendingActionListResponseFromDomain(items []PendingActionSummary) PendingActionListResponse {
 	return PendingActionListResponse{Items: pendingActionSummaryDTOsFromDomain(items)}
 }
 
-func decisionOptionDTOsFromDomain(options []app.DecisionOption) []DecisionOptionDTO {
+func decisionOptionDTOsFromDomain(options []DecisionOption) []DecisionOptionDTO {
 	return DefaultConverter.decisionOptionDTOsFromDomain(options)
 }
 
-func pendingActionOptionDTOsFromDomain(items []app.PendingActionOption) []PendingActionOptionDTO {
+func pendingActionOptionDTOsFromDomain(items []PendingActionOption) []PendingActionOptionDTO {
 	return DefaultConverter.pendingActionOptionDTOsFromDomain(items)
 }
 
-func pendingActionSummaryDTOsFromDomain(items []app.PendingActionSummary) []PendingActionSummaryDTO {
+func pendingActionSummaryDTOsFromDomain(items []PendingActionSummary) []PendingActionSummaryDTO {
 	return DefaultConverter.pendingActionSummaryDTOsFromDomain(items)
 }
 
@@ -143,7 +142,7 @@ func optionalDeviceTime(value *time.Time) *string {
 	return new(value.UTC().Format(time.RFC3339Nano))
 }
 
-func deviceDTOFromView(view app.DeviceView) DeviceDTO {
+func deviceDTOFromView(view DeviceView) DeviceDTO {
 	return DeviceDTO{
 		DeviceID:   view.DeviceID,
 		Name:       view.Name,

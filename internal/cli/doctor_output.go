@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ycvk/acorn/internal/app"
+	"github.com/ycvk/acorn/internal/api"
 )
 
-func printDoctorOutput(snapshot app.SystemCapabilities, configPath string, jsonMode bool) error {
+func printDoctorOutput(snapshot api.SystemCapabilities, configPath string, jsonMode bool) error {
 	if jsonMode {
 		return printJSON(snapshot)
 	}
@@ -36,7 +36,7 @@ func doctorRemediationLines(reason, configPath string) []string {
 	return lines
 }
 
-func renderDoctorSummary(snapshot app.SystemCapabilities, configPath string) string {
+func renderDoctorSummary(snapshot api.SystemCapabilities, configPath string) string {
 	lines := []string{
 		"Acorn doctor",
 		"",
@@ -116,21 +116,21 @@ func renderDoctorSummary(snapshot app.SystemCapabilities, configPath string) str
 	return strings.Join(lines, "\n")
 }
 
-func doctorRuntimeReadinessLabel(readiness *app.RuntimeReadiness) string {
-	if readiness != nil && readiness.Status == app.RuntimeReadinessReady {
+func doctorRuntimeReadinessLabel(readiness *api.RuntimeReadiness) string {
+	if readiness != nil && readiness.Status == api.RuntimeReadinessReady {
 		return "ready"
 	}
 	return "not ready"
 }
 
-func runtimeReadinessReason(readiness *app.RuntimeReadiness) string {
+func runtimeReadinessReason(readiness *api.RuntimeReadiness) string {
 	if readiness == nil {
 		return ""
 	}
 	return strings.TrimSpace(readiness.Reason)
 }
 
-func renderDoctorToolLine(item app.SystemToolCapability) string {
+func renderDoctorToolLine(item api.SystemToolCapability) string {
 	parts := []string{fmt.Sprintf("  - %s:", item.Name)}
 	if !item.Enabled {
 		parts = append(parts, "disabled")
@@ -164,7 +164,7 @@ func renderDoctorToolLine(item app.SystemToolCapability) string {
 	return strings.Join(parts, " ")
 }
 
-func renderDoctorSkillLine(item app.SystemSkillSummary) string {
+func renderDoctorSkillLine(item api.SystemSkillSummary) string {
 	status := "eligible"
 	if !item.Eligible {
 		status = "ineligible"
@@ -179,7 +179,7 @@ func renderDoctorSkillLine(item app.SystemSkillSummary) string {
 	return line
 }
 
-func renderDoctorSkillProblem(problem app.SystemSkillProblem) string {
+func renderDoctorSkillProblem(problem api.SystemSkillProblem) string {
 	parts := make([]string, 0, 4)
 	if problem.ID != "" {
 		parts = append(parts, problem.ID)
@@ -195,7 +195,7 @@ func renderDoctorSkillProblem(problem app.SystemSkillProblem) string {
 	return strings.Join(parts, " ")
 }
 
-func renderDoctorProviderLine(provider app.SystemMCPProviderCapability) string {
+func renderDoctorProviderLine(provider api.SystemMCPProviderCapability) string {
 	parts := []string{fmt.Sprintf("  - %s:", provider.Name)}
 	switch {
 	case !provider.Configured:

@@ -11,7 +11,7 @@ import (
 
 	"github.com/mdp/qrterminal/v3"
 
-	"github.com/ycvk/acorn/internal/app"
+	"github.com/ycvk/acorn/internal/wire"
 )
 
 type pairCommandOutput struct {
@@ -42,7 +42,7 @@ func runPair(ctx context.Context, args []string) error {
 	if *qrMode && strings.TrimSpace(*serverURL) == "" {
 		return fmt.Errorf("pair --qr requires --server-url")
 	}
-	return withContainer(ctx, *configPath, func(container *app.Container) error {
+	return withContainer(ctx, *configPath, func(container *wire.Container) error {
 		code, err := container.DeviceAuth().CreatePairingCode(ctx, *ttl)
 		if err != nil {
 			return err

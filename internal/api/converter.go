@@ -3,7 +3,6 @@ package api
 import (
 	"time"
 
-	"github.com/ycvk/acorn/internal/app"
 	"github.com/ycvk/acorn/internal/memory"
 	"github.com/ycvk/acorn/internal/skills"
 )
@@ -25,28 +24,28 @@ func TimeToTime(t time.Time) time.Time {
 // goverter:extend TimeToTime
 type Converter interface {
 	// Thread
-	threadDTOFromDomain(source app.Thread) ThreadDTO
-	threadDTOsFromDomain(source []app.Thread) []ThreadDTO
+	threadDTOFromDomain(source Thread) ThreadDTO
+	threadDTOsFromDomain(source []Thread) []ThreadDTO
 
 	// Message
-	messageDTOFromDomain(source app.Message) MessageDTO
-	messageDTOsFromDomain(source []app.Message) []MessageDTO
-	disclosureItemDTOsFromDomain(source []app.DisclosureItem) []DisclosureItemDTO
-	decisionOptionDTOsFromDomain(source []app.DecisionOption) []DecisionOptionDTO
+	messageDTOFromDomain(source Message) MessageDTO
+	messageDTOsFromDomain(source []Message) []MessageDTO
+	disclosureItemDTOsFromDomain(source []DisclosureItem) []DisclosureItemDTO
+	decisionOptionDTOsFromDomain(source []DecisionOption) []DecisionOptionDTO
 
 	// Run
-	runSummaryDTOsFromDomain(source []app.RunSummary) []RunSummaryDTO
+	runSummaryDTOsFromDomain(source []RunSummary) []RunSummaryDTO
 
 	// Pending Action
-	pendingActionOptionDTOsFromDomain(source []app.PendingActionOption) []PendingActionOptionDTO
-	pendingActionSummaryDTOsFromDomain(source []app.PendingActionSummary) []PendingActionSummaryDTO
+	pendingActionOptionDTOsFromDomain(source []PendingActionOption) []PendingActionOptionDTO
+	pendingActionSummaryDTOsFromDomain(source []PendingActionSummary) []PendingActionSummaryDTO
 
 	// System / Capabilities
-	capabilitiesSummaryDTOFromSnapshot(source app.SystemCapabilitySummary) CapabilitiesSummaryDTO
-	capabilitiesModelDTOFromSnapshot(source app.SystemModelCapabilities) CapabilitiesModelDTO
-	capabilitiesFeaturesDTOFromSnapshot(source app.SystemFeatureCapabilities) CapabilitiesFeaturesDTO
-	providerReadinessDTOsFromSnapshot(source []app.ProviderReadinessSummary) []ProviderReadinessDTO
-	capabilitiesToolsDTOFromSnapshot(source []app.SystemToolCapability) []CapabilitiesToolDTO
+	capabilitiesSummaryDTOFromSnapshot(source SystemCapabilitySummary) CapabilitiesSummaryDTO
+	capabilitiesModelDTOFromSnapshot(source SystemModelCapabilities) CapabilitiesModelDTO
+	capabilitiesFeaturesDTOFromSnapshot(source SystemFeatureCapabilities) CapabilitiesFeaturesDTO
+	providerReadinessDTOsFromSnapshot(source []ProviderReadinessSummary) []ProviderReadinessDTO
+	capabilitiesToolsDTOFromSnapshot(source []SystemToolCapability) []CapabilitiesToolDTO
 
 	// Memory
 	//goverter:map RelPath Path
@@ -55,7 +54,7 @@ type Converter interface {
 	memorySearchItemDTOsFromDomain(source []memory.SearchItem) []MemorySearchItemDTO
 
 	// Artifacts
-	artifactSummaryDTOsFromDomain(source []app.ArtifactSummary) []ArtifactSummaryDTO
+	artifactSummaryDTOsFromDomain(source []ArtifactSummary) []ArtifactSummaryDTO
 
 	// Skills
 	skillRequirementsDTOFromDomain(source skills.Requirements) SkillRequirementsDTO

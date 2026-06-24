@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ycvk/acorn/internal/app"
+	"github.com/ycvk/acorn/internal/api"
 )
 
 func TestRunWithoutArgsReturnsUsage(t *testing.T) {
@@ -136,34 +136,34 @@ func TestPrintPairOutputQRIncludesPlainFields(t *testing.T) {
 }
 
 func TestRenderDoctorSummaryIncludesGroupedSectionsAndProviderErrors(t *testing.T) {
-	summary := renderDoctorSummary(app.SystemCapabilities{
-		Summary: app.SystemCapabilitySummary{
+	summary := renderDoctorSummary(api.SystemCapabilities{
+		Summary: api.SystemCapabilitySummary{
 			ToolCount:                  3,
 			SkillCount:                 2,
 			MCPConfiguredProviderCount: 2,
 			MCPEnabledProviderCount:    2,
 			MCPHealthyProviderCount:    1,
 		},
-		Model:            app.SystemModelCapabilities{Name: "gpt-4.1-mini"},
-		RuntimeReadiness: &app.RuntimeReadiness{Status: app.RuntimeReadinessBlocked, Reason: "model.api_key is required"},
-		Tools: []app.SystemToolCapability{
+		Model:            api.SystemModelCapabilities{Name: "gpt-4.1-mini"},
+		RuntimeReadiness: &api.RuntimeReadiness{Status: api.RuntimeReadinessBlocked, Reason: "model.api_key is required"},
+		Tools: []api.SystemToolCapability{
 			{Name: "read_file", Enabled: true, Risk: "read_only", Source: "local", Kind: "native", Category: "read", HealthState: "healthy"},
 			{Name: "run_command", Enabled: false, Risk: "escape_hatch", Source: "local", Kind: "native", Category: "execute", HealthState: "disabled"},
 		},
-		Skills: app.SystemSkillCapabilities{
+		Skills: api.SystemSkillCapabilities{
 			Count:           2,
 			EligibleCount:   1,
 			IneligibleCount: 1,
 			InvalidCount:    1,
-			Items: []app.SystemSkillSummary{
+			Items: []api.SystemSkillSummary{
 				{ID: "skill.inspect.repo", Eligible: true, PromotedFrom: "inspect-repo"},
 				{ID: "skill.ship.patch", Eligible: false, DisabledReasons: []string{"missing run_command"}},
 			},
-			Problems: []app.SystemSkillProblem{
+			Problems: []api.SystemSkillProblem{
 				{ID: "skill.bad.frontmatter", Source: "workspace", Error: "invalid yaml"},
 			},
 		},
-		MCPProviders: []app.SystemMCPProviderCapability{
+		MCPProviders: []api.SystemMCPProviderCapability{
 			{Name: "healthy", Configured: true, Enabled: true, Transport: "stdio", StartupStatus: "healthy", ToolCount: 2, DiscoveredToolNames: []string{"echo", "inspect"}},
 			{Name: "broken", Configured: true, Enabled: true, Transport: "stdio", StartupStatus: "failed", ToolCount: 0, ConfiguredToolNames: []string{"search"}, Error: "discover MCP tools: boom"},
 		},
@@ -196,16 +196,16 @@ func TestRenderDoctorSummaryIncludesGroupedSectionsAndProviderErrors(t *testing.
 }
 
 func TestDoctorJSONModeKeepsCanonicalCapabilitySchema(t *testing.T) {
-	body, err := json.Marshal(app.SystemCapabilities{
-		Summary: app.SystemCapabilitySummary{
+	body, err := json.Marshal(api.SystemCapabilities{
+		Summary: api.SystemCapabilitySummary{
 			MCPConfiguredProviderCount: 1,
 		},
-		Tools: []app.SystemToolCapability{{Name: "read_file", Enabled: true, Risk: "read_only", Source: "local", Kind: "native", Category: "read", HealthState: "healthy"}},
-		Skills: app.SystemSkillCapabilities{
+		Tools: []api.SystemToolCapability{{Name: "read_file", Enabled: true, Risk: "read_only", Source: "local", Kind: "native", Category: "read", HealthState: "healthy"}},
+		Skills: api.SystemSkillCapabilities{
 			Count: 1,
-			Items: []app.SystemSkillSummary{{ID: "skill.inspect.repo", Eligible: true, PromotedFrom: "inspect-repo"}},
+			Items: []api.SystemSkillSummary{{ID: "skill.inspect.repo", Eligible: true, PromotedFrom: "inspect-repo"}},
 		},
-		MCPProviders: []app.SystemMCPProviderCapability{
+		MCPProviders: []api.SystemMCPProviderCapability{
 			{Name: "broken", Configured: true, Enabled: true, Error: "provider failed"},
 		},
 	})

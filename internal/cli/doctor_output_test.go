@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ycvk/acorn/internal/app"
+	"github.com/ycvk/acorn/internal/api"
 )
 
 func mustContainAll(t *testing.T, body string, values []string) {
@@ -19,12 +19,12 @@ func mustContainAll(t *testing.T, body string, values []string) {
 func TestRenderDoctorProviderLineWithTransportAndStatus(t *testing.T) {
 	cases := []struct {
 		name     string
-		provider app.SystemMCPProviderCapability
+		provider api.SystemMCPProviderCapability
 		wantSubs []string
 	}{
 		{
 			name: "healthy stdio provider",
-			provider: app.SystemMCPProviderCapability{
+			provider: api.SystemMCPProviderCapability{
 				Name:          "my-server",
 				Configured:    true,
 				Enabled:       true,
@@ -36,7 +36,7 @@ func TestRenderDoctorProviderLineWithTransportAndStatus(t *testing.T) {
 		},
 		{
 			name: "failed sse provider",
-			provider: app.SystemMCPProviderCapability{
+			provider: api.SystemMCPProviderCapability{
 				Name:          "remote-server",
 				Configured:    true,
 				Enabled:       true,
@@ -49,7 +49,7 @@ func TestRenderDoctorProviderLineWithTransportAndStatus(t *testing.T) {
 		},
 		{
 			name: "degraded streamable_http provider",
-			provider: app.SystemMCPProviderCapability{
+			provider: api.SystemMCPProviderCapability{
 				Name:          "partial-server",
 				Configured:    true,
 				Enabled:       true,
@@ -61,7 +61,7 @@ func TestRenderDoctorProviderLineWithTransportAndStatus(t *testing.T) {
 		},
 		{
 			name: "disabled provider shows no transport",
-			provider: app.SystemMCPProviderCapability{
+			provider: api.SystemMCPProviderCapability{
 				Name:       "disabled-server",
 				Configured: true,
 				Enabled:    false,
@@ -72,7 +72,7 @@ func TestRenderDoctorProviderLineWithTransportAndStatus(t *testing.T) {
 		},
 		{
 			name: "empty transport is visible",
-			provider: app.SystemMCPProviderCapability{
+			provider: api.SystemMCPProviderCapability{
 				Name:          "legacy-server",
 				Configured:    true,
 				Enabled:       true,
@@ -96,21 +96,21 @@ func TestRenderDoctorProviderLineWithTransportAndStatus(t *testing.T) {
 }
 
 func TestRenderDoctorProviderLineErrorSubline(t *testing.T) {
-	snapshot := app.SystemCapabilities{
-		RuntimeReadiness: &app.RuntimeReadiness{Status: app.RuntimeReadinessReady},
-		Summary: app.SystemCapabilitySummary{
+	snapshot := api.SystemCapabilities{
+		RuntimeReadiness: &api.RuntimeReadiness{Status: api.RuntimeReadinessReady},
+		Summary: api.SystemCapabilitySummary{
 			ToolCount:                  3,
 			EnabledToolCount:           3,
 			MCPConfiguredProviderCount: 1,
 			MCPEnabledProviderCount:    1,
 			MCPHealthyProviderCount:    0,
 		},
-		Tools: []app.SystemToolCapability{
+		Tools: []api.SystemToolCapability{
 			{Name: "read_file", Enabled: true, Risk: "read_only", Source: "local", Kind: "native", Category: "read", HealthState: "healthy"},
 			{Name: "create_file", Enabled: true, Risk: "mutation", Source: "local", Kind: "native", Category: "write", HealthState: "healthy"},
 			{Name: "run_command", Enabled: true, Risk: "escape_hatch", Source: "local", Kind: "native", Category: "execute", HealthState: "healthy"},
 		},
-		MCPProviders: []app.SystemMCPProviderCapability{
+		MCPProviders: []api.SystemMCPProviderCapability{
 			{
 				Name:          "failing-server",
 				Configured:    true,
@@ -132,7 +132,7 @@ func TestRenderDoctorProviderLineErrorSubline(t *testing.T) {
 }
 
 func TestRenderDoctorProviderLineDoesNotPrintCircuitState(t *testing.T) {
-	line := renderDoctorProviderLine(app.SystemMCPProviderCapability{
+	line := renderDoctorProviderLine(api.SystemMCPProviderCapability{
 		Name:          "provider",
 		Configured:    true,
 		Enabled:       true,

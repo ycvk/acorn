@@ -35,7 +35,7 @@ func TestMinimalConfigExists(t *testing.T) {
 
 func TestNoDuplicateAppDecisionMd(t *testing.T) {
 	if _, err := os.Stat(filepath.Join("..", "..", "internal", "app", "decision.md")); err == nil {
-		t.Fatalf("internal/app/decision.md must not exist — it duplicates the root decision.md and is dead config")
+		t.Fatalf("internal/api/decision.md must not exist — it duplicates the root decision.md and is dead config")
 	}
 }
 

@@ -27,7 +27,7 @@
 ## Remote API 与 mobile
 
 - **Remote client 必须设备认证**：除 `/healthz` 和 `POST /v1/devices:pair` 外，`/v1` 只接受 valid device bearer token；missing/malformed/unknown 返回 `unauthenticated`，revoked 返回 `device_revoked`。
-  - `internal/app/device_auth_service_test.go`
+  - `internal/store/store_schema_test.go`
 - **OpenAPI 是 wire contract**：remote client DTO 只投影 app/runtime domain；改 wire shape 须同步 `docs/openapi.yaml` + generated mobile client。原 `client_service.go` 已拆分为 ThreadService/RunService/EventService，合法 import `internal/runtime`（`RunController` 用于 run 控制流）；投影守卫由 `internal/clientevents` 包边界检查承载，`thread_service.go`/`event_service.go` 不在 `clientProjectionBoundaryFiles` 列表中。
   - `tests/architecture/client_projection_boundary_test.go`
 - **Mobile 是 control surface 不是 runtime**：mobile 不执行 run、不持 runtime truth、不做 offline-first run execution、不维护第二套 message lifecycle；context pressure/boundary/run status 都消费后端 projection。

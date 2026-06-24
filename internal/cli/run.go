@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ycvk/acorn/internal/app"
+	"github.com/ycvk/acorn/internal/wire"
 )
 
 // runRun executes a single owner-local task as a direct_response turn and
@@ -28,7 +28,7 @@ func runRun(ctx context.Context, args []string) error {
 	if text == "" {
 		return errors.New(`run input is required: acorn run "your task" or acorn run --input "..."`)
 	}
-	return withContainer(ctx, *configPath, func(container *app.Container) error {
+	return withContainer(ctx, *configPath, func(container *wire.Container) error {
 		result, err := container.RunOnce(ctx, text)
 		if err != nil {
 			return err

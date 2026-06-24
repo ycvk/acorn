@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ycvk/acorn/internal/app"
+	"github.com/ycvk/acorn/internal/wire"
 )
 
 // runSmoke runs a single owner-local smoke task through the real runtime and
@@ -30,7 +30,7 @@ func runSmoke(ctx context.Context, args []string) error {
 	if text == "" {
 		return errors.New(`smoke input is required: acorn smoke "your task" or acorn smoke --input "..."`)
 	}
-	return withContainer(ctx, *configPath, func(container *app.Container) error {
+	return withContainer(ctx, *configPath, func(container *wire.Container) error {
 		result, err := container.RunOnce(ctx, text)
 		if err != nil {
 			// In --json mode the run could not start (e.g. execution_not_ready); a
@@ -61,7 +61,7 @@ func runSmoke(ctx context.Context, args []string) error {
 // (and any other non-succeeded terminal status) means the run did NOT complete —
 // it must not masquerade as success via a zero exit code, since operators and
 // scripts rely on the exit code to gate "did my install actually run a task".
-func smokeRunError(result *app.RunOnceResult) error {
+func smokeRunError(result *wire.RunOnceResult) error {
 	switch result.Status {
 	case "succeeded":
 		return nil
@@ -82,7 +82,7 @@ type smokeCommandOutput struct {
 
 // renderSmokeResult renders a smoke run outcome as human text or JSON. It is a
 // pure function so the formatting is unit-testable without a live runtime.
-func renderSmokeResult(result *app.RunOnceResult, jsonMode bool) (string, error) {
+func renderSmokeResult(result *wire.RunOnceResult, jsonMode bool) (string, error) {
 	if result == nil {
 		return "", errors.New("smoke result is nil")
 	}

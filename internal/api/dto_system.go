@@ -1,7 +1,6 @@
 package api
 
 import (
-	"github.com/ycvk/acorn/internal/app"
 	"github.com/ycvk/acorn/internal/memory"
 	"github.com/ycvk/acorn/internal/skills"
 )
@@ -69,19 +68,19 @@ type CapabilitiesToolDTO struct {
 	DefaultTimeout int    `json:"default_timeout,omitempty"`
 }
 
-func capabilitiesSummaryDTOFromSnapshot(snapshot app.SystemCapabilitySummary) CapabilitiesSummaryDTO {
+func capabilitiesSummaryDTOFromSnapshot(snapshot SystemCapabilitySummary) CapabilitiesSummaryDTO {
 	return DefaultConverter.capabilitiesSummaryDTOFromSnapshot(snapshot)
 }
 
-func capabilitiesModelDTOFromSnapshot(snapshot app.SystemModelCapabilities) CapabilitiesModelDTO {
+func capabilitiesModelDTOFromSnapshot(snapshot SystemModelCapabilities) CapabilitiesModelDTO {
 	return DefaultConverter.capabilitiesModelDTOFromSnapshot(snapshot)
 }
 
-func capabilitiesFeaturesDTOFromSnapshot(snapshot app.SystemFeatureCapabilities) CapabilitiesFeaturesDTO {
+func capabilitiesFeaturesDTOFromSnapshot(snapshot SystemFeatureCapabilities) CapabilitiesFeaturesDTO {
 	return DefaultConverter.capabilitiesFeaturesDTOFromSnapshot(snapshot)
 }
 
-func runtimeReadinessDTOFromSnapshot(snapshot *app.RuntimeReadiness) RuntimeReadinessDTO {
+func runtimeReadinessDTOFromSnapshot(snapshot *RuntimeReadiness) RuntimeReadinessDTO {
 	if snapshot == nil {
 		return RuntimeReadinessDTO{}
 	}
@@ -91,11 +90,11 @@ func runtimeReadinessDTOFromSnapshot(snapshot *app.RuntimeReadiness) RuntimeRead
 	}
 }
 
-func providerReadinessDTOsFromSnapshot(snapshot []app.ProviderReadinessSummary) []ProviderReadinessDTO {
+func providerReadinessDTOsFromSnapshot(snapshot []ProviderReadinessSummary) []ProviderReadinessDTO {
 	return DefaultConverter.providerReadinessDTOsFromSnapshot(snapshot)
 }
 
-func capabilitiesToolsDTOFromSnapshot(snapshot []app.SystemToolCapability) []CapabilitiesToolDTO {
+func capabilitiesToolsDTOFromSnapshot(snapshot []SystemToolCapability) []CapabilitiesToolDTO {
 	return DefaultConverter.capabilitiesToolsDTOFromSnapshot(snapshot)
 }
 
@@ -119,7 +118,7 @@ type InboxResponse struct {
 
 // RunSummaryDTO is a lightweight summary of a run for list views.
 
-func inboxDTOFromDomain(inbox app.MobileInbox, workspaceRoot string) InboxResponse {
+func inboxDTOFromDomain(inbox MobileInbox, workspaceRoot string) InboxResponse {
 	return InboxResponse{
 		PendingActions:     pendingActionSummaryDTOsFromDomain(inbox.PendingActions),
 		ActiveRuns:         runSummaryDTOsFromDomain(inbox.ActiveRuns),
@@ -128,7 +127,7 @@ func inboxDTOFromDomain(inbox app.MobileInbox, workspaceRoot string) InboxRespon
 	}
 }
 
-func systemStatusDTOFromSnapshot(snapshot app.SystemCapabilities, workspaceRoot string) SystemStatusDTO {
+func systemStatusDTOFromSnapshot(snapshot SystemCapabilities, workspaceRoot string) SystemStatusDTO {
 	return SystemStatusDTO{
 		RuntimeReadiness:  runtimeReadinessDTOFromSnapshot(snapshot.RuntimeReadiness),
 		ProviderReadiness: providerReadinessDTOsFromSnapshot(snapshot.ProviderReadiness),
@@ -192,7 +191,7 @@ type SkillEnvelope struct {
 }
 
 type SkillFileResponse struct {
-	Item app.SkillFileView `json:"item"`
+	Item SkillFileView `json:"item"`
 }
 
 func skillSummaryDTOFromView(item skills.View) SkillSummaryDTO {
