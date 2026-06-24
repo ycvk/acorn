@@ -23,7 +23,7 @@ import (
 	toolutils "github.com/cloudwego/eino/components/tool/utils"
 
 	"github.com/ycvk/acorn/internal/core"
-	"github.com/ycvk/acorn/internal/store"
+	corestore "github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/webaccess"
 	workspacepkg "github.com/ycvk/acorn/internal/workspace"
 )
@@ -575,7 +575,7 @@ func TestBrowserToolFailsLoudlyWhenExecutableIsMissing(t *testing.T) {
 }
 
 func TestAskOperatorCreatesPendingActionAndInterrupts(t *testing.T) {
-	store, err := store.Open(filepath.Join(t.TempDir(), "state"))
+	store, err := corestore.Open(filepath.Join(t.TempDir(), "state"))
 	if err != nil {
 		t.Fatalf("sqlite.Open: %v", err)
 	}
@@ -1113,7 +1113,7 @@ func newToolArtifactStore() *toolArtifactStore {
 }
 
 func (s *toolArtifactStore) SaveArtifact(_ context.Context, record core.ArtifactRecord) (core.ArtifactRecord, error) {
-	normalized, err := store.NormalizeArtifactRecord(record)
+	normalized, err := corestore.NormalizeArtifactRecord(record)
 	if err != nil {
 		return core.ArtifactRecord{}, err
 	}
@@ -1124,7 +1124,7 @@ func (s *toolArtifactStore) SaveArtifact(_ context.Context, record core.Artifact
 func (s *toolArtifactStore) LoadArtifact(_ context.Context, artifactID string) (core.ArtifactRecord, error) {
 	record, ok := s.records[strings.TrimSpace(artifactID)]
 	if !ok {
-		return core.ArtifactRecord{}, store.ErrArtifactNotFound
+		return core.ArtifactRecord{}, corestore.ErrArtifactNotFound
 	}
 	return record, nil
 }

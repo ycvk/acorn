@@ -52,6 +52,26 @@ func (m *mockTokenStore) DeleteOAuthToken(_ context.Context, providerName string
 	delete(m.tokens, providerName)
 	return nil
 }
+// --- ArtifactStore stubs (OAuth tests only use token methods) ---
+
+func (m *mockTokenStore) WriteArtifact(_ context.Context, _ core.ArtifactWriteRequest) (core.ArtifactRecord, error) {
+	return core.ArtifactRecord{}, errors.New("not implemented")
+}
+func (m *mockTokenStore) ReadArtifactRange(_ context.Context, _ core.ArtifactReadRangeRequest) (core.ArtifactReadRangeResult, error) {
+	return core.ArtifactReadRangeResult{}, errors.New("not implemented")
+}
+func (m *mockTokenStore) ListArtifactsByRun(_ context.Context, _ string) ([]core.ArtifactRecord, error) {
+	return nil, nil
+}
+func (m *mockTokenStore) ListArtifactsBySession(_ context.Context, _ string) ([]core.ArtifactRecord, error) {
+	return nil, nil
+}
+func (m *mockTokenStore) GetSessionSummary(_ context.Context, _ string) (*core.SessionSummary, error) {
+	return nil, nil
+}
+func (m *mockTokenStore) UpsertSessionSummary(_ context.Context, _ core.SessionSummary) error {
+	return nil
+}
 
 // --- TokenSource tests ---
 

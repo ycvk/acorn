@@ -47,7 +47,7 @@ func TestNewTransportSSE(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected *mcp.SSEClientTransport, got %T", transport)
 	}
-	if got, want := sseTranscore.Endpoint, cfg.URL; got != want {
+	if got, want := sseTransport.Endpoint, cfg.URL; got != want {
 		t.Fatalf("SSEClientTranscore.Endpoint = %q, want %q", got, want)
 	}
 	if got, want := metadata.Kind, "sse"; got != want {
@@ -279,7 +279,7 @@ func TestNewTransport_SSEEndpointField(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected *mcp.SSEClientTransport, got %T", transport)
 	}
-	if got, want := sseTranscore.Endpoint, "http://example.com:9090/mcp/sse"; got != want {
+	if got, want := sseTransport.Endpoint, "http://example.com:9090/mcp/sse"; got != want {
 		t.Fatalf("Endpoint = %q, want %q", got, want)
 	}
 }
