@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/ycvk/acorn/internal/config"
-	"github.com/ycvk/acorn/internal/context"
+	cp "github.com/ycvk/acorn/internal/context"
 	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/memory"
 	"github.com/ycvk/acorn/internal/runtime"
@@ -74,7 +74,7 @@ type containerRuntimeDeps struct {
 	loader                *skills.Loader
 	sessionSummaryService *domain.SessionSummaryService
 	memoryModule          memory.Service
-	contextPlane          context.Plane
+	contextPlane          cp.Plane
 	mcpPendingActionStore containerAppStore
 	runnerFactory         *runtime.RunnerFactory
 	runController         *runtime.RunController

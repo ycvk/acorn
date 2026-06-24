@@ -13,14 +13,13 @@ import (
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/config"
-	"github.com/ycvk/acorn/internal/context"
+	cp "github.com/ycvk/acorn/internal/context"
 	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/memory"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
-	"github.com/ycvk/acorn/internal/runtime/tooldispatch"
+	"github.com/ycvk/acorn/internal/tools"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/store"
-	"github.com/ycvk/acorn/internal/tools"
 	"github.com/ycvk/acorn/internal/workspace"
 )
 
@@ -102,7 +101,7 @@ type SelectedSkill = context.SelectedSkill
 type ExecutorStore interface {
 	domain.EventAppender
 	CreateFreshSessionTurn(ctx context.Context, sessionID, title, input string) (int, error)
-	CreateBoundRunWithParams(ctx context.Context, params store.RunCreateParams) error
+	CreateBoundRunWithParams(ctx context.Context, params domain.RunCreateParams) error
 	LoadRun(ctx context.Context, runID string) (*domain.RunRecord, error)
 	FinishRunContext(ctx context.Context, runID string, status domain.RunStatus, output, errText string) error
 	MarkInterruptedContext(ctx context.Context, runID, output string) error
@@ -118,8 +117,8 @@ type ExecutorStore interface {
 // for run bootstrapping.
 type RunnerFactoryStore interface {
 	ExecutorStore
-	mcpprovider.TokenStore
-	mcpprovider.PendingActionStore
+	port.MCPTokenStore
+	port.MCPPendingActionStore
 }
 type RuntimeDeps struct {
 	Config            *config.Config
@@ -127,8 +126,8 @@ type RuntimeDeps struct {
 	Loader            *skills.Loader
 	SessionSummarySvc *domain.SessionSummaryService
 	MemoryModule      memory.Service
-	ContextPlane      context.Plane
-	MCPPendingActions mcpprovider.PendingActionStore
+	ContextPlane      cp.Plane
+	MCPPendingActions port.MCPPendingActionStore
 	Workspace         *workspace.Workspace
 	ArtifactService   *store.ArtifactService
 	ExtraLocalTools   []einotool.BaseTool
@@ -136,10 +135,10 @@ type RuntimeDeps struct {
 
 	// ToolBuilder overrides the default audited tool builder for testing.
 	// nil means use BuildAuditedTools.
-	ToolBuilder func(ctx context.Context, store RunnerFactoryStore, specs []tools.ToolSpec, excludedToolNames []string, allowedToolNames []string, runID string) ([]einotool.BaseTool, error)
+	ToolBuilder func(ctx context.Context, store RunnerFactoryStore, specs []port.ToolSpec, excludedToolNames []string, allowedToolNames []string, runID string) ([]einotool.BaseTool, error)
 	// ToolNodeFactory overrides the default safe parallel tools node for testing.
 	// nil means use NewSafeParallelToolsNode.
-	ToolNodeFactory func(ctx context.Context, tools []einotool.BaseTool, resolver tools.ExecutionPolicyResolver) (tooldispatch.ToolInvoker, error)
+	ToolNodeFactory func(ctx context.Context, tools []einotool.BaseTool, resolver port.ExecutionPolicyResolver) (tooldispatch.ToolInvoker, error)
 	// CheckpointStore overrides the default in-memory checkpoint store for testing.
 	CheckpointStore adk.CheckPointStore
 }
@@ -291,7 +290,7 @@ func (e *Executor) bootstrapContextSessionMessages(
 	if err := e.validateBootstrapDeps(active); err != nil {
 		return nil, err
 	}
-	counter, err := context.NewTokenCounter()
+	counter, err := cp.NewTokenCounter()
 	if err != nil {
 		return nil, fmt.Errorf("build context session token counter: %w", err)
 	}
@@ -320,7 +319,7 @@ func (e *Executor) validateBootstrapDeps(active *ActiveRunner) error {
 	return nil
 }
 
-func (e *Executor) buildContextSession(active *ActiveRunner, contextPolicy config.ContextConfig, counter context.TokenCounter) context.Session {
+func (e *Executor) buildContextSession(active *ActiveRunner, contextPolicy config.ContextConfig, counter cp.TokenCounter) cp.Session {
 	return context.NewDefaultContextSession(context.SessionOptions{
 		TokenCounter:        counter,
 		Model:               active.ChatModel,

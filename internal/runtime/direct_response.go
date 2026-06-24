@@ -11,9 +11,8 @@ import (
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/schema"
 
-	"github.com/ycvk/acorn/internal/context"
+	cp "github.com/ycvk/acorn/internal/context"
 	"github.com/ycvk/acorn/internal/domain"
-	"github.com/ycvk/acorn/internal/runtime/tooldispatch"
 	"github.com/ycvk/acorn/internal/tools"
 )
 
@@ -321,7 +320,7 @@ func (a *directResponseAgent) runFromState(ctx context.Context, generator *adk.A
 	generator.Send(&adk.AgentEvent{AgentName: a.Name(ctx), Err: fmt.Errorf("direct response tool loop exceeded max iterations %d", a.maxIterations)})
 }
 
-func (a *directResponseAgent) resumePendingToolCalls(ctx context.Context, session context.Session, resumeData *DirectResponseInterruptData) error {
+func (a *directResponseAgent) resumePendingToolCalls(ctx context.Context, session cp.Session, resumeData *DirectResponseInterruptData) error {
 	if resumeData == nil {
 		return errors.New("direct response resume data is required")
 	}

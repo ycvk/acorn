@@ -12,7 +12,7 @@ import (
 )
 
 type auditedTool struct {
-	spec      tools.ToolSpec
+	spec      port.ToolSpec
 	tool      einotool.BaseTool
 	invokable einotool.InvokableTool
 	progress  tools.ProgressTool
@@ -24,7 +24,7 @@ func getRunID(ctx context.Context) string {
 	return domain.GetRunID(ctx)
 }
 
-func wrapToolForAudit(ctx context.Context, store domain.EventAppender, spec tools.ToolSpec) (einotool.BaseTool, error) {
+func wrapToolForAudit(ctx context.Context, store domain.EventAppender, spec port.ToolSpec) (einotool.BaseTool, error) {
 	info, err := spec.Tool.Info(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("read tool info for audit: %w", err)
@@ -96,7 +96,7 @@ func (t *auditedTool) invoke(ctx context.Context, argumentsInJSON string, emit t
 func BuildAuditedTools(
 	ctx context.Context,
 	store domain.EventAppender,
-	specs []tools.ToolSpec,
+	specs []port.ToolSpec,
 	excludedToolNames []string,
 	allowedToolNames []string,
 	_ string,

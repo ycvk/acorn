@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	einomodel "github.com/cloudwego/eino/components/model"
-	"github.com/ycvk/acorn/internal/context"
+	cp "github.com/ycvk/acorn/internal/context"
 	"github.com/ycvk/acorn/internal/memory"
 	"github.com/ycvk/acorn/internal/stream"
 	"github.com/ycvk/acorn/internal/tools"
@@ -68,7 +68,7 @@ func (a *ContextAssembler) assembleContext(
 	req RunnerBuildRequest,
 	caps *runCapabilities,
 	memoryPrepared *memory.PrepareResult,
-) (*context.AssembleResult, error) {
+) (*cp.AssembleResult, error) {
 	if a == nil || a.deps.ContextPlane == nil {
 		return nil, errors.New("context plane is not initialized")
 	}
@@ -90,7 +90,7 @@ func (a *ContextAssembler) buildAssembly(
 	req RunnerBuildRequest,
 	catalog *tools.Catalog,
 	chatModel einomodel.BaseChatModel,
-	contextResult *context.AssembleResult,
+	contextResult *cp.AssembleResult,
 ) (*RunAssembly, error) {
 	if a == nil || a.deps.Config == nil {
 		return nil, fmt.Errorf("runner factory is not initialized")
@@ -99,7 +99,7 @@ func (a *ContextAssembler) buildAssembly(
 	return buildDirectResponse(ctx, a.deps, a.directResponseRequest(bf, req), a.toolAssembler)
 }
 
-func (a *ContextAssembler) baseAssemblyFields(req RunnerBuildRequest, catalog *tools.Catalog, chatModel einomodel.BaseChatModel, contextResult *context.AssembleResult) baseAssemblyFields {
+func (a *ContextAssembler) baseAssemblyFields(req RunnerBuildRequest, catalog *tools.Catalog, chatModel einomodel.BaseChatModel, contextResult *cp.AssembleResult) baseAssemblyFields {
 	return baseAssemblyFields{
 		agentName:         a.deps.Config.Agent.Name,
 		agentDescription:  a.deps.Config.Agent.Description,
@@ -141,8 +141,8 @@ type baseAssemblyFields struct {
 	excludedToolNames []string
 }
 
-func buildAssembleRequest(req RunnerBuildRequest, caps *runCapabilities, memoryPrepared *memory.PrepareResult) context.AssembleRequest {
-	return context.AssembleRequest{
+func buildAssembleRequest(req RunnerBuildRequest, caps *runCapabilities, memoryPrepared *memory.PrepareResult) cp.AssembleRequest {
+	return cp.AssembleRequest{
 		RunID:          req.RunID,
 		SessionID:      req.SessionID,
 		Input:          req.Input,

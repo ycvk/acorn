@@ -8,7 +8,7 @@ import (
 	einotool "github.com/cloudwego/eino/components/tool"
 	toolutils "github.com/cloudwego/eino/components/tool/utils"
 	"github.com/ycvk/acorn/internal/config"
-	"github.com/ycvk/acorn/internal/context"
+	cp "github.com/ycvk/acorn/internal/context"
 	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/tools"
 )
@@ -117,7 +117,7 @@ type loadToolsOutput struct {
 
 func NewLoadToolsTool() (einotool.BaseTool, error) {
 	return toolutils.InferTool("load_tools", "Load deferred tool definitions by query or exact tool names.", func(ctx context.Context, input loadToolsInput) (loadToolsOutput, error) {
-		result, err := context.DeferredLoad(ctx, context.DeferredLoadRequest{
+		result, err := context.DeferredLoad(ctx, cp.DeferredLoadRequest{
 			RunID:     getRunID(ctx),
 			SessionID: domain.SessionIDFromContext(ctx),
 			Query:     strings.TrimSpace(input.Query),

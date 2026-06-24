@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/ycvk/acorn/internal/config"
-	"github.com/ycvk/acorn/internal/context"
+	cp "github.com/ycvk/acorn/internal/context"
 	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/memory"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
@@ -135,8 +135,8 @@ func buildContainer(ctx context.Context, cfg *config.Config) (*Container, error)
 	return container, nil
 }
 
-func buildContextPlane(cfg *config.Config) (context.Plane, error) {
-	contextCounter, err := context.NewTokenCounter()
+func buildContextPlane(cfg *config.Config) (cp.Plane, error) {
+	contextCounter, err := cp.NewTokenCounter()
 	if err != nil {
 		return nil, fmt.Errorf("context plane token counter: %w", err)
 	}
@@ -144,7 +144,7 @@ func buildContextPlane(cfg *config.Config) (context.Plane, error) {
 	if maxContextTokens <= 0 {
 		return nil, fmt.Errorf("context effective window must be positive: window=%d margin=%d", cfg.Context.WindowTokens, cfg.Context.CompactMarginTokens)
 	}
-	contextPlane := context.NewDefaultPlane(context.DefaultOptions{
+	contextPlane := cp.NewDefaultPlane(cp.DefaultOptions{
 		MemoryContextTokenBudget: cfg.Memory.Search.MemoryContextTokenBudget,
 		MaxContextTokens:         maxContextTokens,
 		TokenCounter:             contextCounter,

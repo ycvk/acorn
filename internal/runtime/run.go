@@ -9,7 +9,7 @@ import (
 	"github.com/cloudwego/eino/adk"
 	einomodel "github.com/cloudwego/eino/components/model"
 	einotool "github.com/cloudwego/eino/components/tool"
-	"github.com/ycvk/acorn/internal/context"
+	cp "github.com/ycvk/acorn/internal/context"
 	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/memory"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
@@ -82,7 +82,7 @@ type RunnerFactoryOptions struct {
 	Handlers              []adk.ChatModelAgentMiddleware
 	SessionSummaryService *domain.SessionSummaryService
 	MemoryModule          memory.Service
-	ContextPlane          context.Plane
+	ContextPlane          cp.Plane
 	MCPPendingActionStore mcpprovider.PendingActionStore
 }
 
@@ -105,8 +105,8 @@ type ActiveRunner struct {
 	Instruction    string
 	ChatModel      einomodel.BaseChatModel
 	Factory        *RunnerFactory
-	ContextResult  *context.AssembleResult
-	ContextSession context.Session
+	ContextResult  *cp.AssembleResult
+	ContextSession cp.Session
 	RunID          string
 	ToolCatalog    *tools.Catalog
 	CloseRunTools  func() error

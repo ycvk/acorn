@@ -16,7 +16,7 @@ import (
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/config"
-	"github.com/ycvk/acorn/internal/context"
+	cp "github.com/ycvk/acorn/internal/context"
 	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/memory"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
@@ -197,14 +197,14 @@ func resolveLoader(cfg *config.Config, loader *skills.Loader) *skills.Loader {
 	return loader
 }
 
-func resolveContextPlane(cfg *config.Config, store RunnerFactoryStore, opts RunnerFactoryOptions) (context.Plane, error) {
+func resolveContextPlane(cfg *config.Config, store RunnerFactoryStore, opts RunnerFactoryOptions) (cp.Plane, error) {
 	if opts.ContextPlane != nil {
 		return opts.ContextPlane, nil
 	}
 	return buildDefaultContextPlane(cfg, store, opts)
 }
 
-func assembleRuntimeDeps(cfg *config.Config, store RunnerFactoryStore, opts RunnerFactoryOptions, ws *workspace.Workspace, loader *skills.Loader, artifactService *corestore.ArtifactService, contextPlane context.Plane) RuntimeDeps {
+func assembleRuntimeDeps(cfg *config.Config, store RunnerFactoryStore, opts RunnerFactoryOptions, ws *workspace.Workspace, loader *skills.Loader, artifactService *corestore.ArtifactService, contextPlane cp.Plane) RuntimeDeps {
 	return RuntimeDeps{
 		Config:            cfg,
 		Store:             store,
@@ -241,25 +241,25 @@ func buildArtifactService(cfg *config.Config, store RunnerFactoryStore) (*corest
 	return corestore.NewArtifactService(filepath.Join(cfg.Runtime.StorageDir, "artifacts"), artifactStore)
 }
 
-func buildDefaultContextPlane(cfg *config.Config, store RunnerFactoryStore, opts RunnerFactoryOptions) (context.Plane, error) {
+func buildDefaultContextPlane(cfg *config.Config, store RunnerFactoryStore, opts RunnerFactoryOptions) (cp.Plane, error) {
 	memoryBudget, maxContextTokens, tokenCounter, err := resolveContextPlaneTokenPolicy(cfg)
 	if err != nil {
 		return nil, err
 	}
-	return context.NewDefaultPlane(context.DefaultOptions{
+	return cp.NewDefaultPlane(cp.DefaultOptions{
 		MemoryContextTokenBudget: memoryBudget,
 		MaxContextTokens:         maxContextTokens,
 		TokenCounter:             tokenCounter,
 	}), nil
 }
 
-func resolveContextPlaneTokenPolicy(cfg *config.Config) (memoryBudget, maxContextTokens int, tokenCounter context.TokenCounter, err error) {
+func resolveContextPlaneTokenPolicy(cfg *config.Config) (memoryBudget, maxContextTokens int, tokenCounter cp.TokenCounter, err error) {
 	if cfg == nil {
 		return 0, 0, nil, nil
 	}
 	memoryBudget = cfg.Memory.Search.MemoryContextTokenBudget
 	maxContextTokens = cfg.Context.WindowTokens
-	tokenCounter, err = context.NewTokenCounter()
+	tokenCounter, err = cp.NewTokenCounter()
 	if err != nil {
 		return 0, 0, nil, fmt.Errorf("token counter: %w", err)
 	}
@@ -327,7 +327,7 @@ func bindToolLifecycle(
 	infos []*schema.ToolInfo,
 ) context.Context {
 	if adapter, ok := state.(toolLifecycleStateAdapter); ok && adapter.state != nil {
-		return context.WithToolLifecycleContext(ctx, adapter.state, catalog, infos)
+		return cp.WithToolLifecycleContext(ctx, adapter.state, catalog, infos)
 	}
 	return ctx
 }
@@ -337,7 +337,7 @@ func bindSessionID(ctx context.Context, sessionID string) context.Context {
 }
 
 type toolLifecycleStateAdapter struct {
-	state *context.ToolLifecycleState
+	state *cp.ToolLifecycleState
 }
 
 func (a toolLifecycleStateAdapter) IsLoaded(toolName string) bool {
@@ -348,7 +348,7 @@ func (a toolLifecycleStateAdapter) IsLoaded(toolName string) bool {
 	return ok
 }
 
-func AssembleResultToView(result *context.AssembleResult) AssembleResultView {
+func AssembleResultToView(result *cp.AssembleResult) AssembleResultView {
 	if result == nil {
 		return AssembleResultView{}
 	}

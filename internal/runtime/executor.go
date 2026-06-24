@@ -11,7 +11,7 @@ import (
 	einomodel "github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/config"
-	"github.com/ycvk/acorn/internal/context"
+	cp "github.com/ycvk/acorn/internal/context"
 	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/memory"
 	"github.com/ycvk/acorn/internal/store"
@@ -150,7 +150,7 @@ func (e *Executor) buildExecuteRunner(runCtxBase context.Context, req domain.Exe
 func (e *Executor) executionContext(runCtxBase context.Context, runID string, req domain.ExecuteRequest, active *ActiveRunner, sink domain.StreamSink) context.Context {
 	executionCtx := buildExecutionContext(runCtxBase, runID, req.SessionID, req.TurnIndex, sink)
 	if active.ContextSession != nil {
-		executionCtx = context.WithSession(executionCtx, active.ContextSession)
+		executionCtx = cp.WithSession(executionCtx, active.ContextSession)
 	}
 	return executionCtx
 }
@@ -221,7 +221,7 @@ func (e *Executor) executeResume(ctx context.Context, runCtxBase context.Context
 }
 
 func (e *Executor) resumeIter(runCtxBase context.Context, run domain.RunRecord, runID string, active *ActiveRunner, targets map[string]any, sink domain.StreamSink) (*adk.AsyncIterator[*adk.AgentEvent], error) {
-	executionCtx := context.WithSession(
+	executionCtx := cp.WithSession(
 		buildExecutionContext(runCtxBase, runID, run.SessionID, run.TurnIndex, sink), active.ContextSession)
 	iter, err := active.Runner.ResumeWithParams(executionCtx, runID, &adk.ResumeParams{Targets: targets})
 	if err != nil {
