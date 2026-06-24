@@ -280,16 +280,25 @@ func buildRunCapabilities(ctx context.Context, deps RuntimeDeps, sessionID, runI
 // specs into the final run capability catalog.
 //
 // When deps.ToolRegistry is non-nil (production path), native tool specs are
-// sourced from the registry. When nil (test-only path), the local toolset
-// catalog is used directly.
+// sourced from the registry, and MCP tool registrations are already registered
+// into the registry by mcp.Manager at provider-connect time — so only the
+// auxiliary MCP resource/prompt specs are built here. When nil (test-only
+// path), the local toolset catalog is used directly and the full MCP spec set
+// (registrations + resource + prompt) is built at run time.
 func assembleRunCapabilitiesCatalog(ctx context.Context, deps RuntimeDeps, toolset *Toolset, sessionID, runID string, mcpManager *mcpprovider.Manager) (*tools.Catalog, error) {
 	var specs []core.ToolSpec
+	var mcpSpecs []core.ToolSpec
+	var err error
 	if deps.ToolRegistry == nil {
 		specs = append([]core.ToolSpec(nil), toolset.Catalog().Specs()...)
-	} else {
-		registrySpecs, err := resolveRegistrySpecs(ctx, deps, sessionID, runID)
+		mcpSpecs, err = buildMCPToolSpecs(ctx, deps.Config, mcpManager)
 		if err != nil {
-			return nil, fmt.Errorf("resolve registry tools: %w", err)
+			return nil, err
+		}
+	} else {
+		registrySpecs, err2 := resolveRegistrySpecs(ctx, deps, sessionID, runID)
+		if err2 != nil {
+			return nil, fmt.Errorf("resolve registry tools: %w", err2)
 		}
 		specs = append(specs, registrySpecs...)
 		for _, spec := range toolset.Catalog().Specs() {
@@ -301,10 +310,12 @@ func assembleRunCapabilitiesCatalog(ctx context.Context, deps RuntimeDeps, tools
 			}
 			specs = append(specs, spec)
 		}
-	}
-	mcpSpecs, err := buildMCPToolSpecs(ctx, deps.Config, mcpManager)
-	if err != nil {
-		return nil, err
+		// MCP main tools are already in the registry (registered by mcp.Manager);
+		// only resource/prompt auxiliary specs are still built from the manager.
+		mcpSpecs, err = buildMCPAuxiliaryToolSpecs(ctx, deps.Config, mcpManager)
+		if err != nil {
+			return nil, err
+		}
 	}
 	specs = append(specs, mcpSpecs...)
 	return tools.NewCatalog(ctx, specs)

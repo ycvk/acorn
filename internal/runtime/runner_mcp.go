@@ -37,6 +37,29 @@ func buildMCPToolSpecs(ctx context.Context, cfg *config.Config, mcpManager *mcpp
 	return specs, nil
 }
 
+// buildMCPAuxiliaryToolSpecs builds only the MCP resource and prompt tool specs
+// (not the main tool registrations). It is used on the unified-registry path,
+// where main MCP tools are already registered into the ToolRegistry by
+// mcp.Manager; the resource/prompt tools are still sourced from the manager at
+// run time because they are session-derived wrappers, not part of the
+// ToolRegistry lifecycle.
+func buildMCPAuxiliaryToolSpecs(ctx context.Context, cfg *config.Config, mcpManager *mcpprovider.Manager) ([]core.ToolSpec, error) {
+	var resourceTools, promptTools []einotool.BaseTool
+	if mcpManager != nil {
+		resourceTools = mcpManager.ResourceTools()
+		promptTools = mcpManager.PromptTools()
+	}
+	resourceSpecs, err := BuildCatalogSpecs(ctx, cfg, "mcp.resource", core.ToolKindMCP, resourceTools)
+	if err != nil {
+		return nil, err
+	}
+	promptSpecs, err := BuildCatalogSpecs(ctx, cfg, "mcp.prompt", core.ToolKindMCP, promptTools)
+	if err != nil {
+		return nil, err
+	}
+	return append(resourceSpecs, promptSpecs...), nil
+}
+
 func buildMCPRegistrationsSpecs(ctx context.Context, cfg *config.Config, mcpManager *mcpprovider.Manager) ([]core.ToolSpec, error) {
 	var specs []core.ToolSpec
 	for _, registration := range mcpManagerRegistrations(mcpManager) {
@@ -50,24 +73,49 @@ func buildMCPRegistrationsSpecs(ctx context.Context, cfg *config.Config, mcpMana
 }
 
 func buildMCPRegistrationSpec(ctx context.Context, cfg *config.Config, registration mcpprovider.ToolRegistration) (core.ToolSpec, error) {
-	info, err := registration.Tool.Info(ctx)
-	if err != nil {
-		return core.ToolSpec{}, fmt.Errorf("read MCP tool info for provider %q: %w", registration.ProviderName, err)
-	}
-	namespaced, err := NewMCPNamespacedTool(ctx, registration.Tool, registration.ProviderName, info.Name)
-	if err != nil {
-		return core.ToolSpec{}, fmt.Errorf("namespace MCP tool %q for provider %q: %w", info.Name, registration.ProviderName, err)
-	}
-	spec, err := RuntimeToolSpec(ctx, cfg, registration.ProviderName, core.ToolKindMCP, namespaced)
+	spec, err := buildMCPToolSpec(ctx, cfg, registration.ProviderName, registration.Tool)
 	if err != nil {
 		return core.ToolSpec{}, err
 	}
-	parallelPolicy, err := MCPToolParallelPolicy(cfg, registration.ProviderName)
+	return spec, nil
+}
+
+// buildMCPToolSpec constructs a core.ToolSpec for a single discovered MCP tool,
+// applying namespacing, description augmentation, the integration category,
+// and the provider's resolved parallel policy. Shared by both the run-time
+// buildMCPToolSpecs fallback path and the MCPToolSpecBuilder closure handed to
+// mcp.Manager so the unified ToolRegistry receives identically-shaped specs.
+func buildMCPToolSpec(ctx context.Context, cfg *config.Config, providerName string, tool einotool.BaseTool) (core.ToolSpec, error) {
+	info, err := tool.Info(ctx)
 	if err != nil {
-		return core.ToolSpec{}, fmt.Errorf("resolve MCP tool safety for provider %q: %w", registration.ProviderName, err)
+		return core.ToolSpec{}, fmt.Errorf("read MCP tool info for provider %q: %w", providerName, err)
+	}
+	namespaced, err := NewMCPNamespacedTool(ctx, tool, providerName, info.Name)
+	if err != nil {
+		return core.ToolSpec{}, fmt.Errorf("namespace MCP tool %q for provider %q: %w", info.Name, providerName, err)
+	}
+	spec, err := RuntimeToolSpec(ctx, cfg, providerName, core.ToolKindMCP, namespaced)
+	if err != nil {
+		return core.ToolSpec{}, err
+	}
+	parallelPolicy, err := MCPToolParallelPolicy(cfg, providerName)
+	if err != nil {
+		return core.ToolSpec{}, fmt.Errorf("resolve MCP tool safety for provider %q: %w", providerName, err)
 	}
 	spec.Execution.ParallelPolicy = parallelPolicy
 	return spec, nil
+}
+
+// mcpToolSpecBuilder returns a core.MCPToolSpecBuilder that builds a unified
+// registry spec for a discovered MCP tool. It closes over the run config so
+// the manager can register tools without a direct config/runtime dependency.
+// The resulting spec has the namespaced name (mcp__<provider>__<tool>) and the
+// provider's resolved parallel policy, identical to what buildMCPToolSpecs
+// produces for the fallback catalog path.
+func mcpToolSpecBuilder(cfg *config.Config) core.MCPToolSpecBuilder {
+	return func(ctx context.Context, providerName string, tool einotool.BaseTool) (core.ToolSpec, error) {
+		return buildMCPToolSpec(ctx, cfg, providerName, tool)
+	}
 }
 
 func mcpManagerRegistrations(manager *mcpprovider.Manager) []mcpprovider.ToolRegistration {
@@ -133,7 +181,20 @@ func createMCPManager(ctx context.Context, deps RuntimeDeps, cache *mcpManagerCa
 	if deps.MCPPendingActions != nil {
 		pendingActionStore = deps.MCPPendingActions
 	}
-	mgr, err := mcpprovider.NewManager(ctx, providerConfigs, mcpprovider.WithTokenStore(deps.Store), mcpprovider.WithStore(pendingActionStore))
+	opts := []mcpprovider.ManagerOption{
+		mcpprovider.WithTokenStore(deps.Store),
+		mcpprovider.WithStore(pendingActionStore),
+	}
+	// Wire the unified ToolRegistry so MCP tools are registered at provider
+	// connect and unregistered at disconnect. The spec builder carries the
+	// config so the manager can build namespaced specs without a config
+	// dependency. When deps.ToolRegistry is nil (test path), the option is
+	// omitted and the manager runs in legacy mode; the runtime then rebuilds
+	// MCP specs at run time via buildMCPToolSpecs.
+	if deps.ToolRegistry != nil {
+		opts = append(opts, mcpprovider.WithToolRegistry(deps.ToolRegistry, mcpToolSpecBuilder(deps.Config)))
+	}
+	mgr, err := mcpprovider.NewManager(ctx, providerConfigs, opts...)
 	if err != nil {
 		return nil, err
 	}

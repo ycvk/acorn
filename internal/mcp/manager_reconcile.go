@@ -85,6 +85,12 @@ func (m *Manager) ReconcileProviders(ctx context.Context, cfgs []ProviderConfig)
 }
 
 func (m *Manager) closeSlotByName(name string) {
+	// Unregister the provider's tools from the unified registry before closing
+	// the session. unregisterProviderTools reads registeredToolNames from the
+	// slot under the lock and clears it, so this must run while the slot still
+	// exists. It is a no-op when no registry was wired.
+	m.unregisterProviderTools(name)
+
 	m.mu.Lock()
 	for i, slot := range m.slots {
 		if slot.cfg.Name == name {
@@ -132,6 +138,10 @@ func (m *Manager) connectSlotForReconcile(ctx context.Context, cfg ProviderConfi
 	if cfg.Auth.Type == "oauth" {
 		m.updateProviderAuthStatus(cfg.Name, "authenticated")
 	}
+
+	// Register the newly connected provider's tools into the unified registry.
+	// No-op when no registry was wired (legacy/test path).
+	m.registerProviderTools(ctx, cfg.Name)
 
 	return nil
 }

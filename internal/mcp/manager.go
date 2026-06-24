@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sync"
 
 	einotool "github.com/cloudwego/eino/components/tool"
@@ -57,6 +58,8 @@ type Manager struct {
 	stoppedMu     sync.Mutex
 	tokenStore    core.ArtifactStore
 	store         core.SessionStore
+	toolRegistry  core.ToolRegistry
+	specBuilder   core.MCPToolSpecBuilder
 	elicitation   *ElicitationHandler
 	sampling      *SamplingHandler
 	samplingDepth int32
@@ -68,6 +71,11 @@ type providerSlot struct {
 	lastErr       error
 	startupStatus string
 	authStatus    string // live auth status: "authenticated", "expired", "none", "env"
+	// registeredToolNames holds the namespaced names registered into the unified
+	// ToolRegistry for this slot's provider. Populated by registerProviderTools
+	// when a registry is wired; consumed by unregisterProviderTools on disconnect
+	// so reconcile/close cleanly removes exactly the specs this provider added.
+	registeredToolNames []string
 }
 
 type ToolRegistration struct {
@@ -113,8 +121,10 @@ var connectProviderFunc = func(ctx context.Context, cfg ProviderConfig, opts *mc
 type ManagerOption func(*managerOptions)
 
 type managerOptions struct {
-	tokenStore core.ArtifactStore
-	store      core.SessionStore
+	tokenStore   core.ArtifactStore
+	store        core.SessionStore
+	toolRegistry core.ToolRegistry
+	specBuilder  core.MCPToolSpecBuilder
 }
 
 // WithTokenStore sets the OAuth token store on the manager for HTTP providers
@@ -129,6 +139,20 @@ func WithTokenStore(store core.ArtifactStore) ManagerOption {
 // MCP servers send elicitation/create requests.
 func WithStore(store core.SessionStore) ManagerOption {
 	return func(o *managerOptions) { o.store = store }
+}
+
+// WithToolRegistry wires a unified core.ToolRegistry so MCP tools discovered
+// at provider-connect time are registered alongside native tools, and
+// unregistered when their provider disconnects. specBuilder translates a
+// discovered (provider, tool) pair into a core.ToolSpec; the manager applies it
+// and tracks the namespaced names per provider for later removal. Either may be
+// nil (e.g. tests): when the registry is nil the manager skips registration and
+// the runtime falls back to building MCP specs at run time.
+func WithToolRegistry(registry core.ToolRegistry, specBuilder core.MCPToolSpecBuilder) ManagerOption {
+	return func(o *managerOptions) {
+		o.toolRegistry = registry
+		o.specBuilder = specBuilder
+	}
 }
 
 func NewManager(ctx context.Context, cfgs []ProviderConfig, opts ...ManagerOption) (*Manager, error) {
@@ -193,9 +217,11 @@ func NewManager(ctx context.Context, cfgs []ProviderConfig, opts ...ManagerOptio
 	}
 
 	mgr := &Manager{
-		slots:      slots,
-		tokenStore: o.tokenStore,
-		store:      o.store,
+		slots:        slots,
+		tokenStore:   o.tokenStore,
+		store:        o.store,
+		toolRegistry: o.toolRegistry,
+		specBuilder:  o.specBuilder,
 	}
 
 	// Initialize elicitation handler if store is available
@@ -206,6 +232,13 @@ func NewManager(ctx context.Context, cfgs []ProviderConfig, opts ...ManagerOptio
 	// Initialize sampling handler if store is available
 	if o.store != nil {
 		mgr.sampling = newSamplingHandler(mgr)
+	}
+	// Register discovered MCP tools for every healthy provider into the unified
+	// ToolRegistry. No-op when no registry was wired (legacy/test path).
+	for _, slot := range slots {
+		if slot.startupStatus == "healthy" {
+			mgr.registerProviderTools(ctx, slot.cfg.Name)
+		}
 	}
 
 	return mgr, nil
@@ -224,6 +257,21 @@ func (m *Manager) Close() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	var errs []error
+	// Remove every provider's tools from the unified registry. We hold the
+	// write lock already, so unregister inline rather than calling
+	// unregisterProviderTools (which would re-lock and deadlock). No-op when
+	// no registry was wired.
+	if m.toolRegistry != nil {
+		for i := range m.slots {
+			for _, name := range m.slots[i].registeredToolNames {
+				if err := m.toolRegistry.Unregister(name); err != nil {
+					slog.Warn("MCP tool unregister on close skipped",
+						"provider", m.slots[i].cfg.Name, "tool", name, "error", err)
+				}
+			}
+			m.slots[i].registeredToolNames = nil
+		}
+	}
 	for i := range m.slots {
 		if m.slots[i].p != nil {
 			if err := m.slots[i].p.close(); err != nil {
