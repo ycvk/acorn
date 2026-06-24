@@ -1,5 +1,9 @@
 package tools
 
+import (
+	"github.com/ycvk/acorn/internal/port"
+)
+
 // builtinToolOrder is the canonical list of dynamically-registered built-in
 // tools (delegate_task, load_tools, working-state, memory, skill). It is the
 // single source of truth for built-in tool identity: BuiltinToolNames and the
@@ -26,45 +30,45 @@ var builtinToolOrder = []string{
 // builtinToolContract returns the contract template (without Source/Profiles,
 // which are caller-supplied) for a built-in tool. ok is false for any name that
 // is not a built-in tool (e.g. MCP tools), which callers resolve elsewhere.
-func builtinToolContract(name string) (ToolContract, bool) {
-	c := ToolContract{
+func builtinToolContract(name string) (port.ToolContract, bool) {
+	c := port.ToolContract{
 		Name:      name,
-		Loading:   EagerLoadingPolicy(),
-		Execution: ToolExecutionPolicy{ParallelPolicy: ParallelPolicyReadOnly},
+		Loading:   port.EagerLoadingPolicy(),
+		Execution: port.ToolExecutionPolicy{ParallelPolicy: port.ParallelPolicyReadOnly},
 	}
 	switch name {
 	case "load_tools":
-		c.Kind = ToolKindNative
-		c.Category = ToolCategoryInspect
-		c.Execution.ParallelPolicy = ParallelPolicySerial
+		c.Kind = port.ToolKindNative
+		c.Category = port.ToolCategoryInspect
+		c.Execution.ParallelPolicy = port.ParallelPolicySerial
 	case "ask_operator":
-		c.Kind = ToolKindNative
-		c.Category = ToolCategoryIntegration
-		c.Execution.ParallelPolicy = ParallelPolicySerial
+		c.Kind = port.ToolKindNative
+		c.Category = port.ToolCategoryIntegration
+		c.Execution.ParallelPolicy = port.ParallelPolicySerial
 	case "update_working_checkpoint", "clear_working_checkpoint":
-		c.Kind = ToolKindMemory
-		c.Category = ToolCategoryMemory
-		c.Loading = DeferredLoadingPolicy("working_state_tool")
-		c.Execution.ParallelPolicy = ParallelPolicySerial
+		c.Kind = port.ToolKindMemory
+		c.Category = port.ToolCategoryMemory
+		c.Loading = port.DeferredLoadingPolicy("working_state_tool")
+		c.Execution.ParallelPolicy = port.ParallelPolicySerial
 	case "memory_search", "memory_read_file", "memory_list_files":
-		c.Kind = ToolKindMemory
-		c.Category = ToolCategoryMemory
-		c.Execution.ParallelPolicy = ParallelPolicyReadOnly
+		c.Kind = port.ToolKindMemory
+		c.Category = port.ToolCategoryMemory
+		c.Execution.ParallelPolicy = port.ParallelPolicyReadOnly
 	case "memory_create_file", "memory_replace_span":
-		c.Kind = ToolKindMemory
-		c.Category = ToolCategoryMemory
-		c.Execution.ParallelPolicy = ParallelPolicySerial
+		c.Kind = port.ToolKindMemory
+		c.Category = port.ToolCategoryMemory
+		c.Execution.ParallelPolicy = port.ParallelPolicySerial
 		c.Execution.PathArg = "path"
 	case "remember":
-		c.Kind = ToolKindMemory
-		c.Category = ToolCategoryMemory
-		c.Execution.ParallelPolicy = ParallelPolicySerial
+		c.Kind = port.ToolKindMemory
+		c.Category = port.ToolCategoryMemory
+		c.Execution.ParallelPolicy = port.ParallelPolicySerial
 	case "skill_list", "skill_view":
-		c.Kind = ToolKindSkill
-		c.Category = ToolCategorySkill
-		c.Execution.ParallelPolicy = ParallelPolicyReadOnly
+		c.Kind = port.ToolKindSkill
+		c.Category = port.ToolCategorySkill
+		c.Execution.ParallelPolicy = port.ParallelPolicyReadOnly
 	default:
-		return ToolContract{}, false
+		return port.ToolContract{}, false
 	}
 	return c, true
 }
@@ -72,10 +76,10 @@ func builtinToolContract(name string) (ToolContract, bool) {
 // BuiltinToolSpec resolves the full contract for a built-in tool, applying the
 // caller-supplied source to the canonical contract template. It returns ok=false
 // for names that are not built-in toolset.
-func BuiltinToolSpec(name, source string) (ToolContract, bool) {
+func BuiltinToolSpec(name, source string) (port.ToolContract, bool) {
 	c, ok := builtinToolContract(name)
 	if !ok {
-		return ToolContract{}, false
+		return port.ToolContract{}, false
 	}
 	c.Source = source
 	return c, true
@@ -89,7 +93,7 @@ func BuiltinToolNames() []string {
 	names := make([]string, 0, len(builtinToolOrder))
 	for _, name := range builtinToolOrder {
 		contract, ok := builtinToolContract(name)
-		if ok && contract.Loading.Mode == ToolLoadingModeEager {
+		if ok && contract.Loading.Mode == port.ToolLoadingModeEager {
 			names = append(names, name)
 		}
 	}

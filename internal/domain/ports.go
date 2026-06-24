@@ -4,7 +4,7 @@ import "context"
 
 // EventAppender appends a runtime event to the persisted store.
 type EventAppender interface {
-	AppendEventContext(ctx context.Context, runID, kind string, payload any) (EventRecord, error)
+	AppendEvent(ctx context.Context, runID, kind string, payload any) (EventRecord, error)
 }
 
 // ToolCallContextBridge provides access to the current run, session, and

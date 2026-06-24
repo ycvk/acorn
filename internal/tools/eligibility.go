@@ -1,6 +1,9 @@
 package tools
 
-import "github.com/ycvk/acorn/internal/skills"
+import (
+	"github.com/ycvk/acorn/internal/port"
+	"github.com/ycvk/acorn/internal/skills"
+)
 
 func EligibilityContext(catalog *Catalog, env map[string]string) skills.EligibilityContext {
 	if catalog == nil {
@@ -12,18 +15,18 @@ func EligibilityContext(catalog *Catalog, env map[string]string) skills.Eligibil
 	seenTools := make(map[string]struct{}, len(specs))
 	seenToolsets := make(map[string]struct{}, len(specs))
 	for _, spec := range specs {
-		if _, ok := seenTools[spec.Name]; !ok {
-			seenTools[spec.Name] = struct{}{}
-			availableTools = append(availableTools, spec.Name)
+		if _, ok := seenTools[spec.Contract.Name]; !ok {
+			seenTools[spec.Contract.Name] = struct{}{}
+			availableTools = append(availableTools, spec.Contract.Name)
 		}
-		if spec.Source == "" {
+		if spec.Contract.Source == "" {
 			continue
 		}
-		if _, ok := seenToolsets[spec.Source]; ok {
+		if _, ok := seenToolsets[spec.Contract.Source]; ok {
 			continue
 		}
-		seenToolsets[spec.Source] = struct{}{}
-		availableToolsets = append(availableToolsets, spec.Source)
+		seenToolsets[spec.Contract.Source] = struct{}{}
+		availableToolsets = append(availableToolsets, spec.Contract.Source)
 	}
 	return skills.EligibilityContext{
 		AvailableTools:    availableTools,
@@ -42,3 +45,6 @@ func copyEnv(env map[string]string) map[string]string {
 	}
 	return out
 }
+
+// ensure port import is used
+var _ port.ToolSpec
