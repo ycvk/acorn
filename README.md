@@ -184,12 +184,13 @@ Mobile checks run from `mobile-kotlin/`:
 | Path | Purpose |
 | --- | --- |
 | `cmd/acorn/` | CLI entrypoint |
-| `internal/app/` | Application container and client-facing services |
-| `internal/runtime/` | Executor lifecycle, run builder, direct_response, and resume execution |
-| `internal/runtime/tooldispatch/` | Safety-aware parallel tool dispatch, streaming executor, side effects |
-| `internal/runtime/factextract/` | Fact extraction and memory file/search/remember tools |
+| `internal/wire/` | Composition root — container wiring, the only place concrete implementations are instantiated |
+| `internal/agent/` | Executor lifecycle, run builder, direct_response, and resume execution |
+| `internal/agent/factextract/` | Fact extraction and memory file/search/remember tools |
 | `internal/stream/` | Stream item types, event projection, accessors, assistant streaming |
-| `internal/contextplane/` | Context session, masking, auto-compact, tool lifecycle |
+| `internal/context/` | Context session, masking, auto-compact, tool lifecycle |
+| `internal/port/` | Narrow Repo interfaces and tool contract types |
+| `internal/tools/` | Tool implementations, dispatch scheduler, side effects |
 | `internal/memory/` | File-backed memory records and semantic retrieval |
 | `internal/store/` | SQLite persisted state |
 | `internal/api/` | HTTP server, `/healthz`, `/v1` |

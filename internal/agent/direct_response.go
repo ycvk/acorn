@@ -272,7 +272,18 @@ func (a *directResponseAgent) runFromState(ctx context.Context, generator *adk.A
 			generator.Send(&adk.AgentEvent{AgentName: a.Name(ctx), Err: fmt.Errorf("agent loop before model call: %w", err)})
 			return
 		}
-		msg, toolMessages, outputLimitReached, err := ExecuteRound(runCtx, a.model, a.streamer, a.toolNode, modelInput.Messages, toolInfos, a.runID, messageID, RoundOptions{})
+		msg, toolMessages, outputLimitReached, err := ExecuteRound(runCtx, a.model, a.streamer, a.toolNode, modelInput.Messages, toolInfos, a.runID, messageID, RoundOptions{
+			BeforeToolCall: func(ctx context.Context, call schema.ToolCall) error {
+				return cp.OnToolCall(ctx, cp.ToolCallEvent{
+					RunID:     domain.GetRunID(ctx),
+					SessionID: domain.SessionIDFromContext(ctx),
+					TurnIndex: domain.TurnIndexFromContext(ctx),
+					CallID:    call.ID,
+					ToolName:  call.Function.Name,
+					Arguments: call.Function.Arguments,
+				})
+			},
+		})
 		if err == nil {
 			if err := session.RecordAssistant(runCtx, msg); err != nil {
 				generator.Send(&adk.AgentEvent{AgentName: a.Name(ctx), Err: fmt.Errorf("agent loop record assistant: %w", err)})

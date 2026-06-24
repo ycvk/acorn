@@ -38,12 +38,12 @@ cd mobile-kotlin && ./tool/generate_openapi_client.sh --check   # CI 门禁
 
 ## 架构大图
 
-- **组合根**:`internal/app.Container` 是唯一实例化具体实现的地方(SQLite store、RunnerFactory、embedding client)。`cmd/acorn → cli → app.Container → {web, runtime, store}`。`serve` 是唯一长驻命令。
-- **运行时主链**:`Executor → RunnerFactory.buildRun → Plane + direct_response → Session → SQLite/file-backed memory`。
-- **单一编排模式**:`direct_response`。model → tool loop → record → 下一轮。`AgentLoop.RunOneIteration` 每轮 `BeforeModelCall → RunActionRound(ExecuteRound) → RecordAssistant/RecordToolResults`。plan_execute/single_agent/child_agent/verifier 已全部删除。
+- **组合根**:`internal/wire.Container` 是唯一实例化具体实现的地方(SQLite store、AgentFactory、embedding client)。`cmd/acorn → cli → wire.Container → {api, agent, store}`。`serve` 是唯一长驻命令。
+- **运行时主链**:`Executor → AgentFactory.buildRun → Plane + direct_response → Session → SQLite/file-backed memory`。
+- **单一编排模式**:`direct_response`。model → tool loop → record → 下一轮。`ExecuteRound` 每轮 `BeforeModelCall → ExecuteRound → RecordAssistant/RecordToolResults`。plan_execute/single_agent/child_agent/verifier 已全部删除。
 - **职责边界**:`internal/agent` 做装配+执行编排;Plane(`internal/context`)拥有上下文事实(首轮装配、tool lifecycle、`Session`)。
-- **关键包**:`internal/domain` 拥有核心 domain 类型(`RunRecord`/`EventRecord`/`SessionRecord`/`PendingActionRecord`/`SessionSummary`/Stream* payload 值类型 + typed accessors)+ context plumbing(`WithRunID`/`WithSessionID`/`WithCallSite`)+ ports(`EventAppender`/`ToolCallContextBridge`);`internal/tools` 拥有工具契约 + 实现(`ToolContract`/`Catalog`/`ToolSpec` + file/git/browser/web/command/artifact 工具);`internal/stream` 拥有 StreamItem→event 投影逻辑 + assistant streaming;`internal/clientevents` 把 live RunEvent 投影为 mobile live subset;`internal/workspace` 拥有 mutation checkpoint + worktree;`internal/webaccess` 拥有 `web_search`/`web_fetch`/`browser` 工具与共享 URL policy;`internal/providers/mcp` 拥有 MCP provider lifecycle + OAuth token store + pending action store。
-- **两套真相**:SQLite(`internal/store`,modernc.org/sqlite,单连接串行化)是 runtime 真相(12 张表:runs/events/sessions/session_messages/pending_actions/mcp_oauth_tokens/owner_profile/devices/pairing_codes/artifacts/session_summaries/schema_migrations;schema 在 `store/sqlite/store_schema.go`,`schemaRequiredTables` 强制列存在、缺列 fail-loud);文件型长期记忆(`internal/memory`)是 `facts/`/`history/`;embedding 向量存 SQLite `memory_vectors` 表。
+- **关键包**:`internal/domain` 拥有核心 domain 类型(`RunRecord`/`EventRecord`/`SessionRecord`/`PendingActionRecord`/`SessionSummary`/Stream* payload 值类型 + typed accessors)+ context plumbing(`WithRunID`/`WithSessionID`/`WithCallSite`)+ ports(`EventAppender`/`ToolCallContextBridge`);`internal/port` 拥有窄 Repo 接口 + 工具契约(`SessionRepo`/`RunRepo`/`EventRepo`/`ToolContract`/`ToolSpec`/`Catalog`);`internal/tools` 拥有工具实现(file/git/browser/web/command/artifact 工具 + dispatch scheduler);`internal/stream` 拥有 StreamItem→event 投影逻辑 + assistant streaming;`internal/clientevents` 把 live RunEvent 投影为 mobile live subset;`internal/workspace` 拥有 mutation checkpoint + worktree;`internal/webaccess` 拥有 `web_search`/`web_fetch`/`browser` 工具与共享 URL policy;`internal/providers/mcp` 拥有 MCP provider lifecycle + OAuth token store + pending action store。
+- **两套真相**:SQLite(`internal/store`,modernc.org/sqlite,单连接串行化)是 runtime 真相(10 张表:runs/events/sessions/session_messages/pending_actions/mcp_oauth_tokens/devices/pairing_codes/artifacts/schema_migrations;schema 在 `store/sqlite/store_schema.go`,`schemaRequiredTables` 强制列存在、缺列 fail-loud);文件型长期记忆(`internal/memory`)是 `facts/`/`history/`;embedding 向量存 SQLite `memory_vectors` 表。
 - **API 契约**:`docs/openapi.yaml` 是唯一 wire contract,`mobile-kotlin/app/src/main/java/io/ycvk/acorn/api/` 由它生成。客户端只收 `internal/clientevents` 投影的 live RunEvent;RunEvent SSE 用 `follow=true` 轮询 + `after_seq` 游标续读。
 
 ## 硬边界
@@ -114,6 +114,6 @@ cd mobile-kotlin && ./tool/generate_openapi_client.sh --check   # CI 门禁
 
 ## 验证要求
 
-提交前必须通过 `make format-check` 和 `make lint`。context/runtime 改动至少跑 `go test ./internal/config ./internal/context ./internal/agent ./internal/cli ./internal/tools ./internal/domain ./internal/stream ./internal/store ./internal/memory ./internal/app ./internal/api`。
+提交前必须通过 `make format-check` 和 `make lint`。context/runtime 改动至少跑 `go test ./internal/config ./internal/context ./internal/agent ./internal/cli ./internal/tools ./internal/domain ./internal/stream ./internal/store ./internal/memory ./internal/wire ./internal/api`。
 
-**CI 守卫**(`tests/architecture/`):`structural_limits_test.go`、`client_projection_boundary_test.go`、`store_interface_count_test.go`。
+**CI 守卫**(`tests/architecture/`):`structural_limits_test.go`、`client_projection_boundary_test.go`、`store_interface_count_test.go`、`dependency_direction_test.go`。

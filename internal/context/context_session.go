@@ -19,6 +19,11 @@ import (
 // Session is the sole owner of root-run model input. It bootstraps
 // from an assembly result, applies observation masking + auto-compact before
 // each model call, and records assistant/tool messages.
+//
+// Concurrency contract: Session methods are NOT safe for concurrent use.
+// The direct_response agent loop calls BeforeModelCall, RecordAssistant, and
+// RecordToolResults sequentially from a single goroutine. The auto-compact
+// circuit breaker (failure counter) relies on this single-writer invariant.
 type Session interface {
 	ID() SessionID
 	Bootstrap(context.Context, BootstrapRequest) (*ModelInput, error)

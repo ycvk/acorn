@@ -130,9 +130,10 @@ func buildBrowserTool(service BrowserService, artifactService ArtifactService, b
 				MarkdownPreview:    preview,
 				MarkdownTruncated:  truncated,
 				MarkdownArtifactID: record.ArtifactID,
-				MarkdownArtifact:   new(artifactSummaryFromRecord(record)),
 				Links:              append([]webaccess.PageLink(nil), scan.Extracted.Links...),
 			}
+			mdArtifact := artifactSummaryFromRecord(record)
+			output.Scan.MarkdownArtifact = &mdArtifact
 			if err := emitToolProgress(ctx, emit, fmt.Sprintf("scanned %s into artifact %s", scan.URL, record.ArtifactID)); err != nil {
 				return BrowserOutput{}, err
 			}
@@ -202,9 +203,11 @@ func buildBrowserTool(service BrowserService, artifactService ArtifactService, b
 				}
 				output.Console = &result
 			case "list":
-				output.Console = new(service.ConsoleList())
+				result := service.ConsoleList()
+				output.Console = &result
 			case "stop":
-				output.Console = new(service.ConsoleStop())
+				result := service.ConsoleStop()
+				output.Console = &result
 			default:
 				return BrowserOutput{}, fmt.Errorf("unsupported browser console mode %q", input.Mode)
 			}
@@ -219,9 +222,11 @@ func buildBrowserTool(service BrowserService, artifactService ArtifactService, b
 				}
 				output.Network = &result
 			case "list":
-				output.Network = new(service.NetworkList())
+				result := service.NetworkList()
+				output.Network = &result
 			case "stop":
-				output.Network = new(service.NetworkStop())
+				result := service.NetworkStop()
+				output.Network = &result
 			default:
 				return BrowserOutput{}, fmt.Errorf("unsupported browser network mode %q", input.Mode)
 			}

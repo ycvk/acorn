@@ -12,9 +12,11 @@ import (
 	"github.com/cloudwego/eino/components"
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/compose"
-	"github.com/cloudwego/eino/schema"
+	cp "github.com/ycvk/acorn/internal/context"
 	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/port"
+
+	"github.com/cloudwego/eino/schema"
 )
 
 // SafeParallelToolsNode dispatches tool calls with safety-aware parallelism.
@@ -202,15 +204,14 @@ func toolCallbackType(tool einotool.InvokableTool) string {
 }
 
 func emitToolCallLifecycle(ctx context.Context, call classifiedCall) error {
-	// TODO(phase7): restore context.OnToolCall event emission
-	_ = ctx
-	_ = domain.GetRunID(ctx)
-	_ = domain.SessionIDFromContext(ctx)
-	_ = domain.TurnIndexFromContext(ctx)
-	_ = call.toolCall.ID
-	_ = call.toolCall.Function.Name
-	_ = call.toolCall.Function.Arguments
-	return nil
+	return cp.OnToolCall(ctx, cp.ToolCallEvent{
+		RunID:     domain.GetRunID(ctx),
+		SessionID: domain.SessionIDFromContext(ctx),
+		TurnIndex: domain.TurnIndexFromContext(ctx),
+		CallID:    call.toolCall.ID,
+		ToolName:  call.toolCall.Function.Name,
+		Arguments: call.toolCall.Function.Arguments,
+	})
 }
 
 func emitToolResultLifecycle(ctx context.Context, msg *schema.Message) error {
@@ -235,20 +236,19 @@ func emitToolResultLifecycle(ctx context.Context, msg *schema.Message) error {
 			arguments = value
 		}
 	}
-	// TODO(phase7): restore context.OnToolResult event emission
-	_ = domain.GetRunID(ctx)
-	_ = domain.SessionIDFromContext(ctx)
-	_ = domain.TurnIndexFromContext(ctx)
-	_ = msg.ToolCallID
-	_ = msg.ToolName
-	_ = arguments
-	_ = msg.Content
-	_ = failed
-	_ = reason
-	_ = len(msg.Content) / 4
-	return nil
+	return cp.OnToolResult(ctx, cp.ToolResultEvent{
+		RunID:        domain.GetRunID(ctx),
+		SessionID:    domain.SessionIDFromContext(ctx),
+		TurnIndex:    domain.TurnIndexFromContext(ctx),
+		CallID:       msg.ToolCallID,
+		ToolName:     msg.ToolName,
+		Arguments:    arguments,
+		Result:       msg.Content,
+		IsError:      failed,
+		ErrorReason:  reason,
+		ResultTokens: len(msg.Content) / 4,
+	})
 }
-
 func markToolMessageFailed(msg *schema.Message, reason string) {
 	if msg == nil {
 		return
