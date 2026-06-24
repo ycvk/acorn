@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/ycvk/acorn/internal/core"
-	"github.com/ycvk/acorn/internal/store"
 )
 
 var (
@@ -108,7 +107,7 @@ func (s *DeviceAuthService) PairDevice(ctx context.Context, input PairDeviceInpu
 	}
 	now := s.now()
 	if _, err := s.store.ConsumePairingCode(ctx, hashSecret(code), now); err != nil {
-		if errors.Is(err, store.ErrPairingCodeNotFound) || errors.Is(err, store.ErrPairingCodeUsed) || errors.Is(err, store.ErrPairingCodeExpired) {
+		if errors.Is(err, core.ErrPairingCodeNotFound) || errors.Is(err, core.ErrPairingCodeUsed) || errors.Is(err, core.ErrPairingCodeExpired) {
 			return nil, ErrInvalidPairingCode
 		}
 		return nil, err
@@ -148,7 +147,7 @@ func (s *DeviceAuthService) Authenticate(ctx context.Context, rawToken string) (
 	}
 	device, err := s.store.LoadDeviceByTokenHash(ctx, hashSecret(token))
 	if err != nil {
-		if errors.Is(err, store.ErrDeviceNotFound) {
+		if errors.Is(err, core.ErrDeviceNotFound) {
 			return nil, ErrUnauthenticated
 		}
 		return nil, err
@@ -188,7 +187,7 @@ func (s *DeviceAuthService) RevokeDevice(ctx context.Context, deviceID string) e
 		return ErrDeviceNotFound
 	}
 	if err := s.store.RevokeDevice(ctx, trimmed, s.now()); err != nil {
-		if errors.Is(err, store.ErrDeviceNotFound) {
+		if errors.Is(err, core.ErrDeviceNotFound) {
 			return ErrDeviceNotFound
 		}
 		return err

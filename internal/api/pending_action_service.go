@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/ycvk/acorn/internal/core"
-	"github.com/ycvk/acorn/internal/store"
 )
 
 var ErrPendingActionDecisionInvalid = errors.New("pending action decision invalid")
@@ -69,7 +68,7 @@ func (s *PendingActionService) Get(ctx context.Context, actionID string) (*Pendi
 		return nil, err
 	}
 	if record.Status != core.PendingActionStatusPending {
-		return nil, fmt.Errorf("%w: status %q", store.ErrPendingActionDecided, record.Status)
+		return nil, fmt.Errorf("%w: status %q", core.ErrPendingActionDecided, record.Status)
 	}
 	run, err := s.store.LoadRun(ctx, record.RunID)
 	if err != nil {

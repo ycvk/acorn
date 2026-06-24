@@ -11,7 +11,6 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/auth"
 	"github.com/modelcontextprotocol/go-sdk/oauthex"
 	"github.com/ycvk/acorn/internal/core"
-	"github.com/ycvk/acorn/internal/store"
 	"golang.org/x/oauth2"
 )
 
@@ -86,7 +85,7 @@ func newPersistentOAuthHandler(store core.ArtifactStore, providerName, serverURL
 func (h *persistentOAuthHandler) TokenSource(ctx context.Context) (oauth2.TokenSource, error) {
 	token, err := h.store.GetOAuthToken(ctx, h.providerName)
 	if err != nil {
-		if errors.Is(err, store.ErrOAuthTokenNotFound) {
+		if errors.Is(err, core.ErrOAuthTokenNotFound) {
 			// No token yet — transport will trigger Authorize on 401
 			return nil, nil
 		}

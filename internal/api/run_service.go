@@ -14,7 +14,6 @@ import (
 	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/runtime"
-	"github.com/ycvk/acorn/internal/store"
 )
 
 var (
@@ -148,7 +147,7 @@ func (s *RunService) CreateRun(ctx context.Context, threadID, skillID, input str
 	} else {
 		message, err = s.store.LoadLatestUnboundUserMessage(ctx, threadID)
 		if err != nil {
-			if errors.Is(err, store.ErrSessionMessageNotFound) {
+			if errors.Is(err, core.ErrSessionMessageNotFound) {
 				return nil, fmt.Errorf("%w: thread %s", ErrClientNoPendingMessage, threadID)
 			}
 			return nil, err

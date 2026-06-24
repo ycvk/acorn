@@ -14,7 +14,6 @@ import (
 
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
-	"github.com/ycvk/acorn/internal/store"
 )
 
 const (
@@ -158,9 +157,9 @@ func decodeJSONBody(r *http.Request, out any) error {
 
 func (s *Server) respondClientKnownError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
-	case errors.Is(err, store.ErrSessionNotFound):
+	case errors.Is(err, core.ErrSessionNotFound):
 		s.respondError(w, r, http.StatusNotFound, "thread_not_found", err.Error())
-	case errors.Is(err, store.ErrRunNotFound):
+	case errors.Is(err, core.ErrRunNotFound):
 		s.respondError(w, r, http.StatusNotFound, "run_not_found", err.Error())
 	case errors.Is(err, ErrClientNoPendingMessage):
 		s.respondBadRequest(w, r, err.Error())

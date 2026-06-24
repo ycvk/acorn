@@ -102,15 +102,35 @@ func TestDependencyDirectionNoCycle(t *testing.T) {
 	}
 }
 
-// TestNoDirectStoreImportOutsideWire checks that packages outside wire/ and
-// store/ itself do not import internal/store directly. The only exception is
-// for sentinel error values (e.g., store.ErrDeviceNotFound) which are
-// referenced by name without using store types.
-//
-// This is a pragmatic guard: the ideal end-state is that all packages use
-// core.*Store or api.StoreView, but the current refactor still has
-// sentinel error references in api/ and internal/mcp/. These are tracked
-// as technical debt and should be migrated to core-level sentinels.
+// TestNoDirectStoreImportOutsideWire checks that packages outside wire/
+// do not import internal/store directly. Sentinel errors are now in core,
+// and ArtifactService is accessed via the core.ArtifactService interface.
 func TestNoDirectStoreImportOutsideWire(t *testing.T) {
-	t.Skip("known tech debt: api/ and internal/mcp/ still import store for sentinel errors — tracked for follow-up")
+	root := filepath.Join("..", "..", "internal")
+	violations := []string{}
+	filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return nil
+		}
+		name := d.Name()
+		if !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			return nil
+		}
+		rel, _ := filepath.Rel(root, path)
+		pkgDir := filepath.Dir(rel)
+		if pkgDir == "store" || pkgDir == "wire" {
+			return nil
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return nil
+		}
+		if strings.Contains(string(data), `"github.com/ycvk/acorn/internal/store"`) {
+			violations = append(violations, rel)
+		}
+		return nil
+	})
+	if len(violations) > 0 {
+		t.Fatalf("internal/store imported outside wire/ by: %s", strings.Join(violations, ", "))
+	}
 }

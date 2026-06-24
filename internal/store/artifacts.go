@@ -28,7 +28,7 @@ const (
 	ArtifactKindBinary     ArtifactKind = "binary"
 )
 
-var ErrArtifactNotFound = errors.New("artifact not found")
+var ErrArtifactNotFound = core.ErrArtifactNotFound
 
 // ArtifactStore is the internal interface used by ArtifactService to persist
 // artifact metadata. The Store type implements it via SaveArtifact/LoadArtifact.
@@ -43,6 +43,9 @@ type ArtifactService struct {
 	rootDir string
 	store   ArtifactStore
 }
+
+
+var _ core.ArtifactService = (*ArtifactService)(nil)
 
 func NewArtifactService(rootDir string, store ArtifactStore) (*ArtifactService, error) {
 	rootDir = strings.TrimSpace(rootDir)

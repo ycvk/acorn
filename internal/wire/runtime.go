@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 
 	"github.com/ycvk/acorn/internal/api"
 	"github.com/ycvk/acorn/internal/config"
@@ -11,11 +12,12 @@ import (
 	"github.com/ycvk/acorn/internal/memory"
 	"github.com/ycvk/acorn/internal/runtime"
 	"github.com/ycvk/acorn/internal/skills"
+	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/workspace"
 )
 
 // containerRuntimeStore is the store contract required by the runtime container
-// wiring. It composes RunnerFactoryStore with the context-plane store,
+// wiring. It composes RunnerFactoryStore with the context-plane db,
 // session-summary, and the app-facing api.StoreView (which subsumes the
 // former pending-action-create port).
 type containerRuntimeStore interface {
@@ -47,13 +49,13 @@ type containerRuntimeDeps struct {
 	executors             func(context.Context) (api.ExecutorHandle, error)
 }
 
-func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, store containerRuntimeStore) (*containerRuntimeDeps, error) {
+func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *store.Store) (*containerRuntimeDeps, error) {
 	ws, err := cfg.Workspace()
 	if err != nil {
 		return nil, err
 	}
 	loader := skills.NewLoader(cfg)
-	sessionSummaryService := core.NewSessionSummaryService(store, 2000)
+	sessionSummaryService := core.NewSessionSummaryService(db, 2000)
 	memoryModule, err := buildMemoryService(ctx, cfg)
 	if err != nil {
 		return nil, err
@@ -63,21 +65,30 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, store co
 		return nil, err
 	}
 
-	mcpPendingActionStore := api.StoreView(store)
+	mcpPendingActionStore := api.StoreView(db)
 
-	runnerFactory, err := runtime.NewRunnerFactory(cfg, store, runtime.RunnerFactoryOptions{
+	artifactSvc, err := store.NewArtifactService(
+		filepath.Join(cfg.Runtime.StorageDir, "artifacts"),
+		db,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("artifact service: %w", err)
+	}
+
+	runnerFactory, err := runtime.NewRunnerFactory(cfg, db, runtime.RunnerFactoryOptions{
 		Loader:                loader,
 		Workspace:             ws,
 		SessionSummaryService: sessionSummaryService,
 		MemoryModule:          memoryModule,
 		ContextPlane:          contextPlane,
 		MCPPendingActionStore: mcpPendingActionStore,
+		ArtifactService:       artifactSvc,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("init runner factory: %w", err)
 	}
 	runController := runtime.NewRunController()
-	executors := newExecutorFactory(cfg, store, runnerFactory, runController)
+	executors := newExecutorFactory(cfg, db, runnerFactory, runController)
 
 	return &containerRuntimeDeps{
 		ws:                    ws,
@@ -151,3 +162,4 @@ func executorRunResultFromRuntime(result *runtime.Result) (*api.ExecutorRunResul
 		Interrupted: result.Interrupted,
 	}, nil
 }
+

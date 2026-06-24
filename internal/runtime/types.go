@@ -17,7 +17,6 @@ import (
 	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/memory"
 	"github.com/ycvk/acorn/internal/skills"
-	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/tools"
 	"github.com/ycvk/acorn/internal/workspace"
 )
@@ -126,7 +125,7 @@ type RuntimeDeps struct {
 	ContextPlane      Plane
 	MCPPendingActions core.SessionStore
 	Workspace         *workspace.Workspace
-	ArtifactService   *store.ArtifactService
+	ArtifactService   core.ArtifactService
 	ExtraLocalTools   []einotool.BaseTool
 	Handlers          []adk.ChatModelAgentMiddleware
 	// ToolBuilder overrides the default audited tool builder for testing.

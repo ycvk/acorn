@@ -18,10 +18,8 @@ import (
 	mcpprovider "github.com/ycvk/acorn/internal/mcp"
 	"github.com/ycvk/acorn/internal/memory"
 	"github.com/ycvk/acorn/internal/skills"
-	corestore "github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/tools"
 	"github.com/ycvk/acorn/internal/workspace"
-	"path/filepath"
 	"sync/atomic"
 )
 
@@ -181,10 +179,7 @@ func buildRuntimeDeps(cfg *config.Config, store RunnerFactoryStore, opts RunnerF
 	if err != nil {
 		return RuntimeDeps{}, fmt.Errorf("workspace: %w", err)
 	}
-	artifactService, err := buildArtifactService(cfg, store)
-	if err != nil {
-		return RuntimeDeps{}, fmt.Errorf("artifact service: %w", err)
-	}
+	artifactService := opts.ArtifactService
 	if opts.MemoryModule == nil {
 		return RuntimeDeps{}, errors.New("memory module is required")
 	}
@@ -210,7 +205,7 @@ func resolveContextPlane(cfg *config.Config, store RunnerFactoryStore, opts Runn
 	return buildDefaultContextPlane(cfg, store, opts)
 }
 
-func assembleRuntimeDeps(cfg *config.Config, store RunnerFactoryStore, opts RunnerFactoryOptions, ws *workspace.Workspace, loader *skills.Loader, artifactService *corestore.ArtifactService, contextPlane Plane) RuntimeDeps {
+func assembleRuntimeDeps(cfg *config.Config, store RunnerFactoryStore, opts RunnerFactoryOptions, ws *workspace.Workspace, loader *skills.Loader, artifactService core.ArtifactService, contextPlane Plane) RuntimeDeps {
 	return RuntimeDeps{
 		Config:            cfg,
 		Store:             store,
@@ -231,20 +226,6 @@ func resolveWorkspace(cfg *config.Config, override *workspace.Workspace) (*works
 		return override, nil
 	}
 	return cfg.Workspace()
-}
-
-func buildArtifactService(cfg *config.Config, store RunnerFactoryStore) (*corestore.ArtifactService, error) {
-	if cfg == nil {
-		return nil, errors.New("config is required")
-	}
-	if strings.TrimSpace(cfg.Runtime.StorageDir) == "" {
-		return nil, errors.New("storage_dir is required")
-	}
-	artifactStore, ok := store.(corestore.ArtifactStore)
-	if !ok {
-		return nil, errors.New("store must implement corestore.ArtifactStore")
-	}
-	return corestore.NewArtifactService(filepath.Join(cfg.Runtime.StorageDir, "artifacts"), artifactStore)
 }
 
 func buildDefaultContextPlane(cfg *config.Config, store RunnerFactoryStore, opts RunnerFactoryOptions) (Plane, error) {
@@ -431,6 +412,7 @@ type RunnerFactoryOptions struct {
 	MemoryModule          memory.Service
 	ContextPlane          Plane
 	MCPPendingActionStore core.SessionStore
+	ArtifactService      core.ArtifactService
 }
 
 // RunnerBuildRequest holds the parameters for building a new run.

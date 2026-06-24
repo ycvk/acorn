@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"github.com/ycvk/acorn/internal/core"
-	"github.com/ycvk/acorn/internal/store"
 )
 
 func (s *Server) respondKnownError(w http.ResponseWriter, r *http.Request, err error) {
@@ -18,15 +17,15 @@ func (s *Server) respondKnownError(w http.ResponseWriter, r *http.Request, err e
 		s.respondError(w, r, http.StatusBadRequest, "invalid_pairing_code", err.Error())
 	case errors.Is(err, ErrDeviceNotFound):
 		s.respondNotFound(w, r, "device_not_found", err.Error())
-	case errors.Is(err, store.ErrSessionNotFound):
+	case errors.Is(err, core.ErrSessionNotFound):
 		s.respondNotFound(w, r, "session_not_found", err.Error())
-	case errors.Is(err, store.ErrRunNotFound):
+	case errors.Is(err, core.ErrRunNotFound):
 		s.respondNotFound(w, r, "run_not_found", err.Error())
-	case errors.Is(err, store.ErrPendingActionNotFound):
+	case errors.Is(err, core.ErrPendingActionNotFound):
 		s.respondNotFound(w, r, "pending_action_not_found", err.Error())
-	case errors.Is(err, store.ErrPendingActionDecided):
+	case errors.Is(err, core.ErrPendingActionDecided):
 		s.respondConflict(w, r, "pending_action_already_decided", err.Error())
-	case errors.Is(err, store.ErrFactNotFound):
+	case errors.Is(err, core.ErrFactNotFound):
 		s.respondNotFound(w, r, "fact_not_found", err.Error())
 	case errors.Is(err, ErrSkillAlreadyExists):
 		s.respondConflict(w, r, "skill_already_exists", err.Error())
