@@ -29,6 +29,7 @@ var (
 type Store struct {
 	db          *sql.DB
 	artifactDir string
+	artifactSvc *ArtifactService
 }
 
 const fixedTimestampLayout = "2006-01-02T15:04:05.000000000Z07:00"
@@ -53,8 +54,13 @@ func Open(dir string) (*Store, error) {
 		_ = db.Close()
 		return nil, fmt.Errorf("create artifact dir: %w", err)
 	}
-
 	store := &Store{db: db, artifactDir: artifactDir}
+	artifactSvc, err := NewArtifactService(artifactDir, store)
+	if err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("create artifact service: %w", err)
+	}
+	store.artifactSvc = artifactSvc
 	if err := store.configure(); err != nil {
 		_ = db.Close()
 		return nil, err

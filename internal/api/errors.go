@@ -28,7 +28,6 @@ func (s *Server) respondKnownError(w http.ResponseWriter, r *http.Request, err e
 		s.respondConflict(w, r, "pending_action_already_decided", err.Error())
 	case errors.Is(err, store.ErrFactNotFound):
 		s.respondNotFound(w, r, "fact_not_found", err.Error())
-		s.respondNotFound(w, r, "plan_not_found", err.Error())
 	case errors.Is(err, ErrSkillAlreadyExists):
 		s.respondConflict(w, r, "skill_already_exists", err.Error())
 	case errors.Is(err, ErrSkillNotFound):

@@ -47,7 +47,6 @@ func projectRunStatus(status domain.RunStatus) (string, error) {
 type Run struct {
 	ID          string
 	ThreadID    string
-	SkillID     string
 	Status      string
 	Mode        string
 	CreatedAt   time.Time

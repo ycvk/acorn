@@ -51,12 +51,6 @@ type OAuthToken struct {
 	UpdatedAt    time.Time
 }
 
-// OwnerProfile represents an owner profile record.
-type OwnerProfile struct {
-	OwnerID   string
-	CreatedAt time.Time
-}
-
 // ArtifactWriteRequest holds parameters for writing an artifact.
 type ArtifactWriteRequest struct {
 	ArtifactID          string

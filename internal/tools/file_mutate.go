@@ -35,20 +35,20 @@ func buildCreateFileTool(ws WorkspaceView) (einotool.BaseTool, error) {
 			return CreateFileOutput{}, err
 		}
 		if err := emitToolProgress(ctx, emit, fmt.Sprintf("checkpoint %s for %s", checkpoint.CheckpointID, filepath.ToSlash(input.Path))); err != nil {
-			return CreateFileOutput{}, err
+			return CreateFileOutput{}, rollbackCheckpoint(ctx, ws, checkpoint.CheckpointID, err)
 		}
 		if err := os.MkdirAll(filepath.Dir(resolved), 0o755); err != nil {
-			return CreateFileOutput{}, fmt.Errorf("prepare parent dir: %w", err)
+			return CreateFileOutput{}, rollbackCheckpoint(ctx, ws, checkpoint.CheckpointID, fmt.Errorf("prepare parent dir: %w", err))
 		}
 		if err := os.WriteFile(resolved, []byte(input.Content), 0o644); err != nil {
-			return CreateFileOutput{}, fmt.Errorf("write file %s: %w", resolved, err)
+			return CreateFileOutput{}, rollbackCheckpoint(ctx, ws, checkpoint.CheckpointID, fmt.Errorf("write file %s: %w", resolved, err))
 		}
 		if err := emitToolProgress(ctx, emit, fmt.Sprintf("wrote %s (%d bytes)", filepath.ToSlash(resolved), len(input.Content))); err != nil {
-			return CreateFileOutput{}, err
+			return CreateFileOutput{}, rollbackCheckpoint(ctx, ws, checkpoint.CheckpointID, err)
 		}
 		body, err := os.ReadFile(resolved)
 		if err != nil {
-			return CreateFileOutput{}, fmt.Errorf("verify file %s: %w", resolved, err)
+			return CreateFileOutput{}, rollbackCheckpoint(ctx, ws, checkpoint.CheckpointID, fmt.Errorf("verify file %s: %w", resolved, err))
 		}
 		completed, err := ws.CompleteMutationCheckpoint(ctx, checkpoint.CheckpointID)
 		if err != nil {
@@ -102,7 +102,7 @@ func buildReplaceSpanTool(ws WorkspaceView) (einotool.BaseTool, error) {
 			return ReplaceSpanOutput{}, err
 		}
 		if err := emitToolProgress(ctx, emit, fmt.Sprintf("checkpoint %s for %s:%d-%d", checkpoint.CheckpointID, filepath.ToSlash(input.Path), startLine, endLine)); err != nil {
-			return ReplaceSpanOutput{}, err
+			return ReplaceSpanOutput{}, rollbackCheckpoint(ctx, ws, checkpoint.CheckpointID, err)
 		}
 		startByte := offsets[startLine-1]
 		endByte := len(body)
@@ -113,10 +113,10 @@ func buildReplaceSpanTool(ws WorkspaceView) (einotool.BaseTool, error) {
 		replaced = append(replaced, []byte(input.Replacement)...)
 		replaced = append(replaced, body[endByte:]...)
 		if err := os.WriteFile(resolved, replaced, 0o644); err != nil {
-			return ReplaceSpanOutput{}, fmt.Errorf("write file %s: %w", resolved, err)
+			return ReplaceSpanOutput{}, rollbackCheckpoint(ctx, ws, checkpoint.CheckpointID, fmt.Errorf("write file %s: %w", resolved, err))
 		}
 		if err := emitToolProgress(ctx, emit, fmt.Sprintf("replaced %s:%d-%d", filepath.ToSlash(resolved), startLine, endLine)); err != nil {
-			return ReplaceSpanOutput{}, err
+			return ReplaceSpanOutput{}, rollbackCheckpoint(ctx, ws, checkpoint.CheckpointID, err)
 		}
 		completed, err := ws.CompleteMutationCheckpoint(ctx, checkpoint.CheckpointID)
 		if err != nil {
@@ -197,19 +197,19 @@ func buildApplyUnifiedPatchTool(ws WorkspaceView) (einotool.BaseTool, error) {
 			return ApplyUnifiedPatchOutput{}, err
 		}
 		if err := emitToolProgress(ctx, emit, fmt.Sprintf("checkpoint %s for %s", checkpoint.CheckpointID, strings.Join(normalizedPaths, ", "))); err != nil {
-			return ApplyUnifiedPatchOutput{}, err
+			return ApplyUnifiedPatchOutput{}, rollbackCheckpoint(ctx, ws, checkpoint.CheckpointID, err)
 		}
 		if _, err := runGitCommand(ctx, ws.Root(), "apply", "--recount", patchPath); err != nil {
-			return ApplyUnifiedPatchOutput{}, err
+			return ApplyUnifiedPatchOutput{}, rollbackCheckpoint(ctx, ws, checkpoint.CheckpointID, err)
 		}
 		if err := emitToolProgress(ctx, emit, fmt.Sprintf("applied patch to %s", strings.Join(normalizedPaths, ", "))); err != nil {
-			return ApplyUnifiedPatchOutput{}, err
+			return ApplyUnifiedPatchOutput{}, rollbackCheckpoint(ctx, ws, checkpoint.CheckpointID, err)
 		}
 		statArgs := []string{"diff", "--stat", "--"}
 		statArgs = append(statArgs, normalizedPaths...)
 		diffStat, err := runGitCommand(ctx, ws.Root(), statArgs...)
 		if err != nil {
-			return ApplyUnifiedPatchOutput{}, err
+			return ApplyUnifiedPatchOutput{}, rollbackCheckpoint(ctx, ws, checkpoint.CheckpointID, err)
 		}
 		completed, err := ws.CompleteMutationCheckpoint(ctx, checkpoint.CheckpointID)
 		if err != nil {
@@ -434,4 +434,13 @@ func normalizeScopedRelativePath(ws WorkspaceView, value string) (string, error)
 		return "", err
 	}
 	return filepath.ToSlash(rel), nil
+}
+
+// rollbackCheckpoint rolls back a mutation checkpoint after a failed write,
+// joining any rollback error with the original failure so neither is lost.
+func rollbackCheckpoint(ctx context.Context, ws WorkspaceView, checkpointID string, cause error) error {
+	if _, rollbackErr := ws.RollbackMutationCheckpoint(ctx, checkpointID); rollbackErr != nil {
+		return errors.Join(cause, fmt.Errorf("rollback checkpoint %s: %w", checkpointID, rollbackErr))
+	}
+	return cause
 }

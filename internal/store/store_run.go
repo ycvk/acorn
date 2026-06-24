@@ -208,5 +208,8 @@ func scanEventRows(rows *sql.Rows, runID string) ([]domain.EventRecord, error) {
 		}
 		items = append(items, domain.EventRecord{Sequence: seq, RunID: runID, Kind: kind, Payload: body, CreatedAt: parsed})
 	}
-	return items, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("query events: %w", err)
+	}
+	return items, nil
 }

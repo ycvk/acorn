@@ -39,13 +39,13 @@ func runMultiEdit(ctx context.Context, ws WorkspaceView, input MultiEditInput, e
 		return MultiEditOutput{}, err
 	}
 	if err := emitToolProgress(ctx, emit, fmt.Sprintf("checkpoint %s for %s", checkpoint.CheckpointID, strings.Join(paths, ", "))); err != nil {
-		return MultiEditOutput{}, err
+		return MultiEditOutput{}, rollbackCheckpoint(ctx, ws, checkpoint.CheckpointID, err)
 	}
 	if err := applyMultiEditPlans(plans); err != nil {
-		return MultiEditOutput{}, err
+		return MultiEditOutput{}, rollbackCheckpoint(ctx, ws, checkpoint.CheckpointID, err)
 	}
 	if err := emitToolProgress(ctx, emit, fmt.Sprintf("applied %d edit(s) to %d path(s)", len(appliedEdits), len(paths))); err != nil {
-		return MultiEditOutput{}, err
+		return MultiEditOutput{}, rollbackCheckpoint(ctx, ws, checkpoint.CheckpointID, err)
 	}
 	completed, err := ws.CompleteMutationCheckpoint(ctx, checkpoint.CheckpointID)
 	if err != nil {

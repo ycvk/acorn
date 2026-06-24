@@ -152,28 +152,14 @@ func scanArtifact(scanner interface{ Scan(dest ...any) error }) (domain.Artifact
 	return NormalizeArtifactRecord(record)
 }
 
-// artifactService returns an ArtifactService backed by this store's database
-// and artifact directory, used to implement port.ArtifactRepo file I/O.
-func (s *Store) artifactService() (*ArtifactService, error) {
-	return NewArtifactService(s.artifactDir, s)
-}
-
 // WriteArtifact implements port.ArtifactRepo. It writes the artifact content
 // to the filesystem and persists the metadata record in the artifacts table.
 func (s *Store) WriteArtifact(ctx context.Context, req domain.ArtifactWriteRequest) (domain.ArtifactRecord, error) {
-	svc, err := s.artifactService()
-	if err != nil {
-		return domain.ArtifactRecord{}, err
-	}
-	return svc.WriteArtifact(ctx, req)
+	return s.artifactSvc.WriteArtifact(ctx, req)
 }
 
 // ReadArtifactRange implements port.ArtifactRepo. It reads a byte range from
 // the artifact content file on the filesystem.
 func (s *Store) ReadArtifactRange(ctx context.Context, req domain.ArtifactReadRangeRequest) (domain.ArtifactReadRangeResult, error) {
-	svc, err := s.artifactService()
-	if err != nil {
-		return domain.ArtifactReadRangeResult{}, err
-	}
-	return svc.ReadArtifactRange(ctx, req)
+	return s.artifactSvc.ReadArtifactRange(ctx, req)
 }

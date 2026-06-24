@@ -122,13 +122,29 @@ func (s *Store) ListSessions(ctx context.Context, limit int) ([]domain.SessionRe
 }
 
 func (s *Store) DeleteSession(ctx context.Context, sessionID string) error {
-	if _, err := s.db.ExecContext(ctx, `DELETE FROM session_messages WHERE session_id = ?`, sessionID); err != nil {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer func() {
+		if tx == nil {
+			return
+		}
+		rollbackErr := tx.Rollback()
+		if rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
+			err = errors.Join(err, fmt.Errorf("delete session rollback: %w", rollbackErr))
+		}
+	}()
+	if _, err := tx.ExecContext(ctx, `DELETE FROM session_messages WHERE session_id = ?`, sessionID); err != nil {
 		return fmt.Errorf("delete session_messages: %w", err)
 	}
-
-	if _, err := s.db.ExecContext(ctx, `DELETE FROM sessions WHERE session_id = ?`, sessionID); err != nil {
+	if _, err := tx.ExecContext(ctx, `DELETE FROM sessions WHERE session_id = ?`, sessionID); err != nil {
 		return fmt.Errorf("delete sessions: %w", err)
 	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit delete session: %w", err)
+	}
+	tx = nil
 	return nil
 }
 

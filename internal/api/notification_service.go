@@ -27,9 +27,6 @@ func (s *InboxService) projectRunSummary(ctx context.Context, record domain.RunR
 	if err != nil {
 		return RunSummary{}, err
 	}
-	if err != nil {
-		return RunSummary{}, err
-	}
 	session, err := s.store.LoadSession(ctx, record.SessionID)
 	if err != nil {
 		return RunSummary{}, err

@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 )
 
@@ -216,14 +217,19 @@ func (s *Store) dropArchitecturalRefactorTables() (err error) {
 }
 
 // migrationApplied reports whether a schema migration version has already been
-// recorded in schema_migrations.
+// recorded in schema_migrations. A missing schema_migrations table on a fresh
+// database is benign (the migrations have not run yet); any other scan error
+// is surfaced so a real failure is not silently treated as "not applied".
 func migrationApplied(db *sql.DB, version string) bool {
 	var count int
 	row := db.QueryRow("SELECT COUNT(*) FROM schema_migrations WHERE version = ?", version)
-	if err := row.Scan(&count); err == nil && count > 0 {
-		return true
+	if err := row.Scan(&count); err != nil {
+		if !strings.Contains(err.Error(), "no such table") {
+			slog.Error("migrationApplied: unexpected schema_migrations scan error", "version", version, "error", err)
+		}
+		return false
 	}
-	return false
+	return count > 0
 }
 
 // execDropStatements runs each DROP statement in a slice within the given tx.
