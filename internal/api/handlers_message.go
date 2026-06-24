@@ -12,7 +12,7 @@ func (s *Server) handleClientListMessages(w http.ResponseWriter, r *http.Request
 		s.respondBadRequest(w, r, err.Error())
 		return
 	}
-	items, err := s.client.ListMessages(r.Context(), chi.URLParam(r, "thread_id"), limit)
+	items, err := s.threads.ListMessages(r.Context(), chi.URLParam(r, "thread_id"), limit)
 	if err != nil {
 		s.respondClientKnownError(w, r, err)
 		return
@@ -25,7 +25,7 @@ func (s *Server) handleClientCreateMessage(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
-	item, err := s.client.CreateMessage(r.Context(), chi.URLParam(r, "thread_id"), req.Content.Text)
+	item, err := s.threads.CreateMessage(r.Context(), chi.URLParam(r, "thread_id"), req.Content.Text)
 	if err != nil {
 		s.respondClientKnownError(w, r, err)
 		return

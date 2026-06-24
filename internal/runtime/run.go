@@ -14,7 +14,7 @@ import (
 	"github.com/ycvk/acorn/internal/memory"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
 	"github.com/ycvk/acorn/internal/skills"
-	"github.com/ycvk/acorn/internal/toolkit"
+	"github.com/ycvk/acorn/internal/tools"
 	"github.com/ycvk/acorn/internal/workspace"
 )
 
@@ -50,15 +50,15 @@ func (f *RunnerFactory) newDirectResponseRunner(ctx context.Context, req RunnerB
 		return nil, errors.New("run capabilities are required")
 	}
 	capabilities := capabilityAssembly.capabilities
-	memoryPrepared, err := f.prepareRunMemory(ctx, req)
+	memoryPrepared, err := f.contextAsm.prepareRunMemory(ctx, req)
 	if err != nil {
 		return nil, err
 	}
-	contextResult, err := f.assembleContext(ctx, req, capabilities, nil, memoryPrepared)
+	contextResult, err := f.contextAsm.assembleContext(ctx, req, capabilities, nil, memoryPrepared)
 	if err != nil {
 		return nil, err
 	}
-	agentAssembly, err := f.buildAssembly(ctx, req, capabilities.catalog, chatModel, contextResult)
+	agentAssembly, err := f.contextAsm.buildAssembly(ctx, req, capabilities.catalog, chatModel, contextResult)
 	if err != nil {
 		return nil, err
 	}
@@ -108,7 +108,7 @@ type ActiveRunner struct {
 	ContextResult  *contextplane.AssembleResult
 	ContextSession contextplane.ContextSession
 	RunID          string
-	ToolCatalog    *toolkit.Catalog
+	ToolCatalog    *tools.Catalog
 	CloseRunTools  func() error
 }
 
@@ -125,7 +125,7 @@ func (f *RunnerFactory) registerRunForBuild(req RunnerBuildRequest) (func(), err
 }
 
 func (f *RunnerFactory) buildRunPrerequisites(ctx context.Context, req RunnerBuildRequest) (einomodel.BaseChatModel, *capabilityAssembly, error) {
-	chatModel, err := f.buildRunChatModel(ctx, req)
+	chatModel, err := f.modelBuilder.buildRunChatModel(ctx, req)
 	if err != nil {
 		return nil, nil, err
 	}

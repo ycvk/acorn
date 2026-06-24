@@ -5,16 +5,16 @@ import (
 	"strings"
 
 	"github.com/cloudwego/eino/schema"
-	"github.com/ycvk/acorn/internal/toolkit"
+	"github.com/ycvk/acorn/internal/tools"
 )
 
 type toolExecutionScheduler struct {
-	resolver    toolkit.ExecutionPolicyResolver
+	resolver    tools.ExecutionPolicyResolver
 	maxParallel int
 	knownTools  map[string]struct{}
 }
 
-func newToolExecutionScheduler(resolver toolkit.ExecutionPolicyResolver, maxParallel int, knownTools map[string]struct{}) *toolExecutionScheduler {
+func newToolExecutionScheduler(resolver tools.ExecutionPolicyResolver, maxParallel int, knownTools map[string]struct{}) *toolExecutionScheduler {
 	if maxParallel < 1 {
 		maxParallel = 1
 	}
@@ -35,7 +35,7 @@ func newToolExecutionScheduler(resolver toolkit.ExecutionPolicyResolver, maxPara
 type classifiedCall struct {
 	index    int
 	toolCall schema.ToolCall
-	safety   toolkit.ParallelPolicy
+	safety   tools.ParallelPolicy
 	argsErr  string
 	paths    []string
 }

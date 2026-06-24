@@ -10,14 +10,14 @@ func TestProjectStreamItemToEventProjectsSkillPayload(t *testing.T) {
 	kind, payload := mustProjectStreamItemToEvent(t, domain.StreamItem{
 		RunID: "run_5",
 		Kind:  domain.StreamKindSkillSelected,
-		Payload: map[string]any{"skill": &StreamSkill{
+		Payload: map[string]any{"skill": &domain.StreamSkill{
 			SelectedID:   "skill.inspect.repo",
 			Name:         "Inspect Repo",
 			Source:       "workspace",
 			Path:         "/tmp/skills/inspect_repo",
 			Instruction:  "Read README.md first.",
 			Scripts:      []string{"scripts/quick_map.sh"},
-			Requirements: StreamSkillRequirements{Tools: []string{"read_file", "run_command"}},
+			Requirements: domain.StreamSkillRequirements{Tools: []string{"read_file", "run_command"}},
 			Score:        145,
 		}},
 	})
@@ -25,7 +25,7 @@ func TestProjectStreamItemToEventProjectsSkillPayload(t *testing.T) {
 		t.Fatalf("kind = %q, want skill.selected", kind)
 	}
 	body := payload.(map[string]any)
-	skill := ItemGetSkill(domain.StreamItem{Payload: body})
+	skill := domain.ItemGetSkill(domain.StreamItem{Payload: body})
 	if skill == nil {
 		t.Fatalf("unexpected payload: %#v", body)
 	}
@@ -44,9 +44,9 @@ func TestProjectStreamItemToEventProjectsNoSelectionReason(t *testing.T) {
 	kind, payload := mustProjectStreamItemToEvent(t, domain.StreamItem{
 		RunID: "run_5b",
 		Kind:  domain.StreamKindSkillDiscovered,
-		Payload: map[string]any{"skill": &StreamSkill{
+		Payload: map[string]any{"skill": &domain.StreamSkill{
 			NoSelectionReason: "no_eligible_match",
-			Candidates: []StreamSkillCandidate{
+			Candidates: []domain.StreamSkillCandidate{
 				{ID: "skill.inspect.repo", FilteredReason: "missing_required_tools:read_file"},
 			},
 		}},
@@ -55,7 +55,7 @@ func TestProjectStreamItemToEventProjectsNoSelectionReason(t *testing.T) {
 		t.Fatalf("kind = %q, want skill.discovered", kind)
 	}
 	body := payload.(map[string]any)
-	skill := ItemGetSkill(domain.StreamItem{Payload: body})
+	skill := domain.ItemGetSkill(domain.StreamItem{Payload: body})
 	if skill == nil {
 		t.Fatalf("unexpected payload: %#v", body)
 	}
@@ -74,7 +74,7 @@ func TestProjectStreamItemToEventProjectsSkillFailureReason(t *testing.T) {
 	kind, payload := mustProjectStreamItemToEvent(t, domain.StreamItem{
 		RunID: "run_6",
 		Kind:  domain.StreamKindSkillFailed,
-		Payload: map[string]any{"skill": &StreamSkill{
+		Payload: map[string]any{"skill": &domain.StreamSkill{
 			SelectedID:    "skill.inspect.repo",
 			FailureReason: "missing_output_term:entrypoint",
 		}},
@@ -83,7 +83,7 @@ func TestProjectStreamItemToEventProjectsSkillFailureReason(t *testing.T) {
 		t.Fatalf("kind = %q, want skill.failed", kind)
 	}
 	body := payload.(map[string]any)
-	skill := ItemGetSkill(domain.StreamItem{Payload: body})
+	skill := domain.ItemGetSkill(domain.StreamItem{Payload: body})
 	if skill == nil {
 		t.Fatalf("unexpected payload: %#v", body)
 	}

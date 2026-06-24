@@ -109,12 +109,12 @@ func TestProjectStreamItemToEvent(t *testing.T) {
 		},
 		{
 			name:     "tool_call_started",
-			item:     domain.StreamItem{Kind: domain.StreamKindToolCallStarted, Payload: map[string]any{"tool_call": &StreamToolCall{Name: "t1", CallID: "c1"}}},
+			item:     domain.StreamItem{Kind: domain.StreamKindToolCallStarted, Payload: map[string]any{"tool_call": &domain.StreamToolCall{Name: "t1", CallID: "c1"}}},
 			wantKind: "tool.call.started",
 		},
 		{
 			name:     "assistant_message",
-			item:     domain.StreamItem{Kind: domain.StreamKindAssistantMessage, Payload: map[string]any{"message": &StreamMessage{Content: "hi"}}},
+			item:     domain.StreamItem{Kind: domain.StreamKindAssistantMessage, Payload: map[string]any{"message": &domain.StreamMessage{Content: "hi"}}},
 			wantKind: "agent.message",
 		},
 	}

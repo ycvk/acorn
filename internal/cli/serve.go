@@ -38,7 +38,9 @@ func runServe(ctx context.Context, args []string) error {
 	defer container.Close()
 
 	handler, err := api.NewHandler(api.Dependencies{
-		Client:        container.Client(),
+		Threads:       container.Threads(),
+		Runs:          container.Runs(),
+		Events:        container.Events(),
 		PendingAction: container.PendingAction(),
 		RunResume:     container.RunResume(),
 		Memory:        container.Memory(),

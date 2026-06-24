@@ -16,8 +16,7 @@ var refactorOwnedDirs = []string{
 	"internal/runtime/tooldispatch",
 	"internal/runtime/factextract",
 	"internal/stream",
-	"internal/toolset",
-	"internal/toolkit",
+	"internal/tools",
 	"internal/contextplane",
 
 	"internal/memory",

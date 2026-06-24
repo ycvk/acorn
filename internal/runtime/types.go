@@ -20,8 +20,7 @@ import (
 	"github.com/ycvk/acorn/internal/runtime/tooldispatch"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/store"
-	"github.com/ycvk/acorn/internal/stream"
-	"github.com/ycvk/acorn/internal/toolkit"
+	"github.com/ycvk/acorn/internal/tools"
 	"github.com/ycvk/acorn/internal/workspace"
 )
 
@@ -45,7 +44,7 @@ func newSessionID() string {
 	return fmt.Sprintf("session_%d", time.Now().UTC().UnixNano())
 }
 
-func InterruptPayloadFromStream(interrupt *stream.StreamInterrupt) map[string]any {
+func InterruptPayloadFromStream(interrupt *domain.StreamInterrupt) map[string]any {
 	if interrupt == nil {
 		return nil
 	}
@@ -149,10 +148,10 @@ type RuntimeDeps struct {
 
 	// ToolBuilder overrides the default audited tool builder for testing.
 	// nil means use BuildAuditedTools.
-	ToolBuilder func(ctx context.Context, store RunnerFactoryStore, specs []toolkit.ToolSpec, excludedToolNames []string, allowedToolNames []string, runID string) ([]einotool.BaseTool, error)
+	ToolBuilder func(ctx context.Context, store RunnerFactoryStore, specs []tools.ToolSpec, excludedToolNames []string, allowedToolNames []string, runID string) ([]einotool.BaseTool, error)
 	// ToolNodeFactory overrides the default safe parallel tools node for testing.
 	// nil means use NewSafeParallelToolsNode.
-	ToolNodeFactory func(ctx context.Context, tools []einotool.BaseTool, resolver toolkit.ExecutionPolicyResolver) (tooldispatch.ToolInvoker, error)
+	ToolNodeFactory func(ctx context.Context, tools []einotool.BaseTool, resolver tools.ExecutionPolicyResolver) (tooldispatch.ToolInvoker, error)
 	// CheckpointStore overrides the default in-memory checkpoint store for testing.
 	CheckpointStore adk.CheckPointStore
 }
@@ -360,8 +359,8 @@ type DirectResponseRequest struct {
 	SessionID         string
 	RunID             string
 	ChatModel         einomodel.BaseChatModel
-	AssistantStreamer stream.AssistantStreamer
-	Catalog           *toolkit.Catalog
+	AssistantStreamer domain.AssistantStreamer
+	Catalog           *tools.Catalog
 	ContextResult     AssembleResultView
 	AllowedToolNames  []string
 	ExcludedToolNames []string

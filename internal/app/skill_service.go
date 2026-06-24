@@ -9,7 +9,7 @@ import (
 
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/skills"
-	"github.com/ycvk/acorn/internal/toolkit"
+	"github.com/ycvk/acorn/internal/tools"
 )
 
 type SkillService struct {
@@ -221,7 +221,7 @@ func environmentMap() map[string]string {
 }
 
 func localEligibilityToolNames(cfg *config.Config) []string {
-	specs := toolkit.ConfiguredLocalSpecs(cfg)
+	specs := tools.ConfiguredLocalSpecs(cfg)
 	names := make([]string, 0, len(specs)+11)
 	seen := make(map[string]struct{}, len(specs)+11)
 	for _, spec := range specs {
@@ -233,7 +233,7 @@ func localEligibilityToolNames(cfg *config.Config) []string {
 			names = append(names, spec.Name)
 		}
 	}
-	for _, name := range toolkit.BuiltinToolNames() {
+	for _, name := range tools.BuiltinToolNames() {
 		if _, ok := seen[name]; ok {
 			continue
 		}

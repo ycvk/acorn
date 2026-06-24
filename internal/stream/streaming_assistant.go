@@ -16,7 +16,7 @@ func streamAssistantInterleaved(
 	model einomodel.BaseChatModel,
 	messages []*schema.Message,
 	opts assistantStreamOptions,
-) *InterleavedStream {
+) *domain.InterleavedStream {
 	streamOpts := make([]einomodel.Option, 0, 1)
 	if len(opts.ToolInfos) > 0 {
 		streamOpts = append(streamOpts, einomodel.WithTools(opts.ToolInfos))
@@ -27,9 +27,9 @@ func streamAssistantInterleaved(
 	}
 	modelStream, err := model.Stream(domain.WithCallSite(ctx, callSite), messages, streamOpts...)
 
-	s := &InterleavedStream{
+	s := &domain.InterleavedStream{
 		ToolCallCh:     make(chan schema.ToolCall, 8),
-		FinalMessageCh: make(chan AssistantStreamResult, 1),
+		FinalMessageCh: make(chan domain.AssistantStreamResult, 1),
 		ErrCh:          make(chan error, 1),
 	}
 
@@ -87,7 +87,7 @@ func streamAssistantInterleaved(
 				RunID: opts.RunID,
 				Kind:  domain.StreamKindAssistantDelta,
 				Payload: map[string]any{
-					"assistant_delta": &StreamAssistantDelta{
+					"assistant_delta": &domain.StreamAssistantDelta{
 						Role:      string(frame.Role),
 						Delta:     frame.Content,
 						Reasoning: frame.ReasoningContent,
@@ -145,7 +145,7 @@ func streamAssistantInterleaved(
 		}
 
 		select {
-		case s.FinalMessageCh <- AssistantStreamResult{
+		case s.FinalMessageCh <- domain.AssistantStreamResult{
 			Message:    finalMessage,
 			StopReason: normalizeAssistantStopReason(finalMessage),
 			RawReason:  assistantRawFinishReason(finalMessage),
@@ -165,7 +165,7 @@ func NewDirectAssistantStreamer(appender domain.EventAppender) *directAssistantS
 	return &directAssistantStreamer{appender: appender}
 }
 
-func (s *directAssistantStreamer) StreamAssistantMessage(ctx context.Context, req AssistantStreamRequest) (*AssistantStreamResult, error) {
+func (s *directAssistantStreamer) StreamAssistantMessage(ctx context.Context, req domain.AssistantStreamRequest) (*domain.AssistantStreamResult, error) {
 	return streamAssistantMessage(ctx, req.Model, req.Messages, assistantStreamOptions{
 		MessageID: req.MessageID,
 		RunID:     req.RunID,
@@ -176,7 +176,7 @@ func (s *directAssistantStreamer) StreamAssistantMessage(ctx context.Context, re
 	})
 }
 
-func (s *directAssistantStreamer) StreamAssistantInterleaved(ctx context.Context, req AssistantStreamRequest) *InterleavedStream {
+func (s *directAssistantStreamer) StreamAssistantInterleaved(ctx context.Context, req domain.AssistantStreamRequest) *domain.InterleavedStream {
 	return streamAssistantInterleaved(ctx, req.Model, req.Messages, assistantStreamOptions{
 		MessageID: req.MessageID,
 		RunID:     req.RunID,

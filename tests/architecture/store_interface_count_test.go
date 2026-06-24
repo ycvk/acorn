@@ -9,7 +9,7 @@ import (
 )
 
 // Consumer-owned store interfaces (Store/Port/Repository/Ledger) defined by
-// CONSUMERS (internal/runtime + internal/app) must consolidate to <=6.
+// CONSUMERS (internal/runtime + internal/app) must consolidate to <=4.
 
 var storeInterfacePattern = regexp.MustCompile(`^type \w*(Store|Port|Repository|Ledger) interface`)
 
@@ -23,7 +23,7 @@ func TestConsumerStoreInterfaceCount(t *testing.T) {
 	for _, dir := range consumerOwnedDirs {
 		count += countTopLevelStoreInterfaces(t, dir)
 	}
-	const maxConsumerStoreInterfaces = 6
+	const maxConsumerStoreInterfaces = 4
 	if count > maxConsumerStoreInterfaces {
 		t.Fatalf("consumer-owned store interfaces (Store/Port/Repository/Ledger) in internal/runtime + internal/app top-level must consolidate to <=%d; found %d", maxConsumerStoreInterfaces, count)
 	}

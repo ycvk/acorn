@@ -54,11 +54,11 @@ func StreamItemsFromAgentEvent(event *adk.AgentEvent, chatModel einomodel.BaseCh
 	return items
 }
 
-func StreamMessageFromSchema(message *schema.Message, activeProvider string) *StreamMessage {
+func StreamMessageFromSchema(message *schema.Message, activeProvider string) *domain.StreamMessage {
 	if message == nil {
 		return nil
 	}
-	stream := &StreamMessage{
+	stream := &domain.StreamMessage{
 		Role:       string(message.Role),
 		Content:    strings.TrimSpace(message.Content),
 		Reasoning:  strings.TrimSpace(message.ReasoningContent),
@@ -70,9 +70,9 @@ func StreamMessageFromSchema(message *schema.Message, activeProvider string) *St
 		meta["active_provider"] = activeProvider
 	}
 	if len(message.ToolCalls) > 0 {
-		stream.ToolCalls = make([]StreamPlannedToolCall, 0, len(message.ToolCalls))
+		stream.ToolCalls = make([]domain.StreamPlannedToolCall, 0, len(message.ToolCalls))
 		for _, call := range message.ToolCalls {
-			stream.ToolCalls = append(stream.ToolCalls, StreamPlannedToolCall{
+			stream.ToolCalls = append(stream.ToolCalls, domain.StreamPlannedToolCall{
 				ID:            call.ID,
 				Name:          call.Function.Name,
 				ArgumentsJSON: call.Function.Arguments,
@@ -85,16 +85,16 @@ func StreamMessageFromSchema(message *schema.Message, activeProvider string) *St
 	return stream
 }
 
-func streamInterruptFromInfo(info *adk.InterruptInfo) *StreamInterrupt {
+func streamInterruptFromInfo(info *adk.InterruptInfo) *domain.StreamInterrupt {
 	if info == nil {
 		return nil
 	}
-	interrupt := &StreamInterrupt{ContextCount: len(info.InterruptContexts), Contexts: make([]StreamInterruptContext, 0, len(info.InterruptContexts))}
+	interrupt := &domain.StreamInterrupt{ContextCount: len(info.InterruptContexts), Contexts: make([]domain.StreamInterruptContext, 0, len(info.InterruptContexts))}
 	for _, item := range info.InterruptContexts {
-		interrupt.Contexts = append(interrupt.Contexts, StreamInterruptContext{
+		interrupt.Contexts = append(interrupt.Contexts, domain.StreamInterruptContext{
 			ID:          item.ID,
 			Address:     fmt.Sprint(item.Address),
-			Info:        compactInterruptInfo(item.Info),
+			Info:        domain.CompactInterruptInfo(item.Info),
 			IsRootCause: item.IsRootCause,
 		})
 	}

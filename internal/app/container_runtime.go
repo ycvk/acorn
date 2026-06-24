@@ -17,12 +17,13 @@ import (
 )
 
 // containerRuntimeStore is the store contract required by the runtime container
-// wiring. It composes RunnerFactoryStore with the context-plane store, working
-// state, session-summary, and pending-action-create ports.
+// wiring. It composes RunnerFactoryStore with the context-plane store,
+// session-summary, and the app-facing containerAppStore (which subsumes the
+// former pending-action-create port).
 type containerRuntimeStore interface {
 	runtime.RunnerFactoryStore
 	domain.SessionSummaryStore
-	PendingActionCreateStore
+	containerAppStore
 }
 
 // containerAppStore is the store contract required by the app-facing services
@@ -32,7 +33,7 @@ type containerRuntimeStore interface {
 // except as service dependencies which now depend on this wider composite),
 // collapsing the consumer-owned port surface. This is an intentional trade-off
 // (doneCriteria #10): ISP regression is accepted in exchange for consolidating
-// consumer-owned store interfaces to <=6, enforced by
+// consumer-owned store interfaces to <=4, enforced by
 // store_interface_count_test.go.
 type containerAppStore interface {
 	CreateSession(ctx context.Context, sessionID, title string) (*domain.SessionRecord, error)
@@ -56,6 +57,7 @@ type containerAppStore interface {
 	ListPendingActions(ctx context.Context, limit int) ([]domain.PendingActionRecord, error)
 	LoadPendingAction(ctx context.Context, actionID string) (*domain.PendingActionRecord, error)
 	DecidePendingAction(ctx context.Context, actionID string, status domain.PendingActionStatus, decisionJSON string) (*domain.PendingActionRecord, error)
+	CreatePendingAction(ctx context.Context, input storecore.CreatePendingActionInput) (*domain.PendingActionRecord, error)
 	ListActiveRuns(ctx context.Context, limit int) ([]domain.RunRecord, error)
 	ListRecentTerminalRuns(ctx context.Context, limit int) ([]domain.RunRecord, error)
 	SavePairingCode(ctx context.Context, code *storecore.PairingCode) error
@@ -73,7 +75,7 @@ type containerRuntimeDeps struct {
 	sessionSummaryService *domain.SessionSummaryService
 	memoryModule          memory.Service
 	contextPlane          contextplane.ContextPlane
-	mcpPendingActionStore PendingActionCreateStore
+	mcpPendingActionStore containerAppStore
 	runnerFactory         *runtime.RunnerFactory
 	runController         *runtime.RunController
 	executors             func(context.Context) (executorHandle, error)
@@ -95,7 +97,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, store co
 		return nil, err
 	}
 
-	mcpPendingActionStore := PendingActionCreateStore(store)
+	mcpPendingActionStore := containerAppStore(store)
 
 	runnerFactory, err := runtime.NewRunnerFactory(cfg, store, runtime.RunnerFactoryOptions{
 		Loader:                loader,

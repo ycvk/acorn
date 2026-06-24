@@ -287,17 +287,17 @@ func (e *Executor) applyAgentEvent(ctx context.Context, runID string, items []do
 }
 
 func (s *RunState) applyStreamItem(item domain.StreamItem) {
-	if delta := stream.ItemGetAssistantDelta(item); delta != nil {
+	if delta := domain.ItemGetAssistantDelta(item); delta != nil {
 		s.lastOutput += delta.Delta
 	}
-	if msg := stream.ItemGetMessage(item); msg != nil && msg.Content != "" {
+	if msg := domain.ItemGetMessage(item); msg != nil && msg.Content != "" {
 		s.lastOutput = msg.Content
 	}
-	if interrupt := stream.ItemGetInterrupt(item); interrupt != nil {
+	if interrupt := domain.ItemGetInterrupt(item); interrupt != nil {
 		s.interrupt = InterruptPayloadFromStream(interrupt)
 	}
-	if item.Kind == domain.StreamKindRunFailed && stream.ItemGetError(item) != "" {
-		s.failure = errors.New(stream.ItemGetError(item))
+	if item.Kind == domain.StreamKindRunFailed && domain.ItemGetError(item) != "" {
+		s.failure = errors.New(domain.ItemGetError(item))
 		s.emittedRunFailed = true
 	}
 }
@@ -321,7 +321,7 @@ func (e *Executor) emitRunResumeRequested(ctx context.Context, runID string, tar
 }
 
 func (e *Executor) emitRunCompleted(ctx context.Context, runID, output string, sink domain.StreamSink) error {
-	return e.emitLifecyclePayload(ctx, runID, sink, domain.StreamKindRunCompleted, map[string]any{"message": &stream.StreamMessage{
+	return e.emitLifecyclePayload(ctx, runID, sink, domain.StreamKindRunCompleted, map[string]any{"message": &domain.StreamMessage{
 		Role:    string(schema.Assistant),
 		Content: output,
 	}})
@@ -370,7 +370,7 @@ func (e *Executor) verifyAndRecordSkill(ctx context.Context, runID string, selec
 	_, err := stream.AppendStreamItem(ctx, e.store, sink, domain.StreamItem{
 		RunID: runID,
 		Kind:  domain.StreamKindSkillFailed,
-		Payload: map[string]any{"skill": &stream.StreamSkill{
+		Payload: map[string]any{"skill": &domain.StreamSkill{
 			SelectedID:    selected.Skill.ID,
 			Name:          selected.Skill.Name,
 			Source:        selected.Skill.Source,

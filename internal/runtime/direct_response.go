@@ -12,15 +12,28 @@ import (
 	"github.com/cloudwego/eino/schema"
 
 	"github.com/ycvk/acorn/internal/contextplane"
+	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/runtime/tooldispatch"
-	"github.com/ycvk/acorn/internal/stream"
-	"github.com/ycvk/acorn/internal/toolkit"
+	"github.com/ycvk/acorn/internal/tools"
 )
+
+// ToolAssembler owns tool assembly for a run: building audited tools from
+// catalog specs, binding session/tool-lifecycle context, and assembling the
+// instruction + middleware chain. It isolates tool wiring from the
+// RunnerFactory so the factory stays a thin coordinator.
+type ToolAssembler struct {
+	deps RuntimeDeps
+}
+
+// NewToolAssembler assembles a ToolAssembler from runtime deps.
+func NewToolAssembler(deps RuntimeDeps) *ToolAssembler {
+	return &ToolAssembler{deps: deps}
+}
 
 // toolAssemblyParams holds the fields BuildDirectResponse shares when
 // assembling tools, instruction, handlers, and the bound run context.
 type toolAssemblyParams struct {
-	catalog           *toolkit.Catalog
+	catalog           *tools.Catalog
 	contextResult     AssembleResultView
 	allowedToolNames  []string
 	excludedToolNames []string
@@ -40,10 +53,11 @@ type assembledTooling struct {
 
 // assembleTooling builds the tool set, instruction, handlers, and the run context
 // bound with session + tool lifecycle.
-func assembleTooling(ctx context.Context, deps RuntimeDeps, params toolAssemblyParams) (*assembledTooling, error) {
+func (a *ToolAssembler) assembleTooling(ctx context.Context, params toolAssemblyParams) (*assembledTooling, error) {
+	deps := a.deps
 	toolBuilder := deps.ToolBuilder
 	if toolBuilder == nil {
-		toolBuilder = func(ctx context.Context, store RunnerFactoryStore, specs []toolkit.ToolSpec, excludedToolNames []string, allowedToolNames []string, runID string) ([]einotool.BaseTool, error) {
+		toolBuilder = func(ctx context.Context, store RunnerFactoryStore, specs []tools.ToolSpec, excludedToolNames []string, allowedToolNames []string, runID string) ([]einotool.BaseTool, error) {
 			return BuildAuditedTools(ctx, store, specs, excludedToolNames, allowedToolNames, runID)
 		}
 	}
@@ -77,7 +91,7 @@ func assembleTooling(ctx context.Context, deps RuntimeDeps, params toolAssemblyP
 	}, nil
 }
 
-func buildDirectResponse(ctx context.Context, deps RuntimeDeps, req DirectResponseRequest) (*RunAssembly, error) {
+func buildDirectResponse(ctx context.Context, deps RuntimeDeps, req DirectResponseRequest, ta *ToolAssembler) (*RunAssembly, error) {
 	if deps.Config == nil {
 		return nil, fmt.Errorf("runtime deps config is required")
 	}
@@ -94,7 +108,7 @@ func buildDirectResponse(ctx context.Context, deps RuntimeDeps, req DirectRespon
 		return nil, fmt.Errorf("context plane lifecycle state is required")
 	}
 
-	assembled, err := assembleTooling(ctx, deps, toolAssemblyParams{
+	assembled, err := ta.assembleTooling(ctx, toolAssemblyParams{
 		catalog:           req.Catalog,
 		contextResult:     req.ContextResult,
 		allowedToolNames:  req.AllowedToolNames,
@@ -109,7 +123,7 @@ func buildDirectResponse(ctx context.Context, deps RuntimeDeps, req DirectRespon
 	}
 	toolNodeFactory := deps.ToolNodeFactory
 	if toolNodeFactory == nil {
-		toolNodeFactory = func(ctx context.Context, tools []einotool.BaseTool, resolver toolkit.ExecutionPolicyResolver) (tooldispatch.ToolInvoker, error) {
+		toolNodeFactory = func(ctx context.Context, tools []einotool.BaseTool, resolver tools.ExecutionPolicyResolver) (tooldispatch.ToolInvoker, error) {
 			return tooldispatch.NewSafeParallelToolsNode(ctx, tools, resolver)
 		}
 	}
@@ -147,13 +161,13 @@ type directResponseAgent struct {
 	name           string
 	description    string
 	model          einomodel.BaseChatModel
-	streamer       stream.AssistantStreamer
+	streamer       domain.AssistantStreamer
 	sessionID      string
 	runID          string
 	toolNode       tooldispatch.ToolInvoker
 	instruction    string
 	lifecycleState ToolLifecycleStateView
-	catalog        *toolkit.Catalog
+	catalog        *tools.Catalog
 	toolInfos      []*schema.ToolInfo
 	eagerToolNames []string
 	maxIterations  int

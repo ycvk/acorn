@@ -318,7 +318,9 @@ func TestDecidePendingActionHandlerMapsInvalidDecision(t *testing.T) {
 
 func TestDeviceAuthProtectsV1Routes(t *testing.T) {
 	server := &Server{
-		client:     &clientHandlerStub{},
+		threads:    &clientHandlerStub{},
+		runs:       &clientHandlerStub{},
+		events:     &clientHandlerStub{},
 		deviceAuth: &deviceAuthHandlerStub{},
 		logger:     slog.New(slog.NewTextHandler(bytes.NewBuffer(nil), nil)),
 	}
@@ -408,7 +410,9 @@ func TestDeviceAuthPairListAndRevokeHandlers(t *testing.T) {
 
 func TestDeviceAuthRevokedTokenFailsProtectedRoutes(t *testing.T) {
 	server := &Server{
-		client:     &clientHandlerStub{},
+		threads:    &clientHandlerStub{},
+		runs:       &clientHandlerStub{},
+		events:     &clientHandlerStub{},
 		deviceAuth: &deviceAuthHandlerStub{authErr: app.ErrDeviceRevoked},
 		logger:     slog.New(slog.NewTextHandler(bytes.NewBuffer(nil), nil)),
 	}
@@ -784,23 +788,24 @@ func TestClientResourceSurfaceHandlers(t *testing.T) {
 			SourceRun: "run_1",
 		}},
 		search: []mem.SearchItem{{
-			Ref:        "history/thread_1.md",
-			Kind:       string(mem.KindHistory),
-			Title:      "thread_1",
-			Status:     string(mem.StatusVerified),
-			Scope:      "workspace:acorn",
-			Tags:       []string{"history"},
-			Path:       "history/thread_1.md",
-			Snippet:    "history hit from previous run",
-			Score:      1,
-			Created:    "2026-05-02T10:00:00Z",
-			Updated:    "2026-05-02T10:00:00Z",
-			SourceRun:  "run_1",
-			SourceRefs: []string{"facts/workspaces/acorn/repo.md#repo-root"},
+			Ref:       "history/thread_1.md",
+			Kind:      string(mem.KindHistory),
+			Title:     "thread_1",
+			Status:    string(mem.StatusVerified),
+			Scope:     "workspace:acorn",
+			Tags:      []string{"history"},
+			Path:      "history/thread_1.md",
+			Snippet:   "history hit from previous run",
+			Score:     1,
+			Created:   "2026-05-02T10:00:00Z",
+			Updated:   "2026-05-02T10:00:00Z",
+			SourceRun: "run_1",
 		}},
 	}
 	server := &Server{
-		client:       service,
+		threads:      service,
+		runs:         service,
+		events:       service,
 		runResume:    &clientRunResumeStub{result: &app.RunResult{RunID: "run_1", Status: "interrupted"}},
 		capabilities: capabilities,
 		pendingAction: &pendingActionHandlerStub{
@@ -1009,10 +1014,12 @@ func TestClientResourceSurfaceHandlers(t *testing.T) {
 
 func TestLegacyRouteGroupIsNotMounted(t *testing.T) {
 	server := &Server{
-		client: &clientHandlerStub{},
-		skills: &clientSkillStub{},
-		memory: &clientMemoryStub{},
-		logger: slog.New(slog.NewTextHandler(bytes.NewBuffer(nil), nil)),
+		threads: &clientHandlerStub{},
+		runs:    &clientHandlerStub{},
+		events:  &clientHandlerStub{},
+		skills:  &clientSkillStub{},
+		memory:  &clientMemoryStub{},
+		logger:  slog.New(slog.NewTextHandler(bytes.NewBuffer(nil), nil)),
 	}
 	router := chi.NewRouter()
 	server.registerRoutes(router)
@@ -1051,9 +1058,11 @@ func TestLegacyRouteGroupIsNotMounted(t *testing.T) {
 	}
 }
 
-func newClientHandlerTestRouter(service ClientService) http.Handler {
+func newClientHandlerTestRouter(service *clientHandlerStub) http.Handler {
 	server := &Server{
-		client:     service,
+		threads:    service,
+		runs:       service,
+		events:     service,
 		deviceAuth: &deviceAuthHandlerStub{},
 		logger:     slog.New(slog.NewTextHandler(bytes.NewBuffer(nil), nil)),
 	}
@@ -1310,7 +1319,9 @@ func (s *clientHandlerStub) EventPollInterval() time.Duration {
 	return time.Millisecond
 }
 
-var _ ClientService = (*clientHandlerStub)(nil)
+var _ ThreadService = (*clientHandlerStub)(nil)
+var _ RunService = (*clientHandlerStub)(nil)
+var _ EventService = (*clientHandlerStub)(nil)
 
 type pendingActionHandlerStub struct {
 	record      domain.PendingActionRecord

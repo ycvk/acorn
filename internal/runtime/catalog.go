@@ -10,18 +10,18 @@ import (
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/contextplane"
 	"github.com/ycvk/acorn/internal/domain"
-	"github.com/ycvk/acorn/internal/toolkit"
+	"github.com/ycvk/acorn/internal/tools"
 )
 
 func BuildCatalogSpecs(
 	ctx context.Context,
 	cfg *config.Config,
 	source string,
-	kind toolkit.ToolKind,
-	tools []einotool.BaseTool,
-) ([]toolkit.ToolSpec, error) {
-	specs := make([]toolkit.ToolSpec, 0, len(tools))
-	for _, tool := range tools {
+	kind tools.ToolKind,
+	baseTools []einotool.BaseTool,
+) ([]tools.ToolSpec, error) {
+	specs := make([]tools.ToolSpec, 0, len(baseTools))
+	for _, tool := range baseTools {
 		spec, err := RuntimeToolSpec(ctx, cfg, source, kind, tool)
 		if err != nil {
 			return nil, err
@@ -35,59 +35,59 @@ func RuntimeToolSpec(
 	ctx context.Context,
 	cfg *config.Config,
 	source string,
-	kind toolkit.ToolKind,
+	kind tools.ToolKind,
 	tool einotool.BaseTool,
-) (toolkit.ToolSpec, error) {
+) (tools.ToolSpec, error) {
 	info, err := tool.Info(ctx)
 	if err != nil {
-		return toolkit.ToolSpec{}, fmt.Errorf("read tool info for %s spec: %w", source, err)
+		return tools.ToolSpec{}, fmt.Errorf("read tool info for %s spec: %w", source, err)
 	}
 	if info == nil {
-		return toolkit.ToolSpec{}, fmt.Errorf("read tool info for %s spec: nil ToolInfo", source)
+		return tools.ToolSpec{}, fmt.Errorf("read tool info for %s spec: nil ToolInfo", source)
 	}
 	name := strings.TrimSpace(info.Name)
 	if name == "" {
-		return toolkit.ToolSpec{}, fmt.Errorf("%s tool has empty name", source)
+		return tools.ToolSpec{}, fmt.Errorf("%s tool has empty name", source)
 	}
 
-	if localSpec, ok := toolkit.ConfiguredLocalSpec(cfg, name); ok {
+	if localSpec, ok := tools.ConfiguredLocalSpec(cfg, name); ok {
 		localSpec.Tool = tool
 		return localSpec, nil
 	}
 
-	if contract, ok := toolkit.BuiltinToolSpec(name, source); ok {
-		return toolkit.ToolSpec{ToolContract: contract, Tool: tool}, nil
+	if contract, ok := tools.BuiltinToolSpec(name, source); ok {
+		return tools.ToolSpec{ToolContract: contract, Tool: tool}, nil
 	}
 
-	spec := toolkit.ToolSpec{
-		ToolContract: toolkit.ToolContract{
+	spec := tools.ToolSpec{
+		ToolContract: tools.ToolContract{
 			Name:     name,
 			Source:   source,
 			Kind:     kind,
-			Category: toolkit.ToolCategoryInspect,
-			Loading:  toolkit.EagerLoadingPolicy(),
-			Execution: toolkit.ToolExecutionPolicy{
-				ParallelPolicy: toolkit.ParallelPolicyReadOnly,
+			Category: tools.ToolCategoryInspect,
+			Loading:  tools.EagerLoadingPolicy(),
+			Execution: tools.ToolExecutionPolicy{
+				ParallelPolicy: tools.ParallelPolicyReadOnly,
 			},
 		},
 		Tool: tool,
 	}
 
 	switch kind {
-	case toolkit.ToolKindMCP:
+	case tools.ToolKindMCP:
 		spec.Kind = kind
-		spec.Category = toolkit.ToolCategoryIntegration
-		spec.Execution.ParallelPolicy = toolkit.ParallelPolicyReadOnly
+		spec.Category = tools.ToolCategoryIntegration
+		spec.Execution.ParallelPolicy = tools.ParallelPolicyReadOnly
 		spec.Execution.PathArg = "path"
 	default:
-		spec.Category = toolkit.ToolCategoryInspect
-		spec.Execution.ParallelPolicy = toolkit.ParallelPolicyReadOnly
+		spec.Category = tools.ToolCategoryInspect
+		spec.Execution.ParallelPolicy = tools.ParallelPolicyReadOnly
 		spec.Execution.PathArg = "path"
 	}
 	return spec, nil
 }
 
-func MCPToolParallelPolicy(cfg *config.Config, providerName string) (toolkit.ParallelPolicy, error) {
+func MCPToolParallelPolicy(cfg *config.Config, providerName string) (tools.ParallelPolicy, error) {
 	if cfg == nil {
 		return "", fmt.Errorf("resolve MCP tool safety for provider %q: config is required", strings.TrimSpace(providerName))
 	}
@@ -98,7 +98,7 @@ func MCPToolParallelPolicy(cfg *config.Config, providerName string) (toolkit.Par
 		if strings.TrimSpace(provider.ToolSafety) == "" {
 			return "", fmt.Errorf("mcp provider %q must declare tool_safety", strings.TrimSpace(providerName))
 		}
-		return toolkit.ParseParallelPolicy(provider.ToolSafety)
+		return tools.ParseParallelPolicy(provider.ToolSafety)
 	}
 	return "", fmt.Errorf("mcp provider %q is not configured", strings.TrimSpace(providerName))
 }

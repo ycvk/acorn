@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/ycvk/acorn/internal/skills"
-	"github.com/ycvk/acorn/internal/toolkit"
+	"github.com/ycvk/acorn/internal/tools"
 )
 
 const capabilityDiscoveryInstruction = `Capability discovery rules:
@@ -30,11 +30,11 @@ func buildStableInstruction(base string, instructionSuffix string) string {
 	return strings.Join(out, "\n\n")
 }
 
-func skillEligibilityContextFromCatalog(catalog *toolkit.Catalog) skills.EligibilityContext {
+func skillEligibilityContextFromCatalog(catalog *tools.Catalog) skills.EligibilityContext {
 	if catalog == nil {
 		return skills.EligibilityContext{}
 	}
-	return toolkit.EligibilityContext(catalog, nil)
+	return tools.EligibilityContext(catalog, nil)
 }
 
 func loadStableSkillSnapshot(ctx context.Context, loader interface {
@@ -90,7 +90,19 @@ type runSelection struct {
 	selectedSkill *SelectedSkill
 }
 
-func (f *RunnerFactory) resolveRunSelection(
+// SkillSelector owns run skill selection for a RunnerFactory. It isolates
+// the candidate retrieval + decision/resume selection logic from the factory
+// so the factory stays a thin coordinator.
+type SkillSelector struct {
+	deps RuntimeDeps
+}
+
+// NewSkillSelector assembles a SkillSelector from runtime deps.
+func NewSkillSelector(deps RuntimeDeps) *SkillSelector {
+	return &SkillSelector{deps: deps}
+}
+
+func (s *SkillSelector) resolveRunSelection(
 	ctx context.Context,
 	req RunnerBuildRequest,
 	caps *runCapabilities,
@@ -102,9 +114,9 @@ func (f *RunnerFactory) resolveRunSelection(
 		return &runSelection{}, nil
 	}
 	if strings.TrimSpace(req.Input) != "" || strings.TrimSpace(req.SkillID) != "" {
-		return f.resolveRunSelectionByDecision(ctx, req, caps)
+		return s.resolveRunSelectionByDecision(ctx, req, caps)
 	}
-	return f.resolveRunSelectionByResume(ctx, req, caps)
+	return s.resolveRunSelectionByResume(ctx, req, caps)
 }
 
 func isEmptyRunSelectionInput(req RunnerBuildRequest) bool {
@@ -115,28 +127,28 @@ func isEmptyRunSelectionInput(req RunnerBuildRequest) bool {
 // skill selection comes from skills.RetrieveCandidates; the only remaining
 // decision is whether to block (missing required capability or unavailable
 // explicit skill), proceed with a skill, or proceed without one.
-func (f *RunnerFactory) resolveRunSelectionByDecision(ctx context.Context, req RunnerBuildRequest, caps *runCapabilities) (*runSelection, error) {
-	discovered, err := f.retrieveSkillCandidates(req, caps)
+func (s *SkillSelector) resolveRunSelectionByDecision(ctx context.Context, req RunnerBuildRequest, caps *runCapabilities) (*runSelection, error) {
+	discovered, err := s.retrieveSkillCandidates(req, caps)
 	if err != nil {
 		return nil, err
 	}
 	if hasCapabilityFailure(discovered) {
-		return f.blockRun(ctx, req, "missing_required_capability", "")
+		return s.blockRun(ctx, req, "missing_required_capability", "")
 	}
 	if explicitID := strings.TrimSpace(req.SkillID); explicitID != "" {
-		return f.resolveExplicitSkill(ctx, req, caps, discovered, explicitID)
+		return s.resolveExplicitSkill(ctx, req, caps, discovered, explicitID)
 	}
 	if top, ok := topRecommendedSkill(discovered); ok {
-		return f.resolveTopSkill(ctx, req, caps, discovered, top)
+		return s.resolveTopSkill(ctx, req, caps, discovered, top)
 	}
-	if emitErr := emitSkillSelectionEvents(ctx, f.deps.Store, req, nil, discovered); emitErr != nil {
+	if emitErr := emitSkillSelectionEvents(ctx, s.deps.Store, req, nil, discovered); emitErr != nil {
 		return nil, emitErr
 	}
 	return &runSelection{}, nil
 }
 
-func (f *RunnerFactory) blockRun(ctx context.Context, req RunnerBuildRequest, reason, explicitSkillID string) (*runSelection, error) {
-	if emitErr := emitDecisionBlockedEvent(ctx, f.deps.Store, req, "block", reason, explicitSkillID); emitErr != nil {
+func (s *SkillSelector) blockRun(ctx context.Context, req RunnerBuildRequest, reason, explicitSkillID string) (*runSelection, error) {
+	if emitErr := emitDecisionBlockedEvent(ctx, s.deps.Store, req, "block", reason, explicitSkillID); emitErr != nil {
 		return nil, emitErr
 	}
 	if explicitSkillID != "" {
@@ -145,27 +157,27 @@ func (f *RunnerFactory) blockRun(ctx context.Context, req RunnerBuildRequest, re
 	return nil, fmt.Errorf("decision blocked execution: %s", reason)
 }
 
-func (f *RunnerFactory) resolveExplicitSkill(ctx context.Context, req RunnerBuildRequest, caps *runCapabilities, discovered []SkillMatch, explicitID string) (*runSelection, error) {
+func (s *SkillSelector) resolveExplicitSkill(ctx context.Context, req RunnerBuildRequest, caps *runCapabilities, discovered []SkillMatch, explicitID string) (*runSelection, error) {
 	match, ok := findEligibleSkillByID(discovered, explicitID)
 	if !ok {
-		return f.blockRun(ctx, req, "explicit_skill_unavailable", explicitID)
+		return s.blockRun(ctx, req, "explicit_skill_unavailable", explicitID)
 	}
 	selected := selectedSkillFromMatch(match, caps.stableSkills, true)
-	if emitErr := emitSkillSelectionEvents(ctx, f.deps.Store, req, selected, discovered); emitErr != nil {
+	if emitErr := emitSkillSelectionEvents(ctx, s.deps.Store, req, selected, discovered); emitErr != nil {
 		return nil, emitErr
 	}
 	return &runSelection{selectedSkill: selected}, nil
 }
 
-func (f *RunnerFactory) resolveTopSkill(ctx context.Context, req RunnerBuildRequest, caps *runCapabilities, discovered []SkillMatch, top SkillMatch) (*runSelection, error) {
+func (s *SkillSelector) resolveTopSkill(ctx context.Context, req RunnerBuildRequest, caps *runCapabilities, discovered []SkillMatch, top SkillMatch) (*runSelection, error) {
 	selected := selectedSkillFromMatch(top, caps.stableSkills, false)
-	if emitErr := emitSkillSelectionEvents(ctx, f.deps.Store, req, selected, discovered); emitErr != nil {
+	if emitErr := emitSkillSelectionEvents(ctx, s.deps.Store, req, selected, discovered); emitErr != nil {
 		return nil, emitErr
 	}
 	return &runSelection{selectedSkill: selected}, nil
 }
 
-func (f *RunnerFactory) retrieveSkillCandidates(req RunnerBuildRequest, caps *runCapabilities) ([]SkillMatch, error) {
+func (s *SkillSelector) retrieveSkillCandidates(req RunnerBuildRequest, caps *runCapabilities) ([]SkillMatch, error) {
 	retrieved, err := skills.RetrieveCandidates(skills.CandidateQuery{
 		Input:           req.Input,
 		ExplicitSkillID: req.SkillID,
@@ -180,8 +192,7 @@ func (f *RunnerFactory) retrieveSkillCandidates(req RunnerBuildRequest, caps *ru
 	return runtimeMatchesFromRecommendations(retrieved.Candidates), nil
 }
 
-func (f *RunnerFactory) resolveRunSelectionByResume(ctx context.Context, req RunnerBuildRequest, caps *runCapabilities) (*runSelection, error) {
-
+func (s *SkillSelector) resolveRunSelectionByResume(ctx context.Context, req RunnerBuildRequest, caps *runCapabilities) (*runSelection, error) {
 	explicitID := strings.TrimSpace(req.SkillID)
 	if explicitID == "" {
 		return &runSelection{}, nil

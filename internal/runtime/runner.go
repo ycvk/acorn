@@ -7,12 +7,10 @@ import (
 	"io"
 	"strings"
 	"sync"
-	"time"
 
 	"path/filepath"
 	"sync/atomic"
 
-	"github.com/cloudwego/eino-ext/components/model/openai"
 	"github.com/cloudwego/eino/adk"
 	einomodel "github.com/cloudwego/eino/components/model"
 	einotool "github.com/cloudwego/eino/components/tool"
@@ -24,23 +22,21 @@ import (
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
 	"github.com/ycvk/acorn/internal/skills"
 	corestore "github.com/ycvk/acorn/internal/store"
-	"github.com/ycvk/acorn/internal/stream"
-	"github.com/ycvk/acorn/internal/toolkit"
-	"github.com/ycvk/acorn/internal/toolset"
+	"github.com/ycvk/acorn/internal/tools"
 	"github.com/ycvk/acorn/internal/workspace"
 )
 
 type RunnerFactory struct {
 	deps RuntimeDeps
 
-	mu                 sync.Mutex
-	cachedManager      *mcpprovider.Manager
-	lastSessionOverlay string
-
 	registry     *Registry
 	currentRunID atomic.Value
+	runIDMu      sync.Mutex
 
-	runChatModelBuilder func(context.Context, RunnerBuildRequest) (einomodel.BaseChatModel, error)
+	modelBuilder  *ModelBuilder
+	capabilityAsm *CapabilityAssembler
+	contextAsm    *ContextAssembler
+	mcpAssembler  *MCPAssembler
 }
 
 const (
@@ -60,8 +56,8 @@ func (f *RunnerFactory) New(ctx context.Context, req RunnerBuildRequest) (*Activ
 	return f.buildRun(ctx, req)
 }
 
-func (f *RunnerFactory) BuildCapabilitySpecs(ctx context.Context) ([]toolkit.ToolSpec, error) {
-	toolset, err := f.buildToolset(ctx, "", true)
+func (f *RunnerFactory) BuildCapabilitySpecs(ctx context.Context) ([]tools.ToolSpec, error) {
+	toolset, err := f.capabilityAsm.buildToolset(ctx, "", true)
 	if err != nil {
 		return nil, err
 	}
@@ -92,7 +88,7 @@ func (f *RunnerFactory) SessionSummarySvc() *domain.SessionSummaryService {
 }
 
 func (f *RunnerFactory) NewChatModel(ctx context.Context) (einomodel.BaseChatModel, error) {
-	return f.newChatModel(ctx)
+	return f.modelBuilder.newChatModel(ctx)
 }
 
 func (r *ActiveRunner) Close() error {
@@ -109,8 +105,8 @@ func (r *ActiveRunner) Close() error {
 }
 
 func (f *RunnerFactory) setCurrentRunID(runID string) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
+	f.runIDMu.Lock()
+	defer f.runIDMu.Unlock()
 	f.currentRunID.Store(runID)
 }
 
@@ -118,8 +114,8 @@ func (f *RunnerFactory) ClearCurrentRunID(runID string) {
 	if runID == "" {
 		return
 	}
-	f.mu.Lock()
-	defer f.mu.Unlock()
+	f.runIDMu.Lock()
+	defer f.runIDMu.Unlock()
 	if f.currentRunIDValue() == runID {
 		f.currentRunID.Store("")
 	}
@@ -134,242 +130,43 @@ func (f *RunnerFactory) currentRunIDValue() string {
 	return runID
 }
 
+// Close releases the cached MCP manager owned by the MCPAssembler.
+func (f *RunnerFactory) Close() error {
+	return f.mcpAssembler.Close()
+}
+
+// ReconcileMCPProviders reconciles the cached MCP manager's providers.
+func (f *RunnerFactory) ReconcileMCPProviders(ctx context.Context, providerConfigs []mcpprovider.ProviderConfig) error {
+	return f.mcpAssembler.ReconcileMCPProviders(ctx, providerConfigs)
+}
+
 func newInMemoryCheckpointStore() *inMemoryCheckpointStore {
 	return &inMemoryCheckpointStore{data: make(map[string][]byte)}
 }
 
 type localToolset struct {
-	catalog *toolset.Catalog
+	catalog *tools.LocalCatalog
 	closers []io.Closer
-}
-
-func (f *RunnerFactory) newChatModel(ctx context.Context) (einomodel.BaseChatModel, error) {
-	if f == nil || f.deps.Config == nil {
-		return nil, errors.New("runner factory is not initialized")
-	}
-	return newRuntimeChatModel(ctx, f.deps.Config, nil, nil)
-}
-
-func (f *RunnerFactory) buildRunChatModel(ctx context.Context, req RunnerBuildRequest) (einomodel.BaseChatModel, error) {
-	if f == nil || f.deps.Config == nil {
-		return nil, errors.New("runner factory is not initialized")
-	}
-	if f.runChatModelBuilder != nil {
-		return f.runChatModelBuilder(ctx, req)
-	}
-
-	return f.newChatModel(ctx)
 }
 
 func (f *RunnerFactory) buildRunCapabilityAssembly(ctx context.Context, req RunnerBuildRequest) (*capabilityAssembly, error) {
 	if f == nil {
 		return nil, errors.New("runner factory is not initialized")
 	}
-	mcpManager, err := f.bootstrapRunMCP(ctx, req)
+	mcpManager, err := f.mcpAssembler.bootstrapRunMCP(ctx, req)
 	if err != nil {
 		return nil, err
 	}
-	capabilities, err := f.buildRunCapabilities(ctx, req.SessionID, mcpManager)
+	capabilities, err := f.capabilityAsm.buildRunCapabilities(ctx, req.SessionID, mcpManager)
 	if err != nil {
 		return nil, err
 	}
 	return &capabilityAssembly{mcpManager: mcpManager, capabilities: capabilities}, nil
 }
 
-func (f *RunnerFactory) prepareRunMemory(ctx context.Context, req RunnerBuildRequest) (*memory.PrepareResult, error) {
-	if f == nil {
-		return nil, errors.New("runner factory is not initialized")
-	}
-	if f.deps.MemoryModule == nil {
-		return nil, errors.New("memory module is not initialized")
-	}
-	workspaceSlug := f.workspaceSlug()
-	result, err := f.deps.MemoryModule.Prepare(ctx, memory.PrepareRequest{
-		RunID:         req.RunID,
-		SessionID:     req.SessionID,
-		WorkspaceSlug: workspaceSlug,
-		UserInput:     req.Input,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("prepare memory: %w", err)
-	}
-	if err := f.emitRunMemoryEvents(ctx, req, workspaceSlug, result); err != nil {
-		return nil, err
-	}
-	return result, nil
-}
-
-func (f *RunnerFactory) workspaceSlug() string {
-	if f.deps.Workspace == nil {
-		return ""
-	}
-	return memory.WorkspaceSlug(f.deps.Workspace.Root())
-}
-
-func (f *RunnerFactory) emitRunMemoryEvents(ctx context.Context, req RunnerBuildRequest, workspaceSlug string, result *memory.PrepareResult) error {
-	if err := emitMemoryPreparedEvent(ctx, f.deps.Store, req, memory.WorkspaceScope(workspaceSlug), result); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (f *RunnerFactory) assembleContext(
-	ctx context.Context,
-	req RunnerBuildRequest,
-	caps *runCapabilities,
-	selection *runSelection,
-	memoryPrepared *memory.PrepareResult,
-) (*contextplane.AssembleResult, error) {
-	if f == nil || f.deps.ContextPlane == nil {
-		return nil, errors.New("context plane is not initialized")
-	}
-	if caps == nil {
-		return nil, errors.New("run capabilities are required")
-	}
-	result, err := f.deps.ContextPlane.Assemble(ctx, buildAssembleRequest(req, caps, selection, memoryPrepared))
-	if err != nil {
-		return nil, err
-	}
-	return result, nil
-}
-
-// buildAssembly dispatches to the direct_response orchestration plane,
-// reusing the common baseAssemblyFields helper so agent/session/tool fields
-// are not duplicated across request constructors.
-func (f *RunnerFactory) buildAssembly(
-	ctx context.Context,
-	req RunnerBuildRequest,
-	catalog *toolkit.Catalog,
-	chatModel einomodel.BaseChatModel,
-	contextResult *contextplane.AssembleResult,
-) (*RunAssembly, error) {
-	if f == nil || f.deps.Config == nil {
-		return nil, fmt.Errorf("runner factory is not initialized")
-	}
-	bf := f.baseAssemblyFields(req, catalog, chatModel, contextResult)
-	return buildDirectResponse(ctx, f.deps, f.directResponseRequest(bf, req))
-}
-
-func (f *RunnerFactory) baseAssemblyFields(req RunnerBuildRequest, catalog *toolkit.Catalog, chatModel einomodel.BaseChatModel, contextResult *contextplane.AssembleResult) baseAssemblyFields {
-	return baseAssemblyFields{
-		agentName:         f.deps.Config.Agent.Name,
-		agentDescription:  f.deps.Config.Agent.Description,
-		sessionID:         req.SessionID,
-		runID:             req.RunID,
-		chatModel:         chatModel,
-		catalog:           catalog,
-		contextResult:     AssembleResultToView(contextResult),
-		allowedToolNames:  append([]string(nil), req.AllowedToolNames...),
-		excludedToolNames: append([]string(nil), req.ExcludedToolNames...),
-	}
-}
-
-func (f *RunnerFactory) directResponseRequest(bf baseAssemblyFields, req RunnerBuildRequest) DirectResponseRequest {
-	return DirectResponseRequest{
-		AgentName:         bf.agentName,
-		AgentDescription:  bf.agentDescription,
-		SessionID:         bf.sessionID,
-		RunID:             bf.runID,
-		ChatModel:         bf.chatModel,
-		AssistantStreamer: stream.NewDirectAssistantStreamer(f.deps.Store),
-		Catalog:           bf.catalog,
-		ContextResult:     bf.contextResult,
-		AllowedToolNames:  bf.allowedToolNames,
-		ExcludedToolNames: bf.excludedToolNames,
-		InstructionSuffix: req.InstructionSuffix,
-	}
-}
-
-func (f *RunnerFactory) buildRunCapabilities(ctx context.Context, sessionID string, mcpManager *mcpprovider.Manager) (*runCapabilities, error) {
-	toolset, err := f.buildRunToolset(ctx, sessionID)
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		if err != nil {
-			_ = toolset.Close()
-		}
-	}()
-	catalog, err := f.assembleRunCapabilitiesCatalog(ctx, toolset, mcpManager)
-	if err != nil {
-		return nil, err
-	}
-	skillSnapshot, err := loadStableSkillSnapshot(ctx, f.deps.Loader, skillEligibilityContextFromCatalog(catalog))
-	if err != nil {
-		return nil, err
-	}
-	return &runCapabilities{
-		catalog:       catalog,
-		skillSnapshot: skillSnapshot,
-		stableSkills:  stableSkillsFromSnapshot(skillSnapshot),
-		close:         toolset.Close,
-	}, nil
-}
-
-func (f *RunnerFactory) assembleRunCapabilitiesCatalog(ctx context.Context, toolset *Toolset, mcpManager *mcpprovider.Manager) (*toolkit.Catalog, error) {
-	specs := append([]toolkit.ToolSpec(nil), toolset.Catalog().Specs()...)
-	mcpSpecs, err := f.buildMCPToolSpecs(ctx, mcpManager)
-	if err != nil {
-		return nil, err
-	}
-	specs = append(specs, mcpSpecs...)
-	return toolkit.NewCatalog(ctx, specs)
-}
-
-type chatModelBuilder func(context.Context, config.ProviderConfig) (einomodel.BaseChatModel, error)
-
-func buildRuntimeChatModel(ctx context.Context, cfg *config.Config, newModel chatModelBuilder) (einomodel.BaseChatModel, error) {
-	model, _, err := buildRuntimeChatModelWithProvider(ctx, cfg, newModel)
-	return model, err
-}
-
-func buildRuntimeChatModelWithProvider(ctx context.Context, cfg *config.Config, newModel chatModelBuilder) (einomodel.BaseChatModel, config.ProviderConfig, error) {
-	if cfg == nil {
-		return nil, config.ProviderConfig{}, errors.New("config is required")
-	}
-	if newModel == nil {
-		newModel = newOpenAIChatModel
-	}
-
-	provider, err := cfg.EnabledProvider()
-	if err != nil {
-		return nil, config.ProviderConfig{}, err
-	}
-	model, err := newModel(ctx, provider)
-	if err != nil {
-		return nil, config.ProviderConfig{}, fmt.Errorf("init provider %s: %w", provider.Name, err)
-	}
-	return model, provider, nil
-}
-
-func newRuntimeChatModel(
-	ctx context.Context,
-	cfg *config.Config,
-	newModel chatModelBuilder,
-	_ any,
-) (einomodel.BaseChatModel, error) {
-	return buildRuntimeChatModel(ctx, cfg, newModel)
-}
-
 type capabilityAssembly struct {
 	mcpManager   *mcpprovider.Manager
 	capabilities *runCapabilities
-}
-
-func buildAssembleRequest(req RunnerBuildRequest, caps *runCapabilities, selection *runSelection, memoryPrepared *memory.PrepareResult) contextplane.AssembleRequest {
-	var selectedSkill *SelectedSkill
-	if selection != nil {
-		selectedSkill = selection.selectedSkill
-	}
-	return contextplane.AssembleRequest{
-		RunID:          req.RunID,
-		SessionID:      req.SessionID,
-		Input:          req.Input,
-		SelectedSkill:  selectedSkill,
-		SkillSnapshot:  caps.skillSnapshot,
-		MemoryPrepared: memoryPrepared,
-		ToolCatalog:    caps.catalog,
-	}
 }
 
 func buildRuntimeDeps(cfg *config.Config, store RunnerFactoryStore, opts RunnerFactoryOptions) (RuntimeDeps, error) {
@@ -476,25 +273,17 @@ func resolveContextPlaneTokenPolicy(cfg *config.Config) (memoryBudget, maxContex
 
 func assembleRunnerFactory(deps RuntimeDeps) *RunnerFactory {
 	return &RunnerFactory{
-		deps:     deps,
-		registry: NewRegistry(),
+		deps:          deps,
+		registry:      NewRegistry(),
+		modelBuilder:  NewModelBuilder(deps.Config),
+		capabilityAsm: NewCapabilityAssembler(deps),
+		contextAsm:    NewContextAssembler(deps),
+		mcpAssembler:  NewMCPAssembler(deps),
 	}
 }
 
-type baseAssemblyFields struct {
-	agentName         string
-	agentDescription  string
-	sessionID         string
-	runID             string
-	chatModel         einomodel.BaseChatModel
-	catalog           *toolkit.Catalog
-	contextResult     AssembleResultView
-	allowedToolNames  []string
-	excludedToolNames []string
-}
-
 type runCapabilities struct {
-	catalog       *toolkit.Catalog
+	catalog       *tools.Catalog
 	skillSnapshot *skills.Snapshot
 	stableSkills  []skills.Spec
 	close         func() error
@@ -536,31 +325,10 @@ func (s *inMemoryCheckpointStore) Set(_ context.Context, checkPointID string, ch
 	s.data[checkPointID] = cp
 	return nil
 }
-
-// buildRunnerAgentHandlers assembles the chat-model middleware chain. With the
-// compaction subpackage removed, compression is driven by the context session
-// rather than by model-call middleware; this builder now only appends the
-// caller-supplied extra handlers.
-func buildRunnerAgentHandlers(
-	_ context.Context,
-	cfg *config.Config,
-	_ contextplane.ContextPlane,
-	extraHandlers []adk.ChatModelAgentMiddleware,
-	_ einomodel.BaseChatModel,
-	_ any,
-) ([]adk.ChatModelAgentMiddleware, error) {
-	if cfg == nil {
-		return nil, errors.New("runner factory is not initialized")
-	}
-	handlers := make([]adk.ChatModelAgentMiddleware, 0, len(extraHandlers))
-	handlers = append(handlers, extraHandlers...)
-	return handlers, nil
-}
-
 func bindToolLifecycle(
 	ctx context.Context,
 	state ToolLifecycleStateView,
-	catalog *toolkit.Catalog,
+	catalog *tools.Catalog,
 	infos []*schema.ToolInfo,
 ) context.Context {
 	if adapter, ok := state.(toolLifecycleStateAdapter); ok && adapter.state != nil {
@@ -595,27 +363,4 @@ func AssembleResultToView(result *contextplane.AssembleResult) AssembleResultVie
 		EagerToolNames:    result.EagerToolNames,
 		DeferredToolNames: result.DeferredToolNames,
 	}
-}
-
-// newOpenAIChatModel builds an OpenAI-compatible chat model from provider config.
-func newOpenAIChatModel(ctx context.Context, cfg config.ProviderConfig) (einomodel.BaseChatModel, error) {
-	chatCfg := &openai.ChatModelConfig{
-		APIKey:              cfg.APIKey,
-		BaseURL:             cfg.BaseURL,
-		Model:               cfg.Model,
-		Timeout:             time.Duration(cfg.TimeoutSeconds) * time.Second,
-		MaxCompletionTokens: new(cfg.MaxCompletionTokens),
-		Temperature:         new(cfg.Temperature),
-	}
-	if cfg.ReasoningEffort != "" {
-		chatCfg.ReasoningEffort = openai.ReasoningEffortLevel(cfg.ReasoningEffort)
-	}
-	if len(cfg.ExtraFields) > 0 {
-		chatCfg.ExtraFields = cfg.ExtraFields
-	}
-	model, err := openai.NewChatModel(ctx, chatCfg)
-	if err != nil {
-		return nil, fmt.Errorf("build openai-compatible chat model: %w", err)
-	}
-	return model, nil
 }

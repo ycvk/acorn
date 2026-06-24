@@ -9,7 +9,7 @@ operator CLI / authenticated remote clients
   -> app Container
   -> remote client contracts (/healthz + /v1)
   -> runtime Executor (consumer-owned store ports)
-  -> RunnerFactory.buildRun (per-run assembly)
+  -> per-run assembly (ModelBuilder/CapabilityAssembler/ContextAssembler/MCPAssembler/SkillSelector/RunEmitter/ToolAssembler)
   -> ContextPlane + direct_response
   -> SQLite adapter / persisted truth
   -> Kotlin mobile control surface
@@ -17,14 +17,13 @@ operator CLI / authenticated remote clients
 
 ## 主要包职责
 
-- `internal/app/` — 装配 app service、runtime executor、run resume service、api dependencies；composition root。
-- `internal/runtime/` — Executor（session/run 创建、执行、finalization）+ RunnerFactory（per-run assembly）+ direct_response assembly + ExecuteRound + tool audit/validator + StreamItem 投影逻辑。
+- `internal/app/` — Container 组合根 + ThreadService/RunService/EventService（原 ClientService 拆分）、run resume service、api dependencies；composition root。
+- `internal/runtime/` — Executor（session/run 创建、执行、finalization）+ per-run assembly（7 个 struct：ModelBuilder、CapabilityAssembler、ContextAssembler、MCPAssembler、SkillSelector、RunEmitter、ToolAssembler）+ direct_response assembly + ExecuteRound + tool audit/validator + StreamItem 投影逻辑。
 - `internal/runtime/tooldispatch/` — SafeParallelToolsNode、streaming executor、scheduler、side-effect extraction、ToolInvoker/StreamingExecutor 接口。
 - `internal/runtime/factextract/` — fact extraction + memory file tools + memory search/remember tools。
-- `internal/stream/` — Stream* 值类型、StreamItem→event 投影、typed accessors、AgentEvent→StreamItem 转换、assistant streaming。
+- `internal/stream/` — Stream* 类型已移到 domain 包；stream 包保留 StreamItem→event 投影逻辑 + assistant streaming。
 - `internal/contextplane/` — run 上下文装配、observation masking、LLM auto-compact、deferred tool loading、tool lifecycle。
-- `internal/toolkit/` — 工具契约层（ToolContract/Catalog/ToolSpec/loading+execution policy）。
-- `internal/toolset/` — 工具实现层（file/git/browser/web/command/artifact/memory 工具实现）。
+- `internal/tools/` — 工具契约 + 实现（ToolContract/Catalog/ToolSpec + file/git/browser/web/command/artifact 工具）。
 - `internal/memory/` — file-backed memory（facts/history）、search、prepare、semantic retrieval（embedding + SQLite 暴力余弦相似度）。
 - `internal/store/` — SQLite adapter + 跨包 store-facing records、sentinel errors（sessions/messages/runs/events/pending_actions/devices/pairing_codes/owner_profile）。
 - `internal/api/` — `/v1` client surface + device bearer auth middleware；live RunEvent 从 `events` 表投影 mobile live subset。
