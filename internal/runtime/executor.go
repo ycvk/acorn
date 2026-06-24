@@ -11,7 +11,7 @@ import (
 	einomodel "github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/config"
-	"github.com/ycvk/acorn/internal/contextplane"
+	"github.com/ycvk/acorn/internal/context"
 	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/memory"
 	"github.com/ycvk/acorn/internal/store"

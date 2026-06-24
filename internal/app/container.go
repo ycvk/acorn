@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/ycvk/acorn/internal/config"
-	"github.com/ycvk/acorn/internal/contextplane"
+	"github.com/ycvk/acorn/internal/context"
 	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/memory"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"

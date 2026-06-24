@@ -8,7 +8,7 @@ import (
 	einotool "github.com/cloudwego/eino/components/tool"
 	toolutils "github.com/cloudwego/eino/components/tool/utils"
 	"github.com/ycvk/acorn/internal/config"
-	"github.com/ycvk/acorn/internal/contextplane"
+	"github.com/ycvk/acorn/internal/context"
 	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/tools"
 )

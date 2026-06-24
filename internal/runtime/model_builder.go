@@ -11,7 +11,7 @@ import (
 	einomodel "github.com/cloudwego/eino/components/model"
 
 	"github.com/ycvk/acorn/internal/config"
-	"github.com/ycvk/acorn/internal/contextplane"
+	"github.com/ycvk/acorn/internal/context"
 )
 
 // ModelBuilder owns chat-model construction for a RunnerFactory. It isolates

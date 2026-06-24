@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	einomodel "github.com/cloudwego/eino/components/model"
-	"github.com/ycvk/acorn/internal/contextplane"
+	"github.com/ycvk/acorn/internal/context"
 	"github.com/ycvk/acorn/internal/memory"
 	"github.com/ycvk/acorn/internal/stream"
 	"github.com/ycvk/acorn/internal/tools"

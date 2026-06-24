@@ -87,7 +87,7 @@ func TestCatalogExecutionPolicyRejectsUnknownTool(t *testing.T) {
 func TestNewCatalogRejectsIncompleteContract(t *testing.T) {
 	tool := mustInferTool(t, "local_echo")
 	_, err := tools.NewCatalog(context.Background(), []port.ToolSpec{{
-		Contract: port.ToolContract{
+		ToolContract: port.ToolContract{
 			Source:   "local",
 			Kind:     port.ToolKindNative,
 			Category: port.ToolCategoryRead,

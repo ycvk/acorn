@@ -1,4 +1,4 @@
-package contextplane
+package context
 
 import (
 	"context"
