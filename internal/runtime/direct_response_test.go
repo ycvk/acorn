@@ -24,8 +24,8 @@ import (
 func directResponseTestConfig(systemPrompt string, maxIterations int) *config.Config {
 	return &config.Config{
 		Agent: config.AgentConfig{
-			Name:         "test-agent",
-			SystemPrompt: systemPrompt,
+			Name:          "test-agent",
+			SystemPrompt:  systemPrompt,
 			MaxIterations: maxIterations,
 		},
 	}

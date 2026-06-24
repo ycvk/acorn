@@ -279,22 +279,19 @@ func buildRunCapabilities(ctx context.Context, deps RuntimeDeps, sessionID, runI
 // assembleRunCapabilitiesCatalog merges the local toolset catalog with MCP tool
 // specs into the final run capability catalog.
 //
-// When deps.ToolRegistry is non-nil, native tool specs are sourced from the
-// registry (resolving their factories into concrete tools under the run context)
-// instead of the local toolset catalog. The toolset still supplies the
-// non-native specs (memory, skill, load_tools) and its closers. MCP specs are
-// always appended. When the registry is nil, the local toolset catalog is used
-// as before (backward compatibility for tests that don't provide a registry).
+// When deps.ToolRegistry is non-nil (production path), native tool specs are
+// sourced from the registry. When nil (test-only path), the local toolset
+// catalog is used directly.
 func assembleRunCapabilitiesCatalog(ctx context.Context, deps RuntimeDeps, toolset *Toolset, sessionID, runID string, mcpManager *mcpprovider.Manager) (*tools.Catalog, error) {
 	var specs []core.ToolSpec
-	if deps.ToolRegistry != nil {
+	if deps.ToolRegistry == nil {
+		specs = append([]core.ToolSpec(nil), toolset.Catalog().Specs()...)
+	} else {
 		registrySpecs, err := resolveRegistrySpecs(ctx, deps, sessionID, runID)
 		if err != nil {
 			return nil, fmt.Errorf("resolve registry tools: %w", err)
 		}
 		specs = append(specs, registrySpecs...)
-		// Append the non-native specs (memory, skill, load_tools) the registry
-		// doesn't own.
 		for _, spec := range toolset.Catalog().Specs() {
 			if spec.IsMCP || spec.IsBuiltin {
 				continue
@@ -304,8 +301,6 @@ func assembleRunCapabilitiesCatalog(ctx context.Context, deps RuntimeDeps, tools
 			}
 			specs = append(specs, spec)
 		}
-	} else {
-		specs = append([]core.ToolSpec(nil), toolset.Catalog().Specs()...)
 	}
 	mcpSpecs, err := buildMCPToolSpecs(ctx, deps.Config, mcpManager)
 	if err != nil {
