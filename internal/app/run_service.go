@@ -124,7 +124,7 @@ func (s *RunService) InterruptRun(ctx context.Context, runID string) error {
 }
 
 func (s *RunService) CreateRun(ctx context.Context, threadID, skillID, input string) (*Run, error) {
-	if s == nil || s.store == nil || s.newExecutor == nil || s.newRunID == nil {
+	if s == nil || s.store == nil || s.newExecutor == nil || s.newRunID == nil || s.threads == nil {
 		return nil, errors.New("client service is not initialized")
 	}
 	threadID = strings.TrimSpace(threadID)

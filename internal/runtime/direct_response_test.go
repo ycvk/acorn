@@ -285,7 +285,7 @@ func TestBuildDirectResponseContinuesAfterOutputLimit(t *testing.T) {
 		Catalog:           catalog,
 		ContextResult:     contextResult,
 		InstructionSuffix: "suffix",
-	})
+	}, NewToolAssembler(deps))
 	if err != nil {
 		t.Fatalf("BuildDirectResponse: %v", err)
 	}
@@ -349,7 +349,7 @@ func TestBuildDirectResponseDoesNotExecuteTruncatedToolCalls(t *testing.T) {
 		Catalog:           catalog,
 		ContextResult:     contextResult,
 		InstructionSuffix: "suffix",
-	})
+	}, NewToolAssembler(deps))
 	if err != nil {
 		t.Fatalf("BuildDirectResponse: %v", err)
 	}
@@ -414,7 +414,7 @@ func TestBuildDirectResponseRunsToolCallLoop(t *testing.T) {
 		Catalog:           catalog,
 		ContextResult:     contextResult,
 		InstructionSuffix: "suffix",
-	})
+	}, NewToolAssembler(deps))
 	if err != nil {
 		t.Fatalf("BuildDirectResponse: %v", err)
 	}
@@ -474,7 +474,7 @@ func TestBuildDirectResponsePropagatesModelError(t *testing.T) {
 		AssistantStreamer: &directResponseTestStreamer{},
 		Catalog:           catalog,
 		ContextResult:     contextResult,
-	})
+	}, NewToolAssembler(deps))
 	if err != nil {
 		t.Fatalf("BuildDirectResponse: %v", err)
 	}
@@ -511,7 +511,7 @@ func TestBuildDirectResponseFailsWithoutContextSession(t *testing.T) {
 		AssistantStreamer: &directResponseTestStreamer{},
 		Catalog:           catalog,
 		ContextResult:     contextResult,
-	})
+	}, NewToolAssembler(deps))
 	if err != nil {
 		t.Fatalf("BuildDirectResponse: %v", err)
 	}
@@ -783,7 +783,7 @@ func TestBuildDirectResponseHandlesInterrupt(t *testing.T) {
 		AssistantStreamer: &directResponseTestStreamer{},
 		Catalog:           catalog,
 		ContextResult:     contextResult,
-	})
+	}, NewToolAssembler(deps))
 	if err != nil {
 		t.Fatalf("BuildDirectResponse: %v", err)
 	}
@@ -848,7 +848,7 @@ func TestBuildDirectResponsePreservesNestedInterruptContexts(t *testing.T) {
 		AssistantStreamer: &directResponseTestStreamer{},
 		Catalog:           catalog,
 		ContextResult:     contextResult,
-	})
+	}, NewToolAssembler(deps))
 	if err != nil {
 		t.Fatalf("BuildDirectResponse: %v", err)
 	}
@@ -968,7 +968,7 @@ func TestBuildDirectResponseResumeContinuesFromPendingToolCalls(t *testing.T) {
 		AssistantStreamer: &directResponseTestStreamer{},
 		Catalog:           catalog,
 		ContextResult:     contextResult,
-	})
+	}, NewToolAssembler(deps))
 	if err != nil {
 		t.Fatalf("BuildDirectResponse: %v", err)
 	}

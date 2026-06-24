@@ -17,12 +17,13 @@ import (
 // request construction. It isolates context wiring from the factory so the
 // factory stays a thin coordinator.
 type ContextAssembler struct {
-	deps RuntimeDeps
+	deps          RuntimeDeps
+	toolAssembler *ToolAssembler
 }
 
 // NewContextAssembler assembles a ContextAssembler from runtime deps.
 func NewContextAssembler(deps RuntimeDeps) *ContextAssembler {
-	return &ContextAssembler{deps: deps}
+	return &ContextAssembler{deps: deps, toolAssembler: NewToolAssembler(deps)}
 }
 
 func (a *ContextAssembler) prepareRunMemory(ctx context.Context, req RunnerBuildRequest) (*memory.PrepareResult, error) {
@@ -96,7 +97,7 @@ func (a *ContextAssembler) buildAssembly(
 		return nil, fmt.Errorf("runner factory is not initialized")
 	}
 	bf := a.baseAssemblyFields(req, catalog, chatModel, contextResult)
-	return buildDirectResponse(ctx, a.deps, a.directResponseRequest(bf, req))
+	return buildDirectResponse(ctx, a.deps, a.directResponseRequest(bf, req), a.toolAssembler)
 }
 
 func (a *ContextAssembler) baseAssemblyFields(req RunnerBuildRequest, catalog *tools.Catalog, chatModel einomodel.BaseChatModel, contextResult *contextplane.AssembleResult) baseAssemblyFields {

@@ -11,18 +11,6 @@ import (
 	"github.com/ycvk/acorn/internal/stream"
 )
 
-// RunEmitter owns run event emission for a RunnerFactory. The package-level
-// emit helpers remain stateless (they accept a store parameter); RunEmitter
-// groups them under a single owner so the factory can delegate lifetime
-// concerns without coupling to emit internals.
-type RunEmitter struct {
-	deps RuntimeDeps
-}
-
-// NewRunEmitter assembles a RunEmitter from runtime deps.
-func NewRunEmitter(deps RuntimeDeps) *RunEmitter {
-	return &RunEmitter{deps: deps}
-}
 func emitMemoryPreparedEvent(ctx context.Context, store domain.EventAppender, req RunnerBuildRequest, workspaceScope string, result *memory.PrepareResult) error {
 	if store == nil || strings.TrimSpace(req.RunID) == "" {
 		return nil

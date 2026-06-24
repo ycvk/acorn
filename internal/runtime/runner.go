@@ -35,11 +35,8 @@ type RunnerFactory struct {
 
 	modelBuilder  *ModelBuilder
 	capabilityAsm *CapabilityAssembler
-	toolAssembler *ToolAssembler
 	contextAsm    *ContextAssembler
 	mcpAssembler  *MCPAssembler
-	skillSelector *SkillSelector
-	emitter       *RunEmitter
 }
 
 const (
@@ -280,11 +277,8 @@ func assembleRunnerFactory(deps RuntimeDeps) *RunnerFactory {
 		registry:      NewRegistry(),
 		modelBuilder:  NewModelBuilder(deps.Config),
 		capabilityAsm: NewCapabilityAssembler(deps),
-		toolAssembler: NewToolAssembler(deps),
 		contextAsm:    NewContextAssembler(deps),
 		mcpAssembler:  NewMCPAssembler(deps),
-		skillSelector: NewSkillSelector(deps),
-		emitter:       NewRunEmitter(deps),
 	}
 }
 

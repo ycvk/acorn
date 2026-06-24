@@ -91,7 +91,7 @@ func (a *ToolAssembler) assembleTooling(ctx context.Context, params toolAssembly
 	}, nil
 }
 
-func buildDirectResponse(ctx context.Context, deps RuntimeDeps, req DirectResponseRequest) (*RunAssembly, error) {
+func buildDirectResponse(ctx context.Context, deps RuntimeDeps, req DirectResponseRequest, ta *ToolAssembler) (*RunAssembly, error) {
 	if deps.Config == nil {
 		return nil, fmt.Errorf("runtime deps config is required")
 	}
@@ -108,7 +108,7 @@ func buildDirectResponse(ctx context.Context, deps RuntimeDeps, req DirectRespon
 		return nil, fmt.Errorf("context plane lifecycle state is required")
 	}
 
-	assembled, err := (&ToolAssembler{deps: deps}).assembleTooling(ctx, toolAssemblyParams{
+	assembled, err := ta.assembleTooling(ctx, toolAssemblyParams{
 		catalog:           req.Catalog,
 		contextResult:     req.ContextResult,
 		allowedToolNames:  req.AllowedToolNames,
