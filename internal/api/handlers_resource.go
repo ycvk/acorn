@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/ycvk/acorn/internal/app"
 	"github.com/ycvk/acorn/internal/memory"
 )
 
@@ -21,7 +20,7 @@ func (s *Server) handleListSkills(w http.ResponseWriter, r *http.Request) {
 		s.respondBadRequest(w, r, err.Error())
 		return
 	}
-	items, total, err := s.skills.ListFiltered(r.Context(), app.SkillListFilter{
+	items, total, err := s.skills.ListFiltered(r.Context(), SkillListFilter{
 		Limit:  limit,
 		Offset: offset,
 	})

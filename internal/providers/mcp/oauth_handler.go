@@ -10,18 +10,15 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/auth"
 	"github.com/modelcontextprotocol/go-sdk/oauthex"
+	"github.com/ycvk/acorn/internal/domain"
+	"github.com/ycvk/acorn/internal/port"
 	"github.com/ycvk/acorn/internal/store"
 	"golang.org/x/oauth2"
 )
 
-// TokenStore is the token persistence port required by the MCP OAuth flow.
-type TokenStore interface {
-	GetOAuthToken(ctx context.Context, providerName string) (*store.OAuthToken, error)
-	SaveOAuthToken(ctx context.Context, token *store.OAuthToken) error
-}
-
 // persistentOAuthHandler implements auth.OAuthHandler by persisting tokens
-// through TokenStore and delegating authorization to go-sdk's AuthorizationCodeHandler.
+// through port.MCPTokenStore and delegating authorization to go-sdk's
+// AuthorizationCodeHandler.
 //
 // OAUTH-02 compliance: AuthorizationCodeHandler.Authorize() internally performs
 // Protected Resource Metadata discovery (RFC 9728) via oauthex.GetProtectedResourceMetadata
@@ -32,7 +29,7 @@ type TokenStore interface {
 // with insufficient_scope error and performs step-up re-authorization with expanded
 // scope (authorization_code.go line 185-192).
 type persistentOAuthHandler struct {
-	store               TokenStore
+	store               port.MCPTokenStore
 	providerName        string
 	serverURL           string
 	clientID            string
@@ -45,7 +42,7 @@ type persistentOAuthHandler struct {
 // The handler delegates PKCE S256 authorization to go-sdk's
 // AuthorizationCodeHandler, which performs metadata discovery and step-up
 // authorization internally.
-func newPersistentOAuthHandler(store TokenStore, providerName, serverURL, clientID string, scopes []string, onAuthStatusChanged func(status string)) (*persistentOAuthHandler, error) {
+func newPersistentOAuthHandler(store port.MCPTokenStore, providerName, serverURL, clientID string, scopes []string, onAuthStatusChanged func(status string)) (*persistentOAuthHandler, error) {
 	// Create go-sdk AuthorizationCodeHandler with PKCE S256 support.
 	// The AuthorizationCodeFetcher prints the authorization URL to stderr
 	// and reads the code from stdin for operator consent.
@@ -136,7 +133,7 @@ func (h *persistentOAuthHandler) Authorize(ctx context.Context, req *http.Reques
 		return fmt.Errorf("get token after authorization for provider %q: %w", h.providerName, err)
 	}
 
-	saveErr := h.store.SaveOAuthToken(ctx, &store.OAuthToken{
+	saveErr := h.store.SaveOAuthToken(ctx, domain.OAuthToken{
 		ProviderName: h.providerName,
 		AccessToken:  tok.AccessToken,
 		RefreshToken: tok.RefreshToken,
@@ -160,7 +157,7 @@ func (h *persistentOAuthHandler) Authorize(ctx context.Context, req *http.Reques
 // When the refresh token is expired or revoked, onAuthStatusChanged
 // is called with "expired" to transition the provider auth status.
 type refreshTokenSource struct {
-	store               TokenStore
+	store               port.MCPTokenStore
 	providerName        string
 	inner               auth.OAuthHandler
 	onAuthStatusChanged func(status string)
@@ -187,7 +184,7 @@ func (r *refreshTokenSource) Token() (*oauth2.Token, error) {
 		}
 		return nil, err
 	}
-	if err := r.store.SaveOAuthToken(context.Background(), &store.OAuthToken{
+	if err := r.store.SaveOAuthToken(context.Background(), domain.OAuthToken{
 		ProviderName: r.providerName,
 		AccessToken:  tok.AccessToken,
 		RefreshToken: tok.RefreshToken,

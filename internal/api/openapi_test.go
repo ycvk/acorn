@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/getkin/kin-openapi/openapi3"
-	"github.com/ycvk/acorn/internal/app"
 )
 
 func TestOpenAPIContractMatchesFileBackedMemorySurface(t *testing.T) {
@@ -346,9 +345,9 @@ func TestOpenAPIRunResultMatchesAppProjectionStruct(t *testing.T) {
 	}
 
 	got := sortedKeys(schemaRef.Value.Properties)
-	want := sortedStrings(jsonFieldNames(reflect.TypeOf(app.RunResult{})))
+	want := sortedStrings(jsonFieldNames(reflect.TypeOf(RunResult{})))
 	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("RunResult OpenAPI fields = %v, want app.RunResult fields %v", got, want)
+		t.Fatalf("RunResult OpenAPI fields = %v, want RunResult fields %v", got, want)
 	}
 }
 

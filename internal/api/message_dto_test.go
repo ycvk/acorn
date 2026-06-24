@@ -5,19 +5,17 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/ycvk/acorn/internal/app"
 )
 
 func TestMessageDTOFromDomainEmitsResultArrays(t *testing.T) {
-	message := messageDTOFromDomain(app.Message{
+	message := messageDTOFromDomain(Message{
 		ID:       "msg_1",
 		ThreadID: "thread_1",
 		Role:     "assistant",
-		Content: app.MessageContent{
+		Content: MessageContent{
 			Type: "text",
 			Text: "Task completed.",
-			Parts: []app.MessagePart{{
+			Parts: []MessagePart{{
 				Kind:  "result",
 				Title: "Task completed",
 			}},
@@ -38,14 +36,14 @@ func TestMessageDTOFromDomainEmitsResultArrays(t *testing.T) {
 }
 
 func TestMessageDTOFromDomainEmitsReasoningPart(t *testing.T) {
-	message := messageDTOFromDomain(app.Message{
+	message := messageDTOFromDomain(Message{
 		ID:       "msg_2",
 		ThreadID: "thread_1",
 		Role:     "assistant",
-		Content: app.MessageContent{
+		Content: MessageContent{
 			Type: "text",
 			Text: "Task completed.",
-			Parts: []app.MessagePart{{
+			Parts: []MessagePart{{
 				Kind:      "reasoning",
 				Reasoning: "inspected the final run archive before answering",
 			}},

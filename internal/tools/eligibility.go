@@ -1,6 +1,8 @@
 package tools
 
-import "github.com/ycvk/acorn/internal/skills"
+import (
+	"github.com/ycvk/acorn/internal/skills"
+)
 
 func EligibilityContext(catalog *Catalog, env map[string]string) skills.EligibilityContext {
 	if catalog == nil {

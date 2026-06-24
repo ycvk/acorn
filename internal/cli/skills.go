@@ -6,9 +6,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ycvk/acorn/internal/app"
+	"github.com/ycvk/acorn/internal/api"
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/skills"
+	"github.com/ycvk/acorn/internal/wire"
 )
 
 func runSkills(ctx context.Context, args []string) error {
@@ -41,7 +42,7 @@ func runSkillsList(ctx context.Context, args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	return withContainer(ctx, *configPath, func(container *app.Container) error {
+	return withContainer(ctx, *configPath, func(container *wire.Container) error {
 		items, err := container.Skills().List(ctx, *limit)
 		if err != nil {
 			return err
@@ -64,7 +65,7 @@ func runSkillsInspect(ctx context.Context, args []string) error {
 	if fs.NArg() != 1 {
 		return fmt.Errorf("skills inspect requires a skill id")
 	}
-	return withContainer(ctx, *configPath, func(container *app.Container) error {
+	return withContainer(ctx, *configPath, func(container *wire.Container) error {
 		item, err := container.Skills().Get(ctx, fs.Arg(0))
 		if err != nil {
 			return err
@@ -88,7 +89,7 @@ func runSkillsCheck(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	service := app.NewSkillService(cfg, skills.NewLoader(cfg))
+	service := api.NewSkillService(cfg, skills.NewLoader(cfg))
 	report, err := service.Health(ctx)
 	if err != nil {
 		return err
@@ -115,8 +116,8 @@ func runSkillsCreate(ctx context.Context, args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	return withContainer(ctx, *configPath, func(container *app.Container) error {
-		item, err := container.Skills().Create(ctx, app.CreateSkillInput{
+	return withContainer(ctx, *configPath, func(container *wire.Container) error {
+		item, err := container.Skills().Create(ctx, api.CreateSkillInput{
 			ID:          *id,
 			Name:        *name,
 			Category:    *category,
@@ -147,7 +148,7 @@ func runSkillsPatch(ctx context.Context, args []string) error {
 	}
 	skillID := fs.Arg(0)
 	content := strings.Join(fs.Args()[1:], " ")
-	return withContainer(ctx, *configPath, func(container *app.Container) error {
+	return withContainer(ctx, *configPath, func(container *wire.Container) error {
 		item, err := container.Skills().Patch(ctx, skillID, content, *source)
 		if err != nil {
 			return err
@@ -169,7 +170,7 @@ func runSkillsDelete(ctx context.Context, args []string) error {
 	if fs.NArg() != 1 {
 		return fmt.Errorf("skills delete requires a skill id")
 	}
-	return withContainer(ctx, *configPath, func(container *app.Container) error {
+	return withContainer(ctx, *configPath, func(container *wire.Container) error {
 		if err := container.Skills().Delete(ctx, fs.Arg(0)); err != nil {
 			return err
 		}

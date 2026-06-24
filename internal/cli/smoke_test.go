@@ -4,11 +4,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ycvk/acorn/internal/app"
+	"github.com/ycvk/acorn/internal/wire"
 )
 
 func TestRenderSmokeResultSucceeded(t *testing.T) {
-	out, err := renderSmokeResult(&app.RunOnceResult{
+	out, err := renderSmokeResult(&wire.RunOnceResult{
 		RunID:  "run_123",
 		Status: "succeeded",
 		Output: "Hi there!",
@@ -31,7 +31,7 @@ func TestRenderSmokeResultSucceeded(t *testing.T) {
 }
 
 func TestRenderSmokeResultFailedSurfacesError(t *testing.T) {
-	out, err := renderSmokeResult(&app.RunOnceResult{
+	out, err := renderSmokeResult(&wire.RunOnceResult{
 		RunID:  "run_456",
 		Status: "failed",
 		Error:  "semantic search runtime is required",
@@ -50,7 +50,7 @@ func TestRenderSmokeResultFailedSurfacesError(t *testing.T) {
 }
 
 func TestRenderSmokeResultJSON(t *testing.T) {
-	out, err := renderSmokeResult(&app.RunOnceResult{
+	out, err := renderSmokeResult(&wire.RunOnceResult{
 		RunID:  "run_789",
 		Status: "failed",
 		Error:  "execution_not_ready: model.api_key is required",
@@ -71,15 +71,15 @@ func TestRenderSmokeResultJSON(t *testing.T) {
 }
 
 func TestSmokeRunErrorExitSemantics(t *testing.T) {
-	if err := smokeRunError(&app.RunOnceResult{RunID: "run_1", Status: "succeeded", Output: "hi"}); err != nil {
+	if err := smokeRunError(&wire.RunOnceResult{RunID: "run_1", Status: "succeeded", Output: "hi"}); err != nil {
 		t.Fatalf("succeeded must be a clean success (nil error), got: %v", err)
 	}
-	failedErr := smokeRunError(&app.RunOnceResult{RunID: "run_2", Status: "failed", Error: "boom"})
+	failedErr := smokeRunError(&wire.RunOnceResult{RunID: "run_2", Status: "failed", Error: "boom"})
 	if failedErr == nil || !strings.Contains(failedErr.Error(), "failed") || !strings.Contains(failedErr.Error(), "boom") {
 		t.Fatalf("failed must return a non-nil error carrying the reason, got: %v", failedErr)
 	}
 	// interrupted is terminal-but-incomplete: it must NOT exit 0 like a success.
-	interruptedErr := smokeRunError(&app.RunOnceResult{RunID: "run_3", Status: "interrupted"})
+	interruptedErr := smokeRunError(&wire.RunOnceResult{RunID: "run_3", Status: "interrupted"})
 	if interruptedErr == nil || !strings.Contains(interruptedErr.Error(), "did not complete") {
 		t.Fatalf("interrupted must return a non-nil error, got: %v", interruptedErr)
 	}

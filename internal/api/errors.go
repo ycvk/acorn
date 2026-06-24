@@ -4,20 +4,19 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/ycvk/acorn/internal/app"
 	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/store"
 )
 
 func (s *Server) respondKnownError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
-	case errors.Is(err, app.ErrUnauthenticated):
+	case errors.Is(err, ErrUnauthenticated):
 		s.respondError(w, r, http.StatusUnauthorized, "unauthenticated", err.Error())
-	case errors.Is(err, app.ErrDeviceRevoked):
+	case errors.Is(err, ErrDeviceRevoked):
 		s.respondError(w, r, http.StatusForbidden, "device_revoked", err.Error())
-	case errors.Is(err, app.ErrInvalidPairingCode):
+	case errors.Is(err, ErrInvalidPairingCode):
 		s.respondError(w, r, http.StatusBadRequest, "invalid_pairing_code", err.Error())
-	case errors.Is(err, app.ErrDeviceNotFound):
+	case errors.Is(err, ErrDeviceNotFound):
 		s.respondNotFound(w, r, "device_not_found", err.Error())
 	case errors.Is(err, store.ErrSessionNotFound):
 		s.respondNotFound(w, r, "session_not_found", err.Error())
@@ -30,9 +29,9 @@ func (s *Server) respondKnownError(w http.ResponseWriter, r *http.Request, err e
 	case errors.Is(err, store.ErrFactNotFound):
 		s.respondNotFound(w, r, "fact_not_found", err.Error())
 		s.respondNotFound(w, r, "plan_not_found", err.Error())
-	case errors.Is(err, app.ErrSkillAlreadyExists):
+	case errors.Is(err, ErrSkillAlreadyExists):
 		s.respondConflict(w, r, "skill_already_exists", err.Error())
-	case errors.Is(err, app.ErrSkillNotFound):
+	case errors.Is(err, ErrSkillNotFound):
 		s.respondNotFound(w, r, "skill_not_found", err.Error())
 	case errors.Is(err, domain.ErrRunNotActive):
 		s.respondConflict(w, r, "run_not_active", err.Error())

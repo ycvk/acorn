@@ -12,7 +12,7 @@ import (
 	"github.com/ycvk/acorn/internal/domain"
 )
 
-func (s *Store) CreatePendingAction(ctx context.Context, input CreatePendingActionInput) (*domain.PendingActionRecord, error) {
+func (s *Store) CreatePendingAction(ctx context.Context, input domain.PendingActionInput) (*domain.PendingActionRecord, error) {
 	kind, status, err := normalizeCreatePendingActionInput(input)
 	if err != nil {
 		return nil, err
@@ -42,7 +42,7 @@ func (s *Store) CreatePendingAction(ctx context.Context, input CreatePendingActi
 func (s *Store) insertPendingAction(ctx context.Context, record *domain.PendingActionRecord) error {
 	_, err := s.db.ExecContext(
 		ctx,
-		`INSERT INTO pending_actions(action_id, run_id, interrupt_id, kind, subject, payload_json, status, reason, decision_json, created_at, decided_at, resolved_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, '', ?, '', '')`,
+		`INSERT INTO pending_actions(action_id, run_id, interrupt_id, kind, subject, payload_json, status, reason, decision_json, created_at, resolved_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, '', ?, '')`,
 		record.ActionID,
 		record.RunID,
 		record.InterruptID,
@@ -63,8 +63,8 @@ func (s *Store) insertPendingAction(ctx context.Context, record *domain.PendingA
 }
 
 // normalizeCreatePendingActionInput normalizes the kind/status fields of a
-// CreatePendingActionInput, returning them together with any error.
-func normalizeCreatePendingActionInput(input CreatePendingActionInput) (domain.PendingActionKind, domain.PendingActionStatus, error) {
+// PendingActionInput, returning them together with any error.
+func normalizeCreatePendingActionInput(input domain.PendingActionInput) (domain.PendingActionKind, domain.PendingActionStatus, error) {
 	kind, err := normalizePendingActionKind(input.Kind)
 	if err != nil {
 		return "", "", fmt.Errorf("create pending action: %w", err)
@@ -149,7 +149,7 @@ func (s *Store) ListPendingActions(ctx context.Context, limit int) ([]domain.Pen
 
 // pendingActionColumns is the shared column list for all pending_actions
 // SELECTs, matching the field order scanned by scanPendingActionRecord.
-const pendingActionColumns = `action_id, run_id, interrupt_id, kind, subject, payload_json, status, reason, decision_json, created_at, decided_at, resolved_at`
+const pendingActionColumns = `action_id, run_id, interrupt_id, kind, subject, payload_json, status, reason, decision_json, created_at, resolved_at`
 
 // scanPendingActionRows scans all rows from a pending_actions query into a
 // slice, closing the rows and wrapping the scan error with source.
@@ -189,7 +189,7 @@ func (s *Store) DecidePendingAction(ctx context.Context, actionID string, status
 	if err != nil {
 		return nil, err
 	}
-	decidedAt := time.Now().UTC()
+	resolvedAt := time.Now().UTC()
 
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -201,13 +201,13 @@ func (s *Store) DecidePendingAction(ctx context.Context, actionID string, status
 	if err != nil {
 		return nil, err
 	}
-	if err := decideApplyUpdate(ctx, tx, record, normalizedStatus, decisionJSON, decidedAt); err != nil {
+	if err := decideApplyUpdate(ctx, tx, record, normalizedStatus, decisionJSON, resolvedAt); err != nil {
 		return nil, err
 	}
-	if err := decideAppendEvent(tx, record, normalizedStatus, decidedAt); err != nil {
+	if err := decideAppendEvent(tx, record, normalizedStatus, resolvedAt); err != nil {
 		return nil, err
 	}
-	return decideCommit(tx, record, normalizedStatus, decisionJSON, decidedAt)
+	return decideCommit(tx, record, normalizedStatus, decisionJSON, resolvedAt)
 }
 
 // normalizePendingActionDecisionInput normalizes the decision status,
@@ -221,13 +221,13 @@ func normalizePendingActionDecisionInput(status domain.PendingActionStatus) (dom
 }
 
 // decideCommit commits the tx and returns the finalized record.
-func decideCommit(tx *sql.Tx, record *domain.PendingActionRecord, status domain.PendingActionStatus, decisionJSON string, decidedAt time.Time) (*domain.PendingActionRecord, error) {
+func decideCommit(tx *sql.Tx, record *domain.PendingActionRecord, status domain.PendingActionStatus, decisionJSON string, resolvedAt time.Time) (*domain.PendingActionRecord, error) {
 	if err := tx.Commit(); err != nil {
 		return nil, fmt.Errorf("decide pending action commit: %w", err)
 	}
 	record.Status = status
 	record.DecisionJSON = decisionJSON
-	record.DecidedAt = &decidedAt
+	record.ResolvedAt = &resolvedAt
 	return record, nil
 }
 
@@ -250,13 +250,13 @@ func decideLoadPendingAction(ctx context.Context, tx *sql.Tx, actionID string) (
 }
 
 // decideApplyUpdate runs the conditional status update within the tx.
-func decideApplyUpdate(ctx context.Context, tx *sql.Tx, record *domain.PendingActionRecord, status domain.PendingActionStatus, decisionJSON string, decidedAt time.Time) error {
+func decideApplyUpdate(ctx context.Context, tx *sql.Tx, record *domain.PendingActionRecord, status domain.PendingActionStatus, decisionJSON string, resolvedAt time.Time) error {
 	result, err := tx.ExecContext(
 		ctx,
-		`UPDATE pending_actions SET status = ?, decision_json = ?, decided_at = ? WHERE action_id = ? AND status = ?`,
+		`UPDATE pending_actions SET status = ?, decision_json = ?, resolved_at = ? WHERE action_id = ? AND status = ?`,
 		string(status),
 		decisionJSON,
-		formatTimestamp(decidedAt),
+		formatTimestamp(resolvedAt),
 		record.ActionID,
 		string(domain.PendingActionStatusPending),
 	)
@@ -274,7 +274,7 @@ func decideApplyUpdate(ctx context.Context, tx *sql.Tx, record *domain.PendingAc
 }
 
 // decideAppendEvent marshals and inserts the action.decided event row.
-func decideAppendEvent(tx *sql.Tx, record *domain.PendingActionRecord, status domain.PendingActionStatus, decidedAt time.Time) error {
+func decideAppendEvent(tx *sql.Tx, record *domain.PendingActionRecord, status domain.PendingActionStatus, resolvedAt time.Time) error {
 	eventPayload, err := json.Marshal(map[string]any{
 		"action_id":    record.ActionID,
 		"interrupt_id": record.InterruptID,
@@ -282,7 +282,7 @@ func decideAppendEvent(tx *sql.Tx, record *domain.PendingActionRecord, status do
 		"subject":      record.Subject,
 		"decision":     string(status),
 		"reason":       record.Reason,
-		"decided_at":   decidedAt.UTC().Format(time.RFC3339Nano),
+		"resolved_at":  resolvedAt.UTC().Format(time.RFC3339Nano),
 	})
 	if err != nil {
 		return fmt.Errorf("marshal action.decided event: %w", err)
@@ -292,7 +292,7 @@ func decideAppendEvent(tx *sql.Tx, record *domain.PendingActionRecord, status do
 		record.RunID,
 		"action.decided",
 		string(eventPayload),
-		formatTimestamp(decidedAt),
+		formatTimestamp(resolvedAt),
 	); err != nil {
 		return fmt.Errorf("insert action.decided event: %w", err)
 	}

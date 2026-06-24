@@ -1,11 +1,9 @@
 package domain
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/cloudwego/eino/adk"
@@ -31,15 +29,15 @@ const (
 // --- Run / event / session records ---
 
 type RunRecord struct {
-	RunID     string    `json:"run_id"`
-	SessionID string    `json:"session_id,omitempty"`
-	TurnIndex int       `json:"turn_index,omitempty"`
-	Status    RunStatus `json:"status"`
-	Input     string    `json:"input"`
-	Output    string    `json:"output,omitempty"`
-	Error     string    `json:"error,omitempty"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	RunID      string    `json:"run_id"`
+	SessionID  string    `json:"session_id,omitempty"`
+	TurnIndex  int       `json:"turn_index,omitempty"`
+	Status     RunStatus `json:"status"`
+	Input      string    `json:"input"`
+	Output     string    `json:"output,omitempty"`
+	Error      string    `json:"error,omitempty"`
+	CreatedAt  time.Time `json:"created_at"`
+	FinishedAt time.Time `json:"finished_at,omitempty"`
 }
 
 type EventRecord struct {
@@ -88,7 +86,6 @@ type PendingActionRecord struct {
 	Reason       string              `json:"reason,omitempty"`
 	DecisionJSON string              `json:"decision_json,omitempty"`
 	CreatedAt    time.Time           `json:"created_at"`
-	DecidedAt    *time.Time          `json:"decided_at,omitempty"`
 	ResolvedAt   *time.Time          `json:"resolved_at,omitempty"`
 }
 
@@ -140,22 +137,6 @@ type SessionSummary struct {
 	UpdatedAt   time.Time `json:"updated_at"`
 }
 
-// --- Ports ---
-
-// EventAppender appends a runtime event to the persisted store.
-type EventAppender interface {
-	AppendEventContext(ctx context.Context, runID, kind string, payload any) (EventRecord, error)
-}
-
-// ToolCallContextBridge provides access to the current run, session, and
-// tool-call identifiers. Used by toolset as the context port for attributing
-// artifacts and evidence to specific runs/sessions/tool-calls.
-type ToolCallContextBridge interface {
-	CurrentRunID(ctx context.Context) string
-	CurrentSessionID(ctx context.Context) string
-	CurrentToolCallID(ctx context.Context) string
-}
-
 // --- ExecuteRequest ---
 
 type ExecuteRequest struct {
@@ -169,76 +150,7 @@ type ExecuteRequest struct {
 	Messages         []adk.Message
 }
 
-// --- Context plumbing ---
-
-type runIDContextKey struct{}
-
-func WithRunID(ctx context.Context, runID string) context.Context {
-	return context.WithValue(ctx, runIDContextKey{}, runID)
-}
-
-func GetRunID(ctx context.Context) string {
-	if ctx == nil {
-		return ""
-	}
-	v, ok := ctx.Value(runIDContextKey{}).(string)
-	if !ok {
-		return ""
-	}
-	return v
-}
-
-type sessionIDContextKey struct{}
-
-func WithSessionID(ctx context.Context, sessionID string) context.Context {
-	return context.WithValue(ctx, sessionIDContextKey{}, sessionID)
-}
-
-func SessionIDFromContext(ctx context.Context) string {
-	if ctx == nil {
-		return ""
-	}
-	v, ok := ctx.Value(sessionIDContextKey{}).(string)
-	if !ok {
-		return ""
-	}
-	return v
-}
-
-type turnIndexContextKey struct{}
-
-func WithTurnIndex(ctx context.Context, turnIndex int) context.Context {
-	return context.WithValue(ctx, turnIndexContextKey{}, turnIndex)
-}
-
-func TurnIndexFromContext(ctx context.Context) int {
-	if ctx == nil {
-		return 0
-	}
-	index, ok := ctx.Value(turnIndexContextKey{}).(int)
-	if !ok {
-		return 0
-	}
-	return index
-}
-
-// --- Call-site context plumbing ---
-
-const (
-	CallSiteRuntime    = "runtime"
-	CallSiteAssistant  = "assistant"
-	CallSiteCompaction = "compaction"
-)
-
-type callSiteContextKey struct{}
-
-func WithCallSite(ctx context.Context, callSite string) context.Context {
-	trimmed := strings.TrimSpace(callSite)
-	if trimmed == "" {
-		return ctx
-	}
-	return context.WithValue(ctx, callSiteContextKey{}, trimmed)
-}
+// --- Stream items ---
 
 type StreamItemKind string
 
@@ -355,25 +267,3 @@ func (item *StreamItem) UnmarshalJSON(data []byte) error {
 
 // StreamSink consumes run stream items.
 type StreamSink func(item StreamItem) error
-
-type streamSinkContextKey struct{}
-
-// WithStreamSink attaches a StreamSink to the context for retrieval by StreamSinkFromContext.
-func WithStreamSink(ctx context.Context, sink StreamSink) context.Context {
-	if sink == nil {
-		return ctx
-	}
-	return context.WithValue(ctx, streamSinkContextKey{}, sink)
-}
-
-// StreamSinkFromContext retrieves the StreamSink previously attached via WithStreamSink.
-func StreamSinkFromContext(ctx context.Context) StreamSink {
-	if ctx == nil {
-		return nil
-	}
-	sink, ok := ctx.Value(streamSinkContextKey{}).(StreamSink)
-	if !ok {
-		return nil
-	}
-	return sink
-}

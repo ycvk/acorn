@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/ycvk/acorn/internal/app"
 )
 
 func (s *Server) handleDecidePendingAction(w http.ResponseWriter, r *http.Request) {
@@ -13,7 +12,7 @@ func (s *Server) handleDecidePendingAction(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
-	record, err := s.pendingAction.Decide(r.Context(), chi.URLParam(r, "action_id"), app.PendingActionDecisionInput{
+	record, err := s.pendingAction.Decide(r.Context(), chi.URLParam(r, "action_id"), PendingActionDecisionInput{ //nolint:gosimple // fields have different JSON tags
 		Decision:         req.Decision,
 		SelectedOptionID: req.SelectedOptionID,
 		Answer:           req.Answer,

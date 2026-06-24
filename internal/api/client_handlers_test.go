@@ -13,7 +13,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/ycvk/acorn/internal/app"
 	"github.com/ycvk/acorn/internal/clientevents"
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/domain"
@@ -25,7 +24,7 @@ import (
 
 func TestThreadMessageRunHandlers(t *testing.T) {
 	service := &clientHandlerStub{
-		thread: app.Thread{
+		thread: Thread{
 			ID:            "thread_1",
 			Title:         "Inspect repo",
 			WorkspaceRoot: "/repo",
@@ -33,17 +32,17 @@ func TestThreadMessageRunHandlers(t *testing.T) {
 			UpdatedAt:     time.Date(2026, 5, 2, 10, 1, 0, 0, time.UTC),
 			State:         "new",
 		},
-		message: app.Message{
+		message: Message{
 			ID:       "7",
 			ThreadID: "thread_1",
 			Role:     "user",
-			Content: app.MessageContent{
+			Content: MessageContent{
 				Type: "text",
 				Text: "look around",
 			},
 			CreatedAt: time.Date(2026, 5, 2, 10, 2, 0, 0, time.UTC),
 		},
-		run: app.Run{
+		run: Run{
 			ID:        "run_1",
 			ThreadID:  "thread_1",
 			Status:    "running",
@@ -175,7 +174,7 @@ func TestDecidePendingActionHandler(t *testing.T) {
 
 func TestPendingActionListAndDetailHandlers(t *testing.T) {
 	service := &pendingActionHandlerStub{
-		summaries: []app.PendingActionSummary{{
+		summaries: []PendingActionSummary{{
 			ActionID: "action_1",
 			RunID:    "run_1",
 			ThreadID: "thread_1",
@@ -183,14 +182,14 @@ func TestPendingActionListAndDetailHandlers(t *testing.T) {
 			Status:   "pending",
 			Title:    "Approval required",
 			Body:     "Allow Acorn to continue?",
-			Options: []app.PendingActionOption{
+			Options: []PendingActionOption{
 				{ID: "accept", Label: "Accept"},
 				{ID: "decline", Label: "Decline"},
 			},
 			CreatedAt: time.Date(2026, 5, 15, 10, 0, 0, 0, time.UTC),
 		}},
-		detail: &app.PendingActionDetail{
-			PendingActionSummary: app.PendingActionSummary{
+		detail: &PendingActionDetail{
+			PendingActionSummary: PendingActionSummary{
 				ActionID: "action_1",
 				RunID:    "run_1",
 				ThreadID: "thread_1",
@@ -198,7 +197,7 @@ func TestPendingActionListAndDetailHandlers(t *testing.T) {
 				Status:   "pending",
 				Title:    "Approval required",
 				Body:     "Allow Acorn to continue?",
-				Options: []app.PendingActionOption{
+				Options: []PendingActionOption{
 					{ID: "accept", Label: "Accept"},
 					{ID: "decline", Label: "Decline"},
 				},
@@ -293,7 +292,7 @@ func TestDecidePendingActionHandlerRejectsInvalidRequests(t *testing.T) {
 }
 
 func TestDecidePendingActionHandlerMapsInvalidDecision(t *testing.T) {
-	service := &pendingActionHandlerStub{err: app.ErrPendingActionDecisionInvalid}
+	service := &pendingActionHandlerStub{err: ErrPendingActionDecisionInvalid}
 	server := &Server{
 		pendingAction: service,
 		deviceAuth:    &deviceAuthHandlerStub{},
@@ -348,8 +347,8 @@ func TestDeviceAuthProtectsV1Routes(t *testing.T) {
 
 func TestDeviceAuthPairListAndRevokeHandlers(t *testing.T) {
 	auth := &deviceAuthHandlerStub{
-		pairResult: &app.PairDeviceResult{
-			Device: app.DeviceView{
+		pairResult: &PairDeviceResult{
+			Device: DeviceView{
 				DeviceID:   "device_1",
 				Name:       "iPhone",
 				Platform:   "ios",
@@ -358,7 +357,7 @@ func TestDeviceAuthPairListAndRevokeHandlers(t *testing.T) {
 			},
 			AccessToken: "acorn_dev_token",
 		},
-		devices: []app.DeviceView{{
+		devices: []DeviceView{{
 			DeviceID:   "device_1",
 			Name:       "iPhone",
 			Platform:   "ios",
@@ -413,7 +412,7 @@ func TestDeviceAuthRevokedTokenFailsProtectedRoutes(t *testing.T) {
 		threads:    &clientHandlerStub{},
 		runs:       &clientHandlerStub{},
 		events:     &clientHandlerStub{},
-		deviceAuth: &deviceAuthHandlerStub{authErr: app.ErrDeviceRevoked},
+		deviceAuth: &deviceAuthHandlerStub{authErr: ErrDeviceRevoked},
 		logger:     slog.New(slog.NewTextHandler(bytes.NewBuffer(nil), nil)),
 	}
 	router := chi.NewRouter()
@@ -470,7 +469,7 @@ func TestClientHandlersReturnClientErrorCodes(t *testing.T) {
 			method:     http.MethodPost,
 			path:       "/v1/threads/thread_1/runs",
 			body:       `{}`,
-			err:        app.ErrClientNoPendingMessage,
+			err:        ErrClientNoPendingMessage,
 			wantStatus: http.StatusBadRequest,
 			wantCode:   "invalid_request",
 		},
@@ -648,7 +647,7 @@ func TestRunEventsReturnErrorsBeforeSSEStarts(t *testing.T) {
 		{
 			name:       "projection failure",
 			path:       "/v1/runs/run_1/events",
-			err:        app.ErrClientProjectionFailed,
+			err:        ErrClientProjectionFailed,
 			wantStatus: http.StatusInternalServerError,
 			wantCode:   "run_event_projection_failed",
 		},
@@ -676,7 +675,7 @@ func TestRunEventsReturnErrorsBeforeSSEStarts(t *testing.T) {
 
 func TestClientResourceSurfaceHandlers(t *testing.T) {
 	service := &clientHandlerStub{
-		thread: app.Thread{
+		thread: Thread{
 			ID:            "thread_1",
 			Title:         "Inspect repo",
 			WorkspaceRoot: "/repo",
@@ -684,7 +683,7 @@ func TestClientResourceSurfaceHandlers(t *testing.T) {
 			UpdatedAt:     time.Date(2026, 5, 2, 10, 1, 0, 0, time.UTC),
 			State:         "completed",
 		},
-		run: app.Run{
+		run: Run{
 			ID:        "run_1",
 			ThreadID:  "thread_1",
 			Status:    "completed",
@@ -701,7 +700,7 @@ func TestClientResourceSurfaceHandlers(t *testing.T) {
 				Data:    clientevents.RunStartedData{Input: "hello"},
 			},
 		},
-		artifacts: []app.ArtifactSummary{{
+		artifacts: []ArtifactSummary{{
 			ArtifactID:          "artifact_report",
 			RunID:               "run_1",
 			SessionID:           "thread_1",
@@ -714,23 +713,23 @@ func TestClientResourceSurfaceHandlers(t *testing.T) {
 			CreatedAt:           time.Date(2026, 5, 2, 10, 4, 0, 0, time.UTC),
 		}},
 	}
-	capabilities := &clientCapabilityStub{snapshot: app.SystemCapabilities{
-		RuntimeReadiness: &app.RuntimeReadiness{Status: app.RuntimeReadinessReady},
-		ProviderReadiness: []app.ProviderReadinessSummary{{
+	capabilities := &clientCapabilityStub{snapshot: SystemCapabilities{
+		RuntimeReadiness: &RuntimeReadiness{Status: RuntimeReadinessReady},
+		ProviderReadiness: []ProviderReadinessSummary{{
 			Scope:         "mcp",
 			Provider:      "fixture",
-			Status:        app.ProviderReadinessPassed,
+			Status:        ProviderReadinessPassed,
 			StartupStatus: "healthy",
 			AuthStatus:    "env",
 		}},
-		Model: app.SystemModelCapabilities{Name: "gpt-test"},
-		Summary: app.SystemCapabilitySummary{
+		Model: SystemModelCapabilities{Name: "gpt-test"},
+		Summary: SystemCapabilitySummary{
 			ToolCount:        1,
 			EnabledToolCount: 1,
 			SkillCount:       1,
 		},
-		Features: app.SystemFeatureCapabilities{InterruptResume: true, SessionHistory: true},
-		Tools: []app.SystemToolCapability{{
+		Features: SystemFeatureCapabilities{InterruptResume: true, SessionHistory: true},
+		Tools: []SystemToolCapability{{
 			Name:        "run_command",
 			Source:      "builtin",
 			Kind:        "function",
@@ -806,10 +805,10 @@ func TestClientResourceSurfaceHandlers(t *testing.T) {
 		threads:      service,
 		runs:         service,
 		events:       service,
-		runResume:    &clientRunResumeStub{result: &app.RunResult{RunID: "run_1", Status: "interrupted"}},
+		runResume:    &clientRunResumeStub{result: &RunResult{RunID: "run_1", Status: "interrupted"}},
 		capabilities: capabilities,
 		pendingAction: &pendingActionHandlerStub{
-			summaries: []app.PendingActionSummary{{
+			summaries: []PendingActionSummary{{
 				ActionID: "action_1",
 				RunID:    "run_1",
 				ThreadID: "thread_1",
@@ -817,14 +816,14 @@ func TestClientResourceSurfaceHandlers(t *testing.T) {
 				Status:   "pending",
 				Title:    "Approval required",
 				Body:     "Allow Acorn to continue?",
-				Options: []app.PendingActionOption{
+				Options: []PendingActionOption{
 					{ID: "accept", Label: "Accept"},
 					{ID: "decline", Label: "Decline"},
 				},
 				CreatedAt: time.Date(2026, 5, 15, 10, 0, 0, 0, time.UTC),
 			}},
-			detail: &app.PendingActionDetail{
-				PendingActionSummary: app.PendingActionSummary{
+			detail: &PendingActionDetail{
+				PendingActionSummary: PendingActionSummary{
 					ActionID: "action_1",
 					RunID:    "run_1",
 					ThreadID: "thread_1",
@@ -832,7 +831,7 @@ func TestClientResourceSurfaceHandlers(t *testing.T) {
 					Status:   "pending",
 					Title:    "Approval required",
 					Body:     "Allow Acorn to continue?",
-					Options: []app.PendingActionOption{
+					Options: []PendingActionOption{
 						{ID: "accept", Label: "Accept"},
 						{ID: "decline", Label: "Decline"},
 					},
@@ -841,8 +840,8 @@ func TestClientResourceSurfaceHandlers(t *testing.T) {
 				Payload: map[string]any{"message": "Allow Acorn to continue?"},
 			},
 		},
-		inbox: &inboxHandlerStub{item: &app.MobileInbox{
-			PendingActions: []app.PendingActionSummary{{
+		inbox: &inboxHandlerStub{item: &MobileInbox{
+			PendingActions: []PendingActionSummary{{
 				ActionID: "action_1",
 				RunID:    "run_1",
 				ThreadID: "thread_1",
@@ -850,13 +849,13 @@ func TestClientResourceSurfaceHandlers(t *testing.T) {
 				Status:   "pending",
 				Title:    "Approval required",
 				Body:     "Allow Acorn to continue?",
-				Options: []app.PendingActionOption{
+				Options: []PendingActionOption{
 					{ID: "accept", Label: "Accept"},
 					{ID: "decline", Label: "Decline"},
 				},
 				CreatedAt: time.Date(2026, 5, 15, 10, 0, 0, 0, time.UTC),
 			}},
-			ActiveRuns: []app.RunSummary{{
+			ActiveRuns: []RunSummary{{
 				RunID:          "run_1",
 				ThreadID:       "thread_1",
 				ThreadTitle:    "Deploy Acorn",
@@ -869,7 +868,7 @@ func TestClientResourceSurfaceHandlers(t *testing.T) {
 				CreatedAt:      time.Date(2026, 5, 15, 10, 0, 0, 0, time.UTC),
 				UpdatedAt:      time.Date(2026, 5, 15, 10, 1, 0, 0, time.UTC),
 			}},
-			RecentTerminalRuns: []app.RunSummary{{
+			RecentTerminalRuns: []RunSummary{{
 				RunID:          "run_terminal",
 				ThreadID:       "thread_1",
 				ThreadTitle:    "Release Acorn",
@@ -1105,13 +1104,13 @@ type deviceAuthHandlerStub struct {
 	listErr         error
 	revokeErr       error
 	lastToken       string
-	pairInput       app.PairDeviceInput
-	pairResult      *app.PairDeviceResult
-	devices         []app.DeviceView
+	pairInput       PairDeviceInput
+	pairResult      *PairDeviceResult
+	devices         []DeviceView
 	revokedDeviceID string
 }
 
-func (s *deviceAuthHandlerStub) PairDevice(_ context.Context, input app.PairDeviceInput) (*app.PairDeviceResult, error) {
+func (s *deviceAuthHandlerStub) PairDevice(_ context.Context, input PairDeviceInput) (*PairDeviceResult, error) {
 	if s.pairErr != nil {
 		return nil, s.pairErr
 	}
@@ -1119,8 +1118,8 @@ func (s *deviceAuthHandlerStub) PairDevice(_ context.Context, input app.PairDevi
 	if s.pairResult != nil {
 		return s.pairResult, nil
 	}
-	return &app.PairDeviceResult{
-		Device: app.DeviceView{
+	return &PairDeviceResult{
+		Device: DeviceView{
 			DeviceID:   "device_test",
 			Name:       "Test device",
 			Platform:   "test",
@@ -1131,12 +1130,12 @@ func (s *deviceAuthHandlerStub) PairDevice(_ context.Context, input app.PairDevi
 	}, nil
 }
 
-func (s *deviceAuthHandlerStub) Authenticate(_ context.Context, token string) (*app.DeviceAuthContext, error) {
+func (s *deviceAuthHandlerStub) Authenticate(_ context.Context, token string) (*DeviceAuthContext, error) {
 	if s.authErr != nil {
 		return nil, s.authErr
 	}
 	s.lastToken = token
-	return &app.DeviceAuthContext{Device: app.DeviceView{
+	return &DeviceAuthContext{Device: DeviceView{
 		DeviceID:   "device_test",
 		Name:       "Test device",
 		Platform:   "test",
@@ -1145,7 +1144,7 @@ func (s *deviceAuthHandlerStub) Authenticate(_ context.Context, token string) (*
 	}}, nil
 }
 
-func (s *deviceAuthHandlerStub) ListDevices(context.Context) ([]app.DeviceView, error) {
+func (s *deviceAuthHandlerStub) ListDevices(context.Context) ([]DeviceView, error) {
 	if s.listErr != nil {
 		return nil, s.listErr
 	}
@@ -1161,11 +1160,11 @@ func (s *deviceAuthHandlerStub) RevokeDevice(_ context.Context, deviceID string)
 }
 
 type clientHandlerStub struct {
-	thread    app.Thread
-	message   app.Message
-	run       app.Run
+	thread    Thread
+	message   Message
+	run       Run
 	events    []clientevents.RunEvent
-	artifacts []app.ArtifactSummary
+	artifacts []ArtifactSummary
 	err       error
 
 	eventBatches              []*clientevents.RunEventBatch
@@ -1183,14 +1182,14 @@ type clientHandlerStub struct {
 	createRunSkillID          string
 }
 
-func (s *clientHandlerStub) ListThreads(context.Context, int) ([]app.Thread, error) {
+func (s *clientHandlerStub) ListThreads(context.Context, int) ([]Thread, error) {
 	if s.err != nil {
 		return nil, s.err
 	}
-	return []app.Thread{s.thread}, nil
+	return []Thread{s.thread}, nil
 }
 
-func (s *clientHandlerStub) CreateThread(_ context.Context, title string) (*app.Thread, error) {
+func (s *clientHandlerStub) CreateThread(_ context.Context, title string) (*Thread, error) {
 	if s.err != nil {
 		return nil, s.err
 	}
@@ -1198,14 +1197,14 @@ func (s *clientHandlerStub) CreateThread(_ context.Context, title string) (*app.
 	return &s.thread, nil
 }
 
-func (s *clientHandlerStub) GetThread(context.Context, string) (*app.Thread, error) {
+func (s *clientHandlerStub) GetThread(context.Context, string) (*Thread, error) {
 	if s.err != nil {
 		return nil, s.err
 	}
 	return &s.thread, nil
 }
 
-func (s *clientHandlerStub) UpdateThread(_ context.Context, threadID, title string) (*app.Thread, error) {
+func (s *clientHandlerStub) UpdateThread(_ context.Context, threadID, title string) (*Thread, error) {
 	if s.err != nil {
 		return nil, s.err
 	}
@@ -1222,14 +1221,14 @@ func (s *clientHandlerStub) DeleteThread(_ context.Context, threadID string) err
 	return nil
 }
 
-func (s *clientHandlerStub) ListMessages(context.Context, string, int) ([]app.Message, error) {
+func (s *clientHandlerStub) ListMessages(context.Context, string, int) ([]Message, error) {
 	if s.err != nil {
 		return nil, s.err
 	}
-	return []app.Message{s.message}, nil
+	return []Message{s.message}, nil
 }
 
-func (s *clientHandlerStub) CreateMessage(_ context.Context, threadID, content string) (*app.Message, error) {
+func (s *clientHandlerStub) CreateMessage(_ context.Context, threadID, content string) (*Message, error) {
 	if s.err != nil {
 		return nil, s.err
 	}
@@ -1238,7 +1237,7 @@ func (s *clientHandlerStub) CreateMessage(_ context.Context, threadID, content s
 	return &s.message, nil
 }
 
-func (s *clientHandlerStub) CreateRun(_ context.Context, threadID, skillID, _ string) (*app.Run, error) {
+func (s *clientHandlerStub) CreateRun(_ context.Context, threadID, skillID, _ string) (*Run, error) {
 	if s.err != nil {
 		return nil, s.err
 	}
@@ -1247,7 +1246,7 @@ func (s *clientHandlerStub) CreateRun(_ context.Context, threadID, skillID, _ st
 	return &s.run, nil
 }
 
-func (s *clientHandlerStub) GetRun(context.Context, string) (*app.Run, error) {
+func (s *clientHandlerStub) GetRun(context.Context, string) (*Run, error) {
 	if s.err != nil {
 		return nil, s.err
 	}
@@ -1290,11 +1289,11 @@ func (s *clientHandlerStub) LoadRunEventsForDetail(context.Context, string) (*cl
 	}, nil
 }
 
-func (s *clientHandlerStub) ListRunArtifacts(context.Context, string) ([]app.ArtifactSummary, error) {
+func (s *clientHandlerStub) ListRunArtifacts(context.Context, string) ([]ArtifactSummary, error) {
 	if s.err != nil {
 		return nil, s.err
 	}
-	return append([]app.ArtifactSummary(nil), s.artifacts...), nil
+	return append([]ArtifactSummary(nil), s.artifacts...), nil
 }
 
 func (s *clientHandlerStub) RunIsTerminal(context.Context, string) (bool, error) {
@@ -1319,30 +1318,30 @@ func (s *clientHandlerStub) EventPollInterval() time.Duration {
 	return time.Millisecond
 }
 
-var _ ThreadService = (*clientHandlerStub)(nil)
-var _ RunService = (*clientHandlerStub)(nil)
-var _ EventService = (*clientHandlerStub)(nil)
+var _ ThreadServiceAPI = (*clientHandlerStub)(nil)
+var _ RunServiceAPI = (*clientHandlerStub)(nil)
+var _ EventServiceAPI = (*clientHandlerStub)(nil)
 
 type pendingActionHandlerStub struct {
 	record      domain.PendingActionRecord
-	summaries   []app.PendingActionSummary
-	detail      *app.PendingActionDetail
+	summaries   []PendingActionSummary
+	detail      *PendingActionDetail
 	err         error
 	actionID    string
 	getActionID string
-	decision    app.PendingActionDecisionInput
+	decision    PendingActionDecisionInput
 	listLimit   int
 }
 
-func (s *pendingActionHandlerStub) List(_ context.Context, limit int) ([]app.PendingActionSummary, error) {
+func (s *pendingActionHandlerStub) List(_ context.Context, limit int) ([]PendingActionSummary, error) {
 	if s.err != nil {
 		return nil, s.err
 	}
 	s.listLimit = limit
-	return append([]app.PendingActionSummary(nil), s.summaries...), nil
+	return append([]PendingActionSummary(nil), s.summaries...), nil
 }
 
-func (s *pendingActionHandlerStub) Get(_ context.Context, actionID string) (*app.PendingActionDetail, error) {
+func (s *pendingActionHandlerStub) Get(_ context.Context, actionID string) (*PendingActionDetail, error) {
 	if s.err != nil {
 		return nil, s.err
 	}
@@ -1350,7 +1349,7 @@ func (s *pendingActionHandlerStub) Get(_ context.Context, actionID string) (*app
 	return s.detail, nil
 }
 
-func (s *pendingActionHandlerStub) Decide(_ context.Context, actionID string, decision app.PendingActionDecisionInput) (*domain.PendingActionRecord, error) {
+func (s *pendingActionHandlerStub) Decide(_ context.Context, actionID string, decision PendingActionDecisionInput) (*domain.PendingActionRecord, error) {
 	s.actionID = actionID
 	s.decision = decision
 	if s.err != nil {
@@ -1359,36 +1358,36 @@ func (s *pendingActionHandlerStub) Decide(_ context.Context, actionID string, de
 	return &s.record, nil
 }
 
-var _ PendingActionService = (*pendingActionHandlerStub)(nil)
+var _ PendingActionServiceAPI = (*pendingActionHandlerStub)(nil)
 
 type inboxHandlerStub struct {
-	item *app.MobileInbox
+	item *MobileInbox
 	err  error
 }
 
-func (s *inboxHandlerStub) Load(context.Context) (*app.MobileInbox, error) {
+func (s *inboxHandlerStub) Load(context.Context) (*MobileInbox, error) {
 	if s.err != nil {
 		return nil, s.err
 	}
 	return s.item, nil
 }
 
-var _ InboxService = (*inboxHandlerStub)(nil)
+var _ InboxServiceAPI = (*inboxHandlerStub)(nil)
 
 type clientRunResumeStub struct {
-	result *app.RunResult
+	result *RunResult
 	err    error
 }
 
-func (s *clientRunResumeStub) Resume(context.Context, string) (*app.RunResult, error) {
+func (s *clientRunResumeStub) Resume(context.Context, string) (*RunResult, error) {
 	return s.result, s.err
 }
 
 type clientCapabilityStub struct {
-	snapshot app.SystemCapabilities
+	snapshot SystemCapabilities
 }
 
-func (s *clientCapabilityStub) Snapshot(context.Context, app.CapabilitySnapshotOptions) app.SystemCapabilities {
+func (s *clientCapabilityStub) Snapshot(context.Context, CapabilitySnapshotOptions) SystemCapabilities {
 	return s.snapshot
 }
 
@@ -1404,19 +1403,19 @@ func (s *clientSkillStub) List(context.Context, int) ([]skills.View, error) {
 	return append([]skills.View(nil), s.items...), nil
 }
 
-func (s *clientSkillStub) ListFiltered(context.Context, app.SkillListFilter) ([]skills.View, int, error) {
+func (s *clientSkillStub) ListFiltered(context.Context, SkillListFilter) ([]skills.View, int, error) {
 	return append([]skills.View(nil), s.items...), len(s.items), nil
 }
 
 func (s *clientSkillStub) Get(context.Context, string) (*skills.View, error) {
 	if len(s.items) == 0 {
-		return nil, app.ErrSkillNotFound
+		return nil, ErrSkillNotFound
 	}
 	return new(skills.CopyView(s.items[0])), nil
 }
 
-func (s *clientSkillStub) ReadFile(context.Context, string, string) (*app.SkillFileView, error) {
-	return &app.SkillFileView{SkillID: "skill.inspect", Path: "SKILL.md", Content: "Use repo inspection."}, nil
+func (s *clientSkillStub) ReadFile(context.Context, string, string) (*SkillFileView, error) {
+	return &SkillFileView{SkillID: "skill.inspect", Path: "SKILL.md", Content: "Use repo inspection."}, nil
 }
 
 type clientMemoryStub struct {

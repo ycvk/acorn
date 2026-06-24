@@ -8,6 +8,8 @@ import (
 
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"github.com/ycvk/acorn/internal/port"
 )
 
 func TestRefreshProviderCatalogRefreshesOnlyAffectedProvider(t *testing.T) {
@@ -301,7 +303,7 @@ func TestManagerResourcesFromHealthyProvidersOnly(t *testing.T) {
 	origFunc := connectProviderFunc
 	t.Cleanup(func() { connectProviderFunc = origFunc })
 
-	connectProviderFunc = func(ctx context.Context, cfg ProviderConfig, opts *mcp.ClientOptions, store TokenStore, onAuthStatusChanged func(status string)) (*provider, error) {
+	connectProviderFunc = func(ctx context.Context, cfg ProviderConfig, opts *mcp.ClientOptions, store port.MCPTokenStore, onAuthStatusChanged func(status string)) (*provider, error) {
 		if cfg.Name == "broken" {
 			return nil, errors.New("connection failed")
 		}

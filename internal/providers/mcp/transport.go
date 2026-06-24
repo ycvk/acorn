@@ -9,7 +9,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/ycvk/acorn/internal/tools"
+	"github.com/ycvk/acorn/internal/port"
 )
 
 // TransportMetadata carries resolved transport kind and connection-relevant
@@ -31,7 +31,7 @@ func NormalizeProviderTransport(transport string) string {
 //
 // SSEClientTransport does not support OAuth in go-sdk v1.5.0 (no OAuthHandler
 // field), so OAuth on SSE is rejected. Stdio+OAuth is also rejected per D-05.
-func NewTransportWithStore(cfg ProviderConfig, store TokenStore, onAuthStatusChanged ...func(status string)) (transport mcp.Transport, cleanup func(), metadata TransportMetadata, err error) {
+func NewTransportWithStore(cfg ProviderConfig, store port.MCPTokenStore, onAuthStatusChanged ...func(status string)) (transport mcp.Transport, cleanup func(), metadata TransportMetadata, err error) {
 	transportKind := NormalizeProviderTransport(cfg.Transport)
 	if transportKind == "" {
 		return nil, nil, TransportMetadata{}, fmt.Errorf("provider %s: transport is required", cfg.Name)
@@ -74,7 +74,7 @@ func buildStdioTransport(cfg ProviderConfig) (mcp.Transport, func(), TransportMe
 	}
 
 	cmd := exec.Command(commandPath, cfg.Args...)
-	tools.ConfigureCommand(cmd)
+	configureCommand(cmd)
 	if strings.TrimSpace(cfg.WorkDir) != "" {
 		cmd.Dir = cfg.WorkDir
 	}
@@ -117,7 +117,7 @@ func buildStreamableHTTPTransport(cfg ProviderConfig) (mcp.Transport, func(), Tr
 // buildOAuthTransport creates a StreamableClientTransport with an OAuthHandler
 // for providers configured with auth.type=oauth. The OAuthHandler is backed by
 // the provided token store for token persistence.
-func buildOAuthTransport(cfg ProviderConfig, store TokenStore, onAuthStatusChanged func(status string)) (mcp.Transport, func(), TransportMetadata, error) {
+func buildOAuthTransport(cfg ProviderConfig, store port.MCPTokenStore, onAuthStatusChanged func(status string)) (mcp.Transport, func(), TransportMetadata, error) {
 	if strings.TrimSpace(cfg.URL) == "" {
 		return nil, nil, TransportMetadata{}, fmt.Errorf("provider %s: url is required for OAuth streamable_http transport", cfg.Name)
 	}

@@ -13,7 +13,6 @@ import (
 
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/ycvk/acorn/internal/domain"
-	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/workspace"
 )
 
@@ -63,11 +62,11 @@ func runVerification(ctx context.Context, ws WorkspaceView, service ArtifactServ
 
 func buildVerificationOutput(ctx context.Context, ws WorkspaceView, service ArtifactService, bridge domain.ToolCallContextBridge, emit ToolProgressEmitter, input RunVerificationInput, result verificationCommandResult, kind string, command []string, cwd string, paths []string, started time.Time) (RunVerificationOutput, error) {
 	duration := time.Since(started)
-	stdoutArtifact, err := writeWorkflowArtifact(ctx, service, bridge, store.ArtifactKindLog, fmt.Sprintf("%s verification stdout", kind), "text/plain", result.stdout)
+	stdoutArtifact, err := writeWorkflowArtifact(ctx, service, bridge, "log", fmt.Sprintf("%s verification stdout", kind), "text/plain", result.stdout)
 	if err != nil {
 		return RunVerificationOutput{}, err
 	}
-	stderrArtifact, err := writeWorkflowArtifact(ctx, service, bridge, store.ArtifactKindLog, fmt.Sprintf("%s verification stderr", kind), "text/plain", result.stderr)
+	stderrArtifact, err := writeWorkflowArtifact(ctx, service, bridge, "log", fmt.Sprintf("%s verification stderr", kind), "text/plain", result.stderr)
 	if err != nil {
 		return RunVerificationOutput{}, err
 	}
@@ -183,7 +182,7 @@ func applyGitSummaryDiff(ctx context.Context, ws WorkspaceView, service Artifact
 	if err != nil {
 		return err
 	}
-	record, err := writeWorkflowArtifact(ctx, service, bridge, store.ArtifactKindDiff, "git summary diff", "text/x-diff", diff)
+	record, err := writeWorkflowArtifact(ctx, service, bridge, "diff", "git summary diff", "text/x-diff", diff)
 	if err != nil {
 		return err
 	}
@@ -240,16 +239,16 @@ func verificationSummary(kind string, status string, exitCode int) string {
 	return fmt.Sprintf("%s verification %s with exit code %d", kind, status, exitCode)
 }
 
-func writeWorkflowArtifact(ctx context.Context, service ArtifactService, bridge domain.ToolCallContextBridge, kind store.ArtifactKind, title string, mimeType string, content string) (store.ArtifactRecord, error) {
+func writeWorkflowArtifact(ctx context.Context, service ArtifactService, bridge domain.ToolCallContextBridge, kind string, title string, mimeType string, content string) (domain.ArtifactRecord, error) {
 	runID := strings.TrimSpace(bridge.CurrentRunID(ctx))
 	if runID == "" {
-		return store.ArtifactRecord{}, errors.New("workflow artifact write requires current run context")
+		return domain.ArtifactRecord{}, errors.New("workflow artifact write requires current run context")
 	}
 	callID := strings.TrimSpace(bridge.CurrentToolCallID(ctx))
 	if callID == "" {
-		return store.ArtifactRecord{}, errors.New("workflow artifact write requires current tool call context")
+		return domain.ArtifactRecord{}, errors.New("workflow artifact write requires current tool call context")
 	}
-	return service.Write(ctx, store.ArtifactWriteRequest{
+	return service.WriteArtifact(ctx, domain.ArtifactWriteRequest{
 		RunID:               runID,
 		SessionID:           strings.TrimSpace(bridge.CurrentSessionID(ctx)),
 		SourceToolResultRef: "tool_result:" + runID + ":" + callID,

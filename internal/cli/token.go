@@ -9,7 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ycvk/acorn/internal/app"
+	"github.com/ycvk/acorn/internal/api"
+	"github.com/ycvk/acorn/internal/wire"
 )
 
 type tokenIssueOutput struct {
@@ -49,12 +50,12 @@ func runTokenIssue(ctx context.Context, args []string) error {
 	if *ttl <= 0 {
 		return fmt.Errorf("token --ttl must be positive")
 	}
-	return withContainer(ctx, *configPath, func(container *app.Container) error {
+	return withContainer(ctx, *configPath, func(container *wire.Container) error {
 		code, err := container.DeviceAuth().CreatePairingCode(ctx, *ttl)
 		if err != nil {
 			return err
 		}
-		result, err := container.DeviceAuth().PairDevice(ctx, app.PairDeviceInput{
+		result, err := container.DeviceAuth().PairDevice(ctx, api.PairDeviceInput{
 			PairingCode: code.Code,
 			DeviceName:  strings.TrimSpace(*name),
 			Platform:    "backend",

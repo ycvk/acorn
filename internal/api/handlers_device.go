@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/ycvk/acorn/internal/app"
 )
 
 func (s *Server) requireDeviceAuth(next http.Handler) http.Handler {
@@ -39,7 +38,7 @@ func (s *Server) handlePairDevice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if strings.TrimSpace(req.PairingCode) == "" {
-		s.respondKnownError(w, r, app.ErrInvalidPairingCode)
+		s.respondKnownError(w, r, ErrInvalidPairingCode)
 		return
 	}
 	if strings.TrimSpace(req.DeviceName) == "" {
@@ -50,7 +49,7 @@ func (s *Server) handlePairDevice(w http.ResponseWriter, r *http.Request) {
 		s.respondBadRequest(w, r, "platform is required")
 		return
 	}
-	result, err := s.deviceAuth.PairDevice(r.Context(), app.PairDeviceInput{
+	result, err := s.deviceAuth.PairDevice(r.Context(), PairDeviceInput{ //nolint:gosimple // fields have different JSON tags
 		PairingCode: req.PairingCode,
 		DeviceName:  req.DeviceName,
 		Platform:    req.Platform,

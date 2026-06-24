@@ -3,8 +3,6 @@ package api
 import (
 	"errors"
 	"net/http"
-
-	"github.com/ycvk/acorn/internal/app"
 )
 
 func (s *Server) handleClientInbox(w http.ResponseWriter, r *http.Request) {
@@ -21,14 +19,14 @@ func (s *Server) handleClientInbox(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleClientSystemStatus(w http.ResponseWriter, r *http.Request) {
-	snapshot := s.capabilities.Snapshot(r.Context(), app.CapabilitySnapshotOptions{
+	snapshot := s.capabilities.Snapshot(r.Context(), CapabilitySnapshotOptions{
 		ProbeMCP: r.URL.Query().Get("probe_mcp") == "1",
 	})
 	s.respondJSON(w, r, http.StatusOK, systemStatusDTOFromSnapshot(snapshot, clientWorkspaceRoot(s.cfg)))
 }
 
 func (s *Server) handleClientTools(w http.ResponseWriter, r *http.Request) {
-	snapshot := s.capabilities.Snapshot(r.Context(), app.CapabilitySnapshotOptions{
+	snapshot := s.capabilities.Snapshot(r.Context(), CapabilitySnapshotOptions{
 		ProbeMCP: r.URL.Query().Get("probe_mcp") == "1",
 	})
 	items := capabilitiesToolsDTOFromSnapshot(snapshot.Tools)

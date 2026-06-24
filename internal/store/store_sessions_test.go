@@ -79,10 +79,10 @@ func TestSessionQueries(t *testing.T) {
 	if _, err := store.AppendSessionMessage(context.Background(), s1.SessionID, 1, "user", "hello", ""); err != nil {
 		t.Fatalf("append message: %v", err)
 	}
-	if err := store.CreateRunWithSession(context.Background(), "run_1", s1.SessionID, 1, "hello"); err != nil {
+	if err := store.CreateRun(context.Background(), domain.RunCreateParams{RunID: "run_1", SessionID: s1.SessionID, TurnIndex: 1, Input: "hello"}); err != nil {
 		t.Fatalf("create session run: %v", err)
 	}
-	if err := store.FinishRunContext(context.Background(), "run_1", domain.RunStatusSucceeded, "done", ""); err != nil {
+	if err := store.FinishRun(context.Background(), "run_1", domain.RunStatusSucceeded, "done", ""); err != nil {
 		t.Fatalf("finish session run: %v", err)
 	}
 
@@ -134,16 +134,16 @@ func TestLoadLatestRunsForSessionsReturnsNewestRunPerSession(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create alpha session: %v", err)
 	}
-	if err := store.CreateRunWithSession(context.Background(), "run_alpha_1", alpha.SessionID, 1, "first"); err != nil {
+	if err := store.CreateRun(context.Background(), domain.RunCreateParams{RunID: "run_alpha_1", SessionID: alpha.SessionID, TurnIndex: 1, Input: "first"}); err != nil {
 		t.Fatalf("create alpha run 1: %v", err)
 	}
-	if err := store.FinishRunContext(context.Background(), "run_alpha_1", domain.RunStatusSucceeded, "done", ""); err != nil {
+	if err := store.FinishRun(context.Background(), "run_alpha_1", domain.RunStatusSucceeded, "done", ""); err != nil {
 		t.Fatalf("finish alpha run 1: %v", err)
 	}
-	if err := store.CreateRunWithSession(context.Background(), "run_alpha_2", alpha.SessionID, 2, "second"); err != nil {
+	if err := store.CreateRun(context.Background(), domain.RunCreateParams{RunID: "run_alpha_2", SessionID: alpha.SessionID, TurnIndex: 2, Input: "second"}); err != nil {
 		t.Fatalf("create alpha run 2: %v", err)
 	}
-	if err := store.FinishRunContext(context.Background(), "run_alpha_2", domain.RunStatusFailed, "partial", "command failed"); err != nil {
+	if err := store.FinishRun(context.Background(), "run_alpha_2", domain.RunStatusFailed, "partial", "command failed"); err != nil {
 		t.Fatalf("finish alpha run 2: %v", err)
 	}
 
@@ -151,10 +151,10 @@ func TestLoadLatestRunsForSessionsReturnsNewestRunPerSession(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create beta session: %v", err)
 	}
-	if err := store.CreateRunWithSession(context.Background(), "run_beta_1", beta.SessionID, 1, "approval"); err != nil {
+	if err := store.CreateRun(context.Background(), domain.RunCreateParams{RunID: "run_beta_1", SessionID: beta.SessionID, TurnIndex: 1, Input: "approval"}); err != nil {
 		t.Fatalf("create beta run: %v", err)
 	}
-	if err := store.MarkInterruptedContext(context.Background(), "run_beta_1", "waiting"); err != nil {
+	if err := store.MarkInterrupted(context.Background(), "run_beta_1", "waiting"); err != nil {
 		t.Fatalf("mark beta interrupted: %v", err)
 	}
 
@@ -162,7 +162,7 @@ func TestLoadLatestRunsForSessionsReturnsNewestRunPerSession(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create gamma session: %v", err)
 	}
-	if err := store.CreateRunWithSession(context.Background(), "run_gamma_1", gamma.SessionID, 1, "still going"); err != nil {
+	if err := store.CreateRun(context.Background(), domain.RunCreateParams{RunID: "run_gamma_1", SessionID: gamma.SessionID, TurnIndex: 1, Input: "still going"}); err != nil {
 		t.Fatalf("create gamma run: %v", err)
 	}
 
@@ -229,16 +229,16 @@ func TestBindLatestUserMessageRunIDAndSyncAssistantMessageForRun(t *testing.T) {
 	if _, err := store.AppendSessionMessage(context.Background(), session.SessionID, 1, "user", "hello", ""); err != nil {
 		t.Fatalf("append user message: %v", err)
 	}
-	if err := store.CreateRunWithSession(context.Background(), "run_1", session.SessionID, 1, "hello"); err != nil {
+	if err := store.CreateRun(context.Background(), domain.RunCreateParams{RunID: "run_1", SessionID: session.SessionID, TurnIndex: 1, Input: "hello"}); err != nil {
 		t.Fatalf("create run: %v", err)
 	}
 	if err := store.BindLatestUserMessageRunID(context.Background(), session.SessionID, 1, "run_1"); err != nil {
 		t.Fatalf("bind latest user message run id: %v", err)
 	}
-	if err := store.FinishRunContext(context.Background(), "run_1", domain.RunStatusSucceeded, "done", ""); err != nil {
+	if err := store.FinishRun(context.Background(), "run_1", domain.RunStatusSucceeded, "done", ""); err != nil {
 		t.Fatalf("finish run: %v", err)
 	}
-	if _, err := store.AppendEventContext(context.Background(), "run_1", "agent.message", map[string]any{
+	if _, err := store.AppendEvent(context.Background(), "run_1", "agent.message", map[string]any{
 		"message": map[string]any{
 			"role":      "assistant",
 			"content":   "done",
@@ -395,10 +395,10 @@ func TestSyncAssistantMessageForRunPersistsFailureContext(t *testing.T) {
 	if err != nil {
 		t.Fatalf("prepare chat turn: %v", err)
 	}
-	if err := store.CreateBoundRun(context.Background(), "run_failed", session.SessionID, turnIndex, "inspect repo"); err != nil {
+	if err := store.CreateRun(context.Background(), domain.RunCreateParams{RunID: "run_failed", SessionID: session.SessionID, TurnIndex: turnIndex, Input: "inspect repo"}); err != nil {
 		t.Fatalf("create bound run: %v", err)
 	}
-	if err := store.FinishRunContext(context.Background(), "run_failed", domain.RunStatusFailed, "rg stdout", "shell exited with status 1"); err != nil {
+	if err := store.FinishRun(context.Background(), "run_failed", domain.RunStatusFailed, "rg stdout", "shell exited with status 1"); err != nil {
 		t.Fatalf("finish run: %v", err)
 	}
 	if err := store.SyncAssistantMessageForRun(context.Background(), "run_failed"); err != nil {
@@ -443,16 +443,16 @@ func TestSyncAssistantMessageForRunAllowsFinalSuccessAfterInterruptedContext(t *
 	if err != nil {
 		t.Fatalf("prepare chat turn: %v", err)
 	}
-	if err := store.CreateBoundRun(context.Background(), "run_resume", session.SessionID, turnIndex, "fix the command"); err != nil {
+	if err := store.CreateRun(context.Background(), domain.RunCreateParams{RunID: "run_resume", SessionID: session.SessionID, TurnIndex: turnIndex, Input: "fix the command"}); err != nil {
 		t.Fatalf("create bound run: %v", err)
 	}
-	if err := store.MarkInterruptedContext(context.Background(), "run_resume", "partial output"); err != nil {
+	if err := store.MarkInterrupted(context.Background(), "run_resume", "partial output"); err != nil {
 		t.Fatalf("mark interrupted: %v", err)
 	}
 	if err := store.SyncAssistantMessageForRun(context.Background(), "run_resume"); err != nil {
 		t.Fatalf("sync interrupted message: %v", err)
 	}
-	if err := store.FinishRunContext(context.Background(), "run_resume", domain.RunStatusSucceeded, "final answer", ""); err != nil {
+	if err := store.FinishRun(context.Background(), "run_resume", domain.RunStatusSucceeded, "final answer", ""); err != nil {
 		t.Fatalf("finish resumed run: %v", err)
 	}
 	if err := store.SyncAssistantMessageForRun(context.Background(), "run_resume"); err != nil {
@@ -504,8 +504,11 @@ func TestPrepareChatTurnAndCreateBoundRun(t *testing.T) {
 		t.Fatalf("unexpected prepared items: %#v", items)
 	}
 
-	if err := store.CreateBoundRun(context.Background(), "run_1", session.SessionID, turnIndex, "hello acorn"); err != nil {
-		t.Fatalf("create bound run: %v", err)
+	if err := store.CreateRun(context.Background(), domain.RunCreateParams{RunID: "run_1", SessionID: session.SessionID, TurnIndex: turnIndex, Input: "hello acorn"}); err != nil {
+		t.Fatalf("create run: %v", err)
+	}
+	if err := store.BindLatestUserMessageRunID(context.Background(), session.SessionID, turnIndex, "run_1"); err != nil {
+		t.Fatalf("bind latest user message: %v", err)
 	}
 
 	items, err = store.ListSessionMessages(context.Background(), session.SessionID, 12)
@@ -552,7 +555,7 @@ func TestCreateFreshSessionTurn(t *testing.T) {
 	}
 }
 
-func TestCreateBoundRunCleansUpRunWhenBindingFails(t *testing.T) {
+func TestCreateRunAndExplicitBindFailure(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "state")
 	store, err := Open(dir)
 	if err != nil {
@@ -565,7 +568,14 @@ func TestCreateBoundRunCleansUpRunWhenBindingFails(t *testing.T) {
 		t.Fatalf("create session: %v", err)
 	}
 
-	err = store.CreateBoundRun(context.Background(), "run_orphan", session.SessionID, 1, "hello acorn")
+	// CreateRun succeeds even without a user message to bind — binding is
+	// a separate explicit step.
+	if err := store.CreateRun(context.Background(), domain.RunCreateParams{RunID: "run_orphan", SessionID: session.SessionID, TurnIndex: 1, Input: "hello acorn"}); err != nil {
+		t.Fatalf("create run: %v", err)
+	}
+
+	// Explicit binding fails because no user message exists for this session.
+	err = store.BindLatestUserMessageRunID(context.Background(), session.SessionID, 1, "run_orphan")
 	if err == nil {
 		t.Fatal("expected bind failure")
 	}
@@ -573,11 +583,13 @@ func TestCreateBoundRunCleansUpRunWhenBindingFails(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
+	// The run still exists because CreateRun does not auto-cleanup on bind
+	// failure — the caller is responsible for cleanup if needed.
 	run, loadErr := store.LoadRun(context.Background(), "run_orphan")
-	if !errors.Is(loadErr, ErrRunNotFound) {
-		t.Fatalf("LoadRun error = %v, want ErrRunNotFound", loadErr)
+	if loadErr != nil {
+		t.Fatalf("LoadRun error = %v, expected run to exist", loadErr)
 	}
-	if run != nil {
-		t.Fatalf("expected orphaned run cleanup, got %#v", run)
+	if run == nil {
+		t.Fatal("expected run to exist after bind failure")
 	}
 }

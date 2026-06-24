@@ -15,9 +15,11 @@ import (
 	"github.com/cloudwego/eino-ext/components/tool/mcp/officialmcp"
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"github.com/ycvk/acorn/internal/port"
 )
 
-func connectProvider(ctx context.Context, cfg ProviderConfig, opts *mcp.ClientOptions, store TokenStore, onAuthStatusChanged func(status string)) (*provider, error) {
+func connectProvider(ctx context.Context, cfg ProviderConfig, opts *mcp.ClientOptions, store port.MCPTokenStore, onAuthStatusChanged func(status string)) (*provider, error) {
 	if strings.TrimSpace(cfg.Name) == "" {
 		return nil, errors.New("provider name is required")
 	}

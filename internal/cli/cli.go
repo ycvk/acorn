@@ -10,8 +10,9 @@ import (
 
 	"encoding/json"
 
-	"github.com/ycvk/acorn/internal/app"
+	"github.com/ycvk/acorn/internal/api"
 	"github.com/ycvk/acorn/internal/config"
+	"github.com/ycvk/acorn/internal/wire"
 )
 
 const defaultConfigPath = "~/.acorn/acorn.yaml"
@@ -83,8 +84,8 @@ func runDoctor(ctx context.Context, args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	return withContainer(ctx, *configPath, func(container *app.Container) error {
-		snapshot := container.Capabilities().Snapshot(ctx, app.CapabilitySnapshotOptions{ProbeMCP: true})
+	return withContainer(ctx, *configPath, func(container *wire.Container) error {
+		snapshot := container.Capabilities().Snapshot(ctx, api.CapabilitySnapshotOptions{ProbeMCP: true})
 		return printDoctorOutput(snapshot, container.Config().ConfigPath, *jsonMode)
 	})
 }
@@ -119,12 +120,12 @@ func loadConfig(configPath string) (*config.Config, error) {
 	return config.Load(configPath)
 }
 
-func withContainer(ctx context.Context, configPath string, fn func(*app.Container) error) error {
+func withContainer(ctx context.Context, configPath string, fn func(*wire.Container) error) error {
 	cfg, err := loadConfig(configPath)
 	if err != nil {
 		return err
 	}
-	container, err := app.NewContainer(ctx, cfg)
+	container, err := wire.NewContainer(ctx, cfg)
 	if err != nil {
 		return err
 	}

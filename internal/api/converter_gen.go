@@ -4,14 +4,13 @@
 package api
 
 import (
-	app "github.com/ycvk/acorn/internal/app"
 	memory "github.com/ycvk/acorn/internal/memory"
 	skills "github.com/ycvk/acorn/internal/skills"
 )
 
 type ConverterImpl struct{}
 
-func (c *ConverterImpl) appArtifactSummaryToApiArtifactSummaryDTO(source app.ArtifactSummary) ArtifactSummaryDTO {
+func (c *ConverterImpl) appArtifactSummaryToApiArtifactSummaryDTO(source ArtifactSummary) ArtifactSummaryDTO {
 	var apiArtifactSummaryDTO ArtifactSummaryDTO
 	apiArtifactSummaryDTO.ArtifactID = source.ArtifactID
 	apiArtifactSummaryDTO.RunID = source.RunID
@@ -25,14 +24,14 @@ func (c *ConverterImpl) appArtifactSummaryToApiArtifactSummaryDTO(source app.Art
 	apiArtifactSummaryDTO.CreatedAt = TimeToTime(source.CreatedAt)
 	return apiArtifactSummaryDTO
 }
-func (c *ConverterImpl) appDecisionOptionToApiDecisionOptionDTO(source app.DecisionOption) DecisionOptionDTO {
+func (c *ConverterImpl) appDecisionOptionToApiDecisionOptionDTO(source DecisionOption) DecisionOptionDTO {
 	var apiDecisionOptionDTO DecisionOptionDTO
 	apiDecisionOptionDTO.ID = source.ID
 	apiDecisionOptionDTO.Label = source.Label
 	apiDecisionOptionDTO.Description = source.Description
 	return apiDecisionOptionDTO
 }
-func (c *ConverterImpl) appDisclosureItemToApiDisclosureItemDTO(source app.DisclosureItem) DisclosureItemDTO {
+func (c *ConverterImpl) appDisclosureItemToApiDisclosureItemDTO(source DisclosureItem) DisclosureItemDTO {
 	var apiDisclosureItemDTO DisclosureItemDTO
 	apiDisclosureItemDTO.Kind = source.Kind
 	apiDisclosureItemDTO.Label = source.Label
@@ -41,7 +40,7 @@ func (c *ConverterImpl) appDisclosureItemToApiDisclosureItemDTO(source app.Discl
 	apiDisclosureItemDTO.SkillID = source.SkillID
 	return apiDisclosureItemDTO
 }
-func (c *ConverterImpl) appMessageContentToApiMessageContentDTO(source app.MessageContent) MessageContentDTO {
+func (c *ConverterImpl) appMessageContentToApiMessageContentDTO(source MessageContent) MessageContentDTO {
 	var apiMessageContentDTO MessageContentDTO
 	apiMessageContentDTO.Type = source.Type
 	apiMessageContentDTO.Text = source.Text
@@ -53,7 +52,7 @@ func (c *ConverterImpl) appMessageContentToApiMessageContentDTO(source app.Messa
 	}
 	return apiMessageContentDTO
 }
-func (c *ConverterImpl) appMessagePartToApiMessagePartDTO(source app.MessagePart) MessagePartDTO {
+func (c *ConverterImpl) appMessagePartToApiMessagePartDTO(source MessagePart) MessagePartDTO {
 	var apiMessagePartDTO MessagePartDTO
 	apiMessagePartDTO.Kind = source.Kind
 	apiMessagePartDTO.Text = source.Text
@@ -91,14 +90,14 @@ func (c *ConverterImpl) appMessagePartToApiMessagePartDTO(source app.MessagePart
 	apiMessagePartDTO.Action = c.pAppMessageActionToPApiMessageActionDTO(source.Action)
 	return apiMessagePartDTO
 }
-func (c *ConverterImpl) appPendingActionOptionToApiPendingActionOptionDTO(source app.PendingActionOption) PendingActionOptionDTO {
+func (c *ConverterImpl) appPendingActionOptionToApiPendingActionOptionDTO(source PendingActionOption) PendingActionOptionDTO {
 	var apiPendingActionOptionDTO PendingActionOptionDTO
 	apiPendingActionOptionDTO.ID = source.ID
 	apiPendingActionOptionDTO.Label = source.Label
 	apiPendingActionOptionDTO.Description = source.Description
 	return apiPendingActionOptionDTO
 }
-func (c *ConverterImpl) appPendingActionSummaryToApiPendingActionSummaryDTO(source app.PendingActionSummary) PendingActionSummaryDTO {
+func (c *ConverterImpl) appPendingActionSummaryToApiPendingActionSummaryDTO(source PendingActionSummary) PendingActionSummaryDTO {
 	var apiPendingActionSummaryDTO PendingActionSummaryDTO
 	apiPendingActionSummaryDTO.ActionID = source.ActionID
 	apiPendingActionSummaryDTO.RunID = source.RunID
@@ -111,7 +110,7 @@ func (c *ConverterImpl) appPendingActionSummaryToApiPendingActionSummaryDTO(sour
 	apiPendingActionSummaryDTO.CreatedAt = TimeToTime(source.CreatedAt)
 	return apiPendingActionSummaryDTO
 }
-func (c *ConverterImpl) appProviderReadinessSummaryToApiProviderReadinessDTO(source app.ProviderReadinessSummary) ProviderReadinessDTO {
+func (c *ConverterImpl) appProviderReadinessSummaryToApiProviderReadinessDTO(source ProviderReadinessSummary) ProviderReadinessDTO {
 	var apiProviderReadinessDTO ProviderReadinessDTO
 	apiProviderReadinessDTO.Scope = source.Scope
 	apiProviderReadinessDTO.Provider = source.Provider
@@ -121,7 +120,7 @@ func (c *ConverterImpl) appProviderReadinessSummaryToApiProviderReadinessDTO(sou
 	apiProviderReadinessDTO.AuthStatus = source.AuthStatus
 	return apiProviderReadinessDTO
 }
-func (c *ConverterImpl) appRunSummaryToApiRunSummaryDTO(source app.RunSummary) RunSummaryDTO {
+func (c *ConverterImpl) appRunSummaryToApiRunSummaryDTO(source RunSummary) RunSummaryDTO {
 	var apiRunSummaryDTO RunSummaryDTO
 	apiRunSummaryDTO.RunID = source.RunID
 	apiRunSummaryDTO.ThreadID = source.ThreadID
@@ -136,7 +135,7 @@ func (c *ConverterImpl) appRunSummaryToApiRunSummaryDTO(source app.RunSummary) R
 	apiRunSummaryDTO.UpdatedAt = TimeToTime(source.UpdatedAt)
 	return apiRunSummaryDTO
 }
-func (c *ConverterImpl) appSystemToolCapabilityToApiCapabilitiesToolDTO(source app.SystemToolCapability) CapabilitiesToolDTO {
+func (c *ConverterImpl) appSystemToolCapabilityToApiCapabilitiesToolDTO(source SystemToolCapability) CapabilitiesToolDTO {
 	var apiCapabilitiesToolDTO CapabilitiesToolDTO
 	apiCapabilitiesToolDTO.Name = source.Name
 	apiCapabilitiesToolDTO.Source = source.Source
@@ -152,7 +151,7 @@ func (c *ConverterImpl) appSystemToolCapabilityToApiCapabilitiesToolDTO(source a
 	apiCapabilitiesToolDTO.DefaultTimeout = source.DefaultTimeout
 	return apiCapabilitiesToolDTO
 }
-func (c *ConverterImpl) artifactSummaryDTOsFromDomain(source []app.ArtifactSummary) []ArtifactSummaryDTO {
+func (c *ConverterImpl) artifactSummaryDTOsFromDomain(source []ArtifactSummary) []ArtifactSummaryDTO {
 	var apiArtifactSummaryDTOList []ArtifactSummaryDTO
 	if source != nil {
 		apiArtifactSummaryDTOList = make([]ArtifactSummaryDTO, len(source))
@@ -162,18 +161,18 @@ func (c *ConverterImpl) artifactSummaryDTOsFromDomain(source []app.ArtifactSumma
 	}
 	return apiArtifactSummaryDTOList
 }
-func (c *ConverterImpl) capabilitiesFeaturesDTOFromSnapshot(source app.SystemFeatureCapabilities) CapabilitiesFeaturesDTO {
+func (c *ConverterImpl) capabilitiesFeaturesDTOFromSnapshot(source SystemFeatureCapabilities) CapabilitiesFeaturesDTO {
 	var apiCapabilitiesFeaturesDTO CapabilitiesFeaturesDTO
 	apiCapabilitiesFeaturesDTO.InterruptResume = source.InterruptResume
 	apiCapabilitiesFeaturesDTO.SessionHistory = source.SessionHistory
 	return apiCapabilitiesFeaturesDTO
 }
-func (c *ConverterImpl) capabilitiesModelDTOFromSnapshot(source app.SystemModelCapabilities) CapabilitiesModelDTO {
+func (c *ConverterImpl) capabilitiesModelDTOFromSnapshot(source SystemModelCapabilities) CapabilitiesModelDTO {
 	var apiCapabilitiesModelDTO CapabilitiesModelDTO
 	apiCapabilitiesModelDTO.Name = source.Name
 	return apiCapabilitiesModelDTO
 }
-func (c *ConverterImpl) capabilitiesSummaryDTOFromSnapshot(source app.SystemCapabilitySummary) CapabilitiesSummaryDTO {
+func (c *ConverterImpl) capabilitiesSummaryDTOFromSnapshot(source SystemCapabilitySummary) CapabilitiesSummaryDTO {
 	var apiCapabilitiesSummaryDTO CapabilitiesSummaryDTO
 	apiCapabilitiesSummaryDTO.ToolCount = source.ToolCount
 	apiCapabilitiesSummaryDTO.EnabledToolCount = source.EnabledToolCount
@@ -186,7 +185,7 @@ func (c *ConverterImpl) capabilitiesSummaryDTOFromSnapshot(source app.SystemCapa
 	apiCapabilitiesSummaryDTO.MCPHealthyProviderCount = source.MCPHealthyProviderCount
 	return apiCapabilitiesSummaryDTO
 }
-func (c *ConverterImpl) capabilitiesToolsDTOFromSnapshot(source []app.SystemToolCapability) []CapabilitiesToolDTO {
+func (c *ConverterImpl) capabilitiesToolsDTOFromSnapshot(source []SystemToolCapability) []CapabilitiesToolDTO {
 	var apiCapabilitiesToolDTOList []CapabilitiesToolDTO
 	if source != nil {
 		apiCapabilitiesToolDTOList = make([]CapabilitiesToolDTO, len(source))
@@ -196,7 +195,7 @@ func (c *ConverterImpl) capabilitiesToolsDTOFromSnapshot(source []app.SystemTool
 	}
 	return apiCapabilitiesToolDTOList
 }
-func (c *ConverterImpl) decisionOptionDTOsFromDomain(source []app.DecisionOption) []DecisionOptionDTO {
+func (c *ConverterImpl) decisionOptionDTOsFromDomain(source []DecisionOption) []DecisionOptionDTO {
 	var apiDecisionOptionDTOList []DecisionOptionDTO
 	if source != nil {
 		apiDecisionOptionDTOList = make([]DecisionOptionDTO, len(source))
@@ -206,7 +205,7 @@ func (c *ConverterImpl) decisionOptionDTOsFromDomain(source []app.DecisionOption
 	}
 	return apiDecisionOptionDTOList
 }
-func (c *ConverterImpl) disclosureItemDTOsFromDomain(source []app.DisclosureItem) []DisclosureItemDTO {
+func (c *ConverterImpl) disclosureItemDTOsFromDomain(source []DisclosureItem) []DisclosureItemDTO {
 	var apiDisclosureItemDTOList []DisclosureItemDTO
 	if source != nil {
 		apiDisclosureItemDTOList = make([]DisclosureItemDTO, len(source))
@@ -293,7 +292,7 @@ func (c *ConverterImpl) memorySearchItemToApiMemorySearchItemDTO(source memory.S
 	}
 	return apiMemorySearchItemDTO
 }
-func (c *ConverterImpl) messageDTOFromDomain(source app.Message) MessageDTO {
+func (c *ConverterImpl) messageDTOFromDomain(source Message) MessageDTO {
 	var apiMessageDTO MessageDTO
 	apiMessageDTO.ID = source.ID
 	apiMessageDTO.ThreadID = source.ThreadID
@@ -303,7 +302,7 @@ func (c *ConverterImpl) messageDTOFromDomain(source app.Message) MessageDTO {
 	apiMessageDTO.RunID = source.RunID
 	return apiMessageDTO
 }
-func (c *ConverterImpl) messageDTOsFromDomain(source []app.Message) []MessageDTO {
+func (c *ConverterImpl) messageDTOsFromDomain(source []Message) []MessageDTO {
 	var apiMessageDTOList []MessageDTO
 	if source != nil {
 		apiMessageDTOList = make([]MessageDTO, len(source))
@@ -313,7 +312,7 @@ func (c *ConverterImpl) messageDTOsFromDomain(source []app.Message) []MessageDTO
 	}
 	return apiMessageDTOList
 }
-func (c *ConverterImpl) pAppMessageActionToPApiMessageActionDTO(source *app.MessageAction) *MessageActionDTO {
+func (c *ConverterImpl) pAppMessageActionToPApiMessageActionDTO(source *MessageAction) *MessageActionDTO {
 	var pApiMessageActionDTO *MessageActionDTO
 	if source != nil {
 		var apiMessageActionDTO MessageActionDTO
@@ -324,7 +323,7 @@ func (c *ConverterImpl) pAppMessageActionToPApiMessageActionDTO(source *app.Mess
 	}
 	return pApiMessageActionDTO
 }
-func (c *ConverterImpl) pendingActionOptionDTOsFromDomain(source []app.PendingActionOption) []PendingActionOptionDTO {
+func (c *ConverterImpl) pendingActionOptionDTOsFromDomain(source []PendingActionOption) []PendingActionOptionDTO {
 	var apiPendingActionOptionDTOList []PendingActionOptionDTO
 	if source != nil {
 		apiPendingActionOptionDTOList = make([]PendingActionOptionDTO, len(source))
@@ -334,7 +333,7 @@ func (c *ConverterImpl) pendingActionOptionDTOsFromDomain(source []app.PendingAc
 	}
 	return apiPendingActionOptionDTOList
 }
-func (c *ConverterImpl) pendingActionSummaryDTOsFromDomain(source []app.PendingActionSummary) []PendingActionSummaryDTO {
+func (c *ConverterImpl) pendingActionSummaryDTOsFromDomain(source []PendingActionSummary) []PendingActionSummaryDTO {
 	var apiPendingActionSummaryDTOList []PendingActionSummaryDTO
 	if source != nil {
 		apiPendingActionSummaryDTOList = make([]PendingActionSummaryDTO, len(source))
@@ -344,7 +343,7 @@ func (c *ConverterImpl) pendingActionSummaryDTOsFromDomain(source []app.PendingA
 	}
 	return apiPendingActionSummaryDTOList
 }
-func (c *ConverterImpl) providerReadinessDTOsFromSnapshot(source []app.ProviderReadinessSummary) []ProviderReadinessDTO {
+func (c *ConverterImpl) providerReadinessDTOsFromSnapshot(source []ProviderReadinessSummary) []ProviderReadinessDTO {
 	var apiProviderReadinessDTOList []ProviderReadinessDTO
 	if source != nil {
 		apiProviderReadinessDTOList = make([]ProviderReadinessDTO, len(source))
@@ -354,7 +353,7 @@ func (c *ConverterImpl) providerReadinessDTOsFromSnapshot(source []app.ProviderR
 	}
 	return apiProviderReadinessDTOList
 }
-func (c *ConverterImpl) runSummaryDTOsFromDomain(source []app.RunSummary) []RunSummaryDTO {
+func (c *ConverterImpl) runSummaryDTOsFromDomain(source []RunSummary) []RunSummaryDTO {
 	var apiRunSummaryDTOList []RunSummaryDTO
 	if source != nil {
 		apiRunSummaryDTOList = make([]RunSummaryDTO, len(source))
@@ -392,7 +391,7 @@ func (c *ConverterImpl) skillRequirementsDTOFromDomain(source skills.Requirement
 	}
 	return apiSkillRequirementsDTO
 }
-func (c *ConverterImpl) threadDTOFromDomain(source app.Thread) ThreadDTO {
+func (c *ConverterImpl) threadDTOFromDomain(source Thread) ThreadDTO {
 	var apiThreadDTO ThreadDTO
 	apiThreadDTO.ID = source.ID
 	apiThreadDTO.Title = source.Title
@@ -403,7 +402,7 @@ func (c *ConverterImpl) threadDTOFromDomain(source app.Thread) ThreadDTO {
 	apiThreadDTO.State = source.State
 	return apiThreadDTO
 }
-func (c *ConverterImpl) threadDTOsFromDomain(source []app.Thread) []ThreadDTO {
+func (c *ConverterImpl) threadDTOsFromDomain(source []Thread) []ThreadDTO {
 	var apiThreadDTOList []ThreadDTO
 	if source != nil {
 		apiThreadDTOList = make([]ThreadDTO, len(source))

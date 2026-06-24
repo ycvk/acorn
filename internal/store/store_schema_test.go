@@ -72,7 +72,7 @@ CREATE TABLE runs (
 	if !errors.Is(err, ErrUnsupportedStorageSchema) {
 		t.Fatalf("Open error = %v, want ErrUnsupportedStorageSchema", err)
 	}
-	if !strings.Contains(err.Error(), "runs") || !strings.Contains(err.Error(), "session_id") {
+	if !strings.Contains(err.Error(), "runs") {
 		t.Fatalf("unexpected error detail: %v", err)
 	}
 }
@@ -85,12 +85,11 @@ func TestStoreSchemaIncludesCoreTables(t *testing.T) {
 	t.Cleanup(func() { _ = store.Close() })
 
 	for table, column := range map[string]string{
-		"runs":              "turn_index",
+		"runs":              "finished_at",
 		"events":            "payload_json",
 		"sessions":          "title",
 		"session_messages":  "content_parts",
 		"pending_actions":   "decision_json",
-		"session_summaries": "source_run_id",
 		"artifacts":         "source_tool_result_ref",
 		"schema_migrations": "version",
 	} {

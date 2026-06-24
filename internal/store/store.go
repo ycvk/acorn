@@ -2,9 +2,6 @@ package store
 
 import (
 	"errors"
-	"time"
-
-	"github.com/ycvk/acorn/internal/domain"
 )
 
 var (
@@ -22,57 +19,3 @@ var (
 	ErrPairingCodeUsed          = errors.New("pairing code already used")
 	ErrPairingCodeExpired       = errors.New("pairing code expired")
 )
-
-// Types
-type RunCreateParams struct {
-	RunID     string
-	SessionID string
-	TurnIndex int
-	Input     string
-	// BoundMessageID, when > 0, binds the run to that exact user message id
-	// (race-free). When 0, binding falls back to the latest unbound user message
-	// for TurnIndex (used by fresh-session / subagent paths where the message is
-	// the only one at that turn).
-	BoundMessageID int64
-}
-
-type OAuthToken struct {
-	ProviderName string
-	AccessToken  string
-	RefreshToken string
-	Expiry       time.Time
-	UpdatedAt    time.Time
-}
-
-type OwnerProfile struct {
-	OwnerID   string
-	CreatedAt time.Time
-}
-
-type Device struct {
-	DeviceID   string
-	Name       string
-	Platform   string
-	TokenHash  string
-	CreatedAt  time.Time
-	LastSeenAt time.Time
-	RevokedAt  *time.Time
-}
-
-type PairingCode struct {
-	CodeHash  string
-	ExpiresAt time.Time
-	UsedAt    *time.Time
-	CreatedAt time.Time
-}
-
-type CreatePendingActionInput struct {
-	ActionID    string
-	RunID       string
-	InterruptID string
-	Kind        domain.PendingActionKind
-	Subject     string
-	PayloadJSON string
-	Status      domain.PendingActionStatus
-	Reason      string
-}

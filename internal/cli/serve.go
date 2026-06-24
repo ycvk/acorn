@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/ycvk/acorn/internal/api"
-	"github.com/ycvk/acorn/internal/app"
+	"github.com/ycvk/acorn/internal/wire"
 )
 
 func runServe(ctx context.Context, args []string) error {
@@ -31,7 +31,7 @@ func runServe(ctx context.Context, args []string) error {
 		addr = override
 	}
 
-	container, err := app.NewContainer(ctx, cfg)
+	container, err := wire.NewContainer(ctx, cfg)
 	if err != nil {
 		return err
 	}

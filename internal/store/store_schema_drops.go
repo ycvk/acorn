@@ -192,6 +192,29 @@ func (s *Store) dropRemovedConversationFTS() (err error) {
 	return commitDropMigration(tx, version, "removed conversation fts drop")
 }
 
+// dropArchitecturalRefactorTables drops the tables retired by the Phase 3
+// schema redesign: owner_profile (single-user system) and session_summaries
+// (compact boundary not persisted). This migration is idempotent.
+func (s *Store) dropArchitecturalRefactorTables() (err error) {
+	const version = "v4_drop_architectural_refactor_tables"
+	if migrationApplied(s.db, version) {
+		return nil
+	}
+	tx, err := s.db.Begin()
+	if err != nil {
+		return fmt.Errorf("begin architectural refactor table drop: %w", err)
+	}
+	defer rollbackOnErr(tx, &err, "architectural refactor table drop")
+	statements := []string{
+		`DROP TABLE IF EXISTS owner_profile`,
+		`DROP TABLE IF EXISTS session_summaries`,
+	}
+	if err := execDropStatements(tx, statements, "architectural refactor table"); err != nil {
+		return err
+	}
+	return commitDropMigration(tx, version, "architectural refactor table drop")
+}
+
 // migrationApplied reports whether a schema migration version has already been
 // recorded in schema_migrations.
 func migrationApplied(db *sql.DB, version string) bool {

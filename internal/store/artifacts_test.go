@@ -6,6 +6,8 @@ import (
 	"encoding/hex"
 	"testing"
 	"time"
+
+	"github.com/ycvk/acorn/internal/domain"
 )
 
 func TestArtifactServiceWriteReadRangeAndList(t *testing.T) {
@@ -18,12 +20,12 @@ func TestArtifactServiceWriteReadRangeAndList(t *testing.T) {
 	}
 
 	createdAt := time.Unix(1_710_000_000, 0).UTC()
-	record, err := service.Write(ctx, ArtifactWriteRequest{
+	record, err := service.WriteArtifact(ctx, domain.ArtifactWriteRequest{
 		ArtifactID:          "artifact_1",
 		RunID:               "run_1",
 		SessionID:           "session_1",
 		SourceToolResultRef: "tool_result:run_1:call_1",
-		Kind:                ArtifactKindLog,
+		Kind:                string(ArtifactKindLog),
 		Title:               "stdout",
 		MIMEType:            "text/plain",
 		Content:             []byte("abcdef"),
@@ -39,7 +41,7 @@ func TestArtifactServiceWriteReadRangeAndList(t *testing.T) {
 		t.Fatalf("sha256 = %q, want %q", got, want)
 	}
 
-	firstRange, err := service.ReadRange(ctx, ArtifactReadRangeRequest{ArtifactID: record.ArtifactID, Offset: 2, Limit: 3})
+	firstRange, err := service.ReadArtifactRange(ctx, domain.ArtifactReadRangeRequest{ArtifactID: record.ArtifactID, Offset: 2, Limit: 3})
 	if err != nil {
 		t.Fatalf("read range: %v", err)
 	}
@@ -50,7 +52,7 @@ func TestArtifactServiceWriteReadRangeAndList(t *testing.T) {
 		t.Fatal("range should not be EOF")
 	}
 
-	finalRange, err := service.ReadRange(ctx, ArtifactReadRangeRequest{ArtifactID: record.ArtifactID, Offset: 5, Limit: 10})
+	finalRange, err := service.ReadArtifactRange(ctx, domain.ArtifactReadRangeRequest{ArtifactID: record.ArtifactID, Offset: 5, Limit: 10})
 	if err != nil {
 		t.Fatalf("read final range: %v", err)
 	}
@@ -78,10 +80,10 @@ func TestArtifactServiceWriteReadRangeAndList(t *testing.T) {
 }
 
 func TestNormalizeArtifactRecordRejectsUnsafeRelativePath(t *testing.T) {
-	_, err := NormalizeArtifactRecord(ArtifactRecord{
+	_, err := NormalizeArtifactRecord(domain.ArtifactRecord{
 		ArtifactID:   "artifact_1",
 		RunID:        "run_1",
-		Kind:         ArtifactKindText,
+		Kind:         string(ArtifactKindText),
 		RelativePath: "../escape",
 		SizeBytes:    1,
 		SHA256:       sha256Hex([]byte("x")),
@@ -92,32 +94,32 @@ func TestNormalizeArtifactRecordRejectsUnsafeRelativePath(t *testing.T) {
 }
 
 type memoryArtifactStore struct {
-	records map[string]ArtifactRecord
+	records map[string]domain.ArtifactRecord
 }
 
 func newMemoryArtifactStore() *memoryArtifactStore {
-	return &memoryArtifactStore{records: make(map[string]ArtifactRecord)}
+	return &memoryArtifactStore{records: make(map[string]domain.ArtifactRecord)}
 }
 
-func (s *memoryArtifactStore) SaveArtifact(_ context.Context, record ArtifactRecord) (ArtifactRecord, error) {
+func (s *memoryArtifactStore) SaveArtifact(_ context.Context, record domain.ArtifactRecord) (domain.ArtifactRecord, error) {
 	normalized, err := NormalizeArtifactRecord(record)
 	if err != nil {
-		return ArtifactRecord{}, err
+		return domain.ArtifactRecord{}, err
 	}
 	s.records[normalized.ArtifactID] = normalized
 	return normalized, nil
 }
 
-func (s *memoryArtifactStore) LoadArtifact(_ context.Context, artifactID string) (ArtifactRecord, error) {
+func (s *memoryArtifactStore) LoadArtifact(_ context.Context, artifactID string) (domain.ArtifactRecord, error) {
 	record, ok := s.records[artifactID]
 	if !ok {
-		return ArtifactRecord{}, ErrArtifactNotFound
+		return domain.ArtifactRecord{}, ErrArtifactNotFound
 	}
 	return record, nil
 }
 
-func (s *memoryArtifactStore) ListArtifactsByRun(_ context.Context, runID string) ([]ArtifactRecord, error) {
-	var items []ArtifactRecord
+func (s *memoryArtifactStore) ListArtifactsByRun(_ context.Context, runID string) ([]domain.ArtifactRecord, error) {
+	var items []domain.ArtifactRecord
 	for _, record := range s.records {
 		if record.RunID == runID {
 			items = append(items, record)
@@ -126,8 +128,8 @@ func (s *memoryArtifactStore) ListArtifactsByRun(_ context.Context, runID string
 	return items, nil
 }
 
-func (s *memoryArtifactStore) ListArtifactsBySession(_ context.Context, sessionID string) ([]ArtifactRecord, error) {
-	var items []ArtifactRecord
+func (s *memoryArtifactStore) ListArtifactsBySession(_ context.Context, sessionID string) ([]domain.ArtifactRecord, error) {
+	var items []domain.ArtifactRecord
 	for _, record := range s.records {
 		if record.SessionID == sessionID {
 			items = append(items, record)

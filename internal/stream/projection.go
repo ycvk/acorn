@@ -16,7 +16,7 @@ func AppendStreamItem(ctx context.Context, store domain.EventAppender, sink doma
 	if err != nil {
 		return domain.EventRecord{}, err
 	}
-	saved, err := store.AppendEventContext(ctx, item.RunID, kind, payload)
+	saved, err := store.AppendEvent(ctx, item.RunID, kind, payload)
 	if err != nil {
 		return domain.EventRecord{}, err
 	}

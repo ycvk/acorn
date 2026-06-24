@@ -8,7 +8,6 @@ import (
 
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/ycvk/acorn/internal/domain"
-	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/webaccess"
 )
 
@@ -57,11 +56,11 @@ func buildWebSearchTool(search WebSearchService, artifactService ArtifactService
 		if err != nil {
 			return WebSearchOutput{}, err
 		}
-		rawRecord, err := artifactService.Write(ctx, store.ArtifactWriteRequest{
+		rawRecord, err := artifactService.WriteArtifact(ctx, domain.ArtifactWriteRequest{
 			RunID:               runID,
 			SessionID:           strings.TrimSpace(bridge.CurrentSessionID(ctx)),
 			SourceToolResultRef: sourceRef,
-			Kind:                store.ArtifactKindJSON,
+			Kind:                "json",
 			Title:               "web_search raw: " + result.Query,
 			MIMEType:            "application/json",
 			Content:             result.Raw,
@@ -147,11 +146,11 @@ func buildWebFetchTool(fetcher WebFetchService, artifactService ArtifactService,
 			return WebFetchOutput{}, err
 		}
 		sessionID := strings.TrimSpace(bridge.CurrentSessionID(ctx))
-		rawRecord, err := artifactService.Write(ctx, store.ArtifactWriteRequest{
+		rawRecord, err := artifactService.WriteArtifact(ctx, domain.ArtifactWriteRequest{
 			RunID:               runID,
 			SessionID:           sessionID,
 			SourceToolResultRef: sourceRef,
-			Kind:                store.ArtifactKindText,
+			Kind:                "text",
 			Title:               artifactTitle("web_fetch raw", result.Extracted.Title, result.FinalURL),
 			MIMEType:            result.ContentType,
 			Content:             result.Raw,
@@ -159,11 +158,11 @@ func buildWebFetchTool(fetcher WebFetchService, artifactService ArtifactService,
 		if err != nil {
 			return WebFetchOutput{}, err
 		}
-		markdownRecord, err := artifactService.Write(ctx, store.ArtifactWriteRequest{
+		markdownRecord, err := artifactService.WriteArtifact(ctx, domain.ArtifactWriteRequest{
 			RunID:               runID,
 			SessionID:           sessionID,
 			SourceToolResultRef: sourceRef,
-			Kind:                store.ArtifactKindMarkdown,
+			Kind:                "markdown",
 			Title:               artifactTitle("web_fetch markdown", result.Extracted.Title, result.FinalURL),
 			MIMEType:            "text/markdown; charset=utf-8",
 			Content:             []byte(result.Extracted.Markdown),
