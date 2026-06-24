@@ -1,4 +1,4 @@
-package mcpprovider
+package mcp
 
 import (
 	"context"
@@ -9,8 +9,8 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-func TestListResourcesToolInfo(t *testing.T) {
-	tool := &listResourcesTool{
+func TestListPromptsToolInfo(t *testing.T) {
+	tool := &listPromptsTool{
 		session:      nil, // not needed for Info()
 		providerName: "my-provider",
 	}
@@ -18,7 +18,7 @@ func TestListResourcesToolInfo(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Info: %v", err)
 	}
-	wantName := "mcp__my-provider__list_resources"
+	wantName := "mcp__my-provider__list_prompts"
 	if info.Name != wantName {
 		t.Fatalf("tool name = %q, want %q", info.Name, wantName)
 	}
@@ -27,7 +27,7 @@ func TestListResourcesToolInfo(t *testing.T) {
 	}
 }
 
-func TestListResourcesToolInvokableRun(t *testing.T) {
+func TestListPromptsToolInvokableRun(t *testing.T) {
 	binary := buildFixtureServer(t)
 	mgr, err := NewManager(context.Background(), []ProviderConfig{{
 		Name:                  "fixture",
@@ -41,12 +41,12 @@ func TestListResourcesToolInvokableRun(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = mgr.Close() })
 
-	regs := mgr.ResourceRegistrations()
+	regs := mgr.PromptRegistrations()
 	if len(regs) == 0 {
-		t.Fatal("expected at least one resource registration")
+		t.Fatal("expected at least one prompt registration")
 	}
 
-	tool := &listResourcesTool{
+	tool := &listPromptsTool{
 		session:      regs[0].Session,
 		providerName: "fixture",
 	}
@@ -59,21 +59,21 @@ func TestListResourcesToolInvokableRun(t *testing.T) {
 	if err := json.Unmarshal([]byte(result), &parsed); err != nil {
 		t.Fatalf("result is not valid JSON: %v\nresult: %s", err, result)
 	}
-	resources, ok := parsed["resources"]
+	prompts, ok := parsed["prompts"]
 	if !ok {
-		t.Fatal("result JSON missing 'resources' key")
+		t.Fatal("result JSON missing 'prompts' key")
 	}
-	resArr, ok := resources.([]interface{})
+	promptArr, ok := prompts.([]interface{})
 	if !ok {
-		t.Fatalf("resources is not an array, got %T", resources)
+		t.Fatalf("prompts is not an array, got %T", prompts)
 	}
-	if len(resArr) == 0 {
-		t.Fatal("expected at least one resource in list result")
+	if len(promptArr) == 0 {
+		t.Fatal("expected at least one prompt in list result")
 	}
 }
 
-func TestReadResourceToolInfo(t *testing.T) {
-	tool := &readResourceTool{
+func TestGetPromptToolInfo(t *testing.T) {
+	tool := &getPromptTool{
 		session:      nil,
 		providerName: "test-prov",
 	}
@@ -81,7 +81,7 @@ func TestReadResourceToolInfo(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Info: %v", err)
 	}
-	wantName := "mcp__test-prov__read_resource"
+	wantName := "mcp__test-prov__get_prompt"
 	if info.Name != wantName {
 		t.Fatalf("tool name = %q, want %q", info.Name, wantName)
 	}
@@ -90,7 +90,7 @@ func TestReadResourceToolInfo(t *testing.T) {
 	}
 }
 
-func TestReadResourceToolInvokableRun(t *testing.T) {
+func TestGetPromptToolInvokableRun(t *testing.T) {
 	binary := buildFixtureServer(t)
 	mgr, err := NewManager(context.Background(), []ProviderConfig{{
 		Name:                  "fixture",
@@ -104,16 +104,16 @@ func TestReadResourceToolInvokableRun(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = mgr.Close() })
 
-	regs := mgr.ResourceRegistrations()
+	regs := mgr.PromptRegistrations()
 	if len(regs) == 0 {
-		t.Fatal("expected at least one resource registration")
+		t.Fatal("expected at least one prompt registration")
 	}
 
-	tool := &readResourceTool{
+	tool := &getPromptTool{
 		session:      regs[0].Session,
 		providerName: "fixture",
 	}
-	result, err := tool.InvokableRun(context.Background(), `{"uri":"test://resource"}`)
+	result, err := tool.InvokableRun(context.Background(), `{"name":"test-prompt"}`)
 	if err != nil {
 		t.Fatalf("InvokableRun: %v", err)
 	}
@@ -122,31 +122,20 @@ func TestReadResourceToolInvokableRun(t *testing.T) {
 	if err := json.Unmarshal([]byte(result), &parsed); err != nil {
 		t.Fatalf("result is not valid JSON: %v\nresult: %s", err, result)
 	}
-	contents, ok := parsed["contents"]
+	messages, ok := parsed["messages"]
 	if !ok {
-		t.Fatal("result JSON missing 'contents' key")
+		t.Fatal("result JSON missing 'messages' key")
 	}
-	contentArr, ok := contents.([]interface{})
+	msgArr, ok := messages.([]interface{})
 	if !ok {
-		t.Fatalf("contents is not an array, got %T", contents)
+		t.Fatalf("messages is not an array, got %T", messages)
 	}
-	if len(contentArr) == 0 {
-		t.Fatal("expected at least one content item in read result")
+	if len(msgArr) == 0 {
+		t.Fatal("expected at least one message in get_prompt result")
 	}
 }
 
-func TestReadResourceToolMissingURI(t *testing.T) {
-	tool := &readResourceTool{
-		session:      nil, // not needed for this error path
-		providerName: "prov",
-	}
-	_, err := tool.InvokableRun(context.Background(), `{}`)
-	if err == nil {
-		t.Fatal("expected error when uri is missing from arguments")
-	}
-}
-
-func TestBuildResourceTools(t *testing.T) {
+func TestGetPromptToolWithArguments(t *testing.T) {
 	binary := buildFixtureServer(t)
 	mgr, err := NewManager(context.Background(), []ProviderConfig{{
 		Name:                  "fixture",
@@ -160,17 +149,62 @@ func TestBuildResourceTools(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = mgr.Close() })
 
-	regs := mgr.ResourceRegistrations()
+	regs := mgr.PromptRegistrations()
 	if len(regs) == 0 {
-		t.Fatal("expected at least one resource registration")
+		t.Fatal("expected at least one prompt registration")
 	}
 
-	tools := buildResourceTools(regs[0].Session, "fixture")
+	tool := &getPromptTool{
+		session:      regs[0].Session,
+		providerName: "fixture",
+	}
+	// Test with both name and arguments
+	result, err := tool.InvokableRun(context.Background(), `{"name":"test-prompt","arguments":{"key":"value"}}`)
+	if err != nil {
+		t.Fatalf("InvokableRun: %v", err)
+	}
+
+	var parsed map[string]interface{}
+	if err := json.Unmarshal([]byte(result), &parsed); err != nil {
+		t.Fatalf("result is not valid JSON: %v\nresult: %s", err, result)
+	}
+}
+
+func TestGetPromptToolMissingName(t *testing.T) {
+	tool := &getPromptTool{
+		session:      nil,
+		providerName: "prov",
+	}
+	_, err := tool.InvokableRun(context.Background(), `{}`)
+	if err == nil {
+		t.Fatal("expected error when name is missing from arguments")
+	}
+}
+
+func TestBuildPromptTools(t *testing.T) {
+	binary := buildFixtureServer(t)
+	mgr, err := NewManager(context.Background(), []ProviderConfig{{
+		Name:                  "fixture",
+		Enabled:               true,
+		Transport:             "stdio",
+		Command:               binary,
+		StartupTimeoutSeconds: 10,
+	}})
+	if err != nil {
+		t.Fatalf("new manager: %v", err)
+	}
+	t.Cleanup(func() { _ = mgr.Close() })
+
+	regs := mgr.PromptRegistrations()
+	if len(regs) == 0 {
+		t.Fatal("expected at least one prompt registration")
+	}
+
+	tools := buildPromptTools(regs[0].Session, "fixture")
 	if got, want := len(tools), 2; got != want {
-		t.Fatalf("expected %d resource tools, got %d", want, got)
+		t.Fatalf("expected %d prompt tools, got %d", want, got)
 	}
 
-	// Verify tool names
 	names := make(map[string]bool)
 	for _, tool := range tools {
 		info, err := tool.Info(context.Background())
@@ -179,15 +213,15 @@ func TestBuildResourceTools(t *testing.T) {
 		}
 		names[info.Name] = true
 	}
-	if !names["mcp__fixture__list_resources"] {
-		t.Fatal("expected mcp__fixture__list_resources tool")
+	if !names["mcp__fixture__list_prompts"] {
+		t.Fatal("expected mcp__fixture__list_prompts tool")
 	}
-	if !names["mcp__fixture__read_resource"] {
-		t.Fatal("expected mcp__fixture__read_resource tool")
+	if !names["mcp__fixture__get_prompt"] {
+		t.Fatal("expected mcp__fixture__get_prompt tool")
 	}
 }
 
-func TestManagerResourceToolsExposeProviderTools(t *testing.T) {
+func TestManagerPromptToolsExposeProviderTools(t *testing.T) {
 	binary := buildFixtureServer(t)
 	mgr, err := NewManager(context.Background(), []ProviderConfig{{
 		Name:                  "fixture",
@@ -201,39 +235,37 @@ func TestManagerResourceToolsExposeProviderTools(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = mgr.Close() })
 
-	resourceTools := mgr.ResourceTools()
-	if got, want := len(resourceTools), 2; got != want {
-		t.Fatalf("expected %d resource tools from manager, got %d", want, got)
+	promptTools := mgr.PromptTools()
+	if got, want := len(promptTools), 2; got != want {
+		t.Fatalf("expected %d prompt tools from manager, got %d", want, got)
 	}
 
-	for _, tool := range resourceTools {
+	for _, tool := range promptTools {
 		if _, err := tool.Info(context.Background()); err != nil {
-			t.Fatalf("resource tool info: %v", err)
+			t.Fatalf("prompt tool info: %v", err)
 		}
 	}
 }
 
-func TestManagerResourceToolsNil(t *testing.T) {
+func TestManagerPromptToolsNil(t *testing.T) {
 	var mgr *Manager
-	if got := mgr.ResourceTools(); got != nil {
-		t.Fatalf("nil Manager.ResourceTools() = %v, want nil", got)
+	if got := mgr.PromptTools(); got != nil {
+		t.Fatalf("nil Manager.PromptTools() = %v, want nil", got)
 	}
 }
 
-func TestReadResourceToolWithSessionError(t *testing.T) {
-	tool := &readResourceTool{
+func TestGetPromptToolWithSessionError(t *testing.T) {
+	tool := &getPromptTool{
 		session:      nil, // nil session should cause error
 		providerName: "broken",
 	}
-	_, err := tool.InvokableRun(context.Background(), `{"uri":"test://resource"}`)
+	_, err := tool.InvokableRun(context.Background(), `{"name":"test"}`)
 	if err == nil {
 		t.Fatal("expected error when session is nil")
 	}
 }
 
-// Ensure listResourcesTool and readResourceTool implement mcp session calls
-// correctly by using a real session from the fixture server.
-func TestListResourcesToolCallsSessionListResources(t *testing.T) {
+func TestListPromptsToolCallsSessionListPrompts(t *testing.T) {
 	binary := buildFixtureServer(t)
 	mgr, err := NewManager(context.Background(), []ProviderConfig{{
 		Name:                  "fixture",
@@ -247,8 +279,8 @@ func TestListResourcesToolCallsSessionListResources(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = mgr.Close() })
 
-	regs := mgr.ResourceRegistrations()
-	tool := &listResourcesTool{
+	regs := mgr.PromptRegistrations()
+	tool := &listPromptsTool{
 		session:      regs[0].Session,
 		providerName: "fixture",
 	}
@@ -257,13 +289,12 @@ func TestListResourcesToolCallsSessionListResources(t *testing.T) {
 		t.Fatalf("InvokableRun: %v", err)
 	}
 
-	// Verify the result contains the fixture server's test-resource
-	if !strings.Contains(result, "test-resource") && !strings.Contains(result, "test://resource") {
-		t.Fatalf("result should contain test-resource data, got: %s", result)
+	if !strings.Contains(result, "test-prompt") {
+		t.Fatalf("result should contain test-prompt, got: %s", result)
 	}
 }
 
-func TestReadResourceToolCallsSessionReadResource(t *testing.T) {
+func TestGetPromptToolCallsSessionGetPrompt(t *testing.T) {
 	binary := buildFixtureServer(t)
 	mgr, err := NewManager(context.Background(), []ProviderConfig{{
 		Name:                  "fixture",
@@ -277,24 +308,24 @@ func TestReadResourceToolCallsSessionReadResource(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = mgr.Close() })
 
-	regs := mgr.ResourceRegistrations()
-	tool := &readResourceTool{
+	regs := mgr.PromptRegistrations()
+	tool := &getPromptTool{
 		session:      regs[0].Session,
 		providerName: "fixture",
 	}
-	result, err := tool.InvokableRun(context.Background(), `{"uri":"test://resource"}`)
+	result, err := tool.InvokableRun(context.Background(), `{"name":"test-prompt"}`)
 	if err != nil {
 		t.Fatalf("InvokableRun: %v", err)
 	}
 
-	// Verify the result contains the resource content
-	if !strings.Contains(result, "hello from resource") {
-		t.Fatalf("result should contain resource content, got: %s", result)
+	// The fixture server returns "You are a test prompt." in the prompt message
+	if !strings.Contains(result, "test prompt") {
+		t.Fatalf("result should contain prompt content, got: %s", result)
 	}
 }
 
-// Verify that ResourceRegistrations has the expected Session field type
-func TestResourceRegistrationSessionType(t *testing.T) {
+// Verify that PromptRegistrations has the expected Session field type
+func TestPromptRegistrationSessionType(t *testing.T) {
 	binary := buildFixtureServer(t)
 	mgr, err := NewManager(context.Background(), []ProviderConfig{{
 		Name:                  "fixture",
@@ -308,9 +339,9 @@ func TestResourceRegistrationSessionType(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = mgr.Close() })
 
-	regs := mgr.ResourceRegistrations()
+	regs := mgr.PromptRegistrations()
 	if len(regs) == 0 {
-		t.Fatal("expected resource registrations")
+		t.Fatal("expected prompt registrations")
 	}
 	var _ *mcp.ClientSession = regs[0].Session
 }

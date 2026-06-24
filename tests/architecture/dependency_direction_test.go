@@ -114,8 +114,8 @@ func TestDependencyDirectionNoCycle(t *testing.T) {
 //
 // This is a pragmatic guard: the ideal end-state is that all packages use
 // port.*Repo or contract.StoreView, but the current refactor still has
-// sentinel error references in api/ and providers/mcp/. These are tracked
+// sentinel error references in api/ and internal/mcp/. These are tracked
 // as technical debt and should be migrated to domain-level sentinels.
 func TestNoDirectStoreImportOutsideWire(t *testing.T) {
-	t.Skip("known tech debt: api/ and providers/mcp/ still import store for sentinel errors — tracked for follow-up")
+	t.Skip("known tech debt: api/ and internal/mcp/ still import store for sentinel errors — tracked for follow-up")
 }

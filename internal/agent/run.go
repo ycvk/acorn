@@ -13,7 +13,7 @@ import (
 	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/memory"
 	"github.com/ycvk/acorn/internal/port"
-	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
+	mcpprovider "github.com/ycvk/acorn/internal/mcp"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/tools"
 	"github.com/ycvk/acorn/internal/workspace"

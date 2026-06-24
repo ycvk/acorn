@@ -11,7 +11,7 @@ import (
 	"github.com/cloudwego/eino/schema"
 
 	"github.com/ycvk/acorn/internal/port"
-	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
+	mcpprovider "github.com/ycvk/acorn/internal/mcp"
 	"github.com/ycvk/acorn/internal/tools"
 )
 

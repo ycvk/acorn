@@ -11,7 +11,7 @@ import (
 	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/port"
-	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
+	mcpprovider "github.com/ycvk/acorn/internal/mcp"
 )
 
 func buildMCPToolSpecs(ctx context.Context, cfg *config.Config, mcpManager *mcpprovider.Manager) ([]port.ToolSpec, error) {

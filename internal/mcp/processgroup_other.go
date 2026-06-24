@@ -1,6 +1,6 @@
 //go:build !darwin && !linux
 
-package mcpprovider
+package mcp
 
 import "os/exec"
 

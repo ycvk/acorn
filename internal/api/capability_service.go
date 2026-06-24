@@ -8,7 +8,7 @@ import (
 	"github.com/ycvk/acorn/internal/agent"
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/port"
-	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
+	mcpprovider "github.com/ycvk/acorn/internal/mcp"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/tools"
 )

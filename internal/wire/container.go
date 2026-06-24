@@ -13,7 +13,7 @@ import (
 	"github.com/ycvk/acorn/internal/contract"
 	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/memory"
-	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
+	mcpprovider "github.com/ycvk/acorn/internal/mcp"
 	"github.com/ycvk/acorn/internal/store"
 )
 

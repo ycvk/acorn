@@ -1,4 +1,4 @@
-package mcpprovider
+package mcp
 
 import "testing"
 
