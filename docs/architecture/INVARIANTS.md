@@ -14,7 +14,7 @@
 
 - **单一编排模式 direct_response**：`directResponseAgent.runFromState` 直接调用 `ExecuteRound` 执行模型回合（`AgentLoop` 中间层已内联删除）。plan_execute/single_agent 模式已删除。Session 在 BeforeModelCall 中执行 masking + auto-compact。runtime 包合并了 `agent`+`context`+`stream`，依赖方向无环。
   - `tests/architecture/structural_limits_test.go`
-- **runtime 执行链自包含**：`internal/runtime` 拥有 executor、per-run assembly（7 个 struct）、direct_response、ExecuteRound、Plane、Session、masking、auto-compact、StreamItem 投影；不依赖 `internal/agent`/`internal/context`/`internal/stream`（已全部合并删除）。
+- **runtime 执行链自包含**：`internal/runtime` 拥有 executor、per-run assembly（内联函数,非 struct）、direct_response、ExecuteRound、Plane、Session、masking、auto-compact、StreamItem 投影；不依赖 `internal/agent`/`internal/context`/`internal/stream`（已全部合并删除）。
   - `tests/architecture/structural_limits_test.go`
 - **结构守卫覆盖全包**：`tests/architecture/structural_limits_test.go` 的 `refactorOwnedDirs` 覆盖所有 12 个 `internal/` 重构目录（core/runtime/store/tools/memory/mcp/api/wire/config/workspace/skills/webaccess）。所有目录强制文件 ≤800 行。generated files（`*_gen.go`）和 test 文件被守卫排除。
   - `tests/architecture/structural_limits_test.go`

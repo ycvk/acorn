@@ -32,7 +32,7 @@ type RunnerFactory struct {
 
 	runChatModelBuilder func(context.Context, RunnerBuildRequest) (einomodel.BaseChatModel, error)
 	mcpCache            *mcpManagerCache
-	toolRegistry        tools.ResolvingToolRegistry
+	toolRegistry        core.ToolRegistry
 }
 
 func NewRunnerFactory(cfg *config.Config, store RunnerFactoryStore, opts RunnerFactoryOptions) (*RunnerFactory, error) {
@@ -412,7 +412,7 @@ type RunnerFactoryOptions struct {
 	ContextPlane          Plane
 	MCPPendingActionStore core.SessionStore
 	ArtifactService       core.ArtifactService
-	ToolRegistry          tools.ResolvingToolRegistry
+	ToolRegistry          core.ToolRegistry
 }
 
 // RunnerBuildRequest holds the parameters for building a new run.

@@ -54,6 +54,18 @@ func (m *Manager) ListProviders() []core.ProviderInfo {
 	return infos
 }
 
+// Reconcile applies a new provider config set to the live manager.
+func (m *Manager) Reconcile(ctx context.Context, configs []core.ProviderConfig) error {
+	if m == nil {
+		return fmt.Errorf("manager is nil")
+	}
+	local := make([]ProviderConfig, 0, len(configs))
+	for _, c := range configs {
+		local = append(local, providerConfigFromCore(c))
+	}
+	return m.ReconcileProviders(ctx, local)
+}
+
 // providerConfigFromCore converts a core.ProviderConfig into the package-local
 // mcp.ProviderConfig. The two types have identical fields; this function is the
 // single explicit bridge so callers stay in core terms.

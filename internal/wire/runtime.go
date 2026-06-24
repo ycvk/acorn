@@ -45,7 +45,7 @@ type containerRuntimeDeps struct {
 	memoryModule          memory.Service
 	contextPlane          runtime.Plane
 	mcpPendingActionStore api.StoreView
-	toolRegistry          tools.ResolvingToolRegistry
+	toolRegistry          core.ToolRegistry
 	runnerFactory         *runtime.RunnerFactory
 	runController         *runtime.RunController
 	executors             func(context.Context) (api.ExecutorHandle, error)

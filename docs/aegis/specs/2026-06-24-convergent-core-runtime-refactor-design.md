@@ -44,7 +44,7 @@ greenfield 是最"成功"的一轮,但它把 runtime 拆成 agent+context+stream
 
 1. **类型层合一**:domain/port/contract/clientevents 合并为 `core`。所有类型定义、契约接口、注册中心接口在一个包。
 2. **执行层合一**:agent/context/stream 合并为 `runtime`。一次 run 的执行链在一个包内闭合。
-3. **Store 接口收敛**:21 个 store-like 接口 → 3 个能力接口(SessionStore/IdentityStore/ArtifactStore)。
+3. **Store 接口收敛**:21 个 store-like 接口 → 3 个能力接口(SessionStore/IdentityStore/ArtifactStore)+ 2 个窄 facet(EventAppender/SessionSummaryStore)用于 ISP。
 4. **装配简化**:7 个 per-run assembly struct → 2 步(registry.Resolve + session.Bootstrap)。
 5. **插件注册中心**:统一 ToolRegistry + ProviderRegistry 作为一等公民扩展点。
 6. **包数缩减**:internal 包 20 → 13(8 个核心包:core/runtime/store/tools/memory/api/mcp/wire + 5 个不变包:config/workspace/webaccess/skills/cli)。类型定义包 4 → 1,执行层包 3 → 1。

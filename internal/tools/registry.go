@@ -38,7 +38,7 @@ type toolRegistry struct {
 // ResolvingToolRegistry (which embeds core.ToolRegistry) so callers that only
 // need the read-write catalog interface still get it, while the runtime can
 // use Resolve for lazy tool construction.
-func NewToolRegistry() ResolvingToolRegistry {
+func NewToolRegistry() core.ToolRegistry {
 	return &toolRegistry{byName: make(map[string]core.ToolSpec)}
 }
 
