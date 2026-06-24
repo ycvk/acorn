@@ -29,15 +29,15 @@ const (
 // --- Run / event / session records ---
 
 type RunRecord struct {
-	RunID     string    `json:"run_id"`
-	SessionID string    `json:"session_id,omitempty"`
-	TurnIndex int       `json:"turn_index,omitempty"`
-	Status    RunStatus `json:"status"`
-	Input     string    `json:"input"`
-	Output    string    `json:"output,omitempty"`
-	Error     string    `json:"error,omitempty"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	RunID      string    `json:"run_id"`
+	SessionID  string    `json:"session_id,omitempty"`
+	TurnIndex  int       `json:"turn_index,omitempty"`
+	Status     RunStatus `json:"status"`
+	Input      string    `json:"input"`
+	Output     string    `json:"output,omitempty"`
+	Error      string    `json:"error,omitempty"`
+	CreatedAt  time.Time `json:"created_at"`
+	FinishedAt time.Time `json:"finished_at,omitempty"`
 }
 
 type EventRecord struct {
@@ -86,7 +86,6 @@ type PendingActionRecord struct {
 	Reason       string              `json:"reason,omitempty"`
 	DecisionJSON string              `json:"decision_json,omitempty"`
 	CreatedAt    time.Time           `json:"created_at"`
-	DecidedAt    *time.Time          `json:"decided_at,omitempty"`
 	ResolvedAt   *time.Time          `json:"resolved_at,omitempty"`
 }
 

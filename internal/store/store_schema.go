@@ -8,28 +8,22 @@ import (
 )
 
 func (s *Store) migrate() error {
-	if _, err := s.db.Exec(storeBootstrapSchema); err != nil {
-		return fmt.Errorf("migrate sqlite schema: %w", err)
+	if _, err := s.db.Exec(storeBootstrapTables); err != nil {
+		return fmt.Errorf("migrate sqlite schema (tables): %w", err)
 	}
 	if err := s.migrateV2(); err != nil {
 		return fmt.Errorf("migrate v2: %w", err)
 	}
-	if err := s.ensureOwnerProfile(); err != nil {
-		return fmt.Errorf("ensure owner profile: %w", err)
+	if err := s.dropArchitecturalRefactorTables(); err != nil {
+		return fmt.Errorf("drop architectural refactor tables: %w", err)
 	}
 	if err := s.validateSchema(); err != nil {
 		return err
 	}
+	if _, err := s.db.Exec(storeBootstrapIndexes); err != nil {
+		return fmt.Errorf("migrate sqlite schema (indexes): %w", err)
+	}
 	return nil
-}
-
-func (s *Store) ensureOwnerProfile() error {
-	_, err := s.db.Exec(
-		`INSERT OR IGNORE INTO owner_profile(owner_id, created_at) VALUES(?, ?)`,
-		"owner",
-		formatTimestamp(timeNowUTC()),
-	)
-	return err
 }
 
 func (s *Store) migrateV2() error {
@@ -78,22 +72,20 @@ func (s *Store) validateSchema() error {
 
 // schemaRequiredTables maps each required table to the columns that must exist
 // after migration; validateSchema enforces presence to detect a stale or
-// incompatible local database. Retired tables (checkpoints, plan_steps,
-// conversation_segments, working_checkpoints, run_context_snapshots,
-// context_boundaries, tool_results, provider_usages, run_archives) are dropped
-// by migrations and intentionally absent.
+// incompatible local database. Retired tables (owner_profile, session_summaries,
+// checkpoints, plan_steps, conversation_segments, working_checkpoints,
+// run_context_snapshots, context_boundaries, tool_results, provider_usages,
+// run_archives) are dropped by migrations and intentionally absent.
 var schemaRequiredTables = map[string][]string{
-	"runs":              {"run_id", "session_id", "turn_index", "status", "input_text", "output_text", "error_text", "created_at", "updated_at"},
-	"events":            {"sequence", "run_id", "kind", "payload_json", "created_at"},
-	"sessions":          {"session_id", "title", "created_at", "updated_at"},
-	"session_messages":  {"id", "session_id", "turn_index", "role", "content", "content_parts", "run_id", "created_at"},
-	"pending_actions":   {"action_id", "run_id", "interrupt_id", "kind", "subject", "payload_json", "status", "reason", "decision_json", "created_at", "decided_at", "resolved_at"},
-	"mcp_oauth_tokens":  {"provider_name", "access_token", "refresh_token", "expiry", "updated_at"},
-	"owner_profile":     {"owner_id", "created_at"},
-	"devices":           {"device_id", "name", "platform", "token_hash", "created_at", "last_seen_at", "revoked_at"},
-	"pairing_codes":     {"code_hash", "expires_at", "used_at", "created_at"},
-	"artifacts":         {"artifact_id", "run_id", "session_id", "source_tool_result_ref", "kind", "title", "mime_type", "relative_path", "size_bytes", "sha256", "created_at"},
-	"session_summaries": {"session_id", "source_run_id", "run_status", "summary", "updated_at"},
+	"runs":             {"run_id", "session_id", "turn_index", "status", "input_text", "output_text", "error_text", "created_at", "finished_at"},
+	"events":           {"sequence", "run_id", "kind", "payload_json", "created_at"},
+	"sessions":         {"session_id", "title", "created_at", "updated_at"},
+	"session_messages": {"id", "session_id", "turn_index", "role", "content", "content_parts", "run_id", "created_at"},
+	"pending_actions":  {"action_id", "run_id", "interrupt_id", "kind", "subject", "payload_json", "status", "reason", "decision_json", "created_at", "resolved_at"},
+	"mcp_oauth_tokens": {"provider_name", "access_token", "refresh_token", "expiry", "updated_at"},
+	"devices":          {"device_id", "name", "platform", "token_hash", "created_at", "last_seen_at", "revoked_at"},
+	"pairing_codes":    {"code_hash", "expires_at", "used_at", "created_at"},
+	"artifacts":        {"artifact_id", "run_id", "session_id", "source_tool_result_ref", "kind", "title", "mime_type", "relative_path", "size_bytes", "sha256", "created_at"},
 	"schema_migrations": {"version", "applied_at"},
 }
 

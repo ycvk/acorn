@@ -10,12 +10,12 @@ import (
 
 func scanRunRecord(scanner interface{ Scan(dest ...any) error }) (*domain.RunRecord, error) {
 	var (
-		rec     domain.RunRecord
-		status  string
-		created string
-		updated string
+		rec       domain.RunRecord
+		status    string
+		created   string
+		finished  string
 	)
-	if err := scanner.Scan(&rec.RunID, &rec.SessionID, &rec.TurnIndex, &status, &rec.Input, &rec.Output, &rec.Error, &created, &updated); err != nil {
+	if err := scanner.Scan(&rec.RunID, &rec.SessionID, &rec.TurnIndex, &status, &rec.Input, &rec.Output, &rec.Error, &created, &finished); err != nil {
 		return nil, err
 	}
 	rec.Status = domain.RunStatus(status)
@@ -23,12 +23,14 @@ func scanRunRecord(scanner interface{ Scan(dest ...any) error }) (*domain.RunRec
 	if err != nil {
 		return nil, err
 	}
-	updatedAt, err := parseTimestamp(time.RFC3339Nano, updated, "run.updated_at")
-	if err != nil {
-		return nil, err
-	}
 	rec.CreatedAt = createdAt
-	rec.UpdatedAt = updatedAt
+	if strings.TrimSpace(finished) != "" {
+		finishedAt, err := parseTimestamp(time.RFC3339Nano, finished, "run.finished_at")
+		if err != nil {
+			return nil, err
+		}
+		rec.FinishedAt = finishedAt
+	}
 	return &rec, nil
 }
 
@@ -42,7 +44,6 @@ func scanPendingActionRecord(scanner interface{ Scan(dest ...any) error }) (*dom
 		subject    string
 		interrupt  string
 		createdAt  string
-		decidedAt  string
 		resolvedAt string
 	)
 	if err := scanner.Scan(
@@ -56,7 +57,6 @@ func scanPendingActionRecord(scanner interface{ Scan(dest ...any) error }) (*dom
 		&record.Reason,
 		&decision,
 		&createdAt,
-		&decidedAt,
 		&resolvedAt,
 	); err != nil {
 		return nil, err
@@ -72,13 +72,6 @@ func scanPendingActionRecord(scanner interface{ Scan(dest ...any) error }) (*dom
 		return nil, err
 	}
 	record.CreatedAt = createdParsed
-	if strings.TrimSpace(decidedAt) != "" {
-		parsedDecision, err := time.Parse(fixedTimestampLayout, decidedAt)
-		if err != nil {
-			return nil, fmt.Errorf("parse pending action decided_at: %w", err)
-		}
-		record.DecidedAt = &parsedDecision
-	}
 	if strings.TrimSpace(resolvedAt) != "" {
 		parsedResolvedAt, err := time.Parse(fixedTimestampLayout, resolvedAt)
 		if err != nil {

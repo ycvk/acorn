@@ -5,29 +5,15 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	"github.com/ycvk/acorn/internal/domain"
 )
-
-func TestDeviceAuthOwnerProfileExistsOnOpen(t *testing.T) {
-	store := openTestStore(t)
-	ctx := context.Background()
-
-	profile, err := store.LoadOwnerProfile(ctx)
-	if err != nil {
-		t.Fatalf("load owner profile: %v", err)
-	}
-	if profile.OwnerID != "owner" {
-		t.Fatalf("owner id = %q, want owner", profile.OwnerID)
-	}
-	if profile.CreatedAt.IsZero() {
-		t.Fatal("owner created_at should be set")
-	}
-}
 
 func TestDeviceAuthPairingCodeLifecycle(t *testing.T) {
 	store := openTestStore(t)
 	ctx := context.Background()
 	now := time.Date(2026, 5, 15, 10, 0, 0, 0, time.UTC)
-	code := &PairingCode{
+	code := &domain.PairingCode{
 		CodeHash:  "hash-code",
 		ExpiresAt: now.Add(10 * time.Minute),
 		CreatedAt: now,
@@ -64,7 +50,7 @@ func TestDeviceAuthPairingCodeExpiryAndMissing(t *testing.T) {
 	if _, err := store.LoadPairingCode(ctx, "missing"); !errors.Is(err, ErrPairingCodeNotFound) {
 		t.Fatalf("load missing code error = %v, want ErrPairingCodeNotFound", err)
 	}
-	if err := store.SavePairingCode(ctx, &PairingCode{
+	if err := store.SavePairingCode(ctx, &domain.PairingCode{
 		CodeHash:  "expired",
 		ExpiresAt: now.Add(-time.Second),
 		CreatedAt: now.Add(-time.Minute),
@@ -80,7 +66,7 @@ func TestDeviceAuthDeviceLifecycle(t *testing.T) {
 	store := openTestStore(t)
 	ctx := context.Background()
 	now := time.Date(2026, 5, 15, 10, 0, 0, 0, time.UTC)
-	device := &Device{
+	device := &domain.Device{
 		DeviceID:   "device_1",
 		Name:       "iPhone",
 		Platform:   "ios",

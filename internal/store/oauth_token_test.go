@@ -5,13 +5,15 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	"github.com/ycvk/acorn/internal/domain"
 )
 
 func TestOAuthTokenGetNotFound(t *testing.T) {
 	store := openTestStore(t)
 	ctx := context.Background()
 
-	_, err := store.GetOAuthToken(ctx, "nonexistent")
+	_, err := store.LoadOAuthToken(ctx, "nonexistent")
 	if !errors.Is(err, ErrOAuthTokenNotFound) {
 		t.Fatalf("expected ErrOAuthTokenNotFound, got %v", err)
 	}
@@ -22,7 +24,7 @@ func TestOAuthTokenSaveAndGetRoundTrip(t *testing.T) {
 	ctx := context.Background()
 
 	expiry := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
-	token := &OAuthToken{
+	token := domain.OAuthToken{
 		ProviderName: "test-provider",
 		AccessToken:  "access-abc",
 		RefreshToken: "refresh-xyz",
@@ -34,7 +36,7 @@ func TestOAuthTokenSaveAndGetRoundTrip(t *testing.T) {
 		t.Fatalf("save oauth token: %v", err)
 	}
 
-	got, err := store.GetOAuthToken(ctx, "test-provider")
+	got, err := store.LoadOAuthToken(ctx, "test-provider")
 	if err != nil {
 		t.Fatalf("get oauth token: %v", err)
 	}
@@ -57,7 +59,7 @@ func TestOAuthTokenSaveUpserts(t *testing.T) {
 	store := openTestStore(t)
 	ctx := context.Background()
 
-	token1 := &OAuthToken{
+	token1 := domain.OAuthToken{
 		ProviderName: "upsert-provider",
 		AccessToken:  "first-access",
 		RefreshToken: "first-refresh",
@@ -68,7 +70,7 @@ func TestOAuthTokenSaveUpserts(t *testing.T) {
 		t.Fatalf("first save: %v", err)
 	}
 
-	token2 := &OAuthToken{
+	token2 := domain.OAuthToken{
 		ProviderName: "upsert-provider",
 		AccessToken:  "second-access",
 		RefreshToken: "second-refresh",
@@ -79,7 +81,7 @@ func TestOAuthTokenSaveUpserts(t *testing.T) {
 		t.Fatalf("second save (upsert): %v", err)
 	}
 
-	got, err := store.GetOAuthToken(ctx, "upsert-provider")
+	got, err := store.LoadOAuthToken(ctx, "upsert-provider")
 	if err != nil {
 		t.Fatalf("get after upsert: %v", err)
 	}
@@ -96,7 +98,7 @@ func TestOAuthTokenDelete(t *testing.T) {
 	store := openTestStore(t)
 	ctx := context.Background()
 
-	token := &OAuthToken{
+	token := domain.OAuthToken{
 		ProviderName: "delete-provider",
 		AccessToken:  "to-delete",
 		RefreshToken: "to-delete-refresh",
@@ -111,7 +113,7 @@ func TestOAuthTokenDelete(t *testing.T) {
 		t.Fatalf("delete: %v", err)
 	}
 
-	_, err := store.GetOAuthToken(ctx, "delete-provider")
+	_, err := store.LoadOAuthToken(ctx, "delete-provider")
 	if !errors.Is(err, ErrOAuthTokenNotFound) {
 		t.Fatalf("expected ErrOAuthTokenNotFound after delete, got %v", err)
 	}

@@ -2,91 +2,14 @@ package store
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"strings"
 
+	"database/sql"
+
 	"github.com/ycvk/acorn/internal/domain"
 )
-
-func (s *Store) UpsertSessionSummary(ctx context.Context, summary domain.SessionSummary) error {
-	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO session_summaries(session_id, source_run_id, run_status, summary, updated_at)
-		 VALUES(?, ?, ?, ?, ?)
-		 ON CONFLICT(session_id) DO UPDATE SET
-		     source_run_id = excluded.source_run_id,
-		     run_status = excluded.run_status,
-		     summary = excluded.summary,
-		     updated_at = excluded.updated_at`,
-		strings.TrimSpace(summary.SessionID),
-		strings.TrimSpace(summary.SourceRunID),
-		strings.TrimSpace(summary.RunStatus),
-		strings.TrimSpace(summary.Summary),
-		formatTimestamp(summary.UpdatedAt),
-	)
-	if err != nil {
-		return fmt.Errorf("upsert session summary: %w", err)
-	}
-	return nil
-}
-
-func (s *Store) GetSessionSummary(ctx context.Context, sessionID string) (*domain.SessionSummary, error) {
-	row := s.db.QueryRowContext(ctx,
-		`SELECT session_id, source_run_id, run_status, summary, updated_at
-		 FROM session_summaries WHERE session_id = ?`,
-		strings.TrimSpace(sessionID),
-	)
-	var (
-		record    domain.SessionSummary
-		updatedAt string
-	)
-	if err := row.Scan(&record.SessionID, &record.SourceRunID, &record.RunStatus, &record.Summary, &updatedAt); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("get session summary: %w", err)
-	}
-	parsed, err := parseTimestamp(fixedTimestampLayout, updatedAt, "session_summary.updated_at")
-	if err != nil {
-		return nil, err
-	}
-	record.UpdatedAt = parsed
-	return &record, nil
-}
-
-func (s *Store) ListAllSessionSummaries(ctx context.Context) ([]domain.SessionSummary, error) {
-	rows, err := s.db.QueryContext(ctx,
-		`SELECT session_id, source_run_id, run_status, summary, updated_at
-		 FROM session_summaries
-		 ORDER BY session_id`,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("list all session summaries: %w", err)
-	}
-	defer rows.Close()
-
-	items := make([]domain.SessionSummary, 0)
-	for rows.Next() {
-		var (
-			record    domain.SessionSummary
-			updatedAt string
-		)
-		if err := rows.Scan(&record.SessionID, &record.SourceRunID, &record.RunStatus, &record.Summary, &updatedAt); err != nil {
-			return nil, fmt.Errorf("scan session summary: %w", err)
-		}
-		parsed, err := parseTimestamp(fixedTimestampLayout, updatedAt, "session_summary.updated_at")
-		if err != nil {
-			return nil, err
-		}
-		record.UpdatedAt = parsed
-		items = append(items, record)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate session summaries: %w", err)
-	}
-	return items, nil
-}
 
 func (s *Store) HasAssistantMessageForRunContent(runID, content string) (bool, error) {
 	row := s.db.QueryRow(`SELECT COUNT(1) FROM session_messages WHERE run_id = ? AND role = 'assistant' AND content = ?`, runID, content)
@@ -161,15 +84,15 @@ func (s *Store) LoadLatestRunsForSessions(ctx context.Context, sessionIDs []stri
 
 	query := fmt.Sprintf(
 		`WITH ranked_runs AS (
-			SELECT run_id, session_id, turn_index, status, input_text, output_text, error_text, created_at, updated_at,
+			SELECT run_id, session_id, turn_index, status, input_text, output_text, error_text, created_at, finished_at,
 				ROW_NUMBER() OVER (
 					PARTITION BY session_id
-					ORDER BY turn_index DESC, updated_at DESC
+					ORDER BY turn_index DESC, finished_at DESC
 				) AS row_num
 			FROM runs
 			WHERE session_id IN (%s)
 		)
-		SELECT run_id, session_id, turn_index, status, input_text, output_text, error_text, created_at, updated_at
+		SELECT run_id, session_id, turn_index, status, input_text, output_text, error_text, created_at, finished_at
 		FROM ranked_runs
 		WHERE row_num = 1`,
 		strings.Join(placeholders, ", "),
@@ -196,10 +119,10 @@ func (s *Store) LoadLatestRunsForSessions(ctx context.Context, sessionIDs []stri
 
 func (s *Store) LoadLatestRunForSession(ctx context.Context, sessionID string) (*domain.RunRecord, error) {
 	row := s.db.QueryRowContext(ctx,
-		`SELECT run_id, session_id, turn_index, status, input_text, output_text, error_text, created_at, updated_at
+		`SELECT run_id, session_id, turn_index, status, input_text, output_text, error_text, created_at, finished_at
          FROM runs
          WHERE session_id = ?
-         ORDER BY turn_index DESC, updated_at DESC
+         ORDER BY turn_index DESC, finished_at DESC
          LIMIT 1`,
 		sessionID,
 	)

@@ -6,17 +6,20 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"github.com/ycvk/acorn/internal/domain"
 )
 
-func (s *Store) GetOAuthToken(ctx context.Context, providerName string) (*OAuthToken, error) {
+// LoadOAuthToken implements port.OAuthRepo.
+func (s *Store) LoadOAuthToken(ctx context.Context, providerName string) (*domain.OAuthToken, error) {
 	row := s.db.QueryRowContext(ctx,
 		`SELECT provider_name, access_token, refresh_token, expiry, updated_at
-	     FROM mcp_oauth_tokens
-	     WHERE provider_name = ?`,
+     FROM mcp_oauth_tokens
+     WHERE provider_name = ?`,
 		providerName,
 	)
 	var (
-		token   OAuthToken
+		token   domain.OAuthToken
 		expiry  string
 		updated string
 	)
@@ -39,17 +42,18 @@ func (s *Store) GetOAuthToken(ctx context.Context, providerName string) (*OAuthT
 	return &token, nil
 }
 
-func (s *Store) SaveOAuthToken(ctx context.Context, token *OAuthToken) error {
+// SaveOAuthToken implements port.OAuthRepo.
+func (s *Store) SaveOAuthToken(ctx context.Context, token domain.OAuthToken) error {
 	now := formatTimestamp(time.Now())
 	_, err := s.db.ExecContext(
 		ctx,
 		`INSERT INTO mcp_oauth_tokens(provider_name, access_token, refresh_token, expiry, updated_at)
-	     VALUES(?, ?, ?, ?, ?)
-	     ON CONFLICT(provider_name) DO UPDATE SET
-	        access_token = excluded.access_token,
-	        refresh_token = excluded.refresh_token,
-	        expiry = excluded.expiry,
-	        updated_at = excluded.updated_at`,
+     VALUES(?, ?, ?, ?, ?)
+     ON CONFLICT(provider_name) DO UPDATE SET
+        access_token = excluded.access_token,
+        refresh_token = excluded.refresh_token,
+        expiry = excluded.expiry,
+        updated_at = excluded.updated_at`,
 		token.ProviderName,
 		token.AccessToken,
 		token.RefreshToken,

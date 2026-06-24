@@ -11,32 +11,19 @@ import (
 	"github.com/ycvk/acorn/internal/domain"
 )
 
-func (s *Store) CreateRun(ctx context.Context, runID, input string) error {
-	return s.CreateRunWithParams(ctx, RunCreateParams{
-		RunID: runID,
-		Input: input,
-	})
-}
-
-func (s *Store) CreateRunWithSession(ctx context.Context, runID, sessionID string, turnIndex int, input string) error {
-	return s.CreateRunWithParams(ctx, RunCreateParams{
-		RunID:     runID,
-		SessionID: sessionID,
-		TurnIndex: turnIndex,
-		Input:     input,
-	})
-}
-
-func (s *Store) CreateRunWithParams(ctx context.Context, params RunCreateParams) error {
+// CreateRun implements port.RunRepo. It creates a run record with status
+// "running" and an empty finished_at (filled on completion). Binding of user
+// messages is handled separately via BindLatestUserMessageRunID /
+// BindUserMessageRunIDByID.
+func (s *Store) CreateRun(ctx context.Context, params domain.RunCreateParams) error {
 	now := formatTimestamp(time.Now())
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO runs(run_id, session_id, turn_index, status, input_text, output_text, error_text, created_at, updated_at) VALUES(?, ?, ?, ?, ?, '', '', ?, ?)`,
+		`INSERT INTO runs(run_id, session_id, turn_index, status, input_text, output_text, error_text, created_at, finished_at) VALUES(?, ?, ?, ?, ?, '', '', ?, '')`,
 		params.RunID,
 		params.SessionID,
 		params.TurnIndex,
 		string(domain.RunStatusRunning),
 		params.Input,
-		now,
 		now,
 	)
 	if err != nil {
@@ -45,38 +32,8 @@ func (s *Store) CreateRunWithParams(ctx context.Context, params RunCreateParams)
 	return nil
 }
 
-func (s *Store) CreateBoundRun(ctx context.Context, runID, sessionID string, turnIndex int, input string) error {
-	return s.CreateBoundRunWithParams(ctx, RunCreateParams{
-		RunID:     runID,
-		SessionID: sessionID,
-		TurnIndex: turnIndex,
-		Input:     input,
-	})
-}
-
-func (s *Store) CreateBoundRunWithParams(ctx context.Context, params RunCreateParams) error {
-	if err := s.CreateRunWithParams(ctx, params); err != nil {
-		return err
-	}
-	if params.SessionID == "" {
-		return nil
-	}
-	var bindErr error
-	if params.BoundMessageID > 0 {
-		bindErr = s.BindUserMessageRunIDByID(ctx, params.BoundMessageID, params.RunID)
-	} else {
-		bindErr = s.BindLatestUserMessageRunID(ctx, params.SessionID, params.TurnIndex, params.RunID)
-	}
-	if bindErr != nil {
-		if _, cleanupErr := s.db.Exec(`DELETE FROM runs WHERE run_id = ?`, params.RunID); cleanupErr != nil {
-			return fmt.Errorf("bind user message run id: %w (cleanup failed: %v)", bindErr, cleanupErr)
-		}
-		return bindErr
-	}
-	return nil
-}
-
-func (s *Store) AppendEventContext(ctx context.Context, runID, kind string, payload any) (domain.EventRecord, error) {
+// AppendEvent implements port.EventRepo.
+func (s *Store) AppendEvent(ctx context.Context, runID, kind string, payload any) (domain.EventRecord, error) {
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return domain.EventRecord{}, fmt.Errorf("marshal event payload: %w", err)
@@ -99,9 +56,10 @@ func (s *Store) AppendEventContext(ctx context.Context, runID, kind string, payl
 	return domain.EventRecord{Sequence: seq, RunID: runID, Kind: kind, Payload: payload, CreatedAt: now}, nil
 }
 
-func (s *Store) FinishRunContext(ctx context.Context, runID string, status domain.RunStatus, output, errText string) error {
+// FinishRun implements port.RunRepo.
+func (s *Store) FinishRun(ctx context.Context, runID string, status domain.RunStatus, output, errText string) error {
 	_, err := s.db.ExecContext(ctx,
-		`UPDATE runs SET status = ?, output_text = ?, error_text = ?, updated_at = ? WHERE run_id = ?`,
+		`UPDATE runs SET status = ?, output_text = ?, error_text = ?, finished_at = ? WHERE run_id = ?`,
 		string(status),
 		output,
 		errText,
@@ -114,11 +72,11 @@ func (s *Store) FinishRunContext(ctx context.Context, runID string, status domai
 	return nil
 }
 
-func (s *Store) UpdateRunOutputContext(ctx context.Context, runID, output string) error {
+// UpdateRunOutput implements port.RunRepo.
+func (s *Store) UpdateRunOutput(ctx context.Context, runID, output string) error {
 	_, err := s.db.ExecContext(ctx,
-		`UPDATE runs SET output_text = ?, updated_at = ? WHERE run_id = ?`,
+		`UPDATE runs SET output_text = ? WHERE run_id = ?`,
 		output,
-		formatTimestamp(time.Now()),
 		runID,
 	)
 	if err != nil {
@@ -127,9 +85,10 @@ func (s *Store) UpdateRunOutputContext(ctx context.Context, runID, output string
 	return nil
 }
 
-func (s *Store) MarkInterruptedContext(ctx context.Context, runID, output string) error {
+// MarkInterrupted implements port.RunRepo.
+func (s *Store) MarkInterrupted(ctx context.Context, runID, output string) error {
 	_, err := s.db.ExecContext(ctx,
-		`UPDATE runs SET status = ?, output_text = ?, updated_at = ? WHERE run_id = ?`,
+		`UPDATE runs SET status = ?, output_text = ?, finished_at = ? WHERE run_id = ?`,
 		string(domain.RunStatusInterrupted),
 		output,
 		formatTimestamp(time.Now()),
@@ -142,7 +101,7 @@ func (s *Store) MarkInterruptedContext(ctx context.Context, runID, output string
 }
 
 func (s *Store) LoadRun(ctx context.Context, runID string) (*domain.RunRecord, error) {
-	row := s.db.QueryRowContext(ctx, `SELECT run_id, session_id, turn_index, status, input_text, output_text, error_text, created_at, updated_at FROM runs WHERE run_id = ?`, runID)
+	row := s.db.QueryRowContext(ctx, `SELECT run_id, session_id, turn_index, status, input_text, output_text, error_text, created_at, finished_at FROM runs WHERE run_id = ?`, runID)
 	rec, err := scanRunRecord(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -155,10 +114,10 @@ func (s *Store) LoadRun(ctx context.Context, runID string) (*domain.RunRecord, e
 
 func (s *Store) ListActiveRuns(ctx context.Context, limit int) ([]domain.RunRecord, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT run_id, session_id, turn_index, status, input_text, output_text, error_text, created_at, updated_at
+		`SELECT run_id, session_id, turn_index, status, input_text, output_text, error_text, created_at, finished_at
 		 FROM runs
 		 WHERE status = ? AND session_id <> ''
-		 ORDER BY updated_at DESC
+		 ORDER BY created_at DESC
 		 LIMIT ?`,
 		string(domain.RunStatusRunning),
 		normalizeRunListLimit(limit),
@@ -171,10 +130,10 @@ func (s *Store) ListActiveRuns(ctx context.Context, limit int) ([]domain.RunReco
 
 func (s *Store) ListRecentTerminalRuns(ctx context.Context, limit int) ([]domain.RunRecord, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT run_id, session_id, turn_index, status, input_text, output_text, error_text, created_at, updated_at
+		`SELECT run_id, session_id, turn_index, status, input_text, output_text, error_text, created_at, finished_at
 		 FROM runs
 		 WHERE status IN (?, ?, ?) AND session_id <> ''
-		 ORDER BY updated_at DESC
+		 ORDER BY finished_at DESC
 		 LIMIT ?`,
 		string(domain.RunStatusSucceeded),
 		string(domain.RunStatusInterrupted),

@@ -2,8 +2,6 @@ package store
 
 import (
 	"errors"
-
-	"github.com/ycvk/acorn/internal/domain"
 )
 
 var (
@@ -21,11 +19,3 @@ var (
 	ErrPairingCodeUsed          = errors.New("pairing code already used")
 	ErrPairingCodeExpired       = errors.New("pairing code expired")
 )
-
-// Types — aliases to domain (temporary during migration; removed in Phase 3)
-type RunCreateParams = domain.RunCreateParams
-type CreatePendingActionInput = domain.PendingActionInput
-type OAuthToken = domain.OAuthToken
-type OwnerProfile = domain.OwnerProfile
-type Device = domain.Device
-type PairingCode = domain.PairingCode

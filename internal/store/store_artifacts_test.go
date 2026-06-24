@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/ycvk/acorn/internal/domain"
 )
 
 func TestStoreArtifactsSaveLoadAndList(t *testing.T) {
@@ -18,12 +20,12 @@ func TestStoreArtifactsSaveLoadAndList(t *testing.T) {
 	t.Cleanup(func() { _ = store.Close() })
 
 	createdAt := time.Unix(1_710_000_000, 0).UTC()
-	record, err := store.SaveArtifact(context.Background(), ArtifactRecord{
+	record, err := store.SaveArtifact(context.Background(), domain.ArtifactRecord{
 		ArtifactID:          "artifact_1",
 		RunID:               "run_1",
 		SessionID:           "session_1",
 		SourceToolResultRef: "tool_result:run_1:call_1",
-		Kind:                ArtifactKindJSON,
+		Kind:                string(ArtifactKindJSON),
 		Title:               "verification",
 		MIMEType:            "application/json",
 		RelativePath:        "runs/run_1/artifact_1",
@@ -69,7 +71,7 @@ func TestStoreArtifactsRejectsInvalidRecord(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = store.Close() })
 
-	_, err = store.SaveArtifact(context.Background(), ArtifactRecord{
+	_, err = store.SaveArtifact(context.Background(), domain.ArtifactRecord{
 		ArtifactID:   "artifact_1",
 		RunID:        "run_1",
 		Kind:         "bad",

@@ -18,13 +18,16 @@ func TestStoreLifecycle(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = store.Close() })
 
-	if err := store.CreateRun(context.Background(), "run_1", "hello"); err != nil {
+	if err := store.CreateRun(context.Background(), domain.RunCreateParams{
+		RunID:  "run_1",
+		Input:  "hello",
+	}); err != nil {
 		t.Fatalf("create run: %v", err)
 	}
-	if _, err := store.AppendEventContext(context.Background(), "run_1", "run.started", map[string]any{"input": "hello"}); err != nil {
+	if _, err := store.AppendEvent(context.Background(), "run_1", "run.started", map[string]any{"input": "hello"}); err != nil {
 		t.Fatalf("append event: %v", err)
 	}
-	if err := store.FinishRunContext(context.Background(), "run_1", domain.RunStatusSucceeded, "done", ""); err != nil {
+	if err := store.FinishRun(context.Background(), "run_1", domain.RunStatusSucceeded, "done", ""); err != nil {
 		t.Fatalf("finish run: %v", err)
 	}
 
@@ -45,6 +48,9 @@ func TestStoreLifecycle(t *testing.T) {
 	if run.Output != "done" {
 		t.Fatalf("Output = %q, want %q", run.Output, "done")
 	}
+	if run.FinishedAt.IsZero() {
+		t.Fatal("FinishedAt should be set after FinishRun")
+	}
 }
 
 func TestCreateRunWithParamsPersistsFields(t *testing.T) {
@@ -55,14 +61,14 @@ func TestCreateRunWithParamsPersistsFields(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = store.Close() })
 
-	err = store.CreateRunWithParams(context.Background(), RunCreateParams{
+	err = store.CreateRun(context.Background(), domain.RunCreateParams{
 		RunID:     "run_child",
 		SessionID: "session_child",
 		TurnIndex: 2,
 		Input:     "child task",
 	})
 	if err != nil {
-		t.Fatalf("CreateRunWithParams: %v", err)
+		t.Fatalf("CreateRun: %v", err)
 	}
 
 	run, err := store.LoadRun(context.Background(), "run_child")
@@ -81,6 +87,9 @@ func TestCreateRunWithParamsPersistsFields(t *testing.T) {
 	if run.Status != domain.RunStatusRunning {
 		t.Fatalf("Status = %q, want %q", run.Status, domain.RunStatusRunning)
 	}
+	if !run.FinishedAt.IsZero() {
+		t.Fatalf("FinishedAt should be zero on create, got %v", run.FinishedAt)
+	}
 }
 
 func TestLoadEventsFailsLoudlyOnCorruptPayloadJSON(t *testing.T) {
@@ -91,7 +100,10 @@ func TestLoadEventsFailsLoudlyOnCorruptPayloadJSON(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = store.Close() })
 
-	if err := store.CreateRun(context.Background(), "run_bad_event", "hello"); err != nil {
+	if err := store.CreateRun(context.Background(), domain.RunCreateParams{
+		RunID: "run_bad_event",
+		Input: "hello",
+	}); err != nil {
 		t.Fatalf("create run: %v", err)
 	}
 	_, err = store.db.Exec(
@@ -124,18 +136,21 @@ func TestLoadEventsAfterFiltersExclusiveCursor(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = store.Close() })
 
-	if err := store.CreateRun(context.Background(), "run_after", "hello"); err != nil {
+	if err := store.CreateRun(context.Background(), domain.RunCreateParams{
+		RunID: "run_after",
+		Input: "hello",
+	}); err != nil {
 		t.Fatalf("create run: %v", err)
 	}
-	first, err := store.AppendEventContext(context.Background(), "run_after", "run.started", map[string]any{"input": "hello"})
+	first, err := store.AppendEvent(context.Background(), "run_after", "run.started", map[string]any{"input": "hello"})
 	if err != nil {
 		t.Fatalf("append first event: %v", err)
 	}
-	second, err := store.AppendEventContext(context.Background(), "run_after", "assistant.delta", map[string]any{"delta": "he"})
+	second, err := store.AppendEvent(context.Background(), "run_after", "assistant.delta", map[string]any{"delta": "he"})
 	if err != nil {
 		t.Fatalf("append second event: %v", err)
 	}
-	third, err := store.AppendEventContext(context.Background(), "run_after", "run.completed", map[string]any{"message": map[string]any{"content": "done"}})
+	third, err := store.AppendEvent(context.Background(), "run_after", "run.completed", map[string]any{"message": map[string]any{"content": "done"}})
 	if err != nil {
 		t.Fatalf("append third event: %v", err)
 	}
@@ -166,22 +181,40 @@ func TestListInboxRunsFiltersSessionRunsByStatus(t *testing.T) {
 			t.Fatalf("create session %s: %v", sessionID, err)
 		}
 	}
-	if err := store.CreateRunWithSession(ctx, "run_active", "session_active", 1, "working"); err != nil {
+	if err := store.CreateRun(ctx, domain.RunCreateParams{
+		RunID:     "run_active",
+		SessionID: "session_active",
+		TurnIndex: 1,
+		Input:     "working",
+	}); err != nil {
 		t.Fatalf("create active run: %v", err)
 	}
-	if err := store.CreateRunWithSession(ctx, "run_done", "session_done", 1, "done"); err != nil {
+	if err := store.CreateRun(ctx, domain.RunCreateParams{
+		RunID:     "run_done",
+		SessionID: "session_done",
+		TurnIndex: 1,
+		Input:     "done",
+	}); err != nil {
 		t.Fatalf("create done run: %v", err)
 	}
-	if err := store.FinishRunContext(ctx, "run_done", domain.RunStatusSucceeded, "done", ""); err != nil {
+	if err := store.FinishRun(ctx, "run_done", domain.RunStatusSucceeded, "done", ""); err != nil {
 		t.Fatalf("finish done run: %v", err)
 	}
-	if err := store.CreateRunWithSession(ctx, "run_failed", "session_failed", 1, "failed"); err != nil {
+	if err := store.CreateRun(ctx, domain.RunCreateParams{
+		RunID:     "run_failed",
+		SessionID: "session_failed",
+		TurnIndex: 1,
+		Input:     "failed",
+	}); err != nil {
 		t.Fatalf("create failed run: %v", err)
 	}
-	if err := store.FinishRunContext(ctx, "run_failed", domain.RunStatusFailed, "", "boom"); err != nil {
+	if err := store.FinishRun(ctx, "run_failed", domain.RunStatusFailed, "", "boom"); err != nil {
 		t.Fatalf("finish failed run: %v", err)
 	}
-	if err := store.CreateRun(ctx, "run_cli", "cli"); err != nil {
+	if err := store.CreateRun(ctx, domain.RunCreateParams{
+		RunID: "run_cli",
+		Input: "cli",
+	}); err != nil {
 		t.Fatalf("create cli run: %v", err)
 	}
 
@@ -220,7 +253,10 @@ func TestLoadEventsAfterFailsLoudlyOnCorruptPayloadJSON(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = store.Close() })
 
-	if err := store.CreateRun(context.Background(), "run_bad_event_after", "hello"); err != nil {
+	if err := store.CreateRun(context.Background(), domain.RunCreateParams{
+		RunID: "run_bad_event_after",
+		Input: "hello",
+	}); err != nil {
 		t.Fatalf("create run: %v", err)
 	}
 	_, err = store.db.Exec(
@@ -253,7 +289,10 @@ func TestLoadEventsAfterFailsLoudlyOnBadTimestamp(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = store.Close() })
 
-	if err := store.CreateRun(context.Background(), "run_bad_timestamp", "hello"); err != nil {
+	if err := store.CreateRun(context.Background(), domain.RunCreateParams{
+		RunID: "run_bad_timestamp",
+		Input: "hello",
+	}); err != nil {
 		t.Fatalf("create run: %v", err)
 	}
 	_, err = store.db.Exec(
