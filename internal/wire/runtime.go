@@ -17,16 +17,6 @@ import (
 	"github.com/ycvk/acorn/internal/workspace"
 )
 
-// containerRuntimeStore is the store contract required by the runtime container
-// wiring. It composes RunnerFactoryStore with the context-plane db,
-// session-summary, and the app-facing api.StoreView (which subsumes the
-// former pending-action-create port).
-type containerRuntimeStore interface {
-	runtime.RunnerFactoryStore
-	core.SessionSummaryStore
-	api.StoreView
-}
-
 // api.StoreView is the store contract required by the app-facing services
 // (client, inbox, pending-action, run-resume). The previously narrow
 // sessionStore/runResumeStore/clientStore/deviceAuthStore/inboxStore

@@ -9,6 +9,8 @@ import (
 	"sync"
 	"time"
 
+	"sync/atomic"
+
 	"github.com/cloudwego/eino/adk"
 	einomodel "github.com/cloudwego/eino/components/model"
 	einotool "github.com/cloudwego/eino/components/tool"
@@ -20,7 +22,6 @@ import (
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/tools"
 	"github.com/ycvk/acorn/internal/workspace"
-	"sync/atomic"
 )
 
 type RunnerFactory struct {

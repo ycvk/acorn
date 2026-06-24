@@ -109,7 +109,10 @@ func TestNoDirectStoreImportOutsideWire(t *testing.T) {
 	root := filepath.Join("..", "..", "internal")
 	violations := []string{}
 	filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
 			return nil
 		}
 		name := d.Name()
@@ -123,7 +126,7 @@ func TestNoDirectStoreImportOutsideWire(t *testing.T) {
 		}
 		data, err := os.ReadFile(path)
 		if err != nil {
-			return nil
+			return err
 		}
 		if strings.Contains(string(data), `"github.com/ycvk/acorn/internal/store"`) {
 			violations = append(violations, rel)

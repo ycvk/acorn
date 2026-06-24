@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"encoding/json"
+
 	"github.com/cloudwego/eino/schema"
 	"github.com/santhosh-tekuri/jsonschema/v6"
 	"github.com/santhosh-tekuri/jsonschema/v6/kind"

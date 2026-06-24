@@ -44,7 +44,6 @@ type ArtifactService struct {
 	store   ArtifactStore
 }
 
-
 var _ core.ArtifactService = (*ArtifactService)(nil)
 
 func NewArtifactService(rootDir string, store ArtifactStore) (*ArtifactService, error) {

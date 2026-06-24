@@ -7,13 +7,14 @@ import (
 	"strings"
 
 	"encoding/json"
+	"path/filepath"
+
 	einotool "github.com/cloudwego/eino/components/tool"
 	toolutils "github.com/cloudwego/eino/components/tool/utils"
 	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/memory"
 	"github.com/ycvk/acorn/internal/tools"
 	"github.com/ycvk/acorn/internal/workspace"
-	"path/filepath"
 )
 
 func BuildMemoryFileTools(ctx context.Context, memory memory.Service) ([]einotool.BaseTool, error) {

@@ -3,33 +3,12 @@ package core
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 )
-
-// compactText trims and optionally truncates a string to a rune limit,
-// appending "..." when truncated. Returns the result and whether truncation
-// occurred.
-func compactText(value string, limit int) (string, bool) {
-	trimmed := strings.TrimSpace(value)
-	if trimmed == "" {
-		return "", false
-	}
-	runes := []rune(trimmed)
-	if limit <= 0 || len(runes) <= limit {
-		return trimmed, false
-	}
-	return string(runes[:limit]) + "...", true
-}
 
 // NewRunID generates a unique run identifier.
 func NewRunID() string {
 	return fmt.Sprintf("run_%d", time.Now().UTC().UnixNano())
-}
-
-// newSessionID generates a unique session identifier.
-func newSessionID() string {
-	return fmt.Sprintf("session_%d", time.Now().UTC().UnixNano())
 }
 
 // DurableContext returns a copy of ctx that is not cancelled when the parent
