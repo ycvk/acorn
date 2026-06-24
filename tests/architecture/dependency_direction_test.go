@@ -13,33 +13,28 @@ import (
 // direction: packages may only import packages in the same or a strictly
 // lower layer. This prevents architectural drift.
 //
-// Layer 0: domain
-// Layer 1: port, contract
-// Layer 2: store, memory, mcp, tools, context, workspace, webaccess, skills, stream, clientevents, config
-// Layer 3: agent
+// Layer 0: core (domain types, contracts, ports, tool registry interfaces)
+// Layer 1: (reserved — port/contract merged into core)
+// Layer 2: store, memory, mcp, tools, workspace, webaccess, skills, config
+// Layer 3: runtime (executor, per-run assembly, session, masking, auto-compact)
 // Layer 4: api
 // Layer 5: wire
 // Layer 6: cli
 
 var layerRank = map[string]int{
-	"domain":       0,
-	"port":         1,
-	"contract":     1,
-	"config":       2,
-	"store":        2,
-	"memory":       2,
-	"mcp":          2,
-	"tools":        2,
-	"context":      2,
-	"workspace":    2,
-	"webaccess":    2,
-	"skills":       2,
-	"stream":       2,
-	"clientevents": 2,
-	"agent":        3,
-	"api":          4,
-	"wire":         5,
-	"cli":          6,
+	"core":      0,
+	"config":    2,
+	"store":     2,
+	"memory":    2,
+	"mcp":       2,
+	"tools":     2,
+	"workspace": 2,
+	"webaccess": 2,
+	"skills":    2,
+	"runtime":   3,
+	"api":       4,
+	"wire":      5,
+	"cli":       6,
 }
 
 func layerForPkg(internalPkg string) int {
@@ -113,9 +108,9 @@ func TestDependencyDirectionNoCycle(t *testing.T) {
 // referenced by name without using store types.
 //
 // This is a pragmatic guard: the ideal end-state is that all packages use
-// core.*Repo or api.StoreView, but the current refactor still has
+// core.*Store or api.StoreView, but the current refactor still has
 // sentinel error references in api/ and internal/mcp/. These are tracked
-// as technical debt and should be migrated to domain-level sentinels.
+// as technical debt and should be migrated to core-level sentinels.
 func TestNoDirectStoreImportOutsideWire(t *testing.T) {
 	t.Skip("known tech debt: api/ and internal/mcp/ still import store for sentinel errors — tracked for follow-up")
 }

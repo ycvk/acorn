@@ -19,6 +19,7 @@ var (
 	_ core.IdentityStore = (*Store)(nil)
 	_ core.ArtifactStore = (*Store)(nil)
 )
+
 type Store struct {
 	db          *sql.DB
 	artifactDir string

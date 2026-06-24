@@ -132,10 +132,10 @@ func (c ToolContract) Validate() error {
 // The pre-built Tool field is retained for eager-loaded tools that need no factory.
 type ToolSpec struct {
 	ToolContract
-	Tool     einotool.BaseTool
-	Factory  ToolFactory
-	Health   ToolHealth
-	IsMCP    bool
+	Tool      einotool.BaseTool
+	Factory   ToolFactory
+	Health    ToolHealth
+	IsMCP     bool
 	IsBuiltin bool
 }
 

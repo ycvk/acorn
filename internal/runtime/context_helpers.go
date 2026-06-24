@@ -154,6 +154,7 @@ func skillCatalogBrief(snapshot *skills.Snapshot) string {
 	}
 	return strings.Join(lines, "\n")
 }
+
 const TurnIndexExtraKey = "acorn_turn_index"
 
 func CloneMessage(msg adk.Message) *schema.Message {

@@ -10,11 +10,11 @@ import (
 
 // RunCreateParams holds the parameters for creating a run record.
 type RunCreateParams struct {
-	RunID           string
-	SessionID       string
-	TurnIndex       int
-	Input           string
-	BoundMessageID  int64
+	RunID          string
+	SessionID      string
+	TurnIndex      int
+	Input          string
+	BoundMessageID int64
 }
 
 // PendingActionInput holds the parameters for creating a pending action.

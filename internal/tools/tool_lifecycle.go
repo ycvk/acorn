@@ -129,11 +129,11 @@ func OnToolResult(ctx context.Context, event ToolResultEvent) error {
 }
 
 var (
-	errToolCallRequiresToolName      = errString("tool call event requires tool_name")
-	errToolLifecycleNotInitialized  = errString("tool lifecycle state is not initialized")
-	errToolResultRequiresToolName    = errString("tool result event requires tool_name")
-	errToolResultRequiresCallID      = errString("tool result event requires call_id")
-	errToolResultRequiresRunID       = errString("tool result event requires run_id")
+	errToolCallRequiresToolName    = errString("tool call event requires tool_name")
+	errToolLifecycleNotInitialized = errString("tool lifecycle state is not initialized")
+	errToolResultRequiresToolName  = errString("tool result event requires tool_name")
+	errToolResultRequiresCallID    = errString("tool result event requires call_id")
+	errToolResultRequiresRunID     = errString("tool result event requires run_id")
 )
 
 type errString string

@@ -15,29 +15,29 @@ import (
 type StreamItemKind string
 
 const (
-	StreamKindRunStarted           StreamItemKind = "run_started"
-	StreamKindRunCompleted         StreamItemKind = "run_completed"
-	StreamKindRunFailed            StreamItemKind = "run_failed"
-	StreamKindRunInterrupted       StreamItemKind = "run_interrupted"
-	StreamKindRunResumeRequested   StreamItemKind = "run_resume_requested"
-	StreamKindDecisionBlocked      StreamItemKind = "decision_blocked"
-	StreamKindSkillDiscovered      StreamItemKind = "skill_discovered"
-	StreamKindSkillSelected        StreamItemKind = "skill_selected"
-	StreamKindSkillLoaded          StreamItemKind = "skill_loaded"
-	StreamKindSkillFailed          StreamItemKind = "skill_failed"
-	StreamKindProcedureActivation  StreamItemKind = "procedure.activation"
-	StreamKindMemoryPrepared       StreamItemKind = "memory_prepared"
-	StreamKindAssistantDelta       StreamItemKind = "assistant.delta"
-	StreamKindAssistantMessage     StreamItemKind = "assistant_message"
-	StreamKindToolCallStarted      StreamItemKind = "tool_call_started"
-	StreamKindToolCallSucceeded    StreamItemKind = "tool_call_succeeded"
-	StreamKindToolCallFailed       StreamItemKind = "tool_call_failed"
-	StreamKindToolCallInterrupted  StreamItemKind = "tool_call_interrupted"
-	StreamKindElicitationPending   StreamItemKind = "elicitation.pending"
-	StreamKindElicitationDecided   StreamItemKind = "elicitation.decided"
-	StreamKindSubagentStarted      StreamItemKind = "subruntime.started"
-	StreamKindSubagentCompleted    StreamItemKind = "subruntime.completed"
-	StreamKindSubagentFailed       StreamItemKind = "subruntime.failed"
+	StreamKindRunStarted          StreamItemKind = "run_started"
+	StreamKindRunCompleted        StreamItemKind = "run_completed"
+	StreamKindRunFailed           StreamItemKind = "run_failed"
+	StreamKindRunInterrupted      StreamItemKind = "run_interrupted"
+	StreamKindRunResumeRequested  StreamItemKind = "run_resume_requested"
+	StreamKindDecisionBlocked     StreamItemKind = "decision_blocked"
+	StreamKindSkillDiscovered     StreamItemKind = "skill_discovered"
+	StreamKindSkillSelected       StreamItemKind = "skill_selected"
+	StreamKindSkillLoaded         StreamItemKind = "skill_loaded"
+	StreamKindSkillFailed         StreamItemKind = "skill_failed"
+	StreamKindProcedureActivation StreamItemKind = "procedure.activation"
+	StreamKindMemoryPrepared      StreamItemKind = "memory_prepared"
+	StreamKindAssistantDelta      StreamItemKind = "assistant.delta"
+	StreamKindAssistantMessage    StreamItemKind = "assistant_message"
+	StreamKindToolCallStarted     StreamItemKind = "tool_call_started"
+	StreamKindToolCallSucceeded   StreamItemKind = "tool_call_succeeded"
+	StreamKindToolCallFailed      StreamItemKind = "tool_call_failed"
+	StreamKindToolCallInterrupted StreamItemKind = "tool_call_interrupted"
+	StreamKindElicitationPending  StreamItemKind = "elicitation.pending"
+	StreamKindElicitationDecided  StreamItemKind = "elicitation.decided"
+	StreamKindSubagentStarted     StreamItemKind = "subruntime.started"
+	StreamKindSubagentCompleted   StreamItemKind = "subruntime.completed"
+	StreamKindSubagentFailed      StreamItemKind = "subruntime.failed"
 )
 
 // StreamItem is a single event in the run runtime.
@@ -226,7 +226,7 @@ type StreamMemoryPrepared struct {
 	NudgeCount     int                         `json:"nudge_count,omitempty"`
 	EntryCount     int                         `json:"entry_count,omitempty"`
 	Nudges         []StreamMemoryPreparedNudge `json:"nudges,omitempty"`
-	Entries        []StreamMemoryPreparedEntry  `json:"entries,omitempty"`
+	Entries        []StreamMemoryPreparedEntry `json:"entries,omitempty"`
 }
 
 type StreamAssistantDelta struct {
@@ -255,7 +255,7 @@ type AssistantStopReason string
 
 const (
 	AssistantStopReasonEndTurn   AssistantStopReason = "end_turn"
-	AssistantStopReasonToolCalls  AssistantStopReason = "tool_calls"
+	AssistantStopReasonToolCalls AssistantStopReason = "tool_calls"
 	AssistantStopReasonMaxOutput AssistantStopReason = "max_output"
 	AssistantStopReasonUnknown   AssistantStopReason = "unknown"
 )

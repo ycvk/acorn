@@ -73,10 +73,10 @@ func artifactSummaryDTOsFromDomain(items []ArtifactSummary) []ArtifactSummaryDTO
 }
 
 type RunDetailDTO struct {
-	Run       RunDTO                  `json:"run"`
-	Thread    ThreadDTO               `json:"thread"`
-	Events    []core.RunEvent `json:"events"`
-	Artifacts []ArtifactSummaryDTO    `json:"artifacts"`
+	Run       RunDTO               `json:"run"`
+	Thread    ThreadDTO            `json:"thread"`
+	Events    []core.RunEvent      `json:"events"`
+	Artifacts []ArtifactSummaryDTO `json:"artifacts"`
 }
 
 // InterruptRunResponse is returned after requesting a run interruption.

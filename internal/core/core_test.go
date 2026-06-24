@@ -13,8 +13,8 @@ func TestToolSpecValidate(t *testing.T) {
 		ToolContract: ToolContract{
 			Name:      "test_tool",
 			Kind:      ToolKindNative,
-			Category: ToolCategoryRead,
-			Loading:  EagerLoadingPolicy(),
+			Category:  ToolCategoryRead,
+			Loading:   EagerLoadingPolicy(),
 			Execution: ToolExecutionPolicy{ParallelPolicy: ParallelPolicyReadOnly},
 		},
 	}

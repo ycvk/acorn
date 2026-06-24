@@ -15,7 +15,7 @@ import (
 // request construction. It isolates context wiring from the factory so the
 // factory stays a thin coordinator.
 type ContextAssembler struct {
-	deps          RuntimeDeps
+	deps RuntimeDeps
 }
 
 // NewContextAssembler assembles a ContextAssembler from runtime deps.

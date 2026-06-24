@@ -15,8 +15,6 @@ import (
 	tiktokenloader "github.com/pkoukk/tiktoken-go-loader"
 )
 
-
-
 // Session is the sole owner of root-run model input. It bootstraps
 // from an assembly result, applies observation masking + auto-compact before
 // each model call, and records assistant/tool messages.

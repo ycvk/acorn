@@ -16,11 +16,11 @@ import (
 )
 
 type Result struct {
-	RunID       string           `json:"run_id"`
+	RunID       string         `json:"run_id"`
 	Status      core.RunStatus `json:"status"`
-	Output      string           `json:"output,omitempty"`
-	Error       string           `json:"error,omitempty"`
-	Interrupted map[string]any   `json:"interrupted,omitempty"`
+	Output      string         `json:"output,omitempty"`
+	Error       string         `json:"error,omitempty"`
+	Interrupted map[string]any `json:"interrupted,omitempty"`
 }
 
 type Executor struct {

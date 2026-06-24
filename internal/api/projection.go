@@ -107,7 +107,7 @@ func projectOperatorQuestionData(payload map[string]any) core.OperatorQuestionDa
 		AllowFreeform:    topLevelBool(payload, "allow_freeform"),
 		Decision:         topLevelString(payload, "decision"),
 		SelectedOptionID: topLevelString(payload, "selected_option_id"),
-		Answer:            topLevelString(payload, "answer"),
+		Answer:           topLevelString(payload, "answer"),
 	}
 }
 

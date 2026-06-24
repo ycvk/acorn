@@ -17,11 +17,11 @@ type RunResumeService struct {
 }
 
 type ResumeStatus struct {
-	RunID        string           `json:"run_id,omitempty"`
+	RunID        string         `json:"run_id,omitempty"`
 	Status       core.RunStatus `json:"status,omitempty"`
-	Resumable    bool             `json:"resumable"`
-	InterruptIDs []string         `json:"interrupt_ids,omitempty"`
-	Reason       string           `json:"reason,omitempty"`
+	Resumable    bool           `json:"resumable"`
+	InterruptIDs []string       `json:"interrupt_ids,omitempty"`
+	Reason       string         `json:"reason,omitempty"`
 }
 
 type RunResult struct {

@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ycvk/acorn/internal/runtime"
 	"github.com/ycvk/acorn/internal/api"
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
-	"github.com/ycvk/acorn/internal/memory"
 	mcpprovider "github.com/ycvk/acorn/internal/mcp"
+	"github.com/ycvk/acorn/internal/memory"
+	"github.com/ycvk/acorn/internal/runtime"
 	"github.com/ycvk/acorn/internal/store"
 )
 

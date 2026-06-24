@@ -8,13 +8,20 @@ import (
 	"testing"
 )
 
+// clientProjectionBoundaryFiles are the /v1 client-facing projection and DTO
+// files (formerly internal/clientevents, now merged into internal/api). They
+// must not import internal/runtime — runtime-owned types must not leak into
+// the client wire contract.
 var clientProjectionBoundaryFiles = []string{
-	"internal/clientevents/types.go",
-	"internal/clientevents/projector.go",
-	"internal/api/thread_service.go",
+	"internal/api/projection.go",
+	"internal/api/projection_helpers.go",
+	"internal/api/store_view.go",
 	"internal/api/event_service.go",
+	"internal/api/thread_service.go",
 	"internal/api/dto_run.go",
 	"internal/api/dto_pending.go",
+	"internal/api/dto_system.go",
+	"internal/api/converter.go",
 	"internal/api/server.go",
 }
 
@@ -29,46 +36,12 @@ func TestClientProjectionBoundaryDoesNotImportRuntimeTypes(t *testing.T) {
 		}
 		for _, item := range file.Imports {
 			importPath := strings.Trim(item.Path.Value, `"`)
-			if importPath == "github.com/ycvk/acorn/internal/runtime" || importPath == "github.com/ycvk/acorn/internal/runtime/api" {
-				offenders = append(offenders, rel+" imports "+importPath)
-			}
-		}
-	}
-	if len(offenders) > 0 {
-		t.Fatalf("client-facing projection files must not expose runtime-owned types:\n%s", strings.Join(offenders, "\n"))
-	}
-}
-
-func TestAppServicesDoNotImportStreamOutsideRuntimeAdapter(t *testing.T) {
-	root := filepath.Join("..", "..")
-	matches, err := filepath.Glob(filepath.Join(root, "internal", "app", "*.go"))
-	if err != nil {
-		t.Fatalf("glob app files: %v", err)
-	}
-
-	fset := token.NewFileSet()
-	var offenders []string
-	for _, path := range matches {
-		rel, err := filepath.Rel(root, path)
-		if err != nil {
-			t.Fatalf("relative path for %s: %v", path, err)
-		}
-		rel = filepath.ToSlash(rel)
-		if strings.HasSuffix(rel, "_test.go") {
-			continue
-		}
-		file, err := parser.ParseFile(fset, path, nil, parser.ImportsOnly)
-		if err != nil {
-			t.Fatalf("parse imports for %s: %v", rel, err)
-		}
-		for _, item := range file.Imports {
-			importPath := strings.Trim(item.Path.Value, `"`)
 			if importPath == "github.com/ycvk/acorn/internal/runtime" {
 				offenders = append(offenders, rel+" imports "+importPath)
 			}
 		}
 	}
 	if len(offenders) > 0 {
-		t.Fatalf("app services must not depend on runtime stream payloads outside executor adapter:\n%s", strings.Join(offenders, "\n"))
+		t.Fatalf("client-facing projection files must not expose runtime-owned types:\n%s", strings.Join(offenders, "\n"))
 	}
 }

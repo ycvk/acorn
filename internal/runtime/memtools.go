@@ -197,6 +197,7 @@ func applyLineRangeReplacement(content string, startLine, endLine int, replaceme
 	result = append(result, lines[endLine:]...)
 	return strings.Join(result, "\n"), nil
 }
+
 type memorySearchInput struct {
 	Query           string   `json:"query" jsonschema:"description=Natural language query to search Acorn memory records."`
 	Scope           string   `json:"scope,omitempty" jsonschema:"description=Optional memory scope such as workspace:acorn. Empty searches all scopes."`

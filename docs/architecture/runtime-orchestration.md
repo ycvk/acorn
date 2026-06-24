@@ -9,7 +9,7 @@ slug: runtime-orchestration
 
 ## direct_response
 
-`internal/agent` 是编排唯一入口。`buildDirectResponse`（`direct_response.go`）构建 `directResponseAgent`，执行 model → tool loop → record 循环。没有 strategy pattern、没有 DefaultPlane 抽象——所有依赖直接内联。
+`internal/runtime` 是编排唯一入口。`buildDirectResponse`（`direct_response.go`）构建 `directResponseAgent`，执行 model → tool loop → record 循环。没有 strategy pattern、没有 DefaultPlane 抽象——所有依赖直接内联。
 
 执行时按 `Session.BeforeModelCall(masking + auto-compact) → ExecuteRound → Session.RecordAssistant/RecordToolResults` 的 session-owned loop 推进，直到模型返回无 tool call 的最终 assistant message。`AssistantStreamer` 负责把模型 stream chunk 持久化为 `assistant.delta`，再保留最终完整 assistant message。
 

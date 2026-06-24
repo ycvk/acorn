@@ -15,8 +15,8 @@ import (
 	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
-	"github.com/ycvk/acorn/internal/memory"
 	mcpprovider "github.com/ycvk/acorn/internal/mcp"
+	"github.com/ycvk/acorn/internal/memory"
 	"github.com/ycvk/acorn/internal/skills"
 	corestore "github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/tools"
@@ -33,9 +33,9 @@ type RunnerFactory struct {
 	runIDMu      sync.Mutex
 
 	runChatModelBuilder func(context.Context, RunnerBuildRequest) (einomodel.BaseChatModel, error)
-	capabilityAsm *CapabilityAssembler
-	contextAsm    *ContextAssembler
-	mcpAssembler  *MCPAssembler
+	capabilityAsm       *CapabilityAssembler
+	contextAsm          *ContextAssembler
+	mcpAssembler        *MCPAssembler
 }
 
 func NewRunnerFactory(cfg *config.Config, store RunnerFactoryStore, opts RunnerFactoryOptions) (*RunnerFactory, error) {

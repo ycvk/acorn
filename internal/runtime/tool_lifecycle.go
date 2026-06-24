@@ -193,6 +193,7 @@ func SortedDeferredToolNamesLocked(state *ToolLifecycleState) []string {
 	sort.Strings(names)
 	return names
 }
+
 // ToolLifecycleRejectedError indicates a tool call was rejected by the lifecycle
 // guard (e.g. deferred tool not yet loaded).
 type ToolLifecycleRejectedError struct {

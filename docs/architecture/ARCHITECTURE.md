@@ -6,28 +6,28 @@ Acorn 是 **single-user self-hosted agent backend + authenticated remote client 
 
 ```text
 operator CLI / authenticated remote clients
-  -> app Container
+  -> wire Container
   -> remote client contracts (/healthz + /v1)
-  -> runtime Executor (consumer-owned store ports)
+  -> runtime Executor (consumer-owned store ports: core.SessionStore/IdentityStore/ArtifactStore)
   -> per-run assembly (ModelBuilder/CapabilityAssembler/ContextAssembler/MCPAssembler/SkillSelector/RunEmitter/ToolAssembler)
   -> Plane + direct_response
   -> SQLite adapter / persisted truth
   -> Kotlin mobile control surface
 ```
 
-## 主要包职责
+## 主要包职责（13 个 internal 包）
 
-- `internal/wire/` — Container 组合根 + ThreadService/RunService/EventService（原 ClientService 拆分）、run resume service、api dependencies；composition root。
-- `internal/runtime/` — Executor（session/run 创建、执行、finalization）+ per-run assembly（7 个 struct：ModelBuilder、CapabilityAssembler、ContextAssembler、MCPAssembler、SkillSelector、RunEmitter、ToolAssembler）+ direct_response assembly + ExecuteRound + tool audit/validator + StreamItem 投影逻辑。
-- `internal/tools/` — SafeParallelToolsNode、streaming executor、scheduler、side-effect extraction、ToolInvoker/StreamingExecutor 接口。
-- `internal/agent/factextract/` — fact extraction + memory file tools + memory search/remember tools。
-- `internal/stream/` — Stream* 类型已移到 domain 包；stream 包保留 StreamItem→event 投影逻辑 + assistant streaming。
-- `internal/context/` — run 上下文装配、observation masking、LLM auto-compact、deferred tool loading、tool lifecycle。
-- `internal/tools/` — 工具契约 + 实现（ToolContract/Catalog/ToolSpec + file/git/browser/web/command/artifact 工具）。
-- `internal/memory/` — file-backed memory（facts/history）、search、prepare、semantic retrieval（embedding + SQLite 暴力余弦相似度）。
-- `internal/store/` — SQLite adapter + 跨包 store-facing records、sentinel errors（sessions/messages/runs/events/pending_actions/devices/pairing_codes/owner_profile）。
-- `internal/api/` — `/v1` client surface + device bearer auth middleware；live RunEvent 从 `events` 表投影 mobile live subset。
-- `mobile-kotlin/` — Kotlin + Jetpack Compose app，通过 openapi-generator 生成的 client 消费 `/v1`；不执行 runtime、不维护第二套 message lifecycle。
+- `internal/core/` — Layer 0。核心 domain 类型（RunRecord/EventRecord/SessionRecord/PendingActionRecord/Stream* payload + typed accessors）+ context plumbing + ports（SessionStore/IdentityStore/ArtifactStore）+ 工具契约（ToolContract/Catalog/ToolSpec）+ plugin registry 接口。零内部导入。原 domain/port/contract/clientevents 类型收敛于此。
+- `internal/runtime/` — Layer 3。Executor（session/run 创建、执行、finalization）+ per-run assembly（7 个 struct）+ direct_response + ExecuteRound + Plane + Session（masking + auto-compact）+ StreamItem→event 投影 + tool audit/validator + tool lifecycle。原 agent/context/stream 合并于此。
+- `internal/store/` — SQLite adapter + 跨包 store-facing records、sentinel errors。
+- `internal/tools/` — SafeParallelToolsNode、streaming executor、scheduler、side-effect extraction、ToolRegistry 实现 + 工具实现（file/git/browser/web/command/artifact）。
+- `internal/memory/` — file-backed memory（facts/history）、search、prepare、semantic retrieval。
+- `internal/mcp/` — MCP provider manager、transport、OAuth/elicitation handlers（原 providers/mcp，提升为顶层包）。
+- `internal/api/` — `/v1` client surface + device bearer auth + live RunEvent 投影（原 clientevents 合并于此）+ ThreadService/RunService/EventService。
+- `internal/wire/` — Container 组合根；唯一允许直接持有 sqlite adapter 的 composition root。
+- `internal/config/` · `internal/workspace/` · `internal/skills/` · `internal/webaccess/` — 配置、workspace checkpoint、skill loader、web 工具。
+- `internal/cli/` — operator CLI 命令。
+- `mobile-kotlin/` — Kotlin + Jetpack Compose app，通过 openapi-generator 生成的 client 消费 `/v1`。
 
 ## 子架构文档
 
