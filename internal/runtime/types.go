@@ -89,6 +89,8 @@ type ExecutorStore interface {
 	domain.EventAppender
 	CreateFreshSessionTurn(ctx context.Context, sessionID, title, input string) (int, error)
 	CreateRun(ctx context.Context, params domain.RunCreateParams) error
+	BindUserMessageRunIDByID(ctx context.Context, messageID int64, runID string) error
+	BindLatestUserMessageRunID(ctx context.Context, sessionID string, turnIndex int, runID string) error
 	LoadRun(ctx context.Context, runID string) (*domain.RunRecord, error)
 	FinishRun(ctx context.Context, runID string, status domain.RunStatus, output, errText string) error
 	MarkInterrupted(ctx context.Context, runID, output string) error

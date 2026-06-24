@@ -13,7 +13,7 @@ func TestOAuthTokenGetNotFound(t *testing.T) {
 	store := openTestStore(t)
 	ctx := context.Background()
 
-	_, err := store.LoadOAuthToken(ctx, "nonexistent")
+	_, err := store.GetOAuthToken(ctx, "nonexistent")
 	if !errors.Is(err, ErrOAuthTokenNotFound) {
 		t.Fatalf("expected ErrOAuthTokenNotFound, got %v", err)
 	}
@@ -36,7 +36,7 @@ func TestOAuthTokenSaveAndGetRoundTrip(t *testing.T) {
 		t.Fatalf("save oauth token: %v", err)
 	}
 
-	got, err := store.LoadOAuthToken(ctx, "test-provider")
+	got, err := store.GetOAuthToken(ctx, "test-provider")
 	if err != nil {
 		t.Fatalf("get oauth token: %v", err)
 	}
@@ -81,7 +81,7 @@ func TestOAuthTokenSaveUpserts(t *testing.T) {
 		t.Fatalf("second save (upsert): %v", err)
 	}
 
-	got, err := store.LoadOAuthToken(ctx, "upsert-provider")
+	got, err := store.GetOAuthToken(ctx, "upsert-provider")
 	if err != nil {
 		t.Fatalf("get after upsert: %v", err)
 	}
@@ -113,7 +113,7 @@ func TestOAuthTokenDelete(t *testing.T) {
 		t.Fatalf("delete: %v", err)
 	}
 
-	_, err := store.LoadOAuthToken(ctx, "delete-provider")
+	_, err := store.GetOAuthToken(ctx, "delete-provider")
 	if !errors.Is(err, ErrOAuthTokenNotFound) {
 		t.Fatalf("expected ErrOAuthTokenNotFound after delete, got %v", err)
 	}

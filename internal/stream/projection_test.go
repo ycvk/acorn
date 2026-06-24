@@ -15,7 +15,7 @@ type mockEventAppender struct {
 	err    error
 }
 
-func (m *mockEventAppender) AppendEventContext(ctx context.Context, runID, kind string, payload any) (domain.EventRecord, error) {
+func (m *mockEventAppender) AppendEvent(ctx context.Context, runID, kind string, payload any) (domain.EventRecord, error) {
 	return m.record, m.err
 }
 

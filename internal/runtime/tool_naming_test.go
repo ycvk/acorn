@@ -11,6 +11,7 @@ import (
 	"github.com/cloudwego/eino/schema"
 
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
+	"github.com/ycvk/acorn/internal/port"
 	"github.com/ycvk/acorn/internal/tools"
 )
 
@@ -245,10 +246,10 @@ func buildCapabilityRegistryForTest(
 	resourceTools []einotool.BaseTool,
 	promptTools []einotool.BaseTool,
 ) (*tools.Catalog, error) {
-	specs := make([]tools.ToolSpec, 0, len(localTools)+len(registrations)+len(resourceTools)+len(promptTools))
+	specs := make([]port.ToolSpec, 0, len(localTools)+len(registrations)+len(resourceTools)+len(promptTools))
 	for _, tool := range localTools {
-		specs = append(specs, tools.ToolSpec{
-			ToolContract: toolNamingContract("", "local", tools.ToolKindNative, tools.ToolCategoryRead, tools.EagerLoadingPolicy()),
+		specs = append(specs, port.ToolSpec{
+			ToolContract: toolNamingContract("", "local", port.ToolKindNative, port.ToolCategoryRead, port.EagerLoadingPolicy()),
 			Tool:         tool,
 		})
 	}
@@ -261,8 +262,8 @@ func buildCapabilityRegistryForTest(
 		if err != nil {
 			return nil, fmt.Errorf("namespace MCP tool %q for provider %q: %w", info.Name, registration.ProviderName, err)
 		}
-		specs = append(specs, tools.ToolSpec{
-			ToolContract: toolNamingContract("", registration.ProviderName, tools.ToolKindMCP, tools.ToolCategoryIntegration, tools.EagerLoadingPolicy()),
+		specs = append(specs, port.ToolSpec{
+			ToolContract: toolNamingContract("", registration.ProviderName, port.ToolKindMCP, port.ToolCategoryIntegration, port.EagerLoadingPolicy()),
 			Tool:         namespaced,
 		})
 	}
@@ -274,8 +275,8 @@ func buildCapabilityRegistryForTest(
 		if info == nil {
 			return nil, fmt.Errorf("read resource tool info: nil ToolInfo")
 		}
-		specs = append(specs, tools.ToolSpec{
-			ToolContract: toolNamingContract("", info.Name, tools.ToolKindMCP, tools.ToolCategoryIntegration, tools.DeferredLoadingPolicy("deferred_mcp_catalog")),
+		specs = append(specs, port.ToolSpec{
+			ToolContract: toolNamingContract("", info.Name, port.ToolKindMCP, port.ToolCategoryIntegration, port.DeferredLoadingPolicy("deferred_mcp_catalog")),
 			Tool:         tool,
 		})
 	}
@@ -287,8 +288,8 @@ func buildCapabilityRegistryForTest(
 		if info == nil {
 			return nil, fmt.Errorf("read prompt tool info: nil ToolInfo")
 		}
-		specs = append(specs, tools.ToolSpec{
-			ToolContract: toolNamingContract("", info.Name, tools.ToolKindMCP, tools.ToolCategoryIntegration, tools.DeferredLoadingPolicy("deferred_mcp_catalog")),
+		specs = append(specs, port.ToolSpec{
+			ToolContract: toolNamingContract("", info.Name, port.ToolKindMCP, port.ToolCategoryIntegration, port.DeferredLoadingPolicy("deferred_mcp_catalog")),
 			Tool:         tool,
 		})
 	}
@@ -298,16 +299,16 @@ func buildCapabilityRegistryForTest(
 func toolNamingContract(
 	name string,
 	source string,
-	kind tools.ToolKind,
-	category tools.ToolCategory,
-	loading tools.ToolLoadingPolicy,
-) tools.ToolContract {
-	return tools.ToolContract{
+	kind port.ToolKind,
+	category port.ToolCategory,
+	loading port.ToolLoadingPolicy,
+) port.ToolContract {
+	return port.ToolContract{
 		Name:      name,
 		Source:    source,
 		Kind:      kind,
 		Category:  category,
 		Loading:   loading,
-		Execution: tools.ToolExecutionPolicy{ParallelPolicy: tools.ParallelPolicyReadOnly},
+		Execution: port.ToolExecutionPolicy{ParallelPolicy: port.ParallelPolicyReadOnly},
 	}
 }

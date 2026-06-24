@@ -14,7 +14,6 @@ import (
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/memory"
-	"github.com/ycvk/acorn/internal/store"
 )
 
 // fakeExecutorStore implements ExecutorStore for testing consume/finishCollectedRun.
@@ -43,7 +42,7 @@ type fakeFinishedRun struct {
 	errText string
 }
 
-func (s *fakeExecutorStore) AppendEventContext(_ context.Context, runID, kind string, payload any) (domain.EventRecord, error) {
+func (s *fakeExecutorStore) AppendEvent(_ context.Context, runID, kind string, payload any) (domain.EventRecord, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	seq := int64(len(s.appendedEvents) + 1)
@@ -58,29 +57,37 @@ func (s *fakeExecutorStore) CreateFreshSessionTurn(_ context.Context, _, _, _ st
 	return 0, nil
 }
 
-func (s *fakeExecutorStore) CreateBoundRunWithParams(_ context.Context, _ store.RunCreateParams) error {
+func (s *fakeExecutorStore) CreateRun(_ context.Context, _ domain.RunCreateParams) error {
 	return s.createBoundRunErr
+}
+
+func (s *fakeExecutorStore) BindUserMessageRunIDByID(_ context.Context, _ int64, _ string) error {
+	return nil
+}
+
+func (s *fakeExecutorStore) BindLatestUserMessageRunID(_ context.Context, _ string, _ int, _ string) error {
+	return nil
 }
 
 func (s *fakeExecutorStore) LoadRun(_ context.Context, runID string) (*domain.RunRecord, error) {
 	return &domain.RunRecord{RunID: runID, SessionID: "session_test"}, nil
 }
 
-func (s *fakeExecutorStore) FinishRunContext(_ context.Context, runID string, status domain.RunStatus, output, errText string) error {
+func (s *fakeExecutorStore) FinishRun(_ context.Context, runID string, status domain.RunStatus, output, errText string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.finishedRuns = append(s.finishedRuns, fakeFinishedRun{runID: runID, status: status, output: output, errText: errText})
 	return nil
 }
 
-func (s *fakeExecutorStore) MarkInterruptedContext(_ context.Context, runID, _ string) error {
+func (s *fakeExecutorStore) MarkInterrupted(_ context.Context, runID, _ string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.interruptedRuns = append(s.interruptedRuns, runID)
 	return nil
 }
 
-func (s *fakeExecutorStore) UpdateRunOutputContext(_ context.Context, runID, _ string) error {
+func (s *fakeExecutorStore) UpdateRunOutput(_ context.Context, runID, _ string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.updatedOutputs = append(s.updatedOutputs, runID)

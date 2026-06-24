@@ -126,13 +126,21 @@ func (e *Executor) ExecuteMessages(ctx context.Context, req domain.ExecuteReques
 }
 
 func (e *Executor) createBoundRun(ctx context.Context, runID string, req domain.ExecuteRequest) error {
-	return e.store.CreateRun(ctx, domain.RunCreateParams{
-		RunID:          runID,
-		SessionID:      req.SessionID,
-		TurnIndex:      req.TurnIndex,
-		Input:          req.Input,
-		BoundMessageID: req.BoundMessageID,
-	})
+	if err := e.store.CreateRun(ctx, domain.RunCreateParams{
+		RunID:     runID,
+		SessionID: req.SessionID,
+		TurnIndex: req.TurnIndex,
+		Input:     req.Input,
+	}); err != nil {
+		return err
+	}
+	if req.SessionID == "" {
+		return nil
+	}
+	if req.BoundMessageID > 0 {
+		return e.store.BindUserMessageRunIDByID(ctx, req.BoundMessageID, runID)
+	}
+	return e.store.BindLatestUserMessageRunID(ctx, req.SessionID, req.TurnIndex, runID)
 }
 
 func (e *Executor) buildExecuteRunner(runCtxBase context.Context, req domain.ExecuteRequest, runID string, sink domain.StreamSink) (*ActiveRunner, error) {

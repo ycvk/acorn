@@ -7,6 +7,7 @@ import (
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/schema"
 
+	"github.com/ycvk/acorn/internal/port"
 	"github.com/ycvk/acorn/internal/tools"
 )
 
@@ -29,20 +30,20 @@ func buildTestTool(t *testing.T, name string) einotool.BaseTool {
 
 func buildTestCatalog(t *testing.T, baseTools ...einotool.BaseTool) *tools.Catalog {
 	t.Helper()
-	specs := make([]tools.ToolSpec, len(baseTools))
+	specs := make([]port.ToolSpec, len(baseTools))
 	for i, tool := range baseTools {
 		info, err := tool.Info(context.Background())
 		if err != nil {
 			t.Fatalf("read tool info: %v", err)
 		}
-		specs[i] = tools.ToolSpec{
-			ToolContract: tools.ToolContract{
+		specs[i] = port.ToolSpec{
+			ToolContract: port.ToolContract{
 				Name:      info.Name,
 				Source:    "test",
-				Kind:      tools.ToolKindNative,
-				Category:  tools.ToolCategoryInspect,
-				Loading:   tools.EagerLoadingPolicy(),
-				Execution: tools.ToolExecutionPolicy{ParallelPolicy: tools.ParallelPolicyReadOnly},
+				Kind:      port.ToolKindNative,
+				Category:  port.ToolCategoryInspect,
+				Loading:   port.EagerLoadingPolicy(),
+				Execution: port.ToolExecutionPolicy{ParallelPolicy: port.ParallelPolicyReadOnly},
 			},
 			Tool: tool,
 		}

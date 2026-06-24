@@ -20,13 +20,13 @@ import (
 // mockTokenStore implements a fake token store for OAuth token persistence
 // without requiring a real database. It satisfies port.MCPTokenStore.
 type mockTokenStore struct {
-	tokens  map[string]*domain.OAuthToken
+	tokens  map[string]domain.OAuthToken
 	getErr  error
 	saveErr error
 }
 
 func newMockTokenStore() *mockTokenStore {
-	return &mockTokenStore{tokens: make(map[string]*domain.OAuthToken)}
+	return &mockTokenStore{tokens: make(map[string]domain.OAuthToken)}
 }
 
 func (m *mockTokenStore) GetOAuthToken(_ context.Context, providerName string) (*domain.OAuthToken, error) {
@@ -37,10 +37,10 @@ func (m *mockTokenStore) GetOAuthToken(_ context.Context, providerName string) (
 	if !ok {
 		return nil, store.ErrOAuthTokenNotFound
 	}
-	return tok, nil
+	return &tok, nil
 }
 
-func (m *mockTokenStore) SaveOAuthToken(_ context.Context, token *domain.OAuthToken) error {
+func (m *mockTokenStore) SaveOAuthToken(_ context.Context, token domain.OAuthToken) error {
 	if m.saveErr != nil {
 		return m.saveErr
 	}
@@ -60,7 +60,7 @@ func TestSQLiteOAuthHandler_TokenSource_ReturnsTokenWhenExists(t *testing.T) {
 	providerName := "test-provider"
 	futureExpiry := time.Now().Add(1 * time.Hour)
 
-	store.tokens[providerName] = &domain.OAuthToken{
+	store.tokens[providerName] = domain.OAuthToken{
 		ProviderName: providerName,
 		AccessToken:  "valid-access-token",
 		RefreshToken: "valid-refresh-token",

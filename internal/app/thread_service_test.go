@@ -26,7 +26,7 @@ func TestProjectThread(t *testing.T) {
 		RunID:     "run_1",
 		Status:    domain.RunStatusSucceeded,
 		CreatedAt: now,
-		UpdatedAt: now,
+		FinishedAt: now,
 	})
 	if err != nil {
 		t.Fatalf("projectThread: %v", err)

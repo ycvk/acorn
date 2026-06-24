@@ -14,10 +14,10 @@ func TestResumeServiceResumeKeepsNonApprovalInterruptDefaultTarget(t *testing.T)
 	store := openTestStore(t)
 
 	const runID = "run_resume"
-	if err := store.CreateRun(context.Background(), runID, "need approval"); err != nil {
+	if err := store.CreateRun(context.Background(), domain.RunCreateParams{RunID: runID, Input: "need approval"}); err != nil {
 		t.Fatalf("create run: %v", err)
 	}
-	if _, err := store.AppendEventContext(context.Background(), runID, "run.interrupted", map[string]any{
+	if _, err := store.AppendEvent(context.Background(), runID, "run.interrupted", map[string]any{
 		"interrupt": map[string]any{
 			"contexts": []any{
 				map[string]any{"id": "ctx_root", "is_root_cause": true},
@@ -26,7 +26,7 @@ func TestResumeServiceResumeKeepsNonApprovalInterruptDefaultTarget(t *testing.T)
 	}); err != nil {
 		t.Fatalf("append run.interrupted: %v", err)
 	}
-	if err := store.MarkInterruptedContext(context.Background(), runID, "waiting for approval"); err != nil {
+	if err := store.MarkInterrupted(context.Background(), runID, "waiting for approval"); err != nil {
 		t.Fatalf("mark interrupted: %v", err)
 	}
 
@@ -71,10 +71,10 @@ func TestResumeServiceRejectsFailedRun(t *testing.T) {
 	store := openTestStore(t)
 
 	const runID = "run_failed"
-	if err := store.CreateRun(context.Background(), runID, "inspect repo"); err != nil {
+	if err := store.CreateRun(context.Background(), domain.RunCreateParams{RunID: runID, Input: "inspect repo"}); err != nil {
 		t.Fatalf("create run: %v", err)
 	}
-	if err := store.FinishRunContext(context.Background(), runID, domain.RunStatusFailed, "partial output", "shell exited with status 1"); err != nil {
+	if err := store.FinishRun(context.Background(), runID, domain.RunStatusFailed, "partial output", "shell exited with status 1"); err != nil {
 		t.Fatalf("finish run: %v", err)
 	}
 
@@ -105,10 +105,10 @@ func TestResumeServiceRejectsCompletedRun(t *testing.T) {
 	store := openTestStore(t)
 
 	const runID = "run_completed"
-	if err := store.CreateRun(context.Background(), runID, "inspect repo"); err != nil {
+	if err := store.CreateRun(context.Background(), domain.RunCreateParams{RunID: runID, Input: "inspect repo"}); err != nil {
 		t.Fatalf("create run: %v", err)
 	}
-	if err := store.FinishRunContext(context.Background(), runID, domain.RunStatusSucceeded, "done", ""); err != nil {
+	if err := store.FinishRun(context.Background(), runID, domain.RunStatusSucceeded, "done", ""); err != nil {
 		t.Fatalf("finish run: %v", err)
 	}
 

@@ -9,11 +9,11 @@ import (
 	"testing"
 	"time"
 
-	storecore "github.com/ycvk/acorn/internal/store"
 
 	"github.com/ycvk/acorn/internal/clientevents"
 	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/store"
+	storecore "github.com/ycvk/acorn/internal/store"
 )
 
 func TestProjectRunEvent(t *testing.T) {
@@ -222,22 +222,22 @@ func TestLoadRunEventsAfterFiltersDiagnosticsAndAdvancesCursor(t *testing.T) {
 		t.Fatalf("open store: %v", err)
 	}
 	t.Cleanup(func() { _ = store.Close() })
-	if err := store.CreateRun(ctx, "run_live", "input"); err != nil {
+	if err := store.CreateRun(ctx, domain.RunCreateParams{RunID: "run_live", Input: "input"}); err != nil {
 		t.Fatalf("CreateRun: %v", err)
 	}
-	if _, err := store.AppendEventContext(ctx, "run_live", "run.started", map[string]any{"input": "hello"}); err != nil {
+	if _, err := store.AppendEvent(ctx, "run_live", "run.started", map[string]any{"input": "hello"}); err != nil {
 		t.Fatalf("append run.started: %v", err)
 	}
-	if _, err := store.AppendEventContext(ctx, "run_live", "tool.call.progress", map[string]any{"delta": "hidden"}); err != nil {
+	if _, err := store.AppendEvent(ctx, "run_live", "tool.call.progress", map[string]any{"delta": "hidden"}); err != nil {
 		t.Fatalf("append tool.call.progress: %v", err)
 	}
-	if _, err := store.AppendEventContext(ctx, "run_live", "memory.prepared", map[string]any{"memory_prepared": map[string]any{"entry_count": float64(2)}}); err != nil {
+	if _, err := store.AppendEvent(ctx, "run_live", "memory.prepared", map[string]any{"memory_prepared": map[string]any{"entry_count": float64(2)}}); err != nil {
 		t.Fatalf("append memory.prepared: %v", err)
 	}
-	if _, err := store.AppendEventContext(ctx, "run_live", "assistant.delta", map[string]any{"assistant_delta": map[string]any{"delta": "hi"}}); err != nil {
+	if _, err := store.AppendEvent(ctx, "run_live", "assistant.delta", map[string]any{"assistant_delta": map[string]any{"delta": "hi"}}); err != nil {
 		t.Fatalf("append assistant.delta: %v", err)
 	}
-	if _, err := store.AppendEventContext(ctx, "run_live", "skill.selected", map[string]any{"skill": map[string]any{"selected_id": "skill.hidden"}}); err != nil {
+	if _, err := store.AppendEvent(ctx, "run_live", "skill.selected", map[string]any{"skill": map[string]any{"selected_id": "skill.hidden"}}); err != nil {
 		t.Fatalf("append skill.selected: %v", err)
 	}
 
@@ -277,16 +277,16 @@ func TestLoadRunEventsForDetailFiltersDiagnostics(t *testing.T) {
 		t.Fatalf("open store: %v", err)
 	}
 	t.Cleanup(func() { _ = store.Close() })
-	if err := store.CreateRun(context.Background(), "run_detail", "input"); err != nil {
+	if err := store.CreateRun(context.Background(), domain.RunCreateParams{RunID: "run_detail", Input: "input"}); err != nil {
 		t.Fatalf("CreateRun: %v", err)
 	}
-	if _, err := store.AppendEventContext(context.Background(), "run_detail", "run.started", map[string]any{"input": "hello"}); err != nil {
+	if _, err := store.AppendEvent(context.Background(), "run_detail", "run.started", map[string]any{"input": "hello"}); err != nil {
 		t.Fatalf("append run.started: %v", err)
 	}
-	if _, err := store.AppendEventContext(context.Background(), "run_detail", "future.kind", map[string]any{"value": "debug"}); err != nil {
+	if _, err := store.AppendEvent(context.Background(), "run_detail", "future.kind", map[string]any{"value": "debug"}); err != nil {
 		t.Fatalf("append future.kind: %v", err)
 	}
-	if _, err := store.AppendEventContext(context.Background(), "run_detail", "skill.selected", map[string]any{"skill": map[string]any{"selected_id": "skill.ship.patch"}}); err != nil {
+	if _, err := store.AppendEvent(context.Background(), "run_detail", "skill.selected", map[string]any{"skill": map[string]any{"selected_id": "skill.ship.patch"}}); err != nil {
 		t.Fatalf("append skill.selected: %v", err)
 	}
 	service := NewEventService(store)
@@ -306,15 +306,15 @@ func TestClientServiceListRunArtifactsUsesRunScopedStorePort(t *testing.T) {
 		t.Fatalf("open store: %v", err)
 	}
 	t.Cleanup(func() { _ = store.Close() })
-	if err := store.CreateRun(ctx, "run_artifacts", "input"); err != nil {
+	if err := store.CreateRun(ctx, domain.RunCreateParams{RunID: "run_artifacts", Input: "input"}); err != nil {
 		t.Fatalf("CreateRun: %v", err)
 	}
-	_, err = store.SaveArtifact(ctx, storecore.ArtifactRecord{
+	_, err = store.SaveArtifact(ctx, domain.ArtifactRecord{
 		ArtifactID:          "artifact_report",
 		RunID:               "run_artifacts",
 		SessionID:           "thread_artifacts",
 		SourceToolResultRef: "tool_result:run_artifacts:call_1",
-		Kind:                storecore.ArtifactKindMarkdown,
+		Kind:                string(storecore.ArtifactKindMarkdown),
 		Title:               "Report",
 		MIMEType:            "text/markdown",
 		SizeBytes:           42,

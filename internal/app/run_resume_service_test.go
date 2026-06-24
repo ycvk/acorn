@@ -7,17 +7,16 @@ import (
 	"testing"
 
 	"github.com/ycvk/acorn/internal/domain"
-	storecore "github.com/ycvk/acorn/internal/store"
 )
 
 func TestRunResumeServiceInfersResumeTargetsForGenericInterrupt(t *testing.T) {
 	store := openTestStore(t)
 
 	const runID = "run_resume"
-	if err := store.CreateRun(context.Background(), runID, "need approval"); err != nil {
+	if err := store.CreateRun(context.Background(), domain.RunCreateParams{RunID: runID, Input: "need approval"}); err != nil {
 		t.Fatalf("create run: %v", err)
 	}
-	if _, err := store.AppendEventContext(context.Background(), runID, "run.interrupted", map[string]any{
+	if _, err := store.AppendEvent(context.Background(), runID, "run.interrupted", map[string]any{
 		"interrupt": map[string]any{
 			"contexts": []any{
 				map[string]any{"id": "ctx_root", "is_root_cause": true},
@@ -27,7 +26,7 @@ func TestRunResumeServiceInfersResumeTargetsForGenericInterrupt(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("append run.interrupted: %v", err)
 	}
-	if err := store.MarkInterruptedContext(context.Background(), runID, "waiting for approval"); err != nil {
+	if err := store.MarkInterrupted(context.Background(), runID, "waiting for approval"); err != nil {
 		t.Fatalf("mark interrupted: %v", err)
 	}
 
@@ -77,10 +76,10 @@ func TestRunResumeServiceInfersResumeTargetsForKnownRunCommandInterruptKinds(t *
 			defer store.Close()
 
 			const runID = "run_resume_known_kind"
-			if err := store.CreateRun(context.Background(), runID, "need approval"); err != nil {
+			if err := store.CreateRun(context.Background(), domain.RunCreateParams{RunID: runID, Input: "need approval"}); err != nil {
 				t.Fatalf("create run: %v", err)
 			}
-			if _, err := store.AppendEventContext(context.Background(), runID, "run.interrupted", map[string]any{
+			if _, err := store.AppendEvent(context.Background(), runID, "run.interrupted", map[string]any{
 				"interrupt": map[string]any{
 					"contexts": []any{
 						map[string]any{
@@ -93,7 +92,7 @@ func TestRunResumeServiceInfersResumeTargetsForKnownRunCommandInterruptKinds(t *
 			}); err != nil {
 				t.Fatalf("append run.interrupted: %v", err)
 			}
-			if err := store.MarkInterruptedContext(context.Background(), runID, "waiting for approval"); err != nil {
+			if err := store.MarkInterrupted(context.Background(), runID, "waiting for approval"); err != nil {
 				t.Fatalf("mark interrupted: %v", err)
 			}
 
@@ -124,10 +123,10 @@ func TestRunResumeServiceInfersResumeTargetsForDecidedOperatorQuestion(t *testin
 	store := openTestStore(t)
 
 	const runID = "run_operator_question_resume"
-	if err := store.CreateRun(context.Background(), runID, "need input"); err != nil {
+	if err := store.CreateRun(context.Background(), domain.RunCreateParams{RunID: runID, Input: "need input"}); err != nil {
 		t.Fatalf("create run: %v", err)
 	}
-	if _, err := store.CreatePendingAction(context.Background(), storecore.CreatePendingActionInput{
+	if _, err := store.CreatePendingAction(context.Background(), domain.PendingActionInput{
 		ActionID:    "action_operator_resume",
 		RunID:       runID,
 		Kind:        domain.PendingActionKindOperatorQuestion,
@@ -139,7 +138,7 @@ func TestRunResumeServiceInfersResumeTargetsForDecidedOperatorQuestion(t *testin
 	if _, err := store.DecidePendingAction(context.Background(), "action_operator_resume", domain.PendingActionStatusApproved, `{"action":"answer","answer":"ship it"}`); err != nil {
 		t.Fatalf("decide pending action: %v", err)
 	}
-	if _, err := store.AppendEventContext(context.Background(), runID, "run.interrupted", map[string]any{
+	if _, err := store.AppendEvent(context.Background(), runID, "run.interrupted", map[string]any{
 		"interrupt": map[string]any{
 			"contexts": []any{
 				map[string]any{
@@ -155,7 +154,7 @@ func TestRunResumeServiceInfersResumeTargetsForDecidedOperatorQuestion(t *testin
 	}); err != nil {
 		t.Fatalf("append run.interrupted: %v", err)
 	}
-	if err := store.MarkInterruptedContext(context.Background(), runID, "waiting for operator"); err != nil {
+	if err := store.MarkInterrupted(context.Background(), runID, "waiting for operator"); err != nil {
 		t.Fatalf("mark interrupted: %v", err)
 	}
 
@@ -176,10 +175,10 @@ func TestRunResumeServiceInferResumeTargetsRejectsUnknownInterruptKind(t *testin
 	store := openTestStore(t)
 
 	const runID = "run_resume_unknown"
-	if err := store.CreateRun(context.Background(), runID, "need approval"); err != nil {
+	if err := store.CreateRun(context.Background(), domain.RunCreateParams{RunID: runID, Input: "need approval"}); err != nil {
 		t.Fatalf("create run: %v", err)
 	}
-	if _, err := store.AppendEventContext(context.Background(), runID, "run.interrupted", map[string]any{
+	if _, err := store.AppendEvent(context.Background(), runID, "run.interrupted", map[string]any{
 		"interrupt": map[string]any{
 			"contexts": []any{
 				map[string]any{
@@ -194,7 +193,7 @@ func TestRunResumeServiceInferResumeTargetsRejectsUnknownInterruptKind(t *testin
 	}); err != nil {
 		t.Fatalf("append run.interrupted: %v", err)
 	}
-	if err := store.MarkInterruptedContext(context.Background(), runID, "waiting for approval"); err != nil {
+	if err := store.MarkInterrupted(context.Background(), runID, "waiting for approval"); err != nil {
 		t.Fatalf("mark interrupted: %v", err)
 	}
 
@@ -209,10 +208,10 @@ func TestRunResumeServiceResumeStatusRejectsFailedRun(t *testing.T) {
 	store := openTestStore(t)
 
 	const runID = "run_failed"
-	if err := store.CreateRun(context.Background(), runID, "inspect repo"); err != nil {
+	if err := store.CreateRun(context.Background(), domain.RunCreateParams{RunID: runID, Input: "inspect repo"}); err != nil {
 		t.Fatalf("create run: %v", err)
 	}
-	if err := store.FinishRunContext(context.Background(), runID, domain.RunStatusFailed, "partial output", "shell exited with status 1"); err != nil {
+	if err := store.FinishRun(context.Background(), runID, domain.RunStatusFailed, "partial output", "shell exited with status 1"); err != nil {
 		t.Fatalf("finish run: %v", err)
 	}
 
@@ -244,10 +243,10 @@ func TestRunResumeServiceResumeStatusExplainsCompletedRun(t *testing.T) {
 	store := openTestStore(t)
 
 	const runID = "run_completed"
-	if err := store.CreateRun(context.Background(), runID, "summarize repo"); err != nil {
+	if err := store.CreateRun(context.Background(), domain.RunCreateParams{RunID: runID, Input: "summarize repo"}); err != nil {
 		t.Fatalf("create run: %v", err)
 	}
-	if err := store.FinishRunContext(context.Background(), runID, domain.RunStatusSucceeded, "done", ""); err != nil {
+	if err := store.FinishRun(context.Background(), runID, domain.RunStatusSucceeded, "done", ""); err != nil {
 		t.Fatalf("finish run: %v", err)
 	}
 

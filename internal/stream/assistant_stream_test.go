@@ -23,11 +23,7 @@ type assistantStreamAppenderSpy struct {
 	records []domain.EventRecord
 }
 
-func (s *assistantStreamAppenderSpy) AppendEvent(runID, kind string, payload any) (domain.EventRecord, error) {
-	return s.AppendEventContext(context.Background(), runID, kind, payload)
-}
-
-func (s *assistantStreamAppenderSpy) AppendEventContext(_ context.Context, runID, kind string, payload any) (domain.EventRecord, error) {
+func (s *assistantStreamAppenderSpy) AppendEvent(_ context.Context, runID, kind string, payload any) (domain.EventRecord, error) {
 	record := domain.EventRecord{
 		RunID:     runID,
 		Kind:      kind,

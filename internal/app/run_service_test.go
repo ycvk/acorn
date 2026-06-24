@@ -27,7 +27,7 @@ func TestProjectRunMapsStatusAndMode(t *testing.T) {
 		SessionID: "session_1",
 		Status:    domain.RunStatusSucceeded,
 		CreatedAt: now,
-		UpdatedAt: now.Add(time.Second),
+		FinishedAt: now.Add(time.Second),
 	})
 	if err != nil {
 		t.Fatalf("projectRun: %v", err)
@@ -249,7 +249,7 @@ type postStartFailingExecutor struct {
 }
 
 func (e *postStartFailingExecutor) ExecuteMessages(ctx context.Context, req domain.ExecuteRequest, observer runStartObserver) error {
-	if err := e.store.CreateBoundRunWithParams(ctx, storecore.RunCreateParams{
+	if err := e.store.CreateRun(ctx, domain.RunCreateParams{
 		RunID:     req.RunID,
 		SessionID: req.SessionID,
 		TurnIndex: req.TurnIndex,
@@ -257,7 +257,7 @@ func (e *postStartFailingExecutor) ExecuteMessages(ctx context.Context, req doma
 	}); err != nil {
 		return err
 	}
-	if _, err := e.store.AppendEventContext(ctx, req.RunID, "run.started", map[string]any{"input": req.Input}); err != nil {
+	if _, err := e.store.AppendEvent(ctx, req.RunID, "run.started", map[string]any{"input": req.Input}); err != nil {
 		return err
 	}
 	if observer != nil {

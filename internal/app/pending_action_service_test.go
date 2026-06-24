@@ -58,10 +58,10 @@ func TestPendingActionServiceDecideSyncsMessageAndElicitationEvent(t *testing.T)
 	if err != nil {
 		t.Fatalf("prepare chat turn: %v", err)
 	}
-	if err := store.CreateBoundRun(context.Background(), "run_decision_service", session.SessionID, turnIndex, "run tool"); err != nil {
+	if err := store.CreateRun(context.Background(), domain.RunCreateParams{RunID: "run_decision_service", SessionID: session.SessionID, TurnIndex: turnIndex, Input: "run tool"}); err != nil {
 		t.Fatalf("create bound run: %v", err)
 	}
-	if _, err := store.CreatePendingAction(ctx, storecore.CreatePendingActionInput{
+	if _, err := store.CreatePendingAction(ctx, domain.PendingActionInput{
 		ActionID:    "action_decision_service",
 		RunID:       "run_decision_service",
 		Kind:        domain.PendingActionKindElicitation,
@@ -117,10 +117,10 @@ func TestPendingActionServiceDecideOperatorQuestionStoresStructuredAnswer(t *tes
 	if err != nil {
 		t.Fatalf("prepare chat turn: %v", err)
 	}
-	if err := store.CreateBoundRun(context.Background(), "run_operator_decision", session.SessionID, turnIndex, "choose"); err != nil {
+	if err := store.CreateRun(context.Background(), domain.RunCreateParams{RunID: "run_operator_decision", SessionID: session.SessionID, TurnIndex: turnIndex, Input: "choose"}); err != nil {
 		t.Fatalf("create bound run: %v", err)
 	}
-	if _, err := store.CreatePendingAction(ctx, storecore.CreatePendingActionInput{
+	if _, err := store.CreatePendingAction(ctx, domain.PendingActionInput{
 		ActionID: "action_operator_decision",
 		RunID:    "run_operator_decision",
 		Kind:     domain.PendingActionKindOperatorQuestion,
@@ -188,10 +188,10 @@ func TestPendingActionServiceListAndGetProjectActionableRecords(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create session: %v", err)
 	}
-	if err := store.CreateRunWithSession(ctx, "run_pending_surface", session.SessionID, 1, "approve"); err != nil {
+	if err := store.CreateRun(ctx, domain.RunCreateParams{RunID: "run_pending_surface", SessionID: session.SessionID, TurnIndex: 1, Input: "approve"}); err != nil {
 		t.Fatalf("create run: %v", err)
 	}
-	if _, err := store.CreatePendingAction(ctx, storecore.CreatePendingActionInput{
+	if _, err := store.CreatePendingAction(ctx, domain.PendingActionInput{
 		ActionID:    "action_pending_surface",
 		RunID:       "run_pending_surface",
 		Kind:        domain.PendingActionKindElicitation,
@@ -235,10 +235,10 @@ func TestPendingActionServiceGetRejectsDecidedAction(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create session: %v", err)
 	}
-	if err := store.CreateRunWithSession(ctx, "run_decided_surface", session.SessionID, 1, "approve"); err != nil {
+	if err := store.CreateRun(ctx, domain.RunCreateParams{RunID: "run_decided_surface", SessionID: session.SessionID, TurnIndex: 1, Input: "approve"}); err != nil {
 		t.Fatalf("create run: %v", err)
 	}
-	if _, err := store.CreatePendingAction(ctx, storecore.CreatePendingActionInput{
+	if _, err := store.CreatePendingAction(ctx, domain.PendingActionInput{
 		ActionID:    "action_decided_surface",
 		RunID:       "run_decided_surface",
 		Kind:        domain.PendingActionKindElicitation,
