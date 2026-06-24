@@ -96,7 +96,7 @@ type ElicitationInterruptInfo struct {
 type ElicitationInterruptState struct {
 	ActionID string
 }
-type SelectedSkill = contextplane.SelectedSkill
+type SelectedSkill = context.SelectedSkill
 
 // ExecutorStore is the store contract required by the Executor.
 type ExecutorStore interface {
@@ -127,7 +127,7 @@ type RuntimeDeps struct {
 	Loader            *skills.Loader
 	SessionSummarySvc *domain.SessionSummaryService
 	MemoryModule      memory.Service
-	ContextPlane      contextplane.ContextPlane
+	ContextPlane      context.Plane
 	MCPPendingActions mcpprovider.PendingActionStore
 	Workspace         *workspace.Workspace
 	ArtifactService   *store.ArtifactService
@@ -291,12 +291,12 @@ func (e *Executor) bootstrapContextSessionMessages(
 	if err := e.validateBootstrapDeps(active); err != nil {
 		return nil, err
 	}
-	counter, err := contextplane.NewTokenCounter()
+	counter, err := context.NewTokenCounter()
 	if err != nil {
 		return nil, fmt.Errorf("build context session token counter: %w", err)
 	}
 	session := e.buildContextSession(active, e.runRuntime.Config().Context, counter)
-	input, err := session.Bootstrap(ctx, contextplane.BootstrapRequest{
+	input, err := session.Bootstrap(ctx, context.BootstrapRequest{
 		SessionID:       req.SessionID,
 		RunID:           runID,
 		TurnIndex:       req.TurnIndex,
@@ -320,8 +320,8 @@ func (e *Executor) validateBootstrapDeps(active *ActiveRunner) error {
 	return nil
 }
 
-func (e *Executor) buildContextSession(active *ActiveRunner, contextPolicy config.ContextConfig, counter contextplane.TokenCounter) contextplane.ContextSession {
-	return contextplane.NewDefaultContextSession(contextplane.ContextSessionOptions{
+func (e *Executor) buildContextSession(active *ActiveRunner, contextPolicy config.ContextConfig, counter context.TokenCounter) context.Session {
+	return context.NewDefaultContextSession(context.SessionOptions{
 		TokenCounter:        counter,
 		Model:               active.ChatModel,
 		WindowTokens:        contextPolicy.WindowTokens,

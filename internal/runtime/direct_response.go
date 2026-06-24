@@ -243,7 +243,7 @@ func (a *directResponseAgent) runFromState(ctx context.Context, generator *adk.A
 
 	runCtx := bindSessionID(ctx, a.sessionID)
 	runCtx = bindToolLifecycle(runCtx, a.lifecycleState, a.catalog, a.toolInfos)
-	session := contextplane.ContextSessionFromContext(runCtx)
+	session := context.SessionFromContext(runCtx)
 	if session == nil {
 		generator.Send(&adk.AgentEvent{AgentName: a.Name(ctx), Err: errors.New("direct response requires context session")})
 		return
@@ -262,9 +262,9 @@ func (a *directResponseAgent) runFromState(ctx context.Context, generator *adk.A
 	}
 
 	for iteration := startIteration; iteration < a.maxIterations; iteration++ {
-		toolInfos := contextplane.LoadedToolInfosFromContext(runCtx, a.eagerToolNames)
+		toolInfos := context.LoadedToolInfosFromContext(runCtx, a.eagerToolNames)
 		messageID := directResponseMessageID(a.runID, iteration)
-		modelInput, err := session.BeforeModelCall(runCtx, contextplane.ModelCallRequest{
+		modelInput, err := session.BeforeModelCall(runCtx, context.ModelCallRequest{
 			CallID:    messageID,
 			ToolInfos: toolInfos,
 		})
@@ -321,7 +321,7 @@ func (a *directResponseAgent) runFromState(ctx context.Context, generator *adk.A
 	generator.Send(&adk.AgentEvent{AgentName: a.Name(ctx), Err: fmt.Errorf("direct response tool loop exceeded max iterations %d", a.maxIterations)})
 }
 
-func (a *directResponseAgent) resumePendingToolCalls(ctx context.Context, session contextplane.ContextSession, resumeData *DirectResponseInterruptData) error {
+func (a *directResponseAgent) resumePendingToolCalls(ctx context.Context, session context.Session, resumeData *DirectResponseInterruptData) error {
 	if resumeData == nil {
 		return errors.New("direct response resume data is required")
 	}

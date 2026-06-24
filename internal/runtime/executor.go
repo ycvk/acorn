@@ -150,7 +150,7 @@ func (e *Executor) buildExecuteRunner(runCtxBase context.Context, req domain.Exe
 func (e *Executor) executionContext(runCtxBase context.Context, runID string, req domain.ExecuteRequest, active *ActiveRunner, sink domain.StreamSink) context.Context {
 	executionCtx := buildExecutionContext(runCtxBase, runID, req.SessionID, req.TurnIndex, sink)
 	if active.ContextSession != nil {
-		executionCtx = contextplane.WithContextSession(executionCtx, active.ContextSession)
+		executionCtx = context.WithSession(executionCtx, active.ContextSession)
 	}
 	return executionCtx
 }
@@ -221,7 +221,7 @@ func (e *Executor) executeResume(ctx context.Context, runCtxBase context.Context
 }
 
 func (e *Executor) resumeIter(runCtxBase context.Context, run domain.RunRecord, runID string, active *ActiveRunner, targets map[string]any, sink domain.StreamSink) (*adk.AsyncIterator[*adk.AgentEvent], error) {
-	executionCtx := contextplane.WithContextSession(
+	executionCtx := context.WithSession(
 		buildExecutionContext(runCtxBase, runID, run.SessionID, run.TurnIndex, sink), active.ContextSession)
 	iter, err := active.Runner.ResumeWithParams(executionCtx, runID, &adk.ResumeParams{Targets: targets})
 	if err != nil {

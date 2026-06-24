@@ -197,14 +197,14 @@ func resolveLoader(cfg *config.Config, loader *skills.Loader) *skills.Loader {
 	return loader
 }
 
-func resolveContextPlane(cfg *config.Config, store RunnerFactoryStore, opts RunnerFactoryOptions) (contextplane.ContextPlane, error) {
+func resolveContextPlane(cfg *config.Config, store RunnerFactoryStore, opts RunnerFactoryOptions) (context.Plane, error) {
 	if opts.ContextPlane != nil {
 		return opts.ContextPlane, nil
 	}
 	return buildDefaultContextPlane(cfg, store, opts)
 }
 
-func assembleRuntimeDeps(cfg *config.Config, store RunnerFactoryStore, opts RunnerFactoryOptions, ws *workspace.Workspace, loader *skills.Loader, artifactService *corestore.ArtifactService, contextPlane contextplane.ContextPlane) RuntimeDeps {
+func assembleRuntimeDeps(cfg *config.Config, store RunnerFactoryStore, opts RunnerFactoryOptions, ws *workspace.Workspace, loader *skills.Loader, artifactService *corestore.ArtifactService, contextPlane context.Plane) RuntimeDeps {
 	return RuntimeDeps{
 		Config:            cfg,
 		Store:             store,
@@ -241,25 +241,25 @@ func buildArtifactService(cfg *config.Config, store RunnerFactoryStore) (*corest
 	return corestore.NewArtifactService(filepath.Join(cfg.Runtime.StorageDir, "artifacts"), artifactStore)
 }
 
-func buildDefaultContextPlane(cfg *config.Config, store RunnerFactoryStore, opts RunnerFactoryOptions) (contextplane.ContextPlane, error) {
+func buildDefaultContextPlane(cfg *config.Config, store RunnerFactoryStore, opts RunnerFactoryOptions) (context.Plane, error) {
 	memoryBudget, maxContextTokens, tokenCounter, err := resolveContextPlaneTokenPolicy(cfg)
 	if err != nil {
 		return nil, err
 	}
-	return contextplane.NewDefaultContextPlane(contextplane.DefaultOptions{
+	return context.NewDefaultPlane(context.DefaultOptions{
 		MemoryContextTokenBudget: memoryBudget,
 		MaxContextTokens:         maxContextTokens,
 		TokenCounter:             tokenCounter,
 	}), nil
 }
 
-func resolveContextPlaneTokenPolicy(cfg *config.Config) (memoryBudget, maxContextTokens int, tokenCounter contextplane.TokenCounter, err error) {
+func resolveContextPlaneTokenPolicy(cfg *config.Config) (memoryBudget, maxContextTokens int, tokenCounter context.TokenCounter, err error) {
 	if cfg == nil {
 		return 0, 0, nil, nil
 	}
 	memoryBudget = cfg.Memory.Search.MemoryContextTokenBudget
 	maxContextTokens = cfg.Context.WindowTokens
-	tokenCounter, err = contextplane.NewTokenCounter()
+	tokenCounter, err = context.NewTokenCounter()
 	if err != nil {
 		return 0, 0, nil, fmt.Errorf("token counter: %w", err)
 	}
@@ -327,7 +327,7 @@ func bindToolLifecycle(
 	infos []*schema.ToolInfo,
 ) context.Context {
 	if adapter, ok := state.(toolLifecycleStateAdapter); ok && adapter.state != nil {
-		return contextplane.WithToolLifecycleContext(ctx, adapter.state, catalog, infos)
+		return context.WithToolLifecycleContext(ctx, adapter.state, catalog, infos)
 	}
 	return ctx
 }
@@ -337,7 +337,7 @@ func bindSessionID(ctx context.Context, sessionID string) context.Context {
 }
 
 type toolLifecycleStateAdapter struct {
-	state *contextplane.ToolLifecycleState
+	state *context.ToolLifecycleState
 }
 
 func (a toolLifecycleStateAdapter) IsLoaded(toolName string) bool {
@@ -348,7 +348,7 @@ func (a toolLifecycleStateAdapter) IsLoaded(toolName string) bool {
 	return ok
 }
 
-func AssembleResultToView(result *contextplane.AssembleResult) AssembleResultView {
+func AssembleResultToView(result *context.AssembleResult) AssembleResultView {
 	if result == nil {
 		return AssembleResultView{}
 	}

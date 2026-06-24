@@ -82,7 +82,7 @@ type RunnerFactoryOptions struct {
 	Handlers              []adk.ChatModelAgentMiddleware
 	SessionSummaryService *domain.SessionSummaryService
 	MemoryModule          memory.Service
-	ContextPlane          contextplane.ContextPlane
+	ContextPlane          context.Plane
 	MCPPendingActionStore mcpprovider.PendingActionStore
 }
 
@@ -105,8 +105,8 @@ type ActiveRunner struct {
 	Instruction    string
 	ChatModel      einomodel.BaseChatModel
 	Factory        *RunnerFactory
-	ContextResult  *contextplane.AssembleResult
-	ContextSession contextplane.ContextSession
+	ContextResult  *context.AssembleResult
+	ContextSession context.Session
 	RunID          string
 	ToolCatalog    *tools.Catalog
 	CloseRunTools  func() error

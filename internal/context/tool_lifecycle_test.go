@@ -6,9 +6,9 @@ import (
 	"testing"
 
 	"github.com/cloudwego/eino/schema"
+	"github.com/ycvk/acorn/internal/port"
 	"github.com/ycvk/acorn/internal/tools"
 )
-
 type lifecycleStubTool struct {
 	name string
 	desc string
@@ -20,16 +20,16 @@ func (t lifecycleStubTool) Info(context.Context) (*schema.ToolInfo, error) {
 
 func newLifecycleCatalogForTest(t *testing.T) *tools.Catalog {
 	t.Helper()
-	catalog, err := tools.NewCatalog(context.Background(), []tools.ToolSpec{
+	catalog, err := tools.NewCatalog(context.Background(), []port.ToolSpec{
 		{
-			ToolContract: lifecycleToolContract("read_file", "local", tools.ToolKindNative, tools.EagerLoadingPolicy()),
+			ToolContract: lifecycleToolContract("read_file", "local", port.ToolKindNative, port.EagerLoadingPolicy()),
 			Tool:         lifecycleStubTool{name: "read_file", desc: "Read a file"},
-			Health:       tools.ToolHealth{State: tools.HealthStateHealthy},
+			Health:       port.ToolHealth{State: port.HealthStateHealthy},
 		},
 		{
-			ToolContract: lifecycleToolContract("mcp.prompt.fetch", "mcp.prompt", tools.ToolKindMCP, tools.DeferredLoadingPolicy("deferred_mcp_catalog")),
+			ToolContract: lifecycleToolContract("mcp.prompt.fetch", "mcp.prompt", port.ToolKindMCP, port.DeferredLoadingPolicy("deferred_mcp_catalog")),
 			Tool:         lifecycleStubTool{name: "mcp.prompt.fetch", desc: "Fetch MCP prompt"},
-			Health:       tools.ToolHealth{State: tools.HealthStateHealthy},
+			Health:       port.ToolHealth{State: port.HealthStateHealthy},
 		},
 	})
 	if err != nil {
@@ -38,14 +38,14 @@ func newLifecycleCatalogForTest(t *testing.T) *tools.Catalog {
 	return catalog
 }
 
-func lifecycleToolContract(name string, source string, kind tools.ToolKind, loading tools.ToolLoadingPolicy) tools.ToolContract {
-	return tools.ToolContract{
+func lifecycleToolContract(name string, source string, kind port.ToolKind, loading port.ToolLoadingPolicy) port.ToolContract {
+	return port.ToolContract{
 		Name:      name,
 		Source:    source,
 		Kind:      kind,
-		Category:  tools.ToolCategoryRead,
+		Category:  port.ToolCategoryRead,
 		Loading:   loading,
-		Execution: tools.ToolExecutionPolicy{ParallelPolicy: tools.ParallelPolicyReadOnly},
+		Execution: port.ToolExecutionPolicy{ParallelPolicy: port.ParallelPolicyReadOnly},
 	}
 }
 

@@ -546,24 +546,24 @@ func directResponseCatalogForTest(t *testing.T, ctx context.Context, tool einoto
 }
 
 func directResponseContextResultForTest(runID string, sessionID string, eagerTools ...string) AssembleResultView {
-	loaded := make(map[string]contextplane.LoadedToolRecord, len(eagerTools))
+	loaded := make(map[string]context.LoadedToolRecord, len(eagerTools))
 	now := time.Now().UTC()
 	for _, name := range eagerTools {
 		trimmed := strings.TrimSpace(name)
 		if trimmed == "" {
 			continue
 		}
-		loaded[trimmed] = contextplane.LoadedToolRecord{
+		loaded[trimmed] = context.LoadedToolRecord{
 			Name:       trimmed,
 			LoadedAt:   now,
 			LoadSource: "eager",
 		}
 	}
-	state := &contextplane.ToolLifecycleState{
+	state := &context.ToolLifecycleState{
 		RunID:         strings.TrimSpace(runID),
 		SessionID:     strings.TrimSpace(sessionID),
 		LoadedTools:   loaded,
-		DeferredTools: map[string]contextplane.DeferredToolRecord{},
+		DeferredTools: map[string]context.DeferredToolRecord{},
 		MaxAgeTurns:   2,
 	}
 	return AssembleResultView{
@@ -613,18 +613,18 @@ func directResponseAssistantWithFinishReason(content string, toolCalls []schema.
 func runDirectResponseAssembly(t *testing.T, ctx context.Context, assembly *RunAssembly) []*adk.AgentEvent {
 	t.Helper()
 	session := newDirectResponseTestSession(t, ctx, assembly)
-	ctx = contextplane.WithContextSession(ctx, session)
+	ctx = context.WithSession(ctx, session)
 	iter := assembly.Runner.Run(ctx, []adk.Message{schema.UserMessage("runner input must not be used")}, adk.WithCheckPointID("run"))
 	return collectDirectResponseEvents(iter)
 }
 
-func newDirectResponseTestSession(t *testing.T, ctx context.Context, assembly *RunAssembly) contextplane.ContextSession {
+func newDirectResponseTestSession(t *testing.T, ctx context.Context, assembly *RunAssembly) context.Session {
 	t.Helper()
-	counter, err := contextplane.NewTokenCounter()
+	counter, err := context.NewTokenCounter()
 	if err != nil {
 		t.Fatalf("NewTokenCounter: %v", err)
 	}
-	session := contextplane.NewDefaultContextSession(contextplane.ContextSessionOptions{
+	session := context.NewDefaultContextSession(context.SessionOptions{
 		TokenCounter:        counter,
 		WindowTokens:        200000,
 		CompactMargin:       13000,
@@ -635,7 +635,7 @@ func newDirectResponseTestSession(t *testing.T, ctx context.Context, assembly *R
 	if assembly != nil && strings.TrimSpace(assembly.Instruction) != "" {
 		initialMessages = append([]adk.Message{schema.SystemMessage(assembly.Instruction)}, initialMessages...)
 	}
-	_, err = session.Bootstrap(ctx, contextplane.BootstrapRequest{
+	_, err = session.Bootstrap(ctx, context.BootstrapRequest{
 		SessionID:       "session",
 		RunID:           "run",
 		InitialMessages: initialMessages,
@@ -974,7 +974,7 @@ func TestBuildDirectResponseResumeContinuesFromPendingToolCalls(t *testing.T) {
 	}
 
 	session := newDirectResponseTestSession(t, ctx, assembly)
-	runCtx := contextplane.WithContextSession(ctx, session)
+	runCtx := context.WithSession(ctx, session)
 	initial := collectDirectResponseEvents(assembly.Runner.Run(runCtx, []adk.Message{schema.UserMessage("runner input must not be used")}, adk.WithCheckPointID("run")))
 	info := firstInterruptedInfo(initial)
 	if info == nil || len(info.InterruptContexts) != 1 {
@@ -999,7 +999,7 @@ func TestBuildDirectResponseResumeContinuesFromPendingToolCalls(t *testing.T) {
 		t.Fatalf("expected runner checkpoint to be persisted, err=%v events=%v", err, eventSummary)
 	}
 
-	resumeCtx := contextplane.WithContextSession(context.Background(), session)
+	resumeCtx := context.WithSession(context.Background(), session)
 	iter, err := assembly.Runner.ResumeWithParams(resumeCtx, "run", &adk.ResumeParams{
 		Targets: map[string]any{
 			info.InterruptContexts[0].ID: map[string]any{},

@@ -122,7 +122,7 @@ func (n *SafeParallelToolsNode) invokeSingle(ctx context.Context, call classifie
 		}
 		msg := schema.ToolMessage(errorContent, call.toolCall.ID, schema.WithToolName(call.toolCall.Function.Name))
 		attachToolMessageLedgerMeta(msg, call, resultRef)
-		_ = domain.TurnIndexFromContext(ctx) // TODO(phase7): restore contextplane.AnnotateMessageTurn
+		_ = domain.TurnIndexFromContext(ctx) // TODO(phase7): restore context.AnnotateMessageTurn
 		markToolMessageFailed(msg, err.Error())
 		if err := emitToolResultLifecycle(ctx, msg); err != nil {
 			return nil, err
@@ -131,7 +131,7 @@ func (n *SafeParallelToolsNode) invokeSingle(ctx context.Context, call classifie
 	}
 	msg := schema.ToolMessage(result, call.toolCall.ID, schema.WithToolName(call.toolCall.Function.Name))
 	attachToolMessageLedgerMeta(msg, call, resultRef)
-	_ = domain.TurnIndexFromContext(ctx) // TODO(phase7): restore contextplane.AnnotateMessageTurn
+	_ = domain.TurnIndexFromContext(ctx) // TODO(phase7): restore context.AnnotateMessageTurn
 	if err := attachToolSideEffects(msg, call.toolCall.Function.Name, result); err != nil {
 		return nil, err
 	}
@@ -202,7 +202,7 @@ func toolCallbackType(tool einotool.InvokableTool) string {
 }
 
 func emitToolCallLifecycle(ctx context.Context, call classifiedCall) error {
-	// TODO(phase7): restore contextplane.OnToolCall event emission
+	// TODO(phase7): restore context.OnToolCall event emission
 	_ = ctx
 	_ = domain.GetRunID(ctx)
 	_ = domain.SessionIDFromContext(ctx)
@@ -235,7 +235,7 @@ func emitToolResultLifecycle(ctx context.Context, msg *schema.Message) error {
 			arguments = value
 		}
 	}
-	// TODO(phase7): restore contextplane.OnToolResult event emission
+	// TODO(phase7): restore context.OnToolResult event emission
 	_ = domain.GetRunID(ctx)
 	_ = domain.SessionIDFromContext(ctx)
 	_ = domain.TurnIndexFromContext(ctx)

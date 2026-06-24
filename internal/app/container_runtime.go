@@ -74,7 +74,7 @@ type containerRuntimeDeps struct {
 	loader                *skills.Loader
 	sessionSummaryService *domain.SessionSummaryService
 	memoryModule          memory.Service
-	contextPlane          contextplane.ContextPlane
+	contextPlane          context.Plane
 	mcpPendingActionStore containerAppStore
 	runnerFactory         *runtime.RunnerFactory
 	runController         *runtime.RunController

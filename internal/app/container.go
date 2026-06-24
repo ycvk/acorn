@@ -135,8 +135,8 @@ func buildContainer(ctx context.Context, cfg *config.Config) (*Container, error)
 	return container, nil
 }
 
-func buildContextPlane(cfg *config.Config) (contextplane.ContextPlane, error) {
-	contextCounter, err := contextplane.NewTokenCounter()
+func buildContextPlane(cfg *config.Config) (context.Plane, error) {
+	contextCounter, err := context.NewTokenCounter()
 	if err != nil {
 		return nil, fmt.Errorf("context plane token counter: %w", err)
 	}
@@ -144,7 +144,7 @@ func buildContextPlane(cfg *config.Config) (contextplane.ContextPlane, error) {
 	if maxContextTokens <= 0 {
 		return nil, fmt.Errorf("context effective window must be positive: window=%d margin=%d", cfg.Context.WindowTokens, cfg.Context.CompactMarginTokens)
 	}
-	contextPlane := contextplane.NewDefaultContextPlane(contextplane.DefaultOptions{
+	contextPlane := context.NewDefaultPlane(context.DefaultOptions{
 		MemoryContextTokenBudget: cfg.Memory.Search.MemoryContextTokenBudget,
 		MaxContextTokens:         maxContextTokens,
 		TokenCounter:             contextCounter,
