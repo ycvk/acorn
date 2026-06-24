@@ -24,3 +24,4 @@
 - [Structural Convergence Refactor Plan](plans/2026-06-22-structural-convergence.md) — 11 tasks: port elimination, guard relax, tool/toolset rename, runtime subpackage promotion, file merges, docs
 - [Runtime God-Package Split Plan](plans/2026-06-23-runtime-split.md) — split runtime into stream + tooldispatch + factextract sub-packages
 - [Modular Refactor Plan](plans/2026-06-23-modular-refactor.md) — 5 phases: stream/domain type convergence, toolkit+toolset merge, store interface consolidation, client_service split, RunnerFactory god-object split
+- [Greenfield Architecture Refactor Plan](plans/2026-06-24-greenfield-architecture-refactor.md) — 12 phases: port package, domain expansion, store rewrite, memory/mcp adaptation, tools contract split, contextplane→context rename, agent extraction, api service absorption, wire composition root, cli adaptation, architecture guards, docs sync
