@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/ycvk/acorn/internal/domain"
 )
 
 type ArtifactKind string
@@ -28,44 +30,11 @@ const (
 
 var ErrArtifactNotFound = errors.New("artifact not found")
 
-type ArtifactRecord struct {
-	ArtifactID          string
-	RunID               string
-	SessionID           string
-	SourceToolResultRef string
-	Kind                ArtifactKind
-	Title               string
-	MIMEType            string
-	RelativePath        string
-	SizeBytes           int64
-	SHA256              string
-	CreatedAt           time.Time
-}
-
-type ArtifactWriteRequest struct {
-	ArtifactID          string
-	RunID               string
-	SessionID           string
-	SourceToolResultRef string
-	Kind                ArtifactKind
-	Title               string
-	MIMEType            string
-	Content             []byte
-	CreatedAt           time.Time
-}
-
-type ArtifactReadRangeRequest struct {
-	ArtifactID string
-	Offset     int64
-	Limit      int64
-}
-
-type ArtifactReadRangeResult struct {
-	Record  ArtifactRecord
-	Offset  int64
-	Content []byte
-	EOF     bool
-}
+// ArtifactRecord — alias to domain (temporary during migration; removed in Phase 3)
+type ArtifactRecord = domain.ArtifactRecord
+type ArtifactWriteRequest = domain.ArtifactWriteRequest
+type ArtifactReadRangeRequest = domain.ArtifactReadRangeRequest
+type ArtifactReadRangeResult = domain.ArtifactReadRangeResult
 
 type ArtifactStore interface {
 	SaveArtifact(context.Context, ArtifactRecord) (ArtifactRecord, error)
@@ -234,7 +203,7 @@ func NormalizeArtifactWriteRequest(req ArtifactWriteRequest) (ArtifactWriteReque
 	req.RunID = strings.TrimSpace(req.RunID)
 	req.SessionID = strings.TrimSpace(req.SessionID)
 	req.SourceToolResultRef = strings.TrimSpace(req.SourceToolResultRef)
-	req.Kind = ArtifactKind(strings.TrimSpace(string(req.Kind)))
+	req.Kind = strings.TrimSpace(req.Kind)
 	req.Title = strings.TrimSpace(req.Title)
 	req.MIMEType = strings.TrimSpace(req.MIMEType)
 	if req.CreatedAt.IsZero() {
@@ -250,7 +219,7 @@ func NormalizeArtifactWriteRequest(req ArtifactWriteRequest) (ArtifactWriteReque
 	if req.RunID == "" {
 		return ArtifactWriteRequest{}, fmt.Errorf("artifact run_id is required")
 	}
-	if err := validateArtifactKind(req.Kind); err != nil {
+	if err := validateArtifactKind(ArtifactKind(req.Kind)); err != nil {
 		return ArtifactWriteRequest{}, err
 	}
 	return req, nil
@@ -261,7 +230,7 @@ func NormalizeArtifactRecord(record ArtifactRecord) (ArtifactRecord, error) {
 	record.RunID = strings.TrimSpace(record.RunID)
 	record.SessionID = strings.TrimSpace(record.SessionID)
 	record.SourceToolResultRef = strings.TrimSpace(record.SourceToolResultRef)
-	record.Kind = ArtifactKind(strings.TrimSpace(string(record.Kind)))
+	record.Kind = strings.TrimSpace(record.Kind)
 	record.Title = strings.TrimSpace(record.Title)
 	record.MIMEType = strings.TrimSpace(record.MIMEType)
 	record.RelativePath = filepath.ToSlash(strings.TrimSpace(record.RelativePath))
@@ -277,7 +246,7 @@ func NormalizeArtifactRecord(record ArtifactRecord) (ArtifactRecord, error) {
 	if record.RunID == "" {
 		return ArtifactRecord{}, fmt.Errorf("artifact run_id is required")
 	}
-	if err := validateArtifactKind(record.Kind); err != nil {
+	if err := validateArtifactKind(ArtifactKind(record.Kind)); err != nil {
 		return ArtifactRecord{}, err
 	}
 	if record.RelativePath == "" {
