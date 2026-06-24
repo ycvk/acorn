@@ -7,9 +7,9 @@ slug: runtime-context-memory
 
 # Runtime Context, Memory
 
-## ContextPlane
+## Plane
 
-`internal/contextplane` assembles the context messages that are prepended to a run:
+`internal/context` assembles the context messages that are prepended to a run:
 
 - selected skill context
 - skill catalog inventory
@@ -18,13 +18,13 @@ slug: runtime-context-memory
 
 Memory context consists of file-backed prepared memory from `memory.Service.Prepare`. Working checkpoint and session summary sections have been removed.
 
-Tool lifecycle state is derived from `tooling.ToolContract`. Runtime builds each enabled tool with explicit identity, source, kind, category, loading policy, and execution policy. ContextPlane splits eager/deferred tools only from `ToolContract.Loading.Mode`.
+Tool lifecycle state is derived from `tooling.ToolContract`. Runtime builds each enabled tool with explicit identity, source, kind, category, loading policy, and execution policy. Plane splits eager/deferred tools only from `ToolContract.Loading.Mode`.
 
-Tool result messages are not durable ledger-backed. Results stay in the message stream and are subject to observation masking by ContextSession. `OnToolResult` only validates the event payload; no SQLite ledger write.
+Tool result messages are not durable ledger-backed. Results stay in the message stream and are subject to observation masking by Session. `OnToolResult` only validates the event payload; no SQLite ledger write.
 
 ## Hybrid Context (masking + auto-compact + re-inject)
 
-ContextSession owns root-run model input. `BeforeModelCall` executes:
+Session owns root-run model input. `BeforeModelCall` executes:
 
 1. **Observation masking**: tool results older than `mask_after_turns` (default 2) turns are replaced with a compact placeholder `[tool result elided: call_id=...]`. Pure in-memory, no SQLite write.
 2. **LLM auto-compact**: when token count exceeds `window_tokens - compact_margin` (default 13000), a model call generates a conversation summary. Old messages are replaced with `[summary + recent N turns]`. Circuit breaker stops after 3 consecutive failures.

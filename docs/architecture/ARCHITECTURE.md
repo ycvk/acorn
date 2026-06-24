@@ -10,19 +10,19 @@ operator CLI / authenticated remote clients
   -> remote client contracts (/healthz + /v1)
   -> runtime Executor (consumer-owned store ports)
   -> per-run assembly (ModelBuilder/CapabilityAssembler/ContextAssembler/MCPAssembler/SkillSelector/RunEmitter/ToolAssembler)
-  -> ContextPlane + direct_response
+  -> Plane + direct_response
   -> SQLite adapter / persisted truth
   -> Kotlin mobile control surface
 ```
 
 ## 主要包职责
 
-- `internal/app/` — Container 组合根 + ThreadService/RunService/EventService（原 ClientService 拆分）、run resume service、api dependencies；composition root。
+- `internal/wire/` — Container 组合根 + ThreadService/RunService/EventService（原 ClientService 拆分）、run resume service、api dependencies；composition root。
 - `internal/runtime/` — Executor（session/run 创建、执行、finalization）+ per-run assembly（7 个 struct：ModelBuilder、CapabilityAssembler、ContextAssembler、MCPAssembler、SkillSelector、RunEmitter、ToolAssembler）+ direct_response assembly + ExecuteRound + tool audit/validator + StreamItem 投影逻辑。
-- `internal/runtime/tooldispatch/` — SafeParallelToolsNode、streaming executor、scheduler、side-effect extraction、ToolInvoker/StreamingExecutor 接口。
-- `internal/runtime/factextract/` — fact extraction + memory file tools + memory search/remember tools。
+- `internal/tools/` — SafeParallelToolsNode、streaming executor、scheduler、side-effect extraction、ToolInvoker/StreamingExecutor 接口。
+- `internal/agent/factextract/` — fact extraction + memory file tools + memory search/remember tools。
 - `internal/stream/` — Stream* 类型已移到 domain 包；stream 包保留 StreamItem→event 投影逻辑 + assistant streaming。
-- `internal/contextplane/` — run 上下文装配、observation masking、LLM auto-compact、deferred tool loading、tool lifecycle。
+- `internal/context/` — run 上下文装配、observation masking、LLM auto-compact、deferred tool loading、tool lifecycle。
 - `internal/tools/` — 工具契约 + 实现（ToolContract/Catalog/ToolSpec + file/git/browser/web/command/artifact 工具）。
 - `internal/memory/` — file-backed memory（facts/history）、search、prepare、semantic retrieval（embedding + SQLite 暴力余弦相似度）。
 - `internal/store/` — SQLite adapter + 跨包 store-facing records、sentinel errors（sessions/messages/runs/events/pending_actions/devices/pairing_codes/owner_profile）。
@@ -33,7 +33,7 @@ operator CLI / authenticated remote clients
 
 - [runtime-execution.md](runtime-execution.md) — Executor、run lifecycle。
 - [runtime-orchestration.md](runtime-orchestration.md) — direct_response assembly、ExecuteRound。
-- [runtime-context-memory-decision.md](runtime-context-memory-decision.md) — ContextPlane、hybrid context、MemoryModule。
+- [runtime-context-memory-decision.md](runtime-context-memory-decision.md) — Plane、hybrid context、MemoryModule。
 - [data-web-store.md](data-web-store.md) — SQLite truth、events/runs、remote client DTO/API。
 - [mobile-control-surface.md](mobile-control-surface.md) — Kotlin app、generated client、事实边界。
 - [self-hosted onboarding](../user/self-hosted-onboarding.md) — VPS binary service、pairing、storage。
