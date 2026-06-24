@@ -13,6 +13,11 @@
 - [ADR-0010: tool 包从 4 合并到 2](adr/ADR-0010-tool-packages-merge-to-toolkit-toolset.md) — toolkit 契约 + toolset 实现, runtime/tool + runtime/toolset 提升到 runtime 根
 - [ADR-0011: 结构守卫文件行数上限 400 → 800](adr/ADR-0011-structural-file-limit-400-to-800.md) — 消除碎片化文件, RunnerFactory 7→5, browser_service 5→3, client_service 5→1
 - [ADR-0012: 消除 duplicate port](adr/ADR-0012-eliminate-duplicate-ports.md) — 推翻"不可合并"声明, OperatorQuestionContext/ArtifactContext 统一为 domain.ToolCallContextBridge
+- [ADR-0013: 类型层 4→1 合并](adr/ADR-0013-type-layer-merge-to-core.md) — domain/port/contract/clientevents → core
+- [ADR-0014: 执行层 3→1 合并](adr/ADR-0014-execution-layer-merge-to-runtime.md) — agent/context/stream → runtime
+- [ADR-0015: Store 接口 21→3 收敛](adr/ADR-0015-store-interface-consolidation.md) — SessionStore/IdentityStore/ArtifactStore
+- [ADR-0016: 统一插件注册中心](adr/ADR-0016-unified-plugin-registry.md) — ToolRegistry + ProviderRegistry
+- [ADR-0017: MCP 提升为顶级包](adr/ADR-0017-mcp-promote-to-top-level.md) — providers/mcp → mcp
 
 ## Specs
 - [Structural Convergence Design Spec](specs/2026-06-22-structural-convergence-design.md) — 4→2 tool packages, runner file merge, duplicate port elimination, guard 400→800
