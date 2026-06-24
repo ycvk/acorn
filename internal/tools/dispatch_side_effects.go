@@ -1,4 +1,4 @@
-package tooldispatch
+package tools
 
 import (
 	"encoding/json"

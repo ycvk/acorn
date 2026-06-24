@@ -1,20 +1,21 @@
-package tooldispatch
+package tools
 
 import (
 	"fmt"
 	"strings"
 
 	"github.com/cloudwego/eino/schema"
-	"github.com/ycvk/acorn/internal/tools"
+
+	"github.com/ycvk/acorn/internal/port"
 )
 
 type toolExecutionScheduler struct {
-	resolver    tools.ExecutionPolicyResolver
+	resolver    port.ExecutionPolicyResolver
 	maxParallel int
 	knownTools  map[string]struct{}
 }
 
-func newToolExecutionScheduler(resolver tools.ExecutionPolicyResolver, maxParallel int, knownTools map[string]struct{}) *toolExecutionScheduler {
+func newToolExecutionScheduler(resolver port.ExecutionPolicyResolver, maxParallel int, knownTools map[string]struct{}) *toolExecutionScheduler {
 	if maxParallel < 1 {
 		maxParallel = 1
 	}
@@ -35,7 +36,7 @@ func newToolExecutionScheduler(resolver tools.ExecutionPolicyResolver, maxParall
 type classifiedCall struct {
 	index    int
 	toolCall schema.ToolCall
-	safety   tools.ParallelPolicy
+	safety   port.ParallelPolicy
 	argsErr  string
 	paths    []string
 }

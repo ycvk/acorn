@@ -8,7 +8,6 @@ import (
 
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/ycvk/acorn/internal/domain"
-	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/webaccess"
 )
 
@@ -57,11 +56,11 @@ func buildWebSearchTool(search WebSearchService, artifactService ArtifactService
 		if err != nil {
 			return WebSearchOutput{}, err
 		}
-		rawRecord, err := artifactService.Write(ctx, store.ArtifactWriteRequest{
+		rawRecord, err := artifactService.WriteArtifact(ctx, domain.ArtifactWriteRequest{
 			RunID:               runID,
 			SessionID:           strings.TrimSpace(bridge.CurrentSessionID(ctx)),
 			SourceToolResultRef: sourceRef,
-			Kind:                store.ArtifactKindJSON,
+			Kind:                "json",
 			Title:               "web_search raw: " + result.Query,
 			MIMEType:            "application/json",
 			Content:             result.Raw,

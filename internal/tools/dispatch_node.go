@@ -1,4 +1,4 @@
-package tooldispatch
+package tools
 
 import (
 	"context"
@@ -13,9 +13,8 @@ import (
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/compose"
 	"github.com/cloudwego/eino/schema"
-	"github.com/ycvk/acorn/internal/contextplane"
 	"github.com/ycvk/acorn/internal/domain"
-	"github.com/ycvk/acorn/internal/tools"
+	"github.com/ycvk/acorn/internal/port"
 )
 
 // SafeParallelToolsNode dispatches tool calls with safety-aware parallelism.
@@ -35,7 +34,7 @@ type toolEntry struct {
 func NewSafeParallelToolsNode(
 	ctx context.Context,
 	tools []einotool.BaseTool,
-	resolver tools.ExecutionPolicyResolver,
+	resolver port.ExecutionPolicyResolver,
 ) (*SafeParallelToolsNode, error) {
 	if ctx == nil {
 		return nil, fmt.Errorf("safe parallel tools node: context is required")
@@ -82,18 +81,10 @@ func NewSafeParallelToolsNode(
 func (n *SafeParallelToolsNode) NewStreamingExecutor(ctx context.Context) StreamingExecutor {
 	return NewStreamingToolExecutor(n, n.scheduler, ctx)
 }
+
 func (n *SafeParallelToolsNode) invokeSingle(ctx context.Context, call classifiedCall) (*schema.Message, error) {
 	resultRef := buildToolResultRef(domain.GetRunID(ctx), call.toolCall.ID)
 	if err := emitToolCallLifecycle(ctx, call); err != nil {
-		if rejected, ok := errors.AsType[*contextplane.ToolCallRejectedError](err); ok {
-			msg := schema.ToolMessage(rejected.Error(), call.toolCall.ID, schema.WithToolName(call.toolCall.Function.Name))
-			attachToolMessageLedgerMeta(msg, call, resultRef)
-			markToolMessageFailed(msg, rejected.Error())
-			if emitErr := emitToolResultLifecycle(ctx, msg); emitErr != nil {
-				return nil, emitErr
-			}
-			return msg, nil
-		}
 		return nil, err
 	}
 	if call.argsErr != "" {
@@ -131,7 +122,7 @@ func (n *SafeParallelToolsNode) invokeSingle(ctx context.Context, call classifie
 		}
 		msg := schema.ToolMessage(errorContent, call.toolCall.ID, schema.WithToolName(call.toolCall.Function.Name))
 		attachToolMessageLedgerMeta(msg, call, resultRef)
-		contextplane.AnnotateMessageTurn(msg, domain.TurnIndexFromContext(ctx))
+		_ = domain.TurnIndexFromContext(ctx) // TODO(phase7): restore contextplane.AnnotateMessageTurn
 		markToolMessageFailed(msg, err.Error())
 		if err := emitToolResultLifecycle(ctx, msg); err != nil {
 			return nil, err
@@ -140,7 +131,7 @@ func (n *SafeParallelToolsNode) invokeSingle(ctx context.Context, call classifie
 	}
 	msg := schema.ToolMessage(result, call.toolCall.ID, schema.WithToolName(call.toolCall.Function.Name))
 	attachToolMessageLedgerMeta(msg, call, resultRef)
-	contextplane.AnnotateMessageTurn(msg, domain.TurnIndexFromContext(ctx))
+	_ = domain.TurnIndexFromContext(ctx) // TODO(phase7): restore contextplane.AnnotateMessageTurn
 	if err := attachToolSideEffects(msg, call.toolCall.Function.Name, result); err != nil {
 		return nil, err
 	}
@@ -211,14 +202,15 @@ func toolCallbackType(tool einotool.InvokableTool) string {
 }
 
 func emitToolCallLifecycle(ctx context.Context, call classifiedCall) error {
-	return contextplane.OnToolCall(ctx, contextplane.ToolCallEvent{
-		RunID:     domain.GetRunID(ctx),
-		SessionID: domain.SessionIDFromContext(ctx),
-		TurnIndex: domain.TurnIndexFromContext(ctx),
-		CallID:    call.toolCall.ID,
-		ToolName:  call.toolCall.Function.Name,
-		Arguments: call.toolCall.Function.Arguments,
-	})
+	// TODO(phase7): restore contextplane.OnToolCall event emission
+	_ = ctx
+	_ = domain.GetRunID(ctx)
+	_ = domain.SessionIDFromContext(ctx)
+	_ = domain.TurnIndexFromContext(ctx)
+	_ = call.toolCall.ID
+	_ = call.toolCall.Function.Name
+	_ = call.toolCall.Function.Arguments
+	return nil
 }
 
 func emitToolResultLifecycle(ctx context.Context, msg *schema.Message) error {
@@ -243,18 +235,18 @@ func emitToolResultLifecycle(ctx context.Context, msg *schema.Message) error {
 			arguments = value
 		}
 	}
-	return contextplane.OnToolResult(ctx, contextplane.ToolResultEvent{
-		RunID:        domain.GetRunID(ctx),
-		SessionID:    domain.SessionIDFromContext(ctx),
-		TurnIndex:    domain.TurnIndexFromContext(ctx),
-		CallID:       msg.ToolCallID,
-		ToolName:     msg.ToolName,
-		Arguments:    arguments,
-		Result:       msg.Content,
-		IsError:      failed,
-		ErrorReason:  reason,
-		ResultTokens: len(msg.Content) / 4,
-	})
+	// TODO(phase7): restore contextplane.OnToolResult event emission
+	_ = domain.GetRunID(ctx)
+	_ = domain.SessionIDFromContext(ctx)
+	_ = domain.TurnIndexFromContext(ctx)
+	_ = msg.ToolCallID
+	_ = msg.ToolName
+	_ = arguments
+	_ = msg.Content
+	_ = failed
+	_ = reason
+	_ = len(msg.Content) / 4
+	return nil
 }
 
 func markToolMessageFailed(msg *schema.Message, reason string) {

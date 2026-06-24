@@ -11,7 +11,6 @@ import (
 	toolutils "github.com/cloudwego/eino/components/tool/utils"
 	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/domain"
-	storecore "github.com/ycvk/acorn/internal/store"
 )
 
 type progressToolFunc[I, O any] func(ctx context.Context, input I, emit ToolProgressEmitter) (O, error)
@@ -68,8 +67,8 @@ func emitToolProgress(ctx context.Context, emit ToolProgressEmitter, delta strin
 }
 
 type OperatorQuestionStore interface {
-	CreatePendingAction(ctx context.Context, input storecore.CreatePendingActionInput) (*domain.PendingActionRecord, error)
-	AppendEventContext(ctx context.Context, runID, kind string, payload any) (domain.EventRecord, error)
+	CreatePendingAction(ctx context.Context, input domain.PendingActionInput) (*domain.PendingActionRecord, error)
+	AppendEvent(ctx context.Context, runID, kind string, payload any) (domain.EventRecord, error)
 }
 
 type AskOperatorInput struct {
@@ -136,7 +135,7 @@ func interruptAskOperator(ctx context.Context, store OperatorQuestionStore, brid
 	if err != nil {
 		return AskOperatorOutput{}, fmt.Errorf("marshal operator question payload: %w", err)
 	}
-	record, err := store.CreatePendingAction(ctx, storecore.CreatePendingActionInput{
+	record, err := store.CreatePendingAction(ctx, domain.PendingActionInput{
 		ActionID:    actionID,
 		RunID:       runID,
 		Kind:        domain.PendingActionKindOperatorQuestion,
@@ -154,7 +153,7 @@ func interruptAskOperator(ctx context.Context, store OperatorQuestionStore, brid
 		"options":        payload.Options,
 		"allow_freeform": payload.AllowFreeform,
 	}
-	if _, err := store.AppendEventContext(ctx, runID, "operator_question.pending", eventPayload); err != nil {
+	if _, err := store.AppendEvent(ctx, runID, "operator_question.pending", eventPayload); err != nil {
 		return AskOperatorOutput{}, fmt.Errorf("append operator_question.pending event: %w", err)
 	}
 	if err := emitToolProgress(ctx, emit, fmt.Sprintf("waiting for operator answer %s", record.ActionID)); err != nil {

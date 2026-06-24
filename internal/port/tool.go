@@ -1,6 +1,9 @@
 package port
 
 import (
+	"fmt"
+	"strings"
+
 	einotool "github.com/cloudwego/eino/components/tool"
 )
 
@@ -9,7 +12,7 @@ type ToolLoadingMode string
 const (
 	ToolLoadingModeEager    ToolLoadingMode = "eager"
 	ToolLoadingModeDeferred ToolLoadingMode = "deferred"
-	ToolLoadingModeHidden   ToolLoadingMode = "hidden"
+	ToolLoadingModeHidden  ToolLoadingMode = "hidden"
 )
 
 type ToolLoadingPolicy struct {
@@ -42,6 +45,9 @@ const (
 type ToolCategory string
 
 const (
+	ToolCategoryRead        ToolCategory = "read"
+	ToolCategoryWrite       ToolCategory = "write"
+	ToolCategoryExecute     ToolCategory = "execute"
 	ToolCategoryInspect     ToolCategory = "inspect"
 	ToolCategoryMutation    ToolCategory = "mutation"
 	ToolCategoryMemory      ToolCategory = "memory"
@@ -54,6 +60,7 @@ type HealthState string
 
 const (
 	HealthStateHealthy  HealthState = "healthy"
+	HealthStateDegraded HealthState = "degraded"
 	HealthStateDisabled HealthState = "disabled"
 )
 
@@ -71,8 +78,46 @@ type ToolContract struct {
 	Execution ToolExecutionPolicy
 }
 
+func (c ToolContract) Normalized() ToolContract {
+	c.Name = strings.TrimSpace(c.Name)
+	c.Source = strings.TrimSpace(c.Source)
+	c.Loading.Reason = strings.TrimSpace(c.Loading.Reason)
+	c.Execution.PathArg = strings.TrimSpace(c.Execution.PathArg)
+	return c
+}
+
+func (c ToolContract) Validate() error {
+	c = c.Normalized()
+	if c.Name == "" {
+		return fmt.Errorf("tool contract: name is required")
+	}
+	if c.Kind == "" {
+		return fmt.Errorf("tool contract %q: kind is required", c.Name)
+	}
+	if c.Category == "" {
+		return fmt.Errorf("tool contract %q: category is required", c.Name)
+	}
+	if c.Loading.Mode == "" {
+		return fmt.Errorf("tool contract %q: loading mode is required", c.Name)
+	}
+	switch c.Loading.Mode {
+	case ToolLoadingModeEager, ToolLoadingModeDeferred, ToolLoadingModeHidden:
+	default:
+		return fmt.Errorf("tool contract %q: unknown loading mode %q", c.Name, c.Loading.Mode)
+	}
+	if c.Execution.ParallelPolicy == "" {
+		return fmt.Errorf("tool contract %q: parallel policy is required", c.Name)
+	}
+	if _, err := ParseParallelPolicy(string(c.Execution.ParallelPolicy)); err != nil {
+		return fmt.Errorf("tool contract %q: %w", c.Name, err)
+	}
+	return nil
+}
+
+// ToolSpec embeds ToolContract so callers can access spec.Name, spec.Kind, etc.
+// directly. It adds the tool implementation, health state, and origin flags.
 type ToolSpec struct {
-	Contract  ToolContract
+	ToolContract
 	Tool      einotool.BaseTool
 	Health    ToolHealth
 	IsMCP     bool
@@ -102,4 +147,15 @@ func EagerLoadingPolicy() ToolLoadingPolicy {
 
 func DeferredLoadingPolicy(reason string) ToolLoadingPolicy {
 	return ToolLoadingPolicy{Mode: ToolLoadingModeDeferred, Reason: reason}
+}
+
+func ParseParallelPolicy(raw string) (ParallelPolicy, error) {
+	switch strings.TrimSpace(strings.ToLower(raw)) {
+	case "readonly", "read_only":
+		return ParallelPolicyReadOnly, nil
+	case "serial":
+		return ParallelPolicySerial, nil
+	default:
+		return "", fmt.Errorf("unknown tool parallel policy %q: valid values are readonly|read_only, serial", raw)
+	}
 }

@@ -11,7 +11,7 @@ import (
 	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/memory"
 	"github.com/ycvk/acorn/internal/skills"
-	"github.com/ycvk/acorn/internal/tools"
+	"github.com/ycvk/acorn/internal/port"
 )
 
 type ContextPlane interface {
@@ -25,7 +25,7 @@ type AssembleRequest struct {
 	SelectedSkill  *SelectedSkill
 	SkillSnapshot  *skills.Snapshot
 	MemoryPrepared *memory.PrepareResult
-	ToolCatalog    *tools.Catalog
+	ToolCatalog    port.Catalog
 }
 
 type AssembleResult struct {

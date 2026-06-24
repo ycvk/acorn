@@ -1,4 +1,4 @@
-package tooldispatch
+package tools
 
 import (
 	"context"
@@ -9,7 +9,8 @@ import (
 	"time"
 
 	"github.com/cloudwego/eino/schema"
-	"github.com/ycvk/acorn/internal/tools"
+
+	"github.com/ycvk/acorn/internal/port"
 )
 
 // StreamingToolExecutor submits tool calls and collects results in streaming fashion.
@@ -85,7 +86,7 @@ func (e *StreamingToolExecutor) Submit(call schema.ToolCall) {
 		argsErr = unmarshalErr.Error()
 	}
 
-	policy := tools.ToolExecutionPolicy{ParallelPolicy: tools.ParallelPolicySerial}
+	policy := port.ToolExecutionPolicy{ParallelPolicy: port.ParallelPolicySerial}
 	isSafe := false
 	var paths []string
 	if argsErr == "" {
@@ -93,10 +94,10 @@ func (e *StreamingToolExecutor) Submit(call schema.ToolCall) {
 		if policyErr == nil {
 			policy = resolvedPolicy
 		}
-		isSafe = policy.ParallelPolicy == tools.ParallelPolicyReadOnly
+		isSafe = policy.ParallelPolicy == port.ParallelPolicyReadOnly
 		if strings.TrimSpace(policy.PathArg) != "" {
 			var pathErr error
-			paths, pathErr = executionPathsFromArgs(args, policy.PathArg, policy.ParallelPolicy == tools.ParallelPolicySerial)
+			paths, pathErr = executionPathsFromArgs(args, policy.PathArg, policy.ParallelPolicy == port.ParallelPolicySerial)
 			if pathErr != nil {
 				argsErr = pathErr.Error()
 			}
@@ -154,14 +155,14 @@ func (e *StreamingToolExecutor) startExecution(st *submittedTool) {
 		call := classifiedCall{
 			index:    st.index,
 			toolCall: st.call,
-			safety:   tools.ParallelPolicySerial,
+			safety:   port.ParallelPolicySerial,
 			argsErr:  st.argsErr,
 			paths:    st.paths,
 		}
 		if len(st.paths) > 0 {
-			call.safety = tools.ParallelPolicySerial
+			call.safety = port.ParallelPolicySerial
 		} else if st.isSafe {
-			call.safety = tools.ParallelPolicyReadOnly
+			call.safety = port.ParallelPolicyReadOnly
 		}
 
 		msg, err := e.node.invokeSingle(e.siblingCtx, call)

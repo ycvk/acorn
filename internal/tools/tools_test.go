@@ -581,7 +581,7 @@ func TestAskOperatorCreatesPendingActionAndInterrupts(t *testing.T) {
 		t.Fatalf("sqlite.Open: %v", err)
 	}
 	t.Cleanup(func() { _ = store.Close() })
-	if err := store.CreateRun(context.Background(), "run_ask_operator", "choose path"); err != nil {
+	if err := store.CreateRun(context.Background(), domain.RunCreateParams{RunID: "run_ask_operator", Input: "choose path"}); err != nil {
 		t.Fatalf("create run: %v", err)
 	}
 	catalog, err := BuildCatalog(CatalogConfig{
@@ -728,7 +728,7 @@ func TestGitSummaryReturnsStatusDiffStatAndDiffArtifact(t *testing.T) {
 	if decoded.DiffArtifactID == "" || decoded.DiffArtifact == nil {
 		t.Fatalf("diff artifact missing: %+v", decoded)
 	}
-	read, err := artifactService.ReadRange(context.Background(), corestore.ArtifactReadRangeRequest{
+	read, err := artifactService.ReadArtifactRange(context.Background(), domain.ArtifactReadRangeRequest{
 		ArtifactID: decoded.DiffArtifactID,
 		Limit:      4096,
 	})
@@ -771,14 +771,14 @@ func TestRunVerificationWritesArtifactsAndKeepsFailureAsResult(t *testing.T) {
 	if decoded.Status != verificationStatusFailed || decoded.ExitCode != 7 {
 		t.Fatalf("status/exit = %s/%d, want failed/7", decoded.Status, decoded.ExitCode)
 	}
-	stdout, err := artifactService.ReadRange(context.Background(), corestore.ArtifactReadRangeRequest{
+	stdout, err := artifactService.ReadArtifactRange(context.Background(), domain.ArtifactReadRangeRequest{
 		ArtifactID: decoded.StdoutArtifactID,
 		Limit:      32,
 	})
 	if err != nil {
 		t.Fatalf("read stdout artifact: %v", err)
 	}
-	stderr, err := artifactService.ReadRange(context.Background(), corestore.ArtifactReadRangeRequest{
+	stderr, err := artifactService.ReadArtifactRange(context.Background(), domain.ArtifactReadRangeRequest{
 		ArtifactID: decoded.StderrArtifactID,
 		Limit:      32,
 	})
@@ -1106,32 +1106,32 @@ func (c fixedArtifactContext) CurrentToolCallID(context.Context) string {
 }
 
 type toolArtifactStore struct {
-	records map[string]corestore.ArtifactRecord
+	records map[string]domain.ArtifactRecord
 }
 
 func newToolArtifactStore() *toolArtifactStore {
-	return &toolArtifactStore{records: make(map[string]corestore.ArtifactRecord)}
+	return &toolArtifactStore{records: make(map[string]domain.ArtifactRecord)}
 }
 
-func (s *toolArtifactStore) SaveArtifact(_ context.Context, record corestore.ArtifactRecord) (corestore.ArtifactRecord, error) {
-	normalized, err := corestore.NormalizeArtifactRecord(record)
+func (s *toolArtifactStore) SaveArtifact(_ context.Context, record domain.ArtifactRecord) (domain.ArtifactRecord, error) {
+	normalized, err := store.NormalizeArtifactRecord(record)
 	if err != nil {
-		return corestore.ArtifactRecord{}, err
+		return domain.ArtifactRecord{}, err
 	}
 	s.records[normalized.ArtifactID] = normalized
 	return normalized, nil
 }
 
-func (s *toolArtifactStore) LoadArtifact(_ context.Context, artifactID string) (corestore.ArtifactRecord, error) {
+func (s *toolArtifactStore) LoadArtifact(_ context.Context, artifactID string) (domain.ArtifactRecord, error) {
 	record, ok := s.records[strings.TrimSpace(artifactID)]
 	if !ok {
-		return corestore.ArtifactRecord{}, corestore.ErrArtifactNotFound
+		return domain.ArtifactRecord{}, store.ErrArtifactNotFound
 	}
 	return record, nil
 }
 
-func (s *toolArtifactStore) ListArtifactsByRun(_ context.Context, runID string) ([]corestore.ArtifactRecord, error) {
-	var items []corestore.ArtifactRecord
+func (s *toolArtifactStore) ListArtifactsByRun(_ context.Context, runID string) ([]domain.ArtifactRecord, error) {
+	var items []domain.ArtifactRecord
 	for _, record := range s.records {
 		if record.RunID == strings.TrimSpace(runID) {
 			items = append(items, record)
@@ -1140,8 +1140,8 @@ func (s *toolArtifactStore) ListArtifactsByRun(_ context.Context, runID string) 
 	return items, nil
 }
 
-func (s *toolArtifactStore) ListArtifactsBySession(_ context.Context, sessionID string) ([]corestore.ArtifactRecord, error) {
-	var items []corestore.ArtifactRecord
+func (s *toolArtifactStore) ListArtifactsBySession(_ context.Context, sessionID string) ([]domain.ArtifactRecord, error) {
+	var items []domain.ArtifactRecord
 	for _, record := range s.records {
 		if record.SessionID == strings.TrimSpace(sessionID) {
 			items = append(items, record)
