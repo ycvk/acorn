@@ -208,7 +208,7 @@ func (r *toolRegistry) Resolve(ctx context.Context, runCtx core.RunContext, name
 }
 
 // normalizeCoreSpec trims the human-editable string fields of a core.ToolSpec
-// the same way the existing port-backed normalizeSpec trims a port.ToolSpec,
+// the same way the existing port-backed normalizeSpec trims a core.ToolSpec,
 // without invoking the tool (which requires a concrete instance).
 func normalizeCoreSpec(spec core.ToolSpec) core.ToolSpec {
 	spec.ToolContract = spec.ToolContract.Normalized()

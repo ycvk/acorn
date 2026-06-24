@@ -5,9 +5,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/ycvk/acorn/internal/clientevents"
 	"github.com/ycvk/acorn/internal/config"
-	"github.com/ycvk/acorn/internal/domain"
+	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/memory"
 	"github.com/ycvk/acorn/internal/skills"
 )
@@ -20,8 +19,8 @@ type RunServiceAPI interface {
 }
 
 type EventServiceAPI interface {
-	LoadRunEventsAfter(ctx context.Context, runID string, afterSeq int64) (*clientevents.RunEventBatch, error)
-	LoadRunEventsForDetail(ctx context.Context, runID string) (*clientevents.RunEventDetail, error)
+	LoadRunEventsAfter(ctx context.Context, runID string, afterSeq int64) (*core.RunEventBatch, error)
+	LoadRunEventsForDetail(ctx context.Context, runID string) (*core.RunEventDetail, error)
 	ListRunArtifacts(ctx context.Context, runID string) ([]ArtifactSummary, error)
 	EventPollInterval() time.Duration
 }
@@ -39,7 +38,7 @@ type ThreadServiceAPI interface {
 type PendingActionServiceAPI interface {
 	List(ctx context.Context, limit int) ([]PendingActionSummary, error)
 	Get(ctx context.Context, actionID string) (*PendingActionDetail, error)
-	Decide(ctx context.Context, actionID string, input PendingActionDecisionInput) (*domain.PendingActionRecord, error)
+	Decide(ctx context.Context, actionID string, input PendingActionDecisionInput) (*core.PendingActionRecord, error)
 }
 
 type RunResumeServiceAPI interface {

@@ -10,7 +10,7 @@ import (
 	"github.com/cloudwego/eino/adk"
 	einomodel "github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/schema"
-	"github.com/ycvk/acorn/internal/domain"
+	"github.com/ycvk/acorn/internal/core"
 )
 
 type assistantStreamAccumulator struct {
@@ -36,8 +36,8 @@ func (a *assistantStreamAccumulator) append(delta string) int {
 type assistantStreamOptions struct {
 	MessageID string
 	RunID     string
-	Appender  domain.EventAppender
-	Sink      domain.StreamSink
+	Appender  core.EventAppender
+	Sink      core.StreamSink
 	ToolInfos []*schema.ToolInfo
 	CallSite  string
 }
@@ -47,7 +47,7 @@ func streamAssistantMessage(
 	model einomodel.BaseChatModel,
 	messages []*schema.Message,
 	opts assistantStreamOptions,
-) (*domain.AssistantStreamResult, error) {
+) (*core.AssistantStreamResult, error) {
 	if model == nil {
 		return nil, fmt.Errorf("assistant stream requires chat model")
 	}
@@ -57,9 +57,9 @@ func streamAssistantMessage(
 	}
 	callSite := opts.CallSite
 	if callSite == "" {
-		callSite = domain.CallSiteAssistant
+		callSite = core.CallSiteAssistant
 	}
-	modelStream, err := model.Stream(domain.WithCallSite(ctx, callSite), messages, streamOpts...)
+	modelStream, err := model.Stream(core.WithCallSite(ctx, callSite), messages, streamOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -88,11 +88,11 @@ func streamAssistantMessage(
 		}
 		if opts.Appender != nil || opts.Sink != nil {
 			sequence := accumulator.append(frame.Content)
-			item := domain.StreamItem{
+			item := core.StreamItem{
 				RunID: opts.RunID,
-				Kind:  domain.StreamKindAssistantDelta,
+				Kind:  core.StreamKindAssistantDelta,
 				Payload: map[string]any{
-					"assistant_delta": &domain.StreamAssistantDelta{
+					"assistant_delta": &core.StreamAssistantDelta{
 						Role:      string(frame.Role),
 						Delta:     frame.Content,
 						Reasoning: frame.ReasoningContent,
@@ -124,30 +124,30 @@ func streamAssistantMessage(
 	if err != nil {
 		return nil, fmt.Errorf("concat assistant stream: %w", err)
 	}
-	return &domain.AssistantStreamResult{
+	return &core.AssistantStreamResult{
 		Message:    finalMessage,
 		StopReason: normalizeAssistantStopReason(finalMessage),
 		RawReason:  assistantRawFinishReason(finalMessage),
 	}, nil
 }
 
-func normalizeAssistantStopReason(message *schema.Message) domain.AssistantStopReason {
+func normalizeAssistantStopReason(message *schema.Message) core.AssistantStopReason {
 	if message == nil {
-		return domain.AssistantStopReasonEndTurn
+		return core.AssistantStopReasonEndTurn
 	}
 	raw := assistantRawFinishReason(message)
 	switch raw {
 	case "", "stop", "end_turn", "null":
 		if len(message.ToolCalls) > 0 {
-			return domain.AssistantStopReasonToolCalls
+			return core.AssistantStopReasonToolCalls
 		}
-		return domain.AssistantStopReasonEndTurn
+		return core.AssistantStopReasonEndTurn
 	case "tool_calls", "tool_use":
-		return domain.AssistantStopReasonToolCalls
+		return core.AssistantStopReasonToolCalls
 	case "length", "max_tokens", "max_output_tokens", "model_context_window_exceeded":
-		return domain.AssistantStopReasonMaxOutput
+		return core.AssistantStopReasonMaxOutput
 	default:
-		return domain.AssistantStopReasonUnknown
+		return core.AssistantStopReasonUnknown
 	}
 }
 
@@ -158,13 +158,13 @@ func assistantRawFinishReason(message *schema.Message) string {
 	return strings.TrimSpace(strings.ToLower(message.ResponseMeta.FinishReason))
 }
 
-func streamPlannedToolCalls(calls []schema.ToolCall) []domain.StreamPlannedToolCall {
+func streamPlannedToolCalls(calls []schema.ToolCall) []core.StreamPlannedToolCall {
 	if len(calls) == 0 {
 		return nil
 	}
-	out := make([]domain.StreamPlannedToolCall, 0, len(calls))
+	out := make([]core.StreamPlannedToolCall, 0, len(calls))
 	for _, call := range calls {
-		out = append(out, domain.StreamPlannedToolCall{
+		out = append(out, core.StreamPlannedToolCall{
 			ID:            call.ID,
 			Name:          call.Function.Name,
 			ArgumentsJSON: call.Function.Arguments,
@@ -193,13 +193,13 @@ func activeProviderName(chatModel einomodel.BaseChatModel) string {
 	return ""
 }
 
-func StreamItemsFromAgentEvent(event *adk.AgentEvent, chatModel einomodel.BaseChatModel) []domain.StreamItem {
-	items := make([]domain.StreamItem, 0, 3)
+func StreamItemsFromAgentEvent(event *adk.AgentEvent, chatModel einomodel.BaseChatModel) []core.StreamItem {
+	items := make([]core.StreamItem, 0, 3)
 	createdAt := time.Now().UTC()
 	if event.Output != nil && event.Output.MessageOutput != nil {
 		if message, err := event.Output.MessageOutput.GetMessage(); err == nil && message != nil {
-			items = append(items, domain.StreamItem{
-				Kind:      domain.StreamKindAssistantMessage,
+			items = append(items, core.StreamItem{
+				Kind:      core.StreamKindAssistantMessage,
 				CreatedAt: createdAt,
 				Payload: map[string]any{
 					"message": StreamMessageFromSchema(message, activeProviderName(chatModel)),
@@ -208,8 +208,8 @@ func StreamItemsFromAgentEvent(event *adk.AgentEvent, chatModel einomodel.BaseCh
 		}
 	}
 	if event.Action != nil && event.Action.Interrupted != nil {
-		items = append(items, domain.StreamItem{
-			Kind:      domain.StreamKindRunInterrupted,
+		items = append(items, core.StreamItem{
+			Kind:      core.StreamKindRunInterrupted,
 			CreatedAt: createdAt,
 			Payload: map[string]any{
 				"interrupt": streamInterruptFromInfo(event.Action.Interrupted),
@@ -217,8 +217,8 @@ func StreamItemsFromAgentEvent(event *adk.AgentEvent, chatModel einomodel.BaseCh
 		})
 	}
 	if event.Err != nil {
-		items = append(items, domain.StreamItem{
-			Kind:      domain.StreamKindRunFailed,
+		items = append(items, core.StreamItem{
+			Kind:      core.StreamKindRunFailed,
 			CreatedAt: createdAt,
 			Payload: map[string]any{
 				"error": event.Err.Error(),
@@ -228,11 +228,11 @@ func StreamItemsFromAgentEvent(event *adk.AgentEvent, chatModel einomodel.BaseCh
 	return items
 }
 
-func StreamMessageFromSchema(message *schema.Message, activeProvider string) *domain.StreamMessage {
+func StreamMessageFromSchema(message *schema.Message, activeProvider string) *core.StreamMessage {
 	if message == nil {
 		return nil
 	}
-	stream := &domain.StreamMessage{
+	stream := &core.StreamMessage{
 		Role:       string(message.Role),
 		Content:    strings.TrimSpace(message.Content),
 		Reasoning:  strings.TrimSpace(message.ReasoningContent),
@@ -244,9 +244,9 @@ func StreamMessageFromSchema(message *schema.Message, activeProvider string) *do
 		meta["active_provider"] = activeProvider
 	}
 	if len(message.ToolCalls) > 0 {
-		stream.ToolCalls = make([]domain.StreamPlannedToolCall, 0, len(message.ToolCalls))
+		stream.ToolCalls = make([]core.StreamPlannedToolCall, 0, len(message.ToolCalls))
 		for _, call := range message.ToolCalls {
-			stream.ToolCalls = append(stream.ToolCalls, domain.StreamPlannedToolCall{
+			stream.ToolCalls = append(stream.ToolCalls, core.StreamPlannedToolCall{
 				ID:            call.ID,
 				Name:          call.Function.Name,
 				ArgumentsJSON: call.Function.Arguments,
@@ -259,16 +259,16 @@ func StreamMessageFromSchema(message *schema.Message, activeProvider string) *do
 	return stream
 }
 
-func streamInterruptFromInfo(info *adk.InterruptInfo) *domain.StreamInterrupt {
+func streamInterruptFromInfo(info *adk.InterruptInfo) *core.StreamInterrupt {
 	if info == nil {
 		return nil
 	}
-	interrupt := &domain.StreamInterrupt{ContextCount: len(info.InterruptContexts), Contexts: make([]domain.StreamInterruptContext, 0, len(info.InterruptContexts))}
+	interrupt := &core.StreamInterrupt{ContextCount: len(info.InterruptContexts), Contexts: make([]core.StreamInterruptContext, 0, len(info.InterruptContexts))}
 	for _, item := range info.InterruptContexts {
-		interrupt.Contexts = append(interrupt.Contexts, domain.StreamInterruptContext{
+		interrupt.Contexts = append(interrupt.Contexts, core.StreamInterruptContext{
 			ID:          item.ID,
 			Address:     fmt.Sprint(item.Address),
-			Info:        domain.CompactInterruptInfo(item.Info),
+			Info:        core.CompactInterruptInfo(item.Info),
 			IsRootCause: item.IsRootCause,
 		})
 	}

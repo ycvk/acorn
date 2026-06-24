@@ -8,7 +8,6 @@ import (
 
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
-	"github.com/ycvk/acorn/internal/port"
 )
 
 // builtinToolOrder is the canonical list of dynamically-registered built-in
@@ -37,45 +36,45 @@ var builtinToolOrder = []string{
 // builtinToolContract returns the contract template (without Source/Profiles,
 // which are caller-supplied) for a built-in tool. ok is false for any name that
 // is not a built-in tool (e.g. MCP tools), which callers resolve elsewhere.
-func builtinToolContract(name string) (port.ToolContract, bool) {
-	c := port.ToolContract{
+func builtinToolContract(name string) (core.ToolContract, bool) {
+	c := core.ToolContract{
 		Name:      name,
-		Loading:   port.EagerLoadingPolicy(),
-		Execution: port.ToolExecutionPolicy{ParallelPolicy: port.ParallelPolicyReadOnly},
+		Loading:   core.EagerLoadingPolicy(),
+		Execution: core.ToolExecutionPolicy{ParallelPolicy: core.ParallelPolicyReadOnly},
 	}
 	switch name {
 	case "load_tools":
-		c.Kind = port.ToolKindNative
-		c.Category = port.ToolCategoryInspect
-		c.Execution.ParallelPolicy = port.ParallelPolicySerial
+		c.Kind = core.ToolKindNative
+		c.Category = core.ToolCategoryInspect
+		c.Execution.ParallelPolicy = core.ParallelPolicySerial
 	case "ask_operator":
-		c.Kind = port.ToolKindNative
-		c.Category = port.ToolCategoryIntegration
-		c.Execution.ParallelPolicy = port.ParallelPolicySerial
+		c.Kind = core.ToolKindNative
+		c.Category = core.ToolCategoryIntegration
+		c.Execution.ParallelPolicy = core.ParallelPolicySerial
 	case "update_working_checkpoint", "clear_working_checkpoint":
-		c.Kind = port.ToolKindMemory
-		c.Category = port.ToolCategoryMemory
-		c.Loading = port.DeferredLoadingPolicy("working_state_tool")
-		c.Execution.ParallelPolicy = port.ParallelPolicySerial
+		c.Kind = core.ToolKindMemory
+		c.Category = core.ToolCategoryMemory
+		c.Loading = core.DeferredLoadingPolicy("working_state_tool")
+		c.Execution.ParallelPolicy = core.ParallelPolicySerial
 	case "memory_search", "memory_read_file", "memory_list_files":
-		c.Kind = port.ToolKindMemory
-		c.Category = port.ToolCategoryMemory
-		c.Execution.ParallelPolicy = port.ParallelPolicyReadOnly
+		c.Kind = core.ToolKindMemory
+		c.Category = core.ToolCategoryMemory
+		c.Execution.ParallelPolicy = core.ParallelPolicyReadOnly
 	case "memory_create_file", "memory_replace_span":
-		c.Kind = port.ToolKindMemory
-		c.Category = port.ToolCategoryMemory
-		c.Execution.ParallelPolicy = port.ParallelPolicySerial
+		c.Kind = core.ToolKindMemory
+		c.Category = core.ToolCategoryMemory
+		c.Execution.ParallelPolicy = core.ParallelPolicySerial
 		c.Execution.PathArg = "path"
 	case "remember":
-		c.Kind = port.ToolKindMemory
-		c.Category = port.ToolCategoryMemory
-		c.Execution.ParallelPolicy = port.ParallelPolicySerial
+		c.Kind = core.ToolKindMemory
+		c.Category = core.ToolCategoryMemory
+		c.Execution.ParallelPolicy = core.ParallelPolicySerial
 	case "skill_list", "skill_view":
-		c.Kind = port.ToolKindSkill
-		c.Category = port.ToolCategorySkill
-		c.Execution.ParallelPolicy = port.ParallelPolicyReadOnly
+		c.Kind = core.ToolKindSkill
+		c.Category = core.ToolCategorySkill
+		c.Execution.ParallelPolicy = core.ParallelPolicyReadOnly
 	default:
-		return port.ToolContract{}, false
+		return core.ToolContract{}, false
 	}
 	return c, true
 }
@@ -83,10 +82,10 @@ func builtinToolContract(name string) (port.ToolContract, bool) {
 // BuiltinToolSpec resolves the full contract for a built-in tool, applying the
 // caller-supplied source to the canonical contract template. It returns ok=false
 // for names that are not built-in toolset.
-func BuiltinToolSpec(name, source string) (port.ToolContract, bool) {
+func BuiltinToolSpec(name, source string) (core.ToolContract, bool) {
 	c, ok := builtinToolContract(name)
 	if !ok {
-		return port.ToolContract{}, false
+		return core.ToolContract{}, false
 	}
 	c.Source = source
 	return c, true
@@ -100,7 +99,7 @@ func BuiltinToolNames() []string {
 	names := make([]string, 0, len(builtinToolOrder))
 	for _, name := range builtinToolOrder {
 		contract, ok := builtinToolContract(name)
-		if ok && contract.Loading.Mode == port.ToolLoadingModeEager {
+		if ok && contract.Loading.Mode == core.ToolLoadingModeEager {
 			names = append(names, name)
 		}
 	}
@@ -266,12 +265,12 @@ func nativeToolBuilder(name string, cfg CatalogConfig) func(context.Context, cor
 	}
 }
 
-// portSpecToCoreSpec converts a port.ToolSpec into a core.ToolSpec, attaching
+// portSpecToCoreSpec converts a core.ToolSpec into a core.ToolSpec, attaching
 // the given factory. port and core define their enums as identical string
 // values (verified constant-for-constant), so the conversion is a direct type
 // cast with no remapping. If the two packages ever diverge, this is the single
 // place to add a mapping table.
-func portSpecToCoreSpec(spec port.ToolSpec, factory core.ToolFactory) core.ToolSpec {
+func portSpecToCoreSpec(spec core.ToolSpec, factory core.ToolFactory) core.ToolSpec {
 	return core.ToolSpec{
 		ToolContract: core.ToolContract{
 			Name:      spec.Name,
@@ -288,7 +287,7 @@ func portSpecToCoreSpec(spec port.ToolSpec, factory core.ToolFactory) core.ToolS
 
 // RegisterNativeTools registers every static local tool declared by
 // localToolDefs/configuredLocalSpec into the core.ToolRegistry. For each tool
-// it derives the port.ToolSpec (the existing single source of truth for tool
+// it derives the core.ToolSpec (the existing single source of truth for tool
 // identity and enable rules), converts it to a core.ToolSpec, and attaches a
 // Factory that calls the existing per-tool builder under the supplied
 // CatalogConfig.

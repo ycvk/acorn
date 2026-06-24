@@ -113,7 +113,7 @@ func TestDependencyDirectionNoCycle(t *testing.T) {
 // referenced by name without using store types.
 //
 // This is a pragmatic guard: the ideal end-state is that all packages use
-// port.*Repo or contract.StoreView, but the current refactor still has
+// core.*Repo or api.StoreView, but the current refactor still has
 // sentinel error references in api/ and internal/mcp/. These are tracked
 // as technical debt and should be migrated to domain-level sentinels.
 func TestNoDirectStoreImportOutsideWire(t *testing.T) {

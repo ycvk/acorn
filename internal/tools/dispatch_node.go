@@ -12,9 +12,7 @@ import (
 	"github.com/cloudwego/eino/components"
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/compose"
-	cp "github.com/ycvk/acorn/internal/context"
-	"github.com/ycvk/acorn/internal/domain"
-	"github.com/ycvk/acorn/internal/port"
+	"github.com/ycvk/acorn/internal/core"
 
 	"github.com/cloudwego/eino/schema"
 )
@@ -36,7 +34,7 @@ type toolEntry struct {
 func NewSafeParallelToolsNode(
 	ctx context.Context,
 	tools []einotool.BaseTool,
-	resolver port.ExecutionPolicyResolver,
+	resolver core.ExecutionPolicyResolver,
 ) (*SafeParallelToolsNode, error) {
 	if ctx == nil {
 		return nil, fmt.Errorf("safe parallel tools node: context is required")
@@ -85,7 +83,7 @@ func (n *SafeParallelToolsNode) NewStreamingExecutor(ctx context.Context) Stream
 }
 
 func (n *SafeParallelToolsNode) invokeSingle(ctx context.Context, call classifiedCall) (*schema.Message, error) {
-	resultRef := buildToolResultRef(domain.GetRunID(ctx), call.toolCall.ID)
+	resultRef := buildToolResultRef(core.GetRunID(ctx), call.toolCall.ID)
 	if err := emitToolCallLifecycle(ctx, call); err != nil {
 		return nil, err
 	}
@@ -124,7 +122,7 @@ func (n *SafeParallelToolsNode) invokeSingle(ctx context.Context, call classifie
 		}
 		msg := schema.ToolMessage(errorContent, call.toolCall.ID, schema.WithToolName(call.toolCall.Function.Name))
 		attachToolMessageLedgerMeta(msg, call, resultRef)
-		_ = domain.TurnIndexFromContext(ctx) // TODO(phase7): restore context.AnnotateMessageTurn
+		_ = core.TurnIndexFromContext(ctx) // TODO(phase7): restore context.AnnotateMessageTurn
 		markToolMessageFailed(msg, err.Error())
 		if err := emitToolResultLifecycle(ctx, msg); err != nil {
 			return nil, err
@@ -133,7 +131,7 @@ func (n *SafeParallelToolsNode) invokeSingle(ctx context.Context, call classifie
 	}
 	msg := schema.ToolMessage(result, call.toolCall.ID, schema.WithToolName(call.toolCall.Function.Name))
 	attachToolMessageLedgerMeta(msg, call, resultRef)
-	_ = domain.TurnIndexFromContext(ctx) // TODO(phase7): restore context.AnnotateMessageTurn
+	_ = core.TurnIndexFromContext(ctx) // TODO(phase7): restore context.AnnotateMessageTurn
 	if err := attachToolSideEffects(msg, call.toolCall.Function.Name, result); err != nil {
 		return nil, err
 	}
@@ -204,10 +202,10 @@ func toolCallbackType(tool einotool.InvokableTool) string {
 }
 
 func emitToolCallLifecycle(ctx context.Context, call classifiedCall) error {
-	return cp.OnToolCall(ctx, cp.ToolCallEvent{
-		RunID:     domain.GetRunID(ctx),
-		SessionID: domain.SessionIDFromContext(ctx),
-		TurnIndex: domain.TurnIndexFromContext(ctx),
+	return OnToolCall(ctx, ToolCallEvent{
+		RunID:     core.GetRunID(ctx),
+		SessionID: core.GetSessionID(ctx),
+		TurnIndex: core.TurnIndexFromContext(ctx),
 		CallID:    call.toolCall.ID,
 		ToolName:  call.toolCall.Function.Name,
 		Arguments: call.toolCall.Function.Arguments,
@@ -236,10 +234,10 @@ func emitToolResultLifecycle(ctx context.Context, msg *schema.Message) error {
 			arguments = value
 		}
 	}
-	return cp.OnToolResult(ctx, cp.ToolResultEvent{
-		RunID:        domain.GetRunID(ctx),
-		SessionID:    domain.SessionIDFromContext(ctx),
-		TurnIndex:    domain.TurnIndexFromContext(ctx),
+	return OnToolResult(ctx, ToolResultEvent{
+		RunID:        core.GetRunID(ctx),
+		SessionID:    core.GetSessionID(ctx),
+		TurnIndex:    core.TurnIndexFromContext(ctx),
 		CallID:       msg.ToolCallID,
 		ToolName:     msg.ToolName,
 		Arguments:    arguments,

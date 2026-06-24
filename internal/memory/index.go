@@ -44,7 +44,7 @@ type SkillTreeIndex struct {
 	Categories map[string]*SkillCategory
 }
 
-// SkillCategory groups skills by domain.
+// SkillCategory groups skills by core.
 type SkillCategory struct {
 	Name        string
 	Description string

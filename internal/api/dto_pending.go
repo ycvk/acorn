@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 
 	"github.com/ycvk/acorn/internal/config"
-	"github.com/ycvk/acorn/internal/domain"
+	"github.com/ycvk/acorn/internal/core"
 )
 
 type DecidePendingActionRequest struct {
@@ -53,7 +53,7 @@ type PendingActionOptionDTO struct {
 	Description string `json:"description,omitempty"`
 }
 
-func pendingActionDecisionDTOFromDomain(record domain.PendingActionRecord) PendingActionDecisionDTO {
+func pendingActionDecisionDTOFromDomain(record core.PendingActionRecord) PendingActionDecisionDTO {
 	status := string(record.Status)
 	decision, selectedOptionID, answer := parsePendingActionDecision(record)
 	return PendingActionDecisionDTO{
@@ -66,7 +66,7 @@ func pendingActionDecisionDTOFromDomain(record domain.PendingActionRecord) Pendi
 	}
 }
 
-func parsePendingActionDecision(record domain.PendingActionRecord) (string, string, string) {
+func parsePendingActionDecision(record core.PendingActionRecord) (string, string, string) {
 	var payload struct {
 		Action           string `json:"action"`
 		SelectedOptionID string `json:"selected_option_id"`

@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/ycvk/acorn/internal/clientevents"
+	"github.com/ycvk/acorn/internal/core"
 )
 
 type clientSSEWriter struct {
@@ -33,7 +33,7 @@ func (s *clientSSEWriter) Start() {
 	}
 }
 
-func (s *clientSSEWriter) Sink(event clientevents.RunEvent) error {
+func (s *clientSSEWriter) Sink(event core.RunEvent) error {
 	body, err := json.Marshal(event)
 	if err != nil {
 		return err

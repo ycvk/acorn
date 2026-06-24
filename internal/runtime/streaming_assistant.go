@@ -7,7 +7,7 @@ import (
 
 	einomodel "github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/schema"
-	"github.com/ycvk/acorn/internal/domain"
+	"github.com/ycvk/acorn/internal/core"
 )
 
 func streamAssistantInterleaved(
@@ -15,20 +15,20 @@ func streamAssistantInterleaved(
 	model einomodel.BaseChatModel,
 	messages []*schema.Message,
 	opts assistantStreamOptions,
-) *domain.InterleavedStream {
+) *core.InterleavedStream {
 	streamOpts := make([]einomodel.Option, 0, 1)
 	if len(opts.ToolInfos) > 0 {
 		streamOpts = append(streamOpts, einomodel.WithTools(opts.ToolInfos))
 	}
 	callSite := opts.CallSite
 	if callSite == "" {
-		callSite = domain.CallSiteAssistant
+		callSite = core.CallSiteAssistant
 	}
-	modelStream, err := model.Stream(domain.WithCallSite(ctx, callSite), messages, streamOpts...)
+	modelStream, err := model.Stream(core.WithCallSite(ctx, callSite), messages, streamOpts...)
 
-	s := &domain.InterleavedStream{
+	s := &core.InterleavedStream{
 		ToolCallCh:     make(chan schema.ToolCall, 8),
-		FinalMessageCh: make(chan domain.AssistantStreamResult, 1),
+		FinalMessageCh: make(chan core.AssistantStreamResult, 1),
 		ErrCh:          make(chan error, 1),
 	}
 
@@ -55,7 +55,7 @@ func streamAssistantInterleaved(
 
 		accumulator := newAssistantStreamAccumulator(opts.MessageID)
 		frames := make([]*schema.Message, 0, 4)
-		sink := domain.StreamSinkFromContext(ctx)
+		sink := core.StreamSinkFromContext(ctx)
 
 		for {
 			frame, recvErr := modelStream.Recv()
@@ -82,11 +82,11 @@ func streamAssistantInterleaved(
 				continue
 			}
 			sequence := accumulator.append(frame.Content)
-			item := domain.StreamItem{
+			item := core.StreamItem{
 				RunID: opts.RunID,
-				Kind:  domain.StreamKindAssistantDelta,
+				Kind:  core.StreamKindAssistantDelta,
 				Payload: map[string]any{
-					"assistant_delta": &domain.StreamAssistantDelta{
+					"assistant_delta": &core.StreamAssistantDelta{
 						Role:      string(frame.Role),
 						Delta:     frame.Content,
 						Reasoning: frame.ReasoningContent,
@@ -144,7 +144,7 @@ func streamAssistantInterleaved(
 		}
 
 		select {
-		case s.FinalMessageCh <- domain.AssistantStreamResult{
+		case s.FinalMessageCh <- core.AssistantStreamResult{
 			Message:    finalMessage,
 			StopReason: normalizeAssistantStopReason(finalMessage),
 			RawReason:  assistantRawFinishReason(finalMessage),
@@ -157,30 +157,30 @@ func streamAssistantInterleaved(
 }
 
 type directAssistantStreamer struct {
-	appender domain.EventAppender
+	appender core.EventAppender
 }
 
-func NewDirectAssistantStreamer(appender domain.EventAppender) *directAssistantStreamer {
+func NewDirectAssistantStreamer(appender core.EventAppender) *directAssistantStreamer {
 	return &directAssistantStreamer{appender: appender}
 }
 
-func (s *directAssistantStreamer) StreamAssistantMessage(ctx context.Context, req domain.AssistantStreamRequest) (*domain.AssistantStreamResult, error) {
+func (s *directAssistantStreamer) StreamAssistantMessage(ctx context.Context, req core.AssistantStreamRequest) (*core.AssistantStreamResult, error) {
 	return streamAssistantMessage(ctx, req.Model, req.Messages, assistantStreamOptions{
 		MessageID: req.MessageID,
 		RunID:     req.RunID,
 		Appender:  s.appender,
-		Sink:      domain.StreamSinkFromContext(ctx),
+		Sink:      core.StreamSinkFromContext(ctx),
 		ToolInfos: req.ToolInfos,
 		CallSite:  req.CallSite,
 	})
 }
 
-func (s *directAssistantStreamer) StreamAssistantInterleaved(ctx context.Context, req domain.AssistantStreamRequest) *domain.InterleavedStream {
+func (s *directAssistantStreamer) StreamAssistantInterleaved(ctx context.Context, req core.AssistantStreamRequest) *core.InterleavedStream {
 	return streamAssistantInterleaved(ctx, req.Model, req.Messages, assistantStreamOptions{
 		MessageID: req.MessageID,
 		RunID:     req.RunID,
 		Appender:  s.appender,
-		Sink:      domain.StreamSinkFromContext(ctx),
+		Sink:      core.StreamSinkFromContext(ctx),
 		ToolInfos: req.ToolInfos,
 		CallSite:  req.CallSite,
 	})

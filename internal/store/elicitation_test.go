@@ -3,13 +3,13 @@ package store
 import (
 	"testing"
 
-	"github.com/ycvk/acorn/internal/domain"
+	"github.com/ycvk/acorn/internal/core"
 )
 
 func TestNormalizePendingActionKindElicitation(t *testing.T) {
-	tests := []domain.PendingActionKind{
-		domain.PendingActionKindElicitation,
-		domain.PendingActionKindOperatorQuestion,
+	tests := []core.PendingActionKind{
+		core.PendingActionKindElicitation,
+		core.PendingActionKindOperatorQuestion,
 	}
 	for _, want := range tests {
 		got, err := normalizePendingActionKind(want)

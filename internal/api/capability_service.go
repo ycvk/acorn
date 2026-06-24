@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ycvk/acorn/internal/agent"
+	"github.com/ycvk/acorn/internal/runtime"
 	"github.com/ycvk/acorn/internal/config"
-	"github.com/ycvk/acorn/internal/port"
+	"github.com/ycvk/acorn/internal/core"
 	mcpprovider "github.com/ycvk/acorn/internal/mcp"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/tools"
@@ -119,10 +119,10 @@ type CapabilitiesService struct {
 	cfg            *config.Config
 	skills         func(ctx context.Context) (*skills.Snapshot, error)
 	probeProviders providerStatusDoctor
-	catalogBuilder *agent.RunnerFactory
+	catalogBuilder *runtime.RunnerFactory
 }
 
-func NewCapabilitiesService(cfg *config.Config, skills func(ctx context.Context) (*skills.Snapshot, error), probeProviders providerStatusDoctor, catalogBuilder *agent.RunnerFactory) *CapabilitiesService {
+func NewCapabilitiesService(cfg *config.Config, skills func(ctx context.Context) (*skills.Snapshot, error), probeProviders providerStatusDoctor, catalogBuilder *runtime.RunnerFactory) *CapabilitiesService {
 	return &CapabilitiesService{
 		cfg:            cfg,
 		skills:         skills,
@@ -244,7 +244,7 @@ func (s *CapabilitiesService) workspaceSettings() (string, int) {
 	return workspaceRoot, runCommandTimeout
 }
 
-func (s *CapabilitiesService) loadToolSpecs(ctx context.Context) ([]port.ToolSpec, error) {
+func (s *CapabilitiesService) loadToolSpecs(ctx context.Context) ([]core.ToolSpec, error) {
 	if s.catalogBuilder != nil {
 		specs, err := s.catalogBuilder.BuildCapabilitySpecs(ctx)
 		if err != nil {
@@ -269,8 +269,8 @@ func (s *CapabilitiesService) providerToolCapabilities(provider SystemMCPProvide
 		items = append(items, SystemToolCapability{
 			Name:           toolName,
 			Source:         provider.Name,
-			Kind:           string(port.ToolKindMCP),
-			Category:       string(port.ToolCategoryIntegration),
+			Kind:           string(core.ToolKindMCP),
+			Category:       string(core.ToolCategoryIntegration),
 			Enabled:        provider.Enabled && provider.Error == "",
 			HealthState:    providerHealthState(provider),
 			HealthReason:   strings.TrimSpace(provider.Error),
@@ -289,7 +289,7 @@ func mcpProviderParallelPolicy(cfg *config.Config, providerName string) (string,
 		if strings.TrimSpace(provider.Name) != strings.TrimSpace(providerName) {
 			continue
 		}
-		policy, err := port.ParseParallelPolicy(provider.ToolSafety)
+		policy, err := core.ParseParallelPolicy(provider.ToolSafety)
 		if err != nil {
 			return "", err
 		}
@@ -298,7 +298,7 @@ func mcpProviderParallelPolicy(cfg *config.Config, providerName string) (string,
 	return "", fmt.Errorf("MCP provider %q is not configured", strings.TrimSpace(providerName))
 }
 
-func toolCapabilityFromSpec(spec port.ToolSpec, workspaceRoot string, runCommandTimeout int) SystemToolCapability {
+func toolCapabilityFromSpec(spec core.ToolSpec, workspaceRoot string, runCommandTimeout int) SystemToolCapability {
 	item := SystemToolCapability{
 		Name:           spec.Name,
 		Source:         spec.Source,
@@ -313,17 +313,17 @@ func toolCapabilityFromSpec(spec port.ToolSpec, workspaceRoot string, runCommand
 	return item
 }
 
-func toolRisk(spec port.ToolSpec) string {
+func toolRisk(spec core.ToolSpec) string {
 	switch spec.Category {
-	case port.ToolCategoryRead, port.ToolCategoryInspect:
+	case core.ToolCategoryRead, core.ToolCategoryInspect:
 		return "read_only"
-	case port.ToolCategoryWrite:
+	case core.ToolCategoryWrite:
 		return "mutation"
-	case port.ToolCategoryExecute:
+	case core.ToolCategoryExecute:
 		return "escape_hatch"
-	case port.ToolCategoryMemory:
+	case core.ToolCategoryMemory:
 		return "memory"
-	case port.ToolCategorySkill:
+	case core.ToolCategorySkill:
 		return "skill"
 	default:
 		return "integration"
@@ -333,11 +333,11 @@ func toolRisk(spec port.ToolSpec) string {
 func providerHealthState(provider SystemMCPProviderCapability) string {
 	switch {
 	case !provider.Enabled:
-		return string(port.HealthStateDisabled)
+		return string(core.HealthStateDisabled)
 	case strings.TrimSpace(provider.Error) != "":
-		return string(port.HealthStateDegraded)
+		return string(core.HealthStateDegraded)
 	default:
-		return string(port.HealthStateHealthy)
+		return string(core.HealthStateHealthy)
 	}
 }
 

@@ -14,9 +14,8 @@ import (
 	"github.com/cloudwego/eino/schema"
 
 	"github.com/ycvk/acorn/internal/config"
-	"github.com/ycvk/acorn/internal/domain"
+	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/memory"
-	"github.com/ycvk/acorn/internal/port"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/tools"
@@ -43,7 +42,7 @@ func newSessionID() string {
 	return fmt.Sprintf("session_%d", time.Now().UTC().UnixNano())
 }
 
-func InterruptPayloadFromStream(interrupt *domain.StreamInterrupt) map[string]any {
+func InterruptPayloadFromStream(interrupt *core.StreamInterrupt) map[string]any {
 	if interrupt == nil {
 		return nil
 	}
@@ -69,7 +68,7 @@ func DurableContext(ctx context.Context) context.Context {
 }
 
 func CurrentRunID(ctx context.Context) string {
-	return domain.GetRunID(ctx)
+	return core.GetRunID(ctx)
 }
 
 var registerOnce sync.Once
@@ -94,19 +93,19 @@ type ElicitationInterruptState struct {
 
 // ExecutorStore is the store contract required by the Executor.
 type ExecutorStore interface {
-	domain.EventAppender
+	core.EventAppender
 	CreateFreshSessionTurn(ctx context.Context, sessionID, title, input string) (int, error)
-	CreateRun(ctx context.Context, params domain.RunCreateParams) error
+	CreateRun(ctx context.Context, params core.RunCreateParams) error
 	BindUserMessageRunIDByID(ctx context.Context, messageID int64, runID string) error
 	BindLatestUserMessageRunID(ctx context.Context, sessionID string, turnIndex int, runID string) error
-	LoadRun(ctx context.Context, runID string) (*domain.RunRecord, error)
-	FinishRun(ctx context.Context, runID string, status domain.RunStatus, output, errText string) error
+	LoadRun(ctx context.Context, runID string) (*core.RunRecord, error)
+	FinishRun(ctx context.Context, runID string, status core.RunStatus, output, errText string) error
 	MarkInterrupted(ctx context.Context, runID, output string) error
 	UpdateRunOutput(ctx context.Context, runID, output string) error
-	LoadEvents(ctx context.Context, runID string) ([]domain.EventRecord, error)
-	LoadEventsAfter(ctx context.Context, runID string, afterSeq int64) ([]domain.EventRecord, error)
+	LoadEvents(ctx context.Context, runID string) ([]core.EventRecord, error)
+	LoadEventsAfter(ctx context.Context, runID string, afterSeq int64) ([]core.EventRecord, error)
 	SyncAssistantMessageForRun(ctx context.Context, runID string) error
-	SyncAssistantMessageForRunStatus(ctx context.Context, runID string, status domain.RunStatus) error
+	SyncAssistantMessageForRunStatus(ctx context.Context, runID string, status core.RunStatus) error
 }
 
 // RunnerFactoryStore is the store contract required by the RunnerFactory.
@@ -114,28 +113,28 @@ type ExecutorStore interface {
 // for run bootstrapping.
 type RunnerFactoryStore interface {
 	ExecutorStore
-	port.MCPTokenStore
-	port.MCPPendingActionStore
+	core.ArtifactStore
+	core.SessionStore
 }
 
 type RuntimeDeps struct {
 	Config            *config.Config
 	Store             RunnerFactoryStore
 	Loader            *skills.Loader
-	SessionSummarySvc *domain.SessionSummaryService
+	SessionSummarySvc *core.SessionSummaryService
 	MemoryModule      memory.Service
 	ContextPlane      Plane
-	MCPPendingActions port.MCPPendingActionStore
+	MCPPendingActions core.SessionStore
 	Workspace         *workspace.Workspace
 	ArtifactService   *store.ArtifactService
 	ExtraLocalTools   []einotool.BaseTool
 	Handlers          []adk.ChatModelAgentMiddleware
 	// ToolBuilder overrides the default audited tool builder for testing.
 	// nil means use BuildAuditedTools.
-	ToolBuilder func(ctx context.Context, store RunnerFactoryStore, specs []port.ToolSpec, excludedToolNames []string, allowedToolNames []string, runID string) ([]einotool.BaseTool, error)
+	ToolBuilder func(ctx context.Context, store RunnerFactoryStore, specs []core.ToolSpec, excludedToolNames []string, allowedToolNames []string, runID string) ([]einotool.BaseTool, error)
 	// ToolNodeFactory overrides the default safe parallel tools node for testing.
 	// nil means use NewSafeParallelToolsNode.
-	ToolNodeFactory func(ctx context.Context, tools []einotool.BaseTool, resolver port.ExecutionPolicyResolver) (tools.ToolInvoker, error)
+	ToolNodeFactory func(ctx context.Context, tools []einotool.BaseTool, resolver core.ExecutionPolicyResolver) (tools.ToolInvoker, error)
 	// CheckpointStore overrides the default in-memory checkpoint store for testing.
 	CheckpointStore adk.CheckPointStore
 }
@@ -148,7 +147,7 @@ func (d RuntimeDeps) CloneForWorkspace(ws *workspace.Workspace) RuntimeDeps {
 
 func (e *Executor) bootstrapContextSessionMessages(
 	ctx context.Context,
-	req domain.ExecuteRequest,
+	req core.ExecuteRequest,
 	runID string,
 	active *ActiveRunner,
 ) ([]adk.Message, error) {
@@ -195,7 +194,7 @@ func (e *Executor) buildContextSession(active *ActiveRunner, contextPolicy confi
 	})
 }
 
-func prepareInitialMessages(req domain.ExecuteRequest, active *ActiveRunner) []adk.Message {
+func prepareInitialMessages(req core.ExecuteRequest, active *ActiveRunner) []adk.Message {
 	initialMessages := append([]adk.Message(nil), req.Messages...)
 	if instruction := strings.TrimSpace(active.Instruction); instruction != "" {
 		initialMessages = append([]adk.Message{schema.SystemMessage(instruction)}, initialMessages...)
@@ -210,7 +209,7 @@ type DirectResponseRequest struct {
 	SessionID         string
 	RunID             string
 	ChatModel         einomodel.BaseChatModel
-	AssistantStreamer domain.AssistantStreamer
+	AssistantStreamer core.AssistantStreamer
 	Catalog           *tools.Catalog
 	ContextResult     AssembleResultView
 	AllowedToolNames  []string

@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/cloudwego/eino/schema"
-	"github.com/ycvk/acorn/internal/port"
+	"github.com/ycvk/acorn/internal/core"
 )
 
 const defaultToolLifecycleMaxTurns = 2
@@ -18,11 +18,11 @@ type toolLifecycleContextKey struct{}
 
 type ToolLifecycleContext struct {
 	State           *ToolLifecycleState
-	Catalog         port.Catalog
+	Catalog         core.Catalog
 	ToolInfosByName map[string]*schema.ToolInfo
 }
 
-func WithToolLifecycleContext(ctx context.Context, state *ToolLifecycleState, catalog port.Catalog, infos []*schema.ToolInfo) context.Context {
+func WithToolLifecycleContext(ctx context.Context, state *ToolLifecycleState, catalog core.Catalog, infos []*schema.ToolInfo) context.Context {
 	infoMap := make(map[string]*schema.ToolInfo, len(infos))
 	for _, info := range infos {
 		if info == nil || strings.TrimSpace(info.Name) == "" {
@@ -113,7 +113,7 @@ func newToolLifecycleState(ctx context.Context, req AssembleRequest) *ToolLifecy
 	return state
 }
 
-func splitToolDefinitions(ctx context.Context, specs []port.ToolSpec) ([]string, map[string]DeferredToolRecord) {
+func splitToolDefinitions(ctx context.Context, specs []core.ToolSpec) ([]string, map[string]DeferredToolRecord) {
 	if len(specs) == 0 {
 		return nil, nil
 	}
@@ -125,14 +125,14 @@ func splitToolDefinitions(ctx context.Context, specs []port.ToolSpec) ([]string,
 			continue
 		}
 		switch spec.Loading.Mode {
-		case port.ToolLoadingModeDeferred:
+		case core.ToolLoadingModeDeferred:
 			deferred[name] = DeferredToolRecord{
 				Name:        name,
 				Reason:      spec.Loading.Reason,
 				Description: toolDescription(ctx, spec),
 			}
 			continue
-		case port.ToolLoadingModeHidden:
+		case core.ToolLoadingModeHidden:
 			continue
 		}
 		eager = append(eager, name)
@@ -141,7 +141,7 @@ func splitToolDefinitions(ctx context.Context, specs []port.ToolSpec) ([]string,
 	return eager, deferred
 }
 
-func toolDescription(ctx context.Context, spec port.ToolSpec) string {
+func toolDescription(ctx context.Context, spec core.ToolSpec) string {
 	if spec.Tool == nil {
 		return ""
 	}

@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ycvk/acorn/internal/domain"
+	"github.com/ycvk/acorn/internal/core"
 )
 
 func TestStoreArtifactsSaveLoadAndList(t *testing.T) {
@@ -20,7 +20,7 @@ func TestStoreArtifactsSaveLoadAndList(t *testing.T) {
 	t.Cleanup(func() { _ = store.Close() })
 
 	createdAt := time.Unix(1_710_000_000, 0).UTC()
-	record, err := store.SaveArtifact(context.Background(), domain.ArtifactRecord{
+	record, err := store.SaveArtifact(context.Background(), core.ArtifactRecord{
 		ArtifactID:          "artifact_1",
 		RunID:               "run_1",
 		SessionID:           "session_1",
@@ -71,7 +71,7 @@ func TestStoreArtifactsRejectsInvalidRecord(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = store.Close() })
 
-	_, err = store.SaveArtifact(context.Background(), domain.ArtifactRecord{
+	_, err = store.SaveArtifact(context.Background(), core.ArtifactRecord{
 		ArtifactID:   "artifact_1",
 		RunID:        "run_1",
 		Kind:         "bad",

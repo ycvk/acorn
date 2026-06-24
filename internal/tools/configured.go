@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"github.com/ycvk/acorn/internal/config"
-	"github.com/ycvk/acorn/internal/port"
+	"github.com/ycvk/acorn/internal/core"
 )
 
 // localToolDef declares a static local tool plus whether the given config
@@ -44,21 +44,21 @@ func localToolDefs(cfg *config.Config) []localToolDef {
 	}
 }
 
-func ConfiguredLocalSpecs(cfg *config.Config) []port.ToolSpec {
+func ConfiguredLocalSpecs(cfg *config.Config) []core.ToolSpec {
 	if cfg == nil {
 		return nil
 	}
 	defs := localToolDefs(cfg)
-	specs := make([]port.ToolSpec, 0, len(defs))
+	specs := make([]core.ToolSpec, 0, len(defs))
 	for _, def := range defs {
 		specs = append(specs, configuredLocalSpec(def.name, def.enabled))
 	}
 	return specs
 }
 
-func ConfiguredLocalSpec(cfg *config.Config, name string) (port.ToolSpec, bool) {
+func ConfiguredLocalSpec(cfg *config.Config, name string) (core.ToolSpec, bool) {
 	if cfg == nil {
-		return port.ToolSpec{}, false
+		return core.ToolSpec{}, false
 	}
 	name = strings.TrimSpace(name)
 	for _, def := range localToolDefs(cfg) {
@@ -66,86 +66,86 @@ func ConfiguredLocalSpec(cfg *config.Config, name string) (port.ToolSpec, bool) 
 			return configuredLocalSpec(name, def.enabled), true
 		}
 	}
-	return port.ToolSpec{}, false
+	return core.ToolSpec{}, false
 }
 
-func configuredLocalSpec(name string, enabled bool) port.ToolSpec {
-	spec := port.ToolSpec{
-		ToolContract: port.ToolContract{
+func configuredLocalSpec(name string, enabled bool) core.ToolSpec {
+	spec := core.ToolSpec{
+		ToolContract: core.ToolContract{
 			Name:      name,
 			Source:    "local",
-			Kind:      port.ToolKindNative,
-			Category:  port.ToolCategoryInspect,
-			Loading:   port.EagerLoadingPolicy(),
-			Execution: port.ToolExecutionPolicy{ParallelPolicy: port.ParallelPolicyReadOnly},
+			Kind:      core.ToolKindNative,
+			Category:  core.ToolCategoryInspect,
+			Loading:   core.EagerLoadingPolicy(),
+			Execution: core.ToolExecutionPolicy{ParallelPolicy: core.ParallelPolicyReadOnly},
 		},
 	}
 	switch name {
 	case "read_file", "list_files", "search_text", "inspect_git_status", "inspect_git_diff":
-		spec.Kind = port.ToolKindNative
-		spec.Category = port.ToolCategoryRead
-		spec.Execution.ParallelPolicy = port.ParallelPolicyReadOnly
+		spec.Kind = core.ToolKindNative
+		spec.Category = core.ToolCategoryRead
+		spec.Execution.ParallelPolicy = core.ParallelPolicyReadOnly
 		spec.Execution.PathArg = "path"
 	case "git_summary":
-		spec.Kind = port.ToolKindNative
-		spec.Category = port.ToolCategoryInspect
-		spec.Execution.ParallelPolicy = port.ParallelPolicySerial
+		spec.Kind = core.ToolKindNative
+		spec.Category = core.ToolCategoryInspect
+		spec.Execution.ParallelPolicy = core.ParallelPolicySerial
 	case "artifact_read", "artifact_list":
-		spec.Kind = port.ToolKindNative
-		spec.Category = port.ToolCategoryRead
-		spec.Execution.ParallelPolicy = port.ParallelPolicyReadOnly
+		spec.Kind = core.ToolKindNative
+		spec.Category = core.ToolCategoryRead
+		spec.Execution.ParallelPolicy = core.ParallelPolicyReadOnly
 	case "artifact_write":
-		spec.Kind = port.ToolKindNative
-		spec.Category = port.ToolCategoryWrite
-		spec.Execution.ParallelPolicy = port.ParallelPolicySerial
+		spec.Kind = core.ToolKindNative
+		spec.Category = core.ToolCategoryWrite
+		spec.Execution.ParallelPolicy = core.ParallelPolicySerial
 	case "ask_operator":
-		spec.Kind = port.ToolKindNative
-		spec.Category = port.ToolCategoryIntegration
-		spec.Execution.ParallelPolicy = port.ParallelPolicySerial
+		spec.Kind = core.ToolKindNative
+		spec.Category = core.ToolCategoryIntegration
+		spec.Execution.ParallelPolicy = core.ParallelPolicySerial
 	case "web_fetch", "web_search":
-		spec.Kind = port.ToolKindNative
-		spec.Category = port.ToolCategoryRead
-		spec.Loading = port.DeferredLoadingPolicy("web_access")
-		spec.Execution.ParallelPolicy = port.ParallelPolicyReadOnly
+		spec.Kind = core.ToolKindNative
+		spec.Category = core.ToolCategoryRead
+		spec.Loading = core.DeferredLoadingPolicy("web_access")
+		spec.Execution.ParallelPolicy = core.ParallelPolicyReadOnly
 	case "browser":
-		spec.Kind = port.ToolKindNative
-		spec.Category = port.ToolCategoryIntegration
-		spec.Loading = port.DeferredLoadingPolicy("web_access")
-		spec.Execution.ParallelPolicy = port.ParallelPolicySerial
+		spec.Kind = core.ToolKindNative
+		spec.Category = core.ToolCategoryIntegration
+		spec.Loading = core.DeferredLoadingPolicy("web_access")
+		spec.Execution.ParallelPolicy = core.ParallelPolicySerial
 	case "create_file", "replace_span", "apply_unified_patch":
-		spec.Kind = port.ToolKindNative
-		spec.Category = port.ToolCategoryWrite
-		spec.Execution.ParallelPolicy = port.ParallelPolicySerial
+		spec.Kind = core.ToolKindNative
+		spec.Category = core.ToolCategoryWrite
+		spec.Execution.ParallelPolicy = core.ParallelPolicySerial
 		if name == "apply_unified_patch" {
 			spec.Execution.PathArg = "paths"
 		} else {
 			spec.Execution.PathArg = "path"
 		}
 	case "multi_edit":
-		spec.Kind = port.ToolKindNative
-		spec.Category = port.ToolCategoryWrite
-		spec.Execution.ParallelPolicy = port.ParallelPolicySerial
+		spec.Kind = core.ToolKindNative
+		spec.Category = core.ToolCategoryWrite
+		spec.Execution.ParallelPolicy = core.ParallelPolicySerial
 	case "rollback_workspace_checkpoint":
-		spec.Kind = port.ToolKindNative
-		spec.Category = port.ToolCategoryWrite
-		spec.Execution.ParallelPolicy = port.ParallelPolicySerial
+		spec.Kind = core.ToolKindNative
+		spec.Category = core.ToolCategoryWrite
+		spec.Execution.ParallelPolicy = core.ParallelPolicySerial
 	case "run_command":
-		spec.Kind = port.ToolKindNative
-		spec.Category = port.ToolCategoryExecute
-		spec.Execution.ParallelPolicy = port.ParallelPolicySerial
+		spec.Kind = core.ToolKindNative
+		spec.Category = core.ToolCategoryExecute
+		spec.Execution.ParallelPolicy = core.ParallelPolicySerial
 	case "run_verification":
-		spec.Kind = port.ToolKindNative
-		spec.Category = port.ToolCategoryExecute
-		spec.Execution.ParallelPolicy = port.ParallelPolicySerial
+		spec.Kind = core.ToolKindNative
+		spec.Category = core.ToolCategoryExecute
+		spec.Execution.ParallelPolicy = core.ParallelPolicySerial
 	default:
-		spec.Kind = port.ToolKindNative
-		spec.Category = port.ToolCategoryInspect
-		spec.Execution.ParallelPolicy = port.ParallelPolicyReadOnly
+		spec.Kind = core.ToolKindNative
+		spec.Category = core.ToolCategoryInspect
+		spec.Execution.ParallelPolicy = core.ParallelPolicyReadOnly
 	}
 	if enabled {
-		spec.Health = port.ToolHealth{State: port.HealthStateHealthy}
+		spec.Health = core.ToolHealth{State: core.HealthStateHealthy}
 	} else {
-		spec.Health = port.ToolHealth{State: port.HealthStateDisabled, Reason: name + " disabled in config"}
+		spec.Health = core.ToolHealth{State: core.HealthStateDisabled, Reason: name + " disabled in config"}
 	}
 	return spec
 }

@@ -35,12 +35,12 @@ const (
 	StreamKindToolCallInterrupted  StreamItemKind = "tool_call_interrupted"
 	StreamKindElicitationPending   StreamItemKind = "elicitation.pending"
 	StreamKindElicitationDecided   StreamItemKind = "elicitation.decided"
-	StreamKindSubagentStarted      StreamItemKind = "subagent.started"
-	StreamKindSubagentCompleted    StreamItemKind = "subagent.completed"
-	StreamKindSubagentFailed       StreamItemKind = "subagent.failed"
+	StreamKindSubagentStarted      StreamItemKind = "subruntime.started"
+	StreamKindSubagentCompleted    StreamItemKind = "subruntime.completed"
+	StreamKindSubagentFailed       StreamItemKind = "subruntime.failed"
 )
 
-// StreamItem is a single event in the run stream.
+// StreamItem is a single event in the run runtime.
 type StreamItem struct {
 	RunID     string         `json:"run_id"`
 	Sequence  int64          `json:"sequence,omitempty"`

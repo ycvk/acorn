@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ycvk/acorn/internal/domain"
+	"github.com/ycvk/acorn/internal/core"
 )
 
-func (s *Store) SavePairingCode(ctx context.Context, code *domain.PairingCode) error {
+func (s *Store) SavePairingCode(ctx context.Context, code *core.PairingCode) error {
 	if code == nil {
 		return errors.New("pairing code is nil")
 	}
@@ -28,7 +28,7 @@ func (s *Store) SavePairingCode(ctx context.Context, code *domain.PairingCode) e
 	return nil
 }
 
-func (s *Store) LoadPairingCode(ctx context.Context, codeHash string) (*domain.PairingCode, error) {
+func (s *Store) LoadPairingCode(ctx context.Context, codeHash string) (*core.PairingCode, error) {
 	row := s.db.QueryRowContext(ctx,
 		`SELECT code_hash, expires_at, used_at, created_at
 		 FROM pairing_codes
@@ -45,7 +45,7 @@ func (s *Store) LoadPairingCode(ctx context.Context, codeHash string) (*domain.P
 	return code, nil
 }
 
-func (s *Store) ConsumePairingCode(ctx context.Context, codeHash string, now time.Time) (*domain.PairingCode, error) {
+func (s *Store) ConsumePairingCode(ctx context.Context, codeHash string, now time.Time) (*core.PairingCode, error) {
 	code, err := s.LoadPairingCode(ctx, codeHash)
 	if err != nil {
 		return nil, err
@@ -76,7 +76,7 @@ func (s *Store) ConsumePairingCode(ctx context.Context, codeHash string, now tim
 	return code, nil
 }
 
-func (s *Store) SaveDevice(ctx context.Context, device *domain.Device) error {
+func (s *Store) SaveDevice(ctx context.Context, device *core.Device) error {
 	if device == nil {
 		return errors.New("device is nil")
 	}
@@ -97,7 +97,7 @@ func (s *Store) SaveDevice(ctx context.Context, device *domain.Device) error {
 	return nil
 }
 
-func (s *Store) LoadDeviceByTokenHash(ctx context.Context, tokenHash string) (*domain.Device, error) {
+func (s *Store) LoadDeviceByTokenHash(ctx context.Context, tokenHash string) (*core.Device, error) {
 	row := s.db.QueryRowContext(ctx,
 		`SELECT device_id, name, platform, token_hash, created_at, last_seen_at, revoked_at
 		 FROM devices
@@ -114,7 +114,7 @@ func (s *Store) LoadDeviceByTokenHash(ctx context.Context, tokenHash string) (*d
 	return device, nil
 }
 
-func (s *Store) LoadDevice(ctx context.Context, deviceID string) (*domain.Device, error) {
+func (s *Store) LoadDevice(ctx context.Context, deviceID string) (*core.Device, error) {
 	row := s.db.QueryRowContext(ctx,
 		`SELECT device_id, name, platform, token_hash, created_at, last_seen_at, revoked_at
 		 FROM devices
@@ -131,7 +131,7 @@ func (s *Store) LoadDevice(ctx context.Context, deviceID string) (*domain.Device
 	return device, nil
 }
 
-func (s *Store) ListDevices(ctx context.Context) ([]domain.Device, error) {
+func (s *Store) ListDevices(ctx context.Context) ([]core.Device, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT device_id, name, platform, token_hash, created_at, last_seen_at, revoked_at
 		 FROM devices
@@ -142,7 +142,7 @@ func (s *Store) ListDevices(ctx context.Context) ([]domain.Device, error) {
 	}
 	defer rows.Close()
 
-	var devices []domain.Device
+	var devices []core.Device
 	for rows.Next() {
 		device, err := scanDevice(rows)
 		if err != nil {
@@ -194,9 +194,9 @@ func (s *Store) RevokeDevice(ctx context.Context, deviceID string, revokedAt tim
 	return nil
 }
 
-func scanPairingCode(scanner interface{ Scan(dest ...any) error }) (*domain.PairingCode, error) {
+func scanPairingCode(scanner interface{ Scan(dest ...any) error }) (*core.PairingCode, error) {
 	var (
-		code      domain.PairingCode
+		code      core.PairingCode
 		expiresAt string
 		usedAt    string
 		createdAt string
@@ -222,9 +222,9 @@ func scanPairingCode(scanner interface{ Scan(dest ...any) error }) (*domain.Pair
 	return &code, nil
 }
 
-func scanDevice(scanner interface{ Scan(dest ...any) error }) (*domain.Device, error) {
+func scanDevice(scanner interface{ Scan(dest ...any) error }) (*core.Device, error) {
 	var (
-		device     domain.Device
+		device     core.Device
 		createdAt  string
 		lastSeenAt string
 		revokedAt  string

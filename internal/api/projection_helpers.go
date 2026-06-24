@@ -1,18 +1,10 @@
-package clientevents
+package api
 
 import (
-	"errors"
-	"fmt"
 	"strings"
 
-	"github.com/ycvk/acorn/internal/domain"
+	"github.com/ycvk/acorn/internal/core"
 )
-
-var ErrProjectionFailed = errors.New("client projection failed")
-
-func projectionError(format string, args ...any) error {
-	return fmt.Errorf("%w: %s", ErrProjectionFailed, fmt.Sprintf(format, args...))
-}
 
 func topLevelString(payload map[string]any, key string) string {
 	value, ok := payload[key].(string)
@@ -35,26 +27,18 @@ func objectField(payload map[string]any, key string) (map[string]any, bool) {
 	return cloneMap(value), true
 }
 
-func cloneMap(payload map[string]any) map[string]any {
-	out := make(map[string]any, len(payload))
-	for key, value := range payload {
-		out[key] = value
-	}
-	return out
-}
-
-func pendingActionOptionsFromAny(raw any) []domain.PendingActionOption {
+func pendingActionOptionsFromAny(raw any) []core.PendingActionOption {
 	items, ok := raw.([]any)
 	if !ok {
 		return nil
 	}
-	out := make([]domain.PendingActionOption, 0, len(items))
+	out := make([]core.PendingActionOption, 0, len(items))
 	for _, item := range items {
 		option, ok := item.(map[string]any)
 		if !ok {
 			continue
 		}
-		out = append(out, domain.PendingActionOption{
+		out = append(out, core.PendingActionOption{
 			ID:          topLevelString(option, "id"),
 			Label:       topLevelString(option, "label"),
 			Description: topLevelString(option, "description"),

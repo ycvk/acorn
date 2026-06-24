@@ -6,7 +6,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/ycvk/acorn/internal/domain"
+	"github.com/ycvk/acorn/internal/core"
 )
 
 // RunContext represents a single run in the execution tree. It carries the
@@ -125,13 +125,13 @@ func (c *RunController) Interrupt(runID string) error {
 	}
 	runID = strings.TrimSpace(runID)
 	if runID == "" {
-		return fmt.Errorf("%w: empty run id", domain.ErrRunNotActive)
+		return fmt.Errorf("%w: empty run id", core.ErrRunNotActive)
 	}
 	c.activeMu.Lock()
 	cancel, ok := c.activeCancels[runID]
 	c.activeMu.Unlock()
 	if !ok {
-		return fmt.Errorf("%w: %s", domain.ErrRunNotActive, runID)
+		return fmt.Errorf("%w: %s", core.ErrRunNotActive, runID)
 	}
 	cancel()
 	return nil

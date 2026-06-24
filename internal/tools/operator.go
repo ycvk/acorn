@@ -10,7 +10,7 @@ import (
 	einotool "github.com/cloudwego/eino/components/tool"
 	toolutils "github.com/cloudwego/eino/components/tool/utils"
 	"github.com/cloudwego/eino/schema"
-	"github.com/ycvk/acorn/internal/domain"
+	"github.com/ycvk/acorn/internal/core"
 )
 
 type progressToolFunc[I, O any] func(ctx context.Context, input I, emit ToolProgressEmitter) (O, error)
@@ -67,8 +67,8 @@ func emitToolProgress(ctx context.Context, emit ToolProgressEmitter, delta strin
 }
 
 type OperatorQuestionStore interface {
-	CreatePendingAction(ctx context.Context, input domain.PendingActionInput) (*domain.PendingActionRecord, error)
-	AppendEvent(ctx context.Context, runID, kind string, payload any) (domain.EventRecord, error)
+	CreatePendingAction(ctx context.Context, input core.PendingActionInput) (*core.PendingActionRecord, error)
+	AppendEvent(ctx context.Context, runID, kind string, payload any) (core.EventRecord, error)
 }
 
 type AskOperatorInput struct {
@@ -97,7 +97,7 @@ type AskOperatorOutput struct {
 	Answer           string `json:"answer,omitempty"`
 }
 
-func buildAskOperatorTool(store OperatorQuestionStore, bridge domain.ToolCallContextBridge) (einotool.BaseTool, error) {
+func buildAskOperatorTool(store OperatorQuestionStore, bridge core.ToolCallContextBridge) (einotool.BaseTool, error) {
 	if store == nil {
 		return nil, errors.New("operator question store is required")
 	}
@@ -117,7 +117,7 @@ func buildAskOperatorTool(store OperatorQuestionStore, bridge domain.ToolCallCon
 	return tool, nil
 }
 
-func interruptAskOperator(ctx context.Context, store OperatorQuestionStore, bridge domain.ToolCallContextBridge, input AskOperatorInput, emit ToolProgressEmitter) (AskOperatorOutput, error) {
+func interruptAskOperator(ctx context.Context, store OperatorQuestionStore, bridge core.ToolCallContextBridge, input AskOperatorInput, emit ToolProgressEmitter) (AskOperatorOutput, error) {
 	payload, err := normalizeAskOperatorInput(input)
 	if err != nil {
 		return AskOperatorOutput{}, err
@@ -135,13 +135,13 @@ func interruptAskOperator(ctx context.Context, store OperatorQuestionStore, brid
 	if err != nil {
 		return AskOperatorOutput{}, fmt.Errorf("marshal operator question payload: %w", err)
 	}
-	record, err := store.CreatePendingAction(ctx, domain.PendingActionInput{
+	record, err := store.CreatePendingAction(ctx, core.PendingActionInput{
 		ActionID:    actionID,
 		RunID:       runID,
-		Kind:        domain.PendingActionKindOperatorQuestion,
+		Kind:        core.PendingActionKindOperatorQuestion,
 		Subject:     strings.TrimSpace(input.Title),
 		PayloadJSON: string(payloadJSON),
-		Status:      domain.PendingActionStatusPending,
+		Status:      core.PendingActionStatusPending,
 		Reason:      "operator_question",
 	})
 	if err != nil {
@@ -189,7 +189,7 @@ func resumeAskOperator(ctx context.Context, state AskOperatorState, hasState boo
 	}
 	decision := stringFromMap(data, "action")
 	switch decision {
-	case domain.OperatorQuestionDecisionAnswer:
+	case core.OperatorQuestionDecisionAnswer:
 		selectedOptionID := stringFromMap(data, "selected_option_id")
 		answer := stringFromMap(data, "answer")
 		if selectedOptionID == "" && answer == "" {
@@ -202,7 +202,7 @@ func resumeAskOperator(ctx context.Context, state AskOperatorState, hasState boo
 			SelectedOptionID: selectedOptionID,
 			Answer:           answer,
 		}, nil
-	case domain.OperatorQuestionDecisionDecline:
+	case core.OperatorQuestionDecisionDecline:
 		return AskOperatorOutput{
 			ActionID: actionID,
 			Status:   "declined",
@@ -213,30 +213,30 @@ func resumeAskOperator(ctx context.Context, state AskOperatorState, hasState boo
 	}
 }
 
-func normalizeAskOperatorInput(input AskOperatorInput) (domain.OperatorQuestionPayload, error) {
+func normalizeAskOperatorInput(input AskOperatorInput) (core.OperatorQuestionPayload, error) {
 	question := strings.TrimSpace(input.Question)
 	if question == "" {
-		return domain.OperatorQuestionPayload{}, errors.New("question is required")
+		return core.OperatorQuestionPayload{}, errors.New("question is required")
 	}
 	options, err := normalizeAskOperatorOptions(input.Options)
 	if err != nil {
-		return domain.OperatorQuestionPayload{}, err
+		return core.OperatorQuestionPayload{}, err
 	}
 	if len(options) == 0 && !input.AllowFreeform {
-		return domain.OperatorQuestionPayload{}, errors.New("ask_operator requires options or allow_freeform=true")
+		return core.OperatorQuestionPayload{}, errors.New("ask_operator requires options or allow_freeform=true")
 	}
-	return domain.OperatorQuestionPayload{
+	return core.OperatorQuestionPayload{
 		Question:      question,
 		Options:       options,
 		AllowFreeform: input.AllowFreeform,
 	}, nil
 }
 
-func normalizeAskOperatorOptions(items []AskOperatorOptionInput) ([]domain.PendingActionOption, error) {
+func normalizeAskOperatorOptions(items []AskOperatorOptionInput) ([]core.PendingActionOption, error) {
 	if len(items) == 0 {
 		return nil, nil
 	}
-	out := make([]domain.PendingActionOption, 0, len(items))
+	out := make([]core.PendingActionOption, 0, len(items))
 	seen := make(map[string]struct{}, len(items))
 	for _, item := range items {
 		id := strings.TrimSpace(item.ID)
@@ -248,7 +248,7 @@ func normalizeAskOperatorOptions(items []AskOperatorOptionInput) ([]domain.Pendi
 			return nil, fmt.Errorf("ask_operator option id %q is duplicated", id)
 		}
 		seen[id] = struct{}{}
-		out = append(out, domain.PendingActionOption{
+		out = append(out, core.PendingActionOption{
 			ID:          id,
 			Label:       label,
 			Description: strings.TrimSpace(item.Description),

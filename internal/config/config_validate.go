@@ -8,7 +8,7 @@ import (
 
 func (c *Config) ValidateBase() error {
 	if strings.TrimSpace(c.Agent.Name) == "" {
-		return errors.New("agent.name is required")
+		return errors.New("runtime.name is required")
 	}
 	if strings.TrimSpace(c.Runtime.StorageDir) == "" {
 		return errors.New("runtime.storage_dir is required")
@@ -103,7 +103,7 @@ func (c *Config) ValidateExecutionReady() error {
 		return err
 	}
 	if c.Agent.MaxIterations <= 0 {
-		return errors.New("agent.max_iterations must be > 0")
+		return errors.New("runtime.max_iterations must be > 0")
 	}
 	if strings.TrimSpace(c.Tools.Workspace.RootDir) == "" {
 		return errors.New("toolset.workspace.root_dir is required")

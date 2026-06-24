@@ -7,25 +7,24 @@ import (
 
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/schema"
-	"github.com/ycvk/acorn/internal/domain"
-	"github.com/ycvk/acorn/internal/port"
+	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/tools"
 )
 
 type auditedTool struct {
-	spec      port.ToolSpec
+	spec      core.ToolSpec
 	tool      einotool.BaseTool
 	invokable einotool.InvokableTool
 	progress  tools.ProgressTool
-	store     domain.EventAppender
+	store     core.EventAppender
 	validator *toolArgumentValidator
 }
 
 func getRunID(ctx context.Context) string {
-	return domain.GetRunID(ctx)
+	return core.GetRunID(ctx)
 }
 
-func wrapToolForAudit(ctx context.Context, store domain.EventAppender, spec port.ToolSpec) (einotool.BaseTool, error) {
+func wrapToolForAudit(ctx context.Context, store core.EventAppender, spec core.ToolSpec) (einotool.BaseTool, error) {
 	info, err := spec.Tool.Info(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("read tool info for audit: %w", err)
@@ -96,8 +95,8 @@ func (t *auditedTool) invoke(ctx context.Context, argumentsInJSON string, emit t
 
 func BuildAuditedTools(
 	ctx context.Context,
-	store domain.EventAppender,
-	specs []port.ToolSpec,
+	store core.EventAppender,
+	specs []core.ToolSpec,
 	excludedToolNames []string,
 	allowedToolNames []string,
 	_ string,

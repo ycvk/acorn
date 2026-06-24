@@ -3,7 +3,7 @@ package api
 import (
 	"time"
 
-	"github.com/ycvk/acorn/internal/clientevents"
+	"github.com/ycvk/acorn/internal/core"
 )
 
 type RunSummaryDTO struct {
@@ -75,7 +75,7 @@ func artifactSummaryDTOsFromDomain(items []ArtifactSummary) []ArtifactSummaryDTO
 type RunDetailDTO struct {
 	Run       RunDTO                  `json:"run"`
 	Thread    ThreadDTO               `json:"thread"`
-	Events    []clientevents.RunEvent `json:"events"`
+	Events    []core.RunEvent `json:"events"`
 	Artifacts []ArtifactSummaryDTO    `json:"artifacts"`
 }
 

@@ -8,8 +8,7 @@ import (
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"github.com/ycvk/acorn/internal/domain"
-	"github.com/ycvk/acorn/internal/port"
+	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/store"
 )
 
@@ -23,7 +22,7 @@ func TestHandleElicitationCreatesPendingAction(t *testing.T) {
 
 	ctx := context.Background()
 	runID := "run_test_elicitation_001"
-	if err := store.CreateRun(ctx, domain.RunCreateParams{RunID: runID, Input: "test elicitation"}); err != nil {
+	if err := store.CreateRun(ctx, core.RunCreateParams{RunID: runID, Input: "test elicitation"}); err != nil {
 		t.Fatalf("create run: %v", err)
 	}
 
@@ -57,9 +56,9 @@ func TestHandleElicitationCreatesPendingAction(t *testing.T) {
 		t.Fatalf("list pending actions: %v", err)
 	}
 
-	var foundAction *domain.PendingActionRecord
+	var foundAction *core.PendingActionRecord
 	for i := range actions {
-		if actions[i].Kind == domain.PendingActionKindElicitation {
+		if actions[i].Kind == core.PendingActionKindElicitation {
 			foundAction = &actions[i]
 			break
 		}
@@ -75,7 +74,7 @@ func TestHandleElicitationCreatesPendingAction(t *testing.T) {
 	}
 
 	// Decide the action to unblock the handler
-	_, err = store.DecidePendingAction(ctx, foundAction.ActionID, domain.PendingActionStatusApproved, `{"action":"accept"}`)
+	_, err = store.DecidePendingAction(ctx, foundAction.ActionID, core.PendingActionStatusApproved, `{"action":"accept"}`)
 	if err != nil {
 		t.Fatalf("decide pending action: %v", err)
 	}
@@ -99,7 +98,7 @@ func TestHandleElicitationTimeoutReturnsDecline(t *testing.T) {
 
 	ctx := context.Background()
 	runID := "run_test_elicitation_timeout_001"
-	if err := store.CreateRun(ctx, domain.RunCreateParams{RunID: runID, Input: "test timeout"}); err != nil {
+	if err := store.CreateRun(ctx, core.RunCreateParams{RunID: runID, Input: "test timeout"}); err != nil {
 		t.Fatalf("create run: %v", err)
 	}
 
@@ -128,13 +127,13 @@ func TestHandleElicitationLoadFailureReturnsError(t *testing.T) {
 
 	ctx := context.Background()
 	runID := "run_test_elicitation_load_error_001"
-	if err := store.CreateRun(ctx, domain.RunCreateParams{RunID: runID, Input: "test load error"}); err != nil {
+	if err := store.CreateRun(ctx, core.RunCreateParams{RunID: runID, Input: "test load error"}); err != nil {
 		t.Fatalf("create run: %v", err)
 	}
 
 	handler := newElicitationHandler(failingPendingActionStore{
-		MCPPendingActionStore: store,
-		loadErr:               errors.New("sqlite is locked"),
+		SessionStore: store,
+		loadErr:      errors.New("sqlite is locked"),
 	})
 	handler.setActiveRunID(runID)
 	handler.setTimeoutForTest(50 * time.Millisecond)
@@ -182,7 +181,7 @@ func TestHandleElicitationEmitsStreamItems(t *testing.T) {
 
 	ctx := context.Background()
 	runID := "run_test_elicitation_stream_001"
-	if err := store.CreateRun(ctx, domain.RunCreateParams{RunID: runID, Input: "test stream"}); err != nil {
+	if err := store.CreateRun(ctx, core.RunCreateParams{RunID: runID, Input: "test stream"}); err != nil {
 		t.Fatalf("create run: %v", err)
 	}
 
@@ -233,15 +232,15 @@ func openTestStore(t *testing.T) (*store.Store, func()) {
 }
 
 type failingPendingActionStore struct {
-	port.MCPPendingActionStore
+	core.SessionStore
 	loadErr error
 }
 
-func (s failingPendingActionStore) LoadPendingAction(ctx context.Context, actionID string) (*domain.PendingActionRecord, error) {
+func (s failingPendingActionStore) LoadPendingAction(ctx context.Context, actionID string) (*core.PendingActionRecord, error) {
 	if s.loadErr != nil {
 		return nil, s.loadErr
 	}
-	return s.MCPPendingActionStore.LoadPendingAction(ctx, actionID)
+	return s.SessionStore.LoadPendingAction(ctx, actionID)
 }
 
 func containsAll(input string, wants ...string) bool {
@@ -261,7 +260,7 @@ func TestBuildElicitationHandlerReturnsValidHandler(t *testing.T) {
 
 	ctx := context.Background()
 	runID := "run_test_build_handler_001"
-	if err := store.CreateRun(ctx, domain.RunCreateParams{RunID: runID, Input: "test build handler"}); err != nil {
+	if err := store.CreateRun(ctx, core.RunCreateParams{RunID: runID, Input: "test build handler"}); err != nil {
 		t.Fatalf("create run: %v", err)
 	}
 
@@ -298,8 +297,8 @@ func TestBuildElicitationHandlerReturnsValidHandler(t *testing.T) {
 
 	actions, _ := store.ListPendingActions(ctx, 10)
 	for _, a := range actions {
-		if a.Kind == domain.PendingActionKindElicitation && a.Status == domain.PendingActionStatusPending {
-			store.DecidePendingAction(ctx, a.ActionID, domain.PendingActionStatusRejected, `{"action":"decline"}`)
+		if a.Kind == core.PendingActionKindElicitation && a.Status == core.PendingActionStatusPending {
+			store.DecidePendingAction(ctx, a.ActionID, core.PendingActionStatusRejected, `{"action":"decline"}`)
 			break
 		}
 	}

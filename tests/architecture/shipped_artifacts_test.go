@@ -26,7 +26,7 @@ func TestExampleConfigHasNoPhase0Scaffold(t *testing.T) {
 func TestMinimalConfigExists(t *testing.T) {
 	info, err := os.Stat(filepath.Join("..", "..", "configs", "acorn.minimal.yaml"))
 	if err != nil {
-		t.Fatalf("configs/acorn.minimal.yaml must exist (provider+runtime+context+agent.name only): %v", err)
+		t.Fatalf("configs/acorn.minimal.yaml must exist (provider+runtime+context+runtime.name only): %v", err)
 	}
 	if info.IsDir() {
 		t.Fatalf("configs/acorn.minimal.yaml must be a file, not a directory")
@@ -45,7 +45,7 @@ func TestMinimalConfigLoads(t *testing.T) {
 		t.Fatalf("configs/acorn.minimal.yaml must load via config.Load (defaults merge): %v", err)
 	}
 	if strings.TrimSpace(cfg.Agent.Name) == "" {
-		t.Fatalf("minimal config must set agent.name")
+		t.Fatalf("minimal config must set runtime.name")
 	}
 	if len(cfg.Providers) == 0 || !cfg.Providers[0].Enabled {
 		t.Fatalf("minimal config must enable at least one provider")

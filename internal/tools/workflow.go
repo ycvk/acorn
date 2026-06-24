@@ -12,11 +12,11 @@ import (
 	"time"
 
 	einotool "github.com/cloudwego/eino/components/tool"
-	"github.com/ycvk/acorn/internal/domain"
+	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/workspace"
 )
 
-func buildRunVerificationTool(ws WorkspaceView, service ArtifactService, bridge domain.ToolCallContextBridge) (einotool.BaseTool, error) {
+func buildRunVerificationTool(ws WorkspaceView, service ArtifactService, bridge core.ToolCallContextBridge) (einotool.BaseTool, error) {
 	if service == nil {
 		return nil, errors.New("artifact service is required")
 	}
@@ -32,7 +32,7 @@ func buildRunVerificationTool(ws WorkspaceView, service ArtifactService, bridge 
 	return tool, nil
 }
 
-func runVerification(ctx context.Context, ws WorkspaceView, service ArtifactService, bridge domain.ToolCallContextBridge, input RunVerificationInput, emit ToolProgressEmitter) (RunVerificationOutput, error) {
+func runVerification(ctx context.Context, ws WorkspaceView, service ArtifactService, bridge core.ToolCallContextBridge, input RunVerificationInput, emit ToolProgressEmitter) (RunVerificationOutput, error) {
 	kind, err := normalizeVerificationKind(input.Kind)
 	if err != nil {
 		return RunVerificationOutput{}, err
@@ -60,7 +60,7 @@ func runVerification(ctx context.Context, ws WorkspaceView, service ArtifactServ
 	return buildVerificationOutput(ctx, ws, service, bridge, emit, input, result, kind, command, cwd, paths, started)
 }
 
-func buildVerificationOutput(ctx context.Context, ws WorkspaceView, service ArtifactService, bridge domain.ToolCallContextBridge, emit ToolProgressEmitter, input RunVerificationInput, result verificationCommandResult, kind string, command []string, cwd string, paths []string, started time.Time) (RunVerificationOutput, error) {
+func buildVerificationOutput(ctx context.Context, ws WorkspaceView, service ArtifactService, bridge core.ToolCallContextBridge, emit ToolProgressEmitter, input RunVerificationInput, result verificationCommandResult, kind string, command []string, cwd string, paths []string, started time.Time) (RunVerificationOutput, error) {
 	duration := time.Since(started)
 	stdoutArtifact, err := writeWorkflowArtifact(ctx, service, bridge, "log", fmt.Sprintf("%s verification stdout", kind), "text/plain", result.stdout)
 	if err != nil {
@@ -91,7 +91,7 @@ func buildVerificationOutput(ctx context.Context, ws WorkspaceView, service Arti
 	}, nil
 }
 
-func buildGitSummaryTool(ws WorkspaceView, service ArtifactService, bridge domain.ToolCallContextBridge) (einotool.BaseTool, error) {
+func buildGitSummaryTool(ws WorkspaceView, service ArtifactService, bridge core.ToolCallContextBridge) (einotool.BaseTool, error) {
 	tool, err := inferProgressTool("git_summary", "Summarize workspace git status, diffstat, changed paths, and optionally persist a scoped diff artifact.", func(ctx context.Context, input GitSummaryInput, emit ToolProgressEmitter) (GitSummaryOutput, error) {
 		return runGitSummary(ctx, ws, service, bridge, input, emit)
 	})
@@ -101,7 +101,7 @@ func buildGitSummaryTool(ws WorkspaceView, service ArtifactService, bridge domai
 	return tool, nil
 }
 
-func runGitSummary(ctx context.Context, ws WorkspaceView, service ArtifactService, bridge domain.ToolCallContextBridge, input GitSummaryInput, emit ToolProgressEmitter) (GitSummaryOutput, error) {
+func runGitSummary(ctx context.Context, ws WorkspaceView, service ArtifactService, bridge core.ToolCallContextBridge, input GitSummaryInput, emit ToolProgressEmitter) (GitSummaryOutput, error) {
 	if input.ContextLines < 0 {
 		return GitSummaryOutput{}, errors.New("context_lines must be >= 0")
 	}
@@ -171,7 +171,7 @@ func gitSummaryEntries(entries []workspace.GitStatusEntry) ([]GitStatusEntry, []
 	return out, changedPaths
 }
 
-func applyGitSummaryDiff(ctx context.Context, ws WorkspaceView, service ArtifactService, bridge domain.ToolCallContextBridge, emit ToolProgressEmitter, input GitSummaryInput, output *GitSummaryOutput, scopedPath string) error {
+func applyGitSummaryDiff(ctx context.Context, ws WorkspaceView, service ArtifactService, bridge core.ToolCallContextBridge, emit ToolProgressEmitter, input GitSummaryInput, output *GitSummaryOutput, scopedPath string) error {
 	if !input.IncludeDiff {
 		return nil
 	}
@@ -239,16 +239,16 @@ func verificationSummary(kind string, status string, exitCode int) string {
 	return fmt.Sprintf("%s verification %s with exit code %d", kind, status, exitCode)
 }
 
-func writeWorkflowArtifact(ctx context.Context, service ArtifactService, bridge domain.ToolCallContextBridge, kind string, title string, mimeType string, content string) (domain.ArtifactRecord, error) {
+func writeWorkflowArtifact(ctx context.Context, service ArtifactService, bridge core.ToolCallContextBridge, kind string, title string, mimeType string, content string) (core.ArtifactRecord, error) {
 	runID := strings.TrimSpace(bridge.CurrentRunID(ctx))
 	if runID == "" {
-		return domain.ArtifactRecord{}, errors.New("workflow artifact write requires current run context")
+		return core.ArtifactRecord{}, errors.New("workflow artifact write requires current run context")
 	}
 	callID := strings.TrimSpace(bridge.CurrentToolCallID(ctx))
 	if callID == "" {
-		return domain.ArtifactRecord{}, errors.New("workflow artifact write requires current tool call context")
+		return core.ArtifactRecord{}, errors.New("workflow artifact write requires current tool call context")
 	}
-	return service.WriteArtifact(ctx, domain.ArtifactWriteRequest{
+	return service.WriteArtifact(ctx, core.ArtifactWriteRequest{
 		RunID:               runID,
 		SessionID:           strings.TrimSpace(bridge.CurrentSessionID(ctx)),
 		SourceToolResultRef: "tool_result:" + runID + ":" + callID,

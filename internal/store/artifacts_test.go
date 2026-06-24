@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ycvk/acorn/internal/domain"
+	"github.com/ycvk/acorn/internal/core"
 )
 
 func TestArtifactServiceWriteReadRangeAndList(t *testing.T) {
@@ -20,7 +20,7 @@ func TestArtifactServiceWriteReadRangeAndList(t *testing.T) {
 	}
 
 	createdAt := time.Unix(1_710_000_000, 0).UTC()
-	record, err := service.WriteArtifact(ctx, domain.ArtifactWriteRequest{
+	record, err := service.WriteArtifact(ctx, core.ArtifactWriteRequest{
 		ArtifactID:          "artifact_1",
 		RunID:               "run_1",
 		SessionID:           "session_1",
@@ -41,7 +41,7 @@ func TestArtifactServiceWriteReadRangeAndList(t *testing.T) {
 		t.Fatalf("sha256 = %q, want %q", got, want)
 	}
 
-	firstRange, err := service.ReadArtifactRange(ctx, domain.ArtifactReadRangeRequest{ArtifactID: record.ArtifactID, Offset: 2, Limit: 3})
+	firstRange, err := service.ReadArtifactRange(ctx, core.ArtifactReadRangeRequest{ArtifactID: record.ArtifactID, Offset: 2, Limit: 3})
 	if err != nil {
 		t.Fatalf("read range: %v", err)
 	}
@@ -52,7 +52,7 @@ func TestArtifactServiceWriteReadRangeAndList(t *testing.T) {
 		t.Fatal("range should not be EOF")
 	}
 
-	finalRange, err := service.ReadArtifactRange(ctx, domain.ArtifactReadRangeRequest{ArtifactID: record.ArtifactID, Offset: 5, Limit: 10})
+	finalRange, err := service.ReadArtifactRange(ctx, core.ArtifactReadRangeRequest{ArtifactID: record.ArtifactID, Offset: 5, Limit: 10})
 	if err != nil {
 		t.Fatalf("read final range: %v", err)
 	}
@@ -80,7 +80,7 @@ func TestArtifactServiceWriteReadRangeAndList(t *testing.T) {
 }
 
 func TestNormalizeArtifactRecordRejectsUnsafeRelativePath(t *testing.T) {
-	_, err := NormalizeArtifactRecord(domain.ArtifactRecord{
+	_, err := NormalizeArtifactRecord(core.ArtifactRecord{
 		ArtifactID:   "artifact_1",
 		RunID:        "run_1",
 		Kind:         string(ArtifactKindText),
@@ -94,32 +94,32 @@ func TestNormalizeArtifactRecordRejectsUnsafeRelativePath(t *testing.T) {
 }
 
 type memoryArtifactStore struct {
-	records map[string]domain.ArtifactRecord
+	records map[string]core.ArtifactRecord
 }
 
 func newMemoryArtifactStore() *memoryArtifactStore {
-	return &memoryArtifactStore{records: make(map[string]domain.ArtifactRecord)}
+	return &memoryArtifactStore{records: make(map[string]core.ArtifactRecord)}
 }
 
-func (s *memoryArtifactStore) SaveArtifact(_ context.Context, record domain.ArtifactRecord) (domain.ArtifactRecord, error) {
+func (s *memoryArtifactStore) SaveArtifact(_ context.Context, record core.ArtifactRecord) (core.ArtifactRecord, error) {
 	normalized, err := NormalizeArtifactRecord(record)
 	if err != nil {
-		return domain.ArtifactRecord{}, err
+		return core.ArtifactRecord{}, err
 	}
 	s.records[normalized.ArtifactID] = normalized
 	return normalized, nil
 }
 
-func (s *memoryArtifactStore) LoadArtifact(_ context.Context, artifactID string) (domain.ArtifactRecord, error) {
+func (s *memoryArtifactStore) LoadArtifact(_ context.Context, artifactID string) (core.ArtifactRecord, error) {
 	record, ok := s.records[artifactID]
 	if !ok {
-		return domain.ArtifactRecord{}, ErrArtifactNotFound
+		return core.ArtifactRecord{}, ErrArtifactNotFound
 	}
 	return record, nil
 }
 
-func (s *memoryArtifactStore) ListArtifactsByRun(_ context.Context, runID string) ([]domain.ArtifactRecord, error) {
-	var items []domain.ArtifactRecord
+func (s *memoryArtifactStore) ListArtifactsByRun(_ context.Context, runID string) ([]core.ArtifactRecord, error) {
+	var items []core.ArtifactRecord
 	for _, record := range s.records {
 		if record.RunID == runID {
 			items = append(items, record)
@@ -128,8 +128,8 @@ func (s *memoryArtifactStore) ListArtifactsByRun(_ context.Context, runID string
 	return items, nil
 }
 
-func (s *memoryArtifactStore) ListArtifactsBySession(_ context.Context, sessionID string) ([]domain.ArtifactRecord, error) {
-	var items []domain.ArtifactRecord
+func (s *memoryArtifactStore) ListArtifactsBySession(_ context.Context, sessionID string) ([]core.ArtifactRecord, error) {
+	var items []core.ArtifactRecord
 	for _, record := range s.records {
 		if record.SessionID == sessionID {
 			items = append(items, record)

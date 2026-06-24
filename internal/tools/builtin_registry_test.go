@@ -5,7 +5,7 @@ import (
 
 	"github.com/ycvk/acorn/internal/config"
 
-	"github.com/ycvk/acorn/internal/port"
+	"github.com/ycvk/acorn/internal/core"
 )
 
 // TestBuiltinToolNamesSnapshot locks the always-eligible built-in tool list so
@@ -63,7 +63,7 @@ func TestWorkingCheckpointToolsAreDeferred(t *testing.T) {
 		if !ok {
 			t.Fatalf("builtinToolContract(%q) not found", name)
 		}
-		if contract.Loading.Mode != port.ToolLoadingModeDeferred {
+		if contract.Loading.Mode != core.ToolLoadingModeDeferred {
 			t.Fatalf("%q loading = %q, want deferred", name, contract.Loading.Mode)
 		}
 	}

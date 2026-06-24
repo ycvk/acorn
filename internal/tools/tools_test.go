@@ -22,9 +22,8 @@ import (
 	einotool "github.com/cloudwego/eino/components/tool"
 	toolutils "github.com/cloudwego/eino/components/tool/utils"
 
-	"github.com/ycvk/acorn/internal/domain"
+	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/store"
-	corestore "github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/webaccess"
 	workspacepkg "github.com/ycvk/acorn/internal/workspace"
 )
@@ -581,7 +580,7 @@ func TestAskOperatorCreatesPendingActionAndInterrupts(t *testing.T) {
 		t.Fatalf("sqlite.Open: %v", err)
 	}
 	t.Cleanup(func() { _ = store.Close() })
-	if err := store.CreateRun(context.Background(), domain.RunCreateParams{RunID: "run_ask_operator", Input: "choose path"}); err != nil {
+	if err := store.CreateRun(context.Background(), core.RunCreateParams{RunID: "run_ask_operator", Input: "choose path"}); err != nil {
 		t.Fatalf("create run: %v", err)
 	}
 	catalog, err := BuildCatalog(CatalogConfig{
@@ -613,10 +612,10 @@ func TestAskOperatorCreatesPendingActionAndInterrupts(t *testing.T) {
 		t.Fatalf("pending actions = %#v, want one", actions)
 	}
 	action := actions[0]
-	if action.Kind != domain.PendingActionKindOperatorQuestion || action.ActionID != "operator_question:run_ask_operator:call_question" {
+	if action.Kind != core.PendingActionKindOperatorQuestion || action.ActionID != "operator_question:run_ask_operator:call_question" {
 		t.Fatalf("pending action = %#v", action)
 	}
-	var payload domain.OperatorQuestionPayload
+	var payload core.OperatorQuestionPayload
 	if err := json.Unmarshal([]byte(action.PayloadJSON), &payload); err != nil {
 		t.Fatalf("unmarshal payload: %v", err)
 	}
@@ -728,7 +727,7 @@ func TestGitSummaryReturnsStatusDiffStatAndDiffArtifact(t *testing.T) {
 	if decoded.DiffArtifactID == "" || decoded.DiffArtifact == nil {
 		t.Fatalf("diff artifact missing: %+v", decoded)
 	}
-	read, err := artifactService.ReadArtifactRange(context.Background(), domain.ArtifactReadRangeRequest{
+	read, err := artifactService.ReadArtifactRange(context.Background(), core.ArtifactReadRangeRequest{
 		ArtifactID: decoded.DiffArtifactID,
 		Limit:      4096,
 	})
@@ -771,14 +770,14 @@ func TestRunVerificationWritesArtifactsAndKeepsFailureAsResult(t *testing.T) {
 	if decoded.Status != verificationStatusFailed || decoded.ExitCode != 7 {
 		t.Fatalf("status/exit = %s/%d, want failed/7", decoded.Status, decoded.ExitCode)
 	}
-	stdout, err := artifactService.ReadArtifactRange(context.Background(), domain.ArtifactReadRangeRequest{
+	stdout, err := artifactService.ReadArtifactRange(context.Background(), core.ArtifactReadRangeRequest{
 		ArtifactID: decoded.StdoutArtifactID,
 		Limit:      32,
 	})
 	if err != nil {
 		t.Fatalf("read stdout artifact: %v", err)
 	}
-	stderr, err := artifactService.ReadArtifactRange(context.Background(), domain.ArtifactReadRangeRequest{
+	stderr, err := artifactService.ReadArtifactRange(context.Background(), core.ArtifactReadRangeRequest{
 		ArtifactID: decoded.StderrArtifactID,
 		Limit:      32,
 	})
@@ -1106,32 +1105,32 @@ func (c fixedArtifactContext) CurrentToolCallID(context.Context) string {
 }
 
 type toolArtifactStore struct {
-	records map[string]domain.ArtifactRecord
+	records map[string]core.ArtifactRecord
 }
 
 func newToolArtifactStore() *toolArtifactStore {
-	return &toolArtifactStore{records: make(map[string]domain.ArtifactRecord)}
+	return &toolArtifactStore{records: make(map[string]core.ArtifactRecord)}
 }
 
-func (s *toolArtifactStore) SaveArtifact(_ context.Context, record domain.ArtifactRecord) (domain.ArtifactRecord, error) {
+func (s *toolArtifactStore) SaveArtifact(_ context.Context, record core.ArtifactRecord) (core.ArtifactRecord, error) {
 	normalized, err := store.NormalizeArtifactRecord(record)
 	if err != nil {
-		return domain.ArtifactRecord{}, err
+		return core.ArtifactRecord{}, err
 	}
 	s.records[normalized.ArtifactID] = normalized
 	return normalized, nil
 }
 
-func (s *toolArtifactStore) LoadArtifact(_ context.Context, artifactID string) (domain.ArtifactRecord, error) {
+func (s *toolArtifactStore) LoadArtifact(_ context.Context, artifactID string) (core.ArtifactRecord, error) {
 	record, ok := s.records[strings.TrimSpace(artifactID)]
 	if !ok {
-		return domain.ArtifactRecord{}, store.ErrArtifactNotFound
+		return core.ArtifactRecord{}, store.ErrArtifactNotFound
 	}
 	return record, nil
 }
 
-func (s *toolArtifactStore) ListArtifactsByRun(_ context.Context, runID string) ([]domain.ArtifactRecord, error) {
-	var items []domain.ArtifactRecord
+func (s *toolArtifactStore) ListArtifactsByRun(_ context.Context, runID string) ([]core.ArtifactRecord, error) {
+	var items []core.ArtifactRecord
 	for _, record := range s.records {
 		if record.RunID == strings.TrimSpace(runID) {
 			items = append(items, record)
@@ -1140,8 +1139,8 @@ func (s *toolArtifactStore) ListArtifactsByRun(_ context.Context, runID string) 
 	return items, nil
 }
 
-func (s *toolArtifactStore) ListArtifactsBySession(_ context.Context, sessionID string) ([]domain.ArtifactRecord, error) {
-	var items []domain.ArtifactRecord
+func (s *toolArtifactStore) ListArtifactsBySession(_ context.Context, sessionID string) ([]core.ArtifactRecord, error) {
+	var items []core.ArtifactRecord
 	for _, record := range s.records {
 		if record.SessionID == strings.TrimSpace(sessionID) {
 			items = append(items, record)

@@ -14,9 +14,8 @@ import (
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/config"
-	"github.com/ycvk/acorn/internal/domain"
+	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/memory"
-	"github.com/ycvk/acorn/internal/port"
 	mcpprovider "github.com/ycvk/acorn/internal/mcp"
 	"github.com/ycvk/acorn/internal/skills"
 	corestore "github.com/ycvk/acorn/internal/store"
@@ -51,7 +50,7 @@ func (f *RunnerFactory) New(ctx context.Context, req RunnerBuildRequest) (*Activ
 	return f.buildRun(ctx, req)
 }
 
-func (f *RunnerFactory) BuildCapabilitySpecs(ctx context.Context) ([]port.ToolSpec, error) {
+func (f *RunnerFactory) BuildCapabilitySpecs(ctx context.Context) ([]core.ToolSpec, error) {
 	toolset, err := f.capabilityAsm.buildToolset(ctx, "", true)
 	if err != nil {
 		return nil, err
@@ -78,7 +77,7 @@ func (f *RunnerFactory) MemoryModule() memory.Service {
 	return f.deps.MemoryModule
 }
 
-func (f *RunnerFactory) SessionSummarySvc() *domain.SessionSummaryService {
+func (f *RunnerFactory) SessionSummarySvc() *core.SessionSummaryService {
 	return f.deps.SessionSummarySvc
 }
 
@@ -339,7 +338,7 @@ func bindToolLifecycle(
 }
 
 func bindSessionID(ctx context.Context, sessionID string) context.Context {
-	return domain.WithSessionID(ctx, sessionID)
+	return core.WithSessionID(ctx, sessionID)
 }
 
 type toolLifecycleStateAdapter struct {
@@ -428,10 +427,10 @@ type RunnerFactoryOptions struct {
 	ExtraLocalTools       []einotool.BaseTool
 	Workspace             *workspace.Workspace
 	Handlers              []adk.ChatModelAgentMiddleware
-	SessionSummaryService *domain.SessionSummaryService
+	SessionSummaryService *core.SessionSummaryService
 	MemoryModule          memory.Service
 	ContextPlane          Plane
-	MCPPendingActionStore port.MCPPendingActionStore
+	MCPPendingActionStore core.SessionStore
 }
 
 // RunnerBuildRequest holds the parameters for building a new run.
@@ -441,7 +440,7 @@ type RunnerBuildRequest struct {
 	Input             string
 	SkillID           string
 	AllowedToolNames  []string
-	Sink              domain.StreamSink
+	Sink              core.StreamSink
 	ExcludedToolNames []string
 	InstructionSuffix string
 }
@@ -544,11 +543,11 @@ func stableSkillsFromSnapshot(snapshot *skills.Snapshot) []skills.Spec {
 	return items
 }
 
-func emitMemoryPreparedEvent(ctx context.Context, store domain.EventAppender, req RunnerBuildRequest, workspaceScope string, result *memory.PrepareResult) error {
+func emitMemoryPreparedEvent(ctx context.Context, store core.EventAppender, req RunnerBuildRequest, workspaceScope string, result *memory.PrepareResult) error {
 	if store == nil || strings.TrimSpace(req.RunID) == "" {
 		return nil
 	}
-	prepared := &domain.StreamMemoryPrepared{
+	prepared := &core.StreamMemoryPrepared{
 		Query:          strings.TrimSpace(req.Input),
 		WorkspaceScope: strings.TrimSpace(workspaceScope),
 	}
@@ -558,36 +557,36 @@ func emitMemoryPreparedEvent(ctx context.Context, store domain.EventAppender, re
 		prepared.Nudges = streamMemoryNudges(result.Nudges)
 		prepared.Entries = streamMemoryEntries(result.Entries)
 	}
-	_, err := AppendStreamItem(ctx, store, req.Sink, domain.StreamItem{
+	_, err := AppendStreamItem(ctx, store, req.Sink, core.StreamItem{
 		RunID:     req.RunID,
-		Kind:      domain.StreamKindMemoryPrepared,
+		Kind:      core.StreamKindMemoryPrepared,
 		CreatedAt: time.Now().UTC(),
 		Payload:   map[string]any{"memory_prepared": prepared},
 	})
 	return err
 }
 
-func streamMemoryNudges(nudges []memory.Nudge) []domain.StreamMemoryPreparedNudge {
-	out := make([]domain.StreamMemoryPreparedNudge, 0, len(nudges))
+func streamMemoryNudges(nudges []memory.Nudge) []core.StreamMemoryPreparedNudge {
+	out := make([]core.StreamMemoryPreparedNudge, 0, len(nudges))
 	for _, n := range nudges {
-		out = append(out, domain.StreamMemoryPreparedNudge{
+		out = append(out, core.StreamMemoryPreparedNudge{
 			Ref: n.Ref, Kind: n.Kind, Title: n.Title, Status: n.Status, Reason: n.Reason,
 		})
 	}
 	return out
 }
 
-func streamMemoryEntries(entries []memory.Entry) []domain.StreamMemoryPreparedEntry {
-	out := make([]domain.StreamMemoryPreparedEntry, 0, len(entries))
+func streamMemoryEntries(entries []memory.Entry) []core.StreamMemoryPreparedEntry {
+	out := make([]core.StreamMemoryPreparedEntry, 0, len(entries))
 	for _, e := range entries {
-		out = append(out, domain.StreamMemoryPreparedEntry{
+		out = append(out, core.StreamMemoryPreparedEntry{
 			Ref: e.Ref, Kind: e.Kind, Title: e.Title,
 		})
 	}
 	return out
 }
-func streamSkillRequirementsFromDomain(item skills.Requirements) domain.StreamSkillRequirements {
-	return domain.StreamSkillRequirements{
+func streamSkillRequirementsFromDomain(item skills.Requirements) core.StreamSkillRequirements {
+	return core.StreamSkillRequirements{
 		Tools:    append([]string(nil), item.Tools...),
 		Toolsets: append([]string(nil), item.Toolsets...),
 		Bins:     append([]string(nil), item.Bins...),

@@ -8,21 +8,21 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ycvk/acorn/internal/domain"
+	"github.com/ycvk/acorn/internal/core"
 )
 
-// CreateRun implements port.RunRepo. It creates a run record with status
+// CreateRun implements core.RunRepo. It creates a run record with status
 // "running" and an empty finished_at (filled on completion). Binding of user
 // messages is handled separately via BindLatestUserMessageRunID /
 // BindUserMessageRunIDByID.
-func (s *Store) CreateRun(ctx context.Context, params domain.RunCreateParams) error {
+func (s *Store) CreateRun(ctx context.Context, params core.RunCreateParams) error {
 	now := formatTimestamp(time.Now())
 	_, err := s.db.ExecContext(ctx,
 		`INSERT INTO runs(run_id, session_id, turn_index, status, input_text, output_text, error_text, created_at, finished_at) VALUES(?, ?, ?, ?, ?, '', '', ?, '')`,
 		params.RunID,
 		params.SessionID,
 		params.TurnIndex,
-		string(domain.RunStatusRunning),
+		string(core.RunStatusRunning),
 		params.Input,
 		now,
 	)
@@ -32,11 +32,11 @@ func (s *Store) CreateRun(ctx context.Context, params domain.RunCreateParams) er
 	return nil
 }
 
-// AppendEvent implements port.EventRepo.
-func (s *Store) AppendEvent(ctx context.Context, runID, kind string, payload any) (domain.EventRecord, error) {
+// AppendEvent implements core.EventRepo.
+func (s *Store) AppendEvent(ctx context.Context, runID, kind string, payload any) (core.EventRecord, error) {
 	body, err := json.Marshal(payload)
 	if err != nil {
-		return domain.EventRecord{}, fmt.Errorf("marshal event payload: %w", err)
+		return core.EventRecord{}, fmt.Errorf("marshal event payload: %w", err)
 	}
 	now := time.Now().UTC()
 	result, err := s.db.ExecContext(ctx,
@@ -47,17 +47,17 @@ func (s *Store) AppendEvent(ctx context.Context, runID, kind string, payload any
 		formatTimestamp(now),
 	)
 	if err != nil {
-		return domain.EventRecord{}, fmt.Errorf("append event: %w", err)
+		return core.EventRecord{}, fmt.Errorf("append event: %w", err)
 	}
 	seq, err := result.LastInsertId()
 	if err != nil {
-		return domain.EventRecord{}, fmt.Errorf("read event sequence: %w", err)
+		return core.EventRecord{}, fmt.Errorf("read event sequence: %w", err)
 	}
-	return domain.EventRecord{Sequence: seq, RunID: runID, Kind: kind, Payload: payload, CreatedAt: now}, nil
+	return core.EventRecord{Sequence: seq, RunID: runID, Kind: kind, Payload: payload, CreatedAt: now}, nil
 }
 
-// FinishRun implements port.RunRepo.
-func (s *Store) FinishRun(ctx context.Context, runID string, status domain.RunStatus, output, errText string) error {
+// FinishRun implements core.RunRepo.
+func (s *Store) FinishRun(ctx context.Context, runID string, status core.RunStatus, output, errText string) error {
 	_, err := s.db.ExecContext(ctx,
 		`UPDATE runs SET status = ?, output_text = ?, error_text = ?, finished_at = ? WHERE run_id = ?`,
 		string(status),
@@ -72,7 +72,7 @@ func (s *Store) FinishRun(ctx context.Context, runID string, status domain.RunSt
 	return nil
 }
 
-// UpdateRunOutput implements port.RunRepo.
+// UpdateRunOutput implements core.RunRepo.
 func (s *Store) UpdateRunOutput(ctx context.Context, runID, output string) error {
 	_, err := s.db.ExecContext(ctx,
 		`UPDATE runs SET output_text = ? WHERE run_id = ?`,
@@ -85,11 +85,11 @@ func (s *Store) UpdateRunOutput(ctx context.Context, runID, output string) error
 	return nil
 }
 
-// MarkInterrupted implements port.RunRepo.
+// MarkInterrupted implements core.RunRepo.
 func (s *Store) MarkInterrupted(ctx context.Context, runID, output string) error {
 	_, err := s.db.ExecContext(ctx,
 		`UPDATE runs SET status = ?, output_text = ?, finished_at = ? WHERE run_id = ?`,
-		string(domain.RunStatusInterrupted),
+		string(core.RunStatusInterrupted),
 		output,
 		formatTimestamp(time.Now()),
 		runID,
@@ -100,7 +100,7 @@ func (s *Store) MarkInterrupted(ctx context.Context, runID, output string) error
 	return nil
 }
 
-func (s *Store) LoadRun(ctx context.Context, runID string) (*domain.RunRecord, error) {
+func (s *Store) LoadRun(ctx context.Context, runID string) (*core.RunRecord, error) {
 	row := s.db.QueryRowContext(ctx, `SELECT run_id, session_id, turn_index, status, input_text, output_text, error_text, created_at, finished_at FROM runs WHERE run_id = ?`, runID)
 	rec, err := scanRunRecord(row)
 	if err != nil {
@@ -112,14 +112,14 @@ func (s *Store) LoadRun(ctx context.Context, runID string) (*domain.RunRecord, e
 	return rec, nil
 }
 
-func (s *Store) ListActiveRuns(ctx context.Context, limit int) ([]domain.RunRecord, error) {
+func (s *Store) ListActiveRuns(ctx context.Context, limit int) ([]core.RunRecord, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT run_id, session_id, turn_index, status, input_text, output_text, error_text, created_at, finished_at
 		 FROM runs
 		 WHERE status = ? AND session_id <> ''
 		 ORDER BY created_at DESC
 		 LIMIT ?`,
-		string(domain.RunStatusRunning),
+		string(core.RunStatusRunning),
 		normalizeRunListLimit(limit),
 	)
 	if err != nil {
@@ -128,16 +128,16 @@ func (s *Store) ListActiveRuns(ctx context.Context, limit int) ([]domain.RunReco
 	return scanRunRows(rows, "list active runs")
 }
 
-func (s *Store) ListRecentTerminalRuns(ctx context.Context, limit int) ([]domain.RunRecord, error) {
+func (s *Store) ListRecentTerminalRuns(ctx context.Context, limit int) ([]core.RunRecord, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT run_id, session_id, turn_index, status, input_text, output_text, error_text, created_at, finished_at
 		 FROM runs
 		 WHERE status IN (?, ?, ?) AND session_id <> ''
 		 ORDER BY finished_at DESC
 		 LIMIT ?`,
-		string(domain.RunStatusSucceeded),
-		string(domain.RunStatusInterrupted),
-		string(domain.RunStatusFailed),
+		string(core.RunStatusSucceeded),
+		string(core.RunStatusInterrupted),
+		string(core.RunStatusFailed),
 		normalizeRunListLimit(limit),
 	)
 	if err != nil {
@@ -153,9 +153,9 @@ func normalizeRunListLimit(limit int) int {
 	return limit
 }
 
-func scanRunRows(rows *sql.Rows, source string) ([]domain.RunRecord, error) {
+func scanRunRows(rows *sql.Rows, source string) ([]core.RunRecord, error) {
 	defer rows.Close()
-	items := make([]domain.RunRecord, 0)
+	items := make([]core.RunRecord, 0)
 	for rows.Next() {
 		record, err := scanRunRecord(rows)
 		if err != nil {
@@ -169,7 +169,7 @@ func scanRunRows(rows *sql.Rows, source string) ([]domain.RunRecord, error) {
 	return items, nil
 }
 
-func (s *Store) LoadEvents(ctx context.Context, runID string) ([]domain.EventRecord, error) {
+func (s *Store) LoadEvents(ctx context.Context, runID string) ([]core.EventRecord, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT sequence, kind, payload_json, created_at FROM events WHERE run_id = ? ORDER BY sequence ASC`, runID)
 	if err != nil {
 		return nil, fmt.Errorf("query events: %w", err)
@@ -177,7 +177,7 @@ func (s *Store) LoadEvents(ctx context.Context, runID string) ([]domain.EventRec
 	return scanEventRows(rows, runID)
 }
 
-func (s *Store) LoadEventsAfter(ctx context.Context, runID string, afterSeq int64) ([]domain.EventRecord, error) {
+func (s *Store) LoadEventsAfter(ctx context.Context, runID string, afterSeq int64) ([]core.EventRecord, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT sequence, kind, payload_json, created_at FROM events WHERE run_id = ? AND sequence > ? ORDER BY sequence ASC`, runID, afterSeq)
 	if err != nil {
 		return nil, fmt.Errorf("query events after: %w", err)
@@ -185,9 +185,9 @@ func (s *Store) LoadEventsAfter(ctx context.Context, runID string, afterSeq int6
 	return scanEventRows(rows, runID)
 }
 
-func scanEventRows(rows *sql.Rows, runID string) ([]domain.EventRecord, error) {
+func scanEventRows(rows *sql.Rows, runID string) ([]core.EventRecord, error) {
 	defer rows.Close()
-	items := make([]domain.EventRecord, 0)
+	items := make([]core.EventRecord, 0)
 	for rows.Next() {
 		var (
 			seq     int64
@@ -206,7 +206,7 @@ func scanEventRows(rows *sql.Rows, runID string) ([]domain.EventRecord, error) {
 		if err != nil {
 			return nil, err
 		}
-		items = append(items, domain.EventRecord{Sequence: seq, RunID: runID, Kind: kind, Payload: body, CreatedAt: parsed})
+		items = append(items, core.EventRecord{Sequence: seq, RunID: runID, Kind: kind, Payload: body, CreatedAt: parsed})
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("query events: %w", err)

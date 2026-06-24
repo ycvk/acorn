@@ -29,7 +29,7 @@ func TestClientProjectionBoundaryDoesNotImportRuntimeTypes(t *testing.T) {
 		}
 		for _, item := range file.Imports {
 			importPath := strings.Trim(item.Path.Value, `"`)
-			if importPath == "github.com/ycvk/acorn/internal/agent" || importPath == "github.com/ycvk/acorn/internal/agent/api" {
+			if importPath == "github.com/ycvk/acorn/internal/runtime" || importPath == "github.com/ycvk/acorn/internal/runtime/api" {
 				offenders = append(offenders, rel+" imports "+importPath)
 			}
 		}
@@ -63,7 +63,7 @@ func TestAppServicesDoNotImportStreamOutsideRuntimeAdapter(t *testing.T) {
 		}
 		for _, item := range file.Imports {
 			importPath := strings.Trim(item.Path.Value, `"`)
-			if importPath == "github.com/ycvk/acorn/internal/stream" {
+			if importPath == "github.com/ycvk/acorn/internal/runtime" {
 				offenders = append(offenders, rel+" imports "+importPath)
 			}
 		}

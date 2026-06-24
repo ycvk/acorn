@@ -6,7 +6,7 @@ import (
 )
 
 func TestDoctorRemediationLinesAlwaysGuideToConfigAndInit(t *testing.T) {
-	lines := strings.Join(doctorRemediationLines("agent.max_iterations must be > 0", "/etc/acorn/acorn.yaml"), "\n")
+	lines := strings.Join(doctorRemediationLines("runtime.max_iterations must be > 0", "/etc/acorn/acorn.yaml"), "\n")
 	for _, want := range []string{"Fix:", "/etc/acorn/acorn.yaml", "acorn doctor", "acorn init"} {
 		if !strings.Contains(lines, want) {
 			t.Fatalf("remediation missing %q:\n%s", want, lines)

@@ -5,32 +5,32 @@ import (
 	"fmt"
 
 	"encoding/json"
-	"github.com/ycvk/acorn/internal/domain"
+	"github.com/ycvk/acorn/internal/core"
 )
 
-func AppendStreamItem(ctx context.Context, store domain.EventAppender, sink domain.StreamSink, item domain.StreamItem) (domain.EventRecord, error) {
+func AppendStreamItem(ctx context.Context, store core.EventAppender, sink core.StreamSink, item core.StreamItem) (core.EventRecord, error) {
 	if store == nil {
-		return domain.EventRecord{}, fmt.Errorf("append stream item: nil store")
+		return core.EventRecord{}, fmt.Errorf("append stream item: nil store")
 	}
 	kind, payload, err := ProjectStreamItemToEvent(item)
 	if err != nil {
-		return domain.EventRecord{}, err
+		return core.EventRecord{}, err
 	}
 	saved, err := store.AppendEvent(ctx, item.RunID, kind, payload)
 	if err != nil {
-		return domain.EventRecord{}, err
+		return core.EventRecord{}, err
 	}
 	item.Sequence = saved.Sequence
 	item.CreatedAt = saved.CreatedAt
 	if sink != nil {
 		if err := sink(item); err != nil {
-			return domain.EventRecord{}, err
+			return core.EventRecord{}, err
 		}
 	}
 	return saved, nil
 }
 
-func ProjectStreamItemToEvent(item domain.StreamItem) (string, any, error) {
+func ProjectStreamItemToEvent(item core.StreamItem) (string, any, error) {
 	if item.Payload == nil {
 		return streamKindToEventKind(item.Kind), map[string]any{}, nil
 	}
@@ -46,48 +46,48 @@ func ProjectStreamItemToEvent(item domain.StreamItem) (string, any, error) {
 	return streamKindToEventKind(item.Kind), payload, nil
 }
 
-func streamKindToEventKind(kind domain.StreamItemKind) string {
+func streamKindToEventKind(kind core.StreamItemKind) string {
 	switch kind {
-	case domain.StreamKindRunStarted:
+	case core.StreamKindRunStarted:
 		return "run.started"
-	case domain.StreamKindRunCompleted:
+	case core.StreamKindRunCompleted:
 		return "run.completed"
-	case domain.StreamKindRunFailed:
+	case core.StreamKindRunFailed:
 		return "run.failed"
-	case domain.StreamKindRunInterrupted:
+	case core.StreamKindRunInterrupted:
 		return "run.interrupted"
-	case domain.StreamKindRunResumeRequested:
+	case core.StreamKindRunResumeRequested:
 		return "run.resume_requested"
-	case domain.StreamKindAssistantDelta:
+	case core.StreamKindAssistantDelta:
 		return string(kind)
-	case domain.StreamKindAssistantMessage:
-		return "agent.message"
-	case domain.StreamKindToolCallStarted:
+	case core.StreamKindAssistantMessage:
+		return "runtime.message"
+	case core.StreamKindToolCallStarted:
 		return "tool.call.started"
-	case domain.StreamKindToolCallSucceeded:
+	case core.StreamKindToolCallSucceeded:
 		return "tool.call.succeeded"
-	case domain.StreamKindToolCallFailed:
+	case core.StreamKindToolCallFailed:
 		return "tool.call.failed"
-	case domain.StreamKindToolCallInterrupted:
+	case core.StreamKindToolCallInterrupted:
 		return "tool.call.interrupted"
-	case domain.StreamKindSkillDiscovered:
+	case core.StreamKindSkillDiscovered:
 		return "skill.discovered"
-	case domain.StreamKindSkillSelected:
+	case core.StreamKindSkillSelected:
 		return "skill.selected"
-	case domain.StreamKindSkillLoaded:
+	case core.StreamKindSkillLoaded:
 		return "skill.loaded"
-	case domain.StreamKindSkillFailed:
+	case core.StreamKindSkillFailed:
 		return "skill.failed"
-	case domain.StreamKindProcedureActivation:
+	case core.StreamKindProcedureActivation:
 		return "procedure.activation"
-	case domain.StreamKindMemoryPrepared:
+	case core.StreamKindMemoryPrepared:
 		return "memory.prepared"
 	default:
 		return string(kind)
 	}
 }
 
-func streamPayloadMap(kind domain.StreamItemKind, payload any) (map[string]any, error) {
+func streamPayloadMap(kind core.StreamItemKind, payload any) (map[string]any, error) {
 	out := map[string]any{}
 	if payload == nil {
 		return out, nil
@@ -98,12 +98,12 @@ func streamPayloadMap(kind domain.StreamItemKind, payload any) (map[string]any, 
 	return out, nil
 }
 
-func normalizeToolCallPayload(kind domain.StreamItemKind, payload map[string]any) error {
+func normalizeToolCallPayload(kind core.StreamItemKind, payload map[string]any) error {
 	switch kind {
-	case domain.StreamKindToolCallStarted,
-		domain.StreamKindToolCallSucceeded,
-		domain.StreamKindToolCallFailed,
-		domain.StreamKindToolCallInterrupted:
+	case core.StreamKindToolCallStarted,
+		core.StreamKindToolCallSucceeded,
+		core.StreamKindToolCallFailed,
+		core.StreamKindToolCallInterrupted:
 	default:
 		return nil
 	}

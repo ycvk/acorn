@@ -8,7 +8,7 @@ import (
 
 	einotool "github.com/cloudwego/eino/components/tool"
 
-	"github.com/ycvk/acorn/internal/domain"
+	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/webaccess"
 )
 
@@ -24,7 +24,7 @@ type BrowserInput struct {
 	Key         string `json:"key,omitempty" jsonschema:"description=Key for press, such as Enter or Tab."`
 	Value       string `json:"value,omitempty" jsonschema:"description=Value/label/text for select."`
 	ExtractMode string `json:"extract_mode,omitempty" jsonschema:"description=Scan extraction mode: auto, readability, full_page_markdown, or visible_text."`
-	FullPage    bool   `json:"full_page,omitempty" jsonschema:"description=Capture a full-page screenshot instead of the viewport."`
+	FullPage    bool   `json:"full_page,omitempty" jsonschema:"description=Capture a full-page screenshot instead of the viewcore."`
 }
 
 type BrowserScanOutput struct {
@@ -59,7 +59,7 @@ type BrowserOutput struct {
 	Message    string                   `json:"message,omitempty"`
 }
 
-func buildBrowserTool(service BrowserService, artifactService ArtifactService, bridge domain.ToolCallContextBridge) (einotool.BaseTool, error) {
+func buildBrowserTool(service BrowserService, artifactService ArtifactService, bridge core.ToolCallContextBridge) (einotool.BaseTool, error) {
 	if service == nil {
 		return nil, errors.New("browser service is required")
 	}
@@ -109,7 +109,7 @@ func buildBrowserTool(service BrowserService, artifactService ArtifactService, b
 			if err != nil {
 				return BrowserOutput{}, err
 			}
-			record, err := artifactService.WriteArtifact(ctx, domain.ArtifactWriteRequest{
+			record, err := artifactService.WriteArtifact(ctx, core.ArtifactWriteRequest{
 				RunID:               runID,
 				SessionID:           strings.TrimSpace(bridge.CurrentSessionID(ctx)),
 				SourceToolResultRef: "tool_result:" + strings.TrimSpace(runID) + ":" + strings.TrimSpace(callID),
@@ -172,7 +172,7 @@ func buildBrowserTool(service BrowserService, artifactService ArtifactService, b
 			if err != nil {
 				return BrowserOutput{}, err
 			}
-			record, err := artifactService.WriteArtifact(ctx, domain.ArtifactWriteRequest{
+			record, err := artifactService.WriteArtifact(ctx, core.ArtifactWriteRequest{
 				RunID:               runID,
 				SessionID:           strings.TrimSpace(bridge.CurrentSessionID(ctx)),
 				SourceToolResultRef: "tool_result:" + strings.TrimSpace(runID) + ":" + strings.TrimSpace(callID),

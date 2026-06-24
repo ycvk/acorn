@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	einotool "github.com/cloudwego/eino/components/tool"
-	"github.com/ycvk/acorn/internal/domain"
+	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/webaccess"
 )
 
@@ -28,7 +28,7 @@ type WebSearchOutput struct {
 	ResponseTime    float64                          `json:"response_time,omitempty"`
 }
 
-func buildWebSearchTool(search WebSearchService, artifactService ArtifactService, bridge domain.ToolCallContextBridge) (einotool.BaseTool, error) {
+func buildWebSearchTool(search WebSearchService, artifactService ArtifactService, bridge core.ToolCallContextBridge) (einotool.BaseTool, error) {
 	if search == nil {
 		return nil, errors.New("web search service is required")
 	}
@@ -56,7 +56,7 @@ func buildWebSearchTool(search WebSearchService, artifactService ArtifactService
 		if err != nil {
 			return WebSearchOutput{}, err
 		}
-		rawRecord, err := artifactService.WriteArtifact(ctx, domain.ArtifactWriteRequest{
+		rawRecord, err := artifactService.WriteArtifact(ctx, core.ArtifactWriteRequest{
 			RunID:               runID,
 			SessionID:           strings.TrimSpace(bridge.CurrentSessionID(ctx)),
 			SourceToolResultRef: sourceRef,
@@ -118,7 +118,7 @@ type WebFetchOutput struct {
 	Links              []webaccess.PageLink `json:"links,omitempty"`
 }
 
-func buildWebFetchTool(fetcher WebFetchService, artifactService ArtifactService, bridge domain.ToolCallContextBridge) (einotool.BaseTool, error) {
+func buildWebFetchTool(fetcher WebFetchService, artifactService ArtifactService, bridge core.ToolCallContextBridge) (einotool.BaseTool, error) {
 	if fetcher == nil {
 		return nil, errors.New("web fetch service is required")
 	}
@@ -146,7 +146,7 @@ func buildWebFetchTool(fetcher WebFetchService, artifactService ArtifactService,
 			return WebFetchOutput{}, err
 		}
 		sessionID := strings.TrimSpace(bridge.CurrentSessionID(ctx))
-		rawRecord, err := artifactService.WriteArtifact(ctx, domain.ArtifactWriteRequest{
+		rawRecord, err := artifactService.WriteArtifact(ctx, core.ArtifactWriteRequest{
 			RunID:               runID,
 			SessionID:           sessionID,
 			SourceToolResultRef: sourceRef,
@@ -158,7 +158,7 @@ func buildWebFetchTool(fetcher WebFetchService, artifactService ArtifactService,
 		if err != nil {
 			return WebFetchOutput{}, err
 		}
-		markdownRecord, err := artifactService.WriteArtifact(ctx, domain.ArtifactWriteRequest{
+		markdownRecord, err := artifactService.WriteArtifact(ctx, core.ArtifactWriteRequest{
 			RunID:               runID,
 			SessionID:           sessionID,
 			SourceToolResultRef: sourceRef,

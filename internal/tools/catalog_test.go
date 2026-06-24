@@ -8,7 +8,7 @@ import (
 	einotool "github.com/cloudwego/eino/components/tool"
 	toolutils "github.com/cloudwego/eino/components/tool/utils"
 
-	"github.com/ycvk/acorn/internal/port"
+	"github.com/ycvk/acorn/internal/core"
 
 	"github.com/ycvk/acorn/internal/tools"
 )
@@ -16,8 +16,8 @@ import (
 func TestNewCatalogNormalizesToolNames(t *testing.T) {
 	tool := mustInferTool(t, "local_echo")
 
-	catalog, err := tools.NewCatalog(context.Background(), []port.ToolSpec{{
-		ToolContract: testToolContract("", "local", port.ParallelPolicyReadOnly),
+	catalog, err := tools.NewCatalog(context.Background(), []core.ToolSpec{{
+		ToolContract: testToolContract("", "local", core.ParallelPolicyReadOnly),
 		Tool:         tool,
 	}})
 	if err != nil {
@@ -37,13 +37,13 @@ func TestNewCatalogRejectsDuplicateNames(t *testing.T) {
 	first := mustInferTool(t, "shared_name")
 	second := mustInferTool(t, "shared_name")
 
-	_, err := tools.NewCatalog(context.Background(), []port.ToolSpec{
+	_, err := tools.NewCatalog(context.Background(), []core.ToolSpec{
 		{
-			ToolContract: testToolContract("", "local", port.ParallelPolicyReadOnly),
+			ToolContract: testToolContract("", "local", core.ParallelPolicyReadOnly),
 			Tool:         first,
 		},
 		{
-			ToolContract: testToolContract("", "fixture", port.ParallelPolicyReadOnly),
+			ToolContract: testToolContract("", "fixture", core.ParallelPolicyReadOnly),
 			Tool:         second,
 		},
 	})
@@ -56,9 +56,9 @@ func TestNewCatalogRejectsDuplicateNames(t *testing.T) {
 }
 
 func TestNewCatalogRejectsEnabledSpecWithoutTool(t *testing.T) {
-	_, err := tools.NewCatalog(context.Background(), []port.ToolSpec{{
-		ToolContract: testToolContract("read_file", "local", port.ParallelPolicyReadOnly),
-		Health:       port.ToolHealth{State: port.HealthStateHealthy},
+	_, err := tools.NewCatalog(context.Background(), []core.ToolSpec{{
+		ToolContract: testToolContract("read_file", "local", core.ParallelPolicyReadOnly),
+		Health:       core.ToolHealth{State: core.HealthStateHealthy},
 	}})
 	if err == nil {
 		t.Fatal("expected missing tool error")
@@ -70,8 +70,8 @@ func TestNewCatalogRejectsEnabledSpecWithoutTool(t *testing.T) {
 
 func TestCatalogExecutionPolicyRejectsUnknownTool(t *testing.T) {
 	tool := mustInferTool(t, "local_echo")
-	catalog, err := tools.NewCatalog(context.Background(), []port.ToolSpec{{
-		ToolContract: testToolContract("", "local", port.ParallelPolicyReadOnly),
+	catalog, err := tools.NewCatalog(context.Background(), []core.ToolSpec{{
+		ToolContract: testToolContract("", "local", core.ParallelPolicyReadOnly),
 		Tool:         tool,
 	}})
 	if err != nil {
@@ -85,12 +85,12 @@ func TestCatalogExecutionPolicyRejectsUnknownTool(t *testing.T) {
 
 func TestNewCatalogRejectsIncompleteContract(t *testing.T) {
 	tool := mustInferTool(t, "local_echo")
-	_, err := tools.NewCatalog(context.Background(), []port.ToolSpec{{
-		ToolContract: port.ToolContract{
+	_, err := tools.NewCatalog(context.Background(), []core.ToolSpec{{
+		ToolContract: core.ToolContract{
 			Source:   "local",
-			Kind:     port.ToolKindNative,
-			Category: port.ToolCategoryRead,
-			Loading:  port.EagerLoadingPolicy(),
+			Kind:     core.ToolKindNative,
+			Category: core.ToolCategoryRead,
+			Loading:  core.EagerLoadingPolicy(),
 		},
 		Tool: tool,
 	}})
@@ -102,14 +102,14 @@ func TestNewCatalogRejectsIncompleteContract(t *testing.T) {
 	}
 }
 
-func testToolContract(name string, source string, parallel port.ParallelPolicy) port.ToolContract {
-	execution := port.ToolExecutionPolicy{ParallelPolicy: parallel}
-	return port.ToolContract{
+func testToolContract(name string, source string, parallel core.ParallelPolicy) core.ToolContract {
+	execution := core.ToolExecutionPolicy{ParallelPolicy: parallel}
+	return core.ToolContract{
 		Name:      name,
 		Source:    source,
-		Kind:      port.ToolKindNative,
-		Category:  port.ToolCategoryRead,
-		Loading:   port.EagerLoadingPolicy(),
+		Kind:      core.ToolKindNative,
+		Category:  core.ToolCategoryRead,
+		Loading:   core.EagerLoadingPolicy(),
 		Execution: execution,
 	}
 }

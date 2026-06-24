@@ -3,7 +3,7 @@ package tools
 import (
 	"context"
 
-	"github.com/ycvk/acorn/internal/domain"
+	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/webaccess"
 	"github.com/ycvk/acorn/internal/workspace"
 )
@@ -26,10 +26,10 @@ type WorkspaceView interface {
 
 // ArtifactService is the subset of artifact operations required by tool builders.
 type ArtifactService interface {
-	WriteArtifact(ctx context.Context, req domain.ArtifactWriteRequest) (domain.ArtifactRecord, error)
-	ReadArtifactRange(ctx context.Context, req domain.ArtifactReadRangeRequest) (domain.ArtifactReadRangeResult, error)
-	ListByRun(ctx context.Context, runID string) ([]domain.ArtifactRecord, error)
-	ListBySession(ctx context.Context, sessionID string) ([]domain.ArtifactRecord, error)
+	WriteArtifact(ctx context.Context, req core.ArtifactWriteRequest) (core.ArtifactRecord, error)
+	ReadArtifactRange(ctx context.Context, req core.ArtifactReadRangeRequest) (core.ArtifactReadRangeResult, error)
+	ListByRun(ctx context.Context, runID string) ([]core.ArtifactRecord, error)
+	ListBySession(ctx context.Context, sessionID string) ([]core.ArtifactRecord, error)
 }
 
 // WebFetchService is the subset of web fetch operations required by tool builders.

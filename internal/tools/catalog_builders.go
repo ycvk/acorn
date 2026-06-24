@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	einotool "github.com/cloudwego/eino/components/tool"
-	"github.com/ycvk/acorn/internal/domain"
+	"github.com/ycvk/acorn/internal/core"
 )
 
 func buildWorkspaceTools(cfg CatalogConfig) ([]einotool.BaseTool, error) {
@@ -168,9 +168,9 @@ type CatalogConfig struct {
 	MutationEnabled   bool
 	RunCommandEnabled bool
 	ArtifactService   ArtifactService
-	ArtifactContext   domain.ToolCallContextBridge
+	ArtifactContext   core.ToolCallContextBridge
 	OperatorStore     OperatorQuestionStore
-	OperatorContext   domain.ToolCallContextBridge
+	OperatorContext   core.ToolCallContextBridge
 	WebFetchService   WebFetchService
 	WebSearchService  WebSearchService
 	BrowserService    BrowserService

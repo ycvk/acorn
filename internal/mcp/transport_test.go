@@ -47,8 +47,8 @@ func TestNewTransportSSE(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected *mcp.SSEClientTransport, got %T", transport)
 	}
-	if got, want := sseTransport.Endpoint, cfg.URL; got != want {
-		t.Fatalf("SSEClientTransport.Endpoint = %q, want %q", got, want)
+	if got, want := sseTranscore.Endpoint, cfg.URL; got != want {
+		t.Fatalf("SSEClientTranscore.Endpoint = %q, want %q", got, want)
 	}
 	if got, want := metadata.Kind, "sse"; got != want {
 		t.Fatalf("metadata.Kind = %q, want %q", got, want)
@@ -73,10 +73,10 @@ func TestNewTransportStreamableHTTP(t *testing.T) {
 		t.Fatalf("expected *mcp.StreamableClientTransport, got %T", transport)
 	}
 	if got, want := sHttp.Endpoint, cfg.URL; got != want {
-		t.Fatalf("StreamableClientTransport.Endpoint = %q, want %q", got, want)
+		t.Fatalf("StreamableClientTranscore.Endpoint = %q, want %q", got, want)
 	}
 	if got, want := sHttp.MaxRetries, -1; got != want {
-		t.Fatalf("StreamableClientTransport.MaxRetries = %d, want %d", got, want)
+		t.Fatalf("StreamableClientTranscore.MaxRetries = %d, want %d", got, want)
 	}
 	if got, want := metadata.Kind, "streamable_http"; got != want {
 		t.Fatalf("metadata.Kind = %q, want %q", got, want)
@@ -279,7 +279,7 @@ func TestNewTransport_SSEEndpointField(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected *mcp.SSEClientTransport, got %T", transport)
 	}
-	if got, want := sseTransport.Endpoint, "http://example.com:9090/mcp/sse"; got != want {
+	if got, want := sseTranscore.Endpoint, "http://example.com:9090/mcp/sse"; got != want {
 		t.Fatalf("Endpoint = %q, want %q", got, want)
 	}
 }

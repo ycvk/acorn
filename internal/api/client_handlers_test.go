@@ -13,9 +13,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/ycvk/acorn/internal/clientevents"
 	"github.com/ycvk/acorn/internal/config"
-	"github.com/ycvk/acorn/internal/domain"
+	"github.com/ycvk/acorn/internal/core"
 	mem "github.com/ycvk/acorn/internal/memory"
 
 	"github.com/ycvk/acorn/internal/skills"
@@ -143,10 +142,10 @@ func TestThreadMessageRunHandlers(t *testing.T) {
 
 func TestDecidePendingActionHandler(t *testing.T) {
 	service := &pendingActionHandlerStub{
-		record: domain.PendingActionRecord{
+		record: core.PendingActionRecord{
 			ActionID:     "action_1",
 			RunID:        "run_1",
-			Status:       domain.PendingActionStatusApproved,
+			Status:       core.PendingActionStatusApproved,
 			DecisionJSON: `{"action":"accept"}`,
 		},
 	}
@@ -460,7 +459,7 @@ func TestClientHandlersReturnClientErrorCodes(t *testing.T) {
 			method:     http.MethodPost,
 			path:       "/v1/threads/thread_1/runs",
 			body:       `{}`,
-			err:        domain.ErrExecutionNotReady,
+			err:        core.ErrExecutionNotReady,
 			wantStatus: http.StatusServiceUnavailable,
 			wantCode:   "execution_not_ready",
 		},
@@ -494,14 +493,14 @@ func TestClientHandlersReturnClientErrorCodes(t *testing.T) {
 
 func TestRunEventsBacklogSSE(t *testing.T) {
 	service := &clientHandlerStub{
-		events: []clientevents.RunEvent{
+		events: []core.RunEvent{
 			{
 				EventID: "run_1:2",
 				RunID:   "run_1",
 				Seq:     2,
 				TS:      time.Date(2026, 5, 2, 10, 4, 0, 0, time.UTC),
 				Type:    "assistant.delta",
-				Data: clientevents.AssistantDeltaData{
+				Data: core.AssistantDeltaData{
 					AssistantDelta: map[string]any{"delta": "he"},
 				},
 			},
@@ -511,7 +510,7 @@ func TestRunEventsBacklogSSE(t *testing.T) {
 				Seq:     3,
 				TS:      time.Date(2026, 5, 2, 10, 5, 0, 0, time.UTC),
 				Type:    "run.completed",
-				Data:    clientevents.RunCompletedData{Message: map[string]any{"content": "done"}},
+				Data:    core.RunCompletedData{Message: map[string]any{"content": "done"}},
 			},
 		},
 	}
@@ -546,14 +545,14 @@ func TestRunEventsBacklogSSE(t *testing.T) {
 
 func TestRunEventsRejectInvalidSSEMetadata(t *testing.T) {
 	service := &clientHandlerStub{
-		events: []clientevents.RunEvent{
+		events: []core.RunEvent{
 			{
 				EventID: "run_1:2\nbroken",
 				RunID:   "run_1",
 				Seq:     2,
 				TS:      time.Date(2026, 5, 2, 10, 4, 0, 0, time.UTC),
 				Type:    "assistant.delta",
-				Data: clientevents.AssistantDeltaData{
+				Data: core.AssistantDeltaData{
 					AssistantDelta: map[string]any{"delta": "he"},
 				},
 			},
@@ -576,29 +575,29 @@ func TestRunEventsRejectInvalidSSEMetadata(t *testing.T) {
 
 func TestRunEventsFollowPollsUntilTerminal(t *testing.T) {
 	service := &clientHandlerStub{
-		eventBatches: []*clientevents.RunEventBatch{
+		eventBatches: []*core.RunEventBatch{
 			{
-				Events: []clientevents.RunEvent{
+				Events: []core.RunEvent{
 					{
 						EventID: "run_follow:1",
 						RunID:   "run_follow",
 						Seq:     1,
 						TS:      time.Date(2026, 5, 2, 10, 4, 0, 0, time.UTC),
 						Type:    "run.started",
-						Data:    clientevents.RunStartedData{Input: "hello"},
+						Data:    core.RunStartedData{Input: "hello"},
 					},
 				},
 				CursorSeq: 1,
 			},
 			{
-				Events: []clientevents.RunEvent{
+				Events: []core.RunEvent{
 					{
 						EventID: "run_follow:2",
 						RunID:   "run_follow",
 						Seq:     2,
 						TS:      time.Date(2026, 5, 2, 10, 4, 1, 0, time.UTC),
 						Type:    "run.completed",
-						Data:    clientevents.RunCompletedData{Message: map[string]any{"content": "done"}},
+						Data:    core.RunCompletedData{Message: map[string]any{"content": "done"}},
 					},
 				},
 				CursorSeq: 2,
@@ -690,14 +689,14 @@ func TestClientResourceSurfaceHandlers(t *testing.T) {
 			Mode:      "direct",
 			CreatedAt: time.Date(2026, 5, 2, 10, 3, 0, 0, time.UTC),
 		},
-		events: []clientevents.RunEvent{
+		events: []core.RunEvent{
 			{
 				EventID: "run_1:1",
 				RunID:   "run_1",
 				Seq:     1,
 				TS:      time.Date(2026, 5, 2, 10, 3, 0, 0, time.UTC),
 				Type:    "run.started",
-				Data:    clientevents.RunStartedData{Input: "hello"},
+				Data:    core.RunStartedData{Input: "hello"},
 			},
 		},
 		artifacts: []ArtifactSummary{{
@@ -1163,11 +1162,11 @@ type clientHandlerStub struct {
 	thread    Thread
 	message   Message
 	run       Run
-	events    []clientevents.RunEvent
+	events    []core.RunEvent
 	artifacts []ArtifactSummary
 	err       error
 
-	eventBatches              []*clientevents.RunEventBatch
+	eventBatches              []*core.RunEventBatch
 	loadEventCalls            int
 	lastAfterSeq              int64
 	statusChecks              int
@@ -1253,7 +1252,7 @@ func (s *clientHandlerStub) GetRun(context.Context, string) (*Run, error) {
 	return &s.run, nil
 }
 
-func (s *clientHandlerStub) LoadRunEventsAfter(_ context.Context, _ string, afterSeq int64) (*clientevents.RunEventBatch, error) {
+func (s *clientHandlerStub) LoadRunEventsAfter(_ context.Context, _ string, afterSeq int64) (*core.RunEventBatch, error) {
 	if s.err != nil {
 		return nil, s.err
 	}
@@ -1263,10 +1262,10 @@ func (s *clientHandlerStub) LoadRunEventsAfter(_ context.Context, _ string, afte
 		batch := s.eventBatches[0]
 		s.eventBatches = s.eventBatches[1:]
 		if batch == nil {
-			return &clientevents.RunEventBatch{CursorSeq: afterSeq}, nil
+			return &core.RunEventBatch{CursorSeq: afterSeq}, nil
 		}
-		return &clientevents.RunEventBatch{
-			Events:    append([]clientevents.RunEvent(nil), batch.Events...),
+		return &core.RunEventBatch{
+			Events:    append([]core.RunEvent(nil), batch.Events...),
 			CursorSeq: batch.CursorSeq,
 		}, nil
 	}
@@ -1274,18 +1273,18 @@ func (s *clientHandlerStub) LoadRunEventsAfter(_ context.Context, _ string, afte
 	if len(s.events) > 0 {
 		cursorSeq = s.events[len(s.events)-1].Seq
 	}
-	return &clientevents.RunEventBatch{
-		Events:    append([]clientevents.RunEvent(nil), s.events...),
+	return &core.RunEventBatch{
+		Events:    append([]core.RunEvent(nil), s.events...),
 		CursorSeq: cursorSeq,
 	}, nil
 }
 
-func (s *clientHandlerStub) LoadRunEventsForDetail(context.Context, string) (*clientevents.RunEventDetail, error) {
+func (s *clientHandlerStub) LoadRunEventsForDetail(context.Context, string) (*core.RunEventDetail, error) {
 	if s.err != nil {
 		return nil, s.err
 	}
-	return &clientevents.RunEventDetail{
-		Events: append([]clientevents.RunEvent(nil), s.events...),
+	return &core.RunEventDetail{
+		Events: append([]core.RunEvent(nil), s.events...),
 	}, nil
 }
 
@@ -1323,7 +1322,7 @@ var _ RunServiceAPI = (*clientHandlerStub)(nil)
 var _ EventServiceAPI = (*clientHandlerStub)(nil)
 
 type pendingActionHandlerStub struct {
-	record      domain.PendingActionRecord
+	record      core.PendingActionRecord
 	summaries   []PendingActionSummary
 	detail      *PendingActionDetail
 	err         error
@@ -1349,7 +1348,7 @@ func (s *pendingActionHandlerStub) Get(_ context.Context, actionID string) (*Pen
 	return s.detail, nil
 }
 
-func (s *pendingActionHandlerStub) Decide(_ context.Context, actionID string, decision PendingActionDecisionInput) (*domain.PendingActionRecord, error) {
+func (s *pendingActionHandlerStub) Decide(_ context.Context, actionID string, decision PendingActionDecisionInput) (*core.PendingActionRecord, error) {
 	s.actionID = actionID
 	s.decision = decision
 	if s.err != nil {

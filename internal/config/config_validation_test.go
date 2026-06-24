@@ -130,7 +130,7 @@ func TestValidateExecutionReadyRejectsInvalidExecutionFields(t *testing.T) {
 
 	if err := cfg.ValidateExecutionReady(); err == nil {
 		t.Fatal("expected invalid execution fields to fail validation")
-	} else if !strings.Contains(err.Error(), "agent.max_iterations must be > 0") {
+	} else if !strings.Contains(err.Error(), "runtime.max_iterations must be > 0") {
 		t.Fatalf("expected max_iterations validation error, got %v", err)
 	}
 

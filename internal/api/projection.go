@@ -1,10 +1,10 @@
-package clientevents
+package api
 
 import (
 	"fmt"
 	"slices"
 
-	"github.com/ycvk/acorn/internal/domain"
+	"github.com/ycvk/acorn/internal/core"
 )
 
 var liveRunEventKinds = []string{
@@ -28,19 +28,19 @@ func IsLiveRunEventKind(kind string) bool {
 }
 
 // ProjectRunEvent converts an EventRecord into the /v1 client run event contract.
-func ProjectRunEvent(record domain.EventRecord) (RunEvent, error) {
+func ProjectRunEvent(record core.EventRecord) (core.RunEvent, error) {
 	payload, ok := record.Payload.(map[string]any)
 	if !ok {
-		return RunEvent{}, projectionError("run event payload must be object: run_id=%s sequence=%d kind=%s", record.RunID, record.Sequence, record.Kind)
+		return core.RunEvent{}, projectionError("run event payload must be object: run_id=%s sequence=%d kind=%s", record.RunID, record.Sequence, record.Kind)
 	}
 	if !IsLiveRunEventKind(record.Kind) {
-		return RunEvent{}, projectionError("event %q is diagnostic-only and not part of the live client contract", record.Kind)
+		return core.RunEvent{}, projectionError("event %q is diagnostic-only and not part of the live client contract", record.Kind)
 	}
 	data, err := ProjectRunEventData(record.Kind, payload)
 	if err != nil {
-		return RunEvent{}, err
+		return core.RunEvent{}, err
 	}
-	return RunEvent{
+	return core.RunEvent{
 		EventID: fmt.Sprintf("%s:%d", record.RunID, record.Sequence),
 		RunID:   record.RunID,
 		Seq:     record.Sequence,
@@ -54,38 +54,38 @@ func ProjectRunEvent(record domain.EventRecord) (RunEvent, error) {
 func ProjectRunEventData(kind string, payload map[string]any) (any, error) {
 	switch kind {
 	case "run.started":
-		return RunStartedData{Input: topLevelString(payload, "input")}, nil
+		return core.RunStartedData{Input: topLevelString(payload, "input")}, nil
 	case "assistant.delta":
 		value, ok := objectField(payload, "assistant_delta")
 		if !ok {
 			return nil, projectionError("assistant.delta payload missing assistant_delta object")
 		}
-		return AssistantDeltaData{AssistantDelta: value}, nil
+		return core.AssistantDeltaData{AssistantDelta: value}, nil
 	case "agent.message":
 		value, ok := objectField(payload, "message")
 		if !ok {
 			return nil, projectionError("agent.message payload missing message object")
 		}
-		return AgentMessageData{Message: value}, nil
+		return core.AgentMessageData{Message: value}, nil
 	case "run.completed":
 		value, _ := objectField(payload, "message")
-		return RunCompletedData{Message: value}, nil
+		return core.RunCompletedData{Message: value}, nil
 	case "run.failed":
-		return RunFailedData{Error: topLevelString(payload, "error")}, nil
+		return core.RunFailedData{Error: topLevelString(payload, "error")}, nil
 	case "run.interrupted":
 		value, _ := objectField(payload, "interrupt")
-		return RunInterruptedData{Interrupt: value}, nil
+		return core.RunInterruptedData{Interrupt: value}, nil
 	case "run.resume_requested":
 		value, _ := objectField(payload, "targets")
-		return RunResumeRequestedData{Targets: value}, nil
+		return core.RunResumeRequestedData{Targets: value}, nil
 	case "elicitation.pending":
-		return ElicitationPendingData{
+		return core.ElicitationPendingData{
 			ActionID:        topLevelString(payload, "action_id"),
 			Message:         topLevelString(payload, "message"),
 			RequestedSchema: payload["requested_schema"],
 		}, nil
 	case "elicitation.decided":
-		return ElicitationDecidedData{
+		return core.ElicitationDecidedData{
 			ActionID:        topLevelString(payload, "action_id"),
 			Message:         topLevelString(payload, "message"),
 			RequestedSchema: payload["requested_schema"],
@@ -99,20 +99,20 @@ func ProjectRunEventData(kind string, payload map[string]any) (any, error) {
 	}
 }
 
-func projectOperatorQuestionData(payload map[string]any) OperatorQuestionData {
-	return OperatorQuestionData{
+func projectOperatorQuestionData(payload map[string]any) core.OperatorQuestionData {
+	return core.OperatorQuestionData{
 		ActionID:         topLevelString(payload, "action_id"),
 		Question:         topLevelString(payload, "question"),
 		Options:          pendingActionOptionsFromAny(payload["options"]),
 		AllowFreeform:    topLevelBool(payload, "allow_freeform"),
 		Decision:         topLevelString(payload, "decision"),
 		SelectedOptionID: topLevelString(payload, "selected_option_id"),
-		Answer:           topLevelString(payload, "answer"),
+		Answer:            topLevelString(payload, "answer"),
 	}
 }
 
-func projectDecisionBlockedData(payload map[string]any) DecisionBlockedData {
-	return DecisionBlockedData{
+func projectDecisionBlockedData(payload map[string]any) core.DecisionBlockedData {
+	return core.DecisionBlockedData{
 		Action:          topLevelString(payload, "action"),
 		DecisionReason:  topLevelString(payload, "decision_reason"),
 		ExplicitSkillID: topLevelString(payload, "explicit_skill_id"),

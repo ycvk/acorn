@@ -6,18 +6,17 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ycvk/acorn/internal/contract"
-	"github.com/ycvk/acorn/internal/domain"
+	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/store"
 )
 
 var ErrPendingActionDecisionInvalid = errors.New("pending action decision invalid")
 
 type PendingActionService struct {
-	store contract.StoreView
+	store StoreView
 }
 
-func NewPendingActionService(store contract.StoreView) *PendingActionService {
+func NewPendingActionService(store StoreView) *PendingActionService {
 	return &PendingActionService{store: store}
 }
 
@@ -69,7 +68,7 @@ func (s *PendingActionService) Get(ctx context.Context, actionID string) (*Pendi
 	if err != nil {
 		return nil, err
 	}
-	if record.Status != domain.PendingActionStatusPending {
+	if record.Status != core.PendingActionStatusPending {
 		return nil, fmt.Errorf("%w: status %q", store.ErrPendingActionDecided, record.Status)
 	}
 	run, err := s.store.LoadRun(ctx, record.RunID)
@@ -92,7 +91,7 @@ func (s *PendingActionService) Get(ctx context.Context, actionID string) (*Pendi
 	}, nil
 }
 
-func (s *PendingActionService) Decide(ctx context.Context, actionID string, input PendingActionDecisionInput) (*domain.PendingActionRecord, error) {
+func (s *PendingActionService) Decide(ctx context.Context, actionID string, input PendingActionDecisionInput) (*core.PendingActionRecord, error) {
 	if s == nil || s.store == nil {
 		return nil, errors.New("pending action store is nil")
 	}
@@ -121,11 +120,11 @@ func (s *PendingActionService) Decide(ctx context.Context, actionID string, inpu
 	return record, nil
 }
 
-func buildPendingActionDecision(record domain.PendingActionRecord, input PendingActionDecisionInput) (domain.PendingActionStatus, []byte, string, map[string]any, error) {
+func buildPendingActionDecision(record core.PendingActionRecord, input PendingActionDecisionInput) (core.PendingActionStatus, []byte, string, map[string]any, error) {
 	switch record.Kind {
-	case domain.PendingActionKindElicitation:
+	case core.PendingActionKindElicitation:
 		return buildElicitationDecision(record, input)
-	case domain.PendingActionKindOperatorQuestion:
+	case core.PendingActionKindOperatorQuestion:
 		return buildOperatorQuestionDecision(record, input)
 	default:
 		return "", nil, "", nil, fmt.Errorf("unsupported pending action kind %q", record.Kind)

@@ -10,8 +10,7 @@ import (
 	einomodel "github.com/cloudwego/eino/components/model"
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/schema"
-	"github.com/ycvk/acorn/internal/domain"
-	"github.com/ycvk/acorn/internal/port"
+	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/tools"
 )
 
@@ -41,7 +40,7 @@ type assembledTooling struct {
 func assembleTooling(ctx context.Context, deps RuntimeDeps, params toolAssemblyParams) (*assembledTooling, error) {
 	toolBuilder := deps.ToolBuilder
 	if toolBuilder == nil {
-		toolBuilder = func(ctx context.Context, store RunnerFactoryStore, specs []port.ToolSpec, excludedToolNames []string, allowedToolNames []string, runID string) ([]einotool.BaseTool, error) {
+		toolBuilder = func(ctx context.Context, store RunnerFactoryStore, specs []core.ToolSpec, excludedToolNames []string, allowedToolNames []string, runID string) ([]einotool.BaseTool, error) {
 			return BuildAuditedTools(ctx, store, specs, excludedToolNames, allowedToolNames, runID)
 		}
 	}
@@ -107,7 +106,7 @@ func buildDirectResponse(ctx context.Context, deps RuntimeDeps, req DirectRespon
 	}
 	toolNodeFactory := deps.ToolNodeFactory
 	if toolNodeFactory == nil {
-		toolNodeFactory = func(ctx context.Context, toolList []einotool.BaseTool, resolver port.ExecutionPolicyResolver) (tools.ToolInvoker, error) {
+		toolNodeFactory = func(ctx context.Context, toolList []einotool.BaseTool, resolver core.ExecutionPolicyResolver) (tools.ToolInvoker, error) {
 			return tools.NewSafeParallelToolsNode(ctx, toolList, resolver)
 		}
 	}
@@ -145,7 +144,7 @@ type directResponseAgent struct {
 	name           string
 	description    string
 	model          einomodel.BaseChatModel
-	streamer       domain.AssistantStreamer
+	streamer       core.AssistantStreamer
 	sessionID      string
 	runID          string
 	toolNode       tools.ToolInvoker
@@ -259,9 +258,9 @@ func (a *directResponseAgent) runFromState(ctx context.Context, generator *adk.A
 		msg, toolMessages, outputLimitReached, err := ExecuteRound(runCtx, a.model, a.streamer, a.toolNode, modelInput.Messages, toolInfos, a.runID, messageID, RoundOptions{
 			BeforeToolCall: func(ctx context.Context, call schema.ToolCall) error {
 				return OnToolCall(ctx, ToolCallEvent{
-					RunID:     domain.GetRunID(ctx),
-					SessionID: domain.SessionIDFromContext(ctx),
-					TurnIndex: domain.TurnIndexFromContext(ctx),
+					RunID:     core.GetRunID(ctx),
+					SessionID: core.GetSessionID(ctx),
+					TurnIndex: core.TurnIndexFromContext(ctx),
 					CallID:    call.ID,
 					ToolName:  call.Function.Name,
 					Arguments: call.Function.Arguments,

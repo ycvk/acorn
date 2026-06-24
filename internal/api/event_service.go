@@ -7,9 +7,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/ycvk/acorn/internal/clientevents"
-	"github.com/ycvk/acorn/internal/contract"
-	"github.com/ycvk/acorn/internal/domain"
+	"github.com/ycvk/acorn/internal/core"
 )
 
 // ArtifactSummary represents a stored run artifact exposed through client detail.
@@ -29,19 +27,19 @@ type ArtifactSummary struct {
 // EventService loads run events and artifacts for client-facing detail and
 // streaming endpoints. It is the read-side projection of persisted run state.
 type EventService struct {
-	store     contract.StoreView
+	store     StoreView
 	eventPoll time.Duration
 }
 
 // NewEventService constructs an EventService backed by the given store.
-func NewEventService(store contract.StoreView) *EventService {
+func NewEventService(store StoreView) *EventService {
 	return &EventService{
 		store:     store,
 		eventPoll: 100 * time.Millisecond,
 	}
 }
 
-func (s *EventService) LoadRunEventsAfter(ctx context.Context, runID string, afterSeq int64) (*clientevents.RunEventBatch, error) {
+func (s *EventService) LoadRunEventsAfter(ctx context.Context, runID string, afterSeq int64) (*core.RunEventBatch, error) {
 	if s == nil || s.store == nil {
 		return nil, errors.New("client store is nil")
 	}
@@ -52,28 +50,28 @@ func (s *EventService) LoadRunEventsAfter(ctx context.Context, runID string, aft
 	if err != nil {
 		return nil, fmt.Errorf("%w: load persisted run events: %v", ErrClientProjectionFailed, err)
 	}
-	events := make([]clientevents.RunEvent, 0, len(records))
+	events := make([]core.RunEvent, 0, len(records))
 	cursorSeq := afterSeq
 	for _, record := range records {
 		if record.Sequence > cursorSeq {
 			cursorSeq = record.Sequence
 		}
-		if !clientevents.IsLiveRunEventKind(record.Kind) {
+		if !IsLiveRunEventKind(record.Kind) {
 			continue
 		}
-		event, err := clientevents.ProjectRunEvent(record)
+		event, err := ProjectRunEvent(record)
 		if err != nil {
 			return nil, fmt.Errorf("%w: project persisted run event: %v", ErrClientProjectionFailed, err)
 		}
 		events = append(events, event)
 	}
-	return &clientevents.RunEventBatch{
+	return &core.RunEventBatch{
 		Events:    events,
 		CursorSeq: cursorSeq,
 	}, nil
 }
 
-func (s *EventService) LoadRunEventsForDetail(ctx context.Context, runID string) (*clientevents.RunEventDetail, error) {
+func (s *EventService) LoadRunEventsForDetail(ctx context.Context, runID string) (*core.RunEventDetail, error) {
 	if s == nil || s.store == nil {
 		return nil, errors.New("client store is nil")
 	}
@@ -84,18 +82,18 @@ func (s *EventService) LoadRunEventsForDetail(ctx context.Context, runID string)
 	if err != nil {
 		return nil, fmt.Errorf("%w: load persisted run events: %v", ErrClientProjectionFailed, err)
 	}
-	events := make([]clientevents.RunEvent, 0, len(records))
+	events := make([]core.RunEvent, 0, len(records))
 	for _, record := range records {
-		if !clientevents.IsLiveRunEventKind(record.Kind) {
+		if !IsLiveRunEventKind(record.Kind) {
 			continue
 		}
-		event, err := clientevents.ProjectRunEvent(record)
+		event, err := ProjectRunEvent(record)
 		if err != nil {
 			return nil, fmt.Errorf("%w: project persisted run event: %v", ErrClientProjectionFailed, err)
 		}
 		events = append(events, event)
 	}
-	return &clientevents.RunEventDetail{
+	return &core.RunEventDetail{
 		Events: events,
 	}, nil
 }
@@ -121,7 +119,7 @@ func (s *EventService) ListRunArtifacts(ctx context.Context, runID string) ([]Ar
 	return buildArtifactSummaries(records), nil
 }
 
-func buildArtifactSummaries(records []domain.ArtifactRecord) []ArtifactSummary {
+func buildArtifactSummaries(records []core.ArtifactRecord) []ArtifactSummary {
 	if len(records) == 0 {
 		return nil
 	}

@@ -11,32 +11,14 @@ import (
 	_ "modernc.org/sqlite"
 
 	"github.com/ycvk/acorn/internal/core"
-	"github.com/ycvk/acorn/internal/port"
 )
 
-// Compile-time assertions that *Store implements every port.*Repo interface.
-var (
-	_ port.SessionRepo       = (*Store)(nil)
-	_ port.MessageRepo       = (*Store)(nil)
-	_ port.RunRepo           = (*Store)(nil)
-	_ port.EventRepo         = (*Store)(nil)
-	_ port.PendingActionRepo = (*Store)(nil)
-	_ port.DeviceRepo        = (*Store)(nil)
-	_ port.ArtifactRepo      = (*Store)(nil)
-	_ port.OAuthRepo         = (*Store)(nil)
-	_ port.SummaryRepo       = (*Store)(nil)
-)
-
-// Compile-time assertions that *Store implements the new core capability
-// interfaces (Phase 3). These are satisfied by the same methods as the
-// port.*Repo assertions above; the domain types those methods use are now
-// aliases for the core types, so a single *Store satisfies both families.
+// Compile-time assertions that *Store implements the core capability interfaces.
 var (
 	_ core.SessionStore  = (*Store)(nil)
 	_ core.IdentityStore = (*Store)(nil)
 	_ core.ArtifactStore = (*Store)(nil)
 )
-
 type Store struct {
 	db          *sql.DB
 	artifactDir string

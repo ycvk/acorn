@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ycvk/acorn/internal/domain"
+	"github.com/ycvk/acorn/internal/core"
 )
 
 type ArtifactKind string
@@ -33,10 +33,10 @@ var ErrArtifactNotFound = errors.New("artifact not found")
 // ArtifactStore is the internal interface used by ArtifactService to persist
 // artifact metadata. The Store type implements it via SaveArtifact/LoadArtifact.
 type ArtifactStore interface {
-	SaveArtifact(context.Context, domain.ArtifactRecord) (domain.ArtifactRecord, error)
-	LoadArtifact(context.Context, string) (domain.ArtifactRecord, error)
-	ListArtifactsByRun(context.Context, string) ([]domain.ArtifactRecord, error)
-	ListArtifactsBySession(context.Context, string) ([]domain.ArtifactRecord, error)
+	SaveArtifact(context.Context, core.ArtifactRecord) (core.ArtifactRecord, error)
+	LoadArtifact(context.Context, string) (core.ArtifactRecord, error)
+	ListArtifactsByRun(context.Context, string) ([]core.ArtifactRecord, error)
+	ListArtifactsBySession(context.Context, string) ([]core.ArtifactRecord, error)
 }
 
 type ArtifactService struct {
@@ -62,26 +62,26 @@ func NewArtifactService(rootDir string, store ArtifactStore) (*ArtifactService, 
 	return &ArtifactService{rootDir: cleanRoot, store: store}, nil
 }
 
-// WriteArtifact implements port.ArtifactRepo via the ArtifactService.
-func (s *ArtifactService) WriteArtifact(ctx context.Context, req domain.ArtifactWriteRequest) (domain.ArtifactRecord, error) {
+// WriteArtifact implements core.ArtifactRepo via the ArtifactService.
+func (s *ArtifactService) WriteArtifact(ctx context.Context, req core.ArtifactWriteRequest) (core.ArtifactRecord, error) {
 	if s == nil {
-		return domain.ArtifactRecord{}, fmt.Errorf("artifact service is nil")
+		return core.ArtifactRecord{}, fmt.Errorf("artifact service is nil")
 	}
 	if err := ctx.Err(); err != nil {
-		return domain.ArtifactRecord{}, err
+		return core.ArtifactRecord{}, err
 	}
 	req, err := NormalizeArtifactWriteRequest(req)
 	if err != nil {
-		return domain.ArtifactRecord{}, err
+		return core.ArtifactRecord{}, err
 	}
 	if req.ArtifactID == "" {
 		req.ArtifactID, err = generateArtifactID()
 		if err != nil {
-			return domain.ArtifactRecord{}, err
+			return core.ArtifactRecord{}, err
 		}
 	}
 	sum := sha256.Sum256(req.Content)
-	record := domain.ArtifactRecord{
+	record := core.ArtifactRecord{
 		ArtifactID:          req.ArtifactID,
 		RunID:               req.RunID,
 		SessionID:           req.SessionID,
@@ -96,83 +96,83 @@ func (s *ArtifactService) WriteArtifact(ctx context.Context, req domain.Artifact
 	}
 	record, err = NormalizeArtifactRecord(record)
 	if err != nil {
-		return domain.ArtifactRecord{}, err
+		return core.ArtifactRecord{}, err
 	}
 	artifactPath, err := s.pathFor(record.RelativePath)
 	if err != nil {
-		return domain.ArtifactRecord{}, err
+		return core.ArtifactRecord{}, err
 	}
 	if err := os.MkdirAll(filepath.Dir(artifactPath), 0o755); err != nil {
-		return domain.ArtifactRecord{}, fmt.Errorf("create artifact content dir: %w", err)
+		return core.ArtifactRecord{}, fmt.Errorf("create artifact content dir: %w", err)
 	}
 	tmpPath := artifactPath + ".tmp-" + record.ArtifactID
 	if err := os.WriteFile(tmpPath, req.Content, 0o600); err != nil {
-		return domain.ArtifactRecord{}, fmt.Errorf("write artifact content temp file: %w", err)
+		return core.ArtifactRecord{}, fmt.Errorf("write artifact content temp file: %w", err)
 	}
 	if err := os.Rename(tmpPath, artifactPath); err != nil {
 		_ = os.Remove(tmpPath)
-		return domain.ArtifactRecord{}, fmt.Errorf("commit artifact content file: %w", err)
+		return core.ArtifactRecord{}, fmt.Errorf("commit artifact content file: %w", err)
 	}
 	saved, err := s.store.SaveArtifact(ctx, record)
 	if err != nil {
 		removeErr := os.Remove(artifactPath)
 		if removeErr != nil {
-			return domain.ArtifactRecord{}, errors.Join(fmt.Errorf("save artifact metadata: %w", err), fmt.Errorf("remove untracked artifact content: %w", removeErr))
+			return core.ArtifactRecord{}, errors.Join(fmt.Errorf("save artifact metadata: %w", err), fmt.Errorf("remove untracked artifact content: %w", removeErr))
 		}
-		return domain.ArtifactRecord{}, fmt.Errorf("save artifact metadata: %w", err)
+		return core.ArtifactRecord{}, fmt.Errorf("save artifact metadata: %w", err)
 	}
 	return saved, nil
 }
 
-// ReadArtifactRange implements port.ArtifactRepo via the ArtifactService.
-func (s *ArtifactService) ReadArtifactRange(ctx context.Context, req domain.ArtifactReadRangeRequest) (domain.ArtifactReadRangeResult, error) {
+// ReadArtifactRange implements core.ArtifactRepo via the ArtifactService.
+func (s *ArtifactService) ReadArtifactRange(ctx context.Context, req core.ArtifactReadRangeRequest) (core.ArtifactReadRangeResult, error) {
 	if s == nil {
-		return domain.ArtifactReadRangeResult{}, fmt.Errorf("artifact service is nil")
+		return core.ArtifactReadRangeResult{}, fmt.Errorf("artifact service is nil")
 	}
 	if err := ctx.Err(); err != nil {
-		return domain.ArtifactReadRangeResult{}, err
+		return core.ArtifactReadRangeResult{}, err
 	}
 	req.ArtifactID = strings.TrimSpace(req.ArtifactID)
 	if req.ArtifactID == "" {
-		return domain.ArtifactReadRangeResult{}, fmt.Errorf("artifact_id is required")
+		return core.ArtifactReadRangeResult{}, fmt.Errorf("artifact_id is required")
 	}
 	if req.Offset < 0 {
-		return domain.ArtifactReadRangeResult{}, fmt.Errorf("artifact range offset must be >= 0")
+		return core.ArtifactReadRangeResult{}, fmt.Errorf("artifact range offset must be >= 0")
 	}
 	if req.Limit <= 0 {
-		return domain.ArtifactReadRangeResult{}, fmt.Errorf("artifact range limit must be > 0")
+		return core.ArtifactReadRangeResult{}, fmt.Errorf("artifact range limit must be > 0")
 	}
 	record, err := s.store.LoadArtifact(ctx, req.ArtifactID)
 	if err != nil {
-		return domain.ArtifactReadRangeResult{}, err
+		return core.ArtifactReadRangeResult{}, err
 	}
 	artifactPath, err := s.pathFor(record.RelativePath)
 	if err != nil {
-		return domain.ArtifactReadRangeResult{}, err
+		return core.ArtifactReadRangeResult{}, err
 	}
 	info, err := os.Stat(artifactPath)
 	if err != nil {
-		return domain.ArtifactReadRangeResult{}, fmt.Errorf("stat artifact content %s: %w", record.ArtifactID, err)
+		return core.ArtifactReadRangeResult{}, fmt.Errorf("stat artifact content %s: %w", record.ArtifactID, err)
 	}
 	if info.Size() != record.SizeBytes {
-		return domain.ArtifactReadRangeResult{}, fmt.Errorf("artifact content size mismatch for %s: got %d want %d", record.ArtifactID, info.Size(), record.SizeBytes)
+		return core.ArtifactReadRangeResult{}, fmt.Errorf("artifact content size mismatch for %s: got %d want %d", record.ArtifactID, info.Size(), record.SizeBytes)
 	}
 	if req.Offset > record.SizeBytes {
-		return domain.ArtifactReadRangeResult{}, fmt.Errorf("artifact range offset %d exceeds size %d", req.Offset, record.SizeBytes)
+		return core.ArtifactReadRangeResult{}, fmt.Errorf("artifact range offset %d exceeds size %d", req.Offset, record.SizeBytes)
 	}
 	file, err := os.Open(artifactPath)
 	if err != nil {
-		return domain.ArtifactReadRangeResult{}, fmt.Errorf("open artifact content %s: %w", record.ArtifactID, err)
+		return core.ArtifactReadRangeResult{}, fmt.Errorf("open artifact content %s: %w", record.ArtifactID, err)
 	}
 	defer file.Close()
 	if _, err := file.Seek(req.Offset, io.SeekStart); err != nil {
-		return domain.ArtifactReadRangeResult{}, fmt.Errorf("seek artifact content %s: %w", record.ArtifactID, err)
+		return core.ArtifactReadRangeResult{}, fmt.Errorf("seek artifact content %s: %w", record.ArtifactID, err)
 	}
 	content, err := io.ReadAll(io.LimitReader(file, req.Limit))
 	if err != nil {
-		return domain.ArtifactReadRangeResult{}, fmt.Errorf("read artifact content %s: %w", record.ArtifactID, err)
+		return core.ArtifactReadRangeResult{}, fmt.Errorf("read artifact content %s: %w", record.ArtifactID, err)
 	}
-	return domain.ArtifactReadRangeResult{
+	return core.ArtifactReadRangeResult{
 		Record:  record,
 		Offset:  req.Offset,
 		Content: content,
@@ -180,7 +180,7 @@ func (s *ArtifactService) ReadArtifactRange(ctx context.Context, req domain.Arti
 	}, nil
 }
 
-func (s *ArtifactService) ListByRun(ctx context.Context, runID string) ([]domain.ArtifactRecord, error) {
+func (s *ArtifactService) ListByRun(ctx context.Context, runID string) ([]core.ArtifactRecord, error) {
 	runID = strings.TrimSpace(runID)
 	if runID == "" {
 		return nil, fmt.Errorf("artifact run_id is required")
@@ -188,7 +188,7 @@ func (s *ArtifactService) ListByRun(ctx context.Context, runID string) ([]domain
 	return s.store.ListArtifactsByRun(ctx, runID)
 }
 
-func (s *ArtifactService) ListBySession(ctx context.Context, sessionID string) ([]domain.ArtifactRecord, error) {
+func (s *ArtifactService) ListBySession(ctx context.Context, sessionID string) ([]core.ArtifactRecord, error) {
 	sessionID = strings.TrimSpace(sessionID)
 	if sessionID == "" {
 		return nil, fmt.Errorf("artifact session_id is required")
@@ -196,7 +196,7 @@ func (s *ArtifactService) ListBySession(ctx context.Context, sessionID string) (
 	return s.store.ListArtifactsBySession(ctx, sessionID)
 }
 
-func NormalizeArtifactWriteRequest(req domain.ArtifactWriteRequest) (domain.ArtifactWriteRequest, error) {
+func NormalizeArtifactWriteRequest(req core.ArtifactWriteRequest) (core.ArtifactWriteRequest, error) {
 	req.ArtifactID = strings.TrimSpace(req.ArtifactID)
 	req.RunID = strings.TrimSpace(req.RunID)
 	req.SessionID = strings.TrimSpace(req.SessionID)
@@ -211,19 +211,19 @@ func NormalizeArtifactWriteRequest(req domain.ArtifactWriteRequest) (domain.Arti
 	}
 	if req.ArtifactID != "" {
 		if err := validateOpaqueID("artifact_id", req.ArtifactID); err != nil {
-			return domain.ArtifactWriteRequest{}, err
+			return core.ArtifactWriteRequest{}, err
 		}
 	}
 	if req.RunID == "" {
-		return domain.ArtifactWriteRequest{}, fmt.Errorf("artifact run_id is required")
+		return core.ArtifactWriteRequest{}, fmt.Errorf("artifact run_id is required")
 	}
 	if err := validateArtifactKind(ArtifactKind(req.Kind)); err != nil {
-		return domain.ArtifactWriteRequest{}, err
+		return core.ArtifactWriteRequest{}, err
 	}
 	return req, nil
 }
 
-func NormalizeArtifactRecord(record domain.ArtifactRecord) (domain.ArtifactRecord, error) {
+func NormalizeArtifactRecord(record core.ArtifactRecord) (core.ArtifactRecord, error) {
 	record.ArtifactID = strings.TrimSpace(record.ArtifactID)
 	record.RunID = strings.TrimSpace(record.RunID)
 	record.SessionID = strings.TrimSpace(record.SessionID)
@@ -239,28 +239,28 @@ func NormalizeArtifactRecord(record domain.ArtifactRecord) (domain.ArtifactRecor
 		record.CreatedAt = record.CreatedAt.UTC()
 	}
 	if err := validateOpaqueID("artifact_id", record.ArtifactID); err != nil {
-		return domain.ArtifactRecord{}, err
+		return core.ArtifactRecord{}, err
 	}
 	if record.RunID == "" {
-		return domain.ArtifactRecord{}, fmt.Errorf("artifact run_id is required")
+		return core.ArtifactRecord{}, fmt.Errorf("artifact run_id is required")
 	}
 	if err := validateArtifactKind(ArtifactKind(record.Kind)); err != nil {
-		return domain.ArtifactRecord{}, err
+		return core.ArtifactRecord{}, err
 	}
 	if record.RelativePath == "" {
-		return domain.ArtifactRecord{}, fmt.Errorf("artifact relative_path is required")
+		return core.ArtifactRecord{}, fmt.Errorf("artifact relative_path is required")
 	}
 	if err := validateRelativePath(record.RelativePath); err != nil {
-		return domain.ArtifactRecord{}, err
+		return core.ArtifactRecord{}, err
 	}
 	if record.SizeBytes < 0 {
-		return domain.ArtifactRecord{}, fmt.Errorf("artifact size_bytes must be >= 0")
+		return core.ArtifactRecord{}, fmt.Errorf("artifact size_bytes must be >= 0")
 	}
 	if len(record.SHA256) != sha256.Size*2 {
-		return domain.ArtifactRecord{}, fmt.Errorf("artifact sha256 must be %d hex characters", sha256.Size*2)
+		return core.ArtifactRecord{}, fmt.Errorf("artifact sha256 must be %d hex characters", sha256.Size*2)
 	}
 	if _, err := hex.DecodeString(record.SHA256); err != nil {
-		return domain.ArtifactRecord{}, fmt.Errorf("artifact sha256 is invalid: %w", err)
+		return core.ArtifactRecord{}, fmt.Errorf("artifact sha256 is invalid: %w", err)
 	}
 	return record, nil
 }

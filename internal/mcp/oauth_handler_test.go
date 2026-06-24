@@ -12,24 +12,24 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/auth"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"github.com/ycvk/acorn/internal/domain"
+	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/store"
 	"golang.org/x/oauth2"
 )
 
 // mockTokenStore implements a fake token store for OAuth token persistence
-// without requiring a real database. It satisfies port.MCPTokenStore.
+// without requiring a real database. It satisfies core.ArtifactStore.
 type mockTokenStore struct {
-	tokens  map[string]domain.OAuthToken
+	tokens  map[string]core.OAuthToken
 	getErr  error
 	saveErr error
 }
 
 func newMockTokenStore() *mockTokenStore {
-	return &mockTokenStore{tokens: make(map[string]domain.OAuthToken)}
+	return &mockTokenStore{tokens: make(map[string]core.OAuthToken)}
 }
 
-func (m *mockTokenStore) GetOAuthToken(_ context.Context, providerName string) (*domain.OAuthToken, error) {
+func (m *mockTokenStore) GetOAuthToken(_ context.Context, providerName string) (*core.OAuthToken, error) {
 	if m.getErr != nil {
 		return nil, m.getErr
 	}
@@ -40,7 +40,7 @@ func (m *mockTokenStore) GetOAuthToken(_ context.Context, providerName string) (
 	return &tok, nil
 }
 
-func (m *mockTokenStore) SaveOAuthToken(_ context.Context, token domain.OAuthToken) error {
+func (m *mockTokenStore) SaveOAuthToken(_ context.Context, token core.OAuthToken) error {
 	if m.saveErr != nil {
 		return m.saveErr
 	}
@@ -60,7 +60,7 @@ func TestSQLiteOAuthHandler_TokenSource_ReturnsTokenWhenExists(t *testing.T) {
 	providerName := "test-provider"
 	futureExpiry := time.Now().Add(1 * time.Hour)
 
-	store.tokens[providerName] = domain.OAuthToken{
+	store.tokens[providerName] = core.OAuthToken{
 		ProviderName: providerName,
 		AccessToken:  "valid-access-token",
 		RefreshToken: "valid-refresh-token",
@@ -373,7 +373,7 @@ func TestNewTransport_WithOAuth_SetsHandlerOnStreamableHTTP(t *testing.T) {
 		t.Fatalf("expected *mcp.StreamableClientTransport, got %T", transport)
 	}
 	if sHttp.OAuthHandler == nil {
-		t.Fatal("StreamableClientTransport.OAuthHandler is nil, expected OAuth handler to be set")
+		t.Fatal("StreamableClientTranscore.OAuthHandler is nil, expected OAuth handler to be set")
 	}
 	if got, want := metadata.Kind, "streamable_http"; got != want {
 		t.Fatalf("metadata.Kind = %q, want %q", got, want)
