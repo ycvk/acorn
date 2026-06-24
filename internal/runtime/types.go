@@ -128,6 +128,7 @@ type RuntimeDeps struct {
 	ArtifactService   core.ArtifactService
 	ExtraLocalTools   []einotool.BaseTool
 	Handlers          []adk.ChatModelAgentMiddleware
+	ToolRegistry      tools.ResolvingToolRegistry
 	// ToolBuilder overrides the default audited tool builder for testing.
 	// nil means use BuildAuditedTools.
 	ToolBuilder func(ctx context.Context, store RunnerFactoryStore, specs []core.ToolSpec, excludedToolNames []string, allowedToolNames []string, runID string) ([]einotool.BaseTool, error)

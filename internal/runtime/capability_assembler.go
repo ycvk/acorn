@@ -17,18 +17,6 @@ import (
 	"github.com/ycvk/acorn/internal/webaccess"
 )
 
-// CapabilityAssembler owns toolset/capability construction for a run. It
-// isolates the local tool catalog, aux tool, and MCP-augmented capability
-// assembly from the RunnerFactory so the factory stays a thin coordinator.
-type CapabilityAssembler struct {
-	deps RuntimeDeps
-}
-
-// NewCapabilityAssembler assembles a CapabilityAssembler from runtime deps.
-func NewCapabilityAssembler(deps RuntimeDeps) *CapabilityAssembler {
-	return &CapabilityAssembler{deps: deps}
-}
-
 type artifactToolBridge struct{}
 
 func (artifactToolBridge) CurrentRunID(ctx context.Context) string {
@@ -43,56 +31,57 @@ func (artifactToolBridge) CurrentToolCallID(ctx context.Context) string {
 	return tools.ToolAuditCallID(ctx)
 }
 
-func (a *CapabilityAssembler) buildRunToolset(ctx context.Context, sessionID string) (*Toolset, error) {
-	return a.buildToolset(ctx, sessionID, true)
+func buildRunToolset(ctx context.Context, deps RuntimeDeps, sessionID string) (*Toolset, error) {
+	return buildToolset(ctx, deps, sessionID, true)
 }
 
-func (a *CapabilityAssembler) buildToolset(
+func buildToolset(
 	ctx context.Context,
+	deps RuntimeDeps,
 	sessionID string,
 	includePlanning bool,
 ) (_ *Toolset, err error) {
-	if err := a.validateToolsetDeps(); err != nil {
+	if err := validateToolsetDeps(deps); err != nil {
 		return nil, err
 	}
 	var closers []io.Closer
 	defer func() { closeToolsetOnErr(closers, &err) }()
-	local, err := a.buildLocalToolset()
+	local, err := buildLocalToolset(ctx, deps)
 	if err != nil {
 		return nil, err
 	}
 	closers = append(closers, local.closers...)
-	aux, err := a.buildAuxTools(ctx)
+	aux, err := buildAuxTools(ctx, deps)
 	if err != nil {
 		return nil, err
 	}
-	catalog, err := assembleToolsetCatalog(ctx, a.deps.Config, local.catalog, aux, includePlanning)
+	catalog, err := assembleToolsetCatalog(ctx, deps.Config, local.catalog, aux, includePlanning)
 	if err != nil {
 		return nil, err
 	}
 	return NewToolset(catalog, closers...), nil
 }
 
-func (a *CapabilityAssembler) validateToolsetDeps() error {
-	if a == nil || a.deps.Config == nil {
+func validateToolsetDeps(deps RuntimeDeps) error {
+	if deps.Config == nil {
 		return errors.New("runner factory is not initialized")
 	}
-	if a.deps.Workspace == nil {
+	if deps.Workspace == nil {
 		return errors.New("workspace contract is not initialized")
 	}
-	if a.deps.ArtifactService == nil {
+	if deps.ArtifactService == nil {
 		return errors.New("artifact service is not initialized")
 	}
 	return nil
 }
 
-func (a *CapabilityAssembler) buildLocalToolset() (localToolset, error) {
+func buildLocalToolset(ctx context.Context, deps RuntimeDeps) (localToolset, error) {
 	var out localToolset
-	services, err := a.buildToolsetWebServices()
+	services, err := buildToolsetWebServices(deps)
 	if err != nil {
 		return out, err
 	}
-	out.catalog, out.closers, err = a.buildLocalCatalog(services)
+	out.catalog, out.closers, err = buildLocalCatalog(ctx, deps, services)
 	return out, err
 }
 
@@ -115,7 +104,7 @@ func closeToolsetOnErr(closers []io.Closer, err *error) {
 }
 
 func assembleToolsetCatalog(ctx context.Context, cfg *config.Config, localCatalog *tools.LocalCatalog, aux auxTools, includePlanning bool) (*tools.Catalog, error) {
-	core, err := buildCoreToolSpecs(ctx, cfg, localCatalog, aux)
+	coreSpecs, err := buildCoreToolSpecs(ctx, cfg, localCatalog, aux)
 	if err != nil {
 		return nil, err
 	}
@@ -123,7 +112,7 @@ func assembleToolsetCatalog(ctx context.Context, cfg *config.Config, localCatalo
 	if err != nil {
 		return nil, err
 	}
-	specs := append(core, extra...)
+	specs := append(coreSpecs, extra...)
 	catalog, err := tools.NewCatalog(ctx, specs)
 	if err != nil {
 		return nil, fmt.Errorf("build toolset catalog: %w", err)
@@ -174,8 +163,8 @@ type auxTools struct {
 	skill  []einotool.BaseTool
 }
 
-func (a *CapabilityAssembler) buildToolsetWebServices() (toolsetWebServices, error) {
-	cfg := a.deps.Config.WebAccess
+func buildToolsetWebServices(deps RuntimeDeps) (toolsetWebServices, error) {
+	cfg := deps.Config.WebAccess
 	fetch, err := webaccess.NewFetchService(webaccess.FetchConfig{
 		UserAgent:        cfg.UserAgent,
 		Timeout:          time.Duration(cfg.TimeoutSeconds) * time.Second,
@@ -198,9 +187,9 @@ func (a *CapabilityAssembler) buildToolsetWebServices() (toolsetWebServices, err
 	return toolsetWebServices{fetch: fetch, search: search}, nil
 }
 
-func (a *CapabilityAssembler) buildBrowserService() (*tools.Service, error) {
-	browserCfg := a.deps.Config.Browser
-	webCfg := a.deps.Config.WebAccess
+func buildBrowserService(deps RuntimeDeps) (*tools.Service, error) {
+	browserCfg := deps.Config.Browser
+	webCfg := deps.Config.WebAccess
 	return tools.NewService(tools.Config{
 		ExecutablePath: strings.TrimSpace(browserCfg.ExecutablePath),
 		Headless:       browserCfg.Headless,
@@ -210,41 +199,41 @@ func (a *CapabilityAssembler) buildBrowserService() (*tools.Service, error) {
 	})
 }
 
-func (a *CapabilityAssembler) resolveOperatorStore() tools.OperatorQuestionStore {
-	if a.deps.MCPPendingActions != nil {
-		return a.deps.MCPPendingActions
+func resolveOperatorStore(deps RuntimeDeps) tools.OperatorQuestionStore {
+	if deps.MCPPendingActions != nil {
+		return deps.MCPPendingActions
 	}
-	return a.deps.Store
+	return deps.Store
 }
 
-func (a *CapabilityAssembler) buildLocalCatalog(services toolsetWebServices) (*tools.LocalCatalog, []io.Closer, error) {
-	browser, err := a.buildBrowserService()
+func buildLocalCatalog(ctx context.Context, deps RuntimeDeps, services toolsetWebServices) (*tools.LocalCatalog, []io.Closer, error) {
+	browser, err := buildBrowserService(deps)
 	if err != nil {
 		return nil, nil, fmt.Errorf("browser service: %w", err)
 	}
 	catalog, err := tools.BuildCatalog(tools.CatalogConfig{
-		Workspace:         a.deps.Workspace,
-		MutationEnabled:   !a.deps.Config.Tools.Mutation.Disabled,
-		RunCommandEnabled: !a.deps.Config.Tools.RunCommand.Disabled,
-		ArtifactService:   a.deps.ArtifactService,
+		Workspace:         deps.Workspace,
+		MutationEnabled:   !deps.Config.Tools.Mutation.Disabled,
+		RunCommandEnabled: !deps.Config.Tools.RunCommand.Disabled,
+		ArtifactService:   deps.ArtifactService,
 		ArtifactContext:   artifactToolBridge{},
-		OperatorStore:     a.resolveOperatorStore(),
+		OperatorStore:     resolveOperatorStore(deps),
 		OperatorContext:   artifactToolBridge{},
 		WebFetchService:   services.fetch,
 		WebSearchService:  services.search,
 		BrowserService:    browser,
-	}, a.deps.ExtraLocalTools)
+	}, deps.ExtraLocalTools)
 	return catalog, []io.Closer{browser}, err
 }
 
-func (a *CapabilityAssembler) buildAuxTools(ctx context.Context) (auxTools, error) {
+func buildAuxTools(ctx context.Context, deps RuntimeDeps) (auxTools, error) {
 	var out auxTools
-	memory, err := a.buildMemoryTools(ctx)
+	memory, err := buildMemoryTools(ctx, deps)
 	if err != nil {
 		return out, err
 	}
 	out.memory = memory
-	skillTools, err := skills.BuildAgentTools(a.deps.Loader)
+	skillTools, err := skills.BuildAgentTools(deps.Loader)
 	if err != nil {
 		return out, fmt.Errorf("build skill tools: %w", err)
 	}
@@ -252,17 +241,17 @@ func (a *CapabilityAssembler) buildAuxTools(ctx context.Context) (auxTools, erro
 	return out, nil
 }
 
-func (a *CapabilityAssembler) buildMemoryTools(ctx context.Context) ([]einotool.BaseTool, error) {
-	if a.deps.MemoryModule == nil {
+func buildMemoryTools(ctx context.Context, deps RuntimeDeps) ([]einotool.BaseTool, error) {
+	if deps.MemoryModule == nil {
 		return nil, nil
 	}
-	return BuildMemoryFileTools(ctx, a.deps.MemoryModule)
+	return BuildMemoryFileTools(ctx, deps.MemoryModule)
 }
 
 // buildRunCapabilities builds the run's tool catalog (local tools + MCP specs)
 // and resolves a stable skill snapshot for capability eligibility.
-func (a *CapabilityAssembler) buildRunCapabilities(ctx context.Context, sessionID string, mcpManager *mcpprovider.Manager) (*runCapabilities, error) {
-	toolset, err := a.buildRunToolset(ctx, sessionID)
+func buildRunCapabilities(ctx context.Context, deps RuntimeDeps, sessionID, runID string, mcpManager *mcpprovider.Manager) (*runCapabilities, error) {
+	toolset, err := buildRunToolset(ctx, deps, sessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -271,11 +260,11 @@ func (a *CapabilityAssembler) buildRunCapabilities(ctx context.Context, sessionI
 			_ = toolset.Close()
 		}
 	}()
-	catalog, err := a.assembleRunCapabilitiesCatalog(ctx, toolset, mcpManager)
+	catalog, err := assembleRunCapabilitiesCatalog(ctx, deps, toolset, sessionID, runID, mcpManager)
 	if err != nil {
 		return nil, err
 	}
-	skillSnapshot, err := loadStableSkillSnapshot(ctx, a.deps.Loader, skillEligibilityContextFromCatalog(catalog))
+	skillSnapshot, err := loadStableSkillSnapshot(ctx, deps.Loader, skillEligibilityContextFromCatalog(catalog))
 	if err != nil {
 		return nil, err
 	}
@@ -289,14 +278,83 @@ func (a *CapabilityAssembler) buildRunCapabilities(ctx context.Context, sessionI
 
 // assembleRunCapabilitiesCatalog merges the local toolset catalog with MCP tool
 // specs into the final run capability catalog.
-func (a *CapabilityAssembler) assembleRunCapabilitiesCatalog(ctx context.Context, toolset *Toolset, mcpManager *mcpprovider.Manager) (*tools.Catalog, error) {
-	specs := append([]core.ToolSpec(nil), toolset.Catalog().Specs()...)
-	mcpSpecs, err := buildMCPToolSpecs(ctx, a.deps.Config, mcpManager)
+//
+// When deps.ToolRegistry is non-nil, native tool specs are sourced from the
+// registry (resolving their factories into concrete tools under the run context)
+// instead of the local toolset catalog. The toolset still supplies the
+// non-native specs (memory, skill, load_tools) and its closers. MCP specs are
+// always appended. When the registry is nil, the local toolset catalog is used
+// as before (backward compatibility for tests that don't provide a registry).
+func assembleRunCapabilitiesCatalog(ctx context.Context, deps RuntimeDeps, toolset *Toolset, sessionID, runID string, mcpManager *mcpprovider.Manager) (*tools.Catalog, error) {
+	var specs []core.ToolSpec
+	if deps.ToolRegistry != nil {
+		registrySpecs, err := resolveRegistrySpecs(ctx, deps, sessionID, runID)
+		if err != nil {
+			return nil, fmt.Errorf("resolve registry tools: %w", err)
+		}
+		specs = append(specs, registrySpecs...)
+		// Append the non-native specs (memory, skill, load_tools) the registry
+		// doesn't own.
+		for _, spec := range toolset.Catalog().Specs() {
+			if spec.IsMCP || spec.IsBuiltin {
+				continue
+			}
+			if isRegistryNativeSpec(spec) {
+				continue
+			}
+			specs = append(specs, spec)
+		}
+	} else {
+		specs = append([]core.ToolSpec(nil), toolset.Catalog().Specs()...)
+	}
+	mcpSpecs, err := buildMCPToolSpecs(ctx, deps.Config, mcpManager)
 	if err != nil {
 		return nil, err
 	}
 	specs = append(specs, mcpSpecs...)
 	return tools.NewCatalog(ctx, specs)
+}
+
+// resolveRegistrySpecs resolves every enabled native tool spec from the registry
+// into a concrete einotool.BaseTool under the given run context, returning specs
+// with the Tool field populated so the audited-tool builder can use them
+// directly. Specs whose factory returns (nil, nil) are omitted, matching the
+// catalog's silent-omit behavior for absent backing services.
+func resolveRegistrySpecs(ctx context.Context, deps RuntimeDeps, sessionID, runID string) ([]core.ToolSpec, error) {
+	registrySpecs := deps.ToolRegistry.EnabledSpecs()
+	if len(registrySpecs) == 0 {
+		return nil, nil
+	}
+	runCtx := core.RunContext{RunID: runID, SessionID: sessionID}
+	out := make([]core.ToolSpec, 0, len(registrySpecs))
+	for _, spec := range registrySpecs {
+		if spec.Factory == nil {
+			if spec.Tool != nil {
+				out = append(out, spec)
+			}
+			continue
+		}
+		tool, err := spec.Factory(ctx, runCtx)
+		if err != nil {
+			return nil, fmt.Errorf("resolve tool %q: %w", spec.Name, err)
+		}
+		if tool == nil {
+			continue
+		}
+		spec.Tool = tool
+		out = append(out, spec)
+	}
+	return out, nil
+}
+
+// isRegistryNativeSpec reports whether spec is one of the static local native
+// tools the registry owns (registered by RegisterNativeTools from
+// localToolDefs). These have Source "local" and Kind ToolKindNative; the
+// registry replaces them when active. Everything else — memory (Source
+// "memory"), skill (Source "skill"), load_tools (Source "runtime"), and MCP —
+// comes from the toolset or MCP manager.
+func isRegistryNativeSpec(spec core.ToolSpec) bool {
+	return spec.Source == "local" && spec.Kind == core.ToolKindNative
 }
 
 func NewToolset(catalog *tools.Catalog, closers ...io.Closer) *Toolset {

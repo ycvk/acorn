@@ -31,9 +31,8 @@ type RunnerFactory struct {
 	runIDMu      sync.Mutex
 
 	runChatModelBuilder func(context.Context, RunnerBuildRequest) (einomodel.BaseChatModel, error)
-	capabilityAsm       *CapabilityAssembler
-	contextAsm          *ContextAssembler
-	mcpAssembler        *MCPAssembler
+	mcpCache            *mcpManagerCache
+	toolRegistry        tools.ResolvingToolRegistry
 }
 
 func NewRunnerFactory(cfg *config.Config, store RunnerFactoryStore, opts RunnerFactoryOptions) (*RunnerFactory, error) {
@@ -49,7 +48,7 @@ func (f *RunnerFactory) New(ctx context.Context, req RunnerBuildRequest) (*Activ
 }
 
 func (f *RunnerFactory) BuildCapabilitySpecs(ctx context.Context) ([]core.ToolSpec, error) {
-	toolset, err := f.capabilityAsm.buildToolset(ctx, "", true)
+	toolset, err := buildToolset(ctx, f.deps, "", true)
 	if err != nil {
 		return nil, err
 	}
@@ -129,14 +128,14 @@ func (f *RunnerFactory) currentRunIDValue() string {
 	return runID
 }
 
-// Close releases the cached MCP manager owned by the MCPAssembler.
+// Close releases the cached MCP manager.
 func (f *RunnerFactory) Close() error {
-	return f.mcpAssembler.Close()
+	return closeMCPCache(f.mcpCache)
 }
 
 // ReconcileMCPProviders reconciles the cached MCP manager's providers.
 func (f *RunnerFactory) ReconcileMCPProviders(ctx context.Context, providerConfigs []mcpprovider.ProviderConfig) error {
-	return f.mcpAssembler.ReconcileMCPProviders(ctx, providerConfigs)
+	return reconcileMCPProviders(ctx, f.mcpCache, providerConfigs)
 }
 
 func newInMemoryCheckpointStore() *inMemoryCheckpointStore {
@@ -152,11 +151,11 @@ func (f *RunnerFactory) buildRunCapabilityAssembly(ctx context.Context, req Runn
 	if f == nil {
 		return nil, errors.New("runner factory is not initialized")
 	}
-	mcpManager, err := f.mcpAssembler.bootstrapRunMCP(ctx, req)
+	mcpManager, err := bootstrapRunMCP(ctx, f.deps, f.mcpCache, req)
 	if err != nil {
 		return nil, err
 	}
-	capabilities, err := f.capabilityAsm.buildRunCapabilities(ctx, req.SessionID, mcpManager)
+	capabilities, err := buildRunCapabilities(ctx, f.deps, req.SessionID, req.RunID, mcpManager)
 	if err != nil {
 		return nil, err
 	}
@@ -218,6 +217,7 @@ func assembleRuntimeDeps(cfg *config.Config, store RunnerFactoryStore, opts Runn
 		ArtifactService:   artifactService,
 		ExtraLocalTools:   append([]einotool.BaseTool(nil), opts.ExtraLocalTools...),
 		Handlers:          append([]adk.ChatModelAgentMiddleware(nil), opts.Handlers...),
+		ToolRegistry:      opts.ToolRegistry,
 	}
 }
 
@@ -255,11 +255,10 @@ func resolveContextPlaneTokenPolicy(cfg *config.Config) (memoryBudget, maxContex
 
 func assembleRunnerFactory(deps RuntimeDeps) *RunnerFactory {
 	return &RunnerFactory{
-		deps:          deps,
-		registry:      NewRegistry(),
-		capabilityAsm: NewCapabilityAssembler(deps),
-		contextAsm:    NewContextAssembler(deps),
-		mcpAssembler:  NewMCPAssembler(deps),
+		deps:         deps,
+		registry:     NewRegistry(),
+		mcpCache:     &mcpManagerCache{},
+		toolRegistry: deps.ToolRegistry,
 	}
 }
 
@@ -378,15 +377,15 @@ func (f *RunnerFactory) newDirectResponseRunner(ctx context.Context, req RunnerB
 		return nil, errors.New("run capabilities are required")
 	}
 	capabilities := capabilityAssembly.capabilities
-	memoryPrepared, err := f.contextAsm.prepareRunMemory(ctx, req)
+	memoryPrepared, err := prepareRunMemory(ctx, f.deps, req)
 	if err != nil {
 		return nil, err
 	}
-	contextResult, err := f.contextAsm.assembleContext(ctx, req, capabilities, memoryPrepared)
+	contextResult, err := assembleContext(ctx, f.deps, req, capabilities, memoryPrepared)
 	if err != nil {
 		return nil, err
 	}
-	agentAssembly, err := f.contextAsm.buildAssembly(ctx, req, capabilities.catalog, chatModel, contextResult)
+	agentAssembly, err := buildAssembly(ctx, f.deps, req, capabilities.catalog, chatModel, contextResult)
 	if err != nil {
 		return nil, err
 	}
@@ -412,7 +411,8 @@ type RunnerFactoryOptions struct {
 	MemoryModule          memory.Service
 	ContextPlane          Plane
 	MCPPendingActionStore core.SessionStore
-	ArtifactService      core.ArtifactService
+	ArtifactService       core.ArtifactService
+	ToolRegistry          tools.ResolvingToolRegistry
 }
 
 // RunnerBuildRequest holds the parameters for building a new run.
