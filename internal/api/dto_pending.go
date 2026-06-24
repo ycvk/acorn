@@ -24,7 +24,6 @@ type PendingActionDecisionDTO struct {
 	Decision         string     `json:"decision"`
 	SelectedOptionID string     `json:"selected_option_id,omitempty"`
 	Answer           string     `json:"answer,omitempty"`
-	DecidedAt        *time.Time `json:"decided_at,omitempty"`
 }
 
 // PendingActionListResponse is the response body for listing pending actions.
@@ -65,7 +64,6 @@ func pendingActionDecisionDTOFromDomain(record domain.PendingActionRecord) Pendi
 		Decision:         decision,
 		SelectedOptionID: selectedOptionID,
 		Answer:           answer,
-		DecidedAt:        record.DecidedAt,
 	}
 }
 

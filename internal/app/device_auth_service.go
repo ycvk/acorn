@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/ycvk/acorn/internal/store"
+	"github.com/ycvk/acorn/internal/domain"
 )
 
 var (
@@ -78,7 +79,7 @@ func (s *DeviceAuthService) CreatePairingCode(ctx context.Context, ttl time.Dura
 		return nil, err
 	}
 	now := s.now()
-	record := &store.PairingCode{
+	record := &domain.PairingCode{
 		CodeHash:  hashSecret(normalizePairingCode(code)),
 		ExpiresAt: now.Add(ttl),
 		CreatedAt: now,
@@ -120,7 +121,7 @@ func (s *DeviceAuthService) PairDevice(ctx context.Context, input PairDeviceInpu
 	if err != nil {
 		return nil, err
 	}
-	device := &store.Device{
+	device := &domain.Device{
 		DeviceID:   deviceID,
 		Name:       name,
 		Platform:   platform,
@@ -195,7 +196,7 @@ func (s *DeviceAuthService) RevokeDevice(ctx context.Context, deviceID string) e
 	return nil
 }
 
-func deviceViewFromRecord(record store.Device) DeviceView {
+func deviceViewFromRecord(record domain.Device) DeviceView {
 	return DeviceView{
 		DeviceID:   record.DeviceID,
 		Name:       record.Name,

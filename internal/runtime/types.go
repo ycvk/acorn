@@ -1,5 +1,4 @@
 package runtime
-
 import (
 	"context"
 	"encoding/gob"
@@ -7,7 +6,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
 	"github.com/cloudwego/eino/adk"
 	einomodel "github.com/cloudwego/eino/components/model"
 	einotool "github.com/cloudwego/eino/components/tool"
@@ -16,13 +14,12 @@ import (
 	cp "github.com/ycvk/acorn/internal/context"
 	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/memory"
-	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
 	"github.com/ycvk/acorn/internal/tools"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/store"
+	"github.com/ycvk/acorn/internal/port"
 	"github.com/ycvk/acorn/internal/workspace"
 )
-
 func compactText(value string, limit int) (string, bool) {
 	trimmed := strings.TrimSpace(value)
 	if trimmed == "" {
@@ -34,15 +31,12 @@ func compactText(value string, limit int) (string, bool) {
 	}
 	return string(runes[:limit]) + "...", true
 }
-
 func NewRunID() string {
 	return fmt.Sprintf("run_%d", time.Now().UTC().UnixNano())
 }
-
 func newSessionID() string {
 	return fmt.Sprintf("session_%d", time.Now().UTC().UnixNano())
 }
-
 func InterruptPayloadFromStream(interrupt *domain.StreamInterrupt) map[string]any {
 	if interrupt == nil {
 		return nil
@@ -60,20 +54,16 @@ func InterruptPayloadFromStream(interrupt *domain.StreamInterrupt) map[string]an
 	payload["contexts"] = contexts
 	return payload
 }
-
 func DurableContext(ctx context.Context) context.Context {
 	if ctx == nil {
 		return context.Background()
 	}
 	return context.WithoutCancel(ctx)
 }
-
 func CurrentRunID(ctx context.Context) string {
 	return domain.GetRunID(ctx)
 }
-
 var registerOnce sync.Once
-
 // RegisterTypes registers all types required for runtime serialization.
 // This replaces the former scattered init() registrations and must be called
 // once during application bootstrap before any runtime operations.
@@ -84,34 +74,30 @@ func RegisterTypes() {
 		gob.Register(&DirectResponseInterruptData{})
 	})
 }
-
 type ElicitationInterruptInfo struct {
 	Kind            string
 	ActionID        string
 	Message         string
 	RequestedSchema any
 }
-
 type ElicitationInterruptState struct {
 	ActionID string
 }
-type SelectedSkill = context.SelectedSkill
-
+type SelectedSkill = cp.SelectedSkill
 // ExecutorStore is the store contract required by the Executor.
 type ExecutorStore interface {
 	domain.EventAppender
 	CreateFreshSessionTurn(ctx context.Context, sessionID, title, input string) (int, error)
-	CreateBoundRunWithParams(ctx context.Context, params domain.RunCreateParams) error
+	CreateRun(ctx context.Context, params domain.RunCreateParams) error
 	LoadRun(ctx context.Context, runID string) (*domain.RunRecord, error)
-	FinishRunContext(ctx context.Context, runID string, status domain.RunStatus, output, errText string) error
-	MarkInterruptedContext(ctx context.Context, runID, output string) error
-	UpdateRunOutputContext(ctx context.Context, runID, output string) error
+	FinishRun(ctx context.Context, runID string, status domain.RunStatus, output, errText string) error
+	MarkInterrupted(ctx context.Context, runID, output string) error
+	UpdateRunOutput(ctx context.Context, runID, output string) error
 	LoadEvents(ctx context.Context, runID string) ([]domain.EventRecord, error)
 	LoadEventsAfter(ctx context.Context, runID string, afterSeq int64) ([]domain.EventRecord, error)
 	SyncAssistantMessageForRun(ctx context.Context, runID string) error
 	SyncAssistantMessageForRunStatus(ctx context.Context, runID string, status domain.RunStatus) error
 }
-
 // RunnerFactoryStore is the store contract required by the RunnerFactory.
 // It extends ExecutorStore with the MCP token + pending-action stores needed
 // for run bootstrapping.
@@ -132,23 +118,20 @@ type RuntimeDeps struct {
 	ArtifactService   *store.ArtifactService
 	ExtraLocalTools   []einotool.BaseTool
 	Handlers          []adk.ChatModelAgentMiddleware
-
 	// ToolBuilder overrides the default audited tool builder for testing.
 	// nil means use BuildAuditedTools.
 	ToolBuilder func(ctx context.Context, store RunnerFactoryStore, specs []port.ToolSpec, excludedToolNames []string, allowedToolNames []string, runID string) ([]einotool.BaseTool, error)
 	// ToolNodeFactory overrides the default safe parallel tools node for testing.
 	// nil means use NewSafeParallelToolsNode.
-	ToolNodeFactory func(ctx context.Context, tools []einotool.BaseTool, resolver port.ExecutionPolicyResolver) (tooldispatch.ToolInvoker, error)
+	ToolNodeFactory func(ctx context.Context, tools []einotool.BaseTool, resolver port.ExecutionPolicyResolver) (tools.ToolInvoker, error)
 	// CheckpointStore overrides the default in-memory checkpoint store for testing.
 	CheckpointStore adk.CheckPointStore
 }
-
 func (d RuntimeDeps) CloneForWorkspace(ws *workspace.Workspace) RuntimeDeps {
 	clone := d
 	clone.Workspace = ws
 	return clone
 }
-
 // RunContext represents a single run in the execution tree. It carries the
 // parent-child links used for cascade cleanup of subagent runs.
 type RunContext struct {
@@ -157,20 +140,17 @@ type RunContext struct {
 	ChildIDs []string // child run IDs (stored as strings, not pointers, to avoid GC retention)
 	Depth    int      // 0 for root; propagated to subagents
 }
-
 // Registry provides thread-safe registration of RunContext instances.
 type Registry struct {
 	mu      sync.Mutex
 	entries map[string]*RunContext // keyed by runID
 }
-
 // NewRegistry creates a new Registry.
 func NewRegistry() *Registry {
 	return &Registry{
 		entries: make(map[string]*RunContext),
 	}
 }
-
 // Register atomically adds a RunContext and links it to its parent.
 // Returns error if parent not found.
 func (r *Registry) Register(ctx *RunContext) error {
@@ -179,7 +159,6 @@ func (r *Registry) Register(ctx *RunContext) error {
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-
 	if ctx.ParentID != "" {
 		parent, ok := r.entries[ctx.ParentID]
 		if !ok {
@@ -188,20 +167,16 @@ func (r *Registry) Register(ctx *RunContext) error {
 		parent.ChildIDs = append(parent.ChildIDs, ctx.RunID)
 		ctx.Depth = parent.Depth + 1
 	}
-
 	r.entries[ctx.RunID] = ctx
 	return nil
 }
-
 // Clear removes a run and all its descendants from the registry.
 func (r *Registry) Clear(runID string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-
 	if r.entries == nil {
 		return
 	}
-
 	queue := []string{runID}
 	for len(queue) > 0 {
 		currentID := queue[0]
@@ -216,30 +191,25 @@ func (r *Registry) Clear(runID string) {
 		delete(r.entries, currentID)
 	}
 }
-
 // Get returns a RunContext by ID.
 func (r *Registry) Get(runID string) (*RunContext, bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-
 	if r.entries == nil {
 		return nil, false
 	}
 	ctx, ok := r.entries[runID]
 	return ctx, ok
 }
-
 // RunController tracks per-run cancellation functions so an in-flight run can
 // be interrupted by ID.
 type RunController struct {
 	activeMu      sync.Mutex
 	activeCancels map[string]context.CancelFunc
 }
-
 func NewRunController() *RunController {
 	return &RunController{}
 }
-
 func (c *RunController) Register(runID string, cancel context.CancelFunc) {
 	if c == nil || strings.TrimSpace(runID) == "" || cancel == nil {
 		return
@@ -251,7 +221,6 @@ func (c *RunController) Register(runID string, cancel context.CancelFunc) {
 	}
 	c.activeCancels[runID] = cancel
 }
-
 func (c *RunController) Clear(runID string) {
 	if c == nil || strings.TrimSpace(runID) == "" {
 		return
@@ -263,7 +232,6 @@ func (c *RunController) Clear(runID string) {
 	}
 	delete(c.activeCancels, runID)
 }
-
 func (c *RunController) Interrupt(runID string) error {
 	if c == nil {
 		return fmt.Errorf("run controller is nil")
@@ -295,7 +263,7 @@ func (e *Executor) bootstrapContextSessionMessages(
 		return nil, fmt.Errorf("build context session token counter: %w", err)
 	}
 	session := e.buildContextSession(active, e.runRuntime.Config().Context, counter)
-	input, err := session.Bootstrap(ctx, context.BootstrapRequest{
+	input, err := session.Bootstrap(ctx, cp.BootstrapRequest{
 		SessionID:       req.SessionID,
 		RunID:           runID,
 		TurnIndex:       req.TurnIndex,
@@ -308,7 +276,6 @@ func (e *Executor) bootstrapContextSessionMessages(
 	active.ContextSession = session
 	return input.Messages, nil
 }
-
 func (e *Executor) validateBootstrapDeps(active *ActiveRunner) error {
 	if e == nil || e.runRuntime == nil || e.runRuntime.Config() == nil {
 		return fmt.Errorf("context session bootstrap requires runtime config")
@@ -318,9 +285,8 @@ func (e *Executor) validateBootstrapDeps(active *ActiveRunner) error {
 	}
 	return nil
 }
-
 func (e *Executor) buildContextSession(active *ActiveRunner, contextPolicy config.ContextConfig, counter cp.TokenCounter) cp.Session {
-	return context.NewDefaultContextSession(context.SessionOptions{
+	return cp.NewDefaultSession(cp.SessionOptions{
 		TokenCounter:        counter,
 		Model:               active.ChatModel,
 		WindowTokens:        contextPolicy.WindowTokens,
@@ -329,7 +295,6 @@ func (e *Executor) buildContextSession(active *ActiveRunner, contextPolicy confi
 		PreserveRecentTurns: contextPolicy.PreserveRecentTurns,
 	})
 }
-
 func prepareInitialMessages(req domain.ExecuteRequest, active *ActiveRunner) []adk.Message {
 	initialMessages := append([]adk.Message(nil), req.Messages...)
 	if instruction := strings.TrimSpace(active.Instruction); instruction != "" {
@@ -337,9 +302,7 @@ func prepareInitialMessages(req domain.ExecuteRequest, active *ActiveRunner) []a
 	}
 	return initialMessages
 }
-
 // --- direct_response orchestration types ---
-
 type DirectResponseRequest struct {
 	AgentName         string
 	AgentDescription  string
@@ -353,17 +316,14 @@ type DirectResponseRequest struct {
 	ExcludedToolNames []string
 	InstructionSuffix string
 }
-
 type RunAssembly struct {
 	Runner      *adk.Runner
 	Instruction string
 }
-
 // ToolLifecycleStateView is the read-only view of tool lifecycle state.
 type ToolLifecycleStateView interface {
 	IsLoaded(toolName string) bool
 }
-
 // AssembleResultView is the read-only view of context plane assembly result.
 type AssembleResultView struct {
 	Messages          []*schema.Message

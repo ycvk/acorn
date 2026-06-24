@@ -9,7 +9,7 @@ import (
 // MCPTokenStore is the OAuth token storage port for MCP providers.
 type MCPTokenStore interface {
 	GetOAuthToken(ctx context.Context, providerName string) (*domain.OAuthToken, error)
-	SaveOAuthToken(ctx context.Context, token *domain.OAuthToken) error
+	SaveOAuthToken(ctx context.Context, token domain.OAuthToken) error
 }
 
 // MCPPendingActionStore is the pending-action port for MCP elicitation.

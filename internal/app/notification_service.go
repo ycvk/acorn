@@ -44,7 +44,7 @@ func (s *InboxService) projectRunSummary(ctx context.Context, record domain.RunR
 		AttentionLevel: runSummaryAttentionLevel(record.Status),
 		DurationMS:     runSummaryDurationMS(record),
 		CreatedAt:      record.CreatedAt,
-		UpdatedAt:      record.UpdatedAt,
+		UpdatedAt:      record.FinishedAt,
 	}, nil
 }
 
@@ -138,10 +138,10 @@ func runSummaryAttentionLevel(status domain.RunStatus) string {
 }
 
 func runSummaryDurationMS(record domain.RunRecord) int64 {
-	if record.UpdatedAt.IsZero() || record.CreatedAt.IsZero() {
+	if record.FinishedAt.IsZero() || record.CreatedAt.IsZero() {
 		return 0
 	}
-	duration := record.UpdatedAt.Sub(record.CreatedAt)
+	duration := record.FinishedAt.Sub(record.CreatedAt)
 	if duration < 0 {
 		return 0
 	}

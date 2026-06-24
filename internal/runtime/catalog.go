@@ -9,6 +9,7 @@ import (
 	toolutils "github.com/cloudwego/eino/components/tool/utils"
 	"github.com/ycvk/acorn/internal/config"
 	cp "github.com/ycvk/acorn/internal/context"
+	"github.com/ycvk/acorn/internal/port"
 	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/tools"
 )
@@ -17,10 +18,10 @@ func BuildCatalogSpecs(
 	ctx context.Context,
 	cfg *config.Config,
 	source string,
-	kind tools.ToolKind,
+	kind port.ToolKind,
 	baseTools []einotool.BaseTool,
-) ([]tools.ToolSpec, error) {
-	specs := make([]tools.ToolSpec, 0, len(baseTools))
+) ([]port.ToolSpec, error) {
+	specs := make([]port.ToolSpec, 0, len(baseTools))
 	for _, tool := range baseTools {
 		spec, err := RuntimeToolSpec(ctx, cfg, source, kind, tool)
 		if err != nil {
@@ -35,19 +36,19 @@ func RuntimeToolSpec(
 	ctx context.Context,
 	cfg *config.Config,
 	source string,
-	kind tools.ToolKind,
+	kind port.ToolKind,
 	tool einotool.BaseTool,
-) (tools.ToolSpec, error) {
+) (port.ToolSpec, error) {
 	info, err := tool.Info(ctx)
 	if err != nil {
-		return tools.ToolSpec{}, fmt.Errorf("read tool info for %s spec: %w", source, err)
+		return port.ToolSpec{}, fmt.Errorf("read tool info for %s spec: %w", source, err)
 	}
 	if info == nil {
-		return tools.ToolSpec{}, fmt.Errorf("read tool info for %s spec: nil ToolInfo", source)
+		return port.ToolSpec{}, fmt.Errorf("read tool info for %s spec: nil ToolInfo", source)
 	}
 	name := strings.TrimSpace(info.Name)
 	if name == "" {
-		return tools.ToolSpec{}, fmt.Errorf("%s tool has empty name", source)
+		return port.ToolSpec{}, fmt.Errorf("%s tool has empty name", source)
 	}
 
 	if localSpec, ok := tools.ConfiguredLocalSpec(cfg, name); ok {
@@ -56,38 +57,38 @@ func RuntimeToolSpec(
 	}
 
 	if contract, ok := tools.BuiltinToolSpec(name, source); ok {
-		return tools.ToolSpec{ToolContract: contract, Tool: tool}, nil
+		return port.ToolSpec{ToolContract: contract, Tool: tool}, nil
 	}
 
-	spec := tools.ToolSpec{
-		ToolContract: tools.ToolContract{
+	spec := port.ToolSpec{
+		ToolContract: port.ToolContract{
 			Name:     name,
 			Source:   source,
 			Kind:     kind,
-			Category: tools.ToolCategoryInspect,
-			Loading:  tools.EagerLoadingPolicy(),
-			Execution: tools.ToolExecutionPolicy{
-				ParallelPolicy: tools.ParallelPolicyReadOnly,
+			Category: port.ToolCategoryInspect,
+			Loading:  port.EagerLoadingPolicy(),
+			Execution: port.ToolExecutionPolicy{
+				ParallelPolicy: port.ParallelPolicyReadOnly,
 			},
 		},
 		Tool: tool,
 	}
 
 	switch kind {
-	case tools.ToolKindMCP:
+	case port.ToolKindMCP:
 		spec.Kind = kind
-		spec.Category = tools.ToolCategoryIntegration
-		spec.Execution.ParallelPolicy = tools.ParallelPolicyReadOnly
+		spec.Category = port.ToolCategoryIntegration
+		spec.Execution.ParallelPolicy = port.ParallelPolicyReadOnly
 		spec.Execution.PathArg = "path"
 	default:
-		spec.Category = tools.ToolCategoryInspect
-		spec.Execution.ParallelPolicy = tools.ParallelPolicyReadOnly
+		spec.Category = port.ToolCategoryInspect
+		spec.Execution.ParallelPolicy = port.ParallelPolicyReadOnly
 		spec.Execution.PathArg = "path"
 	}
 	return spec, nil
 }
 
-func MCPToolParallelPolicy(cfg *config.Config, providerName string) (tools.ParallelPolicy, error) {
+func MCPToolParallelPolicy(cfg *config.Config, providerName string) (port.ParallelPolicy, error) {
 	if cfg == nil {
 		return "", fmt.Errorf("resolve MCP tool safety for provider %q: config is required", strings.TrimSpace(providerName))
 	}
@@ -98,7 +99,7 @@ func MCPToolParallelPolicy(cfg *config.Config, providerName string) (tools.Paral
 		if strings.TrimSpace(provider.ToolSafety) == "" {
 			return "", fmt.Errorf("mcp provider %q must declare tool_safety", strings.TrimSpace(providerName))
 		}
-		return tools.ParseParallelPolicy(provider.ToolSafety)
+		return port.ParseParallelPolicy(provider.ToolSafety)
 	}
 	return "", fmt.Errorf("mcp provider %q is not configured", strings.TrimSpace(providerName))
 }
@@ -117,7 +118,7 @@ type loadToolsOutput struct {
 
 func NewLoadToolsTool() (einotool.BaseTool, error) {
 	return toolutils.InferTool("load_tools", "Load deferred tool definitions by query or exact tool names.", func(ctx context.Context, input loadToolsInput) (loadToolsOutput, error) {
-		result, err := context.DeferredLoad(ctx, cp.DeferredLoadRequest{
+		result, err := cp.DeferredLoad(ctx, cp.DeferredLoadRequest{
 			RunID:     getRunID(ctx),
 			SessionID: domain.SessionIDFromContext(ctx),
 			Query:     strings.TrimSpace(input.Query),

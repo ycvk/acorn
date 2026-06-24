@@ -12,6 +12,7 @@ import (
 	"github.com/cloudwego/eino/schema"
 
 	cp "github.com/ycvk/acorn/internal/context"
+	"github.com/ycvk/acorn/internal/port"
 	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/tools"
 )
@@ -56,7 +57,7 @@ func (a *ToolAssembler) assembleTooling(ctx context.Context, params toolAssembly
 	deps := a.deps
 	toolBuilder := deps.ToolBuilder
 	if toolBuilder == nil {
-		toolBuilder = func(ctx context.Context, store RunnerFactoryStore, specs []tools.ToolSpec, excludedToolNames []string, allowedToolNames []string, runID string) ([]einotool.BaseTool, error) {
+		toolBuilder = func(ctx context.Context, store RunnerFactoryStore, specs []port.ToolSpec, excludedToolNames []string, allowedToolNames []string, runID string) ([]einotool.BaseTool, error) {
 			return BuildAuditedTools(ctx, store, specs, excludedToolNames, allowedToolNames, runID)
 		}
 	}
@@ -122,8 +123,8 @@ func buildDirectResponse(ctx context.Context, deps RuntimeDeps, req DirectRespon
 	}
 	toolNodeFactory := deps.ToolNodeFactory
 	if toolNodeFactory == nil {
-		toolNodeFactory = func(ctx context.Context, tools []einotool.BaseTool, resolver tools.ExecutionPolicyResolver) (tooldispatch.ToolInvoker, error) {
-			return tooldispatch.NewSafeParallelToolsNode(ctx, tools, resolver)
+		toolNodeFactory = func(ctx context.Context, toolList []einotool.BaseTool, resolver port.ExecutionPolicyResolver) (tools.ToolInvoker, error) {
+			return tools.NewSafeParallelToolsNode(ctx, toolList, resolver)
 		}
 	}
 	safeToolNode, err := toolNodeFactory(ctx, assembled.allTools, req.Catalog)
@@ -163,7 +164,7 @@ type directResponseAgent struct {
 	streamer       domain.AssistantStreamer
 	sessionID      string
 	runID          string
-	toolNode       tooldispatch.ToolInvoker
+	toolNode       tools.ToolInvoker
 	instruction    string
 	lifecycleState ToolLifecycleStateView
 	catalog        *tools.Catalog
@@ -242,7 +243,7 @@ func (a *directResponseAgent) runFromState(ctx context.Context, generator *adk.A
 
 	runCtx := bindSessionID(ctx, a.sessionID)
 	runCtx = bindToolLifecycle(runCtx, a.lifecycleState, a.catalog, a.toolInfos)
-	session := context.SessionFromContext(runCtx)
+	session := cp.SessionFromContext(runCtx)
 	if session == nil {
 		generator.Send(&adk.AgentEvent{AgentName: a.Name(ctx), Err: errors.New("direct response requires context session")})
 		return
@@ -261,9 +262,9 @@ func (a *directResponseAgent) runFromState(ctx context.Context, generator *adk.A
 	}
 
 	for iteration := startIteration; iteration < a.maxIterations; iteration++ {
-		toolInfos := context.LoadedToolInfosFromContext(runCtx, a.eagerToolNames)
+		toolInfos := cp.LoadedToolInfosFromContext(runCtx, a.eagerToolNames)
 		messageID := directResponseMessageID(a.runID, iteration)
-		modelInput, err := session.BeforeModelCall(runCtx, context.ModelCallRequest{
+		modelInput, err := session.BeforeModelCall(runCtx, cp.ModelCallRequest{
 			CallID:    messageID,
 			ToolInfos: toolInfos,
 		})

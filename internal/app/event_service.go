@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/ycvk/acorn/internal/clientevents"
-	"github.com/ycvk/acorn/internal/store"
+	"github.com/ycvk/acorn/internal/domain"
 )
 
 // ArtifactSummary represents a stored run artifact exposed through client detail.
@@ -120,7 +120,7 @@ func (s *EventService) ListRunArtifacts(ctx context.Context, runID string) ([]Ar
 	return buildArtifactSummaries(records), nil
 }
 
-func buildArtifactSummaries(records []store.ArtifactRecord) []ArtifactSummary {
+func buildArtifactSummaries(records []domain.ArtifactRecord) []ArtifactSummary {
 	if len(records) == 0 {
 		return nil
 	}

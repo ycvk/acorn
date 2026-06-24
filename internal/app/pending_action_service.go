@@ -114,7 +114,7 @@ func (s *PendingActionService) Decide(ctx context.Context, actionID string, inpu
 	if err != nil {
 		return nil, err
 	}
-	if _, err := s.store.AppendEventContext(ctx, record.RunID, eventKind, eventPayload); err != nil {
+	if _, err := s.store.AppendEvent(ctx, record.RunID, eventKind, eventPayload); err != nil {
 		return nil, fmt.Errorf("append %s event: %w", eventKind, err)
 	}
 	return record, nil

@@ -12,7 +12,7 @@ import (
 )
 
 func TestDefaultContextPlaneAssembleBuildsContextMessagesWithPreparedMemory(t *testing.T) {
-	plane := NewDefaultContextPlane(DefaultOptions{
+	plane := NewDefaultPlane(DefaultOptions{
 		MemoryContextTokenBudget: 2000,
 		TokenCounter:             testTokenCounter(t),
 	})
@@ -79,7 +79,7 @@ func TestDefaultContextPlaneAssembleBuildsContextMessagesWithPreparedMemory(t *t
 }
 
 func TestDefaultContextPlaneAssembleInjectsPreparedMemoryEntry(t *testing.T) {
-	plane := NewDefaultContextPlane(DefaultOptions{
+	plane := NewDefaultPlane(DefaultOptions{
 		MemoryContextTokenBudget: 2000,
 		TokenCounter:             testTokenCounter(t),
 	})
@@ -108,7 +108,7 @@ func TestDefaultContextPlaneAssembleInjectsPreparedMemoryEntry(t *testing.T) {
 }
 
 func TestDefaultContextPlaneAssembleWorksWithoutPreparedMemory(t *testing.T) {
-	plane := NewDefaultContextPlane(DefaultOptions{
+	plane := NewDefaultPlane(DefaultOptions{
 		MemoryContextTokenBudget: 2000,
 		TokenCounter:             testTokenCounter(t),
 	})

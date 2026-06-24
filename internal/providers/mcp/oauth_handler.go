@@ -134,7 +134,7 @@ func (h *persistentOAuthHandler) Authorize(ctx context.Context, req *http.Reques
 		return fmt.Errorf("get token after authorization for provider %q: %w", h.providerName, err)
 	}
 
-	saveErr := h.store.SaveOAuthToken(ctx, &domain.OAuthToken{
+	saveErr := h.store.SaveOAuthToken(ctx, domain.OAuthToken{
 		ProviderName: h.providerName,
 		AccessToken:  tok.AccessToken,
 		RefreshToken: tok.RefreshToken,
@@ -185,7 +185,7 @@ func (r *refreshTokenSource) Token() (*oauth2.Token, error) {
 		}
 		return nil, err
 	}
-	if err := r.store.SaveOAuthToken(context.Background(), &domain.OAuthToken{
+	if err := r.store.SaveOAuthToken(context.Background(), domain.OAuthToken{
 		ProviderName: r.providerName,
 		AccessToken:  tok.AccessToken,
 		RefreshToken: tok.RefreshToken,

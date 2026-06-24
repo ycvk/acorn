@@ -77,12 +77,12 @@ type ArtifactRepo interface {
 
 // SummaryRepo — 会话摘要
 type SummaryRepo interface {
-	SaveSummary(ctx context.Context, sessionID, sourceRunID, runStatus, summary string) error
-	LoadSummary(ctx context.Context, sessionID string) (*domain.SessionSummary, error)
+	UpsertSessionSummary(ctx context.Context, summary domain.SessionSummary) error
+	GetSessionSummary(ctx context.Context, sessionID string) (*domain.SessionSummary, error)
 }
 
 // OAuthRepo — MCP OAuth token
 type OAuthRepo interface {
 	SaveOAuthToken(ctx context.Context, token domain.OAuthToken) error
-	LoadOAuthToken(ctx context.Context, providerName string) (*domain.OAuthToken, error)
+	GetOAuthToken(ctx context.Context, providerName string) (*domain.OAuthToken, error)
 }

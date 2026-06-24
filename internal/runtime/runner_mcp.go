@@ -10,11 +10,11 @@ import (
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/config"
+	"github.com/ycvk/acorn/internal/port"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
-	"github.com/ycvk/acorn/internal/tools"
 )
 
-func buildMCPToolSpecs(ctx context.Context, cfg *config.Config, mcpManager *mcpprovider.Manager) ([]tools.ToolSpec, error) {
+func buildMCPToolSpecs(ctx context.Context, cfg *config.Config, mcpManager *mcpprovider.Manager) ([]port.ToolSpec, error) {
 	var resourceTools, promptTools []einotool.BaseTool
 	if mcpManager != nil {
 		resourceTools = mcpManager.ResourceTools()
@@ -24,11 +24,11 @@ func buildMCPToolSpecs(ctx context.Context, cfg *config.Config, mcpManager *mcpp
 	if err != nil {
 		return nil, err
 	}
-	resourceSpecs, err := BuildCatalogSpecs(ctx, cfg, "mcp.resource", tools.ToolKindMCP, resourceTools)
+	resourceSpecs, err := BuildCatalogSpecs(ctx, cfg, "mcp.resource", port.ToolKindMCP, resourceTools)
 	if err != nil {
 		return nil, err
 	}
-	promptSpecs, err := BuildCatalogSpecs(ctx, cfg, "mcp.prompt", tools.ToolKindMCP, promptTools)
+	promptSpecs, err := BuildCatalogSpecs(ctx, cfg, "mcp.prompt", port.ToolKindMCP, promptTools)
 	if err != nil {
 		return nil, err
 	}
@@ -37,8 +37,8 @@ func buildMCPToolSpecs(ctx context.Context, cfg *config.Config, mcpManager *mcpp
 	return specs, nil
 }
 
-func buildMCPRegistrationsSpecs(ctx context.Context, cfg *config.Config, mcpManager *mcpprovider.Manager) ([]tools.ToolSpec, error) {
-	var specs []tools.ToolSpec
+func buildMCPRegistrationsSpecs(ctx context.Context, cfg *config.Config, mcpManager *mcpprovider.Manager) ([]port.ToolSpec, error) {
+	var specs []port.ToolSpec
 	for _, registration := range mcpManagerRegistrations(mcpManager) {
 		spec, err := buildMCPRegistrationSpec(ctx, cfg, registration)
 		if err != nil {
@@ -49,22 +49,22 @@ func buildMCPRegistrationsSpecs(ctx context.Context, cfg *config.Config, mcpMana
 	return specs, nil
 }
 
-func buildMCPRegistrationSpec(ctx context.Context, cfg *config.Config, registration mcpprovider.ToolRegistration) (tools.ToolSpec, error) {
+func buildMCPRegistrationSpec(ctx context.Context, cfg *config.Config, registration mcpprovider.ToolRegistration) (port.ToolSpec, error) {
 	info, err := registration.Tool.Info(ctx)
 	if err != nil {
-		return tools.ToolSpec{}, fmt.Errorf("read MCP tool info for provider %q: %w", registration.ProviderName, err)
+		return port.ToolSpec{}, fmt.Errorf("read MCP tool info for provider %q: %w", registration.ProviderName, err)
 	}
 	namespaced, err := NewMCPNamespacedTool(ctx, registration.Tool, registration.ProviderName, info.Name)
 	if err != nil {
-		return tools.ToolSpec{}, fmt.Errorf("namespace MCP tool %q for provider %q: %w", info.Name, registration.ProviderName, err)
+		return port.ToolSpec{}, fmt.Errorf("namespace MCP tool %q for provider %q: %w", info.Name, registration.ProviderName, err)
 	}
-	spec, err := RuntimeToolSpec(ctx, cfg, registration.ProviderName, tools.ToolKindMCP, namespaced)
+	spec, err := RuntimeToolSpec(ctx, cfg, registration.ProviderName, port.ToolKindMCP, namespaced)
 	if err != nil {
-		return tools.ToolSpec{}, err
+		return port.ToolSpec{}, err
 	}
 	parallelPolicy, err := MCPToolParallelPolicy(cfg, registration.ProviderName)
 	if err != nil {
-		return tools.ToolSpec{}, fmt.Errorf("resolve MCP tool safety for provider %q: %w", registration.ProviderName, err)
+		return port.ToolSpec{}, fmt.Errorf("resolve MCP tool safety for provider %q: %w", registration.ProviderName, err)
 	}
 	spec.Execution.ParallelPolicy = parallelPolicy
 	return spec, nil
@@ -136,7 +136,7 @@ func (m *MCPAssembler) getOrCreateMCPManager(ctx context.Context, providerConfig
 }
 
 func (m *MCPAssembler) createMCPManager(ctx context.Context, providerConfigs []mcpprovider.ProviderConfig, sessionOverlay string) (*mcpprovider.Manager, error) {
-	pendingActionStore := mcpprovider.PendingActionStore(m.deps.Store)
+	pendingActionStore := port.MCPPendingActionStore(m.deps.Store)
 	if m.deps.MCPPendingActions != nil {
 		pendingActionStore = m.deps.MCPPendingActions
 	}

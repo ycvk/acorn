@@ -623,7 +623,7 @@ func newDirectResponseTestSession(t *testing.T, ctx context.Context, assembly *R
 	if err != nil {
 		t.Fatalf("NewTokenCounter: %v", err)
 	}
-	session := context.NewDefaultContextSession(context.SessionOptions{
+	session := cp.NewDefaultSession(cp.SessionOptions{
 		TokenCounter:        counter,
 		WindowTokens:        200000,
 		CompactMargin:       13000,

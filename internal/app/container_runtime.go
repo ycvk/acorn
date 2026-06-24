@@ -12,7 +12,6 @@ import (
 	"github.com/ycvk/acorn/internal/memory"
 	"github.com/ycvk/acorn/internal/runtime"
 	"github.com/ycvk/acorn/internal/skills"
-	storecore "github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/workspace"
 )
 
@@ -50,21 +49,21 @@ type containerAppStore interface {
 	LoadRun(ctx context.Context, runID string) (*domain.RunRecord, error)
 	LoadEvents(ctx context.Context, runID string) ([]domain.EventRecord, error)
 	LoadEventsAfter(ctx context.Context, runID string, afterSeq int64) ([]domain.EventRecord, error)
-	ListArtifactsByRun(ctx context.Context, runID string) ([]storecore.ArtifactRecord, error)
+	ListArtifactsByRun(ctx context.Context, runID string) ([]domain.ArtifactRecord, error)
 	LoadLatestUnboundUserMessage(ctx context.Context, sessionID string) (*domain.SessionMessageRecord, error)
-	FinishRunContext(ctx context.Context, runID string, status domain.RunStatus, output, errText string) error
-	AppendEventContext(ctx context.Context, runID, kind string, payload any) (domain.EventRecord, error)
+	FinishRun(ctx context.Context, runID string, status domain.RunStatus, output, errText string) error
+	AppendEvent(ctx context.Context, runID, kind string, payload any) (domain.EventRecord, error)
 	ListPendingActions(ctx context.Context, limit int) ([]domain.PendingActionRecord, error)
 	LoadPendingAction(ctx context.Context, actionID string) (*domain.PendingActionRecord, error)
 	DecidePendingAction(ctx context.Context, actionID string, status domain.PendingActionStatus, decisionJSON string) (*domain.PendingActionRecord, error)
-	CreatePendingAction(ctx context.Context, input storecore.CreatePendingActionInput) (*domain.PendingActionRecord, error)
+	CreatePendingAction(ctx context.Context, input domain.PendingActionInput) (*domain.PendingActionRecord, error)
 	ListActiveRuns(ctx context.Context, limit int) ([]domain.RunRecord, error)
 	ListRecentTerminalRuns(ctx context.Context, limit int) ([]domain.RunRecord, error)
-	SavePairingCode(ctx context.Context, code *storecore.PairingCode) error
-	ConsumePairingCode(ctx context.Context, codeHash string, now time.Time) (*storecore.PairingCode, error)
-	SaveDevice(ctx context.Context, device *storecore.Device) error
-	LoadDeviceByTokenHash(ctx context.Context, tokenHash string) (*storecore.Device, error)
-	ListDevices(ctx context.Context) ([]storecore.Device, error)
+	SavePairingCode(ctx context.Context, code *domain.PairingCode) error
+	ConsumePairingCode(ctx context.Context, codeHash string, now time.Time) (*domain.PairingCode, error)
+	SaveDevice(ctx context.Context, device *domain.Device) error
+	LoadDeviceByTokenHash(ctx context.Context, tokenHash string) (*domain.Device, error)
+	ListDevices(ctx context.Context) ([]domain.Device, error)
 	TouchDevice(ctx context.Context, deviceID string, seenAt time.Time) error
 	RevokeDevice(ctx context.Context, deviceID string, revokedAt time.Time) error
 }

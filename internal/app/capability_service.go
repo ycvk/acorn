@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/ycvk/acorn/internal/config"
+	"github.com/ycvk/acorn/internal/port"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
 	"github.com/ycvk/acorn/internal/runtime"
 	"github.com/ycvk/acorn/internal/skills"
@@ -243,7 +244,7 @@ func (s *CapabilitiesService) workspaceSettings() (string, int) {
 	return workspaceRoot, runCommandTimeout
 }
 
-func (s *CapabilitiesService) loadToolSpecs(ctx context.Context) ([]tools.ToolSpec, error) {
+func (s *CapabilitiesService) loadToolSpecs(ctx context.Context) ([]port.ToolSpec, error) {
 	if s.catalogBuilder != nil {
 		specs, err := s.catalogBuilder.BuildCapabilitySpecs(ctx)
 		if err != nil {
@@ -268,8 +269,8 @@ func (s *CapabilitiesService) providerToolCapabilities(provider SystemMCPProvide
 		items = append(items, SystemToolCapability{
 			Name:           toolName,
 			Source:         provider.Name,
-			Kind:           string(tools.ToolKindMCP),
-			Category:       string(tools.ToolCategoryIntegration),
+			Kind:           string(port.ToolKindMCP),
+			Category:       string(port.ToolCategoryIntegration),
 			Enabled:        provider.Enabled && provider.Error == "",
 			HealthState:    providerHealthState(provider),
 			HealthReason:   strings.TrimSpace(provider.Error),
@@ -288,7 +289,7 @@ func mcpProviderParallelPolicy(cfg *config.Config, providerName string) (string,
 		if strings.TrimSpace(provider.Name) != strings.TrimSpace(providerName) {
 			continue
 		}
-		policy, err := tools.ParseParallelPolicy(provider.ToolSafety)
+		policy, err := port.ParseParallelPolicy(provider.ToolSafety)
 		if err != nil {
 			return "", err
 		}
@@ -297,7 +298,7 @@ func mcpProviderParallelPolicy(cfg *config.Config, providerName string) (string,
 	return "", fmt.Errorf("MCP provider %q is not configured", strings.TrimSpace(providerName))
 }
 
-func toolCapabilityFromSpec(spec tools.ToolSpec, workspaceRoot string, runCommandTimeout int) SystemToolCapability {
+func toolCapabilityFromSpec(spec port.ToolSpec, workspaceRoot string, runCommandTimeout int) SystemToolCapability {
 	item := SystemToolCapability{
 		Name:           spec.Name,
 		Source:         spec.Source,
@@ -312,17 +313,17 @@ func toolCapabilityFromSpec(spec tools.ToolSpec, workspaceRoot string, runComman
 	return item
 }
 
-func toolRisk(spec tools.ToolSpec) string {
+func toolRisk(spec port.ToolSpec) string {
 	switch spec.Category {
-	case tools.ToolCategoryRead, tools.ToolCategoryInspect:
+	case port.ToolCategoryRead, port.ToolCategoryInspect:
 		return "read_only"
-	case tools.ToolCategoryWrite:
+	case port.ToolCategoryWrite:
 		return "mutation"
-	case tools.ToolCategoryExecute:
+	case port.ToolCategoryExecute:
 		return "escape_hatch"
-	case tools.ToolCategoryMemory:
+	case port.ToolCategoryMemory:
 		return "memory"
-	case tools.ToolCategorySkill:
+	case port.ToolCategorySkill:
 		return "skill"
 	default:
 		return "integration"
@@ -332,11 +333,11 @@ func toolRisk(spec tools.ToolSpec) string {
 func providerHealthState(provider SystemMCPProviderCapability) string {
 	switch {
 	case !provider.Enabled:
-		return string(tools.HealthStateDisabled)
+		return string(port.HealthStateDisabled)
 	case strings.TrimSpace(provider.Error) != "":
-		return string(tools.HealthStateDegraded)
+		return string(port.HealthStateDegraded)
 	default:
-		return string(tools.HealthStateHealthy)
+		return string(port.HealthStateHealthy)
 	}
 }
 

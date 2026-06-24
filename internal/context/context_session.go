@@ -16,11 +16,11 @@ import (
 	tiktokenloader "github.com/pkoukk/tiktoken-go-loader"
 )
 
-// ContextSession is the sole owner of root-run model input. It bootstraps
+// Session is the sole owner of root-run model input. It bootstraps
 // from an assembly result, applies observation masking + auto-compact before
 // each model call, and records assistant/tool messages.
-type ContextSession interface {
-	ID() ContextSessionID
+type Session interface {
+	ID() SessionID
 	Bootstrap(context.Context, BootstrapRequest) (*ModelInput, error)
 	BeforeModelCall(context.Context, ModelCallRequest) (*ModelInput, error)
 	RecordMessages(context.Context, []adk.Message) error
@@ -28,7 +28,7 @@ type ContextSession interface {
 	RecordToolResults(context.Context, []adk.Message) error
 }
 
-type ContextSessionID struct {
+type SessionID struct {
 	SessionID string
 	RunID     string
 }
@@ -53,8 +53,8 @@ type ModelInput struct {
 	Messages []adk.Message
 }
 
-// ContextSessionOptions configures a defaultContextSession.
-type ContextSessionOptions struct {
+// SessionOptions configures a defaultContextSession.
+type SessionOptions struct {
 	TokenCounter        TokenCounter
 	Model               einomodel.BaseChatModel // used for auto-compact summary generation; nil disables compact
 	WindowTokens        int                     // provider context window (effective)
@@ -64,7 +64,7 @@ type ContextSessionOptions struct {
 }
 
 type defaultContextSession struct {
-	id                  ContextSessionID
+	id                  SessionID
 	turnIndex           int
 	messages            []adk.Message
 	tokenCounter        TokenCounter
@@ -76,7 +76,7 @@ type defaultContextSession struct {
 	bootstrapped        bool
 }
 
-func NewDefaultContextSession(opts ContextSessionOptions) ContextSession {
+func NewDefaultSession(opts SessionOptions) Session {
 	s := &defaultContextSession{
 		tokenCounter:        opts.TokenCounter,
 		windowTokens:        opts.WindowTokens,
@@ -90,7 +90,7 @@ func NewDefaultContextSession(opts ContextSessionOptions) ContextSession {
 	return s
 }
 
-func (s *defaultContextSession) ID() ContextSessionID {
+func (s *defaultContextSession) ID() SessionID {
 	return s.id
 }
 
@@ -212,16 +212,16 @@ func (s *defaultContextSession) compactThreshold() int {
 	return threshold
 }
 
-func validateContextSessionIdentity(sessionID, runID string) (ContextSessionID, error) {
-	id := ContextSessionID{
+func validateContextSessionIdentity(sessionID, runID string) (SessionID, error) {
+	id := SessionID{
 		SessionID: strings.TrimSpace(sessionID),
 		RunID:     strings.TrimSpace(runID),
 	}
 	if id.SessionID == "" {
-		return ContextSessionID{}, errors.New("context session id is required")
+		return SessionID{}, errors.New("context session id is required")
 	}
 	if id.RunID == "" {
-		return ContextSessionID{}, errors.New("context session run id is required")
+		return SessionID{}, errors.New("context session run id is required")
 	}
 	return id, nil
 }
@@ -254,15 +254,15 @@ func AnnotateMessageTurn(msg adk.Message, turnIndex int) adk.Message {
 
 type contextSessionContextKey struct{}
 
-func WithContextSession(ctx context.Context, session ContextSession) context.Context {
+func WithSession(ctx context.Context, session Session) context.Context {
 	return context.WithValue(ctx, contextSessionContextKey{}, session)
 }
 
-func ContextSessionFromContext(ctx context.Context) ContextSession {
+func SessionFromContext(ctx context.Context) Session {
 	if ctx == nil {
 		return nil
 	}
-	session, ok := ctx.Value(contextSessionContextKey{}).(ContextSession)
+	session, ok := ctx.Value(contextSessionContextKey{}).(Session)
 	if !ok {
 		return nil
 	}

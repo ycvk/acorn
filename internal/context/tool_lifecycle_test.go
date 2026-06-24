@@ -50,7 +50,7 @@ func lifecycleToolContract(name string, source string, kind port.ToolKind, loadi
 }
 
 func TestDefaultContextPlaneAssembleBuildsLifecycleToolSplit(t *testing.T) {
-	plane := NewDefaultContextPlane(DefaultOptions{
+	plane := NewDefaultPlane(DefaultOptions{
 		MemoryContextTokenBudget: 100,
 		TokenCounter:             testTokenCounter(t),
 	})

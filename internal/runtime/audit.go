@@ -9,7 +9,8 @@ import (
 	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/tools"
-)
+
+	"github.com/ycvk/acorn/internal/port")
 
 type auditedTool struct {
 	spec      port.ToolSpec

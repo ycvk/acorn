@@ -17,6 +17,7 @@ import (
 	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/config"
 	cp "github.com/ycvk/acorn/internal/context"
+	"github.com/ycvk/acorn/internal/port"
 	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/memory"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
@@ -51,7 +52,7 @@ func (f *RunnerFactory) New(ctx context.Context, req RunnerBuildRequest) (*Activ
 	return f.buildRun(ctx, req)
 }
 
-func (f *RunnerFactory) BuildCapabilitySpecs(ctx context.Context) ([]tools.ToolSpec, error) {
+func (f *RunnerFactory) BuildCapabilitySpecs(ctx context.Context) ([]port.ToolSpec, error) {
 	toolset, err := f.capabilityAsm.buildToolset(ctx, "", true)
 	if err != nil {
 		return nil, err

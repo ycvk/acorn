@@ -14,7 +14,7 @@ import (
 	"github.com/ycvk/acorn/internal/port"
 )
 
-type ContextPlane interface {
+type Plane interface {
 	Assemble(context.Context, AssembleRequest) (*AssembleResult, error)
 }
 
@@ -77,7 +77,7 @@ type DefaultOptions struct {
 	TokenCounter             TokenCounter
 }
 
-type defaultContextPlane struct {
+type defaultPlane struct {
 	memoryContextTokenBudget int
 	maxContextTokens         int
 	tokenCounter             TokenCounter
@@ -109,8 +109,8 @@ type DeferredToolRecord struct {
 	Description string
 }
 
-func NewDefaultContextPlane(opts DefaultOptions) ContextPlane {
-	p := &defaultContextPlane{
+func NewDefaultPlane(opts DefaultOptions) Plane {
+	p := &defaultPlane{
 		memoryContextTokenBudget: opts.MemoryContextTokenBudget,
 		maxContextTokens:         opts.MaxContextTokens,
 		tokenCounter:             opts.TokenCounter,
@@ -119,7 +119,7 @@ func NewDefaultContextPlane(opts DefaultOptions) ContextPlane {
 	return p
 }
 
-func (p *defaultContextPlane) Assemble(ctx context.Context, req AssembleRequest) (*AssembleResult, error) {
+func (p *defaultPlane) Assemble(ctx context.Context, req AssembleRequest) (*AssembleResult, error) {
 	if p.tokenCounter == nil {
 		return nil, errors.New("context plane token counter is required")
 	}

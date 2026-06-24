@@ -10,7 +10,7 @@ import (
 )
 
 func TestContextSessionBootstrapOrdersAssemblyBeforeInitialMessages(t *testing.T) {
-	session := newTestContextSession(t)
+	session := newTestSession(t)
 	input, err := session.Bootstrap(context.Background(), BootstrapRequest{
 		SessionID:       "session_1",
 		RunID:           "run_1",
@@ -34,7 +34,7 @@ func TestContextSessionBootstrapOrdersAssemblyBeforeInitialMessages(t *testing.T
 }
 
 func TestContextSessionModelInputReturnsCopies(t *testing.T) {
-	session := newTestContextSession(t)
+	session := newTestSession(t)
 	input, err := session.Bootstrap(context.Background(), BootstrapRequest{
 		SessionID:       "session_1",
 		RunID:           "run_1",
@@ -54,7 +54,7 @@ func TestContextSessionModelInputReturnsCopies(t *testing.T) {
 }
 
 func TestContextSessionRecordsAssistantAndToolResults(t *testing.T) {
-	session := newTestContextSession(t)
+	session := newTestSession(t)
 	_, err := session.Bootstrap(context.Background(), BootstrapRequest{
 		SessionID:       "session_1",
 		RunID:           "run_1",
@@ -81,18 +81,18 @@ func TestContextSessionRecordsAssistantAndToolResults(t *testing.T) {
 }
 
 func TestContextSessionContextBinding(t *testing.T) {
-	session := newTestContextSession(t)
-	ctx := WithContextSession(context.Background(), session)
-	if got := ContextSessionFromContext(ctx); got != session {
-		t.Fatalf("ContextSessionFromContext = %v, want bound session", got)
+	session := newTestSession(t)
+	ctx := WithSession(context.Background(), session)
+	if got := SessionFromContext(ctx); got != session {
+		t.Fatalf("SessionFromContext = %v, want bound session", got)
 	}
-	if got := ContextSessionFromContext(context.Background()); got != nil {
-		t.Fatalf("ContextSessionFromContext without binding = %v, want nil", got)
+	if got := SessionFromContext(context.Background()); got != nil {
+		t.Fatalf("SessionFromContext without binding = %v, want nil", got)
 	}
 }
 
 func TestContextSessionBootstrapRejectsMissingIdentity(t *testing.T) {
-	_, err := newTestContextSession(t).Bootstrap(context.Background(), BootstrapRequest{
+	_, err := newTestSession(t).Bootstrap(context.Background(), BootstrapRequest{
 		RunID: "run_1",
 	})
 	if err == nil || !strings.Contains(err.Error(), "context session id is required") {
@@ -101,7 +101,7 @@ func TestContextSessionBootstrapRejectsMissingIdentity(t *testing.T) {
 }
 
 func TestContextSessionRequiresTokenCounter(t *testing.T) {
-	_, err := NewDefaultContextSession(ContextSessionOptions{}).Bootstrap(context.Background(), BootstrapRequest{
+	_, err := NewDefaultSession(SessionOptions{}).Bootstrap(context.Background(), BootstrapRequest{
 		SessionID: "session_1",
 		RunID:     "run_1",
 	})
@@ -111,7 +111,7 @@ func TestContextSessionRequiresTokenCounter(t *testing.T) {
 }
 
 func TestContextSessionBeforeModelCallRequiresBootstrap(t *testing.T) {
-	session := NewDefaultContextSession(ContextSessionOptions{
+	session := NewDefaultSession(SessionOptions{
 		TokenCounter: testTokenCounter(t),
 	})
 	_, err := session.BeforeModelCall(context.Background(), ModelCallRequest{CallID: "call_1"})
@@ -133,13 +133,13 @@ func messageContents(messages []adk.Message) []string {
 	return out
 }
 
-func newTestContextSession(t *testing.T) ContextSession {
+func newTestSession(t *testing.T) Session {
 	t.Helper()
 	counter, err := NewTokenCounter()
 	if err != nil {
 		t.Fatalf("NewTokenCounter: %v", err)
 	}
-	return NewDefaultContextSession(ContextSessionOptions{
+	return NewDefaultSession(SessionOptions{
 		TokenCounter:        counter,
 		WindowTokens:        200000,
 		CompactMargin:       13000,

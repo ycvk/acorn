@@ -11,7 +11,7 @@ import (
 )
 
 // LoadOAuthToken implements port.OAuthRepo.
-func (s *Store) LoadOAuthToken(ctx context.Context, providerName string) (*domain.OAuthToken, error) {
+func (s *Store) GetOAuthToken(ctx context.Context, providerName string) (*domain.OAuthToken, error) {
 	row := s.db.QueryRowContext(ctx,
 		`SELECT provider_name, access_token, refresh_token, expiry, updated_at
      FROM mcp_oauth_tokens

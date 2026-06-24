@@ -203,7 +203,7 @@ func projectRun(record domain.RunRecord) (Run, error) {
 		CreatedAt: record.CreatedAt,
 	}
 	if record.Status != domain.RunStatusRunning {
-		run.CompletedAt = record.UpdatedAt
+		run.CompletedAt = record.FinishedAt
 	}
 	return run, nil
 }
@@ -287,10 +287,10 @@ func (s *RunService) recordStartedRunFailure(ctx context.Context, runID string, 
 	if record.Status != domain.RunStatusRunning {
 		return nil
 	}
-	if err := s.store.FinishRunContext(ctx, runID, domain.RunStatusFailed, "", cause.Error()); err != nil {
+	if err := s.store.FinishRun(ctx, runID, domain.RunStatusFailed, "", cause.Error()); err != nil {
 		return fmt.Errorf("mark client run failed after background error: %w", err)
 	}
-	if _, err := s.store.AppendEventContext(ctx, runID, "run.failed", map[string]any{"error": cause.Error()}); err != nil {
+	if _, err := s.store.AppendEvent(ctx, runID, "run.failed", map[string]any{"error": cause.Error()}); err != nil {
 		return fmt.Errorf("append client run failed event after background error: %w", err)
 	}
 	return nil

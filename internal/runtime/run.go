@@ -10,6 +10,7 @@ import (
 	einomodel "github.com/cloudwego/eino/components/model"
 	einotool "github.com/cloudwego/eino/components/tool"
 	cp "github.com/ycvk/acorn/internal/context"
+	"github.com/ycvk/acorn/internal/port"
 	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/memory"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
@@ -83,7 +84,7 @@ type RunnerFactoryOptions struct {
 	SessionSummaryService *domain.SessionSummaryService
 	MemoryModule          memory.Service
 	ContextPlane          cp.Plane
-	MCPPendingActionStore mcpprovider.PendingActionStore
+	MCPPendingActionStore port.MCPPendingActionStore
 }
 
 // RunnerBuildRequest holds the parameters for building a new run.

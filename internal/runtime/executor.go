@@ -14,7 +14,6 @@ import (
 	cp "github.com/ycvk/acorn/internal/context"
 	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/memory"
-	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/stream"
 )
 
@@ -127,7 +126,7 @@ func (e *Executor) ExecuteMessages(ctx context.Context, req domain.ExecuteReques
 }
 
 func (e *Executor) createBoundRun(ctx context.Context, runID string, req domain.ExecuteRequest) error {
-	return e.store.CreateBoundRunWithParams(ctx, store.RunCreateParams{
+	return e.store.CreateRun(ctx, domain.RunCreateParams{
 		RunID:          runID,
 		SessionID:      req.SessionID,
 		TurnIndex:      req.TurnIndex,
@@ -339,7 +338,7 @@ func (e *Executor) failRunSetup(ctx context.Context, runID string, setupErr erro
 	if err := e.emitRunFailed(durableCtx, runID, sink, setupErr.Error()); err != nil {
 		return err
 	}
-	return e.store.FinishRunContext(durableCtx, runID, domain.RunStatusFailed, "", setupErr.Error())
+	return e.store.FinishRun(durableCtx, runID, domain.RunStatusFailed, "", setupErr.Error())
 }
 
 func (e *Executor) failSetupOrErr(ctx context.Context, runID string, setupErr error, sink domain.StreamSink) error {
@@ -353,7 +352,7 @@ func (e *Executor) recordFinalizationFailure(ctx context.Context, runID, output 
 	durableCtx := DurableContext(ctx)
 	message := fmt.Sprintf("run finalization failed: %v", finalizationErr)
 	var errs []error
-	if err := e.store.FinishRunContext(durableCtx, runID, domain.RunStatusFailed, output, message); err != nil {
+	if err := e.store.FinishRun(durableCtx, runID, domain.RunStatusFailed, output, message); err != nil {
 		errs = append(errs, fmt.Errorf("mark run failed after finalization failure: %w", err))
 	}
 	if err := e.emitRunFailed(durableCtx, runID, sink, message); err != nil {
@@ -401,7 +400,7 @@ func (e *Executor) finishFailedRun(ctx context.Context, runID, input string, sta
 			return nil, err
 		}
 	}
-	if err := e.store.FinishRunContext(durableCtx, runID, domain.RunStatusFailed, state.lastOutput, state.failure.Error()); err != nil {
+	if err := e.store.FinishRun(durableCtx, runID, domain.RunStatusFailed, state.lastOutput, state.failure.Error()); err != nil {
 		return nil, err
 	}
 	if err := e.verifyAndRecordSkill(durableCtx, runID, selectedSkill, domain.RunStatusFailed, state.lastOutput, sink); err != nil {
@@ -420,7 +419,7 @@ func (e *Executor) finishFailedRun(ctx context.Context, runID, input string, sta
 
 func (e *Executor) finishInterruptedRun(ctx context.Context, runID string, state RunState) (*Result, error) {
 	durableCtx := DurableContext(ctx)
-	if err := e.store.MarkInterruptedContext(durableCtx, runID, state.lastOutput); err != nil {
+	if err := e.store.MarkInterrupted(durableCtx, runID, state.lastOutput); err != nil {
 		return nil, err
 	}
 	return &Result{
@@ -433,7 +432,7 @@ func (e *Executor) finishInterruptedRun(ctx context.Context, runID string, state
 
 func (e *Executor) finishSucceededRun(ctx context.Context, runID, input string, state RunState, selectedSkill *SelectedSkill, sink domain.StreamSink) (*Result, error) {
 	durableCtx := DurableContext(ctx)
-	if err := e.store.UpdateRunOutputContext(durableCtx, runID, state.lastOutput); err != nil {
+	if err := e.store.UpdateRunOutput(durableCtx, runID, state.lastOutput); err != nil {
 		return nil, err
 	}
 	if err := e.verifyAndRecordSkill(durableCtx, runID, selectedSkill, domain.RunStatusSucceeded, state.lastOutput, sink); err != nil {
@@ -445,7 +444,7 @@ func (e *Executor) finishSucceededRun(ctx context.Context, runID, input string, 
 	if err := e.emitRunCompleted(durableCtx, runID, state.lastOutput, sink); err != nil {
 		return nil, err
 	}
-	if err := e.store.FinishRunContext(durableCtx, runID, domain.RunStatusSucceeded, state.lastOutput, ""); err != nil {
+	if err := e.store.FinishRun(durableCtx, runID, domain.RunStatusSucceeded, state.lastOutput, ""); err != nil {
 		return nil, err
 	}
 	return &Result{

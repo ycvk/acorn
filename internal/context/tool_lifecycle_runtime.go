@@ -67,7 +67,7 @@ func OnToolCall(ctx context.Context, event ToolCallEvent) error {
 
 // OnToolResult records a tool result event. The durable ledger was removed;
 // this now only validates the event payload. The result content stays in the
-// message stream and is subject to observation masking by ContextSession.
+// message stream and is subject to observation masking by Session.
 func OnToolResult(ctx context.Context, event ToolResultEvent) error {
 	if strings.TrimSpace(event.ToolName) == "" {
 		return errors.New("tool result event requires tool_name")

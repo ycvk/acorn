@@ -10,6 +10,7 @@ import (
 
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/ycvk/acorn/internal/config"
+	"github.com/ycvk/acorn/internal/port"
 	"github.com/ycvk/acorn/internal/domain"
 	mcpprovider "github.com/ycvk/acorn/internal/providers/mcp"
 	"github.com/ycvk/acorn/internal/runtime/factextract"
@@ -41,7 +42,7 @@ func (artifactToolBridge) CurrentSessionID(ctx context.Context) string {
 }
 
 func (artifactToolBridge) CurrentToolCallID(ctx context.Context) string {
-	return tooldispatch.ToolAuditCallID(ctx)
+	return tools.ToolAuditCallID(ctx)
 }
 
 func (a *CapabilityAssembler) buildRunToolset(ctx context.Context, sessionID string) (*Toolset, error) {
@@ -132,16 +133,16 @@ func assembleToolsetCatalog(ctx context.Context, cfg *config.Config, localCatalo
 	return catalog, nil
 }
 
-func buildCoreToolSpecs(ctx context.Context, cfg *config.Config, localCatalog *tools.LocalCatalog, aux auxTools) ([]tools.ToolSpec, error) {
-	specs, err := BuildCatalogSpecs(ctx, cfg, "local", tools.ToolKindNative, append([]einotool.BaseTool(nil), localCatalog.Tools...))
+func buildCoreToolSpecs(ctx context.Context, cfg *config.Config, localCatalog *tools.LocalCatalog, aux auxTools) ([]port.ToolSpec, error) {
+	specs, err := BuildCatalogSpecs(ctx, cfg, "local", port.ToolKindNative, append([]einotool.BaseTool(nil), localCatalog.Tools...))
 	if err != nil {
 		return nil, err
 	}
-	memorySpecs, err := BuildCatalogSpecs(ctx, cfg, "memory", tools.ToolKindMemory, aux.memory)
+	memorySpecs, err := BuildCatalogSpecs(ctx, cfg, "memory", port.ToolKindMemory, aux.memory)
 	if err != nil {
 		return nil, err
 	}
-	skillSpecs, err := BuildCatalogSpecs(ctx, cfg, "skill", tools.ToolKindSkill, aux.skill)
+	skillSpecs, err := BuildCatalogSpecs(ctx, cfg, "skill", port.ToolKindSkill, aux.skill)
 	if err != nil {
 		return nil, err
 	}
@@ -150,7 +151,7 @@ func buildCoreToolSpecs(ctx context.Context, cfg *config.Config, localCatalog *t
 	return specs, nil
 }
 
-func buildExtraToolSpecs(ctx context.Context, cfg *config.Config, aux auxTools, includePlanning bool) ([]tools.ToolSpec, error) {
+func buildExtraToolSpecs(ctx context.Context, cfg *config.Config, aux auxTools, includePlanning bool) ([]port.ToolSpec, error) {
 	if !includePlanning {
 		return nil, nil
 	}
@@ -158,7 +159,7 @@ func buildExtraToolSpecs(ctx context.Context, cfg *config.Config, aux auxTools, 
 	if err != nil {
 		return nil, fmt.Errorf("build load_tools tool: %w", err)
 	}
-	planningSpecs, err := BuildCatalogSpecs(ctx, cfg, "runtime", tools.ToolKindNative, []einotool.BaseTool{loadToolsTool})
+	planningSpecs, err := BuildCatalogSpecs(ctx, cfg, "runtime", port.ToolKindNative, []einotool.BaseTool{loadToolsTool})
 	if err != nil {
 		return nil, err
 	}
@@ -291,7 +292,7 @@ func (a *CapabilityAssembler) buildRunCapabilities(ctx context.Context, sessionI
 // assembleRunCapabilitiesCatalog merges the local toolset catalog with MCP tool
 // specs into the final run capability catalog.
 func (a *CapabilityAssembler) assembleRunCapabilitiesCatalog(ctx context.Context, toolset *Toolset, mcpManager *mcpprovider.Manager) (*tools.Catalog, error) {
-	specs := append([]tools.ToolSpec(nil), toolset.Catalog().Specs()...)
+	specs := append([]port.ToolSpec(nil), toolset.Catalog().Specs()...)
 	mcpSpecs, err := buildMCPToolSpecs(ctx, a.deps.Config, mcpManager)
 	if err != nil {
 		return nil, err
