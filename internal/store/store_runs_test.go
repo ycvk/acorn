@@ -19,8 +19,8 @@ func TestStoreLifecycle(t *testing.T) {
 	t.Cleanup(func() { _ = store.Close() })
 
 	if err := store.CreateRun(context.Background(), domain.RunCreateParams{
-		RunID:  "run_1",
-		Input:  "hello",
+		RunID: "run_1",
+		Input: "hello",
 	}); err != nil {
 		t.Fatalf("create run: %v", err)
 	}

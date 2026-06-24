@@ -182,11 +182,11 @@ const (
 
 // StreamItem is a single event in the run stream.
 type StreamItem struct {
-	RunID     string          `json:"run_id"`
-	Sequence  int64           `json:"sequence,omitempty"`
-	Kind      StreamItemKind  `json:"kind"`
-	CreatedAt time.Time       `json:"created_at"`
-	Payload   map[string]any  `json:"-"`
+	RunID     string         `json:"run_id"`
+	Sequence  int64          `json:"sequence,omitempty"`
+	Kind      StreamItemKind `json:"kind"`
+	CreatedAt time.Time      `json:"created_at"`
+	Payload   map[string]any `json:"-"`
 }
 
 // MarshalJSON serializes StreamItem with payload fields flattened into the

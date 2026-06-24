@@ -10,10 +10,10 @@ import (
 
 func scanRunRecord(scanner interface{ Scan(dest ...any) error }) (*domain.RunRecord, error) {
 	var (
-		rec       domain.RunRecord
-		status    string
-		created   string
-		finished  string
+		rec      domain.RunRecord
+		status   string
+		created  string
+		finished string
 	)
 	if err := scanner.Scan(&rec.RunID, &rec.SessionID, &rec.TurnIndex, &status, &rec.Input, &rec.Output, &rec.Error, &created, &finished); err != nil {
 		return nil, err

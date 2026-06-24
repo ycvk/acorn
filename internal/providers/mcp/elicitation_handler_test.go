@@ -134,7 +134,7 @@ func TestHandleElicitationLoadFailureReturnsError(t *testing.T) {
 
 	handler := newElicitationHandler(failingPendingActionStore{
 		MCPPendingActionStore: store,
-		loadErr:            errors.New("sqlite is locked"),
+		loadErr:               errors.New("sqlite is locked"),
 	})
 	handler.setActiveRunID(runID)
 	handler.setTimeoutForTest(50 * time.Millisecond)

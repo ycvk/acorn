@@ -12,7 +12,7 @@ type ToolLoadingMode string
 const (
 	ToolLoadingModeEager    ToolLoadingMode = "eager"
 	ToolLoadingModeDeferred ToolLoadingMode = "deferred"
-	ToolLoadingModeHidden  ToolLoadingMode = "hidden"
+	ToolLoadingModeHidden   ToolLoadingMode = "hidden"
 )
 
 type ToolLoadingPolicy struct {

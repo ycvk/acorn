@@ -18,9 +18,9 @@
 ## 上下文与记忆
 
 - **Hybrid context: masking + auto-compact**：ContextSession 在 BeforeModelCall 中执行 observation masking（旧 tool result 替换为占位符）+ LLM auto-compact（token 超阈值时生成 summary，circuit breaker 3 次失败后停止）；public YAML 只暴露 `context.window_tokens`、`context.compact_margin_tokens`、`context.mask_after_turns`、`context.preserve_recent_turns`。
-  - `internal/contextplane/context_session_test.go`
-  - `internal/contextplane/masking_test.go`
-  - `internal/contextplane/auto_compact_test.go`
+  - `internal/context/context_session_test.go`
+  - `internal/context/masking_test.go`
+  - `internal/context/auto_compact_test.go`
 - **Memory Record V2 是长期记忆事实**：facts/history frontmatter 由 `internal/memory` 解析；semantic search 走 embedding + SQLite 暴力余弦相似度。
   - `internal/memory/fact_learning_test.go`
 

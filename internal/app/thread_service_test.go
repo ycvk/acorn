@@ -23,9 +23,9 @@ func TestProjectThread(t *testing.T) {
 		CreatedAt: now,
 		UpdatedAt: now,
 	}, &domain.RunRecord{
-		RunID:     "run_1",
-		Status:    domain.RunStatusSucceeded,
-		CreatedAt: now,
+		RunID:      "run_1",
+		Status:     domain.RunStatusSucceeded,
+		CreatedAt:  now,
 		FinishedAt: now,
 	})
 	if err != nil {

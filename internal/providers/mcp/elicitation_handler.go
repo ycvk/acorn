@@ -38,7 +38,6 @@ func newElicitationHandler(store port.MCPPendingActionStore) *ElicitationHandler
 	}
 }
 
-
 func (h *ElicitationHandler) setActiveRunID(runID string) {
 	h.activeMu.Lock()
 	defer h.activeMu.Unlock()

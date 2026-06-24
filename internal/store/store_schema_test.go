@@ -85,12 +85,12 @@ func TestStoreSchemaIncludesCoreTables(t *testing.T) {
 	t.Cleanup(func() { _ = store.Close() })
 
 	for table, column := range map[string]string{
-		"runs":             "finished_at",
-		"events":           "payload_json",
-		"sessions":         "title",
-		"session_messages": "content_parts",
-		"pending_actions":  "decision_json",
-		"artifacts":        "source_tool_result_ref",
+		"runs":              "finished_at",
+		"events":            "payload_json",
+		"sessions":          "title",
+		"session_messages":  "content_parts",
+		"pending_actions":   "decision_json",
+		"artifacts":         "source_tool_result_ref",
 		"schema_migrations": "version",
 	} {
 		columns, err := store.tableColumns(table)

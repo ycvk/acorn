@@ -16,7 +16,6 @@ import (
 	"golang.org/x/oauth2"
 )
 
-
 // persistentOAuthHandler implements auth.OAuthHandler by persisting tokens
 // through port.MCPTokenStore and delegating authorization to go-sdk's
 // AuthorizationCodeHandler.

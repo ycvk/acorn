@@ -10,8 +10,8 @@ import (
 	"github.com/cloudwego/eino/adk"
 	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/memory"
-	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/port"
+	"github.com/ycvk/acorn/internal/skills"
 )
 
 type Plane interface {

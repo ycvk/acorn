@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-
 	"github.com/ycvk/acorn/internal/clientevents"
 	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/store"

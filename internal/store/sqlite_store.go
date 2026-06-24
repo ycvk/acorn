@@ -37,9 +37,6 @@ func formatTimestamp(value time.Time) string {
 	return value.UTC().Format(fixedTimestampLayout)
 }
 
-func timeNowUTC() time.Time {
-	return time.Now().UTC()
-}
 func Open(dir string) (*Store, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, fmt.Errorf("create storage dir: %w", err)

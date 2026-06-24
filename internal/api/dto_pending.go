@@ -18,12 +18,12 @@ type DecidePendingActionRequest struct {
 
 // PendingActionDecisionDTO represents the operator's decision on a pending action.
 type PendingActionDecisionDTO struct {
-	ActionID         string     `json:"action_id"`
-	RunID            string     `json:"run_id"`
-	Status           string     `json:"status"`
-	Decision         string     `json:"decision"`
-	SelectedOptionID string     `json:"selected_option_id,omitempty"`
-	Answer           string     `json:"answer,omitempty"`
+	ActionID         string `json:"action_id"`
+	RunID            string `json:"run_id"`
+	Status           string `json:"status"`
+	Decision         string `json:"decision"`
+	SelectedOptionID string `json:"selected_option_id,omitempty"`
+	Answer           string `json:"answer,omitempty"`
 }
 
 // PendingActionListResponse is the response body for listing pending actions.

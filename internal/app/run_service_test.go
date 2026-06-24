@@ -23,10 +23,10 @@ import (
 func TestProjectRunMapsStatusAndMode(t *testing.T) {
 	now := time.Date(2026, 5, 2, 10, 0, 0, 0, time.UTC)
 	run, err := projectRun(domain.RunRecord{
-		RunID:     "run_1",
-		SessionID: "session_1",
-		Status:    domain.RunStatusSucceeded,
-		CreatedAt: now,
+		RunID:      "run_1",
+		SessionID:  "session_1",
+		Status:     domain.RunStatusSucceeded,
+		CreatedAt:  now,
 		FinishedAt: now.Add(time.Second),
 	})
 	if err != nil {

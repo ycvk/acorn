@@ -1,4 +1,5 @@
 package runtime
+
 import (
 	"context"
 	"encoding/gob"
@@ -6,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+
 	"github.com/cloudwego/eino/adk"
 	einomodel "github.com/cloudwego/eino/components/model"
 	einotool "github.com/cloudwego/eino/components/tool"
@@ -14,12 +16,13 @@ import (
 	cp "github.com/ycvk/acorn/internal/context"
 	"github.com/ycvk/acorn/internal/domain"
 	"github.com/ycvk/acorn/internal/memory"
-	"github.com/ycvk/acorn/internal/tools"
+	"github.com/ycvk/acorn/internal/port"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/store"
-	"github.com/ycvk/acorn/internal/port"
+	"github.com/ycvk/acorn/internal/tools"
 	"github.com/ycvk/acorn/internal/workspace"
 )
+
 func compactText(value string, limit int) (string, bool) {
 	trimmed := strings.TrimSpace(value)
 	if trimmed == "" {
@@ -63,7 +66,9 @@ func DurableContext(ctx context.Context) context.Context {
 func CurrentRunID(ctx context.Context) string {
 	return domain.GetRunID(ctx)
 }
+
 var registerOnce sync.Once
+
 // RegisterTypes registers all types required for runtime serialization.
 // This replaces the former scattered init() registrations and must be called
 // once during application bootstrap before any runtime operations.
@@ -74,6 +79,7 @@ func RegisterTypes() {
 		gob.Register(&DirectResponseInterruptData{})
 	})
 }
+
 type ElicitationInterruptInfo struct {
 	Kind            string
 	ActionID        string
@@ -84,6 +90,7 @@ type ElicitationInterruptState struct {
 	ActionID string
 }
 type SelectedSkill = cp.SelectedSkill
+
 // ExecutorStore is the store contract required by the Executor.
 type ExecutorStore interface {
 	domain.EventAppender
@@ -100,6 +107,7 @@ type ExecutorStore interface {
 	SyncAssistantMessageForRun(ctx context.Context, runID string) error
 	SyncAssistantMessageForRunStatus(ctx context.Context, runID string, status domain.RunStatus) error
 }
+
 // RunnerFactoryStore is the store contract required by the RunnerFactory.
 // It extends ExecutorStore with the MCP token + pending-action stores needed
 // for run bootstrapping.
@@ -129,11 +137,13 @@ type RuntimeDeps struct {
 	// CheckpointStore overrides the default in-memory checkpoint store for testing.
 	CheckpointStore adk.CheckPointStore
 }
+
 func (d RuntimeDeps) CloneForWorkspace(ws *workspace.Workspace) RuntimeDeps {
 	clone := d
 	clone.Workspace = ws
 	return clone
 }
+
 // RunContext represents a single run in the execution tree. It carries the
 // parent-child links used for cascade cleanup of subagent runs.
 type RunContext struct {
@@ -142,17 +152,20 @@ type RunContext struct {
 	ChildIDs []string // child run IDs (stored as strings, not pointers, to avoid GC retention)
 	Depth    int      // 0 for root; propagated to subagents
 }
+
 // Registry provides thread-safe registration of RunContext instances.
 type Registry struct {
 	mu      sync.Mutex
 	entries map[string]*RunContext // keyed by runID
 }
+
 // NewRegistry creates a new Registry.
 func NewRegistry() *Registry {
 	return &Registry{
 		entries: make(map[string]*RunContext),
 	}
 }
+
 // Register atomically adds a RunContext and links it to its parent.
 // Returns error if parent not found.
 func (r *Registry) Register(ctx *RunContext) error {
@@ -172,6 +185,7 @@ func (r *Registry) Register(ctx *RunContext) error {
 	r.entries[ctx.RunID] = ctx
 	return nil
 }
+
 // Clear removes a run and all its descendants from the registry.
 func (r *Registry) Clear(runID string) {
 	r.mu.Lock()
@@ -193,6 +207,7 @@ func (r *Registry) Clear(runID string) {
 		delete(r.entries, currentID)
 	}
 }
+
 // Get returns a RunContext by ID.
 func (r *Registry) Get(runID string) (*RunContext, bool) {
 	r.mu.Lock()
@@ -203,12 +218,14 @@ func (r *Registry) Get(runID string) (*RunContext, bool) {
 	ctx, ok := r.entries[runID]
 	return ctx, ok
 }
+
 // RunController tracks per-run cancellation functions so an in-flight run can
 // be interrupted by ID.
 type RunController struct {
 	activeMu      sync.Mutex
 	activeCancels map[string]context.CancelFunc
 }
+
 func NewRunController() *RunController {
 	return &RunController{}
 }
@@ -304,6 +321,7 @@ func prepareInitialMessages(req domain.ExecuteRequest, active *ActiveRunner) []a
 	}
 	return initialMessages
 }
+
 // --- direct_response orchestration types ---
 type DirectResponseRequest struct {
 	AgentName         string
@@ -322,10 +340,12 @@ type RunAssembly struct {
 	Runner      *adk.Runner
 	Instruction string
 }
+
 // ToolLifecycleStateView is the read-only view of tool lifecycle state.
 type ToolLifecycleStateView interface {
 	IsLoaded(toolName string) bool
 }
+
 // AssembleResultView is the read-only view of context plane assembly result.
 type AssembleResultView struct {
 	Messages          []*schema.Message

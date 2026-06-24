@@ -9,6 +9,7 @@ import (
 	"github.com/ycvk/acorn/internal/port"
 	"github.com/ycvk/acorn/internal/tools"
 )
+
 type lifecycleStubTool struct {
 	name string
 	desc string
