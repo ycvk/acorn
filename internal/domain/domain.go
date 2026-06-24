@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/cloudwego/eino/adk"
+
+	"github.com/ycvk/acorn/internal/core"
 )
 
 // --- Sentinel errors ---
@@ -17,125 +19,65 @@ var (
 	ErrExecutionNotReady = errors.New("execution not ready")
 )
 
-type RunStatus string
+// The types below are aliases for their canonical definitions in internal/core
+// (see store_types.go for the rationale). The legacy const blocks are retained
+// so existing domain.* references keep compiling; each const is now typed
+// against the aliased (core) type.
+
+type RunStatus = core.RunStatus
 
 const (
-	RunStatusRunning     RunStatus = "running"
-	RunStatusSucceeded   RunStatus = "succeeded"
-	RunStatusInterrupted RunStatus = "interrupted"
-	RunStatusFailed      RunStatus = "failed"
+	RunStatusRunning     = core.RunStatusRunning
+	RunStatusSucceeded   = core.RunStatusSucceeded
+	RunStatusInterrupted = core.RunStatusInterrupted
+	RunStatusFailed      = core.RunStatusFailed
 )
 
 // --- Run / event / session records ---
 
-type RunRecord struct {
-	RunID      string    `json:"run_id"`
-	SessionID  string    `json:"session_id,omitempty"`
-	TurnIndex  int       `json:"turn_index,omitempty"`
-	Status     RunStatus `json:"status"`
-	Input      string    `json:"input"`
-	Output     string    `json:"output,omitempty"`
-	Error      string    `json:"error,omitempty"`
-	CreatedAt  time.Time `json:"created_at"`
-	FinishedAt time.Time `json:"finished_at,omitempty"`
-}
-
-type EventRecord struct {
-	Sequence  int64     `json:"sequence"`
-	RunID     string    `json:"run_id"`
-	Kind      string    `json:"kind"`
-	Payload   any       `json:"payload"`
-	CreatedAt time.Time `json:"created_at"`
-}
-
-type SessionRecord struct {
-	SessionID string    `json:"session_id"`
-	Title     string    `json:"title,omitempty"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-}
-
-type EventKind string
+type RunRecord = core.RunRecord
+type EventRecord = core.EventRecord
+type SessionRecord = core.SessionRecord
+type EventKind = core.EventKind
 
 // --- Pending actions ---
 
-type PendingActionKind string
+type PendingActionKind = core.PendingActionKind
 
 const (
-	PendingActionKindElicitation      PendingActionKind = "elicitation"
-	PendingActionKindOperatorQuestion PendingActionKind = "operator_question"
+	PendingActionKindElicitation      = core.PendingActionKindElicitation
+	PendingActionKindOperatorQuestion = core.PendingActionKindOperatorQuestion
 )
 
-type PendingActionStatus string
+type PendingActionStatus = core.PendingActionStatus
 
 const (
-	PendingActionStatusPending  PendingActionStatus = "pending"
-	PendingActionStatusApproved PendingActionStatus = "approved"
-	PendingActionStatusRejected PendingActionStatus = "rejected"
-	PendingActionStatusResolved PendingActionStatus = "resolved"
+	PendingActionStatusPending  = core.PendingActionStatusPending
+	PendingActionStatusApproved = core.PendingActionStatusApproved
+	PendingActionStatusRejected = core.PendingActionStatusRejected
+	PendingActionStatusResolved = core.PendingActionStatusResolved
 )
 
-type PendingActionRecord struct {
-	ActionID     string              `json:"action_id"`
-	RunID        string              `json:"run_id"`
-	InterruptID  string              `json:"interrupt_id,omitempty"`
-	Kind         PendingActionKind   `json:"kind"`
-	Subject      string              `json:"subject,omitempty"`
-	PayloadJSON  string              `json:"payload_json"`
-	Status       PendingActionStatus `json:"status"`
-	Reason       string              `json:"reason,omitempty"`
-	DecisionJSON string              `json:"decision_json,omitempty"`
-	CreatedAt    time.Time           `json:"created_at"`
-	ResolvedAt   *time.Time          `json:"resolved_at,omitempty"`
-}
+type PendingActionRecord = core.PendingActionRecord
 
 // --- Operator question ---
 
 const (
-	OperatorQuestionDecisionAnswer  = "answer"
-	OperatorQuestionDecisionDecline = "decline"
+	OperatorQuestionDecisionAnswer  = core.OperatorQuestionDecisionAnswer
+	OperatorQuestionDecisionDecline = core.OperatorQuestionDecisionDecline
 )
 
-type PendingActionOption struct {
-	ID          string `json:"id"`
-	Label       string `json:"label"`
-	Description string `json:"description,omitempty"`
-}
-
-type OperatorQuestionPayload struct {
-	Question      string                `json:"question"`
-	Options       []PendingActionOption `json:"options,omitempty"`
-	AllowFreeform bool                  `json:"allow_freeform,omitempty"`
-}
-
-type OperatorQuestionDecision struct {
-	Action           string `json:"action"`
-	SelectedOptionID string `json:"selected_option_id,omitempty"`
-	Answer           string `json:"answer,omitempty"`
-}
+type PendingActionOption = core.PendingActionOption
+type OperatorQuestionPayload = core.OperatorQuestionPayload
+type OperatorQuestionDecision = core.OperatorQuestionDecision
 
 // --- Session messages ---
 
-type SessionMessageRecord struct {
-	ID           int64           `json:"id"`
-	SessionID    string          `json:"session_id"`
-	TurnIndex    int             `json:"turn_index"`
-	Role         string          `json:"role"`
-	Content      string          `json:"content"`
-	ContentParts json.RawMessage `json:"content_parts,omitempty"`
-	RunID        string          `json:"run_id,omitempty"`
-	CreatedAt    time.Time       `json:"created_at"`
-}
+type SessionMessageRecord = core.SessionMessageRecord
 
 // --- Session summary ---
 
-type SessionSummary struct {
-	SessionID   string    `json:"session_id"`
-	SourceRunID string    `json:"source_run_id"`
-	RunStatus   string    `json:"run_status"`
-	Summary     string    `json:"summary"`
-	UpdatedAt   time.Time `json:"updated_at"`
-}
+type SessionSummary = core.SessionSummary
 
 // --- ExecuteRequest ---
 
