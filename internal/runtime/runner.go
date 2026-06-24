@@ -39,11 +39,6 @@ type RunnerFactory struct {
 	mcpAssembler  *MCPAssembler
 }
 
-const (
-	noEligibleSkillMatchReason = "no_eligible_match"
-	ambiguousTopScoreReason    = "ambiguous_top_score"
-)
-
 func NewRunnerFactory(cfg *config.Config, store RunnerFactoryStore, opts RunnerFactoryOptions) (*RunnerFactory, error) {
 	deps, err := buildRuntimeDeps(cfg, store, opts)
 	if err != nil {

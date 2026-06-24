@@ -54,7 +54,7 @@ func (f *RunnerFactory) newDirectResponseRunner(ctx context.Context, req RunnerB
 	if err != nil {
 		return nil, err
 	}
-	contextResult, err := f.contextAsm.assembleContext(ctx, req, capabilities, nil, memoryPrepared)
+	contextResult, err := f.contextAsm.assembleContext(ctx, req, capabilities, memoryPrepared)
 	if err != nil {
 		return nil, err
 	}

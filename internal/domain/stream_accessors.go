@@ -44,21 +44,6 @@ func getInt(m map[string]any, key string) int {
 	return 0
 }
 
-func getInt64(m map[string]any, key string) int64 {
-	if m == nil {
-		return 0
-	}
-	switch v := m[key].(type) {
-	case int64:
-		return v
-	case int:
-		return int64(v)
-	case float64:
-		return int64(v)
-	}
-	return 0
-}
-
 func getBool(m map[string]any, key string) bool {
 	if m == nil {
 		return false
@@ -68,23 +53,6 @@ func getBool(m map[string]any, key string) bool {
 		return false
 	}
 	return v
-}
-
-func getStringSlice(m map[string]any, key string) []string {
-	if m == nil {
-		return nil
-	}
-	v, ok := m[key].([]any)
-	if !ok {
-		return nil
-	}
-	out := make([]string, 0, len(v))
-	for _, item := range v {
-		if s, ok := item.(string); ok {
-			out = append(out, s)
-		}
-	}
-	return out
 }
 
 func ItemGetMessage(item StreamItem) *StreamMessage {
@@ -125,28 +93,6 @@ func ItemGetAssistantDelta(item StreamItem) *StreamAssistantDelta {
 	}
 }
 
-func ItemGetToolCall(item StreamItem) *StreamToolCall {
-	m := getPayloadMap(item)
-	if call, ok := m["tool_call"].(*StreamToolCall); ok && call != nil {
-		return call
-	}
-	callMap := getNestedMap(m, "tool_call")
-	if callMap == nil {
-		return nil
-	}
-	return &StreamToolCall{
-		Provider:          getString(callMap, "provider"),
-		Name:              getString(callMap, "name"),
-		CallID:            getString(callMap, "call_id"),
-		ArgumentsJSON:     getString(callMap, "arguments_json"),
-		InterruptID:       getString(callMap, "interrupt_id"),
-		Output:            getString(callMap, "output"),
-		Error:             getString(callMap, "error"),
-		DurationMS:        getInt64(callMap, "duration_ms"),
-		InterruptContexts: getInt(callMap, "interrupt_contexts"),
-	}
-}
-
 func ItemGetInterrupt(item StreamItem) *StreamInterrupt {
 	m := getPayloadMap(item)
 	if interrupt, ok := m["interrupt"].(*StreamInterrupt); ok && interrupt != nil {
@@ -176,124 +122,6 @@ func ItemGetInterrupt(item StreamItem) *StreamInterrupt {
 		}
 	}
 	return interrupt
-}
-
-func ItemGetSkill(item StreamItem) *StreamSkill {
-	m := getPayloadMap(item)
-	if skill, ok := m["skill"].(*StreamSkill); ok && skill != nil {
-		return skill
-	}
-	skillMap := getNestedMap(m, "skill")
-	if skillMap == nil {
-		return nil
-	}
-	skill := &StreamSkill{
-		SelectedID:        getString(skillMap, "selected_id"),
-		Name:              getString(skillMap, "name"),
-		Source:            getString(skillMap, "source"),
-		Origin:            getString(skillMap, "origin"),
-		TaskPattern:       getString(skillMap, "task_pattern"),
-		Path:              getString(skillMap, "path"),
-		NoSelectionReason: getString(skillMap, "no_selection_reason"),
-		Summary:           getString(skillMap, "summary"),
-		Instruction:       getString(skillMap, "instruction"),
-		Scripts:           getStringSlice(skillMap, "scripts"),
-		Score:             getInt(skillMap, "score"),
-		RunStatus:         getString(skillMap, "run_status"),
-		PromotedFrom:      getString(skillMap, "promoted_from"),
-		FailureReason:     getString(skillMap, "failure_reason"),
-		MatchedTerms:      getStringSlice(skillMap, "matched_terms"),
-	}
-	reqMap := getNestedMap(skillMap, "requirements")
-	if reqMap != nil {
-		skill.Requirements = StreamSkillRequirements{
-			Tools:    getStringSlice(reqMap, "tools"),
-			Toolsets: getStringSlice(reqMap, "toolsets"),
-			Bins:     getStringSlice(reqMap, "bins"),
-			Env:      getStringSlice(reqMap, "env"),
-		}
-	}
-	candidatesRaw, ok := skillMap["candidates"].([]any)
-	if ok {
-		skill.Candidates = make([]StreamSkillCandidate, 0, len(candidatesRaw))
-		for _, candRaw := range candidatesRaw {
-			candMap, ok := candRaw.(map[string]any)
-			if !ok {
-				continue
-			}
-			candidate := StreamSkillCandidate{
-				ID:             getString(candMap, "id"),
-				Name:           getString(candMap, "name"),
-				Score:          getInt(candMap, "score"),
-				FilteredReason: getString(candMap, "filtered_reason"),
-				Summary:        getString(candMap, "summary"),
-				Origin:         getString(candMap, "origin"),
-				TaskPattern:    getString(candMap, "task_pattern"),
-				MatchedTerms:   getStringSlice(candMap, "matched_terms"),
-			}
-			reqMap := getNestedMap(candMap, "requirements")
-			if reqMap != nil {
-				candidate.Requirements = StreamSkillRequirements{
-					Tools:    getStringSlice(reqMap, "tools"),
-					Toolsets: getStringSlice(reqMap, "toolsets"),
-					Bins:     getStringSlice(reqMap, "bins"),
-					Env:      getStringSlice(reqMap, "env"),
-				}
-			}
-			skill.Candidates = append(skill.Candidates, candidate)
-		}
-	}
-	return skill
-}
-
-func ItemGetMemoryPrepared(item StreamItem) *StreamMemoryPrepared {
-	m := getPayloadMap(item)
-	if mem, ok := m["memory_prepared"].(*StreamMemoryPrepared); ok && mem != nil {
-		return mem
-	}
-	memMap := getNestedMap(m, "memory_prepared")
-	if memMap == nil {
-		return nil
-	}
-	mem := &StreamMemoryPrepared{
-		Query:          getString(memMap, "query"),
-		WorkspaceScope: getString(memMap, "workspace_scope"),
-		NudgeCount:     getInt(memMap, "nudge_count"),
-		EntryCount:     getInt(memMap, "entry_count"),
-	}
-	nudgesRaw, ok := memMap["nudges"].([]any)
-	if ok {
-		mem.Nudges = make([]StreamMemoryPreparedNudge, 0, len(nudgesRaw))
-		for _, nudgeRaw := range nudgesRaw {
-			nudgeMap, ok := nudgeRaw.(map[string]any)
-			if !ok {
-				continue
-			}
-			mem.Nudges = append(mem.Nudges, StreamMemoryPreparedNudge{
-				Ref:    getString(nudgeMap, "ref"),
-				Kind:   getString(nudgeMap, "kind"),
-				Title:  getString(nudgeMap, "title"),
-				Status: getString(nudgeMap, "status"),
-				Reason: getString(nudgeMap, "reason"),
-			})
-		}
-	}
-	entriesRaw, ok := memMap["entries"].([]any)
-	if ok {
-		mem.Entries = make([]StreamMemoryPreparedEntry, 0, len(entriesRaw))
-		for _, entryRaw := range entriesRaw {
-			entryMap, ok := entryRaw.(map[string]any)
-			if !ok {
-				continue
-			}
-			mem.Entries = append(mem.Entries, StreamMemoryPreparedEntry{
-				Ref:   getString(entryMap, "ref"),
-				Kind:  getString(entryMap, "kind"),
-				Title: getString(entryMap, "title"),
-			})
-		}
-	}
-	return mem
 }
 
 func ItemGetError(item StreamItem) string {

@@ -98,18 +98,6 @@ type ElicitationInterruptState struct {
 }
 type SelectedSkill = contextplane.SelectedSkill
 
-type SkillMatch struct {
-	Skill          skills.Spec
-	Score          int
-	MatchedTerms   []string
-	TriggerMatched bool
-	FilteredReason string
-}
-
-func CopySelectedSkill(selected *SelectedSkill) *SelectedSkill {
-	return contextplane.CopySelectedSkill(selected)
-}
-
 // ExecutorStore is the store contract required by the Executor.
 type ExecutorStore interface {
 	domain.EventAppender

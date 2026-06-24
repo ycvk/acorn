@@ -2,7 +2,6 @@ package contextplane
 
 import (
 	"fmt"
-	"reflect"
 	"sort"
 	"strings"
 
@@ -17,32 +16,6 @@ type SelectedSkill struct {
 	Score        int
 	MatchedTerms []string
 	Explicit     bool
-}
-
-func CopySelectedSkill(selected *SelectedSkill) *SelectedSkill {
-	if selected == nil {
-		return nil
-	}
-	return &SelectedSkill{
-		Skill:        skills.CopySpec(selected.Skill),
-		Score:        selected.Score,
-		MatchedTerms: append([]string(nil), selected.MatchedTerms...),
-		Explicit:     selected.Explicit,
-	}
-}
-
-// IsNilInterface reports whether an interface value is nil, including the
-// typed-nil case (e.g. a nil pointer wrapped in a non-nil interface).
-func IsNilInterface(value any) bool {
-	if value == nil {
-		return true
-	}
-	v := reflect.ValueOf(value)
-	switch v.Kind() {
-	case reflect.Ptr, reflect.Interface, reflect.Chan, reflect.Func, reflect.Map, reflect.Slice:
-		return v.IsNil()
-	}
-	return false
 }
 
 // buildContextEnvelopeMessage wraps content sections in an XML-style envelope

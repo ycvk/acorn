@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/cloudwego/eino/adk"
-	"github.com/cloudwego/eino/compose"
 )
 
 // --- Sentinel errors ---
@@ -377,18 +376,4 @@ func StreamSinkFromContext(ctx context.Context) StreamSink {
 		return nil
 	}
 	return sink
-}
-
-// --- JSON serializer (eino compose) ---
-
-type JSONSerializer struct{}
-
-var _ compose.Serializer = (*JSONSerializer)(nil)
-
-func (j *JSONSerializer) Marshal(v any) ([]byte, error) {
-	return json.Marshal(v)
-}
-
-func (j *JSONSerializer) Unmarshal(data []byte, v any) error {
-	return json.Unmarshal(data, v)
 }

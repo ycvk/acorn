@@ -67,7 +67,6 @@ func (a *ContextAssembler) assembleContext(
 	ctx context.Context,
 	req RunnerBuildRequest,
 	caps *runCapabilities,
-	selection *runSelection,
 	memoryPrepared *memory.PrepareResult,
 ) (*contextplane.AssembleResult, error) {
 	if a == nil || a.deps.ContextPlane == nil {
@@ -76,7 +75,7 @@ func (a *ContextAssembler) assembleContext(
 	if caps == nil {
 		return nil, errors.New("run capabilities are required")
 	}
-	result, err := a.deps.ContextPlane.Assemble(ctx, buildAssembleRequest(req, caps, selection, memoryPrepared))
+	result, err := a.deps.ContextPlane.Assemble(ctx, buildAssembleRequest(req, caps, memoryPrepared))
 	if err != nil {
 		return nil, err
 	}
@@ -142,16 +141,11 @@ type baseAssemblyFields struct {
 	excludedToolNames []string
 }
 
-func buildAssembleRequest(req RunnerBuildRequest, caps *runCapabilities, selection *runSelection, memoryPrepared *memory.PrepareResult) contextplane.AssembleRequest {
-	var selectedSkill *SelectedSkill
-	if selection != nil {
-		selectedSkill = selection.selectedSkill
-	}
+func buildAssembleRequest(req RunnerBuildRequest, caps *runCapabilities, memoryPrepared *memory.PrepareResult) contextplane.AssembleRequest {
 	return contextplane.AssembleRequest{
 		RunID:          req.RunID,
 		SessionID:      req.SessionID,
 		Input:          req.Input,
-		SelectedSkill:  selectedSkill,
 		SkillSnapshot:  caps.skillSnapshot,
 		MemoryPrepared: memoryPrepared,
 		ToolCatalog:    caps.catalog,
