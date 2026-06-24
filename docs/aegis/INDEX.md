@@ -18,6 +18,7 @@
 - [Structural Convergence Design Spec](specs/2026-06-22-structural-convergence-design.md) — 4→2 tool packages, runner file merge, duplicate port elimination, guard 400→800
 - [Radical Refactor Design Spec](specs/2026-06-23-radical-refactor-design.md) — god-package split, dead code purge, structural debt elimination
 - [Modular Refactor Design Spec](specs/2026-06-23-modular-refactor-design.md) — RunnerFactory god-object split, toolkit+toolset merge, store interface consolidation, client_service split, stream/domain type convergence
+- [Greenfield Architecture Refactor Design Spec](specs/2026-06-24-greenfield-architecture-refactor-design.md) — Clean Slim Layers, store port inversion, runtime→agent/context split, app→wire/api split, schema redesign
 
 ## Plans
 - [Structural Convergence Refactor Plan](plans/2026-06-22-structural-convergence.md) — 11 tasks: port elimination, guard relax, tool/toolset rename, runtime subpackage promotion, file merges, docs
