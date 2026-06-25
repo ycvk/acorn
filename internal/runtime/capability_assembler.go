@@ -30,6 +30,7 @@ func (artifactToolBridge) CurrentSessionID(ctx context.Context) string {
 func (artifactToolBridge) CurrentToolCallID(ctx context.Context) string {
 	return tools.ToolAuditCallID(ctx)
 }
+
 // NewContextBridge returns a ToolCallContextBridge that reads run/session/tool-call
 // identifiers from the context. Used by wire to pass context plumbing into
 // RegisterNativeTools so tool factories have the bridge at resolve time.
