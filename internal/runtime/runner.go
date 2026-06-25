@@ -75,7 +75,7 @@ func (f *RunnerFactory) MemoryModule() memory.Service {
 	return f.deps.MemoryModule
 }
 
-func (f *RunnerFactory) SessionSummarySvc() *core.SessionSummaryService {
+func (f *RunnerFactory) SessionSummarySvc() *SessionSummaryService {
 	return f.deps.SessionSummarySvc
 }
 
@@ -408,7 +408,7 @@ type RunnerFactoryOptions struct {
 	ExtraLocalTools       []einotool.BaseTool
 	Workspace             *workspace.Workspace
 	Handlers              []adk.ChatModelAgentMiddleware
-	SessionSummaryService *core.SessionSummaryService
+	SessionSummaryService *SessionSummaryService
 	MemoryModule          memory.Service
 	ContextPlane          Plane
 	MCPPendingActionStore core.SessionStore

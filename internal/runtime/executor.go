@@ -28,7 +28,7 @@ type Executor struct {
 	runRuntime        *RunnerFactory
 	controller        *RunController
 	newChatModel      func(ctx context.Context) (einomodel.BaseChatModel, error)
-	sessionSummarySvc *core.SessionSummaryService
+	sessionSummarySvc *SessionSummaryService
 }
 
 func NewExecutorWithRunRuntimeAndController(cfg *config.Config, store core.SessionStore, runRuntime *RunnerFactory, controller *RunController) (*Executor, error) {

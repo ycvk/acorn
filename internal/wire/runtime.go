@@ -20,7 +20,7 @@ import (
 type containerRuntimeDeps struct {
 	ws                    *workspace.Workspace
 	loader                *skills.Loader
-	sessionSummaryService *core.SessionSummaryService
+	sessionSummaryService *runtime.SessionSummaryService
 	memoryModule          memory.Service
 	contextPlane          runtime.Plane
 	mcpPendingActionStore api.StoreView
@@ -36,7 +36,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 		return nil, err
 	}
 	loader := skills.NewLoader(cfg)
-	sessionSummaryService := core.NewSessionSummaryService(db, 2000)
+	sessionSummaryService := runtime.NewSessionSummaryService(db, 2000)
 	memoryModule, err := buildMemoryService(ctx, cfg)
 	if err != nil {
 		return nil, err

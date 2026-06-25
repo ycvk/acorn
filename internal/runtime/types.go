@@ -63,7 +63,7 @@ type RuntimeDeps struct {
 	Config            *config.Config
 	Store             RuntimeStore
 	Loader            *skills.Loader
-	SessionSummarySvc *core.SessionSummaryService
+	SessionSummarySvc *SessionSummaryService
 	MemoryModule      memory.Service
 	ContextPlane      Plane
 	MCPPendingActions core.SessionStore
