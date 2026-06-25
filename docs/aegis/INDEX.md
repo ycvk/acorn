@@ -24,11 +24,11 @@
 - [Radical Refactor Design Spec](specs/2026-06-23-radical-refactor-design.md) — god-package split, dead code purge, structural debt elimination
 - [Modular Refactor Design Spec](specs/2026-06-23-modular-refactor-design.md) — RunnerFactory god-object split, toolkit+toolset merge, store interface consolidation, client_service split, stream/domain type convergence
 - [Greenfield Architecture Refactor Design Spec](specs/2026-06-24-greenfield-architecture-refactor-design.md) — Clean Slim Layers, store port inversion, runtime→agent/context split, app→wire/api split, schema redesign
-- [Convergent Core/Runtime Refactor Design Spec](specs/2026-06-24-convergent-core-runtime-refactor-design.md) — 20→13 packages, domain/port/contract/clientevents→core, agent/context/stream→runtime, 21→3 store interfaces, unified plugin registry
+- [Radical Simplification Design Spec](specs/2026-06-25-radical-simplification-design.md) — core 纯化, store 接口统一, tools/dispatch 子包隔离, 死代码清理
 
 ## Plans
 - [Structural Convergence Refactor Plan](plans/2026-06-22-structural-convergence.md) — 11 tasks: port elimination, guard relax, tool/toolset rename, runtime subpackage promotion, file merges, docs
 - [Runtime God-Package Split Plan](plans/2026-06-23-runtime-split.md) — split runtime into stream + tooldispatch + factextract sub-packages
 - [Modular Refactor Plan](plans/2026-06-23-modular-refactor.md) — 5 phases: stream/domain type convergence, toolkit+toolset merge, store interface consolidation, client_service split, RunnerFactory god-object split
 - [Greenfield Architecture Refactor Plan](plans/2026-06-24-greenfield-architecture-refactor.md) — 12 phases: port package, domain expansion, store rewrite, memory/mcp adaptation, tools contract split, contextplane→context rename, agent extraction, api service absorption, wire composition root, cli adaptation, architecture guards, docs sync
-- [Convergent Core/Runtime Refactor Plan](plans/2026-06-24-convergent-core-runtime-refactor.md) — 8 phases: core package, runtime merge, store adapt, ToolRegistry, mcp promote, api merge, wire rewire + delete old packages, guards + docs
+- [Radical Simplification Refactor Plan](plans/2026-06-25-radical-simplification.md) — 3 waves: core 纯化+store 统一+死代码, tools/dispatch 子包隔离, 架构守卫更新
