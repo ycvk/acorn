@@ -56,13 +56,16 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 		return nil, fmt.Errorf("artifact service: %w", err)
 	}
 
+	ctxBridge := runtime.NewContextBridge()
 	toolRegistry := tools.NewToolRegistry()
 	if err := tools.RegisterNativeTools(toolRegistry, tools.CatalogConfig{
 		Workspace:         ws,
 		MutationEnabled:   !cfg.Tools.Mutation.Disabled,
 		RunCommandEnabled: !cfg.Tools.RunCommand.Disabled,
 		ArtifactService:   artifactSvc,
+		ArtifactContext:   ctxBridge,
 		OperatorStore:     mcpPendingActionStore,
+		OperatorContext:   ctxBridge,
 	}); err != nil {
 		return nil, fmt.Errorf("register native tools: %w", err)
 	}
