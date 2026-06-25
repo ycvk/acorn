@@ -28,6 +28,7 @@ var layerRank = map[string]int{
 	"memory":    2,
 	"mcp":       2,
 	"tools":     2,
+	"dispatch":  2,
 	"workspace": 2,
 	"webaccess": 2,
 	"skills":    2,
