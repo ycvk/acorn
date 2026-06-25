@@ -2,7 +2,9 @@ package store
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/ycvk/acorn/internal/core"
@@ -14,9 +16,6 @@ func (s *Store) migrate() error {
 	}
 	if err := s.migrateV2(); err != nil {
 		return fmt.Errorf("migrate v2: %w", err)
-	}
-	if err := s.dropArchitecturalRefactorTables(); err != nil {
-		return fmt.Errorf("drop architectural refactor tables: %w", err)
 	}
 	if err := s.validateSchema(); err != nil {
 		return err
@@ -31,35 +30,7 @@ func (s *Store) migrateV2() error {
 	// The only remaining v2 column addition is session_messages.content_parts;
 	// the runs columns (parent_run_id, depth, orchestration_mode, skill_id)
 	// were retired by the architecture refactor and are no longer created.
-	if err := s.addColumnIfNotExists("session_messages", "content_parts", "TEXT NOT NULL DEFAULT ''", "v2_session_messages_content_parts"); err != nil {
-		return err
-	}
-	if err := s.dropLegacyTablesChain(); err != nil {
-		return err
-	}
-	return s.dropDecisionTables()
-}
-
-// dropLegacyTablesChain runs the sequence of legacy/removed table drops that
-// follow the v2 column additions, in migration order. The final step drops
-// the tables retired by the architecture refactor (plan_steps, checkpoints,
-// tool_results, conversation_segments, run_archives, working_checkpoints,
-// provider_usages, run_context_snapshots, context_boundaries).
-func (s *Store) dropLegacyTablesChain() error {
-	drops := []func() error{
-		s.dropLegacyMemoryTables,
-		s.dropRemovedRuntimeTables,
-		s.dropRemovedTerminalSessionTables,
-		s.dropRemovedCodeintelTables,
-		s.dropRemovedConversationFTS,
-		s.dropRefactoredTables,
-	}
-	for _, drop := range drops {
-		if err := drop(); err != nil {
-			return err
-		}
-	}
-	return nil
+	return s.addColumnIfNotExists("session_messages", "content_parts", "TEXT NOT NULL DEFAULT ''", "v2_session_messages_content_parts")
 }
 
 func (s *Store) validateSchema() error {
@@ -73,10 +44,8 @@ func (s *Store) validateSchema() error {
 
 // schemaRequiredTables maps each required table to the columns that must exist
 // after migration; validateSchema enforces presence to detect a stale or
-// incompatible local database. Retired tables (owner_profile, session_summaries,
-// checkpoints, plan_steps, conversation_segments, working_checkpoints,
-// run_context_snapshots, context_boundaries, tool_results, provider_usages,
-// run_archives) are dropped by migrations and intentionally absent.
+// incompatible local database. Tables not listed here (e.g. owner_profile,
+// session_summaries, plan_steps) are legacy and never created.
 var schemaRequiredTables = map[string][]string{
 	"runs":              {"run_id", "session_id", "turn_index", "status", "input_text", "output_text", "error_text", "created_at", "finished_at"},
 	"events":            {"sequence", "run_id", "kind", "payload_json", "created_at"},
@@ -187,4 +156,29 @@ func (s *Store) addColumnIfNotExists(table, column, definition, versionKey strin
 	}
 	_, insertErr := s.db.Exec("INSERT INTO schema_migrations (version, applied_at) VALUES (?, datetime('now'))", versionKey)
 	return insertErr
+}
+
+// migrationApplied reports whether a schema migration version has already been
+// recorded in schema_migrations. A missing schema_migrations table on a fresh
+// database is benign (the migrations have not run yet); any other scan error
+// is surfaced so a real failure is not silently treated as "not applied".
+func migrationApplied(db *sql.DB, version string) bool {
+	var count int
+	row := db.QueryRow("SELECT COUNT(*) FROM schema_migrations WHERE version = ?", version)
+	if err := row.Scan(&count); err != nil {
+		if !strings.Contains(err.Error(), "no such table") {
+			slog.Error("migrationApplied: unexpected schema_migrations scan error", "version", version, "error", err)
+		}
+		return false
+	}
+	return count > 0
+}
+
+// rollbackOnErr rolls back a transaction if the surrounding function returned
+// an error, swallowing the benign ErrTxDone that fires after a successful Commit.
+func rollbackOnErr(tx *sql.Tx, err *error, label string) {
+	rollbackErr := tx.Rollback()
+	if rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
+		*err = errors.Join(*err, fmt.Errorf("%s rollback: %w", label, rollbackErr))
+	}
 }

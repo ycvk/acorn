@@ -19,7 +19,7 @@ Run Acorn on your own server, pair your phone, and use the mobile app to start w
 - Android mobile control surface for inbox, threads, runs, approvals, and settings.
 - Persistent runs, run events, pending actions, tool results, workspace checkpoints, memory, and skills.
 - File-backed long-term memory with local semantic retrieval.
-- Linux `amd64` and `arm64` release tarballs with bundled native search libraries.
+ - Linux `amd64` and `arm64` release tarballs (pure Go cross-compilation, no CGO).
 - Signed Android APK published with each GitHub Release.
 
 ## Install On A VPS
@@ -32,7 +32,7 @@ Install the latest release on Debian or Ubuntu:
 curl -fsSL https://github.com/ycvk/acorn/releases/latest/download/install-release.sh | sh
 ```
 
-The installer installs Acorn's host dependencies, including the OpenBLAS runtime required by the bundled FAISS search libraries.
+ The installer installs Acorn's host dependencies and creates the systemd service.
 
 Install and start the service in one step:
 
@@ -117,7 +117,7 @@ providers:
 
 Provider keys can reference environment variables. Missing provider credentials are reported by readiness checks instead of being silently ignored.
 
-Semantic memory search also requires an embedding endpoint under `memory.semantic`. The release packages include the native search libraries used by the backend; see `configs/acorn.example.yaml` or `configs/acorn.selfhosted.example.yaml` for the complete shape.
+ Semantic memory search also requires an embedding endpoint under `memory.semantic`; see `configs/acorn.example.yaml` or `configs/acorn.selfhosted.example.yaml` for the complete shape.
 
 ## API
 

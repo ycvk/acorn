@@ -1,7 +1,6 @@
 package core
 
 import (
-	"context"
 	"encoding/json"
 	"time"
 )
@@ -116,9 +115,4 @@ type SessionSummary struct {
 	RunStatus   string    `json:"run_status"`
 	Summary     string    `json:"summary"`
 	UpdatedAt   time.Time `json:"updated_at"`
-}
-
-type SessionSummaryStore interface {
-	GetSessionSummary(ctx context.Context, sessionID string) (*SessionSummary, error)
-	UpsertSessionSummary(ctx context.Context, summary SessionSummary) error
 }

@@ -119,7 +119,3 @@ CREATE INDEX IF NOT EXISTS idx_devices_token_hash ON devices(token_hash);
 CREATE INDEX IF NOT EXISTS idx_artifacts_run ON artifacts(run_id, created_at ASC, artifact_id ASC);
 CREATE INDEX IF NOT EXISTS idx_artifacts_session ON artifacts(session_id, created_at ASC, artifact_id ASC);
 `
-
-// storeBootstrapSchema is the full bootstrap DDL (tables + indexes) kept for
-// backward compatibility with tests that seed a pre-migration database.
-const storeBootstrapSchema = storeBootstrapTables + storeBootstrapIndexes

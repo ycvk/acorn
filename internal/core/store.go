@@ -64,20 +64,21 @@ type IdentityStore interface {
 	RevokeDevice(ctx context.Context, deviceID string, revokedAt time.Time) error
 }
 
-// ArtifactStore handles artifact read/write, session summaries, and OAuth tokens.
-// It replaces the former ArtifactRepo, SummaryRepo, and OAuthRepo.
+// ArtifactStore is the composite persistence contract for artifact I/O,
+// session summaries, and OAuth tokens. It embeds ArtifactService and
+// SessionSummaryStore so narrow consumers can depend on the smaller
+// interface they need.
 type ArtifactStore interface {
-	// Artifacts
-	WriteArtifact(ctx context.Context, req ArtifactWriteRequest) (ArtifactRecord, error)
-	ReadArtifactRange(ctx context.Context, req ArtifactReadRangeRequest) (ArtifactReadRangeResult, error)
-	ListByRun(ctx context.Context, runID string) ([]ArtifactRecord, error)
-	ListBySession(ctx context.Context, sessionID string) ([]ArtifactRecord, error)
-
-	// Session summaries
-	GetSessionSummary(ctx context.Context, sessionID string) (*SessionSummary, error)
-	UpsertSessionSummary(ctx context.Context, summary SessionSummary) error
+	ArtifactService
+	SessionSummaryStore
 
 	// OAuth tokens
 	SaveOAuthToken(ctx context.Context, token OAuthToken) error
 	GetOAuthToken(ctx context.Context, providerName string) (*OAuthToken, error)
+}
+
+// SessionSummaryStore handles session summary persistence.
+type SessionSummaryStore interface {
+	GetSessionSummary(ctx context.Context, sessionID string) (*SessionSummary, error)
+	UpsertSessionSummary(ctx context.Context, summary SessionSummary) error
 }

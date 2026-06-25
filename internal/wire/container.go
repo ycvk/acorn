@@ -206,7 +206,7 @@ type RunOnceResult struct {
 // RunOnce executes a single owner-local run synchronously and returns its
 // terminal result. It is an operator smoke probe: it drives the exact runtime
 // execution path (Executor -> RunnerFactory -> ContextPlane -> memory prepare),
-// so any readiness gap (binary built without FAISS, unconfigured embedding,
+// so any readiness gap (unconfigured embedding,
 // prepare failure) surfaces here as a real error or failed result instead of
 // staying hidden until the first remote-client message.
 func (c *Container) RunOnce(ctx context.Context, input string) (*RunOnceResult, error) {

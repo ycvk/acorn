@@ -2,9 +2,9 @@ package core
 
 import "context"
 
-// ArtifactService is the interface for artifact read/write operations.
-// store.ArtifactService implements this interface; runtime and tools
-// depend on this interface to avoid importing internal/store directly.
+// ArtifactService is the artifact read/write contract. It is embedded by
+// ArtifactStore and consumed directly by tool builders (internal/tools)
+// that only need artifact I/O and not summary or OAuth persistence.
 type ArtifactService interface {
 	WriteArtifact(ctx context.Context, req ArtifactWriteRequest) (ArtifactRecord, error)
 	ReadArtifactRange(ctx context.Context, req ArtifactReadRangeRequest) (ArtifactReadRangeResult, error)
