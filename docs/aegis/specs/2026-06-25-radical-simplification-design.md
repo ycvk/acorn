@@ -1,7 +1,7 @@
 # Acorn 彻底简化重构 — Design Spec
 
 Date: `2026-06-25`
-Status: `proposed`
+Status: `implemented (partial — Wave 1 + Phase 9 executed; Wave 2 runtime subpackages and Phase 8 API interface purge evaluated and skipped; see plan Self-Review for rationale)`
 Complexity: `high — 核心层纯化 + god-package 拆分 + 接口精简 + 子包隔离`
 Predecessor: `2026-06-24-convergent-core-runtime-refactor-design.md` (已 merge,解决了类型切片问题但留下了新的结构性债务)
 

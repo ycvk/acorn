@@ -84,11 +84,6 @@ func (n *SafeParallelToolsNode) NewStreamingExecutor(ctx context.Context) Stream
 
 func (n *SafeParallelToolsNode) invokeSingle(ctx context.Context, call classifiedCall) (*schema.Message, error) {
 	resultRef := buildToolResultRef(core.GetRunID(ctx), call.toolCall.ID)
-	// Pre-execution tool lifecycle validation is handled by the runtime's
-	// BeforeToolCall callback (runtime.OnToolCall), which uses the correct
-	// context key. The dispatch-layer OnToolCall used a different context key
-	// that was never set, causing errToolLifecycleNotInitialized on every
-	// tool call. Removed the broken duplicate check.
 	if call.argsErr != "" {
 		msg := schema.ToolMessage(
 			fmt.Sprintf("Invalid arguments for tool %q: %s", call.toolCall.Function.Name, call.argsErr),

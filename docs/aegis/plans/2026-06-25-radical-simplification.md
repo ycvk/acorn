@@ -347,16 +347,15 @@ Complexity Budget:
 ## Self-Review
 
 ### 1. Spec Coverage
-- [x] core 纯化(移 SessionSummaryService) → Phase 1
-- [x] 统一 store 接口(删 store.ArtifactStore) → Phase 2
-- [x] 删死代码(6 处) → Phase 3
-- [x] 拆 runtime god-package(runner + context 子包) → Phase 5 + Phase 6
-- [x] 精简 API(删 11 个 ServiceAPI) → Phase 8
-- [x] 隔离 tools/dispatch → Phase 9
-- [x] 评估 StoreView → Phase 10
-- [x] 架构守卫更新 → Phase 11
-- [x] 文档同步 → Phase 12
-- [x] 最终验证 → Phase 12
+- [x] core 纯化(移 SessionSummaryService) → Phase 1 ✓ executed
+- [x] 统一 store 接口(重命名 ArtifactStore→ArtifactDB, 统一 ListByRun/ListBySession) → Phase 2 ✓ executed (spec 说"删 store.ArtifactStore",实际重命名为 ArtifactDB——store 仍需内部 DB 接口,只是不再与 core.ArtifactStore 同名)
+- [x] 删死代码 → Phase 3 ✓ executed (删了 4 处真正 unreachable 的;DefaultConfig 和 Toolset.All 保留——被 test 使用)
+- [~] 拆 runtime god-package(runner + context 子包) → Phase 5 + Phase 6 **skipped** — runtime 已有 24 文件,最大 578 行(800 限制内),子包化需跨包移动 Session/Plane/AssembleResult 等共享类型,引入间接性但不增加清晰度
+- [~] 精简 API(删 11 个 ServiceAPI) → Phase 8 **skipped** — client_handlers_test.go 用接口做 test double(clientHandlerStub 实现三个接口),删接口会破坏测试替身模式
+- [x] 隔离 tools/dispatch → Phase 9 ✓ executed
+- [x] 评估 StoreView → Phase 10 ✓ evaluated (保留——consumer-side 组合接口,无重复)
+- [x] 架构守卫更新 → Phase 11 ✓ executed
+- [x] 文档同步 → Phase 12 ✓ executed
 
 ### 2. Placeholder Scan
 - [x] 无 TBD/TODO

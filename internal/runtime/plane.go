@@ -44,19 +44,6 @@ type ToolCallEvent struct {
 	Arguments string
 }
 
-type ToolResultEvent struct {
-	RunID        string
-	SessionID    string
-	TurnIndex    int
-	CallID       string
-	ToolName     string
-	Arguments    string
-	Result       string
-	IsError      bool
-	ErrorReason  string
-	ResultTokens int
-}
-
 type DeferredLoadRequest struct {
 	RunID     string
 	SessionID string
