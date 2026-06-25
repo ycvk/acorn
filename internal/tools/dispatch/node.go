@@ -84,9 +84,11 @@ func (n *SafeParallelToolsNode) NewStreamingExecutor(ctx context.Context) Stream
 
 func (n *SafeParallelToolsNode) invokeSingle(ctx context.Context, call classifiedCall) (*schema.Message, error) {
 	resultRef := buildToolResultRef(core.GetRunID(ctx), call.toolCall.ID)
-	if err := emitToolCallLifecycle(ctx, call); err != nil {
-		return nil, err
-	}
+	// Pre-execution tool lifecycle validation is handled by the runtime's
+	// BeforeToolCall callback (runtime.OnToolCall), which uses the correct
+	// context key. The dispatch-layer OnToolCall used a different context key
+	// that was never set, causing errToolLifecycleNotInitialized on every
+	// tool call. Removed the broken duplicate check.
 	if call.argsErr != "" {
 		msg := schema.ToolMessage(
 			fmt.Sprintf("Invalid arguments for tool %q: %s", call.toolCall.Function.Name, call.argsErr),
@@ -95,9 +97,6 @@ func (n *SafeParallelToolsNode) invokeSingle(ctx context.Context, call classifie
 		)
 		attachToolMessageLedgerMeta(msg, call, resultRef)
 		markToolMessageFailed(msg, call.argsErr)
-		if err := emitToolResultLifecycle(ctx, msg); err != nil {
-			return nil, err
-		}
 		return msg, nil
 	}
 	entry, ok := n.tools[call.toolCall.Function.Name]
@@ -106,9 +105,6 @@ func (n *SafeParallelToolsNode) invokeSingle(ctx context.Context, call classifie
 		msg := schema.ToolMessage(errMsg, call.toolCall.ID, schema.WithToolName(call.toolCall.Function.Name))
 		attachToolMessageLedgerMeta(msg, call, resultRef)
 		markToolMessageFailed(msg, errMsg)
-		if err := emitToolResultLifecycle(ctx, msg); err != nil {
-			return nil, err
-		}
 		return msg, nil
 	}
 	result, err := invokeToolWithEinoCallbacks(ctx, entry.Tool, call.toolCall)
@@ -124,18 +120,12 @@ func (n *SafeParallelToolsNode) invokeSingle(ctx context.Context, call classifie
 		attachToolMessageLedgerMeta(msg, call, resultRef)
 		_ = core.TurnIndexFromContext(ctx) // TODO(phase7): restore context.AnnotateMessageTurn
 		markToolMessageFailed(msg, err.Error())
-		if err := emitToolResultLifecycle(ctx, msg); err != nil {
-			return nil, err
-		}
 		return msg, nil
 	}
 	msg := schema.ToolMessage(result, call.toolCall.ID, schema.WithToolName(call.toolCall.Function.Name))
 	attachToolMessageLedgerMeta(msg, call, resultRef)
 	_ = core.TurnIndexFromContext(ctx) // TODO(phase7): restore context.AnnotateMessageTurn
 	if err := attachToolSideEffects(msg, call.toolCall.Function.Name, result); err != nil {
-		return nil, err
-	}
-	if err := emitToolResultLifecycle(ctx, msg); err != nil {
 		return nil, err
 	}
 	return msg, nil
@@ -201,52 +191,6 @@ func toolCallbackType(tool einotool.InvokableTool) string {
 	return "InvokableTool"
 }
 
-func emitToolCallLifecycle(ctx context.Context, call classifiedCall) error {
-	return OnToolCall(ctx, ToolCallEvent{
-		RunID:     core.GetRunID(ctx),
-		SessionID: core.GetSessionID(ctx),
-		TurnIndex: core.TurnIndexFromContext(ctx),
-		CallID:    call.toolCall.ID,
-		ToolName:  call.toolCall.Function.Name,
-		Arguments: call.toolCall.Function.Arguments,
-	})
-}
-
-func emitToolResultLifecycle(ctx context.Context, msg *schema.Message) error {
-	if msg == nil {
-		return errors.New("tool lifecycle result message is nil")
-	}
-	var failed bool
-	if rawFailed, ok := msg.Extra["tool_error"]; ok {
-		if value, ok := rawFailed.(bool); ok {
-			failed = value
-		}
-	}
-	var reason string
-	if rawReason, ok := msg.Extra["tool_error_reason"]; ok {
-		if value, ok := rawReason.(string); ok {
-			reason = value
-		}
-	}
-	var arguments string
-	if rawArgs, ok := msg.Extra["tool_arguments_json"]; ok {
-		if value, ok := rawArgs.(string); ok {
-			arguments = value
-		}
-	}
-	return OnToolResult(ctx, ToolResultEvent{
-		RunID:        core.GetRunID(ctx),
-		SessionID:    core.GetSessionID(ctx),
-		TurnIndex:    core.TurnIndexFromContext(ctx),
-		CallID:       msg.ToolCallID,
-		ToolName:     msg.ToolName,
-		Arguments:    arguments,
-		Result:       msg.Content,
-		IsError:      failed,
-		ErrorReason:  reason,
-		ResultTokens: len(msg.Content) / 4,
-	})
-}
 func markToolMessageFailed(msg *schema.Message, reason string) {
 	if msg == nil {
 		return
