@@ -118,7 +118,7 @@ func (s *memoryArtifactStore) LoadArtifact(_ context.Context, artifactID string)
 	return record, nil
 }
 
-func (s *memoryArtifactStore) ListArtifactsByRun(_ context.Context, runID string) ([]core.ArtifactRecord, error) {
+func (s *memoryArtifactStore) ListByRun(_ context.Context, runID string) ([]core.ArtifactRecord, error) {
 	var items []core.ArtifactRecord
 	for _, record := range s.records {
 		if record.RunID == runID {
@@ -128,7 +128,7 @@ func (s *memoryArtifactStore) ListArtifactsByRun(_ context.Context, runID string
 	return items, nil
 }
 
-func (s *memoryArtifactStore) ListArtifactsBySession(_ context.Context, sessionID string) ([]core.ArtifactRecord, error) {
+func (s *memoryArtifactStore) ListBySession(_ context.Context, sessionID string) ([]core.ArtifactRecord, error) {
 	var items []core.ArtifactRecord
 	for _, record := range s.records {
 		if record.SessionID == sessionID {

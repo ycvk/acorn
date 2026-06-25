@@ -1129,7 +1129,7 @@ func (s *toolArtifactStore) LoadArtifact(_ context.Context, artifactID string) (
 	return record, nil
 }
 
-func (s *toolArtifactStore) ListArtifactsByRun(_ context.Context, runID string) ([]core.ArtifactRecord, error) {
+func (s *toolArtifactStore) ListByRun(_ context.Context, runID string) ([]core.ArtifactRecord, error) {
 	var items []core.ArtifactRecord
 	for _, record := range s.records {
 		if record.RunID == strings.TrimSpace(runID) {
@@ -1139,7 +1139,7 @@ func (s *toolArtifactStore) ListArtifactsByRun(_ context.Context, runID string) 
 	return items, nil
 }
 
-func (s *toolArtifactStore) ListArtifactsBySession(_ context.Context, sessionID string) ([]core.ArtifactRecord, error) {
+func (s *toolArtifactStore) ListBySession(_ context.Context, sessionID string) ([]core.ArtifactRecord, error) {
 	var items []core.ArtifactRecord
 	for _, record := range s.records {
 		if record.SessionID == strings.TrimSpace(sessionID) {

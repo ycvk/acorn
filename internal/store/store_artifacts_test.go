@@ -48,14 +48,14 @@ func TestStoreArtifactsSaveLoadAndList(t *testing.T) {
 		t.Fatalf("source tool result ref = %q, want %q", got, want)
 	}
 
-	byRun, err := store.ListArtifactsByRun(context.Background(), "run_1")
+	byRun, err := store.ListByRun(context.Background(), "run_1")
 	if err != nil {
 		t.Fatalf("list artifacts by run: %v", err)
 	}
 	if len(byRun) != 1 || byRun[0].ArtifactID != "artifact_1" {
 		t.Fatalf("by run = %#v", byRun)
 	}
-	bySession, err := store.ListArtifactsBySession(context.Background(), "session_1")
+	bySession, err := store.ListBySession(context.Background(), "session_1")
 	if err != nil {
 		t.Fatalf("list artifacts by session: %v", err)
 	}

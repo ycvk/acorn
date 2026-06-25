@@ -62,7 +62,7 @@ func (s *Store) LoadArtifact(ctx context.Context, artifactID string) (core.Artif
 	return record, nil
 }
 
-func (s *Store) ListArtifactsByRun(ctx context.Context, runID string) ([]core.ArtifactRecord, error) {
+func (s *Store) ListByRun(ctx context.Context, runID string) ([]core.ArtifactRecord, error) {
 	runID = strings.TrimSpace(runID)
 	if runID == "" {
 		return nil, fmt.Errorf("artifact run_id is required")
@@ -93,7 +93,7 @@ func (s *Store) ListArtifactsByRun(ctx context.Context, runID string) ([]core.Ar
 	return items, nil
 }
 
-func (s *Store) ListArtifactsBySession(ctx context.Context, sessionID string) ([]core.ArtifactRecord, error) {
+func (s *Store) ListBySession(ctx context.Context, sessionID string) ([]core.ArtifactRecord, error) {
 	sessionID = strings.TrimSpace(sessionID)
 	if sessionID == "" {
 		return nil, fmt.Errorf("artifact session_id is required")

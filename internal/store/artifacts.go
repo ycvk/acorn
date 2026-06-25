@@ -28,23 +28,23 @@ const (
 	ArtifactKindBinary     ArtifactKind = "binary"
 )
 
-// ArtifactStore is the internal interface used by ArtifactService to persist
+// ArtifactDB is the internal interface used by ArtifactService to persist
 // artifact metadata. The Store type implements it via SaveArtifact/LoadArtifact.
-type ArtifactStore interface {
+type ArtifactDB interface {
 	SaveArtifact(context.Context, core.ArtifactRecord) (core.ArtifactRecord, error)
 	LoadArtifact(context.Context, string) (core.ArtifactRecord, error)
-	ListArtifactsByRun(context.Context, string) ([]core.ArtifactRecord, error)
-	ListArtifactsBySession(context.Context, string) ([]core.ArtifactRecord, error)
+	ListByRun(context.Context, string) ([]core.ArtifactRecord, error)
+	ListBySession(context.Context, string) ([]core.ArtifactRecord, error)
 }
 
 type ArtifactService struct {
 	rootDir string
-	store   ArtifactStore
+	store   ArtifactDB
 }
 
 var _ core.ArtifactService = (*ArtifactService)(nil)
 
-func NewArtifactService(rootDir string, store ArtifactStore) (*ArtifactService, error) {
+func NewArtifactService(rootDir string, store ArtifactDB) (*ArtifactService, error) {
 	rootDir = strings.TrimSpace(rootDir)
 	if rootDir == "" {
 		return nil, fmt.Errorf("artifact root dir is required")
@@ -185,7 +185,7 @@ func (s *ArtifactService) ListByRun(ctx context.Context, runID string) ([]core.A
 	if runID == "" {
 		return nil, fmt.Errorf("artifact run_id is required")
 	}
-	return s.store.ListArtifactsByRun(ctx, runID)
+	return s.store.ListByRun(ctx, runID)
 }
 
 func (s *ArtifactService) ListBySession(ctx context.Context, sessionID string) ([]core.ArtifactRecord, error) {
@@ -193,7 +193,7 @@ func (s *ArtifactService) ListBySession(ctx context.Context, sessionID string) (
 	if sessionID == "" {
 		return nil, fmt.Errorf("artifact session_id is required")
 	}
-	return s.store.ListArtifactsBySession(ctx, sessionID)
+	return s.store.ListBySession(ctx, sessionID)
 }
 
 func NormalizeArtifactWriteRequest(req core.ArtifactWriteRequest) (core.ArtifactWriteRequest, error) {

@@ -70,8 +70,8 @@ type ArtifactStore interface {
 	// Artifacts
 	WriteArtifact(ctx context.Context, req ArtifactWriteRequest) (ArtifactRecord, error)
 	ReadArtifactRange(ctx context.Context, req ArtifactReadRangeRequest) (ArtifactReadRangeResult, error)
-	ListArtifactsByRun(ctx context.Context, runID string) ([]ArtifactRecord, error)
-	ListArtifactsBySession(ctx context.Context, sessionID string) ([]ArtifactRecord, error)
+	ListByRun(ctx context.Context, runID string) ([]ArtifactRecord, error)
+	ListBySession(ctx context.Context, sessionID string) ([]ArtifactRecord, error)
 
 	// Session summaries
 	GetSessionSummary(ctx context.Context, sessionID string) (*SessionSummary, error)

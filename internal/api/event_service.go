@@ -112,7 +112,7 @@ func (s *EventService) ListRunArtifacts(ctx context.Context, runID string) ([]Ar
 	if _, err := s.store.LoadRun(ctx, runID); err != nil {
 		return nil, err
 	}
-	records, err := s.store.ListArtifactsByRun(ctx, runID)
+	records, err := s.store.ListByRun(ctx, runID)
 	if err != nil {
 		return nil, fmt.Errorf("list run artifacts for %s: %w", runID, err)
 	}

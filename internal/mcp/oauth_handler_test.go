@@ -60,10 +60,10 @@ func (m *mockTokenStore) WriteArtifact(_ context.Context, _ core.ArtifactWriteRe
 func (m *mockTokenStore) ReadArtifactRange(_ context.Context, _ core.ArtifactReadRangeRequest) (core.ArtifactReadRangeResult, error) {
 	return core.ArtifactReadRangeResult{}, errors.New("not implemented")
 }
-func (m *mockTokenStore) ListArtifactsByRun(_ context.Context, _ string) ([]core.ArtifactRecord, error) {
+func (m *mockTokenStore) ListByRun(_ context.Context, _ string) ([]core.ArtifactRecord, error) {
 	return nil, nil
 }
-func (m *mockTokenStore) ListArtifactsBySession(_ context.Context, _ string) ([]core.ArtifactRecord, error) {
+func (m *mockTokenStore) ListBySession(_ context.Context, _ string) ([]core.ArtifactRecord, error) {
 	return nil, nil
 }
 func (m *mockTokenStore) GetSessionSummary(_ context.Context, _ string) (*core.SessionSummary, error) {
