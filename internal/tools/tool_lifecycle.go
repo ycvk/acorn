@@ -67,10 +67,6 @@ type toolLifecycleContext struct {
 	State lifecycleState
 }
 
-// WithToolLifecycleContext attaches the tool lifecycle state to the context.
-func WithToolLifecycleContext(ctx context.Context, state lifecycleState) context.Context {
-	return context.WithValue(ctx, toolLifecycleContextKey{}, &toolLifecycleContext{State: state})
-}
 
 func toolLifecycleContextFromContext(ctx context.Context) *toolLifecycleContext {
 	if ctx == nil {

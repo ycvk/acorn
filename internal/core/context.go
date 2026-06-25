@@ -74,16 +74,6 @@ func WithCallSite(ctx context.Context, callSite string) context.Context {
 	return context.WithValue(ctx, callSiteContextKey{}, trimmed)
 }
 
-func GetCallSite(ctx context.Context) string {
-	if ctx == nil {
-		return ""
-	}
-	v, ok := ctx.Value(callSiteContextKey{}).(string)
-	if !ok {
-		return ""
-	}
-	return v
-}
 
 type streamSinkContextKey struct{}
 
