@@ -113,13 +113,13 @@ func (n *SafeParallelToolsNode) invokeSingle(ctx context.Context, call classifie
 		}
 		msg := schema.ToolMessage(errorContent, call.toolCall.ID, schema.WithToolName(call.toolCall.Function.Name))
 		attachToolMessageLedgerMeta(msg, call, resultRef)
-		_ = core.TurnIndexFromContext(ctx) // TODO(phase7): restore context.AnnotateMessageTurn
+		annotateTurnIndex(msg, ctx)
 		markToolMessageFailed(msg, err.Error())
 		return msg, nil
 	}
 	msg := schema.ToolMessage(result, call.toolCall.ID, schema.WithToolName(call.toolCall.Function.Name))
 	attachToolMessageLedgerMeta(msg, call, resultRef)
-	_ = core.TurnIndexFromContext(ctx) // TODO(phase7): restore context.AnnotateMessageTurn
+	annotateTurnIndex(msg, ctx)
 	if err := attachToolSideEffects(msg, call.toolCall.Function.Name, result); err != nil {
 		return nil, err
 	}
@@ -137,6 +137,19 @@ func attachToolMessageLedgerMeta(msg *schema.Message, call classifiedCall, resul
 	msg.Extra["tool_arguments_json"] = call.toolCall.Function.Arguments
 }
 
+// annotateTurnIndex stamps the current turn index onto a tool message, using
+// the turn index plumbed via context. This allows downstream masking to
+// determine message age relative to the current turn.
+func annotateTurnIndex(msg *schema.Message, ctx context.Context) {
+	if msg == nil {
+		return
+	}
+	turnIndex := core.TurnIndexFromContext(ctx)
+	if msg.Extra == nil {
+		msg.Extra = make(map[string]any, 2)
+	}
+	msg.Extra[core.TurnIndexExtraKey] = turnIndex
+}
 func attachToolSideEffects(msg *schema.Message, toolName string, result string) error {
 	sideEffects, err := toolSideEffectsFromResult(toolName, result)
 	if err != nil {

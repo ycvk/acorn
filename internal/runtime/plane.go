@@ -14,10 +14,6 @@ import (
 	"github.com/ycvk/acorn/internal/skills"
 )
 
-type Plane interface {
-	Assemble(context.Context, AssembleRequest) (*AssembleResult, error)
-}
-
 type AssembleRequest struct {
 	RunID          string
 	SessionID      string
@@ -64,7 +60,7 @@ type DefaultOptions struct {
 	TokenCounter             TokenCounter
 }
 
-type defaultPlane struct {
+type ContextPlane struct {
 	memoryContextTokenBudget int
 	maxContextTokens         int
 	tokenCounter             TokenCounter
@@ -96,17 +92,16 @@ type DeferredToolRecord struct {
 	Description string
 }
 
-func NewDefaultPlane(opts DefaultOptions) Plane {
-	p := &defaultPlane{
+func NewDefaultPlane(opts DefaultOptions) *ContextPlane {
+	return &ContextPlane{
 		memoryContextTokenBudget: opts.MemoryContextTokenBudget,
 		maxContextTokens:         opts.MaxContextTokens,
 		tokenCounter:             opts.TokenCounter,
 		memoryBudget:             opts.MemoryContextTokenBudget,
 	}
-	return p
 }
 
-func (p *defaultPlane) Assemble(ctx context.Context, req AssembleRequest) (*AssembleResult, error) {
+func (p *ContextPlane) Assemble(ctx context.Context, req AssembleRequest) (*AssembleResult, error) {
 	if p.tokenCounter == nil {
 		return nil, errors.New("context plane token counter is required")
 	}

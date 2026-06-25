@@ -28,8 +28,8 @@ const (
 	ArtifactKindBinary     ArtifactKind = "binary"
 )
 
-// ArtifactDB is the internal interface used by ArtifactService to persist
-// artifact metadata. The Store type implements it via SaveArtifact/LoadArtifact.
+// ArtifactDB is the persistence contract for artifact metadata.
+// *Store implements it in production; tests use in-memory mocks.
 type ArtifactDB interface {
 	SaveArtifact(context.Context, core.ArtifactRecord) (core.ArtifactRecord, error)
 	LoadArtifact(context.Context, string) (core.ArtifactRecord, error)

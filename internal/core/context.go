@@ -56,6 +56,9 @@ func TurnIndexFromContext(ctx context.Context) int {
 	return index
 }
 
+// TurnIndexExtraKey is the message Extra map key for the turn index annotation.
+const TurnIndexExtraKey = "acorn_turn_index"
+
 // --- Call-site context plumbing ---
 
 const (

@@ -15,7 +15,6 @@ import (
 var clientProjectionBoundaryFiles = []string{
 	"internal/api/projection.go",
 	"internal/api/projection_helpers.go",
-	"internal/api/store_view.go",
 	"internal/api/event_service.go",
 	"internal/api/thread_service.go",
 	"internal/api/dto_run.go",

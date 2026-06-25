@@ -64,7 +64,7 @@ func newRuntimeChatModel(
 func buildRunnerAgentHandlers(
 	_ context.Context,
 	cfg *config.Config,
-	_ Plane,
+	_ *ContextPlane,
 	extraHandlers []adk.ChatModelAgentMiddleware,
 	_ einomodel.BaseChatModel,
 	_ any,

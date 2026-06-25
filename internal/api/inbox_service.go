@@ -19,16 +19,12 @@ const (
 	runSummaryTitleMaxRunes        = 64
 )
 
-type inboxCapabilityService interface {
-	Snapshot(ctx context.Context, opts CapabilitySnapshotOptions) SystemCapabilities
-}
-
 type InboxService struct {
 	store        StoreView
-	capabilities inboxCapabilityService
+	capabilities *CapabilitiesService
 }
 
-func NewInboxService(store StoreView, capabilities inboxCapabilityService) *InboxService {
+func NewInboxService(store StoreView, capabilities *CapabilitiesService) *InboxService {
 	return &InboxService{store: store, capabilities: capabilities}
 }
 

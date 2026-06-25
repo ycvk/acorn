@@ -135,7 +135,7 @@ func buildContainer(ctx context.Context, cfg *config.Config) (*Container, error)
 	return container, nil
 }
 
-func buildContextPlane(cfg *config.Config) (runtime.Plane, error) {
+func buildContextPlane(cfg *config.Config) (*runtime.ContextPlane, error) {
 	contextCounter, err := runtime.NewTokenCounter()
 	if err != nil {
 		return nil, err

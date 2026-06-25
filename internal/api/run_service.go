@@ -57,7 +57,7 @@ type Run struct {
 type RunService struct {
 	store       StoreView
 	threads     *ThreadService
-	newExecutor func(context.Context) (ExecutorHandle, error)
+	newExecutor func(context.Context) (*runtime.Executor, error)
 	controller  *runtime.RunController
 	newRunID    func() string
 	reportError func(context.Context, string, error)
@@ -65,7 +65,7 @@ type RunService struct {
 
 // NewRunService constructs a RunService backed by the given store, executor
 // factory, and run controller.
-func NewRunService(store StoreView, threads *ThreadService, newExecutor func(context.Context) (ExecutorHandle, error), controller *runtime.RunController) *RunService {
+func NewRunService(store StoreView, threads *ThreadService, newExecutor func(context.Context) (*runtime.Executor, error), controller *runtime.RunController) *RunService {
 	return &RunService{
 		store:       store,
 		threads:     threads,
@@ -246,8 +246,8 @@ func reportClientBackgroundError(ctx context.Context, runID string, err error) {
 	slog.Default().ErrorContext(ctx, "client background run failure was not persisted", "run_id", runID, "error", err)
 }
 
-func (s *RunService) executeRun(ctx context.Context, exec ExecutorHandle, req core.ExecuteRequest, started *clientRunStartSignal) {
-	err := exec.ExecuteMessages(ctx, req, started)
+func (s *RunService) executeRun(ctx context.Context, exec *runtime.Executor, req core.ExecuteRequest, started *clientRunStartSignal) {
+	_, err := exec.ExecuteMessages(ctx, req, runStartSignalSink(started))
 	if err != nil {
 		if started.MarkFailed(err) {
 			return
@@ -256,6 +256,20 @@ func (s *RunService) executeRun(ctx context.Context, exec ExecutorHandle, req co
 			s.reportBackgroundRunFailure(ctx, req.RunID, err, persistErr)
 		}
 		return
+	}
+}
+
+// runStartSignalSink adapts a clientRunStartSignal into a core.StreamSink
+// that fires RunStarted() when the RunStarted stream event is emitted.
+func runStartSignalSink(started *clientRunStartSignal) core.StreamSink {
+	if started == nil {
+		return nil
+	}
+	return func(item core.StreamItem) error {
+		if item.Kind == core.StreamKindRunStarted {
+			started.RunStarted()
+		}
+		return nil
 	}
 }
 

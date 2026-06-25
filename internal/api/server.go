@@ -11,6 +11,14 @@ import (
 	"github.com/ycvk/acorn/internal/skills"
 )
 
+// StoreView is the store contract required by app-facing services.
+// It composes the session, identity, and artifact store capabilities.
+type StoreView interface {
+	core.SessionStore
+	core.IdentityStore
+	core.ArtifactStore
+}
+
 type RunServiceAPI interface {
 	CreateRun(ctx context.Context, threadID, skillID, input string) (*Run, error)
 	GetRun(ctx context.Context, runID string) (*Run, error)

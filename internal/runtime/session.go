@@ -13,6 +13,7 @@ import (
 	"github.com/cloudwego/eino/schema"
 	"github.com/localit-io/tiktoken-go"
 	tiktokenloader "github.com/pkoukk/tiktoken-go-loader"
+	"github.com/ycvk/acorn/internal/core"
 )
 
 // Session is the sole owner of root-run model input. It bootstraps
@@ -252,7 +253,7 @@ func AnnotateMessageTurn(msg adk.Message, turnIndex int) adk.Message {
 	if msg.Extra == nil {
 		msg.Extra = make(map[string]any)
 	}
-	msg.Extra[TurnIndexExtraKey] = turnIndex
+	msg.Extra[core.TurnIndexExtraKey] = turnIndex
 	return msg
 }
 

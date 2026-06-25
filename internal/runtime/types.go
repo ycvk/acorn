@@ -64,9 +64,9 @@ type RuntimeDeps struct {
 	Config            *config.Config
 	Store             RuntimeStore
 	Loader            *skills.Loader
-	SessionSummarySvc *SessionSummaryService
 	MemoryModule      memory.Service
-	ContextPlane      Plane
+	SessionSummarySvc *SessionSummaryService
+	ContextPlane      *ContextPlane
 	MCPPendingActions core.SessionStore
 	Workspace         *workspace.Workspace
 	ArtifactService   core.ArtifactService
@@ -166,15 +166,10 @@ type RunAssembly struct {
 	Instruction string
 }
 
-// ToolLifecycleStateView is the read-only view of tool lifecycle state.
-type ToolLifecycleStateView interface {
-	IsLoaded(toolName string) bool
-}
-
 // AssembleResultView is the read-only view of context plane assembly result.
 type AssembleResultView struct {
 	Messages          []*schema.Message
-	LifecycleState    ToolLifecycleStateView
+	LifecycleState    *ToolLifecycleState
 	EagerToolNames    []string
 	DeferredToolNames []string
 }

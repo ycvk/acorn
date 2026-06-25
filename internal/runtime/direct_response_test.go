@@ -566,7 +566,7 @@ func directResponseContextResultForTest(runID string, sessionID string, eagerToo
 		MaxAgeTurns:   2,
 	}
 	return AssembleResultView{
-		LifecycleState: toolLifecycleStateAdapter{state: state},
+		LifecycleState: state,
 		EagerToolNames: append([]string(nil), eagerTools...),
 	}
 }

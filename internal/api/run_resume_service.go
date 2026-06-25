@@ -2,18 +2,18 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 
-	"encoding/json"
-
 	"github.com/ycvk/acorn/internal/core"
+	"github.com/ycvk/acorn/internal/runtime"
 )
 
 type RunResumeService struct {
 	store       StoreView
-	newExecutor func(context.Context) (ExecutorHandle, error)
+	newExecutor func(context.Context) (*runtime.Executor, error)
 }
 
 type ResumeStatus struct {
@@ -36,7 +36,7 @@ func NewRunResumeService(store StoreView) *RunResumeService {
 	return &RunResumeService{store: store}
 }
 
-func (s *RunResumeService) WithResume(newExecutor func(context.Context) (ExecutorHandle, error)) *RunResumeService {
+func (s *RunResumeService) WithResume(newExecutor func(context.Context) (*runtime.Executor, error)) *RunResumeService {
 	s.newExecutor = newExecutor
 	return s
 }
@@ -53,18 +53,14 @@ func (s *RunResumeService) Resume(ctx context.Context, runID string) (*RunResult
 	if err != nil {
 		return nil, err
 	}
-	result, err := exec.ResumeWithTargets(ctx, runID, targets)
+	result, err := exec.ResumeWithTargets(ctx, runID, targets, nil)
 	if err != nil {
 		return nil, err
 	}
-	projected, err := runResultFromExecutor(result)
-	if err != nil {
-		return nil, err
-	}
-	return projected, nil
+	return runResultFromRuntime(result)
 }
 
-func runResultFromExecutor(result *ExecutorRunResult) (*RunResult, error) {
+func runResultFromRuntime(result *runtime.Result) (*RunResult, error) {
 	if result == nil {
 		return nil, nil
 	}

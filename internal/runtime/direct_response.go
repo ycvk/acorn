@@ -150,7 +150,7 @@ type directResponseAgent struct {
 	runID          string
 	toolNode       dispatch.ToolInvoker
 	instruction    string
-	lifecycleState ToolLifecycleStateView
+	lifecycleState *ToolLifecycleState
 	catalog        *tools.Catalog
 	toolInfos      []*schema.ToolInfo
 	eagerToolNames []string

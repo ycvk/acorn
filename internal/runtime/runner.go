@@ -198,14 +198,14 @@ func resolveLoader(cfg *config.Config, loader *skills.Loader) *skills.Loader {
 	return loader
 }
 
-func resolveContextPlane(cfg *config.Config, store RuntimeStore, opts RunnerFactoryOptions) (Plane, error) {
+func resolveContextPlane(cfg *config.Config, store RuntimeStore, opts RunnerFactoryOptions) (*ContextPlane, error) {
 	if opts.ContextPlane != nil {
 		return opts.ContextPlane, nil
 	}
 	return buildDefaultContextPlane(cfg, store, opts)
 }
 
-func assembleRuntimeDeps(cfg *config.Config, store RuntimeStore, opts RunnerFactoryOptions, ws *workspace.Workspace, loader *skills.Loader, artifactService core.ArtifactService, contextPlane Plane) RuntimeDeps {
+func assembleRuntimeDeps(cfg *config.Config, store RuntimeStore, opts RunnerFactoryOptions, ws *workspace.Workspace, loader *skills.Loader, artifactService core.ArtifactService, contextPlane *ContextPlane) RuntimeDeps {
 	return RuntimeDeps{
 		Config:            cfg,
 		Store:             store,
@@ -229,7 +229,7 @@ func resolveWorkspace(cfg *config.Config, override *workspace.Workspace) (*works
 	return cfg.Workspace()
 }
 
-func buildDefaultContextPlane(cfg *config.Config, store RuntimeStore, opts RunnerFactoryOptions) (Plane, error) {
+func buildDefaultContextPlane(cfg *config.Config, store RuntimeStore, opts RunnerFactoryOptions) (*ContextPlane, error) {
 	memoryBudget, maxContextTokens, tokenCounter, err := resolveContextPlaneTokenPolicy(cfg)
 	if err != nil {
 		return nil, err
@@ -308,12 +308,12 @@ func (s *inMemoryCheckpointStore) Set(_ context.Context, checkPointID string, ch
 }
 func bindToolLifecycle(
 	ctx context.Context,
-	state ToolLifecycleStateView,
+	state *ToolLifecycleState,
 	catalog *tools.Catalog,
 	infos []*schema.ToolInfo,
 ) context.Context {
-	if adapter, ok := state.(toolLifecycleStateAdapter); ok && adapter.state != nil {
-		return WithToolLifecycleContext(ctx, adapter.state, catalog, infos)
+	if state != nil {
+		return WithToolLifecycleContext(ctx, state, catalog, infos)
 	}
 	return ctx
 }
@@ -322,25 +322,13 @@ func bindSessionID(ctx context.Context, sessionID string) context.Context {
 	return core.WithSessionID(ctx, sessionID)
 }
 
-type toolLifecycleStateAdapter struct {
-	state *ToolLifecycleState
-}
-
-func (a toolLifecycleStateAdapter) IsLoaded(toolName string) bool {
-	if a.state == nil {
-		return false
-	}
-	_, ok := a.state.LoadedTools[toolName]
-	return ok
-}
-
 func AssembleResultToView(result *AssembleResult) AssembleResultView {
 	if result == nil {
 		return AssembleResultView{}
 	}
 	return AssembleResultView{
 		Messages:          result.Messages,
-		LifecycleState:    toolLifecycleStateAdapter{state: result.LifecycleState},
+		LifecycleState:    result.LifecycleState,
 		EagerToolNames:    result.EagerToolNames,
 		DeferredToolNames: result.DeferredToolNames,
 	}
@@ -410,7 +398,7 @@ type RunnerFactoryOptions struct {
 	Handlers              []adk.ChatModelAgentMiddleware
 	SessionSummaryService *SessionSummaryService
 	MemoryModule          memory.Service
-	ContextPlane          Plane
+	ContextPlane          *ContextPlane
 	MCPPendingActionStore core.SessionStore
 	ArtifactService       core.ArtifactService
 	ToolRegistry          core.ToolRegistry

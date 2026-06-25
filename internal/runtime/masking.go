@@ -6,6 +6,7 @@ import (
 
 	"github.com/cloudwego/eino/adk"
 	"github.com/cloudwego/eino/schema"
+	"github.com/ycvk/acorn/internal/core"
 )
 
 // applyMasking replaces tool result messages older than maskAfterTurns with a
@@ -49,7 +50,7 @@ func turnIndexFromMessage(msg adk.Message) int {
 	if msg == nil || msg.Extra == nil {
 		return 0
 	}
-	v, ok := msg.Extra[TurnIndexExtraKey]
+	v, ok := msg.Extra[core.TurnIndexExtraKey]
 	if !ok {
 		return 0
 	}

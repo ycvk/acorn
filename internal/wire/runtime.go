@@ -2,7 +2,6 @@ package wire
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"path/filepath"
 
@@ -22,12 +21,12 @@ type containerRuntimeDeps struct {
 	loader                *skills.Loader
 	sessionSummaryService *runtime.SessionSummaryService
 	memoryModule          memory.Service
-	contextPlane          runtime.Plane
+	contextPlane          *runtime.ContextPlane
 	mcpPendingActionStore api.StoreView
 	toolRegistry          core.ToolRegistry
 	runnerFactory         *runtime.RunnerFactory
 	runController         *runtime.RunController
-	executors             func(context.Context) (api.ExecutorHandle, error)
+	executors             func(context.Context) (*runtime.Executor, error)
 }
 
 func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *store.Store) (*containerRuntimeDeps, error) {
@@ -99,61 +98,8 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 		executors:             executors,
 	}, nil
 }
-
-type runtimeExecutorHandle struct {
-	exec *runtime.Executor
-}
-
-func newExecutorFactory(cfg *config.Config, store core.SessionStore, runnerFactory *runtime.RunnerFactory, controller *runtime.RunController) func(context.Context) (api.ExecutorHandle, error) {
-	return func(_ context.Context) (api.ExecutorHandle, error) {
-		exec, err := runtime.NewExecutorWithRunRuntimeAndController(cfg, store, runnerFactory, controller)
-		if err != nil {
-			return nil, err
-		}
-		return runtimeExecutorHandle{exec: exec}, nil
+func newExecutorFactory(cfg *config.Config, store core.SessionStore, runnerFactory *runtime.RunnerFactory, controller *runtime.RunController) func(context.Context) (*runtime.Executor, error) {
+	return func(_ context.Context) (*runtime.Executor, error) {
+		return runtime.NewExecutorWithRunRuntimeAndController(cfg, store, runnerFactory, controller)
 	}
-}
-
-func (h runtimeExecutorHandle) ExecuteMessages(ctx context.Context, req core.ExecuteRequest, observer api.RunStartObserver) error {
-	result, err := h.exec.ExecuteMessages(ctx, req, streamSinkForRunStart(observer))
-	if err != nil {
-		return err
-	}
-	if result == nil {
-		return errors.New("runtime executor returned nil result")
-	}
-	return nil
-}
-
-func (h runtimeExecutorHandle) ResumeWithTargets(ctx context.Context, runID string, targets map[string]any) (*api.ExecutorRunResult, error) {
-	result, err := h.exec.ResumeWithTargets(ctx, runID, targets, nil)
-	if err != nil {
-		return nil, err
-	}
-	return executorRunResultFromRuntime(result)
-}
-
-func streamSinkForRunStart(observer api.RunStartObserver) core.StreamSink {
-	if observer == nil {
-		return nil
-	}
-	return func(item core.StreamItem) error {
-		if item.Kind == core.StreamKindRunStarted {
-			observer.RunStarted()
-		}
-		return nil
-	}
-}
-
-func executorRunResultFromRuntime(result *runtime.Result) (*api.ExecutorRunResult, error) {
-	if result == nil {
-		return nil, errors.New("runtime executor returned nil result")
-	}
-	return &api.ExecutorRunResult{
-		RunID:       result.RunID,
-		Status:      result.Status,
-		Output:      result.Output,
-		Error:       result.Error,
-		Interrupted: result.Interrupted,
-	}, nil
 }

@@ -33,7 +33,7 @@ type ToolCreateInput struct {
 	Files        map[string]string `json:"files,omitempty" jsonschema:"description=Additional relative files to create inside the skill package"`
 }
 
-func BuildAgentTools(loader SkillLoader) ([]einotool.BaseTool, error) {
+func BuildAgentTools(loader *Loader) ([]einotool.BaseTool, error) {
 	if loader == nil {
 		return nil, errors.New("skill loader is required")
 	}
