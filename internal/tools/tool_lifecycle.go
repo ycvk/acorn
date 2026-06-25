@@ -67,7 +67,6 @@ type toolLifecycleContext struct {
 	State lifecycleState
 }
 
-
 func toolLifecycleContextFromContext(ctx context.Context) *toolLifecycleContext {
 	if ctx == nil {
 		return nil

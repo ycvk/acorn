@@ -248,7 +248,6 @@ func OnToolCall(ctx context.Context, event ToolCallEvent) error {
 	}
 }
 
-
 // DeferredLoad loads deferred tools into the loaded set by name or query match.
 func DeferredLoad(ctx context.Context, req DeferredLoadRequest) (*DeferredLoadResult, error) {
 	if len(req.ToolNames) == 0 && strings.TrimSpace(req.Query) == "" {

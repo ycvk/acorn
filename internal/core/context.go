@@ -74,7 +74,6 @@ func WithCallSite(ctx context.Context, callSite string) context.Context {
 	return context.WithValue(ctx, callSiteContextKey{}, trimmed)
 }
 
-
 type streamSinkContextKey struct{}
 
 // WithStreamSink attaches a StreamSink to the context for retrieval by StreamSinkFromContext.

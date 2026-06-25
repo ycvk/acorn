@@ -122,4 +122,3 @@ type SessionSummaryStore interface {
 	GetSessionSummary(ctx context.Context, sessionID string) (*SessionSummary, error)
 	UpsertSessionSummary(ctx context.Context, summary SessionSummary) error
 }
-
