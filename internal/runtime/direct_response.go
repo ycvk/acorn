@@ -12,6 +12,7 @@ import (
 	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/tools"
+	"github.com/ycvk/acorn/internal/tools/dispatch"
 )
 
 // toolAssemblyParams holds the fields BuildDirectResponse shares when
@@ -106,8 +107,8 @@ func buildDirectResponse(ctx context.Context, deps RuntimeDeps, req DirectRespon
 	}
 	toolNodeFactory := deps.ToolNodeFactory
 	if toolNodeFactory == nil {
-		toolNodeFactory = func(ctx context.Context, toolList []einotool.BaseTool, resolver core.ExecutionPolicyResolver) (tools.ToolInvoker, error) {
-			return tools.NewSafeParallelToolsNode(ctx, toolList, resolver)
+		toolNodeFactory = func(ctx context.Context, toolList []einotool.BaseTool, resolver core.ExecutionPolicyResolver) (dispatch.ToolInvoker, error) {
+			return dispatch.NewSafeParallelToolsNode(ctx, toolList, resolver)
 		}
 	}
 	safeToolNode, err := toolNodeFactory(ctx, assembled.allTools, req.Catalog)
@@ -147,7 +148,7 @@ type directResponseAgent struct {
 	streamer       core.AssistantStreamer
 	sessionID      string
 	runID          string
-	toolNode       tools.ToolInvoker
+	toolNode       dispatch.ToolInvoker
 	instruction    string
 	lifecycleState ToolLifecycleStateView
 	catalog        *tools.Catalog

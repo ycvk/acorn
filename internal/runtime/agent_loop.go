@@ -8,7 +8,7 @@ import (
 	einomodel "github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/core"
-	"github.com/ycvk/acorn/internal/tools"
+	"github.com/ycvk/acorn/internal/tools/dispatch"
 )
 
 type RoundOptions struct {
@@ -41,7 +41,7 @@ func (e *ToolExecutionError) Unwrap() error {
 	return e.Err
 }
 
-func ExecuteRound(ctx context.Context, model einomodel.BaseChatModel, streamer core.AssistantStreamer, toolNode tools.ToolInvoker, messages []*schema.Message, toolInfos []*schema.ToolInfo, runID string, messageID string, opts RoundOptions) (*schema.Message, []*schema.Message, bool, error) {
+func ExecuteRound(ctx context.Context, model einomodel.BaseChatModel, streamer core.AssistantStreamer, toolNode dispatch.ToolInvoker, messages []*schema.Message, toolInfos []*schema.ToolInfo, runID string, messageID string, opts RoundOptions) (*schema.Message, []*schema.Message, bool, error) {
 	interleaved := streamer.StreamAssistantInterleaved(ctx, core.AssistantStreamRequest{
 		RunID:     runID,
 		MessageID: messageID,
@@ -104,7 +104,7 @@ func assistantMessageWithoutToolCalls(msg *schema.Message) *schema.Message {
 	return &sanitized
 }
 
-func ExecuteToolCalls(ctx context.Context, toolNode tools.ToolInvoker, msg *schema.Message) ([]*schema.Message, error) {
+func ExecuteToolCalls(ctx context.Context, toolNode dispatch.ToolInvoker, msg *schema.Message) ([]*schema.Message, error) {
 	if toolNode == nil {
 		return nil, errors.New("direct response requires tool node")
 	}
@@ -132,7 +132,7 @@ func outputLimitContinuationMessage() *schema.Message {
 	return msg
 }
 
-func consumeInterleavedForAgentLoop(ctx context.Context, interleaved *core.InterleavedStream, executor tools.StreamingExecutor, beforeToolCall func(context.Context, schema.ToolCall) error) (*core.AssistantStreamResult, error) {
+func consumeInterleavedForAgentLoop(ctx context.Context, interleaved *core.InterleavedStream, executor dispatch.StreamingExecutor, beforeToolCall func(context.Context, schema.ToolCall) error) (*core.AssistantStreamResult, error) {
 	var finalResult *core.AssistantStreamResult
 	for {
 		select {

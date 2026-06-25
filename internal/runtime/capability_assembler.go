@@ -14,6 +14,7 @@ import (
 	mcpprovider "github.com/ycvk/acorn/internal/mcp"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/tools"
+	"github.com/ycvk/acorn/internal/tools/dispatch"
 	"github.com/ycvk/acorn/internal/webaccess"
 )
 
@@ -28,7 +29,7 @@ func (artifactToolBridge) CurrentSessionID(ctx context.Context) string {
 }
 
 func (artifactToolBridge) CurrentToolCallID(ctx context.Context) string {
-	return tools.ToolAuditCallID(ctx)
+	return dispatch.ToolAuditCallID(ctx)
 }
 
 // NewContextBridge returns a ToolCallContextBridge that reads run/session/tool-call

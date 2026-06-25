@@ -17,6 +17,7 @@ import (
 	"github.com/ycvk/acorn/internal/memory"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/tools"
+	"github.com/ycvk/acorn/internal/tools/dispatch"
 	"github.com/ycvk/acorn/internal/workspace"
 )
 
@@ -77,7 +78,7 @@ type RuntimeDeps struct {
 	ToolBuilder func(ctx context.Context, store RuntimeStore, specs []core.ToolSpec, excludedToolNames []string, allowedToolNames []string, runID string) ([]einotool.BaseTool, error)
 	// ToolNodeFactory overrides the default safe parallel tools node for testing.
 	// nil means use NewSafeParallelToolsNode.
-	ToolNodeFactory func(ctx context.Context, tools []einotool.BaseTool, resolver core.ExecutionPolicyResolver) (tools.ToolInvoker, error)
+	ToolNodeFactory func(ctx context.Context, tools []einotool.BaseTool, resolver core.ExecutionPolicyResolver) (dispatch.ToolInvoker, error)
 	// CheckpointStore overrides the default in-memory checkpoint store for testing.
 	CheckpointStore adk.CheckPointStore
 }

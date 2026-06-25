@@ -19,6 +19,7 @@ import (
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/tools"
+	"github.com/ycvk/acorn/internal/tools/dispatch"
 )
 
 func directResponseTestConfig(systemPrompt string, maxIterations int) *config.Config {
@@ -224,7 +225,7 @@ func (n *directResponseTestToolNode) Stream(ctx context.Context, input *schema.M
 	return schema.StreamReaderFromArray([][]*schema.Message{results}), nil
 }
 
-func (n *directResponseTestToolNode) NewStreamingExecutor(ctx context.Context) tools.StreamingExecutor {
+func (n *directResponseTestToolNode) NewStreamingExecutor(ctx context.Context) dispatch.StreamingExecutor {
 	return &directResponseTestStreamingExecutor{node: n, ctx: ctx}
 }
 
@@ -269,7 +270,7 @@ func TestBuildDirectResponseContinuesAfterOutputLimit(t *testing.T) {
 		ToolBuilder: func(context.Context, RuntimeStore, []core.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
 			return []einotool.BaseTool{tool}, nil
 		},
-		ToolNodeFactory: func(context.Context, []einotool.BaseTool, core.ExecutionPolicyResolver) (tools.ToolInvoker, error) {
+		ToolNodeFactory: func(context.Context, []einotool.BaseTool, core.ExecutionPolicyResolver) (dispatch.ToolInvoker, error) {
 			return &directResponseTestToolNode{}, nil
 		},
 	}
@@ -333,7 +334,7 @@ func TestBuildDirectResponseDoesNotExecuteTruncatedToolCalls(t *testing.T) {
 		ToolBuilder: func(context.Context, RuntimeStore, []core.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
 			return []einotool.BaseTool{tool}, nil
 		},
-		ToolNodeFactory: func(context.Context, []einotool.BaseTool, core.ExecutionPolicyResolver) (tools.ToolInvoker, error) {
+		ToolNodeFactory: func(context.Context, []einotool.BaseTool, core.ExecutionPolicyResolver) (dispatch.ToolInvoker, error) {
 			return toolNode, nil
 		},
 	}
@@ -398,7 +399,7 @@ func TestBuildDirectResponseRunsToolCallLoop(t *testing.T) {
 		ToolBuilder: func(context.Context, RuntimeStore, []core.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
 			return []einotool.BaseTool{tool}, nil
 		},
-		ToolNodeFactory: func(context.Context, []einotool.BaseTool, core.ExecutionPolicyResolver) (tools.ToolInvoker, error) {
+		ToolNodeFactory: func(context.Context, []einotool.BaseTool, core.ExecutionPolicyResolver) (dispatch.ToolInvoker, error) {
 			return toolNode, nil
 		},
 	}
@@ -460,7 +461,7 @@ func TestBuildDirectResponsePropagatesModelError(t *testing.T) {
 		ToolBuilder: func(context.Context, RuntimeStore, []core.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
 			return []einotool.BaseTool{tool}, nil
 		},
-		ToolNodeFactory: func(context.Context, []einotool.BaseTool, core.ExecutionPolicyResolver) (tools.ToolInvoker, error) {
+		ToolNodeFactory: func(context.Context, []einotool.BaseTool, core.ExecutionPolicyResolver) (dispatch.ToolInvoker, error) {
 			return &directResponseTestToolNode{}, nil
 		},
 	}
@@ -497,7 +498,7 @@ func TestBuildDirectResponseFailsWithoutContextSession(t *testing.T) {
 		ToolBuilder: func(context.Context, RuntimeStore, []core.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
 			return []einotool.BaseTool{tool}, nil
 		},
-		ToolNodeFactory: func(context.Context, []einotool.BaseTool, core.ExecutionPolicyResolver) (tools.ToolInvoker, error) {
+		ToolNodeFactory: func(context.Context, []einotool.BaseTool, core.ExecutionPolicyResolver) (dispatch.ToolInvoker, error) {
 			return &directResponseTestToolNode{}, nil
 		},
 	}
@@ -717,7 +718,7 @@ func (n *directResponseInterruptToolNode) Invoke(_ context.Context, input *schem
 	return nil, signal
 }
 
-func (n *directResponseInterruptToolNode) NewStreamingExecutor(ctx context.Context) tools.StreamingExecutor {
+func (n *directResponseInterruptToolNode) NewStreamingExecutor(ctx context.Context) dispatch.StreamingExecutor {
 	return &directResponseInterruptStreamingExecutor{node: n, ctx: ctx}
 }
 
@@ -769,7 +770,7 @@ func TestBuildDirectResponseHandlesInterrupt(t *testing.T) {
 		ToolBuilder: func(context.Context, RuntimeStore, []core.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
 			return []einotool.BaseTool{tool}, nil
 		},
-		ToolNodeFactory: func(context.Context, []einotool.BaseTool, core.ExecutionPolicyResolver) (tools.ToolInvoker, error) {
+		ToolNodeFactory: func(context.Context, []einotool.BaseTool, core.ExecutionPolicyResolver) (dispatch.ToolInvoker, error) {
 			return &directResponseInterruptToolNode{}, nil
 		},
 	}
@@ -834,7 +835,7 @@ func TestBuildDirectResponsePreservesNestedInterruptContexts(t *testing.T) {
 		ToolBuilder: func(context.Context, RuntimeStore, []core.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
 			return []einotool.BaseTool{tool}, nil
 		},
-		ToolNodeFactory: func(context.Context, []einotool.BaseTool, core.ExecutionPolicyResolver) (tools.ToolInvoker, error) {
+		ToolNodeFactory: func(context.Context, []einotool.BaseTool, core.ExecutionPolicyResolver) (dispatch.ToolInvoker, error) {
 			return &directResponseInterruptToolNode{signal: interruptSignal}, nil
 		},
 	}
@@ -899,7 +900,7 @@ func (n *directResponseApprovalToolNode) Invoke(ctx context.Context, input *sche
 	}, nil
 }
 
-func (n *directResponseApprovalToolNode) NewStreamingExecutor(ctx context.Context) tools.StreamingExecutor {
+func (n *directResponseApprovalToolNode) NewStreamingExecutor(ctx context.Context) dispatch.StreamingExecutor {
 	return &directResponseApprovalStreamingExecutor{node: n, ctx: ctx}
 }
 
@@ -955,7 +956,7 @@ func TestBuildDirectResponseResumeContinuesFromPendingToolCalls(t *testing.T) {
 		ToolBuilder: func(context.Context, RuntimeStore, []core.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
 			return []einotool.BaseTool{tool}, nil
 		},
-		ToolNodeFactory: func(context.Context, []einotool.BaseTool, core.ExecutionPolicyResolver) (tools.ToolInvoker, error) {
+		ToolNodeFactory: func(context.Context, []einotool.BaseTool, core.ExecutionPolicyResolver) (dispatch.ToolInvoker, error) {
 			return toolNode, nil
 		},
 	}
