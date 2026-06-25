@@ -101,7 +101,7 @@ type runtimeExecutorHandle struct {
 	exec *runtime.Executor
 }
 
-func newExecutorFactory(cfg *config.Config, store runtime.ExecutorStore, runnerFactory *runtime.RunnerFactory, controller *runtime.RunController) func(context.Context) (api.ExecutorHandle, error) {
+func newExecutorFactory(cfg *config.Config, store core.SessionStore, runnerFactory *runtime.RunnerFactory, controller *runtime.RunController) func(context.Context) (api.ExecutorHandle, error) {
 	return func(_ context.Context) (api.ExecutorHandle, error) {
 		exec, err := runtime.NewExecutorWithRunRuntimeAndController(cfg, store, runnerFactory, controller)
 		if err != nil {

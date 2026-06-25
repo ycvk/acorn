@@ -57,35 +57,16 @@ type ElicitationInterruptState struct {
 	ActionID string
 }
 
-// ExecutorStore is the store contract required by the Executor.
-type ExecutorStore interface {
-	core.EventAppender
-	CreateFreshSessionTurn(ctx context.Context, sessionID, title, input string) (int, error)
-	CreateRun(ctx context.Context, params core.RunCreateParams) error
-	BindUserMessageRunIDByID(ctx context.Context, messageID int64, runID string) error
-	BindLatestUserMessageRunID(ctx context.Context, sessionID string, turnIndex int, runID string) error
-	LoadRun(ctx context.Context, runID string) (*core.RunRecord, error)
-	FinishRun(ctx context.Context, runID string, status core.RunStatus, output, errText string) error
-	MarkInterrupted(ctx context.Context, runID, output string) error
-	UpdateRunOutput(ctx context.Context, runID, output string) error
-	LoadEvents(ctx context.Context, runID string) ([]core.EventRecord, error)
-	LoadEventsAfter(ctx context.Context, runID string, afterSeq int64) ([]core.EventRecord, error)
-	SyncAssistantMessageForRun(ctx context.Context, runID string) error
-	SyncAssistantMessageForRunStatus(ctx context.Context, runID string, status core.RunStatus) error
-}
-
-// RunnerFactoryStore is the store contract required by the RunnerFactory.
-// It extends ExecutorStore with the MCP token + pending-action stores needed
-// for run bootstrapping.
-type RunnerFactoryStore interface {
-	ExecutorStore
-	core.ArtifactStore
+// RuntimeStore is the store contract required by the runtime.
+// It composes session persistence with artifact and OAuth token storage.
+type RuntimeStore interface {
 	core.SessionStore
+	core.ArtifactStore
 }
 
 type RuntimeDeps struct {
 	Config            *config.Config
-	Store             RunnerFactoryStore
+	Store             RuntimeStore
 	Loader            *skills.Loader
 	SessionSummarySvc *core.SessionSummaryService
 	MemoryModule      memory.Service
@@ -98,7 +79,7 @@ type RuntimeDeps struct {
 	ToolRegistry      core.ToolRegistry
 	// ToolBuilder overrides the default audited tool builder for testing.
 	// nil means use BuildAuditedTools.
-	ToolBuilder func(ctx context.Context, store RunnerFactoryStore, specs []core.ToolSpec, excludedToolNames []string, allowedToolNames []string, runID string) ([]einotool.BaseTool, error)
+	ToolBuilder func(ctx context.Context, store RuntimeStore, specs []core.ToolSpec, excludedToolNames []string, allowedToolNames []string, runID string) ([]einotool.BaseTool, error)
 	// ToolNodeFactory overrides the default safe parallel tools node for testing.
 	// nil means use NewSafeParallelToolsNode.
 	ToolNodeFactory func(ctx context.Context, tools []einotool.BaseTool, resolver core.ExecutionPolicyResolver) (tools.ToolInvoker, error)

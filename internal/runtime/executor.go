@@ -24,14 +24,14 @@ type Result struct {
 }
 
 type Executor struct {
-	store             ExecutorStore
+	store             core.SessionStore
 	runRuntime        *RunnerFactory
 	controller        *RunController
 	newChatModel      func(ctx context.Context) (einomodel.BaseChatModel, error)
 	sessionSummarySvc *core.SessionSummaryService
 }
 
-func NewExecutorWithRunRuntimeAndController(cfg *config.Config, store ExecutorStore, runRuntime *RunnerFactory, controller *RunController) (*Executor, error) {
+func NewExecutorWithRunRuntimeAndController(cfg *config.Config, store core.SessionStore, runRuntime *RunnerFactory, controller *RunController) (*Executor, error) {
 	if cfg == nil {
 		return nil, errors.New("config is required")
 	}

@@ -36,7 +36,7 @@ type RunnerFactory struct {
 	toolRegistry        core.ToolRegistry
 }
 
-func NewRunnerFactory(cfg *config.Config, store RunnerFactoryStore, opts RunnerFactoryOptions) (*RunnerFactory, error) {
+func NewRunnerFactory(cfg *config.Config, store RuntimeStore, opts RunnerFactoryOptions) (*RunnerFactory, error) {
 	deps, err := buildRuntimeDeps(cfg, store, opts)
 	if err != nil {
 		return nil, fmt.Errorf("build runtime deps: %w", err)
@@ -168,7 +168,7 @@ type capabilityAssembly struct {
 	capabilities *runCapabilities
 }
 
-func buildRuntimeDeps(cfg *config.Config, store RunnerFactoryStore, opts RunnerFactoryOptions) (RuntimeDeps, error) {
+func buildRuntimeDeps(cfg *config.Config, store RuntimeStore, opts RunnerFactoryOptions) (RuntimeDeps, error) {
 	if cfg == nil {
 		return RuntimeDeps{}, errors.New("config is required")
 	}
@@ -198,14 +198,14 @@ func resolveLoader(cfg *config.Config, loader *skills.Loader) *skills.Loader {
 	return loader
 }
 
-func resolveContextPlane(cfg *config.Config, store RunnerFactoryStore, opts RunnerFactoryOptions) (Plane, error) {
+func resolveContextPlane(cfg *config.Config, store RuntimeStore, opts RunnerFactoryOptions) (Plane, error) {
 	if opts.ContextPlane != nil {
 		return opts.ContextPlane, nil
 	}
 	return buildDefaultContextPlane(cfg, store, opts)
 }
 
-func assembleRuntimeDeps(cfg *config.Config, store RunnerFactoryStore, opts RunnerFactoryOptions, ws *workspace.Workspace, loader *skills.Loader, artifactService core.ArtifactService, contextPlane Plane) RuntimeDeps {
+func assembleRuntimeDeps(cfg *config.Config, store RuntimeStore, opts RunnerFactoryOptions, ws *workspace.Workspace, loader *skills.Loader, artifactService core.ArtifactService, contextPlane Plane) RuntimeDeps {
 	return RuntimeDeps{
 		Config:            cfg,
 		Store:             store,
@@ -229,7 +229,7 @@ func resolveWorkspace(cfg *config.Config, override *workspace.Workspace) (*works
 	return cfg.Workspace()
 }
 
-func buildDefaultContextPlane(cfg *config.Config, store RunnerFactoryStore, opts RunnerFactoryOptions) (Plane, error) {
+func buildDefaultContextPlane(cfg *config.Config, store RuntimeStore, opts RunnerFactoryOptions) (Plane, error) {
 	memoryBudget, maxContextTokens, tokenCounter, err := resolveContextPlaneTokenPolicy(cfg)
 	if err != nil {
 		return nil, err

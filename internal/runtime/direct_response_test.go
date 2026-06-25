@@ -266,7 +266,7 @@ func TestBuildDirectResponseContinuesAfterOutputLimit(t *testing.T) {
 	deps := RuntimeDeps{
 		Config:          directResponseTestConfig("system", 4),
 		CheckpointStore: &directResponseTestCheckpointStore{},
-		ToolBuilder: func(context.Context, RunnerFactoryStore, []core.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
+		ToolBuilder: func(context.Context, RuntimeStore, []core.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
 			return []einotool.BaseTool{tool}, nil
 		},
 		ToolNodeFactory: func(context.Context, []einotool.BaseTool, core.ExecutionPolicyResolver) (tools.ToolInvoker, error) {
@@ -330,7 +330,7 @@ func TestBuildDirectResponseDoesNotExecuteTruncatedToolCalls(t *testing.T) {
 	deps := RuntimeDeps{
 		Config:          directResponseTestConfig("system", 4),
 		CheckpointStore: &directResponseTestCheckpointStore{},
-		ToolBuilder: func(context.Context, RunnerFactoryStore, []core.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
+		ToolBuilder: func(context.Context, RuntimeStore, []core.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
 			return []einotool.BaseTool{tool}, nil
 		},
 		ToolNodeFactory: func(context.Context, []einotool.BaseTool, core.ExecutionPolicyResolver) (tools.ToolInvoker, error) {
@@ -395,7 +395,7 @@ func TestBuildDirectResponseRunsToolCallLoop(t *testing.T) {
 	deps := RuntimeDeps{
 		Config:          directResponseTestConfig("system", 4),
 		CheckpointStore: &directResponseTestCheckpointStore{},
-		ToolBuilder: func(context.Context, RunnerFactoryStore, []core.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
+		ToolBuilder: func(context.Context, RuntimeStore, []core.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
 			return []einotool.BaseTool{tool}, nil
 		},
 		ToolNodeFactory: func(context.Context, []einotool.BaseTool, core.ExecutionPolicyResolver) (tools.ToolInvoker, error) {
@@ -457,7 +457,7 @@ func TestBuildDirectResponsePropagatesModelError(t *testing.T) {
 	deps := RuntimeDeps{
 		Config:          directResponseTestConfig("system", 4),
 		CheckpointStore: &directResponseTestCheckpointStore{},
-		ToolBuilder: func(context.Context, RunnerFactoryStore, []core.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
+		ToolBuilder: func(context.Context, RuntimeStore, []core.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
 			return []einotool.BaseTool{tool}, nil
 		},
 		ToolNodeFactory: func(context.Context, []einotool.BaseTool, core.ExecutionPolicyResolver) (tools.ToolInvoker, error) {
@@ -494,7 +494,7 @@ func TestBuildDirectResponseFailsWithoutContextSession(t *testing.T) {
 	deps := RuntimeDeps{
 		Config:          directResponseTestConfig("system", 4),
 		CheckpointStore: &directResponseTestCheckpointStore{},
-		ToolBuilder: func(context.Context, RunnerFactoryStore, []core.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
+		ToolBuilder: func(context.Context, RuntimeStore, []core.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
 			return []einotool.BaseTool{tool}, nil
 		},
 		ToolNodeFactory: func(context.Context, []einotool.BaseTool, core.ExecutionPolicyResolver) (tools.ToolInvoker, error) {
@@ -766,7 +766,7 @@ func TestBuildDirectResponseHandlesInterrupt(t *testing.T) {
 	deps := RuntimeDeps{
 		Config:          directResponseTestConfig("system", 4),
 		CheckpointStore: &directResponseTestCheckpointStore{},
-		ToolBuilder: func(context.Context, RunnerFactoryStore, []core.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
+		ToolBuilder: func(context.Context, RuntimeStore, []core.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
 			return []einotool.BaseTool{tool}, nil
 		},
 		ToolNodeFactory: func(context.Context, []einotool.BaseTool, core.ExecutionPolicyResolver) (tools.ToolInvoker, error) {
@@ -831,7 +831,7 @@ func TestBuildDirectResponsePreservesNestedInterruptContexts(t *testing.T) {
 	deps := RuntimeDeps{
 		Config:          directResponseTestConfig("system", 4),
 		CheckpointStore: &directResponseTestCheckpointStore{},
-		ToolBuilder: func(context.Context, RunnerFactoryStore, []core.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
+		ToolBuilder: func(context.Context, RuntimeStore, []core.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
 			return []einotool.BaseTool{tool}, nil
 		},
 		ToolNodeFactory: func(context.Context, []einotool.BaseTool, core.ExecutionPolicyResolver) (tools.ToolInvoker, error) {
@@ -952,7 +952,7 @@ func TestBuildDirectResponseResumeContinuesFromPendingToolCalls(t *testing.T) {
 	deps := RuntimeDeps{
 		Config:          directResponseTestConfig("system", 4),
 		CheckpointStore: store,
-		ToolBuilder: func(context.Context, RunnerFactoryStore, []core.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
+		ToolBuilder: func(context.Context, RuntimeStore, []core.ToolSpec, []string, []string, string) ([]einotool.BaseTool, error) {
 			return []einotool.BaseTool{tool}, nil
 		},
 		ToolNodeFactory: func(context.Context, []einotool.BaseTool, core.ExecutionPolicyResolver) (tools.ToolInvoker, error) {

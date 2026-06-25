@@ -40,7 +40,7 @@ type assembledTooling struct {
 func assembleTooling(ctx context.Context, deps RuntimeDeps, params toolAssemblyParams) (*assembledTooling, error) {
 	toolBuilder := deps.ToolBuilder
 	if toolBuilder == nil {
-		toolBuilder = func(ctx context.Context, store RunnerFactoryStore, specs []core.ToolSpec, excludedToolNames []string, allowedToolNames []string, runID string) ([]einotool.BaseTool, error) {
+		toolBuilder = func(ctx context.Context, store RuntimeStore, specs []core.ToolSpec, excludedToolNames []string, allowedToolNames []string, runID string) ([]einotool.BaseTool, error) {
 			return BuildAuditedTools(ctx, store, specs, excludedToolNames, allowedToolNames, runID)
 		}
 	}
