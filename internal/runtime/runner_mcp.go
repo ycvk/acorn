@@ -112,7 +112,7 @@ func buildMCPToolSpec(ctx context.Context, cfg *config.Config, providerName stri
 // The resulting spec has the namespaced name (mcp__<provider>__<tool>) and the
 // provider's resolved parallel policy, identical to what buildMCPToolSpecs
 // produces for the fallback catalog path.
-func mcpToolSpecBuilder(cfg *config.Config) core.MCPToolSpecBuilder {
+func mcpToolSpecBuilder(cfg *config.Config) mcpprovider.ToolSpecBuilder {
 	return func(ctx context.Context, providerName string, tool einotool.BaseTool) (core.ToolSpec, error) {
 		return buildMCPToolSpec(ctx, cfg, providerName, tool)
 	}

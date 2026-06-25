@@ -107,12 +107,10 @@ func BuiltinToolNames() []string {
 }
 
 // nativeToolBuilder maps a static local tool name to the single-tool builder
-// that produces its einotool.BaseTool. It is the bridge between the existing
-// port-backed builders (which take a CatalogConfig) and the core.ToolRegistry,
-// which constructs tools lazily via a Factory. Each entry mirrors the call the
+// that produces its einotool.BaseTool. Each entry mirrors the call the
 // corresponding group builder (buildWorkspaceTools, buildMutationTools, ...)
-// would make for that single name, so the registry produces byte-for-byte the
-// same tool instances the existing Catalog path does.
+// would make for that single name, so the registry produces the same tool
+// instances the existing Catalog path does.
 //
 // A nil service dependency makes the builder return (nil, nil): the tool is
 // registered (so its contract/health is visible) but Resolve yields no
@@ -265,41 +263,16 @@ func nativeToolBuilder(name string, cfg CatalogConfig) func(context.Context, cor
 	}
 }
 
-// portSpecToCoreSpec converts a core.ToolSpec into a core.ToolSpec, attaching
-// the given factory. port and core define their enums as identical string
-// values (verified constant-for-constant), so the conversion is a direct type
-// cast with no remapping. If the two packages ever diverge, this is the single
-// place to add a mapping table.
-func portSpecToCoreSpec(spec core.ToolSpec, factory core.ToolFactory) core.ToolSpec {
-	return core.ToolSpec{
-		ToolContract: core.ToolContract{
-			Name:      spec.Name,
-			Source:    spec.Source,
-			Kind:      core.ToolKind(spec.Kind),
-			Category:  core.ToolCategory(spec.Category),
-			Loading:   core.ToolLoadingPolicy{Mode: core.ToolLoadingMode(spec.Loading.Mode), Reason: spec.Loading.Reason},
-			Execution: core.ToolExecutionPolicy{ParallelPolicy: core.ParallelPolicy(spec.Execution.ParallelPolicy), PathArg: spec.Execution.PathArg},
-		},
-		Factory: factory,
-		Health:  core.ToolHealth{State: core.HealthState(spec.Health.State), Reason: spec.Health.Reason},
-	}
-}
-
 // RegisterNativeTools registers every static local tool declared by
 // localToolDefs/configuredLocalSpec into the core.ToolRegistry. For each tool
-// it derives the core.ToolSpec (the existing single source of truth for tool
-// identity and enable rules), converts it to a core.ToolSpec, and attaches a
-// Factory that calls the existing per-tool builder under the supplied
-// CatalogConfig.
-//
-// This is the additive Phase 4 entry point: the existing Catalog/configured
-// path is untouched and remains the runtime's active path; the registry is a
-// parallel construction path the runtime will switch to once it is wired.
+// it derives the core.ToolSpec (the single source of truth for tool identity
+// and enable rules) and attaches a Factory that calls the existing per-tool
+// builder under the supplied CatalogConfig.
 //
 // cfg may be zero-valued: tools whose backing service is nil are still
 // registered (their contract and health are visible) but their Factory returns
-// (nil, nil), so Resolve omits them. This mirrors how the existing Catalog
-// silently drops tools when their service is absent.
+// (nil, nil), so Resolve omits them. This mirrors how the Catalog silently
+// drops tools when their service is absent.
 func RegisterNativeTools(registry core.ToolRegistry, cfg CatalogConfig) error {
 	if registry == nil {
 		return fmt.Errorf("RegisterNativeTools: registry is nil")
@@ -323,9 +296,8 @@ func RegisterNativeTools(registry core.ToolRegistry, cfg CatalogConfig) error {
 			// nativeToolBuilder are kept in sync.
 			continue
 		}
-		factory := core.ToolFactory(build)
-		spec := portSpecToCoreSpec(portSpec, factory)
-		if err := registry.Register(spec); err != nil {
+		portSpec.Factory = core.ToolFactory(build)
+		if err := registry.Register(portSpec); err != nil {
 			return fmt.Errorf("RegisterNativeTools: register %q: %w", def.name, err)
 		}
 	}

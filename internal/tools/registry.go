@@ -12,38 +12,22 @@ import (
 	"github.com/ycvk/acorn/internal/core"
 )
 
-// ResolvingToolRegistry extends the read-write core.ToolRegistry with lazy
-// tool resolution: Resolve invokes each registered spec's Factory under a run
-// context to produce concrete einotool.BaseTool instances on demand. The
-// runtime uses this to build per-run tool sets from names.
-type ResolvingToolRegistry interface {
-	core.ToolRegistry
-	Resolve(ctx context.Context, runCtx core.RunContext, names []string) ([]einotool.BaseTool, error)
-}
-
-// toolRegistry is the concrete implementation of ResolvingToolRegistry. It
+// toolRegistry is the concrete implementation of core.ToolRegistry. It
 // holds core.ToolSpec entries indexed by name under a mutex. Specs are the
 // source of truth for metadata; concrete einotool.BaseTool instances are
 // produced lazily via each spec's Factory (see Resolve).
-//
-// It deliberately mirrors the existing port-backed Catalog shape (Catalog in
-// catalog.go) so the runtime can adopt the registry as a drop-in replacement
-// without re-learning the access patterns.
 type toolRegistry struct {
 	mu     sync.RWMutex
 	byName map[string]core.ToolSpec
 }
 
-// NewToolRegistry returns an empty, ready-to-use registry. The return type is
-// ResolvingToolRegistry (which embeds core.ToolRegistry) so callers that only
-// need the read-write catalog interface still get it, while the runtime can
-// use Resolve for lazy tool construction.
+// NewToolRegistry returns an empty, ready-to-use registry.
 func NewToolRegistry() core.ToolRegistry {
 	return &toolRegistry{byName: make(map[string]core.ToolSpec)}
 }
 
-// compile-time assertion that *toolRegistry satisfies ResolvingToolRegistry.
-var _ ResolvingToolRegistry = (*toolRegistry)(nil)
+// compile-time assertion that *toolRegistry satisfies core.ToolRegistry.
+var _ core.ToolRegistry = (*toolRegistry)(nil)
 
 // Register stores spec under its (normalized) name. A spec whose name is empty
 // or that already exists is rejected. The spec's Factory is kept as-is so later
@@ -208,7 +192,6 @@ func (r *toolRegistry) Resolve(ctx context.Context, runCtx core.RunContext, name
 }
 
 // normalizeCoreSpec trims the human-editable string fields of a core.ToolSpec
-// the same way the existing port-backed normalizeSpec trims a core.ToolSpec,
 // without invoking the tool (which requires a concrete instance).
 func normalizeCoreSpec(spec core.ToolSpec) core.ToolSpec {
 	spec.ToolContract = spec.ToolContract.Normalized()

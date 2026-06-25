@@ -20,16 +20,6 @@ type RunContext struct {
 // the concrete einotool.BaseTool instance for that run context.
 type ToolFactory func(ctx context.Context, runCtx RunContext) (einotool.BaseTool, error)
 
-// MCPToolSpecBuilder translates a discovered MCP tool (provider + tool) into a
-// core.ToolSpec for registration in the unified ToolRegistry. It is supplied by
-// the runtime — which owns MCP namespacing, parallel-policy resolution, and
-// description augmentation — so the mcp.Manager can register tools without
-// taking a config/runtime dependency. The namespaced tool name returned in the
-// spec MUST match what the capability catalog expects (see runtime.mcpToolName).
-// Returning an error aborts registration of that single tool without failing the
-// whole provider; the caller decides whether to surface it.
-type MCPToolSpecBuilder func(ctx context.Context, providerName string, tool einotool.BaseTool) (ToolSpec, error)
-
 // ToolRegistry is the writable tool registry: it extends the read-only Catalog
 // with registration, removal, and lazy resolution of tool specs.
 type ToolRegistry interface {

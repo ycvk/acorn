@@ -46,7 +46,6 @@ func (m *Manager) registerProviderTools(ctx context.Context, providerName string
 		return
 	}
 
-	registered := make([]string, 0, len(tools))
 	for _, tool := range tools {
 		spec, err := m.specBuilder(ctx, providerName, tool)
 		if err != nil {
@@ -62,21 +61,19 @@ func (m *Manager) registerProviderTools(ctx context.Context, providerName string
 				"provider", providerName, "tool", spec.Name, "error", err)
 			continue
 		}
-		registered = append(registered, spec.Name)
-	}
-
-	if len(registered) == 0 {
-		return
-	}
-
-	m.mu.Lock()
-	for i := range m.slots {
-		if m.slots[i].cfg.Name == providerName {
-			m.slots[i].registeredToolNames = registered
-			break
+		// Record each name immediately under the write lock so that a
+		// concurrent closeSlotByName sees it and can unregister. Previously
+		// names were written in a batch after the loop, leaving a window
+		// where registered tools could leak if the slot was removed mid-loop.
+		m.mu.Lock()
+		for i := range m.slots {
+			if m.slots[i].cfg.Name == providerName {
+				m.slots[i].registeredToolNames = append(m.slots[i].registeredToolNames, spec.Name)
+				break
+			}
 		}
+		m.mu.Unlock()
 	}
-	m.mu.Unlock()
 }
 
 // unregisterProviderTools removes the specs previously registered for the named

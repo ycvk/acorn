@@ -17,17 +17,6 @@ import (
 	"github.com/ycvk/acorn/internal/workspace"
 )
 
-// api.StoreView is the store contract required by the app-facing services
-// (client, inbox, pending-action, run-resume). The previously narrow
-// sessionStore/runResumeStore/clientStore/deviceAuthStore/inboxStore
-// interfaces are inlined here (they were only embedded, never used standalone
-// except as service dependencies which now depend on this wider composite),
-// collapsing the consumer-owned port surface. This is an intentional trade-off
-// (doneCriteria #10): ISP regression is accepted in exchange for consolidating
-// consumer-owned store interfaces to <=4, enforced by
-// store_interface_count_test.go.
-// api.StoreView moved to api package
-
 type containerRuntimeDeps struct {
 	ws                    *workspace.Workspace
 	loader                *skills.Loader
@@ -107,8 +96,6 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 		executors:             executors,
 	}, nil
 }
-
-// api.ExecutorHandle moved to api package
 
 type runtimeExecutorHandle struct {
 	exec *runtime.Executor

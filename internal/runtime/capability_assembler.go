@@ -20,7 +20,7 @@ import (
 type artifactToolBridge struct{}
 
 func (artifactToolBridge) CurrentRunID(ctx context.Context) string {
-	return CurrentRunID(ctx)
+	return core.CurrentRunID(ctx)
 }
 
 func (artifactToolBridge) CurrentSessionID(ctx context.Context) string {
@@ -276,15 +276,11 @@ func buildRunCapabilities(ctx context.Context, deps RuntimeDeps, sessionID, runI
 	}, nil
 }
 
-// assembleRunCapabilitiesCatalog merges the local toolset catalog with MCP tool
-// specs into the final run capability catalog.
-//
-// When deps.ToolRegistry is non-nil (production path), native tool specs are
-// sourced from the registry, and MCP tool registrations are already registered
-// into the registry by mcp.Manager at provider-connect time — so only the
-// auxiliary MCP resource/prompt specs are built here. When nil (test-only
-// path), the local toolset catalog is used directly and the full MCP spec set
-// (registrations + resource + prompt) is built at run time.
+// assembleRunCapabilitiesCatalog builds the final run capability catalog.
+// When a ToolRegistry is wired, native + MCP main tools come from the registry
+// (MCP registered at provider-connect); only MCP resource/prompt specs are
+// built here. When nil (tests), the local toolset catalog + full MCP specs are
+// used directly.
 func assembleRunCapabilitiesCatalog(ctx context.Context, deps RuntimeDeps, toolset *Toolset, sessionID, runID string, mcpManager *mcpprovider.Manager) (*tools.Catalog, error) {
 	var specs []core.ToolSpec
 	var mcpSpecs []core.ToolSpec
@@ -302,9 +298,6 @@ func assembleRunCapabilitiesCatalog(ctx context.Context, deps RuntimeDeps, tools
 		}
 		specs = append(specs, registrySpecs...)
 		for _, spec := range toolset.Catalog().Specs() {
-			if spec.IsMCP || spec.IsBuiltin {
-				continue
-			}
 			if isRegistryNativeSpec(spec) {
 				continue
 			}

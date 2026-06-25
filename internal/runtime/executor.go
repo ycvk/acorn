@@ -76,7 +76,7 @@ func resolveRunID(req core.ExecuteRequest) string {
 	if id := strings.TrimSpace(req.RunID); id != "" {
 		return id
 	}
-	return NewRunID()
+	return core.NewRunID()
 }
 
 func (e *Executor) prepareExecuteRequest(ctx context.Context, req core.ExecuteRequest) (core.ExecuteRequest, error) {
@@ -299,7 +299,7 @@ func (s *RunState) applyStreamItem(item core.StreamItem) {
 		s.lastOutput = msg.Content
 	}
 	if interrupt := core.ItemGetInterrupt(item); interrupt != nil {
-		s.interrupt = InterruptPayloadFromStream(interrupt)
+		s.interrupt = core.InterruptPayloadFromStream(interrupt)
 	}
 	if item.Kind == core.StreamKindRunFailed && core.ItemGetError(item) != "" {
 		s.failure = errors.New(core.ItemGetError(item))
@@ -340,7 +340,7 @@ func (e *Executor) failRunSetup(ctx context.Context, runID string, setupErr erro
 	if strings.TrimSpace(runID) == "" || setupErr == nil {
 		return setupErr
 	}
-	durableCtx := DurableContext(ctx)
+	durableCtx := core.DurableContext(ctx)
 	if err := e.emitRunFailed(durableCtx, runID, sink, setupErr.Error()); err != nil {
 		return err
 	}
@@ -355,7 +355,7 @@ func (e *Executor) failSetupOrErr(ctx context.Context, runID string, setupErr er
 }
 
 func (e *Executor) recordFinalizationFailure(ctx context.Context, runID, output string, finalizationErr error, sink core.StreamSink) error {
-	durableCtx := DurableContext(ctx)
+	durableCtx := core.DurableContext(ctx)
 	message := fmt.Sprintf("run finalization failed: %v", finalizationErr)
 	var errs []error
 	if err := e.store.FinishRun(durableCtx, runID, core.RunStatusFailed, output, message); err != nil {
@@ -400,7 +400,7 @@ func (e *Executor) finishCollectedRun(ctx context.Context, runID, input string, 
 }
 
 func (e *Executor) finishFailedRun(ctx context.Context, runID, input string, state RunState, selectedSkill *SelectedSkill, sink core.StreamSink) (*Result, error) {
-	durableCtx := DurableContext(ctx)
+	durableCtx := core.DurableContext(ctx)
 	if !state.emittedRunFailed && state.failure != nil {
 		if err := e.emitRunFailed(durableCtx, runID, sink, state.failure.Error()); err != nil {
 			return nil, err
@@ -424,7 +424,7 @@ func (e *Executor) finishFailedRun(ctx context.Context, runID, input string, sta
 }
 
 func (e *Executor) finishInterruptedRun(ctx context.Context, runID string, state RunState) (*Result, error) {
-	durableCtx := DurableContext(ctx)
+	durableCtx := core.DurableContext(ctx)
 	if err := e.store.MarkInterrupted(durableCtx, runID, state.lastOutput); err != nil {
 		return nil, err
 	}
@@ -437,7 +437,7 @@ func (e *Executor) finishInterruptedRun(ctx context.Context, runID string, state
 }
 
 func (e *Executor) finishSucceededRun(ctx context.Context, runID, input string, state RunState, selectedSkill *SelectedSkill, sink core.StreamSink) (*Result, error) {
-	durableCtx := DurableContext(ctx)
+	durableCtx := core.DurableContext(ctx)
 	if err := e.store.UpdateRunOutput(durableCtx, runID, state.lastOutput); err != nil {
 		return nil, err
 	}

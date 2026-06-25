@@ -13,43 +13,11 @@ import (
 	"github.com/ycvk/acorn/internal/core"
 )
 
-type AuthConfig struct {
-	Type     string // "none" | "oauth" | "api_key"
-	ClientID string
-	Scopes   []string
-}
+type AuthConfig = core.AuthConfig
 
-type ProviderConfig struct {
-	Name                  string
-	Enabled               bool
-	Transport             string
-	URL                   string
-	TimeoutSeconds        int
-	Command               string
-	Args                  []string
-	WorkDir               string
-	Env                   map[string]string
-	ToolNames             []string
-	StartupTimeoutSeconds int
-	Auth                  AuthConfig
-}
+type ProviderConfig = core.ProviderConfig
 
-type ProviderStatus struct {
-	Name                string   `json:"name"`
-	Configured          bool     `json:"configured"`
-	Enabled             bool     `json:"enabled"`
-	Transport           string   `json:"transport,omitempty"`
-	StartupStatus       string   `json:"startup_status,omitempty"`
-	Command             string   `json:"command"`
-	Args                []string `json:"args,omitempty"`
-	WorkDir             string   `json:"work_dir,omitempty"`
-	CommandPath         string   `json:"command_path,omitempty"`
-	ConfiguredToolNames []string `json:"configured_tool_names,omitempty"`
-	DiscoveredToolNames []string `json:"discovered_tool_names,omitempty"`
-	ToolCount           int      `json:"tool_count"`
-	Error               string   `json:"error,omitempty"`
-	AuthStatus          string   `json:"auth_status,omitempty"` // "authenticated", "expired", "none", "env"
-}
+type ProviderStatus = core.ProviderInfo
 
 type Manager struct {
 	slots         []providerSlot
@@ -59,7 +27,7 @@ type Manager struct {
 	tokenStore    core.ArtifactStore
 	store         core.SessionStore
 	toolRegistry  core.ToolRegistry
-	specBuilder   core.MCPToolSpecBuilder
+	specBuilder   ToolSpecBuilder
 	elicitation   *ElicitationHandler
 	sampling      *SamplingHandler
 	samplingDepth int32
@@ -124,7 +92,7 @@ type managerOptions struct {
 	tokenStore   core.ArtifactStore
 	store        core.SessionStore
 	toolRegistry core.ToolRegistry
-	specBuilder  core.MCPToolSpecBuilder
+	specBuilder  ToolSpecBuilder
 }
 
 // WithTokenStore sets the OAuth token store on the manager for HTTP providers
@@ -141,6 +109,14 @@ func WithStore(store core.SessionStore) ManagerOption {
 	return func(o *managerOptions) { o.store = store }
 }
 
+// ToolSpecBuilder translates a discovered MCP tool (provider + tool) into a
+// core.ToolSpec for registration in the unified ToolRegistry. It is supplied by
+// the runtime — which owns MCP namespacing, parallel-policy resolution, and
+// description augmentation — so the manager can register tools without taking
+// a config/runtime dependency. The namespaced tool name returned in the spec
+// MUST match what the capability catalog expects (see runtime.mcpToolName).
+type ToolSpecBuilder func(ctx context.Context, providerName string, tool einotool.BaseTool) (core.ToolSpec, error)
+
 // WithToolRegistry wires a unified core.ToolRegistry so MCP tools discovered
 // at provider-connect time are registered alongside native tools, and
 // unregistered when their provider disconnects. specBuilder translates a
@@ -148,7 +124,7 @@ func WithStore(store core.SessionStore) ManagerOption {
 // and tracks the namespaced names per provider for later removal. Either may be
 // nil (e.g. tests): when the registry is nil the manager skips registration and
 // the runtime falls back to building MCP specs at run time.
-func WithToolRegistry(registry core.ToolRegistry, specBuilder core.MCPToolSpecBuilder) ManagerOption {
+func WithToolRegistry(registry core.ToolRegistry, specBuilder ToolSpecBuilder) ManagerOption {
 	return func(o *managerOptions) {
 		o.toolRegistry = registry
 		o.specBuilder = specBuilder

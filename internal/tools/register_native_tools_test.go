@@ -180,4 +180,4 @@ func TestRegisterNativeToolsEmptyConfigStillRegisters(t *testing.T) {
 
 // Compile-time assertion that the registry returned by NewToolRegistry is
 // usable as a core.ToolRegistry.
-var _ core.ToolRegistry = (ResolvingToolRegistry)(nil)
+var _ core.ToolRegistry = (*toolRegistry)(nil)
