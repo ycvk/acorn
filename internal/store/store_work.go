@@ -55,7 +55,7 @@ func (s *Store) LoadArtifact(ctx context.Context, artifactID string) (core.Artif
 	record, err := scanArtifact(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return core.ArtifactRecord{}, fmt.Errorf("%w: %s", ErrArtifactNotFound, artifactID)
+			return core.ArtifactRecord{}, fmt.Errorf("%w: %s", core.ErrArtifactNotFound, artifactID)
 		}
 		return core.ArtifactRecord{}, err
 	}

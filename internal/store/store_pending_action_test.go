@@ -84,8 +84,8 @@ func TestCreatePendingActionDuplicate(t *testing.T) {
 		t.Fatalf("create first: %v", err)
 	}
 	_, err := store.CreatePendingAction(ctx, input)
-	if !errors.Is(err, ErrPendingActionExists) {
-		t.Fatalf("duplicate create error = %v, want ErrPendingActionExists", err)
+	if !errors.Is(err, core.ErrPendingActionExists) {
+		t.Fatalf("duplicate create error = %v, want core.ErrPendingActionExists", err)
 	}
 }
 
@@ -168,8 +168,8 @@ func TestLoadPendingActionNotFound(t *testing.T) {
 	ctx := context.Background()
 
 	_, err := store.LoadPendingAction(ctx, "nonexistent")
-	if !errors.Is(err, ErrPendingActionNotFound) {
-		t.Fatalf("error = %v, want ErrPendingActionNotFound", err)
+	if !errors.Is(err, core.ErrPendingActionNotFound) {
+		t.Fatalf("error = %v, want core.ErrPendingActionNotFound", err)
 	}
 }
 
@@ -200,8 +200,8 @@ func TestLoadPendingActionByInterruptNotFound(t *testing.T) {
 	ctx := context.Background()
 
 	_, err := store.LoadPendingActionByInterrupt(ctx, "nonexistent_int")
-	if !errors.Is(err, ErrPendingActionNotFound) {
-		t.Fatalf("error = %v, want ErrPendingActionNotFound", err)
+	if !errors.Is(err, core.ErrPendingActionNotFound) {
+		t.Fatalf("error = %v, want core.ErrPendingActionNotFound", err)
 	}
 }
 
@@ -235,8 +235,8 @@ func TestAttachPendingActionInterruptNotFound(t *testing.T) {
 	ctx := context.Background()
 
 	err := store.AttachPendingActionInterrupt(ctx, "nonexistent", "int_x")
-	if !errors.Is(err, ErrPendingActionNotFound) {
-		t.Fatalf("error = %v, want ErrPendingActionNotFound", err)
+	if !errors.Is(err, core.ErrPendingActionNotFound) {
+		t.Fatalf("error = %v, want core.ErrPendingActionNotFound", err)
 	}
 }
 
@@ -423,8 +423,8 @@ func TestDecidePendingActionAlreadyDecided(t *testing.T) {
 		t.Fatalf("first decide: %v", err)
 	}
 	_, err := store.DecidePendingAction(ctx, "action_double", core.PendingActionStatusRejected, `{}`)
-	if !errors.Is(err, ErrPendingActionDecided) {
-		t.Fatalf("second decide error = %v, want ErrPendingActionDecided", err)
+	if !errors.Is(err, core.ErrPendingActionDecided) {
+		t.Fatalf("second decide error = %v, want core.ErrPendingActionDecided", err)
 	}
 }
 
@@ -433,8 +433,8 @@ func TestDecidePendingActionNotFound(t *testing.T) {
 	ctx := context.Background()
 
 	_, err := store.DecidePendingAction(ctx, "nonexistent", core.PendingActionStatusApproved, `{}`)
-	if !errors.Is(err, ErrPendingActionNotFound) {
-		t.Fatalf("error = %v, want ErrPendingActionNotFound", err)
+	if !errors.Is(err, core.ErrPendingActionNotFound) {
+		t.Fatalf("error = %v, want core.ErrPendingActionNotFound", err)
 	}
 }
 
@@ -530,8 +530,8 @@ func TestResolvePendingActionNotFound(t *testing.T) {
 	ctx := context.Background()
 
 	err := store.ResolvePendingAction(ctx, "nonexistent")
-	if !errors.Is(err, ErrPendingActionNotFound) {
-		t.Fatalf("error = %v, want ErrPendingActionNotFound", err)
+	if !errors.Is(err, core.ErrPendingActionNotFound) {
+		t.Fatalf("error = %v, want core.ErrPendingActionNotFound", err)
 	}
 }
 

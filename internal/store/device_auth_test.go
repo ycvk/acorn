@@ -37,8 +37,8 @@ func TestDeviceAuthPairingCodeLifecycle(t *testing.T) {
 	if consumed.UsedAt == nil || !consumed.UsedAt.Equal(now.Add(time.Minute)) {
 		t.Fatalf("used_at = %v, want %v", consumed.UsedAt, now.Add(time.Minute))
 	}
-	if _, err := store.ConsumePairingCode(ctx, "hash-code", now.Add(2*time.Minute)); !errors.Is(err, ErrPairingCodeUsed) {
-		t.Fatalf("second consume error = %v, want ErrPairingCodeUsed", err)
+	if _, err := store.ConsumePairingCode(ctx, "hash-code", now.Add(2*time.Minute)); !errors.Is(err, core.ErrPairingCodeUsed) {
+		t.Fatalf("second consume error = %v, want core.ErrPairingCodeUsed", err)
 	}
 }
 
@@ -47,8 +47,8 @@ func TestDeviceAuthPairingCodeExpiryAndMissing(t *testing.T) {
 	ctx := context.Background()
 	now := time.Date(2026, 5, 15, 10, 0, 0, 0, time.UTC)
 
-	if _, err := store.LoadPairingCode(ctx, "missing"); !errors.Is(err, ErrPairingCodeNotFound) {
-		t.Fatalf("load missing code error = %v, want ErrPairingCodeNotFound", err)
+	if _, err := store.LoadPairingCode(ctx, "missing"); !errors.Is(err, core.ErrPairingCodeNotFound) {
+		t.Fatalf("load missing code error = %v, want core.ErrPairingCodeNotFound", err)
 	}
 	if err := store.SavePairingCode(ctx, &core.PairingCode{
 		CodeHash:  "expired",
@@ -57,8 +57,8 @@ func TestDeviceAuthPairingCodeExpiryAndMissing(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("save expired code: %v", err)
 	}
-	if _, err := store.ConsumePairingCode(ctx, "expired", now); !errors.Is(err, ErrPairingCodeExpired) {
-		t.Fatalf("consume expired code error = %v, want ErrPairingCodeExpired", err)
+	if _, err := store.ConsumePairingCode(ctx, "expired", now); !errors.Is(err, core.ErrPairingCodeExpired) {
+		t.Fatalf("consume expired code error = %v, want core.ErrPairingCodeExpired", err)
 	}
 }
 
@@ -123,13 +123,13 @@ func TestDeviceAuthDeviceNotFound(t *testing.T) {
 	store := openTestStore(t)
 	ctx := context.Background()
 
-	if _, err := store.LoadDeviceByTokenHash(ctx, "missing"); !errors.Is(err, ErrDeviceNotFound) {
-		t.Fatalf("load missing device error = %v, want ErrDeviceNotFound", err)
+	if _, err := store.LoadDeviceByTokenHash(ctx, "missing"); !errors.Is(err, core.ErrDeviceNotFound) {
+		t.Fatalf("load missing device error = %v, want core.ErrDeviceNotFound", err)
 	}
-	if err := store.TouchDevice(ctx, "missing", time.Now().UTC()); !errors.Is(err, ErrDeviceNotFound) {
-		t.Fatalf("touch missing device error = %v, want ErrDeviceNotFound", err)
+	if err := store.TouchDevice(ctx, "missing", time.Now().UTC()); !errors.Is(err, core.ErrDeviceNotFound) {
+		t.Fatalf("touch missing device error = %v, want core.ErrDeviceNotFound", err)
 	}
-	if err := store.RevokeDevice(ctx, "missing", time.Now().UTC()); !errors.Is(err, ErrDeviceNotFound) {
-		t.Fatalf("revoke missing device error = %v, want ErrDeviceNotFound", err)
+	if err := store.RevokeDevice(ctx, "missing", time.Now().UTC()); !errors.Is(err, core.ErrDeviceNotFound) {
+		t.Fatalf("revoke missing device error = %v, want core.ErrDeviceNotFound", err)
 	}
 }

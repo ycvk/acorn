@@ -18,7 +18,6 @@ import (
 	mem "github.com/ycvk/acorn/internal/memory"
 
 	"github.com/ycvk/acorn/internal/skills"
-	"github.com/ycvk/acorn/internal/store"
 )
 
 func TestThreadMessageRunHandlers(t *testing.T) {
@@ -442,7 +441,7 @@ func TestClientHandlersReturnClientErrorCodes(t *testing.T) {
 			name:       "unknown thread",
 			method:     http.MethodGet,
 			path:       "/v1/threads/missing",
-			err:        store.ErrSessionNotFound,
+			err:        core.ErrSessionNotFound,
 			wantStatus: http.StatusNotFound,
 			wantCode:   "thread_not_found",
 		},
@@ -450,7 +449,7 @@ func TestClientHandlersReturnClientErrorCodes(t *testing.T) {
 			name:       "unknown run",
 			method:     http.MethodGet,
 			path:       "/v1/runs/missing",
-			err:        store.ErrRunNotFound,
+			err:        core.ErrRunNotFound,
 			wantStatus: http.StatusNotFound,
 			wantCode:   "run_not_found",
 		},
@@ -639,7 +638,7 @@ func TestRunEventsReturnErrorsBeforeSSEStarts(t *testing.T) {
 		{
 			name:       "unknown run",
 			path:       "/v1/runs/missing/events",
-			err:        store.ErrRunNotFound,
+			err:        core.ErrRunNotFound,
 			wantStatus: http.StatusNotFound,
 			wantCode:   "run_not_found",
 		},

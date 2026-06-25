@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/ycvk/acorn/internal/core"
 )
 
 func TestOpenConfiguresAndKeepsWALMode(t *testing.T) {
@@ -69,8 +71,8 @@ CREATE TABLE runs (
 	}
 
 	_, err = Open(dir)
-	if !errors.Is(err, ErrUnsupportedStorageSchema) {
-		t.Fatalf("Open error = %v, want ErrUnsupportedStorageSchema", err)
+	if !errors.Is(err, core.ErrUnsupportedStorageSchema) {
+		t.Fatalf("Open error = %v, want core.ErrUnsupportedStorageSchema", err)
 	}
 	if !strings.Contains(err.Error(), "runs") {
 		t.Fatalf("unexpected error detail: %v", err)

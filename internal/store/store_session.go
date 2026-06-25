@@ -59,7 +59,7 @@ func (s *Store) LoadSession(ctx context.Context, sessionID string) (*core.Sessio
 	)
 	if err := row.Scan(&rec.SessionID, &rec.Title, &created, &updated); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("%w: %s", ErrSessionNotFound, sessionID)
+			return nil, fmt.Errorf("%w: %s", core.ErrSessionNotFound, sessionID)
 		}
 		return nil, fmt.Errorf("load session: %w", err)
 	}
@@ -183,7 +183,7 @@ func (s *Store) UpdateSessionTitle(ctx context.Context, sessionID, title string)
 		return fmt.Errorf("update session title rows affected: %w", err)
 	}
 	if affected == 0 {
-		return fmt.Errorf("%w: %s", ErrSessionNotFound, sessionID)
+		return fmt.Errorf("%w: %s", core.ErrSessionNotFound, sessionID)
 	}
 	return nil
 }

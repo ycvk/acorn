@@ -113,7 +113,7 @@ func (s *memoryArtifactStore) SaveArtifact(_ context.Context, record core.Artifa
 func (s *memoryArtifactStore) LoadArtifact(_ context.Context, artifactID string) (core.ArtifactRecord, error) {
 	record, ok := s.records[artifactID]
 	if !ok {
-		return core.ArtifactRecord{}, ErrArtifactNotFound
+		return core.ArtifactRecord{}, core.ErrArtifactNotFound
 	}
 	return record, nil
 }

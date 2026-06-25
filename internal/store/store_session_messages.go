@@ -73,7 +73,7 @@ func (s *Store) UpdateSessionMessageWithParts(ctx context.Context, id int64, con
 		return fmt.Errorf("update session message rows affected: %w", err)
 	}
 	if affected == 0 {
-		return fmt.Errorf("%w: %d", ErrSessionMessageNotFound, id)
+		return fmt.Errorf("%w: %d", core.ErrSessionMessageNotFound, id)
 	}
 	return nil
 }
@@ -149,7 +149,7 @@ func (s *Store) LoadLatestUnboundUserMessage(ctx context.Context, sessionID stri
 	)
 	if err := row.Scan(&rec.ID, &rec.SessionID, &rec.TurnIndex, &rec.Role, &rec.Content, &contentParts, &rec.RunID, &created); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("%w: latest unbound user message for %s", ErrSessionMessageNotFound, sessionID)
+			return nil, fmt.Errorf("%w: latest unbound user message for %s", core.ErrSessionMessageNotFound, sessionID)
 		}
 		return nil, fmt.Errorf("load latest unbound user message: %w", err)
 	}

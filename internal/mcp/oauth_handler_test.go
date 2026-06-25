@@ -13,7 +13,6 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/auth"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/ycvk/acorn/internal/core"
-	"github.com/ycvk/acorn/internal/store"
 	"golang.org/x/oauth2"
 )
 
@@ -35,7 +34,7 @@ func (m *mockTokenStore) GetOAuthToken(_ context.Context, providerName string) (
 	}
 	tok, ok := m.tokens[providerName]
 	if !ok {
-		return nil, store.ErrOAuthTokenNotFound
+		return nil, core.ErrOAuthTokenNotFound
 	}
 	return &tok, nil
 }
@@ -524,21 +523,21 @@ func TestSQLiteOAuthHandler_TokenSource_UsesErrorsIsForNotFound(t *testing.T) {
 	mockStore := newMockTokenStore()
 	// getErr is a wrapped error that contains "not found" in its message
 	// but should NOT be treated as ErrOAuthTokenNotFound when using errors.Is.
-	wrappedErr := fmt.Errorf("wrapped: %w", store.ErrOAuthTokenNotFound)
+	wrappedErr := fmt.Errorf("wrapped: %w", core.ErrOAuthTokenNotFound)
 
 	// Verify errors.Is works with the wrapped error
-	if !errors.Is(wrappedErr, store.ErrOAuthTokenNotFound) {
+	if !errors.Is(wrappedErr, core.ErrOAuthTokenNotFound) {
 		t.Fatal("errors.Is should detect ErrOAuthTokenNotFound through wrapping")
 	}
 
 	// Verify a random error with "not found" in its message is NOT matched by errors.Is
 	randomErr := errors.New("token not found in cache")
-	if errors.Is(randomErr, store.ErrOAuthTokenNotFound) {
+	if errors.Is(randomErr, core.ErrOAuthTokenNotFound) {
 		t.Fatal("errors.Is should NOT match a random error that happens to contain 'not found'")
 	}
 
 	// Now verify the handler correctly returns (nil, nil) for the sentinel error
-	mockStore.getErr = store.ErrOAuthTokenNotFound
+	mockStore.getErr = core.ErrOAuthTokenNotFound
 	handler := &persistentOAuthHandler{
 		store:        mockStore,
 		providerName: "test-provider",

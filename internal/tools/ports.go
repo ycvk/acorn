@@ -24,13 +24,9 @@ type WorkspaceView interface {
 	InspectGitStatus(ctx context.Context, scopedPath string) (*workspace.WorkspaceGitStatus, error)
 }
 
-// ArtifactService is the subset of artifact operations required by tool builders.
-type ArtifactService interface {
-	WriteArtifact(ctx context.Context, req core.ArtifactWriteRequest) (core.ArtifactRecord, error)
-	ReadArtifactRange(ctx context.Context, req core.ArtifactReadRangeRequest) (core.ArtifactReadRangeResult, error)
-	ListByRun(ctx context.Context, runID string) ([]core.ArtifactRecord, error)
-	ListBySession(ctx context.Context, sessionID string) ([]core.ArtifactRecord, error)
-}
+// ArtifactService is the artifact read/write contract used by tool builders.
+// Alias to core.ArtifactService so both packages share a single definition.
+type ArtifactService = core.ArtifactService
 
 // WebFetchService is the subset of web fetch operations required by tool builders.
 type WebFetchService interface {

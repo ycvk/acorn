@@ -38,7 +38,7 @@ func (s *Store) LoadPairingCode(ctx context.Context, codeHash string) (*core.Pai
 	code, err := scanPairingCode(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, ErrPairingCodeNotFound
+			return nil, core.ErrPairingCodeNotFound
 		}
 		return nil, fmt.Errorf("load pairing code: %w", err)
 	}
@@ -51,10 +51,10 @@ func (s *Store) ConsumePairingCode(ctx context.Context, codeHash string, now tim
 		return nil, err
 	}
 	if code.UsedAt != nil {
-		return nil, ErrPairingCodeUsed
+		return nil, core.ErrPairingCodeUsed
 	}
 	if !now.Before(code.ExpiresAt) {
-		return nil, ErrPairingCodeExpired
+		return nil, core.ErrPairingCodeExpired
 	}
 	usedAt := now.UTC()
 	result, err := s.db.ExecContext(ctx,
@@ -70,7 +70,7 @@ func (s *Store) ConsumePairingCode(ctx context.Context, codeHash string, now tim
 		return nil, fmt.Errorf("consume pairing code rows affected: %w", err)
 	}
 	if affected == 0 {
-		return nil, ErrPairingCodeUsed
+		return nil, core.ErrPairingCodeUsed
 	}
 	code.UsedAt = &usedAt
 	return code, nil
@@ -107,7 +107,7 @@ func (s *Store) LoadDeviceByTokenHash(ctx context.Context, tokenHash string) (*c
 	device, err := scanDevice(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, ErrDeviceNotFound
+			return nil, core.ErrDeviceNotFound
 		}
 		return nil, fmt.Errorf("load device by token hash: %w", err)
 	}
@@ -124,7 +124,7 @@ func (s *Store) LoadDevice(ctx context.Context, deviceID string) (*core.Device, 
 	device, err := scanDevice(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, ErrDeviceNotFound
+			return nil, core.ErrDeviceNotFound
 		}
 		return nil, fmt.Errorf("load device: %w", err)
 	}
@@ -170,7 +170,7 @@ func (s *Store) TouchDevice(ctx context.Context, deviceID string, seenAt time.Ti
 		return fmt.Errorf("touch device rows affected: %w", err)
 	}
 	if affected == 0 {
-		return ErrDeviceNotFound
+		return core.ErrDeviceNotFound
 	}
 	return nil
 }
@@ -189,7 +189,7 @@ func (s *Store) RevokeDevice(ctx context.Context, deviceID string, revokedAt tim
 		return fmt.Errorf("revoke device rows affected: %w", err)
 	}
 	if affected == 0 {
-		return ErrDeviceNotFound
+		return core.ErrDeviceNotFound
 	}
 	return nil
 }

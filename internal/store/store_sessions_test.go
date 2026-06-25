@@ -50,8 +50,8 @@ func TestBindUserMessageRunIDByID(t *testing.T) {
 	if err := store.BindUserMessageRunIDByID(ctx, m2.ID, "run_b"); err != nil {
 		t.Fatalf("bind m2: %v", err)
 	}
-	if _, err := store.LoadLatestUnboundUserMessage(ctx, "sess_bind"); !errors.Is(err, ErrSessionMessageNotFound) {
-		t.Fatalf("after binding both, want ErrSessionMessageNotFound, got %v", err)
+	if _, err := store.LoadLatestUnboundUserMessage(ctx, "sess_bind"); !errors.Is(err, core.ErrSessionMessageNotFound) {
+		t.Fatalf("after binding both, want core.ErrSessionMessageNotFound, got %v", err)
 	}
 
 	// Re-binding an already-bound message fails loud (RowsAffected = 0), so a
@@ -338,8 +338,8 @@ func TestClientSessionMessageHelpers(t *testing.T) {
 		t.Fatalf("BindLatestUserMessageRunID first: %v", err)
 	}
 	_, err = store.LoadLatestUnboundUserMessage(context.Background(), session.SessionID)
-	if !errors.Is(err, ErrSessionMessageNotFound) {
-		t.Fatalf("LoadLatestUnboundUserMessage exhausted error = %v, want ErrSessionMessageNotFound", err)
+	if !errors.Is(err, core.ErrSessionMessageNotFound) {
+		t.Fatalf("LoadLatestUnboundUserMessage exhausted error = %v, want core.ErrSessionMessageNotFound", err)
 	}
 }
 

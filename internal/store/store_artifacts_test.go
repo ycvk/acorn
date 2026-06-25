@@ -92,8 +92,8 @@ func TestStoreArtifactsLoadMissing(t *testing.T) {
 	t.Cleanup(func() { _ = store.Close() })
 
 	_, err = store.LoadArtifact(context.Background(), "missing")
-	if !errors.Is(err, ErrArtifactNotFound) {
-		t.Fatalf("load missing err = %v, want ErrArtifactNotFound", err)
+	if !errors.Is(err, core.ErrArtifactNotFound) {
+		t.Fatalf("load missing err = %v, want core.ErrArtifactNotFound", err)
 	}
 }
 

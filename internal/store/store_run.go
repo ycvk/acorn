@@ -105,7 +105,7 @@ func (s *Store) LoadRun(ctx context.Context, runID string) (*core.RunRecord, err
 	rec, err := scanRunRecord(row)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("%w: %s", ErrRunNotFound, runID)
+			return nil, fmt.Errorf("%w: %s", core.ErrRunNotFound, runID)
 		}
 		return nil, fmt.Errorf("load run: %w", err)
 	}

@@ -28,8 +28,6 @@ const (
 	ArtifactKindBinary     ArtifactKind = "binary"
 )
 
-var ErrArtifactNotFound = core.ErrArtifactNotFound
-
 // ArtifactStore is the internal interface used by ArtifactService to persist
 // artifact metadata. The Store type implements it via SaveArtifact/LoadArtifact.
 type ArtifactStore interface {

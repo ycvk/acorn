@@ -25,7 +25,7 @@ func (s *Store) GetOAuthToken(ctx context.Context, providerName string) (*core.O
 	)
 	if err := row.Scan(&token.ProviderName, &token.AccessToken, &token.RefreshToken, &expiry, &updated); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, ErrOAuthTokenNotFound
+			return nil, core.ErrOAuthTokenNotFound
 		}
 		return nil, fmt.Errorf("get oauth token: %w", err)
 	}
@@ -79,7 +79,7 @@ func (s *Store) DeleteOAuthToken(ctx context.Context, providerName string) error
 		return fmt.Errorf("delete oauth token rows affected: %w", err)
 	}
 	if affected == 0 {
-		return ErrOAuthTokenNotFound
+		return core.ErrOAuthTokenNotFound
 	}
 	return nil
 }

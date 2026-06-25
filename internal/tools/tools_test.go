@@ -1124,7 +1124,7 @@ func (s *toolArtifactStore) SaveArtifact(_ context.Context, record core.Artifact
 func (s *toolArtifactStore) LoadArtifact(_ context.Context, artifactID string) (core.ArtifactRecord, error) {
 	record, ok := s.records[strings.TrimSpace(artifactID)]
 	if !ok {
-		return core.ArtifactRecord{}, corestore.ErrArtifactNotFound
+		return core.ArtifactRecord{}, core.ErrArtifactNotFound
 	}
 	return record, nil
 }
