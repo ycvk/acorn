@@ -191,6 +191,37 @@ func (r *toolRegistry) Resolve(ctx context.Context, runCtx core.RunContext, name
 	return out, nil
 }
 
+// ResolveEnabledSpecs returns every enabled spec with its concrete tool instance
+// populated via Factory. Specs whose factory returns (nil, nil) — e.g. when its
+// backing service is absent — are omitted, matching the silent-omit behavior
+// of Resolve. A spec whose Factory is nil but whose Tool is pre-built is
+// returned as-is.
+func (r *toolRegistry) ResolveEnabledSpecs(ctx context.Context, runCtx core.RunContext) ([]core.ToolSpec, error) {
+	if r == nil {
+		return nil, nil
+	}
+	enabled := r.EnabledSpecs()
+	out := make([]core.ToolSpec, 0, len(enabled))
+	for _, spec := range enabled {
+		if spec.Factory == nil {
+			if spec.Tool != nil {
+				out = append(out, spec)
+			}
+			continue
+		}
+		tool, err := spec.Factory(ctx, runCtx)
+		if err != nil {
+			return nil, fmt.Errorf("tool registry: resolve spec %q: %w", spec.Name, err)
+		}
+		if tool == nil {
+			continue
+		}
+		spec.Tool = tool
+		out = append(out, spec)
+	}
+	return out, nil
+}
+
 // normalizeCoreSpec trims the human-editable string fields of a core.ToolSpec
 // without invoking the tool (which requires a concrete instance).
 func normalizeCoreSpec(spec core.ToolSpec) core.ToolSpec {

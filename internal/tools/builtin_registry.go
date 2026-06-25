@@ -263,11 +263,12 @@ func nativeToolBuilder(name string, cfg CatalogConfig) func(context.Context, cor
 	}
 }
 
-// RegisterNativeTools registers every static local tool declared by
-// localToolDefs/configuredLocalSpec into the core.ToolRegistry. For each tool
-// it derives the core.ToolSpec (the single source of truth for tool identity
-// and enable rules) and attaches a Factory that calls the existing per-tool
-// builder under the supplied CatalogConfig.
+// RegisterNativeTools registers every eager-loaded static local tool declared by
+// localToolDefs/configuredLocalSpec into the core.ToolRegistry. Deferred-loaded
+// tools (web_fetch, web_search, browser) are excluded: they depend on per-run
+// services (web access, browser) constructed at buildRun time, so they cannot
+// be resolved at wire time. They are contributed by the runtime toolset
+// catalog instead, which builds them per run from live services.
 //
 // cfg may be zero-valued: tools whose backing service is nil are still
 // registered (their contract and health are visible) but their Factory returns
@@ -287,7 +288,12 @@ func RegisterNativeTools(registry core.ToolRegistry, cfg CatalogConfig) error {
 	toolCfg.Tools.Mutation.Disabled = !cfg.MutationEnabled
 	toolCfg.Tools.RunCommand.Disabled = !cfg.RunCommandEnabled
 	for _, def := range localToolDefs(toolCfg) {
-		portSpec := configuredLocalSpec(def.name, def.enabled)
+		spec := configuredLocalSpec(def.name, def.enabled)
+		// Skip deferred-loaded tools: they depend on per-run services and are
+		// contributed by the runtime toolset catalog, not the wire-time registry.
+		if spec.Loading.Mode == core.ToolLoadingModeDeferred {
+			continue
+		}
 		build := nativeToolBuilder(def.name, cfg)
 		if build == nil {
 			// Unknown name: skip rather than fail the whole registration so a
@@ -296,8 +302,8 @@ func RegisterNativeTools(registry core.ToolRegistry, cfg CatalogConfig) error {
 			// nativeToolBuilder are kept in sync.
 			continue
 		}
-		portSpec.Factory = core.ToolFactory(build)
-		if err := registry.Register(portSpec); err != nil {
+		spec.Factory = core.ToolFactory(build)
+		if err := registry.Register(spec); err != nil {
 			return fmt.Errorf("RegisterNativeTools: register %q: %w", def.name, err)
 		}
 	}

@@ -185,14 +185,17 @@ Mobile checks run from `mobile-kotlin/`:
 | --- | --- |
 | `cmd/acorn/` | CLI entrypoint |
 | `internal/wire/` | Composition root — container wiring, the only place concrete implementations are instantiated |
-| `internal/agent/` | Executor lifecycle, run builder, direct_response, and resume execution |
-| `internal/agent/factextract/` | Fact extraction and memory file/search/remember tools |
-| `internal/stream/` | Stream item types, event projection, accessors, assistant streaming |
-| `internal/context/` | Context session, masking, auto-compact, tool lifecycle |
-| `internal/port/` | Narrow Repo interfaces and tool contract types |
-| `internal/tools/` | Tool implementations, dispatch scheduler, side effects |
+| `internal/core/` | Layer 0 domain types, store interfaces, tool contracts, plugin registry — zero internal imports |
+| `internal/runtime/` | Executor, RunnerFactory, direct_response, context session, masking, auto-compact, StreamItem projection |
+| `internal/tools/` | Tool implementations (file/git/browser/web/command/artifact), dispatch scheduler, ToolRegistry |
+| `internal/store/` | SQLite persisted state (modernc.org/sqlite, single-connection serialized) |
 | `internal/memory/` | File-backed memory records and semantic retrieval |
-| `internal/store/` | SQLite persisted state |
+| `internal/mcp/` | MCP provider manager |
+| `internal/workspace/` | Mutation checkpoint and worktree |
+| `internal/webaccess/` | web_search / web_fetch / browser tools and shared URL policy |
+| `internal/skills/` | File-backed skill loader |
+| `internal/config/` | Config struct, defaults, validation |
+| `internal/cli/` | CLI command dispatch |
 | `internal/api/` | HTTP server, `/healthz`, `/v1` |
 | `mobile-kotlin/` | Kotlin + Jetpack Compose mobile app |
 | `skills/` | Built-in Acorn skill seed pack |

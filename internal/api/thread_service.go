@@ -31,7 +31,7 @@ func NewThreadService(store StoreView, workspaceRoot string) *ThreadService {
 }
 
 func newThreadID() string {
-	return fmt.Sprintf("session_%d", time.Now().UTC().UnixNano())
+	return core.NewSessionID()
 }
 
 const generatedThreadTitleMaxRunes = 64

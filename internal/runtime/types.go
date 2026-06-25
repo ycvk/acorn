@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/cloudwego/eino/adk"
 	einomodel "github.com/cloudwego/eino/components/model"
@@ -31,10 +30,6 @@ func compactText(value string, limit int) (string, bool) {
 		return trimmed, false
 	}
 	return string(runes[:limit]) + "...", true
-}
-
-func newSessionID() string {
-	return fmt.Sprintf("session_%d", time.Now().UTC().UnixNano())
 }
 
 var registerOnce sync.Once

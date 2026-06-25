@@ -11,6 +11,11 @@ func NewRunID() string {
 	return fmt.Sprintf("run_%d", time.Now().UTC().UnixNano())
 }
 
+// NewSessionID generates a unique session identifier.
+func NewSessionID() string {
+	return fmt.Sprintf("session_%d", time.Now().UTC().UnixNano())
+}
+
 // DurableContext returns a copy of ctx that is not cancelled when the parent
 // is cancelled. If ctx is nil, it returns context.Background().
 func DurableContext(ctx context.Context) context.Context {

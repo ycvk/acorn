@@ -37,10 +37,19 @@ func TestRegisterNativeToolsRegistersAllLocalTools(t *testing.T) {
 	}
 
 	specs := reg.Specs()
-	// localToolDefs declares 20 static local tools; all should be registered.
-	wantCount := 20
+	// localToolDefs declares 20 static local tools; 3 are deferred-loaded
+	// (web_fetch, web_search, browser) and excluded from the registry because
+	// they depend on per-run services. The remaining 17 eager tools are registered.
+	wantCount := 17
 	if got := len(specs); got != wantCount {
 		t.Fatalf("registered spec count = %d, want %d", got, wantCount)
+	}
+
+	// Deferred tools must NOT be in the registry.
+	for _, name := range []string{"web_fetch", "web_search", "browser"} {
+		if _, ok := reg.Find(name); ok {
+			t.Fatalf("deferred tool %q should not be registered", name)
+		}
 	}
 
 	// Specs must be sorted by name.
@@ -156,8 +165,9 @@ func TestRegisterNativeToolsNilRegistry(t *testing.T) {
 }
 
 // TestRegisterNativeToolsEmptyConfigStillRegisters verifies that a zero
-// CatalogConfig registers all tools (factories return nil tool for absent
-// services, but the specs/contracts are still present).
+// CatalogConfig registers eager-loaded tools (factories return nil tool for
+// absent services, but the specs/contracts are still present). Deferred-loaded
+// tools (web/browser) are not registered.
 func TestRegisterNativeToolsEmptyConfigStillRegisters(t *testing.T) {
 	reg := NewToolRegistry()
 	if err := RegisterNativeTools(reg, CatalogConfig{}); err != nil {

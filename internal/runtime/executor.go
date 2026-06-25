@@ -57,7 +57,7 @@ func NewExecutorWithRunRuntimeAndController(cfg *config.Config, store core.Sessi
 	return exec, nil
 }
 func (e *Executor) Run(ctx context.Context, input, skillID string, sink core.StreamSink) (*Result, error) {
-	sessionID := newSessionID()
+	sessionID := core.NewSessionID()
 	title, _ := compactText(input, 48)
 	turnIndex, err := e.store.CreateFreshSessionTurn(ctx, sessionID, title, input)
 	if err != nil {
@@ -83,7 +83,7 @@ func (e *Executor) prepareExecuteRequest(ctx context.Context, req core.ExecuteRe
 	if strings.TrimSpace(req.SessionID) != "" {
 		return req, nil
 	}
-	req.SessionID = newSessionID()
+	req.SessionID = core.NewSessionID()
 	title, _ := compactText(req.Input, 48)
 	turnIndex, err := e.store.CreateFreshSessionTurn(ctx, req.SessionID, title, req.Input)
 	if err != nil {

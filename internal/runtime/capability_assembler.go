@@ -127,10 +127,29 @@ func assembleToolsetCatalog(ctx context.Context, cfg *config.Config, localCatalo
 	return catalog, nil
 }
 
+// buildCoreToolSpecs builds the specs the toolset catalog owns: deferred-loaded
+// native tools (web_fetch, web_search, browser — which depend on per-run web
+// services) plus memory and skill tools. Eager-loaded native tools are owned by
+// the registry and are not built here.
 func buildCoreToolSpecs(ctx context.Context, cfg *config.Config, localCatalog *tools.LocalCatalog, aux auxTools) ([]core.ToolSpec, error) {
-	specs, err := BuildCatalogSpecs(ctx, cfg, "local", core.ToolKindNative, append([]einotool.BaseTool(nil), localCatalog.Tools...))
-	if err != nil {
-		return nil, err
+	var specs []core.ToolSpec
+	for _, tool := range localCatalog.Tools {
+		info, err := tool.Info(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("read tool info for local toolset: %w", err)
+		}
+		name := strings.TrimSpace(info.Name)
+		// Only deferred-loaded tools belong to the toolset catalog; eager
+		// natives are owned by the registry.
+		localSpec, ok := tools.ConfiguredLocalSpec(cfg, name)
+		if !ok {
+			continue
+		}
+		if localSpec.Loading.Mode != core.ToolLoadingModeDeferred {
+			continue
+		}
+		localSpec.Tool = tool
+		specs = append(specs, localSpec)
 	}
 	memorySpecs, err := BuildCatalogSpecs(ctx, cfg, "memory", core.ToolKindMemory, aux.memory)
 	if err != nil {
@@ -283,25 +302,24 @@ func buildRunCapabilities(ctx context.Context, deps RuntimeDeps, sessionID, runI
 	}, nil
 }
 
-// assembleRunCapabilitiesCatalog builds the final run capability catalog.
-// Native + MCP main tools come from the registry (MCP registered at
-// provider-connect); only MCP resource/prompt auxiliary specs are built here.
-// The toolset catalog contributes non-native specs (memory, skill, load_tools)
-// that the registry does not own.
+// assembleRunCapabilitiesCatalog builds the final run capability catalog by
+// merging three sources:
+//   - registry specs: eager-loaded native tools + MCP main tools (MCP tools
+//     are registered into the registry at provider-connect time)
+//   - toolset catalog specs: deferred-loaded native tools (web/browser, built
+//     per run from live services), memory, skill, and load_tools
+//   - MCP auxiliary specs: resource/prompt wrappers (session-derived, outside
+//     the registry lifecycle)
+//
+// There is no overlap between registry and toolset specs: the registry owns
+// eager natives, the toolset owns deferred natives + non-native tools.
 func assembleRunCapabilitiesCatalog(ctx context.Context, deps RuntimeDeps, toolset *Toolset, sessionID, runID string, mcpManager *mcpprovider.Manager) (*tools.Catalog, error) {
 	registrySpecs, err := resolveRegistrySpecs(ctx, deps, sessionID, runID)
 	if err != nil {
 		return nil, fmt.Errorf("resolve registry tools: %w", err)
 	}
-	specs := registrySpecs
-	for _, spec := range toolset.Catalog().Specs() {
-		if isRegistryNativeSpec(spec) {
-			continue
-		}
-		specs = append(specs, spec)
-	}
-	// MCP main tools are already in the registry (registered by mcp.Manager);
-	// only resource/prompt auxiliary specs are still built from the manager.
+	specs := append([]core.ToolSpec(nil), registrySpecs...)
+	specs = append(specs, toolset.Catalog().Specs()...)
 	mcpSpecs, err := buildMCPAuxiliaryToolSpecs(ctx, deps.Config, mcpManager)
 	if err != nil {
 		return nil, err
@@ -310,46 +328,12 @@ func assembleRunCapabilitiesCatalog(ctx context.Context, deps RuntimeDeps, tools
 	return tools.NewCatalog(ctx, specs)
 }
 
-// resolveRegistrySpecs resolves every enabled native tool spec from the registry
-// into a concrete einotool.BaseTool under the given run context, returning specs
-// with the Tool field populated so the audited-tool builder can use them
-// directly. Specs whose factory returns (nil, nil) are omitted, matching the
-// catalog's silent-omit behavior for absent backing services.
+// resolveRegistrySpecs resolves every enabled tool spec from the registry into
+// a concrete tool instance under the given run context, returning specs with
+// the Tool field populated so the audited-tool builder can use them directly.
 func resolveRegistrySpecs(ctx context.Context, deps RuntimeDeps, sessionID, runID string) ([]core.ToolSpec, error) {
-	registrySpecs := deps.ToolRegistry.EnabledSpecs()
-	if len(registrySpecs) == 0 {
-		return nil, nil
-	}
 	runCtx := core.RunContext{RunID: runID, SessionID: sessionID}
-	out := make([]core.ToolSpec, 0, len(registrySpecs))
-	for _, spec := range registrySpecs {
-		if spec.Factory == nil {
-			if spec.Tool != nil {
-				out = append(out, spec)
-			}
-			continue
-		}
-		tool, err := spec.Factory(ctx, runCtx)
-		if err != nil {
-			return nil, fmt.Errorf("resolve tool %q: %w", spec.Name, err)
-		}
-		if tool == nil {
-			continue
-		}
-		spec.Tool = tool
-		out = append(out, spec)
-	}
-	return out, nil
-}
-
-// isRegistryNativeSpec reports whether spec is one of the static local native
-// tools the registry owns (registered by RegisterNativeTools from
-// localToolDefs). These have Source "local" and Kind ToolKindNative; the
-// registry replaces them when active. Everything else — memory (Source
-// "memory"), skill (Source "skill"), load_tools (Source "runtime"), and MCP —
-// comes from the toolset or MCP manager.
-func isRegistryNativeSpec(spec core.ToolSpec) bool {
-	return spec.Source == "local" && spec.Kind == core.ToolKindNative
+	return deps.ToolRegistry.ResolveEnabledSpecs(ctx, runCtx)
 }
 
 func NewToolset(catalog *tools.Catalog, closers ...io.Closer) *Toolset {

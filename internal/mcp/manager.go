@@ -121,9 +121,13 @@ type ToolSpecBuilder func(ctx context.Context, providerName string, tool einotoo
 // at provider-connect time are registered alongside native tools, and
 // unregistered when their provider disconnects. specBuilder translates a
 // discovered (provider, tool) pair into a core.ToolSpec; the manager applies it
-// and tracks the namespaced names per provider for later removal. Either may be
-// nil (e.g. tests): when the registry is nil the manager skips registration and
-// the runtime falls back to building MCP specs at run time.
+// and tracks the namespaced names per provider for later removal. Either may
+// be nil (e.g. tests): when the registry is nil the manager skips registration
+// and MCP main tools are unavailable to runs — the runtime no longer rebuilds
+// them from the manager at run time (that fallback was removed once the
+// registry became mandatory in wire). Resource/prompt auxiliary specs are
+// still built from the manager regardless, because they are session-derived
+// wrappers outside the registry lifecycle.
 func WithToolRegistry(registry core.ToolRegistry, specBuilder ToolSpecBuilder) ManagerOption {
 	return func(o *managerOptions) {
 		o.toolRegistry = registry
@@ -200,13 +204,9 @@ func NewManager(ctx context.Context, cfgs []ProviderConfig, opts ...ManagerOptio
 		specBuilder:  o.specBuilder,
 	}
 
-	// Initialize elicitation handler if store is available
+	// Initialize elicitation and sampling handlers when a store is available.
 	if o.store != nil {
 		mgr.elicitation = newElicitationHandler(o.store)
-	}
-
-	// Initialize sampling handler if store is available
-	if o.store != nil {
 		mgr.sampling = newSamplingHandler(mgr)
 	}
 	// Register discovered MCP tools for every healthy provider into the unified
