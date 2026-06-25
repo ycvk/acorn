@@ -277,38 +277,27 @@ func buildRunCapabilities(ctx context.Context, deps RuntimeDeps, sessionID, runI
 }
 
 // assembleRunCapabilitiesCatalog builds the final run capability catalog.
-// When a ToolRegistry is wired, native + MCP main tools come from the registry
-// (MCP registered at provider-connect); only MCP resource/prompt specs are
-// built here. When nil (tests), the local toolset catalog + full MCP specs are
-// used directly.
+// Native + MCP main tools come from the registry (MCP registered at
+// provider-connect); only MCP resource/prompt auxiliary specs are built here.
+// The toolset catalog contributes non-native specs (memory, skill, load_tools)
+// that the registry does not own.
 func assembleRunCapabilitiesCatalog(ctx context.Context, deps RuntimeDeps, toolset *Toolset, sessionID, runID string, mcpManager *mcpprovider.Manager) (*tools.Catalog, error) {
-	var specs []core.ToolSpec
-	var mcpSpecs []core.ToolSpec
-	var err error
-	if deps.ToolRegistry == nil {
-		specs = append([]core.ToolSpec(nil), toolset.Catalog().Specs()...)
-		mcpSpecs, err = buildMCPToolSpecs(ctx, deps.Config, mcpManager)
-		if err != nil {
-			return nil, err
+	registrySpecs, err := resolveRegistrySpecs(ctx, deps, sessionID, runID)
+	if err != nil {
+		return nil, fmt.Errorf("resolve registry tools: %w", err)
+	}
+	specs := registrySpecs
+	for _, spec := range toolset.Catalog().Specs() {
+		if isRegistryNativeSpec(spec) {
+			continue
 		}
-	} else {
-		registrySpecs, err2 := resolveRegistrySpecs(ctx, deps, sessionID, runID)
-		if err2 != nil {
-			return nil, fmt.Errorf("resolve registry tools: %w", err2)
-		}
-		specs = append(specs, registrySpecs...)
-		for _, spec := range toolset.Catalog().Specs() {
-			if isRegistryNativeSpec(spec) {
-				continue
-			}
-			specs = append(specs, spec)
-		}
-		// MCP main tools are already in the registry (registered by mcp.Manager);
-		// only resource/prompt auxiliary specs are still built from the manager.
-		mcpSpecs, err = buildMCPAuxiliaryToolSpecs(ctx, deps.Config, mcpManager)
-		if err != nil {
-			return nil, err
-		}
+		specs = append(specs, spec)
+	}
+	// MCP main tools are already in the registry (registered by mcp.Manager);
+	// only resource/prompt auxiliary specs are still built from the manager.
+	mcpSpecs, err := buildMCPAuxiliaryToolSpecs(ctx, deps.Config, mcpManager)
+	if err != nil {
+		return nil, err
 	}
 	specs = append(specs, mcpSpecs...)
 	return tools.NewCatalog(ctx, specs)
