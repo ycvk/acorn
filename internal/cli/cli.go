@@ -73,7 +73,6 @@ Usage:
   acorn smoke [-c path] [--json] "task input"
   acorn run [-c path] [--json] "task input"
   acorn memory procedure create [-c path] [--json] --title title --task-pattern pattern --source-run run --evidence-refs refs "procedure body"
-  acorn memory semantic rebuild [-c path] [--json]
   acorn serve [-c path] [--listen addr]`)
 }
 

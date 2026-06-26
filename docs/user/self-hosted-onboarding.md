@@ -141,14 +141,6 @@ acorn smoke "hello, are you working?"
 
 `acorn smoke` exits non-zero on any non-succeeded status, so it catches a wrong `api_key` or unreachable `base_url` that static validation cannot. (Building from source without the installer? Run `acorn init` first to scaffold `~/.acorn/acorn.yaml`.)
 
-Semantic memory retrieval is OFF by default — backend runs proceed with no memory recall. To enable it, configure `memory.semantic.embedding` in `~/.acorn/acorn.yaml` (model, base_url, api_key, dimensions are required), restart the service, and build the index:
-
-```bash
-acorn memory semantic rebuild --json
-```
-
-The embedding index is stored in SQLite `memory_vectors` table. SQLite owns runtime persisted truth, and file-backed `facts/` and `history/` remain durable memory truth.
-
 ## 5. Pair Mobile
 
 Generate a one-time pairing payload on the server:

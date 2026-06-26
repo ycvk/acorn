@@ -95,13 +95,12 @@ func captureMemoryMutationRollback(path string) (*memoryMutationRollback, error)
 
 // applyNewMemoryRecord writes a brand-new memory record at relPath through the
 // full mutation pipeline (ApplyMemoryMutation), so structured writers (CreateFact,
-// CreateProcedure) get the same atomic write + BuildIndex + semantic rebuild +
-// rollback-on-failure as the raw memory toolset. Without this, a structured write
-// would land on disk and in the in-memory index but leave the semantic index
-// stale, making the just-written record unfindable by memory_search/Prepare. It
-// accepts a planner noop_duplicate for an equivalent existing record, but still
-// rejects replace/retire actions so structured writers cannot silently mutate an
-// existing record's durable content.
+// CreateProcedure) get the same atomic write + BuildIndex + rollback-on-failure
+// as the raw memory toolset. Without this, a structured write would land on disk
+// and in the in-memory index but leave the index stale, making the just-written
+// record unfindable by memory_search/Prepare. It accepts a planner noop_duplicate
+// for an equivalent existing record, but still rejects replace/retire actions so
+// structured writers cannot silently mutate an existing record's durable content.
 func (s *LocalService) applyNewMemoryRecord(ctx context.Context, relPath string, content string, kind Kind) (*Record, *MemoryMutationPlan, error) {
 	absPath := filepath.Join(s.root, filepath.FromSlash(relPath))
 	result, err := s.ApplyMemoryMutation(ctx, PlanMemoryMutationRequest{Path: relPath, Content: content})

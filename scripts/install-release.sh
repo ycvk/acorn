@@ -124,15 +124,6 @@ web:
 memory:
   search:
     memory_context_token_budget: 2000
-  semantic:
-    embedding:
-      provider: openai_compatible
-      model: text-embedding-3-small
-      base_url: https://api.openai.com/v1
-      api_key: ${OPENAI_API_KEY}
-      dimensions: 1536
-      timeout_seconds: 30
-      batch_size: 64
 context:
   window_tokens: 200000
   compact_margin_tokens: 13000

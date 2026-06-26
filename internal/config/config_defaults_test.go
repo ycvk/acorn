@@ -26,13 +26,6 @@ func TestDefaultConfigValues(t *testing.T) {
 		{"context.preserve_recent_turns", cfg.Context.PreserveRecentTurns, 3},
 		{"context.mask_after_turns", cfg.Context.MaskAfterTurns, 2},
 		{"runtime.max_iterations", cfg.Agent.MaxIterations, 70},
-		{"memory.semantic.embedding.provider", cfg.Memory.Semantic.Embedding.Provider, "openai_compatible"},
-		{"memory.semantic.embedding.model", cfg.Memory.Semantic.Embedding.Model, ""},
-		{"memory.semantic.embedding.base_url", cfg.Memory.Semantic.Embedding.BaseURL, ""},
-		{"memory.semantic.embedding.api_key", cfg.Memory.Semantic.Embedding.APIKey, "${OPENAI_API_KEY}"},
-		{"memory.semantic.embedding.dimensions", cfg.Memory.Semantic.Embedding.Dimensions, 1536},
-		{"memory.semantic.embedding.timeout_seconds", cfg.Memory.Semantic.Embedding.TimeoutSeconds, 30},
-		{"memory.semantic.embedding.batch_size", cfg.Memory.Semantic.Embedding.BatchSize, 64},
 	}
 
 	for _, tt := range tests {

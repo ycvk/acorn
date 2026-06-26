@@ -32,8 +32,7 @@
   - `internal/runtime/context_session_test.go`
   - `internal/runtime/masking_test.go`
   - `internal/runtime/auto_compact_test.go`
-- **Memory Record V2 是长期记忆事实**：facts/history frontmatter 由 `internal/memory` 解析；semantic search 走 embedding + SQLite 暴力余弦相似度。
-  - `internal/memory/service_test.go`
+- **Memory Record V2 是长期记忆事实**：facts/history frontmatter 由 `internal/memory` 解析；memory search 走关键词匹配。
 
 ## Remote API 与 mobile
 

@@ -44,11 +44,3 @@ Context pressure is a simple token threshold (`window_tokens - compact_margin`),
 
 Canonical Memory Record V2 frontmatter (simplified): no evidence_refs, relations, validity window, procedure origin. `remember` tool writes facts via structured `CreateFact`; `memory_create_file` still requires complete frontmatter.
 
-## Semantic Retrieval
-
-Semantic search uses OpenAI embedding → SQLite `memory_vectors` table BLOB storage → pure Go brute-force cosine similarity. Zero CGO, zero Bleve, zero FAISS.
-
-- `memory.semantic.embedding` configures the embedder (provider, model, base_url, api_key, dimensions, timeout, batch_size)
-- Lazy wiring: embedder/VectorStore constructed on first `Search`/`Prepare`/rebuild
-- Unconfigured embedding: `Prepare` degrades to empty memory result (zero recall is valid baseline)
-- `Search` falls back to keyword matching when embedding is not configured

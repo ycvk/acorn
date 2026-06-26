@@ -212,7 +212,7 @@ P0 允许的 contract 扩展：
 
 P0 不允许的 contract 扩展：
 
-- `memory.semantic.enabled` 之类开关。
+- 语义检索/embedding 相关开关。
 - codeintel/repo-map endpoint 或 model tool。
 - debug-only API。
 - silent disabled health 状态来假装工具存在。

@@ -92,9 +92,6 @@ func (c *Config) ValidateBase() error {
 	if c.Memory.Search.MemoryContextTokenBudget <= 0 {
 		c.Memory.Search.MemoryContextTokenBudget = 2000
 	}
-	if err := c.validateMemorySemanticBase(); err != nil {
-		return err
-	}
 	return nil
 }
 
@@ -120,30 +117,7 @@ func (c *Config) ValidateExecutionReady() error {
 	if err := c.validateContext(); err != nil {
 		return err
 	}
-	// Semantic retrieval is an optional enhancement. Only enforce its full field
-	// contract when the operator actually configured it; an unconfigured semantic
-	// section must not block execution readiness (the run hot-path Prepare degrades
-	// to an empty memory result instead). When configured, every field is still
-	// validated so a half-configured semantic section fails loud.
-	if c.MemorySemanticConfigured() {
-		if err := c.validateMemorySemanticExecution(); err != nil {
-			return err
-		}
-	}
 	return nil
-}
-
-// MemorySemanticConfigured reports whether the operator intends to use semantic
-// retrieval. Presence of an embedding model or base_url is the signal. When this
-// is false, semantic retrieval is an unwired optional capability: it does not
-// block execution readiness, and the run hot-path Prepare degrades to an empty
-// memory result. Explicit Search/SearchSemantic callers still fail loud.
-func (c *Config) MemorySemanticConfigured() bool {
-	if c == nil {
-		return false
-	}
-	embedding := c.Memory.Semantic.Embedding
-	return strings.TrimSpace(embedding.Model) != "" || strings.TrimSpace(embedding.BaseURL) != ""
 }
 
 func (c *Config) WorkspaceRoot() string {
@@ -169,46 +143,6 @@ func (c *Config) validateContext() error {
 	}
 	if c.Context.MaskAfterTurns < 0 {
 		return errors.New("context.mask_after_turns must be >= 0")
-	}
-	return nil
-}
-
-func (c *Config) validateMemorySemanticBase() error {
-	if c == nil {
-		return nil
-	}
-	semantic := c.Memory.Semantic
-	if provider := strings.TrimSpace(semantic.Embedding.Provider); provider != "" && provider != "openai_compatible" {
-		return fmt.Errorf("memory.semantic.embedding.provider must be openai_compatible, got %q", c.Memory.Semantic.Embedding.Provider)
-	}
-	return nil
-}
-
-func (c *Config) validateMemorySemanticExecution() error {
-	if c == nil {
-		return nil
-	}
-	semantic := c.Memory.Semantic
-	if strings.TrimSpace(semantic.Embedding.Provider) == "" {
-		return errors.New("memory.semantic.embedding.provider is required")
-	}
-	if strings.TrimSpace(semantic.Embedding.Model) == "" {
-		return errors.New("memory.semantic.embedding.model is required")
-	}
-	if strings.TrimSpace(semantic.Embedding.BaseURL) == "" {
-		return errors.New("memory.semantic.embedding.base_url is required")
-	}
-	if strings.TrimSpace(semantic.Embedding.APIKey) == "" {
-		return errors.New("memory.semantic.embedding.api_key is required (semantic recall is configured because embedding.model/base_url are set) — set the key, or remove embedding.model+base_url to run without semantic recall")
-	}
-	if semantic.Embedding.Dimensions <= 0 {
-		return errors.New("memory.semantic.embedding.dimensions must be > 0")
-	}
-	if semantic.Embedding.TimeoutSeconds <= 0 {
-		return errors.New("memory.semantic.embedding.timeout_seconds must be > 0")
-	}
-	if semantic.Embedding.BatchSize <= 0 {
-		return errors.New("memory.semantic.embedding.batch_size must be > 0")
 	}
 	return nil
 }

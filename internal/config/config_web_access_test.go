@@ -10,7 +10,6 @@ import (
 func TestValidateExecutionReadyDoesNotRequireWebSearchKeyOrBrowserExecutable(t *testing.T) {
 	cfg := defaultConfig()
 	cfg.Providers[0].APIKey = "sk-chat"
-	cfg.Memory.Semantic.Embedding.APIKey = "sk-embedding"
 	cfg.WebAccess.Search.APIKey = ""
 	cfg.Browser.ExecutablePath = ""
 	if err := cfg.ValidateExecutionReady(); err != nil {

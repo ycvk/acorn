@@ -26,7 +26,6 @@ acorn smoke [-c path] [--json] "task"   # 安装探活:真实跑一次 run,非�
 acorn init [-c path] [--force] [--print] # 生成 starter config
 acorn doctor [-c path] [--json]          # 能力快照 + MCP 健康探活
 acorn skills {list|inspect|check|create|patch|delete} [-c path] [--json]
-acorn memory semantic rebuild [-c path]  # 重建 embedding 向量库(memory_vectors)
 acorn pair [-c path] [--qr] [--server-url url]  # 生成设备配对码
 acorn token issue [-c path] [--name n] [--ttl d]  # 颁发 device token
 acorn devices {list|revoke} [-c path]
@@ -38,12 +37,12 @@ cd mobile-kotlin && ./tool/generate_openapi_client.sh --check   # CI 门禁
 
 ## 架构大图
 
-- **组合根**:`internal/wire.Container` 是唯一实例化具体实现的地方(SQLite store、RunnerFactory、embedding client)。`cmd/acorn → cli → wire.Container → {api, runtime, store}`。`serve` 是唯一长驻命令。
+- **组合根**:`internal/wire.Container` 是唯一实例化具体实现的地方(SQLite store、RunnerFactory)。`cmd/acorn → cli → wire.Container → {api, runtime, store}`。`serve` 是唯一长驻命令。
 - **运行时主链**:`Executor → RunnerFactory.buildRun → Plane + direct_response → Session → SQLite/file-backed memory`。全部在 `internal/runtime`。
 - **单一编排模式**:`direct_response`。model → tool loop → record → 下一轮。`ExecuteRound` 每轮 `BeforeModelCall → ExecuteRound → RecordAssistant/RecordToolResults`。plan_execute/single_agent/child_agent/verifier 已全部删除。
 - **职责边界**:`internal/runtime` 做装配+执行编排+上下文事实(首轮装配、tool lifecycle、`Session`、masking、auto-compact、StreamItem 投影)。原 `agent`+`context`+`stream` 三包已合并。
 - **关键包**(13 个 internal 包):`internal/core`(Layer 0,零内部导入,纯类型+契约:核心 domain 类型 + context plumbing + 3 个 store 接口 + 工具契约 + plugin registry 接口,无 service struct);`internal/runtime`(Layer 3)拥有 Executor、RunnerFactory、buildRun、direct_response、ExecuteRound、Plane、Session、masking、auto-compact、StreamItem 投影;`internal/tools` 拥有工具实现(file/git/browser/web/command/artifact 工具 + ToolRegistry);`internal/tools/dispatch` 拥有工具调度逻辑(scheduler + node + streaming + side_effects + lifecycle);`internal/store` 拥有 SQLite adapter + ArtifactService(依赖 `core.ArtifactService`,无重复接口);`internal/memory` 拥有 file-backed memory;`internal/mcp`(原 `providers/mcp`,提升为顶层)拥有 MCP provider manager;`internal/api`(吸收 `clientevents`)拥有 `/v1` client surface + live RunEvent 投影(`projection.go`);`internal/workspace` 拥有 mutation checkpoint + worktree;`internal/webaccess` 拥有 `web_search`/`web_fetch`/`browser` 工具与共享 URL policy;`internal/skills`/`internal/config`/`internal/cli` 各司其职。
-- **两套真相**:SQLite(`internal/store`,modernc.org/sqlite,单连接串行化)是 runtime 真相(10 张表:runs/events/sessions/session_messages/pending_actions/mcp_oauth_tokens/devices/pairing_codes/artifacts/schema_migrations;schema 在 `store/store_schema.go`,`schemaRequiredTables` 强制列存在、缺列 fail-loud);文件型长期记忆(`internal/memory`)是 `facts/`/`history/`;embedding 向量存 SQLite `memory_vectors` 表。
+- **两套真相**:SQLite(`internal/store`,modernc.org/sqlite,单连接串行化)是 runtime 真相(10 张表:runs/events/sessions/session_messages/pending_actions/mcp_oauth_tokens/devices/pairing_codes/artifacts/schema_migrations;schema 在 `store/store_schema.go`,`schemaRequiredTables` 强制列存在、缺列 fail-loud);文件型长期记忆(`internal/memory`)是 `facts/`/`history/`。
 - **API 契约**:`docs/openapi.yaml` 是唯一 wire contract,`mobile-kotlin/app/src/main/java/io/ycvk/acorn/api/` 由它生成。客户端只收 `internal/api/projection.go` 投影的 live RunEvent;RunEvent SSE 用 `follow=true` 轮询 + `after_seq` 游标续读。
 
 ## 硬边界
@@ -63,9 +62,6 @@ cd mobile-kotlin && ./tool/generate_openapi_client.sh --check   # CI 门禁
 ### 记忆 & 检索
 
 - 长期 memory 是 `internal/memory` 的 file-backed `facts/`/`history/`。Canonical Memory Record V2 frontmatter(简化:status / tags / created / updated / source_run / source_refs)。fact 写入走结构化 `remember` 工具;raw `memory_create_file` 仍要求完整 frontmatter。
-- 语义检索配置 `memory.semantic.embedding` 是语义检索前提,但**惰性接线**:embedder/VectorStore 在首次 `Search`/`Prepare`/rebuild 时才构造,serve 启动不被阻塞。语义检索是可选增强,不是发任务的前置闸门。未配置 embedding 时 `Prepare` 降级为返回空 memory 结果(零召回是合法 baseline)。
-- 语义检索实现:OpenAI embedding 调用 → SQLite `memory_vectors` 表 BLOB 存储 → 纯 Go 暴力余弦相似度检索。零 CGO。
-- **不要引入 pgvector/LanceDB/Bleve/FAISS 或第二套 retrieval store**。
 
 ### 上下文 & 压缩
 
@@ -87,7 +83,7 @@ cd mobile-kotlin && ./tool/generate_openapi_client.sh --check   # CI 门禁
 
 ### 自托管发布
 
-- GitHub Release 预构建 tarball + Linux binary + signed Android APK + `systemd`。Release build 是纯 Go 交叉编译(`CGO_ENABLED=0`),无 FAISS/CGO/build tags。
+- GitHub Release 预构建 tarball + Linux binary + signed Android APK + `systemd`。Release build 是纯 Go 交叉编译(`CGO_ENABLED=0`),无 CGO/build tags。
 - installer 安装 `/opt/acorn`、`~/.acorn/skills`、`/usr/local/bin/acorn` wrapper;默认读 `~/.acorn/acorn.yaml`;root VPS 用 `/root/.acorn`,workspace 是 `/srv/acorn/workspace`。
 
 ## 工作方式
@@ -108,7 +104,7 @@ cd mobile-kotlin && ./tool/generate_openapi_client.sh --check   # CI 门禁
 ## 配置和文档
 
 - `configs/acorn.local.yaml` 在 `.gitignore` 中。`configs/acorn.example.yaml` 和 `configs/acorn.selfhosted.example.yaml` 修改时同步 config struct、defaults、validation 和 tests。
-- provider `api_key` 与 `memory.semantic.embedding.api_key` 都支持环境变量展开;embedding key 是独立 key,不能从 chat provider key 静默复用。
+- provider `api_key` 支持环境变量展开。
 - public context config 只保留 `window_tokens`、`compact_margin_tokens`、`mask_after_turns`、`preserve_recent_turns`。删除配置字段不保留兼容读取。
 - 架构现状 → `docs/architecture/`,用户指南 → `docs/user/`,开发者指南 → `docs/dev/`。不要把未来计划写成 current truth。
 

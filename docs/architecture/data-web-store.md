@@ -29,6 +29,3 @@ Production code may directly import `internal/store` only from the app compositi
 
 `/v1/memory/*` exposes file-backed facts and history from `internal/memory`. Remote clients read memory through the API; they do not write memory files directly. The `remember` and `memory_create_file` tools are the agent-owned write paths.
 
-## Semantic Vector Store
-
-Embedding vectors are stored in the SQLite `memory_vectors` table (BLOB column). The vector store is rebuilt by scanning `facts/` and calling the embedding API. Zero CGO, zero Bleve, zero FAISS.

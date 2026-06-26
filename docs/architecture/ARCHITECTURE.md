@@ -1,6 +1,6 @@
 # Acorn 架构总入口
 
-Acorn 是 **single-user self-hosted agent backend + authenticated remote client API + Kotlin mobile control surface**。后端以 Go/Eino 运行 agent、工具、file-backed memory 和可选的 embedding+SQLite 语义检索。SQLite 是 runtime 事实来源（10 张表）；file-backed memory 是长期记忆事实。当前产品 control surface 是 `mobile-kotlin/` Kotlin + Jetpack Compose app，通过 openapi-generator 生成的 client 消费 authenticated `/v1`。
+Acorn 是 **single-user self-hosted agent backend + authenticated remote client API + Kotlin mobile control surface**。后端以 Go/Eino 运行 agent、工具、file-backed memory。SQLite 是 runtime 事实来源（10 张表）；file-backed memory 是长期记忆事实。当前产品 control surface 是 `mobile-kotlin/` Kotlin + Jetpack Compose app，通过 openapi-generator 生成的 client 消费 authenticated `/v1`。
 
 ## 主链
 
@@ -21,7 +21,7 @@ operator CLI / authenticated remote clients
 - `internal/runtime/` — Layer 3。Executor（session/run 创建、执行、finalization）+ per-run assembly（内联函数,非 struct）+ direct_response + ExecuteRound + Plane + Session（masking + auto-compact）+ StreamItem→event 投影 + tool audit/validator + tool lifecycle。原 agent/context/stream 合并于此。
 - `internal/store/` — SQLite adapter + 跨包 store-facing records、sentinel errors。
 - `internal/tools/` — SafeParallelToolsNode、streaming executor、scheduler、side-effect extraction、ToolRegistry 实现 + 工具实现（file/git/browser/web/command/artifact）。
-- `internal/memory/` — file-backed memory（facts/history）、search、prepare、semantic retrieval。
+- `internal/memory/` — file-backed memory（facts/history）、search、prepare。
 - `internal/mcp/` — MCP provider manager、transport、OAuth/elicitation handlers（原 providers/mcp，提升为顶层包）。
 - `internal/api/` — `/v1` client surface + device bearer auth + live RunEvent 投影（原 clientevents 合并于此）+ ThreadService/RunService/EventService。
 - `internal/wire/` — Container 组合根；唯一允许直接持有 sqlite adapter 的 composition root。

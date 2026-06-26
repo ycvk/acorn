@@ -61,19 +61,6 @@ func defaultConfig() *Config {
 			Search: MemorySearchConfig{
 				MemoryContextTokenBudget: 2000,
 			},
-			Semantic: MemorySemanticConfig{
-				// Semantic recall is OPTIONAL and OFF by default: model and base_url are
-				// intentionally empty so MemorySemanticConfigured() is false unless the
-				// operator explicitly sets them (matching the documented "embedding 未配置时
-				// 不接线" contract). The remaining fields only take effect once enabled.
-				Embedding: EmbeddingProviderConfig{
-					Provider:       "openai_compatible",
-					APIKey:         "${OPENAI_API_KEY}",
-					Dimensions:     1536,
-					TimeoutSeconds: 30,
-					BatchSize:      64,
-				},
-			},
 		},
 	}
 }

@@ -37,26 +37,11 @@ type ContextConfig struct {
 }
 
 type MemoryConfig struct {
-	Search   MemorySearchConfig   `yaml:"search"`
-	Semantic MemorySemanticConfig `yaml:"semantic"`
+	Search MemorySearchConfig `yaml:"search"`
 }
 
 type MemorySearchConfig struct {
 	MemoryContextTokenBudget int `yaml:"memory_context_token_budget"`
-}
-
-type MemorySemanticConfig struct {
-	Embedding EmbeddingProviderConfig `yaml:"embedding"`
-}
-
-type EmbeddingProviderConfig struct {
-	Provider       string `yaml:"provider"`
-	Model          string `yaml:"model"`
-	BaseURL        string `yaml:"base_url"`
-	APIKey         string `yaml:"api_key"`
-	Dimensions     int    `yaml:"dimensions"`
-	TimeoutSeconds int    `yaml:"timeout_seconds"`
-	BatchSize      int    `yaml:"batch_size"`
 }
 
 type RuntimeConfig struct {

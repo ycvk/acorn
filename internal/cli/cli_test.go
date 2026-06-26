@@ -15,7 +15,7 @@ func TestRunWithoutArgsReturnsUsage(t *testing.T) {
 	if err == nil {
 		t.Fatal("Run() without args should return usage error")
 	}
-	for _, want := range []string{"Usage:", "acorn doctor", "acorn pair", "acorn run", "acorn serve", "acorn memory semantic rebuild"} {
+	for _, want := range []string{"Usage:", "acorn doctor", "acorn pair", "acorn run", "acorn serve"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Fatalf("Run() usage error should contain %q, got %q", want, err.Error())
 		}
@@ -42,7 +42,6 @@ func TestRunUsageIncludesOperatorCommands(t *testing.T) {
 	for _, want := range []string{
 		`acorn doctor [-c path] [--json]`,
 		`acorn pair [-c path] [--json] [--qr] [--ttl duration] [--server-url url]`,
-		`acorn memory semantic rebuild [-c path] [--json]`,
 		`acorn serve [-c path] [--listen addr]`,
 	} {
 		if !strings.Contains(body, want) {

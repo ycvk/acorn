@@ -26,9 +26,6 @@ func TestInitTemplateIsValidAndExecutionReady(t *testing.T) {
 	if err := cfg.ValidateExecutionReady(); err != nil {
 		t.Fatalf("init template must be execution-ready with OPENAI_API_KEY set: %v", err)
 	}
-	if cfg.MemorySemanticConfigured() {
-		t.Fatal("init template must have semantic OFF by default (model/base_url commented)")
-	}
 }
 
 func TestInitWritesConfigAndRefusesClobber(t *testing.T) {

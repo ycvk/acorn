@@ -24,8 +24,4 @@ func TestDoctorRemediationLinesTailorsApiKeyHints(t *testing.T) {
 		t.Fatalf("provider api_key remediation should mention OPENAI_API_KEY:\n%s", providerKey)
 	}
 
-	embeddingKey := strings.Join(doctorRemediationLines("memory.semantic.embedding.api_key is required", ""), "\n")
-	if !strings.Contains(embeddingKey, "model+base_url") {
-		t.Fatalf("embedding api_key remediation should offer disabling semantic:\n%s", embeddingKey)
-	}
 }

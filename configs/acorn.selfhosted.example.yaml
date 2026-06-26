@@ -75,17 +75,3 @@ mcp:
 memory:
   search:
     memory_context_token_budget: 2000
-  # Semantic memory retrieval is an OPTIONAL enhancement and is OFF by default:
-  # with embedding.model and embedding.base_url unset, runs proceed with no recalled
-  # memory (the implicit hot-path Prepare degrades to an empty result). Uncomment
-  # model + base_url below to enable it — then embedding.api_key/dimensions/
-  # timeout_seconds/batch_size are validated.
-  semantic:
-    embedding:
-      provider: openai_compatible
-      # model: text-embedding-3-small
-      # base_url: https://api.openai.com/v1
-      api_key: ${OPENAI_API_KEY}  # Independent embedding key; may equal the chat OPENAI_API_KEY
-      dimensions: 1536
-      timeout_seconds: 30
-      batch_size: 64
