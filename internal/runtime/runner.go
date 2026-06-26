@@ -63,20 +63,12 @@ func (f *RunnerFactory) BuildCapabilitySpecs(ctx context.Context) ([]core.ToolSp
 	return specs, nil
 }
 
-func (f *RunnerFactory) Registry() *Registry {
-	return f.registry
-}
-
 func (f *RunnerFactory) Config() *config.Config {
 	return f.deps.Config
 }
 
 func (f *RunnerFactory) MemoryModule() memory.Service {
 	return f.deps.MemoryModule
-}
-
-func (f *RunnerFactory) SessionSummarySvc() *SessionSummaryService {
-	return f.deps.SessionSummarySvc
 }
 
 func (f *RunnerFactory) NewChatModel(ctx context.Context) (einomodel.BaseChatModel, error) {
@@ -132,11 +124,6 @@ func (f *RunnerFactory) currentRunIDValue() string {
 // Close releases the cached MCP manager.
 func (f *RunnerFactory) Close() error {
 	return closeMCPCache(f.mcpCache)
-}
-
-// ReconcileMCPProviders reconciles the cached MCP manager's providers.
-func (f *RunnerFactory) ReconcileMCPProviders(ctx context.Context, providerConfigs []mcpprovider.ProviderConfig) error {
-	return reconcileMCPProviders(ctx, f.mcpCache, providerConfigs)
 }
 
 func newInMemoryCheckpointStore() *inMemoryCheckpointStore {
@@ -210,7 +197,6 @@ func assembleRuntimeDeps(cfg *config.Config, store RuntimeStore, opts RunnerFact
 		Config:            cfg,
 		Store:             store,
 		Loader:            loader,
-		SessionSummarySvc: opts.SessionSummaryService,
 		MemoryModule:      opts.MemoryModule,
 		ContextPlane:      contextPlane,
 		MCPPendingActions: opts.MCPPendingActionStore,
@@ -322,18 +308,6 @@ func bindSessionID(ctx context.Context, sessionID string) context.Context {
 	return core.WithSessionID(ctx, sessionID)
 }
 
-func AssembleResultToView(result *AssembleResult) AssembleResultView {
-	if result == nil {
-		return AssembleResultView{}
-	}
-	return AssembleResultView{
-		Messages:          result.Messages,
-		LifecycleState:    result.LifecycleState,
-		EagerToolNames:    result.EagerToolNames,
-		DeferredToolNames: result.DeferredToolNames,
-	}
-}
-
 func (f *RunnerFactory) buildRun(ctx context.Context, req RunnerBuildRequest) (active *ActiveRunner, err error) {
 	if f == nil {
 		return nil, errors.New("runner factory is not initialized")
@@ -374,7 +348,19 @@ func (f *RunnerFactory) newDirectResponseRunner(ctx context.Context, req RunnerB
 	if err != nil {
 		return nil, err
 	}
-	agentAssembly, err := buildAssembly(ctx, f.deps, req, capabilities.catalog, chatModel, contextResult)
+	agentAssembly, err := buildDirectResponse(ctx, f.deps, DirectResponseRequest{
+		AgentName:         f.deps.Config.Agent.Name,
+		AgentDescription:  f.deps.Config.Agent.Description,
+		SessionID:         req.SessionID,
+		RunID:             req.RunID,
+		ChatModel:         chatModel,
+		AssistantStreamer: NewDirectAssistantStreamer(f.deps.Store),
+		Catalog:           capabilities.catalog,
+		ContextResult:     contextResult,
+		AllowedToolNames:  append([]string(nil), req.AllowedToolNames...),
+		ExcludedToolNames: append([]string(nil), req.ExcludedToolNames...),
+		InstructionSuffix: req.InstructionSuffix,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -396,7 +382,6 @@ type RunnerFactoryOptions struct {
 	ExtraLocalTools       []einotool.BaseTool
 	Workspace             *workspace.Workspace
 	Handlers              []adk.ChatModelAgentMiddleware
-	SessionSummaryService *SessionSummaryService
 	MemoryModule          memory.Service
 	ContextPlane          *ContextPlane
 	MCPPendingActionStore core.SessionStore

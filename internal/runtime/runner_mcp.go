@@ -143,18 +143,6 @@ func createMCPManager(ctx context.Context, deps RuntimeDeps, cache *mcpManagerCa
 	return mgr, nil
 }
 
-func reconcileMCPProviders(ctx context.Context, cache *mcpManagerCache, providerConfigs []mcpprovider.ProviderConfig) error {
-	cache.mu.Lock()
-	mgr := cache.manager
-	cache.mu.Unlock()
-
-	if mgr == nil {
-		return nil
-	}
-
-	return mgr.ReconcileProviders(ctx, providerConfigs)
-}
-
 func closeMCPCache(cache *mcpManagerCache) error {
 	cache.mu.Lock()
 	defer cache.mu.Unlock()

@@ -544,7 +544,7 @@ func directResponseCatalogForTest(t *testing.T, ctx context.Context, tool einoto
 	return catalog
 }
 
-func directResponseContextResultForTest(runID string, sessionID string, eagerTools ...string) AssembleResultView {
+func directResponseContextResultForTest(runID string, sessionID string, eagerTools ...string) *AssembleResult {
 	loaded := make(map[string]LoadedToolRecord, len(eagerTools))
 	now := time.Now().UTC()
 	for _, name := range eagerTools {
@@ -565,7 +565,7 @@ func directResponseContextResultForTest(runID string, sessionID string, eagerToo
 		DeferredTools: map[string]DeferredToolRecord{},
 		MaxAgeTurns:   2,
 	}
-	return AssembleResultView{
+	return &AssembleResult{
 		LifecycleState: state,
 		EagerToolNames: append([]string(nil), eagerTools...),
 	}

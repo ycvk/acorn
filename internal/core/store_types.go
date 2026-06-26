@@ -106,13 +106,3 @@ type ArtifactReadRangeResult struct {
 	Content []byte
 	EOF     bool
 }
-
-// --- Session summary ---
-
-type SessionSummary struct {
-	SessionID   string    `json:"session_id"`
-	SourceRunID string    `json:"source_run_id"`
-	RunStatus   string    `json:"run_status"`
-	Summary     string    `json:"summary"`
-	UpdatedAt   time.Time `json:"updated_at"`
-}

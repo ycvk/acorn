@@ -74,21 +74,13 @@ type ArtifactService interface {
 	ListBySession(ctx context.Context, sessionID string) ([]ArtifactRecord, error)
 }
 
-// ArtifactStore is the composite persistence contract for artifact I/O,
-// session summaries, and OAuth tokens. It embeds ArtifactService and
-// SessionSummaryStore so narrow consumers can depend on the smaller
-// interface they need.
+// ArtifactStore is the composite persistence contract for artifact I/O and
+// OAuth tokens. It embeds ArtifactService so narrow consumers can depend on
+// the smaller interface they need.
 type ArtifactStore interface {
 	ArtifactService
-	SessionSummaryStore
 
 	// OAuth tokens
 	SaveOAuthToken(ctx context.Context, token OAuthToken) error
 	GetOAuthToken(ctx context.Context, providerName string) (*OAuthToken, error)
-}
-
-// SessionSummaryStore handles session summary persistence.
-type SessionSummaryStore interface {
-	GetSessionSummary(ctx context.Context, sessionID string) (*SessionSummary, error)
-	UpsertSessionSummary(ctx context.Context, summary SessionSummary) error
 }

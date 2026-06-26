@@ -66,12 +66,6 @@ func (m *mockTokenStore) ListByRun(_ context.Context, _ string) ([]core.Artifact
 func (m *mockTokenStore) ListBySession(_ context.Context, _ string) ([]core.ArtifactRecord, error) {
 	return nil, nil
 }
-func (m *mockTokenStore) GetSessionSummary(_ context.Context, _ string) (*core.SessionSummary, error) {
-	return nil, nil
-}
-func (m *mockTokenStore) UpsertSessionSummary(_ context.Context, _ core.SessionSummary) error {
-	return nil
-}
 
 // --- TokenSource tests ---
 

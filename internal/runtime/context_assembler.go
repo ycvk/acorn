@@ -5,9 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	einomodel "github.com/cloudwego/eino/components/model"
 	"github.com/ycvk/acorn/internal/memory"
-	"github.com/ycvk/acorn/internal/tools"
 )
 
 func prepareRunMemory(ctx context.Context, deps RuntimeDeps, req RunnerBuildRequest) (*memory.PrepareResult, error) {
@@ -62,66 +60,6 @@ func assembleContext(
 		return nil, err
 	}
 	return result, nil
-}
-
-// buildAssembly dispatches to the direct_response orchestration plane,
-// reusing the common baseAssemblyFields helper so agent/session/tool fields
-// are not duplicated across request constructors.
-func buildAssembly(
-	ctx context.Context,
-	deps RuntimeDeps,
-	req RunnerBuildRequest,
-	catalog *tools.Catalog,
-	chatModel einomodel.BaseChatModel,
-	contextResult *AssembleResult,
-) (*RunAssembly, error) {
-	if deps.Config == nil {
-		return nil, fmt.Errorf("runner factory is not initialized")
-	}
-	bf := buildBaseAssemblyFields(deps, req, catalog, chatModel, contextResult)
-	return buildDirectResponse(ctx, deps, directResponseRequest(deps, bf, req))
-}
-
-func buildBaseAssemblyFields(deps RuntimeDeps, req RunnerBuildRequest, catalog *tools.Catalog, chatModel einomodel.BaseChatModel, contextResult *AssembleResult) baseAssemblyFields {
-	return baseAssemblyFields{
-		agentName:         deps.Config.Agent.Name,
-		agentDescription:  deps.Config.Agent.Description,
-		sessionID:         req.SessionID,
-		runID:             req.RunID,
-		chatModel:         chatModel,
-		catalog:           catalog,
-		contextResult:     AssembleResultToView(contextResult),
-		allowedToolNames:  append([]string(nil), req.AllowedToolNames...),
-		excludedToolNames: append([]string(nil), req.ExcludedToolNames...),
-	}
-}
-
-func directResponseRequest(deps RuntimeDeps, bf baseAssemblyFields, req RunnerBuildRequest) DirectResponseRequest {
-	return DirectResponseRequest{
-		AgentName:         bf.agentName,
-		AgentDescription:  bf.agentDescription,
-		SessionID:         bf.sessionID,
-		RunID:             bf.runID,
-		ChatModel:         bf.chatModel,
-		AssistantStreamer: NewDirectAssistantStreamer(deps.Store),
-		Catalog:           bf.catalog,
-		ContextResult:     bf.contextResult,
-		AllowedToolNames:  bf.allowedToolNames,
-		ExcludedToolNames: bf.excludedToolNames,
-		InstructionSuffix: req.InstructionSuffix,
-	}
-}
-
-type baseAssemblyFields struct {
-	agentName         string
-	agentDescription  string
-	sessionID         string
-	runID             string
-	chatModel         einomodel.BaseChatModel
-	catalog           *tools.Catalog
-	contextResult     AssembleResultView
-	allowedToolNames  []string
-	excludedToolNames []string
 }
 
 func buildAssembleRequest(req RunnerBuildRequest, caps *runCapabilities, memoryPrepared *memory.PrepareResult) AssembleRequest {

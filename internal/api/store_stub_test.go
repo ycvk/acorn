@@ -8,9 +8,9 @@ import (
 )
 
 // unimplementedStore is a test base that satisfies core.SessionStore,
-// core.IdentityStore, core.ArtifactService, and core.SessionSummaryStore by
-// returning errUnexpectedClientStoreCall from every method. Test stubs embed
-// it and override only the methods they care about, eliminating ~120 lines of
+// core.IdentityStore, and core.ArtifactService by returning
+// errUnexpectedClientStoreCall from every method. Test stubs embed it and
+// override only the methods they care about, eliminating ~120 lines of
 // boilerplate unsupportedStoreCall fillers across four stubs.
 type unimplementedStore struct{}
 
@@ -139,12 +139,6 @@ func (unimplementedStore) ListByRun(context.Context, string) ([]core.ArtifactRec
 }
 func (unimplementedStore) ListBySession(context.Context, string) ([]core.ArtifactRecord, error) {
 	return nil, errUnexpectedClientStoreCall
-}
-func (unimplementedStore) GetSessionSummary(context.Context, string) (*core.SessionSummary, error) {
-	return nil, errUnexpectedClientStoreCall
-}
-func (unimplementedStore) UpsertSessionSummary(context.Context, core.SessionSummary) error {
-	return errUnexpectedClientStoreCall
 }
 func (unimplementedStore) SaveOAuthToken(context.Context, core.OAuthToken) error {
 	return errUnexpectedClientStoreCall

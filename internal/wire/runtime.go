@@ -18,7 +18,6 @@ import (
 type containerRuntimeDeps struct {
 	ws                    *workspace.Workspace
 	loader                *skills.Loader
-	sessionSummaryService *runtime.SessionSummaryService
 	memoryModule          memory.Service
 	contextPlane          *runtime.ContextPlane
 	mcpPendingActionStore core.SessionStore
@@ -36,7 +35,6 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 		return nil, err
 	}
 	loader := skills.NewLoader(cfg)
-	sessionSummaryService := runtime.NewSessionSummaryService(db, 2000)
 	memoryModule, err := buildMemoryService(ctx, cfg)
 	if err != nil {
 		return nil, err
@@ -73,7 +71,6 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 	runnerFactory, err := runtime.NewRunnerFactory(cfg, db, runtime.RunnerFactoryOptions{
 		Loader:                loader,
 		Workspace:             ws,
-		SessionSummaryService: sessionSummaryService,
 		MemoryModule:          memoryModule,
 		ContextPlane:          contextPlane,
 		MCPPendingActionStore: mcpPendingActionStore,
@@ -103,7 +100,6 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 	return &containerRuntimeDeps{
 		ws:                    ws,
 		loader:                loader,
-		sessionSummaryService: sessionSummaryService,
 		memoryModule:          memoryModule,
 		contextPlane:          contextPlane,
 		mcpPendingActionStore: mcpPendingActionStore,

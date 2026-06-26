@@ -19,7 +19,7 @@ import (
 // assembling tools, instruction, handlers, and the bound run context.
 type toolAssemblyParams struct {
 	catalog           *tools.Catalog
-	contextResult     AssembleResultView
+	contextResult     *AssembleResult
 	allowedToolNames  []string
 	excludedToolNames []string
 	runID             string
@@ -88,7 +88,7 @@ func buildDirectResponse(ctx context.Context, deps RuntimeDeps, req DirectRespon
 	if req.Catalog == nil {
 		return nil, fmt.Errorf("tool catalog is required")
 	}
-	if req.ContextResult.LifecycleState == nil {
+	if req.ContextResult == nil || req.ContextResult.LifecycleState == nil {
 		return nil, fmt.Errorf("context plane lifecycle state is required")
 	}
 

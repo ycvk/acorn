@@ -65,7 +65,6 @@ type RuntimeDeps struct {
 	Store             RuntimeStore
 	Loader            *skills.Loader
 	MemoryModule      memory.Service
-	SessionSummarySvc *SessionSummaryService
 	ContextPlane      *ContextPlane
 	MCPPendingActions core.SessionStore
 	Workspace         *workspace.Workspace
@@ -81,12 +80,6 @@ type RuntimeDeps struct {
 	ToolNodeFactory func(ctx context.Context, tools []einotool.BaseTool, resolver core.ExecutionPolicyResolver) (dispatch.ToolInvoker, error)
 	// CheckpointStore overrides the default in-memory checkpoint store for testing.
 	CheckpointStore adk.CheckPointStore
-}
-
-func (d RuntimeDeps) CloneForWorkspace(ws *workspace.Workspace) RuntimeDeps {
-	clone := d
-	clone.Workspace = ws
-	return clone
 }
 
 func (e *Executor) bootstrapContextSessionMessages(
@@ -155,7 +148,7 @@ type DirectResponseRequest struct {
 	ChatModel         einomodel.BaseChatModel
 	AssistantStreamer core.AssistantStreamer
 	Catalog           *tools.Catalog
-	ContextResult     AssembleResultView
+	ContextResult     *AssembleResult
 	AllowedToolNames  []string
 	ExcludedToolNames []string
 	InstructionSuffix string
@@ -164,12 +157,4 @@ type DirectResponseRequest struct {
 type RunAssembly struct {
 	Runner      *adk.Runner
 	Instruction string
-}
-
-// AssembleResultView is the read-only view of context plane assembly result.
-type AssembleResultView struct {
-	Messages          []*schema.Message
-	LifecycleState    *ToolLifecycleState
-	EagerToolNames    []string
-	DeferredToolNames []string
 }

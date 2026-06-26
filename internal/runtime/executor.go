@@ -24,11 +24,10 @@ type Result struct {
 }
 
 type Executor struct {
-	store             core.SessionStore
-	runRuntime        *RunnerFactory
-	controller        *RunController
-	newChatModel      func(ctx context.Context) (einomodel.BaseChatModel, error)
-	sessionSummarySvc *SessionSummaryService
+	store        core.SessionStore
+	runRuntime   *RunnerFactory
+	controller   *RunController
+	newChatModel func(ctx context.Context) (einomodel.BaseChatModel, error)
 }
 
 func NewExecutorWithRunRuntimeAndController(cfg *config.Config, store core.SessionStore, runRuntime *RunnerFactory, controller *RunController) (*Executor, error) {
@@ -48,11 +47,10 @@ func NewExecutorWithRunRuntimeAndController(cfg *config.Config, store core.Sessi
 		return nil, fmt.Errorf("%w: %v", core.ErrExecutionNotReady, err)
 	}
 	exec := &Executor{
-		store:             store,
-		runRuntime:        runRuntime,
-		controller:        controller,
-		sessionSummarySvc: runRuntime.SessionSummarySvc(),
-		newChatModel:      runRuntime.NewChatModel,
+		store:        store,
+		runRuntime:   runRuntime,
+		controller:   controller,
+		newChatModel: runRuntime.NewChatModel,
 	}
 	return exec, nil
 }

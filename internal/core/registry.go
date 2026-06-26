@@ -36,13 +36,3 @@ type ToolRegistry interface {
 	// that need the full ToolSpec, not just the tool instance.
 	ResolveEnabledSpecs(ctx context.Context, runCtx RunContext) ([]ToolSpec, error)
 }
-
-// ProviderRegistry manages the lifecycle of MCP providers.
-type ProviderRegistry interface {
-	RegisterProvider(config ProviderConfig) error
-	UnregisterProvider(name string) error
-	GetProvider(name string) (ProviderInfo, bool)
-	ListProviders() []ProviderInfo
-	// Reconcile applies a new provider config set to the live registry.
-	Reconcile(ctx context.Context, configs []ProviderConfig) error
-}
