@@ -1,7 +1,7 @@
 ---
 doc_type: architecture
 status: current
-last_reviewed: 2026-06-21
+last_reviewed: 2026-06-26
 slug: data-web-store
 ---
 
@@ -19,7 +19,7 @@ Schema migrations drop legacy tables (plans, plan_evidence, plan_steps, tool_res
 
 Cross-package store-facing records and sentinel errors live in `internal/core`. App/runtime/provider packages own the ports they consume:
 
-- app services use narrow ports such as `threadStore`, `runStore`, `runResumeStore`, and other purpose-specific service store ports.
+- app services use `core.SessionStore` and `core.IdentityStore` directly; the former narrow per-service store interfaces (threadStore, runStore, etc.) have been eliminated.
 - runtime uses `core.SessionStore`, `core.ArtifactStore`, and runtime-owned seams.
 - MCP provider exports `TokenStore` and `PendingActionStore` as provider contracts.
 

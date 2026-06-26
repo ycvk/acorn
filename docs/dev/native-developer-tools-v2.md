@@ -5,7 +5,7 @@ component: native-developer-tools
 status: implemented
 summary: Native Developer Tools v2 的 P0 设计合同和工具边界
 tags: [runtime, tools, developer-experience, mobile]
-last_reviewed: 2026-05-25
+last_reviewed: 2026-06-26
 ---
 
 # Native Developer Tools v2
@@ -31,7 +31,7 @@ P0 不做 repo context、LSP、repo map、persistent code index、`/v1/codeintel
 - `ToolContract` 是工具 loading、execution、result、boundary、projection 的唯一工具合同入口。
 - `ToolExecutionScheduler` 拥有工具并发和 path conflict 调度。
 - Tool results stay in the message stream; observation masking replaces old results with placeholders. No durable ledger.
-- SQLite 是 runs、events、messages、pending actions 等 runtime truth 的本地事实源（~8 张表）。
+- SQLite 是 runs、events、messages、pending actions 等 runtime truth 的本地事实源（10 张表）。
 - `internal/memory` file-backed records 是长期 memory truth。
 - `/v1` 和 generated mobile client 是 remote client wire contract。
 - mobile 是后端事实的 control surface，不拥有 runtime truth。
@@ -223,7 +223,7 @@ P0 不允许的 contract 扩展：
 每个 slice 至少要有：
 
 ```bash
-go test ./internal/toolkit ./internal/toolset ./internal/runtime ./internal/contextplane ./internal/store/sqlite ./internal/app ./internal/web
+go test ./internal/tools ./internal/runtime ./internal/store ./internal/api ./internal/core
 cd mobile-kotlin && ./tool/generate_openapi_client.sh --check
 git diff --check
 ```
