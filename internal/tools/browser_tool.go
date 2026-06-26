@@ -121,7 +121,7 @@ func buildBrowserTool(service BrowserService, artifactService ArtifactService, b
 			if err != nil {
 				return BrowserOutput{}, err
 			}
-			preview, truncated := previewString(scan.Extracted.Markdown, defaultBrowserPreviewBytes)
+			preview, truncated := previewBytes([]byte(scan.Extracted.Markdown), defaultBrowserPreviewBytes)
 			output.Scan = &BrowserScanOutput{
 				URL:                scan.URL,
 				Title:              scan.Extracted.Title,

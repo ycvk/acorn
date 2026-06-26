@@ -50,21 +50,9 @@ type Config struct {
 }
 
 type LocalService struct {
-	root            string
-	semanticRuntime *SemanticRuntimeOptions
-	mu              sync.RWMutex
-	index           *MemoryIndex
-}
-
-// SemanticRuntimeOptions wires an optional embedder + vector store. When nil
-// (embedding not configured), Search falls back to keyword matching and
-// Prepare degrades to an empty memory result.
-type SemanticRuntimeOptions struct {
-	Embedder    Embedder
-	VectorStore VectorStore
-	Model       string
-	Dimensions  int
-	BatchSize   int
+	root  string
+	mu    sync.RWMutex
+	index *MemoryIndex
 }
 
 type PrepareRequest struct {

@@ -97,12 +97,12 @@ func applyFactFrontmatter(record *Record, frontmatter string) error {
 		return err
 	}
 	record.Scope = strings.TrimSpace(meta.Scope)
-	record.Tags = normalizeList(meta.Tags)
+	record.Tags = normalizeValues(meta.Tags, true)
 	record.Status = Status(strings.TrimSpace(meta.Status))
 	record.Created = strings.TrimSpace(meta.Created)
 	record.Updated = strings.TrimSpace(meta.Updated)
 	record.SourceRun = strings.TrimSpace(meta.SourceRun)
-	record.SourceRefs = normalizeRefList(meta.SourceRefs)
+	record.SourceRefs = normalizeValues(meta.SourceRefs, false)
 	if err := validateScope(record.Scope); err != nil {
 		return err
 	}
@@ -120,7 +120,7 @@ func applySkillFrontmatter(record *Record, frontmatter string) error {
 	record.Created = strings.TrimSpace(meta.Created)
 	record.Updated = strings.TrimSpace(meta.Updated)
 	record.SourceRun = strings.TrimSpace(meta.SourceRun)
-	record.SourceRefs = normalizeRefList(meta.SourceRefs)
+	record.SourceRefs = normalizeValues(meta.SourceRefs, false)
 	record.Tags = taskPatternTags(record.TaskPattern)
 	return validateCommon(record)
 }
@@ -163,29 +163,14 @@ func validateScope(scope string) error {
 	return fmt.Errorf("scope must be user or workspace:{slug}")
 }
 
-func normalizeList(items []string) []string {
-	seen := make(map[string]struct{}, len(items))
-	out := make([]string, 0, len(items))
-	for _, item := range items {
-		trimmed := strings.ToLower(strings.TrimSpace(item))
-		if trimmed == "" {
-			continue
-		}
-		if _, exists := seen[trimmed]; exists {
-			continue
-		}
-		seen[trimmed] = struct{}{}
-		out = append(out, trimmed)
-	}
-	sort.Strings(out)
-	return out
-}
-
-func normalizeRefList(items []string) []string {
+func normalizeValues(items []string, lowercase bool) []string {
 	seen := make(map[string]struct{}, len(items))
 	out := make([]string, 0, len(items))
 	for _, item := range items {
 		trimmed := strings.TrimSpace(item)
+		if lowercase {
+			trimmed = strings.ToLower(trimmed)
+		}
 		if trimmed == "" {
 			continue
 		}
@@ -211,7 +196,7 @@ func validateDateField(name string, value string) error {
 }
 
 func taskPatternTags(pattern string) []string {
-	return normalizeList(strings.Split(pattern, ","))
+	return normalizeValues(strings.Split(pattern, ","), true)
 }
 
 func titleFromBody(body string) string {

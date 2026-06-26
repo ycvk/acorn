@@ -7,13 +7,6 @@ import (
 	"strings"
 )
 
-// NormalizeProviderTransport returns the trimmed transport value for an MCP
-// provider config. Unknown and empty values are returned as-is so ValidateBase
-// can reject them with an explicit provider-scoped error.
-func NormalizeProviderTransport(transport string) string {
-	return strings.TrimSpace(transport)
-}
-
 // validateSSEURL rejects SSE endpoints whose URL path contains a non-trivial
 // prefix (more than one non-empty path segment after cleaning). Prefixed SSE
 // deployments are known to misroute requests (go-sdk#687); operators should use

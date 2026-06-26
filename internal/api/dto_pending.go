@@ -86,7 +86,7 @@ func pendingActionDetailDTOFromDomain(item PendingActionDetail) PendingActionDet
 		Status:    item.Status,
 		Title:     item.Title,
 		Body:      item.Body,
-		Options:   pendingActionOptionDTOsFromDomain(item.Options),
+		Options:   DefaultConverter.pendingActionOptionDTOsFromDomain(item.Options),
 		Payload:   item.Payload,
 		Reason:    item.Reason,
 		Rule:      item.Rule,
@@ -95,19 +95,7 @@ func pendingActionDetailDTOFromDomain(item PendingActionDetail) PendingActionDet
 }
 
 func pendingActionListResponseFromDomain(items []PendingActionSummary) PendingActionListResponse {
-	return PendingActionListResponse{Items: pendingActionSummaryDTOsFromDomain(items)}
-}
-
-func decisionOptionDTOsFromDomain(options []DecisionOption) []DecisionOptionDTO {
-	return DefaultConverter.decisionOptionDTOsFromDomain(options)
-}
-
-func pendingActionOptionDTOsFromDomain(items []PendingActionOption) []PendingActionOptionDTO {
-	return DefaultConverter.pendingActionOptionDTOsFromDomain(items)
-}
-
-func pendingActionSummaryDTOsFromDomain(items []PendingActionSummary) []PendingActionSummaryDTO {
-	return DefaultConverter.pendingActionSummaryDTOsFromDomain(items)
+	return PendingActionListResponse{Items: DefaultConverter.pendingActionSummaryDTOsFromDomain(items)}
 }
 
 type PairDeviceRequest struct {

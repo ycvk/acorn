@@ -26,7 +26,6 @@ type containerRuntimeDeps struct {
 	runController         *runtime.RunController
 	executeRun            func(context.Context, core.ExecuteRequest, core.StreamSink) (*runtime.Result, error)
 	resumeRun             func(context.Context, string, map[string]any, core.StreamSink) (*runtime.Result, error)
-	executors             func(context.Context) (*runtime.Executor, error)
 }
 
 func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *store.Store) (*containerRuntimeDeps, error) {
@@ -95,7 +94,6 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 		}
 		return exec.ResumeWithTargets(ctx, runID, targets, sink)
 	}
-	executors := newExecutorFactory(cfg, db, runnerFactory, runController)
 
 	return &containerRuntimeDeps{
 		ws:                    ws,
@@ -108,11 +106,5 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 		runController:         runController,
 		executeRun:            executeRun,
 		resumeRun:             resumeRun,
-		executors:             executors,
 	}, nil
-}
-func newExecutorFactory(cfg *config.Config, store core.SessionStore, runnerFactory *runtime.RunnerFactory, controller *runtime.RunController) func(context.Context) (*runtime.Executor, error) {
-	return func(_ context.Context) (*runtime.Executor, error) {
-		return runtime.NewExecutorWithRunRuntimeAndController(cfg, store, runnerFactory, controller)
-	}
 }

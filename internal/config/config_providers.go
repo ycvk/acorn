@@ -55,27 +55,13 @@ func (c *Config) validateProviders() error {
 	return nil
 }
 
-func (c *Config) APIKey() string {
-	for _, p := range c.Providers {
-		if p.Enabled {
-			return p.APIKey
-		}
-	}
-	return ""
-}
-
-func (c *Config) EnabledProviders() []ProviderConfig {
+func (c *Config) EnabledProvider() (ProviderConfig, error) {
 	var enabled []ProviderConfig
 	for _, p := range c.Providers {
 		if p.Enabled {
 			enabled = append(enabled, p)
 		}
 	}
-	return enabled
-}
-
-func (c *Config) EnabledProvider() (ProviderConfig, error) {
-	enabled := c.EnabledProviders()
 	if len(enabled) == 0 {
 		return ProviderConfig{}, errors.New("no enabled providers")
 	}

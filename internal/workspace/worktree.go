@@ -107,7 +107,10 @@ func (w *Workspace) gitOutput(ctx context.Context, args ...string) (string, erro
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
-		return "", fmt.Errorf("git %s: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(stderr.String()))
+		if stderr := strings.TrimSpace(stderr.String()); stderr != "" {
+			return "", fmt.Errorf("git %s: %w: %s", strings.Join(args, " "), err, stderr)
+		}
+		return "", fmt.Errorf("git %s: %w", strings.Join(args, " "), err)
 	}
 	return stdout.String(), nil
 }

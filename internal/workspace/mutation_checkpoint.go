@@ -321,7 +321,7 @@ func (w *Workspace) gitDiffStat(ctx context.Context, paths []string) (string, er
 	}
 	args := []string{"diff", "--stat", "--"}
 	args = append(args, paths...)
-	return runGitStatusCommand(ctx, w.rootDir, args...)
+	return w.gitOutput(ctx, args...)
 }
 
 func (w *Workspace) saveMutationCheckpoint(checkpoint *WorkspaceMutationCheckpoint) error {

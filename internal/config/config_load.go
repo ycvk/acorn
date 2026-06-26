@@ -56,7 +56,7 @@ func Load(path string) (*Config, error) {
 	for i := range cfg.MCP.Providers {
 		cfg.MCP.Providers[i].WorkDir = resolveDir(cfg.ConfigDir, cfg.MCP.Providers[i].WorkDir)
 		cfg.MCP.Providers[i].Command = resolveExecutable(cfg.ConfigDir, cfg.MCP.Providers[i].Command)
-		cfg.MCP.Providers[i].Transport = NormalizeProviderTransport(cfg.MCP.Providers[i].Transport)
+		cfg.MCP.Providers[i].Transport = strings.TrimSpace(cfg.MCP.Providers[i].Transport)
 	}
 
 	if err := cfg.ValidateBase(); err != nil {

@@ -20,10 +20,6 @@ type auditedTool struct {
 	validator *toolArgumentValidator
 }
 
-func getRunID(ctx context.Context) string {
-	return core.GetRunID(ctx)
-}
-
 func wrapToolForAudit(ctx context.Context, store core.EventAppender, spec core.ToolSpec) (einotool.BaseTool, error) {
 	info, err := spec.Tool.Info(ctx)
 	if err != nil {

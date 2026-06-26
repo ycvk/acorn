@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/wire"
 )
 
@@ -66,7 +67,7 @@ func smokeRunError(result *wire.RunOnceResult) error {
 	case "succeeded":
 		return nil
 	case "failed":
-		return fmt.Errorf("smoke run %s failed: %s", result.RunID, firstNonEmpty(result.Error, "no error detail recorded"))
+		return fmt.Errorf("smoke run %s failed: %s", result.RunID, skills.FirstNonEmpty(result.Error, "no error detail recorded"))
 	default:
 		return fmt.Errorf("smoke run %s did not complete (status=%s)", result.RunID, result.Status)
 	}

@@ -1,12 +1,14 @@
 package tools
 
 import (
+	"maps"
+
 	"github.com/ycvk/acorn/internal/skills"
 )
 
 func EligibilityContext(catalog *Catalog, env map[string]string) skills.EligibilityContext {
 	if catalog == nil {
-		return skills.EligibilityContext{Env: copyEnv(env)}
+		return skills.EligibilityContext{Env: maps.Clone(env)}
 	}
 	specs := catalog.EnabledSpecs()
 	availableTools := make([]string, 0, len(specs))
@@ -30,17 +32,6 @@ func EligibilityContext(catalog *Catalog, env map[string]string) skills.Eligibil
 	return skills.EligibilityContext{
 		AvailableTools:    availableTools,
 		AvailableToolsets: availableToolsets,
-		Env:               copyEnv(env),
+		Env:               maps.Clone(env),
 	}
-}
-
-func copyEnv(env map[string]string) map[string]string {
-	if len(env) == 0 {
-		return nil
-	}
-	out := make(map[string]string, len(env))
-	for key, value := range env {
-		out[key] = value
-	}
-	return out
 }

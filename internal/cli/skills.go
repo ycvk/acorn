@@ -250,7 +250,7 @@ func renderSkillsCheck(report skills.HealthReport) string {
 
 func renderHealthFailure(failure skills.HealthFailure) string {
 	parts := []string{string(failure.Kind)}
-	if label := firstNonEmpty(failure.SkillID, failure.Path); label != "" {
+	if label := skills.FirstNonEmpty(failure.SkillID, failure.Path); label != "" {
 		parts = append(parts, label)
 	}
 	if failure.Message != "" {
@@ -268,13 +268,4 @@ func skillCheckError(report skills.HealthReport) error {
 		failures = append(failures, renderHealthFailure(failure))
 	}
 	return errors.New("skill check failed: " + strings.Join(failures, " | "))
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if trimmed := strings.TrimSpace(value); trimmed != "" {
-			return trimmed
-		}
-	}
-	return ""
 }

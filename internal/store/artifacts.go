@@ -181,18 +181,10 @@ func (s *ArtifactService) ReadArtifactRange(ctx context.Context, req core.Artifa
 }
 
 func (s *ArtifactService) ListByRun(ctx context.Context, runID string) ([]core.ArtifactRecord, error) {
-	runID = strings.TrimSpace(runID)
-	if runID == "" {
-		return nil, fmt.Errorf("artifact run_id is required")
-	}
 	return s.store.ListByRun(ctx, runID)
 }
 
 func (s *ArtifactService) ListBySession(ctx context.Context, sessionID string) ([]core.ArtifactRecord, error) {
-	sessionID = strings.TrimSpace(sessionID)
-	if sessionID == "" {
-		return nil, fmt.Errorf("artifact session_id is required")
-	}
 	return s.store.ListBySession(ctx, sessionID)
 }
 

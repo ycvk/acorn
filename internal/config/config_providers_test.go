@@ -242,40 +242,6 @@ func TestValidateExecutionReady_DisabledProviderNotValidated(t *testing.T) {
 	}
 }
 
-func TestConfig_APIKey(t *testing.T) {
-	cfg := &Config{
-		Providers: []ProviderConfig{
-			{Enabled: false, APIKey: "disabled-key"},
-			{Enabled: true, APIKey: "first-enabled-key"},
-			{Enabled: true, APIKey: "second-enabled-key"},
-		},
-	}
-	if got, want := cfg.APIKey(), "first-enabled-key"; got != want {
-		t.Fatalf("APIKey = %q, want %q", got, want)
-	}
-}
-
-func TestConfig_EnabledProviders(t *testing.T) {
-	cfg := &Config{
-		Providers: []ProviderConfig{
-			{Name: "a", Enabled: false},
-			{Name: "b", Enabled: true},
-			{Name: "c", Enabled: false},
-			{Name: "d", Enabled: true},
-		},
-	}
-	enabled := cfg.EnabledProviders()
-	if got, want := len(enabled), 2; got != want {
-		t.Fatalf("len(EnabledProviders) = %d, want %d", got, want)
-	}
-	if got, want := enabled[0].Name, "b"; got != want {
-		t.Fatalf("enabled[0].Name = %q, want %q", got, want)
-	}
-	if got, want := enabled[1].Name, "d"; got != want {
-		t.Fatalf("enabled[1].Name = %q, want %q", got, want)
-	}
-}
-
 func TestYAML_LoadProvider(t *testing.T) {
 	configBody := `providers:
   - name: primary

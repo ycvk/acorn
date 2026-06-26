@@ -26,9 +26,7 @@ func (s *LocalService) Prepare(ctx context.Context, req PrepareRequest) (*Prepar
 		return nil, err
 	}
 
-	// Semantic retrieval is an optional enhancement on the run hot path. When no
-	// embedder/vector store is wired, Search falls back to keyword matching, so
-	// Prepare still returns useful recalls. When the caller asked for Explain
+	// Search uses keyword matching; when the caller asked for Explain
 	// (eval / replay / debug; the run hot path never does), the search explain
 	// is forwarded.
 	search, err := s.Search(ctx, SearchRequest{

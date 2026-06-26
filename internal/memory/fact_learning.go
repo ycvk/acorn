@@ -33,7 +33,7 @@ func (s *LocalService) CreateFact(ctx context.Context, req CreateFactRequest) (*
 		Kind:    KindFact,
 		Title:   strings.TrimSpace(req.Title),
 		Scope:   scope,
-		Tags:    normalizeList(req.Tags),
+		Tags:    normalizeValues(req.Tags, true),
 		Status:  StatusUnverified,
 		Body:    strings.TrimSpace(req.Body),
 		Created: now,

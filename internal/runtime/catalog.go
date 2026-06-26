@@ -117,7 +117,7 @@ type loadToolsOutput struct {
 func NewLoadToolsTool() (einotool.BaseTool, error) {
 	return toolutils.InferTool("load_tools", "Load deferred tool definitions by query or exact tool names.", func(ctx context.Context, input loadToolsInput) (loadToolsOutput, error) {
 		result, err := DeferredLoad(ctx, DeferredLoadRequest{
-			RunID:     getRunID(ctx),
+			RunID:     core.GetRunID(ctx),
 			SessionID: core.GetSessionID(ctx),
 			Query:     strings.TrimSpace(input.Query),
 			ToolNames: append([]string(nil), input.ToolNames...),

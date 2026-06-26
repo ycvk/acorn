@@ -99,7 +99,7 @@ func TestFirstNonEmpty(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := firstNonEmpty(tt.values...)
+			got := FirstNonEmpty(tt.values...)
 			if got != tt.want {
 				t.Fatalf("firstNonEmpty(%v) = %q, want %q", tt.values, got, tt.want)
 			}

@@ -21,22 +21,6 @@ const (
 	SourceUser      Source = "user"
 )
 
-type ResourceSpec struct {
-	Path string `json:"path"`
-	Kind string `json:"kind,omitempty"`
-}
-
-type CreatorOutput struct {
-	SkillID       string         `json:"skill_id"`
-	Directory     string         `json:"directory"`
-	SkillMarkdown string         `json:"skill_markdown"`
-	Description   string         `json:"description"`
-	TriggerHints  []string       `json:"trigger_hints,omitempty"`
-	Resources     []ResourceSpec `json:"resources,omitempty"`
-	Scripts       []ResourceSpec `json:"scripts,omitempty"`
-	SourceRunID   string         `json:"source_run_id,omitempty"`
-}
-
 type Spec struct {
 	ID             string
 	Name           string

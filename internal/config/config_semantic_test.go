@@ -59,15 +59,6 @@ memory:
 	}
 }
 
-func TestValidateMemorySemanticReadyDoesNotRequireChatProviderAPIKey(t *testing.T) {
-	cfg := validSemanticConfig()
-	cfg.Providers[0].APIKey = ""
-
-	if err := cfg.ValidateMemorySemanticReady(); err != nil {
-		t.Fatalf("ValidateMemorySemanticReady: %v", err)
-	}
-}
-
 func TestValidateExecutionReadyAllowsUnconfiguredMemorySemantic(t *testing.T) {
 	cfg := validSemanticConfig()
 	cfg.Memory.Semantic.Embedding.Model = ""

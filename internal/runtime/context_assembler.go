@@ -22,7 +22,7 @@ func prepareRunMemory(ctx context.Context, deps RuntimeDeps, req RunnerBuildRequ
 	if err != nil {
 		return nil, fmt.Errorf("prepare memory: %w", err)
 	}
-	if err := emitRunMemoryEvents(ctx, deps, req, workspaceSlug, result); err != nil {
+	if err := emitMemoryPreparedEvent(ctx, deps.Store, req, memory.WorkspaceScope(workspaceSlug), result); err != nil {
 		return nil, err
 	}
 	return result, nil
@@ -33,13 +33,6 @@ func workspaceSlug(deps RuntimeDeps) string {
 		return ""
 	}
 	return memory.WorkspaceSlug(deps.Workspace.Root())
-}
-
-func emitRunMemoryEvents(ctx context.Context, deps RuntimeDeps, req RunnerBuildRequest, workspaceSlug string, result *memory.PrepareResult) error {
-	if err := emitMemoryPreparedEvent(ctx, deps.Store, req, memory.WorkspaceScope(workspaceSlug), result); err != nil {
-		return err
-	}
-	return nil
 }
 
 func assembleContext(

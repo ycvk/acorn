@@ -17,7 +17,7 @@ func (s *Server) handleClientListThreads(w http.ResponseWriter, r *http.Request)
 		s.respondClientKnownError(w, r, err)
 		return
 	}
-	s.respondJSON(w, r, http.StatusOK, ThreadListResponse{Items: threadDTOsFromDomain(items)})
+	s.respondJSON(w, r, http.StatusOK, ThreadListResponse{Items: DefaultConverter.threadDTOsFromDomain(items)})
 }
 
 func (s *Server) handleClientCreateThread(w http.ResponseWriter, r *http.Request) {
@@ -30,7 +30,7 @@ func (s *Server) handleClientCreateThread(w http.ResponseWriter, r *http.Request
 		s.respondClientKnownError(w, r, err)
 		return
 	}
-	s.respondJSON(w, r, http.StatusCreated, threadDTOFromDomain(*item))
+	s.respondJSON(w, r, http.StatusCreated, DefaultConverter.threadDTOFromDomain(*item))
 }
 
 func (s *Server) handleClientGetThread(w http.ResponseWriter, r *http.Request) {
@@ -39,7 +39,7 @@ func (s *Server) handleClientGetThread(w http.ResponseWriter, r *http.Request) {
 		s.respondClientKnownError(w, r, err)
 		return
 	}
-	s.respondJSON(w, r, http.StatusOK, threadDTOFromDomain(*item))
+	s.respondJSON(w, r, http.StatusOK, DefaultConverter.threadDTOFromDomain(*item))
 }
 
 func (s *Server) handleClientUpdateThread(w http.ResponseWriter, r *http.Request) {
@@ -52,7 +52,7 @@ func (s *Server) handleClientUpdateThread(w http.ResponseWriter, r *http.Request
 		s.respondClientKnownError(w, r, err)
 		return
 	}
-	s.respondJSON(w, r, http.StatusOK, threadDTOFromDomain(*item))
+	s.respondJSON(w, r, http.StatusOK, DefaultConverter.threadDTOFromDomain(*item))
 }
 
 func (s *Server) handleClientDeleteThread(w http.ResponseWriter, r *http.Request) {

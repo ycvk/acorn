@@ -49,7 +49,7 @@ func (f *RunnerFactory) New(ctx context.Context, req RunnerBuildRequest) (*Activ
 }
 
 func (f *RunnerFactory) BuildCapabilitySpecs(ctx context.Context) ([]core.ToolSpec, error) {
-	toolset, err := buildToolset(ctx, f.deps, "", true)
+	toolset, err := buildToolset(ctx, f.deps, "")
 	if err != nil {
 		return nil, err
 	}

@@ -75,9 +75,9 @@ func (s *Server) handleClientRunDetail(w http.ResponseWriter, r *http.Request) {
 	}
 	detail := RunDetailDTO{
 		Run:       runDTOFromDomain(*run),
-		Thread:    threadDTOFromDomain(*thread),
+		Thread:    DefaultConverter.threadDTOFromDomain(*thread),
 		Events:    eventDetail.Events,
-		Artifacts: artifactSummaryDTOsFromDomain(artifacts),
+		Artifacts: DefaultConverter.artifactSummaryDTOsFromDomain(artifacts),
 	}
 	s.respondJSON(w, r, http.StatusOK, detail)
 }

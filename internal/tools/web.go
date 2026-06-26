@@ -170,7 +170,7 @@ func buildWebFetchTool(fetcher WebFetchService, artifactService ArtifactService,
 		if err != nil {
 			return WebFetchOutput{}, err
 		}
-		preview, truncated := previewString(result.Extracted.Markdown, defaultWebFetchPreviewBytes)
+		preview, truncated := previewBytes([]byte(result.Extracted.Markdown), defaultWebFetchPreviewBytes)
 		if err := emitToolProgress(ctx, emit, fmt.Sprintf("fetched %s (%d bytes, %s)", result.FinalURL, result.ContentLength, result.Extracted.Method)); err != nil {
 			return WebFetchOutput{}, err
 		}
@@ -212,15 +212,4 @@ func artifactTitle(prefix, title, fallbackURL string) string {
 		return prefix
 	}
 	return prefix + ": " + title
-}
-
-func previewString(value string, maxBytes int) (string, bool) {
-	if maxBytes <= 0 {
-		return value, false
-	}
-	raw := []byte(value)
-	if len(raw) <= maxBytes {
-		return value, false
-	}
-	return string(raw[:maxBytes]), true
 }

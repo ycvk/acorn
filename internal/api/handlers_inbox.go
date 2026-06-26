@@ -29,7 +29,7 @@ func (s *Server) handleClientTools(w http.ResponseWriter, r *http.Request) {
 	snapshot := s.capabilities.Snapshot(r.Context(), CapabilitySnapshotOptions{
 		ProbeMCP: r.URL.Query().Get("probe_mcp") == "1",
 	})
-	items := capabilitiesToolsDTOFromSnapshot(snapshot.Tools)
+	items := DefaultConverter.capabilitiesToolsDTOFromSnapshot(snapshot.Tools)
 	s.respondJSON(w, r, http.StatusOK, ToolListResponse{
 		Items: items,
 		Total: len(items),

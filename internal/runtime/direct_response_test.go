@@ -563,7 +563,6 @@ func directResponseContextResultForTest(runID string, sessionID string, eagerToo
 		SessionID:     strings.TrimSpace(sessionID),
 		LoadedTools:   loaded,
 		DeferredTools: map[string]DeferredToolRecord{},
-		MaxAgeTurns:   2,
 	}
 	return &AssembleResult{
 		LifecycleState: state,

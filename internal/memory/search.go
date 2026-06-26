@@ -7,8 +7,7 @@ import (
 	"strings"
 )
 
-// Search runs semantic retrieval when an embedder+vector store are wired,
-// otherwise falls back to simple keyword matching over record title/body/tags.
+// Search runs keyword matching over record title/body/tags.
 func (s *LocalService) Search(ctx context.Context, req SearchRequest) (*SearchResult, error) {
 	if s == nil {
 		return nil, fmt.Errorf("memory service is nil")
@@ -25,83 +24,7 @@ func (s *LocalService) Search(ctx context.Context, req SearchRequest) (*SearchRe
 	if err != nil {
 		return nil, err
 	}
-
-	runtime := s.semanticRuntimeSnapshot()
-	if runtime != nil && runtime.Embedder != nil && runtime.VectorStore != nil {
-		return s.searchByVector(ctx, req, query, limit, runtime)
-	}
 	return s.searchByKeyword(ctx, req, query, limit)
-}
-
-// searchByVector embeds the query and searches the vector store, then resolves
-// hits to full records through the selection + scope filters.
-func (s *LocalService) searchByVector(ctx context.Context, req SearchRequest, query string, limit int, runtime *SemanticRuntimeOptions) (*SearchResult, error) {
-	embedReq := EmbedRequest{Inputs: []EmbedInput{{Ref: "query", Text: query}}}
-	embedResult, err := runtime.Embedder.Embed(ctx, embedReq)
-	if err != nil {
-		return nil, fmt.Errorf("embed search query: %w", err)
-	}
-	if err := ValidateEmbedResult(embedReq, embedResult, runtime.Dimensions); err != nil {
-		return nil, err
-	}
-	if embedResult.Model != runtime.Model {
-		return nil, fmt.Errorf("search embed model = %q, want %q", embedResult.Model, runtime.Model)
-	}
-	hits, err := runtime.VectorStore.Search(ctx, embedResult.Vectors[0].Values, limit+8)
-	if err != nil {
-		return nil, fmt.Errorf("query vector store: %w", err)
-	}
-
-	selection := RecordSelection{
-		IncludeInactive: req.IncludeInactive,
-		IncludeRetired:  req.IncludeRetired,
-	}
-	selectedRefs, err := s.selectedRecordRefs(ctx, selection)
-	if err != nil {
-		return nil, fmt.Errorf("select search records: %w", err)
-	}
-
-	kindFilter := kindSet(req.Kinds)
-	items := make([]SearchItem, 0, len(hits))
-	for _, hit := range hits {
-		if strings.TrimSpace(hit.Ref) == "" {
-			continue
-		}
-		record, err := s.GetRecordByRef(ctx, hit.Ref)
-		if err != nil {
-			// A stale vector (record deleted from FS) is skipped, not fatal.
-			continue
-		}
-		if _, ok := selectedRefs[record.Ref]; !ok {
-			continue
-		}
-		if len(kindFilter) > 0 {
-			if _, ok := kindFilter[record.Kind]; !ok {
-				continue
-			}
-		}
-		if !scopeMatches(req.Scope, record.Scope) {
-			continue
-		}
-		score := hit.Score + sourceStatusScore(*record)
-		items = append(items, SearchItemFromRecord(*record, score))
-	}
-	sort.SliceStable(items, func(i, j int) bool {
-		if items[i].Score != items[j].Score {
-			return items[i].Score > items[j].Score
-		}
-		return items[i].Ref < items[j].Ref
-	})
-	if len(items) > limit {
-		items = items[:limit]
-	}
-	result := &SearchResult{Items: items}
-	if req.Explain {
-		result.Explain = buildSearchExplain(req.Query, req.Scope, items, []SearchStageExplain{
-			{Name: searchStageSemanticVector, CandidateCount: len(items)},
-		})
-	}
-	return result, nil
 }
 
 // searchByKeyword is the embedding-not-configured fallback: substring match
@@ -157,40 +80,6 @@ func (s *LocalService) searchByKeyword(ctx context.Context, req SearchRequest, q
 		})
 	}
 	return result, nil
-}
-
-// SetSemanticRuntime wires the optional embedder + vector store. Both must be
-// non-nil when called; pass nil via the service constructor to disable.
-func (s *LocalService) SetSemanticRuntime(opts SemanticRuntimeOptions) error {
-	if s == nil {
-		return fmt.Errorf("memory service is nil")
-	}
-	if opts.Embedder == nil {
-		return fmt.Errorf("semantic runtime embedder is required")
-	}
-	if opts.VectorStore == nil {
-		return fmt.Errorf("semantic runtime vector store is required")
-	}
-	if strings.TrimSpace(opts.Model) == "" {
-		return fmt.Errorf("semantic runtime model is required")
-	}
-	if opts.Dimensions <= 0 {
-		return fmt.Errorf("semantic runtime dimensions must be > 0")
-	}
-	s.mu.Lock()
-	s.semanticRuntime = &opts
-	s.mu.Unlock()
-	return nil
-}
-
-func (s *LocalService) semanticRuntimeSnapshot() *SemanticRuntimeOptions {
-	if s == nil {
-		return nil
-	}
-	s.mu.RLock()
-	runtime := s.semanticRuntime
-	s.mu.RUnlock()
-	return runtime
 }
 
 func (s *LocalService) allRecords(ctx context.Context) ([]Record, error) {
@@ -265,9 +154,7 @@ func SearchItemFromRecord(record Record, score float64) SearchItem {
 }
 
 const (
-	searchStageSemanticUnwired = "semantic_runtime_unwired"
-	searchStageSemanticVector  = "semantic_vector"
-	searchStageKeyword         = "keyword_match"
+	searchStageKeyword = "keyword_match"
 )
 
 func buildSearchExplain(query string, scope string, items []SearchItem, stages []SearchStageExplain) *SearchExplain {

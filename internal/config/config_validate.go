@@ -146,20 +146,6 @@ func (c *Config) MemorySemanticConfigured() bool {
 	return strings.TrimSpace(embedding.Model) != "" || strings.TrimSpace(embedding.BaseURL) != ""
 }
 
-func (c *Config) ValidateMemorySemanticReady() error {
-	if err := c.ValidateBase(); err != nil {
-		return err
-	}
-	if err := c.validateMemorySemanticExecution(); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (c *Config) Validate() error {
-	return c.ValidateExecutionReady()
-}
-
 func (c *Config) WorkspaceRoot() string {
 	ws, err := c.Workspace()
 	if err != nil || ws == nil {

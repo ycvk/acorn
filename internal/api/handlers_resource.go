@@ -68,7 +68,7 @@ func (s *Server) handleListMemoryFacts(w http.ResponseWriter, r *http.Request) {
 		s.respondKnownError(w, r, err)
 		return
 	}
-	s.respondJSON(w, r, http.StatusOK, MemoryRecordListResponse{Items: memoryRecordDTOsFromDomain(limitRecords(items, limit))})
+	s.respondJSON(w, r, http.StatusOK, MemoryRecordListResponse{Items: DefaultConverter.memoryRecordDTOsFromDomain(limitRecords(items, limit))})
 }
 
 func (s *Server) handleListMemorySkills(w http.ResponseWriter, r *http.Request) {
@@ -87,7 +87,7 @@ func (s *Server) handleListMemorySkills(w http.ResponseWriter, r *http.Request) 
 		s.respondKnownError(w, r, err)
 		return
 	}
-	s.respondJSON(w, r, http.StatusOK, MemoryRecordListResponse{Items: memoryRecordDTOsFromDomain(limitRecords(items, limit))})
+	s.respondJSON(w, r, http.StatusOK, MemoryRecordListResponse{Items: DefaultConverter.memoryRecordDTOsFromDomain(limitRecords(items, limit))})
 }
 
 func (s *Server) handleListMemoryHistory(w http.ResponseWriter, r *http.Request) {
@@ -106,7 +106,7 @@ func (s *Server) handleListMemoryHistory(w http.ResponseWriter, r *http.Request)
 		s.respondKnownError(w, r, err)
 		return
 	}
-	s.respondJSON(w, r, http.StatusOK, MemoryRecordListResponse{Items: memoryRecordDTOsFromDomain(limitRecords(items, limit))})
+	s.respondJSON(w, r, http.StatusOK, MemoryRecordListResponse{Items: DefaultConverter.memoryRecordDTOsFromDomain(limitRecords(items, limit))})
 }
 
 func (s *Server) handleSearchMemory(w http.ResponseWriter, r *http.Request) {
@@ -141,7 +141,7 @@ func (s *Server) handleSearchMemory(w http.ResponseWriter, r *http.Request) {
 	if result != nil {
 		items = result.Items
 	}
-	s.respondJSON(w, r, http.StatusOK, MemorySearchResponse{Items: memorySearchItemDTOsFromDomain(items)})
+	s.respondJSON(w, r, http.StatusOK, MemorySearchResponse{Items: DefaultConverter.memorySearchItemDTOsFromDomain(items)})
 }
 
 func parseMemoryKinds(raw string) ([]memory.Kind, error) {

@@ -1,7 +1,6 @@
 package api
 
 import (
-	"github.com/ycvk/acorn/internal/memory"
 	"github.com/ycvk/acorn/internal/skills"
 )
 
@@ -68,18 +67,6 @@ type CapabilitiesToolDTO struct {
 	DefaultTimeout int    `json:"default_timeout,omitempty"`
 }
 
-func capabilitiesSummaryDTOFromSnapshot(snapshot SystemCapabilitySummary) CapabilitiesSummaryDTO {
-	return DefaultConverter.capabilitiesSummaryDTOFromSnapshot(snapshot)
-}
-
-func capabilitiesModelDTOFromSnapshot(snapshot SystemModelCapabilities) CapabilitiesModelDTO {
-	return DefaultConverter.capabilitiesModelDTOFromSnapshot(snapshot)
-}
-
-func capabilitiesFeaturesDTOFromSnapshot(snapshot SystemFeatureCapabilities) CapabilitiesFeaturesDTO {
-	return DefaultConverter.capabilitiesFeaturesDTOFromSnapshot(snapshot)
-}
-
 func runtimeReadinessDTOFromSnapshot(snapshot *RuntimeReadiness) RuntimeReadinessDTO {
 	if snapshot == nil {
 		return RuntimeReadinessDTO{}
@@ -88,14 +75,6 @@ func runtimeReadinessDTOFromSnapshot(snapshot *RuntimeReadiness) RuntimeReadines
 		Status: string(snapshot.Status),
 		Reason: snapshot.Reason,
 	}
-}
-
-func providerReadinessDTOsFromSnapshot(snapshot []ProviderReadinessSummary) []ProviderReadinessDTO {
-	return DefaultConverter.providerReadinessDTOsFromSnapshot(snapshot)
-}
-
-func capabilitiesToolsDTOFromSnapshot(snapshot []SystemToolCapability) []CapabilitiesToolDTO {
-	return DefaultConverter.capabilitiesToolsDTOFromSnapshot(snapshot)
 }
 
 // SystemStatusDTO represents the overall system readiness snapshot.
@@ -120,9 +99,9 @@ type InboxResponse struct {
 
 func inboxDTOFromDomain(inbox MobileInbox, workspaceRoot string) InboxResponse {
 	return InboxResponse{
-		PendingActions:     pendingActionSummaryDTOsFromDomain(inbox.PendingActions),
-		ActiveRuns:         runSummaryDTOsFromDomain(inbox.ActiveRuns),
-		RecentTerminalRuns: runSummaryDTOsFromDomain(inbox.RecentTerminalRuns),
+		PendingActions:     DefaultConverter.pendingActionSummaryDTOsFromDomain(inbox.PendingActions),
+		ActiveRuns:         DefaultConverter.runSummaryDTOsFromDomain(inbox.ActiveRuns),
+		RecentTerminalRuns: DefaultConverter.runSummaryDTOsFromDomain(inbox.RecentTerminalRuns),
 		System:             systemStatusDTOFromSnapshot(inbox.System, workspaceRoot),
 	}
 }
@@ -130,11 +109,11 @@ func inboxDTOFromDomain(inbox MobileInbox, workspaceRoot string) InboxResponse {
 func systemStatusDTOFromSnapshot(snapshot SystemCapabilities, workspaceRoot string) SystemStatusDTO {
 	return SystemStatusDTO{
 		RuntimeReadiness:  runtimeReadinessDTOFromSnapshot(snapshot.RuntimeReadiness),
-		ProviderReadiness: providerReadinessDTOsFromSnapshot(snapshot.ProviderReadiness),
-		Model:             capabilitiesModelDTOFromSnapshot(snapshot.Model),
+		ProviderReadiness: DefaultConverter.providerReadinessDTOsFromSnapshot(snapshot.ProviderReadiness),
+		Model:             DefaultConverter.capabilitiesModelDTOFromSnapshot(snapshot.Model),
 		WorkspaceRoot:     workspaceRoot,
-		Summary:           capabilitiesSummaryDTOFromSnapshot(snapshot.Summary),
-		Features:          capabilitiesFeaturesDTOFromSnapshot(snapshot.Features),
+		Summary:           DefaultConverter.capabilitiesSummaryDTOFromSnapshot(snapshot.Summary),
+		Features:          DefaultConverter.capabilitiesFeaturesDTOFromSnapshot(snapshot.Features),
 	}
 }
 
@@ -206,7 +185,7 @@ func skillSummaryDTOFromView(item skills.View) SkillSummaryDTO {
 		Summary:        item.Summary,
 		PromotedFrom:   item.PromotedFrom,
 		Eligible:       item.Eligible,
-		Requirements:   skillRequirementsDTOFromDomain(item.Requires),
+		Requirements:   DefaultConverter.skillRequirementsDTOFromDomain(item.Requires),
 		CreatedByRunID: item.CreatedByRunID,
 		Replaces:       append([]string(nil), item.Replaces...),
 	}
@@ -231,10 +210,6 @@ func skillSummaryDTOsFromViews(items []skills.View) []SkillSummaryDTO {
 		out = append(out, skillSummaryDTOFromView(item))
 	}
 	return out
-}
-
-func skillRequirementsDTOFromDomain(item skills.Requirements) SkillRequirementsDTO {
-	return DefaultConverter.skillRequirementsDTOFromDomain(item)
 }
 
 type MemoryRecordDTO struct {
@@ -278,12 +253,4 @@ type MemorySearchItemDTO struct {
 
 type MemorySearchResponse struct {
 	Items []MemorySearchItemDTO `json:"items"`
-}
-
-func memoryRecordDTOsFromDomain(records []memory.Record) []MemoryRecordDTO {
-	return DefaultConverter.memoryRecordDTOsFromDomain(records)
-}
-
-func memorySearchItemDTOsFromDomain(records []memory.SearchItem) []MemorySearchItemDTO {
-	return DefaultConverter.memorySearchItemDTOsFromDomain(records)
 }

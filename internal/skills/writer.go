@@ -182,8 +182,8 @@ func (l *Loader) writeSkillContent(skill Spec, mutate func(meta *frontmatter, bo
 	if err != nil {
 		return Spec{}, fmt.Errorf("%s: parse skill markdown: %w", action, err)
 	}
-	meta.ID = firstNonEmpty(meta.ID, skill.ID)
-	meta.Name = firstNonEmpty(meta.Name, nameFromMarkdown, skill.Name)
+	meta.ID = FirstNonEmpty(meta.ID, skill.ID)
+	meta.Name = FirstNonEmpty(meta.Name, nameFromMarkdown, skill.Name)
 	updatedMeta, updatedBody := mutate(&meta, strings.TrimRight(markdownBody, "\n"))
 	body, err := renderSkillMarkdownBody(updatedMeta, updatedBody)
 	if err != nil {

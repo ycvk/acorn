@@ -61,10 +61,9 @@ type DefaultOptions struct {
 }
 
 type ContextPlane struct {
-	memoryContextTokenBudget int
-	maxContextTokens         int
-	tokenCounter             TokenCounter
-	memoryBudget             int
+	maxContextTokens int
+	tokenCounter     TokenCounter
+	memoryBudget     int
 }
 
 type ToolLifecycleState struct {
@@ -72,7 +71,6 @@ type ToolLifecycleState struct {
 	SessionID     string
 	LoadedTools   map[string]LoadedToolRecord
 	DeferredTools map[string]DeferredToolRecord
-	MaxAgeTurns   int
 	mu            sync.Mutex
 }
 
@@ -94,10 +92,9 @@ type DeferredToolRecord struct {
 
 func NewDefaultPlane(opts DefaultOptions) *ContextPlane {
 	return &ContextPlane{
-		memoryContextTokenBudget: opts.MemoryContextTokenBudget,
-		maxContextTokens:         opts.MaxContextTokens,
-		tokenCounter:             opts.TokenCounter,
-		memoryBudget:             opts.MemoryContextTokenBudget,
+		maxContextTokens: opts.MaxContextTokens,
+		tokenCounter:     opts.TokenCounter,
+		memoryBudget:     opts.MemoryContextTokenBudget,
 	}
 }
 

@@ -147,11 +147,11 @@ func loadSkillDir(dir, scope string) (Spec, *Problem) {
 	}
 	scripts, err := discoverSkillScripts(dir)
 	if err != nil {
-		return Spec{}, skillProblemForDir(dir, scope, meta.ID, firstNonEmpty(meta.Name, nameFromMarkdown), err.Error())
+		return Spec{}, skillProblemForDir(dir, scope, meta.ID, FirstNonEmpty(meta.Name, nameFromMarkdown), err.Error())
 	}
 	spec := Spec{
-		ID:           firstNonEmpty(meta.ID, filepath.Base(dir)),
-		Name:         firstNonEmpty(meta.Name, nameFromMarkdown, filepath.Base(dir)),
+		ID:           FirstNonEmpty(meta.ID, filepath.Base(dir)),
+		Name:         FirstNonEmpty(meta.Name, nameFromMarkdown, filepath.Base(dir)),
 		Version:      strings.TrimSpace(meta.Version),
 		Category:     strings.TrimSpace(meta.Category),
 		Summary:      strings.TrimSpace(meta.Summary),

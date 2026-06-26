@@ -12,8 +12,6 @@ import (
 	"github.com/ycvk/acorn/internal/core"
 )
 
-const defaultToolLifecycleMaxTurns = 2
-
 type toolLifecycleContextKey struct{}
 
 type ToolLifecycleContext struct {
@@ -92,7 +90,6 @@ func newToolLifecycleState(ctx context.Context, req AssembleRequest) *ToolLifecy
 		SessionID:     strings.TrimSpace(req.SessionID),
 		LoadedTools:   make(map[string]LoadedToolRecord),
 		DeferredTools: make(map[string]DeferredToolRecord),
-		MaxAgeTurns:   defaultToolLifecycleMaxTurns,
 	}
 	if req.ToolCatalog == nil {
 		return state
@@ -153,18 +150,11 @@ func toolDescription(ctx context.Context, spec core.ToolSpec) string {
 }
 
 func sortedLoadedToolNames(state *ToolLifecycleState) []string {
-	if state == nil {
+	if state == nil || len(state.LoadedTools) == 0 {
 		return nil
 	}
 	state.Mu().Lock()
 	defer state.Mu().Unlock()
-	return SortedLoadedToolNamesLocked(state)
-}
-
-func SortedLoadedToolNamesLocked(state *ToolLifecycleState) []string {
-	if state == nil || len(state.LoadedTools) == 0 {
-		return nil
-	}
 	names := make([]string, 0, len(state.LoadedTools))
 	for name := range state.LoadedTools {
 		names = append(names, name)
@@ -174,18 +164,11 @@ func SortedLoadedToolNamesLocked(state *ToolLifecycleState) []string {
 }
 
 func sortedDeferredToolNames(state *ToolLifecycleState) []string {
-	if state == nil {
+	if state == nil || len(state.DeferredTools) == 0 {
 		return nil
 	}
 	state.Mu().Lock()
 	defer state.Mu().Unlock()
-	return SortedDeferredToolNamesLocked(state)
-}
-
-func SortedDeferredToolNamesLocked(state *ToolLifecycleState) []string {
-	if state == nil || len(state.DeferredTools) == 0 {
-		return nil
-	}
 	names := make([]string, 0, len(state.DeferredTools))
 	for name := range state.DeferredTools {
 		names = append(names, name)

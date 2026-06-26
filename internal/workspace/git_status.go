@@ -1,10 +1,8 @@
 package workspace
 
 import (
-	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -40,7 +38,7 @@ func (w *Workspace) InspectGitStatus(ctx context.Context, scopedPath string) (*W
 		args = append(args, "--", filepath.ToSlash(relPath))
 	}
 
-	output, err := runGitStatusCommand(ctx, w.rootDir, args...)
+	output, err := w.gitOutput(ctx, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -65,25 +63,6 @@ func (w *Workspace) InspectGitStatus(ctx context.Context, scopedPath string) (*W
 		})
 	}
 	return result, nil
-}
-
-func runGitStatusCommand(ctx context.Context, root string, args ...string) (string, error) {
-	cmd := exec.CommandContext(ctx, "git", args...)
-	cmd.Dir = root
-
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	if err := cmd.Run(); err != nil {
-		stderrText := strings.TrimSpace(stderr.String())
-		if stderrText == "" {
-			return "", fmt.Errorf("git %s: %w", strings.Join(args, " "), err)
-		}
-		return "", fmt.Errorf("git %s: %s", strings.Join(args, " "), stderrText)
-	}
-	return stdout.String(), nil
 }
 
 func splitGitStatusLines(body string) []string {

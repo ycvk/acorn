@@ -39,15 +39,10 @@ func NewContextBridge() core.ToolCallContextBridge {
 	return artifactToolBridge{}
 }
 
-func buildRunToolset(ctx context.Context, deps RuntimeDeps, sessionID string) (*Toolset, error) {
-	return buildToolset(ctx, deps, sessionID, true)
-}
-
 func buildToolset(
 	ctx context.Context,
 	deps RuntimeDeps,
 	sessionID string,
-	includePlanning bool,
 ) (_ *Toolset, err error) {
 	if err := validateToolsetDeps(deps); err != nil {
 		return nil, err
@@ -63,7 +58,7 @@ func buildToolset(
 	if err != nil {
 		return nil, err
 	}
-	catalog, err := assembleToolsetCatalog(ctx, deps.Config, local.catalog, aux, includePlanning)
+	catalog, err := assembleToolsetCatalog(ctx, deps.Config, local.catalog, aux)
 	if err != nil {
 		return nil, err
 	}
@@ -111,12 +106,12 @@ func closeToolsetOnErr(closers []io.Closer, err *error) {
 	}
 }
 
-func assembleToolsetCatalog(ctx context.Context, cfg *config.Config, localCatalog *tools.LocalCatalog, aux auxTools, includePlanning bool) (*tools.Catalog, error) {
+func assembleToolsetCatalog(ctx context.Context, cfg *config.Config, localCatalog *tools.LocalCatalog, aux auxTools) (*tools.Catalog, error) {
 	coreSpecs, err := buildCoreToolSpecs(ctx, cfg, localCatalog, aux)
 	if err != nil {
 		return nil, err
 	}
-	extra, err := buildExtraToolSpecs(ctx, cfg, aux, includePlanning)
+	extra, err := buildExtraToolSpecs(ctx, cfg, aux)
 	if err != nil {
 		return nil, err
 	}
@@ -165,10 +160,7 @@ func buildCoreToolSpecs(ctx context.Context, cfg *config.Config, localCatalog *t
 	return specs, nil
 }
 
-func buildExtraToolSpecs(ctx context.Context, cfg *config.Config, aux auxTools, includePlanning bool) ([]core.ToolSpec, error) {
-	if !includePlanning {
-		return nil, nil
-	}
+func buildExtraToolSpecs(ctx context.Context, cfg *config.Config, aux auxTools) ([]core.ToolSpec, error) {
 	loadToolsTool, err := NewLoadToolsTool()
 	if err != nil {
 		return nil, fmt.Errorf("build load_tools tool: %w", err)
@@ -278,7 +270,7 @@ func buildMemoryTools(ctx context.Context, deps RuntimeDeps) ([]einotool.BaseToo
 // buildRunCapabilities builds the run's tool catalog (local tools + MCP specs)
 // and resolves a stable skill snapshot for capability eligibility.
 func buildRunCapabilities(ctx context.Context, deps RuntimeDeps, sessionID, runID string, mcpManager *mcpprovider.Manager) (*runCapabilities, error) {
-	toolset, err := buildRunToolset(ctx, deps, sessionID)
+	toolset, err := buildToolset(ctx, deps, sessionID)
 	if err != nil {
 		return nil, err
 	}

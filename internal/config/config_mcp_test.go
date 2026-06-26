@@ -7,26 +7,6 @@ import (
 	"testing"
 )
 
-func TestNormalizeProviderTransport(t *testing.T) {
-	cases := []struct {
-		input string
-		want  string
-	}{
-		{"", ""},
-		{"  ", ""},
-		{"stdio", "stdio"},
-		{"sse", "sse"},
-		{"streamable_http", "streamable_http"},
-		{"unknown", "unknown"},
-	}
-	for _, tc := range cases {
-		got := NormalizeProviderTransport(tc.input)
-		if got != tc.want {
-			t.Errorf("NormalizeProviderTransport(%q) = %q, want %q", tc.input, got, tc.want)
-		}
-	}
-}
-
 func TestLoadMCPProviderWithoutTransportRejected(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "acorn.yaml")

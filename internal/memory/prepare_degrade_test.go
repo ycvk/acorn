@@ -5,10 +5,9 @@ import (
 )
 
 // TestPrepareDegradesWhenSemanticRuntimeUnwired verifies the run-hot-path Prepare
-// contract: when no semantic runtime is wired (embedding not configured), Prepare
-// degrades to an empty memory result so the run still proceeds, instead of failing
-// the whole run. The retained boundary is asserted alongside: an explicit Search on
-// the same unwired service falls back to keyword matching (no fake-vector path),
+// contract: Prepare returns an empty memory result when no records match,
+// instead of failing the whole run. The retained boundary is asserted alongside:
+// an explicit Search on the same service falls back to keyword matching,
 // returning an empty result when no records match rather than failing the run.
 func TestPrepareDegradesWhenSemanticRuntimeUnwired(t *testing.T) {
 	service := newTestService(t)

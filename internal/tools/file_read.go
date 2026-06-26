@@ -110,7 +110,7 @@ func runListFiles(ctx context.Context, ws WorkspaceView, input ListFilesInput, e
 	if limit <= 0 {
 		limit = defaultListFilesLimit
 	}
-	state := &listFilesState{entries: make([]ListFileEntry, 0, minInt(limit, 32))}
+	state := &listFilesState{entries: make([]ListFileEntry, 0, min(limit, 32))}
 	err = filepath.WalkDir(basePath, func(current string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
@@ -311,7 +311,7 @@ func runSearchText(ctx context.Context, ws WorkspaceView, input SearchTextInput,
 }
 
 func searchWorkspaceFiles(ctx context.Context, ws WorkspaceView, basePath, baseRel, query string, input SearchTextInput, matcher func(string) (int, bool), limit int, emit ToolProgressEmitter) (SearchTextOutput, error) {
-	state := &searchState{matches: make([]SearchTextMatch, 0, minInt(limit, 16))}
+	state := &searchState{matches: make([]SearchTextMatch, 0, min(limit, 16))}
 	err := walkWorkspaceFiles(basePath, func(current string, entry fs.DirEntry) error {
 		return scanSearchFile(ctx, ws, current, matcher, state, limit, emit)
 	})
@@ -457,11 +457,4 @@ func isBinaryFile(body []byte) bool {
 		sample = sample[:8192]
 	}
 	return bytes.IndexByte(sample, 0) >= 0
-}
-
-func minInt(a int, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }

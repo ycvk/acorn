@@ -32,10 +32,6 @@ type PendingActionSummaryDTO struct {
 	CreatedAt time.Time                `json:"created_at"`
 }
 
-func runSummaryDTOsFromDomain(items []RunSummary) []RunSummaryDTO {
-	return DefaultConverter.runSummaryDTOsFromDomain(items)
-}
-
 type CreateRunRequest struct {
 	SkillID string `json:"skill_id,omitempty"`
 	Input   string `json:"input,omitempty"`
@@ -61,10 +57,6 @@ type ArtifactSummaryDTO struct {
 	SizeBytes           int64     `json:"size_bytes"`
 	SHA256              string    `json:"sha256"`
 	CreatedAt           time.Time `json:"created_at"`
-}
-
-func artifactSummaryDTOsFromDomain(items []ArtifactSummary) []ArtifactSummaryDTO {
-	return DefaultConverter.artifactSummaryDTOsFromDomain(items)
 }
 
 type RunDetailDTO struct {
@@ -116,14 +108,6 @@ type CreateThreadRequest struct {
 // UpdateThreadRequest is the body for updating a thread.
 type UpdateThreadRequest struct {
 	Title string `json:"title"`
-}
-
-func threadDTOFromDomain(thread Thread) ThreadDTO {
-	return DefaultConverter.threadDTOFromDomain(thread)
-}
-
-func threadDTOsFromDomain(items []Thread) []ThreadDTO {
-	return DefaultConverter.threadDTOsFromDomain(items)
 }
 
 type MessageContentDTO struct {
@@ -220,6 +204,9 @@ func messageDTOFromDomain(message Message) MessageDTO {
 	}
 }
 
+// messagePartDTOsFromDomain is hand-written (not goverter-generated) because it
+// applies a result-kind post-processing step (nonNilStrings) that goverter
+// cannot express.
 func messagePartDTOsFromDomain(parts []MessagePart) []MessagePartDTO {
 	if len(parts) == 0 {
 		return nil
@@ -236,7 +223,7 @@ func messagePartDTOsFromDomain(parts []MessagePart) []MessagePartDTO {
 			Changed:          part.Changed,
 			Verified:         part.Verified,
 			Risks:            part.Risks,
-			Items:            disclosureItemDTOsFromDomain(part.Items),
+			Items:            DefaultConverter.disclosureItemDTOsFromDomain(part.Items),
 			DetailRunID:      part.DetailRunID,
 			RunID:            part.RunID,
 			Label:            part.Label,
@@ -244,7 +231,7 @@ func messagePartDTOsFromDomain(parts []MessagePart) []MessagePartDTO {
 			Question:         part.Question,
 			SelectedOptionID: part.SelectedOptionID,
 			Answer:           part.Answer,
-			Options:          decisionOptionDTOsFromDomain(part.Options),
+			Options:          DefaultConverter.decisionOptionDTOsFromDomain(part.Options),
 			Action:           messageActionDTOFromDomain(part.Action),
 		}
 		if part.Kind == "result" {
@@ -255,10 +242,6 @@ func messagePartDTOsFromDomain(parts []MessagePart) []MessagePartDTO {
 		items = append(items, item)
 	}
 	return items
-}
-
-func disclosureItemDTOsFromDomain(items []DisclosureItem) []DisclosureItemDTO {
-	return DefaultConverter.disclosureItemDTOsFromDomain(items)
 }
 
 func messageActionDTOFromDomain(action *MessageAction) *MessageActionDTO {
