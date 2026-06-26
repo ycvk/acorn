@@ -63,14 +63,17 @@ func (h *SamplingHandler) HandleCreateMessage(ctx context.Context, req *mcp.Crea
 	}
 	defer atomic.AddInt32(&h.manager.samplingDepth, -1)
 
-	if h.executor == nil {
+	h.manager.mu.RLock()
+	exec := h.executor
+	h.manager.mu.RUnlock()
+	if exec == nil {
 		return nil, errors.New("sampling executor not configured")
 	}
 
 	params := req.Params
 	messages := convertSamplingMessages(params.Messages, params.SystemPrompt)
 
-	output, err := h.executor.ExecuteMessages(ctx, messages)
+	output, err := exec.ExecuteMessages(ctx, messages)
 	if err != nil {
 		return nil, fmt.Errorf("sampling sub-run execution failed: %w", err)
 	}

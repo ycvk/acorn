@@ -58,6 +58,8 @@ func (m *Manager) SetActiveRunID(runID string) {
 }
 
 func (m *Manager) SetSamplingExecutor(exec SamplingExecutor) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if m.sampling != nil {
 		m.sampling.executor = exec
 	}

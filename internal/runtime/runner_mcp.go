@@ -243,5 +243,8 @@ func (a samplingExecutorAdapter) ExecuteMessages(ctx context.Context, messages [
 	if err != nil {
 		return "", err
 	}
+	if resp == nil {
+		return "", errors.New("sampling: model returned nil response")
+	}
 	return resp.Content, nil
 }
