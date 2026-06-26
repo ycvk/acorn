@@ -34,7 +34,6 @@ import com.squareup.moshi.JsonClass
  * @param threadId 
  * @param threadTitle 
  * @param status 
- * @param mode 
  * @param preview 
  * @param lastEventLabel 
  * @param attentionLevel 
@@ -57,9 +56,6 @@ data class RunSummary (
 
     @Json(name = "status")
     val status: RunSummary.Status,
-
-    @Json(name = "mode")
-    val mode: RunSummary.Mode,
 
     @Json(name = "preview")
     val preview: kotlin.String,
@@ -92,17 +88,6 @@ data class RunSummary (
         @Json(name = "completed") completed("completed"),
         @Json(name = "interrupted") interrupted("interrupted"),
         @Json(name = "failed") failed("failed");
-    }
-    /**
-     * 
-     *
-     * Values: direct,agent,plan_execute
-     */
-    @JsonClass(generateAdapter = false)
-    enum class Mode(val value: kotlin.String) {
-        @Json(name = "direct") direct("direct"),
-        @Json(name = "agent") agent("agent"),
-        @Json(name = "plan_execute") plan_execute("plan_execute");
     }
     /**
      * 

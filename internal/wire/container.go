@@ -168,29 +168,29 @@ func buildMemoryService(ctx context.Context, cfg *config.Config) (memory.Service
 	return svc, nil
 }
 
-func buildContainerAppServices(cfg *config.Config, store api.StoreView, deps *containerRuntimeDeps) (*Container, error) {
+func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *containerRuntimeDeps) (*Container, error) {
 	container := &Container{
 		cfg:           cfg,
 		runnerFactory: deps.runnerFactory,
 		runController: deps.runController,
 	}
 
-	container.runResume = api.NewRunResumeService(store).WithResume(deps.executors)
+	container.runResume = api.NewRunResumeService(db).WithResume(deps.resumeRun)
 	container.skills = api.NewSkillService(cfg, deps.loader)
 	workspaceRoot := ""
 	if deps.ws != nil {
 		workspaceRoot = deps.ws.Root()
 	}
-	container.threads = api.NewThreadService(store, workspaceRoot)
-	container.runs = api.NewRunService(store, container.threads, deps.executors, deps.runController)
-	container.events = api.NewEventService(store)
-	container.pendingAction = api.NewPendingActionService(store)
+	container.threads = api.NewThreadService(db, workspaceRoot)
+	container.runs = api.NewRunService(db, container.threads, deps.executeRun, deps.runController)
+	container.events = api.NewEventService(db)
+	container.pendingAction = api.NewPendingActionService(db)
 
 	container.memory = deps.memoryModule
 
 	container.capabilities = api.NewCapabilitiesService(cfg, container.skills.Snapshot, mcpprovider.Doctor, deps.runnerFactory)
-	container.deviceAuth = api.NewDeviceAuthService(store)
-	container.inbox = api.NewInboxService(store, container.capabilities)
+	container.deviceAuth = api.NewDeviceAuthService(db)
+	container.inbox = api.NewInboxService(db, container.capabilities)
 
 	return container, nil
 }

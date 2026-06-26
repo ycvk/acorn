@@ -16,13 +16,13 @@ import (
 // derives thread state from the latest run, and projects stored messages into
 // client-facing DTOs.
 type ThreadService struct {
-	store         StoreView
+	store         threadStore
 	workspaceRoot string
 	newThreadID   func() string
 }
 
 // NewThreadService constructs a ThreadService backed by the given store.
-func NewThreadService(store StoreView, workspaceRoot string) *ThreadService {
+func NewThreadService(store threadStore, workspaceRoot string) *ThreadService {
 	return &ThreadService{
 		store:         store,
 		workspaceRoot: workspaceRoot,

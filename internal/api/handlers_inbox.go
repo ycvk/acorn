@@ -35,11 +35,3 @@ func (s *Server) handleClientTools(w http.ResponseWriter, r *http.Request) {
 		Total: len(items),
 	})
 }
-
-func (s *Server) handleClientSettings(w http.ResponseWriter, r *http.Request) {
-	s.respondJSON(w, r, http.StatusOK, clientSettingsDTOFromConfig(s.cfg))
-}
-
-func (s *Server) handlePatchClientSettings(w http.ResponseWriter, r *http.Request) {
-	s.respondError(w, r, http.StatusNotImplemented, "settings_write_unsupported", "client settings write endpoint is not implemented")
-}

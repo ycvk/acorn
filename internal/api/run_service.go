@@ -46,7 +46,6 @@ type Run struct {
 	ID          string
 	ThreadID    string
 	Status      string
-	Mode        string
 	CreatedAt   time.Time
 	CompletedAt time.Time
 }
@@ -55,9 +54,9 @@ type Run struct {
 // terminality, and interrupting in-flight runs. It binds a run to its
 // originating user message via the ThreadService and drives the executor.
 type RunService struct {
-	store       StoreView
+	store       runStore
 	threads     *ThreadService
-	newExecutor func(context.Context) (*runtime.Executor, error)
+	executeRun  func(context.Context, core.ExecuteRequest, core.StreamSink) (*runtime.Result, error)
 	controller  *runtime.RunController
 	newRunID    func() string
 	reportError func(context.Context, string, error)
@@ -65,11 +64,11 @@ type RunService struct {
 
 // NewRunService constructs a RunService backed by the given store, executor
 // factory, and run controller.
-func NewRunService(store StoreView, threads *ThreadService, newExecutor func(context.Context) (*runtime.Executor, error), controller *runtime.RunController) *RunService {
+func NewRunService(store runStore, threads *ThreadService, executeRun func(context.Context, core.ExecuteRequest, core.StreamSink) (*runtime.Result, error), controller *runtime.RunController) *RunService {
 	return &RunService{
 		store:       store,
 		threads:     threads,
-		newExecutor: newExecutor,
+		executeRun:  executeRun,
 		controller:  controller,
 		newRunID:    newRunID,
 		reportError: reportClientBackgroundError,
@@ -122,7 +121,7 @@ func (s *RunService) InterruptRun(ctx context.Context, runID string) error {
 }
 
 func (s *RunService) CreateRun(ctx context.Context, threadID, skillID, input string) (*Run, error) {
-	if s == nil || s.store == nil || s.newExecutor == nil || s.newRunID == nil || s.threads == nil {
+	if s == nil || s.store == nil || s.executeRun == nil || s.newRunID == nil || s.threads == nil {
 		return nil, errors.New("client service is not initialized")
 	}
 	threadID = strings.TrimSpace(threadID)
@@ -157,10 +156,6 @@ func (s *RunService) CreateRun(ctx context.Context, threadID, skillID, input str
 	if err != nil {
 		return nil, err
 	}
-	exec, err := s.newExecutor(ctx)
-	if err != nil {
-		return nil, err
-	}
 	runID := strings.TrimSpace(s.newRunID())
 	if runID == "" {
 		return nil, errors.New("client run id is empty")
@@ -176,7 +171,7 @@ func (s *RunService) CreateRun(ctx context.Context, threadID, skillID, input str
 		Messages:       buildChatMessages(history),
 	}
 	runCtx := context.WithoutCancel(ctx)
-	go s.executeRun(runCtx, exec, req, started)
+	go s.executeRunAsync(runCtx, req, started)
 
 	select {
 	case <-started.Started():
@@ -197,7 +192,6 @@ func projectRun(record core.RunRecord) (Run, error) {
 		ID:        record.RunID,
 		ThreadID:  record.SessionID,
 		Status:    status,
-		Mode:      "direct",
 		CreatedAt: record.CreatedAt,
 	}
 	if record.Status != core.RunStatusRunning {
@@ -246,8 +240,8 @@ func reportClientBackgroundError(ctx context.Context, runID string, err error) {
 	slog.Default().ErrorContext(ctx, "client background run failure was not persisted", "run_id", runID, "error", err)
 }
 
-func (s *RunService) executeRun(ctx context.Context, exec *runtime.Executor, req core.ExecuteRequest, started *clientRunStartSignal) {
-	_, err := exec.ExecuteMessages(ctx, req, runStartSignalSink(started))
+func (s *RunService) executeRunAsync(ctx context.Context, req core.ExecuteRequest, started *clientRunStartSignal) {
+	_, err := s.executeRun(ctx, req, runStartSignalSink(started))
 	if err != nil {
 		if started.MarkFailed(err) {
 			return

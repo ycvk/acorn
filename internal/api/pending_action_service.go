@@ -12,10 +12,10 @@ import (
 var ErrPendingActionDecisionInvalid = errors.New("pending action decision invalid")
 
 type PendingActionService struct {
-	store StoreView
+	store pendingActionStore
 }
 
-func NewPendingActionService(store StoreView) *PendingActionService {
+func NewPendingActionService(store pendingActionStore) *PendingActionService {
 	return &PendingActionService{store: store}
 }
 

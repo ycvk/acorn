@@ -3,17 +3,14 @@ package api
 import (
 	"net/http"
 	"testing"
-
-	"github.com/ycvk/acorn/internal/skills"
 )
 
 func TestListSkillsHandler(t *testing.T) {
-	stub := &clientSkillStub{
-		items: []skills.View{
-			{Spec: skills.Spec{Name: "Read File"}},
-		},
-	}
-	server := &Server{skills: stub}
+	server := &Server{skills: newTestSkillService(t, testSkillFixture{
+		id:      "skill.read-file",
+		name:    "Read File",
+		summary: "Read files safely.",
+	})}
 	router := newTestRouterForServer(server)
 
 	rec := performClientRequest(router, http.MethodGet, "/v1/skills", "")
@@ -28,15 +25,15 @@ func TestListSkillsHandler(t *testing.T) {
 }
 
 func TestGetSkillHandler(t *testing.T) {
-	stub := &clientSkillStub{
-		items: []skills.View{
-			{Spec: skills.Spec{Name: "Read File", Description: "Reads files"}},
-		},
-	}
-	server := &Server{skills: stub}
+	server := &Server{skills: newTestSkillService(t, testSkillFixture{
+		id:          "skill.read-file",
+		name:        "Read File",
+		summary:     "Reads files",
+		instruction: "Read files from the workspace.",
+	})}
 	router := newTestRouterForServer(server)
 
-	rec := performClientRequest(router, http.MethodGet, "/v1/skills/skill_1", "")
+	rec := performClientRequest(router, http.MethodGet, "/v1/skills/skill.read-file", "")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rec.Code)
 	}
@@ -48,8 +45,11 @@ func TestGetSkillHandler(t *testing.T) {
 }
 
 func TestGetSkillNotFound(t *testing.T) {
-	stub := &clientSkillStub{items: []skills.View{}}
-	server := &Server{skills: stub}
+	server := &Server{skills: newTestSkillService(t, testSkillFixture{
+		id:      "skill.read-file",
+		name:    "Read File",
+		summary: "Reads files",
+	})}
 	router := newTestRouterForServer(server)
 
 	rec := performClientRequest(router, http.MethodGet, "/v1/skills/missing", "")

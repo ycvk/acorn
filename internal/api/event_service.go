@@ -27,12 +27,12 @@ type ArtifactSummary struct {
 // EventService loads run events and artifacts for client-facing detail and
 // streaming endpoints. It is the read-side projection of persisted run state.
 type EventService struct {
-	store     StoreView
+	store     eventStore
 	eventPoll time.Duration
 }
 
 // NewEventService constructs an EventService backed by the given store.
-func NewEventService(store StoreView) *EventService {
+func NewEventService(store eventStore) *EventService {
 	return &EventService{
 		store:     store,
 		eventPoll: 100 * time.Millisecond,

@@ -106,7 +106,7 @@ Current mobile surfaces:
 - **Approvals**: list pending backend actions and open the approval detail flow.
 - **Run stream**: read `GET /v1/runs/{run_id}/events?after_seq=0&follow=true` and project the mobile live RunEvent subset into the active assistant bubble.
 - **Pending approval**: read `GET /v1/pending-actions/{action_id}` and decide through `POST /v1/pending-actions/{action_id}:decide`.
-- **Settings**: display connected server, device ID, backend model projection, workspace projection, and disconnect.
+- **Settings**: display connected server, device ID, backend model projection, workspace projection, and disconnect. The screen reads only `GET /v1/system/status`; there is no separate `/v1/settings` contract.
 
 The connected shell uses three bottom destinations: Threads, Approvals, and Settings. Chat is not a global tab; it is opened from a selected/new thread. Each destination reloads backend truth through its feature ViewModel; the UI does not infer run state, approval state, thread state, or readiness from local screen state.
 

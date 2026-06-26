@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/ycvk/acorn/internal/api"
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/memory"
@@ -22,10 +21,12 @@ type containerRuntimeDeps struct {
 	sessionSummaryService *runtime.SessionSummaryService
 	memoryModule          memory.Service
 	contextPlane          *runtime.ContextPlane
-	mcpPendingActionStore api.StoreView
+	mcpPendingActionStore core.SessionStore
 	toolRegistry          core.ToolRegistry
 	runnerFactory         *runtime.RunnerFactory
 	runController         *runtime.RunController
+	executeRun            func(context.Context, core.ExecuteRequest, core.StreamSink) (*runtime.Result, error)
+	resumeRun             func(context.Context, string, map[string]any, core.StreamSink) (*runtime.Result, error)
 	executors             func(context.Context) (*runtime.Executor, error)
 }
 
@@ -45,7 +46,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 		return nil, err
 	}
 
-	mcpPendingActionStore := api.StoreView(db)
+	var mcpPendingActionStore core.SessionStore = db
 
 	artifactSvc, err := store.NewArtifactService(
 		filepath.Join(cfg.Runtime.StorageDir, "artifacts"),
@@ -83,6 +84,20 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 		return nil, fmt.Errorf("init runner factory: %w", err)
 	}
 	runController := runtime.NewRunController()
+	executeRun := func(ctx context.Context, req core.ExecuteRequest, sink core.StreamSink) (*runtime.Result, error) {
+		exec, err := runtime.NewExecutorWithRunRuntimeAndController(cfg, db, runnerFactory, runController)
+		if err != nil {
+			return nil, err
+		}
+		return exec.ExecuteMessages(ctx, req, sink)
+	}
+	resumeRun := func(ctx context.Context, runID string, targets map[string]any, sink core.StreamSink) (*runtime.Result, error) {
+		exec, err := runtime.NewExecutorWithRunRuntimeAndController(cfg, db, runnerFactory, runController)
+		if err != nil {
+			return nil, err
+		}
+		return exec.ResumeWithTargets(ctx, runID, targets, sink)
+	}
 	executors := newExecutorFactory(cfg, db, runnerFactory, runController)
 
 	return &containerRuntimeDeps{
@@ -95,6 +110,8 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 		toolRegistry:          toolRegistry,
 		runnerFactory:         runnerFactory,
 		runController:         runController,
+		executeRun:            executeRun,
+		resumeRun:             resumeRun,
 		executors:             executors,
 	}, nil
 }

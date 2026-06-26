@@ -20,11 +20,11 @@ const (
 )
 
 type InboxService struct {
-	store        StoreView
+	store        inboxStore
 	capabilities *CapabilitiesService
 }
 
-func NewInboxService(store StoreView, capabilities *CapabilitiesService) *InboxService {
+func NewInboxService(store inboxStore, capabilities *CapabilitiesService) *InboxService {
 	return &InboxService{store: store, capabilities: capabilities}
 }
 
@@ -40,7 +40,6 @@ type RunSummary struct {
 	ThreadID       string
 	ThreadTitle    string
 	Status         string
-	Mode           string
 	Preview        string
 	LastEventLabel string
 	AttentionLevel string

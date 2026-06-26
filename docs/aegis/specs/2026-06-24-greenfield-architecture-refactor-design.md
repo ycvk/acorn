@@ -1,7 +1,7 @@
 # Acorn Greenfield Architecture Refactor — Design Spec
 
 Date: `2026-06-24`
-Status: `approved pending review`
+Status: `historical superseded by 2026-06-25-radical-simplification-design.md`
 Complexity: `high — full codebase restructure`
 
 ## 1. Problem Statement
@@ -480,7 +480,7 @@ CREATE TABLE schema_migrations (
 | 保留 | `GET /v1/inbox` | 不变 | |
 | 保留 | `GET /v1/system/status` | 不变 | |
 | 保留 | `GET /v1/tools` | 不变 | |
-| 保留 | `GET /v1/settings` | 不变 | |
+| 删除 | `GET /v1/settings` | 已在后续 hard-cut 中删除 | current truth 由 `/v1/system/status` 承载 |
 | 保留 | `GET /v1/memory/*` | 不变 | |
 | 保留 | `GET /v1/skills` | 不变 | |
 

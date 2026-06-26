@@ -532,33 +532,6 @@ paths:
               schema:
                 $ref: '#/components/schemas/ToolListResponse'
 
-  /v1/settings:
-    get:
-      tags: [client]
-      summary: Load remote client settings
-      operationId: clientGetSettings
-      responses:
-        '200':
-          description: Client settings
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ClientSettings'
-    patch:
-      tags: [client]
-      summary: Patch remote client settings
-      operationId: clientPatchSettings
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema:
-              type: object
-              additionalProperties: true
-      responses:
-        '501':
-          $ref: '#/components/responses/SettingsWriteUnsupported'
-
   /v1/memory/facts:
     get:
       tags: [memory]
@@ -958,18 +931,6 @@ components:
                 error:
                   code: run_event_projection_failed
                   message: client projection failed
-    SettingsWriteUnsupported:
-      description: Client settings write path is explicitly unsupported
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-          examples:
-            settingsWriteUnsupported:
-              value:
-                error:
-                  code: settings_write_unsupported
-                  message: client settings write endpoint is not implemented
     FactNotFound:
       description: Memory fact not found
       content:
@@ -1558,7 +1519,7 @@ components:
     RunSummary:
       type: object
       additionalProperties: false
-      required: [run_id, thread_id, thread_title, status, mode, preview, last_event_label, attention_level, duration_ms, created_at, updated_at]
+      required: [run_id, thread_id, thread_title, status, preview, last_event_label, attention_level, duration_ms, created_at, updated_at]
       properties:
         run_id:
           type: string
@@ -1569,9 +1530,6 @@ components:
         status:
           type: string
           enum: [running, completed, interrupted, failed]
-        mode:
-          type: string
-          enum: [direct, agent, plan_execute]
         preview:
           type: string
         last_event_label:
@@ -1654,77 +1612,6 @@ components:
               type: string
             rule:
               type: string
-
-    ClientProviderSettings:
-      type: object
-      additionalProperties: false
-      required: [name, model, enabled]
-      properties:
-        name:
-          type: string
-        model:
-          type: string
-        base_url:
-          type: string
-        timeout_seconds:
-          type: integer
-        temperature:
-          type: number
-          format: float
-        max_completion_tokens:
-          type: integer
-        reasoning_effort:
-          type: string
-          enum: [low, medium, high]
-          description: Controls reasoning model effort (low=fastest, medium=default, high=most thorough). Only used by reasoning-capable models (o1, o3, etc.).
-        extra_fields:
-          type: object
-          additionalProperties: true
-          description: Provider-specific extra body fields added to the top-level of the API request. Useful for vendor-specific features not covered by standard fields. Examples — Claude thinking mode (nested object with 'type' and 'budget_tokens'), or other provider extensions. Fields must match the provider API schema exactly.
-        enabled:
-          type: boolean
-
-    ClientRuntimeSettings:
-      type: object
-      additionalProperties: false
-      required: [storage_dir, run_timeout_seconds]
-      properties:
-        storage_dir:
-          type: string
-        run_timeout_seconds:
-          type: integer
-
-    ClientWebSettings:
-      type: object
-      additionalProperties: false
-      required: [listen_addr]
-      properties:
-        listen_addr:
-          type: string
-        allowed_origins:
-          type: array
-          items:
-            type: string
-
-    ClientSettings:
-      type: object
-      additionalProperties: false
-      required: [workspace_root, providers, runtime, web]
-      properties:
-        config_path:
-          type: string
-        config_dir:
-          type: string
-        workspace_root:
-          type: string
-        providers:
-          type: array
-          items:
-            $ref: '#/components/schemas/ClientProviderSettings'
-        runtime:
-          $ref: '#/components/schemas/ClientRuntimeSettings'
-        web:
-          $ref: '#/components/schemas/ClientWebSettings'
 
     Error:
       type: object
@@ -2099,9 +1986,6 @@ components:
       properties:
         skill_id:
           type: string
-        mode:
-          type: string
-          enum: [direct_response, plan_execute]
         input:
           type: string
           description: >-
@@ -2111,7 +1995,7 @@ components:
     Run:
       type: object
       additionalProperties: false
-      required: [id, thread_id, status, mode, created_at]
+      required: [id, thread_id, status, created_at]
       properties:
         id:
           type: string
@@ -2120,9 +2004,6 @@ components:
         status:
           type: string
           enum: [running, completed, interrupted, failed]
-        mode:
-          type: string
-          enum: [direct, agent, plan_execute]
         created_at:
           type: string
           format: date-time

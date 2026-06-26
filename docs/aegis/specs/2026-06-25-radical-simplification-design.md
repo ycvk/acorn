@@ -1,7 +1,7 @@
 # Acorn 彻底简化重构 — Design Spec
 
 Date: `2026-06-25`
-Status: `implemented (partial — Wave 1 + Phase 9 executed; Wave 2 runtime subpackages and Phase 8 API interface purge evaluated and skipped; see plan Self-Review for rationale)`
+Status: `implemented (partial — Wave 1 + Phase 8 + Phase 9 + Phase 10 executed; runtime subpackage split skipped; later hard-cut also removed /v1/settings and run mode public contract drift)`
 Complexity: `high — 核心层纯化 + god-package 拆分 + 接口精简 + 子包隔离`
 Predecessor: `2026-06-24-convergent-core-runtime-refactor-design.md` (已 merge,解决了类型切片问题但留下了新的结构性债务)
 
@@ -49,7 +49,7 @@ Predecessor: `2026-06-24-convergent-core-runtime-refactor-design.md` (已 merge,
 
 - 不改产品行为:direct_response 唯一编排模式、mobile control surface、CLI 命令接口
 - 不改 SQLite schema(10 表不变)
-- 不改 OpenAPI wire contract(`docs/openapi.yaml` 不动,mobile-kotlin 不动)
+- 本设计原本不以 OpenAPI/mobile contract 变更为目标;但后续 hard-cut 已删除 `/v1/settings` 并收窄 run mode 公开合同,当前真相以 live code 和 `docs/openapi.yaml` 为准
 - 不改 hybrid context 三机制本身(masking + auto-compact + circuit breaker 逻辑不变,只改所属包)
 - 不改 file-backed memory 模型
 - 不改 embedding 惰性接线策略
@@ -272,7 +272,6 @@ type Server struct {
 
 **保留的接口**:
 - `memory.Service`:memory 包自己定义的接口,多消费者(api + runtime),保留
-- `api.StoreView`:wire 定义的 store 窄视图,保留(但有 .go:11 行,评估是否需要——见 5.6)
 - `api.ExecutorHandle` + `RunStartObserver`:wire 定义的执行回调接口,保留(wire 需要注入 executor)
 
 **删除的接口**(全删):

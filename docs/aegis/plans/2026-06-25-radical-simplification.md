@@ -22,7 +22,7 @@ Compatibility Boundary:
 - hard cutover per wave:旧路径在波次结束时删除,无 compat alias/shim
 - direct_response 唯一编排模式不变
 - SQLite schema 10 表不变
-- OpenAPI wire contract 不变(`docs/openapi.yaml` 不改,mobile-kotlin 不动)
+- 该计划最初不以 OpenAPI/mobile contract 变更为目标;但后续执行已额外 hard-cut `/v1/settings` 与 run mode 公开合同,当前真相以 live code 和 `docs/openapi.yaml` 为准
 - hybrid context 三机制(masking + auto-compact + circuit breaker)逻辑不变,只改所属包
 - file-backed memory 不变;embedding 惰性接线不变
 - 零 CGO 不变;不引入新外部依赖
@@ -246,7 +246,6 @@ Complexity Budget:
 **保留的接口**:
 - `memory.Service`:memory 包定义,多消费者
 - `api.ExecutorHandle` + `RunStartObserver`:wire 定义的执行回调
-- `api.StoreView`:Phase 10 评估
 
 **Steps:**
 - [ ] 1. 修改 `internal/api/server.go`:
@@ -351,9 +350,9 @@ Complexity Budget:
 - [x] 统一 store 接口(重命名 ArtifactStore→ArtifactDB, 统一 ListByRun/ListBySession) → Phase 2 ✓ executed (spec 说"删 store.ArtifactStore",实际重命名为 ArtifactDB——store 仍需内部 DB 接口,只是不再与 core.ArtifactStore 同名)
 - [x] 删死代码 → Phase 3 ✓ executed (删了 4 处真正 unreachable 的;DefaultConfig 和 Toolset.All 保留——被 test 使用)
 - [~] 拆 runtime god-package(runner + context 子包) → Phase 5 + Phase 6 **skipped** — runtime 已有 24 文件,最大 578 行(800 限制内),子包化需跨包移动 Session/Plane/AssembleResult 等共享类型,引入间接性但不增加清晰度
-- [~] 精简 API(删 11 个 ServiceAPI) → Phase 8 **skipped** — client_handlers_test.go 用接口做 test double(clientHandlerStub 实现三个接口),删接口会破坏测试替身模式
+- [x] 精简 API(删 11 个 ServiceAPI) → Phase 8 ✓ executed — 先把 client-facing tests 从接口 double 收口到真实 service fixture,随后删除 11 个单实现 ServiceAPI；最终仅保留跨包 canonical interface(`memory.Service`)
 - [x] 隔离 tools/dispatch → Phase 9 ✓ executed
-- [x] 评估 StoreView → Phase 10 ✓ evaluated (保留——consumer-side 组合接口,无重复)
+- [x] 评估 StoreView → Phase 10 ✓ executed — 删除 `api.StoreView`,改为每个 api service 持有自己的 consumer-owned store facet；`wire/runtime.go` 的 pending-action bridge 直接收窄到 `core.SessionStore`
 - [x] 架构守卫更新 → Phase 11 ✓ executed
 - [x] 文档同步 → Phase 12 ✓ executed
 
@@ -371,8 +370,8 @@ Complexity Budget:
 ### 4. Compatibility
 - [x] direct_response 不变
 - [x] SQLite schema 不变
-- [x] OpenAPI 不变
-- [x] mobile-kotlin 不变
+- [~] OpenAPI 最终有额外 hard-cut —— 删除 `/v1/settings`,移除 run mode 公开字段/枚举
+- [~] mobile-kotlin 最终有额外 hard-cut —— 删除生成的 `ClientSettings*` 模型并同步 settings/run detail 消费面
 - [x] hybrid context 三机制不变(只改所属包)
 - [x] file-backed memory 不变
 - [x] embedding 惰性接线不变

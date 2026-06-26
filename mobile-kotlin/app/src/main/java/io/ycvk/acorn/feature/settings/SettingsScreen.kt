@@ -33,7 +33,6 @@ fun SettingsScreen(
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val status by viewModel.systemStatus.collectAsStateWithLifecycle()
-    val settings by viewModel.settings.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
     val profile = viewModel.profile
 
@@ -79,7 +78,7 @@ fun SettingsScreen(
             SectionHeader("Workspace")
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    SettingRow("Root", settings?.workspaceRoot ?: status?.workspaceRoot ?: "—")
+                    SettingRow("Root", status?.workspaceRoot ?: "—")
                     SettingRow(
                         "Tools",
                         "${status?.summary?.enabledToolCount ?: 0} / ${status?.summary?.toolCount ?: 0} enabled",

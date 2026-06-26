@@ -12,8 +12,8 @@ import (
 )
 
 type RunResumeService struct {
-	store       StoreView
-	newExecutor func(context.Context) (*runtime.Executor, error)
+	store     runResumeStore
+	resumeRun func(context.Context, string, map[string]any, core.StreamSink) (*runtime.Result, error)
 }
 
 type ResumeStatus struct {
@@ -32,28 +32,24 @@ type RunResult struct {
 	Interrupted map[string]any `json:"interrupted,omitempty"`
 }
 
-func NewRunResumeService(store StoreView) *RunResumeService {
+func NewRunResumeService(store runResumeStore) *RunResumeService {
 	return &RunResumeService{store: store}
 }
 
-func (s *RunResumeService) WithResume(newExecutor func(context.Context) (*runtime.Executor, error)) *RunResumeService {
-	s.newExecutor = newExecutor
+func (s *RunResumeService) WithResume(resumeRun func(context.Context, string, map[string]any, core.StreamSink) (*runtime.Result, error)) *RunResumeService {
+	s.resumeRun = resumeRun
 	return s
 }
 
 func (s *RunResumeService) Resume(ctx context.Context, runID string) (*RunResult, error) {
-	if s == nil || s.newExecutor == nil {
-		return nil, errors.New("resume executor factory is nil")
+	if s == nil || s.resumeRun == nil {
+		return nil, errors.New("resume runner is nil")
 	}
 	targets, err := s.InferResumeTargets(ctx, runID)
 	if err != nil {
 		return nil, err
 	}
-	exec, err := s.newExecutor(ctx)
-	if err != nil {
-		return nil, err
-	}
-	result, err := exec.ResumeWithTargets(ctx, runID, targets, nil)
+	result, err := s.resumeRun(ctx, runID, targets, nil)
 	if err != nil {
 		return nil, err
 	}

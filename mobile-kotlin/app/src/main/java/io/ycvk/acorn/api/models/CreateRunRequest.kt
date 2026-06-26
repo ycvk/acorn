@@ -31,7 +31,6 @@ import com.squareup.moshi.JsonClass
  * 
  *
  * @param skillId 
- * @param mode 
  * @param input Optional run input. When set, the run records it as the pending user message in one step, so a separate POST /messages is not required.
  */
 
@@ -41,25 +40,12 @@ data class CreateRunRequest (
     @Json(name = "skill_id")
     val skillId: kotlin.String? = null,
 
-    @Json(name = "mode")
-    val mode: CreateRunRequest.Mode? = null,
-
     /* Optional run input. When set, the run records it as the pending user message in one step, so a separate POST /messages is not required. */
     @Json(name = "input")
     val input: kotlin.String? = null
 
 ) {
 
-    /**
-     * 
-     *
-     * Values: direct_response,plan_execute
-     */
-    @JsonClass(generateAdapter = false)
-    enum class Mode(val value: kotlin.String) {
-        @Json(name = "direct_response") direct_response("direct_response"),
-        @Json(name = "plan_execute") plan_execute("plan_execute");
-    }
 
 }
 

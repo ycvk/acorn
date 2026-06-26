@@ -102,7 +102,7 @@ func TestMemoryHandlersInvalidLimit(t *testing.T) {
 
 func newTestRouterForServer(s *Server) http.Handler {
 	if s.deviceAuth == nil {
-		s.deviceAuth = &deviceAuthHandlerStub{}
+		s.deviceAuth = newDeviceAuthTestService(&deviceAuthHandlerStub{})
 	}
 	if s.logger == nil {
 		s.logger = slog.New(slog.NewTextHandler(bytes.NewBuffer(nil), nil))

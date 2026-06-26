@@ -9,18 +9,18 @@ slug: data-web-store
 
 ## SQLite Persisted Truth
 
-`internal/store` stores runtime truth as the local SQLite adapter (~8 tables):
+`internal/store` stores runtime truth as the local SQLite adapter (10 required tables):
 
-- sessions, messages, runs, events
-- pending actions
-- single-owner device auth records: owner profile, devices, and one-time pairing codes
+- sessions, session_messages, runs, events
+- pending_actions, artifacts, schema_migrations
+- single-owner device auth records: devices, pairing_codes, and mcp_oauth_tokens
 
 Schema migrations drop legacy tables (plans, plan_evidence, plan_steps, tool_results, context_boundaries, conversation_segments, run_archives, working_checkpoints, provider_usage, run_decisions) if present in an older local database. There is no `acorn memory migrate` CLI path — old data is cleared on redeploy.
 
-Cross-package store-facing records and sentinel errors live in `internal/store`, not in `internal/store`. App/runtime/provider packages own the ports they consume:
+Cross-package store-facing records and sentinel errors live in `internal/core`. App/runtime/provider packages own the ports they consume:
 
-- app services use narrow ports such as `clientStore`, `runResumeStore`, and purpose-specific service store ports.
-- runtime uses `executorStore`, `runnerFactoryStore`, and `toolAuditStore`.
+- app services use narrow ports such as `threadStore`, `runStore`, `runResumeStore`, and other purpose-specific service store ports.
+- runtime uses `core.SessionStore`, `core.ArtifactStore`, and runtime-owned seams.
 - MCP provider exports `TokenStore` and `PendingActionStore` as provider contracts.
 
 Production code may directly import `internal/store` only from the app composition root: `internal/wire/container.go`.

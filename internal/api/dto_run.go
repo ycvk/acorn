@@ -11,7 +11,6 @@ type RunSummaryDTO struct {
 	ThreadID       string    `json:"thread_id"`
 	ThreadTitle    string    `json:"thread_title"`
 	Status         string    `json:"status"`
-	Mode           string    `json:"mode"`
 	Preview        string    `json:"preview"`
 	LastEventLabel string    `json:"last_event_label"`
 	AttentionLevel string    `json:"attention_level"`
@@ -39,10 +38,7 @@ func runSummaryDTOsFromDomain(items []RunSummary) []RunSummaryDTO {
 
 type CreateRunRequest struct {
 	SkillID string `json:"skill_id,omitempty"`
-	// Mode is accepted for backward compatibility with old clients but no
-	// longer read — the runtime always uses direct_response.
-	Mode  string `json:"mode,omitempty"`
-	Input string `json:"input,omitempty"`
+	Input   string `json:"input,omitempty"`
 }
 
 // RunDTO represents a client-visible run summary.
@@ -50,7 +46,6 @@ type RunDTO struct {
 	ID          string     `json:"id"`
 	ThreadID    string     `json:"thread_id"`
 	Status      string     `json:"status"`
-	Mode        string     `json:"mode"`
 	CreatedAt   time.Time  `json:"created_at"`
 	CompletedAt *time.Time `json:"completed_at,omitempty"`
 }
@@ -90,7 +85,6 @@ func runDTOFromDomain(run Run) RunDTO {
 		ID:        run.ID,
 		ThreadID:  run.ThreadID,
 		Status:    run.Status,
-		Mode:      run.Mode,
 		CreatedAt: run.CreatedAt,
 	}
 	if !run.CompletedAt.IsZero() {

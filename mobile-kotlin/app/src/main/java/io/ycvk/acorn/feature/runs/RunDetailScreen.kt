@@ -106,10 +106,6 @@ private fun RunSummaryCard(detail: RunDetail) {
                 "Status: ${detail.run.status.name}",
                 style = MaterialTheme.typography.bodyMedium,
             )
-            Text(
-                "Mode: ${detail.run.mode.name}",
-                style = MaterialTheme.typography.bodyMedium,
-            )
         }
     }
 }

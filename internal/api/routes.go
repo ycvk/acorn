@@ -124,8 +124,6 @@ func (s *Server) registerRoutes(router chi.Router) {
 					r.Get("/files", s.handleReadSkillFile)
 				})
 			})
-			r.Get("/settings", s.handleClientSettings)
-			r.Patch("/settings", s.handlePatchClientSettings)
 		})
 	})
 }

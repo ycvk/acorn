@@ -33,7 +33,6 @@ import com.squareup.moshi.JsonClass
  * @param id 
  * @param threadId 
  * @param status 
- * @param mode 
  * @param createdAt 
  * @param completedAt 
  */
@@ -49,9 +48,6 @@ data class Run (
 
     @Json(name = "status")
     val status: Run.Status,
-
-    @Json(name = "mode")
-    val mode: Run.Mode,
 
     @Json(name = "created_at")
     val createdAt: java.time.OffsetDateTime,
@@ -72,17 +68,6 @@ data class Run (
         @Json(name = "completed") completed("completed"),
         @Json(name = "interrupted") interrupted("interrupted"),
         @Json(name = "failed") failed("failed");
-    }
-    /**
-     * 
-     *
-     * Values: direct,agent,plan_execute
-     */
-    @JsonClass(generateAdapter = false)
-    enum class Mode(val value: kotlin.String) {
-        @Json(name = "direct") direct("direct"),
-        @Json(name = "agent") agent("agent"),
-        @Json(name = "plan_execute") plan_execute("plan_execute");
     }
 
 }

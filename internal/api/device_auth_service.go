@@ -53,12 +53,12 @@ type DeviceView struct {
 }
 
 type DeviceAuthService struct {
-	store StoreView
+	store deviceAuthStore
 	now   func() time.Time
 	rand  io.Reader
 }
 
-func NewDeviceAuthService(store StoreView) *DeviceAuthService {
+func NewDeviceAuthService(store deviceAuthStore) *DeviceAuthService {
 	return &DeviceAuthService{
 		store: store,
 		now:   func() time.Time { return time.Now().UTC() },
