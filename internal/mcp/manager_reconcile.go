@@ -107,15 +107,7 @@ func (m *Manager) closeSlotByName(name string) {
 }
 
 func (m *Manager) connectSlotForReconcile(ctx context.Context, cfg ProviderConfig) error {
-	clientOpts := &mcp.ClientOptions{
-		ToolListChangedHandler:     m.buildToolListChangedHandler(cfg.Name),
-		ResourceListChangedHandler: m.buildResourceListChangedHandler(cfg.Name),
-		PromptListChangedHandler:   m.buildPromptListChangedHandler(cfg.Name),
-		ElicitationHandler:         m.buildElicitationHandler(),
-		CreateMessageHandler:       m.buildCreateMessageHandler(),
-	}
-
-	p, err := connectProviderFunc(ctx, cfg, clientOpts, m.tokenStore, func(status string) { m.updateProviderAuthStatus(cfg.Name, status) })
+	p, err := connectProviderFunc(ctx, cfg, m.buildClientOptions(cfg), m.tokenStore, func(status string) { m.updateProviderAuthStatus(cfg.Name, status) })
 
 	m.mu.Lock()
 	slot := providerSlot{
@@ -146,6 +138,18 @@ func (m *Manager) connectSlotForReconcile(ctx context.Context, cfg ProviderConfi
 	return nil
 }
 
+// buildClientOptions assembles the per-provider MCP client options shared by
+// initial connect and reconcile. Returns nil handlers when the corresponding
+// manager subsystem is not initialized (e.g. no store wired).
+func (m *Manager) buildClientOptions(cfg ProviderConfig) *mcp.ClientOptions {
+	return &mcp.ClientOptions{
+		ToolListChangedHandler:     m.buildToolListChangedHandler(cfg.Name),
+		ResourceListChangedHandler: m.buildResourceListChangedHandler(cfg.Name),
+		PromptListChangedHandler:   m.buildPromptListChangedHandler(cfg.Name),
+		ElicitationHandler:         m.buildElicitationHandler(),
+		CreateMessageHandler:       m.buildCreateMessageHandler(),
+	}
+}
 func (m *Manager) rebuildSlotOrder(existingOrder []string, added []ProviderConfig) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

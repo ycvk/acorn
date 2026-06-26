@@ -151,18 +151,33 @@ func NewManager(ctx context.Context, cfgs []ProviderConfig, opts ...ManagerOptio
 		return nil, errors.New("no enabled MCP providers")
 	}
 
+	// Construct the manager first so handlers (elicitation, sampling) are
+	// initialized before providers connect. connectSlotForReconcile builds
+	// ClientOptions (CreateMessageHandler, ElicitationHandler, list-changed
+	// handlers, auth callback) from the manager — they must exist at connect
+	// time so the initial session carries the same handlers as a reconciled one.
+	mgr := &Manager{
+		tokenStore:   o.tokenStore,
+		store:        o.store,
+		toolRegistry: o.toolRegistry,
+		specBuilder:  o.specBuilder,
+	}
+	if o.store != nil {
+		mgr.elicitation = newElicitationHandler(o.store)
+		mgr.sampling = newSamplingHandler(mgr)
+	}
+
+	// Connect providers concurrently, preserving config order via indexed results.
 	type slotResult struct {
 		slot providerSlot
 	}
-
 	results := make([]slotResult, len(enabled))
 	var wg sync.WaitGroup
 	wg.Add(len(enabled))
-
 	for i, cfg := range enabled {
 		go func(idx int, c ProviderConfig) {
 			defer wg.Done()
-			p, err := connectProviderFunc(ctx, c, nil, o.tokenStore, nil)
+			p, err := connectProviderFunc(ctx, c, mgr.buildClientOptions(c), o.tokenStore, func(status string) { mgr.updateProviderAuthStatus(c.Name, status) })
 			slot := providerSlot{
 				cfg:        c,
 				authStatus: newProviderStatus(c).AuthStatus,
@@ -196,21 +211,7 @@ func NewManager(ctx context.Context, cfgs []ProviderConfig, opts ...ManagerOptio
 		return nil, fmt.Errorf("all MCP providers failed: %w", errors.Join(errs...))
 	}
 
-	mgr := &Manager{
-		slots:        slots,
-		tokenStore:   o.tokenStore,
-		store:        o.store,
-		toolRegistry: o.toolRegistry,
-		specBuilder:  o.specBuilder,
-	}
-
-	// Initialize elicitation and sampling handlers when a store is available.
-	if o.store != nil {
-		mgr.elicitation = newElicitationHandler(o.store)
-		mgr.sampling = newSamplingHandler(mgr)
-	}
-	// Register discovered MCP tools for every healthy provider into the unified
-	// ToolRegistry. No-op when no registry was wired (legacy/test path).
+	mgr.slots = slots
 	for _, slot := range slots {
 		if slot.startupStatus == "healthy" {
 			mgr.registerProviderTools(ctx, slot.cfg.Name)
