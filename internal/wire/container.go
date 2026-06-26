@@ -183,7 +183,7 @@ func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *contai
 	}
 	container.threads = api.NewThreadService(db, workspaceRoot)
 	container.runs = api.NewRunService(db, container.threads, deps.executeRun, deps.runController)
-	container.events = api.NewEventService(db)
+	container.events = api.NewEventService(db, db)
 	container.pendingAction = api.NewPendingActionService(db)
 
 	container.memory = deps.memoryModule

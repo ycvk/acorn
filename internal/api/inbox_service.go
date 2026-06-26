@@ -20,11 +20,11 @@ const (
 )
 
 type InboxService struct {
-	store        inboxStore
+	store        core.SessionStore
 	capabilities *CapabilitiesService
 }
 
-func NewInboxService(store inboxStore, capabilities *CapabilitiesService) *InboxService {
+func NewInboxService(store core.SessionStore, capabilities *CapabilitiesService) *InboxService {
 	return &InboxService{store: store, capabilities: capabilities}
 }
 

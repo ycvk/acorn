@@ -13,6 +13,7 @@ import (
 var errUnexpectedClientStoreCall = errors.New("unexpected client hot-path store call")
 
 type clientHandlerStore struct {
+	unimplementedStore
 	stub *clientHandlerStub
 }
 
@@ -26,7 +27,7 @@ func newClientHotPathServices(stub *clientHandlerStub) (*ThreadService, *RunServ
 	controller := runtime.NewRunController()
 	controller.Register(clientHotPathRunID(stub), func() {})
 	runs := NewRunService(store, threads, stub.executeRun, controller)
-	events := NewEventService(store)
+	events := NewEventService(store, store)
 	return threads, runs, events
 }
 

@@ -2,18 +2,9 @@ package api
 
 import (
 	"context"
-	"time"
 
 	"github.com/ycvk/acorn/internal/core"
 )
-
-func (s *clientHandlerStore) ListActiveRuns(context.Context, int) ([]core.RunRecord, error) {
-	return nil, errUnexpectedClientStoreCall
-}
-
-func (s *clientHandlerStore) ListRecentTerminalRuns(context.Context, int) ([]core.RunRecord, error) {
-	return nil, errUnexpectedClientStoreCall
-}
 
 func (s *clientHandlerStore) AppendEvent(_ context.Context, runID, kind string, payload any) (core.EventRecord, error) {
 	_, err := s.stubOrErr()
@@ -68,14 +59,6 @@ func (s *clientHandlerStore) LoadEventsAfter(_ context.Context, _ string, afterS
 	return out, nil
 }
 
-func (s *clientHandlerStore) WriteArtifact(context.Context, core.ArtifactWriteRequest) (core.ArtifactRecord, error) {
-	return core.ArtifactRecord{}, errUnexpectedClientStoreCall
-}
-
-func (s *clientHandlerStore) ReadArtifactRange(context.Context, core.ArtifactReadRangeRequest) (core.ArtifactReadRangeResult, error) {
-	return core.ArtifactReadRangeResult{}, errUnexpectedClientStoreCall
-}
-
 func (s *clientHandlerStore) ListByRun(_ context.Context, _ string) ([]core.ArtifactRecord, error) {
 	stub, err := s.stubOrErr()
 	if err != nil {
@@ -86,68 +69,4 @@ func (s *clientHandlerStore) ListByRun(_ context.Context, _ string) ([]core.Arti
 		out = append(out, artifactRecordFromSummary(item))
 	}
 	return out, nil
-}
-
-func (s *clientHandlerStore) ListBySession(context.Context, string) ([]core.ArtifactRecord, error) {
-	return nil, errUnexpectedClientStoreCall
-}
-
-func (s *clientHandlerStore) GetSessionSummary(context.Context, string) (*core.SessionSummary, error) {
-	return nil, errUnexpectedClientStoreCall
-}
-
-func (s *clientHandlerStore) UpsertSessionSummary(context.Context, core.SessionSummary) error {
-	return errUnexpectedClientStoreCall
-}
-
-func (s *clientHandlerStore) SaveOAuthToken(context.Context, core.OAuthToken) error {
-	return errUnexpectedClientStoreCall
-}
-
-func (s *clientHandlerStore) GetOAuthToken(context.Context, string) (*core.OAuthToken, error) {
-	return nil, errUnexpectedClientStoreCall
-}
-
-func (s *clientHandlerStore) CreatePendingAction(context.Context, core.PendingActionInput) (*core.PendingActionRecord, error) {
-	return nil, errUnexpectedClientStoreCall
-}
-
-func (s *clientHandlerStore) ListPendingActions(context.Context, int) ([]core.PendingActionRecord, error) {
-	return nil, errUnexpectedClientStoreCall
-}
-
-func (s *clientHandlerStore) LoadPendingAction(context.Context, string) (*core.PendingActionRecord, error) {
-	return nil, errUnexpectedClientStoreCall
-}
-
-func (s *clientHandlerStore) DecidePendingAction(context.Context, string, core.PendingActionStatus, string) (*core.PendingActionRecord, error) {
-	return nil, errUnexpectedClientStoreCall
-}
-
-func (s *clientHandlerStore) SavePairingCode(context.Context, *core.PairingCode) error {
-	return errUnexpectedClientStoreCall
-}
-
-func (s *clientHandlerStore) ConsumePairingCode(context.Context, string, time.Time) (*core.PairingCode, error) {
-	return nil, errUnexpectedClientStoreCall
-}
-
-func (s *clientHandlerStore) SaveDevice(context.Context, *core.Device) error {
-	return errUnexpectedClientStoreCall
-}
-
-func (s *clientHandlerStore) LoadDeviceByTokenHash(context.Context, string) (*core.Device, error) {
-	return nil, errUnexpectedClientStoreCall
-}
-
-func (s *clientHandlerStore) ListDevices(context.Context) ([]core.Device, error) {
-	return nil, errUnexpectedClientStoreCall
-}
-
-func (s *clientHandlerStore) TouchDevice(context.Context, string, time.Time) error {
-	return errUnexpectedClientStoreCall
-}
-
-func (s *clientHandlerStore) RevokeDevice(context.Context, string, time.Time) error {
-	return errUnexpectedClientStoreCall
 }

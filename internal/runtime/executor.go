@@ -56,21 +56,6 @@ func NewExecutorWithRunRuntimeAndController(cfg *config.Config, store core.Sessi
 	}
 	return exec, nil
 }
-func (e *Executor) Run(ctx context.Context, input, skillID string, sink core.StreamSink) (*Result, error) {
-	sessionID := core.NewSessionID()
-	title, _ := compactText(input, 48)
-	turnIndex, err := e.store.CreateFreshSessionTurn(ctx, sessionID, title, input)
-	if err != nil {
-		return nil, err
-	}
-	return e.ExecuteMessages(ctx, core.ExecuteRequest{
-		SessionID: sessionID,
-		TurnIndex: turnIndex,
-		Input:     input,
-		SkillID:   skillID,
-		Messages:  []adk.Message{schema.UserMessage(input)},
-	}, sink)
-}
 
 func resolveRunID(req core.ExecuteRequest) string {
 	if id := strings.TrimSpace(req.RunID); id != "" {

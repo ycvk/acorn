@@ -168,12 +168,4 @@ func (s *clientHandlerStub) EventPollInterval() time.Duration {
 
 type inboxHandlerStub struct {
 	item *MobileInbox
-	err  error
-}
-
-func (s *inboxHandlerStub) Load(context.Context) (*MobileInbox, error) {
-	if s.err != nil {
-		return nil, s.err
-	}
-	return s.item, nil
 }

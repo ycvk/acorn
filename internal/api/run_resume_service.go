@@ -12,11 +12,11 @@ import (
 )
 
 type RunResumeService struct {
-	store     runResumeStore
+	store     core.SessionStore
 	resumeRun func(context.Context, string, map[string]any, core.StreamSink) (*runtime.Result, error)
 }
 
-type ResumeStatus struct {
+type resumeStatus struct {
 	RunID        string         `json:"run_id,omitempty"`
 	Status       core.RunStatus `json:"status,omitempty"`
 	Resumable    bool           `json:"resumable"`
@@ -32,7 +32,7 @@ type RunResult struct {
 	Interrupted map[string]any `json:"interrupted,omitempty"`
 }
 
-func NewRunResumeService(store runResumeStore) *RunResumeService {
+func NewRunResumeService(store core.SessionStore) *RunResumeService {
 	return &RunResumeService{store: store}
 }
 
@@ -82,34 +82,6 @@ func cloneMap(value map[string]any) map[string]any {
 		out[key] = item
 	}
 	return out
-}
-
-func (s *RunResumeService) ResumeStatus(ctx context.Context, runID string) (*ResumeStatus, error) {
-	run, items, err := s.loadRunEvents(ctx, runID)
-	if err != nil {
-		return nil, err
-	}
-	status := buildResumeStatus(runID, run, items)
-	if status == nil || run == nil || run.Status != core.RunStatusInterrupted {
-		return status, nil
-	}
-	targets, inferReason := s.inferResumeTargetsOrReason(ctx, runID)
-	if inferReason != "" {
-		status.Resumable = false
-		status.Reason = inferReason
-		return status, nil
-	}
-	status.Resumable = true
-	status.Reason = fmt.Sprintf("run %s is interrupted and resumable via %d pending actions", runID, len(targets))
-	return status, nil
-}
-
-func (s *RunResumeService) inferResumeTargetsOrReason(ctx context.Context, runID string) (map[string]any, string) {
-	targets, err := s.InferResumeTargets(ctx, runID)
-	if err != nil {
-		return nil, err.Error()
-	}
-	return targets, ""
 }
 
 func (s *RunResumeService) InferResumeTargets(ctx context.Context, runID string) (map[string]any, error) {
@@ -209,8 +181,8 @@ func (s *RunResumeService) loadRunEvents(ctx context.Context, runID string) (*co
 	return run, items, nil
 }
 
-func buildResumeStatus(runID string, run *core.RunRecord, items []core.EventRecord) *ResumeStatus {
-	status := &ResumeStatus{RunID: runID}
+func buildResumeStatus(runID string, run *core.RunRecord, items []core.EventRecord) *resumeStatus {
+	status := &resumeStatus{RunID: runID}
 	if run == nil {
 		status.Reason = fmt.Sprintf("run %s is unavailable", runID)
 		return status

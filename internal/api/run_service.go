@@ -54,7 +54,7 @@ type Run struct {
 // terminality, and interrupting in-flight runs. It binds a run to its
 // originating user message via the ThreadService and drives the executor.
 type RunService struct {
-	store       runStore
+	store       core.SessionStore
 	threads     *ThreadService
 	executeRun  func(context.Context, core.ExecuteRequest, core.StreamSink) (*runtime.Result, error)
 	controller  *runtime.RunController
@@ -64,7 +64,7 @@ type RunService struct {
 
 // NewRunService constructs a RunService backed by the given store, executor
 // factory, and run controller.
-func NewRunService(store runStore, threads *ThreadService, executeRun func(context.Context, core.ExecuteRequest, core.StreamSink) (*runtime.Result, error), controller *runtime.RunController) *RunService {
+func NewRunService(store core.SessionStore, threads *ThreadService, executeRun func(context.Context, core.ExecuteRequest, core.StreamSink) (*runtime.Result, error), controller *runtime.RunController) *RunService {
 	return &RunService{
 		store:       store,
 		threads:     threads,

@@ -27,14 +27,16 @@ type ArtifactSummary struct {
 // EventService loads run events and artifacts for client-facing detail and
 // streaming endpoints. It is the read-side projection of persisted run state.
 type EventService struct {
-	store     eventStore
+	store     core.SessionStore
+	artifacts core.ArtifactService
 	eventPoll time.Duration
 }
 
 // NewEventService constructs an EventService backed by the given store.
-func NewEventService(store eventStore) *EventService {
+func NewEventService(store core.SessionStore, artifacts core.ArtifactService) *EventService {
 	return &EventService{
 		store:     store,
+		artifacts: artifacts,
 		eventPoll: 100 * time.Millisecond,
 	}
 }
@@ -112,7 +114,7 @@ func (s *EventService) ListRunArtifacts(ctx context.Context, runID string) ([]Ar
 	if _, err := s.store.LoadRun(ctx, runID); err != nil {
 		return nil, err
 	}
-	records, err := s.store.ListByRun(ctx, runID)
+	records, err := s.artifacts.ListByRun(ctx, runID)
 	if err != nil {
 		return nil, fmt.Errorf("list run artifacts for %s: %w", runID, err)
 	}
