@@ -340,6 +340,9 @@ func (f *RunnerFactory) newDirectResponseRunner(ctx context.Context, req RunnerB
 		return nil, errors.New("run capabilities are required")
 	}
 	capabilities := capabilityAssembly.capabilities
+	if mcpMgr := capabilityAssembly.mcpManager; mcpMgr != nil {
+		mcpMgr.SetSamplingExecutor(samplingExecutorAdapter{model: chatModel})
+	}
 	memoryPrepared, err := prepareRunMemory(ctx, f.deps, req)
 	if err != nil {
 		return nil, err
