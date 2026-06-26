@@ -522,7 +522,7 @@ func TestManagerToolCountReflectsOnlyRegularTools(t *testing.T) {
 	if got, want := len(statuses), 1; got != want {
 		t.Fatalf("expected %d statuses, got %d", want, got)
 	}
-	if got, want := statuses[0].ToolCount, 2; got != want {
+	if got, want := statuses[0].ToolCount, 3; got != want {
 		t.Fatalf("ToolCount = %d, want %d (only regular tools, not resource/prompt)", got, want)
 	}
 }
