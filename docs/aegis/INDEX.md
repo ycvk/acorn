@@ -1,5 +1,7 @@
 # Aegis Workspace Index
 
+`docs/aegis/` 只保留仍有复用价值的架构决策记录。当前真相不在这里，而在 live code、[docs/architecture/ARCHITECTURE.md](../architecture/ARCHITECTURE.md)、[docs/openapi.yaml](../openapi.yaml) 与 [AGENTS.md](../../AGENTS.md)。
+
 ## ADRs
 - [ADR-0001: 砍掉 plan_execute / single_agent 编排模式](adr/ADR-0001-remove-plan-execute-single-agent.md) — keep direct_response only
 - [ADR-0002: 砍掉 CompactionEngine，改为 hybrid masking + auto-compact](adr/ADR-0002-hybrid-context-masking-auto-compact.md) — observation masking + LLM summary + re-inject
@@ -18,17 +20,3 @@
 - [ADR-0015: Store 接口 21→3 收敛](adr/ADR-0015-store-interface-consolidation.md) — SessionStore/IdentityStore/ArtifactStore
 - [ADR-0016: 统一插件注册中心](adr/ADR-0016-unified-plugin-registry.md) — ToolRegistry + ProviderRegistry
 - [ADR-0017: MCP 提升为顶级包](adr/ADR-0017-mcp-promote-to-top-level.md) — providers/mcp → mcp
-
-## Specs
-- [Structural Convergence Design Spec](specs/2026-06-22-structural-convergence-design.md) — 4→2 tool packages, runner file merge, duplicate port elimination, guard 400→800
-- [Radical Refactor Design Spec](specs/2026-06-23-radical-refactor-design.md) — god-package split, dead code purge, structural debt elimination
-- [Modular Refactor Design Spec](specs/2026-06-23-modular-refactor-design.md) — RunnerFactory god-object split, toolkit+toolset merge, store interface consolidation, client_service split, stream/domain type convergence
-- [Greenfield Architecture Refactor Design Spec](specs/2026-06-24-greenfield-architecture-refactor-design.md) — Clean Slim Layers, store port inversion, runtime→agent/context split, app→wire/api split, schema redesign
-- [Radical Simplification Design Spec](specs/2026-06-25-radical-simplification-design.md) — core 纯化, store 接口统一, tools/dispatch 子包隔离, 死代码清理
-
-## Plans
-- [Structural Convergence Refactor Plan](plans/2026-06-22-structural-convergence.md) — 11 tasks: port elimination, guard relax, tool/toolset rename, runtime subpackage promotion, file merges, docs
-- [Runtime God-Package Split Plan](plans/2026-06-23-runtime-split.md) — split runtime into stream + tooldispatch + factextract sub-packages
-- [Modular Refactor Plan](plans/2026-06-23-modular-refactor.md) — 5 phases: stream/domain type convergence, toolkit+toolset merge, store interface consolidation, client_service split, RunnerFactory god-object split
-- [Greenfield Architecture Refactor Plan](plans/2026-06-24-greenfield-architecture-refactor.md) — 12 phases: port package, domain expansion, store rewrite, memory/mcp adaptation, tools contract split, contextplane→context rename, agent extraction, api service absorption, wire composition root, cli adaptation, architecture guards, docs sync
-- [Radical Simplification Refactor Plan](plans/2026-06-25-radical-simplification.md) — 3 waves: core 纯化+store 统一+死代码, tools/dispatch 子包隔离, 架构守卫更新
