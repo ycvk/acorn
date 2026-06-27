@@ -29,15 +29,11 @@ func (s *LocalService) loadActiveFacts(ctx context.Context, charLimit int) ([]En
 	if err != nil {
 		return nil, fmt.Errorf("load active facts: %w", err)
 	}
-	// Filter: non-retired + user scope only. Workspace-scoped facts are not
-	// part of the always-on snapshot (they're context-dependent). Single-owner
-	// semantics: facts the agent wrote (unverified or verified) are trusted;
-	// only retired facts are excluded.
+	// Filter: user scope only. ListFacts already excludes retired records
+	// by default (IncludeRetired=false). Workspace-scoped facts are not
+	// part of the always-on snapshot (they're context-dependent).
 	filtered := make([]Record, 0, len(records))
 	for _, r := range records {
-		if r.Status == StatusRetired {
-			continue
-		}
 		if r.Scope == "user" || r.Scope == "" {
 			filtered = append(filtered, r)
 		}

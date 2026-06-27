@@ -389,7 +389,7 @@ func (e *Executor) finishFailedRun(ctx context.Context, runID, input string, sta
 	if err := e.verifyAndRecordSkill(durableCtx, runID, selectedSkill, core.RunStatusFailed, state.lastOutput, sink); err != nil {
 		return nil, err
 	}
-	// Distill + append history after the run is marked complete.
+	// Append history after the run is marked complete.
 	go e.finalizePostRun(context.WithoutCancel(ctx), runID, core.RunStatusFailed, input, state.lastOutput)
 	return &Result{
 		RunID:  runID,
@@ -426,8 +426,8 @@ func (e *Executor) finishSucceededRun(ctx context.Context, runID, input string, 
 	if err := e.store.FinishRun(durableCtx, runID, core.RunStatusSucceeded, state.lastOutput, ""); err != nil {
 		return nil, err
 	}
-	// Distill + append history after the run is marked complete, so the
-	// LLM call does not delay the completion event or status update.
+	// Append history + count toward review after the run is marked complete,
+	// so this work does not delay the completion event or status update.
 	go e.finalizePostRun(context.WithoutCancel(ctx), runID, core.RunStatusSucceeded, input, state.lastOutput)
 	return &Result{
 		RunID:  runID,
@@ -436,10 +436,11 @@ func (e *Executor) finishSucceededRun(ctx context.Context, runID, input string, 
 	}, nil
 }
 
-// finalizePostRun syncs the assistant message and appends a distilled history
-// entry. Called asynchronously after the run is marked complete so the LLM
-// distillation call does not delay run completion. Errors are logged, not
-// propagated — the run is already finished.
+// finalizePostRun syncs the assistant message, appends a history entry,
+// and counts the run toward the periodic memory review. Called
+// asynchronously after the run is marked complete so this work does not
+// delay run completion. Errors are logged, not propagated — the run is
+// already finished.
 func (e *Executor) finalizePostRun(ctx context.Context, runID string, runStatus core.RunStatus, input, output string) {
 	if err := e.store.SyncAssistantMessageForRunStatus(ctx, runID, runStatus); err != nil {
 		slog.Error("sync assistant message after run completion", "run_id", runID, "err", err)
@@ -463,7 +464,7 @@ func (e *Executor) appendRunHistory(ctx context.Context, runID string, runStatus
 	if err != nil {
 		return fmt.Errorf("load run for memory history: %w", err)
 	}
-	summary := e.distillRunSummary(ctx, runStatus, input, output)
+	summary := e.runHistorySummary(runStatus, input, output)
 	if err := e.runRuntime.MemoryModule().AppendHistory(ctx, memory.HistoryEvent{
 		SessionID: run.SessionID,
 		RunID:     runID,
@@ -476,20 +477,12 @@ func (e *Executor) appendRunHistory(ctx context.Context, runID string, runStatus
 	return nil
 }
 
-// distillRunSummary generates a structured summary of a completed run via a
-// single LLM call. On any failure (model unavailable, API error, empty
-// response) it falls back to a rune-safe truncation of input + output —
-// never blocking run finalization.
-// distillRunSummary produces the history summary for a completed run.
-//
-// Previously this called the LLM on every run, which was too expensive —
-// most runs don't warrant a distillation call (simple Q&A, trivial
-// triggers). The agent already has the `remember` tool to persist durable
-// facts it deems worth keeping. History is an append-only event log, not
-// a curated knowledge base; a rune-safe truncation is sufficient for
-// recall, and the agent decides what's worth remembering long-term via
-// the ambient loop's Record + Crystallize steps.
-func (e *Executor) distillRunSummary(_ context.Context, status core.RunStatus, input, output string) string {
+// runHistorySummary produces the history summary for a completed run.
+// It is a rune-safe truncation of input + output (no LLM call). The agent
+// decides what's worth remembering long-term via the ambient loop's Record
+// + Crystallize steps and the `remember` tool. History is an append-only
+// event log, not a curated knowledge base.
+func (e *Executor) runHistorySummary(status core.RunStatus, input, output string) string {
 	combined := strings.TrimSpace(input + "\n\n" + output)
 	return fallbackSummary(combined, status)
 }

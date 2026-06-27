@@ -28,11 +28,11 @@ Acorn 的记忆模块在 ambient 化过程中补了混合检索、reindex、技�
 
 ### Layer 1: Active Memory（frozen snapshot，注入 system prompt）
 
-- `facts/user/` 下的 verified facts，按字符上限截取最前面的条目
+- `facts/user/` 下的 non-retired user-scoped facts，按字符上限截取最前面的条目
 - 每个 run 开始时注入 system prompt，run 内不变化（保 prefix cache）
 - agent 通过 `remember` / `memory_replace_span` 管理
 - 容量上限：默认 2200 字符（~800 tokens），和 Hermes 一致
-- 超限时 `remember` 返回错误，agent 自己 consolidate（合并/删除旧条目）
+- 超限时整条跳过（不截断），放不下的 fact 留在可检索的 Archive 里
 
 ### Layer 2: Archive（history，append-only 事件日志）
 

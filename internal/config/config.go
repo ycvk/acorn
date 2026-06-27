@@ -72,8 +72,8 @@ type MemoryReviewConfig struct {
 }
 
 // MemoryActiveConfig sets the character budget for the Active Memory frozen
-// snapshot injected into every run's system prompt. Verified user facts are
-// truncated to this limit. Zero uses the default (2200 chars, ~800 tokens).
+// snapshot injected into every run's system prompt. Non-retired user-scoped
+// facts are fit to this limit. Zero uses the default (2200 chars, ~800 tokens).
 type MemoryActiveConfig struct {
 	CharLimit int `yaml:"char_limit"`
 }

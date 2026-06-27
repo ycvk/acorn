@@ -106,7 +106,7 @@ func fitPreparedMemoryToBudget(ctx context.Context, counter TokenCounter, prepar
 	if counter == nil {
 		return "", nil, errors.New("prepared memory token counter is required")
 	}
-	if prepared == nil || (len(prepared.Nudges) == 0 && len(prepared.Entries) == 0 && prepared.SkillTree == nil) || maxTokens <= 0 {
+	if prepared == nil || (len(prepared.Nudges) == 0 && len(prepared.Entries) == 0 && prepared.SkillTree == nil && len(prepared.ActiveFacts) == 0) || maxTokens <= 0 {
 		return "", nil, nil
 	}
 
@@ -217,7 +217,7 @@ func formatSkillTree(tree *memory.SkillTreeIndex) string {
 }
 
 func hasPreparedMemory(prepared *memory.PrepareResult) bool {
-	return prepared != nil && (len(prepared.Nudges) > 0 || len(prepared.Entries) > 0 || prepared.SkillTree != nil)
+	return prepared != nil && (len(prepared.Nudges) > 0 || len(prepared.Entries) > 0 || prepared.SkillTree != nil || len(prepared.ActiveFacts) > 0)
 }
 
 func formatMemoryNudge(nudge memory.Nudge) string {
