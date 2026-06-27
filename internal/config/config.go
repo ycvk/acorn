@@ -136,6 +136,10 @@ type MCPProviderConfig struct {
 // the serve process and fire new runs when external events arrive.
 type TriggersConfig struct {
 	Webhooks []WebhookTriggerConfig `yaml:"webhooks"`
+	// DebounceMillis coalesces rapid fires of the same trigger within this
+	// window into a single run (last input wins). Zero disables debounce.
+	// Protects against webhook spam burning LLM tokens. Recommended: 2000.
+	DebounceMillis int `yaml:"debounce_millis"`
 }
 
 // WebhookTriggerConfig configures a single webhook trigger.

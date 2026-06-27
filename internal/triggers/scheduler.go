@@ -13,6 +13,7 @@ import (
 	"log/slog"
 	"net/http"
 	"sync"
+	"time"
 )
 
 // RunCreator starts a new run for a trigger fire. It is implemented by
@@ -40,14 +41,41 @@ type Scheduler struct {
 	mu       sync.Mutex
 	started  bool
 	logger   *slog.Logger
+	debounce time.Duration
+	pending  map[string]*pendingFire // triggerID -> pending fire (nil map = no debounce)
+}
+
+// pendingFire holds a coalesced fire waiting for the debounce window to expire.
+type pendingFire struct {
+	input string
+	timer *time.Timer
+}
+
+// SchedulerOption configures a Scheduler at construction time.
+type SchedulerOption func(*Scheduler)
+
+// WithDebounce sets the debounce window: multiple fires of the same trigger
+// within this duration are coalesced into a single run (last input wins).
+// Zero or negative disables debounce (default).
+func WithDebounce(d time.Duration) SchedulerOption {
+	return func(s *Scheduler) {
+		if d > 0 {
+			s.debounce = d
+			s.pending = make(map[string]*pendingFire)
+		}
+	}
 }
 
 // NewScheduler constructs a Scheduler that routes trigger fires to creator.
-func NewScheduler(creator RunCreator) *Scheduler {
-	return &Scheduler{
+func NewScheduler(creator RunCreator, opts ...SchedulerOption) *Scheduler {
+	s := &Scheduler{
 		creator: creator,
 		logger:  slog.Default(),
 	}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
 }
 
 // Register adds a trigger to the scheduler. Must be called before Start.
@@ -75,12 +103,19 @@ func (s *Scheduler) Start(ctx context.Context) error {
 	return nil
 }
 
-// Stop tears down all triggers.
+// Stop tears down all triggers and cancels any pending debounce timers.
 func (s *Scheduler) Stop() {
 	s.mu.Lock()
 	s.started = false
 	triggers := make([]Trigger, len(s.triggers))
 	copy(triggers, s.triggers)
+	// Cancel pending debounce timers so they don't fire after shutdown.
+	for triggerID, p := range s.pending {
+		if p.timer != nil {
+			p.timer.Stop()
+		}
+		delete(s.pending, triggerID)
+	}
 	s.mu.Unlock()
 
 	for _, t := range triggers {
@@ -89,7 +124,9 @@ func (s *Scheduler) Stop() {
 }
 
 // Fire is the FireFunc handed to triggers. It routes to the RunCreator.
-// Unknown trigger IDs are silently ignored.
+// Unknown trigger IDs are silently ignored. If debounce is configured,
+// rapid fires of the same trigger within the window are coalesced (last
+// input wins).
 func (s *Scheduler) Fire(ctx context.Context, triggerID, input string) {
 	s.mu.Lock()
 	triggers := make([]Trigger, len(s.triggers))
@@ -108,15 +145,46 @@ func (s *Scheduler) Fire(ctx context.Context, triggerID, input string) {
 		return
 	}
 
-	go func() {
-		// Detach from the HTTP request context: the run must outlive the
-		// webhook response. WithoutCancel prevents the run from being
-		// cancelled when the HTTP handler returns.
-		runCtx := context.WithoutCancel(ctx)
-		if err := s.creator.CreateRun(runCtx, triggerID, input); err != nil {
-			s.logger.Error("trigger fire run creation failed", "trigger_id", triggerID, "error", err)
-		}
-	}()
+	// With debounce: coalesce rapid fires via a per-trigger timer.
+	if s.debounce > 0 {
+		s.scheduleDebounced(ctx, triggerID, input)
+		return
+	}
+
+	// No debounce: fire immediately.
+	go s.createRun(ctx, triggerID, input)
+}
+
+// scheduleDebounced records a pending fire. If no timer is running for this
+// trigger, one is started. Subsequent fires within the window replace the
+// input and reset the timer (last input wins).
+func (s *Scheduler) scheduleDebounced(ctx context.Context, triggerID, input string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if p, ok := s.pending[triggerID]; ok && p.timer != nil {
+		// Already pending: replace input, reset timer.
+		p.input = input
+		p.timer.Reset(s.debounce)
+		return
+	}
+
+	p := &pendingFire{input: input}
+	p.timer = time.AfterFunc(s.debounce, func() {
+		s.mu.Lock()
+		delete(s.pending, triggerID)
+		s.mu.Unlock()
+		go s.createRun(ctx, triggerID, p.input)
+	})
+	s.pending[triggerID] = p
+}
+
+// createRun detaches from the HTTP context and calls CreateRun.
+func (s *Scheduler) createRun(ctx context.Context, triggerID, input string) {
+	runCtx := context.WithoutCancel(ctx)
+	if err := s.creator.CreateRun(runCtx, triggerID, input); err != nil {
+		s.logger.Error("trigger fire run creation failed", "trigger_id", triggerID, "error", err)
+	}
 }
 
 // HandleWebhook routes an incoming HTTP request to the webhook trigger with

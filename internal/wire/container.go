@@ -2,11 +2,16 @@ package wire
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log/slog"
 	"path/filepath"
+	"slices"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/ycvk/acorn/internal/api"
 	"github.com/ycvk/acorn/internal/config"
@@ -232,13 +237,12 @@ func (a *worldStateAdapter) Load(ctx context.Context) (map[string]string, error)
 	return a.ws.Load(ctx)
 }
 
-// triggerRunCreator adapts api.RunService into triggers.RunCreator. Each
-// trigger fire ensures a thread named "trigger:{triggerID}" exists and starts
-// a run on it.
 type triggerRunCreator struct {
-	runs       *api.RunService
-	store      core.SessionStore
-	worldState *memory.WorldState
+	runs            *api.RunService
+	store           core.SessionStore
+	worldState      *memory.WorldState
+	mu              sync.Mutex
+	lastFingerprint string
 }
 
 func (t *triggerRunCreator) CreateRun(ctx context.Context, triggerID, input string) error {
@@ -248,11 +252,54 @@ func (t *triggerRunCreator) CreateRun(ctx context.Context, triggerID, input stri
 			return cerr
 		}
 	}
+	// Skip duplicate fires: same WorldState + same input = same response.
+	// Saves an LLM call when a webhook re-fires with no state change.
+	if t.shouldSkipRun(t.worldState, input) {
+		slog.Info("trigger fire skipped (duplicate of last fire)", "trigger_id", triggerID)
+		return nil
+	}
 	input = injectWorldState(ctx, t.worldState, input)
 	if _, err := t.runs.CreateRun(ctx, threadID, "", input); err != nil {
 		return err
 	}
 	return nil
+}
+
+// shouldSkipRun reports whether this fire is a duplicate of the last one:
+// same WorldState projection + same input. If so, the agent would produce
+// the same response — skip the LLM call to save cost.
+func (t *triggerRunCreator) shouldSkipRun(ws *memory.WorldState, input string) bool {
+	if ws == nil {
+		return false
+	}
+	fp := computeFireFingerprint(ws, input)
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if fp == t.lastFingerprint {
+		return true
+	}
+	t.lastFingerprint = fp
+	return false
+}
+
+func computeFireFingerprint(ws *memory.WorldState, input string) string {
+	projection, err := ws.Load(context.Background())
+	if err != nil {
+		projection = nil
+	}
+	h := sha256.New()
+	h.Write([]byte(input))
+	// Sort keys for deterministic output — map iteration order is random.
+	keys := make([]string, 0, len(projection))
+	for k := range projection {
+		keys = append(keys, k)
+	}
+	slices.Sort(keys)
+	for _, k := range keys {
+		h.Write([]byte(k))
+		h.Write([]byte(projection[k]))
+	}
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 // injectWorldState prepends the current WorldState projection to the run
@@ -291,7 +338,11 @@ func formatWorldStatePrefix(projection map[string]string) string {
 }
 
 func buildTriggerScheduler(cfg *config.Config, runs *api.RunService, db *store.Store, ws *memory.WorldState) *triggers.Scheduler {
-	sched := triggers.NewScheduler(&triggerRunCreator{runs: runs, store: db, worldState: ws})
+	var opts []triggers.SchedulerOption
+	if cfg.Triggers.DebounceMillis > 0 {
+		opts = append(opts, triggers.WithDebounce(time.Duration(cfg.Triggers.DebounceMillis)*time.Millisecond))
+	}
+	sched := triggers.NewScheduler(&triggerRunCreator{runs: runs, store: db, worldState: ws}, opts...)
 	for _, wh := range cfg.Triggers.Webhooks {
 		wt, err := triggers.NewWebhookTrigger(triggers.WebhookConfig{
 			ID:     wh.ID,

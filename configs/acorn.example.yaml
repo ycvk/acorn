@@ -116,6 +116,7 @@ memory:
 # Webhook triggers receive HTTP POST at /v1/triggers/{id}, verified via
 # HMAC-SHA256 (X-Acorn-Signature header). See ADR-0001.
 triggers:
+  debounce_millis: 2000 # Coalesce rapid webhook fires into one run (0 disables)
   webhooks:
     - id: deploy_webhook
       secret: "${DEPLOY_WEBHOOK_SECRET}"
