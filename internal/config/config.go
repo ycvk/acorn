@@ -150,6 +150,7 @@ type MCPProviderConfig struct {
 // the serve process and fire new runs when external events arrive.
 type TriggersConfig struct {
 	Webhooks []WebhookTriggerConfig `yaml:"webhooks"`
+	Crons    []CronTriggerConfig    `yaml:"crons"`
 	// DebounceMillis coalesces rapid fires of the same trigger within this
 	// window into a single run (last input wins). Zero disables debounce.
 	// Protects against webhook spam burning LLM tokens. Recommended: 2000.
@@ -165,4 +166,13 @@ type WebhookTriggerConfig struct {
 	ID     string `yaml:"id"`
 	Secret string `yaml:"secret"`
 	Prompt string `yaml:"prompt"`
+}
+
+// CronTriggerConfig configures a single cron trigger. Schedule is a standard
+// 5-field cron expression (min hour dom month dow). The trigger fires a new
+// run with Prompt as input at each matching time.
+type CronTriggerConfig struct {
+	ID       string `yaml:"id"`
+	Schedule string `yaml:"schedule"`
+	Prompt   string `yaml:"prompt"`
 }

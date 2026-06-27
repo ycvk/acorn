@@ -87,6 +87,10 @@ triggers:
   debounce_millis: 2000
   daily_quota: 0 # Max trigger-started runs per UTC day (0 = unlimited)
   webhooks: []
+  crons: []
+  # - id: morning_digest
+  #   schedule: "0 9 * * *"
+  #   prompt: "Morning digest."
   # - id: deploy_webhook
   #   secret: "${DEPLOY_WEBHOOK_SECRET}"
   #   prompt: "A deployment webhook fired. Payload: {{payload}}"

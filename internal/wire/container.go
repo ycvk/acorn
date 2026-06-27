@@ -424,6 +424,18 @@ func buildTriggerScheduler(cfg *config.Config, runs *api.RunService, db *store.S
 		}
 		sched.Register(wt)
 	}
+	for _, cr := range cfg.Triggers.Crons {
+		ct, err := triggers.NewCronTrigger(triggers.CronConfig{
+			ID:       cr.ID,
+			Schedule: cr.Schedule,
+			Prompt:   cr.Prompt,
+		})
+		if err != nil {
+			slog.Warn("skipping cron trigger", "id", cr.ID, "error", err)
+			continue
+		}
+		sched.Register(ct)
+	}
 	return sched
 }
 

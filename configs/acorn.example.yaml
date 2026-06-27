@@ -129,3 +129,7 @@ triggers:
     - id: deploy_webhook
       secret: "${DEPLOY_WEBHOOK_SECRET}"
       prompt: "A deployment webhook fired. Payload: {{payload}}"
+  crons:
+    - id: morning_digest
+      schedule: "0 9 * * *" # Daily at 09:00 UTC
+      prompt: "Generate a morning digest: check worldstate, summarize what happened overnight, and report anything that needs my attention."
