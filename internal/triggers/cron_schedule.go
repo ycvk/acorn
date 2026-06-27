@@ -12,11 +12,13 @@ import (
 // supports * (wildcard), comma lists, ranges (1-5), and step values (*/2 or
 // 1-10/2). No named months/days (JAN, MON) — numeric only.
 type cronSchedule struct {
-	minute map[int]bool
-	hour   map[int]bool
-	dom    map[int]bool // day of month
-	month  map[int]bool
-	dow    map[int]bool // day of week (0=Sun, 7=Sun)
+	minute  map[int]bool
+	hour    map[int]bool
+	dom     map[int]bool // day of month
+	month   map[int]bool
+	dow     map[int]bool // day of week (0=Sun, 7=Sun)
+	domStar bool         // dom field was * (wildcard)
+	dowStar bool         // dow field was * (wildcard)
 }
 
 func parseCron(expr string) (*cronSchedule, error) {
@@ -34,7 +36,7 @@ func parseCron(expr string) (*cronSchedule, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cron hour field %q: %w", fields[1], err)
 	}
-	s.dom, err = parseCronField(fields[2], 1, 31)
+	s.dom, s.domStar, err = parseCronFieldTrackingStar(fields[2], 1, 31)
 	if err != nil {
 		return nil, fmt.Errorf("cron day-of-month field %q: %w", fields[2], err)
 	}
@@ -42,7 +44,7 @@ func parseCron(expr string) (*cronSchedule, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cron month field %q: %w", fields[3], err)
 	}
-	s.dow, err = parseCronField(fields[4], 0, 7)
+	s.dow, s.dowStar, err = parseCronFieldTrackingStar(fields[4], 0, 7)
 	if err != nil {
 		return nil, fmt.Errorf("cron day-of-week field %q: %w", fields[4], err)
 	}
@@ -63,24 +65,37 @@ func parseCron(expr string) (*cronSchedule, error) {
 //     a-b/n    — every n-th value in range
 //     a,b,c    — comma-separated list of any of the above
 func parseCronField(field string, min, max int) (map[int]bool, error) {
+	result, _, err := parseCronFieldTrackingStar(field, min, max)
+	return result, err
+}
+
+// parseCronFieldTrackingStar is parseCronField but also reports whether the
+// raw field was a pure * (wildcard). This is needed for the standard cron
+// dom/dow OR rule: when both dom and dow are restricted (non-wildcard), a
+// match on either suffices.
+func parseCronFieldTrackingStar(field string, min, max int) (map[int]bool, bool, error) {
 	result := make(map[int]bool)
+	star := true
 	for _, part := range strings.Split(field, ",") {
 		part = strings.TrimSpace(part)
 		if part == "" {
 			continue
 		}
+		if part != "*" && !strings.HasPrefix(part, "*/") {
+			star = false
+		}
 		vals, err := expandCronPart(part, min, max)
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 		for _, v := range vals {
 			result[v] = true
 		}
 	}
 	if len(result) == 0 {
-		return nil, fmt.Errorf("empty field")
+		return nil, false, fmt.Errorf("empty field")
 	}
-	return result, nil
+	return result, star, nil
 }
 
 func expandCronPart(part string, min, max int) ([]int, error) {
@@ -149,21 +164,14 @@ func (s *cronSchedule) next(from time.Time) time.Time {
 }
 
 func (s *cronSchedule) matches(t time.Time) bool {
-	return s.minute[t.Minute()] &&
-		s.hour[t.Hour()] &&
-		s.month[int(t.Month())] &&
-		s.domMatch(t) &&
-		s.dowMatch(t)
-}
-
-// domMatch and dowMatch implement the standard cron rule: if both dom and
-// dow are restricted (not wildcard), a match on either suffices. If either
-// is wildcard, both must match.
-func (s *cronSchedule) domMatch(t time.Time) bool {
-	return s.dom[t.Day()]
-}
-
-func (s *cronSchedule) dowMatch(t time.Time) bool {
-	// time.Weekday(): Sunday=0.
-	return s.dow[int(t.Weekday())]
+	if !s.minute[t.Minute()] || !s.hour[t.Hour()] || !s.month[int(t.Month())] {
+		return false
+	}
+	// Standard cron dom/dow rule: if both are restricted (non-wildcard),
+	// a match on either suffices (OR). If either is wildcard, both must
+	// match (AND).
+	if !s.domStar && !s.dowStar {
+		return s.dom[t.Day()] || s.dow[int(t.Weekday())]
+	}
+	return s.dom[t.Day()] && s.dow[int(t.Weekday())]
 }

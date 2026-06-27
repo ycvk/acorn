@@ -9,15 +9,16 @@ import (
 
 	einomodel "github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/schema"
+
 	"github.com/ycvk/acorn/internal/memory"
 )
 
 // Reviewer periodically reviews completed runs and distills durable facts
-// into the memory store. It is the Layer 3 of the three-layer memory
+// into the memory store. It is Layer 3 of the three-layer memory
 // architecture (ADR-0002): Active Memory (always-on snapshot) + Archive
 // (append-only history) + Periodic Review (this).
 //
-// Every ReviewInterval completed runs trigger one LLM call that examines
+// Every interval completed runs trigger one LLM call that examines
 // the recent run outputs and decides what's worth remembering long-term.
 // The LLM produces structured facts which are persisted via the memory
 // service's CreateFact. Review is asynchronous — it never blocks run
@@ -38,7 +39,10 @@ type runSummary struct {
 }
 
 // NewReviewer constructs a periodic memory reviewer. interval is the number
-// of completed runs between reviews (0 disables).
+// of completed runs between reviews (0 disables). newChatModel is the
+// model factory — wire injects NewChatModelWithModel so review can run on a
+// cheaper model (memory.review.review_model) without the reviewer knowing
+// about config.
 func NewReviewer(mem memory.Service, newChatModel func(ctx context.Context) (einomodel.BaseChatModel, error), interval int) *Reviewer {
 	if interval <= 0 {
 		return nil
@@ -72,30 +76,43 @@ func (r *Reviewer) RecordRun(runID, input, output string) {
 	}
 }
 
-const reviewPrompt = `You are reviewing recent agent runs to extract durable facts worth remembering long-term.
-
-For each fact worth keeping, output a line:
-FACT: <title> | <body>
-
-Rules:
-- Only extract facts that are stable, reusable, and non-obvious.
-- Skip ephemeral run details, temporary states, or trivial observations.
-- Skip facts the agent already knows (check active memory above).
-- If nothing is worth remembering, output "NOTHING".
-- Keep each fact body under 200 characters.
-
-Recent runs:
-`
-
 func (r *Reviewer) review(ctx context.Context, runs []runSummary) {
 	if r.memory == nil || len(runs) == 0 {
 		return
 	}
-	// Build the review prompt from recent run summaries.
+
+	// Inject existing fact titles so the LLM avoids duplicating them.
+	facts, err := r.memory.ListFacts(ctx, memory.RecordSelection{})
+	if err != nil {
+		slog.Warn("memory review: list facts failed, proceeding without dedup", "err", err)
+		facts = nil
+	}
+	var knownTitles []string
+	for _, f := range facts {
+		if f.Status != memory.StatusRetired {
+			knownTitles = append(knownTitles, f.Title)
+		}
+	}
+
 	var b strings.Builder
-	b.WriteString(reviewPrompt)
+	b.WriteString("You are reviewing recent agent runs to extract durable facts worth remembering long-term.\n\n")
+	if len(knownTitles) > 0 {
+		b.WriteString("Facts already in memory (do not duplicate these):\n")
+		for _, t := range knownTitles {
+			b.WriteString(fmt.Sprintf("- %s\n", t))
+		}
+		b.WriteString("\n")
+	}
+	b.WriteString("For each fact worth keeping, output a line:\nFACT: <title> | <body>\n\n")
+	b.WriteString("Rules:\n")
+	b.WriteString("- Only extract facts that are stable, reusable, and non-obvious.\n")
+	b.WriteString("- Skip ephemeral run details, temporary states, or trivial observations.\n")
+	b.WriteString("- Skip facts already in memory (listed above).\n")
+	b.WriteString("- If nothing is worth remembering, output \"NOTHING\".\n")
+	b.WriteString("- Keep each fact body under 200 characters.\n\n")
+	b.WriteString("Recent runs:\n")
 	for _, run := range runs {
-		b.WriteString(fmt.Sprintf("\n[Run %s]\nInput: %s\nOutput: %s\n", run.runID, truncate(run.input, 500), truncate(run.output, 500)))
+		b.WriteString(fmt.Sprintf("\n[Run %s]\nInput: %s\nOutput: %s\n", run.runID, truncateRunes(run.input, 500), truncateRunes(run.output, 500)))
 	}
 
 	model, err := r.newChatModel(ctx)
@@ -113,8 +130,8 @@ func (r *Reviewer) review(ctx context.Context, runs []runSummary) {
 	}
 
 	// Parse FACT: <title> | <body> lines and persist them.
-	facts := parseFacts(resp.Content)
-	for _, f := range facts {
+	factList := parseFacts(resp.Content)
+	for _, f := range factList {
 		_, err := r.memory.CreateFact(ctx, memory.CreateFactRequest{
 			Title: f.title,
 			Body:  f.body,
@@ -155,7 +172,9 @@ func parseFacts(text string) []parsedFact {
 	return facts
 }
 
-func truncate(s string, maxRunes int) string {
+// truncateRunes is the shared rune-safe truncation used by both the
+// reviewer (run summaries) and the history fallback summary.
+func truncateRunes(s string, maxRunes int) string {
 	runes := []rune(s)
 	if len(runes) <= maxRunes {
 		return s

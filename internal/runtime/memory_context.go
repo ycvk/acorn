@@ -125,7 +125,7 @@ func fitPreparedMemoryToBudget(ctx context.Context, counter TokenCounter, prepar
 		return true, nil
 	}
 
-	// Active Memory: frozen snapshot of verified user facts, always visible.
+	// Active Memory: frozen snapshot of non-retired user facts, always visible.
 	// Injected first so the agent sees its most important persistent facts
 	// before search-matched entries.
 	if len(prepared.ActiveFacts) > 0 {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/cloudwego/eino-ext/components/model/openai"
@@ -19,6 +20,26 @@ func newChatModel(ctx context.Context, cfg *config.Config) (einomodel.BaseChatMo
 		return nil, errors.New("runner factory is not initialized")
 	}
 	return newRuntimeChatModel(ctx, cfg, nil, nil)
+}
+
+// NewChatModelWithModel builds a chat model from the configured primary
+// provider but overrides the model name. Used by the periodic memory
+// reviewer to run on a cheaper model (memory.review.review_model).
+// Empty modelName falls back to the provider's configured model.
+func NewChatModelWithModel(cfg *config.Config, modelName string) func(ctx context.Context) (einomodel.BaseChatModel, error) {
+	return func(ctx context.Context) (einomodel.BaseChatModel, error) {
+		if cfg == nil {
+			return nil, errors.New("runner factory is not initialized")
+		}
+		provider, err := cfg.EnabledProvider()
+		if err != nil {
+			return nil, err
+		}
+		if m := strings.TrimSpace(modelName); m != "" {
+			provider.Model = m
+		}
+		return newOpenAIChatModel(ctx, provider)
+	}
 }
 
 // chatModelBuilder constructs a chat model for a given provider config.

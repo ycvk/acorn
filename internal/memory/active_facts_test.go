@@ -8,7 +8,10 @@ import (
 
 func TestLoadActiveFactsEmpty(t *testing.T) {
 	service := newTestService(t)
-	facts := service.loadActiveFacts(context.Background(), 2200)
+	facts, err := service.loadActiveFacts(context.Background(), 2200)
+	if err != nil {
+		t.Fatalf("loadActiveFacts: %v", err)
+	}
 	if len(facts) != 0 {
 		t.Fatalf("expected 0 active facts from empty service, got %d", len(facts))
 	}
@@ -43,7 +46,10 @@ func TestLoadActiveFactsReturnsVerifiedUserFacts(t *testing.T) {
 		t.Fatalf("BuildIndex: %v", err)
 	}
 
-	facts := service.loadActiveFacts(context.Background(), 2200)
+	facts, err := service.loadActiveFacts(context.Background(), 2200)
+	if err != nil {
+		t.Fatalf("loadActiveFacts: %v", err)
+	}
 	if len(facts) != 2 {
 		t.Fatalf("expected 2 active facts (user-scoped non-retired), got %d: %+v", len(facts), facts)
 	}
@@ -73,9 +79,12 @@ func TestLoadActiveFactsRespectsCharLimit(t *testing.T) {
 		t.Fatalf("BuildIndex: %v", err)
 	}
 
-	facts := service.loadActiveFacts(context.Background(), 150)
+	facts, err := service.loadActiveFacts(context.Background(), 150)
+	if err != nil {
+		t.Fatalf("loadActiveFacts: %v", err)
+	}
 	// With 150 char limit, only the first fact (title + 100 char body) fits;
-	// the second exceeds the remaining budget.
+	// the second exceeds the remaining budget and is skipped (not truncated).
 	if len(facts) != 1 {
 		t.Fatalf("expected 1 active fact with char limit 150, got %d: %+v", len(facts), facts)
 	}
@@ -94,7 +103,10 @@ func TestLoadActiveFactsCharLimitBelowSingleFact(t *testing.T) {
 	if err := service.BuildIndex(context.Background()); err != nil {
 		t.Fatalf("BuildIndex: %v", err)
 	}
-	facts := service.loadActiveFacts(context.Background(), 50)
+	facts, err := service.loadActiveFacts(context.Background(), 50)
+	if err != nil {
+		t.Fatalf("loadActiveFacts: %v", err)
+	}
 	if len(facts) != 0 {
 		t.Fatalf("expected 0 facts when limit < single fact size, got %d: %+v", len(facts), facts)
 	}
@@ -123,5 +135,46 @@ func TestRenderActiveFactsNonEmpty(t *testing.T) {
 	}
 	if !strings.Contains(got, "VPS location: Tokyo") {
 		t.Errorf("missing fact content: %q", got)
+	}
+}
+
+// TestPrepareDoesNotDuplicateActiveFactsInEntries verifies that a fact
+// appearing in ActiveFacts does not also appear in search-matched Entries.
+func TestPrepareDoesNotDuplicateActiveFactsInEntries(t *testing.T) {
+	service := newTestService(t)
+	if _, err := service.CreateFact(context.Background(), CreateFactRequest{
+		Title: "Owner timezone",
+		Body:  "UTC+8",
+	}); err != nil {
+		t.Fatalf("CreateFact: %v", err)
+	}
+	if err := service.BuildIndex(context.Background()); err != nil {
+		t.Fatalf("BuildIndex: %v", err)
+	}
+
+	result, err := service.Prepare(context.Background(), PrepareRequest{
+		UserInput:       "timezone",
+		ActiveCharLimit: 2200,
+	})
+	if err != nil {
+		t.Fatalf("Prepare: %v", err)
+	}
+
+	// The fact should be in ActiveFacts.
+	found := false
+	for _, f := range result.ActiveFacts {
+		if strings.Contains(f.Content, "timezone") || strings.Contains(f.Content, "Owner timezone") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected fact in ActiveFacts, got: %+v", result.ActiveFacts)
+	}
+
+	// The same fact should NOT be in Entries (deduped).
+	for _, e := range result.Entries {
+		if strings.Contains(e.Content, "timezone") || strings.Contains(e.Title, "timezone") {
+			t.Errorf("fact duplicated in Entries: %+v", e)
+		}
 	}
 }

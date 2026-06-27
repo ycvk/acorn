@@ -78,7 +78,7 @@ type PrepareResult struct {
 	Entries     []Entry
 	SkillTree   *SkillTreeIndex
 	Explain     *SearchExplain
-	ActiveFacts []Entry // verified user facts injected as a frozen snapshot, independent of query matching
+	ActiveFacts []Entry // non-retired user-scoped facts injected as a frozen snapshot, independent of query matching
 }
 
 type Nudge struct {

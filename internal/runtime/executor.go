@@ -502,12 +502,7 @@ func fallbackSummary(combined string, status core.RunStatus) string {
 	if combined == "" {
 		return string(status)
 	}
-	const maxRunes = 500
-	runes := []rune(combined)
-	if len(runes) <= maxRunes {
-		return string(status) + ": " + combined
-	}
-	return string(status) + ": " + string(runes[:maxRunes]) + "..."
+	return string(status) + ": " + truncateRunes(combined, 500)
 }
 
 func failureReasonForStatus(status core.RunStatus, output string) string {

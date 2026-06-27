@@ -181,3 +181,11 @@ func TestWorkspaceRootDirRejectsMismatchedLocalToolRoots(t *testing.T) {
 		t.Fatalf("Workspace error = %v, want workspace root mismatch", err)
 	}
 }
+
+func TestValidateBaseRejectsNegativeReviewInterval(t *testing.T) {
+	cfg := defaultConfig()
+	cfg.Memory.Review.ReviewInterval = -1
+	if err := cfg.ValidateBase(); err == nil {
+		t.Fatal("ValidateBase must reject negative review_interval")
+	}
+}

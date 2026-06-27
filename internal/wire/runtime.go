@@ -81,7 +81,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 		return nil, fmt.Errorf("init runner factory: %w", err)
 	}
 	runController := runtime.NewRunController()
-	reviewer := runtime.NewReviewer(memoryModule, runnerFactory.NewChatModel, cfg.Memory.Review.ReviewInterval)
+	reviewer := runtime.NewReviewer(memoryModule, runtime.NewChatModelWithModel(cfg, cfg.Memory.Review.ReviewModel), cfg.Memory.Review.ReviewInterval)
 	executeRun := func(ctx context.Context, req core.ExecuteRequest, sink core.StreamSink) (*runtime.Result, error) {
 		exec, err := runtime.NewExecutorWithRunRuntimeAndController(cfg, db, runnerFactory, runController)
 		if err != nil {

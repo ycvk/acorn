@@ -65,7 +65,7 @@ func TestParseFactsContent(t *testing.T) {
 	}
 }
 
-func TestTruncate(t *testing.T) {
+func TestTruncateRunes(t *testing.T) {
 	tests := []struct {
 		name  string
 		input string
@@ -80,9 +80,9 @@ func TestTruncate(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := truncate(tt.input, tt.max)
+			got := truncateRunes(tt.input, tt.max)
 			if got != tt.want {
-				t.Errorf("truncate(%q, %d) = %q, want %q", tt.input, tt.max, got, tt.want)
+				t.Errorf("truncateRunes(%q, %d) = %q, want %q", tt.input, tt.max, got, tt.want)
 			}
 		})
 	}

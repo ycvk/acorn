@@ -95,7 +95,9 @@ func (c *Config) ValidateBase() error {
 	if err := c.validateMemoryEmbedding(); err != nil {
 		return err
 	}
-	c.validateMemoryReview()
+	if err := c.validateMemoryReview(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -205,13 +207,15 @@ func (c *Config) validateMemoryEmbedding() error {
 	return nil
 }
 
-// validateMemoryReview validates the periodic review config. Defaults are
-// applied when fields are zero. A zero ReviewInterval disables review.
-func (c *Config) validateMemoryReview() {
+// validateMemoryReview validates the periodic review config. A zero
+// ReviewInterval disables review (valid). A negative value is a config
+// error and fails loud. CharLimit defaults to 2200 when unset.
+func (c *Config) validateMemoryReview() error {
 	if c.Memory.Review.ReviewInterval < 0 {
-		c.Memory.Review.ReviewInterval = 0
+		return fmt.Errorf("memory.review.review_interval must be >= 0 (got %d)", c.Memory.Review.ReviewInterval)
 	}
 	if c.Memory.Active.CharLimit <= 0 {
 		c.Memory.Active.CharLimit = 2200
 	}
+	return nil
 }

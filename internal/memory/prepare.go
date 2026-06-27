@@ -13,9 +13,20 @@ func (s *LocalService) Prepare(ctx context.Context, req PrepareRequest) (*Prepar
 	if err := s.EnsureLayout(ctx); err != nil {
 		return nil, err
 	}
+
+	// Active Memory is always loaded, regardless of query. It is the frozen
+	// snapshot of persistent user facts injected into every run.
+	activeFacts, err := s.loadActiveFacts(ctx, req.ActiveCharLimit)
+	if err != nil {
+		return nil, err
+	}
+
 	query := strings.TrimSpace(req.UserInput)
 	if query == "" {
-		return &PrepareResult{SkillTree: s.GetSkillTree()}, nil
+		return &PrepareResult{
+			SkillTree:   s.GetSkillTree(),
+			ActiveFacts: activeFacts,
+		}, nil
 	}
 	maxNudges, err := resolveLimit("prepare nudges", req.MaxNudges, defaultMaxNudges, maxPrepareNudges)
 	if err != nil {
@@ -40,11 +51,19 @@ func (s *LocalService) Prepare(ctx context.Context, req PrepareRequest) (*Prepar
 	}
 	items := search.Items
 
+	// Build a ref set of active facts so search-matched Entries skip facts
+	// already in the Active Memory snapshot — no point showing the same fact
+	// twice.
+	activeRefs := make(map[string]struct{}, len(activeFacts))
+	for _, f := range activeFacts {
+		activeRefs[f.Ref] = struct{}{}
+	}
+
 	result := &PrepareResult{
 		Nudges:      make([]Nudge, 0, maxNudges),
 		Entries:     make([]Entry, 0, maxEntries),
 		SkillTree:   s.GetSkillTree(),
-		ActiveFacts: s.loadActiveFacts(ctx, req.ActiveCharLimit),
+		ActiveFacts: activeFacts,
 	}
 	if req.Explain {
 		var stages []SearchStageExplain
@@ -66,6 +85,11 @@ func (s *LocalService) Prepare(ctx context.Context, req PrepareRequest) (*Prepar
 		}
 		if len(result.Entries) < maxEntries && item.Score >= 3 {
 			if item.Kind != string(KindSkill) {
+				// Skip facts already in Active Memory — they're already
+				// visible to the agent, injecting twice wastes tokens.
+				if _, dup := activeRefs[item.Ref]; dup {
+					continue
+				}
 				record, err := s.GetRecordByRef(ctx, item.Ref)
 				if err != nil {
 					return nil, fmt.Errorf("load memory record %q for entry: %w", item.Ref, err)

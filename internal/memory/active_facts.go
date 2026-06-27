@@ -7,24 +7,33 @@ import (
 	"strings"
 )
 
-// loadActiveFacts returns verified user-scoped facts as a frozen snapshot,
-// truncated to charLimit. Unlike the search-based Entries, this is injected
+// loadActiveFacts returns non-retired user-scoped facts as a frozen snapshot,
+// fit to charLimit. Unlike the search-based Entries, this is injected
 // unconditionally into every run's system prompt so the agent always sees
 // its most important persistent facts — it does not need to search for them.
 // The snapshot is stable within a run (frozen) to preserve the model's
 // prefix cache.
-func (s *LocalService) loadActiveFacts(ctx context.Context, charLimit int) []Entry {
-	if s == nil || charLimit <= 0 {
-		return nil
+//
+// A fact is an atomic semantic unit — if the whole fact doesn't fit the
+// remaining budget, it is skipped (not truncated). Facts that don't fit are
+// still in the searchable Archive; the agent retrieves them via memory_search
+// when needed.
+func (s *LocalService) loadActiveFacts(ctx context.Context, charLimit int) ([]Entry, error) {
+	if s == nil {
+		return nil, fmt.Errorf("memory service is nil")
+	}
+	if charLimit <= 0 {
+		return nil, nil
 	}
 	records, err := s.ListFacts(ctx, RecordSelection{})
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("load active facts: %w", err)
 	}
 	// Filter: non-retired + user scope only. Workspace-scoped facts are not
 	// part of the always-on snapshot (they're context-dependent). Single-owner
-	// semantics: facts the agent wrote (unverified or verified) are trusted.
-	var filtered []Record
+	// semantics: facts the agent wrote (unverified or verified) are trusted;
+	// only retired facts are excluded.
+	filtered := make([]Record, 0, len(records))
 	for _, r := range records {
 		if r.Status == StatusRetired {
 			continue
@@ -46,11 +55,8 @@ func (s *LocalService) loadActiveFacts(ctx context.Context, charLimit int) []Ent
 		if text == "" {
 			text = strings.TrimSpace(r.Title)
 		}
-		// A fact is an atomic semantic unit — never truncate mid-fact.
-		// If the whole fact doesn't fit, stop; the rest go to the searchable
-		// Archive and are retrievable via memory_search.
 		if total+len(text) > charLimit {
-			break
+			continue
 		}
 		entries = append(entries, Entry{
 			Ref:     r.Ref,
@@ -60,7 +66,7 @@ func (s *LocalService) loadActiveFacts(ctx context.Context, charLimit int) []Ent
 		})
 		total += len(text)
 	}
-	return entries
+	return entries, nil
 }
 
 // RenderActiveFacts formats the active facts snapshot as a string block

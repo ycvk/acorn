@@ -143,3 +143,55 @@ func TestCronNextEvery15Minutes(t *testing.T) {
 		t.Fatalf("next = %v, want %v", got, want)
 	}
 }
+
+// TestCronDomDowOrSemantics verifies the standard cron rule: when both dom
+// and dow are restricted (non-wildcard), a match on EITHER suffices.
+// "0 0 13 * 5" = every 13th of the month OR every Friday at midnight.
+func TestCronDomDowOrSemantics(t *testing.T) {
+	s, err := parseCron("0 0 13 * 5")
+	if err != nil {
+		t.Fatalf("parseCron: %v", err)
+	}
+	// June 13, 2026 is a Saturday — matches dom (13), not dow (Fri=5).
+	june13 := time.Date(2026, 6, 13, 0, 0, 0, 0, time.UTC)
+	if !s.matches(june13) {
+		t.Error("June 13 (dom=13) should match via dom OR rule")
+	}
+	// June 12, 2026 is a Friday — matches dow (5), not dom (12).
+	june12 := time.Date(2026, 6, 12, 0, 0, 0, 0, time.UTC)
+	if !s.matches(june12) {
+		t.Error("June 12 (dow=Fri) should match via dow OR rule")
+	}
+	// June 14, 2026 is a Sunday — matches neither dom (14) nor dow (0, but
+	// dow field is {5} not {0}).
+	june14 := time.Date(2026, 6, 14, 0, 0, 0, 0, time.UTC)
+	if s.matches(june14) {
+		t.Error("June 14 should NOT match (neither dom=13 nor dow=Fri)")
+	}
+}
+
+// TestCronDomDowAndWhenOneIsWildcard verifies that when either dom or dow
+// is wildcard, both must match (AND semantics).
+func TestCronDomDowAndWhenOneIsWildcard(t *testing.T) {
+	// "0 0 13 * *" — dom restricted, dow wildcard → only dom matters.
+	s, _ := parseCron("0 0 13 * *")
+	june13 := time.Date(2026, 6, 13, 0, 0, 0, 0, time.UTC)
+	if !s.matches(june13) {
+		t.Error("dom=13 with dow=* should match on 13th")
+	}
+	june14 := time.Date(2026, 6, 14, 0, 0, 0, 0, time.UTC)
+	if s.matches(june14) {
+		t.Error("dom=13 with dow=* should NOT match on 14th")
+	}
+
+	// "0 0 * * 5" — dom wildcard, dow restricted → only dow matters.
+	s2, _ := parseCron("0 0 * * 5")
+	june12 := time.Date(2026, 6, 12, 0, 0, 0, 0, time.UTC) // Friday
+	if !s2.matches(june12) {
+		t.Error("dom=* with dow=5 should match on Friday")
+	}
+	june13 = time.Date(2026, 6, 13, 0, 0, 0, 0, time.UTC) // Saturday
+	if s2.matches(june13) {
+		t.Error("dom=* with dow=5 should NOT match on Saturday")
+	}
+}
