@@ -46,16 +46,11 @@ func (s *LocalService) loadActiveFacts(ctx context.Context, charLimit int) []Ent
 		if text == "" {
 			text = strings.TrimSpace(r.Title)
 		}
+		// A fact is an atomic semantic unit — never truncate mid-fact.
+		// If the whole fact doesn't fit, stop; the rest go to the searchable
+		// Archive and are retrievable via memory_search.
 		if total+len(text) > charLimit {
-			remaining := charLimit - total
-			if remaining > 50 {
-				runes := []rune(text)
-				if len(runes) > remaining {
-					text = string(runes[:remaining]) + "..."
-				}
-			} else {
-				break
-			}
+			break
 		}
 		entries = append(entries, Entry{
 			Ref:     r.Ref,

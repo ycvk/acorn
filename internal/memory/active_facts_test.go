@@ -81,6 +81,25 @@ func TestLoadActiveFactsRespectsCharLimit(t *testing.T) {
 	}
 }
 
+func TestLoadActiveFactsCharLimitBelowSingleFact(t *testing.T) {
+	// When the char limit is smaller than a single fact, the fact is dropped
+	// entirely — never truncated mid-fact.
+	service := newTestService(t)
+	if _, err := service.CreateFact(context.Background(), CreateFactRequest{
+		Title: "Big",
+		Body:  strings.Repeat("z", 200),
+	}); err != nil {
+		t.Fatalf("CreateFact: %v", err)
+	}
+	if err := service.BuildIndex(context.Background()); err != nil {
+		t.Fatalf("BuildIndex: %v", err)
+	}
+	facts := service.loadActiveFacts(context.Background(), 50)
+	if len(facts) != 0 {
+		t.Fatalf("expected 0 facts when limit < single fact size, got %d: %+v", len(facts), facts)
+	}
+}
+
 func TestRenderActiveFactsEmpty(t *testing.T) {
 	if got := RenderActiveFacts(nil); got != "" {
 		t.Errorf("RenderActiveFacts(nil) = %q, want empty", got)
