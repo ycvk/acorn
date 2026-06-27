@@ -259,6 +259,7 @@ func (t *triggerRunCreator) CreateRun(ctx context.Context, triggerID, input stri
 		return nil
 	}
 	input = injectWorldState(ctx, t.worldState, input)
+	input = fmt.Sprintf("[This run was woken by trigger %q. Follow the ambient agent loop: orient on the world state above, assess whether this event needs action, act or escalate, then record the outcome and stop.]\n\n%s", triggerID, input)
 	if _, err := t.runs.CreateRun(ctx, threadID, "", input); err != nil {
 		return err
 	}
@@ -322,15 +323,22 @@ func injectWorldState(ctx context.Context, ws *memory.WorldState, input string) 
 	return formatWorldStatePrefix(projection) + input
 }
 
-// formatWorldStatePrefix renders the WorldState key-values as a system-style
-// context block prepended to the trigger input.
+// formatWorldStatePrefix renders the WorldState key-values as a context block
+// prepended to the trigger input. The header tells the agent this is its own
+// cross-run memory from the last wake, so it reads it as orientation context
+// rather than a foreign artifact.
 func formatWorldStatePrefix(projection map[string]string) string {
 	var b strings.Builder
-	b.WriteString("[Current world state projection]\n")
-	for k, v := range projection {
+	b.WriteString("[World state — your cross-run memory from the last wake. Read this to orient before acting on the event below.]\n")
+	keys := make([]string, 0, len(projection))
+	for k := range projection {
+		keys = append(keys, k)
+	}
+	slices.Sort(keys)
+	for _, k := range keys {
 		b.WriteString(k)
 		b.WriteString(": ")
-		b.WriteString(v)
+		b.WriteString(projection[k])
 		b.WriteString("\n")
 	}
 	b.WriteString("[End world state]\n\n")

@@ -56,7 +56,8 @@
   - `internal/triggers/scheduler_test.go`
 - **WorldState 是跨 run 决策投影**：`internal/memory.WorldState` 是 file-backed key-value store（`{storage_dir}/worldstate/state.json`），只有 `ApplyDelta` 一条变更路径（upsert/delete）。填补 Session（per-run 临时）和 facts（显式 remember）之间空白。内存 cache + mutex 串行写，避开 SQLite 单连接瓶颈。agent 通过 `worldstate_update`/`worldstate_load` 工具读写。
   - `internal/memory/worldstate_test.go`
-  - `internal/tools/worldstate_tool_test.go`
+- **Ambient 身份指令硬编码进 base instruction**：`internal/runtime/runner.go` 的 `ambientAgentInstruction` 常量拼进 `buildStableInstruction`（用户 prompt 之后、capability discovery 之前），教 agent ambient 五步循环（orient → assess → act → record → stop）。用户 prompt 不可覆盖——ambient 循环是 agent 身份的核心，不是可配置行为。`triggerRunCreator.CreateRun` 在 input 前加 trigger 唤醒上下文，`formatWorldStatePrefix` 加引导语让 agent 理解注入的 KV 是自己的跨 run 记忆。
+  - `internal/wire/trigger_worldstate_e2e_test.go`
 - **Decision Card 扩展 ask_operator payload**：`OperatorQuestionPayload` 增 `considered_options/rationale/risk/recommendation` 维度（向后兼容，旧 payload 仍解码）。不是新建审批系统，是给 `ask_operator` 补决策依据。风险分级用规则（非 LLM）判定器 `internal/tools.ClassifyRisk`，硬编码高风险白名单不可降级。
   - `internal/core/decision_card_test.go`
   - `internal/tools/risk_gate_test.go`

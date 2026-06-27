@@ -25,7 +25,7 @@ func TestTriggerRunCreatorInjectsWorldStateProjection(t *testing.T) {
 	if !contains(prefix, "5") {
 		t.Fatalf("prefix should contain value '5', got %q", prefix)
 	}
-	if !contains(prefix, "world state") {
+	if !contains(prefix, "World state") {
 		t.Fatalf("prefix should label itself as world state, got %q", prefix)
 	}
 }

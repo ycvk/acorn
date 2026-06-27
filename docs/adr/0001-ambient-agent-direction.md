@@ -128,6 +128,7 @@ Trigger(观察世界) → WorldState(决策投影) → Decision Card(结构化�
 3. **WorldState** — `internal/memory/worldstate.go` file-backed key-value store,`ApplyDelta` 唯一变更路径。`worldstate_update`/`worldstate_load` 工具闭环(提交 `cc7eb05`)。
 4. **Decision Card + 风险分级** — `OperatorQuestionPayload` 增 `considered_options/rationale/risk/recommendation`;`internal/tools/risk_gate.go` 规则判定器;`direct_response.go` `BeforeToolCall` 接入。
 5. **search_runs** — `internal/tools/search_runs.go` + `Store.SearchRuns` LIKE 关键词匹配。
+6. **Agent 身份转 ambient** — `internal/runtime/runner.go` 新增 `ambientAgentInstruction` 常量,硬编码进 `buildStableInstruction`(用户 prompt 之后、capability discovery 之前),教 agent ambient 五步循环(orient → assess → act → record → stop)。4 个 config 模板(example/selfhosted/minimal/init)的 system prompt 从 "coordinator agent for files, shell tasks" 改为 ambient 定位。`formatWorldStatePrefix` 加引导语让 agent 理解注入的 KV 是自己的跨 run 记忆。`triggerRunCreator.CreateRun` 在 input 前加 trigger 唤醒上下文,明示这次 run 是被 trigger 唤醒的。身份转换是 ambient 化的最后一步:基础设施全到位但 agent 不知道自己是 ambient agent 等于白搭。
 
 核心 ambient 循环已闭环:trigger fire → agent 读 WorldState(worldstate_load)→ agent 处理 → agent 更新 WorldState(worldstate_update)→ 下次 trigger fire 读到更新后的投影。
 

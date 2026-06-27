@@ -45,7 +45,7 @@ func TestE2EWorldStateInjection(t *testing.T) {
 
 	// Now injection should prepend the projection.
 	got = injectWorldState(context.Background(), ws, "check inbox")
-	if !strings.HasPrefix(got, "[Current world state projection]") {
+	if !strings.HasPrefix(got, "[World state") {
 		t.Fatalf("missing projection header, got:\n%s", got)
 	}
 	if !strings.Contains(got, "unread_emails: 5") {
