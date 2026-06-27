@@ -248,21 +248,31 @@ func (t *triggerRunCreator) CreateRun(ctx context.Context, triggerID, input stri
 			return cerr
 		}
 	}
-	// Inject the current WorldState projection so the agent reads a
-	// consistent world view instead of re-perceiving from zero. This is the
-	// ambient memory layer between Session (per-run) and facts (explicit).
-	if t.worldState != nil {
-		projection, err := t.worldState.Load(ctx)
-		if err != nil {
-			slog.Warn("world state load failed for trigger, proceeding without projection", "trigger_id", triggerID, "error", err)
-		} else if len(projection) > 0 {
-			input = formatWorldStatePrefix(projection) + input
-		}
-	}
+	input = injectWorldState(ctx, t.worldState, input)
 	if _, err := t.runs.CreateRun(ctx, threadID, "", input); err != nil {
 		return err
 	}
 	return nil
+}
+
+// injectWorldState prepends the current WorldState projection to the run
+// input. If WorldState is nil, Load fails, or the projection is empty, the
+// input is returned unchanged. On Load error it logs a warning and proceeds
+// without the projection — a stale projection is better than blocking a
+// trigger fire.
+func injectWorldState(ctx context.Context, ws *memory.WorldState, input string) string {
+	if ws == nil {
+		return input
+	}
+	projection, err := ws.Load(ctx)
+	if err != nil {
+		slog.Warn("world state load failed for trigger, proceeding without projection", "error", err)
+		return input
+	}
+	if len(projection) == 0 {
+		return input
+	}
+	return formatWorldStatePrefix(projection) + input
 }
 
 // formatWorldStatePrefix renders the WorldState key-values as a system-style

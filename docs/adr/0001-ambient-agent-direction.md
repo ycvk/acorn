@@ -1,7 +1,7 @@
 ---
 adr: 0001
 title: 从 reactive agent 转向 ambient agent
-status: Proposed
+status: Accepted
 date: 2026-06-27
 supersedes: []
 ---
@@ -118,6 +118,18 @@ Trigger(观察世界) → WorldState(决策投影) → Decision Card(结构化�
 - 触及 Session 核心循环(非阻塞 compaction)和 run 模型(trigger 注入),是结构改动非小修
 - ambient 24/7 跑引入成本控制、安全(见 Open Questions)
 - mobile 可能需要 push notification(现是 inbox 轮询)
+
+### 落地状态(2026-06-27)
+
+5 步全部落地并通过 16 包测试 + lint + format-check + 架构守卫:
+
+1. **非阻塞 compaction** — `internal/runtime/auto_compact.go` `maybeStartCompact`(后台 goroutine)+ `applyPendingCompact`(turn 间 splice)。旧同步 `compact()` 保留为 legacy。
+2. **Trigger + webhook** — `internal/triggers/` 包(Scheduler + Trigger interface + WebhookTrigger),`/v1/triggers/{trigger_id}` 端点 HMAC 验签,`serve` 进程内常驻。
+3. **WorldState** — `internal/memory/worldstate.go` file-backed key-value store,`ApplyDelta` 唯一变更路径。`worldstate_update`/`worldstate_load` 工具闭环(提交 `cc7eb05`)。
+4. **Decision Card + 风险分级** — `OperatorQuestionPayload` 增 `considered_options/rationale/risk/recommendation`;`internal/tools/risk_gate.go` 规则判定器;`direct_response.go` `BeforeToolCall` 接入。
+5. **search_runs** — `internal/tools/search_runs.go` + `Store.SearchRuns` LIKE 关键词匹配。
+
+核心 ambient 循环已闭环:trigger fire → agent 读 WorldState(worldstate_load)→ agent 处理 → agent 更新 WorldState(worldstate_update)→ 下次 trigger fire 读到更新后的投影。
 
 ## Open Questions
 
