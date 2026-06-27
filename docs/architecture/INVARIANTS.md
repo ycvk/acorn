@@ -49,9 +49,10 @@
 - **Trigger scheduler 是 run 外常驻进程**：`internal/triggers.Scheduler` 住 `serve` 进程内，与 `Executor` 平级，不属任何 per-run 生命周期。trigger fire 时调 `RunService.CreateRun` 起新短命 run，不续 session。`/v1/triggers/{id}` 端点不经 device auth，用 HMAC 验签。`Stop()` 清理 pending debounce timers 避免 shutdown 孤儿 run。
   - `internal/triggers/scheduler_test.go`
   - `internal/triggers/webhook_test.go`
-- **Trigger 成本控制**：debounce + duplicate-skip 双护栏。`triggers.debounce_millis`（默认 0=禁用,推荐 2000）合并同 trigger 窗口内多次 fire 为一次 run（last input wins,per-trigger timer 独立）。`triggerRunCreator.shouldSkipRun` 在 WorldState 投影 + input 指纹（SHA-256,key 排序确定性）与上次相同时跳过 CreateRun——首次不跳过,nil WorldState 不跳过。webhook spam 100 次相同 payload + 无状态变化 = 0 次 LLM 调用。
+- **Trigger 成本控制**：debounce + duplicate-skip + daily quota 三护栏。`triggers.debounce_millis`（默认 0=禁用,推荐 2000）合并同 trigger 窗口内多次 fire 为一次 run（last input wins,per-trigger timer 独立）。`triggerRunCreator.shouldSkipRun` 在 WorldState 投影 + input 指纹（SHA-256,key 排序确定性）与上次相同时跳过 CreateRun——首次不跳过,nil WorldState 不跳过。`triggers.daily_quota`（默认 0=不限）限制每 UTC 日 trigger fire 起 run 次数,超限静默丢弃（warn log）,serve 重启归零。webhook spam 100 次相同 payload + 无状态变化 = 0 次 LLM 调用。
   - `internal/triggers/scheduler_debounce_test.go`
   - `internal/wire/trigger_skip_test.go`
+  - `internal/wire/trigger_quota_test.go`
 - **Trigger fire → 起新 run，不续 session**：trigger fire 走 `Executor.ExecuteMessages` 起新 run，`RunTimeoutSeconds`(默认 900s) + `direct_response` 同步 loop 决定长 run 不可行。WorldState 是跨 run 唯一状态，session 是 per-run 临时态。
   - `internal/triggers/scheduler_test.go`
 - **WorldState 是跨 run 决策投影**：`internal/memory.WorldState` 是 file-backed key-value store（`{storage_dir}/worldstate/state.json`），只有 `ApplyDelta` 一条变更路径（upsert/delete）。填补 Session（per-run 临时）和 facts（显式 remember）之间空白。内存 cache + mutex 串行写，避开 SQLite 单连接瓶颈。agent 通过 `worldstate_update`/`worldstate_load` 工具读写。

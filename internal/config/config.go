@@ -154,6 +154,10 @@ type TriggersConfig struct {
 	// window into a single run (last input wins). Zero disables debounce.
 	// Protects against webhook spam burning LLM tokens. Recommended: 2000.
 	DebounceMillis int `yaml:"debounce_millis"`
+	// DailyQuota caps the number of trigger-started runs per UTC day.
+	// Fires over quota are silently dropped (warned in logs). Zero disables
+	// the cap (default). Protects against a runaway webhook burning tokens.
+	DailyQuota int `yaml:"daily_quota"`
 }
 
 // WebhookTriggerConfig configures a single webhook trigger.

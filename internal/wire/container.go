@@ -264,6 +264,9 @@ type triggerRunCreator struct {
 	worldState      *memory.WorldState
 	mu              sync.Mutex
 	lastFingerprint string
+	dailyQuota      int
+	quotaDay        string // UTC date "2006-01-02"; quota resets when it changes
+	quotaUsed       int
 }
 
 func (t *triggerRunCreator) CreateRun(ctx context.Context, triggerID, input string) error {
@@ -279,12 +282,44 @@ func (t *triggerRunCreator) CreateRun(ctx context.Context, triggerID, input stri
 		slog.Info("trigger fire skipped (duplicate of last fire)", "trigger_id", triggerID)
 		return nil
 	}
+	if t.dailyQuota > 0 && !t.allowQuota() {
+		slog.Warn("trigger fire dropped (daily quota reached)", "trigger_id", triggerID, "quota", t.dailyQuota)
+		return nil
+	}
+	t.incQuota()
 	input = injectWorldState(ctx, t.worldState, input)
 	input = fmt.Sprintf("[This run was woken by trigger %q. Follow the ambient agent loop: orient on the world state above, assess whether this event needs action, act or escalate, then record the outcome and stop.]\n\n%s", triggerID, input)
 	if _, err := t.runs.CreateRun(ctx, threadID, "", input); err != nil {
 		return err
 	}
 	return nil
+}
+
+// allowQuota reports whether a new run is within the daily quota. The quota
+// resets at UTC midnight. A zero dailyQuota means unlimited (always allow).
+func (t *triggerRunCreator) allowQuota() bool {
+	if t.dailyQuota <= 0 {
+		return true
+	}
+	today := time.Now().UTC().Format("2006-01-02")
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if today != t.quotaDay {
+		t.quotaDay = today
+		t.quotaUsed = 0
+	}
+	return t.quotaUsed < t.dailyQuota
+}
+
+// incQuota increments the daily run counter. Call only after allowQuota
+// returns true.
+func (t *triggerRunCreator) incQuota() {
+	if t.dailyQuota <= 0 {
+		return
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.quotaUsed++
 }
 
 // shouldSkipRun reports whether this fire is a duplicate of the last one:
@@ -371,7 +406,12 @@ func buildTriggerScheduler(cfg *config.Config, runs *api.RunService, db *store.S
 	if cfg.Triggers.DebounceMillis > 0 {
 		opts = append(opts, triggers.WithDebounce(time.Duration(cfg.Triggers.DebounceMillis)*time.Millisecond))
 	}
-	sched := triggers.NewScheduler(&triggerRunCreator{runs: runs, store: db, worldState: ws}, opts...)
+	sched := triggers.NewScheduler(&triggerRunCreator{
+		runs:       runs,
+		store:      db,
+		worldState: ws,
+		dailyQuota: cfg.Triggers.DailyQuota,
+	}, opts...)
 	for _, wh := range cfg.Triggers.Webhooks {
 		wt, err := triggers.NewWebhookTrigger(triggers.WebhookConfig{
 			ID:     wh.ID,
