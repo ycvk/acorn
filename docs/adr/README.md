@@ -5,6 +5,7 @@ ADR 记录 Acorn 架构方向级决策的"为什么"。current-state 架构真�
 | ADR | Title | Status | Date |
 |-----|-------|--------|------|
 | [0001](0001-ambient-agent-direction.md) | 从 reactive agent 转向 ambient agent | Proposed | 2026-06-27 |
+| [0002](0002-three-layer-memory.md) | 三层记忆架构 — Active Memory + Archive + Periodic Review | Accepted | 2026-06-28 |
 
 ## Status 约定
 

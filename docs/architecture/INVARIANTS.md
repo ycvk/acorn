@@ -34,6 +34,12 @@
   - `internal/runtime/auto_compact_test.go`
   - `internal/runtime/auto_compact_nonblocking_test.go`
 - **Memory Record V2 是长期记忆事实**：facts/history frontmatter 由 `internal/memory` 解析；memory search 默认走关键词匹配，`memory.embedding.enabled` 开启时走 vector KNN + keyword RRF 融合（sqlite-vec，复用 provider embedding 端点）。
+- **三层记忆架构（ADR-0002）**：Active Memory（非 retired 的 user-scoped facts frozen snapshot，按 `memory.active.char_limit` 默认 2200 字符截取，每个 run 无条件注入 system prompt，run 内不变以保 prefix cache）+ Archive（append-only history + fallback summary，零 LLM 成本，混合检索覆盖）+ Periodic Review（每 `memory.review.review_interval` 默认 5 个 run 触发一次 LLM 调用，蒸馏 durable facts 写入 facts，异步不阻塞 run 收尾，`NewReviewer` 在 `buildContainerRuntimeDeps` 构造一次供所有 Executor 共享）。单 owner 语义：agent 自己写的 facts（unverified + verified）都信任，retired 才排除。
+  - `internal/memory/active_facts.go`
+  - `internal/memory/active_facts_test.go`
+  - `internal/runtime/reviewer.go`
+  - `internal/runtime/reviewer_test.go`
+  - `internal/wire/runtime.go`
 
 ## Remote API 与 mobile
 

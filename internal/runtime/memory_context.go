@@ -125,6 +125,19 @@ func fitPreparedMemoryToBudget(ctx context.Context, counter TokenCounter, prepar
 		return true, nil
 	}
 
+	// Active Memory: frozen snapshot of verified user facts, always visible.
+	// Injected first so the agent sees its most important persistent facts
+	// before search-matched entries.
+	if len(prepared.ActiveFacts) > 0 {
+		if ok, err := appendIfFits(memory.RenderActiveFacts(prepared.ActiveFacts)); err != nil {
+			return "", nil, err
+		} else if ok {
+			if _, err := appendIfFits(""); err != nil {
+				return "", nil, err
+			}
+		}
+	}
+
 	if prepared.SkillTree != nil {
 		skillTreeText := formatSkillTree(prepared.SkillTree)
 		if ok, err := appendIfFits(skillTreeText); err != nil {

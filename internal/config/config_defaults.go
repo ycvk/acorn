@@ -66,6 +66,12 @@ func defaultConfig() *Config {
 				Model:      "text-embedding-3-small",
 				Dimensions: 1536,
 			},
+			Review: MemoryReviewConfig{
+				ReviewInterval: 5,
+			},
+			Active: MemoryActiveConfig{
+				CharLimit: 2200,
+			},
 		},
 	}
 }

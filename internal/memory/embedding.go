@@ -98,7 +98,10 @@ func (c *EmbeddingClient) Embed(ctx context.Context, text string) ([]float32, er
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		raw, err := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		if err != nil {
+			return nil, fmt.Errorf("embedding endpoint returned %d (body unreadable: %v)", resp.StatusCode, err)
+		}
 		return nil, fmt.Errorf("embedding endpoint returned %d: %s", resp.StatusCode, string(raw))
 	}
 	var result embeddingResponse

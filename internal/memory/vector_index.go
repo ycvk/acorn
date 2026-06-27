@@ -112,7 +112,7 @@ func (vi *VectorIndex) UpsertEmbedding(ctx context.Context, ref, kind, title, sc
 	if err != nil {
 		return fmt.Errorf("begin upsert tx: %w", err)
 	}
-	defer func() { _ = tx.Rollback() }()
+	defer func() { _ = tx.Rollback() }() //nolint:errcheck // rollback after commit, error expected
 
 	// Delete existing entry for this ref (if any) in both tables.
 	if _, err := tx.ExecContext(ctx, `DELETE FROM vec_items WHERE id IN (SELECT id FROM vec_meta WHERE ref = ?)`, ref); err != nil {

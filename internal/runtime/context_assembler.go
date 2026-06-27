@@ -14,10 +14,11 @@ func prepareRunMemory(ctx context.Context, deps RuntimeDeps, req RunnerBuildRequ
 	}
 	workspaceSlug := workspaceSlug(deps)
 	result, err := deps.MemoryModule.Prepare(ctx, memory.PrepareRequest{
-		RunID:         req.RunID,
-		SessionID:     req.SessionID,
-		WorkspaceSlug: workspaceSlug,
-		UserInput:     req.Input,
+		RunID:           req.RunID,
+		SessionID:       req.SessionID,
+		WorkspaceSlug:   workspaceSlug,
+		UserInput:       req.Input,
+		ActiveCharLimit: deps.Config.Memory.Active.CharLimit,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("prepare memory: %w", err)

@@ -40,6 +40,8 @@ type ContextConfig struct {
 type MemoryConfig struct {
 	Search    MemorySearchConfig    `yaml:"search"`
 	Embedding MemoryEmbeddingConfig `yaml:"embedding"`
+	Review    MemoryReviewConfig    `yaml:"review"`
+	Active    MemoryActiveConfig    `yaml:"active"`
 }
 
 type MemorySearchConfig struct {
@@ -57,6 +59,23 @@ type MemoryEmbeddingConfig struct {
 	Enabled    bool   `yaml:"enabled"`
 	Model      string `yaml:"model"`
 	Dimensions int    `yaml:"dimensions"`
+}
+
+// MemoryReviewConfig configures the periodic background review. Every
+// ReviewInterval completed runs trigger one LLM call that decides whether
+// any of those runs produced durable facts worth persisting via remember.
+// Zero disables review (default). ReviewModel can point to a cheaper model
+// (e.g. a flash model) to reduce cost; empty means use the primary provider.
+type MemoryReviewConfig struct {
+	ReviewInterval int    `yaml:"review_interval"`
+	ReviewModel    string `yaml:"review_model,omitempty"`
+}
+
+// MemoryActiveConfig sets the character budget for the Active Memory frozen
+// snapshot injected into every run's system prompt. Verified user facts are
+// truncated to this limit. Zero uses the default (2200 chars, ~800 tokens).
+type MemoryActiveConfig struct {
+	CharLimit int `yaml:"char_limit"`
 }
 
 type RuntimeConfig struct {

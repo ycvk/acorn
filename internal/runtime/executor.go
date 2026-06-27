@@ -29,6 +29,7 @@ type Executor struct {
 	runRuntime   *RunnerFactory
 	controller   *RunController
 	newChatModel func(ctx context.Context) (einomodel.BaseChatModel, error)
+	reviewer     *Reviewer
 }
 
 func NewExecutorWithRunRuntimeAndController(cfg *config.Config, store core.SessionStore, runRuntime *RunnerFactory, controller *RunController) (*Executor, error) {
@@ -54,6 +55,12 @@ func NewExecutorWithRunRuntimeAndController(cfg *config.Config, store core.Sessi
 		newChatModel: runRuntime.NewChatModel,
 	}
 	return exec, nil
+}
+
+// SetReviewer attaches a periodic memory reviewer. Optional: nil or
+// NewReviewer returning nil disables review.
+func (e *Executor) SetReviewer(r *Reviewer) {
+	e.reviewer = r
 }
 
 func resolveRunID(req core.ExecuteRequest) string {
@@ -440,6 +447,11 @@ func (e *Executor) finalizePostRun(ctx context.Context, runID string, runStatus 
 	}
 	if err := e.appendRunHistory(ctx, runID, runStatus, input, output); err != nil {
 		slog.Error("append run history", "run_id", runID, "err", err)
+	}
+	// Periodic memory review: counts completed runs and triggers a review
+	// every N runs. nil reviewer = disabled.
+	if e.reviewer != nil {
+		e.reviewer.RecordRun(runID, input, output)
 	}
 }
 

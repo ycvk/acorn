@@ -62,21 +62,23 @@ type LocalService struct {
 }
 
 type PrepareRequest struct {
-	RunID         string
-	SessionID     string
-	WorkspaceSlug string
-	UserInput     string
-	Mode          string
-	MaxNudges     int
-	MaxEntries    int
-	Explain       bool
+	RunID           string
+	SessionID       string
+	WorkspaceSlug   string
+	UserInput       string
+	Mode            string
+	MaxNudges       int
+	MaxEntries      int
+	Explain         bool
+	ActiveCharLimit int
 }
 
 type PrepareResult struct {
-	Nudges    []Nudge
-	Entries   []Entry
-	SkillTree *SkillTreeIndex
-	Explain   *SearchExplain
+	Nudges      []Nudge
+	Entries     []Entry
+	SkillTree   *SkillTreeIndex
+	Explain     *SearchExplain
+	ActiveFacts []Entry // verified user facts injected as a frozen snapshot, independent of query matching
 }
 
 type Nudge struct {

@@ -48,11 +48,11 @@ func TestParseCronRangeWithStep(t *testing.T) {
 	s, err := parseCron("1-10/3 * * * *")
 	if err != nil {
 		t.Fatalf("parseCron: %v", err)
-		want := []int{1, 4, 7, 10}
-		for _, m := range want {
-			if !s.minute[m] {
-				t.Fatalf("minute missing %d", m)
-			}
+	}
+	want := []int{1, 4, 7, 10}
+	for _, m := range want {
+		if !s.minute[m] {
+			t.Fatalf("minute missing %d", m)
 		}
 	}
 }

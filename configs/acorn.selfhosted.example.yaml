@@ -81,6 +81,11 @@ memory:
     enabled: false              # Opt-in semantic retrieval. When true, memory records are embedded via the provider's /v1/embeddings endpoint and searched with sqlite-vec KNN + keyword fusion (RRF). When false, search is keyword-only.
     model: text-embedding-3-small # OpenAI-compatible embedding model (reuses provider base_url + api_key)
     dimensions: 1536             # Must match the embedding model's output dimension
+  review:
+    review_interval: 5           # Every N completed runs, trigger one LLM call to distill durable facts (0 disables).
+    # review_model: gpt-4o-mini  # Optional: use a cheaper model for the periodic review LLM call.
+  active:
+    char_limit: 2200             # Character budget for the Active Memory snapshot (verified user facts always injected, ~800 tokens).
 
 # Triggers let the agent wake itself from external events (ambient mode).
 triggers:

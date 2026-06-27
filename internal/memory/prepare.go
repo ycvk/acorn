@@ -41,9 +41,10 @@ func (s *LocalService) Prepare(ctx context.Context, req PrepareRequest) (*Prepar
 	items := search.Items
 
 	result := &PrepareResult{
-		Nudges:    make([]Nudge, 0, maxNudges),
-		Entries:   make([]Entry, 0, maxEntries),
-		SkillTree: s.GetSkillTree(),
+		Nudges:      make([]Nudge, 0, maxNudges),
+		Entries:     make([]Entry, 0, maxEntries),
+		SkillTree:   s.GetSkillTree(),
+		ActiveFacts: s.loadActiveFacts(ctx, req.ActiveCharLimit),
 	}
 	if req.Explain {
 		var stages []SearchStageExplain
