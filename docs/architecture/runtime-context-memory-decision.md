@@ -1,7 +1,7 @@
 ---
 doc_type: architecture
 status: current
-last_reviewed: 2026-06-21
+last_reviewed: 2026-06-27
 slug: runtime-context-memory
 ---
 
@@ -22,13 +22,16 @@ Tool lifecycle state is derived from `tooling.ToolContract`. Runtime builds each
 
 Tool result messages are not durable ledger-backed. Results stay in the message stream and are subject to observation masking by Session. `OnToolResult` only validates the event payload; no SQLite ledger write.
 
-## Hybrid Context (masking + auto-compact + re-inject)
+## Hybrid Context (masking + non-blocking auto-compact + re-inject)
 
 Session owns root-run model input. `BeforeModelCall` executes:
 
 1. **Observation masking**: tool results older than `mask_after_turns` (default 2) turns are replaced with a compact placeholder `[tool result elided: call_id=...]`. Pure in-memory, no SQLite write.
-2. **LLM auto-compact**: when token count exceeds `window_tokens - compact_margin` (default 13000), a model call generates a conversation summary. Old messages are replaced with `[summary + recent N turns]`. Circuit breaker stops after 3 consecutive failures.
-3. **Re-inject**: after compact, system prompt + memory context + skill context are re-injected from assembly.
+2. **Apply pending compact**: if a background summary from a previous turn has settled, splice `[summary + current messages]`. Non-blocking — if not ready, proceed with current messages and retry next turn.
+3. **LLM auto-compact (non-blocking)**: when token count exceeds `window_tokens - compact_margin` (default 13000), `maybeStartCompact` launches a background goroutine to generate a conversation summary. It returns immediately with the original messages; the summary is spliced in between turns by step 2. Circuit breaker stops after 3 consecutive failures.
+4. **Re-inject**: after compact splice, system prompt + memory context + skill context are re-injected from assembly.
+
+Non-blocking compaction keeps the controller running while the summariser works: the summary goroutine only reads its snapshot and writes into `pendingCompact`; `applyPendingCompact` runs from the session's single goroutine, so `s.messages` stays single-writer. Conversation is only spliced between turns, never mid-LLM-call.
 
 No CompactionEngine, BudgetGovernor, reactive compact, context boundary persistence, or rehydration packet system.
 

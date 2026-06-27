@@ -11,6 +11,7 @@ type Config struct {
 	Tools     ToolsConfig      `yaml:"tools"`
 	MCP       MCPConfig        `yaml:"mcp"`
 	Memory    MemoryConfig     `yaml:"memory"`
+	Triggers  TriggersConfig   `yaml:"triggers"`
 
 	ConfigPath string `yaml:"-"`
 	ConfigDir  string `yaml:"-"`
@@ -129,4 +130,17 @@ type MCPProviderConfig struct {
 	StartupTimeoutSeconds int               `yaml:"startup_timeout_seconds"`
 	Auth                  MCPAuthConfig     `yaml:"auth"`
 	ToolSafety            string            `yaml:"tool_safety"`
+}
+
+// TriggersConfig configures ambient agent trigger sources. Triggers live in
+// the serve process and fire new runs when external events arrive.
+type TriggersConfig struct {
+	Webhooks []WebhookTriggerConfig `yaml:"webhooks"`
+}
+
+// WebhookTriggerConfig configures a single webhook trigger.
+type WebhookTriggerConfig struct {
+	ID     string `yaml:"id"`
+	Secret string `yaml:"secret"`
+	Prompt string `yaml:"prompt"`
 }

@@ -237,6 +237,7 @@ func buildLocalCatalog(ctx context.Context, deps RuntimeDeps, services toolsetWe
 		ArtifactService:   deps.ArtifactService,
 		ArtifactContext:   artifactToolBridge{},
 		OperatorStore:     resolveOperatorStore(deps),
+		RunSearchStore:    deps.Store,
 		OperatorContext:   artifactToolBridge{},
 		WebFetchService:   services.fetch,
 		WebSearchService:  services.search,

@@ -25,6 +25,7 @@ var builtinToolOrder = []string{
 	"memory_create_file",
 	"memory_replace_span",
 	"remember",
+	"search_runs",
 	"skill_list",
 	"skill_view",
 	"load_tools",
@@ -69,6 +70,10 @@ func builtinToolContract(name string) (core.ToolContract, bool) {
 		c.Kind = core.ToolKindMemory
 		c.Category = core.ToolCategoryMemory
 		c.Execution.ParallelPolicy = core.ParallelPolicySerial
+	case "search_runs":
+		c.Kind = core.ToolKindNative
+		c.Category = core.ToolCategoryInspect
+		c.Execution.ParallelPolicy = core.ParallelPolicyReadOnly
 	case "skill_list", "skill_view":
 		c.Kind = core.ToolKindSkill
 		c.Category = core.ToolCategorySkill
@@ -187,6 +192,13 @@ func nativeToolBuilder(name string, cfg CatalogConfig) func(context.Context, cor
 				return nil, nil
 			}
 			return buildAskOperatorTool(cfg.OperatorStore, cfg.OperatorContext)
+		}
+	case "search_runs":
+		return func(_ context.Context, _ core.RunContext) (einotool.BaseTool, error) {
+			if cfg.RunSearchStore == nil {
+				return nil, nil
+			}
+			return buildSearchRunsTool(cfg.RunSearchStore)
 		}
 	case "web_fetch":
 		return func(_ context.Context, _ core.RunContext) (einotool.BaseTool, error) {

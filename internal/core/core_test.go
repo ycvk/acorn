@@ -93,7 +93,7 @@ func TestStoreInterfaces(t *testing.T) {
 		iface       any
 		wantMethods int
 	}{
-		{"SessionStore", (*SessionStore)(nil), 31},
+		{"SessionStore", (*SessionStore)(nil), 32},
 		{"IdentityStore", (*IdentityStore)(nil), 7},
 		{"ArtifactStore", (*ArtifactStore)(nil), 6},
 	}

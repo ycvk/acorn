@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
+	"path/filepath"
 	"strings"
 
 	"github.com/ycvk/acorn/internal/api"
@@ -13,6 +15,7 @@ import (
 	"github.com/ycvk/acorn/internal/memory"
 	"github.com/ycvk/acorn/internal/runtime"
 	"github.com/ycvk/acorn/internal/store"
+	"github.com/ycvk/acorn/internal/triggers"
 )
 
 type Container struct {
@@ -30,6 +33,8 @@ type Container struct {
 	capabilities  *api.CapabilitiesService
 	deviceAuth    *api.DeviceAuthService
 	inbox         *api.InboxService
+	triggerSched  *triggers.Scheduler
+	worldState    *memory.WorldState
 }
 
 func NewContainer(ctx context.Context, cfg *config.Config) (*Container, error) {
@@ -78,9 +83,15 @@ func (c *Container) Capabilities() *api.CapabilitiesService {
 func (c *Container) DeviceAuth() *api.DeviceAuthService {
 	return c.deviceAuth
 }
-
 func (c *Container) Inbox() *api.InboxService {
 	return c.inbox
+}
+func (c *Container) TriggerScheduler() *triggers.Scheduler {
+	return c.triggerSched
+}
+
+func (c *Container) WorldState() *memory.WorldState {
+	return c.worldState
 }
 
 func (c *Container) Close() error {
@@ -186,13 +197,84 @@ func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *contai
 	container.events = api.NewEventService(db, db)
 	container.pendingAction = api.NewPendingActionService(db)
 
-	container.memory = deps.memoryModule
-
+	wsDir := filepath.Join(strings.TrimSpace(cfg.Runtime.StorageDir), "worldstate")
+	ws, err := memory.NewWorldState(wsDir)
+	if err != nil {
+		return nil, fmt.Errorf("build world state: %w", err)
+	}
+	container.worldState = ws
 	container.capabilities = api.NewCapabilitiesService(cfg, container.skills.Snapshot, mcpprovider.Doctor, deps.runnerFactory)
 	container.deviceAuth = api.NewDeviceAuthService(db)
 	container.inbox = api.NewInboxService(db, container.capabilities)
 
+	container.triggerSched = buildTriggerScheduler(cfg, container.runs, db, ws)
+
 	return container, nil
+}
+
+// triggerRunCreator adapts api.RunService into triggers.RunCreator. Each
+// trigger fire ensures a thread named "trigger:{triggerID}" exists and starts
+// a run on it.
+type triggerRunCreator struct {
+	runs       *api.RunService
+	store      core.SessionStore
+	worldState *memory.WorldState
+}
+
+func (t *triggerRunCreator) CreateRun(ctx context.Context, triggerID, input string) error {
+	threadID := "trigger:" + triggerID
+	if _, err := t.store.LoadSession(ctx, threadID); err != nil {
+		if _, cerr := t.store.CreateSession(ctx, threadID, "Trigger: "+triggerID); cerr != nil {
+			return cerr
+		}
+	}
+	// Inject the current WorldState projection so the agent reads a
+	// consistent world view instead of re-perceiving from zero. This is the
+	// ambient memory layer between Session (per-run) and facts (explicit).
+	if t.worldState != nil {
+		projection, err := t.worldState.Load(ctx)
+		if err != nil {
+			slog.Warn("world state load failed for trigger, proceeding without projection", "trigger_id", triggerID, "error", err)
+		} else if len(projection) > 0 {
+			input = formatWorldStatePrefix(projection) + input
+		}
+	}
+	if _, err := t.runs.CreateRun(ctx, threadID, "", input); err != nil {
+		return err
+	}
+	return nil
+}
+
+// formatWorldStatePrefix renders the WorldState key-values as a system-style
+// context block prepended to the trigger input.
+func formatWorldStatePrefix(projection map[string]string) string {
+	var b strings.Builder
+	b.WriteString("[Current world state projection]\n")
+	for k, v := range projection {
+		b.WriteString(k)
+		b.WriteString(": ")
+		b.WriteString(v)
+		b.WriteString("\n")
+	}
+	b.WriteString("[End world state]\n\n")
+	return b.String()
+}
+
+func buildTriggerScheduler(cfg *config.Config, runs *api.RunService, db *store.Store, ws *memory.WorldState) *triggers.Scheduler {
+	sched := triggers.NewScheduler(&triggerRunCreator{runs: runs, store: db, worldState: ws})
+	for _, wh := range cfg.Triggers.Webhooks {
+		wt, err := triggers.NewWebhookTrigger(triggers.WebhookConfig{
+			ID:     wh.ID,
+			Secret: wh.Secret,
+			Prompt: wh.Prompt,
+		})
+		if err != nil {
+			slog.Warn("skipping webhook trigger", "id", wh.ID, "error", err)
+			continue
+		}
+		sched.Register(wt)
+	}
+	return sched
 }
 
 // RunOnceResult is the terminal outcome of an owner-local smoke run.

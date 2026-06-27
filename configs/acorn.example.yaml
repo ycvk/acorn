@@ -111,3 +111,12 @@ mcp:
 memory:
   search:
     memory_context_token_budget: 2000 # Soft token budget for file-backed memory context
+
+# Triggers let the agent wake itself from external events (ambient mode).
+# Webhook triggers receive HTTP POST at /v1/triggers/{id}, verified via
+# HMAC-SHA256 (X-Acorn-Signature header). See ADR-0001.
+triggers:
+  webhooks:
+    - id: deploy_webhook
+      secret: "${DEPLOY_WEBHOOK_SECRET}"
+      prompt: "A deployment webhook fired. Payload: {{payload}}"

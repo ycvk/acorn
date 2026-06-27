@@ -58,6 +58,59 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /v1/triggers/{trigger_id}:
+    post:
+      tags: [triggers]
+      security: []
+      summary: Receive an external webhook and fire a trigger
+      description: |
+        Endpoint for ambient webhook triggers. Not behind device auth —
+        authentication is via HMAC-SHA256 signature (X-Acorn-Signature header).
+        When a trigger fires, the scheduler starts a new run on a trigger-specific thread.
+      operationId: clientWebhookTrigger
+      parameters:
+        - name: trigger_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The trigger ID configured in triggers.webhooks
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: string
+              description: Arbitrary webhook payload (raw body)
+      responses:
+        '202':
+          description: Webhook accepted and trigger fired
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: accepted
+        '401':
+          description: Webhook signature verification failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Trigger not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: Trigger scheduler not configured
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
   /v1/devices:
     get:
       tags: [devices]

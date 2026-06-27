@@ -19,11 +19,12 @@ Session 拥有 root-run 的首轮 model input。缺少 root Session binding 时 
 
 ## Hybrid Context
 
-Session 在 `BeforeModelCall` 中执行三层 context 策略：
+Session 在 `BeforeModelCall` 中执行四层 context 策略：
 
 1. **Observation masking**：tool result 超 `mask_after_turns` 轮后用占位符替换。纯内存操作。
-2. **LLM auto-compact**：token 超 `window_tokens - compact_margin` 阈值时用一次 model 调用生成 summary，替换旧消息。circuit breaker：连续 3 次失败停止。
-3. **关键上下文 re-inject**：compact 后从 assembly 重新注入 system prompt + memory context + skill context。
+2. **Apply pending compact**：若上一轮的后台 summary 已完成，splice `[summary + 当前消息]`。非阻塞——未完成则用当前消息继续，下轮再试。
+3. **非阻塞 LLM auto-compact**：token 超 `window_tokens - compact_margin` 阈值时 `maybeStartCompact` 启后台 goroutine 生成 summary，立即返回原消息；summary 在 turn 间由 step 2 splice。circuit breaker：连续 3 次失败停止。
+4. **关键上下文 re-inject**：compact splice 后从 assembly 重新注入 system prompt + memory context + skill context。
 
 不再有 CompactionEngine、BudgetGovernor、reactive compact、context boundary 持久化、rehydration packet 系统。
 

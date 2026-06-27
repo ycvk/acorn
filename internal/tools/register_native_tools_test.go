@@ -37,10 +37,10 @@ func TestRegisterNativeToolsRegistersAllLocalTools(t *testing.T) {
 	}
 
 	specs := reg.Specs()
-	// localToolDefs declares 20 static local tools; 3 are deferred-loaded
+	// localToolDefs declares 21 static local tools; 3 are deferred-loaded
 	// (web_fetch, web_search, browser) and excluded from the registry because
-	// they depend on per-run services. The remaining 17 eager tools are registered.
-	wantCount := 17
+	// they depend on per-run services. The remaining 18 eager tools are registered.
+	wantCount := 18
 	if got := len(specs); got != wantCount {
 		t.Fatalf("registered spec count = %d, want %d", got, wantCount)
 	}

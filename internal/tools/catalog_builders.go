@@ -170,6 +170,7 @@ type CatalogConfig struct {
 	ArtifactService   ArtifactService
 	ArtifactContext   core.ToolCallContextBridge
 	OperatorStore     OperatorQuestionStore
+	RunSearchStore    RunSearchStore
 	OperatorContext   core.ToolCallContextBridge
 	WebFetchService   WebFetchService
 	WebSearchService  WebSearchService

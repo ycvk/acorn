@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/ycvk/acorn/internal/core"
@@ -144,6 +145,28 @@ func (s *Store) ListRecentTerminalRuns(ctx context.Context, limit int) ([]core.R
 		return nil, fmt.Errorf("list recent terminal runs: %w", err)
 	}
 	return scanRunRows(rows, "list recent terminal runs")
+}
+
+// SearchRuns searches run input_text for the given query (case-insensitive
+// LIKE match) and returns matching runs ordered by most recent first.
+func (s *Store) SearchRuns(ctx context.Context, query string, limit int) ([]core.RunRecord, error) {
+	// Escape LIKE wildcards so user input containing % or _ matches literally.
+	escaped := strings.ReplaceAll(query, "\\", "\\\\")
+	escaped = strings.ReplaceAll(escaped, "%", "\\%")
+	escaped = strings.ReplaceAll(escaped, "_", "\\_")
+	q := "%" + escaped + "%"
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT run_id, session_id, turn_index, status, input_text, output_text, error_text, created_at, finished_at
+		 FROM runs
+		 WHERE input_text LIKE ? ESCAPE '\'
+		 LIMIT ?`,
+		q,
+		normalizeRunListLimit(limit),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("search runs: %w", err)
+	}
+	return scanRunRows(rows, "search runs")
 }
 
 func normalizeRunListLimit(limit int) int {

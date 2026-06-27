@@ -38,23 +38,32 @@ func runServe(ctx context.Context, args []string) error {
 	defer container.Close()
 
 	handler, err := api.NewHandler(api.Dependencies{
-		Threads:       container.Threads(),
-		Runs:          container.Runs(),
-		Events:        container.Events(),
-		PendingAction: container.PendingAction(),
-		RunResume:     container.RunResume(),
-		Memory:        container.Memory(),
-		Skills:        container.Skills(),
-		Capabilities:  container.Capabilities(),
-		DeviceAuth:    container.DeviceAuth(),
-		Inbox:         container.Inbox(),
-		Config:        container.Config(),
+		Threads:          container.Threads(),
+		Runs:             container.Runs(),
+		Events:           container.Events(),
+		PendingAction:    container.PendingAction(),
+		RunResume:        container.RunResume(),
+		Memory:           container.Memory(),
+		Skills:           container.Skills(),
+		Capabilities:     container.Capabilities(),
+		DeviceAuth:       container.DeviceAuth(),
+		Inbox:            container.Inbox(),
+		TriggerScheduler: container.TriggerScheduler(),
+		Config:           container.Config(),
 		Logger: slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
 			Level: slog.LevelInfo,
 		})),
 	})
 	if err != nil {
 		return err
+	}
+
+	// Start the ambient trigger scheduler so webhooks can fire new runs.
+	if sched := container.TriggerScheduler(); sched != nil {
+		if err := sched.Start(ctx); err != nil {
+			slog.Warn("trigger scheduler start failed", "error", err)
+		}
+		defer sched.Stop()
 	}
 
 	server := &http.Server{

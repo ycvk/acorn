@@ -58,6 +58,7 @@ func NewHandler(deps Dependencies) (http.Handler, error) {
 		capabilities:  deps.Capabilities,
 		deviceAuth:    deps.DeviceAuth,
 		inbox:         deps.Inbox,
+		triggerSched:  deps.TriggerScheduler,
 		logger:        logger,
 		cfg:           deps.Config,
 	}
@@ -82,6 +83,7 @@ func (s *Server) registerRoutes(router chi.Router) {
 	router.Get("/healthz", s.handleHealthz)
 	router.Route("/v1", func(r chi.Router) {
 		r.Post("/devices:pair", s.handlePairDevice)
+		r.Post("/triggers/{trigger_id}", s.handleWebhookTrigger)
 		r.Group(func(r chi.Router) {
 			r.Use(s.requireDeviceAuth)
 			r.Get("/devices", s.handleListDevices)

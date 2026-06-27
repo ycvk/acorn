@@ -261,14 +261,22 @@ func (a *directResponseAgent) runFromState(ctx context.Context, generator *adk.A
 		}
 		msg, toolMessages, outputLimitReached, err := ExecuteRound(runCtx, a.model, a.streamer, a.toolNode, modelInput.Messages, toolInfos, a.runID, messageID, RoundOptions{
 			BeforeToolCall: func(ctx context.Context, call schema.ToolCall) error {
-				return OnToolCall(ctx, ToolCallEvent{
+				if err := OnToolCall(ctx, ToolCallEvent{
 					RunID:     core.GetRunID(ctx),
 					SessionID: core.GetSessionID(ctx),
 					TurnIndex: core.TurnIndexFromContext(ctx),
 					CallID:    call.ID,
 					ToolName:  call.Function.Name,
 					Arguments: call.Function.Arguments,
-				})
+				}); err != nil {
+					return err
+				}
+				// Risk gate: high-risk tools are intercepted and the agent is
+				// told to request approval via ask_operator. The run continues.
+				if tools.IsHighRisk(call.Function.Name) && call.Function.Name != "ask_operator" {
+					return &ApprovalRequiredError{ToolName: call.Function.Name, CallID: call.ID}
+				}
+				return nil
 			},
 		})
 		if err == nil {
@@ -290,6 +298,25 @@ func (a *directResponseAgent) runFromState(ctx context.Context, generator *adk.A
 			}
 		}
 		if err != nil {
+			// Risk gate intercept: high-risk tool calls do not fail the run.
+			// The agent receives a tool result telling it to request approval
+			// via ask_operator, and the loop continues.
+			var are *ApprovalRequiredError
+			if errors.As(err, &are) {
+				if msg != nil {
+					if recordErr := session.RecordAssistant(runCtx, msg); recordErr != nil {
+						generator.Send(&adk.AgentEvent{AgentName: a.Name(ctx), Err: fmt.Errorf("agent loop record assistant (approval required): %w", recordErr)})
+						return
+					}
+				}
+				approvalMsg := approvalRequiredToolMessage(are.CallID, are.ToolName)
+				if recordErr := session.RecordToolResults(runCtx, []adk.Message{approvalMsg}); recordErr != nil {
+					generator.Send(&adk.AgentEvent{AgentName: a.Name(ctx), Err: fmt.Errorf("agent loop record approval-required tool result: %w", recordErr)})
+					return
+				}
+				generator.Send(adk.EventFromMessage(approvalMsg, nil, schema.Tool, ""))
+				continue
+			}
 			if signal, ok := errors.AsType[*adk.InterruptSignal](err); ok {
 				a.sendInterruptEvent(runCtx, generator, signal, &DirectResponseInterruptData{
 					Iteration: iteration,

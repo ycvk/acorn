@@ -137,22 +137,32 @@ func (s *defaultContextSession) BeforeModelCall(ctx context.Context, req ModelCa
 	}
 	// 1. Apply observation masking to old tool results.
 	masked := applyMasking(s.messages, s.turnIndex, s.maskAfterTurns)
-	// 2. Count tokens; if over threshold, auto-compact.
+	// 2. Splice in any background summary that settled since the last turn.
+	//    This is non-blocking: if the summary is not ready yet, we proceed
+	//    with the current messages and try again next turn.
+	masked = s.applyCompaction(masked)
+	// 3. Count tokens; if over threshold, start a background compaction.
+	//    maybeStartCompact returns immediately — the summary is generated in
+	//    a goroutine and spliced in between turns by applyCompaction above.
 	total, err := s.tokenCounter.CountMessages(ctx, masked, req.ToolInfos)
 	if err != nil {
 		return nil, fmt.Errorf("count context tokens: %w", err)
 	}
 	threshold := s.compactThreshold()
 	if total > threshold && s.compactor != nil {
-		compacted, compactErr := s.compactor.compact(ctx, masked)
-		if compactErr == nil {
-			masked = compacted
-		}
-		// compact failure is non-fatal: fall through with masked messages.
-		// The circuit breaker inside compactor tracks consecutive failures.
+		s.compactor.maybeStartCompact(ctx, masked)
 	}
 	s.messages = masked
 	return s.modelInput(), nil
+}
+
+// applyCompaction splices in a settled background summary if one is ready.
+// Non-blocking: returns the input unchanged when no summary has completed.
+func (s *defaultContextSession) applyCompaction(messages []adk.Message) []adk.Message {
+	if s.compactor == nil {
+		return messages
+	}
+	return s.compactor.applyPendingCompact(messages)
 }
 
 func (s *defaultContextSession) RecordAssistant(_ context.Context, msg adk.Message) error {
