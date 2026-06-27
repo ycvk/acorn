@@ -235,61 +235,6 @@ func TestRunStateApplyMultipleItemsLifecycle(t *testing.T) {
 	}
 }
 
-func TestCompactArchiveTextShort(t *testing.T) {
-	result := compactArchiveText("short text")
-	if result != "short text" {
-		t.Errorf("compactArchiveText = %q, want 'short text'", result)
-	}
-}
-
-func TestCompactArchiveTextTrimsWhitespace(t *testing.T) {
-	result := compactArchiveText("  hello  ")
-	if result != "hello" {
-		t.Errorf("compactArchiveText = %q, want 'hello'", result)
-	}
-}
-
-func TestCompactArchiveTextTruncatesLong(t *testing.T) {
-	long := strings.Repeat("x", 300)
-	result := compactArchiveText(long)
-	if len(result) != 283 {
-		t.Errorf("compactArchiveText len = %d, want 283 (280 + ...)", len(result))
-	}
-	if !strings.HasSuffix(result, "...") {
-		t.Errorf("compactArchiveText should end with '...', got %q", result)
-	}
-}
-
-func TestCompactArchiveTextBoundary280(t *testing.T) {
-	exact := strings.Repeat("y", 280)
-	result := compactArchiveText(exact)
-	if result != exact {
-		t.Errorf("compactArchiveText at boundary 280 should not truncate, got len=%d", len(result))
-	}
-}
-
-func TestCompactArchiveTextBoundary281(t *testing.T) {
-	over := strings.Repeat("z", 281)
-	result := compactArchiveText(over)
-	if !strings.HasSuffix(result, "...") {
-		t.Errorf("compactArchiveText at 281 should truncate with '...', got %q", result[:10])
-	}
-}
-
-func TestCompactArchiveTextEmpty(t *testing.T) {
-	result := compactArchiveText("")
-	if result != "" {
-		t.Errorf("compactArchiveText('') = %q, want ''", result)
-	}
-}
-
-func TestCompactArchiveTextWhitespaceOnly(t *testing.T) {
-	result := compactArchiveText("   ")
-	if result != "" {
-		t.Errorf("compactArchiveText('   ') = %q, want ''", result)
-	}
-}
-
 func TestFailureReasonForStatusFailedWithOutput(t *testing.T) {
 	reason := failureReasonForStatus(core.RunStatusFailed, "some output")
 	if reason != "run_failed:with_output" {

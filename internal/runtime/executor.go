@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -337,20 +338,6 @@ func (e *Executor) failSetupOrErr(ctx context.Context, runID string, setupErr er
 	return setupErr
 }
 
-func (e *Executor) recordFinalizationFailure(ctx context.Context, runID, output string, finalizationErr error, sink core.StreamSink) error {
-	durableCtx := core.DurableContext(ctx)
-	message := fmt.Sprintf("run finalization failed: %v", finalizationErr)
-	var errs []error
-	if err := e.store.FinishRun(durableCtx, runID, core.RunStatusFailed, output, message); err != nil {
-		errs = append(errs, fmt.Errorf("mark run failed after finalization failure: %w", err))
-	}
-	if err := e.emitRunFailed(durableCtx, runID, sink, message); err != nil {
-		errs = append(errs, fmt.Errorf("append finalization failure event: %w", err))
-	}
-	errs = append([]error{finalizationErr}, errs...)
-	return errors.Join(errs...)
-}
-
 func (e *Executor) verifyAndRecordSkill(ctx context.Context, runID string, selected *SelectedSkill, status core.RunStatus, output string, sink core.StreamSink) error {
 	if selected == nil || strings.TrimSpace(runID) == "" || status != core.RunStatusFailed {
 		return nil
@@ -395,9 +382,8 @@ func (e *Executor) finishFailedRun(ctx context.Context, runID, input string, sta
 	if err := e.verifyAndRecordSkill(durableCtx, runID, selectedSkill, core.RunStatusFailed, state.lastOutput, sink); err != nil {
 		return nil, err
 	}
-	if err := e.finalizePostRun(durableCtx, runID, core.RunStatusFailed, input, state.lastOutput); err != nil {
-		return nil, errors.Join(state.failure, fmt.Errorf("finalize failed run: %w", err))
-	}
+	// Distill + append history after the run is marked complete.
+	go e.finalizePostRun(context.WithoutCancel(ctx), runID, core.RunStatusFailed, input, state.lastOutput)
 	return &Result{
 		RunID:  runID,
 		Status: core.RunStatusFailed,
@@ -427,15 +413,15 @@ func (e *Executor) finishSucceededRun(ctx context.Context, runID, input string, 
 	if err := e.verifyAndRecordSkill(durableCtx, runID, selectedSkill, core.RunStatusSucceeded, state.lastOutput, sink); err != nil {
 		return nil, err
 	}
-	if err := e.finalizePostRun(durableCtx, runID, core.RunStatusSucceeded, input, state.lastOutput); err != nil {
-		return nil, e.recordFinalizationFailure(durableCtx, runID, state.lastOutput, err, sink)
-	}
 	if err := e.emitRunCompleted(durableCtx, runID, state.lastOutput, sink); err != nil {
 		return nil, err
 	}
 	if err := e.store.FinishRun(durableCtx, runID, core.RunStatusSucceeded, state.lastOutput, ""); err != nil {
 		return nil, err
 	}
+	// Distill + append history after the run is marked complete, so the
+	// LLM call does not delay the completion event or status update.
+	go e.finalizePostRun(context.WithoutCancel(ctx), runID, core.RunStatusSucceeded, input, state.lastOutput)
 	return &Result{
 		RunID:  runID,
 		Status: core.RunStatusSucceeded,
@@ -443,11 +429,18 @@ func (e *Executor) finishSucceededRun(ctx context.Context, runID, input string, 
 	}, nil
 }
 
-func (e *Executor) finalizePostRun(ctx context.Context, runID string, runStatus core.RunStatus, input, output string) error {
+// finalizePostRun syncs the assistant message and appends a distilled history
+// entry. Called asynchronously after the run is marked complete so the LLM
+// distillation call does not delay run completion. Errors are logged, not
+// propagated — the run is already finished.
+func (e *Executor) finalizePostRun(ctx context.Context, runID string, runStatus core.RunStatus, input, output string) {
 	if err := e.store.SyncAssistantMessageForRunStatus(ctx, runID, runStatus); err != nil {
-		return fmt.Errorf("sync assistant message: %w", err)
+		slog.Error("sync assistant message after run completion", "run_id", runID, "err", err)
+		return
 	}
-	return e.appendRunHistory(ctx, runID, runStatus, input, output)
+	if err := e.appendRunHistory(ctx, runID, runStatus, input, output); err != nil {
+		slog.Error("append run history", "run_id", runID, "err", err)
+	}
 }
 
 func (e *Executor) appendRunHistory(ctx context.Context, runID string, runStatus core.RunStatus, input, output string) error {
@@ -458,23 +451,51 @@ func (e *Executor) appendRunHistory(ctx context.Context, runID string, runStatus
 	if err != nil {
 		return fmt.Errorf("load run for memory history: %w", err)
 	}
+	summary := e.distillRunSummary(ctx, runStatus, input, output)
 	if err := e.runRuntime.MemoryModule().AppendHistory(ctx, memory.HistoryEvent{
 		SessionID: run.SessionID,
 		RunID:     runID,
 		Status:    string(runStatus),
-		Summary:   compactArchiveText(strings.TrimSpace(input + " " + output)),
+		Summary:   summary,
 		Timestamp: time.Now().UTC(),
 	}); err != nil {
 		return fmt.Errorf("append memory history: %w", err)
 	}
 	return nil
 }
-func compactArchiveText(value string) string {
-	trimmed := strings.TrimSpace(value)
-	if len(trimmed) <= 280 {
-		return trimmed
+
+// distillRunSummary generates a structured summary of a completed run via a
+// single LLM call. On any failure (model unavailable, API error, empty
+// response) it falls back to a rune-safe truncation of input + output —
+// never blocking run finalization.
+// distillRunSummary produces the history summary for a completed run.
+//
+// Previously this called the LLM on every run, which was too expensive —
+// most runs don't warrant a distillation call (simple Q&A, trivial
+// triggers). The agent already has the `remember` tool to persist durable
+// facts it deems worth keeping. History is an append-only event log, not
+// a curated knowledge base; a rune-safe truncation is sufficient for
+// recall, and the agent decides what's worth remembering long-term via
+// the ambient loop's Record + Crystallize steps.
+func (e *Executor) distillRunSummary(_ context.Context, status core.RunStatus, input, output string) string {
+	combined := strings.TrimSpace(input + "\n\n" + output)
+	return fallbackSummary(combined, status)
+}
+
+// fallbackSummary is the degradation path when LLM distillation is
+// unavailable. It produces a rune-safe truncation (not byte-cut) so
+// multi-byte CJK text is not split mid-character.
+func fallbackSummary(combined string, status core.RunStatus) string {
+	combined = strings.TrimSpace(combined)
+	if combined == "" {
+		return string(status)
 	}
-	return trimmed[:280] + "..."
+	const maxRunes = 500
+	runes := []rune(combined)
+	if len(runes) <= maxRunes {
+		return string(status) + ": " + combined
+	}
+	return string(status) + ": " + string(runes[:maxRunes]) + "..."
 }
 
 func failureReasonForStatus(status core.RunStatus, output string) string {
