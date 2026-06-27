@@ -4,9 +4,6 @@ name: Capability Recall
 version: v1
 category: native
 summary: Inspect the current skill catalog and loaded tool surface before answering what Acorn can do or which skill should handle a task.
-lifecycle_status: verified
-evidence_refs:
-  - builtin:acorn-native-skill-seed-pack
 trigger_hints:
   - what can you do
   - can you do this

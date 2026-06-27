@@ -4,9 +4,6 @@ name: Procedure Curator
 version: v1
 category: native
 summary: Curate file-backed memory procedures from run evidence as the procedure branch of the memory skill family without restoring hidden candidate review flows.
-lifecycle_status: verified
-evidence_refs:
-  - builtin:acorn-native-skill-seed-pack
 trigger_hints:
   - curate procedure
   - update learned procedure

@@ -4,9 +4,6 @@ name: Memory Recall
 version: v1
 category: native
 summary: Search, read, and summarize existing memory records with active-status and provenance awareness.
-lifecycle_status: verified
-evidence_refs:
-  - builtin:acorn-native-skill-seed-pack
 trigger_hints:
   - search memory
   - find memory

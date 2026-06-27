@@ -4,9 +4,6 @@ name: Web Browser Research
 version: v1
 category: native
 summary: Use Acorn's deferred web_search, web_fetch, and browser tools for public web research and interactive web pages.
-lifecycle_status: verified
-evidence_refs:
-  - builtin:acorn-native-skill-seed-pack
 trigger_hints:
   - web search
   - browser

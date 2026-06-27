@@ -4,9 +4,6 @@ name: Memory Triage
 version: v1
 category: native
 summary: Decide whether an observation should become durable memory and route it to the right memory record kind.
-lifecycle_status: verified
-evidence_refs:
-  - builtin:acorn-native-skill-seed-pack
 trigger_hints:
   - remember this
   - memorize this

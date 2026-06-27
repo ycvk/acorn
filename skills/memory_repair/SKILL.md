@@ -4,9 +4,6 @@ name: Memory Repair
 version: v1
 category: native
 summary: Repair invalid or legacy memory records after rejection, schema drift, or narrow content errors.
-lifecycle_status: verified
-evidence_refs:
-  - builtin:acorn-native-skill-seed-pack
 trigger_hints:
   - repair memory
   - fix memory file

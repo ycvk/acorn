@@ -4,9 +4,6 @@ name: Debug Backend
 version: v1
 category: native
 summary: Reproduce backend and runtime failures, expose the real error, and fix the root cause without silent fallbacks.
-lifecycle_status: verified
-evidence_refs:
-  - builtin:acorn-native-skill-seed-pack
 trigger_hints:
   - debug backend
   - runtime error

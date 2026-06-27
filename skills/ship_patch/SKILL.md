@@ -4,9 +4,6 @@ name: Ship Patch
 version: v1
 category: native
 summary: Implement a focused code change, keep scope tight, and verify the patch before closing the task.
-lifecycle_status: verified
-evidence_refs:
-  - builtin:acorn-native-skill-seed-pack
 trigger_hints:
   - implement the plan
   - apply patch

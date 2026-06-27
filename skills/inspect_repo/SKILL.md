@@ -4,9 +4,6 @@ name: Inspect Repo
 version: v1
 category: native
 summary: Map the current repository shape, entrypoints, and main call chain before proposing changes.
-lifecycle_status: verified
-evidence_refs:
-  - builtin:acorn-native-skill-seed-pack
 trigger_hints:
   - inspect repo
   - codebase map

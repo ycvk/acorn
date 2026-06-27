@@ -4,9 +4,6 @@ name: Memory Fact Writer
 version: v1
 category: native
 summary: Store durable facts under `facts/` with the structured `remember` tool; Acorn generates the Record V2 frontmatter.
-lifecycle_status: verified
-evidence_refs:
-  - builtin:acorn-native-skill-seed-pack
 trigger_hints:
   - remember fact
   - store this fact

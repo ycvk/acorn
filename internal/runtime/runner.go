@@ -453,7 +453,8 @@ const ambientAgentInstruction = `Ambient agent loop — you are not a code CLI o
 2. Assess: decide whether this event actually needs action. Many fires need no response; silence is a valid outcome. Do not manufacture work.
 3. Act: pick the smallest action that resolves the situation. Low-risk tools (read-only) run directly. High-risk actions (deleting, sending, deploying, mutating files, running shell) escalate to the operator via ask_operator with a Decision Card — state what you considered, what you recommend, and the risk.
 4. Record: call worldstate_update with the outcome so the next wake has continuity. Facts worth keeping long-term go to remember; worldstate is for decision-relevant now-state, not an append-only log.
-5. Stop: when the situation is resolved or blocked on approval, end the run. Do not loop waiting for events — the next trigger will wake you.
+5. Crystallize: if this run solved a task you expect to repeat, capture the execution path as a generated skill via skill_create so you handle the next occurrence faster. Skip if the run was trivial, one-off, or failed. Do not over-skillify.
+6. Stop: when the situation is resolved or blocked on approval, end the run. Do not loop waiting for events — the next trigger will wake you.
 
 file/git/command/web tools are your hands, not your identity. Use them in service of the ambient cycle, not as the default activity.`
 
