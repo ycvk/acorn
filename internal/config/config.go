@@ -38,11 +38,25 @@ type ContextConfig struct {
 }
 
 type MemoryConfig struct {
-	Search MemorySearchConfig `yaml:"search"`
+	Search    MemorySearchConfig    `yaml:"search"`
+	Embedding MemoryEmbeddingConfig `yaml:"embedding"`
 }
 
 type MemorySearchConfig struct {
 	MemoryContextTokenBudget int `yaml:"memory_context_token_budget"`
+}
+
+// MemoryEmbeddingConfig configures the embedding-backed semantic retrieval
+// layer. When Enabled, memory records are embedded on write and searched via
+// sqlite-vec KNN alongside keyword matching (RRF fusion). The embedding
+// endpoint reuses the primary provider's base_url + api_key (OpenAI-compatible
+// /v1/embeddings). When disabled, search falls back to keyword-only (the
+// pre-existing path), so this is opt-in with zero behavioral change for
+// existing deployments.
+type MemoryEmbeddingConfig struct {
+	Enabled    bool   `yaml:"enabled"`
+	Model      string `yaml:"model"`
+	Dimensions int    `yaml:"dimensions"`
 }
 
 type RuntimeConfig struct {

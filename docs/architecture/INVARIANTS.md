@@ -33,7 +33,7 @@
   - `internal/runtime/masking_test.go`
   - `internal/runtime/auto_compact_test.go`
   - `internal/runtime/auto_compact_nonblocking_test.go`
-- **Memory Record V2 是长期记忆事实**：facts/history frontmatter 由 `internal/memory` 解析；memory search 走关键词匹配。
+- **Memory Record V2 是长期记忆事实**：facts/history frontmatter 由 `internal/memory` 解析；memory search 默认走关键词匹配，`memory.embedding.enabled` 开启时走 vector KNN + keyword RRF 融合（sqlite-vec，复用 provider embedding 端点）。
 
 ## Remote API 与 mobile
 

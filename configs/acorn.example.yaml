@@ -113,7 +113,11 @@ mcp:
 
 memory:
   search:
-    memory_context_token_budget: 2000 # Soft token budget for file-backed memory context
+    memory_context_token_budget: 8000
+  embedding:
+    enabled: false              # Opt-in semantic retrieval. When true, memory records are embedded via the provider's /v1/embeddings endpoint and searched with sqlite-vec KNN + keyword fusion (RRF). When false, search is keyword-only.
+    model: text-embedding-3-small # OpenAI-compatible embedding model (reuses provider base_url + api_key)
+    dimensions: 1536             # Must match the embedding model's output dimension # Soft token budget for file-backed memory context
 
 # Triggers let the agent wake itself from external events (ambient mode).
 # Webhook triggers receive HTTP POST at /v1/triggers/{id}, verified via

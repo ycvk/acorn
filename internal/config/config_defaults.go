@@ -59,7 +59,12 @@ func defaultConfig() *Config {
 		},
 		Memory: MemoryConfig{
 			Search: MemorySearchConfig{
-				MemoryContextTokenBudget: 2000,
+				MemoryContextTokenBudget: 8000,
+			},
+			Embedding: MemoryEmbeddingConfig{
+				Enabled:    false,
+				Model:      "text-embedding-3-small",
+				Dimensions: 1536,
 			},
 		},
 	}

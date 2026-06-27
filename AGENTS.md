@@ -62,6 +62,7 @@ cd mobile-kotlin && ./tool/generate_openapi_client.sh --check   # CI 门禁
 ### 记忆 & 检索
 
 - 长期 memory 是 `internal/memory` 的 file-backed `facts/`/`history/`。Canonical Memory Record V2 frontmatter(简化:status / tags / created / updated / source_run / source_refs)。fact 写入走结构化 `remember` 工具;raw `memory_create_file` 仍要求完整 frontmatter。
+- **混合检索(opt-in)**:`memory.embedding.enabled` 开启时,写入自动生成 embedding(modernc.org/sqlite 内置 sqlite-vec,存 `{storage_dir}/vectors.db`),检索走 vector KNN + keyword RRF 融合(k=60)。复用 primary provider 的 OpenAI 兼容 `/v1/embeddings` 端点,不引入新依赖/新进程。关闭时(默认)退化为纯 keyword 检索,零行为变化。
 
 ### 上下文 & 压缩
 

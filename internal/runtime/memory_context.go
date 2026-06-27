@@ -10,7 +10,7 @@ import (
 	"github.com/ycvk/acorn/internal/memory"
 )
 
-const defaultMemoryContextTokenBudget = 2000
+const defaultMemoryContextTokenBudget = 8000
 
 type memoryContextSectionID string
 

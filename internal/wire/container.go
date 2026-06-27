@@ -115,6 +115,12 @@ func (c *Container) Close() error {
 			errs = append(errs, err)
 		}
 	}
+	// memory.Service may hold a vector index DB; close it if supported.
+	if closer, ok := c.memory.(interface{ Close() error }); ok {
+		if err := closer.Close(); err != nil {
+			errs = append(errs, err)
+		}
+	}
 	return errors.Join(errs...)
 }
 
@@ -177,15 +183,30 @@ func buildContextPlane(cfg *config.Config) (*runtime.ContextPlane, error) {
 }
 
 // buildMemoryService constructs the file-backed memory service.
-// Semantic retrieval (embedding + vector store) will be wired in Phase 4.
+// When memory.embedding.enabled is true, wires EmbeddingClient + sqlite-vec.
 func buildMemoryService(ctx context.Context, cfg *config.Config) (memory.Service, error) {
 	if cfg == nil {
 		return nil, errors.New("config is required")
 	}
 	memoryRoot := strings.TrimSpace(cfg.Runtime.StorageDir)
-	svc, err := memory.NewLocalService(memory.Config{
-		Root: memoryRoot,
-	})
+	memCfg := memory.Config{Root: memoryRoot}
+	if cfg.Memory.Embedding.Enabled {
+		provider, err := cfg.EnabledProvider()
+		if err != nil {
+			return nil, fmt.Errorf("resolve provider for embedding: %w", err)
+		}
+		ec := memory.NewEmbeddingClient(memory.EmbeddingConfig{
+			BaseURL:    provider.BaseURL,
+			APIKey:     provider.APIKey,
+			Model:      cfg.Memory.Embedding.Model,
+			Dimensions: cfg.Memory.Embedding.Dimensions,
+		})
+		if ec == nil {
+			return nil, fmt.Errorf("memory.embedding.enabled is true but provider %s has no base_url or api_key", provider.Name)
+		}
+		memCfg.Embedding = ec
+	}
+	svc, err := memory.NewLocalService(memCfg)
 	if err != nil {
 		return nil, err
 	}

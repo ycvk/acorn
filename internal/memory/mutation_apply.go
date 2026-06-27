@@ -46,7 +46,7 @@ func (s *LocalService) ApplyMemoryMutation(ctx context.Context, req PlanMemoryMu
 		}, nil
 	}
 
-	relPath, _, err := normalizeMemoryMutationPath(plan.Path)
+	relPath, kind, err := normalizeMemoryMutationPath(plan.Path)
 	if err != nil {
 		return nil, err
 	}
@@ -59,11 +59,17 @@ func (s *LocalService) ApplyMemoryMutation(ctx context.Context, req PlanMemoryMu
 		return nil, err
 	}
 
-	// Index rebuild keeps the in-memory index current; semantic (vector) index
-	// is rebuilt lazily on next search via content-hash skipping, so no eager
-	// rebuild is needed here.
+	// Index rebuild keeps the in-memory index current.
 	if err := s.BuildIndex(ctx); err != nil {
 		return nil, s.rollbackAppliedMemoryMutation(ctx, rollback, fmt.Errorf("build index after memory mutation: %w", err))
+	}
+
+	// Embed the written record for semantic search. Best-effort: errors are
+	// logged inside indexEmbedding and never break the write path.
+	if kind != "" && plan.Action != MemoryMutationRetireExisting {
+		if record, rErr := readMemoryRecord(s.root, kind, path); rErr == nil {
+			s.indexEmbedding(ctx, *record)
+		}
 	}
 
 	body, err := os.ReadFile(path)

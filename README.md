@@ -18,7 +18,7 @@ Run Acorn on your own server, pair your phone, and use the mobile app to start w
 - Authenticated `/v1` API with one-time device pairing.
 - Android mobile control surface for inbox, threads, runs, approvals, and settings.
 - Persistent runs, run events, pending actions, tool results, workspace checkpoints, memory, and skills.
-- File-backed long-term memory with local semantic retrieval.
+- File-backed long-term memory with hybrid semantic + keyword retrieval (sqlite-vec, opt-in).
  - Linux `amd64` and `arm64` release tarballs (pure Go cross-compilation, no CGO).
 - Signed Android APK published with each GitHub Release.
 
@@ -117,7 +117,7 @@ providers:
 
 Provider keys can reference environment variables. Missing provider credentials are reported by readiness checks instead of being silently ignored.
 
- Semantic memory search also requires an embedding endpoint under `memory.semantic`; see `configs/acorn.example.yaml` or `configs/acorn.selfhosted.example.yaml` for the complete shape.
+
 
 ## API
 
@@ -189,7 +189,7 @@ Mobile checks run from `mobile-kotlin/`:
 | `internal/runtime/` | Executor, RunnerFactory, direct_response, context session, masking, auto-compact, StreamItem projection |
 | `internal/tools/` | Tool implementations (file/git/browser/web/command/artifact), dispatch scheduler, ToolRegistry |
 | `internal/store/` | SQLite persisted state (modernc.org/sqlite, single-connection serialized) |
-| `internal/memory/` | File-backed memory records and semantic retrieval |
+| `internal/memory/` | File-backed memory records, hybrid semantic + keyword retrieval (sqlite-vec) |
 | `internal/mcp/` | MCP provider manager |
 | `internal/workspace/` | Mutation checkpoint and worktree |
 | `internal/webaccess/` | web_search / web_fetch / browser tools and shared URL policy |

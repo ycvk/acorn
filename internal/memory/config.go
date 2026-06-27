@@ -17,7 +17,20 @@ func NewLocalService(cfg Config) (*LocalService, error) {
 	if err != nil {
 		return nil, fmt.Errorf("resolve memory root: %w", err)
 	}
-	return &LocalService{root: abs}, nil
+	svc := &LocalService{root: abs}
+
+	// Embedding + vector index are optional: when EmbeddingClient is nil,
+	// search falls back to keyword-only (the pre-existing path). When
+	// configured, the vector index lives in {root}/vectors.db.
+	if cfg.Embedding != nil && cfg.Embedding.Enabled() {
+		vi, err := NewVectorIndex(abs, cfg.Embedding.Dims())
+		if err != nil {
+			return nil, fmt.Errorf("create vector index: %w", err)
+		}
+		svc.embedding = cfg.Embedding
+		svc.vectors = vi
+	}
+	return svc, nil
 }
 
 func (s *LocalService) Root() string {
@@ -51,4 +64,15 @@ func (s *LocalService) EnsureLayout(ctx context.Context) error {
 func (s *LocalService) path(parts ...string) string {
 	items := append([]string{s.root}, parts...)
 	return filepath.Join(items...)
+}
+
+// Close releases the vector index database connection if present.
+func (s *LocalService) Close() error {
+	if s == nil {
+		return nil
+	}
+	if s.vectors != nil {
+		return s.vectors.Close()
+	}
+	return nil
 }

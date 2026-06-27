@@ -46,6 +46,14 @@ func (s *LocalService) AppendHistory(ctx context.Context, event HistoryEvent) er
 	if err := s.BuildIndex(ctx); err != nil {
 		return fmt.Errorf("rebuild index after history append: %w", err)
 	}
+	// Re-embed the updated history file. Best-effort: the record is already
+	// on disk and keyword-indexed; a failed embedding just means semantic
+	// search won't find this history until the next append retries.
+	if data, rErr := os.ReadFile(path); rErr == nil {
+		if record, hErr := historyRecordFromFile(s.root, path, data, time.Now()); hErr == nil {
+			s.indexEmbedding(ctx, *record)
+		}
+	}
 	return nil
 }
 

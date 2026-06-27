@@ -45,14 +45,20 @@ type Service interface {
 	BuildMemoryInstruction(ctx context.Context, workspaceSlug string) (string, error)
 }
 
+// Config holds the parameters for constructing a LocalService. Embedding is
+// optional: a nil EmbeddingClient disables semantic retrieval (search falls
+// back to keyword-only).
 type Config struct {
-	Root string
+	Root      string
+	Embedding *EmbeddingClient
 }
 
 type LocalService struct {
-	root  string
-	mu    sync.RWMutex
-	index *MemoryIndex
+	root      string
+	mu        sync.RWMutex
+	index     *MemoryIndex
+	embedding *EmbeddingClient
+	vectors   *VectorIndex
 }
 
 type PrepareRequest struct {

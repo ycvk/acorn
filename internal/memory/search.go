@@ -3,11 +3,15 @@ package memory
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sort"
 	"strings"
 )
 
-// Search runs keyword matching over record title/body/tags.
+// Search runs hybrid retrieval: keyword matching always, plus a vector KNN
+// query when embedding is configured. Results are fused via Reciprocal Rank
+// Fusion (RRF, k=60). When embedding is not configured or fails, the result
+// is keyword-only — the pre-existing behavior.
 func (s *LocalService) Search(ctx context.Context, req SearchRequest) (*SearchResult, error) {
 	if s == nil {
 		return nil, fmt.Errorf("memory service is nil")
@@ -24,7 +28,36 @@ func (s *LocalService) Search(ctx context.Context, req SearchRequest) (*SearchRe
 	if err != nil {
 		return nil, err
 	}
-	return s.searchByKeyword(ctx, req, query, limit)
+
+	// Keyword path is always available.
+	keywordResult, err := s.searchByKeyword(ctx, req, query, limit)
+	if err != nil {
+		return nil, err
+	}
+	keywordItems := keywordResult.Items
+
+	// Vector path is optional. When unavailable, fuse returns keyword as-is.
+	var vectorItems []SearchItem
+	if s.embedding != nil && s.embedding.Enabled() && s.vectors != nil {
+		vectorItems = s.vectorSearch(ctx, req, query, limit)
+	}
+
+	items := fuseResults(keywordItems, vectorItems, limit)
+
+	result := &SearchResult{Items: items}
+	if req.Explain {
+		stages := []SearchStageExplain{
+			{Name: searchStageKeyword, CandidateCount: len(keywordItems)},
+		}
+		if vectorItems != nil {
+			stages = append(stages, SearchStageExplain{
+				Name:           searchStageVector,
+				CandidateCount: len(vectorItems),
+			})
+		}
+		result.Explain = buildSearchExplain(query, req.Scope, items, stages)
+	}
+	return result, nil
 }
 
 // searchByKeyword is the embedding-not-configured fallback: substring match
@@ -155,6 +188,7 @@ func SearchItemFromRecord(record Record, score float64) SearchItem {
 
 const (
 	searchStageKeyword = "keyword_match"
+	searchStageVector  = "vector_knn"
 )
 
 func buildSearchExplain(query string, scope string, items []SearchItem, stages []SearchStageExplain) *SearchExplain {
@@ -218,4 +252,90 @@ func scopeMatches(requestScope string, itemScope string) bool {
 	}
 	item := strings.TrimSpace(itemScope)
 	return item == "" || item == scope
+}
+
+// vectorSearch embeds the query and runs a KNN search against the vector
+// index. Errors are logged and nil is returned (fuse degrades to keyword-only).
+func (s *LocalService) vectorSearch(ctx context.Context, req SearchRequest, query string, limit int) []SearchItem {
+	embedding, err := s.embedding.Embed(ctx, query)
+	if err != nil {
+		slog.Warn("vector search: query embedding failed", "err", err)
+		return nil
+	}
+	kinds := make([]string, 0, len(req.Kinds))
+	for _, k := range req.Kinds {
+		kinds = append(kinds, string(k))
+	}
+	matches, err := s.vectors.SearchByVector(ctx, embedding, limit, kinds, req.Scope)
+	if err != nil {
+		slog.Warn("vector search: KNN query failed", "err", err)
+		return nil
+	}
+	items := make([]SearchItem, 0, len(matches))
+	for _, m := range matches {
+		items = append(items, SearchItem{
+			Ref:     m.Ref,
+			Kind:    m.Kind,
+			Title:   m.Title,
+			Scope:   m.Scope,
+			Snippet: m.Title,
+		})
+	}
+	return items
+}
+
+// rrfK is the standard Reciprocal Rank Fusion constant (k=60, TREC paper).
+const rrfK = 60
+
+// fuseResults merges keyword and vector ranked lists via RRF. Each list
+// contributes 1/(k+rank+1) per item; items in both lists get the sum. When
+// either list is empty, the other is returned unchanged.
+func fuseResults(keywordItems, vectorItems []SearchItem, limit int) []SearchItem {
+	if len(vectorItems) == 0 {
+		if len(keywordItems) > limit {
+			return keywordItems[:limit]
+		}
+		return keywordItems
+	}
+	if len(keywordItems) == 0 {
+		if len(vectorItems) > limit {
+			return vectorItems[:limit]
+		}
+		return vectorItems
+	}
+
+	type rrfEntry struct {
+		item     SearchItem
+		rrfScore float64
+	}
+	merged := make(map[string]*rrfEntry, len(keywordItems)+len(vectorItems))
+
+	addList := func(items []SearchItem) {
+		for rank, item := range items {
+			entry, ok := merged[item.Ref]
+			if !ok {
+				entry = &rrfEntry{item: item}
+				merged[item.Ref] = entry
+			}
+			entry.rrfScore += 1.0 / float64(rrfK+rank+1)
+		}
+	}
+	addList(keywordItems)
+	addList(vectorItems)
+
+	result := make([]SearchItem, 0, len(merged))
+	for _, entry := range merged {
+		entry.item.Score = entry.rrfScore
+		result = append(result, entry.item)
+	}
+	sort.SliceStable(result, func(i, j int) bool {
+		if result[i].Score != result[j].Score {
+			return result[i].Score > result[j].Score
+		}
+		return result[i].Ref < result[j].Ref
+	})
+	if len(result) > limit {
+		result = result[:limit]
+	}
+	return result
 }
