@@ -72,7 +72,7 @@ Usage:
   acorn devices revoke [-c path] DEVICE_ID
   acorn smoke [-c path] [--json] "task input"
   acorn run [-c path] [--json] "task input"
-  acorn memory procedure create [-c path] [--json] --title title --task-pattern pattern --source-run run --evidence-refs refs "procedure body"
+  acorn memory reindex [-c path] [--json]
   acorn serve [-c path] [--listen addr]`)
 }
 
@@ -96,13 +96,6 @@ func printJSON(value any) error {
 	}
 	fmt.Println(string(body))
 	return nil
-}
-
-func runMemory(ctx context.Context, args []string) error {
-	if len(args) == 0 {
-		return fmt.Errorf("memory requires a subcommand")
-	}
-	return fmt.Errorf("unknown memory subcommand %q", args[0])
 }
 
 func newFlagSet(name string) *flag.FlagSet {
