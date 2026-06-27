@@ -16,8 +16,8 @@
   - `tests/architecture/structural_limits_test.go`
 - **runtime 执行链自包含**：`internal/runtime` 拥有 executor、per-run assembly（内联函数,非 struct）、direct_response、ExecuteRound、Plane、Session、masking、auto-compact、StreamItem 投影；不依赖 `internal/agent`/`internal/context`/`internal/stream`（已全部合并删除）。
   - `tests/architecture/structural_limits_test.go`
-- **结构守卫覆盖全包**：`tests/architecture/structural_limits_test.go` 的 `refactorOwnedDirs` 覆盖所有 13 个 `internal/` 重构目录（含 `internal/tools/dispatch` 子包）（core/runtime/store/tools/memory/mcp/api/wire/config/workspace/skills/webaccess）。所有目录强制文件 ≤800 行。generated files（`*_gen.go`）和 test 文件被守卫排除。
-  - `tests/architecture/structural_limits_test.go`
+- **Partial tool-call rejection 不丢弃已执行结果**：当 `BeforeToolCall` 拒绝一批 tool call 中的一个（如 `file_delete` 需审批）,已提交的 calls（如 `file_read`）结果必须保留。`consumeInterleavedForAgentLoop` 不 Discard executor,记录 `rejectedErr` 后继续消费 stream 到 finalMessage。`ExecuteRound` 在 rejection 时调 `GetRemainingResults` 收集已提交 calls 的结果。`direct_response.go` 先记录已执行 tool results,再记录 approval-required message。
+  - `internal/runtime/agent_loop_partial_rejection_test.go`
 
 ## 持久化与 store 边界
 
@@ -46,9 +46,12 @@
 
 ## Triggers (ambient)
 
-- **Trigger scheduler 是 run 外常驻进程**：`internal/triggers.Scheduler` 住 `serve` 进程内，与 `Executor` 平级，不属任何 per-run 生命周期。trigger fire 时调 `RunService.CreateRun` 起新短命 run，不续 session。`/v1/triggers/{id}` 端点不经 device auth，用 HMAC 验签。
+- **Trigger scheduler 是 run 外常驻进程**：`internal/triggers.Scheduler` 住 `serve` 进程内，与 `Executor` 平级，不属任何 per-run 生命周期。trigger fire 时调 `RunService.CreateRun` 起新短命 run，不续 session。`/v1/triggers/{id}` 端点不经 device auth，用 HMAC 验签。`Stop()` 清理 pending debounce timers 避免 shutdown 孤儿 run。
   - `internal/triggers/scheduler_test.go`
   - `internal/triggers/webhook_test.go`
+- **Trigger 成本控制**：debounce + duplicate-skip 双护栏。`triggers.debounce_millis`（默认 0=禁用,推荐 2000）合并同 trigger 窗口内多次 fire 为一次 run（last input wins,per-trigger timer 独立）。`triggerRunCreator.shouldSkipRun` 在 WorldState 投影 + input 指纹（SHA-256,key 排序确定性）与上次相同时跳过 CreateRun——首次不跳过,nil WorldState 不跳过。webhook spam 100 次相同 payload + 无状态变化 = 0 次 LLM 调用。
+  - `internal/triggers/scheduler_debounce_test.go`
+  - `internal/wire/trigger_skip_test.go`
 - **Trigger fire → 起新 run，不续 session**：trigger fire 走 `Executor.ExecuteMessages` 起新 run，`RunTimeoutSeconds`(默认 900s) + `direct_response` 同步 loop 决定长 run 不可行。WorldState 是跨 run 唯一状态，session 是 per-run 临时态。
   - `internal/triggers/scheduler_test.go`
 - **WorldState 是跨 run 决策投影**：`internal/memory.WorldState` 是 file-backed key-value store（`{storage_dir}/worldstate/state.json`），只有 `ApplyDelta` 一条变更路径（upsert/delete）。填补 Session（per-run 临时）和 facts（显式 remember）之间空白。内存 cache + mutex 串行写，避开 SQLite 单连接瓶颈。agent 通过 `worldstate_update`/`worldstate_load` 工具读写。
