@@ -2,20 +2,21 @@ package io.ycvk.acorn.core.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Acorn brand colors
-val AcornPrimary = Color(0xFF6750A4)
-val AcornOnPrimary = Color(0xFFFFFFFF)
-val AcornPrimaryContainer = Color(0xFFEADDFF)
-val AcornOnPrimaryContainer = Color(0xFF21005D)
-val AcornSecondary = Color(0xFF625B71)
-val AcornOnSecondary = Color(0xFFFFFFFF)
-val AcornSecondaryContainer = Color(0xFFE8DEF8)
-val AcornSurface = Color(0xFFFEF7FF)
-val AcornOnSurface = Color(0xFF1D1B20)
-val AcornBackground = Color(0xFFFEF7FF)
+// Terminal / dev-tool palette — GitHub dark inspired.
+// No light theme; dark-only.
 
-// Status colors
-val StatusSuccess = Color(0xFF2E7D32)
-val StatusWarning = Color(0xFFED6C02)
-val StatusError = Color(0xFFB3261E)
-val StatusInfo = Color(0xFF0288D1)
+val Bg = Color(0xFF0D1117)
+val Surface = Color(0xFF161B22)
+val SurfaceVariant = Color(0xFF21262D)
+val Border = Color(0xFF30363D)
+
+val TextPrimary = Color(0xFFE6EDF3)
+val TextSecondary = Color(0xFF8B949E)
+
+val Accent = Color(0xFF3FB950)       // green — running / success / primary
+val AccentDim = Color(0xFF238636)    // primary button bg
+val OnAccent = Color(0xFF0D1117)     // text on accent
+
+val Warning = Color(0xFFD29922)      // pending approval
+val Danger = Color(0xFFF85149)        // error / stop / destructive
+val Info = Color(0xFF58A6FF)         // link / info

@@ -1,24 +1,28 @@
 package io.ycvk.acorn.feature.approvals
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -27,6 +31,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -35,12 +40,16 @@ import io.ycvk.acorn.api.models.DecidePendingActionRequest
 import io.ycvk.acorn.api.models.PendingActionDetail
 import io.ycvk.acorn.api.models.PendingActionOption
 import io.ycvk.acorn.api.models.PendingActionSummary
+import io.ycvk.acorn.core.theme.Accent
+import io.ycvk.acorn.core.theme.Bg
+import io.ycvk.acorn.core.theme.Border
+import io.ycvk.acorn.core.theme.Danger
+import io.ycvk.acorn.core.theme.Surface
+import io.ycvk.acorn.core.theme.SurfaceVariant
+import io.ycvk.acorn.core.theme.TextPrimary
+import io.ycvk.acorn.core.theme.TextSecondary
+import io.ycvk.acorn.core.theme.Warning
 
-/**
- * Approvals tab: lists pending actions that need an operator decision. Tapping
- * an item opens a [ModalBottomSheet] with the full detail and one chip per
- * option, each issuing an accept/decline decision.
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ApprovalsScreen(
@@ -64,21 +73,34 @@ fun ApprovalsScreen(
         )
     }
 
-    LazyColumn(modifier = modifier.fillMaxSize()) {
+    LazyColumn(
+        modifier = modifier
+            .fillMaxSize()
+            .background(Bg),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+            horizontal = 12.dp,
+            vertical = 8.dp,
+        ),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
         items(pendingActions, key = { it.actionId }) { action ->
-            PendingActionRow(action) { viewModel.loadActionDetail(action.actionId) }
-            HorizontalDivider()
+            PendingActionCard(action) { viewModel.loadActionDetail(action.actionId) }
         }
 
         if (pendingActions.isEmpty() && error == null) {
             item {
                 Box(
-                    modifier = Modifier.fillMaxWidth().padding(32.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 120.dp),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
-                        "No pending approvals",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        "> no pending approvals",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontFamily = FontFamily.Monospace,
+                        ),
+                        color = TextSecondary,
                     )
                 }
             }
@@ -87,9 +109,12 @@ fun ApprovalsScreen(
         error?.let {
             item {
                 Text(
-                    it,
+                    "! $it",
                     modifier = Modifier.padding(16.dp),
-                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontFamily = FontFamily.Monospace,
+                    ),
+                    color = Danger,
                 )
             }
         }
@@ -97,28 +122,62 @@ fun ApprovalsScreen(
 }
 
 @Composable
-private fun PendingActionRow(action: PendingActionSummary, onClick: () -> Unit) {
-    ListItem(
-        headlineContent = { Text(action.title.ifBlank { "Untitled action" }) },
-        supportingContent = {
-            Column {
+private fun PendingActionCard(action: PendingActionSummary, onClick: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .background(Surface)
+            .border(
+                width = 1.dp,
+                color = Border,
+                shape = RoundedCornerShape(4.dp),
+            )
+            .padding(12.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // Risk chip
+            Box(
+                modifier = Modifier
+                    .background(Warning)
+                    .padding(horizontal = 6.dp, vertical = 2.dp),
+            ) {
                 Text(
-                    action.kind.name,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    "RISK",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Bg,
+                    fontWeight = FontWeight.Bold,
                 )
-                action.body?.takeIf { it.isNotBlank() }?.let {
-                    Text(
-                        it,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 2,
-                    )
-                }
             }
-        },
-        modifier = Modifier.clickable(onClick = onClick),
-    )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                action.kind.name,
+                style = MaterialTheme.typography.labelSmall,
+                color = TextSecondary,
+            )
+        }
+
+        Spacer(Modifier.height(8.dp))
+
+        Text(
+            action.title.ifBlank { "untitled action" },
+            style = MaterialTheme.typography.headlineSmall,
+            color = TextPrimary,
+        )
+
+        action.body?.takeIf { it.isNotBlank() }?.let {
+            Spacer(Modifier.height(4.dp))
+            Text(
+                it,
+                style = MaterialTheme.typography.bodyMedium,
+                color = TextSecondary,
+                maxLines = 2,
+            )
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -133,51 +192,86 @@ private fun PendingActionDetailSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
+        containerColor = Surface,
     ) {
-        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 32.dp)) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 32.dp),
+        ) {
+            // Risk label
+            Box(
+                modifier = Modifier
+                    .background(Warning)
+                    .padding(horizontal = 6.dp, vertical = 2.dp),
+            ) {
+                Text(
+                    "RISK",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Bg,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+
+            Spacer(Modifier.height(8.dp))
             Text(
-                detail.title.ifBlank { "Untitled action" },
+                detail.title.ifBlank { "untitled action" },
                 style = MaterialTheme.typography.headlineSmall,
+                color = TextPrimary,
                 fontWeight = FontWeight.SemiBold,
             )
             Spacer(Modifier.height(4.dp))
             Text(
                 "${detail.kind.name} · ${detail.status.name}",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.labelSmall,
+                color = TextSecondary,
             )
 
             detail.body?.takeIf { it.isNotBlank() }?.let {
                 Spacer(Modifier.height(16.dp))
-                Text(it, style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    it,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextPrimary,
+                )
             }
             detail.reason?.takeIf { it.isNotBlank() }?.let {
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "Reason: $it",
+                    "reason: $it",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = TextSecondary,
                 )
             }
             detail.rule?.takeIf { it.isNotBlank() }?.let {
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    "Rule: $it",
+                    "rule: $it",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = TextSecondary,
                 )
             }
 
             if (detail.options.isNotEmpty()) {
                 Spacer(Modifier.height(16.dp))
-                Text("Options", style = MaterialTheme.typography.titleSmall)
+                Text(
+                    "options",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = TextSecondary,
+                )
                 Spacer(Modifier.height(8.dp))
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     detail.options.forEach { option ->
+                        val isDecline = decideFor(option) == DecidePendingActionRequest.Decision.decline
                         AssistChip(
                             onClick = { onDecide(detail.actionId, decideFor(option), option.id, null) },
-                            label = { Text(option.label) },
+                            label = { Text(option.label, style = MaterialTheme.typography.labelLarge) },
                             enabled = !deciding,
+                            colors = AssistChipDefaults.assistChipColors(
+                                containerColor = if (isDecline) SurfaceVariant else Accent,
+                                labelColor = if (isDecline) Danger else Bg,
+                            ),
                         )
                     }
                 }
@@ -187,18 +281,13 @@ private fun PendingActionDetailSheet(
                 Spacer(Modifier.height(16.dp))
                 CircularProgressIndicator(
                     modifier = Modifier.align(Alignment.CenterHorizontally),
+                    color = Accent,
                 )
             }
         }
     }
 }
 
-/**
- * Maps an option's label to the backend decision enum. Options whose label
- * indicates rejection map to [DecidePendingActionRequest.Decision.decline];
- * anything else maps to accept (an explicit option selection is the signal the
- * operator wants that option).
- */
 private fun decideFor(option: PendingActionOption): DecidePendingActionRequest.Decision {
     val label = option.label.lowercase()
     val isDecline = label.startsWith("reject") ||
