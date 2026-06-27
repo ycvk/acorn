@@ -309,6 +309,18 @@ func (a *directResponseAgent) runFromState(ctx context.Context, generator *adk.A
 						return
 					}
 				}
+				// Record results from tool calls that were accepted before the
+				// rejection (BUG 11 fix: partial rejection must not discard
+				// already-executed sibling calls).
+				if len(toolMessages) > 0 {
+					if recordErr := session.RecordToolResults(runCtx, toolMessages); recordErr != nil {
+						generator.Send(&adk.AgentEvent{AgentName: a.Name(ctx), Err: fmt.Errorf("agent loop record tool results (approval required): %w", recordErr)})
+						return
+					}
+					for _, tm := range toolMessages {
+						generator.Send(adk.EventFromMessage(tm, nil, schema.Tool, ""))
+					}
+				}
 				approvalMsg := approvalRequiredToolMessage(are.CallID, are.ToolName)
 				if recordErr := session.RecordToolResults(runCtx, []adk.Message{approvalMsg}); recordErr != nil {
 					generator.Send(&adk.AgentEvent{AgentName: a.Name(ctx), Err: fmt.Errorf("agent loop record approval-required tool result: %w", recordErr)})

@@ -53,6 +53,29 @@ func ExecuteRound(ctx context.Context, model einomodel.BaseChatModel, streamer c
 
 	executor := toolNode.NewStreamingExecutor(ctx)
 	result, err := consumeInterleavedForAgentLoop(ctx, interleaved, executor, opts.BeforeToolCall)
+	// A ToolCallRejectedError means BeforeToolCall blocked one call in a
+	// batch. Already-submitted calls should still return results, so we
+	// must NOT Discard. Collect their results and surface the rejection.
+	var rejected *ToolCallRejectedError
+	if err != nil && errors.As(err, &rejected) {
+		var msg *schema.Message
+		var toolMessages []*schema.Message
+		if result != nil && result.Message != nil {
+			msg = result.Message
+		}
+		// Collect results from already-submitted calls. If none were
+		// submitted (rejection on the first call), GetRemainingResults
+		// returns an error — treat that as "no results" not a failure.
+		tm, tmErr := executor.GetRemainingResults(ctx)
+		if tmErr != nil {
+			// No submitted calls to collect; the rejection is the
+			// only signal the agent needs.
+			toolMessages = nil
+		} else {
+			toolMessages = tm
+		}
+		return msg, toolMessages, false, err
+	}
 	if err != nil {
 		executor.Discard()
 		if result != nil && result.Message != nil {
@@ -134,21 +157,28 @@ func outputLimitContinuationMessage() *schema.Message {
 
 func consumeInterleavedForAgentLoop(ctx context.Context, interleaved *core.InterleavedStream, executor dispatch.StreamingExecutor, beforeToolCall func(context.Context, schema.ToolCall) error) (*core.AssistantStreamResult, error) {
 	var finalResult *core.AssistantStreamResult
+	var rejectedErr *ToolCallRejectedError
 	for {
 		select {
 		case call, ok := <-interleaved.ToolCallCh:
 			if !ok {
 				interleaved.ToolCallCh = nil
+				if rejectedErr != nil {
+					return finalResult, rejectedErr
+				}
 				if finalResult != nil {
 					return finalResult, nil
 				}
 				continue
 			}
-			if beforeToolCall != nil {
+			if beforeToolCall != nil && rejectedErr == nil {
 				if err := beforeToolCall(ctx, call); err != nil {
-					executor.Discard()
-					return finalResult, &ToolCallRejectedError{Call: call, Err: err}
+					rejectedErr = &ToolCallRejectedError{Call: call, Err: err}
+					continue
 				}
+			}
+			if rejectedErr != nil {
+				continue
 			}
 			executor.Submit(call)
 		case result, ok := <-interleaved.FinalMessageCh:
@@ -158,6 +188,9 @@ func consumeInterleavedForAgentLoop(ctx context.Context, interleaved *core.Inter
 			}
 			finalResult = new(core.AssistantStreamResult)
 			*finalResult = result
+			if rejectedErr != nil {
+				return finalResult, rejectedErr
+			}
 			if interleaved.ToolCallCh == nil {
 				return finalResult, nil
 			}
