@@ -26,6 +26,8 @@ var builtinToolOrder = []string{
 	"memory_replace_span",
 	"remember",
 	"search_runs",
+	"worldstate_update",
+	"worldstate_load",
 	"skill_list",
 	"skill_view",
 	"load_tools",
@@ -71,6 +73,14 @@ func builtinToolContract(name string) (core.ToolContract, bool) {
 		c.Category = core.ToolCategoryMemory
 		c.Execution.ParallelPolicy = core.ParallelPolicySerial
 	case "search_runs":
+		c.Kind = core.ToolKindNative
+		c.Category = core.ToolCategoryInspect
+		c.Execution.ParallelPolicy = core.ParallelPolicyReadOnly
+	case "worldstate_update":
+		c.Kind = core.ToolKindNative
+		c.Category = core.ToolCategoryMemory
+		c.Execution.ParallelPolicy = core.ParallelPolicySerial
+	case "worldstate_load":
 		c.Kind = core.ToolKindNative
 		c.Category = core.ToolCategoryInspect
 		c.Execution.ParallelPolicy = core.ParallelPolicyReadOnly
@@ -199,6 +209,20 @@ func nativeToolBuilder(name string, cfg CatalogConfig) func(context.Context, cor
 				return nil, nil
 			}
 			return buildSearchRunsTool(cfg.RunSearchStore)
+		}
+	case "worldstate_update":
+		return func(_ context.Context, _ core.RunContext) (einotool.BaseTool, error) {
+			if cfg.WorldStateUpdater == nil {
+				return nil, nil
+			}
+			return buildWorldStateUpdateTool(cfg.WorldStateUpdater)
+		}
+	case "worldstate_load":
+		return func(_ context.Context, _ core.RunContext) (einotool.BaseTool, error) {
+			if cfg.WorldStateUpdater == nil {
+				return nil, nil
+			}
+			return buildWorldStateLoadTool(cfg.WorldStateUpdater)
 		}
 	case "web_fetch":
 		return func(_ context.Context, _ core.RunContext) (einotool.BaseTool, error) {

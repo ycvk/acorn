@@ -15,6 +15,7 @@ import (
 	"github.com/ycvk/acorn/internal/memory"
 	"github.com/ycvk/acorn/internal/runtime"
 	"github.com/ycvk/acorn/internal/store"
+	"github.com/ycvk/acorn/internal/tools"
 	"github.com/ycvk/acorn/internal/triggers"
 )
 
@@ -136,7 +137,14 @@ func buildContainer(ctx context.Context, cfg *config.Config) (*Container, error)
 		return nil, err
 	}
 
-	container, err := buildContainerAppServices(cfg, store, deps)
+	wsDir := filepath.Join(strings.TrimSpace(cfg.Runtime.StorageDir), "worldstate")
+	ws, err := memory.NewWorldState(wsDir)
+	if err != nil {
+		return nil, fmt.Errorf("build world state: %w", err)
+	}
+	deps.worldStateUpdater = &worldStateAdapter{ws: ws}
+
+	container, err := buildContainerAppServices(cfg, store, deps, ws)
 	if err != nil {
 		return nil, err
 	}
@@ -179,7 +187,7 @@ func buildMemoryService(ctx context.Context, cfg *config.Config) (memory.Service
 	return svc, nil
 }
 
-func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *containerRuntimeDeps) (*Container, error) {
+func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *containerRuntimeDeps, ws *memory.WorldState) (*Container, error) {
 	container := &Container{
 		cfg:           cfg,
 		runnerFactory: deps.runnerFactory,
@@ -197,11 +205,6 @@ func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *contai
 	container.events = api.NewEventService(db, db)
 	container.pendingAction = api.NewPendingActionService(db)
 
-	wsDir := filepath.Join(strings.TrimSpace(cfg.Runtime.StorageDir), "worldstate")
-	ws, err := memory.NewWorldState(wsDir)
-	if err != nil {
-		return nil, fmt.Errorf("build world state: %w", err)
-	}
 	container.worldState = ws
 	container.capabilities = api.NewCapabilitiesService(cfg, container.skills.Snapshot, mcpprovider.Doctor, deps.runnerFactory)
 	container.deviceAuth = api.NewDeviceAuthService(db)
@@ -210,6 +213,23 @@ func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *contai
 	container.triggerSched = buildTriggerScheduler(cfg, container.runs, db, ws)
 
 	return container, nil
+}
+
+// worldStateAdapter wraps memory.WorldState to satisfy tools.WorldStateUpdater.
+// It translates between the tools package's WorldStateDelta and memory's.
+type worldStateAdapter struct {
+	ws *memory.WorldState
+}
+
+func (a *worldStateAdapter) ApplyDelta(ctx context.Context, delta tools.WorldStateDelta) error {
+	return a.ws.ApplyDelta(ctx, memory.WorldStateDelta{
+		Upserts: delta.Upserts,
+		Deletes: delta.Deletes,
+	})
+}
+
+func (a *worldStateAdapter) Load(ctx context.Context) (map[string]string, error) {
+	return a.ws.Load(ctx)
 }
 
 // triggerRunCreator adapts api.RunService into triggers.RunCreator. Each

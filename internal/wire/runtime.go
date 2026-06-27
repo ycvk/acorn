@@ -22,6 +22,7 @@ type containerRuntimeDeps struct {
 	contextPlane          *runtime.ContextPlane
 	mcpPendingActionStore core.SessionStore
 	toolRegistry          core.ToolRegistry
+	worldStateUpdater     tools.WorldStateUpdater
 	runnerFactory         *runtime.RunnerFactory
 	runController         *runtime.RunController
 	executeRun            func(context.Context, core.ExecuteRequest, core.StreamSink) (*runtime.Result, error)

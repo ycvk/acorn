@@ -44,8 +44,8 @@ func TestParallelPolicyStringParsing(t *testing.T) {
 func TestConfiguredLocalSpecsCarryCanonicalPolicies(t *testing.T) {
 	cfg := defaultToolingTestConfig()
 	specs := tools.ConfiguredLocalSpecs(cfg)
-	if len(specs) != 21 {
-		t.Fatalf("ConfiguredLocalSpecs len = %d, want 21", len(specs))
+	if len(specs) != 23 {
+		t.Fatalf("ConfiguredLocalSpecs len = %d, want 23", len(specs))
 	}
 	createFile, ok := tools.ConfiguredLocalSpec(cfg, "create_file")
 	if !ok {

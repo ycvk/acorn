@@ -32,6 +32,8 @@ func localToolDefs(cfg *config.Config) []localToolDef {
 		{"artifact_list", true},
 		{"ask_operator", true},
 		{"search_runs", true},
+		{"worldstate_update", true},
+		{"worldstate_load", true},
 		{"web_fetch", true},
 		{"web_search", true},
 		{"browser", true},

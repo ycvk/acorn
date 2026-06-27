@@ -69,6 +69,7 @@ type RuntimeDeps struct {
 	MCPPendingActions core.SessionStore
 	Workspace         *workspace.Workspace
 	ArtifactService   core.ArtifactService
+	WorldStateUpdater tools.WorldStateUpdater
 	ExtraLocalTools   []einotool.BaseTool
 	Handlers          []adk.ChatModelAgentMiddleware
 	ToolRegistry      core.ToolRegistry

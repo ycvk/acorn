@@ -171,6 +171,7 @@ type CatalogConfig struct {
 	ArtifactContext   core.ToolCallContextBridge
 	OperatorStore     OperatorQuestionStore
 	RunSearchStore    RunSearchStore
+	WorldStateUpdater WorldStateUpdater
 	OperatorContext   core.ToolCallContextBridge
 	WebFetchService   WebFetchService
 	WebSearchService  WebSearchService
@@ -202,6 +203,7 @@ func BuildCatalog(cfg CatalogConfig, extraTools []einotool.BaseTool) (*LocalCata
 		func() ([]einotool.BaseTool, error) { return buildWebFetchToolEntry(cfg) },
 		func() ([]einotool.BaseTool, error) { return buildWebSearchToolEntry(cfg) },
 		func() ([]einotool.BaseTool, error) { return buildBrowserToolEntry(cfg) },
+		func() ([]einotool.BaseTool, error) { return buildWorldStateTools(cfg) },
 	}
 	for _, group := range groups {
 		built, err := group()
@@ -212,4 +214,19 @@ func BuildCatalog(cfg CatalogConfig, extraTools []einotool.BaseTool) (*LocalCata
 	}
 	items = append(items, extraTools...)
 	return &LocalCatalog{Tools: items}, nil
+}
+
+func buildWorldStateTools(cfg CatalogConfig) ([]einotool.BaseTool, error) {
+	if cfg.WorldStateUpdater == nil {
+		return nil, nil
+	}
+	updateTool, err := buildWorldStateUpdateTool(cfg.WorldStateUpdater)
+	if err != nil {
+		return nil, err
+	}
+	loadTool, err := buildWorldStateLoadTool(cfg.WorldStateUpdater)
+	if err != nil {
+		return nil, err
+	}
+	return []einotool.BaseTool{updateTool, loadTool}, nil
 }
