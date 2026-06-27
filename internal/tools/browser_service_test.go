@@ -94,13 +94,13 @@ func TestPausedRequestAppliesURLPolicy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewService: %v", err)
 	}
-	if service.handlePausedRequestForTest(context.Background(), "http://127.0.0.1/admin") {
+	if service.evaluateRequestPolicy(context.Background(), "http://127.0.0.1/admin") {
 		t.Fatal("loopback request should be blocked")
 	}
 	if got := service.takePolicyError(); !strings.Contains(got, "loopback_address") {
 		t.Fatalf("policy error = %q, want loopback address", got)
 	}
-	if !service.handlePausedRequestForTest(context.Background(), "data:image/png;base64,AAAA") {
+	if !service.evaluateRequestPolicy(context.Background(), "data:image/png;base64,AAAA") {
 		t.Fatal("same-page browser data resource should be allowed")
 	}
 }

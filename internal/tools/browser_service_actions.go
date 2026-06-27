@@ -424,7 +424,7 @@ func (s *Service) handlePausedEvent(event *fetch.EventRequestPaused) {
 func (s *Service) handlePausedRequest(requestID fetch.RequestID, requestURL string) {
 	policyCtx, cancel := context.WithTimeout(context.Background(), s.cfg.Timeout)
 	defer cancel()
-	if !s.handlePausedRequestForTest(policyCtx, requestURL) {
+	if !s.evaluateRequestPolicy(policyCtx, requestURL) {
 		s.failFetchRequest(requestID)
 		return
 	}
@@ -455,7 +455,7 @@ func (s *Service) failFetchRequest(requestID fetch.RequestID) {
 	}
 }
 
-func (s *Service) handlePausedRequestForTest(ctx context.Context, requestURL string) bool {
+func (s *Service) evaluateRequestPolicy(ctx context.Context, requestURL string) bool {
 	parsed, err := url.Parse(strings.TrimSpace(requestURL))
 	if err != nil {
 		s.recordPolicyError(fmt.Sprintf("browser blocked request %s: parse url: %v", requestURL, err))

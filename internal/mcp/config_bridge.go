@@ -1,7 +1,6 @@
 package mcp
 
 import (
-	"maps"
 	"reflect"
 
 	"github.com/ycvk/acorn/internal/config"
@@ -25,15 +24,15 @@ func providerConfigFromAppConfig(item config.MCPProviderConfig) ProviderConfig {
 		URL:                   item.URL,
 		TimeoutSeconds:        item.TimeoutSeconds,
 		Command:               item.Command,
-		Args:                  append([]string(nil), item.Args...),
+		Args:                  item.Args,
 		WorkDir:               item.WorkDir,
-		Env:                   maps.Clone(item.Env),
-		ToolNames:             append([]string(nil), item.ToolNames...),
+		Env:                   item.Env,
+		ToolNames:             item.ToolNames,
 		StartupTimeoutSeconds: item.StartupTimeoutSeconds,
 		Auth: AuthConfig{
 			Type:     item.Auth.Type,
 			ClientID: item.Auth.ClientID,
-			Scopes:   append([]string(nil), item.Auth.Scopes...),
+			Scopes:   item.Auth.Scopes,
 		},
 	}
 }

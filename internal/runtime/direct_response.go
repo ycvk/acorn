@@ -163,7 +163,10 @@ type DirectResponseInterruptData struct {
 }
 
 func (a *directResponseAgent) Name(context.Context) string {
-	return firstNonEmptyString(a.name, "direct_response")
+	if n := strings.TrimSpace(a.name); n != "" {
+		return n
+	}
+	return "direct_response"
 }
 
 func (a *directResponseAgent) Description(context.Context) string {
@@ -358,15 +361,6 @@ func (a *directResponseAgent) sendInterruptEvent(ctx context.Context, generator 
 }
 
 var _ adk.ResumableAgent = (*directResponseAgent)(nil)
-
-func firstNonEmptyString(values ...string) string {
-	for _, value := range values {
-		if trimmed := strings.TrimSpace(value); trimmed != "" {
-			return trimmed
-		}
-	}
-	return ""
-}
 
 func directResponseMessageID(runID string, iteration int) string {
 	trimmed := strings.TrimSpace(runID)

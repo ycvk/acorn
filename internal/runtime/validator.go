@@ -14,8 +14,6 @@ import (
 	"golang.org/x/text/message"
 )
 
-var defaultEnglishPrinter = message.NewPrinter(language.English)
-
 type validationError struct {
 	Field   string `json:"field"`
 	Message string `json:"message"`
@@ -140,7 +138,7 @@ func collectErrors(verr *jsonschema.ValidationError, out *[]validationError) {
 			path := joinJSONPointer(append(append([]string(nil), verr.InstanceLocation...), missing))
 			*out = append(*out, validationError{
 				Field:   path,
-				Message: defaultEnglishPrinter.Sprintf("missing required field %s", quoteJSONSchema(missing)),
+				Message: fmt.Sprintf("missing required field %s", quoteJSONSchema(missing)),
 			})
 		}
 		return
@@ -148,7 +146,7 @@ func collectErrors(verr *jsonschema.ValidationError, out *[]validationError) {
 
 	*out = append(*out, validationError{
 		Field:   joinJSONPointer(verr.InstanceLocation),
-		Message: verr.ErrorKind.LocalizedString(defaultEnglishPrinter),
+		Message: verr.ErrorKind.LocalizedString(message.NewPrinter(language.English)),
 	})
 
 	for _, cause := range verr.Causes {
