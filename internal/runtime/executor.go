@@ -111,7 +111,7 @@ func (e *Executor) ExecuteMessages(ctx context.Context, req core.ExecuteRequest,
 		return nil, e.failSetupOrErr(ctx, runID, err, sink)
 	}
 	iter := active.Runner.Run(e.executionContext(runCtxBase, runID, req, active, sink), messages, adk.WithCheckPointID(runID))
-	return e.consume(ctx, runID, req.Input, iter, active.SelectedSkill, sink, active.ChatModel)
+	return e.consume(ctx, runID, req.SessionID, req.Input, iter, active.SelectedSkill, sink, active.ChatModel)
 }
 
 func (e *Executor) createBoundRun(ctx context.Context, runID string, req core.ExecuteRequest) error {
@@ -206,7 +206,7 @@ func (e *Executor) executeResume(ctx context.Context, runCtxBase context.Context
 	if err != nil {
 		return nil, err
 	}
-	result, err := e.consume(ctx, runID, run.Input, iter, active.SelectedSkill, sink, active.ChatModel)
+	result, err := e.consume(ctx, runID, run.SessionID, run.Input, iter, active.SelectedSkill, sink, active.ChatModel)
 	if err != nil {
 		return nil, err
 	}
@@ -250,12 +250,12 @@ type RunState struct {
 	emittedRunFailed bool
 }
 
-func (e *Executor) consume(ctx context.Context, runID, input string, iter *adk.AsyncIterator[*adk.AgentEvent], selectedSkill *SelectedSkill, sink core.StreamSink, chatModel einomodel.BaseChatModel) (*Result, error) {
+func (e *Executor) consume(ctx context.Context, runID, sessionID, input string, iter *adk.AsyncIterator[*adk.AgentEvent], selectedSkill *SelectedSkill, sink core.StreamSink, chatModel einomodel.BaseChatModel) (*Result, error) {
 	state, err := e.collectRunState(ctx, runID, iter, sink, chatModel)
 	if err != nil {
 		return nil, err
 	}
-	return e.finishCollectedRun(ctx, runID, input, state, selectedSkill, sink)
+	return e.finishCollectedRun(ctx, runID, sessionID, input, state, selectedSkill, sink)
 }
 
 func (e *Executor) collectRunState(ctx context.Context, runID string, iter *adk.AsyncIterator[*adk.AgentEvent], sink core.StreamSink, chatModel einomodel.BaseChatModel) (RunState, error) {
@@ -365,18 +365,18 @@ func (e *Executor) verifyAndRecordSkill(ctx context.Context, runID string, selec
 	return err
 }
 
-func (e *Executor) finishCollectedRun(ctx context.Context, runID, input string, state RunState, selectedSkill *SelectedSkill, sink core.StreamSink) (*Result, error) {
+func (e *Executor) finishCollectedRun(ctx context.Context, runID, sessionID, input string, state RunState, selectedSkill *SelectedSkill, sink core.StreamSink) (*Result, error) {
 	switch {
 	case state.failure != nil:
-		return e.finishFailedRun(ctx, runID, input, state, selectedSkill, sink)
+		return e.finishFailedRun(ctx, runID, sessionID, input, state, selectedSkill, sink)
 	case state.interrupt != nil:
 		return e.finishInterruptedRun(ctx, runID, state)
 	default:
-		return e.finishSucceededRun(ctx, runID, input, state, selectedSkill, sink)
+		return e.finishSucceededRun(ctx, runID, sessionID, input, state, selectedSkill, sink)
 	}
 }
 
-func (e *Executor) finishFailedRun(ctx context.Context, runID, input string, state RunState, selectedSkill *SelectedSkill, sink core.StreamSink) (*Result, error) {
+func (e *Executor) finishFailedRun(ctx context.Context, runID, sessionID, input string, state RunState, selectedSkill *SelectedSkill, sink core.StreamSink) (*Result, error) {
 	durableCtx := core.DurableContext(ctx)
 	if !state.emittedRunFailed && state.failure != nil {
 		if err := e.emitRunFailed(durableCtx, runID, sink, state.failure.Error()); err != nil {
@@ -389,8 +389,11 @@ func (e *Executor) finishFailedRun(ctx context.Context, runID, input string, sta
 	if err := e.verifyAndRecordSkill(durableCtx, runID, selectedSkill, core.RunStatusFailed, state.lastOutput, sink); err != nil {
 		return nil, err
 	}
+	if err := e.store.SyncAssistantMessageForRunStatus(durableCtx, runID, core.RunStatusFailed); err != nil {
+		slog.Error("sync assistant message after run completion", "run_id", runID, "err", err)
+	}
 	// Append history after the run is marked complete.
-	go e.finalizePostRun(context.WithoutCancel(ctx), runID, core.RunStatusFailed, input, state.lastOutput)
+	go e.finalizePostRun(context.WithoutCancel(ctx), runID, sessionID, core.RunStatusFailed, input, state.lastOutput)
 	return &Result{
 		RunID:  runID,
 		Status: core.RunStatusFailed,
@@ -412,7 +415,7 @@ func (e *Executor) finishInterruptedRun(ctx context.Context, runID string, state
 	}, nil
 }
 
-func (e *Executor) finishSucceededRun(ctx context.Context, runID, input string, state RunState, selectedSkill *SelectedSkill, sink core.StreamSink) (*Result, error) {
+func (e *Executor) finishSucceededRun(ctx context.Context, runID, sessionID, input string, state RunState, selectedSkill *SelectedSkill, sink core.StreamSink) (*Result, error) {
 	durableCtx := core.DurableContext(ctx)
 	if err := e.store.UpdateRunOutput(durableCtx, runID, state.lastOutput); err != nil {
 		return nil, err
@@ -426,9 +429,12 @@ func (e *Executor) finishSucceededRun(ctx context.Context, runID, input string, 
 	if err := e.store.FinishRun(durableCtx, runID, core.RunStatusSucceeded, state.lastOutput, ""); err != nil {
 		return nil, err
 	}
+	if err := e.store.SyncAssistantMessageForRunStatus(durableCtx, runID, core.RunStatusSucceeded); err != nil {
+		slog.Error("sync assistant message after run completion", "run_id", runID, "err", err)
+	}
 	// Append history + count toward review after the run is marked complete,
 	// so this work does not delay the completion event or status update.
-	go e.finalizePostRun(context.WithoutCancel(ctx), runID, core.RunStatusSucceeded, input, state.lastOutput)
+	go e.finalizePostRun(context.WithoutCancel(ctx), runID, sessionID, core.RunStatusSucceeded, input, state.lastOutput)
 	return &Result{
 		RunID:  runID,
 		Status: core.RunStatusSucceeded,
@@ -441,12 +447,8 @@ func (e *Executor) finishSucceededRun(ctx context.Context, runID, input string, 
 // asynchronously after the run is marked complete so this work does not
 // delay run completion. Errors are logged, not propagated — the run is
 // already finished.
-func (e *Executor) finalizePostRun(ctx context.Context, runID string, runStatus core.RunStatus, input, output string) {
-	if err := e.store.SyncAssistantMessageForRunStatus(ctx, runID, runStatus); err != nil {
-		slog.Error("sync assistant message after run completion", "run_id", runID, "err", err)
-		return
-	}
-	if err := e.appendRunHistory(ctx, runID, runStatus, input, output); err != nil {
+func (e *Executor) finalizePostRun(ctx context.Context, runID, sessionID string, runStatus core.RunStatus, input, output string) {
+	if err := e.appendRunHistory(ctx, runID, sessionID, runStatus, input, output); err != nil {
 		slog.Error("append run history", "run_id", runID, "err", err)
 	}
 	// Periodic memory review: counts completed runs and triggers a review
@@ -456,17 +458,13 @@ func (e *Executor) finalizePostRun(ctx context.Context, runID string, runStatus 
 	}
 }
 
-func (e *Executor) appendRunHistory(ctx context.Context, runID string, runStatus core.RunStatus, input, output string) error {
+func (e *Executor) appendRunHistory(ctx context.Context, runID, sessionID string, runStatus core.RunStatus, input, output string) error {
 	if e.runRuntime.MemoryModule() == nil {
 		return errors.New("memory module is not initialized")
 	}
-	run, err := e.store.LoadRun(ctx, runID)
-	if err != nil {
-		return fmt.Errorf("load run for memory history: %w", err)
-	}
 	summary := e.runHistorySummary(runStatus, input, output)
 	if err := e.runRuntime.MemoryModule().AppendHistory(ctx, memory.HistoryEvent{
-		SessionID: run.SessionID,
+		SessionID: sessionID,
 		RunID:     runID,
 		Status:    string(runStatus),
 		Summary:   summary,
