@@ -46,6 +46,9 @@ class ChatViewModel @Inject constructor(
     private val _threadId = MutableStateFlow<String?>(null)
     val threadId: StateFlow<String?> = _threadId.asStateFlow()
 
+    private val _threadTitle = MutableStateFlow<String?>(null)
+    val threadTitle: StateFlow<String?> = _threadTitle.asStateFlow()
+
     private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())
     val messages: StateFlow<List<ChatMessage>> = _messages.asStateFlow()
 
@@ -58,13 +61,15 @@ class ChatViewModel @Inject constructor(
     private var eventSource: EventSource? = null
 
     fun loadThread(threadId: String) {
-        // Switching thread: drop any in-flight stream and reset state.
         eventSource?.cancel()
         eventSource = null
         _threadId.value = threadId
+        _threadTitle.value = null
+        _messages.value = emptyList()  // clear stale messages immediately
         _chatState.value = ChatState()
         _error.value = null
         loadMessages(threadId)
+        loadThreadTitle(threadId)
     }
 
     fun sendMessage(text: String) {
@@ -117,6 +122,7 @@ class ChatViewModel @Inject constructor(
                     val clientApi = ClientApi(basePath = profile.serverUrl)
                     clientApi.clientListMessages(threadId, limit = 50)
                 }
+                if (_threadId.value != threadId) return@launch
                 _messages.value = response.items.map { msg ->
                     val text = extractText(msg)
                     val reasoning = extractReasoning(msg)
@@ -130,6 +136,23 @@ class ChatViewModel @Inject constructor(
                 }
             } catch (e: Exception) {
                 _error.value = e.message ?: "Failed to load messages"
+            }
+        }
+    }
+
+    private fun loadThreadTitle(threadId: String) {
+        val profile = getConnectionProfile() ?: return
+        viewModelScope.launch {
+            try {
+                val title = withContext(Dispatchers.IO) {
+                    ApiClient.accessToken = profile.accessToken
+                    val clientApi = ClientApi(basePath = profile.serverUrl)
+                    clientApi.clientGetThread(threadId).title
+                }
+                if (_threadId.value != threadId) return@launch
+                _threadTitle.value = title
+            } catch (e: Exception) {
+                // Title is cosmetic; leave the placeholder in place silently.
             }
         }
     }

@@ -73,6 +73,20 @@ class ThreadsViewModel @Inject constructor(
             }
         }
     }
+    fun deleteThread(threadId: String) {
+        val profile = getConnectionProfile() ?: return
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    ApiClient.accessToken = profile.accessToken
+                    ClientApi(basePath = profile.serverUrl).clientDeleteThread(threadId)
+                }
+                _threads.value = _threads.value.filterNot { it.id == threadId }
+            } catch (e: Exception) {
+                _error.value = e.message ?: "Failed to delete thread"
+            }
+        }
+    }
 
     private fun getConnectionProfile(): ConnectionProfile? =
         (authController.authState.value as? AuthState.Connected)?.profile

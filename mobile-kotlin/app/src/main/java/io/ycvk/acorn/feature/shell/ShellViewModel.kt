@@ -27,6 +27,9 @@ class ShellViewModel @Inject constructor(
     private val _openThreadId = MutableStateFlow<String?>(null)
     val openThreadId: StateFlow<String?> = _openThreadId.asStateFlow()
 
+    private val _showApprovals = MutableStateFlow(false)
+    val showApprovals: StateFlow<Boolean> = _showApprovals.asStateFlow()
+
     private val _pendingCount = MutableStateFlow(0)
     val pendingCount: StateFlow<Int> = _pendingCount.asStateFlow()
 
@@ -74,11 +77,17 @@ class ShellViewModel @Inject constructor(
     fun closeThread() {
         _openThreadId.value = null
     }
+    fun showApprovalsList() {
+        _showApprovals.value = true
+    }
+
+    fun hideApprovalsList() {
+        _showApprovals.value = false
+    }
 
     companion object {
         const val TAB_THREADS = 0
-        const val TAB_APPROVALS = 1
-        const val TAB_SETTINGS = 2
+        const val TAB_SETTINGS = 1
         private const val POLL_INTERVAL_MS = 30_000L
     }
 }
