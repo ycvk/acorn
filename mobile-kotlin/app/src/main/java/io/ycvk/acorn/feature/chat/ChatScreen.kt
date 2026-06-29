@@ -2,7 +2,11 @@ package io.ycvk.acorn.feature.chat
 
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -516,21 +520,7 @@ private fun StreamingAssistantBubble(text: String, reasoning: String?, isStreami
                     )
                 }
             } else if (isStreaming) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(14.dp),
-                        strokeWidth = 2.dp,
-                        color = AetherPrimary,
-                    )
-                    Text(
-                        "thinking",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = AetherOnSurfaceVariant.copy(alpha = 0.6f),
-                    )
-                }
+                TypingDots()
             }
         }
     }
@@ -562,6 +552,32 @@ private fun ReasoningBlock(reasoning: String) {
     }
 }
 
+@Composable
+private fun TypingDots() {
+    val infiniteTransition = rememberInfiniteTransition(label = "typing")
+    Row(
+        modifier = Modifier.padding(vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        repeat(3) { i ->
+            val alpha by infiniteTransition.animateFloat(
+                initialValue = 0.3f,
+                targetValue = 1f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(400, delayMillis = i * 160, easing = ChatGptMotionEasing),
+                    repeatMode = RepeatMode.Reverse,
+                ),
+                label = "dot_$i",
+            )
+            Box(
+                modifier = Modifier
+                    .size(7.dp)
+                    .background(AetherPrimary.copy(alpha = alpha), CircleShape),
+            )
+        }
+    }
+}
 // ─── Activity / Error ─────────────────────────────────────────────────────────
 
 @Composable

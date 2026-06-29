@@ -189,96 +189,112 @@ fun ThreadsScreen(
                     color = AetherOnSurfaceVariant,
                 )
             }
-
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(
-                    start = 16.dp,
-                    end = 16.dp,
-                    top = 4.dp,
-                    bottom = 96.dp,
-                ),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
             ) {
-                items(threads, key = { it.id }) { thread ->
-                    val dismissState = rememberSwipeToDismissBoxState(
-                        confirmValueChange = { value ->
-                            if (value == SwipeToDismissBoxValue.EndToStart) {
-                                pendingDelete = thread
-                            }
-                            false
-                        },
-                    )
-                    SwipeToDismissBox(
-                        state = dismissState,
-                        enableDismissFromStartToEnd = false,
-                        backgroundContent = {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .clip(MaterialTheme.shapes.large)
-                                    .background(AetherError)
-                                    .padding(horizontal = 20.dp),
-                                contentAlignment = Alignment.CenterEnd,
-                            ) {
-                                Icon(
-                                    Icons.Filled.Delete,
-                                    contentDescription = "delete",
-                                    tint = AetherOnPrimary,
-                                )
-                            }
-                        },
-                        modifier = Modifier.animateItemPlacement(
-                            tween(280, easing = MotionEasing),
-                        ),
+            if (threads.isEmpty() && error == null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                        ThreadItem(thread = thread, onClick = { onThreadClick(thread.id) })
-                    }
-                }
-
-                if (threads.isEmpty() && error == null) {
-                    item {
                         Box(
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 80.dp),
+                                .size(56.dp)
+                                .clip(CircleShape)
+                                .background(AetherPrimary.copy(alpha = 0.1f)),
                             contentAlignment = Alignment.Center,
                         ) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                            Icon(
+                                Icons.Filled.Add,
+                                contentDescription = null,
+                                tint = AetherPrimary.copy(alpha = 0.6f),
+                                modifier = Modifier.size(28.dp),
+                            )
+                        }
+                        Text(
+                            "No threads yet",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = AetherOnSurface,
+                        )
+                        Text(
+                            "Tap + to start a conversation",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = AetherOnSurfaceVariant,
+                        )
+                    }
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(
+                        start = 16.dp,
+                        end = 16.dp,
+                        top = 4.dp,
+                        bottom = 96.dp,
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    items(threads, key = { it.id }) { thread ->
+                        val dismissState = rememberSwipeToDismissBoxState(
+                            confirmValueChange = { value ->
+                                if (value == SwipeToDismissBoxValue.EndToStart) {
+                                    pendingDelete = thread
+                                }
+                                false
+                            },
+                        )
+                        SwipeToDismissBox(
+                            state = dismissState,
+                            enableDismissFromStartToEnd = false,
+                            backgroundContent = {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .clip(MaterialTheme.shapes.large)
+                                        .background(AetherError)
+                                        .padding(horizontal = 20.dp),
+                                    contentAlignment = Alignment.CenterEnd,
+                                ) {
+                                    Icon(
+                                        Icons.Filled.Delete,
+                                        contentDescription = "delete",
+                                        tint = AetherOnPrimary,
+                                    )
+                                }
+                            },
+                            modifier = Modifier.animateItemPlacement(
+                                tween(280, easing = MotionEasing),
+                            ),
+                        ) {
+                            ThreadItem(thread = thread, onClick = { onThreadClick(thread.id) })
+                        }
+                    }
+
+                    error?.let {
+                        item {
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = MaterialTheme.shapes.large,
+                                color = AetherError.copy(alpha = 0.1f),
                             ) {
                                 Text(
-                                    "No threads yet",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = AetherOnSurfaceVariant,
-                                )
-                                Text(
-                                    "Tap + to start",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = AetherOnSurfaceVariant,
+                                    text = "$it",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = AetherError,
+                                    modifier = Modifier.padding(12.dp),
                                 )
                             }
                         }
                     }
                 }
-
-                error?.let {
-                    item {
-                        Surface(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = MaterialTheme.shapes.large,
-                            color = AetherError.copy(alpha = 0.1f),
-                        ) {
-                            Text(
-                                text = "$it",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = AetherError,
-                                modifier = Modifier.padding(12.dp),
-                            )
-                        }
-                    }
-                }
+            }
             }
         }
     }

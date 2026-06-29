@@ -6,8 +6,10 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import io.ycvk.acorn.api.apis.ClientApi
 import io.ycvk.acorn.api.infrastructure.ApiClient
 import io.ycvk.acorn.api.models.CreateRunRequest
+import io.ycvk.acorn.api.models.InboxResponse
 import io.ycvk.acorn.api.models.Message
 import io.ycvk.acorn.api.models.ReasoningMessagePart
+import io.ycvk.acorn.api.models.RunSummary
 import io.ycvk.acorn.api.models.TextMessagePart
 import io.ycvk.acorn.core.auth.AuthController
 import io.ycvk.acorn.core.auth.AuthState
@@ -59,8 +61,10 @@ class ChatViewModel @Inject constructor(
     val error: StateFlow<String?> = _error.asStateFlow()
 
     private var eventSource: EventSource? = null
+    private val streamGeneration = java.util.concurrent.atomic.AtomicLong(0)
 
     fun loadThread(threadId: String) {
+        streamGeneration.incrementAndGet()  // invalidate any in-flight SSE callbacks
         eventSource?.cancel()
         eventSource = null
         _threadId.value = threadId
@@ -70,6 +74,33 @@ class ChatViewModel @Inject constructor(
         _error.value = null
         loadMessages(threadId)
         loadThreadTitle(threadId)
+        reconnectActiveRun(threadId)
+    }
+
+    /**
+     * If this thread has an in-flight run on the server, reconnect its SSE stream
+     * with after_seq=0 so the user sees the full streaming reply instead of a blank
+     * gap until the run finishes and [loadMessages] would eventually pick it up.
+     */
+    private fun reconnectActiveRun(threadId: String) {
+        val profile = getConnectionProfile() ?: return
+        viewModelScope.launch {
+            try {
+                val inbox = withContext(Dispatchers.IO) {
+                    ApiClient.accessToken = profile.accessToken
+                    val clientApi = ClientApi(basePath = profile.serverUrl)
+                    clientApi.clientGetInbox()
+                }
+                if (_threadId.value != threadId) return@launch
+                val activeRun = inbox.activeRuns.find { it.threadId == threadId }
+                if (activeRun != null) {
+                    _chatState.value = ChatState(isStreaming = true, runStatus = RunStatus.Running)
+                    streamEvents(profile, activeRun.runId)
+                }
+            } catch (e: Exception) {
+                // Inbox fetch is best-effort; don't surface as error.
+            }
+        }
     }
 
     fun sendMessage(text: String) {
@@ -105,6 +136,7 @@ class ChatViewModel @Inject constructor(
     }
 
     fun interruptRun() {
+        streamGeneration.incrementAndGet()
         eventSource?.cancel()
         eventSource = null
         _chatState.value = _chatState.value.copy(
@@ -158,6 +190,7 @@ class ChatViewModel @Inject constructor(
     }
 
     private fun streamEvents(profile: ConnectionProfile, runId: String) {
+        val gen = streamGeneration.incrementAndGet()
         val sseClient = RunEventStreamClient(
             baseUrl = profile.serverUrl,
             accessToken = profile.accessToken,
@@ -166,6 +199,7 @@ class ChatViewModel @Inject constructor(
             runId = runId,
             afterSeq = 0,
             onEvent = { packet ->
+                if (streamGeneration.get() != gen) return@streamRunEvents
                 _chatState.value = projection.apply(_chatState.value, packet)
                 // On a terminal event, fold the streamed assistant text into the
                 // persisted message list and clear the streaming bubble so the
@@ -180,11 +214,18 @@ class ChatViewModel @Inject constructor(
                     _chatState.value = ChatState(runStatus = _chatState.value.runStatus)
                 }
             },
-            onError = { t -> _error.value = t.message ?: "SSE error" },
+            onError = { t ->
+                // Suppress errors from streams we already cancelled (e.g. loadThread).
+                if (streamGeneration.get() == gen) {
+                    _error.value = t?.message ?: "SSE error"
+                }
+            },
             onClosed = {
-                val current = _chatState.value
-                if (current.isStreaming && current.runStatus == RunStatus.Running) {
-                    _chatState.value = current.copy(isStreaming = false)
+                if (streamGeneration.get() == gen) {
+                    val current = _chatState.value
+                    if (current.isStreaming && current.runStatus == RunStatus.Running) {
+                        _chatState.value = current.copy(isStreaming = false)
+                    }
                 }
             },
         )
@@ -194,6 +235,7 @@ class ChatViewModel @Inject constructor(
         (authController.authState.value as? AuthState.Connected)?.profile
 
     override fun onCleared() {
+        streamGeneration.incrementAndGet()
         eventSource?.cancel()
         super.onCleared()
     }
