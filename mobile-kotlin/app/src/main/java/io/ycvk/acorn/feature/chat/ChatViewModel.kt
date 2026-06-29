@@ -93,8 +93,7 @@ class ChatViewModel @Inject constructor(
                 }
                 if (_threadId.value != threadId) return@launch
                 val activeRun = inbox.activeRuns.find { it.threadId == threadId }
-                if (activeRun != null) {
-                    _chatState.value = ChatState(isStreaming = true, runStatus = RunStatus.Running)
+                if (activeRun != null && eventSource == null) {
                     streamEvents(profile, activeRun.runId)
                 }
             } catch (e: Exception) {
@@ -115,6 +114,9 @@ class ChatViewModel @Inject constructor(
 
         // Optimistic user bubble + fresh streaming state.
         _messages.value = _messages.value + ChatMessage.User(text)
+        streamGeneration.incrementAndGet()  // cancel any pending reconnectActiveRun
+        eventSource?.cancel()
+        eventSource = null
         _chatState.value = ChatState()
         _error.value = null
 
