@@ -62,6 +62,7 @@ class ChatViewModel @Inject constructor(
 
     private var eventSource: EventSource? = null
     private val streamGeneration = java.util.concurrent.atomic.AtomicLong(0)
+    private val lastRunIdByThread = mutableMapOf<String, String>()
 
     fun loadThread(threadId: String) {
         streamGeneration.incrementAndGet()  // invalidate any in-flight SSE callbacks
@@ -76,11 +77,19 @@ class ChatViewModel @Inject constructor(
         loadThreadTitle(threadId)
         reconnectActiveRun(threadId)
     }
-
     /**
-     * If this thread has an in-flight run on the server, reconnect its SSE stream
-     * with after_seq=0 so the user sees the full streaming reply instead of a blank
-     * gap until the run finishes and [loadMessages] would eventually pick it up.
+     * Reconnect to the most recent run for this thread.
+     *
+     * 1. If inbox shows an active run for this thread, stream its events.
+     * 2. Else if we have a lastRunId from a prior sendMessage, stream that run's
+     *    events — it may still be running or just finished; follow=true will pick
+     *    up terminal events and our onEvent folds the reply into messages.
+     * 3. Else reload messages once (run finished before we left).
+     *
+     * The SSE stream with follow=true handles both "still running" (deltas arrive
+     * live) and "just finished" (terminal event arrives, foldReplyIntoMessages
+     * persists it). If the run already finished long ago, the terminal event is
+     * still in the backlog and will be delivered immediately.
      */
     private fun reconnectActiveRun(threadId: String) {
         val profile = getConnectionProfile() ?: return
@@ -92,9 +101,16 @@ class ChatViewModel @Inject constructor(
                     clientApi.clientGetInbox()
                 }
                 if (_threadId.value != threadId) return@launch
+
                 val activeRun = inbox.activeRuns.find { it.threadId == threadId }
-                if (activeRun != null && eventSource == null) {
-                    streamEvents(profile, activeRun.runId)
+                val runIdToReconnect = activeRun?.runId ?: lastRunIdByThread[threadId]
+
+                if (runIdToReconnect != null && eventSource == null) {
+                    _chatState.value = ChatState(isStreaming = true, runStatus = RunStatus.Running)
+                    streamEvents(profile, runIdToReconnect)
+                } else if (activeRun == null) {
+                    // No active run and no lastRunId — just reload persisted messages.
+                    loadMessages(threadId)
                 }
             } catch (e: Exception) {
                 // Inbox fetch is best-effort; don't surface as error.
@@ -130,6 +146,7 @@ class ChatViewModel @Inject constructor(
                         createRunRequest = CreateRunRequest(input = text),
                     ).id
                 }
+                lastRunIdByThread[threadId] = runId
                 streamEvents(profile, runId)
             } catch (e: Exception) {
                 _error.value = e.message ?: "Failed to send message"
@@ -209,7 +226,11 @@ class ChatViewModel @Inject constructor(
                 if (packet is RunEventPacket.RunCompleted || packet is RunEventPacket.RunFailed) {
                     val finalText = _chatState.value.assistantText
                     val finalReasoning = _chatState.value.assistantReasoning.ifBlank { null }
-                    if (finalText.isNotBlank()) {
+                    // Only append if the last message is a user bubble — avoids
+                    // duplicating the assistant reply when loadMessages already
+                    // persisted it before the SSE terminal event arrived.
+                    val lastIsUser = _messages.value.lastOrNull() is ChatMessage.User
+                    if (finalText.isNotBlank() && lastIsUser) {
                         _messages.value = _messages.value +
                             ChatMessage.Assistant(finalText, finalReasoning)
                     }
