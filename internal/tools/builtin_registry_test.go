@@ -24,6 +24,7 @@ func TestBuiltinToolNamesSnapshot(t *testing.T) {
 		"worldstate_load",
 		"skill_list",
 		"skill_view",
+		"skill_create",
 		"load_tools",
 		"ask_operator",
 	}
@@ -58,25 +59,6 @@ func TestBuiltinToolSpecUnknownReturnsFalse(t *testing.T) {
 	}
 }
 
-// TestWorkingCheckpointToolsAreDeferred documents that deferred built-ins are
-// intentionally excluded from the always-eligible list.
-func TestWorkingCheckpointToolsAreDeferred(t *testing.T) {
-	for _, name := range []string{"update_working_checkpoint", "clear_working_checkpoint"} {
-		contract, ok := builtinToolContract(name)
-		if !ok {
-			t.Fatalf("builtinToolContract(%q) not found", name)
-		}
-		if contract.Loading.Mode != core.ToolLoadingModeDeferred {
-			t.Fatalf("%q loading = %q, want deferred", name, contract.Loading.Mode)
-		}
-	}
-	for _, name := range BuiltinToolNames() {
-		if name == "update_working_checkpoint" || name == "clear_working_checkpoint" {
-			t.Fatalf("deferred working-state tool %q must not be in BuiltinToolNames", name)
-		}
-	}
-}
-
 // TestConfiguredLocalSpecRoundtrip guards the static local toolset: the list and
 // the by-name lookup derive from one source, so every listed spec is valid and
 // resolvable, and unknown names are rejected.
@@ -100,5 +82,19 @@ func TestConfiguredLocalSpecRoundtrip(t *testing.T) {
 	}
 	if _, ok := ConfiguredLocalSpec(cfg, "definitely_not_a_local_tool"); ok {
 		t.Fatal("ConfiguredLocalSpec for unknown tool should return ok=false")
+	}
+}
+
+// BuiltinToolNames treats every built-in as always eligible, which only holds
+// while no built-in is deferred.
+func TestBuiltinToolsAreEager(t *testing.T) {
+	for _, name := range builtinToolOrder {
+		contract, ok := builtinToolContract(name)
+		if !ok {
+			t.Fatalf("builtinToolContract(%q) not found", name)
+		}
+		if contract.Loading.Mode != core.ToolLoadingModeEager {
+			t.Fatalf("built-in %q loading = %q, want eager", name, contract.Loading.Mode)
+		}
 	}
 }

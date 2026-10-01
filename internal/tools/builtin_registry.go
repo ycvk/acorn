@@ -11,7 +11,7 @@ import (
 )
 
 // builtinToolOrder is the canonical list of dynamically-registered built-in
-// tools (delegate_task, load_tools, working-state, memory, skill). It is the
+// tools (load_tools, ask_operator, memory, worldstate, skill). It is the
 // single source of truth for built-in tool identity: BuiltinToolNames and the
 // runtime spec resolver (tool.RuntimeToolSpec via BuiltinToolSpec) both derive
 // from it, so adding a built-in tool means editing this one place.
@@ -30,10 +30,9 @@ var builtinToolOrder = []string{
 	"worldstate_load",
 	"skill_list",
 	"skill_view",
+	"skill_create",
 	"load_tools",
 	"ask_operator",
-	"update_working_checkpoint",
-	"clear_working_checkpoint",
 }
 
 // builtinToolContract returns the contract template (without Source/Profiles,
@@ -53,11 +52,6 @@ func builtinToolContract(name string) (core.ToolContract, bool) {
 	case "ask_operator":
 		c.Kind = core.ToolKindNative
 		c.Category = core.ToolCategoryIntegration
-		c.Execution.ParallelPolicy = core.ParallelPolicySerial
-	case "update_working_checkpoint", "clear_working_checkpoint":
-		c.Kind = core.ToolKindMemory
-		c.Category = core.ToolCategoryMemory
-		c.Loading = core.DeferredLoadingPolicy("working_state_tool")
 		c.Execution.ParallelPolicy = core.ParallelPolicySerial
 	case "memory_search", "memory_read_file", "memory_list_files":
 		c.Kind = core.ToolKindMemory
@@ -88,6 +82,10 @@ func builtinToolContract(name string) (core.ToolContract, bool) {
 		c.Kind = core.ToolKindSkill
 		c.Category = core.ToolCategorySkill
 		c.Execution.ParallelPolicy = core.ParallelPolicyReadOnly
+	case "skill_create":
+		c.Kind = core.ToolKindSkill
+		c.Category = core.ToolCategorySkill
+		c.Execution.ParallelPolicy = core.ParallelPolicySerial
 	default:
 		return core.ToolContract{}, false
 	}
@@ -106,19 +104,10 @@ func BuiltinToolSpec(name, source string) (core.ToolContract, bool) {
 	return c, true
 }
 
-// BuiltinToolNames returns the built-in tools that are always eligible for skill
-// matching, i.e. the eager-loaded built-ins. Deferred built-ins (working-state
-// tools) are loaded on demand and are intentionally excluded. The list derives
-// from builtinToolOrder, so it never drifts from the contract registry.
+// BuiltinToolNames returns the built-in tools, which are all eager-loaded and
+// therefore always eligible for skill matching.
 func BuiltinToolNames() []string {
-	names := make([]string, 0, len(builtinToolOrder))
-	for _, name := range builtinToolOrder {
-		contract, ok := builtinToolContract(name)
-		if ok && contract.Loading.Mode == core.ToolLoadingModeEager {
-			names = append(names, name)
-		}
-	}
-	return names
+	return append([]string(nil), builtinToolOrder...)
 }
 
 // nativeToolBuilder maps a static local tool name to the single-tool builder
