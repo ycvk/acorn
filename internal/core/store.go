@@ -37,6 +37,8 @@ type SessionStore interface {
 	SearchRuns(ctx context.Context, query string, limit int) ([]RunRecord, error)
 	FinishRun(ctx context.Context, runID string, status RunStatus, output, errText string) error
 	MarkInterrupted(ctx context.Context, runID, output string) error
+	ResumeInterruptedRun(ctx context.Context, runID string) error
+	ListInterruptedRuns(ctx context.Context) ([]RunRecord, error)
 	UpdateRunOutput(ctx context.Context, runID, output string) error
 	ListActiveRuns(ctx context.Context, limit int) ([]RunRecord, error)
 	ListRecentTerminalRuns(ctx context.Context, limit int) ([]RunRecord, error)

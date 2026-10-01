@@ -64,6 +64,8 @@ func runServe(ctx context.Context, args []string) error {
 		defer sched.Stop()
 	}
 
+	go resumeReadyRunsLoop(ctx, container.ResumeReadyRuns, resumeSweepInterval)
+
 	server := &http.Server{
 		Addr:              addr,
 		Handler:           handler,
@@ -103,4 +105,23 @@ func executionReadinessBanner(readyErr error) string {
 		return fmt.Sprintf("Execution: NOT READY — tasks will be rejected with execution_not_ready until fixed.\n  Reason: %s\n  Run 'acorn doctor' for detail.", readyErr)
 	}
 	return "Execution: ready"
+}
+
+const resumeSweepInterval = time.Minute
+
+// resumeReadyRunsLoop resumes decided runs at startup and then on every tick,
+// so a run whose resume was lost (process exit, a failed trigger) continues.
+func resumeReadyRunsLoop(ctx context.Context, sweep func(context.Context) error, interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		if err := sweep(ctx); err != nil {
+			slog.Error("resume ready runs", "error", err)
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+	}
 }

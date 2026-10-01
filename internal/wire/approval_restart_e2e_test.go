@@ -25,6 +25,8 @@ type fakeOpenAI struct {
 	mu       sync.Mutex
 	replies  []string
 	requests []map[string]any
+	// gates holds a reply until the test closes the channel for that request.
+	gates map[int]chan struct{}
 }
 
 func (f *fakeOpenAI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -45,7 +47,11 @@ func (f *fakeOpenAI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	f.mu.Lock()
 	f.requests = append(f.requests, request)
 	index := len(f.requests) - 1
+	gate := f.gates[index]
 	f.mu.Unlock()
+	if gate != nil {
+		<-gate
+	}
 	if index >= len(f.replies) {
 		http.Error(w, fmt.Sprintf("no scripted reply for request %d", index), http.StatusInternalServerError)
 		return
@@ -245,5 +251,129 @@ func TestApprovalSurvivesRestart(t *testing.T) {
 				t.Fatalf("checkpoint after completion: present=%v err=%v", ok, err)
 			}
 		})
+	}
+}
+
+// TestDecidedRunResumesFromSweepAndShowsRunning covers a decision that was
+// saved but whose resume never started (the process exited right after the
+// decision): the startup sweep resumes it, and while it runs the run is
+// visible as running.
+func TestDecidedRunResumesFromSweepAndShowsRunning(t *testing.T) {
+	gate := make(chan struct{})
+	var releaseOnce sync.Once
+	release := func() { releaseOnce.Do(func() { close(gate) }) }
+	provider := &fakeOpenAI{
+		replies: []string{
+			sseChunks(searchRunsCallStream, toolCallsFinish),
+			sseChunks(doneContent, stopFinish),
+		},
+		gates: map[int]chan struct{}{1: gate},
+	}
+	server := httptest.NewServer(provider)
+	defer server.Close()
+	// Release the held reply before the server closes, also when an
+	// assertion below fails, so Close does not wait on the handler forever.
+	defer release()
+	cfg := writeApprovalTestConfig(t, server.URL)
+	runID, actionID := startApprovalRun(t, cfg)
+
+	ctx := context.Background()
+	second, err := NewContainer(ctx, cfg)
+	if err != nil {
+		t.Fatalf("second container: %v", err)
+	}
+	defer func() { _ = second.Close() }()
+	if _, err := second.store.DecidePendingAction(ctx, actionID, core.PendingActionStatusApproved, `{"action":"accept"}`); err != nil {
+		t.Fatalf("decide without resume: %v", err)
+	}
+	waitRunStatus(t, second, runID, "interrupted")
+
+	if err := second.ResumeReadyRuns(ctx); err != nil {
+		t.Fatalf("resume ready runs: %v", err)
+	}
+	deadline := time.Now().Add(10 * time.Second)
+	for provider.request(1) == nil {
+		if time.Now().After(deadline) {
+			t.Fatal("the swept run never called the model")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	run, err := second.Runs().GetRun(ctx, runID)
+	if err != nil {
+		t.Fatalf("get run: %v", err)
+	}
+	if run.Status != "running" {
+		t.Fatalf("status during resume = %s, want running", run.Status)
+	}
+	inbox, err := second.Inbox().Load(ctx)
+	if err != nil {
+		t.Fatalf("inbox: %v", err)
+	}
+	if len(inbox.ActiveRuns) != 1 || inbox.ActiveRuns[0].RunID != runID {
+		t.Fatalf("inbox active runs = %+v, want the resumed run", inbox.ActiveRuns)
+	}
+	release()
+	waitRunStatus(t, second, runID, "completed")
+}
+
+// TestBrokenAssistantStreamFailsRunThroughNormalPath covers a provider stream
+// that breaks mid-response: the run must end failed with one run.failed event
+// and leave no checkpoint behind.
+func TestBrokenAssistantStreamFailsRunThroughNormalPath(t *testing.T) {
+	partial := `{"id":"c3","object":"chat.completion.chunk","created":3,"model":"fake","choices":[{"index":0,"delta":{"role":"assistant","content":"half an ans"},"finish_reason":null}]}`
+	provider := &fakeOpenAI{replies: []string{"data: " + partial + "\n\ndata: {not json\n\n"}}
+	server := httptest.NewServer(provider)
+	defer server.Close()
+	cfg := writeApprovalTestConfig(t, server.URL)
+	ctx := context.Background()
+	c, err := NewContainer(ctx, cfg)
+	if err != nil {
+		t.Fatalf("container: %v", err)
+	}
+	defer func() { _ = c.Close() }()
+	thread, err := c.Threads().CreateThread(ctx, "broken stream")
+	if err != nil {
+		t.Fatalf("create thread: %v", err)
+	}
+	run, err := c.Runs().CreateRun(ctx, thread.ID, "", "say something")
+	if err != nil {
+		t.Fatalf("create run: %v", err)
+	}
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		current, err := c.Runs().GetRun(ctx, run.ID)
+		if err != nil {
+			t.Fatalf("get run: %v", err)
+		}
+		if current.Status == "failed" {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("run status = %s, want failed", current.Status)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	events, err := c.store.LoadEvents(ctx, run.ID)
+	if err != nil {
+		t.Fatalf("load events: %v", err)
+	}
+	failed := 0
+	for _, e := range events {
+		if e.Kind == "run.failed" {
+			failed++
+		}
+	}
+	if failed != 1 {
+		t.Fatalf("run.failed events = %d, want 1; events: %s", failed, eventKinds(events))
+	}
+	if _, ok, err := c.store.LoadCheckpoint(ctx, run.ID); err != nil || ok {
+		t.Fatalf("checkpoint after failure: present=%v err=%v", ok, err)
+	}
+	record, err := c.store.LoadRun(ctx, run.ID)
+	if err != nil {
+		t.Fatalf("load run: %v", err)
+	}
+	if record.Output != "half an ans" {
+		t.Fatalf("run output = %q, want the streamed partial output kept by the normal failure path", record.Output)
 	}
 }

@@ -101,6 +101,43 @@ func (s *Store) MarkInterrupted(ctx context.Context, runID, output string) error
 	return nil
 }
 
+// ResumeInterruptedRun moves an interrupted run back to running. The
+// conditional update is the claim that lets exactly one resumer continue it.
+func (s *Store) ResumeInterruptedRun(ctx context.Context, runID string) error {
+	result, err := s.db.ExecContext(ctx,
+		`UPDATE runs SET status = ?, finished_at = '' WHERE run_id = ? AND status = ?`,
+		string(core.RunStatusRunning),
+		runID,
+		string(core.RunStatusInterrupted),
+	)
+	if err != nil {
+		return fmt.Errorf("resume interrupted run: %w", err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("resume interrupted run rows affected: %w", err)
+	}
+	if affected != 1 {
+		return fmt.Errorf("%w: %s", core.ErrRunNotInterrupted, runID)
+	}
+	return nil
+}
+
+// ListInterruptedRuns returns every interrupted run, oldest first.
+func (s *Store) ListInterruptedRuns(ctx context.Context) ([]core.RunRecord, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT run_id, session_id, turn_index, status, input_text, output_text, error_text, created_at, finished_at
+		 FROM runs
+		 WHERE status = ?
+		 ORDER BY created_at ASC`,
+		string(core.RunStatusInterrupted),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list interrupted runs: %w", err)
+	}
+	return scanRunRows(rows, "list interrupted runs")
+}
+
 func (s *Store) LoadRun(ctx context.Context, runID string) (*core.RunRecord, error) {
 	row := s.db.QueryRowContext(ctx, `SELECT run_id, session_id, turn_index, status, input_text, output_text, error_text, created_at, finished_at FROM runs WHERE run_id = ?`, runID)
 	rec, err := scanRunRecord(row)

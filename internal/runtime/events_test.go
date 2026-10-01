@@ -29,7 +29,7 @@ func TestProjectStreamingAssistantEmitsDeltasThenMessage(t *testing.T) {
 		{Role: schema.Assistant, Content: ""},
 		{Role: schema.Assistant, Content: "lo"},
 	})
-	p := &agentEventProjector{runID: "run_x"}
+	p := &agentEventProjector{messagePrefix: "run_x:assistant:7"}
 	items := collectProjected(t, p,
 		adk.EventFromMessage(nil, stream, schema.Assistant, ""),
 		adk.EventFromMessage(nil, schema.StreamReaderFromArray([]*schema.Message{{Role: schema.Assistant, Content: "again"}}), schema.Assistant, ""),
@@ -52,13 +52,13 @@ func TestProjectStreamingAssistantEmitsDeltasThenMessage(t *testing.T) {
 	}
 	first := core.ItemGetAssistantDelta(items[0])
 	second := core.ItemGetAssistantDelta(items[1])
-	if first.MessageID != "run_x:assistant:1" || first.Sequence != 1 || second.Sequence != 2 || second.Delta != "lo" {
+	if first.MessageID != "run_x:assistant:7:1" || first.Sequence != 1 || second.Sequence != 2 || second.Delta != "lo" {
 		t.Fatalf("deltas = %+v / %+v", first, second)
 	}
 	if msg := core.ItemGetMessage(items[2]); msg == nil || msg.Content != "Hello" {
 		t.Fatalf("assembled message = %+v", msg)
 	}
-	if next := core.ItemGetAssistantDelta(items[3]); next.MessageID != "run_x:assistant:2" || next.Sequence != 1 {
+	if next := core.ItemGetAssistantDelta(items[3]); next.MessageID != "run_x:assistant:7:2" || next.Sequence != 1 {
 		t.Fatalf("second assistant delta = %+v", next)
 	}
 }
@@ -67,7 +67,7 @@ func TestProjectToolResultInterruptAndError(t *testing.T) {
 	toolMsg := schema.ToolMessage("result", "call_1", schema.WithToolName("search_runs"))
 	interrupted := &adk.AgentEvent{Action: &adk.AgentAction{Interrupted: &adk.InterruptInfo{}}}
 	failed := &adk.AgentEvent{Err: errors.New("boom")}
-	items := collectProjected(t, &agentEventProjector{runID: "run_x"},
+	items := collectProjected(t, &agentEventProjector{messagePrefix: "run_x:assistant:7"},
 		adk.EventFromMessage(toolMsg, nil, schema.Tool, "search_runs"),
 		interrupted,
 		failed,

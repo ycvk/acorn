@@ -306,11 +306,11 @@ func (s *RunService) recordStartedRunFailure(ctx context.Context, runID string, 
 	if record.Status != core.RunStatusRunning {
 		return nil
 	}
-	if err := s.store.FinishRun(ctx, runID, core.RunStatusFailed, "", cause.Error()); err != nil {
-		return fmt.Errorf("mark client run failed after background error: %w", err)
-	}
 	if _, err := s.store.AppendEvent(ctx, runID, "run.failed", map[string]any{"error": cause.Error()}); err != nil {
 		return fmt.Errorf("append client run failed event after background error: %w", err)
+	}
+	if err := s.store.FinishRun(ctx, runID, core.RunStatusFailed, "", cause.Error()); err != nil {
+		return fmt.Errorf("mark client run failed after background error: %w", err)
 	}
 	return nil
 }

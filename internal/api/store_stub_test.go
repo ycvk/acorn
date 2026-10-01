@@ -110,6 +110,12 @@ func (unimplementedStore) LoadPendingAction(context.Context, string) (*core.Pend
 func (unimplementedStore) DecidePendingAction(context.Context, string, core.PendingActionStatus, string) (*core.PendingActionRecord, error) {
 	return nil, errUnexpectedClientStoreCall
 }
+func (unimplementedStore) ResumeInterruptedRun(context.Context, string) error {
+	return errUnexpectedClientStoreCall
+}
+func (unimplementedStore) ListInterruptedRuns(context.Context) ([]core.RunRecord, error) {
+	return nil, errUnexpectedClientStoreCall
+}
 func (unimplementedStore) ListPendingActionsByRun(context.Context, string) ([]core.PendingActionRecord, error) {
 	return nil, errUnexpectedClientStoreCall
 }

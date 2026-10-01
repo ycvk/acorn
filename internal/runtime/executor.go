@@ -165,8 +165,8 @@ func (e *Executor) ResumeWithTargets(ctx context.Context, runID string, targets 
 	if err != nil {
 		return nil, err
 	}
-	if run.Status != core.RunStatusInterrupted {
-		return nil, fmt.Errorf("%w: %s", core.ErrRunNotInterrupted, runID)
+	if err := e.store.ResumeInterruptedRun(ctx, runID); err != nil {
+		return nil, err
 	}
 	runCtxBase, cleanup := e.newManagedRunContext(ctx, runID)
 	defer cleanup()
@@ -229,12 +229,20 @@ func (e *Executor) collectRunState(ctx context.Context, runID string, iter *adk.
 	for {
 		event, ok := iter.Next()
 		if !ok {
-			return state, nil
+			break
 		}
 		if err := projector.project(event, emit); err != nil {
 			return RunState{}, err
 		}
 	}
+	if projector.streamErr != nil && state.failure == nil {
+		if err := emit(core.StreamItem{Kind: core.StreamKindRunFailed, CreatedAt: time.Now().UTC(), Payload: map[string]any{
+			"error": projector.streamErr.Error(),
+		}}); err != nil {
+			return RunState{}, err
+		}
+	}
+	return state, nil
 }
 
 func (s *RunState) applyStreamItem(item core.StreamItem) {

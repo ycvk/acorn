@@ -16,14 +16,30 @@ import (
 // agentEventProjector converts adk events into persisted StreamItems. It owns
 // the per-run assistant message counter used for delta message ids.
 type agentEventProjector struct {
-	runID          string
+	// messagePrefix is unique per projector so a resumed run's assistant
+	// messages never reuse the ids of the messages before the interrupt.
+	messagePrefix  string
 	provider       string
 	assistantCount int
+	// streamErr is the first assistant stream read failure. Eino follows a
+	// failed stream with an error event; streamErr fails the run if it does not.
+	streamErr error
 }
 
 func newAgentEventProjector(runID string, chatModel einomodel.BaseChatModel) *agentEventProjector {
-	return &agentEventProjector{runID: runID, provider: activeProviderName(chatModel)}
+	return &agentEventProjector{
+		messagePrefix: fmt.Sprintf("%s:assistant:%d", runID, time.Now().UnixNano()),
+		provider:      activeProviderName(chatModel),
+	}
 }
+
+// streamReadError marks a failure while reading an assistant stream, which
+// the projector records instead of aborting event consumption.
+type streamReadError struct{ err error }
+
+func (e *streamReadError) Error() string { return "read assistant stream: " + e.err.Error() }
+
+func (e *streamReadError) Unwrap() error { return e.err }
 
 func (p *agentEventProjector) project(event *adk.AgentEvent, emit func(core.StreamItem) error) error {
 	now := time.Now().UTC()
@@ -61,10 +77,17 @@ func (p *agentEventProjector) project(event *adk.AgentEvent, emit func(core.Stre
 
 func (p *agentEventProjector) projectAssistant(mo *adk.MessageVariant, emit func(core.StreamItem) error) error {
 	p.assistantCount++
-	messageID := fmt.Sprintf("%s:assistant:%d", p.runID, p.assistantCount)
+	messageID := fmt.Sprintf("%s:%d", p.messagePrefix, p.assistantCount)
 	final := mo.Message
 	if mo.IsStreaming {
 		concat, err := p.projectAssistantStream(mo.MessageStream, messageID, emit)
+		var readErr *streamReadError
+		if errors.As(err, &readErr) {
+			if p.streamErr == nil {
+				p.streamErr = readErr
+			}
+			return nil
+		}
 		if err != nil {
 			return err
 		}
@@ -88,7 +111,7 @@ func (p *agentEventProjector) projectAssistantStream(stream *schema.StreamReader
 			break
 		}
 		if err != nil {
-			return nil, fmt.Errorf("read assistant stream: %w", err)
+			return nil, &streamReadError{err: err}
 		}
 		frames = append(frames, frame)
 		if frame.Content == "" && frame.ReasoningContent == "" && len(frame.ToolCalls) == 0 {

@@ -54,10 +54,10 @@ func (s *RunResumeService) Resume(ctx context.Context, runID string) (*runtime.R
 }
 
 // ResumeIfReady resumes runID in the background once it is interrupted and
-// none of its pending actions are still pending. It is called after every
-// decision and whenever a run settles as interrupted, so whichever of the two
-// happens last starts the resume; the in-flight set keeps the two callers
-// from resuming the same run twice.
+// every pending action named by its latest interrupt has been decided. It is
+// called after every decision, whenever a run settles as interrupted, and by
+// ResumeReadyRuns, so whichever happens last starts the resume; the in-flight
+// set and the store's interrupted→running claim keep a run from resuming twice.
 func (s *RunResumeService) ResumeIfReady(ctx context.Context, runID string) error {
 	ready, err := s.readyToResume(ctx, runID)
 	if err != nil || !ready {
@@ -70,6 +70,23 @@ func (s *RunResumeService) ResumeIfReady(ctx context.Context, runID string) erro
 	return nil
 }
 
+// ResumeReadyRuns calls ResumeIfReady for every interrupted run. serve runs
+// it at startup and periodically, so a decided run whose resume was lost
+// (process exit, a failed trigger) still continues.
+func (s *RunResumeService) ResumeReadyRuns(ctx context.Context) error {
+	runs, err := s.store.ListInterruptedRuns(ctx)
+	if err != nil {
+		return err
+	}
+	var errs []error
+	for _, run := range runs {
+		if err := s.ResumeIfReady(ctx, run.RunID); err != nil {
+			errs = append(errs, fmt.Errorf("run %s: %w", run.RunID, err))
+		}
+	}
+	return errors.Join(errs...)
+}
+
 func (s *RunResumeService) readyToResume(ctx context.Context, runID string) (bool, error) {
 	run, err := s.store.LoadRun(ctx, runID)
 	if err != nil {
@@ -78,11 +95,23 @@ func (s *RunResumeService) readyToResume(ctx context.Context, runID string) (boo
 	if run.Status != core.RunStatusInterrupted {
 		return false, nil
 	}
-	actions, err := s.store.ListPendingActionsByRun(ctx, runID)
+	events, err := s.store.LoadEvents(ctx, runID)
 	if err != nil {
 		return false, err
 	}
-	for _, action := range actions {
+	contexts, err := latestRootInterruptContexts(events)
+	if err != nil {
+		return false, fmt.Errorf("run %s: %w", runID, err)
+	}
+	for _, interrupt := range contexts {
+		actionID := interruptInfoField(interrupt.Info, "action_id")
+		if actionID == "" {
+			continue
+		}
+		action, err := s.store.LoadPendingAction(ctx, actionID)
+		if err != nil {
+			return false, err
+		}
 		if action.Status == core.PendingActionStatusPending {
 			return false, nil
 		}
@@ -108,11 +137,12 @@ func (s *RunResumeService) release(runID string) {
 
 func (s *RunResumeService) resumeClaimed(ctx context.Context, runID string) {
 	result, err := s.Resume(ctx, runID)
-	s.release(runID)
 	if err != nil {
 		s.failRun(ctx, runID, err)
+		s.release(runID)
 		return
 	}
+	s.release(runID)
 	if result != nil && result.Status == core.RunStatusInterrupted {
 		if err := s.ResumeIfReady(ctx, runID); err != nil {
 			s.reportError(ctx, runID, err)
@@ -130,6 +160,10 @@ func (s *RunResumeService) failRun(ctx context.Context, runID string, cause erro
 	}
 	if run.Status == core.RunStatusSucceeded || run.Status == core.RunStatusFailed {
 		s.reportError(ctx, runID, cause)
+		return
+	}
+	// Another resumer (or process) already claimed the run.
+	if errors.Is(cause, core.ErrRunNotInterrupted) && run.Status == core.RunStatusRunning {
 		return
 	}
 	if _, err := s.store.AppendEvent(ctx, runID, "run.failed", map[string]any{"error": cause.Error()}); err != nil {

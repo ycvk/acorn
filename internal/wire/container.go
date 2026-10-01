@@ -53,6 +53,12 @@ func (c *Container) Config() *config.Config {
 	return c.cfg
 }
 
+// ResumeReadyRuns resumes every interrupted run whose pending actions are
+// all decided.
+func (c *Container) ResumeReadyRuns(ctx context.Context) error {
+	return c.runResume.ResumeReadyRuns(ctx)
+}
+
 func (c *Container) Threads() *api.ThreadService {
 	return c.threads
 }
