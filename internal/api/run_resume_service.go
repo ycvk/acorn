@@ -132,11 +132,11 @@ func (s *RunResumeService) failRun(ctx context.Context, runID string, cause erro
 		s.reportError(ctx, runID, cause)
 		return
 	}
-	if err := s.store.FinishRun(ctx, runID, core.RunStatusFailed, "", cause.Error()); err != nil {
+	if _, err := s.store.AppendEvent(ctx, runID, "run.failed", map[string]any{"error": cause.Error()}); err != nil {
 		s.reportError(ctx, runID, errors.Join(cause, err))
 		return
 	}
-	if _, err := s.store.AppendEvent(ctx, runID, "run.failed", map[string]any{"error": cause.Error()}); err != nil {
+	if err := s.store.FinishRun(ctx, runID, core.RunStatusFailed, "", cause.Error()); err != nil {
 		s.reportError(ctx, runID, errors.Join(cause, err))
 	}
 }

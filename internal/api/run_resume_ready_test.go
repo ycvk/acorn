@@ -208,9 +208,9 @@ func TestResumeFailureMarksRunFailed(t *testing.T) {
 		finished := append([]core.RunStatus(nil), store.finished...)
 		last := store.events[len(store.events)-1]
 		store.mu.Unlock()
-		if len(finished) == 1 {
-			if finished[0] != core.RunStatusFailed || last.Kind != "run.failed" {
-				t.Fatalf("finished = %v, last event = %s", finished, last.Kind)
+		if len(finished) == 1 && last.Kind == "run.failed" {
+			if finished[0] != core.RunStatusFailed {
+				t.Fatalf("finished = %v, want [failed]", finished)
 			}
 			return
 		}
