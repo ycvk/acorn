@@ -17,7 +17,6 @@ import (
 	"github.com/ycvk/acorn/internal/memory"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/tools"
-	"github.com/ycvk/acorn/internal/workspace"
 )
 
 type RunnerFactory struct {
@@ -120,10 +119,6 @@ func buildRuntimeDeps(cfg *config.Config, store RuntimeStore, opts RunnerFactory
 	if store == nil {
 		return RuntimeDeps{}, errors.New("store is required")
 	}
-	ws, err := resolveWorkspace(cfg, opts.Workspace)
-	if err != nil {
-		return RuntimeDeps{}, fmt.Errorf("workspace: %w", err)
-	}
 	artifactService := opts.ArtifactService
 	if opts.MemoryModule == nil {
 		return RuntimeDeps{}, errors.New("memory module is required")
@@ -133,7 +128,7 @@ func buildRuntimeDeps(cfg *config.Config, store RuntimeStore, opts RunnerFactory
 	if err != nil {
 		return RuntimeDeps{}, fmt.Errorf("context plane: %w", err)
 	}
-	return assembleRuntimeDeps(cfg, store, opts, ws, loader, artifactService, contextPlane), nil
+	return assembleRuntimeDeps(cfg, store, opts, loader, artifactService, contextPlane), nil
 }
 
 func resolveLoader(cfg *config.Config, loader *skills.Loader) *skills.Loader {
@@ -150,7 +145,7 @@ func resolveContextPlane(cfg *config.Config, store RuntimeStore, opts RunnerFact
 	return buildDefaultContextPlane(cfg, store, opts)
 }
 
-func assembleRuntimeDeps(cfg *config.Config, store RuntimeStore, opts RunnerFactoryOptions, ws *workspace.Workspace, loader *skills.Loader, artifactService core.ArtifactService, contextPlane *ContextPlane) RuntimeDeps {
+func assembleRuntimeDeps(cfg *config.Config, store RuntimeStore, opts RunnerFactoryOptions, loader *skills.Loader, artifactService core.ArtifactService, contextPlane *ContextPlane) RuntimeDeps {
 	return RuntimeDeps{
 		Config:            cfg,
 		Store:             store,
@@ -158,19 +153,11 @@ func assembleRuntimeDeps(cfg *config.Config, store RuntimeStore, opts RunnerFact
 		MemoryModule:      opts.MemoryModule,
 		ContextPlane:      contextPlane,
 		MCPPendingActions: opts.MCPPendingActionStore,
-		Workspace:         ws,
 		ArtifactService:   artifactService,
 		ExtraLocalTools:   append([]einotool.BaseTool(nil), opts.ExtraLocalTools...),
 		Handlers:          append([]adk.ChatModelAgentMiddleware(nil), opts.Handlers...),
 		ToolRegistry:      opts.ToolRegistry,
 	}
-}
-
-func resolveWorkspace(cfg *config.Config, override *workspace.Workspace) (*workspace.Workspace, error) {
-	if override != nil {
-		return override, nil
-	}
-	return cfg.Workspace()
 }
 
 func buildDefaultContextPlane(cfg *config.Config, store RuntimeStore, opts RunnerFactoryOptions) (*ContextPlane, error) {
@@ -279,7 +266,6 @@ func (f *RunnerFactory) newAgentRunner(ctx context.Context, req RunnerBuildReque
 type RunnerFactoryOptions struct {
 	Loader                *skills.Loader
 	ExtraLocalTools       []einotool.BaseTool
-	Workspace             *workspace.Workspace
 	Handlers              []adk.ChatModelAgentMiddleware
 	MemoryModule          memory.Service
 	ContextPlane          *ContextPlane
@@ -381,13 +367,12 @@ func stableSkillsFromSnapshot(snapshot *skills.Snapshot) []skills.Spec {
 	return items
 }
 
-func emitMemoryPreparedEvent(ctx context.Context, store core.EventAppender, req RunnerBuildRequest, workspaceScope string, result *memory.PrepareResult) error {
+func emitMemoryPreparedEvent(ctx context.Context, store core.EventAppender, req RunnerBuildRequest, result *memory.PrepareResult) error {
 	if store == nil || strings.TrimSpace(req.RunID) == "" {
 		return nil
 	}
 	prepared := &core.StreamMemoryPrepared{
-		Query:          strings.TrimSpace(req.Input),
-		WorkspaceScope: strings.TrimSpace(workspaceScope),
+		Query: strings.TrimSpace(req.Input),
 	}
 	if result != nil {
 		prepared.NudgeCount = len(result.Nudges)

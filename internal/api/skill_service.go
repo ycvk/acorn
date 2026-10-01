@@ -221,7 +221,7 @@ func environmentMap() map[string]string {
 }
 
 func localEligibilityToolNames(cfg *config.Config) []string {
-	specs := tools.ConfiguredLocalSpecs(cfg)
+	specs := tools.ConfiguredLocalSpecs()
 	names := make([]string, 0, len(specs)+11)
 	seen := make(map[string]struct{}, len(specs)+11)
 	for _, spec := range specs {

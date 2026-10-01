@@ -21,16 +21,13 @@ const (
 )
 
 type WorkspaceMutationCheckpoint struct {
-	CheckpointID       string               `json:"checkpoint_id"`
-	ToolName           string               `json:"tool_name"`
-	Paths              []string             `json:"paths"`
-	BaselineDirtyPaths []string             `json:"baseline_dirty_paths,omitempty"`
-	BaselineDirtyState []WorkspaceFileState `json:"baseline_dirty_state,omitempty"`
-	Before             []WorkspaceFileState `json:"before"`
-	After              []WorkspaceFileState `json:"after,omitempty"`
-	DiffStat           string               `json:"diff_stat,omitempty"`
-	CreatedAt          time.Time            `json:"created_at"`
-	CompletedAt        time.Time            `json:"completed_at,omitempty"`
+	CheckpointID string               `json:"checkpoint_id"`
+	ToolName     string               `json:"tool_name"`
+	Paths        []string             `json:"paths"`
+	Before       []WorkspaceFileState `json:"before"`
+	After        []WorkspaceFileState `json:"after,omitempty"`
+	CreatedAt    time.Time            `json:"created_at"`
+	CompletedAt  time.Time            `json:"completed_at,omitempty"`
 }
 
 type WorkspaceFileState struct {
@@ -50,15 +47,11 @@ type WorkspaceRollbackResult struct {
 	CreatedAt     time.Time `json:"created_at"`
 }
 
-func (w *Workspace) CreateMutationCheckpoint(ctx context.Context, toolName string, paths []string) (*WorkspaceMutationCheckpoint, error) {
+func (w *Workspace) CreateMutationCheckpoint(_ context.Context, toolName string, paths []string) (*WorkspaceMutationCheckpoint, error) {
 	if w == nil {
 		return nil, errors.New("workspace is required")
 	}
 	normalized, err := w.normalizeCheckpointPaths(paths)
-	if err != nil {
-		return nil, err
-	}
-	baselineDirty, err := w.inspectDirtyFileStates(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -68,13 +61,11 @@ func (w *Workspace) CreateMutationCheckpoint(ctx context.Context, toolName strin
 	}
 	now := time.Now().UTC()
 	checkpoint := &WorkspaceMutationCheckpoint{
-		CheckpointID:       fmt.Sprintf("workspace_checkpoint_%d", now.UnixNano()),
-		ToolName:           strings.TrimSpace(toolName),
-		Paths:              normalized,
-		BaselineDirtyPaths: statePaths(baselineDirty),
-		BaselineDirtyState: baselineDirty,
-		Before:             before,
-		CreatedAt:          now,
+		CheckpointID: fmt.Sprintf("workspace_checkpoint_%d", now.UnixNano()),
+		ToolName:     strings.TrimSpace(toolName),
+		Paths:        normalized,
+		Before:       before,
+		CreatedAt:    now,
 	}
 	if checkpoint.ToolName == "" {
 		return nil, errors.New("checkpoint tool name is required")
@@ -85,7 +76,7 @@ func (w *Workspace) CreateMutationCheckpoint(ctx context.Context, toolName strin
 	return checkpoint, nil
 }
 
-func (w *Workspace) CompleteMutationCheckpoint(ctx context.Context, checkpointID string) (*WorkspaceMutationCheckpoint, error) {
+func (w *Workspace) CompleteMutationCheckpoint(_ context.Context, checkpointID string) (*WorkspaceMutationCheckpoint, error) {
 	checkpoint, err := w.LoadMutationCheckpoint(checkpointID)
 	if err != nil {
 		return nil, err
@@ -96,11 +87,6 @@ func (w *Workspace) CompleteMutationCheckpoint(ctx context.Context, checkpointID
 	}
 	checkpoint.After = after
 	checkpoint.CompletedAt = time.Now().UTC()
-	diffStat, err := w.gitDiffStat(ctx, checkpoint.Paths)
-	if err != nil {
-		return nil, err
-	}
-	checkpoint.DiffStat = strings.TrimSpace(diffStat)
 	if err := w.saveMutationCheckpoint(checkpoint); err != nil {
 		return nil, err
 	}
@@ -141,7 +127,7 @@ func (w *Workspace) LoadMutationCheckpoint(checkpointID string) (*WorkspaceMutat
 	return &checkpoint, nil
 }
 
-func (w *Workspace) RollbackMutationCheckpoint(ctx context.Context, checkpointID string) (*WorkspaceRollbackResult, error) {
+func (w *Workspace) RollbackMutationCheckpoint(_ context.Context, checkpointID string) (*WorkspaceRollbackResult, error) {
 	checkpoint, err := w.LoadMutationCheckpoint(checkpointID)
 	if err != nil {
 		return nil, err
@@ -152,7 +138,7 @@ func (w *Workspace) RollbackMutationCheckpoint(ctx context.Context, checkpointID
 		Status:       "failed",
 		CreatedAt:    time.Now().UTC(),
 	}
-	conflicts, err := w.rollbackConflicts(ctx, checkpoint)
+	conflicts, err := w.rollbackConflicts(checkpoint)
 	if err != nil {
 		result.Error = err.Error()
 		return result, err
@@ -195,28 +181,6 @@ func (w *Workspace) normalizeCheckpointPaths(paths []string) ([]string, error) {
 	}
 	slices.Sort(out)
 	return out, nil
-}
-
-func (w *Workspace) inspectDirtyFileStates(ctx context.Context) ([]WorkspaceFileState, error) {
-	status, err := w.InspectGitStatus(ctx, "")
-	if err != nil {
-		return nil, err
-	}
-	paths := make([]string, 0, len(status.Entries))
-	seen := make(map[string]struct{}, len(status.Entries))
-	for _, entry := range status.Entries {
-		path := filepath.ToSlash(strings.TrimSpace(entry.Path))
-		if path == "" {
-			continue
-		}
-		if _, ok := seen[path]; ok {
-			continue
-		}
-		seen[path] = struct{}{}
-		paths = append(paths, path)
-	}
-	slices.Sort(paths)
-	return w.fileStates(paths)
 }
 
 func (w *Workspace) fileStates(paths []string) ([]WorkspaceFileState, error) {
@@ -280,28 +244,15 @@ func (w *Workspace) restoreFileStates(states []WorkspaceFileState) error {
 	return nil
 }
 
-func (w *Workspace) rollbackConflicts(ctx context.Context, checkpoint *WorkspaceMutationCheckpoint) ([]string, error) {
-	currentDirty, err := w.inspectDirtyFileStates(ctx)
-	if err != nil {
-		return nil, err
+// rollbackConflicts reports checkpointed paths that changed after the
+// mutation completed, so a rollback never overwrites someone else's edit.
+func (w *Workspace) rollbackConflicts(checkpoint *WorkspaceMutationCheckpoint) ([]string, error) {
+	if len(checkpoint.After) == 0 {
+		return nil, nil
 	}
-	checkpointPaths := stateSetFromPaths(checkpoint.Paths)
-	baseline := stateMap(checkpoint.BaselineDirtyState)
 	after := stateMap(checkpoint.After)
 	conflicts := make([]string, 0)
-	for _, state := range currentDirty {
-		if _, ok := checkpointPaths[state.Path]; ok {
-			continue
-		}
-		base, ok := baseline[state.Path]
-		if !ok || !sameFileState(base, state) {
-			conflicts = append(conflicts, state.Path)
-		}
-	}
 	for _, path := range checkpoint.Paths {
-		if len(after) == 0 {
-			continue
-		}
 		current, err := w.fileState(path)
 		if err != nil {
 			return nil, err
@@ -312,16 +263,7 @@ func (w *Workspace) rollbackConflicts(ctx context.Context, checkpoint *Workspace
 		}
 	}
 	slices.Sort(conflicts)
-	return slices.Compact(conflicts), nil
-}
-
-func (w *Workspace) gitDiffStat(ctx context.Context, paths []string) (string, error) {
-	if len(paths) == 0 {
-		return "", nil
-	}
-	args := []string{"diff", "--stat", "--"}
-	args = append(args, paths...)
-	return w.gitOutput(ctx, args...)
+	return conflicts, nil
 }
 
 func (w *Workspace) saveMutationCheckpoint(checkpoint *WorkspaceMutationCheckpoint) error {
@@ -363,29 +305,10 @@ func (w *Workspace) mutationCheckpointPath(checkpointID string) (string, error) 
 	return filepath.Join(storageDir, mutationCheckpointDirName, id+".json"), nil
 }
 
-func statePaths(items []WorkspaceFileState) []string {
-	paths := make([]string, 0, len(items))
-	for _, item := range items {
-		if strings.TrimSpace(item.Path) != "" {
-			paths = append(paths, item.Path)
-		}
-	}
-	slices.Sort(paths)
-	return paths
-}
-
 func stateMap(items []WorkspaceFileState) map[string]WorkspaceFileState {
 	out := make(map[string]WorkspaceFileState, len(items))
 	for _, item := range items {
 		out[item.Path] = item
-	}
-	return out
-}
-
-func stateSetFromPaths(paths []string) map[string]struct{} {
-	out := make(map[string]struct{}, len(paths))
-	for _, path := range paths {
-		out[filepath.ToSlash(strings.TrimSpace(path))] = struct{}{}
 	}
 	return out
 }

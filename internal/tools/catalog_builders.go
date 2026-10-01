@@ -12,15 +12,7 @@ func buildWorkspaceTools(cfg CatalogConfig) ([]einotool.BaseTool, error) {
 	if cfg.Workspace == nil {
 		return nil, nil
 	}
-	readTools, err := buildReadTools(cfg)
-	if err != nil {
-		return nil, err
-	}
-	gitTools, err := buildGitTools(cfg)
-	if err != nil {
-		return nil, err
-	}
-	return append(readTools, gitTools...), nil
+	return buildReadTools(cfg)
 }
 
 func buildReadTools(cfg CatalogConfig) ([]einotool.BaseTool, error) {
@@ -33,32 +25,11 @@ func buildReadTools(cfg CatalogConfig) ([]einotool.BaseTool, error) {
 	if err != nil {
 		return nil, err
 	}
-	searchTool, err := buildSearchTextTool(ws)
-	if err != nil {
-		return nil, err
-	}
-	return []einotool.BaseTool{readTool, listTool, searchTool}, nil
-}
-
-func buildGitTools(cfg CatalogConfig) ([]einotool.BaseTool, error) {
-	ws := cfg.Workspace
-	gitStatusTool, err := buildInspectGitStatusTool(ws)
-	if err != nil {
-		return nil, err
-	}
-	gitDiffTool, err := buildInspectGitDiffTool(ws)
-	if err != nil {
-		return nil, err
-	}
-	gitSummaryTool, err := buildGitSummaryTool(ws, cfg.ArtifactService, cfg.ArtifactContext)
-	if err != nil {
-		return nil, err
-	}
-	return []einotool.BaseTool{gitStatusTool, gitDiffTool, gitSummaryTool}, nil
+	return []einotool.BaseTool{readTool, listTool}, nil
 }
 
 func buildMutationTools(cfg CatalogConfig) ([]einotool.BaseTool, error) {
-	if !cfg.MutationEnabled {
+	if cfg.Workspace == nil {
 		return nil, nil
 	}
 	ws := cfg.Workspace
@@ -70,37 +41,7 @@ func buildMutationTools(cfg CatalogConfig) ([]einotool.BaseTool, error) {
 	if err != nil {
 		return nil, err
 	}
-	patchTool, err := buildApplyUnifiedPatchTool(ws)
-	if err != nil {
-		return nil, err
-	}
-	multiEditTool, err := buildMultiEditTool(ws)
-	if err != nil {
-		return nil, err
-	}
-	rollbackTool, err := buildRollbackWorkspaceCheckpointTool(ws)
-	if err != nil {
-		return nil, err
-	}
-	return []einotool.BaseTool{createTool, replaceTool, patchTool, multiEditTool, rollbackTool}, nil
-}
-
-func buildRunCommandTools(cfg CatalogConfig) ([]einotool.BaseTool, error) {
-	if !cfg.RunCommandEnabled {
-		return nil, nil
-	}
-	runTool, err := buildRunCommandTool(cfg.Workspace)
-	if err != nil {
-		return nil, err
-	}
-	if cfg.ArtifactService == nil {
-		return []einotool.BaseTool{runTool}, nil
-	}
-	verifyTool, err := buildRunVerificationTool(cfg.Workspace, cfg.ArtifactService, cfg.ArtifactContext)
-	if err != nil {
-		return nil, err
-	}
-	return []einotool.BaseTool{runTool, verifyTool}, nil
+	return []einotool.BaseTool{createTool, replaceTool}, nil
 }
 
 func buildArtifactServiceTools(cfg CatalogConfig) ([]einotool.BaseTool, error) {
@@ -164,9 +105,8 @@ func buildBrowserToolEntry(cfg CatalogConfig) ([]einotool.BaseTool, error) {
 }
 
 type CatalogConfig struct {
+	// Workspace scopes the file tools; only the memory root sets it.
 	Workspace         WorkspaceView
-	MutationEnabled   bool
-	RunCommandEnabled bool
 	ArtifactService   core.ArtifactService
 	ArtifactContext   core.ToolCallContextBridge
 	OperatorStore     OperatorQuestionStore
@@ -183,21 +123,16 @@ type LocalCatalog struct {
 }
 
 func init() {
-	gob.Register(RunCommandInput{})
 	gob.Register(AskOperatorState{})
 	gob.Register(map[string]any{})
 	gob.Register([]any{})
 }
 
 func BuildCatalog(cfg CatalogConfig, extraTools []einotool.BaseTool) (*LocalCatalog, error) {
-	if cfg.Workspace == nil && (cfg.MutationEnabled || cfg.RunCommandEnabled) {
-		return nil, errors.New("workspace is required when mutation or run_command tools are enabled")
-	}
 	items := make([]einotool.BaseTool, 0, 10+len(extraTools))
 	groups := []func() ([]einotool.BaseTool, error){
 		func() ([]einotool.BaseTool, error) { return buildWorkspaceTools(cfg) },
 		func() ([]einotool.BaseTool, error) { return buildMutationTools(cfg) },
-		func() ([]einotool.BaseTool, error) { return buildRunCommandTools(cfg) },
 		func() ([]einotool.BaseTool, error) { return buildArtifactServiceTools(cfg) },
 		func() ([]einotool.BaseTool, error) { return buildOperatorTool(cfg) },
 		func() ([]einotool.BaseTool, error) { return buildWebFetchToolEntry(cfg) },

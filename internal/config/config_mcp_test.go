@@ -32,13 +32,6 @@ agent:
 tools:
   workspace:
     root_dir: .
-  mutation:
-    disabled: true
-    root_dir: .
-  run_command:
-    disabled: true
-    default_timeout: 30
-    work_dir: .
 mcp:
   providers:
     - name: my_server
@@ -87,13 +80,6 @@ agent:
 tools:
   workspace:
     root_dir: .
-  mutation:
-    disabled: true
-    root_dir: .
-  run_command:
-    disabled: true
-    default_timeout: 30
-    work_dir: .
 mcp:
   providers:
     - name: remote_sse
@@ -143,13 +129,6 @@ agent:
 tools:
   workspace:
     root_dir: .
-  mutation:
-    disabled: true
-    root_dir: .
-  run_command:
-    disabled: true
-    default_timeout: 30
-    work_dir: .
 mcp:
   providers:
     - name: prefixed_sse
@@ -199,13 +178,6 @@ agent:
 tools:
   workspace:
     root_dir: .
-  mutation:
-    disabled: true
-    root_dir: .
-  run_command:
-    disabled: true
-    default_timeout: 30
-    work_dir: .
 mcp:
   providers:
     - name: remote_http
@@ -255,13 +227,6 @@ agent:
 tools:
   workspace:
     root_dir: .
-  mutation:
-    disabled: true
-    root_dir: .
-  run_command:
-    disabled: true
-    default_timeout: 30
-    work_dir: .
 mcp:
   providers:
     - name: bad_transport
@@ -311,13 +276,6 @@ agent:
 tools:
   workspace:
     root_dir: .
-  mutation:
-    disabled: true
-    root_dir: .
-  run_command:
-    disabled: true
-    default_timeout: 30
-    work_dir: .
 mcp:
   providers:
     - name: no_command
@@ -367,13 +325,6 @@ agent:
 tools:
   workspace:
     root_dir: .
-  mutation:
-    disabled: true
-    root_dir: .
-  run_command:
-    disabled: true
-    default_timeout: 30
-    work_dir: .
 mcp:
   providers:
     - name: no_url

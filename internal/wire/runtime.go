@@ -12,11 +12,9 @@ import (
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/tools"
-	"github.com/ycvk/acorn/internal/workspace"
 )
 
 type containerRuntimeDeps struct {
-	ws                    *workspace.Workspace
 	loader                *skills.Loader
 	memoryModule          memory.Service
 	contextPlane          *runtime.ContextPlane
@@ -29,10 +27,6 @@ type containerRuntimeDeps struct {
 }
 
 func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *store.Store, worldState *memory.WorldState) (*containerRuntimeDeps, error) {
-	ws, err := cfg.Workspace()
-	if err != nil {
-		return nil, err
-	}
 	loader := skills.NewLoader(cfg)
 	memoryModule, err := buildMemoryService(ctx, cfg)
 	if err != nil {
@@ -56,9 +50,6 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 	ctxBridge := runtime.NewContextBridge()
 	toolRegistry := tools.NewToolRegistry()
 	if err := tools.RegisterNativeTools(toolRegistry, tools.CatalogConfig{
-		Workspace:         ws,
-		MutationEnabled:   !cfg.Tools.Mutation.Disabled,
-		RunCommandEnabled: !cfg.Tools.RunCommand.Disabled,
 		ArtifactService:   artifactSvc,
 		ArtifactContext:   ctxBridge,
 		OperatorStore:     mcpPendingActionStore,
@@ -71,7 +62,6 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 
 	runnerFactory, err := runtime.NewRunnerFactory(cfg, db, runtime.RunnerFactoryOptions{
 		Loader:                loader,
-		Workspace:             ws,
 		MemoryModule:          memoryModule,
 		ContextPlane:          contextPlane,
 		MCPPendingActionStore: mcpPendingActionStore,
@@ -101,7 +91,6 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 	}
 
 	return &containerRuntimeDeps{
-		ws:                    ws,
 		loader:                loader,
 		memoryModule:          memoryModule,
 		contextPlane:          contextPlane,

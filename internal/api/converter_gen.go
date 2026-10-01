@@ -144,9 +144,6 @@ func (c *ConverterImpl) apiSystemToolCapabilityToApiCapabilitiesToolDTO(source S
 	apiCapabilitiesToolDTO.HealthState = source.HealthState
 	apiCapabilitiesToolDTO.HealthReason = source.HealthReason
 	apiCapabilitiesToolDTO.Risk = source.Risk
-	apiCapabilitiesToolDTO.RootDir = source.RootDir
-	apiCapabilitiesToolDTO.WorkDir = source.WorkDir
-	apiCapabilitiesToolDTO.DefaultTimeout = source.DefaultTimeout
 	return apiCapabilitiesToolDTO
 }
 func (c *ConverterImpl) artifactSummaryDTOsFromDomain(source []ArtifactSummary) []ArtifactSummaryDTO {

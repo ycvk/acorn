@@ -40,7 +40,7 @@ func buildMemoryToolCatalog(ctx context.Context, memory memory.Service) (*tools.
 	if err != nil {
 		return nil, fmt.Errorf("build memory workspace: %w", err)
 	}
-	catalog, err := tools.BuildCatalog(tools.CatalogConfig{Workspace: ws, MutationEnabled: true}, nil)
+	catalog, err := tools.BuildCatalog(tools.CatalogConfig{Workspace: ws}, nil)
 	if err != nil {
 		return nil, fmt.Errorf("build memory tools: %w", err)
 	}

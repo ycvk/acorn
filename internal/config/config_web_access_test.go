@@ -112,13 +112,6 @@ agent:
 tools:
   workspace:
     root_dir: .
-  mutation:
-    disabled: true
-    root_dir: .
-  run_command:
-    disabled: true
-    default_timeout: 30
-    work_dir: .
 mcp:
   providers: []
 `

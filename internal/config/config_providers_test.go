@@ -47,10 +47,6 @@ func TestValidateExecutionReady_MultipleEnabledProvidersInvalid(t *testing.T) {
 		},
 		Tools: ToolsConfig{
 			Workspace: WorkspaceToolConfig{RootDir: "."},
-			Mutation:  MutationToolConfig{RootDir: "."},
-			RunCommand: RunCommandToolConfig{
-				WorkDir: ".",
-			},
 		},
 		Memory: defaultConfig().Memory,
 	}
@@ -173,10 +169,6 @@ func TestValidateExecutionReady_DuplicateNames(t *testing.T) {
 		},
 		Tools: ToolsConfig{
 			Workspace: WorkspaceToolConfig{RootDir: "."},
-			Mutation:  MutationToolConfig{RootDir: "."},
-			RunCommand: RunCommandToolConfig{
-				WorkDir: ".",
-			},
 		},
 		Memory: defaultConfig().Memory,
 	}
@@ -227,10 +219,6 @@ func TestValidateExecutionReady_DisabledProviderNotValidated(t *testing.T) {
 		},
 		Tools: ToolsConfig{
 			Workspace: WorkspaceToolConfig{RootDir: "."},
-			Mutation:  MutationToolConfig{RootDir: "."},
-			RunCommand: RunCommandToolConfig{
-				WorkDir: ".",
-			},
 		},
 		Memory: defaultConfig().Memory,
 	}

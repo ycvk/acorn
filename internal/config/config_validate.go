@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"path"
+	"path/filepath"
 	"strings"
 )
 
@@ -105,14 +106,8 @@ func (c *Config) ValidateExecutionReady() error {
 	if c.Agent.MaxIterations <= 0 {
 		return errors.New("runtime.max_iterations must be > 0")
 	}
-	if strings.TrimSpace(c.Tools.Workspace.RootDir) == "" {
-		return errors.New("toolset.workspace.root_dir is required")
-	}
-	if !c.Tools.RunCommand.Disabled && strings.TrimSpace(c.Tools.RunCommand.WorkDir) == "" {
-		return errors.New("toolset.run_command.work_dir is required when run_command is not disabled")
-	}
-	if _, err := c.Workspace(); err != nil {
-		return err
+	if c.WorkspaceRoot() == "" {
+		return errors.New("tools.workspace.root_dir is required")
 	}
 	if err := c.validateProviders(); err != nil {
 		return err
@@ -123,12 +118,14 @@ func (c *Config) ValidateExecutionReady() error {
 	return nil
 }
 
+// WorkspaceRoot is the directory that holds the repo seed skills and the
+// workspace skills; Load resolves it against the config directory.
 func (c *Config) WorkspaceRoot() string {
-	ws, err := c.Workspace()
-	if err != nil || ws == nil {
+	root := strings.TrimSpace(c.Tools.Workspace.RootDir)
+	if root == "" {
 		return ""
 	}
-	return ws.Root()
+	return filepath.Clean(root)
 }
 
 func (c *Config) validateContext() error {

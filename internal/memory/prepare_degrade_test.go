@@ -13,8 +13,7 @@ func TestPrepareDegradesWhenSemanticRuntimeUnwired(t *testing.T) {
 	service := newTestService(t)
 
 	result, err := service.Prepare(t.Context(), PrepareRequest{
-		WorkspaceSlug: "acorn",
-		UserInput:     "please run go lint",
+		UserInput: "please run go lint",
 	})
 	if err != nil {
 		t.Fatalf("Prepare on unwired semantic runtime should degrade, got error: %v", err)
@@ -46,9 +45,8 @@ func TestPrepareDegradedExplainMarksSemanticUnwired(t *testing.T) {
 	service := newTestService(t)
 
 	result, err := service.Prepare(t.Context(), PrepareRequest{
-		WorkspaceSlug: "acorn",
-		UserInput:     "please run go lint",
-		Explain:       true,
+		UserInput: "please run go lint",
+		Explain:   true,
 	})
 	if err != nil {
 		t.Fatalf("Prepare: %v", err)

@@ -102,8 +102,6 @@ approval:
 tools:
   workspace:
     root_dir: %s
-  run_command:
-    disabled: true
 `, filepath.Join(dir, "state"), providerURL, dir)
 	if err := os.WriteFile(path, []byte(yaml), 0o600); err != nil {
 		t.Fatalf("write config: %v", err)

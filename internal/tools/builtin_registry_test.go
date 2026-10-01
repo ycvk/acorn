@@ -3,8 +3,6 @@ package tools
 import (
 	"testing"
 
-	"github.com/ycvk/acorn/internal/config"
-
 	"github.com/ycvk/acorn/internal/core"
 )
 
@@ -62,8 +60,7 @@ func TestBuiltinToolSpecUnknownReturnsFalse(t *testing.T) {
 // the by-name lookup derive from one source, so every listed spec is valid and
 // resolvable, and unknown names are rejected.
 func TestConfiguredLocalSpecRoundtrip(t *testing.T) {
-	cfg := &config.Config{}
-	specs := ConfiguredLocalSpecs(cfg)
+	specs := ConfiguredLocalSpecs()
 	if len(specs) == 0 {
 		t.Fatal("ConfiguredLocalSpecs returned none")
 	}
@@ -71,7 +68,7 @@ func TestConfiguredLocalSpecRoundtrip(t *testing.T) {
 		if err := spec.ToolContract.Validate(); err != nil {
 			t.Fatalf("local spec %q invalid: %v", spec.Name, err)
 		}
-		got, ok := ConfiguredLocalSpec(cfg, spec.Name)
+		got, ok := ConfiguredLocalSpec(spec.Name)
 		if !ok {
 			t.Fatalf("ConfiguredLocalSpec(%q) returned ok=false but it is in ConfiguredLocalSpecs", spec.Name)
 		}
@@ -79,7 +76,7 @@ func TestConfiguredLocalSpecRoundtrip(t *testing.T) {
 			t.Fatalf("ConfiguredLocalSpec(%q).Name = %q", spec.Name, got.Name)
 		}
 	}
-	if _, ok := ConfiguredLocalSpec(cfg, "definitely_not_a_local_tool"); ok {
+	if _, ok := ConfiguredLocalSpec("definitely_not_a_local_tool"); ok {
 		t.Fatal("ConfiguredLocalSpec for unknown tool should return ok=false")
 	}
 }

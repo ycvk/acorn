@@ -213,11 +213,7 @@ func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *contai
 
 	container.runResume = api.NewRunResumeService(db).WithResume(deps.resumeRun)
 	container.skills = api.NewSkillService(cfg, deps.loader)
-	workspaceRoot := ""
-	if deps.ws != nil {
-		workspaceRoot = deps.ws.Root()
-	}
-	container.threads = api.NewThreadService(db, workspaceRoot)
+	container.threads = api.NewThreadService(db, cfg.WorkspaceRoot())
 	container.runs = api.NewRunService(db, container.threads, deps.executeRun, deps.runController).WithResumer(container.runResume)
 	container.events = api.NewEventService(db, db)
 	container.pendingAction = api.NewPendingActionService(db).WithResumer(container.runResume)
@@ -267,7 +263,7 @@ func (t *triggerRunCreator) CreateRun(ctx context.Context, triggerID, input stri
 		}
 	}
 	// Skip duplicate fires: same WorldState + same input = same response.
-	// Saves an LLM call when a webhook re-fires with no state change.
+	// Saves an LLM call when a trigger re-fires with no state change.
 	if t.shouldSkipRun(t.worldState, input) {
 		slog.Info("trigger fire skipped (duplicate of last fire)", "trigger_id", triggerID)
 		return nil
@@ -402,18 +398,6 @@ func buildTriggerScheduler(cfg *config.Config, runs *api.RunService, db *store.S
 		worldState: ws,
 		dailyQuota: cfg.Triggers.DailyQuota,
 	}, opts...)
-	for _, wh := range cfg.Triggers.Webhooks {
-		wt, err := triggers.NewWebhookTrigger(triggers.WebhookConfig{
-			ID:     wh.ID,
-			Secret: wh.Secret,
-			Prompt: wh.Prompt,
-		})
-		if err != nil {
-			slog.Warn("skipping webhook trigger", "id", wh.ID, "error", err)
-			continue
-		}
-		sched.Register(wt)
-	}
 	for _, cr := range cfg.Triggers.Crons {
 		ct, err := triggers.NewCronTrigger(triggers.CronConfig{
 			ID:       cr.ID,

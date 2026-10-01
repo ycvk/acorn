@@ -73,13 +73,6 @@ agent:
 tools:
   workspace:
     root_dir: .
-  mutation:
-    disabled: true
-    root_dir: .
-  run_command:
-    disabled: true
-    default_timeout: 30
-    work_dir: .
 mcp:
   providers: []
 `
@@ -118,13 +111,6 @@ agent:
 tools:
   workspace:
     root_dir: .
-  mutation:
-    disabled: true
-    root_dir: .
-  run_command:
-    disabled: true
-    default_timeout: 30
-    work_dir: .
 mcp:
   providers: []
 `
@@ -160,9 +146,6 @@ func TestLoadSelfHostedExample(t *testing.T) {
 	}
 	if got := cfg.Tools.Workspace.RootDir; got != "/srv/acorn/workspace" {
 		t.Fatalf("toolset.workspace.root_dir = %q, want /srv/acorn/workspace", got)
-	}
-	if got := cfg.Tools.RunCommand.WorkDir; got != "/srv/acorn/workspace" {
-		t.Fatalf("toolset.run_command.work_dir = %q, want /srv/acorn/workspace", got)
 	}
 }
 
@@ -202,13 +185,6 @@ agent:
 tools:
   workspace:
     root_dir: .
-  mutation:
-    disabled: true
-    root_dir: .
-  run_command:
-    disabled: true
-    default_timeout: 30
-    work_dir: .
 mcp:
   providers: []
 `

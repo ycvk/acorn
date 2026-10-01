@@ -69,9 +69,6 @@ func validateToolsetDeps(deps RuntimeDeps) error {
 	if deps.Config == nil {
 		return errors.New("runner factory is not initialized")
 	}
-	if deps.Workspace == nil {
-		return errors.New("workspace contract is not initialized")
-	}
 	if deps.ArtifactService == nil {
 		return errors.New("artifact service is not initialized")
 	}
@@ -132,7 +129,7 @@ func buildCoreToolSpecs(ctx context.Context, cfg *config.Config, localCatalog *t
 		name := strings.TrimSpace(info.Name)
 		// Only deferred-loaded tools belong to the toolset catalog; eager
 		// natives are owned by the registry.
-		localSpec, ok := tools.ConfiguredLocalSpec(cfg, name)
+		localSpec, ok := tools.ConfiguredLocalSpec(name)
 		if !ok {
 			continue
 		}
@@ -214,9 +211,6 @@ func buildLocalCatalog(ctx context.Context, deps RuntimeDeps, services toolsetWe
 		return nil, nil, fmt.Errorf("browser service: %w", err)
 	}
 	catalog, err := tools.BuildCatalog(tools.CatalogConfig{
-		Workspace:         deps.Workspace,
-		MutationEnabled:   !deps.Config.Tools.Mutation.Disabled,
-		RunCommandEnabled: !deps.Config.Tools.RunCommand.Disabled,
 		ArtifactService:   deps.ArtifactService,
 		ArtifactContext:   artifactToolBridge{},
 		OperatorStore:     resolveOperatorStore(deps),

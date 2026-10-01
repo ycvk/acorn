@@ -48,7 +48,7 @@ func RuntimeToolSpec(
 		return core.ToolSpec{}, fmt.Errorf("%s tool has empty name", source)
 	}
 
-	if localSpec, ok := tools.ConfiguredLocalSpec(cfg, name); ok {
+	if localSpec, ok := tools.ConfiguredLocalSpec(name); ok {
 		localSpec.Tool = tool
 		return localSpec, nil
 	}

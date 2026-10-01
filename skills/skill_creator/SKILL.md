@@ -13,11 +13,9 @@ trigger_hints:
   - 生成技能
 requires:
   tools:
-    - read_file
-    - create_file
-    - replace_span
-    - search_text
-    - inspect_git_status
+    - skill_list
+    - skill_view
+    - skill_create
 ---
 # Skill Creator
 
@@ -26,7 +24,7 @@ Use this skill when the task is to create, revise, split, or merge an Acorn skil
 Work loop:
 
 1. Clarify the narrow job the skill should perform, the situations that should trigger it, and the situations that must not trigger it.
-2. Inspect nearby existing skills and code paths before writing. Reuse the Acorn skill frontmatter schema instead of inventing a parallel manifest.
+2. Inspect nearby existing skills with `skill_list` and `skill_view` before writing. Reuse the Acorn skill frontmatter schema instead of inventing a parallel manifest.
 3. Draft `SKILL.md` with a concise description, precise `trigger_hints`, required tools, hard boundaries, and a short workflow the agent can actually follow.
 4. Add supporting `references/`, `scripts/`, or `templates/` only when the skill needs concrete reusable assets. Do not bury core instructions in auxiliary files.
 

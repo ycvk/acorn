@@ -42,7 +42,6 @@ func (s *LocalService) Prepare(ctx context.Context, req PrepareRequest) (*Prepar
 	// is forwarded.
 	search, err := s.Search(ctx, SearchRequest{
 		Query:   query,
-		Scope:   WorkspaceScope(req.WorkspaceSlug),
 		Limit:   maxNudges + maxEntries + 4,
 		Explain: req.Explain,
 	})
@@ -70,7 +69,7 @@ func (s *LocalService) Prepare(ctx context.Context, req PrepareRequest) (*Prepar
 		if search.Explain != nil {
 			stages = append(stages, search.Explain.Stages...)
 		}
-		result.Explain = buildSearchExplain(query, WorkspaceScope(req.WorkspaceSlug), items, stages)
+		result.Explain = buildSearchExplain(query, "", items, stages)
 	}
 
 	for _, item := range items {

@@ -155,12 +155,11 @@ type StreamMemoryPreparedEntry struct {
 }
 
 type StreamMemoryPrepared struct {
-	Query          string                      `json:"query,omitempty"`
-	WorkspaceScope string                      `json:"workspace_scope,omitempty"`
-	NudgeCount     int                         `json:"nudge_count,omitempty"`
-	EntryCount     int                         `json:"entry_count,omitempty"`
-	Nudges         []StreamMemoryPreparedNudge `json:"nudges,omitempty"`
-	Entries        []StreamMemoryPreparedEntry `json:"entries,omitempty"`
+	Query      string                      `json:"query,omitempty"`
+	NudgeCount int                         `json:"nudge_count,omitempty"`
+	EntryCount int                         `json:"entry_count,omitempty"`
+	Nudges     []StreamMemoryPreparedNudge `json:"nudges,omitempty"`
+	Entries    []StreamMemoryPreparedEntry `json:"entries,omitempty"`
 }
 
 type StreamAssistantDelta struct {

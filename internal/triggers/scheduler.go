@@ -1,5 +1,5 @@
 // Package triggers implements ambient agent trigger sources. A Trigger
-// observes the world (webhook, timer, file watch) and fires events into a
+// observes the world (currently a cron timer) and fires events into a
 // Scheduler, which starts a new run via a RunCreator.
 //
 // This is the ambient layer above direct_response: triggers are run-external
@@ -9,9 +9,7 @@ package triggers
 
 import (
 	"context"
-	"errors"
 	"log/slog"
-	"net/http"
 	"sync"
 	"time"
 )
@@ -186,30 +184,6 @@ func (s *Scheduler) createRun(ctx context.Context, triggerID, input string) {
 		s.logger.Error("trigger fire run creation failed", "trigger_id", triggerID, "error", err)
 	}
 }
-
-// HandleWebhook routes an incoming HTTP request to the webhook trigger with
-// the given ID. Returns an error if the trigger does not exist or is not a
-// webhook trigger.
-func (s *Scheduler) HandleWebhook(ctx context.Context, triggerID string, r *http.Request) error {
-	s.mu.Lock()
-	for _, t := range s.triggers {
-		if t.ID() == triggerID {
-			s.mu.Unlock()
-			if wt, ok := t.(*WebhookTrigger); ok {
-				return wt.HandleWebhook(ctx, r)
-			}
-			return errors.New("trigger is not a webhook trigger")
-		}
-	}
-	s.mu.Unlock()
-	return &TriggerNotFoundError{ID: triggerID}
-}
-
-// TriggerNotFoundError is returned by HandleWebhook when no trigger with the
-// given ID is registered. The API layer maps it to HTTP 404.
-type TriggerNotFoundError struct{ ID string }
-
-func (e *TriggerNotFoundError) Error() string { return "trigger not found: " + e.ID }
 
 // fireHandler returns the FireFunc that triggers call when they observe events.
 func (s *Scheduler) fireHandler(ctx context.Context) FireFunc {

@@ -10,8 +10,6 @@ import (
 )
 
 func (s *CapabilitiesService) snapshotTools(ctx context.Context, providers []SystemMCPProviderCapability) ([]SystemToolCapability, error) {
-	workspaceRoot, runCommandTimeout := s.workspaceSettings()
-
 	specs, err := s.loadToolSpecs(ctx)
 	if err != nil {
 		return nil, err
@@ -19,7 +17,7 @@ func (s *CapabilitiesService) snapshotTools(ctx context.Context, providers []Sys
 
 	items := make([]SystemToolCapability, 0, len(specs)+providerToolCount(providers))
 	for _, spec := range specs {
-		items = append(items, toolCapabilityFromSpec(spec, workspaceRoot, runCommandTimeout))
+		items = append(items, toolCapabilityFromSpec(spec))
 	}
 	for _, provider := range providers {
 		providerItems, err := s.providerToolCapabilities(provider)
@@ -31,16 +29,6 @@ func (s *CapabilitiesService) snapshotTools(ctx context.Context, providers []Sys
 	return items, nil
 }
 
-func (s *CapabilitiesService) workspaceSettings() (string, int) {
-	workspaceRoot := ""
-	runCommandTimeout := 0
-	if ws, err := s.cfg.Workspace(); err == nil && ws != nil {
-		workspaceRoot = ws.Root()
-		runCommandTimeout = ws.RunCommandDefaultTimeout()
-	}
-	return workspaceRoot, runCommandTimeout
-}
-
 func (s *CapabilitiesService) loadToolSpecs(ctx context.Context) ([]core.ToolSpec, error) {
 	if s.catalogBuilder != nil {
 		specs, err := s.catalogBuilder.BuildCapabilitySpecs(ctx)
@@ -49,7 +37,7 @@ func (s *CapabilitiesService) loadToolSpecs(ctx context.Context) ([]core.ToolSpe
 		}
 		return specs, nil
 	}
-	return tools.ConfiguredLocalSpecs(s.cfg), nil
+	return tools.ConfiguredLocalSpecs(), nil
 }
 
 func (s *CapabilitiesService) providerToolCapabilities(provider SystemMCPProviderCapability) ([]SystemToolCapability, error) {
@@ -73,7 +61,7 @@ func (s *CapabilitiesService) providerToolCapabilities(provider SystemMCPProvide
 	return items, nil
 }
 
-func toolCapabilityFromSpec(spec core.ToolSpec, workspaceRoot string, runCommandTimeout int) SystemToolCapability {
+func toolCapabilityFromSpec(spec core.ToolSpec) SystemToolCapability {
 	return SystemToolCapability{
 		Name:         spec.Name,
 		Source:       spec.Source,

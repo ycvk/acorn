@@ -6,7 +6,6 @@ import (
 
 	einotool "github.com/cloudwego/eino/components/tool"
 
-	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
 )
 
@@ -16,8 +15,8 @@ import (
 // runtime spec resolver (tool.RuntimeToolSpec via BuiltinToolSpec) both derive
 // from it, so adding a built-in tool means editing this one place.
 //
-// Static local tools (read_file, create_file, run_command, ...) are declared
-// separately in localToolDefs/configuredLocalSpec.
+// Static local tools (artifact_*, ask_operator, search_runs, ...) are declared
+// separately in localToolNames/configuredLocalSpec.
 var builtinToolOrder = []string{
 	"memory_search",
 	"memory_read_file",
@@ -106,48 +105,6 @@ func BuiltinToolNames() []string {
 // tools whose backing service is absent.
 func nativeToolBuilder(name string, cfg CatalogConfig) func(context.Context, core.RunContext) (einotool.BaseTool, error) {
 	switch name {
-	case "read_file":
-		return func(_ context.Context, _ core.RunContext) (einotool.BaseTool, error) {
-			if cfg.Workspace == nil {
-				return nil, nil
-			}
-			return buildReadFileTool(cfg.Workspace)
-		}
-	case "list_files":
-		return func(_ context.Context, _ core.RunContext) (einotool.BaseTool, error) {
-			if cfg.Workspace == nil {
-				return nil, nil
-			}
-			return buildListFilesTool(cfg.Workspace)
-		}
-	case "search_text":
-		return func(_ context.Context, _ core.RunContext) (einotool.BaseTool, error) {
-			if cfg.Workspace == nil {
-				return nil, nil
-			}
-			return buildSearchTextTool(cfg.Workspace)
-		}
-	case "inspect_git_status":
-		return func(_ context.Context, _ core.RunContext) (einotool.BaseTool, error) {
-			if cfg.Workspace == nil {
-				return nil, nil
-			}
-			return buildInspectGitStatusTool(cfg.Workspace)
-		}
-	case "inspect_git_diff":
-		return func(_ context.Context, _ core.RunContext) (einotool.BaseTool, error) {
-			if cfg.Workspace == nil {
-				return nil, nil
-			}
-			return buildInspectGitDiffTool(cfg.Workspace)
-		}
-	case "git_summary":
-		return func(_ context.Context, _ core.RunContext) (einotool.BaseTool, error) {
-			if cfg.Workspace == nil || cfg.ArtifactService == nil {
-				return nil, nil
-			}
-			return buildGitSummaryTool(cfg.Workspace, cfg.ArtifactService, cfg.ArtifactContext)
-		}
 	case "artifact_write":
 		return func(_ context.Context, _ core.RunContext) (einotool.BaseTool, error) {
 			if cfg.ArtifactService == nil {
@@ -218,62 +175,13 @@ func nativeToolBuilder(name string, cfg CatalogConfig) func(context.Context, cor
 			}
 			return buildBrowserTool(cfg.BrowserService, cfg.ArtifactService, cfg.ArtifactContext)
 		}
-	case "create_file":
-		return func(_ context.Context, _ core.RunContext) (einotool.BaseTool, error) {
-			if cfg.Workspace == nil {
-				return nil, nil
-			}
-			return buildCreateFileTool(cfg.Workspace)
-		}
-	case "replace_span":
-		return func(_ context.Context, _ core.RunContext) (einotool.BaseTool, error) {
-			if cfg.Workspace == nil {
-				return nil, nil
-			}
-			return buildReplaceSpanTool(cfg.Workspace)
-		}
-	case "apply_unified_patch":
-		return func(_ context.Context, _ core.RunContext) (einotool.BaseTool, error) {
-			if cfg.Workspace == nil {
-				return nil, nil
-			}
-			return buildApplyUnifiedPatchTool(cfg.Workspace)
-		}
-	case "multi_edit":
-		return func(_ context.Context, _ core.RunContext) (einotool.BaseTool, error) {
-			if cfg.Workspace == nil {
-				return nil, nil
-			}
-			return buildMultiEditTool(cfg.Workspace)
-		}
-	case "rollback_workspace_checkpoint":
-		return func(_ context.Context, _ core.RunContext) (einotool.BaseTool, error) {
-			if cfg.Workspace == nil {
-				return nil, nil
-			}
-			return buildRollbackWorkspaceCheckpointTool(cfg.Workspace)
-		}
-	case "run_command":
-		return func(_ context.Context, _ core.RunContext) (einotool.BaseTool, error) {
-			if cfg.Workspace == nil {
-				return nil, nil
-			}
-			return buildRunCommandTool(cfg.Workspace)
-		}
-	case "run_verification":
-		return func(_ context.Context, _ core.RunContext) (einotool.BaseTool, error) {
-			if cfg.Workspace == nil || cfg.ArtifactService == nil {
-				return nil, nil
-			}
-			return buildRunVerificationTool(cfg.Workspace, cfg.ArtifactService, cfg.ArtifactContext)
-		}
 	default:
 		return nil
 	}
 }
 
 // RegisterNativeTools registers every eager-loaded static local tool declared by
-// localToolDefs/configuredLocalSpec into the core.ToolRegistry. Deferred-loaded
+// localToolNames/configuredLocalSpec into the core.ToolRegistry. Deferred-loaded
 // tools (web_fetch, web_search, browser) are excluded: they depend on per-run
 // services (web access, browser) constructed at buildRun time, so they cannot
 // be resolved at wire time. They are contributed by the runtime toolset
@@ -287,33 +195,26 @@ func RegisterNativeTools(registry core.ToolRegistry, cfg CatalogConfig) error {
 	if registry == nil {
 		return fmt.Errorf("RegisterNativeTools: registry is nil")
 	}
-	// localToolDefs returns the canonical name list in canonical order; reuse it
-	// rather than re-declaring the names so the registry never drifts from
-	// configuredLocalSpec. localToolDefs dereferences its *config.Config, so we
-	// synthesize a minimal one whose Mutation/RunCommand Disabled flags mirror
-	// CatalogConfig (Disabled == !enabled); the always-on baseline tools are
-	// governed by the per-tool Factory's nil-service guard instead.
-	toolCfg := &config.Config{}
-	toolCfg.Tools.Mutation.Disabled = !cfg.MutationEnabled
-	toolCfg.Tools.RunCommand.Disabled = !cfg.RunCommandEnabled
-	for _, def := range localToolDefs(toolCfg) {
-		spec := configuredLocalSpec(def.name, def.enabled)
+	// localToolNames is the canonical name list in canonical order; reusing it
+	// keeps the registry from drifting from configuredLocalSpec.
+	for _, name := range localToolNames {
+		spec := configuredLocalSpec(name)
 		// Skip deferred-loaded tools: they depend on per-run services and are
 		// contributed by the runtime toolset catalog, not the wire-time registry.
 		if spec.Loading.Mode == core.ToolLoadingModeDeferred {
 			continue
 		}
-		build := nativeToolBuilder(def.name, cfg)
+		build := nativeToolBuilder(name, cfg)
 		if build == nil {
 			// Unknown name: skip rather than fail the whole registration so a
-			// future localToolDefs entry without a builder doesn't block the
-			// known tools. This is defensive; localToolDefs and
+			// future localToolNames entry without a builder doesn't block the
+			// known tools. This is defensive; localToolNames and
 			// nativeToolBuilder are kept in sync.
 			continue
 		}
 		spec.Factory = core.ToolFactory(build)
 		if err := registry.Register(spec); err != nil {
-			return fmt.Errorf("RegisterNativeTools: register %q: %w", def.name, err)
+			return fmt.Errorf("RegisterNativeTools: register %q: %w", name, err)
 		}
 	}
 	return nil

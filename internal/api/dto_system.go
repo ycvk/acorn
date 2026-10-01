@@ -53,17 +53,14 @@ type ProviderReadinessDTO struct {
 }
 
 type CapabilitiesToolDTO struct {
-	Name           string `json:"name"`
-	Source         string `json:"source"`
-	Kind           string `json:"kind"`
-	Category       string `json:"category"`
-	Enabled        bool   `json:"enabled"`
-	HealthState    string `json:"health_state"`
-	HealthReason   string `json:"health_reason,omitempty"`
-	Risk           string `json:"risk"`
-	RootDir        string `json:"root_dir,omitempty"`
-	WorkDir        string `json:"work_dir,omitempty"`
-	DefaultTimeout int    `json:"default_timeout,omitempty"`
+	Name         string `json:"name"`
+	Source       string `json:"source"`
+	Kind         string `json:"kind"`
+	Category     string `json:"category"`
+	Enabled      bool   `json:"enabled"`
+	HealthState  string `json:"health_state"`
+	HealthReason string `json:"health_reason,omitempty"`
+	Risk         string `json:"risk"`
 }
 
 func runtimeReadinessDTOFromSnapshot(snapshot *RuntimeReadiness) RuntimeReadinessDTO {

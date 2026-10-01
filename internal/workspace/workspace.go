@@ -9,12 +9,8 @@ import (
 )
 
 const (
-	ToolCreateFile         = "create_file"
-	ToolReplaceSpan        = "replace_span"
-	ToolApplyUnifiedPatch  = "apply_unified_patch"
-	ToolMultiEdit          = "multi_edit"
-	ToolRollbackCheckpoint = "rollback_workspace_checkpoint"
-	ToolRunCommand         = "run_command"
+	ToolCreateFile  = "create_file"
+	ToolReplaceSpan = "replace_span"
 )
 
 var defaultMutationDenylist = []string{
@@ -23,19 +19,15 @@ var defaultMutationDenylist = []string{
 }
 
 type Config struct {
-	RootDir                  string
-	StorageDir               string
-	MutationDenylist         []string
-	RunCommandDefaultTimeout int
-	RunCommandEnvWhitelist   []string
+	RootDir          string
+	StorageDir       string
+	MutationDenylist []string
 }
 
 type Workspace struct {
-	rootDir                  string
-	storageDir               string
-	mutationDenylist         []string
-	runCommandDefaultTimeout int
-	runCommandEnvWhitelist   []string
+	rootDir          string
+	storageDir       string
+	mutationDenylist []string
 }
 
 func New(cfg Config) (*Workspace, error) {
@@ -47,10 +39,9 @@ func New(cfg Config) (*Workspace, error) {
 	if err != nil {
 		return nil, fmt.Errorf("resolve workspace root dir: %w", err)
 	}
-	// Ensure the operator workspace exists so the first real tool task (run_command,
-	// read_file, list_files) does not fail with a cryptic chdir/open error on a
-	// missing directory — and so readiness ("acorn doctor") reflects a usable
-	// workspace. Consistent with sqlite.Open creating the storage dir. Idempotent.
+	// Ensure the root exists so the first file tool call does not fail with a
+	// cryptic open error on a missing directory. Idempotent, consistent with
+	// sqlite.Open creating the storage dir.
 	if err := os.MkdirAll(absRoot, 0o755); err != nil {
 		return nil, fmt.Errorf("create workspace root dir %s: %w", absRoot, err)
 	}
@@ -69,11 +60,9 @@ func New(cfg Config) (*Workspace, error) {
 	}
 
 	w := &Workspace{
-		rootDir:                  filepath.Clean(absRoot),
-		storageDir:               filepath.Clean(storageDir),
-		mutationDenylist:         denylist,
-		runCommandDefaultTimeout: cfg.RunCommandDefaultTimeout,
-		runCommandEnvWhitelist:   append([]string(nil), cfg.RunCommandEnvWhitelist...),
+		rootDir:          filepath.Clean(absRoot),
+		storageDir:       filepath.Clean(storageDir),
+		mutationDenylist: denylist,
 	}
 	return w, nil
 }
@@ -99,36 +88,12 @@ func (w *Workspace) MutationDenylist() []string {
 	return append([]string(nil), w.mutationDenylist...)
 }
 
-func (w *Workspace) RunCommandDefaultTimeout() int {
-	if w == nil {
-		return 0
-	}
-	return w.runCommandDefaultTimeout
-}
-
-func (w *Workspace) RunCommandEnvWhitelist() []string {
-	if w == nil {
-		return nil
-	}
-	return append([]string(nil), w.runCommandEnvWhitelist...)
-}
-
 func (w *Workspace) ResolveReadPath(value string) (string, error) {
 	return w.resolvePath(value, nil)
 }
 
 func (w *Workspace) ResolveWritePath(value string) (string, error) {
 	return w.resolvePath(value, w.mutationDenylist)
-}
-
-func (w *Workspace) ResolveCwd(value string) (string, error) {
-	if w == nil {
-		return "", errors.New("workspace is required")
-	}
-	if strings.TrimSpace(value) == "" {
-		return w.rootDir, nil
-	}
-	return w.resolvePath(value, nil)
 }
 
 func (w *Workspace) NormalizeRelativePath(value string) (string, error) {

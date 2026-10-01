@@ -2,10 +2,6 @@ package triggers
 
 import (
 	"context"
-	"errors"
-	"net/http"
-	"net/http/httptest"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -153,23 +149,5 @@ func TestSchedulerFireUnknownTriggerIDIsIgnored(t *testing.T) {
 
 	if rc.calls.Load() != 0 {
 		t.Fatalf("CreateRun should not be called for unknown trigger, got %d", rc.calls.Load())
-	}
-}
-
-func TestSchedulerHandleWebhookUnknownReturnsNotFoundError(t *testing.T) {
-	rc := &stubRunCreator{}
-	sched := NewScheduler(rc)
-
-	req := httptest.NewRequest(http.MethodPost, "/v1/triggers/unknown", strings.NewReader("{}"))
-	err := sched.HandleWebhook(context.Background(), "unknown", req)
-	if err == nil {
-		t.Fatal("expected error for unknown trigger, got nil")
-	}
-	var nfe *TriggerNotFoundError
-	if !errors.As(err, &nfe) {
-		t.Fatalf("error = %v, want *TriggerNotFoundError", err)
-	}
-	if nfe.ID != "unknown" {
-		t.Fatalf("ID = %q, want 'unknown'", nfe.ID)
 	}
 }

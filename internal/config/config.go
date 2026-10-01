@@ -125,26 +125,11 @@ type AgentConfig struct {
 }
 
 type ToolsConfig struct {
-	Workspace  WorkspaceToolConfig  `yaml:"workspace"`
-	Mutation   MutationToolConfig   `yaml:"mutation"`
-	RunCommand RunCommandToolConfig `yaml:"run_command"`
+	Workspace WorkspaceToolConfig `yaml:"workspace"`
 }
 
 type WorkspaceToolConfig struct {
 	RootDir string `yaml:"root_dir"`
-}
-
-type MutationToolConfig struct {
-	Disabled bool     `yaml:"disabled,omitempty"`
-	RootDir  string   `yaml:"root_dir,omitempty"`
-	Denylist []string `yaml:"denylist"`
-}
-
-type RunCommandToolConfig struct {
-	Disabled       bool     `yaml:"disabled,omitempty"`
-	DefaultTimeout int      `yaml:"default_timeout"`
-	WorkDir        string   `yaml:"work_dir"`
-	EnvWhitelist   []string `yaml:"env_whitelist"`
 }
 
 type MCPConfig struct {
@@ -175,23 +160,15 @@ type MCPProviderConfig struct {
 // TriggersConfig configures ambient agent trigger sources. Triggers live in
 // the serve process and fire new runs when external events arrive.
 type TriggersConfig struct {
-	Webhooks []WebhookTriggerConfig `yaml:"webhooks"`
-	Crons    []CronTriggerConfig    `yaml:"crons"`
+	Crons []CronTriggerConfig `yaml:"crons"`
 	// DebounceMillis coalesces rapid fires of the same trigger within this
 	// window into a single run (last input wins). Zero disables debounce.
-	// Protects against webhook spam burning LLM tokens. Recommended: 2000.
+	// Protects against bursts of fires burning LLM tokens. Recommended: 2000.
 	DebounceMillis int `yaml:"debounce_millis"`
 	// DailyQuota caps the number of trigger-started runs per UTC day.
 	// Fires over quota are silently dropped (warned in logs). Zero disables
-	// the cap (default). Protects against a runaway webhook burning tokens.
+	// the cap (default). Protects against a runaway trigger burning tokens.
 	DailyQuota int `yaml:"daily_quota"`
-}
-
-// WebhookTriggerConfig configures a single webhook trigger.
-type WebhookTriggerConfig struct {
-	ID     string `yaml:"id"`
-	Secret string `yaml:"secret"`
-	Prompt string `yaml:"prompt"`
 }
 
 // CronTriggerConfig configures a single cron trigger. Schedule is a standard

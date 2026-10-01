@@ -140,11 +140,6 @@ agent:
 tools:
   workspace:
     root_dir: /srv/acorn/workspace
-  mutation:
-    disabled: false
-  run_command:
-    disabled: false
-    default_timeout: 120
 EOF
 }
 

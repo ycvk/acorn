@@ -2,7 +2,6 @@ package memory
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 )
 
@@ -46,14 +45,6 @@ func snippet(text string) string {
 		return compact
 	}
 	return strings.TrimSpace(compact[:177]) + "..."
-}
-
-func WorkspaceSlug(root string) string {
-	base := filepath.Base(strings.TrimSpace(root))
-	if base == "." || base == string(filepath.Separator) {
-		return ""
-	}
-	return sanitizeName(base)
 }
 
 func WorkspaceScope(slug string) string {

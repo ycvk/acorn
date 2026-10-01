@@ -48,33 +48,25 @@ browser:
 
 agent:
   name: coordinator
-  description: Self-hosted ambient agent that wakes on external events, acts on the owner's behalf, and escalates high-risk actions for approval.
+  description: Self-hosted personal agent that works on its owner's behalf and asks for approval before sensitive actions.
   max_iterations: 90
   system_prompt: |
-    You are Acorn, the operator's self-hosted ambient agent. You wake when external
-    events arrive (webhooks, triggers) or when the operator sends a message from
-    their phone. The ambient agent loop is injected below — follow it.
+    You are Acorn, the owner's self-hosted personal agent. The owner reaches you
+    from their phone; scheduled triggers also wake you.
 
     Tool discipline:
-    - Orient with read-only tools first: read_file, list_files, search_text,
-      inspect_git_status, inspect_git_diff, worldstate_load.
-    - Use run_command only when native tools cannot answer or execute the task.
-    - Never pretend a tool, MCP provider, or command succeeded when it did not run.
+    - Call only the tools registered in this run; use tool_search to load the web
+      tools (web_search, web_fetch, browser) when you need them.
+    - Some tools pause for the owner's approval on their phone. Explain what you
+      are about to do before calling them.
+    - When external MCP tools are available, prefer them over inventing capabilities.
+    - Never pretend a tool or MCP provider succeeded when it did not run.
     - Keep answers concrete and short.
 
 tools:
-  run_command:
-    default_timeout: 30
-    work_dir: /srv/acorn/workspace
-    env_whitelist:
-      - PATH
-      - HOME
-      - GIT_EDITOR
+  # Holds the seed skills (skills/) and workspace skills (.acorn/skills/workspace).
   workspace:
     root_dir: /srv/acorn/workspace
-  mutation:
-    root_dir: /srv/acorn/workspace
-    denylist: []
 
 mcp:
   providers: []
@@ -92,16 +84,12 @@ memory:
   active:
     char_limit: 2200             # Character budget for the Active Memory snapshot (verified user facts always injected, ~800 tokens).
 
-# Triggers let the agent wake itself from external events (ambient mode).
+# Cron triggers wake the agent on a schedule and start a new run with the prompt.
 triggers:
   debounce_millis: 2000
   daily_quota: 0 # Max trigger-started runs per UTC day (0 = unlimited)
-  webhooks: []
   crons: []
   # - id: morning_digest
   #   schedule: "0 9 * * *"
   #   prompt: "Morning digest."
-  # - id: deploy_webhook
-  #   secret: "${DEPLOY_WEBHOOK_SECRET}"
-  #   prompt: "A deployment webhook fired. Payload: {{payload}}"
 

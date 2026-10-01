@@ -49,13 +49,11 @@ func defaultConfig() *Config {
 		},
 		Agent: AgentConfig{
 			Name:          "coordinator",
-			Description:   "A local operator agent that can inspect files and execute commands.",
+			Description:   "A personal agent that works on its owner's behalf.",
 			MaxIterations: 70,
 		},
 		Tools: ToolsConfig{
-			Workspace:  WorkspaceToolConfig{RootDir: "."},
-			Mutation:   MutationToolConfig{},
-			RunCommand: RunCommandToolConfig{DefaultTimeout: 30, WorkDir: "."},
+			Workspace: WorkspaceToolConfig{RootDir: "."},
 		},
 		Memory: MemoryConfig{
 			Search: MemorySearchConfig{

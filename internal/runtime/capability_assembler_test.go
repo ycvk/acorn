@@ -34,7 +34,7 @@ func TestBuildCoreToolSpecsExcludesEagerNatives(t *testing.T) {
 	// Simulate a local catalog containing both eager and deferred tool
 	// instances. In production, BuildCatalog produces these from per-run
 	// services.
-	eagerTool := &stubTool{name: "read_file"}
+	eagerTool := &stubTool{name: "artifact_read"}
 	deferredTool := &stubTool{name: "web_fetch"}
 	localCatalog := &tools.LocalCatalog{
 		Tools: []einotool.BaseTool{eagerTool, deferredTool},
@@ -62,8 +62,8 @@ func TestBuildCoreToolSpecsExcludesEagerNatives(t *testing.T) {
 	if _, ok := byName["web_fetch"]; !ok {
 		t.Errorf("deferred native tool web_fetch missing from toolset catalog specs")
 	}
-	if _, ok := byName["read_file"]; ok {
-		t.Errorf("eager native tool read_file should not be in toolset catalog specs")
+	if _, ok := byName["artifact_read"]; ok {
+		t.Errorf("eager native tool artifact_read should not be in toolset catalog specs")
 	}
 }
 
@@ -83,7 +83,7 @@ func TestRegisterNativeToolsExcludesDeferred(t *testing.T) {
 	}
 
 	// Eager natives must be present.
-	for _, name := range []string{"read_file", "list_files", "git_summary"} {
+	for _, name := range []string{"artifact_read", "ask_operator", "search_runs"} {
 		if _, ok := registry.Find(name); !ok {
 			t.Errorf("eager native tool %q missing from registry", name)
 		}

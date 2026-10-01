@@ -13,7 +13,6 @@ import (
 	"github.com/ycvk/acorn/internal/memory"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/tools"
-	"github.com/ycvk/acorn/internal/workspace"
 )
 
 func compactText(value string, limit int) (string, bool) {
@@ -62,7 +61,6 @@ type RuntimeDeps struct {
 	MemoryModule      memory.Service
 	ContextPlane      *ContextPlane
 	MCPPendingActions core.SessionStore
-	Workspace         *workspace.Workspace
 	ArtifactService   core.ArtifactService
 	WorldStateUpdater tools.WorldStateUpdater
 	ExtraLocalTools   []einotool.BaseTool

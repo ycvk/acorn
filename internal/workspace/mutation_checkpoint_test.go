@@ -3,16 +3,14 @@ package workspace
 import (
 	"context"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 )
 
 func TestMutationCheckpointRollbackRestoresBeforeState(t *testing.T) {
-	ws := newGitWorkspace(t)
+	ws := newTestWorkspace(t)
 	writeWorkspaceFile(t, ws, "target.txt", "original\n")
-	gitCommitAll(t, ws.Root(), "initial")
 
 	checkpoint, err := ws.CreateMutationCheckpoint(context.Background(), "replace_span", []string{"target.txt"})
 	if err != nil {
@@ -36,9 +34,8 @@ func TestMutationCheckpointRollbackRestoresBeforeState(t *testing.T) {
 }
 
 func TestMutationCheckpointRollbackDeletesCreatedFile(t *testing.T) {
-	ws := newGitWorkspace(t)
+	ws := newTestWorkspace(t)
 	writeWorkspaceFile(t, ws, "README.md", "root\n")
-	gitCommitAll(t, ws.Root(), "initial")
 
 	checkpoint, err := ws.CreateMutationCheckpoint(context.Background(), "create_file", []string{"created.txt"})
 	if err != nil {
@@ -57,9 +54,8 @@ func TestMutationCheckpointRollbackDeletesCreatedFile(t *testing.T) {
 }
 
 func TestMutationCheckpointRollbackHandlesIncompleteCheckpoint(t *testing.T) {
-	ws := newGitWorkspace(t)
+	ws := newTestWorkspace(t)
 	writeWorkspaceFile(t, ws, "target.txt", "original\n")
-	gitCommitAll(t, ws.Root(), "initial")
 
 	checkpoint, err := ws.CreateMutationCheckpoint(context.Background(), "replace_span", []string{"target.txt"})
 	if err != nil {
@@ -80,9 +76,8 @@ func TestMutationCheckpointRollbackHandlesIncompleteCheckpoint(t *testing.T) {
 }
 
 func TestMutationCheckpointRollbackDetectsTouchedPathConflict(t *testing.T) {
-	ws := newGitWorkspace(t)
+	ws := newTestWorkspace(t)
 	writeWorkspaceFile(t, ws, "target.txt", "original\n")
-	gitCommitAll(t, ws.Root(), "initial")
 
 	checkpoint, err := ws.CreateMutationCheckpoint(context.Background(), "replace_span", []string{"target.txt"})
 	if err != nil {
@@ -106,34 +101,8 @@ func TestMutationCheckpointRollbackDetectsTouchedPathConflict(t *testing.T) {
 	}
 }
 
-func TestMutationCheckpointRollbackDetectsNonBaselineDirtyConflict(t *testing.T) {
-	ws := newGitWorkspace(t)
-	writeWorkspaceFile(t, ws, "target.txt", "original\n")
-	writeWorkspaceFile(t, ws, "baseline.txt", "base\n")
-	gitCommitAll(t, ws.Root(), "initial")
-	writeWorkspaceFile(t, ws, "baseline.txt", "baseline dirty\n")
-
-	checkpoint, err := ws.CreateMutationCheckpoint(context.Background(), "replace_span", []string{"target.txt"})
-	if err != nil {
-		t.Fatalf("CreateMutationCheckpoint: %v", err)
-	}
-	writeWorkspaceFile(t, ws, "target.txt", "changed\n")
-	if _, err := ws.CompleteMutationCheckpoint(context.Background(), checkpoint.CheckpointID); err != nil {
-		t.Fatalf("CompleteMutationCheckpoint: %v", err)
-	}
-	writeWorkspaceFile(t, ws, "unrelated.txt", "new dirty\n")
-
-	result, err := ws.RollbackMutationCheckpoint(context.Background(), checkpoint.CheckpointID)
-	if err == nil {
-		t.Fatal("expected unrelated dirty conflict")
-	}
-	if result == nil || strings.Join(result.ConflictPaths, ",") != "unrelated.txt" {
-		t.Fatalf("unexpected conflict result: %+v err=%v", result, err)
-	}
-}
-
 func TestLoadMutationCheckpointFailsOnCorruptPayload(t *testing.T) {
-	ws := newGitWorkspace(t)
+	ws := newTestWorkspace(t)
 	path, err := ws.mutationCheckpointPath("workspace_checkpoint_corrupt")
 	if err != nil {
 		t.Fatalf("mutationCheckpointPath: %v", err)
@@ -150,15 +119,11 @@ func TestLoadMutationCheckpointFailsOnCorruptPayload(t *testing.T) {
 	}
 }
 
-func newGitWorkspace(t *testing.T) *Workspace {
+// newTestWorkspace returns a workspace over a plain directory; checkpoints
+// must not depend on the root being a git repository.
+func newTestWorkspace(t *testing.T) *Workspace {
 	t.Helper()
-	if _, err := exec.LookPath("git"); err != nil {
-		t.Skip("git is required")
-	}
 	root := t.TempDir()
-	runGitForCheckpointTest(t, root, "init")
-	runGitForCheckpointTest(t, root, "config", "user.email", "acorn@example.com")
-	runGitForCheckpointTest(t, root, "config", "user.name", "Acorn Test")
 	ws, err := New(Config{
 		RootDir:    root,
 		StorageDir: filepath.Join(t.TempDir(), "state"),
@@ -194,20 +159,4 @@ func readWorkspaceFile(t *testing.T, ws *Workspace, path string) string {
 		t.Fatalf("read %s: %v", path, err)
 	}
 	return string(body)
-}
-
-func gitCommitAll(t *testing.T, root string, message string) {
-	t.Helper()
-	runGitForCheckpointTest(t, root, "add", ".")
-	runGitForCheckpointTest(t, root, "commit", "-m", message)
-}
-
-func runGitForCheckpointTest(t *testing.T, root string, args ...string) {
-	t.Helper()
-	cmd := exec.Command("git", args...)
-	cmd.Dir = root
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("git %v: %v\n%s", args, err, string(output))
-	}
 }

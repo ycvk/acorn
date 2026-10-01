@@ -150,15 +150,6 @@ func renderDoctorToolLine(item api.SystemToolCapability) string {
 	if strings.TrimSpace(item.HealthReason) != "" {
 		parts = append(parts, "reason="+item.HealthReason)
 	}
-	if item.DefaultTimeout > 0 {
-		parts = append(parts, fmt.Sprintf("timeout=%ds", item.DefaultTimeout))
-	}
-	if strings.TrimSpace(item.RootDir) != "" {
-		parts = append(parts, "root="+item.RootDir)
-	}
-	if strings.TrimSpace(item.WorkDir) != "" {
-		parts = append(parts, "workdir="+item.WorkDir)
-	}
 	return strings.Join(parts, " ")
 }
 

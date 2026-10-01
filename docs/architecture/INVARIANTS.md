@@ -47,14 +47,13 @@
 - **Mobile 是 control surface 不是 runtime**：mobile 不执行 run、不持 runtime truth、不做 offline-first run execution、不维护第二套 message lifecycle；context pressure/boundary/run status 都消费后端 projection。
   - `mobile-kotlin/app/src/test/...`（JUnit）
 
-## Triggers (ambient)
+## Triggers
 
-- **Trigger scheduler 是 run 外常驻进程**：`internal/triggers.Scheduler` 住 `serve` 进程内，与 `Executor` 平级，不属任何 per-run 生命周期。trigger fire 时调 `RunService.CreateRun` 起新短命 run，不续 session。`/v1/triggers/{id}` 端点不经 device auth，用 HMAC 验签。`Stop()` 清理 pending debounce timers 避免 shutdown 孤儿 run。两类 trigger：webhook（被动 HTTP）和 cron（主动定时，5 字段表达式 `min hour dom month dow`，自建 parser 无新依赖）。
+- **Trigger scheduler 是 run 外常驻进程**：`internal/triggers.Scheduler` 住 `serve` 进程内，与 `Executor` 平级，不属任何 per-run 生命周期。trigger fire 时调 `RunService.CreateRun` 起新短命 run，不续 session。`Stop()` 清理 pending debounce timers 避免 shutdown 孤儿 run。trigger 只有 cron 一类（5 字段表达式 `min hour dom month dow`，自建 parser 无新依赖）。
   - `internal/triggers/scheduler_test.go`
-  - `internal/triggers/webhook_test.go`
   - `internal/triggers/cron_schedule_test.go`
   - `internal/triggers/cron_test.go`
-- **Trigger 成本控制**：debounce + duplicate-skip + daily quota 三护栏。`triggers.debounce_millis`（默认 0=禁用,推荐 2000）合并同 trigger 窗口内多次 fire 为一次 run（last input wins,per-trigger timer 独立）。`triggerRunCreator.shouldSkipRun` 在 WorldState 投影 + input 指纹（SHA-256,key 排序确定性）与上次相同时跳过 CreateRun——首次不跳过,nil WorldState 不跳过。`triggers.daily_quota`（默认 0=不限）限制每 UTC 日 trigger fire 起 run 次数,超限静默丢弃（warn log）,serve 重启归零。webhook spam 100 次相同 payload + 无状态变化 = 0 次 LLM 调用。
+- **Trigger 成本控制**：debounce + duplicate-skip + daily quota 三护栏。`triggers.debounce_millis`（默认 0=禁用,推荐 2000）合并同 trigger 窗口内多次 fire 为一次 run（last input wins,per-trigger timer 独立）。`triggerRunCreator.shouldSkipRun` 在 WorldState 投影 + input 指纹（SHA-256,key 排序确定性）与上次相同时跳过 CreateRun——首次不跳过,nil WorldState 不跳过。`triggers.daily_quota`（默认 0=不限）限制每 UTC 日 trigger fire 起 run 次数,超限静默丢弃（warn log）,serve 重启归零。
   - `internal/triggers/scheduler_debounce_test.go`
   - `internal/wire/trigger_skip_test.go`
   - `internal/wire/trigger_quota_test.go`
@@ -62,11 +61,11 @@
   - `internal/triggers/scheduler_test.go`
 - **WorldState 是跨 run 决策投影**：`internal/memory.WorldState` 是 file-backed key-value store（`{storage_dir}/worldstate/state.json`），只有 `ApplyDelta` 一条变更路径（upsert/delete）。填补 Session（per-run 临时）和 facts（显式 remember）之间空白。内存 cache + mutex 串行写，避开 SQLite 单连接瓶颈。agent 通过 `worldstate_update`/`worldstate_load` 工具读写。
   - `internal/memory/worldstate_test.go`
-- **Ambient 身份指令硬编码进 base instruction**：`internal/runtime/runner.go` 的 `ambientAgentInstruction` 常量拼进 `buildStableInstruction`（用户 prompt 之后、capability discovery 之前），教 agent ambient 五步循环（orient → assess → act → record → stop）。用户 prompt 不可覆盖——ambient 循环是 agent 身份的核心，不是可配置行为。`triggerRunCreator.CreateRun` 在 input 前加 trigger 唤醒上下文，`formatWorldStatePrefix` 加引导语让 agent 理解注入的 KV 是自己的跨 run 记忆。
+- **Trigger 唤醒上下文注入 run input**：`triggerRunCreator.CreateRun` 在 input 前加 trigger 唤醒上下文，`formatWorldStatePrefix` 加引导语让 agent 理解注入的 KV 是自己的跨 run 记忆。
   - `internal/wire/trigger_worldstate_e2e_test.go`
 - **Decision Card 扩展 ask_operator payload**：`OperatorQuestionPayload` 增 `considered_options/rationale/risk/recommendation` 可选维度。它给 `ask_operator` 的提问补上决策依据；工具调用审批由 `approval.require` 规则和 approval middleware 负责。
   - `internal/core/decision_card_test.go`
-- **search_runs 工具让 agent 检索自己 run 历史**：`SearchRuns(ctx, query, limit)` 对 `runs.input_text` 做 LIKE 关键词匹配,返回匹配 run 摘要。工具注册为 `core.ToolKindNative` / `ToolCategoryInspect` / 只读并行。让 agent 能"回忆自己做过什么",不依赖每次显式 `remember`。
+- **search_runs 工具让 agent 检索自己 run 历史**：`SearchRuns(ctx, query, limit)` 对 `runs.input_text` 做 LIKE 关键词匹配,返回匹配 run 摘要。工具注册为 `core.ToolKindNative` / `ToolCategoryInspect`。让 agent 能"回忆自己做过什么",不依赖每次显式 `remember`。
   - `internal/store/store_search_runs_test.go`
 
 ## 代码规范

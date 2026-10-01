@@ -36,10 +36,6 @@ func TestValidateExecutionReadyContextConfig(t *testing.T) {
 		},
 		Tools: ToolsConfig{
 			Workspace: WorkspaceToolConfig{RootDir: "."},
-			Mutation:  MutationToolConfig{RootDir: "."},
-			RunCommand: RunCommandToolConfig{
-				WorkDir: ".",
-			},
 		},
 	}
 
@@ -118,10 +114,6 @@ func TestValidateExecutionReadyRejectsInvalidExecutionFields(t *testing.T) {
 		},
 		Tools: ToolsConfig{
 			Workspace: WorkspaceToolConfig{RootDir: "."},
-			Mutation:  MutationToolConfig{RootDir: "."},
-			RunCommand: RunCommandToolConfig{
-				WorkDir: ".",
-			},
 		},
 		Memory: defaultConfig().Memory,
 	}
@@ -163,20 +155,15 @@ func TestValidateExecutionReadyRejectsInvalidExecutionFields(t *testing.T) {
 	}
 }
 
-func TestWorkspaceRootDirRejectsMismatchedLocalToolRoots(t *testing.T) {
-	root := t.TempDir()
-	other := t.TempDir()
+func TestWorkspaceRootIsCleanedRootDir(t *testing.T) {
 	cfg := defaultConfig()
-	cfg.Tools.Workspace.RootDir = root
-	cfg.Tools.Mutation.RootDir = other
-	cfg.Tools.RunCommand.WorkDir = root
-
-	_, err := cfg.Workspace()
-	if err == nil {
-		t.Fatal("expected mismatched local tool roots to fail")
+	cfg.Tools.Workspace.RootDir = "/srv/acorn/workspace/"
+	if got, want := cfg.WorkspaceRoot(), "/srv/acorn/workspace"; got != want {
+		t.Fatalf("WorkspaceRoot() = %q, want %q", got, want)
 	}
-	if !strings.Contains(err.Error(), "workspace root mismatch") {
-		t.Fatalf("Workspace error = %v, want workspace root mismatch", err)
+	cfg.Tools.Workspace.RootDir = "  "
+	if got := cfg.WorkspaceRoot(); got != "" {
+		t.Fatalf("WorkspaceRoot() for blank root = %q, want empty", got)
 	}
 }
 

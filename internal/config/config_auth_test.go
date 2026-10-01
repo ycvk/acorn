@@ -32,13 +32,6 @@ agent:
 tools:
   workspace:
     root_dir: .
-  mutation:
-    disabled: true
-    root_dir: .
-  run_command:
-    disabled: true
-    default_timeout: 30
-    work_dir: .
 mcp:
   providers:
     - name: oauth_stdio
@@ -91,13 +84,6 @@ agent:
 tools:
   workspace:
     root_dir: .
-  mutation:
-    disabled: true
-    root_dir: .
-  run_command:
-    disabled: true
-    default_timeout: 30
-    work_dir: .
 mcp:
   providers:
     - name: oauth_notransport
@@ -146,13 +132,6 @@ agent:
 tools:
   workspace:
     root_dir: .
-  mutation:
-    disabled: true
-    root_dir: .
-  run_command:
-    disabled: true
-    default_timeout: 30
-    work_dir: .
 mcp:
   providers:
     - name: oauth_sse
@@ -211,13 +190,6 @@ agent:
 tools:
   workspace:
     root_dir: .
-  mutation:
-    disabled: true
-    root_dir: .
-  run_command:
-    disabled: true
-    default_timeout: 30
-    work_dir: .
 mcp:
   providers:
     - name: bad_auth
@@ -269,13 +241,6 @@ agent:
 tools:
   workspace:
     root_dir: .
-  mutation:
-    disabled: true
-    root_dir: .
-  run_command:
-    disabled: true
-    default_timeout: 30
-    work_dir: .
 mcp:
   providers:
     - name: no_auth

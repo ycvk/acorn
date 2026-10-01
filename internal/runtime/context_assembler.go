@@ -12,28 +12,19 @@ func prepareRunMemory(ctx context.Context, deps RuntimeDeps, req RunnerBuildRequ
 	if deps.MemoryModule == nil {
 		return nil, errors.New("memory module is not initialized")
 	}
-	workspaceSlug := workspaceSlug(deps)
 	result, err := deps.MemoryModule.Prepare(ctx, memory.PrepareRequest{
 		RunID:           req.RunID,
 		SessionID:       req.SessionID,
-		WorkspaceSlug:   workspaceSlug,
 		UserInput:       req.Input,
 		ActiveCharLimit: deps.Config.Memory.Active.CharLimit,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("prepare memory: %w", err)
 	}
-	if err := emitMemoryPreparedEvent(ctx, deps.Store, req, memory.WorkspaceScope(workspaceSlug), result); err != nil {
+	if err := emitMemoryPreparedEvent(ctx, deps.Store, req, result); err != nil {
 		return nil, err
 	}
 	return result, nil
-}
-
-func workspaceSlug(deps RuntimeDeps) string {
-	if deps.Workspace == nil {
-		return ""
-	}
-	return memory.WorkspaceSlug(deps.Workspace.Root())
 }
 
 func assembleContext(

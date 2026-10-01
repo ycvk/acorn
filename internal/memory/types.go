@@ -64,7 +64,6 @@ type LocalService struct {
 type PrepareRequest struct {
 	RunID           string
 	SessionID       string
-	WorkspaceSlug   string
 	UserInput       string
 	Mode            string
 	MaxNudges       int
