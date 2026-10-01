@@ -1,6 +1,6 @@
 # Architecture Decision Records
 
-ADR 记录 Acorn 架构方向级决策的"为什么"。current-state 架构真相在 `docs/architecture/`;ADR 不是 current truth,是决策记录。
+ADR 记录 Acorn 架构方向级决策的"为什么"。current-state 架构真相在 `AGENTS.md` 与 `docs/architecture/INVARIANTS.md`;ADR 不是 current truth,是决策记录。
 
 | ADR | Title | Status | Date |
 |-----|-------|--------|------|

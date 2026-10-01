@@ -42,7 +42,7 @@ cd mobile-kotlin && ./tool/generate_openapi_client.sh --check   # CI 门禁
 - **单一编排模式**:`direct_response`。model → tool loop → record → 下一轮。`ExecuteRound` 每轮 `BeforeModelCall → ExecuteRound → RecordAssistant/RecordToolResults`。plan_execute/single_agent/child_agent/verifier 已全部删除。
 - **职责边界**:`internal/runtime` 做装配+执行编排+上下文事实(首轮装配、tool lifecycle、`Session`、masking、auto-compact、StreamItem 投影)。
 - **关键包**(14 个 internal 包):`internal/core`(Layer 0,零内部导入,纯类型+契约:核心 domain 类型 + context plumbing + 3 个 store 接口 + 工具契约,无 service struct);`internal/runtime`(Layer 3)拥有 Executor、RunnerFactory、buildRun、direct_response、ExecuteRound、Plane、Session、masking、auto-compact、StreamItem 投影;`internal/tools` 拥有工具实现(file/git/browser/web/command/artifact 工具 + ToolRegistry + 风险闸门 `ClassifyRisk`);`internal/tools/dispatch` 拥有工具调度逻辑(scheduler + node + streaming + side_effects + lifecycle);`internal/store` 拥有 SQLite adapter + ArtifactService(依赖 `core.ArtifactService`,无重复接口);`internal/memory` 拥有 file-backed memory + WorldState;`internal/mcp` 拥有 MCP provider manager;`internal/triggers` 拥有 serve 进程内的 webhook/cron trigger scheduler;`internal/api` 拥有 `/v1` client surface + live RunEvent 投影(`projection.go`);`internal/workspace` 拥有 mutation checkpoint + worktree;`internal/webaccess` 拥有 web fetcher、Tavily search、内容抽取与共享 URL policy(工具本身在 `internal/tools`);`internal/skills`/`internal/config`/`internal/cli` 各司其职。
-- **两套真相**:SQLite(`internal/store`,modernc.org/sqlite,单连接串行化)是 runtime 真相(10 张表:runs/events/sessions/session_messages/pending_actions/mcp_oauth_tokens/devices/pairing_codes/artifacts/schema_migrations;schema 在 `store/store_schema.go`,`schemaRequiredTables` 强制列存在、缺列 fail-loud);文件型长期记忆(`internal/memory`)是 `facts/`/`history/`。
+- **两套真相**:SQLite(`internal/store`,modernc.org/sqlite,单连接串行化)是 runtime 真相(10 张表:runs/events/sessions/session_messages/pending_actions/mcp_oauth_tokens/devices/pairing_codes/artifacts/schema_migrations;schema 在 `store/store_schema_bootstrap.go`,`schemaRequiredTables` 强制列存在、缺列 fail-loud);文件型长期记忆(`internal/memory`)是 `facts/`/`history/`。
 - **API 契约**:`docs/openapi.yaml` 是唯一 wire contract,`mobile-kotlin/app/src/main/java/io/ycvk/acorn/api/` 由它生成。客户端只收 `internal/api/projection.go` 投影的 live RunEvent;RunEvent SSE 用 `follow=true` 轮询 + `after_seq` 游标续读。
 
 ## 硬边界
@@ -51,7 +51,9 @@ cd mobile-kotlin && ./tool/generate_openapi_client.sh --check   # CI 门禁
 
 - 只有一个 root mode:`direct_response`。不存在 plan_execute/single_agent/child_agent/subagent。
 - `Session` 是 root-run model input 的唯一 owner,不允许绕过它维护第二套 message lifecycle。
-- 工具执行:`ToolContract → toolExecutionScheduler`,按 parallel policy(read_only 并行 / serial 串行)执行。普通工具失败是模型可见 failed result,不是 run failure。
+- 工具执行:`ToolContract → toolExecutionScheduler`(`internal/tools/dispatch`)。read_only 并行;serial 且有 `PathArg` 的按路径冲突串行;serial 无路径的独占执行。普通工具失败是模型可见 failed result,不是 run failure。
+- 风险闸门:`tools.ClassifyRisk` 是规则白名单(只放真实注册的工具名),命中的调用在执行前被拦截,模型须经 `ask_operator` 申请批准。
+- web 工具(`web_search`/`web_fetch`/`browser`)是 deferred,需 `load_tools`;共享 URL policy 只放行公网 http(s),private 网段需 `web_access.allow_private_networks`。
 - workspace mutation 恢复是 scoped checkpoint + 显式 `rollback_workspace_checkpoint`。
 
 ### 工具 & 技能
@@ -61,15 +63,15 @@ cd mobile-kotlin && ./tool/generate_openapi_client.sh --check   # CI 门禁
 
 ### 记忆 & 检索
 
-- 长期 memory 是 `internal/memory` 的 file-backed `facts/`/`history/`。Canonical Memory Record V2 frontmatter(简化:status / tags / created / updated / source_run / source_refs)。fact 写入走结构化 `remember` 工具;raw `memory_create_file` 仍要求完整 frontmatter。
+- 长期 memory 是 `internal/memory` 的 file-backed `facts/`/`history/`,按 ADR-0002 三层:Active Memory(每个 run 注入的 facts 快照)+ Archive(检索)+ Periodic Review(每 N 个 run 异步蒸馏 facts)。跨 run 状态是 `WorldState`(`{storage_dir}/worldstate/state.json`,只经 `ApplyDelta` 变更)。Canonical Memory Record V2 frontmatter(简化:status / tags / created / updated / source_run / source_refs)。fact 写入走结构化 `remember` 工具;raw `memory_create_file` 仍要求完整 frontmatter。
 - **混合检索(opt-in)**:`memory.embedding.enabled` 开启时,写入自动生成 embedding(modernc.org/sqlite 内置 sqlite-vec,存 `{storage_dir}/vectors.db`),检索走 vector KNN + keyword RRF 融合(k=60)。复用 primary provider 的 OpenAI 兼容 `/v1/embeddings` 端点,不引入新依赖/新进程。关闭时(默认)退化为纯 keyword 检索,零行为变化。
 
 ### 上下文 & 压缩
 
 - **Hybrid context 方案**(替代旧 CompactionEngine):
   1. **Observation masking**:tool result 超 `mask_after_turns`(默认 2)轮后用占位符替换。纯内存操作,不写 SQLite。
-  2. **LLM auto-compact**:token 超 `window_tokens - compact_margin`(默认 margin 13000)时用一次 model 调用生成 summary,替换旧消息。circuit breaker:连续 3 次失败停止。
-  3. **关键上下文 re-inject**:compact 后从 disk/memory 重新注入 system prompt + memory context + skill context。
+  2. **非阻塞 LLM auto-compact**:token 超 `window_tokens - compact_margin`(默认 margin 13000)时后台用一次 model 调用总结 conversation 前段,下一轮用 summary 替换被总结的消息。保留最近 `preserve_recent_turns` 轮,live 区不以 tool result 开头。circuit breaker:连续 3 次失败停止。
+  3. **Bootstrap prefix 不压缩**:assembled context(memory/skill)+ system instruction 是 Session prefix,压缩只作用于其后的 conversation。
 - `Session` 接口:`Bootstrap` / `BeforeModelCall`(masking + auto-compact) / `RecordAssistant` / `RecordToolResults`。无 `ReactiveCompact`。
 - context boundary 不持久化(compact 边界是内存状态)。
 
@@ -107,7 +109,7 @@ cd mobile-kotlin && ./tool/generate_openapi_client.sh --check   # CI 门禁
 - `configs/acorn.local.yaml` 在 `.gitignore` 中。`configs/acorn.example.yaml` 和 `configs/acorn.selfhosted.example.yaml` 修改时同步 config struct、defaults、validation 和 tests。
 - provider `api_key` 支持环境变量展开。
 - public context config 只保留 `window_tokens`、`compact_margin_tokens`、`mask_after_turns`、`preserve_recent_turns`。删除配置字段不保留兼容读取。
-- 架构现状 → `docs/architecture/`,用户指南 → `docs/user/`,方向级决策 → `docs/adr/`。不要把未来计划写成 current truth。
+- 架构现状 → 本文件 + `docs/architecture/INVARIANTS.md`(不变量 ↔ 测试),用户指南 → `docs/user/`,方向级决策 → `docs/adr/`。不要把未来计划写成 current truth,不要新增复述代码的架构文档。
 
 ## 验证要求
 

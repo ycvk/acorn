@@ -151,4 +151,4 @@ Trigger(观察世界) → WorldState(决策投影) → Decision Card(结构化�
   - `docs/en/concepts/impl-notes/session-persistence.md`
 - Spice: https://github.com/Dyalwayshappy/Spice
   - `docs/architecture.md`、`docs/world_model.md`、`docs/decision.md`、`docs/llm_boundaries.md`
-- Acorn current-state: `docs/architecture/ARCHITECTURE.md`、`INVARIANTS.md`、`docs/architecture/runtime-context-memory-decision.md`
+- Acorn current-state: `AGENTS.md`、`docs/architecture/INVARIANTS.md`

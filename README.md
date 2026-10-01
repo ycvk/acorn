@@ -198,14 +198,15 @@ Mobile checks run from `mobile-kotlin/`:
 | `internal/api/` | HTTP server, `/healthz`, `/v1` |
 | `mobile-kotlin/` | Kotlin + Jetpack Compose mobile app |
 | `skills/` | Built-in Acorn skill seed pack |
-| `docs/` | User guide, OpenAPI, architecture notes, and ADRs |
+| `docs/` | User guide, OpenAPI contract, architecture invariants, and ADRs |
 
 ## Documentation
 
 - [Self-hosted Onboarding](docs/user/self-hosted-onboarding.md)
 - [OpenAPI contract](docs/openapi.yaml)
-- [Architecture overview](docs/architecture/ARCHITECTURE.md)
-- [Mobile control surface architecture](docs/architecture/mobile-control-surface.md)
+- [Architecture and engineering constraints](AGENTS.md)
+- [Architecture invariants](docs/architecture/INVARIANTS.md)
+- [Architecture decision records](docs/adr/README.md)
 
 ## License
 
