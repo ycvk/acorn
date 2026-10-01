@@ -46,8 +46,8 @@ type BootstrapRequest struct {
 	Assembly        *AssembleResult
 }
 
-// ModelCallRequest carries per-call metadata. AllowCompact is gone:
-// auto-compact is always permitted when the token threshold is crossed.
+// ModelCallRequest carries per-call metadata. Auto-compact is always permitted
+// when the token threshold is crossed.
 type ModelCallRequest struct {
 	CallID    string
 	ToolInfos []*schema.ToolInfo
@@ -72,6 +72,7 @@ type defaultContextSession struct {
 	id                  SessionID
 	turnIndex           int
 	messages            []adk.Message
+	prefixLen           int // bootstrap prefix (assembled context + leading system instruction); never compacted
 	tokenCounter        TokenCounter
 	compactor           *autoCompactor
 	windowTokens        int
@@ -118,15 +119,23 @@ func (s *defaultContextSession) Bootstrap(ctx context.Context, req BootstrapRequ
 			}
 		}
 	}
+	prefixLen := len(messages)
+	inPrefix := true
 	for _, msg := range req.InitialMessages {
 		if msg == nil {
 			continue
+		}
+		if inPrefix && msg.Role == schema.System {
+			prefixLen++
+		} else {
+			inPrefix = false
 		}
 		messages = append(messages, CloneContextSessionMessage(msg))
 	}
 	s.id = id
 	s.turnIndex = req.TurnIndex
 	s.messages = messages
+	s.prefixLen = prefixLen
 	s.bootstrapped = true
 	return s.modelInput(), nil
 }
@@ -140,7 +149,10 @@ func (s *defaultContextSession) BeforeModelCall(ctx context.Context, req ModelCa
 	// 2. Splice in any background summary that settled since the last turn.
 	//    This is non-blocking: if the summary is not ready yet, we proceed
 	//    with the current messages and try again next turn.
-	masked = s.applyCompaction(masked)
+	masked, err := s.applyCompaction(masked)
+	if err != nil {
+		return nil, err
+	}
 	// 3. Count tokens; if over threshold, start a background compaction.
 	//    maybeStartCompact returns immediately — the summary is generated in
 	//    a goroutine and spliced in between turns by applyCompaction above.
@@ -150,19 +162,27 @@ func (s *defaultContextSession) BeforeModelCall(ctx context.Context, req ModelCa
 	}
 	threshold := s.compactThreshold()
 	if total > threshold && s.compactor != nil {
-		s.compactor.maybeStartCompact(ctx, masked)
+		s.compactor.maybeStartCompact(ctx, masked[s.prefixLen:])
 	}
 	s.messages = masked
 	return s.modelInput(), nil
 }
 
-// applyCompaction splices in a settled background summary if one is ready.
-// Non-blocking: returns the input unchanged when no summary has completed.
-func (s *defaultContextSession) applyCompaction(messages []adk.Message) []adk.Message {
+// applyCompaction splices in a settled background summary if one is ready,
+// replacing the summarized part of the conversation while keeping the
+// bootstrap prefix verbatim. Non-blocking: returns the input unchanged when no
+// summary has completed.
+func (s *defaultContextSession) applyCompaction(messages []adk.Message) ([]adk.Message, error) {
 	if s.compactor == nil {
-		return messages
+		return messages, nil
 	}
-	return s.compactor.applyPendingCompact(messages)
+	conversation, err := s.compactor.applyPendingCompact(messages[s.prefixLen:])
+	if err != nil {
+		return nil, err
+	}
+	result := make([]adk.Message, 0, s.prefixLen+len(conversation))
+	result = append(result, messages[:s.prefixLen]...)
+	return append(result, conversation...), nil
 }
 
 func (s *defaultContextSession) RecordAssistant(_ context.Context, msg adk.Message) error {
