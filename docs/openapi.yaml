@@ -1613,7 +1613,7 @@ components:
           type: string
         kind:
           type: string
-          enum: [elicitation, operator_question]
+          enum: [elicitation, operator_question, tool_approval]
         status:
           type: string
           enum: [pending]

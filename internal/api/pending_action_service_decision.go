@@ -8,9 +8,13 @@ import (
 	"github.com/ycvk/acorn/internal/core"
 )
 
-func buildElicitationDecision(record core.PendingActionRecord, input PendingActionDecisionInput) (core.PendingActionStatus, []byte, string, map[string]any, error) {
-	if strings.TrimSpace(input.SelectedOptionID) != "" || strings.TrimSpace(input.Answer) != "" {
-		return "", nil, "", nil, fmt.Errorf("%w: elicitation accepts decision only", ErrPendingActionDecisionInvalid)
+// buildAcceptDeclineDecision handles pending actions whose only choices are
+// accept and decline. The mobile client sends the chosen option id alongside
+// the decision, so a selected_option_id equal to the decision is accepted.
+func buildAcceptDeclineDecision(record core.PendingActionRecord, input PendingActionDecisionInput, eventKind string) (core.PendingActionStatus, []byte, string, map[string]any, error) {
+	selected := strings.TrimSpace(input.SelectedOptionID)
+	if strings.TrimSpace(input.Answer) != "" || (selected != "" && selected != strings.TrimSpace(strings.ToLower(input.Decision))) {
+		return "", nil, "", nil, fmt.Errorf("%w: %s accepts decision only", ErrPendingActionDecisionInvalid, record.Kind)
 	}
 	status, err := pendingActionDecisionStatus(input.Decision)
 	if err != nil {
@@ -23,7 +27,7 @@ func buildElicitationDecision(record core.PendingActionRecord, input PendingActi
 	if err != nil {
 		return "", nil, "", nil, fmt.Errorf("marshal pending action decision: %w", err)
 	}
-	return status, decisionJSON, "elicitation.decided", map[string]any{
+	return status, decisionJSON, eventKind, map[string]any{
 		"action_id": record.ActionID,
 		"decision":  statusToDecisionAction(status),
 	}, nil

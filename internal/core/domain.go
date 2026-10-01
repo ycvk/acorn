@@ -78,6 +78,7 @@ type PendingActionKind string
 const (
 	PendingActionKindElicitation      PendingActionKind = "elicitation"
 	PendingActionKindOperatorQuestion PendingActionKind = "operator_question"
+	PendingActionKindToolApproval     PendingActionKind = "tool_approval"
 )
 
 type PendingActionStatus string

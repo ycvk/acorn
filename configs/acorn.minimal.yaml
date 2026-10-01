@@ -15,6 +15,12 @@ providers:
     api_key: ${OPENAI_API_KEY}
     enabled: true
 
+approval:
+  # Tool-name glob patterns whose calls pause for owner approval on the phone.
+  require:
+    - browser
+    - "mcp__*"
+
 context:
   window_tokens: 200000
   compact_margin_tokens: 13000

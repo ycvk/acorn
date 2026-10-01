@@ -124,6 +124,11 @@ web:
 memory:
   search:
     memory_context_token_budget: 2000
+approval:
+  # Tool-name glob patterns whose calls pause for owner approval on the phone.
+  require:
+    - browser
+    - "mcp__*"
 context:
   window_tokens: 200000
   compact_margin_tokens: 13000

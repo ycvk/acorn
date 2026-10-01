@@ -189,3 +189,19 @@ func TestValidateBaseRejectsNegativeReviewInterval(t *testing.T) {
 		t.Fatal("ValidateBase must reject negative review_interval")
 	}
 }
+
+func TestValidateBaseRejectsMalformedApprovalPattern(t *testing.T) {
+	cfg := defaultConfig()
+	cfg.Approval.Require = []string{"["}
+	err := cfg.ValidateBase()
+	if err == nil || !strings.Contains(err.Error(), "approval.require[0]") {
+		t.Fatalf("ValidateBase() error = %v, want approval.require[0] error", err)
+	}
+}
+
+func TestDefaultApprovalRequiresBrowserAndMCP(t *testing.T) {
+	got := defaultConfig().Approval.Require
+	if len(got) != 2 || got[0] != "browser" || got[1] != "mcp__*" {
+		t.Fatalf("default approval.require = %v", got)
+	}
+}

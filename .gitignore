@@ -35,3 +35,6 @@
 /mobile-kotlin/local.properties
 configs/acorn.local.yaml
 coverage.out
+
+# openapi-generator-cli writes its version pin next to the caller
+mobile-kotlin/openapitools.json

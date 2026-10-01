@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"path"
 	"strings"
 )
 
@@ -24,6 +25,11 @@ func (c *Config) ValidateBase() error {
 	}
 	if err := c.validateBrowserBase(); err != nil {
 		return err
+	}
+	for i, pattern := range c.Approval.Require {
+		if _, err := path.Match(pattern, ""); err != nil {
+			return fmt.Errorf("approval.require[%d] %q: %w", i, pattern, err)
+		}
 	}
 	seenProviderNames := make(map[string]struct{}, len(c.MCP.Providers))
 	for _, provider := range c.MCP.Providers {

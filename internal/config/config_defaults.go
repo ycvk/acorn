@@ -25,6 +25,7 @@ func defaultConfig() *Config {
 			PreserveRecentTurns: 3,
 			MaskAfterTurns:      2,
 		},
+		Approval: ApprovalConfig{Require: []string{"browser", "mcp__*"}},
 		Runtime: RuntimeConfig{
 			StorageDir:        "~/.acorn",
 			RunTimeoutSeconds: 900,

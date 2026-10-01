@@ -30,23 +30,14 @@ import com.squareup.moshi.JsonClass
 /**
  * 
  *
- * @param actionId 
- * @param message 
- * @param requestedSchema MCP elicitation requested schema
+ * @param status 
  */
 
 
-data class ElicitationData (
+data class ClientWebhookTrigger202Response (
 
-    @Json(name = "action_id")
-    val actionId: kotlin.String,
-
-    @Json(name = "message")
-    val message: kotlin.String? = null,
-
-    /* MCP elicitation requested schema */
-    @Json(name = "requested_schema")
-    val requestedSchema: kotlin.Any? = null
+    @Json(name = "status")
+    val status: kotlin.String? = null
 
 ) {
 

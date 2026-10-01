@@ -12,9 +12,16 @@ type Config struct {
 	MCP       MCPConfig        `yaml:"mcp"`
 	Memory    MemoryConfig     `yaml:"memory"`
 	Triggers  TriggersConfig   `yaml:"triggers"`
+	Approval  ApprovalConfig   `yaml:"approval"`
 
 	ConfigPath string `yaml:"-"`
 	ConfigDir  string `yaml:"-"`
+}
+
+// ApprovalConfig lists tool-name glob patterns (path.Match syntax) whose calls
+// pause for owner approval before executing.
+type ApprovalConfig struct {
+	Require []string `yaml:"require"`
 }
 
 type ProviderConfig struct {

@@ -138,8 +138,8 @@ func buildPendingActionSummary(record core.PendingActionRecord, run core.RunReco
 		return PendingActionSummary{}, fmt.Errorf("%w: unsupported pending action status %q", ErrClientProjectionFailed, record.Status)
 	}
 	switch record.Kind {
-	case core.PendingActionKindElicitation:
-		return buildElicitationPendingActionSummary(record, run)
+	case core.PendingActionKindElicitation, core.PendingActionKindToolApproval:
+		return buildAcceptDeclinePendingActionSummary(record, run)
 	case core.PendingActionKindOperatorQuestion:
 		return buildOperatorQuestionPendingActionSummary(record, run)
 	default:
@@ -147,7 +147,7 @@ func buildPendingActionSummary(record core.PendingActionRecord, run core.RunReco
 	}
 }
 
-func buildElicitationPendingActionSummary(record core.PendingActionRecord, run core.RunRecord) (PendingActionSummary, error) {
+func buildAcceptDeclinePendingActionSummary(record core.PendingActionRecord, run core.RunRecord) (PendingActionSummary, error) {
 	body, err := pendingActionBody(record)
 	if err != nil {
 		return PendingActionSummary{}, err

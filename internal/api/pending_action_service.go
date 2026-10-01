@@ -122,7 +122,9 @@ func (s *PendingActionService) Decide(ctx context.Context, actionID string, inpu
 func buildPendingActionDecision(record core.PendingActionRecord, input PendingActionDecisionInput) (core.PendingActionStatus, []byte, string, map[string]any, error) {
 	switch record.Kind {
 	case core.PendingActionKindElicitation:
-		return buildElicitationDecision(record, input)
+		return buildAcceptDeclineDecision(record, input, "elicitation.decided")
+	case core.PendingActionKindToolApproval:
+		return buildAcceptDeclineDecision(record, input, "tool_approval.decided")
 	case core.PendingActionKindOperatorQuestion:
 		return buildOperatorQuestionDecision(record, input)
 	default:
