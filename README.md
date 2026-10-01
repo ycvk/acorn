@@ -17,7 +17,8 @@ Run Acorn on your own server, pair your phone, and use the mobile app to start w
 - Single-owner self-hosted backend for personal deployments.
 - Authenticated `/v1` API with one-time device pairing.
 - Android mobile control surface for threads, chat with live run streaming, approvals, and settings.
-- Persistent runs, run events, pending actions, artifacts, workspace checkpoints, memory, and skills.
+- Persistent runs, run events, pending actions, artifacts, memory, and skills.
+- Tool calls that need your sign-off pause on your phone and continue on the server after you decide, even across restarts.
 - File-backed long-term memory with hybrid semantic + keyword retrieval (sqlite-vec, opt-in).
 - Linux `amd64` and `arm64` release tarballs (pure Go cross-compilation, no CGO).
 - Signed Android APK published with each GitHub Release.
@@ -48,7 +49,7 @@ The installer creates:
 | `/usr/local/bin/acorn` | Global command wrapper |
 | `~/.acorn/acorn.yaml` | Backend configuration |
 | `~/.acorn/acorn.env` | Provider secrets |
-| `/srv/acorn/workspace` | Operator workspace |
+| `/srv/acorn/workspace` | Workspace root for seed and workspace skills |
 | `/etc/systemd/system/acorn.service` | `systemd` service |
 
 The installer uses the user that runs the script. On a typical root VPS install, Acorn reads `/root/.acorn/acorn.yaml` and `/root/.acorn/acorn.env`. Commands such as `acorn pair` and `acorn doctor` use the same config unless you pass `-c`.
@@ -117,6 +118,15 @@ providers:
 
 Provider keys can reference environment variables. Missing provider credentials are reported by readiness checks instead of being silently ignored.
 
+Tools whose names match `approval.require` pause the run until you accept or decline the call on your phone. Patterns use glob syntax and default to the browser and every MCP tool:
+
+```yaml
+approval:
+  require:
+    - browser
+    - "mcp__*"
+```
+
 ## API
 
 Remote clients use the authenticated `/v1` API. Common endpoints include:
@@ -184,15 +194,15 @@ Mobile checks run from `mobile-kotlin/`:
 | `cmd/acorn/` | CLI entrypoint |
 | `internal/wire/` | Composition root — container wiring, the only place concrete implementations are instantiated |
 | `internal/core/` | Layer 0 domain types, store interfaces, tool contracts — zero internal imports |
-| `internal/runtime/` | Executor, RunnerFactory, direct_response, context session, masking, auto-compact, StreamItem projection |
-| `internal/tools/` | Tool implementations (file/git/browser/web/command/artifact), risk gate, ToolRegistry; `dispatch/` scheduler |
+| `internal/runtime/` | Executor, RunnerFactory, Eino ChatModelAgent assembly, approval and tool-error middleware, StreamItem projection |
+| `internal/tools/` | Tool implementations (artifact, operator, run search, world state, web, browser, memory file tools), ToolRegistry |
 | `internal/store/` | SQLite persisted state (modernc.org/sqlite, single-connection serialized) |
 | `internal/memory/` | File-backed memory records, Active Memory, hybrid semantic + keyword retrieval (sqlite-vec), WorldState |
 | `internal/mcp/` | MCP provider manager |
-| `internal/workspace/` | Mutation checkpoint and worktree |
+| `internal/workspace/` | Path scoping and mutation checkpoints for memory file writes |
 | `internal/webaccess/` | Web fetcher, Tavily search, content extraction, shared outbound URL policy |
 | `internal/skills/` | File-backed skill loader |
-| `internal/triggers/` | Webhook and cron triggers that start runs |
+| `internal/triggers/` | Cron triggers that start runs |
 | `internal/config/` | Config struct, defaults, validation |
 | `internal/cli/` | CLI command dispatch |
 | `internal/api/` | HTTP server, `/healthz`, `/v1` |

@@ -101,7 +101,7 @@ The installed service uses:
 - `~/.acorn/acorn.env` for provider secrets.
 - `~/.acorn/skills` for bundled native skills and user-local skills.
 - `~/.acorn` for runtime storage, SQLite state, and generated skills.
-- `/srv/acorn/workspace` for the operator workspace that tools may read and mutate.
+- `/srv/acorn/workspace` as the workspace root that holds seed and workspace skills.
 - `127.0.0.1:8080` for the HTTP listener.
 
 The wrapper runs service-backed operator commands such as `acorn pair`, `acorn doctor`, `acorn memory`, `acorn skills`, and `acorn smoke` against the same installer-owned `~/.acorn/acorn.yaml` when you do not pass an explicit `-c` config path. If you install as root, that means `/root/.acorn/acorn.yaml`.
