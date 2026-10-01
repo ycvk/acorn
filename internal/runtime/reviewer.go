@@ -99,7 +99,7 @@ func (r *Reviewer) review(ctx context.Context, runs []runSummary) {
 	if len(knownTitles) > 0 {
 		b.WriteString("Facts already in memory (do not duplicate these):\n")
 		for _, t := range knownTitles {
-			b.WriteString(fmt.Sprintf("- %s\n", t))
+			fmt.Fprintf(&b, "- %s\n", t)
 		}
 		b.WriteString("\n")
 	}
@@ -112,7 +112,7 @@ func (r *Reviewer) review(ctx context.Context, runs []runSummary) {
 	b.WriteString("- Keep each fact body under 200 characters.\n\n")
 	b.WriteString("Recent runs:\n")
 	for _, run := range runs {
-		b.WriteString(fmt.Sprintf("\n[Run %s]\nInput: %s\nOutput: %s\n", run.runID, truncateRunes(run.input, 500), truncateRunes(run.output, 500)))
+		fmt.Fprintf(&b, "\n[Run %s]\nInput: %s\nOutput: %s\n", run.runID, truncateRunes(run.input, 500), truncateRunes(run.output, 500))
 	}
 
 	model, err := r.newChatModel(ctx)

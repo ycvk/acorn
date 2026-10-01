@@ -49,11 +49,7 @@ func (s *Server) handlePairDevice(w http.ResponseWriter, r *http.Request) {
 		s.respondBadRequest(w, r, "platform is required")
 		return
 	}
-	result, err := s.deviceAuth.PairDevice(r.Context(), PairDeviceInput{ //nolint:gosimple // fields have different JSON tags
-		PairingCode: req.PairingCode,
-		DeviceName:  req.DeviceName,
-		Platform:    req.Platform,
-	})
+	result, err := s.deviceAuth.PairDevice(r.Context(), PairDeviceInput(req))
 	if err != nil {
 		s.respondKnownError(w, r, err)
 		return

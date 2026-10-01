@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -26,7 +27,7 @@ type deviceListItem struct {
 // recover or rotate access from the box even after losing every token.
 func runDevices(ctx context.Context, args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: acorn devices list|revoke ...")
+		return errors.New("usage: acorn devices list|revoke <device_id>")
 	}
 	switch args[0] {
 	case "list":

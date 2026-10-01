@@ -204,7 +204,7 @@ func (s *Store) DecidePendingAction(ctx context.Context, actionID string, status
 	if err := decideApplyUpdate(ctx, tx, record, normalizedStatus, decisionJSON, resolvedAt); err != nil {
 		return nil, err
 	}
-	if err := decideAppendEvent(tx, record, normalizedStatus, resolvedAt); err != nil {
+	if err := decideAppendEvent(ctx, tx, record, normalizedStatus, resolvedAt); err != nil {
 		return nil, err
 	}
 	return decideCommit(tx, record, normalizedStatus, decisionJSON, resolvedAt)
@@ -274,7 +274,7 @@ func decideApplyUpdate(ctx context.Context, tx *sql.Tx, record *core.PendingActi
 }
 
 // decideAppendEvent marshals and inserts the action.decided event row.
-func decideAppendEvent(tx *sql.Tx, record *core.PendingActionRecord, status core.PendingActionStatus, resolvedAt time.Time) error {
+func decideAppendEvent(ctx context.Context, tx *sql.Tx, record *core.PendingActionRecord, status core.PendingActionStatus, resolvedAt time.Time) error {
 	eventPayload, err := json.Marshal(map[string]any{
 		"action_id":    record.ActionID,
 		"interrupt_id": record.InterruptID,
@@ -287,7 +287,8 @@ func decideAppendEvent(tx *sql.Tx, record *core.PendingActionRecord, status core
 	if err != nil {
 		return fmt.Errorf("marshal action.decided event: %w", err)
 	}
-	if _, err := tx.Exec(
+	if _, err := tx.ExecContext(
+		ctx,
 		`INSERT INTO events(run_id, kind, payload_json, created_at) VALUES(?, ?, ?, ?)`,
 		record.RunID,
 		"action.decided",

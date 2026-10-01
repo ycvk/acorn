@@ -5,7 +5,9 @@ import (
 	"errors"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	einotool "github.com/cloudwego/eino/components/tool"
 	toolutils "github.com/cloudwego/eino/components/tool/utils"
@@ -233,26 +235,19 @@ func TestReadOnlyToolsExecuteInParallel(t *testing.T) {
 func TestSerialToolsWithOverlappingPathsAreSerialized(t *testing.T) {
 	ctx := core.WithRunID(context.Background(), "run-1")
 
-	// firstDone is closed when the first tool completes.
-	// secondStarted records whether the second tool started before the first finished.
-	firstDone := make(chan struct{})
-	secondStartedEarly := make(chan struct{}, 1)
+	// active counts tools currently inside their body; overlapped records
+	// whether two tools were ever inside at the same time.
+	var active atomic.Int32
+	var overlapped atomic.Bool
 
 	makeBlockingSerialTool := func(name string) einotool.BaseTool {
 		tool, _ := toolutils.InferTool(name, name, func(ctx context.Context, args map[string]any) (string, error) {
-			// If this is the second tool to run and the first hasn't finished,
-			// signal that the scheduler failed to serialize.
-			select {
-			case <-firstDone:
-				// first already finished — serialization is working
-			default:
-				select {
-				case secondStartedEarly <- struct{}{}:
-				default:
-				}
+			if active.Add(1) > 1 {
+				overlapped.Store(true)
 			}
-			// Block briefly so the two calls would overlap if not serialized.
-			<-firstDone
+			defer active.Add(-1)
+			// Stay inside long enough that unserialized calls would overlap.
+			time.Sleep(20 * time.Millisecond)
 			return "ok", nil
 		})
 		return tool
@@ -272,9 +267,6 @@ func TestSerialToolsWithOverlappingPathsAreSerialized(t *testing.T) {
 	executor.Submit(toolCall("call-1", "serial_a", `{"path":"foo.txt"}`))
 	executor.Submit(toolCall("call-2", "serial_b", `{"path":"foo.txt"}`))
 
-	// Unblock the first tool so both can complete.
-	go close(firstDone)
-
 	results, err := executor.GetRemainingResults(ctx)
 	if err != nil {
 		t.Fatalf("GetRemainingResults: %v", err)
@@ -282,10 +274,8 @@ func TestSerialToolsWithOverlappingPathsAreSerialized(t *testing.T) {
 	if len(results) != 2 {
 		t.Fatalf("expected 2 results, got %d", len(results))
 	}
-	select {
-	case <-secondStartedEarly:
+	if overlapped.Load() {
 		t.Fatal("second tool started before first finished — paths should be serialized")
-	default:
 	}
 }
 

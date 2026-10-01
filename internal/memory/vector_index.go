@@ -224,7 +224,7 @@ func vectorToJSON(v []float32) string {
 		if i > 0 {
 			b.WriteByte(',')
 		}
-		b.WriteString(fmt.Sprintf("%g", f))
+		fmt.Fprintf(&b, "%g", f)
 	}
 	b.WriteByte(']')
 	return b.String()

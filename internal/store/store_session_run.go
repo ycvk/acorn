@@ -11,8 +11,8 @@ import (
 	"github.com/ycvk/acorn/internal/core"
 )
 
-func (s *Store) HasAssistantMessageForRunContent(runID, content string) (bool, error) {
-	row := s.db.QueryRow(`SELECT COUNT(1) FROM session_messages WHERE run_id = ? AND role = 'assistant' AND content = ?`, runID, content)
+func (s *Store) hasAssistantMessageForRunContent(ctx context.Context, runID, content string) (bool, error) {
+	row := s.db.QueryRowContext(ctx, `SELECT COUNT(1) FROM session_messages WHERE run_id = ? AND role = 'assistant' AND content = ?`, runID, content)
 	var count int
 	if err := row.Scan(&count); err != nil {
 		return false, fmt.Errorf("assistant message for run: %w", err)
@@ -47,7 +47,7 @@ func (s *Store) syncAssistantMessageForRun(ctx context.Context, runID string, st
 	if strings.TrimSpace(content) == "" {
 		return nil
 	}
-	exists, err := s.HasAssistantMessageForRunContent(runID, content)
+	exists, err := s.hasAssistantMessageForRunContent(ctx, runID, content)
 	if err != nil {
 		return err
 	}

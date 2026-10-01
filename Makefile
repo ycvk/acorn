@@ -59,7 +59,7 @@ vet:
 
 lint:
 ifndef GOLANGCI_LINT
-	$(error golangci-lint not found — install: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest)
+	$(error golangci-lint not found — install: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest)
 endif
 	golangci-lint run ./...
 

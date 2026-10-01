@@ -74,7 +74,7 @@ func RenderActiveFacts(facts []Entry) string {
 	var b strings.Builder
 	b.WriteString("## Active Memory (your persistent facts — always visible)\n")
 	for _, f := range facts {
-		b.WriteString(fmt.Sprintf("- %s\n", f.Content))
+		fmt.Fprintf(&b, "- %s\n", f.Content)
 	}
 	return b.String()
 }
