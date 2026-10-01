@@ -12,14 +12,14 @@ func TestRenderSkillsCheckUsesHealthReport(t *testing.T) {
 		Status: skills.HealthFailed,
 		Failures: []skills.HealthFailure{{
 			Kind:    skills.HealthFailureEligibility,
-			SkillID: "skill.procedure.curator",
+			SkillID: "skill.memory.triage",
 			Message: "missing_required_tools:memory_search",
 		}},
 	})
 
 	for _, want := range []string{
 		"Status: failed",
-		"failure eligibility: skill.procedure.curator: missing_required_tools:memory_search",
+		"failure eligibility: skill.memory.triage: missing_required_tools:memory_search",
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("renderSkillsCheck missing %q:\n%s", want, body)
