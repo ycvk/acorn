@@ -543,6 +543,7 @@ func TestNormalizePendingActionKind(t *testing.T) {
 	}{
 		{core.PendingActionKindElicitation, core.PendingActionKindElicitation, false},
 		{core.PendingActionKindOperatorQuestion, core.PendingActionKindOperatorQuestion, false},
+		{core.PendingActionKindToolApproval, core.PendingActionKindToolApproval, false},
 		{"  elicitation  ", core.PendingActionKindElicitation, false},
 		{"invalid", "", true},
 		{"", "", true},

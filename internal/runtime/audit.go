@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -62,11 +63,10 @@ func (t *auditedTool) run(ctx context.Context, argumentsInJSON string, emit tool
 	if t.validator != nil {
 		validationErrors, validateErr := t.validator.validate(argumentsInJSON)
 		if validateErr != nil {
-			return validateErr.Error(), fmt.Errorf("validate arguments for %q: %w", t.spec.Name, validateErr)
+			return "", fmt.Errorf("validate arguments for %q: %w", t.spec.Name, validateErr)
 		}
 		if len(validationErrors) > 0 {
-			output := formatValidationError(t.spec.Name, validationErrors)
-			return output, fmt.Errorf("tool %q argument validation failed", t.spec.Name)
+			return "", errors.New(formatValidationError(t.spec.Name, validationErrors))
 		}
 	}
 

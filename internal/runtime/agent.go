@@ -51,6 +51,7 @@ func buildAgentRunner(ctx context.Context, deps RuntimeDeps, req agentRunnerRequ
 		ToolsConfig: adk.ToolsConfig{ToolsNodeConfig: compose.ToolsNodeConfig{
 			Tools:               eager,
 			ExecuteSequentially: true,
+			UnknownToolsHandler: unknownToolResult,
 		}},
 		MaxIterations: deps.Config.Agent.MaxIterations,
 		Handlers:      handlers,
@@ -132,7 +133,10 @@ func buildAgentHandlers(ctx context.Context, deps RuntimeDeps, chatModel einomod
 		}
 		handlers = append(handlers, search)
 	}
-	handlers = append(handlers, approval)
+	// Earlier handlers wrap later ones. Approval sits outside the tool error
+	// handler so a failure to record an approval fails the run instead of
+	// reaching the model as an ordinary tool error.
+	handlers = append(handlers, approval, newToolErrorMiddleware())
 	return append(handlers, deps.Handlers...), nil
 }
 

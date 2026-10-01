@@ -64,18 +64,21 @@ func TestBuildAgentHandlersOrder(t *testing.T) {
 	if err != nil {
 		t.Fatalf("handlers: %v", err)
 	}
-	if len(withoutDeferred) != 4 {
-		t.Fatalf("handlers without deferred tools = %d, want patch, summarize, reduce, approval", len(withoutDeferred))
+	if len(withoutDeferred) != 5 {
+		t.Fatalf("handlers without deferred tools = %d, want patch, summarize, reduce, tool errors, approval", len(withoutDeferred))
 	}
-	if _, ok := withoutDeferred[len(withoutDeferred)-1].(*approvalMiddleware); !ok {
-		t.Fatalf("approval must be the last built-in handler, got %T", withoutDeferred[len(withoutDeferred)-1])
+	if _, ok := withoutDeferred[3].(*approvalMiddleware); !ok {
+		t.Fatalf("approval must wrap the tool error handler, got %T at index 3", withoutDeferred[3])
+	}
+	if _, ok := withoutDeferred[4].(*toolErrorMiddleware); !ok {
+		t.Fatalf("tool error handler must be innermost, got %T at index 4", withoutDeferred[4])
 	}
 
 	withDeferred, err := buildAgentHandlers(context.Background(), deps, model, []einotool.BaseTool{namedTool{"web_fetch"}})
 	if err != nil {
 		t.Fatalf("handlers: %v", err)
 	}
-	if len(withDeferred) != 5 {
+	if len(withDeferred) != 6 {
 		t.Fatalf("handlers with deferred tools = %d, want tool search added", len(withDeferred))
 	}
 }
