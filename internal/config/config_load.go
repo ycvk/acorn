@@ -12,8 +12,8 @@ import (
 )
 
 func Load(path string) (*Config, error) {
-	if path == "" {
-		path = "configs/acorn.example.yaml"
+	if strings.TrimSpace(path) == "" {
+		return nil, errors.New("config path is required")
 	}
 	path = expandHome(path)
 

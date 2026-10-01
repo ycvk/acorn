@@ -231,3 +231,9 @@ mcp:
 		t.Errorf("storage_dir = %q, want %q", cfg.Runtime.StorageDir, want)
 	}
 }
+
+func TestLoadRejectsEmptyPath(t *testing.T) {
+	if _, err := Load("  "); err == nil {
+		t.Fatal("Load with empty path must fail instead of falling back to a repo-relative example config")
+	}
+}
