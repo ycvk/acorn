@@ -347,13 +347,6 @@ type Toolset struct {
 	closers []io.Closer
 }
 
-func (t Toolset) All() []einotool.BaseTool {
-	if t.catalog == nil {
-		return nil
-	}
-	return t.catalog.Tools()
-}
-
 func (t Toolset) Catalog() *tools.Catalog {
 	return t.catalog
 }

@@ -200,8 +200,7 @@ type HistoryEvent struct {
 	Timestamp    time.Time
 }
 
-// Record is the simplified V2 memory record. Procedure records, relations,
-// evidence_refs, and validity windows have been removed.
+// Record is the V2 memory record.
 type Record struct {
 	Ref         string
 	Kind        Kind

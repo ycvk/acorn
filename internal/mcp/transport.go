@@ -32,7 +32,7 @@ func NormalizeProviderTransport(transport string) string {
 //
 // SSEClientTransport does not support OAuth in go-sdk v1.5.0 (no OAuthHandler
 // field), so OAuth on SSE is rejected. Stdio+OAuth is also rejected per D-05.
-func NewTransportWithStore(cfg ProviderConfig, store core.ArtifactStore, onAuthStatusChanged ...func(status string)) (transport mcp.Transport, cleanup func(), metadata TransportMetadata, err error) {
+func NewTransportWithStore(cfg core.ProviderConfig, store core.ArtifactStore, onAuthStatusChanged ...func(status string)) (transport mcp.Transport, cleanup func(), metadata TransportMetadata, err error) {
 	transportKind := NormalizeProviderTransport(cfg.Transport)
 	if transportKind == "" {
 		return nil, nil, TransportMetadata{}, fmt.Errorf("provider %s: transport is required", cfg.Name)
@@ -64,7 +64,7 @@ func NewTransportWithStore(cfg ProviderConfig, store core.ArtifactStore, onAuthS
 	}
 }
 
-func buildStdioTransport(cfg ProviderConfig) (mcp.Transport, func(), TransportMetadata, error) {
+func buildStdioTransport(cfg core.ProviderConfig) (mcp.Transport, func(), TransportMetadata, error) {
 	if strings.TrimSpace(cfg.Command) == "" {
 		return nil, nil, TransportMetadata{}, fmt.Errorf("provider %s: command is required for stdio transport", cfg.Name)
 	}
@@ -96,7 +96,7 @@ func buildStdioTransport(cfg ProviderConfig) (mcp.Transport, func(), TransportMe
 	return &mcp.CommandTransport{Command: cmd}, cleanup, TransportMetadata{Kind: "stdio"}, nil
 }
 
-func buildSSETransport(cfg ProviderConfig) (mcp.Transport, func(), TransportMetadata, error) {
+func buildSSETransport(cfg core.ProviderConfig) (mcp.Transport, func(), TransportMetadata, error) {
 	if strings.TrimSpace(cfg.URL) == "" {
 		return nil, nil, TransportMetadata{}, fmt.Errorf("provider %s: url is required for sse transport", cfg.Name)
 	}
@@ -104,7 +104,7 @@ func buildSSETransport(cfg ProviderConfig) (mcp.Transport, func(), TransportMeta
 	return &mcp.SSEClientTransport{Endpoint: cfg.URL}, cleanup, TransportMetadata{Kind: "sse"}, nil
 }
 
-func buildStreamableHTTPTransport(cfg ProviderConfig) (mcp.Transport, func(), TransportMetadata, error) {
+func buildStreamableHTTPTransport(cfg core.ProviderConfig) (mcp.Transport, func(), TransportMetadata, error) {
 	if strings.TrimSpace(cfg.URL) == "" {
 		return nil, nil, TransportMetadata{}, fmt.Errorf("provider %s: url is required for streamable_http transport", cfg.Name)
 	}
@@ -118,7 +118,7 @@ func buildStreamableHTTPTransport(cfg ProviderConfig) (mcp.Transport, func(), Tr
 // buildOAuthTransport creates a StreamableClientTransport with an OAuthHandler
 // for providers configured with auth.type=oauth. The OAuthHandler is backed by
 // the provided token store for token persistence.
-func buildOAuthTransport(cfg ProviderConfig, store core.ArtifactStore, onAuthStatusChanged func(status string)) (mcp.Transport, func(), TransportMetadata, error) {
+func buildOAuthTransport(cfg core.ProviderConfig, store core.ArtifactStore, onAuthStatusChanged func(status string)) (mcp.Transport, func(), TransportMetadata, error) {
 	if strings.TrimSpace(cfg.URL) == "" {
 		return nil, nil, TransportMetadata{}, fmt.Errorf("provider %s: url is required for OAuth streamable_http transport", cfg.Name)
 	}

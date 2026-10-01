@@ -3,12 +3,14 @@ package mcp
 import (
 	"context"
 	"testing"
+
+	"github.com/ycvk/acorn/internal/core"
 )
 
 func TestAuthStatusTransitionOnOAuthConnect(t *testing.T) {
 	binary := buildFixtureServer(t)
 
-	mgr, err := NewManager(context.Background(), []ProviderConfig{{
+	mgr, err := NewManager(context.Background(), []core.ProviderConfig{{
 		Name:                  "provider",
 		Enabled:               true,
 		Transport:             "stdio",
@@ -35,7 +37,7 @@ func TestAuthStatusTransitionOnOAuthConnect(t *testing.T) {
 func TestAuthStatusExpiredOnReconnectWithExpiredToken(t *testing.T) {
 	binary := buildFixtureServer(t)
 
-	mgr, err := NewManager(context.Background(), []ProviderConfig{{
+	mgr, err := NewManager(context.Background(), []core.ProviderConfig{{
 		Name:                  "provider",
 		Enabled:               true,
 		Transport:             "stdio",
@@ -65,7 +67,7 @@ func TestAuthStatusExpiredOnReconnectWithExpiredToken(t *testing.T) {
 func TestAuthStatusNoDuplicateTransition(t *testing.T) {
 	binary := buildFixtureServer(t)
 
-	mgr, err := NewManager(context.Background(), []ProviderConfig{{
+	mgr, err := NewManager(context.Background(), []core.ProviderConfig{{
 		Name:                  "fixture",
 		Enabled:               true,
 		Transport:             "stdio",

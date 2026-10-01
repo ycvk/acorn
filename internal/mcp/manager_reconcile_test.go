@@ -15,7 +15,7 @@ import (
 func TestReconcileProvidersAddsNewProvider(t *testing.T) {
 	binary := buildFixtureServer(t)
 
-	cfg := ProviderConfig{
+	cfg := core.ProviderConfig{
 		Name:                  "alpha",
 		Enabled:               true,
 		Transport:             "stdio",
@@ -23,7 +23,7 @@ func TestReconcileProvidersAddsNewProvider(t *testing.T) {
 		StartupTimeoutSeconds: 10,
 	}
 
-	mgr, err := NewManager(context.Background(), []ProviderConfig{cfg})
+	mgr, err := NewManager(context.Background(), []core.ProviderConfig{cfg})
 	if err != nil {
 		t.Fatalf("NewManager: %v", err)
 	}
@@ -34,7 +34,7 @@ func TestReconcileProvidersAddsNewProvider(t *testing.T) {
 		t.Fatalf("initial status count = %d, want %d", got, want)
 	}
 
-	err = mgr.ReconcileProviders(context.Background(), []ProviderConfig{
+	err = mgr.ReconcileProviders(context.Background(), []core.ProviderConfig{
 		cfg,
 		{
 			Name:                  "beta",
@@ -71,7 +71,7 @@ func TestReconcileProvidersAddsNewProvider(t *testing.T) {
 func TestReconcileProvidersRemovesProvider(t *testing.T) {
 	binary := buildFixtureServer(t)
 
-	mgr, err := NewManager(context.Background(), []ProviderConfig{
+	mgr, err := NewManager(context.Background(), []core.ProviderConfig{
 		{
 			Name:                  "alpha",
 			Enabled:               true,
@@ -92,7 +92,7 @@ func TestReconcileProvidersRemovesProvider(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = mgr.Close() })
 
-	err = mgr.ReconcileProviders(context.Background(), []ProviderConfig{{
+	err = mgr.ReconcileProviders(context.Background(), []core.ProviderConfig{{
 		Name:                  "alpha",
 		Enabled:               true,
 		Transport:             "stdio",
@@ -116,7 +116,7 @@ func TestReconcileProvidersRemovesProvider(t *testing.T) {
 func TestReconcileProvidersRestartsChangedProvider(t *testing.T) {
 	binary := buildFixtureServer(t)
 
-	mgr, err := NewManager(context.Background(), []ProviderConfig{{
+	mgr, err := NewManager(context.Background(), []core.ProviderConfig{{
 		Name:                  "alpha",
 		Enabled:               true,
 		Transport:             "stdio",
@@ -133,7 +133,7 @@ func TestReconcileProvidersRestartsChangedProvider(t *testing.T) {
 		t.Fatal("expected tools from initial provider")
 	}
 
-	err = mgr.ReconcileProviders(context.Background(), []ProviderConfig{{
+	err = mgr.ReconcileProviders(context.Background(), []core.ProviderConfig{{
 		Name:                  "alpha",
 		Enabled:               true,
 		Transport:             "stdio",
@@ -165,12 +165,12 @@ func TestReconcileProvidersPreservesUnchangedSlots(t *testing.T) {
 	t.Cleanup(func() { connectProviderFunc = origFunc })
 
 	var connectCalls atomic.Int32
-	connectProviderFunc = func(ctx context.Context, cfg ProviderConfig, opts *mcp.ClientOptions, store core.ArtifactStore, onAuthStatusChanged func(status string)) (*provider, error) {
+	connectProviderFunc = func(ctx context.Context, cfg core.ProviderConfig, opts *mcp.ClientOptions, store core.ArtifactStore, onAuthStatusChanged func(status string)) (*provider, error) {
 		connectCalls.Add(1)
 		return connectProvider(ctx, cfg, opts, store, onAuthStatusChanged)
 	}
 
-	mgr, err := NewManager(context.Background(), []ProviderConfig{
+	mgr, err := NewManager(context.Background(), []core.ProviderConfig{
 		{
 			Name:                  "alpha",
 			Enabled:               true,
@@ -193,7 +193,7 @@ func TestReconcileProvidersPreservesUnchangedSlots(t *testing.T) {
 
 	initialConnectCalls := connectCalls.Load()
 
-	err = mgr.ReconcileProviders(context.Background(), []ProviderConfig{
+	err = mgr.ReconcileProviders(context.Background(), []core.ProviderConfig{
 		{
 			Name:                  "alpha",
 			Enabled:               true,
@@ -231,7 +231,7 @@ func TestReconcileProvidersPreservesUnchangedSlots(t *testing.T) {
 func TestReconcileProvidersDeterministicOrder(t *testing.T) {
 	binary := buildFixtureServer(t)
 
-	mgr, err := NewManager(context.Background(), []ProviderConfig{
+	mgr, err := NewManager(context.Background(), []core.ProviderConfig{
 		{
 			Name:                  "alpha",
 			Enabled:               true,
@@ -252,7 +252,7 @@ func TestReconcileProvidersDeterministicOrder(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = mgr.Close() })
 
-	err = mgr.ReconcileProviders(context.Background(), []ProviderConfig{
+	err = mgr.ReconcileProviders(context.Background(), []core.ProviderConfig{
 		{
 			Name:                  "alpha",
 			Enabled:               true,
@@ -299,7 +299,7 @@ func TestReconcileProvidersRestartFailureReturnsError(t *testing.T) {
 	t.Cleanup(func() { connectProviderFunc = origFunc })
 
 	var connectCalls atomic.Int32
-	connectProviderFunc = func(ctx context.Context, cfg ProviderConfig, opts *mcp.ClientOptions, store core.ArtifactStore, onAuthStatusChanged func(status string)) (*provider, error) {
+	connectProviderFunc = func(ctx context.Context, cfg core.ProviderConfig, opts *mcp.ClientOptions, store core.ArtifactStore, onAuthStatusChanged func(status string)) (*provider, error) {
 		connectCalls.Add(1)
 		if connectCalls.Load() == 2 {
 			return nil, errors.New("restart connection failed")
@@ -307,7 +307,7 @@ func TestReconcileProvidersRestartFailureReturnsError(t *testing.T) {
 		return connectProvider(ctx, cfg, opts, store, onAuthStatusChanged)
 	}
 
-	mgr, err := NewManager(context.Background(), []ProviderConfig{{
+	mgr, err := NewManager(context.Background(), []core.ProviderConfig{{
 		Name:                  "alpha",
 		Enabled:               true,
 		Transport:             "stdio",
@@ -319,7 +319,7 @@ func TestReconcileProvidersRestartFailureReturnsError(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = mgr.Close() })
 
-	err = mgr.ReconcileProviders(context.Background(), []ProviderConfig{{
+	err = mgr.ReconcileProviders(context.Background(), []core.ProviderConfig{{
 		Name:                  "alpha",
 		Enabled:               true,
 		Transport:             "stdio",

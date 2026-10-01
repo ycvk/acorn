@@ -18,9 +18,8 @@ import (
 )
 
 // SafeParallelToolsNode dispatches tool calls with safety-aware parallelism.
-// It classifies each tool call by its ToolSafety level and detects path
-// conflicts for WriteScoped tools, then executes safe calls in parallel
-// while serializing conflicting or NeverParallel calls.
+// read_only calls run in parallel; serial calls with a PathArg run in parallel
+// only when their paths do not overlap; serial calls without paths run alone.
 type SafeParallelToolsNode struct {
 	tools     map[string]toolEntry
 	scheduler *toolExecutionScheduler

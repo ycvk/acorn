@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/ycvk/acorn/internal/core"
 )
 
 func TestListPromptsToolInfo(t *testing.T) {
@@ -29,7 +29,7 @@ func TestListPromptsToolInfo(t *testing.T) {
 
 func TestListPromptsToolInvokableRun(t *testing.T) {
 	binary := buildFixtureServer(t)
-	mgr, err := NewManager(context.Background(), []ProviderConfig{{
+	mgr, err := NewManager(context.Background(), []core.ProviderConfig{{
 		Name:                  "fixture",
 		Enabled:               true,
 		Transport:             "stdio",
@@ -92,7 +92,7 @@ func TestGetPromptToolInfo(t *testing.T) {
 
 func TestGetPromptToolInvokableRun(t *testing.T) {
 	binary := buildFixtureServer(t)
-	mgr, err := NewManager(context.Background(), []ProviderConfig{{
+	mgr, err := NewManager(context.Background(), []core.ProviderConfig{{
 		Name:                  "fixture",
 		Enabled:               true,
 		Transport:             "stdio",
@@ -137,7 +137,7 @@ func TestGetPromptToolInvokableRun(t *testing.T) {
 
 func TestGetPromptToolWithArguments(t *testing.T) {
 	binary := buildFixtureServer(t)
-	mgr, err := NewManager(context.Background(), []ProviderConfig{{
+	mgr, err := NewManager(context.Background(), []core.ProviderConfig{{
 		Name:                  "fixture",
 		Enabled:               true,
 		Transport:             "stdio",
@@ -183,7 +183,7 @@ func TestGetPromptToolMissingName(t *testing.T) {
 
 func TestBuildPromptTools(t *testing.T) {
 	binary := buildFixtureServer(t)
-	mgr, err := NewManager(context.Background(), []ProviderConfig{{
+	mgr, err := NewManager(context.Background(), []core.ProviderConfig{{
 		Name:                  "fixture",
 		Enabled:               true,
 		Transport:             "stdio",
@@ -223,7 +223,7 @@ func TestBuildPromptTools(t *testing.T) {
 
 func TestManagerPromptToolsExposeProviderTools(t *testing.T) {
 	binary := buildFixtureServer(t)
-	mgr, err := NewManager(context.Background(), []ProviderConfig{{
+	mgr, err := NewManager(context.Background(), []core.ProviderConfig{{
 		Name:                  "fixture",
 		Enabled:               true,
 		Transport:             "stdio",
@@ -267,7 +267,7 @@ func TestGetPromptToolWithSessionError(t *testing.T) {
 
 func TestListPromptsToolCallsSessionListPrompts(t *testing.T) {
 	binary := buildFixtureServer(t)
-	mgr, err := NewManager(context.Background(), []ProviderConfig{{
+	mgr, err := NewManager(context.Background(), []core.ProviderConfig{{
 		Name:                  "fixture",
 		Enabled:               true,
 		Transport:             "stdio",
@@ -296,7 +296,7 @@ func TestListPromptsToolCallsSessionListPrompts(t *testing.T) {
 
 func TestGetPromptToolCallsSessionGetPrompt(t *testing.T) {
 	binary := buildFixtureServer(t)
-	mgr, err := NewManager(context.Background(), []ProviderConfig{{
+	mgr, err := NewManager(context.Background(), []core.ProviderConfig{{
 		Name:                  "fixture",
 		Enabled:               true,
 		Transport:             "stdio",
@@ -322,26 +322,4 @@ func TestGetPromptToolCallsSessionGetPrompt(t *testing.T) {
 	if !strings.Contains(result, "test prompt") {
 		t.Fatalf("result should contain prompt content, got: %s", result)
 	}
-}
-
-// Verify that PromptRegistrations has the expected Session field type
-func TestPromptRegistrationSessionType(t *testing.T) {
-	binary := buildFixtureServer(t)
-	mgr, err := NewManager(context.Background(), []ProviderConfig{{
-		Name:                  "fixture",
-		Enabled:               true,
-		Transport:             "stdio",
-		Command:               binary,
-		StartupTimeoutSeconds: 10,
-	}})
-	if err != nil {
-		t.Fatalf("new manager: %v", err)
-	}
-	t.Cleanup(func() { _ = mgr.Close() })
-
-	regs := mgr.PromptRegistrations()
-	if len(regs) == 0 {
-		t.Fatal("expected prompt registrations")
-	}
-	var _ *mcp.ClientSession = regs[0].Session
 }

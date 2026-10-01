@@ -7,6 +7,7 @@ import (
 
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/schema"
+	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/store"
 )
 
@@ -36,7 +37,7 @@ func TestNewManagerBindsSamplingHandlerOnInitialConnect(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = db.Close() })
 
-	mgr, err := NewManager(context.Background(), []ProviderConfig{{
+	mgr, err := NewManager(context.Background(), []core.ProviderConfig{{
 		Name:                  "fixture",
 		Enabled:               true,
 		Transport:             "stdio",

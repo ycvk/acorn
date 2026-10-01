@@ -3,7 +3,6 @@ package tools
 import (
 	"context"
 
-	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/webaccess"
 	"github.com/ycvk/acorn/internal/workspace"
 )
@@ -23,10 +22,6 @@ type WorkspaceView interface {
 	RollbackMutationCheckpoint(ctx context.Context, checkpointID string) (*workspace.WorkspaceRollbackResult, error)
 	InspectGitStatus(ctx context.Context, scopedPath string) (*workspace.WorkspaceGitStatus, error)
 }
-
-// ArtifactService is the artifact read/write contract used by tool builders.
-// Alias to core.ArtifactService so both packages share a single definition.
-type ArtifactService = core.ArtifactService
 
 // WebFetchService is the subset of web fetch operations required by tool builders.
 type WebFetchService interface {

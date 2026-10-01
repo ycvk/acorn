@@ -13,7 +13,6 @@ import (
 
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
-	mcpprovider "github.com/ycvk/acorn/internal/mcp"
 	mem "github.com/ycvk/acorn/internal/memory"
 	"github.com/ycvk/acorn/internal/skills"
 )
@@ -171,8 +170,8 @@ func TestClientResourceSurfaceHandlers(t *testing.T) {
 				Eligible: true,
 			}}}, nil
 		},
-		func(context.Context, []mcpprovider.ProviderConfig) []mcpprovider.ProviderStatus {
-			return []mcpprovider.ProviderStatus{{
+		func(context.Context, []core.ProviderConfig) []core.ProviderInfo {
+			return []core.ProviderInfo{{
 				Name:                "fixture",
 				Configured:          true,
 				Enabled:             true,

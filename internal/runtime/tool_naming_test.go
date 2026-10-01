@@ -11,7 +11,6 @@ import (
 	"github.com/cloudwego/eino/schema"
 
 	"github.com/ycvk/acorn/internal/core"
-	mcpprovider "github.com/ycvk/acorn/internal/mcp"
 	"github.com/ycvk/acorn/internal/tools"
 )
 
@@ -140,7 +139,7 @@ func TestMCPNamespacedToolInvokableRunDelegatesToInner(t *testing.T) {
 }
 
 func TestBuildCapabilityRegistryMCPNamespace(t *testing.T) {
-	registrations := []mcpprovider.ToolRegistration{
+	registrations := []mcpToolRegistration{
 		{ProviderName: "github", Tool: namingStubTool{name: "search_issues", desc: "Search issues"}},
 		{ProviderName: "notion", Tool: namingStubTool{name: "create_page", desc: "Create a page"}},
 	}
@@ -189,7 +188,7 @@ func TestBuildCapabilityRegistryCrossProviderDuplicateDisambiguated(t *testing.T
 	// Two MCP providers expose the same tool name "search".
 	// After namespacing, they become mcp__github__search and mcp__notion__search,
 	// which are distinct — the registry should build successfully.
-	registrations := []mcpprovider.ToolRegistration{
+	registrations := []mcpToolRegistration{
 		{ProviderName: "github", Tool: namingStubTool{name: "search", desc: "Search GitHub"}},
 		{ProviderName: "notion", Tool: namingStubTool{name: "search", desc: "Search Notion"}},
 	}
@@ -242,7 +241,7 @@ func (t failingInfoTool) Info(context.Context) (*schema.ToolInfo, error) {
 }
 
 func TestBuildCapabilityRegistryMCPInfoError(t *testing.T) {
-	registrations := []mcpprovider.ToolRegistration{
+	registrations := []mcpToolRegistration{
 		{ProviderName: "broken", Tool: failingInfoTool{message: "info unavailable"}},
 	}
 	_, err := buildCapabilityRegistryForTest(context.Background(), nil, registrations, nil, nil)
@@ -257,7 +256,7 @@ func TestBuildCapabilityRegistryMCPInfoError(t *testing.T) {
 func buildCapabilityRegistryForTest(
 	ctx context.Context,
 	localTools []einotool.BaseTool,
-	registrations []mcpprovider.ToolRegistration,
+	registrations []mcpToolRegistration,
 	resourceTools []einotool.BaseTool,
 	promptTools []einotool.BaseTool,
 ) (*tools.Catalog, error) {
@@ -326,4 +325,10 @@ func toolNamingContract(
 		Loading:   loading,
 		Execution: core.ToolExecutionPolicy{ParallelPolicy: core.ParallelPolicyReadOnly},
 	}
+}
+
+// mcpToolRegistration pairs a discovered MCP tool with its provider name.
+type mcpToolRegistration struct {
+	ProviderName string
+	Tool         einotool.BaseTool
 }

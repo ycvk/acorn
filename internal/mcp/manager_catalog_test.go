@@ -15,7 +15,7 @@ import (
 func TestRefreshProviderCatalogRefreshesOnlyAffectedProvider(t *testing.T) {
 	binary := buildFixtureServer(t)
 
-	mgr, err := NewManager(context.Background(), []ProviderConfig{
+	mgr, err := NewManager(context.Background(), []core.ProviderConfig{
 		{
 			Name:                  "alpha",
 			Enabled:               true,
@@ -51,7 +51,7 @@ func TestRefreshProviderCatalogRefreshesOnlyAffectedProvider(t *testing.T) {
 func TestRefreshProviderCatalogCopyOnWriteSafety(t *testing.T) {
 	binary := buildFixtureServer(t)
 
-	mgr, err := NewManager(context.Background(), []ProviderConfig{{
+	mgr, err := NewManager(context.Background(), []core.ProviderConfig{{
 		Name:                  "alpha",
 		Enabled:               true,
 		Transport:             "stdio",
@@ -103,7 +103,7 @@ func TestRefreshProviderCatalogCopyOnWriteSafety(t *testing.T) {
 func TestRefreshProviderCatalogFailurePreservesOldTools(t *testing.T) {
 	binary := buildFixtureServer(t)
 
-	mgr, err := NewManager(context.Background(), []ProviderConfig{{
+	mgr, err := NewManager(context.Background(), []core.ProviderConfig{{
 		Name:                  "alpha",
 		Enabled:               true,
 		Transport:             "stdio",
@@ -156,7 +156,7 @@ func TestRefreshProviderCatalogFailurePreservesOldTools(t *testing.T) {
 
 func TestManagerResourcesAndPrompts(t *testing.T) {
 	binary := buildFixtureServer(t)
-	mgr, err := NewManager(context.Background(), []ProviderConfig{{
+	mgr, err := NewManager(context.Background(), []core.ProviderConfig{{
 		Name:                  "fixture",
 		Enabled:               true,
 		Transport:             "stdio",
@@ -187,7 +187,7 @@ func TestManagerResourcesAndPrompts(t *testing.T) {
 
 func TestManagerResourceRegistrations(t *testing.T) {
 	binary := buildFixtureServer(t)
-	mgr, err := NewManager(context.Background(), []ProviderConfig{{
+	mgr, err := NewManager(context.Background(), []core.ProviderConfig{{
 		Name:                  "fixture",
 		Enabled:               true,
 		Transport:             "stdio",
@@ -216,7 +216,7 @@ func TestManagerResourceRegistrations(t *testing.T) {
 
 func TestManagerPromptRegistrations(t *testing.T) {
 	binary := buildFixtureServer(t)
-	mgr, err := NewManager(context.Background(), []ProviderConfig{{
+	mgr, err := NewManager(context.Background(), []core.ProviderConfig{{
 		Name:                  "fixture",
 		Enabled:               true,
 		Transport:             "stdio",
@@ -246,12 +246,12 @@ func TestManagerPromptRegistrations(t *testing.T) {
 func TestProviderStatusAuthStatus(t *testing.T) {
 	tests := []struct {
 		name       string
-		cfg        ProviderConfig
+		cfg        core.ProviderConfig
 		wantStatus string
 	}{
 		{
 			name: "stdio_transport_gets_env_auth_status",
-			cfg: ProviderConfig{
+			cfg: core.ProviderConfig{
 				Name:                  "stdio_prov",
 				Enabled:               true,
 				Transport:             "stdio",
@@ -262,13 +262,13 @@ func TestProviderStatusAuthStatus(t *testing.T) {
 		},
 		{
 			name: "oauth_on_sse_gets_none_initially",
-			cfg: ProviderConfig{
+			cfg: core.ProviderConfig{
 				Name:                  "oauth_prov",
 				Enabled:               true,
 				Transport:             "sse",
 				URL:                   "http://localhost/sse",
 				StartupTimeoutSeconds: 10,
-				Auth: AuthConfig{
+				Auth: core.AuthConfig{
 					Type:     "oauth",
 					ClientID: "my-client",
 				},
@@ -277,7 +277,7 @@ func TestProviderStatusAuthStatus(t *testing.T) {
 		},
 		{
 			name: "sse_without_auth_gets_none",
-			cfg: ProviderConfig{
+			cfg: core.ProviderConfig{
 				Name:                  "sse_noauth",
 				Enabled:               true,
 				Transport:             "sse",
@@ -303,14 +303,14 @@ func TestManagerResourcesFromHealthyProvidersOnly(t *testing.T) {
 	origFunc := connectProviderFunc
 	t.Cleanup(func() { connectProviderFunc = origFunc })
 
-	connectProviderFunc = func(ctx context.Context, cfg ProviderConfig, opts *mcp.ClientOptions, store core.ArtifactStore, onAuthStatusChanged func(status string)) (*provider, error) {
+	connectProviderFunc = func(ctx context.Context, cfg core.ProviderConfig, opts *mcp.ClientOptions, store core.ArtifactStore, onAuthStatusChanged func(status string)) (*provider, error) {
 		if cfg.Name == "broken" {
 			return nil, errors.New("connection failed")
 		}
 		return connectProvider(ctx, cfg, opts, store, onAuthStatusChanged)
 	}
 
-	mgr, err := NewManager(context.Background(), []ProviderConfig{
+	mgr, err := NewManager(context.Background(), []core.ProviderConfig{
 		{
 			Name:                  "healthy",
 			Enabled:               true,
@@ -361,7 +361,7 @@ func TestManagerNilReturnsEmpty(t *testing.T) {
 func TestRefreshProviderCatalogByTypeUpdatesResourceAndPromptCatalog(t *testing.T) {
 	binary := buildFixtureServer(t)
 
-	mgr, err := NewManager(context.Background(), []ProviderConfig{{
+	mgr, err := NewManager(context.Background(), []core.ProviderConfig{{
 		Name:                  "fixture",
 		Enabled:               true,
 		Transport:             "stdio",
@@ -391,7 +391,7 @@ func TestRefreshProviderCatalogByTypeUpdatesResourceAndPromptCatalog(t *testing.
 func TestRefreshProviderCatalogResourcesCopyOnWrite(t *testing.T) {
 	binary := buildFixtureServer(t)
 
-	mgr, err := NewManager(context.Background(), []ProviderConfig{{
+	mgr, err := NewManager(context.Background(), []core.ProviderConfig{{
 		Name:                  "fixture",
 		Enabled:               true,
 		Transport:             "stdio",
@@ -421,7 +421,7 @@ func TestRefreshProviderCatalogResourcesCopyOnWrite(t *testing.T) {
 func TestRefreshProviderCatalogByTypeUnknownProvider(t *testing.T) {
 	binary := buildFixtureServer(t)
 
-	mgr, err := NewManager(context.Background(), []ProviderConfig{{
+	mgr, err := NewManager(context.Background(), []core.ProviderConfig{{
 		Name:                  "fixture",
 		Enabled:               true,
 		Transport:             "stdio",
@@ -445,7 +445,7 @@ func TestRefreshProviderCatalogByTypeUnknownProvider(t *testing.T) {
 func TestRefreshProviderCatalogByTypeInvalidCatalogType(t *testing.T) {
 	binary := buildFixtureServer(t)
 
-	mgr, err := NewManager(context.Background(), []ProviderConfig{{
+	mgr, err := NewManager(context.Background(), []core.ProviderConfig{{
 		Name:                  "fixture",
 		Enabled:               true,
 		Transport:             "stdio",
@@ -468,7 +468,7 @@ func TestRefreshProviderCatalogByTypeInvalidCatalogType(t *testing.T) {
 
 func TestManagerToolsDoesNotIncludeResourcePromptTools(t *testing.T) {
 	binary := buildFixtureServer(t)
-	mgr, err := NewManager(context.Background(), []ProviderConfig{{
+	mgr, err := NewManager(context.Background(), []core.ProviderConfig{{
 		Name:                  "fixture",
 		Enabled:               true,
 		Transport:             "stdio",
@@ -506,7 +506,7 @@ func TestManagerToolsDoesNotIncludeResourcePromptTools(t *testing.T) {
 
 func TestManagerToolCountReflectsOnlyRegularTools(t *testing.T) {
 	binary := buildFixtureServer(t)
-	mgr, err := NewManager(context.Background(), []ProviderConfig{{
+	mgr, err := NewManager(context.Background(), []core.ProviderConfig{{
 		Name:                  "fixture",
 		Enabled:               true,
 		Transport:             "stdio",

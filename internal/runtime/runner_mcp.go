@@ -73,7 +73,7 @@ func mcpToolSpecBuilder(cfg *config.Config) mcpprovider.ToolSpecBuilder {
 	}
 }
 
-func hasEnabledProviders(cfgs []mcpprovider.ProviderConfig) bool {
+func hasEnabledProviders(cfgs []core.ProviderConfig) bool {
 	for _, cfg := range cfgs {
 		if cfg.Enabled {
 			return true
@@ -83,9 +83,8 @@ func hasEnabledProviders(cfgs []mcpprovider.ProviderConfig) bool {
 }
 
 // mcpManagerCache holds the cached mcpprovider.Manager for a RunnerFactory,
-// reconciled across session overlays. It replaces the former MCPAssembler
-// struct; the factory stays a thin coordinator and the cache is the only piece
-// of MCP manager lifecycle state that needs to outlive a single run.
+// reconciled across session overlays. It is the only piece of MCP manager
+// lifecycle state that needs to outlive a single run.
 type mcpManagerCache struct {
 	mu                 sync.Mutex
 	manager            *mcpprovider.Manager
@@ -110,7 +109,7 @@ func bootstrapRunMCP(ctx context.Context, deps RuntimeDeps, cache *mcpManagerCac
 	return manager, nil
 }
 
-func getOrCreateMCPManager(ctx context.Context, deps RuntimeDeps, cache *mcpManagerCache, providerConfigs []mcpprovider.ProviderConfig, sessionOverlay string) (*mcpprovider.Manager, error) {
+func getOrCreateMCPManager(ctx context.Context, deps RuntimeDeps, cache *mcpManagerCache, providerConfigs []core.ProviderConfig, sessionOverlay string) (*mcpprovider.Manager, error) {
 	cache.mu.Lock()
 	defer cache.mu.Unlock()
 	if cache.manager == nil {
@@ -125,7 +124,7 @@ func getOrCreateMCPManager(ctx context.Context, deps RuntimeDeps, cache *mcpMana
 	return cache.manager, nil
 }
 
-func createMCPManager(ctx context.Context, deps RuntimeDeps, cache *mcpManagerCache, providerConfigs []mcpprovider.ProviderConfig, sessionOverlay string) (*mcpprovider.Manager, error) {
+func createMCPManager(ctx context.Context, deps RuntimeDeps, cache *mcpManagerCache, providerConfigs []core.ProviderConfig, sessionOverlay string) (*mcpprovider.Manager, error) {
 	pendingActionStore := core.SessionStore(deps.Store)
 	if deps.MCPPendingActions != nil {
 		pendingActionStore = deps.MCPPendingActions

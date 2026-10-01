@@ -54,7 +54,6 @@ type SessionStore interface {
 }
 
 // IdentityStore handles device authentication and pairing codes.
-// It replaces the former DeviceRepo.
 type IdentityStore interface {
 	SavePairingCode(ctx context.Context, code *PairingCode) error
 	ConsumePairingCode(ctx context.Context, codeHash string, now time.Time) (*PairingCode, error)

@@ -129,7 +129,7 @@ func (c ToolContract) Validate() error {
 //
 // Factory unifies tool construction for both native and MCP tools: when non-nil,
 // the runtime invokes it to lazily produce the einotool.BaseTool instance.
-// The pre-built Tool field is retained for eager-loaded tools that need no factory.
+// The pre-built Tool field serves eager-loaded tools that need no factory.
 type ToolSpec struct {
 	ToolContract
 	Tool    einotool.BaseTool

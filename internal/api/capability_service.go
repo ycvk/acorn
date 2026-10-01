@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/ycvk/acorn/internal/config"
-	mcpprovider "github.com/ycvk/acorn/internal/mcp"
+	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/runtime"
 	"github.com/ycvk/acorn/internal/skills"
 )
@@ -110,7 +110,7 @@ type SystemMCPProviderCapability struct {
 	AuthStatus          string   `json:"auth_status,omitempty"`
 }
 
-type providerStatusDoctor func(ctx context.Context, cfgs []mcpprovider.ProviderConfig) []mcpprovider.ProviderStatus
+type providerStatusDoctor func(ctx context.Context, cfgs []core.ProviderConfig) []core.ProviderInfo
 
 type CapabilitiesService struct {
 	cfg            *config.Config

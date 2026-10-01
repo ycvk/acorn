@@ -9,8 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"sync/atomic"
-
 	"github.com/cloudwego/eino/adk"
 	einomodel "github.com/cloudwego/eino/components/model"
 	einotool "github.com/cloudwego/eino/components/tool"
@@ -26,10 +24,6 @@ import (
 
 type RunnerFactory struct {
 	deps RuntimeDeps
-
-	registry     *Registry
-	currentRunID atomic.Value
-	runIDMu      sync.Mutex
 
 	runChatModelBuilder func(context.Context, RunnerBuildRequest) (einomodel.BaseChatModel, error)
 	mcpCache            *mcpManagerCache
@@ -88,37 +82,7 @@ func (r *ActiveRunner) Close() error {
 		closeErr = r.CloseRunTools()
 		r.CloseRunTools = nil
 	}
-	if r.Factory != nil && r.RunID != "" {
-		r.Factory.registry.Clear(r.RunID)
-		r.Factory.ClearCurrentRunID(r.RunID)
-	}
 	return closeErr
-}
-
-func (f *RunnerFactory) setCurrentRunID(runID string) {
-	f.runIDMu.Lock()
-	defer f.runIDMu.Unlock()
-	f.currentRunID.Store(runID)
-}
-
-func (f *RunnerFactory) ClearCurrentRunID(runID string) {
-	if runID == "" {
-		return
-	}
-	f.runIDMu.Lock()
-	defer f.runIDMu.Unlock()
-	if f.currentRunIDValue() == runID {
-		f.currentRunID.Store("")
-	}
-}
-
-func (f *RunnerFactory) currentRunIDValue() string {
-	value := f.currentRunID.Load()
-	runID, ok := value.(string)
-	if !ok {
-		return ""
-	}
-	return runID
 }
 
 // Close releases the cached MCP manager.
@@ -243,7 +207,6 @@ func resolveContextPlaneTokenPolicy(cfg *config.Config) (memoryBudget, maxContex
 func assembleRunnerFactory(deps RuntimeDeps) *RunnerFactory {
 	return &RunnerFactory{
 		deps:         deps,
-		registry:     NewRegistry(),
 		mcpCache:     &mcpManagerCache{},
 		toolRegistry: deps.ToolRegistry,
 	}
@@ -312,16 +275,11 @@ func (f *RunnerFactory) buildRun(ctx context.Context, req RunnerBuildRequest) (a
 	if f == nil {
 		return nil, errors.New("runner factory is not initialized")
 	}
-	cleanup, regErr := f.registerRunForBuild(req)
-	if regErr != nil {
-		return nil, regErr
-	}
 	var capabilities *runCapabilities
 	defer func() {
 		if err == nil {
 			return
 		}
-		cleanup()
 		if capabilities != nil {
 			_ = capabilities.Close()
 		}
@@ -372,7 +330,6 @@ func (f *RunnerFactory) newDirectResponseRunner(ctx context.Context, req RunnerB
 		Runner:        agentAssembly.Runner,
 		Instruction:   agentAssembly.Instruction,
 		ChatModel:     chatModel,
-		Factory:       f,
 		ContextResult: contextResult,
 		RunID:         req.RunID,
 		ToolCatalog:   capabilities.catalog,
@@ -410,24 +367,11 @@ type ActiveRunner struct {
 	SelectedSkill  *SelectedSkill
 	Instruction    string
 	ChatModel      einomodel.BaseChatModel
-	Factory        *RunnerFactory
 	ContextResult  *AssembleResult
 	ContextSession Session
 	RunID          string
 	ToolCatalog    *tools.Catalog
 	CloseRunTools  func() error
-}
-
-func (f *RunnerFactory) registerRunForBuild(req RunnerBuildRequest) (func(), error) {
-	rc := &RunContext{RunID: req.RunID, ParentID: strings.TrimSpace("")}
-	if err := f.registry.Register(rc); err != nil {
-		return nil, fmt.Errorf("register run context: %w", err)
-	}
-	f.setCurrentRunID(req.RunID)
-	return func() {
-		f.registry.Clear(req.RunID)
-		f.ClearCurrentRunID(req.RunID)
-	}, nil
 }
 
 func (f *RunnerFactory) buildRunPrerequisites(ctx context.Context, req RunnerBuildRequest) (einomodel.BaseChatModel, *capabilityAssembly, error) {

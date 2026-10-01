@@ -362,13 +362,13 @@ func TestSQLiteOAuthHandler_Authorize_DelegatesMetadataDiscovery(t *testing.T) {
 // --- NewTransport with OAuth tests ---
 
 func TestNewTransport_WithOAuth_SetsHandlerOnStreamableHTTP(t *testing.T) {
-	cfg := ProviderConfig{
+	cfg := core.ProviderConfig{
 		Name:                  "oauth-http",
 		Enabled:               true,
 		Transport:             "streamable_http",
 		URL:                   "http://localhost:8080/mcp",
 		StartupTimeoutSeconds: 10,
-		Auth: AuthConfig{
+		Auth: core.AuthConfig{
 			Type:     "oauth",
 			ClientID: "test-client-id",
 			Scopes:   []string{"read", "write"},
@@ -395,13 +395,13 @@ func TestNewTransport_WithOAuth_SetsHandlerOnStreamableHTTP(t *testing.T) {
 }
 
 func TestNewTransport_WithOAuth_RejectsSSE(t *testing.T) {
-	cfg := ProviderConfig{
+	cfg := core.ProviderConfig{
 		Name:                  "oauth-sse",
 		Enabled:               true,
 		Transport:             "sse",
 		URL:                   "http://localhost:8080/sse",
 		StartupTimeoutSeconds: 10,
-		Auth: AuthConfig{
+		Auth: core.AuthConfig{
 			Type:     "oauth",
 			ClientID: "test-client-id",
 		},
@@ -418,13 +418,13 @@ func TestNewTransport_WithOAuth_RejectsSSE(t *testing.T) {
 }
 
 func TestNewTransport_WithOAuth_RejectsStdio(t *testing.T) {
-	cfg := ProviderConfig{
+	cfg := core.ProviderConfig{
 		Name:                  "oauth-stdio",
 		Enabled:               true,
 		Transport:             "stdio",
 		Command:               "echo",
 		StartupTimeoutSeconds: 10,
-		Auth: AuthConfig{
+		Auth: core.AuthConfig{
 			Type:     "oauth",
 			ClientID: "test-client-id",
 		},
@@ -438,13 +438,13 @@ func TestNewTransport_WithOAuth_RejectsStdio(t *testing.T) {
 }
 
 func TestNewTransport_WithOAuth_MissingClientID(t *testing.T) {
-	cfg := ProviderConfig{
+	cfg := core.ProviderConfig{
 		Name:                  "oauth-no-clientid",
 		Enabled:               true,
 		Transport:             "streamable_http",
 		URL:                   "http://localhost:8080/mcp",
 		StartupTimeoutSeconds: 10,
-		Auth: AuthConfig{
+		Auth: core.AuthConfig{
 			Type:     "oauth",
 			ClientID: "",
 		},
@@ -461,13 +461,13 @@ func TestNewTransport_WithOAuth_MissingClientID(t *testing.T) {
 }
 
 func TestNewTransport_WithOAuth_MissingURL(t *testing.T) {
-	cfg := ProviderConfig{
+	cfg := core.ProviderConfig{
 		Name:                  "oauth-no-url",
 		Enabled:               true,
 		Transport:             "streamable_http",
 		URL:                   "",
 		StartupTimeoutSeconds: 10,
-		Auth: AuthConfig{
+		Auth: core.AuthConfig{
 			Type:     "oauth",
 			ClientID: "test-client-id",
 		},

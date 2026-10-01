@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/ycvk/acorn/internal/core"
 )
 
 func TestListResourcesToolInfo(t *testing.T) {
@@ -29,7 +29,7 @@ func TestListResourcesToolInfo(t *testing.T) {
 
 func TestListResourcesToolInvokableRun(t *testing.T) {
 	binary := buildFixtureServer(t)
-	mgr, err := NewManager(context.Background(), []ProviderConfig{{
+	mgr, err := NewManager(context.Background(), []core.ProviderConfig{{
 		Name:                  "fixture",
 		Enabled:               true,
 		Transport:             "stdio",
@@ -92,7 +92,7 @@ func TestReadResourceToolInfo(t *testing.T) {
 
 func TestReadResourceToolInvokableRun(t *testing.T) {
 	binary := buildFixtureServer(t)
-	mgr, err := NewManager(context.Background(), []ProviderConfig{{
+	mgr, err := NewManager(context.Background(), []core.ProviderConfig{{
 		Name:                  "fixture",
 		Enabled:               true,
 		Transport:             "stdio",
@@ -148,7 +148,7 @@ func TestReadResourceToolMissingURI(t *testing.T) {
 
 func TestBuildResourceTools(t *testing.T) {
 	binary := buildFixtureServer(t)
-	mgr, err := NewManager(context.Background(), []ProviderConfig{{
+	mgr, err := NewManager(context.Background(), []core.ProviderConfig{{
 		Name:                  "fixture",
 		Enabled:               true,
 		Transport:             "stdio",
@@ -189,7 +189,7 @@ func TestBuildResourceTools(t *testing.T) {
 
 func TestManagerResourceToolsExposeProviderTools(t *testing.T) {
 	binary := buildFixtureServer(t)
-	mgr, err := NewManager(context.Background(), []ProviderConfig{{
+	mgr, err := NewManager(context.Background(), []core.ProviderConfig{{
 		Name:                  "fixture",
 		Enabled:               true,
 		Transport:             "stdio",
@@ -235,7 +235,7 @@ func TestReadResourceToolWithSessionError(t *testing.T) {
 // correctly by using a real session from the fixture server.
 func TestListResourcesToolCallsSessionListResources(t *testing.T) {
 	binary := buildFixtureServer(t)
-	mgr, err := NewManager(context.Background(), []ProviderConfig{{
+	mgr, err := NewManager(context.Background(), []core.ProviderConfig{{
 		Name:                  "fixture",
 		Enabled:               true,
 		Transport:             "stdio",
@@ -265,7 +265,7 @@ func TestListResourcesToolCallsSessionListResources(t *testing.T) {
 
 func TestReadResourceToolCallsSessionReadResource(t *testing.T) {
 	binary := buildFixtureServer(t)
-	mgr, err := NewManager(context.Background(), []ProviderConfig{{
+	mgr, err := NewManager(context.Background(), []core.ProviderConfig{{
 		Name:                  "fixture",
 		Enabled:               true,
 		Transport:             "stdio",
@@ -291,26 +291,4 @@ func TestReadResourceToolCallsSessionReadResource(t *testing.T) {
 	if !strings.Contains(result, "hello from resource") {
 		t.Fatalf("result should contain resource content, got: %s", result)
 	}
-}
-
-// Verify that ResourceRegistrations has the expected Session field type
-func TestResourceRegistrationSessionType(t *testing.T) {
-	binary := buildFixtureServer(t)
-	mgr, err := NewManager(context.Background(), []ProviderConfig{{
-		Name:                  "fixture",
-		Enabled:               true,
-		Transport:             "stdio",
-		Command:               binary,
-		StartupTimeoutSeconds: 10,
-	}})
-	if err != nil {
-		t.Fatalf("new manager: %v", err)
-	}
-	t.Cleanup(func() { _ = mgr.Close() })
-
-	regs := mgr.ResourceRegistrations()
-	if len(regs) == 0 {
-		t.Fatal("expected resource registrations")
-	}
-	var _ *mcp.ClientSession = regs[0].Session
 }

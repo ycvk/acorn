@@ -19,7 +19,7 @@ import (
 	"github.com/ycvk/acorn/internal/core"
 )
 
-func connectProvider(ctx context.Context, cfg ProviderConfig, opts *mcp.ClientOptions, store core.ArtifactStore, onAuthStatusChanged func(status string)) (*provider, error) {
+func connectProvider(ctx context.Context, cfg core.ProviderConfig, opts *mcp.ClientOptions, store core.ArtifactStore, onAuthStatusChanged func(status string)) (*provider, error) {
 	if strings.TrimSpace(cfg.Name) == "" {
 		return nil, errors.New("provider name is required")
 	}

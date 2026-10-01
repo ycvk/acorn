@@ -7,28 +7,29 @@ import (
 	"log/slog"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/ycvk/acorn/internal/core"
 )
 
-func (m *Manager) ReconcileProviders(ctx context.Context, cfgs []ProviderConfig) error {
+func (m *Manager) ReconcileProviders(ctx context.Context, cfgs []core.ProviderConfig) error {
 	if m == nil {
 		return errors.New("manager is nil")
 	}
 
-	enabled := make([]ProviderConfig, 0, len(cfgs))
+	enabled := make([]core.ProviderConfig, 0, len(cfgs))
 	for _, cfg := range cfgs {
 		if cfg.Enabled {
 			enabled = append(enabled, cfg)
 		}
 	}
 
-	desired := make(map[string]ProviderConfig, len(enabled))
+	desired := make(map[string]core.ProviderConfig, len(enabled))
 	for _, cfg := range enabled {
 		desired[cfg.Name] = cfg
 	}
 
 	m.mu.Lock()
 	type slotSnapshot struct {
-		cfg       ProviderConfig
+		cfg       core.ProviderConfig
 		unchanged bool
 	}
 	currentNames := make([]string, 0, len(m.slots))
@@ -43,9 +44,9 @@ func (m *Manager) ReconcileProviders(ctx context.Context, cfgs []ProviderConfig)
 	m.mu.Unlock()
 
 	var (
-		toAdd     []ProviderConfig
+		toAdd     []core.ProviderConfig
 		toRemove  []string
-		toRestart []ProviderConfig
+		toRestart []core.ProviderConfig
 	)
 
 	for _, name := range currentNames {
@@ -106,7 +107,7 @@ func (m *Manager) closeSlotByName(name string) {
 	m.mu.Unlock()
 }
 
-func (m *Manager) connectSlotForReconcile(ctx context.Context, cfg ProviderConfig) error {
+func (m *Manager) connectSlotForReconcile(ctx context.Context, cfg core.ProviderConfig) error {
 	p, err := connectProviderFunc(ctx, cfg, m.buildClientOptions(cfg), m.tokenStore, func(status string) { m.updateProviderAuthStatus(cfg.Name, status) })
 
 	m.mu.Lock()
@@ -132,7 +133,7 @@ func (m *Manager) connectSlotForReconcile(ctx context.Context, cfg ProviderConfi
 	}
 
 	// Register the newly connected provider's tools into the unified registry.
-	// No-op when no registry was wired (legacy/test path).
+	// No-op when no registry was wired (tests only).
 	m.registerProviderTools(ctx, cfg.Name)
 
 	return nil
@@ -141,7 +142,7 @@ func (m *Manager) connectSlotForReconcile(ctx context.Context, cfg ProviderConfi
 // buildClientOptions assembles the per-provider MCP client options shared by
 // initial connect and reconcile. Returns nil handlers when the corresponding
 // manager subsystem is not initialized (e.g. no store wired).
-func (m *Manager) buildClientOptions(cfg ProviderConfig) *mcp.ClientOptions {
+func (m *Manager) buildClientOptions(cfg core.ProviderConfig) *mcp.ClientOptions {
 	return &mcp.ClientOptions{
 		ToolListChangedHandler:     m.buildToolListChangedHandler(cfg.Name),
 		ResourceListChangedHandler: m.buildResourceListChangedHandler(cfg.Name),
@@ -150,7 +151,7 @@ func (m *Manager) buildClientOptions(cfg ProviderConfig) *mcp.ClientOptions {
 		CreateMessageHandler:       m.buildCreateMessageHandler(),
 	}
 }
-func (m *Manager) rebuildSlotOrder(existingOrder []string, added []ProviderConfig) {
+func (m *Manager) rebuildSlotOrder(existingOrder []string, added []core.ProviderConfig) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 

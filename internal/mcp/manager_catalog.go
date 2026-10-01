@@ -8,7 +8,7 @@ import (
 
 	"github.com/cloudwego/eino-ext/components/tool/mcp/officialmcp"
 	einotool "github.com/cloudwego/eino/components/tool"
-	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/ycvk/acorn/internal/core"
 )
 
 func (m *Manager) RefreshProviderCatalog(ctx context.Context, providerName string) error {
@@ -133,41 +133,6 @@ func (m *Manager) refreshProviderCatalogByType(ctx context.Context, providerName
 	return nil
 }
 
-func (m *Manager) Tools() []einotool.BaseTool {
-	if m == nil {
-		return nil
-	}
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	tools := make([]einotool.BaseTool, 0)
-	for i := range m.slots {
-		if m.slots[i].p != nil {
-			tools = append(tools, m.slots[i].p.tools...)
-		}
-	}
-	return tools
-}
-
-func (m *Manager) Registrations() []ToolRegistration {
-	if m == nil {
-		return nil
-	}
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	items := make([]ToolRegistration, 0)
-	for i := range m.slots {
-		if m.slots[i].p != nil {
-			for _, tool := range m.slots[i].p.tools {
-				items = append(items, ToolRegistration{
-					ProviderName: m.slots[i].cfg.Name,
-					Tool:         tool,
-				})
-			}
-		}
-	}
-	return items
-}
-
 func (m *Manager) ResourceTools() []einotool.BaseTool {
 	if m == nil {
 		return nil
@@ -198,102 +163,8 @@ func (m *Manager) PromptTools() []einotool.BaseTool {
 	return tools
 }
 
-func (m *Manager) Resources() []*mcp.Resource {
-	if m == nil {
-		return nil
-	}
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	var resources []*mcp.Resource
-	for i := range m.slots {
-		if m.slots[i].p != nil {
-			resources = append(resources, m.slots[i].p.resources...)
-		}
-	}
-	return resources
-}
-
-func (m *Manager) Prompts() []*mcp.Prompt {
-	if m == nil {
-		return nil
-	}
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	var prompts []*mcp.Prompt
-	for i := range m.slots {
-		if m.slots[i].p != nil {
-			prompts = append(prompts, m.slots[i].p.prompts...)
-		}
-	}
-	return prompts
-}
-
-func (m *Manager) ResourceRegistrations() []ResourceRegistration {
-	if m == nil {
-		return nil
-	}
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	var regs []ResourceRegistration
-	for i := range m.slots {
-		if m.slots[i].p != nil && len(m.slots[i].p.resources) > 0 {
-			regs = append(regs, ResourceRegistration{
-				ProviderName: m.slots[i].cfg.Name,
-				Resources:    m.slots[i].p.resources,
-				Session:      m.slots[i].p.session,
-			})
-		}
-	}
-	return regs
-}
-
-func (m *Manager) PromptRegistrations() []PromptRegistration {
-	if m == nil {
-		return nil
-	}
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	var regs []PromptRegistration
-	for i := range m.slots {
-		if m.slots[i].p != nil && len(m.slots[i].p.prompts) > 0 {
-			regs = append(regs, PromptRegistration{
-				ProviderName: m.slots[i].cfg.Name,
-				Prompts:      m.slots[i].p.prompts,
-				Session:      m.slots[i].p.session,
-			})
-		}
-	}
-	return regs
-}
-
-func (m *Manager) Statuses() []ProviderStatus {
-	if m == nil {
-		return nil
-	}
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	statuses := make([]ProviderStatus, 0, len(m.slots))
-	for i := range m.slots {
-		status := newProviderStatus(m.slots[i].cfg)
-		status.StartupStatus = m.slots[i].startupStatus
-		if m.slots[i].authStatus != "" {
-			status.AuthStatus = m.slots[i].authStatus
-		}
-		if m.slots[i].p != nil {
-			status.CommandPath = m.slots[i].p.commandPath
-			status.DiscoveredToolNames = append([]string(nil), m.slots[i].p.toolNames...)
-			status.ToolCount = len(m.slots[i].p.toolNames)
-		}
-		if m.slots[i].lastErr != nil {
-			status.Error = m.slots[i].lastErr.Error()
-		}
-		statuses = append(statuses, status)
-	}
-	return statuses
-}
-
-func Doctor(ctx context.Context, cfgs []ProviderConfig) []ProviderStatus {
-	statuses := make([]ProviderStatus, 0, len(cfgs))
+func Doctor(ctx context.Context, cfgs []core.ProviderConfig) []core.ProviderInfo {
+	statuses := make([]core.ProviderInfo, 0, len(cfgs))
 	for _, cfg := range cfgs {
 		status := newProviderStatus(cfg)
 		if !cfg.Enabled {
@@ -320,7 +191,7 @@ func Doctor(ctx context.Context, cfgs []ProviderConfig) []ProviderStatus {
 	return statuses
 }
 
-func newProviderStatus(cfg ProviderConfig) ProviderStatus {
+func newProviderStatus(cfg core.ProviderConfig) core.ProviderInfo {
 	transport := NormalizeProviderTransport(cfg.Transport)
 	authStatus := "none"
 	if transport == "stdio" {
@@ -328,7 +199,7 @@ func newProviderStatus(cfg ProviderConfig) ProviderStatus {
 	} else if cfg.Auth.Type == "oauth" {
 		authStatus = "none"
 	}
-	return ProviderStatus{
+	return core.ProviderInfo{
 		Name:                cfg.Name,
 		Configured:          true,
 		Enabled:             cfg.Enabled,

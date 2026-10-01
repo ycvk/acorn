@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/ycvk/acorn/internal/config"
+	"github.com/ycvk/acorn/internal/core"
 	mcpprovider "github.com/ycvk/acorn/internal/mcp"
 )
 
@@ -86,13 +87,13 @@ func (s *CapabilitiesService) snapshotMCPProviders(ctx context.Context, opts Cap
 	return out
 }
 
-func (s *CapabilitiesService) resolveProviderStatuses(ctx context.Context, configured []mcpprovider.ProviderConfig, opts CapabilitySnapshotOptions) []mcpprovider.ProviderStatus {
+func (s *CapabilitiesService) resolveProviderStatuses(ctx context.Context, configured []core.ProviderConfig, opts CapabilitySnapshotOptions) []core.ProviderInfo {
 	if opts.ProbeMCP && s.probeProviders != nil {
 		return s.probeProviders(ctx, configured)
 	}
-	statuses := make([]mcpprovider.ProviderStatus, 0, len(configured))
+	statuses := make([]core.ProviderInfo, 0, len(configured))
 	for _, cfg := range configured {
-		statuses = append(statuses, mcpprovider.ProviderStatus{
+		statuses = append(statuses, core.ProviderInfo{
 			Name:                cfg.Name,
 			Configured:          true,
 			Enabled:             cfg.Enabled,
@@ -106,7 +107,7 @@ func (s *CapabilitiesService) resolveProviderStatuses(ctx context.Context, confi
 	return statuses
 }
 
-func configuredProviderConfigs(cfg *config.Config) []mcpprovider.ProviderConfig {
+func configuredProviderConfigs(cfg *config.Config) []core.ProviderConfig {
 	if cfg == nil {
 		return nil
 	}

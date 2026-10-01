@@ -12,9 +12,8 @@ import (
 )
 
 // SessionMessagePart is one renderable fragment of a session message. Its JSON
-// shape is the remote client wire contract, previously owned by sessionview.
-// The sessionview projection was retired with the architecture refactor; this
-// local type keeps the persisted content_parts shape stable.
+// shape is the remote client wire contract and the persisted content_parts
+// shape.
 type SessionMessagePart struct {
 	Kind             string   `json:"kind"`
 	Text             string   `json:"text,omitempty"`

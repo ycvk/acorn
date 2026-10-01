@@ -2,12 +2,8 @@ package store
 
 // storeBootstrapTables creates the 10 core tables if they do not already
 // exist. This is split from index creation so that validateSchema can detect
-// a stale/incompatible legacy database (missing columns) before index
-// creation attempts to reference those columns.
-//
-// Tables per spec §5.6: sessions, session_messages, runs, events,
-// pending_actions, devices, pairing_codes, artifacts, mcp_oauth_tokens,
-// schema_migrations. owner_profile and session_summaries are deleted.
+// a stale/incompatible database (missing columns) before index creation
+// attempts to reference those columns.
 const storeBootstrapTables = `
 CREATE TABLE IF NOT EXISTS sessions (
     session_id TEXT PRIMARY KEY,

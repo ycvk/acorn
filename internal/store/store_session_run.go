@@ -28,10 +28,8 @@ func (s *Store) SyncAssistantMessageForRunStatus(ctx context.Context, runID stri
 	return s.syncAssistantMessageForRun(ctx, runID, status)
 }
 
-// syncAssistantMessageForRun persists the assistant turn message for a run.
-// The result-summary projection (tool results, plan evidence) was retired
-// with the architecture refactor; the assistant message is now derived purely
-// from the run record.
+// syncAssistantMessageForRun persists the assistant turn message for a run,
+// derived from the run record.
 func (s *Store) syncAssistantMessageForRun(ctx context.Context, runID string, statusOverride core.RunStatus) error {
 	run, err := s.LoadRun(ctx, runID)
 	if err != nil {

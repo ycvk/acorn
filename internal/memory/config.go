@@ -47,8 +47,7 @@ func (s *LocalService) EnsureLayout(ctx context.Context) error {
 	for _, dir := range []string{
 		filepath.Join(s.root, "facts", "user"),
 		filepath.Join(s.root, "facts", "workspaces"),
-		filepath.Join(s.root, "skills", "built-in"),
-		filepath.Join(s.root, "skills", "learned"),
+		filepath.Join(s.root, "skills"),
 		filepath.Join(s.root, "history"),
 	} {
 		if err := ctx.Err(); err != nil {

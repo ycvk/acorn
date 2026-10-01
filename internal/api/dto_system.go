@@ -117,12 +117,10 @@ func systemStatusDTOFromSnapshot(snapshot SystemCapabilities, workspaceRoot stri
 	}
 }
 
-type ToolSummaryDTO = CapabilitiesToolDTO
-
 // ToolListResponse is the response body for listing toolset.
 type ToolListResponse struct {
-	Items []ToolSummaryDTO `json:"items"`
-	Total int              `json:"total"`
+	Items []CapabilitiesToolDTO `json:"items"`
+	Total int                   `json:"total"`
 }
 
 type SkillRequirementsDTO struct {

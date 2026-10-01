@@ -65,22 +65,11 @@ func (c *testCloser) Close() error {
 	return c.err
 }
 
-func TestToolsetAll(t *testing.T) {
-	toolA := buildTestTool(t, "tool_a")
-	toolB := buildTestTool(t, "tool_b")
-	catalog := buildTestCatalog(t, toolA, toolB)
-
+func TestToolsetCatalog(t *testing.T) {
+	catalog := buildTestCatalog(t, buildTestTool(t, "tool_a"), buildTestTool(t, "tool_b"))
 	ts := NewToolset(catalog)
-	all := ts.All()
-	if len(all) != 2 {
-		t.Fatalf("len(all) = %d, want 2", len(all))
-	}
-}
-
-func TestToolsetEmptyCatalog(t *testing.T) {
-	ts := NewToolset(nil)
-	if ts.All() != nil {
-		t.Fatalf("All() = %v, want nil", ts.All())
+	if ts.Catalog() != catalog {
+		t.Fatal("Catalog() should return the catalog the toolset was built with")
 	}
 }
 

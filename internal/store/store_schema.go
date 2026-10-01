@@ -27,9 +27,8 @@ func (s *Store) migrate() error {
 }
 
 func (s *Store) migrateV2() error {
-	// The only remaining v2 column addition is session_messages.content_parts;
-	// the runs columns (parent_run_id, depth, orchestration_mode, skill_id)
-	// were retired by the architecture refactor and are no longer created.
+	// Adds session_messages.content_parts to databases created before it
+	// joined the bootstrap schema.
 	return s.addColumnIfNotExists("session_messages", "content_parts", "TEXT NOT NULL DEFAULT ''", "v2_session_messages_content_parts")
 }
 
@@ -44,8 +43,7 @@ func (s *Store) validateSchema() error {
 
 // schemaRequiredTables maps each required table to the columns that must exist
 // after migration; validateSchema enforces presence to detect a stale or
-// incompatible local database. Tables not listed here (e.g. owner_profile,
-// session_summaries, plan_steps) are legacy and never created.
+// incompatible local database.
 var schemaRequiredTables = map[string][]string{
 	"runs":              {"run_id", "session_id", "turn_index", "status", "input_text", "output_text", "error_text", "created_at", "finished_at"},
 	"events":            {"sequence", "run_id", "kind", "payload_json", "created_at"},

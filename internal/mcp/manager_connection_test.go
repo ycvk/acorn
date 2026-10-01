@@ -10,11 +10,12 @@ import (
 	"time"
 
 	einotool "github.com/cloudwego/eino/components/tool"
+	"github.com/ycvk/acorn/internal/core"
 )
 
 func TestNewManagerLoadsToolsFromFixtureServer(t *testing.T) {
 	binary := buildFixtureServer(t)
-	mgr, err := NewManager(context.Background(), []ProviderConfig{{
+	mgr, err := NewManager(context.Background(), []core.ProviderConfig{{
 		Name:                  "fixture",
 		Enabled:               true,
 		Transport:             "stdio",
@@ -47,7 +48,7 @@ func TestNewManagerLoadsToolsFromFixtureServer(t *testing.T) {
 
 func TestDoctorReportsDiscoveredTools(t *testing.T) {
 	binary := buildFixtureServer(t)
-	statuses := Doctor(context.Background(), []ProviderConfig{{
+	statuses := Doctor(context.Background(), []core.ProviderConfig{{
 		Name:                  "fixture",
 		Enabled:               true,
 		Transport:             "stdio",
@@ -83,7 +84,7 @@ func TestDoctorReportsDiscoveredTools(t *testing.T) {
 }
 
 func TestDoctorKeepsProviderVisibleOnFailure(t *testing.T) {
-	statuses := Doctor(context.Background(), []ProviderConfig{{
+	statuses := Doctor(context.Background(), []core.ProviderConfig{{
 		Name:                  "broken",
 		Enabled:               true,
 		Transport:             "stdio",
@@ -117,7 +118,7 @@ func TestDoctorKeepsProviderVisibleOnFailure(t *testing.T) {
 }
 
 func TestConnectProviderFailsWhenCommandPathCannotBeResolved(t *testing.T) {
-	_, err := connectProvider(context.Background(), ProviderConfig{
+	_, err := connectProvider(context.Background(), core.ProviderConfig{
 		Name:                  "broken",
 		Enabled:               true,
 		Transport:             "stdio",
@@ -173,7 +174,7 @@ func TestOpenProviderLogFileUsesPrivatePermissionsAndSanitizedName(t *testing.T)
 
 func TestManagerCloseCleansUpProviders(t *testing.T) {
 	binary := buildFixtureServer(t)
-	mgr, err := NewManager(context.Background(), []ProviderConfig{{
+	mgr, err := NewManager(context.Background(), []core.ProviderConfig{{
 		Name:                  "fixture",
 		Enabled:               true,
 		Transport:             "stdio",
@@ -193,7 +194,7 @@ func TestManagerCloseCleansUpProviders(t *testing.T) {
 
 func TestNewManagerKeepsHealthyProvidersWhenOneFails(t *testing.T) {
 	binary := buildFixtureServer(t)
-	mgr, err := NewManager(context.Background(), []ProviderConfig{
+	mgr, err := NewManager(context.Background(), []core.ProviderConfig{
 		{
 			Name:                  "healthy",
 			Enabled:               true,
@@ -251,7 +252,7 @@ func TestNewManagerKeepsHealthyProvidersWhenOneFails(t *testing.T) {
 }
 
 func TestNewManagerReturnsErrorWhenAllProvidersFail(t *testing.T) {
-	_, err := NewManager(context.Background(), []ProviderConfig{
+	_, err := NewManager(context.Background(), []core.ProviderConfig{
 		{
 			Name:                  "broken1",
 			Enabled:               true,
@@ -277,7 +278,7 @@ func TestNewManagerReturnsErrorWhenAllProvidersFail(t *testing.T) {
 
 func TestNewManagerAppliesPerProviderTimeout(t *testing.T) {
 	start := time.Now()
-	_, err := NewManager(context.Background(), []ProviderConfig{
+	_, err := NewManager(context.Background(), []core.ProviderConfig{
 		{
 			Name:                  "timeout_provider",
 			Enabled:               true,

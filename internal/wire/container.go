@@ -40,7 +40,6 @@ type Container struct {
 	deviceAuth    *api.DeviceAuthService
 	inbox         *api.InboxService
 	triggerSched  *triggers.Scheduler
-	worldState    *memory.WorldState
 }
 
 func NewContainer(ctx context.Context, cfg *config.Config) (*Container, error) {
@@ -94,10 +93,6 @@ func (c *Container) Inbox() *api.InboxService {
 }
 func (c *Container) TriggerScheduler() *triggers.Scheduler {
 	return c.triggerSched
-}
-
-func (c *Container) WorldState() *memory.WorldState {
-	return c.worldState
 }
 
 func (c *Container) Close() error {
@@ -232,7 +227,6 @@ func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *contai
 	container.events = api.NewEventService(db, db)
 	container.pendingAction = api.NewPendingActionService(db)
 
-	container.worldState = ws
 	container.capabilities = api.NewCapabilitiesService(cfg, container.skills.Snapshot, mcpprovider.Doctor, deps.runnerFactory)
 	container.deviceAuth = api.NewDeviceAuthService(db)
 	container.inbox = api.NewInboxService(db, container.capabilities)

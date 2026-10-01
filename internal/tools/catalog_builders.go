@@ -167,7 +167,7 @@ type CatalogConfig struct {
 	Workspace         WorkspaceView
 	MutationEnabled   bool
 	RunCommandEnabled bool
-	ArtifactService   ArtifactService
+	ArtifactService   core.ArtifactService
 	ArtifactContext   core.ToolCallContextBridge
 	OperatorStore     OperatorQuestionStore
 	RunSearchStore    RunSearchStore

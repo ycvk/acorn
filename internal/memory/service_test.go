@@ -16,8 +16,7 @@ func TestEnsureLayoutCreatesMemoryDirectories(t *testing.T) {
 	for _, rel := range []string{
 		"facts/user",
 		"facts/workspaces",
-		"skills/built-in",
-		"skills/learned",
+		"skills",
 		"history",
 	} {
 		info, err := os.Stat(filepath.Join(service.Root(), rel))

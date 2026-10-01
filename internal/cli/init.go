@@ -13,7 +13,7 @@ import (
 var initConfigTemplate string
 
 // runInit writes a minimal working self-hosted starter config to the resolved
-// config path so a freshly built binary no longer dies on "config file not found".
+// config path so a freshly built binary has a runnable config.
 // It refuses to clobber an existing config unless --force, and supports --print to
 // emit the template to stdout (for `acorn init --print > path` style headless setup).
 func runInit(_ context.Context, args []string) error {

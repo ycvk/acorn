@@ -25,7 +25,6 @@ type ProviderConfig struct {
 }
 
 // ProviderInfo is the read-only status snapshot of a configured MCP provider.
-// It is the renamed equivalent of the former mcpprovider.ProviderStatus.
 type ProviderInfo struct {
 	Name                string   `json:"name"`
 	Configured          bool     `json:"configured"`

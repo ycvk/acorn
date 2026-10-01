@@ -5,11 +5,12 @@ import (
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/ycvk/acorn/internal/core"
 )
 
 func TestNewTransportStdio(t *testing.T) {
 	// Stdio transport requires a valid command; use "echo" as a minimal fixture.
-	cfg := ProviderConfig{
+	cfg := core.ProviderConfig{
 		Name:                  "test_stdio",
 		Enabled:               true,
 		Transport:             "stdio",
@@ -31,7 +32,7 @@ func TestNewTransportStdio(t *testing.T) {
 }
 
 func TestNewTransportSSE(t *testing.T) {
-	cfg := ProviderConfig{
+	cfg := core.ProviderConfig{
 		Name:                  "test_sse",
 		Enabled:               true,
 		Transport:             "sse",
@@ -56,7 +57,7 @@ func TestNewTransportSSE(t *testing.T) {
 }
 
 func TestNewTransportStreamableHTTP(t *testing.T) {
-	cfg := ProviderConfig{
+	cfg := core.ProviderConfig{
 		Name:                  "test_streamable",
 		Enabled:               true,
 		Transport:             "streamable_http",
@@ -84,7 +85,7 @@ func TestNewTransportStreamableHTTP(t *testing.T) {
 }
 
 func TestNewTransportEmptyTransportRejected(t *testing.T) {
-	cfg := ProviderConfig{
+	cfg := core.ProviderConfig{
 		Name:                  "test_missing_transport",
 		Enabled:               true,
 		Transport:             "",
@@ -104,7 +105,7 @@ func TestNewTransportEmptyTransportRejected(t *testing.T) {
 }
 
 func TestNewTransportInvalidTransport(t *testing.T) {
-	cfg := ProviderConfig{
+	cfg := core.ProviderConfig{
 		Name:                  "test_bad",
 		Enabled:               true,
 		Transport:             "websocket",
@@ -118,7 +119,7 @@ func TestNewTransportInvalidTransport(t *testing.T) {
 }
 
 func TestNewTransportStdioMissingCommand(t *testing.T) {
-	cfg := ProviderConfig{
+	cfg := core.ProviderConfig{
 		Name:                  "test_no_cmd",
 		Enabled:               true,
 		Transport:             "stdio",
@@ -132,7 +133,7 @@ func TestNewTransportStdioMissingCommand(t *testing.T) {
 }
 
 func TestNewTransportSSEMissingURL(t *testing.T) {
-	cfg := ProviderConfig{
+	cfg := core.ProviderConfig{
 		Name:                  "test_no_url",
 		Enabled:               true,
 		Transport:             "sse",
@@ -146,7 +147,7 @@ func TestNewTransportSSEMissingURL(t *testing.T) {
 }
 
 func TestNewTransportStreamableHTTPMissingURL(t *testing.T) {
-	cfg := ProviderConfig{
+	cfg := core.ProviderConfig{
 		Name:                  "test_no_url",
 		Enabled:               true,
 		Transport:             "streamable_http",
@@ -180,7 +181,7 @@ func TestNormalizeProviderTransportMCP(t *testing.T) {
 }
 
 func TestBuildStdioTransportSetsStderrFile(t *testing.T) {
-	cfg := ProviderConfig{
+	cfg := core.ProviderConfig{
 		Name:                  "stderr_test",
 		Enabled:               true,
 		Transport:             "stdio",
@@ -211,7 +212,7 @@ func TestBuildTransportMetadataFields(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			cfg := ProviderConfig{
+			cfg := core.ProviderConfig{
 				Name:                  tc.name,
 				Enabled:               true,
 				Transport:             tc.transport,
@@ -232,7 +233,7 @@ func TestBuildTransportMetadataFields(t *testing.T) {
 }
 
 func TestBuildSSETransportReturnsNoOpCleanup(t *testing.T) {
-	cfg := ProviderConfig{
+	cfg := core.ProviderConfig{
 		Name:                  "sse_cleanup",
 		Enabled:               true,
 		Transport:             "sse",
@@ -248,7 +249,7 @@ func TestBuildSSETransportReturnsNoOpCleanup(t *testing.T) {
 }
 
 func TestBuildStreamableHTTPTransportReturnsNoOpCleanup(t *testing.T) {
-	cfg := ProviderConfig{
+	cfg := core.ProviderConfig{
 		Name:                  "http_cleanup",
 		Enabled:               true,
 		Transport:             "streamable_http",
@@ -263,7 +264,7 @@ func TestBuildStreamableHTTPTransportReturnsNoOpCleanup(t *testing.T) {
 }
 
 func TestNewTransport_SSEEndpointField(t *testing.T) {
-	cfg := ProviderConfig{
+	cfg := core.ProviderConfig{
 		Name:                  "sse_endpoint_check",
 		Enabled:               true,
 		Transport:             "sse",
@@ -285,7 +286,7 @@ func TestNewTransport_SSEEndpointField(t *testing.T) {
 }
 
 func TestNewTransport_StreamableHTTPEndpointAndMaxRetries(t *testing.T) {
-	cfg := ProviderConfig{
+	cfg := core.ProviderConfig{
 		Name:                  "http_endpoint_check",
 		Enabled:               true,
 		Transport:             "streamable_http",

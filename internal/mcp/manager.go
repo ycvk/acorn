@@ -13,12 +13,6 @@ import (
 	"github.com/ycvk/acorn/internal/core"
 )
 
-type AuthConfig = core.AuthConfig
-
-type ProviderConfig = core.ProviderConfig
-
-type ProviderStatus = core.ProviderInfo
-
 type Manager struct {
 	slots         []providerSlot
 	mu            sync.RWMutex
@@ -34,7 +28,7 @@ type Manager struct {
 }
 
 type providerSlot struct {
-	cfg           ProviderConfig
+	cfg           core.ProviderConfig
 	p             *provider // nil when provider has failed
 	lastErr       error
 	startupStatus string
@@ -46,25 +40,8 @@ type providerSlot struct {
 	registeredToolNames []string
 }
 
-type ToolRegistration struct {
-	ProviderName string
-	Tool         einotool.BaseTool
-}
-
-type ResourceRegistration struct {
-	ProviderName string
-	Resources    []*mcp.Resource
-	Session      *mcp.ClientSession
-}
-
-type PromptRegistration struct {
-	ProviderName string
-	Prompts      []*mcp.Prompt
-	Session      *mcp.ClientSession
-}
-
 type provider struct {
-	cfg         ProviderConfig
+	cfg         core.ProviderConfig
 	commandPath string
 	session     *mcp.ClientSession
 	cleanup     func()
@@ -81,7 +58,7 @@ type provider struct {
 // The third parameter allows the caller to supply ClientOptions (e.g. for
 // notification handler registration). When nil, the client is created with
 // no options.
-var connectProviderFunc = func(ctx context.Context, cfg ProviderConfig, opts *mcp.ClientOptions, store core.ArtifactStore, onAuthStatusChanged func(status string)) (*provider, error) {
+var connectProviderFunc = func(ctx context.Context, cfg core.ProviderConfig, opts *mcp.ClientOptions, store core.ArtifactStore, onAuthStatusChanged func(status string)) (*provider, error) {
 	return connectProvider(ctx, cfg, opts, store, onAuthStatusChanged)
 }
 
@@ -122,11 +99,9 @@ type ToolSpecBuilder func(ctx context.Context, providerName string, tool einotoo
 // unregistered when their provider disconnects. specBuilder translates a
 // discovered (provider, tool) pair into a core.ToolSpec; the manager applies it
 // and tracks the namespaced names per provider for later removal. Either may
-// be nil (e.g. tests): when the registry is nil the manager skips registration
-// and MCP main tools are unavailable to runs — the runtime no longer rebuilds
-// them from the manager at run time (that fallback was removed once the
-// registry became mandatory in wire). Resource/prompt auxiliary specs are
-// still built from the manager regardless, because they are session-derived
+// be nil (tests only): when the registry is nil the manager skips registration
+// and MCP main tools are unavailable to runs. Resource/prompt auxiliary specs
+// are built from the manager regardless, because they are session-derived
 // wrappers outside the registry lifecycle.
 func WithToolRegistry(registry core.ToolRegistry, specBuilder ToolSpecBuilder) ManagerOption {
 	return func(o *managerOptions) {
@@ -135,13 +110,13 @@ func WithToolRegistry(registry core.ToolRegistry, specBuilder ToolSpecBuilder) M
 	}
 }
 
-func NewManager(ctx context.Context, cfgs []ProviderConfig, opts ...ManagerOption) (*Manager, error) {
+func NewManager(ctx context.Context, cfgs []core.ProviderConfig, opts ...ManagerOption) (*Manager, error) {
 	var o managerOptions
 	for _, opt := range opts {
 		opt(&o)
 	}
 
-	enabled := make([]ProviderConfig, 0, len(cfgs))
+	enabled := make([]core.ProviderConfig, 0, len(cfgs))
 	for _, cfg := range cfgs {
 		if cfg.Enabled {
 			enabled = append(enabled, cfg)
@@ -175,7 +150,7 @@ func NewManager(ctx context.Context, cfgs []ProviderConfig, opts ...ManagerOptio
 	var wg sync.WaitGroup
 	wg.Add(len(enabled))
 	for i, cfg := range enabled {
-		go func(idx int, c ProviderConfig) {
+		go func(idx int, c core.ProviderConfig) {
 			defer wg.Done()
 			p, err := connectProviderFunc(ctx, c, mgr.buildClientOptions(c), o.tokenStore, func(status string) { mgr.updateProviderAuthStatus(c.Name, status) })
 			slot := providerSlot{

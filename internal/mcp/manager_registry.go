@@ -9,8 +9,7 @@ import (
 
 // registerProviderTools registers every discovered tool for the named provider
 // into the unified ToolRegistry. It is a no-op when no registry (or no spec
-// builder) was wired, so the legacy Manager-only path used by tests is
-// unaffected.
+// builder) was wired, which only happens in tests.
 //
 // The slot is looked up by name under the manager read-lock; its tools are
 // read outside the lock to avoid holding it across the (possibly slow) Info
