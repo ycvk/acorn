@@ -38,6 +38,7 @@ var registerOnce sync.Once
 func RegisterTypes() {
 	registerOnce.Do(func() {
 		gob.Register(ElicitationInterruptState{})
+		gob.Register(toolApprovalState{})
 		gob.Register(&DirectResponseInterruptData{})
 	})
 }
