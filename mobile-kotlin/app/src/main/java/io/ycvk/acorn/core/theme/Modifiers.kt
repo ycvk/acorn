@@ -22,33 +22,6 @@ fun Modifier.gradientBackground(): Modifier = this.drawWithCache {
 }
 
 /**
- * Top fade overlay — background (opaque) to transparent.
- * Fades scrolling content into the background at the top edge.
- */
-fun Modifier.topFadeOverlay(heightFraction: Float = 0.06f): Modifier = this.drawWithCache {
-    val fadeHeight = size.height * heightFraction
-    val grad = Brush.verticalGradient(
-        colorStops = arrayOf(
-            0.0f to AetherBackground.copy(alpha = 0.98f),
-            0.28f to AetherBackground.copy(alpha = 0.92f),
-            0.58f to AetherBackground.copy(alpha = 0.52f),
-            0.82f to AetherBackground.copy(alpha = 0.18f),
-            1.0f to Color.Transparent,
-        ),
-        startY = 0f,
-        endY = fadeHeight * 7f,
-    )
-    onDrawBehind {
-        drawRect(grad)
-    }
-}
-
-/**
- * Composer shadow — subtle shadow beneath the composer card.
- */
-val ComposerShadow = Color(0x20000000)
-
-/**
  * Subtle radial glow — used on loading screen behind spinner.
  */
 fun Modifier.accentGlow(): Modifier = this.drawWithCache {

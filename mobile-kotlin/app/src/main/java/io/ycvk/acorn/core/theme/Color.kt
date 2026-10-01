@@ -97,45 +97,14 @@ val AetherBackground: Color get() = currentPalette.background
 val AetherBackgroundGradientTop: Color get() = currentPalette.backgroundGradientTop
 val AetherSurface: Color get() = currentPalette.surface
 val AetherSurfaceHigh: Color get() = currentPalette.surfaceHigh
-val AetherSurfaceHigher: Color get() = currentPalette.surfaceHigher
 val AetherSurfaceVariant: Color get() = currentPalette.surfaceVariant
-val AetherOutline: Color get() = currentPalette.outline
 val AetherOutlineSoft: Color get() = currentPalette.outlineSoft
 val AetherOnSurface: Color get() = currentPalette.onSurface
 val AetherOnSurfaceVariant: Color get() = currentPalette.onSurfaceVariant
 val AetherPrimary: Color get() = currentPalette.primary
 val AetherOnPrimary: Color get() = currentPalette.onPrimary
 val AetherPrimaryContainer: Color get() = currentPalette.primaryContainer
-val AetherOnPrimaryContainer: Color get() = currentPalette.onPrimaryContainer
 val AetherSecondary: Color get() = currentPalette.secondary
-val AetherOnSecondary: Color get() = currentPalette.onSecondary
-val AetherSecondaryContainer: Color get() = currentPalette.secondaryContainer
-val AetherOnSecondaryContainer: Color get() = currentPalette.onSecondaryContainer
 val AetherTertiary: Color get() = currentPalette.tertiary
 val AetherError: Color get() = currentPalette.error
 val AetherMessageBubble: Color get() = currentPalette.messageBubble
-val AetherScrim: Color get() = currentPalette.scrim
-
-// Legacy aliases — keep old screen files compiling during migration.
-// Map old token names to new Aether palette getters.
-val Bg get() = AetherBackground
-val BgGradientTop get() = AetherBackgroundGradientTop
-val Surface get() = AetherSurface
-val SurfaceHigh get() = AetherSurfaceHigh
-val SurfaceHigher get() = AetherSurfaceHigher
-val SurfaceVariant get() = AetherSurfaceVariant
-val Outline get() = AetherOutline
-val OutlineSoft get() = AetherOutlineSoft
-val TextPrimary get() = AetherOnSurface
-val TextSecondary get() = AetherOnSurfaceVariant
-val TextTertiary get() = AetherOnSurfaceVariant.copy(alpha = 0.6f)
-val Accent get() = AetherPrimary
-val AccentDim get() = AetherPrimary
-val OnAccent get() = AetherOnPrimary
-val AccentContainer get() = AetherPrimaryContainer
-val MessageBubble get() = AetherMessageBubble
-val Success get() = AetherSecondary
-val Warning get() = AetherTertiary
-val Danger get() = AetherError
-val Info get() = AetherSecondary
-val Scrim get() = AetherScrim

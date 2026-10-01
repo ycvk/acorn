@@ -116,10 +116,6 @@ class ApprovalsViewModel @Inject constructor(
         _selectedAction.value = null
     }
 
-    fun clearError() {
-        _error.value = null
-    }
-
     private fun getConnectionProfile(): ConnectionProfile? =
         (authController.authState.value as? AuthState.Connected)?.profile
 }
