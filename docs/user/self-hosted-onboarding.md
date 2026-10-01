@@ -269,5 +269,5 @@ sudo systemctl start acorn
 
 - Host commands are host dependencies. If the model tries to run a command that is not installed on the VPS, the command fails explicitly when used.
 - Web search requires a configured Tavily API key. Browser actions require an operator-installed Chrome/Chromium executable.
-- The mobile app refreshes backend truth through `/v1/inbox`, RunDetail, and RunEvent cursors; this release path does not include APNs/FCM push notification registration.
+- The mobile app refreshes backend truth through `/v1/inbox`, thread messages, and RunEvent cursors; this release path does not include APNs/FCM push notification registration.
 - Mobile is a remote control surface. It does not execute runs locally, own memory truth, or merge offline runtime state.

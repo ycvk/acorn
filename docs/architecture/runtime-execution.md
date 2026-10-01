@@ -1,7 +1,7 @@
 ---
 doc_type: architecture
 status: current
-last_reviewed: 2026-06-24
+last_reviewed: 2026-10-01
 slug: runtime-execution
 ---
 
@@ -9,27 +9,25 @@ slug: runtime-execution
 
 ## 现状
 
-Acorn 的执行层由 `internal/runtime.Executor` 启动 run。用户执行入口来自 authenticated `/v1` remote client contract；operator CLI 只保留 `doctor`、`serve`、`pair`、skills、memory rebuild 等运维/诊断命令。wire container 在 `internal/wire/container.go` 装配 runtime executor、run resume service 和 web dependencies，Web handler 只调用 runtime service，不直接拼 runtime 状态。
+Acorn 的执行层由 `internal/runtime.Executor` 启动 run。执行入口有三类：authenticated `/v1` remote client、operator CLI 的一次性 `acorn run` / `acorn smoke`、以及 `internal/triggers` 的 webhook/cron trigger。wire container 在 `internal/wire/container.go` 装配 runtime executor、run resume service、trigger scheduler 和 web dependencies；Web handler 只调用 runtime service，不直接拼 runtime 状态。
 
 ## Run lifecycle
 
 - `internal/runtime/executor.go` 创建或恢复 session/run，写入 `core.EventRecord`。只有一个编排模式 `direct_response`。
-- `RunnerFactory.New` 在 `internal/runtime/runner.go` 中只保留入口委托；`internal/runtime/run.go` 的 `RunnerFactory.buildRun` 构建 `ActiveRunner`。主链是：创建 chat model；bootstrap MCP 并构建 run tool catalog；调用 `memory.Service.Prepare` 得到 file-backed prepared memory；assemble Plane；委托给 `buildDirectResponse`。
-- Run tool catalog is built from `core.ToolContract`. Each enabled tool has explicit identity, source, kind, category, loading policy, and execution policy; incomplete contracts fail catalog construction.
-- Executor 在 model run 前通过 Session Bootstrap 生成首轮 `ModelInput`。Bootstrap 合并 Plane assembly 与 initial user messages；`direct_response` 额外把 stable instruction 作为 leading system message 交给 Session。
-- Chat model 只来自配置中唯一 enabled LLM provider；runtime 不提供 priority、backoff、透明 failover 或 provider retry/switch。MCP provider 只暴露 startup health、catalog/auth lifecycle 和真实错误。
-- `internal/runtime/executor.go` 和 executor finalization 路径负责把 ADK events、assistant message、run terminal status 和 `internal/memory` history append 收口到 persisted truth。
-- Interrupted run resume truth is inferred from persisted root interrupt contexts. `RunResumeService` recognizes empty/default interrupt kind plus `run_command_pause` when reconstructing resume targets for `/v1/runs/{id}:resume`.
+- `RunnerFactory.New`（`internal/runtime/runner.go`）委托 `RunnerFactory.buildRun` 构建 `ActiveRunner`：创建 chat model；构建 run capabilities（unified ToolRegistry + MCP resource/prompt tools）；调用 `memory.Service.Prepare` 得到 prepared memory；assemble Plane；交给 `buildDirectResponse`。
+- Run tool catalog 来自 `core.ToolContract`；不完整的 contract 让 catalog 构造失败。详见 [tools.md](tools.md)。
+- Executor 在 model run 前通过 `Session.Bootstrap` 生成首轮 `ModelInput`：assembled context messages + stable instruction（system）+ 初始 user messages。
+- Chat model 只来自配置中唯一 enabled LLM provider；runtime 不做 provider failover/retry。MCP provider 只暴露 startup health、catalog/auth lifecycle 和真实错误。
+- Executor finalization 把 ADK events、assistant message、run terminal status 和 `internal/memory` history append 收口到 persisted truth；每 `memory.review.review_interval` 个 run 异步触发一次 periodic memory review。
+- Interrupted run resume truth 从 persisted root interrupt contexts 推断。`RunResumeService` 识别空/default interrupt kind 与 `run_command_pause`，用于 `/v1/runs/{id}:resume`。
+- `RunController` 按 run ID 记录 cancel 函数，支持中断在途 run。
 
-## Hybrid Context
+## Context
 
-- Session 在 `BeforeModelCall` 中执行 observation masking + LLM auto-compact（token 超阈值时生成 summary，circuit breaker 3 次失败停止）。
-- Tool result 不再持久化为 durable ledger。结果留在 message stream 中，由 masking 按 `mask_after_turns` 轮数替换为占位符。
-- Context boundary 不持久化（compact 边界是内存状态）。
-- 不再有 CompactionEngine、BudgetGovernor、reactive compact、rehydration packet。
+Session 在 `BeforeModelCall` 中执行 observation masking + 非阻塞 LLM auto-compact，详见 [runtime-orchestration.md](runtime-orchestration.md)。Tool result 留在 message stream 中，不单独持久化；compact 边界是内存状态。
 
 ## Tool Execution
 
-- Tool execution is stream-first and unified through `ExecuteRound`. `StreamingToolExecutor` interleaves assistant streaming with tool submission via `Submit(call)`, then collects final results with `GetRemainingResults`.
-- `read_only` tools execute in parallel; `serial` tools execute serially. No path conflict detection — serial tools without `PathArg` (like `ask_operator`, `load_tools`, `remember`) execute without path validation.
-- Tool progress callbacks are ephemeral and are not persisted as run events; durable tool truth is the terminal `schema.ToolMessage` and run events.
+- Tool execution 是 stream-first 的，统一经过 `ExecuteRound`。`StreamingToolExecutor` 在 assistant streaming 过程中通过 `Submit(call)` 提交工具调用，再用 `GetRemainingResults` 收集结果。
+- 调度策略（`read_only` 并行、`serial` 按 path 冲突串行）见 [tools.md](tools.md)。
+- Tool progress callbacks 是临时的，不持久化为 run events；durable tool truth 是 terminal `schema.ToolMessage` 和 run events。

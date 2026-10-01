@@ -33,7 +33,5 @@
 /mobile-kotlin/app/build/
 /mobile-kotlin/build/
 /mobile-kotlin/local.properties
-/mobile/
-# mobile-kotlin (Android)
 configs/acorn.local.yaml
 coverage.out

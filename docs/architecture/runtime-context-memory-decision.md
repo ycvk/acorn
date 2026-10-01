@@ -1,7 +1,7 @@
 ---
 doc_type: architecture
 status: current
-last_reviewed: 2026-06-27
+last_reviewed: 2026-10-01
 slug: runtime-context-memory
 ---
 
@@ -9,41 +9,34 @@ slug: runtime-context-memory
 
 ## Plane
 
-`internal/runtime` assembles the context messages that are prepended to a run:
+`internal/runtime.ContextPlane` assembles the context messages that are prepended to a run:
 
 - selected skill context
 - skill catalog inventory
-- memory context
+- memory context (Active Memory snapshot + prepared memory from `memory.Service.Prepare`)
 - deferred tool lifecycle messages
 
-Memory context consists of file-backed prepared memory from `memory.Service.Prepare`. Working checkpoint and session summary sections have been removed.
+Tool lifecycle state is derived from `core.ToolContract`. Plane splits eager/deferred tools only from `ToolContract.Loading.Mode`.
 
-Tool lifecycle state is derived from `tooling.ToolContract`. Runtime builds each enabled tool with explicit identity, source, kind, category, loading policy, and execution policy. Plane splits eager/deferred tools only from `ToolContract.Loading.Mode`.
+## Session
 
-Tool result messages are not durable ledger-backed. Results stay in the message stream and are subject to observation masking by Session. `OnToolResult` only validates the event payload; no SQLite ledger write.
+Session owns root-run model input. The assembled context plus the stable instruction form the session prefix, which is never compacted. Observation masking and non-blocking auto-compact operate on the conversation after the prefix; see [runtime-orchestration.md](runtime-orchestration.md).
 
-## Hybrid Context (masking + non-blocking auto-compact + re-inject)
+Context pressure is a simple token threshold (`window_tokens - compact_margin_tokens`). Public YAML exposes only `context.window_tokens`, `context.compact_margin_tokens`, `context.mask_after_turns`, `context.preserve_recent_turns`.
 
-Session owns root-run model input. `BeforeModelCall` executes:
+## Memory
 
-1. **Observation masking**: tool results older than `mask_after_turns` (default 2) turns are replaced with a compact placeholder `[tool result elided: call_id=...]`. Pure in-memory, no SQLite write.
-2. **Apply pending compact**: if a background summary from a previous turn has settled, splice `[summary + current messages]`. Non-blocking — if not ready, proceed with current messages and retry next turn.
-3. **LLM auto-compact (non-blocking)**: when token count exceeds `window_tokens - compact_margin` (default 13000), `maybeStartCompact` launches a background goroutine to generate a conversation summary. It returns immediately with the original messages; the summary is spliced in between turns by step 2. Circuit breaker stops after 3 consecutive failures.
-4. **Re-inject**: after compact splice, system prompt + memory context + skill context are re-injected from assembly.
-
-Non-blocking compaction keeps the controller running while the summariser works: the summary goroutine only reads its snapshot and writes into `pendingCompact`; `applyPendingCompact` runs from the session's single goroutine, so `s.messages` stays single-writer. Conversation is only spliced between turns, never mid-LLM-call.
-
-No CompactionEngine, BudgetGovernor, reactive compact, context boundary persistence, or rehydration packet system.
-
-Context pressure is a simple token threshold (`window_tokens - compact_margin`), not a multi-state BudgetGovernor. Public YAML exposes only `context.window_tokens`, `context.compact_margin_tokens`, `context.mask_after_turns`, `context.preserve_recent_turns`.
-
-## MemoryModule
-
-`internal/memory` owns file-backed memory:
+`internal/memory.Service` owns file-backed memory under `runtime.storage_dir`:
 
 - `facts/` — structured facts (Record V2 frontmatter: status / tags / created / updated / source_run / source_refs)
-- `history/` — run history records
-- `skills/` — learned/generated skill files (markdown + frontmatter)
+- `history/` — append-only run history
+- `skills/` — indexed for retrieval; generated skills are written by `internal/skills` under `skills/generated`
+- `worldstate/state.json` — cross-run key-value WorldState, mutated only through `ApplyDelta`
 
-Canonical Memory Record V2 frontmatter (simplified): no evidence_refs, relations, validity window, procedure origin. `remember` tool writes facts via structured `CreateFact`; `memory_create_file` still requires complete frontmatter.
+The `remember` tool writes facts via structured `CreateFact`; `memory_create_file` requires complete frontmatter.
 
+Memory follows the three-layer design of [ADR-0002](../adr/0002-three-layer-memory.md):
+
+1. **Active Memory** — non-retired user-scoped facts, a frozen snapshot (bounded by `memory.active.char_limit`) injected into every run.
+2. **Archive** — history and facts, retrieved by keyword search, or vector KNN + keyword RRF fusion when `memory.embedding.enabled` (sqlite-vec at `{storage_dir}/vectors.db`, reusing the primary provider's `/v1/embeddings`).
+3. **Periodic Review** — every `memory.review.review_interval` runs, one asynchronous LLM call distills durable facts from recent runs.

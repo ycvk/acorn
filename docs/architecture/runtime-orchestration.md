@@ -1,7 +1,7 @@
 ---
 doc_type: architecture
 status: current
-last_reviewed: 2026-06-23
+last_reviewed: 2026-10-01
 slug: runtime-orchestration
 ---
 
@@ -9,30 +9,28 @@ slug: runtime-orchestration
 
 ## direct_response
 
-`internal/runtime` 是编排唯一入口。`buildDirectResponse`（`direct_response.go`）构建 `directResponseAgent`，执行 model → tool loop → record 循环。没有 strategy pattern、没有 DefaultPlane 抽象——所有依赖直接内联。
+`internal/runtime` 是编排唯一入口。`buildDirectResponse`（`direct_response.go`）构建 `directResponseAgent`，执行 model → tool loop → record 循环。
 
-执行时按 `Session.BeforeModelCall(masking + auto-compact) → ExecuteRound → Session.RecordAssistant/RecordToolResults` 的 session-owned loop 推进，直到模型返回无 tool call 的最终 assistant message。`AssistantStreamer` 负责把模型 stream chunk 持久化为 `assistant.delta`，再保留最终完整 assistant message。
+执行时按 `Session.BeforeModelCall → ExecuteRound → Session.RecordAssistant/RecordToolResults` 的 session-owned loop 推进，直到模型返回无 tool call 的最终 assistant message。`AssistantStreamer` 把模型 stream chunk 持久化为 `assistant.delta`，再保留最终完整 assistant message。
 
-`direct_response` 是 Acorn-specific ADK agent，不是 Eino `adk.NewChatModelAgent` 的薄封装。保留自定义 loop 的原因是：普通问答必须产出 Acorn persisted event truth，tool lifecycle 必须和 Plane 的 loaded/deferred state 绑定，普通 tool failure 必须继续作为模型可见 failed tool result。
+`direct_response` 是 Acorn-specific ADK agent，不是 Eino `adk.NewChatModelAgent` 的薄封装：普通问答必须产出 Acorn persisted event truth，tool lifecycle 必须和 Plane 的 loaded/deferred state 绑定，普通 tool failure 必须继续作为模型可见 failed tool result。
 
-Session 拥有 root-run 的首轮 model input。缺少 root Session binding 时 direct_response 直接失败，不回退到 `input.Messages`。
+Session 拥有 root-run 的首轮 model input。缺少 root Session binding 时 direct_response 直接失败。
+
+高风险工具调用（`tools.ClassifyRisk`）在执行前被拦截：已提交的其他调用结果照常记录，被拦截的调用以 approval-required tool message 回给模型，由模型通过 `ask_operator` 申请批准。
 
 ## Hybrid Context
 
-Session 在 `BeforeModelCall` 中执行四层 context 策略：
+Session 把消息分为两段：Bootstrap 时的 **prefix**（assembled context + stable instruction）和之后的 **conversation**。`BeforeModelCall` 依次执行：
 
 1. **Observation masking**：tool result 超 `mask_after_turns` 轮后用占位符替换。纯内存操作。
-2. **Apply pending compact**：若上一轮的后台 summary 已完成，splice `[summary + 当前消息]`。非阻塞——未完成则用当前消息继续，下轮再试。
-3. **非阻塞 LLM auto-compact**：token 超 `window_tokens - compact_margin` 阈值时 `maybeStartCompact` 启后台 goroutine 生成 summary，立即返回原消息；summary 在 turn 间由 step 2 splice。circuit breaker：连续 3 次失败停止。
-4. **关键上下文 re-inject**：compact splice 后从 assembly 重新注入 system prompt + memory context + skill context。
+2. **Apply pending compact**：若上一轮启动的后台 summary 已完成，用一条 summary system message 替换 conversation 中被总结的前段，prefix 原样保留。未完成则本轮照常继续。
+3. **非阻塞 LLM auto-compact**：token 超 `window_tokens - compact_margin_tokens` 时 `maybeStartCompact` 启后台 goroutine 总结 conversation 的前段（保留最近 `preserve_recent_turns` 轮，切分点不会让 live 区以 tool result 开头），立即返回。circuit breaker：连续 3 次失败后停止。
 
-不再有 CompactionEngine、BudgetGovernor、reactive compact、context boundary 持久化、rehydration packet 系统。
+后台 goroutine 只读自己的快照副本并写 pending 状态；splice 只在 Session 自己的 goroutine 中、两轮之间发生，所以消息列表保持单写者。
 
 ## 工具调度
 
-`SafeParallelToolsNode`（`internal/tools/node.go`）是 Acorn-specific tool dispatch adapter，通过 `StreamingExecutor` 暴露实时提交接口。它从 `toolkit.ExecutionPolicyResolver` 读取 `ToolContract.Execution`：
+`SafeParallelToolsNode`（`internal/tools/dispatch/node.go`）是 Acorn-specific tool dispatch adapter，通过 `StreamingExecutor` 暴露实时提交接口，从 `core.ExecutionPolicyResolver` 读取 `ToolContract.Execution`。调度规则见 [tools.md](tools.md)。
 
-- `read_only`：可并行执行
-- `serial`：串行执行（所有 write/execute/integration 工具）
-
-已加载工具没有 execution policy 是 runtime wiring failure。模型调用 unknown/deferred tool 仍是模型可见 failed tool result。
+已加载工具没有 execution policy 是 runtime wiring failure。模型调用 unknown/deferred tool 是模型可见 failed tool result。

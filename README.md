@@ -16,10 +16,10 @@ Run Acorn on your own server, pair your phone, and use the mobile app to start w
 
 - Single-owner self-hosted backend for personal deployments.
 - Authenticated `/v1` API with one-time device pairing.
-- Android mobile control surface for inbox, threads, runs, approvals, and settings.
-- Persistent runs, run events, pending actions, tool results, workspace checkpoints, memory, and skills.
+- Android mobile control surface for threads, chat with live run streaming, approvals, and settings.
+- Persistent runs, run events, pending actions, artifacts, workspace checkpoints, memory, and skills.
 - File-backed long-term memory with hybrid semantic + keyword retrieval (sqlite-vec, opt-in).
- - Linux `amd64` and `arm64` release tarballs (pure Go cross-compilation, no CGO).
+- Linux `amd64` and `arm64` release tarballs (pure Go cross-compilation, no CGO).
 - Signed Android APK published with each GitHub Release.
 
 ## Install On A VPS
@@ -32,7 +32,7 @@ Install the latest release on Debian or Ubuntu:
 curl -fsSL https://github.com/ycvk/acorn/releases/latest/download/install-release.sh | sh
 ```
 
- The installer installs Acorn's host dependencies and creates the systemd service.
+The installer installs Acorn's host dependencies and creates the systemd service.
 
 Install and start the service in one step:
 
@@ -117,8 +117,6 @@ providers:
 
 Provider keys can reference environment variables. Missing provider credentials are reported by readiness checks instead of being silently ignored.
 
-
-
 ## API
 
 Remote clients use the authenticated `/v1` API. Common endpoints include:
@@ -143,7 +141,7 @@ The full client contract is defined in [docs/openapi.yaml](docs/openapi.yaml). T
 
 Prerequisites:
 
-- Go 1.26
+- Go 1.27
 - `golangci-lint`
 - `goimports`
 - Kotlin + Jetpack Compose, if you work on the mobile app
@@ -167,7 +165,7 @@ Run checks before sending changes:
 make test
 make format-check
 make lint
-python3 mobile-kotlin/tool/generate_openapi_client.sh --check
+(cd mobile-kotlin && ./tool/generate_openapi_client.sh --check)
 git diff --check
 ```
 
@@ -185,21 +183,22 @@ Mobile checks run from `mobile-kotlin/`:
 | --- | --- |
 | `cmd/acorn/` | CLI entrypoint |
 | `internal/wire/` | Composition root — container wiring, the only place concrete implementations are instantiated |
-| `internal/core/` | Layer 0 domain types, store interfaces, tool contracts, plugin registry — zero internal imports |
+| `internal/core/` | Layer 0 domain types, store interfaces, tool contracts — zero internal imports |
 | `internal/runtime/` | Executor, RunnerFactory, direct_response, context session, masking, auto-compact, StreamItem projection |
-| `internal/tools/` | Tool implementations (file/git/browser/web/command/artifact), dispatch scheduler, ToolRegistry |
+| `internal/tools/` | Tool implementations (file/git/browser/web/command/artifact), risk gate, ToolRegistry; `dispatch/` scheduler |
 | `internal/store/` | SQLite persisted state (modernc.org/sqlite, single-connection serialized) |
-| `internal/memory/` | File-backed memory records, hybrid semantic + keyword retrieval (sqlite-vec) |
+| `internal/memory/` | File-backed memory records, Active Memory, hybrid semantic + keyword retrieval (sqlite-vec), WorldState |
 | `internal/mcp/` | MCP provider manager |
 | `internal/workspace/` | Mutation checkpoint and worktree |
-| `internal/webaccess/` | web_search / web_fetch / browser tools and shared URL policy |
+| `internal/webaccess/` | Web fetcher, Tavily search, content extraction, shared outbound URL policy |
 | `internal/skills/` | File-backed skill loader |
+| `internal/triggers/` | Webhook and cron triggers that start runs |
 | `internal/config/` | Config struct, defaults, validation |
 | `internal/cli/` | CLI command dispatch |
 | `internal/api/` | HTTP server, `/healthz`, `/v1` |
 | `mobile-kotlin/` | Kotlin + Jetpack Compose mobile app |
 | `skills/` | Built-in Acorn skill seed pack |
-| `docs/` | User guides, developer guides, OpenAPI, and architecture notes |
+| `docs/` | User guide, OpenAPI, architecture notes, and ADRs |
 
 ## Documentation
 
