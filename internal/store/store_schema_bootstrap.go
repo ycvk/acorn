@@ -1,6 +1,6 @@
 package store
 
-// storeBootstrapTables creates the 10 core tables if they do not already
+// storeBootstrapTables creates the 11 core tables if they do not already
 // exist. This is split from index creation so that validateSchema can detect
 // a stale/incompatible database (missing columns) before index creation
 // attempts to reference those columns.
@@ -86,6 +86,12 @@ CREATE TABLE IF NOT EXISTS artifacts (
     size_bytes INTEGER NOT NULL,
     sha256 TEXT NOT NULL,
     created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS agent_checkpoints (
+    checkpoint_id TEXT PRIMARY KEY,
+    data BLOB NOT NULL,
+    updated_at TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS mcp_oauth_tokens (

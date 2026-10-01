@@ -55,6 +55,7 @@ var schemaRequiredTables = map[string][]string{
 	"pairing_codes":     {"code_hash", "expires_at", "used_at", "created_at"},
 	"artifacts":         {"artifact_id", "run_id", "session_id", "source_tool_result_ref", "kind", "title", "mime_type", "relative_path", "size_bytes", "sha256", "created_at"},
 	"schema_migrations": {"version", "applied_at"},
+	"agent_checkpoints": {"checkpoint_id", "data", "updated_at"},
 }
 
 func (s *Store) requireColumns(table string, columns []string) error {

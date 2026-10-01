@@ -110,6 +110,18 @@ func (unimplementedStore) LoadPendingAction(context.Context, string) (*core.Pend
 func (unimplementedStore) DecidePendingAction(context.Context, string, core.PendingActionStatus, string) (*core.PendingActionRecord, error) {
 	return nil, errUnexpectedClientStoreCall
 }
+func (unimplementedStore) ListPendingActionsByRun(context.Context, string) ([]core.PendingActionRecord, error) {
+	return nil, errUnexpectedClientStoreCall
+}
+func (unimplementedStore) LoadCheckpoint(context.Context, string) ([]byte, bool, error) {
+	return nil, false, errUnexpectedClientStoreCall
+}
+func (unimplementedStore) SaveCheckpoint(context.Context, string, []byte) error {
+	return errUnexpectedClientStoreCall
+}
+func (unimplementedStore) DeleteCheckpoint(context.Context, string) error {
+	return errUnexpectedClientStoreCall
+}
 func (unimplementedStore) SavePairingCode(context.Context, *core.PairingCode) error {
 	return errUnexpectedClientStoreCall
 }

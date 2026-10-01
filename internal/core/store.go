@@ -51,6 +51,12 @@ type SessionStore interface {
 	ListPendingActions(ctx context.Context, limit int) ([]PendingActionRecord, error)
 	LoadPendingAction(ctx context.Context, actionID string) (*PendingActionRecord, error)
 	DecidePendingAction(ctx context.Context, actionID string, status PendingActionStatus, decisionJSON string) (*PendingActionRecord, error)
+	ListPendingActionsByRun(ctx context.Context, runID string) ([]PendingActionRecord, error)
+
+	// --- Agent checkpoints ---
+	LoadCheckpoint(ctx context.Context, checkpointID string) ([]byte, bool, error)
+	SaveCheckpoint(ctx context.Context, checkpointID string, data []byte) error
+	DeleteCheckpoint(ctx context.Context, checkpointID string) error
 }
 
 // IdentityStore handles device authentication and pairing codes.
