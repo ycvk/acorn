@@ -24,7 +24,6 @@ approval:
 context:
   window_tokens: 200000
   compact_margin_tokens: 13000
-  preserve_recent_turns: 3
   mask_after_turns: 2
 
 agent:

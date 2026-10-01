@@ -6,13 +6,11 @@ import (
 	"fmt"
 	"io"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/cloudwego/eino/adk"
 	einomodel "github.com/cloudwego/eino/components/model"
 	einotool "github.com/cloudwego/eino/components/tool"
-	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
 	mcpprovider "github.com/ycvk/acorn/internal/mcp"
@@ -88,10 +86,6 @@ func (r *ActiveRunner) Close() error {
 // Close releases the cached MCP manager.
 func (f *RunnerFactory) Close() error {
 	return closeMCPCache(f.mcpCache)
-}
-
-func newInMemoryCheckpointStore() *inMemoryCheckpointStore {
-	return &inMemoryCheckpointStore{data: make(map[string][]byte)}
 }
 
 type localToolset struct {
@@ -226,51 +220,6 @@ func (c *runCapabilities) Close() error {
 	return c.close()
 }
 
-// inMemoryCheckpointStore is a process-local adk.CheckPointStore. The schema
-// reduction removed the SQLite-backed checkpoints table; runs re-bootstrap
-// their context from persisted messages on resume, so a volatile store is
-// sufficient for within-process run/resume continuity.
-type inMemoryCheckpointStore struct {
-	mu   sync.Mutex
-	data map[string][]byte
-}
-
-func (s *inMemoryCheckpointStore) Get(_ context.Context, checkPointID string) ([]byte, bool, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	payload, ok := s.data[checkPointID]
-	if !ok {
-		return nil, false, nil
-	}
-	cp := make([]byte, len(payload))
-	copy(cp, payload)
-	return cp, true, nil
-}
-
-func (s *inMemoryCheckpointStore) Set(_ context.Context, checkPointID string, checkPoint []byte) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	cp := make([]byte, len(checkPoint))
-	copy(cp, checkPoint)
-	s.data[checkPointID] = cp
-	return nil
-}
-func bindToolLifecycle(
-	ctx context.Context,
-	state *ToolLifecycleState,
-	catalog *tools.Catalog,
-	infos []*schema.ToolInfo,
-) context.Context {
-	if state != nil {
-		return WithToolLifecycleContext(ctx, state, catalog, infos)
-	}
-	return ctx
-}
-
-func bindSessionID(ctx context.Context, sessionID string) context.Context {
-	return core.WithSessionID(ctx, sessionID)
-}
-
 func (f *RunnerFactory) buildRun(ctx context.Context, req RunnerBuildRequest) (active *ActiveRunner, err error) {
 	if f == nil {
 		return nil, errors.New("runner factory is not initialized")
@@ -289,11 +238,11 @@ func (f *RunnerFactory) buildRun(ctx context.Context, req RunnerBuildRequest) (a
 		return nil, prereqErr
 	}
 	capabilities = capabilityAssembly.capabilities
-	active, err = f.newDirectResponseRunner(ctx, req, chatModel, capabilityAssembly)
+	active, err = f.newAgentRunner(ctx, req, chatModel, capabilityAssembly)
 	return active, err
 }
 
-func (f *RunnerFactory) newDirectResponseRunner(ctx context.Context, req RunnerBuildRequest, chatModel einomodel.BaseChatModel, capabilityAssembly *capabilityAssembly) (*ActiveRunner, error) {
+func (f *RunnerFactory) newAgentRunner(ctx context.Context, req RunnerBuildRequest, chatModel einomodel.BaseChatModel, capabilityAssembly *capabilityAssembly) (*ActiveRunner, error) {
 	if capabilityAssembly == nil || capabilityAssembly.capabilities == nil {
 		return nil, errors.New("run capabilities are required")
 	}
@@ -306,28 +255,21 @@ func (f *RunnerFactory) newDirectResponseRunner(ctx context.Context, req RunnerB
 	if err != nil {
 		return nil, err
 	}
-	agentAssembly, err := buildDirectResponse(ctx, f.deps, DirectResponseRequest{
-		AgentName:         f.deps.Config.Agent.Name,
-		AgentDescription:  f.deps.Config.Agent.Description,
-		SessionID:         req.SessionID,
+	runner, err := buildAgentRunner(ctx, f.deps, agentRunnerRequest{
 		RunID:             req.RunID,
 		ChatModel:         chatModel,
-		AssistantStreamer: NewDirectAssistantStreamer(f.deps.Store),
 		Catalog:           capabilities.catalog,
-		ContextResult:     contextResult,
+		Instruction:       buildAgentInstruction(f.deps.Config.Agent.SystemPrompt, req.InstructionSuffix, contextResult.Messages),
 		AllowedToolNames:  append([]string(nil), req.AllowedToolNames...),
 		ExcludedToolNames: append([]string(nil), req.ExcludedToolNames...),
-		InstructionSuffix: req.InstructionSuffix,
 	})
 	if err != nil {
 		return nil, err
 	}
 	return &ActiveRunner{
 		Mcp:           capabilityAssembly.mcpManager,
-		Runner:        agentAssembly.Runner,
-		Instruction:   agentAssembly.Instruction,
+		Runner:        runner,
 		ChatModel:     chatModel,
-		ContextResult: contextResult,
 		RunID:         req.RunID,
 		ToolCatalog:   capabilities.catalog,
 		CloseRunTools: capabilities.Close,
@@ -359,16 +301,12 @@ type RunnerBuildRequest struct {
 }
 
 type ActiveRunner struct {
-	Mcp            *mcpprovider.Manager
-	Runner         *adk.Runner
-	SelectedSkill  *SelectedSkill
-	Instruction    string
-	ChatModel      einomodel.BaseChatModel
-	ContextResult  *AssembleResult
-	ContextSession Session
-	RunID          string
-	ToolCatalog    *tools.Catalog
-	CloseRunTools  func() error
+	Mcp           *mcpprovider.Manager
+	Runner        *adk.Runner
+	ChatModel     einomodel.BaseChatModel
+	RunID         string
+	ToolCatalog   *tools.Catalog
+	CloseRunTools func() error
 }
 
 func (f *RunnerFactory) buildRunPrerequisites(ctx context.Context, req RunnerBuildRequest) (einomodel.BaseChatModel, *capabilityAssembly, error) {
@@ -386,25 +324,12 @@ func (f *RunnerFactory) buildRunPrerequisites(ctx context.Context, req RunnerBui
 const capabilityDiscoveryInstruction = `Capability discovery rules:
 - Before answering a capability question or saying you cannot do something, inspect the skill catalog and currently loaded tools already present in context.
 - If a relevant skill may exist but the catalog summary is not enough, call skill_list or skill_view before answering.
-- If a relevant capability depends on deferred tools, call load_tools before concluding the capability is unavailable.
+- If a relevant capability depends on deferred tools, call tool_search before concluding the capability is unavailable.
 - Prefer the matching skill and tool path over a generic limitation answer.`
-
-const ambientAgentInstruction = `Ambient agent loop — you are not a code CLI or a chat assistant. You wake when external events arrive (triggers, webhooks, operator messages). Each run follows this cycle:
-1. Orient: call worldstate_load to read the world projection you left on last wake. This is your cross-run memory — without it you start from zero every time. Your Active Memory (persistent facts) is already in your context — you do not need to search for it.
-2. Assess: decide whether this event actually needs action. Many fires need no response; silence is a valid outcome. Do not manufacture work.
-3. Act: pick the smallest action that resolves the situation. Low-risk tools (read-only) run directly. High-risk actions (deleting, sending, deploying, mutating files, running shell) escalate to the operator via ask_operator with a Decision Card — state what you considered, what you recommend, and the risk.
-4. Record: call worldstate_update with the outcome so the next wake has continuity. Facts worth keeping long-term go to remember; worldstate is for decision-relevant now-state, not an append-only log.
-5. Crystallize: if this run solved a task you expect to repeat, capture the execution path as a generated skill via skill_create so you handle the next occurrence faster. Skip if the run was trivial, one-off, or failed. Do not over-skillify.
-6. Stop: when the situation is resolved or blocked on approval, end the run. Do not loop waiting for events — the next trigger will wake you.
-
-Memory architecture: Active Memory (your persistent facts, always visible in context) + Archive (append-only run history, search via memory_search) + Periodic Review (every few runs, a background pass distills durable facts from recent runs — you do not control this, it runs automatically).
-
-file/git/command/web tools are your hands, not your identity. Use them in service of the ambient cycle, not as the default activity.`
 
 func buildStableInstruction(base string, instructionSuffix string) string {
 	parts := []string{
 		strings.TrimSpace(base),
-		strings.TrimSpace(ambientAgentInstruction),
 		strings.TrimSpace(capabilityDiscoveryInstruction),
 		strings.TrimSpace(instructionSuffix),
 	}
@@ -497,12 +422,4 @@ func streamMemoryEntries(entries []memory.Entry) []core.StreamMemoryPreparedEntr
 		})
 	}
 	return out
-}
-func streamSkillRequirementsFromDomain(item skills.Requirements) core.StreamSkillRequirements {
-	return core.StreamSkillRequirements{
-		Tools:    append([]string(nil), item.Tools...),
-		Toolsets: append([]string(nil), item.Toolsets...),
-		Bins:     append([]string(nil), item.Bins...),
-		Env:      append([]string(nil), item.Env...),
-	}
 }

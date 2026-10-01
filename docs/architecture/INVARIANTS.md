@@ -12,12 +12,12 @@
 
 ## 运行时与编排
 
-- **单一编排模式 direct_response**：`directResponseAgent.runFromState` 直接调用 `ExecuteRound` 执行模型回合。Session 在 BeforeModelCall 中执行 masking + auto-compact。依赖方向无环。
-  - `tests/architecture/structural_limits_test.go`
-- **runtime 执行链自包含**：`internal/runtime` 拥有 executor、per-run assembly、direct_response、ExecuteRound、Plane、Session、masking、auto-compact、StreamItem 投影。
-  - `tests/architecture/structural_limits_test.go`
-- **Partial tool-call rejection 不丢弃已执行结果**：当 `BeforeToolCall` 拒绝一批 tool call 中的一个（如 `run_command` 需审批）,已提交的 calls（如 `read_file`）结果必须保留。`consumeInterleavedForAgentLoop` 不 Discard executor,记录 `rejectedErr` 后继续消费 stream 到 finalMessage。`ExecuteRound` 在 rejection 时调 `GetRemainingResults` 收集已提交 calls 的结果。`direct_response.go` 先记录已执行 tool results,再记录 approval-required message。
-  - `internal/runtime/agent_loop_partial_rejection_test.go`
+- **每个 run 一个 Eino ChatModelAgent**：`buildAgentRunner` 组装 `adk.Runner{ChatModelAgent, EnableStreaming, CheckPointStore}`；handlers 依次为 patchtoolcalls → summarization → reduction(clear-only) → toolsearch(有 deferred 工具时) → approval；工具串行执行（`ExecuteSequentially`）。Executor 只负责把 `AgentEvent` 投影成 RunEvent。
+  - `internal/runtime/agent_test.go`
+  - `internal/runtime/events_test.go`
+- **审批绑定具体调用并可跨重启恢复**：`approval.require` 命中的工具调用由 approval middleware 登记 `tool_approval` pending action 并发起工具级中断；resume 时校验参数与登记时一致，accept 才执行，decline 把拒绝说明作为工具结果返回。checkpoint 经 `core.SessionStore` 落 SQLite `agent_checkpoints`，run 成功或失败结束时删除。
+  - `internal/runtime/approval_test.go`
+  - `internal/store/store_checkpoint_test.go`
 
 ## 持久化与 store 边界
 
@@ -28,11 +28,8 @@
 
 ## 上下文与记忆
 
-- **Hybrid context: masking + non-blocking auto-compact**：Session 在 BeforeModelCall 中执行 observation masking（旧 tool result 替换为占位符）+ 非阻塞 auto-compact（token 超阈值时 `maybeStartCompact` 启后台 goroutine 总结 conversation 前段，turn 间由 `applyPendingCompact` 用 summary 替换被总结的消息；Bootstrap prefix 永不被压缩；live 区不以 tool result 开头；circuit breaker 3 次失败后停止）；public YAML 只暴露 `context.window_tokens`、`context.compact_margin_tokens`、`context.mask_after_turns`、`context.preserve_recent_turns`。
-  - `internal/runtime/context_session_test.go`
-  - `internal/runtime/masking_test.go`
-  - `internal/runtime/auto_compact_test.go`
-  - `internal/runtime/auto_compact_nonblocking_test.go`
+- **上下文管理由 Eino middleware 承担**：summarization 在 token 超过 `window_tokens - compact_margin_tokens` 时总结历史；reduction 只做 clear（保留最近 `mask_after_turns` 轮工具调用原样）；memory 与 skill 目录等每 run 上下文写进 agent Instruction，不参与总结。public YAML 只暴露 `context.window_tokens`、`context.compact_margin_tokens`、`context.mask_after_turns`。
+  - `internal/runtime/agent_test.go`
 - **Memory Record V2 是长期记忆事实**：facts/history frontmatter 由 `internal/memory` 解析；memory search 默认走关键词匹配，`memory.embedding.enabled` 开启时走 vector KNN + keyword RRF 融合（sqlite-vec，复用 provider embedding 端点）。
 - **三层记忆架构（ADR-0002）**：Active Memory（非 retired 的 user-scoped facts frozen snapshot，按 `memory.active.char_limit` 默认 2200 字符截取，每个 run 无条件注入 system prompt，run 内不变以保 prefix cache）+ Archive（append-only history + fallback summary，零 LLM 成本，混合检索覆盖）+ Periodic Review（每 `memory.review.review_interval` 默认 5 个 run 触发一次 LLM 调用，蒸馏 durable facts 写入 facts，异步不阻塞 run 收尾，`NewReviewer` 在 `buildContainerRuntimeDeps` 构造一次供所有 Executor 共享）。单 owner 语义：agent 自己写的 facts（unverified + verified）都信任，retired 才排除。
   - `internal/memory/active_facts.go`
@@ -61,7 +58,7 @@
   - `internal/triggers/scheduler_debounce_test.go`
   - `internal/wire/trigger_skip_test.go`
   - `internal/wire/trigger_quota_test.go`
-- **Trigger fire → 起新 run，不续 session**：trigger fire 走 `Executor.ExecuteMessages` 起新 run，`RunTimeoutSeconds`(默认 900s) + `direct_response` 同步 loop 决定长 run 不可行。WorldState 是跨 run 唯一状态，session 是 per-run 临时态。
+- **Trigger fire → 起新 run，不续 session**：trigger fire 走 `Executor.ExecuteMessages` 起新 run，`RunTimeoutSeconds`(默认 900s) 限定单个 run 的时长。WorldState 是跨 run 唯一状态，session 是 per-run 临时态。
   - `internal/triggers/scheduler_test.go`
 - **WorldState 是跨 run 决策投影**：`internal/memory.WorldState` 是 file-backed key-value store（`{storage_dir}/worldstate/state.json`），只有 `ApplyDelta` 一条变更路径（upsert/delete）。填补 Session（per-run 临时）和 facts（显式 remember）之间空白。内存 cache + mutex 串行写，避开 SQLite 单连接瓶颈。agent 通过 `worldstate_update`/`worldstate_load` 工具读写。
   - `internal/memory/worldstate_test.go`

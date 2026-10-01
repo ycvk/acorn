@@ -54,18 +54,23 @@ func newApprovalMiddleware(patterns []string, store approvalStore) (*approvalMid
 	}, nil
 }
 
-func (m *approvalMiddleware) requiresApproval(toolName string) bool {
+func (m *approvalMiddleware) requiresApproval(toolName string) (bool, error) {
 	for _, p := range m.patterns {
-		if ok, _ := path.Match(p, toolName); ok {
-			return true
+		matched, err := path.Match(p, toolName)
+		if err != nil {
+			return false, fmt.Errorf("approval pattern %q: %w", p, err)
+		}
+		if matched {
+			return true, nil
 		}
 	}
-	return false
+	return false, nil
 }
 
 func (m *approvalMiddleware) WrapInvokableToolCall(_ context.Context, endpoint adk.InvokableToolCallEndpoint, tCtx *adk.ToolContext) (adk.InvokableToolCallEndpoint, error) {
-	if !m.requiresApproval(tCtx.Name) {
-		return endpoint, nil
+	required, err := m.requiresApproval(tCtx.Name)
+	if err != nil || !required {
+		return endpoint, err
 	}
 	return func(ctx context.Context, args string, opts ...einotool.Option) (string, error) {
 		wasInterrupted, hasState, state := einotool.GetInterruptState[toolApprovalState](ctx)
@@ -85,7 +90,11 @@ func (m *approvalMiddleware) WrapInvokableToolCall(_ context.Context, endpoint a
 		if !hasData {
 			return "", fmt.Errorf("tool approval %s resumed without a decision", state.ActionID)
 		}
-		switch decision, _ := data["action"].(string); decision {
+		decision, ok := data["action"].(string)
+		if !ok {
+			return "", fmt.Errorf("tool approval %s: decision has no action", state.ActionID)
+		}
+		switch decision {
 		case "accept":
 			return endpoint(ctx, args, opts...)
 		case "decline":

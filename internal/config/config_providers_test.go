@@ -35,7 +35,6 @@ func TestValidateExecutionReady_MultipleEnabledProvidersInvalid(t *testing.T) {
 		Context: ContextConfig{
 			WindowTokens:        200000,
 			CompactMarginTokens: 13000,
-			PreserveRecentTurns: 3,
 			MaskAfterTurns:      2,
 		},
 		Web:       WebConfig{ListenAddr: "127.0.0.1:8080"},
@@ -162,7 +161,6 @@ func TestValidateExecutionReady_DuplicateNames(t *testing.T) {
 		Context: ContextConfig{
 			WindowTokens:        200000,
 			CompactMarginTokens: 13000,
-			PreserveRecentTurns: 3,
 			MaskAfterTurns:      2,
 		},
 		Web:       WebConfig{ListenAddr: "127.0.0.1:8080"},
@@ -217,7 +215,6 @@ func TestValidateExecutionReady_DisabledProviderNotValidated(t *testing.T) {
 		Context: ContextConfig{
 			WindowTokens:        200000,
 			CompactMarginTokens: 13000,
-			PreserveRecentTurns: 3,
 			MaskAfterTurns:      2,
 		},
 		Web:       WebConfig{ListenAddr: "127.0.0.1:8080"},

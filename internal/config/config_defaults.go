@@ -22,7 +22,6 @@ func defaultConfig() *Config {
 		Context: ContextConfig{
 			WindowTokens:        200000,
 			CompactMarginTokens: 13000,
-			PreserveRecentTurns: 3,
 			MaskAfterTurns:      2,
 		},
 		Approval: ApprovalConfig{Require: []string{"browser", "mcp__*"}},

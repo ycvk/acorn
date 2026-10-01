@@ -40,8 +40,9 @@ type ProviderConfig struct {
 type ContextConfig struct {
 	WindowTokens        int `yaml:"window_tokens"`
 	CompactMarginTokens int `yaml:"compact_margin_tokens"`
-	PreserveRecentTurns int `yaml:"preserve_recent_turns"`
-	MaskAfterTurns      int `yaml:"mask_after_turns"`
+	// MaskAfterTurns is how many of the most recent tool-call rounds stay
+	// verbatim when older tool results are cleared to save context.
+	MaskAfterTurns int `yaml:"mask_after_turns"`
 }
 
 type MemoryConfig struct {

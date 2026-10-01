@@ -25,7 +25,6 @@ func TestBuiltinToolNamesSnapshot(t *testing.T) {
 		"skill_list",
 		"skill_view",
 		"skill_create",
-		"load_tools",
 		"ask_operator",
 	}
 	if len(got) != len(want) {

@@ -106,12 +106,9 @@ func (e *Executor) ExecuteMessages(ctx context.Context, req core.ExecuteRequest,
 		return nil, e.failSetupOrErr(ctx, runID, err, sink)
 	}
 	defer active.Close()
-	messages, err := e.bootstrapContextSessionMessages(ctx, req, runID, active)
-	if err != nil {
-		return nil, e.failSetupOrErr(ctx, runID, err, sink)
-	}
-	iter := active.Runner.Run(e.executionContext(runCtxBase, runID, req, active, sink), messages, adk.WithCheckPointID(runID))
-	return e.consume(ctx, runID, req.SessionID, req.Input, iter, active.SelectedSkill, sink, active.ChatModel)
+	execCtx := buildExecutionContext(runCtxBase, runID, req.SessionID, req.TurnIndex, sink)
+	iter := active.Runner.Run(execCtx, req.Messages, adk.WithCheckPointID(runID))
+	return e.consume(ctx, runID, req.SessionID, req.Input, iter, sink, active.ChatModel)
 }
 
 func (e *Executor) createBoundRun(ctx context.Context, runID string, req core.ExecuteRequest) error {
@@ -141,14 +138,6 @@ func (e *Executor) buildExecuteRunner(runCtxBase context.Context, req core.Execu
 		AllowedToolNames: append([]string(nil), req.AllowedToolNames...),
 		Sink:             sink,
 	})
-}
-
-func (e *Executor) executionContext(runCtxBase context.Context, runID string, req core.ExecuteRequest, active *ActiveRunner, sink core.StreamSink) context.Context {
-	executionCtx := buildExecutionContext(runCtxBase, runID, req.SessionID, req.TurnIndex, sink)
-	if active.ContextSession != nil {
-		executionCtx = WithSession(executionCtx, active.ContextSession)
-	}
-	return executionCtx
 }
 
 func (e *Executor) newManagedRunContext(ctx context.Context, runID string) (context.Context, func()) {
@@ -199,14 +188,12 @@ func (e *Executor) executeResume(ctx context.Context, runCtxBase context.Context
 		return nil, err
 	}
 	defer active.Close()
-	if err := e.bootstrapResumeContextSession(ctx, run, runID, active); err != nil {
-		return nil, fmt.Errorf("bootstrap resume context session: %w", err)
-	}
-	iter, err := e.resumeIter(runCtxBase, run, runID, active, targets, sink)
+	execCtx := buildExecutionContext(runCtxBase, runID, run.SessionID, run.TurnIndex, sink)
+	iter, err := active.Runner.ResumeWithParams(execCtx, runID, &adk.ResumeParams{Targets: targets})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("resume run %s: %w", runID, err)
 	}
-	result, err := e.consume(ctx, runID, run.SessionID, run.Input, iter, active.SelectedSkill, sink, active.ChatModel)
+	result, err := e.consume(ctx, runID, run.SessionID, run.Input, iter, sink, active.ChatModel)
 	if err != nil {
 		return nil, err
 	}
@@ -216,33 +203,6 @@ func (e *Executor) executeResume(ctx context.Context, runCtxBase context.Context
 	return result, nil
 }
 
-func (e *Executor) resumeIter(runCtxBase context.Context, run core.RunRecord, runID string, active *ActiveRunner, targets map[string]any, sink core.StreamSink) (*adk.AsyncIterator[*adk.AgentEvent], error) {
-	executionCtx := WithSession(
-		buildExecutionContext(runCtxBase, runID, run.SessionID, run.TurnIndex, sink), active.ContextSession)
-	iter, err := active.Runner.ResumeWithParams(executionCtx, runID, &adk.ResumeParams{Targets: targets})
-	if err != nil {
-		return nil, fmt.Errorf("resume run %s: %w", runID, err)
-	}
-	return iter, nil
-}
-
-func (e *Executor) bootstrapResumeContextSession(ctx context.Context, run core.RunRecord, runID string, active *ActiveRunner) error {
-	if active.ContextSession != nil {
-		return nil
-	}
-	messages := []adk.Message{}
-	if strings.TrimSpace(run.Input) != "" {
-		messages = []adk.Message{schema.UserMessage(run.Input)}
-	}
-	_, err := e.bootstrapContextSessionMessages(ctx, core.ExecuteRequest{
-		SessionID: run.SessionID,
-		TurnIndex: run.TurnIndex,
-		Input:     run.Input,
-		Messages:  messages,
-	}, runID, active)
-	return err
-}
-
 type RunState struct {
 	lastOutput       string
 	interrupt        map[string]any
@@ -250,36 +210,34 @@ type RunState struct {
 	emittedRunFailed bool
 }
 
-func (e *Executor) consume(ctx context.Context, runID, sessionID, input string, iter *adk.AsyncIterator[*adk.AgentEvent], selectedSkill *SelectedSkill, sink core.StreamSink, chatModel einomodel.BaseChatModel) (*Result, error) {
+func (e *Executor) consume(ctx context.Context, runID, sessionID, input string, iter *adk.AsyncIterator[*adk.AgentEvent], sink core.StreamSink, chatModel einomodel.BaseChatModel) (*Result, error) {
 	state, err := e.collectRunState(ctx, runID, iter, sink, chatModel)
 	if err != nil {
 		return nil, err
 	}
-	return e.finishCollectedRun(ctx, runID, sessionID, input, state, selectedSkill, sink)
+	return e.finishCollectedRun(ctx, runID, sessionID, input, state, sink)
 }
 
 func (e *Executor) collectRunState(ctx context.Context, runID string, iter *adk.AsyncIterator[*adk.AgentEvent], sink core.StreamSink, chatModel einomodel.BaseChatModel) (RunState, error) {
 	state := RunState{}
-	for {
-		event, ok := iter.Next()
-		if !ok {
-			return state, nil
-		}
-		if err := e.applyAgentEvent(ctx, runID, StreamItemsFromAgentEvent(event, chatModel), sink, &state); err != nil {
-			return RunState{}, err
-		}
-	}
-}
-
-func (e *Executor) applyAgentEvent(ctx context.Context, runID string, items []core.StreamItem, sink core.StreamSink, state *RunState) error {
-	for _, item := range items {
+	projector := newAgentEventProjector(runID, chatModel)
+	emit := func(item core.StreamItem) error {
 		item.RunID = runID
 		if _, err := AppendStreamItem(ctx, e.store, sink, item); err != nil {
 			return err
 		}
 		state.applyStreamItem(item)
+		return nil
 	}
-	return nil
+	for {
+		event, ok := iter.Next()
+		if !ok {
+			return state, nil
+		}
+		if err := projector.project(event, emit); err != nil {
+			return RunState{}, err
+		}
+	}
 }
 
 func (s *RunState) applyStreamItem(item core.StreamItem) {
@@ -345,38 +303,18 @@ func (e *Executor) failSetupOrErr(ctx context.Context, runID string, setupErr er
 	return setupErr
 }
 
-func (e *Executor) verifyAndRecordSkill(ctx context.Context, runID string, selected *SelectedSkill, status core.RunStatus, output string, sink core.StreamSink) error {
-	if selected == nil || strings.TrimSpace(runID) == "" || status != core.RunStatusFailed {
-		return nil
-	}
-	_, err := AppendStreamItem(ctx, e.store, sink, core.StreamItem{
-		RunID: runID,
-		Kind:  core.StreamKindSkillFailed,
-		Payload: map[string]any{"skill": &core.StreamSkill{
-			SelectedID:    selected.Skill.ID,
-			Name:          selected.Skill.Name,
-			Source:        selected.Skill.Source,
-			Path:          selected.Skill.Path,
-			Summary:       selected.Skill.Summary,
-			Requirements:  streamSkillRequirementsFromDomain(selected.Skill.Requires),
-			FailureReason: failureReasonForStatus(status, output),
-		}},
-	})
-	return err
-}
-
-func (e *Executor) finishCollectedRun(ctx context.Context, runID, sessionID, input string, state RunState, selectedSkill *SelectedSkill, sink core.StreamSink) (*Result, error) {
+func (e *Executor) finishCollectedRun(ctx context.Context, runID, sessionID, input string, state RunState, sink core.StreamSink) (*Result, error) {
 	switch {
 	case state.failure != nil:
-		return e.finishFailedRun(ctx, runID, sessionID, input, state, selectedSkill, sink)
+		return e.finishFailedRun(ctx, runID, sessionID, input, state, sink)
 	case state.interrupt != nil:
 		return e.finishInterruptedRun(ctx, runID, state)
 	default:
-		return e.finishSucceededRun(ctx, runID, sessionID, input, state, selectedSkill, sink)
+		return e.finishSucceededRun(ctx, runID, sessionID, input, state, sink)
 	}
 }
 
-func (e *Executor) finishFailedRun(ctx context.Context, runID, sessionID, input string, state RunState, selectedSkill *SelectedSkill, sink core.StreamSink) (*Result, error) {
+func (e *Executor) finishFailedRun(ctx context.Context, runID, sessionID, input string, state RunState, sink core.StreamSink) (*Result, error) {
 	durableCtx := core.DurableContext(ctx)
 	if !state.emittedRunFailed && state.failure != nil {
 		if err := e.emitRunFailed(durableCtx, runID, sink, state.failure.Error()); err != nil {
@@ -386,7 +324,7 @@ func (e *Executor) finishFailedRun(ctx context.Context, runID, sessionID, input 
 	if err := e.store.FinishRun(durableCtx, runID, core.RunStatusFailed, state.lastOutput, state.failure.Error()); err != nil {
 		return nil, err
 	}
-	if err := e.verifyAndRecordSkill(durableCtx, runID, selectedSkill, core.RunStatusFailed, state.lastOutput, sink); err != nil {
+	if err := e.store.DeleteCheckpoint(durableCtx, runID); err != nil {
 		return nil, err
 	}
 	if err := e.store.SyncAssistantMessageForRunStatus(durableCtx, runID, core.RunStatusFailed); err != nil {
@@ -415,18 +353,18 @@ func (e *Executor) finishInterruptedRun(ctx context.Context, runID string, state
 	}, nil
 }
 
-func (e *Executor) finishSucceededRun(ctx context.Context, runID, sessionID, input string, state RunState, selectedSkill *SelectedSkill, sink core.StreamSink) (*Result, error) {
+func (e *Executor) finishSucceededRun(ctx context.Context, runID, sessionID, input string, state RunState, sink core.StreamSink) (*Result, error) {
 	durableCtx := core.DurableContext(ctx)
 	if err := e.store.UpdateRunOutput(durableCtx, runID, state.lastOutput); err != nil {
-		return nil, err
-	}
-	if err := e.verifyAndRecordSkill(durableCtx, runID, selectedSkill, core.RunStatusSucceeded, state.lastOutput, sink); err != nil {
 		return nil, err
 	}
 	if err := e.emitRunCompleted(durableCtx, runID, state.lastOutput, sink); err != nil {
 		return nil, err
 	}
 	if err := e.store.FinishRun(durableCtx, runID, core.RunStatusSucceeded, state.lastOutput, ""); err != nil {
+		return nil, err
+	}
+	if err := e.store.DeleteCheckpoint(durableCtx, runID); err != nil {
 		return nil, err
 	}
 	if err := e.store.SyncAssistantMessageForRunStatus(durableCtx, runID, core.RunStatusSucceeded); err != nil {
@@ -494,14 +432,4 @@ func fallbackSummary(combined string, status core.RunStatus) string {
 		return string(status)
 	}
 	return string(status) + ": " + truncateRunes(combined, 500)
-}
-
-func failureReasonForStatus(status core.RunStatus, output string) string {
-	if status != core.RunStatusFailed {
-		return ""
-	}
-	if strings.TrimSpace(output) == "" {
-		return "run_failed"
-	}
-	return "run_failed:with_output"
 }

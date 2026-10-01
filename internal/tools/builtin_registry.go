@@ -11,7 +11,7 @@ import (
 )
 
 // builtinToolOrder is the canonical list of dynamically-registered built-in
-// tools (load_tools, ask_operator, memory, worldstate, skill). It is the
+// tools (ask_operator, memory, worldstate, skill). It is the
 // single source of truth for built-in tool identity: BuiltinToolNames and the
 // runtime spec resolver (tool.RuntimeToolSpec via BuiltinToolSpec) both derive
 // from it, so adding a built-in tool means editing this one place.
@@ -31,7 +31,6 @@ var builtinToolOrder = []string{
 	"skill_list",
 	"skill_view",
 	"skill_create",
-	"load_tools",
 	"ask_operator",
 }
 
@@ -45,10 +44,6 @@ func builtinToolContract(name string) (core.ToolContract, bool) {
 		Execution: core.ToolExecutionPolicy{ParallelPolicy: core.ParallelPolicyReadOnly},
 	}
 	switch name {
-	case "load_tools":
-		c.Kind = core.ToolKindNative
-		c.Category = core.ToolCategoryInspect
-		c.Execution.ParallelPolicy = core.ParallelPolicySerial
 	case "ask_operator":
 		c.Kind = core.ToolKindNative
 		c.Category = core.ToolCategoryIntegration

@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/cloudwego/eino-ext/components/model/openai"
-	"github.com/cloudwego/eino/adk"
 	einomodel "github.com/cloudwego/eino/components/model"
 
 	"github.com/ycvk/acorn/internal/config"
@@ -76,26 +75,6 @@ func newRuntimeChatModel(
 	_ any,
 ) (einomodel.BaseChatModel, error) {
 	return buildRuntimeChatModel(ctx, cfg, newModel)
-}
-
-// buildRunnerAgentHandlers assembles the chat-model middleware chain. With the
-// compaction subpackage removed, compression is driven by the context session
-// rather than by model-call middleware; this builder now only appends the
-// caller-supplied extra handlers.
-func buildRunnerAgentHandlers(
-	_ context.Context,
-	cfg *config.Config,
-	_ *ContextPlane,
-	extraHandlers []adk.ChatModelAgentMiddleware,
-	_ einomodel.BaseChatModel,
-	_ any,
-) ([]adk.ChatModelAgentMiddleware, error) {
-	if cfg == nil {
-		return nil, errors.New("runner factory is not initialized")
-	}
-	handlers := make([]adk.ChatModelAgentMiddleware, 0, len(extraHandlers))
-	handlers = append(handlers, extraHandlers...)
-	return handlers, nil
 }
 
 // newOpenAIChatModel builds an OpenAI-compatible chat model from provider config.

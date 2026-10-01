@@ -29,7 +29,6 @@ approval:
 context:
   window_tokens: 200000
   compact_margin_tokens: 13000
-  preserve_recent_turns: 3
 
 web:
   listen_addr: 127.0.0.1:8080

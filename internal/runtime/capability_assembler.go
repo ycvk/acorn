@@ -9,12 +9,12 @@ import (
 	"time"
 
 	einotool "github.com/cloudwego/eino/components/tool"
+	"github.com/cloudwego/eino/compose"
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
 	mcpprovider "github.com/ycvk/acorn/internal/mcp"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/tools"
-	"github.com/ycvk/acorn/internal/tools/dispatch"
 	"github.com/ycvk/acorn/internal/webaccess"
 )
 
@@ -29,7 +29,7 @@ func (artifactToolBridge) CurrentSessionID(ctx context.Context) string {
 }
 
 func (artifactToolBridge) CurrentToolCallID(ctx context.Context) string {
-	return dispatch.ToolAuditCallID(ctx)
+	return compose.GetToolCallID(ctx)
 }
 
 // NewContextBridge returns a ToolCallContextBridge that reads run/session/tool-call
@@ -111,12 +111,7 @@ func assembleToolsetCatalog(ctx context.Context, cfg *config.Config, localCatalo
 	if err != nil {
 		return nil, err
 	}
-	extra, err := buildExtraToolSpecs(ctx, cfg, aux)
-	if err != nil {
-		return nil, err
-	}
-	specs := append(coreSpecs, extra...)
-	catalog, err := tools.NewCatalog(ctx, specs)
+	catalog, err := tools.NewCatalog(ctx, coreSpecs)
 	if err != nil {
 		return nil, fmt.Errorf("build toolset catalog: %w", err)
 	}
@@ -158,18 +153,6 @@ func buildCoreToolSpecs(ctx context.Context, cfg *config.Config, localCatalog *t
 	specs = append(specs, memorySpecs...)
 	specs = append(specs, skillSpecs...)
 	return specs, nil
-}
-
-func buildExtraToolSpecs(ctx context.Context, cfg *config.Config, aux auxTools) ([]core.ToolSpec, error) {
-	loadToolsTool, err := NewLoadToolsTool()
-	if err != nil {
-		return nil, fmt.Errorf("build load_tools tool: %w", err)
-	}
-	planningSpecs, err := BuildCatalogSpecs(ctx, cfg, "runtime", core.ToolKindNative, []einotool.BaseTool{loadToolsTool})
-	if err != nil {
-		return nil, err
-	}
-	return planningSpecs, nil
 }
 
 type toolsetWebServices struct {
@@ -302,7 +285,7 @@ func buildRunCapabilities(ctx context.Context, deps RuntimeDeps, sessionID, runI
 //   - registry specs: eager-loaded native tools + MCP main tools (MCP tools
 //     are registered into the registry at provider-connect time)
 //   - toolset catalog specs: deferred-loaded native tools (web/browser, built
-//     per run from live services), memory, skill, and load_tools
+//     per run from live services), memory and skill tools
 //   - MCP auxiliary specs: resource/prompt wrappers (session-derived, outside
 //     the registry lifecycle)
 //

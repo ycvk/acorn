@@ -20,7 +20,6 @@ func TestValidateExecutionReadyContextConfig(t *testing.T) {
 		Context: ContextConfig{
 			WindowTokens:        200000,
 			CompactMarginTokens: 13000,
-			PreserveRecentTurns: 3,
 			MaskAfterTurns:      2,
 		},
 		Memory: defaultConfig().Memory,
@@ -64,11 +63,11 @@ func TestValidateExecutionReadyContextConfig(t *testing.T) {
 			wantErr: "context.compact_margin_tokens must be > 1",
 		},
 		{
-			name: "preserve recent turns",
+			name: "compact margin exceeds window",
 			mutate: func(cfg *Config) {
-				cfg.Context.PreserveRecentTurns = 0
+				cfg.Context.CompactMarginTokens = cfg.Context.WindowTokens
 			},
-			wantErr: "context.preserve_recent_turns must be >= 1",
+			wantErr: "context.compact_margin_tokens must be < context.window_tokens",
 		},
 		{
 			name: "mask after turns",
@@ -107,7 +106,6 @@ func TestValidateExecutionReadyRejectsInvalidExecutionFields(t *testing.T) {
 		Context: ContextConfig{
 			WindowTokens:        200000,
 			CompactMarginTokens: 13000,
-			PreserveRecentTurns: 3,
 			MaskAfterTurns:      2,
 		},
 		Web:       WebConfig{ListenAddr: "127.0.0.1:8080"},

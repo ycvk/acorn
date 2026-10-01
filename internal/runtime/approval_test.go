@@ -216,8 +216,11 @@ func TestApprovalSkipsUnmatchedTools(t *testing.T) {
 	if err != nil {
 		t.Fatalf("approval middleware: %v", err)
 	}
-	if mw.requiresApproval("echo_tool") || !mw.requiresApproval("mcp__gmail__send") {
-		t.Fatal("pattern matching is wrong")
+	for name, want := range map[string]bool{"echo_tool": false, "mcp__gmail__send": true} {
+		got, err := mw.requiresApproval(name)
+		if err != nil || got != want {
+			t.Fatalf("requiresApproval(%q) = %v, %v; want %v", name, got, err, want)
+		}
 	}
 	if _, err := newApprovalMiddleware([]string{"["}, &approvalTestStore{}); err == nil {
 		t.Fatal("expected malformed pattern to be rejected")

@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync"
-	"time"
 
 	"github.com/cloudwego/eino/adk"
 	"github.com/cloudwego/eino/schema"
@@ -25,33 +23,7 @@ type AssembleRequest struct {
 }
 
 type AssembleResult struct {
-	Messages          []*schema.Message
-	LifecycleState    *ToolLifecycleState
-	EagerToolNames    []string
-	DeferredToolNames []string
-}
-
-type ToolCallEvent struct {
-	RunID     string
-	SessionID string
-	TurnIndex int
-	CallID    string
-	ToolName  string
-	Arguments string
-}
-
-type DeferredLoadRequest struct {
-	RunID     string
-	SessionID string
-	Query     string
-	ToolNames []string
-	Limit     int
-}
-
-type DeferredLoadResult struct {
-	Messages        []*schema.Message
-	LoadedToolNames []string
-	AlreadyLoaded   []string
+	Messages []*schema.Message
 }
 
 type DefaultOptions struct {
@@ -64,30 +36,6 @@ type ContextPlane struct {
 	maxContextTokens int
 	tokenCounter     TokenCounter
 	memoryBudget     int
-}
-
-type ToolLifecycleState struct {
-	RunID         string
-	SessionID     string
-	LoadedTools   map[string]LoadedToolRecord
-	DeferredTools map[string]DeferredToolRecord
-	mu            sync.Mutex
-}
-
-func (s *ToolLifecycleState) Mu() *sync.Mutex {
-	return &s.mu
-}
-
-type LoadedToolRecord struct {
-	Name       string
-	LoadedAt   time.Time
-	LoadSource string
-}
-
-type DeferredToolRecord struct {
-	Name        string
-	Reason      string
-	Description string
 }
 
 func NewDefaultPlane(opts DefaultOptions) *ContextPlane {
@@ -116,15 +64,7 @@ func (p *ContextPlane) Assemble(ctx context.Context, req AssembleRequest) (*Asse
 	if err != nil {
 		return nil, err
 	}
-	lifecycleState := newToolLifecycleState(ctx, req)
-	deferredNames := sortedDeferredToolNames(lifecycleState)
-
-	return &AssembleResult{
-		Messages:          messages,
-		LifecycleState:    lifecycleState,
-		EagerToolNames:    sortedLoadedToolNames(lifecycleState),
-		DeferredToolNames: deferredNames,
-	}, nil
+	return &AssembleResult{Messages: messages}, nil
 }
 
 // filterMessages drops nil entries.

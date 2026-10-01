@@ -133,7 +133,6 @@ context:
   window_tokens: 200000
   compact_margin_tokens: 13000
   mask_after_turns: 2
-  preserve_recent_turns: 3
 agent:
   name: acorn
   description: Self-hosted AI agent

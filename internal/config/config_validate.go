@@ -150,8 +150,8 @@ func (c *Config) validateContext() error {
 	if c.Context.CompactMarginTokens <= 1 {
 		return errors.New("context.compact_margin_tokens must be > 1")
 	}
-	if c.Context.PreserveRecentTurns < 1 {
-		return errors.New("context.preserve_recent_turns must be >= 1")
+	if c.Context.CompactMarginTokens >= c.Context.WindowTokens {
+		return errors.New("context.compact_margin_tokens must be < context.window_tokens")
 	}
 	if c.Context.MaskAfterTurns < 0 {
 		return errors.New("context.mask_after_turns must be >= 0")
