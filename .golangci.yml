@@ -57,10 +57,6 @@ linters:
       # One-shot schema bootstrap during Open; no caller context exists yet.
       - path: internal/(store/store_schema|memory/vector_index)\.go
         linters: [noctx]
-      # MCP sampling is deprecated in protocol 2026-07-28 (SEP-2577) but stays
-      # functional for >=12 months; Acorn still serves sampling requests.
-      - linters: [staticcheck]
-        text: "SA1019: .*the sampling feature is deprecated"
 
 issues:
   max-issues-per-linter: 0

@@ -148,7 +148,6 @@ func (m *Manager) buildClientOptions(cfg core.ProviderConfig) *mcp.ClientOptions
 		ResourceListChangedHandler: m.buildResourceListChangedHandler(cfg.Name),
 		PromptListChangedHandler:   m.buildPromptListChangedHandler(cfg.Name),
 		ElicitationHandler:         m.buildElicitationHandler(),
-		CreateMessageHandler:       m.buildCreateMessageHandler(),
 	}
 }
 func (m *Manager) rebuildSlotOrder(existingOrder []string, added []core.ProviderConfig) {

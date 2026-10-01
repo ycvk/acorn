@@ -314,36 +314,3 @@ func TestBuildElicitationHandlerReturnsValidHandler(t *testing.T) {
 		t.Fatal("handler did not return within timeout")
 	}
 }
-
-// TestBuildCreateMessageHandlerReturnsNilWithoutStore tests that buildCreateMessageHandler
-// returns nil when the sampling handler is not configured (no store).
-func TestBuildCreateMessageHandlerReturnsNilWithoutStore(t *testing.T) {
-	mgr := &Manager{}
-	handler := mgr.buildCreateMessageHandler()
-	if handler != nil {
-		t.Fatal("expected nil handler when sampling is not configured")
-	}
-}
-
-// TestBuildCreateMessageHandlerReturnsHandlerWithStore tests that buildCreateMessageHandler
-// returns a handler when the sampling handler is configured.
-func TestBuildCreateMessageHandlerReturnsHandlerWithStore(t *testing.T) {
-	mgr := &Manager{}
-	mgr.sampling = newSamplingHandler(mgr)
-	handler := mgr.buildCreateMessageHandler()
-	if handler == nil {
-		t.Fatal("expected non-nil handler when sampling is configured")
-	}
-}
-
-// TestManagerSamplingDepthField tests that the Manager struct has a samplingDepth field.
-func TestManagerSamplingDepthField(t *testing.T) {
-	mgr := &Manager{}
-	if mgr.samplingDepth != 0 {
-		t.Errorf("samplingDepth = %d, want 0", mgr.samplingDepth)
-	}
-	mgr.samplingDepth = 3
-	if mgr.samplingDepth != 3 {
-		t.Errorf("samplingDepth = %d, want 3", mgr.samplingDepth)
-	}
-}

@@ -7,7 +7,6 @@ import (
 	"strings"
 	"sync"
 
-	einomodel "github.com/cloudwego/eino/components/model"
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/config"
@@ -228,22 +227,4 @@ func (t *mcpNamespacedTool) Info(ctx context.Context) (*schema.ToolInfo, error) 
 
 func (t *mcpNamespacedTool) InvokableRun(ctx context.Context, argumentsInJSON string, opts ...einotool.Option) (string, error) {
 	return t.invokable.InvokableRun(ctx, argumentsInJSON, opts...)
-}
-
-// samplingExecutorAdapter adapts einomodel.BaseChatModel to the
-// mcpprovider.SamplingExecutor interface. Each sampling request is a
-// single Generate call — no run lifecycle, no store persistence.
-type samplingExecutorAdapter struct {
-	model einomodel.BaseChatModel
-}
-
-func (a samplingExecutorAdapter) ExecuteMessages(ctx context.Context, messages []*schema.Message) (string, error) {
-	resp, err := a.model.Generate(ctx, messages)
-	if err != nil {
-		return "", err
-	}
-	if resp == nil {
-		return "", errors.New("sampling: model returned nil response")
-	}
-	return resp.Content, nil
 }

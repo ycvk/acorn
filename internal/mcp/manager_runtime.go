@@ -57,24 +57,9 @@ func (m *Manager) SetActiveRunID(runID string) {
 	}
 }
 
-func (m *Manager) SetSamplingExecutor(exec SamplingExecutor) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if m.sampling != nil {
-		m.sampling.executor = exec
-	}
-}
-
 func (m *Manager) buildElicitationHandler() func(context.Context, *mcp.ElicitRequest) (*mcp.ElicitResult, error) {
 	if m.elicitation == nil {
 		return nil
 	}
 	return m.elicitation.HandleElicitation
-}
-
-func (m *Manager) buildCreateMessageHandler() func(context.Context, *mcp.CreateMessageRequest) (*mcp.CreateMessageResult, error) {
-	if m.sampling == nil {
-		return nil
-	}
-	return m.sampling.HandleCreateMessage
 }

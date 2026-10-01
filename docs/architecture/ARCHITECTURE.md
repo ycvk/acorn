@@ -22,7 +22,7 @@ operator CLI / authenticated remote clients / triggers (webhook, cron)
 - `internal/store/` — SQLite adapter + ArtifactService。
 - `internal/tools/` — ToolRegistry 实现 + 工具实现（file/git/browser/web/command/artifact/operator/worldstate）+ 风险闸门；`internal/tools/dispatch` 是工具调度（SafeParallelToolsNode、streaming executor、scheduler、side-effect extraction）。
 - `internal/memory/` — file-backed memory（facts/history）、Active Memory、混合检索、WorldState。
-- `internal/mcp/` — MCP provider manager、transport、OAuth/sampling/elicitation handlers。
+- `internal/mcp/` — MCP provider manager、transport、OAuth/elicitation handlers；MCP sampling（协议 2026-07-28 弃用）不支持。
 - `internal/api/` — `/v1` client surface + device bearer auth + live RunEvent 投影 + Thread/Run/Event/Inbox services。
 - `internal/triggers/` — `serve` 进程内常驻的 webhook/cron trigger scheduler。
 - `internal/wire/` — Container 组合根；唯一允许直接持有 sqlite adapter 的 composition root。

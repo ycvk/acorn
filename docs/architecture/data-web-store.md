@@ -21,7 +21,7 @@ Cross-package store-facing records and sentinel errors live in `internal/core`. 
 
 - app services use `core.SessionStore` and `core.IdentityStore`.
 - runtime uses `core.SessionStore`, `core.ArtifactStore`, and runtime-owned seams.
-- the MCP manager uses `core.ArtifactStore` for OAuth tokens and `core.SessionStore` for sampling/elicitation pending actions.
+- the MCP manager uses `core.ArtifactStore` for OAuth tokens and `core.SessionStore` for elicitation pending actions. MCP sampling (deprecated in protocol 2026-07-28, SEP-2577) is not supported: the client does not advertise the capability.
 
 Production code may directly import `internal/store` only from the composition root: `internal/wire/container.go`.
 

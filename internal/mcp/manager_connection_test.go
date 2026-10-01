@@ -28,7 +28,7 @@ func TestNewManagerLoadsToolsFromFixtureServer(t *testing.T) {
 	t.Cleanup(func() { _ = mgr.Close() })
 
 	tools := mgr.Tools()
-	if got, want := len(tools), 3; got != want {
+	if got, want := len(tools), 2; got != want {
 		t.Fatalf("expected %d tools, got %d", want, got)
 	}
 
@@ -216,7 +216,7 @@ func TestNewManagerKeepsHealthyProvidersWhenOneFails(t *testing.T) {
 	t.Cleanup(func() { _ = mgr.Close() })
 
 	tools := mgr.Tools()
-	if got, want := len(tools), 3; got != want {
+	if got, want := len(tools), 2; got != want {
 		t.Fatalf("expected %d tools from healthy provider, got %d", want, got)
 	}
 
@@ -232,8 +232,8 @@ func TestNewManagerKeepsHealthyProvidersWhenOneFails(t *testing.T) {
 			if s.Error != "" {
 				t.Fatalf("healthy provider should not have error, got %q", s.Error)
 			}
-			if s.ToolCount != 3 {
-				t.Fatalf("healthy provider tool count = %d, want 3", s.ToolCount)
+			if s.ToolCount != 2 {
+				t.Fatalf("healthy provider tool count = %d, want 2", s.ToolCount)
 			}
 		}
 		if s.Name == "broken" {

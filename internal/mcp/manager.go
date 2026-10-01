@@ -14,17 +14,15 @@ import (
 )
 
 type Manager struct {
-	slots         []providerSlot
-	mu            sync.RWMutex
-	stopped       bool
-	stoppedMu     sync.Mutex
-	tokenStore    core.ArtifactStore
-	store         core.SessionStore
-	toolRegistry  core.ToolRegistry
-	specBuilder   ToolSpecBuilder
-	elicitation   *ElicitationHandler
-	sampling      *SamplingHandler
-	samplingDepth int32
+	slots        []providerSlot
+	mu           sync.RWMutex
+	stopped      bool
+	stoppedMu    sync.Mutex
+	tokenStore   core.ArtifactStore
+	store        core.SessionStore
+	toolRegistry core.ToolRegistry
+	specBuilder  ToolSpecBuilder
+	elicitation  *ElicitationHandler
 }
 
 type providerSlot struct {
@@ -126,9 +124,9 @@ func NewManager(ctx context.Context, cfgs []core.ProviderConfig, opts ...Manager
 		return nil, errors.New("no enabled MCP providers")
 	}
 
-	// Construct the manager first so handlers (elicitation, sampling) are
-	// initialized before providers connect. connectSlotForReconcile builds
-	// ClientOptions (CreateMessageHandler, ElicitationHandler, list-changed
+	// Construct the manager first so the elicitation handler is initialized
+	// before providers connect. connectSlotForReconcile builds
+	// ClientOptions (ElicitationHandler, list-changed
 	// handlers, auth callback) from the manager — they must exist at connect
 	// time so the initial session carries the same handlers as a reconciled one.
 	mgr := &Manager{
@@ -139,7 +137,6 @@ func NewManager(ctx context.Context, cfgs []core.ProviderConfig, opts ...Manager
 	}
 	if o.store != nil {
 		mgr.elicitation = newElicitationHandler(o.store)
-		mgr.sampling = newSamplingHandler(mgr)
 	}
 
 	// Connect providers concurrently, preserving config order via indexed results.
