@@ -18,26 +18,13 @@ const (
 )
 
 // highRiskTools is the hardcoded set of tools whose invocation always
-// requires operator approval. Per ADR-0001 §已锁定的实施决定 #6:
-// "任何花钱、任何对外发送、任何删除、任何部署变更、任何 SaaS 账户操作"
+// requires operator approval (ADR-0001: anything that spends money, sends
+// externally, deletes, or changes deployments). Entries must be real
+// registered tool names; MCP tools are provider-prefixed and never match.
 // This list is intentionally a rule, not an LLM judgment, and cannot be
 // bypassed by the agent.
 var highRiskTools = map[string]bool{
-	// deletion
-	"file_delete": true,
-	"git_delete":  true,
-	// external sending
-	"email_send":   true,
-	"message_send": true,
-	"commit_push":  true,
-	// deployment / SaaS mutations
-	"deploy":       true,
-	"saas_account": true,
-	"run_command":  true, // shell commands can do anything
-	// workspace mutations
-	"file_write": true,
-	"file_move":  true,
-	"git_commit": true,
+	"run_command": true, // shell commands can do anything
 }
 
 // ClassifyRisk returns the risk level for a tool call. It is a pure rule

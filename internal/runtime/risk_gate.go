@@ -1,7 +1,6 @@
 package runtime
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/cloudwego/eino/schema"
@@ -18,12 +17,6 @@ type ApprovalRequiredError struct {
 
 func (e *ApprovalRequiredError) Error() string {
 	return fmt.Sprintf("tool %q requires operator approval (risk gate)", e.ToolName)
-}
-
-// IsApprovalRequiredError reports whether err is an ApprovalRequiredError.
-func IsApprovalRequiredError(err error) bool {
-	var are *ApprovalRequiredError
-	return errors.As(err, &are)
 }
 
 // approvalRequiredToolMessage builds the tool result message that tells the

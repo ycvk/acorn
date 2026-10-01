@@ -8,19 +8,6 @@ import (
 	"github.com/cloudwego/eino/schema"
 )
 
-func TestApprovalRequiredErrorIsDetected(t *testing.T) {
-	err := &ApprovalRequiredError{ToolName: "file_delete", CallID: "call_1"}
-	if !IsApprovalRequiredError(err) {
-		t.Fatal("IsApprovalRequiredError should return true for *ApprovalRequiredError")
-	}
-	if !IsApprovalRequiredError(errors.Join(err)) {
-		t.Fatal("IsApprovalRequiredError should find it inside a joined error")
-	}
-	if IsApprovalRequiredError(errors.New("other")) {
-		t.Fatal("IsApprovalRequiredError should return false for unrelated error")
-	}
-}
-
 func TestApprovalRequiredToolMessageContainsToolName(t *testing.T) {
 	msg := approvalRequiredToolMessage("call_42", "run_command")
 	if msg == nil {
@@ -54,28 +41,23 @@ func containsStr(s, substr string) bool {
 	return false
 }
 
-func TestRiskGateInterceptsHighRiskToolInBeforeToolCall(t *testing.T) {
-	// This test verifies the wiring: the BeforeToolCall callback in
-	// direct_response includes a risk gate check. We test the gate logic
-	// directly since ExecuteRound requires a full model + streamer setup.
-	highRisk := "file_delete"
-	lowRisk := "read_file"
-
-	if !isHighRiskForTest(highRisk) {
-		t.Fatalf("%q should be high-risk", highRisk)
+func TestDirectResponseBeforeToolCallAppliesRiskGate(t *testing.T) {
+	state := &ToolLifecycleState{
+		RunID:     "run_1",
+		SessionID: "session_1",
+		LoadedTools: map[string]LoadedToolRecord{
+			"run_command": {},
+			"read_file":   {},
+		},
 	}
-	if isHighRiskForTest(lowRisk) {
-		t.Fatalf("%q should be low-risk", lowRisk)
-	}
-}
+	ctx := WithToolLifecycleContext(context.Background(), state, nil, nil)
 
-// isHighRiskForTest delegates to tools.IsHighRisk to verify the wiring is
-// importable and callable from the runtime package.
-func isHighRiskForTest(toolName string) bool {
-	// We can't import internal/tools from a test in internal/runtime without
-	// a build tag, so we verify the error type and message construction instead.
-	// The actual wiring is in direct_response.go BeforeToolCall, which is
-	// exercised by the integration test in TestDirectResponseApprovalGate.
-	_ = context.Background()
-	return toolName == "file_delete" || toolName == "run_command"
+	err := directResponseBeforeToolCall(ctx, schema.ToolCall{ID: "call_1", Function: schema.FunctionCall{Name: "run_command"}})
+	var are *ApprovalRequiredError
+	if !errors.As(err, &are) || are.ToolName != "run_command" || are.CallID != "call_1" {
+		t.Fatalf("run_command error = %v, want ApprovalRequiredError for call_1", err)
+	}
+	if err := directResponseBeforeToolCall(ctx, schema.ToolCall{ID: "call_2", Function: schema.FunctionCall{Name: "read_file"}}); err != nil {
+		t.Fatalf("read_file error = %v, want nil", err)
+	}
 }

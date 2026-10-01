@@ -260,24 +260,7 @@ func (a *directResponseAgent) runFromState(ctx context.Context, generator *adk.A
 			return
 		}
 		msg, toolMessages, outputLimitReached, err := ExecuteRound(runCtx, a.model, a.streamer, a.toolNode, modelInput.Messages, toolInfos, a.runID, messageID, RoundOptions{
-			BeforeToolCall: func(ctx context.Context, call schema.ToolCall) error {
-				if err := OnToolCall(ctx, ToolCallEvent{
-					RunID:     core.GetRunID(ctx),
-					SessionID: core.GetSessionID(ctx),
-					TurnIndex: core.TurnIndexFromContext(ctx),
-					CallID:    call.ID,
-					ToolName:  call.Function.Name,
-					Arguments: call.Function.Arguments,
-				}); err != nil {
-					return err
-				}
-				// Risk gate: high-risk tools are intercepted and the agent is
-				// told to request approval via ask_operator. The run continues.
-				if tools.IsHighRisk(call.Function.Name) && call.Function.Name != "ask_operator" {
-					return &ApprovalRequiredError{ToolName: call.Function.Name, CallID: call.ID}
-				}
-				return nil
-			},
+			BeforeToolCall: directResponseBeforeToolCall,
 		})
 		if err == nil {
 			if err := session.RecordAssistant(runCtx, msg); err != nil {
@@ -413,4 +396,24 @@ func checkpointStore(deps RuntimeDeps) adk.CheckPointStore {
 		return deps.CheckpointStore
 	}
 	return newInMemoryCheckpointStore()
+}
+
+// directResponseBeforeToolCall validates a tool call against the run's tool
+// lifecycle, then applies the risk gate: high-risk tools are intercepted and
+// the agent is told to request approval via ask_operator. The run continues.
+func directResponseBeforeToolCall(ctx context.Context, call schema.ToolCall) error {
+	if err := OnToolCall(ctx, ToolCallEvent{
+		RunID:     core.GetRunID(ctx),
+		SessionID: core.GetSessionID(ctx),
+		TurnIndex: core.TurnIndexFromContext(ctx),
+		CallID:    call.ID,
+		ToolName:  call.Function.Name,
+		Arguments: call.Function.Arguments,
+	}); err != nil {
+		return err
+	}
+	if tools.IsHighRisk(call.Function.Name) && call.Function.Name != "ask_operator" {
+		return &ApprovalRequiredError{ToolName: call.Function.Name, CallID: call.ID}
+	}
+	return nil
 }
