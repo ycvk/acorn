@@ -134,17 +134,16 @@ func buildContainer(ctx context.Context, cfg *config.Config) (*Container, error)
 		}
 	}()
 
-	deps, err := buildContainerRuntimeDeps(ctx, cfg, store)
-	if err != nil {
-		return nil, err
-	}
-
 	wsDir := filepath.Join(strings.TrimSpace(cfg.Runtime.StorageDir), "worldstate")
 	ws, err := memory.NewWorldState(wsDir)
 	if err != nil {
 		return nil, fmt.Errorf("build world state: %w", err)
 	}
-	deps.worldStateUpdater = &worldStateAdapter{ws: ws}
+
+	deps, err := buildContainerRuntimeDeps(ctx, cfg, store, ws)
+	if err != nil {
+		return nil, err
+	}
 
 	container, err := buildContainerAppServices(cfg, store, deps, ws)
 	if err != nil {

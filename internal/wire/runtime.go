@@ -22,14 +22,13 @@ type containerRuntimeDeps struct {
 	contextPlane          *runtime.ContextPlane
 	mcpPendingActionStore core.SessionStore
 	toolRegistry          core.ToolRegistry
-	worldStateUpdater     tools.WorldStateUpdater
 	runnerFactory         *runtime.RunnerFactory
 	runController         *runtime.RunController
 	executeRun            func(context.Context, core.ExecuteRequest, core.StreamSink) (*runtime.Result, error)
 	resumeRun             func(context.Context, string, map[string]any, core.StreamSink) (*runtime.Result, error)
 }
 
-func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *store.Store) (*containerRuntimeDeps, error) {
+func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *store.Store, worldState *memory.WorldState) (*containerRuntimeDeps, error) {
 	ws, err := cfg.Workspace()
 	if err != nil {
 		return nil, err
@@ -64,6 +63,8 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 		ArtifactContext:   ctxBridge,
 		OperatorStore:     mcpPendingActionStore,
 		OperatorContext:   ctxBridge,
+		RunSearchStore:    db,
+		WorldStateUpdater: &worldStateAdapter{ws: worldState},
 	}); err != nil {
 		return nil, fmt.Errorf("register native tools: %w", err)
 	}
