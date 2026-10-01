@@ -60,6 +60,7 @@ type RunService struct {
 	controller  *runtime.RunController
 	newRunID    func() string
 	reportError func(context.Context, string, error)
+	resumer     runResumer
 }
 
 // NewRunService constructs a RunService backed by the given store, executor
@@ -73,6 +74,13 @@ func NewRunService(store core.SessionStore, threads *ThreadService, executeRun f
 		newRunID:    newRunID,
 		reportError: reportClientBackgroundError,
 	}
+}
+
+// WithResumer makes runs that settle as interrupted resume as soon as their
+// pending actions are already decided.
+func (s *RunService) WithResumer(resumer runResumer) *RunService {
+	s.resumer = resumer
+	return s
 }
 
 func newRunID() string {
@@ -241,7 +249,7 @@ func reportClientBackgroundError(ctx context.Context, runID string, err error) {
 }
 
 func (s *RunService) executeRunAsync(ctx context.Context, req core.ExecuteRequest, started *clientRunStartSignal) {
-	_, err := s.executeRun(ctx, req, runStartSignalSink(started))
+	result, err := s.executeRun(ctx, req, runStartSignalSink(started))
 	if err != nil {
 		if started.MarkFailed(err) {
 			return
@@ -250,6 +258,11 @@ func (s *RunService) executeRunAsync(ctx context.Context, req core.ExecuteReques
 			s.reportBackgroundRunFailure(ctx, req.RunID, err, persistErr)
 		}
 		return
+	}
+	if result != nil && result.Status == core.RunStatusInterrupted && s.resumer != nil {
+		if err := s.resumer.ResumeIfReady(ctx, req.RunID); err != nil {
+			s.reportError(ctx, req.RunID, err)
+		}
 	}
 }
 

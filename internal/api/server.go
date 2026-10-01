@@ -14,7 +14,6 @@ type Dependencies struct {
 	Runs             *RunService
 	Events           *EventService
 	PendingAction    *PendingActionService
-	RunResume        *RunResumeService
 	Memory           memory.Service
 	Skills           *SkillService
 	Capabilities     *CapabilitiesService
@@ -30,7 +29,6 @@ type Server struct {
 	runs          *RunService
 	events        *EventService
 	pendingAction *PendingActionService
-	runResume     *RunResumeService
 	memory        memory.Service
 	skills        *SkillService
 	capabilities  *CapabilitiesService

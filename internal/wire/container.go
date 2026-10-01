@@ -53,10 +53,6 @@ func (c *Container) Config() *config.Config {
 	return c.cfg
 }
 
-func (c *Container) RunResume() *api.RunResumeService {
-	return c.runResume
-}
-
 func (c *Container) Threads() *api.ThreadService {
 	return c.threads
 }
@@ -223,9 +219,9 @@ func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *contai
 		workspaceRoot = deps.ws.Root()
 	}
 	container.threads = api.NewThreadService(db, workspaceRoot)
-	container.runs = api.NewRunService(db, container.threads, deps.executeRun, deps.runController)
+	container.runs = api.NewRunService(db, container.threads, deps.executeRun, deps.runController).WithResumer(container.runResume)
 	container.events = api.NewEventService(db, db)
-	container.pendingAction = api.NewPendingActionService(db)
+	container.pendingAction = api.NewPendingActionService(db).WithResumer(container.runResume)
 
 	container.capabilities = api.NewCapabilitiesService(cfg, container.skills.Snapshot, mcpprovider.Doctor, deps.runnerFactory)
 	container.deviceAuth = api.NewDeviceAuthService(db)

@@ -6,14 +6,19 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/runtime"
 )
 
 type RunResumeService struct {
-	store     core.SessionStore
-	resumeRun func(context.Context, string, map[string]any, core.StreamSink) (*runtime.Result, error)
+	store       core.SessionStore
+	resumeRun   func(context.Context, string, map[string]any, core.StreamSink) (*runtime.Result, error)
+	reportError func(context.Context, string, error)
+
+	mu       sync.Mutex
+	inflight map[string]struct{}
 }
 
 type resumeStatus struct {
@@ -24,16 +29,12 @@ type resumeStatus struct {
 	Reason       string         `json:"reason,omitempty"`
 }
 
-type RunResult struct {
-	RunID       string         `json:"run_id"`
-	Status      string         `json:"status"`
-	Output      string         `json:"output,omitempty"`
-	Error       string         `json:"error,omitempty"`
-	Interrupted map[string]any `json:"interrupted,omitempty"`
-}
-
 func NewRunResumeService(store core.SessionStore) *RunResumeService {
-	return &RunResumeService{store: store}
+	return &RunResumeService{
+		store:       store,
+		reportError: reportClientBackgroundError,
+		inflight:    make(map[string]struct{}),
+	}
 }
 
 func (s *RunResumeService) WithResume(resumeRun func(context.Context, string, map[string]any, core.StreamSink) (*runtime.Result, error)) *RunResumeService {
@@ -41,7 +42,7 @@ func (s *RunResumeService) WithResume(resumeRun func(context.Context, string, ma
 	return s
 }
 
-func (s *RunResumeService) Resume(ctx context.Context, runID string) (*RunResult, error) {
+func (s *RunResumeService) Resume(ctx context.Context, runID string) (*runtime.Result, error) {
 	if s == nil || s.resumeRun == nil {
 		return nil, errors.New("resume runner is nil")
 	}
@@ -49,39 +50,95 @@ func (s *RunResumeService) Resume(ctx context.Context, runID string) (*RunResult
 	if err != nil {
 		return nil, err
 	}
-	result, err := s.resumeRun(ctx, runID, targets, nil)
-	if err != nil {
-		return nil, err
-	}
-	return runResultFromRuntime(result)
+	return s.resumeRun(ctx, runID, targets, nil)
 }
 
-func runResultFromRuntime(result *runtime.Result) (*RunResult, error) {
-	if result == nil {
-		return nil, nil
+// ResumeIfReady resumes runID in the background once it is interrupted and
+// none of its pending actions are still pending. It is called after every
+// decision and whenever a run settles as interrupted, so whichever of the two
+// happens last starts the resume; the in-flight set keeps the two callers
+// from resuming the same run twice.
+func (s *RunResumeService) ResumeIfReady(ctx context.Context, runID string) error {
+	ready, err := s.readyToResume(ctx, runID)
+	if err != nil || !ready {
+		return err
 	}
-	status, err := projectRunStatus(result.Status)
-	if err != nil {
-		return nil, err
-	}
-	return &RunResult{
-		RunID:       result.RunID,
-		Status:      status,
-		Output:      result.Output,
-		Error:       result.Error,
-		Interrupted: cloneMap(result.Interrupted),
-	}, nil
-}
-
-func cloneMap(value map[string]any) map[string]any {
-	if value == nil {
+	if !s.claim(runID) {
 		return nil
 	}
-	out := make(map[string]any, len(value))
-	for key, item := range value {
-		out[key] = item
+	go s.resumeClaimed(context.WithoutCancel(ctx), runID)
+	return nil
+}
+
+func (s *RunResumeService) readyToResume(ctx context.Context, runID string) (bool, error) {
+	run, err := s.store.LoadRun(ctx, runID)
+	if err != nil {
+		return false, err
 	}
-	return out
+	if run.Status != core.RunStatusInterrupted {
+		return false, nil
+	}
+	actions, err := s.store.ListPendingActionsByRun(ctx, runID)
+	if err != nil {
+		return false, err
+	}
+	for _, action := range actions {
+		if action.Status == core.PendingActionStatusPending {
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
+func (s *RunResumeService) claim(runID string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, busy := s.inflight[runID]; busy {
+		return false
+	}
+	s.inflight[runID] = struct{}{}
+	return true
+}
+
+func (s *RunResumeService) release(runID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.inflight, runID)
+}
+
+func (s *RunResumeService) resumeClaimed(ctx context.Context, runID string) {
+	result, err := s.Resume(ctx, runID)
+	s.release(runID)
+	if err != nil {
+		s.failRun(ctx, runID, err)
+		return
+	}
+	if result != nil && result.Status == core.RunStatusInterrupted {
+		if err := s.ResumeIfReady(ctx, runID); err != nil {
+			s.reportError(ctx, runID, err)
+		}
+	}
+}
+
+// failRun records a resume failure on a run that the executor did not get to
+// finish, so the run does not stay interrupted with no visible error.
+func (s *RunResumeService) failRun(ctx context.Context, runID string, cause error) {
+	run, err := s.store.LoadRun(ctx, runID)
+	if err != nil {
+		s.reportError(ctx, runID, errors.Join(cause, err))
+		return
+	}
+	if run.Status == core.RunStatusSucceeded || run.Status == core.RunStatusFailed {
+		s.reportError(ctx, runID, cause)
+		return
+	}
+	if err := s.store.FinishRun(ctx, runID, core.RunStatusFailed, "", cause.Error()); err != nil {
+		s.reportError(ctx, runID, errors.Join(cause, err))
+		return
+	}
+	if _, err := s.store.AppendEvent(ctx, runID, "run.failed", map[string]any{"error": cause.Error()}); err != nil {
+		s.reportError(ctx, runID, errors.Join(cause, err))
+	}
 }
 
 func (s *RunResumeService) InferResumeTargets(ctx context.Context, runID string) (map[string]any, error) {

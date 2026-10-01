@@ -156,7 +156,6 @@ func TestClientResourceSurfaceHandlers(t *testing.T) {
 		}},
 	}
 	server := newClientHotPathServer(service)
-	server.runResume = newRunResumeTestService(&RunResult{RunID: "run_1", Status: "interrupted"}, nil)
 	server.capabilities = NewCapabilitiesService(
 		cfg,
 		func(context.Context) (*skills.Snapshot, error) {
@@ -302,7 +301,6 @@ func TestClientResourceSurfaceHandlers(t *testing.T) {
 		want       string
 	}{
 		{name: "interrupt", method: http.MethodPost, path: "/v1/runs/run_1:interrupt", wantStatus: http.StatusAccepted, want: "interrupt_requested"},
-		{name: "resume", method: http.MethodPost, path: "/v1/runs/run_1:resume", body: `{}`, wantStatus: http.StatusOK, want: `"run_id":"run_1"`},
 		{name: "detail", method: http.MethodGet, path: "/v1/runs/run_1/detail", wantStatus: http.StatusOK, want: `"artifacts"`},
 		{name: "inbox", method: http.MethodGet, path: "/v1/inbox", wantStatus: http.StatusOK, want: `"pending_actions":[{"action_id":"action_1"`},
 		{name: "pending actions", method: http.MethodGet, path: "/v1/pending-actions", wantStatus: http.StatusOK, want: `"items":[{"action_id":"action_1"`},

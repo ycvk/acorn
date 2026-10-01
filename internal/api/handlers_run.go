@@ -41,16 +41,6 @@ func (s *Server) handleClientInterruptRun(w http.ResponseWriter, r *http.Request
 	})
 }
 
-func (s *Server) handleClientResumeRun(w http.ResponseWriter, r *http.Request) {
-	runID := chi.URLParam(r, "run_id")
-	result, err := s.runResume.Resume(r.Context(), runID)
-	if err != nil {
-		s.respondClientKnownError(w, r, err)
-		return
-	}
-	s.respondJSON(w, r, http.StatusOK, result)
-}
-
 func (s *Server) handleClientRunDetail(w http.ResponseWriter, r *http.Request) {
 	runID := chi.URLParam(r, "run_id")
 	run, err := s.runs.GetRun(r.Context(), runID)

@@ -406,27 +406,6 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
-  /v1/runs/{run_id}:resume:
-    post:
-      tags: [client]
-      summary: Resume an interrupted client run
-      operationId: clientResumeRun
-      parameters:
-        - $ref: '#/components/parameters/RunID'
-      responses:
-        '200':
-          description: Resume result
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/RunResult'
-        '404':
-          $ref: '#/components/responses/RunNotFound'
-        '409':
-          $ref: '#/components/responses/RunNotResumable'
-        '500':
-          $ref: '#/components/responses/InternalError'
-
   /v1/pending-actions:
     get:
       tags: [client]
@@ -907,18 +886,6 @@ components:
                 error:
                   code: run_not_found
                   message: run run_123 not found
-    RunNotResumable:
-      description: Run exists but cannot be resumed
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-          examples:
-            runNotResumable:
-              value:
-                error:
-                  code: run_not_resumable
-                  message: run run_123 is not interrupted
     RunNotActive:
       description: Run exists but is not currently active
       content:
@@ -2492,21 +2459,3 @@ components:
           type: string
         message:
           type: string
-
-    RunResult:
-      type: object
-      additionalProperties: false
-      required: [run_id, status]
-      properties:
-        run_id:
-          type: string
-        status:
-          type: string
-          enum: [running, completed, interrupted, failed]
-        output:
-          type: string
-        error:
-          type: string
-        interrupted:
-          type: object
-          additionalProperties: true

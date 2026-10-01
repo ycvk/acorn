@@ -63,7 +63,6 @@ func TestOpenAPIContractMatchesFileBackedMemorySurface(t *testing.T) {
 		"/v1/runs/{run_id}/events",
 		"/v1/runs/{run_id}/detail",
 		"/v1/runs/{run_id}:interrupt",
-		"/v1/runs/{run_id}:resume",
 		"/v1/inbox",
 		"/v1/pending-actions",
 		"/v1/pending-actions/{action_id}",
@@ -321,7 +320,6 @@ func TestOpenAPIContractMatchesFileBackedMemorySurface(t *testing.T) {
 		"SystemStatus",
 		"ToolListResponse",
 		"InterruptRunResponse",
-		"RunResult",
 		"RunArtifact",
 	} {
 		if doc.Components.Schemas[schemaName] == nil {
@@ -340,25 +338,6 @@ func TestOpenAPIContractMatchesFileBackedMemorySurface(t *testing.T) {
 	}
 }
 
-func TestOpenAPIRunResultMatchesAppProjectionStruct(t *testing.T) {
-	path := filepath.Join("..", "..", "docs", "openapi.yaml")
-	loader := openapi3.NewLoader()
-	doc, err := loader.LoadFromFile(path)
-	if err != nil {
-		t.Fatalf("load openapi: %v", err)
-	}
-	schemaRef := doc.Components.Schemas["RunResult"]
-	if schemaRef == nil || schemaRef.Value == nil {
-		t.Fatal("missing RunResult schema")
-	}
-
-	got := sortedKeys(schemaRef.Value.Properties)
-	want := sortedStrings(jsonFieldNames(reflect.TypeOf(RunResult{})))
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("RunResult OpenAPI fields = %v, want RunResult fields %v", got, want)
-	}
-}
-
 func TestOpenAPIRunStatusEnumsUseClientProjection(t *testing.T) {
 	path := filepath.Join("..", "..", "docs", "openapi.yaml")
 	loader := openapi3.NewLoader()
@@ -367,7 +346,7 @@ func TestOpenAPIRunStatusEnumsUseClientProjection(t *testing.T) {
 		t.Fatalf("load openapi: %v", err)
 	}
 	want := []string{"completed", "failed", "interrupted", "running"}
-	for _, schemaName := range []string{"Run", "RunResult"} {
+	for _, schemaName := range []string{"Run"} {
 		schemaRef := doc.Components.Schemas[schemaName]
 		if schemaRef == nil || schemaRef.Value == nil {
 			t.Fatalf("missing %s schema", schemaName)
@@ -393,34 +372,6 @@ func enumStrings(items []any) []string {
 		out = append(out, value)
 	}
 	return out
-}
-
-func jsonFieldNames(t reflect.Type) []string {
-	if t.Kind() == reflect.Pointer {
-		t = t.Elem()
-	}
-	fields := make([]string, 0, t.NumField())
-	for i := 0; i < t.NumField(); i++ {
-		field := t.Field(i)
-		tag := field.Tag.Get("json")
-		if tag == "-" {
-			continue
-		}
-		name := strings.Split(tag, ",")[0]
-		if name == "" {
-			name = field.Name
-		}
-		fields = append(fields, name)
-	}
-	return fields
-}
-
-func sortedKeys[V any](items map[string]V) []string {
-	keys := make([]string, 0, len(items))
-	for key := range items {
-		keys = append(keys, key)
-	}
-	return sortedStrings(keys)
 }
 
 func sortedStrings(items []string) []string {

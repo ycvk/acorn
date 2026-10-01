@@ -12,11 +12,23 @@ import (
 var ErrPendingActionDecisionInvalid = errors.New("pending action decision invalid")
 
 type PendingActionService struct {
-	store core.SessionStore
+	store   core.SessionStore
+	resumer runResumer
+}
+
+// runResumer resumes an interrupted run once nothing in it awaits a decision.
+type runResumer interface {
+	ResumeIfReady(ctx context.Context, runID string) error
 }
 
 func NewPendingActionService(store core.SessionStore) *PendingActionService {
 	return &PendingActionService{store: store}
+}
+
+// WithResumer makes every decision try to resume the decided run.
+func (s *PendingActionService) WithResumer(resumer runResumer) *PendingActionService {
+	s.resumer = resumer
+	return s
 }
 
 type PendingActionDetail struct {
@@ -115,6 +127,11 @@ func (s *PendingActionService) Decide(ctx context.Context, actionID string, inpu
 	}
 	if _, err := s.store.AppendEvent(ctx, record.RunID, eventKind, eventPayload); err != nil {
 		return nil, fmt.Errorf("append %s event: %w", eventKind, err)
+	}
+	if s.resumer != nil {
+		if err := s.resumer.ResumeIfReady(ctx, record.RunID); err != nil {
+			return nil, fmt.Errorf("resume run %s after decision: %w", record.RunID, err)
+		}
 	}
 	return record, nil
 }

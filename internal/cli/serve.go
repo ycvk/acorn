@@ -42,7 +42,6 @@ func runServe(ctx context.Context, args []string) error {
 		Runs:             container.Runs(),
 		Events:           container.Events(),
 		PendingAction:    container.PendingAction(),
-		RunResume:        container.RunResume(),
 		Memory:           container.Memory(),
 		Skills:           container.Skills(),
 		Capabilities:     container.Capabilities(),

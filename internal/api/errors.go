@@ -33,8 +33,6 @@ func (s *Server) respondKnownError(w http.ResponseWriter, r *http.Request, err e
 		s.respondNotFound(w, r, "skill_not_found", err.Error())
 	case errors.Is(err, core.ErrRunNotActive):
 		s.respondConflict(w, r, "run_not_active", err.Error())
-	case errors.Is(err, core.ErrRunNotInterrupted):
-		s.respondError(w, r, http.StatusBadRequest, "run_not_resumable", err.Error())
 	case errors.Is(err, core.ErrExecutionNotReady):
 		s.respondError(w, r, http.StatusServiceUnavailable, "execution_not_ready", err.Error())
 	default:

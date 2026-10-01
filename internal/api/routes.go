@@ -23,9 +23,6 @@ func NewHandler(deps Dependencies) (http.Handler, error) {
 	if deps.PendingAction == nil {
 		return nil, errors.New("web pending action service is required")
 	}
-	if deps.RunResume == nil {
-		return nil, errors.New("web run resume service is required")
-	}
 	if deps.Memory == nil {
 		return nil, errors.New("web memory service is required")
 	}
@@ -52,7 +49,6 @@ func NewHandler(deps Dependencies) (http.Handler, error) {
 		runs:          deps.Runs,
 		events:        deps.Events,
 		pendingAction: deps.PendingAction,
-		runResume:     deps.RunResume,
 		memory:        deps.Memory,
 		skills:        deps.Skills,
 		capabilities:  deps.Capabilities,
@@ -101,7 +97,6 @@ func (s *Server) registerRoutes(router chi.Router) {
 				})
 			})
 			r.Post("/runs/{run_id}:interrupt", s.handleClientInterruptRun)
-			r.Post("/runs/{run_id}:resume", s.handleClientResumeRun)
 			r.Route("/runs/{run_id}", func(r chi.Router) {
 				r.Get("/", s.handleClientGetRun)
 				r.Get("/events", s.handleRunEvents)
