@@ -1,7 +1,7 @@
 ---
 adr: 0002
 title: 三层记忆架构 — Active Memory + Archive + Periodic Review
-status: Accepted
+status: Superseded
 date: 2026-06-28
 supersedes: []
 ---
