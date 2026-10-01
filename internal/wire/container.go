@@ -218,6 +218,7 @@ func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *contai
 		cfg:           cfg,
 		runnerFactory: deps.runnerFactory,
 		runController: deps.runController,
+		memory:        deps.memoryModule,
 	}
 
 	container.runResume = api.NewRunResumeService(db).WithResume(deps.resumeRun)
