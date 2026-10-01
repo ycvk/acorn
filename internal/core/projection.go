@@ -44,10 +44,6 @@ type AssistantDeltaData struct {
 	AssistantDelta map[string]any `json:"assistant_delta"`
 }
 
-type AgentMessageData struct {
-	Message map[string]any `json:"message"`
-}
-
 type RunCompletedData struct {
 	Message map[string]any `json:"message,omitempty"`
 }
@@ -84,9 +80,3 @@ type OperatorQuestionData struct {
 
 type OperatorQuestionPendingData = OperatorQuestionData
 type OperatorQuestionDecidedData = OperatorQuestionData
-
-type DecisionBlockedData struct {
-	Action          string `json:"action,omitempty"`
-	DecisionReason  string `json:"decision_reason,omitempty"`
-	ExplicitSkillID string `json:"explicit_skill_id,omitempty"`
-}

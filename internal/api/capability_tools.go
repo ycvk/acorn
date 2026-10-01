@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/tools"
 )
@@ -58,55 +57,32 @@ func (s *CapabilitiesService) providerToolCapabilities(provider SystemMCPProvide
 	if len(toolNames) == 0 {
 		toolNames = provider.ConfiguredToolNames
 	}
-	parallelPolicy, err := mcpProviderParallelPolicy(s.cfg, provider.Name)
-	if err != nil {
-		return nil, err
-	}
 	items := make([]SystemToolCapability, 0, len(toolNames))
 	for _, toolName := range toolNames {
 		items = append(items, SystemToolCapability{
-			Name:           toolName,
-			Source:         provider.Name,
-			Kind:           string(core.ToolKindMCP),
-			Category:       string(core.ToolCategoryIntegration),
-			Enabled:        provider.Enabled && provider.Error == "",
-			HealthState:    providerHealthState(provider),
-			HealthReason:   strings.TrimSpace(provider.Error),
-			ParallelPolicy: parallelPolicy,
-			Risk:           "integration",
+			Name:         toolName,
+			Source:       provider.Name,
+			Kind:         string(core.ToolKindMCP),
+			Category:     string(core.ToolCategoryIntegration),
+			Enabled:      provider.Enabled && provider.Error == "",
+			HealthState:  providerHealthState(provider),
+			HealthReason: strings.TrimSpace(provider.Error),
+			Risk:         "integration",
 		})
 	}
 	return items, nil
 }
 
-func mcpProviderParallelPolicy(cfg *config.Config, providerName string) (string, error) {
-	if cfg == nil {
-		return "", fmt.Errorf("MCP provider %q requires configured tool_safety", strings.TrimSpace(providerName))
-	}
-	for _, provider := range cfg.MCP.Providers {
-		if strings.TrimSpace(provider.Name) != strings.TrimSpace(providerName) {
-			continue
-		}
-		policy, err := core.ParseParallelPolicy(provider.ToolSafety)
-		if err != nil {
-			return "", err
-		}
-		return string(policy), nil
-	}
-	return "", fmt.Errorf("MCP provider %q is not configured", strings.TrimSpace(providerName))
-}
-
 func toolCapabilityFromSpec(spec core.ToolSpec, workspaceRoot string, runCommandTimeout int) SystemToolCapability {
 	return SystemToolCapability{
-		Name:           spec.Name,
-		Source:         spec.Source,
-		Kind:           string(spec.Kind),
-		Category:       string(spec.Category),
-		Enabled:        spec.Enabled(),
-		HealthState:    string(spec.Health.State),
-		HealthReason:   spec.Health.Reason,
-		ParallelPolicy: string(spec.Execution.ParallelPolicy),
-		Risk:           toolRisk(spec),
+		Name:         spec.Name,
+		Source:       spec.Source,
+		Kind:         string(spec.Kind),
+		Category:     string(spec.Category),
+		Enabled:      spec.Enabled(),
+		HealthState:  string(spec.Health.State),
+		HealthReason: spec.Health.Reason,
+		Risk:         toolRisk(spec),
 	}
 }
 

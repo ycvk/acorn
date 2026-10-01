@@ -1438,8 +1438,6 @@ components:
           type: string
         health_reason:
           type: string
-        parallel_policy:
-          type: string
         plan_policy:
           type: string
         risk:
@@ -2035,7 +2033,6 @@ components:
       oneOf:
         - $ref: '#/components/schemas/ClientRunStartedEvent'
         - $ref: '#/components/schemas/ClientAssistantDeltaEvent'
-        - $ref: '#/components/schemas/ClientAgentMessageEvent'
         - $ref: '#/components/schemas/ClientRunCompletedEvent'
         - $ref: '#/components/schemas/ClientRunFailedEvent'
         - $ref: '#/components/schemas/ClientRunInterruptedEvent'
@@ -2044,13 +2041,11 @@ components:
         - $ref: '#/components/schemas/ClientElicitationDecidedEvent'
         - $ref: '#/components/schemas/ClientOperatorQuestionPendingEvent'
         - $ref: '#/components/schemas/ClientOperatorQuestionDecidedEvent'
-        - $ref: '#/components/schemas/ClientDecisionBlockedEvent'
       discriminator:
         propertyName: type
         mapping:
           run.started: '#/components/schemas/ClientRunStartedEvent'
           assistant.delta: '#/components/schemas/ClientAssistantDeltaEvent'
-          agent.message: '#/components/schemas/ClientAgentMessageEvent'
           run.completed: '#/components/schemas/ClientRunCompletedEvent'
           run.failed: '#/components/schemas/ClientRunFailedEvent'
           run.interrupted: '#/components/schemas/ClientRunInterruptedEvent'
@@ -2059,7 +2054,6 @@ components:
           elicitation.decided: '#/components/schemas/ClientElicitationDecidedEvent'
           operator_question.pending: '#/components/schemas/ClientOperatorQuestionPendingEvent'
           operator_question.decided: '#/components/schemas/ClientOperatorQuestionDecidedEvent'
-          decision_blocked: '#/components/schemas/ClientDecisionBlockedEvent'
 
     RunEventBase:
       type: object
@@ -2100,17 +2094,6 @@ components:
               const: assistant.delta
             data:
               $ref: '#/components/schemas/AssistantDeltaData'
-
-    ClientAgentMessageEvent:
-      allOf:
-        - $ref: '#/components/schemas/RunEventBase'
-        - type: object
-          required: [type, data]
-          properties:
-            type:
-              const: agent.message
-            data:
-              $ref: '#/components/schemas/AgentMessageData'
 
     ClientRunCompletedEvent:
       allOf:
@@ -2200,17 +2183,6 @@ components:
             data:
               $ref: '#/components/schemas/OperatorQuestionData'
 
-    ClientDecisionBlockedEvent:
-      allOf:
-        - $ref: '#/components/schemas/RunEventBase'
-        - type: object
-          required: [type, data]
-          properties:
-            type:
-              const: decision_blocked
-            data:
-              $ref: '#/components/schemas/DecisionBlockedData'
-
     RunStartedData:
       type: object
       additionalProperties: false
@@ -2225,14 +2197,6 @@ components:
       properties:
         assistant_delta:
           $ref: '#/components/schemas/RunEventAssistantDelta'
-
-    AgentMessageData:
-      type: object
-      additionalProperties: false
-      required: [message]
-      properties:
-        message:
-          $ref: '#/components/schemas/RunEventMessage'
 
     RunCompletedData:
       type: object
@@ -2296,17 +2260,6 @@ components:
         selected_option_id:
           type: string
         answer:
-          type: string
-
-    DecisionBlockedData:
-      type: object
-      additionalProperties: false
-      properties:
-        action:
-          type: string
-        decision_reason:
-          type: string
-        explicit_skill_id:
           type: string
 
     RunDetail:

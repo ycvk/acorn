@@ -26,14 +26,6 @@ class RunEventProjection {
                 )
             }
 
-            is RunEventPacket.AgentMessage -> {
-                val msg = packet.event.data.message
-                state.copy(
-                    assistantText = msg?.content ?: state.assistantText,
-                    assistantReasoning = msg?.reasoning ?: state.assistantReasoning,
-                )
-            }
-
             is RunEventPacket.RunCompleted -> {
                 val msg = packet.event.data.message
                 state.copy(
@@ -86,14 +78,6 @@ class RunEventProjection {
                 activities = state.activities.filter { it.id != packet.eventId },
             )
 
-            is RunEventPacket.DecisionBlocked -> state.copy(
-                activities = state.activities + ActivityItem(
-                    id = packet.eventId,
-                    label = "Decision blocked",
-                    kind = ActivityKind.DecisionBlocked,
-                ),
-            )
-
             is RunEventPacket.Unknown -> state // ignore unknown events
         }
     }
@@ -118,4 +102,4 @@ data class ActivityItem(
     val kind: ActivityKind,
 )
 
-enum class ActivityKind { ResumeRequested, Elicitation, OperatorQuestion, DecisionBlocked }
+enum class ActivityKind { ResumeRequested, Elicitation, OperatorQuestion }

@@ -75,75 +75,55 @@ func ConfiguredLocalSpec(cfg *config.Config, name string) (core.ToolSpec, bool) 
 func configuredLocalSpec(name string, enabled bool) core.ToolSpec {
 	spec := core.ToolSpec{
 		ToolContract: core.ToolContract{
-			Name:      name,
-			Source:    "local",
-			Kind:      core.ToolKindNative,
-			Category:  core.ToolCategoryInspect,
-			Loading:   core.EagerLoadingPolicy(),
-			Execution: core.ToolExecutionPolicy{ParallelPolicy: core.ParallelPolicyReadOnly},
+			Name:     name,
+			Source:   "local",
+			Kind:     core.ToolKindNative,
+			Category: core.ToolCategoryInspect,
+			Loading:  core.EagerLoadingPolicy(),
 		},
 	}
 	switch name {
 	case "read_file", "list_files", "search_text", "inspect_git_status", "inspect_git_diff":
 		spec.Kind = core.ToolKindNative
 		spec.Category = core.ToolCategoryRead
-		spec.Execution.ParallelPolicy = core.ParallelPolicyReadOnly
-		spec.Execution.PathArg = "path"
 	case "git_summary":
 		spec.Kind = core.ToolKindNative
 		spec.Category = core.ToolCategoryInspect
-		spec.Execution.ParallelPolicy = core.ParallelPolicySerial
 	case "artifact_read", "artifact_list":
 		spec.Kind = core.ToolKindNative
 		spec.Category = core.ToolCategoryRead
-		spec.Execution.ParallelPolicy = core.ParallelPolicyReadOnly
 	case "artifact_write":
 		spec.Kind = core.ToolKindNative
 		spec.Category = core.ToolCategoryWrite
-		spec.Execution.ParallelPolicy = core.ParallelPolicySerial
 	case "ask_operator":
 		spec.Kind = core.ToolKindNative
 		spec.Category = core.ToolCategoryIntegration
-		spec.Execution.ParallelPolicy = core.ParallelPolicySerial
 	case "web_fetch", "web_search":
 		spec.Kind = core.ToolKindNative
 		spec.Category = core.ToolCategoryRead
 		spec.Loading = core.DeferredLoadingPolicy("web_access")
-		spec.Execution.ParallelPolicy = core.ParallelPolicyReadOnly
 	case "browser":
 		spec.Kind = core.ToolKindNative
 		spec.Category = core.ToolCategoryIntegration
 		spec.Loading = core.DeferredLoadingPolicy("web_access")
-		spec.Execution.ParallelPolicy = core.ParallelPolicySerial
 	case "create_file", "replace_span", "apply_unified_patch":
 		spec.Kind = core.ToolKindNative
 		spec.Category = core.ToolCategoryWrite
-		spec.Execution.ParallelPolicy = core.ParallelPolicySerial
-		if name == "apply_unified_patch" {
-			spec.Execution.PathArg = "paths"
-		} else {
-			spec.Execution.PathArg = "path"
-		}
 	case "multi_edit":
 		spec.Kind = core.ToolKindNative
 		spec.Category = core.ToolCategoryWrite
-		spec.Execution.ParallelPolicy = core.ParallelPolicySerial
 	case "rollback_workspace_checkpoint":
 		spec.Kind = core.ToolKindNative
 		spec.Category = core.ToolCategoryWrite
-		spec.Execution.ParallelPolicy = core.ParallelPolicySerial
 	case "run_command":
 		spec.Kind = core.ToolKindNative
 		spec.Category = core.ToolCategoryExecute
-		spec.Execution.ParallelPolicy = core.ParallelPolicySerial
 	case "run_verification":
 		spec.Kind = core.ToolKindNative
 		spec.Category = core.ToolCategoryExecute
-		spec.Execution.ParallelPolicy = core.ParallelPolicySerial
 	default:
 		spec.Kind = core.ToolKindNative
 		spec.Category = core.ToolCategoryInspect
-		spec.Execution.ParallelPolicy = core.ParallelPolicyReadOnly
 	}
 	if enabled {
 		spec.Health = core.ToolHealth{State: core.HealthStateHealthy}

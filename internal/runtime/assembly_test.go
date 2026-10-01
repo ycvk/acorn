@@ -20,10 +20,6 @@ func TestDefaultContextPlaneAssembleBuildsContextMessagesWithPreparedMemory(t *t
 	result, err := plane.Assemble(context.Background(), AssembleRequest{
 		SessionID: "session-1",
 		Input:     "show repo structure",
-		SelectedSkill: &SelectedSkill{
-			Skill: skillsSpecWithBrief("skill.inspect.repo", "Inspect repo"),
-			Score: 10,
-		},
 		SkillSnapshot: &skills.Snapshot{
 			Skills: []skills.View{{
 				Spec: skills.Spec{
@@ -53,19 +49,16 @@ func TestDefaultContextPlaneAssembleBuildsContextMessagesWithPreparedMemory(t *t
 	if err != nil {
 		t.Fatalf("Assemble: %v", err)
 	}
-	if got, want := len(result.Messages), 3; got != want {
+	if got, want := len(result.Messages), 2; got != want {
 		t.Fatalf("messages = %d, want %d", got, want)
 	}
-	if !strings.Contains(result.Messages[0].Content, "<skill-context>") {
-		t.Fatalf("first message should be skill context: %q", result.Messages[0].Content)
+	if !strings.Contains(result.Messages[0].Content, "<skill-catalog>") {
+		t.Fatalf("first message should be skill catalog: %q", result.Messages[0].Content)
 	}
-	if !strings.Contains(result.Messages[1].Content, "<skill-catalog>") {
-		t.Fatalf("second message should be skill catalog: %q", result.Messages[1].Content)
+	if !strings.Contains(result.Messages[0].Content, "skill.web.browser.research") {
+		t.Fatalf("skill catalog missing expected entry: %q", result.Messages[0].Content)
 	}
-	if !strings.Contains(result.Messages[1].Content, "skill.web.browser.research") {
-		t.Fatalf("skill catalog missing expected entry: %q", result.Messages[1].Content)
-	}
-	memoryContent := result.Messages[2].Content
+	memoryContent := result.Messages[1].Content
 	for _, fragment := range []string{"<memory-context>", "## Memory Nudges", "## Memory Entries", "facts/workspaces/acorn/runtime.md", "verified prepared memory"} {
 		if !strings.Contains(memoryContent, fragment) {
 			t.Fatalf("memory content missing %q:\n%s", fragment, memoryContent)
@@ -152,13 +145,5 @@ func TestBudgetedContextMessagesFailsWhenAssembledContextExceedsBudget(t *testin
 	_, err := budgetedContextMessages(context.Background(), testTokenCounter(t), 10, messages)
 	if err == nil || !strings.Contains(err.Error(), "assembled context requires") {
 		t.Fatalf("error = %v, want assembled context budget error", err)
-	}
-}
-
-func skillsSpecWithBrief(id, summary string) skills.Spec {
-	return skills.Spec{
-		ID:      id,
-		Name:    id,
-		Summary: summary,
 	}
 }

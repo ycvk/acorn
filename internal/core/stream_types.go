@@ -5,9 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"time"
-
-	einomodel "github.com/cloudwego/eino/components/model"
-	"github.com/cloudwego/eino/schema"
 )
 
 // --- Stream item kinds ---
@@ -15,29 +12,17 @@ import (
 type StreamItemKind string
 
 const (
-	StreamKindRunStarted          StreamItemKind = "run_started"
-	StreamKindRunCompleted        StreamItemKind = "run_completed"
-	StreamKindRunFailed           StreamItemKind = "run_failed"
-	StreamKindRunInterrupted      StreamItemKind = "run_interrupted"
-	StreamKindRunResumeRequested  StreamItemKind = "run_resume_requested"
-	StreamKindDecisionBlocked     StreamItemKind = "decision_blocked"
-	StreamKindSkillDiscovered     StreamItemKind = "skill_discovered"
-	StreamKindSkillSelected       StreamItemKind = "skill_selected"
-	StreamKindSkillLoaded         StreamItemKind = "skill_loaded"
-	StreamKindSkillFailed         StreamItemKind = "skill_failed"
-	StreamKindProcedureActivation StreamItemKind = "procedure.activation"
-	StreamKindMemoryPrepared      StreamItemKind = "memory_prepared"
-	StreamKindAssistantDelta      StreamItemKind = "assistant.delta"
-	StreamKindAssistantMessage    StreamItemKind = "assistant_message"
-	StreamKindToolCallStarted     StreamItemKind = "tool_call_started"
-	StreamKindToolCallSucceeded   StreamItemKind = "tool_call_succeeded"
-	StreamKindToolCallFailed      StreamItemKind = "tool_call_failed"
-	StreamKindToolCallInterrupted StreamItemKind = "tool_call_interrupted"
-	StreamKindElicitationPending  StreamItemKind = "elicitation.pending"
-	StreamKindElicitationDecided  StreamItemKind = "elicitation.decided"
-	StreamKindSubagentStarted     StreamItemKind = "subruntime.started"
-	StreamKindSubagentCompleted   StreamItemKind = "subruntime.completed"
-	StreamKindSubagentFailed      StreamItemKind = "subruntime.failed"
+	StreamKindRunStarted         StreamItemKind = "run_started"
+	StreamKindRunCompleted       StreamItemKind = "run_completed"
+	StreamKindRunFailed          StreamItemKind = "run_failed"
+	StreamKindRunInterrupted     StreamItemKind = "run_interrupted"
+	StreamKindRunResumeRequested StreamItemKind = "run_resume_requested"
+	StreamKindMemoryPrepared     StreamItemKind = "memory_prepared"
+	StreamKindAssistantDelta     StreamItemKind = "assistant.delta"
+	StreamKindAssistantMessage   StreamItemKind = "assistant_message"
+	StreamKindToolCallSucceeded  StreamItemKind = "tool_call_succeeded"
+	StreamKindElicitationPending StreamItemKind = "elicitation.pending"
+	StreamKindElicitationDecided StreamItemKind = "elicitation.decided"
 )
 
 // StreamItem is a single event in the run runtime.
@@ -143,18 +128,6 @@ type StreamMessage struct {
 	Meta       map[string]any          `json:"meta,omitempty"`
 }
 
-type StreamToolCall struct {
-	Provider          string `json:"provider,omitempty"`
-	Name              string `json:"name,omitempty"`
-	CallID            string `json:"call_id,omitempty"`
-	ArgumentsJSON     string `json:"arguments_json,omitempty"`
-	InterruptID       string `json:"interrupt_id,omitempty"`
-	Output            string `json:"output,omitempty"`
-	Error             string `json:"error,omitempty"`
-	DurationMS        int64  `json:"duration_ms,omitempty"`
-	InterruptContexts int    `json:"interrupt_contexts,omitempty"`
-}
-
 type StreamInterruptContext struct {
 	ID          string `json:"id,omitempty"`
 	Address     string `json:"address,omitempty"`
@@ -165,45 +138,6 @@ type StreamInterruptContext struct {
 type StreamInterrupt struct {
 	ContextCount int                      `json:"context_count,omitempty"`
 	Contexts     []StreamInterruptContext `json:"contexts,omitempty"`
-}
-
-type StreamSkillCandidate struct {
-	ID             string                  `json:"id,omitempty"`
-	Name           string                  `json:"name,omitempty"`
-	Score          int                     `json:"score,omitempty"`
-	MatchedTerms   []string                `json:"matched_terms,omitempty"`
-	FilteredReason string                  `json:"filtered_reason,omitempty"`
-	Requirements   StreamSkillRequirements `json:"requirements,omitempty"`
-	Summary        string                  `json:"summary,omitempty"`
-	Origin         string                  `json:"origin,omitempty"`
-	TaskPattern    string                  `json:"task_pattern,omitempty"`
-}
-
-type StreamSkill struct {
-	SelectedID        string                  `json:"selected_id,omitempty"`
-	Name              string                  `json:"name,omitempty"`
-	Source            string                  `json:"source,omitempty"`
-	Origin            string                  `json:"origin,omitempty"`
-	TaskPattern       string                  `json:"task_pattern,omitempty"`
-	Path              string                  `json:"path,omitempty"`
-	Candidates        []StreamSkillCandidate  `json:"candidates,omitempty"`
-	NoSelectionReason string                  `json:"no_selection_reason,omitempty"`
-	Summary           string                  `json:"summary,omitempty"`
-	Instruction       string                  `json:"instruction,omitempty"`
-	Scripts           []string                `json:"scripts,omitempty"`
-	Requirements      StreamSkillRequirements `json:"requirements,omitempty"`
-	Score             int                     `json:"score,omitempty"`
-	MatchedTerms      []string                `json:"matched_terms,omitempty"`
-	RunStatus         string                  `json:"run_status,omitempty"`
-	PromotedFrom      string                  `json:"promoted_from,omitempty"`
-	FailureReason     string                  `json:"failure_reason,omitempty"`
-}
-
-type StreamSkillRequirements struct {
-	Tools    []string `json:"tools,omitempty"`
-	Toolsets []string `json:"toolsets,omitempty"`
-	Bins     []string `json:"bins,omitempty"`
-	Env      []string `json:"env,omitempty"`
 }
 
 type StreamMemoryPreparedNudge struct {
@@ -238,36 +172,4 @@ type StreamAssistantDelta struct {
 	IsFinal   bool                    `json:"is_final,omitempty"`
 	ToolCalls []StreamPlannedToolCall `json:"tool_calls,omitempty"`
 	Meta      map[string]any          `json:"meta,omitempty"`
-}
-
-// --- Assistant stream types ---
-
-type AssistantStreamRequest struct {
-	RunID     string
-	MessageID string
-	Model     einomodel.BaseChatModel
-	Messages  []*schema.Message
-	ToolInfos []*schema.ToolInfo
-	CallSite  string
-}
-
-type AssistantStopReason string
-
-const (
-	AssistantStopReasonEndTurn   AssistantStopReason = "end_turn"
-	AssistantStopReasonToolCalls AssistantStopReason = "tool_calls"
-	AssistantStopReasonMaxOutput AssistantStopReason = "max_output"
-	AssistantStopReasonUnknown   AssistantStopReason = "unknown"
-)
-
-type AssistantStreamResult struct {
-	Message    *schema.Message
-	StopReason AssistantStopReason
-	RawReason  string
-}
-
-type InterleavedStream struct {
-	ToolCallCh     chan schema.ToolCall
-	FinalMessageCh chan AssistantStreamResult
-	ErrCh          chan error
 }

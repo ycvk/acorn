@@ -48,7 +48,6 @@ mcp:
       env: {}
       tool_names: []
       startup_timeout_seconds: 30
-      tool_safety: read_only
 `
 	if err := os.WriteFile(configPath, []byte(configBody), 0o644); err != nil {
 		t.Fatalf("write config: %v", err)
@@ -102,7 +101,6 @@ mcp:
       transport: sse
       url: http://localhost:8080/sse
       startup_timeout_seconds: 30
-      tool_safety: read_only
 `
 	if err := os.WriteFile(configPath, []byte(configBody), 0o644); err != nil {
 		t.Fatalf("write config: %v", err)
@@ -159,7 +157,6 @@ mcp:
       transport: sse
       url: http://localhost:8080/proxy/sse
       startup_timeout_seconds: 30
-      tool_safety: read_only
 `
 	if err := os.WriteFile(configPath, []byte(configBody), 0o644); err != nil {
 		t.Fatalf("write config: %v", err)
@@ -216,7 +213,6 @@ mcp:
       transport: streamable_http
       url: http://localhost:8080/mcp
       startup_timeout_seconds: 30
-      tool_safety: read_only
 `
 	if err := os.WriteFile(configPath, []byte(configBody), 0o644); err != nil {
 		t.Fatalf("write config: %v", err)
@@ -273,7 +269,6 @@ mcp:
       transport: websocket
       url: ws://localhost:8080
       startup_timeout_seconds: 30
-      tool_safety: read_only
 `
 	if err := os.WriteFile(configPath, []byte(configBody), 0o644); err != nil {
 		t.Fatalf("write config: %v", err)
@@ -330,7 +325,6 @@ mcp:
       transport: stdio
       command: ""
       startup_timeout_seconds: 30
-      tool_safety: read_only
 `
 	if err := os.WriteFile(configPath, []byte(configBody), 0o644); err != nil {
 		t.Fatalf("write config: %v", err)
@@ -387,7 +381,6 @@ mcp:
       transport: sse
       url: ""
       startup_timeout_seconds: 30
-      tool_safety: read_only
 `
 	if err := os.WriteFile(configPath, []byte(configBody), 0o644); err != nil {
 		t.Fatalf("write config: %v", err)

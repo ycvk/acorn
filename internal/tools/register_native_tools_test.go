@@ -70,9 +70,6 @@ func TestRegisterNativeToolsRegistersAllLocalTools(t *testing.T) {
 	if got, want := gitSummary.Category, core.ToolCategoryInspect; got != want {
 		t.Fatalf("git_summary.Category = %q, want %q", got, want)
 	}
-	if got, want := gitSummary.Execution.ParallelPolicy, core.ParallelPolicySerial; got != want {
-		t.Fatalf("git_summary.ParallelPolicy = %q, want %q", got, want)
-	}
 }
 
 // TestRegisterNativeToolsResolveProducesTools verifies that Resolve invokes the

@@ -39,48 +39,37 @@ var builtinToolOrder = []string{
 // is not a built-in tool (e.g. MCP tools), which callers resolve elsewhere.
 func builtinToolContract(name string) (core.ToolContract, bool) {
 	c := core.ToolContract{
-		Name:      name,
-		Loading:   core.EagerLoadingPolicy(),
-		Execution: core.ToolExecutionPolicy{ParallelPolicy: core.ParallelPolicyReadOnly},
+		Name:    name,
+		Loading: core.EagerLoadingPolicy(),
 	}
 	switch name {
 	case "ask_operator":
 		c.Kind = core.ToolKindNative
 		c.Category = core.ToolCategoryIntegration
-		c.Execution.ParallelPolicy = core.ParallelPolicySerial
 	case "memory_search", "memory_read_file", "memory_list_files":
 		c.Kind = core.ToolKindMemory
 		c.Category = core.ToolCategoryMemory
-		c.Execution.ParallelPolicy = core.ParallelPolicyReadOnly
 	case "memory_create_file", "memory_replace_span":
 		c.Kind = core.ToolKindMemory
 		c.Category = core.ToolCategoryMemory
-		c.Execution.ParallelPolicy = core.ParallelPolicySerial
-		c.Execution.PathArg = "path"
 	case "remember":
 		c.Kind = core.ToolKindMemory
 		c.Category = core.ToolCategoryMemory
-		c.Execution.ParallelPolicy = core.ParallelPolicySerial
 	case "search_runs":
 		c.Kind = core.ToolKindNative
 		c.Category = core.ToolCategoryInspect
-		c.Execution.ParallelPolicy = core.ParallelPolicyReadOnly
 	case "worldstate_update":
 		c.Kind = core.ToolKindNative
 		c.Category = core.ToolCategoryMemory
-		c.Execution.ParallelPolicy = core.ParallelPolicySerial
 	case "worldstate_load":
 		c.Kind = core.ToolKindNative
 		c.Category = core.ToolCategoryInspect
-		c.Execution.ParallelPolicy = core.ParallelPolicyReadOnly
 	case "skill_list", "skill_view":
 		c.Kind = core.ToolKindSkill
 		c.Category = core.ToolCategorySkill
-		c.Execution.ParallelPolicy = core.ParallelPolicyReadOnly
 	case "skill_create":
 		c.Kind = core.ToolKindSkill
 		c.Category = core.ToolCategorySkill
-		c.Execution.ParallelPolicy = core.ParallelPolicySerial
 	default:
 		return core.ToolContract{}, false
 	}

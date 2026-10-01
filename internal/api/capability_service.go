@@ -55,7 +55,6 @@ type SystemToolCapability struct {
 	Enabled        bool   `json:"enabled"`
 	HealthState    string `json:"health_state"`
 	HealthReason   string `json:"health_reason,omitempty"`
-	ParallelPolicy string `json:"parallel_policy,omitempty"`
 	Risk           string `json:"risk"`
 	RootDir        string `json:"root_dir,omitempty"`
 	WorkDir        string `json:"work_dir,omitempty"`

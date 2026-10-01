@@ -1,8 +1,6 @@
 package io.ycvk.acorn.core.sse
 
-import io.ycvk.acorn.api.models.AgentMessageData
 import io.ycvk.acorn.api.models.AssistantDeltaData
-import io.ycvk.acorn.api.models.ClientAgentMessageEvent
 import io.ycvk.acorn.api.models.ClientAssistantDeltaEvent
 import io.ycvk.acorn.api.models.ClientRunCompletedEvent
 import io.ycvk.acorn.api.models.ClientRunFailedEvent
@@ -47,18 +45,6 @@ class RunEventProjectionTest {
                     delta = delta,
                     reasoning = reasoning,
                 ),
-            ),
-        )
-
-    private fun agentMessageEvent(seq: Long, content: String?, reasoning: String? = null) =
-        ClientAgentMessageEvent(
-            eventId = "evt-$seq",
-            runId = "run-1",
-            seq = seq,
-            ts = now,
-            type = null,
-            data = AgentMessageData(
-                message = RunEventMessage(role = "assistant", content = content, reasoning = reasoning),
             ),
         )
 
@@ -118,14 +104,6 @@ class RunEventProjectionTest {
         state = projection.apply(state, RunEventPacket.AssistantDelta(deltaEvent(2, "Hello")))
         state = projection.apply(state, RunEventPacket.AssistantDelta(deltaEvent(3, null)))
         assertEquals("Hello", state.assistantText)
-    }
-
-    @Test
-    fun `AgentMessage replaces assistant text`() {
-        var state = projection.apply(ChatState(), RunEventPacket.Started(startedEvent()))
-        state = projection.apply(state, RunEventPacket.AssistantDelta(deltaEvent(2, "partial")))
-        state = projection.apply(state, RunEventPacket.AgentMessage(agentMessageEvent(3, "final answer")))
-        assertEquals("final answer", state.assistantText)
     }
 
     @Test

@@ -28,14 +28,13 @@ func mustInferCoreTool(t *testing.T, name string) einotool.BaseTool {
 }
 
 // coreToolContract builds a valid core.ToolContract for tests.
-func coreToolContract(name string, parallel core.ParallelPolicy) core.ToolContract {
+func coreToolContract(name string) core.ToolContract {
 	return core.ToolContract{
-		Name:      name,
-		Source:    "local",
-		Kind:      core.ToolKindNative,
-		Category:  core.ToolCategoryRead,
-		Loading:   core.EagerLoadingPolicy(),
-		Execution: core.ToolExecutionPolicy{ParallelPolicy: parallel},
+		Name:     name,
+		Source:   "local",
+		Kind:     core.ToolKindNative,
+		Category: core.ToolCategoryRead,
+		Loading:  core.EagerLoadingPolicy(),
 	}
 }
 
@@ -44,7 +43,7 @@ func TestToolRegistryRegisterAndList(t *testing.T) {
 	tool := mustInferCoreTool(t, "local_echo")
 
 	spec := core.ToolSpec{
-		ToolContract: coreToolContract("local_echo", core.ParallelPolicyReadOnly),
+		ToolContract: coreToolContract("local_echo"),
 		Tool:         tool,
 	}
 	if err := reg.Register(spec); err != nil {
@@ -84,7 +83,7 @@ func TestToolRegistryRejectsDuplicate(t *testing.T) {
 	reg := tools.NewToolRegistry()
 	tool := mustInferCoreTool(t, "local_echo")
 	spec := core.ToolSpec{
-		ToolContract: coreToolContract("local_echo", core.ParallelPolicyReadOnly),
+		ToolContract: coreToolContract("local_echo"),
 		Tool:         tool,
 	}
 	if err := reg.Register(spec); err != nil {
@@ -98,7 +97,7 @@ func TestToolRegistryRejectsDuplicate(t *testing.T) {
 func TestToolRegistryRejectsEmptyName(t *testing.T) {
 	reg := tools.NewToolRegistry()
 	spec := core.ToolSpec{
-		ToolContract: coreToolContract("", core.ParallelPolicyReadOnly),
+		ToolContract: coreToolContract(""),
 		Tool:         mustInferCoreTool(t, "anon"),
 	}
 	if err := reg.Register(spec); err == nil {
@@ -109,7 +108,7 @@ func TestToolRegistryRejectsEmptyName(t *testing.T) {
 func TestToolRegistryUnregister(t *testing.T) {
 	reg := tools.NewToolRegistry()
 	spec := core.ToolSpec{
-		ToolContract: coreToolContract("local_echo", core.ParallelPolicyReadOnly),
+		ToolContract: coreToolContract("local_echo"),
 		Tool:         mustInferCoreTool(t, "local_echo"),
 	}
 	if err := reg.Register(spec); err != nil {
@@ -141,7 +140,7 @@ func TestToolRegistryResolveFactory(t *testing.T) {
 		return tool, nil
 	}
 	spec := core.ToolSpec{
-		ToolContract: coreToolContract("local_echo", core.ParallelPolicyReadOnly),
+		ToolContract: coreToolContract("local_echo"),
 		Factory:      factory,
 	}
 	if err := reg.Register(spec); err != nil {
@@ -165,7 +164,7 @@ func TestToolRegistryResolveUnknownSkipped(t *testing.T) {
 	reg := tools.NewToolRegistry()
 	tool := mustInferCoreTool(t, "local_echo")
 	spec := core.ToolSpec{
-		ToolContract: coreToolContract("local_echo", core.ParallelPolicyReadOnly),
+		ToolContract: coreToolContract("local_echo"),
 		Factory: func(ctx context.Context, runCtx core.RunContext) (einotool.BaseTool, error) {
 			return tool, nil
 		},
@@ -188,7 +187,7 @@ func TestToolRegistryResolveFactoryError(t *testing.T) {
 	reg := tools.NewToolRegistry()
 	boom := errors.New("boom")
 	spec := core.ToolSpec{
-		ToolContract: coreToolContract("local_echo", core.ParallelPolicyReadOnly),
+		ToolContract: coreToolContract("local_echo"),
 		Factory: func(ctx context.Context, runCtx core.RunContext) (einotool.BaseTool, error) {
 			return nil, boom
 		},
@@ -198,26 +197,5 @@ func TestToolRegistryResolveFactoryError(t *testing.T) {
 	}
 	if _, err := reg.Resolve(context.Background(), core.RunContext{}, []string{"local_echo"}); err == nil {
 		t.Fatalf("Resolve with failing factory: expected error, got nil")
-	}
-}
-
-func TestToolRegistryExecutionPolicy(t *testing.T) {
-	reg := tools.NewToolRegistry()
-	spec := core.ToolSpec{
-		ToolContract: coreToolContract("local_echo", core.ParallelPolicySerial),
-		Tool:         mustInferCoreTool(t, "local_echo"),
-	}
-	if err := reg.Register(spec); err != nil {
-		t.Fatalf("Register: %v", err)
-	}
-	pol, err := reg.ExecutionPolicy("local_echo", nil)
-	if err != nil {
-		t.Fatalf("ExecutionPolicy: %v", err)
-	}
-	if got, want := pol.ParallelPolicy, core.ParallelPolicySerial; got != want {
-		t.Fatalf("ExecutionPolicy.ParallelPolicy = %q, want %q", got, want)
-	}
-	if _, err := reg.ExecutionPolicy("missing", nil); err == nil {
-		t.Fatalf("ExecutionPolicy for unknown: expected error, got nil")
 	}
 }

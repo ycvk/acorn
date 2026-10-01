@@ -97,7 +97,6 @@ func TestClientResourceSurfaceHandlers(t *testing.T) {
 		Command:               "fixture-mcp",
 		ToolNames:             []string{"fixture_tool"},
 		StartupTimeoutSeconds: 10,
-		ToolSafety:            "serial",
 	}}
 	memory := &clientMemoryStub{
 		facts: []mem.Record{{

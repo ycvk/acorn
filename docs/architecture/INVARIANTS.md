@@ -64,9 +64,8 @@
   - `internal/memory/worldstate_test.go`
 - **Ambient 身份指令硬编码进 base instruction**：`internal/runtime/runner.go` 的 `ambientAgentInstruction` 常量拼进 `buildStableInstruction`（用户 prompt 之后、capability discovery 之前），教 agent ambient 五步循环（orient → assess → act → record → stop）。用户 prompt 不可覆盖——ambient 循环是 agent 身份的核心，不是可配置行为。`triggerRunCreator.CreateRun` 在 input 前加 trigger 唤醒上下文，`formatWorldStatePrefix` 加引导语让 agent 理解注入的 KV 是自己的跨 run 记忆。
   - `internal/wire/trigger_worldstate_e2e_test.go`
-- **Decision Card 扩展 ask_operator payload**：`OperatorQuestionPayload` 增 `considered_options/rationale/risk/recommendation` 可选维度。不是新建审批系统，是给 `ask_operator` 补决策依据。风险分级用规则（非 LLM）判定器 `internal/tools.ClassifyRisk`，硬编码高风险白名单不可降级。
+- **Decision Card 扩展 ask_operator payload**：`OperatorQuestionPayload` 增 `considered_options/rationale/risk/recommendation` 可选维度。它给 `ask_operator` 的提问补上决策依据；工具调用审批由 `approval.require` 规则和 approval middleware 负责。
   - `internal/core/decision_card_test.go`
-  - `internal/tools/risk_gate_test.go`
 - **search_runs 工具让 agent 检索自己 run 历史**：`SearchRuns(ctx, query, limit)` 对 `runs.input_text` 做 LIKE 关键词匹配,返回匹配 run 摘要。工具注册为 `core.ToolKindNative` / `ToolCategoryInspect` / 只读并行。让 agent 能"回忆自己做过什么",不依赖每次显式 `remember`。
   - `internal/store/store_search_runs_test.go`
 

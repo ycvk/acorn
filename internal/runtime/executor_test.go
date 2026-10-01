@@ -191,7 +191,7 @@ func TestRunStateApplyUnknownItemIsNoOp(t *testing.T) {
 		lastOutput: "existing",
 	}
 	state.applyStreamItem(core.StreamItem{
-		Kind:    core.StreamKindToolCallStarted,
+		Kind:    core.StreamKindToolCallSucceeded,
 		Payload: map[string]any{},
 	})
 	if state.lastOutput != "existing" {

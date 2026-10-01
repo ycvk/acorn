@@ -114,7 +114,6 @@ mcp:
     #   #   scopes:
     #   #     - read
     #   #     - write
-    # tool_safety: read_only         # read_only | serial
 
 memory:
   search:

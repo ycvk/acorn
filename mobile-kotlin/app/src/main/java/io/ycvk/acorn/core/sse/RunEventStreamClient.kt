@@ -2,9 +2,7 @@ package io.ycvk.acorn.core.sse
 
 import com.squareup.moshi.JsonAdapter
 import io.ycvk.acorn.api.infrastructure.Serializer
-import io.ycvk.acorn.api.models.ClientAgentMessageEvent
 import io.ycvk.acorn.api.models.ClientAssistantDeltaEvent
-import io.ycvk.acorn.api.models.ClientDecisionBlockedEvent
 import io.ycvk.acorn.api.models.ClientElicitationDecidedEvent
 import io.ycvk.acorn.api.models.ClientElicitationPendingEvent
 import io.ycvk.acorn.api.models.ClientOperatorQuestionDecidedEvent
@@ -48,7 +46,6 @@ class RunEventStreamClient(
     private val eventAdapters: Map<String, JsonAdapter<*>> = mapOf(
         "run.started" to moshi.adapter(ClientRunStartedEvent::class.java),
         "assistant.delta" to moshi.adapter(ClientAssistantDeltaEvent::class.java),
-        "agent.message" to moshi.adapter(ClientAgentMessageEvent::class.java),
         "run.completed" to moshi.adapter(ClientRunCompletedEvent::class.java),
         "run.failed" to moshi.adapter(ClientRunFailedEvent::class.java),
         "run.interrupted" to moshi.adapter(ClientRunInterruptedEvent::class.java),
@@ -57,7 +54,6 @@ class RunEventStreamClient(
         "elicitation.decided" to moshi.adapter(ClientElicitationDecidedEvent::class.java),
         "operator_question.pending" to moshi.adapter(ClientOperatorQuestionPendingEvent::class.java),
         "operator_question.decided" to moshi.adapter(ClientOperatorQuestionDecidedEvent::class.java),
-        "decision_blocked" to moshi.adapter(ClientDecisionBlockedEvent::class.java),
     )
 
     private val factory = EventSources.createFactory(client)
@@ -119,7 +115,6 @@ class RunEventStreamClient(
         return when (type) {
             "run.started" -> RunEventPacket.Started(parsed as ClientRunStartedEvent)
             "assistant.delta" -> RunEventPacket.AssistantDelta(parsed as ClientAssistantDeltaEvent)
-            "agent.message" -> RunEventPacket.AgentMessage(parsed as ClientAgentMessageEvent)
             "run.completed" -> RunEventPacket.RunCompleted(parsed as ClientRunCompletedEvent)
             "run.failed" -> RunEventPacket.RunFailed(parsed as ClientRunFailedEvent)
             "run.interrupted" -> RunEventPacket.RunInterrupted(parsed as ClientRunInterruptedEvent)
@@ -128,7 +123,6 @@ class RunEventStreamClient(
             "elicitation.decided" -> RunEventPacket.ElicitationDecided(parsed as ClientElicitationDecidedEvent)
             "operator_question.pending" -> RunEventPacket.OperatorQuestionPending(parsed as ClientOperatorQuestionPendingEvent)
             "operator_question.decided" -> RunEventPacket.OperatorQuestionDecided(parsed as ClientOperatorQuestionDecidedEvent)
-            "decision_blocked" -> RunEventPacket.DecisionBlocked(parsed as ClientDecisionBlockedEvent)
             else -> RunEventPacket.Unknown(rawType = type, rawData = data)
         }
     }
@@ -154,12 +148,6 @@ sealed class RunEventPacket {
     }
 
     data class AssistantDelta(val event: ClientAssistantDeltaEvent) : RunEventPacket() {
-        override val eventId: String get() = event.eventId
-        override val runId: String get() = event.runId
-        override val seq: Long get() = event.seq
-    }
-
-    data class AgentMessage(val event: ClientAgentMessageEvent) : RunEventPacket() {
         override val eventId: String get() = event.eventId
         override val runId: String get() = event.runId
         override val seq: Long get() = event.seq
@@ -208,12 +196,6 @@ sealed class RunEventPacket {
     }
 
     data class OperatorQuestionDecided(val event: ClientOperatorQuestionDecidedEvent) : RunEventPacket() {
-        override val eventId: String get() = event.eventId
-        override val runId: String get() = event.runId
-        override val seq: Long get() = event.seq
-    }
-
-    data class DecisionBlocked(val event: ClientDecisionBlockedEvent) : RunEventPacket() {
         override val eventId: String get() = event.eventId
         override val runId: String get() = event.runId
         override val seq: Long get() = event.seq

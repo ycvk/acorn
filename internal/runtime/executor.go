@@ -106,7 +106,7 @@ func (e *Executor) ExecuteMessages(ctx context.Context, req core.ExecuteRequest,
 		return nil, e.failSetupOrErr(ctx, runID, err, sink)
 	}
 	defer active.Close()
-	execCtx := buildExecutionContext(runCtxBase, runID, req.SessionID, req.TurnIndex, sink)
+	execCtx := buildExecutionContext(runCtxBase, runID, req.SessionID)
 	iter := active.Runner.Run(execCtx, req.Messages, adk.WithCheckPointID(runID))
 	return e.consume(ctx, runID, req.SessionID, req.Input, iter, sink, active.ChatModel)
 }
@@ -156,11 +156,8 @@ func (e *Executor) newManagedRunContext(ctx context.Context, runID string) (cont
 	}
 }
 
-func buildExecutionContext(runCtxBase context.Context, runID, sessionID string, turnIndex int, sink core.StreamSink) context.Context {
-	runCtx := core.WithRunID(runCtxBase, runID)
-	runCtx = core.WithSessionID(runCtx, sessionID)
-	runCtx = core.WithTurnIndex(runCtx, turnIndex)
-	return core.WithStreamSink(runCtx, sink)
+func buildExecutionContext(runCtxBase context.Context, runID, sessionID string) context.Context {
+	return core.WithSessionID(core.WithRunID(runCtxBase, runID), sessionID)
 }
 
 func (e *Executor) ResumeWithTargets(ctx context.Context, runID string, targets map[string]any, sink core.StreamSink) (*Result, error) {
@@ -188,7 +185,7 @@ func (e *Executor) executeResume(ctx context.Context, runCtxBase context.Context
 		return nil, err
 	}
 	defer active.Close()
-	execCtx := buildExecutionContext(runCtxBase, runID, run.SessionID, run.TurnIndex, sink)
+	execCtx := buildExecutionContext(runCtxBase, runID, run.SessionID)
 	iter, err := active.Runner.ResumeWithParams(execCtx, runID, &adk.ResumeParams{Targets: targets})
 	if err != nil {
 		return nil, fmt.Errorf("resume run %s: %w", runID, err)

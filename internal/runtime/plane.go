@@ -16,7 +16,6 @@ type AssembleRequest struct {
 	RunID          string
 	SessionID      string
 	Input          string
-	SelectedSkill  *SelectedSkill
 	SkillSnapshot  *skills.Snapshot
 	MemoryPrepared *memory.PrepareResult
 	ToolCatalog    core.Catalog
@@ -57,7 +56,6 @@ func (p *ContextPlane) Assemble(ctx context.Context, req AssembleRequest) (*Asse
 	}
 	memoryMessage := buildMemoryMessageFromPacket(memoryPacket)
 	messages, err := budgetedContextMessages(ctx, p.tokenCounter, p.maxContextTokens, filterMessages(
-		buildSkillContextMessage(req.SelectedSkill),
 		buildSkillCatalogMessage(req.SkillSnapshot),
 		memoryMessage,
 	))

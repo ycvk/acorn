@@ -10,12 +10,6 @@ type EventAppender interface {
 // StreamSink consumes run stream items.
 type StreamSink func(item StreamItem) error
 
-// AssistantStreamer streams assistant messages and interleaved tool calls.
-type AssistantStreamer interface {
-	StreamAssistantMessage(ctx context.Context, req AssistantStreamRequest) (*AssistantStreamResult, error)
-	StreamAssistantInterleaved(ctx context.Context, req AssistantStreamRequest) *InterleavedStream
-}
-
 // ToolCallContextBridge provides access to the current run, session, and
 // tool-call identifiers. Used by toolset as the context port for attributing
 // artifacts and evidence to specific runs/sessions/tool-calls.

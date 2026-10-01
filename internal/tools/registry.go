@@ -139,20 +139,6 @@ func (r *toolRegistry) Find(name string) (core.ToolSpec, bool) {
 	return spec, ok
 }
 
-// ExecutionPolicy returns the execution policy for the named tool after
-// validating its contract. Unknown tools and invalid contracts surface as
-// errors, matching Catalog.ExecutionPolicy semantics.
-func (r *toolRegistry) ExecutionPolicy(toolName string, args map[string]any) (core.ToolExecutionPolicy, error) {
-	spec, ok := r.Find(toolName)
-	if !ok {
-		return core.ToolExecutionPolicy{}, fmt.Errorf("tool execution policy for %q is not registered", strings.TrimSpace(toolName))
-	}
-	if err := spec.Validate(); err != nil {
-		return core.ToolExecutionPolicy{}, err
-	}
-	return spec.Execution, nil
-}
-
 // Resolve produces concrete einotool.BaseTool instances for the requested names
 // by invoking each spec's Factory under the given run context. Names that are
 // not registered are skipped (not an error): the runtime requests tool sets by

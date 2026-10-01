@@ -64,39 +64,11 @@ func RuntimeToolSpec(
 			Kind:     kind,
 			Category: core.ToolCategoryInspect,
 			Loading:  core.EagerLoadingPolicy(),
-			Execution: core.ToolExecutionPolicy{
-				ParallelPolicy: core.ParallelPolicyReadOnly,
-			},
 		},
 		Tool: tool,
 	}
-
-	switch kind {
-	case core.ToolKindMCP:
-		spec.Kind = kind
+	if kind == core.ToolKindMCP {
 		spec.Category = core.ToolCategoryIntegration
-		spec.Execution.ParallelPolicy = core.ParallelPolicyReadOnly
-		spec.Execution.PathArg = "path"
-	default:
-		spec.Category = core.ToolCategoryInspect
-		spec.Execution.ParallelPolicy = core.ParallelPolicyReadOnly
-		spec.Execution.PathArg = "path"
 	}
 	return spec, nil
-}
-
-func MCPToolParallelPolicy(cfg *config.Config, providerName string) (core.ParallelPolicy, error) {
-	if cfg == nil {
-		return "", fmt.Errorf("resolve MCP tool safety for provider %q: config is required", strings.TrimSpace(providerName))
-	}
-	for _, provider := range cfg.MCP.Providers {
-		if strings.TrimSpace(provider.Name) != strings.TrimSpace(providerName) {
-			continue
-		}
-		if strings.TrimSpace(provider.ToolSafety) == "" {
-			return "", fmt.Errorf("mcp provider %q must declare tool_safety", strings.TrimSpace(providerName))
-		}
-		return core.ParseParallelPolicy(provider.ToolSafety)
-	}
-	return "", fmt.Errorf("mcp provider %q is not configured", strings.TrimSpace(providerName))
 }

@@ -143,7 +143,6 @@ func (c *ConverterImpl) apiSystemToolCapabilityToApiCapabilitiesToolDTO(source S
 	apiCapabilitiesToolDTO.Enabled = source.Enabled
 	apiCapabilitiesToolDTO.HealthState = source.HealthState
 	apiCapabilitiesToolDTO.HealthReason = source.HealthReason
-	apiCapabilitiesToolDTO.ParallelPolicy = source.ParallelPolicy
 	apiCapabilitiesToolDTO.Risk = source.Risk
 	apiCapabilitiesToolDTO.RootDir = source.RootDir
 	apiCapabilitiesToolDTO.WorkDir = source.WorkDir

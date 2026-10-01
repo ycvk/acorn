@@ -46,7 +46,6 @@ mcp:
       transport: stdio
       command: my-server
       startup_timeout_seconds: 30
-      tool_safety: read_only
       auth:
         type: oauth
         client_id: my-client
@@ -105,7 +104,6 @@ mcp:
       enabled: true
       command: my-server
       startup_timeout_seconds: 30
-      tool_safety: read_only
       auth:
         type: oauth
         client_id: my-client
@@ -162,7 +160,6 @@ mcp:
       transport: sse
       url: http://localhost:8080/sse
       startup_timeout_seconds: 30
-      tool_safety: read_only
       auth:
         type: oauth
         client_id: my-client
@@ -228,7 +225,6 @@ mcp:
       transport: sse
       url: http://localhost:8080/sse
       startup_timeout_seconds: 30
-      tool_safety: read_only
       auth:
         type: kerberos
 `
@@ -287,7 +283,6 @@ mcp:
       transport: stdio
       command: my-server
       startup_timeout_seconds: 30
-      tool_safety: read_only
 `
 	if err := os.WriteFile(configPath, []byte(configBody), 0o644); err != nil {
 		t.Fatalf("write config: %v", err)

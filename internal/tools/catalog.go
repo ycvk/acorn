@@ -87,17 +87,6 @@ func (c *Catalog) Find(name string) (core.ToolSpec, bool) {
 	return spec, ok
 }
 
-func (c *Catalog) ExecutionPolicy(toolName string, args map[string]any) (core.ToolExecutionPolicy, error) {
-	spec, ok := c.Find(toolName)
-	if !ok {
-		return core.ToolExecutionPolicy{}, fmt.Errorf("tool execution policy for %q is not registered", strings.TrimSpace(toolName))
-	}
-	if err := spec.Validate(); err != nil {
-		return core.ToolExecutionPolicy{}, err
-	}
-	return spec.Execution, nil
-}
-
 func normalizeSpec(ctx context.Context, spec core.ToolSpec) (core.ToolSpec, error) {
 	spec.Name = strings.TrimSpace(spec.Name)
 	spec.Source = strings.TrimSpace(spec.Source)

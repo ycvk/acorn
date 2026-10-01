@@ -171,10 +171,6 @@ func eventRecordFromRunEvent(item core.RunEvent) core.EventRecord {
 		if data, ok := item.Data.(core.AssistantDeltaData); ok {
 			payload["assistant_delta"] = data.AssistantDelta
 		}
-	case "agent.message":
-		if data, ok := item.Data.(core.AgentMessageData); ok {
-			payload["message"] = data.Message
-		}
 	case "run.completed":
 		if data, ok := item.Data.(core.RunCompletedData); ok {
 			payload["message"] = data.Message

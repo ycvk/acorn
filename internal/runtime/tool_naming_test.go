@@ -318,12 +318,11 @@ func toolNamingContract(
 	loading core.ToolLoadingPolicy,
 ) core.ToolContract {
 	return core.ToolContract{
-		Name:      name,
-		Source:    source,
-		Kind:      kind,
-		Category:  category,
-		Loading:   loading,
-		Execution: core.ToolExecutionPolicy{ParallelPolicy: core.ParallelPolicyReadOnly},
+		Name:     name,
+		Source:   source,
+		Kind:     kind,
+		Category: category,
+		Loading:  loading,
 	}
 }
 

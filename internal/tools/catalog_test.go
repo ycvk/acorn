@@ -17,7 +17,7 @@ func TestNewCatalogNormalizesToolNames(t *testing.T) {
 	tool := mustInferTool(t, "local_echo")
 
 	catalog, err := tools.NewCatalog(context.Background(), []core.ToolSpec{{
-		ToolContract: testToolContract("", "local", core.ParallelPolicyReadOnly),
+		ToolContract: testToolContract("", "local"),
 		Tool:         tool,
 	}})
 	if err != nil {
@@ -39,11 +39,11 @@ func TestNewCatalogRejectsDuplicateNames(t *testing.T) {
 
 	_, err := tools.NewCatalog(context.Background(), []core.ToolSpec{
 		{
-			ToolContract: testToolContract("", "local", core.ParallelPolicyReadOnly),
+			ToolContract: testToolContract("", "local"),
 			Tool:         first,
 		},
 		{
-			ToolContract: testToolContract("", "fixture", core.ParallelPolicyReadOnly),
+			ToolContract: testToolContract("", "fixture"),
 			Tool:         second,
 		},
 	})
@@ -57,7 +57,7 @@ func TestNewCatalogRejectsDuplicateNames(t *testing.T) {
 
 func TestNewCatalogRejectsEnabledSpecWithoutTool(t *testing.T) {
 	_, err := tools.NewCatalog(context.Background(), []core.ToolSpec{{
-		ToolContract: testToolContract("read_file", "local", core.ParallelPolicyReadOnly),
+		ToolContract: testToolContract("read_file", "local"),
 		Health:       core.ToolHealth{State: core.HealthStateHealthy},
 	}})
 	if err == nil {
@@ -68,27 +68,11 @@ func TestNewCatalogRejectsEnabledSpecWithoutTool(t *testing.T) {
 	}
 }
 
-func TestCatalogExecutionPolicyRejectsUnknownTool(t *testing.T) {
-	tool := mustInferTool(t, "local_echo")
-	catalog, err := tools.NewCatalog(context.Background(), []core.ToolSpec{{
-		ToolContract: testToolContract("", "local", core.ParallelPolicyReadOnly),
-		Tool:         tool,
-	}})
-	if err != nil {
-		t.Fatalf("NewCatalog: %v", err)
-	}
-
-	if _, err := catalog.ExecutionPolicy("missing_tool", nil); err == nil {
-		t.Fatal("expected unknown execution policy error")
-	}
-}
-
 func TestNewCatalogRejectsIncompleteContract(t *testing.T) {
 	tool := mustInferTool(t, "local_echo")
 	_, err := tools.NewCatalog(context.Background(), []core.ToolSpec{{
 		ToolContract: core.ToolContract{
 			Source:   "local",
-			Kind:     core.ToolKindNative,
 			Category: core.ToolCategoryRead,
 			Loading:  core.EagerLoadingPolicy(),
 		},
@@ -97,20 +81,18 @@ func TestNewCatalogRejectsIncompleteContract(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected incomplete contract error")
 	}
-	if !strings.Contains(err.Error(), "parallel policy is required") {
+	if !strings.Contains(err.Error(), "kind is required") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
-func testToolContract(name string, source string, parallel core.ParallelPolicy) core.ToolContract {
-	execution := core.ToolExecutionPolicy{ParallelPolicy: parallel}
+func testToolContract(name string, source string) core.ToolContract {
 	return core.ToolContract{
-		Name:      name,
-		Source:    source,
-		Kind:      core.ToolKindNative,
-		Category:  core.ToolCategoryRead,
-		Loading:   core.EagerLoadingPolicy(),
-		Execution: execution,
+		Name:     name,
+		Source:   source,
+		Kind:     core.ToolKindNative,
+		Category: core.ToolCategoryRead,
+		Loading:  core.EagerLoadingPolicy(),
 	}
 }
 

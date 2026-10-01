@@ -40,7 +40,6 @@ import com.squareup.moshi.JsonClass
  * @param resourceScope 
  * @param profiles 
  * @param healthReason 
- * @param parallelPolicy 
  * @param planPolicy 
  * @param rootDir 
  * @param workDir 
@@ -79,9 +78,6 @@ data class CapabilitiesTool (
 
     @Json(name = "health_reason")
     val healthReason: kotlin.String? = null,
-
-    @Json(name = "parallel_policy")
-    val parallelPolicy: kotlin.String? = null,
 
     @Json(name = "plan_policy")
     val planPolicy: kotlin.String? = null,

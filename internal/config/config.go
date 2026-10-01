@@ -170,7 +170,6 @@ type MCPProviderConfig struct {
 	ToolNames             []string          `yaml:"tool_names"`
 	StartupTimeoutSeconds int               `yaml:"startup_timeout_seconds"`
 	Auth                  MCPAuthConfig     `yaml:"auth"`
-	ToolSafety            string            `yaml:"tool_safety"`
 }
 
 // TriggersConfig configures ambient agent trigger sources. Triggers live in

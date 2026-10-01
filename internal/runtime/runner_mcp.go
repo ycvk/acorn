@@ -51,16 +51,7 @@ func buildMCPToolSpec(ctx context.Context, cfg *config.Config, providerName stri
 	if err != nil {
 		return core.ToolSpec{}, fmt.Errorf("namespace MCP tool %q for provider %q: %w", info.Name, providerName, err)
 	}
-	spec, err := RuntimeToolSpec(ctx, cfg, providerName, core.ToolKindMCP, namespaced)
-	if err != nil {
-		return core.ToolSpec{}, err
-	}
-	parallelPolicy, err := MCPToolParallelPolicy(cfg, providerName)
-	if err != nil {
-		return core.ToolSpec{}, fmt.Errorf("resolve MCP tool safety for provider %q: %w", providerName, err)
-	}
-	spec.Execution.ParallelPolicy = parallelPolicy
-	return spec, nil
+	return RuntimeToolSpec(ctx, cfg, providerName, core.ToolKindMCP, namespaced)
 }
 
 // mcpToolSpecBuilder returns a mcp.ToolSpecBuilder that builds a unified

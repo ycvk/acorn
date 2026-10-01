@@ -22,18 +22,6 @@ type ToolLoadingPolicy struct {
 	Reason string
 }
 
-type ParallelPolicy string
-
-const (
-	ParallelPolicyReadOnly ParallelPolicy = "read_only"
-	ParallelPolicySerial   ParallelPolicy = "serial"
-)
-
-type ToolExecutionPolicy struct {
-	ParallelPolicy ParallelPolicy
-	PathArg        string
-}
-
 // --- Tool classification ---
 
 type ToolKind string
@@ -78,19 +66,17 @@ type ToolHealth struct {
 // --- Tool contract ---
 
 type ToolContract struct {
-	Name      string
-	Source    string
-	Kind      ToolKind
-	Category  ToolCategory
-	Loading   ToolLoadingPolicy
-	Execution ToolExecutionPolicy
+	Name     string
+	Source   string
+	Kind     ToolKind
+	Category ToolCategory
+	Loading  ToolLoadingPolicy
 }
 
 func (c ToolContract) Normalized() ToolContract {
 	c.Name = strings.TrimSpace(c.Name)
 	c.Source = strings.TrimSpace(c.Source)
 	c.Loading.Reason = strings.TrimSpace(c.Loading.Reason)
-	c.Execution.PathArg = strings.TrimSpace(c.Execution.PathArg)
 	return c
 }
 
@@ -112,12 +98,6 @@ func (c ToolContract) Validate() error {
 	case ToolLoadingModeEager, ToolLoadingModeDeferred, ToolLoadingModeHidden:
 	default:
 		return fmt.Errorf("tool contract %q: unknown loading mode %q", c.Name, c.Loading.Mode)
-	}
-	if c.Execution.ParallelPolicy == "" {
-		return fmt.Errorf("tool contract %q: parallel policy is required", c.Name)
-	}
-	if _, err := ParseParallelPolicy(string(c.Execution.ParallelPolicy)); err != nil {
-		return fmt.Errorf("tool contract %q: %w", c.Name, err)
 	}
 	return nil
 }
@@ -141,12 +121,6 @@ func (s ToolSpec) Enabled() bool {
 	return s.Health.State != HealthStateDisabled
 }
 
-// --- Execution policy resolver ---
-
-type ExecutionPolicyResolver interface {
-	ExecutionPolicy(toolName string, args map[string]any) (ToolExecutionPolicy, error)
-}
-
 // --- Catalog ---
 
 // Catalog is the read-only tool catalog interface.
@@ -155,7 +129,6 @@ type Catalog interface {
 	EnabledSpecs() []ToolSpec
 	Tools() []einotool.BaseTool
 	Find(name string) (ToolSpec, bool)
-	ExecutionPolicy(toolName string, args map[string]any) (ToolExecutionPolicy, error)
 }
 
 // --- Policy constructors ---
@@ -166,15 +139,4 @@ func EagerLoadingPolicy() ToolLoadingPolicy {
 
 func DeferredLoadingPolicy(reason string) ToolLoadingPolicy {
 	return ToolLoadingPolicy{Mode: ToolLoadingModeDeferred, Reason: reason}
-}
-
-func ParseParallelPolicy(raw string) (ParallelPolicy, error) {
-	switch strings.TrimSpace(strings.ToLower(raw)) {
-	case "readonly", "read_only":
-		return ParallelPolicyReadOnly, nil
-	case "serial":
-		return ParallelPolicySerial, nil
-	default:
-		return "", fmt.Errorf("unknown tool parallel policy %q: valid values are readonly|read_only, serial", raw)
-	}
 }
