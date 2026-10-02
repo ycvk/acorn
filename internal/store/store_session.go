@@ -11,28 +11,6 @@ import (
 	"github.com/ycvk/acorn/internal/core"
 )
 
-// SessionMessagePart is one renderable fragment of a session message. Its JSON
-// shape is the remote client wire contract and the persisted content_parts
-// shape.
-type SessionMessagePart struct {
-	Kind             string   `json:"kind"`
-	Text             string   `json:"text,omitempty"`
-	Reasoning        string   `json:"reasoning,omitempty"`
-	Status           string   `json:"status,omitempty"`
-	Title            string   `json:"title,omitempty"`
-	Summary          string   `json:"summary,omitempty"`
-	Changed          []string `json:"changed,omitempty"`
-	Verified         []string `json:"verified,omitempty"`
-	Risks            []string `json:"risks,omitempty"`
-	DetailRunID      string   `json:"detail_run_id,omitempty"`
-	RunID            string   `json:"run_id,omitempty"`
-	Label            string   `json:"label,omitempty"`
-	DecisionID       string   `json:"decision_id,omitempty"`
-	Question         string   `json:"question,omitempty"`
-	SelectedOptionID string   `json:"selected_option_id,omitempty"`
-	Answer           string   `json:"answer,omitempty"`
-}
-
 func (s *Store) CreateSession(ctx context.Context, sessionID, title string) (*core.SessionRecord, error) {
 	now := time.Now().UTC()
 	_, err := s.db.ExecContext(
@@ -217,12 +195,11 @@ func (s *Store) CreateFreshSessionTurn(ctx context.Context, sessionID, title, in
 	const turnIndex = 1
 	if _, err := tx.ExecContext(
 		ctx,
-		`INSERT INTO session_messages(session_id, turn_index, role, content, content_parts, run_id, created_at) VALUES(?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO session_messages(session_id, turn_index, role, content, run_id, created_at) VALUES(?, ?, ?, ?, ?, ?)`,
 		sessionID,
 		turnIndex,
 		"user",
 		input,
-		"",
 		"",
 		formatTimestamp(now),
 	); err != nil {

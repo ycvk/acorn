@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -257,109 +256,17 @@ func projectMessage(record core.SessionMessageRecord) (Message, error) {
 	default:
 		return Message{}, projectionError("message %d has unsupported role %q", record.ID, record.Role)
 	}
-	parts, err := projectMessageParts(record)
-	if err != nil {
-		return Message{}, err
-	}
 	return Message{
 		ID:       fmt.Sprintf("%d", record.ID),
 		ThreadID: record.SessionID,
 		Role:     record.Role,
 		Content: MessageContent{
-			Type:  "text",
-			Text:  record.Content,
-			Parts: parts,
+			Type: "text",
+			Text: record.Content,
 		},
 		CreatedAt: record.CreatedAt,
 		RunID:     record.RunID,
 	}, nil
-}
-
-func projectMessageParts(record core.SessionMessageRecord) ([]MessagePart, error) {
-	if len(record.ContentParts) == 0 {
-		return nil, nil
-	}
-	var parts []MessagePart
-	if err := json.Unmarshal(record.ContentParts, &parts); err != nil {
-		return nil, projectionError("message %d has invalid content_parts: %v", record.ID, err)
-	}
-	for index, part := range parts {
-		if err := validateMessagePart(part); err != nil {
-			return nil, projectionError("message %d content parts[%d]: %v", record.ID, index, err)
-		}
-	}
-	return parts, nil
-}
-
-func validateMessagePart(part MessagePart) error {
-	switch part.Kind {
-	case "text":
-		if strings.TrimSpace(part.Text) == "" {
-			return errors.New("text part requires text")
-		}
-	case "reasoning":
-		if strings.TrimSpace(part.Reasoning) == "" {
-			return errors.New("reasoning part requires reasoning")
-		}
-	case "work_status":
-		switch part.Status {
-		case "working", "interrupted", "failed":
-		default:
-			return fmt.Errorf("work_status part has unsupported status %q", part.Status)
-		}
-		if strings.TrimSpace(part.Title) == "" || strings.TrimSpace(part.Summary) == "" {
-			return errors.New("work_status part requires title and summary")
-		}
-	case "decision":
-		if strings.TrimSpace(part.DecisionID) == "" || strings.TrimSpace(part.Question) == "" {
-			return errors.New("decision part requires decision_id and question")
-		}
-		switch part.Status {
-		case "", string(core.PendingActionStatusPending), string(core.PendingActionStatusApproved), string(core.PendingActionStatusRejected), string(core.PendingActionStatusResolved):
-		default:
-			return fmt.Errorf("decision part has unsupported status %q", part.Status)
-		}
-	case "result":
-		if strings.TrimSpace(part.Title) == "" {
-			return errors.New("result part requires title")
-		}
-	case "disclosure":
-		if len(part.Items) == 0 {
-			return errors.New("disclosure part requires items")
-		}
-		for index, item := range part.Items {
-			if err := validateDisclosureItem(item); err != nil {
-				return fmt.Errorf("disclosure part items[%d]: %w", index, err)
-			}
-		}
-	case "technical_detail_link":
-		if strings.TrimSpace(part.RunID) == "" && strings.TrimSpace(part.DetailRunID) == "" {
-			return errors.New("technical_detail_link part requires run_id")
-		}
-	default:
-		return fmt.Errorf("unsupported kind %q", part.Kind)
-	}
-	return nil
-}
-
-func validateDisclosureItem(item DisclosureItem) error {
-	switch item.Kind {
-	case "memory", "skill":
-	default:
-		return fmt.Errorf("unsupported kind %q", item.Kind)
-	}
-	if strings.TrimSpace(item.Label) == "" {
-		return errors.New("label is required")
-	}
-	switch item.Tone {
-	case "memory", "skill", "procedure", "neutral", "warning":
-	default:
-		return fmt.Errorf("unsupported tone %q", item.Tone)
-	}
-	if strings.TrimSpace(item.SkillID) != "" && item.Kind != "skill" {
-		return errors.New("skill_id is only supported for skill disclosure items")
-	}
-	return nil
 }
 
 // Thread is a user-facing thread DTO.
@@ -385,45 +292,6 @@ type Message struct {
 
 // MessageContent holds the content of a message.
 type MessageContent struct {
-	Type  string
-	Text  string
-	Parts []MessagePart
-}
-
-// MessagePart is a single part of a message content.
-type MessagePart struct {
-	Kind             string           `json:"kind"`
-	Text             string           `json:"text,omitempty"`
-	Reasoning        string           `json:"reasoning,omitempty"`
-	Status           string           `json:"status,omitempty"`
-	Title            string           `json:"title,omitempty"`
-	Summary          string           `json:"summary,omitempty"`
-	Changed          []string         `json:"changed,omitempty"`
-	Verified         []string         `json:"verified,omitempty"`
-	Risks            []string         `json:"risks,omitempty"`
-	Items            []DisclosureItem `json:"items,omitempty"`
-	DetailRunID      string           `json:"detail_run_id,omitempty"`
-	RunID            string           `json:"run_id,omitempty"`
-	Label            string           `json:"label,omitempty"`
-	DecisionID       string           `json:"decision_id,omitempty"`
-	Question         string           `json:"question,omitempty"`
-	SelectedOptionID string           `json:"selected_option_id,omitempty"`
-	Answer           string           `json:"answer,omitempty"`
-	Options          []DecisionOption `json:"options,omitempty"`
-}
-
-// DisclosureItem is an item inside a disclosure message part.
-type DisclosureItem struct {
-	Kind    string `json:"kind"`
-	Label   string `json:"label"`
-	Detail  string `json:"detail,omitempty"`
-	Tone    string `json:"tone"`
-	SkillID string `json:"skill_id,omitempty"`
-}
-
-// DecisionOption is an option inside a decision message part.
-type DecisionOption struct {
-	ID          string `json:"id"`
-	Label       string `json:"label"`
-	Description string `json:"description,omitempty"`
+	Type string
+	Text string
 }

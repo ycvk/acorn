@@ -3,7 +3,6 @@ package store
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -12,23 +11,14 @@ import (
 )
 
 func (s *Store) AppendSessionMessage(ctx context.Context, sessionID string, turnIndex int, role, content, runID string) (*core.SessionMessageRecord, error) {
-	return s.AppendSessionMessageWithParts(ctx, sessionID, turnIndex, role, content, nil, runID)
-}
-
-func (s *Store) AppendSessionMessageWithParts(ctx context.Context, sessionID string, turnIndex int, role, content string, parts []SessionMessagePart, runID string) (*core.SessionMessageRecord, error) {
 	now := time.Now().UTC()
-	contentParts, err := encodeSessionMessageParts(parts)
-	if err != nil {
-		return nil, err
-	}
 	result, err := s.db.ExecContext(
 		ctx,
-		`INSERT INTO session_messages(session_id, turn_index, role, content, content_parts, run_id, created_at) VALUES(?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO session_messages(session_id, turn_index, role, content, run_id, created_at) VALUES(?, ?, ?, ?, ?, ?)`,
 		sessionID,
 		turnIndex,
 		role,
 		content,
-		string(contentParts),
 		runID,
 		formatTimestamp(now),
 	)
@@ -43,39 +33,14 @@ func (s *Store) AppendSessionMessageWithParts(ctx context.Context, sessionID str
 		return nil, fmt.Errorf("touch session updated_at: %w", err)
 	}
 	return &core.SessionMessageRecord{
-		ID:           id,
-		SessionID:    sessionID,
-		TurnIndex:    turnIndex,
-		Role:         role,
-		Content:      content,
-		ContentParts: contentParts,
-		RunID:        runID,
-		CreatedAt:    now,
+		ID:        id,
+		SessionID: sessionID,
+		TurnIndex: turnIndex,
+		Role:      role,
+		Content:   content,
+		RunID:     runID,
+		CreatedAt: now,
 	}, nil
-}
-
-func (s *Store) UpdateSessionMessageWithParts(ctx context.Context, id int64, content string, parts []SessionMessagePart) error {
-	contentParts, err := encodeSessionMessageParts(parts)
-	if err != nil {
-		return err
-	}
-	result, err := s.db.ExecContext(ctx,
-		`UPDATE session_messages SET content = ?, content_parts = ? WHERE id = ?`,
-		content,
-		string(contentParts),
-		id,
-	)
-	if err != nil {
-		return fmt.Errorf("update session message: %w", err)
-	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("update session message rows affected: %w", err)
-	}
-	if affected == 0 {
-		return fmt.Errorf("%w: %d", core.ErrSessionMessageNotFound, id)
-	}
-	return nil
 }
 
 func (s *Store) ListSessionMessages(ctx context.Context, sessionID string, limit int) ([]core.SessionMessageRecord, error) {
@@ -84,7 +49,7 @@ func (s *Store) ListSessionMessages(ctx context.Context, sessionID string, limit
 	}
 	rows, err := s.db.QueryContext(
 		ctx,
-		`SELECT id, session_id, turn_index, role, content, content_parts, run_id, created_at
+		`SELECT id, session_id, turn_index, role, content, run_id, created_at
          FROM session_messages
          WHERE session_id = ?
          ORDER BY id DESC
@@ -100,18 +65,16 @@ func (s *Store) ListSessionMessages(ctx context.Context, sessionID string, limit
 	items := make([]core.SessionMessageRecord, 0)
 	for rows.Next() {
 		var (
-			rec          core.SessionMessageRecord
-			contentParts string
-			created      string
+			rec     core.SessionMessageRecord
+			created string
 		)
-		if err := rows.Scan(&rec.ID, &rec.SessionID, &rec.TurnIndex, &rec.Role, &rec.Content, &contentParts, &rec.RunID, &created); err != nil {
+		if err := rows.Scan(&rec.ID, &rec.SessionID, &rec.TurnIndex, &rec.Role, &rec.Content, &rec.RunID, &created); err != nil {
 			return nil, fmt.Errorf("scan session message: %w", err)
 		}
 		createdAt, err := parseTimestamp(time.RFC3339Nano, created, "session_message.created_at")
 		if err != nil {
 			return nil, err
 		}
-		rec.ContentParts = json.RawMessage(contentParts)
 		rec.CreatedAt = createdAt
 		items = append(items, rec)
 	}
@@ -135,7 +98,7 @@ func (s *Store) NextSessionMessageTurnIndex(ctx context.Context, sessionID strin
 
 func (s *Store) LoadLatestUnboundUserMessage(ctx context.Context, sessionID string) (*core.SessionMessageRecord, error) {
 	row := s.db.QueryRowContext(ctx,
-		`SELECT id, session_id, turn_index, role, content, content_parts, run_id, created_at
+		`SELECT id, session_id, turn_index, role, content, run_id, created_at
 		 FROM session_messages
 		 WHERE session_id = ? AND role = 'user' AND run_id = ''
 		 ORDER BY id DESC
@@ -143,11 +106,10 @@ func (s *Store) LoadLatestUnboundUserMessage(ctx context.Context, sessionID stri
 		sessionID,
 	)
 	var (
-		rec          core.SessionMessageRecord
-		contentParts string
-		created      string
+		rec     core.SessionMessageRecord
+		created string
 	)
-	if err := row.Scan(&rec.ID, &rec.SessionID, &rec.TurnIndex, &rec.Role, &rec.Content, &contentParts, &rec.RunID, &created); err != nil {
+	if err := row.Scan(&rec.ID, &rec.SessionID, &rec.TurnIndex, &rec.Role, &rec.Content, &rec.RunID, &created); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("%w: latest unbound user message for %s", core.ErrSessionMessageNotFound, sessionID)
 		}
@@ -157,7 +119,6 @@ func (s *Store) LoadLatestUnboundUserMessage(ctx context.Context, sessionID stri
 	if err != nil {
 		return nil, err
 	}
-	rec.ContentParts = json.RawMessage(contentParts)
 	rec.CreatedAt = createdAt
 	return &rec, nil
 }
@@ -216,15 +177,4 @@ func (s *Store) BindUserMessageRunIDByID(ctx context.Context, messageID int64, r
 		return fmt.Errorf("user session message %d not found or already bound", messageID)
 	}
 	return nil
-}
-
-func encodeSessionMessageParts(parts []SessionMessagePart) (json.RawMessage, error) {
-	if len(parts) == 0 {
-		return nil, nil
-	}
-	payload, err := json.Marshal(parts)
-	if err != nil {
-		return nil, fmt.Errorf("marshal session message parts: %w", err)
-	}
-	return json.RawMessage(payload), nil
 }

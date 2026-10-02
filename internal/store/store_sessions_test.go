@@ -267,9 +267,6 @@ func TestBindLatestUserMessageRunIDAndSyncAssistantMessageForRun(t *testing.T) {
 	if items[1].RunID != "run_1" || items[1].Role != "assistant" || items[1].Content != "done" {
 		t.Fatalf("unexpected synced assistant message: %#v", items[1])
 	}
-	if len(items[1].ContentParts) != 0 {
-		t.Fatalf("assistant message should have no parts, got %#v", items[1].ContentParts)
-	}
 }
 
 func TestClientSessionMessageHelpers(t *testing.T) {
@@ -422,9 +419,6 @@ func TestSyncAssistantMessageForRunPersistsFailureContext(t *testing.T) {
 	if assistant.Content != "rg stdout" {
 		t.Fatalf("assistant content = %q, want run output", assistant.Content)
 	}
-	if len(assistant.ContentParts) != 0 {
-		t.Fatalf("assistant message should have no parts, got %#v", assistant.ContentParts)
-	}
 }
 
 func TestSyncAssistantMessageForRunAllowsFinalSuccessAfterInterruptedContext(t *testing.T) {
@@ -474,9 +468,6 @@ func TestSyncAssistantMessageForRunAllowsFinalSuccessAfterInterruptedContext(t *
 	}
 	if items[2].Content != "final answer" {
 		t.Fatalf("unexpected final assistant content: %#v", items[2])
-	}
-	if len(items[1].ContentParts) != 0 || len(items[2].ContentParts) != 0 {
-		t.Fatalf("assistant messages should have no parts")
 	}
 }
 

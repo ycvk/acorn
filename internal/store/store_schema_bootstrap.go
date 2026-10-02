@@ -18,7 +18,6 @@ CREATE TABLE IF NOT EXISTS session_messages (
     turn_index INTEGER NOT NULL,
     role TEXT NOT NULL,
     content TEXT NOT NULL,
-    content_parts TEXT NOT NULL DEFAULT '',
     run_id TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL
 );
