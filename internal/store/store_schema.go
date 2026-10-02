@@ -23,6 +23,26 @@ func (s *Store) migrate() error {
 	if _, err := s.db.Exec(storeBootstrapIndexes); err != nil {
 		return fmt.Errorf("migrate sqlite schema (indexes): %w", err)
 	}
+	if err := s.migrateV4(); err != nil {
+		return fmt.Errorf("migrate v4: %w", err)
+	}
+	return nil
+}
+
+// migrateV4 indexes runs that existed before runs_fts and its triggers.
+func (s *Store) migrateV4() error {
+	const version = "v4_runs_fts_backfill"
+	if migrationApplied(s.db, version) {
+		return nil
+	}
+	if _, err := s.db.Exec(`INSERT INTO runs_fts(run_id, input_text, output_text)
+		SELECT run_id, input_text, output_text FROM runs
+		WHERE run_id NOT IN (SELECT run_id FROM runs_fts)`); err != nil {
+		return fmt.Errorf("backfill runs_fts: %w", err)
+	}
+	if _, err := s.db.Exec("INSERT INTO schema_migrations (version, applied_at) VALUES (?, datetime('now'))", version); err != nil {
+		return fmt.Errorf("record migration %s: %w", version, err)
+	}
 	return nil
 }
 
@@ -56,6 +76,10 @@ var schemaRequiredTables = map[string][]string{
 	"artifacts":         {"artifact_id", "run_id", "session_id", "source_tool_result_ref", "kind", "title", "mime_type", "relative_path", "size_bytes", "sha256", "created_at"},
 	"schema_migrations": {"version", "applied_at"},
 	"agent_checkpoints": {"checkpoint_id", "data", "updated_at"},
+	"memory_items":      {"id", "kind", "content", "status", "session_id", "source_run_id", "wake_at", "recurrence", "expires_at", "created_at", "updated_at"},
+	"context_snapshots": {"hash", "content", "created_at"},
+	"push_tokens":       {"device_id", "token", "updated_at"},
+	"notifications":     {"id", "title", "body", "thread_id", "run_id", "status", "send_after", "error_text", "created_at", "sent_at"},
 }
 
 func (s *Store) requireColumns(table string, columns []string) error {

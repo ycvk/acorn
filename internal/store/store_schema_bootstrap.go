@@ -1,6 +1,6 @@
 package store
 
-// storeBootstrapTables creates the 11 core tables if they do not already
+// storeBootstrapTables creates the 15 core tables if they do not already
 // exist. This is split from index creation so that validateSchema can detect
 // a stale/incompatible database (missing columns) before index creation
 // attempts to reference those columns.
@@ -105,10 +105,50 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
     version TEXT PRIMARY KEY,
     applied_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS memory_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    kind TEXT NOT NULL,
+    content TEXT NOT NULL,
+    status TEXT NOT NULL,
+    session_id TEXT NOT NULL DEFAULT '',
+    source_run_id TEXT NOT NULL DEFAULT '',
+    wake_at TEXT NOT NULL DEFAULT '',
+    recurrence TEXT NOT NULL DEFAULT '',
+    expires_at TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS context_snapshots (
+    hash TEXT PRIMARY KEY,
+    content TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS push_tokens (
+    device_id TEXT PRIMARY KEY,
+    token TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS notifications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    body TEXT NOT NULL,
+    thread_id TEXT NOT NULL DEFAULT '',
+    run_id TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL,
+    send_after TEXT NOT NULL,
+    error_text TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    sent_at TEXT NOT NULL DEFAULT ''
+);
 `
 
-// storeBootstrapIndexes creates all indexes after table creation and schema
-// validation have succeeded, ensuring columns referenced by indexes exist.
+// storeBootstrapIndexes creates all indexes, full-text tables and their sync
+// triggers after table creation and schema validation have succeeded, ensuring
+// the columns they reference exist.
 const storeBootstrapIndexes = `
 CREATE INDEX IF NOT EXISTS idx_session_messages_run_id ON session_messages(run_id);
 CREATE INDEX IF NOT EXISTS idx_session_messages_session_turn ON session_messages(session_id, turn_index);
@@ -119,4 +159,24 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_pending_actions_interrupt_id ON pending_ac
 CREATE INDEX IF NOT EXISTS idx_devices_token_hash ON devices(token_hash);
 CREATE INDEX IF NOT EXISTS idx_artifacts_run ON artifacts(run_id, created_at ASC, artifact_id ASC);
 CREATE INDEX IF NOT EXISTS idx_artifacts_session ON artifacts(session_id, created_at ASC, artifact_id ASC);
+CREATE INDEX IF NOT EXISTS idx_memory_items_due ON memory_items(kind, status, wake_at);
+CREATE INDEX IF NOT EXISTS idx_notifications_due ON notifications(status, send_after);
+
+CREATE VIRTUAL TABLE IF NOT EXISTS memory_items_fts USING fts5(content, content='memory_items', content_rowid='id', tokenize='trigram');
+CREATE TRIGGER IF NOT EXISTS memory_items_fts_ai AFTER INSERT ON memory_items BEGIN
+  INSERT INTO memory_items_fts(rowid, content) VALUES (new.id, new.content);
+END;
+CREATE TRIGGER IF NOT EXISTS memory_items_fts_au AFTER UPDATE OF content ON memory_items BEGIN
+  INSERT INTO memory_items_fts(memory_items_fts, rowid, content) VALUES ('delete', old.id, old.content);
+  INSERT INTO memory_items_fts(rowid, content) VALUES (new.id, new.content);
+END;
+
+CREATE VIRTUAL TABLE IF NOT EXISTS runs_fts USING fts5(run_id UNINDEXED, input_text, output_text, tokenize='trigram');
+CREATE TRIGGER IF NOT EXISTS runs_fts_ai AFTER INSERT ON runs BEGIN
+  INSERT INTO runs_fts(run_id, input_text, output_text) VALUES (new.run_id, new.input_text, new.output_text);
+END;
+CREATE TRIGGER IF NOT EXISTS runs_fts_au AFTER UPDATE OF input_text, output_text ON runs BEGIN
+  DELETE FROM runs_fts WHERE run_id = new.run_id;
+  INSERT INTO runs_fts(run_id, input_text, output_text) VALUES (new.run_id, new.input_text, new.output_text);
+END;
 `
