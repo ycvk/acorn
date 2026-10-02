@@ -75,6 +75,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.jeziellago.compose.markdowntext.MarkdownText
+import io.ycvk.acorn.core.sse.ChatHeaderStatus
+import io.ycvk.acorn.core.sse.headerStatus
 import io.ycvk.acorn.core.theme.AetherBackground
 import io.ycvk.acorn.core.theme.AetherMessageBubble
 import io.ycvk.acorn.core.theme.AetherOnPrimary
@@ -84,6 +86,7 @@ import io.ycvk.acorn.core.theme.AetherOutlineSoft
 import io.ycvk.acorn.core.theme.AetherPrimary
 import io.ycvk.acorn.core.theme.AetherSurface
 import io.ycvk.acorn.core.theme.AetherSurfaceHigh
+import io.ycvk.acorn.core.theme.AetherTertiary
 import io.ycvk.acorn.core.theme.gradientBackground
 // Aether design DNA
 private val ChatGptMotionEasing = CubicBezierEasing(0.22f, 0.84f, 0.18f, 1f)
@@ -205,7 +208,7 @@ fun ChatScreen(
         // Top bar overlay
         ChatTopBar(
             title = threadTitle ?: "thread",
-            streaming = streaming,
+            status = chatState.headerStatus(),
             onBack = onBack,
             onOpenDrawer = onOpenDrawer,
             modifier = Modifier
@@ -239,7 +242,7 @@ fun ChatScreen(
 @Composable
 private fun ChatTopBar(
     title: String,
-    streaming: Boolean,
+    status: ChatHeaderStatus,
     onBack: () -> Unit,
     onOpenDrawer: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
@@ -287,8 +290,12 @@ private fun ChatTopBar(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    val statusColor = if (streaming) AetherPrimary else AetherOnSurfaceVariant
-                    val statusText = if (streaming) "running" else "idle"
+                    val statusColor = when (status) {
+                        ChatHeaderStatus.Running -> AetherPrimary
+                        ChatHeaderStatus.Waiting -> AetherTertiary
+                        ChatHeaderStatus.Idle -> AetherOnSurfaceVariant
+                    }
+                    val statusText = status.label
                     Box(
                         modifier = Modifier
                             .size(6.dp)

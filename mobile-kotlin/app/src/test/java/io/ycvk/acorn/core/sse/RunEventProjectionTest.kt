@@ -5,12 +5,14 @@ import io.ycvk.acorn.api.models.ClientAssistantDeltaEvent
 import io.ycvk.acorn.api.models.ClientRunCompletedEvent
 import io.ycvk.acorn.api.models.ClientRunFailedEvent
 import io.ycvk.acorn.api.models.ClientRunInterruptedEvent
+import io.ycvk.acorn.api.models.ClientRunResumeRequestedEvent
 import io.ycvk.acorn.api.models.ClientRunStartedEvent
 import io.ycvk.acorn.api.models.RunCompletedData
 import io.ycvk.acorn.api.models.RunEventAssistantDelta
 import io.ycvk.acorn.api.models.RunEventMessage
 import io.ycvk.acorn.api.models.RunFailedData
 import io.ycvk.acorn.api.models.RunInterruptedData
+import io.ycvk.acorn.api.models.RunResumeRequestedData
 import io.ycvk.acorn.api.models.RunStartedData
 import io.ycvk.acorn.api.models.ClientToolApprovalDecidedEvent
 import io.ycvk.acorn.api.models.ClientToolApprovalPendingEvent
@@ -80,6 +82,66 @@ class RunEventProjectionTest {
         type = null,
         data = RunInterruptedData(),
     )
+
+    private fun resumeRequestedEvent(seq: Long) = RunEventPacket.RunResumeRequested(
+        ClientRunResumeRequestedEvent(
+            eventId = "evt-$seq",
+            runId = "run-1",
+            seq = seq,
+            ts = now,
+            type = null,
+            data = RunResumeRequestedData(),
+        ),
+    )
+
+    private fun approvalPending(seq: Long) = RunEventPacket.ToolApprovalPending(
+        ClientToolApprovalPendingEvent(
+            eventId = "run-1:$seq", runId = "run-1", seq = seq, ts = now, type = null,
+            data = ToolApprovalData(actionId = "action_1", toolName = "browser", arguments = "{}"),
+        ),
+    )
+
+    @Test
+    fun `resume row clears on the next delta`() {
+        var state = projection.apply(ChatState(runStatus = RunStatus.Interrupted), resumeRequestedEvent(7))
+        assertEquals(listOf(ActivityKind.ResumeRequested), state.activities.map { it.kind })
+        state = projection.apply(state, RunEventPacket.AssistantDelta(deltaEvent(8, "back")))
+        assertTrue(state.activities.isEmpty())
+    }
+
+    @Test
+    fun `resume row clears on terminal events`() {
+        val resumed = projection.apply(ChatState(runStatus = RunStatus.Interrupted), resumeRequestedEvent(7))
+        listOf(
+            RunEventPacket.RunCompleted(completedEvent(8, "done")),
+            RunEventPacket.RunFailed(failedEvent(8)),
+            RunEventPacket.RunInterrupted(interruptedEvent(8)),
+        ).forEach { terminal ->
+            assertTrue(projection.apply(resumed, terminal).activities.isEmpty())
+        }
+    }
+
+    @Test
+    fun `header shows running, waiting on an owner decision, then idle`() {
+        var state = projection.apply(ChatState(), RunEventPacket.Started(startedEvent()))
+        assertEquals(ChatHeaderStatus.Running, state.headerStatus())
+
+        state = projection.apply(state, approvalPending(2))
+        state = projection.apply(state, RunEventPacket.RunInterrupted(interruptedEvent(3)))
+        assertEquals(ChatHeaderStatus.Waiting, state.headerStatus())
+
+        state = projection.apply(state, resumeRequestedEvent(4))
+        assertEquals(ChatHeaderStatus.Running, state.headerStatus())
+
+        state = projection.apply(state, RunEventPacket.RunCompleted(completedEvent(5, "ok")))
+        assertEquals(ChatHeaderStatus.Idle, state.headerStatus())
+    }
+
+    @Test
+    fun `interrupted without a pending decision is idle`() {
+        val state = projection.apply(ChatState(), RunEventPacket.RunInterrupted(interruptedEvent(2)))
+        assertEquals(ChatHeaderStatus.Idle, state.headerStatus())
+    }
 
     @Test
     fun `Started resets state to streaming and clears text`() {

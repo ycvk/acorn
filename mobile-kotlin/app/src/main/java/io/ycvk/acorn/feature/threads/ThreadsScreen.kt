@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
@@ -80,6 +81,7 @@ fun ThreadsScreen(
 ) {
     val threads by viewModel.threads.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
+    val load by viewModel.load.collectAsStateWithLifecycle()
 
     var pendingDelete by remember { mutableStateOf<Thread?>(null) }
 
@@ -194,7 +196,18 @@ fun ThreadsScreen(
                     .fillMaxWidth()
                     .weight(1f),
             ) {
-            if (threads.isEmpty() && error == null) {
+            when (val content = threadsContent(load, threads.size)) {
+            ThreadsContent.Loading -> Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center,
+            ) {
+                CircularProgressIndicator(color = AetherPrimary)
+            }
+            is ThreadsContent.Failed -> ThreadsLoadError(
+                message = content.message,
+                onRetry = { viewModel.loadThreads() },
+            )
+            ThreadsContent.Empty -> {
                 Box(
                     modifier = Modifier
                         .fillMaxSize(),
@@ -228,9 +241,13 @@ fun ThreadsScreen(
                             style = MaterialTheme.typography.bodySmall,
                             color = AetherOnSurfaceVariant,
                         )
+                        error?.let {
+                            Text(it, style = MaterialTheme.typography.bodySmall, color = AetherError)
+                        }
                     }
                 }
-            } else {
+            }
+            ThreadsContent.Items -> {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(
@@ -296,6 +313,32 @@ fun ThreadsScreen(
                 }
             }
             }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ThreadsLoadError(message: String, onRetry: () -> Unit) {
+    Box(
+        modifier = Modifier.fillMaxSize().padding(horizontal = 32.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(
+                "Couldn't load threads",
+                style = MaterialTheme.typography.titleMedium,
+                color = AetherOnSurface,
+            )
+            Text(
+                message,
+                style = MaterialTheme.typography.bodySmall,
+                color = AetherError,
+            )
+            TextButton(onClick = onRetry) { Text("Retry", color = AetherPrimary) }
         }
     }
 }

@@ -33,11 +33,20 @@ class ThreadsViewModel @Inject constructor(
     private val _threads = MutableStateFlow<List<Thread>>(emptyList())
     val threads: StateFlow<List<Thread>> = _threads.asStateFlow()
 
+    private val _load = MutableStateFlow<ThreadsLoad>(ThreadsLoad.Loading)
+    val load: StateFlow<ThreadsLoad> = _load.asStateFlow()
+
+    /** Failures of create and delete; list load failures live in [load]. */
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
 
     fun loadThreads() {
-        val profile = getConnectionProfile() ?: return
+        val profile = getConnectionProfile()
+        if (profile == null) {
+            _load.value = ThreadsLoad.Failed("Not connected to a server")
+            return
+        }
+        _load.value = ThreadsLoad.Loading
         viewModelScope.launch {
             try {
                 val response = withContext(Dispatchers.IO) {
@@ -46,8 +55,9 @@ class ThreadsViewModel @Inject constructor(
                     clientApi.clientListThreads(limit = 50)
                 }
                 _threads.value = response.items
+                _load.value = ThreadsLoad.Loaded
             } catch (e: Exception) {
-                _error.value = e.message ?: "Failed to load threads"
+                _load.value = ThreadsLoad.Failed(e.message ?: "Failed to load threads")
             }
         }
     }
@@ -90,4 +100,29 @@ class ThreadsViewModel @Inject constructor(
 
     private fun getConnectionProfile(): ConnectionProfile? =
         (authController.authState.value as? AuthState.Connected)?.profile
+}
+
+sealed interface ThreadsLoad {
+    data object Loading : ThreadsLoad
+    data object Loaded : ThreadsLoad
+    data class Failed(val message: String) : ThreadsLoad
+}
+
+/** What the thread list area shows. */
+sealed interface ThreadsContent {
+    data object Loading : ThreadsContent
+    data class Failed(val message: String) : ThreadsContent
+    data object Empty : ThreadsContent
+    data object Items : ThreadsContent
+}
+
+/**
+ * Threads already on screen stay visible while a reload runs or fails; the
+ * empty state shows only after a successful load returned nothing.
+ */
+fun threadsContent(load: ThreadsLoad, threadCount: Int): ThreadsContent = when {
+    threadCount > 0 -> ThreadsContent.Items
+    load is ThreadsLoad.Loading -> ThreadsContent.Loading
+    load is ThreadsLoad.Failed -> ThreadsContent.Failed(load.message)
+    else -> ThreadsContent.Empty
 }
