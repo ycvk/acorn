@@ -18,6 +18,7 @@ import okhttp3.Response
 import okhttp3.sse.EventSource
 import okhttp3.sse.EventSourceListener
 import okhttp3.sse.EventSources
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 
 /**
@@ -43,18 +44,23 @@ class RunEventStreamClient(
     // so envelope fields (OffsetDateTime ts, Long seq) decode the same way as REST calls.
     private val moshi = Serializer.moshi
 
-    private val eventAdapters: Map<String, JsonAdapter<*>> = mapOf(
-        "run.started" to moshi.adapter(ClientRunStartedEvent::class.java),
-        "assistant.delta" to moshi.adapter(ClientAssistantDeltaEvent::class.java),
-        "run.completed" to moshi.adapter(ClientRunCompletedEvent::class.java),
-        "run.failed" to moshi.adapter(ClientRunFailedEvent::class.java),
-        "run.interrupted" to moshi.adapter(ClientRunInterruptedEvent::class.java),
-        "run.resume_requested" to moshi.adapter(ClientRunResumeRequestedEvent::class.java),
-        "elicitation.pending" to moshi.adapter(ClientElicitationPendingEvent::class.java),
-        "elicitation.decided" to moshi.adapter(ClientElicitationDecidedEvent::class.java),
-        "operator_question.pending" to moshi.adapter(ClientOperatorQuestionPendingEvent::class.java),
-        "operator_question.decided" to moshi.adapter(ClientOperatorQuestionDecidedEvent::class.java),
+    // Moshi builds these adapters through kotlin-reflect, which takes seconds on a
+    // cold debug build. They are created on first use from the OkHttp callback
+    // thread; this client is constructed on the main thread.
+    private val eventTypes: Map<String, Class<*>> = mapOf(
+        "run.started" to ClientRunStartedEvent::class.java,
+        "assistant.delta" to ClientAssistantDeltaEvent::class.java,
+        "run.completed" to ClientRunCompletedEvent::class.java,
+        "run.failed" to ClientRunFailedEvent::class.java,
+        "run.interrupted" to ClientRunInterruptedEvent::class.java,
+        "run.resume_requested" to ClientRunResumeRequestedEvent::class.java,
+        "elicitation.pending" to ClientElicitationPendingEvent::class.java,
+        "elicitation.decided" to ClientElicitationDecidedEvent::class.java,
+        "operator_question.pending" to ClientOperatorQuestionPendingEvent::class.java,
+        "operator_question.decided" to ClientOperatorQuestionDecidedEvent::class.java,
     )
+
+    private val eventAdapters = ConcurrentHashMap<String, JsonAdapter<*>>()
 
     private val factory = EventSources.createFactory(client)
 
@@ -104,10 +110,9 @@ class RunEventStreamClient(
             return RunEventPacket.Unknown(rawType = "(null)", rawData = data)
         }
 
-        val adapter = eventAdapters[type]
-        if (adapter == null) {
-            return RunEventPacket.Unknown(rawType = type, rawData = data)
-        }
+        val eventType = eventTypes[type]
+            ?: return RunEventPacket.Unknown(rawType = type, rawData = data)
+        val adapter = eventAdapters.computeIfAbsent(type) { moshi.adapter(eventType) }
 
         val parsed = adapter.fromJson(data)
             ?: throw IllegalStateException("Failed to decode RunEvent (type=$type) from SSE data")
