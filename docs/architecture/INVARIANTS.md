@@ -62,7 +62,7 @@
 
 ## 约定与唤醒
 
-- **约定只由 wake 调度器触发，且只触发一次**：`wake.Scheduler` 住在 `serve` 进程内，每 30 秒先执行衰减，再处理到期的约定（`memory_items` 中 kind 为 commitment）。`ClaimDueCommitment` 用条件更新把 active 改为 woken，多个调度器并发时只有一个成功；随后经 `RunService.CreateWakeRun` 在约定所属线程里起 run（线程已删除时新建 Reminders 线程），并在该 run 上记录 `wake.fired`。起 run 失败时约定回到 active，唤醒时间推后 5 分钟。带 cron 的约定在触发后插入下一次的 active 条目。
+- **约定只由 wake 调度器触发，且只触发一次**：`wake.Scheduler` 住在 `serve` 进程内，每 30 秒先执行衰减，再处理到期的约定（`memory_items` 中 kind 为 commitment）。`ClaimDueCommitment` 用条件更新把 active 改为 woken，多个调度器并发时只有一个成功；随后经 `RunService.CreateWakeRun` 在约定所属线程里起 run（线程已删除时新建 Reminders 线程），并在该 run 上记录 `wake.fired`。醒来的输入以 role `wake` 记入线程：模型把它当作 user 消息读取，客户端把它和 owner 自己写的消息分开显示。起 run 失败时约定回到 active，唤醒时间推后 5 分钟。带 cron 的约定在触发后插入下一次的 active 条目。
   - `internal/wake/scheduler_test.go`
   - `internal/store/store_presence_test.go`
   - `internal/wire/wake_acceptance_e2e_test.go`

@@ -12,6 +12,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -38,6 +39,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Menu
@@ -177,6 +179,10 @@ fun ChatScreen(
                     is ChatMessage.Assistant -> AssistantBubble(
                         text = message.text,
                         reasoning = message.reasoning,
+                        modifier = Modifier.animateItem(),
+                    )
+                    is ChatMessage.Wake -> WakeNote(
+                        text = message.text,
                         modifier = Modifier.animateItem(),
                     )
                 }
@@ -586,6 +592,42 @@ private fun TypingDots() {
     }
 }
 // ─── Activity / Error ─────────────────────────────────────────────────────────
+
+/** A commitment woke the agent; shown apart from what the owner wrote. */
+@Composable
+private fun WakeNote(text: String, modifier: Modifier = Modifier) {
+    Surface(
+        color = AetherTertiary.copy(alpha = 0.10f),
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, AetherTertiary.copy(alpha = 0.35f)),
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Filled.Notifications,
+                    contentDescription = null,
+                    tint = AetherTertiary,
+                    modifier = Modifier.size(14.dp),
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    "Woken by a commitment",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = AetherTertiary,
+                )
+            }
+            Spacer(Modifier.height(4.dp))
+            SelectionContainer {
+                Text(
+                    text = text,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = AetherOnSurface,
+                )
+            }
+        }
+    }
+}
 
 @Composable
 private fun ActivityRow(label: String, modifier: Modifier = Modifier) {

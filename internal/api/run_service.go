@@ -163,7 +163,11 @@ func (s *RunService) createRun(ctx context.Context, threadID, skillID, input, wa
 	var message *core.SessionMessageRecord
 	var err error
 	if strings.TrimSpace(input) != "" {
-		message, err = s.threads.createUserMessage(ctx, threadID, input)
+		role := "user"
+		if wake != "" {
+			role = core.MessageRoleWake
+		}
+		message, err = s.threads.createInputMessage(ctx, threadID, role, input)
 		if err != nil {
 			return nil, err
 		}
@@ -338,7 +342,7 @@ func buildChatMessages(items []core.SessionMessageRecord) []adk.Message {
 	messages := make([]adk.Message, 0, len(items))
 	for _, item := range items {
 		switch item.Role {
-		case "user":
+		case "user", core.MessageRoleWake:
 			messages = append(messages, schema.UserMessage(item.Content))
 		case "assistant":
 			messages = append(messages, schema.AssistantMessage(item.Content, nil))

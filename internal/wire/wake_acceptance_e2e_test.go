@@ -277,6 +277,21 @@ func TestCommitmentWakesAfterRestartAndNotifiesOwner(t *testing.T) {
 		t.Fatalf("last message is not the presence with the woken commitment: %v", last)
 	}
 
+	history, err := second.Threads().ListMessages(ctx, thread.ID, 20)
+	if err != nil {
+		t.Fatalf("list messages: %v", err)
+	}
+	var roles []string
+	for _, msg := range history {
+		roles = append(roles, msg.Role)
+		if msg.Role == core.MessageRoleWake && msg.RunID != woken.RunID {
+			t.Fatalf("wake message bound to %q, want run %s", msg.RunID, woken.RunID)
+		}
+	}
+	if strings.Join(roles, ",") != "user,assistant,wake,assistant" {
+		t.Fatalf("thread roles = %v, want the wake input shown as wake", roles)
+	}
+
 	sent := harness.fcm.sent()
 	if len(sent) != 1 {
 		t.Fatalf("fcm messages = %v, want 1", sent)

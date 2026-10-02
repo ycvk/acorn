@@ -27,6 +27,11 @@ type PendingActionInput struct {
 
 // --- Session messages ---
 
+// MessageRoleWake is the role of a run input written by a commitment wake.
+// It reaches the model as a user message; clients show it apart from what the
+// owner wrote.
+const MessageRoleWake = "wake"
+
 type SessionMessageRecord struct {
 	ID        int64     `json:"id"`
 	SessionID string    `json:"session_id"`
