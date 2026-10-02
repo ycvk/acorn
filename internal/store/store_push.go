@@ -10,15 +10,29 @@ import (
 	"github.com/ycvk/acorn/internal/core"
 )
 
-func (s *Store) SetPushToken(ctx context.Context, deviceID, token string) error {
+// SetPushToken binds token to deviceID. An FCM token names one app install,
+// so it moves off any device that held it before: re-pairing the same phone
+// must not deliver every notification twice.
+func (s *Store) SetPushToken(ctx context.Context, deviceID, token string) (err error) {
 	if strings.TrimSpace(deviceID) == "" || strings.TrimSpace(token) == "" {
 		return errors.New("set push token: device id and token are required")
 	}
-	if _, err := s.db.ExecContext(ctx,
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("set push token for %s: begin: %w", deviceID, err)
+	}
+	defer rollbackOnErr(tx, &err, "set push token")
+	if _, err := tx.ExecContext(ctx, `DELETE FROM push_tokens WHERE token = ? AND device_id <> ?`, token, deviceID); err != nil {
+		return fmt.Errorf("set push token for %s: release from other devices: %w", deviceID, err)
+	}
+	if _, err := tx.ExecContext(ctx,
 		`INSERT INTO push_tokens(device_id, token, updated_at) VALUES(?, ?, ?)
 		 ON CONFLICT(device_id) DO UPDATE SET token = excluded.token, updated_at = excluded.updated_at`,
 		deviceID, token, formatTimestamp(time.Now().UTC())); err != nil {
 		return fmt.Errorf("set push token for %s: %w", deviceID, err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("set push token for %s: commit: %w", deviceID, err)
 	}
 	return nil
 }

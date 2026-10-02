@@ -68,7 +68,7 @@
   - `internal/wire/wake_acceptance_e2e_test.go`
 - **每日唤醒上限按 owner 时区计算**：`wake.daily_limit` 限制 owner 本地每天的唤醒次数，计数来自 events 表中当天的 `wake.fired`，重启后依然有效；超限的约定留在 active，次日再处理；为 0 时关闭自主唤醒。
   - `internal/wake/scheduler_test.go`
-- **推送有上限、守免打扰、随设备失效**：`notify_owner` 经 `notify.Sender` 发送；每小时超过 `notify.max_per_hour` 时返回错误；免打扰时段内的通知排队到时段结束，由 wake 调度器每次 tick 发出；没有任何已登记设备时返回错误。FCM 回 404 或 UNREGISTERED 的 token 被删除，设备吊销时其 push token 一并删除。至少一台设备收到即记 sent，否则记 failed 并返回错误。未配置服务账号时工具以 disabled 注册并给出原因。
+- **推送有上限、守免打扰、随设备失效**：`notify_owner` 经 `notify.Sender` 发送；每小时超过 `notify.max_per_hour` 时返回错误；免打扰时段内的通知排队到时段结束，由 wake 调度器每次 tick 发出；没有任何已登记设备时返回错误。一个 FCM token 只归最近登记它的设备（同一部手机重新配对不会收到重复推送）；FCM 回 404 或 UNREGISTERED 的 token 被删除，设备吊销时其 push token 一并删除。至少一台设备收到即记 sent，否则记 failed 并返回错误。未配置服务账号时工具以 disabled 注册并给出原因。
   - `internal/notify/notify_test.go`
   - `internal/store/store_presence_test.go`
   - `internal/api/push_token_handler_test.go`

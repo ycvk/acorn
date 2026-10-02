@@ -196,6 +196,24 @@ func TestPushTokensFollowDeviceRevocation(t *testing.T) {
 	}
 }
 
+func TestPushTokenBelongsToLatestDevice(t *testing.T) {
+	s := openTestStore(t)
+	ctx := context.Background()
+	// The same phone paired twice: the app keeps one FCM token across pairings.
+	for _, id := range []string{"dev_old", "dev_new"} {
+		if err := s.SaveDevice(ctx, &core.Device{DeviceID: id, Name: id, Platform: "android", TokenHash: "hash_" + id, CreatedAt: time.Now()}); err != nil {
+			t.Fatalf("save device: %v", err)
+		}
+		if err := s.SetPushToken(ctx, id, "fcm_phone"); err != nil {
+			t.Fatalf("set token: %v", err)
+		}
+	}
+	tokens, err := s.ListPushTokens(ctx)
+	if err != nil || len(tokens) != 1 || tokens[0].DeviceID != "dev_new" {
+		t.Fatalf("tokens = %+v err=%v, want the token once, on the latest device", tokens, err)
+	}
+}
+
 func TestNotificationQueueAndCount(t *testing.T) {
 	s := openTestStore(t)
 	ctx := context.Background()
