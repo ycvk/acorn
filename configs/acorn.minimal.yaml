@@ -21,6 +21,29 @@ approval:
     - browser
     - "mcp__*"
 
+owner:
+  # IANA timezone used to show times and to read wake times given in local time,
+  # e.g. Asia/Shanghai.
+  timezone: UTC
+
+presence:
+  # Token cap for the working-memory block shown to the model before each call.
+  max_tokens: 4000
+
+wake:
+  # Commitment wakes allowed per local day; 0 turns autonomous wakes off.
+  daily_limit: 20
+
+notify:
+  max_per_hour: 6
+  # Notifications inside this window wait until it ends (owner timezone).
+  quiet_hours:
+    start: "23:00"
+    end: "08:00"
+  fcm:
+    # Firebase service account key file; empty disables push notifications.
+    service_account_file: ""
+
 context:
   window_tokens: 200000
   compact_margin_tokens: 13000

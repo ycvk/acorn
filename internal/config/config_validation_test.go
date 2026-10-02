@@ -22,7 +22,11 @@ func TestValidateExecutionReadyContextConfig(t *testing.T) {
 			CompactMarginTokens: 13000,
 			MaskAfterTurns:      2,
 		},
-		Memory: defaultConfig().Memory,
+		Memory:   defaultConfig().Memory,
+		Owner:    defaultConfig().Owner,
+		Presence: defaultConfig().Presence,
+		Wake:     defaultConfig().Wake,
+		Notify:   defaultConfig().Notify,
 		Runtime: RuntimeConfig{
 			StorageDir: filepath.Join(t.TempDir(), ".acorn"),
 		},
@@ -115,7 +119,11 @@ func TestValidateExecutionReadyRejectsInvalidExecutionFields(t *testing.T) {
 		Tools: ToolsConfig{
 			Workspace: WorkspaceToolConfig{RootDir: "."},
 		},
-		Memory: defaultConfig().Memory,
+		Memory:   defaultConfig().Memory,
+		Owner:    defaultConfig().Owner,
+		Presence: defaultConfig().Presence,
+		Wake:     defaultConfig().Wake,
+		Notify:   defaultConfig().Notify,
 	}
 
 	if err := cfg.ValidateExecutionReady(); err == nil {

@@ -27,6 +27,9 @@ func (c *Config) ValidateBase() error {
 	if err := c.validateBrowserBase(); err != nil {
 		return err
 	}
+	if err := c.validatePresence(); err != nil {
+		return err
+	}
 	for i, pattern := range c.Approval.Require {
 		// ask_operator already waits on the owner; gating it would ask twice.
 		matchesAskOperator, err := path.Match(pattern, "ask_operator")
@@ -118,6 +121,9 @@ func (c *Config) ValidateExecutionReady() error {
 		return err
 	}
 	if err := c.validateContext(); err != nil {
+		return err
+	}
+	if err := c.validatePresenceBudget(); err != nil {
 		return err
 	}
 	return nil

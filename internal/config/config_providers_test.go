@@ -48,7 +48,11 @@ func TestValidateExecutionReady_MultipleEnabledProvidersInvalid(t *testing.T) {
 		Tools: ToolsConfig{
 			Workspace: WorkspaceToolConfig{RootDir: "."},
 		},
-		Memory: defaultConfig().Memory,
+		Memory:   defaultConfig().Memory,
+		Owner:    defaultConfig().Owner,
+		Presence: defaultConfig().Presence,
+		Wake:     defaultConfig().Wake,
+		Notify:   defaultConfig().Notify,
 	}
 	if err := cfg.ValidateExecutionReady(); err == nil {
 		t.Fatal("expected multiple enabled providers to fail validation")
@@ -170,7 +174,11 @@ func TestValidateExecutionReady_DuplicateNames(t *testing.T) {
 		Tools: ToolsConfig{
 			Workspace: WorkspaceToolConfig{RootDir: "."},
 		},
-		Memory: defaultConfig().Memory,
+		Memory:   defaultConfig().Memory,
+		Owner:    defaultConfig().Owner,
+		Presence: defaultConfig().Presence,
+		Wake:     defaultConfig().Wake,
+		Notify:   defaultConfig().Notify,
 	}
 	if err := cfg.ValidateExecutionReady(); err == nil {
 		t.Fatal("expected duplicate provider names to fail validation")
@@ -220,7 +228,11 @@ func TestValidateExecutionReady_DisabledProviderNotValidated(t *testing.T) {
 		Tools: ToolsConfig{
 			Workspace: WorkspaceToolConfig{RootDir: "."},
 		},
-		Memory: defaultConfig().Memory,
+		Memory:   defaultConfig().Memory,
+		Owner:    defaultConfig().Owner,
+		Presence: defaultConfig().Presence,
+		Wake:     defaultConfig().Wake,
+		Notify:   defaultConfig().Notify,
 	}
 	if err := cfg.ValidateExecutionReady(); err != nil {
 		t.Fatalf("expected disabled provider to be skipped during validation, got %v", err)

@@ -13,6 +13,10 @@ type Config struct {
 	Memory    MemoryConfig     `yaml:"memory"`
 	Triggers  TriggersConfig   `yaml:"triggers"`
 	Approval  ApprovalConfig   `yaml:"approval"`
+	Owner     OwnerConfig      `yaml:"owner"`
+	Presence  PresenceConfig   `yaml:"presence"`
+	Wake      WakeConfig       `yaml:"wake"`
+	Notify    NotifyConfig     `yaml:"notify"`
 
 	ConfigPath string `yaml:"-"`
 	ConfigDir  string `yaml:"-"`

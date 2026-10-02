@@ -25,6 +25,13 @@ func defaultConfig() *Config {
 			MaskAfterTurns:      2,
 		},
 		Approval: ApprovalConfig{Require: []string{"browser", "mcp__*"}},
+		Owner:    OwnerConfig{Timezone: "UTC"},
+		Presence: PresenceConfig{MaxTokens: 4000},
+		Wake:     WakeConfig{DailyLimit: 20},
+		Notify: NotifyConfig{
+			MaxPerHour: 6,
+			QuietHours: QuietHoursConfig{Start: "23:00", End: "08:00"},
+		},
 		Runtime: RuntimeConfig{
 			StorageDir:        "~/.acorn",
 			RunTimeoutSeconds: 900,

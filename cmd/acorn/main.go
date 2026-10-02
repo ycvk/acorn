@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	_ "time/tzdata" // CGO-free release builds may run on hosts without zoneinfo.
 
 	"github.com/ycvk/acorn/internal/cli"
 )
