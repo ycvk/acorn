@@ -93,91 +93,75 @@ func BuiltinToolNames() []string {
 	return append([]string(nil), builtinToolOrder...)
 }
 
-// nativeToolBuilder maps a static local tool name to the single-tool builder
-// that produces its einotool.BaseTool. Each entry mirrors the call the
-// corresponding group builder (buildWorkspaceTools, buildMutationTools, ...)
-// would make for that single name, so the registry produces the same tool
-// instances the existing Catalog path does.
-//
-// A nil service dependency makes the builder return (nil, nil): the tool is
-// registered (so its contract/health is visible) but Resolve yields no
-// instance for it, matching the existing Catalog behavior of silently omitting
-// tools whose backing service is absent.
-func nativeToolBuilder(name string, cfg CatalogConfig) func(context.Context, core.RunContext) (einotool.BaseTool, error) {
+// NativeToolDeps are the dependencies of the eager native tools. Every field
+// is required: these tools are part of every run, so a missing dependency is a
+// wiring bug and RegisterNativeTools fails on it.
+type NativeToolDeps struct {
+	ArtifactService   core.ArtifactService
+	ArtifactContext   core.ToolCallContextBridge
+	OperatorStore     OperatorQuestionStore
+	OperatorContext   core.ToolCallContextBridge
+	RunSearchStore    RunSearchStore
+	WorldStateUpdater WorldStateUpdater
+}
+
+type nativeToolDep struct {
+	field   string
+	present bool
+}
+
+// nativeToolFactory checks the dependencies a single eager native tool needs
+// and returns the factory that builds it.
+func nativeToolFactory(name string, deps NativeToolDeps) (core.ToolFactory, error) {
+	artifactDeps := []nativeToolDep{
+		{"ArtifactService", deps.ArtifactService != nil},
+		{"ArtifactContext", deps.ArtifactContext != nil},
+	}
+	worldStateDeps := []nativeToolDep{{"WorldStateUpdater", deps.WorldStateUpdater != nil}}
+	var needs []nativeToolDep
+	var build func() (einotool.BaseTool, error)
 	switch name {
 	case "artifact_write":
-		return func(_ context.Context, _ core.RunContext) (einotool.BaseTool, error) {
-			if cfg.ArtifactService == nil {
-				return nil, nil
-			}
-			return buildArtifactWriteTool(cfg.ArtifactService, cfg.ArtifactContext)
+		needs = artifactDeps
+		build = func() (einotool.BaseTool, error) {
+			return buildArtifactWriteTool(deps.ArtifactService, deps.ArtifactContext)
 		}
 	case "artifact_read":
-		return func(_ context.Context, _ core.RunContext) (einotool.BaseTool, error) {
-			if cfg.ArtifactService == nil {
-				return nil, nil
-			}
-			return buildArtifactReadTool(cfg.ArtifactService)
-		}
+		needs = artifactDeps
+		build = func() (einotool.BaseTool, error) { return buildArtifactReadTool(deps.ArtifactService) }
 	case "artifact_list":
-		return func(_ context.Context, _ core.RunContext) (einotool.BaseTool, error) {
-			if cfg.ArtifactService == nil {
-				return nil, nil
-			}
-			return buildArtifactListTool(cfg.ArtifactService, cfg.ArtifactContext)
+		needs = artifactDeps
+		build = func() (einotool.BaseTool, error) {
+			return buildArtifactListTool(deps.ArtifactService, deps.ArtifactContext)
 		}
 	case "ask_operator":
-		return func(_ context.Context, _ core.RunContext) (einotool.BaseTool, error) {
-			if cfg.OperatorStore == nil {
-				return nil, nil
-			}
-			return buildAskOperatorTool(cfg.OperatorStore, cfg.OperatorContext)
+		needs = []nativeToolDep{
+			{"OperatorStore", deps.OperatorStore != nil},
+			{"OperatorContext", deps.OperatorContext != nil},
+		}
+		build = func() (einotool.BaseTool, error) {
+			return buildAskOperatorTool(deps.OperatorStore, deps.OperatorContext)
 		}
 	case "search_runs":
-		return func(_ context.Context, _ core.RunContext) (einotool.BaseTool, error) {
-			if cfg.RunSearchStore == nil {
-				return nil, nil
-			}
-			return buildSearchRunsTool(cfg.RunSearchStore)
-		}
+		needs = []nativeToolDep{{"RunSearchStore", deps.RunSearchStore != nil}}
+		build = func() (einotool.BaseTool, error) { return buildSearchRunsTool(deps.RunSearchStore) }
 	case "worldstate_update":
-		return func(_ context.Context, _ core.RunContext) (einotool.BaseTool, error) {
-			if cfg.WorldStateUpdater == nil {
-				return nil, nil
-			}
-			return buildWorldStateUpdateTool(cfg.WorldStateUpdater)
-		}
+		needs = worldStateDeps
+		build = func() (einotool.BaseTool, error) { return buildWorldStateUpdateTool(deps.WorldStateUpdater) }
 	case "worldstate_load":
-		return func(_ context.Context, _ core.RunContext) (einotool.BaseTool, error) {
-			if cfg.WorldStateUpdater == nil {
-				return nil, nil
-			}
-			return buildWorldStateLoadTool(cfg.WorldStateUpdater)
-		}
-	case "web_fetch":
-		return func(_ context.Context, _ core.RunContext) (einotool.BaseTool, error) {
-			if cfg.WebFetchService == nil || cfg.ArtifactService == nil {
-				return nil, nil
-			}
-			return buildWebFetchTool(cfg.WebFetchService, cfg.ArtifactService, cfg.ArtifactContext)
-		}
-	case "web_search":
-		return func(_ context.Context, _ core.RunContext) (einotool.BaseTool, error) {
-			if cfg.WebSearchService == nil || cfg.ArtifactService == nil {
-				return nil, nil
-			}
-			return buildWebSearchTool(cfg.WebSearchService, cfg.ArtifactService, cfg.ArtifactContext)
-		}
-	case "browser":
-		return func(_ context.Context, _ core.RunContext) (einotool.BaseTool, error) {
-			if cfg.BrowserService == nil || cfg.ArtifactService == nil {
-				return nil, nil
-			}
-			return buildBrowserTool(cfg.BrowserService, cfg.ArtifactService, cfg.ArtifactContext)
-		}
+		needs = worldStateDeps
+		build = func() (einotool.BaseTool, error) { return buildWorldStateLoadTool(deps.WorldStateUpdater) }
 	default:
-		return nil
+		return nil, fmt.Errorf("no factory for native tool %q", name)
 	}
+	for _, dep := range needs {
+		if !dep.present {
+			return nil, fmt.Errorf("native tool %q requires NativeToolDeps.%s", name, dep.field)
+		}
+	}
+	return func(context.Context, core.RunContext) (einotool.BaseTool, error) {
+		return build()
+	}, nil
 }
 
 // RegisterNativeTools registers every eager-loaded static local tool declared by
@@ -185,13 +169,8 @@ func nativeToolBuilder(name string, cfg CatalogConfig) func(context.Context, cor
 // tools (web_fetch, web_search, browser) are excluded: they depend on per-run
 // services (web access, browser) constructed at buildRun time, so they cannot
 // be resolved at wire time. They are contributed by the runtime toolset
-// catalog instead, which builds them per run from live services.
-//
-// cfg may be zero-valued: tools whose backing service is nil are still
-// registered (their contract and health are visible) but their Factory returns
-// (nil, nil), so Resolve omits them. This mirrors how the Catalog silently
-// drops tools when their service is absent.
-func RegisterNativeTools(registry core.ToolRegistry, cfg CatalogConfig) error {
+// catalog instead (see BuildWebToolSpecs).
+func RegisterNativeTools(registry core.ToolRegistry, deps NativeToolDeps) error {
 	if registry == nil {
 		return fmt.Errorf("RegisterNativeTools: registry is nil")
 	}
@@ -199,20 +178,14 @@ func RegisterNativeTools(registry core.ToolRegistry, cfg CatalogConfig) error {
 	// keeps the registry from drifting from configuredLocalSpec.
 	for _, name := range localToolNames {
 		spec := configuredLocalSpec(name)
-		// Skip deferred-loaded tools: they depend on per-run services and are
-		// contributed by the runtime toolset catalog, not the wire-time registry.
 		if spec.Loading.Mode == core.ToolLoadingModeDeferred {
 			continue
 		}
-		build := nativeToolBuilder(name, cfg)
-		if build == nil {
-			// Unknown name: skip rather than fail the whole registration so a
-			// future localToolNames entry without a builder doesn't block the
-			// known tools. This is defensive; localToolNames and
-			// nativeToolBuilder are kept in sync.
-			continue
+		factory, err := nativeToolFactory(name, deps)
+		if err != nil {
+			return fmt.Errorf("RegisterNativeTools: %w", err)
 		}
-		spec.Factory = core.ToolFactory(build)
+		spec.Factory = factory
 		if err := registry.Register(spec); err != nil {
 			return fmt.Errorf("RegisterNativeTools: register %q: %w", name, err)
 		}

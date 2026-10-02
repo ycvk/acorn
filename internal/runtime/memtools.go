@@ -21,14 +21,14 @@ func BuildMemoryFileTools(ctx context.Context, memory memory.Service) ([]einotoo
 	if memory == nil {
 		return nil, fmt.Errorf("memory service is required")
 	}
-	catalog, err := buildMemoryToolCatalog(ctx, memory)
+	fileTools, err := buildMemoryWorkspaceTools(memory)
 	if err != nil {
 		return nil, err
 	}
-	return collectMemoryFileTools(ctx, memory, catalog)
+	return collectMemoryFileTools(ctx, memory, fileTools)
 }
 
-func buildMemoryToolCatalog(ctx context.Context, memory memory.Service) (*tools.LocalCatalog, error) {
+func buildMemoryWorkspaceTools(memory memory.Service) ([]einotool.BaseTool, error) {
 	trimmedRoot := strings.TrimSpace(memory.Root())
 	if trimmedRoot == "" {
 		return nil, fmt.Errorf("memory root is required")
@@ -40,14 +40,14 @@ func buildMemoryToolCatalog(ctx context.Context, memory memory.Service) (*tools.
 	if err != nil {
 		return nil, fmt.Errorf("build memory workspace: %w", err)
 	}
-	catalog, err := tools.BuildCatalog(tools.CatalogConfig{Workspace: ws})
+	fileTools, err := tools.BuildWorkspaceTools(ws)
 	if err != nil {
 		return nil, fmt.Errorf("build memory tools: %w", err)
 	}
-	return catalog, nil
+	return fileTools, nil
 }
 
-func collectMemoryFileTools(ctx context.Context, memory memory.Service, catalog *tools.LocalCatalog) ([]einotool.BaseTool, error) {
+func collectMemoryFileTools(ctx context.Context, memory memory.Service, fileTools []einotool.BaseTool) ([]einotool.BaseTool, error) {
 	searchTool, err := newMemorySearchTool(memory)
 	if err != nil {
 		return nil, err
@@ -57,7 +57,7 @@ func collectMemoryFileTools(ctx context.Context, memory memory.Service, catalog 
 		return nil, err
 	}
 	result := []einotool.BaseTool{searchTool, rememberTool}
-	for _, item := range catalog.Tools {
+	for _, item := range fileTools {
 		wrapped, ok, err := wrapMemoryFileTool(ctx, memory, item)
 		if err != nil {
 			return nil, err

@@ -49,7 +49,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 
 	ctxBridge := runtime.NewContextBridge()
 	toolRegistry := tools.NewToolRegistry()
-	if err := tools.RegisterNativeTools(toolRegistry, tools.CatalogConfig{
+	if err := tools.RegisterNativeTools(toolRegistry, tools.NativeToolDeps{
 		ArtifactService:   artifactSvc,
 		ArtifactContext:   ctxBridge,
 		OperatorStore:     mcpPendingActionStore,

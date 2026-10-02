@@ -60,6 +60,9 @@ func configuredLocalSpec(name string) core.ToolSpec {
 	case "ask_operator":
 		spec.Kind = core.ToolKindNative
 		spec.Category = core.ToolCategoryIntegration
+	case "worldstate_update":
+		spec.Kind = core.ToolKindNative
+		spec.Category = core.ToolCategoryMemory
 	case "web_fetch", "web_search":
 		spec.Kind = core.ToolKindNative
 		spec.Category = core.ToolCategoryRead

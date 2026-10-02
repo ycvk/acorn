@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 	"time"
 
@@ -38,15 +39,26 @@ func (f *RunnerFactory) New(ctx context.Context, req RunnerBuildRequest) (*Activ
 	return f.buildRun(ctx, req)
 }
 
+// BuildCapabilitySpecs returns the non-MCP tool specs a run can see: the
+// registry's native tools plus the per-run toolset (web, memory, skill). MCP
+// tools are reported per provider by the capability snapshot.
 func (f *RunnerFactory) BuildCapabilitySpecs(ctx context.Context) ([]core.ToolSpec, error) {
 	toolset, err := buildToolset(ctx, f.deps, "")
 	if err != nil {
 		return nil, err
 	}
-	specs := toolset.Catalog().Specs()
+	var specs []core.ToolSpec
+	for _, spec := range f.deps.ToolRegistry.Specs() {
+		if spec.Kind != core.ToolKindMCP {
+			specs = append(specs, spec)
+		}
+	}
+	specs = append(specs, toolset.Catalog().Specs()...)
 	for i := range specs {
 		specs[i].Tool = nil
+		specs[i].Factory = nil
 	}
+	sort.Slice(specs, func(i, j int) bool { return specs[i].Name < specs[j].Name })
 	if err := toolset.Close(); err != nil {
 		return nil, fmt.Errorf("close capability toolset: %w", err)
 	}
@@ -87,7 +99,7 @@ func (f *RunnerFactory) Close() error {
 }
 
 type localToolset struct {
-	catalog *tools.LocalCatalog
+	specs   []core.ToolSpec
 	closers []io.Closer
 }
 
@@ -121,6 +133,9 @@ func buildRuntimeDeps(cfg *config.Config, store RuntimeStore, opts RunnerFactory
 	artifactService := opts.ArtifactService
 	if opts.MemoryModule == nil {
 		return RuntimeDeps{}, errors.New("memory module is required")
+	}
+	if opts.ToolRegistry == nil {
+		return RuntimeDeps{}, errors.New("tool registry is required")
 	}
 	loader := resolveLoader(cfg, opts.Loader)
 	contextPlane, err := resolveContextPlane(cfg, store, opts)
