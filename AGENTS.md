@@ -25,7 +25,7 @@ acorn run [-c path] [--json] "task"      # 一次性执行一个 run
 acorn smoke [-c path] [--json] "task"   # 安装探活:真实跑一次 run,非零退出即失败
 acorn init [-c path] [--force] [--print] # 生成 starter config
 acorn doctor [-c path] [--json]          # 能力快照 + MCP 健康探活
-acorn skills {list|inspect|check|create|patch|delete} [-c path] [--json]
+acorn skills {list|inspect|check} [-c path] [--json]
 acorn pair [-c path] [--qr] [--server-url url]  # 生成设备配对码
 acorn token issue [-c path] [--name n] [--ttl d]  # 颁发 device token
 acorn devices {list|revoke} [-c path]
@@ -58,7 +58,7 @@ cd mobile-kotlin && ./tool/generate_openapi_client.sh --check   # CI 门禁
 
 ### 工具 & 技能
 
-- native skill truth 是 `internal/skills` file-backed loader,`tools.workspace.root_dir` 指向存放 seed skills 与 workspace skills 的目录。repo `./skills` 是 release seed pack;release installer 安装到 `~/.acorn/skills`;generated skills 写入 `{storage_dir}/skills/generated`;workspace skills 写入 `./.acorn/skills/workspace`。**不要把 generated skill 写回 repo root `skills/`**。
+- native skill truth 是 `internal/skills` file-backed loader,`tools.workspace.root_dir` 指向存放 seed skills 与 workspace skills 的目录。repo `./skills` 是 release seed pack;release installer 安装到 `~/.acorn/skills`;workspace skills 放在 `./.acorn/skills/workspace`。agent 不创建或修改 skill。
 - skill 是只读 markdown + 简单关键词匹配,无 lifecycle/evidence/assess。
 
 ### 记忆 & 检索

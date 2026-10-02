@@ -21,7 +21,6 @@ import (
 var builtinToolOrder = []string{
 	"skill_list",
 	"skill_view",
-	"skill_create",
 	"ask_operator",
 }
 
@@ -38,9 +37,6 @@ func builtinToolContract(name string) (core.ToolContract, bool) {
 		c.Kind = core.ToolKindNative
 		c.Category = core.ToolCategoryIntegration
 	case "skill_list", "skill_view":
-		c.Kind = core.ToolKindSkill
-		c.Category = core.ToolCategorySkill
-	case "skill_create":
 		c.Kind = core.ToolKindSkill
 		c.Category = core.ToolCategorySkill
 	default:

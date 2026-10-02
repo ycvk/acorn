@@ -243,7 +243,7 @@ download_release_files
 	cd "$package"
 	sha256sum -c CHECKSUMS
 	test -x acorn
-	test -f "skills/skill_creator/SKILL.md"
+	test -f "skills/capability_recall/SKILL.md"
 )
 
 package_dir=$work_dir/$package

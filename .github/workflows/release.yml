@@ -110,7 +110,7 @@ jobs:
           package_dir="$tmpdir/acorn_${VERSION}_${RELEASE_GOOS}_${RELEASE_GOARCH}"
           grep -qx "installer=install-release.sh" "$package_dir/RELEASE"
           grep -qx "skills_dir=skills" "$package_dir/RELEASE"
-          test -f "$package_dir/skills/skill_creator/SKILL.md"
+          test -f "$package_dir/skills/capability_recall/SKILL.md"
           test -f "$package_dir/skills/web_browser_research/SKILL.md"
           test -x "$package_dir/install-release.sh"
           grep -qx "ExecStart=/opt/acorn/acorn serve" "$package_dir/acorn.service"
@@ -245,7 +245,7 @@ jobs:
             rm -rf "$tmpdir"/*
             tar -xzf "$archive" -C "$tmpdir"
             package_dir="$(find "$tmpdir" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
-            test -f "$package_dir/skills/skill_creator/SKILL.md"
+            test -f "$package_dir/skills/capability_recall/SKILL.md"
             test -f "$package_dir/skills/web_browser_research/SKILL.md"
             (cd "$package_dir" && sha256sum -c CHECKSUMS)
           done

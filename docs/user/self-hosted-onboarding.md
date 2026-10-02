@@ -100,7 +100,7 @@ The installed service uses:
 - `~/.acorn/acorn.yaml` for config.
 - `~/.acorn/acorn.env` for provider secrets.
 - `~/.acorn/skills` for bundled native skills and user-local skills.
-- `~/.acorn` for runtime storage, SQLite state, and generated skills.
+- `~/.acorn` for runtime storage and SQLite state.
 - `/srv/acorn/workspace` as the workspace root that holds seed and workspace skills.
 - `127.0.0.1:8080` for the HTTP listener.
 

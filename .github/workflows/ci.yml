@@ -100,7 +100,7 @@ jobs:
           tar -xzf "$archive" -C "$tmpdir"
           package_dir="$tmpdir/acorn_${VERSION}_${RELEASE_GOOS}_${RELEASE_GOARCH}"
           grep -qx "skills_dir=skills" "$package_dir/RELEASE"
-          test -f "$package_dir/skills/skill_creator/SKILL.md"
+          test -f "$package_dir/skills/capability_recall/SKILL.md"
           test -f "$package_dir/skills/web_browser_research/SKILL.md"
           (cd "$package_dir" && sha256sum -c CHECKSUMS)
       - uses: actions/upload-artifact@v7.0.1

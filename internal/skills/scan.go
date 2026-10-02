@@ -31,7 +31,7 @@ func (l *Loader) ScanSkills(ctx context.Context) (*ScanResult, error) {
 }
 
 func (l *Loader) sourceRoots() []sourceRoot {
-	sources := make([]sourceRoot, 0, 5)
+	sources := make([]sourceRoot, 0, 3)
 	priority := 0
 	if root := strings.TrimSpace(l.builtinDir); root != "" {
 		sources = append(sources, sourceRoot{scope: BuiltinScope, root: root, priority: priority})
@@ -43,10 +43,6 @@ func (l *Loader) sourceRoots() []sourceRoot {
 	}
 	if root := strings.TrimSpace(l.workspaceDir); root != "" {
 		sources = append(sources, sourceRoot{scope: WorkspaceScope, root: root, priority: priority})
-		priority++
-	}
-	if root := strings.TrimSpace(l.generatedDir); root != "" {
-		sources = append(sources, sourceRoot{scope: GeneratedScope, root: root, priority: priority})
 	}
 	return sources
 }
