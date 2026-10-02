@@ -138,7 +138,6 @@ func decideOverHTTP(t *testing.T, c *Container, actionID, decision string) {
 		Runs:          c.Runs(),
 		Events:        c.Events(),
 		PendingAction: c.PendingAction(),
-		Memory:        c.Memory(),
 		Skills:        c.Skills(),
 		Capabilities:  c.Capabilities(),
 		DeviceAuth:    c.DeviceAuth(),

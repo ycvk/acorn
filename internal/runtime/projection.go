@@ -62,8 +62,6 @@ func streamKindToEventKind(kind core.StreamItemKind) string {
 		return "runtime.message"
 	case core.StreamKindToolCallSucceeded:
 		return "tool.call.succeeded"
-	case core.StreamKindMemoryPrepared:
-		return "memory.prepared"
 	default:
 		return string(kind)
 	}

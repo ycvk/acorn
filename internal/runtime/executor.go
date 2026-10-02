@@ -13,7 +13,6 @@ import (
 	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
-	"github.com/ycvk/acorn/internal/memory"
 )
 
 type Result struct {
@@ -29,7 +28,6 @@ type Executor struct {
 	runRuntime   *RunnerFactory
 	controller   *RunController
 	newChatModel func(ctx context.Context) (einomodel.BaseChatModel, error)
-	reviewer     *Reviewer
 }
 
 func NewExecutorWithRunRuntimeAndController(cfg *config.Config, store core.SessionStore, runRuntime *RunnerFactory, controller *RunController) (*Executor, error) {
@@ -55,12 +53,6 @@ func NewExecutorWithRunRuntimeAndController(cfg *config.Config, store core.Sessi
 		newChatModel: runRuntime.NewChatModel,
 	}
 	return exec, nil
-}
-
-// SetReviewer attaches a periodic memory reviewer. Optional: nil or
-// NewReviewer returning nil disables review.
-func (e *Executor) SetReviewer(r *Reviewer) {
-	e.reviewer = r
 }
 
 func resolveRunID(req core.ExecuteRequest) string {
@@ -336,7 +328,6 @@ func (e *Executor) finishFailedRun(ctx context.Context, runID, sessionID, input 
 		slog.Error("sync assistant message after run completion", "run_id", runID, "err", err)
 	}
 	// Append history after the run is marked complete.
-	go e.finalizePostRun(context.WithoutCancel(ctx), runID, sessionID, core.RunStatusFailed, input, state.lastOutput)
 	return &Result{
 		RunID:  runID,
 		Status: core.RunStatusFailed,
@@ -377,64 +368,9 @@ func (e *Executor) finishSucceededRun(ctx context.Context, runID, sessionID, inp
 	}
 	// Append history + count toward review after the run is marked complete,
 	// so this work does not delay the completion event or status update.
-	go e.finalizePostRun(context.WithoutCancel(ctx), runID, sessionID, core.RunStatusSucceeded, input, state.lastOutput)
 	return &Result{
 		RunID:  runID,
 		Status: core.RunStatusSucceeded,
 		Output: state.lastOutput,
 	}, nil
-}
-
-// finalizePostRun syncs the assistant message, appends a history entry,
-// and counts the run toward the periodic memory review. Called
-// asynchronously after the run is marked complete so this work does not
-// delay run completion. Errors are logged, not propagated — the run is
-// already finished.
-func (e *Executor) finalizePostRun(ctx context.Context, runID, sessionID string, runStatus core.RunStatus, input, output string) {
-	if err := e.appendRunHistory(ctx, runID, sessionID, runStatus, input, output); err != nil {
-		slog.Error("append run history", "run_id", runID, "err", err)
-	}
-	// Periodic memory review: counts completed runs and triggers a review
-	// every N runs. nil reviewer = disabled.
-	if e.reviewer != nil {
-		e.reviewer.RecordRun(runID, input, output)
-	}
-}
-
-func (e *Executor) appendRunHistory(ctx context.Context, runID, sessionID string, runStatus core.RunStatus, input, output string) error {
-	if e.runRuntime.MemoryModule() == nil {
-		return errors.New("memory module is not initialized")
-	}
-	summary := e.runHistorySummary(runStatus, input, output)
-	if err := e.runRuntime.MemoryModule().AppendHistory(ctx, memory.HistoryEvent{
-		SessionID: sessionID,
-		RunID:     runID,
-		Status:    string(runStatus),
-		Summary:   summary,
-		Timestamp: time.Now().UTC(),
-	}); err != nil {
-		return fmt.Errorf("append memory history: %w", err)
-	}
-	return nil
-}
-
-// runHistorySummary produces the history summary for a completed run.
-// It is a rune-safe truncation of input + output (no LLM call). The agent
-// decides what's worth remembering long-term via the ambient loop's Record
-// + Crystallize steps and the `remember` tool. History is an append-only
-// event log, not a curated knowledge base.
-func (e *Executor) runHistorySummary(status core.RunStatus, input, output string) string {
-	combined := strings.TrimSpace(input + "\n\n" + output)
-	return fallbackSummary(combined, status)
-}
-
-// fallbackSummary is the degradation path when LLM distillation is
-// unavailable. It produces a rune-safe truncation (not byte-cut) so
-// multi-byte CJK text is not split mid-character.
-func fallbackSummary(combined string, status core.RunStatus) string {
-	combined = strings.TrimSpace(combined)
-	if combined == "" {
-		return string(status)
-	}
-	return string(status) + ": " + truncateRunes(combined, 500)
 }

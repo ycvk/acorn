@@ -14,7 +14,6 @@ import (
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
 	mcpprovider "github.com/ycvk/acorn/internal/mcp"
-	"github.com/ycvk/acorn/internal/memory"
 	"github.com/ycvk/acorn/internal/presence"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/tools"
@@ -68,10 +67,6 @@ func (f *RunnerFactory) BuildCapabilitySpecs(ctx context.Context) ([]core.ToolSp
 
 func (f *RunnerFactory) Config() *config.Config {
 	return f.deps.Config
-}
-
-func (f *RunnerFactory) MemoryModule() memory.Service {
-	return f.deps.MemoryModule
 }
 
 func (f *RunnerFactory) NewChatModel(ctx context.Context) (einomodel.BaseChatModel, error) {
@@ -132,27 +127,27 @@ func buildRuntimeDeps(cfg *config.Config, store RuntimeStore, opts RunnerFactory
 		return RuntimeDeps{}, errors.New("store is required")
 	}
 	artifactService := opts.ArtifactService
-	if opts.MemoryModule == nil {
-		return RuntimeDeps{}, errors.New("memory module is required")
-	}
 	if opts.ToolRegistry == nil {
 		return RuntimeDeps{}, errors.New("tool registry is required")
 	}
 	if opts.Presence == nil || opts.Clock == nil {
 		return RuntimeDeps{}, errors.New("presence store and clock are required")
 	}
-	loader := resolveLoader(cfg, opts.Loader)
-	contextPlane, err := resolveContextPlane(cfg, store, opts)
-	if err != nil {
-		return RuntimeDeps{}, fmt.Errorf("context plane: %w", err)
-	}
 	location, err := cfg.OwnerLocation()
 	if err != nil {
 		return RuntimeDeps{}, err
 	}
-	deps := assembleRuntimeDeps(cfg, store, opts, loader, artifactService, contextPlane)
-	deps.Presence, deps.Clock, deps.Location = opts.Presence, opts.Clock, location
-	return deps, nil
+	return RuntimeDeps{
+		Config:            cfg,
+		Store:             store,
+		Loader:            resolveLoader(cfg, opts.Loader),
+		MCPPendingActions: opts.MCPPendingActionStore,
+		ArtifactService:   artifactService,
+		ToolRegistry:      opts.ToolRegistry,
+		Presence:          opts.Presence,
+		Clock:             opts.Clock,
+		Location:          location,
+	}, nil
 }
 
 func resolveLoader(cfg *config.Config, loader *skills.Loader) *skills.Loader {
@@ -160,51 +155,6 @@ func resolveLoader(cfg *config.Config, loader *skills.Loader) *skills.Loader {
 		return skills.NewLoader(cfg)
 	}
 	return loader
-}
-
-func resolveContextPlane(cfg *config.Config, store RuntimeStore, opts RunnerFactoryOptions) (*ContextPlane, error) {
-	if opts.ContextPlane != nil {
-		return opts.ContextPlane, nil
-	}
-	return buildDefaultContextPlane(cfg, store, opts)
-}
-
-func assembleRuntimeDeps(cfg *config.Config, store RuntimeStore, opts RunnerFactoryOptions, loader *skills.Loader, artifactService core.ArtifactService, contextPlane *ContextPlane) RuntimeDeps {
-	return RuntimeDeps{
-		Config:            cfg,
-		Store:             store,
-		Loader:            loader,
-		MemoryModule:      opts.MemoryModule,
-		ContextPlane:      contextPlane,
-		MCPPendingActions: opts.MCPPendingActionStore,
-		ArtifactService:   artifactService,
-		ToolRegistry:      opts.ToolRegistry,
-	}
-}
-
-func buildDefaultContextPlane(cfg *config.Config, store RuntimeStore, opts RunnerFactoryOptions) (*ContextPlane, error) {
-	memoryBudget, maxContextTokens, tokenCounter, err := resolveContextPlaneTokenPolicy(cfg)
-	if err != nil {
-		return nil, err
-	}
-	return NewDefaultPlane(DefaultOptions{
-		MemoryContextTokenBudget: memoryBudget,
-		MaxContextTokens:         maxContextTokens,
-		TokenCounter:             tokenCounter,
-	}), nil
-}
-
-func resolveContextPlaneTokenPolicy(cfg *config.Config) (memoryBudget, maxContextTokens int, tokenCounter TokenCounter, err error) {
-	if cfg == nil {
-		return 0, 0, nil, nil
-	}
-	memoryBudget = cfg.Memory.Search.MemoryContextTokenBudget
-	maxContextTokens = cfg.Context.WindowTokens
-	tokenCounter, err = NewTokenCounter()
-	if err != nil {
-		return 0, 0, nil, fmt.Errorf("token counter: %w", err)
-	}
-	return memoryBudget, maxContextTokens, tokenCounter, nil
 }
 
 func assembleRunnerFactory(deps RuntimeDeps) *RunnerFactory {
@@ -256,14 +206,6 @@ func (f *RunnerFactory) newAgentRunner(ctx context.Context, req RunnerBuildReque
 		return nil, errors.New("run capabilities are required")
 	}
 	capabilities := capabilityAssembly.capabilities
-	memoryPrepared, err := prepareRunMemory(ctx, f.deps, req)
-	if err != nil {
-		return nil, err
-	}
-	contextResult, err := assembleContext(ctx, f.deps, req, capabilities, memoryPrepared)
-	if err != nil {
-		return nil, err
-	}
 	persona, err := presence.LoadPersona(f.deps.Config.PersonaPath())
 	if err != nil {
 		return nil, err
@@ -272,7 +214,7 @@ func (f *RunnerFactory) newAgentRunner(ctx context.Context, req RunnerBuildReque
 		RunID:       req.RunID,
 		ChatModel:   chatModel,
 		Catalog:     capabilities.catalog,
-		Instruction: buildAgentInstruction(persona, contextResult.Messages),
+		Instruction: buildAgentInstruction(persona, skillCatalogBrief(capabilities.skillSnapshot)),
 	})
 	if err != nil {
 		return nil, err
@@ -289,8 +231,6 @@ func (f *RunnerFactory) newAgentRunner(ctx context.Context, req RunnerBuildReque
 
 type RunnerFactoryOptions struct {
 	Loader                *skills.Loader
-	MemoryModule          memory.Service
-	ContextPlane          *ContextPlane
 	MCPPendingActionStore core.SessionStore
 	ArtifactService       core.ArtifactService
 	ToolRegistry          core.ToolRegistry
@@ -393,46 +333,4 @@ func stableSkillsFromSnapshot(snapshot *skills.Snapshot) []skills.Spec {
 		items = append(items, skills.CopySpec(item.Spec))
 	}
 	return items
-}
-
-func emitMemoryPreparedEvent(ctx context.Context, store core.EventAppender, req RunnerBuildRequest, result *memory.PrepareResult) error {
-	if store == nil || strings.TrimSpace(req.RunID) == "" {
-		return nil
-	}
-	prepared := &core.StreamMemoryPrepared{
-		Query: strings.TrimSpace(req.Input),
-	}
-	if result != nil {
-		prepared.NudgeCount = len(result.Nudges)
-		prepared.EntryCount = len(result.Entries)
-		prepared.Nudges = streamMemoryNudges(result.Nudges)
-		prepared.Entries = streamMemoryEntries(result.Entries)
-	}
-	_, err := AppendStreamItem(ctx, store, req.Sink, core.StreamItem{
-		RunID:     req.RunID,
-		Kind:      core.StreamKindMemoryPrepared,
-		CreatedAt: time.Now().UTC(),
-		Payload:   map[string]any{"memory_prepared": prepared},
-	})
-	return err
-}
-
-func streamMemoryNudges(nudges []memory.Nudge) []core.StreamMemoryPreparedNudge {
-	out := make([]core.StreamMemoryPreparedNudge, 0, len(nudges))
-	for _, n := range nudges {
-		out = append(out, core.StreamMemoryPreparedNudge{
-			Ref: n.Ref, Kind: n.Kind, Title: n.Title, Status: n.Status, Reason: n.Reason,
-		})
-	}
-	return out
-}
-
-func streamMemoryEntries(entries []memory.Entry) []core.StreamMemoryPreparedEntry {
-	out := make([]core.StreamMemoryPreparedEntry, 0, len(entries))
-	for _, e := range entries {
-		out = append(out, core.StreamMemoryPreparedEntry{
-			Ref: e.Ref, Kind: e.Kind, Title: e.Title,
-		})
-	}
-	return out
 }

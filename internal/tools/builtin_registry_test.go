@@ -11,14 +11,6 @@ import (
 func TestBuiltinToolNamesSnapshot(t *testing.T) {
 	got := BuiltinToolNames()
 	want := []string{
-		"memory_search",
-		"memory_read_file",
-		"memory_list_files",
-		"memory_create_file",
-		"memory_replace_span",
-		"remember",
-		"worldstate_update",
-		"worldstate_load",
 		"skill_list",
 		"skill_view",
 		"skill_create",

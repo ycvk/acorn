@@ -10,7 +10,6 @@ type Config struct {
 	Agent     AgentConfig      `yaml:"agent"`
 	Tools     ToolsConfig      `yaml:"tools"`
 	MCP       MCPConfig        `yaml:"mcp"`
-	Memory    MemoryConfig     `yaml:"memory"`
 	Approval  ApprovalConfig   `yaml:"approval"`
 	Owner     OwnerConfig      `yaml:"owner"`
 	Presence  PresenceConfig   `yaml:"presence"`
@@ -46,47 +45,6 @@ type ContextConfig struct {
 	// MaskAfterTurns is how many of the most recent tool-call rounds stay
 	// verbatim when older tool results are cleared to save context.
 	MaskAfterTurns int `yaml:"mask_after_turns"`
-}
-
-type MemoryConfig struct {
-	Search    MemorySearchConfig    `yaml:"search"`
-	Embedding MemoryEmbeddingConfig `yaml:"embedding"`
-	Review    MemoryReviewConfig    `yaml:"review"`
-	Active    MemoryActiveConfig    `yaml:"active"`
-}
-
-type MemorySearchConfig struct {
-	MemoryContextTokenBudget int `yaml:"memory_context_token_budget"`
-}
-
-// MemoryEmbeddingConfig configures the embedding-backed semantic retrieval
-// layer. When Enabled, memory records are embedded on write and searched via
-// sqlite-vec KNN alongside keyword matching (RRF fusion). The embedding
-// endpoint reuses the primary provider's base_url + api_key (OpenAI-compatible
-// /v1/embeddings). When disabled, search falls back to keyword-only (the
-// pre-existing path), so this is opt-in with zero behavioral change for
-// existing deployments.
-type MemoryEmbeddingConfig struct {
-	Enabled    bool   `yaml:"enabled"`
-	Model      string `yaml:"model"`
-	Dimensions int    `yaml:"dimensions"`
-}
-
-// MemoryReviewConfig configures the periodic background review. Every
-// ReviewInterval completed runs trigger one LLM call that decides whether
-// any of those runs produced durable facts worth persisting via remember.
-// Zero disables review (default). ReviewModel can point to a cheaper model
-// (e.g. a flash model) to reduce cost; empty means use the primary provider.
-type MemoryReviewConfig struct {
-	ReviewInterval int    `yaml:"review_interval"`
-	ReviewModel    string `yaml:"review_model,omitempty"`
-}
-
-// MemoryActiveConfig sets the character budget for the Active Memory frozen
-// snapshot injected into every run's system prompt. Non-retired user-scoped
-// facts are fit to this limit. Zero uses the default (2200 chars, ~800 tokens).
-type MemoryActiveConfig struct {
-	CharLimit int `yaml:"char_limit"`
 }
 
 type RuntimeConfig struct {

@@ -7,7 +7,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -19,116 +18,7 @@ import (
 	"github.com/ycvk/acorn/internal/core"
 	corestore "github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/webaccess"
-	workspacepkg "github.com/ycvk/acorn/internal/workspace"
 )
-
-func TestBuildWorkspaceToolsBuildsFileTools(t *testing.T) {
-	fileTools, err := BuildWorkspaceTools(testWorkspace(t, t.TempDir()))
-	if err != nil {
-		t.Fatalf("BuildWorkspaceTools: %v", err)
-	}
-	names := make([]string, 0, len(fileTools))
-	for _, tool := range fileTools {
-		info, err := tool.Info(context.Background())
-		if err != nil {
-			t.Fatalf("tool info: %v", err)
-		}
-		names = append(names, info.Name)
-	}
-	if got, want := strings.Join(names, ","), "read_file,list_files,create_file,replace_span"; got != want {
-		t.Fatalf("tools = %s, want %s", got, want)
-	}
-}
-
-func TestBuildWorkspaceToolsRequiresWorkspace(t *testing.T) {
-	_, err := BuildWorkspaceTools(nil)
-	if err == nil || !strings.Contains(err.Error(), "workspace is required") {
-		t.Fatalf("BuildWorkspaceTools(nil) error = %v, want workspace is required", err)
-	}
-}
-
-func TestReadFileReturnsStructuredLineRange(t *testing.T) {
-	root := t.TempDir()
-	body := "line 1\nline 2\nline 3\n"
-	if err := os.WriteFile(filepath.Join(root, "notes.txt"), []byte(body), 0o644); err != nil {
-		t.Fatalf("write fixture: %v", err)
-	}
-	ws := testWorkspace(t, root)
-	fileTools, err := BuildWorkspaceTools(ws)
-	if err != nil {
-		t.Fatalf("BuildWorkspaceTools: %v", err)
-	}
-	tool := mustToolByName(t, fileTools, "read_file")
-
-	output, err := tool.InvokableRun(context.Background(), `{"path":"notes.txt","start_line":2,"end_line":3}`)
-	if err != nil {
-		t.Fatalf("read_file: %v", err)
-	}
-
-	var decoded ReadFileOutput
-	if err := json.Unmarshal([]byte(output), &decoded); err != nil {
-		t.Fatalf("json.Unmarshal(read_file output): %v\noutput=%s", err, output)
-	}
-	if decoded.StartLine != 2 || decoded.EndLine != 3 {
-		t.Fatalf("range = %d-%d, want 2-3", decoded.StartLine, decoded.EndLine)
-	}
-	if decoded.Content != "line 2\nline 3\n" {
-		t.Fatalf("content = %q", decoded.Content)
-	}
-}
-
-func TestCreateFileReturnsVerificationPreview(t *testing.T) {
-	root := t.TempDir()
-	ws := testWorkspace(t, root)
-	fileTools, err := BuildWorkspaceTools(ws)
-	if err != nil {
-		t.Fatalf("BuildWorkspaceTools: %v", err)
-	}
-	tool := mustToolByName(t, fileTools, "create_file")
-
-	output, err := tool.InvokableRun(context.Background(), `{"path":"notes.txt","content":"hello from acorn"}`)
-	if err != nil {
-		t.Fatalf("create_file: %v", err)
-	}
-
-	var decoded CreateFileOutput
-	if err := json.Unmarshal([]byte(output), &decoded); err != nil {
-		t.Fatalf("json.Unmarshal(create_file output): %v\noutput=%s", err, output)
-	}
-	if decoded.Path != filepath.Join(root, "notes.txt") {
-		t.Fatalf("Path = %q, want %q", decoded.Path, filepath.Join(root, "notes.txt"))
-	}
-	if decoded.VerifiedBytes != len("hello from acorn") {
-		t.Fatalf("VerifiedBytes = %d, want %d", decoded.VerifiedBytes, len("hello from acorn"))
-	}
-	if decoded.VerifiedContent != "hello from acorn" {
-		t.Fatalf("VerifiedContent = %q", decoded.VerifiedContent)
-	}
-	if decoded.VerificationTruncated {
-		t.Fatal("VerificationTruncated should be false for short content")
-	}
-	if decoded.CheckpointID == "" {
-		t.Fatal("CheckpointID is required")
-	}
-	if strings.Join(decoded.CheckpointPaths, ",") != "notes.txt" {
-		t.Fatalf("CheckpointPaths = %+v", decoded.CheckpointPaths)
-	}
-}
-
-func TestNativeWorkspaceToolsExposeProgressInterface(t *testing.T) {
-	fileTools, err := BuildWorkspaceTools(testWorkspace(t, t.TempDir()))
-	if err != nil {
-		t.Fatalf("BuildWorkspaceTools: %v", err)
-	}
-	for _, name := range []string{
-		"read_file",
-		"list_files",
-		"create_file",
-		"replace_span",
-	} {
-		mustProgressToolByName(t, fileTools, name)
-	}
-}
 
 func TestArtifactToolsWriteReadAndList(t *testing.T) {
 	store := newToolArtifactStore()
@@ -402,42 +292,6 @@ func mustToolByName(t *testing.T, tools []einotool.BaseTool, name string) einoto
 	}
 	t.Fatalf("tool %q not found", name)
 	return nil
-}
-
-func mustProgressToolByName(t *testing.T, baseTools []einotool.BaseTool, name string) ProgressTool {
-	t.Helper()
-	for _, tool := range baseTools {
-		info, err := tool.Info(context.Background())
-		if err != nil {
-			t.Fatalf("tool.Info(%q): %v", name, err)
-		}
-		if info != nil && info.Name == name {
-			progress, ok := tool.(ProgressTool)
-			if !ok {
-				t.Fatalf("%s tool is not progress-capable", name)
-			}
-			return progress
-		}
-	}
-	t.Fatalf("tool %q not found", name)
-	return nil
-}
-
-func testWorkspace(t *testing.T, root string) *workspacepkg.Workspace {
-	t.Helper()
-	return testWorkspaceWithConfig(t, workspacepkg.Config{
-		RootDir:    root,
-		StorageDir: t.TempDir(),
-	})
-}
-
-func testWorkspaceWithConfig(t *testing.T, cfg workspacepkg.Config) *workspacepkg.Workspace {
-	t.Helper()
-	ws, err := workspacepkg.New(cfg)
-	if err != nil {
-		t.Fatalf("workspace.New: %v", err)
-	}
-	return ws
 }
 
 type fixedArtifactContext struct {

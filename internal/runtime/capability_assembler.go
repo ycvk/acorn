@@ -118,26 +118,19 @@ func assembleToolsetCatalog(ctx context.Context, cfg *config.Config, webSpecs []
 
 // buildCoreToolSpecs builds the specs the toolset catalog owns: deferred-loaded
 // native tools (web_fetch, web_search, browser — which depend on per-run web
-// services) plus memory and skill tools. Eager-loaded native tools are owned by
-// the registry and are not built here.
+// services) plus the skill tools. Eager-loaded native tools are owned by the
+// registry and are not built here.
 func buildCoreToolSpecs(ctx context.Context, cfg *config.Config, webSpecs []core.ToolSpec, aux auxTools) ([]core.ToolSpec, error) {
 	specs := append([]core.ToolSpec(nil), webSpecs...)
-	memorySpecs, err := BuildCatalogSpecs(ctx, cfg, "memory", core.ToolKindMemory, aux.memory)
-	if err != nil {
-		return nil, err
-	}
 	skillSpecs, err := BuildCatalogSpecs(ctx, cfg, "skill", core.ToolKindSkill, aux.skill)
 	if err != nil {
 		return nil, err
 	}
-	specs = append(specs, memorySpecs...)
-	specs = append(specs, skillSpecs...)
-	return specs, nil
+	return append(specs, skillSpecs...), nil
 }
 
 type auxTools struct {
-	memory []einotool.BaseTool
-	skill  []einotool.BaseTool
+	skill []einotool.BaseTool
 }
 
 // buildWebToolsConfig constructs the per-run web services. web_search and
@@ -201,21 +194,12 @@ func buildBrowserService(deps RuntimeDeps) (*tools.Service, error) {
 
 func buildAuxTools(ctx context.Context, deps RuntimeDeps) (auxTools, error) {
 	var out auxTools
-	memory, err := buildMemoryTools(ctx, deps)
-	if err != nil {
-		return out, err
-	}
-	out.memory = memory
 	skillTools, err := skills.BuildAgentTools(deps.Loader)
 	if err != nil {
 		return out, fmt.Errorf("build skill tools: %w", err)
 	}
 	out.skill = skillTools
 	return out, nil
-}
-
-func buildMemoryTools(ctx context.Context, deps RuntimeDeps) ([]einotool.BaseTool, error) {
-	return BuildMemoryFileTools(ctx, deps.MemoryModule)
 }
 
 // buildRunCapabilities builds the run's tool catalog (local tools + MCP specs)

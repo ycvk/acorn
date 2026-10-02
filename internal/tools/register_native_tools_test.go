@@ -23,7 +23,7 @@ func (stubOperatorStore) AppendEvent(context.Context, string, string, any) (core
 	return core.EventRecord{}, nil
 }
 
-var eagerNativeToolNames = []string{"artifact_list", "artifact_read", "artifact_write", "ask_operator", "keep", "notify_owner", "recall", "schedule_wake", "settle", "think", "worldstate_load", "worldstate_update"}
+var eagerNativeToolNames = []string{"artifact_list", "artifact_read", "artifact_write", "ask_operator", "keep", "notify_owner", "recall", "schedule_wake", "settle", "think"}
 
 func testNativeToolDeps(t *testing.T) NativeToolDeps {
 	t.Helper()
@@ -33,13 +33,12 @@ func testNativeToolDeps(t *testing.T) NativeToolDeps {
 	}
 	bridge := fixedArtifactContext{runID: "run_1", sessionID: "session_1", callID: "call_1"}
 	return NativeToolDeps{
-		ArtifactService:   artifactService,
-		ArtifactContext:   bridge,
-		OperatorStore:     stubOperatorStore{},
-		OperatorContext:   bridge,
-		Presence:          testPresenceDeps(newFakePresenceStore(), bridge),
-		Notify:            NotifyToolDeps{Notifier: &fakeNotifier{}, Context: bridge, Location: time.UTC},
-		WorldStateUpdater: newStubWorldStateUpdater(),
+		ArtifactService: artifactService,
+		ArtifactContext: bridge,
+		OperatorStore:   stubOperatorStore{},
+		OperatorContext: bridge,
+		Presence:        testPresenceDeps(newFakePresenceStore(), bridge),
+		Notify:          NotifyToolDeps{Notifier: &fakeNotifier{}, Context: bridge, Location: time.UTC},
 	}
 }
 
@@ -66,16 +65,14 @@ func TestRegisterNativeToolsRegistersEagerLocalTools(t *testing.T) {
 		}
 	}
 	for name, want := range map[string]core.ToolCategory{
-		"worldstate_load":   core.ToolCategoryInspect,
-		"worldstate_update": core.ToolCategoryMemory,
+		"keep":          core.ToolCategoryMemory,
+		"schedule_wake": core.ToolCategoryMemory,
+		"recall":        core.ToolCategoryRead,
+		"notify_owner":  core.ToolCategoryIntegration,
 	} {
 		spec, _ := reg.Find(name)
 		if spec.Kind != core.ToolKindNative || spec.Category != want {
 			t.Fatalf("%s contract = %+v, want native/%s", name, spec.ToolContract, want)
-		}
-		builtin, ok := BuiltinToolSpec(name, "local")
-		if !ok || builtin.Category != spec.Category {
-			t.Fatalf("%s registry category %s disagrees with built-in contract %+v", name, spec.Category, builtin)
 		}
 	}
 }
@@ -110,7 +107,6 @@ func TestRegisterNativeToolsFailsOnMissingDependency(t *testing.T) {
 		{"OperatorContext", "ask_operator", func(d *NativeToolDeps) { d.OperatorContext = nil }},
 		{"Presence.Store", "keep", func(d *NativeToolDeps) { d.Presence.Store = nil }},
 		{"Presence.Location", "keep", func(d *NativeToolDeps) { d.Presence.Location = nil }},
-		{"WorldStateUpdater", "worldstate_update", func(d *NativeToolDeps) { d.WorldStateUpdater = nil }},
 	}
 	for _, tc := range cases {
 		t.Run(tc.field, func(t *testing.T) {

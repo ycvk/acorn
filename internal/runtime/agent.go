@@ -145,15 +145,13 @@ func buildAgentHandlers(ctx context.Context, deps RuntimeDeps, req agentRunnerRe
 	return handlers, nil
 }
 
-// buildAgentInstruction joins the stable instruction with the per-run context
-// envelopes (memory, skill catalog). Keeping them in the system instruction
-// keeps them out of summarization and gives the model a stable prefix.
-func buildAgentInstruction(base string, contextMessages []*schema.Message) string {
-	parts := []string{buildStableInstruction(base)}
-	for _, msg := range contextMessages {
-		if content := strings.TrimSpace(msg.Content); content != "" {
-			parts = append(parts, content)
-		}
+// buildAgentInstruction joins the persona, the operating rules and the skill
+// catalog. Keeping the catalog in the instruction keeps it out of
+// summarization and gives the model a stable prefix.
+func buildAgentInstruction(persona, skillCatalog string) string {
+	parts := []string{buildStableInstruction(persona)}
+	if catalog := strings.TrimSpace(skillCatalog); catalog != "" {
+		parts = append(parts, "<skill-catalog>\n"+catalog+"\n</skill-catalog>")
 	}
 	return strings.Join(parts, "\n\n")
 }

@@ -89,7 +89,7 @@ func TestBuildWebToolSpecsDisablesUnconfiguredOptionalTools(t *testing.T) {
 		"web_search": cfg.SearchDisabledReason,
 		"browser":    cfg.BrowserDisabledReason,
 	} {
-		spec, ok := catalog.Find(name)
+		spec, ok := findSpec(catalog.Specs(), name)
 		if !ok {
 			t.Fatalf("%s missing from catalog", name)
 		}
@@ -133,4 +133,13 @@ func TestBuildWebToolSpecsRequiresFetchService(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "web fetch service is required") {
 		t.Fatalf("BuildWebToolSpecs error = %v, want web fetch service is required", err)
 	}
+}
+
+func findSpec(specs []core.ToolSpec, name string) (core.ToolSpec, bool) {
+	for _, spec := range specs {
+		if spec.Name == name {
+			return spec, true
+		}
+	}
+	return core.ToolSpec{}, false
 }

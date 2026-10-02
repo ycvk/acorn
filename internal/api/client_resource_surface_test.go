@@ -13,7 +13,6 @@ import (
 
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
-	mem "github.com/ycvk/acorn/internal/memory"
 	"github.com/ycvk/acorn/internal/skills"
 )
 
@@ -97,62 +96,6 @@ func TestClientResourceSurfaceHandlers(t *testing.T) {
 		ToolNames:             []string{"fixture_tool"},
 		StartupTimeoutSeconds: 10,
 	}}
-	memory := &clientMemoryStub{
-		facts: []mem.Record{{
-			Ref:        "facts/workspaces/acorn/repo.md#repo-root",
-			Kind:       mem.KindFact,
-			RelPath:    "facts/workspaces/acorn/repo.md",
-			Title:      "Repo root",
-			Status:     mem.StatusVerified,
-			Scope:      "workspace:acorn",
-			Tags:       []string{"repo"},
-			Body:       "repo root is /repo",
-			Created:    "2026-05-02T10:00:00Z",
-			Updated:    "2026-05-02T10:00:00Z",
-			SourceRun:  "run_1",
-			SourceRefs: []string{"history/thread_1.md#summary"},
-		}},
-		skills: []mem.Record{{
-			Ref:         "skills/learned/release-closeout.md#release-closeout",
-			Kind:        mem.KindSkill,
-			RelPath:     "skills/learned/release-closeout.md",
-			Title:       "Release closeout",
-			Status:      mem.StatusUnverified,
-			Origin:      "agent_draft",
-			TaskPattern: "release closeout",
-			Tags:        []string{"release", "closeout"},
-			Body:        "先验证再提交",
-			Created:     "2026-05-02T10:00:00Z",
-			Updated:     "2026-05-02T10:00:00Z",
-			SourceRun:   "run_1",
-			SourceRefs:  []string{"facts/workspaces/acorn/repo.md#repo-root"},
-		}},
-		history: []mem.Record{{
-			Ref:       "history/thread_1.md",
-			Kind:      mem.KindHistory,
-			RelPath:   "history/thread_1.md",
-			Title:     "thread_1",
-			Status:    mem.StatusVerified,
-			Body:      "history hit from previous run",
-			Created:   "2026-05-02T10:00:00Z",
-			Updated:   "2026-05-02T10:00:00Z",
-			SourceRun: "run_1",
-		}},
-		search: []mem.SearchItem{{
-			Ref:       "history/thread_1.md",
-			Kind:      string(mem.KindHistory),
-			Title:     "thread_1",
-			Status:    string(mem.StatusVerified),
-			Scope:     "workspace:acorn",
-			Tags:      []string{"history"},
-			Path:      "history/thread_1.md",
-			Snippet:   "history hit from previous run",
-			Score:     1,
-			Created:   "2026-05-02T10:00:00Z",
-			Updated:   "2026-05-02T10:00:00Z",
-			SourceRun: "run_1",
-		}},
-	}
 	server := newClientHotPathServer(service)
 	server.capabilities = NewCapabilitiesService(
 		cfg,
@@ -283,7 +226,6 @@ func TestClientResourceSurfaceHandlers(t *testing.T) {
 		summary:     "Inspect the repo.",
 		instruction: "Use repo inspection.",
 	})
-	server.memory = memory
 	server.deviceAuth = newDeviceAuthTestService(&deviceAuthHandlerStub{})
 	server.cfg = cfg
 	server.logger = slog.New(slog.NewTextHandler(bytes.NewBuffer(nil), nil))
@@ -310,15 +252,10 @@ func TestClientResourceSurfaceHandlers(t *testing.T) {
 		{name: "skill patch removed", method: http.MethodPatch, path: "/v1/skills/skill.inspect", body: `{"content":"extra instruction"}`, wantStatus: http.StatusMethodNotAllowed},
 		{name: "skill delete removed", method: http.MethodDelete, path: "/v1/skills/skill.inspect", wantStatus: http.StatusMethodNotAllowed},
 		{name: "skill files", method: http.MethodGet, path: "/v1/skills/skill.inspect/files", wantStatus: http.StatusOK, want: "SKILL.md"},
+		{name: "memory facts removed", method: http.MethodGet, path: "/v1/memory/facts", wantStatus: http.StatusNotFound},
 		{name: "core memory removed", method: http.MethodGet, path: "/v1/memory/core", wantStatus: http.StatusNotFound},
 		{name: "core memory update removed", method: http.MethodPatch, path: "/v1/memory/core/core.about_you", body: `{"body":"updated core"}`, wantStatus: http.StatusNotFound},
 		{name: "profile blocks deleted", method: http.MethodGet, path: "/v1/memory/profile-blocks", wantStatus: http.StatusNotFound},
-		{name: "memory facts", method: http.MethodGet, path: "/v1/memory/facts?limit=5&include_inactive=true", wantStatus: http.StatusOK, want: `"title":"Repo root"`},
-		{name: "memory skills", method: http.MethodGet, path: "/v1/memory/skills?limit=5&include_retired=true", wantStatus: http.StatusOK, want: `"origin":"agent_draft"`},
-		{name: "memory history", method: http.MethodGet, path: "/v1/memory/history?limit=5", wantStatus: http.StatusOK, want: "history hit"},
-		{name: "memory search", method: http.MethodGet, path: "/v1/memory/search?query=repo&kind=history&scope=workspace:acorn&include_inactive=true&include_retired=true", wantStatus: http.StatusOK, want: `"snippet":"history hit from previous run"`},
-		{name: "memory invalid include flag", method: http.MethodGet, path: "/v1/memory/facts?include_inactive=yes", wantStatus: http.StatusBadRequest, want: "include_inactive must be true or false"},
-		{name: "add memory fact removed", method: http.MethodPost, path: "/v1/memory/facts", body: `{"content":"repo root is /repo","labels":["repo"]}`, wantStatus: http.StatusMethodNotAllowed},
 		{name: "delete memory fact removed", method: http.MethodDelete, path: "/v1/memory/facts/42", wantStatus: http.StatusNotFound},
 		{name: "episodic memory removed", method: http.MethodGet, path: "/v1/memory/episodes", wantStatus: http.StatusNotFound},
 		{name: "memory candidates removed", method: http.MethodGet, path: "/v1/memory/candidates?status=pending", wantStatus: http.StatusNotFound},
@@ -367,20 +304,5 @@ func TestClientResourceSurfaceHandlers(t *testing.T) {
 	}
 	if !strings.Contains(systemStatusRec.Body.String(), `"provider_readiness":[{"scope":"mcp","provider":"fixture","status":"passed"`) {
 		t.Fatalf("system status should include provider readiness, got %s", systemStatusRec.Body.String())
-	}
-	if !memory.factSelection.IncludeInactive || memory.factSelection.IncludeRetired {
-		t.Fatalf("fact selection = %#v, want include_inactive only", memory.factSelection)
-	}
-	if memory.skillSelection.IncludeInactive || !memory.skillSelection.IncludeRetired {
-		t.Fatalf("skill selection = %#v, want include_retired only", memory.skillSelection)
-	}
-	if memory.historySelection.IncludeInactive || memory.historySelection.IncludeRetired {
-		t.Fatalf("history selection = %#v, want active only", memory.historySelection)
-	}
-	if memory.searchReq.Query != "repo" || memory.searchReq.Scope != "workspace:acorn" || !memory.searchReq.IncludeInactive || !memory.searchReq.IncludeRetired {
-		t.Fatalf("search request = %#v, want repo scoped retired-inclusive search", memory.searchReq)
-	}
-	if len(memory.searchReq.Kinds) != 1 || memory.searchReq.Kinds[0] != mem.KindHistory {
-		t.Fatalf("search kinds = %#v, want history", memory.searchReq.Kinds)
 	}
 }

@@ -62,21 +62,5 @@ func defaultConfig() *Config {
 		Tools: ToolsConfig{
 			Workspace: WorkspaceToolConfig{RootDir: "."},
 		},
-		Memory: MemoryConfig{
-			Search: MemorySearchConfig{
-				MemoryContextTokenBudget: 8000,
-			},
-			Embedding: MemoryEmbeddingConfig{
-				Enabled:    false,
-				Model:      "text-embedding-3-small",
-				Dimensions: 1536,
-			},
-			Review: MemoryReviewConfig{
-				ReviewInterval: 5,
-			},
-			Active: MemoryActiveConfig{
-				CharLimit: 2200,
-			},
-		},
 	}
 }

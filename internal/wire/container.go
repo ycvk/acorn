@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -12,10 +11,8 @@ import (
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
 	mcpprovider "github.com/ycvk/acorn/internal/mcp"
-	"github.com/ycvk/acorn/internal/memory"
 	"github.com/ycvk/acorn/internal/runtime"
 	"github.com/ycvk/acorn/internal/store"
-	"github.com/ycvk/acorn/internal/tools"
 	"github.com/ycvk/acorn/internal/wake"
 )
 
@@ -30,7 +27,6 @@ type Container struct {
 	runs          *api.RunService
 	events        *api.EventService
 	pendingAction *api.PendingActionService
-	memory        memory.Service
 	capabilities  *api.CapabilitiesService
 	deviceAuth    *api.DeviceAuthService
 	inbox         *api.InboxService
@@ -74,10 +70,6 @@ func (c *Container) Skills() *api.SkillService {
 	return c.skills
 }
 
-func (c *Container) Memory() memory.Service {
-	return c.memory
-}
-
 func (c *Container) Capabilities() *api.CapabilitiesService {
 	return c.capabilities
 }
@@ -112,12 +104,6 @@ func (c *Container) Close() error {
 			errs = append(errs, err)
 		}
 	}
-	// memory.Service may hold a vector index DB; close it if supported.
-	if closer, ok := c.memory.(interface{ Close() error }); ok {
-		if err := closer.Close(); err != nil {
-			errs = append(errs, err)
-		}
-	}
 	return errors.Join(errs...)
 }
 
@@ -140,13 +126,7 @@ func buildContainer(ctx context.Context, cfg *config.Config) (*Container, error)
 		}
 	}()
 
-	wsDir := filepath.Join(strings.TrimSpace(cfg.Runtime.StorageDir), "worldstate")
-	ws, err := memory.NewWorldState(wsDir)
-	if err != nil {
-		return nil, fmt.Errorf("build world state: %w", err)
-	}
-
-	deps, err := buildContainerRuntimeDeps(ctx, cfg, store, ws)
+	deps, err := buildContainerRuntimeDeps(ctx, cfg, store)
 	if err != nil {
 		return nil, err
 	}
@@ -161,60 +141,11 @@ func buildContainer(ctx context.Context, cfg *config.Config) (*Container, error)
 	return container, nil
 }
 
-func buildContextPlane(cfg *config.Config) (*runtime.ContextPlane, error) {
-	contextCounter, err := runtime.NewTokenCounter()
-	if err != nil {
-		return nil, err
-	}
-	maxContextTokens := cfg.Context.WindowTokens - cfg.Context.CompactMarginTokens
-	if maxContextTokens <= 0 {
-		return nil, fmt.Errorf("context effective window must be positive: window=%d margin=%d", cfg.Context.WindowTokens, cfg.Context.CompactMarginTokens)
-	}
-	contextPlane := runtime.NewDefaultPlane(runtime.DefaultOptions{
-		MemoryContextTokenBudget: cfg.Memory.Search.MemoryContextTokenBudget,
-		MaxContextTokens:         maxContextTokens,
-		TokenCounter:             contextCounter,
-	})
-	return contextPlane, nil
-}
-
-// buildMemoryService constructs the file-backed memory service.
-// When memory.embedding.enabled is true, wires EmbeddingClient + sqlite-vec.
-func buildMemoryService(ctx context.Context, cfg *config.Config) (memory.Service, error) {
-	if cfg == nil {
-		return nil, errors.New("config is required")
-	}
-	memoryRoot := strings.TrimSpace(cfg.Runtime.StorageDir)
-	memCfg := memory.Config{Root: memoryRoot}
-	if cfg.Memory.Embedding.Enabled {
-		provider, err := cfg.EnabledProvider()
-		if err != nil {
-			return nil, fmt.Errorf("resolve provider for embedding: %w", err)
-		}
-		ec := memory.NewEmbeddingClient(memory.EmbeddingConfig{
-			BaseURL:    provider.BaseURL,
-			APIKey:     provider.APIKey,
-			Model:      cfg.Memory.Embedding.Model,
-			Dimensions: cfg.Memory.Embedding.Dimensions,
-		})
-		if ec == nil {
-			return nil, fmt.Errorf("memory.embedding.enabled is true but provider %s has no base_url or api_key", provider.Name)
-		}
-		memCfg.Embedding = ec
-	}
-	svc, err := memory.NewLocalService(memCfg)
-	if err != nil {
-		return nil, err
-	}
-	return svc, nil
-}
-
 func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *containerRuntimeDeps) (*Container, error) {
 	container := &Container{
 		cfg:           cfg,
 		runnerFactory: deps.runnerFactory,
 		runController: deps.runController,
-		memory:        deps.memoryModule,
 	}
 
 	container.runResume = api.NewRunResumeService(db).WithResume(deps.resumeRun)
@@ -249,23 +180,6 @@ func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *contai
 	}
 
 	return container, nil
-}
-
-// worldStateAdapter wraps memory.WorldState to satisfy tools.WorldStateUpdater.
-// It translates between the tools package's WorldStateDelta and memory's.
-type worldStateAdapter struct {
-	ws *memory.WorldState
-}
-
-func (a *worldStateAdapter) ApplyDelta(ctx context.Context, delta tools.WorldStateDelta) error {
-	return a.ws.ApplyDelta(ctx, memory.WorldStateDelta{
-		Upserts: delta.Upserts,
-		Deletes: delta.Deletes,
-	})
-}
-
-func (a *worldStateAdapter) Load(ctx context.Context) (map[string]string, error) {
-	return a.ws.Load(ctx)
 }
 
 // wakeRunStarter starts commitment wake runs through the run service.
@@ -305,7 +219,7 @@ type RunOnceResult struct {
 
 // RunOnce executes a single owner-local run synchronously and returns its
 // terminal result. It is an operator smoke probe: it drives the exact runtime
-// execution path (Executor -> RunnerFactory -> ContextPlane -> memory prepare),
+// execution path (Executor -> RunnerFactory -> ChatModelAgent),
 // so any readiness gap (unconfigured embedding,
 // prepare failure) surfaces here as a real error or failed result instead of
 // staying hidden until the first remote-client message.

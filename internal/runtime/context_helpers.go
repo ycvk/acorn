@@ -5,34 +5,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/skills"
 )
-
-// buildContextEnvelopeMessage wraps content sections in an XML-style envelope
-// marker so downstream consumers (model, tests) can identify the section.
-func buildContextEnvelopeMessage(marker string, parts ...string) *schema.Message {
-	trimmed := make([]string, 0, len(parts))
-	for _, p := range parts {
-		if strings.TrimSpace(p) == "" {
-			continue
-		}
-		trimmed = append(trimmed, p)
-	}
-	if len(trimmed) == 0 {
-		return nil
-	}
-	content := fmt.Sprintf("<%s>\n%s\n</%s>", marker, strings.Join(trimmed, "\n\n"), marker)
-	return schema.UserMessage(content)
-}
-
-func buildSkillCatalogMessage(snapshot *skills.Snapshot) *schema.Message {
-	brief := skillCatalogBrief(snapshot)
-	if strings.TrimSpace(brief) == "" {
-		return nil
-	}
-	return buildContextEnvelopeMessage("skill-catalog", brief)
-}
 
 func skillCatalogBrief(snapshot *skills.Snapshot) string {
 	if snapshot == nil || len(snapshot.Skills) == 0 {

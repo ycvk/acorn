@@ -11,7 +11,7 @@ import (
 )
 
 // builtinToolOrder is the canonical list of dynamically-registered built-in
-// tools (ask_operator, memory, worldstate, skill). It is the
+// tools (ask_operator, skill). It is the
 // single source of truth for built-in tool identity: BuiltinToolNames and the
 // runtime spec resolver (tool.RuntimeToolSpec via BuiltinToolSpec) both derive
 // from it, so adding a built-in tool means editing this one place.
@@ -19,14 +19,6 @@ import (
 // Static local tools (artifact_*, ask_operator, keep, recall, ...) are declared
 // separately in localToolNames/configuredLocalSpec.
 var builtinToolOrder = []string{
-	"memory_search",
-	"memory_read_file",
-	"memory_list_files",
-	"memory_create_file",
-	"memory_replace_span",
-	"remember",
-	"worldstate_update",
-	"worldstate_load",
 	"skill_list",
 	"skill_view",
 	"skill_create",
@@ -45,21 +37,6 @@ func builtinToolContract(name string) (core.ToolContract, bool) {
 	case "ask_operator":
 		c.Kind = core.ToolKindNative
 		c.Category = core.ToolCategoryIntegration
-	case "memory_search", "memory_read_file", "memory_list_files":
-		c.Kind = core.ToolKindMemory
-		c.Category = core.ToolCategoryMemory
-	case "memory_create_file", "memory_replace_span":
-		c.Kind = core.ToolKindMemory
-		c.Category = core.ToolCategoryMemory
-	case "remember":
-		c.Kind = core.ToolKindMemory
-		c.Category = core.ToolCategoryMemory
-	case "worldstate_update":
-		c.Kind = core.ToolKindNative
-		c.Category = core.ToolCategoryMemory
-	case "worldstate_load":
-		c.Kind = core.ToolKindNative
-		c.Category = core.ToolCategoryInspect
 	case "skill_list", "skill_view":
 		c.Kind = core.ToolKindSkill
 		c.Category = core.ToolCategorySkill
@@ -94,13 +71,12 @@ func BuiltinToolNames() []string {
 // is required: these tools are part of every run, so a missing dependency is a
 // wiring bug and RegisterNativeTools fails on it.
 type NativeToolDeps struct {
-	ArtifactService   core.ArtifactService
-	ArtifactContext   core.ToolCallContextBridge
-	OperatorStore     OperatorQuestionStore
-	OperatorContext   core.ToolCallContextBridge
-	Presence          PresenceToolDeps
-	Notify            NotifyToolDeps
-	WorldStateUpdater WorldStateUpdater
+	ArtifactService core.ArtifactService
+	ArtifactContext core.ToolCallContextBridge
+	OperatorStore   OperatorQuestionStore
+	OperatorContext core.ToolCallContextBridge
+	Presence        PresenceToolDeps
+	Notify          NotifyToolDeps
 }
 
 type nativeToolDep struct {
@@ -115,7 +91,6 @@ func nativeToolFactory(name string, deps NativeToolDeps) (core.ToolFactory, erro
 		{"ArtifactService", deps.ArtifactService != nil},
 		{"ArtifactContext", deps.ArtifactContext != nil},
 	}
-	worldStateDeps := []nativeToolDep{{"WorldStateUpdater", deps.WorldStateUpdater != nil}}
 	presenceDeps := []nativeToolDep{
 		{"Presence.Store", deps.Presence.Store != nil},
 		{"Presence.Context", deps.Presence.Context != nil},
@@ -172,12 +147,6 @@ func nativeToolFactory(name string, deps NativeToolDeps) (core.ToolFactory, erro
 			{"Notify.Location", deps.Notify.Location != nil},
 		}
 		build = func() (einotool.BaseTool, error) { return buildNotifyOwnerTool(deps.Notify) }
-	case "worldstate_update":
-		needs = worldStateDeps
-		build = func() (einotool.BaseTool, error) { return buildWorldStateUpdateTool(deps.WorldStateUpdater) }
-	case "worldstate_load":
-		needs = worldStateDeps
-		build = func() (einotool.BaseTool, error) { return buildWorldStateLoadTool(deps.WorldStateUpdater) }
 	default:
 		return nil, fmt.Errorf("no factory for native tool %q", name)
 	}

@@ -16,7 +16,6 @@ var refactorOwnedDirs = []string{
 	"internal/runtime",
 	"internal/store",
 	"internal/tools",
-	"internal/memory",
 	"internal/presence",
 	"internal/wake",
 	"internal/notify",
@@ -24,7 +23,6 @@ var refactorOwnedDirs = []string{
 	"internal/api",
 	"internal/wire",
 	"internal/config",
-	"internal/workspace",
 	"internal/skills",
 	"internal/webaccess",
 }

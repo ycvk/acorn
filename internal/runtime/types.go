@@ -8,7 +8,6 @@ import (
 
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
-	"github.com/ycvk/acorn/internal/memory"
 	"github.com/ycvk/acorn/internal/skills"
 )
 
@@ -43,8 +42,6 @@ type RuntimeDeps struct {
 	Config            *config.Config
 	Store             RuntimeStore
 	Loader            *skills.Loader
-	MemoryModule      memory.Service
-	ContextPlane      *ContextPlane
 	MCPPendingActions core.SessionStore
 	ArtifactService   core.ArtifactService
 	ToolRegistry      core.ToolRegistry

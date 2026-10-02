@@ -2,7 +2,6 @@ package tools
 
 import (
 	"encoding/gob"
-	"errors"
 	"fmt"
 
 	einotool "github.com/cloudwego/eino/components/tool"
@@ -13,31 +12,6 @@ func init() {
 	gob.Register(AskOperatorState{})
 	gob.Register(map[string]any{})
 	gob.Register([]any{})
-}
-
-// BuildWorkspaceTools builds the file tools (read_file, list_files,
-// create_file, replace_span) scoped to ws.
-func BuildWorkspaceTools(ws WorkspaceView) ([]einotool.BaseTool, error) {
-	if ws == nil {
-		return nil, errors.New("BuildWorkspaceTools: workspace is required")
-	}
-	readTool, err := buildReadFileTool(ws)
-	if err != nil {
-		return nil, err
-	}
-	listTool, err := buildListFilesTool(ws)
-	if err != nil {
-		return nil, err
-	}
-	createTool, err := buildCreateFileTool(ws)
-	if err != nil {
-		return nil, err
-	}
-	replaceTool, err := buildReplaceSpanTool(ws)
-	if err != nil {
-		return nil, err
-	}
-	return []einotool.BaseTool{readTool, listTool, createTool, replaceTool}, nil
 }
 
 // WebToolsConfig carries the per-run services behind the deferred web tools.

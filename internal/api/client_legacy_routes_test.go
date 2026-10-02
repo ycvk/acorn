@@ -11,7 +11,6 @@ import (
 
 func TestLegacyRouteGroupIsNotMounted(t *testing.T) {
 	server := newClientHotPathServer(&clientHandlerStub{})
-	server.memory = &clientMemoryStub{}
 	server.logger = slog.New(slog.NewTextHandler(bytes.NewBuffer(nil), nil))
 	router := chi.NewRouter()
 	server.registerRoutes(router)

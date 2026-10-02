@@ -8,7 +8,6 @@ import (
 
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
-	"github.com/ycvk/acorn/internal/memory"
 	"github.com/ycvk/acorn/internal/notify"
 	"github.com/ycvk/acorn/internal/runtime"
 	"github.com/ycvk/acorn/internal/skills"
@@ -18,8 +17,6 @@ import (
 
 type containerRuntimeDeps struct {
 	loader                *skills.Loader
-	memoryModule          memory.Service
-	contextPlane          *runtime.ContextPlane
 	mcpPendingActionStore core.SessionStore
 	toolRegistry          core.ToolRegistry
 	runnerFactory         *runtime.RunnerFactory
@@ -60,16 +57,8 @@ func buildNotifier(cfg *config.Config, db *store.Store, loc *time.Location) (*no
 	return sender, "", err
 }
 
-func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *store.Store, worldState *memory.WorldState) (*containerRuntimeDeps, error) {
+func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *store.Store) (*containerRuntimeDeps, error) {
 	loader := skills.NewLoader(cfg)
-	memoryModule, err := buildMemoryService(ctx, cfg)
-	if err != nil {
-		return nil, err
-	}
-	contextPlane, err := buildContextPlane(cfg)
-	if err != nil {
-		return nil, err
-	}
 
 	var mcpPendingActionStore core.SessionStore = db
 
@@ -106,16 +95,13 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 			Clock:    time.Now,
 			Location: ownerLoc,
 		},
-		Notify:            notifyDeps,
-		WorldStateUpdater: &worldStateAdapter{ws: worldState},
+		Notify: notifyDeps,
 	}); err != nil {
 		return nil, fmt.Errorf("register native tools: %w", err)
 	}
 
 	runnerFactory, err := runtime.NewRunnerFactory(cfg, db, runtime.RunnerFactoryOptions{
 		Loader:                loader,
-		MemoryModule:          memoryModule,
-		ContextPlane:          contextPlane,
 		MCPPendingActionStore: mcpPendingActionStore,
 		ArtifactService:       artifactSvc,
 		ToolRegistry:          toolRegistry,
@@ -126,13 +112,11 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 		return nil, fmt.Errorf("init runner factory: %w", err)
 	}
 	runController := runtime.NewRunController()
-	reviewer := runtime.NewReviewer(memoryModule, runtime.NewChatModelWithModel(cfg, cfg.Memory.Review.ReviewModel), cfg.Memory.Review.ReviewInterval)
 	executeRun := func(ctx context.Context, req core.ExecuteRequest, sink core.StreamSink) (*runtime.Result, error) {
 		exec, err := runtime.NewExecutorWithRunRuntimeAndController(cfg, db, runnerFactory, runController)
 		if err != nil {
 			return nil, err
 		}
-		exec.SetReviewer(reviewer)
 		return exec.ExecuteMessages(ctx, req, sink)
 	}
 	resumeRun := func(ctx context.Context, runID string, targets map[string]any, sink core.StreamSink) (*runtime.Result, error) {
@@ -140,14 +124,11 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 		if err != nil {
 			return nil, err
 		}
-		exec.SetReviewer(reviewer)
 		return exec.ResumeWithTargets(ctx, runID, targets, sink)
 	}
 
 	return &containerRuntimeDeps{
 		loader:                loader,
-		memoryModule:          memoryModule,
-		contextPlane:          contextPlane,
 		mcpPendingActionStore: mcpPendingActionStore,
 		toolRegistry:          toolRegistry,
 		runnerFactory:         runnerFactory,

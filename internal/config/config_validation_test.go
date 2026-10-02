@@ -22,7 +22,6 @@ func TestValidateExecutionReadyContextConfig(t *testing.T) {
 			CompactMarginTokens: 13000,
 			MaskAfterTurns:      2,
 		},
-		Memory:   defaultConfig().Memory,
 		Owner:    defaultConfig().Owner,
 		Presence: defaultConfig().Presence,
 		Wake:     defaultConfig().Wake,
@@ -119,7 +118,6 @@ func TestValidateExecutionReadyRejectsInvalidExecutionFields(t *testing.T) {
 		Tools: ToolsConfig{
 			Workspace: WorkspaceToolConfig{RootDir: "."},
 		},
-		Memory:   defaultConfig().Memory,
 		Owner:    defaultConfig().Owner,
 		Presence: defaultConfig().Presence,
 		Wake:     defaultConfig().Wake,
@@ -172,14 +170,6 @@ func TestWorkspaceRootIsCleanedRootDir(t *testing.T) {
 	cfg.Tools.Workspace.RootDir = "  "
 	if got := cfg.WorkspaceRoot(); got != "" {
 		t.Fatalf("WorkspaceRoot() for blank root = %q, want empty", got)
-	}
-}
-
-func TestValidateBaseRejectsNegativeReviewInterval(t *testing.T) {
-	cfg := defaultConfig()
-	cfg.Memory.Review.ReviewInterval = -1
-	if err := cfg.ValidateBase(); err == nil {
-		t.Fatal("ValidateBase must reject negative review_interval")
 	}
 }
 

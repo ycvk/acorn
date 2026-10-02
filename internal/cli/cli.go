@@ -31,8 +31,6 @@ func Run(ctx context.Context, args []string) error {
 		return runDoctor(ctx, args[1:])
 	case "skills":
 		return runSkills(ctx, args[1:])
-	case "memory":
-		return runMemory(ctx, args[1:])
 	case "pair":
 		return runPair(ctx, args[1:])
 	case "token":
@@ -72,7 +70,6 @@ Usage:
   acorn devices revoke [-c path] DEVICE_ID
   acorn smoke [-c path] [--json] "task input"
   acorn run [-c path] [--json] "task input"
-  acorn memory reindex [-c path] [--json]
   acorn serve [-c path] [--listen addr]`)
 }
 

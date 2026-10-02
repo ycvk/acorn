@@ -121,9 +121,6 @@ runtime:
   storage_dir: /srv/acorn/workspace
 web:
   listen_addr: 127.0.0.1:8080
-memory:
-  search:
-    memory_context_token_budget: 2000
 approval:
   # Tool-name glob patterns whose calls pause for owner approval on the phone.
   require:
@@ -314,7 +311,7 @@ exec "\$bin" "\$@"' sh "\$env_path" "\$bin" "\$@"
 
 if [ "\$#" -gt 0 ]; then
 	case "\$1" in
-		decision|doctor|memory|pair|token|devices|skills|smoke)
+		decision|doctor|pair|token|devices|skills|smoke)
 			command_name=\$1
 			shift
 			if ! has_config_flag "\$@"; then

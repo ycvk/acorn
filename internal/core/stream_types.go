@@ -17,7 +17,6 @@ const (
 	StreamKindRunFailed          StreamItemKind = "run_failed"
 	StreamKindRunInterrupted     StreamItemKind = "run_interrupted"
 	StreamKindRunResumeRequested StreamItemKind = "run_resume_requested"
-	StreamKindMemoryPrepared     StreamItemKind = "memory_prepared"
 	StreamKindAssistantDelta     StreamItemKind = "assistant.delta"
 	StreamKindAssistantMessage   StreamItemKind = "assistant_message"
 	StreamKindToolCallSucceeded  StreamItemKind = "tool_call_succeeded"
@@ -138,28 +137,6 @@ type StreamInterruptContext struct {
 type StreamInterrupt struct {
 	ContextCount int                      `json:"context_count,omitempty"`
 	Contexts     []StreamInterruptContext `json:"contexts,omitempty"`
-}
-
-type StreamMemoryPreparedNudge struct {
-	Ref    string `json:"ref,omitempty"`
-	Kind   string `json:"kind,omitempty"`
-	Title  string `json:"title,omitempty"`
-	Status string `json:"status,omitempty"`
-	Reason string `json:"reason,omitempty"`
-}
-
-type StreamMemoryPreparedEntry struct {
-	Ref   string `json:"ref,omitempty"`
-	Kind  string `json:"kind,omitempty"`
-	Title string `json:"title,omitempty"`
-}
-
-type StreamMemoryPrepared struct {
-	Query      string                      `json:"query,omitempty"`
-	NudgeCount int                         `json:"nudge_count,omitempty"`
-	EntryCount int                         `json:"entry_count,omitempty"`
-	Nudges     []StreamMemoryPreparedNudge `json:"nudges,omitempty"`
-	Entries    []StreamMemoryPreparedEntry `json:"entries,omitempty"`
 }
 
 type StreamAssistantDelta struct {

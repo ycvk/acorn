@@ -23,9 +23,6 @@ func NewHandler(deps Dependencies) (http.Handler, error) {
 	if deps.PendingAction == nil {
 		return nil, errors.New("web pending action service is required")
 	}
-	if deps.Memory == nil {
-		return nil, errors.New("web memory service is required")
-	}
 	if deps.Skills == nil {
 		return nil, errors.New("web skill service is required")
 	}
@@ -49,7 +46,6 @@ func NewHandler(deps Dependencies) (http.Handler, error) {
 		runs:          deps.Runs,
 		events:        deps.Events,
 		pendingAction: deps.PendingAction,
-		memory:        deps.Memory,
 		skills:        deps.Skills,
 		capabilities:  deps.Capabilities,
 		deviceAuth:    deps.DeviceAuth,
@@ -107,12 +103,6 @@ func (s *Server) registerRoutes(router chi.Router) {
 			r.Get("/inbox", s.handleClientInbox)
 			r.Get("/system/status", s.handleClientSystemStatus)
 			r.Get("/tools", s.handleClientTools)
-			r.Route("/memory", func(r chi.Router) {
-				r.Get("/facts", s.handleListMemoryFacts)
-				r.Get("/skills", s.handleListMemorySkills)
-				r.Get("/history", s.handleListMemoryHistory)
-				r.Get("/search", s.handleSearchMemory)
-			})
 			r.Route("/skills", func(r chi.Router) {
 				r.Get("/", s.handleListSkills)
 				r.Route("/{id}", func(r chi.Router) {

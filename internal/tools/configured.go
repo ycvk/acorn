@@ -20,8 +20,6 @@ var localToolNames = []string{
 	"settle",
 	"recall",
 	"notify_owner",
-	"worldstate_update",
-	"worldstate_load",
 	"web_fetch",
 	"web_search",
 	"browser",
@@ -65,7 +63,7 @@ func configuredLocalSpec(name string) core.ToolSpec {
 	case "ask_operator", "notify_owner":
 		spec.Kind = core.ToolKindNative
 		spec.Category = core.ToolCategoryIntegration
-	case "worldstate_update", "keep", "think", "schedule_wake", "settle":
+	case "keep", "think", "schedule_wake", "settle":
 		spec.Kind = core.ToolKindNative
 		spec.Category = core.ToolCategoryMemory
 	case "recall":

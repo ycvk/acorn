@@ -213,3 +213,11 @@ func artifactTitle(prefix, title, fallbackURL string) string {
 	}
 	return prefix + ": " + title
 }
+
+// previewBytes returns at most limit bytes of body and whether it was cut.
+func previewBytes(body []byte, limit int) (string, bool) {
+	if limit <= 0 || len(body) <= limit {
+		return string(body), false
+	}
+	return string(body[:limit]), true
+}

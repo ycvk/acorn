@@ -6,20 +6,14 @@ import (
 	"sort"
 	"strings"
 
-	einotool "github.com/cloudwego/eino/components/tool"
-
 	"github.com/ycvk/acorn/internal/core"
 )
 
-// Catalog is the concrete implementation of core.Catalog. It holds normalized
+// Catalog holds normalized
 // tool specs indexed by name for fast lookup.
 type Catalog struct {
-	specs  []core.ToolSpec
-	byName map[string]core.ToolSpec
+	specs []core.ToolSpec
 }
-
-// compile-time assertion that *Catalog satisfies core.Catalog.
-var _ core.Catalog = (*Catalog)(nil)
 
 func NewCatalog(ctx context.Context, specs []core.ToolSpec) (*Catalog, error) {
 	normalized := make([]core.ToolSpec, 0, len(specs))
@@ -38,7 +32,7 @@ func NewCatalog(ctx context.Context, specs []core.ToolSpec) (*Catalog, error) {
 	sort.SliceStable(normalized, func(i, j int) bool {
 		return normalized[i].Name < normalized[j].Name
 	})
-	return &Catalog{specs: normalized, byName: byName}, nil
+	return &Catalog{specs: normalized}, nil
 }
 
 func (c *Catalog) Specs() []core.ToolSpec {
@@ -62,29 +56,6 @@ func (c *Catalog) EnabledSpecs() []core.ToolSpec {
 		out = append(out, spec)
 	}
 	return out
-}
-
-func (c *Catalog) Tools() []einotool.BaseTool {
-	specs := c.EnabledSpecs()
-	if len(specs) == 0 {
-		return nil
-	}
-	out := make([]einotool.BaseTool, 0, len(specs))
-	for _, spec := range specs {
-		if spec.Tool == nil {
-			continue
-		}
-		out = append(out, spec.Tool)
-	}
-	return out
-}
-
-func (c *Catalog) Find(name string) (core.ToolSpec, bool) {
-	if c == nil {
-		return core.ToolSpec{}, false
-	}
-	spec, ok := c.byName[strings.TrimSpace(name)]
-	return spec, ok
 }
 
 func normalizeSpec(ctx context.Context, spec core.ToolSpec) (core.ToolSpec, error) {

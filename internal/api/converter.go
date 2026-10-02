@@ -3,7 +3,6 @@ package api
 import (
 	"time"
 
-	"github.com/ycvk/acorn/internal/memory"
 	"github.com/ycvk/acorn/internal/skills"
 )
 
@@ -44,12 +43,6 @@ type Converter interface {
 	capabilitiesFeaturesDTOFromSnapshot(source SystemFeatureCapabilities) CapabilitiesFeaturesDTO
 	providerReadinessDTOsFromSnapshot(source []ProviderReadinessSummary) []ProviderReadinessDTO
 	capabilitiesToolsDTOFromSnapshot(source []SystemToolCapability) []CapabilitiesToolDTO
-
-	// Memory
-	//goverter:map RelPath Path
-	memoryRecordDTOFromDomain(source memory.Record) MemoryRecordDTO
-	memoryRecordDTOsFromDomain(source []memory.Record) []MemoryRecordDTO
-	memorySearchItemDTOsFromDomain(source []memory.SearchItem) []MemorySearchItemDTO
 
 	// Artifacts
 	artifactSummaryDTOsFromDomain(source []ArtifactSummary) []ArtifactSummaryDTO

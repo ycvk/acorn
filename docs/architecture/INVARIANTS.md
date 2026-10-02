@@ -28,15 +28,17 @@
 
 ## 上下文与记忆
 
-- **上下文管理由 Eino middleware 承担**：summarization 在 token 超过 `window_tokens - compact_margin_tokens` 时总结历史；reduction 只做 clear（保留最近 `mask_after_turns` 轮工具调用原样）；memory 与 skill 目录等每 run 上下文写进 agent Instruction，不参与总结。public YAML 只暴露 `context.window_tokens`、`context.compact_margin_tokens`、`context.mask_after_turns`。
+- **上下文管理由 Eino middleware 承担**：summarization 在 token 超过 `window_tokens - compact_margin_tokens` 时总结历史；reduction 只做 clear（保留最近 `mask_after_turns` 轮工具调用原样）。public YAML 只暴露 `context.window_tokens`、`context.compact_margin_tokens`、`context.mask_after_turns`。
   - `internal/runtime/agent_test.go`
-- **Memory Record V2 是长期记忆事实**：facts/history frontmatter 由 `internal/memory` 解析；memory search 默认走关键词匹配，`memory.embedding.enabled` 开启时走 vector KNN + keyword RRF 融合（sqlite-vec，复用 provider embedding 端点）。
-- **三层记忆架构（ADR-0002）**：Active Memory（非 retired 的 user-scoped facts frozen snapshot，按 `memory.active.char_limit` 默认 2200 字符截取，每个 run 无条件注入 system prompt，run 内不变以保 prefix cache）+ Archive（append-only history + fallback summary，零 LLM 成本，混合检索覆盖）+ Periodic Review（每 `memory.review.review_interval` 默认 5 个 run 触发一次 LLM 调用，蒸馏 durable facts 写入 facts，异步不阻塞 run 收尾，`NewReviewer` 在 `buildContainerRuntimeDeps` 构造一次供所有 Executor 共享）。单 owner 语义：agent 自己写的 facts（unverified + verified）都信任，retired 才排除。
-  - `internal/memory/active_facts.go`
-  - `internal/memory/active_facts_test.go`
-  - `internal/runtime/reviewer.go`
-  - `internal/runtime/reviewer_test.go`
-  - `internal/wire/runtime.go`
+- **Instruction = 人格 + 内置规则 + 技能目录**：人格来自 `{storage_dir}/persona.md`，缺失或为空时 run 失败并给出路径；内置 operating rules 说明工作记忆、约定、审批和工具发现的用法；技能目录放在 Instruction 里，不参与总结。
+  - `internal/runtime/agent_test.go`
+  - `internal/presence/presence_test.go`
+- **“当下”只存在于单次模型调用**：presence middleware 用 `WrapModel` 在每次模型调用的输入末尾追加 `<presence>` system 消息（owner 时区的时间、唤醒原因、约定、念头、owner 原话、倾向、关切、暂歇条目），不写回 agent 状态，因此不会进入历史或被总结。渲染前先执行衰减；超过 `presence.max_tokens` 时先丢暂歇条目，再丢各类最旧条目，woken 约定永不丢弃。每个不同的渲染结果按哈希存入 `context_snapshots`，并记一条 `presence.snapshot` 事件。
+  - `internal/runtime/presence_test.go`
+  - `internal/presence/presence_test.go`
+- **工作记忆只有一条衰减路径**：`memory_items` 中的 said/thought/tendency/ruler 到期未续期时，由 `presence.Decay` 从 active 变为 resting，再变为 sunk；commitment 不衰减。续期、内化、放下、完成约定都只经 `settle` 工具。
+  - `internal/presence/presence_test.go`
+  - `internal/tools/presence_tools_test.go`
 
 ## Remote API 与 mobile
 
@@ -58,8 +60,6 @@
   - `internal/store/store_presence_test.go`
 - **每日唤醒上限按 owner 时区计算**：`wake.daily_limit` 限制 owner 本地每天的唤醒次数，计数来自 events 表中当天的 `wake.fired`，重启后依然有效；超限的约定留在 active，次日再处理；为 0 时关闭自主唤醒。
   - `internal/wake/scheduler_test.go`
-- **WorldState 是跨 run 决策投影**：`internal/memory.WorldState` 是 file-backed key-value store（`{storage_dir}/worldstate/state.json`），只有 `ApplyDelta` 一条变更路径（upsert/delete）。位于 thread 对话历史和 facts（显式 remember）之间。内存 cache + mutex 串行写，避开 SQLite 单连接瓶颈。agent 通过 `worldstate_update`/`worldstate_load` 工具读写。
-  - `internal/memory/worldstate_test.go`
 - **Decision Card 扩展 ask_operator payload**：`OperatorQuestionPayload` 增 `considered_options/rationale/risk/recommendation` 可选维度。它给 `ask_operator` 的提问补上决策依据；工具调用审批由 `approval.require` 规则和 approval middleware 负责。
   - `internal/core/decision_card_test.go`
 - **经历检索覆盖 run 和工作记忆**：`recall` 工具调用 `SearchExperience`，用 FTS5 trigram 检索 `runs` 的输入输出和全部 `memory_items`；少于 3 个字的查询改走 LIKE。FTS 表上线前的 run 在打开数据库时回填一次。

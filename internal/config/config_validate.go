@@ -95,15 +95,6 @@ func (c *Config) ValidateBase() error {
 			return fmt.Errorf("mcp.providers[%s]: auth.type must be one of none, oauth, api_key, got %q", name, authType)
 		}
 	}
-	if c.Memory.Search.MemoryContextTokenBudget <= 0 {
-		c.Memory.Search.MemoryContextTokenBudget = 8000
-	}
-	if err := c.validateMemoryEmbedding(); err != nil {
-		return err
-	}
-	if err := c.validateMemoryReview(); err != nil {
-		return err
-	}
 	return nil
 }
 
@@ -192,35 +183,6 @@ func (c *Config) validateBrowserBase() error {
 	}
 	if c.Browser.DefaultTimeoutSeconds <= 0 {
 		return errors.New("browser.default_timeout_seconds must be > 0")
-	}
-	return nil
-}
-
-// validateMemoryEmbedding validates the embedding config. When enabled, the
-// model and dimensions must be set; defaults are applied if empty. When
-// disabled, no validation is performed (the feature is inert).
-func (c *Config) validateMemoryEmbedding() error {
-	if !c.Memory.Embedding.Enabled {
-		return nil
-	}
-	if strings.TrimSpace(c.Memory.Embedding.Model) == "" {
-		c.Memory.Embedding.Model = "text-embedding-3-small"
-	}
-	if c.Memory.Embedding.Dimensions <= 0 {
-		c.Memory.Embedding.Dimensions = 1536
-	}
-	return nil
-}
-
-// validateMemoryReview validates the periodic review config. A zero
-// ReviewInterval disables review (valid). A negative value is a config
-// error and fails loud. CharLimit defaults to 2200 when unset.
-func (c *Config) validateMemoryReview() error {
-	if c.Memory.Review.ReviewInterval < 0 {
-		return fmt.Errorf("memory.review.review_interval must be >= 0 (got %d)", c.Memory.Review.ReviewInterval)
-	}
-	if c.Memory.Active.CharLimit <= 0 {
-		c.Memory.Active.CharLimit = 2200
 	}
 	return nil
 }

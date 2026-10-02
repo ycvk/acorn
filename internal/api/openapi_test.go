@@ -13,7 +13,7 @@ import (
 	"github.com/ycvk/acorn/internal/core"
 )
 
-func TestOpenAPIContractMatchesFileBackedMemorySurface(t *testing.T) {
+func TestOpenAPIContractMatchesClientSurface(t *testing.T) {
 	path := filepath.Join("..", "..", "docs", "openapi.yaml")
 	loader := openapi3.NewLoader()
 	doc, err := loader.LoadFromFile(path)
@@ -56,6 +56,7 @@ func TestOpenAPIContractMatchesFileBackedMemorySurface(t *testing.T) {
 		"/v1/devices:pair",
 		"/v1/devices",
 		"/v1/devices/{device_id}",
+		"/v1/devices/self/push-token",
 		"/v1/threads",
 		"/v1/threads/{thread_id}",
 		"/v1/threads/{thread_id}/messages",
@@ -70,10 +71,6 @@ func TestOpenAPIContractMatchesFileBackedMemorySurface(t *testing.T) {
 		"/v1/pending-actions/{action_id}:decide",
 		"/v1/system/status",
 		"/v1/tools",
-		"/v1/memory/facts",
-		"/v1/memory/skills",
-		"/v1/memory/history",
-		"/v1/memory/search",
 		"/v1/skills",
 		"/v1/skills/{id}",
 		"/v1/skills/{id}/files",
@@ -95,11 +92,6 @@ func TestOpenAPIContractMatchesFileBackedMemorySurface(t *testing.T) {
 		"DecidePendingActionRequest",
 		"PendingActionDecision",
 		"OperatorQuestionData",
-		"MemoryRecord",
-		"MemoryRecordRelation",
-		"MemoryRecordListResponse",
-		"MemorySearchItem",
-		"MemorySearchResponse",
 		"RunArtifact",
 		"unauthenticated",
 		"device_revoked",
@@ -113,6 +105,7 @@ func TestOpenAPIContractMatchesFileBackedMemorySurface(t *testing.T) {
 	}
 
 	for _, stale := range []string{
+		"/v1/memory",
 		"Acorn Web API",
 		"Browser-facing",
 		"local-first runtime",
@@ -237,7 +230,6 @@ func TestOpenAPIContractMatchesFileBackedMemorySurface(t *testing.T) {
 		"ConversationHit",
 		"BlockUpdateRequest",
 		"EvictFactsResponse",
-		"MemoryCandidate",
 		"RunDetailRaw",
 		"UnsupportedRunEvent",
 		"unsupported_events",
@@ -289,12 +281,6 @@ func TestOpenAPIContractMatchesFileBackedMemorySurface(t *testing.T) {
 		"DeviceListResponse",
 		"PairDeviceRequest",
 		"PairDeviceResponse",
-		"MemoryScope",
-		"MemoryRecord",
-		"MemoryRecordRelation",
-		"MemoryRecordListResponse",
-		"MemorySearchItem",
-		"MemorySearchResponse",
 		"SkillEnvelope",
 		"SkillFileResponse",
 		"Thread",

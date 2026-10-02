@@ -1,8 +1,12 @@
 package api
 
 import (
+	"bytes"
+	"log/slog"
 	"net/http"
 	"testing"
+
+	"github.com/go-chi/chi/v5"
 )
 
 func TestListSkillsHandler(t *testing.T) {
@@ -56,4 +60,16 @@ func TestGetSkillNotFound(t *testing.T) {
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want 404", rec.Code)
 	}
+}
+
+func newTestRouterForServer(s *Server) http.Handler {
+	if s.deviceAuth == nil {
+		s.deviceAuth = newDeviceAuthTestService(&deviceAuthHandlerStub{})
+	}
+	if s.logger == nil {
+		s.logger = slog.New(slog.NewTextHandler(bytes.NewBuffer(nil), nil))
+	}
+	router := chi.NewRouter()
+	s.registerRoutes(router)
+	return router
 }

@@ -42,17 +42,18 @@ func TestSplitToolsByLoading(t *testing.T) {
 	}
 }
 
-func TestBuildAgentInstructionKeepsContextInSystemPrompt(t *testing.T) {
-	got := buildAgentInstruction("You are Acorn.", []*schema.Message{
-		schema.UserMessage("<memory-context>\nlikes tea\n</memory-context>"),
-	})
-	for _, want := range []string{"You are Acorn.", operatingRules, "<memory-context>\nlikes tea\n</memory-context>"} {
+func TestBuildAgentInstructionJoinsPersonaRulesAndSkills(t *testing.T) {
+	got := buildAgentInstruction("You are Acorn.", "- skill.web (Web)")
+	for _, want := range []string{"You are Acorn.", operatingRules, "<skill-catalog>\n- skill.web (Web)\n</skill-catalog>"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("instruction missing %q:\n%s", want, got)
 		}
 	}
-	if strings.Index(got, "You are Acorn.") > strings.Index(got, "<memory-context>") {
-		t.Fatal("base prompt must come before the per-run context")
+	if strings.Index(got, "You are Acorn.") > strings.Index(got, "<skill-catalog>") {
+		t.Fatal("the persona must come before the skill catalog")
+	}
+	if strings.Contains(buildAgentInstruction("p", "  "), "<skill-catalog>") {
+		t.Fatal("an empty catalog must be left out")
 	}
 }
 

@@ -4,7 +4,6 @@ import (
 	"log/slog"
 
 	"github.com/ycvk/acorn/internal/config"
-	"github.com/ycvk/acorn/internal/memory"
 )
 
 type Dependencies struct {
@@ -12,7 +11,6 @@ type Dependencies struct {
 	Runs          *RunService
 	Events        *EventService
 	PendingAction *PendingActionService
-	Memory        memory.Service
 	Skills        *SkillService
 	Capabilities  *CapabilitiesService
 	DeviceAuth    *DeviceAuthService
@@ -26,7 +24,6 @@ type Server struct {
 	runs          *RunService
 	events        *EventService
 	pendingAction *PendingActionService
-	memory        memory.Service
 	skills        *SkillService
 	capabilities  *CapabilitiesService
 	deviceAuth    *DeviceAuthService
