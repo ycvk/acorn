@@ -57,7 +57,16 @@ func shanghai(t *testing.T) *time.Location {
 	return loc
 }
 
-func runeCount(s string) int { return utf8.RuneCountInString(s) }
+func runeCount(s string) (int, error) { return utf8.RuneCountInString(s), nil }
+
+func mustRender(t *testing.T, in RenderInput) string {
+	t.Helper()
+	out, err := Render(in)
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	return out
+}
 
 func TestRenderOrdersSectionsInOwnerTime(t *testing.T) {
 	items := []core.MemoryItem{
@@ -69,7 +78,7 @@ func TestRenderOrdersSectionsInOwnerTime(t *testing.T) {
 		{ID: 6, Kind: core.MemoryRuler, Status: core.MemoryActive, Content: "推送只写摘要", CreatedAt: t0},
 		{ID: 7, Kind: core.MemoryThought, Status: core.MemoryResting, Content: strings.Repeat("长", 100), CreatedAt: t0},
 	}
-	out := Render(RenderInput{Now: t0, Location: shanghai(t), Wake: "commitment #3: 提醒 owner 看 X", Items: items, MaxTokens: 10000, Count: runeCount})
+	out := mustRender(t, RenderInput{Now: t0, Location: shanghai(t), Wake: "commitment #3: 提醒 owner 看 X", Items: items, MaxTokens: 10000, Count: runeCount})
 	for _, want := range []string{
 		"Now: 2026-10-05 Mon 09:00 (Asia/Shanghai)",
 		"Woken by: commitment #3",
@@ -105,11 +114,11 @@ func TestRenderDropsLowPriorityItemsToFitBudget(t *testing.T) {
 		{ID: 4, Kind: core.MemoryThought, Status: core.MemoryResting, Content: strings.Repeat("r", 50), CreatedAt: t0},
 	}
 	in := RenderInput{Now: t0, Location: time.UTC, Wake: "owner message", Items: items, Count: runeCount}
-	full := Render(in)
-	in.MaxTokens = runeCount(full) - 100
-	out := Render(in)
-	if runeCount(out) > in.MaxTokens {
-		t.Fatalf("render exceeds budget: %d > %d", runeCount(out), in.MaxTokens)
+	full := mustRender(t, in)
+	in.MaxTokens = utf8.RuneCountInString(full) - 100
+	out := mustRender(t, in)
+	if utf8.RuneCountInString(out) > in.MaxTokens {
+		t.Fatalf("render exceeds budget: %d > %d", utf8.RuneCountInString(out), in.MaxTokens)
 	}
 	if strings.Contains(out, "#4 ") || strings.Contains(out, "#2 ") {
 		t.Fatalf("resting and oldest said should be dropped first:\n%s", out)
@@ -121,7 +130,7 @@ func TestRenderDropsLowPriorityItemsToFitBudget(t *testing.T) {
 		t.Fatalf("missing omission note:\n%s", out)
 	}
 	in.MaxTokens = 1
-	if out := Render(in); !strings.Contains(out, "#1 [due now") {
+	if out := mustRender(t, in); !strings.Contains(out, "#1 [due now") {
 		t.Fatalf("woken commitment dropped under a tiny budget:\n%s", out)
 	}
 }

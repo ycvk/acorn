@@ -155,5 +155,7 @@ type ExecuteRequest struct {
 	Input          string
 	BoundMessageID int64
 	SkillID        string
-	Messages       []adk.Message
+	// Wake says what woke this run; empty means an owner message.
+	Wake     string
+	Messages []adk.Message
 }

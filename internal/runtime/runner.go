@@ -15,6 +15,7 @@ import (
 	"github.com/ycvk/acorn/internal/core"
 	mcpprovider "github.com/ycvk/acorn/internal/mcp"
 	"github.com/ycvk/acorn/internal/memory"
+	"github.com/ycvk/acorn/internal/presence"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/tools"
 )
@@ -137,12 +138,21 @@ func buildRuntimeDeps(cfg *config.Config, store RuntimeStore, opts RunnerFactory
 	if opts.ToolRegistry == nil {
 		return RuntimeDeps{}, errors.New("tool registry is required")
 	}
+	if opts.Presence == nil || opts.Clock == nil {
+		return RuntimeDeps{}, errors.New("presence store and clock are required")
+	}
 	loader := resolveLoader(cfg, opts.Loader)
 	contextPlane, err := resolveContextPlane(cfg, store, opts)
 	if err != nil {
 		return RuntimeDeps{}, fmt.Errorf("context plane: %w", err)
 	}
-	return assembleRuntimeDeps(cfg, store, opts, loader, artifactService, contextPlane), nil
+	location, err := cfg.OwnerLocation()
+	if err != nil {
+		return RuntimeDeps{}, err
+	}
+	deps := assembleRuntimeDeps(cfg, store, opts, loader, artifactService, contextPlane)
+	deps.Presence, deps.Clock, deps.Location = opts.Presence, opts.Clock, location
+	return deps, nil
 }
 
 func resolveLoader(cfg *config.Config, loader *skills.Loader) *skills.Loader {
@@ -254,11 +264,15 @@ func (f *RunnerFactory) newAgentRunner(ctx context.Context, req RunnerBuildReque
 	if err != nil {
 		return nil, err
 	}
+	persona, err := presence.LoadPersona(f.deps.Config.PersonaPath())
+	if err != nil {
+		return nil, err
+	}
 	runner, err := buildAgentRunner(ctx, f.deps, agentRunnerRequest{
 		RunID:       req.RunID,
 		ChatModel:   chatModel,
 		Catalog:     capabilities.catalog,
-		Instruction: buildAgentInstruction(f.deps.Config.Agent.SystemPrompt, contextResult.Messages),
+		Instruction: buildAgentInstruction(persona, contextResult.Messages),
 	})
 	if err != nil {
 		return nil, err
@@ -280,6 +294,8 @@ type RunnerFactoryOptions struct {
 	MCPPendingActionStore core.SessionStore
 	ArtifactService       core.ArtifactService
 	ToolRegistry          core.ToolRegistry
+	Presence              core.PresenceStore
+	Clock                 func() time.Time
 }
 
 // RunnerBuildRequest holds the parameters for building a new run.
@@ -312,16 +328,24 @@ func (f *RunnerFactory) buildRunPrerequisites(ctx context.Context, req RunnerBui
 	return chatModel, capabilityAssembly, nil
 }
 
-const capabilityDiscoveryInstruction = `Capability discovery rules:
-- Before answering a capability question or saying you cannot do something, inspect the skill catalog and currently loaded tools already present in context.
-- If a relevant skill may exist but the catalog summary is not enough, call skill_list or skill_view before answering.
-- If a relevant capability depends on deferred tools, call tool_search before concluding the capability is unavailable.
-- Prefer the matching skill and tool path over a generic limitation answer.`
+// operatingRules follow the owner's persona in every instruction. They cover
+// how to use the runtime's tools; the persona covers who the agent is.
+const operatingRules = `Operating rules:
+- The <presence> block at the end of your input is your working memory right now: the time, what woke you, your commitments, your thoughts, what the owner said, their tendencies and your concerns. Items are referenced by #id.
+- When the owner tells you something worth remembering, keep it with keep, in their own words. Note your own observations and open questions with think.
+- When something should happen later, make a commitment with schedule_wake. You will wake in this conversation with the task as input.
+- When you wake for a commitment, do the task, then settle it with done, or schedule a new wake if it is not finished.
+- Use settle to renew what still matters, to internalize a lasting preference (tendency) or concern (ruler), and to release what no longer matters.
+- Use recall to find past conversations and older memory before saying you do not know.
+- When the owner should know something now and may not be looking, use notify_owner. Keep the notification to a short summary; details stay in the conversation.
+- Before answering a capability question or saying you cannot do something, inspect the skill catalog and the tools you have. If a relevant skill may exist but the catalog summary is not enough, call skill_list or skill_view. If a capability depends on deferred tools (web_search, web_fetch, browser), call tool_search first.
+- Some tools pause for the owner's approval on their phone. Say what you are about to do before calling them.
+- Prefer available MCP tools over inventing capabilities, and never claim a tool succeeded when it did not run.`
 
 func buildStableInstruction(base string) string {
 	parts := []string{
 		strings.TrimSpace(base),
-		strings.TrimSpace(capabilityDiscoveryInstruction),
+		strings.TrimSpace(operatingRules),
 	}
 	out := make([]string, 0, len(parts))
 	for _, item := range parts {

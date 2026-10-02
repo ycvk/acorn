@@ -4,6 +4,7 @@ import (
 	"encoding/gob"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
@@ -47,4 +48,7 @@ type RuntimeDeps struct {
 	MCPPendingActions core.SessionStore
 	ArtifactService   core.ArtifactService
 	ToolRegistry      core.ToolRegistry
+	Presence          core.PresenceStore
+	Clock             func() time.Time
+	Location          *time.Location
 }

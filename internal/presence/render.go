@@ -19,7 +19,7 @@ type RenderInput struct {
 	// Items are the active and resting items plus woken commitments.
 	Items     []core.MemoryItem
 	MaxTokens int
-	Count     func(string) int
+	Count     func(string) (int, error)
 }
 
 const restingPreviewRunes = 60
@@ -30,20 +30,26 @@ const restingPreviewRunes = 60
 // MaxTokens it drops resting items, then the oldest said, thoughts, concerns
 // and tendencies, then the furthest upcoming commitments, and states how many
 // items were left out. Woken commitments are never dropped.
-func Render(in RenderInput) string {
+func Render(in RenderInput) (string, error) {
 	kept := append([]core.MemoryItem(nil), in.Items...)
 	sort.SliceStable(kept, func(i, j int) bool { return kept[i].ID < kept[j].ID })
 	dropOrder := dropCandidates(kept)
 	omitted := 0
 	out := renderBlock(in, kept, omitted)
-	for in.MaxTokens > 0 && in.Count(out) > in.MaxTokens && len(dropOrder) > 0 {
-		victim := dropOrder[0]
+	for in.MaxTokens > 0 && len(dropOrder) > 0 {
+		tokens, err := in.Count(out)
+		if err != nil {
+			return "", fmt.Errorf("count presence tokens: %w", err)
+		}
+		if tokens <= in.MaxTokens {
+			break
+		}
+		kept = removeItem(kept, dropOrder[0])
 		dropOrder = dropOrder[1:]
-		kept = removeItem(kept, victim)
 		omitted++
 		out = renderBlock(in, kept, omitted)
 	}
-	return out
+	return out, nil
 }
 
 // dropCandidates lists item IDs in the order they are dropped to fit the budget.

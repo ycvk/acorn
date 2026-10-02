@@ -27,8 +27,6 @@ agent:
   name: coordinator
   description: test
   max_iterations: 4
-  system_prompt: |
-    test
 tools:
   workspace:
     root_dir: .
@@ -75,8 +73,6 @@ agent:
   name: coordinator
   description: test
   max_iterations: 4
-  system_prompt: |
-    test
 tools:
   workspace:
     root_dir: .
@@ -124,8 +120,6 @@ agent:
   name: coordinator
   description: test
   max_iterations: 4
-  system_prompt: |
-    test
 tools:
   workspace:
     root_dir: .
@@ -173,8 +167,6 @@ agent:
   name: coordinator
   description: test
   max_iterations: 4
-  system_prompt: |
-    test
 tools:
   workspace:
     root_dir: .
@@ -222,8 +214,6 @@ agent:
   name: coordinator
   description: test
   max_iterations: 4
-  system_prompt: |
-    test
 tools:
   workspace:
     root_dir: .
@@ -271,8 +261,6 @@ agent:
   name: coordinator
   description: test
   max_iterations: 4
-  system_prompt: |
-    test
 tools:
   workspace:
     root_dir: .
@@ -320,8 +308,6 @@ agent:
   name: coordinator
   description: test
   max_iterations: 4
-  system_prompt: |
-    test
 tools:
   workspace:
     root_dir: .

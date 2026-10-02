@@ -37,7 +37,7 @@ func buildAgentRunner(ctx context.Context, deps RuntimeDeps, req agentRunnerRequ
 	if err != nil {
 		return nil, err
 	}
-	handlers, err := buildAgentHandlers(ctx, deps, req.ChatModel, deferred)
+	handlers, err := buildAgentHandlers(ctx, deps, req, deferred)
 	if err != nil {
 		return nil, err
 	}
@@ -87,7 +87,7 @@ func splitToolsByLoading(ctx context.Context, specs []core.ToolSpec, built []ein
 	return eager, deferred, nil
 }
 
-func buildAgentHandlers(ctx context.Context, deps RuntimeDeps, chatModel einomodel.BaseChatModel, deferred []einotool.BaseTool) ([]adk.ChatModelAgentMiddleware, error) {
+func buildAgentHandlers(ctx context.Context, deps RuntimeDeps, req agentRunnerRequest, deferred []einotool.BaseTool) ([]adk.ChatModelAgentMiddleware, error) {
 	counter, err := NewTokenCounter()
 	if err != nil {
 		return nil, fmt.Errorf("token counter: %w", err)
@@ -98,7 +98,7 @@ func buildAgentHandlers(ctx context.Context, deps RuntimeDeps, chatModel einomod
 		return nil, fmt.Errorf("patchtoolcalls middleware: %w", err)
 	}
 	summarize, err := summarization.New(ctx, &summarization.Config{
-		Model:   chatModel,
+		Model:   req.ChatModel,
 		Trigger: &summarization.TriggerCondition{ContextTokens: window - deps.Config.Context.CompactMarginTokens},
 		TokenCounter: func(ctx context.Context, in *summarization.TokenCounterInput) (int, error) {
 			return counter.CountMessages(ctx, in.Messages, in.Tools)
@@ -125,6 +125,10 @@ func buildAgentHandlers(ctx context.Context, deps RuntimeDeps, chatModel einomod
 	if err != nil {
 		return nil, err
 	}
+	present, err := newPresenceMiddleware(deps, counter, req.Instruction, req.RunID)
+	if err != nil {
+		return nil, err
+	}
 	handlers := []adk.ChatModelAgentMiddleware{patch, summarize, reduce}
 	if len(deferred) > 0 {
 		search, err := toolsearch.New(ctx, &toolsearch.Config{DynamicTools: deferred})
@@ -133,10 +137,11 @@ func buildAgentHandlers(ctx context.Context, deps RuntimeDeps, chatModel einomod
 		}
 		handlers = append(handlers, search)
 	}
-	// Earlier handlers wrap later ones. Approval sits outside the tool error
-	// handler so a failure to record an approval fails the run instead of
-	// reaching the model as an ordinary tool error.
-	handlers = append(handlers, approval, newToolErrorMiddleware())
+	// Earlier handlers wrap later ones. Presence follows summarization so the
+	// present is not counted toward compaction (presence.max_tokens bounds it).
+	// Approval sits outside the tool error handler so a failure to record an
+	// approval fails the run instead of reaching the model as a tool error.
+	handlers = append(handlers, present, approval, newToolErrorMiddleware())
 	return handlers, nil
 }
 

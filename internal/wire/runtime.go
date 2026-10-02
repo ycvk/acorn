@@ -77,6 +77,8 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 		MCPPendingActionStore: mcpPendingActionStore,
 		ArtifactService:       artifactSvc,
 		ToolRegistry:          toolRegistry,
+		Presence:              db,
+		Clock:                 time.Now,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("init runner factory: %w", err)

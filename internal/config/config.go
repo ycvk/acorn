@@ -124,7 +124,6 @@ type BrowserConfig struct {
 type AgentConfig struct {
 	Name          string `yaml:"name"`
 	Description   string `yaml:"description"`
-	SystemPrompt  string `yaml:"system_prompt"`
 	MaxIterations int    `yaml:"max_iterations"`
 }
 
