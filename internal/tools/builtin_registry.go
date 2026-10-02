@@ -15,7 +15,7 @@ import (
 // runtime spec resolver (tool.RuntimeToolSpec via BuiltinToolSpec) both derive
 // from it, so adding a built-in tool means editing this one place.
 //
-// Static local tools (artifact_*, ask_operator, search_runs, ...) are declared
+// Static local tools (artifact_*, ask_operator, keep, recall, ...) are declared
 // separately in localToolNames/configuredLocalSpec.
 var builtinToolOrder = []string{
 	"memory_search",
@@ -24,7 +24,6 @@ var builtinToolOrder = []string{
 	"memory_create_file",
 	"memory_replace_span",
 	"remember",
-	"search_runs",
 	"worldstate_update",
 	"worldstate_load",
 	"skill_list",
@@ -54,9 +53,6 @@ func builtinToolContract(name string) (core.ToolContract, bool) {
 	case "remember":
 		c.Kind = core.ToolKindMemory
 		c.Category = core.ToolCategoryMemory
-	case "search_runs":
-		c.Kind = core.ToolKindNative
-		c.Category = core.ToolCategoryInspect
 	case "worldstate_update":
 		c.Kind = core.ToolKindNative
 		c.Category = core.ToolCategoryMemory
@@ -101,7 +97,7 @@ type NativeToolDeps struct {
 	ArtifactContext   core.ToolCallContextBridge
 	OperatorStore     OperatorQuestionStore
 	OperatorContext   core.ToolCallContextBridge
-	RunSearchStore    RunSearchStore
+	Presence          PresenceToolDeps
 	WorldStateUpdater WorldStateUpdater
 }
 
@@ -118,6 +114,12 @@ func nativeToolFactory(name string, deps NativeToolDeps) (core.ToolFactory, erro
 		{"ArtifactContext", deps.ArtifactContext != nil},
 	}
 	worldStateDeps := []nativeToolDep{{"WorldStateUpdater", deps.WorldStateUpdater != nil}}
+	presenceDeps := []nativeToolDep{
+		{"Presence.Store", deps.Presence.Store != nil},
+		{"Presence.Context", deps.Presence.Context != nil},
+		{"Presence.Clock", deps.Presence.Clock != nil},
+		{"Presence.Location", deps.Presence.Location != nil},
+	}
 	var needs []nativeToolDep
 	var build func() (einotool.BaseTool, error)
 	switch name {
@@ -142,9 +144,25 @@ func nativeToolFactory(name string, deps NativeToolDeps) (core.ToolFactory, erro
 		build = func() (einotool.BaseTool, error) {
 			return buildAskOperatorTool(deps.OperatorStore, deps.OperatorContext)
 		}
-	case "search_runs":
-		needs = []nativeToolDep{{"RunSearchStore", deps.RunSearchStore != nil}}
-		build = func() (einotool.BaseTool, error) { return buildSearchRunsTool(deps.RunSearchStore) }
+	case "keep":
+		needs = presenceDeps
+		build = func() (einotool.BaseTool, error) {
+			return buildMemoryWriteTool("keep", "Keep something the owner said, in their own words, so it stays in your working memory.", core.MemorySaid, deps.Presence)
+		}
+	case "think":
+		needs = presenceDeps
+		build = func() (einotool.BaseTool, error) {
+			return buildMemoryWriteTool("think", "Note a thought of your own: something you noticed, suspect or want to follow up on.", core.MemoryThought, deps.Presence)
+		}
+	case "schedule_wake":
+		needs = presenceDeps
+		build = func() (einotool.BaseTool, error) { return buildScheduleWakeTool(deps.Presence) }
+	case "settle":
+		needs = presenceDeps
+		build = func() (einotool.BaseTool, error) { return buildSettleTool(deps.Presence) }
+	case "recall":
+		needs = presenceDeps
+		build = func() (einotool.BaseTool, error) { return buildRecallTool(deps.Presence) }
 	case "worldstate_update":
 		needs = worldStateDeps
 		build = func() (einotool.BaseTool, error) { return buildWorldStateUpdateTool(deps.WorldStateUpdater) }

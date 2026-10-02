@@ -71,9 +71,6 @@ func (unimplementedStore) CreateRun(context.Context, core.RunCreateParams) error
 func (unimplementedStore) LoadRun(context.Context, string) (*core.RunRecord, error) {
 	return nil, errUnexpectedClientStoreCall
 }
-func (unimplementedStore) SearchRuns(context.Context, string, int) ([]core.RunRecord, error) {
-	return nil, errUnexpectedClientStoreCall
-}
 func (unimplementedStore) FinishRun(context.Context, string, core.RunStatus, string, string) error {
 	return errUnexpectedClientStoreCall
 }

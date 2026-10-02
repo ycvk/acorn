@@ -40,8 +40,8 @@ func newToolApprovalRecord() core.PendingActionRecord {
 		ActionID:    "action_00000000000000a1",
 		RunID:       "run_1",
 		Kind:        core.PendingActionKindToolApproval,
-		Subject:     "Approve search_runs",
-		PayloadJSON: `{"message":"search_runs wants to run with arguments:\n{\"query\":\"x\"}","tool_name":"search_runs","arguments":"{\"query\":\"x\"}"}`,
+		Subject:     "Approve recall",
+		PayloadJSON: `{"message":"recall wants to run with arguments:\n{\"query\":\"x\"}","tool_name":"recall","arguments":"{\"query\":\"x\"}"}`,
 		Status:      core.PendingActionStatusPending,
 		CreatedAt:   time.Date(2026, 10, 2, 9, 0, 0, 0, time.UTC),
 	}
@@ -52,10 +52,10 @@ func TestToolApprovalSummaryOffersAcceptAndDecline(t *testing.T) {
 	if err != nil {
 		t.Fatalf("build summary: %v", err)
 	}
-	if summary.Kind != "tool_approval" || summary.Title != "Approve search_runs" || summary.ThreadID != "thread_1" {
+	if summary.Kind != "tool_approval" || summary.Title != "Approve recall" || summary.ThreadID != "thread_1" {
 		t.Fatalf("unexpected summary header: %+v", summary)
 	}
-	if summary.Body != "search_runs wants to run with arguments:\n{\"query\":\"x\"}" {
+	if summary.Body != "recall wants to run with arguments:\n{\"query\":\"x\"}" {
 		t.Fatalf("body = %q", summary.Body)
 	}
 	if len(summary.Options) != 2 || summary.Options[0].ID != "accept" || summary.Options[1].ID != "decline" {

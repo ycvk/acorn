@@ -64,11 +64,11 @@ func TestProjectStreamingAssistantEmitsDeltasThenMessage(t *testing.T) {
 }
 
 func TestProjectToolResultInterruptAndError(t *testing.T) {
-	toolMsg := schema.ToolMessage("result", "call_1", schema.WithToolName("search_runs"))
+	toolMsg := schema.ToolMessage("result", "call_1", schema.WithToolName("recall"))
 	interrupted := &adk.AgentEvent{Action: &adk.AgentAction{Interrupted: &adk.InterruptInfo{}}}
 	failed := &adk.AgentEvent{Err: errors.New("boom")}
 	items := collectProjected(t, &agentEventProjector{messagePrefix: "run_x:assistant:7"},
-		adk.EventFromMessage(toolMsg, nil, schema.Tool, "search_runs"),
+		adk.EventFromMessage(toolMsg, nil, schema.Tool, "recall"),
 		interrupted,
 		failed,
 	)
@@ -79,7 +79,7 @@ func TestProjectToolResultInterruptAndError(t *testing.T) {
 		t.Fatalf("first kind = %s", items[0].Kind)
 	}
 	payload := items[0].Payload
-	if payload["tool_call_id"] != "call_1" || payload["tool_name"] != "search_runs" || payload["output"] != "result" {
+	if payload["tool_call_id"] != "call_1" || payload["tool_name"] != "recall" || payload["output"] != "result" {
 		t.Fatalf("tool payload = %v", payload)
 	}
 	if items[1].Kind != core.StreamKindRunInterrupted || items[2].Kind != core.StreamKindRunFailed {

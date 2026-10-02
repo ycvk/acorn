@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"time"
 
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
@@ -48,13 +49,22 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 	}
 
 	ctxBridge := runtime.NewContextBridge()
+	ownerLoc, err := cfg.OwnerLocation()
+	if err != nil {
+		return nil, err
+	}
 	toolRegistry := tools.NewToolRegistry()
 	if err := tools.RegisterNativeTools(toolRegistry, tools.NativeToolDeps{
-		ArtifactService:   artifactSvc,
-		ArtifactContext:   ctxBridge,
-		OperatorStore:     mcpPendingActionStore,
-		OperatorContext:   ctxBridge,
-		RunSearchStore:    db,
+		ArtifactService: artifactSvc,
+		ArtifactContext: ctxBridge,
+		OperatorStore:   mcpPendingActionStore,
+		OperatorContext: ctxBridge,
+		Presence: tools.PresenceToolDeps{
+			Store:    db,
+			Context:  ctxBridge,
+			Clock:    time.Now,
+			Location: ownerLoc,
+		},
 		WorldStateUpdater: &worldStateAdapter{ws: worldState},
 	}); err != nil {
 		return nil, fmt.Errorf("register native tools: %w", err)

@@ -83,10 +83,10 @@ func sseChunks(chunks ...string) string {
 }
 
 const (
-	searchRunsCallStream = `{"id":"c1","object":"chat.completion.chunk","created":1,"model":"fake","choices":[{"index":0,"delta":{"role":"assistant","tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"search_runs","arguments":"{\"query\":\"probe\"}"}}]},"finish_reason":null}]}`
-	toolCallsFinish      = `{"id":"c1","object":"chat.completion.chunk","created":1,"model":"fake","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}`
-	doneContent          = `{"id":"c2","object":"chat.completion.chunk","created":2,"model":"fake","choices":[{"index":0,"delta":{"role":"assistant","content":"done"},"finish_reason":null}]}`
-	stopFinish           = `{"id":"c2","object":"chat.completion.chunk","created":2,"model":"fake","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}`
+	recallCallStream = `{"id":"c1","object":"chat.completion.chunk","created":1,"model":"fake","choices":[{"index":0,"delta":{"role":"assistant","tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"recall","arguments":"{\"query\":\"probe\"}"}}]},"finish_reason":null}]}`
+	toolCallsFinish  = `{"id":"c1","object":"chat.completion.chunk","created":1,"model":"fake","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}`
+	doneContent      = `{"id":"c2","object":"chat.completion.chunk","created":2,"model":"fake","choices":[{"index":0,"delta":{"role":"assistant","content":"done"},"finish_reason":null}]}`
+	stopFinish       = `{"id":"c2","object":"chat.completion.chunk","created":2,"model":"fake","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}`
 )
 
 func writeApprovalTestConfig(t *testing.T, providerURL string) *config.Config {
@@ -106,7 +106,7 @@ providers:
     enabled: true
 approval:
   require:
-    - search_runs
+    - recall
 tools:
   workspace:
     root_dir: %s
@@ -241,11 +241,11 @@ func TestApprovalSurvivesRestart(t *testing.T) {
 		wantExecuted bool
 	}{
 		{decision: "accept", wantExecuted: true},
-		{decision: "decline", wantToolText: "The owner declined this search_runs call"},
+		{decision: "decline", wantToolText: "The owner declined this recall call"},
 	} {
 		t.Run(tc.decision, func(t *testing.T) {
 			provider := &fakeOpenAI{replies: []string{
-				sseChunks(searchRunsCallStream, toolCallsFinish),
+				sseChunks(recallCallStream, toolCallsFinish),
 				sseChunks(doneContent, stopFinish),
 			}}
 			server := httptest.NewServer(provider)
@@ -301,7 +301,7 @@ func TestDecidedRunResumesFromSweepAndShowsRunning(t *testing.T) {
 	release := func() { releaseOnce.Do(func() { close(gate) }) }
 	provider := &fakeOpenAI{
 		replies: []string{
-			sseChunks(searchRunsCallStream, toolCallsFinish),
+			sseChunks(recallCallStream, toolCallsFinish),
 			sseChunks(doneContent, stopFinish),
 		},
 		gates: map[int]chan struct{}{1: gate},

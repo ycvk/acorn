@@ -12,12 +12,6 @@ import (
 	corestore "github.com/ycvk/acorn/internal/store"
 )
 
-type stubRunSearchStore struct{}
-
-func (stubRunSearchStore) SearchRuns(context.Context, string, int) ([]core.RunRecord, error) {
-	return nil, nil
-}
-
 type stubOperatorStore struct{}
 
 func (stubOperatorStore) CreatePendingAction(context.Context, core.PendingActionInput) (*core.PendingActionRecord, error) {
@@ -28,7 +22,7 @@ func (stubOperatorStore) AppendEvent(context.Context, string, string, any) (core
 	return core.EventRecord{}, nil
 }
 
-var eagerNativeToolNames = []string{"artifact_list", "artifact_read", "artifact_write", "ask_operator", "search_runs", "worldstate_load", "worldstate_update"}
+var eagerNativeToolNames = []string{"artifact_list", "artifact_read", "artifact_write", "ask_operator", "keep", "recall", "schedule_wake", "settle", "think", "worldstate_load", "worldstate_update"}
 
 func testNativeToolDeps(t *testing.T) NativeToolDeps {
 	t.Helper()
@@ -42,7 +36,7 @@ func testNativeToolDeps(t *testing.T) NativeToolDeps {
 		ArtifactContext:   bridge,
 		OperatorStore:     stubOperatorStore{},
 		OperatorContext:   bridge,
-		RunSearchStore:    stubRunSearchStore{},
+		Presence:          testPresenceDeps(newFakePresenceStore(), bridge),
 		WorldStateUpdater: newStubWorldStateUpdater(),
 	}
 }
@@ -70,7 +64,6 @@ func TestRegisterNativeToolsRegistersEagerLocalTools(t *testing.T) {
 		}
 	}
 	for name, want := range map[string]core.ToolCategory{
-		"search_runs":       core.ToolCategoryInspect,
 		"worldstate_load":   core.ToolCategoryInspect,
 		"worldstate_update": core.ToolCategoryMemory,
 	} {
@@ -113,7 +106,8 @@ func TestRegisterNativeToolsFailsOnMissingDependency(t *testing.T) {
 		{"ArtifactContext", "artifact_write", func(d *NativeToolDeps) { d.ArtifactContext = nil }},
 		{"OperatorStore", "ask_operator", func(d *NativeToolDeps) { d.OperatorStore = nil }},
 		{"OperatorContext", "ask_operator", func(d *NativeToolDeps) { d.OperatorContext = nil }},
-		{"RunSearchStore", "search_runs", func(d *NativeToolDeps) { d.RunSearchStore = nil }},
+		{"Presence.Store", "keep", func(d *NativeToolDeps) { d.Presence.Store = nil }},
+		{"Presence.Location", "keep", func(d *NativeToolDeps) { d.Presence.Location = nil }},
 		{"WorldStateUpdater", "worldstate_update", func(d *NativeToolDeps) { d.WorldStateUpdater = nil }},
 	}
 	for _, tc := range cases {
@@ -144,13 +138,13 @@ func TestRegisterNativeToolsNilRegistry(t *testing.T) {
 // returning (nil, nil) surfaces as an error from both resolve paths.
 func TestRegistryResolveFailsWhenFactoryReturnsNoTool(t *testing.T) {
 	reg := NewToolRegistry()
-	spec := configuredLocalSpec("search_runs")
+	spec := configuredLocalSpec("recall")
 	spec.Factory = func(context.Context, core.RunContext) (einotool.BaseTool, error) { return nil, nil }
 	if err := reg.Register(spec); err != nil {
 		t.Fatalf("Register: %v", err)
 	}
 	ctx := context.Background()
-	if _, err := reg.Resolve(ctx, core.RunContext{}, []string{"search_runs"}); err == nil || !strings.Contains(err.Error(), "returned no tool") {
+	if _, err := reg.Resolve(ctx, core.RunContext{}, []string{"recall"}); err == nil || !strings.Contains(err.Error(), "returned no tool") {
 		t.Fatalf("Resolve error = %v, want returned no tool", err)
 	}
 	if _, err := reg.ResolveEnabledSpecs(ctx, core.RunContext{}); err == nil || !strings.Contains(err.Error(), "returned no tool") {

@@ -73,7 +73,7 @@ func TestClientResourceSurfaceHandlers(t *testing.T) {
 		},
 		Features: SystemFeatureCapabilities{SessionHistory: true},
 		Tools: []SystemToolCapability{{
-			Name:        "search_runs",
+			Name:        "recall",
 			Source:      "local",
 			Kind:        "native",
 			Category:    "inspect",
@@ -303,7 +303,7 @@ func TestClientResourceSurfaceHandlers(t *testing.T) {
 		{name: "inbox", method: http.MethodGet, path: "/v1/inbox", wantStatus: http.StatusOK, want: `"pending_actions":[{"action_id":"action_1"`},
 		{name: "pending actions", method: http.MethodGet, path: "/v1/pending-actions", wantStatus: http.StatusOK, want: `"items":[{"action_id":"action_1"`},
 		{name: "system status", method: http.MethodGet, path: "/v1/system/status?probe_mcp=1", wantStatus: http.StatusOK, want: `"runtime_readiness":{"status":"ready"}`},
-		{name: "tools", method: http.MethodGet, path: "/v1/tools", wantStatus: http.StatusOK, want: "search_runs"},
+		{name: "tools", method: http.MethodGet, path: "/v1/tools", wantStatus: http.StatusOK, want: "recall"},
 		{name: "skills", method: http.MethodGet, path: "/v1/skills", wantStatus: http.StatusOK, want: "skill.inspect"},
 		{name: "skill create removed", method: http.MethodPost, path: "/v1/skills", body: `{"id":"skill.inspect","name":"Inspect","instruction":"Use repo inspection."}`, wantStatus: http.StatusMethodNotAllowed},
 		{name: "skill detail", method: http.MethodGet, path: "/v1/skills/skill.inspect", wantStatus: http.StatusOK, want: "Inspect"},
