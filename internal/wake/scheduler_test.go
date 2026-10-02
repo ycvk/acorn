@@ -263,3 +263,16 @@ func TestNewSchedulerRequiresDependencies(t *testing.T) {
 		t.Fatal("empty config must fail")
 	}
 }
+
+type countingFlusher struct{ calls int }
+
+func (f *countingFlusher) FlushDue(context.Context) error { f.calls++; return nil }
+
+func TestTickFlushesQueuedNotifications(t *testing.T) {
+	h := newHarness(t, 20)
+	flusher := &countingFlusher{}
+	h.sched.WithNotifications(flusher)
+	if err := h.sched.Tick(context.Background()); err != nil || flusher.calls != 1 {
+		t.Fatalf("flush calls = %d err=%v", flusher.calls, err)
+	}
+}

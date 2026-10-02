@@ -96,6 +96,29 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /v1/devices/self/push-token:
+    put:
+      tags: [devices]
+      summary: Register this device's FCM token for push notifications
+      operationId: clientSetPushToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PushTokenRequest'
+      responses:
+        '204':
+          description: Push token stored
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/DeviceRevoked'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
   /v1/threads:
     get:
       tags: [client]
@@ -2044,6 +2067,15 @@ components:
           type: string
         answer:
           type: string
+
+    PushTokenRequest:
+      type: object
+      additionalProperties: false
+      required: [token]
+      properties:
+        token:
+          type: string
+          minLength: 1
 
     ToolApprovalData:
       type: object

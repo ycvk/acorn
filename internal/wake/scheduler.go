@@ -42,7 +42,8 @@ const retryDelay = 5 * time.Minute
 // Scheduler keeps commitments. Tick is safe to call from several processes
 // sharing one database: claiming a commitment is a conditional update.
 type Scheduler struct {
-	cfg Config
+	cfg           Config
+	notifications NotificationFlusher
 
 	mu     sync.Mutex
 	warned map[int64]string // commitment id -> local day already warned about the limit
@@ -68,6 +69,18 @@ func NewScheduler(cfg Config) (*Scheduler, error) {
 	return &Scheduler{cfg: cfg, warned: map[int64]string{}}, nil
 }
 
+// NotificationFlusher sends queued notifications whose time has come.
+type NotificationFlusher interface {
+	FlushDue(ctx context.Context) error
+}
+
+// WithNotifications makes each tick also send notifications held back by
+// quiet hours. Without push notifications nothing is ever queued.
+func (s *Scheduler) WithNotifications(flusher NotificationFlusher) *Scheduler {
+	s.notifications = flusher
+	return s
+}
+
 // Run ticks immediately, then every interval until ctx ends. Tick errors are
 // logged; the next tick tries again.
 func (s *Scheduler) Run(ctx context.Context) {
@@ -85,7 +98,8 @@ func (s *Scheduler) Run(ctx context.Context) {
 	}
 }
 
-// Tick applies decay, then wakes every due commitment within the daily limit.
+// Tick applies decay, wakes every due commitment within the daily limit, then
+// sends notifications whose quiet hours ended.
 // Errors are joined; one failing commitment does not stop the others.
 func (s *Scheduler) Tick(ctx context.Context) error {
 	now := s.cfg.Clock()
@@ -100,6 +114,11 @@ func (s *Scheduler) Tick(ctx context.Context) error {
 	for _, item := range due {
 		if err := s.wake(ctx, item, now); err != nil {
 			errs = append(errs, fmt.Errorf("commitment #%d: %w", item.ID, err))
+		}
+	}
+	if s.notifications != nil {
+		if err := s.notifications.FlushDue(ctx); err != nil {
+			errs = append(errs, fmt.Errorf("flush notifications: %w", err))
 		}
 	}
 	return errors.Join(errs...)

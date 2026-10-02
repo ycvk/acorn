@@ -225,7 +225,7 @@ func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *contai
 	container.pendingAction = api.NewPendingActionService(db).WithResumer(container.runResume)
 
 	container.capabilities = api.NewCapabilitiesService(cfg, container.skills.Snapshot, mcpprovider.Doctor, deps.runnerFactory)
-	container.deviceAuth = api.NewDeviceAuthService(db)
+	container.deviceAuth = api.NewDeviceAuthService(db).WithPushTokens(db)
 	container.inbox = api.NewInboxService(db, container.capabilities)
 
 	location, err := cfg.OwnerLocation()
@@ -241,6 +241,9 @@ func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *contai
 		DailyLimit: cfg.Wake.DailyLimit,
 		Interval:   wakeInterval,
 	})
+	if err == nil && deps.notifier != nil {
+		container.wake = container.wake.WithNotifications(deps.notifier)
+	}
 	if err != nil {
 		return nil, err
 	}

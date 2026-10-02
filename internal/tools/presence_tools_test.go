@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -265,5 +266,47 @@ func TestRecallFormatsHitsInOwnerTime(t *testing.T) {
 	}
 	if !strings.Contains(out, `"run_id":"run_9"`) || !strings.Contains(out, "2026-10-02 Fri 12:00") {
 		t.Fatalf("recall output = %s", out)
+	}
+}
+
+type fakeNotifier struct {
+	got    []core.Notification
+	status core.NotificationStatus
+	err    error
+}
+
+func (f *fakeNotifier) Notify(_ context.Context, n core.Notification) (core.Notification, error) {
+	f.got = append(f.got, n)
+	if f.err != nil {
+		return core.Notification{}, f.err
+	}
+	n.Status = f.status
+	n.SendAfter = presenceTestNow.Add(10 * time.Hour)
+	return n, nil
+}
+
+func TestNotifyOwnerAttributesConversationAndReportsQueue(t *testing.T) {
+	loc, _ := time.LoadLocation("Asia/Shanghai")
+	notifier := &fakeNotifier{status: core.NotificationQueued}
+	tool, err := buildNotifyOwnerTool(NotifyToolDeps{Notifier: notifier, Context: fixedArtifactContext{runID: "run_1", sessionID: "thread_1"}, Location: loc})
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := runPresenceTool(t, tool, `{"title":"提醒","body":"该看 X 了"}`)
+	if err != nil {
+		t.Fatalf("notify_owner: %v", err)
+	}
+	if !strings.Contains(out, `"status":"queued"`) || !strings.Contains(out, "2026-10-02 Fri 22:00") {
+		t.Fatalf("output = %s", out)
+	}
+	if got := notifier.got[0]; got.ThreadID != "thread_1" || got.RunID != "run_1" || got.Title != "提醒" {
+		t.Fatalf("notification = %+v", got)
+	}
+	notifier.err = errors.New("no device has registered for push notifications")
+	if _, err := runPresenceTool(t, tool, `{"title":"a","body":"b"}`); err == nil || !strings.Contains(err.Error(), "no device") {
+		t.Fatalf("notifier error must surface: %v", err)
+	}
+	if _, err := runPresenceTool(t, tool, `{"title":"","body":"b"}`); err == nil {
+		t.Fatal("empty title must fail")
 	}
 }

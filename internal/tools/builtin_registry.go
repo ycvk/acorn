@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	einotool "github.com/cloudwego/eino/components/tool"
@@ -98,6 +99,7 @@ type NativeToolDeps struct {
 	OperatorStore     OperatorQuestionStore
 	OperatorContext   core.ToolCallContextBridge
 	Presence          PresenceToolDeps
+	Notify            NotifyToolDeps
 	WorldStateUpdater WorldStateUpdater
 }
 
@@ -163,6 +165,13 @@ func nativeToolFactory(name string, deps NativeToolDeps) (core.ToolFactory, erro
 	case "recall":
 		needs = presenceDeps
 		build = func() (einotool.BaseTool, error) { return buildRecallTool(deps.Presence) }
+	case "notify_owner":
+		needs = []nativeToolDep{
+			{"Notify.Notifier", deps.Notify.Notifier != nil},
+			{"Notify.Context", deps.Notify.Context != nil},
+			{"Notify.Location", deps.Notify.Location != nil},
+		}
+		build = func() (einotool.BaseTool, error) { return buildNotifyOwnerTool(deps.Notify) }
 	case "worldstate_update":
 		needs = worldStateDeps
 		build = func() (einotool.BaseTool, error) { return buildWorldStateUpdateTool(deps.WorldStateUpdater) }
@@ -197,6 +206,16 @@ func RegisterNativeTools(registry core.ToolRegistry, deps NativeToolDeps) error 
 	for _, name := range localToolNames {
 		spec := configuredLocalSpec(name)
 		if spec.Loading.Mode == core.ToolLoadingModeDeferred {
+			continue
+		}
+		if name == "notify_owner" && deps.Notify.Notifier == nil {
+			if deps.Notify.DisabledReason == "" {
+				return errors.New("RegisterNativeTools: notify_owner needs NativeToolDeps.Notify.Notifier or a DisabledReason")
+			}
+			spec.Health = core.ToolHealth{State: core.HealthStateDisabled, Reason: deps.Notify.DisabledReason}
+			if err := registry.Register(spec); err != nil {
+				return fmt.Errorf("RegisterNativeTools: register %q: %w", name, err)
+			}
 			continue
 		}
 		factory, err := nativeToolFactory(name, deps)

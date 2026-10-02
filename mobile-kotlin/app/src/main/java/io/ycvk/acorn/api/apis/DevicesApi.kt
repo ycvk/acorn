@@ -31,6 +31,7 @@ import io.ycvk.acorn.api.models.DeviceListResponse
 import io.ycvk.acorn.api.models.ErrorResponse
 import io.ycvk.acorn.api.models.PairDeviceRequest
 import io.ycvk.acorn.api.models.PairDeviceResponse
+import io.ycvk.acorn.api.models.PushTokenRequest
 
 import com.squareup.moshi.Json
 
@@ -264,6 +265,78 @@ open class DevicesApi(basePath: kotlin.String = defaultBasePath, client: Call.Fa
         return RequestConfig(
             method = RequestMethod.DELETE,
             path = "/v1/devices/{device_id}".replace("{"+"device_id"+"}", encodeURIComponent(deviceId.toString())),
+            query = localVariableQuery,
+            headers = localVariableHeaders,
+            requiresAuthentication = true,
+            body = localVariableBody
+        )
+    }
+
+    /**
+     * PUT /v1/devices/self/push-token
+     * Register this device&#39;s FCM token for push notifications
+     * 
+     * @param pushTokenRequest 
+     * @return void
+     * @throws IllegalStateException If the request is not correctly configured
+     * @throws IOException Rethrows the OkHttp execute method exception
+     * @throws UnsupportedOperationException If the API returns an informational or redirection response
+     * @throws ClientException If the API returns a client error response
+     * @throws ServerException If the API returns a server error response
+     */
+    @Throws(IllegalStateException::class, IOException::class, UnsupportedOperationException::class, ClientException::class, ServerException::class)
+    fun clientSetPushToken(pushTokenRequest: PushTokenRequest) : Unit {
+        val localVarResponse = clientSetPushTokenWithHttpInfo(pushTokenRequest = pushTokenRequest)
+
+        return when (localVarResponse.responseType) {
+            ResponseType.Success -> Unit
+            ResponseType.Informational -> throw UnsupportedOperationException("Client does not support Informational responses.")
+            ResponseType.Redirection -> throw UnsupportedOperationException("Client does not support Redirection responses.")
+            ResponseType.ClientError -> {
+                val localVarError = localVarResponse as ClientError<*>
+                throw ClientException("Client error : ${localVarError.statusCode} ${localVarError.message.orEmpty()}", localVarError.statusCode, localVarResponse)
+            }
+            ResponseType.ServerError -> {
+                val localVarError = localVarResponse as ServerError<*>
+                throw ServerException("Server error : ${localVarError.statusCode} ${localVarError.message.orEmpty()} ${localVarError.body}", localVarError.statusCode, localVarResponse)
+            }
+        }
+    }
+
+    /**
+     * PUT /v1/devices/self/push-token
+     * Register this device&#39;s FCM token for push notifications
+     * 
+     * @param pushTokenRequest 
+     * @return ApiResponse<Unit?>
+     * @throws IllegalStateException If the request is not correctly configured
+     * @throws IOException Rethrows the OkHttp execute method exception
+     */
+    @Throws(IllegalStateException::class, IOException::class)
+    fun clientSetPushTokenWithHttpInfo(pushTokenRequest: PushTokenRequest) : ApiResponse<Unit?> {
+        val localVariableConfig = clientSetPushTokenRequestConfig(pushTokenRequest = pushTokenRequest)
+
+        return request<PushTokenRequest, Unit>(
+            localVariableConfig
+        )
+    }
+
+    /**
+     * To obtain the request config of the operation clientSetPushToken
+     *
+     * @param pushTokenRequest 
+     * @return RequestConfig
+     */
+    fun clientSetPushTokenRequestConfig(pushTokenRequest: PushTokenRequest) : RequestConfig<PushTokenRequest> {
+        val localVariableBody = pushTokenRequest
+        val localVariableQuery: MultiValueMap = mutableMapOf()
+        val localVariableHeaders: MutableMap<String, String> = mutableMapOf()
+        localVariableHeaders["Content-Type"] = "application/json"
+        localVariableHeaders["Accept"] = "application/json"
+
+        return RequestConfig(
+            method = RequestMethod.PUT,
+            path = "/v1/devices/self/push-token",
             query = localVariableQuery,
             headers = localVariableHeaders,
             requiresAuthentication = true,

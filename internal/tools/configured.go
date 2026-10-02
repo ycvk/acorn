@@ -19,6 +19,7 @@ var localToolNames = []string{
 	"schedule_wake",
 	"settle",
 	"recall",
+	"notify_owner",
 	"worldstate_update",
 	"worldstate_load",
 	"web_fetch",
@@ -61,7 +62,7 @@ func configuredLocalSpec(name string) core.ToolSpec {
 	case "artifact_write":
 		spec.Kind = core.ToolKindNative
 		spec.Category = core.ToolCategoryWrite
-	case "ask_operator":
+	case "ask_operator", "notify_owner":
 		spec.Kind = core.ToolKindNative
 		spec.Category = core.ToolCategoryIntegration
 	case "worldstate_update", "keep", "think", "schedule_wake", "settle":

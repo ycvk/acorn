@@ -9,6 +9,7 @@ import (
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/memory"
+	"github.com/ycvk/acorn/internal/notify"
 	"github.com/ycvk/acorn/internal/runtime"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/store"
@@ -25,6 +26,38 @@ type containerRuntimeDeps struct {
 	runController         *runtime.RunController
 	executeRun            func(context.Context, core.ExecuteRequest, core.StreamSink) (*runtime.Result, error)
 	resumeRun             func(context.Context, string, map[string]any, core.StreamSink) (*runtime.Result, error)
+	// notifier is nil when push notifications are not configured.
+	notifier *notify.Sender
+}
+
+// buildNotifier returns the push sender, or nil and the reason push is off.
+func buildNotifier(cfg *config.Config, db *store.Store, loc *time.Location) (*notify.Sender, string, error) {
+	file := cfg.Notify.FCM.ServiceAccountFile
+	if file == "" {
+		return nil, "notify.fcm.service_account_file is not configured", nil
+	}
+	account, err := config.LoadFCMServiceAccount(file)
+	if err != nil {
+		return nil, "", err
+	}
+	client, err := notify.NewFCMClient(notify.ServiceAccount(account))
+	if err != nil {
+		return nil, "", err
+	}
+	var quiet notify.QuietHours
+	if cfg.Notify.QuietHours.Start != "" {
+		if quiet.Start, err = config.ParseClock(cfg.Notify.QuietHours.Start); err != nil {
+			return nil, "", err
+		}
+		if quiet.End, err = config.ParseClock(cfg.Notify.QuietHours.End); err != nil {
+			return nil, "", err
+		}
+	}
+	sender, err := notify.NewSender(notify.SenderConfig{
+		Store: db, Pusher: client, Clock: time.Now, Location: loc,
+		MaxPerHour: cfg.Notify.MaxPerHour, Quiet: quiet,
+	})
+	return sender, "", err
 }
 
 func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *store.Store, worldState *memory.WorldState) (*containerRuntimeDeps, error) {
@@ -53,6 +86,14 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 	if err != nil {
 		return nil, err
 	}
+	notifier, notifyDisabled, err := buildNotifier(cfg, db, ownerLoc)
+	if err != nil {
+		return nil, fmt.Errorf("push notifications: %w", err)
+	}
+	notifyDeps := tools.NotifyToolDeps{Context: ctxBridge, Location: ownerLoc, DisabledReason: notifyDisabled}
+	if notifier != nil {
+		notifyDeps.Notifier = notifier
+	}
 	toolRegistry := tools.NewToolRegistry()
 	if err := tools.RegisterNativeTools(toolRegistry, tools.NativeToolDeps{
 		ArtifactService: artifactSvc,
@@ -65,6 +106,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 			Clock:    time.Now,
 			Location: ownerLoc,
 		},
+		Notify:            notifyDeps,
 		WorldStateUpdater: &worldStateAdapter{ws: worldState},
 	}); err != nil {
 		return nil, fmt.Errorf("register native tools: %w", err)
@@ -112,5 +154,6 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 		runController:         runController,
 		executeRun:            executeRun,
 		resumeRun:             resumeRun,
+		notifier:              notifier,
 	}, nil
 }

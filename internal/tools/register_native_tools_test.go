@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	einotool "github.com/cloudwego/eino/components/tool"
 
@@ -22,7 +23,7 @@ func (stubOperatorStore) AppendEvent(context.Context, string, string, any) (core
 	return core.EventRecord{}, nil
 }
 
-var eagerNativeToolNames = []string{"artifact_list", "artifact_read", "artifact_write", "ask_operator", "keep", "recall", "schedule_wake", "settle", "think", "worldstate_load", "worldstate_update"}
+var eagerNativeToolNames = []string{"artifact_list", "artifact_read", "artifact_write", "ask_operator", "keep", "notify_owner", "recall", "schedule_wake", "settle", "think", "worldstate_load", "worldstate_update"}
 
 func testNativeToolDeps(t *testing.T) NativeToolDeps {
 	t.Helper()
@@ -37,6 +38,7 @@ func testNativeToolDeps(t *testing.T) NativeToolDeps {
 		OperatorStore:     stubOperatorStore{},
 		OperatorContext:   bridge,
 		Presence:          testPresenceDeps(newFakePresenceStore(), bridge),
+		Notify:            NotifyToolDeps{Notifier: &fakeNotifier{}, Context: bridge, Location: time.UTC},
 		WorldStateUpdater: newStubWorldStateUpdater(),
 	}
 }
@@ -155,3 +157,25 @@ func TestRegistryResolveFailsWhenFactoryReturnsNoTool(t *testing.T) {
 // Compile-time assertion that the registry returned by NewToolRegistry is
 // usable as a core.ToolRegistry.
 var _ core.ToolRegistry = (*toolRegistry)(nil)
+
+func TestRegisterNativeToolsDisablesNotifyOwnerWithReason(t *testing.T) {
+	deps := testNativeToolDeps(t)
+	deps.Notify = NotifyToolDeps{DisabledReason: "notify.fcm.service_account_file is not configured"}
+	reg := NewToolRegistry()
+	if err := RegisterNativeTools(reg, deps); err != nil {
+		t.Fatalf("RegisterNativeTools: %v", err)
+	}
+	spec, ok := reg.Find("notify_owner")
+	if !ok || spec.Enabled() || spec.Health.Reason != deps.Notify.DisabledReason {
+		t.Fatalf("notify_owner spec = %+v", spec)
+	}
+	for _, enabled := range reg.EnabledSpecs() {
+		if enabled.Name == "notify_owner" {
+			t.Fatal("disabled notify_owner must not reach the model")
+		}
+	}
+	deps.Notify.DisabledReason = ""
+	if err := RegisterNativeTools(NewToolRegistry(), deps); err == nil || !strings.Contains(err.Error(), "notify_owner") {
+		t.Fatalf("missing notifier without reason: %v", err)
+	}
+}
