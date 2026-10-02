@@ -131,12 +131,11 @@ func (e *Executor) createBoundRun(ctx context.Context, runID string, req core.Ex
 
 func (e *Executor) buildExecuteRunner(runCtxBase context.Context, req core.ExecuteRequest, runID string, sink core.StreamSink) (*ActiveRunner, error) {
 	return e.runRuntime.New(runCtxBase, RunnerBuildRequest{
-		SessionID:        req.SessionID,
-		RunID:            runID,
-		Input:            req.Input,
-		SkillID:          req.SkillID,
-		AllowedToolNames: append([]string(nil), req.AllowedToolNames...),
-		Sink:             sink,
+		SessionID: req.SessionID,
+		RunID:     runID,
+		Input:     req.Input,
+		SkillID:   req.SkillID,
+		Sink:      sink,
 	})
 }
 
@@ -146,12 +145,9 @@ func (e *Executor) newManagedRunContext(ctx context.Context, runID string) (cont
 		runTimeout = 15 * time.Minute
 	}
 	runCtxBase, cancel := context.WithTimeout(ctx, runTimeout)
-	if e.controller == nil {
-		return runCtxBase, cancel
-	}
-	e.controller.Register(runID, cancel)
+	unregister := e.controller.Register(runID, cancel)
 	return runCtxBase, func() {
-		e.controller.Clear(runID)
+		unregister()
 		cancel()
 	}
 }

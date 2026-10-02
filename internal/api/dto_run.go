@@ -156,7 +156,6 @@ type MessagePartDTO struct {
 	SelectedOptionID string              `json:"selected_option_id,omitempty"`
 	Answer           string              `json:"answer,omitempty"`
 	Options          []DecisionOptionDTO `json:"options,omitempty"`
-	Action           *MessageActionDTO   `json:"action,omitempty"`
 }
 
 // DisclosureItemDTO represents a single disclosure item inside a result part.
@@ -173,13 +172,6 @@ type DecisionOptionDTO struct {
 	ID          string `json:"id"`
 	Label       string `json:"label"`
 	Description string `json:"description,omitempty"`
-}
-
-// MessageActionDTO represents an action attached to a message part.
-type MessageActionDTO struct {
-	Kind  string `json:"kind"`
-	RunID string `json:"run_id"`
-	Label string `json:"label"`
 }
 
 func nonNilStrings(values []string) []string {
@@ -232,7 +224,6 @@ func messagePartDTOsFromDomain(parts []MessagePart) []MessagePartDTO {
 			SelectedOptionID: part.SelectedOptionID,
 			Answer:           part.Answer,
 			Options:          DefaultConverter.decisionOptionDTOsFromDomain(part.Options),
-			Action:           messageActionDTOFromDomain(part.Action),
 		}
 		if part.Kind == "result" {
 			item.Changed = nonNilStrings(item.Changed)
@@ -242,17 +233,6 @@ func messagePartDTOsFromDomain(parts []MessagePart) []MessagePartDTO {
 		items = append(items, item)
 	}
 	return items
-}
-
-func messageActionDTOFromDomain(action *MessageAction) *MessageActionDTO {
-	if action == nil {
-		return nil
-	}
-	return &MessageActionDTO{
-		Kind:  action.Kind,
-		RunID: action.RunID,
-		Label: action.Label,
-	}
 }
 
 func messageDTOsFromDomain(items []Message) []MessageDTO {

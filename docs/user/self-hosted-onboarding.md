@@ -6,7 +6,7 @@ last_reviewed: 2026-06-21
 
 # Self-hosted Onboarding
 
-Acorn's primary product path is a single-user self-hosted backend with authenticated mobile clients. The backend owns runtime truth: threads, runs, events, pending approvals, memory, skills, and workspace mutation state.
+Acorn's primary product path is a single-user self-hosted backend with authenticated mobile clients. The backend owns runtime truth: threads, runs, events, pending approvals, memory, and skills.
 
 This path installs Acorn as a Linux binary managed by `systemd`. It does not create a hosted account, public unauthenticated API, multi-user boundary, Docker service, or packaged execution sandbox.
 

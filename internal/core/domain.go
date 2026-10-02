@@ -149,12 +149,11 @@ type OperatorQuestionDecision struct {
 // --- ExecuteRequest ---
 
 type ExecuteRequest struct {
-	RunID            string
-	SessionID        string
-	TurnIndex        int
-	Input            string
-	BoundMessageID   int64
-	SkillID          string
-	AllowedToolNames []string
-	Messages         []adk.Message
+	RunID          string
+	SessionID      string
+	TurnIndex      int
+	Input          string
+	BoundMessageID int64
+	SkillID        string
+	Messages       []adk.Message
 }

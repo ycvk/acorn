@@ -310,9 +310,6 @@ func validateMessagePart(part MessagePart) error {
 		if strings.TrimSpace(part.Title) == "" || strings.TrimSpace(part.Summary) == "" {
 			return errors.New("work_status part requires title and summary")
 		}
-		if err := validateMessageAction(part.Action); err != nil {
-			return fmt.Errorf("work_status part action: %w", err)
-		}
 	case "decision":
 		if strings.TrimSpace(part.DecisionID) == "" || strings.TrimSpace(part.Question) == "" {
 			return errors.New("decision part requires decision_id and question")
@@ -365,24 +362,6 @@ func validateDisclosureItem(item DisclosureItem) error {
 	return nil
 }
 
-func validateMessageAction(action *MessageAction) error {
-	if action == nil {
-		return nil
-	}
-	switch action.Kind {
-	case "resume_run":
-	default:
-		return fmt.Errorf("unsupported kind %q", action.Kind)
-	}
-	if strings.TrimSpace(action.RunID) == "" {
-		return errors.New("run_id is required")
-	}
-	if strings.TrimSpace(action.Label) == "" {
-		return errors.New("label is required")
-	}
-	return nil
-}
-
 // Thread is a user-facing thread DTO.
 type Thread struct {
 	ID            string
@@ -431,7 +410,6 @@ type MessagePart struct {
 	SelectedOptionID string           `json:"selected_option_id,omitempty"`
 	Answer           string           `json:"answer,omitempty"`
 	Options          []DecisionOption `json:"options,omitempty"`
-	Action           *MessageAction   `json:"action,omitempty"`
 }
 
 // DisclosureItem is an item inside a disclosure message part.
@@ -448,11 +426,4 @@ type DecisionOption struct {
 	ID          string `json:"id"`
 	Label       string `json:"label"`
 	Description string `json:"description,omitempty"`
-}
-
-// MessageAction is an action associated with a message part.
-type MessageAction struct {
-	Kind  string `json:"kind"`
-	RunID string `json:"run_id"`
-	Label string `json:"label"`
 }

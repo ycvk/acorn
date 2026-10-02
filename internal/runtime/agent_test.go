@@ -42,10 +42,10 @@ func TestSplitToolsByLoading(t *testing.T) {
 }
 
 func TestBuildAgentInstructionKeepsContextInSystemPrompt(t *testing.T) {
-	got := buildAgentInstruction("You are Acorn.", "Trigger context.", []*schema.Message{
+	got := buildAgentInstruction("You are Acorn.", []*schema.Message{
 		schema.UserMessage("<memory-context>\nlikes tea\n</memory-context>"),
 	})
-	for _, want := range []string{"You are Acorn.", capabilityDiscoveryInstruction, "Trigger context.", "<memory-context>\nlikes tea\n</memory-context>"} {
+	for _, want := range []string{"You are Acorn.", capabilityDiscoveryInstruction, "<memory-context>\nlikes tea\n</memory-context>"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("instruction missing %q:\n%s", want, got)
 		}

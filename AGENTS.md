@@ -52,7 +52,7 @@ cd mobile-kotlin && ./tool/generate_openapi_client.sh --check   # CI 门禁
 - 每个 run 只有一个 `ChatModelAgent`,不存在 multi-agent/subagent。agent 状态由 Eino 持有,run 间历史来自 `session_messages`(最近 12 条 user/assistant 文本)。
 - middleware 顺序固定:patchtoolcalls → summarization → reduction(clear-only) → toolsearch(有 deferred 工具时) → approval → tool errors。越靠前包得越外层。
 - 工具串行执行(`ExecuteSequentially`)。普通工具失败与调用不存在的工具都是模型可见的 tool result,不是 run failure;interrupt 与 context 取消照常传播。
-- 审批:`approval.require` 是工具名 glob 列表(默认 `browser`、`mcp__*`)。命中的调用由 approval middleware 登记 `tool_approval` pending action 并发起工具级 interrupt;resume 时参数必须与登记时一致,accept 才执行,decline 把拒绝说明作为工具结果返回。approval 自身的存储失败直接让 run 失败。
+- 审批:`approval.require` 是工具名 glob 列表(默认 `browser`、`mcp__*`)。命中的调用由 approval middleware 登记 `tool_approval` pending action 并发起工具级 interrupt;resume 时参数必须与登记时一致,accept 才执行,decline 把拒绝说明作为工具结果返回。同一轮里排在被拦截调用之后的工具调用会先执行,被拦截的调用等决策后执行。`approval.require` 不能命中 `ask_operator`(config 校验拒绝)。approval 自身的存储失败直接让 run 失败。
 - 续跑由服务端驱动:`RunResumeService.ResumeIfReady` 只在 run 为 interrupted 且没有 pending 的 pending action 时续跑;每次决策后和每次 run 停在 interrupted 时各检查一次,in-flight 集合防重复。
 - web 工具(`web_search`/`web_fetch`/`browser`)是 deferred,经 toolsearch middleware 的 `tool_search`(`select:<name>`)加载;共享 URL policy 只放行公网 http(s),private 网段需 `web_access.allow_private_networks`。
 

@@ -15,7 +15,6 @@ import (
 
 	"github.com/cloudwego/eino/adk"
 	einotool "github.com/cloudwego/eino/components/tool"
-	toolutils "github.com/cloudwego/eino/components/tool/utils"
 
 	"github.com/ycvk/acorn/internal/core"
 	corestore "github.com/ycvk/acorn/internal/store"
@@ -24,7 +23,7 @@ import (
 )
 
 func TestBuildCatalogBuildsFileToolsForWorkspace(t *testing.T) {
-	catalog, err := BuildCatalog(CatalogConfig{Workspace: testWorkspace(t, t.TempDir())}, nil)
+	catalog, err := BuildCatalog(CatalogConfig{Workspace: testWorkspace(t, t.TempDir())})
 	if err != nil {
 		t.Fatalf("build catalog: %v", err)
 	}
@@ -42,31 +41,12 @@ func TestBuildCatalogBuildsFileToolsForWorkspace(t *testing.T) {
 }
 
 func TestBuildCatalogAllowsEmptyCatalog(t *testing.T) {
-	catalog, err := BuildCatalog(CatalogConfig{}, nil)
+	catalog, err := BuildCatalog(CatalogConfig{})
 	if err != nil {
 		t.Fatalf("build empty catalog: %v", err)
 	}
 	if len(catalog.Tools) != 0 {
 		t.Fatalf("expected 0 tools, got %d", len(catalog.Tools))
-	}
-}
-
-func TestBuildCatalogAppendsExtraTools(t *testing.T) {
-	extra, err := toolutils.InferTool("extra_tool", "extra tool", func(ctx context.Context, input map[string]any) (string, error) {
-		return "ok", nil
-	})
-	if err != nil {
-		t.Fatalf("build extra tool: %v", err)
-	}
-
-	catalog, err := BuildCatalog(CatalogConfig{
-		Workspace: testWorkspace(t, t.TempDir()),
-	}, []einotool.BaseTool{extra})
-	if err != nil {
-		t.Fatalf("build catalog with extra tools: %v", err)
-	}
-	if got, want := len(catalog.Tools), 5; got != want {
-		t.Fatalf("expected %d tools, got %d", want, got)
 	}
 }
 
@@ -77,7 +57,7 @@ func TestReadFileReturnsStructuredLineRange(t *testing.T) {
 		t.Fatalf("write fixture: %v", err)
 	}
 	ws := testWorkspace(t, root)
-	catalog, err := BuildCatalog(CatalogConfig{Workspace: ws}, nil)
+	catalog, err := BuildCatalog(CatalogConfig{Workspace: ws})
 	if err != nil {
 		t.Fatalf("BuildCatalog: %v", err)
 	}
@@ -103,7 +83,7 @@ func TestReadFileReturnsStructuredLineRange(t *testing.T) {
 func TestCreateFileReturnsVerificationPreview(t *testing.T) {
 	root := t.TempDir()
 	ws := testWorkspace(t, root)
-	catalog, err := BuildCatalog(CatalogConfig{Workspace: ws}, nil)
+	catalog, err := BuildCatalog(CatalogConfig{Workspace: ws})
 	if err != nil {
 		t.Fatalf("BuildCatalog: %v", err)
 	}
@@ -149,7 +129,7 @@ func TestNativeWorkspaceToolsExposeProgressInterface(t *testing.T) {
 		Workspace:       ws,
 		ArtifactService: artifactService,
 		ArtifactContext: fixedArtifactContext{runID: "run_1", sessionID: "session_1", callID: "call_1"},
-	}, nil)
+	})
 	if err != nil {
 		t.Fatalf("BuildCatalog: %v", err)
 	}
@@ -176,7 +156,7 @@ func TestArtifactToolsWriteReadAndList(t *testing.T) {
 			sessionID: "session_1",
 			callID:    "call_1",
 		},
-	}, nil)
+	})
 	if err != nil {
 		t.Fatalf("BuildCatalog: %v", err)
 	}
@@ -258,7 +238,7 @@ func TestWebFetchToolPersistsRawAndMarkdownArtifacts(t *testing.T) {
 		ArtifactService: artifactService,
 		ArtifactContext: fixedArtifactContext{runID: "run_web", sessionID: "session_web", callID: "call_web"},
 		WebFetchService: fetchService,
-	}, nil)
+	})
 	if err != nil {
 		t.Fatalf("BuildCatalog: %v", err)
 	}
@@ -320,7 +300,7 @@ func TestWebSearchToolPersistsRawProviderArtifact(t *testing.T) {
 		ArtifactService:  artifactService,
 		ArtifactContext:  fixedArtifactContext{runID: "run_search", sessionID: "session_search", callID: "call_search"},
 		WebSearchService: searchService,
-	}, nil)
+	})
 	if err != nil {
 		t.Fatalf("BuildCatalog: %v", err)
 	}
@@ -364,7 +344,7 @@ func TestBrowserToolFailsLoudlyWhenExecutableIsMissing(t *testing.T) {
 		ArtifactService: artifactService,
 		ArtifactContext: fixedArtifactContext{runID: "run_browser", sessionID: "session_browser", callID: "call_browser"},
 		BrowserService:  browserService,
-	}, nil)
+	})
 	if err != nil {
 		t.Fatalf("BuildCatalog: %v", err)
 	}
@@ -387,7 +367,7 @@ func TestAskOperatorCreatesPendingActionAndInterrupts(t *testing.T) {
 	catalog, err := BuildCatalog(CatalogConfig{
 		OperatorStore:   store,
 		OperatorContext: fixedArtifactContext{runID: "run_ask_operator", sessionID: "session_ask_operator", callID: "call_question"},
-	}, nil)
+	})
 	if err != nil {
 		t.Fatalf("BuildCatalog: %v", err)
 	}

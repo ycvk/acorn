@@ -1352,11 +1352,8 @@ components:
       type: object
       additionalProperties: false
       required:
-        - interrupt_resume
         - session_history
       properties:
-        interrupt_resume:
-          type: boolean
         session_history:
           type: boolean
 
@@ -1746,21 +1743,6 @@ components:
         summary:
           type: string
         detail_run_id:
-          type: string
-        action:
-          $ref: '#/components/schemas/MessageAction'
-
-    MessageAction:
-      type: object
-      additionalProperties: false
-      required: [kind, run_id, label]
-      properties:
-        kind:
-          type: string
-          enum: [resume_run]
-        run_id:
-          type: string
-        label:
           type: string
 
     DecisionMessagePart:

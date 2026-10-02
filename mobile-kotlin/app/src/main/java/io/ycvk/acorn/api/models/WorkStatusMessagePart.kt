@@ -23,7 +23,6 @@
 
 package io.ycvk.acorn.api.models
 
-import io.ycvk.acorn.api.models.MessageAction
 
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
@@ -36,7 +35,6 @@ import com.squareup.moshi.JsonClass
  * @param title 
  * @param summary 
  * @param detailRunId 
- * @param action 
  */
 
 
@@ -55,10 +53,7 @@ data class WorkStatusMessagePart (
     val summary: kotlin.String,
 
     @Json(name = "detail_run_id")
-    val detailRunId: kotlin.String? = null,
-
-    @Json(name = "action")
-    val action: MessageAction? = null
+    val detailRunId: kotlin.String? = null
 
 ) {
 

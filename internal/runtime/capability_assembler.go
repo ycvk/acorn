@@ -220,7 +220,7 @@ func buildLocalCatalog(ctx context.Context, deps RuntimeDeps, services toolsetWe
 		WebFetchService:   services.fetch,
 		WebSearchService:  services.search,
 		BrowserService:    browser,
-	}, deps.ExtraLocalTools)
+	})
 	return catalog, []io.Closer{browser}, err
 }
 

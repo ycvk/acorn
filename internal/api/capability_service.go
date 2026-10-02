@@ -43,8 +43,7 @@ type SystemModelCapabilities struct {
 }
 
 type SystemFeatureCapabilities struct {
-	InterruptResume bool `json:"interrupt_resume"`
-	SessionHistory  bool `json:"session_history"`
+	SessionHistory bool `json:"session_history"`
 }
 
 type SystemToolCapability struct {
@@ -155,7 +154,7 @@ func (s *CapabilitiesService) Snapshot(ctx context.Context, opts CapabilitySnaps
 			Name: firstEnabledProviderModel(s.cfg),
 		},
 		RuntimeReadiness:  runtimeReadiness,
-		Features:          SystemFeatureCapabilities{InterruptResume: true, SessionHistory: true},
+		Features:          SystemFeatureCapabilities{SessionHistory: true},
 		ToolCatalogError:  errorString(catalogErr),
 		Tools:             tools,
 		Skills:            skillsCap,

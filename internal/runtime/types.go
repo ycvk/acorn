@@ -5,9 +5,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/cloudwego/eino/adk"
-	einotool "github.com/cloudwego/eino/components/tool"
-
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/memory"
@@ -31,20 +28,8 @@ var registerOnce sync.Once
 
 func RegisterTypes() {
 	registerOnce.Do(func() {
-		gob.Register(ElicitationInterruptState{})
 		gob.Register(toolApprovalState{})
 	})
-}
-
-type ElicitationInterruptInfo struct {
-	Kind            string
-	ActionID        string
-	Message         string
-	RequestedSchema any
-}
-
-type ElicitationInterruptState struct {
-	ActionID string
 }
 
 // RuntimeStore is the store contract required by the runtime.
@@ -63,7 +48,5 @@ type RuntimeDeps struct {
 	MCPPendingActions core.SessionStore
 	ArtifactService   core.ArtifactService
 	WorldStateUpdater tools.WorldStateUpdater
-	ExtraLocalTools   []einotool.BaseTool
-	Handlers          []adk.ChatModelAgentMiddleware
 	ToolRegistry      core.ToolRegistry
 }

@@ -28,8 +28,13 @@ func (c *Config) ValidateBase() error {
 		return err
 	}
 	for i, pattern := range c.Approval.Require {
-		if _, err := path.Match(pattern, ""); err != nil {
+		// ask_operator already waits on the owner; gating it would ask twice.
+		matchesAskOperator, err := path.Match(pattern, "ask_operator")
+		if err != nil {
 			return fmt.Errorf("approval.require[%d] %q: %w", i, pattern, err)
+		}
+		if matchesAskOperator {
+			return fmt.Errorf("approval.require[%d] %q must not match ask_operator", i, pattern)
 		}
 	}
 	seenProviderNames := make(map[string]struct{}, len(c.MCP.Providers))

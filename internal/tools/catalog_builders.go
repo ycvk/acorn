@@ -128,8 +128,8 @@ func init() {
 	gob.Register([]any{})
 }
 
-func BuildCatalog(cfg CatalogConfig, extraTools []einotool.BaseTool) (*LocalCatalog, error) {
-	items := make([]einotool.BaseTool, 0, 10+len(extraTools))
+func BuildCatalog(cfg CatalogConfig) (*LocalCatalog, error) {
+	items := make([]einotool.BaseTool, 0, 10)
 	groups := []func() ([]einotool.BaseTool, error){
 		func() ([]einotool.BaseTool, error) { return buildWorkspaceTools(cfg) },
 		func() ([]einotool.BaseTool, error) { return buildMutationTools(cfg) },
@@ -147,7 +147,6 @@ func BuildCatalog(cfg CatalogConfig, extraTools []einotool.BaseTool) (*LocalCata
 		}
 		items = append(items, built...)
 	}
-	items = append(items, extraTools...)
 	return &LocalCatalog{Tools: items}, nil
 }
 

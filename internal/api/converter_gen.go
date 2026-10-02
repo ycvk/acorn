@@ -87,7 +87,6 @@ func (c *ConverterImpl) apiMessagePartToApiMessagePartDTO(source MessagePart) Me
 	apiMessagePartDTO.SelectedOptionID = source.SelectedOptionID
 	apiMessagePartDTO.Answer = source.Answer
 	apiMessagePartDTO.Options = c.decisionOptionDTOsFromDomain(source.Options)
-	apiMessagePartDTO.Action = c.pApiMessageActionToPApiMessageActionDTO(source.Action)
 	return apiMessagePartDTO
 }
 func (c *ConverterImpl) apiPendingActionOptionToApiPendingActionOptionDTO(source PendingActionOption) PendingActionOptionDTO {
@@ -158,7 +157,6 @@ func (c *ConverterImpl) artifactSummaryDTOsFromDomain(source []ArtifactSummary) 
 }
 func (c *ConverterImpl) capabilitiesFeaturesDTOFromSnapshot(source SystemFeatureCapabilities) CapabilitiesFeaturesDTO {
 	var apiCapabilitiesFeaturesDTO CapabilitiesFeaturesDTO
-	apiCapabilitiesFeaturesDTO.InterruptResume = source.InterruptResume
 	apiCapabilitiesFeaturesDTO.SessionHistory = source.SessionHistory
 	return apiCapabilitiesFeaturesDTO
 }
@@ -306,17 +304,6 @@ func (c *ConverterImpl) messageDTOsFromDomain(source []Message) []MessageDTO {
 		}
 	}
 	return apiMessageDTOList
-}
-func (c *ConverterImpl) pApiMessageActionToPApiMessageActionDTO(source *MessageAction) *MessageActionDTO {
-	var pApiMessageActionDTO *MessageActionDTO
-	if source != nil {
-		var apiMessageActionDTO MessageActionDTO
-		apiMessageActionDTO.Kind = (*source).Kind
-		apiMessageActionDTO.RunID = (*source).RunID
-		apiMessageActionDTO.Label = (*source).Label
-		pApiMessageActionDTO = &apiMessageActionDTO
-	}
-	return pApiMessageActionDTO
 }
 func (c *ConverterImpl) pendingActionOptionDTOsFromDomain(source []PendingActionOption) []PendingActionOptionDTO {
 	var apiPendingActionOptionDTOList []PendingActionOptionDTO

@@ -19,19 +19,17 @@ import (
 )
 
 type agentRunnerRequest struct {
-	RunID             string
-	ChatModel         einomodel.BaseChatModel
-	Catalog           *tools.Catalog
-	Instruction       string
-	AllowedToolNames  []string
-	ExcludedToolNames []string
+	RunID       string
+	ChatModel   einomodel.BaseChatModel
+	Catalog     *tools.Catalog
+	Instruction string
 }
 
 // buildAgentRunner assembles the per-run ChatModelAgent. Context management,
 // deferred tool discovery and approvals are middleware; checkpoints persist
 // through the session store so interrupted runs resume after a restart.
 func buildAgentRunner(ctx context.Context, deps RuntimeDeps, req agentRunnerRequest) (*adk.Runner, error) {
-	built, err := BuildAuditedTools(ctx, deps.Store, req.Catalog.EnabledSpecs(), req.ExcludedToolNames, req.AllowedToolNames, req.RunID)
+	built, err := BuildAuditedTools(ctx, req.Catalog.EnabledSpecs())
 	if err != nil {
 		return nil, err
 	}
@@ -105,6 +103,8 @@ func buildAgentHandlers(ctx context.Context, deps RuntimeDeps, chatModel einomod
 		TokenCounter: func(ctx context.Context, in *summarization.TokenCounterInput) (int, error) {
 			return counter.CountMessages(ctx, in.Messages, in.Tools)
 		},
+		// A transient provider error while summarizing would otherwise fail the run.
+		Retry: &summarization.RetryConfig{},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("summarization middleware: %w", err)
@@ -137,14 +137,14 @@ func buildAgentHandlers(ctx context.Context, deps RuntimeDeps, chatModel einomod
 	// handler so a failure to record an approval fails the run instead of
 	// reaching the model as an ordinary tool error.
 	handlers = append(handlers, approval, newToolErrorMiddleware())
-	return append(handlers, deps.Handlers...), nil
+	return handlers, nil
 }
 
 // buildAgentInstruction joins the stable instruction with the per-run context
 // envelopes (memory, skill catalog). Keeping them in the system instruction
 // keeps them out of summarization and gives the model a stable prefix.
-func buildAgentInstruction(base, suffix string, contextMessages []*schema.Message) string {
-	parts := []string{buildStableInstruction(base, suffix)}
+func buildAgentInstruction(base string, contextMessages []*schema.Message) string {
+	parts := []string{buildStableInstruction(base)}
 	for _, msg := range contextMessages {
 		if content := strings.TrimSpace(msg.Content); content != "" {
 			parts = append(parts, content)

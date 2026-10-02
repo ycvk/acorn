@@ -27,7 +27,6 @@ import io.ycvk.acorn.api.models.DecisionMessagePart
 import io.ycvk.acorn.api.models.DecisionOption
 import io.ycvk.acorn.api.models.DisclosureItem
 import io.ycvk.acorn.api.models.DisclosureMessagePart
-import io.ycvk.acorn.api.models.MessageAction
 import io.ycvk.acorn.api.models.ReasoningMessagePart
 import io.ycvk.acorn.api.models.ResultMessagePart
 import io.ycvk.acorn.api.models.TechnicalDetailLinkMessagePart
@@ -55,7 +54,6 @@ import com.squareup.moshi.JsonClass
  * @param runId 
  * @param label 
  * @param detailRunId 
- * @param action 
  * @param selectedOptionId 
  * @param answer 
  * @param options 
@@ -94,8 +92,6 @@ interface MessagePart {
     val label: kotlin.String
     @Json(name = "detail_run_id")
     val detailRunId: kotlin.String?
-    @Json(name = "action")
-    val action: MessageAction?
     @Json(name = "selected_option_id")
     val selectedOptionId: kotlin.String?
     @Json(name = "answer")

@@ -48,19 +48,17 @@ func (part MessagePartDTO) marshalReasoningPart() ([]byte, error) {
 
 func (part MessagePartDTO) marshalWorkStatusPart() ([]byte, error) {
 	return json.Marshal(struct {
-		Kind        string            `json:"kind"`
-		Status      string            `json:"status"`
-		Title       string            `json:"title"`
-		Summary     string            `json:"summary"`
-		DetailRunID string            `json:"detail_run_id,omitempty"`
-		Action      *MessageActionDTO `json:"action,omitempty"`
+		Kind        string `json:"kind"`
+		Status      string `json:"status"`
+		Title       string `json:"title"`
+		Summary     string `json:"summary"`
+		DetailRunID string `json:"detail_run_id,omitempty"`
 	}{
 		Kind:        part.Kind,
 		Status:      part.Status,
 		Title:       part.Title,
 		Summary:     part.Summary,
 		DetailRunID: part.DetailRunID,
-		Action:      part.Action,
 	})
 }
 

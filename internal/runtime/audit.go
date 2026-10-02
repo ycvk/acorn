@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/schema"
@@ -17,11 +16,10 @@ type auditedTool struct {
 	tool      einotool.BaseTool
 	invokable einotool.InvokableTool
 	progress  tools.ProgressTool
-	store     core.EventAppender
 	validator *toolArgumentValidator
 }
 
-func wrapToolForAudit(ctx context.Context, store core.EventAppender, spec core.ToolSpec) (einotool.BaseTool, error) {
+func wrapToolForAudit(ctx context.Context, spec core.ToolSpec) (einotool.BaseTool, error) {
 	info, err := spec.Tool.Info(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("read tool info for audit: %w", err)
@@ -42,7 +40,6 @@ func wrapToolForAudit(ctx context.Context, store core.EventAppender, spec core.T
 		tool:      spec.Tool,
 		invokable: invokable,
 		progress:  progressToolFromBase(spec.Tool),
-		store:     store,
 		validator: validator,
 	}, nil
 }
@@ -89,30 +86,7 @@ func (t *auditedTool) invoke(ctx context.Context, argumentsInJSON string, emit t
 	return t.invokable.InvokableRun(ctx, argumentsInJSON, opts...)
 }
 
-func BuildAuditedTools(
-	ctx context.Context,
-	store core.EventAppender,
-	specs []core.ToolSpec,
-	excludedToolNames []string,
-	allowedToolNames []string,
-	_ string,
-) ([]einotool.BaseTool, error) {
-	excluded := make(map[string]struct{}, len(excludedToolNames))
-	for _, name := range excludedToolNames {
-		trimmed := strings.TrimSpace(name)
-		if trimmed == "" {
-			continue
-		}
-		excluded[trimmed] = struct{}{}
-	}
-	allowed := make(map[string]struct{}, len(allowedToolNames))
-	for _, name := range allowedToolNames {
-		trimmed := strings.TrimSpace(name)
-		if trimmed == "" {
-			continue
-		}
-		allowed[trimmed] = struct{}{}
-	}
+func BuildAuditedTools(ctx context.Context, specs []core.ToolSpec) ([]einotool.BaseTool, error) {
 	items := make([]einotool.BaseTool, 0, len(specs))
 	for _, spec := range specs {
 		if !spec.Enabled() || spec.Tool == nil {
@@ -121,15 +95,7 @@ func BuildAuditedTools(
 		if err := spec.ToolContract.Validate(); err != nil {
 			return nil, fmt.Errorf("audit tool contract %q: %w", spec.Name, err)
 		}
-		if _, skip := excluded[spec.Name]; skip {
-			continue
-		}
-		if len(allowed) > 0 {
-			if _, keep := allowed[spec.Name]; !keep {
-				continue
-			}
-		}
-		wrapped, err := wrapToolForAudit(ctx, store, spec)
+		wrapped, err := wrapToolForAudit(ctx, spec)
 		if err != nil {
 			return nil, err
 		}

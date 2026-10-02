@@ -12,10 +12,10 @@
 
 ## 运行时与编排
 
-- **每个 run 一个 Eino ChatModelAgent**：`buildAgentRunner` 组装 `adk.Runner{ChatModelAgent, EnableStreaming, CheckPointStore}`；handlers 依次为 patchtoolcalls → summarization → reduction(clear-only) → toolsearch(有 deferred 工具时) → approval；工具串行执行（`ExecuteSequentially`）。Executor 只负责把 `AgentEvent` 投影成 RunEvent。
+- **每个 run 一个 Eino ChatModelAgent**：`buildAgentRunner` 组装 `adk.Runner{ChatModelAgent, EnableStreaming, CheckPointStore}`；handlers 依次为 patchtoolcalls → summarization → reduction(clear-only) → toolsearch(有 deferred 工具时) → approval → tool errors；工具串行执行（`ExecuteSequentially`），普通工具失败与未知工具调用作为模型可见的 tool result 返回。Executor 只负责把 `AgentEvent` 投影成 RunEvent。
   - `internal/runtime/agent_test.go`
   - `internal/runtime/events_test.go`
-- **审批绑定具体调用并可跨重启恢复**：`approval.require` 命中的工具调用由 approval middleware 登记 `tool_approval` pending action 并发起工具级中断；resume 时校验参数与登记时一致，accept 才执行，decline 把拒绝说明作为工具结果返回。checkpoint 经 `core.SessionStore` 落 SQLite `agent_checkpoints`，run 成功或失败结束时删除。
+- **审批绑定具体调用并可跨重启恢复**：`approval.require` 命中的工具调用由 approval middleware 登记 `tool_approval` pending action 并发起工具级中断；resume 时校验参数与登记时一致，accept 才执行，decline 把拒绝说明作为工具结果返回。同一轮里排在被拦截调用之后的工具调用会先执行完，被拦截的调用等决策后再执行。`approval.require` 不允许命中 `ask_operator`。checkpoint 经 `core.SessionStore` 落 SQLite `agent_checkpoints`，run 成功或失败结束时删除。
   - `internal/runtime/approval_test.go`
   - `internal/store/store_checkpoint_test.go`
 
@@ -57,9 +57,9 @@
   - `internal/triggers/scheduler_debounce_test.go`
   - `internal/wire/trigger_skip_test.go`
   - `internal/wire/trigger_quota_test.go`
-- **Trigger fire → 起新 run，不续 session**：trigger fire 走 `Executor.ExecuteMessages` 起新 run，`RunTimeoutSeconds`(默认 900s) 限定单个 run 的时长。WorldState 是跨 run 唯一状态，session 是 per-run 临时态。
+- **Trigger fire → 起新 run，不续 session**：trigger fire 走 `Executor.ExecuteMessages` 起新 run，`RunTimeoutSeconds`(默认 900s) 限定单个 run 的时长。WorldState 是跨 run 的结构化状态；thread 只经 `session_messages` 向新 run 提供最近 12 条 user/assistant 文本。
   - `internal/triggers/scheduler_test.go`
-- **WorldState 是跨 run 决策投影**：`internal/memory.WorldState` 是 file-backed key-value store（`{storage_dir}/worldstate/state.json`），只有 `ApplyDelta` 一条变更路径（upsert/delete）。填补 Session（per-run 临时）和 facts（显式 remember）之间空白。内存 cache + mutex 串行写，避开 SQLite 单连接瓶颈。agent 通过 `worldstate_update`/`worldstate_load` 工具读写。
+- **WorldState 是跨 run 决策投影**：`internal/memory.WorldState` 是 file-backed key-value store（`{storage_dir}/worldstate/state.json`），只有 `ApplyDelta` 一条变更路径（upsert/delete）。位于 thread 对话历史和 facts（显式 remember）之间。内存 cache + mutex 串行写，避开 SQLite 单连接瓶颈。agent 通过 `worldstate_update`/`worldstate_load` 工具读写。
   - `internal/memory/worldstate_test.go`
 - **Trigger 唤醒上下文注入 run input**：`triggerRunCreator.CreateRun` 在 input 前加 trigger 唤醒上下文，`formatWorldStatePrefix` 加引导语让 agent 理解注入的 KV 是自己的跨 run 记忆。
   - `internal/wire/trigger_worldstate_e2e_test.go`

@@ -71,7 +71,7 @@ func TestClientResourceSurfaceHandlers(t *testing.T) {
 			EnabledToolCount: 1,
 			SkillCount:       1,
 		},
-		Features: SystemFeatureCapabilities{InterruptResume: true, SessionHistory: true},
+		Features: SystemFeatureCapabilities{SessionHistory: true},
 		Tools: []SystemToolCapability{{
 			Name:        "search_runs",
 			Source:      "local",

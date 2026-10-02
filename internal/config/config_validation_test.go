@@ -184,6 +184,17 @@ func TestValidateBaseRejectsMalformedApprovalPattern(t *testing.T) {
 	}
 }
 
+func TestValidateBaseRejectsApprovalPatternMatchingAskOperator(t *testing.T) {
+	for _, pattern := range []string{"ask_operator", "*", "ask_*"} {
+		cfg := defaultConfig()
+		cfg.Approval.Require = []string{"browser", pattern}
+		err := cfg.ValidateBase()
+		if err == nil || !strings.Contains(err.Error(), "approval.require[1]") || !strings.Contains(err.Error(), "ask_operator") {
+			t.Fatalf("pattern %q: ValidateBase() error = %v, want ask_operator rejection", pattern, err)
+		}
+	}
+}
+
 func TestDefaultApprovalRequiresBrowserAndMCP(t *testing.T) {
 	got := defaultConfig().Approval.Require
 	if len(got) != 2 || got[0] != "browser" || got[1] != "mcp__*" {

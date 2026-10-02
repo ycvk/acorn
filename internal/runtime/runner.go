@@ -10,7 +10,6 @@ import (
 
 	"github.com/cloudwego/eino/adk"
 	einomodel "github.com/cloudwego/eino/components/model"
-	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
 	mcpprovider "github.com/ycvk/acorn/internal/mcp"
@@ -154,8 +153,6 @@ func assembleRuntimeDeps(cfg *config.Config, store RuntimeStore, opts RunnerFact
 		ContextPlane:      contextPlane,
 		MCPPendingActions: opts.MCPPendingActionStore,
 		ArtifactService:   artifactService,
-		ExtraLocalTools:   append([]einotool.BaseTool(nil), opts.ExtraLocalTools...),
-		Handlers:          append([]adk.ChatModelAgentMiddleware(nil), opts.Handlers...),
 		ToolRegistry:      opts.ToolRegistry,
 	}
 }
@@ -243,12 +240,10 @@ func (f *RunnerFactory) newAgentRunner(ctx context.Context, req RunnerBuildReque
 		return nil, err
 	}
 	runner, err := buildAgentRunner(ctx, f.deps, agentRunnerRequest{
-		RunID:             req.RunID,
-		ChatModel:         chatModel,
-		Catalog:           capabilities.catalog,
-		Instruction:       buildAgentInstruction(f.deps.Config.Agent.SystemPrompt, req.InstructionSuffix, contextResult.Messages),
-		AllowedToolNames:  append([]string(nil), req.AllowedToolNames...),
-		ExcludedToolNames: append([]string(nil), req.ExcludedToolNames...),
+		RunID:       req.RunID,
+		ChatModel:   chatModel,
+		Catalog:     capabilities.catalog,
+		Instruction: buildAgentInstruction(f.deps.Config.Agent.SystemPrompt, contextResult.Messages),
 	})
 	if err != nil {
 		return nil, err
@@ -265,8 +260,6 @@ func (f *RunnerFactory) newAgentRunner(ctx context.Context, req RunnerBuildReque
 
 type RunnerFactoryOptions struct {
 	Loader                *skills.Loader
-	ExtraLocalTools       []einotool.BaseTool
-	Handlers              []adk.ChatModelAgentMiddleware
 	MemoryModule          memory.Service
 	ContextPlane          *ContextPlane
 	MCPPendingActionStore core.SessionStore
@@ -276,14 +269,11 @@ type RunnerFactoryOptions struct {
 
 // RunnerBuildRequest holds the parameters for building a new run.
 type RunnerBuildRequest struct {
-	SessionID         string
-	RunID             string
-	Input             string
-	SkillID           string
-	AllowedToolNames  []string
-	Sink              core.StreamSink
-	ExcludedToolNames []string
-	InstructionSuffix string
+	SessionID string
+	RunID     string
+	Input     string
+	SkillID   string
+	Sink      core.StreamSink
 }
 
 type ActiveRunner struct {
@@ -313,11 +303,10 @@ const capabilityDiscoveryInstruction = `Capability discovery rules:
 - If a relevant capability depends on deferred tools, call tool_search before concluding the capability is unavailable.
 - Prefer the matching skill and tool path over a generic limitation answer.`
 
-func buildStableInstruction(base string, instructionSuffix string) string {
+func buildStableInstruction(base string) string {
 	parts := []string{
 		strings.TrimSpace(base),
 		strings.TrimSpace(capabilityDiscoveryInstruction),
-		strings.TrimSpace(instructionSuffix),
 	}
 	out := make([]string, 0, len(parts))
 	for _, item := range parts {
