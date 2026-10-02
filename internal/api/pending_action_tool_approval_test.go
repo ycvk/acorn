@@ -37,7 +37,7 @@ func (s *toolApprovalStore) AppendEvent(_ context.Context, runID, kind string, p
 
 func newToolApprovalRecord() core.PendingActionRecord {
 	return core.PendingActionRecord{
-		ActionID:    "tool_approval:run_1:call_1",
+		ActionID:    "action_00000000000000a1",
 		RunID:       "run_1",
 		Kind:        core.PendingActionKindToolApproval,
 		Subject:     "Approve search_runs",
@@ -127,7 +127,7 @@ func TestToolApprovalResumeTargetsRejectPendingAction(t *testing.T) {
 	svc := NewRunResumeService(&toolApprovalStore{record: newToolApprovalRecord()})
 	_, err := svc.resumeTargetsForContext(context.Background(), "run_1", resumeInterruptContext{
 		ID:   "interrupt_1",
-		Info: map[string]any{"kind": "tool_approval", "action_id": "tool_approval:run_1:call_1"},
+		Info: map[string]any{"kind": "tool_approval", "action_id": "action_00000000000000a1"},
 	})
 	if err == nil {
 		t.Fatal("expected a still-pending approval to block resume")

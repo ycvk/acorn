@@ -135,13 +135,16 @@ func interruptAcrossRunners(t *testing.T, ctx context.Context, store *approvalTe
 	if interrupted == nil || len(interrupted.InterruptContexts) == 0 {
 		t.Fatal("expected the approval interrupt")
 	}
+	if len(store.actions) != 1 || store.actions[0].Kind != core.PendingActionKindToolApproval || store.actions[0].RunID != "run_approval" {
+		t.Fatalf("pending actions = %+v", store.actions)
+	}
 	var rootID string
 	for _, ic := range interrupted.InterruptContexts {
 		if !ic.IsRootCause {
 			continue
 		}
 		info, ok := ic.Info.(map[string]any)
-		if !ok || info["kind"] != toolApprovalInterruptKind || info["action_id"] != "tool_approval:run_approval:call_1" {
+		if !ok || info["kind"] != toolApprovalInterruptKind || info["action_id"] != store.actions[0].ActionID {
 			t.Fatalf("unexpected interrupt info: %#v", ic.Info)
 		}
 		rootID = ic.ID
@@ -151,9 +154,6 @@ func interruptAcrossRunners(t *testing.T, ctx context.Context, store *approvalTe
 	}
 	if tool.callCount() != 0 {
 		t.Fatalf("tool ran %d times before approval", tool.callCount())
-	}
-	if len(store.actions) != 1 || store.actions[0].Kind != core.PendingActionKindToolApproval || store.actions[0].RunID != "run_approval" {
-		t.Fatalf("pending actions = %+v", store.actions)
 	}
 	if len(store.events) != 1 || store.events[0] != "tool_approval.pending" {
 		t.Fatalf("events = %v", store.events)
@@ -172,7 +172,7 @@ func TestApprovalAcceptRunsRecordedCallInFreshRunner(t *testing.T) {
 	second := &scriptedModel{replies: []*schema.Message{schema.AssistantMessage("done", nil)}}
 	runner := newApprovalTestRunner(t, second, tool, store, checkpoints)
 	iter, err := runner.ResumeWithParams(ctx, "run_approval", &adk.ResumeParams{Targets: map[string]any{
-		interruptID: map[string]any{"action": "accept", "action_id": "tool_approval:run_approval:call_1"},
+		interruptID: map[string]any{"action": "accept", "action_id": store.actions[0].ActionID},
 	}})
 	if err != nil {
 		t.Fatalf("resume: %v", err)

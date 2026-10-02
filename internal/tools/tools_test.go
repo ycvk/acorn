@@ -366,7 +366,7 @@ func TestAskOperatorCreatesPendingActionAndInterrupts(t *testing.T) {
 		t.Fatalf("pending actions = %#v, want one", actions)
 	}
 	action := actions[0]
-	if action.Kind != core.PendingActionKindOperatorQuestion || action.ActionID != "operator_question:run_ask_operator:call_question" {
+	if action.Kind != core.PendingActionKindOperatorQuestion || !strings.HasPrefix(action.ActionID, "action_") {
 		t.Fatalf("pending action = %#v", action)
 	}
 	var payload core.OperatorQuestionPayload

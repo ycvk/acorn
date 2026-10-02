@@ -126,11 +126,7 @@ func interruptAskOperator(ctx context.Context, store OperatorQuestionStore, brid
 	if runID == "" {
 		return AskOperatorOutput{}, errors.New("ask_operator requires current run context")
 	}
-	callID := strings.TrimSpace(bridge.CurrentToolCallID(ctx))
-	if callID == "" {
-		return AskOperatorOutput{}, errors.New("ask_operator requires current tool call context")
-	}
-	actionID := "operator_question:" + runID + ":" + callID
+	actionID := core.NewActionID()
 	payloadJSON, err := json.Marshal(payload)
 	if err != nil {
 		return AskOperatorOutput{}, fmt.Errorf("marshal operator question payload: %w", err)

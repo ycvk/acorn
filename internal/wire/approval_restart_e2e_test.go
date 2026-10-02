@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -119,6 +121,46 @@ tools:
 	return cfg
 }
 
+// decideOverHTTP decides a pending action through the /v1 handler the way the
+// mobile app does, so the action ID has to survive the :decide route.
+func decideOverHTTP(t *testing.T, c *Container, actionID, decision string) {
+	t.Helper()
+	ctx := context.Background()
+	handler, err := api.NewHandler(api.Dependencies{
+		Threads:       c.Threads(),
+		Runs:          c.Runs(),
+		Events:        c.Events(),
+		PendingAction: c.PendingAction(),
+		Memory:        c.Memory(),
+		Skills:        c.Skills(),
+		Capabilities:  c.Capabilities(),
+		DeviceAuth:    c.DeviceAuth(),
+		Inbox:         c.Inbox(),
+		Config:        c.Config(),
+		Logger:        slog.New(slog.NewTextHandler(io.Discard, nil)),
+	})
+	if err != nil {
+		t.Fatalf("api handler: %v", err)
+	}
+	code, err := c.DeviceAuth().CreatePairingCode(ctx, time.Minute)
+	if err != nil {
+		t.Fatalf("pairing code: %v", err)
+	}
+	paired, err := c.DeviceAuth().PairDevice(ctx, api.PairDeviceInput{PairingCode: code.Code, DeviceName: "test", Platform: "android"})
+	if err != nil {
+		t.Fatalf("pair device: %v", err)
+	}
+	body := fmt.Sprintf(`{"decision":%q,"selected_option_id":%q}`, decision, decision)
+	req := httptest.NewRequest(http.MethodPost, "/v1/pending-actions/"+url.PathEscape(actionID)+":decide", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+paired.AccessToken)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("decide %s over HTTP: status %d body %s", actionID, rec.Code, rec.Body.String())
+	}
+}
+
 func waitRunStatus(t *testing.T, c *Container, runID, want string) {
 	t.Helper()
 	deadline := time.Now().Add(15 * time.Second)
@@ -217,12 +259,7 @@ func TestApprovalSurvivesRestart(t *testing.T) {
 				t.Fatalf("second container: %v", err)
 			}
 			defer func() { _ = second.Close() }()
-			if _, err := second.PendingAction().Decide(ctx, actionID, api.PendingActionDecisionInput{
-				Decision:         tc.decision,
-				SelectedOptionID: tc.decision,
-			}); err != nil {
-				t.Fatalf("decide: %v", err)
-			}
+			decideOverHTTP(t, second, actionID, tc.decision)
 			waitRunStatus(t, second, runID, "completed")
 
 			resumed := provider.request(1)

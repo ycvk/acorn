@@ -2,6 +2,8 @@ package core
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"time"
 )
@@ -14,6 +16,14 @@ func NewRunID() string {
 // NewSessionID generates a unique session identifier.
 func NewSessionID() string {
 	return fmt.Sprintf("session_%d", time.Now().UTC().UnixNano())
+}
+
+// NewActionID generates a pending action identifier. Clients address actions
+// as /v1/pending-actions/{action_id}:decide, so the ID holds only [a-z0-9_].
+func NewActionID() string {
+	var b [8]byte
+	_, _ = rand.Read(b[:]) // crypto/rand.Read never returns an error.
+	return "action_" + hex.EncodeToString(b[:])
 }
 
 // DurableContext returns a copy of ctx that is not cancelled when the parent

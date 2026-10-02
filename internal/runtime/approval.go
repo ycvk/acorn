@@ -111,7 +111,7 @@ func (m *approvalMiddleware) requestApproval(ctx context.Context, tCtx *adk.Tool
 		return errors.New("tool approval requires a run id in context")
 	}
 	state := toolApprovalState{
-		ActionID:  "tool_approval:" + runID + ":" + tCtx.CallID,
+		ActionID:  core.NewActionID(),
 		ToolName:  tCtx.Name,
 		Arguments: args,
 	}

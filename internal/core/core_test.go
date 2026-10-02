@@ -2,6 +2,7 @@ package core
 
 import (
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -191,5 +192,20 @@ func TestCompactInterruptInfo(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestNewActionIDIsRouteSafeAndUnique(t *testing.T) {
+	routeSafe := regexp.MustCompile(`^action_[0-9a-f]{16}$`)
+	seen := map[string]bool{}
+	for range 1000 {
+		id := NewActionID()
+		if !routeSafe.MatchString(id) {
+			t.Fatalf("action id %q has characters outside [a-z0-9_]", id)
+		}
+		if seen[id] {
+			t.Fatalf("duplicate action id %q", id)
+		}
+		seen[id] = true
 	}
 }
