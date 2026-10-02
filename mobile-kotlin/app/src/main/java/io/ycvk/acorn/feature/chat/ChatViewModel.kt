@@ -8,9 +8,7 @@ import io.ycvk.acorn.api.infrastructure.ApiClient
 import io.ycvk.acorn.api.models.CreateRunRequest
 import io.ycvk.acorn.api.models.InboxResponse
 import io.ycvk.acorn.api.models.Message
-import io.ycvk.acorn.api.models.ReasoningMessagePart
 import io.ycvk.acorn.api.models.RunSummary
-import io.ycvk.acorn.api.models.TextMessagePart
 import io.ycvk.acorn.core.auth.AuthController
 import io.ycvk.acorn.core.auth.AuthState
 import io.ycvk.acorn.core.auth.ConnectionProfile
@@ -175,14 +173,13 @@ class ChatViewModel @Inject constructor(
                 }
                 if (_threadId.value != threadId) return@launch
                 _messages.value = response.items.map { msg ->
-                    val text = extractText(msg)
-                    val reasoning = extractReasoning(msg)
+                    val text = msg.content.text
                     when (msg.role) {
                         Message.Role.user -> ChatMessage.User(text)
-                        Message.Role.assistant -> ChatMessage.Assistant(text, reasoning)
+                        Message.Role.assistant -> ChatMessage.Assistant(text)
                         // System / tool messages render as assistant bubbles so the
                         // history reads top-to-bottom without gaps.
-                        else -> ChatMessage.Assistant(text, reasoning)
+                        else -> ChatMessage.Assistant(text)
                     }
                 }
             } catch (e: Exception) {
@@ -261,22 +258,5 @@ class ChatViewModel @Inject constructor(
         streamGeneration.incrementAndGet()
         eventSource?.cancel()
         super.onCleared()
-    }
-
-    private fun extractText(message: Message): String {
-        // content.text is always present (non-nullable in the generated model).
-        val body = message.content.text
-        // Prefer structured parts when present; they carry the authoritative text.
-        val parts = message.content.parts
-        if (parts.isNullOrEmpty()) return body
-        return parts.filterIsInstance<TextMessagePart>().joinToString("") { it.text }
-            .ifBlank { body }
-    }
-
-    private fun extractReasoning(message: Message): String? {
-        val parts = message.content.parts ?: return null
-        val reasoning = parts.filterIsInstance<ReasoningMessagePart>()
-            .joinToString("\n") { it.reasoning }
-        return reasoning.ifBlank { null }
     }
 }

@@ -90,7 +90,7 @@ func TestStoreSchemaIncludesCoreTables(t *testing.T) {
 		"runs":              "finished_at",
 		"events":            "payload_json",
 		"sessions":          "title",
-		"session_messages":  "content_parts",
+		"session_messages":  "run_id",
 		"pending_actions":   "decision_json",
 		"artifacts":         "source_tool_result_ref",
 		"schema_migrations": "version",
@@ -120,26 +120,81 @@ func TestEventsQueriesUseRunSequenceIndex(t *testing.T) {
 		t.Fatalf("query plan = %q, want idx_events_run_sequence", plan)
 	}
 }
-func TestV2MigrationAddsContentPartsColumn(t *testing.T) {
+func TestFreshSchemaHasNoSessionMessageContentParts(t *testing.T) {
 	store, err := Open(filepath.Join(t.TempDir(), "state"))
 	if err != nil {
 		t.Fatalf("open store: %v", err)
 	}
 	t.Cleanup(func() { _ = store.Close() })
 
-	v2Checks := []struct{ table, column string }{
-		{"session_messages", "content_parts"},
-		{"schema_migrations", "version"},
-		{"schema_migrations", "applied_at"},
+	columns, err := store.tableColumns("session_messages")
+	if err != nil {
+		t.Fatalf("table info session_messages: %v", err)
 	}
-	for _, check := range v2Checks {
-		columns, err := store.tableColumns(check.table)
-		if err != nil {
-			t.Fatalf("table info %s: %v", check.table, err)
-		}
-		if _, ok := columns[check.column]; !ok {
-			t.Errorf("table %s missing V2 column %s", check.table, check.column)
-		}
+	if _, ok := columns["content_parts"]; ok {
+		t.Fatal("session_messages should not have content_parts")
+	}
+}
+
+func TestV3MigrationDropsSessionMessageContentParts(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "state")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("mkdir state dir: %v", err)
+	}
+	db, err := sql.Open("sqlite", filepath.Join(dir, "acorn.db"))
+	if err != nil {
+		t.Fatalf("open sqlite directly: %v", err)
+	}
+	if _, err := db.Exec(`
+CREATE TABLE sessions (
+    session_id TEXT PRIMARY KEY,
+    title TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE TABLE session_messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT NOT NULL,
+    turn_index INTEGER NOT NULL,
+    role TEXT NOT NULL,
+    content TEXT NOT NULL,
+    content_parts TEXT NOT NULL DEFAULT '',
+    run_id TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+);
+INSERT INTO sessions(session_id, title, created_at, updated_at)
+VALUES('session_1', '', '2026-05-04T00:00:00Z', '2026-05-04T00:00:00Z');
+INSERT INTO session_messages(session_id, turn_index, role, content, content_parts, run_id, created_at)
+VALUES('session_1', 1, 'user', 'hello', '[{"kind":"text","text":"hello"}]', '', '2026-05-04T00:00:00Z');`); err != nil {
+		_ = db.Close()
+		t.Fatalf("seed content_parts schema: %v", err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatalf("close seeded db: %v", err)
+	}
+
+	store, err := Open(dir)
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+
+	columns, err := store.tableColumns("session_messages")
+	if err != nil {
+		t.Fatalf("table info session_messages: %v", err)
+	}
+	if _, ok := columns["content_parts"]; ok {
+		t.Fatal("migration should drop session_messages.content_parts")
+	}
+	if !migrationApplied(store.db, "v3_session_messages_drop_content_parts") {
+		t.Fatal("migration v3_session_messages_drop_content_parts should be recorded")
+	}
+	items, err := store.ListSessionMessages(t.Context(), "session_1", 10)
+	if err != nil {
+		t.Fatalf("list session messages: %v", err)
+	}
+	if len(items) != 1 || items[0].Content != "hello" {
+		t.Fatalf("session messages after migration = %#v, want the seeded message", items)
 	}
 }
 

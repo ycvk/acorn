@@ -30,30 +30,17 @@ import com.squareup.moshi.JsonClass
 /**
  * 
  *
- * @param kind 
- * @param text 
+ * @param status 
  */
 
 
-data class TextMessagePart (
+data class ClientWebhookTrigger202Response (
 
-    @Json(name = "kind")
-    val kind: TextMessagePart.Kind,
-
-    @Json(name = "text")
-    val text: kotlin.String
+    @Json(name = "status")
+    val status: kotlin.String? = null
 
 ) {
 
-    /**
-     * 
-     *
-     * Values: text
-     */
-    @JsonClass(generateAdapter = false)
-    enum class Kind(val value: kotlin.String) {
-        @Json(name = "text") text("text");
-    }
 
 }
 

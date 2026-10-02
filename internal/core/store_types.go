@@ -1,7 +1,6 @@
 package core
 
 import (
-	"encoding/json"
 	"time"
 )
 
@@ -29,14 +28,13 @@ type PendingActionInput struct {
 // --- Session messages ---
 
 type SessionMessageRecord struct {
-	ID           int64           `json:"id"`
-	SessionID    string          `json:"session_id"`
-	TurnIndex    int             `json:"turn_index"`
-	Role         string          `json:"role"`
-	Content      string          `json:"content"`
-	ContentParts json.RawMessage `json:"content_parts,omitempty"`
-	RunID        string          `json:"run_id,omitempty"`
-	CreatedAt    time.Time       `json:"created_at"`
+	ID        int64     `json:"id"`
+	SessionID string    `json:"session_id"`
+	TurnIndex int       `json:"turn_index"`
+	Role      string    `json:"role"`
+	Content   string    `json:"content"`
+	RunID     string    `json:"run_id,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 // --- Pairing / devices / OAuth ---

@@ -23,7 +23,6 @@
 
 package io.ycvk.acorn.api.models
 
-import io.ycvk.acorn.api.models.MessagePart
 
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
@@ -33,7 +32,6 @@ import com.squareup.moshi.JsonClass
  *
  * @param type 
  * @param text 
- * @param parts 
  */
 
 
@@ -43,10 +41,7 @@ data class MessageContent (
     val type: MessageContent.Type,
 
     @Json(name = "text")
-    val text: kotlin.String,
-
-    @Json(name = "parts")
-    val parts: kotlin.collections.List<MessagePart>? = null
+    val text: kotlin.String
 
 ) {
 
