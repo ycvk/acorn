@@ -1,5 +1,12 @@
 package io.ycvk.acorn.feature.shell
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.CubicBezierEasing
@@ -127,6 +134,20 @@ private fun ConnectedShell(
     val openThreadId by shellViewModel.openThreadId.collectAsStateWithLifecycle()
     val pendingCount by shellViewModel.pendingCount.collectAsStateWithLifecycle()
     val showApprovals by shellViewModel.showApprovals.collectAsStateWithLifecycle()
+
+    val context = LocalContext.current
+    val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        shellViewModel.registerPush()
+    }
+    LaunchedEffect(Unit) {
+        val needsPrompt = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        if (needsPrompt) {
+            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            shellViewModel.registerPush()
+        }
+    }
 
     val currentThreadId = openThreadId
     val drawerState = rememberDrawerState(initialValue = androidx.compose.material3.DrawerValue.Closed)

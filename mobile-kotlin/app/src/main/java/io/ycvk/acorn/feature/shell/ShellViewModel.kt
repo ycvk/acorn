@@ -8,10 +8,13 @@ import io.ycvk.acorn.api.infrastructure.ApiClient
 import io.ycvk.acorn.core.auth.AuthController
 import io.ycvk.acorn.core.auth.AuthState
 import io.ycvk.acorn.core.auth.ConnectionProfile
+import io.ycvk.acorn.core.push.DeepLinks
+import io.ycvk.acorn.core.push.PushManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -19,6 +22,8 @@ import javax.inject.Inject
 @HiltViewModel
 class ShellViewModel @Inject constructor(
     val authController: AuthController,
+    private val pushManager: PushManager,
+    private val deepLinks: DeepLinks,
 ) : ViewModel() {
 
     private val _selectedTab = MutableStateFlow(0)
@@ -34,6 +39,18 @@ class ShellViewModel @Inject constructor(
     val pendingCount: StateFlow<Int> = _pendingCount.asStateFlow()
 
     init {
+        viewModelScope.launch {
+            // A notification tap opens its thread once the device is connected;
+            // on a cold start the tap arrives before the stored connection loads.
+            combine(deepLinks.threadToOpen, authController.authState) { threadId, auth ->
+                threadId.takeIf { auth is AuthState.Connected }
+            }.collect { threadId ->
+                if (threadId != null) {
+                    openThread(threadId)
+                    deepLinks.consumed()
+                }
+            }
+        }
         viewModelScope.launch {
             authController.authState.collect { state ->
                 if (state is AuthState.Connected) {
@@ -68,6 +85,11 @@ class ShellViewModel @Inject constructor(
 
     fun selectTab(index: Int) {
         _selectedTab.value = index
+    }
+
+    /** Registers this device for push; call after the notification permission prompt. */
+    fun registerPush() {
+        getConnectionProfile()?.let(pushManager::register)
     }
 
     fun openThread(threadId: String) {

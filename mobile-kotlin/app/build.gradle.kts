@@ -12,6 +12,10 @@ android {
     namespace = "io.ycvk.acorn"
     compileSdk = 35
 
+    val localProps = Properties().apply {
+        rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
+    }
+
     defaultConfig {
         applicationId = "io.ycvk.acorn"
         minSdk = 26
@@ -19,6 +23,21 @@ android {
         versionCode = 1
         versionName = "1.0.0"
         vectorDrawables { useSupportLibrary = true }
+
+        // Firebase is initialized from these values instead of google-services.json,
+        // so builds without them still work and the app reports push as unconfigured.
+        // Set acorn.firebase.* in local.properties or ACORN_FIREBASE_* in the environment.
+        for ((field, key) in listOf(
+            "FIREBASE_PROJECT_ID" to "projectId",
+            "FIREBASE_APP_ID" to "appId",
+            "FIREBASE_API_KEY" to "apiKey",
+            "FIREBASE_SENDER_ID" to "senderId",
+        )) {
+            val value = localProps.getProperty("acorn.firebase.$key")
+                ?: System.getenv("ACORN_FIREBASE_" + key.replace(Regex("([A-Z])"), "_$1").uppercase())
+                ?: ""
+            buildConfigField("String", field, "\"$value\"")
+        }
     }
 
     val keyProps = file("key.properties").let { f ->
@@ -53,7 +72,10 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
-    buildFeatures { compose = true }
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
     packaging {
         resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" }
     }
@@ -90,6 +112,11 @@ dependencies {
 
     // EncryptedSharedPreferences
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
+
+    // Push notifications (FCM)
+    implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
+    implementation("com.google.firebase:firebase-messaging")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0")
 
     // Markdown rendering for assistant messages (JitPack).
     implementation("com.github.jeziellago:compose-markdown:0.5.7")

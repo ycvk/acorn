@@ -1,5 +1,9 @@
 package io.ycvk.acorn.feature.settings
 
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material3.TextButton
+import io.ycvk.acorn.core.push.PushStatus
+import io.ycvk.acorn.core.push.pushStatusLabel
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -53,6 +57,7 @@ fun SettingsScreen(
     val status by viewModel.systemStatus.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
     val profile = viewModel.profile
+    val pushStatus by viewModel.pushStatus.collectAsStateWithLifecycle()
 
     LaunchedEffect(Unit) { viewModel.loadSettings() }
 
@@ -117,6 +122,16 @@ fun SettingsScreen(
                     style = MaterialTheme.typography.bodySmall,
                     color = AetherOnSurfaceVariant,
                 )
+            }
+        }
+
+        item {
+            SectionHeader("notifications", Icons.Filled.Notifications)
+            SectionCard {
+                SettingRow("push", pushStatusLabel(pushStatus))
+                if (pushStatus is PushStatus.Failed) {
+                    TextButton(onClick = viewModel::retryPush) { Text("retry") }
+                }
             }
         }
 
