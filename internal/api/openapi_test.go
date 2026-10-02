@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/getkin/kin-openapi/openapi3"
+	"github.com/ycvk/acorn/internal/core"
 )
 
 func TestOpenAPIContractMatchesFileBackedMemorySurface(t *testing.T) {
@@ -378,4 +379,53 @@ func sortedStrings(items []string) []string {
 	out := append([]string(nil), items...)
 	sort.Strings(out)
 	return out
+}
+
+// Every live run event kind must be in the RunEvent union, and every pending
+// action kind must reach the client as <kind>.pending and <kind>.decided.
+func TestOpenAPIRunEventUnionMatchesLiveEventKinds(t *testing.T) {
+	path := filepath.Join("..", "..", "docs", "openapi.yaml")
+	doc, err := openapi3.NewLoader().LoadFromFile(path)
+	if err != nil {
+		t.Fatalf("load openapi: %v", err)
+	}
+	union := doc.Components.Schemas["RunEvent"]
+	if union == nil || union.Value == nil || union.Value.Discriminator == nil {
+		t.Fatal("RunEvent schema has no discriminator")
+	}
+	var mapped []string
+	for kind := range union.Value.Discriminator.Mapping {
+		mapped = append(mapped, kind)
+	}
+	if got, want := sortedStrings(mapped), sortedStrings(liveRunEventKinds); !reflect.DeepEqual(got, want) {
+		t.Fatalf("RunEvent discriminator = %v, live kinds = %v", got, want)
+	}
+	for _, kind := range []core.PendingActionKind{core.PendingActionKindElicitation, core.PendingActionKindOperatorQuestion, core.PendingActionKindToolApproval} {
+		for _, suffix := range []string{".pending", ".decided"} {
+			if !IsLiveRunEventKind(string(kind) + suffix) {
+				t.Fatalf("pending action kind %q has no live %s event", kind, suffix)
+			}
+		}
+	}
+}
+
+func TestProjectToolApprovalEvents(t *testing.T) {
+	pending, err := ProjectRunEvent(core.EventRecord{RunID: "run_1", Sequence: 3, Kind: "tool_approval.pending", Payload: map[string]any{
+		"action_id": "action_00000000000000a1", "tool_name": "browser", "arguments": `{"url":"https://example.com"}`,
+	}})
+	if err != nil {
+		t.Fatalf("project pending: %v", err)
+	}
+	if got := pending.Data.(core.ToolApprovalData); got.ActionID != "action_00000000000000a1" || got.ToolName != "browser" || got.Arguments != `{"url":"https://example.com"}` {
+		t.Fatalf("pending data = %+v", got)
+	}
+	decided, err := ProjectRunEvent(core.EventRecord{RunID: "run_1", Sequence: 4, Kind: "tool_approval.decided", Payload: map[string]any{
+		"action_id": "action_00000000000000a1", "decision": "decline",
+	}})
+	if err != nil {
+		t.Fatalf("project decided: %v", err)
+	}
+	if got := decided.Data.(core.ToolApprovalData); got.ActionID != "action_00000000000000a1" || got.Decision != "decline" {
+		t.Fatalf("decided data = %+v", got)
+	}
 }

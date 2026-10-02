@@ -1798,6 +1798,8 @@ components:
         - $ref: '#/components/schemas/ClientElicitationDecidedEvent'
         - $ref: '#/components/schemas/ClientOperatorQuestionPendingEvent'
         - $ref: '#/components/schemas/ClientOperatorQuestionDecidedEvent'
+        - $ref: '#/components/schemas/ClientToolApprovalPendingEvent'
+        - $ref: '#/components/schemas/ClientToolApprovalDecidedEvent'
       discriminator:
         propertyName: type
         mapping:
@@ -1811,6 +1813,8 @@ components:
           elicitation.decided: '#/components/schemas/ClientElicitationDecidedEvent'
           operator_question.pending: '#/components/schemas/ClientOperatorQuestionPendingEvent'
           operator_question.decided: '#/components/schemas/ClientOperatorQuestionDecidedEvent'
+          tool_approval.pending: '#/components/schemas/ClientToolApprovalPendingEvent'
+          tool_approval.decided: '#/components/schemas/ClientToolApprovalDecidedEvent'
 
     RunEventBase:
       type: object
@@ -1940,6 +1944,28 @@ components:
             data:
               $ref: '#/components/schemas/OperatorQuestionData'
 
+    ClientToolApprovalPendingEvent:
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: tool_approval.pending
+            data:
+              $ref: '#/components/schemas/ToolApprovalData'
+
+    ClientToolApprovalDecidedEvent:
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: tool_approval.decided
+            data:
+              $ref: '#/components/schemas/ToolApprovalData'
+
     RunStartedData:
       type: object
       additionalProperties: false
@@ -2018,6 +2044,21 @@ components:
           type: string
         answer:
           type: string
+
+    ToolApprovalData:
+      type: object
+      additionalProperties: false
+      required: [action_id]
+      properties:
+        action_id:
+          type: string
+        tool_name:
+          type: string
+        arguments:
+          type: string
+        decision:
+          type: string
+          enum: [accept, decline]
 
     RunDetail:
       type: object

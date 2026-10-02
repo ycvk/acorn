@@ -80,3 +80,12 @@ type OperatorQuestionData struct {
 
 type OperatorQuestionPendingData = OperatorQuestionData
 type OperatorQuestionDecidedData = OperatorQuestionData
+
+// ToolApprovalData carries a tool_approval.pending (tool name and arguments)
+// or tool_approval.decided (decision) event.
+type ToolApprovalData struct {
+	ActionID  string `json:"action_id"`
+	ToolName  string `json:"tool_name,omitempty"`
+	Arguments string `json:"arguments,omitempty"`
+	Decision  string `json:"decision,omitempty"`
+}

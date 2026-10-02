@@ -12,6 +12,9 @@ import io.ycvk.acorn.api.models.RunEventMessage
 import io.ycvk.acorn.api.models.RunFailedData
 import io.ycvk.acorn.api.models.RunInterruptedData
 import io.ycvk.acorn.api.models.RunStartedData
+import io.ycvk.acorn.api.models.ClientToolApprovalDecidedEvent
+import io.ycvk.acorn.api.models.ClientToolApprovalPendingEvent
+import io.ycvk.acorn.api.models.ToolApprovalData
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -140,6 +143,33 @@ class RunEventProjectionTest {
         state = projection.apply(state, RunEventPacket.RunInterrupted(interruptedEvent(6)))
         assertFalse(state.isStreaming)
         assertEquals(RunStatus.Interrupted, state.runStatus)
+    }
+
+    @Test
+    fun `ToolApproval pending adds a waiting row that its decision clears`() {
+        var state = projection.apply(ChatState(), RunEventPacket.Started(startedEvent()))
+        state = projection.apply(
+            state,
+            RunEventPacket.ToolApprovalPending(
+                ClientToolApprovalPendingEvent(
+                    eventId = "run-1:2", runId = "run-1", seq = 2, ts = now, type = null,
+                    data = ToolApprovalData(actionId = "action_1", toolName = "browser", arguments = "{}"),
+                ),
+            ),
+        )
+        assertEquals(listOf("Waiting for approval: browser"), state.activities.map { it.label })
+        assertEquals(ActivityKind.ToolApproval, state.activities.single().kind)
+
+        state = projection.apply(
+            state,
+            RunEventPacket.ToolApprovalDecided(
+                ClientToolApprovalDecidedEvent(
+                    eventId = "run-1:5", runId = "run-1", seq = 5, ts = now, type = null,
+                    data = ToolApprovalData(actionId = "action_1", decision = ToolApprovalData.Decision.accept),
+                ),
+            ),
+        )
+        assertTrue(state.activities.isEmpty())
     }
 
     @Test

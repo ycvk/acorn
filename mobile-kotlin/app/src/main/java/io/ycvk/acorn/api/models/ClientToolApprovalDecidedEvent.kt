@@ -23,18 +23,6 @@
 
 package io.ycvk.acorn.api.models
 
-import io.ycvk.acorn.api.models.ClientAssistantDeltaEvent
-import io.ycvk.acorn.api.models.ClientElicitationDecidedEvent
-import io.ycvk.acorn.api.models.ClientElicitationPendingEvent
-import io.ycvk.acorn.api.models.ClientOperatorQuestionDecidedEvent
-import io.ycvk.acorn.api.models.ClientOperatorQuestionPendingEvent
-import io.ycvk.acorn.api.models.ClientRunCompletedEvent
-import io.ycvk.acorn.api.models.ClientRunFailedEvent
-import io.ycvk.acorn.api.models.ClientRunInterruptedEvent
-import io.ycvk.acorn.api.models.ClientRunResumeRequestedEvent
-import io.ycvk.acorn.api.models.ClientRunStartedEvent
-import io.ycvk.acorn.api.models.ClientToolApprovalDecidedEvent
-import io.ycvk.acorn.api.models.ClientToolApprovalPendingEvent
 import io.ycvk.acorn.api.models.ToolApprovalData
 
 import com.squareup.moshi.Json
@@ -52,20 +40,28 @@ import com.squareup.moshi.JsonClass
  */
 
 
-interface RunEvent {
+data class ClientToolApprovalDecidedEvent (
 
     @Json(name = "event_id")
-    val eventId: kotlin.String
+    val eventId: kotlin.String,
+
     @Json(name = "run_id")
-    val runId: kotlin.String
+    val runId: kotlin.String,
+
     @Json(name = "seq")
-    val seq: kotlin.Long
+    val seq: kotlin.Long,
+
     @Json(name = "ts")
-    val ts: java.time.OffsetDateTime
+    val ts: java.time.OffsetDateTime,
+
     @Json(name = "type")
-    val type: kotlin.Any?
+    val type: kotlin.Any?,
+
     @Json(name = "data")
     val `data`: ToolApprovalData
+
+) {
+
 
 }
 

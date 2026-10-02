@@ -78,6 +78,19 @@ class RunEventProjection {
                 activities = state.activities.filter { it.id != packet.eventId },
             )
 
+            // Keyed by action id so the decided event clears its pending row.
+            is RunEventPacket.ToolApprovalPending -> state.copy(
+                activities = state.activities + ActivityItem(
+                    id = packet.event.`data`.actionId,
+                    label = "Waiting for approval: ${packet.event.`data`.toolName.orEmpty()}",
+                    kind = ActivityKind.ToolApproval,
+                ),
+            )
+
+            is RunEventPacket.ToolApprovalDecided -> state.copy(
+                activities = state.activities.filter { it.id != packet.event.`data`.actionId },
+            )
+
             is RunEventPacket.Unknown -> state // ignore unknown events
         }
     }
@@ -102,4 +115,4 @@ data class ActivityItem(
     val kind: ActivityKind,
 )
 
-enum class ActivityKind { ResumeRequested, Elicitation, OperatorQuestion }
+enum class ActivityKind { ResumeRequested, Elicitation, OperatorQuestion, ToolApproval }

@@ -18,6 +18,8 @@ var liveRunEventKinds = []string{
 	"elicitation.decided",
 	"operator_question.pending",
 	"operator_question.decided",
+	"tool_approval.pending",
+	"tool_approval.decided",
 }
 
 // IsLiveRunEventKind reports whether kind is part of the /v1 mobile live contract.
@@ -84,6 +86,13 @@ func ProjectRunEventData(kind string, payload map[string]any) (any, error) {
 		}, nil
 	case "operator_question.pending", "operator_question.decided":
 		return projectOperatorQuestionData(payload), nil
+	case "tool_approval.pending", "tool_approval.decided":
+		return core.ToolApprovalData{
+			ActionID:  topLevelString(payload, "action_id"),
+			ToolName:  topLevelString(payload, "tool_name"),
+			Arguments: topLevelString(payload, "arguments"),
+			Decision:  topLevelString(payload, "decision"),
+		}, nil
 	default:
 		return nil, projectionError("unsupported live run event kind %q", kind)
 	}
