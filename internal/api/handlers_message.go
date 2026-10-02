@@ -17,7 +17,7 @@ func (s *Server) handleClientListMessages(w http.ResponseWriter, r *http.Request
 		s.respondClientKnownError(w, r, err)
 		return
 	}
-	s.respondJSON(w, r, http.StatusOK, MessageListResponse{Items: messageDTOsFromDomain(items)})
+	s.respondJSON(w, r, http.StatusOK, MessageListResponse{Items: DefaultConverter.messageDTOsFromDomain(items)})
 }
 
 func (s *Server) handleClientCreateMessage(w http.ResponseWriter, r *http.Request) {
@@ -30,5 +30,5 @@ func (s *Server) handleClientCreateMessage(w http.ResponseWriter, r *http.Reques
 		s.respondClientKnownError(w, r, err)
 		return
 	}
-	s.respondJSON(w, r, http.StatusCreated, messageDTOFromDomain(*item))
+	s.respondJSON(w, r, http.StatusCreated, DefaultConverter.messageDTOFromDomain(*item))
 }

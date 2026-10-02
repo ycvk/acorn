@@ -30,8 +30,6 @@ type Converter interface {
 	// Message
 	messageDTOFromDomain(source Message) MessageDTO
 	messageDTOsFromDomain(source []Message) []MessageDTO
-	disclosureItemDTOsFromDomain(source []DisclosureItem) []DisclosureItemDTO
-	decisionOptionDTOsFromDomain(source []DecisionOption) []DecisionOptionDTO
 
 	// Run
 	runSummaryDTOsFromDomain(source []RunSummary) []RunSummaryDTO

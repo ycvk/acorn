@@ -24,71 +24,11 @@ func (c *ConverterImpl) apiArtifactSummaryToApiArtifactSummaryDTO(source Artifac
 	apiArtifactSummaryDTO.CreatedAt = TimeToTime(source.CreatedAt)
 	return apiArtifactSummaryDTO
 }
-func (c *ConverterImpl) apiDecisionOptionToApiDecisionOptionDTO(source DecisionOption) DecisionOptionDTO {
-	var apiDecisionOptionDTO DecisionOptionDTO
-	apiDecisionOptionDTO.ID = source.ID
-	apiDecisionOptionDTO.Label = source.Label
-	apiDecisionOptionDTO.Description = source.Description
-	return apiDecisionOptionDTO
-}
-func (c *ConverterImpl) apiDisclosureItemToApiDisclosureItemDTO(source DisclosureItem) DisclosureItemDTO {
-	var apiDisclosureItemDTO DisclosureItemDTO
-	apiDisclosureItemDTO.Kind = source.Kind
-	apiDisclosureItemDTO.Label = source.Label
-	apiDisclosureItemDTO.Detail = source.Detail
-	apiDisclosureItemDTO.Tone = source.Tone
-	apiDisclosureItemDTO.SkillID = source.SkillID
-	return apiDisclosureItemDTO
-}
 func (c *ConverterImpl) apiMessageContentToApiMessageContentDTO(source MessageContent) MessageContentDTO {
 	var apiMessageContentDTO MessageContentDTO
 	apiMessageContentDTO.Type = source.Type
 	apiMessageContentDTO.Text = source.Text
-	if source.Parts != nil {
-		apiMessageContentDTO.Parts = make([]MessagePartDTO, len(source.Parts))
-		for i := 0; i < len(source.Parts); i++ {
-			apiMessageContentDTO.Parts[i] = c.apiMessagePartToApiMessagePartDTO(source.Parts[i])
-		}
-	}
 	return apiMessageContentDTO
-}
-func (c *ConverterImpl) apiMessagePartToApiMessagePartDTO(source MessagePart) MessagePartDTO {
-	var apiMessagePartDTO MessagePartDTO
-	apiMessagePartDTO.Kind = source.Kind
-	apiMessagePartDTO.Text = source.Text
-	apiMessagePartDTO.Reasoning = source.Reasoning
-	apiMessagePartDTO.Status = source.Status
-	apiMessagePartDTO.Title = source.Title
-	apiMessagePartDTO.Summary = source.Summary
-	if source.Changed != nil {
-		apiMessagePartDTO.Changed = make([]string, len(source.Changed))
-		for i := 0; i < len(source.Changed); i++ {
-			apiMessagePartDTO.Changed[i] = source.Changed[i]
-		}
-	}
-	if source.Verified != nil {
-		apiMessagePartDTO.Verified = make([]string, len(source.Verified))
-		for j := 0; j < len(source.Verified); j++ {
-			apiMessagePartDTO.Verified[j] = source.Verified[j]
-		}
-	}
-	if source.Risks != nil {
-		apiMessagePartDTO.Risks = make([]string, len(source.Risks))
-		for k := 0; k < len(source.Risks); k++ {
-			apiMessagePartDTO.Risks[k] = source.Risks[k]
-		}
-	}
-	apiMessagePartDTO.Items = c.disclosureItemDTOsFromDomain(source.Items)
-	apiMessagePartDTO.DetailRunID = source.DetailRunID
-	apiMessagePartDTO.RunID = source.RunID
-	apiMessagePartDTO.Label = source.Label
-	apiMessagePartDTO.DecisionID = source.DecisionID
-	apiMessagePartDTO.Question = source.Question
-	apiMessagePartDTO.SelectedOptionID = source.SelectedOptionID
-	apiMessagePartDTO.Answer = source.Answer
-	apiMessagePartDTO.Options = c.decisionOptionDTOsFromDomain(source.Options)
-	apiMessagePartDTO.Action = c.pApiMessageActionToPApiMessageActionDTO(source.Action)
-	return apiMessagePartDTO
 }
 func (c *ConverterImpl) apiPendingActionOptionToApiPendingActionOptionDTO(source PendingActionOption) PendingActionOptionDTO {
 	var apiPendingActionOptionDTO PendingActionOptionDTO
@@ -194,26 +134,6 @@ func (c *ConverterImpl) capabilitiesToolsDTOFromSnapshot(source []SystemToolCapa
 	}
 	return apiCapabilitiesToolDTOList
 }
-func (c *ConverterImpl) decisionOptionDTOsFromDomain(source []DecisionOption) []DecisionOptionDTO {
-	var apiDecisionOptionDTOList []DecisionOptionDTO
-	if source != nil {
-		apiDecisionOptionDTOList = make([]DecisionOptionDTO, len(source))
-		for i := 0; i < len(source); i++ {
-			apiDecisionOptionDTOList[i] = c.apiDecisionOptionToApiDecisionOptionDTO(source[i])
-		}
-	}
-	return apiDecisionOptionDTOList
-}
-func (c *ConverterImpl) disclosureItemDTOsFromDomain(source []DisclosureItem) []DisclosureItemDTO {
-	var apiDisclosureItemDTOList []DisclosureItemDTO
-	if source != nil {
-		apiDisclosureItemDTOList = make([]DisclosureItemDTO, len(source))
-		for i := 0; i < len(source); i++ {
-			apiDisclosureItemDTOList[i] = c.apiDisclosureItemToApiDisclosureItemDTO(source[i])
-		}
-	}
-	return apiDisclosureItemDTOList
-}
 func (c *ConverterImpl) memoryRecordDTOFromDomain(source memory.Record) MemoryRecordDTO {
 	var apiMemoryRecordDTO MemoryRecordDTO
 	apiMemoryRecordDTO.Ref = source.Ref
@@ -310,17 +230,6 @@ func (c *ConverterImpl) messageDTOsFromDomain(source []Message) []MessageDTO {
 		}
 	}
 	return apiMessageDTOList
-}
-func (c *ConverterImpl) pApiMessageActionToPApiMessageActionDTO(source *MessageAction) *MessageActionDTO {
-	var pApiMessageActionDTO *MessageActionDTO
-	if source != nil {
-		var apiMessageActionDTO MessageActionDTO
-		apiMessageActionDTO.Kind = (*source).Kind
-		apiMessageActionDTO.RunID = (*source).RunID
-		apiMessageActionDTO.Label = (*source).Label
-		pApiMessageActionDTO = &apiMessageActionDTO
-	}
-	return pApiMessageActionDTO
 }
 func (c *ConverterImpl) pendingActionOptionDTOsFromDomain(source []PendingActionOption) []PendingActionOptionDTO {
 	var apiPendingActionOptionDTOList []PendingActionOptionDTO

@@ -14,8 +14,8 @@ func (s *Store) migrate() error {
 	if _, err := s.db.Exec(storeBootstrapTables); err != nil {
 		return fmt.Errorf("migrate sqlite schema (tables): %w", err)
 	}
-	if err := s.migrateV2(); err != nil {
-		return fmt.Errorf("migrate v2: %w", err)
+	if err := s.migrateV3(); err != nil {
+		return fmt.Errorf("migrate v3: %w", err)
 	}
 	if err := s.validateSchema(); err != nil {
 		return err
@@ -26,10 +26,10 @@ func (s *Store) migrate() error {
 	return nil
 }
 
-func (s *Store) migrateV2() error {
-	// Adds session_messages.content_parts to databases created before it
-	// joined the bootstrap schema.
-	return s.addColumnIfNotExists("session_messages", "content_parts", "TEXT NOT NULL DEFAULT ''", "v2_session_messages_content_parts")
+func (s *Store) migrateV3() error {
+	// Drops session_messages.content_parts from databases created while it was
+	// part of the bootstrap schema.
+	return s.dropColumnIfExists("session_messages", "content_parts", "v3_session_messages_drop_content_parts")
 }
 
 func (s *Store) validateSchema() error {
@@ -48,7 +48,7 @@ var schemaRequiredTables = map[string][]string{
 	"runs":              {"run_id", "session_id", "turn_index", "status", "input_text", "output_text", "error_text", "created_at", "finished_at"},
 	"events":            {"sequence", "run_id", "kind", "payload_json", "created_at"},
 	"sessions":          {"session_id", "title", "created_at", "updated_at"},
-	"session_messages":  {"id", "session_id", "turn_index", "role", "content", "content_parts", "run_id", "created_at"},
+	"session_messages":  {"id", "session_id", "turn_index", "role", "content", "run_id", "created_at"},
 	"pending_actions":   {"action_id", "run_id", "interrupt_id", "kind", "subject", "payload_json", "status", "reason", "decision_json", "created_at", "resolved_at"},
 	"mcp_oauth_tokens":  {"provider_name", "access_token", "refresh_token", "expiry", "updated_at"},
 	"devices":           {"device_id", "name", "platform", "token_hash", "created_at", "last_seen_at", "revoked_at"},
@@ -132,28 +132,26 @@ func (s *Store) journalMode() (string, error) {
 	return strings.TrimSpace(mode), nil
 }
 
-// addColumnIfNotExists adds a column to a table idempotently, recording the
-// migration version in schema_migrations so it is not re-run. A column that
-// already exists (e.g. V2→V1→V2) is recorded as a successful no-op.
-func (s *Store) addColumnIfNotExists(table, column, definition, versionKey string) error {
-	// Check schema_migrations for idempotency
+// dropColumnIfExists drops a column from a table idempotently, recording the
+// migration version in schema_migrations so it is not re-run. A table that
+// never had the column is recorded as a successful no-op.
+func (s *Store) dropColumnIfExists(table, column, versionKey string) error {
 	if migrationApplied(s.db, versionKey) {
 		return nil
 	}
-
-	_, err := s.db.Exec(fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s", table, column, definition))
+	columns, err := s.tableColumns(table)
 	if err != nil {
-		if !strings.Contains(err.Error(), "duplicate column name") {
-			return fmt.Errorf("add column %s.%s: %w", table, column, err)
-		}
-		// Column already exists (e.g., V2→V1→V2 scenario), record and continue
-		if _, insertErr := s.db.Exec("INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?, datetime('now'))", versionKey); insertErr != nil {
-			return fmt.Errorf("record duplicate column migration %s: %w", versionKey, insertErr)
-		}
-		return nil
+		return err
 	}
-	_, insertErr := s.db.Exec("INSERT INTO schema_migrations (version, applied_at) VALUES (?, datetime('now'))", versionKey)
-	return insertErr
+	if _, ok := columns[column]; ok {
+		if _, err := s.db.Exec(fmt.Sprintf("ALTER TABLE %s DROP COLUMN %s", table, column)); err != nil {
+			return fmt.Errorf("drop column %s.%s: %w", table, column, err)
+		}
+	}
+	if _, err := s.db.Exec("INSERT INTO schema_migrations (version, applied_at) VALUES (?, datetime('now'))", versionKey); err != nil {
+		return fmt.Errorf("record migration %s: %w", versionKey, err)
+	}
+	return nil
 }
 
 // migrationApplied reports whether a schema migration version has already been

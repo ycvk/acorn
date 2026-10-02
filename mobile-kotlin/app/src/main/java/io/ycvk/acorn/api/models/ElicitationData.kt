@@ -32,7 +32,7 @@ import com.squareup.moshi.JsonClass
  *
  * @param actionId 
  * @param message 
- * @param requestedSchema 
+ * @param requestedSchema MCP elicitation requested schema
  */
 
 
@@ -44,6 +44,7 @@ data class ElicitationData (
     @Json(name = "message")
     val message: kotlin.String? = null,
 
+    /* MCP elicitation requested schema */
     @Json(name = "requested_schema")
     val requestedSchema: kotlin.Any? = null
 
