@@ -5,15 +5,20 @@ import androidx.security.crypto.EncryptedSharedPreferences
 
 /**
  * Stores connection profile (server URL, device ID, access token) in EncryptedSharedPreferences.
+ *
+ * Opening the encrypted prefs initializes Tink and takes long enough to stall the
+ * main thread, so it happens on first use; callers access the store off the main thread.
  */
 class SecureStore(context: Context) {
-    private val prefs = EncryptedSharedPreferences.create(
-        "acorn_connection",
-        "acorn_master_key",
-        context,
-        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
-    )
+    private val prefs by lazy {
+        EncryptedSharedPreferences.create(
+            "acorn_connection",
+            "acorn_master_key",
+            context,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
+        )
+    }
 
     fun saveConnection(serverUrl: String, deviceId: String, accessToken: String) {
         prefs.edit()
