@@ -18,26 +18,36 @@ func TestMemoryItemLifecycle(t *testing.T) {
 	s := openTestStore(t)
 	ctx := context.Background()
 	expires := time.Date(2026, 10, 9, 0, 0, 0, 0, time.UTC)
-	added, err := s.AddMemoryItem(ctx, core.MemoryItem{Kind: core.MemorySaid, Content: "我喜欢早上看新闻", Status: core.MemoryActive, SessionID: "thread_1", ExpiresAt: expires})
+	created := time.Date(2026, 10, 2, 9, 30, 0, 0, time.UTC)
+	if _, err := s.AddMemoryItem(ctx, core.MemoryItem{Kind: core.MemorySaid, Content: "x", Status: core.MemoryActive}); err == nil {
+		t.Fatal("an item without created_at must be rejected")
+	}
+	added, err := s.AddMemoryItem(ctx, core.MemoryItem{Kind: core.MemorySaid, Content: "我喜欢早上看新闻", Status: core.MemoryActive, SessionID: "thread_1", ExpiresAt: expires, CreatedAt: created})
 	if err != nil {
 		t.Fatalf("add: %v", err)
 	}
-	if added.ID == 0 || added.CreatedAt.IsZero() {
+	if added.ID == 0 {
 		t.Fatalf("added = %+v", added)
 	}
 	loaded, err := s.LoadMemoryItem(ctx, added.ID)
-	if err != nil || !loaded.ExpiresAt.Equal(expires) || !loaded.WakeAt.IsZero() || loaded.SessionID != "thread_1" {
+	if err != nil || !loaded.ExpiresAt.Equal(expires) || !loaded.WakeAt.IsZero() || loaded.SessionID != "thread_1" ||
+		!loaded.CreatedAt.Equal(created) || !loaded.UpdatedAt.Equal(created) {
 		t.Fatalf("load = %+v err=%v", loaded, err)
 	}
 	loaded.Status = core.MemoryResting
+	loaded.UpdatedAt = time.Time{}
+	if err := s.UpdateMemoryItem(ctx, *loaded); err == nil {
+		t.Fatal("an update without updated_at must be rejected")
+	}
+	loaded.UpdatedAt = created.Add(time.Hour)
 	if err := s.UpdateMemoryItem(ctx, *loaded); err != nil {
 		t.Fatalf("update: %v", err)
 	}
 	resting, err := s.ListMemoryItems(ctx, []core.MemoryStatus{core.MemoryResting})
-	if err != nil || len(resting) != 1 || resting[0].ID != added.ID {
+	if err != nil || len(resting) != 1 || resting[0].ID != added.ID || !resting[0].UpdatedAt.Equal(created.Add(time.Hour)) {
 		t.Fatalf("resting = %+v err=%v", resting, err)
 	}
-	if err := s.UpdateMemoryItem(ctx, core.MemoryItem{ID: 999, Content: "x", Status: core.MemoryActive}); !errors.Is(err, core.ErrMemoryItemNotFound) {
+	if err := s.UpdateMemoryItem(ctx, core.MemoryItem{ID: 999, Content: "x", Status: core.MemoryActive, UpdatedAt: created}); !errors.Is(err, core.ErrMemoryItemNotFound) {
 		t.Fatalf("update missing: %v", err)
 	}
 	if _, err := s.LoadMemoryItem(ctx, 999); !errors.Is(err, core.ErrMemoryItemNotFound) {
@@ -49,8 +59,8 @@ func TestClaimDueCommitmentOnlyOnce(t *testing.T) {
 	s := openTestStore(t)
 	ctx := context.Background()
 	now := time.Date(2026, 10, 5, 9, 0, 0, 0, time.UTC)
-	due, _ := s.AddMemoryItem(ctx, core.MemoryItem{Kind: core.MemoryCommitment, Content: "提醒看 X", Status: core.MemoryActive, WakeAt: now.Add(-time.Minute)})
-	later, _ := s.AddMemoryItem(ctx, core.MemoryItem{Kind: core.MemoryCommitment, Content: "later", Status: core.MemoryActive, WakeAt: now.Add(time.Hour)})
+	due, _ := s.AddMemoryItem(ctx, core.MemoryItem{Kind: core.MemoryCommitment, Content: "提醒看 X", Status: core.MemoryActive, WakeAt: now.Add(-time.Minute), CreatedAt: now})
+	later, _ := s.AddMemoryItem(ctx, core.MemoryItem{Kind: core.MemoryCommitment, Content: "later", Status: core.MemoryActive, WakeAt: now.Add(time.Hour), CreatedAt: now})
 
 	list, err := s.ListDueCommitments(ctx, now)
 	if err != nil || len(list) != 1 || list[0].ID != due.ID {
@@ -95,7 +105,7 @@ func TestSearchExperienceCoversRunsAndMemory(t *testing.T) {
 	if err := s.FinishRun(ctx, "run_1", core.RunStatusSucceeded, "好的,已经约好了 deadline", ""); err != nil {
 		t.Fatalf("finish run: %v", err)
 	}
-	if _, err := s.AddMemoryItem(ctx, core.MemoryItem{Kind: core.MemoryThought, Content: "owner 最近在读论文", Status: core.MemoryActive, SourceRunID: "run_1"}); err != nil {
+	if _, err := s.AddMemoryItem(ctx, core.MemoryItem{Kind: core.MemoryThought, Content: "owner 最近在读论文", Status: core.MemoryActive, SourceRunID: "run_1", CreatedAt: time.Now()}); err != nil {
 		t.Fatalf("add: %v", err)
 	}
 	for _, tc := range []struct {
@@ -190,11 +200,11 @@ func TestNotificationQueueAndCount(t *testing.T) {
 	s := openTestStore(t)
 	ctx := context.Background()
 	now := time.Now().UTC()
-	soon, err := s.QueueNotification(ctx, core.Notification{Title: "t", Body: "b", ThreadID: "thread_1", SendAfter: now.Add(-time.Second)})
+	soon, err := s.QueueNotification(ctx, core.Notification{Title: "t", Body: "b", ThreadID: "thread_1", SendAfter: now.Add(-time.Second), CreatedAt: now})
 	if err != nil {
 		t.Fatalf("queue: %v", err)
 	}
-	if _, err := s.QueueNotification(ctx, core.Notification{Title: "t", Body: "b", SendAfter: now.Add(time.Hour)}); err != nil {
+	if _, err := s.QueueNotification(ctx, core.Notification{Title: "t", Body: "b", SendAfter: now.Add(time.Hour), CreatedAt: now}); err != nil {
 		t.Fatalf("queue later: %v", err)
 	}
 	due, err := s.ListDueNotifications(ctx, now)

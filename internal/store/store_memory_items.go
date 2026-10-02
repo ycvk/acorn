@@ -22,14 +22,16 @@ func (s *Store) AddMemoryItem(ctx context.Context, item core.MemoryItem) (core.M
 	if strings.TrimSpace(item.Content) == "" {
 		return core.MemoryItem{}, errors.New("add memory item: content is required")
 	}
-	now := time.Now().UTC()
-	item.CreatedAt, item.UpdatedAt = now, now
+	if item.CreatedAt.IsZero() {
+		return core.MemoryItem{}, errors.New("add memory item: created_at is required")
+	}
+	item.UpdatedAt = item.CreatedAt
 	result, err := s.db.ExecContext(ctx,
 		`INSERT INTO memory_items(kind, content, status, session_id, source_run_id, wake_at, recurrence, expires_at, created_at, updated_at)
 		 VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		string(item.Kind), item.Content, string(item.Status), item.SessionID, item.SourceRunID,
 		formatZeroableTimestamp(item.WakeAt), item.Recurrence, formatZeroableTimestamp(item.ExpiresAt),
-		formatTimestamp(now), formatTimestamp(now),
+		formatTimestamp(item.CreatedAt), formatTimestamp(item.UpdatedAt),
 	)
 	if err != nil {
 		return core.MemoryItem{}, fmt.Errorf("add memory item: %w", err)
@@ -69,10 +71,13 @@ func (s *Store) LoadMemoryItem(ctx context.Context, id int64) (*core.MemoryItem,
 }
 
 func (s *Store) UpdateMemoryItem(ctx context.Context, item core.MemoryItem) error {
+	if item.UpdatedAt.IsZero() {
+		return fmt.Errorf("update memory item %d: updated_at is required", item.ID)
+	}
 	result, err := s.db.ExecContext(ctx,
 		`UPDATE memory_items SET content = ?, status = ?, wake_at = ?, expires_at = ?, updated_at = ? WHERE id = ?`,
 		item.Content, string(item.Status), formatZeroableTimestamp(item.WakeAt), formatZeroableTimestamp(item.ExpiresAt),
-		formatTimestamp(time.Now().UTC()), item.ID,
+		formatTimestamp(item.UpdatedAt), item.ID,
 	)
 	if err != nil {
 		return fmt.Errorf("update memory item %d: %w", item.ID, err)

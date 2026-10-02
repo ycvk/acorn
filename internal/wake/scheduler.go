@@ -188,6 +188,7 @@ func (s *Scheduler) withinDailyLimit(ctx context.Context, item core.MemoryItem, 
 func (s *Scheduler) retryLater(ctx context.Context, item core.MemoryItem, now time.Time, cause error) error {
 	item.Status = core.MemoryActive
 	item.WakeAt = now.Add(retryDelay)
+	item.UpdatedAt = now
 	if err := s.cfg.Store.UpdateMemoryItem(ctx, item); err != nil {
 		return errors.Join(fmt.Errorf("start wake run: %w", cause), fmt.Errorf("reschedule: %w", err))
 	}
@@ -213,6 +214,7 @@ func (s *Scheduler) scheduleNext(ctx context.Context, item core.MemoryItem, now 
 		SourceRunID: item.SourceRunID,
 		WakeAt:      next.UTC(),
 		Recurrence:  item.Recurrence,
+		CreatedAt:   now,
 	}); err != nil {
 		return fmt.Errorf("schedule next occurrence: %w", err)
 	}

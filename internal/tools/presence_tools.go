@@ -50,6 +50,7 @@ func buildMemoryWriteTool(name, description string, kind core.MemoryKind, deps P
 			SessionID:   deps.Context.CurrentSessionID(ctx),
 			SourceRunID: deps.Context.CurrentRunID(ctx),
 			ExpiresAt:   presence.NewExpiry(kind, now),
+			CreatedAt:   now,
 		})
 		if err != nil {
 			return MemoryWriteOutput{}, fmt.Errorf("%s: %w", name, err)
@@ -98,6 +99,7 @@ func buildScheduleWakeTool(deps PresenceToolDeps) (einotool.BaseTool, error) {
 				SourceRunID: deps.Context.CurrentRunID(ctx),
 				WakeAt:      wakeAt,
 				Recurrence:  strings.TrimSpace(input.Recurrence),
+				CreatedAt:   now,
 			})
 			if err != nil {
 				return ScheduleWakeOutput{}, fmt.Errorf("schedule_wake: %w", err)
@@ -232,6 +234,7 @@ func buildSettleTool(deps PresenceToolDeps) (einotool.BaseTool, error) {
 			default:
 				return SettleOutput{}, fmt.Errorf("settle: unknown action %q", input.Action)
 			}
+			item.UpdatedAt = now
 			if err := deps.Store.UpdateMemoryItem(ctx, *item); err != nil {
 				return SettleOutput{}, fmt.Errorf("settle: %w", err)
 			}
@@ -262,6 +265,7 @@ func internalize(ctx context.Context, deps PresenceToolDeps, item core.MemoryIte
 		SessionID:   item.SessionID,
 		SourceRunID: deps.Context.CurrentRunID(ctx),
 		ExpiresAt:   presence.NewExpiry(kind, now),
+		CreatedAt:   now,
 	})
 	if err != nil {
 		return 0, err

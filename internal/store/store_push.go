@@ -67,8 +67,10 @@ func (s *Store) QueueNotification(ctx context.Context, n core.Notification) (cor
 	if n.SendAfter.IsZero() {
 		return core.Notification{}, errors.New("queue notification: send_after is required")
 	}
+	if n.CreatedAt.IsZero() {
+		return core.Notification{}, errors.New("queue notification: created_at is required")
+	}
 	n.Status = core.NotificationQueued
-	n.CreatedAt = time.Now().UTC()
 	result, err := s.db.ExecContext(ctx,
 		`INSERT INTO notifications(title, body, thread_id, run_id, status, send_after, created_at) VALUES(?, ?, ?, ?, ?, ?, ?)`,
 		n.Title, n.Body, n.ThreadID, n.RunID, string(n.Status), formatTimestamp(n.SendAfter), formatTimestamp(n.CreatedAt))

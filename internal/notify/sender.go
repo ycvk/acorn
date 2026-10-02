@@ -99,6 +99,7 @@ func (s *Sender) Notify(ctx context.Context, n core.Notification) (core.Notifica
 	if len(tokens) == 0 {
 		return core.Notification{}, ErrNoPushToken
 	}
+	n.CreatedAt = now
 	n.SendAfter = now
 	quietEnd, quiet := s.cfg.Quiet.endAfter(now.In(s.cfg.Location))
 	if quiet {

@@ -49,6 +49,7 @@ func Decay(items []core.MemoryItem, now time.Time) []core.MemoryItem {
 		default:
 			continue
 		}
+		item.UpdatedAt = now
 		changed = append(changed, item)
 	}
 	return changed
