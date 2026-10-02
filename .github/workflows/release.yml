@@ -180,6 +180,11 @@ jobs:
       - name: Build signed release APK
         env:
           VERSION: ${{ needs.metadata.outputs.version }}
+          # Push stays unconfigured in the APK when these secrets are unset.
+          ACORN_FIREBASE_PROJECT_ID: ${{ secrets.ACORN_FIREBASE_PROJECT_ID }}
+          ACORN_FIREBASE_APP_ID: ${{ secrets.ACORN_FIREBASE_APP_ID }}
+          ACORN_FIREBASE_API_KEY: ${{ secrets.ACORN_FIREBASE_API_KEY }}
+          ACORN_FIREBASE_SENDER_ID: ${{ secrets.ACORN_FIREBASE_SENDER_ID }}
         working-directory: mobile-kotlin
         shell: bash
         run: |

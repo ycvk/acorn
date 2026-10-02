@@ -303,7 +303,7 @@ The agent reaches you with `notify_owner` through Firebase Cloud Messaging. With
    acorn.firebase.senderId=1234567890
    ```
 
-   The same values can come from `ACORN_FIREBASE_PROJECT_ID`, `ACORN_FIREBASE_APP_ID`, `ACORN_FIREBASE_API_KEY` and `ACORN_FIREBASE_SENDER_ID`. The APK published on GitHub Releases is built without them, so it shows push as not configured.
+   The same values can come from `ACORN_FIREBASE_PROJECT_ID`, `ACORN_FIREBASE_APP_ID`, `ACORN_FIREBASE_API_KEY` and `ACORN_FIREBASE_SENDER_ID`. The release workflow reads them from the repository secrets of the same names; an APK built without them shows push as not configured.
 
 After pairing, allow notifications when the app asks. Settings shows whether push is registered. Notifications held during quiet hours are sent when they end. Tapping a notification opens its thread. Notification text passes through Google's servers; the agent keeps it to a short summary and leaves details in the thread.
 
