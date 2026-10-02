@@ -100,7 +100,7 @@ func (e *Executor) ExecuteMessages(ctx context.Context, req core.ExecuteRequest,
 	defer active.Close()
 	execCtx := core.WithWake(buildExecutionContext(runCtxBase, runID, req.SessionID), req.Wake)
 	iter := active.Runner.Run(execCtx, req.Messages, adk.WithCheckPointID(runID))
-	return e.consume(ctx, runID, req.SessionID, req.Input, iter, sink, active.ChatModel)
+	return e.consume(ctx, runID, req.SessionID, req.Input, iter, sink, active)
 }
 
 func (e *Executor) createBoundRun(ctx context.Context, runID string, req core.ExecuteRequest) error {
@@ -182,7 +182,7 @@ func (e *Executor) executeResume(ctx context.Context, runCtxBase context.Context
 	if err != nil {
 		return nil, fmt.Errorf("resume run %s: %w", runID, err)
 	}
-	result, err := e.consume(ctx, runID, run.SessionID, run.Input, iter, sink, active.ChatModel)
+	result, err := e.consume(ctx, runID, run.SessionID, run.Input, iter, sink, active)
 	if err != nil {
 		return nil, err
 	}
@@ -199,17 +199,17 @@ type RunState struct {
 	emittedRunFailed bool
 }
 
-func (e *Executor) consume(ctx context.Context, runID, sessionID, input string, iter *adk.AsyncIterator[*adk.AgentEvent], sink core.StreamSink, chatModel einomodel.BaseChatModel) (*Result, error) {
-	state, err := e.collectRunState(ctx, runID, iter, sink, chatModel)
+func (e *Executor) consume(ctx context.Context, runID, sessionID, input string, iter *adk.AsyncIterator[*adk.AgentEvent], sink core.StreamSink, active *ActiveRunner) (*Result, error) {
+	state, err := e.collectRunState(ctx, runID, iter, sink, active)
 	if err != nil {
 		return nil, err
 	}
 	return e.finishCollectedRun(ctx, runID, sessionID, input, state, sink)
 }
 
-func (e *Executor) collectRunState(ctx context.Context, runID string, iter *adk.AsyncIterator[*adk.AgentEvent], sink core.StreamSink, chatModel einomodel.BaseChatModel) (RunState, error) {
+func (e *Executor) collectRunState(ctx context.Context, runID string, iter *adk.AsyncIterator[*adk.AgentEvent], sink core.StreamSink, active *ActiveRunner) (RunState, error) {
 	state := RunState{}
-	projector := newAgentEventProjector(runID, chatModel)
+	projector := newAgentEventProjector(runID, active.ChatModel, active.FailedCalls)
 	emit := func(item core.StreamItem) error {
 		item.RunID = runID
 		if _, err := AppendStreamItem(ctx, e.store, sink, item); err != nil {

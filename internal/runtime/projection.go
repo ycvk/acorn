@@ -62,6 +62,8 @@ func streamKindToEventKind(kind core.StreamItemKind) string {
 		return "runtime.message"
 	case core.StreamKindToolCallSucceeded:
 		return "tool.call.succeeded"
+	case core.StreamKindToolCallFailed:
+		return "tool.call.failed"
 	default:
 		return string(kind)
 	}

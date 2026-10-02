@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -23,6 +24,7 @@ type agentRunnerRequest struct {
 	ChatModel   einomodel.BaseChatModel
 	Catalog     *tools.Catalog
 	Instruction string
+	FailedCalls *failedToolCalls
 }
 
 // buildAgentRunner assembles the per-run ChatModelAgent. Context management,
@@ -51,8 +53,9 @@ func buildAgentRunner(ctx context.Context, deps RuntimeDeps, req agentRunnerRequ
 			ExecuteSequentially: true,
 			UnknownToolsHandler: unknownToolResult,
 		}},
-		MaxIterations: deps.Config.Agent.MaxIterations,
-		Handlers:      handlers,
+		MaxIterations:    deps.Config.Agent.MaxIterations,
+		Handlers:         handlers,
+		ModelRetryConfig: modelRetryConfig(),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("build chat model agent: %w", err)
@@ -62,6 +65,19 @@ func buildAgentRunner(ctx context.Context, deps RuntimeDeps, req agentRunnerRequ
 		EnableStreaming: true,
 		CheckPointStore: storeCheckpointStore{store: deps.Store},
 	}), nil
+}
+
+// modelRetryConfig retries a failed main model call up to three times. Deltas
+// already streamed from a failed attempt stay with the client; the assistant
+// message of the successful attempt replaces them.
+func modelRetryConfig() *adk.ModelRetryConfig {
+	return &adk.ModelRetryConfig{
+		MaxRetries: 3,
+		ShouldRetry: func(_ context.Context, retry *adk.RetryContext) *adk.RetryDecision {
+			err := retry.Err
+			return &adk.RetryDecision{Retry: err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded)}
+		},
+	}
 }
 
 // splitToolsByLoading separates eager tools from deferred ones; deferred tools
@@ -141,7 +157,7 @@ func buildAgentHandlers(ctx context.Context, deps RuntimeDeps, req agentRunnerRe
 	// present is not counted toward compaction (presence.max_tokens bounds it).
 	// Approval sits outside the tool error handler so a failure to record an
 	// approval fails the run instead of reaching the model as a tool error.
-	handlers = append(handlers, present, approval, newToolErrorMiddleware())
+	handlers = append(handlers, present, approval, newToolErrorMiddleware(req.FailedCalls))
 	return handlers, nil
 }
 

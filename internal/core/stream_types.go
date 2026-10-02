@@ -20,6 +20,7 @@ const (
 	StreamKindAssistantDelta     StreamItemKind = "assistant.delta"
 	StreamKindAssistantMessage   StreamItemKind = "assistant_message"
 	StreamKindToolCallSucceeded  StreamItemKind = "tool_call_succeeded"
+	StreamKindToolCallFailed     StreamItemKind = "tool_call_failed"
 	StreamKindElicitationPending StreamItemKind = "elicitation.pending"
 	StreamKindElicitationDecided StreamItemKind = "elicitation.decided"
 )

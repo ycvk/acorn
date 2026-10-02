@@ -67,7 +67,7 @@ func TestProjectToolResultInterruptAndError(t *testing.T) {
 	toolMsg := schema.ToolMessage("result", "call_1", schema.WithToolName("recall"))
 	interrupted := &adk.AgentEvent{Action: &adk.AgentAction{Interrupted: &adk.InterruptInfo{}}}
 	failed := &adk.AgentEvent{Err: errors.New("boom")}
-	items := collectProjected(t, &agentEventProjector{messagePrefix: "run_x:assistant:7"},
+	items := collectProjected(t, &agentEventProjector{messagePrefix: "run_x:assistant:7", failedCalls: newFailedToolCalls()},
 		adk.EventFromMessage(toolMsg, nil, schema.Tool, "recall"),
 		interrupted,
 		failed,

@@ -3,21 +3,49 @@ package runtime
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/cloudwego/eino/adk"
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/compose"
 )
 
+// failedToolCalls holds the tool calls of one run whose error became a tool
+// result, keyed by call id, so the projector can report them as failed.
+type failedToolCalls struct {
+	mu    sync.Mutex
+	calls map[string]string
+}
+
+func newFailedToolCalls() *failedToolCalls {
+	return &failedToolCalls{calls: map[string]string{}}
+}
+
+func (f *failedToolCalls) record(callID, errText string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.calls[callID] = errText
+}
+
+// take returns and forgets the error recorded for callID.
+func (f *failedToolCalls) take(callID string) (string, bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	errText, ok := f.calls[callID]
+	delete(f.calls, callID)
+	return errText, ok
+}
+
 // toolErrorMiddleware turns ordinary tool failures into tool results the model
 // can read and react to. Interrupts and run cancellation still propagate, so
 // approvals pause the run and a cancelled run stops.
 type toolErrorMiddleware struct {
 	*adk.BaseChatModelAgentMiddleware
+	failed *failedToolCalls
 }
 
-func newToolErrorMiddleware() *toolErrorMiddleware {
-	return &toolErrorMiddleware{BaseChatModelAgentMiddleware: &adk.BaseChatModelAgentMiddleware{}}
+func newToolErrorMiddleware(failed *failedToolCalls) *toolErrorMiddleware {
+	return &toolErrorMiddleware{BaseChatModelAgentMiddleware: &adk.BaseChatModelAgentMiddleware{}, failed: failed}
 }
 
 func (m *toolErrorMiddleware) WrapInvokableToolCall(_ context.Context, endpoint adk.InvokableToolCallEndpoint, tCtx *adk.ToolContext) (adk.InvokableToolCallEndpoint, error) {
@@ -29,6 +57,7 @@ func (m *toolErrorMiddleware) WrapInvokableToolCall(_ context.Context, endpoint 
 		if _, interrupted := compose.IsInterruptRerunError(err); interrupted || ctx.Err() != nil {
 			return output, err
 		}
+		m.failed.record(tCtx.CallID, err.Error())
 		return fmt.Sprintf("Tool %s failed: %v", tCtx.Name, err), nil
 	}, nil
 }

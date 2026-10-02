@@ -210,11 +210,13 @@ func (f *RunnerFactory) newAgentRunner(ctx context.Context, req RunnerBuildReque
 	if err != nil {
 		return nil, err
 	}
+	failed := newFailedToolCalls()
 	runner, err := buildAgentRunner(ctx, f.deps, agentRunnerRequest{
 		RunID:       req.RunID,
 		ChatModel:   chatModel,
 		Catalog:     capabilities.catalog,
 		Instruction: buildAgentInstruction(persona, skillCatalogBrief(capabilities.skillSnapshot)),
+		FailedCalls: failed,
 	})
 	if err != nil {
 		return nil, err
@@ -223,6 +225,7 @@ func (f *RunnerFactory) newAgentRunner(ctx context.Context, req RunnerBuildReque
 		Mcp:           capabilityAssembly.mcpManager,
 		Runner:        runner,
 		ChatModel:     chatModel,
+		FailedCalls:   failed,
 		RunID:         req.RunID,
 		ToolCatalog:   capabilities.catalog,
 		CloseRunTools: capabilities.Close,
@@ -251,6 +254,7 @@ type ActiveRunner struct {
 	Mcp           *mcpprovider.Manager
 	Runner        *adk.Runner
 	ChatModel     einomodel.BaseChatModel
+	FailedCalls   *failedToolCalls
 	RunID         string
 	ToolCatalog   *tools.Catalog
 	CloseRunTools func() error

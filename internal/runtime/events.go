@@ -20,16 +20,18 @@ type agentEventProjector struct {
 	// messages never reuse the ids of the messages before the interrupt.
 	messagePrefix  string
 	provider       string
+	failedCalls    *failedToolCalls
 	assistantCount int
 	// streamErr is the first assistant stream read failure. Eino follows a
 	// failed stream with an error event; streamErr fails the run if it does not.
 	streamErr error
 }
 
-func newAgentEventProjector(runID string, chatModel einomodel.BaseChatModel) *agentEventProjector {
+func newAgentEventProjector(runID string, chatModel einomodel.BaseChatModel, failedCalls *failedToolCalls) *agentEventProjector {
 	return &agentEventProjector{
 		messagePrefix: fmt.Sprintf("%s:assistant:%d", runID, time.Now().UnixNano()),
 		provider:      activeProviderName(chatModel),
+		failedCalls:   failedCalls,
 	}
 }
 
@@ -58,11 +60,7 @@ func (p *agentEventProjector) project(event *adk.AgentEvent, emit func(core.Stre
 			if err != nil {
 				return fmt.Errorf("read tool result message: %w", err)
 			}
-			if err := emit(core.StreamItem{Kind: core.StreamKindToolCallSucceeded, CreatedAt: now, Payload: map[string]any{
-				"tool_call_id": msg.ToolCallID,
-				"tool_name":    msg.ToolName,
-				"output":       msg.Content,
-			}}); err != nil {
+			if err := emit(p.toolResultItem(msg, now)); err != nil {
 				return err
 			}
 		}
@@ -75,12 +73,31 @@ func (p *agentEventProjector) project(event *adk.AgentEvent, emit func(core.Stre
 	return nil
 }
 
+func (p *agentEventProjector) toolResultItem(msg *schema.Message, now time.Time) core.StreamItem {
+	if errText, failed := p.failedCalls.take(msg.ToolCallID); failed {
+		return core.StreamItem{Kind: core.StreamKindToolCallFailed, CreatedAt: now, Payload: map[string]any{
+			"tool_call_id": msg.ToolCallID,
+			"tool_name":    msg.ToolName,
+			"error":        errText,
+		}}
+	}
+	return core.StreamItem{Kind: core.StreamKindToolCallSucceeded, CreatedAt: now, Payload: map[string]any{
+		"tool_call_id": msg.ToolCallID,
+		"tool_name":    msg.ToolName,
+		"output":       msg.Content,
+	}}
+}
+
 func (p *agentEventProjector) projectAssistant(mo *adk.MessageVariant, emit func(core.StreamItem) error) error {
 	p.assistantCount++
 	messageID := fmt.Sprintf("%s:%d", p.messagePrefix, p.assistantCount)
 	final := mo.Message
 	if mo.IsStreaming {
 		concat, err := p.projectAssistantStream(mo.MessageStream, messageID, emit)
+		var retrying *adk.WillRetryError
+		if errors.As(err, &retrying) {
+			return nil // the retry's assistant event carries the message
+		}
 		var readErr *streamReadError
 		if errors.As(err, &readErr) {
 			if p.streamErr == nil {

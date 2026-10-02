@@ -143,6 +143,7 @@ func TestStreamKindToEventKind(t *testing.T) {
 		{core.StreamKindAssistantDelta, "assistant.delta"},
 		{core.StreamKindAssistantMessage, "runtime.message"},
 		{core.StreamKindToolCallSucceeded, "tool.call.succeeded"},
+		{core.StreamKindToolCallFailed, "tool.call.failed"},
 		{"unknown.kind", "unknown.kind"},
 	}
 
