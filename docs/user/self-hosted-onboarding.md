@@ -252,7 +252,7 @@ Restart after editing config or env:
 sudo systemctl restart acorn
 ```
 
-`browser.executable_path` and `TAVILY_API_KEY` are optional at backend startup. Calling `browser` without an executable path or `web_search` without a key fails explicitly as a tool result. `web_fetch` does not require Tavily.
+`browser.executable_path` and `TAVILY_API_KEY` are optional at backend startup. Without an executable path `browser` is disabled, and without a key `web_search` is disabled; `acorn doctor` lists each disabled tool with the missing setting. `web_fetch` does not require Tavily.
 
 ## 9. Backup
 

@@ -49,16 +49,16 @@ func buildToolset(
 	}
 	var closers []io.Closer
 	defer func() { closeToolsetOnErr(closers, &err) }()
-	local, err := buildLocalToolset(ctx, deps)
+	local, err := buildLocalToolset(deps)
+	closers = append(closers, local.closers...)
 	if err != nil {
 		return nil, err
 	}
-	closers = append(closers, local.closers...)
 	aux, err := buildAuxTools(ctx, deps)
 	if err != nil {
 		return nil, err
 	}
-	catalog, err := assembleToolsetCatalog(ctx, deps.Config, local.catalog, aux)
+	catalog, err := assembleToolsetCatalog(ctx, deps.Config, local.specs, aux)
 	if err != nil {
 		return nil, err
 	}
@@ -75,14 +75,15 @@ func validateToolsetDeps(deps RuntimeDeps) error {
 	return nil
 }
 
-func buildLocalToolset(ctx context.Context, deps RuntimeDeps) (localToolset, error) {
-	var out localToolset
-	services, err := buildToolsetWebServices(deps)
+// buildLocalToolset builds the deferred web tool specs from per-run services.
+// The returned closers must be closed even when err is non-nil.
+func buildLocalToolset(deps RuntimeDeps) (localToolset, error) {
+	webCfg, closers, err := buildWebToolsConfig(deps)
 	if err != nil {
-		return out, err
+		return localToolset{}, err
 	}
-	out.catalog, out.closers, err = buildLocalCatalog(ctx, deps, services)
-	return out, err
+	specs, err := tools.BuildWebToolSpecs(webCfg)
+	return localToolset{specs: specs, closers: closers}, err
 }
 
 func closeToolsetOnErr(closers []io.Closer, err *error) {
@@ -103,8 +104,8 @@ func closeToolsetOnErr(closers []io.Closer, err *error) {
 	}
 }
 
-func assembleToolsetCatalog(ctx context.Context, cfg *config.Config, localCatalog *tools.LocalCatalog, aux auxTools) (*tools.Catalog, error) {
-	coreSpecs, err := buildCoreToolSpecs(ctx, cfg, localCatalog, aux)
+func assembleToolsetCatalog(ctx context.Context, cfg *config.Config, webSpecs []core.ToolSpec, aux auxTools) (*tools.Catalog, error) {
+	coreSpecs, err := buildCoreToolSpecs(ctx, cfg, webSpecs, aux)
 	if err != nil {
 		return nil, err
 	}
@@ -119,26 +120,8 @@ func assembleToolsetCatalog(ctx context.Context, cfg *config.Config, localCatalo
 // native tools (web_fetch, web_search, browser — which depend on per-run web
 // services) plus memory and skill tools. Eager-loaded native tools are owned by
 // the registry and are not built here.
-func buildCoreToolSpecs(ctx context.Context, cfg *config.Config, localCatalog *tools.LocalCatalog, aux auxTools) ([]core.ToolSpec, error) {
-	var specs []core.ToolSpec
-	for _, tool := range localCatalog.Tools {
-		info, err := tool.Info(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("read tool info for local toolset: %w", err)
-		}
-		name := strings.TrimSpace(info.Name)
-		// Only deferred-loaded tools belong to the toolset catalog; eager
-		// natives are owned by the registry.
-		localSpec, ok := tools.ConfiguredLocalSpec(name)
-		if !ok {
-			continue
-		}
-		if localSpec.Loading.Mode != core.ToolLoadingModeDeferred {
-			continue
-		}
-		localSpec.Tool = tool
-		specs = append(specs, localSpec)
-	}
+func buildCoreToolSpecs(ctx context.Context, cfg *config.Config, webSpecs []core.ToolSpec, aux auxTools) ([]core.ToolSpec, error) {
+	specs := append([]core.ToolSpec(nil), webSpecs...)
 	memorySpecs, err := BuildCatalogSpecs(ctx, cfg, "memory", core.ToolKindMemory, aux.memory)
 	if err != nil {
 		return nil, err
@@ -152,38 +135,56 @@ func buildCoreToolSpecs(ctx context.Context, cfg *config.Config, localCatalog *t
 	return specs, nil
 }
 
-type toolsetWebServices struct {
-	fetch  *webaccess.FetchService
-	search *webaccess.SearchService
-}
-
 type auxTools struct {
 	memory []einotool.BaseTool
 	skill  []einotool.BaseTool
 }
 
-func buildToolsetWebServices(deps RuntimeDeps) (toolsetWebServices, error) {
-	cfg := deps.Config.WebAccess
+// buildWebToolsConfig constructs the per-run web services. web_search and
+// browser stay disabled until their config is set; the reason surfaces in the
+// capability snapshot.
+func buildWebToolsConfig(deps RuntimeDeps) (tools.WebToolsConfig, []io.Closer, error) {
+	webCfg := deps.Config.WebAccess
+	policy := webaccess.URLPolicy{AllowPrivateNetworks: webCfg.AllowPrivateNetworks}
 	fetch, err := webaccess.NewFetchService(webaccess.FetchConfig{
-		UserAgent:        cfg.UserAgent,
-		Timeout:          time.Duration(cfg.TimeoutSeconds) * time.Second,
-		MaxResponseBytes: cfg.MaxResponseBytes,
-		Policy:           webaccess.URLPolicy{AllowPrivateNetworks: cfg.AllowPrivateNetworks},
+		UserAgent:        webCfg.UserAgent,
+		Timeout:          time.Duration(webCfg.TimeoutSeconds) * time.Second,
+		MaxResponseBytes: webCfg.MaxResponseBytes,
+		Policy:           policy,
 	})
 	if err != nil {
-		return toolsetWebServices{}, fmt.Errorf("web fetch service: %w", err)
+		return tools.WebToolsConfig{}, nil, fmt.Errorf("web fetch service: %w", err)
 	}
-	search, err := webaccess.NewSearchService(webaccess.SearchConfig{
-		APIKey:           cfg.Search.APIKey,
-		Timeout:          time.Duration(cfg.Search.TimeoutSeconds) * time.Second,
-		MaxResults:       cfg.Search.MaxResults,
-		MaxResponseBytes: cfg.MaxResponseBytes,
-		Policy:           webaccess.URLPolicy{AllowPrivateNetworks: cfg.AllowPrivateNetworks},
-	})
+	out := tools.WebToolsConfig{
+		ArtifactService: deps.ArtifactService,
+		ArtifactContext: artifactToolBridge{},
+		Fetch:           fetch,
+	}
+	if strings.TrimSpace(webCfg.Search.APIKey) == "" {
+		out.SearchDisabledReason = "web_access.search.api_key is not configured"
+	} else {
+		search, err := webaccess.NewSearchService(webaccess.SearchConfig{
+			APIKey:           webCfg.Search.APIKey,
+			Timeout:          time.Duration(webCfg.Search.TimeoutSeconds) * time.Second,
+			MaxResults:       webCfg.Search.MaxResults,
+			MaxResponseBytes: webCfg.MaxResponseBytes,
+			Policy:           policy,
+		})
+		if err != nil {
+			return tools.WebToolsConfig{}, nil, fmt.Errorf("web search service: %w", err)
+		}
+		out.Search = search
+	}
+	if strings.TrimSpace(deps.Config.Browser.ExecutablePath) == "" {
+		out.BrowserDisabledReason = "browser.executable_path is not configured"
+		return out, nil, nil
+	}
+	browser, err := buildBrowserService(deps)
 	if err != nil {
-		return toolsetWebServices{}, fmt.Errorf("web search service: %w", err)
+		return tools.WebToolsConfig{}, nil, fmt.Errorf("browser service: %w", err)
 	}
-	return toolsetWebServices{fetch: fetch, search: search}, nil
+	out.Browser = browser
+	return out, []io.Closer{browser}, nil
 }
 
 func buildBrowserService(deps RuntimeDeps) (*tools.Service, error) {
@@ -196,32 +197,6 @@ func buildBrowserService(deps RuntimeDeps) (*tools.Service, error) {
 		UserAgent:      webCfg.UserAgent,
 		Policy:         webaccess.URLPolicy{AllowPrivateNetworks: webCfg.AllowPrivateNetworks},
 	})
-}
-
-func resolveOperatorStore(deps RuntimeDeps) tools.OperatorQuestionStore {
-	if deps.MCPPendingActions != nil {
-		return deps.MCPPendingActions
-	}
-	return deps.Store
-}
-
-func buildLocalCatalog(ctx context.Context, deps RuntimeDeps, services toolsetWebServices) (*tools.LocalCatalog, []io.Closer, error) {
-	browser, err := buildBrowserService(deps)
-	if err != nil {
-		return nil, nil, fmt.Errorf("browser service: %w", err)
-	}
-	catalog, err := tools.BuildCatalog(tools.CatalogConfig{
-		ArtifactService:   deps.ArtifactService,
-		ArtifactContext:   artifactToolBridge{},
-		OperatorStore:     resolveOperatorStore(deps),
-		RunSearchStore:    deps.Store,
-		WorldStateUpdater: deps.WorldStateUpdater,
-		OperatorContext:   artifactToolBridge{},
-		WebFetchService:   services.fetch,
-		WebSearchService:  services.search,
-		BrowserService:    browser,
-	})
-	return catalog, []io.Closer{browser}, err
 }
 
 func buildAuxTools(ctx context.Context, deps RuntimeDeps) (auxTools, error) {
@@ -240,9 +215,6 @@ func buildAuxTools(ctx context.Context, deps RuntimeDeps) (auxTools, error) {
 }
 
 func buildMemoryTools(ctx context.Context, deps RuntimeDeps) ([]einotool.BaseTool, error) {
-	if deps.MemoryModule == nil {
-		return nil, nil
-	}
 	return BuildMemoryFileTools(ctx, deps.MemoryModule)
 }
 

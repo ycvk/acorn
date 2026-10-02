@@ -22,13 +22,13 @@ import (
 	workspacepkg "github.com/ycvk/acorn/internal/workspace"
 )
 
-func TestBuildCatalogBuildsFileToolsForWorkspace(t *testing.T) {
-	catalog, err := BuildCatalog(CatalogConfig{Workspace: testWorkspace(t, t.TempDir())})
+func TestBuildWorkspaceToolsBuildsFileTools(t *testing.T) {
+	fileTools, err := BuildWorkspaceTools(testWorkspace(t, t.TempDir()))
 	if err != nil {
-		t.Fatalf("build catalog: %v", err)
+		t.Fatalf("BuildWorkspaceTools: %v", err)
 	}
-	names := make([]string, 0, len(catalog.Tools))
-	for _, tool := range catalog.Tools {
+	names := make([]string, 0, len(fileTools))
+	for _, tool := range fileTools {
 		info, err := tool.Info(context.Background())
 		if err != nil {
 			t.Fatalf("tool info: %v", err)
@@ -40,13 +40,10 @@ func TestBuildCatalogBuildsFileToolsForWorkspace(t *testing.T) {
 	}
 }
 
-func TestBuildCatalogAllowsEmptyCatalog(t *testing.T) {
-	catalog, err := BuildCatalog(CatalogConfig{})
-	if err != nil {
-		t.Fatalf("build empty catalog: %v", err)
-	}
-	if len(catalog.Tools) != 0 {
-		t.Fatalf("expected 0 tools, got %d", len(catalog.Tools))
+func TestBuildWorkspaceToolsRequiresWorkspace(t *testing.T) {
+	_, err := BuildWorkspaceTools(nil)
+	if err == nil || !strings.Contains(err.Error(), "workspace is required") {
+		t.Fatalf("BuildWorkspaceTools(nil) error = %v, want workspace is required", err)
 	}
 }
 
@@ -57,11 +54,11 @@ func TestReadFileReturnsStructuredLineRange(t *testing.T) {
 		t.Fatalf("write fixture: %v", err)
 	}
 	ws := testWorkspace(t, root)
-	catalog, err := BuildCatalog(CatalogConfig{Workspace: ws})
+	fileTools, err := BuildWorkspaceTools(ws)
 	if err != nil {
-		t.Fatalf("BuildCatalog: %v", err)
+		t.Fatalf("BuildWorkspaceTools: %v", err)
 	}
-	tool := mustToolByName(t, catalog.Tools, "read_file")
+	tool := mustToolByName(t, fileTools, "read_file")
 
 	output, err := tool.InvokableRun(context.Background(), `{"path":"notes.txt","start_line":2,"end_line":3}`)
 	if err != nil {
@@ -83,11 +80,11 @@ func TestReadFileReturnsStructuredLineRange(t *testing.T) {
 func TestCreateFileReturnsVerificationPreview(t *testing.T) {
 	root := t.TempDir()
 	ws := testWorkspace(t, root)
-	catalog, err := BuildCatalog(CatalogConfig{Workspace: ws})
+	fileTools, err := BuildWorkspaceTools(ws)
 	if err != nil {
-		t.Fatalf("BuildCatalog: %v", err)
+		t.Fatalf("BuildWorkspaceTools: %v", err)
 	}
-	tool := mustToolByName(t, catalog.Tools, "create_file")
+	tool := mustToolByName(t, fileTools, "create_file")
 
 	output, err := tool.InvokableRun(context.Background(), `{"path":"notes.txt","content":"hello from acorn"}`)
 	if err != nil {
@@ -119,19 +116,9 @@ func TestCreateFileReturnsVerificationPreview(t *testing.T) {
 }
 
 func TestNativeWorkspaceToolsExposeProgressInterface(t *testing.T) {
-	root := t.TempDir()
-	artifactService, err := corestore.NewArtifactService(filepath.Join(t.TempDir(), "artifacts"), newToolArtifactStore())
+	fileTools, err := BuildWorkspaceTools(testWorkspace(t, t.TempDir()))
 	if err != nil {
-		t.Fatalf("corestore.NewArtifactService: %v", err)
-	}
-	ws := testWorkspace(t, root)
-	catalog, err := BuildCatalog(CatalogConfig{
-		Workspace:       ws,
-		ArtifactService: artifactService,
-		ArtifactContext: fixedArtifactContext{runID: "run_1", sessionID: "session_1", callID: "call_1"},
-	})
-	if err != nil {
-		t.Fatalf("BuildCatalog: %v", err)
+		t.Fatalf("BuildWorkspaceTools: %v", err)
 	}
 	for _, name := range []string{
 		"read_file",
@@ -139,7 +126,7 @@ func TestNativeWorkspaceToolsExposeProgressInterface(t *testing.T) {
 		"create_file",
 		"replace_span",
 	} {
-		mustProgressToolByName(t, catalog.Tools, name)
+		mustProgressToolByName(t, fileTools, name)
 	}
 }
 
@@ -149,22 +136,19 @@ func TestArtifactToolsWriteReadAndList(t *testing.T) {
 	if err != nil {
 		t.Fatalf("corestore.NewArtifactService: %v", err)
 	}
-	catalog, err := BuildCatalog(CatalogConfig{
-		ArtifactService: service,
-		ArtifactContext: fixedArtifactContext{
-			runID:     "run_1",
-			sessionID: "session_1",
-			callID:    "call_1",
-		},
+	artifactTools, err := buildArtifactTools(service, fixedArtifactContext{
+		runID:     "run_1",
+		sessionID: "session_1",
+		callID:    "call_1",
 	})
 	if err != nil {
-		t.Fatalf("BuildCatalog: %v", err)
+		t.Fatalf("buildArtifactTools: %v", err)
 	}
-	if got, want := len(catalog.Tools), 3; got != want {
+	if got, want := len(artifactTools), 3; got != want {
 		t.Fatalf("artifact tool count = %d, want %d", got, want)
 	}
 
-	writeTool := mustToolByName(t, catalog.Tools, "artifact_write")
+	writeTool := mustToolByName(t, artifactTools, "artifact_write")
 	writeOutput, err := writeTool.InvokableRun(context.Background(), `{"kind":"markdown","title":"Report","mime_type":"text/markdown","content":"hello artifact"}`)
 	if err != nil {
 		t.Fatalf("artifact_write: %v", err)
@@ -180,7 +164,7 @@ func TestArtifactToolsWriteReadAndList(t *testing.T) {
 		t.Fatalf("unexpected artifact identity/size: %+v", written)
 	}
 
-	readTool := mustToolByName(t, catalog.Tools, "artifact_read")
+	readTool := mustToolByName(t, artifactTools, "artifact_read")
 	readOutput, err := readTool.InvokableRun(context.Background(), `{"artifact_id":"`+written.ArtifactID+`","offset":6,"limit":20}`)
 	if err != nil {
 		t.Fatalf("artifact_read: %v", err)
@@ -193,7 +177,7 @@ func TestArtifactToolsWriteReadAndList(t *testing.T) {
 		t.Fatalf("unexpected artifact read output: %+v", read)
 	}
 
-	listTool := mustToolByName(t, catalog.Tools, "artifact_list")
+	listTool := mustToolByName(t, artifactTools, "artifact_list")
 	listOutput, err := listTool.InvokableRun(context.Background(), `{}`)
 	if err != nil {
 		t.Fatalf("artifact_list: %v", err)
@@ -234,15 +218,11 @@ func TestWebFetchToolPersistsRawAndMarkdownArtifacts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("webaccess.NewFetchService: %v", err)
 	}
-	catalog, err := BuildCatalog(CatalogConfig{
-		ArtifactService: artifactService,
-		ArtifactContext: fixedArtifactContext{runID: "run_web", sessionID: "session_web", callID: "call_web"},
-		WebFetchService: fetchService,
-	})
+	fetchTool, err := buildWebFetchTool(fetchService, artifactService, fixedArtifactContext{runID: "run_web", sessionID: "session_web", callID: "call_web"})
 	if err != nil {
-		t.Fatalf("BuildCatalog: %v", err)
+		t.Fatalf("buildWebFetchTool: %v", err)
 	}
-	tool := mustToolByName(t, catalog.Tools, "web_fetch")
+	tool := mustToolByName(t, []einotool.BaseTool{fetchTool}, "web_fetch")
 	output, err := tool.InvokableRun(context.Background(), `{"url":"https://example.com/page","extract_mode":"full_page_markdown"}`)
 	if err != nil {
 		t.Fatalf("web_fetch: %v", err)
@@ -296,15 +276,11 @@ func TestWebSearchToolPersistsRawProviderArtifact(t *testing.T) {
 	if err != nil {
 		t.Fatalf("webaccess.NewSearchService: %v", err)
 	}
-	catalog, err := BuildCatalog(CatalogConfig{
-		ArtifactService:  artifactService,
-		ArtifactContext:  fixedArtifactContext{runID: "run_search", sessionID: "session_search", callID: "call_search"},
-		WebSearchService: searchService,
-	})
+	searchTool, err := buildWebSearchTool(searchService, artifactService, fixedArtifactContext{runID: "run_search", sessionID: "session_search", callID: "call_search"})
 	if err != nil {
-		t.Fatalf("BuildCatalog: %v", err)
+		t.Fatalf("buildWebSearchTool: %v", err)
 	}
-	tool := mustToolByName(t, catalog.Tools, "web_search")
+	tool := mustToolByName(t, []einotool.BaseTool{searchTool}, "web_search")
 	output, err := tool.InvokableRun(context.Background(), `{"query":"acorn","max_results":5}`)
 	if err != nil {
 		t.Fatalf("web_search: %v", err)
@@ -340,15 +316,11 @@ func TestBrowserToolFailsLoudlyWhenExecutableIsMissing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("browser.NewService: %v", err)
 	}
-	catalog, err := BuildCatalog(CatalogConfig{
-		ArtifactService: artifactService,
-		ArtifactContext: fixedArtifactContext{runID: "run_browser", sessionID: "session_browser", callID: "call_browser"},
-		BrowserService:  browserService,
-	})
+	browserTool, err := buildBrowserTool(browserService, artifactService, fixedArtifactContext{runID: "run_browser", sessionID: "session_browser", callID: "call_browser"})
 	if err != nil {
-		t.Fatalf("BuildCatalog: %v", err)
+		t.Fatalf("buildBrowserTool: %v", err)
 	}
-	tool := mustToolByName(t, catalog.Tools, "browser")
+	tool := mustToolByName(t, []einotool.BaseTool{browserTool}, "browser")
 	_, err = tool.InvokableRun(context.Background(), `{"action":"open","url":"http://93.184.216.34/"}`)
 	if err == nil || !strings.Contains(err.Error(), "browser.executable_path is not configured") || !strings.Contains(err.Error(), "install Chrome/Chromium") {
 		t.Fatalf("browser error = %v, want actionable missing executable_path", err)
@@ -364,15 +336,12 @@ func TestAskOperatorCreatesPendingActionAndInterrupts(t *testing.T) {
 	if err := store.CreateRun(context.Background(), core.RunCreateParams{RunID: "run_ask_operator", Input: "choose path"}); err != nil {
 		t.Fatalf("create run: %v", err)
 	}
-	catalog, err := BuildCatalog(CatalogConfig{
-		OperatorStore:   store,
-		OperatorContext: fixedArtifactContext{runID: "run_ask_operator", sessionID: "session_ask_operator", callID: "call_question"},
-	})
+	operatorTool, err := buildAskOperatorTool(store, fixedArtifactContext{runID: "run_ask_operator", sessionID: "session_ask_operator", callID: "call_question"})
 	if err != nil {
-		t.Fatalf("BuildCatalog: %v", err)
+		t.Fatalf("buildAskOperatorTool: %v", err)
 	}
 
-	tool := mustToolByName(t, catalog.Tools, "ask_operator")
+	tool := mustToolByName(t, []einotool.BaseTool{operatorTool}, "ask_operator")
 	_, err = tool.InvokableRun(context.Background(), `{
 		"title":"Choose path",
 		"question":"Which path should Acorn take?",

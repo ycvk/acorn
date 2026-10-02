@@ -9,7 +9,6 @@ import (
 	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/memory"
 	"github.com/ycvk/acorn/internal/skills"
-	"github.com/ycvk/acorn/internal/tools"
 )
 
 func compactText(value string, limit int) (string, bool) {
@@ -47,6 +46,5 @@ type RuntimeDeps struct {
 	ContextPlane      *ContextPlane
 	MCPPendingActions core.SessionStore
 	ArtifactService   core.ArtifactService
-	WorldStateUpdater tools.WorldStateUpdater
 	ToolRegistry      core.ToolRegistry
 }
