@@ -33,11 +33,19 @@ type Container struct {
 	wake          *wake.Scheduler
 }
 
+// buildOptions are the process-level dependencies of a container.
+type buildOptions struct {
+	// clock drives presence, commitments and notifications.
+	clock func() time.Time
+	// fcmEndpoint, when set, replaces the FCM API send endpoint.
+	fcmEndpoint string
+}
+
 func NewContainer(ctx context.Context, cfg *config.Config) (*Container, error) {
 	if cfg == nil {
 		return nil, errors.New("config is required")
 	}
-	return buildContainer(ctx, cfg)
+	return buildContainer(ctx, cfg, buildOptions{clock: time.Now})
 }
 
 func (c *Container) Config() *config.Config {
@@ -107,11 +115,7 @@ func (c *Container) Close() error {
 	return errors.Join(errs...)
 }
 
-func buildContainer(ctx context.Context, cfg *config.Config) (*Container, error) {
-	if cfg == nil {
-		return nil, errors.New("config is required")
-	}
-
+func buildContainer(ctx context.Context, cfg *config.Config, options buildOptions) (*Container, error) {
 	runtime.RegisterTypes()
 
 	store, err := store.Open(cfg.Runtime.StorageDir)
@@ -126,12 +130,12 @@ func buildContainer(ctx context.Context, cfg *config.Config) (*Container, error)
 		}
 	}()
 
-	deps, err := buildContainerRuntimeDeps(ctx, cfg, store)
+	deps, err := buildContainerRuntimeDeps(ctx, cfg, store, options)
 	if err != nil {
 		return nil, err
 	}
 
-	container, err := buildContainerAppServices(cfg, store, deps)
+	container, err := buildContainerAppServices(cfg, store, deps, options.clock)
 	if err != nil {
 		return nil, err
 	}
@@ -141,7 +145,7 @@ func buildContainer(ctx context.Context, cfg *config.Config) (*Container, error)
 	return container, nil
 }
 
-func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *containerRuntimeDeps) (*Container, error) {
+func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *containerRuntimeDeps, clock func() time.Time) (*Container, error) {
 	container := &Container{
 		cfg:           cfg,
 		runnerFactory: deps.runnerFactory,
@@ -167,7 +171,7 @@ func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *contai
 		Store:      db,
 		Events:     db,
 		Runs:       &wakeRunStarter{runs: container.runs, store: db},
-		Clock:      time.Now,
+		Clock:      clock,
 		Location:   location,
 		DailyLimit: cfg.Wake.DailyLimit,
 		Interval:   wakeInterval,

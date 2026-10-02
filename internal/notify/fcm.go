@@ -48,10 +48,11 @@ type FCMClient struct {
 // NewFCMClient authenticates with the service account through the OAuth2 JWT
 // flow. The returned client caches and refreshes access tokens itself.
 func NewFCMClient(account ServiceAccount) (*FCMClient, error) {
-	return newAuthedFCMClient(account, fmt.Sprintf("https://fcm.googleapis.com/v1/projects/%s/messages:send", account.ProjectID))
+	return NewFCMClientAt(account, fmt.Sprintf("https://fcm.googleapis.com/v1/projects/%s/messages:send", account.ProjectID))
 }
 
-func newAuthedFCMClient(account ServiceAccount, endpoint string) (*FCMClient, error) {
+// NewFCMClientAt is NewFCMClient with the send endpoint given explicitly.
+func NewFCMClientAt(account ServiceAccount, endpoint string) (*FCMClient, error) {
 	if account.ProjectID == "" || account.ClientEmail == "" || account.PrivateKey == "" || account.TokenURI == "" {
 		return nil, errors.New("fcm: service account needs project_id, client_email, private_key and token_uri")
 	}

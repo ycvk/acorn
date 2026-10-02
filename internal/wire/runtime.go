@@ -28,7 +28,7 @@ type containerRuntimeDeps struct {
 }
 
 // buildNotifier returns the push sender, or nil and the reason push is off.
-func buildNotifier(cfg *config.Config, db *store.Store, loc *time.Location) (*notify.Sender, string, error) {
+func buildNotifier(cfg *config.Config, db *store.Store, loc *time.Location, options buildOptions) (*notify.Sender, string, error) {
 	file := cfg.Notify.FCM.ServiceAccountFile
 	if file == "" {
 		return nil, "notify.fcm.service_account_file is not configured", nil
@@ -37,7 +37,12 @@ func buildNotifier(cfg *config.Config, db *store.Store, loc *time.Location) (*no
 	if err != nil {
 		return nil, "", err
 	}
-	client, err := notify.NewFCMClient(notify.ServiceAccount(account))
+	var client *notify.FCMClient
+	if options.fcmEndpoint != "" {
+		client, err = notify.NewFCMClientAt(notify.ServiceAccount(account), options.fcmEndpoint)
+	} else {
+		client, err = notify.NewFCMClient(notify.ServiceAccount(account))
+	}
 	if err != nil {
 		return nil, "", err
 	}
@@ -51,13 +56,13 @@ func buildNotifier(cfg *config.Config, db *store.Store, loc *time.Location) (*no
 		}
 	}
 	sender, err := notify.NewSender(notify.SenderConfig{
-		Store: db, Pusher: client, Clock: time.Now, Location: loc,
+		Store: db, Pusher: client, Clock: options.clock, Location: loc,
 		MaxPerHour: cfg.Notify.MaxPerHour, Quiet: quiet,
 	})
 	return sender, "", err
 }
 
-func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *store.Store) (*containerRuntimeDeps, error) {
+func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *store.Store, options buildOptions) (*containerRuntimeDeps, error) {
 	loader := skills.NewLoader(cfg)
 
 	var mcpPendingActionStore core.SessionStore = db
@@ -75,7 +80,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 	if err != nil {
 		return nil, err
 	}
-	notifier, notifyDisabled, err := buildNotifier(cfg, db, ownerLoc)
+	notifier, notifyDisabled, err := buildNotifier(cfg, db, ownerLoc, options)
 	if err != nil {
 		return nil, fmt.Errorf("push notifications: %w", err)
 	}
@@ -92,7 +97,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 		Presence: tools.PresenceToolDeps{
 			Store:    db,
 			Context:  ctxBridge,
-			Clock:    time.Now,
+			Clock:    options.clock,
 			Location: ownerLoc,
 		},
 		Notify: notifyDeps,
@@ -106,7 +111,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 		ArtifactService:       artifactSvc,
 		ToolRegistry:          toolRegistry,
 		Presence:              db,
-		Clock:                 time.Now,
+		Clock:                 options.clock,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("init runner factory: %w", err)

@@ -73,7 +73,7 @@ func TestFCMClientAuthenticatesWithServiceAccount(t *testing.T) {
 	}))
 	t.Cleanup(fcmServer.Close)
 
-	client, err := newAuthedFCMClient(ServiceAccount{ProjectID: "p", ClientEmail: "acorn@p.iam.gserviceaccount.com", PrivateKey: string(keyPEM), TokenURI: tokenServer.URL}, fcmServer.URL)
+	client, err := NewFCMClientAt(ServiceAccount{ProjectID: "p", ClientEmail: "acorn@p.iam.gserviceaccount.com", PrivateKey: string(keyPEM), TokenURI: tokenServer.URL}, fcmServer.URL)
 	if err != nil {
 		t.Fatalf("client: %v", err)
 	}

@@ -92,6 +92,16 @@ const (
 
 func writeApprovalTestConfig(t *testing.T, providerURL string) *config.Config {
 	t.Helper()
+	return writeTestConfig(t, providerURL, `approval:
+  require:
+    - recall
+`)
+}
+
+// writeTestConfig writes a config for the fake provider plus extra top-level
+// YAML, and the default persona.
+func writeTestConfig(t *testing.T, providerURL, extra string) *config.Config {
+	t.Helper()
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)
 	path := filepath.Join(dir, "acorn.yaml")
@@ -105,13 +115,10 @@ providers:
     timeout_seconds: 10
     max_completion_tokens: 512
     enabled: true
-approval:
-  require:
-    - recall
 tools:
   workspace:
     root_dir: %s
-`, filepath.Join(dir, "state"), providerURL, dir)
+%s`, filepath.Join(dir, "state"), providerURL, dir, extra)
 	if err := os.WriteFile(path, []byte(yaml), 0o600); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
