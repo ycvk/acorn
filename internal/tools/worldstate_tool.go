@@ -26,8 +26,8 @@ type WorldStateUpdater interface {
 
 // WorldStateUpdateInput is the tool input for worldstate_update.
 type WorldStateUpdateInput struct {
-	Upserts map[string]string `json:"upserts,omitempty" jsonschema:"description=Key-value pairs to set or replace in the world state."`
-	Deletes []string          `json:"deletes,omitempty" jsonschema:"description=Keys to remove from the world state."`
+	Upserts map[string]string `json:"upserts,omitempty" jsonschema_description:"Key-value pairs to set or replace in the world state."`
+	Deletes []string          `json:"deletes,omitempty" jsonschema_description:"Keys to remove from the world state."`
 }
 
 // WorldStateUpdateOutput is the tool result.

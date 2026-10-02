@@ -200,13 +200,13 @@ func applyLineRangeReplacement(content string, startLine, endLine int, replaceme
 }
 
 type memorySearchInput struct {
-	Query           string   `json:"query" jsonschema:"description=Natural language query to search Acorn memory records."`
-	Scope           string   `json:"scope,omitempty" jsonschema:"description=Optional memory scope such as workspace:acorn. Empty searches all scopes."`
-	Kinds           []string `json:"kinds,omitempty" jsonschema:"description=Optional record kinds to include: fact skill history."`
-	Limit           int      `json:"limit,omitempty" jsonschema:"description=Maximum number of memory records to return."`
-	IncludeInactive bool     `json:"include_inactive,omitempty" jsonschema:"description=Include inactive records."`
-	IncludeRetired  bool     `json:"include_retired,omitempty" jsonschema:"description=Include retired records. Also includes inactive records."`
-	Explain         bool     `json:"explain,omitempty" jsonschema:"description=Include retrieval scoring explanation."`
+	Query           string   `json:"query" jsonschema_description:"Natural language query to search Acorn memory records."`
+	Scope           string   `json:"scope,omitempty" jsonschema_description:"Optional memory scope such as workspace:acorn. Empty searches all scopes."`
+	Kinds           []string `json:"kinds,omitempty" jsonschema_description:"Optional record kinds to include: fact skill history."`
+	Limit           int      `json:"limit,omitempty" jsonschema_description:"Maximum number of memory records to return."`
+	IncludeInactive bool     `json:"include_inactive,omitempty" jsonschema_description:"Include inactive records."`
+	IncludeRetired  bool     `json:"include_retired,omitempty" jsonschema_description:"Include retired records. Also includes inactive records."`
+	Explain         bool     `json:"explain,omitempty" jsonschema_description:"Include retrieval scoring explanation."`
 }
 
 type memorySearchOutput struct {
@@ -338,10 +338,10 @@ func parseMemorySearchKinds(values []string) ([]memory.Kind, error) {
 }
 
 type memoryRememberInput struct {
-	Title string   `json:"title" jsonschema:"description=Short title/heading for the fact to remember."`
-	Text  string   `json:"text" jsonschema:"description=The fact body to store in long-term memory."`
-	Tags  []string `json:"tags,omitempty" jsonschema:"description=Optional tags to aid later retrieval."`
-	Scope string   `json:"scope,omitempty" jsonschema:"description=Optional scope: user (default) or workspace:{slug}."`
+	Title string   `json:"title" jsonschema_description:"Short title/heading for the fact to remember."`
+	Text  string   `json:"text" jsonschema_description:"The fact body to store in long-term memory."`
+	Tags  []string `json:"tags,omitempty" jsonschema_description:"Optional tags to aid later retrieval."`
+	Scope string   `json:"scope,omitempty" jsonschema_description:"Optional scope: user (default) or workspace:{slug}."`
 }
 
 type memoryRememberOutput struct {

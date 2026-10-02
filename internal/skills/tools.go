@@ -13,24 +13,24 @@ import (
 
 type ToolListInput struct{}
 type ToolViewInput struct {
-	ID string `json:"id" jsonschema:"required,description=Skill ID to inspect"`
+	ID string `json:"id" jsonschema:"required" jsonschema_description:"Skill ID to inspect"`
 }
 type ToolCreateInput struct {
-	ID           string            `json:"id" jsonschema:"required,description=New skill ID"`
-	Name         string            `json:"name" jsonschema:"required,description=Skill display name"`
-	Version      string            `json:"version,omitempty" jsonschema:"description=Skill version"`
-	Category     string            `json:"category,omitempty" jsonschema:"description=Skill category"`
-	Summary      string            `json:"summary,omitempty" jsonschema:"description=Short skill summary"`
-	PromotedFrom string            `json:"promoted_from,omitempty" jsonschema:"description=Source skill or procedure ref"`
-	Origin       Origin            `json:"origin,omitempty" jsonschema:"description=human or distilled"`
-	TaskPattern  string            `json:"task_pattern,omitempty" jsonschema:"description=Task pattern for distilled skills"`
-	Instruction  string            `json:"instruction" jsonschema:"required,description=Markdown instruction body"`
-	Tags         []string          `json:"tags,omitempty" jsonschema:"description=Skill tags"`
-	Platforms    []string          `json:"platforms,omitempty" jsonschema:"description=Supported platforms"`
-	TriggerHints []string          `json:"trigger_hints,omitempty" jsonschema:"description=Selection trigger hints"`
-	Requires     Requirements      `json:"requirements,omitempty" jsonschema:"description=Required tools, toolsets, binaries, and env vars"`
-	Replaces     []string          `json:"replaces,omitempty" jsonschema:"description=Skill IDs this skill supersedes"`
-	Files        map[string]string `json:"files,omitempty" jsonschema:"description=Additional relative files to create inside the skill package"`
+	ID           string            `json:"id" jsonschema:"required" jsonschema_description:"New skill ID"`
+	Name         string            `json:"name" jsonschema:"required" jsonschema_description:"Skill display name"`
+	Version      string            `json:"version,omitempty" jsonschema_description:"Skill version"`
+	Category     string            `json:"category,omitempty" jsonschema_description:"Skill category"`
+	Summary      string            `json:"summary,omitempty" jsonschema_description:"Short skill summary"`
+	PromotedFrom string            `json:"promoted_from,omitempty" jsonschema_description:"Source skill or procedure ref"`
+	Origin       Origin            `json:"origin,omitempty" jsonschema_description:"human or distilled"`
+	TaskPattern  string            `json:"task_pattern,omitempty" jsonschema_description:"Task pattern for distilled skills"`
+	Instruction  string            `json:"instruction" jsonschema:"required" jsonschema_description:"Markdown instruction body"`
+	Tags         []string          `json:"tags,omitempty" jsonschema_description:"Skill tags"`
+	Platforms    []string          `json:"platforms,omitempty" jsonschema_description:"Supported platforms"`
+	TriggerHints []string          `json:"trigger_hints,omitempty" jsonschema_description:"Selection trigger hints"`
+	Requires     Requirements      `json:"requirements,omitempty" jsonschema_description:"Required tools, toolsets, binaries, and env vars"`
+	Replaces     []string          `json:"replaces,omitempty" jsonschema_description:"Skill IDs this skill supersedes"`
+	Files        map[string]string `json:"files,omitempty" jsonschema_description:"Additional relative files to create inside the skill package"`
 }
 
 func BuildAgentTools(loader *Loader) ([]einotool.BaseTool, error) {
