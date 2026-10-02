@@ -136,19 +136,23 @@ func TestArtifactToolsWriteReadAndList(t *testing.T) {
 	if err != nil {
 		t.Fatalf("corestore.NewArtifactService: %v", err)
 	}
-	artifactTools, err := buildArtifactTools(service, fixedArtifactContext{
-		runID:     "run_1",
-		sessionID: "session_1",
-		callID:    "call_1",
-	})
+	bridge := fixedArtifactContext{runID: "run_1", sessionID: "session_1", callID: "call_1"}
+	writeBase, err := buildArtifactWriteTool(service, bridge)
 	if err != nil {
-		t.Fatalf("buildArtifactTools: %v", err)
+		t.Fatalf("buildArtifactWriteTool: %v", err)
 	}
-	if got, want := len(artifactTools), 3; got != want {
-		t.Fatalf("artifact tool count = %d, want %d", got, want)
+	readBase, err := buildArtifactReadTool(service)
+	if err != nil {
+		t.Fatalf("buildArtifactReadTool: %v", err)
 	}
+	listBase, err := buildArtifactListTool(service, bridge)
+	if err != nil {
+		t.Fatalf("buildArtifactListTool: %v", err)
+	}
+	artifactTools := []einotool.BaseTool{writeBase, readBase, listBase}
 
 	writeTool := mustToolByName(t, artifactTools, "artifact_write")
+
 	writeOutput, err := writeTool.InvokableRun(context.Background(), `{"kind":"markdown","title":"Report","mime_type":"text/markdown","content":"hello artifact"}`)
 	if err != nil {
 		t.Fatalf("artifact_write: %v", err)

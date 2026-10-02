@@ -60,28 +60,6 @@ type ArtifactListOutput struct {
 	Items     []ArtifactSummary `json:"items"`
 }
 
-func buildArtifactTools(service core.ArtifactService, bridge core.ToolCallContextBridge) ([]einotool.BaseTool, error) {
-	if service == nil {
-		return nil, errors.New("artifact service is required")
-	}
-	if bridge == nil {
-		return nil, errors.New("artifact context bridge is required")
-	}
-	writeTool, err := buildArtifactWriteTool(service, bridge)
-	if err != nil {
-		return nil, err
-	}
-	readTool, err := buildArtifactReadTool(service)
-	if err != nil {
-		return nil, err
-	}
-	listTool, err := buildArtifactListTool(service, bridge)
-	if err != nil {
-		return nil, err
-	}
-	return []einotool.BaseTool{writeTool, readTool, listTool}, nil
-}
-
 func buildArtifactWriteTool(service core.ArtifactService, bridge core.ToolCallContextBridge) (einotool.BaseTool, error) {
 	tool, err := inferProgressTool("artifact_write", "Persist run-scoped artifact content and return an opaque artifact id.", func(ctx context.Context, input ArtifactWriteInput, emit ToolProgressEmitter) (ArtifactWriteOutput, error) {
 		runID := strings.TrimSpace(bridge.CurrentRunID(ctx))
