@@ -1,12 +1,12 @@
 ---
 title: Self-hosted onboarding
 status: current
-last_reviewed: 2026-06-21
+last_reviewed: 2026-10-02
 ---
 
 # Self-hosted Onboarding
 
-Acorn's primary product path is a single-user self-hosted backend with authenticated mobile clients. The backend owns runtime truth: threads, runs, events, pending approvals, memory, and skills.
+Acorn's primary product path is a single-user self-hosted backend with authenticated mobile clients. The backend owns runtime truth: threads, runs, events, pending approvals, the agent's working memory and commitments, and skills.
 
 This path installs Acorn as a Linux binary managed by `systemd`. It does not create a hosted account, public unauthenticated API, multi-user boundary, Docker service, or packaged execution sandbox.
 
@@ -27,7 +27,7 @@ The installer:
 - verifies the outer release checksum and package `CHECKSUMS`;
 - installs `/opt/acorn/acorn` (pure Go binary, no shared libraries);
 - installs `/usr/local/bin/acorn` as a global wrapper command;
-- writes config under the installing user's `~/.acorn`;
+- writes config and the default persona (`persona.md`) under the installing user's `~/.acorn`;
 - installs bundled native skills under `~/.acorn/skills`;
 - installs `/etc/systemd/system/acorn.service`.
 
@@ -99,12 +99,13 @@ The installed service uses:
 - the installing user's home as the service `HOME`.
 - `~/.acorn/acorn.yaml` for config.
 - `~/.acorn/acorn.env` for provider secrets.
+- `~/.acorn/persona.md` for the agent's persona.
 - `~/.acorn/skills` for bundled native skills and user-local skills.
 - `~/.acorn` for runtime storage and SQLite state.
 - `/srv/acorn/workspace` as the workspace root that holds seed and workspace skills.
 - `127.0.0.1:8080` for the HTTP listener.
 
-The wrapper runs service-backed operator commands such as `acorn pair`, `acorn doctor`, `acorn memory`, `acorn skills`, and `acorn smoke` against the same installer-owned `~/.acorn/acorn.yaml` when you do not pass an explicit `-c` config path. If you install as root, that means `/root/.acorn/acorn.yaml`.
+The wrapper runs service-backed operator commands such as `acorn pair`, `acorn doctor`, `acorn skills`, and `acorn smoke` against the same installer-owned `~/.acorn/acorn.yaml` when you do not pass an explicit `-c` config path. If you install as root, that means `/root/.acorn/acorn.yaml`.
 
 If you intentionally serve directly on a trusted private interface, edit `~/.acorn/acorn.yaml` and set:
 
@@ -254,7 +255,74 @@ sudo systemctl restart acorn
 
 `browser.executable_path` and `TAVILY_API_KEY` are optional at backend startup. Without an executable path `browser` is disabled, and without a key `web_search` is disabled; `acorn doctor` lists each disabled tool with the missing setting. `web_fetch` does not require Tavily.
 
-## 9. Backup
+## 9. Persona, Timezone and Commitments
+
+`~/.acorn/persona.md` is the agent's persona: who it is and how it talks to you. Edit it freely; every run reads it. A run fails with the file path when the file is missing or empty. `acorn init` writes the default persona and keeps an existing one.
+
+Set your timezone so the agent reads and schedules times the way you say them:
+
+```yaml
+owner:
+  timezone: Asia/Shanghai   # IANA name; default UTC
+```
+
+When you ask for something later ("remind me in three days to read X"), the agent makes a commitment with `schedule_wake`. The backend wakes it at that time in the same thread, also after a restart. Related limits, shown with their defaults:
+
+```yaml
+presence:
+  max_tokens: 4000   # size of the working-memory block in each model call
+wake:
+  daily_limit: 20    # commitment wakes per local day; 0 turns them off
+```
+
+## 10. Push Notifications
+
+The agent reaches you with `notify_owner` through Firebase Cloud Messaging. Without a Firebase project the tool stays registered as disabled and says why; nothing else changes.
+
+1. Create a Firebase project at <https://console.firebase.google.com>.
+2. Add an Android app with package name `io.ycvk.acorn`. From its config, note the project ID, the app ID, the API key and the sender ID (project number).
+3. In Project settings → Service accounts, generate a new private key. Copy the JSON file to the VPS, for example `~/.acorn/fcm-service-account.json`, and make it readable only by the service user (`chmod 600`).
+4. Point the backend at it and restart:
+
+   ```yaml
+   notify:
+     fcm:
+       service_account_file: fcm-service-account.json   # relative to the config directory
+     max_per_hour: 6
+     quiet_hours:
+       start: "23:00"
+       end: "08:00"
+   ```
+
+5. Build the app with your Firebase values in `mobile-kotlin/local.properties`, then install that APK:
+
+   ```properties
+   acorn.firebase.projectId=your-project-id
+   acorn.firebase.appId=1:1234567890:android:abcdef
+   acorn.firebase.apiKey=your-api-key
+   acorn.firebase.senderId=1234567890
+   ```
+
+   The same values can come from `ACORN_FIREBASE_PROJECT_ID`, `ACORN_FIREBASE_APP_ID`, `ACORN_FIREBASE_API_KEY` and `ACORN_FIREBASE_SENDER_ID`. The APK published on GitHub Releases is built without them, so it shows push as not configured.
+
+After pairing, allow notifications when the app asks. Settings shows whether push is registered. Notifications held during quiet hours are sent when they end. Tapping a notification opens its thread. Notification text passes through Google's servers; the agent keeps it to a short summary and leaves details in the thread.
+
+## 11. Config Migration
+
+Config is parsed strictly: unknown keys stop the backend. When upgrading from a release before the personal-agent rework, remove these keys from `~/.acorn/acorn.yaml`:
+
+- `agent.system_prompt` (put lasting instructions in `persona.md`)
+- the whole `memory` block
+- the whole `triggers` block (webhooks and crons; ask the agent for a recurring commitment instead)
+- `tools.mutation` and `tools.run_command`
+- `context.preserve_recent_turns`
+- `mcp.providers[].tool_safety` (use `approval.require`)
+
+New keys, all optional: `approval.require`, `owner.timezone`, `presence.max_tokens`, `wake.daily_limit`, `notify.max_per_hour`, `notify.quiet_hours`, `notify.fcm.service_account_file`. Then run `acorn init --persona-only` to write the default persona, and `acorn doctor` to check the result.
+
+Earlier data under `~/.acorn` (`facts/`, `history/`, `worldstate/`, `vectors.db`, `skills/generated/`) is no longer read. Delete it once you no longer need it.
+
+## 12. Backup
 
 Stop the backend before filesystem-level backups:
 
@@ -265,9 +333,10 @@ sudo tar -czf /var/backups/acorn-workspace.tgz -C /srv/acorn/workspace .
 sudo systemctl start acorn
 ```
 
-## 10. Current Limits
+## 13. Current Limits
 
 - Host commands are host dependencies. If the model tries to run a command that is not installed on the VPS, the command fails explicitly when used.
 - Web search requires a configured Tavily API key. Browser actions require an operator-installed Chrome/Chromium executable.
-- The mobile app refreshes backend truth through `/v1/inbox`, thread messages, and RunEvent cursors; this release path does not include APNs/FCM push notification registration.
-- Mobile is a remote control surface. It does not execute runs locally, own memory truth, or merge offline runtime state.
+- The mobile app refreshes backend truth through `/v1/inbox`, thread messages, and RunEvent cursors. Push needs your own Firebase project and an APK built with its values; there is no APNs support.
+- Commitment wakes have a daily count limit but no token budget yet.
+- Mobile is a remote control surface. It does not execute runs locally, own runtime truth, or merge offline runtime state.

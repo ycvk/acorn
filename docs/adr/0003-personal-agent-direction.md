@@ -38,7 +38,9 @@ Acorn 是一个有连续人格的个人代理。它盯着 owner 关心的信息�
 | 空闲思考(游思 / 夜思) | 固定时段 |
 | 手机通知 | 进入信号缓冲,下次唤醒时一并呈现 |
 
-自主唤醒(Watch、约定、空闲思考)受每日 token 预算和次数上限约束;owner 发起的唤醒不受限。
+自主唤醒(Watch、约定、空闲思考)受每日 token 预算和次数上限约束;owner 发起的唤醒不受限。P1 只有次数上限(`wake.daily_limit`,按 owner 时区的自然日计),token 预算随 P4 的空闲思考一起落地。
+
+约定醒来时,本次运行在立约定的线程里进行,输入是 `[commitment #<id>, made <立约时间>] <要做的事>`;线程已删除时进入名为 Reminders 的线程。
 
 一次运行的输入由三部分组成:人格(`{storage_dir}/persona.md`,owner 可编辑)、渲染后的"当下"、本次唤醒的内容。"当下"连同哈希写入 `context_snapshots`,用于事后完整还原当时的输入。
 
@@ -52,7 +54,7 @@ Acorn 是一个有连续人格的个人代理。它盯着 owner 关心的信息�
   - `ruler`:agent 自己总结的关切和假设。
 
   每个条目有状态和 `expires_at`。到期未续期,由确定性代码执行衰减:活跃 → 暂歇 → 沉底。内化或放下由 agent 通过工具决定。渲染"当下"时有 token 上限。
-- **知识库**:一个 markdown 目录(frontmatter 格式,兼容 Obsidian),同时也是一个 git 仓库。agent 可以自由创建和修改笔记,每次修改自动 commit,历史可审计、可回滚。检索沿用现有的 keyword + vector 混合检索。
+- **知识库**:一个 markdown 目录(frontmatter 格式,兼容 Obsidian),同时也是一个 git 仓库。agent 可以自由创建和修改笔记,每次修改自动 commit,历史可审计、可回滚。检索用 keyword + vector 混合检索。
 - **经历**:以 runs/events 表为唯一来源,加全文检索,用来回答涉及过去对话和行动的问题。
 
 facts、history、Active Memory、Periodic Review、WorldState、技能自动生成全部删除,不做迁移。
@@ -79,9 +81,9 @@ facts、history、Active Memory、Periodic Review、WorldState、技能自动生
 
 - 使用 Eino `ChatModelAgent`,挂载 summarization、reduction、toolsearch、patchtoolcalls、skill 几个 middleware,checkpoint store 落 SQLite,chat model 加重试。
 - 自研两个 middleware:
-  - `presence`:在 `BeforeModelRewriteState` 中注入"当下"并写入快照;
+  - `presence`:在 `WrapModel` 中把"当下"作为最后一条 system 消息追加到本次模型调用的输入,并写入快照。"当下"只属于这一次调用;`BeforeModelRewriteState` 会把它写进 agent 状态,进而进入对话历史和 checkpoint,所以不用;
   - `approval`:见上文。
-- 工具集:`web_search`、`web_fetch`、`browser`、`knowledge_*`、`keep`、`think`、`schedule_wake`、`notify_owner`、`watch_*`、`ask_owner`,另加 MCP 工具。
+- 工具集:`web_search`、`web_fetch`、`browser`、`knowledge_*`、`keep`、`think`、`schedule_wake`、`settle`、`recall`、`notify_owner`、`watch_*`、`ask_owner`,另加 MCP 工具。
 - 删除:`direct_response`、`ExecuteRound`、`internal/tools/dispatch`、`Session`、masking、auto-compact、file/git/command 工具、workspace checkpoint、webhook trigger、ambient instruction。
 
 ### App
@@ -95,9 +97,9 @@ App 分五页:此刻(早安卡、接下来、手上的事)、等你处理、知�
 | 期 | 内容 | 验收 |
 |---|---|---|
 | P0 | runtime 迁到 Eino `ChatModelAgent`;审批 middleware 和 SQLite checkpoint;删除旧 runtime | 手机上触发一个需审批的调用,批准后执行;中途重启服务后批准依然生效 |
-| P1 | 工作记忆、经历检索、约定调度、人格、context 快照 | 对 agent 说"三天后提醒我看 X",到点自动醒来处理并推送 |
+| P1 | 工作记忆、经历检索、约定调度、人格、context 快照、FCM 推送与 `notify_owner` | 对 agent 说"三天后提醒我看 X",到点自动醒来处理并推送 |
 | P2 | 知识库、Capture、App 分享入口 | 从任意 App 分享一个链接,几分钟内知识库出现整理后的笔记 |
-| P3 | Watch、早安卡、FCM 推送 | 每天早上收到汇总 RSS、GitHub、价格变化的简报 |
+| P3 | Watch、早安卡 | 每天早上收到汇总 RSS、GitHub、价格变化的简报 |
 | P4 | 空闲思考、手机通知感知 | 夜思会清理过期念头;重要通知出现在早安卡里 |
 
 ## 不做(边界)

@@ -1,8 +1,8 @@
 # Minimal Acorn config — the smallest loadable starting point.
 #
-# Only the sections a single-owner direct_response run must override are listed
-# here. Every other field (web, web_access, browser, tools, agent defaults,
-# memory) falls back to built-in defaults via config.Load's defaultConfig merge,
+# Only the sections a single-owner run must override are listed here. Every
+# other field (web, web_access, browser, tools, agent defaults, owner, wake,
+# notify) falls back to built-in defaults via config.Load's defaultConfig merge,
 # so this file loads and passes ValidateBase as-is. To make the install
 # execution-ready, set OPENAI_API_KEY (referenced below) in the environment.
 runtime:
