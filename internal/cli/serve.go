@@ -56,14 +56,7 @@ func runServe(ctx context.Context, args []string) error {
 		return err
 	}
 
-	// Start the trigger scheduler so cron triggers can fire new runs.
-	if sched := container.TriggerScheduler(); sched != nil {
-		if err := sched.Start(ctx); err != nil {
-			slog.Warn("trigger scheduler start failed", "error", err)
-		}
-		defer sched.Stop()
-	}
-
+	go container.WakeScheduler().Run(ctx)
 	go resumeReadyRunsLoop(ctx, container.ResumeReadyRuns, resumeSweepInterval)
 
 	server := &http.Server{

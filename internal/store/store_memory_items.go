@@ -127,6 +127,15 @@ func (s *Store) SaveContextSnapshot(ctx context.Context, hash, content string) e
 	return nil
 }
 
+func (s *Store) CountWakesSince(ctx context.Context, since time.Time) (int, error) {
+	var n int
+	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM events WHERE kind = ? AND created_at >= ?`,
+		core.EventWakeFired, formatTimestamp(since)).Scan(&n); err != nil {
+		return 0, fmt.Errorf("count wakes: %w", err)
+	}
+	return n, nil
+}
+
 // trigramMinRunes is the shortest query the FTS5 trigram tokenizer can match;
 // shorter queries fall back to LIKE.
 const trigramMinRunes = 3

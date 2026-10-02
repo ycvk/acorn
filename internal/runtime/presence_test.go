@@ -74,6 +74,8 @@ func (s *memPresenceStore) SearchExperience(context.Context, string, int) ([]cor
 	return nil, nil
 }
 
+func (s *memPresenceStore) CountWakesSince(context.Context, time.Time) (int, error) { return 0, nil }
+
 func (s *memPresenceStore) SaveContextSnapshot(_ context.Context, hash, content string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

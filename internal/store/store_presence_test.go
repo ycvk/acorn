@@ -228,3 +228,26 @@ func TestContextSnapshotIsIdempotent(t *testing.T) {
 		t.Fatalf("snapshots = %d err=%v", n, err)
 	}
 }
+
+func TestCountWakesSince(t *testing.T) {
+	s := openTestStore(t)
+	ctx := context.Background()
+	if err := s.CreateRun(ctx, core.RunCreateParams{RunID: "run_w", Input: "wake"}); err != nil {
+		t.Fatal(err)
+	}
+	before := time.Now().UTC().Add(-time.Second)
+	for range 2 {
+		if _, err := s.AppendEvent(ctx, "run_w", core.EventWakeFired, map[string]any{"memory_id": 1}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := s.AppendEvent(ctx, "run_w", "run.started", map[string]any{}); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := s.CountWakesSince(ctx, before); err != nil || n != 2 {
+		t.Fatalf("wakes = %d err=%v", n, err)
+	}
+	if n, _ := s.CountWakesSince(ctx, time.Now().UTC().Add(time.Hour)); n != 0 {
+		t.Fatalf("future window counted %d", n)
+	}
+}

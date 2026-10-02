@@ -11,7 +11,6 @@ type Config struct {
 	Tools     ToolsConfig      `yaml:"tools"`
 	MCP       MCPConfig        `yaml:"mcp"`
 	Memory    MemoryConfig     `yaml:"memory"`
-	Triggers  TriggersConfig   `yaml:"triggers"`
 	Approval  ApprovalConfig   `yaml:"approval"`
 	Owner     OwnerConfig      `yaml:"owner"`
 	Presence  PresenceConfig   `yaml:"presence"`
@@ -158,27 +157,4 @@ type MCPProviderConfig struct {
 	ToolNames             []string          `yaml:"tool_names"`
 	StartupTimeoutSeconds int               `yaml:"startup_timeout_seconds"`
 	Auth                  MCPAuthConfig     `yaml:"auth"`
-}
-
-// TriggersConfig configures ambient agent trigger sources. Triggers live in
-// the serve process and fire new runs when external events arrive.
-type TriggersConfig struct {
-	Crons []CronTriggerConfig `yaml:"crons"`
-	// DebounceMillis coalesces rapid fires of the same trigger within this
-	// window into a single run (last input wins). Zero disables debounce.
-	// Protects against bursts of fires burning LLM tokens. Recommended: 2000.
-	DebounceMillis int `yaml:"debounce_millis"`
-	// DailyQuota caps the number of trigger-started runs per UTC day.
-	// Fires over quota are silently dropped (warned in logs). Zero disables
-	// the cap (default). Protects against a runaway trigger burning tokens.
-	DailyQuota int `yaml:"daily_quota"`
-}
-
-// CronTriggerConfig configures a single cron trigger. Schedule is a standard
-// 5-field cron expression (min hour dom month dow). The trigger fires a new
-// run with Prompt as input at each matching time.
-type CronTriggerConfig struct {
-	ID       string `yaml:"id"`
-	Schedule string `yaml:"schedule"`
-	Prompt   string `yaml:"prompt"`
 }

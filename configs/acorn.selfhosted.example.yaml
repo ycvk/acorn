@@ -94,13 +94,3 @@ memory:
     # review_model: gpt-4o-mini  # Optional: use a cheaper model for the periodic review LLM call.
   active:
     char_limit: 2200             # Character budget for the Active Memory snapshot (verified user facts always injected, ~800 tokens).
-
-# Cron triggers wake the agent on a schedule and start a new run with the prompt.
-triggers:
-  debounce_millis: 2000
-  daily_quota: 0 # Max trigger-started runs per UTC day (0 = unlimited)
-  crons: []
-  # - id: morning_digest
-  #   schedule: "0 9 * * *"
-  #   prompt: "Morning digest."
-

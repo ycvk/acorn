@@ -129,6 +129,19 @@ func (s *RunService) InterruptRun(ctx context.Context, runID string) error {
 }
 
 func (s *RunService) CreateRun(ctx context.Context, threadID, skillID, input string) (*Run, error) {
+	return s.createRun(ctx, threadID, skillID, input, "")
+}
+
+// CreateWakeRun starts a run in threadID that was woken by a commitment
+// rather than an owner message. wake describes what woke it.
+func (s *RunService) CreateWakeRun(ctx context.Context, threadID, wake, input string) (*Run, error) {
+	if strings.TrimSpace(wake) == "" {
+		return nil, errors.New("wake run requires a wake description")
+	}
+	return s.createRun(ctx, threadID, "", input, wake)
+}
+
+func (s *RunService) createRun(ctx context.Context, threadID, skillID, input, wake string) (*Run, error) {
 	if s == nil || s.store == nil || s.executeRun == nil || s.newRunID == nil || s.threads == nil {
 		return nil, errors.New("client service is not initialized")
 	}
@@ -176,6 +189,7 @@ func (s *RunService) CreateRun(ctx context.Context, threadID, skillID, input str
 		Input:          message.Content,
 		BoundMessageID: message.ID,
 		SkillID:        skillID,
+		Wake:           wake,
 		Messages:       buildChatMessages(history),
 	}
 	runCtx := context.WithoutCancel(ctx)

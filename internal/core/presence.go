@@ -84,7 +84,12 @@ type PresenceStore interface {
 	ClaimDueCommitment(ctx context.Context, id int64, now time.Time) error
 	SearchExperience(ctx context.Context, query string, limit int) ([]ExperienceHit, error)
 	SaveContextSnapshot(ctx context.Context, hash, content string) error
+	// CountWakesSince counts wake.fired events recorded at or after since.
+	CountWakesSince(ctx context.Context, since time.Time) (int, error)
 }
+
+// EventWakeFired is recorded on a run started by a commitment wake.
+const EventWakeFired = "wake.fired"
 
 // NotificationStatus is the delivery state of an owner notification.
 type NotificationStatus string

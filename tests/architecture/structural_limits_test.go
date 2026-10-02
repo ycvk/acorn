@@ -18,6 +18,7 @@ var refactorOwnedDirs = []string{
 	"internal/tools",
 	"internal/memory",
 	"internal/presence",
+	"internal/wake",
 	"internal/mcp",
 	"internal/api",
 	"internal/wire",

@@ -87,6 +87,8 @@ func (s *fakePresenceStore) SearchExperience(_ context.Context, query string, li
 	return s.hits, nil
 }
 
+func (s *fakePresenceStore) CountWakesSince(context.Context, time.Time) (int, error) { return 0, nil }
+
 func (s *fakePresenceStore) SaveContextSnapshot(context.Context, string, string) error { return nil }
 
 var presenceTestNow = time.Date(2026, 10, 2, 4, 0, 0, 0, time.UTC) // 12:00 in Shanghai

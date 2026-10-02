@@ -2,15 +2,10 @@ package wire
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
-	"log/slog"
 	"path/filepath"
-	"slices"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/ycvk/acorn/internal/api"
@@ -21,7 +16,7 @@ import (
 	"github.com/ycvk/acorn/internal/runtime"
 	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/tools"
-	"github.com/ycvk/acorn/internal/triggers"
+	"github.com/ycvk/acorn/internal/wake"
 )
 
 type Container struct {
@@ -39,7 +34,7 @@ type Container struct {
 	capabilities  *api.CapabilitiesService
 	deviceAuth    *api.DeviceAuthService
 	inbox         *api.InboxService
-	triggerSched  *triggers.Scheduler
+	wake          *wake.Scheduler
 }
 
 func NewContainer(ctx context.Context, cfg *config.Config) (*Container, error) {
@@ -93,9 +88,14 @@ func (c *Container) DeviceAuth() *api.DeviceAuthService {
 func (c *Container) Inbox() *api.InboxService {
 	return c.inbox
 }
-func (c *Container) TriggerScheduler() *triggers.Scheduler {
-	return c.triggerSched
+
+// WakeScheduler keeps commitments; serve runs it.
+func (c *Container) WakeScheduler() *wake.Scheduler {
+	return c.wake
 }
+
+// wakeInterval is how often the wake scheduler looks for due commitments.
+const wakeInterval = 30 * time.Second
 
 func (c *Container) Close() error {
 	if c == nil {
@@ -151,7 +151,7 @@ func buildContainer(ctx context.Context, cfg *config.Config) (*Container, error)
 		return nil, err
 	}
 
-	container, err := buildContainerAppServices(cfg, store, deps, ws)
+	container, err := buildContainerAppServices(cfg, store, deps)
 	if err != nil {
 		return nil, err
 	}
@@ -209,7 +209,7 @@ func buildMemoryService(ctx context.Context, cfg *config.Config) (memory.Service
 	return svc, nil
 }
 
-func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *containerRuntimeDeps, ws *memory.WorldState) (*Container, error) {
+func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *containerRuntimeDeps) (*Container, error) {
 	container := &Container{
 		cfg:           cfg,
 		runnerFactory: deps.runnerFactory,
@@ -228,7 +228,22 @@ func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *contai
 	container.deviceAuth = api.NewDeviceAuthService(db)
 	container.inbox = api.NewInboxService(db, container.capabilities)
 
-	container.triggerSched = buildTriggerScheduler(cfg, container.runs, db, ws)
+	location, err := cfg.OwnerLocation()
+	if err != nil {
+		return nil, err
+	}
+	container.wake, err = wake.NewScheduler(wake.Config{
+		Store:      db,
+		Events:     db,
+		Runs:       &wakeRunStarter{runs: container.runs, store: db},
+		Clock:      time.Now,
+		Location:   location,
+		DailyLimit: cfg.Wake.DailyLimit,
+		Interval:   wakeInterval,
+	})
+	if err != nil {
+		return nil, err
+	}
 
 	return container, nil
 }
@@ -250,173 +265,31 @@ func (a *worldStateAdapter) Load(ctx context.Context) (map[string]string, error)
 	return a.ws.Load(ctx)
 }
 
-type triggerRunCreator struct {
-	runs            *api.RunService
-	store           core.SessionStore
-	worldState      *memory.WorldState
-	mu              sync.Mutex
-	lastFingerprint string
-	dailyQuota      int
-	quotaDay        string // UTC date "2006-01-02"; quota resets when it changes
-	quotaUsed       int
+// wakeRunStarter starts commitment wake runs through the run service.
+type wakeRunStarter struct {
+	runs  *api.RunService
+	store core.SessionStore
 }
 
-func (t *triggerRunCreator) CreateRun(ctx context.Context, triggerID, input string) error {
-	threadID := "trigger:" + triggerID
-	if _, err := t.store.LoadSession(ctx, threadID); err != nil {
-		if _, cerr := t.store.CreateSession(ctx, threadID, "Trigger: "+triggerID); cerr != nil {
-			return cerr
+// remindersThreadTitle names the thread that receives wakes whose original
+// conversation was deleted.
+const remindersThreadTitle = "Reminders"
+
+func (w *wakeRunStarter) StartWakeRun(ctx context.Context, threadID, wake, input string) (string, error) {
+	_, err := w.store.LoadSession(ctx, threadID)
+	if errors.Is(err, core.ErrSessionNotFound) {
+		threadID = core.NewSessionID()
+		if _, err := w.store.CreateSession(ctx, threadID, remindersThreadTitle); err != nil {
+			return "", fmt.Errorf("create reminders thread: %w", err)
 		}
+	} else if err != nil {
+		return "", err
 	}
-	// Skip duplicate fires: same WorldState + same input = same response.
-	// Saves an LLM call when a trigger re-fires with no state change.
-	if t.shouldSkipRun(t.worldState, input) {
-		slog.Info("trigger fire skipped (duplicate of last fire)", "trigger_id", triggerID)
-		return nil
-	}
-	if t.dailyQuota > 0 && !t.allowQuota() {
-		slog.Warn("trigger fire dropped (daily quota reached)", "trigger_id", triggerID, "quota", t.dailyQuota)
-		return nil
-	}
-	t.incQuota()
-	input = injectWorldState(ctx, t.worldState, input)
-	input = fmt.Sprintf("[This run was woken by trigger %q. Follow the ambient agent loop: orient on the world state above, assess whether this event needs action, act or escalate, then record the outcome and stop.]\n\n%s", triggerID, input)
-	if _, err := t.runs.CreateRun(ctx, threadID, "", input); err != nil {
-		return err
-	}
-	return nil
-}
-
-// allowQuota reports whether a new run is within the daily quota. The quota
-// resets at UTC midnight. A zero dailyQuota means unlimited (always allow).
-func (t *triggerRunCreator) allowQuota() bool {
-	if t.dailyQuota <= 0 {
-		return true
-	}
-	today := time.Now().UTC().Format("2006-01-02")
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	if today != t.quotaDay {
-		t.quotaDay = today
-		t.quotaUsed = 0
-	}
-	return t.quotaUsed < t.dailyQuota
-}
-
-// incQuota increments the daily run counter. Call only after allowQuota
-// returns true.
-func (t *triggerRunCreator) incQuota() {
-	if t.dailyQuota <= 0 {
-		return
-	}
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	t.quotaUsed++
-}
-
-// shouldSkipRun reports whether this fire is a duplicate of the last one:
-// same WorldState projection + same input. If so, the agent would produce
-// the same response — skip the LLM call to save cost.
-func (t *triggerRunCreator) shouldSkipRun(ws *memory.WorldState, input string) bool {
-	if ws == nil {
-		return false
-	}
-	fp := computeFireFingerprint(ws, input)
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	if fp == t.lastFingerprint {
-		return true
-	}
-	t.lastFingerprint = fp
-	return false
-}
-
-func computeFireFingerprint(ws *memory.WorldState, input string) string {
-	projection, err := ws.Load(context.Background())
+	run, err := w.runs.CreateWakeRun(ctx, threadID, wake, input)
 	if err != nil {
-		projection = nil
+		return "", err
 	}
-	h := sha256.New()
-	h.Write([]byte(input))
-	// Sort keys for deterministic output — map iteration order is random.
-	keys := make([]string, 0, len(projection))
-	for k := range projection {
-		keys = append(keys, k)
-	}
-	slices.Sort(keys)
-	for _, k := range keys {
-		h.Write([]byte(k))
-		h.Write([]byte(projection[k]))
-	}
-	return hex.EncodeToString(h.Sum(nil))
-}
-
-// injectWorldState prepends the current WorldState projection to the run
-// input. If WorldState is nil, Load fails, or the projection is empty, the
-// input is returned unchanged. On Load error it logs a warning and proceeds
-// without the projection — a stale projection is better than blocking a
-// trigger fire.
-func injectWorldState(ctx context.Context, ws *memory.WorldState, input string) string {
-	if ws == nil {
-		return input
-	}
-	projection, err := ws.Load(ctx)
-	if err != nil {
-		slog.Warn("world state load failed for trigger, proceeding without projection", "error", err)
-		return input
-	}
-	if len(projection) == 0 {
-		return input
-	}
-	return formatWorldStatePrefix(projection) + input
-}
-
-// formatWorldStatePrefix renders the WorldState key-values as a context block
-// prepended to the trigger input. The header tells the agent this is its own
-// cross-run memory from the last wake, so it reads it as orientation context
-// rather than a foreign artifact.
-func formatWorldStatePrefix(projection map[string]string) string {
-	var b strings.Builder
-	b.WriteString("[World state — your cross-run memory from the last wake. Read this to orient before acting on the event below.]\n")
-	keys := make([]string, 0, len(projection))
-	for k := range projection {
-		keys = append(keys, k)
-	}
-	slices.Sort(keys)
-	for _, k := range keys {
-		b.WriteString(k)
-		b.WriteString(": ")
-		b.WriteString(projection[k])
-		b.WriteString("\n")
-	}
-	b.WriteString("[End world state]\n\n")
-	return b.String()
-}
-
-func buildTriggerScheduler(cfg *config.Config, runs *api.RunService, db *store.Store, ws *memory.WorldState) *triggers.Scheduler {
-	var opts []triggers.SchedulerOption
-	if cfg.Triggers.DebounceMillis > 0 {
-		opts = append(opts, triggers.WithDebounce(time.Duration(cfg.Triggers.DebounceMillis)*time.Millisecond))
-	}
-	sched := triggers.NewScheduler(&triggerRunCreator{
-		runs:       runs,
-		store:      db,
-		worldState: ws,
-		dailyQuota: cfg.Triggers.DailyQuota,
-	}, opts...)
-	for _, cr := range cfg.Triggers.Crons {
-		ct, err := triggers.NewCronTrigger(triggers.CronConfig{
-			ID:       cr.ID,
-			Schedule: cr.Schedule,
-			Prompt:   cr.Prompt,
-		})
-		if err != nil {
-			slog.Warn("skipping cron trigger", "id", cr.ID, "error", err)
-			continue
-		}
-		sched.Register(ct)
-	}
-	return sched
+	return run.ID, nil
 }
 
 // RunOnceResult is the terminal outcome of an owner-local smoke run.
