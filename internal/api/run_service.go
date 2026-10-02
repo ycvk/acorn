@@ -102,6 +102,9 @@ func (s *RunService) GetRun(ctx context.Context, runID string) (*Run, error) {
 	return &run, nil
 }
 
+// RunIsTerminal reports whether a run produces no further events. An
+// interrupted run is waiting for the owner's decision and the server resumes
+// it afterwards, so it is not terminal.
 func (s *RunService) RunIsTerminal(ctx context.Context, runID string) (bool, error) {
 	if s == nil || s.store == nil {
 		return false, errors.New("client store is nil")
@@ -111,9 +114,9 @@ func (s *RunService) RunIsTerminal(ctx context.Context, runID string) (bool, err
 		return false, err
 	}
 	switch record.Status {
-	case core.RunStatusRunning:
+	case core.RunStatusRunning, core.RunStatusInterrupted:
 		return false, nil
-	case core.RunStatusSucceeded, core.RunStatusInterrupted, core.RunStatusFailed:
+	case core.RunStatusSucceeded, core.RunStatusFailed:
 		return true, nil
 	default:
 		return false, projectionError("unknown run status %q", record.Status)

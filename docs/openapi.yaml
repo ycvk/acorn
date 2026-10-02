@@ -323,7 +323,9 @@ paths:
         across diagnostic events that are not emitted. Mobile clients persist
         `{run_id,last_seq}` locally, pass `last_seq` as `after_seq`, receive
         backlog events first, and then receive live follow events when
-        `follow=true`.
+        `follow=true`. A followed stream ends once the run has succeeded or
+        failed; it stays open while the run is interrupted, because the server
+        resumes the run after the owner decides.
       operationId: clientGetRunEvents
       parameters:
         - $ref: '#/components/parameters/RunID'
