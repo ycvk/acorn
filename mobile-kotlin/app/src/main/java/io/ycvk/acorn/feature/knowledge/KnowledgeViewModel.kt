@@ -128,4 +128,10 @@ private val attachmentEmbed = Regex("""!\[\[([^\]]+)]]""")
 
 /** Replaces Obsidian attachment embeds with a line naming the file; the app does not show attachments. */
 fun withAttachmentPlaceholders(body: String): String =
-    attachmentEmbed.replace(body) { match -> "*Attachment: ${match.groupValues[1].substringAfterLast('/')}*" }
+    attachmentEmbed.replace(body) { match -> "*Attachment: ${attachmentName(match)}*" }
+
+/** The same for plain-text snippets in the list. */
+fun snippetText(snippet: String): String =
+    attachmentEmbed.replace(snippet) { match -> "[${attachmentName(match)}]" }
+
+private fun attachmentName(match: MatchResult) = match.groupValues[1].substringAfterLast('/')

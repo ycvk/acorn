@@ -131,7 +131,7 @@ private fun NoteItem(note: KnowledgeNoteSummary, onClick: () -> Unit) {
             Text(note.path, style = MaterialTheme.typography.labelSmall, color = AetherOnSurfaceVariant)
             if (note.snippet.isNotBlank()) {
                 Text(
-                    note.snippet,
+                    snippetText(note.snippet),
                     style = MaterialTheme.typography.bodySmall,
                     color = AetherOnSurfaceVariant,
                     maxLines = 2,

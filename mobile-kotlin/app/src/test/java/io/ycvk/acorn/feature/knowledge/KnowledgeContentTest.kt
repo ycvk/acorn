@@ -34,5 +34,6 @@ class KnowledgeContentTest {
             withAttachmentPlaceholders("Photo:\n![[attachments/2026/10/ab12.png]]\nend"),
         )
         assertEquals("[[link]] stays", withAttachmentPlaceholders("[[link]] stays"))
+        assertEquals("photo [ab12.png]", snippetText("photo ![[attachments/2026/10/ab12.png]]"))
     }
 }

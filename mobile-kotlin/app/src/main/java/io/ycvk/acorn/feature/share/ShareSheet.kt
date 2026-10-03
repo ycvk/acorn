@@ -47,7 +47,7 @@ import io.ycvk.acorn.core.theme.AetherSurface
 import io.ycvk.acorn.core.theme.AetherSurfaceHigh
 import kotlinx.coroutines.delay
 
-private const val SENT_CLOSE_DELAY_MS = 2_000L
+private const val SENT_CLOSE_DELAY_MS = 4_000L
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
