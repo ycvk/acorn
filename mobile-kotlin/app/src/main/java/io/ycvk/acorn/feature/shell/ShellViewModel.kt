@@ -32,6 +32,9 @@ class ShellViewModel @Inject constructor(
     private val _openThreadId = MutableStateFlow<String?>(null)
     val openThreadId: StateFlow<String?> = _openThreadId.asStateFlow()
 
+    private val _openNotePath = MutableStateFlow<String?>(null)
+    val openNotePath: StateFlow<String?> = _openNotePath.asStateFlow()
+
     private val _showApprovals = MutableStateFlow(false)
     val showApprovals: StateFlow<Boolean> = _showApprovals.asStateFlow()
 
@@ -99,6 +102,15 @@ class ShellViewModel @Inject constructor(
     fun closeThread() {
         _openThreadId.value = null
     }
+
+    fun openNote(path: String) {
+        _openNotePath.value = path
+    }
+
+    fun closeNote() {
+        _openNotePath.value = null
+    }
+
     fun showApprovalsList() {
         _showApprovals.value = true
     }
@@ -109,7 +121,8 @@ class ShellViewModel @Inject constructor(
 
     companion object {
         const val TAB_THREADS = 0
-        const val TAB_SETTINGS = 1
+        const val TAB_KNOWLEDGE = 1
+        const val TAB_SETTINGS = 2
         private const val POLL_INTERVAL_MS = 30_000L
     }
 }
