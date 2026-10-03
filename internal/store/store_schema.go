@@ -81,6 +81,9 @@ var schemaRequiredTables = map[string][]string{
 	"push_tokens":       {"device_id", "token", "updated_at"},
 	"notifications":     {"id", "title", "body", "thread_id", "run_id", "status", "send_after", "error_text", "created_at", "sent_at"},
 	"knowledge_notes":   {"path", "title", "tags", "body", "mtime_ns", "size", "updated_at"},
+	"watches":           {"id", "name", "kind", "target", "selector", "mode", "interval_seconds", "status", "session_id", "next_check_at", "last_checked_at", "last_error", "failures", "snapshot", "created_at", "updated_at"},
+	"watch_items":       {"id", "watch_id", "item_key", "title", "url", "summary", "published_at", "status", "run_id", "seen_at"},
+	"briefings":         {"day", "thread_id", "run_id", "created_at"},
 }
 
 func (s *Store) requireColumns(table string, columns []string) error {

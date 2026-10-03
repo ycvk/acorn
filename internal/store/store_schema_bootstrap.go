@@ -1,6 +1,6 @@
 package store
 
-// storeBootstrapTables creates the 16 core tables if they do not already
+// storeBootstrapTables creates the 19 core tables if they do not already
 // exist. This is split from index creation so that validateSchema can detect
 // a stale/incompatible database (missing columns) before index creation
 // attempts to reference those columns.
@@ -154,6 +154,46 @@ CREATE TABLE IF NOT EXISTS knowledge_notes (
     size INTEGER NOT NULL,
     updated_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS watches (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    target TEXT NOT NULL,
+    selector TEXT NOT NULL DEFAULT '',
+    mode TEXT NOT NULL,
+    interval_seconds INTEGER NOT NULL,
+    status TEXT NOT NULL,
+    session_id TEXT NOT NULL DEFAULT '',
+    next_check_at TEXT NOT NULL,
+    last_checked_at TEXT NOT NULL DEFAULT '',
+    last_error TEXT NOT NULL DEFAULT '',
+    failures INTEGER NOT NULL DEFAULT 0,
+    snapshot TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS watch_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    watch_id INTEGER NOT NULL,
+    item_key TEXT NOT NULL,
+    title TEXT NOT NULL,
+    url TEXT NOT NULL DEFAULT '',
+    summary TEXT NOT NULL DEFAULT '',
+    published_at TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL,
+    run_id TEXT NOT NULL DEFAULT '',
+    seen_at TEXT NOT NULL,
+    UNIQUE(watch_id, item_key)
+);
+
+CREATE TABLE IF NOT EXISTS briefings (
+    day TEXT PRIMARY KEY,
+    thread_id TEXT NOT NULL,
+    run_id TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+);
 `
 
 // storeBootstrapIndexes creates all indexes, full-text tables and their sync
@@ -172,6 +212,8 @@ CREATE INDEX IF NOT EXISTS idx_artifacts_session ON artifacts(session_id, create
 CREATE INDEX IF NOT EXISTS idx_memory_items_due ON memory_items(kind, status, wake_at);
 CREATE INDEX IF NOT EXISTS idx_notifications_due ON notifications(status, send_after);
 CREATE INDEX IF NOT EXISTS idx_knowledge_notes_updated ON knowledge_notes(updated_at);
+CREATE INDEX IF NOT EXISTS idx_watches_due ON watches(status, next_check_at);
+CREATE INDEX IF NOT EXISTS idx_watch_items_status ON watch_items(status, seen_at);
 
 CREATE VIRTUAL TABLE IF NOT EXISTS memory_items_fts USING fts5(content, content='memory_items', content_rowid='id', tokenize='trigram');
 CREATE TRIGGER IF NOT EXISTS memory_items_fts_ai AFTER INSERT ON memory_items BEGIN
