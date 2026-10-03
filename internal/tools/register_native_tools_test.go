@@ -23,7 +23,7 @@ func (stubOperatorStore) AppendEvent(context.Context, string, string, any) (core
 	return core.EventRecord{}, nil
 }
 
-var eagerNativeToolNames = []string{"artifact_list", "artifact_read", "artifact_write", "ask_operator", "keep", "notify_owner", "recall", "schedule_wake", "settle", "think"}
+var eagerNativeToolNames = []string{"artifact_list", "artifact_read", "artifact_write", "ask_operator", "keep", "knowledge_edit", "knowledge_list", "knowledge_read", "knowledge_search", "knowledge_write", "notify_owner", "recall", "schedule_wake", "settle", "think"}
 
 func testNativeToolDeps(t *testing.T) NativeToolDeps {
 	t.Helper()
@@ -39,6 +39,7 @@ func testNativeToolDeps(t *testing.T) NativeToolDeps {
 		OperatorContext: bridge,
 		Presence:        testPresenceDeps(newFakePresenceStore(), bridge),
 		Notify:          NotifyToolDeps{Notifier: &fakeNotifier{}, Context: bridge, Location: time.UTC},
+		Knowledge:       KnowledgeToolDeps{Vault: &fakeVault{}, Context: bridge, Location: time.UTC},
 	}
 }
 

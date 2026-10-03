@@ -73,6 +73,7 @@ type NativeToolDeps struct {
 	OperatorContext core.ToolCallContextBridge
 	Presence        PresenceToolDeps
 	Notify          NotifyToolDeps
+	Knowledge       KnowledgeToolDeps
 }
 
 type nativeToolDep struct {
@@ -92,6 +93,11 @@ func nativeToolFactory(name string, deps NativeToolDeps) (core.ToolFactory, erro
 		{"Presence.Context", deps.Presence.Context != nil},
 		{"Presence.Clock", deps.Presence.Clock != nil},
 		{"Presence.Location", deps.Presence.Location != nil},
+	}
+	knowledgeDeps := []nativeToolDep{
+		{"Knowledge.Vault", deps.Knowledge.Vault != nil},
+		{"Knowledge.Context", deps.Knowledge.Context != nil},
+		{"Knowledge.Location", deps.Knowledge.Location != nil},
 	}
 	var needs []nativeToolDep
 	var build func() (einotool.BaseTool, error)
@@ -143,6 +149,21 @@ func nativeToolFactory(name string, deps NativeToolDeps) (core.ToolFactory, erro
 			{"Notify.Location", deps.Notify.Location != nil},
 		}
 		build = func() (einotool.BaseTool, error) { return buildNotifyOwnerTool(deps.Notify) }
+	case "knowledge_write":
+		needs = knowledgeDeps
+		build = func() (einotool.BaseTool, error) { return buildKnowledgeWriteTool(deps.Knowledge) }
+	case "knowledge_edit":
+		needs = knowledgeDeps
+		build = func() (einotool.BaseTool, error) { return buildKnowledgeEditTool(deps.Knowledge) }
+	case "knowledge_read":
+		needs = knowledgeDeps
+		build = func() (einotool.BaseTool, error) { return buildKnowledgeReadTool(deps.Knowledge) }
+	case "knowledge_search":
+		needs = knowledgeDeps
+		build = func() (einotool.BaseTool, error) { return buildKnowledgeSearchTool(deps.Knowledge) }
+	case "knowledge_list":
+		needs = knowledgeDeps
+		build = func() (einotool.BaseTool, error) { return buildKnowledgeListTool(deps.Knowledge) }
 	default:
 		return nil, fmt.Errorf("no factory for native tool %q", name)
 	}

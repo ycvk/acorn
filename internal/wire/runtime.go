@@ -8,6 +8,7 @@ import (
 
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
+	"github.com/ycvk/acorn/internal/knowledge"
 	"github.com/ycvk/acorn/internal/notify"
 	"github.com/ycvk/acorn/internal/runtime"
 	"github.com/ycvk/acorn/internal/skills"
@@ -25,6 +26,7 @@ type containerRuntimeDeps struct {
 	resumeRun             func(context.Context, string, map[string]any, core.StreamSink) (*runtime.Result, error)
 	// notifier is nil when push notifications are not configured.
 	notifier *notify.Sender
+	vault    *knowledge.Vault
 }
 
 // buildNotifier returns the push sender, or nil and the reason push is off.
@@ -88,6 +90,20 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 	if notifier != nil {
 		notifyDeps.Notifier = notifier
 	}
+	git, err := knowledge.LookupGit()
+	if err != nil {
+		return nil, err
+	}
+	vault, err := knowledge.Open(ctx, knowledge.VaultConfig{
+		Dir:      cfg.KnowledgeDir(),
+		Git:      git,
+		Index:    db,
+		Clock:    options.clock,
+		Location: ownerLoc,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("knowledge base: %w", err)
+	}
 	toolRegistry := tools.NewToolRegistry()
 	if err := tools.RegisterNativeTools(toolRegistry, tools.NativeToolDeps{
 		ArtifactService: artifactSvc,
@@ -101,6 +117,11 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 			Location: ownerLoc,
 		},
 		Notify: notifyDeps,
+		Knowledge: tools.KnowledgeToolDeps{
+			Vault:    vault,
+			Context:  ctxBridge,
+			Location: ownerLoc,
+		},
 	}); err != nil {
 		return nil, fmt.Errorf("register native tools: %w", err)
 	}
@@ -141,5 +162,6 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 		executeRun:            executeRun,
 		resumeRun:             resumeRun,
 		notifier:              notifier,
+		vault:                 vault,
 	}, nil
 }
