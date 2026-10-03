@@ -10,7 +10,7 @@
 
 Acorn is a self-hosted personal agent for one owner and their devices.
 
-Run Acorn on your own server, pair your phone, and talk to an agent with a persona and a working memory. It keeps the appointments it makes with you, wakes up on its own when one is due, files what you share from your phone into a markdown knowledge base, and pushes to your phone when you should know something. Its state stays on your server.
+Run Acorn on your own server, pair your phone, and talk to an agent with a persona and a working memory. It keeps the appointments it makes with you, wakes up on its own when one is due, files what you share from your phone into a markdown knowledge base, follows feeds, GitHub repositories and web pages for you with a briefing every morning, and pushes to your phone when you should know something. Its state stays on your server.
 
 ## Features
 
@@ -21,6 +21,7 @@ Run Acorn on your own server, pair your phone, and talk to an agent with a perso
 - An editable persona and a working memory of what you said, the agent's own thoughts, your lasting preferences and its commitments, with deterministic decay.
 - Commitments: "remind me in three days" wakes the agent in the same thread at that time, also after a restart.
 - Push notifications through Firebase Cloud Messaging, with an hourly cap and quiet hours.
+- Watches on RSS and Atom feeds (RSSHub routes included), GitHub releases and issues, and parts of web pages such as prices. New items wake the agent right away or wait for a morning briefing note pushed to your phone.
 - A knowledge base of markdown notes that is also a git repository: share a link from your phone and the agent writes a note, each change one commit. Open it in Obsidian through a git clone.
 - Full-text recall over past runs and working memory, and full-text search over notes.
 - Tool calls that need your sign-off pause on your phone and continue on the server after you decide, even across restarts.
@@ -202,9 +203,10 @@ Mobile checks run from `mobile-kotlin/`:
 | `internal/tools/` | Tool implementations (artifact, operator, working memory, notify, knowledge, web, browser), ToolRegistry |
 | `internal/store/` | SQLite persisted state (modernc.org/sqlite, single-connection serialized), including working memory and full-text search |
 | `internal/presence/` | Working-memory decay, presence rendering, persona, cron parsing |
-| `internal/wake/` | Scheduler that keeps commitments inside `serve` |
+| `internal/wake/` | Scheduler inside `serve`: commitments, watches and the morning briefing |
 | `internal/notify/` | FCM HTTP v1 client and push sender (hourly cap, quiet hours) |
 | `internal/knowledge/` | Knowledge base vault: note paths, frontmatter, git commits, index sync |
+| `internal/watch/` | Watch checker: feeds, GitHub, page snapshots, failure backoff |
 | `internal/mcp/` | MCP provider manager |
 | `internal/webaccess/` | Web fetcher, Tavily search, content extraction, shared outbound URL policy |
 | `internal/skills/` | File-backed skill loader |

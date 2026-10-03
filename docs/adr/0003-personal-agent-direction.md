@@ -67,14 +67,14 @@ facts、history、Active Memory、Periodic Review、WorldState、技能自动生
   - `web`:readability 正文抽取或 CSS 选择器;
   - `web_rendered`:chromedp 渲染后用选择器抓取,用于价格、库存这类页面。
 
-  agent 可以通过 `watch_create` / `watch_update` 自己增改追踪项。
+  agent 可以通过 `watch_create` / `watch_update` 自己增改追踪项。RSSHub 由 owner 自建,Acorn 只读它的地址;P3 的 GitHub 只追 releases 和新开的 issue,`web` / `web_rendered` 比较的是选中内容的快照。
 - **Capture**:App 注册系统分享入口,文本、链接、图片走 `POST /v1/captures`。
 - **手机通知**:App 用 NotificationListener 按 App 白名单批量上报,后端存为信号。
 
 ### 输出与审批
 
 - **推送**:`notify_owner` 工具经 FCM 推送,内置频率限制和免打扰时段。
-- **早安卡 / 简报**:一个固定的约定。到点醒来后汇总 Watch 变化、手上的事和接下来的约定,写成知识库笔记并推送。
+- **早安卡 / 简报**:调度器按 owner 配置的时间每天触发一次的固定唤醒(不是 agent 可以 settle 掉的约定)。到点醒来后汇总 Watch 变化、手上的事和接下来的约定,写成知识库笔记并推送。
 - **等你处理**:`approval` middleware 在 `WrapInvokableToolCall` 中按规则判断,需要审批的调用触发工具级 `StatefulInterrupt`。checkpoint 持久化在 SQLite,审批对象是这一次调用的具体参数。批准后按原参数执行;拒绝结果作为工具结果返回给 agent。服务重启不影响待审批的运行。
 
 ### Runtime
@@ -99,7 +99,7 @@ App 分五页:此刻(早安卡、接下来、手上的事)、等你处理、知�
 | P0 | runtime 迁到 Eino `ChatModelAgent`;审批 middleware 和 SQLite checkpoint;删除旧 runtime | 手机上触发一个需审批的调用,批准后执行;中途重启服务后批准依然生效 |
 | P1 | 工作记忆、经历检索、约定调度、人格、context 快照、FCM 推送与 `notify_owner` | 对 agent 说"三天后提醒我看 X",到点自动醒来处理并推送 |
 | P2 | 知识库、Capture、App 分享入口;技能加载迁到 Eino skill middleware | 从任意 App 分享一个链接,几分钟内知识库出现整理后的笔记 |
-| P3 | Watch、早安卡 | 每天早上收到汇总 RSS、GitHub、价格变化的简报 |
+| P3 | Watch(rss、github releases/issues、web、web_rendered)、早安卡 | 每天早上收到汇总 RSS、GitHub、价格变化的简报 |
 | P4 | 空闲思考、手机通知感知 | 夜思会清理过期念头;重要通知出现在早安卡里 |
 
 ## 不做(边界)

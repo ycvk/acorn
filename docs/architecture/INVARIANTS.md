@@ -6,10 +6,11 @@
 
 - **core 有零内部导入**：`internal/core` 不导入任何 `github.com/ycvk/acorn/internal/*` 包；core 是 Layer 0，只依赖外部 SDK（Eino schema/adk）。
   - `tests/architecture/dependency_direction_test.go`
-- **core 拥有 6 个 store 接口**：`SessionStore`/`IdentityStore`/`ArtifactStore`/`PresenceStore`/`NotificationStore`/`KnowledgeStore` 是 core 定义的 consumer-owned 持久化接口。
+- **core 拥有 7 个 store 接口**：`SessionStore`/`IdentityStore`/`ArtifactStore`/`PresenceStore`/`NotificationStore`/`KnowledgeStore`/`WatchStore` 是 core 定义的 consumer-owned 持久化接口。
   - `internal/core/store.go`
   - `internal/core/presence.go`
   - `internal/core/knowledge.go`
+  - `internal/core/watch.go`
   - `internal/core/core_test.go`
 
 ## 运行时与编排
@@ -29,7 +30,7 @@
 
 ## 持久化与 store 边界
 
-- **SQLite adapter 不跨层泄漏**：production 代码只允许 `internal/wire/container.go` 直接 import `internal/store`；其他包只依赖 consumer-owned ports（`core.SessionStore`/`core.IdentityStore`/`core.ArtifactStore`/`core.PresenceStore`/`core.NotificationStore`/`core.KnowledgeStore`）或 `internal/store` shared records/errors。
+- **SQLite adapter 不跨层泄漏**：production 代码只允许 `internal/wire/container.go` 直接 import `internal/store`；其他包只依赖 consumer-owned ports（`core.SessionStore`/`core.IdentityStore`/`core.ArtifactStore`/`core.PresenceStore`/`core.NotificationStore`/`core.KnowledgeStore`/`core.WatchStore`）或 `internal/store` shared records/errors。
   - `tests/architecture/dependency_direction_test.go`
 - **时间由调用方给出**：`memory_items` 的 created_at/updated_at 与 `notifications` 的 created_at 由写入方的时钟决定，store 拒绝缺少时间的写入；时钟只在组合根注入，工具、presence、wake 调度器与推送 sender 共用一个。
   - `internal/store/store_presence_test.go`
@@ -96,6 +97,24 @@
 - **经历检索覆盖 run 和工作记忆**：`recall` 工具调用 `SearchExperience`，用 FTS5 trigram 检索 `runs` 的输入输出和全部 `memory_items`；少于 3 个字的查询改走 LIKE。FTS 表上线前的 run 在打开数据库时回填一次。
   - `internal/store/store_presence_test.go`
   - `internal/tools/presence_tools_test.go`
+
+## 追踪项与早安卡
+
+- **追踪项只报新东西**：`watch_create` 的首次抓取失败则不建立；成功的首次检查只建基线（条目记 baseline），之后的检查才产生新条目。条目按 (watch, key) 唯一，同一条目只入库一次；网页类追踪项比较选中内容的快照，变化产生一条带前后值的条目，回到旧值同样算变化。
+  - `internal/watch/watch_test.go`
+  - `internal/store/store_watch_test.go`
+  - `internal/tools/watch_tools_test.go`
+- **抓取只经 URL policy**：feed、GitHub 与网页都经 `webaccess.FetchRaw`（与 `web_fetch` 共用 policy、超时与大小上限），渲染页面经浏览器服务的 policy；loopback 一律拒绝。
+  - `internal/watch/watch_test.go`
+- **追踪项检查与唤醒只在 wake 调度器**：到期追踪项以条件更新加租约认领，多个调度器只有一个检查。只有 immediate 追踪项的新条目起 wake run（在建立追踪项的线程里），计入 `wake.daily_limit` 并记 `wake.fired{watch_id}`；超限、起 run 失败与 digest 追踪项的条目都留给早安卡。一个追踪项失败不影响约定和其他追踪项；连续 5 次失败标为 failing，退避上限 24 小时。
+  - `internal/wake/watches_test.go`
+  - `internal/watch/watch_test.go`
+  - `internal/wire/watch_acceptance_e2e_test.go`
+- **每个本地日一次早安卡**：过了 `briefing.at`（owner 时区）后，`briefings` 表按日期认领，跨进程只触发一次；起 run 失败释放认领，下个 tick 重试。早安卡在 Briefings 线程里运行，输入列出全部待简报条目和 failing 追踪项，条目随之标为 briefed；它不计入每日唤醒上限。
+  - `internal/wake/watches_test.go`
+  - `internal/store/store_watch_test.go`
+  - `internal/wire/watch_acceptance_e2e_test.go`
+
 
 ## 代码规范
 

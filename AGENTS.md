@@ -4,7 +4,7 @@ Acorn 的 AI 协作硬约束入口。`CLAUDE.md` 软链接至此,单一真相源
 
 ## 项目概览
 
-Go 1.27 + Eino ADK 的单用户自托管个人 agent 后端,module `github.com/ycvk/acorn`。owner 在 VPS 跑后端,Kotlin App 配对手机后远程对话、看运行、批审批、收推送。agent 有人格和工作记忆,会自己约时间醒来(约定),需要时经 FCM 推送找 owner;owner 从手机分享的链接、文字、图片由 agent 整理进 markdown 知识库(同时是 git 仓库)。入口:operator CLI(`serve` 长驻 / `run`·`smoke` 一次性 run / `init`·`pair`·`devices`·`token` 运维 / `skills`·`doctor` 诊断)、authenticated `/v1` API、serve 进程内的约定调度器、mobile inbox、persisted RunEvent SSE、Kotlin mobile(含系统分享入口与知识库页)。方向见 `docs/adr/0003-personal-agent-direction.md`。
+Go 1.27 + Eino ADK 的单用户自托管个人 agent 后端,module `github.com/ycvk/acorn`。owner 在 VPS 跑后端,Kotlin App 配对手机后远程对话、看运行、批审批、收推送。agent 有人格和工作记忆,会自己约时间醒来(约定),需要时经 FCM 推送找 owner;owner 从手机分享的链接、文字、图片由 agent 整理进 markdown 知识库(同时是 git 仓库);agent 替 owner 追踪 RSS、GitHub、网页(含价格),每天早上写简报笔记并推送。入口:operator CLI(`serve` 长驻 / `run`·`smoke` 一次性 run / `init`·`pair`·`devices`·`token` 运维 / `skills`·`doctor` 诊断)、authenticated `/v1` API、serve 进程内的唤醒调度器(约定、追踪项、早安卡)、mobile inbox、persisted RunEvent SSE、Kotlin mobile(含系统分享入口与知识库页)。方向见 `docs/adr/0003-personal-agent-direction.md`。
 
 ## 常用命令
 
@@ -37,12 +37,12 @@ cd mobile-kotlin && ./tool/generate_openapi_client.sh --check   # CI 门禁
 
 ## 架构大图
 
-- **组合根**:`internal/wire.Container` 是唯一实例化具体实现的地方(SQLite store、RunnerFactory、wake scheduler、FCM sender、知识库 vault 与系统 git、时钟)。`cmd/acorn → cli → wire.Container → {api, runtime, store, wake, notify, knowledge}`。`serve` 是唯一长驻命令,同时运行 wake scheduler。
+- **组合根**:`internal/wire.Container` 是唯一实例化具体实现的地方(SQLite store、RunnerFactory、wake scheduler、FCM sender、知识库 vault 与系统 git、watch checker 与它的浏览器、时钟)。`cmd/acorn → cli → wire.Container → {api, runtime, store, wake, notify, knowledge, watch}`。`serve` 是唯一长驻命令,同时运行 wake scheduler。
 - **运行时主链**:`Executor → RunnerFactory.buildRun → buildAgentRunner(Eino ChatModelAgent) → adk.Runner`,事件经 `agentEventProjector` 写 SQLite events。全部在 `internal/runtime`。
 - **单一编排模式**:每个 run 一个 Eino `ChatModelAgent`(ReAct:model → tools → model),`EnableStreaming`,checkpoint 经 `core.SessionStore` 落 SQLite `agent_checkpoints`。
 - **职责边界**:`internal/runtime` 做装配(工具 catalog、persona + operating rules 写进 Instruction、middleware 链)+ 执行(run/resume)+ StreamItem 投影;上下文压缩、延迟加载工具、技能加载、工具调度、主模型重试交给 Eino middleware、ToolsNode 与 `ModelRetryConfig`。
-- **关键包**(15 个 internal 包):`internal/core`(Layer 0,零内部导入,纯类型+契约:核心 domain 类型 + context plumbing + 6 个 store 接口 + 工具契约,无 service struct);`internal/runtime`(Layer 3)拥有 Executor、RunnerFactory、buildAgentRunner、presence/approval/tool-error middleware、skill middleware 的 backend、StreamItem 投影;`internal/tools` 拥有工具实现(artifact/operator/presence/notify/knowledge/web/browser 工具 + ToolRegistry);`internal/store` 拥有 SQLite adapter + ArtifactService(依赖 `core.ArtifactService`,无重复接口);`internal/presence` 拥有工作记忆衰减、"当下"渲染、persona 读取与 cron 解析(纯函数);`internal/wake` 拥有 serve 进程内的约定调度器;`internal/notify` 拥有 FCM HTTP v1 client 与推送 sender(频率上限、免打扰排队);`internal/knowledge` 拥有知识库 vault(路径校验、frontmatter 读写、经 `Git` 接口提交、索引同步);`internal/mcp` 拥有 MCP provider manager;`internal/api` 拥有 `/v1` client surface + live RunEvent 投影(`projection.go`);`internal/webaccess` 拥有 web fetcher、Tavily search、内容抽取与共享 URL policy(工具本身在 `internal/tools`);`internal/skills`/`internal/config`/`internal/cli`/`internal/wire` 各司其职。
-- **真相归属**:SQLite(`internal/store`,modernc.org/sqlite,单连接串行化)是 runtime、工作记忆和经历的真相(16 张表:runs/events/sessions/session_messages/pending_actions/mcp_oauth_tokens/devices/pairing_codes/artifacts/agent_checkpoints/schema_migrations/memory_items/context_snapshots/push_tokens/notifications/knowledge_notes,另有 FTS5 虚表 memory_items_fts/runs_fts/knowledge_notes_fts;schema 在 `store/store_schema_bootstrap.go`,`schemaRequiredTables` 强制列存在、缺列 fail-loud);`{storage_dir}/persona.md` 是 owner 可编辑的人格,每个 run 读取,缺失或为空时 run 失败;`knowledge.dir`(默认 `{storage_dir}/knowledge`)下的 markdown 文件是知识的真相,`knowledge_notes` 只是可重建的索引。
+- **关键包**(16 个 internal 包):`internal/core`(Layer 0,零内部导入,纯类型+契约:核心 domain 类型 + context plumbing + 7 个 store 接口 + 工具契约,无 service struct);`internal/runtime`(Layer 3)拥有 Executor、RunnerFactory、buildAgentRunner、presence/approval/tool-error middleware、skill middleware 的 backend、StreamItem 投影;`internal/tools` 拥有工具实现(artifact/operator/presence/notify/knowledge/web/browser 工具 + ToolRegistry);`internal/store` 拥有 SQLite adapter + ArtifactService(依赖 `core.ArtifactService`,无重复接口);`internal/presence` 拥有工作记忆衰减、"当下"渲染、persona 读取与 cron 解析(纯函数);`internal/wake` 拥有 serve 进程内的唤醒调度器(约定、追踪项、早安卡);`internal/notify` 拥有 FCM HTTP v1 client 与推送 sender(频率上限、免打扰排队);`internal/knowledge` 拥有知识库 vault(路径校验、frontmatter 读写、经 `Git` 接口提交、索引同步);`internal/watch` 拥有追踪项的抓取、解析与比对(rss/atom、GitHub、网页快照,不调用模型);`internal/mcp` 拥有 MCP provider manager;`internal/api` 拥有 `/v1` client surface + live RunEvent 投影(`projection.go`);`internal/webaccess` 拥有 web fetcher、Tavily search、内容抽取与共享 URL policy(工具本身在 `internal/tools`);`internal/skills`/`internal/config`/`internal/cli`/`internal/wire` 各司其职。
+- **真相归属**:SQLite(`internal/store`,modernc.org/sqlite,单连接串行化)是 runtime、工作记忆和经历的真相(19 张表:runs/events/sessions/session_messages/pending_actions/mcp_oauth_tokens/devices/pairing_codes/artifacts/agent_checkpoints/schema_migrations/memory_items/context_snapshots/push_tokens/notifications/knowledge_notes/watches/watch_items/briefings,另有 FTS5 虚表 memory_items_fts/runs_fts/knowledge_notes_fts;schema 在 `store/store_schema_bootstrap.go`,`schemaRequiredTables` 强制列存在、缺列 fail-loud);`{storage_dir}/persona.md` 是 owner 可编辑的人格,每个 run 读取,缺失或为空时 run 失败;`knowledge.dir`(默认 `{storage_dir}/knowledge`)下的 markdown 文件是知识的真相,`knowledge_notes` 只是可重建的索引。
 - **API 契约**:`docs/openapi.yaml` 是唯一 wire contract,`mobile-kotlin/app/src/main/java/io/ycvk/acorn/api/` 由它生成。客户端只收 `internal/api/projection.go` 投影的 live RunEvent;RunEvent SSE 用 `follow=true` 轮询 + `after_seq` 游标续读。
 
 ## 硬边界
@@ -67,7 +67,7 @@ cd mobile-kotlin && ./tool/generate_openapi_client.sh --check   # CI 门禁
 - 工作记忆是 SQLite `memory_items`,类型 said(`keep`,owner 原话)、thought(`think`)、commitment(`schedule_wake`)、tendency/ruler(`settle` internalize)。非约定条目按 `expires_at` 由确定性代码衰减:active → resting → sunk;`settle` 负责 renew/internalize/release/done。写入时间由调用方的时钟给出,store 不自行取时间。
 - "当下"(`<presence>` 块:时间、唤醒原因、约定、念头、原话、倾向、关切)由 presence middleware 在 `WrapModel` 中追加为本次模型调用的最后一条 system 消息,不写进 agent 状态、对话历史或 checkpoint;受 `presence.max_tokens` 约束,按固定顺序丢弃低优先级条目,已醒来的约定不丢。Instruction 与"当下"的组合按哈希去重存进 `context_snapshots`,并记 `presence.snapshot` 事件。
 - 经历检索是 `recall`:runs 与 memory_items 的 FTS5 trigram 全文检索,少于 3 个字的查询走 LIKE。
-- 约定由 `internal/wake` 调度器保持:每次 tick 先衰减,再对到期约定做条件更新认领(多进程也只触发一次),在立约定的线程里启动 run(线程已删除时进 Reminders 线程),记 `wake.fired` 事件;周期约定认领后排下一次;启动失败 5 分钟后重试。每个 owner 本地自然日的唤醒数受 `wake.daily_limit` 约束,0 表示关闭。
+- 约定由 `internal/wake` 调度器保持(同一调度器也负责追踪项与早安卡,见下文):每次 tick 先衰减,再对到期约定做条件更新认领(多进程也只触发一次),在立约定的线程里启动 run(线程已删除时进 Reminders 线程),记 `wake.fired` 事件;周期约定认领后排下一次;启动失败 5 分钟后重试。每个 owner 本地自然日的唤醒数受 `wake.daily_limit` 约束,0 表示关闭。
 - `notify_owner` 经 FCM 推送,每小时上限 `notify.max_per_hour`,免打扰时段内排队、结束后由 wake 调度器发出;FCM 不认的 token 删除;没配 `notify.fcm.service_account_file` 时工具以 disabled 注册并给出原因。设备吊销时同时删除其 push token。
 
 ### 知识库 & Capture
@@ -77,6 +77,14 @@ cd mobile-kotlin && ./tool/generate_openapi_client.sh --check   # CI 门禁
 - 索引每次列表、搜索前按 mtime/size 与文件同步;读不了或解析失败的笔记让同步失败并给出路径。检索是 FTS5 trigram,少于 3 个字走 LIKE。
 - `POST /v1/captures` 先把图片(JPEG/PNG/WebP/GIF,≤10 MiB,按内容判断类型)存进 `attachments/YYYY/MM/` 并提交,再新建线程,以 role `capture` 的输入立即起 run;模型把它当 user 消息读。capture 不计入 `wake.daily_limit`。分享内容的整理流程写在种子技能 `capture_to_note`。
 - 知识库目录配置 `receive.denyCurrentBranch=updateInstead`,owner 可以 clone 到本地(如用 Obsidian 打开)改完 push 回去。
+
+### Watch & 早安卡
+
+- 追踪项由 agent 用 `watch_create`/`watch_update`/`watch_list` 管理,存在 `watches`;四类信息源:`rss`(含 `rsshub:/route`,需 `watch.rsshub_base_url`)、`github`(releases 或新开的 issue)、`web`(CSS 选择器或正文快照)、`web_rendered`(需配置浏览器)。所有抓取经 `webaccess` 的 URL policy。
+- `watch_create` 先抓一次,失败不建立;成功的第一次检查只建基线,之后只报新条目。条目按 (watch, key) 只入库一次;网页类追踪项比较选中内容的快照,变化时产生一条带前后值的条目。
+- 调度只在 `wake.Scheduler`:每次 tick 在约定之后认领到期追踪项(条件更新加 10 分钟租约)并检查,单项超时 60s,每 tick 最多 `watch.max_checks_per_tick` 个。`digest` 的新条目等早安卡;`immediate` 的新条目在建立追踪项的线程里起 wake run,计入 `wake.daily_limit` 并记 `wake.fired{watch_id}`,超限时转给早安卡。
+- 抓取失败按间隔 ×2^n 退避(上限 24h),连续 5 次失败标为 failing,仍继续检查,成功后恢复。
+- 早安卡按 `briefing.at`(owner 时区,空则关闭)每个本地日触发一次:`briefings` 表以日期为主键保证多进程只触发一次,起 run 失败则释放当天的认领。run 在 Briefings 线程里,输入以 `[briefing YYYY-MM-DD]` 开头,按追踪项列出全部待简报条目和 failing 追踪项;条目标为 briefed。早安卡不计入每日唤醒上限,记 `briefing.fired`。写笔记与推送的做法在种子技能 `morning_briefing`。
 
 ### 上下文 & 压缩
 

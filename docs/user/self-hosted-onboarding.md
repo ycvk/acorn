@@ -319,7 +319,7 @@ Config is parsed strictly: unknown keys stop the backend. When upgrading from a 
 - `context.preserve_recent_turns`
 - `mcp.providers[].tool_safety` (use `approval.require`)
 
-New keys, all optional: `approval.require`, `owner.timezone`, `presence.max_tokens`, `wake.daily_limit`, `notify.max_per_hour`, `notify.quiet_hours`, `notify.fcm.service_account_file`, `knowledge.dir`. Then run `acorn init --persona-only` to write the default persona, and `acorn doctor` to check the result.
+New keys, all optional: `approval.require`, `owner.timezone`, `presence.max_tokens`, `wake.daily_limit`, `notify.max_per_hour`, `notify.quiet_hours`, `notify.fcm.service_account_file`, `knowledge.dir`, `watch.rsshub_base_url`, `watch.github_token`, `watch.max_checks_per_tick`, `briefing.at`. Then run `acorn init --persona-only` to write the default persona, and `acorn doctor` to check the result.
 
 Earlier data under `~/.acorn` (`facts/`, `history/`, `worldstate/`, `vectors.db`, `skills/generated/`) is no longer read. Delete it once you no longer need it.
 
@@ -344,7 +344,36 @@ git clone ssh://root@your-vps/root/.acorn/knowledge acorn-notes
 
 Open the clone in Obsidian or any editor. Notes you add or change on the server directly are picked up the next time the notes are listed or searched.
 
-## 13. Backup
+## 13. Watches and the Morning Briefing
+
+Ask the agent to keep an eye on something and it creates a watch: "follow the Go blog", "tell me when golang/go has a new release", "watch the price on this page and tell me right away when it drops". The backend checks each watch on its own schedule (hourly by default, at least every 15 minutes) and only involves the model when something is new. The first check of a watch is the baseline, so what is already there is not reported.
+
+Every morning the agent writes a briefing note, `briefings/YYYY-MM-DD.md` in the knowledge base, with what changed on your watches, today's commitments and what is open, and pushes a short summary. Watches you asked to hear about right away wake the agent in the conversation where you set them up instead; those wakes count toward `wake.daily_limit`, and changes past the limit wait for the briefing.
+
+```yaml
+briefing:
+  at: "08:00"                 # owner.timezone; empty turns the briefing off
+watch:
+  rsshub_base_url: http://127.0.0.1:1200   # for rsshub:/route watches
+  github_token: ${GITHUB_TOKEN}            # optional; raises GitHub's limit of 60 requests an hour
+  max_checks_per_tick: 5
+```
+
+Sources a watch can follow:
+
+- RSS or Atom feeds by URL.
+- Anything RSSHub can turn into a feed (X, Weibo, and many more) as `rsshub:/route`. Run your own RSSHub next to Acorn; public instances are often rate limited:
+
+  ```bash
+  docker run -d --name rsshub --restart always -p 127.0.0.1:1200:1200 diygod/rsshub
+  ```
+
+- A GitHub repository's releases or newly opened issues.
+- Part of a web page picked by a CSS selector, such as a price; without a selector the page's main text. Pages that only render with JavaScript need `browser.executable_path`.
+
+A watch that keeps failing (five times in a row) is marked failing and listed in the briefing with its last error. Ask the agent to list, pause, resume or change your watches. `acorn doctor` shows how many watches there are and which are failing.
+
+## 14. Backup
 
 Stop the backend before filesystem-level backups:
 
@@ -355,11 +384,12 @@ sudo tar -czf /var/backups/acorn-workspace.tgz -C /srv/acorn/workspace .
 sudo systemctl start acorn
 ```
 
-## 14. Current Limits
+## 15. Current Limits
 
 - Host commands are host dependencies. If the model tries to run a command that is not installed on the VPS, the command fails explicitly when used.
 - Web search requires a configured Tavily API key. Browser actions require an operator-installed Chrome/Chromium executable.
 - The mobile app refreshes backend truth through `/v1/inbox`, thread messages, and RunEvent cursors. Push needs your own Firebase project and an APK built with its values; there is no APNs support.
 - Commitment wakes have a daily count limit but no token budget yet.
+- Watches cannot follow pages that need a login. GitHub watches cover releases and newly opened issues only.
 - Knowledge search matches words (full-text); there is no semantic search yet. Shared images are kept as attachments; the agent sees only their path and your note, not the picture.
 - Mobile is a remote control surface. It does not execute runs locally, own runtime truth, or merge offline runtime state.
