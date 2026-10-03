@@ -1,3 +1,10 @@
 <resources>
     <style name="Theme.Acorn" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <!-- The share sheet draws over the sharing app. -->
+    <style name="Theme.Acorn.Share">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowAnimationStyle">@null</item>
+    </style>
 </resources>
