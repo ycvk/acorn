@@ -1,12 +1,12 @@
 ---
 title: Self-hosted onboarding
 status: current
-last_reviewed: 2026-10-02
+last_reviewed: 2026-10-03
 ---
 
 # Self-hosted Onboarding
 
-Acorn's primary product path is a single-user self-hosted backend with authenticated mobile clients. The backend owns runtime truth: threads, runs, events, pending approvals, the agent's working memory and commitments, and skills.
+Acorn's primary product path is a single-user self-hosted backend with authenticated mobile clients. The backend owns runtime truth: threads, runs, events, pending approvals, the agent's working memory and commitments, the knowledge base, and skills.
 
 This path installs Acorn as a Linux binary managed by `systemd`. It does not create a hosted account, public unauthenticated API, multi-user boundary, Docker service, or packaged execution sandbox.
 
@@ -101,6 +101,7 @@ The installed service uses:
 - `~/.acorn/acorn.env` for provider secrets.
 - `~/.acorn/persona.md` for the agent's persona.
 - `~/.acorn/skills` for bundled native skills and user-local skills.
+- `~/.acorn/knowledge` for the knowledge base: markdown notes in a git repository.
 - `~/.acorn` for runtime storage and SQLite state.
 - `/srv/acorn/workspace` as the workspace root that holds seed and workspace skills.
 - `127.0.0.1:8080` for the HTTP listener.
@@ -318,11 +319,32 @@ Config is parsed strictly: unknown keys stop the backend. When upgrading from a 
 - `context.preserve_recent_turns`
 - `mcp.providers[].tool_safety` (use `approval.require`)
 
-New keys, all optional: `approval.require`, `owner.timezone`, `presence.max_tokens`, `wake.daily_limit`, `notify.max_per_hour`, `notify.quiet_hours`, `notify.fcm.service_account_file`. Then run `acorn init --persona-only` to write the default persona, and `acorn doctor` to check the result.
+New keys, all optional: `approval.require`, `owner.timezone`, `presence.max_tokens`, `wake.daily_limit`, `notify.max_per_hour`, `notify.quiet_hours`, `notify.fcm.service_account_file`, `knowledge.dir`. Then run `acorn init --persona-only` to write the default persona, and `acorn doctor` to check the result.
 
 Earlier data under `~/.acorn` (`facts/`, `history/`, `worldstate/`, `vectors.db`, `skills/generated/`) is no longer read. Delete it once you no longer need it.
 
-## 12. Backup
+## 12. Knowledge Base and Sharing
+
+The agent keeps longer material in a knowledge base: markdown notes under `~/.acorn/knowledge`, which is also a git repository. Every change the agent makes is one commit, with the run it came from in the commit message, so `git log` shows what changed and when, and `git revert` undoes it. To keep the notes somewhere else, for example an existing Obsidian vault on the server:
+
+```yaml
+knowledge:
+  dir: /srv/notes   # empty means {storage_dir}/knowledge
+```
+
+The backend needs `git` on the server (the installer installs it); without it the service does not start and says what to install. `acorn doctor` shows the directory, the note count and the git version.
+
+Share from any Android app to get something into it: pick Acorn in the system share sheet, add a note if you like, and send. The backend opens a new conversation for the share, and the agent fetches the link, writes a note under `inbox/` and replies with its path. Open the conversation to tell the agent more about it. Images are stored under `attachments/` in the knowledge base. The app's Knowledge tab lists recent notes, searches them, and opens a note to read.
+
+To read or edit the notes on your computer, clone the repository over SSH and push your changes back; the backend's working copy updates on push:
+
+```bash
+git clone ssh://root@your-vps/root/.acorn/knowledge acorn-notes
+```
+
+Open the clone in Obsidian or any editor. Notes you add or change on the server directly are picked up the next time the notes are listed or searched.
+
+## 13. Backup
 
 Stop the backend before filesystem-level backups:
 
@@ -333,10 +355,11 @@ sudo tar -czf /var/backups/acorn-workspace.tgz -C /srv/acorn/workspace .
 sudo systemctl start acorn
 ```
 
-## 13. Current Limits
+## 14. Current Limits
 
 - Host commands are host dependencies. If the model tries to run a command that is not installed on the VPS, the command fails explicitly when used.
 - Web search requires a configured Tavily API key. Browser actions require an operator-installed Chrome/Chromium executable.
 - The mobile app refreshes backend truth through `/v1/inbox`, thread messages, and RunEvent cursors. Push needs your own Firebase project and an APK built with its values; there is no APNs support.
 - Commitment wakes have a daily count limit but no token budget yet.
+- Knowledge search matches words (full-text); there is no semantic search yet. Shared images are kept as attachments; the agent sees only their path and your note, not the picture.
 - Mobile is a remote control surface. It does not execute runs locally, own runtime truth, or merge offline runtime state.

@@ -4,7 +4,7 @@ Acorn 的 AI 协作硬约束入口。`CLAUDE.md` 软链接至此,单一真相源
 
 ## 项目概览
 
-Go 1.27 + Eino ADK 的单用户自托管个人 agent 后端,module `github.com/ycvk/acorn`。owner 在 VPS 跑后端,Kotlin App 配对手机后远程对话、看运行、批审批、收推送。agent 有人格和工作记忆,会自己约时间醒来(约定),需要时经 FCM 推送找 owner。入口:operator CLI(`serve` 长驻 / `run`·`smoke` 一次性 run / `init`·`pair`·`devices`·`token` 运维 / `skills`·`doctor` 诊断)、authenticated `/v1` API、serve 进程内的约定调度器、mobile inbox、persisted RunEvent SSE、Kotlin mobile。方向见 `docs/adr/0003-personal-agent-direction.md`。
+Go 1.27 + Eino ADK 的单用户自托管个人 agent 后端,module `github.com/ycvk/acorn`。owner 在 VPS 跑后端,Kotlin App 配对手机后远程对话、看运行、批审批、收推送。agent 有人格和工作记忆,会自己约时间醒来(约定),需要时经 FCM 推送找 owner;owner 从手机分享的链接、文字、图片由 agent 整理进 markdown 知识库(同时是 git 仓库)。入口:operator CLI(`serve` 长驻 / `run`·`smoke` 一次性 run / `init`·`pair`·`devices`·`token` 运维 / `skills`·`doctor` 诊断)、authenticated `/v1` API、serve 进程内的约定调度器、mobile inbox、persisted RunEvent SSE、Kotlin mobile(含系统分享入口与知识库页)。方向见 `docs/adr/0003-personal-agent-direction.md`。
 
 ## 常用命令
 
@@ -37,12 +37,12 @@ cd mobile-kotlin && ./tool/generate_openapi_client.sh --check   # CI 门禁
 
 ## 架构大图
 
-- **组合根**:`internal/wire.Container` 是唯一实例化具体实现的地方(SQLite store、RunnerFactory、wake scheduler、FCM sender、时钟)。`cmd/acorn → cli → wire.Container → {api, runtime, store, wake, notify}`。`serve` 是唯一长驻命令,同时运行 wake scheduler。
+- **组合根**:`internal/wire.Container` 是唯一实例化具体实现的地方(SQLite store、RunnerFactory、wake scheduler、FCM sender、知识库 vault 与系统 git、时钟)。`cmd/acorn → cli → wire.Container → {api, runtime, store, wake, notify, knowledge}`。`serve` 是唯一长驻命令,同时运行 wake scheduler。
 - **运行时主链**:`Executor → RunnerFactory.buildRun → buildAgentRunner(Eino ChatModelAgent) → adk.Runner`,事件经 `agentEventProjector` 写 SQLite events。全部在 `internal/runtime`。
 - **单一编排模式**:每个 run 一个 Eino `ChatModelAgent`(ReAct:model → tools → model),`EnableStreaming`,checkpoint 经 `core.SessionStore` 落 SQLite `agent_checkpoints`。
-- **职责边界**:`internal/runtime` 做装配(工具 catalog、persona + operating rules + skill 目录写进 Instruction、middleware 链)+ 执行(run/resume)+ StreamItem 投影;上下文压缩、延迟加载工具、工具调度、主模型重试交给 Eino middleware、ToolsNode 与 `ModelRetryConfig`。
-- **关键包**(14 个 internal 包):`internal/core`(Layer 0,零内部导入,纯类型+契约:核心 domain 类型 + context plumbing + 5 个 store 接口 + 工具契约,无 service struct);`internal/runtime`(Layer 3)拥有 Executor、RunnerFactory、buildAgentRunner、presence/approval/tool-error middleware、StreamItem 投影;`internal/tools` 拥有工具实现(artifact/operator/presence/notify/web/browser 工具 + ToolRegistry);`internal/store` 拥有 SQLite adapter + ArtifactService(依赖 `core.ArtifactService`,无重复接口);`internal/presence` 拥有工作记忆衰减、"当下"渲染、persona 读取与 cron 解析(纯函数);`internal/wake` 拥有 serve 进程内的约定调度器;`internal/notify` 拥有 FCM HTTP v1 client 与推送 sender(频率上限、免打扰排队);`internal/mcp` 拥有 MCP provider manager;`internal/api` 拥有 `/v1` client surface + live RunEvent 投影(`projection.go`);`internal/webaccess` 拥有 web fetcher、Tavily search、内容抽取与共享 URL policy(工具本身在 `internal/tools`);`internal/skills`/`internal/config`/`internal/cli`/`internal/wire` 各司其职。
-- **两套真相**:SQLite(`internal/store`,modernc.org/sqlite,单连接串行化)是 runtime、工作记忆和经历的真相(15 张表:runs/events/sessions/session_messages/pending_actions/mcp_oauth_tokens/devices/pairing_codes/artifacts/agent_checkpoints/schema_migrations/memory_items/context_snapshots/push_tokens/notifications,另有 FTS5 虚表 memory_items_fts/runs_fts;schema 在 `store/store_schema_bootstrap.go`,`schemaRequiredTables` 强制列存在、缺列 fail-loud);`{storage_dir}/persona.md` 是 owner 可编辑的人格,每个 run 读取,缺失或为空时 run 失败。
+- **职责边界**:`internal/runtime` 做装配(工具 catalog、persona + operating rules 写进 Instruction、middleware 链)+ 执行(run/resume)+ StreamItem 投影;上下文压缩、延迟加载工具、技能加载、工具调度、主模型重试交给 Eino middleware、ToolsNode 与 `ModelRetryConfig`。
+- **关键包**(15 个 internal 包):`internal/core`(Layer 0,零内部导入,纯类型+契约:核心 domain 类型 + context plumbing + 6 个 store 接口 + 工具契约,无 service struct);`internal/runtime`(Layer 3)拥有 Executor、RunnerFactory、buildAgentRunner、presence/approval/tool-error middleware、skill middleware 的 backend、StreamItem 投影;`internal/tools` 拥有工具实现(artifact/operator/presence/notify/knowledge/web/browser 工具 + ToolRegistry);`internal/store` 拥有 SQLite adapter + ArtifactService(依赖 `core.ArtifactService`,无重复接口);`internal/presence` 拥有工作记忆衰减、"当下"渲染、persona 读取与 cron 解析(纯函数);`internal/wake` 拥有 serve 进程内的约定调度器;`internal/notify` 拥有 FCM HTTP v1 client 与推送 sender(频率上限、免打扰排队);`internal/knowledge` 拥有知识库 vault(路径校验、frontmatter 读写、经 `Git` 接口提交、索引同步);`internal/mcp` 拥有 MCP provider manager;`internal/api` 拥有 `/v1` client surface + live RunEvent 投影(`projection.go`);`internal/webaccess` 拥有 web fetcher、Tavily search、内容抽取与共享 URL policy(工具本身在 `internal/tools`);`internal/skills`/`internal/config`/`internal/cli`/`internal/wire` 各司其职。
+- **真相归属**:SQLite(`internal/store`,modernc.org/sqlite,单连接串行化)是 runtime、工作记忆和经历的真相(16 张表:runs/events/sessions/session_messages/pending_actions/mcp_oauth_tokens/devices/pairing_codes/artifacts/agent_checkpoints/schema_migrations/memory_items/context_snapshots/push_tokens/notifications/knowledge_notes,另有 FTS5 虚表 memory_items_fts/runs_fts/knowledge_notes_fts;schema 在 `store/store_schema_bootstrap.go`,`schemaRequiredTables` 强制列存在、缺列 fail-loud);`{storage_dir}/persona.md` 是 owner 可编辑的人格,每个 run 读取,缺失或为空时 run 失败;`knowledge.dir`(默认 `{storage_dir}/knowledge`)下的 markdown 文件是知识的真相,`knowledge_notes` 只是可重建的索引。
 - **API 契约**:`docs/openapi.yaml` 是唯一 wire contract,`mobile-kotlin/app/src/main/java/io/ycvk/acorn/api/` 由它生成。客户端只收 `internal/api/projection.go` 投影的 live RunEvent;RunEvent SSE 用 `follow=true` 轮询 + `after_seq` 游标续读。
 
 ## 硬边界
@@ -50,7 +50,7 @@ cd mobile-kotlin && ./tool/generate_openapi_client.sh --check   # CI 门禁
 ### 运行时 & 编排
 
 - 每个 run 只有一个 `ChatModelAgent`,不存在 multi-agent/subagent。agent 状态由 Eino 持有,run 间历史来自 `session_messages`(最近 12 条 user/assistant 文本)。
-- middleware 顺序固定:patchtoolcalls → summarization → reduction(clear-only) → toolsearch(有 deferred 工具时) → presence → approval → tool errors。越靠前包得越外层。
+- middleware 顺序固定:patchtoolcalls → summarization → reduction(clear-only) → toolsearch(有 deferred 工具时) → skill → presence → approval → tool errors。越靠前包得越外层。
 - 工具串行执行(`ExecuteSequentially`)。普通工具失败与调用不存在的工具都是模型可见的 tool result,不是 run failure;interrupt 与 context 取消照常传播。普通工具失败记为 `tool.call.failed` 事件。
 - 主模型调用失败最多重试 3 次(context 取消不重试);中途断开的流被重试时不算 run 失败,只有成功那次的输出成为 assistant 消息,已推给客户端的 delta 不撤回。
 - 审批:`approval.require` 是工具名 glob 列表(默认 `browser`、`mcp__*`)。命中的调用由 approval middleware 登记 `tool_approval` pending action 并发起工具级 interrupt;resume 时参数必须与登记时一致,accept 才执行,decline 把拒绝说明作为工具结果返回。同一轮里排在被拦截调用之后的工具调用会先执行,被拦截的调用等决策后执行。`approval.require` 不能命中 `ask_operator`(config 校验拒绝)。approval 自身的存储失败直接让 run 失败。
@@ -60,7 +60,7 @@ cd mobile-kotlin && ./tool/generate_openapi_client.sh --check   # CI 门禁
 ### 工具 & 技能
 
 - native skill truth 是 `internal/skills` file-backed loader,`tools.workspace.root_dir` 指向存放 seed skills 与 workspace skills 的目录。repo `./skills` 是 release seed pack;release installer 安装到 `~/.acorn/skills`;workspace skills 放在 `./.acorn/skills/workspace`。agent 不创建或修改 skill。
-- skill 是只读 markdown + 简单关键词匹配,无 lifecycle/evidence/assess。
+- 技能经 Eino skill middleware 提供:`skill` 工具的描述列出本 run eligible 的技能(summary + trigger hints),按名加载 SKILL.md 正文;只有 inline 模式,不 fork 子 agent。技能是只读 markdown,无 lifecycle/evidence/assess。
 
 ### 工作记忆、约定 & 推送
 
@@ -70,11 +70,19 @@ cd mobile-kotlin && ./tool/generate_openapi_client.sh --check   # CI 门禁
 - 约定由 `internal/wake` 调度器保持:每次 tick 先衰减,再对到期约定做条件更新认领(多进程也只触发一次),在立约定的线程里启动 run(线程已删除时进 Reminders 线程),记 `wake.fired` 事件;周期约定认领后排下一次;启动失败 5 分钟后重试。每个 owner 本地自然日的唤醒数受 `wake.daily_limit` 约束,0 表示关闭。
 - `notify_owner` 经 FCM 推送,每小时上限 `notify.max_per_hour`,免打扰时段内排队、结束后由 wake 调度器发出;FCM 不认的 token 删除;没配 `notify.fcm.service_account_file` 时工具以 disabled 注册并给出原因。设备吊销时同时删除其 push token。
 
+### 知识库 & Capture
+
+- 知识库只经 `knowledge.Vault` 写入(工具 `knowledge_write`/`knowledge_edit`、Capture 的图片附件)。每次写入提交一次,只提交本次涉及的文件,作者固定为 Acorn,agent 的写入带 `Acorn-Run` trailer;owner 未提交的其他改动不受影响。agent 不删除、不移动笔记。
+- 笔记路径是知识库内的相对 `.md` 路径,不含 `..` 与隐藏段,不在 `attachments/`;frontmatter 由 Acorn 管理 title/tags/source/created/updated,其他字段改写时原样保留。没有 frontmatter 的笔记以第一个 `# ` 标题或文件名为标题。
+- 索引每次列表、搜索前按 mtime/size 与文件同步;读不了或解析失败的笔记让同步失败并给出路径。检索是 FTS5 trigram,少于 3 个字走 LIKE。
+- `POST /v1/captures` 先把图片(JPEG/PNG/WebP/GIF,≤10 MiB,按内容判断类型)存进 `attachments/YYYY/MM/` 并提交,再新建线程,以 role `capture` 的输入立即起 run;模型把它当 user 消息读。capture 不计入 `wake.daily_limit`。分享内容的整理流程写在种子技能 `capture_to_note`。
+- 知识库目录配置 `receive.denyCurrentBranch=updateInstead`,owner 可以 clone 到本地(如用 Obsidian 打开)改完 push 回去。
+
 ### 上下文 & 压缩
 
 - summarization middleware:token 超 `window_tokens - compact_margin_tokens` 时同步用一次 model 调用总结历史。
 - reduction middleware 只做 clear:总 token 超 `window_tokens / 2` 时把较早的工具结果替换成占位符,最近 `mask_after_turns` 轮工具调用原样保留。
-- persona、operating rules 与 skill 目录写进 agent Instruction,不进入可被总结的消息序列。"当下"不属于消息序列,不参与 summarization 计数,由 `presence.max_tokens` 单独约束(配置校验要求它小于 `compact_margin_tokens`)。
+- persona、operating rules 与 skill middleware 的说明写进 agent Instruction,技能列表在 `skill` 工具描述里,都不进入可被总结的消息序列。"当下"不属于消息序列,不参与 summarization 计数,由 `presence.max_tokens` 单独约束(配置校验要求它小于 `compact_margin_tokens`)。
 
 ### Remote API & Mobile
 
@@ -84,12 +92,13 @@ cd mobile-kotlin && ./tool/generate_openapi_client.sh --check   # CI 门禁
 - pending approval truth 是 `GET /v1/pending-actions` + `:decide`,消费 SQLite `pending_actions`(kind:`elicitation`、`operator_question`、`tool_approval`)。决策后由服务端续跑,不存在客户端 resume 端点。
 - Mobile 不本地执行 run、不持 runtime truth、不从 local state 猜测后端事实。
 - 推送:App 以 `PUT /v1/devices/self/push-token` 上报 FCM token;点击推送按 `data.thread_id` 打开线程。App 的 Firebase 配置来自 `local.properties` 的 `acorn.firebase.*` 或 `ACORN_FIREBASE_*` 环境变量。
+- 分享与知识库:App 注册 `ACTION_SEND`(text/plain、image/*)分享入口,以 multipart `POST /v1/captures` 上传;App 的知识库页只读,经 `GET /v1/knowledge/notes`(搜索/最近)与 `GET /v1/knowledge/note` 读取。
 - 涉及 mobile 视觉/交互的改动必须在真机或模拟器验证;无法连接设备时必须说明未验证。
 
 ### 自托管发布
 
 - GitHub Release 预构建 tarball + Linux binary + signed Android APK + `systemd`。Release build 是纯 Go 交叉编译(`CGO_ENABLED=0`),无 CGO/build tags。
-- installer 安装 `/opt/acorn`、`~/.acorn/skills`、`/usr/local/bin/acorn` wrapper;默认读 `~/.acorn/acorn.yaml`;root VPS 用 `/root/.acorn`,workspace 是 `/srv/acorn/workspace`。
+- installer 安装 `/opt/acorn`、`~/.acorn/skills`、`/usr/local/bin/acorn` wrapper;默认读 `~/.acorn/acorn.yaml`;root VPS 用 `/root/.acorn`,workspace 是 `/srv/acorn/workspace`。服务器需要系统 `git`(知识库;installer 用 apt 安装),找不到时 serve 启动失败并给出安装提示。
 
 ## 工作方式
 

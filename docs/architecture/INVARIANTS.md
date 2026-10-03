@@ -6,26 +6,30 @@
 
 - **core 有零内部导入**：`internal/core` 不导入任何 `github.com/ycvk/acorn/internal/*` 包；core 是 Layer 0，只依赖外部 SDK（Eino schema/adk）。
   - `tests/architecture/dependency_direction_test.go`
-- **core 拥有 5 个 store 接口**：`SessionStore`/`IdentityStore`/`ArtifactStore`/`PresenceStore`/`NotificationStore` 是 core 定义的 consumer-owned 持久化接口。
+- **core 拥有 6 个 store 接口**：`SessionStore`/`IdentityStore`/`ArtifactStore`/`PresenceStore`/`NotificationStore`/`KnowledgeStore` 是 core 定义的 consumer-owned 持久化接口。
   - `internal/core/store.go`
   - `internal/core/presence.go`
+  - `internal/core/knowledge.go`
   - `internal/core/core_test.go`
 
 ## 运行时与编排
 
-- **每个 run 一个 Eino ChatModelAgent**：`buildAgentRunner` 组装 `adk.Runner{ChatModelAgent, EnableStreaming, CheckPointStore}`；handlers 依次为 patchtoolcalls → summarization → reduction(clear-only) → toolsearch(有 deferred 工具时) → presence → approval → tool errors；工具串行执行（`ExecuteSequentially`），普通工具失败与未知工具调用作为模型可见的 tool result 返回。Executor 只负责把 `AgentEvent` 投影成 RunEvent。
+- **每个 run 一个 Eino ChatModelAgent**：`buildAgentRunner` 组装 `adk.Runner{ChatModelAgent, EnableStreaming, CheckPointStore}`；handlers 依次为 patchtoolcalls → summarization → reduction(clear-only) → toolsearch(有 deferred 工具时) → skill → presence → approval → tool errors；工具串行执行（`ExecuteSequentially`），普通工具失败与未知工具调用作为模型可见的 tool result 返回。Executor 只负责把 `AgentEvent` 投影成 RunEvent。
   - `internal/runtime/agent_test.go`
   - `internal/runtime/events_test.go`
 - **工具失败可见，主模型调用有界重试**：tool error middleware 把错误转成结果文本时按 call id 记录，projector 对这些调用发 `tool.call.failed`（其余发 `tool.call.succeeded`），两者都不进 live 契约。主模型调用失败最多重试 3 次，context 取消不重试；被重试的失败流不记 run 失败，只有成功那次的输出成为 assistant 消息；3 次重试都失败时 run 失败。
   - `internal/runtime/tool_errors_test.go`
   - `internal/runtime/model_retry_test.go`
+- **回复先落库再报完成**：run 成功或失败结束时，Executor 先写 run output 和对应的 assistant 消息，再发 `run.completed`/`run.failed` 并把 run 标记为结束；写入失败让 run 返回错误。客户端在收到完成事件或看到结束状态后重新加载线程，一定能读到回复。
+  - `internal/wire/wake_acceptance_e2e_test.go`
+  - `internal/wire/capture_acceptance_e2e_test.go`
 - **审批绑定具体调用并可跨重启恢复**：`approval.require` 命中的工具调用由 approval middleware 登记 `tool_approval` pending action 并发起工具级中断；resume 时校验参数与登记时一致，accept 才执行，decline 把拒绝说明作为工具结果返回。同一轮里排在被拦截调用之后的工具调用会先执行完，被拦截的调用等决策后再执行。`approval.require` 不允许命中 `ask_operator`。checkpoint 经 `core.SessionStore` 落 SQLite `agent_checkpoints`，run 成功或失败结束时删除。
   - `internal/runtime/approval_test.go`
   - `internal/store/store_checkpoint_test.go`
 
 ## 持久化与 store 边界
 
-- **SQLite adapter 不跨层泄漏**：production 代码只允许 `internal/wire/container.go` 直接 import `internal/store`；其他包只依赖 consumer-owned ports（`core.SessionStore`/`core.IdentityStore`/`core.ArtifactStore`/`core.PresenceStore`/`core.NotificationStore`）或 `internal/store` shared records/errors。
+- **SQLite adapter 不跨层泄漏**：production 代码只允许 `internal/wire/container.go` 直接 import `internal/store`；其他包只依赖 consumer-owned ports（`core.SessionStore`/`core.IdentityStore`/`core.ArtifactStore`/`core.PresenceStore`/`core.NotificationStore`/`core.KnowledgeStore`）或 `internal/store` shared records/errors。
   - `tests/architecture/dependency_direction_test.go`
 - **时间由调用方给出**：`memory_items` 的 created_at/updated_at 与 `notifications` 的 created_at 由写入方的时钟决定，store 拒绝缺少时间的写入；时钟只在组合根注入，工具、presence、wake 调度器与推送 sender 共用一个。
   - `internal/store/store_presence_test.go`
@@ -37,8 +41,9 @@
 
 - **上下文管理由 Eino middleware 承担**：summarization 在 token 超过 `window_tokens - compact_margin_tokens` 时总结历史；reduction 只做 clear（保留最近 `mask_after_turns` 轮工具调用原样）。public YAML 只暴露 `context.window_tokens`、`context.compact_margin_tokens`、`context.mask_after_turns`。
   - `internal/runtime/agent_test.go`
-- **Instruction = 人格 + 内置规则 + 技能目录**：人格来自 `{storage_dir}/persona.md`，缺失或为空时 run 失败并给出路径；内置 operating rules 说明工作记忆、约定、审批和工具发现的用法；技能目录放在 Instruction 里，不参与总结。
+- **Instruction = 人格 + 内置规则 + 技能说明**：人格来自 `{storage_dir}/persona.md`，缺失或为空时 run 失败并给出路径；内置 operating rules 说明工作记忆、约定、知识库、审批和工具发现的用法；Eino skill middleware 追加技能说明并提供 `skill` 工具，工具描述列出本 run 可用（eligible）的技能，按名加载正文。这些都在 Instruction 或工具描述里，不参与总结。context 快照记录的是 skill middleware 追加之后的 Instruction。
   - `internal/runtime/agent_test.go`
+  - `internal/runtime/skill_backend_test.go`
   - `internal/presence/presence_test.go`
 - **“当下”只存在于单次模型调用**：presence middleware 用 `WrapModel` 在每次模型调用的输入末尾追加 `<presence>` system 消息（owner 时区的时间、唤醒原因、约定、念头、owner 原话、倾向、关切、暂歇条目），不写回 agent 状态，因此不会进入历史或被总结。渲染前先执行衰减；超过 `presence.max_tokens` 时先丢暂歇条目，再丢各类最旧条目，woken 约定永不丢弃。每个不同的渲染结果按哈希存入 `context_snapshots`，并记一条 `presence.snapshot` 事件。
   - `internal/runtime/presence_test.go`
@@ -46,6 +51,19 @@
 - **工作记忆只有一条衰减路径**：`memory_items` 中的 said/thought/tendency/ruler 到期未续期时，由 `presence.Decay` 从 active 变为 resting，再变为 sunk；commitment 不衰减。续期、内化、放下、完成约定都只经 `settle` 工具。
   - `internal/presence/presence_test.go`
   - `internal/tools/presence_tools_test.go`
+
+## 知识库与 Capture
+
+- **知识库文件是真相，索引可重建**：笔记是 `knowledge.dir`（默认 `{storage_dir}/knowledge`）下的 markdown 文件，目录同时是 git 仓库。`knowledge_notes` 与 `knowledge_notes_fts` 只是索引：每次列表或搜索前按 mtime 和 size 与文件同步，在 Acorn 之外新建、修改、删除的笔记都会反映出来；读不了或解析失败的笔记让同步失败并给出路径。
+  - `internal/knowledge/knowledge_test.go`
+  - `internal/store/store_knowledge_test.go`
+  - `internal/wire/capture_acceptance_e2e_test.go`
+- **每次写入是一个只含本次文件的 commit**：笔记只经 `knowledge.Vault` 写入，每次 `knowledge_write`/`knowledge_edit` 与分享图片各提交一次，只提交本次涉及的文件，作者固定为 Acorn，agent 的写入在提交说明里带 `Acorn-Run`。工作区里 owner 未提交的其他改动不受影响。笔记路径必须是知识库内的相对 `.md` 路径，不能含 `..`、隐藏段或位于 `attachments/`。
+  - `internal/knowledge/knowledge_test.go`
+  - `internal/tools/knowledge_tools_test.go`
+- **Capture 是 owner 发起的 run**：`POST /v1/captures` 先把图片（JPEG/PNG/WebP/GIF，≤10 MiB，类型按内容判断）存入 `attachments/` 并提交，再为这次分享新建线程，以 role `capture` 的输入立即起 run；模型把它当作 user 消息读取，客户端单独显示。capture 不记 `wake.fired`，不计入 `wake.daily_limit`。
+  - `internal/api/capture_knowledge_test.go`
+  - `internal/wire/capture_acceptance_e2e_test.go`
 
 ## Remote API 与 mobile
 

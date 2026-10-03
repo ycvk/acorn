@@ -54,7 +54,7 @@ Acorn 是一个有连续人格的个人代理。它盯着 owner 关心的信息�
   - `ruler`:agent 自己总结的关切和假设。
 
   每个条目有状态和 `expires_at`。到期未续期,由确定性代码执行衰减:活跃 → 暂歇 → 沉底。内化或放下由 agent 通过工具决定。渲染"当下"时有 token 上限。
-- **知识库**:一个 markdown 目录(frontmatter 格式,兼容 Obsidian),同时也是一个 git 仓库。agent 可以自由创建和修改笔记,每次修改自动 commit,历史可审计、可回滚。检索用 keyword + vector 混合检索。
+- **知识库**:一个 markdown 目录(frontmatter 格式,兼容 Obsidian),同时也是一个 git 仓库。agent 可以自由创建和修改笔记,每次修改自动 commit,历史可审计、可回滚。检索用 keyword + vector 混合检索;P2 只有关键词检索(FTS5 trigram),向量检索待定。
 - **经历**:以 runs/events 表为唯一来源,加全文检索,用来回答涉及过去对话和行动的问题。
 
 facts、history、Active Memory、Periodic Review、WorldState、技能自动生成全部删除,不做迁移。
@@ -88,7 +88,7 @@ facts、history、Active Memory、Periodic Review、WorldState、技能自动生
 
 ### App
 
-App 分五页:此刻(早安卡、接下来、手上的事)、等你处理、知识库、经历、对话。另加系统分享入口和通知白名单设置。
+App 分五页:此刻(早安卡、接下来、手上的事)、等你处理、知识库、经历、对话。另加系统分享入口和通知白名单设置。P2 落地分享入口和只读的知识库页(搜索、阅读),分享进来的图片只作为知识库附件保存。
 
 ### 分期
 
@@ -98,7 +98,7 @@ App 分五页:此刻(早安卡、接下来、手上的事)、等你处理、知�
 |---|---|---|
 | P0 | runtime 迁到 Eino `ChatModelAgent`;审批 middleware 和 SQLite checkpoint;删除旧 runtime | 手机上触发一个需审批的调用,批准后执行;中途重启服务后批准依然生效 |
 | P1 | 工作记忆、经历检索、约定调度、人格、context 快照、FCM 推送与 `notify_owner` | 对 agent 说"三天后提醒我看 X",到点自动醒来处理并推送 |
-| P2 | 知识库、Capture、App 分享入口 | 从任意 App 分享一个链接,几分钟内知识库出现整理后的笔记 |
+| P2 | 知识库、Capture、App 分享入口;技能加载迁到 Eino skill middleware | 从任意 App 分享一个链接,几分钟内知识库出现整理后的笔记 |
 | P3 | Watch、早安卡 | 每天早上收到汇总 RSS、GitHub、价格变化的简报 |
 | P4 | 空闲思考、手机通知感知 | 夜思会清理过期念头;重要通知出现在早安卡里 |
 

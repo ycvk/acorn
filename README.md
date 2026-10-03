@@ -10,18 +10,19 @@
 
 Acorn is a self-hosted personal agent for one owner and their devices.
 
-Run Acorn on your own server, pair your phone, and talk to an agent with a persona and a working memory. It keeps the appointments it makes with you, wakes up on its own when one is due, and pushes to your phone when you should know something. Its state stays on your server.
+Run Acorn on your own server, pair your phone, and talk to an agent with a persona and a working memory. It keeps the appointments it makes with you, wakes up on its own when one is due, files what you share from your phone into a markdown knowledge base, and pushes to your phone when you should know something. Its state stays on your server.
 
 ## Features
 
 - Single-owner self-hosted backend for personal deployments.
 - Authenticated `/v1` API with one-time device pairing.
-- Android mobile control surface for threads, chat with live run streaming, approvals, push notifications, and settings.
+- Android mobile control surface for threads, chat with live run streaming, approvals, push notifications, sharing from other apps, the knowledge base, and settings.
 - Persistent runs, run events, pending actions, artifacts, working memory, and skills.
 - An editable persona and a working memory of what you said, the agent's own thoughts, your lasting preferences and its commitments, with deterministic decay.
 - Commitments: "remind me in three days" wakes the agent in the same thread at that time, also after a restart.
 - Push notifications through Firebase Cloud Messaging, with an hourly cap and quiet hours.
-- Full-text recall over past runs and working memory.
+- A knowledge base of markdown notes that is also a git repository: share a link from your phone and the agent writes a note, each change one commit. Open it in Obsidian through a git clone.
+- Full-text recall over past runs and working memory, and full-text search over notes.
 - Tool calls that need your sign-off pause on your phone and continue on the server after you decide, even across restarts.
 - Linux `amd64` and `arm64` release tarballs (pure Go cross-compilation, no CGO).
 - Signed Android APK published with each GitHub Release.
@@ -197,12 +198,13 @@ Mobile checks run from `mobile-kotlin/`:
 | `cmd/acorn/` | CLI entrypoint |
 | `internal/wire/` | Composition root — container wiring, the only place concrete implementations are instantiated |
 | `internal/core/` | Layer 0 domain types, store interfaces, tool contracts — zero internal imports |
-| `internal/runtime/` | Executor, RunnerFactory, Eino ChatModelAgent assembly, presence, approval and tool-error middleware, StreamItem projection |
-| `internal/tools/` | Tool implementations (artifact, operator, working memory, notify, web, browser), ToolRegistry |
+| `internal/runtime/` | Executor, RunnerFactory, Eino ChatModelAgent assembly, presence, approval and tool-error middleware, skill backend, StreamItem projection |
+| `internal/tools/` | Tool implementations (artifact, operator, working memory, notify, knowledge, web, browser), ToolRegistry |
 | `internal/store/` | SQLite persisted state (modernc.org/sqlite, single-connection serialized), including working memory and full-text search |
 | `internal/presence/` | Working-memory decay, presence rendering, persona, cron parsing |
 | `internal/wake/` | Scheduler that keeps commitments inside `serve` |
 | `internal/notify/` | FCM HTTP v1 client and push sender (hourly cap, quiet hours) |
+| `internal/knowledge/` | Knowledge base vault: note paths, frontmatter, git commits, index sync |
 | `internal/mcp/` | MCP provider manager |
 | `internal/webaccess/` | Web fetcher, Tavily search, content extraction, shared outbound URL policy |
 | `internal/skills/` | File-backed skill loader |
