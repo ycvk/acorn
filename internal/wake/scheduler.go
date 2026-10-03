@@ -14,14 +14,29 @@ import (
 
 	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/presence"
+	"github.com/ycvk/acorn/internal/watch"
 )
 
-// RunStarter starts a run woken by a commitment.
+// RunStarter starts the runs the scheduler wakes.
 type RunStarter interface {
 	// StartWakeRun starts a run in threadID with input as the run input and
 	// wake as the description of what woke it. When the thread no longer
 	// exists the run starts in a reminders thread.
 	StartWakeRun(ctx context.Context, threadID, wake, input string) (runID string, err error)
+	// StartBriefingRun starts the morning briefing in threadID, or in a new
+	// briefings thread when threadID is empty or gone, and returns both ids.
+	StartBriefingRun(ctx context.Context, threadID, wake, input string) (thread, runID string, err error)
+}
+
+// WatchChecker fetches a watch and records what it found.
+type WatchChecker interface {
+	Check(ctx context.Context, w core.Watch) (watch.Result, error)
+}
+
+// Briefing schedules the morning briefing at At after owner-local midnight.
+type Briefing struct {
+	Enabled bool
+	At      time.Duration
 }
 
 // Config holds the scheduler's dependencies; every field is required.
@@ -29,11 +44,17 @@ type Config struct {
 	Store    core.PresenceStore
 	Events   core.EventAppender
 	Runs     RunStarter
+	Watches  core.WatchStore
+	Checker  WatchChecker
 	Clock    func() time.Time
 	Location *time.Location
-	// DailyLimit caps commitment wakes per owner-local day; zero disables them.
+	// DailyLimit caps commitment and watch wakes per owner-local day; zero
+	// disables them.
 	DailyLimit int
-	Interval   time.Duration
+	// MaxChecksPerTick bounds the watches fetched in one tick.
+	MaxChecksPerTick int
+	Briefing         Briefing
+	Interval         time.Duration
 }
 
 // retryDelay is how far a commitment moves when its run could not start.
@@ -46,7 +67,7 @@ type Scheduler struct {
 	notifications NotificationFlusher
 
 	mu     sync.Mutex
-	warned map[int64]string // commitment id -> local day already warned about the limit
+	warned map[string]string // commitment or watch -> local day already warned about the limit
 }
 
 func NewScheduler(cfg Config) (*Scheduler, error) {
@@ -57,6 +78,12 @@ func NewScheduler(cfg Config) (*Scheduler, error) {
 		return nil, errors.New("wake scheduler: Events is required")
 	case cfg.Runs == nil:
 		return nil, errors.New("wake scheduler: Runs is required")
+	case cfg.Watches == nil:
+		return nil, errors.New("wake scheduler: Watches is required")
+	case cfg.Checker == nil:
+		return nil, errors.New("wake scheduler: Checker is required")
+	case cfg.MaxChecksPerTick <= 0:
+		return nil, errors.New("wake scheduler: MaxChecksPerTick must be positive")
 	case cfg.Clock == nil:
 		return nil, errors.New("wake scheduler: Clock is required")
 	case cfg.Location == nil:
@@ -66,7 +93,7 @@ func NewScheduler(cfg Config) (*Scheduler, error) {
 	case cfg.DailyLimit < 0:
 		return nil, errors.New("wake scheduler: DailyLimit must be >= 0")
 	}
-	return &Scheduler{cfg: cfg, warned: map[int64]string{}}, nil
+	return &Scheduler{cfg: cfg, warned: map[string]string{}}, nil
 }
 
 // NotificationFlusher sends queued notifications whose time has come.
@@ -98,7 +125,8 @@ func (s *Scheduler) Run(ctx context.Context) {
 	}
 }
 
-// Tick applies decay, wakes every due commitment within the daily limit, then
+// Tick applies decay, wakes every due commitment within the daily limit,
+// checks due watches, starts the morning briefing when its time has come, then
 // sends notifications whose quiet hours ended.
 // Errors are joined; one failing commitment does not stop the others.
 func (s *Scheduler) Tick(ctx context.Context) error {
@@ -115,6 +143,12 @@ func (s *Scheduler) Tick(ctx context.Context) error {
 		if err := s.wake(ctx, item, now); err != nil {
 			errs = append(errs, fmt.Errorf("commitment #%d: %w", item.ID, err))
 		}
+	}
+	if err := s.checkWatches(ctx, now); err != nil {
+		errs = append(errs, err)
+	}
+	if err := s.brief(ctx, now); err != nil {
+		errs = append(errs, fmt.Errorf("morning briefing: %w", err))
 	}
 	if s.notifications != nil {
 		if err := s.notifications.FlushDue(ctx); err != nil {
@@ -138,7 +172,7 @@ func (s *Scheduler) decay(ctx context.Context, now time.Time) error {
 }
 
 func (s *Scheduler) wake(ctx context.Context, item core.MemoryItem, now time.Time) error {
-	allowed, err := s.withinDailyLimit(ctx, item, now)
+	allowed, err := s.withinDailyLimit(ctx, fmt.Sprintf("commitment #%d", item.ID), now)
 	if err != nil || !allowed {
 		return err
 	}
@@ -164,7 +198,9 @@ func (s *Scheduler) wake(ctx context.Context, item core.MemoryItem, now time.Tim
 	return nil
 }
 
-func (s *Scheduler) withinDailyLimit(ctx context.Context, item core.MemoryItem, now time.Time) (bool, error) {
+// withinDailyLimit reports whether another wake fits today's limit and warns
+// once a day per subject when it does not.
+func (s *Scheduler) withinDailyLimit(ctx context.Context, subject string, now time.Time) (bool, error) {
 	local := now.In(s.cfg.Location)
 	midnight := time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, s.cfg.Location)
 	count, err := s.cfg.Store.CountWakesSince(ctx, midnight)
@@ -177,9 +213,9 @@ func (s *Scheduler) withinDailyLimit(ctx context.Context, item core.MemoryItem, 
 	day := local.Format("2006-01-02")
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.warned[item.ID] != day {
-		s.warned[item.ID] = day
-		slog.Warn("commitment wake deferred: daily wake limit reached", "memory_id", item.ID, "limit", s.cfg.DailyLimit, "day", day)
+	if s.warned[subject] != day {
+		s.warned[subject] = day
+		slog.Warn("wake deferred: daily wake limit reached", "subject", subject, "limit", s.cfg.DailyLimit, "day", day)
 	}
 	return false, nil
 }

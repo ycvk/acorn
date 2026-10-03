@@ -209,12 +209,12 @@ func (s *Store) MarkWatchItems(ctx context.Context, ids []int64, status core.Wat
 	return nil
 }
 
-func (s *Store) ClaimBriefing(ctx context.Context, day, threadID string, at time.Time) error {
-	if day == "" || threadID == "" || at.IsZero() {
-		return errors.New("claim briefing: day, thread and time are required")
+func (s *Store) ClaimBriefing(ctx context.Context, day string, at time.Time) error {
+	if day == "" || at.IsZero() {
+		return errors.New("claim briefing: day and time are required")
 	}
 	result, err := s.db.ExecContext(ctx,
-		`INSERT OR IGNORE INTO briefings (day, thread_id, created_at) VALUES (?, ?, ?)`, day, threadID, formatTimestamp(at))
+		`INSERT OR IGNORE INTO briefings (day, thread_id, created_at) VALUES (?, '', ?)`, day, formatTimestamp(at))
 	if err != nil {
 		return fmt.Errorf("claim briefing %s: %w", day, err)
 	}
@@ -228,8 +228,18 @@ func (s *Store) ClaimBriefing(ctx context.Context, day, threadID string, at time
 	return nil
 }
 
-func (s *Store) SetBriefingRun(ctx context.Context, day, runID string) error {
-	if _, err := s.db.ExecContext(ctx, `UPDATE briefings SET run_id = ? WHERE day = ?`, runID, day); err != nil {
+func (s *Store) ReleaseBriefing(ctx context.Context, day string) error {
+	if _, err := s.db.ExecContext(ctx, `DELETE FROM briefings WHERE day = ? AND run_id = ''`, day); err != nil {
+		return fmt.Errorf("release briefing %s: %w", day, err)
+	}
+	return nil
+}
+
+func (s *Store) SetBriefingRun(ctx context.Context, day, threadID, runID string) error {
+	if threadID == "" || runID == "" {
+		return errors.New("set briefing run: thread and run are required")
+	}
+	if _, err := s.db.ExecContext(ctx, `UPDATE briefings SET thread_id = ?, run_id = ? WHERE day = ?`, threadID, runID, day); err != nil {
 		return fmt.Errorf("set briefing run %s: %w", day, err)
 	}
 	return nil
@@ -237,7 +247,7 @@ func (s *Store) SetBriefingRun(ctx context.Context, day, runID string) error {
 
 func (s *Store) LatestBriefingThread(ctx context.Context) (string, error) {
 	var thread string
-	err := s.db.QueryRowContext(ctx, `SELECT thread_id FROM briefings ORDER BY day DESC LIMIT 1`).Scan(&thread)
+	err := s.db.QueryRowContext(ctx, `SELECT thread_id FROM briefings WHERE thread_id <> '' ORDER BY day DESC LIMIT 1`).Scan(&thread)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", nil
 	}

@@ -115,6 +115,19 @@ type fakeRuns struct {
 	fail   error
 }
 
+func (r *fakeRuns) StartBriefingRun(_ context.Context, threadID, wake, input string) (string, string, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.fail != nil {
+		return "", "", r.fail
+	}
+	if threadID == "" {
+		threadID = "thread_briefings"
+	}
+	r.starts = append(r.starts, threadID+"|"+wake+"|"+input)
+	return threadID, fmt.Sprintf("run_%d", len(r.starts)), nil
+}
+
 func (r *fakeRuns) StartWakeRun(_ context.Context, threadID, wake, input string) (string, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -126,23 +139,32 @@ func (r *fakeRuns) StartWakeRun(_ context.Context, threadID, wake, input string)
 }
 
 type harness struct {
-	store *memStore
-	runs  *fakeRuns
-	sched *Scheduler
-	now   time.Time
+	store   *memStore
+	runs    *fakeRuns
+	watches *memWatches
+	checker *fakeChecker
+	sched   *Scheduler
+	now     time.Time
 }
 
 func newHarness(t *testing.T, limit int) *harness {
+	t.Helper()
+	return newHarnessWith(t, limit, Briefing{})
+}
+
+func newHarnessWith(t *testing.T, limit int, briefing Briefing) *harness {
 	t.Helper()
 	loc, err := time.LoadLocation("Asia/Shanghai")
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := &harness{runs: &fakeRuns{}, now: time.Date(2026, 10, 5, 1, 0, 0, 0, time.UTC)}
+	h := &harness{runs: &fakeRuns{}, watches: newMemWatches(), now: time.Date(2026, 10, 5, 1, 0, 0, 0, time.UTC)}
 	h.store = &memStore{clock: func() time.Time { return h.now }}
+	h.checker = &fakeChecker{watches: h.watches, found: map[int64][]core.WatchItem{}, clock: func() time.Time { return h.now }}
 	h.sched, err = NewScheduler(Config{
-		Store: h.store, Events: h.store, Runs: h.runs, Clock: func() time.Time { return h.now },
-		Location: loc, DailyLimit: limit, Interval: time.Second,
+		Store: h.store, Events: h.store, Runs: h.runs, Watches: h.watches, Checker: h.checker,
+		Clock: func() time.Time { return h.now }, Location: loc, DailyLimit: limit,
+		MaxChecksPerTick: 5, Briefing: briefing, Interval: time.Second,
 	})
 	if err != nil {
 		t.Fatal(err)

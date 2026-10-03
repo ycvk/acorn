@@ -104,10 +104,13 @@ type WatchStore interface {
 	AddWatchItems(ctx context.Context, items []WatchItem) ([]WatchItem, error)
 	ListWatchItems(ctx context.Context, status WatchItemStatus, limit int) ([]WatchItem, error)
 	MarkWatchItems(ctx context.Context, ids []int64, status WatchItemStatus, runID string) error
-	// ClaimBriefing records the briefing of an owner-local day; a second claim
-	// of the same day gets ErrBriefingTaken.
-	ClaimBriefing(ctx context.Context, day, threadID string, at time.Time) error
-	SetBriefingRun(ctx context.Context, day, runID string) error
+	// ClaimBriefing records that an owner-local day's briefing is starting; a
+	// second claim of the same day gets ErrBriefingTaken.
+	ClaimBriefing(ctx context.Context, day string, at time.Time) error
+	// ReleaseBriefing drops a claim whose run could not start, so a later tick
+	// tries again.
+	ReleaseBriefing(ctx context.Context, day string) error
+	SetBriefingRun(ctx context.Context, day, threadID, runID string) error
 	// LatestBriefingThread is the thread of the most recent briefing, or "".
 	LatestBriefingThread(ctx context.Context) (string, error)
 }

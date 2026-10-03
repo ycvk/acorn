@@ -16,6 +16,7 @@ import (
 	mcpprovider "github.com/ycvk/acorn/internal/mcp"
 	"github.com/ycvk/acorn/internal/runtime"
 	"github.com/ycvk/acorn/internal/store"
+	"github.com/ycvk/acorn/internal/tools"
 	"github.com/ycvk/acorn/internal/wake"
 )
 
@@ -37,6 +38,8 @@ type Container struct {
 	knowledge     *api.KnowledgeService
 	captures      *api.CaptureService
 	wake          *wake.Scheduler
+	// watchBrowser renders web_rendered watches; nil without a browser.
+	watchBrowser *tools.Service
 }
 
 // buildOptions are the process-level dependencies of a container.
@@ -45,6 +48,8 @@ type buildOptions struct {
 	clock func() time.Time
 	// fcmEndpoint, when set, replaces the FCM API send endpoint.
 	fcmEndpoint string
+	// githubAPI, when set, replaces the GitHub API base URL for watches.
+	githubAPI string
 }
 
 func NewContainer(ctx context.Context, cfg *config.Config) (*Container, error) {
@@ -99,6 +104,11 @@ func (c *Container) KnowledgeStatus(ctx context.Context) (knowledge.Status, erro
 	return c.vault.Status(ctx)
 }
 
+// Watches lists the watches for acorn doctor.
+func (c *Container) Watches(ctx context.Context) ([]core.Watch, error) {
+	return c.store.ListWatches(ctx)
+}
+
 // WakeScheduler keeps commitments; serve runs it.
 func (c *Container) WakeScheduler() *wake.Scheduler {
 	return c.wake
@@ -114,6 +124,11 @@ func (c *Container) Close() error {
 	var errs []error
 	if c.runnerFactory != nil {
 		if err := c.runnerFactory.Close(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	if c.watchBrowser != nil {
+		if err := c.watchBrowser.Close(); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -180,14 +195,23 @@ func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *contai
 	if err != nil {
 		return nil, err
 	}
+	briefing, err := briefingSchedule(cfg)
+	if err != nil {
+		return nil, err
+	}
+	container.watchBrowser = deps.watchBrowser
 	container.wake, err = wake.NewScheduler(wake.Config{
-		Store:      db,
-		Events:     db,
-		Runs:       &wakeRunStarter{runs: container.runs, store: db},
-		Clock:      clock,
-		Location:   location,
-		DailyLimit: cfg.Wake.DailyLimit,
-		Interval:   wakeInterval,
+		Store:            db,
+		Events:           db,
+		Runs:             &wakeRunStarter{runs: container.runs, store: db},
+		Watches:          db,
+		Checker:          deps.watchChecker,
+		Clock:            clock,
+		Location:         location,
+		DailyLimit:       cfg.Wake.DailyLimit,
+		MaxChecksPerTick: cfg.Watch.MaxChecksPerTick,
+		Briefing:         briefing,
+		Interval:         wakeInterval,
 	})
 	if err == nil && deps.notifier != nil {
 		container.wake = container.wake.WithNotifications(deps.notifier)
@@ -224,6 +248,30 @@ func (w *wakeRunStarter) StartWakeRun(ctx context.Context, threadID, wake, input
 		return "", err
 	}
 	return run.ID, nil
+}
+
+// briefingsThreadTitle names the thread that receives morning briefings.
+const briefingsThreadTitle = "Briefings"
+
+func (w *wakeRunStarter) StartBriefingRun(ctx context.Context, threadID, wake, input string) (string, string, error) {
+	if threadID != "" {
+		if _, err := w.store.LoadSession(ctx, threadID); errors.Is(err, core.ErrSessionNotFound) {
+			threadID = ""
+		} else if err != nil {
+			return "", "", err
+		}
+	}
+	if threadID == "" {
+		threadID = core.NewSessionID()
+		if _, err := w.store.CreateSession(ctx, threadID, briefingsThreadTitle); err != nil {
+			return "", "", fmt.Errorf("create briefings thread: %w", err)
+		}
+	}
+	run, err := w.runs.CreateWakeRun(ctx, threadID, wake, input)
+	if err != nil {
+		return "", "", err
+	}
+	return threadID, run.ID, nil
 }
 
 // RunOnceResult is the terminal outcome of an owner-local smoke run.
