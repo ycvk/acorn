@@ -32,6 +32,11 @@ type PendingActionInput struct {
 // owner wrote.
 const MessageRoleWake = "wake"
 
+// MessageRoleCapture is the role of a run input built from something the
+// owner shared from their phone. Like a wake it reaches the model as a user
+// message and clients show it apart.
+const MessageRoleCapture = "capture"
+
 type SessionMessageRecord struct {
 	ID        int64     `json:"id"`
 	SessionID string    `json:"session_id"`

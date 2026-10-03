@@ -15,6 +15,8 @@ type Dependencies struct {
 	Capabilities  *CapabilitiesService
 	DeviceAuth    *DeviceAuthService
 	Inbox         *InboxService
+	Knowledge     *KnowledgeService
+	Captures      *CaptureService
 	Logger        *slog.Logger
 	Config        *config.Config
 }
@@ -28,6 +30,8 @@ type Server struct {
 	capabilities  *CapabilitiesService
 	deviceAuth    *DeviceAuthService
 	inbox         *InboxService
+	knowledge     *KnowledgeService
+	captures      *CaptureService
 	logger        *slog.Logger
 	cfg           *config.Config
 }

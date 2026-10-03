@@ -79,7 +79,11 @@ func runDoctor(ctx context.Context, args []string) error {
 	}
 	return withContainer(ctx, *configPath, func(container *wire.Container) error {
 		snapshot := container.Capabilities().Snapshot(ctx, api.CapabilitySnapshotOptions{ProbeMCP: true})
-		return printDoctorOutput(snapshot, container.Config().ConfigPath, *jsonMode)
+		knowledgeStatus, err := container.KnowledgeStatus(ctx)
+		if err != nil {
+			return fmt.Errorf("knowledge base: %w", err)
+		}
+		return printDoctorOutput(snapshot, knowledgeStatus, container.Config().ConfigPath, *jsonMode)
 	})
 }
 

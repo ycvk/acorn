@@ -33,7 +33,7 @@ import com.squareup.moshi.JsonClass
  *
  * @param id 
  * @param threadId 
- * @param role `wake` is the input of a run started by one of the agent's commitments, not something the owner wrote. 
+ * @param role `wake` is the input of a run started by one of the agent's commitments, not something the owner wrote. `capture` is the input of a run started by something the owner shared from their phone. 
  * @param content 
  * @param createdAt 
  * @param runId 
@@ -48,7 +48,7 @@ data class Message (
     @Json(name = "thread_id")
     val threadId: kotlin.String,
 
-    /* `wake` is the input of a run started by one of the agent's commitments, not something the owner wrote.  */
+    /* `wake` is the input of a run started by one of the agent's commitments, not something the owner wrote. `capture` is the input of a run started by something the owner shared from their phone.  */
     @Json(name = "role")
     val role: Message.Role,
 
@@ -64,14 +64,15 @@ data class Message (
 ) {
 
     /**
-     * `wake` is the input of a run started by one of the agent's commitments, not something the owner wrote. 
+     * `wake` is the input of a run started by one of the agent's commitments, not something the owner wrote. `capture` is the input of a run started by something the owner shared from their phone. 
      *
-     * Values: user,wake,assistant,system,tool
+     * Values: user,wake,capture,assistant,system,tool
      */
     @JsonClass(generateAdapter = false)
     enum class Role(val value: kotlin.String) {
         @Json(name = "user") user("user"),
         @Json(name = "wake") wake("wake"),
+        @Json(name = "capture") capture("capture"),
         @Json(name = "assistant") assistant("assistant"),
         @Json(name = "system") system("system"),
         @Json(name = "tool") tool("tool");

@@ -140,18 +140,7 @@ tools:
 func decideOverHTTP(t *testing.T, c *Container, actionID, decision string) {
 	t.Helper()
 	ctx := context.Background()
-	handler, err := api.NewHandler(api.Dependencies{
-		Threads:       c.Threads(),
-		Runs:          c.Runs(),
-		Events:        c.Events(),
-		PendingAction: c.PendingAction(),
-		Skills:        c.Skills(),
-		Capabilities:  c.Capabilities(),
-		DeviceAuth:    c.DeviceAuth(),
-		Inbox:         c.Inbox(),
-		Config:        c.Config(),
-		Logger:        slog.New(slog.NewTextHandler(io.Discard, nil)),
-	})
+	handler, err := c.Handler(slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if err != nil {
 		t.Fatalf("api handler: %v", err)
 	}

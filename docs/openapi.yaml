@@ -18,6 +18,8 @@ tags:
   - name: sessions
   - name: runs
   - name: client
+  - name: captures
+  - name: knowledge
 paths:
   /healthz:
     get:
@@ -599,6 +601,115 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /v1/captures:
+    post:
+      tags: [captures]
+      summary: Hand the agent something shared from the phone
+      description: |
+        Starts a run in a new thread whose input (role `capture`) lists the
+        shared subject, text and image. An image is stored in the knowledge
+        base under `attachments/` before the run starts. Text or an image is
+        required.
+      operationId: clientCreateCapture
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CaptureRequest'
+      responses:
+        '202':
+          description: Capture accepted; the run has started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CaptureAccepted'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/DeviceRevoked'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '503':
+          $ref: '#/components/responses/ExecutionNotReady'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/knowledge/notes:
+    get:
+      tags: [knowledge]
+      summary: Search or list knowledge base notes
+      description: |
+        With `q`, notes ranked by relevance; without it, notes by update time,
+        newest first. Notes edited directly in the knowledge directory are
+        included.
+      operationId: clientListKnowledgeNotes
+      parameters:
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: prefix
+          in: query
+          required: false
+          description: Only notes whose path starts with this. Ignored with `q`.
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        '200':
+          description: Notes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KnowledgeNoteListResponse'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/DeviceRevoked'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/knowledge/note:
+    get:
+      tags: [knowledge]
+      summary: Read one knowledge base note
+      operationId: clientGetKnowledgeNote
+      parameters:
+        - name: path
+          in: query
+          required: true
+          description: Note path relative to the knowledge base, e.g. inbox/tokio.md.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The note
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KnowledgeNote'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/DeviceRevoked'
+        '404':
+          $ref: '#/components/responses/KnowledgeNoteNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -704,6 +815,30 @@ components:
                 error:
                   code: device_not_found
                   message: device not found
+    KnowledgeNoteNotFound:
+      description: Knowledge note not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            knowledgeNoteNotFound:
+              value:
+                error:
+                  code: knowledge_note_not_found
+                  message: 'knowledge note not found: inbox/missing.md'
+    PayloadTooLarge:
+      description: Request body too large
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            payloadTooLarge:
+              value:
+                error:
+                  code: payload_too_large
+                  message: image is larger than 10 MiB
     InvalidRequest:
       description: Invalid request
       content:
@@ -1470,10 +1605,12 @@ components:
           type: string
         role:
           type: string
-          enum: [user, wake, assistant, system, tool]
+          enum: [user, wake, capture, assistant, system, tool]
           description: |
             `wake` is the input of a run started by one of the agent's
-            commitments, not something the owner wrote.
+            commitments, not something the owner wrote. `capture` is the
+            input of a run started by something the owner shared from their
+            phone.
         content:
           $ref: '#/components/schemas/MessageContent'
         created_at:
@@ -1798,6 +1935,85 @@ components:
         token:
           type: string
           minLength: 1
+
+    CaptureRequest:
+      type: object
+      properties:
+        text:
+          type: string
+          maxLength: 16384
+          description: Shared text, often a link, plus the owner's note.
+        subject:
+          type: string
+          description: Title the sharing app gave, such as a page title.
+        image:
+          type: string
+          format: binary
+          description: JPEG, PNG, WebP or GIF, at most 10 MiB.
+
+    CaptureAccepted:
+      type: object
+      additionalProperties: false
+      required: [thread_id, run_id]
+      properties:
+        thread_id:
+          type: string
+        run_id:
+          type: string
+
+    KnowledgeNoteSummary:
+      type: object
+      additionalProperties: false
+      required: [path, title, tags, snippet, updated_at]
+      properties:
+        path:
+          type: string
+        title:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        snippet:
+          type: string
+        updated_at:
+          type: string
+          format: date-time
+
+    KnowledgeNoteListResponse:
+      type: object
+      additionalProperties: false
+      required: [notes]
+      properties:
+        notes:
+          type: array
+          items:
+            $ref: '#/components/schemas/KnowledgeNoteSummary'
+
+    KnowledgeNote:
+      type: object
+      additionalProperties: false
+      required: [path, title, tags, updated_at, body]
+      properties:
+        path:
+          type: string
+        title:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        source:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        body:
+          type: string
+          description: Markdown body without frontmatter.
 
     ToolApprovalData:
       type: object

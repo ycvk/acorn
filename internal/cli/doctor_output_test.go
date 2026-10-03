@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/ycvk/acorn/internal/api"
+	"github.com/ycvk/acorn/internal/knowledge"
 )
 
 func mustContainAll(t *testing.T, body string, values []string) {
@@ -145,5 +146,14 @@ func TestRenderDoctorProviderLineDoesNotPrintCircuitState(t *testing.T) {
 	mustContainAll(t, line, []string{"provider", "failed", "auth=expired"})
 	if strings.Contains(line, "circuit=") || strings.Contains(line, "last_reconnect=") || strings.Contains(line, "failures=") {
 		t.Fatalf("doctor provider line must not print removed circuit fields: %q", line)
+	}
+}
+
+func TestRenderDoctorKnowledge(t *testing.T) {
+	got := renderDoctorKnowledge(knowledge.Status{Dir: "/root/.acorn/knowledge", Git: "git version 2.43.0", Notes: 12})
+	for _, want := range []string{"Knowledge base", "Dir: /root/.acorn/knowledge", "Notes: 12", "Git: git version 2.43.0"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("knowledge section lacks %q:\n%s", want, got)
+		}
 	}
 }

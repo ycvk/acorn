@@ -40,6 +40,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Menu
@@ -181,7 +182,15 @@ fun ChatScreen(
                         reasoning = message.reasoning,
                         modifier = Modifier.animateItem(),
                     )
-                    is ChatMessage.Wake -> WakeNote(
+                    is ChatMessage.Wake -> InputNote(
+                        label = "Woken by a commitment",
+                        icon = Icons.Filled.Notifications,
+                        text = message.text,
+                        modifier = Modifier.animateItem(),
+                    )
+                    is ChatMessage.Capture -> InputNote(
+                        label = "Shared from your phone",
+                        icon = Icons.Filled.Share,
                         text = message.text,
                         modifier = Modifier.animateItem(),
                     )
@@ -595,7 +604,7 @@ private fun TypingDots() {
 
 /** A commitment woke the agent; shown apart from what the owner wrote. */
 @Composable
-private fun WakeNote(text: String, modifier: Modifier = Modifier) {
+private fun InputNote(label: String, icon: ImageVector, text: String, modifier: Modifier = Modifier) {
     Surface(
         color = AetherTertiary.copy(alpha = 0.10f),
         shape = RoundedCornerShape(16.dp),
@@ -605,14 +614,14 @@ private fun WakeNote(text: String, modifier: Modifier = Modifier) {
         Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
-                    Icons.Filled.Notifications,
+                    icon,
                     contentDescription = null,
                     tint = AetherTertiary,
                     modifier = Modifier.size(14.dp),
                 )
                 Spacer(Modifier.width(6.dp))
                 Text(
-                    "Woken by a commitment",
+                    label,
                     style = MaterialTheme.typography.labelSmall,
                     color = AetherTertiary,
                 )

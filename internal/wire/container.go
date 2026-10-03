@@ -4,12 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
+	"net/http"
 	"strings"
 	"time"
 
 	"github.com/ycvk/acorn/internal/api"
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
+	"github.com/ycvk/acorn/internal/knowledge"
 	mcpprovider "github.com/ycvk/acorn/internal/mcp"
 	"github.com/ycvk/acorn/internal/runtime"
 	"github.com/ycvk/acorn/internal/store"
@@ -30,6 +33,9 @@ type Container struct {
 	capabilities  *api.CapabilitiesService
 	deviceAuth    *api.DeviceAuthService
 	inbox         *api.InboxService
+	vault         *knowledge.Vault
+	knowledge     *api.KnowledgeService
+	captures      *api.CaptureService
 	wake          *wake.Scheduler
 }
 
@@ -87,6 +93,29 @@ func (c *Container) DeviceAuth() *api.DeviceAuthService {
 }
 func (c *Container) Inbox() *api.InboxService {
 	return c.inbox
+}
+
+// Handler is the /v1 client API over this container's services.
+func (c *Container) Handler(logger *slog.Logger) (http.Handler, error) {
+	return api.NewHandler(api.Dependencies{
+		Threads:       c.threads,
+		Runs:          c.runs,
+		Events:        c.events,
+		PendingAction: c.pendingAction,
+		Skills:        c.skills,
+		Capabilities:  c.capabilities,
+		DeviceAuth:    c.deviceAuth,
+		Inbox:         c.inbox,
+		Knowledge:     c.knowledge,
+		Captures:      c.captures,
+		Config:        c.cfg,
+		Logger:        logger,
+	})
+}
+
+// KnowledgeStatus reports the knowledge base for acorn doctor.
+func (c *Container) KnowledgeStatus(ctx context.Context) (knowledge.Status, error) {
+	return c.vault.Status(ctx)
 }
 
 // WakeScheduler keeps commitments; serve runs it.
@@ -162,6 +191,9 @@ func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *contai
 	container.capabilities = api.NewCapabilitiesService(cfg, container.skills.Snapshot, mcpprovider.Doctor, deps.runnerFactory)
 	container.deviceAuth = api.NewDeviceAuthService(db).WithPushTokens(db)
 	container.inbox = api.NewInboxService(db, container.capabilities)
+	container.vault = deps.vault
+	container.knowledge = api.NewKnowledgeService(deps.vault)
+	container.captures = api.NewCaptureService(deps.vault, container.threads, container.runs)
 
 	location, err := cfg.OwnerLocation()
 	if err != nil {

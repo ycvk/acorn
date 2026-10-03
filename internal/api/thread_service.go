@@ -227,7 +227,7 @@ func (s *ThreadService) CreateMessage(ctx context.Context, threadID, content str
 }
 
 // createInputMessage records the input of a run, the owner's message (role
-// user) or a commitment wake (role wake), and returns the stored record
+// user), a commitment wake (role wake) or a capture (role capture), and returns the stored record
 // (including its id and turn index) so the run can bind to that exact id.
 func (s *ThreadService) createInputMessage(ctx context.Context, threadID, role, content string) (*core.SessionMessageRecord, error) {
 	if s == nil || s.store == nil {
@@ -253,7 +253,7 @@ func (s *ThreadService) createInputMessage(ctx context.Context, threadID, role, 
 
 func projectMessage(record core.SessionMessageRecord) (Message, error) {
 	switch record.Role {
-	case "user", core.MessageRoleWake, "assistant", "system", "tool":
+	case "user", core.MessageRoleWake, core.MessageRoleCapture, "assistant", "system", "tool":
 	default:
 		return Message{}, projectionError("message %d has unsupported role %q", record.ID, record.Role)
 	}

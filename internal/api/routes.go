@@ -35,6 +35,12 @@ func NewHandler(deps Dependencies) (http.Handler, error) {
 	if deps.Inbox == nil {
 		return nil, errors.New("web inbox service is required")
 	}
+	if deps.Knowledge == nil {
+		return nil, errors.New("web knowledge service is required")
+	}
+	if deps.Captures == nil {
+		return nil, errors.New("web capture service is required")
+	}
 
 	logger := deps.Logger
 	if logger == nil {
@@ -50,6 +56,8 @@ func NewHandler(deps Dependencies) (http.Handler, error) {
 		capabilities:  deps.Capabilities,
 		deviceAuth:    deps.DeviceAuth,
 		inbox:         deps.Inbox,
+		knowledge:     deps.Knowledge,
+		captures:      deps.Captures,
 		logger:        logger,
 		cfg:           deps.Config,
 	}
@@ -101,6 +109,9 @@ func (s *Server) registerRoutes(router chi.Router) {
 			r.Get("/pending-actions/{action_id}", s.handleGetPendingAction)
 			r.Post("/pending-actions/{action_id}:decide", s.handleDecidePendingAction)
 			r.Get("/inbox", s.handleClientInbox)
+			r.Post("/captures", s.handleCreateCapture)
+			r.Get("/knowledge/notes", s.handleListKnowledgeNotes)
+			r.Get("/knowledge/note", s.handleGetKnowledgeNote)
 			r.Get("/system/status", s.handleClientSystemStatus)
 			r.Get("/tools", s.handleClientTools)
 			r.Route("/skills", func(r chi.Router) {

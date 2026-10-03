@@ -11,6 +11,32 @@ import (
 	"github.com/ycvk/acorn/internal/core"
 )
 
+// Status describes the knowledge base for diagnostics.
+type Status struct {
+	Dir   string
+	Git   string
+	Notes int
+}
+
+// Status syncs the index and reports the directory, git version and number
+// of indexed notes.
+func (v *Vault) Status(ctx context.Context) (Status, error) {
+	version, err := v.git.Version(ctx)
+	if err != nil {
+		return Status{}, err
+	}
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	if err := v.syncLocked(ctx); err != nil {
+		return Status{}, err
+	}
+	stats, err := v.index.ListKnowledgeFileStats(ctx)
+	if err != nil {
+		return Status{}, err
+	}
+	return Status{Dir: v.dir, Git: version, Notes: len(stats)}, nil
+}
+
 // Sync brings the index in line with the files: new and changed notes are
 // parsed and indexed, removed ones dropped. Hidden entries and attachments/
 // are skipped. A note that cannot be read or parsed fails the sync.

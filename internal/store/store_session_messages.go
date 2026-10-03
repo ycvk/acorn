@@ -162,7 +162,7 @@ func (s *Store) BindUserMessageRunIDByID(ctx context.Context, messageID int64, r
 	result, err := s.db.ExecContext(ctx,
 		`UPDATE session_messages
 		 SET run_id = ?
-		 WHERE id = ? AND role IN ('user', 'wake') AND run_id = ''`,
+		 WHERE id = ? AND role IN ('user', 'wake', 'capture') AND run_id = ''`,
 		runID,
 		messageID,
 	)

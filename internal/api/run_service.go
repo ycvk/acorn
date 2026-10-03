@@ -132,7 +132,7 @@ func (s *RunService) InterruptRun(ctx context.Context, runID string) error {
 }
 
 func (s *RunService) CreateRun(ctx context.Context, threadID, skillID, input string) (*Run, error) {
-	return s.createRun(ctx, threadID, skillID, input, "")
+	return s.createRun(ctx, threadID, skillID, input, "", "user")
 }
 
 // CreateWakeRun starts a run in threadID that was woken by a commitment
@@ -141,10 +141,25 @@ func (s *RunService) CreateWakeRun(ctx context.Context, threadID, wake, input st
 	if strings.TrimSpace(wake) == "" {
 		return nil, errors.New("wake run requires a wake description")
 	}
-	return s.createRun(ctx, threadID, "", input, wake)
+	return s.createRun(ctx, threadID, "", input, wake, core.MessageRoleWake)
 }
 
-func (s *RunService) createRun(ctx context.Context, threadID, skillID, input, wake string) (*Run, error) {
+// captureWake describes what wakes a capture run.
+const captureWake = "owner shared something"
+
+// CreateCaptureRun starts a run in threadID on something the owner shared.
+// Captures are the owner's doing and do not count as autonomous wakes.
+func (s *RunService) CreateCaptureRun(ctx context.Context, threadID, input string) (*Run, error) {
+	if strings.TrimSpace(input) == "" {
+		return nil, errors.New("capture run requires input")
+	}
+	return s.createRun(ctx, threadID, "", input, captureWake, core.MessageRoleCapture)
+}
+
+// createRun records input under role (or, with empty input, binds the latest
+// unbound message) and starts the run. wake, when set, tells the agent what
+// woke it.
+func (s *RunService) createRun(ctx context.Context, threadID, skillID, input, wake, role string) (*Run, error) {
 	if s == nil || s.store == nil || s.executeRun == nil || s.newRunID == nil || s.threads == nil {
 		return nil, errors.New("client service is not initialized")
 	}
@@ -163,10 +178,6 @@ func (s *RunService) createRun(ctx context.Context, threadID, skillID, input, wa
 	var message *core.SessionMessageRecord
 	var err error
 	if strings.TrimSpace(input) != "" {
-		role := "user"
-		if wake != "" {
-			role = core.MessageRoleWake
-		}
 		message, err = s.threads.createInputMessage(ctx, threadID, role, input)
 		if err != nil {
 			return nil, err
@@ -342,7 +353,7 @@ func buildChatMessages(items []core.SessionMessageRecord) []adk.Message {
 	messages := make([]adk.Message, 0, len(items))
 	for _, item := range items {
 		switch item.Role {
-		case "user", core.MessageRoleWake:
+		case "user", core.MessageRoleWake, core.MessageRoleCapture:
 			messages = append(messages, schema.UserMessage(item.Content))
 		case "assistant":
 			messages = append(messages, schema.AssistantMessage(item.Content, nil))

@@ -37,6 +37,12 @@ var attachmentExtensions = map[string]string{
 	"image/gif":  "gif",
 }
 
+// SupportsAttachment reports whether SaveAttachment accepts mime.
+func SupportsAttachment(mime string) bool {
+	_, ok := attachmentExtensions[mime]
+	return ok
+}
+
 // VaultConfig carries the dependencies of a Vault; all are required.
 type VaultConfig struct {
 	Dir      string

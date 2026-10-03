@@ -217,7 +217,7 @@ class ChatViewModel @Inject constructor(
                     // duplicating the assistant reply when loadMessages already
                     // persisted it before the SSE terminal event arrived.
                     val last = _messages.value.lastOrNull()
-                    val lastIsUser = last is ChatMessage.User || last is ChatMessage.Wake
+                    val lastIsUser = last is ChatMessage.User || last is ChatMessage.Wake || last is ChatMessage.Capture
                     if (finalText.isNotBlank() && lastIsUser) {
                         _messages.value = _messages.value +
                             ChatMessage.Assistant(finalText, finalReasoning)

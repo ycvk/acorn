@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ycvk/acorn/internal/api"
 	"github.com/ycvk/acorn/internal/wire"
 )
 
@@ -37,20 +36,9 @@ func runServe(ctx context.Context, args []string) error {
 	}
 	defer container.Close()
 
-	handler, err := api.NewHandler(api.Dependencies{
-		Threads:       container.Threads(),
-		Runs:          container.Runs(),
-		Events:        container.Events(),
-		PendingAction: container.PendingAction(),
-		Skills:        container.Skills(),
-		Capabilities:  container.Capabilities(),
-		DeviceAuth:    container.DeviceAuth(),
-		Inbox:         container.Inbox(),
-		Config:        container.Config(),
-		Logger: slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
-			Level: slog.LevelInfo,
-		})),
-	})
+	handler, err := container.Handler(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	})))
 	if err != nil {
 		return err
 	}

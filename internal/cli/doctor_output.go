@@ -5,14 +5,26 @@ import (
 	"strings"
 
 	"github.com/ycvk/acorn/internal/api"
+	"github.com/ycvk/acorn/internal/knowledge"
 )
 
-func printDoctorOutput(snapshot api.SystemCapabilities, configPath string, jsonMode bool) error {
+func printDoctorOutput(snapshot api.SystemCapabilities, knowledgeStatus knowledge.Status, configPath string, jsonMode bool) error {
 	if jsonMode {
 		return printJSON(snapshot)
 	}
 	fmt.Println(renderDoctorSummary(snapshot, configPath))
+	fmt.Println(renderDoctorKnowledge(knowledgeStatus))
 	return nil
+}
+
+func renderDoctorKnowledge(status knowledge.Status) string {
+	return strings.Join([]string{
+		"",
+		"Knowledge base",
+		fmt.Sprintf("  Dir: %s", status.Dir),
+		fmt.Sprintf("  Notes: %d", status.Notes),
+		fmt.Sprintf("  Git: %s", status.Git),
+	}, "\n")
 }
 
 // doctorRemediationLines tells the owner WHAT to type to fix a not-ready verdict,
