@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"strings"
 	"time"
 
@@ -313,6 +312,9 @@ func (e *Executor) finishCollectedRun(ctx context.Context, runID, sessionID, inp
 
 func (e *Executor) finishFailedRun(ctx context.Context, runID, sessionID, input string, state RunState, sink core.StreamSink) (*Result, error) {
 	durableCtx := core.DurableContext(ctx)
+	if err := e.recordAssistantMessage(durableCtx, runID, state.lastOutput, core.RunStatusFailed); err != nil {
+		return nil, err
+	}
 	if !state.emittedRunFailed && state.failure != nil {
 		if err := e.emitRunFailed(durableCtx, runID, sink, state.failure.Error()); err != nil {
 			return nil, err
@@ -324,16 +326,25 @@ func (e *Executor) finishFailedRun(ctx context.Context, runID, sessionID, input 
 	if err := e.store.DeleteCheckpoint(durableCtx, runID); err != nil {
 		return nil, err
 	}
-	if err := e.store.SyncAssistantMessageForRunStatus(durableCtx, runID, core.RunStatusFailed); err != nil {
-		slog.Error("sync assistant message after run completion", "run_id", runID, "err", err)
-	}
-	// Append history after the run is marked complete.
 	return &Result{
 		RunID:  runID,
 		Status: core.RunStatusFailed,
 		Output: state.lastOutput,
 		Error:  state.failure.Error(),
 	}, nil
+}
+
+// recordAssistantMessage stores the run's output and its assistant message
+// before the run reports completion, so a client that reloads the thread on
+// run.completed or a finished status finds the reply.
+func (e *Executor) recordAssistantMessage(ctx context.Context, runID, output string, status core.RunStatus) error {
+	if err := e.store.UpdateRunOutput(ctx, runID, output); err != nil {
+		return err
+	}
+	if err := e.store.SyncAssistantMessageForRunStatus(ctx, runID, status); err != nil {
+		return fmt.Errorf("record assistant message for %s: %w", runID, err)
+	}
+	return nil
 }
 
 func (e *Executor) finishInterruptedRun(ctx context.Context, runID string, state RunState) (*Result, error) {
@@ -351,7 +362,7 @@ func (e *Executor) finishInterruptedRun(ctx context.Context, runID string, state
 
 func (e *Executor) finishSucceededRun(ctx context.Context, runID, sessionID, input string, state RunState, sink core.StreamSink) (*Result, error) {
 	durableCtx := core.DurableContext(ctx)
-	if err := e.store.UpdateRunOutput(durableCtx, runID, state.lastOutput); err != nil {
+	if err := e.recordAssistantMessage(durableCtx, runID, state.lastOutput, core.RunStatusSucceeded); err != nil {
 		return nil, err
 	}
 	if err := e.emitRunCompleted(durableCtx, runID, state.lastOutput, sink); err != nil {
@@ -363,11 +374,6 @@ func (e *Executor) finishSucceededRun(ctx context.Context, runID, sessionID, inp
 	if err := e.store.DeleteCheckpoint(durableCtx, runID); err != nil {
 		return nil, err
 	}
-	if err := e.store.SyncAssistantMessageForRunStatus(durableCtx, runID, core.RunStatusSucceeded); err != nil {
-		slog.Error("sync assistant message after run completion", "run_id", runID, "err", err)
-	}
-	// Append history + count toward review after the run is marked complete,
-	// so this work does not delay the completion event or status update.
 	return &Result{
 		RunID:  runID,
 		Status: core.RunStatusSucceeded,
