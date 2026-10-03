@@ -15,7 +15,7 @@ import (
 //
 // Layer 0: core (domain types, contracts, ports, tool registry interfaces)
 // Layer 1: (reserved — port/contract merged into core)
-// Layer 2: store, presence, wake, notify, knowledge, mcp, tools, webaccess, skills, config
+// Layer 2: store, presence, wake, notify, knowledge, watch, mcp, tools, webaccess, skills, config
 // Layer 3: runtime (executor, per-run assembly, middleware, projection)
 // Layer 4: api
 // Layer 5: wire
@@ -29,6 +29,7 @@ var layerRank = map[string]int{
 	"wake":      2,
 	"notify":    2,
 	"knowledge": 2,
+	"watch":     2,
 	"mcp":       2,
 	"tools":     2,
 	"webaccess": 2,

@@ -86,10 +86,60 @@ func (s *FetchService) Fetch(ctx context.Context, req FetchRequest) (FetchResult
 	}
 	ctx, cancel := context.WithTimeout(ctx, s.timeout)
 	defer cancel()
-
-	validated, err := s.policy.Validate(ctx, req.URL)
+	got, err := s.get(ctx, req.URL, map[string]string{"Accept": "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.1"})
 	if err != nil {
 		return FetchResult{}, err
+	}
+	extracted, err := s.extract(got.url, got.finalURL, got.contentType, got.body, req.ExtractMode)
+	if err != nil {
+		return FetchResult{}, err
+	}
+	sum := sha256.Sum256(got.body)
+	return FetchResult{
+		URL:            got.url,
+		FinalURL:       got.finalURL,
+		Status:         got.status,
+		ContentType:    got.contentType,
+		ContentLength:  int64(len(got.body)),
+		FetchedAt:      s.now().UTC(),
+		Redirects:      got.redirects,
+		Raw:            got.body,
+		RawSHA256:      hex.EncodeToString(sum[:]),
+		Extracted:      extracted,
+		ValidatedHosts: got.validatedIPs,
+	}, nil
+}
+
+// RawResult is a fetched body without extraction.
+type RawResult struct {
+	FinalURL    string
+	ContentType string
+	Body        []byte
+}
+
+// FetchRaw gets rawURL under the same URL policy, timeout and size limit as
+// Fetch, sends headers, and returns the body as is (feeds, JSON APIs).
+func (s *FetchService) FetchRaw(ctx context.Context, rawURL string, headers map[string]string) (RawResult, error) {
+	ctx, cancel := context.WithTimeout(ctx, s.timeout)
+	defer cancel()
+	got, err := s.get(ctx, rawURL, headers)
+	if err != nil {
+		return RawResult{}, err
+	}
+	return RawResult{FinalURL: got.finalURL, ContentType: got.contentType, Body: got.body}, nil
+}
+
+type fetched struct {
+	url, finalURL, contentType string
+	status                     int
+	body                       []byte
+	redirects, validatedIPs    []string
+}
+
+func (s *FetchService) get(ctx context.Context, rawURL string, headers map[string]string) (fetched, error) {
+	validated, err := s.policy.Validate(ctx, rawURL)
+	if err != nil {
+		return fetched{}, err
 	}
 	client := *s.httpClient
 	client.Timeout = s.timeout
@@ -107,45 +157,37 @@ func (s *FetchService) Fetch(ctx context.Context, req FetchRequest) (FetchResult
 	}
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, validated.Normalized, nil)
 	if err != nil {
-		return FetchResult{}, fmt.Errorf("create web fetch request: %w", err)
+		return fetched{}, fmt.Errorf("create web fetch request: %w", err)
 	}
 	httpReq.Header.Set("User-Agent", s.userAgent)
-	httpReq.Header.Set("Accept", "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.1")
+	for key, value := range headers {
+		httpReq.Header.Set(key, value)
+	}
 
 	resp, err := client.Do(httpReq)
 	if err != nil {
-		return FetchResult{}, fmt.Errorf("web fetch request failed: %w", err)
+		return fetched{}, fmt.Errorf("web fetch request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return FetchResult{}, fmt.Errorf("web fetch returned HTTP status %d", resp.StatusCode)
+		return fetched{}, fmt.Errorf("web fetch returned HTTP status %d", resp.StatusCode)
 	}
 	if resp.ContentLength > s.maxResponseBytes {
-		return FetchResult{}, fmt.Errorf("web fetch response length %d exceeds max_response_bytes %d", resp.ContentLength, s.maxResponseBytes)
+		return fetched{}, fmt.Errorf("web fetch response length %d exceeds max_response_bytes %d", resp.ContentLength, s.maxResponseBytes)
 	}
 	raw, err := readBounded(resp.Body, s.maxResponseBytes)
 	if err != nil {
-		return FetchResult{}, err
+		return fetched{}, err
 	}
-	contentType := normalizeContentType(resp.Header.Get("Content-Type"), raw)
-	extracted, err := s.extract(validated.Normalized, resp.Request.URL.String(), contentType, raw, req.ExtractMode)
-	if err != nil {
-		return FetchResult{}, err
-	}
-	sum := sha256.Sum256(raw)
-	return FetchResult{
-		URL:            validated.Normalized,
-		FinalURL:       resp.Request.URL.String(),
-		Status:         resp.StatusCode,
-		ContentType:    contentType,
-		ContentLength:  int64(len(raw)),
-		FetchedAt:      s.now().UTC(),
-		Redirects:      append([]string(nil), redirects...),
-		Raw:            raw,
-		RawSHA256:      hex.EncodeToString(sum[:]),
-		Extracted:      extracted,
-		ValidatedHosts: append([]string(nil), validated.IPs...),
+	return fetched{
+		url:          validated.Normalized,
+		finalURL:     resp.Request.URL.String(),
+		contentType:  normalizeContentType(resp.Header.Get("Content-Type"), raw),
+		status:       resp.StatusCode,
+		body:         raw,
+		redirects:    append([]string(nil), redirects...),
+		validatedIPs: append([]string(nil), validated.IPs...),
 	}, nil
 }
 
