@@ -41,6 +41,8 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Menu
@@ -183,8 +185,16 @@ fun ChatScreen(
                         modifier = Modifier.animateItem(),
                     )
                     is ChatMessage.Wake -> InputNote(
-                        label = "Woken by a commitment",
-                        icon = Icons.Filled.Notifications,
+                        label = when (message.source) {
+                            WakeSource.Commitment -> "Woken by a commitment"
+                            WakeSource.Watch -> "New on a watch"
+                            WakeSource.Briefing -> "Morning briefing"
+                        },
+                        icon = when (message.source) {
+                            WakeSource.Commitment -> Icons.Filled.Notifications
+                            WakeSource.Watch -> Icons.Filled.Visibility
+                            WakeSource.Briefing -> Icons.Filled.WbSunny
+                        },
                         text = message.text,
                         modifier = Modifier.animateItem(),
                     )

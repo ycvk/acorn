@@ -19,9 +19,10 @@ sealed class ChatMessage {
         override val id: String = "assistant_${UUID.randomUUID()}"
     }
 
-    /** The input of a run woken by one of the agent's commitments. */
+    /** The input of a run the backend woke: a commitment, a watch, or the morning briefing. */
     data class Wake(
         val text: String,
+        val source: WakeSource,
     ) : ChatMessage() {
         override val id: String = "wake_${UUID.randomUUID()}"
     }
@@ -37,7 +38,7 @@ sealed class ChatMessage {
 /** Maps a stored thread message to its chat row. */
 fun chatMessageFrom(role: Message.Role, text: String): ChatMessage = when (role) {
     Message.Role.user -> ChatMessage.User(text)
-    Message.Role.wake -> ChatMessage.Wake(text)
+    Message.Role.wake -> ChatMessage.Wake(text, wakeSource(text))
     Message.Role.capture -> ChatMessage.Capture(captureCardText(text))
     Message.Role.assistant -> ChatMessage.Assistant(text)
     // System / tool messages render as assistant bubbles so the
@@ -57,3 +58,12 @@ fun captureCardText(input: String): String =
             if (image != line) "Image: " + image.substringBefore(" (").substringAfterLast('/') else line
         }
         .trim()
+
+enum class WakeSource { Commitment, Watch, Briefing }
+
+/** What woke a run, from the prefix the backend gives its input. */
+fun wakeSource(input: String): WakeSource = when {
+    input.startsWith("[watch") -> WakeSource.Watch
+    input.startsWith("[briefing") -> WakeSource.Briefing
+    else -> WakeSource.Commitment
+}

@@ -14,6 +14,14 @@ class ChatMessageTest {
     }
 
     @Test
+    fun `wake cards name what woke the run`() {
+        assertEquals(WakeSource.Commitment, (chatMessageFrom(Message.Role.wake, "[commitment #1, made 2026-10-02 13:55] read X") as ChatMessage.Wake).source)
+        assertEquals(WakeSource.Watch, (chatMessageFrom(Message.Role.wake, "[watch #2 phone price] 1 new") as ChatMessage.Wake).source)
+        assertEquals(WakeSource.Briefing, (chatMessageFrom(Message.Role.wake, "[briefing 2026-10-04] morning briefing") as ChatMessage.Wake).source)
+        assertEquals(WakeSource.Commitment, wakeSource("anything else"))
+    }
+
+    @Test
     fun `capture input becomes a card without the header and with file names`() {
         val input = "[capture] shared from the owner's phone\nSubject: Tokio 2.0\nLink: https://tokio.rs\nImage: attachments/2026/10/ab12.png (image/png, 1.2 MiB)"
         val message = chatMessageFrom(Message.Role.capture, input)
