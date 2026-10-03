@@ -15,6 +15,7 @@ type Config struct {
 	Presence  PresenceConfig   `yaml:"presence"`
 	Wake      WakeConfig       `yaml:"wake"`
 	Notify    NotifyConfig     `yaml:"notify"`
+	Knowledge KnowledgeConfig  `yaml:"knowledge"`
 
 	ConfigPath string `yaml:"-"`
 	ConfigDir  string `yaml:"-"`

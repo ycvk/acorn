@@ -15,8 +15,8 @@ import (
 //
 // Layer 0: core (domain types, contracts, ports, tool registry interfaces)
 // Layer 1: (reserved — port/contract merged into core)
-// Layer 2: store, memory, presence, wake, notify, mcp, tools, workspace, webaccess, skills, config
-// Layer 3: runtime (executor, per-run assembly, session, masking, auto-compact)
+// Layer 2: store, presence, wake, notify, knowledge, mcp, tools, webaccess, skills, config
+// Layer 3: runtime (executor, per-run assembly, middleware, projection)
 // Layer 4: api
 // Layer 5: wire
 // Layer 6: cli
@@ -25,14 +25,12 @@ var layerRank = map[string]int{
 	"core":      0,
 	"config":    2,
 	"store":     2,
-	"memory":    2,
 	"presence":  2,
 	"wake":      2,
 	"notify":    2,
+	"knowledge": 2,
 	"mcp":       2,
 	"tools":     2,
-	"dispatch":  2,
-	"workspace": 2,
 	"webaccess": 2,
 	"skills":    2,
 	"runtime":   3,

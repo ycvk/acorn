@@ -1,6 +1,6 @@
 package store
 
-// storeBootstrapTables creates the 15 core tables if they do not already
+// storeBootstrapTables creates the 16 core tables if they do not already
 // exist. This is split from index creation so that validateSchema can detect
 // a stale/incompatible database (missing columns) before index creation
 // attempts to reference those columns.
@@ -144,6 +144,16 @@ CREATE TABLE IF NOT EXISTS notifications (
     created_at TEXT NOT NULL,
     sent_at TEXT NOT NULL DEFAULT ''
 );
+
+CREATE TABLE IF NOT EXISTS knowledge_notes (
+    path TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    tags TEXT NOT NULL DEFAULT '',
+    body TEXT NOT NULL,
+    mtime_ns INTEGER NOT NULL,
+    size INTEGER NOT NULL,
+    updated_at TEXT NOT NULL
+);
 `
 
 // storeBootstrapIndexes creates all indexes, full-text tables and their sync
@@ -161,6 +171,7 @@ CREATE INDEX IF NOT EXISTS idx_artifacts_run ON artifacts(run_id, created_at ASC
 CREATE INDEX IF NOT EXISTS idx_artifacts_session ON artifacts(session_id, created_at ASC, artifact_id ASC);
 CREATE INDEX IF NOT EXISTS idx_memory_items_due ON memory_items(kind, status, wake_at);
 CREATE INDEX IF NOT EXISTS idx_notifications_due ON notifications(status, send_after);
+CREATE INDEX IF NOT EXISTS idx_knowledge_notes_updated ON knowledge_notes(updated_at);
 
 CREATE VIRTUAL TABLE IF NOT EXISTS memory_items_fts USING fts5(content, content='memory_items', content_rowid='id', tokenize='trigram');
 CREATE TRIGGER IF NOT EXISTS memory_items_fts_ai AFTER INSERT ON memory_items BEGIN
@@ -179,4 +190,6 @@ CREATE TRIGGER IF NOT EXISTS runs_fts_au AFTER UPDATE OF input_text, output_text
   DELETE FROM runs_fts WHERE run_id = new.run_id;
   INSERT INTO runs_fts(run_id, input_text, output_text) VALUES (new.run_id, new.input_text, new.output_text);
 END;
+
+CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_notes_fts USING fts5(path UNINDEXED, title, tags, body, tokenize='trigram');
 `

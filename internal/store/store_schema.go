@@ -80,6 +80,7 @@ var schemaRequiredTables = map[string][]string{
 	"context_snapshots": {"hash", "content", "created_at"},
 	"push_tokens":       {"device_id", "token", "updated_at"},
 	"notifications":     {"id", "title", "body", "thread_id", "run_id", "status", "send_after", "error_text", "created_at", "sent_at"},
+	"knowledge_notes":   {"path", "title", "tags", "body", "mtime_ns", "size", "updated_at"},
 }
 
 func (s *Store) requireColumns(table string, columns []string) error {
