@@ -51,6 +51,17 @@ knowledge:
   # {storage_dir}/knowledge. Point it at an existing Obsidian vault if you like.
   dir: ""
 
+watch:
+  # Your RSSHub, for rsshub:/route watches (see the onboarding guide).
+  rsshub_base_url: ""
+  # Optional GitHub token for a higher API rate limit, e.g. ${GITHUB_TOKEN}.
+  github_token: ""
+  max_checks_per_tick: 5
+
+briefing:
+  # Morning briefing time in owner.timezone; empty turns it off.
+  at: "08:00"
+
 context:
   window_tokens: 200000
   compact_margin_tokens: 13000

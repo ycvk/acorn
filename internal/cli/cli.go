@@ -83,7 +83,17 @@ func runDoctor(ctx context.Context, args []string) error {
 		if err != nil {
 			return fmt.Errorf("knowledge base: %w", err)
 		}
-		return printDoctorOutput(snapshot, knowledgeStatus, container.Config().ConfigPath, *jsonMode)
+		watches, err := container.Watches(ctx)
+		if err != nil {
+			return fmt.Errorf("watches: %w", err)
+		}
+		if *jsonMode {
+			return printJSON(snapshot)
+		}
+		fmt.Println(renderDoctorSummary(snapshot, container.Config().ConfigPath))
+		fmt.Println(renderDoctorKnowledge(knowledgeStatus))
+		fmt.Println(renderDoctorWatches(container.Config(), watches))
+		return nil
 	})
 }
 

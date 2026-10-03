@@ -5,17 +5,10 @@ import (
 	"strings"
 
 	"github.com/ycvk/acorn/internal/api"
+	"github.com/ycvk/acorn/internal/config"
+	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/knowledge"
 )
-
-func printDoctorOutput(snapshot api.SystemCapabilities, knowledgeStatus knowledge.Status, configPath string, jsonMode bool) error {
-	if jsonMode {
-		return printJSON(snapshot)
-	}
-	fmt.Println(renderDoctorSummary(snapshot, configPath))
-	fmt.Println(renderDoctorKnowledge(knowledgeStatus))
-	return nil
-}
 
 func renderDoctorKnowledge(status knowledge.Status) string {
 	return strings.Join([]string{
@@ -236,4 +229,34 @@ func renderDoctorProviderLine(provider api.SystemMCPProviderCapability) string {
 		parts = append(parts, "auth="+auth)
 	}
 	return strings.Join(parts, " ")
+}
+
+func renderDoctorWatches(cfg *config.Config, watches []core.Watch) string {
+	counts := map[core.WatchStatus]int{}
+	for _, w := range watches {
+		counts[w.Status]++
+	}
+	rsshub := cfg.Watch.RSSHubBaseURL
+	if rsshub == "" {
+		rsshub = "not configured (rsshub: watches unavailable)"
+	}
+	briefing := cfg.Briefing.At
+	if briefing == "" {
+		briefing = "off"
+	} else {
+		briefing += " " + cfg.Owner.Timezone
+	}
+	lines := []string{
+		"",
+		"Watches",
+		fmt.Sprintf("  Summary: %d total, %d active, %d failing, %d paused", len(watches), counts[core.WatchActive], counts[core.WatchFailing], counts[core.WatchPaused]),
+		fmt.Sprintf("  RSSHub: %s", rsshub),
+		fmt.Sprintf("  Morning briefing: %s", briefing),
+	}
+	for _, w := range watches {
+		if w.Status == core.WatchFailing {
+			lines = append(lines, fmt.Sprintf("  - #%d %s failing: %s", w.ID, w.Name, w.LastError))
+		}
+	}
+	return strings.Join(lines, "\n")
 }

@@ -26,6 +26,8 @@ func TestValidateExecutionReadyContextConfig(t *testing.T) {
 		Presence: defaultConfig().Presence,
 		Wake:     defaultConfig().Wake,
 		Notify:   defaultConfig().Notify,
+		Watch:    defaultConfig().Watch,
+		Briefing: defaultConfig().Briefing,
 		Runtime: RuntimeConfig{
 			StorageDir: filepath.Join(t.TempDir(), ".acorn"),
 		},
@@ -122,6 +124,8 @@ func TestValidateExecutionReadyRejectsInvalidExecutionFields(t *testing.T) {
 		Presence: defaultConfig().Presence,
 		Wake:     defaultConfig().Wake,
 		Notify:   defaultConfig().Notify,
+		Watch:    defaultConfig().Watch,
+		Briefing: defaultConfig().Briefing,
 	}
 
 	if err := cfg.ValidateExecutionReady(); err == nil {

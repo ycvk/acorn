@@ -33,6 +33,9 @@ func (c *Config) ValidateBase() error {
 	if err := c.validateKnowledge(); err != nil {
 		return err
 	}
+	if err := c.validateWatch(); err != nil {
+		return err
+	}
 	for i, pattern := range c.Approval.Require {
 		// ask_operator already waits on the owner; gating it would ask twice.
 		matchesAskOperator, err := path.Match(pattern, "ask_operator")

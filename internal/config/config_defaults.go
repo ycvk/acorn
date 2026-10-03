@@ -28,6 +28,8 @@ func defaultConfig() *Config {
 		Owner:    OwnerConfig{Timezone: "UTC"},
 		Presence: PresenceConfig{MaxTokens: 4000},
 		Wake:     WakeConfig{DailyLimit: 20},
+		Watch:    WatchConfig{MaxChecksPerTick: 5},
+		Briefing: BriefingConfig{At: "08:00"},
 		Notify: NotifyConfig{
 			MaxPerHour: 6,
 			QuietHours: QuietHoursConfig{Start: "23:00", End: "08:00"},

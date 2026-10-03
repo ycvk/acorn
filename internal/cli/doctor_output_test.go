@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/ycvk/acorn/internal/api"
+	"github.com/ycvk/acorn/internal/config"
+	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/knowledge"
 )
 
@@ -154,6 +156,19 @@ func TestRenderDoctorKnowledge(t *testing.T) {
 	for _, want := range []string{"Knowledge base", "Dir: /root/.acorn/knowledge", "Notes: 12", "Git: git version 2.43.0"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("knowledge section lacks %q:\n%s", want, got)
+		}
+	}
+}
+
+func TestRenderDoctorWatches(t *testing.T) {
+	cfg := &config.Config{Owner: config.OwnerConfig{Timezone: "Asia/Shanghai"}, Briefing: config.BriefingConfig{At: "08:00"}}
+	got := renderDoctorWatches(cfg, []core.Watch{
+		{ID: 1, Name: "blog", Status: core.WatchActive},
+		{ID: 2, Name: "shop", Status: core.WatchFailing, LastError: "HTTP 403"},
+	})
+	for _, want := range []string{"Summary: 2 total, 1 active, 1 failing, 0 paused", "RSSHub: not configured", "Morning briefing: 08:00 Asia/Shanghai", "#2 shop failing: HTTP 403"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("watches section lacks %q:\n%s", want, got)
 		}
 	}
 }
