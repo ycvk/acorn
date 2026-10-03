@@ -103,6 +103,7 @@ jobs:
           test -f "$package_dir/skills/capability_recall/SKILL.md"
           test -f "$package_dir/skills/web_browser_research/SKILL.md"
           test -f "$package_dir/skills/capture_to_note/SKILL.md"
+          test -f "$package_dir/skills/morning_briefing/SKILL.md"
           (cd "$package_dir" && sha256sum -c CHECKSUMS)
       - uses: actions/upload-artifact@v7.0.1
         with:

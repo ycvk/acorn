@@ -25,6 +25,9 @@ var localToolNames = []string{
 	"knowledge_read",
 	"knowledge_search",
 	"knowledge_list",
+	"watch_create",
+	"watch_update",
+	"watch_list",
 	"web_fetch",
 	"web_search",
 	"browser",
@@ -62,7 +65,7 @@ func configuredLocalSpec(name string) core.ToolSpec {
 	case "artifact_read", "artifact_list":
 		spec.Kind = core.ToolKindNative
 		spec.Category = core.ToolCategoryRead
-	case "artifact_write", "knowledge_write", "knowledge_edit":
+	case "artifact_write", "knowledge_write", "knowledge_edit", "watch_create", "watch_update":
 		spec.Kind = core.ToolKindNative
 		spec.Category = core.ToolCategoryWrite
 	case "ask_operator", "notify_owner":
@@ -71,7 +74,7 @@ func configuredLocalSpec(name string) core.ToolSpec {
 	case "keep", "think", "schedule_wake", "settle":
 		spec.Kind = core.ToolKindNative
 		spec.Category = core.ToolCategoryMemory
-	case "recall", "knowledge_read", "knowledge_search", "knowledge_list":
+	case "recall", "knowledge_read", "knowledge_search", "knowledge_list", "watch_list":
 		spec.Kind = core.ToolKindNative
 		spec.Category = core.ToolCategoryRead
 	case "web_fetch", "web_search":

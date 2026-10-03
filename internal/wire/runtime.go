@@ -129,6 +129,13 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 			Context:  ctxBridge,
 			Location: ownerLoc,
 		},
+		Watch: tools.WatchToolDeps{
+			Store:    db,
+			Checker:  watchChecker,
+			Context:  ctxBridge,
+			Clock:    options.clock,
+			Location: ownerLoc,
+		},
 	}); err != nil {
 		return nil, fmt.Errorf("register native tools: %w", err)
 	}

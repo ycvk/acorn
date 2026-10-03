@@ -69,6 +69,7 @@ type NativeToolDeps struct {
 	Presence        PresenceToolDeps
 	Notify          NotifyToolDeps
 	Knowledge       KnowledgeToolDeps
+	Watch           WatchToolDeps
 }
 
 type nativeToolDep struct {
@@ -93,6 +94,13 @@ func nativeToolFactory(name string, deps NativeToolDeps) (core.ToolFactory, erro
 		{"Knowledge.Vault", deps.Knowledge.Vault != nil},
 		{"Knowledge.Context", deps.Knowledge.Context != nil},
 		{"Knowledge.Location", deps.Knowledge.Location != nil},
+	}
+	watchDeps := []nativeToolDep{
+		{"Watch.Store", deps.Watch.Store != nil},
+		{"Watch.Checker", deps.Watch.Checker != nil},
+		{"Watch.Context", deps.Watch.Context != nil},
+		{"Watch.Clock", deps.Watch.Clock != nil},
+		{"Watch.Location", deps.Watch.Location != nil},
 	}
 	var needs []nativeToolDep
 	var build func() (einotool.BaseTool, error)
@@ -159,6 +167,15 @@ func nativeToolFactory(name string, deps NativeToolDeps) (core.ToolFactory, erro
 	case "knowledge_list":
 		needs = knowledgeDeps
 		build = func() (einotool.BaseTool, error) { return buildKnowledgeListTool(deps.Knowledge) }
+	case "watch_create":
+		needs = watchDeps
+		build = func() (einotool.BaseTool, error) { return buildWatchCreateTool(deps.Watch) }
+	case "watch_update":
+		needs = watchDeps
+		build = func() (einotool.BaseTool, error) { return buildWatchUpdateTool(deps.Watch) }
+	case "watch_list":
+		needs = watchDeps
+		build = func() (einotool.BaseTool, error) { return buildWatchListTool(deps.Watch) }
 	default:
 		return nil, fmt.Errorf("no factory for native tool %q", name)
 	}
