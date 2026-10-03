@@ -167,7 +167,7 @@ func waitRunStatus(t *testing.T, c *Container, runID, want string) {
 	t.Helper()
 	deadline := time.Now().Add(15 * time.Second)
 	for {
-		run, err := c.Runs().GetRun(context.Background(), runID)
+		run, err := c.runs.GetRun(context.Background(), runID)
 		if err != nil {
 			t.Fatalf("get run: %v", err)
 		}
@@ -202,16 +202,16 @@ func startApprovalRun(t *testing.T, cfg *config.Config) (runID, actionID string)
 	if err != nil {
 		t.Fatalf("first container: %v", err)
 	}
-	thread, err := first.Threads().CreateThread(ctx, "approval")
+	thread, err := first.threads.CreateThread(ctx, "approval")
 	if err != nil {
 		t.Fatalf("create thread: %v", err)
 	}
-	run, err := first.Runs().CreateRun(ctx, thread.ID, "", "find probe")
+	run, err := first.runs.CreateRun(ctx, thread.ID, "", "find probe")
 	if err != nil {
 		t.Fatalf("create run: %v", err)
 	}
 	waitRunStatus(t, first, run.ID, "interrupted")
-	actions, err := first.PendingAction().List(ctx, 10)
+	actions, err := first.pendingAction.List(ctx, 10)
 	if err != nil {
 		t.Fatalf("list pending actions: %v", err)
 	}
@@ -337,14 +337,14 @@ func TestDecidedRunResumesFromSweepAndShowsRunning(t *testing.T) {
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	run, err := second.Runs().GetRun(ctx, runID)
+	run, err := second.runs.GetRun(ctx, runID)
 	if err != nil {
 		t.Fatalf("get run: %v", err)
 	}
 	if run.Status != "running" {
 		t.Fatalf("status during resume = %s, want running", run.Status)
 	}
-	inbox, err := second.Inbox().Load(ctx)
+	inbox, err := second.inbox.Load(ctx)
 	if err != nil {
 		t.Fatalf("inbox: %v", err)
 	}
@@ -370,17 +370,17 @@ func TestBrokenAssistantStreamFailsRunThroughNormalPath(t *testing.T) {
 		t.Fatalf("container: %v", err)
 	}
 	defer func() { _ = c.Close() }()
-	thread, err := c.Threads().CreateThread(ctx, "broken stream")
+	thread, err := c.threads.CreateThread(ctx, "broken stream")
 	if err != nil {
 		t.Fatalf("create thread: %v", err)
 	}
-	run, err := c.Runs().CreateRun(ctx, thread.ID, "", "say something")
+	run, err := c.runs.CreateRun(ctx, thread.ID, "", "say something")
 	if err != nil {
 		t.Fatalf("create run: %v", err)
 	}
 	deadline := time.Now().Add(10 * time.Second)
 	for {
-		current, err := c.Runs().GetRun(ctx, run.ID)
+		current, err := c.runs.GetRun(ctx, run.ID)
 		if err != nil {
 			t.Fatalf("get run: %v", err)
 		}

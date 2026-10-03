@@ -168,7 +168,6 @@ func assembleRunnerFactory(deps RuntimeDeps) *RunnerFactory {
 type runCapabilities struct {
 	catalog       *tools.Catalog
 	skillSnapshot *skills.Snapshot
-	stableSkills  []skills.Spec
 	close         func() error
 }
 
@@ -215,7 +214,8 @@ func (f *RunnerFactory) newAgentRunner(ctx context.Context, req RunnerBuildReque
 		RunID:       req.RunID,
 		ChatModel:   chatModel,
 		Catalog:     capabilities.catalog,
-		Instruction: buildAgentInstruction(persona, skillCatalogBrief(capabilities.skillSnapshot)),
+		Skills:      capabilities.skillSnapshot,
+		Instruction: buildStableInstruction(persona),
 		FailedCalls: failed,
 	})
 	if err != nil {
@@ -283,8 +283,8 @@ const operatingRules = `Operating rules:
 - Use recall to find past conversations and older memory before saying you do not know.
 - When the owner should know something now and may not be looking, use notify_owner. Keep the notification to a short summary; details stay in the conversation.
 - The knowledge base holds longer material worth looking up later: articles, notes, plans, reference. Short things the owner says still go to keep. Search the knowledge base before writing a new note; extend a related note with knowledge_edit instead of starting a duplicate.
-- An input that starts with [capture] is something the owner shared from their phone. Follow the capture_to_note skill.
-- Before answering a capability question or saying you cannot do something, inspect the skill catalog and the tools you have. If a relevant skill may exist but the catalog summary is not enough, call skill_list or skill_view. If a capability depends on deferred tools (web_search, web_fetch, browser), call tool_search first.
+- An input that starts with [capture] is something the owner shared from their phone. Load the skill.capture.to.note skill and follow it.
+- Before answering a capability question or saying you cannot do something, check the skills listed by the skill tool and the tools you have. If a capability depends on deferred tools (web_search, web_fetch, browser), call tool_search first.
 - Some tools pause for the owner's approval on their phone. Say what you are about to do before calling them.
 - Prefer available MCP tools over inventing capabilities, and never claim a tool succeeded when it did not run.`
 
@@ -328,15 +328,4 @@ func loadStableSkillSnapshot(ctx context.Context, loader interface {
 	}
 	copied := skills.CopySnapshot(snapshot)
 	return &copied, nil
-}
-
-func stableSkillsFromSnapshot(snapshot *skills.Snapshot) []skills.Spec {
-	if snapshot == nil || len(snapshot.Skills) == 0 {
-		return nil
-	}
-	items := make([]skills.Spec, 0, len(snapshot.Skills))
-	for _, item := range snapshot.Skills {
-		items = append(items, skills.CopySpec(item.Spec))
-	}
-	return items
 }

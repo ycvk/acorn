@@ -39,7 +39,7 @@ type presenceMiddleware struct {
 	lastHash string
 }
 
-func newPresenceMiddleware(deps RuntimeDeps, counter TokenCounter, instruction, runID string) (*presenceMiddleware, error) {
+func newPresenceMiddleware(deps RuntimeDeps, counter TokenCounter, runID string) (*presenceMiddleware, error) {
 	if deps.Presence == nil || deps.Clock == nil || deps.Location == nil {
 		return nil, fmt.Errorf("presence middleware requires Presence, Clock and Location")
 	}
@@ -51,9 +51,17 @@ func newPresenceMiddleware(deps RuntimeDeps, counter TokenCounter, instruction, 
 		location:                     deps.Location,
 		maxTokens:                    deps.Config.Presence.MaxTokens,
 		counter:                      counter,
-		instruction:                  instruction,
 		runID:                        runID,
 	}, nil
+}
+
+// BeforeAgent records the instruction as earlier handlers left it, so the
+// snapshot holds exactly what the model receives.
+func (m *presenceMiddleware) BeforeAgent(ctx context.Context, runCtx *adk.ChatModelAgentContext) (context.Context, *adk.ChatModelAgentContext, error) {
+	m.mu.Lock()
+	m.instruction = runCtx.Instruction
+	m.mu.Unlock()
+	return ctx, runCtx, nil
 }
 
 func (m *presenceMiddleware) WrapModel(_ context.Context, model einomodel.BaseChatModel, _ *adk.ModelContext) (einomodel.BaseChatModel, error) {
@@ -142,10 +150,10 @@ func applyDecay(ctx context.Context, store core.PresenceStore, items []core.Memo
 }
 
 func (m *presenceMiddleware) recordSnapshot(ctx context.Context, rendered string) error {
-	sum := sha256.Sum256([]byte(m.instruction + "\n" + rendered))
-	hash := hex.EncodeToString(sum[:])
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	sum := sha256.Sum256([]byte(m.instruction + "\n" + rendered))
+	hash := hex.EncodeToString(sum[:])
 	if hash == m.lastHash {
 		return nil
 	}

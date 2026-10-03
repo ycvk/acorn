@@ -30,7 +30,6 @@ const (
 	ToolKindNative   ToolKind = "native"
 	ToolKindMCP      ToolKind = "mcp"
 	ToolKindMemory   ToolKind = "memory"
-	ToolKindSkill    ToolKind = "skill"
 	ToolKindWorkflow ToolKind = "workflow"
 )
 
@@ -43,7 +42,6 @@ const (
 	ToolCategoryInspect     ToolCategory = "inspect"
 	ToolCategoryMutation    ToolCategory = "mutation"
 	ToolCategoryMemory      ToolCategory = "memory"
-	ToolCategorySkill       ToolCategory = "skill"
 	ToolCategoryIntegration ToolCategory = "integration"
 	ToolCategoryWorkflow    ToolCategory = "workflow"
 )

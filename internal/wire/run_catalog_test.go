@@ -21,7 +21,7 @@ func TestRunCatalogContainsEveryBuiltinTool(t *testing.T) {
 		t.Fatalf("container: %v", err)
 	}
 	defer func() { _ = c.Close() }()
-	thread, err := c.Threads().CreateThread(ctx, "catalog")
+	thread, err := c.threads.CreateThread(ctx, "catalog")
 	if err != nil {
 		t.Fatalf("create thread: %v", err)
 	}

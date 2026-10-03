@@ -16,6 +16,7 @@ import (
 	"github.com/cloudwego/eino/compose"
 	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/core"
+	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/tools"
 )
 
@@ -23,6 +24,7 @@ type agentRunnerRequest struct {
 	RunID       string
 	ChatModel   einomodel.BaseChatModel
 	Catalog     *tools.Catalog
+	Skills      *skills.Snapshot
 	Instruction string
 	FailedCalls *failedToolCalls
 }
@@ -141,7 +143,11 @@ func buildAgentHandlers(ctx context.Context, deps RuntimeDeps, req agentRunnerRe
 	if err != nil {
 		return nil, err
 	}
-	present, err := newPresenceMiddleware(deps, counter, req.Instruction, req.RunID)
+	present, err := newPresenceMiddleware(deps, counter, req.RunID)
+	if err != nil {
+		return nil, err
+	}
+	skillHandler, err := newSkillMiddleware(ctx, req.Skills)
 	if err != nil {
 		return nil, err
 	}
@@ -153,21 +159,12 @@ func buildAgentHandlers(ctx context.Context, deps RuntimeDeps, req agentRunnerRe
 		}
 		handlers = append(handlers, search)
 	}
-	// Earlier handlers wrap later ones. Presence follows summarization so the
-	// present is not counted toward compaction (presence.max_tokens bounds it).
-	// Approval sits outside the tool error handler so a failure to record an
-	// approval fails the run instead of reaching the model as a tool error.
-	handlers = append(handlers, present, approval, newToolErrorMiddleware(req.FailedCalls))
+	// Earlier handlers wrap later ones. The skill handler adds its tool and
+	// instruction before presence reads the final instruction. Presence
+	// follows summarization so the present is not counted toward compaction
+	// (presence.max_tokens bounds it). Approval sits outside the tool error
+	// handler so a failure to record an approval fails the run instead of
+	// reaching the model as a tool error.
+	handlers = append(handlers, skillHandler, present, approval, newToolErrorMiddleware(req.FailedCalls))
 	return handlers, nil
-}
-
-// buildAgentInstruction joins the persona, the operating rules and the skill
-// catalog. Keeping the catalog in the instruction keeps it out of
-// summarization and gives the model a stable prefix.
-func buildAgentInstruction(persona, skillCatalog string) string {
-	parts := []string{buildStableInstruction(persona)}
-	if catalog := strings.TrimSpace(skillCatalog); catalog != "" {
-		parts = append(parts, "<skill-catalog>\n"+catalog+"\n</skill-catalog>")
-	}
-	return strings.Join(parts, "\n\n")
 }

@@ -64,22 +64,6 @@ func (c *Container) ResumeReadyRuns(ctx context.Context) error {
 	return c.runResume.ResumeReadyRuns(ctx)
 }
 
-func (c *Container) Threads() *api.ThreadService {
-	return c.threads
-}
-
-func (c *Container) Runs() *api.RunService {
-	return c.runs
-}
-
-func (c *Container) Events() *api.EventService {
-	return c.events
-}
-
-func (c *Container) PendingAction() *api.PendingActionService {
-	return c.pendingAction
-}
-
 func (c *Container) Skills() *api.SkillService {
 	return c.skills
 }
@@ -90,9 +74,6 @@ func (c *Container) Capabilities() *api.CapabilitiesService {
 
 func (c *Container) DeviceAuth() *api.DeviceAuthService {
 	return c.deviceAuth
-}
-func (c *Container) Inbox() *api.InboxService {
-	return c.inbox
 }
 
 // Handler is the /v1 client API over this container's services.

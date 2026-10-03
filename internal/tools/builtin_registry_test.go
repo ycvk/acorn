@@ -11,8 +11,6 @@ import (
 func TestBuiltinToolNamesSnapshot(t *testing.T) {
 	got := BuiltinToolNames()
 	want := []string{
-		"skill_list",
-		"skill_view",
 		"ask_operator",
 	}
 	if len(got) != len(want) {

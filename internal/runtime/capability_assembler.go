@@ -8,12 +8,9 @@ import (
 	"strings"
 	"time"
 
-	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/compose"
-	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
 	mcpprovider "github.com/ycvk/acorn/internal/mcp"
-	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/tools"
 	"github.com/ycvk/acorn/internal/webaccess"
 )
@@ -54,13 +51,9 @@ func buildToolset(
 	if err != nil {
 		return nil, err
 	}
-	aux, err := buildAuxTools(ctx, deps)
+	catalog, err := tools.NewCatalog(ctx, local.specs)
 	if err != nil {
-		return nil, err
-	}
-	catalog, err := assembleToolsetCatalog(ctx, deps.Config, local.specs, aux)
-	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("build toolset catalog: %w", err)
 	}
 	return NewToolset(catalog, closers...), nil
 }
@@ -102,35 +95,6 @@ func closeToolsetOnErr(closers []io.Closer, err *error) {
 	if len(closeErrs) > 0 {
 		*err = errors.Join(*err, fmt.Errorf("close toolset after build failure: %w", errors.Join(closeErrs...)))
 	}
-}
-
-func assembleToolsetCatalog(ctx context.Context, cfg *config.Config, webSpecs []core.ToolSpec, aux auxTools) (*tools.Catalog, error) {
-	coreSpecs, err := buildCoreToolSpecs(ctx, cfg, webSpecs, aux)
-	if err != nil {
-		return nil, err
-	}
-	catalog, err := tools.NewCatalog(ctx, coreSpecs)
-	if err != nil {
-		return nil, fmt.Errorf("build toolset catalog: %w", err)
-	}
-	return catalog, nil
-}
-
-// buildCoreToolSpecs builds the specs the toolset catalog owns: deferred-loaded
-// native tools (web_fetch, web_search, browser — which depend on per-run web
-// services) plus the skill tools. Eager-loaded native tools are owned by the
-// registry and are not built here.
-func buildCoreToolSpecs(ctx context.Context, cfg *config.Config, webSpecs []core.ToolSpec, aux auxTools) ([]core.ToolSpec, error) {
-	specs := append([]core.ToolSpec(nil), webSpecs...)
-	skillSpecs, err := BuildCatalogSpecs(ctx, cfg, "skill", core.ToolKindSkill, aux.skill)
-	if err != nil {
-		return nil, err
-	}
-	return append(specs, skillSpecs...), nil
-}
-
-type auxTools struct {
-	skill []einotool.BaseTool
 }
 
 // buildWebToolsConfig constructs the per-run web services. web_search and
@@ -192,16 +156,6 @@ func buildBrowserService(deps RuntimeDeps) (*tools.Service, error) {
 	})
 }
 
-func buildAuxTools(ctx context.Context, deps RuntimeDeps) (auxTools, error) {
-	var out auxTools
-	skillTools, err := skills.BuildAgentTools(deps.Loader)
-	if err != nil {
-		return out, fmt.Errorf("build skill tools: %w", err)
-	}
-	out.skill = skillTools
-	return out, nil
-}
-
 // buildRunCapabilities builds the run's tool catalog (local tools + MCP specs)
 // and resolves a stable skill snapshot for capability eligibility.
 func buildRunCapabilities(ctx context.Context, deps RuntimeDeps, sessionID, runID string, mcpManager *mcpprovider.Manager) (*runCapabilities, error) {
@@ -225,7 +179,6 @@ func buildRunCapabilities(ctx context.Context, deps RuntimeDeps, sessionID, runI
 	return &runCapabilities{
 		catalog:       catalog,
 		skillSnapshot: skillSnapshot,
-		stableSkills:  stableSkillsFromSnapshot(skillSnapshot),
 		close:         toolset.Close,
 	}, nil
 }
@@ -235,12 +188,12 @@ func buildRunCapabilities(ctx context.Context, deps RuntimeDeps, sessionID, runI
 //   - registry specs: eager-loaded native tools + MCP main tools (MCP tools
 //     are registered into the registry at provider-connect time)
 //   - toolset catalog specs: deferred-loaded native tools (web/browser, built
-//     per run from live services), memory and skill tools
+//     per run from live services)
 //   - MCP auxiliary specs: resource/prompt wrappers (session-derived, outside
 //     the registry lifecycle)
 //
 // There is no overlap between registry and toolset specs: the registry owns
-// eager natives, the toolset owns deferred natives + non-native tools.
+// eager natives, the toolset owns deferred natives.
 func assembleRunCapabilitiesCatalog(ctx context.Context, deps RuntimeDeps, toolset *Toolset, sessionID, runID string, mcpManager *mcpprovider.Manager) (*tools.Catalog, error) {
 	registrySpecs, err := resolveRegistrySpecs(ctx, deps, sessionID, runID)
 	if err != nil {

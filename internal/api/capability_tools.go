@@ -84,8 +84,6 @@ func toolRisk(spec core.ToolSpec) string {
 		return "escape_hatch"
 	case core.ToolCategoryMemory:
 		return "memory"
-	case core.ToolCategorySkill:
-		return "skill"
 	default:
 		return "integration"
 	}

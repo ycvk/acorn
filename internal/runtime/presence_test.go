@@ -118,7 +118,6 @@ func newTestPresenceMiddleware(t *testing.T, store *memPresenceStore) *presenceM
 		location:                     time.UTC,
 		maxTokens:                    2000,
 		counter:                      counter,
-		instruction:                  "You are Acorn.",
 		runID:                        "run_1",
 	}
 }

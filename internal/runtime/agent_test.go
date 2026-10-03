@@ -42,18 +42,10 @@ func TestSplitToolsByLoading(t *testing.T) {
 	}
 }
 
-func TestBuildAgentInstructionJoinsPersonaRulesAndSkills(t *testing.T) {
-	got := buildAgentInstruction("You are Acorn.", "- skill.web (Web)")
-	for _, want := range []string{"You are Acorn.", operatingRules, "<skill-catalog>\n- skill.web (Web)\n</skill-catalog>"} {
-		if !strings.Contains(got, want) {
-			t.Fatalf("instruction missing %q:\n%s", want, got)
-		}
-	}
-	if strings.Index(got, "You are Acorn.") > strings.Index(got, "<skill-catalog>") {
-		t.Fatal("the persona must come before the skill catalog")
-	}
-	if strings.Contains(buildAgentInstruction("p", "  "), "<skill-catalog>") {
-		t.Fatal("an empty catalog must be left out")
+func TestStableInstructionJoinsPersonaAndRules(t *testing.T) {
+	got := buildStableInstruction("You are Acorn.")
+	if !strings.HasPrefix(got, "You are Acorn.") || !strings.Contains(got, operatingRules) {
+		t.Fatalf("instruction = %s", got)
 	}
 }
 
@@ -65,24 +57,24 @@ func TestBuildAgentHandlersOrder(t *testing.T) {
 	if err != nil {
 		t.Fatalf("handlers: %v", err)
 	}
-	if len(withoutDeferred) != 6 {
-		t.Fatalf("handlers without deferred tools = %d, want patch, summarize, reduce, presence, approval, tool errors", len(withoutDeferred))
+	if len(withoutDeferred) != 7 {
+		t.Fatalf("handlers without deferred tools = %d, want patch, summarize, reduce, skill, presence, approval, tool errors", len(withoutDeferred))
 	}
-	if _, ok := withoutDeferred[3].(*presenceMiddleware); !ok {
-		t.Fatalf("presence must follow summarization and reduction, got %T at index 3", withoutDeferred[3])
+	if _, ok := withoutDeferred[4].(*presenceMiddleware); !ok {
+		t.Fatalf("presence must follow the skill handler, got %T at index 4", withoutDeferred[4])
 	}
-	if _, ok := withoutDeferred[4].(*approvalMiddleware); !ok {
-		t.Fatalf("approval must wrap the tool error handler, got %T at index 4", withoutDeferred[4])
+	if _, ok := withoutDeferred[5].(*approvalMiddleware); !ok {
+		t.Fatalf("approval must wrap the tool error handler, got %T at index 5", withoutDeferred[5])
 	}
-	if _, ok := withoutDeferred[5].(*toolErrorMiddleware); !ok {
-		t.Fatalf("tool error handler must be innermost, got %T at index 5", withoutDeferred[5])
+	if _, ok := withoutDeferred[6].(*toolErrorMiddleware); !ok {
+		t.Fatalf("tool error handler must be innermost, got %T at index 6", withoutDeferred[6])
 	}
 
 	withDeferred, err := buildAgentHandlers(context.Background(), deps, req, []einotool.BaseTool{namedTool{"web_fetch"}})
 	if err != nil {
 		t.Fatalf("handlers: %v", err)
 	}
-	if len(withDeferred) != 7 {
+	if len(withDeferred) != 8 {
 		t.Fatalf("handlers with deferred tools = %d, want tool search added", len(withDeferred))
 	}
 }

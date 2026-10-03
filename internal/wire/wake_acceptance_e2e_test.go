@@ -231,11 +231,11 @@ func TestCommitmentWakesAfterRestartAndNotifiesOwner(t *testing.T) {
 
 	first := harness.open(t, cfg)
 	registerPushToken(t, first, "device-token-1")
-	thread, err := first.Threads().CreateThread(ctx, "x")
+	thread, err := first.threads.CreateThread(ctx, "x")
 	if err != nil {
 		t.Fatalf("create thread: %v", err)
 	}
-	run, err := first.Runs().CreateRun(ctx, thread.ID, "", "三天后提醒我看 X")
+	run, err := first.runs.CreateRun(ctx, thread.ID, "", "三天后提醒我看 X")
 	if err != nil {
 		t.Fatalf("create run: %v", err)
 	}
@@ -277,7 +277,7 @@ func TestCommitmentWakesAfterRestartAndNotifiesOwner(t *testing.T) {
 		t.Fatalf("last message is not the presence with the woken commitment: %v", last)
 	}
 
-	history, err := second.Threads().ListMessages(ctx, thread.ID, 20)
+	history, err := second.threads.ListMessages(ctx, thread.ID, 20)
 	if err != nil {
 		t.Fatalf("list messages: %v", err)
 	}
@@ -333,11 +333,11 @@ func TestNotificationInQuietHoursWaitsForTheirEnd(t *testing.T) {
 	c := harness.open(t, cfg)
 	defer func() { _ = c.Close() }()
 	registerPushToken(t, c, "device-token-1")
-	thread, err := c.Threads().CreateThread(ctx, "quiet")
+	thread, err := c.threads.CreateThread(ctx, "quiet")
 	if err != nil {
 		t.Fatalf("create thread: %v", err)
 	}
-	run, err := c.Runs().CreateRun(ctx, thread.ID, "", "明早提醒我看 X")
+	run, err := c.runs.CreateRun(ctx, thread.ID, "", "明早提醒我看 X")
 	if err != nil {
 		t.Fatalf("create run: %v", err)
 	}
@@ -375,7 +375,7 @@ func TestCommitmentOfDeletedThreadWakesInReminders(t *testing.T) {
 		t.Fatalf("container: %v", err)
 	}
 	defer func() { _ = c.Close() }()
-	thread, err := c.Threads().CreateThread(ctx, "gone")
+	thread, err := c.threads.CreateThread(ctx, "gone")
 	if err != nil {
 		t.Fatalf("create thread: %v", err)
 	}
@@ -385,7 +385,7 @@ func TestCommitmentOfDeletedThreadWakesInReminders(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("add commitment: %v", err)
 	}
-	if err := c.Threads().DeleteThread(ctx, thread.ID); err != nil {
+	if err := c.threads.DeleteThread(ctx, thread.ID); err != nil {
 		t.Fatalf("delete thread: %v", err)
 	}
 	if err := c.WakeScheduler().Tick(ctx); err != nil {

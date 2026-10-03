@@ -22,10 +22,6 @@ trigger_hints:
   - 能不能联网
   - 会联网吗
   - 联网能力
-requires:
-  tools:
-    - skill_list
-    - skill_view
 ---
 # Capability Recall
 
@@ -33,8 +29,8 @@ Use this skill when the user asks what Acorn can do, whether a capability is ava
 
 Work loop:
 
-1. Inspect the current skill catalog first.
-2. If the catalog summary is not enough, call `skill_list` and then `skill_view` for the most relevant candidates.
+1. Read the skill list in the `skill` tool's description first.
+2. Load the most relevant candidates with the `skill` tool when their descriptions are not enough.
 3. If the capability depends on deferred tools, call `tool_search` for the smallest relevant set before answering.
 4. Distinguish current runtime availability from future potential or static repo support.
 5. Route the user to the best matching skill when a specialized skill exists.

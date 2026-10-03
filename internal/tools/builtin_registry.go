@@ -11,7 +11,7 @@ import (
 )
 
 // builtinToolOrder is the canonical list of dynamically-registered built-in
-// tools (ask_operator, skill). It is the
+// tools. It is the
 // single source of truth for built-in tool identity: BuiltinToolNames and the
 // runtime spec resolver (tool.RuntimeToolSpec via BuiltinToolSpec) both derive
 // from it, so adding a built-in tool means editing this one place.
@@ -19,8 +19,6 @@ import (
 // Static local tools (artifact_*, ask_operator, keep, recall, ...) are declared
 // separately in localToolNames/configuredLocalSpec.
 var builtinToolOrder = []string{
-	"skill_list",
-	"skill_view",
 	"ask_operator",
 }
 
@@ -36,9 +34,6 @@ func builtinToolContract(name string) (core.ToolContract, bool) {
 	case "ask_operator":
 		c.Kind = core.ToolKindNative
 		c.Category = core.ToolCategoryIntegration
-	case "skill_list", "skill_view":
-		c.Kind = core.ToolKindSkill
-		c.Category = core.ToolCategorySkill
 	default:
 		return core.ToolContract{}, false
 	}
