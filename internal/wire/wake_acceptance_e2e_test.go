@@ -108,8 +108,7 @@ func newPushHarness(t *testing.T, start time.Time) (*pushHarness, string) {
 		t.Fatalf("write service account: %v", err)
 	}
 	clock := &testClock{now: start}
-	// These tests are about commitments; the morning briefing has its own.
-	extra := fmt.Sprintf("notify:\n  fcm:\n    service_account_file: %s\nbriefing:\n  at: \"\"\n", accountPath)
+	extra := fmt.Sprintf("notify:\n  fcm:\n    service_account_file: %s\n", accountPath)
 	return &pushHarness{
 		clock: clock,
 		fcm:   fcm,
@@ -125,6 +124,9 @@ func (h *pushHarness) open(t *testing.T, cfg *config.Config) *Container {
 	}
 	return c
 }
+
+// briefingOff keeps the morning briefing out of tests about commitments.
+const briefingOff = "briefing:\n  at: \"\"\n"
 
 func registerPushToken(t *testing.T, c *Container, token string) {
 	t.Helper()
@@ -227,7 +229,7 @@ func TestCommitmentWakesAfterRestartAndNotifiesOwner(t *testing.T) {
 	}}
 	server := httptest.NewServer(provider)
 	defer server.Close()
-	cfg := writeTestConfig(t, server.URL, extra)
+	cfg := writeTestConfig(t, server.URL, extra+briefingOff)
 	ctx := context.Background()
 
 	first := harness.open(t, cfg)
@@ -329,7 +331,7 @@ func TestNotificationInQuietHoursWaitsForTheirEnd(t *testing.T) {
 	}}
 	server := httptest.NewServer(provider)
 	defer server.Close()
-	cfg := writeTestConfig(t, server.URL, extra)
+	cfg := writeTestConfig(t, server.URL, extra+briefingOff)
 	ctx := context.Background()
 	c := harness.open(t, cfg)
 	defer func() { _ = c.Close() }()
@@ -368,7 +370,7 @@ func TestCommitmentOfDeletedThreadWakesInReminders(t *testing.T) {
 	provider := &fakeOpenAI{replies: []string{textReply("收到")}}
 	server := httptest.NewServer(provider)
 	defer server.Close()
-	cfg := writeTestConfig(t, server.URL, "briefing:\n  at: \"\"\n")
+	cfg := writeTestConfig(t, server.URL, briefingOff)
 	clock := &testClock{now: start}
 	ctx := context.Background()
 	c, err := buildContainer(ctx, cfg, buildOptions{clock: clock.Now})
