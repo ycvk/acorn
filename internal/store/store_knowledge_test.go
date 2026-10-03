@@ -64,7 +64,7 @@ func TestRecentKnowledgeOrdersAndFilters(t *testing.T) {
 	ctx := context.Background()
 	day := time.Date(2026, 10, 3, 9, 0, 0, 0, time.UTC)
 	for i, path := range []string{"inbox/a.md", "inbox/b.md", "projects/c.md"} {
-		if err := s.UpsertKnowledgeNote(ctx, core.KnowledgeNote{Path: path, Title: path, Body: "body of " + path, MTimeNS: 1, Size: 1, UpdatedAt: day.Add(time.Duration(i) * time.Hour)}); err != nil {
+		if err := s.UpsertKnowledgeNote(ctx, core.KnowledgeNote{Path: path, Title: path, Body: "## body\n\nof " + path, MTimeNS: 1, Size: 1, UpdatedAt: day.Add(time.Duration(i) * time.Hour)}); err != nil {
 			t.Fatalf("upsert: %v", err)
 		}
 	}
@@ -73,7 +73,7 @@ func TestRecentKnowledgeOrdersAndFilters(t *testing.T) {
 		t.Fatalf("recent = %+v, %v", all, err)
 	}
 	inbox, err := s.RecentKnowledge(ctx, "inbox/", 10)
-	if err != nil || len(inbox) != 2 || inbox[0].Path != "inbox/b.md" || inbox[0].Snippet != "body of inbox/b.md" {
+	if err != nil || len(inbox) != 2 || inbox[0].Path != "inbox/b.md" || inbox[0].Snippet != "## body of inbox/b.md" {
 		t.Fatalf("inbox = %+v, %v", inbox, err)
 	}
 	if _, err := s.RecentKnowledge(ctx, "", 0); err == nil {

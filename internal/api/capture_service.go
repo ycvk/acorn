@@ -128,13 +128,23 @@ func captureRunInput(subject string, links []string, text, image string) string 
 	for _, link := range links {
 		lines = append(lines, "Link: "+link)
 	}
-	if text != "" {
-		lines = append(lines, "Text:", text)
+	if rest := textWithoutLinks(text); rest != "" {
+		lines = append(lines, "Text:", rest)
 	}
 	if image != "" {
 		lines = append(lines, "Image: "+image)
 	}
 	return strings.Join(lines, "\n")
+}
+
+// textWithoutLinks is the shared text with links removed (they are listed on
+// their own lines), spaces tidied and empty lines at either end dropped.
+func textWithoutLinks(text string) string {
+	lines := strings.Split(captureLink.ReplaceAllString(text, ""), "\n")
+	for i, line := range lines {
+		lines[i] = strings.Join(strings.Fields(line), " ")
+	}
+	return strings.TrimSpace(strings.Join(lines, "\n"))
 }
 
 func humanBytes(n int) string {

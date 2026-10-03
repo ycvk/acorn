@@ -125,14 +125,14 @@ func TestCaptureStartsARunInANewThread(t *testing.T) {
 	if accepted.ThreadID != "thread_1" || accepted.RunID != "run_for_thread_1" {
 		t.Fatalf("accepted = %+v", accepted)
 	}
-	want := "[capture] shared from the owner's phone\nSubject: Tokio 2.0\nLink: https://tokio.rs/blog/2026\nText:\nWorth reading https://tokio.rs/blog/2026 later"
+	want := "[capture] shared from the owner's phone\nSubject: Tokio 2.0\nLink: https://tokio.rs/blog/2026\nText:\nWorth reading later"
 	if fakes.titles[0] != "Tokio 2.0" || fakes.inputs[0] != want {
 		t.Fatalf("title %q input:\n%s", fakes.titles[0], fakes.inputs[0])
 	}
 
-	postCapture(t, router, map[string]string{"text": "see https://example.com/a"}, nil, true)
-	if fakes.titles[1] != "example.com" {
-		t.Fatalf("link title = %q", fakes.titles[1])
+	postCapture(t, router, map[string]string{"text": "https://example.com/a"}, nil, true)
+	if fakes.titles[1] != "example.com" || strings.Contains(fakes.inputs[1], "Text:") {
+		t.Fatalf("link-only capture: title %q input:\n%s", fakes.titles[1], fakes.inputs[1])
 	}
 
 	rec = postCapture(t, router, nil, pngHeader, true)

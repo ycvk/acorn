@@ -148,7 +148,7 @@ func scanKnowledgeHits(rows *sql.Rows, snippet func(text string) string) ([]core
 			return nil, fmt.Errorf("scan knowledge hit: %w", err)
 		}
 		hit.Tags = strings.Fields(tags)
-		hit.Snippet = snippet(text)
+		hit.Snippet = collapseSpace(snippet(text))
 		updated, err := parseTimestamp(fixedTimestampLayout, when, "knowledge_notes.updated_at")
 		if err != nil {
 			return nil, err
@@ -162,8 +162,13 @@ func scanKnowledgeHits(rows *sql.Rows, snippet func(text string) string) ([]core
 	return hits, nil
 }
 
+// collapseSpace joins a snippet onto one line so list previews read as text.
+func collapseSpace(text string) string {
+	return strings.Join(strings.Fields(text), " ")
+}
+
 func leadingRunes(text string, n int) string {
-	text = strings.TrimSpace(text)
+	text = collapseSpace(text)
 	runes := []rune(text)
 	if len(runes) <= n {
 		return text
