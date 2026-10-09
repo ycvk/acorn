@@ -108,11 +108,6 @@ func TestProjectStreamItemToEvent(t *testing.T) {
 			wantKind: "run.started",
 		},
 		{
-			name:     "tool_call_started",
-			item:     core.StreamItem{Kind: core.StreamKindToolCallStarted, Payload: map[string]any{"tool_call": &core.StreamToolCall{Name: "t1", CallID: "c1"}}},
-			wantKind: "tool.call.started",
-		},
-		{
 			name:     "assistant_message",
 			item:     core.StreamItem{Kind: core.StreamKindAssistantMessage, Payload: map[string]any{"message": &core.StreamMessage{Content: "hi"}}},
 			wantKind: "runtime.message",
@@ -147,16 +142,8 @@ func TestStreamKindToEventKind(t *testing.T) {
 		{core.StreamKindRunResumeRequested, "run.resume_requested"},
 		{core.StreamKindAssistantDelta, "assistant.delta"},
 		{core.StreamKindAssistantMessage, "runtime.message"},
-		{core.StreamKindToolCallStarted, "tool.call.started"},
 		{core.StreamKindToolCallSucceeded, "tool.call.succeeded"},
 		{core.StreamKindToolCallFailed, "tool.call.failed"},
-		{core.StreamKindToolCallInterrupted, "tool.call.interrupted"},
-		{core.StreamKindSkillDiscovered, "skill.discovered"},
-		{core.StreamKindSkillSelected, "skill.selected"},
-		{core.StreamKindSkillLoaded, "skill.loaded"},
-		{core.StreamKindSkillFailed, "skill.failed"},
-		{core.StreamKindProcedureActivation, "procedure.activation"},
-		{core.StreamKindMemoryPrepared, "memory.prepared"},
 		{"unknown.kind", "unknown.kind"},
 	}
 

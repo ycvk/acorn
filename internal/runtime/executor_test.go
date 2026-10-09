@@ -191,7 +191,7 @@ func TestRunStateApplyUnknownItemIsNoOp(t *testing.T) {
 		lastOutput: "existing",
 	}
 	state.applyStreamItem(core.StreamItem{
-		Kind:    core.StreamKindToolCallStarted,
+		Kind:    core.StreamKindToolCallSucceeded,
 		Payload: map[string]any{},
 	})
 	if state.lastOutput != "existing" {
@@ -232,39 +232,5 @@ func TestRunStateApplyMultipleItemsLifecycle(t *testing.T) {
 	})
 	if state.lastOutput != "Hello world!" {
 		t.Fatalf("after message: lastOutput = %q, want 'Hello world!'", state.lastOutput)
-	}
-}
-
-func TestFailureReasonForStatusFailedWithOutput(t *testing.T) {
-	reason := failureReasonForStatus(core.RunStatusFailed, "some output")
-	if reason != "run_failed:with_output" {
-		t.Errorf("failureReasonForStatus(failed, 'some output') = %q, want 'run_failed:with_output'", reason)
-	}
-}
-
-func TestFailureReasonForStatusFailedEmptyOutput(t *testing.T) {
-	reason := failureReasonForStatus(core.RunStatusFailed, "")
-	if reason != "run_failed" {
-		t.Errorf("failureReasonForStatus(failed, '') = %q, want 'run_failed'", reason)
-	}
-}
-
-func TestFailureReasonForStatusFailedWhitespaceOutput(t *testing.T) {
-	reason := failureReasonForStatus(core.RunStatusFailed, "   ")
-	if reason != "run_failed" {
-		t.Errorf("failureReasonForStatus(failed, '   ') = %q, want 'run_failed'", reason)
-	}
-}
-
-func TestFailureReasonForStatusNonFailedReturnsEmpty(t *testing.T) {
-	for _, status := range []core.RunStatus{
-		core.RunStatusSucceeded,
-		core.RunStatusInterrupted,
-		core.RunStatusRunning,
-	} {
-		reason := failureReasonForStatus(status, "some output")
-		if reason != "" {
-			t.Errorf("failureReasonForStatus(%q, ...) = %q, want ''", status, reason)
-		}
 	}
 }

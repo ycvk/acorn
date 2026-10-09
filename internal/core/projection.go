@@ -44,10 +44,6 @@ type AssistantDeltaData struct {
 	AssistantDelta map[string]any `json:"assistant_delta"`
 }
 
-type AgentMessageData struct {
-	Message map[string]any `json:"message"`
-}
-
 type RunCompletedData struct {
 	Message map[string]any `json:"message,omitempty"`
 }
@@ -85,8 +81,11 @@ type OperatorQuestionData struct {
 type OperatorQuestionPendingData = OperatorQuestionData
 type OperatorQuestionDecidedData = OperatorQuestionData
 
-type DecisionBlockedData struct {
-	Action          string `json:"action,omitempty"`
-	DecisionReason  string `json:"decision_reason,omitempty"`
-	ExplicitSkillID string `json:"explicit_skill_id,omitempty"`
+// ToolApprovalData carries a tool_approval.pending (tool name and arguments)
+// or tool_approval.decided (decision) event.
+type ToolApprovalData struct {
+	ActionID  string `json:"action_id"`
+	ToolName  string `json:"tool_name,omitempty"`
+	Arguments string `json:"arguments,omitempty"`
+	Decision  string `json:"decision,omitempty"`
 }

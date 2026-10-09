@@ -9,6 +9,8 @@ import io.ycvk.acorn.api.models.SystemStatus
 import io.ycvk.acorn.core.auth.AuthController
 import io.ycvk.acorn.core.auth.AuthState
 import io.ycvk.acorn.core.auth.ConnectionProfile
+import io.ycvk.acorn.core.push.PushManager
+import io.ycvk.acorn.core.push.PushStatus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -25,7 +27,14 @@ import javax.inject.Inject
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
 	private val authController: AuthController,
+	private val pushManager: PushManager,
 ) : ViewModel() {
+
+	val pushStatus: StateFlow<PushStatus> = pushManager.status
+
+	fun retryPush() {
+		profile?.let(pushManager::register)
+	}
 
 	private val _systemStatus = MutableStateFlow<SystemStatus?>(null)
 	val systemStatus: StateFlow<SystemStatus?> = _systemStatus.asStateFlow()

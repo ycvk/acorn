@@ -22,8 +22,18 @@ func defaultConfig() *Config {
 		Context: ContextConfig{
 			WindowTokens:        200000,
 			CompactMarginTokens: 13000,
-			PreserveRecentTurns: 3,
 			MaskAfterTurns:      2,
+		},
+		Approval: ApprovalConfig{Require: []string{"browser", "mcp__*"}},
+		Owner:    OwnerConfig{Timezone: "UTC"},
+		Presence: PresenceConfig{MaxTokens: 4000},
+		Wake:     WakeConfig{DailyLimit: 20, DailyTokens: 300000},
+		Thinking: ThinkingConfig{NightAt: "03:00", WanderAt: []string{}},
+		Watch:    WatchConfig{MaxChecksPerTick: 5},
+		Briefing: BriefingConfig{At: "08:00"},
+		Notify: NotifyConfig{
+			MaxPerHour: 6,
+			QuietHours: QuietHoursConfig{Start: "23:00", End: "08:00"},
 		},
 		Runtime: RuntimeConfig{
 			StorageDir:        "~/.acorn",
@@ -49,29 +59,11 @@ func defaultConfig() *Config {
 		},
 		Agent: AgentConfig{
 			Name:          "coordinator",
-			Description:   "A local operator agent that can inspect files and execute commands.",
+			Description:   "A personal agent that works on its owner's behalf.",
 			MaxIterations: 70,
 		},
 		Tools: ToolsConfig{
-			Workspace:  WorkspaceToolConfig{RootDir: "."},
-			Mutation:   MutationToolConfig{},
-			RunCommand: RunCommandToolConfig{DefaultTimeout: 30, WorkDir: "."},
-		},
-		Memory: MemoryConfig{
-			Search: MemorySearchConfig{
-				MemoryContextTokenBudget: 8000,
-			},
-			Embedding: MemoryEmbeddingConfig{
-				Enabled:    false,
-				Model:      "text-embedding-3-small",
-				Dimensions: 1536,
-			},
-			Review: MemoryReviewConfig{
-				ReviewInterval: 5,
-			},
-			Active: MemoryActiveConfig{
-				CharLimit: 2200,
-			},
+			Workspace: WorkspaceToolConfig{RootDir: "."},
 		},
 	}
 }

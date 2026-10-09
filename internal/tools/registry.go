@@ -139,27 +139,12 @@ func (r *toolRegistry) Find(name string) (core.ToolSpec, bool) {
 	return spec, ok
 }
 
-// ExecutionPolicy returns the execution policy for the named tool after
-// validating its contract. Unknown tools and invalid contracts surface as
-// errors, matching Catalog.ExecutionPolicy semantics.
-func (r *toolRegistry) ExecutionPolicy(toolName string, args map[string]any) (core.ToolExecutionPolicy, error) {
-	spec, ok := r.Find(toolName)
-	if !ok {
-		return core.ToolExecutionPolicy{}, fmt.Errorf("tool execution policy for %q is not registered", strings.TrimSpace(toolName))
-	}
-	if err := spec.Validate(); err != nil {
-		return core.ToolExecutionPolicy{}, err
-	}
-	return spec.Execution, nil
-}
-
 // Resolve produces concrete einotool.BaseTool instances for the requested names
 // by invoking each spec's Factory under the given run context. Names that are
 // not registered are skipped (not an error): the runtime requests tool sets by
 // name and tolerates providers that were never registered. A spec whose Factory
 // is nil but whose Tool is pre-built returns that Tool instance instead. A
-// factory that returns (nil, nil) — e.g. when its backing service is absent —
-// is also skipped, so callers receive only usable tool instances.
+// factory that returns no tool is an error.
 func (r *toolRegistry) Resolve(ctx context.Context, runCtx core.RunContext, names []string) ([]einotool.BaseTool, error) {
 	if r == nil {
 		return nil, nil
@@ -176,15 +161,9 @@ func (r *toolRegistry) Resolve(ctx context.Context, runCtx core.RunContext, name
 			}
 			continue
 		}
-		tool, err := spec.Factory(ctx, runCtx)
+		tool, err := resolveFactory(ctx, runCtx, spec)
 		if err != nil {
-			return nil, fmt.Errorf("tool registry: resolve %q: %w", name, err)
-		}
-		// A factory may return (nil, nil) when its backing service is absent
-		// (e.g. no workspace configured). Skip nil instances so callers receive
-		// only usable tools, matching the existing Catalog's silent-omit behavior.
-		if tool == nil {
-			continue
+			return nil, err
 		}
 		out = append(out, tool)
 	}
@@ -192,10 +171,8 @@ func (r *toolRegistry) Resolve(ctx context.Context, runCtx core.RunContext, name
 }
 
 // ResolveEnabledSpecs returns every enabled spec with its concrete tool instance
-// populated via Factory. Specs whose factory returns (nil, nil) — e.g. when its
-// backing service is absent — are omitted, matching the silent-omit behavior
-// of Resolve. A spec whose Factory is nil but whose Tool is pre-built is
-// returned as-is.
+// populated via Factory. A spec whose Factory is nil but whose Tool is
+// pre-built is returned as-is.
 func (r *toolRegistry) ResolveEnabledSpecs(ctx context.Context, runCtx core.RunContext) ([]core.ToolSpec, error) {
 	if r == nil {
 		return nil, nil
@@ -209,17 +186,25 @@ func (r *toolRegistry) ResolveEnabledSpecs(ctx context.Context, runCtx core.RunC
 			}
 			continue
 		}
-		tool, err := spec.Factory(ctx, runCtx)
+		tool, err := resolveFactory(ctx, runCtx, spec)
 		if err != nil {
-			return nil, fmt.Errorf("tool registry: resolve spec %q: %w", spec.Name, err)
-		}
-		if tool == nil {
-			continue
+			return nil, err
 		}
 		spec.Tool = tool
 		out = append(out, spec)
 	}
 	return out, nil
+}
+
+func resolveFactory(ctx context.Context, runCtx core.RunContext, spec core.ToolSpec) (einotool.BaseTool, error) {
+	tool, err := spec.Factory(ctx, runCtx)
+	if err != nil {
+		return nil, fmt.Errorf("tool registry: resolve %q: %w", spec.Name, err)
+	}
+	if tool == nil {
+		return nil, fmt.Errorf("tool registry: factory for %q returned no tool", spec.Name)
+	}
+	return tool, nil
 }
 
 // normalizeCoreSpec trims the human-editable string fields of a core.ToolSpec

@@ -17,7 +17,6 @@ type Source string
 const (
 	SourceBuiltin   Source = "builtin"
 	SourceWorkspace Source = "workspace"
-	SourceGenerated Source = "generated"
 	SourceUser      Source = "user"
 )
 
@@ -131,15 +130,6 @@ func NormalizeSpec(item Spec) (Spec, error) {
 
 func normalizeOrigin(origin Origin) Origin {
 	return Origin(strings.TrimSpace(string(origin)))
-}
-
-func NormalizeRequirements(item Requirements) Requirements {
-	return Requirements{
-		Tools:    uniqueNonEmpty(item.Tools),
-		Toolsets: uniqueNonEmpty(item.Toolsets),
-		Bins:     uniqueNonEmpty(item.Bins),
-		Env:      uniqueNonEmpty(item.Env),
-	}
 }
 
 func CopySpec(item Spec) Spec {

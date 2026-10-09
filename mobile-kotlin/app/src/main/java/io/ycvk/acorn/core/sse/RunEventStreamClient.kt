@@ -2,13 +2,13 @@ package io.ycvk.acorn.core.sse
 
 import com.squareup.moshi.JsonAdapter
 import io.ycvk.acorn.api.infrastructure.Serializer
-import io.ycvk.acorn.api.models.ClientAgentMessageEvent
 import io.ycvk.acorn.api.models.ClientAssistantDeltaEvent
-import io.ycvk.acorn.api.models.ClientDecisionBlockedEvent
 import io.ycvk.acorn.api.models.ClientElicitationDecidedEvent
 import io.ycvk.acorn.api.models.ClientElicitationPendingEvent
 import io.ycvk.acorn.api.models.ClientOperatorQuestionDecidedEvent
 import io.ycvk.acorn.api.models.ClientOperatorQuestionPendingEvent
+import io.ycvk.acorn.api.models.ClientToolApprovalDecidedEvent
+import io.ycvk.acorn.api.models.ClientToolApprovalPendingEvent
 import io.ycvk.acorn.api.models.ClientRunCompletedEvent
 import io.ycvk.acorn.api.models.ClientRunFailedEvent
 import io.ycvk.acorn.api.models.ClientRunInterruptedEvent
@@ -20,6 +20,7 @@ import okhttp3.Response
 import okhttp3.sse.EventSource
 import okhttp3.sse.EventSourceListener
 import okhttp3.sse.EventSources
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 
 /**
@@ -45,20 +46,25 @@ class RunEventStreamClient(
     // so envelope fields (OffsetDateTime ts, Long seq) decode the same way as REST calls.
     private val moshi = Serializer.moshi
 
-    private val eventAdapters: Map<String, JsonAdapter<*>> = mapOf(
-        "run.started" to moshi.adapter(ClientRunStartedEvent::class.java),
-        "assistant.delta" to moshi.adapter(ClientAssistantDeltaEvent::class.java),
-        "agent.message" to moshi.adapter(ClientAgentMessageEvent::class.java),
-        "run.completed" to moshi.adapter(ClientRunCompletedEvent::class.java),
-        "run.failed" to moshi.adapter(ClientRunFailedEvent::class.java),
-        "run.interrupted" to moshi.adapter(ClientRunInterruptedEvent::class.java),
-        "run.resume_requested" to moshi.adapter(ClientRunResumeRequestedEvent::class.java),
-        "elicitation.pending" to moshi.adapter(ClientElicitationPendingEvent::class.java),
-        "elicitation.decided" to moshi.adapter(ClientElicitationDecidedEvent::class.java),
-        "operator_question.pending" to moshi.adapter(ClientOperatorQuestionPendingEvent::class.java),
-        "operator_question.decided" to moshi.adapter(ClientOperatorQuestionDecidedEvent::class.java),
-        "decision_blocked" to moshi.adapter(ClientDecisionBlockedEvent::class.java),
+    // Moshi builds these adapters through kotlin-reflect, which takes seconds on a
+    // cold debug build. They are created on first use from the OkHttp callback
+    // thread; this client is constructed on the main thread.
+    private val eventTypes: Map<String, Class<*>> = mapOf(
+        "run.started" to ClientRunStartedEvent::class.java,
+        "assistant.delta" to ClientAssistantDeltaEvent::class.java,
+        "run.completed" to ClientRunCompletedEvent::class.java,
+        "run.failed" to ClientRunFailedEvent::class.java,
+        "run.interrupted" to ClientRunInterruptedEvent::class.java,
+        "run.resume_requested" to ClientRunResumeRequestedEvent::class.java,
+        "elicitation.pending" to ClientElicitationPendingEvent::class.java,
+        "elicitation.decided" to ClientElicitationDecidedEvent::class.java,
+        "operator_question.pending" to ClientOperatorQuestionPendingEvent::class.java,
+        "operator_question.decided" to ClientOperatorQuestionDecidedEvent::class.java,
+        "tool_approval.pending" to ClientToolApprovalPendingEvent::class.java,
+        "tool_approval.decided" to ClientToolApprovalDecidedEvent::class.java,
     )
+
+    private val eventAdapters = ConcurrentHashMap<String, JsonAdapter<*>>()
 
     private val factory = EventSources.createFactory(client)
 
@@ -108,10 +114,9 @@ class RunEventStreamClient(
             return RunEventPacket.Unknown(rawType = "(null)", rawData = data)
         }
 
-        val adapter = eventAdapters[type]
-        if (adapter == null) {
-            return RunEventPacket.Unknown(rawType = type, rawData = data)
-        }
+        val eventType = eventTypes[type]
+            ?: return RunEventPacket.Unknown(rawType = type, rawData = data)
+        val adapter = eventAdapters.computeIfAbsent(type) { moshi.adapter(eventType) }
 
         val parsed = adapter.fromJson(data)
             ?: throw IllegalStateException("Failed to decode RunEvent (type=$type) from SSE data")
@@ -119,7 +124,6 @@ class RunEventStreamClient(
         return when (type) {
             "run.started" -> RunEventPacket.Started(parsed as ClientRunStartedEvent)
             "assistant.delta" -> RunEventPacket.AssistantDelta(parsed as ClientAssistantDeltaEvent)
-            "agent.message" -> RunEventPacket.AgentMessage(parsed as ClientAgentMessageEvent)
             "run.completed" -> RunEventPacket.RunCompleted(parsed as ClientRunCompletedEvent)
             "run.failed" -> RunEventPacket.RunFailed(parsed as ClientRunFailedEvent)
             "run.interrupted" -> RunEventPacket.RunInterrupted(parsed as ClientRunInterruptedEvent)
@@ -128,7 +132,8 @@ class RunEventStreamClient(
             "elicitation.decided" -> RunEventPacket.ElicitationDecided(parsed as ClientElicitationDecidedEvent)
             "operator_question.pending" -> RunEventPacket.OperatorQuestionPending(parsed as ClientOperatorQuestionPendingEvent)
             "operator_question.decided" -> RunEventPacket.OperatorQuestionDecided(parsed as ClientOperatorQuestionDecidedEvent)
-            "decision_blocked" -> RunEventPacket.DecisionBlocked(parsed as ClientDecisionBlockedEvent)
+            "tool_approval.pending" -> RunEventPacket.ToolApprovalPending(parsed as ClientToolApprovalPendingEvent)
+            "tool_approval.decided" -> RunEventPacket.ToolApprovalDecided(parsed as ClientToolApprovalDecidedEvent)
             else -> RunEventPacket.Unknown(rawType = type, rawData = data)
         }
     }
@@ -154,12 +159,6 @@ sealed class RunEventPacket {
     }
 
     data class AssistantDelta(val event: ClientAssistantDeltaEvent) : RunEventPacket() {
-        override val eventId: String get() = event.eventId
-        override val runId: String get() = event.runId
-        override val seq: Long get() = event.seq
-    }
-
-    data class AgentMessage(val event: ClientAgentMessageEvent) : RunEventPacket() {
         override val eventId: String get() = event.eventId
         override val runId: String get() = event.runId
         override val seq: Long get() = event.seq
@@ -213,7 +212,13 @@ sealed class RunEventPacket {
         override val seq: Long get() = event.seq
     }
 
-    data class DecisionBlocked(val event: ClientDecisionBlockedEvent) : RunEventPacket() {
+    data class ToolApprovalPending(val event: ClientToolApprovalPendingEvent) : RunEventPacket() {
+        override val eventId: String get() = event.eventId
+        override val runId: String get() = event.runId
+        override val seq: Long get() = event.seq
+    }
+
+    data class ToolApprovalDecided(val event: ClientToolApprovalDecidedEvent) : RunEventPacket() {
         override val eventId: String get() = event.eventId
         override val runId: String get() = event.runId
         override val seq: Long get() = event.seq

@@ -18,7 +18,6 @@ var (
 	ErrRunNotFound              = errors.New("run not found")
 	ErrSessionNotFound          = errors.New("session not found")
 	ErrSessionMessageNotFound   = errors.New("session message not found")
-	ErrFactNotFound             = errors.New("fact not found")
 	ErrPendingActionNotFound    = errors.New("pending action not found")
 	ErrPendingActionExists      = errors.New("pending action already exists")
 	ErrPendingActionDecided     = errors.New("pending action already decided")
@@ -78,6 +77,7 @@ type PendingActionKind string
 const (
 	PendingActionKindElicitation      PendingActionKind = "elicitation"
 	PendingActionKindOperatorQuestion PendingActionKind = "operator_question"
+	PendingActionKindToolApproval     PendingActionKind = "tool_approval"
 )
 
 type PendingActionStatus string
@@ -148,12 +148,13 @@ type OperatorQuestionDecision struct {
 // --- ExecuteRequest ---
 
 type ExecuteRequest struct {
-	RunID            string
-	SessionID        string
-	TurnIndex        int
-	Input            string
-	BoundMessageID   int64
-	SkillID          string
-	AllowedToolNames []string
-	Messages         []adk.Message
+	RunID          string
+	SessionID      string
+	TurnIndex      int
+	Input          string
+	BoundMessageID int64
+	SkillID        string
+	// Wake says what woke this run; empty means an owner message.
+	Wake     string
+	Messages []adk.Message
 }

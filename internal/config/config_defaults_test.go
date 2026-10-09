@@ -23,9 +23,10 @@ func TestDefaultConfigValues(t *testing.T) {
 		{"browser.default_timeout_seconds", cfg.Browser.DefaultTimeoutSeconds, 20},
 		{"context.window_tokens", cfg.Context.WindowTokens, 200000},
 		{"context.compact_margin_tokens", cfg.Context.CompactMarginTokens, 13000},
-		{"context.preserve_recent_turns", cfg.Context.PreserveRecentTurns, 3},
 		{"context.mask_after_turns", cfg.Context.MaskAfterTurns, 2},
 		{"runtime.max_iterations", cfg.Agent.MaxIterations, 70},
+		{"watch.max_checks_per_tick", cfg.Watch.MaxChecksPerTick, 5},
+		{"briefing.at", cfg.Briefing.At, "08:00"},
 	}
 
 	for _, tt := range tests {

@@ -53,9 +53,29 @@ type DeviceView struct {
 }
 
 type DeviceAuthService struct {
-	store core.IdentityStore
-	now   func() time.Time
-	rand  io.Reader
+	store      core.IdentityStore
+	pushTokens PushTokenStore
+	now        func() time.Time
+	rand       io.Reader
+}
+
+// PushTokenStore stores a device's FCM registration token.
+type PushTokenStore interface {
+	SetPushToken(ctx context.Context, deviceID, token string) error
+}
+
+// WithPushTokens enables push token registration.
+func (s *DeviceAuthService) WithPushTokens(store PushTokenStore) *DeviceAuthService {
+	s.pushTokens = store
+	return s
+}
+
+// SetPushToken records the FCM token of an authenticated device.
+func (s *DeviceAuthService) SetPushToken(ctx context.Context, deviceID, token string) error {
+	if s.pushTokens == nil {
+		return errors.New("device auth service has no push token store")
+	}
+	return s.pushTokens.SetPushToken(ctx, deviceID, token)
 }
 
 func NewDeviceAuthService(store core.IdentityStore) *DeviceAuthService {

@@ -25,10 +25,7 @@ trigger_hints:
   - 联网
 requires:
   tools:
-    - load_tools
-    - web_search
     - web_fetch
-    - browser
 ---
 # Web Browser Research
 
@@ -50,28 +47,24 @@ requires:
 
 推荐调用顺序：
 
-1. 主题型问题：`load_tools({"tool_names":["web_search","web_fetch"]})` -> `web_search` -> 对可信候选逐个 `web_fetch`。
-2. 明确 URL：`load_tools({"tool_names":["web_fetch"]})` -> `web_fetch`。
-3. 动态页面：`load_tools({"tool_names":["browser"]})` -> `browser.open` -> `browser.scan`；需要操作时再 `browser.snapshot` -> action。
+1. 主题型问题：`tool_search({"query":"select:web_search,web_fetch"})` -> `web_search` -> 对可信候选逐个 `web_fetch`。
+2. 明确 URL：`tool_search({"query":"select:web_fetch"})` -> `web_fetch`。
+3. 动态页面：`tool_search({"query":"select:browser"})` -> `browser.open` -> `browser.scan`；需要操作时再 `browser.snapshot` -> action。
 4. 需要同时搜索和动态页面：先 `web_search` / `web_fetch` 缩小范围，再加载 `browser`。
 
-浏览器运行时缺失处理：
+工具未启用时的处理：
 
-1. 如果 `browser` 返回 `browser.executable_path` 未配置或不可访问，停止当前浏览器任务；不要反复重试，也不要改用 shell/curl 假装完成动态页面任务。
-2. 告诉用户当前 VPS 缺少可用 Chrome/Chromium runtime，需要安装浏览器并在 `acorn.yaml` 配置 `browser.executable_path`，常见路径是 `/usr/bin/chromium`。
-3. 只有用户明确要求“帮我安装/配置”时，才可以使用 host/file/systemd 工具执行 operator setup：
-   - 检查系统发行版和是否已有 `chromium` / `google-chrome`。
-   - 安装 Chrome/Chromium。
-   - 用实际可执行文件路径更新 `~/.acorn/acorn.yaml` 的 `browser.executable_path`。
-   - 重启 Acorn systemd 服务。
-   - 再用 `browser.status` 或一次最小 `browser.open` 验证。
+1. `web_search` 只在配置了 `web_access.search.api_key` 时启用；`browser` 只在配置了 `browser.executable_path` 时启用。`tool_search` 加载不到它们就说明对应配置缺失，不要反复重试。
+2. 没有 `web_search` 时，请用户提供 URL，或对已知的可信来源直接 `web_fetch`。
+3. 没有 `browser` 时，停止需要 JavaScript 或交互的部分，不要改用 shell/curl 假装完成动态页面任务。告诉用户需要在 VPS 上安装 Chrome/Chromium，把可执行文件路径（常见为 `/usr/bin/chromium`）写进 `~/.acorn/acorn.yaml` 的 `browser.executable_path`，再重启 Acorn 服务。
+4. `browser` 已启用但运行时报错（例如可执行文件不可访问）时，同样如实报告错误，不重试。
 
 硬规则：
 
 - 只访问 `http` / `https`，并尊重 Acorn 的 URL policy；不要尝试 file、localhost、metadata、私网绕过。
 - 不暴露或请求 raw JavaScript、raw CDP、cookie 读写或持久浏览器 profile。
 - 不使用 shell、curl、外部 CLI 或 MCP 来替代这些 native tools，除非用户明确要求。
-- `web_search` 缺少 provider key、`browser` 缺少 executable_path、页面抓取失败时，直接把失败事实告诉用户，不伪造结果。
+- 工具未启用或页面抓取失败时，直接把失败事实和缺少的配置告诉用户，不伪造结果。
 - 不在普通回答里倾倒 raw network/console 列表；只引用与问题直接相关的条目。
 
 输出至少应覆盖：

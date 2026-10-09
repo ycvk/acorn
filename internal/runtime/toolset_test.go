@@ -38,12 +38,11 @@ func buildTestCatalog(t *testing.T, baseTools ...einotool.BaseTool) *tools.Catal
 		}
 		specs[i] = core.ToolSpec{
 			ToolContract: core.ToolContract{
-				Name:      info.Name,
-				Source:    "test",
-				Kind:      core.ToolKindNative,
-				Category:  core.ToolCategoryInspect,
-				Loading:   core.EagerLoadingPolicy(),
-				Execution: core.ToolExecutionPolicy{ParallelPolicy: core.ParallelPolicyReadOnly},
+				Name:     info.Name,
+				Source:   "test",
+				Kind:     core.ToolKindNative,
+				Category: core.ToolCategoryInspect,
+				Loading:  core.EagerLoadingPolicy(),
 			},
 			Tool: tool,
 		}

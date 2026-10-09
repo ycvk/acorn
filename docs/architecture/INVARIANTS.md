@@ -6,40 +6,65 @@
 
 - **core 有零内部导入**：`internal/core` 不导入任何 `github.com/ycvk/acorn/internal/*` 包；core 是 Layer 0，只依赖外部 SDK（Eino schema/adk）。
   - `tests/architecture/dependency_direction_test.go`
-- **core 拥有 3 个 store 接口**：`SessionStore`/`IdentityStore`/`ArtifactStore` 是 core 定义的 consumer-owned 持久化接口。
+- **core 拥有 9 个 store 接口**：`SessionStore`/`IdentityStore`/`ArtifactStore`/`PresenceStore`/`NotificationStore`/`KnowledgeStore`/`WatchStore`/`RoutineStore`/`PhoneNotificationStore` 是 core 定义的 consumer-owned 持久化接口。
   - `internal/core/store.go`
+  - `internal/core/presence.go`
+  - `internal/core/knowledge.go`
+  - `internal/core/watch.go`
   - `internal/core/core_test.go`
 
 ## 运行时与编排
 
-- **单一编排模式 direct_response**：`directResponseAgent.runFromState` 直接调用 `ExecuteRound` 执行模型回合。Session 在 BeforeModelCall 中执行 masking + auto-compact。依赖方向无环。
-  - `tests/architecture/structural_limits_test.go`
-- **runtime 执行链自包含**：`internal/runtime` 拥有 executor、per-run assembly、direct_response、ExecuteRound、Plane、Session、masking、auto-compact、StreamItem 投影。
-  - `tests/architecture/structural_limits_test.go`
-- **Partial tool-call rejection 不丢弃已执行结果**：当 `BeforeToolCall` 拒绝一批 tool call 中的一个（如 `run_command` 需审批）,已提交的 calls（如 `read_file`）结果必须保留。`consumeInterleavedForAgentLoop` 不 Discard executor,记录 `rejectedErr` 后继续消费 stream 到 finalMessage。`ExecuteRound` 在 rejection 时调 `GetRemainingResults` 收集已提交 calls 的结果。`direct_response.go` 先记录已执行 tool results,再记录 approval-required message。
-  - `internal/runtime/agent_loop_partial_rejection_test.go`
+- **每个 run 一个 Eino ChatModelAgent**：`buildAgentRunner` 组装 `adk.Runner{ChatModelAgent, EnableStreaming, CheckPointStore}`；handlers 依次为 patchtoolcalls → summarization → reduction(clear-only) → toolsearch(有 deferred 工具时) → skill → presence → approval → tool errors；工具串行执行（`ExecuteSequentially`），普通工具失败与未知工具调用作为模型可见的 tool result 返回。Executor 只负责把 `AgentEvent` 投影成 RunEvent。
+  - `internal/runtime/agent_test.go`
+  - `internal/runtime/events_test.go`
+- **工具失败可见，主模型调用有界重试**：tool error middleware 把错误转成结果文本时按 call id 记录，projector 对这些调用发 `tool.call.failed`（其余发 `tool.call.succeeded`），两者都不进 live 契约。主模型调用失败最多重试 3 次，context 取消不重试；被重试的失败流不记 run 失败，只有成功那次的输出成为 assistant 消息；3 次重试都失败时 run 失败。
+  - `internal/runtime/tool_errors_test.go`
+  - `internal/runtime/model_retry_test.go`
+- **回复先落库再报完成**：run 成功或失败结束时，Executor 先写 run output 和对应的 assistant 消息，再发 `run.completed`/`run.failed` 并把 run 标记为结束；写入失败让 run 返回错误。客户端在收到完成事件或看到结束状态后重新加载线程，一定能读到回复。
+  - `internal/wire/wake_acceptance_e2e_test.go`
+  - `internal/wire/capture_acceptance_e2e_test.go`
+- **审批绑定具体调用并可跨重启恢复**：`approval.require` 命中的工具调用由 approval middleware 登记 `tool_approval` pending action 并发起工具级中断；resume 时校验参数与登记时一致，accept 才执行，decline 把拒绝说明作为工具结果返回。同一轮里排在被拦截调用之后的工具调用会先执行完，被拦截的调用等决策后再执行。`approval.require` 不允许命中 `ask_operator`。checkpoint 经 `core.SessionStore` 落 SQLite `agent_checkpoints`，run 成功或失败结束时删除。
+  - `internal/runtime/approval_test.go`
+  - `internal/store/store_checkpoint_test.go`
 
 ## 持久化与 store 边界
 
-- **SQLite adapter 不跨层泄漏**：production 代码只允许 `internal/wire/container.go` 直接 import `internal/store`；其他包只依赖 consumer-owned ports（`core.SessionStore`/`core.IdentityStore`/`core.ArtifactStore`）或 `internal/store` shared records/errors。
+- **SQLite adapter 不跨层泄漏**：production 代码只允许 `internal/wire/container.go` 直接 import `internal/store`；其他包只依赖 consumer-owned ports（`core.SessionStore`/`core.IdentityStore`/`core.ArtifactStore`/`core.PresenceStore`/`core.NotificationStore`/`core.KnowledgeStore`/`core.WatchStore`）或 `internal/store` shared records/errors。
   - `tests/architecture/dependency_direction_test.go`
+- **时间由调用方给出**：`memory_items` 的 created_at/updated_at 与 `notifications` 的 created_at 由写入方的时钟决定，store 拒绝缺少时间的写入；时钟只在组合根注入，工具、presence、wake 调度器与推送 sender 共用一个。
+  - `internal/store/store_presence_test.go`
+  - `internal/wire/wake_acceptance_e2e_test.go`
 - **Consumer-owned store 接口收敛**：`internal/runtime` + `internal/wire` 顶层定义的 consumer-owned store 接口（Store/Port/Repository/Ledger）≤4（RuntimeStore）。
   - `tests/architecture/store_interface_count_test.go`
 
 ## 上下文与记忆
 
-- **Hybrid context: masking + non-blocking auto-compact**：Session 在 BeforeModelCall 中执行 observation masking（旧 tool result 替换为占位符）+ 非阻塞 auto-compact（token 超阈值时 `maybeStartCompact` 启后台 goroutine 总结 conversation 前段，turn 间由 `applyPendingCompact` 用 summary 替换被总结的消息；Bootstrap prefix 永不被压缩；live 区不以 tool result 开头；circuit breaker 3 次失败后停止）；public YAML 只暴露 `context.window_tokens`、`context.compact_margin_tokens`、`context.mask_after_turns`、`context.preserve_recent_turns`。
-  - `internal/runtime/context_session_test.go`
-  - `internal/runtime/masking_test.go`
-  - `internal/runtime/auto_compact_test.go`
-  - `internal/runtime/auto_compact_nonblocking_test.go`
-- **Memory Record V2 是长期记忆事实**：facts/history frontmatter 由 `internal/memory` 解析；memory search 默认走关键词匹配，`memory.embedding.enabled` 开启时走 vector KNN + keyword RRF 融合（sqlite-vec，复用 provider embedding 端点）。
-- **三层记忆架构（ADR-0002）**：Active Memory（非 retired 的 user-scoped facts frozen snapshot，按 `memory.active.char_limit` 默认 2200 字符截取，每个 run 无条件注入 system prompt，run 内不变以保 prefix cache）+ Archive（append-only history + fallback summary，零 LLM 成本，混合检索覆盖）+ Periodic Review（每 `memory.review.review_interval` 默认 5 个 run 触发一次 LLM 调用，蒸馏 durable facts 写入 facts，异步不阻塞 run 收尾，`NewReviewer` 在 `buildContainerRuntimeDeps` 构造一次供所有 Executor 共享）。单 owner 语义：agent 自己写的 facts（unverified + verified）都信任，retired 才排除。
-  - `internal/memory/active_facts.go`
-  - `internal/memory/active_facts_test.go`
-  - `internal/runtime/reviewer.go`
-  - `internal/runtime/reviewer_test.go`
-  - `internal/wire/runtime.go`
+- **上下文管理由 Eino middleware 承担**：summarization 在 token 超过 `window_tokens - compact_margin_tokens` 时总结历史；reduction 只做 clear（保留最近 `mask_after_turns` 轮工具调用原样）。public YAML 只暴露 `context.window_tokens`、`context.compact_margin_tokens`、`context.mask_after_turns`。
+  - `internal/runtime/agent_test.go`
+- **Instruction = 人格 + 内置规则 + 技能说明**：人格来自 `{storage_dir}/persona.md`，缺失或为空时 run 失败并给出路径；内置 operating rules 说明工作记忆、约定、知识库、审批和工具发现的用法；Eino skill middleware 追加技能说明并提供 `skill` 工具，工具描述列出本 run 可用（eligible）的技能，按名加载正文。这些都在 Instruction 或工具描述里，不参与总结。context 快照记录的是 skill middleware 追加之后的 Instruction。
+  - `internal/runtime/agent_test.go`
+  - `internal/runtime/skill_backend_test.go`
+  - `internal/presence/presence_test.go`
+- **“当下”只存在于单次模型调用**：presence middleware 用 `WrapModel` 在每次模型调用的输入末尾追加 `<presence>` system 消息（owner 时区的时间、唤醒原因、约定、念头、owner 原话、倾向、关切、暂歇条目），不写回 agent 状态，因此不会进入历史或被总结。渲染前先执行衰减；超过 `presence.max_tokens` 时先丢最旧的手机通知、再丢暂歇条目和各类最旧记忆条目，woken 约定永不丢弃。每个不同的渲染结果按哈希存入 `context_snapshots`，并记一条 `presence.snapshot` 事件。
+  - `internal/runtime/presence_test.go`
+  - `internal/presence/presence_test.go`
+- **工作记忆只有一条衰减路径**：`memory_items` 中的 said/thought/tendency/ruler 到期未续期时，由 `presence.Decay` 从 active 变为 resting，再变为 sunk；commitment 不衰减。续期、内化、放下、完成约定都只经 `settle` 工具。
+  - `internal/presence/presence_test.go`
+  - `internal/tools/presence_tools_test.go`
+
+## 知识库与 Capture
+
+- **知识库文件是真相，索引可重建**：笔记是 `knowledge.dir`（默认 `{storage_dir}/knowledge`）下的 markdown 文件，目录同时是 git 仓库。`knowledge_notes` 与 `knowledge_notes_fts` 只是索引：每次列表或搜索前按 mtime 和 size 与文件同步，在 Acorn 之外新建、修改、删除的笔记都会反映出来；读不了或解析失败的笔记让同步失败并给出路径。
+  - `internal/knowledge/knowledge_test.go`
+  - `internal/store/store_knowledge_test.go`
+  - `internal/wire/capture_acceptance_e2e_test.go`
+- **每次写入是一个只含本次文件的 commit**：笔记只经 `knowledge.Vault` 写入，每次 `knowledge_write`/`knowledge_edit` 与分享图片各提交一次，只提交本次涉及的文件，作者固定为 Acorn，agent 的写入在提交说明里带 `Acorn-Run`。工作区里 owner 未提交的其他改动不受影响。笔记路径必须是知识库内的相对 `.md` 路径，不能含 `..`、隐藏段或位于 `attachments/`。
+  - `internal/knowledge/knowledge_test.go`
+  - `internal/tools/knowledge_tools_test.go`
+- **Capture 是 owner 发起的 run**：`POST /v1/captures` 先把图片（JPEG/PNG/WebP/GIF，≤10 MiB，类型按内容判断）存入 `attachments/` 并提交，再为这次分享新建线程，以 role `capture` 的输入立即起 run；模型把它当作 user 消息读取，客户端单独显示。capture 不记 `wake.fired`，不计入 `wake.daily_limit`。
+  - `internal/api/capture_knowledge_test.go`
+  - `internal/wire/capture_acceptance_e2e_test.go`
 
 ## Remote API 与 mobile
 
@@ -47,33 +72,71 @@
   - `internal/store/store_schema_test.go`
 - **OpenAPI 是 wire contract**：remote client DTO 只投影 core domain 类型；改 wire shape 须同步 `docs/openapi.yaml` + generated mobile client。投影逻辑在 `internal/api` 的 `projection.go`/`projection_helpers.go` 中，不导入 `internal/runtime`。`thread_service.go`/`event_service.go` 合法导入 `internal/core`，不在 projection boundary 列表中。
   - `tests/architecture/client_projection_boundary_test.go`
+- **Pending action 对客户端可达**：action ID 由 `core.NewActionID()` 生成，只含 `[a-z0-9_]`，能直接放进 `/v1/pending-actions/{action_id}:decide`。每种 pending action kind 都以 `<kind>.pending` / `<kind>.decided` 进入 live RunEvent，且 live 事件集合与 OpenAPI `RunEvent` discriminator 一致。
+  - `internal/core/core_test.go`
+  - `internal/api/openapi_test.go`
+  - `internal/wire/approval_restart_e2e_test.go`
 - **Mobile 是 control surface 不是 runtime**：mobile 不执行 run、不持 runtime truth、不做 offline-first run execution、不维护第二套 message lifecycle；context pressure/boundary/run status 都消费后端 projection。
   - `mobile-kotlin/app/src/test/...`（JUnit）
 
-## Triggers (ambient)
+## 约定与唤醒
 
-- **Trigger scheduler 是 run 外常驻进程**：`internal/triggers.Scheduler` 住 `serve` 进程内，与 `Executor` 平级，不属任何 per-run 生命周期。trigger fire 时调 `RunService.CreateRun` 起新短命 run，不续 session。`/v1/triggers/{id}` 端点不经 device auth，用 HMAC 验签。`Stop()` 清理 pending debounce timers 避免 shutdown 孤儿 run。两类 trigger：webhook（被动 HTTP）和 cron（主动定时，5 字段表达式 `min hour dom month dow`，自建 parser 无新依赖）。
-  - `internal/triggers/scheduler_test.go`
-  - `internal/triggers/webhook_test.go`
-  - `internal/triggers/cron_schedule_test.go`
-  - `internal/triggers/cron_test.go`
-- **Trigger 成本控制**：debounce + duplicate-skip + daily quota 三护栏。`triggers.debounce_millis`（默认 0=禁用,推荐 2000）合并同 trigger 窗口内多次 fire 为一次 run（last input wins,per-trigger timer 独立）。`triggerRunCreator.shouldSkipRun` 在 WorldState 投影 + input 指纹（SHA-256,key 排序确定性）与上次相同时跳过 CreateRun——首次不跳过,nil WorldState 不跳过。`triggers.daily_quota`（默认 0=不限）限制每 UTC 日 trigger fire 起 run 次数,超限静默丢弃（warn log）,serve 重启归零。webhook spam 100 次相同 payload + 无状态变化 = 0 次 LLM 调用。
-  - `internal/triggers/scheduler_debounce_test.go`
-  - `internal/wire/trigger_skip_test.go`
-  - `internal/wire/trigger_quota_test.go`
-- **Trigger fire → 起新 run，不续 session**：trigger fire 走 `Executor.ExecuteMessages` 起新 run，`RunTimeoutSeconds`(默认 900s) + `direct_response` 同步 loop 决定长 run 不可行。WorldState 是跨 run 唯一状态，session 是 per-run 临时态。
-  - `internal/triggers/scheduler_test.go`
-- **WorldState 是跨 run 决策投影**：`internal/memory.WorldState` 是 file-backed key-value store（`{storage_dir}/worldstate/state.json`），只有 `ApplyDelta` 一条变更路径（upsert/delete）。填补 Session（per-run 临时）和 facts（显式 remember）之间空白。内存 cache + mutex 串行写，避开 SQLite 单连接瓶颈。agent 通过 `worldstate_update`/`worldstate_load` 工具读写。
-  - `internal/memory/worldstate_test.go`
-- **Ambient 身份指令硬编码进 base instruction**：`internal/runtime/runner.go` 的 `ambientAgentInstruction` 常量拼进 `buildStableInstruction`（用户 prompt 之后、capability discovery 之前），教 agent ambient 五步循环（orient → assess → act → record → stop）。用户 prompt 不可覆盖——ambient 循环是 agent 身份的核心，不是可配置行为。`triggerRunCreator.CreateRun` 在 input 前加 trigger 唤醒上下文，`formatWorldStatePrefix` 加引导语让 agent 理解注入的 KV 是自己的跨 run 记忆。
-  - `internal/wire/trigger_worldstate_e2e_test.go`
-- **Decision Card 扩展 ask_operator payload**：`OperatorQuestionPayload` 增 `considered_options/rationale/risk/recommendation` 可选维度。不是新建审批系统，是给 `ask_operator` 补决策依据。风险分级用规则（非 LLM）判定器 `internal/tools.ClassifyRisk`，硬编码高风险白名单不可降级。
+- **约定只由 wake 调度器触发，且只触发一次**：`wake.Scheduler` 住在 `serve` 进程内，每 30 秒先执行衰减，再处理到期的约定（`memory_items` 中 kind 为 commitment）。`ClaimDueCommitment` 用条件更新把 active 改为 woken，多个调度器并发时只有一个成功；随后经 `RunService.CreateWakeRun` 在约定所属线程里起 run（线程已删除时新建 Reminders 线程），并在该 run 上记录 `wake.fired`。醒来的输入以 role `wake` 记入线程：模型把它当作 user 消息读取，客户端把它和 owner 自己写的消息分开显示。起 run 失败时约定回到 active，唤醒时间推后 5 分钟。带 cron 的约定在触发后插入下一次的 active 条目。
+  - `internal/wake/scheduler_test.go`
+  - `internal/store/store_presence_test.go`
+  - `internal/wire/wake_acceptance_e2e_test.go`
+- **每日唤醒上限按 owner 时区计算**：`wake.daily_limit` 限制 owner 本地每天的唤醒次数，计数来自 events 表中当天的 `wake.fired`，重启后依然有效；超限的约定留在 active，次日再处理；为 0 时关闭自主唤醒。
+  - `internal/wake/scheduler_test.go`
+- **推送有上限、守免打扰、随设备失效**：`notify_owner` 经 `notify.Sender` 发送；每小时超过 `notify.max_per_hour` 时返回错误；免打扰时段内的通知排队到时段结束，由 wake 调度器每次 tick 发出；没有任何已登记设备时返回错误。一个 FCM token 只归最近登记它的设备（同一部手机重新配对不会收到重复推送）；FCM 回 404 或 UNREGISTERED 的 token 被删除，设备吊销时其 push token 一并删除。至少一台设备收到即记 sent，否则记 failed 并返回错误。未配置服务账号时工具以 disabled 注册并给出原因。
+  - `internal/notify/notify_test.go`
+  - `internal/store/store_presence_test.go`
+  - `internal/api/push_token_handler_test.go`
+  - `internal/wire/wake_acceptance_e2e_test.go`
+- **Decision Card 扩展 ask_operator payload**：`OperatorQuestionPayload` 增 `considered_options/rationale/risk/recommendation` 可选维度。它给 `ask_operator` 的提问补上决策依据；工具调用审批由 `approval.require` 规则和 approval middleware 负责。
   - `internal/core/decision_card_test.go`
-  - `internal/tools/risk_gate_test.go`
-- **search_runs 工具让 agent 检索自己 run 历史**：`SearchRuns(ctx, query, limit)` 对 `runs.input_text` 做 LIKE 关键词匹配,返回匹配 run 摘要。工具注册为 `core.ToolKindNative` / `ToolCategoryInspect` / 只读并行。让 agent 能"回忆自己做过什么",不依赖每次显式 `remember`。
-  - `internal/store/store_search_runs_test.go`
+- **经历检索覆盖 run 和工作记忆**：`recall` 工具调用 `SearchExperience`，用 FTS5 trigram 检索 `runs` 的输入输出和全部 `memory_items`；少于 3 个字的查询改走 LIKE。FTS 表上线前的 run 在打开数据库时回填一次。
+  - `internal/store/store_presence_test.go`
+  - `internal/tools/presence_tools_test.go`
+
+## 追踪项与早安卡
+
+- **追踪项只报新东西**：`watch_create` 的首次抓取失败则不建立；成功的首次检查只建基线（条目记 baseline），之后的检查才产生新条目。条目按 (watch, key) 唯一，同一条目只入库一次；网页类追踪项比较选中内容的快照，变化产生一条带前后值的条目，回到旧值同样算变化。
+  - `internal/watch/watch_test.go`
+  - `internal/store/store_watch_test.go`
+  - `internal/tools/watch_tools_test.go`
+- **抓取只经 URL policy**：feed、GitHub 与网页都经 `webaccess.FetchRaw`（与 `web_fetch` 共用 policy、超时与大小上限），渲染页面经浏览器服务的 policy；loopback 一律拒绝。
+  - `internal/watch/watch_test.go`
+- **追踪项检查与唤醒只在 wake 调度器**：到期追踪项以条件更新加租约认领，多个调度器只有一个检查。只有 immediate 追踪项的新条目起 wake run（在建立追踪项的线程里），计入 `wake.daily_limit` 并记 `wake.fired{watch_id}`；超限、起 run 失败与 digest 追踪项的条目都留给早安卡。一个追踪项失败不影响约定和其他追踪项；连续 5 次失败标为 failing，退避上限 24 小时。
+  - `internal/wake/watches_test.go`
+  - `internal/watch/watch_test.go`
+  - `internal/wire/watch_acceptance_e2e_test.go`
+- **每个本地日一次早安卡**：过了 `briefing.at`（owner 时区）后，`routine_runs` 表按 (`briefing`,日期) 认领，跨进程只触发一次；起 run 失败释放认领，下个 tick 重试。早安卡在 Briefings 线程里运行，输入列出全部待简报条目和 failing 追踪项，条目随之标为 briefed；它不计入每日唤醒上限。
+  - `internal/wake/watches_test.go`
+  - `internal/store/store_watch_test.go`
+  - `internal/wire/watch_acceptance_e2e_test.go`
+
 
 ## 代码规范
 
 - **Error 分两类**：Exported sentinel error（需要被 `errors.Is` 比对）必须是包级 `var ErrXxx`；precondition/internal-config error（不该发生的编程错误）用 inline `errors.New("...")` 直接返回。`.golangci.yml` 的 `errname` linter 强制导出 sentinel 命名。
   - `.golangci.yml`（errname linter）
+
+## 空闲思考、用量与手机通知
+
+- **例行唤醒一次认领**：`routine_runs` 的 (routine, slot) 唯一;准备/启动失败释放,预算跳过与空夜思保留,启动成功后保持认领。夜思与游思复用 Thoughts 线程。
+  - `internal/wake/thinking_test.go`
+- **原始通知只有一个写入入口**：鉴权设备身份与服务器 received_at 由 API 决定;批次全量校验后事务写入,按 (device,key,posted_at) 去重,不修改调用方输入。
+  - `internal/api/phone_notification_service_test.go`
+  - `internal/store/store_phone_notifications_test.go`
+- **通知窗口连续且有界**：“当下”为最近 6 小时最多 10 条,预算裁减时通知最先丢;早安卡窗口为上次成功认领至本次认领的半开区间,最多 50 条并准确标记剩余数;原始信号七天后清理。
+  - `internal/presence/phone_notifications_test.go`
+  - `internal/wake/thinking_test.go`
+  - `internal/store/store_routine_test.go`
+- **自主预算按调用时间计**：当日本地零点起的 `model.usage` 累计,关联 run 的 `wake.fired` 判定自主用量;早安卡与 owner 运行不计。成功主模型调用逐次记录,缺失 usage 可观察,不改变 live 契约。
+  - `internal/runtime/usage_test.go`
+  - `internal/store/store_phone_notifications_test.go`
+  - `internal/wire/thinking_acceptance_e2e_test.go`
+- **跨模块闭环**：夜思能通过技能整理工作记忆,手机通知能经过 HTTP 进入 presence 与简报,简报笔记提交 Git 并推送。
+  - `internal/wire/thinking_acceptance_e2e_test.go`
+- **手机队列归属清晰**：队列绑定服务器与设备,身份变更清空;取消白名单移除待传项;请求使用批次自己的凭证;失败保留,成功只删除发送的 ID;持续入队保留第一条的上传截止时间。
+  - `mobile-kotlin/app/src/test/java/io/ycvk/acorn/core/notifications/NotificationQueueTest.kt`

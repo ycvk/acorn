@@ -1,5 +1,12 @@
 package io.ycvk.acorn.feature.shell
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.CubicBezierEasing
@@ -32,6 +39,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Inbox
 import androidx.compose.material.icons.filled.Settings
@@ -80,6 +88,9 @@ import io.ycvk.acorn.core.theme.accentGlow
 import io.ycvk.acorn.core.theme.gradientBackground
 import io.ycvk.acorn.feature.approvals.ApprovalsScreen
 import io.ycvk.acorn.feature.chat.ChatScreen
+import io.ycvk.acorn.feature.knowledge.KnowledgeScreen
+import io.ycvk.acorn.feature.knowledge.KnowledgeViewModel
+import io.ycvk.acorn.feature.knowledge.NoteScreen
 import io.ycvk.acorn.feature.pairing.PairingScreen
 import io.ycvk.acorn.feature.settings.SettingsScreen
 import io.ycvk.acorn.feature.threads.ThreadsScreen
@@ -93,7 +104,6 @@ fun AcornShell(
     val authController = shellViewModel.authController
     val authState by authController.authState.collectAsStateWithLifecycle()
 
-    LaunchedEffect(Unit) { authController.loadStoredConnection() }
 
     when (val state = authState) {
         is AuthState.Loading -> {
@@ -127,16 +137,33 @@ private fun ConnectedShell(
     val openThreadId by shellViewModel.openThreadId.collectAsStateWithLifecycle()
     val pendingCount by shellViewModel.pendingCount.collectAsStateWithLifecycle()
     val showApprovals by shellViewModel.showApprovals.collectAsStateWithLifecycle()
+    val openNotePath by shellViewModel.openNotePath.collectAsStateWithLifecycle()
+
+    val context = LocalContext.current
+    val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        shellViewModel.registerPush()
+    }
+    LaunchedEffect(Unit) {
+        val needsPrompt = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        if (needsPrompt) {
+            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            shellViewModel.registerPush()
+        }
+    }
 
     val currentThreadId = openThreadId
     val drawerState = rememberDrawerState(initialValue = androidx.compose.material3.DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     val threadsViewModel: ThreadsViewModel = hiltViewModel()
+    val knowledgeViewModel: KnowledgeViewModel = hiltViewModel()
     val openDrawer: () -> Unit = { scope.launch { drawerState.open() } }
 
     // Page key drives AnimatedContent transitions — includes threadId so A→B triggers animation
     val pageKey: String = when {
         currentThreadId != null -> "chat:$currentThreadId"
+        openNotePath != null -> "note:$openNotePath"
         showApprovals -> "approvals"
         else -> "tabs"
     }
@@ -146,6 +173,7 @@ private fun ConnectedShell(
         when {
             drawerState.isOpen -> scope.launch { drawerState.close() }
             currentThreadId != null -> shellViewModel.closeThread()
+            openNotePath != null -> shellViewModel.closeNote()
             showApprovals -> shellViewModel.hideApprovalsList()
         }
     }
@@ -172,8 +200,9 @@ private fun ConnectedShell(
             targetState = pageKey,
             transitionSpec = {
                 val isThreadSwitch = initialState.startsWith("chat:") && targetState.startsWith("chat:") && initialState != targetState
-                val forward = initialState == "tabs" && targetState.startsWith("chat:") || isThreadSwitch
-                val backward = initialState.startsWith("chat:") && targetState == "tabs"
+                val isDetail = { key: String -> key.startsWith("chat:") || key.startsWith("note:") }
+                val forward = initialState == "tabs" && isDetail(targetState) || isThreadSwitch
+                val backward = isDetail(initialState) && targetState == "tabs"
                 when {
                     isThreadSwitch -> (fadeIn(tween(duration, easing = easing)) togetherWith
                         fadeOut(tween(duration, easing = easing)))
@@ -199,6 +228,13 @@ private fun ConnectedShell(
                         onOpenDrawer = openDrawer,
                     )
                 }
+                page.startsWith("note:") -> {
+                    NoteScreen(
+                        path = page.removePrefix("note:"),
+                        viewModel = knowledgeViewModel,
+                        onBack = { shellViewModel.closeNote() },
+                    )
+                }
                 page == "approvals" -> {
                     ApprovalsScreen(
                         modifier = Modifier.fillMaxSize(),
@@ -221,6 +257,19 @@ private fun ConnectedShell(
                                     onClick = { shellViewModel.selectTab(ShellViewModel.TAB_THREADS) },
                                     icon = { InboxIconWithBadge(pendingCount) },
                                     label = { Text("inbox", style = MaterialTheme.typography.labelSmall) },
+                                    colors = navItemColors(),
+                                )
+                                NavigationBarItem(
+                                    selected = selectedTab == ShellViewModel.TAB_KNOWLEDGE,
+                                    onClick = { shellViewModel.selectTab(ShellViewModel.TAB_KNOWLEDGE) },
+                                    icon = {
+                                        Icon(
+                                            Icons.AutoMirrored.Filled.MenuBook,
+                                            contentDescription = "knowledge",
+                                            modifier = Modifier.size(22.dp),
+                                        )
+                                    },
+                                    label = { Text("knowledge", style = MaterialTheme.typography.labelSmall) },
                                     colors = navItemColors(),
                                 )
                                 NavigationBarItem(
@@ -250,6 +299,11 @@ private fun ConnectedShell(
                                     onApprovalsClick = { shellViewModel.showApprovalsList() },
                                     pendingCount = pendingCount,
                                     onOpenDrawer = openDrawer,
+                                    modifier = Modifier.padding(innerPadding),
+                                )
+                                ShellViewModel.TAB_KNOWLEDGE -> KnowledgeScreen(
+                                    viewModel = knowledgeViewModel,
+                                    onNoteClick = { path -> shellViewModel.openNote(path) },
                                     modifier = Modifier.padding(innerPadding),
                                 )
                                 ShellViewModel.TAB_SETTINGS -> SettingsScreen(Modifier.padding(innerPadding))

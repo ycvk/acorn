@@ -40,9 +40,6 @@ func ProjectStreamItemToEvent(item core.StreamItem) (string, any, error) {
 	if err != nil {
 		return "", nil, err
 	}
-	if err := normalizeToolCallPayload(item.Kind, payload); err != nil {
-		return "", nil, err
-	}
 
 	return streamKindToEventKind(item.Kind), payload, nil
 }
@@ -63,26 +60,10 @@ func streamKindToEventKind(kind core.StreamItemKind) string {
 		return string(kind)
 	case core.StreamKindAssistantMessage:
 		return "runtime.message"
-	case core.StreamKindToolCallStarted:
-		return "tool.call.started"
 	case core.StreamKindToolCallSucceeded:
 		return "tool.call.succeeded"
 	case core.StreamKindToolCallFailed:
 		return "tool.call.failed"
-	case core.StreamKindToolCallInterrupted:
-		return "tool.call.interrupted"
-	case core.StreamKindSkillDiscovered:
-		return "skill.discovered"
-	case core.StreamKindSkillSelected:
-		return "skill.selected"
-	case core.StreamKindSkillLoaded:
-		return "skill.loaded"
-	case core.StreamKindSkillFailed:
-		return "skill.failed"
-	case core.StreamKindProcedureActivation:
-		return "procedure.activation"
-	case core.StreamKindMemoryPrepared:
-		return "memory.prepared"
 	default:
 		return string(kind)
 	}
@@ -97,38 +78,6 @@ func streamPayloadMap(kind core.StreamItemKind, payload any) (map[string]any, er
 		return nil, fmt.Errorf("stream %s payload: %w", kind, err)
 	}
 	return out, nil
-}
-
-func normalizeToolCallPayload(kind core.StreamItemKind, payload map[string]any) error {
-	switch kind {
-	case core.StreamKindToolCallStarted,
-		core.StreamKindToolCallSucceeded,
-		core.StreamKindToolCallFailed,
-		core.StreamKindToolCallInterrupted:
-	default:
-		return nil
-	}
-
-	raw, exists := payload["tool_call"]
-	if !exists || raw == nil {
-		delete(payload, "tool_call")
-		return nil
-	}
-	toolMap, ok := raw.(map[string]any)
-	if !ok {
-		return fmt.Errorf("stream %s payload tool_call must be object", kind)
-	}
-	for k, v := range toolMap {
-		dst := k
-		if k == "name" {
-			dst = "tool_name"
-		}
-		if _, exists := payload[dst]; !exists {
-			payload[dst] = v
-		}
-	}
-	delete(payload, "tool_call")
-	return nil
 }
 
 func reencodeViaJSON(in any, out any) error {

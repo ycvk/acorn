@@ -14,11 +14,12 @@ tags:
   - name: health
   - name: devices
   - name: system
-  - name: memory
   - name: skills
   - name: sessions
   - name: runs
   - name: client
+  - name: captures
+  - name: knowledge
 paths:
   /healthz:
     get:
@@ -58,59 +59,6 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
-  /v1/triggers/{trigger_id}:
-    post:
-      tags: [triggers]
-      security: []
-      summary: Receive an external webhook and fire a trigger
-      description: |
-        Endpoint for ambient webhook triggers. Not behind device auth —
-        authentication is via HMAC-SHA256 signature (X-Acorn-Signature header).
-        When a trigger fires, the scheduler starts a new run on a trigger-specific thread.
-      operationId: clientWebhookTrigger
-      parameters:
-        - name: trigger_id
-          in: path
-          required: true
-          schema:
-            type: string
-          description: The trigger ID configured in triggers.webhooks
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: string
-              description: Arbitrary webhook payload (raw body)
-      responses:
-        '202':
-          description: Webhook accepted and trigger fired
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                    example: accepted
-        '401':
-          description: Webhook signature verification failed
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '404':
-          description: Trigger not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '503':
-          description: Trigger scheduler not configured
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
   /v1/devices:
     get:
       tags: [devices]
@@ -146,6 +94,29 @@ paths:
           $ref: '#/components/responses/DeviceRevoked'
         '404':
           $ref: '#/components/responses/DeviceNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/devices/self/push-token:
+    put:
+      tags: [devices]
+      summary: Register this device's FCM token for push notifications
+      operationId: clientSetPushToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PushTokenRequest'
+      responses:
+        '204':
+          description: Push token stored
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/DeviceRevoked'
         '500':
           $ref: '#/components/responses/InternalError'
 
@@ -354,7 +325,9 @@ paths:
         across diagnostic events that are not emitted. Mobile clients persist
         `{run_id,last_seq}` locally, pass `last_seq` as `after_seq`, receive
         backlog events first, and then receive live follow events when
-        `follow=true`.
+        `follow=true`. A followed stream ends once the run has succeeded or
+        failed; it stays open while the run is interrupted, because the server
+        resumes the run after the owner decides.
       operationId: clientGetRunEvents
       parameters:
         - $ref: '#/components/parameters/RunID'
@@ -403,27 +376,6 @@ paths:
           $ref: '#/components/responses/RunNotFound'
         '409':
           $ref: '#/components/responses/RunNotActive'
-        '500':
-          $ref: '#/components/responses/InternalError'
-
-  /v1/runs/{run_id}:resume:
-    post:
-      tags: [client]
-      summary: Resume an interrupted client run
-      operationId: clientResumeRun
-      parameters:
-        - $ref: '#/components/parameters/RunID'
-      responses:
-        '200':
-          description: Resume result
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/RunResult'
-        '404':
-          $ref: '#/components/responses/RunNotFound'
-        '409':
-          $ref: '#/components/responses/RunNotResumable'
         '500':
           $ref: '#/components/responses/InternalError'
 
@@ -585,107 +537,6 @@ paths:
               schema:
                 $ref: '#/components/schemas/ToolListResponse'
 
-  /v1/memory/facts:
-    get:
-      tags: [memory]
-      summary: List file-backed memory facts
-      operationId: clientListMemoryFacts
-      parameters:
-        - $ref: '#/components/parameters/Limit'
-        - $ref: '#/components/parameters/IncludeInactive'
-        - $ref: '#/components/parameters/IncludeRetired'
-      responses:
-        '200':
-          description: File-backed fact records
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/MemoryRecordListResponse'
-        '400':
-          $ref: '#/components/responses/InvalidRequest'
-        '500':
-          $ref: '#/components/responses/InternalError'
-
-  /v1/memory/skills:
-    get:
-      tags: [memory]
-      summary: List file-backed memory skills
-      operationId: clientListMemorySkills
-      parameters:
-        - $ref: '#/components/parameters/Limit'
-        - $ref: '#/components/parameters/IncludeInactive'
-        - $ref: '#/components/parameters/IncludeRetired'
-      responses:
-        '200':
-          description: File-backed skill records
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/MemoryRecordListResponse'
-        '400':
-          $ref: '#/components/responses/InvalidRequest'
-        '500':
-          $ref: '#/components/responses/InternalError'
-
-  /v1/memory/history:
-    get:
-      tags: [memory]
-      summary: List file-backed memory history records
-      operationId: clientListMemoryHistory
-      parameters:
-        - $ref: '#/components/parameters/Limit'
-        - $ref: '#/components/parameters/IncludeInactive'
-        - $ref: '#/components/parameters/IncludeRetired'
-      responses:
-        '200':
-          description: File-backed history records
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/MemoryRecordListResponse'
-        '400':
-          $ref: '#/components/responses/InvalidRequest'
-        '500':
-          $ref: '#/components/responses/InternalError'
-
-  /v1/memory/search:
-    get:
-      tags: [memory]
-      summary: Search file-backed memory facts, skills, and history
-      operationId: clientSearchMemory
-      parameters:
-        - name: query
-          in: query
-          required: false
-          schema:
-            type: string
-        - name: kind
-          in: query
-          required: false
-          description: Memory kind.
-          schema:
-            type: string
-            enum: [fact, skill, history]
-        - name: scope
-          in: query
-          required: false
-          schema:
-            type: string
-        - $ref: '#/components/parameters/Limit'
-        - $ref: '#/components/parameters/IncludeInactive'
-        - $ref: '#/components/parameters/IncludeRetired'
-      responses:
-        '200':
-          description: Memory search results
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/MemorySearchResponse'
-        '400':
-          $ref: '#/components/responses/InvalidRequest'
-        '500':
-          $ref: '#/components/responses/InternalError'
-
   /v1/skills:
     get:
       tags: [skills]
@@ -750,6 +601,143 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /v1/phone-notifications:
+    post:
+      tags: [phone-notifications]
+      operationId: clientPostPhoneNotifications
+      summary: Upload notifications captured by this device
+      description: Stores background signals without waking the agent. Entries are deduplicated by authenticated device, key and posted_at. Raw signals are retained for seven days; derived conversation, context snapshot and knowledge records follow their own retention.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PhoneNotificationBatch'
+      responses:
+        '200':
+          description: Batch stored, including already accepted entries
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PhoneNotificationAccepted'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/DeviceRevoked'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/captures:
+    post:
+      tags: [captures]
+      summary: Hand the agent something shared from the phone
+      description: |
+        Starts a run in a new thread whose input (role `capture`) lists the
+        shared subject, text and image. An image is stored in the knowledge
+        base under `attachments/` before the run starts. Text or an image is
+        required.
+      operationId: clientCreateCapture
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CaptureRequest'
+      responses:
+        '202':
+          description: Capture accepted; the run has started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CaptureAccepted'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/DeviceRevoked'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '503':
+          $ref: '#/components/responses/ExecutionNotReady'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/knowledge/notes:
+    get:
+      tags: [knowledge]
+      summary: Search or list knowledge base notes
+      description: |
+        With `q`, notes ranked by relevance; without it, notes by update time,
+        newest first. Notes edited directly in the knowledge directory are
+        included.
+      operationId: clientListKnowledgeNotes
+      parameters:
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: prefix
+          in: query
+          required: false
+          description: Only notes whose path starts with this. Ignored with `q`.
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        '200':
+          description: Notes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KnowledgeNoteListResponse'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/DeviceRevoked'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/knowledge/note:
+    get:
+      tags: [knowledge]
+      summary: Read one knowledge base note
+      operationId: clientGetKnowledgeNote
+      parameters:
+        - name: path
+          in: query
+          required: true
+          description: Note path relative to the knowledge base, e.g. inbox/tokio.md.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The note
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KnowledgeNote'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/DeviceRevoked'
+        '404':
+          $ref: '#/components/responses/KnowledgeNoteNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -789,22 +777,6 @@ components:
       schema:
         type: integer
         minimum: 1
-    IncludeInactive:
-      name: include_inactive
-      in: query
-      required: false
-      description: Include date-inactive and superseded memory records. Defaults to false.
-      schema:
-        type: boolean
-        default: false
-    IncludeRetired:
-      name: include_retired
-      in: query
-      required: false
-      description: Include retired memory records. Defaults to false.
-      schema:
-        type: boolean
-        default: false
     Offset:
       name: offset
       in: query
@@ -871,6 +843,30 @@ components:
                 error:
                   code: device_not_found
                   message: device not found
+    KnowledgeNoteNotFound:
+      description: Knowledge note not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            knowledgeNoteNotFound:
+              value:
+                error:
+                  code: knowledge_note_not_found
+                  message: 'knowledge note not found: inbox/missing.md'
+    PayloadTooLarge:
+      description: Request body too large
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            payloadTooLarge:
+              value:
+                error:
+                  code: payload_too_large
+                  message: image is larger than 10 MiB
     InvalidRequest:
       description: Invalid request
       content:
@@ -907,18 +903,6 @@ components:
                 error:
                   code: run_not_found
                   message: run run_123 not found
-    RunNotResumable:
-      description: Run exists but cannot be resumed
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-          examples:
-            runNotResumable:
-              value:
-                error:
-                  code: run_not_resumable
-                  message: run run_123 is not interrupted
     RunNotActive:
       description: Run exists but is not currently active
       content:
@@ -984,18 +968,6 @@ components:
                 error:
                   code: run_event_projection_failed
                   message: client projection failed
-    FactNotFound:
-      description: Memory fact not found
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorResponse'
-          examples:
-            factNotFound:
-              value:
-                error:
-                  code: fact_not_found
-                  message: fact not found
     SkillNotFound:
       description: Skill not found
       content:
@@ -1094,159 +1066,6 @@ components:
           $ref: '#/components/schemas/Device'
         access_token:
           type: string
-
-    MemoryScope:
-      type: object
-      additionalProperties: false
-      required: [type, key]
-      properties:
-        type:
-          type: string
-          enum: [global_user, machine, workspace, thread, run, skill, unknown]
-        key:
-          type: string
-
-    MemoryRecord:
-      type: object
-      additionalProperties: false
-      required: [ref, kind, title, status, path, body]
-      properties:
-        ref:
-          type: string
-        kind:
-          type: string
-          enum: [fact, skill, history]
-        title:
-          type: string
-        status:
-          type: string
-          enum: [unverified, verified, retired]
-        scope:
-          type: string
-        tags:
-          type: array
-          items:
-            type: string
-        origin:
-          type: string
-          enum: [human, agent_draft, action_verified]
-        task_pattern:
-          type: string
-        path:
-          type: string
-        body:
-          type: string
-        created:
-          type: string
-        updated:
-          type: string
-        valid_from:
-          type: string
-        valid_until:
-          type: string
-        source_run:
-          type: string
-        source_refs:
-          type: array
-          items:
-            type: string
-        evidence_refs:
-          type: array
-          items:
-            type: string
-        relations:
-          type: array
-          items:
-            $ref: '#/components/schemas/MemoryRecordRelation'
-
-    MemoryRecordRelation:
-      type: object
-      additionalProperties: false
-      required: [type, target]
-      properties:
-        type:
-          type: string
-          enum: [supports, derived_from, supersedes, contradicts]
-        target:
-          type: string
-        reason:
-          type: string
-
-    MemoryRecordListResponse:
-      type: object
-      additionalProperties: false
-      required: [items]
-      properties:
-        items:
-          type: array
-          items:
-            $ref: '#/components/schemas/MemoryRecord'
-
-    MemorySearchItem:
-      type: object
-      additionalProperties: false
-      required: [ref, kind, title, status, path, snippet, score]
-      properties:
-        ref:
-          type: string
-        kind:
-          type: string
-          enum: [fact, skill, history]
-        title:
-          type: string
-        status:
-          type: string
-          enum: [unverified, verified, retired]
-        scope:
-          type: string
-        tags:
-          type: array
-          items:
-            type: string
-        origin:
-          type: string
-          enum: [human, agent_draft, action_verified]
-        task_pattern:
-          type: string
-        path:
-          type: string
-        snippet:
-          type: string
-        score:
-          type: number
-          format: double
-        created:
-          type: string
-        updated:
-          type: string
-        valid_from:
-          type: string
-        valid_until:
-          type: string
-        source_run:
-          type: string
-        source_refs:
-          type: array
-          items:
-            type: string
-        evidence_refs:
-          type: array
-          items:
-            type: string
-        relations:
-          type: array
-          items:
-            $ref: '#/components/schemas/MemoryRecordRelation'
-
-    MemorySearchResponse:
-      type: object
-      additionalProperties: false
-      required: [items]
-      properties:
-        items:
-          type: array
-          items:
-            $ref: '#/components/schemas/MemorySearchItem'
 
     SkillRequirements:
       type: object
@@ -1438,11 +1257,8 @@ components:
       type: object
       additionalProperties: false
       required:
-        - interrupt_resume
         - session_history
       properties:
-        interrupt_resume:
-          type: boolean
         session_history:
           type: boolean
 
@@ -1470,8 +1286,6 @@ components:
         health_state:
           type: string
         health_reason:
-          type: string
-        parallel_policy:
           type: string
         plan_policy:
           type: string
@@ -1613,7 +1427,7 @@ components:
           type: string
         kind:
           type: string
-          enum: [elicitation, operator_question]
+          enum: [elicitation, operator_question, tool_approval]
         status:
           type: string
           enum: [pending]
@@ -1819,7 +1633,12 @@ components:
           type: string
         role:
           type: string
-          enum: [user, assistant, system, tool]
+          enum: [user, wake, capture, assistant, system, tool]
+          description: |
+            `wake` is the input of a run started by one of the agent's
+            commitments, not something the owner wrote. `capture` is the
+            input of a run started by something the owner shared from their
+            phone.
         content:
           $ref: '#/components/schemas/MessageContent'
         created_at:
@@ -1881,7 +1700,6 @@ components:
       oneOf:
         - $ref: '#/components/schemas/ClientRunStartedEvent'
         - $ref: '#/components/schemas/ClientAssistantDeltaEvent'
-        - $ref: '#/components/schemas/ClientAgentMessageEvent'
         - $ref: '#/components/schemas/ClientRunCompletedEvent'
         - $ref: '#/components/schemas/ClientRunFailedEvent'
         - $ref: '#/components/schemas/ClientRunInterruptedEvent'
@@ -1890,13 +1708,13 @@ components:
         - $ref: '#/components/schemas/ClientElicitationDecidedEvent'
         - $ref: '#/components/schemas/ClientOperatorQuestionPendingEvent'
         - $ref: '#/components/schemas/ClientOperatorQuestionDecidedEvent'
-        - $ref: '#/components/schemas/ClientDecisionBlockedEvent'
+        - $ref: '#/components/schemas/ClientToolApprovalPendingEvent'
+        - $ref: '#/components/schemas/ClientToolApprovalDecidedEvent'
       discriminator:
         propertyName: type
         mapping:
           run.started: '#/components/schemas/ClientRunStartedEvent'
           assistant.delta: '#/components/schemas/ClientAssistantDeltaEvent'
-          agent.message: '#/components/schemas/ClientAgentMessageEvent'
           run.completed: '#/components/schemas/ClientRunCompletedEvent'
           run.failed: '#/components/schemas/ClientRunFailedEvent'
           run.interrupted: '#/components/schemas/ClientRunInterruptedEvent'
@@ -1905,7 +1723,8 @@ components:
           elicitation.decided: '#/components/schemas/ClientElicitationDecidedEvent'
           operator_question.pending: '#/components/schemas/ClientOperatorQuestionPendingEvent'
           operator_question.decided: '#/components/schemas/ClientOperatorQuestionDecidedEvent'
-          decision_blocked: '#/components/schemas/ClientDecisionBlockedEvent'
+          tool_approval.pending: '#/components/schemas/ClientToolApprovalPendingEvent'
+          tool_approval.decided: '#/components/schemas/ClientToolApprovalDecidedEvent'
 
     RunEventBase:
       type: object
@@ -1946,17 +1765,6 @@ components:
               const: assistant.delta
             data:
               $ref: '#/components/schemas/AssistantDeltaData'
-
-    ClientAgentMessageEvent:
-      allOf:
-        - $ref: '#/components/schemas/RunEventBase'
-        - type: object
-          required: [type, data]
-          properties:
-            type:
-              const: agent.message
-            data:
-              $ref: '#/components/schemas/AgentMessageData'
 
     ClientRunCompletedEvent:
       allOf:
@@ -2046,16 +1854,27 @@ components:
             data:
               $ref: '#/components/schemas/OperatorQuestionData'
 
-    ClientDecisionBlockedEvent:
+    ClientToolApprovalPendingEvent:
       allOf:
         - $ref: '#/components/schemas/RunEventBase'
         - type: object
           required: [type, data]
           properties:
             type:
-              const: decision_blocked
+              const: tool_approval.pending
             data:
-              $ref: '#/components/schemas/DecisionBlockedData'
+              $ref: '#/components/schemas/ToolApprovalData'
+
+    ClientToolApprovalDecidedEvent:
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: tool_approval.decided
+            data:
+              $ref: '#/components/schemas/ToolApprovalData'
 
     RunStartedData:
       type: object
@@ -2071,14 +1890,6 @@ components:
       properties:
         assistant_delta:
           $ref: '#/components/schemas/RunEventAssistantDelta'
-
-    AgentMessageData:
-      type: object
-      additionalProperties: false
-      required: [message]
-      properties:
-        message:
-          $ref: '#/components/schemas/RunEventMessage'
 
     RunCompletedData:
       type: object
@@ -2144,16 +1955,159 @@ components:
         answer:
           type: string
 
-    DecisionBlockedData:
+    PhoneNotificationBatch:
       type: object
       additionalProperties: false
+      required: [notifications]
       properties:
-        action:
+        notifications:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/PhoneNotificationInput'
+    PhoneNotificationInput:
+      type: object
+      additionalProperties: false
+      required: [key, package, app, posted_at]
+      properties:
+        key:
           type: string
-        decision_reason:
+          minLength: 1
+          maxLength: 256
+          description: Android notification key; limited to 256 UTF-8 bytes.
+        package:
           type: string
-        explicit_skill_id:
+          minLength: 1
+          maxLength: 256
+        app:
           type: string
+          minLength: 1
+          maxLength: 256
+        title:
+          type: string
+          maxLength: 200
+          default: ''
+        text:
+          type: string
+          maxLength: 2000
+          default: ''
+        posted_at:
+          type: string
+          format: date-time
+          description: Notification time, at most five minutes ahead of the server.
+    PhoneNotificationAccepted:
+      type: object
+      additionalProperties: false
+      required: [accepted]
+      properties:
+        accepted:
+          type: integer
+          minimum: 0
+          description: Number of newly inserted entries.
+
+    PushTokenRequest:
+      type: object
+      additionalProperties: false
+      required: [token]
+      properties:
+        token:
+          type: string
+          minLength: 1
+
+    CaptureRequest:
+      type: object
+      properties:
+        text:
+          type: string
+          maxLength: 16384
+          description: Shared text, often a link, plus the owner's note.
+        subject:
+          type: string
+          description: Title the sharing app gave, such as a page title.
+        image:
+          type: string
+          format: binary
+          description: JPEG, PNG, WebP or GIF, at most 10 MiB.
+
+    CaptureAccepted:
+      type: object
+      additionalProperties: false
+      required: [thread_id, run_id]
+      properties:
+        thread_id:
+          type: string
+        run_id:
+          type: string
+
+    KnowledgeNoteSummary:
+      type: object
+      additionalProperties: false
+      required: [path, title, tags, snippet, updated_at]
+      properties:
+        path:
+          type: string
+        title:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        snippet:
+          type: string
+        updated_at:
+          type: string
+          format: date-time
+
+    KnowledgeNoteListResponse:
+      type: object
+      additionalProperties: false
+      required: [notes]
+      properties:
+        notes:
+          type: array
+          items:
+            $ref: '#/components/schemas/KnowledgeNoteSummary'
+
+    KnowledgeNote:
+      type: object
+      additionalProperties: false
+      required: [path, title, tags, updated_at, body]
+      properties:
+        path:
+          type: string
+        title:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        source:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        body:
+          type: string
+          description: Markdown body without frontmatter.
+
+    ToolApprovalData:
+      type: object
+      additionalProperties: false
+      required: [action_id]
+      properties:
+        action_id:
+          type: string
+        tool_name:
+          type: string
+        arguments:
+          type: string
+        decision:
+          type: string
+          enum: [accept, decline]
 
     RunDetail:
       type: object
@@ -2305,21 +2259,3 @@ components:
           type: string
         message:
           type: string
-
-    RunResult:
-      type: object
-      additionalProperties: false
-      required: [run_id, status]
-      properties:
-        run_id:
-          type: string
-        status:
-          type: string
-          enum: [running, completed, interrupted, failed]
-        output:
-          type: string
-        error:
-          type: string
-        interrupted:
-          type: object
-          additionalProperties: true

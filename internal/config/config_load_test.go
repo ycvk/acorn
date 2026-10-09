@@ -73,13 +73,6 @@ agent:
 tools:
   workspace:
     root_dir: .
-  mutation:
-    disabled: true
-    root_dir: .
-  run_command:
-    disabled: true
-    default_timeout: 30
-    work_dir: .
 mcp:
   providers: []
 `
@@ -118,13 +111,6 @@ agent:
 tools:
   workspace:
     root_dir: .
-  mutation:
-    disabled: true
-    root_dir: .
-  run_command:
-    disabled: true
-    default_timeout: 30
-    work_dir: .
 mcp:
   providers: []
 `
@@ -142,7 +128,8 @@ mcp:
 }
 
 func TestLoadSelfHostedExample(t *testing.T) {
-	t.Setenv("HOME", "/root")
+	home := t.TempDir()
+	t.Setenv("HOME", home)
 	t.Setenv("OPENAI_API_KEY", "sk-test")
 
 	cfg, err := Load("../../configs/acorn.selfhosted.example.yaml")
@@ -152,7 +139,7 @@ func TestLoadSelfHostedExample(t *testing.T) {
 	if got := cfg.Providers[0].APIKey; got != "sk-test" {
 		t.Fatalf("provider api_key = %q, want env-expanded test key", got)
 	}
-	if got, want := cfg.Runtime.StorageDir, "/root/.acorn"; got != want {
+	if got, want := cfg.Runtime.StorageDir, filepath.Join(home, ".acorn"); got != want {
 		t.Fatalf("runtime.storage_dir = %q, want %q", got, want)
 	}
 	if got := cfg.Web.ListenAddr; got != "127.0.0.1:8080" {
@@ -160,9 +147,6 @@ func TestLoadSelfHostedExample(t *testing.T) {
 	}
 	if got := cfg.Tools.Workspace.RootDir; got != "/srv/acorn/workspace" {
 		t.Fatalf("toolset.workspace.root_dir = %q, want /srv/acorn/workspace", got)
-	}
-	if got := cfg.Tools.RunCommand.WorkDir; got != "/srv/acorn/workspace" {
-		t.Fatalf("toolset.run_command.work_dir = %q, want /srv/acorn/workspace", got)
 	}
 }
 
@@ -202,13 +186,6 @@ agent:
 tools:
   workspace:
     root_dir: .
-  mutation:
-    disabled: true
-    root_dir: .
-  run_command:
-    disabled: true
-    default_timeout: 30
-    work_dir: .
 mcp:
   providers: []
 `

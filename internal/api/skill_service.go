@@ -17,10 +17,7 @@ type SkillService struct {
 	scanner *skills.Loader
 }
 
-var (
-	ErrSkillAlreadyExists = errors.New("skill already exists")
-	ErrSkillNotFound      = errors.New("skill not found")
-)
+var ErrSkillNotFound = errors.New("skill not found")
 
 func NewSkillService(cfg *config.Config, scanner *skills.Loader) *SkillService {
 	return &SkillService{cfg: cfg, scanner: scanner}
@@ -61,22 +58,6 @@ func (s *SkillService) Health(ctx context.Context) (*skills.HealthReport, error)
 type SkillListFilter struct {
 	Limit  int
 	Offset int
-}
-
-type CreateSkillInput struct {
-	ID           string              `json:"id"`
-	Name         string              `json:"name"`
-	Version      string              `json:"version,omitempty"`
-	Category     string              `json:"category,omitempty"`
-	Summary      string              `json:"summary,omitempty"`
-	PromotedFrom string              `json:"promoted_from,omitempty"`
-	Origin       skills.Origin       `json:"origin,omitempty"`
-	TaskPattern  string              `json:"task_pattern,omitempty"`
-	Instruction  string              `json:"instruction"`
-	Tags         []string            `json:"tags,omitempty"`
-	Platforms    []string            `json:"platforms,omitempty"`
-	TriggerHints []string            `json:"trigger_hints,omitempty"`
-	Requires     skills.Requirements `json:"requirements,omitempty"`
 }
 
 type SkillFileView struct {
@@ -133,53 +114,6 @@ func (s *SkillService) Get(ctx context.Context, id string) (*skills.View, error)
 	return nil, fmt.Errorf("%w: %s", ErrSkillNotFound, trimmedID)
 }
 
-func (s *SkillService) Create(ctx context.Context, input CreateSkillInput) (*skills.View, error) {
-	if s == nil || s.scanner == nil {
-		return nil, errors.New("stable skill scanner is nil")
-	}
-	spec, err := s.scanner.CreateSkill(ctx, skills.CreateInput{
-		ID:           input.ID,
-		Name:         input.Name,
-		Version:      input.Version,
-		Category:     input.Category,
-		Summary:      input.Summary,
-		PromotedFrom: input.PromotedFrom,
-		Origin:       input.Origin,
-		TaskPattern:  input.TaskPattern,
-		Instruction:  input.Instruction,
-		Tags:         append([]string(nil), input.Tags...),
-		Platforms:    append([]string(nil), input.Platforms...),
-		TriggerHints: append([]string(nil), input.TriggerHints...),
-		Requires:     skills.CopyRequirements(input.Requires),
-	})
-	if err != nil {
-		return nil, translateSkillStoreError(err)
-	}
-	view, err := skills.Evaluate(*spec, staticSkillEligibilityContext(s.cfg))
-	if err != nil {
-		return nil, err
-	}
-	copied := skills.CopyView(view)
-	return &copied, nil
-}
-
-func (s *SkillService) Patch(ctx context.Context, id, content, source string) (*skills.View, error) {
-	if s == nil || s.scanner == nil {
-		return nil, errors.New("stable skill scanner is nil")
-	}
-	if err := s.scanner.PatchSkillWithSource(ctx, id, content, source); err != nil {
-		return nil, translateSkillStoreError(err)
-	}
-	return s.Get(ctx, id)
-}
-
-func (s *SkillService) Delete(ctx context.Context, id string) error {
-	if s == nil || s.scanner == nil {
-		return errors.New("stable skill scanner is nil")
-	}
-	return translateSkillStoreError(s.scanner.DeleteSkill(ctx, id))
-}
-
 func (s *SkillService) ReadFile(ctx context.Context, id, relativePath string) (*SkillFileView, error) {
 	if s == nil || s.scanner == nil {
 		return nil, errors.New("stable skill scanner is nil")
@@ -199,8 +133,6 @@ func translateSkillStoreError(err error) error {
 	switch {
 	case err == nil:
 		return nil
-	case errors.Is(err, skills.ErrAlreadyExists):
-		return fmt.Errorf("%w: %v", ErrSkillAlreadyExists, err)
 	case errors.Is(err, skills.ErrNotFound):
 		return fmt.Errorf("%w: %v", ErrSkillNotFound, err)
 	default:
@@ -221,7 +153,7 @@ func environmentMap() map[string]string {
 }
 
 func localEligibilityToolNames(cfg *config.Config) []string {
-	specs := tools.ConfiguredLocalSpecs(cfg)
+	specs := tools.ConfiguredLocalSpecs()
 	names := make([]string, 0, len(specs)+11)
 	seen := make(map[string]struct{}, len(specs)+11)
 	for _, spec := range specs {

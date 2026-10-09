@@ -215,7 +215,7 @@ func (s *ThreadService) ListMessages(ctx context.Context, threadID string, limit
 }
 
 func (s *ThreadService) CreateMessage(ctx context.Context, threadID, content string) (*Message, error) {
-	record, err := s.createUserMessage(ctx, threadID, content)
+	record, err := s.createInputMessage(ctx, threadID, "user", content)
 	if err != nil {
 		return nil, err
 	}
@@ -226,9 +226,10 @@ func (s *ThreadService) CreateMessage(ctx context.Context, threadID, content str
 	return &message, nil
 }
 
-// createUserMessage records a pending user message and returns the stored record
-// (including its id and turn index) so a run can bind to that exact message id.
-func (s *ThreadService) createUserMessage(ctx context.Context, threadID, content string) (*core.SessionMessageRecord, error) {
+// createInputMessage records the input of a run, the owner's message (role
+// user), a commitment wake (role wake) or a capture (role capture), and returns the stored record
+// (including its id and turn index) so the run can bind to that exact id.
+func (s *ThreadService) createInputMessage(ctx context.Context, threadID, role, content string) (*core.SessionMessageRecord, error) {
 	if s == nil || s.store == nil {
 		return nil, errors.New("client store is nil")
 	}
@@ -240,7 +241,7 @@ func (s *ThreadService) createUserMessage(ctx context.Context, threadID, content
 		return nil, err
 	}
 	trimmed := strings.TrimSpace(content)
-	record, err := s.store.AppendSessionMessage(ctx, threadID, turnIndex, "user", trimmed, "")
+	record, err := s.store.AppendSessionMessage(ctx, threadID, turnIndex, role, trimmed, "")
 	if err != nil {
 		return nil, err
 	}
@@ -252,7 +253,7 @@ func (s *ThreadService) createUserMessage(ctx context.Context, threadID, content
 
 func projectMessage(record core.SessionMessageRecord) (Message, error) {
 	switch record.Role {
-	case "user", "assistant", "system", "tool":
+	case "user", core.MessageRoleWake, core.MessageRoleCapture, "assistant", "system", "tool":
 	default:
 		return Message{}, projectionError("message %d has unsupported role %q", record.ID, record.Role)
 	}

@@ -23,12 +23,6 @@ func NewHandler(deps Dependencies) (http.Handler, error) {
 	if deps.PendingAction == nil {
 		return nil, errors.New("web pending action service is required")
 	}
-	if deps.RunResume == nil {
-		return nil, errors.New("web run resume service is required")
-	}
-	if deps.Memory == nil {
-		return nil, errors.New("web memory service is required")
-	}
 	if deps.Skills == nil {
 		return nil, errors.New("web skill service is required")
 	}
@@ -41,26 +35,35 @@ func NewHandler(deps Dependencies) (http.Handler, error) {
 	if deps.Inbox == nil {
 		return nil, errors.New("web inbox service is required")
 	}
+	if deps.Knowledge == nil {
+		return nil, errors.New("web knowledge service is required")
+	}
+	if deps.Captures == nil {
+		return nil, errors.New("web capture service is required")
+	}
 
+	if deps.PhoneNotifications == nil {
+		return nil, errors.New("phone notification service is required")
+	}
 	logger := deps.Logger
 	if logger == nil {
 		logger = slog.Default()
 	}
 
 	server := &Server{
-		threads:       deps.Threads,
-		runs:          deps.Runs,
-		events:        deps.Events,
-		pendingAction: deps.PendingAction,
-		runResume:     deps.RunResume,
-		memory:        deps.Memory,
-		skills:        deps.Skills,
-		capabilities:  deps.Capabilities,
-		deviceAuth:    deps.DeviceAuth,
-		inbox:         deps.Inbox,
-		triggerSched:  deps.TriggerScheduler,
-		logger:        logger,
-		cfg:           deps.Config,
+		threads:            deps.Threads,
+		runs:               deps.Runs,
+		events:             deps.Events,
+		pendingAction:      deps.PendingAction,
+		skills:             deps.Skills,
+		capabilities:       deps.Capabilities,
+		deviceAuth:         deps.DeviceAuth,
+		inbox:              deps.Inbox,
+		knowledge:          deps.Knowledge,
+		captures:           deps.Captures,
+		phoneNotifications: deps.PhoneNotifications,
+		logger:             logger,
+		cfg:                deps.Config,
 	}
 
 	router := chi.NewRouter()
@@ -83,11 +86,11 @@ func (s *Server) registerRoutes(router chi.Router) {
 	router.Get("/healthz", s.handleHealthz)
 	router.Route("/v1", func(r chi.Router) {
 		r.Post("/devices:pair", s.handlePairDevice)
-		r.Post("/triggers/{trigger_id}", s.handleWebhookTrigger)
 		r.Group(func(r chi.Router) {
 			r.Use(s.requireDeviceAuth)
 			r.Get("/devices", s.handleListDevices)
 			r.Delete("/devices/{device_id}", s.handleRevokeDevice)
+			r.Put("/devices/self/push-token", s.handleSetPushToken)
 			r.Route("/threads", func(r chi.Router) {
 				r.Get("/", s.handleClientListThreads)
 				r.Post("/", s.handleClientCreateThread)
@@ -101,7 +104,6 @@ func (s *Server) registerRoutes(router chi.Router) {
 				})
 			})
 			r.Post("/runs/{run_id}:interrupt", s.handleClientInterruptRun)
-			r.Post("/runs/{run_id}:resume", s.handleClientResumeRun)
 			r.Route("/runs/{run_id}", func(r chi.Router) {
 				r.Get("/", s.handleClientGetRun)
 				r.Get("/events", s.handleRunEvents)
@@ -111,14 +113,12 @@ func (s *Server) registerRoutes(router chi.Router) {
 			r.Get("/pending-actions/{action_id}", s.handleGetPendingAction)
 			r.Post("/pending-actions/{action_id}:decide", s.handleDecidePendingAction)
 			r.Get("/inbox", s.handleClientInbox)
+			r.Post("/phone-notifications", s.handlePhoneNotifications)
+			r.Post("/captures", s.handleCreateCapture)
+			r.Get("/knowledge/notes", s.handleListKnowledgeNotes)
+			r.Get("/knowledge/note", s.handleGetKnowledgeNote)
 			r.Get("/system/status", s.handleClientSystemStatus)
 			r.Get("/tools", s.handleClientTools)
-			r.Route("/memory", func(r chi.Router) {
-				r.Get("/facts", s.handleListMemoryFacts)
-				r.Get("/skills", s.handleListMemorySkills)
-				r.Get("/history", s.handleListMemoryHistory)
-				r.Get("/search", s.handleSearchMemory)
-			})
 			r.Route("/skills", func(r chi.Router) {
 				r.Get("/", s.handleListSkills)
 				r.Route("/{id}", func(r chi.Router) {

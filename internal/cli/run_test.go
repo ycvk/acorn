@@ -7,7 +7,7 @@ import (
 )
 
 // T-001 RED: `acorn run` must exist as a user-facing one-shot run command
-// (direct_response by default, synchronous output). These assert structural
+// (one task with synchronous output). These assert structural
 // existence only — a full turn requires a configured provider and is verified
 // as an integration check, not a unit test.
 

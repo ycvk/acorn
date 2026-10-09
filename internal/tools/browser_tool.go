@@ -15,16 +15,16 @@ import (
 const defaultBrowserPreviewBytes = 4000
 
 type BrowserInput struct {
-	Action      string `json:"action" jsonschema:"required,description=Browser action: status, open, tabs, scan, snapshot, click, fill, press, select, screenshot, console, network, or close."`
-	Mode        string `json:"mode,omitempty" jsonschema:"description=Mode for console or network actions: start, list, or stop."`
-	URL         string `json:"url,omitempty" jsonschema:"description=URL for open."`
-	Ref         string `json:"ref,omitempty" jsonschema:"description=Element ref from snapshot. Mutually exclusive with selector."`
-	Selector    string `json:"selector,omitempty" jsonschema:"description=CSS selector. Must match exactly one element for interaction actions."`
-	Text        string `json:"text,omitempty" jsonschema:"description=Text for fill."`
-	Key         string `json:"key,omitempty" jsonschema:"description=Key for press, such as Enter or Tab."`
-	Value       string `json:"value,omitempty" jsonschema:"description=Value/label/text for select."`
-	ExtractMode string `json:"extract_mode,omitempty" jsonschema:"description=Scan extraction mode: auto, readability, full_page_markdown, or visible_text."`
-	FullPage    bool   `json:"full_page,omitempty" jsonschema:"description=Capture a full-page screenshot instead of the viewcore."`
+	Action      string `json:"action" jsonschema:"required" jsonschema_description:"Browser action: status, open, tabs, scan, snapshot, click, fill, press, select, screenshot, console, network, or close."`
+	Mode        string `json:"mode,omitempty" jsonschema_description:"Mode for console or network actions: start, list, or stop."`
+	URL         string `json:"url,omitempty" jsonschema_description:"URL for open."`
+	Ref         string `json:"ref,omitempty" jsonschema_description:"Element ref from snapshot. Mutually exclusive with selector."`
+	Selector    string `json:"selector,omitempty" jsonschema_description:"CSS selector. Must match exactly one element for interaction actions."`
+	Text        string `json:"text,omitempty" jsonschema_description:"Text for fill."`
+	Key         string `json:"key,omitempty" jsonschema_description:"Key for press, such as Enter or Tab."`
+	Value       string `json:"value,omitempty" jsonschema_description:"Value/label/text for select."`
+	ExtractMode string `json:"extract_mode,omitempty" jsonschema_description:"Scan extraction mode: auto, readability, full_page_markdown, or visible_text."`
+	FullPage    bool   `json:"full_page,omitempty" jsonschema_description:"Capture a full-page screenshot instead of the viewcore."`
 }
 
 type BrowserScanOutput struct {

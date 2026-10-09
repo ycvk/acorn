@@ -34,8 +34,7 @@ type CapabilitiesModelDTO struct {
 }
 
 type CapabilitiesFeaturesDTO struct {
-	InterruptResume bool `json:"interrupt_resume"`
-	SessionHistory  bool `json:"session_history"`
+	SessionHistory bool `json:"session_history"`
 }
 
 type RuntimeReadinessDTO struct {
@@ -53,18 +52,14 @@ type ProviderReadinessDTO struct {
 }
 
 type CapabilitiesToolDTO struct {
-	Name           string `json:"name"`
-	Source         string `json:"source"`
-	Kind           string `json:"kind"`
-	Category       string `json:"category"`
-	Enabled        bool   `json:"enabled"`
-	HealthState    string `json:"health_state"`
-	HealthReason   string `json:"health_reason,omitempty"`
-	ParallelPolicy string `json:"parallel_policy,omitempty"`
-	Risk           string `json:"risk"`
-	RootDir        string `json:"root_dir,omitempty"`
-	WorkDir        string `json:"work_dir,omitempty"`
-	DefaultTimeout int    `json:"default_timeout,omitempty"`
+	Name         string `json:"name"`
+	Source       string `json:"source"`
+	Kind         string `json:"kind"`
+	Category     string `json:"category"`
+	Enabled      bool   `json:"enabled"`
+	HealthState  string `json:"health_state"`
+	HealthReason string `json:"health_reason,omitempty"`
+	Risk         string `json:"risk"`
 }
 
 func runtimeReadinessDTOFromSnapshot(snapshot *RuntimeReadiness) RuntimeReadinessDTO {
@@ -208,47 +203,4 @@ func skillSummaryDTOsFromViews(items []skills.View) []SkillSummaryDTO {
 		out = append(out, skillSummaryDTOFromView(item))
 	}
 	return out
-}
-
-type MemoryRecordDTO struct {
-	Ref         string   `json:"ref"`
-	Kind        string   `json:"kind"`
-	Title       string   `json:"title"`
-	Status      string   `json:"status"`
-	Scope       string   `json:"scope,omitempty"`
-	Tags        []string `json:"tags,omitempty"`
-	Origin      string   `json:"origin,omitempty"`
-	TaskPattern string   `json:"task_pattern,omitempty"`
-	Path        string   `json:"path"`
-	Body        string   `json:"body"`
-	Created     string   `json:"created,omitempty"`
-	Updated     string   `json:"updated,omitempty"`
-	SourceRun   string   `json:"source_run,omitempty"`
-	SourceRefs  []string `json:"source_refs,omitempty"`
-}
-
-type MemoryRecordListResponse struct {
-	Items []MemoryRecordDTO `json:"items"`
-}
-
-type MemorySearchItemDTO struct {
-	Ref         string   `json:"ref"`
-	Kind        string   `json:"kind"`
-	Title       string   `json:"title"`
-	Status      string   `json:"status"`
-	Scope       string   `json:"scope,omitempty"`
-	Tags        []string `json:"tags,omitempty"`
-	Origin      string   `json:"origin,omitempty"`
-	TaskPattern string   `json:"task_pattern,omitempty"`
-	Path        string   `json:"path"`
-	Snippet     string   `json:"snippet"`
-	Score       float64  `json:"score"`
-	Created     string   `json:"created,omitempty"`
-	Updated     string   `json:"updated,omitempty"`
-	SourceRun   string   `json:"source_run,omitempty"`
-	SourceRefs  []string `json:"source_refs,omitempty"`
-}
-
-type MemorySearchResponse struct {
-	Items []MemorySearchItemDTO `json:"items"`
 }

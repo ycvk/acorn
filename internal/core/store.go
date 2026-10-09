@@ -34,9 +34,10 @@ type SessionStore interface {
 	// --- Runs ---
 	CreateRun(ctx context.Context, params RunCreateParams) error
 	LoadRun(ctx context.Context, runID string) (*RunRecord, error)
-	SearchRuns(ctx context.Context, query string, limit int) ([]RunRecord, error)
 	FinishRun(ctx context.Context, runID string, status RunStatus, output, errText string) error
 	MarkInterrupted(ctx context.Context, runID, output string) error
+	ResumeInterruptedRun(ctx context.Context, runID string) error
+	ListInterruptedRuns(ctx context.Context) ([]RunRecord, error)
 	UpdateRunOutput(ctx context.Context, runID, output string) error
 	ListActiveRuns(ctx context.Context, limit int) ([]RunRecord, error)
 	ListRecentTerminalRuns(ctx context.Context, limit int) ([]RunRecord, error)
@@ -51,6 +52,12 @@ type SessionStore interface {
 	ListPendingActions(ctx context.Context, limit int) ([]PendingActionRecord, error)
 	LoadPendingAction(ctx context.Context, actionID string) (*PendingActionRecord, error)
 	DecidePendingAction(ctx context.Context, actionID string, status PendingActionStatus, decisionJSON string) (*PendingActionRecord, error)
+	ListPendingActionsByRun(ctx context.Context, runID string) ([]PendingActionRecord, error)
+
+	// --- Agent checkpoints ---
+	LoadCheckpoint(ctx context.Context, checkpointID string) ([]byte, bool, error)
+	SaveCheckpoint(ctx context.Context, checkpointID string, data []byte) error
+	DeleteCheckpoint(ctx context.Context, checkpointID string) error
 }
 
 // IdentityStore handles device authentication and pairing codes.

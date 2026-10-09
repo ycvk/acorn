@@ -51,8 +51,12 @@ func Load(path string) (*Config, error) {
 	cfg.Runtime.StorageDir = resolveDir(cfg.ConfigDir, cfg.Runtime.StorageDir)
 	cfg.Browser.ExecutablePath = resolveExecutable(cfg.ConfigDir, cfg.Browser.ExecutablePath)
 	cfg.Tools.Workspace.RootDir = resolveDir(cfg.ConfigDir, cfg.Tools.Workspace.RootDir)
-	cfg.Tools.Mutation.RootDir = resolveDir(cfg.ConfigDir, cfg.Tools.Mutation.RootDir)
-	cfg.Tools.RunCommand.WorkDir = resolveDir(cfg.ConfigDir, cfg.Tools.RunCommand.WorkDir)
+	if cfg.Notify.FCM.ServiceAccountFile != "" {
+		cfg.Notify.FCM.ServiceAccountFile = resolveDir(cfg.ConfigDir, cfg.Notify.FCM.ServiceAccountFile)
+	}
+	if cfg.Knowledge.Dir != "" {
+		cfg.Knowledge.Dir = resolveDir(cfg.ConfigDir, cfg.Knowledge.Dir)
+	}
 	for i := range cfg.MCP.Providers {
 		cfg.MCP.Providers[i].WorkDir = resolveDir(cfg.ConfigDir, cfg.MCP.Providers[i].WorkDir)
 		cfg.MCP.Providers[i].Command = resolveExecutable(cfg.ConfigDir, cfg.MCP.Providers[i].Command)
@@ -73,6 +77,7 @@ func expandConfigEnv(cfg *Config) {
 		cfg.Providers[i].APIKey = os.ExpandEnv(cfg.Providers[i].APIKey)
 	}
 	cfg.WebAccess.Search.APIKey = os.ExpandEnv(cfg.WebAccess.Search.APIKey)
+	cfg.Watch.GitHubToken = os.ExpandEnv(cfg.Watch.GitHubToken)
 }
 
 func resolveDir(configDir, value string) string {

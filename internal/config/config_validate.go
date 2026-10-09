@@ -3,6 +3,8 @@ package config
 import (
 	"errors"
 	"fmt"
+	"path"
+	"path/filepath"
 	"strings"
 )
 
@@ -24,6 +26,28 @@ func (c *Config) ValidateBase() error {
 	}
 	if err := c.validateBrowserBase(); err != nil {
 		return err
+	}
+	if err := c.validatePresence(); err != nil {
+		return err
+	}
+	if err := c.validateKnowledge(); err != nil {
+		return err
+	}
+	if err := c.validateThinking(); err != nil {
+		return err
+	}
+	if err := c.validateWatch(); err != nil {
+		return err
+	}
+	for i, pattern := range c.Approval.Require {
+		// ask_operator already waits on the owner; gating it would ask twice.
+		matchesAskOperator, err := path.Match(pattern, "ask_operator")
+		if err != nil {
+			return fmt.Errorf("approval.require[%d] %q: %w", i, pattern, err)
+		}
+		if matchesAskOperator {
+			return fmt.Errorf("approval.require[%d] %q must not match ask_operator", i, pattern)
+		}
 	}
 	seenProviderNames := make(map[string]struct{}, len(c.MCP.Providers))
 	for _, provider := range c.MCP.Providers {
@@ -79,24 +103,6 @@ func (c *Config) ValidateBase() error {
 		default:
 			return fmt.Errorf("mcp.providers[%s]: auth.type must be one of none, oauth, api_key, got %q", name, authType)
 		}
-		safety := strings.TrimSpace(provider.ToolSafety)
-		if safety == "" {
-			return fmt.Errorf("mcp.providers[%s].tool_safety is required", name)
-		}
-		switch safety {
-		case "readonly", "read_only", "serial":
-		default:
-			return fmt.Errorf("mcp.providers[%s].tool_safety must be one of readonly|read_only|serial, got %q", name, safety)
-		}
-	}
-	if c.Memory.Search.MemoryContextTokenBudget <= 0 {
-		c.Memory.Search.MemoryContextTokenBudget = 8000
-	}
-	if err := c.validateMemoryEmbedding(); err != nil {
-		return err
-	}
-	if err := c.validateMemoryReview(); err != nil {
-		return err
 	}
 	return nil
 }
@@ -108,14 +114,8 @@ func (c *Config) ValidateExecutionReady() error {
 	if c.Agent.MaxIterations <= 0 {
 		return errors.New("runtime.max_iterations must be > 0")
 	}
-	if strings.TrimSpace(c.Tools.Workspace.RootDir) == "" {
-		return errors.New("toolset.workspace.root_dir is required")
-	}
-	if !c.Tools.RunCommand.Disabled && strings.TrimSpace(c.Tools.RunCommand.WorkDir) == "" {
-		return errors.New("toolset.run_command.work_dir is required when run_command is not disabled")
-	}
-	if _, err := c.Workspace(); err != nil {
-		return err
+	if c.WorkspaceRoot() == "" {
+		return errors.New("tools.workspace.root_dir is required")
 	}
 	if err := c.validateProviders(); err != nil {
 		return err
@@ -123,15 +123,20 @@ func (c *Config) ValidateExecutionReady() error {
 	if err := c.validateContext(); err != nil {
 		return err
 	}
+	if err := c.validatePresenceBudget(); err != nil {
+		return err
+	}
 	return nil
 }
 
+// WorkspaceRoot is the directory that holds the repo seed skills and the
+// workspace skills; Load resolves it against the config directory.
 func (c *Config) WorkspaceRoot() string {
-	ws, err := c.Workspace()
-	if err != nil || ws == nil {
+	root := strings.TrimSpace(c.Tools.Workspace.RootDir)
+	if root == "" {
 		return ""
 	}
-	return ws.Root()
+	return filepath.Clean(root)
 }
 
 func (c *Config) validateContext() error {
@@ -144,8 +149,8 @@ func (c *Config) validateContext() error {
 	if c.Context.CompactMarginTokens <= 1 {
 		return errors.New("context.compact_margin_tokens must be > 1")
 	}
-	if c.Context.PreserveRecentTurns < 1 {
-		return errors.New("context.preserve_recent_turns must be >= 1")
+	if c.Context.CompactMarginTokens >= c.Context.WindowTokens {
+		return errors.New("context.compact_margin_tokens must be < context.window_tokens")
 	}
 	if c.Context.MaskAfterTurns < 0 {
 		return errors.New("context.mask_after_turns must be >= 0")
@@ -187,35 +192,6 @@ func (c *Config) validateBrowserBase() error {
 	}
 	if c.Browser.DefaultTimeoutSeconds <= 0 {
 		return errors.New("browser.default_timeout_seconds must be > 0")
-	}
-	return nil
-}
-
-// validateMemoryEmbedding validates the embedding config. When enabled, the
-// model and dimensions must be set; defaults are applied if empty. When
-// disabled, no validation is performed (the feature is inert).
-func (c *Config) validateMemoryEmbedding() error {
-	if !c.Memory.Embedding.Enabled {
-		return nil
-	}
-	if strings.TrimSpace(c.Memory.Embedding.Model) == "" {
-		c.Memory.Embedding.Model = "text-embedding-3-small"
-	}
-	if c.Memory.Embedding.Dimensions <= 0 {
-		c.Memory.Embedding.Dimensions = 1536
-	}
-	return nil
-}
-
-// validateMemoryReview validates the periodic review config. A zero
-// ReviewInterval disables review (valid). A negative value is a config
-// error and fails loud. CharLimit defaults to 2200 when unset.
-func (c *Config) validateMemoryReview() error {
-	if c.Memory.Review.ReviewInterval < 0 {
-		return fmt.Errorf("memory.review.review_interval must be >= 0 (got %d)", c.Memory.Review.ReviewInterval)
-	}
-	if c.Memory.Active.CharLimit <= 0 {
-		c.Memory.Active.CharLimit = 2200
 	}
 	return nil
 }

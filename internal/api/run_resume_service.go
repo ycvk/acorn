@@ -6,14 +6,19 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/runtime"
 )
 
 type RunResumeService struct {
-	store     core.SessionStore
-	resumeRun func(context.Context, string, map[string]any, core.StreamSink) (*runtime.Result, error)
+	store       core.SessionStore
+	resumeRun   func(context.Context, string, map[string]any, core.StreamSink) (*runtime.Result, error)
+	reportError func(context.Context, string, error)
+
+	mu       sync.Mutex
+	inflight map[string]struct{}
 }
 
 type resumeStatus struct {
@@ -24,16 +29,12 @@ type resumeStatus struct {
 	Reason       string         `json:"reason,omitempty"`
 }
 
-type RunResult struct {
-	RunID       string         `json:"run_id"`
-	Status      string         `json:"status"`
-	Output      string         `json:"output,omitempty"`
-	Error       string         `json:"error,omitempty"`
-	Interrupted map[string]any `json:"interrupted,omitempty"`
-}
-
 func NewRunResumeService(store core.SessionStore) *RunResumeService {
-	return &RunResumeService{store: store}
+	return &RunResumeService{
+		store:       store,
+		reportError: reportClientBackgroundError,
+		inflight:    make(map[string]struct{}),
+	}
 }
 
 func (s *RunResumeService) WithResume(resumeRun func(context.Context, string, map[string]any, core.StreamSink) (*runtime.Result, error)) *RunResumeService {
@@ -41,7 +42,7 @@ func (s *RunResumeService) WithResume(resumeRun func(context.Context, string, ma
 	return s
 }
 
-func (s *RunResumeService) Resume(ctx context.Context, runID string) (*RunResult, error) {
+func (s *RunResumeService) Resume(ctx context.Context, runID string) (*runtime.Result, error) {
 	if s == nil || s.resumeRun == nil {
 		return nil, errors.New("resume runner is nil")
 	}
@@ -49,39 +50,129 @@ func (s *RunResumeService) Resume(ctx context.Context, runID string) (*RunResult
 	if err != nil {
 		return nil, err
 	}
-	result, err := s.resumeRun(ctx, runID, targets, nil)
-	if err != nil {
-		return nil, err
-	}
-	return runResultFromRuntime(result)
+	return s.resumeRun(ctx, runID, targets, nil)
 }
 
-func runResultFromRuntime(result *runtime.Result) (*RunResult, error) {
-	if result == nil {
-		return nil, nil
+// ResumeIfReady resumes runID in the background once it is interrupted and
+// every pending action named by its latest interrupt has been decided. It is
+// called after every decision, whenever a run settles as interrupted, and by
+// ResumeReadyRuns, so whichever happens last starts the resume; the in-flight
+// set and the store's interrupted→running claim keep a run from resuming twice.
+func (s *RunResumeService) ResumeIfReady(ctx context.Context, runID string) error {
+	ready, err := s.readyToResume(ctx, runID)
+	if err != nil || !ready {
+		return err
 	}
-	status, err := projectRunStatus(result.Status)
-	if err != nil {
-		return nil, err
-	}
-	return &RunResult{
-		RunID:       result.RunID,
-		Status:      status,
-		Output:      result.Output,
-		Error:       result.Error,
-		Interrupted: cloneMap(result.Interrupted),
-	}, nil
-}
-
-func cloneMap(value map[string]any) map[string]any {
-	if value == nil {
+	if !s.claim(runID) {
 		return nil
 	}
-	out := make(map[string]any, len(value))
-	for key, item := range value {
-		out[key] = item
+	go s.resumeClaimed(context.WithoutCancel(ctx), runID)
+	return nil
+}
+
+// ResumeReadyRuns calls ResumeIfReady for every interrupted run. serve runs
+// it at startup and periodically, so a decided run whose resume was lost
+// (process exit, a failed trigger) still continues.
+func (s *RunResumeService) ResumeReadyRuns(ctx context.Context) error {
+	runs, err := s.store.ListInterruptedRuns(ctx)
+	if err != nil {
+		return err
 	}
-	return out
+	var errs []error
+	for _, run := range runs {
+		if err := s.ResumeIfReady(ctx, run.RunID); err != nil {
+			errs = append(errs, fmt.Errorf("run %s: %w", run.RunID, err))
+		}
+	}
+	return errors.Join(errs...)
+}
+
+func (s *RunResumeService) readyToResume(ctx context.Context, runID string) (bool, error) {
+	run, err := s.store.LoadRun(ctx, runID)
+	if err != nil {
+		return false, err
+	}
+	if run.Status != core.RunStatusInterrupted {
+		return false, nil
+	}
+	events, err := s.store.LoadEvents(ctx, runID)
+	if err != nil {
+		return false, err
+	}
+	contexts, err := latestRootInterruptContexts(events)
+	if err != nil {
+		return false, fmt.Errorf("run %s: %w", runID, err)
+	}
+	for _, interrupt := range contexts {
+		actionID := interruptInfoField(interrupt.Info, "action_id")
+		if actionID == "" {
+			continue
+		}
+		action, err := s.store.LoadPendingAction(ctx, actionID)
+		if err != nil {
+			return false, err
+		}
+		if action.Status == core.PendingActionStatusPending {
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
+func (s *RunResumeService) claim(runID string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, busy := s.inflight[runID]; busy {
+		return false
+	}
+	s.inflight[runID] = struct{}{}
+	return true
+}
+
+func (s *RunResumeService) release(runID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.inflight, runID)
+}
+
+func (s *RunResumeService) resumeClaimed(ctx context.Context, runID string) {
+	result, err := s.Resume(ctx, runID)
+	if err != nil {
+		s.failRun(ctx, runID, err)
+		s.release(runID)
+		return
+	}
+	s.release(runID)
+	if result != nil && result.Status == core.RunStatusInterrupted {
+		if err := s.ResumeIfReady(ctx, runID); err != nil {
+			s.reportError(ctx, runID, err)
+		}
+	}
+}
+
+// failRun records a resume failure on a run that the executor did not get to
+// finish, so the run does not stay interrupted with no visible error.
+func (s *RunResumeService) failRun(ctx context.Context, runID string, cause error) {
+	run, err := s.store.LoadRun(ctx, runID)
+	if err != nil {
+		s.reportError(ctx, runID, errors.Join(cause, err))
+		return
+	}
+	if run.Status == core.RunStatusSucceeded || run.Status == core.RunStatusFailed {
+		s.reportError(ctx, runID, cause)
+		return
+	}
+	// Another resumer (or process) already claimed the run.
+	if errors.Is(cause, core.ErrRunNotInterrupted) && run.Status == core.RunStatusRunning {
+		return
+	}
+	if _, err := s.store.AppendEvent(ctx, runID, "run.failed", map[string]any{"error": cause.Error()}); err != nil {
+		s.reportError(ctx, runID, errors.Join(cause, err))
+		return
+	}
+	if err := s.store.FinishRun(ctx, runID, core.RunStatusFailed, "", cause.Error()); err != nil {
+		s.reportError(ctx, runID, errors.Join(cause, err))
+	}
 }
 
 func (s *RunResumeService) InferResumeTargets(ctx context.Context, runID string) (map[string]any, error) {
@@ -112,10 +203,12 @@ func (s *RunResumeService) InferResumeTargets(ctx context.Context, runID string)
 
 func (s *RunResumeService) resumeTargetsForContext(ctx context.Context, runID string, interrupt resumeInterruptContext) (map[string]any, error) {
 	switch kind := interruptInfoKind(interrupt.Info); kind {
-	case "", "run_command_pause":
+	case "":
 		return defaultTargets(interrupt.ID), nil
 	case "operator_question":
 		return s.operatorQuestionTargets(ctx, runID, interrupt)
+	case "tool_approval":
+		return s.toolApprovalTargets(ctx, runID, interrupt)
 	default:
 		return nil, fmt.Errorf("run %s interrupt %s has unsupported kind %q", runID, interrupt.ID, kind)
 	}
@@ -145,6 +238,29 @@ func (s *RunResumeService) operatorQuestionTargets(ctx context.Context, runID st
 	var decision map[string]any
 	if err := json.Unmarshal([]byte(record.DecisionJSON), &decision); err != nil {
 		return nil, fmt.Errorf("run %s interrupt %s operator_question action %s has invalid decision_json: %w", runID, interrupt.ID, actionID, err)
+	}
+	decision["action_id"] = actionID
+	return map[string]any{interrupt.ID: decision}, nil
+}
+
+func (s *RunResumeService) toolApprovalTargets(ctx context.Context, runID string, interrupt resumeInterruptContext) (map[string]any, error) {
+	actionID := interruptInfoField(interrupt.Info, "action_id")
+	if actionID == "" {
+		return nil, fmt.Errorf("run %s interrupt %s tool_approval is missing action_id", runID, interrupt.ID)
+	}
+	record, err := s.store.LoadPendingAction(ctx, actionID)
+	if err != nil {
+		return nil, err
+	}
+	if record.RunID != runID || record.Kind != core.PendingActionKindToolApproval {
+		return nil, fmt.Errorf("run %s interrupt %s: action %s is %s of run %s", runID, interrupt.ID, actionID, record.Kind, record.RunID)
+	}
+	if record.Status != core.PendingActionStatusApproved && record.Status != core.PendingActionStatusRejected {
+		return nil, fmt.Errorf("run %s interrupt %s: tool_approval action %s has status %q", runID, interrupt.ID, actionID, record.Status)
+	}
+	var decision map[string]any
+	if err := json.Unmarshal([]byte(record.DecisionJSON), &decision); err != nil {
+		return nil, fmt.Errorf("run %s interrupt %s: tool_approval action %s decision_json: %w", runID, interrupt.ID, actionID, err)
 	}
 	decision["action_id"] = actionID
 	return map[string]any{interrupt.ID: decision}, nil

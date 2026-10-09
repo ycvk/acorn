@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ycvk/acorn/internal/api"
 	"github.com/ycvk/acorn/internal/wire"
 )
 
@@ -37,34 +36,15 @@ func runServe(ctx context.Context, args []string) error {
 	}
 	defer container.Close()
 
-	handler, err := api.NewHandler(api.Dependencies{
-		Threads:          container.Threads(),
-		Runs:             container.Runs(),
-		Events:           container.Events(),
-		PendingAction:    container.PendingAction(),
-		RunResume:        container.RunResume(),
-		Memory:           container.Memory(),
-		Skills:           container.Skills(),
-		Capabilities:     container.Capabilities(),
-		DeviceAuth:       container.DeviceAuth(),
-		Inbox:            container.Inbox(),
-		TriggerScheduler: container.TriggerScheduler(),
-		Config:           container.Config(),
-		Logger: slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
-			Level: slog.LevelInfo,
-		})),
-	})
+	handler, err := container.Handler(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	})))
 	if err != nil {
 		return err
 	}
 
-	// Start the ambient trigger scheduler so webhooks can fire new runs.
-	if sched := container.TriggerScheduler(); sched != nil {
-		if err := sched.Start(ctx); err != nil {
-			slog.Warn("trigger scheduler start failed", "error", err)
-		}
-		defer sched.Stop()
-	}
+	go container.WakeScheduler().Run(ctx)
+	go resumeReadyRunsLoop(ctx, container.ResumeReadyRuns, resumeSweepInterval)
 
 	server := &http.Server{
 		Addr:              addr,
@@ -105,4 +85,23 @@ func executionReadinessBanner(readyErr error) string {
 		return fmt.Sprintf("Execution: NOT READY — tasks will be rejected with execution_not_ready until fixed.\n  Reason: %s\n  Run 'acorn doctor' for detail.", readyErr)
 	}
 	return "Execution: ready"
+}
+
+const resumeSweepInterval = time.Minute
+
+// resumeReadyRunsLoop resumes decided runs at startup and then on every tick,
+// so a run whose resume was lost (process exit, a failed trigger) continues.
+func resumeReadyRunsLoop(ctx context.Context, sweep func(context.Context) error, interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		if err := sweep(ctx); err != nil {
+			slog.Error("resume ready runs", "error", err)
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+	}
 }

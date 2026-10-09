@@ -72,16 +72,16 @@ type OperatorQuestionStore interface {
 }
 
 type AskOperatorInput struct {
-	Title         string                   `json:"title,omitempty" jsonschema:"description=Short title shown to the operator."`
-	Question      string                   `json:"question" jsonschema:"description=Question that must be answered by the human operator before the run can continue."`
-	Options       []AskOperatorOptionInput `json:"options,omitempty" jsonschema:"description=Optional answer choices."`
-	AllowFreeform bool                     `json:"allow_freeform,omitempty" jsonschema:"description=Whether the operator may answer with freeform text instead of selecting an option."`
+	Title         string                   `json:"title,omitempty" jsonschema_description:"Short title shown to the operator."`
+	Question      string                   `json:"question" jsonschema_description:"Question that must be answered by the human operator before the run can continue."`
+	Options       []AskOperatorOptionInput `json:"options,omitempty" jsonschema_description:"Optional answer choices."`
+	AllowFreeform bool                     `json:"allow_freeform,omitempty" jsonschema_description:"Whether the operator may answer with freeform text instead of selecting an option."`
 }
 
 type AskOperatorOptionInput struct {
-	ID          string `json:"id" jsonschema:"description=Stable option id returned as selected_option_id."`
-	Label       string `json:"label" jsonschema:"description=Human-readable option label."`
-	Description string `json:"description,omitempty" jsonschema:"description=Optional extra context for this option."`
+	ID          string `json:"id" jsonschema_description:"Stable option id returned as selected_option_id."`
+	Label       string `json:"label" jsonschema_description:"Human-readable option label."`
+	Description string `json:"description,omitempty" jsonschema_description:"Optional extra context for this option."`
 }
 
 type AskOperatorState struct {
@@ -126,11 +126,7 @@ func interruptAskOperator(ctx context.Context, store OperatorQuestionStore, brid
 	if runID == "" {
 		return AskOperatorOutput{}, errors.New("ask_operator requires current run context")
 	}
-	callID := strings.TrimSpace(bridge.CurrentToolCallID(ctx))
-	if callID == "" {
-		return AskOperatorOutput{}, errors.New("ask_operator requires current tool call context")
-	}
-	actionID := "operator_question:" + runID + ":" + callID
+	actionID := core.NewActionID()
 	payloadJSON, err := json.Marshal(payload)
 	if err != nil {
 		return AskOperatorOutput{}, fmt.Errorf("marshal operator question payload: %w", err)

@@ -66,7 +66,7 @@ func (h *ElicitationHandler) HandleElicitation(ctx context.Context, req *mcp.Eli
 		return &mcp.ElicitResult{Action: "decline"}, nil
 	}
 
-	actionID := newElicitationActionID()
+	actionID := core.NewActionID()
 
 	paramsJSON, err := json.Marshal(req.Params)
 	if err != nil {
@@ -173,8 +173,4 @@ func (h *ElicitationHandler) emitElicitationEvent(ctx context.Context, runID, ac
 		return fmt.Errorf("append elicitation event %s: %w", eventKind, err)
 	}
 	return nil
-}
-
-func newElicitationActionID() string {
-	return fmt.Sprintf("action_%d", time.Now().UTC().UnixNano())
 }

@@ -1,7 +1,7 @@
 ---
 adr: 0001
 title: 从 reactive agent 转向 ambient agent
-status: Accepted
+status: Superseded
 date: 2026-06-27
 supersedes: []
 ---

@@ -7,7 +7,6 @@ import io.ycvk.acorn.api.apis.ClientApi
 import io.ycvk.acorn.api.infrastructure.ApiClient
 import io.ycvk.acorn.api.models.CreateRunRequest
 import io.ycvk.acorn.api.models.InboxResponse
-import io.ycvk.acorn.api.models.Message
 import io.ycvk.acorn.api.models.RunSummary
 import io.ycvk.acorn.core.auth.AuthController
 import io.ycvk.acorn.core.auth.AuthState
@@ -172,16 +171,7 @@ class ChatViewModel @Inject constructor(
                     clientApi.clientListMessages(threadId, limit = 50)
                 }
                 if (_threadId.value != threadId) return@launch
-                _messages.value = response.items.map { msg ->
-                    val text = msg.content.text
-                    when (msg.role) {
-                        Message.Role.user -> ChatMessage.User(text)
-                        Message.Role.assistant -> ChatMessage.Assistant(text)
-                        // System / tool messages render as assistant bubbles so the
-                        // history reads top-to-bottom without gaps.
-                        else -> ChatMessage.Assistant(text)
-                    }
-                }
+                _messages.value = response.items.map { msg -> chatMessageFrom(msg.role, msg.content.text) }
             } catch (e: Exception) {
                 _error.value = e.message ?: "Failed to load messages"
             }
@@ -226,7 +216,8 @@ class ChatViewModel @Inject constructor(
                     // Only append if the last message is a user bubble — avoids
                     // duplicating the assistant reply when loadMessages already
                     // persisted it before the SSE terminal event arrived.
-                    val lastIsUser = _messages.value.lastOrNull() is ChatMessage.User
+                    val last = _messages.value.lastOrNull()
+                    val lastIsUser = last is ChatMessage.User || last is ChatMessage.Wake || last is ChatMessage.Capture
                     if (finalText.isNotBlank() && lastIsUser) {
                         _messages.value = _messages.value +
                             ChatMessage.Assistant(finalText, finalReasoning)

@@ -42,7 +42,6 @@ import io.ycvk.acorn.api.models.PendingActionListResponse
 import io.ycvk.acorn.api.models.Run
 import io.ycvk.acorn.api.models.RunDetail
 import io.ycvk.acorn.api.models.RunEvent
-import io.ycvk.acorn.api.models.RunResult
 import io.ycvk.acorn.api.models.SystemStatus
 import io.ycvk.acorn.api.models.Thread
 import io.ycvk.acorn.api.models.ThreadListResponse
@@ -741,7 +740,7 @@ open class ClientApi(basePath: kotlin.String = defaultBasePath, client: Call.Fac
     /**
      * GET /v1/runs/{run_id}/events
      * Replay and optionally follow mobile live RunEvent SSE
-     * The response is &#x60;text/event-stream&#x60;. Each SSE message uses &#x60;id: &lt;RunEvent.event_id&gt;&#x60;, &#x60;event: &lt;RunEvent.type&gt;&#x60;, and &#x60;data:&#x60; containing the full RunEvent JSON object. The endpoint emits only the mobile live event subset. &#x60;after_seq&#x60; is an exclusive persisted cursor over the existing events table, so the server may advance the cursor across diagnostic events that are not emitted. Mobile clients persist &#x60;{run_id,last_seq}&#x60; locally, pass &#x60;last_seq&#x60; as &#x60;after_seq&#x60;, receive backlog events first, and then receive live follow events when &#x60;follow&#x3D;true&#x60;. 
+     * The response is &#x60;text/event-stream&#x60;. Each SSE message uses &#x60;id: &lt;RunEvent.event_id&gt;&#x60;, &#x60;event: &lt;RunEvent.type&gt;&#x60;, and &#x60;data:&#x60; containing the full RunEvent JSON object. The endpoint emits only the mobile live event subset. &#x60;after_seq&#x60; is an exclusive persisted cursor over the existing events table, so the server may advance the cursor across diagnostic events that are not emitted. Mobile clients persist &#x60;{run_id,last_seq}&#x60; locally, pass &#x60;last_seq&#x60; as &#x60;after_seq&#x60;, receive backlog events first, and then receive live follow events when &#x60;follow&#x3D;true&#x60;. A followed stream ends once the run has succeeded or failed; it stays open while the run is interrupted, because the server resumes the run after the owner decides. 
      * @param runId 
      * @param afterSeq  (optional, default to 0)
      * @param follow  (optional, default to false)
@@ -775,7 +774,7 @@ open class ClientApi(basePath: kotlin.String = defaultBasePath, client: Call.Fac
     /**
      * GET /v1/runs/{run_id}/events
      * Replay and optionally follow mobile live RunEvent SSE
-     * The response is &#x60;text/event-stream&#x60;. Each SSE message uses &#x60;id: &lt;RunEvent.event_id&gt;&#x60;, &#x60;event: &lt;RunEvent.type&gt;&#x60;, and &#x60;data:&#x60; containing the full RunEvent JSON object. The endpoint emits only the mobile live event subset. &#x60;after_seq&#x60; is an exclusive persisted cursor over the existing events table, so the server may advance the cursor across diagnostic events that are not emitted. Mobile clients persist &#x60;{run_id,last_seq}&#x60; locally, pass &#x60;last_seq&#x60; as &#x60;after_seq&#x60;, receive backlog events first, and then receive live follow events when &#x60;follow&#x3D;true&#x60;. 
+     * The response is &#x60;text/event-stream&#x60;. Each SSE message uses &#x60;id: &lt;RunEvent.event_id&gt;&#x60;, &#x60;event: &lt;RunEvent.type&gt;&#x60;, and &#x60;data:&#x60; containing the full RunEvent JSON object. The endpoint emits only the mobile live event subset. &#x60;after_seq&#x60; is an exclusive persisted cursor over the existing events table, so the server may advance the cursor across diagnostic events that are not emitted. Mobile clients persist &#x60;{run_id,last_seq}&#x60; locally, pass &#x60;last_seq&#x60; as &#x60;after_seq&#x60;, receive backlog events first, and then receive live follow events when &#x60;follow&#x3D;true&#x60;. A followed stream ends once the run has succeeded or failed; it stays open while the run is interrupted, because the server resumes the run after the owner decides. 
      * @param runId 
      * @param afterSeq  (optional, default to 0)
      * @param follow  (optional, default to false)
@@ -1389,79 +1388,6 @@ open class ClientApi(basePath: kotlin.String = defaultBasePath, client: Call.Fac
         return RequestConfig(
             method = RequestMethod.GET,
             path = "/v1/tools",
-            query = localVariableQuery,
-            headers = localVariableHeaders,
-            requiresAuthentication = true,
-            body = localVariableBody
-        )
-    }
-
-    /**
-     * POST /v1/runs/{run_id}:resume
-     * Resume an interrupted client run
-     * 
-     * @param runId 
-     * @return RunResult
-     * @throws IllegalStateException If the request is not correctly configured
-     * @throws IOException Rethrows the OkHttp execute method exception
-     * @throws UnsupportedOperationException If the API returns an informational or redirection response
-     * @throws ClientException If the API returns a client error response
-     * @throws ServerException If the API returns a server error response
-     */
-    @Suppress("UNCHECKED_CAST")
-    @Throws(IllegalStateException::class, IOException::class, UnsupportedOperationException::class, ClientException::class, ServerException::class)
-    fun clientResumeRun(runId: kotlin.String) : RunResult {
-        val localVarResponse = clientResumeRunWithHttpInfo(runId = runId)
-
-        return when (localVarResponse.responseType) {
-            ResponseType.Success -> (localVarResponse as Success<*>).data as RunResult
-            ResponseType.Informational -> throw UnsupportedOperationException("Client does not support Informational responses.")
-            ResponseType.Redirection -> throw UnsupportedOperationException("Client does not support Redirection responses.")
-            ResponseType.ClientError -> {
-                val localVarError = localVarResponse as ClientError<*>
-                throw ClientException("Client error : ${localVarError.statusCode} ${localVarError.message.orEmpty()}", localVarError.statusCode, localVarResponse)
-            }
-            ResponseType.ServerError -> {
-                val localVarError = localVarResponse as ServerError<*>
-                throw ServerException("Server error : ${localVarError.statusCode} ${localVarError.message.orEmpty()} ${localVarError.body}", localVarError.statusCode, localVarResponse)
-            }
-        }
-    }
-
-    /**
-     * POST /v1/runs/{run_id}:resume
-     * Resume an interrupted client run
-     * 
-     * @param runId 
-     * @return ApiResponse<RunResult?>
-     * @throws IllegalStateException If the request is not correctly configured
-     * @throws IOException Rethrows the OkHttp execute method exception
-     */
-    @Suppress("UNCHECKED_CAST")
-    @Throws(IllegalStateException::class, IOException::class)
-    fun clientResumeRunWithHttpInfo(runId: kotlin.String) : ApiResponse<RunResult?> {
-        val localVariableConfig = clientResumeRunRequestConfig(runId = runId)
-
-        return request<Unit, RunResult>(
-            localVariableConfig
-        )
-    }
-
-    /**
-     * To obtain the request config of the operation clientResumeRun
-     *
-     * @param runId 
-     * @return RequestConfig
-     */
-    fun clientResumeRunRequestConfig(runId: kotlin.String) : RequestConfig<Unit> {
-        val localVariableBody = null
-        val localVariableQuery: MultiValueMap = mutableMapOf()
-        val localVariableHeaders: MutableMap<String, String> = mutableMapOf()
-        localVariableHeaders["Accept"] = "application/json"
-
-        return RequestConfig(
-            method = RequestMethod.POST,
-            path = "/v1/runs/{run_id}:resume".replace("{"+"run_id"+"}", encodeURIComponent(runId.toString())),
             query = localVariableQuery,
             headers = localVariableHeaders,
             requiresAuthentication = true,

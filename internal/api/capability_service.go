@@ -43,23 +43,18 @@ type SystemModelCapabilities struct {
 }
 
 type SystemFeatureCapabilities struct {
-	InterruptResume bool `json:"interrupt_resume"`
-	SessionHistory  bool `json:"session_history"`
+	SessionHistory bool `json:"session_history"`
 }
 
 type SystemToolCapability struct {
-	Name           string `json:"name"`
-	Source         string `json:"source"`
-	Kind           string `json:"kind"`
-	Category       string `json:"category"`
-	Enabled        bool   `json:"enabled"`
-	HealthState    string `json:"health_state"`
-	HealthReason   string `json:"health_reason,omitempty"`
-	ParallelPolicy string `json:"parallel_policy,omitempty"`
-	Risk           string `json:"risk"`
-	RootDir        string `json:"root_dir,omitempty"`
-	WorkDir        string `json:"work_dir,omitempty"`
-	DefaultTimeout int    `json:"default_timeout,omitempty"`
+	Name         string `json:"name"`
+	Source       string `json:"source"`
+	Kind         string `json:"kind"`
+	Category     string `json:"category"`
+	Enabled      bool   `json:"enabled"`
+	HealthState  string `json:"health_state"`
+	HealthReason string `json:"health_reason,omitempty"`
+	Risk         string `json:"risk"`
 }
 
 type SystemSkillCapabilities struct {
@@ -159,7 +154,7 @@ func (s *CapabilitiesService) Snapshot(ctx context.Context, opts CapabilitySnaps
 			Name: firstEnabledProviderModel(s.cfg),
 		},
 		RuntimeReadiness:  runtimeReadiness,
-		Features:          SystemFeatureCapabilities{InterruptResume: true, SessionHistory: true},
+		Features:          SystemFeatureCapabilities{SessionHistory: true},
 		ToolCatalogError:  errorString(catalogErr),
 		Tools:             tools,
 		Skills:            skillsCap,

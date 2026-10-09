@@ -14,7 +14,7 @@ import (
 
 func runSkills(ctx context.Context, args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("skills requires a subcommand: list, inspect, check, create, patch, or delete")
+		return fmt.Errorf("skills requires a subcommand: list, inspect, or check")
 	}
 	switch args[0] {
 	case "list":
@@ -23,12 +23,6 @@ func runSkills(ctx context.Context, args []string) error {
 		return runSkillsInspect(ctx, args[1:])
 	case "check":
 		return runSkillsCheck(ctx, args[1:])
-	case "create":
-		return runSkillsCreate(ctx, args[1:])
-	case "patch":
-		return runSkillsPatch(ctx, args[1:])
-	case "delete":
-		return runSkillsDelete(ctx, args[1:])
 	default:
 		return fmt.Errorf("unknown skills subcommand %q", args[0])
 	}
@@ -102,81 +96,6 @@ func runSkillsCheck(ctx context.Context, args []string) error {
 		fmt.Println(renderSkillsCheck(*report))
 	}
 	return skillCheckError(*report)
-}
-
-func runSkillsCreate(ctx context.Context, args []string) error {
-	fs := newFlagSet("skills create")
-	configPath := addConfigFlag(fs)
-	jsonMode := fs.Bool("json", false, "print created skill as JSON")
-	id := fs.String("id", "", "skill id")
-	name := fs.String("name", "", "skill name")
-	category := fs.String("category", "", "skill category")
-	summary := fs.String("summary", "", "skill summary")
-	instruction := fs.String("instruction", "", "skill instruction")
-	if err := fs.Parse(args); err != nil {
-		return err
-	}
-	return withContainer(ctx, *configPath, func(container *wire.Container) error {
-		item, err := container.Skills().Create(ctx, api.CreateSkillInput{
-			ID:          *id,
-			Name:        *name,
-			Category:    *category,
-			Summary:     *summary,
-			Instruction: *instruction,
-		})
-		if err != nil {
-			return err
-		}
-		if *jsonMode {
-			return printJSON(item)
-		}
-		fmt.Println(renderSkillDetail(*item))
-		return nil
-	})
-}
-
-func runSkillsPatch(ctx context.Context, args []string) error {
-	fs := newFlagSet("skills patch")
-	configPath := addConfigFlag(fs)
-	jsonMode := fs.Bool("json", false, "print patched skill as JSON")
-	source := fs.String("source", "cli", "patch source")
-	if err := fs.Parse(args); err != nil {
-		return err
-	}
-	if fs.NArg() < 2 {
-		return fmt.Errorf("skills patch requires a skill id and patch text")
-	}
-	skillID := fs.Arg(0)
-	content := strings.Join(fs.Args()[1:], " ")
-	return withContainer(ctx, *configPath, func(container *wire.Container) error {
-		item, err := container.Skills().Patch(ctx, skillID, content, *source)
-		if err != nil {
-			return err
-		}
-		if *jsonMode {
-			return printJSON(item)
-		}
-		fmt.Println(renderSkillDetail(*item))
-		return nil
-	})
-}
-
-func runSkillsDelete(ctx context.Context, args []string) error {
-	fs := newFlagSet("skills delete")
-	configPath := addConfigFlag(fs)
-	if err := fs.Parse(args); err != nil {
-		return err
-	}
-	if fs.NArg() != 1 {
-		return fmt.Errorf("skills delete requires a skill id")
-	}
-	return withContainer(ctx, *configPath, func(container *wire.Container) error {
-		if err := container.Skills().Delete(ctx, fs.Arg(0)); err != nil {
-			return err
-		}
-		fmt.Println("deleted " + fs.Arg(0))
-		return nil
-	})
 }
 
 func renderSkillsList(items []skills.View) string {

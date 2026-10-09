@@ -28,7 +28,6 @@ func newTestSkillService(t *testing.T, fixtures ...testSkillFixture) *SkillServi
 
 	cfg := config.DefaultConfig()
 	cfg.Tools.Workspace.RootDir = root
-	cfg.Tools.RunCommand.WorkDir = root
 	cfg.Runtime.StorageDir = filepath.Join(root, ".acorn")
 
 	for _, fixture := range fixtures {

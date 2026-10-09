@@ -121,14 +121,41 @@ runtime:
   storage_dir: /srv/acorn/workspace
 web:
   listen_addr: 127.0.0.1:8080
-memory:
-  search:
-    memory_context_token_budget: 2000
+approval:
+  # Tool-name glob patterns whose calls pause for owner approval on the phone.
+  require:
+    - browser
+    - "mcp__*"
+owner:
+  # IANA timezone used to show times and to read wake times given in local time,
+  # e.g. Asia/Shanghai.
+  timezone: UTC
+
+presence:
+  # Token cap for the working-memory block shown to the model before each call.
+  max_tokens: 4000
+
+wake:
+  # Commitment wakes allowed per local day; 0 turns autonomous wakes off.
+  daily_limit: 20
+  daily_tokens: 300000
+thinking:
+  night_at: "03:00"
+  wander_at: []
+
+notify:
+  max_per_hour: 6
+  # Notifications inside this window wait until it ends (owner timezone).
+  quiet_hours:
+    start: "23:00"
+    end: "08:00"
+  fcm:
+    # Firebase service account key file; empty disables push notifications.
+    service_account_file: ""
 context:
   window_tokens: 200000
   compact_margin_tokens: 13000
   mask_after_turns: 2
-  preserve_recent_turns: 3
 agent:
   name: acorn
   description: Self-hosted AI agent
@@ -136,11 +163,6 @@ agent:
 tools:
   workspace:
     root_dir: /srv/acorn/workspace
-  mutation:
-    disabled: false
-  run_command:
-    disabled: false
-    default_timeout: 120
 EOF
 }
 
@@ -225,7 +247,7 @@ download_release_files
 	cd "$package"
 	sha256sum -c CHECKSUMS
 	test -x acorn
-	test -f "skills/skill_creator/SKILL.md"
+	test -f "skills/capability_recall/SKILL.md"
 )
 
 package_dir=$work_dir/$package
@@ -293,7 +315,7 @@ exec "\$bin" "\$@"' sh "\$env_path" "\$bin" "\$@"
 
 if [ "\$#" -gt 0 ]; then
 	case "\$1" in
-		decision|doctor|memory|pair|token|devices|skills|smoke)
+		decision|doctor|pair|token|devices|skills|smoke)
 			command_name=\$1
 			shift
 			if ! has_config_flag "\$@"; then
@@ -319,6 +341,7 @@ if [ ! -e "$config_path" ]; then
 else
 	log "Keeping existing config: $config_path"
 fi
+run_root runuser -u "$service_user" -- env HOME="$service_home" "$bin_path" init -c "$config_path" --persona-only
 
 if [ ! -e "$env_path" ] || [ -n "${OPENAI_API_KEY:-}" ]; then
 	run_root install -m 0600 -o "$service_user" -g "$service_group" "$env_template" "$env_path"

@@ -60,6 +60,7 @@ type RunService struct {
 	controller  *runtime.RunController
 	newRunID    func() string
 	reportError func(context.Context, string, error)
+	resumer     runResumer
 }
 
 // NewRunService constructs a RunService backed by the given store, executor
@@ -73,6 +74,13 @@ func NewRunService(store core.SessionStore, threads *ThreadService, executeRun f
 		newRunID:    newRunID,
 		reportError: reportClientBackgroundError,
 	}
+}
+
+// WithResumer makes runs that settle as interrupted resume as soon as their
+// pending actions are already decided.
+func (s *RunService) WithResumer(resumer runResumer) *RunService {
+	s.resumer = resumer
+	return s
 }
 
 func newRunID() string {
@@ -94,6 +102,9 @@ func (s *RunService) GetRun(ctx context.Context, runID string) (*Run, error) {
 	return &run, nil
 }
 
+// RunIsTerminal reports whether a run produces no further events. An
+// interrupted run is waiting for the owner's decision and the server resumes
+// it afterwards, so it is not terminal.
 func (s *RunService) RunIsTerminal(ctx context.Context, runID string) (bool, error) {
 	if s == nil || s.store == nil {
 		return false, errors.New("client store is nil")
@@ -103,9 +114,9 @@ func (s *RunService) RunIsTerminal(ctx context.Context, runID string) (bool, err
 		return false, err
 	}
 	switch record.Status {
-	case core.RunStatusRunning:
+	case core.RunStatusRunning, core.RunStatusInterrupted:
 		return false, nil
-	case core.RunStatusSucceeded, core.RunStatusInterrupted, core.RunStatusFailed:
+	case core.RunStatusSucceeded, core.RunStatusFailed:
 		return true, nil
 	default:
 		return false, projectionError("unknown run status %q", record.Status)
@@ -121,6 +132,34 @@ func (s *RunService) InterruptRun(ctx context.Context, runID string) error {
 }
 
 func (s *RunService) CreateRun(ctx context.Context, threadID, skillID, input string) (*Run, error) {
+	return s.createRun(ctx, threadID, skillID, input, "", "user")
+}
+
+// CreateWakeRun starts a run in threadID that was woken by a commitment
+// rather than an owner message. wake describes what woke it.
+func (s *RunService) CreateWakeRun(ctx context.Context, threadID, wake, input string) (*Run, error) {
+	if strings.TrimSpace(wake) == "" {
+		return nil, errors.New("wake run requires a wake description")
+	}
+	return s.createRun(ctx, threadID, "", input, wake, core.MessageRoleWake)
+}
+
+// captureWake describes what wakes a capture run.
+const captureWake = "owner shared something"
+
+// CreateCaptureRun starts a run in threadID on something the owner shared.
+// Captures are the owner's doing and do not count as autonomous wakes.
+func (s *RunService) CreateCaptureRun(ctx context.Context, threadID, input string) (*Run, error) {
+	if strings.TrimSpace(input) == "" {
+		return nil, errors.New("capture run requires input")
+	}
+	return s.createRun(ctx, threadID, "", input, captureWake, core.MessageRoleCapture)
+}
+
+// createRun records input under role (or, with empty input, binds the latest
+// unbound message) and starts the run. wake, when set, tells the agent what
+// woke it.
+func (s *RunService) createRun(ctx context.Context, threadID, skillID, input, wake, role string) (*Run, error) {
 	if s == nil || s.store == nil || s.executeRun == nil || s.newRunID == nil || s.threads == nil {
 		return nil, errors.New("client service is not initialized")
 	}
@@ -139,7 +178,7 @@ func (s *RunService) CreateRun(ctx context.Context, threadID, skillID, input str
 	var message *core.SessionMessageRecord
 	var err error
 	if strings.TrimSpace(input) != "" {
-		message, err = s.threads.createUserMessage(ctx, threadID, input)
+		message, err = s.threads.createInputMessage(ctx, threadID, role, input)
 		if err != nil {
 			return nil, err
 		}
@@ -168,6 +207,7 @@ func (s *RunService) CreateRun(ctx context.Context, threadID, skillID, input str
 		Input:          message.Content,
 		BoundMessageID: message.ID,
 		SkillID:        skillID,
+		Wake:           wake,
 		Messages:       buildChatMessages(history),
 	}
 	runCtx := context.WithoutCancel(ctx)
@@ -241,7 +281,7 @@ func reportClientBackgroundError(ctx context.Context, runID string, err error) {
 }
 
 func (s *RunService) executeRunAsync(ctx context.Context, req core.ExecuteRequest, started *clientRunStartSignal) {
-	_, err := s.executeRun(ctx, req, runStartSignalSink(started))
+	result, err := s.executeRun(ctx, req, runStartSignalSink(started))
 	if err != nil {
 		if started.MarkFailed(err) {
 			return
@@ -250,6 +290,11 @@ func (s *RunService) executeRunAsync(ctx context.Context, req core.ExecuteReques
 			s.reportBackgroundRunFailure(ctx, req.RunID, err, persistErr)
 		}
 		return
+	}
+	if result != nil && result.Status == core.RunStatusInterrupted && s.resumer != nil {
+		if err := s.resumer.ResumeIfReady(ctx, req.RunID); err != nil {
+			s.reportError(ctx, req.RunID, err)
+		}
 	}
 }
 
@@ -293,11 +338,11 @@ func (s *RunService) recordStartedRunFailure(ctx context.Context, runID string, 
 	if record.Status != core.RunStatusRunning {
 		return nil
 	}
-	if err := s.store.FinishRun(ctx, runID, core.RunStatusFailed, "", cause.Error()); err != nil {
-		return fmt.Errorf("mark client run failed after background error: %w", err)
-	}
 	if _, err := s.store.AppendEvent(ctx, runID, "run.failed", map[string]any{"error": cause.Error()}); err != nil {
 		return fmt.Errorf("append client run failed event after background error: %w", err)
+	}
+	if err := s.store.FinishRun(ctx, runID, core.RunStatusFailed, "", cause.Error()); err != nil {
+		return fmt.Errorf("mark client run failed after background error: %w", err)
 	}
 	return nil
 }
@@ -308,7 +353,7 @@ func buildChatMessages(items []core.SessionMessageRecord) []adk.Message {
 	messages := make([]adk.Message, 0, len(items))
 	for _, item := range items {
 		switch item.Role {
-		case "user":
+		case "user", core.MessageRoleWake, core.MessageRoleCapture:
 			messages = append(messages, schema.UserMessage(item.Content))
 		case "assistant":
 			messages = append(messages, schema.AssistantMessage(item.Content, nil))

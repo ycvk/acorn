@@ -50,9 +50,9 @@ jobs:
         run: npm install -g @openapitools/openapi-generator-cli
       - name: Verify generated mobile client
         run: cd mobile-kotlin && ./tool/generate_openapi_client.sh --check
-      - name: Build debug APK
+      - name: Test and build debug APK
         working-directory: mobile-kotlin
-        run: ./gradlew assembleDebug
+        run: ./gradlew test assembleDebug
       - uses: actions/upload-artifact@v7.0.1
         with:
           name: acorn-mobile-android-debug
@@ -100,8 +100,12 @@ jobs:
           tar -xzf "$archive" -C "$tmpdir"
           package_dir="$tmpdir/acorn_${VERSION}_${RELEASE_GOOS}_${RELEASE_GOARCH}"
           grep -qx "skills_dir=skills" "$package_dir/RELEASE"
-          test -f "$package_dir/skills/skill_creator/SKILL.md"
+          test -f "$package_dir/skills/capability_recall/SKILL.md"
           test -f "$package_dir/skills/web_browser_research/SKILL.md"
+          test -f "$package_dir/skills/capture_to_note/SKILL.md"
+          test -f "$package_dir/skills/morning_briefing/SKILL.md"
+          test -f "$package_dir/skills/night_reflection/SKILL.md"
+          test -f "$package_dir/skills/wander/SKILL.md"
           (cd "$package_dir" && sha256sum -c CHECKSUMS)
       - uses: actions/upload-artifact@v7.0.1
         with:

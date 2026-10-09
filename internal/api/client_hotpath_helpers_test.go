@@ -40,53 +40,6 @@ func newClientHotPathServer(stub *clientHandlerStub) *Server {
 	}
 }
 
-func newRunResumeTestService(result *RunResult, err error) *RunResumeService {
-	store := &clientHandlerStore{stub: &clientHandlerStub{
-		run: Run{ID: "run_1", Status: "interrupted", ThreadID: "thread_1"},
-		events: []core.RunEvent{{
-			EventID: "run_1:1",
-			RunID:   "run_1",
-			Seq:     1,
-			TS:      time.Date(2026, 5, 15, 10, 0, 0, 0, time.UTC),
-			Type:    "run.interrupted",
-			Data: core.RunInterruptedData{
-				Interrupt: map[string]any{
-					"contexts": []map[string]any{{
-						"id":            "interrupt_1",
-						"is_root_cause": true,
-					}},
-				},
-			},
-		}},
-	}}
-	svc := NewRunResumeService(store)
-	svc.WithResume(func(context.Context, string, map[string]any, core.StreamSink) (*runtime.Result, error) {
-		if err != nil {
-			return nil, err
-		}
-		if result == nil {
-			return nil, nil
-		}
-		status := core.RunStatusInterrupted
-		switch result.Status {
-		case "completed":
-			status = core.RunStatusSucceeded
-		case "failed":
-			status = core.RunStatusFailed
-		case "running":
-			status = core.RunStatusRunning
-		}
-		return &runtime.Result{
-			RunID:       result.RunID,
-			Status:      status,
-			Output:      result.Output,
-			Error:       result.Error,
-			Interrupted: cloneMap(result.Interrupted),
-		}, nil
-	})
-	return svc
-}
-
 func clientHotPathRunID(stub *clientHandlerStub) string {
 	if stub != nil && strings.TrimSpace(stub.run.ID) != "" {
 		return strings.TrimSpace(stub.run.ID)
@@ -217,10 +170,6 @@ func eventRecordFromRunEvent(item core.RunEvent) core.EventRecord {
 	case "assistant.delta":
 		if data, ok := item.Data.(core.AssistantDeltaData); ok {
 			payload["assistant_delta"] = data.AssistantDelta
-		}
-	case "agent.message":
-		if data, ok := item.Data.(core.AgentMessageData); ok {
-			payload["message"] = data.Message
 		}
 	case "run.completed":
 		if data, ok := item.Data.(core.RunCompletedData); ok {

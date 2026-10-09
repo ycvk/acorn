@@ -1,6 +1,6 @@
 package store
 
-// storeBootstrapTables creates the 10 core tables if they do not already
+// storeBootstrapTables creates the 20 core tables if they do not already
 // exist. This is split from index creation so that validateSchema can detect
 // a stale/incompatible database (missing columns) before index creation
 // attempts to reference those columns.
@@ -87,6 +87,12 @@ CREATE TABLE IF NOT EXISTS artifacts (
     created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS agent_checkpoints (
+    checkpoint_id TEXT PRIMARY KEY,
+    data BLOB NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS mcp_oauth_tokens (
     provider_name TEXT PRIMARY KEY,
     access_token TEXT,
@@ -99,18 +105,149 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
     version TEXT PRIMARY KEY,
     applied_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS memory_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    kind TEXT NOT NULL,
+    content TEXT NOT NULL,
+    status TEXT NOT NULL,
+    session_id TEXT NOT NULL DEFAULT '',
+    source_run_id TEXT NOT NULL DEFAULT '',
+    wake_at TEXT NOT NULL DEFAULT '',
+    recurrence TEXT NOT NULL DEFAULT '',
+    expires_at TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS context_snapshots (
+    hash TEXT PRIMARY KEY,
+    content TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS push_tokens (
+    device_id TEXT PRIMARY KEY,
+    token TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS notifications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    body TEXT NOT NULL,
+    thread_id TEXT NOT NULL DEFAULT '',
+    run_id TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL,
+    send_after TEXT NOT NULL,
+    error_text TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    sent_at TEXT NOT NULL DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS knowledge_notes (
+    path TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    tags TEXT NOT NULL DEFAULT '',
+    body TEXT NOT NULL,
+    mtime_ns INTEGER NOT NULL,
+    size INTEGER NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS watches (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    target TEXT NOT NULL,
+    selector TEXT NOT NULL DEFAULT '',
+    mode TEXT NOT NULL,
+    interval_seconds INTEGER NOT NULL,
+    status TEXT NOT NULL,
+    session_id TEXT NOT NULL DEFAULT '',
+    next_check_at TEXT NOT NULL,
+    last_checked_at TEXT NOT NULL DEFAULT '',
+    last_error TEXT NOT NULL DEFAULT '',
+    failures INTEGER NOT NULL DEFAULT 0,
+    snapshot TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS watch_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    watch_id INTEGER NOT NULL,
+    item_key TEXT NOT NULL,
+    title TEXT NOT NULL,
+    url TEXT NOT NULL DEFAULT '',
+    summary TEXT NOT NULL DEFAULT '',
+    published_at TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL,
+    run_id TEXT NOT NULL DEFAULT '',
+    seen_at TEXT NOT NULL,
+    UNIQUE(watch_id, item_key)
+);
+
+CREATE TABLE IF NOT EXISTS routine_runs (
+    routine TEXT NOT NULL,
+    slot TEXT NOT NULL,
+    thread_id TEXT NOT NULL DEFAULT '',
+    run_id TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (routine, slot)
+);
+CREATE TABLE IF NOT EXISTS phone_notifications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    device_id TEXT NOT NULL,
+    notification_key TEXT NOT NULL,
+    package TEXT NOT NULL,
+    app TEXT NOT NULL,
+    title TEXT NOT NULL DEFAULT '',
+    text TEXT NOT NULL DEFAULT '',
+    posted_at TEXT NOT NULL,
+    received_at TEXT NOT NULL,
+    UNIQUE(device_id, notification_key, posted_at)
+);
 `
 
-// storeBootstrapIndexes creates all indexes after table creation and schema
-// validation have succeeded, ensuring columns referenced by indexes exist.
+// storeBootstrapIndexes creates all indexes, full-text tables and their sync
+// triggers after table creation and schema validation have succeeded, ensuring
+// the columns they reference exist.
 const storeBootstrapIndexes = `
 CREATE INDEX IF NOT EXISTS idx_session_messages_run_id ON session_messages(run_id);
 CREATE INDEX IF NOT EXISTS idx_session_messages_session_turn ON session_messages(session_id, turn_index);
 CREATE INDEX IF NOT EXISTS idx_runs_session_created ON runs(session_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_events_kind_created ON events(kind, created_at);
+CREATE INDEX IF NOT EXISTS idx_phone_notifications_received ON phone_notifications(received_at);
 CREATE INDEX IF NOT EXISTS idx_events_run_sequence ON events(run_id, sequence ASC);
 CREATE INDEX IF NOT EXISTS idx_pending_actions_run_id_status ON pending_actions(run_id, status, created_at DESC);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_pending_actions_interrupt_id ON pending_actions(interrupt_id) WHERE interrupt_id <> '';
 CREATE INDEX IF NOT EXISTS idx_devices_token_hash ON devices(token_hash);
 CREATE INDEX IF NOT EXISTS idx_artifacts_run ON artifacts(run_id, created_at ASC, artifact_id ASC);
 CREATE INDEX IF NOT EXISTS idx_artifacts_session ON artifacts(session_id, created_at ASC, artifact_id ASC);
+CREATE INDEX IF NOT EXISTS idx_memory_items_due ON memory_items(kind, status, wake_at);
+CREATE INDEX IF NOT EXISTS idx_notifications_due ON notifications(status, send_after);
+CREATE INDEX IF NOT EXISTS idx_knowledge_notes_updated ON knowledge_notes(updated_at);
+CREATE INDEX IF NOT EXISTS idx_watches_due ON watches(status, next_check_at);
+CREATE INDEX IF NOT EXISTS idx_watch_items_status ON watch_items(status, seen_at);
+
+CREATE VIRTUAL TABLE IF NOT EXISTS memory_items_fts USING fts5(content, content='memory_items', content_rowid='id', tokenize='trigram');
+CREATE TRIGGER IF NOT EXISTS memory_items_fts_ai AFTER INSERT ON memory_items BEGIN
+  INSERT INTO memory_items_fts(rowid, content) VALUES (new.id, new.content);
+END;
+CREATE TRIGGER IF NOT EXISTS memory_items_fts_au AFTER UPDATE OF content ON memory_items BEGIN
+  INSERT INTO memory_items_fts(memory_items_fts, rowid, content) VALUES ('delete', old.id, old.content);
+  INSERT INTO memory_items_fts(rowid, content) VALUES (new.id, new.content);
+END;
+
+CREATE VIRTUAL TABLE IF NOT EXISTS runs_fts USING fts5(run_id UNINDEXED, input_text, output_text, tokenize='trigram');
+CREATE TRIGGER IF NOT EXISTS runs_fts_ai AFTER INSERT ON runs BEGIN
+  INSERT INTO runs_fts(run_id, input_text, output_text) VALUES (new.run_id, new.input_text, new.output_text);
+END;
+CREATE TRIGGER IF NOT EXISTS runs_fts_au AFTER UPDATE OF input_text, output_text ON runs BEGIN
+  DELETE FROM runs_fts WHERE run_id = new.run_id;
+  INSERT INTO runs_fts(run_id, input_text, output_text) VALUES (new.run_id, new.input_text, new.output_text);
+END;
+
+CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_notes_fts USING fts5(path UNINDEXED, title, tags, body, tokenize='trigram');
 `

@@ -89,12 +89,13 @@ data class PendingActionDetail (
     /**
      * 
      *
-     * Values: elicitation,operator_question
+     * Values: elicitation,operator_question,tool_approval
      */
     @JsonClass(generateAdapter = false)
     enum class Kind(val value: kotlin.String) {
         @Json(name = "elicitation") elicitation("elicitation"),
-        @Json(name = "operator_question") operator_question("operator_question");
+        @Json(name = "operator_question") operator_question("operator_question"),
+        @Json(name = "tool_approval") tool_approval("tool_approval");
     }
     /**
      * 

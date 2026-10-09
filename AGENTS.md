@@ -4,7 +4,7 @@ Acorn 的 AI 协作硬约束入口。`CLAUDE.md` 软链接至此,单一真相源
 
 ## 项目概览
 
-Go 1.27 + Eino ADK 的单用户自托管 AI agent 后端,module `github.com/ycvk/acorn`。owner 在 VPS 跑后端,Kotlin App 配对手机后远程发起任务、看运行、批审批。入口:operator CLI(`serve` 长驻 / `run`·`smoke` 一次性 direct_response / `init`·`pair`·`devices`·`token` 运维 / `skills`·`memory`·`doctor` 诊断)、authenticated `/v1` API、webhook/cron triggers、mobile inbox、persisted RunEvent SSE、Kotlin mobile。
+Go 1.27 + Eino ADK 的单用户自托管个人 agent 后端,module `github.com/ycvk/acorn`。owner 在 VPS 跑后端,Kotlin App 配对手机后远程对话、看运行、批审批、收推送。agent 有人格和工作记忆,会自己约时间醒来(约定),需要时经 FCM 推送找 owner;owner 从手机分享的链接、文字、图片由 agent 整理进 markdown 知识库(同时是 git 仓库);agent 替 owner 追踪 RSS、GitHub、网页(含价格),每天早上写简报笔记并推送;按固定时段夜思/游思,读取手机白名单 App 上报的通知。入口:operator CLI(`serve` 长驻 / `run`·`smoke` 一次性 run / `init`·`pair`·`devices`·`token` 运维 / `skills`·`doctor` 诊断)、authenticated `/v1` API、serve 进程内的唤醒调度器(约定、追踪项、早安卡、夜思、游思)、mobile inbox、persisted RunEvent SSE、Kotlin mobile(含系统分享入口与知识库页)。方向见 `docs/adr/0003-personal-agent-direction.md`。
 
 ## 常用命令
 
@@ -21,11 +21,11 @@ make release-linux-amd64           # 纯 Go 交叉编译(无 CGO)
 
 # acorn CLI(根目录 acorn / make build 产出 ./bin/acorn)
 acorn serve [-c path] [--listen addr]   # 长驻 remote API,唯一常驻命令
-acorn run [-c path] [--json] "task"      # 一次性 direct_response 执行
+acorn run [-c path] [--json] "task"      # 一次性执行一个 run
 acorn smoke [-c path] [--json] "task"   # 安装探活:真实跑一次 run,非零退出即失败
-acorn init [-c path] [--force] [--print] # 生成 starter config
+acorn init [-c path] [--force] [--print] # 生成 starter config 和默认 persona.md
 acorn doctor [-c path] [--json]          # 能力快照 + MCP 健康探活
-acorn skills {list|inspect|check|create|patch|delete} [-c path] [--json]
+acorn skills {list|inspect|check} [-c path] [--json]
 acorn pair [-c path] [--qr] [--server-url url]  # 生成设备配对码
 acorn token issue [-c path] [--name n] [--ttl d]  # 颁发 device token
 acorn devices {list|revoke} [-c path]
@@ -37,57 +37,85 @@ cd mobile-kotlin && ./tool/generate_openapi_client.sh --check   # CI 门禁
 
 ## 架构大图
 
-- **组合根**:`internal/wire.Container` 是唯一实例化具体实现的地方(SQLite store、RunnerFactory)。`cmd/acorn → cli → wire.Container → {api, runtime, store}`。`serve` 是唯一长驻命令。
-- **运行时主链**:`Executor → RunnerFactory.buildRun → Plane + direct_response → Session → SQLite/file-backed memory`。全部在 `internal/runtime`。
-- **单一编排模式**:`direct_response`。model → tool loop → record → 下一轮。`ExecuteRound` 每轮 `BeforeModelCall → ExecuteRound → RecordAssistant/RecordToolResults`。plan_execute/single_agent/child_agent/verifier 已全部删除。
-- **职责边界**:`internal/runtime` 做装配+执行编排+上下文事实(首轮装配、tool lifecycle、`Session`、masking、auto-compact、StreamItem 投影)。
-- **关键包**(14 个 internal 包):`internal/core`(Layer 0,零内部导入,纯类型+契约:核心 domain 类型 + context plumbing + 3 个 store 接口 + 工具契约,无 service struct);`internal/runtime`(Layer 3)拥有 Executor、RunnerFactory、buildRun、direct_response、ExecuteRound、Plane、Session、masking、auto-compact、StreamItem 投影;`internal/tools` 拥有工具实现(file/git/browser/web/command/artifact 工具 + ToolRegistry + 风险闸门 `ClassifyRisk`);`internal/tools/dispatch` 拥有工具调度逻辑(scheduler + node + streaming + side_effects + lifecycle);`internal/store` 拥有 SQLite adapter + ArtifactService(依赖 `core.ArtifactService`,无重复接口);`internal/memory` 拥有 file-backed memory + WorldState;`internal/mcp` 拥有 MCP provider manager;`internal/triggers` 拥有 serve 进程内的 webhook/cron trigger scheduler;`internal/api` 拥有 `/v1` client surface + live RunEvent 投影(`projection.go`);`internal/workspace` 拥有 mutation checkpoint + worktree;`internal/webaccess` 拥有 web fetcher、Tavily search、内容抽取与共享 URL policy(工具本身在 `internal/tools`);`internal/skills`/`internal/config`/`internal/cli` 各司其职。
-- **两套真相**:SQLite(`internal/store`,modernc.org/sqlite,单连接串行化)是 runtime 真相(10 张表:runs/events/sessions/session_messages/pending_actions/mcp_oauth_tokens/devices/pairing_codes/artifacts/schema_migrations;schema 在 `store/store_schema_bootstrap.go`,`schemaRequiredTables` 强制列存在、缺列 fail-loud);文件型长期记忆(`internal/memory`)是 `facts/`/`history/`。
+- **组合根**:`internal/wire.Container` 是唯一实例化具体实现的地方(SQLite store、RunnerFactory、wake scheduler、FCM sender、知识库 vault 与系统 git、watch checker 与它的浏览器、时钟)。`cmd/acorn → cli → wire.Container → {api, runtime, store, wake, notify, knowledge, watch}`。`serve` 是唯一长驻命令,同时运行 wake scheduler。
+- **运行时主链**:`Executor → RunnerFactory.buildRun → buildAgentRunner(Eino ChatModelAgent) → adk.Runner`,事件经 `agentEventProjector` 写 SQLite events。全部在 `internal/runtime`。
+- **单一编排模式**:每个 run 一个 Eino `ChatModelAgent`(ReAct:model → tools → model),`EnableStreaming`,checkpoint 经 `core.SessionStore` 落 SQLite `agent_checkpoints`。
+- **职责边界**:`internal/runtime` 做装配(工具 catalog、persona + operating rules 写进 Instruction、middleware 链)+ 执行(run/resume)+ StreamItem 投影;上下文压缩、延迟加载工具、技能加载、工具调度、主模型重试交给 Eino middleware、ToolsNode 与 `ModelRetryConfig`。
+- **关键包**(16 个 internal 包):`internal/core`(Layer 0,零内部导入,纯类型+契约:核心 domain 类型 + context plumbing + 9 个 store 接口 + 工具契约,无 service struct);`internal/runtime`(Layer 3)拥有 Executor、RunnerFactory、buildAgentRunner、presence/approval/tool-error middleware、skill middleware 的 backend、StreamItem 投影;`internal/tools` 拥有工具实现(artifact/operator/presence/notify/knowledge/web/browser 工具 + ToolRegistry);`internal/store` 拥有 SQLite adapter + ArtifactService(依赖 `core.ArtifactService`,无重复接口);`internal/presence` 拥有工作记忆衰减、"当下"渲染、persona 读取与 cron 解析(纯函数);`internal/wake` 拥有 serve 进程内的唤醒调度器(约定、追踪项、早安卡、夜思、游思);`internal/notify` 拥有 FCM HTTP v1 client 与推送 sender(频率上限、免打扰排队);`internal/knowledge` 拥有知识库 vault(路径校验、frontmatter 读写、经 `Git` 接口提交、索引同步);`internal/watch` 拥有追踪项的抓取、解析与比对(rss/atom、GitHub、网页快照,不调用模型);`internal/mcp` 拥有 MCP provider manager;`internal/api` 拥有 `/v1` client surface + live RunEvent 投影(`projection.go`);`internal/webaccess` 拥有 web fetcher、Tavily search、内容抽取与共享 URL policy(工具本身在 `internal/tools`);`internal/skills`/`internal/config`/`internal/cli`/`internal/wire` 各司其职。
+- **真相归属**:SQLite(`internal/store`,modernc.org/sqlite,单连接串行化)是 runtime、工作记忆和经历的真相(20 张表:runs/events/sessions/session_messages/pending_actions/mcp_oauth_tokens/devices/pairing_codes/artifacts/agent_checkpoints/schema_migrations/memory_items/context_snapshots/push_tokens/notifications/knowledge_notes/watches/watch_items/routine_runs/phone_notifications,另有 FTS5 虚表 memory_items_fts/runs_fts/knowledge_notes_fts;schema 在 `store/store_schema_bootstrap.go`,`schemaRequiredTables` 强制列存在、缺列 fail-loud);`{storage_dir}/persona.md` 是 owner 可编辑的人格,每个 run 读取,缺失或为空时 run 失败;`knowledge.dir`(默认 `{storage_dir}/knowledge`)下的 markdown 文件是知识的真相,`knowledge_notes` 只是可重建的索引。
 - **API 契约**:`docs/openapi.yaml` 是唯一 wire contract,`mobile-kotlin/app/src/main/java/io/ycvk/acorn/api/` 由它生成。客户端只收 `internal/api/projection.go` 投影的 live RunEvent;RunEvent SSE 用 `follow=true` 轮询 + `after_seq` 游标续读。
 
 ## 硬边界
 
 ### 运行时 & 编排
 
-- 只有一个 root mode:`direct_response`。不存在 plan_execute/single_agent/child_agent/subagent。
-- `Session` 是 root-run model input 的唯一 owner,不允许绕过它维护第二套 message lifecycle。
-- 工具执行:`ToolContract → toolExecutionScheduler`(`internal/tools/dispatch`)。read_only 并行;serial 且有 `PathArg` 的按路径冲突串行;serial 无路径的独占执行。普通工具失败是模型可见 failed result,不是 run failure。
-- 风险闸门:`tools.ClassifyRisk` 是规则白名单(只放真实注册的工具名),命中的调用在执行前被拦截,模型须经 `ask_operator` 申请批准。
-- web 工具(`web_search`/`web_fetch`/`browser`)是 deferred,需 `load_tools`;共享 URL policy 只放行公网 http(s),private 网段需 `web_access.allow_private_networks`。
-- workspace mutation 恢复是 scoped checkpoint + 显式 `rollback_workspace_checkpoint`。
+- 每个 run 只有一个 `ChatModelAgent`,不存在 multi-agent/subagent。agent 状态由 Eino 持有,run 间历史来自 `session_messages`(最近 12 条 user/assistant 文本)。
+- middleware 顺序固定:patchtoolcalls → summarization → reduction(clear-only) → toolsearch(有 deferred 工具时) → skill → presence → approval → tool errors。越靠前包得越外层。
+- 工具串行执行(`ExecuteSequentially`)。普通工具失败与调用不存在的工具都是模型可见的 tool result,不是 run failure;interrupt 与 context 取消照常传播。普通工具失败记为 `tool.call.failed` 事件。
+- 主模型调用失败最多重试 3 次(context 取消不重试);中途断开的流被重试时不算 run 失败,只有成功那次的输出成为 assistant 消息,已推给客户端的 delta 不撤回。
+- 审批:`approval.require` 是工具名 glob 列表(默认 `browser`、`mcp__*`)。命中的调用由 approval middleware 登记 `tool_approval` pending action 并发起工具级 interrupt;resume 时参数必须与登记时一致,accept 才执行,decline 把拒绝说明作为工具结果返回。同一轮里排在被拦截调用之后的工具调用会先执行,被拦截的调用等决策后执行。`approval.require` 不能命中 `ask_operator`(config 校验拒绝)。approval 自身的存储失败直接让 run 失败。
+- 续跑由服务端驱动:`RunResumeService.ResumeIfReady` 只在 run 为 interrupted 且没有 pending 的 pending action 时续跑;每次决策后和每次 run 停在 interrupted 时各检查一次,in-flight 集合防重复。
+- web 工具(`web_search`/`web_fetch`/`browser`)是 deferred,经 toolsearch middleware 的 `tool_search`(`select:<name>`)加载;共享 URL policy 只放行公网 http(s),private 网段需 `web_access.allow_private_networks`。
 
 ### 工具 & 技能
 
-- native skill truth 是 `internal/skills` file-backed loader。repo `./skills` 是 release seed pack;release installer 安装到 `~/.acorn/skills`;generated skills 写入 `{storage_dir}/skills/generated`;workspace skills 写入 `./.acorn/skills/workspace`。**不要把 generated skill 写回 repo root `skills/`**。
-- skill 是只读 markdown + 简单关键词匹配,无 lifecycle/evidence/assess。
+- native skill truth 是 `internal/skills` file-backed loader,`tools.workspace.root_dir` 指向存放 seed skills 与 workspace skills 的目录。repo `./skills` 是 release seed pack;release installer 安装到 `~/.acorn/skills`;workspace skills 放在 `./.acorn/skills/workspace`。agent 不创建或修改 skill。
+- 技能经 Eino skill middleware 提供:`skill` 工具的描述列出本 run eligible 的技能(summary + trigger hints),按名加载 SKILL.md 正文;只有 inline 模式,不 fork 子 agent。技能是只读 markdown,无 lifecycle/evidence/assess。
 
-### 记忆 & 检索
+### 工作记忆、约定 & 推送
 
-- 长期 memory 是 `internal/memory` 的 file-backed `facts/`/`history/`,按 ADR-0002 三层:Active Memory(每个 run 注入的 facts 快照)+ Archive(检索)+ Periodic Review(每 N 个 run 异步蒸馏 facts)。跨 run 状态是 `WorldState`(`{storage_dir}/worldstate/state.json`,只经 `ApplyDelta` 变更)。Canonical Memory Record V2 frontmatter(简化:status / tags / created / updated / source_run / source_refs)。fact 写入走结构化 `remember` 工具;raw `memory_create_file` 仍要求完整 frontmatter。
-- **混合检索(opt-in)**:`memory.embedding.enabled` 开启时,写入自动生成 embedding(modernc.org/sqlite 内置 sqlite-vec,存 `{storage_dir}/vectors.db`),检索走 vector KNN + keyword RRF 融合(k=60)。复用 primary provider 的 OpenAI 兼容 `/v1/embeddings` 端点,不引入新依赖/新进程。关闭时(默认)退化为纯 keyword 检索,零行为变化。
+- 工作记忆是 SQLite `memory_items`,类型 said(`keep`,owner 原话)、thought(`think`)、commitment(`schedule_wake`)、tendency/ruler(`settle` internalize)。非约定条目按 `expires_at` 由确定性代码衰减:active → resting → sunk;`settle` 负责 renew/internalize/release/done。写入时间由调用方的时钟给出,store 不自行取时间。
+- "当下"(`<presence>` 块:时间、唤醒原因、约定、念头、原话、倾向、关切)由 presence middleware 在 `WrapModel` 中追加为本次模型调用的最后一条 system 消息,不写进 agent 状态、对话历史或 checkpoint;受 `presence.max_tokens` 约束,先丢最旧的手机通知,再按固定顺序丢弃低优先级记忆条目,已醒来的约定不丢。Instruction 与"当下"的组合按哈希去重存进 `context_snapshots`,并记 `presence.snapshot` 事件。
+- 经历检索是 `recall`:runs 与 memory_items 的 FTS5 trigram 全文检索,少于 3 个字的查询走 LIKE。
+- 约定由 `internal/wake` 调度器保持(同一调度器也负责追踪项与早安卡,见下文):每次 tick 先衰减,再对到期约定做条件更新认领(多进程也只触发一次),在立约定的线程里启动 run(线程已删除时进 Reminders 线程),记 `wake.fired` 事件;周期约定认领后排下一次;启动失败 5 分钟后重试。每个 owner 本地自然日的唤醒数受 `wake.daily_limit` 与 `wake.daily_tokens` 约束,次数为 0 表示关闭自主唤醒。token 按本地日内 `model.usage` 事件统计,run 上有 `wake.fired` 才计为自主用量;起 run 前检查,进行中的 run 不打断。
+- `notify_owner` 经 FCM 推送,每小时上限 `notify.max_per_hour`,免打扰时段内排队、结束后由 wake 调度器发出;FCM 不认的 token 删除;没配 `notify.fcm.service_account_file` 时工具以 disabled 注册并给出原因。设备吊销时同时删除其 push token。
+
+### 知识库 & Capture
+
+- 知识库只经 `knowledge.Vault` 写入(工具 `knowledge_write`/`knowledge_edit`、Capture 的图片附件)。每次写入提交一次,只提交本次涉及的文件,作者固定为 Acorn,agent 的写入带 `Acorn-Run` trailer;owner 未提交的其他改动不受影响。agent 不删除、不移动笔记。
+- 笔记路径是知识库内的相对 `.md` 路径,不含 `..` 与隐藏段,不在 `attachments/`;frontmatter 由 Acorn 管理 title/tags/source/created/updated,其他字段改写时原样保留。没有 frontmatter 的笔记以第一个 `# ` 标题或文件名为标题。
+- 索引每次列表、搜索前按 mtime/size 与文件同步;读不了或解析失败的笔记让同步失败并给出路径。检索是 FTS5 trigram,少于 3 个字走 LIKE。
+- `POST /v1/captures` 先把图片(JPEG/PNG/WebP/GIF,≤10 MiB,按内容判断类型)存进 `attachments/YYYY/MM/` 并提交,再新建线程,以 role `capture` 的输入立即起 run;模型把它当 user 消息读。capture 不计入 `wake.daily_limit`。分享内容的整理流程写在种子技能 `capture_to_note`。
+- 知识库目录配置 `receive.denyCurrentBranch=updateInstead`,owner 可以 clone 到本地(如用 Obsidian 打开)改完 push 回去。
+
+### Watch & 早安卡
+
+- 追踪项由 agent 用 `watch_create`/`watch_update`/`watch_list` 管理,存在 `watches`;四类信息源:`rss`(含 `rsshub:/route`,需 `watch.rsshub_base_url`)、`github`(releases 或新开的 issue)、`web`(CSS 选择器或正文快照)、`web_rendered`(需配置浏览器)。所有抓取经 `webaccess` 的 URL policy。
+- `watch_create` 先抓一次,失败不建立;成功的第一次检查只建基线,之后只报新条目。条目按 (watch, key) 只入库一次;网页类追踪项比较选中内容的快照,变化时产生一条带前后值的条目。
+- 调度只在 `wake.Scheduler`:每次 tick 在约定之后认领到期追踪项(条件更新加 10 分钟租约)并检查,单项超时 60s,每 tick 最多 `watch.max_checks_per_tick` 个。`digest` 的新条目等早安卡;`immediate` 的新条目在建立追踪项的线程里起 wake run,计入 `wake.daily_limit` 并记 `wake.fired{watch_id}`,超限时转给早安卡。
+- 抓取失败按间隔 ×2^n 退避(上限 24h),连续 5 次失败标为 failing,仍继续检查,成功后恢复。
+- 早安卡按 `briefing.at`(owner 时区,空则关闭)每个本地日触发一次:`routine_runs` 表以 (`routine=briefing`,本地日期) 为主键保证多进程只触发一次,准备输入或起 run 失败则释放当天的认领。run 在 Briefings 线程里,输入以 `[briefing YYYY-MM-DD]` 开头,按追踪项列出全部待简报条目和 failing 追踪项;条目标为 briefed。早安卡不计入每日唤醒上限,记 `briefing.fired`。写笔记与推送的做法在种子技能 `morning_briefing`。
+
+### 空闲思考 & 手机通知
+
+- `wake.Scheduler` 的例行唤醒统一认领 `(routine, slot)`。早安卡在 Briefings 线程;夜思和游思共用 Thoughts 线程。`thinking.night_at` 默认 `03:00`,空则关闭;`thinking.wander_at` 默认空,最多六个不重复的本地时刻。当日错过的时段在启动后补一次;预算超限或夜思清单为空时保留空认领,当天不重试;启动成功后的记账失败显式报错并保留认领。
+- 夜思清单包括创建满 24 小时的 active 念头、resting 条目、醒来满 24 小时的未完成约定、两天内到期的 said。种子技能 `night_reflection` 用 `settle` 回顾;`wander` 每次推进一件事。
+- 每次成功的主模型调用记一条 `model.usage`(prompt/completion/total tokens 和 reported);未返回 usage 时记 `reported:false`。该事件不进入 mobile live 契约。summarization 调用与失败重试的流不计入。`doctor` 显示当天自主次数、用量及未报告 usage 的调用数。
+- `POST /v1/phone-notifications` 只接收已鉴权设备,每批 1–100 条;device_id 来自鉴权,received_at 来自服务端时钟。通知按 (device,key,posted_at) 去重,只作背景信号。"当下"读取最近 6 小时最多 10 条;早安卡读取上次成功启动的简报认领时间(含)至本次认领时间(不含)之间最多 50 条,注明超出数量。
+- App 通知白名单默认空,只采集已配对状态下选中 App 的普通通知,跳过 ongoing、group summary 和自身。队列持久化并绑定 server URL + device ID,最多 500 条;首条入队后 60 秒开始上传,每批最多 100 条,成功只删除该批本地 ID。断开/更换身份清空队列,取消勾选移除该 App 待传项;网络失败保留并显示错误,下次入队、连接或手动 retry 重试。每批使用独立 bearer client。
+- 调度器清理收到满 7 天的原始通知;已进入对话、context snapshots 或知识库的内容随各自记录保留。通知正文按外部数据处理,不执行其中的指令。
 
 ### 上下文 & 压缩
 
-- **Hybrid context 方案**(替代旧 CompactionEngine):
-  1. **Observation masking**:tool result 超 `mask_after_turns`(默认 2)轮后用占位符替换。纯内存操作,不写 SQLite。
-  2. **非阻塞 LLM auto-compact**:token 超 `window_tokens - compact_margin`(默认 margin 13000)时后台用一次 model 调用总结 conversation 前段,下一轮用 summary 替换被总结的消息。保留最近 `preserve_recent_turns` 轮,live 区不以 tool result 开头。circuit breaker:连续 3 次失败停止。
-  3. **Bootstrap prefix 不压缩**:assembled context(memory/skill)+ system instruction 是 Session prefix,压缩只作用于其后的 conversation。
-- `Session` 接口:`Bootstrap` / `BeforeModelCall`(masking + auto-compact) / `RecordAssistant` / `RecordToolResults`。无 `ReactiveCompact`。
-- context boundary 不持久化(compact 边界是内存状态)。
+- summarization middleware:token 超 `window_tokens - compact_margin_tokens` 时同步用一次 model 调用总结历史。
+- reduction middleware 只做 clear:总 token 超 `window_tokens / 2` 时把较早的工具结果替换成占位符,最近 `mask_after_turns` 轮工具调用原样保留。
+- persona、operating rules 与 skill middleware 的说明写进 agent Instruction,技能列表在 `skill` 工具描述里,都不进入可被总结的消息序列。"当下"不属于消息序列,不参与 summarization 计数,由 `presence.max_tokens` 单独约束(配置校验要求它小于 `compact_margin_tokens`)。
 
 ### Remote API & Mobile
 
 - remote client wire contract 是 `docs/openapi.yaml`。Remote clients 只走 `/v1`、`/healthz`。`/mcp` server mode 已删除。改 mobile DTO/RunEvent/OpenAPI schema 必须同步 openapi.yaml、generated client 和相关测试。
 - auth 是 single-owner device auth:pairing code → bearer token,SQLite 只存 hash。token 缺失/未知/revoked 必须显式失败。
 - mobile inbox truth 是 `GET /v1/inbox`,后端聚合 pending actions + active/recent runs + system status。
-- pending approval truth 是 `GET /v1/pending-actions` + `:decide`,消费 SQLite `pending_actions`。
-- Mobile 不本地执行 run、不持 runtime truth、不从 local state 猜测后端事实。mobile memory 只消费 `/v1/memory/*`。
+- pending approval truth 是 `GET /v1/pending-actions` + `:decide`,消费 SQLite `pending_actions`(kind:`elicitation`、`operator_question`、`tool_approval`)。决策后由服务端续跑,不存在客户端 resume 端点。
+- Mobile 不本地执行 run、不持 runtime truth、不从 local state 猜测后端事实。
+- 推送:App 以 `PUT /v1/devices/self/push-token` 上报 FCM token;点击推送按 `data.thread_id` 打开线程。App 的 Firebase 配置来自 `local.properties` 的 `acorn.firebase.*` 或 `ACORN_FIREBASE_*` 环境变量。
+- 分享与知识库:App 注册 `ACTION_SEND`(text/plain、image/*)分享入口,以 multipart `POST /v1/captures` 上传;App 的知识库页只读,经 `GET /v1/knowledge/notes`(搜索/最近)与 `GET /v1/knowledge/note` 读取。
 - 涉及 mobile 视觉/交互的改动必须在真机或模拟器验证;无法连接设备时必须说明未验证。
 
 ### 自托管发布
 
 - GitHub Release 预构建 tarball + Linux binary + signed Android APK + `systemd`。Release build 是纯 Go 交叉编译(`CGO_ENABLED=0`),无 CGO/build tags。
-- installer 安装 `/opt/acorn`、`~/.acorn/skills`、`/usr/local/bin/acorn` wrapper;默认读 `~/.acorn/acorn.yaml`;root VPS 用 `/root/.acorn`,workspace 是 `/srv/acorn/workspace`。
+- installer 安装 `/opt/acorn`、`~/.acorn/skills`、`/usr/local/bin/acorn` wrapper;默认读 `~/.acorn/acorn.yaml`;root VPS 用 `/root/.acorn`,workspace 是 `/srv/acorn/workspace`。服务器需要系统 `git`(知识库;installer 用 apt 安装),找不到时 serve 启动失败并给出安装提示。
 
 ## 工作方式
 
@@ -108,11 +136,11 @@ cd mobile-kotlin && ./tool/generate_openapi_client.sh --check   # CI 门禁
 
 - `configs/acorn.local.yaml` 在 `.gitignore` 中。`configs/acorn.example.yaml` 和 `configs/acorn.selfhosted.example.yaml` 修改时同步 config struct、defaults、validation 和 tests。
 - provider `api_key` 支持环境变量展开。
-- public context config 只保留 `window_tokens`、`compact_margin_tokens`、`mask_after_turns`、`preserve_recent_turns`。删除配置字段不保留兼容读取。
+- public context config 只保留 `window_tokens`、`compact_margin_tokens`、`mask_after_turns`。删除配置字段不保留兼容读取(config 以 `KnownFields` 严格解析,多余字段直接报错)。
 - 架构现状 → 本文件 + `docs/architecture/INVARIANTS.md`(不变量 ↔ 测试),用户指南 → `docs/user/`,方向级决策 → `docs/adr/`。不要把未来计划写成 current truth,不要新增复述代码的架构文档。
 
 ## 验证要求
 
-提交前必须通过 `make format-check` 和 `make lint`。core/runtime 改动至少跑 `go test ./internal/core ./internal/runtime ./internal/cli ./internal/tools ./internal/store ./internal/memory ./internal/mcp ./internal/wire ./internal/api`。
+提交前必须通过 `make format-check` 和 `make lint`。core/runtime 改动至少跑 `go test ./internal/core ./internal/runtime ./internal/cli ./internal/tools ./internal/store ./internal/presence ./internal/wake ./internal/notify ./internal/mcp ./internal/wire ./internal/api`。
 
 **CI 守卫**(`tests/architecture/`):`structural_limits_test.go`、`client_projection_boundary_test.go`、`store_interface_count_test.go`、`dependency_direction_test.go`、`docs_structure_test.go`、`shipped_artifacts_test.go`。

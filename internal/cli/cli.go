@@ -31,8 +31,6 @@ func Run(ctx context.Context, args []string) error {
 		return runDoctor(ctx, args[1:])
 	case "skills":
 		return runSkills(ctx, args[1:])
-	case "memory":
-		return runMemory(ctx, args[1:])
 	case "pair":
 		return runPair(ctx, args[1:])
 	case "token":
@@ -63,16 +61,12 @@ Usage:
   acorn skills list [-c path] [--json]
   acorn skills inspect [-c path] [--json] SKILL_ID
   acorn skills check [-c path] [--json] [--fixtures path]
-  acorn skills create [-c path] --id id --name name --instruction text [--summary text]
-  acorn skills patch [-c path] SKILL_ID "patch text"
-  acorn skills delete [-c path] SKILL_ID
   acorn pair [-c path] [--json] [--qr] [--ttl duration] [--server-url url]
   acorn token issue [-c path] [--json] [--name name] [--ttl duration]
   acorn devices list [-c path] [--json]
   acorn devices revoke [-c path] DEVICE_ID
   acorn smoke [-c path] [--json] "task input"
   acorn run [-c path] [--json] "task input"
-  acorn memory reindex [-c path] [--json]
   acorn serve [-c path] [--listen addr]`)
 }
 
@@ -85,7 +79,29 @@ func runDoctor(ctx context.Context, args []string) error {
 	}
 	return withContainer(ctx, *configPath, func(container *wire.Container) error {
 		snapshot := container.Capabilities().Snapshot(ctx, api.CapabilitySnapshotOptions{ProbeMCP: true})
-		return printDoctorOutput(snapshot, container.Config().ConfigPath, *jsonMode)
+		knowledgeStatus, err := container.KnowledgeStatus(ctx)
+		if err != nil {
+			return fmt.Errorf("knowledge base: %w", err)
+		}
+		watches, err := container.Watches(ctx)
+		if err != nil {
+			return fmt.Errorf("watches: %w", err)
+		}
+		thinking, err := container.ThinkingStatus(ctx)
+		if err != nil {
+			return fmt.Errorf("thinking status: %w", err)
+		}
+		if *jsonMode {
+			return printJSON(struct {
+				api.SystemCapabilities
+				Thinking wire.ThinkingStatus `json:"thinking"`
+			}{snapshot, thinking})
+		}
+		fmt.Println(renderDoctorSummary(snapshot, container.Config().ConfigPath))
+		fmt.Println(renderDoctorKnowledge(knowledgeStatus))
+		fmt.Println(renderDoctorWatches(container.Config(), watches))
+		fmt.Println(renderDoctorThinking(container.Config(), thinking))
+		return nil
 	})
 }
 

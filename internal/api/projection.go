@@ -10,7 +10,6 @@ import (
 var liveRunEventKinds = []string{
 	"run.started",
 	"assistant.delta",
-	"agent.message",
 	"run.completed",
 	"run.failed",
 	"run.interrupted",
@@ -19,7 +18,8 @@ var liveRunEventKinds = []string{
 	"elicitation.decided",
 	"operator_question.pending",
 	"operator_question.decided",
-	"decision_blocked",
+	"tool_approval.pending",
+	"tool_approval.decided",
 }
 
 // IsLiveRunEventKind reports whether kind is part of the /v1 mobile live contract.
@@ -61,12 +61,6 @@ func ProjectRunEventData(kind string, payload map[string]any) (any, error) {
 			return nil, projectionError("assistant.delta payload missing assistant_delta object")
 		}
 		return core.AssistantDeltaData{AssistantDelta: value}, nil
-	case "agent.message":
-		value, ok := objectField(payload, "message")
-		if !ok {
-			return nil, projectionError("agent.message payload missing message object")
-		}
-		return core.AgentMessageData{Message: value}, nil
 	case "run.completed":
 		value, _ := objectField(payload, "message")
 		return core.RunCompletedData{Message: value}, nil
@@ -92,8 +86,13 @@ func ProjectRunEventData(kind string, payload map[string]any) (any, error) {
 		}, nil
 	case "operator_question.pending", "operator_question.decided":
 		return projectOperatorQuestionData(payload), nil
-	case "decision_blocked":
-		return projectDecisionBlockedData(payload), nil
+	case "tool_approval.pending", "tool_approval.decided":
+		return core.ToolApprovalData{
+			ActionID:  topLevelString(payload, "action_id"),
+			ToolName:  topLevelString(payload, "tool_name"),
+			Arguments: topLevelString(payload, "arguments"),
+			Decision:  topLevelString(payload, "decision"),
+		}, nil
 	default:
 		return nil, projectionError("unsupported live run event kind %q", kind)
 	}
@@ -108,13 +107,5 @@ func projectOperatorQuestionData(payload map[string]any) core.OperatorQuestionDa
 		Decision:         topLevelString(payload, "decision"),
 		SelectedOptionID: topLevelString(payload, "selected_option_id"),
 		Answer:           topLevelString(payload, "answer"),
-	}
-}
-
-func projectDecisionBlockedData(payload map[string]any) core.DecisionBlockedData {
-	return core.DecisionBlockedData{
-		Action:          topLevelString(payload, "action"),
-		DecisionReason:  topLevelString(payload, "decision_reason"),
-		ExplicitSkillID: topLevelString(payload, "explicit_skill_id"),
 	}
 }

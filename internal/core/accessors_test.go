@@ -252,17 +252,6 @@ func TestSessionIDContextRoundtrip(t *testing.T) {
 	}
 }
 
-func TestTurnIndexContextRoundtrip(t *testing.T) {
-	ctx := WithTurnIndex(context.Background(), 7)
-	if got := TurnIndexFromContext(ctx); got != 7 {
-		t.Fatalf("got %d, want 7", got)
-	}
-	// default zero
-	if got := TurnIndexFromContext(context.Background()); got != 0 {
-		t.Fatalf("got %d, want 0", got)
-	}
-}
-
 // --- StreamItem JSON roundtrip ---
 
 func TestStreamItemJSONRoundtrip(t *testing.T) {

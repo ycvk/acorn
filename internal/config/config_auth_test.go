@@ -27,18 +27,9 @@ agent:
   name: coordinator
   description: test
   max_iterations: 4
-  system_prompt: |
-    test
 tools:
   workspace:
     root_dir: .
-  mutation:
-    disabled: true
-    root_dir: .
-  run_command:
-    disabled: true
-    default_timeout: 30
-    work_dir: .
 mcp:
   providers:
     - name: oauth_stdio
@@ -46,7 +37,6 @@ mcp:
       transport: stdio
       command: my-server
       startup_timeout_seconds: 30
-      tool_safety: read_only
       auth:
         type: oauth
         client_id: my-client
@@ -87,25 +77,15 @@ agent:
   name: coordinator
   description: test
   max_iterations: 4
-  system_prompt: |
-    test
 tools:
   workspace:
     root_dir: .
-  mutation:
-    disabled: true
-    root_dir: .
-  run_command:
-    disabled: true
-    default_timeout: 30
-    work_dir: .
 mcp:
   providers:
     - name: oauth_notransport
       enabled: true
       command: my-server
       startup_timeout_seconds: 30
-      tool_safety: read_only
       auth:
         type: oauth
         client_id: my-client
@@ -143,18 +123,9 @@ agent:
   name: coordinator
   description: test
   max_iterations: 4
-  system_prompt: |
-    test
 tools:
   workspace:
     root_dir: .
-  mutation:
-    disabled: true
-    root_dir: .
-  run_command:
-    disabled: true
-    default_timeout: 30
-    work_dir: .
 mcp:
   providers:
     - name: oauth_sse
@@ -162,7 +133,6 @@ mcp:
       transport: sse
       url: http://localhost:8080/sse
       startup_timeout_seconds: 30
-      tool_safety: read_only
       auth:
         type: oauth
         client_id: my-client
@@ -209,18 +179,9 @@ agent:
   name: coordinator
   description: test
   max_iterations: 4
-  system_prompt: |
-    test
 tools:
   workspace:
     root_dir: .
-  mutation:
-    disabled: true
-    root_dir: .
-  run_command:
-    disabled: true
-    default_timeout: 30
-    work_dir: .
 mcp:
   providers:
     - name: bad_auth
@@ -228,7 +189,6 @@ mcp:
       transport: sse
       url: http://localhost:8080/sse
       startup_timeout_seconds: 30
-      tool_safety: read_only
       auth:
         type: kerberos
 `
@@ -268,18 +228,9 @@ agent:
   name: coordinator
   description: test
   max_iterations: 4
-  system_prompt: |
-    test
 tools:
   workspace:
     root_dir: .
-  mutation:
-    disabled: true
-    root_dir: .
-  run_command:
-    disabled: true
-    default_timeout: 30
-    work_dir: .
 mcp:
   providers:
     - name: no_auth
@@ -287,7 +238,6 @@ mcp:
       transport: stdio
       command: my-server
       startup_timeout_seconds: 30
-      tool_safety: read_only
 `
 	if err := os.WriteFile(configPath, []byte(configBody), 0o644); err != nil {
 		t.Fatalf("write config: %v", err)

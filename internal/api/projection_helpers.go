@@ -46,3 +46,14 @@ func pendingActionOptionsFromAny(raw any) []core.PendingActionOption {
 	}
 	return out
 }
+
+func cloneMap(value map[string]any) map[string]any {
+	if value == nil {
+		return nil
+	}
+	out := make(map[string]any, len(value))
+	for key, item := range value {
+		out[key] = item
+	}
+	return out
+}

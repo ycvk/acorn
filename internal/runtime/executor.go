@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"strings"
 	"time"
 
@@ -13,7 +12,6 @@ import (
 	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
-	"github.com/ycvk/acorn/internal/memory"
 )
 
 type Result struct {
@@ -29,7 +27,6 @@ type Executor struct {
 	runRuntime   *RunnerFactory
 	controller   *RunController
 	newChatModel func(ctx context.Context) (einomodel.BaseChatModel, error)
-	reviewer     *Reviewer
 }
 
 func NewExecutorWithRunRuntimeAndController(cfg *config.Config, store core.SessionStore, runRuntime *RunnerFactory, controller *RunController) (*Executor, error) {
@@ -55,12 +52,6 @@ func NewExecutorWithRunRuntimeAndController(cfg *config.Config, store core.Sessi
 		newChatModel: runRuntime.NewChatModel,
 	}
 	return exec, nil
-}
-
-// SetReviewer attaches a periodic memory reviewer. Optional: nil or
-// NewReviewer returning nil disables review.
-func (e *Executor) SetReviewer(r *Reviewer) {
-	e.reviewer = r
 }
 
 func resolveRunID(req core.ExecuteRequest) string {
@@ -106,12 +97,9 @@ func (e *Executor) ExecuteMessages(ctx context.Context, req core.ExecuteRequest,
 		return nil, e.failSetupOrErr(ctx, runID, err, sink)
 	}
 	defer active.Close()
-	messages, err := e.bootstrapContextSessionMessages(ctx, req, runID, active)
-	if err != nil {
-		return nil, e.failSetupOrErr(ctx, runID, err, sink)
-	}
-	iter := active.Runner.Run(e.executionContext(runCtxBase, runID, req, active, sink), messages, adk.WithCheckPointID(runID))
-	return e.consume(ctx, runID, req.SessionID, req.Input, iter, active.SelectedSkill, sink, active.ChatModel)
+	execCtx := core.WithWake(buildExecutionContext(runCtxBase, runID, req.SessionID), req.Wake)
+	iter := active.Runner.Run(execCtx, req.Messages, adk.WithCheckPointID(runID))
+	return e.consume(ctx, runID, req.SessionID, req.Input, iter, sink, active)
 }
 
 func (e *Executor) createBoundRun(ctx context.Context, runID string, req core.ExecuteRequest) error {
@@ -134,21 +122,12 @@ func (e *Executor) createBoundRun(ctx context.Context, runID string, req core.Ex
 
 func (e *Executor) buildExecuteRunner(runCtxBase context.Context, req core.ExecuteRequest, runID string, sink core.StreamSink) (*ActiveRunner, error) {
 	return e.runRuntime.New(runCtxBase, RunnerBuildRequest{
-		SessionID:        req.SessionID,
-		RunID:            runID,
-		Input:            req.Input,
-		SkillID:          req.SkillID,
-		AllowedToolNames: append([]string(nil), req.AllowedToolNames...),
-		Sink:             sink,
+		SessionID: req.SessionID,
+		RunID:     runID,
+		Input:     req.Input,
+		SkillID:   req.SkillID,
+		Sink:      sink,
 	})
-}
-
-func (e *Executor) executionContext(runCtxBase context.Context, runID string, req core.ExecuteRequest, active *ActiveRunner, sink core.StreamSink) context.Context {
-	executionCtx := buildExecutionContext(runCtxBase, runID, req.SessionID, req.TurnIndex, sink)
-	if active.ContextSession != nil {
-		executionCtx = WithSession(executionCtx, active.ContextSession)
-	}
-	return executionCtx
 }
 
 func (e *Executor) newManagedRunContext(ctx context.Context, runID string) (context.Context, func()) {
@@ -157,21 +136,19 @@ func (e *Executor) newManagedRunContext(ctx context.Context, runID string) (cont
 		runTimeout = 15 * time.Minute
 	}
 	runCtxBase, cancel := context.WithTimeout(ctx, runTimeout)
-	if e.controller == nil {
-		return runCtxBase, cancel
-	}
-	e.controller.Register(runID, cancel)
+	unregister := e.controller.Register(runID, cancel)
 	return runCtxBase, func() {
-		e.controller.Clear(runID)
+		unregister()
 		cancel()
 	}
 }
 
-func buildExecutionContext(runCtxBase context.Context, runID, sessionID string, turnIndex int, sink core.StreamSink) context.Context {
-	runCtx := core.WithRunID(runCtxBase, runID)
-	runCtx = core.WithSessionID(runCtx, sessionID)
-	runCtx = core.WithTurnIndex(runCtx, turnIndex)
-	return core.WithStreamSink(runCtx, sink)
+// resumeWake is what the present shows when a run continues after the owner
+// decided its pending actions.
+const resumeWake = "resumed after the owner's decision"
+
+func buildExecutionContext(runCtxBase context.Context, runID, sessionID string) context.Context {
+	return core.WithSessionID(core.WithRunID(runCtxBase, runID), sessionID)
 }
 
 func (e *Executor) ResumeWithTargets(ctx context.Context, runID string, targets map[string]any, sink core.StreamSink) (*Result, error) {
@@ -179,8 +156,8 @@ func (e *Executor) ResumeWithTargets(ctx context.Context, runID string, targets 
 	if err != nil {
 		return nil, err
 	}
-	if run.Status != core.RunStatusInterrupted {
-		return nil, fmt.Errorf("%w: %s", core.ErrRunNotInterrupted, runID)
+	if err := e.store.ResumeInterruptedRun(ctx, runID); err != nil {
+		return nil, err
 	}
 	runCtxBase, cleanup := e.newManagedRunContext(ctx, runID)
 	defer cleanup()
@@ -199,14 +176,12 @@ func (e *Executor) executeResume(ctx context.Context, runCtxBase context.Context
 		return nil, err
 	}
 	defer active.Close()
-	if err := e.bootstrapResumeContextSession(ctx, run, runID, active); err != nil {
-		return nil, fmt.Errorf("bootstrap resume context session: %w", err)
-	}
-	iter, err := e.resumeIter(runCtxBase, run, runID, active, targets, sink)
+	execCtx := core.WithWake(buildExecutionContext(runCtxBase, runID, run.SessionID), resumeWake)
+	iter, err := active.Runner.ResumeWithParams(execCtx, runID, &adk.ResumeParams{Targets: targets})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("resume run %s: %w", runID, err)
 	}
-	result, err := e.consume(ctx, runID, run.SessionID, run.Input, iter, active.SelectedSkill, sink, active.ChatModel)
+	result, err := e.consume(ctx, runID, run.SessionID, run.Input, iter, sink, active)
 	if err != nil {
 		return nil, err
 	}
@@ -216,33 +191,6 @@ func (e *Executor) executeResume(ctx context.Context, runCtxBase context.Context
 	return result, nil
 }
 
-func (e *Executor) resumeIter(runCtxBase context.Context, run core.RunRecord, runID string, active *ActiveRunner, targets map[string]any, sink core.StreamSink) (*adk.AsyncIterator[*adk.AgentEvent], error) {
-	executionCtx := WithSession(
-		buildExecutionContext(runCtxBase, runID, run.SessionID, run.TurnIndex, sink), active.ContextSession)
-	iter, err := active.Runner.ResumeWithParams(executionCtx, runID, &adk.ResumeParams{Targets: targets})
-	if err != nil {
-		return nil, fmt.Errorf("resume run %s: %w", runID, err)
-	}
-	return iter, nil
-}
-
-func (e *Executor) bootstrapResumeContextSession(ctx context.Context, run core.RunRecord, runID string, active *ActiveRunner) error {
-	if active.ContextSession != nil {
-		return nil
-	}
-	messages := []adk.Message{}
-	if strings.TrimSpace(run.Input) != "" {
-		messages = []adk.Message{schema.UserMessage(run.Input)}
-	}
-	_, err := e.bootstrapContextSessionMessages(ctx, core.ExecuteRequest{
-		SessionID: run.SessionID,
-		TurnIndex: run.TurnIndex,
-		Input:     run.Input,
-		Messages:  messages,
-	}, runID, active)
-	return err
-}
-
 type RunState struct {
 	lastOutput       string
 	interrupt        map[string]any
@@ -250,36 +198,42 @@ type RunState struct {
 	emittedRunFailed bool
 }
 
-func (e *Executor) consume(ctx context.Context, runID, sessionID, input string, iter *adk.AsyncIterator[*adk.AgentEvent], selectedSkill *SelectedSkill, sink core.StreamSink, chatModel einomodel.BaseChatModel) (*Result, error) {
-	state, err := e.collectRunState(ctx, runID, iter, sink, chatModel)
+func (e *Executor) consume(ctx context.Context, runID, sessionID, input string, iter *adk.AsyncIterator[*adk.AgentEvent], sink core.StreamSink, active *ActiveRunner) (*Result, error) {
+	state, err := e.collectRunState(ctx, runID, iter, sink, active)
 	if err != nil {
 		return nil, err
 	}
-	return e.finishCollectedRun(ctx, runID, sessionID, input, state, selectedSkill, sink)
+	return e.finishCollectedRun(ctx, runID, sessionID, input, state, sink)
 }
 
-func (e *Executor) collectRunState(ctx context.Context, runID string, iter *adk.AsyncIterator[*adk.AgentEvent], sink core.StreamSink, chatModel einomodel.BaseChatModel) (RunState, error) {
+func (e *Executor) collectRunState(ctx context.Context, runID string, iter *adk.AsyncIterator[*adk.AgentEvent], sink core.StreamSink, active *ActiveRunner) (RunState, error) {
 	state := RunState{}
-	for {
-		event, ok := iter.Next()
-		if !ok {
-			return state, nil
-		}
-		if err := e.applyAgentEvent(ctx, runID, StreamItemsFromAgentEvent(event, chatModel), sink, &state); err != nil {
-			return RunState{}, err
-		}
-	}
-}
-
-func (e *Executor) applyAgentEvent(ctx context.Context, runID string, items []core.StreamItem, sink core.StreamSink, state *RunState) error {
-	for _, item := range items {
+	projector := newAgentEventProjector(runID, active.ChatModel, active.FailedCalls)
+	emit := func(item core.StreamItem) error {
 		item.RunID = runID
 		if _, err := AppendStreamItem(ctx, e.store, sink, item); err != nil {
 			return err
 		}
 		state.applyStreamItem(item)
+		return nil
 	}
-	return nil
+	for {
+		event, ok := iter.Next()
+		if !ok {
+			break
+		}
+		if err := projector.project(event, emit); err != nil {
+			return RunState{}, err
+		}
+	}
+	if projector.streamErr != nil && state.failure == nil {
+		if err := emit(core.StreamItem{Kind: core.StreamKindRunFailed, CreatedAt: time.Now().UTC(), Payload: map[string]any{
+			"error": projector.streamErr.Error(),
+		}}); err != nil {
+			return RunState{}, err
+		}
+	}
+	return state, nil
 }
 
 func (s *RunState) applyStreamItem(item core.StreamItem) {
@@ -345,39 +299,22 @@ func (e *Executor) failSetupOrErr(ctx context.Context, runID string, setupErr er
 	return setupErr
 }
 
-func (e *Executor) verifyAndRecordSkill(ctx context.Context, runID string, selected *SelectedSkill, status core.RunStatus, output string, sink core.StreamSink) error {
-	if selected == nil || strings.TrimSpace(runID) == "" || status != core.RunStatusFailed {
-		return nil
-	}
-	_, err := AppendStreamItem(ctx, e.store, sink, core.StreamItem{
-		RunID: runID,
-		Kind:  core.StreamKindSkillFailed,
-		Payload: map[string]any{"skill": &core.StreamSkill{
-			SelectedID:    selected.Skill.ID,
-			Name:          selected.Skill.Name,
-			Source:        selected.Skill.Source,
-			Path:          selected.Skill.Path,
-			Summary:       selected.Skill.Summary,
-			Requirements:  streamSkillRequirementsFromDomain(selected.Skill.Requires),
-			FailureReason: failureReasonForStatus(status, output),
-		}},
-	})
-	return err
-}
-
-func (e *Executor) finishCollectedRun(ctx context.Context, runID, sessionID, input string, state RunState, selectedSkill *SelectedSkill, sink core.StreamSink) (*Result, error) {
+func (e *Executor) finishCollectedRun(ctx context.Context, runID, sessionID, input string, state RunState, sink core.StreamSink) (*Result, error) {
 	switch {
 	case state.failure != nil:
-		return e.finishFailedRun(ctx, runID, sessionID, input, state, selectedSkill, sink)
+		return e.finishFailedRun(ctx, runID, sessionID, input, state, sink)
 	case state.interrupt != nil:
 		return e.finishInterruptedRun(ctx, runID, state)
 	default:
-		return e.finishSucceededRun(ctx, runID, sessionID, input, state, selectedSkill, sink)
+		return e.finishSucceededRun(ctx, runID, sessionID, input, state, sink)
 	}
 }
 
-func (e *Executor) finishFailedRun(ctx context.Context, runID, sessionID, input string, state RunState, selectedSkill *SelectedSkill, sink core.StreamSink) (*Result, error) {
+func (e *Executor) finishFailedRun(ctx context.Context, runID, sessionID, input string, state RunState, sink core.StreamSink) (*Result, error) {
 	durableCtx := core.DurableContext(ctx)
+	if err := e.recordAssistantMessage(durableCtx, runID, state.lastOutput, core.RunStatusFailed); err != nil {
+		return nil, err
+	}
 	if !state.emittedRunFailed && state.failure != nil {
 		if err := e.emitRunFailed(durableCtx, runID, sink, state.failure.Error()); err != nil {
 			return nil, err
@@ -386,20 +323,28 @@ func (e *Executor) finishFailedRun(ctx context.Context, runID, sessionID, input 
 	if err := e.store.FinishRun(durableCtx, runID, core.RunStatusFailed, state.lastOutput, state.failure.Error()); err != nil {
 		return nil, err
 	}
-	if err := e.verifyAndRecordSkill(durableCtx, runID, selectedSkill, core.RunStatusFailed, state.lastOutput, sink); err != nil {
+	if err := e.store.DeleteCheckpoint(durableCtx, runID); err != nil {
 		return nil, err
 	}
-	if err := e.store.SyncAssistantMessageForRunStatus(durableCtx, runID, core.RunStatusFailed); err != nil {
-		slog.Error("sync assistant message after run completion", "run_id", runID, "err", err)
-	}
-	// Append history after the run is marked complete.
-	go e.finalizePostRun(context.WithoutCancel(ctx), runID, sessionID, core.RunStatusFailed, input, state.lastOutput)
 	return &Result{
 		RunID:  runID,
 		Status: core.RunStatusFailed,
 		Output: state.lastOutput,
 		Error:  state.failure.Error(),
 	}, nil
+}
+
+// recordAssistantMessage stores the run's output and its assistant message
+// before the run reports completion, so a client that reloads the thread on
+// run.completed or a finished status finds the reply.
+func (e *Executor) recordAssistantMessage(ctx context.Context, runID, output string, status core.RunStatus) error {
+	if err := e.store.UpdateRunOutput(ctx, runID, output); err != nil {
+		return err
+	}
+	if err := e.store.SyncAssistantMessageForRunStatus(ctx, runID, status); err != nil {
+		return fmt.Errorf("record assistant message for %s: %w", runID, err)
+	}
+	return nil
 }
 
 func (e *Executor) finishInterruptedRun(ctx context.Context, runID string, state RunState) (*Result, error) {
@@ -415,12 +360,9 @@ func (e *Executor) finishInterruptedRun(ctx context.Context, runID string, state
 	}, nil
 }
 
-func (e *Executor) finishSucceededRun(ctx context.Context, runID, sessionID, input string, state RunState, selectedSkill *SelectedSkill, sink core.StreamSink) (*Result, error) {
+func (e *Executor) finishSucceededRun(ctx context.Context, runID, sessionID, input string, state RunState, sink core.StreamSink) (*Result, error) {
 	durableCtx := core.DurableContext(ctx)
-	if err := e.store.UpdateRunOutput(durableCtx, runID, state.lastOutput); err != nil {
-		return nil, err
-	}
-	if err := e.verifyAndRecordSkill(durableCtx, runID, selectedSkill, core.RunStatusSucceeded, state.lastOutput, sink); err != nil {
+	if err := e.recordAssistantMessage(durableCtx, runID, state.lastOutput, core.RunStatusSucceeded); err != nil {
 		return nil, err
 	}
 	if err := e.emitRunCompleted(durableCtx, runID, state.lastOutput, sink); err != nil {
@@ -429,79 +371,12 @@ func (e *Executor) finishSucceededRun(ctx context.Context, runID, sessionID, inp
 	if err := e.store.FinishRun(durableCtx, runID, core.RunStatusSucceeded, state.lastOutput, ""); err != nil {
 		return nil, err
 	}
-	if err := e.store.SyncAssistantMessageForRunStatus(durableCtx, runID, core.RunStatusSucceeded); err != nil {
-		slog.Error("sync assistant message after run completion", "run_id", runID, "err", err)
+	if err := e.store.DeleteCheckpoint(durableCtx, runID); err != nil {
+		return nil, err
 	}
-	// Append history + count toward review after the run is marked complete,
-	// so this work does not delay the completion event or status update.
-	go e.finalizePostRun(context.WithoutCancel(ctx), runID, sessionID, core.RunStatusSucceeded, input, state.lastOutput)
 	return &Result{
 		RunID:  runID,
 		Status: core.RunStatusSucceeded,
 		Output: state.lastOutput,
 	}, nil
-}
-
-// finalizePostRun syncs the assistant message, appends a history entry,
-// and counts the run toward the periodic memory review. Called
-// asynchronously after the run is marked complete so this work does not
-// delay run completion. Errors are logged, not propagated — the run is
-// already finished.
-func (e *Executor) finalizePostRun(ctx context.Context, runID, sessionID string, runStatus core.RunStatus, input, output string) {
-	if err := e.appendRunHistory(ctx, runID, sessionID, runStatus, input, output); err != nil {
-		slog.Error("append run history", "run_id", runID, "err", err)
-	}
-	// Periodic memory review: counts completed runs and triggers a review
-	// every N runs. nil reviewer = disabled.
-	if e.reviewer != nil {
-		e.reviewer.RecordRun(runID, input, output)
-	}
-}
-
-func (e *Executor) appendRunHistory(ctx context.Context, runID, sessionID string, runStatus core.RunStatus, input, output string) error {
-	if e.runRuntime.MemoryModule() == nil {
-		return errors.New("memory module is not initialized")
-	}
-	summary := e.runHistorySummary(runStatus, input, output)
-	if err := e.runRuntime.MemoryModule().AppendHistory(ctx, memory.HistoryEvent{
-		SessionID: sessionID,
-		RunID:     runID,
-		Status:    string(runStatus),
-		Summary:   summary,
-		Timestamp: time.Now().UTC(),
-	}); err != nil {
-		return fmt.Errorf("append memory history: %w", err)
-	}
-	return nil
-}
-
-// runHistorySummary produces the history summary for a completed run.
-// It is a rune-safe truncation of input + output (no LLM call). The agent
-// decides what's worth remembering long-term via the ambient loop's Record
-// + Crystallize steps and the `remember` tool. History is an append-only
-// event log, not a curated knowledge base.
-func (e *Executor) runHistorySummary(status core.RunStatus, input, output string) string {
-	combined := strings.TrimSpace(input + "\n\n" + output)
-	return fallbackSummary(combined, status)
-}
-
-// fallbackSummary is the degradation path when LLM distillation is
-// unavailable. It produces a rune-safe truncation (not byte-cut) so
-// multi-byte CJK text is not split mid-character.
-func fallbackSummary(combined string, status core.RunStatus) string {
-	combined = strings.TrimSpace(combined)
-	if combined == "" {
-		return string(status)
-	}
-	return string(status) + ": " + truncateRunes(combined, 500)
-}
-
-func failureReasonForStatus(status core.RunStatus, output string) string {
-	if status != core.RunStatusFailed {
-		return ""
-	}
-	if strings.TrimSpace(output) == "" {
-		return "run_failed"
-	}
-	return "run_failed:with_output"
 }

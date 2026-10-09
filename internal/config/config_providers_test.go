@@ -35,7 +35,6 @@ func TestValidateExecutionReady_MultipleEnabledProvidersInvalid(t *testing.T) {
 		Context: ContextConfig{
 			WindowTokens:        200000,
 			CompactMarginTokens: 13000,
-			PreserveRecentTurns: 3,
 			MaskAfterTurns:      2,
 		},
 		Web:       WebConfig{ListenAddr: "127.0.0.1:8080"},
@@ -48,12 +47,13 @@ func TestValidateExecutionReady_MultipleEnabledProvidersInvalid(t *testing.T) {
 		},
 		Tools: ToolsConfig{
 			Workspace: WorkspaceToolConfig{RootDir: "."},
-			Mutation:  MutationToolConfig{RootDir: "."},
-			RunCommand: RunCommandToolConfig{
-				WorkDir: ".",
-			},
 		},
-		Memory: defaultConfig().Memory,
+		Owner:    defaultConfig().Owner,
+		Presence: defaultConfig().Presence,
+		Wake:     defaultConfig().Wake,
+		Notify:   defaultConfig().Notify,
+		Watch:    defaultConfig().Watch,
+		Briefing: defaultConfig().Briefing,
 	}
 	if err := cfg.ValidateExecutionReady(); err == nil {
 		t.Fatal("expected multiple enabled providers to fail validation")
@@ -162,7 +162,6 @@ func TestValidateExecutionReady_DuplicateNames(t *testing.T) {
 		Context: ContextConfig{
 			WindowTokens:        200000,
 			CompactMarginTokens: 13000,
-			PreserveRecentTurns: 3,
 			MaskAfterTurns:      2,
 		},
 		Web:       WebConfig{ListenAddr: "127.0.0.1:8080"},
@@ -175,12 +174,13 @@ func TestValidateExecutionReady_DuplicateNames(t *testing.T) {
 		},
 		Tools: ToolsConfig{
 			Workspace: WorkspaceToolConfig{RootDir: "."},
-			Mutation:  MutationToolConfig{RootDir: "."},
-			RunCommand: RunCommandToolConfig{
-				WorkDir: ".",
-			},
 		},
-		Memory: defaultConfig().Memory,
+		Owner:    defaultConfig().Owner,
+		Presence: defaultConfig().Presence,
+		Wake:     defaultConfig().Wake,
+		Notify:   defaultConfig().Notify,
+		Watch:    defaultConfig().Watch,
+		Briefing: defaultConfig().Briefing,
 	}
 	if err := cfg.ValidateExecutionReady(); err == nil {
 		t.Fatal("expected duplicate provider names to fail validation")
@@ -217,7 +217,6 @@ func TestValidateExecutionReady_DisabledProviderNotValidated(t *testing.T) {
 		Context: ContextConfig{
 			WindowTokens:        200000,
 			CompactMarginTokens: 13000,
-			PreserveRecentTurns: 3,
 			MaskAfterTurns:      2,
 		},
 		Web:       WebConfig{ListenAddr: "127.0.0.1:8080"},
@@ -230,12 +229,13 @@ func TestValidateExecutionReady_DisabledProviderNotValidated(t *testing.T) {
 		},
 		Tools: ToolsConfig{
 			Workspace: WorkspaceToolConfig{RootDir: "."},
-			Mutation:  MutationToolConfig{RootDir: "."},
-			RunCommand: RunCommandToolConfig{
-				WorkDir: ".",
-			},
 		},
-		Memory: defaultConfig().Memory,
+		Owner:    defaultConfig().Owner,
+		Presence: defaultConfig().Presence,
+		Wake:     defaultConfig().Wake,
+		Notify:   defaultConfig().Notify,
+		Watch:    defaultConfig().Watch,
+		Briefing: defaultConfig().Briefing,
 	}
 	if err := cfg.ValidateExecutionReady(); err != nil {
 		t.Fatalf("expected disabled provider to be skipped during validation, got %v", err)

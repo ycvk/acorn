@@ -20,51 +20,72 @@ providers:
     max_completion_tokens: 2048
     enabled: true
 
+approval:
+  # Tool-name glob patterns whose calls pause for owner approval on the phone.
+  require:
+    - browser
+    - "mcp__*"
+
+owner:
+  # IANA timezone used to show times and to read wake times given in local time,
+  # e.g. Asia/Shanghai.
+  timezone: UTC
+
+presence:
+  # Token cap for the working-memory block shown to the model before each call.
+  max_tokens: 4000
+
+wake:
+  # Commitment wakes allowed per local day; 0 turns autonomous wakes off.
+  daily_limit: 20
+  daily_tokens: 300000
+thinking:
+  night_at: "03:00"
+  wander_at: []
+
+notify:
+  max_per_hour: 6
+  # Notifications inside this window wait until it ends (owner timezone).
+  quiet_hours:
+    start: "23:00"
+    end: "08:00"
+  fcm:
+    # Firebase service account key file; empty disables push notifications.
+    service_account_file: ""
+
+knowledge:
+  # Markdown notes the agent writes, also a git repository; empty means
+  # {storage_dir}/knowledge. Point it at an existing Obsidian vault if you like.
+  dir: ""
+
+watch:
+  # Your RSSHub, for rsshub:/route watches (see the onboarding guide).
+  rsshub_base_url: ""
+  # Optional GitHub token for a higher API rate limit, e.g. ${GITHUB_TOKEN}.
+  github_token: ""
+  max_checks_per_tick: 5
+
+briefing:
+  # Morning briefing time in owner.timezone; empty turns it off.
+  at: "08:00"
+
 context:
   window_tokens: 200000
   compact_margin_tokens: 13000
-  preserve_recent_turns: 3
 
 web:
   listen_addr: 127.0.0.1:8080
 
 agent:
   name: coordinator
-  description: Self-hosted ambient agent that wakes on external events, acts on the owner's behalf, and escalates high-risk actions for approval.
+  description: Self-hosted personal agent that works on its owner's behalf and asks for approval before sensitive actions.
   max_iterations: 90
-  system_prompt: |
-    You are Acorn, the operator's self-hosted ambient agent. You wake when external
-    events arrive (webhooks, triggers) or when the operator sends a message from
-    their phone. The ambient agent loop is injected below — follow it.
-
-    Tool discipline:
-    - Orient with read-only tools first: read_file, list_files, search_text,
-      inspect_git_status, inspect_git_diff, worldstate_load.
-    - Use run_command only when native tools cannot answer or execute the task.
-    - Never pretend a tool, MCP provider, or command succeeded when it did not run.
-    - Keep answers concrete and short.
 
 tools:
-  run_command:
-    default_timeout: 30
-    work_dir: ~/.acorn/workspace
-    env_whitelist:
-      - PATH
-      - HOME
-      - GIT_EDITOR
+  # Holds the seed skills (skills/) and workspace skills (.acorn/skills/workspace).
   workspace:
     root_dir: ~/.acorn/workspace
-  mutation:
-    root_dir: ~/.acorn/workspace
-    denylist: []
 
 mcp:
   providers: []
 
-memory:
-  search:
-    memory_context_token_budget: 8000
-  embedding:
-    enabled: false              # Opt-in semantic retrieval. When true, memory records are embedded via the provider's /v1/embeddings endpoint and searched with sqlite-vec KNN + keyword fusion (RRF). When false, search is keyword-only.
-    model: text-embedding-3-small # OpenAI-compatible embedding model (reuses provider base_url + api_key)
-    dimensions: 1536             # Must match the embedding model's output dimension

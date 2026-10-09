@@ -30,8 +30,7 @@ type ToolRegistry interface {
 	// Tools not found are silently skipped; the caller checks len(result) vs len(names).
 	Resolve(ctx context.Context, runCtx RunContext, names []string) ([]einotool.BaseTool, error)
 	// ResolveEnabledSpecs returns every enabled spec with its concrete tool
-	// instance populated via Factory. Specs whose factory returns (nil, nil)
-	// (absent backing service) are omitted. This is the spec-preserving
+	// instance populated via Factory. This is the spec-preserving
 	// counterpart to Resolve for callers (e.g. the runtime catalog assembler)
 	// that need the full ToolSpec, not just the tool instance.
 	ResolveEnabledSpecs(ctx context.Context, runCtx RunContext) ([]ToolSpec, error)

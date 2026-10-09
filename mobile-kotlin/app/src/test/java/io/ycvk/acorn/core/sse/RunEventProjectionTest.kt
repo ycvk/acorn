@@ -1,19 +1,22 @@
 package io.ycvk.acorn.core.sse
 
-import io.ycvk.acorn.api.models.AgentMessageData
 import io.ycvk.acorn.api.models.AssistantDeltaData
-import io.ycvk.acorn.api.models.ClientAgentMessageEvent
 import io.ycvk.acorn.api.models.ClientAssistantDeltaEvent
 import io.ycvk.acorn.api.models.ClientRunCompletedEvent
 import io.ycvk.acorn.api.models.ClientRunFailedEvent
 import io.ycvk.acorn.api.models.ClientRunInterruptedEvent
+import io.ycvk.acorn.api.models.ClientRunResumeRequestedEvent
 import io.ycvk.acorn.api.models.ClientRunStartedEvent
 import io.ycvk.acorn.api.models.RunCompletedData
 import io.ycvk.acorn.api.models.RunEventAssistantDelta
 import io.ycvk.acorn.api.models.RunEventMessage
 import io.ycvk.acorn.api.models.RunFailedData
 import io.ycvk.acorn.api.models.RunInterruptedData
+import io.ycvk.acorn.api.models.RunResumeRequestedData
 import io.ycvk.acorn.api.models.RunStartedData
+import io.ycvk.acorn.api.models.ClientToolApprovalDecidedEvent
+import io.ycvk.acorn.api.models.ClientToolApprovalPendingEvent
+import io.ycvk.acorn.api.models.ToolApprovalData
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -50,18 +53,6 @@ class RunEventProjectionTest {
             ),
         )
 
-    private fun agentMessageEvent(seq: Long, content: String?, reasoning: String? = null) =
-        ClientAgentMessageEvent(
-            eventId = "evt-$seq",
-            runId = "run-1",
-            seq = seq,
-            ts = now,
-            type = null,
-            data = AgentMessageData(
-                message = RunEventMessage(role = "assistant", content = content, reasoning = reasoning),
-            ),
-        )
-
     private fun completedEvent(seq: Long, content: String? = null) =
         ClientRunCompletedEvent(
             eventId = "evt-$seq",
@@ -92,6 +83,66 @@ class RunEventProjectionTest {
         data = RunInterruptedData(),
     )
 
+    private fun resumeRequestedEvent(seq: Long) = RunEventPacket.RunResumeRequested(
+        ClientRunResumeRequestedEvent(
+            eventId = "evt-$seq",
+            runId = "run-1",
+            seq = seq,
+            ts = now,
+            type = null,
+            data = RunResumeRequestedData(),
+        ),
+    )
+
+    private fun approvalPending(seq: Long) = RunEventPacket.ToolApprovalPending(
+        ClientToolApprovalPendingEvent(
+            eventId = "run-1:$seq", runId = "run-1", seq = seq, ts = now, type = null,
+            data = ToolApprovalData(actionId = "action_1", toolName = "browser", arguments = "{}"),
+        ),
+    )
+
+    @Test
+    fun `resume row clears on the next delta`() {
+        var state = projection.apply(ChatState(runStatus = RunStatus.Interrupted), resumeRequestedEvent(7))
+        assertEquals(listOf(ActivityKind.ResumeRequested), state.activities.map { it.kind })
+        state = projection.apply(state, RunEventPacket.AssistantDelta(deltaEvent(8, "back")))
+        assertTrue(state.activities.isEmpty())
+    }
+
+    @Test
+    fun `resume row clears on terminal events`() {
+        val resumed = projection.apply(ChatState(runStatus = RunStatus.Interrupted), resumeRequestedEvent(7))
+        listOf(
+            RunEventPacket.RunCompleted(completedEvent(8, "done")),
+            RunEventPacket.RunFailed(failedEvent(8)),
+            RunEventPacket.RunInterrupted(interruptedEvent(8)),
+        ).forEach { terminal ->
+            assertTrue(projection.apply(resumed, terminal).activities.isEmpty())
+        }
+    }
+
+    @Test
+    fun `header shows running, waiting on an owner decision, then idle`() {
+        var state = projection.apply(ChatState(), RunEventPacket.Started(startedEvent()))
+        assertEquals(ChatHeaderStatus.Running, state.headerStatus())
+
+        state = projection.apply(state, approvalPending(2))
+        state = projection.apply(state, RunEventPacket.RunInterrupted(interruptedEvent(3)))
+        assertEquals(ChatHeaderStatus.Waiting, state.headerStatus())
+
+        state = projection.apply(state, resumeRequestedEvent(4))
+        assertEquals(ChatHeaderStatus.Running, state.headerStatus())
+
+        state = projection.apply(state, RunEventPacket.RunCompleted(completedEvent(5, "ok")))
+        assertEquals(ChatHeaderStatus.Idle, state.headerStatus())
+    }
+
+    @Test
+    fun `interrupted without a pending decision is idle`() {
+        val state = projection.apply(ChatState(), RunEventPacket.RunInterrupted(interruptedEvent(2)))
+        assertEquals(ChatHeaderStatus.Idle, state.headerStatus())
+    }
+
     @Test
     fun `Started resets state to streaming and clears text`() {
         val state = ChatState(assistantText = "old", assistantReasoning = "old reasoning", isStreaming = false, runStatus = RunStatus.Completed)
@@ -118,14 +169,6 @@ class RunEventProjectionTest {
         state = projection.apply(state, RunEventPacket.AssistantDelta(deltaEvent(2, "Hello")))
         state = projection.apply(state, RunEventPacket.AssistantDelta(deltaEvent(3, null)))
         assertEquals("Hello", state.assistantText)
-    }
-
-    @Test
-    fun `AgentMessage replaces assistant text`() {
-        var state = projection.apply(ChatState(), RunEventPacket.Started(startedEvent()))
-        state = projection.apply(state, RunEventPacket.AssistantDelta(deltaEvent(2, "partial")))
-        state = projection.apply(state, RunEventPacket.AgentMessage(agentMessageEvent(3, "final answer")))
-        assertEquals("final answer", state.assistantText)
     }
 
     @Test
@@ -162,6 +205,33 @@ class RunEventProjectionTest {
         state = projection.apply(state, RunEventPacket.RunInterrupted(interruptedEvent(6)))
         assertFalse(state.isStreaming)
         assertEquals(RunStatus.Interrupted, state.runStatus)
+    }
+
+    @Test
+    fun `ToolApproval pending adds a waiting row that its decision clears`() {
+        var state = projection.apply(ChatState(), RunEventPacket.Started(startedEvent()))
+        state = projection.apply(
+            state,
+            RunEventPacket.ToolApprovalPending(
+                ClientToolApprovalPendingEvent(
+                    eventId = "run-1:2", runId = "run-1", seq = 2, ts = now, type = null,
+                    data = ToolApprovalData(actionId = "action_1", toolName = "browser", arguments = "{}"),
+                ),
+            ),
+        )
+        assertEquals(listOf("Waiting for approval: browser"), state.activities.map { it.label })
+        assertEquals(ActivityKind.ToolApproval, state.activities.single().kind)
+
+        state = projection.apply(
+            state,
+            RunEventPacket.ToolApprovalDecided(
+                ClientToolApprovalDecidedEvent(
+                    eventId = "run-1:5", runId = "run-1", seq = 5, ts = now, type = null,
+                    data = ToolApprovalData(actionId = "action_1", decision = ToolApprovalData.Decision.accept),
+                ),
+            ),
+        )
+        assertTrue(state.activities.isEmpty())
     }
 
     @Test

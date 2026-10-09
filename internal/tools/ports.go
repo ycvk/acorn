@@ -4,26 +4,8 @@ import (
 	"context"
 
 	"github.com/ycvk/acorn/internal/webaccess"
-	"github.com/ycvk/acorn/internal/workspace"
 )
 
-// WorkspaceView is the subset of workspace operations required by tool builders.
-type WorkspaceView interface {
-	Root() string
-	StorageDir() string
-	ResolveReadPath(value string) (string, error)
-	ResolveWritePath(value string) (string, error)
-	RelativePath(absPath string) (string, error)
-	ResolveCwd(value string) (string, error)
-	RunCommandEnvWhitelist() []string
-	RunCommandDefaultTimeout() int
-	CreateMutationCheckpoint(ctx context.Context, toolName string, paths []string) (*workspace.WorkspaceMutationCheckpoint, error)
-	CompleteMutationCheckpoint(ctx context.Context, checkpointID string) (*workspace.WorkspaceMutationCheckpoint, error)
-	RollbackMutationCheckpoint(ctx context.Context, checkpointID string) (*workspace.WorkspaceRollbackResult, error)
-	InspectGitStatus(ctx context.Context, scopedPath string) (*workspace.WorkspaceGitStatus, error)
-}
-
-// WebFetchService is the subset of web fetch operations required by tool builders.
 type WebFetchService interface {
 	Fetch(ctx context.Context, req webaccess.FetchRequest) (webaccess.FetchResult, error)
 }

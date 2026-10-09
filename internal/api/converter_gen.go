@@ -3,10 +3,7 @@
 
 package api
 
-import (
-	memory "github.com/ycvk/acorn/internal/memory"
-	skills "github.com/ycvk/acorn/internal/skills"
-)
+import skills "github.com/ycvk/acorn/internal/skills"
 
 type ConverterImpl struct{}
 
@@ -83,11 +80,7 @@ func (c *ConverterImpl) apiSystemToolCapabilityToApiCapabilitiesToolDTO(source S
 	apiCapabilitiesToolDTO.Enabled = source.Enabled
 	apiCapabilitiesToolDTO.HealthState = source.HealthState
 	apiCapabilitiesToolDTO.HealthReason = source.HealthReason
-	apiCapabilitiesToolDTO.ParallelPolicy = source.ParallelPolicy
 	apiCapabilitiesToolDTO.Risk = source.Risk
-	apiCapabilitiesToolDTO.RootDir = source.RootDir
-	apiCapabilitiesToolDTO.WorkDir = source.WorkDir
-	apiCapabilitiesToolDTO.DefaultTimeout = source.DefaultTimeout
 	return apiCapabilitiesToolDTO
 }
 func (c *ConverterImpl) artifactSummaryDTOsFromDomain(source []ArtifactSummary) []ArtifactSummaryDTO {
@@ -102,7 +95,6 @@ func (c *ConverterImpl) artifactSummaryDTOsFromDomain(source []ArtifactSummary) 
 }
 func (c *ConverterImpl) capabilitiesFeaturesDTOFromSnapshot(source SystemFeatureCapabilities) CapabilitiesFeaturesDTO {
 	var apiCapabilitiesFeaturesDTO CapabilitiesFeaturesDTO
-	apiCapabilitiesFeaturesDTO.InterruptResume = source.InterruptResume
 	apiCapabilitiesFeaturesDTO.SessionHistory = source.SessionHistory
 	return apiCapabilitiesFeaturesDTO
 }
@@ -133,83 +125,6 @@ func (c *ConverterImpl) capabilitiesToolsDTOFromSnapshot(source []SystemToolCapa
 		}
 	}
 	return apiCapabilitiesToolDTOList
-}
-func (c *ConverterImpl) memoryRecordDTOFromDomain(source memory.Record) MemoryRecordDTO {
-	var apiMemoryRecordDTO MemoryRecordDTO
-	apiMemoryRecordDTO.Ref = source.Ref
-	apiMemoryRecordDTO.Kind = string(source.Kind)
-	apiMemoryRecordDTO.Title = source.Title
-	apiMemoryRecordDTO.Status = string(source.Status)
-	apiMemoryRecordDTO.Scope = source.Scope
-	if source.Tags != nil {
-		apiMemoryRecordDTO.Tags = make([]string, len(source.Tags))
-		for i := 0; i < len(source.Tags); i++ {
-			apiMemoryRecordDTO.Tags[i] = source.Tags[i]
-		}
-	}
-	apiMemoryRecordDTO.Origin = source.Origin
-	apiMemoryRecordDTO.TaskPattern = source.TaskPattern
-	apiMemoryRecordDTO.Path = source.RelPath
-	apiMemoryRecordDTO.Body = source.Body
-	apiMemoryRecordDTO.Created = source.Created
-	apiMemoryRecordDTO.Updated = source.Updated
-	apiMemoryRecordDTO.SourceRun = source.SourceRun
-	if source.SourceRefs != nil {
-		apiMemoryRecordDTO.SourceRefs = make([]string, len(source.SourceRefs))
-		for j := 0; j < len(source.SourceRefs); j++ {
-			apiMemoryRecordDTO.SourceRefs[j] = source.SourceRefs[j]
-		}
-	}
-	return apiMemoryRecordDTO
-}
-func (c *ConverterImpl) memoryRecordDTOsFromDomain(source []memory.Record) []MemoryRecordDTO {
-	var apiMemoryRecordDTOList []MemoryRecordDTO
-	if source != nil {
-		apiMemoryRecordDTOList = make([]MemoryRecordDTO, len(source))
-		for i := 0; i < len(source); i++ {
-			apiMemoryRecordDTOList[i] = c.memoryRecordDTOFromDomain(source[i])
-		}
-	}
-	return apiMemoryRecordDTOList
-}
-func (c *ConverterImpl) memorySearchItemDTOsFromDomain(source []memory.SearchItem) []MemorySearchItemDTO {
-	var apiMemorySearchItemDTOList []MemorySearchItemDTO
-	if source != nil {
-		apiMemorySearchItemDTOList = make([]MemorySearchItemDTO, len(source))
-		for i := 0; i < len(source); i++ {
-			apiMemorySearchItemDTOList[i] = c.memorySearchItemToApiMemorySearchItemDTO(source[i])
-		}
-	}
-	return apiMemorySearchItemDTOList
-}
-func (c *ConverterImpl) memorySearchItemToApiMemorySearchItemDTO(source memory.SearchItem) MemorySearchItemDTO {
-	var apiMemorySearchItemDTO MemorySearchItemDTO
-	apiMemorySearchItemDTO.Ref = source.Ref
-	apiMemorySearchItemDTO.Kind = source.Kind
-	apiMemorySearchItemDTO.Title = source.Title
-	apiMemorySearchItemDTO.Status = source.Status
-	apiMemorySearchItemDTO.Scope = source.Scope
-	if source.Tags != nil {
-		apiMemorySearchItemDTO.Tags = make([]string, len(source.Tags))
-		for i := 0; i < len(source.Tags); i++ {
-			apiMemorySearchItemDTO.Tags[i] = source.Tags[i]
-		}
-	}
-	apiMemorySearchItemDTO.Origin = source.Origin
-	apiMemorySearchItemDTO.TaskPattern = source.TaskPattern
-	apiMemorySearchItemDTO.Path = source.Path
-	apiMemorySearchItemDTO.Snippet = source.Snippet
-	apiMemorySearchItemDTO.Score = source.Score
-	apiMemorySearchItemDTO.Created = source.Created
-	apiMemorySearchItemDTO.Updated = source.Updated
-	apiMemorySearchItemDTO.SourceRun = source.SourceRun
-	if source.SourceRefs != nil {
-		apiMemorySearchItemDTO.SourceRefs = make([]string, len(source.SourceRefs))
-		for j := 0; j < len(source.SourceRefs); j++ {
-			apiMemorySearchItemDTO.SourceRefs[j] = source.SourceRefs[j]
-		}
-	}
-	return apiMemorySearchItemDTO
 }
 func (c *ConverterImpl) messageDTOFromDomain(source Message) MessageDTO {
 	var apiMessageDTO MessageDTO

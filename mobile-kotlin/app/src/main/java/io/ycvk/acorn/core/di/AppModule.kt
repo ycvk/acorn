@@ -1,5 +1,13 @@
 package io.ycvk.acorn.core.di
 
+import java.io.File
+import androidx.core.app.NotificationManagerCompat
+import io.ycvk.acorn.core.auth.AuthState
+import io.ycvk.acorn.core.notifications.NotificationQueue
+import io.ycvk.acorn.core.notifications.NotificationPreferences
+import io.ycvk.acorn.core.notifications.NotificationDelivery
+import io.ycvk.acorn.data.repository.PhoneNotificationRepository
+
 import android.content.Context
 import dagger.Module
 import dagger.Provides
@@ -43,4 +51,25 @@ object AppModule {
     @Provides
     @Singleton
     fun provideRunEventProjection(): RunEventProjection = RunEventProjection()
+
+    @Provides
+    @Singleton
+    fun provideNotificationQueue(@ApplicationContext context: Context): NotificationQueue =
+        NotificationQueue(File(context.filesDir, "phone-notifications.json"))
+
+    @Provides
+    @Singleton
+    fun provideNotificationDelivery(
+        @ApplicationContext context: Context,
+        queue: NotificationQueue,
+        auth: AuthController,
+        preferences: NotificationPreferences,
+        repository: PhoneNotificationRepository,
+    ): NotificationDelivery = NotificationDelivery(
+        queue = queue,
+        profile = { (auth.authState.value as? AuthState.Connected)?.profile },
+        allowed = { preferences.allowed.value },
+        hasAccess = { NotificationManagerCompat.getEnabledListenerPackages(context).contains(context.packageName) },
+        send = repository::send,
+    )
 }

@@ -23,14 +23,8 @@ class RunEventProjection {
                     assistantText = state.assistantText + (delta.delta ?: ""),
                     assistantReasoning = state.assistantReasoning + (delta.reasoning ?: ""),
                     isStreaming = true,
-                )
-            }
-
-            is RunEventPacket.AgentMessage -> {
-                val msg = packet.event.data.message
-                state.copy(
-                    assistantText = msg?.content ?: state.assistantText,
-                    assistantReasoning = msg?.reasoning ?: state.assistantReasoning,
+                    runStatus = RunStatus.Running,
+                    activities = state.activities.withoutResumeRows(),
                 )
             }
 
@@ -41,20 +35,26 @@ class RunEventProjection {
                     assistantReasoning = msg?.reasoning ?: state.assistantReasoning,
                     isStreaming = false,
                     runStatus = RunStatus.Completed,
+                    activities = state.activities.withoutResumeRows(),
                 )
             }
 
             is RunEventPacket.RunFailed -> state.copy(
                 isStreaming = false,
                 runStatus = RunStatus.Failed,
+                activities = state.activities.withoutResumeRows(),
             )
 
             is RunEventPacket.RunInterrupted -> state.copy(
                 isStreaming = false,
                 runStatus = RunStatus.Interrupted,
+                activities = state.activities.withoutResumeRows(),
             )
 
+            // The row stays until the resumed run streams again or ends.
             is RunEventPacket.RunResumeRequested -> state.copy(
+                isStreaming = true,
+                runStatus = RunStatus.Running,
                 activities = state.activities + ActivityItem(
                     id = packet.eventId,
                     label = "Resume requested",
@@ -86,17 +86,25 @@ class RunEventProjection {
                 activities = state.activities.filter { it.id != packet.eventId },
             )
 
-            is RunEventPacket.DecisionBlocked -> state.copy(
+            // Keyed by action id so the decided event clears its pending row.
+            is RunEventPacket.ToolApprovalPending -> state.copy(
                 activities = state.activities + ActivityItem(
-                    id = packet.eventId,
-                    label = "Decision blocked",
-                    kind = ActivityKind.DecisionBlocked,
+                    id = packet.event.`data`.actionId,
+                    label = "Waiting for approval: ${packet.event.`data`.toolName.orEmpty()}",
+                    kind = ActivityKind.ToolApproval,
                 ),
+            )
+
+            is RunEventPacket.ToolApprovalDecided -> state.copy(
+                activities = state.activities.filter { it.id != packet.event.`data`.actionId },
             )
 
             is RunEventPacket.Unknown -> state // ignore unknown events
         }
     }
+
+    private fun List<ActivityItem>.withoutResumeRows(): List<ActivityItem> =
+        filter { it.kind != ActivityKind.ResumeRequested }
 }
 
 /**
@@ -112,10 +120,21 @@ data class ChatState(
 
 enum class RunStatus { Idle, Running, Completed, Failed, Interrupted }
 
+enum class ChatHeaderStatus(val label: String) { Running("running"), Waiting("waiting"), Idle("idle") }
+
+/** Waiting means the run is paused on a decision only the owner can make. */
+fun ChatState.headerStatus(): ChatHeaderStatus = when {
+    runStatus == RunStatus.Running || isStreaming -> ChatHeaderStatus.Running
+    runStatus == RunStatus.Interrupted && activities.any { it.kind in ownerDecisionKinds } -> ChatHeaderStatus.Waiting
+    else -> ChatHeaderStatus.Idle
+}
+
+private val ownerDecisionKinds = setOf(ActivityKind.ToolApproval, ActivityKind.Elicitation, ActivityKind.OperatorQuestion)
+
 data class ActivityItem(
     val id: String,
     val label: String,
     val kind: ActivityKind,
 )
 
-enum class ActivityKind { ResumeRequested, Elicitation, OperatorQuestion, DecisionBlocked }
+enum class ActivityKind { ResumeRequested, Elicitation, OperatorQuestion, ToolApproval }

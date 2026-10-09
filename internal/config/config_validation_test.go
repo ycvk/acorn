@@ -20,10 +20,14 @@ func TestValidateExecutionReadyContextConfig(t *testing.T) {
 		Context: ContextConfig{
 			WindowTokens:        200000,
 			CompactMarginTokens: 13000,
-			PreserveRecentTurns: 3,
 			MaskAfterTurns:      2,
 		},
-		Memory: defaultConfig().Memory,
+		Owner:    defaultConfig().Owner,
+		Presence: defaultConfig().Presence,
+		Wake:     defaultConfig().Wake,
+		Notify:   defaultConfig().Notify,
+		Watch:    defaultConfig().Watch,
+		Briefing: defaultConfig().Briefing,
 		Runtime: RuntimeConfig{
 			StorageDir: filepath.Join(t.TempDir(), ".acorn"),
 		},
@@ -37,10 +41,6 @@ func TestValidateExecutionReadyContextConfig(t *testing.T) {
 		},
 		Tools: ToolsConfig{
 			Workspace: WorkspaceToolConfig{RootDir: "."},
-			Mutation:  MutationToolConfig{RootDir: "."},
-			RunCommand: RunCommandToolConfig{
-				WorkDir: ".",
-			},
 		},
 	}
 
@@ -64,11 +64,11 @@ func TestValidateExecutionReadyContextConfig(t *testing.T) {
 			wantErr: "context.compact_margin_tokens must be > 1",
 		},
 		{
-			name: "preserve recent turns",
+			name: "compact margin exceeds window",
 			mutate: func(cfg *Config) {
-				cfg.Context.PreserveRecentTurns = 0
+				cfg.Context.CompactMarginTokens = cfg.Context.WindowTokens
 			},
-			wantErr: "context.preserve_recent_turns must be >= 1",
+			wantErr: "context.compact_margin_tokens must be < context.window_tokens",
 		},
 		{
 			name: "mask after turns",
@@ -107,7 +107,6 @@ func TestValidateExecutionReadyRejectsInvalidExecutionFields(t *testing.T) {
 		Context: ContextConfig{
 			WindowTokens:        200000,
 			CompactMarginTokens: 13000,
-			PreserveRecentTurns: 3,
 			MaskAfterTurns:      2,
 		},
 		Web:       WebConfig{ListenAddr: "127.0.0.1:8080"},
@@ -120,12 +119,13 @@ func TestValidateExecutionReadyRejectsInvalidExecutionFields(t *testing.T) {
 		},
 		Tools: ToolsConfig{
 			Workspace: WorkspaceToolConfig{RootDir: "."},
-			Mutation:  MutationToolConfig{RootDir: "."},
-			RunCommand: RunCommandToolConfig{
-				WorkDir: ".",
-			},
 		},
-		Memory: defaultConfig().Memory,
+		Owner:    defaultConfig().Owner,
+		Presence: defaultConfig().Presence,
+		Wake:     defaultConfig().Wake,
+		Notify:   defaultConfig().Notify,
+		Watch:    defaultConfig().Watch,
+		Briefing: defaultConfig().Briefing,
 	}
 
 	if err := cfg.ValidateExecutionReady(); err == nil {
@@ -165,27 +165,41 @@ func TestValidateExecutionReadyRejectsInvalidExecutionFields(t *testing.T) {
 	}
 }
 
-func TestWorkspaceRootDirRejectsMismatchedLocalToolRoots(t *testing.T) {
-	root := t.TempDir()
-	other := t.TempDir()
+func TestWorkspaceRootIsCleanedRootDir(t *testing.T) {
 	cfg := defaultConfig()
-	cfg.Tools.Workspace.RootDir = root
-	cfg.Tools.Mutation.RootDir = other
-	cfg.Tools.RunCommand.WorkDir = root
-
-	_, err := cfg.Workspace()
-	if err == nil {
-		t.Fatal("expected mismatched local tool roots to fail")
+	cfg.Tools.Workspace.RootDir = "/srv/acorn/workspace/"
+	if got, want := cfg.WorkspaceRoot(), "/srv/acorn/workspace"; got != want {
+		t.Fatalf("WorkspaceRoot() = %q, want %q", got, want)
 	}
-	if !strings.Contains(err.Error(), "workspace root mismatch") {
-		t.Fatalf("Workspace error = %v, want workspace root mismatch", err)
+	cfg.Tools.Workspace.RootDir = "  "
+	if got := cfg.WorkspaceRoot(); got != "" {
+		t.Fatalf("WorkspaceRoot() for blank root = %q, want empty", got)
 	}
 }
 
-func TestValidateBaseRejectsNegativeReviewInterval(t *testing.T) {
+func TestValidateBaseRejectsMalformedApprovalPattern(t *testing.T) {
 	cfg := defaultConfig()
-	cfg.Memory.Review.ReviewInterval = -1
-	if err := cfg.ValidateBase(); err == nil {
-		t.Fatal("ValidateBase must reject negative review_interval")
+	cfg.Approval.Require = []string{"["}
+	err := cfg.ValidateBase()
+	if err == nil || !strings.Contains(err.Error(), "approval.require[0]") {
+		t.Fatalf("ValidateBase() error = %v, want approval.require[0] error", err)
+	}
+}
+
+func TestValidateBaseRejectsApprovalPatternMatchingAskOperator(t *testing.T) {
+	for _, pattern := range []string{"ask_operator", "*", "ask_*"} {
+		cfg := defaultConfig()
+		cfg.Approval.Require = []string{"browser", pattern}
+		err := cfg.ValidateBase()
+		if err == nil || !strings.Contains(err.Error(), "approval.require[1]") || !strings.Contains(err.Error(), "ask_operator") {
+			t.Fatalf("pattern %q: ValidateBase() error = %v, want ask_operator rejection", pattern, err)
+		}
+	}
+}
+
+func TestDefaultApprovalRequiresBrowserAndMCP(t *testing.T) {
+	got := defaultConfig().Approval.Require
+	if len(got) != 2 || got[0] != "browser" || got[1] != "mcp__*" {
+		t.Fatalf("default approval.require = %v", got)
 	}
 }

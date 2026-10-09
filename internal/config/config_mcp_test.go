@@ -27,18 +27,9 @@ agent:
   name: coordinator
   description: test
   max_iterations: 4
-  system_prompt: |
-    test
 tools:
   workspace:
     root_dir: .
-  mutation:
-    disabled: true
-    root_dir: .
-  run_command:
-    disabled: true
-    default_timeout: 30
-    work_dir: .
 mcp:
   providers:
     - name: my_server
@@ -48,7 +39,6 @@ mcp:
       env: {}
       tool_names: []
       startup_timeout_seconds: 30
-      tool_safety: read_only
 `
 	if err := os.WriteFile(configPath, []byte(configBody), 0o644); err != nil {
 		t.Fatalf("write config: %v", err)
@@ -83,18 +73,9 @@ agent:
   name: coordinator
   description: test
   max_iterations: 4
-  system_prompt: |
-    test
 tools:
   workspace:
     root_dir: .
-  mutation:
-    disabled: true
-    root_dir: .
-  run_command:
-    disabled: true
-    default_timeout: 30
-    work_dir: .
 mcp:
   providers:
     - name: remote_sse
@@ -102,7 +83,6 @@ mcp:
       transport: sse
       url: http://localhost:8080/sse
       startup_timeout_seconds: 30
-      tool_safety: read_only
 `
 	if err := os.WriteFile(configPath, []byte(configBody), 0o644); err != nil {
 		t.Fatalf("write config: %v", err)
@@ -140,18 +120,9 @@ agent:
   name: coordinator
   description: test
   max_iterations: 4
-  system_prompt: |
-    test
 tools:
   workspace:
     root_dir: .
-  mutation:
-    disabled: true
-    root_dir: .
-  run_command:
-    disabled: true
-    default_timeout: 30
-    work_dir: .
 mcp:
   providers:
     - name: prefixed_sse
@@ -159,7 +130,6 @@ mcp:
       transport: sse
       url: http://localhost:8080/proxy/sse
       startup_timeout_seconds: 30
-      tool_safety: read_only
 `
 	if err := os.WriteFile(configPath, []byte(configBody), 0o644); err != nil {
 		t.Fatalf("write config: %v", err)
@@ -197,18 +167,9 @@ agent:
   name: coordinator
   description: test
   max_iterations: 4
-  system_prompt: |
-    test
 tools:
   workspace:
     root_dir: .
-  mutation:
-    disabled: true
-    root_dir: .
-  run_command:
-    disabled: true
-    default_timeout: 30
-    work_dir: .
 mcp:
   providers:
     - name: remote_http
@@ -216,7 +177,6 @@ mcp:
       transport: streamable_http
       url: http://localhost:8080/mcp
       startup_timeout_seconds: 30
-      tool_safety: read_only
 `
 	if err := os.WriteFile(configPath, []byte(configBody), 0o644); err != nil {
 		t.Fatalf("write config: %v", err)
@@ -254,18 +214,9 @@ agent:
   name: coordinator
   description: test
   max_iterations: 4
-  system_prompt: |
-    test
 tools:
   workspace:
     root_dir: .
-  mutation:
-    disabled: true
-    root_dir: .
-  run_command:
-    disabled: true
-    default_timeout: 30
-    work_dir: .
 mcp:
   providers:
     - name: bad_transport
@@ -273,7 +224,6 @@ mcp:
       transport: websocket
       url: ws://localhost:8080
       startup_timeout_seconds: 30
-      tool_safety: read_only
 `
 	if err := os.WriteFile(configPath, []byte(configBody), 0o644); err != nil {
 		t.Fatalf("write config: %v", err)
@@ -311,18 +261,9 @@ agent:
   name: coordinator
   description: test
   max_iterations: 4
-  system_prompt: |
-    test
 tools:
   workspace:
     root_dir: .
-  mutation:
-    disabled: true
-    root_dir: .
-  run_command:
-    disabled: true
-    default_timeout: 30
-    work_dir: .
 mcp:
   providers:
     - name: no_command
@@ -330,7 +271,6 @@ mcp:
       transport: stdio
       command: ""
       startup_timeout_seconds: 30
-      tool_safety: read_only
 `
 	if err := os.WriteFile(configPath, []byte(configBody), 0o644); err != nil {
 		t.Fatalf("write config: %v", err)
@@ -368,18 +308,9 @@ agent:
   name: coordinator
   description: test
   max_iterations: 4
-  system_prompt: |
-    test
 tools:
   workspace:
     root_dir: .
-  mutation:
-    disabled: true
-    root_dir: .
-  run_command:
-    disabled: true
-    default_timeout: 30
-    work_dir: .
 mcp:
   providers:
     - name: no_url
@@ -387,7 +318,6 @@ mcp:
       transport: sse
       url: ""
       startup_timeout_seconds: 30
-      tool_safety: read_only
 `
 	if err := os.WriteFile(configPath, []byte(configBody), 0o644); err != nil {
 		t.Fatalf("write config: %v", err)

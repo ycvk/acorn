@@ -9,10 +9,8 @@ import (
 	"github.com/ycvk/acorn/internal/wire"
 )
 
-// runRun executes a single owner-local task as a direct_response turn and
-// prints its terminal outcome synchronously. It is the user-facing one-shot run
-// command — a sibling of `acorn smoke` that defaults to direct_response and
-// reuses the same RunOnce + result rendering path.
+// runRun executes one owner task and prints its terminal outcome synchronously.
+// It shares RunOnce and result rendering with the installation smoke command.
 func runRun(ctx context.Context, args []string) error {
 	fs := newFlagSet("run")
 	configPath := addConfigFlag(fs)

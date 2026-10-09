@@ -30,6 +30,9 @@ class AuthController @Inject constructor(
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
+    // One thread keeps store reads and writes in call order (a disconnect followed by a re-pair).
+    private val storeDispatcher = Dispatchers.IO.limitedParallelism(1)
+
     private val _authState = MutableStateFlow<AuthState>(AuthState.Loading)
     val authState: StateFlow<AuthState> = _authState.asStateFlow()
 
@@ -37,11 +40,13 @@ class AuthController @Inject constructor(
     val pairingState: StateFlow<PairingState> = _pairingState.asStateFlow()
 
     fun loadStoredConnection() {
-        val profile = secureStore.getConnection()
-        _authState.value = if (profile != null) {
-            AuthState.Connected(profile)
-        } else {
-            AuthState.Disconnected
+        scope.launch {
+            val profile = withContext(storeDispatcher) { secureStore.getConnection() }
+            _authState.value = if (profile != null) {
+                AuthState.Connected(profile)
+            } else {
+                AuthState.Disconnected
+            }
         }
     }
 
@@ -52,7 +57,10 @@ class AuthController @Inject constructor(
                 val profile = withContext(Dispatchers.IO) {
                     authRepository.pair(serverUrl, pairingCode, deviceName)
                 }
-                onPaired(profile)
+                withContext(storeDispatcher) {
+                    secureStore.saveConnection(profile.serverUrl, profile.deviceId, profile.accessToken)
+                }
+                _authState.value = AuthState.Connected(profile)
                 _pairingState.value = PairingState.Success
             } catch (e: Exception) {
                 _pairingState.value = PairingState.Error(e.message ?: "Pairing failed")
@@ -60,15 +68,10 @@ class AuthController @Inject constructor(
         }
     }
 
-    fun onPaired(profile: ConnectionProfile) {
-        secureStore.saveConnection(profile.serverUrl, profile.deviceId, profile.accessToken)
-        _authState.value = AuthState.Connected(profile)
-    }
-
     fun disconnect() {
-        secureStore.clearConnection()
         _authState.value = AuthState.Disconnected
         _pairingState.value = PairingState.Idle
+        scope.launch(storeDispatcher) { secureStore.clearConnection() }
     }
 
     /**

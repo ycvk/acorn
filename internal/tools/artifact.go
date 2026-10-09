@@ -12,21 +12,21 @@ import (
 )
 
 type ArtifactWriteInput struct {
-	Kind     string `json:"kind" jsonschema:"description=Artifact kind: text, markdown, json, diff, log, test_report, or binary."`
-	Title    string `json:"title,omitempty" jsonschema:"description=Short human-readable title for the artifact."`
-	MIMEType string `json:"mime_type,omitempty" jsonschema:"description=Optional MIME type such as text/plain or application/json."`
-	Content  string `json:"content" jsonschema:"description=Artifact content to persist as run evidence."`
+	Kind     string `json:"kind" jsonschema_description:"Artifact kind: text, markdown, json, diff, log, test_report, or binary."`
+	Title    string `json:"title,omitempty" jsonschema_description:"Short human-readable title for the artifact."`
+	MIMEType string `json:"mime_type,omitempty" jsonschema_description:"Optional MIME type such as text/plain or application/json."`
+	Content  string `json:"content" jsonschema_description:"Artifact content to persist as run evidence."`
 }
 
 type ArtifactReadInput struct {
-	ArtifactID string `json:"artifact_id" jsonschema:"description=Opaque artifact id returned by artifact_write or artifact_list."`
-	Offset     int64  `json:"offset" jsonschema:"description=Zero-based byte offset to start reading from."`
-	Limit      int64  `json:"limit" jsonschema:"description=Maximum bytes to read. Must be greater than zero."`
+	ArtifactID string `json:"artifact_id" jsonschema_description:"Opaque artifact id returned by artifact_write or artifact_list."`
+	Offset     int64  `json:"offset" jsonschema_description:"Zero-based byte offset to start reading from."`
+	Limit      int64  `json:"limit" jsonschema_description:"Maximum bytes to read. Must be greater than zero."`
 }
 
 type ArtifactListInput struct {
-	RunID     string `json:"run_id,omitempty" jsonschema:"description=Optional run id. Mutually exclusive with session_id. Defaults to the current run when available."`
-	SessionID string `json:"session_id,omitempty" jsonschema:"description=Optional session id. Mutually exclusive with run_id. Used when listing session-level artifacts."`
+	RunID     string `json:"run_id,omitempty" jsonschema_description:"Optional run id. Mutually exclusive with session_id. Defaults to the current run when available."`
+	SessionID string `json:"session_id,omitempty" jsonschema_description:"Optional session id. Mutually exclusive with run_id. Used when listing session-level artifacts."`
 }
 
 type ArtifactSummary struct {
@@ -58,28 +58,6 @@ type ArtifactListOutput struct {
 	RunID     string            `json:"run_id,omitempty"`
 	SessionID string            `json:"session_id,omitempty"`
 	Items     []ArtifactSummary `json:"items"`
-}
-
-func buildArtifactTools(service core.ArtifactService, bridge core.ToolCallContextBridge) ([]einotool.BaseTool, error) {
-	if service == nil {
-		return nil, errors.New("artifact service is required")
-	}
-	if bridge == nil {
-		return nil, errors.New("artifact context bridge is required")
-	}
-	writeTool, err := buildArtifactWriteTool(service, bridge)
-	if err != nil {
-		return nil, err
-	}
-	readTool, err := buildArtifactReadTool(service)
-	if err != nil {
-		return nil, err
-	}
-	listTool, err := buildArtifactListTool(service, bridge)
-	if err != nil {
-		return nil, err
-	}
-	return []einotool.BaseTool{writeTool, readTool, listTool}, nil
 }
 
 func buildArtifactWriteTool(service core.ArtifactService, bridge core.ToolCallContextBridge) (einotool.BaseTool, error) {

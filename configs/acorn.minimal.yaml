@@ -1,8 +1,8 @@
 # Minimal Acorn config — the smallest loadable starting point.
 #
-# Only the sections a single-owner direct_response run must override are listed
-# here. Every other field (web, web_access, browser, tools, agent defaults,
-# memory) falls back to built-in defaults via config.Load's defaultConfig merge,
+# Only the sections a single-owner run must override are listed here. Every
+# other field (web, web_access, browser, tools, agent defaults, owner, wake,
+# notify) falls back to built-in defaults via config.Load's defaultConfig merge,
 # so this file loads and passes ValidateBase as-is. To make the install
 # execution-ready, set OPENAI_API_KEY (referenced below) in the environment.
 runtime:
@@ -15,10 +15,58 @@ providers:
     api_key: ${OPENAI_API_KEY}
     enabled: true
 
+approval:
+  # Tool-name glob patterns whose calls pause for owner approval on the phone.
+  require:
+    - browser
+    - "mcp__*"
+
+owner:
+  # IANA timezone used to show times and to read wake times given in local time,
+  # e.g. Asia/Shanghai.
+  timezone: UTC
+
+presence:
+  # Token cap for the working-memory block shown to the model before each call.
+  max_tokens: 4000
+
+wake:
+  # Commitment wakes allowed per local day; 0 turns autonomous wakes off.
+  daily_limit: 20
+  daily_tokens: 300000       # Provider-reported tokens from autonomous runs per local day.
+thinking:
+  night_at: "03:00"          # Owner timezone; empty disables night reflection.
+  wander_at: []              # Up to six HH:MM slots for idle thought.
+
+notify:
+  max_per_hour: 6
+  # Notifications inside this window wait until it ends (owner timezone).
+  quiet_hours:
+    start: "23:00"
+    end: "08:00"
+  fcm:
+    # Firebase service account key file; empty disables push notifications.
+    service_account_file: ""
+
+knowledge:
+  # Markdown notes the agent writes, also a git repository; empty means
+  # {storage_dir}/knowledge. Point it at an existing Obsidian vault if you like.
+  dir: ""
+
+watch:
+  # Your RSSHub, for rsshub:/route watches (see the onboarding guide).
+  rsshub_base_url: ""
+  # Optional GitHub token for a higher API rate limit, e.g. ${GITHUB_TOKEN}.
+  github_token: ""
+  max_checks_per_tick: 5
+
+briefing:
+  # Morning briefing time in owner.timezone; empty turns it off.
+  at: "08:00"
+
 context:
   window_tokens: 200000
   compact_margin_tokens: 13000
-  preserve_recent_turns: 3
   mask_after_turns: 2
 
 agent:

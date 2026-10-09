@@ -328,6 +328,8 @@ func normalizePendingActionKind(kind core.PendingActionKind) (core.PendingAction
 		return core.PendingActionKindElicitation, nil
 	case string(core.PendingActionKindOperatorQuestion):
 		return core.PendingActionKindOperatorQuestion, nil
+	case string(core.PendingActionKindToolApproval):
+		return core.PendingActionKindToolApproval, nil
 	default:
 		return "", fmt.Errorf("unsupported pending action kind %q", kind)
 	}

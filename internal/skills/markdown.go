@@ -88,22 +88,3 @@ func parseSkillBody(raw string) (name string, instruction string) {
 	}
 	return name, instruction
 }
-
-func renderSkillMarkdown(meta frontmatter, instruction string) (string, error) {
-	markdownBody := "# " + meta.Name + "\n\n" + strings.TrimSpace(instruction) + "\n"
-	return renderSkillMarkdownBody(meta, markdownBody)
-}
-
-func renderSkillMarkdownBody(meta frontmatter, body string) (string, error) {
-	frontmatterBody, err := yaml.Marshal(meta)
-	if err != nil {
-		return "", fmt.Errorf("marshal skill frontmatter: %w", err)
-	}
-	var builder strings.Builder
-	builder.WriteString("---\n")
-	builder.Write(frontmatterBody)
-	builder.WriteString("---\n\n")
-	builder.WriteString(strings.TrimRight(strings.ReplaceAll(body, "\r\n", "\n"), "\n"))
-	builder.WriteString("\n")
-	return builder.String(), nil
-}

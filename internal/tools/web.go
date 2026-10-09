@@ -12,9 +12,9 @@ import (
 )
 
 type WebSearchInput struct {
-	Query      string `json:"query" jsonschema:"required,description=Search query for public web source discovery."`
-	MaxResults int    `json:"max_results,omitempty" jsonschema:"description=Maximum returned results. Defaults to configured max_results."`
-	TimeRange  string `json:"time_range,omitempty" jsonschema:"description=Optional provider time range such as day, week, month, or year."`
+	Query      string `json:"query" jsonschema:"required" jsonschema_description:"Search query for public web source discovery."`
+	MaxResults int    `json:"max_results,omitempty" jsonschema_description:"Maximum returned results. Defaults to configured max_results."`
+	TimeRange  string `json:"time_range,omitempty" jsonschema_description:"Optional provider time range such as day, week, month, or year."`
 }
 
 type WebSearchOutput struct {
@@ -91,8 +91,8 @@ func buildWebSearchTool(search WebSearchService, artifactService core.ArtifactSe
 const defaultWebFetchPreviewBytes = 4000
 
 type WebFetchInput struct {
-	URL         string `json:"url" jsonschema:"required,description=HTTP or HTTPS URL to fetch through Acorn's outbound web policy."`
-	ExtractMode string `json:"extract_mode,omitempty" jsonschema:"description=Extraction mode: auto, readability, full_page_markdown, or visible_text. Defaults to auto."`
+	URL         string `json:"url" jsonschema:"required" jsonschema_description:"HTTP or HTTPS URL to fetch through Acorn's outbound web policy."`
+	ExtractMode string `json:"extract_mode,omitempty" jsonschema_description:"Extraction mode: auto, readability, full_page_markdown, or visible_text. Defaults to auto."`
 }
 
 type WebFetchOutput struct {
@@ -212,4 +212,12 @@ func artifactTitle(prefix, title, fallbackURL string) string {
 		return prefix
 	}
 	return prefix + ": " + title
+}
+
+// previewBytes returns at most limit bytes of body and whether it was cut.
+func previewBytes(body []byte, limit int) (string, bool) {
+	if limit <= 0 || len(body) <= limit {
+		return string(body), false
+	}
+	return string(body[:limit]), true
 }

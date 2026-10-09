@@ -12,6 +12,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -38,6 +39,12 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.Lightbulb
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Menu
@@ -75,6 +82,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.jeziellago.compose.markdowntext.MarkdownText
+import io.ycvk.acorn.core.sse.ChatHeaderStatus
+import io.ycvk.acorn.core.sse.headerStatus
 import io.ycvk.acorn.core.theme.AetherBackground
 import io.ycvk.acorn.core.theme.AetherMessageBubble
 import io.ycvk.acorn.core.theme.AetherOnPrimary
@@ -84,6 +93,7 @@ import io.ycvk.acorn.core.theme.AetherOutlineSoft
 import io.ycvk.acorn.core.theme.AetherPrimary
 import io.ycvk.acorn.core.theme.AetherSurface
 import io.ycvk.acorn.core.theme.AetherSurfaceHigh
+import io.ycvk.acorn.core.theme.AetherTertiary
 import io.ycvk.acorn.core.theme.gradientBackground
 // Aether design DNA
 private val ChatGptMotionEasing = CubicBezierEasing(0.22f, 0.84f, 0.18f, 1f)
@@ -176,6 +186,30 @@ fun ChatScreen(
                         reasoning = message.reasoning,
                         modifier = Modifier.animateItem(),
                     )
+                    is ChatMessage.Wake -> InputNote(
+                        label = when (message.source) {
+                            WakeSource.Commitment -> "Woken by a commitment"
+                            WakeSource.Watch -> "New on a watch"
+                            WakeSource.Briefing -> "Morning briefing"
+                            WakeSource.Night -> "Night reflection"
+                            WakeSource.Wander -> "Idle thought"
+                        },
+                        icon = when (message.source) {
+                            WakeSource.Commitment -> Icons.Filled.Notifications
+                            WakeSource.Watch -> Icons.Filled.Visibility
+                            WakeSource.Briefing -> Icons.Filled.WbSunny
+                            WakeSource.Night -> Icons.Filled.DarkMode
+                            WakeSource.Wander -> Icons.Filled.Lightbulb
+                        },
+                        text = message.text,
+                        modifier = Modifier.animateItem(),
+                    )
+                    is ChatMessage.Capture -> InputNote(
+                        label = "Shared from your phone",
+                        icon = Icons.Filled.Share,
+                        text = message.text,
+                        modifier = Modifier.animateItem(),
+                    )
                 }
             }
 
@@ -205,7 +239,7 @@ fun ChatScreen(
         // Top bar overlay
         ChatTopBar(
             title = threadTitle ?: "thread",
-            streaming = streaming,
+            status = chatState.headerStatus(),
             onBack = onBack,
             onOpenDrawer = onOpenDrawer,
             modifier = Modifier
@@ -239,7 +273,7 @@ fun ChatScreen(
 @Composable
 private fun ChatTopBar(
     title: String,
-    streaming: Boolean,
+    status: ChatHeaderStatus,
     onBack: () -> Unit,
     onOpenDrawer: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
@@ -287,8 +321,12 @@ private fun ChatTopBar(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    val statusColor = if (streaming) AetherPrimary else AetherOnSurfaceVariant
-                    val statusText = if (streaming) "running" else "idle"
+                    val statusColor = when (status) {
+                        ChatHeaderStatus.Running -> AetherPrimary
+                        ChatHeaderStatus.Waiting -> AetherTertiary
+                        ChatHeaderStatus.Idle -> AetherOnSurfaceVariant
+                    }
+                    val statusText = status.label
                     Box(
                         modifier = Modifier
                             .size(6.dp)
@@ -579,6 +617,42 @@ private fun TypingDots() {
     }
 }
 // ─── Activity / Error ─────────────────────────────────────────────────────────
+
+/** A commitment woke the agent; shown apart from what the owner wrote. */
+@Composable
+private fun InputNote(label: String, icon: ImageVector, text: String, modifier: Modifier = Modifier) {
+    Surface(
+        color = AetherTertiary.copy(alpha = 0.10f),
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, AetherTertiary.copy(alpha = 0.35f)),
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    icon,
+                    contentDescription = null,
+                    tint = AetherTertiary,
+                    modifier = Modifier.size(14.dp),
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    label,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = AetherTertiary,
+                )
+            }
+            Spacer(Modifier.height(4.dp))
+            SelectionContainer {
+                Text(
+                    text = text,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = AetherOnSurface,
+                )
+            }
+        }
+    }
+}
 
 @Composable
 private fun ActivityRow(label: String, modifier: Modifier = Modifier) {

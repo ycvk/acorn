@@ -10,9 +10,10 @@ import (
 	"testing"
 
 	"github.com/getkin/kin-openapi/openapi3"
+	"github.com/ycvk/acorn/internal/core"
 )
 
-func TestOpenAPIContractMatchesFileBackedMemorySurface(t *testing.T) {
+func TestOpenAPIContractMatchesClientSurface(t *testing.T) {
 	path := filepath.Join("..", "..", "docs", "openapi.yaml")
 	loader := openapi3.NewLoader()
 	doc, err := loader.LoadFromFile(path)
@@ -55,6 +56,7 @@ func TestOpenAPIContractMatchesFileBackedMemorySurface(t *testing.T) {
 		"/v1/devices:pair",
 		"/v1/devices",
 		"/v1/devices/{device_id}",
+		"/v1/devices/self/push-token",
 		"/v1/threads",
 		"/v1/threads/{thread_id}",
 		"/v1/threads/{thread_id}/messages",
@@ -63,20 +65,18 @@ func TestOpenAPIContractMatchesFileBackedMemorySurface(t *testing.T) {
 		"/v1/runs/{run_id}/events",
 		"/v1/runs/{run_id}/detail",
 		"/v1/runs/{run_id}:interrupt",
-		"/v1/runs/{run_id}:resume",
 		"/v1/inbox",
 		"/v1/pending-actions",
 		"/v1/pending-actions/{action_id}",
 		"/v1/pending-actions/{action_id}:decide",
 		"/v1/system/status",
 		"/v1/tools",
-		"/v1/memory/facts",
-		"/v1/memory/skills",
-		"/v1/memory/history",
-		"/v1/memory/search",
 		"/v1/skills",
 		"/v1/skills/{id}",
 		"/v1/skills/{id}/files",
+		"/v1/captures",
+		"/v1/knowledge/notes",
+		"/v1/knowledge/note",
 		"Client `/v1` run event endpoints stream the mobile live `RunEvent`",
 		"client",
 		"thread_not_found",
@@ -95,11 +95,6 @@ func TestOpenAPIContractMatchesFileBackedMemorySurface(t *testing.T) {
 		"DecidePendingActionRequest",
 		"PendingActionDecision",
 		"OperatorQuestionData",
-		"MemoryRecord",
-		"MemoryRecordRelation",
-		"MemoryRecordListResponse",
-		"MemorySearchItem",
-		"MemorySearchResponse",
 		"RunArtifact",
 		"unauthenticated",
 		"device_revoked",
@@ -113,6 +108,7 @@ func TestOpenAPIContractMatchesFileBackedMemorySurface(t *testing.T) {
 	}
 
 	for _, stale := range []string{
+		"/v1/memory",
 		"Acorn Web API",
 		"Browser-facing",
 		"local-first runtime",
@@ -237,7 +233,6 @@ func TestOpenAPIContractMatchesFileBackedMemorySurface(t *testing.T) {
 		"ConversationHit",
 		"BlockUpdateRequest",
 		"EvictFactsResponse",
-		"MemoryCandidate",
 		"RunDetailRaw",
 		"UnsupportedRunEvent",
 		"unsupported_events",
@@ -289,12 +284,6 @@ func TestOpenAPIContractMatchesFileBackedMemorySurface(t *testing.T) {
 		"DeviceListResponse",
 		"PairDeviceRequest",
 		"PairDeviceResponse",
-		"MemoryScope",
-		"MemoryRecord",
-		"MemoryRecordRelation",
-		"MemoryRecordListResponse",
-		"MemorySearchItem",
-		"MemorySearchResponse",
 		"SkillEnvelope",
 		"SkillFileResponse",
 		"Thread",
@@ -321,7 +310,6 @@ func TestOpenAPIContractMatchesFileBackedMemorySurface(t *testing.T) {
 		"SystemStatus",
 		"ToolListResponse",
 		"InterruptRunResponse",
-		"RunResult",
 		"RunArtifact",
 	} {
 		if doc.Components.Schemas[schemaName] == nil {
@@ -340,25 +328,6 @@ func TestOpenAPIContractMatchesFileBackedMemorySurface(t *testing.T) {
 	}
 }
 
-func TestOpenAPIRunResultMatchesAppProjectionStruct(t *testing.T) {
-	path := filepath.Join("..", "..", "docs", "openapi.yaml")
-	loader := openapi3.NewLoader()
-	doc, err := loader.LoadFromFile(path)
-	if err != nil {
-		t.Fatalf("load openapi: %v", err)
-	}
-	schemaRef := doc.Components.Schemas["RunResult"]
-	if schemaRef == nil || schemaRef.Value == nil {
-		t.Fatal("missing RunResult schema")
-	}
-
-	got := sortedKeys(schemaRef.Value.Properties)
-	want := sortedStrings(jsonFieldNames(reflect.TypeOf(RunResult{})))
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("RunResult OpenAPI fields = %v, want RunResult fields %v", got, want)
-	}
-}
-
 func TestOpenAPIRunStatusEnumsUseClientProjection(t *testing.T) {
 	path := filepath.Join("..", "..", "docs", "openapi.yaml")
 	loader := openapi3.NewLoader()
@@ -367,7 +336,7 @@ func TestOpenAPIRunStatusEnumsUseClientProjection(t *testing.T) {
 		t.Fatalf("load openapi: %v", err)
 	}
 	want := []string{"completed", "failed", "interrupted", "running"}
-	for _, schemaName := range []string{"Run", "RunResult"} {
+	for _, schemaName := range []string{"Run"} {
 		schemaRef := doc.Components.Schemas[schemaName]
 		if schemaRef == nil || schemaRef.Value == nil {
 			t.Fatalf("missing %s schema", schemaName)
@@ -395,36 +364,57 @@ func enumStrings(items []any) []string {
 	return out
 }
 
-func jsonFieldNames(t reflect.Type) []string {
-	if t.Kind() == reflect.Pointer {
-		t = t.Elem()
-	}
-	fields := make([]string, 0, t.NumField())
-	for i := 0; i < t.NumField(); i++ {
-		field := t.Field(i)
-		tag := field.Tag.Get("json")
-		if tag == "-" {
-			continue
-		}
-		name := strings.Split(tag, ",")[0]
-		if name == "" {
-			name = field.Name
-		}
-		fields = append(fields, name)
-	}
-	return fields
-}
-
-func sortedKeys[V any](items map[string]V) []string {
-	keys := make([]string, 0, len(items))
-	for key := range items {
-		keys = append(keys, key)
-	}
-	return sortedStrings(keys)
-}
-
 func sortedStrings(items []string) []string {
 	out := append([]string(nil), items...)
 	sort.Strings(out)
 	return out
+}
+
+// Every live run event kind must be in the RunEvent union, and every pending
+// action kind must reach the client as <kind>.pending and <kind>.decided.
+func TestOpenAPIRunEventUnionMatchesLiveEventKinds(t *testing.T) {
+	path := filepath.Join("..", "..", "docs", "openapi.yaml")
+	doc, err := openapi3.NewLoader().LoadFromFile(path)
+	if err != nil {
+		t.Fatalf("load openapi: %v", err)
+	}
+	union := doc.Components.Schemas["RunEvent"]
+	if union == nil || union.Value == nil || union.Value.Discriminator == nil {
+		t.Fatal("RunEvent schema has no discriminator")
+	}
+	var mapped []string
+	for kind := range union.Value.Discriminator.Mapping {
+		mapped = append(mapped, kind)
+	}
+	if got, want := sortedStrings(mapped), sortedStrings(liveRunEventKinds); !reflect.DeepEqual(got, want) {
+		t.Fatalf("RunEvent discriminator = %v, live kinds = %v", got, want)
+	}
+	for _, kind := range []core.PendingActionKind{core.PendingActionKindElicitation, core.PendingActionKindOperatorQuestion, core.PendingActionKindToolApproval} {
+		for _, suffix := range []string{".pending", ".decided"} {
+			if !IsLiveRunEventKind(string(kind) + suffix) {
+				t.Fatalf("pending action kind %q has no live %s event", kind, suffix)
+			}
+		}
+	}
+}
+
+func TestProjectToolApprovalEvents(t *testing.T) {
+	pending, err := ProjectRunEvent(core.EventRecord{RunID: "run_1", Sequence: 3, Kind: "tool_approval.pending", Payload: map[string]any{
+		"action_id": "action_00000000000000a1", "tool_name": "browser", "arguments": `{"url":"https://example.com"}`,
+	}})
+	if err != nil {
+		t.Fatalf("project pending: %v", err)
+	}
+	if got := pending.Data.(core.ToolApprovalData); got.ActionID != "action_00000000000000a1" || got.ToolName != "browser" || got.Arguments != `{"url":"https://example.com"}` {
+		t.Fatalf("pending data = %+v", got)
+	}
+	decided, err := ProjectRunEvent(core.EventRecord{RunID: "run_1", Sequence: 4, Kind: "tool_approval.decided", Payload: map[string]any{
+		"action_id": "action_00000000000000a1", "decision": "decline",
+	}})
+	if err != nil {
+		t.Fatalf("project decided: %v", err)
+	}
+	if got := decided.Data.(core.ToolApprovalData); got.ActionID != "action_00000000000000a1" || got.Decision != "decline" {
+		t.Fatalf("decided data = %+v", got)
+	}
 }

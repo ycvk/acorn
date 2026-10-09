@@ -8,17 +8,25 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache--2.0-blue.svg" alt="License: Apache-2.0"></a>
 </div>
 
-Acorn is a self-hosted AI agent backend for one owner and their devices.
+Acorn is a self-hosted personal agent for one owner and their devices.
 
-Run Acorn on your own server, pair your phone, and use the mobile app to start work, inspect runs, review pending approvals, and keep the agent's durable state under your control.
+Run Acorn on your own server, pair your phone, and talk to an agent with a persona and a working memory. It keeps the appointments it makes with you, wakes up on its own when one is due, files what you share from your phone into a markdown knowledge base, follows feeds, GitHub repositories and web pages for you with a briefing every morning, and pushes to your phone when you should know something. Its state stays on your server.
 
 ## Features
 
 - Single-owner self-hosted backend for personal deployments.
 - Authenticated `/v1` API with one-time device pairing.
-- Android mobile control surface for threads, chat with live run streaming, approvals, and settings.
-- Persistent runs, run events, pending actions, artifacts, workspace checkpoints, memory, and skills.
-- File-backed long-term memory with hybrid semantic + keyword retrieval (sqlite-vec, opt-in).
+- Android mobile control surface for threads, chat with live run streaming, approvals, push notifications, sharing from other apps, the knowledge base, and settings.
+- Persistent runs, run events, pending actions, artifacts, working memory, and skills.
+- An editable persona and a working memory of what you said, the agent's own thoughts, your lasting preferences and its commitments, with deterministic decay.
+- Commitments: "remind me in three days" wakes the agent in the same thread at that time, also after a restart.
+- Push notifications through Firebase Cloud Messaging, with an hourly cap and quiet hours.
+- Scheduled night reflections and idle thoughts, with daily wake and reported-token budgets.
+- Opt-in phone notification capture by app, with a durable device-scoped upload queue and signals in the agent's context and morning briefing.
+- Watches on RSS and Atom feeds (RSSHub routes included), GitHub releases and issues, and parts of web pages such as prices. New items wake the agent right away or wait for a morning briefing note pushed to your phone.
+- A knowledge base of markdown notes that is also a git repository: share a link from your phone and the agent writes a note, each change one commit. Open it in Obsidian through a git clone.
+- Full-text recall over past runs and working memory, and full-text search over notes.
+- Tool calls that need your sign-off pause on your phone and continue on the server after you decide, even across restarts.
 - Linux `amd64` and `arm64` release tarballs (pure Go cross-compilation, no CGO).
 - Signed Android APK published with each GitHub Release.
 
@@ -48,7 +56,7 @@ The installer creates:
 | `/usr/local/bin/acorn` | Global command wrapper |
 | `~/.acorn/acorn.yaml` | Backend configuration |
 | `~/.acorn/acorn.env` | Provider secrets |
-| `/srv/acorn/workspace` | Operator workspace |
+| `/srv/acorn/workspace` | Workspace root for seed and workspace skills |
 | `/etc/systemd/system/acorn.service` | `systemd` service |
 
 The installer uses the user that runs the script. On a typical root VPS install, Acorn reads `/root/.acorn/acorn.yaml` and `/root/.acorn/acorn.env`. Commands such as `acorn pair` and `acorn doctor` use the same config unless you pass `-c`.
@@ -117,6 +125,15 @@ providers:
 
 Provider keys can reference environment variables. Missing provider credentials are reported by readiness checks instead of being silently ignored.
 
+Tools whose names match `approval.require` pause the run until you accept or decline the call on your phone. Patterns use glob syntax and default to the browser and every MCP tool:
+
+```yaml
+approval:
+  require:
+    - browser
+    - "mcp__*"
+```
+
 ## API
 
 Remote clients use the authenticated `/v1` API. Common endpoints include:
@@ -184,15 +201,17 @@ Mobile checks run from `mobile-kotlin/`:
 | `cmd/acorn/` | CLI entrypoint |
 | `internal/wire/` | Composition root — container wiring, the only place concrete implementations are instantiated |
 | `internal/core/` | Layer 0 domain types, store interfaces, tool contracts — zero internal imports |
-| `internal/runtime/` | Executor, RunnerFactory, direct_response, context session, masking, auto-compact, StreamItem projection |
-| `internal/tools/` | Tool implementations (file/git/browser/web/command/artifact), risk gate, ToolRegistry; `dispatch/` scheduler |
-| `internal/store/` | SQLite persisted state (modernc.org/sqlite, single-connection serialized) |
-| `internal/memory/` | File-backed memory records, Active Memory, hybrid semantic + keyword retrieval (sqlite-vec), WorldState |
+| `internal/runtime/` | Executor, RunnerFactory, Eino ChatModelAgent assembly, presence, approval and tool-error middleware, skill backend, StreamItem projection |
+| `internal/tools/` | Tool implementations (artifact, operator, working memory, notify, knowledge, web, browser), ToolRegistry |
+| `internal/store/` | SQLite persisted state (modernc.org/sqlite, single-connection serialized), including working memory and full-text search |
+| `internal/presence/` | Working-memory decay, presence rendering, persona, cron parsing |
+| `internal/wake/` | Scheduler inside `serve`: commitments, watches and the morning briefing |
+| `internal/notify/` | FCM HTTP v1 client and push sender (hourly cap, quiet hours) |
+| `internal/knowledge/` | Knowledge base vault: note paths, frontmatter, git commits, index sync |
+| `internal/watch/` | Watch checker: feeds, GitHub, page snapshots, failure backoff |
 | `internal/mcp/` | MCP provider manager |
-| `internal/workspace/` | Mutation checkpoint and worktree |
 | `internal/webaccess/` | Web fetcher, Tavily search, content extraction, shared outbound URL policy |
 | `internal/skills/` | File-backed skill loader |
-| `internal/triggers/` | Webhook and cron triggers that start runs |
 | `internal/config/` | Config struct, defaults, validation |
 | `internal/cli/` | CLI command dispatch |
 | `internal/api/` | HTTP server, `/healthz`, `/v1` |

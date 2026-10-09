@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strings"
@@ -19,12 +20,52 @@ func (s *Server) requireDeviceAuth(next http.Handler) http.Handler {
 			s.respondKnownError(w, r, err)
 			return
 		}
-		if _, err := s.deviceAuth.Authenticate(r.Context(), token); err != nil {
+		device, err := s.deviceAuth.Authenticate(r.Context(), token)
+		if err != nil {
 			s.respondKnownError(w, r, err)
 			return
 		}
-		next.ServeHTTP(w, r)
+		next.ServeHTTP(w, r.WithContext(withDevice(r.Context(), device)))
 	})
+}
+
+type deviceContextKey struct{}
+
+func withDevice(ctx context.Context, device *DeviceAuthContext) context.Context {
+	return context.WithValue(ctx, deviceContextKey{}, device)
+}
+
+// DeviceFromContext returns the device that authenticated the request.
+func DeviceFromContext(ctx context.Context) (*DeviceAuthContext, bool) {
+	device, ok := ctx.Value(deviceContextKey{}).(*DeviceAuthContext)
+	return device, ok && device != nil
+}
+
+// PushTokenRequest registers the calling device's FCM token.
+type PushTokenRequest struct {
+	Token string `json:"token"`
+}
+
+func (s *Server) handleSetPushToken(w http.ResponseWriter, r *http.Request) {
+	device, ok := DeviceFromContext(r.Context())
+	if !ok {
+		s.respondInternalError(w, r, errors.New("push token request reached the handler without an authenticated device"))
+		return
+	}
+	var req PushTokenRequest
+	if err := decodeJSONBody(r, &req); err != nil {
+		s.respondBadRequest(w, r, err.Error())
+		return
+	}
+	if strings.TrimSpace(req.Token) == "" {
+		s.respondBadRequest(w, r, "token is required")
+		return
+	}
+	if err := s.deviceAuth.SetPushToken(r.Context(), device.Device.DeviceID, strings.TrimSpace(req.Token)); err != nil {
+		s.respondInternalError(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *Server) handlePairDevice(w http.ResponseWriter, r *http.Request) {

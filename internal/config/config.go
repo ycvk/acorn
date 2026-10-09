@@ -10,11 +10,24 @@ type Config struct {
 	Agent     AgentConfig      `yaml:"agent"`
 	Tools     ToolsConfig      `yaml:"tools"`
 	MCP       MCPConfig        `yaml:"mcp"`
-	Memory    MemoryConfig     `yaml:"memory"`
-	Triggers  TriggersConfig   `yaml:"triggers"`
+	Approval  ApprovalConfig   `yaml:"approval"`
+	Owner     OwnerConfig      `yaml:"owner"`
+	Presence  PresenceConfig   `yaml:"presence"`
+	Thinking  ThinkingConfig   `yaml:"thinking"`
+	Wake      WakeConfig       `yaml:"wake"`
+	Notify    NotifyConfig     `yaml:"notify"`
+	Knowledge KnowledgeConfig  `yaml:"knowledge"`
+	Watch     WatchConfig      `yaml:"watch"`
+	Briefing  BriefingConfig   `yaml:"briefing"`
 
 	ConfigPath string `yaml:"-"`
 	ConfigDir  string `yaml:"-"`
+}
+
+// ApprovalConfig lists tool-name glob patterns (path.Match syntax) whose calls
+// pause for owner approval before executing.
+type ApprovalConfig struct {
+	Require []string `yaml:"require"`
 }
 
 type ProviderConfig struct {
@@ -33,49 +46,9 @@ type ProviderConfig struct {
 type ContextConfig struct {
 	WindowTokens        int `yaml:"window_tokens"`
 	CompactMarginTokens int `yaml:"compact_margin_tokens"`
-	PreserveRecentTurns int `yaml:"preserve_recent_turns"`
-	MaskAfterTurns      int `yaml:"mask_after_turns"`
-}
-
-type MemoryConfig struct {
-	Search    MemorySearchConfig    `yaml:"search"`
-	Embedding MemoryEmbeddingConfig `yaml:"embedding"`
-	Review    MemoryReviewConfig    `yaml:"review"`
-	Active    MemoryActiveConfig    `yaml:"active"`
-}
-
-type MemorySearchConfig struct {
-	MemoryContextTokenBudget int `yaml:"memory_context_token_budget"`
-}
-
-// MemoryEmbeddingConfig configures the embedding-backed semantic retrieval
-// layer. When Enabled, memory records are embedded on write and searched via
-// sqlite-vec KNN alongside keyword matching (RRF fusion). The embedding
-// endpoint reuses the primary provider's base_url + api_key (OpenAI-compatible
-// /v1/embeddings). When disabled, search falls back to keyword-only (the
-// pre-existing path), so this is opt-in with zero behavioral change for
-// existing deployments.
-type MemoryEmbeddingConfig struct {
-	Enabled    bool   `yaml:"enabled"`
-	Model      string `yaml:"model"`
-	Dimensions int    `yaml:"dimensions"`
-}
-
-// MemoryReviewConfig configures the periodic background review. Every
-// ReviewInterval completed runs trigger one LLM call that decides whether
-// any of those runs produced durable facts worth persisting via remember.
-// Zero disables review (default). ReviewModel can point to a cheaper model
-// (e.g. a flash model) to reduce cost; empty means use the primary provider.
-type MemoryReviewConfig struct {
-	ReviewInterval int    `yaml:"review_interval"`
-	ReviewModel    string `yaml:"review_model,omitempty"`
-}
-
-// MemoryActiveConfig sets the character budget for the Active Memory frozen
-// snapshot injected into every run's system prompt. Non-retired user-scoped
-// facts are fit to this limit. Zero uses the default (2200 chars, ~800 tokens).
-type MemoryActiveConfig struct {
-	CharLimit int `yaml:"char_limit"`
+	// MaskAfterTurns is how many of the most recent tool-call rounds stay
+	// verbatim when older tool results are cleared to save context.
+	MaskAfterTurns int `yaml:"mask_after_turns"`
 }
 
 type RuntimeConfig struct {
@@ -112,31 +85,15 @@ type BrowserConfig struct {
 type AgentConfig struct {
 	Name          string `yaml:"name"`
 	Description   string `yaml:"description"`
-	SystemPrompt  string `yaml:"system_prompt"`
 	MaxIterations int    `yaml:"max_iterations"`
 }
 
 type ToolsConfig struct {
-	Workspace  WorkspaceToolConfig  `yaml:"workspace"`
-	Mutation   MutationToolConfig   `yaml:"mutation"`
-	RunCommand RunCommandToolConfig `yaml:"run_command"`
+	Workspace WorkspaceToolConfig `yaml:"workspace"`
 }
 
 type WorkspaceToolConfig struct {
 	RootDir string `yaml:"root_dir"`
-}
-
-type MutationToolConfig struct {
-	Disabled bool     `yaml:"disabled,omitempty"`
-	RootDir  string   `yaml:"root_dir,omitempty"`
-	Denylist []string `yaml:"denylist"`
-}
-
-type RunCommandToolConfig struct {
-	Disabled       bool     `yaml:"disabled,omitempty"`
-	DefaultTimeout int      `yaml:"default_timeout"`
-	WorkDir        string   `yaml:"work_dir"`
-	EnvWhitelist   []string `yaml:"env_whitelist"`
 }
 
 type MCPConfig struct {
@@ -162,36 +119,4 @@ type MCPProviderConfig struct {
 	ToolNames             []string          `yaml:"tool_names"`
 	StartupTimeoutSeconds int               `yaml:"startup_timeout_seconds"`
 	Auth                  MCPAuthConfig     `yaml:"auth"`
-	ToolSafety            string            `yaml:"tool_safety"`
-}
-
-// TriggersConfig configures ambient agent trigger sources. Triggers live in
-// the serve process and fire new runs when external events arrive.
-type TriggersConfig struct {
-	Webhooks []WebhookTriggerConfig `yaml:"webhooks"`
-	Crons    []CronTriggerConfig    `yaml:"crons"`
-	// DebounceMillis coalesces rapid fires of the same trigger within this
-	// window into a single run (last input wins). Zero disables debounce.
-	// Protects against webhook spam burning LLM tokens. Recommended: 2000.
-	DebounceMillis int `yaml:"debounce_millis"`
-	// DailyQuota caps the number of trigger-started runs per UTC day.
-	// Fires over quota are silently dropped (warned in logs). Zero disables
-	// the cap (default). Protects against a runaway webhook burning tokens.
-	DailyQuota int `yaml:"daily_quota"`
-}
-
-// WebhookTriggerConfig configures a single webhook trigger.
-type WebhookTriggerConfig struct {
-	ID     string `yaml:"id"`
-	Secret string `yaml:"secret"`
-	Prompt string `yaml:"prompt"`
-}
-
-// CronTriggerConfig configures a single cron trigger. Schedule is a standard
-// 5-field cron expression (min hour dom month dow). The trigger fires a new
-// run with Prompt as input at each matching time.
-type CronTriggerConfig struct {
-	ID       string `yaml:"id"`
-	Schedule string `yaml:"schedule"`
-	Prompt   string `yaml:"prompt"`
 }

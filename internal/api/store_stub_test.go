@@ -71,9 +71,6 @@ func (unimplementedStore) CreateRun(context.Context, core.RunCreateParams) error
 func (unimplementedStore) LoadRun(context.Context, string) (*core.RunRecord, error) {
 	return nil, errUnexpectedClientStoreCall
 }
-func (unimplementedStore) SearchRuns(context.Context, string, int) ([]core.RunRecord, error) {
-	return nil, errUnexpectedClientStoreCall
-}
 func (unimplementedStore) FinishRun(context.Context, string, core.RunStatus, string, string) error {
 	return errUnexpectedClientStoreCall
 }
@@ -109,6 +106,24 @@ func (unimplementedStore) LoadPendingAction(context.Context, string) (*core.Pend
 }
 func (unimplementedStore) DecidePendingAction(context.Context, string, core.PendingActionStatus, string) (*core.PendingActionRecord, error) {
 	return nil, errUnexpectedClientStoreCall
+}
+func (unimplementedStore) ResumeInterruptedRun(context.Context, string) error {
+	return errUnexpectedClientStoreCall
+}
+func (unimplementedStore) ListInterruptedRuns(context.Context) ([]core.RunRecord, error) {
+	return nil, errUnexpectedClientStoreCall
+}
+func (unimplementedStore) ListPendingActionsByRun(context.Context, string) ([]core.PendingActionRecord, error) {
+	return nil, errUnexpectedClientStoreCall
+}
+func (unimplementedStore) LoadCheckpoint(context.Context, string) ([]byte, bool, error) {
+	return nil, false, errUnexpectedClientStoreCall
+}
+func (unimplementedStore) SaveCheckpoint(context.Context, string, []byte) error {
+	return errUnexpectedClientStoreCall
+}
+func (unimplementedStore) DeleteCheckpoint(context.Context, string) error {
+	return errUnexpectedClientStoreCall
 }
 func (unimplementedStore) SavePairingCode(context.Context, *core.PairingCode) error {
 	return errUnexpectedClientStoreCall

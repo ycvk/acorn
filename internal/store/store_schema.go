@@ -17,11 +17,34 @@ func (s *Store) migrate() error {
 	if err := s.migrateV3(); err != nil {
 		return fmt.Errorf("migrate v3: %w", err)
 	}
+	if err := s.migrateV5(); err != nil {
+		return fmt.Errorf("migrate v5: %w", err)
+	}
 	if err := s.validateSchema(); err != nil {
 		return err
 	}
 	if _, err := s.db.Exec(storeBootstrapIndexes); err != nil {
 		return fmt.Errorf("migrate sqlite schema (indexes): %w", err)
+	}
+	if err := s.migrateV4(); err != nil {
+		return fmt.Errorf("migrate v4: %w", err)
+	}
+	return nil
+}
+
+// migrateV4 indexes runs that existed before runs_fts and its triggers.
+func (s *Store) migrateV4() error {
+	const version = "v4_runs_fts_backfill"
+	if migrationApplied(s.db, version) {
+		return nil
+	}
+	if _, err := s.db.Exec(`INSERT INTO runs_fts(run_id, input_text, output_text)
+		SELECT run_id, input_text, output_text FROM runs
+		WHERE run_id NOT IN (SELECT run_id FROM runs_fts)`); err != nil {
+		return fmt.Errorf("backfill runs_fts: %w", err)
+	}
+	if _, err := s.db.Exec("INSERT INTO schema_migrations (version, applied_at) VALUES (?, datetime('now'))", version); err != nil {
+		return fmt.Errorf("record migration %s: %w", version, err)
 	}
 	return nil
 }
@@ -45,16 +68,26 @@ func (s *Store) validateSchema() error {
 // after migration; validateSchema enforces presence to detect a stale or
 // incompatible local database.
 var schemaRequiredTables = map[string][]string{
-	"runs":              {"run_id", "session_id", "turn_index", "status", "input_text", "output_text", "error_text", "created_at", "finished_at"},
-	"events":            {"sequence", "run_id", "kind", "payload_json", "created_at"},
-	"sessions":          {"session_id", "title", "created_at", "updated_at"},
-	"session_messages":  {"id", "session_id", "turn_index", "role", "content", "run_id", "created_at"},
-	"pending_actions":   {"action_id", "run_id", "interrupt_id", "kind", "subject", "payload_json", "status", "reason", "decision_json", "created_at", "resolved_at"},
-	"mcp_oauth_tokens":  {"provider_name", "access_token", "refresh_token", "expiry", "updated_at"},
-	"devices":           {"device_id", "name", "platform", "token_hash", "created_at", "last_seen_at", "revoked_at"},
-	"pairing_codes":     {"code_hash", "expires_at", "used_at", "created_at"},
-	"artifacts":         {"artifact_id", "run_id", "session_id", "source_tool_result_ref", "kind", "title", "mime_type", "relative_path", "size_bytes", "sha256", "created_at"},
-	"schema_migrations": {"version", "applied_at"},
+	"runs":                {"run_id", "session_id", "turn_index", "status", "input_text", "output_text", "error_text", "created_at", "finished_at"},
+	"events":              {"sequence", "run_id", "kind", "payload_json", "created_at"},
+	"sessions":            {"session_id", "title", "created_at", "updated_at"},
+	"session_messages":    {"id", "session_id", "turn_index", "role", "content", "run_id", "created_at"},
+	"pending_actions":     {"action_id", "run_id", "interrupt_id", "kind", "subject", "payload_json", "status", "reason", "decision_json", "created_at", "resolved_at"},
+	"mcp_oauth_tokens":    {"provider_name", "access_token", "refresh_token", "expiry", "updated_at"},
+	"devices":             {"device_id", "name", "platform", "token_hash", "created_at", "last_seen_at", "revoked_at"},
+	"pairing_codes":       {"code_hash", "expires_at", "used_at", "created_at"},
+	"artifacts":           {"artifact_id", "run_id", "session_id", "source_tool_result_ref", "kind", "title", "mime_type", "relative_path", "size_bytes", "sha256", "created_at"},
+	"schema_migrations":   {"version", "applied_at"},
+	"agent_checkpoints":   {"checkpoint_id", "data", "updated_at"},
+	"memory_items":        {"id", "kind", "content", "status", "session_id", "source_run_id", "wake_at", "recurrence", "expires_at", "created_at", "updated_at"},
+	"context_snapshots":   {"hash", "content", "created_at"},
+	"push_tokens":         {"device_id", "token", "updated_at"},
+	"notifications":       {"id", "title", "body", "thread_id", "run_id", "status", "send_after", "error_text", "created_at", "sent_at"},
+	"knowledge_notes":     {"path", "title", "tags", "body", "mtime_ns", "size", "updated_at"},
+	"watches":             {"id", "name", "kind", "target", "selector", "mode", "interval_seconds", "status", "session_id", "next_check_at", "last_checked_at", "last_error", "failures", "snapshot", "created_at", "updated_at"},
+	"watch_items":         {"id", "watch_id", "item_key", "title", "url", "summary", "published_at", "status", "run_id", "seen_at"},
+	"routine_runs":        {"routine", "slot", "thread_id", "run_id", "created_at"},
+	"phone_notifications": {"id", "device_id", "notification_key", "package", "app", "title", "text", "posted_at", "received_at"},
 }
 
 func (s *Store) requireColumns(table string, columns []string) error {

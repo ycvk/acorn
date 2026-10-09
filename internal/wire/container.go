@@ -2,83 +2,77 @@ package wire
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"log/slog"
-	"path/filepath"
-	"slices"
+	"net/http"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/ycvk/acorn/internal/api"
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
+	"github.com/ycvk/acorn/internal/knowledge"
 	mcpprovider "github.com/ycvk/acorn/internal/mcp"
-	"github.com/ycvk/acorn/internal/memory"
 	"github.com/ycvk/acorn/internal/runtime"
 	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/tools"
-	"github.com/ycvk/acorn/internal/triggers"
+	"github.com/ycvk/acorn/internal/wake"
 )
 
 type Container struct {
-	cfg           *config.Config
-	store         *store.Store
-	runnerFactory *runtime.RunnerFactory
-	runController *runtime.RunController
-	runResume     *api.RunResumeService
-	skills        *api.SkillService
-	threads       *api.ThreadService
-	runs          *api.RunService
-	events        *api.EventService
-	pendingAction *api.PendingActionService
-	memory        memory.Service
-	capabilities  *api.CapabilitiesService
-	deviceAuth    *api.DeviceAuthService
-	inbox         *api.InboxService
-	triggerSched  *triggers.Scheduler
+	clock              func() time.Time
+	cfg                *config.Config
+	store              *store.Store
+	runnerFactory      *runtime.RunnerFactory
+	runController      *runtime.RunController
+	runResume          *api.RunResumeService
+	skills             *api.SkillService
+	threads            *api.ThreadService
+	runs               *api.RunService
+	events             *api.EventService
+	pendingAction      *api.PendingActionService
+	capabilities       *api.CapabilitiesService
+	deviceAuth         *api.DeviceAuthService
+	inbox              *api.InboxService
+	vault              *knowledge.Vault
+	knowledge          *api.KnowledgeService
+	captures           *api.CaptureService
+	phoneNotifications *api.PhoneNotificationService
+	wake               *wake.Scheduler
+	// watchBrowser renders web_rendered watches; nil without a browser.
+	watchBrowser *tools.Service
+}
+
+// buildOptions are the process-level dependencies of a container.
+type buildOptions struct {
+	// clock drives presence, commitments and notifications.
+	clock func() time.Time
+	// fcmEndpoint, when set, replaces the FCM API send endpoint.
+	fcmEndpoint string
+	// githubAPI, when set, replaces the GitHub API base URL for watches.
+	githubAPI string
 }
 
 func NewContainer(ctx context.Context, cfg *config.Config) (*Container, error) {
 	if cfg == nil {
 		return nil, errors.New("config is required")
 	}
-	return buildContainer(ctx, cfg)
+	return buildContainer(ctx, cfg, buildOptions{clock: time.Now})
 }
 
 func (c *Container) Config() *config.Config {
 	return c.cfg
 }
 
-func (c *Container) RunResume() *api.RunResumeService {
-	return c.runResume
-}
-
-func (c *Container) Threads() *api.ThreadService {
-	return c.threads
-}
-
-func (c *Container) Runs() *api.RunService {
-	return c.runs
-}
-
-func (c *Container) Events() *api.EventService {
-	return c.events
-}
-
-func (c *Container) PendingAction() *api.PendingActionService {
-	return c.pendingAction
+// ResumeReadyRuns resumes every interrupted run whose pending actions are
+// all decided.
+func (c *Container) ResumeReadyRuns(ctx context.Context) error {
+	return c.runResume.ResumeReadyRuns(ctx)
 }
 
 func (c *Container) Skills() *api.SkillService {
 	return c.skills
-}
-
-func (c *Container) Memory() memory.Service {
-	return c.memory
 }
 
 func (c *Container) Capabilities() *api.CapabilitiesService {
@@ -88,12 +82,43 @@ func (c *Container) Capabilities() *api.CapabilitiesService {
 func (c *Container) DeviceAuth() *api.DeviceAuthService {
 	return c.deviceAuth
 }
-func (c *Container) Inbox() *api.InboxService {
-	return c.inbox
+
+// Handler is the /v1 client API over this container's services.
+func (c *Container) Handler(logger *slog.Logger) (http.Handler, error) {
+	return api.NewHandler(api.Dependencies{
+		Threads:            c.threads,
+		Runs:               c.runs,
+		Events:             c.events,
+		PendingAction:      c.pendingAction,
+		Skills:             c.skills,
+		Capabilities:       c.capabilities,
+		DeviceAuth:         c.deviceAuth,
+		Inbox:              c.inbox,
+		Knowledge:          c.knowledge,
+		Captures:           c.captures,
+		PhoneNotifications: c.phoneNotifications,
+		Config:             c.cfg,
+		Logger:             logger,
+	})
 }
-func (c *Container) TriggerScheduler() *triggers.Scheduler {
-	return c.triggerSched
+
+// KnowledgeStatus reports the knowledge base for acorn doctor.
+func (c *Container) KnowledgeStatus(ctx context.Context) (knowledge.Status, error) {
+	return c.vault.Status(ctx)
 }
+
+// Watches lists the watches for acorn doctor.
+func (c *Container) Watches(ctx context.Context) ([]core.Watch, error) {
+	return c.store.ListWatches(ctx)
+}
+
+// WakeScheduler keeps commitments; serve runs it.
+func (c *Container) WakeScheduler() *wake.Scheduler {
+	return c.wake
+}
+
+// wakeInterval is how often the wake scheduler looks for due commitments.
+const wakeInterval = 30 * time.Second
 
 func (c *Container) Close() error {
 	if c == nil {
@@ -105,25 +130,20 @@ func (c *Container) Close() error {
 			errs = append(errs, err)
 		}
 	}
-	if c.store != nil {
-		if err := c.store.Close(); err != nil {
+	if c.watchBrowser != nil {
+		if err := c.watchBrowser.Close(); err != nil {
 			errs = append(errs, err)
 		}
 	}
-	// memory.Service may hold a vector index DB; close it if supported.
-	if closer, ok := c.memory.(interface{ Close() error }); ok {
-		if err := closer.Close(); err != nil {
+	if c.store != nil {
+		if err := c.store.Close(); err != nil {
 			errs = append(errs, err)
 		}
 	}
 	return errors.Join(errs...)
 }
 
-func buildContainer(ctx context.Context, cfg *config.Config) (*Container, error) {
-	if cfg == nil {
-		return nil, errors.New("config is required")
-	}
-
+func buildContainer(ctx context.Context, cfg *config.Config, options buildOptions) (*Container, error) {
 	runtime.RegisterTypes()
 
 	store, err := store.Open(cfg.Runtime.StorageDir)
@@ -138,19 +158,12 @@ func buildContainer(ctx context.Context, cfg *config.Config) (*Container, error)
 		}
 	}()
 
-	deps, err := buildContainerRuntimeDeps(ctx, cfg, store)
+	deps, err := buildContainerRuntimeDeps(ctx, cfg, store, options)
 	if err != nil {
 		return nil, err
 	}
 
-	wsDir := filepath.Join(strings.TrimSpace(cfg.Runtime.StorageDir), "worldstate")
-	ws, err := memory.NewWorldState(wsDir)
-	if err != nil {
-		return nil, fmt.Errorf("build world state: %w", err)
-	}
-	deps.worldStateUpdater = &worldStateAdapter{ws: ws}
-
-	container, err := buildContainerAppServices(cfg, store, deps, ws)
+	container, err := buildContainerAppServices(cfg, store, deps, options.clock)
 	if err != nil {
 		return nil, err
 	}
@@ -160,278 +173,119 @@ func buildContainer(ctx context.Context, cfg *config.Config) (*Container, error)
 	return container, nil
 }
 
-func buildContextPlane(cfg *config.Config) (*runtime.ContextPlane, error) {
-	contextCounter, err := runtime.NewTokenCounter()
-	if err != nil {
-		return nil, err
-	}
-	maxContextTokens := cfg.Context.WindowTokens - cfg.Context.CompactMarginTokens
-	if maxContextTokens <= 0 {
-		return nil, fmt.Errorf("context effective window must be positive: window=%d margin=%d", cfg.Context.WindowTokens, cfg.Context.CompactMarginTokens)
-	}
-	contextPlane := runtime.NewDefaultPlane(runtime.DefaultOptions{
-		MemoryContextTokenBudget: cfg.Memory.Search.MemoryContextTokenBudget,
-		MaxContextTokens:         maxContextTokens,
-		TokenCounter:             contextCounter,
-	})
-	return contextPlane, nil
-}
-
-// buildMemoryService constructs the file-backed memory service.
-// When memory.embedding.enabled is true, wires EmbeddingClient + sqlite-vec.
-func buildMemoryService(ctx context.Context, cfg *config.Config) (memory.Service, error) {
-	if cfg == nil {
-		return nil, errors.New("config is required")
-	}
-	memoryRoot := strings.TrimSpace(cfg.Runtime.StorageDir)
-	memCfg := memory.Config{Root: memoryRoot}
-	if cfg.Memory.Embedding.Enabled {
-		provider, err := cfg.EnabledProvider()
-		if err != nil {
-			return nil, fmt.Errorf("resolve provider for embedding: %w", err)
-		}
-		ec := memory.NewEmbeddingClient(memory.EmbeddingConfig{
-			BaseURL:    provider.BaseURL,
-			APIKey:     provider.APIKey,
-			Model:      cfg.Memory.Embedding.Model,
-			Dimensions: cfg.Memory.Embedding.Dimensions,
-		})
-		if ec == nil {
-			return nil, fmt.Errorf("memory.embedding.enabled is true but provider %s has no base_url or api_key", provider.Name)
-		}
-		memCfg.Embedding = ec
-	}
-	svc, err := memory.NewLocalService(memCfg)
-	if err != nil {
-		return nil, err
-	}
-	return svc, nil
-}
-
-func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *containerRuntimeDeps, ws *memory.WorldState) (*Container, error) {
+func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *containerRuntimeDeps, clock func() time.Time) (*Container, error) {
 	container := &Container{
 		cfg:           cfg,
+		clock:         clock,
 		runnerFactory: deps.runnerFactory,
 		runController: deps.runController,
-		memory:        deps.memoryModule,
 	}
 
 	container.runResume = api.NewRunResumeService(db).WithResume(deps.resumeRun)
 	container.skills = api.NewSkillService(cfg, deps.loader)
-	workspaceRoot := ""
-	if deps.ws != nil {
-		workspaceRoot = deps.ws.Root()
-	}
-	container.threads = api.NewThreadService(db, workspaceRoot)
-	container.runs = api.NewRunService(db, container.threads, deps.executeRun, deps.runController)
+	container.threads = api.NewThreadService(db, cfg.WorkspaceRoot())
+	container.runs = api.NewRunService(db, container.threads, deps.executeRun, deps.runController).WithResumer(container.runResume)
 	container.events = api.NewEventService(db, db)
-	container.pendingAction = api.NewPendingActionService(db)
+	container.pendingAction = api.NewPendingActionService(db).WithResumer(container.runResume)
 
 	container.capabilities = api.NewCapabilitiesService(cfg, container.skills.Snapshot, mcpprovider.Doctor, deps.runnerFactory)
-	container.deviceAuth = api.NewDeviceAuthService(db)
+	container.deviceAuth = api.NewDeviceAuthService(db).WithPushTokens(db)
 	container.inbox = api.NewInboxService(db, container.capabilities)
+	container.vault = deps.vault
+	container.knowledge = api.NewKnowledgeService(deps.vault)
+	container.captures = api.NewCaptureService(deps.vault, container.threads, container.runs)
 
-	container.triggerSched = buildTriggerScheduler(cfg, container.runs, db, ws)
+	phoneNotifications, err := api.NewPhoneNotificationService(db, clock)
+	if err != nil {
+		return nil, err
+	}
+	container.phoneNotifications = phoneNotifications
+	location, err := cfg.OwnerLocation()
+	if err != nil {
+		return nil, err
+	}
+	briefing, err := briefingSchedule(cfg)
+	if err != nil {
+		return nil, err
+	}
+	thinking, err := thinkingSchedule(cfg)
+	if err != nil {
+		return nil, err
+	}
+	container.watchBrowser = deps.watchBrowser
+	container.wake, err = wake.NewScheduler(wake.Config{
+		Routines:           db,
+		PhoneNotifications: db,
+		Store:              db,
+		Events:             db,
+		Runs:               &wakeRunStarter{runs: container.runs, store: db},
+		Watches:            db,
+		Checker:            deps.watchChecker,
+		Clock:              clock,
+		Location:           location,
+		DailyLimit:         cfg.Wake.DailyLimit,
+		DailyTokens:        cfg.Wake.DailyTokens,
+		Thinking:           thinking,
+		MaxChecksPerTick:   cfg.Watch.MaxChecksPerTick,
+		Briefing:           briefing,
+		Interval:           wakeInterval,
+	})
+	if err == nil && deps.notifier != nil {
+		container.wake = container.wake.WithNotifications(deps.notifier)
+	}
+	if err != nil {
+		return nil, err
+	}
 
 	return container, nil
 }
 
-// worldStateAdapter wraps memory.WorldState to satisfy tools.WorldStateUpdater.
-// It translates between the tools package's WorldStateDelta and memory's.
-type worldStateAdapter struct {
-	ws *memory.WorldState
+// wakeRunStarter starts commitment wake runs through the run service.
+type wakeRunStarter struct {
+	runs  *api.RunService
+	store core.SessionStore
 }
 
-func (a *worldStateAdapter) ApplyDelta(ctx context.Context, delta tools.WorldStateDelta) error {
-	return a.ws.ApplyDelta(ctx, memory.WorldStateDelta{
-		Upserts: delta.Upserts,
-		Deletes: delta.Deletes,
-	})
-}
+// remindersThreadTitle names the thread that receives wakes whose original
+// conversation was deleted.
+const remindersThreadTitle = "Reminders"
 
-func (a *worldStateAdapter) Load(ctx context.Context) (map[string]string, error) {
-	return a.ws.Load(ctx)
-}
-
-type triggerRunCreator struct {
-	runs            *api.RunService
-	store           core.SessionStore
-	worldState      *memory.WorldState
-	mu              sync.Mutex
-	lastFingerprint string
-	dailyQuota      int
-	quotaDay        string // UTC date "2006-01-02"; quota resets when it changes
-	quotaUsed       int
-}
-
-func (t *triggerRunCreator) CreateRun(ctx context.Context, triggerID, input string) error {
-	threadID := "trigger:" + triggerID
-	if _, err := t.store.LoadSession(ctx, threadID); err != nil {
-		if _, cerr := t.store.CreateSession(ctx, threadID, "Trigger: "+triggerID); cerr != nil {
-			return cerr
+func (w *wakeRunStarter) StartWakeRun(ctx context.Context, threadID, wake, input string) (string, error) {
+	_, err := w.store.LoadSession(ctx, threadID)
+	if errors.Is(err, core.ErrSessionNotFound) {
+		threadID = core.NewSessionID()
+		if _, err := w.store.CreateSession(ctx, threadID, remindersThreadTitle); err != nil {
+			return "", fmt.Errorf("create reminders thread: %w", err)
 		}
+	} else if err != nil {
+		return "", err
 	}
-	// Skip duplicate fires: same WorldState + same input = same response.
-	// Saves an LLM call when a webhook re-fires with no state change.
-	if t.shouldSkipRun(t.worldState, input) {
-		slog.Info("trigger fire skipped (duplicate of last fire)", "trigger_id", triggerID)
-		return nil
-	}
-	if t.dailyQuota > 0 && !t.allowQuota() {
-		slog.Warn("trigger fire dropped (daily quota reached)", "trigger_id", triggerID, "quota", t.dailyQuota)
-		return nil
-	}
-	t.incQuota()
-	input = injectWorldState(ctx, t.worldState, input)
-	input = fmt.Sprintf("[This run was woken by trigger %q. Follow the ambient agent loop: orient on the world state above, assess whether this event needs action, act or escalate, then record the outcome and stop.]\n\n%s", triggerID, input)
-	if _, err := t.runs.CreateRun(ctx, threadID, "", input); err != nil {
-		return err
-	}
-	return nil
-}
-
-// allowQuota reports whether a new run is within the daily quota. The quota
-// resets at UTC midnight. A zero dailyQuota means unlimited (always allow).
-func (t *triggerRunCreator) allowQuota() bool {
-	if t.dailyQuota <= 0 {
-		return true
-	}
-	today := time.Now().UTC().Format("2006-01-02")
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	if today != t.quotaDay {
-		t.quotaDay = today
-		t.quotaUsed = 0
-	}
-	return t.quotaUsed < t.dailyQuota
-}
-
-// incQuota increments the daily run counter. Call only after allowQuota
-// returns true.
-func (t *triggerRunCreator) incQuota() {
-	if t.dailyQuota <= 0 {
-		return
-	}
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	t.quotaUsed++
-}
-
-// shouldSkipRun reports whether this fire is a duplicate of the last one:
-// same WorldState projection + same input. If so, the agent would produce
-// the same response — skip the LLM call to save cost.
-func (t *triggerRunCreator) shouldSkipRun(ws *memory.WorldState, input string) bool {
-	if ws == nil {
-		return false
-	}
-	fp := computeFireFingerprint(ws, input)
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	if fp == t.lastFingerprint {
-		return true
-	}
-	t.lastFingerprint = fp
-	return false
-}
-
-func computeFireFingerprint(ws *memory.WorldState, input string) string {
-	projection, err := ws.Load(context.Background())
+	run, err := w.runs.CreateWakeRun(ctx, threadID, wake, input)
 	if err != nil {
-		projection = nil
+		return "", err
 	}
-	h := sha256.New()
-	h.Write([]byte(input))
-	// Sort keys for deterministic output — map iteration order is random.
-	keys := make([]string, 0, len(projection))
-	for k := range projection {
-		keys = append(keys, k)
-	}
-	slices.Sort(keys)
-	for _, k := range keys {
-		h.Write([]byte(k))
-		h.Write([]byte(projection[k]))
-	}
-	return hex.EncodeToString(h.Sum(nil))
+	return run.ID, nil
 }
 
-// injectWorldState prepends the current WorldState projection to the run
-// input. If WorldState is nil, Load fails, or the projection is empty, the
-// input is returned unchanged. On Load error it logs a warning and proceeds
-// without the projection — a stale projection is better than blocking a
-// trigger fire.
-func injectWorldState(ctx context.Context, ws *memory.WorldState, input string) string {
-	if ws == nil {
-		return input
+func (w *wakeRunStarter) StartRoutineRun(ctx context.Context, threadID, title, wake, input string) (string, string, error) {
+	if threadID != "" {
+		if _, err := w.store.LoadSession(ctx, threadID); errors.Is(err, core.ErrSessionNotFound) {
+			threadID = ""
+		} else if err != nil {
+			return "", "", err
+		}
 	}
-	projection, err := ws.Load(ctx)
+	if threadID == "" {
+		threadID = core.NewSessionID()
+		if _, err := w.store.CreateSession(ctx, threadID, title); err != nil {
+			return "", "", fmt.Errorf("create routine thread: %w", err)
+		}
+	}
+	run, err := w.runs.CreateWakeRun(ctx, threadID, wake, input)
 	if err != nil {
-		slog.Warn("world state load failed for trigger, proceeding without projection", "error", err)
-		return input
+		return "", "", err
 	}
-	if len(projection) == 0 {
-		return input
-	}
-	return formatWorldStatePrefix(projection) + input
-}
-
-// formatWorldStatePrefix renders the WorldState key-values as a context block
-// prepended to the trigger input. The header tells the agent this is its own
-// cross-run memory from the last wake, so it reads it as orientation context
-// rather than a foreign artifact.
-func formatWorldStatePrefix(projection map[string]string) string {
-	var b strings.Builder
-	b.WriteString("[World state — your cross-run memory from the last wake. Read this to orient before acting on the event below.]\n")
-	keys := make([]string, 0, len(projection))
-	for k := range projection {
-		keys = append(keys, k)
-	}
-	slices.Sort(keys)
-	for _, k := range keys {
-		b.WriteString(k)
-		b.WriteString(": ")
-		b.WriteString(projection[k])
-		b.WriteString("\n")
-	}
-	b.WriteString("[End world state]\n\n")
-	return b.String()
-}
-
-func buildTriggerScheduler(cfg *config.Config, runs *api.RunService, db *store.Store, ws *memory.WorldState) *triggers.Scheduler {
-	var opts []triggers.SchedulerOption
-	if cfg.Triggers.DebounceMillis > 0 {
-		opts = append(opts, triggers.WithDebounce(time.Duration(cfg.Triggers.DebounceMillis)*time.Millisecond))
-	}
-	sched := triggers.NewScheduler(&triggerRunCreator{
-		runs:       runs,
-		store:      db,
-		worldState: ws,
-		dailyQuota: cfg.Triggers.DailyQuota,
-	}, opts...)
-	for _, wh := range cfg.Triggers.Webhooks {
-		wt, err := triggers.NewWebhookTrigger(triggers.WebhookConfig{
-			ID:     wh.ID,
-			Secret: wh.Secret,
-			Prompt: wh.Prompt,
-		})
-		if err != nil {
-			slog.Warn("skipping webhook trigger", "id", wh.ID, "error", err)
-			continue
-		}
-		sched.Register(wt)
-	}
-	for _, cr := range cfg.Triggers.Crons {
-		ct, err := triggers.NewCronTrigger(triggers.CronConfig{
-			ID:       cr.ID,
-			Schedule: cr.Schedule,
-			Prompt:   cr.Prompt,
-		})
-		if err != nil {
-			slog.Warn("skipping cron trigger", "id", cr.ID, "error", err)
-			continue
-		}
-		sched.Register(ct)
-	}
-	return sched
+	return threadID, run.ID, nil
 }
 
 // RunOnceResult is the terminal outcome of an owner-local smoke run.
@@ -444,7 +298,7 @@ type RunOnceResult struct {
 
 // RunOnce executes a single owner-local run synchronously and returns its
 // terminal result. It is an operator smoke probe: it drives the exact runtime
-// execution path (Executor -> RunnerFactory -> ContextPlane -> memory prepare),
+// execution path (Executor -> RunnerFactory -> ChatModelAgent),
 // so any readiness gap (unconfigured embedding,
 // prepare failure) surfaces here as a real error or failed result instead of
 // staying hidden until the first remote-client message.

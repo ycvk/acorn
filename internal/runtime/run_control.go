@@ -13,51 +13,46 @@ import (
 // be interrupted by ID.
 type RunController struct {
 	activeMu      sync.Mutex
-	activeCancels map[string]context.CancelFunc
+	activeCancels map[string]*activeRun
+}
+
+type activeRun struct {
+	cancel context.CancelFunc
 }
 
 func NewRunController() *RunController {
-	return &RunController{}
+	return &RunController{activeCancels: make(map[string]*activeRun)}
 }
 
-func (c *RunController) Register(runID string, cancel context.CancelFunc) {
-	if c == nil || strings.TrimSpace(runID) == "" || cancel == nil {
-		return
-	}
+// Register records cancel as the active cancellation for runID and returns a
+// function that removes this registration only. A resumed run registers under
+// the same ID while the previous attempt is still unwinding, so the previous
+// attempt's cleanup must not drop the newer registration.
+func (c *RunController) Register(runID string, cancel context.CancelFunc) func() {
+	entry := &activeRun{cancel: cancel}
 	c.activeMu.Lock()
-	defer c.activeMu.Unlock()
-	if c.activeCancels == nil {
-		c.activeCancels = make(map[string]context.CancelFunc)
+	c.activeCancels[runID] = entry
+	c.activeMu.Unlock()
+	return func() {
+		c.activeMu.Lock()
+		defer c.activeMu.Unlock()
+		if c.activeCancels[runID] == entry {
+			delete(c.activeCancels, runID)
+		}
 	}
-	c.activeCancels[runID] = cancel
-}
-
-func (c *RunController) Clear(runID string) {
-	if c == nil || strings.TrimSpace(runID) == "" {
-		return
-	}
-	c.activeMu.Lock()
-	defer c.activeMu.Unlock()
-	if c.activeCancels == nil {
-		return
-	}
-	delete(c.activeCancels, runID)
 }
 
 func (c *RunController) Interrupt(runID string) error {
-	if c == nil {
-		return fmt.Errorf("run controller is nil")
-	}
 	runID = strings.TrimSpace(runID)
 	if runID == "" {
 		return fmt.Errorf("%w: empty run id", core.ErrRunNotActive)
 	}
 	c.activeMu.Lock()
-	cancel, ok := c.activeCancels[runID]
+	entry, ok := c.activeCancels[runID]
 	c.activeMu.Unlock()
 	if !ok {
 		return fmt.Errorf("%w: %s", core.ErrRunNotActive, runID)
 	}
-	cancel()
+	entry.cancel()
 	return nil
 }

@@ -30,15 +30,11 @@ import com.squareup.moshi.JsonClass
 /**
  * 
  *
- * @param interruptResume 
  * @param sessionHistory 
  */
 
 
 data class CapabilitiesFeatures (
-
-    @Json(name = "interrupt_resume")
-    val interruptResume: kotlin.Boolean,
 
     @Json(name = "session_history")
     val sessionHistory: kotlin.Boolean
