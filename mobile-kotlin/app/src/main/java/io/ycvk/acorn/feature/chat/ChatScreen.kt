@@ -40,6 +40,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.WbSunny
@@ -189,11 +191,15 @@ fun ChatScreen(
                             WakeSource.Commitment -> "Woken by a commitment"
                             WakeSource.Watch -> "New on a watch"
                             WakeSource.Briefing -> "Morning briefing"
+                            WakeSource.Night -> "Night reflection"
+                            WakeSource.Wander -> "Idle thought"
                         },
                         icon = when (message.source) {
                             WakeSource.Commitment -> Icons.Filled.Notifications
                             WakeSource.Watch -> Icons.Filled.Visibility
                             WakeSource.Briefing -> Icons.Filled.WbSunny
+                            WakeSource.Night -> Icons.Filled.DarkMode
+                            WakeSource.Wander -> Icons.Filled.Lightbulb
                         },
                         text = message.text,
                         modifier = Modifier.animateItem(),

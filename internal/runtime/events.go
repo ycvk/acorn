@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -24,7 +25,8 @@ type agentEventProjector struct {
 	assistantCount int
 	// streamErr is the first assistant stream read failure. Eino follows a
 	// failed stream with an error event; streamErr fails the run if it does not.
-	streamErr error
+	streamErr   error
+	usageWarned bool
 }
 
 func newAgentEventProjector(runID string, chatModel einomodel.BaseChatModel, failedCalls *failedToolCalls) *agentEventProjector {
@@ -113,9 +115,20 @@ func (p *agentEventProjector) projectAssistant(mo *adk.MessageVariant, emit func
 	if final == nil {
 		return errors.New("assistant event carried no message")
 	}
-	return emit(core.StreamItem{Kind: core.StreamKindAssistantMessage, CreatedAt: time.Now().UTC(), Payload: map[string]any{
+	if err := emit(core.StreamItem{Kind: core.StreamKindAssistantMessage, CreatedAt: time.Now().UTC(), Payload: map[string]any{
 		"message": StreamMessageFromSchema(final, p.provider),
-	}})
+	}}); err != nil {
+		return err
+	}
+	payload := map[string]any{"reported": false}
+	if final.ResponseMeta != nil && final.ResponseMeta.Usage != nil {
+		u := final.ResponseMeta.Usage
+		payload = map[string]any{"reported": true, "prompt_tokens": u.PromptTokens, "completion_tokens": u.CompletionTokens, "total_tokens": u.TotalTokens}
+	} else if !p.usageWarned {
+		slog.Warn("model did not report token usage", "run", p.messagePrefix)
+		p.usageWarned = true
+	}
+	return emit(core.StreamItem{Kind: core.StreamItemKind(core.EventModelUsage), CreatedAt: time.Now().UTC(), Payload: payload})
 }
 
 func (p *agentEventProjector) projectAssistantStream(stream *schema.StreamReader[*schema.Message], messageID string, emit func(core.StreamItem) error) (*schema.Message, error) {

@@ -76,7 +76,6 @@ func smokeRunError(result *wire.RunOnceResult) error {
 type smokeCommandOutput struct {
 	RunID  string `json:"run_id"`
 	Status string `json:"status"`
-	Mode   string `json:"mode"`
 	Output string `json:"output,omitempty"`
 	Error  string `json:"error,omitempty"`
 }
@@ -91,7 +90,6 @@ func renderSmokeResult(result *wire.RunOnceResult, jsonMode bool) (string, error
 		body, err := json.MarshalIndent(smokeCommandOutput{
 			RunID:  result.RunID,
 			Status: result.Status,
-			Mode:   "direct_response",
 			Output: result.Output,
 			Error:  result.Error,
 		}, "", "  ")
@@ -102,7 +100,7 @@ func renderSmokeResult(result *wire.RunOnceResult, jsonMode bool) (string, error
 	}
 
 	var b strings.Builder
-	fmt.Fprintf(&b, "Run: %s  (mode=direct_response)\n", result.RunID)
+	fmt.Fprintf(&b, "Run: %s\n", result.RunID)
 	fmt.Fprintf(&b, "Status: %s\n", result.Status)
 	if strings.TrimSpace(result.Output) != "" {
 		fmt.Fprintf(&b, "Output:\n%s\n", result.Output)

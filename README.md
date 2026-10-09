@@ -21,6 +21,8 @@ Run Acorn on your own server, pair your phone, and talk to an agent with a perso
 - An editable persona and a working memory of what you said, the agent's own thoughts, your lasting preferences and its commitments, with deterministic decay.
 - Commitments: "remind me in three days" wakes the agent in the same thread at that time, also after a restart.
 - Push notifications through Firebase Cloud Messaging, with an hourly cap and quiet hours.
+- Scheduled night reflections and idle thoughts, with daily wake and reported-token budgets.
+- Opt-in phone notification capture by app, with a durable device-scoped upload queue and signals in the agent's context and morning briefing.
 - Watches on RSS and Atom feeds (RSSHub routes included), GitHub releases and issues, and parts of web pages such as prices. New items wake the agent right away or wait for a morning briefing note pushed to your phone.
 - A knowledge base of markdown notes that is also a git repository: share a link from your phone and the agent writes a note, each change one commit. Open it in Obsidian through a git clone.
 - Full-text recall over past runs and working memory, and full-text search over notes.

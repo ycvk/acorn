@@ -393,3 +393,24 @@ sudo systemctl start acorn
 - Watches cannot follow pages that need a login. GitHub watches cover releases and newly opened issues only.
 - Knowledge search matches words (full-text); there is no semantic search yet. Shared images are kept as attachments; the agent sees only their path and your note, not the picture.
 - Mobile is a remote control surface. It does not execute runs locally, own runtime truth, or merge offline runtime state.
+
+## Idle Thinking and Phone Notifications
+
+Night reflection runs once per owner-local day at `thinking.night_at`. It reviews working memory in the Thoughts thread and uses `settle` to release, renew, internalize or finish entries. Idle-thought slots use the same thread and concentrate on one unresolved matter at a time.
+
+```yaml
+wake:
+  daily_limit: 20
+  daily_tokens: 300000
+thinking:
+  night_at: "03:00"  # Empty disables night reflection.
+  wander_at: []      # For example ["15:00"], up to six distinct local times.
+```
+
+The token budget counts provider-reported usage of successful main-model calls in autonomous runs, by the owner's local day. It is checked before starting a run; an already running task can exceed the remaining budget. Summarization calls, failed streams and calls without usage are not included. Owner messages, captures and morning briefings are outside this budget. Run `acorn doctor` to inspect today's wake count, reported tokens, calls without usage and notification counts by app.
+
+In the Android settings, open **phone notifications**, read the data destination, grant notification access, and choose individual apps. The selection starts empty. Acorn captures ordinary notifications from those apps while paired, stores at most 500 on the device, and starts uploading within one minute of the first arrival. Each request contains at most 100 entries. Failed requests retain their batch and show an error with **Retry upload**. Disconnecting or pairing another identity clears waiting notifications; turning an app off removes its waiting entries. Android notification access remains under your control in system settings.
+
+Notifications do not wake the agent. The latest ten received within six hours can appear in its current context; up to fifty since the previous morning briefing appear in the next briefing input, with a count for additional entries. Briefing instructions select actionable items and omit marketing, passwords and verification codes. Raw notifications are removed after seven days. Content already included in conversation records, context snapshots or notes remains with those records. Selected notification text is sent to your server and model provider.
+
+Notification capture uses Android's [NotificationListenerService](https://developer.android.com/reference/android/service/notification/NotificationListenerService). Device background restrictions can delay delivery; waiting entries are retried when the listener reconnects, the app opens, another notification arrives or you choose retry.

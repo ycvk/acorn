@@ -310,3 +310,10 @@ func TestNotifyOwnerAttributesConversationAndReportsQueue(t *testing.T) {
 		t.Fatal("empty title must fail")
 	}
 }
+
+func (s *fakePresenceStore) SumAutonomousTokensSince(context.Context, time.Time) (int, error) {
+	return 0, nil
+}
+func (s *fakePresenceStore) UsageReport(context.Context, time.Time) (core.UsageReport, error) {
+	return core.UsageReport{}, nil
+}

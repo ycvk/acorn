@@ -8,6 +8,7 @@ import (
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/knowledge"
+	"github.com/ycvk/acorn/internal/wire"
 )
 
 func renderDoctorKnowledge(status knowledge.Status) string {
@@ -257,6 +258,25 @@ func renderDoctorWatches(cfg *config.Config, watches []core.Watch) string {
 		if w.Status == core.WatchFailing {
 			lines = append(lines, fmt.Sprintf("  - #%d %s failing: %s", w.ID, w.Name, w.LastError))
 		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+func renderDoctorThinking(cfg *config.Config, status wire.ThinkingStatus) string {
+	night := cfg.Thinking.NightAt
+	if night == "" {
+		night = "off"
+	}
+	wander := strings.Join(cfg.Thinking.WanderAt, ", ")
+	if wander == "" {
+		wander = "off"
+	}
+	lines := []string{"", "Thinking", fmt.Sprintf("  Night reflection: %s (%s)", night, cfg.Owner.Timezone), "  Idle thoughts: " + wander, fmt.Sprintf("  Autonomous wakes today: %d / %d", status.Wakes, cfg.Wake.DailyLimit), fmt.Sprintf("  Autonomous tokens today: %d / %d", status.Usage.AutonomousTokens, cfg.Wake.DailyTokens), fmt.Sprintf("  All reported tokens today: %d", status.Usage.TotalTokens), fmt.Sprintf("  Calls without usage today: %d", status.Usage.UnreportedCalls), "  Phone notifications (last 24h):"}
+	if len(status.Phones) == 0 {
+		lines = append(lines, "    none")
+	}
+	for _, p := range status.Phones {
+		lines = append(lines, fmt.Sprintf("    %s (%s): %d", p.App, p.Package, p.Count))
 	}
 	return strings.Join(lines, "\n")
 }

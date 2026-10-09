@@ -23,9 +23,8 @@ type RunStarter interface {
 	// wake as the description of what woke it. When the thread no longer
 	// exists the run starts in a reminders thread.
 	StartWakeRun(ctx context.Context, threadID, wake, input string) (runID string, err error)
-	// StartBriefingRun starts the morning briefing in threadID, or in a new
-	// briefings thread when threadID is empty or gone, and returns both ids.
-	StartBriefingRun(ctx context.Context, threadID, wake, input string) (thread, runID string, err error)
+	// StartRoutineRun starts in threadID or creates a thread with title.
+	StartRoutineRun(ctx context.Context, threadID, title, wake, input string) (thread, runID string, err error)
 }
 
 // WatchChecker fetches a watch and records what it found.
@@ -41,16 +40,20 @@ type Briefing struct {
 
 // Config holds the scheduler's dependencies; every field is required.
 type Config struct {
-	Store    core.PresenceStore
-	Events   core.EventAppender
-	Runs     RunStarter
-	Watches  core.WatchStore
-	Checker  WatchChecker
-	Clock    func() time.Time
-	Location *time.Location
+	Routines           core.RoutineStore
+	PhoneNotifications core.PhoneNotificationStore
+	Store              core.PresenceStore
+	Events             core.EventAppender
+	Runs               RunStarter
+	Watches            core.WatchStore
+	Checker            WatchChecker
+	Clock              func() time.Time
+	Location           *time.Location
 	// DailyLimit caps commitment and watch wakes per owner-local day; zero
 	// disables them.
-	DailyLimit int
+	DailyLimit  int
+	DailyTokens int
+	Thinking    Thinking
 	// MaxChecksPerTick bounds the watches fetched in one tick.
 	MaxChecksPerTick int
 	Briefing         Briefing
@@ -74,6 +77,12 @@ func NewScheduler(cfg Config) (*Scheduler, error) {
 	switch {
 	case cfg.Store == nil:
 		return nil, errors.New("wake scheduler: Store is required")
+	case cfg.Routines == nil:
+		return nil, errors.New("wake scheduler: Routines is required")
+	case cfg.PhoneNotifications == nil:
+		return nil, errors.New("wake scheduler: PhoneNotifications is required")
+	case cfg.DailyTokens < 1:
+		return nil, errors.New("wake scheduler: DailyTokens must be positive")
 	case cfg.Events == nil:
 		return nil, errors.New("wake scheduler: Events is required")
 	case cfg.Runs == nil:
@@ -147,8 +156,11 @@ func (s *Scheduler) Tick(ctx context.Context) error {
 	if err := s.checkWatches(ctx, now); err != nil {
 		errs = append(errs, err)
 	}
-	if err := s.brief(ctx, now); err != nil {
-		errs = append(errs, fmt.Errorf("morning briefing: %w", err))
+	if err := s.runRoutines(ctx, now); err != nil {
+		errs = append(errs, fmt.Errorf("routines: %w", err))
+	}
+	if _, err := s.cfg.PhoneNotifications.PrunePhoneNotifications(ctx, now.Add(-7*24*time.Hour)); err != nil {
+		errs = append(errs, err)
 	}
 	if s.notifications != nil {
 		if err := s.notifications.FlushDue(ctx); err != nil {
@@ -172,7 +184,7 @@ func (s *Scheduler) decay(ctx context.Context, now time.Time) error {
 }
 
 func (s *Scheduler) wake(ctx context.Context, item core.MemoryItem, now time.Time) error {
-	allowed, err := s.withinDailyLimit(ctx, fmt.Sprintf("commitment #%d", item.ID), now)
+	allowed, err := s.withinBudget(ctx, fmt.Sprintf("commitment #%d", item.ID), now)
 	if err != nil || !allowed {
 		return err
 	}
@@ -198,16 +210,20 @@ func (s *Scheduler) wake(ctx context.Context, item core.MemoryItem, now time.Tim
 	return nil
 }
 
-// withinDailyLimit reports whether another wake fits today's limit and warns
+// withinBudget reports whether another wake fits today's limit and warns
 // once a day per subject when it does not.
-func (s *Scheduler) withinDailyLimit(ctx context.Context, subject string, now time.Time) (bool, error) {
+func (s *Scheduler) withinBudget(ctx context.Context, subject string, now time.Time) (bool, error) {
 	local := now.In(s.cfg.Location)
 	midnight := time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, s.cfg.Location)
 	count, err := s.cfg.Store.CountWakesSince(ctx, midnight)
 	if err != nil {
 		return false, err
 	}
-	if count < s.cfg.DailyLimit {
+	tokens, err := s.cfg.Store.SumAutonomousTokensSince(ctx, midnight)
+	if err != nil {
+		return false, err
+	}
+	if count < s.cfg.DailyLimit && tokens < s.cfg.DailyTokens {
 		return true, nil
 	}
 	day := local.Format("2006-01-02")
@@ -215,7 +231,11 @@ func (s *Scheduler) withinDailyLimit(ctx context.Context, subject string, now ti
 	defer s.mu.Unlock()
 	if s.warned[subject] != day {
 		s.warned[subject] = day
-		slog.Warn("wake deferred: daily wake limit reached", "subject", subject, "limit", s.cfg.DailyLimit, "day", day)
+		reason := "count"
+		if tokens >= s.cfg.DailyTokens {
+			reason = "tokens"
+		}
+		slog.Warn("wake deferred: daily budget reached", "subject", subject, "reason", reason, "count", count, "limit", s.cfg.DailyLimit, "tokens", tokens, "token_limit", s.cfg.DailyTokens, "day", day)
 	}
 	return false, nil
 }

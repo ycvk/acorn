@@ -38,6 +38,10 @@ presence:
 wake:
   # Commitment wakes allowed per local day; 0 turns autonomous wakes off.
   daily_limit: 20
+  daily_tokens: 300000
+thinking:
+  night_at: "03:00"
+  wander_at: []
 
 notify:
   max_per_hour: 6

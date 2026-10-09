@@ -15,13 +15,12 @@ import (
 
 // memWatches is an in-memory core.WatchStore.
 type memWatches struct {
-	mu        sync.Mutex
-	watches   []core.Watch
-	items     []core.WatchItem
-	briefings map[string][2]string // day -> thread, run
+	mu      sync.Mutex
+	watches []core.Watch
+	items   []core.WatchItem
 }
 
-func newMemWatches() *memWatches { return &memWatches{briefings: map[string][2]string{}} }
+func newMemWatches() *memWatches { return &memWatches{} }
 
 func (m *memWatches) AddWatch(_ context.Context, w core.Watch) (core.Watch, error) {
 	m.mu.Lock()
@@ -105,44 +104,6 @@ func (m *memWatches) MarkWatchItems(_ context.Context, ids []int64, status core.
 		m.items[id-1].Status, m.items[id-1].RunID = status, runID
 	}
 	return nil
-}
-
-func (m *memWatches) ClaimBriefing(_ context.Context, day string, _ time.Time) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if _, ok := m.briefings[day]; ok {
-		return fmt.Errorf("%w: %s", core.ErrBriefingTaken, day)
-	}
-	m.briefings[day] = [2]string{}
-	return nil
-}
-
-func (m *memWatches) ReleaseBriefing(_ context.Context, day string) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if m.briefings[day][1] == "" {
-		delete(m.briefings, day)
-	}
-	return nil
-}
-
-func (m *memWatches) SetBriefingRun(_ context.Context, day, threadID, runID string) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.briefings[day] = [2]string{threadID, runID}
-	return nil
-}
-
-func (m *memWatches) LatestBriefingThread(context.Context) (string, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	latest := ""
-	for day, b := range m.briefings {
-		if b[0] != "" && day > latest {
-			latest = day
-		}
-	}
-	return m.briefings[latest][0], nil
 }
 
 // fakeChecker returns the items queued for a watch as new, stored pending.
@@ -293,9 +254,11 @@ func TestMorningBriefingRunsOncePerDay(t *testing.T) {
 	if parts[0] != "thread_briefings" || parts[1] != "morning briefing 2026-10-06" || parts[2] != want {
 		t.Fatalf("briefing start = %q\nwant input:\n%s", h.runs.starts[0], want)
 	}
-	if h.watches.items[0].Status != core.WatchItemBriefed || h.watches.briefings["2026-10-06"] != [2]string{"thread_briefings", "run_1"} {
-		t.Fatalf("items %+v briefings %v", h.watches.items, h.watches.briefings)
+	thread, err := h.data.LatestRoutineThread(context.Background(), "briefing")
+	if err != nil || h.watches.items[0].Status != core.WatchItemBriefed || thread != "thread_briefings" {
+		t.Fatalf("items=%+v thread=%q %v", h.watches.items, thread, err)
 	}
+
 	if !strings.Contains(strings.Join(h.store.events, ","), "run_1:"+EventBriefingFired) || len(h.store.wakes) != 0 {
 		t.Fatalf("events = %v; a briefing is not a wake", h.store.events)
 	}

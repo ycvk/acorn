@@ -146,6 +146,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 		ArtifactService:       artifactSvc,
 		ToolRegistry:          toolRegistry,
 		Presence:              db,
+		PhoneNotifications:    db,
 		Clock:                 options.clock,
 	})
 	if err != nil {

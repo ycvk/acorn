@@ -1,6 +1,6 @@
 package store
 
-// storeBootstrapTables creates the 19 core tables if they do not already
+// storeBootstrapTables creates the 20 core tables if they do not already
 // exist. This is split from index creation so that validateSchema can detect
 // a stale/incompatible database (missing columns) before index creation
 // attempts to reference those columns.
@@ -188,11 +188,25 @@ CREATE TABLE IF NOT EXISTS watch_items (
     UNIQUE(watch_id, item_key)
 );
 
-CREATE TABLE IF NOT EXISTS briefings (
-    day TEXT PRIMARY KEY,
-    thread_id TEXT NOT NULL,
+CREATE TABLE IF NOT EXISTS routine_runs (
+    routine TEXT NOT NULL,
+    slot TEXT NOT NULL,
+    thread_id TEXT NOT NULL DEFAULT '',
     run_id TEXT NOT NULL DEFAULT '',
-    created_at TEXT NOT NULL
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (routine, slot)
+);
+CREATE TABLE IF NOT EXISTS phone_notifications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    device_id TEXT NOT NULL,
+    notification_key TEXT NOT NULL,
+    package TEXT NOT NULL,
+    app TEXT NOT NULL,
+    title TEXT NOT NULL DEFAULT '',
+    text TEXT NOT NULL DEFAULT '',
+    posted_at TEXT NOT NULL,
+    received_at TEXT NOT NULL,
+    UNIQUE(device_id, notification_key, posted_at)
 );
 `
 
@@ -203,6 +217,8 @@ const storeBootstrapIndexes = `
 CREATE INDEX IF NOT EXISTS idx_session_messages_run_id ON session_messages(run_id);
 CREATE INDEX IF NOT EXISTS idx_session_messages_session_turn ON session_messages(session_id, turn_index);
 CREATE INDEX IF NOT EXISTS idx_runs_session_created ON runs(session_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_events_kind_created ON events(kind, created_at);
+CREATE INDEX IF NOT EXISTS idx_phone_notifications_received ON phone_notifications(received_at);
 CREATE INDEX IF NOT EXISTS idx_events_run_sequence ON events(run_id, sequence ASC);
 CREATE INDEX IF NOT EXISTS idx_pending_actions_run_id_status ON pending_actions(run_id, status, created_at DESC);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_pending_actions_interrupt_id ON pending_actions(interrupt_id) WHERE interrupt_id <> '';

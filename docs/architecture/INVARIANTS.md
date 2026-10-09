@@ -6,7 +6,7 @@
 
 - **core 有零内部导入**：`internal/core` 不导入任何 `github.com/ycvk/acorn/internal/*` 包；core 是 Layer 0，只依赖外部 SDK（Eino schema/adk）。
   - `tests/architecture/dependency_direction_test.go`
-- **core 拥有 7 个 store 接口**：`SessionStore`/`IdentityStore`/`ArtifactStore`/`PresenceStore`/`NotificationStore`/`KnowledgeStore`/`WatchStore` 是 core 定义的 consumer-owned 持久化接口。
+- **core 拥有 9 个 store 接口**：`SessionStore`/`IdentityStore`/`ArtifactStore`/`PresenceStore`/`NotificationStore`/`KnowledgeStore`/`WatchStore`/`RoutineStore`/`PhoneNotificationStore` 是 core 定义的 consumer-owned 持久化接口。
   - `internal/core/store.go`
   - `internal/core/presence.go`
   - `internal/core/knowledge.go`
@@ -46,7 +46,7 @@
   - `internal/runtime/agent_test.go`
   - `internal/runtime/skill_backend_test.go`
   - `internal/presence/presence_test.go`
-- **“当下”只存在于单次模型调用**：presence middleware 用 `WrapModel` 在每次模型调用的输入末尾追加 `<presence>` system 消息（owner 时区的时间、唤醒原因、约定、念头、owner 原话、倾向、关切、暂歇条目），不写回 agent 状态，因此不会进入历史或被总结。渲染前先执行衰减；超过 `presence.max_tokens` 时先丢暂歇条目，再丢各类最旧条目，woken 约定永不丢弃。每个不同的渲染结果按哈希存入 `context_snapshots`，并记一条 `presence.snapshot` 事件。
+- **“当下”只存在于单次模型调用**：presence middleware 用 `WrapModel` 在每次模型调用的输入末尾追加 `<presence>` system 消息（owner 时区的时间、唤醒原因、约定、念头、owner 原话、倾向、关切、暂歇条目），不写回 agent 状态，因此不会进入历史或被总结。渲染前先执行衰减；超过 `presence.max_tokens` 时先丢最旧的手机通知、再丢暂歇条目和各类最旧记忆条目，woken 约定永不丢弃。每个不同的渲染结果按哈希存入 `context_snapshots`，并记一条 `presence.snapshot` 事件。
   - `internal/runtime/presence_test.go`
   - `internal/presence/presence_test.go`
 - **工作记忆只有一条衰减路径**：`memory_items` 中的 said/thought/tendency/ruler 到期未续期时，由 `presence.Decay` 从 active 变为 resting，再变为 sunk；commitment 不衰减。续期、内化、放下、完成约定都只经 `settle` 工具。
@@ -110,7 +110,7 @@
   - `internal/wake/watches_test.go`
   - `internal/watch/watch_test.go`
   - `internal/wire/watch_acceptance_e2e_test.go`
-- **每个本地日一次早安卡**：过了 `briefing.at`（owner 时区）后，`briefings` 表按日期认领，跨进程只触发一次；起 run 失败释放认领，下个 tick 重试。早安卡在 Briefings 线程里运行，输入列出全部待简报条目和 failing 追踪项，条目随之标为 briefed；它不计入每日唤醒上限。
+- **每个本地日一次早安卡**：过了 `briefing.at`（owner 时区）后，`routine_runs` 表按 (`briefing`,日期) 认领，跨进程只触发一次；起 run 失败释放认领，下个 tick 重试。早安卡在 Briefings 线程里运行，输入列出全部待简报条目和 failing 追踪项，条目随之标为 briefed；它不计入每日唤醒上限。
   - `internal/wake/watches_test.go`
   - `internal/store/store_watch_test.go`
   - `internal/wire/watch_acceptance_e2e_test.go`
@@ -120,3 +120,23 @@
 
 - **Error 分两类**：Exported sentinel error（需要被 `errors.Is` 比对）必须是包级 `var ErrXxx`；precondition/internal-config error（不该发生的编程错误）用 inline `errors.New("...")` 直接返回。`.golangci.yml` 的 `errname` linter 强制导出 sentinel 命名。
   - `.golangci.yml`（errname linter）
+
+## 空闲思考、用量与手机通知
+
+- **例行唤醒一次认领**：`routine_runs` 的 (routine, slot) 唯一;准备/启动失败释放,预算跳过与空夜思保留,启动成功后保持认领。夜思与游思复用 Thoughts 线程。
+  - `internal/wake/thinking_test.go`
+- **原始通知只有一个写入入口**：鉴权设备身份与服务器 received_at 由 API 决定;批次全量校验后事务写入,按 (device,key,posted_at) 去重,不修改调用方输入。
+  - `internal/api/phone_notification_service_test.go`
+  - `internal/store/store_phone_notifications_test.go`
+- **通知窗口连续且有界**：“当下”为最近 6 小时最多 10 条,预算裁减时通知最先丢;早安卡窗口为上次成功认领至本次认领的半开区间,最多 50 条并准确标记剩余数;原始信号七天后清理。
+  - `internal/presence/phone_notifications_test.go`
+  - `internal/wake/thinking_test.go`
+  - `internal/store/store_routine_test.go`
+- **自主预算按调用时间计**：当日本地零点起的 `model.usage` 累计,关联 run 的 `wake.fired` 判定自主用量;早安卡与 owner 运行不计。成功主模型调用逐次记录,缺失 usage 可观察,不改变 live 契约。
+  - `internal/runtime/usage_test.go`
+  - `internal/store/store_phone_notifications_test.go`
+  - `internal/wire/thinking_acceptance_e2e_test.go`
+- **跨模块闭环**：夜思能通过技能整理工作记忆,手机通知能经过 HTTP 进入 presence 与简报,简报笔记提交 Git 并推送。
+  - `internal/wire/thinking_acceptance_e2e_test.go`
+- **手机队列归属清晰**：队列绑定服务器与设备,身份变更清空;取消白名单移除待传项;请求使用批次自己的凭证;失败保留,成功只删除发送的 ID;持续入队保留第一条的上传截止时间。
+  - `mobile-kotlin/app/src/test/java/io/ycvk/acorn/core/notifications/NotificationQueueTest.kt`

@@ -21,23 +21,25 @@ import (
 )
 
 type Container struct {
-	cfg           *config.Config
-	store         *store.Store
-	runnerFactory *runtime.RunnerFactory
-	runController *runtime.RunController
-	runResume     *api.RunResumeService
-	skills        *api.SkillService
-	threads       *api.ThreadService
-	runs          *api.RunService
-	events        *api.EventService
-	pendingAction *api.PendingActionService
-	capabilities  *api.CapabilitiesService
-	deviceAuth    *api.DeviceAuthService
-	inbox         *api.InboxService
-	vault         *knowledge.Vault
-	knowledge     *api.KnowledgeService
-	captures      *api.CaptureService
-	wake          *wake.Scheduler
+	clock              func() time.Time
+	cfg                *config.Config
+	store              *store.Store
+	runnerFactory      *runtime.RunnerFactory
+	runController      *runtime.RunController
+	runResume          *api.RunResumeService
+	skills             *api.SkillService
+	threads            *api.ThreadService
+	runs               *api.RunService
+	events             *api.EventService
+	pendingAction      *api.PendingActionService
+	capabilities       *api.CapabilitiesService
+	deviceAuth         *api.DeviceAuthService
+	inbox              *api.InboxService
+	vault              *knowledge.Vault
+	knowledge          *api.KnowledgeService
+	captures           *api.CaptureService
+	phoneNotifications *api.PhoneNotificationService
+	wake               *wake.Scheduler
 	// watchBrowser renders web_rendered watches; nil without a browser.
 	watchBrowser *tools.Service
 }
@@ -84,18 +86,19 @@ func (c *Container) DeviceAuth() *api.DeviceAuthService {
 // Handler is the /v1 client API over this container's services.
 func (c *Container) Handler(logger *slog.Logger) (http.Handler, error) {
 	return api.NewHandler(api.Dependencies{
-		Threads:       c.threads,
-		Runs:          c.runs,
-		Events:        c.events,
-		PendingAction: c.pendingAction,
-		Skills:        c.skills,
-		Capabilities:  c.capabilities,
-		DeviceAuth:    c.deviceAuth,
-		Inbox:         c.inbox,
-		Knowledge:     c.knowledge,
-		Captures:      c.captures,
-		Config:        c.cfg,
-		Logger:        logger,
+		Threads:            c.threads,
+		Runs:               c.runs,
+		Events:             c.events,
+		PendingAction:      c.pendingAction,
+		Skills:             c.skills,
+		Capabilities:       c.capabilities,
+		DeviceAuth:         c.deviceAuth,
+		Inbox:              c.inbox,
+		Knowledge:          c.knowledge,
+		Captures:           c.captures,
+		PhoneNotifications: c.phoneNotifications,
+		Config:             c.cfg,
+		Logger:             logger,
 	})
 }
 
@@ -173,6 +176,7 @@ func buildContainer(ctx context.Context, cfg *config.Config, options buildOption
 func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *containerRuntimeDeps, clock func() time.Time) (*Container, error) {
 	container := &Container{
 		cfg:           cfg,
+		clock:         clock,
 		runnerFactory: deps.runnerFactory,
 		runController: deps.runController,
 	}
@@ -191,6 +195,11 @@ func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *contai
 	container.knowledge = api.NewKnowledgeService(deps.vault)
 	container.captures = api.NewCaptureService(deps.vault, container.threads, container.runs)
 
+	phoneNotifications, err := api.NewPhoneNotificationService(db, clock)
+	if err != nil {
+		return nil, err
+	}
+	container.phoneNotifications = phoneNotifications
 	location, err := cfg.OwnerLocation()
 	if err != nil {
 		return nil, err
@@ -199,19 +208,27 @@ func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *contai
 	if err != nil {
 		return nil, err
 	}
+	thinking, err := thinkingSchedule(cfg)
+	if err != nil {
+		return nil, err
+	}
 	container.watchBrowser = deps.watchBrowser
 	container.wake, err = wake.NewScheduler(wake.Config{
-		Store:            db,
-		Events:           db,
-		Runs:             &wakeRunStarter{runs: container.runs, store: db},
-		Watches:          db,
-		Checker:          deps.watchChecker,
-		Clock:            clock,
-		Location:         location,
-		DailyLimit:       cfg.Wake.DailyLimit,
-		MaxChecksPerTick: cfg.Watch.MaxChecksPerTick,
-		Briefing:         briefing,
-		Interval:         wakeInterval,
+		Routines:           db,
+		PhoneNotifications: db,
+		Store:              db,
+		Events:             db,
+		Runs:               &wakeRunStarter{runs: container.runs, store: db},
+		Watches:            db,
+		Checker:            deps.watchChecker,
+		Clock:              clock,
+		Location:           location,
+		DailyLimit:         cfg.Wake.DailyLimit,
+		DailyTokens:        cfg.Wake.DailyTokens,
+		Thinking:           thinking,
+		MaxChecksPerTick:   cfg.Watch.MaxChecksPerTick,
+		Briefing:           briefing,
+		Interval:           wakeInterval,
 	})
 	if err == nil && deps.notifier != nil {
 		container.wake = container.wake.WithNotifications(deps.notifier)
@@ -250,10 +267,7 @@ func (w *wakeRunStarter) StartWakeRun(ctx context.Context, threadID, wake, input
 	return run.ID, nil
 }
 
-// briefingsThreadTitle names the thread that receives morning briefings.
-const briefingsThreadTitle = "Briefings"
-
-func (w *wakeRunStarter) StartBriefingRun(ctx context.Context, threadID, wake, input string) (string, string, error) {
+func (w *wakeRunStarter) StartRoutineRun(ctx context.Context, threadID, title, wake, input string) (string, string, error) {
 	if threadID != "" {
 		if _, err := w.store.LoadSession(ctx, threadID); errors.Is(err, core.ErrSessionNotFound) {
 			threadID = ""
@@ -263,8 +277,8 @@ func (w *wakeRunStarter) StartBriefingRun(ctx context.Context, threadID, wake, i
 	}
 	if threadID == "" {
 		threadID = core.NewSessionID()
-		if _, err := w.store.CreateSession(ctx, threadID, briefingsThreadTitle); err != nil {
-			return "", "", fmt.Errorf("create briefings thread: %w", err)
+		if _, err := w.store.CreateSession(ctx, threadID, title); err != nil {
+			return "", "", fmt.Errorf("create routine thread: %w", err)
 		}
 	}
 	run, err := w.runs.CreateWakeRun(ctx, threadID, wake, input)

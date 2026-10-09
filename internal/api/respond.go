@@ -141,7 +141,11 @@ func decodeJSONBody(r *http.Request, out any) error {
 	if r == nil || r.Body == nil {
 		return fmt.Errorf("request body is required")
 	}
-	decoder := json.NewDecoder(io.LimitReader(r.Body, maxJSONBodySize))
+	return decodeJSONObject(io.LimitReader(r.Body, maxJSONBodySize), out)
+}
+
+func decodeJSONObject(reader io.Reader, out any) error {
+	decoder := json.NewDecoder(reader)
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(out); err != nil {
 		return err

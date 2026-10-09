@@ -24,7 +24,8 @@ type PresenceConfig struct {
 // WakeConfig limits autonomous wakes. DailyLimit counts wakes per owner-local
 // day; zero disables autonomous wakes.
 type WakeConfig struct {
-	DailyLimit int `yaml:"daily_limit"`
+	DailyLimit  int `yaml:"daily_limit"`
+	DailyTokens int `yaml:"daily_tokens"`
 }
 
 // NotifyConfig configures owner push notifications.

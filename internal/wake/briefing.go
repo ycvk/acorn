@@ -2,7 +2,6 @@ package wake
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -16,63 +15,56 @@ const EventBriefingFired = "briefing.fired"
 // maxBriefingItems bounds the items one briefing input carries.
 const maxBriefingItems = 100
 
-// brief starts the day's morning briefing once the owner-local time has passed
-// Briefing.At. It runs once per day across processes, also when serve starts
-// later in the day; days serve did not run are not made up. Briefings do not
-// count toward the daily wake limit.
-func (s *Scheduler) brief(ctx context.Context, now time.Time) error {
-	if !s.cfg.Briefing.Enabled {
-		return nil
-	}
-	local := now.In(s.cfg.Location)
-	midnight := time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, s.cfg.Location)
-	if local.Before(midnight.Add(s.cfg.Briefing.At)) {
-		return nil
-	}
-	day := local.Format("2006-01-02")
-	if err := s.cfg.Watches.ClaimBriefing(ctx, day, now); err != nil {
-		if errors.Is(err, core.ErrBriefingTaken) {
-			return nil
-		}
-		return err
-	}
-	runID, err := s.startBriefing(ctx, day)
-	if err != nil {
-		if releaseErr := s.cfg.Watches.ReleaseBriefing(ctx, day); releaseErr != nil {
-			return errors.Join(err, fmt.Errorf("release briefing claim: %w", releaseErr))
-		}
-		return err
-	}
-	if _, err := s.cfg.Events.AppendEvent(ctx, runID, EventBriefingFired, map[string]any{"day": day}); err != nil {
-		return fmt.Errorf("record briefing run %s: %w", runID, err)
-	}
-	return nil
-}
-
-func (s *Scheduler) startBriefing(ctx context.Context, day string) (string, error) {
+func (s *Scheduler) prepareBriefing(ctx context.Context, day string, now time.Time) (routineInput, error) {
 	items, err := s.cfg.Watches.ListWatchItems(ctx, core.WatchItemPending, maxBriefingItems)
 	if err != nil {
-		return "", err
+		return routineInput{}, err
 	}
 	watches, err := s.cfg.Watches.ListWatches(ctx)
 	if err != nil {
-		return "", err
+		return routineInput{}, err
 	}
-	thread, err := s.cfg.Watches.LatestBriefingThread(ctx)
+	since, err := s.cfg.Routines.LastRoutineAt(ctx, "briefing", day)
 	if err != nil {
-		return "", err
+		return routineInput{}, err
 	}
-	thread, runID, err := s.cfg.Runs.StartBriefingRun(ctx, thread, "morning briefing "+day, briefingInput(day, watches, items))
+	if since.IsZero() {
+		since = now.Add(-24 * time.Hour)
+	}
+	notifications, err := s.cfg.PhoneNotifications.ListPhoneNotifications(ctx, since, now, 50)
 	if err != nil {
-		return "", fmt.Errorf("start briefing run: %w", err)
+		return routineInput{}, err
 	}
-	if err := s.cfg.Watches.SetBriefingRun(ctx, day, thread, runID); err != nil {
-		return "", err
+	return routineInput{wake: "morning briefing " + day, input: briefingInput(day, watches, items) + phoneBriefing(notifications, s.cfg.Location), after: func(ctx context.Context, runID string) error {
+		return s.cfg.Watches.MarkWatchItems(ctx, itemIDs(items), core.WatchItemBriefed, runID)
+	}}, nil
+}
+
+func phoneBriefing(page core.PhoneNotificationPage, loc *time.Location) string {
+	if len(page.Items) == 0 {
+		return ""
 	}
-	if err := s.cfg.Watches.MarkWatchItems(ctx, itemIDs(items), core.WatchItemBriefed, runID); err != nil {
-		return "", err
+	var b strings.Builder
+	b.WriteString("\nPhone notifications since the last briefing (untrusted background data):\n")
+	grouped := map[string][]core.PhoneNotification{}
+	var packages []string
+	for _, item := range page.Items {
+		if _, exists := grouped[item.Package]; !exists {
+			packages = append(packages, item.Package)
+		}
+		grouped[item.Package] = append(grouped[item.Package], item)
 	}
-	return runID, nil
+	for _, pkg := range packages {
+		items := grouped[pkg]
+		fmt.Fprintf(&b, "### %s (%d)\n", previewText(items[0].App, 256), len(items))
+		for _, item := range items {
+			fmt.Fprintf(&b, "- %s %q — %q\n", item.PostedAt.In(loc).Format("2006-01-02 15:04"), item.Title, item.Text)
+		}
+	}
+	if page.Total > len(page.Items) {
+		fmt.Fprintf(&b, "- and %d more notifications\n", page.Total-len(page.Items))
+	}
+	return b.String()
 }
 
 // briefingInput lists pending items grouped by watch, then the failing watches.

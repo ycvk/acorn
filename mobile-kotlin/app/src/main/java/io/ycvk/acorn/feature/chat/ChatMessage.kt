@@ -59,10 +59,12 @@ fun captureCardText(input: String): String =
         }
         .trim()
 
-enum class WakeSource { Commitment, Watch, Briefing }
+enum class WakeSource { Commitment, Watch, Briefing, Night, Wander }
 
 /** What woke a run, from the prefix the backend gives its input. */
 fun wakeSource(input: String): WakeSource = when {
+    input.startsWith("[night ") -> WakeSource.Night
+    input.startsWith("[wander ") -> WakeSource.Wander
     input.startsWith("[watch") -> WakeSource.Watch
     input.startsWith("[briefing") -> WakeSource.Briefing
     else -> WakeSource.Commitment

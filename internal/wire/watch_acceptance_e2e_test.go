@@ -124,7 +124,7 @@ func TestWatchesWakeAndFeedTheMorningBriefing(t *testing.T) {
 	if err := c.wake.Tick(ctx); err != nil {
 		t.Fatalf("tick: %v", err)
 	}
-	briefingThread, err := c.store.LatestBriefingThread(ctx)
+	briefingThread, err := c.store.LatestRoutineThread(ctx, "briefing")
 	if err != nil || briefingThread == "" {
 		t.Fatalf("briefing thread = %q, %v", briefingThread, err)
 	}
@@ -191,7 +191,7 @@ func TestBriefingListsReleasesAndFailingWatches(t *testing.T) {
 
 	harness.clock.Set(time.Date(2026, 10, 5, 0, 0, 0, 0, time.UTC))
 	_ = c.wake.Tick(ctx)
-	briefingThread, err := c.store.LatestBriefingThread(ctx)
+	briefingThread, err := c.store.LatestRoutineThread(ctx, "briefing")
 	if err != nil || briefingThread == "" {
 		t.Fatalf("briefing thread = %q, %v", briefingThread, err)
 	}

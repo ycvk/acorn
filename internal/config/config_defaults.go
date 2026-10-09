@@ -27,7 +27,8 @@ func defaultConfig() *Config {
 		Approval: ApprovalConfig{Require: []string{"browser", "mcp__*"}},
 		Owner:    OwnerConfig{Timezone: "UTC"},
 		Presence: PresenceConfig{MaxTokens: 4000},
-		Wake:     WakeConfig{DailyLimit: 20},
+		Wake:     WakeConfig{DailyLimit: 20, DailyTokens: 300000},
+		Thinking: ThinkingConfig{NightAt: "03:00", WanderAt: []string{}},
 		Watch:    WatchConfig{MaxChecksPerTick: 5},
 		Briefing: BriefingConfig{At: "08:00"},
 		Notify: NotifyConfig{

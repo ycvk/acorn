@@ -18,6 +18,7 @@ import (
 // memPresenceStore is an in-memory core.PresenceStore that also records
 // snapshots and events.
 type memPresenceStore struct {
+	core.PhoneNotificationStore
 	mu        sync.Mutex
 	items     []core.MemoryItem
 	snapshots map[string]string
@@ -113,6 +114,7 @@ func newTestPresenceMiddleware(t *testing.T, store *memPresenceStore) *presenceM
 	return &presenceMiddleware{
 		BaseChatModelAgentMiddleware: &adk.BaseChatModelAgentMiddleware{},
 		store:                        store,
+		phones:                       store,
 		events:                       store,
 		clock:                        func() time.Time { return presenceNow },
 		location:                     time.UTC,
@@ -235,4 +237,15 @@ func TestPresenceDecaysBeforeRendering(t *testing.T) {
 	if item, _ := store.LoadMemoryItem(ctx, 1); item.Status != core.MemorySunk {
 		t.Fatalf("item status = %s, want sunk persisted", item.Status)
 	}
+}
+
+func (s *memPresenceStore) SumAutonomousTokensSince(context.Context, time.Time) (int, error) {
+	return 0, nil
+}
+func (s *memPresenceStore) UsageReport(context.Context, time.Time) (core.UsageReport, error) {
+	return core.UsageReport{}, nil
+}
+
+func (s *memPresenceStore) ListPhoneNotifications(context.Context, time.Time, time.Time, int) (core.PhoneNotificationPage, error) {
+	return core.PhoneNotificationPage{}, nil
 }

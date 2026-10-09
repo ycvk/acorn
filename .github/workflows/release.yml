@@ -114,6 +114,8 @@ jobs:
           test -f "$package_dir/skills/web_browser_research/SKILL.md"
           test -f "$package_dir/skills/capture_to_note/SKILL.md"
           test -f "$package_dir/skills/morning_briefing/SKILL.md"
+          test -f "$package_dir/skills/night_reflection/SKILL.md"
+          test -f "$package_dir/skills/wander/SKILL.md"
           test -x "$package_dir/install-release.sh"
           grep -qx "ExecStart=/opt/acorn/acorn serve" "$package_dir/acorn.service"
           (cd "$package_dir" && sha256sum -c CHECKSUMS)
@@ -256,6 +258,8 @@ jobs:
             test -f "$package_dir/skills/web_browser_research/SKILL.md"
             test -f "$package_dir/skills/capture_to_note/SKILL.md"
             test -f "$package_dir/skills/morning_briefing/SKILL.md"
+            test -f "$package_dir/skills/night_reflection/SKILL.md"
+            test -f "$package_dir/skills/wander/SKILL.md"
             (cd "$package_dir" && sha256sum -c CHECKSUMS)
           done
 

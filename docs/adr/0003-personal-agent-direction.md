@@ -1,7 +1,7 @@
 ---
 adr: 0003
 title: 个人代理方向 — 唤醒驱动、工作记忆、知识库与信息追踪
-status: Proposed
+status: Accepted
 date: 2026-10-02
 supersedes: [0001, 0002]
 ---
@@ -38,7 +38,7 @@ Acorn 是一个有连续人格的个人代理。它盯着 owner 关心的信息�
 | 空闲思考(游思 / 夜思) | 固定时段 |
 | 手机通知 | 进入信号缓冲,下次唤醒时一并呈现 |
 
-自主唤醒(Watch、约定、空闲思考)受每日 token 预算和次数上限约束;owner 发起的唤醒不受限。P1 只有次数上限(`wake.daily_limit`,按 owner 时区的自然日计),token 预算随 P4 的空闲思考一起落地。
+自主唤醒(Watch、约定、空闲思考)受每日 token 预算和次数上限约束;owner 发起的唤醒不受限。次数上限由 `wake.daily_limit` 配置,token 预算由 `wake.daily_tokens` 配置,按 owner 时区的自然日计。预算在起 run 前检查,统计有 `wake.fired` 的 run 的成功主模型调用用量;owner 消息、Capture 和早安卡不计。进行中的 run 不打断。
 
 约定醒来时,本次运行在立约定的线程里进行,输入是 `[commitment #<id>, made <立约时间>] <要做的事>`;线程已删除时进入名为 Reminders 的线程。
 
@@ -69,7 +69,7 @@ facts、history、Active Memory、Periodic Review、WorldState、技能自动生
 
   agent 可以通过 `watch_create` / `watch_update` 自己增改追踪项。RSSHub 由 owner 自建,Acorn 只读它的地址;P3 的 GitHub 只追 releases 和新开的 issue,`web` / `web_rendered` 比较的是选中内容的快照。
 - **Capture**:App 注册系统分享入口,文本、链接、图片走 `POST /v1/captures`。
-- **手机通知**:App 用 NotificationListener 按 App 白名单批量上报,后端存为信号。
+- **手机通知**:App 用 NotificationListener 按 App 白名单批量上报,白名单默认为空。后端存为背景信号,不触发运行,原始通知保留 7 天;已进入上下文快照、对话或笔记的内容随各自记录保留。
 
 ### 输出与审批
 
@@ -100,7 +100,7 @@ App 分五页:此刻(早安卡、接下来、手上的事)、等你处理、知�
 | P1 | 工作记忆、经历检索、约定调度、人格、context 快照、FCM 推送与 `notify_owner` | 对 agent 说"三天后提醒我看 X",到点自动醒来处理并推送 |
 | P2 | 知识库、Capture、App 分享入口;技能加载迁到 Eino skill middleware | 从任意 App 分享一个链接,几分钟内知识库出现整理后的笔记 |
 | P3 | Watch(rss、github releases/issues、web、web_rendered)、早安卡 | 每天早上收到汇总 RSS、GitHub、价格变化的简报 |
-| P4 | 空闲思考、手机通知感知 | 夜思会清理过期念头;重要通知出现在早安卡里 |
+| P4 | 固定时段的夜思/游思、自主运行 token 预算、手机通知白名单采集与背景感知 | 夜思会清理过期念头;重要通知出现在早安卡里 |
 
 ## 不做(边界)
 

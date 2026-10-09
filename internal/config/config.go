@@ -13,6 +13,7 @@ type Config struct {
 	Approval  ApprovalConfig   `yaml:"approval"`
 	Owner     OwnerConfig      `yaml:"owner"`
 	Presence  PresenceConfig   `yaml:"presence"`
+	Thinking  ThinkingConfig   `yaml:"thinking"`
 	Wake      WakeConfig       `yaml:"wake"`
 	Notify    NotifyConfig     `yaml:"notify"`
 	Knowledge KnowledgeConfig  `yaml:"knowledge"`

@@ -2,6 +2,7 @@ package io.ycvk.acorn.feature.settings
 
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.TextButton
+import io.ycvk.acorn.BuildConfig
 import io.ycvk.acorn.core.push.PushStatus
 import io.ycvk.acorn.core.push.pushStatusLabel
 import androidx.compose.foundation.background
@@ -103,7 +104,7 @@ fun SettingsScreen(
                         color = AetherOnSurface,
                     )
                     Text(
-                        "v1.0.0",
+                        "v${BuildConfig.VERSION_NAME}",
                         style = MaterialTheme.typography.labelSmall,
                         color = AetherOnSurfaceVariant,
                     )
@@ -134,6 +135,8 @@ fun SettingsScreen(
                 }
             }
         }
+
+        item { NotificationAccessSection() }
 
         item {
             SectionHeader("model", Icons.Filled.SmartToy)
@@ -209,7 +212,7 @@ fun SettingsScreen(
 }
 
 @Composable
-private fun SectionHeader(title: String, icon: ImageVector) {
+internal fun SectionHeader(title: String, icon: ImageVector) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -230,7 +233,7 @@ private fun SectionHeader(title: String, icon: ImageVector) {
 }
 
 @Composable
-private fun SectionCard(content: @Composable () -> Unit) {
+internal fun SectionCard(content: @Composable () -> Unit) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,

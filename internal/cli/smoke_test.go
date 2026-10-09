@@ -17,7 +17,7 @@ func TestRenderSmokeResultSucceeded(t *testing.T) {
 		t.Fatalf("renderSmokeResult error = %v", err)
 	}
 	for _, want := range []string{
-		"Run: run_123  (mode=direct_response)",
+		"Run: run_123",
 		"Status: succeeded",
 		"Output:\nHi there!",
 	} {
@@ -61,7 +61,6 @@ func TestRenderSmokeResultJSON(t *testing.T) {
 	for _, want := range []string{
 		`"run_id": "run_789"`,
 		`"status": "failed"`,
-		`"mode": "direct_response"`,
 		`"error": "execution_not_ready: model.api_key is required"`,
 	} {
 		if !strings.Contains(out, want) {

@@ -112,31 +112,31 @@ func TestWatchItemsDedupeAndBriefings(t *testing.T) {
 		t.Fatalf("pending = %+v, %v", pending, err)
 	}
 
-	if thread, err := s.LatestBriefingThread(ctx); err != nil || thread != "" {
+	if thread, err := s.LatestRoutineThread(ctx, "briefing"); err != nil || thread != "" {
 		t.Fatalf("no briefing yet: %q, %v", thread, err)
 	}
-	if err := s.ClaimBriefing(ctx, "2026-10-03", watchTestNow); err != nil {
+	if err := s.ClaimRoutine(ctx, "briefing", "2026-10-03", watchTestNow); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.ClaimBriefing(ctx, "2026-10-03", watchTestNow); !errors.Is(err, core.ErrBriefingTaken) {
+	if err := s.ClaimRoutine(ctx, "briefing", "2026-10-03", watchTestNow); !errors.Is(err, core.ErrRoutineTaken) {
 		t.Fatalf("second claim err = %v", err)
 	}
-	if err := s.ReleaseBriefing(ctx, "2026-10-03"); err != nil {
+	if err := s.ReleaseRoutine(ctx, "briefing", "2026-10-03"); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.ClaimBriefing(ctx, "2026-10-03", watchTestNow); err != nil {
+	if err := s.ClaimRoutine(ctx, "briefing", "2026-10-03", watchTestNow); err != nil {
 		t.Fatalf("claim after release: %v", err)
 	}
-	if thread, err := s.LatestBriefingThread(ctx); err != nil || thread != "" {
+	if thread, err := s.LatestRoutineThread(ctx, "briefing"); err != nil || thread != "" {
 		t.Fatalf("a briefing without a run has no thread yet: %q, %v", thread, err)
 	}
-	if err := s.SetBriefingRun(ctx, "2026-10-03", "thread_b", "run_b"); err != nil {
+	if err := s.SetRoutineRun(ctx, "briefing", "2026-10-03", "thread_b", "run_b"); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.ReleaseBriefing(ctx, "2026-10-03"); err != nil {
+	if err := s.ReleaseRoutine(ctx, "briefing", "2026-10-03"); err != nil {
 		t.Fatal(err)
 	}
-	if thread, err := s.LatestBriefingThread(ctx); err != nil || thread != "thread_b" {
+	if thread, err := s.LatestRoutineThread(ctx, "briefing"); err != nil || thread != "thread_b" {
 		t.Fatalf("latest thread = %q, %v", thread, err)
 	}
 }

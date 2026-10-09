@@ -42,24 +42,28 @@ func NewHandler(deps Dependencies) (http.Handler, error) {
 		return nil, errors.New("web capture service is required")
 	}
 
+	if deps.PhoneNotifications == nil {
+		return nil, errors.New("phone notification service is required")
+	}
 	logger := deps.Logger
 	if logger == nil {
 		logger = slog.Default()
 	}
 
 	server := &Server{
-		threads:       deps.Threads,
-		runs:          deps.Runs,
-		events:        deps.Events,
-		pendingAction: deps.PendingAction,
-		skills:        deps.Skills,
-		capabilities:  deps.Capabilities,
-		deviceAuth:    deps.DeviceAuth,
-		inbox:         deps.Inbox,
-		knowledge:     deps.Knowledge,
-		captures:      deps.Captures,
-		logger:        logger,
-		cfg:           deps.Config,
+		threads:            deps.Threads,
+		runs:               deps.Runs,
+		events:             deps.Events,
+		pendingAction:      deps.PendingAction,
+		skills:             deps.Skills,
+		capabilities:       deps.Capabilities,
+		deviceAuth:         deps.DeviceAuth,
+		inbox:              deps.Inbox,
+		knowledge:          deps.Knowledge,
+		captures:           deps.Captures,
+		phoneNotifications: deps.PhoneNotifications,
+		logger:             logger,
+		cfg:                deps.Config,
 	}
 
 	router := chi.NewRouter()
@@ -109,6 +113,7 @@ func (s *Server) registerRoutes(router chi.Router) {
 			r.Get("/pending-actions/{action_id}", s.handleGetPendingAction)
 			r.Post("/pending-actions/{action_id}:decide", s.handleDecidePendingAction)
 			r.Get("/inbox", s.handleClientInbox)
+			r.Post("/phone-notifications", s.handlePhoneNotifications)
 			r.Post("/captures", s.handleCreateCapture)
 			r.Get("/knowledge/notes", s.handleListKnowledgeNotes)
 			r.Get("/knowledge/note", s.handleGetKnowledgeNote)

@@ -35,4 +35,10 @@ class ChatMessageTest {
             assertTrue(chatMessageFrom(role, "x") is ChatMessage.Assistant)
         }
     }
+
+    @org.junit.Test
+    fun thinkingWakeSources() {
+        org.junit.Assert.assertEquals(WakeSource.Night, wakeSource("[night 2026-10-09] night reflection"))
+        org.junit.Assert.assertEquals(WakeSource.Wander, wakeSource("[wander 2026-10-09 15:00] idle time"))
+    }
 }

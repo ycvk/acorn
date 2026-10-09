@@ -104,7 +104,6 @@ fun AcornShell(
     val authController = shellViewModel.authController
     val authState by authController.authState.collectAsStateWithLifecycle()
 
-    LaunchedEffect(Unit) { authController.loadStoredConnection() }
 
     when (val state = authState) {
         is AuthState.Loading -> {

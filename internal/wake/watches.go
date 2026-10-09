@@ -55,7 +55,7 @@ func (s *Scheduler) checkWatches(ctx context.Context, now time.Time) error {
 }
 
 func (s *Scheduler) wakeForWatch(ctx context.Context, w core.Watch, items []core.WatchItem, now time.Time) error {
-	allowed, err := s.withinDailyLimit(ctx, fmt.Sprintf("watch #%d", w.ID), now)
+	allowed, err := s.withinBudget(ctx, fmt.Sprintf("watch #%d", w.ID), now)
 	if err != nil || !allowed {
 		return err // the items stay pending for the briefing
 	}

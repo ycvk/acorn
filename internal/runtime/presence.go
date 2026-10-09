@@ -26,6 +26,7 @@ var presenceStatuses = []core.MemoryStatus{core.MemoryActive, core.MemoryResting
 // context snapshot and referenced by a presence.snapshot event.
 type presenceMiddleware struct {
 	*adk.BaseChatModelAgentMiddleware
+	phones      core.PhoneNotificationStore
 	store       core.PresenceStore
 	events      core.EventAppender
 	clock       func() time.Time
@@ -40,12 +41,13 @@ type presenceMiddleware struct {
 }
 
 func newPresenceMiddleware(deps RuntimeDeps, counter TokenCounter, runID string) (*presenceMiddleware, error) {
-	if deps.Presence == nil || deps.Clock == nil || deps.Location == nil {
-		return nil, fmt.Errorf("presence middleware requires Presence, Clock and Location")
+	if deps.PhoneNotifications == nil || deps.Presence == nil || deps.Clock == nil || deps.Location == nil {
+		return nil, fmt.Errorf("presence middleware requires PhoneNotifications, Presence, Clock and Location")
 	}
 	return &presenceMiddleware{
 		BaseChatModelAgentMiddleware: &adk.BaseChatModelAgentMiddleware{},
 		store:                        deps.Presence,
+		phones:                       deps.PhoneNotifications,
 		events:                       deps.Store,
 		clock:                        deps.Clock,
 		location:                     deps.Location,
@@ -113,13 +115,18 @@ func (m *presenceMiddleware) render(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	phones, err := m.phones.ListPhoneNotifications(ctx, now.Add(-6*time.Hour), now.Add(time.Nanosecond), 10)
+	if err != nil {
+		return "", err
+	}
 	return presence.Render(presence.RenderInput{
-		Now:       now,
-		Location:  m.location,
-		Wake:      wakeOrDefault(ctx),
-		Items:     items,
-		MaxTokens: m.maxTokens,
-		Count:     func(text string) (int, error) { return m.counter.CountText(ctx, text) },
+		PhoneNotifications: phones.Items,
+		Now:                now,
+		Location:           m.location,
+		Wake:               wakeOrDefault(ctx),
+		Items:              items,
+		MaxTokens:          m.maxTokens,
+		Count:              func(text string) (int, error) { return m.counter.CountText(ctx, text) },
 	})
 }
 

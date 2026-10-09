@@ -39,13 +39,14 @@ type RuntimeStore interface {
 }
 
 type RuntimeDeps struct {
-	Config            *config.Config
-	Store             RuntimeStore
-	Loader            *skills.Loader
-	MCPPendingActions core.SessionStore
-	ArtifactService   core.ArtifactService
-	ToolRegistry      core.ToolRegistry
-	Presence          core.PresenceStore
-	Clock             func() time.Time
-	Location          *time.Location
+	Config             *config.Config
+	Store              RuntimeStore
+	Loader             *skills.Loader
+	MCPPendingActions  core.SessionStore
+	ArtifactService    core.ArtifactService
+	ToolRegistry       core.ToolRegistry
+	PhoneNotifications core.PhoneNotificationStore
+	Presence           core.PresenceStore
+	Clock              func() time.Time
+	Location           *time.Location
 }

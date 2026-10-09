@@ -10,16 +10,19 @@ import (
 	"time"
 
 	"github.com/ycvk/acorn/internal/core"
+	"github.com/ycvk/acorn/internal/store"
 )
 
 // memStore is an in-memory PresenceStore and EventAppender. Wakes are counted
 // from appended wake.fired events, like the SQLite store does.
 type memStore struct {
-	mu     sync.Mutex
-	items  []core.MemoryItem
-	wakes  []time.Time
-	clock  func() time.Time
-	events []string
+	mu      sync.Mutex
+	items   []core.MemoryItem
+	wakes   []time.Time
+	clock   func() time.Time
+	events  []string
+	tokens  int
+	usageAt time.Time
 }
 
 func (s *memStore) AddMemoryItem(_ context.Context, item core.MemoryItem) (core.MemoryItem, error) {
@@ -115,14 +118,14 @@ type fakeRuns struct {
 	fail   error
 }
 
-func (r *fakeRuns) StartBriefingRun(_ context.Context, threadID, wake, input string) (string, string, error) {
+func (r *fakeRuns) StartRoutineRun(_ context.Context, threadID, title, wake, input string) (string, string, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.fail != nil {
 		return "", "", r.fail
 	}
 	if threadID == "" {
-		threadID = "thread_briefings"
+		threadID = "thread_" + strings.ToLower(title)
 	}
 	r.starts = append(r.starts, threadID+"|"+wake+"|"+input)
 	return threadID, fmt.Sprintf("run_%d", len(r.starts)), nil
@@ -145,6 +148,7 @@ type harness struct {
 	checker *fakeChecker
 	sched   *Scheduler
 	now     time.Time
+	data    *store.Store
 }
 
 func newHarness(t *testing.T, limit int) *harness {
@@ -159,12 +163,22 @@ func newHarnessWith(t *testing.T, limit int, briefing Briefing) *harness {
 		t.Fatal(err)
 	}
 	h := &harness{runs: &fakeRuns{}, watches: newMemWatches(), now: time.Date(2026, 10, 5, 1, 0, 0, 0, time.UTC)}
+	h.data, err = store.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := h.data.Close(); err != nil {
+			t.Error(err)
+		}
+	})
 	h.store = &memStore{clock: func() time.Time { return h.now }}
 	h.checker = &fakeChecker{watches: h.watches, found: map[int64][]core.WatchItem{}, clock: func() time.Time { return h.now }}
 	h.sched, err = NewScheduler(Config{
 		Store: h.store, Events: h.store, Runs: h.runs, Watches: h.watches, Checker: h.checker,
 		Clock: func() time.Time { return h.now }, Location: loc, DailyLimit: limit,
 		MaxChecksPerTick: 5, Briefing: briefing, Interval: time.Second,
+		DailyTokens: 300000, Routines: h.data, PhoneNotifications: h.data,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -297,4 +311,17 @@ func TestTickFlushesQueuedNotifications(t *testing.T) {
 	if err := h.sched.Tick(context.Background()); err != nil || flusher.calls != 1 {
 		t.Fatalf("flush calls = %d err=%v", flusher.calls, err)
 	}
+}
+
+func (s *memStore) SumAutonomousTokensSince(_ context.Context, since time.Time) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.usageAt.Before(since) {
+		return 0, nil
+	}
+	return s.tokens, nil
+}
+func (s *memStore) UsageReport(ctx context.Context, since time.Time) (core.UsageReport, error) {
+	n, err := s.SumAutonomousTokensSince(ctx, since)
+	return core.UsageReport{AutonomousTokens: n}, err
 }

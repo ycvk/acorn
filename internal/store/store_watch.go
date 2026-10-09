@@ -209,54 +209,6 @@ func (s *Store) MarkWatchItems(ctx context.Context, ids []int64, status core.Wat
 	return nil
 }
 
-func (s *Store) ClaimBriefing(ctx context.Context, day string, at time.Time) error {
-	if day == "" || at.IsZero() {
-		return errors.New("claim briefing: day and time are required")
-	}
-	result, err := s.db.ExecContext(ctx,
-		`INSERT OR IGNORE INTO briefings (day, thread_id, created_at) VALUES (?, '', ?)`, day, formatTimestamp(at))
-	if err != nil {
-		return fmt.Errorf("claim briefing %s: %w", day, err)
-	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("claim briefing %s rows affected: %w", day, err)
-	}
-	if affected == 0 {
-		return fmt.Errorf("%w: %s", core.ErrBriefingTaken, day)
-	}
-	return nil
-}
-
-func (s *Store) ReleaseBriefing(ctx context.Context, day string) error {
-	if _, err := s.db.ExecContext(ctx, `DELETE FROM briefings WHERE day = ? AND run_id = ''`, day); err != nil {
-		return fmt.Errorf("release briefing %s: %w", day, err)
-	}
-	return nil
-}
-
-func (s *Store) SetBriefingRun(ctx context.Context, day, threadID, runID string) error {
-	if threadID == "" || runID == "" {
-		return errors.New("set briefing run: thread and run are required")
-	}
-	if _, err := s.db.ExecContext(ctx, `UPDATE briefings SET thread_id = ?, run_id = ? WHERE day = ?`, threadID, runID, day); err != nil {
-		return fmt.Errorf("set briefing run %s: %w", day, err)
-	}
-	return nil
-}
-
-func (s *Store) LatestBriefingThread(ctx context.Context) (string, error) {
-	var thread string
-	err := s.db.QueryRowContext(ctx, `SELECT thread_id FROM briefings WHERE thread_id <> '' ORDER BY day DESC LIMIT 1`).Scan(&thread)
-	if errors.Is(err, sql.ErrNoRows) {
-		return "", nil
-	}
-	if err != nil {
-		return "", fmt.Errorf("latest briefing thread: %w", err)
-	}
-	return thread, nil
-}
-
 func validateWatch(w core.Watch) error {
 	switch {
 	case strings.TrimSpace(w.Name) == "":

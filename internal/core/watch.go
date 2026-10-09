@@ -11,8 +11,6 @@ var (
 	// ErrWatchNotDue means a watch was not claimable: it is paused, already
 	// claimed, or its next check has not arrived.
 	ErrWatchNotDue = errors.New("watch not due")
-	// ErrBriefingTaken means the day's briefing was already started.
-	ErrBriefingTaken = errors.New("briefing already taken")
 )
 
 // WatchKind is the type of source a watch follows.
@@ -89,7 +87,7 @@ type WatchItem struct {
 	SeenAt      time.Time
 }
 
-// WatchStore persists watches, their items and the daily briefings.
+// WatchStore persists watches and their items.
 type WatchStore interface {
 	AddWatch(ctx context.Context, w Watch) (Watch, error)
 	LoadWatch(ctx context.Context, id int64) (*Watch, error)
@@ -104,13 +102,4 @@ type WatchStore interface {
 	AddWatchItems(ctx context.Context, items []WatchItem) ([]WatchItem, error)
 	ListWatchItems(ctx context.Context, status WatchItemStatus, limit int) ([]WatchItem, error)
 	MarkWatchItems(ctx context.Context, ids []int64, status WatchItemStatus, runID string) error
-	// ClaimBriefing records that an owner-local day's briefing is starting; a
-	// second claim of the same day gets ErrBriefingTaken.
-	ClaimBriefing(ctx context.Context, day string, at time.Time) error
-	// ReleaseBriefing drops a claim whose run could not start, so a later tick
-	// tries again.
-	ReleaseBriefing(ctx context.Context, day string) error
-	SetBriefingRun(ctx context.Context, day, threadID, runID string) error
-	// LatestBriefingThread is the thread of the most recent briefing, or "".
-	LatestBriefingThread(ctx context.Context) (string, error)
 }

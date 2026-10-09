@@ -102,7 +102,7 @@ fun PairingScreen(
         )
         Spacer(Modifier.height(4.dp))
         Text(
-            text = "your private ambient agent",
+            text = "your personal agent",
             style = MaterialTheme.typography.bodyMedium,
             color = AetherOnSurfaceVariant,
         )

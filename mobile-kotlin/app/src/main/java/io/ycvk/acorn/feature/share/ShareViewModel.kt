@@ -47,7 +47,6 @@ class ShareViewModel @Inject constructor(
             _state.value = ShareState.Unsupported
             return
         }
-        authController.loadStoredConnection()
         viewModelScope.launch {
             val auth = authController.authState.first { it !is AuthState.Loading }
             _state.value = if (auth is AuthState.Connected) ShareState.Editing(content) else ShareState.NotPaired

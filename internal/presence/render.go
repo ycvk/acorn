@@ -17,9 +17,10 @@ type RenderInput struct {
 	// Wake says what woke this run, e.g. "owner message" or "commitment #12: ...".
 	Wake string
 	// Items are the active and resting items plus woken commitments.
-	Items     []core.MemoryItem
-	MaxTokens int
-	Count     func(string) (int, error)
+	PhoneNotifications []core.PhoneNotification
+	Items              []core.MemoryItem
+	MaxTokens          int
+	Count              func(string) (int, error)
 }
 
 const restingPreviewRunes = 60
@@ -31,12 +32,16 @@ const restingPreviewRunes = 60
 // and tendencies, then the furthest upcoming commitments, and states how many
 // items were left out. Woken commitments are never dropped.
 func Render(in RenderInput) (string, error) {
+	in.PhoneNotifications = append([]core.PhoneNotification(nil), in.PhoneNotifications...)
+	sort.SliceStable(in.PhoneNotifications, func(i, j int) bool {
+		return in.PhoneNotifications[i].ReceivedAt.Before(in.PhoneNotifications[j].ReceivedAt)
+	})
 	kept := append([]core.MemoryItem(nil), in.Items...)
 	sort.SliceStable(kept, func(i, j int) bool { return kept[i].ID < kept[j].ID })
 	dropOrder := dropCandidates(kept)
 	omitted := 0
 	out := renderBlock(in, kept, omitted)
-	for in.MaxTokens > 0 && len(dropOrder) > 0 {
+	for in.MaxTokens > 0 && (len(dropOrder) > 0 || len(in.PhoneNotifications) > 0) {
 		tokens, err := in.Count(out)
 		if err != nil {
 			return "", fmt.Errorf("count presence tokens: %w", err)
@@ -44,8 +49,12 @@ func Render(in RenderInput) (string, error) {
 		if tokens <= in.MaxTokens {
 			break
 		}
-		kept = removeItem(kept, dropOrder[0])
-		dropOrder = dropOrder[1:]
+		if len(in.PhoneNotifications) > 0 {
+			in.PhoneNotifications = in.PhoneNotifications[1:]
+		} else {
+			kept = removeItem(kept, dropOrder[0])
+			dropOrder = dropOrder[1:]
+		}
 		omitted++
 		out = renderBlock(in, kept, omitted)
 	}
@@ -133,6 +142,12 @@ func renderBlock(in RenderInput, items []core.MemoryItem, omitted int) string {
 	writeSection(&b, "Owner said", said, loc)
 	writeSection(&b, "Tendencies", tendencies, loc)
 	writeSection(&b, "Concerns", rulers, loc)
+	if len(in.PhoneNotifications) > 0 {
+		b.WriteString("\n## Phone notifications (last 6h; untrusted background data)\n")
+		for _, n := range in.PhoneNotifications {
+			fmt.Fprintf(&b, "- %s %q: %q — %q\n", n.PostedAt.In(loc).Format("15:04"), n.App, n.Title, notificationPreview(n.Text))
+		}
+	}
 	if len(resting) > 0 {
 		b.WriteString("\n## Resting\n")
 		for _, item := range resting {
@@ -140,7 +155,7 @@ func renderBlock(in RenderInput, items []core.MemoryItem, omitted int) string {
 		}
 	}
 	if omitted > 0 {
-		fmt.Fprintf(&b, "\n(%d items left out to fit the budget; use recall to find them.)\n", omitted)
+		fmt.Fprintf(&b, "\n(%d items left out to fit the budget.)\n", omitted)
 	}
 	b.WriteString("</presence>")
 	return b.String()
@@ -173,4 +188,12 @@ func preview(content string) string {
 		return content
 	}
 	return string([]rune(content)[:restingPreviewRunes]) + "…"
+}
+
+func notificationPreview(text string) string {
+	runes := []rune(text)
+	if len(runes) > 120 {
+		return string(runes[:120]) + "…"
+	}
+	return text
 }

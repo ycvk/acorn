@@ -86,6 +86,8 @@ type PresenceStore interface {
 	SaveContextSnapshot(ctx context.Context, hash, content string) error
 	// CountWakesSince counts wake.fired events recorded at or after since.
 	CountWakesSince(ctx context.Context, since time.Time) (int, error)
+	SumAutonomousTokensSince(ctx context.Context, since time.Time) (int, error)
+	UsageReport(ctx context.Context, since time.Time) (UsageReport, error)
 }
 
 // EventWakeFired is recorded on a run started by a commitment wake.

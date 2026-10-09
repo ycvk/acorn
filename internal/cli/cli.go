@@ -87,12 +87,20 @@ func runDoctor(ctx context.Context, args []string) error {
 		if err != nil {
 			return fmt.Errorf("watches: %w", err)
 		}
+		thinking, err := container.ThinkingStatus(ctx)
+		if err != nil {
+			return fmt.Errorf("thinking status: %w", err)
+		}
 		if *jsonMode {
-			return printJSON(snapshot)
+			return printJSON(struct {
+				api.SystemCapabilities
+				Thinking wire.ThinkingStatus `json:"thinking"`
+			}{snapshot, thinking})
 		}
 		fmt.Println(renderDoctorSummary(snapshot, container.Config().ConfigPath))
 		fmt.Println(renderDoctorKnowledge(knowledgeStatus))
 		fmt.Println(renderDoctorWatches(container.Config(), watches))
+		fmt.Println(renderDoctorThinking(container.Config(), thinking))
 		return nil
 	})
 }

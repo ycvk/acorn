@@ -601,6 +601,34 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /v1/phone-notifications:
+    post:
+      tags: [phone-notifications]
+      operationId: clientPostPhoneNotifications
+      summary: Upload notifications captured by this device
+      description: Stores background signals without waking the agent. Entries are deduplicated by authenticated device, key and posted_at. Raw signals are retained for seven days; derived conversation, context snapshot and knowledge records follow their own retention.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PhoneNotificationBatch'
+      responses:
+        '200':
+          description: Batch stored, including already accepted entries
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PhoneNotificationAccepted'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/DeviceRevoked'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
   /v1/captures:
     post:
       tags: [captures]
@@ -1926,6 +1954,57 @@ components:
           type: string
         answer:
           type: string
+
+    PhoneNotificationBatch:
+      type: object
+      additionalProperties: false
+      required: [notifications]
+      properties:
+        notifications:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/PhoneNotificationInput'
+    PhoneNotificationInput:
+      type: object
+      additionalProperties: false
+      required: [key, package, app, posted_at]
+      properties:
+        key:
+          type: string
+          minLength: 1
+          maxLength: 256
+          description: Android notification key; limited to 256 UTF-8 bytes.
+        package:
+          type: string
+          minLength: 1
+          maxLength: 256
+        app:
+          type: string
+          minLength: 1
+          maxLength: 256
+        title:
+          type: string
+          maxLength: 200
+          default: ''
+        text:
+          type: string
+          maxLength: 2000
+          default: ''
+        posted_at:
+          type: string
+          format: date-time
+          description: Notification time, at most five minutes ahead of the server.
+    PhoneNotificationAccepted:
+      type: object
+      additionalProperties: false
+      required: [accepted]
+      properties:
+        accepted:
+          type: integer
+          minimum: 0
+          description: Number of newly inserted entries.
 
     PushTokenRequest:
       type: object

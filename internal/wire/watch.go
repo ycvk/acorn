@@ -74,3 +74,22 @@ func briefingSchedule(cfg *config.Config) (wake.Briefing, error) {
 	}
 	return wake.Briefing{Enabled: true, At: offset}, nil
 }
+
+func thinkingSchedule(cfg *config.Config) (wake.Thinking, error) {
+	var result wake.Thinking
+	if cfg.Thinking.NightAt != "" {
+		at, err := config.ParseClock(cfg.Thinking.NightAt)
+		if err != nil {
+			return result, err
+		}
+		result.Night = wake.Briefing{Enabled: true, At: at}
+	}
+	for _, value := range cfg.Thinking.WanderAt {
+		at, err := config.ParseClock(value)
+		if err != nil {
+			return result, err
+		}
+		result.Wander = append(result.Wander, at)
+	}
+	return result, nil
+}

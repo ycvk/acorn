@@ -90,11 +90,12 @@ func TestBuildAgentHandlersRejectsBadApprovalPattern(t *testing.T) {
 
 func handlerTestDeps(cfg *config.Config) RuntimeDeps {
 	return RuntimeDeps{
-		Config:   cfg,
-		Store:    approvalHandlersStore{},
-		Presence: newMemPresenceStore(),
-		Clock:    time.Now,
-		Location: time.UTC,
+		Config:             cfg,
+		Store:              approvalHandlersStore{},
+		Presence:           newMemPresenceStore(),
+		PhoneNotifications: newMemPresenceStore(),
+		Clock:              time.Now,
+		Location:           time.UTC,
 	}
 }
 

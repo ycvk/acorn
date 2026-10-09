@@ -39,8 +39,8 @@ func TestProjectStreamingAssistantEmitsDeltasThenMessage(t *testing.T) {
 		kinds = append(kinds, item.Kind)
 	}
 	want := []core.StreamItemKind{
-		core.StreamKindAssistantDelta, core.StreamKindAssistantDelta, core.StreamKindAssistantMessage,
-		core.StreamKindAssistantDelta, core.StreamKindAssistantMessage,
+		core.StreamKindAssistantDelta, core.StreamKindAssistantDelta, core.StreamKindAssistantMessage, core.StreamItemKind(core.EventModelUsage),
+		core.StreamKindAssistantDelta, core.StreamKindAssistantMessage, core.StreamItemKind(core.EventModelUsage),
 	}
 	if len(kinds) != len(want) {
 		t.Fatalf("kinds = %v, want %v", kinds, want)
@@ -58,7 +58,7 @@ func TestProjectStreamingAssistantEmitsDeltasThenMessage(t *testing.T) {
 	if msg := core.ItemGetMessage(items[2]); msg == nil || msg.Content != "Hello" {
 		t.Fatalf("assembled message = %+v", msg)
 	}
-	if next := core.ItemGetAssistantDelta(items[3]); next.MessageID != "run_x:assistant:7:2" || next.Sequence != 1 {
+	if next := core.ItemGetAssistantDelta(items[4]); next.MessageID != "run_x:assistant:7:2" || next.Sequence != 1 {
 		t.Fatalf("second assistant delta = %+v", next)
 	}
 }
