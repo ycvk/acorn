@@ -72,8 +72,7 @@ fun NotificationAccessSection(viewModel: NotificationAccessViewModel = hiltViewM
             Text("Android may hide sensitive notification content. Open the source app to read protected details.", style = MaterialTheme.typography.bodySmall, color = AetherOnSurfaceVariant)
             Text(if (access) "Notification access enabled" else "Notification access is off", style = MaterialTheme.typography.bodyMedium)
             TextButton(onClick = { context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) }) {
-                Text("Android may hide sensitive notification content. Open the source app to read protected details.", style = MaterialTheme.typography.bodySmall, color = AetherOnSurfaceVariant)
-            Text(if (access) "Manage access" else "Grant access")
+                Text(if (access) "Manage access" else "Grant access")
             }
             Text(when (allowed.size) { 0 -> "No apps selected. Nothing is captured."; 1 -> "1 app selected"; else -> "${allowed.size} apps selected" })
             TextButton(onClick = { chooseApps = true }) { Text("Choose apps") }
