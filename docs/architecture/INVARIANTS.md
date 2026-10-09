@@ -15,9 +15,13 @@
 
 ## 运行时与编排
 
-- **每个 run 一个 Eino ChatModelAgent**：`buildAgentRunner` 组装 `adk.Runner{ChatModelAgent, EnableStreaming, CheckPointStore}`；handlers 依次为 patchtoolcalls → summarization → reduction(clear-only) → toolsearch(有 deferred 工具时) → skill → presence → approval → tool errors；工具串行执行（`ExecuteSequentially`），普通工具失败与未知工具调用作为模型可见的 tool result 返回。Executor 只负责把 `AgentEvent` 投影成 RunEvent。
+- **每个 run 一个 Eino ChatModelAgent**：`buildAgentRunner` 组装 `adk.TypedRunner[*schema.AgenticMessage]{ChatModelAgent, EnableStreaming, CheckPointStore}`；handlers 依次为 patchtoolcalls → summarization → reduction(clear-only) → toolsearch(有 deferred 工具时) → skill → presence → approval → tool errors；工具串行执行（`ExecuteSequentially`），普通工具失败与未知工具调用作为模型可见的 tool result 返回。Executor 只负责把 `AgentEvent` 投影成 RunEvent。
   - `internal/runtime/agent_test.go`
   - `internal/runtime/events_test.go`
+- **模型使用原生协议并保留推理状态**：Responses、Chat Completions、Anthropic Messages 都经 Eino AgenticModel；推理内容块与签名参与下一轮工具结果回传和 checkpoint，公开事件投影不含签名。sampling 可省略，输出预算和上下文按模型能力验证。请求空闲超时随响应进度刷新，总请求与 run 时限可关闭。
+  - `internal/runtime/model_protocol_test.go`
+  - `internal/runtime/model_http_test.go`
+  - `internal/config/config_models_test.go`
 - **工具失败可见，主模型调用有界重试**：tool error middleware 把错误转成结果文本时按 call id 记录，projector 对这些调用发 `tool.call.failed`（其余发 `tool.call.succeeded`），两者都不进 live 契约。主模型调用失败最多重试 3 次，context 取消不重试；被重试的失败流不记 run 失败，只有成功那次的输出成为 assistant 消息；3 次重试都失败时 run 失败。
   - `internal/runtime/tool_errors_test.go`
   - `internal/runtime/model_retry_test.go`
@@ -40,7 +44,7 @@
 
 ## 上下文与记忆
 
-- **上下文管理由 Eino middleware 承担**：summarization 在 token 超过 `window_tokens - compact_margin_tokens` 时总结历史；reduction 只做 clear（保留最近 `mask_after_turns` 轮工具调用原样）。public YAML 只暴露 `context.window_tokens`、`context.compact_margin_tokens`、`context.mask_after_turns`。
+- **上下文管理由 Eino middleware 承担**：summarization 在 token 超过 `window_tokens - 输出预留 - presence.max_tokens - compact_margin_tokens` 时总结历史；reduction 只做 clear（保留最近 `mask_after_turns` 轮工具调用原样）。public YAML 只暴露 `context.window_tokens`、`context.compact_margin_tokens`、`context.mask_after_turns`。
   - `internal/runtime/agent_test.go`
 - **Instruction = 人格 + 内置规则 + 技能说明**：人格来自 `{storage_dir}/persona.md`，缺失或为空时 run 失败并给出路径；内置 operating rules 说明工作记忆、约定、知识库、审批和工具发现的用法；Eino skill middleware 追加技能说明并提供 `skill` 工具，工具描述列出本 run 可用（eligible）的技能，按名加载正文。这些都在 Instruction 或工具描述里，不参与总结。context 快照记录的是 skill middleware 追加之后的 Instruction。
   - `internal/runtime/agent_test.go`

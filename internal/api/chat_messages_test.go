@@ -16,7 +16,7 @@ func TestBuildChatMessagesReadsWakeAndCaptureAsUser(t *testing.T) {
 		{Role: core.MessageRoleCapture, Content: "[capture] https://example.com"},
 		{Role: "tool", Content: "ignored"},
 	})
-	want := []schema.RoleType{schema.User, schema.Assistant, schema.User, schema.User}
+	want := []schema.AgenticRoleType{schema.AgenticRoleTypeUser, schema.AgenticRoleTypeAssistant, schema.AgenticRoleTypeUser, schema.AgenticRoleTypeUser}
 	if len(messages) != len(want) {
 		t.Fatalf("messages = %d, want %d", len(messages), len(want))
 	}

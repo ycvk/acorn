@@ -17,7 +17,7 @@ var tokenLoaderOnce sync.Once
 // TokenCounter counts tokens for text and messages.
 type TokenCounter interface {
 	CountText(context.Context, string) (int, error)
-	CountMessages(context.Context, []adk.Message, []*schema.ToolInfo) (int, error)
+	CountMessages(context.Context, []adk.AgenticMessage, []*schema.ToolInfo) (int, error)
 }
 
 // tiktokenCounter is the production TokenCounter backed by tiktoken-go.
@@ -47,7 +47,7 @@ func (c *tiktokenCounter) CountText(_ context.Context, text string) (int, error)
 	return len(c.encoder.Encode(text, nil, nil)), nil
 }
 
-func (c *tiktokenCounter) CountMessages(ctx context.Context, messages []adk.Message, tools []*schema.ToolInfo) (int, error) {
+func (c *tiktokenCounter) CountMessages(ctx context.Context, messages []adk.AgenticMessage, tools []*schema.ToolInfo) (int, error) {
 	total := 0
 	for _, msg := range messages {
 		payload, err := json.Marshal(normalizeMessage(msg))
@@ -73,21 +73,11 @@ func ensureTokenLoader() error {
 	return nil
 }
 
-func normalizeMessage(msg adk.Message) *schema.Message {
+func normalizeMessage(msg adk.AgenticMessage) *schema.AgenticMessage {
 	if msg == nil {
-		return &schema.Message{}
+		return &schema.AgenticMessage{}
 	}
-	return &schema.Message{
-		Role:                     msg.Role,
-		Content:                  msg.Content,
-		UserInputMultiContent:    append([]schema.MessageInputPart(nil), msg.UserInputMultiContent...),
-		AssistantGenMultiContent: append([]schema.MessageOutputPart(nil), msg.AssistantGenMultiContent...),
-		Name:                     msg.Name,
-		ToolCalls:                append([]schema.ToolCall(nil), msg.ToolCalls...),
-		ToolCallID:               msg.ToolCallID,
-		ToolName:                 msg.ToolName,
-		ReasoningContent:         msg.ReasoningContent,
-	}
+	return &schema.AgenticMessage{Role: msg.Role, ContentBlocks: msg.ContentBlocks}
 }
 
 func normalizeTool(tool *schema.ToolInfo) *schema.ToolInfo {

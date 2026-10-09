@@ -95,7 +95,7 @@ func TestLoadExpandsWebSearchKeyAndResolvesBrowserExecutable(t *testing.T) {
     base_url: https://example.invalid/v1
     api_key: test
     temperature: 0.3
-    max_completion_tokens: 100
+    max_output_tokens: 100
     timeout_seconds: 30
     enabled: true
 web:

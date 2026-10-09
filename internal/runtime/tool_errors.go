@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/cloudwego/eino/schema"
+
 	"github.com/cloudwego/eino/adk"
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/compose"
@@ -40,12 +42,12 @@ func (f *failedToolCalls) take(callID string) (string, bool) {
 // can read and react to. Interrupts and run cancellation still propagate, so
 // approvals pause the run and a cancelled run stops.
 type toolErrorMiddleware struct {
-	*adk.BaseChatModelAgentMiddleware
+	*adk.TypedBaseChatModelAgentMiddleware[*schema.AgenticMessage]
 	failed *failedToolCalls
 }
 
 func newToolErrorMiddleware(failed *failedToolCalls) *toolErrorMiddleware {
-	return &toolErrorMiddleware{BaseChatModelAgentMiddleware: &adk.BaseChatModelAgentMiddleware{}, failed: failed}
+	return &toolErrorMiddleware{TypedBaseChatModelAgentMiddleware: &adk.TypedBaseChatModelAgentMiddleware[*schema.AgenticMessage]{}, failed: failed}
 }
 
 func (m *toolErrorMiddleware) WrapInvokableToolCall(_ context.Context, endpoint adk.InvokableToolCallEndpoint, tCtx *adk.ToolContext) (adk.InvokableToolCallEndpoint, error) {

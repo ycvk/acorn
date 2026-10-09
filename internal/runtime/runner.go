@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cloudwego/eino/schema"
+
 	"github.com/cloudwego/eino/adk"
 	einomodel "github.com/cloudwego/eino/components/model"
 	"github.com/ycvk/acorn/internal/config"
@@ -22,7 +24,7 @@ import (
 type RunnerFactory struct {
 	deps RuntimeDeps
 
-	runChatModelBuilder func(context.Context, RunnerBuildRequest) (einomodel.BaseChatModel, error)
+	runChatModelBuilder func(context.Context, RunnerBuildRequest) (einomodel.AgenticModel, error)
 	mcpCache            *mcpManagerCache
 	toolRegistry        core.ToolRegistry
 }
@@ -69,11 +71,11 @@ func (f *RunnerFactory) Config() *config.Config {
 	return f.deps.Config
 }
 
-func (f *RunnerFactory) NewChatModel(ctx context.Context) (einomodel.BaseChatModel, error) {
+func (f *RunnerFactory) NewChatModel(ctx context.Context) (einomodel.AgenticModel, error) {
 	return newChatModel(ctx, f.deps.Config)
 }
 
-func (f *RunnerFactory) buildRunChatModel(ctx context.Context, req RunnerBuildRequest) (einomodel.BaseChatModel, error) {
+func (f *RunnerFactory) buildRunChatModel(ctx context.Context, req RunnerBuildRequest) (einomodel.AgenticModel, error) {
 	if f.runChatModelBuilder != nil {
 		return f.runChatModelBuilder(ctx, req)
 	}
@@ -201,7 +203,7 @@ func (f *RunnerFactory) buildRun(ctx context.Context, req RunnerBuildRequest) (a
 	return active, err
 }
 
-func (f *RunnerFactory) newAgentRunner(ctx context.Context, req RunnerBuildRequest, chatModel einomodel.BaseChatModel, capabilityAssembly *capabilityAssembly) (*ActiveRunner, error) {
+func (f *RunnerFactory) newAgentRunner(ctx context.Context, req RunnerBuildRequest, chatModel einomodel.AgenticModel, capabilityAssembly *capabilityAssembly) (*ActiveRunner, error) {
 	if capabilityAssembly == nil || capabilityAssembly.capabilities == nil {
 		return nil, errors.New("run capabilities are required")
 	}
@@ -254,15 +256,15 @@ type RunnerBuildRequest struct {
 
 type ActiveRunner struct {
 	Mcp           *mcpprovider.Manager
-	Runner        *adk.Runner
-	ChatModel     einomodel.BaseChatModel
+	Runner        *adk.TypedRunner[*schema.AgenticMessage]
+	ChatModel     einomodel.AgenticModel
 	FailedCalls   *failedToolCalls
 	RunID         string
 	ToolCatalog   *tools.Catalog
 	CloseRunTools func() error
 }
 
-func (f *RunnerFactory) buildRunPrerequisites(ctx context.Context, req RunnerBuildRequest) (einomodel.BaseChatModel, *capabilityAssembly, error) {
+func (f *RunnerFactory) buildRunPrerequisites(ctx context.Context, req RunnerBuildRequest) (einomodel.AgenticModel, *capabilityAssembly, error) {
 	chatModel, err := f.buildRunChatModel(ctx, req)
 	if err != nil {
 		return nil, nil, err

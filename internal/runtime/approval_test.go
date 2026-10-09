@@ -74,14 +74,14 @@ func (t *echoTool) callCount() int {
 	return len(t.calls)
 }
 
-func newApprovalTestRunner(t *testing.T, model *scriptedModel, tool *echoTool, store *approvalTestStore, checkpoints adk.CheckPointStore) *adk.Runner {
+func newApprovalTestRunner(t *testing.T, model *scriptedModel, tool *echoTool, store *approvalTestStore, checkpoints adk.CheckPointStore) *adk.TypedRunner[*schema.AgenticMessage] {
 	t.Helper()
 	ctx := context.Background()
 	mw, err := newApprovalMiddleware([]string{"echo_*"}, store)
 	if err != nil {
 		t.Fatalf("approval middleware: %v", err)
 	}
-	agent, err := adk.NewChatModelAgent(ctx, &adk.ChatModelAgentConfig{
+	agent, err := adk.NewTypedChatModelAgent(ctx, &adk.TypedChatModelAgentConfig[*schema.AgenticMessage]{
 		Name:        "approval_test",
 		Description: "approval test agent",
 		Model:       model,
@@ -89,18 +89,18 @@ func newApprovalTestRunner(t *testing.T, model *scriptedModel, tool *echoTool, s
 			Tools:               []einotool.BaseTool{tool},
 			ExecuteSequentially: true,
 		}},
-		Handlers:      []adk.ChatModelAgentMiddleware{mw},
+		Handlers:      []adk.TypedChatModelAgentMiddleware[*schema.AgenticMessage]{mw},
 		MaxIterations: 5,
 	})
 	if err != nil {
 		t.Fatalf("new chat model agent: %v", err)
 	}
-	return adk.NewRunner(ctx, adk.RunnerConfig{Agent: agent, EnableStreaming: true, CheckPointStore: checkpoints})
+	return adk.NewTypedRunner(adk.TypedRunnerConfig[*schema.AgenticMessage]{Agent: agent, EnableStreaming: true, CheckPointStore: checkpoints})
 }
 
 // drainEvents consumes every event, closing message streams, and returns the
 // interrupt (if any) plus the first error event.
-func drainEvents(t *testing.T, iter *adk.AsyncIterator[*adk.AgentEvent]) (*adk.InterruptInfo, error) {
+func drainEvents(t *testing.T, iter *adk.AsyncIterator[*adk.TypedAgentEvent[*schema.AgenticMessage]]) (*adk.InterruptInfo, error) {
 	t.Helper()
 	var interrupted *adk.InterruptInfo
 	for {
@@ -126,9 +126,10 @@ func drainEvents(t *testing.T, iter *adk.AsyncIterator[*adk.AgentEvent]) (*adk.I
 // runner and returns the interrupt id so a second, fresh runner can resume.
 func interruptAcrossRunners(t *testing.T, ctx context.Context, store *approvalTestStore, checkpoints adk.CheckPointStore, tool *echoTool) string {
 	t.Helper()
-	first := &scriptedModel{replies: []*schema.Message{toolCallReply("call_1", "echo_tool", `{"v":1}`)}}
+	first := &scriptedModel{replies: []*schema.AgenticMessage{toolCallReply("call_1", "echo_tool", `{"v":1}`)}}
+	first.replies[0].ContentBlocks = append([]*schema.ContentBlock{{Type: schema.ContentBlockTypeReasoning, Reasoning: &schema.Reasoning{Text: "prepare the tool", Signature: "signed-state"}}}, first.replies[0].ContentBlocks...)
 	runner := newApprovalTestRunner(t, first, tool, store, checkpoints)
-	interrupted, err := drainEvents(t, runner.Run(ctx, []adk.Message{schema.UserMessage("go")}, adk.WithCheckPointID("run_approval")))
+	interrupted, err := drainEvents(t, runner.Run(ctx, []adk.AgenticMessage{schema.UserAgenticMessage("go")}, adk.WithCheckPointID("run_approval")))
 	if err != nil {
 		t.Fatalf("first run: %v", err)
 	}
@@ -169,7 +170,7 @@ func TestApprovalAcceptRunsRecordedCallInFreshRunner(t *testing.T) {
 	tool := &echoTool{}
 	interruptID := interruptAcrossRunners(t, ctx, store, checkpoints, tool)
 
-	second := &scriptedModel{replies: []*schema.Message{schema.AssistantMessage("done", nil)}}
+	second := &scriptedModel{replies: []*schema.AgenticMessage{assistantMessage("done", nil)}}
 	runner := newApprovalTestRunner(t, second, tool, store, checkpoints)
 	iter, err := runner.ResumeWithParams(ctx, "run_approval", &adk.ResumeParams{Targets: map[string]any{
 		interruptID: map[string]any{"action": "accept", "action_id": store.actions[0].ActionID},
@@ -184,6 +185,17 @@ func TestApprovalAcceptRunsRecordedCallInFreshRunner(t *testing.T) {
 		t.Fatalf("tool calls = %v, want exactly the approved arguments", tool.calls)
 	}
 	assertLastToolMessage(t, second, "echo:{\"v\":1}")
+	foundSignature := false
+	for _, msg := range second.lastInput() {
+		for _, block := range msg.ContentBlocks {
+			if block.Reasoning != nil && block.Reasoning.Signature == "signed-state" {
+				foundSignature = true
+			}
+		}
+	}
+	if !foundSignature {
+		t.Fatal("reasoning signature missing after checkpoint resume")
+	}
 }
 
 func TestApprovalDeclineSkipsCall(t *testing.T) {
@@ -194,7 +206,7 @@ func TestApprovalDeclineSkipsCall(t *testing.T) {
 	tool := &echoTool{}
 	interruptID := interruptAcrossRunners(t, ctx, store, checkpoints, tool)
 
-	second := &scriptedModel{replies: []*schema.Message{schema.AssistantMessage("ok, skipped", nil)}}
+	second := &scriptedModel{replies: []*schema.AgenticMessage{assistantMessage("ok, skipped", nil)}}
 	runner := newApprovalTestRunner(t, second, tool, store, checkpoints)
 	iter, err := runner.ResumeWithParams(ctx, "run_approval", &adk.ResumeParams{Targets: map[string]any{
 		interruptID: map[string]any{"action": "decline"},
@@ -230,9 +242,9 @@ func TestApprovalSkipsUnmatchedTools(t *testing.T) {
 func assertLastToolMessage(t *testing.T, model *scriptedModel, want string) {
 	t.Helper()
 	for _, msg := range model.lastInput() {
-		if msg.Role == schema.Tool && msg.ToolCallID == "call_1" {
-			if !strings.Contains(msg.Content, want) {
-				t.Fatalf("tool message = %q, want it to contain %q", msg.Content, want)
+		if msg.Role == schema.AgenticRoleTypeUser && toolResultID(msg) == "call_1" {
+			if !strings.Contains(messageText(msg), want) {
+				t.Fatalf("tool message = %q, want it to contain %q", messageText(msg), want)
 			}
 			return
 		}

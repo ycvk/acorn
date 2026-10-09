@@ -120,7 +120,7 @@ func (c *Config) ValidateExecutionReady() error {
 	if err := c.validateProviders(); err != nil {
 		return err
 	}
-	if err := c.validateContext(); err != nil {
+	if _, err := c.InputTokenBudget(); err != nil {
 		return err
 	}
 	if err := c.validatePresenceBudget(); err != nil {

@@ -349,14 +349,14 @@ func (s *RunService) recordStartedRunFailure(ctx context.Context, runID string, 
 
 const chatHistoryLimit = 12
 
-func buildChatMessages(items []core.SessionMessageRecord) []adk.Message {
-	messages := make([]adk.Message, 0, len(items))
+func buildChatMessages(items []core.SessionMessageRecord) []adk.AgenticMessage {
+	messages := make([]adk.AgenticMessage, 0, len(items))
 	for _, item := range items {
 		switch item.Role {
 		case "user", core.MessageRoleWake, core.MessageRoleCapture:
-			messages = append(messages, schema.UserMessage(item.Content))
+			messages = append(messages, schema.UserAgenticMessage(item.Content))
 		case "assistant":
-			messages = append(messages, schema.AssistantMessage(item.Content, nil))
+			messages = append(messages, &schema.AgenticMessage{Role: schema.AgenticRoleTypeAssistant, ContentBlocks: []*schema.ContentBlock{{Type: schema.ContentBlockTypeAssistantGenText, AssistantGenText: &schema.AssistantGenText{Text: item.Content}}}})
 		}
 	}
 	return messages

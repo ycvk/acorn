@@ -16,7 +16,7 @@ func TestLoadMCPAuthOauthWithStdioRejected(t *testing.T) {
     base_url: https://example.invalid/v1
     api_key: test-api-key
     temperature: 0.3
-    max_completion_tokens: 777
+    max_output_tokens: 777
     timeout_seconds: 45
     enabled: true
 runtime:
@@ -66,7 +66,7 @@ func TestLoadMCPAuthOauthWithEmptyTransportRejected(t *testing.T) {
     base_url: https://example.invalid/v1
     api_key: test-api-key
     temperature: 0.3
-    max_completion_tokens: 777
+    max_output_tokens: 777
     timeout_seconds: 45
     enabled: true
 runtime:
@@ -112,7 +112,7 @@ func TestLoadMCPAuthOauthWithSSEAccepted(t *testing.T) {
     base_url: https://example.invalid/v1
     api_key: test-api-key
     temperature: 0.3
-    max_completion_tokens: 777
+    max_output_tokens: 777
     timeout_seconds: 45
     enabled: true
 runtime:
@@ -168,7 +168,7 @@ func TestLoadMCPAuthInvalidTypeRejected(t *testing.T) {
     base_url: https://example.invalid/v1
     api_key: test-api-key
     temperature: 0.3
-    max_completion_tokens: 777
+    max_output_tokens: 777
     timeout_seconds: 45
     enabled: true
 runtime:
@@ -217,7 +217,7 @@ func TestLoadMCPAuthNoneDefaultOnEmpty(t *testing.T) {
     base_url: https://example.invalid/v1
     api_key: test-api-key
     temperature: 0.3
-    max_completion_tokens: 777
+    max_output_tokens: 777
     timeout_seconds: 45
     enabled: true
 runtime:

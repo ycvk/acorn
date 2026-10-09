@@ -4,16 +4,20 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
+	"net/http"
 	"time"
 
-	"github.com/cloudwego/eino-ext/components/model/openai"
+	"github.com/cloudwego/eino-ext/components/model/agenticclaude"
+	"github.com/cloudwego/eino-ext/components/model/agenticopenai"
 	einomodel "github.com/cloudwego/eino/components/model"
+	"github.com/openai/openai-go/v3/responses"
 
 	"github.com/ycvk/acorn/internal/config"
 )
 
 // newChatModel builds a chat model from the configured primary provider.
-func newChatModel(ctx context.Context, cfg *config.Config) (einomodel.BaseChatModel, error) {
+func newChatModel(ctx context.Context, cfg *config.Config) (einomodel.AgenticModel, error) {
 	if cfg == nil {
 		return nil, errors.New("runner factory is not initialized")
 	}
@@ -21,19 +25,19 @@ func newChatModel(ctx context.Context, cfg *config.Config) (einomodel.BaseChatMo
 }
 
 // chatModelBuilder constructs a chat model for a given provider config.
-type chatModelBuilder func(context.Context, config.ProviderConfig) (einomodel.BaseChatModel, error)
+type chatModelBuilder func(context.Context, config.ProviderConfig) (einomodel.AgenticModel, error)
 
-func buildRuntimeChatModel(ctx context.Context, cfg *config.Config, newModel chatModelBuilder) (einomodel.BaseChatModel, error) {
+func buildRuntimeChatModel(ctx context.Context, cfg *config.Config, newModel chatModelBuilder) (einomodel.AgenticModel, error) {
 	model, _, err := buildRuntimeChatModelWithProvider(ctx, cfg, newModel)
 	return model, err
 }
 
-func buildRuntimeChatModelWithProvider(ctx context.Context, cfg *config.Config, newModel chatModelBuilder) (einomodel.BaseChatModel, config.ProviderConfig, error) {
+func buildRuntimeChatModelWithProvider(ctx context.Context, cfg *config.Config, newModel chatModelBuilder) (einomodel.AgenticModel, config.ProviderConfig, error) {
 	if cfg == nil {
 		return nil, config.ProviderConfig{}, errors.New("config is required")
 	}
 	if newModel == nil {
-		newModel = newOpenAIChatModel
+		newModel = newProviderModel
 	}
 
 	provider, err := cfg.EnabledProvider()
@@ -52,29 +56,59 @@ func newRuntimeChatModel(
 	cfg *config.Config,
 	newModel chatModelBuilder,
 	_ any,
-) (einomodel.BaseChatModel, error) {
+) (einomodel.AgenticModel, error) {
 	return buildRuntimeChatModel(ctx, cfg, newModel)
 }
 
-// newOpenAIChatModel builds an OpenAI-compatible chat model from provider config.
-func newOpenAIChatModel(ctx context.Context, cfg config.ProviderConfig) (einomodel.BaseChatModel, error) {
-	chatCfg := &openai.ChatModelConfig{
-		APIKey:              cfg.APIKey,
-		BaseURL:             cfg.BaseURL,
-		Model:               cfg.Model,
-		Timeout:             time.Duration(cfg.TimeoutSeconds) * time.Second,
-		MaxCompletionTokens: new(cfg.MaxCompletionTokens),
-		Temperature:         new(cfg.Temperature),
+// newProviderModel uses the provider's native message protocol. Agentic messages
+// preserve reasoning signatures and tool-call blocks through Eino checkpoints.
+func newProviderModel(ctx context.Context, cfg config.ProviderConfig) (einomodel.AgenticModel, error) {
+	client := &http.Client{
+		Timeout:   time.Duration(cfg.TimeoutSeconds) * time.Second,
+		Transport: &modelTransport{base: http.DefaultTransport, idle: time.Duration(cfg.ModelIdleTimeoutSeconds()) * time.Second},
 	}
-	if cfg.ReasoningEffort != "" {
-		chatCfg.ReasoningEffort = openai.ReasoningEffortLevel(cfg.ReasoningEffort)
+	extra := maps.Clone(cfg.ExtraFields)
+	if extra == nil {
+		extra = make(map[string]any)
 	}
-	if len(cfg.ExtraFields) > 0 {
-		chatCfg.ExtraFields = cfg.ExtraFields
+	switch cfg.APIProtocol() {
+	case "responses":
+		request := &agenticopenai.ResponsesConfig{
+			APIKey: cfg.APIKey, BaseURL: cfg.BaseURL, Model: cfg.Model, HTTPClient: client,
+			MaxRetries: new(0), MaxTokens: cfg.MaxOutputTokens, Temperature: cfg.Temperature,
+			Store: new(false), Include: []responses.ResponseIncludable{"reasoning.encrypted_content"}, ExtraFields: extra,
+		}
+		if cfg.ReasoningEffort != "" {
+			request.Reasoning = &responses.ReasoningParam{Effort: responses.ReasoningEffort(cfg.ReasoningEffort)}
+		}
+		return agenticopenai.NewResponsesModel(ctx, request)
+	case "chat_completions":
+		if cfg.ReasoningEffort != "" {
+			extra["reasoning_effort"] = cfg.ReasoningEffort
+		}
+		return agenticopenai.NewChatModel(ctx, &agenticopenai.ChatConfig{
+			APIKey: cfg.APIKey, BaseURL: cfg.BaseURL, Model: cfg.Model, HTTPClient: client,
+			MaxCompletionTokens: cfg.MaxOutputTokens, Temperature: cfg.Temperature, ExtraFields: extra,
+		})
+	case "anthropic":
+		if cfg.MaxOutputTokens == nil {
+			return nil, errors.New("anthropic requires max_output_tokens")
+		}
+		if cfg.Temperature != nil {
+			extra["temperature"] = *cfg.Temperature
+		}
+		if cfg.ReasoningEffort != "" {
+			extra["output_config"] = map[string]any{"effort": cfg.ReasoningEffort}
+		}
+		model, err := agenticclaude.New(ctx, &agenticclaude.Config{
+			APIKey: cfg.APIKey, BaseURL: cfg.BaseURL, Model: cfg.Model, HTTPClient: client,
+			MaxTokens: *cfg.MaxOutputTokens, ExtraFields: extra,
+		})
+		if err != nil {
+			return nil, err
+		}
+		return &streamingGenerationModel{AgenticModel: model}, nil
+	default:
+		return nil, fmt.Errorf("unsupported provider api %q", cfg.API)
 	}
-	model, err := openai.NewChatModel(ctx, chatCfg)
-	if err != nil {
-		return nil, fmt.Errorf("build openai-compatible chat model: %w", err)
-	}
-	return model, nil
 }

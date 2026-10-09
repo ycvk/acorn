@@ -13,8 +13,8 @@ type ThinkingConfig struct {
 }
 
 func (c *Config) validateThinking() error {
-	if c.Wake.DailyTokens < 1 {
-		return errors.New("wake.daily_tokens must be positive")
+	if c.Wake.DailyTokens < 0 {
+		return errors.New("wake.daily_tokens must be >= 0 (0 means unlimited)")
 	}
 	if c.Thinking.NightAt != "" {
 		if _, err := ParseClock(c.Thinking.NightAt); err != nil {

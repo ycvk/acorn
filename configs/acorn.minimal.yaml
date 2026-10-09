@@ -10,7 +10,8 @@ runtime:
 
 providers:
   - name: primary
-    model: gpt-4o
+    api: responses
+    model: gpt-6-astra
     base_url: https://api.openai.com/v1
     api_key: ${OPENAI_API_KEY}
     enabled: true
@@ -33,7 +34,7 @@ presence:
 wake:
   # Commitment wakes allowed per local day; 0 turns autonomous wakes off.
   daily_limit: 20
-  daily_tokens: 300000       # Provider-reported tokens from autonomous runs per local day.
+  daily_tokens: 0       # Autonomous tokens per local day; 0 leaves tokens unlimited.
 thinking:
   night_at: "03:00"          # Owner timezone; empty disables night reflection.
   wander_at: []              # Up to six HH:MM slots for idle thought.
@@ -65,9 +66,9 @@ briefing:
   at: "08:00"
 
 context:
-  window_tokens: 200000
-  compact_margin_tokens: 13000
-  mask_after_turns: 2
+  window_tokens: 1050000
+  compact_margin_tokens: 32000
+  mask_after_turns: 8
 
 agent:
   name: coordinator

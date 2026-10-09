@@ -166,3 +166,17 @@ func TestBriefingPhoneWindowAndRetention(t *testing.T) {
 		t.Fatalf("retention: %+v %v", page, err)
 	}
 }
+
+func TestZeroTokenBudgetAllowsAutonomousWake(t *testing.T) {
+	h := newHarnessWith(t, 20, Briefing{})
+	h.sched.cfg.DailyTokens = 0
+	h.store.tokens = 10000000
+	h.store.usageAt = h.now
+	h.commit(t, "wake without token cap", h.now, "")
+	if err := h.sched.Tick(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(h.runs.starts) != 1 {
+		t.Fatalf("starts = %v", h.runs.starts)
+	}
+}

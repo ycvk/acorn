@@ -25,10 +25,10 @@ func (failingTool) InvokableRun(context.Context, string, ...einotool.Option) (st
 
 // newToolErrorTestRunner mirrors production handler order: the given handlers
 // (e.g. approval) wrap the tool error handler.
-func newToolErrorTestRunner(t *testing.T, model *scriptedModel, failed *failedToolCalls, handlers ...adk.ChatModelAgentMiddleware) *adk.Runner {
+func newToolErrorTestRunner(t *testing.T, model *scriptedModel, failed *failedToolCalls, handlers ...adk.TypedChatModelAgentMiddleware[*schema.AgenticMessage]) *adk.TypedRunner[*schema.AgenticMessage] {
 	t.Helper()
 	ctx := context.Background()
-	agent, err := adk.NewChatModelAgent(ctx, &adk.ChatModelAgentConfig{
+	agent, err := adk.NewTypedChatModelAgent(ctx, &adk.TypedChatModelAgentConfig[*schema.AgenticMessage]{
 		Name:        "tool_error_test",
 		Description: "tool error test agent",
 		Model:       model,
@@ -43,15 +43,15 @@ func newToolErrorTestRunner(t *testing.T, model *scriptedModel, failed *failedTo
 	if err != nil {
 		t.Fatalf("new agent: %v", err)
 	}
-	return adk.NewRunner(ctx, adk.RunnerConfig{Agent: agent, EnableStreaming: true, CheckPointStore: &memoryCheckpointStore{data: map[string][]byte{}}})
+	return adk.NewTypedRunner(adk.TypedRunnerConfig[*schema.AgenticMessage]{Agent: agent, EnableStreaming: true, CheckPointStore: &memoryCheckpointStore{data: map[string][]byte{}}})
 }
 
 func TestToolFailureBecomesModelVisibleResult(t *testing.T) {
-	model := &scriptedModel{replies: []*schema.Message{
+	model := &scriptedModel{replies: []*schema.AgenticMessage{
 		toolCallReply("call_1", "flaky_tool", `{}`),
-		schema.AssistantMessage("recovered", nil),
+		assistantMessage("recovered", nil),
 	}}
-	_, err := drainEvents(t, newToolErrorTestRunner(t, model, newFailedToolCalls()).Run(context.Background(), []adk.Message{schema.UserMessage("go")}))
+	_, err := drainEvents(t, newToolErrorTestRunner(t, model, newFailedToolCalls()).Run(context.Background(), []adk.AgenticMessage{schema.UserAgenticMessage("go")}))
 	if err != nil {
 		t.Fatalf("run failed instead of surfacing the tool error to the model: %v", err)
 	}
@@ -59,11 +59,11 @@ func TestToolFailureBecomesModelVisibleResult(t *testing.T) {
 }
 
 func TestUnknownToolBecomesModelVisibleResult(t *testing.T) {
-	model := &scriptedModel{replies: []*schema.Message{
+	model := &scriptedModel{replies: []*schema.AgenticMessage{
 		toolCallReply("call_1", "made_up_tool", `{}`),
-		schema.AssistantMessage("ok", nil),
+		assistantMessage("ok", nil),
 	}}
-	_, err := drainEvents(t, newToolErrorTestRunner(t, model, newFailedToolCalls()).Run(context.Background(), []adk.Message{schema.UserMessage("go")}))
+	_, err := drainEvents(t, newToolErrorTestRunner(t, model, newFailedToolCalls()).Run(context.Background(), []adk.AgenticMessage{schema.UserAgenticMessage("go")}))
 	if err != nil {
 		t.Fatalf("unknown tool failed the run: %v", err)
 	}
@@ -76,9 +76,9 @@ func TestApprovalInterruptPassesThroughToolErrorMiddleware(t *testing.T) {
 	if err != nil {
 		t.Fatalf("approval middleware: %v", err)
 	}
-	model := &scriptedModel{replies: []*schema.Message{toolCallReply("call_1", "echo_tool", `{}`)}}
+	model := &scriptedModel{replies: []*schema.AgenticMessage{toolCallReply("call_1", "echo_tool", `{}`)}}
 	ctx := core.WithRunID(context.Background(), "run_errors")
-	interrupted, err := drainEvents(t, newToolErrorTestRunner(t, model, newFailedToolCalls(), approval).Run(ctx, []adk.Message{schema.UserMessage("go")}, adk.WithCheckPointID("run_errors")))
+	interrupted, err := drainEvents(t, newToolErrorTestRunner(t, model, newFailedToolCalls(), approval).Run(ctx, []adk.AgenticMessage{schema.UserAgenticMessage("go")}, adk.WithCheckPointID("run_errors")))
 	if err != nil {
 		t.Fatalf("run: %v", err)
 	}
@@ -86,8 +86,8 @@ func TestApprovalInterruptPassesThroughToolErrorMiddleware(t *testing.T) {
 		t.Fatal("the approval interrupt was swallowed by the tool error middleware")
 	}
 	for _, msg := range model.lastInput() {
-		if msg.Role == schema.Tool && strings.Contains(msg.Content, "failed") {
-			t.Fatalf("interrupt was turned into a tool failure: %q", msg.Content)
+		if msg.Role == schema.AgenticRoleTypeUser && strings.Contains(messageText(msg), "failed") {
+			t.Fatalf("interrupt was turned into a tool failure: %q", messageText(msg))
 		}
 	}
 }
@@ -103,25 +103,25 @@ func TestApprovalStoreFailureFailsRun(t *testing.T) {
 	if err != nil {
 		t.Fatalf("approval middleware: %v", err)
 	}
-	model := &scriptedModel{replies: []*schema.Message{
+	model := &scriptedModel{replies: []*schema.AgenticMessage{
 		toolCallReply("call_1", "echo_tool", `{}`),
-		schema.AssistantMessage("should not be reached", nil),
+		assistantMessage("should not be reached", nil),
 	}}
 	ctx := core.WithRunID(context.Background(), "run_store_fail")
-	_, err = drainEvents(t, newToolErrorTestRunner(t, model, newFailedToolCalls(), approval).Run(ctx, []adk.Message{schema.UserMessage("go")}))
+	_, err = drainEvents(t, newToolErrorTestRunner(t, model, newFailedToolCalls(), approval).Run(ctx, []adk.AgenticMessage{schema.UserAgenticMessage("go")}))
 	if err == nil || !strings.Contains(err.Error(), "database is locked") {
 		t.Fatalf("run error = %v, want the approval store failure to fail the run", err)
 	}
 }
 
 func TestFailedToolCallProjectsAsFailed(t *testing.T) {
-	model := &scriptedModel{replies: []*schema.Message{
+	model := &scriptedModel{replies: []*schema.AgenticMessage{
 		toolCallReply("call_1", "flaky_tool", `{}`),
 		toolCallReply("call_2", "echo_tool", `{}`),
-		schema.AssistantMessage("done", nil),
+		assistantMessage("done", nil),
 	}}
 	failed := newFailedToolCalls()
-	iter := newToolErrorTestRunner(t, model, failed).Run(context.Background(), []adk.Message{schema.UserMessage("go")})
+	iter := newToolErrorTestRunner(t, model, failed).Run(context.Background(), []adk.AgenticMessage{schema.UserAgenticMessage("go")})
 	store := &eventLogStore{}
 	state, err := (&Executor{store: store}).collectRunState(context.Background(), "run_tools", iter, nil, &ActiveRunner{ChatModel: model, FailedCalls: failed})
 	if err != nil || state.failure != nil {

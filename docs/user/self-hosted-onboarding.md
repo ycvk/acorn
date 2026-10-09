@@ -62,6 +62,24 @@ The env file is intentionally small:
 OPENAI_API_KEY=your-provider-key
 ```
 
+## Model configuration
+
+Set `providers[].api` to `responses`, `chat_completions`, or `anthropic`. The default uses GPT-6 Astra through Responses. Acorn retains native reasoning and tool-call content throughout a run and approval resumes.
+
+| Model | API | Context window | Output budget | Reasoning effort |
+| --- | --- | ---: | ---: | --- |
+| `gpt-6-astra` | `responses` | 1050000 | 128000 | low, medium, high, xhigh, max |
+| `claude-opus-5-5` | `anthropic` | 1000000 | 128000 | low, medium, high, xhigh, max |
+| `grok-4.7` | `responses` | 500000 | 128000 | low, medium, high, xhigh |
+
+Set `context.window_tokens` to the chosen model's context window and `providers[].max_output_tokens` to the desired output budget. Grok's 128000 is a working budget; its published contract has no separate text output limit. Anthropic requires an explicit output budget. Astra and Opus use their model-native sampling: omit `temperature`. Other models can specify it, including an explicit zero. Unlisted model IDs use the owner's configured context and output values.
+
+`context.compact_margin_tokens` defaults to 32000 and `mask_after_turns` to 8. Before compaction, Acorn reserves output tokens, the presence block and the additional margin from the context window. Known models reserve their output limit when `max_output_tokens` is omitted. Tool results are cleared at three quarters of that input budget. Token estimates use `o200k_base`; they approximate other providers.
+
+`runtime.run_timeout_seconds` and provider `timeout_seconds` default to 0, which leaves the total duration unrestricted. `idle_timeout_seconds` defaults to 300 and resets when response data arrives; 0 disables it. Runs remain cancellable from the app, and `agent.max_iterations` defaults to 100. `wake.daily_tokens: 0` leaves the autonomous token budget unrestricted; `wake.daily_limit` still limits the number of autonomous wakes.
+
+The provider output setting is `max_output_tokens`. Update the YAML before starting this version. Complete pending runs before upgrading the runtime so every resumed checkpoint uses the current AgenticMessage format.
+
 ## 2. Installer Options
 
 Pin a release version:
@@ -389,7 +407,7 @@ sudo systemctl start acorn
 - Host commands are host dependencies. If the model tries to run a command that is not installed on the VPS, the command fails explicitly when used.
 - Web search requires a configured Tavily API key. Browser actions require an operator-installed Chrome/Chromium executable.
 - The mobile app refreshes backend truth through `/v1/inbox`, thread messages, and RunEvent cursors. Push needs your own Firebase project and an APK built with its values; there is no APNs support.
-- Commitment wakes have a daily count limit but no token budget yet.
+- Autonomous wakes share the configured daily count and optional token limits.
 - Watches cannot follow pages that need a login. GitHub watches cover releases and newly opened issues only.
 - Knowledge search matches words (full-text); there is no semantic search yet. Shared images are kept as attachments; the agent sees only their path and your note, not the picture.
 - Mobile is a remote control surface. It does not execute runs locally, own runtime truth, or merge offline runtime state.
@@ -401,13 +419,13 @@ Night reflection runs once per owner-local day at `thinking.night_at`. It review
 ```yaml
 wake:
   daily_limit: 20
-  daily_tokens: 300000
+  daily_tokens: 0      # 0 leaves the token budget unlimited
 thinking:
   night_at: "03:00"  # Empty disables night reflection.
   wander_at: []      # For example ["15:00"], up to six distinct local times.
 ```
 
-The token budget counts provider-reported usage of successful main-model calls in autonomous runs, by the owner's local day. It is checked before starting a run; an already running task can exceed the remaining budget. Summarization calls, failed streams and calls without usage are not included. Owner messages, captures and morning briefings are outside this budget. Run `acorn doctor` to inspect today's wake count, reported tokens, calls without usage and notification counts by app.
+Set a positive `daily_tokens` to impose a token budget. The budget counts provider-reported usage of successful main-model calls in autonomous runs, by the owner's local day. It is checked before starting a run; an already running task can exceed the remaining budget. Summarization calls, failed streams and calls without usage are not included. Owner messages, captures and morning briefings are outside this budget. Run `acorn doctor` to inspect today's wake count, reported tokens, calls without usage and notification counts by app.
 
 In the Android settings, open **phone notifications**, read the data destination, grant notification access, and choose individual apps. The selection starts empty. Acorn captures ordinary notifications from those apps while paired, stores at most 500 on the device, and starts uploading within one minute of the first arrival. Each request contains at most 100 entries. Failed requests retain their batch and show an error with **Retry upload**. Disconnecting or pairing another identity clears waiting notifications; turning an app off removes its waiting entries. Android notification access remains under your control in system settings.
 

@@ -13,7 +13,7 @@ func TestThinkingConfiguration(t *testing.T) {
 		change func(*Config)
 		want   string
 	}{
-		{"budget", func(c *Config) { c.Wake.DailyTokens = 0 }, "wake.daily_tokens"},
+		{"budget", func(c *Config) { c.Wake.DailyTokens = -1 }, "wake.daily_tokens"},
 		{"night", func(c *Config) { c.Thinking.NightAt = "25:00" }, "thinking.night_at"},
 		{"wander", func(c *Config) { c.Thinking.WanderAt = []string{"wrong"} }, "thinking.wander_at"},
 		{"duplicate", func(c *Config) { c.Thinking.WanderAt = []string{"12:00", "12:00"} }, "duplicate"},
@@ -36,7 +36,7 @@ func TestThinkingConfiguration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.Thinking.NightAt != "" || len(c.Thinking.WanderAt) != 1 || c.Wake.DailyTokens != 300000 {
+	if c.Thinking.NightAt != "" || len(c.Thinking.WanderAt) != 1 || c.Wake.DailyTokens != 0 {
 		t.Fatalf("config %+v %+v", c.Thinking, c.Wake)
 	}
 }

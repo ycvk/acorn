@@ -81,8 +81,8 @@ func NewScheduler(cfg Config) (*Scheduler, error) {
 		return nil, errors.New("wake scheduler: Routines is required")
 	case cfg.PhoneNotifications == nil:
 		return nil, errors.New("wake scheduler: PhoneNotifications is required")
-	case cfg.DailyTokens < 1:
-		return nil, errors.New("wake scheduler: DailyTokens must be positive")
+	case cfg.DailyTokens < 0:
+		return nil, errors.New("wake scheduler: DailyTokens must be >= 0")
 	case cfg.Events == nil:
 		return nil, errors.New("wake scheduler: Events is required")
 	case cfg.Runs == nil:
@@ -223,7 +223,7 @@ func (s *Scheduler) withinBudget(ctx context.Context, subject string, now time.T
 	if err != nil {
 		return false, err
 	}
-	if count < s.cfg.DailyLimit && tokens < s.cfg.DailyTokens {
+	if count < s.cfg.DailyLimit && (s.cfg.DailyTokens == 0 || tokens < s.cfg.DailyTokens) {
 		return true, nil
 	}
 	day := local.Format("2006-01-02")
@@ -232,7 +232,7 @@ func (s *Scheduler) withinBudget(ctx context.Context, subject string, now time.T
 	if s.warned[subject] != day {
 		s.warned[subject] = day
 		reason := "count"
-		if tokens >= s.cfg.DailyTokens {
+		if s.cfg.DailyTokens > 0 && tokens >= s.cfg.DailyTokens {
 			reason = "tokens"
 		}
 		slog.Warn("wake deferred: daily budget reached", "subject", subject, "reason", reason, "count", count, "limit", s.cfg.DailyLimit, "tokens", tokens, "token_limit", s.cfg.DailyTokens, "day", day)

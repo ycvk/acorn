@@ -9,7 +9,7 @@ import (
 	"github.com/ycvk/acorn/internal/core"
 )
 
-func collectProjected(t *testing.T, p *agentEventProjector, events ...*adk.AgentEvent) []core.StreamItem {
+func collectProjected(t *testing.T, p *agentEventProjector, events ...*adk.TypedAgentEvent[*schema.AgenticMessage]) []core.StreamItem {
 	t.Helper()
 	var items []core.StreamItem
 	for _, event := range events {
@@ -24,15 +24,15 @@ func collectProjected(t *testing.T, p *agentEventProjector, events ...*adk.Agent
 }
 
 func TestProjectStreamingAssistantEmitsDeltasThenMessage(t *testing.T) {
-	stream := schema.StreamReaderFromArray([]*schema.Message{
-		{Role: schema.Assistant, Content: "Hel"},
-		{Role: schema.Assistant, Content: ""},
-		{Role: schema.Assistant, Content: "lo"},
+	stream := schema.StreamReaderFromArray([]*schema.AgenticMessage{
+		assistantMessage("Hel", nil),
+		assistantMessage("", nil),
+		assistantMessage("lo", nil),
 	})
 	p := &agentEventProjector{messagePrefix: "run_x:assistant:7"}
 	items := collectProjected(t, p,
-		adk.EventFromMessage(nil, stream, schema.Assistant, ""),
-		adk.EventFromMessage(nil, schema.StreamReaderFromArray([]*schema.Message{{Role: schema.Assistant, Content: "again"}}), schema.Assistant, ""),
+		eventFromMessage(nil, stream, schema.Assistant, ""),
+		eventFromMessage(nil, schema.StreamReaderFromArray([]*schema.AgenticMessage{assistantMessage("again", nil)}), schema.Assistant, ""),
 	)
 	kinds := make([]core.StreamItemKind, 0, len(items))
 	for _, item := range items {
@@ -64,11 +64,11 @@ func TestProjectStreamingAssistantEmitsDeltasThenMessage(t *testing.T) {
 }
 
 func TestProjectToolResultInterruptAndError(t *testing.T) {
-	toolMsg := schema.ToolMessage("result", "call_1", schema.WithToolName("recall"))
-	interrupted := &adk.AgentEvent{Action: &adk.AgentAction{Interrupted: &adk.InterruptInfo{}}}
-	failed := &adk.AgentEvent{Err: errors.New("boom")}
+	toolMsg := toolResultMessage("result", "call_1", "recall")
+	interrupted := &adk.TypedAgentEvent[*schema.AgenticMessage]{Action: &adk.AgentAction{Interrupted: &adk.InterruptInfo{}}}
+	failed := &adk.TypedAgentEvent[*schema.AgenticMessage]{Err: errors.New("boom")}
 	items := collectProjected(t, &agentEventProjector{messagePrefix: "run_x:assistant:7", failedCalls: newFailedToolCalls()},
-		adk.EventFromMessage(toolMsg, nil, schema.Tool, "recall"),
+		eventFromMessage(toolMsg, nil, schema.Tool, "recall"),
 		interrupted,
 		failed,
 	)

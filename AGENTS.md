@@ -67,7 +67,7 @@ cd mobile-kotlin && ./tool/generate_openapi_client.sh --check   # CI 门禁
 - 工作记忆是 SQLite `memory_items`,类型 said(`keep`,owner 原话)、thought(`think`)、commitment(`schedule_wake`)、tendency/ruler(`settle` internalize)。非约定条目按 `expires_at` 由确定性代码衰减:active → resting → sunk;`settle` 负责 renew/internalize/release/done。写入时间由调用方的时钟给出,store 不自行取时间。
 - "当下"(`<presence>` 块:时间、唤醒原因、约定、念头、原话、倾向、关切)由 presence middleware 在 `WrapModel` 中追加为本次模型调用的最后一条 system 消息,不写进 agent 状态、对话历史或 checkpoint;受 `presence.max_tokens` 约束,先丢最旧的手机通知,再按固定顺序丢弃低优先级记忆条目,已醒来的约定不丢。Instruction 与"当下"的组合按哈希去重存进 `context_snapshots`,并记 `presence.snapshot` 事件。
 - 经历检索是 `recall`:runs 与 memory_items 的 FTS5 trigram 全文检索,少于 3 个字的查询走 LIKE。
-- 约定由 `internal/wake` 调度器保持(同一调度器也负责追踪项与早安卡,见下文):每次 tick 先衰减,再对到期约定做条件更新认领(多进程也只触发一次),在立约定的线程里启动 run(线程已删除时进 Reminders 线程),记 `wake.fired` 事件;周期约定认领后排下一次;启动失败 5 分钟后重试。每个 owner 本地自然日的唤醒数受 `wake.daily_limit` 与 `wake.daily_tokens` 约束,次数为 0 表示关闭自主唤醒。token 按本地日内 `model.usage` 事件统计,run 上有 `wake.fired` 才计为自主用量;起 run 前检查,进行中的 run 不打断。
+- 约定由 `internal/wake` 调度器保持(同一调度器也负责追踪项与早安卡,见下文):每次 tick 先衰减,再对到期约定做条件更新认领(多进程也只触发一次),在立约定的线程里启动 run(线程已删除时进 Reminders 线程),记 `wake.fired` 事件;周期约定认领后排下一次;启动失败 5 分钟后重试。每个 owner 本地自然日的唤醒数受 `wake.daily_limit` 与 `wake.daily_tokens` 约束,次数为 0 表示关闭自主唤醒;token 预算默认 0 表示不限。token 按本地日内 `model.usage` 事件统计,run 上有 `wake.fired` 才计为自主用量;起 run 前检查,进行中的 run 不打断。
 - `notify_owner` 经 FCM 推送,每小时上限 `notify.max_per_hour`,免打扰时段内排队、结束后由 wake 调度器发出;FCM 不认的 token 删除;没配 `notify.fcm.service_account_file` 时工具以 disabled 注册并给出原因。设备吊销时同时删除其 push token。
 
 ### 知识库 & Capture
@@ -95,10 +95,16 @@ cd mobile-kotlin && ./tool/generate_openapi_client.sh --check   # CI 门禁
 - App 通知白名单默认空,只采集已配对状态下选中 App 的普通通知,跳过 ongoing、group summary 和自身。队列持久化并绑定 server URL + device ID,最多 500 条;首条入队后 60 秒开始上传,每批最多 100 条,成功只删除该批本地 ID。断开/更换身份清空队列,取消勾选移除该 App 待传项;网络失败保留并显示错误,下次入队、连接或手动 retry 重试。每批使用独立 bearer client。
 - 调度器清理收到满 7 天的原始通知;已进入对话、context snapshots 或知识库的内容随各自记录保留。通知正文按外部数据处理,不执行其中的指令。
 
+### 模型 & 上下文
+
+- provider `api` 选择 `responses`(默认)、`chat_completions`、`anthropic`,经 Eino 原生 AgenticModel 适配器调用;全链路使用 `schema.AgenticMessage`,内容块和推理签名保存在 checkpoint,客户端只接收公开文本、推理文本和工具调用。
+- 默认模型 GPT-6 Astra,上下文 1050000、压缩余量 32000、工具结果保留最近 8 轮;Astra 与 Opus 5.5 输出上限 128000,模型能力表校验输出、上下文、reasoning effort 与采样参数。未知模型按显式配置调用。`temperature` 省略时交给模型默认值。
+- `runtime.run_timeout_seconds` 与 provider `timeout_seconds` 默认 0(关闭总时限);provider `idle_timeout_seconds` 默认 300,按响应数据刷新,0 关闭。`agent.max_iterations` 默认 100。
+
 ### 上下文 & 压缩
 
-- summarization middleware:token 超 `window_tokens - compact_margin_tokens` 时同步用一次 model 调用总结历史。
-- reduction middleware 只做 clear:总 token 超 `window_tokens / 2` 时把较早的工具结果替换成占位符,最近 `mask_after_turns` 轮工具调用原样保留。
+- summarization middleware:token 超 `window_tokens - max_output_tokens(或已知模型输出上限) - presence.max_tokens - compact_margin_tokens` 时同步用一次 model 调用总结历史。
+- reduction middleware 只做 clear:总 token 超上述输入预算的 3/4 时把较早的工具结果替换成占位符,最近 `mask_after_turns` 轮工具调用原样保留。
 - persona、operating rules 与 skill middleware 的说明写进 agent Instruction,技能列表在 `skill` 工具描述里,都不进入可被总结的消息序列。"当下"不属于消息序列,不参与 summarization 计数,由 `presence.max_tokens` 单独约束(配置校验要求它小于 `compact_margin_tokens`)。
 
 ### Remote API & Mobile

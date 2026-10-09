@@ -6,6 +6,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/cloudwego/eino/schema"
+
 	"github.com/cloudwego/eino/adk"
 	"github.com/cloudwego/eino/adk/middlewares/skill"
 
@@ -64,8 +66,8 @@ func skillDescription(spec skills.Spec) string {
 	return description
 }
 
-func newSkillMiddleware(ctx context.Context, snapshot *skills.Snapshot) (adk.ChatModelAgentMiddleware, error) {
-	middleware, err := skill.NewMiddleware(ctx, &skill.Config{
+func newSkillMiddleware(ctx context.Context, snapshot *skills.Snapshot) (adk.TypedChatModelAgentMiddleware[*schema.AgenticMessage], error) {
+	middleware, err := skill.NewTyped[*schema.AgenticMessage](ctx, &skill.TypedConfig[*schema.AgenticMessage]{
 		Backend: newSkillBackend(snapshot),
 		CustomSystemPrompt: func(_ context.Context, toolName string) string {
 			return fmt.Sprintf(skillSystemPrompt, toolName)

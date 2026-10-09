@@ -9,25 +9,24 @@ func defaultConfig() *Config {
 	return &Config{
 		Providers: []ProviderConfig{
 			{
-				Name:                "default",
-				Model:               "gpt-4o-mini",
-				BaseURL:             "https://api.openai.com/v1",
-				APIKey:              "",
-				TimeoutSeconds:      30,
-				Temperature:         0.1,
-				MaxCompletionTokens: 2048,
-				Enabled:             true,
+				Name:           "default",
+				API:            "responses",
+				Model:          "gpt-6-astra",
+				BaseURL:        "https://api.openai.com/v1",
+				APIKey:         "",
+				TimeoutSeconds: 0,
+				Enabled:        true,
 			},
 		},
 		Context: ContextConfig{
-			WindowTokens:        200000,
-			CompactMarginTokens: 13000,
-			MaskAfterTurns:      2,
+			WindowTokens:        1050000,
+			CompactMarginTokens: 32000,
+			MaskAfterTurns:      8,
 		},
 		Approval: ApprovalConfig{Require: []string{"browser", "mcp__*"}},
 		Owner:    OwnerConfig{Timezone: "UTC"},
 		Presence: PresenceConfig{MaxTokens: 4000},
-		Wake:     WakeConfig{DailyLimit: 20, DailyTokens: 300000},
+		Wake:     WakeConfig{DailyLimit: 20, DailyTokens: 0},
 		Thinking: ThinkingConfig{NightAt: "03:00", WanderAt: []string{}},
 		Watch:    WatchConfig{MaxChecksPerTick: 5},
 		Briefing: BriefingConfig{At: "08:00"},
@@ -37,7 +36,7 @@ func defaultConfig() *Config {
 		},
 		Runtime: RuntimeConfig{
 			StorageDir:        "~/.acorn",
-			RunTimeoutSeconds: 900,
+			RunTimeoutSeconds: 0,
 		},
 		Web: WebConfig{ListenAddr: "127.0.0.1:8080"},
 		WebAccess: WebAccessConfig{
@@ -60,7 +59,7 @@ func defaultConfig() *Config {
 		Agent: AgentConfig{
 			Name:          "coordinator",
 			Description:   "A personal agent that works on its owner's behalf.",
-			MaxIterations: 70,
+			MaxIterations: 100,
 		},
 		Tools: ToolsConfig{
 			Workspace: WorkspaceToolConfig{RootDir: "."},

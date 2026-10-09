@@ -55,11 +55,11 @@ type flakyStreamModel struct {
 	calls    int
 }
 
-func (m *flakyStreamModel) Generate(context.Context, []*schema.Message, ...einomodel.Option) (*schema.Message, error) {
+func (m *flakyStreamModel) Generate(context.Context, []*schema.AgenticMessage, ...einomodel.Option) (*schema.AgenticMessage, error) {
 	return nil, errors.New("flaky stream model only streams")
 }
 
-func (m *flakyStreamModel) Stream(context.Context, []*schema.Message, ...einomodel.Option) (*schema.StreamReader[*schema.Message], error) {
+func (m *flakyStreamModel) Stream(context.Context, []*schema.AgenticMessage, ...einomodel.Option) (*schema.StreamReader[*schema.AgenticMessage], error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.calls >= len(m.attempts) {
@@ -67,9 +67,9 @@ func (m *flakyStreamModel) Stream(context.Context, []*schema.Message, ...einomod
 	}
 	attempt := m.attempts[m.calls]
 	m.calls++
-	reader, writer := schema.Pipe[*schema.Message](len(attempt.frames) + 1)
+	reader, writer := schema.Pipe[*schema.AgenticMessage](len(attempt.frames) + 1)
 	for _, frame := range attempt.frames {
-		writer.Send(schema.AssistantMessage(frame, nil), nil)
+		writer.Send(assistantMessage(frame, nil), nil)
 	}
 	if attempt.err != nil {
 		writer.Send(nil, attempt.err)
@@ -78,14 +78,10 @@ func (m *flakyStreamModel) Stream(context.Context, []*schema.Message, ...einomod
 	return reader, nil
 }
 
-func (m *flakyStreamModel) WithTools([]*schema.ToolInfo) (einomodel.ToolCallingChatModel, error) {
-	return m, nil
-}
-
 func collectRetryRun(t *testing.T, model *flakyStreamModel) (RunState, *eventLogStore) {
 	t.Helper()
 	ctx := context.Background()
-	agent, err := adk.NewChatModelAgent(ctx, &adk.ChatModelAgentConfig{
+	agent, err := adk.NewTypedChatModelAgent(ctx, &adk.TypedChatModelAgentConfig[*schema.AgenticMessage]{
 		Name:             "retry_test",
 		Description:      "model retry test agent",
 		Model:            model,
@@ -95,9 +91,9 @@ func collectRetryRun(t *testing.T, model *flakyStreamModel) (RunState, *eventLog
 	if err != nil {
 		t.Fatalf("new agent: %v", err)
 	}
-	runner := adk.NewRunner(ctx, adk.RunnerConfig{Agent: agent, EnableStreaming: true})
+	runner := adk.NewTypedRunner(adk.TypedRunnerConfig[*schema.AgenticMessage]{Agent: agent, EnableStreaming: true})
 	store := &eventLogStore{}
-	iter := runner.Run(ctx, []adk.Message{schema.UserMessage("hi")})
+	iter := runner.Run(ctx, []adk.AgenticMessage{schema.UserAgenticMessage("hi")})
 	state, err := (&Executor{store: store}).collectRunState(ctx, "run_retry", iter, nil, &ActiveRunner{ChatModel: model, FailedCalls: newFailedToolCalls()})
 	if err != nil {
 		t.Fatalf("collect: %v", err)
