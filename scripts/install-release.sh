@@ -117,6 +117,10 @@ providers:
     model: gpt-4o
     base_url: https://api.openai.com/v1
     api_key: ${OPENAI_API_KEY}
+    timeout_seconds: 30
+    temperature: 0.1
+    max_completion_tokens: 2048
+    enabled: true
 runtime:
   storage_dir: /srv/acorn/workspace
 web:

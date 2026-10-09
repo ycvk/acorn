@@ -8,21 +8,22 @@ import (
 	"testing"
 )
 
-// TestInstallerConfigTemplateParses guards against drift between the installer's
-// embedded config heredoc (scripts/install-release.sh write_config_template) and
-// the config schema. The installer writes that YAML verbatim; if a struct field is
-// renamed/removed the strict-decode Load here fails loudly in CI instead of
-// shipping an installer that writes an unloadable config. (The embedded acorn.init
-// template has its own TestInitTemplateIsValidAndExecutionReady guard.)
-func TestInstallerConfigTemplateParses(t *testing.T) {
+// TestInstallerConfigTemplateIsExecutionReady validates the shipped installation
+// configuration after the owner supplies a model key.
+func TestInstallerConfigTemplateIsExecutionReady(t *testing.T) {
+	t.Setenv("OPENAI_API_KEY", "test")
 	body := extractInstallerConfigHeredoc(t, filepath.Join("..", "..", "scripts", "install-release.sh"))
 	dir := t.TempDir()
 	path := filepath.Join(dir, "acorn.yaml")
 	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
 		t.Fatalf("write extracted config: %v", err)
 	}
-	if _, err := Load(path); err != nil {
+	cfg, err := Load(path)
+	if err != nil {
 		t.Fatalf("installer config heredoc must load against the current schema (drift?): %v", err)
+	}
+	if err := cfg.ValidateExecutionReady(); err != nil {
+		t.Fatalf("installer config must execute after setting the model key: %v", err)
 	}
 }
 
