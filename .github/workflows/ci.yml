@@ -50,9 +50,9 @@ jobs:
         run: npm install -g @openapitools/openapi-generator-cli
       - name: Verify generated mobile client
         run: cd mobile-kotlin && ./tool/generate_openapi_client.sh --check
-      - name: Build debug APK
+      - name: Test and build debug APK
         working-directory: mobile-kotlin
-        run: ./gradlew assembleDebug
+        run: ./gradlew test assembleDebug
       - uses: actions/upload-artifact@v7.0.1
         with:
           name: acorn-mobile-android-debug

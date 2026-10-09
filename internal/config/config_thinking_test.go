@@ -17,6 +17,7 @@ func TestThinkingConfiguration(t *testing.T) {
 		{"night", func(c *Config) { c.Thinking.NightAt = "25:00" }, "thinking.night_at"},
 		{"wander", func(c *Config) { c.Thinking.WanderAt = []string{"wrong"} }, "thinking.wander_at"},
 		{"duplicate", func(c *Config) { c.Thinking.WanderAt = []string{"12:00", "12:00"} }, "duplicate"},
+		{"normalized duplicate", func(c *Config) { c.Thinking.WanderAt = []string{"15:00", " 15:00 "} }, "duplicate"},
 		{"many", func(c *Config) { c.Thinking.WanderAt = make([]string, 7) }, "at most 6"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

@@ -69,11 +69,13 @@ fun NotificationAccessSection(viewModel: NotificationAccessViewModel = hiltViewM
                 "Raw notifications stay on the server for 7 days. Content included in conversations, context snapshots or notes stays with those records.",
                 style = MaterialTheme.typography.bodySmall, color = AetherOnSurfaceVariant,
             )
+            Text("Android may hide sensitive notification content. Open the source app to read protected details.", style = MaterialTheme.typography.bodySmall, color = AetherOnSurfaceVariant)
             Text(if (access) "Notification access enabled" else "Notification access is off", style = MaterialTheme.typography.bodyMedium)
             TextButton(onClick = { context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) }) {
-                Text(if (access) "Manage access" else "Grant access")
+                Text("Android may hide sensitive notification content. Open the source app to read protected details.", style = MaterialTheme.typography.bodySmall, color = AetherOnSurfaceVariant)
+            Text(if (access) "Manage access" else "Grant access")
             }
-            Text(if (allowed.isEmpty()) "No apps selected. Nothing is captured." else "${allowed.size} apps selected")
+            Text(when (allowed.size) { 0 -> "No apps selected. Nothing is captured."; 1 -> "1 app selected"; else -> "${allowed.size} apps selected" })
             TextButton(onClick = { chooseApps = true }) { Text("Choose apps") }
             Text(if (upload.uploading) "Uploading ${upload.pending} notifications…" else "${upload.pending} notifications waiting to upload", style = MaterialTheme.typography.bodySmall)
             if (upload.dropped > 0) Text("${upload.dropped} oldest notifications removed when the 500-item queue was full.", style = MaterialTheme.typography.bodySmall)

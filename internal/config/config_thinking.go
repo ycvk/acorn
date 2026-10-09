@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"time"
 )
 
 // ThinkingConfig schedules reflections in the owner's timezone.
@@ -23,15 +24,16 @@ func (c *Config) validateThinking() error {
 	if len(c.Thinking.WanderAt) > 6 {
 		return errors.New("thinking.wander_at must contain at most 6 times")
 	}
-	seen := map[string]bool{}
+	seen := map[time.Duration]bool{}
 	for i, at := range c.Thinking.WanderAt {
-		if _, err := ParseClock(at); err != nil {
+		parsed, err := ParseClock(at)
+		if err != nil {
 			return fmt.Errorf("thinking.wander_at[%d]: %w", i, err)
 		}
-		if seen[at] {
+		if seen[parsed] {
 			return fmt.Errorf("thinking.wander_at[%d]: duplicate time %q", i, at)
 		}
-		seen[at] = true
+		seen[parsed] = true
 	}
 	return nil
 }
