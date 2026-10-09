@@ -16,7 +16,7 @@ func TestLoadMCPProviderWithoutTransportRejected(t *testing.T) {
     base_url: https://example.invalid/v1
     api_key: test-api-key
     temperature: 0.3
-    max_completion_tokens: 777
+    max_output_tokens: 777
     timeout_seconds: 45
     enabled: true
 runtime:
@@ -62,7 +62,7 @@ func TestLoadMCPProviderSSEWithURL(t *testing.T) {
     base_url: https://example.invalid/v1
     api_key: test-api-key
     temperature: 0.3
-    max_completion_tokens: 777
+    max_output_tokens: 777
     timeout_seconds: 45
     enabled: true
 runtime:
@@ -109,7 +109,7 @@ func TestLoadMCPProviderSSEPathPrefixRejected(t *testing.T) {
     base_url: https://example.invalid/v1
     api_key: test-api-key
     temperature: 0.3
-    max_completion_tokens: 777
+    max_output_tokens: 777
     timeout_seconds: 45
     enabled: true
 runtime:
@@ -156,7 +156,7 @@ func TestLoadMCPProviderStreamableHTTPWithURL(t *testing.T) {
     base_url: https://example.invalid/v1
     api_key: test-api-key
     temperature: 0.3
-    max_completion_tokens: 777
+    max_output_tokens: 777
     timeout_seconds: 45
     enabled: true
 runtime:
@@ -203,7 +203,7 @@ func TestLoadMCPProviderInvalidTransportRejected(t *testing.T) {
     base_url: https://example.invalid/v1
     api_key: test-api-key
     temperature: 0.3
-    max_completion_tokens: 777
+    max_output_tokens: 777
     timeout_seconds: 45
     enabled: true
 runtime:
@@ -250,7 +250,7 @@ func TestLoadMCPProviderStdioWithoutCommandRejected(t *testing.T) {
     base_url: https://example.invalid/v1
     api_key: test-api-key
     temperature: 0.3
-    max_completion_tokens: 777
+    max_output_tokens: 777
     timeout_seconds: 45
     enabled: true
 runtime:
@@ -297,7 +297,7 @@ func TestLoadMCPProviderSSEWithoutURLRejected(t *testing.T) {
     base_url: https://example.invalid/v1
     api_key: test-api-key
     temperature: 0.3
-    max_completion_tokens: 777
+    max_output_tokens: 777
     timeout_seconds: 45
     enabled: true
 runtime:

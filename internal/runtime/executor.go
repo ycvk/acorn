@@ -26,7 +26,7 @@ type Executor struct {
 	store        core.SessionStore
 	runRuntime   *RunnerFactory
 	controller   *RunController
-	newChatModel func(ctx context.Context) (einomodel.BaseChatModel, error)
+	newChatModel func(ctx context.Context) (einomodel.AgenticModel, error)
 }
 
 func NewExecutorWithRunRuntimeAndController(cfg *config.Config, store core.SessionStore, runRuntime *RunnerFactory, controller *RunController) (*Executor, error) {
@@ -73,7 +73,7 @@ func (e *Executor) prepareExecuteRequest(ctx context.Context, req core.ExecuteRe
 	}
 	req.TurnIndex = turnIndex
 	if len(req.Messages) == 0 && strings.TrimSpace(req.Input) != "" {
-		req.Messages = []adk.Message{schema.UserMessage(req.Input)}
+		req.Messages = []adk.AgenticMessage{schema.UserAgenticMessage(req.Input)}
 	}
 	return req, nil
 }
@@ -132,10 +132,13 @@ func (e *Executor) buildExecuteRunner(runCtxBase context.Context, req core.Execu
 
 func (e *Executor) newManagedRunContext(ctx context.Context, runID string) (context.Context, func()) {
 	runTimeout := time.Duration(e.runRuntime.Config().Runtime.RunTimeoutSeconds) * time.Second
-	if runTimeout <= 0 {
-		runTimeout = 15 * time.Minute
+	var runCtxBase context.Context
+	var cancel context.CancelFunc
+	if runTimeout > 0 {
+		runCtxBase, cancel = context.WithTimeout(ctx, runTimeout)
+	} else {
+		runCtxBase, cancel = context.WithCancel(ctx)
 	}
-	runCtxBase, cancel := context.WithTimeout(ctx, runTimeout)
 	unregister := e.controller.Register(runID, cancel)
 	return runCtxBase, func() {
 		unregister()
@@ -198,7 +201,7 @@ type RunState struct {
 	emittedRunFailed bool
 }
 
-func (e *Executor) consume(ctx context.Context, runID, sessionID, input string, iter *adk.AsyncIterator[*adk.AgentEvent], sink core.StreamSink, active *ActiveRunner) (*Result, error) {
+func (e *Executor) consume(ctx context.Context, runID, sessionID, input string, iter *adk.AsyncIterator[*adk.TypedAgentEvent[*schema.AgenticMessage]], sink core.StreamSink, active *ActiveRunner) (*Result, error) {
 	state, err := e.collectRunState(ctx, runID, iter, sink, active)
 	if err != nil {
 		return nil, err
@@ -206,7 +209,7 @@ func (e *Executor) consume(ctx context.Context, runID, sessionID, input string, 
 	return e.finishCollectedRun(ctx, runID, sessionID, input, state, sink)
 }
 
-func (e *Executor) collectRunState(ctx context.Context, runID string, iter *adk.AsyncIterator[*adk.AgentEvent], sink core.StreamSink, active *ActiveRunner) (RunState, error) {
+func (e *Executor) collectRunState(ctx context.Context, runID string, iter *adk.AsyncIterator[*adk.TypedAgentEvent[*schema.AgenticMessage]], sink core.StreamSink, active *ActiveRunner) (RunState, error) {
 	state := RunState{}
 	projector := newAgentEventProjector(runID, active.ChatModel, active.FailedCalls)
 	emit := func(item core.StreamItem) error {

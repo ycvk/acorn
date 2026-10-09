@@ -9,13 +9,13 @@ import (
 func TestValidateExecutionReadyContextConfig(t *testing.T) {
 	cfg := &Config{
 		Providers: []ProviderConfig{{
-			Name:                "default",
-			Model:               "gpt-4.1-mini",
-			BaseURL:             "https://example.invalid/v1",
-			APIKey:              "chat-key",
-			MaxCompletionTokens: 1024,
-			TimeoutSeconds:      30,
-			Enabled:             true,
+			Name:            "default",
+			Model:           "gpt-4.1-mini",
+			BaseURL:         "https://example.invalid/v1",
+			APIKey:          "chat-key",
+			MaxOutputTokens: new(1024),
+			TimeoutSeconds:  30,
+			Enabled:         true,
 		}},
 		Context: ContextConfig{
 			WindowTokens:        200000,
@@ -93,13 +93,13 @@ func TestValidateExecutionReadyContextConfig(t *testing.T) {
 func TestValidateExecutionReadyRejectsInvalidExecutionFields(t *testing.T) {
 	cfg := &Config{
 		Providers: []ProviderConfig{{
-			Name:                "default",
-			Model:               "test-model",
-			BaseURL:             "https://example.invalid/v1",
-			APIKey:              "test-api-key",
-			MaxCompletionTokens: 1024,
-			TimeoutSeconds:      60,
-			Enabled:             true,
+			Name:            "default",
+			Model:           "test-model",
+			BaseURL:         "https://example.invalid/v1",
+			APIKey:          "test-api-key",
+			MaxOutputTokens: new(1024),
+			TimeoutSeconds:  60,
+			Enabled:         true,
 		}},
 		Runtime: RuntimeConfig{
 			StorageDir: ".acorn",
@@ -135,27 +135,27 @@ func TestValidateExecutionReadyRejectsInvalidExecutionFields(t *testing.T) {
 	}
 
 	cfg.Agent.MaxIterations = 4
-	cfg.Providers[0].TimeoutSeconds = 0
+	cfg.Providers[0].TimeoutSeconds = -1
 	if err := cfg.ValidateExecutionReady(); err == nil {
 		t.Fatal("expected invalid timeout to fail validation")
-	} else if !strings.Contains(err.Error(), "provider default: timeout_seconds must be > 0") {
+	} else if !strings.Contains(err.Error(), "provider default: timeout_seconds must be >= 0") {
 		t.Fatalf("expected timeout validation error, got %v", err)
 	}
 
 	cfg.Providers[0].TimeoutSeconds = 60
-	cfg.Providers[0].MaxCompletionTokens = 0
+	cfg.Providers[0].MaxOutputTokens = new(0)
 	if err := cfg.ValidateExecutionReady(); err == nil {
-		t.Fatal("expected invalid max_completion_tokens to fail validation")
-	} else if !strings.Contains(err.Error(), "provider default: max_completion_tokens must be > 0") {
+		t.Fatal("expected invalid max_output_tokens to fail validation")
+	} else if !strings.Contains(err.Error(), "provider default: max_output_tokens must be positive") {
 		t.Fatalf("expected max token validation error, got %v", err)
 	}
 
-	cfg.Providers[0].MaxCompletionTokens = 1024
+	cfg.Providers[0].MaxOutputTokens = new(1024)
 
 	cfg.Providers[0].ReasoningEffort = "invalid"
 	if err := cfg.ValidateExecutionReady(); err == nil {
 		t.Fatal("expected invalid reasoning_effort to fail validation")
-	} else if !strings.Contains(err.Error(), "provider default: reasoning_effort must be low, medium, or high") {
+	} else if !strings.Contains(err.Error(), `provider default: reasoning_effort "invalid" is unsupported`) {
 		t.Fatalf("expected reasoning_effort validation error, got %v", err)
 	}
 

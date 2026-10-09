@@ -164,7 +164,7 @@ func TestSharedLinkBecomesACommittedNote(t *testing.T) {
 		t.Fatalf("web_fetch result = %q", fetched)
 	}
 	first := requestMessages(provider.request(0))
-	if input := first[len(first)-2]; !strings.HasPrefix(input["content"].(string), "[capture] shared from the owner's phone\nSubject: Tokio work stealing\nLink: "+link) {
+	if input := first[len(first)-2]; !strings.HasPrefix(chatContentText(input["content"]), "[capture] shared from the owner's phone\nSubject: Tokio work stealing\nLink: "+link) {
 		t.Fatalf("model input = %v", input)
 	}
 
@@ -296,7 +296,7 @@ func toolResult(t *testing.T, request map[string]any, callID string) string {
 	t.Helper()
 	for _, msg := range requestMessages(request) {
 		if msg["role"] == "tool" && msg["tool_call_id"] == callID {
-			content, _ := msg["content"].(string)
+			content := chatContentText(msg["content"])
 			return content
 		}
 	}

@@ -8,6 +8,8 @@ import (
 	"path"
 	"slices"
 
+	"github.com/cloudwego/eino/schema"
+
 	"github.com/cloudwego/eino/adk"
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/ycvk/acorn/internal/core"
@@ -33,7 +35,7 @@ type approvalStore interface {
 // on resume an accepted call runs with the recorded arguments and a declined
 // call returns a notice to the model instead of executing.
 type approvalMiddleware struct {
-	*adk.BaseChatModelAgentMiddleware
+	*adk.TypedBaseChatModelAgentMiddleware[*schema.AgenticMessage]
 	patterns []string
 	store    approvalStore
 }
@@ -48,9 +50,9 @@ func newApprovalMiddleware(patterns []string, store approvalStore) (*approvalMid
 		}
 	}
 	return &approvalMiddleware{
-		BaseChatModelAgentMiddleware: &adk.BaseChatModelAgentMiddleware{},
-		patterns:                     slices.Clone(patterns),
-		store:                        store,
+		TypedBaseChatModelAgentMiddleware: &adk.TypedBaseChatModelAgentMiddleware[*schema.AgenticMessage]{},
+		patterns:                          slices.Clone(patterns),
+		store:                             store,
 	}, nil
 }
 

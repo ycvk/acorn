@@ -59,7 +59,7 @@ func TestThinkingNightSettlesMemoryAndRecordsProviderUsage(t *testing.T) {
 		t.Fatalf("memory %+v %+v", first, second)
 	}
 	messages := requestMessages(provider.request(0))
-	input := messages[len(messages)-2]["content"].(string)
+	input := chatContentText(messages[len(messages)-2]["content"])
 	for _, want := range []string{"[night 2026-10-10]", "#1 thought active", "#2 thought active", "#3 said resting"} {
 		if !strings.Contains(input, want) {
 			t.Fatalf("input lacks %q: %s", want, input)
@@ -136,7 +136,7 @@ func TestThinkingPhoneNotificationsReachPresenceAndBriefing(t *testing.T) {
 	}
 	waitNewRun(t, c, thread.ID, "")
 	msgs := requestMessages(provider.request(0))
-	present := msgs[len(msgs)-1]["content"].(string)
+	present := chatContentText(msgs[len(msgs)-1]["content"])
 	if !strings.Contains(present, "## Phone notifications") || !strings.Contains(present, "2799") {
 		t.Fatalf("presence=%s", present)
 	}
@@ -150,7 +150,7 @@ func TestThinkingPhoneNotificationsReachPresenceAndBriefing(t *testing.T) {
 	}
 	waitNewRun(t, c, brief, "")
 	msgs = requestMessages(provider.request(1))
-	input := msgs[len(msgs)-2]["content"].(string)
+	input := chatContentText(msgs[len(msgs)-2]["content"])
 	if !strings.Contains(input, "Phone notifications since the last briefing") || !strings.Contains(input, "大促销") || !strings.Contains(input, "2799") {
 		t.Fatalf("briefing=%s", input)
 	}

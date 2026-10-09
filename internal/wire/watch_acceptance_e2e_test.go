@@ -109,7 +109,7 @@ func TestWatchesWakeAndFeedTheMorningBriefing(t *testing.T) {
 	}
 	woken := waitNewRun(t, c, thread.ID, run.ID)
 	wakeInput := requestMessages(provider.request(3))
-	if input := wakeInput[len(wakeInput)-2]["content"].(string); !strings.HasPrefix(input, "[watch #2 phone price] 1 new") || !strings.Contains(input, "Before: ¥2,999\n  Now: ¥2,799") {
+	if input := chatContentText(wakeInput[len(wakeInput)-2]["content"]); !strings.HasPrefix(input, "[watch #2 phone price] 1 new") || !strings.Contains(input, "Before: ¥2,999\n  Now: ¥2,799") {
 		t.Fatalf("watch wake input = %q", input)
 	}
 	if wakes, err := c.store.CountWakesSince(ctx, time.Time{}); err != nil || wakes != 1 {
@@ -130,7 +130,7 @@ func TestWatchesWakeAndFeedTheMorningBriefing(t *testing.T) {
 	}
 	waitNewRun(t, c, briefingThread, woken.RunID)
 	briefingInput := requestMessages(provider.request(4))
-	if input := briefingInput[len(briefingInput)-2]["content"].(string); !strings.HasPrefix(input, "[briefing 2026-10-05] morning briefing") || !strings.Contains(input, "## #1 Go blog (rss, 1 new)\n- go1.27 — https://go.dev/blog/go1.27") {
+	if input := chatContentText(briefingInput[len(briefingInput)-2]["content"]); !strings.HasPrefix(input, "[briefing 2026-10-05] morning briefing") || !strings.Contains(input, "## #1 Go blog (rss, 1 new)\n- go1.27 — https://go.dev/blog/go1.27") {
 		t.Fatalf("briefing input = %q", input)
 	}
 	if _, err := os.Stat(cfg.KnowledgeDir() + "/briefings/2026-10-05.md"); err != nil {
@@ -197,7 +197,7 @@ func TestBriefingListsReleasesAndFailingWatches(t *testing.T) {
 	}
 	waitNewRun(t, c, briefingThread, "")
 	messages := requestMessages(provider.request(0))
-	input := messages[len(messages)-2]["content"].(string)
+	input := chatContentText(messages[len(messages)-2]["content"])
 	for _, want := range []string{"## #1 Go releases (github, 1 new)\n- Go 1.27 — https://github.com/golang/go/releases/tag/go1.27\n  Generic methods.", "Failing watches:\n- #2 shop: web fetch returned HTTP status 500"} {
 		if !strings.Contains(input, want) {
 			t.Fatalf("briefing input lacks %q:\n%s", want, input)

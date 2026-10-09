@@ -22,7 +22,7 @@ import (
 
 type agentRunnerRequest struct {
 	RunID       string
-	ChatModel   einomodel.BaseChatModel
+	ChatModel   einomodel.AgenticModel
 	Catalog     *tools.Catalog
 	Skills      *skills.Snapshot
 	Instruction string
@@ -32,7 +32,7 @@ type agentRunnerRequest struct {
 // buildAgentRunner assembles the per-run ChatModelAgent. Context management,
 // deferred tool discovery and approvals are middleware; checkpoints persist
 // through the session store so interrupted runs resume after a restart.
-func buildAgentRunner(ctx context.Context, deps RuntimeDeps, req agentRunnerRequest) (*adk.Runner, error) {
+func buildAgentRunner(ctx context.Context, deps RuntimeDeps, req agentRunnerRequest) (*adk.TypedRunner[*schema.AgenticMessage], error) {
 	built, err := BuildAuditedTools(ctx, req.Catalog.EnabledSpecs())
 	if err != nil {
 		return nil, err
@@ -45,7 +45,7 @@ func buildAgentRunner(ctx context.Context, deps RuntimeDeps, req agentRunnerRequ
 	if err != nil {
 		return nil, err
 	}
-	agent, err := adk.NewChatModelAgent(ctx, &adk.ChatModelAgentConfig{
+	agent, err := adk.NewTypedChatModelAgent(ctx, &adk.TypedChatModelAgentConfig[*schema.AgenticMessage]{
 		Name:        deps.Config.Agent.Name,
 		Description: deps.Config.Agent.Description,
 		Instruction: req.Instruction,
@@ -62,7 +62,7 @@ func buildAgentRunner(ctx context.Context, deps RuntimeDeps, req agentRunnerRequ
 	if err != nil {
 		return nil, fmt.Errorf("build chat model agent: %w", err)
 	}
-	return adk.NewRunner(ctx, adk.RunnerConfig{
+	return adk.NewTypedRunner(adk.TypedRunnerConfig[*schema.AgenticMessage]{
 		Agent:           agent,
 		EnableStreaming: true,
 		CheckPointStore: storeCheckpointStore{store: deps.Store},
@@ -72,12 +72,12 @@ func buildAgentRunner(ctx context.Context, deps RuntimeDeps, req agentRunnerRequ
 // modelRetryConfig retries a failed main model call up to three times. Deltas
 // already streamed from a failed attempt stay with the client; the assistant
 // message of the successful attempt replaces them.
-func modelRetryConfig() *adk.ModelRetryConfig {
-	return &adk.ModelRetryConfig{
+func modelRetryConfig() *adk.TypedModelRetryConfig[*schema.AgenticMessage] {
+	return &adk.TypedModelRetryConfig[*schema.AgenticMessage]{
 		MaxRetries: 3,
-		ShouldRetry: func(_ context.Context, retry *adk.RetryContext) *adk.RetryDecision {
+		ShouldRetry: func(_ context.Context, retry *adk.TypedRetryContext[*schema.AgenticMessage]) *adk.TypedRetryDecision[*schema.AgenticMessage] {
 			err := retry.Err
-			return &adk.RetryDecision{Retry: err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded)}
+			return &adk.TypedRetryDecision[*schema.AgenticMessage]{Retry: err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded)}
 		},
 	}
 }
@@ -105,33 +105,36 @@ func splitToolsByLoading(ctx context.Context, specs []core.ToolSpec, built []ein
 	return eager, deferred, nil
 }
 
-func buildAgentHandlers(ctx context.Context, deps RuntimeDeps, req agentRunnerRequest, deferred []einotool.BaseTool) ([]adk.ChatModelAgentMiddleware, error) {
+func buildAgentHandlers(ctx context.Context, deps RuntimeDeps, req agentRunnerRequest, deferred []einotool.BaseTool) ([]adk.TypedChatModelAgentMiddleware[*schema.AgenticMessage], error) {
 	counter, err := NewTokenCounter()
 	if err != nil {
 		return nil, fmt.Errorf("token counter: %w", err)
 	}
-	window := deps.Config.Context.WindowTokens
-	patch, err := patchtoolcalls.New(ctx, nil)
+	inputBudget, err := deps.Config.InputTokenBudget()
+	if err != nil {
+		return nil, err
+	}
+	patch, err := patchtoolcalls.NewTyped[*schema.AgenticMessage](ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("patchtoolcalls middleware: %w", err)
 	}
-	summarize, err := summarization.New(ctx, &summarization.Config{
+	summarize, err := summarization.NewTyped[*schema.AgenticMessage](ctx, &summarization.TypedConfig[*schema.AgenticMessage]{
 		Model:   req.ChatModel,
-		Trigger: &summarization.TriggerCondition{ContextTokens: window - deps.Config.Context.CompactMarginTokens},
-		TokenCounter: func(ctx context.Context, in *summarization.TokenCounterInput) (int, error) {
+		Trigger: &summarization.TriggerCondition{ContextTokens: inputBudget},
+		TokenCounter: func(ctx context.Context, in *summarization.TypedTokenCounterInput[*schema.AgenticMessage]) (int, error) {
 			return counter.CountMessages(ctx, in.Messages, in.Tools)
 		},
 		// A transient provider error while summarizing would otherwise fail the run.
-		Retry: &summarization.RetryConfig{},
+		Retry: &summarization.TypedRetryConfig[*schema.AgenticMessage]{},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("summarization middleware: %w", err)
 	}
-	reduce, err := reduction.New(ctx, &reduction.Config{
+	reduce, err := reduction.NewTyped[*schema.AgenticMessage](ctx, &reduction.TypedConfig[*schema.AgenticMessage]{
 		SkipTruncation:            true,
-		MaxTokensForClear:         int64(window / 2),
+		MaxTokensForClear:         int64(inputBudget * 3 / 4),
 		ClearRetentionSuffixLimit: deps.Config.Context.MaskAfterTurns,
-		TokenCounter: func(ctx context.Context, msgs []*schema.Message, tools []*schema.ToolInfo) (int64, error) {
+		TokenCounter: func(ctx context.Context, msgs []*schema.AgenticMessage, tools []*schema.ToolInfo) (int64, error) {
 			n, err := counter.CountMessages(ctx, msgs, tools)
 			return int64(n), err
 		},
@@ -151,9 +154,9 @@ func buildAgentHandlers(ctx context.Context, deps RuntimeDeps, req agentRunnerRe
 	if err != nil {
 		return nil, err
 	}
-	handlers := []adk.ChatModelAgentMiddleware{patch, summarize, reduce}
+	handlers := []adk.TypedChatModelAgentMiddleware[*schema.AgenticMessage]{patch, summarize, reduce}
 	if len(deferred) > 0 {
-		search, err := toolsearch.New(ctx, &toolsearch.Config{DynamicTools: deferred})
+		search, err := toolsearch.NewTyped[*schema.AgenticMessage](ctx, &toolsearch.Config{DynamicTools: deferred})
 		if err != nil {
 			return nil, fmt.Errorf("toolsearch middleware: %w", err)
 		}

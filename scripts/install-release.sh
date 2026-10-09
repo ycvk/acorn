@@ -114,12 +114,13 @@ write_config_template() {
 	cat > "$target" <<'EOF'
 providers:
   - name: default
-    model: gpt-4o
+    api: responses
+    model: gpt-6-astra
     base_url: https://api.openai.com/v1
     api_key: ${OPENAI_API_KEY}
-    timeout_seconds: 30
-    temperature: 0.1
-    max_completion_tokens: 2048
+    timeout_seconds: 0
+    idle_timeout_seconds: 300
+    max_output_tokens: 128000
     enabled: true
 runtime:
   storage_dir: /srv/acorn/workspace
@@ -142,7 +143,7 @@ presence:
 wake:
   # Commitment wakes allowed per local day; 0 turns autonomous wakes off.
   daily_limit: 20
-  daily_tokens: 300000
+  daily_tokens: 0
 thinking:
   night_at: "03:00"
   wander_at: []
@@ -157,13 +158,13 @@ notify:
     # Firebase service account key file; empty disables push notifications.
     service_account_file: ""
 context:
-  window_tokens: 200000
-  compact_margin_tokens: 13000
-  mask_after_turns: 2
+  window_tokens: 1050000
+  compact_margin_tokens: 32000
+  mask_after_turns: 8
 agent:
   name: acorn
   description: Self-hosted AI agent
-  max_iterations: 30
+  max_iterations: 100
 tools:
   workspace:
     root_dir: /srv/acorn/workspace

@@ -118,4 +118,4 @@ func toolNames(t *testing.T, items []einotool.BaseTool) []string {
 	return names
 }
 
-var _ adk.ChatModelAgentMiddleware = (*approvalMiddleware)(nil)
+var _ adk.TypedChatModelAgentMiddleware[*schema.AgenticMessage] = (*approvalMiddleware)(nil)

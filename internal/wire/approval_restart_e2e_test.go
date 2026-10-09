@@ -109,11 +109,12 @@ func writeTestConfig(t *testing.T, providerURL, extra string) *config.Config {
   storage_dir: %s
 providers:
   - name: primary
+    api: chat_completions
     model: fake
     base_url: %s/v1
     api_key: test
     timeout_seconds: 10
-    max_completion_tokens: 512
+    max_output_tokens: 512
     enabled: true
 tools:
   workspace:
@@ -229,7 +230,7 @@ func toolMessageFor(request map[string]any, callID string) (string, bool) {
 	for _, raw := range messages {
 		msg, _ := raw.(map[string]any)
 		if msg["role"] == "tool" && msg["tool_call_id"] == callID {
-			content, _ := msg["content"].(string)
+			content := chatContentText(msg["content"])
 			return content, true
 		}
 	}
@@ -415,4 +416,18 @@ func TestBrokenAssistantStreamFailsRunThroughNormalPath(t *testing.T) {
 	if record.Output != "half an ans" {
 		t.Fatalf("run output = %q, want the streamed partial output kept by the normal failure path", record.Output)
 	}
+}
+
+func chatContentText(content any) string {
+	if text, ok := content.(string); ok {
+		return text
+	}
+	var text strings.Builder
+	for _, raw := range content.([]any) {
+		block := raw.(map[string]any)
+		if block["type"] == "text" {
+			text.WriteString(block["text"].(string))
+		}
+	}
+	return text.String()
 }

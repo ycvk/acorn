@@ -42,12 +42,12 @@ func TestSkillToolLoadsSkillsThroughTheToolChain(t *testing.T) {
 		t.Fatal(err)
 	}
 	present := newTestPresenceMiddleware(t, store)
-	model := &scriptedModel{replies: []*schema.Message{
+	model := &scriptedModel{replies: []*schema.AgenticMessage{
 		toolCallReply("call_0", "skill", `{"skill":"skill.capture.to.note"}`),
 		toolCallReply("call_1", "skill", `{"skill":"skill.made.up"}`),
-		schema.AssistantMessage("done", nil),
+		assistantMessage("done", nil),
 	}}
-	agent, err := adk.NewChatModelAgent(ctx, &adk.ChatModelAgentConfig{
+	agent, err := adk.NewTypedChatModelAgent(ctx, &adk.TypedChatModelAgentConfig[*schema.AgenticMessage]{
 		Name:        "skill_test",
 		Description: "skill test agent",
 		Instruction: "You are Acorn.",
@@ -57,21 +57,21 @@ func TestSkillToolLoadsSkillsThroughTheToolChain(t *testing.T) {
 			ExecuteSequentially: true,
 			UnknownToolsHandler: unknownToolResult,
 		}},
-		Handlers:      []adk.ChatModelAgentMiddleware{skillHandler, present, newToolErrorMiddleware(newFailedToolCalls())},
+		Handlers:      []adk.TypedChatModelAgentMiddleware[*schema.AgenticMessage]{skillHandler, present, newToolErrorMiddleware(newFailedToolCalls())},
 		MaxIterations: 5,
 	})
 	if err != nil {
 		t.Fatalf("agent: %v", err)
 	}
-	runner := adk.NewRunner(ctx, adk.RunnerConfig{Agent: agent})
-	if _, err := drainEvents(t, runner.Run(ctx, []adk.Message{schema.UserMessage("[capture] https://example.com")})); err != nil {
+	runner := adk.NewTypedRunner(adk.TypedRunnerConfig[*schema.AgenticMessage]{Agent: agent})
+	if _, err := drainEvents(t, runner.Run(ctx, []adk.AgenticMessage{schema.UserAgenticMessage("[capture] https://example.com")})); err != nil {
 		t.Fatalf("an unknown skill failed the run: %v", err)
 	}
 
 	var loaded string
 	for _, msg := range model.inputs[1] {
-		if msg.Role == schema.Tool && msg.ToolCallID == "call_0" {
-			loaded = msg.Content
+		if msg.Role == schema.AgenticRoleTypeUser && toolResultID(msg) == "call_0" {
+			loaded = messageText(msg)
 		}
 	}
 	if !strings.Contains(loaded, "Fetch the link, then knowledge_write.") {

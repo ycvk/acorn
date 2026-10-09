@@ -112,15 +112,15 @@ func newTestPresenceMiddleware(t *testing.T, store *memPresenceStore) *presenceM
 		t.Fatalf("token counter: %v", err)
 	}
 	return &presenceMiddleware{
-		BaseChatModelAgentMiddleware: &adk.BaseChatModelAgentMiddleware{},
-		store:                        store,
-		phones:                       store,
-		events:                       store,
-		clock:                        func() time.Time { return presenceNow },
-		location:                     time.UTC,
-		maxTokens:                    2000,
-		counter:                      counter,
-		runID:                        "run_1",
+		TypedBaseChatModelAgentMiddleware: &adk.TypedBaseChatModelAgentMiddleware[*schema.AgenticMessage]{},
+		store:                             store,
+		phones:                            store,
+		events:                            store,
+		clock:                             func() time.Time { return presenceNow },
+		location:                          time.UTC,
+		maxTokens:                         2000,
+		counter:                           counter,
+		runID:                             "run_1",
 	}
 }
 
@@ -136,10 +136,10 @@ func (t thinkTool) InvokableRun(ctx context.Context, args string, _ ...einotool.
 	return "ok", err
 }
 
-func countPresence(messages []*schema.Message) int {
+func countPresence(messages []*schema.AgenticMessage) int {
 	n := 0
 	for _, msg := range messages {
-		if strings.HasPrefix(msg.Content, "<presence>") {
+		if strings.HasPrefix(messageText(msg), "<presence>") {
 			n++
 		}
 	}
@@ -151,12 +151,12 @@ func TestPresenceIsAppendedPerCallAndKeptOutOfState(t *testing.T) {
 	if _, err := store.AddMemoryItem(context.Background(), core.MemoryItem{Kind: core.MemorySaid, Status: core.MemoryActive, Content: "我喜欢早上看新闻", CreatedAt: presenceNow}); err != nil {
 		t.Fatal(err)
 	}
-	model := &scriptedModel{replies: []*schema.Message{
+	model := &scriptedModel{replies: []*schema.AgenticMessage{
 		toolCallReply("call_1", "think", `{"x":1}`),
-		schema.AssistantMessage("done", nil),
+		assistantMessage("done", nil),
 	}}
 	ctx := context.Background()
-	agent, err := adk.NewChatModelAgent(ctx, &adk.ChatModelAgentConfig{
+	agent, err := adk.NewTypedChatModelAgent(ctx, &adk.TypedChatModelAgentConfig[*schema.AgenticMessage]{
 		Name:        "presence_test",
 		Description: "presence test agent",
 		Instruction: "You are Acorn.",
@@ -165,15 +165,15 @@ func TestPresenceIsAppendedPerCallAndKeptOutOfState(t *testing.T) {
 			Tools:               []einotool.BaseTool{thinkTool{store: store}},
 			ExecuteSequentially: true,
 		}},
-		Handlers:      []adk.ChatModelAgentMiddleware{newTestPresenceMiddleware(t, store)},
+		Handlers:      []adk.TypedChatModelAgentMiddleware[*schema.AgenticMessage]{newTestPresenceMiddleware(t, store)},
 		MaxIterations: 5,
 	})
 	if err != nil {
 		t.Fatalf("agent: %v", err)
 	}
-	runner := adk.NewRunner(ctx, adk.RunnerConfig{Agent: agent})
+	runner := adk.NewTypedRunner(adk.TypedRunnerConfig[*schema.AgenticMessage]{Agent: agent})
 	wakeCtx := core.WithWake(ctx, "commitment #9: 提醒 owner 看 X")
-	if _, err := drainEvents(t, runner.Run(wakeCtx, []adk.Message{schema.UserMessage("hi")})); err != nil {
+	if _, err := drainEvents(t, runner.Run(wakeCtx, []adk.AgenticMessage{schema.UserAgenticMessage("hi")})); err != nil {
 		t.Fatalf("run: %v", err)
 	}
 
@@ -182,17 +182,17 @@ func TestPresenceIsAppendedPerCallAndKeptOutOfState(t *testing.T) {
 	}
 	for i, input := range model.inputs {
 		last := input[len(input)-1]
-		if last.Role != schema.System || !strings.HasPrefix(last.Content, "<presence>") {
-			t.Fatalf("call %d: last message = %s %q, want the present", i, last.Role, last.Content)
+		if last.Role != schema.AgenticRoleTypeSystem || !strings.HasPrefix(messageText(last), "<presence>") {
+			t.Fatalf("call %d: last message = %s %q, want the present", i, last.Role, messageText(last))
 		}
 		if got := countPresence(input); got != 1 {
 			t.Fatalf("call %d carries %d presence blocks; earlier ones leaked into state", i, got)
 		}
-		if !strings.Contains(last.Content, "Woken by: commitment #9") || !strings.Contains(last.Content, "我喜欢早上看新闻") {
-			t.Fatalf("call %d present = %q", i, last.Content)
+		if !strings.Contains(messageText(last), "Woken by: commitment #9") || !strings.Contains(messageText(last), "我喜欢早上看新闻") {
+			t.Fatalf("call %d present = %q", i, messageText(last))
 		}
 	}
-	if !strings.Contains(model.inputs[1][len(model.inputs[1])-1].Content, `noted {"x":1}`) {
+	if !strings.Contains(messageText(model.inputs[1][len(model.inputs[1])-1]), `noted {"x":1}`) {
 		t.Fatal("second call must see the thought written by the tool")
 	}
 	if got := store.snapshotEvents(); got != 2 || len(store.snapshots) != 2 {
@@ -203,7 +203,7 @@ func TestPresenceIsAppendedPerCallAndKeptOutOfState(t *testing.T) {
 func TestPresenceSnapshotOnlyWhenRenderChanges(t *testing.T) {
 	store := newMemPresenceStore()
 	mw := newTestPresenceMiddleware(t, store)
-	input := []*schema.Message{schema.UserMessage("hi")}
+	input := []*schema.AgenticMessage{schema.UserAgenticMessage("hi")}
 	for range 3 {
 		out, err := mw.withPresence(context.Background(), input)
 		if err != nil {
@@ -212,8 +212,8 @@ func TestPresenceSnapshotOnlyWhenRenderChanges(t *testing.T) {
 		if len(out) != 2 || len(input) != 1 {
 			t.Fatalf("presence must be appended to a copy: out=%d input=%d", len(out), len(input))
 		}
-		if !strings.Contains(out[1].Content, "Woken by: owner message") {
-			t.Fatalf("default wake missing: %q", out[1].Content)
+		if !strings.Contains(messageText(out[1]), "Woken by: owner message") {
+			t.Fatalf("default wake missing: %q", messageText(out[1]))
 		}
 	}
 	if got := store.snapshotEvents(); got != 1 {
@@ -231,8 +231,8 @@ func TestPresenceDecaysBeforeRendering(t *testing.T) {
 	if err != nil {
 		t.Fatalf("with presence: %v", err)
 	}
-	if strings.Contains(out[0].Content, "old idea") {
-		t.Fatalf("sunk item rendered: %q", out[0].Content)
+	if strings.Contains(messageText(out[0]), "old idea") {
+		t.Fatalf("sunk item rendered: %q", messageText(out[0]))
 	}
 	if item, _ := store.LoadMemoryItem(ctx, 1); item.Status != core.MemorySunk {
 		t.Fatalf("item status = %s, want sunk persisted", item.Status)

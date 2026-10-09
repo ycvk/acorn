@@ -25,7 +25,7 @@ var presenceStatuses = []core.MemoryStatus{core.MemoryActive, core.MemoryResting
 // prompt caching across iterations. Each distinct rendering is saved as a
 // context snapshot and referenced by a presence.snapshot event.
 type presenceMiddleware struct {
-	*adk.BaseChatModelAgentMiddleware
+	*adk.TypedBaseChatModelAgentMiddleware[*schema.AgenticMessage]
 	phones      core.PhoneNotificationStore
 	store       core.PresenceStore
 	events      core.EventAppender
@@ -45,15 +45,15 @@ func newPresenceMiddleware(deps RuntimeDeps, counter TokenCounter, runID string)
 		return nil, fmt.Errorf("presence middleware requires PhoneNotifications, Presence, Clock and Location")
 	}
 	return &presenceMiddleware{
-		BaseChatModelAgentMiddleware: &adk.BaseChatModelAgentMiddleware{},
-		store:                        deps.Presence,
-		phones:                       deps.PhoneNotifications,
-		events:                       deps.Store,
-		clock:                        deps.Clock,
-		location:                     deps.Location,
-		maxTokens:                    deps.Config.Presence.MaxTokens,
-		counter:                      counter,
-		runID:                        runID,
+		TypedBaseChatModelAgentMiddleware: &adk.TypedBaseChatModelAgentMiddleware[*schema.AgenticMessage]{},
+		store:                             deps.Presence,
+		phones:                            deps.PhoneNotifications,
+		events:                            deps.Store,
+		clock:                             deps.Clock,
+		location:                          deps.Location,
+		maxTokens:                         deps.Config.Presence.MaxTokens,
+		counter:                           counter,
+		runID:                             runID,
 	}, nil
 }
 
@@ -66,16 +66,16 @@ func (m *presenceMiddleware) BeforeAgent(ctx context.Context, runCtx *adk.ChatMo
 	return ctx, runCtx, nil
 }
 
-func (m *presenceMiddleware) WrapModel(_ context.Context, model einomodel.BaseChatModel, _ *adk.ModelContext) (einomodel.BaseChatModel, error) {
+func (m *presenceMiddleware) WrapModel(_ context.Context, model einomodel.AgenticModel, _ *adk.TypedModelContext[*schema.AgenticMessage]) (einomodel.AgenticModel, error) {
 	return &presenceModel{inner: model, mw: m}, nil
 }
 
 type presenceModel struct {
-	inner einomodel.BaseChatModel
+	inner einomodel.AgenticModel
 	mw    *presenceMiddleware
 }
 
-func (p *presenceModel) Generate(ctx context.Context, input []*schema.Message, opts ...einomodel.Option) (*schema.Message, error) {
+func (p *presenceModel) Generate(ctx context.Context, input []*schema.AgenticMessage, opts ...einomodel.Option) (*schema.AgenticMessage, error) {
 	withPresence, err := p.mw.withPresence(ctx, input)
 	if err != nil {
 		return nil, err
@@ -83,7 +83,7 @@ func (p *presenceModel) Generate(ctx context.Context, input []*schema.Message, o
 	return p.inner.Generate(ctx, withPresence, opts...)
 }
 
-func (p *presenceModel) Stream(ctx context.Context, input []*schema.Message, opts ...einomodel.Option) (*schema.StreamReader[*schema.Message], error) {
+func (p *presenceModel) Stream(ctx context.Context, input []*schema.AgenticMessage, opts ...einomodel.Option) (*schema.StreamReader[*schema.AgenticMessage], error) {
 	withPresence, err := p.mw.withPresence(ctx, input)
 	if err != nil {
 		return nil, err
@@ -92,7 +92,7 @@ func (p *presenceModel) Stream(ctx context.Context, input []*schema.Message, opt
 }
 
 // withPresence returns a new slice: input followed by the present.
-func (m *presenceMiddleware) withPresence(ctx context.Context, input []*schema.Message) ([]*schema.Message, error) {
+func (m *presenceMiddleware) withPresence(ctx context.Context, input []*schema.AgenticMessage) ([]*schema.AgenticMessage, error) {
 	rendered, err := m.render(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("render presence: %w", err)
@@ -100,9 +100,9 @@ func (m *presenceMiddleware) withPresence(ctx context.Context, input []*schema.M
 	if err := m.recordSnapshot(ctx, rendered); err != nil {
 		return nil, err
 	}
-	out := make([]*schema.Message, 0, len(input)+1)
+	out := make([]*schema.AgenticMessage, 0, len(input)+1)
 	out = append(out, input...)
-	return append(out, schema.SystemMessage(rendered)), nil
+	return append(out, schema.SystemAgenticMessage(rendered)), nil
 }
 
 func (m *presenceMiddleware) render(ctx context.Context) (string, error) {

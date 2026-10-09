@@ -35,18 +35,8 @@ func (c *Config) validateProviders() error {
 		if strings.TrimSpace(p.APIKey) == "" {
 			return fmt.Errorf("provider %s: api_key is required — set it in the config or export the env var it references (the example config uses ${OPENAI_API_KEY}; self-hosted reads it from ~/.acorn/acorn.env)", name)
 		}
-		if p.TimeoutSeconds <= 0 {
-			return fmt.Errorf("provider %s: timeout_seconds must be > 0", name)
-		}
-		if p.MaxCompletionTokens <= 0 {
-			return fmt.Errorf("provider %s: max_completion_tokens must be > 0", name)
-		}
-		if p.ReasoningEffort != "" {
-			switch p.ReasoningEffort {
-			case "low", "medium", "high":
-			default:
-				return fmt.Errorf("provider %s: reasoning_effort must be low, medium, or high, got %q", name, p.ReasoningEffort)
-			}
+		if err := p.validateModelSettings(); err != nil {
+			return fmt.Errorf("provider %s: %w", name, err)
 		}
 	}
 	if len(enabled) > 1 {
@@ -71,23 +61,41 @@ func (c *Config) EnabledProvider() (ProviderConfig, error) {
 	return enabled[0], nil
 }
 
-// ContextPolicy returns the validated context configuration used by the
-// context plane to derive token budgets and pressure thresholds. It validates
-// the context fields and resolves the provider's output token cap so callers
-// receive a complete, ready-to-use policy.
+// ContextPolicy returns the configured context budgets after validation.
 func (c *Config) ContextPolicy() (ContextConfig, error) {
 	if c == nil {
 		return ContextConfig{}, errors.New("config is required")
 	}
-	provider, err := c.EnabledProvider()
-	if err != nil {
-		return ContextConfig{}, fmt.Errorf("resolve context provider: %w", err)
-	}
-	if provider.MaxCompletionTokens <= 0 {
-		return ContextConfig{}, fmt.Errorf("provider %s: max_completion_tokens must be > 0 for context policy", provider.Name)
-	}
-	if err := c.validateContext(); err != nil {
+	if _, err := c.InputTokenBudget(); err != nil {
 		return ContextConfig{}, err
 	}
 	return c.Context, nil
+}
+
+// InputTokenBudget reserves generated output and the ephemeral presence block
+// before applying the additional compaction margin.
+func (c *Config) InputTokenBudget() (int, error) {
+	if c == nil {
+		return 0, errors.New("config is required")
+	}
+	if err := c.validateContext(); err != nil {
+		return 0, err
+	}
+	p, err := c.EnabledProvider()
+	if err != nil {
+		return 0, err
+	}
+	limits := modelLimitsFor(p.Model)
+	if limits.context > 0 && c.Context.WindowTokens > limits.context {
+		return 0, fmt.Errorf("context.window_tokens exceeds %s context window (%d)", p.Model, limits.context)
+	}
+	output := limits.output
+	if p.MaxOutputTokens != nil {
+		output = *p.MaxOutputTokens
+	}
+	budget := c.Context.WindowTokens - c.Context.CompactMarginTokens - c.Presence.MaxTokens - output
+	if budget <= 0 {
+		return 0, errors.New("context.window_tokens must leave input space after output, presence and compact_margin_tokens")
+	}
+	return budget, nil
 }

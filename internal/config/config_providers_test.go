@@ -11,22 +11,22 @@ func TestValidateExecutionReady_MultipleEnabledProvidersInvalid(t *testing.T) {
 	cfg := &Config{
 		Providers: []ProviderConfig{
 			{
-				Name:                "primary",
-				Model:               "gpt-4o",
-				BaseURL:             "https://api.openai.com/v1",
-				APIKey:              "sk-primary",
-				TimeoutSeconds:      30,
-				MaxCompletionTokens: 2048,
-				Enabled:             true,
+				Name:            "primary",
+				Model:           "gpt-4o",
+				BaseURL:         "https://api.openai.com/v1",
+				APIKey:          "sk-primary",
+				TimeoutSeconds:  30,
+				MaxOutputTokens: new(2048),
+				Enabled:         true,
 			},
 			{
-				Name:                "fallback",
-				Model:               "gpt-4o-mini",
-				BaseURL:             "https://api.openai.com/v1",
-				APIKey:              "sk-fallback",
-				TimeoutSeconds:      30,
-				MaxCompletionTokens: 2048,
-				Enabled:             true,
+				Name:            "fallback",
+				Model:           "gpt-4o-mini",
+				BaseURL:         "https://api.openai.com/v1",
+				APIKey:          "sk-fallback",
+				TimeoutSeconds:  30,
+				MaxOutputTokens: new(2048),
+				Enabled:         true,
 			},
 		},
 		Runtime: RuntimeConfig{
@@ -112,13 +112,13 @@ func TestValidateExecutionReady_MissingProviderAPIKey(t *testing.T) {
 	}
 }
 
-func TestValidateExecutionReady_ZeroTimeout(t *testing.T) {
+func TestValidateExecutionReady_NegativeTimeout(t *testing.T) {
 	cfg := defaultConfig()
 	cfg.Providers[0].APIKey = "test-key"
-	cfg.Providers[0].TimeoutSeconds = 0
+	cfg.Providers[0].TimeoutSeconds = -1
 	if err := cfg.ValidateExecutionReady(); err == nil {
-		t.Fatal("expected zero timeout to fail validation")
-	} else if !strings.Contains(err.Error(), "provider default: timeout_seconds must be > 0") {
+		t.Fatal("expected negative timeout to fail validation")
+	} else if !strings.Contains(err.Error(), "provider default: timeout_seconds must be >= 0") {
 		t.Fatalf("expected timeout validation error, got %v", err)
 	}
 }
@@ -126,11 +126,11 @@ func TestValidateExecutionReady_ZeroTimeout(t *testing.T) {
 func TestValidateExecutionReady_ZeroMaxTokens(t *testing.T) {
 	cfg := defaultConfig()
 	cfg.Providers[0].APIKey = "test-key"
-	cfg.Providers[0].MaxCompletionTokens = 0
+	cfg.Providers[0].MaxOutputTokens = new(0)
 	if err := cfg.ValidateExecutionReady(); err == nil {
-		t.Fatal("expected zero max_completion_tokens to fail validation")
-	} else if !strings.Contains(err.Error(), "provider default: max_completion_tokens must be > 0") {
-		t.Fatalf("expected max_completion_tokens validation error, got %v", err)
+		t.Fatal("expected zero max_output_tokens to fail validation")
+	} else if !strings.Contains(err.Error(), "provider default: max_output_tokens must be positive") {
+		t.Fatalf("expected max_output_tokens validation error, got %v", err)
 	}
 }
 
@@ -138,22 +138,22 @@ func TestValidateExecutionReady_DuplicateNames(t *testing.T) {
 	cfg := &Config{
 		Providers: []ProviderConfig{
 			{
-				Name:                "same",
-				Model:               "gpt-4o",
-				BaseURL:             "https://api.openai.com/v1",
-				APIKey:              "sk-1",
-				TimeoutSeconds:      30,
-				MaxCompletionTokens: 2048,
-				Enabled:             true,
+				Name:            "same",
+				Model:           "gpt-4o",
+				BaseURL:         "https://api.openai.com/v1",
+				APIKey:          "sk-1",
+				TimeoutSeconds:  30,
+				MaxOutputTokens: new(2048),
+				Enabled:         true,
 			},
 			{
-				Name:                "same",
-				Model:               "gpt-4o-mini",
-				BaseURL:             "https://api.openai.com/v1",
-				APIKey:              "sk-2",
-				TimeoutSeconds:      30,
-				MaxCompletionTokens: 2048,
-				Enabled:             true,
+				Name:            "same",
+				Model:           "gpt-4o-mini",
+				BaseURL:         "https://api.openai.com/v1",
+				APIKey:          "sk-2",
+				TimeoutSeconds:  30,
+				MaxOutputTokens: new(2048),
+				Enabled:         true,
 			},
 		},
 		Runtime: RuntimeConfig{
@@ -193,22 +193,22 @@ func TestValidateExecutionReady_DisabledProviderNotValidated(t *testing.T) {
 	cfg := &Config{
 		Providers: []ProviderConfig{
 			{
-				Name:                "primary",
-				Model:               "gpt-4o",
-				BaseURL:             "https://api.openai.com/v1",
-				APIKey:              "sk-primary",
-				TimeoutSeconds:      30,
-				MaxCompletionTokens: 2048,
-				Enabled:             true,
+				Name:            "primary",
+				Model:           "gpt-4o",
+				BaseURL:         "https://api.openai.com/v1",
+				APIKey:          "sk-primary",
+				TimeoutSeconds:  30,
+				MaxOutputTokens: new(2048),
+				Enabled:         true,
 			},
 			{
-				Name:                "",
-				Model:               "",
-				BaseURL:             "",
-				APIKey:              "",
-				TimeoutSeconds:      0,
-				MaxCompletionTokens: 0,
-				Enabled:             false,
+				Name:            "",
+				Model:           "",
+				BaseURL:         "",
+				APIKey:          "",
+				TimeoutSeconds:  0,
+				MaxOutputTokens: new(0),
+				Enabled:         false,
 			},
 		},
 		Runtime: RuntimeConfig{

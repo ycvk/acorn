@@ -31,16 +31,18 @@ type ApprovalConfig struct {
 }
 
 type ProviderConfig struct {
-	Name                string         `yaml:"name"`
-	Model               string         `yaml:"model"`
-	BaseURL             string         `yaml:"base_url"`
-	APIKey              string         `yaml:"api_key"`
-	TimeoutSeconds      int            `yaml:"timeout_seconds"`
-	Temperature         float32        `yaml:"temperature"`
-	MaxCompletionTokens int            `yaml:"max_completion_tokens"`
-	ReasoningEffort     string         `yaml:"reasoning_effort,omitempty"`
-	ExtraFields         map[string]any `yaml:"extra_fields,omitempty"`
-	Enabled             bool           `yaml:"enabled"`
+	Name               string         `yaml:"name"`
+	API                string         `yaml:"api"`
+	Model              string         `yaml:"model"`
+	BaseURL            string         `yaml:"base_url"`
+	APIKey             string         `yaml:"api_key"`
+	TimeoutSeconds     int            `yaml:"timeout_seconds"`
+	Temperature        *float32       `yaml:"temperature,omitempty"`
+	MaxOutputTokens    *int           `yaml:"max_output_tokens,omitempty"`
+	IdleTimeoutSeconds *int           `yaml:"idle_timeout_seconds,omitempty"`
+	ReasoningEffort    string         `yaml:"reasoning_effort,omitempty"`
+	ExtraFields        map[string]any `yaml:"extra_fields,omitempty"`
+	Enabled            bool           `yaml:"enabled"`
 }
 
 type ContextConfig struct {

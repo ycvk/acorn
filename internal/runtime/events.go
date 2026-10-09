@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"strings"
 	"time"
 
 	"github.com/cloudwego/eino/adk"
@@ -29,7 +28,7 @@ type agentEventProjector struct {
 	usageWarned bool
 }
 
-func newAgentEventProjector(runID string, chatModel einomodel.BaseChatModel, failedCalls *failedToolCalls) *agentEventProjector {
+func newAgentEventProjector(runID string, chatModel einomodel.AgenticModel, failedCalls *failedToolCalls) *agentEventProjector {
 	return &agentEventProjector{
 		messagePrefix: fmt.Sprintf("%s:assistant:%d", runID, time.Now().UnixNano()),
 		provider:      activeProviderName(chatModel),
@@ -45,25 +44,29 @@ func (e *streamReadError) Error() string { return "read assistant stream: " + e.
 
 func (e *streamReadError) Unwrap() error { return e.err }
 
-func (p *agentEventProjector) project(event *adk.AgentEvent, emit func(core.StreamItem) error) error {
+func (p *agentEventProjector) project(event *adk.TypedAgentEvent[*schema.AgenticMessage], emit func(core.StreamItem) error) error {
 	now := time.Now().UTC()
 	if event.Err != nil {
 		return emit(core.StreamItem{Kind: core.StreamKindRunFailed, CreatedAt: now, Payload: map[string]any{"error": event.Err.Error()}})
 	}
 	if event.Output != nil && event.Output.MessageOutput != nil {
 		mo := event.Output.MessageOutput
-		switch mo.Role {
-		case schema.Assistant:
+		switch mo.AgenticRole {
+		case schema.AgenticRoleTypeAssistant:
 			if err := p.projectAssistant(mo, emit); err != nil {
 				return err
 			}
-		case schema.Tool:
+		case schema.AgenticRoleTypeUser:
 			msg, err := mo.GetMessage()
 			if err != nil {
 				return fmt.Errorf("read tool result message: %w", err)
 			}
-			if err := emit(p.toolResultItem(msg, now)); err != nil {
-				return err
+			for _, block := range msg.ContentBlocks {
+				if item, ok := p.toolResultItem(block, now); ok {
+					if err := emit(item); err != nil {
+						return err
+					}
+				}
 			}
 		}
 	}
@@ -75,22 +78,34 @@ func (p *agentEventProjector) project(event *adk.AgentEvent, emit func(core.Stre
 	return nil
 }
 
-func (p *agentEventProjector) toolResultItem(msg *schema.Message, now time.Time) core.StreamItem {
-	if errText, failed := p.failedCalls.take(msg.ToolCallID); failed {
+func (p *agentEventProjector) toolResultItem(block *schema.ContentBlock, now time.Time) (core.StreamItem, bool) {
+	var id, name, output string
+	switch block.Type {
+	case schema.ContentBlockTypeFunctionToolResult:
+		result := block.FunctionToolResult
+		id, name = result.CallID, result.Name
+		for _, part := range result.Content {
+			if part.Text != nil {
+				output += part.Text.Text
+			}
+		}
+	case schema.ContentBlockTypeToolSearchResult:
+		result := block.ToolSearchFunctionToolResult
+		id, name, output = result.CallID, result.Name, result.String()
+	default:
+		return core.StreamItem{}, false
+	}
+	if errText, failed := p.failedCalls.take(id); failed {
 		return core.StreamItem{Kind: core.StreamKindToolCallFailed, CreatedAt: now, Payload: map[string]any{
-			"tool_call_id": msg.ToolCallID,
-			"tool_name":    msg.ToolName,
-			"error":        errText,
-		}}
+			"tool_call_id": id, "tool_name": name, "error": errText,
+		}}, true
 	}
 	return core.StreamItem{Kind: core.StreamKindToolCallSucceeded, CreatedAt: now, Payload: map[string]any{
-		"tool_call_id": msg.ToolCallID,
-		"tool_name":    msg.ToolName,
-		"output":       msg.Content,
-	}}
+		"tool_call_id": id, "tool_name": name, "output": output,
+	}}, true
 }
 
-func (p *agentEventProjector) projectAssistant(mo *adk.MessageVariant, emit func(core.StreamItem) error) error {
+func (p *agentEventProjector) projectAssistant(mo *adk.TypedMessageVariant[*schema.AgenticMessage], emit func(core.StreamItem) error) error {
 	p.assistantCount++
 	messageID := fmt.Sprintf("%s:%d", p.messagePrefix, p.assistantCount)
 	final := mo.Message
@@ -121,8 +136,8 @@ func (p *agentEventProjector) projectAssistant(mo *adk.MessageVariant, emit func
 		return err
 	}
 	payload := map[string]any{"reported": false}
-	if final.ResponseMeta != nil && final.ResponseMeta.Usage != nil {
-		u := final.ResponseMeta.Usage
+	if final.ResponseMeta != nil && final.ResponseMeta.TokenUsage != nil {
+		u := final.ResponseMeta.TokenUsage
 		payload = map[string]any{"reported": true, "prompt_tokens": u.PromptTokens, "completion_tokens": u.CompletionTokens, "total_tokens": u.TotalTokens}
 	} else if !p.usageWarned {
 		slog.Warn("model did not report token usage", "run", p.messagePrefix)
@@ -131,9 +146,9 @@ func (p *agentEventProjector) projectAssistant(mo *adk.MessageVariant, emit func
 	return emit(core.StreamItem{Kind: core.StreamItemKind(core.EventModelUsage), CreatedAt: time.Now().UTC(), Payload: payload})
 }
 
-func (p *agentEventProjector) projectAssistantStream(stream *schema.StreamReader[*schema.Message], messageID string, emit func(core.StreamItem) error) (*schema.Message, error) {
+func (p *agentEventProjector) projectAssistantStream(stream *schema.StreamReader[*schema.AgenticMessage], messageID string, emit func(core.StreamItem) error) (*schema.AgenticMessage, error) {
 	defer stream.Close()
-	frames := make([]*schema.Message, 0, 16)
+	frames := make([]*schema.AgenticMessage, 0, 16)
 	seq := 0
 	for {
 		frame, err := stream.Recv()
@@ -144,18 +159,19 @@ func (p *agentEventProjector) projectAssistantStream(stream *schema.StreamReader
 			return nil, &streamReadError{err: err}
 		}
 		frames = append(frames, frame)
-		if frame.Content == "" && frame.ReasoningContent == "" && len(frame.ToolCalls) == 0 {
+		public := StreamMessageFromSchema(frame, p.provider)
+		if public.Content == "" && public.Reasoning == "" && len(public.ToolCalls) == 0 {
 			continue
 		}
 		seq++
 		if err := emit(core.StreamItem{Kind: core.StreamKindAssistantDelta, CreatedAt: time.Now().UTC(), Payload: map[string]any{
 			"assistant_delta": &core.StreamAssistantDelta{
 				Role:      string(schema.Assistant),
-				Delta:     frame.Content,
-				Reasoning: frame.ReasoningContent,
+				Delta:     public.Content,
+				Reasoning: public.Reasoning,
 				Sequence:  seq,
 				MessageID: messageID,
-				ToolCalls: streamPlannedToolCalls(frame.ToolCalls),
+				ToolCalls: public.ToolCalls,
 				Meta:      streamMessageMeta(frame),
 			},
 		}}); err != nil {
@@ -165,77 +181,18 @@ func (p *agentEventProjector) projectAssistantStream(stream *schema.StreamReader
 	if len(frames) == 0 {
 		return nil, errors.New("assistant stream returned no frames")
 	}
-	concat, err := schema.ConcatMessages(frames)
+	concat, err := schema.ConcatAgenticMessages(frames)
 	if err != nil {
 		return nil, fmt.Errorf("concat assistant stream: %w", err)
 	}
 	return concat, nil
 }
 
-func streamPlannedToolCalls(calls []schema.ToolCall) []core.StreamPlannedToolCall {
-	if len(calls) == 0 {
-		return nil
-	}
-	out := make([]core.StreamPlannedToolCall, 0, len(calls))
-	for _, call := range calls {
-		out = append(out, core.StreamPlannedToolCall{
-			ID:            call.ID,
-			Name:          call.Function.Name,
-			ArgumentsJSON: call.Function.Arguments,
-		})
-	}
-	return out
-}
-
-func streamMessageMeta(message *schema.Message) map[string]any {
-	if message == nil {
-		return nil
-	}
-	meta := make(map[string]any)
-	if message.ResponseMeta != nil && message.ResponseMeta.FinishReason != "" {
-		meta["finish_reason"] = message.ResponseMeta.FinishReason
-	}
-	if len(meta) == 0 {
-		return nil
-	}
-	return meta
-}
-func activeProviderName(chatModel einomodel.BaseChatModel) string {
+func activeProviderName(chatModel einomodel.AgenticModel) string {
 	if ap, ok := chatModel.(interface{ ActiveProvider() string }); ok {
 		return ap.ActiveProvider()
 	}
 	return ""
-}
-
-func StreamMessageFromSchema(message *schema.Message, activeProvider string) *core.StreamMessage {
-	if message == nil {
-		return nil
-	}
-	stream := &core.StreamMessage{
-		Role:       string(message.Role),
-		Content:    strings.TrimSpace(message.Content),
-		Reasoning:  strings.TrimSpace(message.ReasoningContent),
-		ToolCallID: message.ToolCallID,
-		ToolName:   message.ToolName,
-	}
-	meta := make(map[string]any)
-	if activeProvider != "" {
-		meta["active_provider"] = activeProvider
-	}
-	if len(message.ToolCalls) > 0 {
-		stream.ToolCalls = make([]core.StreamPlannedToolCall, 0, len(message.ToolCalls))
-		for _, call := range message.ToolCalls {
-			stream.ToolCalls = append(stream.ToolCalls, core.StreamPlannedToolCall{
-				ID:            call.ID,
-				Name:          call.Function.Name,
-				ArgumentsJSON: call.Function.Arguments,
-			})
-		}
-	}
-	if len(meta) > 0 {
-		stream.Meta = meta
-	}
-	return stream
 }
 
 func streamInterruptFromInfo(info *adk.InterruptInfo) *core.StreamInterrupt {

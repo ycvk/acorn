@@ -61,7 +61,7 @@ func TestLoadExpandsHomeConfigPath(t *testing.T) {
     base_url: https://example.invalid/v1
     api_key: test
     temperature: 0.3
-    max_completion_tokens: 100
+    max_output_tokens: 100
     timeout_seconds: 30
     enabled: true
 web:
@@ -99,7 +99,7 @@ func TestLoadExpandsProviderAPIKeyEnvironment(t *testing.T) {
     base_url: https://example.invalid/v1
     api_key: ${ACORN_TEST_API_KEY}
     temperature: 0.3
-    max_completion_tokens: 100
+    max_output_tokens: 100
     timeout_seconds: 30
     enabled: true
 web:
@@ -174,7 +174,7 @@ func TestLoadDefaultsToHomeAcorn(t *testing.T) {
     base_url: https://example.invalid/v1
     api_key: test
     temperature: 0.3
-    max_completion_tokens: 100
+    max_output_tokens: 100
     timeout_seconds: 30
     enabled: true
 web:
