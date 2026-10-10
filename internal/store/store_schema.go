@@ -4,58 +4,25 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"log/slog"
 	"strings"
 
 	"github.com/ycvk/acorn/internal/core"
 )
 
-func (s *Store) migrate() error {
+func (s *Store) createSchema() error {
 	if _, err := s.db.Exec(storeBootstrapTables); err != nil {
-		return fmt.Errorf("migrate sqlite schema (tables): %w", err)
-	}
-	if err := s.migrateV3(); err != nil {
-		return fmt.Errorf("migrate v3: %w", err)
-	}
-	if err := s.migrateV5(); err != nil {
-		return fmt.Errorf("migrate v5: %w", err)
+		return fmt.Errorf("create sqlite schema (tables): %w", err)
 	}
 	if err := s.validateSchema(); err != nil {
 		return err
 	}
-	if err := s.migratePersonalMemory(); err != nil {
+	if err := s.createMemorySchema(); err != nil {
 		return err
 	}
 	if _, err := s.db.Exec(storeBootstrapIndexes); err != nil {
-		return fmt.Errorf("migrate sqlite schema (indexes): %w", err)
-	}
-	if err := s.migrateV4(); err != nil {
-		return fmt.Errorf("migrate v4: %w", err)
+		return fmt.Errorf("create sqlite schema (indexes): %w", err)
 	}
 	return nil
-}
-
-// migrateV4 indexes runs that existed before runs_fts and its triggers.
-func (s *Store) migrateV4() error {
-	const version = "v4_runs_fts_backfill"
-	if migrationApplied(s.db, version) {
-		return nil
-	}
-	if _, err := s.db.Exec(`INSERT INTO runs_fts(run_id, input_text, output_text)
-		SELECT run_id, input_text, output_text FROM runs
-		WHERE run_id NOT IN (SELECT run_id FROM runs_fts)`); err != nil {
-		return fmt.Errorf("backfill runs_fts: %w", err)
-	}
-	if _, err := s.db.Exec("INSERT INTO schema_migrations (version, applied_at) VALUES (?, datetime('now'))", version); err != nil {
-		return fmt.Errorf("record migration %s: %w", version, err)
-	}
-	return nil
-}
-
-func (s *Store) migrateV3() error {
-	// Drops session_messages.content_parts from databases created while it was
-	// part of the bootstrap schema.
-	return s.dropColumnIfExists("session_messages", "content_parts", "v3_session_messages_drop_content_parts")
 }
 
 func (s *Store) validateSchema() error {
@@ -80,7 +47,6 @@ var schemaRequiredTables = map[string][]string{
 	"devices":             {"device_id", "name", "platform", "token_hash", "created_at", "last_seen_at", "revoked_at"},
 	"pairing_codes":       {"code_hash", "expires_at", "used_at", "created_at"},
 	"artifacts":           {"artifact_id", "run_id", "session_id", "source_tool_result_ref", "kind", "title", "mime_type", "relative_path", "size_bytes", "sha256", "created_at"},
-	"schema_migrations":   {"version", "applied_at"},
 	"agent_checkpoints":   {"checkpoint_id", "data", "updated_at"},
 	"context_snapshots":   {"hash", "content", "created_at"},
 	"push_tokens":         {"device_id", "token", "updated_at"},
@@ -165,44 +131,6 @@ func (s *Store) journalMode() (string, error) {
 		return "", fmt.Errorf("query sqlite pragma %q: %w", `PRAGMA journal_mode;`, err)
 	}
 	return strings.TrimSpace(mode), nil
-}
-
-// dropColumnIfExists drops a column from a table idempotently, recording the
-// migration version in schema_migrations so it is not re-run. A table that
-// never had the column is recorded as a successful no-op.
-func (s *Store) dropColumnIfExists(table, column, versionKey string) error {
-	if migrationApplied(s.db, versionKey) {
-		return nil
-	}
-	columns, err := s.tableColumns(table)
-	if err != nil {
-		return err
-	}
-	if _, ok := columns[column]; ok {
-		if _, err := s.db.Exec(fmt.Sprintf("ALTER TABLE %s DROP COLUMN %s", table, column)); err != nil {
-			return fmt.Errorf("drop column %s.%s: %w", table, column, err)
-		}
-	}
-	if _, err := s.db.Exec("INSERT INTO schema_migrations (version, applied_at) VALUES (?, datetime('now'))", versionKey); err != nil {
-		return fmt.Errorf("record migration %s: %w", versionKey, err)
-	}
-	return nil
-}
-
-// migrationApplied reports whether a schema migration version has already been
-// recorded in schema_migrations. A missing schema_migrations table on a fresh
-// database is benign (the migrations have not run yet); any other scan error
-// is surfaced so a real failure is not silently treated as "not applied".
-func migrationApplied(db *sql.DB, version string) bool {
-	var count int
-	row := db.QueryRow("SELECT COUNT(*) FROM schema_migrations WHERE version = ?", version)
-	if err := row.Scan(&count); err != nil {
-		if !strings.Contains(err.Error(), "no such table") {
-			slog.Error("migrationApplied: unexpected schema_migrations scan error", "version", version, "error", err)
-		}
-		return false
-	}
-	return count > 0
 }
 
 // rollbackOnErr rolls back a transaction if the surrounding function returned

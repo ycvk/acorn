@@ -87,32 +87,3 @@ func (s *Store) LastRoutineAt(ctx context.Context, routine, beforeSlot string) (
 	}
 	return parseTimestamp(fixedTimestampLayout, at, "routine_runs.created_at")
 }
-
-// migrateV5 atomically carries over briefing claims and retires their table.
-func (s *Store) migrateV5() (err error) {
-	ctx := context.Background()
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("begin routine migration: %w", err)
-	}
-	defer rollbackOnErr(tx, &err, "routine migration")
-	var applied int
-	if err = tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM schema_migrations WHERE version='v5_routine_runs'`).Scan(&applied); err != nil {
-		return err
-	}
-	if applied == 0 {
-		var exists int
-		if err = tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='briefings'`).Scan(&exists); err != nil {
-			return err
-		}
-		if exists > 0 {
-			if _, err = tx.ExecContext(ctx, `INSERT INTO routine_runs (routine, slot, thread_id, run_id, created_at) SELECT 'briefing', day, thread_id, run_id, created_at FROM briefings; DROP TABLE briefings`); err != nil {
-				return fmt.Errorf("migrate briefing claims: %w", err)
-			}
-		}
-		if _, err = tx.ExecContext(ctx, `INSERT INTO schema_migrations(version,applied_at) VALUES ('v5_routine_runs',datetime('now'))`); err != nil {
-			return err
-		}
-	}
-	return tx.Commit()
-}

@@ -104,7 +104,7 @@ memory:
 
 `daily_tokens` bounds background memory processing; 0 is unlimited. Processing pauses until the next owner-local day when its budget is exhausted. Run-time retrieval, thread summaries and compaction are recorded against that run. `acorn doctor` shows pending and failed processing, oldest queued work, the last completed job, the index generation and its state. A missing model or Voyage key leaves pairing and diagnostics available while execution reports its readiness error.
 
-Before upgrading the memory schema, finish or explicitly cancel active and interrupted runs, then stop Acorn. Use the candidate release binary to run `./acorn memory preflight -c ~/.acorn/acorn.yaml --json` before replacing the installed executable. This checks SQLite integrity and pending work through a read-only connection. Startup migrates stored memories and appointment states transactionally; queued historical processing continues after startup. Existing owner data, persona, devices and knowledge files retain their ownership. An existing installer environment file is preserved; add `VOYAGE_API_KEY` to it before enabling execution.
+An existing installer environment file is preserved; add `VOYAGE_API_KEY` to it before enabling execution.
 
 To change embedding model or dimensions, edit the configuration, stop all Acorn processes and rebuild:
 

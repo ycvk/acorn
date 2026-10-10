@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/ycvk/acorn/internal/config"
@@ -26,15 +27,20 @@ func runInit(_ context.Context, args []string) error {
 	force := fs.Bool("force", false, "overwrite an existing config file")
 	printOnly := fs.Bool("print", false, "write the starter config to stdout instead of a file")
 	personaOnly := fs.Bool("persona-only", false, "only write the default persona next to an existing config")
+	storageDir := fs.String("storage-dir", "", "absolute directory for runtime storage and the workspace root")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	if *personaOnly {
 		return writeDefaultPersona(*configPath)
 	}
+	body, err := initConfig(*storageDir)
+	if err != nil {
+		return err
+	}
 
 	if *printOnly {
-		fmt.Print(initConfigTemplate)
+		fmt.Print(body)
 		return nil
 	}
 
@@ -57,7 +63,7 @@ func runInit(_ context.Context, args []string) error {
 	if err := os.MkdirAll(filepath.Dir(absPath), 0o700); err != nil {
 		return fmt.Errorf("create config dir %s: %w", filepath.Dir(absPath), err)
 	}
-	if err := os.WriteFile(absPath, []byte(initConfigTemplate), 0o600); err != nil {
+	if err := os.WriteFile(absPath, []byte(body), 0o600); err != nil {
 		return fmt.Errorf("write config %s: %w", absPath, err)
 	}
 
@@ -67,6 +73,28 @@ func runInit(_ context.Context, args []string) error {
 	}
 	fmt.Println("Next: set OPENAI_API_KEY and VOYAGE_API_KEY in your environment, then run 'acorn doctor' and 'acorn smoke \"hello\"'.")
 	return nil
+}
+
+// initConfig returns the starter config. A storage dir, as used by the release
+// installer, holds both runtime storage and the workspace root.
+func initConfig(storageDir string) (string, error) {
+	if storageDir == "" {
+		return initConfigTemplate, nil
+	}
+	if !filepath.IsAbs(storageDir) {
+		return "", fmt.Errorf("--storage-dir must be an absolute path: %s", storageDir)
+	}
+	body := initConfigTemplate
+	for _, line := range []struct{ old, key string }{
+		{"  storage_dir: ~/.acorn\n", "  storage_dir: "},
+		{"    root_dir: ~/.acorn/workspace\n", "    root_dir: "},
+	} {
+		if !strings.Contains(body, line.old) {
+			return "", fmt.Errorf("init template is missing %q", strings.TrimSpace(line.old))
+		}
+		body = strings.Replace(body, line.old, line.key+strconv.Quote(storageDir)+"\n", 1)
+	}
+	return body, nil
 }
 
 // writeDefaultPersona writes the default persona into the storage dir of the

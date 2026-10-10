@@ -61,7 +61,6 @@ func usageText() string {
 Usage:
   acorn init [-c path] [--force] [--print]
   acorn doctor [-c path] [--json]
-  acorn memory preflight [-c path] [--json]
   acorn memory reindex [-c path] [--json]
   acorn skills list [-c path] [--json]
   acorn skills inspect [-c path] [--json] SKILL_ID

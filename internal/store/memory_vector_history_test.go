@@ -43,57 +43,6 @@ func historyVectorRevisions(t *testing.T, db *Store) (core.MemoryRecord, core.Me
 	return revised[0], first, second
 }
 
-func TestMemoryVectorHistoryMigrationRetainsCurrentAndSchedulesPast(t *testing.T) {
-	dir := t.TempDir()
-	db, err := Open(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	record, _, _ := historyVectorRevisions(t, db)
-	// Build the single-revision index layout as an upgrade fixture.
-	_, err = db.db.Exec(`DROP TABLE memory_vector_sketches;
-ALTER TABLE memory_embeddings RENAME TO vector_fixture;
-CREATE TABLE memory_embeddings(record_id TEXT NOT NULL REFERENCES memory_records(id),revision INTEGER NOT NULL,generation INTEGER NOT NULL,dimensions INTEGER NOT NULL,vector BLOB NOT NULL,PRIMARY KEY(record_id,generation));
-INSERT INTO memory_embeddings SELECT * FROM vector_fixture WHERE revision=2;
-DROP TABLE vector_fixture;
-CREATE TABLE memory_vector_sketches(generation INTEGER NOT NULL,record_id TEXT NOT NULL,revision INTEGER NOT NULL,dimensions INTEGER NOT NULL,scale REAL NOT NULL,codes BLOB NOT NULL,PRIMARY KEY(generation,record_id),FOREIGN KEY(record_id,generation) REFERENCES memory_embeddings(record_id,generation) ON DELETE CASCADE);
-INSERT INTO memory_vector_sketches SELECT generation,record_id,revision,dimensions,1.0/127,X'007f' FROM memory_embeddings;
-DELETE FROM schema_migrations WHERE version='v7_memory_revision_vectors';`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := db.Close(); err != nil {
-		t.Fatal(err)
-	}
-	db, err = Open(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-	ctx := context.Background()
-	current, err := db.MemoryVectorsByIDs(ctx, 1, []string{record.ID}, time.Time{})
-	if err != nil || len(current) != 1 || current[0].Revision != 2 || current[0].Values[1] != 1 {
-		t.Fatalf("current vector=%+v %v", current, err)
-	}
-	job, err := db.ClaimMemoryJob(ctx, memoryTestNow.Add(2*time.Minute), time.Minute, "embed")
-	if err != nil || job == nil || job.Version != "1" {
-		t.Fatalf("historical rebuild job=%+v %v", job, err)
-	}
-	if err := db.CompleteMemoryIndex(ctx, 1); err == nil {
-		t.Fatal("historical embedding gap was accepted")
-	}
-	if err := db.SaveMemoryVectors(ctx, *job, []core.MemoryVector{{ID: record.ID, Revision: 1, Generation: 1, Values: []float32{1, 0}}}, memoryTestNow.Add(2*time.Minute)); err != nil {
-		t.Fatal(err)
-	}
-	if err := db.CompleteMemoryIndex(ctx, 1); err != nil {
-		t.Fatal(err)
-	}
-	past, err := db.MemoryVectorSketches(ctx, 1, "", 512, memoryTestNow)
-	if err != nil || len(past) != 1 || past[0].Revision != 1 {
-		t.Fatalf("past=%+v %v", past, err)
-	}
-}
-
 func TestMemoryHistoricalVectorsAreRemovedWhenTheirEvidenceIsForgotten(t *testing.T) {
 	db := openTestStore(t)
 	record, first, _ := historyVectorRevisions(t, db)

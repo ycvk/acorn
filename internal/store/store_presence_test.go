@@ -2,8 +2,6 @@ package store
 
 import (
 	"context"
-	"database/sql"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -11,45 +9,6 @@ import (
 
 	"github.com/ycvk/acorn/internal/core"
 )
-
-func TestRunsFTSBackfillsExistingRuns(t *testing.T) {
-	dir := filepath.Join(t.TempDir(), "state")
-	s, err := Open(dir)
-	if err != nil {
-		t.Fatalf("open: %v", err)
-	}
-	if err := s.CreateRun(context.Background(), core.RunCreateParams{RunID: "run_old", Input: "an older conversation"}); err != nil {
-		t.Fatalf("create run: %v", err)
-	}
-	if err := s.Close(); err != nil {
-		t.Fatalf("close: %v", err)
-	}
-	// Simulate a database from before runs_fts existed.
-	db, err := sql.Open("sqlite", filepath.Join(dir, "acorn.db"))
-	if err != nil {
-		t.Fatalf("raw open: %v", err)
-	}
-	for _, stmt := range []string{
-		`DROP TRIGGER runs_fts_ai`, `DROP TRIGGER runs_fts_au`, `DROP TABLE runs_fts`,
-		`DELETE FROM schema_migrations WHERE version = 'v4_runs_fts_backfill'`,
-	} {
-		if _, err := db.Exec(stmt); err != nil {
-			t.Fatalf("%s: %v", stmt, err)
-		}
-	}
-	_ = db.Close()
-
-	s, err = Open(dir)
-	if err != nil {
-		t.Fatalf("reopen: %v", err)
-	}
-	defer func() { _ = s.Close() }()
-	var id string
-	err = s.db.QueryRow(`SELECT run_id FROM runs_fts WHERE runs_fts MATCH '"older"'`).Scan(&id)
-	if err != nil || id != "run_old" {
-		t.Fatalf("indexed run=%s err=%v", id, err)
-	}
-}
 
 func TestPushTokensFollowDeviceRevocation(t *testing.T) {
 	s := openTestStore(t)

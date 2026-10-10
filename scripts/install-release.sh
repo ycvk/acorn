@@ -109,79 +109,6 @@ download_release_files() {
 	curl -fsSL -o "$work_dir/$package.tar.gz.sha256" "$url_base.tar.gz.sha256"
 }
 
-write_config_template() {
-	target=$1
-	cat > "$target" <<'EOF'
-providers:
-  - name: default
-    api: responses
-    model: gpt-6-astra
-    base_url: https://api.openai.com/v1
-    api_key: ${OPENAI_API_KEY}
-    timeout_seconds: 0
-    idle_timeout_seconds: 300
-    max_output_tokens: 128000
-    enabled: true
-runtime:
-  storage_dir: /srv/acorn/workspace
-web:
-  listen_addr: 127.0.0.1:8080
-approval:
-  # Tool-name glob patterns whose calls pause for owner approval on the phone.
-  require:
-    - browser
-    - "mcp__*"
-owner:
-  # IANA timezone used to show times and to read wake times given in local time,
-  # e.g. Asia/Shanghai.
-  timezone: UTC
-
-memory:
-  daily_tokens: 100000
-  batch_tokens: 8192
-  context_tokens: 8192
-  history_tokens: 32768
-  embedding:
-    base_url: https://api.voyageai.com/v1
-    api_key: ${VOYAGE_API_KEY}
-    model: voyage-4
-    dimensions: 1024
-
-presence:
-  # Token cap for the working-memory block shown to the model before each call.
-  max_tokens: 4000
-
-wake:
-  # Commitment wakes allowed per local day; 0 turns autonomous wakes off.
-  daily_limit: 20
-  daily_tokens: 0
-thinking:
-  night_at: "03:00"
-  wander_at: []
-
-notify:
-  max_per_hour: 6
-  # Notifications inside this window wait until it ends (owner timezone).
-  quiet_hours:
-    start: "23:00"
-    end: "08:00"
-  fcm:
-    # Firebase service account key file; empty disables push notifications.
-    service_account_file: ""
-context:
-  window_tokens: 1050000
-  compact_margin_tokens: 32000
-  mask_after_turns: 8
-agent:
-  name: acorn
-  description: Self-hosted AI agent
-  max_iterations: 100
-tools:
-  workspace:
-    root_dir: /srv/acorn/workspace
-EOF
-}
-
 write_service_template() {
 	target=$1
 	cat > "$target" <<EOF
@@ -272,11 +199,9 @@ download_release_files
 )
 
 package_dir=$work_dir/$package
-config_template=$work_dir/acorn.yaml
 env_template=$work_dir/acorn.env
 service_template=$work_dir/acorn.service
 wrapper_template=$work_dir/acorn-wrapper
-write_config_template "$config_template"
 write_env_template "$env_template"
 write_service_template "$service_template"
 cat > "$wrapper_template" <<EOF
@@ -336,7 +261,7 @@ exec "\$bin" "\$@"' sh "\$env_path" "\$bin" "\$@"
 
 if [ "\$#" -gt 0 ]; then
 	case "\$1" in
-		decision|doctor|memory|pair|token|devices|skills|smoke)
+		doctor|memory|pair|token|devices|skills|smoke)
 			command_name=\$1
 			shift
 			if ! has_config_flag "\$@"; then
@@ -358,11 +283,11 @@ run_root install -m 0755 "$wrapper_template" "$wrapper_path"
 install_packaged_skills "$package_dir/skills" "$skills_dir"
 
 if [ ! -e "$config_path" ]; then
-	run_root install -m 0644 -o "$service_user" -g "$service_group" "$config_template" "$config_path"
+	run_root runuser -u "$service_user" -- env HOME="$service_home" "$bin_path" init -c "$config_path" --storage-dir "$workspace_dir"
 else
 	log "Keeping existing config: $config_path"
+	run_root runuser -u "$service_user" -- env HOME="$service_home" "$bin_path" init -c "$config_path" --persona-only
 fi
-run_root runuser -u "$service_user" -- env HOME="$service_home" "$bin_path" init -c "$config_path" --persona-only
 
 if [ ! -e "$env_path" ]; then
 	run_root install -m 0600 -o "$service_user" -g "$service_group" "$env_template" "$env_path"

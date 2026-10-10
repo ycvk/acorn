@@ -6,7 +6,7 @@
 
 - **core 有零内部导入**：`internal/core` 不导入任何 `github.com/ycvk/acorn/internal/*` 包；core 是 Layer 0，只依赖外部 SDK（Eino schema/adk）。
   - `tests/architecture/dependency_direction_test.go`
-- **core 拥有 11 个 store 接口**：`SessionStore`/`IdentityStore`/`ArtifactStore`/`MemoryStore`/`CommitmentStore`/`ActivityStore`/`NotificationStore`/`KnowledgeStore`/`WatchStore`/`RoutineStore`/`PhoneNotificationStore` 是 core 定义的 consumer-owned 持久化接口。
+- **持久化接口归 core**：各业务包依赖的 store 接口由 core 定义，`*store.Store` 在编译期断言实现它们。
   - `internal/core/store.go`
   - `internal/core/presence.go`
   - `internal/core/knowledge.go`
@@ -32,17 +32,18 @@
   - `internal/runtime/approval_test.go`
   - `internal/store/store_checkpoint_test.go`
 
+- **Decision Card 扩展 ask_operator payload**：`OperatorQuestionPayload` 增 `considered_options/rationale/risk/recommendation` 可选维度。它给 `ask_operator` 的提问补上决策依据；工具调用审批由 `approval.require` 规则和 approval middleware 负责。
+  - `internal/core/decision_card_test.go`
+
 ## 持久化与 store 边界
 
-- **SQLite adapter 不跨层泄漏**：production 代码只允许 `internal/wire` 直接 import `internal/store`；其他包只依赖 consumer-owned ports（`core.SessionStore`/`core.IdentityStore`/`core.ArtifactStore`/`core.MemoryStore`/`core.CommitmentStore`/`core.ActivityStore`/`core.NotificationStore`/`core.KnowledgeStore`/`core.WatchStore`）或 `internal/store` shared records/errors。
+- **SQLite adapter 不跨层泄漏**：production 代码只允许 `internal/wire` 直接 import `internal/store`；其他包只依赖 core 定义的接口或 `internal/store` 导出的记录与错误。
   - `tests/architecture/dependency_direction_test.go`
 - **写入单连接，记忆读取并行**：所有写入与事务经一个 SQLite 连接串行执行；记忆召回与整合候选的读取走 `query_only` 的 WAL 只读连接池，写事务进行中也能读到已提交的数据，只读池拒绝写入。
   - `internal/store/store_read_pool_test.go`
 - **时间由调用方给出**：记忆与约定的 created_at/recorded_at/updated_at 与 `notifications` 的 created_at 由写入方的时钟决定，store 拒绝缺少时间的写入；时钟只在组合根注入，工具、presence、wake 调度器与推送 sender 共用一个。
   - `internal/store/store_presence_test.go`
   - `internal/wire/wake_acceptance_e2e_test.go`
-- **Consumer-owned store 接口收敛**：`internal/runtime` + `internal/wire` 顶层定义的 consumer-owned store 接口（Store/Port/Repository/Ledger）≤4（RuntimeStore）。
-  - `tests/architecture/store_interface_count_test.go`
 
 ## 上下文与记忆
 
@@ -67,6 +68,13 @@
   - `internal/store/memory_vector_history_test.go`
   - `internal/store/memory_aliases_test.go`
   - `internal/memory/read_test.go`
+- **记忆检索融合四路候选**：关键词、向量、关系与时间采用 RRF 排名，deep 调用主模型核对相关性；结果保留事实、认识、念头的类型和来源。当前状态、历史已知时间、有效时间与线程范围分别过滤；语义候选在排名前选定对应 revision，明确别名按来源和范围展开；未整理来源及数量显式返回。
+  - `internal/store/memory_state_test.go`
+  - `internal/memory/process_test.go`
+  - `internal/memory/live_evaluation_test.go`
+  - `internal/memory/consolidation_revision_test.go`
+  - `internal/memory/semantic_history_test.go`
+  - `internal/memory/research_evaluation_test.go`
 - **知识记忆绑定不可变版本**：Git 提交游标登记知识来源，展开读取对应 Git 对象；agent 输出保留来源关系，后续派生输出继承已提交的遗忘。agent 知识工具过滤排除，owner 的原文读取保留。
   - `internal/knowledge/memory_sources_test.go`
 
@@ -96,7 +104,7 @@
 - **Mobile 是 control surface 不是 runtime**：mobile 不执行 run、不持 runtime truth、不做 offline-first run execution、不维护第二套 message lifecycle；context pressure/boundary/run status 都消费后端 projection。
   - `mobile-kotlin/app/src/test/...`（JUnit）
 
-## 约定与唤醒
+## 约定、唤醒与追踪
 
 - **约定发生只认领一次，执行前绑定来源**：约定规则与 occurrence 独立。条件认领后，Executor 在模型调用前绑定执行 run；周期沿同一规则排下一次。五分钟未绑定的认领可恢复，迟到启动受状态校验拦截。完成约定必须引用 owner 确认或成功执行结果。
   - `internal/store/commitment_contract_test.go`
@@ -109,15 +117,6 @@
   - `internal/store/store_presence_test.go`
   - `internal/api/push_token_handler_test.go`
   - `internal/wire/wake_acceptance_e2e_test.go`
-- **Decision Card 扩展 ask_operator payload**：`OperatorQuestionPayload` 增 `considered_options/rationale/risk/recommendation` 可选维度。它给 `ask_operator` 的提问补上决策依据；工具调用审批由 `approval.require` 规则和 approval middleware 负责。
-  - `internal/core/decision_card_test.go`
-- **记忆检索融合四路候选**：关键词、向量、关系与时间采用 RRF 排名，deep 调用主模型核对相关性；结果保留事实、认识、念头的类型和来源。当前状态、历史已知时间、有效时间与线程范围分别过滤；语义候选在排名前选定对应 revision，明确别名按来源和范围展开；未整理来源及数量显式返回。
-  - `internal/store/memory_state_test.go`
-  - `internal/memory/process_test.go`
-  - `internal/memory/live_evaluation_test.go`
-  - `internal/memory/consolidation_revision_test.go`
-  - `internal/memory/semantic_history_test.go`
-  - `internal/memory/research_evaluation_test.go`
 - **追踪项只报新东西**：`watch_create` 的首次抓取失败则不建立；成功的首次检查只建基线（条目记 baseline），之后的检查才产生新条目。条目按 (watch, key) 唯一，同一条目只入库一次；网页类追踪项比较选中内容的快照，变化产生一条带前后值的条目，回到旧值同样算变化。
   - `internal/watch/watch_test.go`
   - `internal/store/store_watch_test.go`
@@ -132,12 +131,6 @@
   - `internal/wake/watches_test.go`
   - `internal/store/store_watch_test.go`
   - `internal/wire/watch_acceptance_e2e_test.go`
-
-
-## 代码规范
-
-- **Error 分两类**：Exported sentinel error（需要被 `errors.Is` 比对）必须是包级 `var ErrXxx`；precondition/internal-config error（不该发生的编程错误）用 inline `errors.New("...")` 直接返回。`.golangci.yml` 的 `errname` linter 强制导出 sentinel 命名。
-  - `.golangci.yml`（errname linter）
 
 ## 空闲思考、用量与手机通知
 

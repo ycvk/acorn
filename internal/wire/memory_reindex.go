@@ -32,7 +32,3 @@ func ReindexMemory(ctx context.Context, cfg *config.Config) (core.MemoryIndex, e
 	}
 	return db.MemoryIndex(ctx)
 }
-
-func PreflightMemory(ctx context.Context, cfg *config.Config) (core.MemoryMigrationReport, error) {
-	return store.PreflightMemoryMigration(ctx, cfg.Runtime.StorageDir)
-}
