@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/knowledge"
 )
 
@@ -132,7 +133,7 @@ func captureRunInput(subject string, links []string, text, image string) string 
 		lines = append(lines, "Text:", rest)
 	}
 	if image != "" {
-		lines = append(lines, "Image: "+image)
+		lines = append(lines, core.CaptureImagePrefix+image)
 	}
 	return strings.Join(lines, "\n")
 }

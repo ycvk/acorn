@@ -135,6 +135,9 @@ func buildRuntimeDeps(cfg *config.Config, store RuntimeStore, opts RunnerFactory
 	if opts.Loader == nil {
 		return RuntimeDeps{}, errors.New("skill loader is required")
 	}
+	if opts.Attachments == nil {
+		return RuntimeDeps{}, errors.New("attachment reader is required")
+	}
 	if opts.Activity == nil || opts.MemoryStore == nil || opts.Commitments == nil || opts.PhoneNotifications == nil || opts.Clock == nil {
 		return RuntimeDeps{}, errors.New("presence, phone notifications and clock are required")
 	}
@@ -153,6 +156,7 @@ func buildRuntimeDeps(cfg *config.Config, store RuntimeStore, opts RunnerFactory
 		MemoryStore:        opts.MemoryStore,
 		Memory:             opts.Memory,
 		Commitments:        opts.Commitments,
+		Attachments:        opts.Attachments,
 		PhoneNotifications: opts.PhoneNotifications,
 		Clock:              opts.Clock,
 		Location:           location,
@@ -268,6 +272,7 @@ type RunnerFactoryOptions struct {
 	MemoryStore           core.MemoryStore
 	Memory                MemoryContextService
 	Commitments           core.CommitmentStore
+	Attachments           core.AttachmentReader
 	Clock                 func() time.Time
 }
 
