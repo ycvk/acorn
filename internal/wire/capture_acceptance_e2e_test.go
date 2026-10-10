@@ -3,6 +3,7 @@ package wire
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -13,6 +14,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -194,7 +196,7 @@ func TestSharedLinkBecomesACommittedNote(t *testing.T) {
 }
 
 func TestSharedImageIsStoredBeforeTheRunAndServedToTheOwner(t *testing.T) {
-	provider := &fakeOpenAI{replies: []string{textReply("收到图片")}}
+	provider := &fakeOpenAI{replies: []string{textReply("收到图片"), textReply("图里是白板")}}
 	server := httptest.NewServer(provider)
 	defer server.Close()
 	cfg := writeTestConfig(t, server.URL, "")
@@ -230,6 +232,35 @@ func TestSharedImageIsStoredBeforeTheRunAndServedToTheOwner(t *testing.T) {
 	if rec.Code != http.StatusOK || rec.Header().Get("Content-Type") != "image/png" || !bytes.Equal(rec.Body.Bytes(), png) {
 		t.Fatalf("served attachment: status %d type %q", rec.Code, rec.Header().Get("Content-Type"))
 	}
+
+	// The model sees the picture with the capture, and again on a follow-up turn.
+	dataURL := "data:image/png;base64," + base64.StdEncoding.EncodeToString(png)
+	if got := requestImageURLs(provider.request(0)); !slices.Equal(got, []string{dataURL}) {
+		t.Fatalf("capture request images = %d, want the shared image", len(got))
+	}
+	first := waitNewRun(t, c, accepted.ThreadID, "")
+	if _, err := c.runs.CreateRun(context.Background(), accepted.ThreadID, "", "图里写了什么？"); err != nil {
+		t.Fatal(err)
+	}
+	waitNewRun(t, c, accepted.ThreadID, first.RunID)
+	if got := requestImageURLs(provider.request(provider.requestCount() - 1)); !slices.Equal(got, []string{dataURL}) {
+		t.Fatalf("follow-up request images = %d, want the shared image", len(got))
+	}
+}
+
+// requestImageURLs lists the image URLs a chat completions request sends.
+func requestImageURLs(request map[string]any) []string {
+	var urls []string
+	for _, msg := range requestMessages(request) {
+		parts, _ := msg["content"].([]any)
+		for _, raw := range parts {
+			part, _ := raw.(map[string]any)
+			if image, ok := part["image_url"].(map[string]any); ok {
+				urls = append(urls, image["url"].(string))
+			}
+		}
+	}
+	return urls
 }
 
 // newPrivateNetworkServer serves handler on this machine's first private

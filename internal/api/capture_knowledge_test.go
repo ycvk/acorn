@@ -69,14 +69,14 @@ func (k *knowledgeFake) Read(_ context.Context, path string) (core.KnowledgeNote
 
 const knowledgeFakeAttachment = "attachments/2026/10/0123456789abcdef.png"
 
-func (k *knowledgeFake) ReadAttachment(_ context.Context, path string) (knowledge.Attachment, error) {
+func (k *knowledgeFake) ReadAttachment(_ context.Context, path string) (core.Attachment, error) {
 	switch {
 	case path == knowledgeFakeAttachment:
-		return knowledge.Attachment{MIME: "image/png", Data: pngHeader}, nil
+		return core.Attachment{MIME: "image/png", Data: pngHeader}, nil
 	case strings.HasPrefix(path, "attachments/"):
-		return knowledge.Attachment{}, fmt.Errorf("%w: %s", knowledge.ErrAttachmentNotFound, path)
+		return core.Attachment{}, fmt.Errorf("%w: %s", knowledge.ErrAttachmentNotFound, path)
 	default:
-		return knowledge.Attachment{}, fmt.Errorf("%w: %s", knowledge.ErrInvalidPath, path)
+		return core.Attachment{}, fmt.Errorf("%w: %s", knowledge.ErrInvalidPath, path)
 	}
 }
 

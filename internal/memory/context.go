@@ -48,7 +48,7 @@ func (e *Engine) History(ctx context.Context, session string, through int64, bud
 			if err != nil {
 				return out, err
 			}
-			n += 64
+			n += 64 + captureImageTokens(m)
 			if len(out.Messages) == 0 && n <= budget {
 				summaryBudget = min(summaryBudget, budget-n)
 				recentBudget = budget - summaryBudget
@@ -259,4 +259,13 @@ func (e *Engine) summarizeLargeMessage(ctx context.Context, prefix string, m cor
 		offset = next
 	}
 	return prefix, nil
+}
+
+// captureImageTokens is what the images a capture message carries to the model
+// add to its size.
+func captureImageTokens(m core.SessionMessageRecord) int {
+	if m.Role != core.MessageRoleCapture {
+		return 0
+	}
+	return core.ImageInputTokens * len(core.CaptureImagePaths(m.Content))
 }

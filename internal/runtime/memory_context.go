@@ -3,6 +3,7 @@ package runtime
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -32,6 +33,7 @@ type runMemory struct {
 	instruction string
 	epoch       atomic.Int64
 	history     memory.History
+	images      map[int64][]*schema.UserInputImage
 	recall      core.MemoryRecall
 	current     []core.MemorySource
 	budget      int
@@ -85,6 +87,7 @@ func prepareRunMemory(ctx context.Context, deps RuntimeDeps, req RunnerBuildRequ
 	if err != nil {
 		return nil, err
 	}
+	inputTokens += core.ImageInputTokens * len(core.CaptureImagePaths(current[0].Content))
 	memoryBudget := min(deps.Config.Memory.ContextTokens, max(256, (available-inputTokens-512)/3))
 	historyBudget := min(available-memoryBudget, max(deps.Config.Memory.HistoryTokens, inputTokens+128))
 	if historyBudget < 256 || available <= inputTokens+512 {
@@ -93,6 +96,10 @@ func prepareRunMemory(ctx context.Context, deps RuntimeDeps, req RunnerBuildRequ
 	history, err := deps.Memory.History(ctx, req.SessionID, through, historyBudget)
 	if err != nil {
 		return nil, fmt.Errorf("thread history: %w", err)
+	}
+	images, err := captureImages(ctx, deps.Attachments, history.Messages)
+	if err != nil {
+		return nil, err
 	}
 	query := current[0].Content
 	if req.Wake != "" {
@@ -107,7 +114,7 @@ func prepareRunMemory(ctx context.Context, deps RuntimeDeps, req RunnerBuildRequ
 	if err != nil {
 		return nil, fmt.Errorf("automatic recall: %w", err)
 	}
-	m := &runMemory{instruction: instruction, history: history, recall: recall, current: current, budget: memoryBudget, service: deps.Memory, store: deps.MemoryStore, activity: deps.Activity, runID: req.RunID, counter: counter, clock: deps.Clock}
+	m := &runMemory{instruction: instruction, history: history, images: images, recall: recall, current: current, budget: memoryBudget, service: deps.Memory, store: deps.MemoryStore, activity: deps.Activity, runID: req.RunID, counter: counter, clock: deps.Clock}
 	if recall.Epoch != history.Epoch {
 		return nil, core.ErrMemoryExcluded
 	}
@@ -130,6 +137,9 @@ func (m *runMemory) messages() []*schema.AgenticMessage {
 			continue
 		}
 		msg := schema.UserAgenticMessage(item.Content)
+		for _, image := range m.images[item.ID] {
+			msg.ContentBlocks = append(msg.ContentBlocks, schema.NewContentBlock(image))
+		}
 		if item.Role == "assistant" {
 			msg = &schema.AgenticMessage{Role: schema.AgenticRoleTypeAssistant, ContentBlocks: []*schema.ContentBlock{{Type: schema.ContentBlockTypeAssistantGenText, AssistantGenText: &schema.AssistantGenText{Text: item.Content}}}}
 		}
@@ -137,6 +147,25 @@ func (m *runMemory) messages() []*schema.AgenticMessage {
 		messages = append(messages, msg)
 	}
 	return messages
+}
+
+// captureImages loads the images that capture messages in history name, so
+// the model sees what the owner shared on every turn of the thread.
+func captureImages(ctx context.Context, attachments core.AttachmentReader, messages []core.SessionMessageRecord) (map[int64][]*schema.UserInputImage, error) {
+	images := map[int64][]*schema.UserInputImage{}
+	for _, msg := range messages {
+		if msg.Role != core.MessageRoleCapture {
+			continue
+		}
+		for _, path := range core.CaptureImagePaths(msg.Content) {
+			attachment, err := attachments.ReadAttachment(ctx, path)
+			if err != nil {
+				return nil, fmt.Errorf("capture image for message %d: %w", msg.ID, err)
+			}
+			images[msg.ID] = append(images[msg.ID], &schema.UserInputImage{Base64Data: base64.StdEncoding.EncodeToString(attachment.Data), MIMEType: attachment.MIME})
+		}
+	}
+	return images, nil
 }
 
 func (m *runMemory) render(ctx context.Context) (string, error) {

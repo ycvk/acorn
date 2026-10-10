@@ -50,6 +50,7 @@ type RuntimeDeps struct {
 	MemoryStore        core.MemoryStore
 	Memory             MemoryContextService
 	Commitments        core.CommitmentStore
+	Attachments        core.AttachmentReader
 	Clock              func() time.Time
 	Location           *time.Location
 }

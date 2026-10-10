@@ -141,6 +141,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 	}
 
 	runnerFactory, err := runtime.NewRunnerFactory(cfg, db, runtime.RunnerFactoryOptions{
+		Attachments:           vault,
 		Loader:                loader,
 		MCPPendingActionStore: mcpPendingActionStore,
 		ArtifactService:       artifactSvc,

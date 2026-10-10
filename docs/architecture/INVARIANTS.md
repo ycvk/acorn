@@ -85,9 +85,10 @@
   - `internal/store/store_knowledge_test.go`
   - `internal/tools/knowledge_tools_test.go`
   - `internal/wire/capture_acceptance_e2e_test.go`
-- **Capture 是 owner 发起的 run**：`POST /v1/captures` 先把图片（JPEG/PNG/WebP/GIF，≤10 MiB，类型按内容判断）存入 `{storage_dir}/attachments/`，再为这次分享新建线程，以 role `capture` 的输入立即起 run；模型把它当作 user 消息读取，客户端单独显示。capture 不记 `wake.fired`，不计入 `wake.daily_limit`。`GET /v1/knowledge/attachment` 只返回符合 `attachments/YYYY/MM/<16 位 hex>.<jpg|png|webp|gif>` 的文件，其他路径按无效请求拒绝；笔记以 `![描述](attachments/...)` 引用图片。
+- **Capture 是 owner 发起的 run**：`POST /v1/captures` 先把图片（JPEG/PNG/WebP/GIF，≤10 MiB，类型按内容判断）存入 `{storage_dir}/attachments/`，再为这次分享新建线程，以 role `capture` 的输入立即起 run；模型把它当作 user 消息读取，客户端单独显示。capture 不记 `wake.fired`，不计入 `wake.daily_limit`。历史里的 capture 消息把 `Image:` 行指向的附件作为图片输入随消息交给模型，附件读取失败则 run 失败；token 预算按每张 `core.ImageInputTokens` 计。`GET /v1/knowledge/attachment` 只返回符合 `attachments/YYYY/MM/<16 位 hex>.<jpg|png|webp|gif>` 的文件，其他路径按无效请求拒绝；笔记以 `![描述](attachments/...)` 引用图片。
   - `internal/knowledge/knowledge_test.go`
   - `internal/api/capture_knowledge_test.go`
+  - `internal/runtime/tokens_test.go`
   - `internal/wire/capture_acceptance_e2e_test.go`
 
 ## Remote API 与 mobile
