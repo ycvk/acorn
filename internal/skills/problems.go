@@ -2,7 +2,6 @@ package skills
 
 import (
 	"fmt"
-	"path/filepath"
 	"sort"
 	"strings"
 )
@@ -18,9 +17,6 @@ func sortSkills(items []Spec) {
 
 func sortSkillProblems(items []Problem) {
 	sort.Slice(items, func(i, j int) bool {
-		if items[i].Source != items[j].Source {
-			return items[i].Source < items[j].Source
-		}
 		if items[i].Path != items[j].Path {
 			return items[i].Path < items[j].Path
 		}
@@ -40,11 +36,10 @@ func filterDuplicateSkillNames(items []Spec) ([]Spec, []Problem) {
 		}
 		if previousID, ok := seen[key]; ok {
 			problems = append(problems, Problem{
-				ID:     item.ID,
-				Name:   item.Name,
-				Source: item.Source,
-				Path:   item.Path,
-				Error:  fmt.Sprintf("duplicate skill name %q (conflicts with %s)", item.Name, previousID),
+				ID:    item.ID,
+				Name:  item.Name,
+				Path:  item.Path,
+				Error: fmt.Sprintf("duplicate skill name %q (conflicts with %s)", item.Name, previousID),
 			})
 			continue
 		}
@@ -54,27 +49,12 @@ func filterDuplicateSkillNames(items []Spec) ([]Spec, []Problem) {
 	return out, problems
 }
 
-func samePathRoot(left, right string) bool {
-	return filepath.Clean(left) == filepath.Clean(right)
-}
-
-func shadowedSkillProblem(shadowed, winner Spec) Problem {
-	return Problem{
-		ID:     shadowed.ID,
-		Name:   shadowed.Name,
-		Source: shadowed.Source,
-		Path:   shadowed.Path,
-		Error:  fmt.Sprintf("shadowed by %s from %s", winner.ID, winner.Source),
-	}
-}
-
-func skillProblemForDir(dir, scope, id, name, text string) *Problem {
+func skillProblemForDir(dir, id, name, text string) *Problem {
 	return &Problem{
-		ID:     strings.TrimSpace(id),
-		Name:   strings.TrimSpace(name),
-		Source: strings.TrimSpace(scope),
-		Path:   strings.TrimSpace(dir),
-		Error:  strings.TrimSpace(text),
+		ID:    strings.TrimSpace(id),
+		Name:  strings.TrimSpace(name),
+		Path:  strings.TrimSpace(dir),
+		Error: strings.TrimSpace(text),
 	}
 }
 

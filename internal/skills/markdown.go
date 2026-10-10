@@ -8,37 +8,32 @@ import (
 )
 
 type frontmatter struct {
-	ID             string            `yaml:"id"`
-	Name           string            `yaml:"name"`
-	Version        string            `yaml:"version,omitempty"`
-	Category       string            `yaml:"category,omitempty"`
-	Summary        string            `yaml:"summary,omitempty"`
-	PromotedFrom   string            `yaml:"promoted_from,omitempty"`
-	Origin         Origin            `yaml:"origin,omitempty"`
-	TaskPattern    string            `yaml:"task_pattern,omitempty"`
-	Tags           []string          `yaml:"tags,omitempty"`
-	Platforms      []string          `yaml:"platforms,omitempty"`
-	Requires       frontRequirements `yaml:"requires,omitempty"`
-	TriggerHints   []string          `yaml:"trigger_hints,omitempty"`
-	CreatedByRunID string            `yaml:"created_by_run_id,omitempty"`
-	Replaces       []string          `yaml:"replaces,omitempty"`
+	ID           string            `yaml:"id"`
+	Name         string            `yaml:"name"`
+	Version      string            `yaml:"version"`
+	Category     string            `yaml:"category"`
+	Summary      string            `yaml:"summary"`
+	Tags         []string          `yaml:"tags"`
+	Platforms    []string          `yaml:"platforms"`
+	Requires     frontRequirements `yaml:"requires"`
+	TriggerHints []string          `yaml:"trigger_hints"`
 }
 
 type frontRequirements struct {
-	Tools    []string `yaml:"tools,omitempty"`
-	Toolsets []string `yaml:"toolsets,omitempty"`
-	Bins     []string `yaml:"bins,omitempty"`
-	Env      []string `yaml:"env,omitempty"`
+	Tools    []string `yaml:"tools"`
+	Toolsets []string `yaml:"toolsets"`
+	Bins     []string `yaml:"bins"`
+	Env      []string `yaml:"env"`
 }
 
-func parseSkillMarkdown(raw string) (frontmatter, string, string, string, error) {
+func parseSkillMarkdown(raw string) (frontmatter, string, string, error) {
 	text := strings.TrimPrefix(strings.ReplaceAll(raw, "\r\n", "\n"), "\uFEFF")
 	meta, body, err := splitFrontmatter(text)
 	if err != nil {
-		return frontmatter{}, "", "", "", err
+		return frontmatter{}, "", "", err
 	}
 	name, instruction := parseSkillBody(body)
-	return meta, body, name, instruction, nil
+	return meta, name, instruction, nil
 }
 
 func splitFrontmatter(text string) (frontmatter, string, error) {
@@ -59,7 +54,9 @@ func splitFrontmatter(text string) (frontmatter, string, error) {
 	var meta frontmatter
 	frontmatterText := strings.Join(lines[1:end], "\n")
 	if strings.TrimSpace(frontmatterText) != "" {
-		if err := yaml.Unmarshal([]byte(frontmatterText), &meta); err != nil {
+		decoder := yaml.NewDecoder(strings.NewReader(frontmatterText))
+		decoder.KnownFields(true)
+		if err := decoder.Decode(&meta); err != nil {
 			return frontmatter{}, "", fmt.Errorf("invalid frontmatter: %w", err)
 		}
 	}

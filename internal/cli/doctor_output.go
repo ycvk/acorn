@@ -167,9 +167,6 @@ func renderDoctorSkillLine(item api.SystemSkillSummary) string {
 	if len(item.DisabledReasons) > 0 {
 		line += " (" + strings.Join(item.DisabledReasons, "; ") + ")"
 	}
-	if strings.TrimSpace(item.PromotedFrom) != "" {
-		line += " Promoted from: " + item.PromotedFrom
-	}
 	return line
 }
 
@@ -180,8 +177,8 @@ func renderDoctorSkillProblem(problem api.SystemSkillProblem) string {
 	} else if problem.Name != "" {
 		parts = append(parts, problem.Name)
 	}
-	if problem.Source != "" {
-		parts = append(parts, "source="+problem.Source)
+	if problem.Path != "" {
+		parts = append(parts, "path="+problem.Path)
 	}
 	if problem.Error != "" {
 		parts = append(parts, "error="+problem.Error)

@@ -83,7 +83,7 @@ func runSkillsCheck(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	service := api.NewSkillService(cfg, skills.NewLoader(cfg))
+	service := api.NewSkillService(cfg, skills.NewLoader(cfg.Skills.Dir))
 	report, err := service.Health(ctx)
 	if err != nil {
 		return err
@@ -108,7 +108,7 @@ func renderSkillsList(items []skills.View) string {
 		if !item.Eligible {
 			state = "ineligible: " + strings.Join(item.DisabledReasons, ";")
 		}
-		line := fmt.Sprintf("- %s (%s) %s", item.ID, item.Source, state)
+		line := fmt.Sprintf("- %s %s", item.ID, state)
 		if summary := strings.TrimSpace(item.Summary); summary != "" {
 			line += " - " + summary
 		}
@@ -122,7 +122,6 @@ func renderSkillDetail(item skills.View) string {
 		"Skill",
 		"  ID: " + item.ID,
 		"  Name: " + item.Name,
-		"  Source: " + item.Source,
 		"  Path: " + item.Path,
 	}
 	if item.Category != "" {

@@ -218,7 +218,6 @@ func (c *ConverterImpl) threadDTOFromDomain(source Thread) ThreadDTO {
 	var apiThreadDTO ThreadDTO
 	apiThreadDTO.ID = source.ID
 	apiThreadDTO.Title = source.Title
-	apiThreadDTO.WorkspaceRoot = source.WorkspaceRoot
 	apiThreadDTO.CreatedAt = TimeToTime(source.CreatedAt)
 	apiThreadDTO.UpdatedAt = TimeToTime(source.UpdatedAt)
 	apiThreadDTO.LatestRunID = source.LatestRunID

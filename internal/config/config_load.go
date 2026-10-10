@@ -50,7 +50,7 @@ func Load(path string) (*Config, error) {
 	cfg.ConfigDir = filepath.Dir(absPath)
 	cfg.Runtime.StorageDir = resolveDir(cfg.ConfigDir, cfg.Runtime.StorageDir)
 	cfg.Browser.ExecutablePath = resolveExecutable(cfg.ConfigDir, cfg.Browser.ExecutablePath)
-	cfg.Tools.Workspace.RootDir = resolveDir(cfg.ConfigDir, cfg.Tools.Workspace.RootDir)
+	cfg.Skills.Dir = resolveDir(cfg.ConfigDir, cfg.Skills.Dir)
 	if cfg.Notify.FCM.ServiceAccountFile != "" {
 		cfg.Notify.FCM.ServiceAccountFile = resolveDir(cfg.ConfigDir, cfg.Notify.FCM.ServiceAccountFile)
 	}

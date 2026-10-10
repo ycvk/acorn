@@ -27,9 +27,6 @@ agent:
   name: coordinator
   description: test
   max_iterations: 4
-tools:
-  workspace:
-    root_dir: .
 mcp:
   providers:
     - name: oauth_stdio
@@ -77,9 +74,6 @@ agent:
   name: coordinator
   description: test
   max_iterations: 4
-tools:
-  workspace:
-    root_dir: .
 mcp:
   providers:
     - name: oauth_notransport
@@ -123,9 +117,6 @@ agent:
   name: coordinator
   description: test
   max_iterations: 4
-tools:
-  workspace:
-    root_dir: .
 mcp:
   providers:
     - name: oauth_sse
@@ -179,9 +170,6 @@ agent:
   name: coordinator
   description: test
   max_iterations: 4
-tools:
-  workspace:
-    root_dir: .
 mcp:
   providers:
     - name: bad_auth
@@ -228,9 +216,6 @@ agent:
   name: coordinator
   description: test
   max_iterations: 4
-tools:
-  workspace:
-    root_dir: .
 mcp:
   providers:
     - name: no_auth

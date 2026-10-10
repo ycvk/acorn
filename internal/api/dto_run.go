@@ -86,13 +86,12 @@ func runDTOFromDomain(run Run) RunDTO {
 }
 
 type ThreadDTO struct {
-	ID            string    `json:"id"`
-	Title         string    `json:"title"`
-	WorkspaceRoot string    `json:"workspace_root"`
-	CreatedAt     time.Time `json:"created_at"`
-	UpdatedAt     time.Time `json:"updated_at"`
-	LatestRunID   string    `json:"latest_run_id,omitempty"`
-	State         string    `json:"state"`
+	ID          string    `json:"id"`
+	Title       string    `json:"title"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+	LatestRunID string    `json:"latest_run_id,omitempty"`
+	State       string    `json:"state"`
 }
 
 // ThreadListResponse is the response body for listing threads.

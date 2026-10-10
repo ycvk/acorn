@@ -13,7 +13,7 @@ func TestMemoryReadinessKeepsOperatorContainerAvailable(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			cfg := config.DefaultConfig()
 			cfg.Runtime.StorageDir = t.TempDir()
-			cfg.Tools.Workspace.RootDir = t.TempDir()
+			cfg.Skills.Dir = t.TempDir()
 			cfg.Providers[0].APIKey = "model-test"
 			cfg.Memory.Embedding.APIKey = ""
 			expected := "memory.embedding.api_key"

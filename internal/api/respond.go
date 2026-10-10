@@ -12,7 +12,6 @@ import (
 
 	"github.com/go-chi/chi/v5/middleware"
 
-	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
 )
 
@@ -176,13 +175,6 @@ func (s *Server) respondClientKnownError(w http.ResponseWriter, r *http.Request,
 	default:
 		s.respondKnownError(w, r, err)
 	}
-}
-
-func clientWorkspaceRoot(cfg *config.Config) string {
-	if cfg == nil {
-		return ""
-	}
-	return cfg.WorkspaceRoot()
 }
 
 func bearerToken(header string) (string, error) {

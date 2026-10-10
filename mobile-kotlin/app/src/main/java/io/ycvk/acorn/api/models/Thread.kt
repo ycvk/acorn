@@ -32,7 +32,6 @@ import com.squareup.moshi.JsonClass
  *
  * @param id 
  * @param title 
- * @param workspaceRoot 
  * @param createdAt 
  * @param updatedAt 
  * @param state 
@@ -47,9 +46,6 @@ data class Thread (
 
     @Json(name = "title")
     val title: kotlin.String,
-
-    @Json(name = "workspace_root")
-    val workspaceRoot: kotlin.String,
 
     @Json(name = "created_at")
     val createdAt: java.time.OffsetDateTime,

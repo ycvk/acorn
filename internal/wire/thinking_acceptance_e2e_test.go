@@ -27,7 +27,7 @@ func TestThinkingNightRevisesThoughtWithEvidenceAndRecordsUsage(t *testing.T) {
 	server := httptest.NewServer(provider)
 	defer server.Close()
 	cfg := writeTestConfig(t, server.URL, extra+"owner:\n  timezone: Asia/Shanghai\nbriefing:\n  at: \"\"\nthinking:\n  night_at: \"03:00\"\n")
-	installSeedSkill(t, cfg.WorkspaceRoot(), "night_reflection")
+	installSeedSkill(t, cfg.Skills.Dir, "night_reflection")
 	c := h.open(t, cfg)
 	defer c.Close()
 	source, err := c.store.RegisterMemorySource(ctx, core.MemorySource{ID: "night-origin", Kind: "fixture", ObjectID: "night-origin", Version: "1", Speaker: "owner", Body: "review this idea", RecordedAt: start.Add(-72 * time.Hour)})

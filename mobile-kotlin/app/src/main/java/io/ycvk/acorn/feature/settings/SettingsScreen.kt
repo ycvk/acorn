@@ -21,7 +21,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cloud
-import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -154,9 +154,8 @@ fun SettingsScreen(
         }
 
         item {
-            SectionHeader("workspace", Icons.Filled.FolderOpen)
+            SectionHeader("capabilities", Icons.Filled.Build)
             SectionCard {
-                SettingRow("root", status?.workspaceRoot ?: "—")
                 SettingRow(
                     "tools",
                     "${status?.summary?.enabledToolCount ?: 0}/${status?.summary?.toolCount ?: 0} enabled",

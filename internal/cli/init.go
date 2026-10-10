@@ -27,7 +27,7 @@ func runInit(_ context.Context, args []string) error {
 	force := fs.Bool("force", false, "overwrite an existing config file")
 	printOnly := fs.Bool("print", false, "write the starter config to stdout instead of a file")
 	personaOnly := fs.Bool("persona-only", false, "only write the default persona next to an existing config")
-	storageDir := fs.String("storage-dir", "", "absolute directory for runtime storage and the workspace root")
+	storageDir := fs.String("storage-dir", "", "absolute directory for runtime storage")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -75,8 +75,8 @@ func runInit(_ context.Context, args []string) error {
 	return nil
 }
 
-// initConfig returns the starter config. A storage dir, as used by the release
-// installer, holds both runtime storage and the workspace root.
+// initConfig returns the starter config, with runtime storage in storageDir
+// when one is given.
 func initConfig(storageDir string) (string, error) {
 	if storageDir == "" {
 		return initConfigTemplate, nil
@@ -84,17 +84,11 @@ func initConfig(storageDir string) (string, error) {
 	if !filepath.IsAbs(storageDir) {
 		return "", fmt.Errorf("--storage-dir must be an absolute path: %s", storageDir)
 	}
-	body := initConfigTemplate
-	for _, line := range []struct{ old, key string }{
-		{"  storage_dir: ~/.acorn\n", "  storage_dir: "},
-		{"    root_dir: ~/.acorn/workspace\n", "    root_dir: "},
-	} {
-		if !strings.Contains(body, line.old) {
-			return "", fmt.Errorf("init template is missing %q", strings.TrimSpace(line.old))
-		}
-		body = strings.Replace(body, line.old, line.key+strconv.Quote(storageDir)+"\n", 1)
+	const line = "  storage_dir: ~/.acorn\n"
+	if !strings.Contains(initConfigTemplate, line) {
+		return "", fmt.Errorf("init template is missing %q", strings.TrimSpace(line))
 	}
-	return body, nil
+	return strings.Replace(initConfigTemplate, line, "  storage_dir: "+strconv.Quote(storageDir)+"\n", 1), nil
 }
 
 // writeDefaultPersona writes the default persona into the storage dir of the

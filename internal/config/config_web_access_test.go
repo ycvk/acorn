@@ -110,9 +110,6 @@ agent:
   name: coordinator
   description: test
   max_iterations: 4
-tools:
-  workspace:
-    root_dir: .
 mcp:
   providers: []
 `

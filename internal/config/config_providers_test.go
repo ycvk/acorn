@@ -45,9 +45,6 @@ func TestValidateExecutionReady_MultipleEnabledProvidersInvalid(t *testing.T) {
 			Description:   "test",
 			MaxIterations: 4,
 		},
-		Tools: ToolsConfig{
-			Workspace: WorkspaceToolConfig{RootDir: "."},
-		},
 		Owner:    defaultConfig().Owner,
 		Presence: defaultConfig().Presence,
 		Memory:   defaultConfig().Memory,
@@ -181,9 +178,6 @@ func TestValidateExecutionReady_DuplicateNames(t *testing.T) {
 			Description:   "test",
 			MaxIterations: 4,
 		},
-		Tools: ToolsConfig{
-			Workspace: WorkspaceToolConfig{RootDir: "."},
-		},
 		Owner:    defaultConfig().Owner,
 		Presence: defaultConfig().Presence,
 		Memory:   defaultConfig().Memory,
@@ -237,9 +231,6 @@ func TestValidateExecutionReady_DisabledProviderNotValidated(t *testing.T) {
 			Name:          "coordinator",
 			Description:   "test",
 			MaxIterations: 4,
-		},
-		Tools: ToolsConfig{
-			Workspace: WorkspaceToolConfig{RootDir: "."},
 		},
 		Owner:    defaultConfig().Owner,
 		Presence: defaultConfig().Presence,

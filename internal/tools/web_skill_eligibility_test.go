@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/skills"
 )
 
@@ -31,10 +30,7 @@ func TestSeedWebResearchSkillEligibleWithOnlyWebFetch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("repo root: %v", err)
 	}
-	appCfg := config.DefaultConfig()
-	appCfg.Tools.Workspace.RootDir = repoRoot
-	appCfg.Runtime.StorageDir = t.TempDir()
-	scan, err := skills.NewLoader(appCfg).ScanSkills(context.Background())
+	scan, err := skills.NewLoader(filepath.Join(repoRoot, "skills")).ScanSkills(context.Background())
 	if err != nil {
 		t.Fatalf("ScanSkills: %v", err)
 	}

@@ -65,7 +65,7 @@ func TestSplitFrontmatterEmptyFrontmatter(t *testing.T) {
 
 func TestParseSkillMarkdownStripsBOM(t *testing.T) {
 	raw := "\uFEFF---\nid: test\n---\nbody"
-	meta, _, _, _, err := parseSkillMarkdown(raw)
+	meta, _, _, err := parseSkillMarkdown(raw)
 	if err != nil {
 		t.Fatalf("parseSkillMarkdown: %v", err)
 	}

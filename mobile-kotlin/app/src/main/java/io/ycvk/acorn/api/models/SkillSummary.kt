@@ -34,21 +34,11 @@ import com.squareup.moshi.JsonClass
  * @param id 
  * @param name 
  * @param version 
- * @param source 
- * @param origin 
- * @param lifecycleStatus 
  * @param eligible 
  * @param category 
- * @param taskPattern 
  * @param summary 
- * @param promotedFrom 
  * @param requirements 
  * @param disabledReasons 
- * @param createdByRunId 
- * @param updatedByRunId 
- * @param evidenceRefs 
- * @param replaces 
- * @param replacedBy 
  */
 
 
@@ -63,76 +53,23 @@ data class SkillSummary (
     @Json(name = "version")
     val version: kotlin.String,
 
-    @Json(name = "source")
-    val source: kotlin.String,
-
-    @Json(name = "origin")
-    val origin: SkillSummary.Origin,
-
-    @Json(name = "lifecycle_status")
-    val lifecycleStatus: SkillSummary.LifecycleStatus,
-
     @Json(name = "eligible")
     val eligible: kotlin.Boolean,
 
     @Json(name = "category")
     val category: kotlin.String? = null,
 
-    @Json(name = "task_pattern")
-    val taskPattern: kotlin.String? = null,
-
     @Json(name = "summary")
     val summary: kotlin.String? = null,
-
-    @Json(name = "promoted_from")
-    val promotedFrom: kotlin.String? = null,
 
     @Json(name = "requirements")
     val requirements: SkillRequirements? = null,
 
     @Json(name = "disabled_reasons")
-    val disabledReasons: kotlin.collections.List<kotlin.String>? = null,
-
-    @Json(name = "created_by_run_id")
-    val createdByRunId: kotlin.String? = null,
-
-    @Json(name = "updated_by_run_id")
-    val updatedByRunId: kotlin.String? = null,
-
-    @Json(name = "evidence_refs")
-    val evidenceRefs: kotlin.collections.List<kotlin.String>? = null,
-
-    @Json(name = "replaces")
-    val replaces: kotlin.collections.List<kotlin.String>? = null,
-
-    @Json(name = "replaced_by")
-    val replacedBy: kotlin.collections.List<kotlin.String>? = null
+    val disabledReasons: kotlin.collections.List<kotlin.String>? = null
 
 ) {
 
-    /**
-     * 
-     *
-     * Values: human,distilled
-     */
-    @JsonClass(generateAdapter = false)
-    enum class Origin(val value: kotlin.String) {
-        @Json(name = "human") human("human"),
-        @Json(name = "distilled") distilled("distilled");
-    }
-    /**
-     * 
-     *
-     * Values: draft,verified,unverified,needs_eval,retired
-     */
-    @JsonClass(generateAdapter = false)
-    enum class LifecycleStatus(val value: kotlin.String) {
-        @Json(name = "draft") draft("draft"),
-        @Json(name = "verified") verified("verified"),
-        @Json(name = "unverified") unverified("unverified"),
-        @Json(name = "needs_eval") needs_eval("needs_eval"),
-        @Json(name = "retired") retired("retired");
-    }
 
 }
 

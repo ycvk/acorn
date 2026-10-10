@@ -62,8 +62,6 @@ func defaultConfig() *Config {
 			Description:   "A personal agent that works on its owner's behalf.",
 			MaxIterations: 100,
 		},
-		Tools: ToolsConfig{
-			Workspace: WorkspaceToolConfig{RootDir: "."},
-		},
+		Skills: SkillsConfig{Dir: "skills"},
 	}
 }

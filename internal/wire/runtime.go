@@ -70,7 +70,7 @@ func buildNotifier(cfg *config.Config, db *store.Store, loc *time.Location, opti
 }
 
 func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *store.Store, options buildOptions) (*containerRuntimeDeps, error) {
-	loader := skills.NewLoader(cfg)
+	loader := skills.NewLoader(cfg.Skills.Dir)
 
 	runController := runtime.NewRunController()
 

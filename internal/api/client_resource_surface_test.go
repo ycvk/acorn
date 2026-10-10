@@ -19,12 +19,11 @@ import (
 func TestClientResourceSurfaceHandlers(t *testing.T) {
 	service := &clientHandlerStub{
 		thread: Thread{
-			ID:            "thread_1",
-			Title:         "Inspect repo",
-			WorkspaceRoot: "/repo",
-			CreatedAt:     time.Date(2026, 5, 2, 10, 0, 0, 0, time.UTC),
-			UpdatedAt:     time.Date(2026, 5, 2, 10, 1, 0, 0, time.UTC),
-			State:         "completed",
+			ID:        "thread_1",
+			Title:     "Inspect repo",
+			CreatedAt: time.Date(2026, 5, 2, 10, 0, 0, 0, time.UTC),
+			UpdatedAt: time.Date(2026, 5, 2, 10, 1, 0, 0, time.UTC),
+			State:     "completed",
 		},
 		run: Run{
 			ID:        "run_1",
@@ -81,10 +80,8 @@ func TestClientResourceSurfaceHandlers(t *testing.T) {
 			Risk:        "read_only",
 		}},
 	}
-	workspaceRoot := t.TempDir()
 	cfg := config.DefaultConfig()
 	cfg.Memory.Embedding.APIKey = "voyage-test"
-	cfg.Tools.Workspace.RootDir = workspaceRoot
 	cfg.Providers[0].Model = "gpt-test"
 	cfg.Providers[0].ReasoningEffort = "high"
 	cfg.Providers[0].APIKey = "redacted-test-key"
@@ -106,7 +103,6 @@ func TestClientResourceSurfaceHandlers(t *testing.T) {
 					ID:      "skill.inspect",
 					Name:    "Inspect",
 					Version: "1.0.0",
-					Source:  "local",
 				},
 				Eligible: true,
 			}}}, nil

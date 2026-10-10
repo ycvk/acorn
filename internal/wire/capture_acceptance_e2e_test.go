@@ -87,14 +87,14 @@ func (p pairedClient) capture(t *testing.T, fields map[string]string, image []by
 	return accepted
 }
 
-// installSeedSkill copies a repository seed skill into the config's skill root.
+// installSeedSkill copies a repository seed skill into the config's skills dir.
 func installSeedSkill(t *testing.T, root, name string) {
 	t.Helper()
 	body, err := os.ReadFile(filepath.Join("..", "..", "skills", name, "SKILL.md"))
 	if err != nil {
 		t.Fatalf("read seed skill: %v", err)
 	}
-	dir := filepath.Join(root, "skills", name)
+	dir := filepath.Join(root, name)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -133,7 +133,7 @@ func TestSharedLinkBecomesACommittedNote(t *testing.T) {
 	server := httptest.NewServer(provider)
 	defer server.Close()
 	cfg := writeTestConfig(t, server.URL, "web_access:\n  allow_private_networks: true\n")
-	installSeedSkill(t, cfg.WorkspaceRoot(), "capture_to_note")
+	installSeedSkill(t, cfg.Skills.Dir, "capture_to_note")
 	c, err := NewContainer(context.Background(), cfg)
 	if err != nil {
 		t.Fatalf("container: %v", err)

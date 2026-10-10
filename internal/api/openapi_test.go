@@ -100,7 +100,6 @@ func TestOpenAPIContractMatchesClientSurface(t *testing.T) {
 		"device_revoked",
 		"invalid_pairing_code",
 		"device_not_found",
-		"workspace_root",
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("openapi contract should contain %q", want)

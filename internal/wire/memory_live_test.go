@@ -42,7 +42,7 @@ func TestMemoryLiveRuntime(t *testing.T) {
 	cfg.Memory.DailyTokens = 0
 	cfg.Wake.DailyTokens = 0
 	cfg.Runtime.StorageDir = t.TempDir()
-	cfg.Tools.Workspace.RootDir = t.TempDir()
+	cfg.Skills.Dir = t.TempDir()
 	cfg.Notify.FCM.ServiceAccountFile = ""
 	cfg.MCP.Providers = nil
 	cfg.Briefing.At = ""

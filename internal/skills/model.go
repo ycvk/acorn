@@ -5,42 +5,20 @@ import (
 	"strings"
 )
 
-type Origin string
-
-const (
-	OriginHuman     Origin = "human"
-	OriginDistilled Origin = "distilled"
-)
-
-type Source string
-
-const (
-	SourceBuiltin   Source = "builtin"
-	SourceWorkspace Source = "workspace"
-	SourceUser      Source = "user"
-)
-
 type Spec struct {
-	ID             string
-	Name           string
-	Version        string
-	Category       string
-	Summary        string
-	Description    string
-	Instruction    string
-	PromotedFrom   string
-	Source         string
-	Origin         Origin
-	TaskPattern    string
-	Path           string
-	Scripts        []string
-	Files          []string
-	Tags           []string
-	Platforms      []string
-	TriggerHints   []string
-	Requires       Requirements
-	CreatedByRunID string
-	Replaces       []string
+	ID           string
+	Name         string
+	Version      string
+	Category     string
+	Summary      string
+	Instruction  string
+	Path         string
+	Scripts      []string
+	Files        []string
+	Tags         []string
+	Platforms    []string
+	TriggerHints []string
+	Requires     Requirements
 }
 
 type Requirements struct {
@@ -51,11 +29,10 @@ type Requirements struct {
 }
 
 type Problem struct {
-	ID     string `json:"id,omitempty"`
-	Name   string `json:"name,omitempty"`
-	Source string `json:"source,omitempty"`
-	Path   string `json:"path,omitempty"`
-	Error  string `json:"error,omitempty"`
+	ID    string `json:"id,omitempty"`
+	Name  string `json:"name,omitempty"`
+	Path  string `json:"path,omitempty"`
+	Error string `json:"error,omitempty"`
 }
 
 type ScanResult struct {
@@ -89,20 +66,13 @@ func NormalizeSpec(item Spec) (Spec, error) {
 	item.Version = strings.TrimSpace(item.Version)
 	item.Category = strings.TrimSpace(item.Category)
 	item.Summary = strings.TrimSpace(item.Summary)
-	item.Description = strings.TrimSpace(item.Description)
 	item.Instruction = strings.TrimSpace(item.Instruction)
-	item.PromotedFrom = strings.TrimSpace(item.PromotedFrom)
-	item.Source = strings.TrimSpace(item.Source)
-	item.Origin = normalizeOrigin(item.Origin)
-	item.TaskPattern = strings.TrimSpace(item.TaskPattern)
 	item.Path = strings.TrimSpace(item.Path)
 	item.Scripts = uniqueNonEmpty(item.Scripts)
 	item.Files = uniqueNonEmpty(item.Files)
 	item.Tags = uniqueNonEmpty(item.Tags)
 	item.Platforms = uniqueLowerNonEmpty(item.Platforms)
 	item.TriggerHints = uniqueNonEmpty(item.TriggerHints)
-	item.CreatedByRunID = strings.TrimSpace(item.CreatedByRunID)
-	item.Replaces = uniqueNonEmpty(item.Replaces)
 	if item.ID == "" {
 		return Spec{}, fmt.Errorf("skill id is required")
 	}
@@ -112,24 +82,7 @@ func NormalizeSpec(item Spec) (Spec, error) {
 	if item.Version == "" {
 		item.Version = "v1"
 	}
-	if item.Source == "" {
-		item.Source = "unknown"
-	}
-	switch item.Origin {
-	case "", OriginHuman:
-		item.Origin = OriginHuman
-	case OriginDistilled:
-		if item.TaskPattern == "" {
-			return Spec{}, fmt.Errorf("skill %s task_pattern is required for distilled origin", item.ID)
-		}
-	default:
-		return Spec{}, fmt.Errorf("skill %s origin %q is invalid", item.ID, item.Origin)
-	}
 	return item, nil
-}
-
-func normalizeOrigin(origin Origin) Origin {
-	return Origin(strings.TrimSpace(string(origin)))
 }
 
 func CopySpec(item Spec) Spec {
@@ -140,7 +93,6 @@ func CopySpec(item Spec) Spec {
 	copy.Platforms = append([]string(nil), item.Platforms...)
 	copy.TriggerHints = append([]string(nil), item.TriggerHints...)
 	copy.Requires = CopyRequirements(item.Requires)
-	copy.Replaces = append([]string(nil), item.Replaces...)
 	return copy
 }
 

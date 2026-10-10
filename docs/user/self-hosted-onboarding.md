@@ -27,7 +27,7 @@ The installer:
 - verifies the outer release checksum and package `CHECKSUMS`;
 - installs `/opt/acorn/acorn` (pure Go binary, no shared libraries);
 - installs `/usr/local/bin/acorn` as a global wrapper command;
-- writes config and the default persona (`persona.md`) under the installing user's `~/.acorn`;
+- writes config under the installing user's `~/.acorn` and the default persona (`persona.md`) into `/srv/acorn/workspace`;
 - installs bundled native skills under `~/.acorn/skills`;
 - installs `/etc/systemd/system/acorn.service`.
 
@@ -154,11 +154,8 @@ The installed service uses:
 - the installing user's home as the service `HOME`.
 - `~/.acorn/acorn.yaml` for config.
 - `~/.acorn/acorn.env` for provider secrets.
-- `~/.acorn/persona.md` for the agent's persona.
-- `~/.acorn/skills` for bundled native skills and user-local skills.
-- `/srv/acorn/workspace/attachments` for images shared from the phone; knowledge notes live in the SQLite database.
-- `~/.acorn` for runtime storage and SQLite state.
-- `/srv/acorn/workspace` as the workspace root that holds seed and workspace skills.
+- `~/.acorn/skills` for skills (`skills.dir`), one directory with a `SKILL.md` each; the installer refreshes the bundled ones and leaves others in place.
+- `/srv/acorn/workspace` for runtime storage (`runtime.storage_dir`): the SQLite database with memories and knowledge notes, `persona.md`, and images shared from the phone under `attachments/`.
 - `127.0.0.1:8080` for the HTTP listener.
 
 The wrapper runs service-backed operator commands such as `acorn pair`, `acorn doctor`, `acorn skills`, and `acorn smoke` against the same installer-owned `~/.acorn/acorn.yaml` when you do not pass an explicit `-c` config path. If you install as root, that means `/root/.acorn/acorn.yaml`.
@@ -313,7 +310,7 @@ sudo systemctl restart acorn
 
 ## 9. Persona, Timezone and Commitments
 
-`~/.acorn/persona.md` is the agent's persona: who it is and how it talks to you. Edit it freely; every run reads it. A run fails with the file path when the file is missing or empty. `acorn init` writes the default persona and keeps an existing one.
+`{storage_dir}/persona.md` (`/srv/acorn/workspace/persona.md` on an installer setup) is the agent's persona: who it is and how it talks to you. Edit it freely; every run reads it. A run fails with the file path when the file is missing or empty. `acorn init` writes the default persona and keeps an existing one.
 
 Set your timezone so the agent reads and schedules times the way you say them:
 

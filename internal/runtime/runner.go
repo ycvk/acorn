@@ -132,6 +132,9 @@ func buildRuntimeDeps(cfg *config.Config, store RuntimeStore, opts RunnerFactory
 	if opts.ToolRegistry == nil {
 		return RuntimeDeps{}, errors.New("tool registry is required")
 	}
+	if opts.Loader == nil {
+		return RuntimeDeps{}, errors.New("skill loader is required")
+	}
 	if opts.Activity == nil || opts.MemoryStore == nil || opts.Commitments == nil || opts.PhoneNotifications == nil || opts.Clock == nil {
 		return RuntimeDeps{}, errors.New("presence, phone notifications and clock are required")
 	}
@@ -142,7 +145,7 @@ func buildRuntimeDeps(cfg *config.Config, store RuntimeStore, opts RunnerFactory
 	return RuntimeDeps{
 		Config:             cfg,
 		Store:              store,
-		Loader:             resolveLoader(cfg, opts.Loader),
+		Loader:             opts.Loader,
 		MCPPendingActions:  opts.MCPPendingActionStore,
 		ArtifactService:    artifactService,
 		ToolRegistry:       opts.ToolRegistry,
@@ -154,13 +157,6 @@ func buildRuntimeDeps(cfg *config.Config, store RuntimeStore, opts RunnerFactory
 		Clock:              opts.Clock,
 		Location:           location,
 	}, nil
-}
-
-func resolveLoader(cfg *config.Config, loader *skills.Loader) *skills.Loader {
-	if loader == nil {
-		return skills.NewLoader(cfg)
-	}
-	return loader
 }
 
 func assembleRunnerFactory(deps RuntimeDeps) *RunnerFactory {
