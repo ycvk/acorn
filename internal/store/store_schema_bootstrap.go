@@ -106,20 +106,6 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
     applied_at TEXT NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS memory_items (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    kind TEXT NOT NULL,
-    content TEXT NOT NULL,
-    status TEXT NOT NULL,
-    session_id TEXT NOT NULL DEFAULT '',
-    source_run_id TEXT NOT NULL DEFAULT '',
-    wake_at TEXT NOT NULL DEFAULT '',
-    recurrence TEXT NOT NULL DEFAULT '',
-    expires_at TEXT NOT NULL DEFAULT '',
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-);
-
 CREATE TABLE IF NOT EXISTS context_snapshots (
     hash TEXT PRIMARY KEY,
     content TEXT NOT NULL,
@@ -225,20 +211,10 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_pending_actions_interrupt_id ON pending_ac
 CREATE INDEX IF NOT EXISTS idx_devices_token_hash ON devices(token_hash);
 CREATE INDEX IF NOT EXISTS idx_artifacts_run ON artifacts(run_id, created_at ASC, artifact_id ASC);
 CREATE INDEX IF NOT EXISTS idx_artifacts_session ON artifacts(session_id, created_at ASC, artifact_id ASC);
-CREATE INDEX IF NOT EXISTS idx_memory_items_due ON memory_items(kind, status, wake_at);
 CREATE INDEX IF NOT EXISTS idx_notifications_due ON notifications(status, send_after);
 CREATE INDEX IF NOT EXISTS idx_knowledge_notes_updated ON knowledge_notes(updated_at);
 CREATE INDEX IF NOT EXISTS idx_watches_due ON watches(status, next_check_at);
 CREATE INDEX IF NOT EXISTS idx_watch_items_status ON watch_items(status, seen_at);
-
-CREATE VIRTUAL TABLE IF NOT EXISTS memory_items_fts USING fts5(content, content='memory_items', content_rowid='id', tokenize='trigram');
-CREATE TRIGGER IF NOT EXISTS memory_items_fts_ai AFTER INSERT ON memory_items BEGIN
-  INSERT INTO memory_items_fts(rowid, content) VALUES (new.id, new.content);
-END;
-CREATE TRIGGER IF NOT EXISTS memory_items_fts_au AFTER UPDATE OF content ON memory_items BEGIN
-  INSERT INTO memory_items_fts(memory_items_fts, rowid, content) VALUES ('delete', old.id, old.content);
-  INSERT INTO memory_items_fts(rowid, content) VALUES (new.id, new.content);
-END;
 
 CREATE VIRTUAL TABLE IF NOT EXISTS runs_fts USING fts5(run_id UNINDEXED, input_text, output_text, tokenize='trigram');
 CREATE TRIGGER IF NOT EXISTS runs_fts_ai AFTER INSERT ON runs BEGIN

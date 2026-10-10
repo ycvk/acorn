@@ -148,6 +148,9 @@ type OperatorQuestionDecision struct {
 // --- ExecuteRequest ---
 
 type ExecuteRequest struct {
+	SourceIDs      []string
+	Commitment     *CommitmentWake
+	Autonomous     bool
 	RunID          string
 	SessionID      string
 	TurnIndex      int

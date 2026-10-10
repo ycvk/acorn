@@ -10,8 +10,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/cloudwego/eino/adk"
-	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/runtime"
 )
@@ -132,16 +130,15 @@ func (s *RunService) InterruptRun(ctx context.Context, runID string) error {
 }
 
 func (s *RunService) CreateRun(ctx context.Context, threadID, skillID, input string) (*Run, error) {
-	return s.createRun(ctx, threadID, skillID, input, "", "user")
+	return s.createRun(ctx, threadID, skillID, input, "", "user", nil)
 }
 
-// CreateWakeRun starts a run in threadID that was woken by a commitment
-// rather than an owner message. wake describes what woke it.
-func (s *RunService) CreateWakeRun(ctx context.Context, threadID, wake, input string) (*Run, error) {
-	if strings.TrimSpace(wake) == "" {
-		return nil, errors.New("wake run requires a wake description")
+// CreateScheduledRun starts a scheduler input with explicit provenance and budget ownership.
+func (s *RunService) CreateScheduledRun(ctx context.Context, threadID, input string, wake core.ScheduledWake) (*Run, error) {
+	if strings.TrimSpace(wake.Reason) == "" {
+		return nil, errors.New("scheduled run requires wake reason")
 	}
-	return s.createRun(ctx, threadID, "", input, wake, core.MessageRoleWake)
+	return s.createRun(ctx, threadID, "", input, wake.Reason, core.MessageRoleWake, &wake)
 }
 
 // captureWake describes what wakes a capture run.
@@ -153,13 +150,13 @@ func (s *RunService) CreateCaptureRun(ctx context.Context, threadID, input strin
 	if strings.TrimSpace(input) == "" {
 		return nil, errors.New("capture run requires input")
 	}
-	return s.createRun(ctx, threadID, "", input, captureWake, core.MessageRoleCapture)
+	return s.createRun(ctx, threadID, "", input, captureWake, core.MessageRoleCapture, nil)
 }
 
 // createRun records input under role (or, with empty input, binds the latest
 // unbound message) and starts the run. wake, when set, tells the agent what
 // woke it.
-func (s *RunService) createRun(ctx context.Context, threadID, skillID, input, wake, role string) (*Run, error) {
+func (s *RunService) createRun(ctx context.Context, threadID, skillID, input, wake, role string, scheduled *core.ScheduledWake) (*Run, error) {
 	if s == nil || s.store == nil || s.executeRun == nil || s.newRunID == nil || s.threads == nil {
 		return nil, errors.New("client service is not initialized")
 	}
@@ -191,16 +188,13 @@ func (s *RunService) createRun(ctx context.Context, threadID, skillID, input, wa
 			return nil, err
 		}
 	}
-	history, err := s.store.ListSessionMessages(ctx, threadID, chatHistoryLimit)
-	if err != nil {
-		return nil, err
-	}
 	runID := strings.TrimSpace(s.newRunID())
 	if runID == "" {
 		return nil, errors.New("client run id is empty")
 	}
 	started := newRunStartSignal()
 	req := core.ExecuteRequest{
+
 		RunID:          runID,
 		SessionID:      threadID,
 		TurnIndex:      message.TurnIndex,
@@ -208,7 +202,11 @@ func (s *RunService) createRun(ctx context.Context, threadID, skillID, input, wa
 		BoundMessageID: message.ID,
 		SkillID:        skillID,
 		Wake:           wake,
-		Messages:       buildChatMessages(history),
+	}
+	if scheduled != nil {
+		req.Commitment = scheduled.Commitment
+		req.SourceIDs = append([]string(nil), scheduled.SourceIDs...)
+		req.Autonomous = scheduled.Autonomous
 	}
 	runCtx := context.WithoutCancel(ctx)
 	go s.executeRunAsync(runCtx, req, started)
@@ -345,19 +343,4 @@ func (s *RunService) recordStartedRunFailure(ctx context.Context, runID string, 
 		return fmt.Errorf("mark client run failed after background error: %w", err)
 	}
 	return nil
-}
-
-const chatHistoryLimit = 12
-
-func buildChatMessages(items []core.SessionMessageRecord) []adk.AgenticMessage {
-	messages := make([]adk.AgenticMessage, 0, len(items))
-	for _, item := range items {
-		switch item.Role {
-		case "user", core.MessageRoleWake, core.MessageRoleCapture:
-			messages = append(messages, schema.UserAgenticMessage(item.Content))
-		case "assistant":
-			messages = append(messages, &schema.AgenticMessage{Role: schema.AgenticRoleTypeAssistant, ContentBlocks: []*schema.ContentBlock{{Type: schema.ContentBlockTypeAssistantGenText, AssistantGenText: &schema.AssistantGenText{Text: item.Content}}}})
-		}
-	}
-	return messages
 }

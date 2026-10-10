@@ -12,6 +12,7 @@ type Config struct {
 	MCP       MCPConfig        `yaml:"mcp"`
 	Approval  ApprovalConfig   `yaml:"approval"`
 	Owner     OwnerConfig      `yaml:"owner"`
+	Memory    MemoryConfig     `yaml:"memory"`
 	Presence  PresenceConfig   `yaml:"presence"`
 	Thinking  ThinkingConfig   `yaml:"thinking"`
 	Wake      WakeConfig       `yaml:"wake"`

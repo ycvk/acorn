@@ -86,6 +86,8 @@ func nativeToolFactory(name string, deps NativeToolDeps) (core.ToolFactory, erro
 	}
 	presenceDeps := []nativeToolDep{
 		{"Presence.Store", deps.Presence.Store != nil},
+		{"Presence.Memory", deps.Presence.Memory != nil},
+		{"Presence.ForgetBarrier", deps.Presence.ForgetBarrier != nil},
 		{"Presence.Context", deps.Presence.Context != nil},
 		{"Presence.Clock", deps.Presence.Clock != nil},
 		{"Presence.Location", deps.Presence.Location != nil},
@@ -129,12 +131,12 @@ func nativeToolFactory(name string, deps NativeToolDeps) (core.ToolFactory, erro
 	case "keep":
 		needs = presenceDeps
 		build = func() (einotool.BaseTool, error) {
-			return buildMemoryWriteTool("keep", "Keep something the owner said, in their own words, so it stays in your working memory.", core.MemorySaid, deps.Presence)
+			return buildMemoryWriteTool("keep", "Persist a fact immediately when the owner explicitly asks to remember it, citing the current owner source and exact words.", deps.Presence)
 		}
 	case "think":
 		needs = presenceDeps
 		build = func() (einotool.BaseTool, error) {
-			return buildMemoryWriteTool("think", "Note a thought of your own: something you noticed, suspect or want to follow up on.", core.MemoryThought, deps.Presence)
+			return buildMemoryWriteTool("think", "Record a sourced thought or open question of your own.", deps.Presence)
 		}
 	case "schedule_wake":
 		needs = presenceDeps
@@ -145,6 +147,18 @@ func nativeToolFactory(name string, deps NativeToolDeps) (core.ToolFactory, erro
 	case "recall":
 		needs = presenceDeps
 		build = func() (einotool.BaseTool, error) { return buildRecallTool(deps.Presence) }
+	case "memory_read":
+		needs = presenceDeps
+		build = func() (einotool.BaseTool, error) { return buildMemoryReadTool(deps.Presence) }
+	case "memory_correct":
+		needs = presenceDeps
+		build = func() (einotool.BaseTool, error) { return buildMemoryCorrectTool(deps.Presence) }
+	case "memory_forget":
+		needs = presenceDeps
+		build = func() (einotool.BaseTool, error) { return buildMemoryForgetTool(deps.Presence) }
+	case "concern":
+		needs = presenceDeps
+		build = func() (einotool.BaseTool, error) { return buildConcernTool(deps.Presence) }
 	case "notify_owner":
 		needs = []nativeToolDep{
 			{"Notify.Notifier", deps.Notify.Notifier != nil},

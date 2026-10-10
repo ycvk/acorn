@@ -136,6 +136,17 @@ owner:
   # e.g. Asia/Shanghai.
   timezone: UTC
 
+memory:
+  daily_tokens: 100000
+  batch_tokens: 8192
+  context_tokens: 8192
+  history_tokens: 32768
+  embedding:
+    base_url: https://api.voyageai.com/v1
+    api_key: ${VOYAGE_API_KEY}
+    model: voyage-4
+    dimensions: 1024
+
 presence:
   # Token cap for the working-memory block shown to the model before each call.
   max_tokens: 4000
@@ -207,6 +218,11 @@ write_env_template() {
 		printf 'OPENAI_API_KEY=%s\n' "$OPENAI_API_KEY" > "$target"
 	else
 		printf 'OPENAI_API_KEY=replace-with-your-provider-key\n' > "$target"
+	fi
+	if [ -n "${VOYAGE_API_KEY:-}" ]; then
+		printf 'VOYAGE_API_KEY=%s\n' "$VOYAGE_API_KEY" >> "$target"
+	else
+		printf 'VOYAGE_API_KEY=replace-with-your-voyage-key\n' >> "$target"
 	fi
 }
 
@@ -320,7 +336,7 @@ exec "\$bin" "\$@"' sh "\$env_path" "\$bin" "\$@"
 
 if [ "\$#" -gt 0 ]; then
 	case "\$1" in
-		decision|doctor|pair|token|devices|skills|smoke)
+		decision|doctor|memory|pair|token|devices|skills|smoke)
 			command_name=\$1
 			shift
 			if ! has_config_flag "\$@"; then
@@ -348,7 +364,7 @@ else
 fi
 run_root runuser -u "$service_user" -- env HOME="$service_home" "$bin_path" init -c "$config_path" --persona-only
 
-if [ ! -e "$env_path" ] || [ -n "${OPENAI_API_KEY:-}" ]; then
+if [ ! -e "$env_path" ]; then
 	run_root install -m 0600 -o "$service_user" -g "$service_group" "$env_template" "$env_path"
 else
 	log "Keeping existing environment file: $env_path"
@@ -368,9 +384,9 @@ if [ "$start_service" != "1" ]; then
 	exit 0
 fi
 
-if [ -z "${OPENAI_API_KEY:-}" ]; then
-	log "Installed Acorn but did not start the service because OPENAI_API_KEY was not provided."
-	log "Set the key, verify, then start the service:"
+if [ -z "${OPENAI_API_KEY:-}" ] || [ -z "${VOYAGE_API_KEY:-}" ]; then
+	log "Installed Acorn but did not start the service because both OPENAI_API_KEY and VOYAGE_API_KEY must be provided."
+	log "Set both keys, verify, then start the service:"
 	log "  sudoedit $env_path"
 	log "  acorn doctor"
 	log '  acorn smoke "hello"'

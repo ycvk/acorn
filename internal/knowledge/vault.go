@@ -45,6 +45,7 @@ func SupportsAttachment(mime string) bool {
 
 // VaultConfig carries the dependencies of a Vault; all are required.
 type VaultConfig struct {
+	Memory   core.MemoryStore
 	Dir      string
 	Git      Git
 	Index    core.KnowledgeStore
@@ -56,12 +57,13 @@ type VaultConfig struct {
 // commit and updates the index; reads that list or search sync the index with
 // the files first.
 type Vault struct {
-	dir   string
-	git   Git
-	index core.KnowledgeStore
-	clock func() time.Time
-	loc   *time.Location
-	mu    sync.Mutex
+	memory core.MemoryStore
+	dir    string
+	git    Git
+	index  core.KnowledgeStore
+	clock  func() time.Time
+	loc    *time.Location
+	mu     sync.Mutex
 }
 
 // Open creates the directory and repository when missing and syncs the index.
@@ -84,7 +86,7 @@ func Open(ctx context.Context, cfg VaultConfig) (*Vault, error) {
 	if err := cfg.Git.Init(ctx, cfg.Dir); err != nil {
 		return nil, fmt.Errorf("init knowledge repository %s: %w", cfg.Dir, err)
 	}
-	v := &Vault{dir: cfg.Dir, git: cfg.Git, index: cfg.Index, clock: cfg.Clock, loc: cfg.Location}
+	v := &Vault{memory: cfg.Memory, dir: cfg.Dir, git: cfg.Git, index: cfg.Index, clock: cfg.Clock, loc: cfg.Location}
 	if err := v.Sync(ctx); err != nil {
 		return nil, err
 	}
@@ -248,6 +250,11 @@ func (v *Vault) commitNote(ctx context.Context, notePath string, fm Frontmatter,
 	}
 	if err := v.index.UpsertKnowledgeNote(ctx, indexEntry(notePath, fm, body, info)); err != nil {
 		return Note{}, err
+	}
+	if v.memory != nil {
+		if err := v.syncMemoryLocked(ctx, v.memory); err != nil {
+			return Note{}, err
+		}
 	}
 	return Note{Path: notePath, Frontmatter: fm, Body: body, Commit: sha}, nil
 }

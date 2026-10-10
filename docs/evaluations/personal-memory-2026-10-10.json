@@ -1,0 +1,2931 @@
+{
+  "schema_version": 1,
+  "verified_at": "2026-10-10T09:10:47+00:00",
+  "branch": "feat/personal-memory",
+  "base_commit": "a73d863a0ac0db54134c90b0ea3e2f182a6af438",
+  "source_sha256": "2e871d599d1e58de04d4dc7fc38efeaea5983e2813def469a1a972231c2cda15",
+  "source_digest_scope": "Sorted tracked and non-ignored Go files, go.mod, go.sum, configs/, deploy/, skills/, scripts/install-release.sh; path NUL content NUL.",
+  "status": "passed",
+  "local_checks": {
+    "go_test_all": "passed",
+    "go_race_all": "passed",
+    "format_check": "passed",
+    "lint": "passed; 0 issues",
+    "architecture": "passed",
+    "pure_go_linux_amd64_release": "passed; CGO_ENABLED=0; dev-personal-memory",
+    "installer_shell_syntax": "passed"
+  },
+  "retrieval_quality": {
+    "assistant_promotion_errors": 0,
+    "citation_errors": 0,
+    "citations": 323,
+    "correction_errors": 0,
+    "dimensions": 1024,
+    "elapsed_seconds": 364.474248158,
+    "embedding": "voyage-4",
+    "evidence_expected": 61,
+    "evidence_found": 61,
+    "evidence_recall_at_5": 1,
+    "fixture_sha256": "4768420fb3b7c7f54e2ca4881506292537a2720b5dc27e5523416fac58866791",
+    "fixture_version": "2026-10-09-frozen-1",
+    "forget_errors": 0,
+    "guard_source_count": 1,
+    "model": "grok-4.7",
+    "processing_retry_errors": 0,
+    "provider_calls": [
+      {
+        "stage": "ingestion",
+        "kind": "main_model",
+        "milliseconds": 8432,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "embedding",
+        "milliseconds": 267,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "embedding",
+        "milliseconds": 232,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "main_model",
+        "milliseconds": 5499,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "embedding",
+        "milliseconds": 237,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "embedding",
+        "milliseconds": 219,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "main_model",
+        "milliseconds": 5425,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "embedding",
+        "milliseconds": 222,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "embedding",
+        "milliseconds": 231,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "main_model",
+        "milliseconds": 2086,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "main_model",
+        "milliseconds": 5444,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "embedding",
+        "milliseconds": 234,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "embedding",
+        "milliseconds": 228,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "main_model",
+        "milliseconds": 11776,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "embedding",
+        "milliseconds": 240,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "embedding",
+        "milliseconds": 211,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "main_model",
+        "milliseconds": 12908,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "embedding",
+        "milliseconds": 231,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "embedding",
+        "milliseconds": 631,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "main_model",
+        "milliseconds": 5743,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "embedding",
+        "milliseconds": 238,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "embedding",
+        "milliseconds": 215,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "main_model",
+        "milliseconds": 5438,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "embedding",
+        "milliseconds": 234,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "embedding",
+        "milliseconds": 233,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "main_model",
+        "milliseconds": 4120,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "main_model",
+        "milliseconds": 4506,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "embedding",
+        "milliseconds": 239,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "embedding",
+        "milliseconds": 219,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "main_model",
+        "milliseconds": 5350,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "embedding",
+        "milliseconds": 211,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "embedding",
+        "milliseconds": 212,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "main_model",
+        "milliseconds": 2323,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "main_model",
+        "milliseconds": 6641,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "embedding",
+        "milliseconds": 220,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "embedding",
+        "milliseconds": 228,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "main_model",
+        "milliseconds": 4758,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "main_model",
+        "milliseconds": 7761,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "embedding",
+        "milliseconds": 211,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "embedding",
+        "milliseconds": 237,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "main_model",
+        "milliseconds": 23097,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "embedding",
+        "milliseconds": 234,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "main_model",
+        "milliseconds": 4748,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "embedding",
+        "milliseconds": 220,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "embedding",
+        "milliseconds": 210,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "main_model",
+        "milliseconds": 23235,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "embedding",
+        "milliseconds": 224,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "main_model",
+        "milliseconds": 4406,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "embedding",
+        "milliseconds": 230,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "embedding",
+        "milliseconds": 215,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "main_model",
+        "milliseconds": 3797,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "embedding",
+        "milliseconds": 227,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "embedding",
+        "milliseconds": 228,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "main_model",
+        "milliseconds": 4610,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "main_model",
+        "milliseconds": 5654,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "embedding",
+        "milliseconds": 226,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "embedding",
+        "milliseconds": 211,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "main_model",
+        "milliseconds": 3576,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "main_model",
+        "milliseconds": 8903,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "embedding",
+        "milliseconds": 223,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "embedding",
+        "milliseconds": 218,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "main_model",
+        "milliseconds": 2992,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "main_model",
+        "milliseconds": 6843,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "embedding",
+        "milliseconds": 213,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "embedding",
+        "milliseconds": 234,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "embedding",
+        "milliseconds": 232,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "main_model",
+        "milliseconds": 12696,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "embedding",
+        "milliseconds": 211,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "embedding",
+        "milliseconds": 231,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "main_model",
+        "milliseconds": 30666,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "embedding",
+        "milliseconds": 208,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "main_model",
+        "milliseconds": 12669,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "embedding",
+        "milliseconds": 207,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "embedding",
+        "milliseconds": 237,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "main_model",
+        "milliseconds": 10217,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "main_model",
+        "milliseconds": 7497,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "embedding",
+        "milliseconds": 230,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "embedding",
+        "milliseconds": 235,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "main_model",
+        "milliseconds": 12253,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "embedding",
+        "milliseconds": 232,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "main_model",
+        "milliseconds": 25485,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "embedding",
+        "milliseconds": 311,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "embedding",
+        "milliseconds": 216,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "main_model",
+        "milliseconds": 12838,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "embedding",
+        "milliseconds": 231,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "embedding",
+        "milliseconds": 216,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "main_model",
+        "milliseconds": 20788,
+        "succeeded": true
+      },
+      {
+        "stage": "ingestion",
+        "kind": "embedding",
+        "milliseconds": 209,
+        "succeeded": true
+      },
+      {
+        "stage": "query:q01",
+        "kind": "embedding",
+        "milliseconds": 225,
+        "succeeded": true
+      },
+      {
+        "stage": "query:q02",
+        "kind": "embedding",
+        "milliseconds": 217,
+        "succeeded": true
+      },
+      {
+        "stage": "query:q03",
+        "kind": "embedding",
+        "milliseconds": 212,
+        "succeeded": true
+      },
+      {
+        "stage": "query:q04",
+        "kind": "embedding",
+        "milliseconds": 228,
+        "succeeded": true
+      },
+      {
+        "stage": "query:q05",
+        "kind": "embedding",
+        "milliseconds": 208,
+        "succeeded": true
+      },
+      {
+        "stage": "query:q06",
+        "kind": "embedding",
+        "milliseconds": 232,
+        "succeeded": true
+      },
+      {
+        "stage": "query:q07",
+        "kind": "embedding",
+        "milliseconds": 208,
+        "succeeded": true
+      },
+      {
+        "stage": "query:q08",
+        "kind": "embedding",
+        "milliseconds": 217,
+        "succeeded": true
+      },
+      {
+        "stage": "query:q09",
+        "kind": "embedding",
+        "milliseconds": 236,
+        "succeeded": true
+      },
+      {
+        "stage": "query:q10",
+        "kind": "embedding",
+        "milliseconds": 210,
+        "succeeded": true
+      },
+      {
+        "stage": "query:q11",
+        "kind": "embedding",
+        "milliseconds": 233,
+        "succeeded": true
+      },
+      {
+        "stage": "query:q12",
+        "kind": "embedding",
+        "milliseconds": 214,
+        "succeeded": true
+      },
+      {
+        "stage": "query:q13",
+        "kind": "embedding",
+        "milliseconds": 217,
+        "succeeded": true
+      },
+      {
+        "stage": "query:q14",
+        "kind": "embedding",
+        "milliseconds": 229,
+        "succeeded": true
+      },
+      {
+        "stage": "query:q15",
+        "kind": "embedding",
+        "milliseconds": 227,
+        "succeeded": true
+      },
+      {
+        "stage": "query:q16",
+        "kind": "embedding",
+        "milliseconds": 212,
+        "succeeded": true
+      },
+      {
+        "stage": "query:q17",
+        "kind": "embedding",
+        "milliseconds": 210,
+        "succeeded": true
+      },
+      {
+        "stage": "query:q18",
+        "kind": "embedding",
+        "milliseconds": 226,
+        "succeeded": true
+      },
+      {
+        "stage": "query:q19",
+        "kind": "embedding",
+        "milliseconds": 212,
+        "succeeded": true
+      },
+      {
+        "stage": "query:q20",
+        "kind": "embedding",
+        "milliseconds": 215,
+        "succeeded": true
+      },
+      {
+        "stage": "query:q21",
+        "kind": "embedding",
+        "milliseconds": 228,
+        "succeeded": true
+      },
+      {
+        "stage": "query:q22",
+        "kind": "embedding",
+        "milliseconds": 205,
+        "succeeded": true
+      },
+      {
+        "stage": "query:q23",
+        "kind": "embedding",
+        "milliseconds": 214,
+        "succeeded": true
+      },
+      {
+        "stage": "query:q24",
+        "kind": "embedding",
+        "milliseconds": 218,
+        "succeeded": true
+      },
+      {
+        "stage": "query:q25",
+        "kind": "embedding",
+        "milliseconds": 231,
+        "succeeded": true
+      },
+      {
+        "stage": "query:q26",
+        "kind": "embedding",
+        "milliseconds": 236,
+        "succeeded": true
+      },
+      {
+        "stage": "query:q27",
+        "kind": "embedding",
+        "milliseconds": 207,
+        "succeeded": true
+      },
+      {
+        "stage": "query:q28",
+        "kind": "embedding",
+        "milliseconds": 213,
+        "succeeded": true
+      },
+      {
+        "stage": "query:q29",
+        "kind": "embedding",
+        "milliseconds": 233,
+        "succeeded": true
+      },
+      {
+        "stage": "query:q30",
+        "kind": "embedding",
+        "milliseconds": 208,
+        "succeeded": true
+      },
+      {
+        "stage": "query:q31",
+        "kind": "embedding",
+        "milliseconds": 235,
+        "succeeded": true
+      },
+      {
+        "stage": "query:q32",
+        "kind": "embedding",
+        "milliseconds": 211,
+        "succeeded": true
+      },
+      {
+        "stage": "query:q33",
+        "kind": "embedding",
+        "milliseconds": 200,
+        "succeeded": true
+      },
+      {
+        "stage": "query:q34",
+        "kind": "embedding",
+        "milliseconds": 213,
+        "succeeded": true
+      },
+      {
+        "stage": "query:q35",
+        "kind": "embedding",
+        "milliseconds": 235,
+        "succeeded": true
+      },
+      {
+        "stage": "query:q36",
+        "kind": "embedding",
+        "milliseconds": 205,
+        "succeeded": true
+      },
+      {
+        "stage": "query:q37",
+        "kind": "embedding",
+        "milliseconds": 237,
+        "succeeded": true
+      },
+      {
+        "stage": "query:q38",
+        "kind": "embedding",
+        "milliseconds": 210,
+        "succeeded": true
+      },
+      {
+        "stage": "query:q39",
+        "kind": "embedding",
+        "milliseconds": 235,
+        "succeeded": true
+      },
+      {
+        "stage": "query:q40",
+        "kind": "embedding",
+        "milliseconds": 213,
+        "succeeded": true
+      },
+      {
+        "stage": "query:q41",
+        "kind": "embedding",
+        "milliseconds": 214,
+        "succeeded": true
+      },
+      {
+        "stage": "query:q42",
+        "kind": "embedding",
+        "milliseconds": 231,
+        "succeeded": true
+      },
+      {
+        "stage": "query:q43",
+        "kind": "embedding",
+        "milliseconds": 216,
+        "succeeded": true
+      },
+      {
+        "stage": "query:q44",
+        "kind": "embedding",
+        "milliseconds": 211,
+        "succeeded": true
+      },
+      {
+        "stage": "query:q45",
+        "kind": "embedding",
+        "milliseconds": 225,
+        "succeeded": true
+      },
+      {
+        "stage": "query:q46",
+        "kind": "embedding",
+        "milliseconds": 233,
+        "succeeded": true
+      },
+      {
+        "stage": "query:q47",
+        "kind": "embedding",
+        "milliseconds": 222,
+        "succeeded": true
+      },
+      {
+        "stage": "query:q48",
+        "kind": "embedding",
+        "milliseconds": 214,
+        "succeeded": true
+      },
+      {
+        "stage": "query:q49",
+        "kind": "embedding",
+        "milliseconds": 237,
+        "succeeded": true
+      },
+      {
+        "stage": "query:q50",
+        "kind": "embedding",
+        "milliseconds": 217,
+        "succeeded": true
+      },
+      {
+        "stage": "query:q51",
+        "kind": "embedding",
+        "milliseconds": 203,
+        "succeeded": true
+      },
+      {
+        "stage": "query:q52",
+        "kind": "embedding",
+        "milliseconds": 235,
+        "succeeded": true
+      },
+      {
+        "stage": "query:q53",
+        "kind": "embedding",
+        "milliseconds": 236,
+        "succeeded": true
+      },
+      {
+        "stage": "query:q54",
+        "kind": "embedding",
+        "milliseconds": 214,
+        "succeeded": true
+      },
+      {
+        "stage": "query:q55",
+        "kind": "embedding",
+        "milliseconds": 237,
+        "succeeded": true
+      },
+      {
+        "stage": "query:q55",
+        "kind": "main_model",
+        "milliseconds": 2347,
+        "succeeded": true
+      },
+      {
+        "stage": "query:q56",
+        "kind": "embedding",
+        "milliseconds": 235,
+        "succeeded": true
+      },
+      {
+        "stage": "query:q57",
+        "kind": "embedding",
+        "milliseconds": 238,
+        "succeeded": true
+      },
+      {
+        "stage": "query:q58",
+        "kind": "embedding",
+        "milliseconds": 241,
+        "succeeded": true
+      },
+      {
+        "stage": "query:q59",
+        "kind": "embedding",
+        "milliseconds": 213,
+        "succeeded": true
+      },
+      {
+        "stage": "query:q60",
+        "kind": "embedding",
+        "milliseconds": 238,
+        "succeeded": true
+      },
+      {
+        "stage": "forget",
+        "kind": "embedding",
+        "milliseconds": 259,
+        "succeeded": true
+      },
+      {
+        "stage": "forget",
+        "kind": "embedding",
+        "milliseconds": 236,
+        "succeeded": true
+      }
+    ],
+    "queries": [
+      {
+        "ID": "q01",
+        "Category": "literal",
+        "Expected": [
+          "diet"
+        ],
+        "Found": [
+          "diet",
+          "drink"
+        ],
+        "Missing": null,
+        "Forbidden": null,
+        "CitationErrors": null,
+        "Milliseconds": 231
+      },
+      {
+        "ID": "q02",
+        "Category": "literal",
+        "Expected": [
+          "drink"
+        ],
+        "Found": [
+          "diet",
+          "drink",
+          "weekday"
+        ],
+        "Missing": null,
+        "Forbidden": null,
+        "CitationErrors": null,
+        "Milliseconds": 227
+      },
+      {
+        "ID": "q03",
+        "Category": "literal",
+        "Expected": [
+          "weekday"
+        ],
+        "Found": [
+          "exercise",
+          "notification",
+          "weekday"
+        ],
+        "Missing": null,
+        "Forbidden": null,
+        "CitationErrors": null,
+        "Milliseconds": 220
+      },
+      {
+        "ID": "q04",
+        "Category": "literal",
+        "Expected": [
+          "travel"
+        ],
+        "Found": [
+          "notification",
+          "travel",
+          "weekday"
+        ],
+        "Missing": null,
+        "Forbidden": null,
+        "CitationErrors": null,
+        "Milliseconds": 237
+      },
+      {
+        "ID": "q05",
+        "Category": "literal",
+        "Expected": [
+          "writing"
+        ],
+        "Found": [
+          "coding",
+          "release_blocker",
+          "release_goal",
+          "writing"
+        ],
+        "Missing": null,
+        "Forbidden": null,
+        "CitationErrors": null,
+        "Milliseconds": 217
+      },
+      {
+        "ID": "q06",
+        "Category": "literal",
+        "Expected": [
+          "coding"
+        ],
+        "Found": [
+          "attempt",
+          "coding",
+          "release_blocker",
+          "release_goal"
+        ],
+        "Missing": null,
+        "Forbidden": null,
+        "CitationErrors": null,
+        "Milliseconds": 247
+      },
+      {
+        "ID": "q07",
+        "Category": "literal",
+        "Expected": [
+          "storage"
+        ],
+        "Found": [
+          "attempt",
+          "coding",
+          "release_blocker",
+          "release_goal",
+          "storage"
+        ],
+        "Missing": null,
+        "Forbidden": null,
+        "CitationErrors": null,
+        "Milliseconds": 221
+      },
+      {
+        "ID": "q08",
+        "Category": "literal",
+        "Expected": [
+          "notification"
+        ],
+        "Found": [
+          "notification",
+          "release_blocker",
+          "release_goal",
+          "weekday"
+        ],
+        "Missing": null,
+        "Forbidden": null,
+        "CitationErrors": null,
+        "Milliseconds": 230
+      },
+      {
+        "ID": "q09",
+        "Category": "literal",
+        "Expected": [
+          "exercise"
+        ],
+        "Found": [
+          "exercise",
+          "weekday"
+        ],
+        "Missing": null,
+        "Forbidden": null,
+        "CitationErrors": null,
+        "Milliseconds": 243
+      },
+      {
+        "ID": "q10",
+        "Category": "literal",
+        "Expected": [
+          "budget"
+        ],
+        "Found": [
+          "budget"
+        ],
+        "Missing": null,
+        "Forbidden": null,
+        "CitationErrors": null,
+        "Milliseconds": 215
+      },
+      {
+        "ID": "q11",
+        "Category": "literal",
+        "Expected": [
+          "learning"
+        ],
+        "Found": [
+          "coding",
+          "learning",
+          "release_blocker",
+          "release_goal",
+          "writing"
+        ],
+        "Missing": null,
+        "Forbidden": null,
+        "CitationErrors": null,
+        "Milliseconds": 240
+      },
+      {
+        "ID": "q12",
+        "Category": "literal",
+        "Expected": [
+          "sensitive"
+        ],
+        "Found": [
+          "sensitive"
+        ],
+        "Missing": null,
+        "Forbidden": null,
+        "CitationErrors": null,
+        "Milliseconds": 218
+      },
+      {
+        "ID": "q13",
+        "Category": "synonym",
+        "Expected": [
+          "diet"
+        ],
+        "Found": [
+          "diet",
+          "drink",
+          "notification",
+          "weekday"
+        ],
+        "Missing": null,
+        "Forbidden": null,
+        "CitationErrors": null,
+        "Milliseconds": 223
+      },
+      {
+        "ID": "q14",
+        "Category": "synonym",
+        "Expected": [
+          "drink"
+        ],
+        "Found": [
+          "drink"
+        ],
+        "Missing": null,
+        "Forbidden": null,
+        "CitationErrors": null,
+        "Milliseconds": 233
+      },
+      {
+        "ID": "q15",
+        "Category": "synonym",
+        "Expected": [
+          "weekday"
+        ],
+        "Found": [
+          "exercise",
+          "notification",
+          "weekday"
+        ],
+        "Missing": null,
+        "Forbidden": null,
+        "CitationErrors": null,
+        "Milliseconds": 234
+      },
+      {
+        "ID": "q16",
+        "Category": "synonym",
+        "Expected": [
+          "travel"
+        ],
+        "Found": [
+          "notification",
+          "travel",
+          "weekday"
+        ],
+        "Missing": null,
+        "Forbidden": null,
+        "CitationErrors": null,
+        "Milliseconds": 220
+      },
+      {
+        "ID": "q17",
+        "Category": "synonym",
+        "Expected": [
+          "writing"
+        ],
+        "Found": [
+          "writing"
+        ],
+        "Missing": null,
+        "Forbidden": null,
+        "CitationErrors": null,
+        "Milliseconds": 214
+      },
+      {
+        "ID": "q18",
+        "Category": "synonym",
+        "Expected": [
+          "coding"
+        ],
+        "Found": [
+          "coding",
+          "release_blocker",
+          "release_goal",
+          "writing"
+        ],
+        "Missing": null,
+        "Forbidden": null,
+        "CitationErrors": null,
+        "Milliseconds": 232
+      },
+      {
+        "ID": "q19",
+        "Category": "synonym",
+        "Expected": [
+          "storage"
+        ],
+        "Found": [
+          "attempt",
+          "release_blocker",
+          "release_goal",
+          "storage"
+        ],
+        "Missing": null,
+        "Forbidden": null,
+        "CitationErrors": null,
+        "Milliseconds": 220
+      },
+      {
+        "ID": "q20",
+        "Category": "synonym",
+        "Expected": [
+          "notification"
+        ],
+        "Found": [
+          "notification",
+          "weekday"
+        ],
+        "Missing": null,
+        "Forbidden": null,
+        "CitationErrors": null,
+        "Milliseconds": 222
+      },
+      {
+        "ID": "q21",
+        "Category": "synonym",
+        "Expected": [
+          "exercise"
+        ],
+        "Found": [
+          "exercise",
+          "weekday"
+        ],
+        "Missing": null,
+        "Forbidden": null,
+        "CitationErrors": null,
+        "Milliseconds": 235
+      },
+      {
+        "ID": "q22",
+        "Category": "synonym",
+        "Expected": [
+          "budget"
+        ],
+        "Found": [
+          "budget"
+        ],
+        "Missing": null,
+        "Forbidden": null,
+        "CitationErrors": null,
+        "Milliseconds": 209
+      },
+      {
+        "ID": "q23",
+        "Category": "synonym",
+        "Expected": [
+          "learning"
+        ],
+        "Found": [
+          "attempt",
+          "learning",
+          "release_blocker",
+          "release_goal",
+          "writing"
+        ],
+        "Missing": null,
+        "Forbidden": null,
+        "CitationErrors": null,
+        "Milliseconds": 224
+      },
+      {
+        "ID": "q24",
+        "Category": "synonym",
+        "Expected": [
+          "sensitive"
+        ],
+        "Found": [
+          "budget",
+          "sensitive",
+          "weekday"
+        ],
+        "Missing": null,
+        "Forbidden": null,
+        "CitationErrors": null,
+        "Milliseconds": 226
+      },
+      {
+        "ID": "q25",
+        "Category": "time",
+        "Expected": [
+          "old_city"
+        ],
+        "Found": [
+          "exercise",
+          "new_city",
+          "old_city",
+          "weekday"
+        ],
+        "Missing": null,
+        "Forbidden": null,
+        "CitationErrors": null,
+        "Milliseconds": 238
+      },
+      {
+        "ID": "q26",
+        "Category": "time",
+        "Expected": [
+          "old_city"
+        ],
+        "Found": [
+          "exercise",
+          "new_city",
+          "old_city",
+          "weekday"
+        ],
+        "Missing": null,
+        "Forbidden": null,
+        "CitationErrors": null,
+        "Milliseconds": 253
+      },
+      {
+        "ID": "q27",
+        "Category": "time",
+        "Expected": [
+          "old_city"
+        ],
+        "Found": [
+          "exercise",
+          "new_city",
+          "old_city",
+          "weekday"
+        ],
+        "Missing": null,
+        "Forbidden": null,
+        "CitationErrors": null,
+        "Milliseconds": 214
+      },
+      {
+        "ID": "q28",
+        "Category": "time",
+        "Expected": [
+          "new_city"
+        ],
+        "Found": [
+          "new_city",
+          "sensitive",
+          "weekday"
+        ],
+        "Missing": null,
+        "Forbidden": null,
+        "CitationErrors": null,
+        "Milliseconds": 220
+      },
+      {
+        "ID": "q29",
+        "Category": "time",
+        "Expected": [
+          "new_city"
+        ],
+        "Found": [
+          "attempt",
+          "new_city",
+          "release_blocker",
+          "release_goal"
+        ],
+        "Missing": null,
+        "Forbidden": null,
+        "CitationErrors": null,
+        "Milliseconds": 243
+      },
+      {
+        "ID": "q30",
+        "Category": "time",
+        "Expected": [
+          "old_city"
+        ],
+        "Found": [
+          "budget",
+          "exercise",
+          "learning",
+          "old_city",
+          "sensitive",
+          "weekday"
+        ],
+        "Missing": null,
+        "Forbidden": null,
+        "CitationErrors": null,
+        "Milliseconds": 216
+      },
+      {
+        "ID": "q31",
+        "Category": "time",
+        "Expected": [
+          "old_city"
+        ],
+        "Found": [
+          "budget",
+          "exercise",
+          "learning",
+          "old_city",
+          "sensitive",
+          "weekday"
+        ],
+        "Missing": null,
+        "Forbidden": null,
+        "CitationErrors": null,
+        "Milliseconds": 244
+      },
+      {
+        "ID": "q32",
+        "Category": "time",
+        "Expected": [
+          "old_city"
+        ],
+        "Found": [
+          "budget",
+          "exercise",
+          "learning",
+          "old_city",
+          "sensitive",
+          "weekday"
+        ],
+        "Missing": null,
+        "Forbidden": null,
+        "CitationErrors": null,
+        "Milliseconds": 222
+      },
+      {
+        "ID": "q33",
+        "Category": "time",
+        "Expected": [
+          "diet"
+        ],
+        "Found": [
+          "diet",
+          "drink"
+        ],
+        "Missing": null,
+        "Forbidden": null,
+        "CitationErrors": null,
+        "Milliseconds": 204
+      },
+      {
+        "ID": "q34",
+        "Category": "time",
+        "Expected": [
+          "drink"
+        ],
+        "Found": [
+          "attempt",
+          "drink",
+          "release_blocker",
+          "release_goal"
+        ],
+        "Missing": null,
+        "Forbidden": null,
+        "CitationErrors": null,
+        "Milliseconds": 222
+      },
+      {
+        "ID": "q35",
+        "Category": "time",
+        "Expected": [
+          "release_goal"
+        ],
+        "Found": [
+          "attempt",
+          "coding",
+          "release_blocker",
+          "release_goal"
+        ],
+        "Missing": null,
+        "Forbidden": null,
+        "CitationErrors": null,
+        "Milliseconds": 244
+      },
+      {
+        "ID": "q36",
+        "Category": "time",
+        "Expected": [
+          "release_blocker"
+        ],
+        "Found": [
+          "attempt",
+          "coding",
+          "release_blocker",
+          "release_goal"
+        ],
+        "Missing": null,
+        "Forbidden": null,
+        "CitationErrors": null,
+        "Milliseconds": 216
+      },
+      {
+        "ID": "q37",
+        "Category": "correction",
+        "Expected": [
+          "new_city"
+        ],
+        "Found": [
+          "coding",
+          "exercise",
+          "new_city",
+          "sensitive"
+        ],
+        "Missing": null,
+        "Forbidden": null,
+        "CitationErrors": null,
+        "Milliseconds": 246
+      },
+      {
+        "ID": "q38",
+        "Category": "correction",
+        "Expected": [
+          "new_city"
+        ],
+        "Found": [
+          "attempt",
+          "new_city",
+          "release_blocker",
+          "release_goal"
+        ],
+        "Missing": null,
+        "Forbidden": null,
+        "CitationErrors": null,
+        "Milliseconds": 219
+      },
+      {
+        "ID": "q39",
+        "Category": "correction",
+        "Expected": [
+          "new_city"
+        ],
+        "Found": [
+          "new_city",
+          "travel"
+        ],
+        "Missing": null,
+        "Forbidden": null,
+        "CitationErrors": null,
+        "Milliseconds": 240
+      },
+      {
+        "ID": "q40",
+        "Category": "correction",
+        "Expected": [
+          "new_city"
+        ],
+        "Found": [
+          "new_city"
+        ],
+        "Missing": null,
+        "Forbidden": null,
+        "CitationErrors": null,
+        "Milliseconds": 217
+      },
+      {
+        "ID": "q41",
+        "Category": "correction",
+        "Expected": [
+          "new_city"
+        ],
+        "Found": [
+          "new_city"
+        ],
+        "Missing": null,
+        "Forbidden": null,
+        "CitationErrors": null,
+        "Milliseconds": 218
+      },
+      {
+        "ID": "q42",
+        "Category": "correction",
+        "Expected": [
+          "new_city",
+          "old_city"
+        ],
+        "Found": [
+          "exercise",
+          "new_city",
+          "old_city",
+          "weekday"
+        ],
+        "Missing": null,
+        "Forbidden": null,
+        "CitationErrors": null,
+        "Milliseconds": 238
+      },
+      {
+        "ID": "q43",
+        "Category": "correction",
+        "Expected": [
+          "new_city"
+        ],
+        "Found": [
+          "new_city",
+          "weekday"
+        ],
+        "Missing": null,
+        "Forbidden": null,
+        "CitationErrors": null,
+        "Milliseconds": 222
+      },
+      {
+        "ID": "q44",
+        "Category": "correction",
+        "Expected": [
+          "new_city"
+        ],
+        "Found": [
+          "new_city",
+          "travel"
+        ],
+        "Missing": null,
+        "Forbidden": null,
+        "CitationErrors": null,
+        "Milliseconds": 216
+      },
+      {
+        "ID": "q45",
+        "Category": "association",
+        "Expected": [
+          "release_goal",
+          "release_blocker"
+        ],
+        "Found": [
+          "attempt",
+          "coding",
+          "release_blocker",
+          "release_goal"
+        ],
+        "Missing": null,
+        "Forbidden": null,
+        "CitationErrors": null,
+        "Milliseconds": 232
+      },
+      {
+        "ID": "q46",
+        "Category": "association",
+        "Expected": [
+          "release_blocker",
+          "attempt"
+        ],
+        "Found": [
+          "attempt",
+          "release_blocker",
+          "release_goal"
+        ],
+        "Missing": null,
+        "Forbidden": null,
+        "CitationErrors": null,
+        "Milliseconds": 243
+      },
+      {
+        "ID": "q47",
+        "Category": "association",
+        "Expected": [
+          "release_goal",
+          "release_blocker"
+        ],
+        "Found": [
+          "attempt",
+          "notification",
+          "release_blocker",
+          "release_goal",
+          "weekday"
+        ],
+        "Missing": null,
+        "Forbidden": null,
+        "CitationErrors": null,
+        "Milliseconds": 234
+      },
+      {
+        "ID": "q48",
+        "Category": "association",
+        "Expected": [
+          "attempt"
+        ],
+        "Found": [
+          "attempt",
+          "coding",
+          "release_blocker",
+          "release_goal"
+        ],
+        "Missing": null,
+        "Forbidden": null,
+        "CitationErrors": null,
+        "Milliseconds": 224
+      },
+      {
+        "ID": "q49",
+        "Category": "association",
+        "Expected": [
+          "coding",
+          "release_blocker"
+        ],
+        "Found": [
+          "attempt",
+          "coding",
+          "release_blocker",
+          "release_goal"
+        ],
+        "Missing": null,
+        "Forbidden": null,
+        "CitationErrors": null,
+        "Milliseconds": 247
+      },
+      {
+        "ID": "q50",
+        "Category": "association",
+        "Expected": [
+          "release_blocker",
+          "attempt"
+        ],
+        "Found": [
+          "attempt",
+          "learning",
+          "release_blocker",
+          "release_goal"
+        ],
+        "Missing": null,
+        "Forbidden": null,
+        "CitationErrors": null,
+        "Milliseconds": 226
+      },
+      {
+        "ID": "q51",
+        "Category": "association",
+        "Expected": [
+          "release_goal",
+          "attempt"
+        ],
+        "Found": [
+          "attempt",
+          "release_blocker",
+          "release_goal"
+        ],
+        "Missing": null,
+        "Forbidden": null,
+        "CitationErrors": null,
+        "Milliseconds": 213
+      },
+      {
+        "ID": "q52",
+        "Category": "association",
+        "Expected": [
+          "release_goal",
+          "release_blocker",
+          "attempt"
+        ],
+        "Found": [
+          "attempt",
+          "coding",
+          "release_blocker",
+          "release_goal"
+        ],
+        "Missing": null,
+        "Forbidden": null,
+        "CitationErrors": null,
+        "Milliseconds": 245
+      },
+      {
+        "ID": "q53",
+        "Category": "unrelated",
+        "Expected": [],
+        "Found": null,
+        "Missing": null,
+        "Forbidden": null,
+        "CitationErrors": null,
+        "Milliseconds": 238
+      },
+      {
+        "ID": "q54",
+        "Category": "unrelated",
+        "Expected": [],
+        "Found": null,
+        "Missing": null,
+        "Forbidden": null,
+        "CitationErrors": null,
+        "Milliseconds": 216
+      },
+      {
+        "ID": "q55",
+        "Category": "unrelated",
+        "Expected": [],
+        "Found": null,
+        "Missing": null,
+        "Forbidden": null,
+        "CitationErrors": null,
+        "Milliseconds": 2599
+      },
+      {
+        "ID": "q56",
+        "Category": "unrelated",
+        "Expected": [],
+        "Found": null,
+        "Missing": null,
+        "Forbidden": null,
+        "CitationErrors": null,
+        "Milliseconds": 238
+      },
+      {
+        "ID": "q57",
+        "Category": "unrelated",
+        "Expected": [],
+        "Found": null,
+        "Missing": null,
+        "Forbidden": null,
+        "CitationErrors": null,
+        "Milliseconds": 240
+      },
+      {
+        "ID": "q58",
+        "Category": "unrelated",
+        "Expected": [],
+        "Found": null,
+        "Missing": null,
+        "Forbidden": null,
+        "CitationErrors": null,
+        "Milliseconds": 243
+      },
+      {
+        "ID": "q59",
+        "Category": "unrelated",
+        "Expected": [],
+        "Found": null,
+        "Missing": null,
+        "Forbidden": null,
+        "CitationErrors": null,
+        "Milliseconds": 216
+      },
+      {
+        "ID": "q60",
+        "Category": "unrelated",
+        "Expected": [],
+        "Found": null,
+        "Missing": null,
+        "Forbidden": null,
+        "CitationErrors": null,
+        "Milliseconds": 240
+      }
+    ],
+    "query_count": 60,
+    "records_before_forget": [
+      {
+        "id": "m_03ec77550c9f4ff5b3b5506c08f023ee",
+        "kind": "insight",
+        "content": "核查周期约定是否重复执行时，只比较新旧表行数不足以证明没有重复执行，还需核对实际认领与执行记录；因此 Acorn 个人记忆功能发布前的迁移验证不能仅靠行数比较来确认旧约定不会被重复触发。",
+        "scope": "周期约定重复执行核查，尤其是 Acorn 个人记忆功能发布前的迁移验证",
+        "state": "current",
+        "basis": "inferred",
+        "revision": 1,
+        "valid_from": "0001-01-01T00:00:00Z",
+        "valid_to": "0001-01-01T00:00:00Z",
+        "recorded_at": "2026-10-03T08:00:00Z",
+        "updated_at": "2026-10-03T08:00:00Z",
+        "needs_review": false,
+        "pinned": false,
+        "entities": [
+          "Acorn 个人记忆功能",
+          "周期约定",
+          "新旧表",
+          "认领与执行记录",
+          "迁移验证"
+        ],
+        "evidence": [
+          {
+            "source_id": "attempt",
+            "quote": "只比较新旧表的行数，但这不能证明周期约定没有重复执行，需要验证实际的认领与执行记录",
+            "relation": "supports"
+          },
+          {
+            "source_id": "attempt",
+            "quote": "昨天我试过只比较新旧表的行数",
+            "relation": "supports"
+          },
+          {
+            "source_id": "release_blocker",
+            "quote": "Acorn 个人记忆功能现在卡在迁移验证，需要确认旧约定不会被重复触发，解决后才能发布。",
+            "relation": "supports"
+          }
+        ],
+        "parents": [
+          "m_836478b358cd7daeaa5f0fbf30c0787d",
+          "m_d59ec47589043fbcfd7bd4ea9b9be208",
+          "m_fcdd611326c4cdc1ad3ef6cf815ba31b"
+        ],
+        "source_ids": [
+          "attempt",
+          "release_blocker"
+        ]
+      },
+      {
+        "id": "m_836478b358cd7daeaa5f0fbf30c0787d",
+        "kind": "fact",
+        "content": "只比较新旧表的行数不能证明周期约定没有重复执行，需要验证实际的认领与执行记录。",
+        "scope": "针对周期约定是否重复执行的核查",
+        "state": "current",
+        "basis": "direct",
+        "revision": 1,
+        "valid_from": "0001-01-01T00:00:00Z",
+        "valid_to": "0001-01-01T00:00:00Z",
+        "recorded_at": "2026-10-03T08:00:00Z",
+        "updated_at": "2026-10-03T08:00:00Z",
+        "needs_review": false,
+        "pinned": false,
+        "entities": [
+          "周期约定",
+          "新旧表",
+          "认领与执行记录"
+        ],
+        "evidence": [
+          {
+            "source_id": "attempt",
+            "quote": "只比较新旧表的行数，但这不能证明周期约定没有重复执行，需要验证实际的认领与执行记录",
+            "relation": "supports"
+          }
+        ],
+        "parents": [],
+        "source_ids": [
+          "attempt"
+        ]
+      },
+      {
+        "id": "m_fcdd611326c4cdc1ad3ef6cf815ba31b",
+        "kind": "fact",
+        "content": "2026年10月2日，我试过只比较新旧表的行数。",
+        "scope": "针对周期约定是否重复执行的核查",
+        "state": "current",
+        "basis": "direct",
+        "revision": 1,
+        "valid_from": "2026-10-02T00:00:00Z",
+        "valid_to": "2026-10-03T00:00:00Z",
+        "recorded_at": "2026-10-03T08:00:00Z",
+        "updated_at": "2026-10-03T08:00:00Z",
+        "needs_review": false,
+        "pinned": false,
+        "entities": [
+          "周期约定",
+          "新旧表"
+        ],
+        "evidence": [
+          {
+            "source_id": "attempt",
+            "quote": "昨天我试过只比较新旧表的行数",
+            "relation": "supports"
+          }
+        ],
+        "parents": [],
+        "source_ids": [
+          "attempt"
+        ]
+      },
+      {
+        "id": "m_1d48ad0823ad4d2354195da4a8eaea8a",
+        "kind": "insight",
+        "content": "Acorn 个人记忆功能仍是截至2026-10-01所述的优先发布目标，但按2026-10-02的状态，只有在迁移验证确认旧约定不会被重复触发后才能发布，因此十月二十日前的发布取决于该验证是否先解决。",
+        "scope": "Acorn 个人记忆功能的当前发布优先级与迁移验证阻断",
+        "state": "current",
+        "basis": "inferred",
+        "revision": 1,
+        "valid_from": "0001-01-01T00:00:00Z",
+        "valid_to": "0001-01-01T00:00:00Z",
+        "recorded_at": "2026-10-02T08:00:00Z",
+        "updated_at": "2026-10-02T08:00:00Z",
+        "needs_review": false,
+        "pinned": false,
+        "entities": [
+          "Acorn",
+          "个人记忆功能",
+          "迁移验证"
+        ],
+        "evidence": [
+          {
+            "source_id": "release_goal",
+            "quote": "我希望 Acorn 在十月二十日之前发布个人记忆功能，这是当前最关心的项目事项。",
+            "relation": "supports"
+          },
+          {
+            "source_id": "release_blocker",
+            "quote": "Acorn 个人记忆功能现在卡在迁移验证，需要确认旧约定不会被重复触发，解决后才能发布。",
+            "relation": "supports"
+          }
+        ],
+        "parents": [
+          "m_817eeab99e9af26910c2474f5e4c2899",
+          "m_d59ec47589043fbcfd7bd4ea9b9be208"
+        ],
+        "source_ids": [
+          "release_blocker",
+          "release_goal"
+        ]
+      },
+      {
+        "id": "m_d59ec47589043fbcfd7bd4ea9b9be208",
+        "kind": "fact",
+        "content": "Acorn 个人记忆功能目前卡在迁移验证，需确认旧约定不会被重复触发，解决后才能发布。",
+        "scope": "截至该陈述时的发布状态",
+        "state": "current",
+        "basis": "direct",
+        "revision": 1,
+        "valid_from": "0001-01-01T00:00:00Z",
+        "valid_to": "0001-01-01T00:00:00Z",
+        "recorded_at": "2026-10-02T08:00:00Z",
+        "updated_at": "2026-10-02T08:00:00Z",
+        "needs_review": false,
+        "pinned": false,
+        "entities": [
+          "Acorn 个人记忆功能"
+        ],
+        "evidence": [
+          {
+            "source_id": "release_blocker",
+            "quote": "Acorn 个人记忆功能现在卡在迁移验证，需要确认旧约定不会被重复触发，解决后才能发布。",
+            "relation": "supports"
+          }
+        ],
+        "parents": [],
+        "source_ids": [
+          "release_blocker"
+        ]
+      },
+      {
+        "id": "m_817eeab99e9af26910c2474f5e4c2899",
+        "kind": "fact",
+        "content": "我希望 Acorn 在2026年10月20日之前发布个人记忆功能，这是当前最关心的项目事项。",
+        "scope": "截至2026-10-01所述的当前项目优先级",
+        "state": "current",
+        "basis": "direct",
+        "revision": 1,
+        "valid_from": "0001-01-01T00:00:00Z",
+        "valid_to": "0001-01-01T00:00:00Z",
+        "recorded_at": "2026-10-01T08:00:00Z",
+        "updated_at": "2026-10-01T08:00:00Z",
+        "needs_review": false,
+        "pinned": false,
+        "entities": [
+          "Acorn",
+          "个人记忆功能"
+        ],
+        "evidence": [
+          {
+            "source_id": "release_goal",
+            "quote": "我希望 Acorn 在十月二十日之前发布个人记忆功能，这是当前最关心的项目事项。",
+            "relation": "supports"
+          }
+        ],
+        "parents": [],
+        "source_ids": [
+          "release_goal"
+        ]
+      },
+      {
+        "id": "m_855f156d4fb24c50bcf696e27dd1410b",
+        "kind": "fact",
+        "content": "从一月开始我住在杭州，直到另行确认搬家前，杭州是我居住的城市。",
+        "scope": "自2026年1月起，直至另行确认搬家",
+        "state": "superseded",
+        "basis": "direct",
+        "revision": 2,
+        "valid_from": "2026-01-01T00:00:00Z",
+        "valid_to": "2026-09-01T00:00:00Z",
+        "recorded_at": "2026-01-01T08:00:00Z",
+        "updated_at": "2026-09-03T08:00:00Z",
+        "needs_review": false,
+        "pinned": false,
+        "entities": [
+          "杭州"
+        ],
+        "evidence": [
+          {
+            "source_id": "old_city",
+            "quote": "从一月开始我住在杭州，直到我另行确认搬家前，杭州是我居住的城市。",
+            "relation": "supports"
+          }
+        ],
+        "parents": [],
+        "source_ids": [
+          "old_city"
+        ]
+      },
+      {
+        "id": "m_9efef59ed5ffc80f01a0eddea1763150",
+        "kind": "fact",
+        "content": "我于2026年9月1日已从杭州搬到苏州，现在住在苏州。",
+        "scope": "自2026年9月1日起",
+        "state": "current",
+        "basis": "direct",
+        "revision": 1,
+        "valid_from": "2026-09-01T00:00:00Z",
+        "valid_to": "0001-01-01T00:00:00Z",
+        "recorded_at": "2026-09-03T08:00:00Z",
+        "updated_at": "2026-09-03T08:00:00Z",
+        "needs_review": false,
+        "pinned": false,
+        "entities": [
+          "杭州",
+          "苏州"
+        ],
+        "evidence": [
+          {
+            "source_id": "new_city",
+            "quote": "我九月一日已经从杭州搬到了苏州，现在住在苏州。",
+            "relation": "supports"
+          }
+        ],
+        "parents": [],
+        "source_ids": [
+          "new_city"
+        ]
+      },
+      {
+        "id": "m_cfe5716a15965f96fdd8c2895b05f02b",
+        "kind": "fact",
+        "content": "我从九月一日起居住在苏州",
+        "state": "current",
+        "basis": "direct",
+        "revision": 1,
+        "valid_from": "2026-09-01T00:00:00Z",
+        "valid_to": "0001-01-01T00:00:00Z",
+        "recorded_at": "2026-09-03T08:00:00Z",
+        "updated_at": "2026-09-03T08:00:00Z",
+        "needs_review": false,
+        "pinned": false,
+        "entities": [],
+        "evidence": [
+          {
+            "source_id": "new_city",
+            "quote": "更正一下，我九月一日已经从杭州搬到了苏州，现在住在苏州。",
+            "relation": "supports"
+          }
+        ],
+        "parents": [],
+        "source_ids": [
+          "new_city"
+        ]
+      },
+      {
+        "id": "m_f90cebc117d06da7cd0e618c8f02f73f",
+        "kind": "insight",
+        "content": "住在杭州期间，周六下午通常去滨江游泳馆游泳；这可与周末睡到九点并存，且不表示周六早上七点跑步。2026年9月1日搬到苏州后，不再把该场馆当作当前默认。",
+        "scope": "住杭州期间的周六下午游泳与周末早晨作息；2026-09-01起不再外推到苏州",
+        "state": "current",
+        "basis": "inferred",
+        "revision": 2,
+        "valid_from": "0001-01-01T00:00:00Z",
+        "valid_to": "2026-09-01T00:00:00Z",
+        "recorded_at": "2026-03-10T08:00:00Z",
+        "updated_at": "2026-09-03T08:00:00Z",
+        "needs_review": false,
+        "pinned": false,
+        "entities": [
+          "杭州",
+          "滨江游泳馆",
+          "睡眠",
+          "苏州"
+        ],
+        "evidence": [
+          {
+            "source_id": "exercise",
+            "quote": "我每周六下午去游泳，通常在滨江游泳馆。",
+            "relation": "supports"
+          },
+          {
+            "source_id": "weekday",
+            "quote": "周末想睡到九点",
+            "relation": "supports"
+          },
+          {
+            "source_id": "new_city",
+            "quote": "我九月一日已经从杭州搬到了苏州，现在住在苏州。",
+            "relation": "supports"
+          }
+        ],
+        "parents": [
+          "m_5ba42346b7febdb52204d13d45b49e7d",
+          "m_ddfd300629ba302cbe01cc722c76149a"
+        ],
+        "source_ids": [
+          "exercise",
+          "new_city",
+          "weekday"
+        ]
+      },
+      {
+        "id": "m_8f4d0d6ce31b16b35dd9e800e06c9ecc",
+        "kind": "fact",
+        "content": "我给书房起的私密昵称是月光小站。",
+        "scope": "书房的私密称呼",
+        "state": "current",
+        "basis": "direct",
+        "revision": 1,
+        "valid_from": "0001-01-01T00:00:00Z",
+        "valid_to": "0001-01-01T00:00:00Z",
+        "recorded_at": "2026-05-01T08:00:00Z",
+        "updated_at": "2026-05-01T08:00:00Z",
+        "needs_review": false,
+        "pinned": false,
+        "entities": [
+          "书房",
+          "月光小站"
+        ],
+        "aliases": [
+          {
+            "canonical": "书房",
+            "alias": "月光小站",
+            "scope": "私密昵称",
+            "source_id": "sensitive",
+            "quote": "我给书房起的私密昵称是月光小站"
+          }
+        ],
+        "evidence": [
+          {
+            "source_id": "sensitive",
+            "quote": "我给书房起的私密昵称是月光小站",
+            "relation": "supports"
+          }
+        ],
+        "parents": [],
+        "source_ids": [
+          "sensitive"
+        ]
+      },
+      {
+        "id": "m_531752adcfd967f3d533b8b73a405410",
+        "kind": "fact",
+        "content": "我正在准备 Go 后端面试，最想先补齐 Kafka 消费组和再均衡的知识。",
+        "scope": "截至记录时的当前学习优先级",
+        "state": "current",
+        "basis": "direct",
+        "revision": 1,
+        "valid_from": "0001-01-01T00:00:00Z",
+        "valid_to": "0001-01-01T00:00:00Z",
+        "recorded_at": "2026-04-12T08:00:00Z",
+        "updated_at": "2026-04-12T08:00:00Z",
+        "needs_review": false,
+        "pinned": false,
+        "entities": [
+          "Go 后端面试",
+          "Kafka 消费组",
+          "再均衡"
+        ],
+        "evidence": [
+          {
+            "source_id": "learning",
+            "quote": "我正在准备 Go 后端面试，最想先补齐 Kafka 消费组和再均衡的知识。",
+            "relation": "supports"
+          }
+        ],
+        "parents": [],
+        "source_ids": [
+          "learning"
+        ]
+      },
+      {
+        "id": "m_0e86da1d60ec3e829fb312c8a1746eef",
+        "kind": "fact",
+        "content": "希望这次购买的机械键盘声音安静一些",
+        "scope": "这次机械键盘购买",
+        "state": "current",
+        "basis": "direct",
+        "revision": 1,
+        "valid_from": "0001-01-01T00:00:00Z",
+        "valid_to": "0001-01-01T00:00:00Z",
+        "recorded_at": "2026-04-11T08:00:00Z",
+        "updated_at": "2026-04-11T08:00:00Z",
+        "needs_review": false,
+        "pinned": false,
+        "entities": [
+          "机械键盘"
+        ],
+        "evidence": [
+          {
+            "source_id": "budget",
+            "quote": "希望声音安静一些",
+            "relation": "supports"
+          }
+        ],
+        "parents": [],
+        "source_ids": [
+          "budget"
+        ]
+      },
+      {
+        "id": "m_b35d6240b46947ddc5e37ec35ce66037",
+        "kind": "fact",
+        "content": "这次购买机械键盘的预算上限是八百元",
+        "scope": "这次机械键盘购买",
+        "state": "current",
+        "basis": "direct",
+        "revision": 1,
+        "valid_from": "0001-01-01T00:00:00Z",
+        "valid_to": "0001-01-01T00:00:00Z",
+        "recorded_at": "2026-04-11T08:00:00Z",
+        "updated_at": "2026-04-11T08:00:00Z",
+        "needs_review": false,
+        "pinned": false,
+        "entities": [
+          "机械键盘"
+        ],
+        "evidence": [
+          {
+            "source_id": "budget",
+            "quote": "这次购买机械键盘的预算上限是八百元",
+            "relation": "supports"
+          }
+        ],
+        "parents": [],
+        "source_ids": [
+          "budget"
+        ]
+      },
+      {
+        "id": "m_5ba42346b7febdb52204d13d45b49e7d",
+        "kind": "fact",
+        "content": "我每周六下午去游泳，通常在滨江游泳馆。",
+        "scope": "每周六下午",
+        "state": "current",
+        "basis": "direct",
+        "revision": 1,
+        "valid_from": "0001-01-01T00:00:00Z",
+        "valid_to": "0001-01-01T00:00:00Z",
+        "recorded_at": "2026-03-10T08:00:00Z",
+        "updated_at": "2026-03-10T08:00:00Z",
+        "needs_review": false,
+        "pinned": false,
+        "entities": [
+          "滨江游泳馆"
+        ],
+        "evidence": [
+          {
+            "source_id": "exercise",
+            "quote": "我每周六下午去游泳，通常在滨江游泳馆。",
+            "relation": "supports"
+          }
+        ],
+        "parents": [],
+        "source_ids": [
+          "exercise"
+        ]
+      },
+      {
+        "id": "m_0b64b5e7d96e5b25980ddc73b07f1256",
+        "kind": "fact",
+        "content": "晚上十一点到早上八点不想收到普通推送，紧急服务中断可以例外。",
+        "scope": "每天晚上十一点至早上八点的普通推送；紧急服务中断除外",
+        "state": "current",
+        "basis": "direct",
+        "revision": 1,
+        "valid_from": "0001-01-01T00:00:00Z",
+        "valid_to": "0001-01-01T00:00:00Z",
+        "recorded_at": "2026-03-09T08:00:00Z",
+        "updated_at": "2026-03-09T08:00:00Z",
+        "needs_review": false,
+        "pinned": false,
+        "entities": [
+          "普通推送",
+          "紧急服务中断"
+        ],
+        "evidence": [
+          {
+            "source_id": "notification",
+            "quote": "晚上十一点到早上八点我不想收到普通推送，紧急服务中断可以例外。",
+            "relation": "supports"
+          }
+        ],
+        "parents": [],
+        "source_ids": [
+          "notification"
+        ]
+      },
+      {
+        "id": "m_b0f578158788b110210286d9546940b9",
+        "kind": "insight",
+        "content": "工作日仍有早上七点跑步的偏好，但每天晚上十一点至早上八点不接收普通推送，因此七点跑步提醒不宜在该时段作为普通推送发送；周末本来就不要七点跑步提醒。紧急服务中断可以例外。",
+        "scope": "工作日七点跑步提醒与每日晚上十一点至早上八点的普通推送安静时段",
+        "state": "current",
+        "basis": "inferred",
+        "revision": 2,
+        "valid_from": "0001-01-01T00:00:00Z",
+        "valid_to": "0001-01-01T00:00:00Z",
+        "recorded_at": "2026-01-04T08:00:00Z",
+        "updated_at": "2026-03-09T08:00:00Z",
+        "needs_review": false,
+        "pinned": false,
+        "entities": [
+          "普通推送",
+          "紧急服务中断",
+          "跑步"
+        ],
+        "evidence": [
+          {
+            "source_id": "weekday",
+            "quote": "工作日我喜欢早上七点跑步",
+            "relation": "supports"
+          },
+          {
+            "source_id": "weekday",
+            "quote": "周末不要七点提醒我跑步",
+            "relation": "supports"
+          },
+          {
+            "source_id": "notification",
+            "quote": "晚上十一点到早上八点我不想收到普通推送，紧急服务中断可以例外。",
+            "relation": "supports"
+          }
+        ],
+        "parents": [
+          "m_0b64b5e7d96e5b25980ddc73b07f1256",
+          "m_7b50f2e4a4b576d7e4ee9bb086d9090f",
+          "m_dfdef648143dab174b72e3d00755cff7"
+        ],
+        "source_ids": [
+          "notification",
+          "weekday"
+        ]
+      },
+      {
+        "id": "m_3c9aaea1442e37110323d4c6ce13960b",
+        "kind": "fact",
+        "content": "操作自己的项目文件时，希望直接修改维护中的版本，不要自动创建备份副本。",
+        "scope": "操作自己的项目文件时",
+        "state": "current",
+        "basis": "direct",
+        "revision": 1,
+        "valid_from": "0001-01-01T00:00:00Z",
+        "valid_to": "0001-01-01T00:00:00Z",
+        "recorded_at": "2026-03-08T08:00:00Z",
+        "updated_at": "2026-03-08T08:00:00Z",
+        "needs_review": false,
+        "pinned": false,
+        "entities": [],
+        "evidence": [
+          {
+            "source_id": "storage",
+            "quote": "我希望操作自己的项目文件时直接修改维护中的版本，不要自动创建备份副本。",
+            "relation": "supports"
+          }
+        ],
+        "parents": [],
+        "source_ids": [
+          "storage"
+        ]
+      },
+      {
+        "id": "m_59f303fc619600a3fc5db56f3f941d85",
+        "kind": "fact",
+        "content": "个人后端项目 Acorn 使用 Go 和 SQLite，运行在自己维护的 VPS 上。",
+        "scope": "个人后端项目",
+        "state": "current",
+        "basis": "direct",
+        "revision": 1,
+        "valid_from": "0001-01-01T00:00:00Z",
+        "valid_to": "0001-01-01T00:00:00Z",
+        "recorded_at": "2026-02-07T08:00:00Z",
+        "updated_at": "2026-02-07T08:00:00Z",
+        "needs_review": false,
+        "pinned": false,
+        "entities": [
+          "Acorn",
+          "Go",
+          "SQLite"
+        ],
+        "evidence": [
+          {
+            "source_id": "coding",
+            "quote": "我的个人后端项目 Acorn 使用 Go 和 SQLite，运行在自己维护的 VPS 上。",
+            "relation": "supports"
+          }
+        ],
+        "parents": [],
+        "source_ids": [
+          "coding"
+        ]
+      },
+      {
+        "id": "m_2c193cbd5a46e2cf03d1c745a8301bdc",
+        "kind": "fact",
+        "content": "写给我的技术解释用中文完整段落，一次讲一个概念。",
+        "scope": "向我提供技术解释时",
+        "state": "current",
+        "basis": "direct",
+        "revision": 1,
+        "valid_from": "0001-01-01T00:00:00Z",
+        "valid_to": "0001-01-01T00:00:00Z",
+        "recorded_at": "2026-02-06T08:00:00Z",
+        "updated_at": "2026-02-06T08:00:00Z",
+        "needs_review": false,
+        "pinned": false,
+        "entities": [
+          "技术解释"
+        ],
+        "evidence": [
+          {
+            "source_id": "writing",
+            "quote": "写给我的技术解释用中文完整段落，一次讲一个概念。",
+            "relation": "supports"
+          }
+        ],
+        "parents": [],
+        "source_ids": [
+          "writing"
+        ]
+      },
+      {
+        "id": "m_60c2af1f81be2b8a79d7dd3f62008734",
+        "kind": "fact",
+        "content": "出差时优先坐高铁，只有超过六小时才考虑飞机。",
+        "scope": "出差",
+        "state": "current",
+        "basis": "direct",
+        "revision": 1,
+        "valid_from": "0001-01-01T00:00:00Z",
+        "valid_to": "0001-01-01T00:00:00Z",
+        "recorded_at": "2026-02-05T08:00:00Z",
+        "updated_at": "2026-02-05T08:00:00Z",
+        "needs_review": false,
+        "pinned": false,
+        "entities": [
+          "出差",
+          "飞机",
+          "高铁"
+        ],
+        "evidence": [
+          {
+            "source_id": "travel",
+            "quote": "出差我优先坐高铁，只有超过六小时才考虑飞机。",
+            "relation": "supports"
+          }
+        ],
+        "parents": [],
+        "source_ids": [
+          "travel"
+        ]
+      },
+      {
+        "id": "m_7b50f2e4a4b576d7e4ee9bb086d9090f",
+        "kind": "fact",
+        "content": "周末不要七点提醒跑步",
+        "scope": "周末",
+        "state": "current",
+        "basis": "direct",
+        "revision": 1,
+        "valid_from": "0001-01-01T00:00:00Z",
+        "valid_to": "0001-01-01T00:00:00Z",
+        "recorded_at": "2026-01-04T08:00:00Z",
+        "updated_at": "2026-01-04T08:00:00Z",
+        "needs_review": false,
+        "pinned": false,
+        "entities": [
+          "跑步"
+        ],
+        "evidence": [
+          {
+            "source_id": "weekday",
+            "quote": "周末不要七点提醒我跑步",
+            "relation": "supports"
+          }
+        ],
+        "parents": [],
+        "source_ids": [
+          "weekday"
+        ]
+      },
+      {
+        "id": "m_8c2e8df912b947c6d40c9ee0f1081bb2",
+        "kind": "insight",
+        "content": "早晨安排可能按日期类型不同：工作日倾向七点跑步，周末则更想睡到九点",
+        "scope": "工作日与周末的早晨作息",
+        "state": "current",
+        "basis": "inferred",
+        "revision": 1,
+        "valid_from": "0001-01-01T00:00:00Z",
+        "valid_to": "0001-01-01T00:00:00Z",
+        "recorded_at": "2026-01-04T08:00:00Z",
+        "updated_at": "2026-01-04T08:00:00Z",
+        "needs_review": false,
+        "pinned": false,
+        "entities": [
+          "睡眠",
+          "跑步"
+        ],
+        "evidence": [
+          {
+            "source_id": "weekday",
+            "quote": "周末想睡到九点",
+            "relation": "supports"
+          },
+          {
+            "source_id": "weekday",
+            "quote": "工作日我喜欢早上七点跑步",
+            "relation": "supports"
+          }
+        ],
+        "parents": [
+          "m_ddfd300629ba302cbe01cc722c76149a",
+          "m_dfdef648143dab174b72e3d00755cff7"
+        ],
+        "source_ids": [
+          "weekday"
+        ]
+      },
+      {
+        "id": "m_ddfd300629ba302cbe01cc722c76149a",
+        "kind": "fact",
+        "content": "周末想睡到九点",
+        "scope": "周末",
+        "state": "current",
+        "basis": "direct",
+        "revision": 1,
+        "valid_from": "0001-01-01T00:00:00Z",
+        "valid_to": "0001-01-01T00:00:00Z",
+        "recorded_at": "2026-01-04T08:00:00Z",
+        "updated_at": "2026-01-04T08:00:00Z",
+        "needs_review": false,
+        "pinned": false,
+        "entities": [
+          "睡眠"
+        ],
+        "evidence": [
+          {
+            "source_id": "weekday",
+            "quote": "周末想睡到九点",
+            "relation": "supports"
+          }
+        ],
+        "parents": [],
+        "source_ids": [
+          "weekday"
+        ]
+      },
+      {
+        "id": "m_dfdef648143dab174b72e3d00755cff7",
+        "kind": "fact",
+        "content": "工作日喜欢早上七点跑步",
+        "scope": "工作日",
+        "state": "current",
+        "basis": "direct",
+        "revision": 1,
+        "valid_from": "0001-01-01T00:00:00Z",
+        "valid_to": "0001-01-01T00:00:00Z",
+        "recorded_at": "2026-01-04T08:00:00Z",
+        "updated_at": "2026-01-04T08:00:00Z",
+        "needs_review": false,
+        "pinned": false,
+        "entities": [
+          "跑步"
+        ],
+        "evidence": [
+          {
+            "source_id": "weekday",
+            "quote": "工作日我喜欢早上七点跑步",
+            "relation": "supports"
+          }
+        ],
+        "parents": [],
+        "source_ids": [
+          "weekday"
+        ]
+      },
+      {
+        "id": "m_0349bdf82bf6783ec3e6710ff0d2f875",
+        "kind": "fact",
+        "content": "喝咖啡只要无糖的，美式或拿铁都可以。",
+        "scope": "饮用咖啡时",
+        "state": "current",
+        "basis": "direct",
+        "revision": 1,
+        "valid_from": "0001-01-01T00:00:00Z",
+        "valid_to": "0001-01-01T00:00:00Z",
+        "recorded_at": "2026-01-03T08:00:00Z",
+        "updated_at": "2026-01-03T08:00:00Z",
+        "needs_review": false,
+        "pinned": false,
+        "entities": [
+          "咖啡"
+        ],
+        "evidence": [
+          {
+            "source_id": "drink",
+            "quote": "我喝咖啡只要无糖的，美式或拿铁都可以。",
+            "relation": "supports"
+          }
+        ],
+        "parents": [],
+        "source_ids": [
+          "drink"
+        ]
+      },
+      {
+        "id": "m_517d9d912c61f1bdc0fb06fee6fde622",
+        "kind": "fact",
+        "content": "我不吃香菜，点餐时应避开香菜。",
+        "scope": "点餐时",
+        "state": "current",
+        "basis": "direct",
+        "revision": 1,
+        "valid_from": "0001-01-01T00:00:00Z",
+        "valid_to": "0001-01-01T00:00:00Z",
+        "recorded_at": "2026-01-02T08:00:00Z",
+        "updated_at": "2026-01-02T08:00:00Z",
+        "needs_review": false,
+        "pinned": false,
+        "entities": [
+          "香菜"
+        ],
+        "evidence": [
+          {
+            "source_id": "diet",
+            "quote": "我不吃香菜，点餐时请帮我避开香菜。",
+            "relation": "supports"
+          }
+        ],
+        "parents": [],
+        "source_ids": [
+          "diet"
+        ]
+      }
+    ],
+    "source_count": 17,
+    "tokens": 116072,
+    "unrelated_errors": 0
+  },
+  "query_categories": {
+    "association": 8,
+    "correction": 8,
+    "literal": 12,
+    "synonym": 12,
+    "time": 12,
+    "unrelated": 8
+  },
+  "query_provider_latency": {
+    "embedding": {
+      "calls": 60,
+      "p50_ms": 217,
+      "p95_ms": 237
+    },
+    "main_model": {
+      "calls": 1,
+      "p50_ms": 2347,
+      "p95_ms": 2347
+    }
+  },
+  "capacity": {
+    "target": {
+      "cores": 4,
+      "container_memory_mib": 2048,
+      "container_swap_mib": 512,
+      "database_storage": "disk-backed /var/tmp on /dev/loop8"
+    },
+    "storage": {
+      "writer": "one serialized SQLite connection for writes and transactions",
+      "readers": "four query_only WAL connections for memory recall and consolidation candidate reads"
+    },
+    "index": {
+      "candidate_encoding": "per-vector scaled int8",
+      "retained_vector": "normalized float32",
+      "scan_batch": 512,
+      "shortlist": 2048,
+      "exact_rerank_candidates": 160,
+      "keyword_term_match_limit": 4096
+    },
+    "gates": {
+      "warm_standard_p95_ms_less_than": 2000,
+      "concurrent_ingestion_p95_ms_less_than": 2000,
+      "extra_rss_mib_less_than": 64
+    },
+    "measurement": {
+      "cpus": 4,
+      "fixture": "32 topic clusters; distinct 1024d vectors and text; source evidence; entity and parent graphs; one concurrent extraction/embedding/consolidation worker",
+      "go": "go1.27.1",
+      "goarch": "amd64",
+      "goos": "linux",
+      "samples": [
+        {
+          "Records": 10000,
+          "Dimensions": 1024,
+          "ColdMS": 44.634,
+          "P50MS": 43.514,
+          "P95MS": 51.315,
+          "RSSBefore": 112377856,
+          "PeakRSS": 160104448,
+          "ExtraRSS": 47726592,
+          "VerifiedRows": 10000,
+          "StandardP95MS": 114.947,
+          "KeywordP95MS": 27.888,
+          "GraphP95MS": 5.854,
+          "VectorReadP95MS": 42.665,
+          "ExactReadP95MS": 30.85,
+          "CancelMS": 0.473,
+          "SQLiteWaitMS": 0,
+          "MixedP95MS": 145.862,
+          "MixedSQLiteWaitMS": 0.272,
+          "IngestedDuringReads": 8
+        },
+        {
+          "Records": 100000,
+          "Dimensions": 1024,
+          "ColdMS": 3176.332,
+          "P50MS": 487.273,
+          "P95MS": 541.978,
+          "RSSBefore": 122728448,
+          "PeakRSS": 164966400,
+          "ExtraRSS": 42237952,
+          "VerifiedRows": 100000,
+          "StandardP95MS": 1073.658,
+          "KeywordP95MS": 363.437,
+          "GraphP95MS": 35.89,
+          "VectorReadP95MS": 330.914,
+          "ExactReadP95MS": 512.693,
+          "CancelMS": 0.272,
+          "SQLiteWaitMS": 0,
+          "MixedP95MS": 981.402,
+          "MixedSQLiteWaitMS": 0.228,
+          "IngestedDuringReads": 16
+        }
+      ],
+      "scan_batch": 512
+    },
+    "scope": "20 warm calls per size through the real Engine, SQLite adapter and production token counter. A fixed query embedding excludes provider latency. Records form 32 topic clusters with distinct vectors and text, source evidence, entity mentions and parent links; a fifth carry a second revision. ColdMS, P50MS, P95MS measure candidate scans; StandardP95MS measures the complete local recall; MixedP95MS repeats it while one extraction, embedding and consolidation worker runs. ExtraRSS covers scan and recall with 5 ms RSS sampling. CancelMS starts at cancellation after the second scan page."
+  },
+  "candidate_ranking_check": {
+    "test": "internal/store/memory_vector_quality_test.go:TestMemoryCandidateIndexPreservesExactTopFive",
+    "status": "passed"
+  },
+  "native_runtime": {
+    "status": "passed",
+    "test": "internal/wire/memory_live_test.go:TestMemoryLiveRuntime",
+    "elapsed_seconds": 150.08,
+    "model": "grok-4.7",
+    "scenarios": [
+      "save",
+      "cross-thread recall and source reading",
+      "correction controls current answer",
+      "forget excludes current and historical records",
+      "continuing concern",
+      "night reflection",
+      "commitment execution and evidence-backed completion"
+    ],
+    "storage": "isolated temporary database and knowledge repository"
+  },
+  "migration_preflight": {
+    "checked_at": "2026-10-10T09:10:47+00:00",
+    "read_only": true,
+    "report": {
+      "ready": true,
+      "schema": "working-memory",
+      "integrity": "ok",
+      "active_runs": 0,
+      "interrupted_runs": 0,
+      "pending_actions": 0,
+      "legacy_entries": 1,
+      "legacy_commitments": {
+        "settled": 1
+      },
+      "messages": 20,
+      "tool_outcomes": 19
+    }
+  },
+  "production": {
+    "deployed": false,
+    "database_migrated": false,
+    "service_restarted": false,
+    "service": {
+      "ActiveState": "active",
+      "SubState": "running",
+      "ActiveEnterTimestamp": "Fri 2026-10-09 18:30:19 +08"
+    }
+  },
+  "limits": [
+    "The frozen corpus contains 17 synthetic dated owner statements, 60 queries and one separate assistant-suggestion guard; all 61 expected evidence sources were retrieved in this run.",
+    "Citation validation checks exact source substrings on a bounded corpus; it is not a guarantee for arbitrary future model output.",
+    "The int8 shortlist is approximate; final cosine ranking uses original float32 vectors.",
+    "Terms matching more than 4096 records do not take part in keyword ranking; the semantic route covers them.",
+    "Keyword terms shorter than three characters use a LIKE scan over current records.",
+    "The 100000-record cold candidate scan took 3176.3 ms. Provider latency and a cold complete recall are outside the warm local capacity gate.",
+    "Production migration and deployment have not been performed. Mobile UI and wire schemas are unchanged."
+  ],
+  "temporary_evaluation_data_cleanup": {
+    "remote_test_directories": "removed; absence verified on the PVE host and LXC 109",
+    "remote_credential_copy": "removed",
+    "production_credentials": "unchanged",
+    "completed_at": "2026-10-10T09:10:47+00:00"
+  },
+  "candidate_archive": {
+    "path": "dist/acorn_dev-personal-memory_linux_amd64.tar.gz",
+    "sha256": "1d2a4010aef2e7e9052d2850ad03e425e74a3068ca0da2b250bbdaadd3da684b",
+    "bytes": 21851656,
+    "checksum_verification": "passed",
+    "published": false
+  }
+}

@@ -9,58 +9,15 @@ import (
 	"time"
 
 	einotool "github.com/cloudwego/eino/components/tool"
-
 	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/presence"
 )
 
-// PresenceToolDeps are what the working-memory tools need.
-type PresenceToolDeps struct {
-	Store    core.PresenceStore
-	Context  core.ToolCallContextBridge
-	Clock    func() time.Time
-	Location *time.Location
-}
-
 const localTimeLayout = "2006-01-02 Mon 15:04"
-
-// MemoryWriteInput is the input of keep and think.
-type MemoryWriteInput struct {
-	Content string `json:"content" jsonschema_description:"The text to keep. For keep, the owner's own words verbatim."`
-}
-
-// MemoryWriteOutput reports the stored item.
-type MemoryWriteOutput struct {
-	ID        int64  `json:"id"`
-	Kind      string `json:"kind"`
-	ExpiresAt string `json:"expires_at"`
-}
-
-func buildMemoryWriteTool(name, description string, kind core.MemoryKind, deps PresenceToolDeps) (einotool.BaseTool, error) {
-	return inferProgressTool(name, description, func(ctx context.Context, input MemoryWriteInput, _ ToolProgressEmitter) (MemoryWriteOutput, error) {
-		content := strings.TrimSpace(input.Content)
-		if content == "" {
-			return MemoryWriteOutput{}, fmt.Errorf("%s: content is required", name)
-		}
-		now := deps.Clock()
-		item, err := deps.Store.AddMemoryItem(ctx, core.MemoryItem{
-			Kind:        kind,
-			Content:     content,
-			Status:      core.MemoryActive,
-			SessionID:   deps.Context.CurrentSessionID(ctx),
-			SourceRunID: deps.Context.CurrentRunID(ctx),
-			ExpiresAt:   presence.NewExpiry(kind, now),
-			CreatedAt:   now,
-		})
-		if err != nil {
-			return MemoryWriteOutput{}, fmt.Errorf("%s: %w", name, err)
-		}
-		return MemoryWriteOutput{ID: item.ID, Kind: string(kind), ExpiresAt: item.ExpiresAt.In(deps.Location).Format(localTimeLayout)}, nil
-	})
-}
 
 // ScheduleWakeInput is the input of schedule_wake.
 type ScheduleWakeInput struct {
+	ConcernID  string `json:"concern_id,omitempty" jsonschema_description:"Optional continuing concern this appointment advances."`
 	Task       string `json:"task" jsonschema_description:"What to do when you wake, written so that you understand it later without other context."`
 	At         string `json:"at,omitempty" jsonschema_description:"Wake time: RFC3339, or YYYY-MM-DD HH:MM in the owner's timezone."`
 	In         string `json:"in,omitempty" jsonschema_description:"Wake after this long, e.g. 90m, 2h, 3d."`
@@ -91,14 +48,14 @@ func buildScheduleWakeTool(deps PresenceToolDeps) (einotool.BaseTool, error) {
 			if err != nil {
 				return ScheduleWakeOutput{}, fmt.Errorf("schedule_wake: %w", err)
 			}
-			item, err := deps.Store.AddMemoryItem(ctx, core.MemoryItem{
-				Kind:        core.MemoryCommitment,
+			item, err := deps.Store.AddCommitment(ctx, core.Commitment{
 				Content:     task,
-				Status:      core.MemoryActive,
+				State:       "scheduled",
 				SessionID:   sessionID,
 				SourceRunID: deps.Context.CurrentRunID(ctx),
 				WakeAt:      wakeAt,
 				Recurrence:  strings.TrimSpace(input.Recurrence),
+				ConcernID:   input.ConcernID,
 				CreatedAt:   now,
 			})
 			if err != nil {
@@ -178,142 +135,28 @@ func parseWakeIn(value string) (time.Duration, error) {
 	return d, nil
 }
 
-// SettleInput is the input of settle.
+// SettleInput completes one occurrence or cancels a commitment.
 type SettleInput struct {
-	ID      int64  `json:"id" jsonschema_description:"The #id of the item."`
-	Action  string `json:"action" jsonschema:"enum=renew,enum=internalize,enum=release,enum=done" jsonschema_description:"renew keeps an item active longer; internalize turns what the owner said or a thought into a tendency or concern; release lets an item go or cancels a commitment; done settles a commitment you woke up for."`
-	As      string `json:"as,omitempty" jsonschema:"enum=tendency,enum=ruler" jsonschema_description:"For internalize: tendency for the owner's lasting preferences, ruler for your own concerns and assumptions."`
-	Content string `json:"content,omitempty" jsonschema_description:"For internalize: the tendency or concern in your own words."`
+	ID           int64  `json:"id" jsonschema_description:"Commitment id."`
+	OccurrenceID int64  `json:"occurrence_id,omitempty" jsonschema_description:"The occurrence shown in presence; required for done."`
+	Action       string `json:"action" jsonschema:"enum=done,enum=cancel"`
+	SourceID     string `json:"source_id,omitempty" jsonschema_description:"For done, an owner confirmation or tool execution source."`
 }
-
-// SettleOutput reports the change.
 type SettleOutput struct {
 	ID     int64  `json:"id"`
 	Status string `json:"status"`
-	NewID  int64  `json:"new_id,omitempty"`
 }
 
 func buildSettleTool(deps PresenceToolDeps) (einotool.BaseTool, error) {
-	return inferProgressTool("settle",
-		"Decide what happens to a working-memory item: renew, internalize, release, or mark a woken commitment done.",
-		func(ctx context.Context, input SettleInput, _ ToolProgressEmitter) (SettleOutput, error) {
-			item, err := deps.Store.LoadMemoryItem(ctx, input.ID)
-			if err != nil {
-				return SettleOutput{}, fmt.Errorf("settle: %w", err)
-			}
-			now := deps.Clock()
-			out := SettleOutput{ID: item.ID}
-			switch input.Action {
-			case "renew":
-				if item.Kind == core.MemoryCommitment {
-					return SettleOutput{}, errors.New("settle: commitments are not renewed; use schedule_wake for a new time")
-				}
-				if item.Status != core.MemoryActive && item.Status != core.MemoryResting && item.Status != core.MemorySunk {
-					return SettleOutput{}, fmt.Errorf("settle: #%d is %s and cannot be renewed", item.ID, item.Status)
-				}
-				item.Status, item.ExpiresAt = core.MemoryActive, presence.NewExpiry(item.Kind, now)
-			case "internalize":
-				newID, err := internalize(ctx, deps, *item, input, now)
-				if err != nil {
-					return SettleOutput{}, fmt.Errorf("settle: %w", err)
-				}
-				out.NewID = newID
-				item.Status = core.MemoryInternalized
-			case "release":
-				switch item.Status {
-				case core.MemoryActive, core.MemoryResting, core.MemorySunk, core.MemoryWoken:
-				default:
-					return SettleOutput{}, fmt.Errorf("settle: #%d is already %s", item.ID, item.Status)
-				}
-				item.Status = core.MemoryReleased
-			case "done":
-				if item.Kind != core.MemoryCommitment || item.Status != core.MemoryWoken {
-					return SettleOutput{}, fmt.Errorf("settle: done applies to a woken commitment; #%d is a %s %s", item.ID, item.Status, item.Kind)
-				}
-				item.Status = core.MemorySettled
-			default:
-				return SettleOutput{}, fmt.Errorf("settle: unknown action %q", input.Action)
-			}
-			item.UpdatedAt = now
-			if err := deps.Store.UpdateMemoryItem(ctx, *item); err != nil {
-				return SettleOutput{}, fmt.Errorf("settle: %w", err)
-			}
-			out.Status = string(item.Status)
-			return out, nil
-		})
-}
-
-func internalize(ctx context.Context, deps PresenceToolDeps, item core.MemoryItem, input SettleInput, now time.Time) (int64, error) {
-	if item.Kind != core.MemorySaid && item.Kind != core.MemoryThought {
-		return 0, fmt.Errorf("only what the owner said or a thought can be internalized; #%d is a %s", item.ID, item.Kind)
-	}
-	if item.Status == core.MemoryInternalized || item.Status == core.MemoryReleased {
-		return 0, fmt.Errorf("#%d is already %s", item.ID, item.Status)
-	}
-	kind := core.MemoryKind(input.As)
-	if kind != core.MemoryTendency && kind != core.MemoryRuler {
-		return 0, errors.New("internalize needs as: tendency or ruler")
-	}
-	content := strings.TrimSpace(input.Content)
-	if content == "" {
-		return 0, errors.New("internalize needs content")
-	}
-	added, err := deps.Store.AddMemoryItem(ctx, core.MemoryItem{
-		Kind:        kind,
-		Content:     content,
-		Status:      core.MemoryActive,
-		SessionID:   item.SessionID,
-		SourceRunID: deps.Context.CurrentRunID(ctx),
-		ExpiresAt:   presence.NewExpiry(kind, now),
-		CreatedAt:   now,
+	return inferProgressTool("settle", "Complete one due appointment with outcome evidence, or cancel a commitment and its future occurrences.", func(ctx context.Context, in SettleInput, _ ToolProgressEmitter) (SettleOutput, error) {
+		err := deps.Store.SettleCommitment(ctx, core.CommitmentSettlement{CommitmentID: in.ID, OccurrenceID: in.OccurrenceID, Action: in.Action, SourceID: in.SourceID, RunID: deps.Context.CurrentRunID(ctx), Now: deps.Clock()})
+		if err != nil {
+			return SettleOutput{}, err
+		}
+		state := "completed"
+		if in.Action == "cancel" {
+			state = "cancelled"
+		}
+		return SettleOutput{ID: in.ID, Status: state}, nil
 	})
-	if err != nil {
-		return 0, err
-	}
-	return added.ID, nil
-}
-
-// RecallInput is the input of recall.
-type RecallInput struct {
-	Query string `json:"query" jsonschema_description:"Words to look for in past conversations and working memory."`
-	Limit int    `json:"limit,omitempty" jsonschema_description:"Maximum results (default 10, at most 50)."`
-}
-
-// RecallHit is one recall result.
-type RecallHit struct {
-	Source    string `json:"source"`
-	RunID     string `json:"run_id,omitempty"`
-	MemoryID  int64  `json:"memory_id,omitempty"`
-	Kind      string `json:"kind,omitempty"`
-	Snippet   string `json:"snippet"`
-	CreatedAt string `json:"created_at"`
-}
-
-// RecallOutput lists recall results.
-type RecallOutput struct {
-	Hits []RecallHit `json:"hits"`
-}
-
-func buildRecallTool(deps PresenceToolDeps) (einotool.BaseTool, error) {
-	return inferProgressTool("recall",
-		"Search what happened before: past conversations and runs, and all working-memory items including resting, sunk and released ones.",
-		func(ctx context.Context, input RecallInput, _ ToolProgressEmitter) (RecallOutput, error) {
-			limit := input.Limit
-			if limit <= 0 {
-				limit = 10
-			}
-			limit = min(limit, 50)
-			hits, err := deps.Store.SearchExperience(ctx, input.Query, limit)
-			if err != nil {
-				return RecallOutput{}, fmt.Errorf("recall: %w", err)
-			}
-			out := RecallOutput{Hits: make([]RecallHit, 0, len(hits))}
-			for _, h := range hits {
-				out.Hits = append(out.Hits, RecallHit{
-					Source: h.Source, RunID: h.RunID, MemoryID: h.MemoryID, Kind: string(h.Kind),
-					Snippet: h.Snippet, CreatedAt: h.CreatedAt.In(deps.Location).Format(localTimeLayout),
-				})
-			}
-			return out, nil
-		})
 }

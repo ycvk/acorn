@@ -15,12 +15,13 @@ import (
 	"github.com/ycvk/acorn/internal/core"
 )
 
-// memPresenceStore is an in-memory core.PresenceStore that also records
-// snapshots and events.
+// memPresenceStore records the deterministic present for middleware tests.
 type memPresenceStore struct {
 	core.PhoneNotificationStore
+	core.MemoryStore
+	core.CommitmentStore
 	mu        sync.Mutex
-	items     []core.MemoryItem
+	items     []core.MemoryRecord
 	snapshots map[string]string
 	events    []string
 }
@@ -29,49 +30,18 @@ func newMemPresenceStore() *memPresenceStore {
 	return &memPresenceStore{snapshots: map[string]string{}}
 }
 
-func (s *memPresenceStore) AddMemoryItem(_ context.Context, item core.MemoryItem) (core.MemoryItem, error) {
+func (s *memPresenceStore) ListMemoryRecords(context.Context, core.MemoryQuery) ([]core.MemoryRecord, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	item.ID = int64(len(s.items) + 1)
-	s.items = append(s.items, item)
-	return item, nil
+	return append([]core.MemoryRecord(nil), s.items...), nil
 }
-
-func (s *memPresenceStore) ListMemoryItems(_ context.Context, statuses []core.MemoryStatus) ([]core.MemoryItem, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	var out []core.MemoryItem
-	for _, item := range s.items {
-		for _, status := range statuses {
-			if item.Status == status {
-				out = append(out, item)
-			}
-		}
-	}
-	return out, nil
-}
-
-func (s *memPresenceStore) LoadMemoryItem(_ context.Context, id int64) (*core.MemoryItem, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	item := s.items[id-1]
-	return &item, nil
-}
-
-func (s *memPresenceStore) UpdateMemoryItem(_ context.Context, item core.MemoryItem) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.items[item.ID-1] = item
-	return nil
-}
-
-func (s *memPresenceStore) ListDueCommitments(context.Context, time.Time) ([]core.MemoryItem, error) {
+func (s *memPresenceStore) ListConcerns(context.Context, bool) ([]core.MemoryConcern, error) {
 	return nil, nil
 }
-
-func (s *memPresenceStore) ClaimDueCommitment(context.Context, int64, time.Time) error { return nil }
-
-func (s *memPresenceStore) SearchExperience(context.Context, string, int) ([]core.ExperienceHit, error) {
+func (s *memPresenceStore) ListCommitments(context.Context, bool) ([]core.Commitment, error) {
+	return nil, nil
+}
+func (s *memPresenceStore) ListDueOccurrences(context.Context) ([]core.CommitmentOccurrence, error) {
 	return nil, nil
 }
 
@@ -114,11 +84,14 @@ func newTestPresenceMiddleware(t *testing.T, store *memPresenceStore) *presenceM
 	return &presenceMiddleware{
 		TypedBaseChatModelAgentMiddleware: &adk.TypedBaseChatModelAgentMiddleware[*schema.AgenticMessage]{},
 		store:                             store,
+		memory:                            store,
+		commitments:                       store,
 		phones:                            store,
 		events:                            store,
 		clock:                             func() time.Time { return presenceNow },
 		location:                          time.UTC,
 		maxTokens:                         2000,
+		inputLimit:                        200000,
 		counter:                           counter,
 		runID:                             "run_1",
 	}
@@ -132,8 +105,10 @@ func (thinkTool) Info(context.Context) (*schema.ToolInfo, error) {
 }
 
 func (t thinkTool) InvokableRun(ctx context.Context, args string, _ ...einotool.Option) (string, error) {
-	_, err := t.store.AddMemoryItem(ctx, core.MemoryItem{Kind: core.MemoryThought, Status: core.MemoryActive, Content: "noted " + args, CreatedAt: presenceNow})
-	return "ok", err
+	t.store.mu.Lock()
+	defer t.store.mu.Unlock()
+	t.store.items = append(t.store.items, core.MemoryRecord{ID: "new-thought", Kind: "thought", State: "open", Content: "noted " + args, UpdatedAt: presenceNow})
+	return "ok", nil
 }
 
 func countPresence(messages []*schema.AgenticMessage) int {
@@ -148,9 +123,7 @@ func countPresence(messages []*schema.AgenticMessage) int {
 
 func TestPresenceIsAppendedPerCallAndKeptOutOfState(t *testing.T) {
 	store := newMemPresenceStore()
-	if _, err := store.AddMemoryItem(context.Background(), core.MemoryItem{Kind: core.MemorySaid, Status: core.MemoryActive, Content: "我喜欢早上看新闻", CreatedAt: presenceNow}); err != nil {
-		t.Fatal(err)
-	}
+	store.items = append(store.items, core.MemoryRecord{ID: "morning", Kind: "thought", State: "open", Content: "我喜欢早上看新闻", UpdatedAt: presenceNow})
 	model := &scriptedModel{replies: []*schema.AgenticMessage{
 		toolCallReply("call_1", "think", `{"x":1}`),
 		assistantMessage("done", nil),
@@ -221,21 +194,18 @@ func TestPresenceSnapshotOnlyWhenRenderChanges(t *testing.T) {
 	}
 }
 
-func TestPresenceDecaysBeforeRendering(t *testing.T) {
+func TestPresenceExcludesResolvedThoughts(t *testing.T) {
 	store := newMemPresenceStore()
-	ctx := context.Background()
-	if _, err := store.AddMemoryItem(ctx, core.MemoryItem{Kind: core.MemoryThought, Status: core.MemoryResting, Content: "old idea", ExpiresAt: presenceNow.Add(-time.Hour)}); err != nil {
+	store.items = []core.MemoryRecord{{Kind: "thought", State: "resolved", Content: "old idea"}}
+	out, err := newTestPresenceMiddleware(t, store).withPresence(context.Background(), nil)
+	if err != nil {
 		t.Fatal(err)
 	}
-	out, err := newTestPresenceMiddleware(t, store).withPresence(ctx, nil)
-	if err != nil {
-		t.Fatalf("with presence: %v", err)
-	}
 	if strings.Contains(messageText(out[0]), "old idea") {
-		t.Fatalf("sunk item rendered: %q", messageText(out[0]))
+		t.Fatal("resolved thought is active")
 	}
-	if item, _ := store.LoadMemoryItem(ctx, 1); item.Status != core.MemorySunk {
-		t.Fatalf("item status = %s, want sunk persisted", item.Status)
+	if store.items[0].State != "resolved" {
+		t.Fatal("render mutated thought state")
 	}
 }
 

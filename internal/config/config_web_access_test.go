@@ -12,6 +12,7 @@ func TestValidateExecutionReadyDoesNotRequireWebSearchKeyOrBrowserExecutable(t *
 	cfg.Providers[0].APIKey = "sk-chat"
 	cfg.WebAccess.Search.APIKey = ""
 	cfg.Browser.ExecutablePath = ""
+	cfg.Memory.Embedding.APIKey = "voyage-test"
 	if err := cfg.ValidateExecutionReady(); err != nil {
 		t.Fatalf("ValidateExecutionReady: %v", err)
 	}

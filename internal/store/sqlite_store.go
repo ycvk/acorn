@@ -1,7 +1,10 @@
 package store
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"time"
 
@@ -15,13 +18,21 @@ import (
 
 // Compile-time assertions that *Store implements the core capability interfaces.
 var (
-	_ core.SessionStore  = (*Store)(nil)
-	_ core.IdentityStore = (*Store)(nil)
-	_ core.ArtifactStore = (*Store)(nil)
+	_ core.SessionStore    = (*Store)(nil)
+	_ core.IdentityStore   = (*Store)(nil)
+	_ core.ArtifactStore   = (*Store)(nil)
+	_ core.MemoryStore     = (*Store)(nil)
+	_ core.CommitmentStore = (*Store)(nil)
+	_ core.ActivityStore   = (*Store)(nil)
 )
 
 type Store struct {
-	db          *sql.DB
+	lock         *os.File
+	sourceReader core.MemorySourceReader
+	db           *sql.DB
+	// read serves memory recall and candidate reads. WAL lets these readers run
+	// beside the single serialized writer connection in db.
+	read        *sql.DB
 	artifactDir string
 	artifactSvc *ArtifactService
 }
@@ -32,10 +43,34 @@ func formatTimestamp(value time.Time) string {
 	return value.UTC().Format(fixedTimestampLayout)
 }
 
-func Open(dir string) (*Store, error) {
+type OpenOptions struct {
+	SourceReader core.MemorySourceReader
+	Exclusive    bool
+}
+
+func Open(dir string, options ...OpenOptions) (*Store, error) {
+	var sourceReader core.MemorySourceReader
+	var exclusive bool
+	if len(options) > 1 {
+		return nil, fmt.Errorf("store.Open accepts one options value")
+	}
+	if len(options) == 1 {
+		sourceReader = options[0].SourceReader
+		exclusive = options[0].Exclusive
+	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, fmt.Errorf("create storage dir: %w", err)
 	}
+	lock, err := lockStorage(dir, exclusive)
+	if err != nil {
+		return nil, err
+	}
+	success := false
+	defer func() {
+		if !success {
+			_ = lock.Close()
+		}
+	}()
 	db, err := sql.Open("sqlite", filepath.Join(dir, "acorn.db"))
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite: %w", err)
@@ -48,7 +83,7 @@ func Open(dir string) (*Store, error) {
 		_ = db.Close()
 		return nil, fmt.Errorf("create artifact dir: %w", err)
 	}
-	store := &Store{db: db, artifactDir: artifactDir}
+	store := &Store{lock: lock, db: db, artifactDir: artifactDir, sourceReader: sourceReader}
 	artifactSvc, err := NewArtifactService(artifactDir, store)
 	if err != nil {
 		_ = db.Close()
@@ -63,6 +98,13 @@ func Open(dir string) (*Store, error) {
 		_ = db.Close()
 		return nil, err
 	}
+	read, err := openReadPool(filepath.Join(dir, "acorn.db"))
+	if err != nil {
+		_ = db.Close()
+		return nil, err
+	}
+	store.read = read
+	success = true
 	return store, nil
 }
 
@@ -70,7 +112,24 @@ func (s *Store) Close() error {
 	if s == nil || s.db == nil {
 		return nil
 	}
-	return s.db.Close()
+	return errors.Join(s.read.Close(), s.db.Close(), s.lock.Close())
+}
+
+const readConnections = 4
+
+func openReadPool(path string) (*sql.DB, error) {
+	dsn := url.URL{Scheme: "file", Path: path, RawQuery: url.Values{"_pragma": {"busy_timeout(5000)", "query_only(1)"}}.Encode()}
+	read, err := sql.Open("sqlite", dsn.String())
+	if err != nil {
+		return nil, fmt.Errorf("open sqlite read pool: %w", err)
+	}
+	read.SetMaxOpenConns(readConnections)
+	read.SetMaxIdleConns(readConnections)
+	if err := read.PingContext(context.Background()); err != nil {
+		_ = read.Close()
+		return nil, fmt.Errorf("open sqlite read pool: %w", err)
+	}
+	return read, nil
 }
 
 func parseTimestamp(layout, value, field string) (time.Time, error) {

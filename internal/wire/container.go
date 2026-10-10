@@ -14,6 +14,7 @@ import (
 	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/knowledge"
 	mcpprovider "github.com/ycvk/acorn/internal/mcp"
+	"github.com/ycvk/acorn/internal/memory"
 	"github.com/ycvk/acorn/internal/runtime"
 	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/tools"
@@ -21,6 +22,7 @@ import (
 )
 
 type Container struct {
+	memory             *memory.Engine
 	clock              func() time.Time
 	cfg                *config.Config
 	store              *store.Store
@@ -46,6 +48,7 @@ type Container struct {
 
 // buildOptions are the process-level dependencies of a container.
 type buildOptions struct {
+	git knowledge.Git
 	// clock drives presence, commitments and notifications.
 	clock func() time.Time
 	// fcmEndpoint, when set, replaces the FCM API send endpoint.
@@ -146,7 +149,12 @@ func (c *Container) Close() error {
 func buildContainer(ctx context.Context, cfg *config.Config, options buildOptions) (*Container, error) {
 	runtime.RegisterTypes()
 
-	store, err := store.Open(cfg.Runtime.StorageDir)
+	git, err := knowledge.LookupGit()
+	if err != nil {
+		return nil, err
+	}
+	options.git = git
+	store, err := store.Open(cfg.Runtime.StorageDir, store.OpenOptions{SourceReader: &knowledge.SourceReader{Git: git, Dir: cfg.KnowledgeDir()}})
 	if err != nil {
 		return nil, err
 	}
@@ -176,6 +184,7 @@ func buildContainer(ctx context.Context, cfg *config.Config, options buildOption
 func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *containerRuntimeDeps, clock func() time.Time) (*Container, error) {
 	container := &Container{
 		cfg:           cfg,
+		memory:        deps.memory,
 		clock:         clock,
 		runnerFactory: deps.runnerFactory,
 		runController: deps.runController,
@@ -217,6 +226,8 @@ func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *contai
 		Routines:           db,
 		PhoneNotifications: db,
 		Store:              db,
+		Commitments:        db,
+		Memory:             db,
 		Events:             db,
 		Runs:               &wakeRunStarter{runs: container.runs, store: db},
 		Watches:            db,
@@ -250,7 +261,7 @@ type wakeRunStarter struct {
 // conversation was deleted.
 const remindersThreadTitle = "Reminders"
 
-func (w *wakeRunStarter) StartWakeRun(ctx context.Context, threadID, wake, input string) (string, error) {
+func (w *wakeRunStarter) StartWakeRun(ctx context.Context, threadID, input string, wake core.ScheduledWake) (string, error) {
 	_, err := w.store.LoadSession(ctx, threadID)
 	if errors.Is(err, core.ErrSessionNotFound) {
 		threadID = core.NewSessionID()
@@ -260,14 +271,14 @@ func (w *wakeRunStarter) StartWakeRun(ctx context.Context, threadID, wake, input
 	} else if err != nil {
 		return "", err
 	}
-	run, err := w.runs.CreateWakeRun(ctx, threadID, wake, input)
+	run, err := w.runs.CreateScheduledRun(ctx, threadID, input, wake)
 	if err != nil {
 		return "", err
 	}
 	return run.ID, nil
 }
 
-func (w *wakeRunStarter) StartRoutineRun(ctx context.Context, threadID, title, wake, input string) (string, string, error) {
+func (w *wakeRunStarter) StartRoutineRun(ctx context.Context, threadID, title, input string, wake core.ScheduledWake) (string, string, error) {
 	if threadID != "" {
 		if _, err := w.store.LoadSession(ctx, threadID); errors.Is(err, core.ErrSessionNotFound) {
 			threadID = ""
@@ -281,7 +292,7 @@ func (w *wakeRunStarter) StartRoutineRun(ctx context.Context, threadID, title, w
 			return "", "", fmt.Errorf("create routine thread: %w", err)
 		}
 	}
-	run, err := w.runs.CreateWakeRun(ctx, threadID, wake, input)
+	run, err := w.runs.CreateScheduledRun(ctx, threadID, input, wake)
 	if err != nil {
 		return "", "", err
 	}

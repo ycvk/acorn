@@ -9,6 +9,7 @@ import (
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/knowledge"
+	"github.com/ycvk/acorn/internal/memory"
 	"github.com/ycvk/acorn/internal/notify"
 	"github.com/ycvk/acorn/internal/runtime"
 	"github.com/ycvk/acorn/internal/skills"
@@ -18,6 +19,7 @@ import (
 )
 
 type containerRuntimeDeps struct {
+	memory                *memory.Engine
 	loader                *skills.Loader
 	mcpPendingActionStore core.SessionStore
 	toolRegistry          core.ToolRegistry
@@ -70,6 +72,8 @@ func buildNotifier(cfg *config.Config, db *store.Store, loc *time.Location, opti
 func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *store.Store, options buildOptions) (*containerRuntimeDeps, error) {
 	loader := skills.NewLoader(cfg)
 
+	runController := runtime.NewRunController()
+
 	var mcpPendingActionStore core.SessionStore = db
 
 	artifactSvc, err := store.NewArtifactService(
@@ -93,19 +97,20 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 	if notifier != nil {
 		notifyDeps.Notifier = notifier
 	}
-	git, err := knowledge.LookupGit()
-	if err != nil {
-		return nil, err
-	}
 	vault, err := knowledge.Open(ctx, knowledge.VaultConfig{
 		Dir:      cfg.KnowledgeDir(),
-		Git:      git,
+		Git:      options.git,
+		Memory:   db,
 		Index:    db,
 		Clock:    options.clock,
 		Location: ownerLoc,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("knowledge base: %w", err)
+	}
+	memoryEngine, err := buildMemory(ctx, cfg, db, options.clock, false, func(ctx context.Context) error { return vault.SyncMemory(ctx, db) })
+	if err != nil {
+		return nil, fmt.Errorf("memory: %w", err)
 	}
 	watchChecker, watchBrowser, err := buildWatchChecker(cfg, db, options)
 	if err != nil {
@@ -118,14 +123,16 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 		OperatorStore:   mcpPendingActionStore,
 		OperatorContext: ctxBridge,
 		Presence: tools.PresenceToolDeps{
-			Store:    db,
-			Context:  ctxBridge,
-			Clock:    options.clock,
-			Location: ownerLoc,
+			Store:         db,
+			Memory:        memoryEngine,
+			ForgetBarrier: memoryForgetBarrier(runController, db),
+			Context:       ctxBridge,
+			Clock:         options.clock,
+			Location:      ownerLoc,
 		},
 		Notify: notifyDeps,
 		Knowledge: tools.KnowledgeToolDeps{
-			Vault:    vault,
+			Vault:    &knowledge.MemoryView{Vault: vault, Store: db},
 			Context:  ctxBridge,
 			Location: ownerLoc,
 		},
@@ -145,14 +152,16 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 		MCPPendingActionStore: mcpPendingActionStore,
 		ArtifactService:       artifactSvc,
 		ToolRegistry:          toolRegistry,
-		Presence:              db,
+		Activity:              db,
+		MemoryStore:           db,
+		Memory:                memoryEngine,
+		Commitments:           db,
 		PhoneNotifications:    db,
 		Clock:                 options.clock,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("init runner factory: %w", err)
 	}
-	runController := runtime.NewRunController()
 	executeRun := func(ctx context.Context, req core.ExecuteRequest, sink core.StreamSink) (*runtime.Result, error) {
 		exec, err := runtime.NewExecutorWithRunRuntimeAndController(cfg, db, runnerFactory, runController)
 		if err != nil {
@@ -170,6 +179,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 
 	return &containerRuntimeDeps{
 		loader:                loader,
+		memory:                memoryEngine,
 		mcpPendingActionStore: mcpPendingActionStore,
 		toolRegistry:          toolRegistry,
 		runnerFactory:         runnerFactory,

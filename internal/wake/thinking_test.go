@@ -13,9 +13,18 @@ import (
 
 func oldThought(t *testing.T, h *harness) {
 	t.Helper()
-	if _, err := h.store.AddMemoryItem(context.Background(), core.MemoryItem{Kind: core.MemoryThought, Status: core.MemoryActive, Content: "review my idea", CreatedAt: h.now.Add(-72 * time.Hour), ExpiresAt: h.now.Add(time.Hour)}); err != nil {
+	ctx := context.Background()
+	source, err := h.data.RegisterMemorySource(ctx, core.MemorySource{ID: "thought-origin", Kind: "fixture", ObjectID: "thought-origin", Version: "1", Speaker: "owner", Body: "review my idea", RecordedAt: h.now.Add(-72 * time.Hour)})
+	if err != nil {
 		t.Fatal(err)
 	}
+	if _, err = h.data.CommitMemory(ctx, core.MemoryMutation{Now: h.now, Changes: []core.MemoryChange{{Draft: core.MemoryDraft{Kind: "thought", Content: "review my idea", Evidence: []core.MemoryEvidence{{SourceID: source.ID, Quote: source.Content, Relation: "supports"}}}, Reason: "open question"}}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = h.data.SaveConcern(ctx, core.MemoryConcern{Title: "review my idea", State: "active", Reason: "owner asked", SourceID: source.ID, ReviewAt: h.now, UpdatedAt: h.now}, 0); err != nil {
+		t.Fatal(err)
+	}
+
 }
 
 func TestNightAndWanderShareThreadAndClaimSlots(t *testing.T) {
@@ -27,7 +36,7 @@ func TestNightAndWanderShareThreadAndClaimSlots(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if len(h.runs.starts) != 1 || !strings.Contains(h.runs.starts[0], "[night 2026-10-05]") || !strings.Contains(h.runs.starts[0], "#1 thought active") {
+	if len(h.runs.starts) != 1 || !strings.Contains(h.runs.starts[0], "[night 2026-10-05]") || !strings.Contains(h.runs.starts[0], "thought open") {
 		t.Fatalf("night=%v", h.runs.starts)
 	}
 	h.now = h.now.Add(7 * time.Hour)
@@ -76,7 +85,11 @@ func TestTokenBudgetDefersCommitmentSkipsNightAndAllowsBriefing(t *testing.T) {
 	if len(h.runs.starts) != 1 || !strings.Contains(h.runs.starts[0], "[briefing") {
 		t.Fatalf("over budget starts=%v", h.runs.starts)
 	}
-	if h.store.items[0].Status != core.MemoryActive {
+	item, err := h.data.LoadCommitment(context.Background(), 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if item.State != "scheduled" {
 		t.Fatal("budget consumed the commitment")
 	}
 	h.store.tokens = 0

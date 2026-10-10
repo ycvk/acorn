@@ -4,164 +4,132 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
+	"github.com/cloudwego/eino/components/embedding"
 	einotool "github.com/cloudwego/eino/components/tool"
-
 	"github.com/ycvk/acorn/internal/core"
+	"github.com/ycvk/acorn/internal/memory"
+	"github.com/ycvk/acorn/internal/store"
 )
 
-// fakePresenceStore is an in-memory core.PresenceStore.
-type fakePresenceStore struct {
-	mu    sync.Mutex
-	next  int64
-	items map[int64]core.MemoryItem
-	hits  []core.ExperienceHit
-	query string
-	limit int
+var presenceTestNow = time.Date(2026, 10, 2, 4, 0, 0, 0, time.UTC)
+
+type unusedMemoryModel struct{}
+
+func (unusedMemoryModel) GenerateMemory(context.Context, string, string, int) (memory.Generation, error) {
+	return memory.Generation{}, errors.New("unexpected generation in synchronous tool test")
 }
 
-func newFakePresenceStore() *fakePresenceStore {
-	return &fakePresenceStore{items: map[int64]core.MemoryItem{}}
-}
+type unusedEmbedding struct{ embedding.Embedder }
 
-func (s *fakePresenceStore) AddMemoryItem(_ context.Context, item core.MemoryItem) (core.MemoryItem, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.next++
-	item.ID = s.next
-	item.CreatedAt = time.Now()
-	s.items[item.ID] = item
-	return item, nil
-}
-
-func (s *fakePresenceStore) ListMemoryItems(_ context.Context, statuses []core.MemoryStatus) ([]core.MemoryItem, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	var out []core.MemoryItem
-	for id := int64(1); id <= s.next; id++ {
-		item, ok := s.items[id]
-		if !ok {
-			continue
+func testPresenceDeps(t *testing.T, bridge core.ToolCallContextBridge) (PresenceToolDeps, *store.Store) {
+	t.Helper()
+	db, err := store.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Error(err)
 		}
-		for _, status := range statuses {
-			if item.Status == status {
-				out = append(out, item)
-			}
-		}
-	}
-	return out, nil
-}
-
-func (s *fakePresenceStore) LoadMemoryItem(_ context.Context, id int64) (*core.MemoryItem, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	item, ok := s.items[id]
-	if !ok {
-		return nil, fmt.Errorf("%w: %d", core.ErrMemoryItemNotFound, id)
-	}
-	return &item, nil
-}
-
-func (s *fakePresenceStore) UpdateMemoryItem(_ context.Context, item core.MemoryItem) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if _, ok := s.items[item.ID]; !ok {
-		return fmt.Errorf("%w: %d", core.ErrMemoryItemNotFound, item.ID)
-	}
-	s.items[item.ID] = item
-	return nil
-}
-
-func (s *fakePresenceStore) ListDueCommitments(context.Context, time.Time) ([]core.MemoryItem, error) {
-	return nil, nil
-}
-
-func (s *fakePresenceStore) ClaimDueCommitment(context.Context, int64, time.Time) error { return nil }
-
-func (s *fakePresenceStore) SearchExperience(_ context.Context, query string, limit int) ([]core.ExperienceHit, error) {
-	s.query, s.limit = query, limit
-	return s.hits, nil
-}
-
-func (s *fakePresenceStore) CountWakesSince(context.Context, time.Time) (int, error) { return 0, nil }
-
-func (s *fakePresenceStore) SaveContextSnapshot(context.Context, string, string) error { return nil }
-
-var presenceTestNow = time.Date(2026, 10, 2, 4, 0, 0, 0, time.UTC) // 12:00 in Shanghai
-
-func testPresenceDeps(store core.PresenceStore, bridge core.ToolCallContextBridge) PresenceToolDeps {
+	})
 	loc, err := time.LoadLocation("Asia/Shanghai")
 	if err != nil {
-		panic(err)
+		t.Fatal(err)
 	}
-	return PresenceToolDeps{Store: store, Context: bridge, Clock: func() time.Time { return presenceTestNow }, Location: loc}
+	engine, err := memory.New(memory.Config{Store: db, Model: unusedMemoryModel{}, ModelName: "fixture", Embedder: unusedEmbedding{}, Index: core.MemoryIndex{Model: "fixture", Dimensions: 1}, Count: func(_ context.Context, s string) (int, error) { return len(s), nil }, Clock: func() time.Time { return presenceTestNow }, Location: loc, BatchTokens: 8192, ContextTokens: 8192, HistoryTokens: 8192})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return PresenceToolDeps{Store: db, Memory: engine, Context: bridge, Clock: func() time.Time { return presenceTestNow }, Location: loc, ForgetBarrier: func(context.Context, core.MemoryExclusion, string) error { return nil }}, db
 }
-
 func runPresenceTool(t *testing.T, tool einotool.BaseTool, args string) (string, error) {
 	t.Helper()
-	invokable, ok := tool.(einotool.InvokableTool)
-	if !ok {
-		t.Fatal("tool is not invokable")
-	}
-	return invokable.InvokableRun(context.Background(), args)
+	return tool.(einotool.InvokableTool).InvokableRun(context.Background(), args)
 }
-
-func newPresenceToolsForTest(t *testing.T) (*fakePresenceStore, map[string]einotool.BaseTool) {
+func newPresenceToolsForTest(t *testing.T) (*store.Store, map[string]einotool.BaseTool) {
 	t.Helper()
-	store := newFakePresenceStore()
-	deps := testPresenceDeps(store, fixedArtifactContext{runID: "run_1", sessionID: "thread_1", callID: "call_1"})
-	keep, err := buildMemoryWriteTool("keep", "keep", core.MemorySaid, deps)
+	deps, db := testPresenceDeps(t, fixedArtifactContext{runID: "run_1", sessionID: "thread_1", callID: "call_1"})
+	tools := map[string]einotool.BaseTool{}
+	keep, err := buildMemoryWriteTool("keep", "keep", deps)
 	if err != nil {
 		t.Fatal(err)
 	}
-	think, err := buildMemoryWriteTool("think", "think", core.MemoryThought, deps)
+	tools["keep"] = keep
+	think, err := buildMemoryWriteTool("think", "think", deps)
 	if err != nil {
 		t.Fatal(err)
 	}
-	schedule, err := buildScheduleWakeTool(deps)
-	if err != nil {
-		t.Fatal(err)
+	tools["think"] = think
+	for name, build := range map[string]func(PresenceToolDeps) (einotool.BaseTool, error){"schedule_wake": buildScheduleWakeTool, "settle": buildSettleTool, "memory_correct": buildMemoryCorrectTool, "memory_forget": buildMemoryForgetTool} {
+		tool, err := build(deps)
+		if err != nil {
+			t.Fatal(err)
+		}
+		tools[name] = tool
 	}
-	settle, err := buildSettleTool(deps)
-	if err != nil {
-		t.Fatal(err)
-	}
-	recall, err := buildRecallTool(deps)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return store, map[string]einotool.BaseTool{"keep": keep, "think": think, "schedule_wake": schedule, "settle": settle, "recall": recall}
+	return db, tools
 }
-
-func TestKeepAndThinkStoreAttributedItems(t *testing.T) {
-	store, tools := newPresenceToolsForTest(t)
-	out, err := runPresenceTool(t, tools["keep"], `{"content":"周末别打扰我"}`)
+func TestKeepAndThinkRequireTraceableCurrentSource(t *testing.T) {
+	db, tools := newPresenceToolsForTest(t)
+	ctx := context.Background()
+	_, err := db.RegisterMemorySource(ctx, core.MemorySource{ID: "owner-1", Kind: "fixture", ObjectID: "owner-1", Version: "1", Speaker: "owner", RunID: "run_1", SessionID: "thread_1", Body: "周末别打扰我", RecordedAt: presenceTestNow})
 	if err != nil {
-		t.Fatalf("keep: %v", err)
+		t.Fatal(err)
 	}
-	if !strings.Contains(out, `"kind":"said"`) || !strings.Contains(out, "2026-10-09") {
-		t.Fatalf("keep output = %s", out)
+	out, err := runPresenceTool(t, tools["keep"], `{"content":"周末别打扰我","source_id":"owner-1","quote":"周末别打扰我"}`)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if _, err := runPresenceTool(t, tools["think"], `{"content":"owner 在赶 deadline"}`); err != nil {
-		t.Fatalf("think: %v", err)
+	var fact core.MemoryRecord
+	if err = json.Unmarshal([]byte(out), &fact); err != nil {
+		t.Fatal(err)
 	}
-	said, thought := store.items[1], store.items[2]
-	if said.Kind != core.MemorySaid || said.SessionID != "thread_1" || said.SourceRunID != "run_1" || said.Status != core.MemoryActive {
-		t.Fatalf("said = %+v", said)
+	if fact.Kind != "fact" || fact.Basis != "direct" || !fact.Pinned {
+		t.Fatalf("fact=%+v", fact)
 	}
-	if thought.Kind != core.MemoryThought || !thought.ExpiresAt.Equal(presenceTestNow.Add(48*time.Hour)) {
-		t.Fatalf("thought = %+v", thought)
+	out, err = runPresenceTool(t, tools["think"], `{"content":"owner 可能需要更多安静时间","source_id":"owner-1","quote":"周末别打扰我"}`)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if _, err := runPresenceTool(t, tools["keep"], `{"content":"  "}`); err == nil {
-		t.Fatal("empty keep must fail")
+	var thought core.MemoryRecord
+	if err = json.Unmarshal([]byte(out), &thought); err != nil {
+		t.Fatal(err)
+	}
+	if thought.Kind != "thought" || thought.State != "open" || thought.Basis != "inferred" {
+		t.Fatalf("thought=%+v", thought)
+	}
+	if _, err = runPresenceTool(t, tools["keep"], `{"content":"owner 喜欢蓝色","source_id":"owner-1","quote":"喜欢蓝色"}`); err == nil {
+		t.Fatal("unsupported quotation accepted")
+	}
+	if _, err = runPresenceTool(t, tools["keep"], `{"content":" ","source_id":"owner-1","quote":"周末别打扰我"}`); err == nil {
+		t.Fatal("empty fact accepted")
 	}
 }
-
+func TestSettleRequiresOutcomeSource(t *testing.T) {
+	db, tools := newPresenceToolsForTest(t)
+	ctx := context.Background()
+	if _, err := runPresenceTool(t, tools["schedule_wake"], `{"task":"提醒","in":"1h"}`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runPresenceTool(t, tools["settle"], `{"id":1,"action":"done"}`); err == nil {
+		t.Fatal("unsourced completion accepted")
+	}
+	_, err := db.RegisterMemorySource(ctx, core.MemorySource{ID: "owner-done", Kind: "fixture", ObjectID: "owner-done", Version: "1", Speaker: "owner", RunID: "run_1", Body: "取消提醒", RecordedAt: presenceTestNow})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = runPresenceTool(t, tools["settle"], `{"id":1,"action":"cancel","source_id":"owner-done"}`); err != nil {
+		t.Fatal(err)
+	}
+	item, err := db.LoadCommitment(ctx, 1)
+	if err != nil || item.State != "cancelled" {
+		t.Fatalf("commitment=%+v err=%v", item, err)
+	}
+}
 func TestScheduleWakeResolvesOwnerTime(t *testing.T) {
 	for _, tc := range []struct {
 		name string
@@ -179,8 +147,11 @@ func TestScheduleWakeResolvesOwnerTime(t *testing.T) {
 			if _, err := runPresenceTool(t, tools["schedule_wake"], tc.args); err != nil {
 				t.Fatalf("schedule_wake: %v", err)
 			}
-			item := store.items[1]
-			if item.Kind != core.MemoryCommitment || item.Status != core.MemoryActive || item.SessionID != "thread_1" || !item.WakeAt.Equal(tc.want) {
+			item, err := store.LoadCommitment(context.Background(), 1)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if item.State != "scheduled" || item.SessionID != "thread_1" || !item.WakeAt.Equal(tc.want) {
 				t.Fatalf("commitment = %+v, want wake %v", item, tc.want)
 			}
 		})
@@ -198,74 +169,6 @@ func TestScheduleWakeResolvesOwnerTime(t *testing.T) {
 		if _, err := runPresenceTool(t, tools["schedule_wake"], args); err == nil {
 			t.Fatalf("schedule_wake %s should fail", args)
 		}
-	}
-}
-
-func TestSettleActions(t *testing.T) {
-	store, tools := newPresenceToolsForTest(t)
-	mustRun := func(name, args string) string {
-		t.Helper()
-		out, err := runPresenceTool(t, tools[name], args)
-		if err != nil {
-			t.Fatalf("%s %s: %v", name, args, err)
-		}
-		return out
-	}
-	mustRun("keep", `{"content":"我喜欢早上看新闻"}`)           // #1
-	mustRun("think", `{"content":"maybe"}`)             // #2
-	mustRun("schedule_wake", `{"task":"提醒","in":"1h"}`) // #3
-	out := mustRun("settle", `{"id":1,"action":"internalize","as":"tendency","content":"早上看新闻"}`)
-	var settled SettleOutput
-	if err := json.Unmarshal([]byte(out), &settled); err != nil || settled.NewID != 4 || settled.Status != "internalized" {
-		t.Fatalf("internalize = %s err=%v", out, err)
-	}
-	if store.items[4].Kind != core.MemoryTendency || store.items[4].Status != core.MemoryActive {
-		t.Fatalf("tendency = %+v", store.items[4])
-	}
-	stale := store.items[2]
-	stale.Status, stale.ExpiresAt = core.MemoryResting, presenceTestNow
-	store.items[2] = stale
-	mustRun("settle", `{"id":2,"action":"renew"}`)
-	if got := store.items[2]; got.Status != core.MemoryActive || !got.ExpiresAt.Equal(presenceTestNow.Add(48*time.Hour)) {
-		t.Fatalf("renewed = %+v", got)
-	}
-	for _, args := range []string{
-		`{"id":3,"action":"done"}`,  // not woken yet
-		`{"id":3,"action":"renew"}`, // commitments are not renewed
-		`{"id":2,"action":"internalize","as":"said","content":"x"}`,
-		`{"id":1,"action":"release"}`, // already internalized
-		`{"id":99,"action":"release"}`,
-		`{"id":2,"action":"forget"}`,
-	} {
-		if _, err := runPresenceTool(t, tools["settle"], args); err == nil {
-			t.Fatalf("settle %s should fail", args)
-		}
-	}
-	woken := store.items[3]
-	woken.Status = core.MemoryWoken
-	store.items[3] = woken
-	mustRun("settle", `{"id":3,"action":"done"}`)
-	if store.items[3].Status != core.MemorySettled {
-		t.Fatalf("commitment = %+v", store.items[3])
-	}
-	mustRun("settle", `{"id":2,"action":"release"}`)
-	if store.items[2].Status != core.MemoryReleased {
-		t.Fatalf("released = %+v", store.items[2])
-	}
-}
-
-func TestRecallFormatsHitsInOwnerTime(t *testing.T) {
-	store, tools := newPresenceToolsForTest(t)
-	store.hits = []core.ExperienceHit{{Source: "run", RunID: "run_9", Snippet: "看论文", CreatedAt: presenceTestNow}}
-	out, err := runPresenceTool(t, tools["recall"], `{"query":"论文","limit":500}`)
-	if err != nil {
-		t.Fatalf("recall: %v", err)
-	}
-	if store.query != "论文" || store.limit != 50 {
-		t.Fatalf("store got query=%q limit=%d", store.query, store.limit)
-	}
-	if !strings.Contains(out, `"run_id":"run_9"`) || !strings.Contains(out, "2026-10-02 Fri 12:00") {
-		t.Fatalf("recall output = %s", out)
 	}
 }
 
@@ -309,11 +212,4 @@ func TestNotifyOwnerAttributesConversationAndReportsQueue(t *testing.T) {
 	if _, err := runPresenceTool(t, tool, `{"title":"","body":"b"}`); err == nil {
 		t.Fatal("empty title must fail")
 	}
-}
-
-func (s *fakePresenceStore) SumAutonomousTokensSince(context.Context, time.Time) (int, error) {
-	return 0, nil
-}
-func (s *fakePresenceStore) UsageReport(context.Context, time.Time) (core.UsageReport, error) {
-	return core.UsageReport{}, nil
 }

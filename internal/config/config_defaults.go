@@ -26,6 +26,7 @@ func defaultConfig() *Config {
 		Approval: ApprovalConfig{Require: []string{"browser", "mcp__*"}},
 		Owner:    OwnerConfig{Timezone: "UTC"},
 		Presence: PresenceConfig{MaxTokens: 4000},
+		Memory:   MemoryConfig{DailyTokens: 100000, BatchTokens: 8192, ContextTokens: 8192, HistoryTokens: 32768, Embedding: MemoryEmbeddingConfig{BaseURL: "https://api.voyageai.com/v1", APIKey: "${VOYAGE_API_KEY}", Model: "voyage-4", Dimensions: 1024}},
 		Wake:     WakeConfig{DailyLimit: 20, DailyTokens: 0},
 		Thinking: ThinkingConfig{NightAt: "03:00", WanderAt: []string{}},
 		Watch:    WatchConfig{MaxChecksPerTick: 5},

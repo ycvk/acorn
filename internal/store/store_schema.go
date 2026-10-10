@@ -23,6 +23,9 @@ func (s *Store) migrate() error {
 	if err := s.validateSchema(); err != nil {
 		return err
 	}
+	if err := s.migratePersonalMemory(); err != nil {
+		return err
+	}
 	if _, err := s.db.Exec(storeBootstrapIndexes); err != nil {
 		return fmt.Errorf("migrate sqlite schema (indexes): %w", err)
 	}
@@ -79,7 +82,6 @@ var schemaRequiredTables = map[string][]string{
 	"artifacts":           {"artifact_id", "run_id", "session_id", "source_tool_result_ref", "kind", "title", "mime_type", "relative_path", "size_bytes", "sha256", "created_at"},
 	"schema_migrations":   {"version", "applied_at"},
 	"agent_checkpoints":   {"checkpoint_id", "data", "updated_at"},
-	"memory_items":        {"id", "kind", "content", "status", "session_id", "source_run_id", "wake_at", "recurrence", "expires_at", "created_at", "updated_at"},
 	"context_snapshots":   {"hash", "content", "created_at"},
 	"push_tokens":         {"device_id", "token", "updated_at"},
 	"notifications":       {"id", "title", "body", "thread_id", "run_id", "status", "send_after", "error_text", "created_at", "sent_at"},

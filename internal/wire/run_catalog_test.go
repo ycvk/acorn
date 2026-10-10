@@ -28,6 +28,9 @@ func TestRunCatalogContainsEveryBuiltinTool(t *testing.T) {
 	if err := c.store.CreateRun(ctx, core.RunCreateParams{RunID: "run_catalog", SessionID: thread.ID, Input: "probe"}); err != nil {
 		t.Fatalf("create run: %v", err)
 	}
+	if _, err := c.store.AppendSessionMessage(ctx, thread.ID, 1, "user", "probe", "run_catalog"); err != nil {
+		t.Fatal(err)
+	}
 	active, err := c.runnerFactory.New(ctx, runtime.RunnerBuildRequest{SessionID: thread.ID, RunID: "run_catalog", Input: "probe"})
 	if err != nil {
 		t.Fatalf("build runner: %v", err)

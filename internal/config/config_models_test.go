@@ -62,6 +62,7 @@ func TestModernDefaultsLeaveSamplingAndDeadlinesOptional(t *testing.T) {
 		t.Fatal("expected idle deadline")
 	}
 	cfg.Providers[0].APIKey = "test"
+	cfg.Memory.Embedding.APIKey = "voyage-test"
 	if err := cfg.ValidateExecutionReady(); err != nil {
 		t.Fatal(err)
 	}

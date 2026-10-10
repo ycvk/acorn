@@ -22,6 +22,7 @@ import (
 
 type agentRunnerRequest struct {
 	RunID       string
+	Memory      *runMemory
 	ChatModel   einomodel.AgenticModel
 	Catalog     *tools.Catalog
 	Skills      *skills.Snapshot
@@ -65,7 +66,7 @@ func buildAgentRunner(ctx context.Context, deps RuntimeDeps, req agentRunnerRequ
 	return adk.NewTypedRunner(adk.TypedRunnerConfig[*schema.AgenticMessage]{
 		Agent:           agent,
 		EnableStreaming: true,
-		CheckPointStore: storeCheckpointStore{store: deps.Store},
+		CheckPointStore: storeCheckpointStore{store: deps.Store, memory: deps.MemoryStore, visibility: req.Memory},
 	}), nil
 }
 
@@ -114,12 +115,16 @@ func buildAgentHandlers(ctx context.Context, deps RuntimeDeps, req agentRunnerRe
 	if err != nil {
 		return nil, err
 	}
+	if req.Memory == nil {
+		return nil, errors.New("run memory context is required")
+	}
+	inputBudget -= req.Memory.budget + 64
 	patch, err := patchtoolcalls.NewTyped[*schema.AgenticMessage](ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("patchtoolcalls middleware: %w", err)
 	}
 	summarize, err := summarization.NewTyped[*schema.AgenticMessage](ctx, &summarization.TypedConfig[*schema.AgenticMessage]{
-		Model:   req.ChatModel,
+		Model:   deps.Memory.MeterCompaction(req.ChatModel),
 		Trigger: &summarization.TriggerCondition{ContextTokens: inputBudget},
 		TokenCounter: func(ctx context.Context, in *summarization.TypedTokenCounterInput[*schema.AgenticMessage]) (int, error) {
 			return counter.CountMessages(ctx, in.Messages, in.Tools)
@@ -150,11 +155,12 @@ func buildAgentHandlers(ctx context.Context, deps RuntimeDeps, req agentRunnerRe
 	if err != nil {
 		return nil, err
 	}
+	present.runMemory = req.Memory
 	skillHandler, err := newSkillMiddleware(ctx, req.Skills)
 	if err != nil {
 		return nil, err
 	}
-	handlers := []adk.TypedChatModelAgentMiddleware[*schema.AgenticMessage]{patch, summarize, reduce}
+	handlers := []adk.TypedChatModelAgentMiddleware[*schema.AgenticMessage]{&memoryVisibilityMiddleware{TypedBaseChatModelAgentMiddleware: &adk.TypedBaseChatModelAgentMiddleware[*schema.AgenticMessage]{}, memory: req.Memory}, patch, summarize, reduce}
 	if len(deferred) > 0 {
 		search, err := toolsearch.NewTyped[*schema.AgenticMessage](ctx, &toolsearch.Config{DynamicTools: deferred})
 		if err != nil {

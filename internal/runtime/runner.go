@@ -132,7 +132,7 @@ func buildRuntimeDeps(cfg *config.Config, store RuntimeStore, opts RunnerFactory
 	if opts.ToolRegistry == nil {
 		return RuntimeDeps{}, errors.New("tool registry is required")
 	}
-	if opts.Presence == nil || opts.PhoneNotifications == nil || opts.Clock == nil {
+	if opts.Activity == nil || opts.MemoryStore == nil || opts.Commitments == nil || opts.PhoneNotifications == nil || opts.Clock == nil {
 		return RuntimeDeps{}, errors.New("presence, phone notifications and clock are required")
 	}
 	location, err := cfg.OwnerLocation()
@@ -146,7 +146,10 @@ func buildRuntimeDeps(cfg *config.Config, store RuntimeStore, opts RunnerFactory
 		MCPPendingActions:  opts.MCPPendingActionStore,
 		ArtifactService:    artifactService,
 		ToolRegistry:       opts.ToolRegistry,
-		Presence:           opts.Presence,
+		Activity:           opts.Activity,
+		MemoryStore:        opts.MemoryStore,
+		Memory:             opts.Memory,
+		Commitments:        opts.Commitments,
 		PhoneNotifications: opts.PhoneNotifications,
 		Clock:              opts.Clock,
 		Location:           location,
@@ -212,9 +215,32 @@ func (f *RunnerFactory) newAgentRunner(ctx context.Context, req RunnerBuildReque
 	if err != nil {
 		return nil, err
 	}
+	infos := make([]*schema.ToolInfo, 0)
+	for _, spec := range capabilities.catalog.EnabledSpecs() {
+		if spec.Tool != nil {
+			info, err := spec.Tool.Info(ctx)
+			if err != nil {
+				return nil, err
+			}
+			infos = append(infos, info)
+		}
+	}
+	counter, err := NewTokenCounter()
+	if err != nil {
+		return nil, err
+	}
+	toolTokens, err := counter.CountMessages(ctx, nil, infos)
+	if err != nil {
+		return nil, err
+	}
+	mem, err := prepareRunMemory(ctx, f.deps, req, buildStableInstruction(persona), toolTokens)
+	if err != nil {
+		return nil, err
+	}
 	failed := newFailedToolCalls()
 	runner, err := buildAgentRunner(ctx, f.deps, agentRunnerRequest{
 		RunID:       req.RunID,
+		Memory:      mem,
 		ChatModel:   chatModel,
 		Catalog:     capabilities.catalog,
 		Skills:      capabilities.skillSnapshot,
@@ -229,6 +255,7 @@ func (f *RunnerFactory) newAgentRunner(ctx context.Context, req RunnerBuildReque
 		Runner:        runner,
 		ChatModel:     chatModel,
 		FailedCalls:   failed,
+		Memory:        mem,
 		RunID:         req.RunID,
 		ToolCatalog:   capabilities.catalog,
 		CloseRunTools: capabilities.Close,
@@ -241,12 +268,16 @@ type RunnerFactoryOptions struct {
 	ArtifactService       core.ArtifactService
 	ToolRegistry          core.ToolRegistry
 	PhoneNotifications    core.PhoneNotificationStore
-	Presence              core.PresenceStore
+	Activity              core.ActivityStore
+	MemoryStore           core.MemoryStore
+	Memory                MemoryContextService
+	Commitments           core.CommitmentStore
 	Clock                 func() time.Time
 }
 
 // RunnerBuildRequest holds the parameters for building a new run.
 type RunnerBuildRequest struct {
+	Wake      string
 	SessionID string
 	RunID     string
 	Input     string
@@ -255,6 +286,7 @@ type RunnerBuildRequest struct {
 }
 
 type ActiveRunner struct {
+	Memory        *runMemory
 	Mcp           *mcpprovider.Manager
 	Runner        *adk.TypedRunner[*schema.AgenticMessage]
 	ChatModel     einomodel.AgenticModel
@@ -279,11 +311,11 @@ func (f *RunnerFactory) buildRunPrerequisites(ctx context.Context, req RunnerBui
 // operatingRules follow the owner's persona in every instruction. They cover
 // how to use the runtime's tools; the persona covers who the agent is.
 const operatingRules = `Operating rules:
-- The <presence> block at the end of your input is your working memory right now: the time, what woke you, your commitments, your thoughts, what the owner said, their tendencies and your concerns. Items are referenced by #id.
-- When the owner tells you something worth remembering, keep it with keep, in their own words. Note your own observations and open questions with think.
+- The <presence> block gives current time, wake reason, commitments, open thoughts and concerns. The <memory_context> block contains sourced memories and current_run_sources; use those source IDs when recording changes.
+- Owner messages are automatically processed into sourced memory. Use keep when explicitly asked to remember something immediately, quoting the current owner source exactly. Use think for sourced hypotheses and questions.
 - When something should happen later, make a commitment with schedule_wake. You will wake in this conversation with the task as input.
 - When you wake for a commitment, do the task, then settle it with done, or schedule a new wake if it is not finished.
-- Use settle to renew what still matters, to internalize a lasting preference (tendency) or concern (ruler), and to release what no longer matters.
+- Use concern to track continuing matters and their progress. settle completes or cancels commitments with source evidence. Use memory_correct for an explicit owner correction and memory_forget for a resolved exclusion scope; acknowledge only successful operations. Use memory_read to explain evidence and revisions.
 - Use recall to find past conversations and older memory before saying you do not know.
 - When the owner should know something now and may not be looking, use notify_owner. Keep the notification to a short summary; details stay in the conversation.
 - The knowledge base holds longer material worth looking up later: articles, notes, plans, reference. Short things the owner says still go to keep. Search the knowledge base before writing a new note; extend a related note with knowledge_edit instead of starting a duplicate.

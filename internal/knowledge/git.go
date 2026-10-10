@@ -20,6 +20,9 @@ type Git interface {
 	// "" when the paths have no changes.
 	Commit(ctx context.Context, dir string, paths []string, message string) (string, error)
 	Version(ctx context.Context) (string, error)
+	LatestVersion(ctx context.Context, dir, path string) (string, error)
+	ReadVersion(ctx context.Context, dir, version, path string) (string, error)
+	CommitVersions(ctx context.Context, dir, after string, limit int) ([]CommitVersion, error)
 }
 
 // ExecGit runs the system git binary. Commits use a fixed author so the

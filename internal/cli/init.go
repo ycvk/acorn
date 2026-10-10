@@ -65,7 +65,7 @@ func runInit(_ context.Context, args []string) error {
 	if err := writeDefaultPersona(absPath); err != nil {
 		return err
 	}
-	fmt.Println("Next: set OPENAI_API_KEY in your environment, then run 'acorn doctor' and 'acorn smoke \"hello\"'.")
+	fmt.Println("Next: set OPENAI_API_KEY and VOYAGE_API_KEY in your environment, then run 'acorn doctor' and 'acorn smoke \"hello\"'.")
 	return nil
 }
 

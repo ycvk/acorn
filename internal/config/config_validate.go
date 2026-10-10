@@ -27,6 +27,9 @@ func (c *Config) ValidateBase() error {
 	if err := c.validateBrowserBase(); err != nil {
 		return err
 	}
+	if err := c.validateMemory(); err != nil {
+		return err
+	}
 	if err := c.validatePresence(); err != nil {
 		return err
 	}
@@ -121,6 +124,12 @@ func (c *Config) ValidateExecutionReady() error {
 		return err
 	}
 	if _, err := c.InputTokenBudget(); err != nil {
+		return err
+	}
+	if strings.TrimSpace(c.Memory.Embedding.APIKey) == "" || strings.Contains(c.Memory.Embedding.APIKey, "${") {
+		return errors.New("memory.embedding.api_key is required; set VOYAGE_API_KEY")
+	}
+	if err := c.validateMemoryBudget(); err != nil {
 		return err
 	}
 	if err := c.validatePresenceBudget(); err != nil {

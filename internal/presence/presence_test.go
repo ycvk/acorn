@@ -13,41 +13,6 @@ import (
 
 var t0 = time.Date(2026, 10, 5, 1, 0, 0, 0, time.UTC) // 09:00 Monday in Shanghai
 
-func TestDecayMovesExpiredItemsOneStep(t *testing.T) {
-	items := []core.MemoryItem{
-		{ID: 1, Kind: core.MemoryThought, Status: core.MemoryActive, ExpiresAt: t0.Add(-time.Second)},
-		{ID: 2, Kind: core.MemoryThought, Status: core.MemoryActive, ExpiresAt: t0},
-		{ID: 3, Kind: core.MemorySaid, Status: core.MemoryResting, ExpiresAt: t0.Add(-time.Hour)},
-		{ID: 4, Kind: core.MemoryCommitment, Status: core.MemoryActive, ExpiresAt: t0.Add(-time.Hour)},
-		{ID: 5, Kind: core.MemoryTendency, Status: core.MemoryReleased, ExpiresAt: t0.Add(-time.Hour)},
-	}
-	before := append([]core.MemoryItem(nil), items...)
-	changed := Decay(items, t0)
-	if len(changed) != 2 {
-		t.Fatalf("changed = %+v, want items 1 and 3", changed)
-	}
-	if changed[0].ID != 1 || changed[0].Status != core.MemoryResting || !changed[0].ExpiresAt.Equal(t0.Add(restingTTL)) {
-		t.Fatalf("item 1 = %+v", changed[0])
-	}
-	if changed[1].ID != 3 || changed[1].Status != core.MemorySunk || !changed[1].ExpiresAt.IsZero() {
-		t.Fatalf("item 3 = %+v", changed[1])
-	}
-	for i := range items {
-		if items[i] != before[i] {
-			t.Fatalf("Decay mutated its input at %d", i)
-		}
-	}
-}
-
-func TestNewExpiryByKind(t *testing.T) {
-	if got := NewExpiry(core.MemoryThought, t0); !got.Equal(t0.Add(48 * time.Hour)) {
-		t.Fatalf("thought expiry = %v", got)
-	}
-	if got := NewExpiry(core.MemoryCommitment, t0); !got.IsZero() {
-		t.Fatalf("commitment expiry = %v", got)
-	}
-}
-
 func shanghai(t *testing.T) *time.Location {
 	t.Helper()
 	loc, err := time.LoadLocation("Asia/Shanghai")
@@ -69,69 +34,40 @@ func mustRender(t *testing.T, in RenderInput) string {
 }
 
 func TestRenderOrdersSectionsInOwnerTime(t *testing.T) {
-	items := []core.MemoryItem{
-		{ID: 1, Kind: core.MemorySaid, Status: core.MemoryActive, Content: "我周末不想被打扰", CreatedAt: t0},
-		{ID: 2, Kind: core.MemoryCommitment, Status: core.MemoryActive, Content: "later", WakeAt: t0.Add(48 * time.Hour), Recurrence: "0 9 * * *"},
-		{ID: 3, Kind: core.MemoryCommitment, Status: core.MemoryWoken, Content: "提醒 owner 看 X", WakeAt: t0},
-		{ID: 4, Kind: core.MemoryThought, Status: core.MemoryActive, Content: "owner 在读论文", CreatedAt: t0},
-		{ID: 5, Kind: core.MemoryCommitment, Status: core.MemoryActive, Content: "sooner", WakeAt: t0.Add(time.Hour)},
-		{ID: 6, Kind: core.MemoryRuler, Status: core.MemoryActive, Content: "推送只写摘要", CreatedAt: t0},
-		{ID: 7, Kind: core.MemoryThought, Status: core.MemoryResting, Content: strings.Repeat("长", 100), CreatedAt: t0},
-	}
-	out := mustRender(t, RenderInput{Now: t0, Location: shanghai(t), Wake: "commitment #3: 提醒 owner 看 X", Items: items, MaxTokens: 10000, Count: runeCount})
-	for _, want := range []string{
-		"Now: 2026-10-05 Mon 09:00 (Asia/Shanghai)",
-		"Woken by: commitment #3",
-		"- #3 [due now, was set for 2026-10-05 Mon 09:00] 提醒 owner 看 X",
-		"- #4 (2026-10-05) owner 在读论文",
-		"- #1 (2026-10-05) 我周末不想被打扰",
-		"## Concerns\n- #6",
-		`repeats "0 9 * * *"`,
-	} {
+	in := RenderInput{Now: t0, Location: shanghai(t), Wake: "commitment #3", Count: runeCount, MaxTokens: 10000,
+		Commitments: []core.Commitment{{ID: 2, State: "scheduled", Content: "later", WakeAt: t0.Add(48 * time.Hour), Recurrence: "0 9 * * *"}, {ID: 3, State: "due", Content: "提醒 owner 看 X", WakeAt: t0}, {ID: 5, State: "scheduled", Content: "sooner", WakeAt: t0.Add(time.Hour)}},
+		Occurrences: []core.CommitmentOccurrence{{ID: 30, CommitmentID: 3, State: "due", DueAt: t0}},
+		Thoughts:    []core.MemoryRecord{{ID: "thought", Kind: "thought", State: "open", Content: "owner 在读论文", UpdatedAt: t0}},
+		Concerns:    []core.MemoryConcern{{ID: "concern", State: "active", Title: "准备面试", Revision: 2, UpdatedAt: t0}}}
+	out := mustRender(t, in)
+	for _, want := range []string{"Now: 2026-10-05 Mon 09:00 (Asia/Shanghai)", "#3 occurrence #30", `repeats "0 9 * * *"`, "owner 在读论文", "concern rev 2"} {
 		if !strings.Contains(out, want) {
-			t.Fatalf("render missing %q:\n%s", want, out)
+			t.Fatalf("missing %q: %s", want, out)
 		}
 	}
-	order := []string{"#3 [due now", "#5 [", "#2 [", "## Thoughts", "## Owner said", "## Concerns", "## Resting"}
 	last := -1
-	for _, marker := range order {
-		idx := strings.Index(out, marker)
-		if idx <= last {
-			t.Fatalf("%q out of order:\n%s", marker, out)
+	for _, marker := range []string{"Due commitments", "#5 [", "#2 [", "Concerns", "Open thoughts"} {
+		i := strings.Index(out, marker)
+		if i <= last {
+			t.Fatalf("section order: %s", out)
 		}
-		last = idx
-	}
-	if strings.Contains(out, strings.Repeat("长", 61)) {
-		t.Fatalf("resting item not shortened:\n%s", out)
+		last = i
 	}
 }
 
-func TestRenderDropsLowPriorityItemsToFitBudget(t *testing.T) {
-	items := []core.MemoryItem{
-		{ID: 1, Kind: core.MemoryCommitment, Status: core.MemoryWoken, Content: "must stay", WakeAt: t0},
-		{ID: 2, Kind: core.MemorySaid, Status: core.MemoryActive, Content: strings.Repeat("a", 200), CreatedAt: t0},
-		{ID: 3, Kind: core.MemorySaid, Status: core.MemoryActive, Content: "newest said", CreatedAt: t0},
-		{ID: 4, Kind: core.MemoryThought, Status: core.MemoryResting, Content: strings.Repeat("r", 50), CreatedAt: t0},
-	}
-	in := RenderInput{Now: t0, Location: time.UTC, Wake: "owner message", Items: items, Count: runeCount}
+func TestRenderPreservesDueOccurrenceAndEnforcesBudget(t *testing.T) {
+	in := RenderInput{Now: t0, Location: time.UTC, Wake: "owner message", Count: runeCount,
+		Commitments: []core.Commitment{{ID: 1, State: "due", Content: "must stay", WakeAt: t0}}, Occurrences: []core.CommitmentOccurrence{{ID: 10, CommitmentID: 1, State: "due", DueAt: t0}},
+		Thoughts: []core.MemoryRecord{{ID: "old", Kind: "thought", State: "open", Content: strings.Repeat("x", 200), UpdatedAt: t0.Add(-time.Hour)}, {ID: "new", Kind: "thought", State: "open", Content: "recent thought", UpdatedAt: t0}}}
 	full := mustRender(t, in)
-	in.MaxTokens = utf8.RuneCountInString(full) - 100
+	in.MaxTokens = utf8.RuneCountInString(full) - 120
 	out := mustRender(t, in)
-	if utf8.RuneCountInString(out) > in.MaxTokens {
-		t.Fatalf("render exceeds budget: %d > %d", utf8.RuneCountInString(out), in.MaxTokens)
-	}
-	if strings.Contains(out, "#4 ") || strings.Contains(out, "#2 ") {
-		t.Fatalf("resting and oldest said should be dropped first:\n%s", out)
-	}
-	if !strings.Contains(out, "#3 ") || !strings.Contains(out, "#1 [due now") {
-		t.Fatalf("newest said and woken commitment must stay:\n%s", out)
-	}
-	if !strings.Contains(out, "2 items left out") {
-		t.Fatalf("missing omission note:\n%s", out)
+	if len([]rune(out)) > in.MaxTokens || strings.Contains(out, "old rev") || !strings.Contains(out, "new rev") || !strings.Contains(out, "must stay") {
+		t.Fatalf("budgeted=%s", out)
 	}
 	in.MaxTokens = 1
-	if out := mustRender(t, in); !strings.Contains(out, "#1 [due now") {
-		t.Fatalf("woken commitment dropped under a tiny budget:\n%s", out)
+	if _, err := Render(in); err == nil {
+		t.Fatal("mandatory context overflow accepted")
 	}
 }
 

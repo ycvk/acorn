@@ -8,12 +8,15 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ycvk/acorn/internal/wire"
 )
 
 func runServe(ctx context.Context, args []string) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	fs := newFlagSet("serve")
 	configPath := addConfigFlag(fs)
 	listenAddr := fs.String("listen", "", "listen address override, for example 127.0.0.1:8080")
@@ -34,7 +37,14 @@ func runServe(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
-	defer container.Close()
+	var workers sync.WaitGroup
+	defer func() {
+		cancel()
+		workers.Wait()
+		if err := container.Close(); err != nil {
+			slog.Error("close Acorn container", "error", err)
+		}
+	}()
 
 	handler, err := container.Handler(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
@@ -43,8 +53,9 @@ func runServe(ctx context.Context, args []string) error {
 		return err
 	}
 
-	go container.WakeScheduler().Run(ctx)
-	go resumeReadyRunsLoop(ctx, container.ResumeReadyRuns, resumeSweepInterval)
+	workers.Go(func() { container.WakeScheduler().Run(ctx) })
+	workers.Go(func() { container.MemoryWorker().Run(ctx) })
+	workers.Go(func() { resumeReadyRunsLoop(ctx, container.ResumeReadyRuns, resumeSweepInterval) })
 
 	server := &http.Server{
 		Addr:              addr,

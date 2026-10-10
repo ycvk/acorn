@@ -10,9 +10,9 @@ import (
 )
 
 // TestInitTemplateIsValidAndExecutionReady guards the most important property of
-// `acorn init`: the embedded starter must load and be execution-ready with only
-// OPENAI_API_KEY set, and semantic recall must be OFF by default (optional).
+// `acorn init`: the embedded starter loads and becomes execution-ready after the model and Voyage keys are supplied.
 func TestInitTemplateIsValidAndExecutionReady(t *testing.T) {
+	t.Setenv("VOYAGE_API_KEY", "voyage-test")
 	t.Setenv("OPENAI_API_KEY", "sk-test-init")
 	dir := t.TempDir()
 	path := filepath.Join(dir, "acorn.yaml")
@@ -24,7 +24,7 @@ func TestInitTemplateIsValidAndExecutionReady(t *testing.T) {
 		t.Fatalf("init template must load: %v", err)
 	}
 	if err := cfg.ValidateExecutionReady(); err != nil {
-		t.Fatalf("init template must be execution-ready with OPENAI_API_KEY set: %v", err)
+		t.Fatalf("init template must be execution-ready with model and Voyage keys: %v", err)
 	}
 }
 

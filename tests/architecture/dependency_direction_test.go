@@ -26,6 +26,7 @@ var layerRank = map[string]int{
 	"config":    2,
 	"store":     2,
 	"presence":  2,
+	"memory":    2,
 	"wake":      2,
 	"notify":    2,
 	"knowledge": 2,

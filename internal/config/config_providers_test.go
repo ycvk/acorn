@@ -50,11 +50,13 @@ func TestValidateExecutionReady_MultipleEnabledProvidersInvalid(t *testing.T) {
 		},
 		Owner:    defaultConfig().Owner,
 		Presence: defaultConfig().Presence,
+		Memory:   defaultConfig().Memory,
 		Wake:     defaultConfig().Wake,
 		Notify:   defaultConfig().Notify,
 		Watch:    defaultConfig().Watch,
 		Briefing: defaultConfig().Briefing,
 	}
+	cfg.Memory.Embedding.APIKey = "voyage-test"
 	if err := cfg.ValidateExecutionReady(); err == nil {
 		t.Fatal("expected multiple enabled providers to fail validation")
 	} else if !strings.Contains(err.Error(), "exactly one provider must be enabled, got 2") {
@@ -65,6 +67,7 @@ func TestValidateExecutionReady_MultipleEnabledProvidersInvalid(t *testing.T) {
 func TestValidateExecutionReady_NoEnabledProviders(t *testing.T) {
 	cfg := defaultConfig()
 	cfg.Providers[0].Enabled = false
+	cfg.Memory.Embedding.APIKey = "voyage-test"
 	if err := cfg.ValidateExecutionReady(); err == nil {
 		t.Fatal("expected zero enabled providers to fail validation")
 	} else if !strings.Contains(err.Error(), "at least one provider must be enabled") {
@@ -75,6 +78,7 @@ func TestValidateExecutionReady_NoEnabledProviders(t *testing.T) {
 func TestValidateExecutionReady_MissingProviderName(t *testing.T) {
 	cfg := defaultConfig()
 	cfg.Providers[0].Name = ""
+	cfg.Memory.Embedding.APIKey = "voyage-test"
 	if err := cfg.ValidateExecutionReady(); err == nil {
 		t.Fatal("expected missing provider name to fail validation")
 	} else if !strings.Contains(err.Error(), "provider name is required") {
@@ -85,6 +89,7 @@ func TestValidateExecutionReady_MissingProviderName(t *testing.T) {
 func TestValidateExecutionReady_MissingProviderModel(t *testing.T) {
 	cfg := defaultConfig()
 	cfg.Providers[0].Model = ""
+	cfg.Memory.Embedding.APIKey = "voyage-test"
 	if err := cfg.ValidateExecutionReady(); err == nil {
 		t.Fatal("expected missing provider model to fail validation")
 	} else if !strings.Contains(err.Error(), "provider default: model is required") {
@@ -95,6 +100,7 @@ func TestValidateExecutionReady_MissingProviderModel(t *testing.T) {
 func TestValidateExecutionReady_MissingProviderBaseURL(t *testing.T) {
 	cfg := defaultConfig()
 	cfg.Providers[0].BaseURL = ""
+	cfg.Memory.Embedding.APIKey = "voyage-test"
 	if err := cfg.ValidateExecutionReady(); err == nil {
 		t.Fatal("expected missing provider base_url to fail validation")
 	} else if !strings.Contains(err.Error(), "provider default: base_url is required") {
@@ -105,6 +111,7 @@ func TestValidateExecutionReady_MissingProviderBaseURL(t *testing.T) {
 func TestValidateExecutionReady_MissingProviderAPIKey(t *testing.T) {
 	cfg := defaultConfig()
 	cfg.Providers[0].APIKey = ""
+	cfg.Memory.Embedding.APIKey = "voyage-test"
 	if err := cfg.ValidateExecutionReady(); err == nil {
 		t.Fatal("expected missing provider api_key to fail validation")
 	} else if !strings.Contains(err.Error(), "provider default: api_key is required") {
@@ -116,6 +123,7 @@ func TestValidateExecutionReady_NegativeTimeout(t *testing.T) {
 	cfg := defaultConfig()
 	cfg.Providers[0].APIKey = "test-key"
 	cfg.Providers[0].TimeoutSeconds = -1
+	cfg.Memory.Embedding.APIKey = "voyage-test"
 	if err := cfg.ValidateExecutionReady(); err == nil {
 		t.Fatal("expected negative timeout to fail validation")
 	} else if !strings.Contains(err.Error(), "provider default: timeout_seconds must be >= 0") {
@@ -127,6 +135,7 @@ func TestValidateExecutionReady_ZeroMaxTokens(t *testing.T) {
 	cfg := defaultConfig()
 	cfg.Providers[0].APIKey = "test-key"
 	cfg.Providers[0].MaxOutputTokens = new(0)
+	cfg.Memory.Embedding.APIKey = "voyage-test"
 	if err := cfg.ValidateExecutionReady(); err == nil {
 		t.Fatal("expected zero max_output_tokens to fail validation")
 	} else if !strings.Contains(err.Error(), "provider default: max_output_tokens must be positive") {
@@ -177,11 +186,13 @@ func TestValidateExecutionReady_DuplicateNames(t *testing.T) {
 		},
 		Owner:    defaultConfig().Owner,
 		Presence: defaultConfig().Presence,
+		Memory:   defaultConfig().Memory,
 		Wake:     defaultConfig().Wake,
 		Notify:   defaultConfig().Notify,
 		Watch:    defaultConfig().Watch,
 		Briefing: defaultConfig().Briefing,
 	}
+	cfg.Memory.Embedding.APIKey = "voyage-test"
 	if err := cfg.ValidateExecutionReady(); err == nil {
 		t.Fatal("expected duplicate provider names to fail validation")
 	} else if !strings.Contains(err.Error(), `duplicate enabled provider name "same"`) {
@@ -232,11 +243,13 @@ func TestValidateExecutionReady_DisabledProviderNotValidated(t *testing.T) {
 		},
 		Owner:    defaultConfig().Owner,
 		Presence: defaultConfig().Presence,
+		Memory:   defaultConfig().Memory,
 		Wake:     defaultConfig().Wake,
 		Notify:   defaultConfig().Notify,
 		Watch:    defaultConfig().Watch,
 		Briefing: defaultConfig().Briefing,
 	}
+	cfg.Memory.Embedding.APIKey = "voyage-test"
 	if err := cfg.ValidateExecutionReady(); err != nil {
 		t.Fatalf("expected disabled provider to be skipped during validation, got %v", err)
 	}
