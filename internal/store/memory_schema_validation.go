@@ -1,7 +1,6 @@
 package store
 
 var memoryRequiredTables = map[string][]string{
-	"memory_source_cursors":    {"name", "version"},
 	"memory_sources":           {"id", "kind", "object_id", "version", "speaker", "session_id", "run_id", "body", "recorded_at", "occurred_at"},
 	"memory_records":           {"id", "kind", "content", "scope", "state", "revision", "recorded_at", "updated_at", "valid_from", "valid_to", "excluded", "data"},
 	"memory_revisions":         {"record_id", "revision", "at", "reason", "data"},

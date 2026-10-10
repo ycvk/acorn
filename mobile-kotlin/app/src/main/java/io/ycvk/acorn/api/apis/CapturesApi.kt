@@ -57,7 +57,7 @@ open class CapturesApi(basePath: kotlin.String = defaultBasePath, client: Call.F
     /**
      * POST /v1/captures
      * Hand the agent something shared from the phone
-     * Starts a run in a new thread whose input (role &#x60;capture&#x60;) lists the shared subject, text and image. An image is stored in the knowledge base under &#x60;attachments/&#x60; before the run starts. Text or an image is required. 
+     * Starts a run in a new thread whose input (role &#x60;capture&#x60;) lists the shared subject, text and image. An image is stored under &#x60;attachments/&#x60; in the storage directory before the run starts. Text or an image is required. 
      * @param text Shared text, often a link, plus the owner&#39;s note. (optional)
      * @param subject Title the sharing app gave, such as a page title. (optional)
      * @param image JPEG, PNG, WebP or GIF, at most 10 MiB. (optional)
@@ -91,7 +91,7 @@ open class CapturesApi(basePath: kotlin.String = defaultBasePath, client: Call.F
     /**
      * POST /v1/captures
      * Hand the agent something shared from the phone
-     * Starts a run in a new thread whose input (role &#x60;capture&#x60;) lists the shared subject, text and image. An image is stored in the knowledge base under &#x60;attachments/&#x60; before the run starts. Text or an image is required. 
+     * Starts a run in a new thread whose input (role &#x60;capture&#x60;) lists the shared subject, text and image. An image is stored under &#x60;attachments/&#x60; in the storage directory before the run starts. Text or an image is required. 
      * @param text Shared text, often a link, plus the owner&#39;s note. (optional)
      * @param subject Title the sharing app gave, such as a page title. (optional)
      * @param image JPEG, PNG, WebP or GIF, at most 10 MiB. (optional)

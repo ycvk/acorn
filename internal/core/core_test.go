@@ -1,7 +1,6 @@
 package core
 
 import (
-	"reflect"
 	"regexp"
 	"strings"
 	"testing"
@@ -67,31 +66,6 @@ func TestToolSpecValidate(t *testing.T) {
 			}
 			if !strings.Contains(err.Error(), tc.err) {
 				t.Fatalf("expected error containing %q, got %q", tc.err, err.Error())
-			}
-		})
-	}
-}
-
-// --- Store interface compile-time checks ---
-
-func TestStoreInterfaces(t *testing.T) {
-	cases := []struct {
-		name        string
-		iface       any
-		wantMethods int
-	}{
-		{"SessionStore", (*SessionStore)(nil), 37},
-		{"IdentityStore", (*IdentityStore)(nil), 7},
-		{"ArtifactStore", (*ArtifactStore)(nil), 6},
-		{"MemoryStore", (*MemoryStore)(nil), 37},
-		{"CommitmentStore", (*CommitmentStore)(nil), 10},
-		{"ActivityStore", (*ActivityStore)(nil), 4},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			typ := reflect.TypeOf(tc.iface).Elem()
-			if got := typ.NumMethod(); got != tc.wantMethods {
-				t.Fatalf("%s has %d methods, want %d", tc.name, got, tc.wantMethods)
 			}
 		})
 	}

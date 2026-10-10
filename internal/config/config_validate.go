@@ -33,9 +33,6 @@ func (c *Config) ValidateBase() error {
 	if err := c.validatePresence(); err != nil {
 		return err
 	}
-	if err := c.validateKnowledge(); err != nil {
-		return err
-	}
 	if err := c.validateThinking(); err != nil {
 		return err
 	}

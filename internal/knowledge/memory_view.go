@@ -9,30 +9,20 @@ import (
 )
 
 // MemoryView applies owner exclusions to agent reads. The owner's knowledge
-// API continues to expose the files themselves through Vault.
+// API continues to read notes through Vault.
 type MemoryView struct {
 	*Vault
 	Store core.MemoryStore
 }
 
-func (g *ExecGit) LatestVersion(ctx context.Context, dir, path string) (string, error) {
-	if _, err := CleanNotePath(path); err != nil {
-		return "", err
-	}
-	out, err := g.run(ctx, dir, "log", "-1", "--format=%H", "--", path)
-	return strings.TrimSpace(out), err
-}
-
-func (v *MemoryView) excludedQuotes(ctx context.Context, path string) ([]string, error) {
+// excludedQuotes returns the excluded fragments of one note revision; an
+// excluded whole revision is core.ErrMemoryExcluded.
+func (v *MemoryView) excludedQuotes(ctx context.Context, path string, revision int64) ([]string, error) {
 	ex, err := v.Store.MemoryExclusions(ctx)
 	if err != nil {
 		return nil, err
 	}
-	version, err := v.git.LatestVersion(ctx, v.dir, path)
-	if err != nil {
-		return nil, err
-	}
-	id := knowledgeSourceID(path, version)
+	id := core.KnowledgeSourceID(path, revision)
 	var quotes []string
 	for _, f := range ex.Fragments {
 		if f.SourceID == id {
@@ -52,21 +42,21 @@ func redactKnowledge(text string, quotes []string) string {
 	return text
 }
 
-func (v *MemoryView) Read(ctx context.Context, path string) (Note, error) {
+func (v *MemoryView) Read(ctx context.Context, path string) (core.KnowledgeNote, error) {
 	note, err := v.Vault.Read(ctx, path)
 	if err != nil {
 		return note, err
 	}
-	quotes, err := v.excludedQuotes(ctx, note.Path)
+	quotes, err := v.excludedQuotes(ctx, note.Path, note.Revision)
 	if err != nil {
-		return Note{}, err
+		return core.KnowledgeNote{}, err
 	}
 	note.Body = redactKnowledge(note.Body, quotes)
-	note.Frontmatter.Title = redactKnowledge(note.Frontmatter.Title, quotes)
-	note.Frontmatter.Source = redactKnowledge(note.Frontmatter.Source, quotes)
-	note.Frontmatter.Tags = append([]string(nil), note.Frontmatter.Tags...)
-	for i, tag := range note.Frontmatter.Tags {
-		note.Frontmatter.Tags[i] = redactKnowledge(tag, quotes)
+	note.Title = redactKnowledge(note.Title, quotes)
+	note.Source = redactKnowledge(note.Source, quotes)
+	note.Tags = append([]string(nil), note.Tags...)
+	for i, tag := range note.Tags {
+		note.Tags[i] = redactKnowledge(tag, quotes)
 	}
 	return note, nil
 }
@@ -74,7 +64,7 @@ func (v *MemoryView) Read(ctx context.Context, path string) (Note, error) {
 func (v *MemoryView) filterHits(ctx context.Context, hits []core.KnowledgeHit) ([]core.KnowledgeHit, error) {
 	out := make([]core.KnowledgeHit, 0, len(hits))
 	for _, hit := range hits {
-		quotes, err := v.excludedQuotes(ctx, hit.Path)
+		quotes, err := v.excludedQuotes(ctx, hit.Path, hit.Revision)
 		if errors.Is(err, core.ErrMemoryExcluded) {
 			continue
 		}
@@ -88,8 +78,8 @@ func (v *MemoryView) filterHits(ctx context.Context, hits []core.KnowledgeHit) (
 			if err != nil {
 				return nil, err
 			}
-			hit.Title = note.Frontmatter.Title
-			hit.Tags = note.Frontmatter.Tags
+			hit.Title = note.Title
+			hit.Tags = note.Tags
 			runes := []rune(note.Body)
 			hit.Snippet = string(runes[:min(len(runes), 240)])
 		}
@@ -105,6 +95,7 @@ func (v *MemoryView) Search(ctx context.Context, query string, limit int) ([]cor
 	}
 	return v.filterHits(ctx, hits)
 }
+
 func (v *MemoryView) Recent(ctx context.Context, prefix string, limit int) ([]core.KnowledgeHit, error) {
 	hits, err := v.Vault.Recent(ctx, prefix, limit)
 	if err != nil {

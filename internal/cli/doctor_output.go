@@ -15,9 +15,8 @@ func renderDoctorKnowledge(status knowledge.Status) string {
 	return strings.Join([]string{
 		"",
 		"Knowledge base",
-		fmt.Sprintf("  Dir: %s", status.Dir),
 		fmt.Sprintf("  Notes: %d", status.Notes),
-		fmt.Sprintf("  Git: %s", status.Git),
+		fmt.Sprintf("  Attachments: %s", status.Attachments),
 	}, "\n")
 }
 

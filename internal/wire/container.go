@@ -48,7 +48,6 @@ type Container struct {
 
 // buildOptions are the process-level dependencies of a container.
 type buildOptions struct {
-	git knowledge.Git
 	// clock drives presence, commitments and notifications.
 	clock func() time.Time
 	// fcmEndpoint, when set, replaces the FCM API send endpoint.
@@ -149,12 +148,7 @@ func (c *Container) Close() error {
 func buildContainer(ctx context.Context, cfg *config.Config, options buildOptions) (*Container, error) {
 	runtime.RegisterTypes()
 
-	git, err := knowledge.LookupGit()
-	if err != nil {
-		return nil, err
-	}
-	options.git = git
-	store, err := store.Open(cfg.Runtime.StorageDir, store.OpenOptions{SourceReader: &knowledge.SourceReader{Git: git, Dir: cfg.KnowledgeDir()}})
+	store, err := store.Open(cfg.Runtime.StorageDir)
 	if err != nil {
 		return nil, err
 	}

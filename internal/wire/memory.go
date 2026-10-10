@@ -13,7 +13,7 @@ import (
 	"github.com/ycvk/acorn/internal/store"
 )
 
-func buildMemory(ctx context.Context, cfg *config.Config, db *store.Store, clock func() time.Time, rebuild bool, syncSources func(context.Context) error) (*memory.Engine, error) {
+func buildMemory(ctx context.Context, cfg *config.Config, db *store.Store, clock func() time.Time, rebuild bool) (*memory.Engine, error) {
 	model, err := runtime.NewMemoryModel(ctx, cfg)
 	if err != nil {
 		return nil, err
@@ -45,7 +45,7 @@ func buildMemory(ctx context.Context, cfg *config.Config, db *store.Store, clock
 	if err != nil {
 		return nil, err
 	}
-	return memory.New(memory.Config{Ready: ready, SyncSources: syncSources, Store: db, Model: model, ModelName: provider.Model, Embedder: voyage, Index: index, Count: counter.CountText, Clock: clock, Location: loc, DailyTokens: cfg.Memory.DailyTokens, AutonomousTokens: cfg.Wake.DailyTokens, BatchTokens: cfg.Memory.BatchTokens, ContextTokens: cfg.Memory.ContextTokens, HistoryTokens: cfg.Memory.HistoryTokens})
+	return memory.New(memory.Config{Ready: ready, Store: db, Model: model, ModelName: provider.Model, Embedder: voyage, Index: index, Count: counter.CountText, Clock: clock, Location: loc, DailyTokens: cfg.Memory.DailyTokens, AutonomousTokens: cfg.Wake.DailyTokens, BatchTokens: cfg.Memory.BatchTokens, ContextTokens: cfg.Memory.ContextTokens, HistoryTokens: cfg.Memory.HistoryTokens})
 }
 
 func (c *Container) MemoryWorker() *memory.Engine { return c.memory }

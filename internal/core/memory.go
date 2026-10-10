@@ -189,17 +189,10 @@ type MemoryConcern struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-// MemorySourceReader resolves immutable externally owned source versions.
-type MemorySourceReader interface {
-	ReadMemorySource(context.Context, MemorySource) (string, error)
-}
-
 // MemoryStore owns atomic memory mutations and persistent processing progress.
 type MemoryStore interface {
 	MemoryEpoch(context.Context) (int64, error)
 	LinkRunInputSources(context.Context, string, []string) error
-	MemorySourceCursor(context.Context, string) (string, error)
-	AdvanceMemorySourceCursor(context.Context, string, string, string, []MemorySource) error
 	SaveMemoryCheckpoint(context.Context, string, []byte, int64, time.Time) error
 	MemoryMessages(context.Context, string, int64, int64, bool, int) ([]SessionMessageRecord, int64, error)
 	RegisterMemorySource(context.Context, MemorySource) (MemorySource, error)

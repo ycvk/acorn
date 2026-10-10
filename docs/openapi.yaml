@@ -635,8 +635,8 @@ paths:
       summary: Hand the agent something shared from the phone
       description: |
         Starts a run in a new thread whose input (role `capture`) lists the
-        shared subject, text and image. An image is stored in the knowledge
-        base under `attachments/` before the run starts. Text or an image is
+        shared subject, text and image. An image is stored under
+        `attachments/` in the storage directory before the run starts. Text or an image is
         required.
       operationId: clientCreateCapture
       requestBody:
@@ -670,8 +670,7 @@ paths:
       summary: Search or list knowledge base notes
       description: |
         With `q`, notes ranked by relevance; without it, notes by update time,
-        newest first. Notes edited directly in the knowledge directory are
-        included.
+        newest first.
       operationId: clientListKnowledgeNotes
       parameters:
         - name: q
@@ -2092,7 +2091,7 @@ components:
           format: date-time
         body:
           type: string
-          description: Markdown body without frontmatter.
+          description: Markdown body of the current revision.
 
     ToolApprovalData:
       type: object

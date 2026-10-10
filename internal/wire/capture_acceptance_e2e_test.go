@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -104,15 +103,6 @@ func installSeedSkill(t *testing.T, root, name string) {
 	}
 }
 
-func gitLog(t *testing.T, dir string, args ...string) string {
-	t.Helper()
-	out, err := exec.Command("git", append([]string{"-C", dir, "log", "-1"}, args...)...).CombinedOutput()
-	if err != nil {
-		t.Fatalf("git log: %v: %s", err, out)
-	}
-	return strings.TrimSpace(string(out))
-}
-
 const sharedPage = `<!doctype html><html><head><title>Tokio work stealing</title></head><body><article>
 <h1>Tokio work stealing</h1>
 <p>The Tokio scheduler balances tasks between worker threads by work stealing, so an idle worker takes queued tasks from a busy one.</p>
@@ -183,16 +173,12 @@ func TestSharedLinkBecomesACommittedNote(t *testing.T) {
 		t.Fatalf("thread roles = %s", got)
 	}
 
-	dir := cfg.KnowledgeDir()
-	raw, err := os.ReadFile(filepath.Join(dir, "inbox", "tokio-work-stealing.md"))
-	if err != nil {
-		t.Fatalf("note file: %v", err)
+	note, err := c.store.KnowledgeNote(context.Background(), "inbox/tokio-work-stealing.md")
+	if err != nil || note.Source != link || !strings.Contains(note.Body, "owner 附言: 周末读") {
+		t.Fatalf("note = %+v, %v", note, err)
 	}
-	if !strings.Contains(string(raw), "source: "+link) || !strings.Contains(string(raw), "owner 附言: 周末读") {
-		t.Fatalf("note =\n%s", raw)
-	}
-	if msg := gitLog(t, dir, "--format=%B"); msg != "knowledge: write inbox/tokio-work-stealing.md\n\nAcorn-Run: "+accepted.RunID {
-		t.Fatalf("commit message = %q", msg)
+	if source, err := c.store.LoadMemorySource(context.Background(), core.KnowledgeSourceID(note.Path, note.Revision)); err != nil || source.RunID != accepted.RunID {
+		t.Fatalf("note revision source = %+v, %v", source, err)
 	}
 
 	var found api.KnowledgeNoteListResponse
@@ -206,7 +192,7 @@ func TestSharedLinkBecomesACommittedNote(t *testing.T) {
 	}
 }
 
-func TestSharedImageIsCommittedBeforeTheRun(t *testing.T) {
+func TestSharedImageIsStoredBeforeTheRun(t *testing.T) {
 	provider := &fakeOpenAI{replies: []string{textReply("收到图片")}}
 	server := httptest.NewServer(provider)
 	defer server.Close()
@@ -232,35 +218,9 @@ func TestSharedImageIsCommittedBeforeTheRun(t *testing.T) {
 		t.Fatalf("capture input lacks the image:\n%s", input)
 	}
 	attachment := strings.Fields(input[start+len("Image: "):])[0]
-	stored, err := os.ReadFile(filepath.Join(cfg.KnowledgeDir(), filepath.FromSlash(attachment)))
+	stored, err := os.ReadFile(filepath.Join(cfg.Runtime.StorageDir, filepath.FromSlash(attachment)))
 	if err != nil || !bytes.Equal(stored, png) {
 		t.Fatalf("attachment %s: %v", attachment, err)
-	}
-	if files := gitLog(t, cfg.KnowledgeDir(), "--name-only", "--format=%s"); files != "knowledge: capture image\n\n"+attachment {
-		t.Fatalf("attachment commit = %q", files)
-	}
-}
-
-func TestNotesWrittenOutsideAcornAreListed(t *testing.T) {
-	cfg := writeTestConfig(t, "http://127.0.0.1:1", "")
-	c, err := NewContainer(context.Background(), cfg)
-	if err != nil {
-		t.Fatalf("container: %v", err)
-	}
-	defer c.Close()
-	client := newPairedClient(t, c)
-	if err := os.WriteFile(filepath.Join(cfg.KnowledgeDir(), "reading.md"), []byte("# Reading list\n\n- SICP\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	var listed api.KnowledgeNoteListResponse
-	client.do(t, httptest.NewRequest(http.MethodGet, "/v1/knowledge/notes", nil), http.StatusOK, &listed)
-	if len(listed.Notes) != 1 || listed.Notes[0].Title != "Reading list" {
-		t.Fatalf("notes = %+v", listed)
-	}
-	var note api.KnowledgeNoteDTO
-	client.do(t, httptest.NewRequest(http.MethodGet, "/v1/knowledge/note?path=reading.md", nil), http.StatusOK, &note)
-	if !strings.Contains(note.Body, "SICP") {
-		t.Fatalf("note = %+v", note)
 	}
 }
 

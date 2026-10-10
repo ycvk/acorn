@@ -15,7 +15,7 @@ func (s *Store) ForgetMemory(ctx context.Context, request core.MemoryForget) (co
 		return core.MemoryExclusion{}, errors.New("forget requires owner source, reason, now and targets")
 	}
 	err := s.memoryTransaction(ctx, func(tx *sql.Tx) error {
-		owner, err := loadMemorySource(ctx, s.memoryConnection(tx), request.RequestSourceID, false)
+		owner, err := loadMemorySource(ctx, tx, request.RequestSourceID, false)
 		if err != nil {
 			return err
 		}
@@ -32,7 +32,7 @@ func (s *Store) ForgetMemory(ctx context.Context, request core.MemoryForget) (co
 		}
 		var fragments []core.MemoryExcludedFragment
 		for _, id := range request.SourceIDs {
-			if _, err := loadMemorySource(ctx, s.memoryConnection(tx), id, false); err != nil {
+			if _, err := loadMemorySource(ctx, tx, id, false); err != nil {
 				return err
 			}
 			fragments = append(fragments, core.MemoryExcludedFragment{SourceID: id})

@@ -3,7 +3,6 @@ package wire
 import (
 	"context"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -43,7 +42,6 @@ func TestMemoryLiveRuntime(t *testing.T) {
 	cfg.Memory.DailyTokens = 0
 	cfg.Wake.DailyTokens = 0
 	cfg.Runtime.StorageDir = t.TempDir()
-	cfg.Knowledge.Dir = filepath.Join(cfg.Runtime.StorageDir, "knowledge")
 	cfg.Tools.Workspace.RootDir = t.TempDir()
 	cfg.Notify.FCM.ServiceAccountFile = ""
 	cfg.MCP.Providers = nil

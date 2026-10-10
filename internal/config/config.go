@@ -17,7 +17,6 @@ type Config struct {
 	Thinking  ThinkingConfig   `yaml:"thinking"`
 	Wake      WakeConfig       `yaml:"wake"`
 	Notify    NotifyConfig     `yaml:"notify"`
-	Knowledge KnowledgeConfig  `yaml:"knowledge"`
 	Watch     WatchConfig      `yaml:"watch"`
 	Briefing  BriefingConfig   `yaml:"briefing"`
 

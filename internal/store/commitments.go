@@ -216,7 +216,7 @@ func (s *Store) SettleCommitment(ctx context.Context, change core.CommitmentSett
 			_, err := tx.ExecContext(ctx, `UPDATE commitment_occurrences SET state='cancelled',updated_at=? WHERE commitment_id=? AND state IN ('claimed','due')`, formatTimestamp(change.Now), c.ID)
 			return err
 		}
-		source, err := loadMemorySource(ctx, s.memoryConnection(tx), change.SourceID, true)
+		source, err := loadMemorySource(ctx, tx, change.SourceID, true)
 		if err != nil {
 			return err
 		}

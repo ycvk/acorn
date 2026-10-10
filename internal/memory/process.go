@@ -27,14 +27,7 @@ func (e *Engine) Run(ctx context.Context) {
 			return
 		}
 	}
-	var nextSync time.Time
 	for ctx.Err() == nil {
-		if e.cfg.SyncSources != nil && !e.cfg.Clock().Before(nextSync) {
-			if err := e.cfg.SyncSources(ctx); err != nil && ctx.Err() == nil {
-				slog.Error("memory source ingestion", "error", err)
-			}
-			nextSync = e.cfg.Clock().Add(30 * time.Second)
-		}
 		worked, err := e.ProcessOne(ctx)
 		if err != nil && ctx.Err() == nil {
 			slog.Error("memory processing", "error", err)

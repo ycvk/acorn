@@ -75,19 +75,17 @@
   - `internal/memory/consolidation_revision_test.go`
   - `internal/memory/semantic_history_test.go`
   - `internal/memory/research_evaluation_test.go`
-- **知识记忆绑定不可变版本**：Git 提交游标登记知识来源，展开读取对应 Git 对象；agent 输出保留来源关系，后续派生输出继承已提交的遗忘。agent 知识工具过滤排除，owner 的原文读取保留。
+- **知识记忆绑定不可变版本**：每个笔记 revision 在写入事务里登记为记忆来源，展开读取对应 revision 的正文；agent 写入保留来源关系，后续派生输出继承已提交的遗忘。agent 知识工具过滤排除，owner 的原文读取保留。
   - `internal/knowledge/memory_sources_test.go`
 
 ## 知识库与 Capture
 
-- **知识库文件是真相，索引可重建**：笔记是 `knowledge.dir`（默认 `{storage_dir}/knowledge`）下的 markdown 文件，目录同时是 git 仓库。`knowledge_notes` 与 `knowledge_notes_fts` 只是索引：每次列表或搜索前按 mtime 和 size 与文件同步，在 Acorn 之外新建、修改、删除的笔记都会反映出来；读不了或解析失败的笔记让同步失败并给出路径。
+- **笔记的每次写入是一个 revision**：笔记只经 `knowledge.Vault` 写入 SQLite；`knowledge_write`/`knowledge_edit` 各产生一个新 revision，保留创建时间、正文哈希与写入它的 run。编辑基于读到的 revision，期间被改过则以 `ErrKnowledgeConflict` 失败。搜索与列表读当前 revision。笔记路径必须是相对 `.md` 路径，不能含 `..`、隐藏段或位于 `attachments/`。
   - `internal/knowledge/knowledge_test.go`
   - `internal/store/store_knowledge_test.go`
-  - `internal/wire/capture_acceptance_e2e_test.go`
-- **每次写入是一个只含本次文件的 commit**：笔记只经 `knowledge.Vault` 写入，每次 `knowledge_write`/`knowledge_edit` 与分享图片各提交一次，只提交本次涉及的文件，作者固定为 Acorn，agent 的写入在提交说明里带 `Acorn-Run`。工作区里 owner 未提交的其他改动不受影响。笔记路径必须是知识库内的相对 `.md` 路径，不能含 `..`、隐藏段或位于 `attachments/`。
-  - `internal/knowledge/knowledge_test.go`
   - `internal/tools/knowledge_tools_test.go`
-- **Capture 是 owner 发起的 run**：`POST /v1/captures` 先把图片（JPEG/PNG/WebP/GIF，≤10 MiB，类型按内容判断）存入 `attachments/` 并提交，再为这次分享新建线程，以 role `capture` 的输入立即起 run；模型把它当作 user 消息读取，客户端单独显示。capture 不记 `wake.fired`，不计入 `wake.daily_limit`。
+  - `internal/wire/capture_acceptance_e2e_test.go`
+- **Capture 是 owner 发起的 run**：`POST /v1/captures` 先把图片（JPEG/PNG/WebP/GIF，≤10 MiB，类型按内容判断）存入 `{storage_dir}/attachments/`，再为这次分享新建线程，以 role `capture` 的输入立即起 run；模型把它当作 user 消息读取，客户端单独显示。capture 不记 `wake.fired`，不计入 `wake.daily_limit`。
   - `internal/api/capture_knowledge_test.go`
   - `internal/wire/capture_acceptance_e2e_test.go`
 
@@ -147,7 +145,7 @@
   - `internal/runtime/usage_test.go`
   - `internal/store/store_phone_notifications_test.go`
   - `internal/wire/thinking_acceptance_e2e_test.go`
-- **跨模块闭环**：夜思能通过技能整理工作记忆,手机通知能经过 HTTP 进入 presence 与简报,简报笔记提交 Git 并推送。
+- **跨模块闭环**：夜思能通过技能整理工作记忆,手机通知能经过 HTTP 进入 presence 与简报,简报笔记带 run 身份写入知识库并推送。
   - `internal/wire/thinking_acceptance_e2e_test.go`
 - **手机队列归属清晰**：队列绑定服务器与设备,身份变更清空;取消白名单移除待传项;请求使用批次自己的凭证;失败保留,成功只删除发送的 ID;持续入队保留第一条的上传截止时间。
   - `mobile-kotlin/app/src/test/java/io/ycvk/acorn/core/notifications/NotificationQueueTest.kt`

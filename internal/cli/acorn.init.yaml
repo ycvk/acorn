@@ -65,11 +65,6 @@ notify:
     # Firebase service account key file; empty disables push notifications.
     service_account_file: ""
 
-knowledge:
-  # Markdown notes the agent writes, also a git repository; empty means
-  # {storage_dir}/knowledge. Point it at an existing Obsidian vault if you like.
-  dir: ""
-
 watch:
   # Your RSSHub, for rsshub:/route watches (see the onboarding guide).
   rsshub_base_url: ""

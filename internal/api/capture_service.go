@@ -28,7 +28,7 @@ const (
 var captureLink = regexp.MustCompile(`https?://[^\s<>"]+`)
 
 type captureVault interface {
-	SaveAttachment(ctx context.Context, mime string, data []byte, message string) (string, error)
+	SaveAttachment(ctx context.Context, mime string, data []byte) (string, error)
 }
 
 type captureThreads interface {
@@ -87,7 +87,7 @@ func (s *CaptureService) Capture(ctx context.Context, in CaptureInput) (CaptureA
 		if !knowledge.SupportsAttachment(mime) {
 			return CaptureAccepted{}, fmt.Errorf("%w: image type %s is not supported; send JPEG, PNG, WebP or GIF", ErrInvalidCapture, mime)
 		}
-		attachment, err := s.vault.SaveAttachment(ctx, mime, in.Image, "knowledge: capture image")
+		attachment, err := s.vault.SaveAttachment(ctx, mime, in.Image)
 		if err != nil {
 			return CaptureAccepted{}, err
 		}

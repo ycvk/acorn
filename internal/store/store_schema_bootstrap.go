@@ -131,10 +131,24 @@ CREATE TABLE IF NOT EXISTS knowledge_notes (
     path TEXT PRIMARY KEY,
     title TEXT NOT NULL,
     tags TEXT NOT NULL DEFAULT '',
+    source TEXT NOT NULL DEFAULT '',
     body TEXT NOT NULL,
-    mtime_ns INTEGER NOT NULL,
-    size INTEGER NOT NULL,
+    revision INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS knowledge_revisions (
+    path TEXT NOT NULL REFERENCES knowledge_notes(path),
+    revision INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    tags TEXT NOT NULL DEFAULT '',
+    source TEXT NOT NULL DEFAULT '',
+    body TEXT NOT NULL,
+    body_sha256 TEXT NOT NULL,
+    run_id TEXT NOT NULL DEFAULT '',
+    at TEXT NOT NULL,
+    PRIMARY KEY (path, revision)
 );
 
 CREATE TABLE IF NOT EXISTS watches (

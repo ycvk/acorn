@@ -5,7 +5,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -133,7 +132,7 @@ func TestWatchesWakeAndFeedTheMorningBriefing(t *testing.T) {
 	if input := chatContentText(briefingInput[len(briefingInput)-3]["content"]); !strings.HasPrefix(input, "[briefing 2026-10-05] morning briefing") || !strings.Contains(input, "## #1 Go blog (rss, 1 new)\n- go1.27 — https://go.dev/blog/go1.27") {
 		t.Fatalf("briefing input = %q", input)
 	}
-	if _, err := os.Stat(cfg.KnowledgeDir() + "/briefings/2026-10-05.md"); err != nil {
+	if _, err := c.store.KnowledgeNote(ctx, "briefings/2026-10-05.md"); err != nil {
 		t.Fatalf("briefing note: %v", err)
 	}
 	sent := harness.fcm.sent()

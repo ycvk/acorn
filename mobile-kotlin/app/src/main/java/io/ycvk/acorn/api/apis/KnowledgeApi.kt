@@ -134,7 +134,7 @@ open class KnowledgeApi(basePath: kotlin.String = defaultBasePath, client: Call.
     /**
      * GET /v1/knowledge/notes
      * Search or list knowledge base notes
-     * With &#x60;q&#x60;, notes ranked by relevance; without it, notes by update time, newest first. Notes edited directly in the knowledge directory are included. 
+     * With &#x60;q&#x60;, notes ranked by relevance; without it, notes by update time, newest first. 
      * @param q  (optional)
      * @param prefix Only notes whose path starts with this. Ignored with &#x60;q&#x60;. (optional)
      * @param limit  (optional, default to 50)
@@ -168,7 +168,7 @@ open class KnowledgeApi(basePath: kotlin.String = defaultBasePath, client: Call.
     /**
      * GET /v1/knowledge/notes
      * Search or list knowledge base notes
-     * With &#x60;q&#x60;, notes ranked by relevance; without it, notes by update time, newest first. Notes edited directly in the knowledge directory are included. 
+     * With &#x60;q&#x60;, notes ranked by relevance; without it, notes by update time, newest first. 
      * @param q  (optional)
      * @param prefix Only notes whose path starts with this. Ignored with &#x60;q&#x60;. (optional)
      * @param limit  (optional, default to 50)

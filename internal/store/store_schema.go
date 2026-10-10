@@ -10,6 +10,9 @@ import (
 )
 
 func (s *Store) createSchema() error {
+	if err := s.dropLegacyKnowledgeIndex(); err != nil {
+		return err
+	}
 	if _, err := s.db.Exec(storeBootstrapTables); err != nil {
 		return fmt.Errorf("create sqlite schema (tables): %w", err)
 	}
@@ -51,7 +54,8 @@ var schemaRequiredTables = map[string][]string{
 	"context_snapshots":   {"hash", "content", "created_at"},
 	"push_tokens":         {"device_id", "token", "updated_at"},
 	"notifications":       {"id", "title", "body", "thread_id", "run_id", "status", "send_after", "error_text", "created_at", "sent_at"},
-	"knowledge_notes":     {"path", "title", "tags", "body", "mtime_ns", "size", "updated_at"},
+	"knowledge_notes":     {"path", "title", "tags", "source", "body", "revision", "created_at", "updated_at"},
+	"knowledge_revisions": {"path", "revision", "title", "tags", "source", "body", "body_sha256", "run_id", "at"},
 	"watches":             {"id", "name", "kind", "target", "selector", "mode", "interval_seconds", "status", "session_id", "next_check_at", "last_checked_at", "last_error", "failures", "snapshot", "created_at", "updated_at"},
 	"watch_items":         {"id", "watch_id", "item_key", "title", "url", "summary", "published_at", "status", "run_id", "seen_at"},
 	"routine_runs":        {"routine", "slot", "thread_id", "run_id", "created_at"},

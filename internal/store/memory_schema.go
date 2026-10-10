@@ -5,8 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-
-	"github.com/ycvk/acorn/internal/core"
 )
 
 func (s *Store) createMemorySchema() error {
@@ -19,7 +17,6 @@ func (s *Store) createMemorySchema() error {
 }
 
 const memorySchema = `
-CREATE TABLE IF NOT EXISTS memory_source_cursors (name TEXT PRIMARY KEY, version TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS memory_sources (
  id TEXT PRIMARY KEY, kind TEXT NOT NULL, object_id TEXT NOT NULL, version TEXT NOT NULL,
  speaker TEXT NOT NULL, session_id TEXT NOT NULL DEFAULT '', run_id TEXT NOT NULL DEFAULT '',
@@ -214,14 +211,4 @@ func (s *Store) memoryTransaction(ctx context.Context, fn func(*sql.Tx) error) (
 		return fmt.Errorf("commit memory transaction: %w", err)
 	}
 	return nil
-}
-
-// memoryConnection carries the external source reader through transactions.
-type memoryConnection struct {
-	memorySQL
-	reader core.MemorySourceReader
-}
-
-func (s *Store) memoryConnection(q memorySQL) memorySQL {
-	return memoryConnection{memorySQL: q, reader: s.sourceReader}
 }

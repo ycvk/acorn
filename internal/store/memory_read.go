@@ -35,7 +35,7 @@ func (s *Store) ReadMemory(ctx context.Context, id string) (core.MemoryRead, err
 		if err != nil {
 			return err
 		}
-		out.Sources, err = resolveMemorySources(ctx, s.memoryConnection(tx), out.Record.SourceIDs)
+		out.Sources, err = resolveMemorySources(ctx, tx, out.Record.SourceIDs)
 		if err != nil {
 			return err
 		}

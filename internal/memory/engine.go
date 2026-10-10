@@ -23,7 +23,6 @@ type Model interface {
 
 type Config struct {
 	Ready            func() error
-	SyncSources      func(context.Context) error
 	Store            core.MemoryStore
 	Model            Model
 	ModelName        string
