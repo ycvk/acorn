@@ -25,6 +25,11 @@ func (e *Engine) reserve(ctx context.Context, operation, model string, input, ou
 	return u, err
 }
 
+// memoryJSONOutputTokens caps extraction and consolidation replies. Reasoning
+// models count their reasoning against the cap, so it leaves room for that
+// beside the JSON itself.
+const memoryJSONOutputTokens = 8192
+
 func (e *Engine) generate(ctx context.Context, operation, instruction, input string, maxOutput int) (string, error) {
 	n, err := e.cfg.Count(ctx, instruction+"\n"+input)
 	if err != nil {
