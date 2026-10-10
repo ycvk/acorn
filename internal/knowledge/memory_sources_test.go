@@ -3,6 +3,7 @@ package knowledge
 import (
 	"context"
 	"errors"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -87,5 +88,40 @@ func TestKnowledgeMemoryVersionsAndDerivedExclusion(t *testing.T) {
 	// A later owner revision is an independently attributed source.
 	if _, err = db.LoadMemorySource(ctx, b.ID); err != nil {
 		t.Fatalf("independent revision hidden: %v", err)
+	}
+}
+
+func TestKnowledgeMemoryViewReadsVaultBeforeFirstCommit(t *testing.T) {
+	ctx := context.Background()
+	dir := filepath.Join(t.TempDir(), "vault")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "owner.md"), []byte("# 旧笔记\n\n周末去爬山\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	git, err := LookupGit()
+	if err != nil {
+		t.Fatal(err)
+	}
+	db, err := store.Open(t.TempDir(), store.OpenOptions{SourceReader: &SourceReader{Git: git, Dir: dir}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	v, err := Open(ctx, VaultConfig{Dir: dir, Git: git, Index: db, Memory: db, Clock: time.Now, Location: time.UTC})
+	if err != nil {
+		t.Fatal(err)
+	}
+	view := &MemoryView{Vault: v, Store: db}
+	note, err := view.Read(ctx, "owner.md")
+	if err != nil || !strings.Contains(note.Body, "周末去爬山") {
+		t.Fatalf("uncommitted vault read: %+v %v", note, err)
+	}
+	if hits, err := view.Search(ctx, "爬山", 10); err != nil || len(hits) != 1 {
+		t.Fatalf("uncommitted vault search: %+v %v", hits, err)
+	}
+	if hits, err := view.Recent(ctx, "", 10); err != nil || len(hits) != 1 {
+		t.Fatalf("uncommitted vault list: %+v %v", hits, err)
 	}
 }

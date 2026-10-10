@@ -19,6 +19,14 @@ func (g *ExecGit) LatestVersion(ctx context.Context, dir, path string) (string, 
 	if _, err := CleanNotePath(path); err != nil {
 		return "", err
 	}
+	// Before the first commit no note has a committed version, the same as an
+	// uncommitted file in a repository that has history.
+	if _, err := g.run(ctx, dir, "rev-parse", "--verify", "-q", "HEAD"); err != nil {
+		if isExitCode(err, 1) {
+			return "", nil
+		}
+		return "", err
+	}
 	out, err := g.run(ctx, dir, "log", "-1", "--format=%H", "--", path)
 	return strings.TrimSpace(out), err
 }
