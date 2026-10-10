@@ -27,9 +27,8 @@ var (
 )
 
 type Store struct {
-	lock         *os.File
-	sourceReader core.MemorySourceReader
-	db           *sql.DB
+	lock *os.File
+	db   *sql.DB
 	// read serves memory recall and candidate reads. WAL lets these readers run
 	// beside the single serialized writer connection in db.
 	read        *sql.DB
@@ -44,18 +43,15 @@ func formatTimestamp(value time.Time) string {
 }
 
 type OpenOptions struct {
-	SourceReader core.MemorySourceReader
-	Exclusive    bool
+	Exclusive bool
 }
 
 func Open(dir string, options ...OpenOptions) (*Store, error) {
-	var sourceReader core.MemorySourceReader
 	var exclusive bool
 	if len(options) > 1 {
 		return nil, fmt.Errorf("store.Open accepts one options value")
 	}
 	if len(options) == 1 {
-		sourceReader = options[0].SourceReader
 		exclusive = options[0].Exclusive
 	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -83,7 +79,7 @@ func Open(dir string, options ...OpenOptions) (*Store, error) {
 		_ = db.Close()
 		return nil, fmt.Errorf("create artifact dir: %w", err)
 	}
-	store := &Store{lock: lock, db: db, artifactDir: artifactDir, sourceReader: sourceReader}
+	store := &Store{lock: lock, db: db, artifactDir: artifactDir}
 	artifactSvc, err := NewArtifactService(artifactDir, store)
 	if err != nil {
 		_ = db.Close()

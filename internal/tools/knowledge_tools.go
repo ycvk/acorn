@@ -15,9 +15,9 @@ import (
 
 // KnowledgeVault is the knowledge base as the knowledge tools use it.
 type KnowledgeVault interface {
-	Write(ctx context.Context, note knowledge.WriteNote) (knowledge.Note, error)
-	Edit(ctx context.Context, path, old, replacement, runID string) (knowledge.Note, error)
-	Read(ctx context.Context, path string) (knowledge.Note, error)
+	Write(ctx context.Context, note knowledge.WriteNote) (core.KnowledgeNote, error)
+	Edit(ctx context.Context, path, old, replacement, runID string) (core.KnowledgeNote, error)
+	Read(ctx context.Context, path string) (core.KnowledgeNote, error)
 	Search(ctx context.Context, query string, limit int) ([]core.KnowledgeHit, error)
 	Recent(ctx context.Context, prefix string, limit int) ([]core.KnowledgeHit, error)
 }
@@ -38,7 +38,7 @@ const (
 type KnowledgeWriteInput struct {
 	Path   string   `json:"path" jsonschema_description:"Note path relative to the knowledge base, ending in .md, e.g. inbox/rust-async.md. Folders are created as needed."`
 	Title  string   `json:"title" jsonschema_description:"Note title."`
-	Body   string   `json:"body" jsonschema_description:"The whole markdown body, without frontmatter."`
+	Body   string   `json:"body" jsonschema_description:"The whole markdown body."`
 	Tags   []string `json:"tags,omitempty" jsonschema_description:"Optional tags."`
 	Source string   `json:"source,omitempty" jsonschema_description:"Optional source URL the note is based on."`
 }
@@ -50,12 +50,12 @@ type KnowledgeEditInput struct {
 	New  string `json:"new" jsonschema_description:"Replacement text."`
 }
 
-// KnowledgeWriteOutput reports a committed note.
+// KnowledgeWriteOutput reports the stored revision of a note.
 type KnowledgeWriteOutput struct {
-	Path    string `json:"path"`
-	Title   string `json:"title"`
-	Commit  string `json:"commit"`
-	Updated string `json:"updated"`
+	Path     string `json:"path"`
+	Title    string `json:"title"`
+	Revision int64  `json:"revision"`
+	Updated  string `json:"updated"`
 }
 
 // KnowledgeReadInput is the input of knowledge_read.
@@ -69,7 +69,7 @@ type KnowledgeReadOutput struct {
 	Title   string   `json:"title"`
 	Tags    []string `json:"tags,omitempty"`
 	Source  string   `json:"source,omitempty"`
-	Created string   `json:"created,omitempty"`
+	Created string   `json:"created"`
 	Updated string   `json:"updated"`
 	Body    string   `json:"body"`
 }
@@ -102,7 +102,7 @@ type KnowledgeHitsOutput struct {
 
 func buildKnowledgeWriteTool(deps KnowledgeToolDeps) (einotool.BaseTool, error) {
 	return inferProgressTool("knowledge_write",
-		"Create a note in the knowledge base, or replace a note's whole body. Every write is committed to the knowledge base's git history.",
+		"Create a note in the knowledge base, or replace a note's whole body. Every write is kept as a new revision.",
 		func(ctx context.Context, input KnowledgeWriteInput, _ ToolProgressEmitter) (KnowledgeWriteOutput, error) {
 			note, err := deps.Vault.Write(ctx, knowledge.WriteNote{
 				Path:   input.Path,
@@ -138,19 +138,15 @@ func buildKnowledgeReadTool(deps KnowledgeToolDeps) (einotool.BaseTool, error) {
 			if err != nil {
 				return KnowledgeReadOutput{}, fmt.Errorf("knowledge_read: %w", err)
 			}
-			fm := note.Frontmatter
-			out := KnowledgeReadOutput{
+			return KnowledgeReadOutput{
 				Path:    note.Path,
-				Title:   fm.Title,
-				Tags:    fm.Tags,
-				Source:  fm.Source,
-				Updated: fm.Updated.In(deps.Location).Format(localTimeLayout),
+				Title:   note.Title,
+				Tags:    note.Tags,
+				Source:  note.Source,
+				Created: note.CreatedAt.In(deps.Location).Format(localTimeLayout),
+				Updated: note.UpdatedAt.In(deps.Location).Format(localTimeLayout),
 				Body:    note.Body,
-			}
-			if !fm.Created.IsZero() {
-				out.Created = fm.Created.In(deps.Location).Format(localTimeLayout)
-			}
-			return out, nil
+			}, nil
 		})
 }
 
@@ -201,12 +197,12 @@ func knowledgeLimit(limit int) (int, error) {
 	}
 }
 
-func writeOutput(note knowledge.Note, loc *time.Location) KnowledgeWriteOutput {
+func writeOutput(note core.KnowledgeNote, loc *time.Location) KnowledgeWriteOutput {
 	return KnowledgeWriteOutput{
-		Path:    note.Path,
-		Title:   note.Frontmatter.Title,
-		Commit:  note.Commit,
-		Updated: note.Frontmatter.Updated.In(loc).Format(localTimeLayout),
+		Path:     note.Path,
+		Title:    note.Title,
+		Revision: note.Revision,
+		Updated:  note.UpdatedAt.In(loc).Format(localTimeLayout),
 	}
 }
 

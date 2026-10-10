@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/knowledge"
 )
 
@@ -114,7 +115,7 @@ func (s *Server) respondKnowledgeError(w http.ResponseWriter, r *http.Request, e
 	switch {
 	case errors.Is(err, knowledge.ErrInvalidPath):
 		s.respondBadRequest(w, r, err.Error())
-	case errors.Is(err, knowledge.ErrNoteNotFound):
+	case errors.Is(err, core.ErrKnowledgeNoteNotFound):
 		s.respondNotFound(w, r, "knowledge_note_not_found", err.Error())
 	default:
 		s.respondKnownError(w, r, err)

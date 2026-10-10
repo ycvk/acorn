@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/ycvk/acorn/internal/core"
-	"github.com/ycvk/acorn/internal/knowledge"
 )
 
 const (
@@ -19,7 +18,7 @@ const (
 type knowledgeReader interface {
 	Search(ctx context.Context, query string, limit int) ([]core.KnowledgeHit, error)
 	Recent(ctx context.Context, prefix string, limit int) ([]core.KnowledgeHit, error)
-	Read(ctx context.Context, path string) (knowledge.Note, error)
+	Read(ctx context.Context, path string) (core.KnowledgeNote, error)
 }
 
 // KnowledgeService serves the knowledge base to clients, read-only.
@@ -95,18 +94,15 @@ func (s *KnowledgeService) GetNote(ctx context.Context, path string) (KnowledgeN
 	if err != nil {
 		return KnowledgeNoteDTO{}, err
 	}
-	fm := note.Frontmatter
+	created := note.CreatedAt.UTC()
 	dto := KnowledgeNoteDTO{
 		Path:      note.Path,
-		Title:     fm.Title,
-		Tags:      nonNilTags(fm.Tags),
-		Source:    fm.Source,
-		UpdatedAt: fm.Updated.UTC(),
+		Title:     note.Title,
+		Tags:      nonNilTags(note.Tags),
+		Source:    note.Source,
+		CreatedAt: &created,
+		UpdatedAt: note.UpdatedAt.UTC(),
 		Body:      note.Body,
-	}
-	if !fm.Created.IsZero() {
-		created := fm.Created.UTC()
-		dto.CreatedAt = &created
 	}
 	return dto, nil
 }

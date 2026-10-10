@@ -126,7 +126,7 @@ class KnowledgeViewModel @Inject constructor(
 
 private val attachmentEmbed = Regex("""!\[\[([^\]]+)]]""")
 
-/** Replaces Obsidian attachment embeds with a line naming the file; the app does not show attachments. */
+/** Replaces `![[path]]` attachment embeds with a line naming the file; the app does not show attachments. */
 fun withAttachmentPlaceholders(body: String): String =
     attachmentEmbed.replace(body) { match -> "*Attachment: ${attachmentName(match)}*" }
 

@@ -34,7 +34,7 @@ import com.squareup.moshi.JsonClass
  * @param title 
  * @param tags 
  * @param updatedAt 
- * @param body Markdown body without frontmatter.
+ * @param body Markdown body of the current revision.
  * @param source 
  * @param createdAt 
  */
@@ -54,7 +54,7 @@ data class KnowledgeNote (
     @Json(name = "updated_at")
     val updatedAt: java.time.OffsetDateTime,
 
-    /* Markdown body without frontmatter. */
+    /* Markdown body of the current revision. */
     @Json(name = "body")
     val body: kotlin.String,
 

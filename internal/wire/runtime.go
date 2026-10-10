@@ -97,18 +97,14 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 	if notifier != nil {
 		notifyDeps.Notifier = notifier
 	}
-	vault, err := knowledge.Open(ctx, knowledge.VaultConfig{
-		Dir:      cfg.KnowledgeDir(),
-		Git:      options.git,
-		Memory:   db,
-		Index:    db,
-		Clock:    options.clock,
-		Location: ownerLoc,
-	})
+	if err := knowledge.ImportLegacyDir(ctx, cfg.Runtime.StorageDir, db, ownerLoc); err != nil {
+		return nil, fmt.Errorf("knowledge base: %w", err)
+	}
+	vault, err := knowledge.NewVault(knowledge.VaultConfig{Store: db, StorageDir: cfg.Runtime.StorageDir, Clock: options.clock, Location: ownerLoc})
 	if err != nil {
 		return nil, fmt.Errorf("knowledge base: %w", err)
 	}
-	memoryEngine, err := buildMemory(ctx, cfg, db, options.clock, false, func(ctx context.Context) error { return vault.SyncMemory(ctx, db) })
+	memoryEngine, err := buildMemory(ctx, cfg, db, options.clock, false)
 	if err != nil {
 		return nil, fmt.Errorf("memory: %w", err)
 	}

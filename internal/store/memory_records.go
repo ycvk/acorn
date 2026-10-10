@@ -44,7 +44,7 @@ func (s *Store) CommitMemory(ctx context.Context, mutation core.MemoryMutation) 
 					return err
 				}
 			}
-			record, err := writeMemoryChange(ctx, s.memoryConnection(tx), change, mutation.Now)
+			record, err := writeMemoryChange(ctx, tx, change, mutation.Now)
 			if err != nil {
 				return err
 			}

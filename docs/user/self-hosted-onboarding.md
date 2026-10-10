@@ -20,7 +20,7 @@ curl -fsSL https://github.com/ycvk/acorn/releases/latest/download/install-releas
 
 The installer:
 
-- installs common host tools with `apt-get`: `ca-certificates`, `curl`, `git`, `ripgrep`, `python3`, `make`, `bash`;
+- installs common host tools with `apt-get`: `ca-certificates`, `curl`, `ripgrep`, `python3`, `make`, `bash`;
 - resolves the latest GitHub Release tag from `https://github.com/ycvk/acorn/releases/latest`;
 - detects `amd64` or `arm64` from the VPS architecture;
 - downloads `acorn_${VERSION}_linux_${ARCH}.tar.gz` and its `.sha256`;
@@ -137,7 +137,7 @@ Skip host package installation after installing dependencies yourself:
 curl -fsSL https://github.com/ycvk/acorn/releases/latest/download/install-release.sh | ACORN_INSTALL_HOST_TOOLS=0 sh
 ```
 
-Only use this after installing `curl`, `tar`, `sha256sum`, `systemctl`, `git`, `ripgrep`, `python3`, `make`, `bash`.
+Only use this after installing `curl`, `tar`, `sha256sum`, `systemctl`, `ripgrep`, `python3`, `make`, `bash`.
 
 Install files without starting `systemd`:
 
@@ -156,7 +156,7 @@ The installed service uses:
 - `~/.acorn/acorn.env` for provider secrets.
 - `~/.acorn/persona.md` for the agent's persona.
 - `~/.acorn/skills` for bundled native skills and user-local skills.
-- `~/.acorn/knowledge` for the knowledge base: markdown notes in a git repository.
+- `/srv/acorn/workspace/attachments` for images shared from the phone; knowledge notes live in the SQLite database.
 - `~/.acorn` for runtime storage and SQLite state.
 - `/srv/acorn/workspace` as the workspace root that holds seed and workspace skills.
 - `127.0.0.1:8080` for the HTTP listener.
@@ -374,30 +374,15 @@ Config is parsed strictly: unknown keys stop the backend. When upgrading from a 
 - `context.preserve_recent_turns`
 - `mcp.providers[].tool_safety` (use `approval.require`)
 
-New keys, all optional: `approval.require`, `owner.timezone`, `presence.max_tokens`, `wake.daily_limit`, `notify.max_per_hour`, `notify.quiet_hours`, `notify.fcm.service_account_file`, `knowledge.dir`, `watch.rsshub_base_url`, `watch.github_token`, `watch.max_checks_per_tick`, `briefing.at`. Then run `acorn init --persona-only` to write the default persona, and `acorn doctor` to check the result.
+New keys, all optional: `approval.require`, `owner.timezone`, `presence.max_tokens`, `wake.daily_limit`, `notify.max_per_hour`, `notify.quiet_hours`, `notify.fcm.service_account_file`, `watch.rsshub_base_url`, `watch.github_token`, `watch.max_checks_per_tick`, `briefing.at`. Then run `acorn init --persona-only` to write the default persona, and `acorn doctor` to check the result.
 
 Earlier data under `~/.acorn` (`facts/`, `history/`, `worldstate/`, `vectors.db`, `skills/generated/`) is no longer read. Delete it once you no longer need it.
 
 ## 12. Knowledge Base and Sharing
 
-The agent keeps longer material in a knowledge base: markdown notes under `~/.acorn/knowledge`, which is also a git repository. Every change the agent makes is one commit, with the run it came from in the commit message, so `git log` shows what changed and when, and `git revert` undoes it. To keep the notes somewhere else, for example an existing Obsidian vault on the server:
+The agent keeps longer material in a knowledge base of markdown notes stored in the SQLite database. Every write keeps a new revision with the run that made it, and personal memory cites the exact revision it learned from. `acorn doctor` shows the note count and where shared images are kept.
 
-```yaml
-knowledge:
-  dir: /srv/notes   # empty means {storage_dir}/knowledge
-```
-
-The backend needs `git` on the server (the installer installs it); without it the service does not start and says what to install. `acorn doctor` shows the directory, the note count and the git version.
-
-Share from any Android app to get something into it: pick Acorn in the system share sheet, add a note if you like, and send. The backend opens a new conversation for the share, and the agent fetches the link, writes a note under `inbox/` and replies with its path. Open the conversation to tell the agent more about it. Images are stored under `attachments/` in the knowledge base. The app's Knowledge tab lists recent notes, searches them, and opens a note to read.
-
-To read or edit the notes on your computer, clone the repository over SSH and push your changes back; the backend's working copy updates on push:
-
-```bash
-git clone ssh://root@your-vps/root/.acorn/knowledge acorn-notes
-```
-
-Open the clone in Obsidian or any editor. Notes you add or change on the server directly are picked up the next time the notes are listed or searched.
+Share from any Android app to get something into it: pick Acorn in the system share sheet, add a note if you like, and send. The backend opens a new conversation for the share, and the agent fetches the link, writes a note under `inbox/` and replies with its path. Open the conversation to tell the agent more about it. Images are stored under `attachments/` in the storage directory. The app's Knowledge tab lists recent notes, searches them, and opens a note to read.
 
 ## 13. Watches and the Morning Briefing
 

@@ -54,7 +54,7 @@ func registerMemorySource(ctx context.Context, q memorySQL, source core.MemorySo
 }
 
 func (s *Store) LoadMemorySource(ctx context.Context, id string) (core.MemorySource, error) {
-	return loadMemorySource(ctx, s.memoryConnection(s.db), id, true)
+	return loadMemorySource(ctx, s.db, id, true)
 }
 
 func loadMemorySource(ctx context.Context, q memorySQL, id string, filter bool) (core.MemorySource, error) {
@@ -78,11 +78,7 @@ func loadMemorySource(ctx context.Context, q memorySQL, id string, filter bool) 
 	source.Content = source.Body
 	switch source.Kind {
 	case "knowledge":
-		connection, ok := q.(memoryConnection)
-		if !ok || connection.reader == nil {
-			return source, errors.New("knowledge memory source requires source_reader")
-		}
-		source.Content, err = connection.reader.ReadMemorySource(ctx, source)
+		err = q.QueryRowContext(ctx, `SELECT body FROM knowledge_revisions WHERE path=? AND revision=?`, source.ObjectID, source.Version).Scan(&source.Content)
 	case "watch":
 		err = q.QueryRowContext(ctx, `SELECT title||char(10)||url||char(10)||summary FROM watch_items WHERE id=?`, source.ObjectID).Scan(&source.Content)
 	case "message":
@@ -149,7 +145,7 @@ func (s *Store) RunMemorySources(ctx context.Context, runID string) ([]core.Memo
 	if err != nil {
 		return nil, err
 	}
-	return resolveMemorySources(ctx, s.memoryConnection(s.db), ids)
+	return resolveMemorySources(ctx, s.db, ids)
 }
 
 func resolveMemorySources(ctx context.Context, q memorySQL, ids []string) ([]core.MemorySource, error) {
@@ -210,7 +206,7 @@ func (s *Store) PendingMemorySources(ctx context.Context, query core.MemoryQuery
 	if err != nil {
 		return nil, 0, err
 	}
-	sources, err := resolveMemorySources(ctx, s.memoryConnection(s.read), ids)
+	sources, err := resolveMemorySources(ctx, s.read, ids)
 	if err != nil {
 		return nil, 0, err
 	}

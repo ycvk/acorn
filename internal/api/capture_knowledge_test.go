@@ -24,9 +24,9 @@ type captureFakes struct {
 	inputs      []string
 }
 
-func (f *captureFakes) SaveAttachment(_ context.Context, mime string, data []byte, message string) (string, error) {
+func (f *captureFakes) SaveAttachment(_ context.Context, mime string, data []byte) (string, error) {
 	path := fmt.Sprintf("attachments/2026/10/img%d.png", len(f.attachments))
-	f.attachments = append(f.attachments, mime+" "+message)
+	f.attachments = append(f.attachments, mime)
 	return path, nil
 }
 
@@ -57,14 +57,14 @@ func (k *knowledgeFake) Recent(_ context.Context, prefix string, limit int) ([]c
 	return nil, nil
 }
 
-func (k *knowledgeFake) Read(_ context.Context, path string) (knowledge.Note, error) {
+func (k *knowledgeFake) Read(_ context.Context, path string) (core.KnowledgeNote, error) {
 	if _, err := knowledge.CleanNotePath(path); err != nil {
-		return knowledge.Note{}, err
+		return core.KnowledgeNote{}, err
 	}
 	if path != "inbox/tokio.md" {
-		return knowledge.Note{}, fmt.Errorf("%w: %s", knowledge.ErrNoteNotFound, path)
+		return core.KnowledgeNote{}, fmt.Errorf("%w: %s", core.ErrKnowledgeNoteNotFound, path)
 	}
-	return knowledge.Note{Path: path, Frontmatter: knowledge.Frontmatter{Title: "Tokio", Source: "https://tokio.rs", Updated: knowledgeFakeTime}, Body: "Async runtime."}, nil
+	return core.KnowledgeNote{Path: path, Title: "Tokio", Source: "https://tokio.rs", CreatedAt: knowledgeFakeTime, UpdatedAt: knowledgeFakeTime, Body: "Async runtime."}, nil
 }
 
 func newCaptureKnowledgeRouter(t *testing.T) (*captureFakes, *knowledgeFake, http.Handler) {
@@ -139,7 +139,7 @@ func TestCaptureStartsARunInANewThread(t *testing.T) {
 	if rec.Code != http.StatusAccepted {
 		t.Fatalf("image status = %d body=%s", rec.Code, rec.Body.String())
 	}
-	if fakes.attachments[0] != "image/png knowledge: capture image" || fakes.titles[2] != "Shared image" {
+	if fakes.attachments[0] != "image/png" || fakes.titles[2] != "Shared image" {
 		t.Fatalf("attachments %v titles %v", fakes.attachments, fakes.titles)
 	}
 	if !strings.Contains(fakes.inputs[2], "Image: attachments/2026/10/img0.png (image/png, 16 B)") {
@@ -192,7 +192,7 @@ func TestKnowledgeEndpoints(t *testing.T) {
 	}
 
 	rec = performClientRequest(router, http.MethodGet, "/v1/knowledge/note?path=inbox/tokio.md", "")
-	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"body":"Async runtime."`) || strings.Contains(rec.Body.String(), "created_at") {
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"body":"Async runtime."`) || !strings.Contains(rec.Body.String(), `"created_at":"2026-10-03T01:00:00Z"`) {
 		t.Fatalf("read status %d body=%s", rec.Code, rec.Body.String())
 	}
 	if rec := performClientRequest(router, http.MethodGet, "/v1/knowledge/note?path=inbox/missing.md", ""); rec.Code != http.StatusNotFound || !strings.Contains(rec.Body.String(), "knowledge_note_not_found") {

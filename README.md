@@ -24,7 +24,7 @@ Run Acorn on your own server, pair your phone, and talk to an agent with a perso
 - Scheduled night reflections and idle thoughts, with daily wake and reported-token budgets.
 - Opt-in phone notification capture by app, with a durable device-scoped upload queue and signals in the agent's context and morning briefing.
 - Watches on RSS and Atom feeds (RSSHub routes included), GitHub releases and issues, and parts of web pages such as prices. New items wake the agent right away or wait for a morning briefing note pushed to your phone.
-- A knowledge base of markdown notes that is also a git repository: share a link from your phone and the agent writes a note, each change one commit. Open it in Obsidian through a git clone.
+- A knowledge base of markdown notes that keeps every revision: share a link from your phone and the agent writes a note; read and search it in the app.
 - Automatic memory extraction and keyword, semantic, relationship and temporal recall; explicit correction, forgetting, and source inspection; full-text search over notes.
 - Tool calls that need your sign-off pause on your phone and continue on the server after you decide, even across restarts.
 - Linux `amd64` and `arm64` release tarballs (pure Go cross-compilation, no CGO).
@@ -205,12 +205,12 @@ Mobile checks run from `mobile-kotlin/`:
 | `internal/core/` | Layer 0 domain types, store interfaces, tool contracts — zero internal imports |
 | `internal/runtime/` | Executor, RunnerFactory, Eino ChatModelAgent assembly, presence, approval and tool-error middleware, skill backend, StreamItem projection |
 | `internal/tools/` | Tool implementations (artifact, operator, personal memory, notify, knowledge, web, browser), ToolRegistry |
-| `internal/store/` | SQLite persisted state (modernc.org/sqlite, single-connection serialized), including personal memory and full-text search |
+| `internal/store/` | SQLite persisted state (modernc.org/sqlite; one writer connection, a read-only pool for memory reads), including personal memory, knowledge notes and full-text search |
 | `internal/memory/` | Sourced extraction, consolidation, hybrid recall, thread summaries and per-call budgets |
 | `internal/presence/` | Presence rendering, persona, cron parsing |
 | `internal/wake/` | Scheduler inside `serve`: commitments, watches and the morning briefing |
 | `internal/notify/` | FCM HTTP v1 client and push sender (hourly cap, quiet hours) |
-| `internal/knowledge/` | Knowledge base vault: note paths, frontmatter, git commits, index sync |
+| `internal/knowledge/` | Knowledge base: note paths, revisions, image attachments, agent-side exclusion filtering |
 | `internal/watch/` | Watch checker: feeds, GitHub, page snapshots, failure backoff |
 | `internal/mcp/` | MCP provider manager |
 | `internal/webaccess/` | Web fetcher, Tavily search, content extraction, shared outbound URL policy |

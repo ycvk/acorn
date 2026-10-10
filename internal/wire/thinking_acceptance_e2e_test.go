@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -145,15 +144,15 @@ func TestThinkingPhoneNotificationsReachPresenceAndBriefing(t *testing.T) {
 	if !strings.Contains(input, "Phone notifications since the last briefing") || !strings.Contains(input, "大促销") || !strings.Contains(input, "2799") {
 		t.Fatalf("briefing=%s", input)
 	}
-	note, err := os.ReadFile(cfg.KnowledgeDir() + "/briefings/2026-10-10.md")
-	if err != nil || !strings.Contains(string(note), "2799") || strings.Contains(string(note), "大促销") {
-		t.Fatalf("note=%s %v", note, err)
+	note, err := c.store.KnowledgeNote(context.Background(), "briefings/2026-10-10.md")
+	if err != nil || !strings.Contains(note.Body, "2799") || strings.Contains(note.Body, "大促销") {
+		t.Fatalf("note=%+v %v", note, err)
 	}
 	if len(h.fcm.sent()) != 1 {
 		t.Fatalf("pushes=%v", h.fcm.sent())
 	}
-	if !strings.Contains(gitLog(t, cfg.KnowledgeDir(), "--format=%B"), "Acorn-Run:") {
-		t.Fatal("note not committed with run identity")
+	if source, err := c.store.LoadMemorySource(context.Background(), core.KnowledgeSourceID(note.Path, note.Revision)); err != nil || source.RunID == "" {
+		t.Fatalf("note revision lacks run identity: %+v %v", source, err)
 	}
 }
 

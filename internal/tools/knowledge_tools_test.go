@@ -26,21 +26,21 @@ type fakeVault struct {
 
 var knowledgeTestTime = time.Date(2026, 10, 3, 1, 0, 0, 0, time.UTC)
 
-func (v *fakeVault) Write(_ context.Context, n knowledge.WriteNote) (knowledge.Note, error) {
+func (v *fakeVault) Write(_ context.Context, n knowledge.WriteNote) (core.KnowledgeNote, error) {
 	v.written = n
-	return knowledge.Note{Path: n.Path, Frontmatter: knowledge.Frontmatter{Title: n.Title, Updated: knowledgeTestTime}, Commit: "abc123"}, v.err
+	return core.KnowledgeNote{Path: n.Path, Title: n.Title, UpdatedAt: knowledgeTestTime, Revision: 3}, v.err
 }
 
-func (v *fakeVault) Edit(_ context.Context, path, old, replacement, runID string) (knowledge.Note, error) {
+func (v *fakeVault) Edit(_ context.Context, path, old, replacement, runID string) (core.KnowledgeNote, error) {
 	v.editArgs = []string{path, old, replacement, runID}
-	return knowledge.Note{Path: path, Frontmatter: knowledge.Frontmatter{Title: "T", Updated: knowledgeTestTime}, Commit: "def456"}, v.err
+	return core.KnowledgeNote{Path: path, Title: "T", UpdatedAt: knowledgeTestTime, Revision: 4}, v.err
 }
 
-func (v *fakeVault) Read(_ context.Context, path string) (knowledge.Note, error) {
+func (v *fakeVault) Read(_ context.Context, path string) (core.KnowledgeNote, error) {
 	if v.err != nil {
-		return knowledge.Note{}, v.err
+		return core.KnowledgeNote{}, v.err
 	}
-	return knowledge.Note{Path: path, Frontmatter: knowledge.Frontmatter{Title: "Tokio", Tags: []string{"rust"}, Source: "https://tokio.rs", Created: knowledgeTestTime, Updated: knowledgeTestTime}, Body: "Async runtime."}, nil
+	return core.KnowledgeNote{Path: path, Title: "Tokio", Tags: []string{"rust"}, Source: "https://tokio.rs", CreatedAt: knowledgeTestTime, UpdatedAt: knowledgeTestTime, Body: "Async runtime."}, nil
 }
 
 func (v *fakeVault) Search(_ context.Context, query string, limit int) ([]core.KnowledgeHit, error) {
@@ -87,7 +87,7 @@ func TestKnowledgeWriteAndEditCarryTheRun(t *testing.T) {
 	if vault.written.RunID != "run_9" || vault.written.Source != "https://tokio.rs" || vault.written.Tags[0] != "rust" {
 		t.Fatalf("written = %+v", vault.written)
 	}
-	if !strings.Contains(out, `"commit":"abc123"`) || !strings.Contains(out, "2026-10-03 Sat 09:00") {
+	if !strings.Contains(out, `"revision":3`) || !strings.Contains(out, "2026-10-03 Sat 09:00") {
 		t.Fatalf("write output = %s", out)
 	}
 	if _, err := runPresenceTool(t, tools["knowledge_edit"], `{"path":"a.md","old":"x","new":"y"}`); err != nil {
@@ -126,8 +126,8 @@ func TestKnowledgeToolErrors(t *testing.T) {
 	if _, err := runPresenceTool(t, tools["knowledge_write"], `{"path":"../x.md","title":"x","body":"y"}`); !errors.Is(err, knowledge.ErrInvalidPath) {
 		t.Fatalf("write err = %v", err)
 	}
-	vault.err = knowledge.ErrNoteNotFound
-	if _, err := runPresenceTool(t, tools["knowledge_read"], `{"path":"missing.md"}`); !errors.Is(err, knowledge.ErrNoteNotFound) {
+	vault.err = core.ErrKnowledgeNoteNotFound
+	if _, err := runPresenceTool(t, tools["knowledge_read"], `{"path":"missing.md"}`); !errors.Is(err, core.ErrKnowledgeNoteNotFound) {
 		t.Fatalf("read err = %v", err)
 	}
 }
