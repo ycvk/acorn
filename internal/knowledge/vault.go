@@ -8,16 +8,21 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/ycvk/acorn/internal/core"
 )
 
-var ErrInvalidPath = errors.New("invalid knowledge path")
+var (
+	ErrInvalidPath        = errors.New("invalid knowledge path")
+	ErrAttachmentNotFound = errors.New("attachment not found")
+)
 
 const (
 	attachmentsDir = "attachments"
@@ -31,6 +36,9 @@ var attachmentExtensions = map[string]string{
 	"image/webp": "webp",
 	"image/gif":  "gif",
 }
+
+// attachmentPath matches the paths SaveAttachment returns.
+var attachmentPath = regexp.MustCompile(`^attachments/[0-9]{4}/[0-9]{2}/[0-9a-f]{16}\.(jpg|png|webp|gif)$`)
 
 // SupportsAttachment reports whether SaveAttachment accepts mime.
 func SupportsAttachment(mime string) bool {
@@ -164,6 +172,34 @@ func (v *Vault) SaveAttachment(_ context.Context, mime string, data []byte) (str
 		return "", err
 	}
 	return rel, nil
+}
+
+// Attachment is a stored image and its media type.
+type Attachment struct {
+	MIME string
+	Data []byte
+}
+
+// ReadAttachment reads an image saved by SaveAttachment; rel is the path it
+// returned.
+func (v *Vault) ReadAttachment(_ context.Context, rel string) (Attachment, error) {
+	match := attachmentPath.FindStringSubmatch(rel)
+	if match == nil {
+		return Attachment{}, fmt.Errorf("%w: %q is not an attachment path", ErrInvalidPath, rel)
+	}
+	data, err := os.ReadFile(filepath.Join(v.storageDir, filepath.FromSlash(rel)))
+	if errors.Is(err, fs.ErrNotExist) {
+		return Attachment{}, fmt.Errorf("%w: %s", ErrAttachmentNotFound, rel)
+	}
+	if err != nil {
+		return Attachment{}, fmt.Errorf("read attachment %s: %w", rel, err)
+	}
+	for mime, ext := range attachmentExtensions {
+		if ext == match[1] {
+			return Attachment{MIME: mime, Data: data}, nil
+		}
+	}
+	return Attachment{}, fmt.Errorf("attachment extension %q has no media type", match[1])
 }
 
 // Status describes the knowledge base for diagnostics.

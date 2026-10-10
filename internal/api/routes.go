@@ -117,6 +117,7 @@ func (s *Server) registerRoutes(router chi.Router) {
 			r.Post("/captures", s.handleCreateCapture)
 			r.Get("/knowledge/notes", s.handleListKnowledgeNotes)
 			r.Get("/knowledge/note", s.handleGetKnowledgeNote)
+			r.Get("/knowledge/attachment", s.handleGetKnowledgeAttachment)
 			r.Get("/system/status", s.handleClientSystemStatus)
 			r.Get("/tools", s.handleClientTools)
 			r.Route("/skills", func(r chi.Router) {

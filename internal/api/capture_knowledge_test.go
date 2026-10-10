@@ -67,6 +67,19 @@ func (k *knowledgeFake) Read(_ context.Context, path string) (core.KnowledgeNote
 	return core.KnowledgeNote{Path: path, Title: "Tokio", Source: "https://tokio.rs", CreatedAt: knowledgeFakeTime, UpdatedAt: knowledgeFakeTime, Body: "Async runtime."}, nil
 }
 
+const knowledgeFakeAttachment = "attachments/2026/10/0123456789abcdef.png"
+
+func (k *knowledgeFake) ReadAttachment(_ context.Context, path string) (knowledge.Attachment, error) {
+	switch {
+	case path == knowledgeFakeAttachment:
+		return knowledge.Attachment{MIME: "image/png", Data: pngHeader}, nil
+	case strings.HasPrefix(path, "attachments/"):
+		return knowledge.Attachment{}, fmt.Errorf("%w: %s", knowledge.ErrAttachmentNotFound, path)
+	default:
+		return knowledge.Attachment{}, fmt.Errorf("%w: %s", knowledge.ErrInvalidPath, path)
+	}
+}
+
 func newCaptureKnowledgeRouter(t *testing.T) (*captureFakes, *knowledgeFake, http.Handler) {
 	t.Helper()
 	fakes, kf := &captureFakes{}, &knowledgeFake{}
@@ -202,6 +215,26 @@ func TestKnowledgeEndpoints(t *testing.T) {
 		t.Fatalf("escape status = %d", rec.Code)
 	}
 	if rec := performClientRequestWithoutAuth(router, http.MethodGet, "/v1/knowledge/notes", ""); rec.Code != http.StatusUnauthorized {
+		t.Fatalf("unauthenticated status = %d", rec.Code)
+	}
+}
+
+func TestKnowledgeAttachmentServesImageBytes(t *testing.T) {
+	_, _, router := newCaptureKnowledgeRouter(t)
+	rec := performClientRequest(router, http.MethodGet, "/v1/knowledge/attachment?path="+knowledgeFakeAttachment, "")
+	if rec.Code != http.StatusOK || rec.Header().Get("Content-Type") != "image/png" || !bytes.Equal(rec.Body.Bytes(), pngHeader) {
+		t.Fatalf("status %d type %q body %q", rec.Code, rec.Header().Get("Content-Type"), rec.Body.String())
+	}
+	if got := rec.Header().Get("Cache-Control"); !strings.Contains(got, "immutable") {
+		t.Fatalf("cache-control = %q", got)
+	}
+	if rec := performClientRequest(router, http.MethodGet, "/v1/knowledge/attachment?path=attachments/2026/10/ffffffffffffffff.png", ""); rec.Code != http.StatusNotFound || !strings.Contains(rec.Body.String(), "knowledge_attachment_not_found") {
+		t.Fatalf("missing status %d body=%s", rec.Code, rec.Body.String())
+	}
+	if rec := performClientRequest(router, http.MethodGet, "/v1/knowledge/attachment?path=acorn.db", ""); rec.Code != http.StatusBadRequest {
+		t.Fatalf("non-attachment status = %d", rec.Code)
+	}
+	if rec := performClientRequestWithoutAuth(router, http.MethodGet, "/v1/knowledge/attachment?path="+knowledgeFakeAttachment, ""); rec.Code != http.StatusUnauthorized {
 		t.Fatalf("unauthenticated status = %d", rec.Code)
 	}
 }

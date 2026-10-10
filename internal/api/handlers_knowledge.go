@@ -111,12 +111,32 @@ func (s *Server) handleGetKnowledgeNote(w http.ResponseWriter, r *http.Request) 
 	s.respondJSON(w, r, http.StatusOK, note)
 }
 
+// handleGetKnowledgeAttachment serves a stored image. Attachment paths carry a
+// random ID and are never rewritten, so clients may cache them indefinitely.
+func (s *Server) handleGetKnowledgeAttachment(w http.ResponseWriter, r *http.Request) {
+	attachment, err := s.knowledge.GetAttachment(r.Context(), r.URL.Query().Get("path"))
+	if err != nil {
+		s.respondKnowledgeError(w, r, err)
+		return
+	}
+	w.Header().Set("Content-Type", attachment.MIME)
+	w.Header().Set("Content-Length", strconv.Itoa(len(attachment.Data)))
+	w.Header().Set("Cache-Control", "private, max-age=31536000, immutable")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.WriteHeader(http.StatusOK)
+	if _, err := w.Write(attachment.Data); err != nil {
+		s.logInternalError(r, "knowledge_attachment_write_failed", err)
+	}
+}
+
 func (s *Server) respondKnowledgeError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, knowledge.ErrInvalidPath):
 		s.respondBadRequest(w, r, err.Error())
 	case errors.Is(err, core.ErrKnowledgeNoteNotFound):
 		s.respondNotFound(w, r, "knowledge_note_not_found", err.Error())
+	case errors.Is(err, knowledge.ErrAttachmentNotFound):
+		s.respondNotFound(w, r, "knowledge_attachment_not_found", err.Error())
 	default:
 		s.respondKnownError(w, r, err)
 	}

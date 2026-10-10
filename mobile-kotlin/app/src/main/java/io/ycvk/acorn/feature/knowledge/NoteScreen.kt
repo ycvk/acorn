@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.jeziellago.compose.markdowntext.MarkdownText
 import io.ycvk.acorn.api.models.KnowledgeNote
+import io.ycvk.acorn.core.auth.ConnectionProfile
 import io.ycvk.acorn.core.theme.AetherError
 import io.ycvk.acorn.core.theme.AetherOnSurface
 import io.ycvk.acorn.core.theme.AetherOnSurfaceVariant
@@ -94,13 +95,13 @@ fun NoteScreen(
                 Text(current.message, style = MaterialTheme.typography.bodySmall, color = AetherError)
                 TextButton(onClick = { viewModel.openNote(path) }) { Text("Retry", color = AetherPrimary) }
             }
-            is NoteLoad.Loaded -> NoteBody(current.note)
+            is NoteLoad.Loaded -> NoteBody(current.note, viewModel.connection())
         }
     }
 }
 
 @Composable
-private fun NoteBody(note: KnowledgeNote) {
+private fun NoteBody(note: KnowledgeNote, profile: ConnectionProfile?) {
     val uriHandler = LocalUriHandler.current
     Column(
         modifier = Modifier
@@ -130,11 +131,18 @@ private fun NoteBody(note: KnowledgeNote) {
                 modifier = Modifier.clickable { uriHandler.openUri(source) },
             )
         }
-        SelectionContainer {
-            MarkdownText(
-                markdown = withAttachmentPlaceholders(note.body),
-                style = MaterialTheme.typography.bodyLarge.copy(color = AetherOnSurface),
-            )
+        noteSegments(note.body).forEach { segment ->
+            when (segment) {
+                is NoteSegment.Markdown -> SelectionContainer {
+                    MarkdownText(
+                        markdown = segment.text,
+                        style = MaterialTheme.typography.bodyLarge.copy(color = AetherOnSurface),
+                    )
+                }
+                is NoteSegment.Image -> if (profile != null) {
+                    AttachmentImage(segment.path, segment.description, profile)
+                }
+            }
         }
     }
 }

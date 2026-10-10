@@ -1,6 +1,7 @@
 package io.ycvk.acorn.feature.chat
 
 import androidx.compose.animation.animateContentSize
+import io.ycvk.acorn.feature.knowledge.AttachmentImage
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -209,7 +210,13 @@ fun ChatScreen(
                         icon = Icons.Filled.Share,
                         text = message.text,
                         modifier = Modifier.animateItem(),
-                    )
+                    ) {
+                        val profile = viewModel.connection()
+                        if (message.image != null && profile != null) {
+                            Spacer(Modifier.height(6.dp))
+                            AttachmentImage(message.image, "Shared image", profile)
+                        }
+                    }
                 }
             }
 
@@ -620,7 +627,13 @@ private fun TypingDots() {
 
 /** A commitment woke the agent; shown apart from what the owner wrote. */
 @Composable
-private fun InputNote(label: String, icon: ImageVector, text: String, modifier: Modifier = Modifier) {
+private fun InputNote(
+    label: String,
+    icon: ImageVector,
+    text: String,
+    modifier: Modifier = Modifier,
+    attachment: @Composable () -> Unit = {},
+) {
     Surface(
         color = AetherTertiary.copy(alpha = 0.10f),
         shape = RoundedCornerShape(16.dp),
@@ -643,13 +656,16 @@ private fun InputNote(label: String, icon: ImageVector, text: String, modifier: 
                 )
             }
             Spacer(Modifier.height(4.dp))
-            SelectionContainer {
-                Text(
-                    text = text,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = AetherOnSurface,
-                )
+            if (text.isNotEmpty()) {
+                SelectionContainer {
+                    Text(
+                        text = text,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = AetherOnSurface,
+                    )
+                }
             }
+            attachment()
         }
     }
 }

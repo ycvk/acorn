@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ycvk/acorn/internal/core"
+	"github.com/ycvk/acorn/internal/knowledge"
 )
 
 const (
@@ -19,6 +20,7 @@ type knowledgeReader interface {
 	Search(ctx context.Context, query string, limit int) ([]core.KnowledgeHit, error)
 	Recent(ctx context.Context, prefix string, limit int) ([]core.KnowledgeHit, error)
 	Read(ctx context.Context, path string) (core.KnowledgeNote, error)
+	ReadAttachment(ctx context.Context, path string) (knowledge.Attachment, error)
 }
 
 // KnowledgeService serves the knowledge base to clients, read-only.
@@ -105,6 +107,14 @@ func (s *KnowledgeService) GetNote(ctx context.Context, path string) (KnowledgeN
 		Body:      note.Body,
 	}
 	return dto, nil
+}
+
+// GetAttachment reads one image a capture stored.
+func (s *KnowledgeService) GetAttachment(ctx context.Context, path string) (knowledge.Attachment, error) {
+	if s == nil || s.vault == nil {
+		return knowledge.Attachment{}, errors.New("knowledge service is not initialized")
+	}
+	return s.vault.ReadAttachment(ctx, path)
 }
 
 func nonNilTags(tags []string) []string {
