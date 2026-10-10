@@ -56,10 +56,10 @@ install_debian_host_tools() {
 		return
 	fi
 	if ! command -v apt-get >/dev/null 2>&1; then
-		die "automatic host package installation requires apt-get; set ACORN_INSTALL_HOST_TOOLS=0 after installing curl tar sha256sum systemctl ripgrep python3 make bash"
+		die "automatic host package installation requires apt-get; set ACORN_INSTALL_HOST_TOOLS=0 after installing ca-certificates curl tar sha256sum systemctl"
 	fi
 	run_root apt-get update
-	run_root apt-get install -y ca-certificates curl ripgrep python3 make bash
+	run_root apt-get install -y ca-certificates curl
 }
 
 install_packaged_skills() {

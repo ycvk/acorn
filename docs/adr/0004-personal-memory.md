@@ -189,7 +189,7 @@ SQLite 继续承载持久化真相。以下为主要逻辑表与关键约束；�
 | `memory_index_state` | 活动模型与维度、generation 和状态；重建进度保存在每条记录的 embedding job 中 |
 | `memory_jobs` | 操作、来源版本、处理器版本、认领租约及 token、排除版本、状态、尝试数、错误和游标；幂等键唯一 |
 | `memory_exclusions` | 排除目标、来源片段或对象、owner 请求引用和版本；摄取与所有读取路径共用 |
-| `thread_summaries` | 线程、覆盖到的 message ID、来源范围、摘要和排除版本；可失效、可重建 |
+| `thread_summaries` 与 `thread_summary_sources` | 线程、覆盖到的 message ID、摘要和排除版本，以及摘要覆盖的来源；来源被遗忘时摘要随之删除，可重建 |
 | `context_snapshot_refs` | 快照与 source/record ID 的引用关系和排除版本；支持解释及排除传播 |
 
 原话和工具结果通过稳定引用读取已有记录，记忆证据存必要的片段定位。迁移中没有其他原始载体的条目，其正文进入明确标记的导入来源，作为该内容的保留位置。

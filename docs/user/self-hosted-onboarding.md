@@ -20,7 +20,7 @@ curl -fsSL https://github.com/ycvk/acorn/releases/latest/download/install-releas
 
 The installer:
 
-- installs common host tools with `apt-get`: `ca-certificates`, `curl`, `ripgrep`, `python3`, `make`, `bash`;
+- installs `ca-certificates` and `curl` with `apt-get`;
 - resolves the latest GitHub Release tag from `https://github.com/ycvk/acorn/releases/latest`;
 - detects `amd64` or `arm64` from the VPS architecture;
 - downloads `acorn_${VERSION}_linux_${ARCH}.tar.gz` and its `.sha256`;
@@ -137,7 +137,7 @@ Skip host package installation after installing dependencies yourself:
 curl -fsSL https://github.com/ycvk/acorn/releases/latest/download/install-release.sh | ACORN_INSTALL_HOST_TOOLS=0 sh
 ```
 
-Only use this after installing `curl`, `tar`, `sha256sum`, `systemctl`, `ripgrep`, `python3`, `make`, `bash`.
+Only use this after installing `ca-certificates`, `curl`, `tar`, `sha256sum` and `systemctl`.
 
 Install files without starting `systemd`:
 

@@ -127,11 +127,7 @@ func (s *Store) SaveThreadSummary(ctx context.Context, summary core.ThreadSummar
 				return err
 			}
 		}
-		encoded, err := json.Marshal(uniqueMemoryStrings(summary.SourceIDs))
-		if err != nil {
-			return err
-		}
-		result, err := tx.ExecContext(ctx, `INSERT INTO thread_summaries(session_id,through_message_id,epoch,content,sources_json,updated_at) VALUES(?,?,?,?,?,?) ON CONFLICT(session_id) DO UPDATE SET through_message_id=excluded.through_message_id,epoch=excluded.epoch,content=excluded.content,sources_json=excluded.sources_json,updated_at=excluded.updated_at WHERE thread_summaries.through_message_id<=excluded.through_message_id`, summary.SessionID, summary.ThroughMessageID, summary.Epoch, summary.Content, string(encoded), formatTimestamp(summary.UpdatedAt))
+		result, err := tx.ExecContext(ctx, `INSERT INTO thread_summaries(session_id,through_message_id,epoch,content,updated_at) VALUES(?,?,?,?,?) ON CONFLICT(session_id) DO UPDATE SET through_message_id=excluded.through_message_id,epoch=excluded.epoch,content=excluded.content,updated_at=excluded.updated_at WHERE thread_summaries.through_message_id<=excluded.through_message_id`, summary.SessionID, summary.ThroughMessageID, summary.Epoch, summary.Content, formatTimestamp(summary.UpdatedAt))
 		if err != nil {
 			return err
 		}
@@ -142,6 +138,14 @@ func (s *Store) SaveThreadSummary(ctx context.Context, summary core.ThreadSummar
 		if n != 1 {
 			return core.ErrMemoryConflict
 		}
+		if _, err := tx.ExecContext(ctx, `DELETE FROM thread_summary_sources WHERE session_id=?`, summary.SessionID); err != nil {
+			return err
+		}
+		for _, id := range uniqueMemoryStrings(summary.SourceIDs) {
+			if _, err := tx.ExecContext(ctx, `INSERT INTO thread_summary_sources(session_id,source_id) VALUES(?,?)`, summary.SessionID, id); err != nil {
+				return err
+			}
+		}
 		return nil
 	})
 }
@@ -149,7 +153,9 @@ func (s *Store) SaveThreadSummary(ctx context.Context, summary core.ThreadSummar
 func (s *Store) LoadThreadSummary(ctx context.Context, sessionID string) (*core.ThreadSummary, error) {
 	var out core.ThreadSummary
 	var sourceJSON, updated string
-	err := s.db.QueryRowContext(ctx, `SELECT session_id,through_message_id,epoch,content,sources_json,updated_at FROM thread_summaries WHERE session_id=? AND NOT EXISTS(SELECT 1 FROM json_each(sources_json) j JOIN memory_exclusions x ON x.source_id=j.value)`, sessionID).Scan(&out.SessionID, &out.ThroughMessageID, &out.Epoch, &out.Content, &sourceJSON, &updated)
+	err := s.db.QueryRowContext(ctx, `SELECT t.session_id,t.through_message_id,t.epoch,t.content,
+ (SELECT json_group_array(s.source_id) FROM (SELECT source_id FROM thread_summary_sources WHERE session_id=t.session_id ORDER BY rowid) s),t.updated_at
+ FROM thread_summaries t WHERE t.session_id=? AND NOT EXISTS(SELECT 1 FROM thread_summary_sources s JOIN memory_exclusions x ON x.source_id=s.source_id WHERE s.session_id=t.session_id)`, sessionID).Scan(&out.SessionID, &out.ThroughMessageID, &out.Epoch, &out.Content, &sourceJSON, &updated)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}

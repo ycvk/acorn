@@ -105,6 +105,47 @@ func TestMemoryThreadSummaryCannotCrossExclusionEpoch(t *testing.T) {
 	}
 }
 
+func TestMemoryThreadSummaryKeepsItsSourcesAndForgetDropsOnlyCoveringSummaries(t *testing.T) {
+	s := openTestStore(t)
+	ctx := context.Background()
+	red := seedMemorySource(t, s, "owner:red", "owner", "我喜欢红色")
+	tea := seedMemorySource(t, s, "owner:tea", "owner", "我早上喝茶")
+	walk := seedMemorySource(t, s, "owner:walk", "owner", "我晚上散步")
+	first := core.ThreadSummary{SessionID: "a", ThroughMessageID: 1, Content: "颜色和茶", SourceIDs: []string{tea.ID, red.ID, tea.ID}, UpdatedAt: memoryTestNow}
+	if err := s.SaveThreadSummary(ctx, first); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.LoadThreadSummary(ctx, "a")
+	if err != nil || got == nil || !slices.Equal(got.SourceIDs, []string{red.ID, tea.ID}) {
+		t.Fatalf("summary=%+v err=%v", got, err)
+	}
+	next := core.ThreadSummary{SessionID: "a", ThroughMessageID: 2, Content: "茶", SourceIDs: []string{tea.ID}, UpdatedAt: memoryTestNow.Add(time.Minute)}
+	if err := s.SaveThreadSummary(ctx, next); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := s.LoadThreadSummary(ctx, "a"); err != nil || got == nil || !slices.Equal(got.SourceIDs, []string{tea.ID}) || got.ThroughMessageID != 2 {
+		t.Fatalf("replaced summary=%+v err=%v", got, err)
+	}
+	other := core.ThreadSummary{SessionID: "b", ThroughMessageID: 1, Content: "散步", SourceIDs: []string{walk.ID}, UpdatedAt: memoryTestNow}
+	if err := s.SaveThreadSummary(ctx, other); err != nil {
+		t.Fatal(err)
+	}
+	request := seedMemorySource(t, s, "owner:forget-tea", "owner", "忘记喝茶")
+	if _, err := s.ForgetMemory(ctx, core.MemoryForget{SourceIDs: []string{tea.ID}, RequestSourceID: request.ID, Reason: "owner request", Now: memoryTestNow}); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := s.LoadThreadSummary(ctx, "a"); err != nil || got != nil {
+		t.Fatalf("forgotten summary=%+v err=%v", got, err)
+	}
+	if got, err := s.LoadThreadSummary(ctx, "b"); err != nil || got == nil || !slices.Equal(got.SourceIDs, []string{walk.ID}) {
+		t.Fatalf("unrelated summary=%+v err=%v", got, err)
+	}
+	var rows int
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM thread_summary_sources WHERE session_id='a'`).Scan(&rows); err != nil || rows != 0 {
+		t.Fatalf("forgotten summary sources=%d err=%v", rows, err)
+	}
+}
+
 func TestMemoryConcernUsesRevisionAndVisibleEvidence(t *testing.T) {
 	s := openTestStore(t)
 	ctx := context.Background()
