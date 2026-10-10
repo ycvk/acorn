@@ -47,7 +47,7 @@ if [ "$skill_count" = "0" ]; then
 fi
 cp -R skills "$package_dir/skills"
 
-install -m 0644 configs/acorn.selfhosted.example.yaml "$package_dir/acorn.yaml.example"
+install -m 0644 internal/cli/acorn.init.yaml "$package_dir/acorn.yaml.example"
 install -m 0644 deploy/systemd/acorn.service "$package_dir/acorn.service"
 install -m 0600 deploy/systemd/acorn.env.example "$package_dir/acorn.env.example"
 install -m 0644 docs/user/self-hosted-onboarding.md "$package_dir/self-hosted-onboarding.md"

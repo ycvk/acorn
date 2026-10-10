@@ -28,6 +28,33 @@ func TestInitTemplateIsValidAndExecutionReady(t *testing.T) {
 	}
 }
 
+// The release installer writes its config through `acorn init --storage-dir`.
+func TestInitStorageDirPlacesInstallerLayout(t *testing.T) {
+	t.Setenv("VOYAGE_API_KEY", "voyage-test")
+	t.Setenv("OPENAI_API_KEY", "sk-test-init")
+	storage := filepath.Join(t.TempDir(), "srv", "acorn workspace")
+	path := filepath.Join(t.TempDir(), "acorn.yaml")
+	if err := runInit(t.Context(), []string{"-c", path, "--storage-dir", storage}); err != nil {
+		t.Fatalf("init: %v", err)
+	}
+	cfg, err := config.Load(path)
+	if err != nil {
+		t.Fatalf("installer config must load: %v", err)
+	}
+	if err := cfg.ValidateExecutionReady(); err != nil {
+		t.Fatalf("installer config must execute with model and Voyage keys: %v", err)
+	}
+	if cfg.Runtime.StorageDir != storage || cfg.Tools.Workspace.RootDir != storage {
+		t.Fatalf("storage=%q workspace=%q, want both %q", cfg.Runtime.StorageDir, cfg.Tools.Workspace.RootDir, storage)
+	}
+	if _, err := os.Stat(cfg.PersonaPath()); err != nil {
+		t.Fatalf("persona not written into storage: %v", err)
+	}
+	if err := runInit(t.Context(), []string{"--print", "--storage-dir", "relative"}); err == nil {
+		t.Fatal("relative storage dir accepted")
+	}
+}
+
 func TestInitWritesConfigAndRefusesClobber(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)

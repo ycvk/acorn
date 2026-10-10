@@ -48,27 +48,3 @@ func TestRoutineClaimsAndSuccessfulWindow(t *testing.T) {
 		t.Fatalf("latest thoughts thread: %q, %v", thread, err)
 	}
 }
-
-func TestRoutineMigrationKeepsBriefingClaims(t *testing.T) {
-	s := openTestStore(t)
-	_, err := s.db.Exec(`DELETE FROM schema_migrations WHERE version = 'v5_routine_runs';
-	CREATE TABLE briefings (day TEXT PRIMARY KEY, thread_id TEXT NOT NULL, run_id TEXT NOT NULL, created_at TEXT NOT NULL);
-	INSERT INTO briefings VALUES ('2026-10-05', 'brief', 'run', '2026-10-05T00:00:00.000000000Z')`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := s.migrate(); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.migrate(); err != nil {
-		t.Fatal(err)
-	}
-	thread, err := s.LatestRoutineThread(context.Background(), "briefing")
-	if err != nil || thread != "brief" {
-		t.Fatalf("migrated thread: %q, %v", thread, err)
-	}
-	var n int
-	if err := s.db.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE name='briefings'").Scan(&n); err != nil || n != 0 {
-		t.Fatalf("old table count=%d, %v", n, err)
-	}
-}

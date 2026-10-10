@@ -101,10 +101,6 @@ CREATE TABLE IF NOT EXISTS mcp_oauth_tokens (
     updated_at TEXT
 );
 
-CREATE TABLE IF NOT EXISTS schema_migrations (
-    version TEXT PRIMARY KEY,
-    applied_at TEXT NOT NULL
-);
 
 CREATE TABLE IF NOT EXISTS context_snapshots (
     hash TEXT PRIMARY KEY,

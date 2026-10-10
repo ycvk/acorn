@@ -94,7 +94,7 @@ func Open(dir string, options ...OpenOptions) (*Store, error) {
 		_ = db.Close()
 		return nil, err
 	}
-	if err := store.migrate(); err != nil {
+	if err := store.createSchema(); err != nil {
 		_ = db.Close()
 		return nil, err
 	}

@@ -105,10 +105,11 @@ Open the app, scan or enter the pairing payload, and the device receives a beare
 
 ## Configuration
 
-Local configuration starts from the example file:
+Local configuration starts from the starter config that `acorn init` writes:
 
 ```bash
-cp configs/acorn.example.yaml configs/acorn.local.yaml
+make build
+./bin/acorn init -c configs/acorn.local.yaml
 $EDITOR configs/acorn.local.yaml
 ```
 

@@ -127,29 +127,6 @@ mcp:
 	}
 }
 
-func TestLoadSelfHostedExample(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("OPENAI_API_KEY", "sk-test")
-
-	cfg, err := Load("../../configs/acorn.selfhosted.example.yaml")
-	if err != nil {
-		t.Fatalf("load self-hosted example: %v", err)
-	}
-	if got := cfg.Providers[0].APIKey; got != "sk-test" {
-		t.Fatalf("provider api_key = %q, want env-expanded test key", got)
-	}
-	if got, want := cfg.Runtime.StorageDir, filepath.Join(home, ".acorn"); got != want {
-		t.Fatalf("runtime.storage_dir = %q, want %q", got, want)
-	}
-	if got := cfg.Web.ListenAddr; got != "127.0.0.1:8080" {
-		t.Fatalf("web.listen_addr = %q, want 127.0.0.1:8080", got)
-	}
-	if got := cfg.Tools.Workspace.RootDir; got != "/srv/acorn/workspace" {
-		t.Fatalf("toolset.workspace.root_dir = %q, want /srv/acorn/workspace", got)
-	}
-}
-
 func TestLoadReportsUnknownField(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "acorn.yaml")

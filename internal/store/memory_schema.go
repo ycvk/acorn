@@ -9,6 +9,15 @@ import (
 	"github.com/ycvk/acorn/internal/core"
 )
 
+func (s *Store) createMemorySchema() error {
+	for _, ddl := range []string{memorySchema, memoryQueryIndexes, memorySourceTriggers} {
+		if _, err := s.db.ExecContext(context.Background(), ddl); err != nil {
+			return fmt.Errorf("create memory schema: %w", err)
+		}
+	}
+	return s.validateMemorySchema()
+}
+
 const memorySchema = `
 CREATE TABLE IF NOT EXISTS memory_source_cursors (name TEXT PRIMARY KEY, version TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS memory_sources (
