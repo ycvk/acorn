@@ -73,11 +73,12 @@ func (c *fakeWatchChecker) Fetch(_ context.Context, w core.Watch) (watch.Fetched
 	return watch.Fetched{Items: []core.WatchItem{{Title: "a"}, {Title: "b"}, {Title: "c"}, {Title: "d"}}}, nil
 }
 
+// Apply writes only the check fields, as the real checker does.
 func (c *fakeWatchChecker) Apply(_ context.Context, w core.Watch, f watch.Fetched) (watch.Result, error) {
-	w.LastCheckedAt, w.NextCheckAt = watchToolNow, watchToolNow.Add(w.Interval)
-	w.Snapshot = f.Snapshot
-	c.store.watches[w.ID-1] = w
-	return watch.Result{Watch: w, Baseline: len(f.Items)}, nil
+	stored := &c.store.watches[w.ID-1]
+	stored.LastCheckedAt, stored.NextCheckAt = watchToolNow, watchToolNow.Add(w.Interval)
+	stored.Snapshot = f.Snapshot
+	return watch.Result{Watch: *stored, Baseline: len(f.Items)}, nil
 }
 
 var watchToolNow = time.Date(2026, 10, 3, 1, 0, 0, 0, time.UTC)

@@ -11,6 +11,9 @@ var (
 	// ErrWatchNotDue means a watch was not claimable: it is paused, already
 	// claimed, or its next check has not arrived.
 	ErrWatchNotDue = errors.New("watch not due")
+	// ErrWatchChanged means a watch's status, failures or last check changed
+	// while a check of it ran, so the check's result was not recorded.
+	ErrWatchChanged = errors.New("watch changed during the check")
 )
 
 // WatchKind is the type of source a watch follows.
@@ -87,6 +90,18 @@ type WatchItem struct {
 	SeenAt      time.Time
 }
 
+// WatchCheck is what one check of a watch records: the check fields of the
+// watch and the items it found.
+type WatchCheck struct {
+	At          time.Time
+	NextCheckAt time.Time
+	Status      WatchStatus
+	Failures    int
+	LastError   string
+	Snapshot    string
+	Items       []WatchItem
+}
+
 // WatchStore persists watches and their items.
 type WatchStore interface {
 	AddWatch(ctx context.Context, w Watch) (Watch, error)
@@ -97,9 +112,13 @@ type WatchStore interface {
 	// ClaimDueWatch moves the next check of a due, unpaused watch to now+lease.
 	// Exactly one concurrent caller succeeds; the others get ErrWatchNotDue.
 	ClaimDueWatch(ctx context.Context, id int64, now time.Time, lease time.Duration) error
-	// AddWatchItems inserts the items not seen before on their watch and
-	// returns those, with ids.
-	AddWatchItems(ctx context.Context, items []WatchItem) ([]WatchItem, error)
+	// RecordWatchCheck writes a check that started from the watch from: its
+	// check fields and, in the same transaction, the items not seen before on
+	// the watch, which it returns with ids. When from's status, failures or
+	// last check no longer match the stored watch, such as after a pause or a
+	// resume made during the check, it writes nothing and returns
+	// ErrWatchChanged.
+	RecordWatchCheck(ctx context.Context, from Watch, check WatchCheck) ([]WatchItem, error)
 	ListWatchItems(ctx context.Context, status WatchItemStatus, limit int) ([]WatchItem, error)
 	MarkWatchItems(ctx context.Context, ids []int64, status WatchItemStatus, runID string) error
 }

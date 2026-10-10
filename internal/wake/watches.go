@@ -40,6 +40,9 @@ func (s *Scheduler) checkWatches(ctx context.Context, now time.Time) error {
 		checkCtx, cancel := context.WithTimeout(ctx, watchCheckTimeout)
 		result, err := s.cfg.Checker.Check(checkCtx, w)
 		cancel()
+		if errors.Is(err, core.ErrWatchChanged) {
+			continue // the owner's edit made during the check stands
+		}
 		if err != nil {
 			errs = append(errs, err)
 			continue

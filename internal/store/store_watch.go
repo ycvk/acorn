@@ -120,15 +120,40 @@ func (s *Store) ClaimDueWatch(ctx context.Context, id int64, now time.Time, leas
 	return nil
 }
 
-func (s *Store) AddWatchItems(ctx context.Context, items []core.WatchItem) (added []core.WatchItem, err error) {
+func (s *Store) RecordWatchCheck(ctx context.Context, from core.Watch, check core.WatchCheck) (added []core.WatchItem, err error) {
+	if check.At.IsZero() || check.NextCheckAt.IsZero() || check.Status == "" {
+		return nil, fmt.Errorf("record check of watch %d: at, next_check_at and status are required", from.ID)
+	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return nil, fmt.Errorf("add watch items: %w", err)
+		return nil, fmt.Errorf("record check of watch %d: %w", from.ID, err)
 	}
-	defer rollbackOnErr(tx, &err, "add watch items")
-	for _, item := range items {
-		if item.WatchID == 0 || item.Key == "" || item.Status == "" || item.SeenAt.IsZero() {
-			return nil, fmt.Errorf("add watch items: watch_id, key, status and seen_at are required (key %q)", item.Key)
+	defer rollbackOnErr(tx, &err, "record watch check")
+	result, err := tx.ExecContext(ctx,
+		`UPDATE watches SET status = ?, next_check_at = ?, last_checked_at = ?, last_error = ?, failures = ?, snapshot = ?, updated_at = ?
+		 WHERE id = ? AND status = ? AND failures = ? AND last_checked_at = ?`,
+		string(check.Status), formatTimestamp(check.NextCheckAt), formatTimestamp(check.At), check.LastError, check.Failures, check.Snapshot,
+		formatTimestamp(check.At), from.ID, string(from.Status), from.Failures, formatZeroableTimestamp(from.LastCheckedAt))
+	if err != nil {
+		return nil, fmt.Errorf("record check of watch %d: %w", from.ID, err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return nil, fmt.Errorf("record check of watch %d rows affected: %w", from.ID, err)
+	}
+	if affected != 1 {
+		var exists bool
+		if err := tx.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM watches WHERE id = ?)`, from.ID).Scan(&exists); err != nil {
+			return nil, fmt.Errorf("record check of watch %d: %w", from.ID, err)
+		}
+		if !exists {
+			return nil, fmt.Errorf("%w: %d", core.ErrWatchNotFound, from.ID)
+		}
+		return nil, fmt.Errorf("%w: %d", core.ErrWatchChanged, from.ID)
+	}
+	for _, item := range check.Items {
+		if item.WatchID != from.ID || item.Key == "" || item.Status == "" || item.SeenAt.IsZero() {
+			return nil, fmt.Errorf("record check of watch %d: items need its watch_id, a key, status and seen_at (key %q)", from.ID, item.Key)
 		}
 		result, err := tx.ExecContext(ctx,
 			`INSERT OR IGNORE INTO watch_items (watch_id, item_key, title, url, summary, published_at, status, run_id, seen_at)
@@ -151,7 +176,7 @@ func (s *Store) AddWatchItems(ctx context.Context, items []core.WatchItem) (adde
 		added = append(added, item)
 	}
 	if err := tx.Commit(); err != nil {
-		return nil, fmt.Errorf("add watch items: %w", err)
+		return nil, fmt.Errorf("record check of watch %d: %w", from.ID, err)
 	}
 	return added, nil
 }

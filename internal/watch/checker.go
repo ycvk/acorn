@@ -141,7 +141,8 @@ func (c *Checker) Fetch(ctx context.Context, w core.Watch) (Fetched, error) {
 
 // Check fetches a watch and records the outcome: new items, the next check
 // time, and on failure the error with backoff. A fetch failure is returned
-// after it is recorded.
+// after it is recorded. When the watch changed during the check, nothing is
+// recorded and the error is core.ErrWatchChanged.
 func (c *Checker) Check(ctx context.Context, w core.Watch) (Result, error) {
 	fetched, err := c.Fetch(ctx, w)
 	if err != nil {
@@ -154,6 +155,7 @@ func (c *Checker) Check(ctx context.Context, w core.Watch) (Result, error) {
 func (c *Checker) Apply(ctx context.Context, w core.Watch, fetched Fetched) (Result, error) {
 	now := c.cfg.Clock()
 	first := w.LastCheckedAt.IsZero()
+	checked := w
 	items := fetched.Items
 	if w.Kind == core.WatchWeb || w.Kind == core.WatchWebRendered {
 		if fetched.Snapshot == "" {
@@ -163,7 +165,7 @@ func (c *Checker) Apply(ctx context.Context, w core.Watch, fetched Fetched) (Res
 		if !first && fetched.Snapshot != w.Snapshot {
 			items = []core.WatchItem{changeItem(w, fetched.Snapshot)}
 		}
-		w.Snapshot = fetched.Snapshot
+		checked.Snapshot = fetched.Snapshot
 	}
 	status := core.WatchItemPending
 	if first {
@@ -172,37 +174,43 @@ func (c *Checker) Apply(ctx context.Context, w core.Watch, fetched Fetched) (Res
 	for i := range items {
 		items[i].WatchID, items[i].Status, items[i].SeenAt = w.ID, status, now
 	}
-	added, err := c.cfg.Store.AddWatchItems(ctx, items)
+	checked.LastCheckedAt, checked.NextCheckAt, checked.UpdatedAt = now, now.Add(w.Interval), now
+	checked.Failures, checked.LastError = 0, ""
+	if w.Status == core.WatchFailing {
+		checked.Status = core.WatchActive
+	}
+	added, err := c.record(ctx, w, checked, items)
 	if err != nil {
 		return Result{Watch: w}, err
 	}
-	w.LastCheckedAt, w.NextCheckAt, w.UpdatedAt = now, now.Add(w.Interval), now
-	w.Failures, w.LastError = 0, ""
-	if w.Status == core.WatchFailing {
-		w.Status = core.WatchActive
-	}
-	if err := c.cfg.Store.UpdateWatch(ctx, w); err != nil {
-		return Result{Watch: w}, err
-	}
 	if first {
-		return Result{Watch: w, Baseline: len(added)}, nil
+		return Result{Watch: checked, Baseline: len(added)}, nil
 	}
-	return Result{Watch: w, New: added}, nil
+	return Result{Watch: checked, New: added}, nil
 }
 
 func (c *Checker) recordFailure(ctx context.Context, w core.Watch, cause error) (Result, error) {
 	now := c.cfg.Clock()
-	w.Failures++
-	w.LastError = cause.Error()
-	w.LastCheckedAt, w.UpdatedAt = now, now
-	w.NextCheckAt = now.Add(backoff(w.Interval, w.Failures))
-	if w.Failures >= FailingAfter && w.Status == core.WatchActive {
-		w.Status = core.WatchFailing
+	checked := w
+	checked.Failures++
+	checked.LastError = cause.Error()
+	checked.LastCheckedAt, checked.UpdatedAt = now, now
+	checked.NextCheckAt = now.Add(backoff(w.Interval, checked.Failures))
+	if checked.Failures >= FailingAfter && w.Status == core.WatchActive {
+		checked.Status = core.WatchFailing
 	}
-	if err := c.cfg.Store.UpdateWatch(ctx, w); err != nil {
+	if _, err := c.record(ctx, w, checked, nil); err != nil {
 		return Result{Watch: w}, errors.Join(cause, fmt.Errorf("record failure: %w", err))
 	}
-	return Result{Watch: w}, fmt.Errorf("watch #%d %s: %w", w.ID, w.Name, cause)
+	return Result{Watch: checked}, fmt.Errorf("watch #%d %s: %w", w.ID, w.Name, cause)
+}
+
+// record writes the check fields of checked, a check of from, with its items.
+func (c *Checker) record(ctx context.Context, from, checked core.Watch, items []core.WatchItem) ([]core.WatchItem, error) {
+	return c.cfg.Store.RecordWatchCheck(ctx, from, core.WatchCheck{
+		At: checked.LastCheckedAt, NextCheckAt: checked.NextCheckAt, Status: checked.Status,
+		Failures: checked.Failures, LastError: checked.LastError, Snapshot: checked.Snapshot, Items: items,
+	})
 }
 
 // backoff doubles the interval per consecutive failure, up to a day.

@@ -21,11 +21,17 @@ type sources struct {
 	feed     string
 	price    string
 	releases string
+	// during runs once for a path while its request is served.
+	during map[string]func()
 }
 
 func (s *sources) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if hook := s.during[r.URL.Path]; hook != nil {
+		delete(s.during, r.URL.Path)
+		hook()
+	}
 	switch r.URL.Path {
 	case "/feed":
 		w.Header().Set("Content-Type", "application/rss+xml")
@@ -201,5 +207,75 @@ func TestBriefingListsReleasesAndFailingWatches(t *testing.T) {
 		if !strings.Contains(input, want) {
 			t.Fatalf("briefing input lacks %q:\n%s", want, input)
 		}
+	}
+}
+
+func TestOwnerEditsDuringACheckStand(t *testing.T) {
+	src := &sources{feed: rss("go1.26")}
+	web := newPrivateNetworkServer(t, src)
+	defer web.Close()
+	start := time.Date(2026, 10, 4, 20, 0, 0, 0, time.UTC)
+	harness, extra := newPushHarness(t, start)
+	server := httptest.NewServer(&fakeOpenAI{})
+	defer server.Close()
+	cfg := writeTestConfig(t, server.URL, extra+watchTestConfig)
+	c := harness.open(t, cfg)
+	defer c.Close()
+	ctx := context.Background()
+	add := func(w core.Watch) core.Watch {
+		w.Mode, w.Interval, w.NextCheckAt, w.LastCheckedAt, w.CreatedAt = core.WatchModeImmediate, time.Hour, start, start.Add(-time.Hour), start
+		added, err := c.store.AddWatch(ctx, w)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return added
+	}
+	feed := add(core.Watch{Name: "Go blog", Kind: core.WatchRSS, Target: web.URL + "/feed", Status: core.WatchActive})
+	shop := add(core.Watch{Name: "shop", Kind: core.WatchWeb, Target: web.URL + "/gone", Status: core.WatchFailing, Failures: watch.FailingAfter + 1, LastError: "HTTP 500"})
+	// edit changes a watch the way watch_update does.
+	edit := func(id int64, change func(*core.Watch)) {
+		loaded, err := c.store.LoadWatch(ctx, id)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		change(loaded)
+		loaded.UpdatedAt = start
+		if err := c.store.UpdateWatch(ctx, *loaded); err != nil {
+			t.Error(err)
+		}
+	}
+	src.set(func(s *sources) {
+		s.feed = rss("go1.26", "go1.27")
+		s.during = map[string]func(){
+			"/feed": func() { edit(feed.ID, func(w *core.Watch) { w.Status = core.WatchPaused }) },
+			"/gone": func() {
+				edit(shop.ID, func(w *core.Watch) {
+					w.Status, w.Failures, w.LastError, w.NextCheckAt = core.WatchActive, 0, "", start
+				})
+			},
+		}
+	})
+	if err := c.wake.Tick(ctx); err != nil {
+		t.Fatalf("tick: %v", err)
+	}
+
+	paused, err := c.store.LoadWatch(ctx, feed.ID)
+	if err != nil || paused.Status != core.WatchPaused {
+		t.Fatalf("paused during its check = %+v, %v", paused, err)
+	}
+	resumed, err := c.store.LoadWatch(ctx, shop.ID)
+	if err != nil || resumed.Status != core.WatchActive || resumed.Failures != 0 || resumed.LastError != "" || !resumed.NextCheckAt.Equal(start) {
+		t.Fatalf("resumed during its check = %+v, %v", resumed, err)
+	}
+	due, err := c.store.ListDueWatches(ctx, start.Add(48*time.Hour), 10)
+	if err != nil || len(due) != 1 || due[0].ID != shop.ID {
+		t.Fatalf("due = %+v, %v", due, err)
+	}
+	if pending, err := c.store.ListWatchItems(ctx, core.WatchItemPending, 10); err != nil || len(pending) != 0 {
+		t.Fatalf("a discarded check left items = %+v, %v", pending, err)
+	}
+	if runs, err := c.store.CountWakesSince(ctx, time.Time{}); err != nil || runs != 0 {
+		t.Fatalf("wakes = %d, %v", runs, err)
 	}
 }
