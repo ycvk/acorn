@@ -22,7 +22,7 @@ permissions:
 jobs:
   metadata:
     name: Resolve Release Metadata
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     outputs:
       version: ${{ steps.resolve.outputs.version }}
       prerelease: ${{ steps.resolve.outputs.prerelease }}
@@ -74,10 +74,10 @@ jobs:
         include:
           - goos: linux
             goarch: amd64
-            runner: ubuntu-24.04
+            runner: ubuntu-26.04
           - goos: linux
             goarch: arm64
-            runner: ubuntu-24.04-arm
+            runner: ubuntu-26.04-arm
     steps:
       - uses: actions/checkout@v6.0.2
       - uses: actions/setup-go@v6.4.0
@@ -130,7 +130,7 @@ jobs:
 
   mobile-android:
     name: Build Signed Android APK
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     needs: metadata
     steps:
       - uses: actions/checkout@v6.0.2
@@ -216,7 +216,7 @@ jobs:
 
   publish:
     name: Publish GitHub Release
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     needs:
       - metadata
       - build

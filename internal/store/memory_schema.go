@@ -120,7 +120,12 @@ CREATE TABLE IF NOT EXISTS memory_source_links (
 );
 CREATE TABLE IF NOT EXISTS thread_summaries (
  session_id TEXT PRIMARY KEY, through_message_id INTEGER NOT NULL, epoch INTEGER NOT NULL,
- content TEXT NOT NULL, sources_json TEXT NOT NULL, updated_at TEXT NOT NULL
+ content TEXT NOT NULL, updated_at TEXT NOT NULL
+);
+-- The sources a summary covers.
+CREATE TABLE IF NOT EXISTS thread_summary_sources (
+ session_id TEXT NOT NULL REFERENCES thread_summaries(session_id), source_id TEXT NOT NULL REFERENCES memory_sources(id),
+ PRIMARY KEY(session_id, source_id)
 );
 CREATE TABLE IF NOT EXISTS context_snapshot_refs (
  hash TEXT NOT NULL, run_id TEXT NOT NULL, source_id TEXT NOT NULL DEFAULT '', record_id TEXT NOT NULL DEFAULT '',
@@ -138,6 +143,7 @@ CREATE INDEX IF NOT EXISTS idx_memory_revision_evidence_source ON memory_revisio
 CREATE INDEX IF NOT EXISTS idx_memory_revision_sources_source ON memory_revision_sources(source_id,record_id,revision);
 CREATE INDEX IF NOT EXISTS idx_memory_links_parent ON memory_links(to_id,relation,from_id);
 CREATE INDEX IF NOT EXISTS idx_memory_source_links_parent ON memory_source_links(parent_id,source_id);
+CREATE INDEX IF NOT EXISTS idx_thread_summary_sources_source ON thread_summary_sources(source_id,session_id);
 CREATE INDEX IF NOT EXISTS idx_commitments_due ON commitments(state,wake_at);
 CREATE INDEX IF NOT EXISTS idx_memory_records_current ON memory_records(excluded,state,recorded_at);
 CREATE INDEX IF NOT EXISTS idx_memory_usage_budget ON memory_usage(budget,created_at);

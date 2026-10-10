@@ -120,7 +120,12 @@ func (s *Store) ForgetMemory(ctx context.Context, request core.MemoryForget) (co
 				return err
 			}
 		}
-		if _, err := tx.ExecContext(ctx, `DELETE FROM thread_summaries WHERE EXISTS(SELECT 1 FROM json_each(sources_json) j JOIN memory_exclusions x ON x.source_id=j.value)`); err != nil {
+		// Every summary covers at least one source, so a summary left without
+		// sources is one that covered an excluded source.
+		if _, err := tx.ExecContext(ctx, `DELETE FROM thread_summary_sources WHERE session_id IN(SELECT s.session_id FROM thread_summary_sources s JOIN memory_exclusions x ON x.source_id=s.source_id)`); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `DELETE FROM thread_summaries WHERE NOT EXISTS(SELECT 1 FROM thread_summary_sources s WHERE s.session_id=thread_summaries.session_id)`); err != nil {
 			return err
 		}
 		_, err = tx.ExecContext(ctx, `UPDATE memory_jobs SET state='done',completed_at=?,error='owner excluded source',lease_until='' WHERE object_id IN(SELECT source_id FROM memory_exclusions WHERE quote='')`, formatTimestamp(request.Now))

@@ -24,7 +24,8 @@ var memoryRequiredTables = map[string][]string{
 	"memory_state":             {"id", "epoch", "request_run_id"},
 	"memory_exclusions":        {"id", "epoch", "source_id", "quote", "request_source_id", "reason", "created_at"},
 	"memory_source_links":      {"source_id", "parent_id"},
-	"thread_summaries":         {"session_id", "through_message_id", "epoch", "content", "sources_json", "updated_at"},
+	"thread_summaries":         {"session_id", "through_message_id", "epoch", "content", "updated_at"},
+	"thread_summary_sources":   {"session_id", "source_id"},
 	"context_snapshot_refs":    {"hash", "run_id", "source_id", "record_id", "epoch"},
 	"memory_usage":             {"id", "operation", "job_id", "run_id", "budget", "model", "input_tokens", "output_tokens", "reported", "created_at"},
 }
