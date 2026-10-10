@@ -182,7 +182,7 @@ SQLite 继续承载持久化真相。以下为主要逻辑表与关键约束；�
 | `memory_revision_evidence`、`memory_revision_entities`、`memory_revision_parents`、`memory_revision_sources` | 每个 revision 的支持/反驳证据及精确原文片段、实体、父记录与解析后的根来源；可见性与遗忘按 revision 判断 |
 | `memory_links` | record 间的 derives_from、supersedes、contradicts、related_to；修订关系有明确方向 |
 | `memory_entities` 与 `memory_mentions` | 实体名称与记录关联；实体条件按名称过滤，语义检索补充不同表达的候选 |
-| `memory_concerns` 与 `memory_concern_links` | 事项、状态、复查时间、进展时间和所关联的记录或约定 |
+| `memory_concerns`、`memory_concern_revisions` 与 `memory_concern_records` | 事项的当前状态、理由、来源与复查时间；每次修订的全部字段及当时关联的记录；约定经 `concern_id` 关联事项 |
 | `commitments` 与 `commitment_occurrences` | 约定规则及每次发生的认领、执行 run、结果；一次发生只认领成功一次 |
 | `memory_embeddings` 与 `memory_vector_sketches` | record revision、维度、generation、float32 原向量及 int8 候选编码；历史版本和当前版本分别索引 |
 | `memory_entity_aliases` | revision 对应的规范名、别名、范围及来源精确引用 |
