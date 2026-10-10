@@ -46,7 +46,7 @@ func TestMemorySourceIsRegisteredWithMessage(t *testing.T) {
 	if err != nil || source.Content != message.Content || source.Speaker != "owner" {
 		t.Fatalf("source=%+v err=%v", source, err)
 	}
-	job, err := s.ClaimMemoryJob(ctx, memoryTestNow.Add(24*time.Hour), time.Minute, "")
+	job, err := s.ClaimMemoryJob(ctx, message.CreatedAt.Add(time.Minute), time.Minute, "")
 	if err != nil || job == nil || job.ObjectID != source.ID || job.Operation != "extract" {
 		t.Fatalf("job=%+v err=%v", job, err)
 	}
