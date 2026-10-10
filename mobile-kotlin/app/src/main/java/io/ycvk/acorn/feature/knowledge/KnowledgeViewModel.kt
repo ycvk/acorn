@@ -7,6 +7,7 @@ import io.ycvk.acorn.api.models.KnowledgeNote
 import io.ycvk.acorn.api.models.KnowledgeNoteSummary
 import io.ycvk.acorn.core.auth.AuthController
 import io.ycvk.acorn.core.auth.AuthState
+import io.ycvk.acorn.core.auth.ConnectionProfile
 import io.ycvk.acorn.data.repository.KnowledgeRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
@@ -121,17 +122,39 @@ class KnowledgeViewModel @Inject constructor(
         }
     }
 
+    /** The paired server, for loading attachments. */
+    fun connection(): ConnectionProfile? = profile()
+
     private fun profile() = (authController.authState.value as? AuthState.Connected)?.profile
 }
 
-private val attachmentEmbed = Regex("""!\[\[([^\]]+)]]""")
+private val attachmentEmbed = Regex("""!\[([^\]\n]*)]\((attachments/[^)\s]+)\)""")
 
-/** Replaces `![[path]]` attachment embeds with a line naming the file; the app does not show attachments. */
-fun withAttachmentPlaceholders(body: String): String =
-    attachmentEmbed.replace(body) { match -> "*Attachment: ${attachmentName(match)}*" }
+/** A note body split around the images it embeds. */
+sealed interface NoteSegment {
+    data class Markdown(val text: String) : NoteSegment
+    data class Image(val path: String, val description: String) : NoteSegment
+}
 
-/** The same for plain-text snippets in the list. */
+/** Splits a note body at its `![description](attachments/...)` embeds. */
+fun noteSegments(body: String): List<NoteSegment> {
+    val segments = mutableListOf<NoteSegment>()
+    var start = 0
+    fun text(end: Int) {
+        body.substring(start, end).trim().takeIf { it.isNotEmpty() }?.let { segments += NoteSegment.Markdown(it) }
+    }
+    for (match in attachmentEmbed.findAll(body)) {
+        text(match.range.first)
+        segments += NoteSegment.Image(match.groupValues[2], attachmentDescription(match))
+        start = match.range.last + 1
+    }
+    text(body.length)
+    return segments
+}
+
+/** Shows embeds in plain-text snippets as their description. */
 fun snippetText(snippet: String): String =
-    attachmentEmbed.replace(snippet) { match -> "[${attachmentName(match)}]" }
+    attachmentEmbed.replace(snippet) { match -> "[${attachmentDescription(match)}]" }
 
-private fun attachmentName(match: MatchResult) = match.groupValues[1].substringAfterLast('/')
+private fun attachmentDescription(match: MatchResult) =
+    match.groupValues[1].trim().ifEmpty { match.groupValues[2].substringAfterLast('/') }

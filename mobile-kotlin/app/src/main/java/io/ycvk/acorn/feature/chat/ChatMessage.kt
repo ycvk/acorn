@@ -27,9 +27,10 @@ sealed class ChatMessage {
         override val id: String = "wake_${UUID.randomUUID()}"
     }
 
-    /** Something the owner shared from their phone; text is ready to show. */
+    /** Something the owner shared from their phone; text is ready to show, image is an attachment path. */
     data class Capture(
         val text: String,
+        val image: String? = null,
     ) : ChatMessage() {
         override val id: String = "capture_${UUID.randomUUID()}"
     }
@@ -39,7 +40,7 @@ sealed class ChatMessage {
 fun chatMessageFrom(role: Message.Role, text: String): ChatMessage = when (role) {
     Message.Role.user -> ChatMessage.User(text)
     Message.Role.wake -> ChatMessage.Wake(text, wakeSource(text))
-    Message.Role.capture -> ChatMessage.Capture(captureCardText(text))
+    Message.Role.capture -> captureMessage(text)
     Message.Role.assistant -> ChatMessage.Assistant(text)
     // System / tool messages render as assistant bubbles so the
     // history reads top-to-bottom without gaps.
@@ -47,17 +48,16 @@ fun chatMessageFrom(role: Message.Role, text: String): ChatMessage = when (role)
 }
 
 /**
- * Turns a capture run input into card text: drops the "[capture]" header line
- * and shows attachments by file name.
+ * Turns a capture run input into a card: drops the "[capture]" header line and
+ * takes the attachment path out of the "Image:" line.
  */
-fun captureCardText(input: String): String =
-    input.lines()
-        .dropWhile { it.startsWith("[capture]") }
-        .joinToString("\n") { line ->
-            val image = line.removePrefix("Image: ")
-            if (image != line) "Image: " + image.substringBefore(" (").substringAfterLast('/') else line
-        }
-        .trim()
+fun captureMessage(input: String): ChatMessage.Capture {
+    val lines = input.lines().dropWhile { it.startsWith("[capture]") }
+    val imageLine = lines.indexOfFirst { it.startsWith("Image: ") }
+    val image = lines.getOrNull(imageLine)?.removePrefix("Image: ")?.substringBefore(" (")
+    val text = lines.filterIndexed { index, _ -> index != imageLine }.joinToString("\n").trim()
+    return ChatMessage.Capture(text, image)
+}
 
 enum class WakeSource { Commitment, Watch, Briefing, Night, Wander }
 

@@ -22,11 +22,14 @@ class ChatMessageTest {
     }
 
     @Test
-    fun `capture input becomes a card without the header and with file names`() {
+    fun `capture input becomes a card without the header and with its image path`() {
         val input = "[capture] shared from the owner's phone\nSubject: Tokio 2.0\nLink: https://tokio.rs\nImage: attachments/2026/10/ab12.png (image/png, 1.2 MiB)"
-        val message = chatMessageFrom(Message.Role.capture, input)
-        assertTrue(message is ChatMessage.Capture)
-        assertEquals("Subject: Tokio 2.0\nLink: https://tokio.rs\nImage: ab12.png", (message as ChatMessage.Capture).text)
+        val message = chatMessageFrom(Message.Role.capture, input) as ChatMessage.Capture
+        assertEquals("Subject: Tokio 2.0\nLink: https://tokio.rs", message.text)
+        assertEquals("attachments/2026/10/ab12.png", message.image)
+        val textOnly = chatMessageFrom(Message.Role.capture, "[capture] shared from the owner's phone\nText:\nhello") as ChatMessage.Capture
+        assertEquals("Text:\nhello", textOnly.text)
+        assertEquals(null, textOnly.image)
     }
 
     @Test

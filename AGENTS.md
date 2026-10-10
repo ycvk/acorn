@@ -55,7 +55,7 @@ cd mobile-kotlin && ./tool/generate_openapi_client.sh --check && ./gradlew assem
 
 ### 知识库
 
-- 知识库笔记存在 SQLite,只经 `knowledge.Vault` 写入;每次写入是一个新 revision,并在同一事务里登记为记忆来源。编辑基于读到的 revision,并发修改显式失败。agent 不删除、不移动笔记。笔记路径是相对 `.md` 路径,不含 `..`、隐藏段或 `attachments/`。分享的图片存为 `{storage_dir}/attachments/` 下的文件。
+- 知识库笔记存在 SQLite,只经 `knowledge.Vault` 写入;每次写入是一个新 revision,并在同一事务里登记为记忆来源。编辑基于读到的 revision,并发修改显式失败。agent 不删除、不移动笔记。笔记路径是相对 `.md` 路径,不含 `..`、隐藏段或 `attachments/`。分享的图片存为 `{storage_dir}/attachments/` 下的文件,笔记以 `![描述](attachments/...)` 引用,客户端经 `/v1/knowledge/attachment` 读取。
 
 ### 推送与手机通知
 

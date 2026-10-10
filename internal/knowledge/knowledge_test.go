@@ -150,3 +150,28 @@ func TestSaveAttachment(t *testing.T) {
 		t.Fatal("unsupported type must be rejected")
 	}
 }
+
+func TestReadAttachmentServesOnlySavedImages(t *testing.T) {
+	ctx := context.Background()
+	v := openTestVault(t)
+	rel, err := v.SaveAttachment(ctx, "image/jpeg", []byte("\xff\xd8 fake"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := v.ReadAttachment(ctx, rel)
+	if err != nil || got.MIME != "image/jpeg" || string(got.Data) != "\xff\xd8 fake" {
+		t.Fatalf("read = %+v, %v", got, err)
+	}
+	missing := strings.Replace(rel, rel[len("attachments/2026/10/"):len("attachments/2026/10/")+16], "0123456789abcdef", 1)
+	if _, err := v.ReadAttachment(ctx, missing); !errors.Is(err, ErrAttachmentNotFound) {
+		t.Fatalf("missing attachment: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(v.dir, "acorn.secret"), []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, bad := range []string{"acorn.secret", "attachments/../acorn.secret", "attachments/2026/10/" + "0123456789abcdef.md", "/" + rel, rel + "/"} {
+		if _, err := v.ReadAttachment(ctx, bad); !errors.Is(err, ErrInvalidPath) {
+			t.Fatalf("ReadAttachment(%q) = %v, want invalid path", bad, err)
+		}
+	}
+}

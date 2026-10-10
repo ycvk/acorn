@@ -28,12 +28,19 @@ class KnowledgeContentTest {
     }
 
     @Test
-    fun `attachment embeds become placeholders`() {
+    fun `note body splits around attachment embeds`() {
         assertEquals(
-            "Photo:\n*Attachment: ab12.png*\nend",
-            withAttachmentPlaceholders("Photo:\n![[attachments/2026/10/ab12.png]]\nend"),
+            listOf(
+                NoteSegment.Markdown("Photo:"),
+                NoteSegment.Image("attachments/2026/10/ab12.png", "whiteboard"),
+                NoteSegment.Markdown("end ![logo](https://example.com/logo.png)"),
+            ),
+            noteSegments("Photo:\n![whiteboard](attachments/2026/10/ab12.png)\nend ![logo](https://example.com/logo.png)"),
         )
-        assertEquals("[[link]] stays", withAttachmentPlaceholders("[[link]] stays"))
-        assertEquals("photo [ab12.png]", snippetText("photo ![[attachments/2026/10/ab12.png]]"))
+        assertEquals(
+            listOf(NoteSegment.Image("attachments/2026/10/ab12.png", "ab12.png")),
+            noteSegments("![](attachments/2026/10/ab12.png)"),
+        )
+        assertEquals("photo [whiteboard]", snippetText("photo ![whiteboard](attachments/2026/10/ab12.png)"))
     }
 }

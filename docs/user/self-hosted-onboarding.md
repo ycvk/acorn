@@ -382,7 +382,7 @@ Earlier data under `~/.acorn` (`facts/`, `history/`, `worldstate/`, `vectors.db`
 
 The agent keeps longer material in a knowledge base of markdown notes stored in the SQLite database. Every write keeps a new revision with the run that made it, and personal memory cites the exact revision it learned from. `acorn doctor` shows the note count and where shared images are kept.
 
-Share from any Android app to get something into it: pick Acorn in the system share sheet, add a note if you like, and send. The backend opens a new conversation for the share, and the agent fetches the link, writes a note under `inbox/` and replies with its path. Open the conversation to tell the agent more about it. Images are stored under `attachments/` in the storage directory. The app's Knowledge tab lists recent notes, searches them, and opens a note to read.
+Share from any Android app to get something into it: pick Acorn in the system share sheet, add a note if you like, and send. The backend opens a new conversation for the share, and the agent fetches the link, writes a note under `inbox/` and replies with its path. Open the conversation to tell the agent more about it. Images are stored under `attachments/` in the storage directory; the app shows them in the shared conversation and inside the notes that embed them. The app's Knowledge tab lists recent notes, searches them, and opens a note to read.
 
 ## 13. Watches and the Morning Briefing
 

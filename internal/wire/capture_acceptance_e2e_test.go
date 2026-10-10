@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -192,7 +193,7 @@ func TestSharedLinkBecomesACommittedNote(t *testing.T) {
 	}
 }
 
-func TestSharedImageIsStoredBeforeTheRun(t *testing.T) {
+func TestSharedImageIsStoredBeforeTheRunAndServedToTheOwner(t *testing.T) {
 	provider := &fakeOpenAI{replies: []string{textReply("收到图片")}}
 	server := httptest.NewServer(provider)
 	defer server.Close()
@@ -221,6 +222,13 @@ func TestSharedImageIsStoredBeforeTheRun(t *testing.T) {
 	stored, err := os.ReadFile(filepath.Join(cfg.Runtime.StorageDir, filepath.FromSlash(attachment)))
 	if err != nil || !bytes.Equal(stored, png) {
 		t.Fatalf("attachment %s: %v", attachment, err)
+	}
+	req := httptest.NewRequest(http.MethodGet, "/v1/knowledge/attachment?path="+url.QueryEscape(attachment), nil)
+	req.Header.Set("Authorization", "Bearer "+client.token)
+	rec := httptest.NewRecorder()
+	client.handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || rec.Header().Get("Content-Type") != "image/png" || !bytes.Equal(rec.Body.Bytes(), png) {
+		t.Fatalf("served attachment: status %d type %q", rec.Code, rec.Header().Get("Content-Type"))
 	}
 }
 

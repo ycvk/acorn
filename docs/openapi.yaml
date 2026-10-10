@@ -736,6 +736,41 @@ paths:
           $ref: '#/components/responses/KnowledgeNoteNotFound'
         '500':
           $ref: '#/components/responses/InternalError'
+  /v1/knowledge/attachment:
+    get:
+      tags: [knowledge]
+      summary: Read an image stored by a capture
+      description: |
+        Returns the image bytes. Notes embed attachments as
+        `![alt](attachments/...)`, and a capture input names its image on an
+        `Image:` line. Attachment paths never change content, so responses
+        may be cached indefinitely.
+      operationId: clientGetKnowledgeAttachment
+      parameters:
+        - name: path
+          in: query
+          required: true
+          description: Attachment path relative to the storage directory, e.g. attachments/2026/10/0123456789abcdef.png.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The image
+          content:
+            image/*:
+              schema:
+                type: string
+                format: binary
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/DeviceRevoked'
+        '404':
+          $ref: '#/components/responses/KnowledgeAttachmentNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
 
 components:
   securitySchemes:
@@ -854,6 +889,18 @@ components:
                 error:
                   code: knowledge_note_not_found
                   message: 'knowledge note not found: inbox/missing.md'
+    KnowledgeAttachmentNotFound:
+      description: Attachment not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            knowledgeAttachmentNotFound:
+              value:
+                error:
+                  code: knowledge_attachment_not_found
+                  message: 'attachment not found: attachments/2026/10/0123456789abcdef.png'
     PayloadTooLarge:
       description: Request body too large
       content:

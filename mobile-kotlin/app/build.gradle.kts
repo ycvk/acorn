@@ -121,6 +121,9 @@ dependencies {
     // Markdown rendering for assistant messages (JitPack).
     implementation("com.github.jeziellago:compose-markdown:0.5.7")
 
+    // Shared images in notes and capture cards; the version compose-markdown already pulls in.
+    implementation("io.coil-kt:coil-compose:2.6.0")
+
     // Testing
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")

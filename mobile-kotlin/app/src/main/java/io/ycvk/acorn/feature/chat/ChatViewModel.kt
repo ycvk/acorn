@@ -242,6 +242,9 @@ class ChatViewModel @Inject constructor(
         )
     }
 
+    /** The paired server, for loading attachments. */
+    fun connection(): ConnectionProfile? = getConnectionProfile()
+
     private fun getConnectionProfile(): ConnectionProfile? =
         (authController.authState.value as? AuthState.Connected)?.profile
 
