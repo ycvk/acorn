@@ -3,7 +3,6 @@ package store
 import (
 	"context"
 	"encoding/binary"
-	"encoding/json"
 	"fmt"
 	"math"
 	"math/rand/v2"
@@ -48,12 +47,10 @@ func TestMemoryCandidateIndexPreservesExactTopFive(t *testing.T) {
 			}
 		}
 		vectors[i] = vector
-		r := core.MemoryRecord{ID: ids[i], Kind: "fact", Content: ids[i], State: "current", Revision: 1, RecordedAt: memoryTestNow, UpdatedAt: memoryTestNow}
-		record, err := json.Marshal(r)
-		if err != nil {
+		if _, err := tx.Exec(`INSERT INTO memory_records(id,kind,content,scope,state,basis,revision,recorded_at,updated_at) VALUES(?,'fact',?,'','current','direct',1,?,?)`, ids[i], ids[i], formatTimestamp(memoryTestNow), formatTimestamp(memoryTestNow)); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := tx.Exec(`INSERT INTO memory_records(id,kind,content,scope,state,revision,recorded_at,updated_at,data) VALUES(?,'fact',?,'','current',1,?,?,?)`, ids[i], r.Content, formatTimestamp(memoryTestNow), formatTimestamp(memoryTestNow), string(record)); err != nil {
+		if _, err := tx.Exec(`INSERT INTO memory_revisions(record_id,revision,kind,content,scope,state,basis,at,reason) VALUES(?,1,'fact',?,'','current','direct',?,'fixture')`, ids[i], ids[i], formatTimestamp(memoryTestNow)); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := tx.Exec(`INSERT INTO memory_embeddings(record_id,revision,generation,dimensions,vector) VALUES(?,1,1,?,?)`, ids[i], dimensions, data); err != nil {

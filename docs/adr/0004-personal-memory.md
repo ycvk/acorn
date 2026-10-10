@@ -177,9 +177,9 @@ SQLite 继续承载持久化真相。以下为主要逻辑表与关键约束；�
 | 表 | 关键内容与约束 |
 |---|---|
 | `memory_sources` | 稳定 source ID、原始对象类型与 ID、version、speaker、recorded_at、occurred_at、读取状态；同一原始对象版本唯一 |
-| `memory_records` | fact/insight/thought、正文、适用范围、有效状态、有效时间、来源标签、revision、注意力属性；任何可用记录有可追溯来源 |
-| `memory_revisions` | 每次记录修订的完整版本、系统时间、原因及来源；支持 known_at、撤回与审计 |
-| `memory_evidence` | record 与 source 的支持/反驳关系和精确原文片段；组合唯一 |
+| `memory_records` | 当前 revision 的 fact/insight/thought、正文、适用范围、有效状态、有效时间、来源标签、注意力属性；任何可用记录有可追溯来源 |
+| `memory_revisions` | 每次修订的全部字段、系统时间与原因；支持 known_at、撤回与审计 |
+| `memory_revision_evidence`、`memory_revision_entities`、`memory_revision_parents`、`memory_revision_sources` | 每个 revision 的支持/反驳证据及精确原文片段、实体、父记录与解析后的根来源；可见性与遗忘按 revision 判断 |
 | `memory_links` | record 间的 derives_from、supersedes、contradicts、related_to；修订关系有明确方向 |
 | `memory_entities` 与 `memory_mentions` | 实体名称与记录关联；实体条件按名称过滤，语义检索补充不同表达的候选 |
 | `memory_concerns` 与 `memory_concern_links` | 事项、状态、复查时间、进展时间和所关联的记录或约定 |

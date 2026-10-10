@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"math/rand/v2"
@@ -70,28 +71,11 @@ func seedCapacityCorpus(t *testing.T, db *Store, count, dimensions int) capacity
 			}
 			r.SourceIDs = uniqueMemoryStrings(r.SourceIDs)
 		}
-		data, err := json.Marshal(r)
-		if err != nil {
-			t.Fatal(err)
-		}
 		stamp := formatTimestamp(at)
 		if _, err := tx.Exec(`INSERT INTO memory_sources(id,kind,object_id,version,speaker,session_id,body,recorded_at) VALUES(?,'standalone',?,'1','owner',?,?,?)`, id, id, fmt.Sprintf("thread_%d", i%200), content, stamp); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := tx.Exec(`INSERT INTO memory_records(id,kind,content,scope,state,revision,recorded_at,updated_at,data) VALUES(?,?,?,?,'current',1,?,?,?)`, id, r.Kind, content, r.Scope, stamp, stamp, string(data)); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := tx.Exec(`INSERT INTO memory_revisions(record_id,revision,at,reason,data) VALUES(?,1,?,'capacity fixture',?)`, id, stamp, string(data)); err != nil {
-			t.Fatal(err)
-		}
-		if err := persistMemoryAliases(context.Background(), tx, r); err != nil {
-			t.Fatal(err)
-		}
-		for _, evidence := range r.Evidence {
-			if _, err := tx.Exec(`INSERT INTO memory_evidence(record_id,source_id,quote,relation) VALUES(?,?,?,'supports')`, id, evidence.SourceID, evidence.Quote); err != nil {
-				t.Fatal(err)
-			}
-		}
+		insertCapacityRevision(t, tx, r, true)
 		if _, err := tx.Exec(`INSERT INTO memory_mentions(record_id,entity_id) VALUES(?,?)`, id, group+1); err != nil {
 			t.Fatal(err)
 		}
@@ -169,6 +153,36 @@ func seedCapacityCorpus(t *testing.T, db *Store, count, dimensions int) capacity
 		t.Fatal(err)
 	}
 	return corpus
+}
+
+// insertCapacityRevision writes one revision and its relations directly, so the
+// fixture controls the processing history recorded afterwards.
+func insertCapacityRevision(t *testing.T, tx *sql.Tx, r core.MemoryRecord, current bool) {
+	t.Helper()
+	stamp := formatTimestamp(r.UpdatedAt)
+	if current {
+		if _, err := tx.Exec(`INSERT INTO memory_records(id,kind,content,scope,state,basis,revision,recorded_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)`, r.ID, r.Kind, r.Content, r.Scope, r.State, r.Basis, r.Revision, formatTimestamp(r.RecordedAt), stamp); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := tx.Exec(`INSERT INTO memory_revisions(record_id,revision,kind,content,scope,state,basis,at,reason) VALUES(?,?,?,?,?,?,?,?,'capacity fixture')`, r.ID, r.Revision, r.Kind, r.Content, r.Scope, r.State, r.Basis, stamp); err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range r.Evidence {
+		if _, err := tx.Exec(`INSERT INTO memory_revision_evidence(record_id,revision,source_id,quote,relation) VALUES(?,?,?,?,'supports')`, r.ID, r.Revision, e.SourceID, e.Quote); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for table, values := range map[string][]string{"memory_revision_entities(record_id,revision,entity)": r.Entities, "memory_revision_parents(record_id,revision,parent_id)": r.Parents, "memory_revision_sources(record_id,revision,source_id)": r.SourceIDs} {
+		for _, value := range values {
+			if _, err := tx.Exec(`INSERT INTO `+table+` VALUES(?,?,?)`, r.ID, r.Revision, value); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	if err := persistMemoryAliases(context.Background(), tx, r); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func (c capacityCorpus) EmbedStrings(_ context.Context, texts []string, _ ...embedding.Option) ([][]float64, error) {

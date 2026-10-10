@@ -4,10 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
@@ -17,10 +17,10 @@ import (
 // Historical revisions retain their original evidence; visibility is evaluated
 // against that evidence even when the record's current revision has new sources.
 const memoryRevisionVisibility = `NOT EXISTS(
- SELECT 1 FROM json_each(v.data,'$.evidence') e JOIN memory_exclusions x ON x.source_id=json_extract(e.value,'$.source_id')
- WHERE x.quote='' OR instr(json_extract(e.value,'$.quote'),x.quote)>0 OR instr(x.quote,json_extract(e.value,'$.quote'))>0
-) AND (json_extract(v.data,'$.kind')='fact' OR NOT EXISTS(
- SELECT 1 FROM json_each(v.data,'$.source_ids') source JOIN memory_exclusions x ON x.source_id=source.value
+ SELECT 1 FROM memory_revision_evidence ve JOIN memory_exclusions vx ON vx.source_id=ve.source_id
+ WHERE ve.record_id=v.record_id AND ve.revision=v.revision AND (vx.quote='' OR instr(ve.quote,vx.quote)>0 OR instr(vx.quote,ve.quote)>0)
+) AND (v.kind='fact' OR NOT EXISTS(
+ SELECT 1 FROM memory_revision_sources vs JOIN memory_exclusions vx ON vx.source_id=vs.source_id WHERE vs.record_id=v.record_id AND vs.revision=v.revision
 ))`
 
 // memoryRecordLinksSQL starts from the record's own links; CROSS JOIN keeps the
@@ -39,22 +39,15 @@ func (s *Store) ReadMemory(ctx context.Context, id string) (core.MemoryRead, err
 		if err != nil {
 			return err
 		}
-		rows, err := tx.QueryContext(ctx, `SELECT v.data FROM memory_revisions v WHERE v.record_id=? AND `+memoryRevisionVisibility+` ORDER BY v.revision`, id)
+		rows, err := tx.QueryContext(ctx, `SELECT v.record_id,v.revision FROM memory_revisions v WHERE v.record_id=? AND `+memoryRevisionVisibility+` ORDER BY v.revision`, id)
 		if err != nil {
 			return err
 		}
-		if err := scanRows(rows, func(scan func(...any) error) error {
-			var data string
-			if err := scan(&data); err != nil {
-				return err
-			}
-			var r core.MemoryRecord
-			if err := json.Unmarshal([]byte(data), &r); err != nil {
-				return err
-			}
-			out.Versions = append(out.Versions, r)
-			return nil
-		}); err != nil {
+		keys, err := memoryRevisionKeys(rows)
+		if err != nil {
+			return err
+		}
+		if out.Versions, err = loadMemoryRevisions(ctx, tx, keys); err != nil {
 			return err
 		}
 		rows, err = tx.QueryContext(ctx, memoryRecordLinksSQL, id, id)
@@ -132,32 +125,47 @@ func (s *Store) ListMemoryRecords(ctx context.Context, q core.MemoryQuery) ([]co
 		return nil, err
 	}
 	if q.KnownAt.IsZero() {
-		rows, err = s.read.QueryContext(ctx, `SELECT data FROM memory_records WHERE excluded=0 AND (?='' OR EXISTS(SELECT 1 FROM memory_sources s JOIN json_each(memory_records.data,'$.source_ids') j ON s.id=j.value WHERE s.session_id=?)) ORDER BY updated_at DESC,id`, q.SessionID, q.SessionID)
+		rows, err = s.read.QueryContext(ctx, `SELECT r.id,r.revision FROM memory_records r WHERE r.excluded=0 AND (?='' OR EXISTS(SELECT 1 FROM memory_revision_sources rs JOIN memory_sources s ON s.id=rs.source_id WHERE rs.record_id=r.id AND rs.revision=r.revision AND s.session_id=?)) ORDER BY r.updated_at DESC,r.id`, q.SessionID, q.SessionID)
 	} else {
-		rows, err = s.read.QueryContext(ctx, `SELECT v.data FROM memory_revisions v JOIN memory_records r ON r.id=v.record_id WHERE r.excluded=0 AND v.revision=(SELECT revision FROM memory_revisions WHERE record_id=v.record_id AND at<=? ORDER BY at DESC,revision DESC LIMIT 1) AND (?='' OR EXISTS(SELECT 1 FROM memory_sources s JOIN json_each(v.data,'$.source_ids') j ON s.id=j.value WHERE s.session_id=?)) AND `+memoryRevisionVisibility+` ORDER BY v.at DESC,v.record_id`, formatTimestamp(q.KnownAt), q.SessionID, q.SessionID)
+		rows, err = s.read.QueryContext(ctx, `SELECT v.record_id,v.revision FROM memory_revisions v JOIN memory_records r ON r.id=v.record_id WHERE r.excluded=0 AND v.revision=(SELECT revision FROM memory_revisions WHERE record_id=v.record_id AND at<=? ORDER BY at DESC,revision DESC LIMIT 1) AND (?='' OR EXISTS(SELECT 1 FROM memory_revision_sources rs JOIN memory_sources s ON s.id=rs.source_id WHERE rs.record_id=v.record_id AND rs.revision=v.revision AND s.session_id=?)) AND `+memoryRevisionVisibility+` ORDER BY v.at DESC,v.record_id`, formatTimestamp(q.KnownAt), q.SessionID, q.SessionID)
 	}
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	keys, err := memoryRevisionKeys(rows)
+	if err != nil {
+		return nil, err
+	}
+	limit := memoryQueryLimit(q)
 	out := []core.MemoryRecord{}
-	for rows.Next() {
-		var data string
-		if err := rows.Scan(&data); err != nil {
+	for start := 0; start < len(keys) && len(out) < limit; start += memoryRecordBatch {
+		records, err := loadMemoryRevisions(ctx, s.read, keys[start:min(len(keys), start+memoryRecordBatch)])
+		if err != nil {
 			return nil, err
 		}
-		var record core.MemoryRecord
-		if err := json.Unmarshal([]byte(data), &record); err != nil {
-			return nil, err
-		}
-		if memoryRecordMatches(record, q) {
-			out = append(out, record)
-			if len(out) >= memoryQueryLimit(q) {
-				break
+		for _, record := range records {
+			if memoryRecordMatches(record, q) {
+				out = append(out, record)
+				if len(out) >= limit {
+					break
+				}
 			}
 		}
 	}
-	return out, rows.Err()
+	return out, nil
+}
+
+func memoryRevisionKeys(rows *sql.Rows) ([]memoryRevisionKey, error) {
+	var keys []memoryRevisionKey
+	err := scanRows(rows, func(scan func(...any) error) error {
+		var key memoryRevisionKey
+		if err := scan(&key.id, &key.revision); err != nil {
+			return err
+		}
+		keys = append(keys, key)
+		return nil
+	})
+	return keys, err
 }
 
 // memorySearchTerms keeps names whole and supplies character n-grams for CJK
@@ -237,7 +245,7 @@ func (s *Store) SearchMemoryText(ctx context.Context, q core.MemoryQuery) ([]cor
 		var clauses []string
 		args = []any{formatTimestamp(q.KnownAt)}
 		for _, term := range terms {
-			clauses = append(clauses, `json_extract(v.data,'$.content') LIKE ? ESCAPE '\'`)
+			clauses = append(clauses, `v.content LIKE ? ESCAPE '\'`)
 			args = append(args, "%"+escapeLike(term)+"%")
 		}
 		query = `SELECT v.record_id FROM memory_revisions v JOIN memory_records r ON r.id=v.record_id WHERE r.excluded=0 AND v.revision=(SELECT revision FROM memory_revisions WHERE record_id=v.record_id AND at<=? ORDER BY at DESC,revision DESC LIMIT 1) AND (` + strings.Join(clauses, " OR ") + `) ORDER BY v.at DESC,v.record_id LIMIT 1000`
@@ -255,39 +263,58 @@ func (s *Store) SearchMemoryText(ctx context.Context, q core.MemoryQuery) ([]cor
 
 const memoryRecordBatch = 128
 
-// loadMemoryRecordBatch reads records in input order, skipping excluded ones;
-// an unknown ID fails like loadMemoryRecord.
+// loadMemoryRecordBatch reads the current revision of records in input order,
+// skipping excluded ones; an unknown ID fails like loadMemoryRecord.
 func loadMemoryRecordBatch(ctx context.Context, q memorySQL, ids []string) ([]core.MemoryRecord, error) {
 	data, err := json.Marshal(ids)
 	if err != nil {
 		return nil, err
 	}
-	rows, err := q.QueryContext(ctx, `SELECT j.value,r.data,r.excluded FROM json_each(?) j LEFT JOIN memory_records r ON r.id=j.value ORDER BY j.key`, string(data))
+	rows, err := q.QueryContext(ctx, `SELECT j.value,r.revision,r.excluded FROM json_each(?) j LEFT JOIN memory_records r ON r.id=j.value ORDER BY j.key`, string(data))
 	if err != nil {
 		return nil, err
 	}
-	out := make([]core.MemoryRecord, 0, len(ids))
-	err = scanRows(rows, func(scan func(...any) error) error {
+	var keys []memoryRevisionKey
+	if err := scanRows(rows, func(scan func(...any) error) error {
 		var id string
-		var body sql.NullString
+		var revision sql.NullInt64
 		var excluded sql.NullBool
-		if err := scan(&id, &body, &excluded); err != nil {
+		if err := scan(&id, &revision, &excluded); err != nil {
 			return err
 		}
-		if !body.Valid {
+		if !revision.Valid {
 			return fmt.Errorf("%w: record %s", core.ErrMemoryNotFound, id)
 		}
-		if excluded.Bool {
-			return nil
+		if !excluded.Bool {
+			keys = append(keys, memoryRevisionKey{id, revision.Int64})
 		}
-		var record core.MemoryRecord
-		if err := json.Unmarshal([]byte(body.String), &record); err != nil {
-			return fmt.Errorf("read memory %s: %w", id, err)
-		}
-		out = append(out, record)
 		return nil
-	})
-	return out, err
+	}); err != nil {
+		return nil, err
+	}
+	return loadMemoryRevisions(ctx, q, keys)
+}
+
+// knownMemoryRevisions replaces each record with its revision visible at
+// knownAt, dropping records that had none.
+func knownMemoryRevisions(ctx context.Context, q memorySQL, records []core.MemoryRecord, knownAt time.Time) ([]core.MemoryRecord, error) {
+	ids := make([]string, len(records))
+	for i, r := range records {
+		ids[i] = r.ID
+	}
+	data, err := json.Marshal(ids)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := q.QueryContext(ctx, `SELECT v.record_id,v.revision FROM json_each(?) j CROSS JOIN memory_revisions v ON v.record_id=j.value WHERE v.revision=(SELECT revision FROM memory_revisions WHERE record_id=v.record_id AND at<=? ORDER BY at DESC,revision DESC LIMIT 1) AND `+memoryRevisionVisibility+` ORDER BY j.key`, string(data), formatTimestamp(knownAt))
+	if err != nil {
+		return nil, err
+	}
+	keys, err := memoryRevisionKeys(rows)
+	if err != nil {
+		return nil, err
+	}
+	return loadMemoryRevisions(ctx, q, keys)
 }
 
 func (s *Store) MemoryRecordsByIDs(ctx context.Context, ids []string, q core.MemoryQuery) ([]core.MemoryRecord, error) {
@@ -303,20 +330,12 @@ func (s *Store) MemoryRecordsByIDs(ctx context.Context, ids []string, q core.Mem
 		if err != nil {
 			return nil, err
 		}
-		for _, record := range records {
-			if !q.KnownAt.IsZero() {
-				var data string
-				err := s.read.QueryRowContext(ctx, `SELECT v.data FROM memory_revisions v WHERE v.record_id=? AND v.revision=(SELECT revision FROM memory_revisions WHERE record_id=v.record_id AND at<=? ORDER BY at DESC,revision DESC LIMIT 1) AND `+memoryRevisionVisibility, record.ID, formatTimestamp(q.KnownAt)).Scan(&data)
-				if errors.Is(err, sql.ErrNoRows) {
-					continue
-				}
-				if err != nil {
-					return nil, err
-				}
-				if err := json.Unmarshal([]byte(data), &record); err != nil {
-					return nil, err
-				}
+		if !q.KnownAt.IsZero() {
+			if records, err = knownMemoryRevisions(ctx, s.read, records, q.KnownAt); err != nil {
+				return nil, err
 			}
+		}
+		for _, record := range records {
 			if q.SessionID != "" {
 				data, err := json.Marshal(record.SourceIDs)
 				if err != nil {
