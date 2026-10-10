@@ -77,7 +77,6 @@ type SystemStatusDTO struct {
 	RuntimeReadiness  RuntimeReadinessDTO     `json:"runtime_readiness"`
 	ProviderReadiness []ProviderReadinessDTO  `json:"provider_readiness,omitempty"`
 	Model             CapabilitiesModelDTO    `json:"model"`
-	WorkspaceRoot     string                  `json:"workspace_root"`
 	Summary           CapabilitiesSummaryDTO  `json:"summary"`
 	Features          CapabilitiesFeaturesDTO `json:"features"`
 }
@@ -92,21 +91,20 @@ type InboxResponse struct {
 
 // RunSummaryDTO is a lightweight summary of a run for list views.
 
-func inboxDTOFromDomain(inbox MobileInbox, workspaceRoot string) InboxResponse {
+func inboxDTOFromDomain(inbox MobileInbox) InboxResponse {
 	return InboxResponse{
 		PendingActions:     DefaultConverter.pendingActionSummaryDTOsFromDomain(inbox.PendingActions),
 		ActiveRuns:         DefaultConverter.runSummaryDTOsFromDomain(inbox.ActiveRuns),
 		RecentTerminalRuns: DefaultConverter.runSummaryDTOsFromDomain(inbox.RecentTerminalRuns),
-		System:             systemStatusDTOFromSnapshot(inbox.System, workspaceRoot),
+		System:             systemStatusDTOFromSnapshot(inbox.System),
 	}
 }
 
-func systemStatusDTOFromSnapshot(snapshot SystemCapabilities, workspaceRoot string) SystemStatusDTO {
+func systemStatusDTOFromSnapshot(snapshot SystemCapabilities) SystemStatusDTO {
 	return SystemStatusDTO{
 		RuntimeReadiness:  runtimeReadinessDTOFromSnapshot(snapshot.RuntimeReadiness),
 		ProviderReadiness: DefaultConverter.providerReadinessDTOsFromSnapshot(snapshot.ProviderReadiness),
 		Model:             DefaultConverter.capabilitiesModelDTOFromSnapshot(snapshot.Model),
-		WorkspaceRoot:     workspaceRoot,
 		Summary:           DefaultConverter.capabilitiesSummaryDTOFromSnapshot(snapshot.Summary),
 		Features:          DefaultConverter.capabilitiesFeaturesDTOFromSnapshot(snapshot.Features),
 	}
@@ -130,16 +128,10 @@ type SkillSummaryDTO struct {
 	Name            string               `json:"name"`
 	Version         string               `json:"version"`
 	Category        string               `json:"category,omitempty"`
-	Source          string               `json:"source"`
-	Origin          skills.Origin        `json:"origin"`
-	TaskPattern     string               `json:"task_pattern,omitempty"`
 	Summary         string               `json:"summary,omitempty"`
-	PromotedFrom    string               `json:"promoted_from,omitempty"`
 	Eligible        bool                 `json:"eligible"`
 	Requirements    SkillRequirementsDTO `json:"requirements,omitempty"`
 	DisabledReasons []string             `json:"disabled_reasons,omitempty"`
-	CreatedByRunID  string               `json:"created_by_run_id,omitempty"`
-	Replaces        []string             `json:"replaces,omitempty"`
 }
 
 type SkillDetailDTO struct {
@@ -168,19 +160,14 @@ type SkillFileResponse struct {
 
 func skillSummaryDTOFromView(item skills.View) SkillSummaryDTO {
 	return SkillSummaryDTO{
-		ID:             item.ID,
-		Name:           item.Name,
-		Version:        item.Version,
-		Category:       item.Category,
-		Source:         item.Source,
-		Origin:         item.Origin,
-		TaskPattern:    item.TaskPattern,
-		Summary:        item.Summary,
-		PromotedFrom:   item.PromotedFrom,
-		Eligible:       item.Eligible,
-		Requirements:   DefaultConverter.skillRequirementsDTOFromDomain(item.Requires),
-		CreatedByRunID: item.CreatedByRunID,
-		Replaces:       append([]string(nil), item.Replaces...),
+		ID:              item.ID,
+		Name:            item.Name,
+		Version:         item.Version,
+		Category:        item.Category,
+		Summary:         item.Summary,
+		Eligible:        item.Eligible,
+		Requirements:    DefaultConverter.skillRequirementsDTOFromDomain(item.Requires),
+		DisabledReasons: append([]string(nil), item.DisabledReasons...),
 	}
 }
 

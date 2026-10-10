@@ -43,7 +43,7 @@ cd mobile-kotlin && ./tool/generate_openapi_client.sh --check && ./gradlew assem
 
 ### 技能
 
-- 技能是只读 markdown,由 `internal/skills` 加载、经 Eino skill middleware 提供;agent 不创建或修改技能。repo `./skills` 是 release seed pack。
+- 技能是只读 markdown 包,由 `internal/skills` 从 `skills.dir` 一个目录加载(frontmatter 严格解析)、经 Eino skill middleware 提供;agent 不创建或修改技能。repo `./skills` 是 release seed pack。
 
 ### 记忆与约定
 

@@ -15,17 +15,15 @@ import (
 // derives thread state from the latest run, and projects stored messages into
 // client-facing DTOs.
 type ThreadService struct {
-	store         core.SessionStore
-	workspaceRoot string
-	newThreadID   func() string
+	store       core.SessionStore
+	newThreadID func() string
 }
 
 // NewThreadService constructs a ThreadService backed by the given store.
-func NewThreadService(store core.SessionStore, workspaceRoot string) *ThreadService {
+func NewThreadService(store core.SessionStore) *ThreadService {
 	return &ThreadService{
-		store:         store,
-		workspaceRoot: workspaceRoot,
-		newThreadID:   newThreadID,
+		store:       store,
+		newThreadID: newThreadID,
 	}
 }
 
@@ -158,12 +156,11 @@ func generatedThreadTitle(content string) string {
 
 func (s *ThreadService) projectThread(record core.SessionRecord, latestRun *core.RunRecord) (Thread, error) {
 	thread := Thread{
-		ID:            record.SessionID,
-		Title:         record.Title,
-		WorkspaceRoot: s.workspaceRoot,
-		CreatedAt:     record.CreatedAt,
-		UpdatedAt:     record.UpdatedAt,
-		State:         string(core.SessionStateNew),
+		ID:        record.SessionID,
+		Title:     record.Title,
+		CreatedAt: record.CreatedAt,
+		UpdatedAt: record.UpdatedAt,
+		State:     string(core.SessionStateNew),
 	}
 	if latestRun == nil {
 		return thread, nil
@@ -272,13 +269,12 @@ func projectMessage(record core.SessionMessageRecord) (Message, error) {
 
 // Thread is a user-facing thread DTO.
 type Thread struct {
-	ID            string
-	Title         string
-	WorkspaceRoot string
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
-	LatestRunID   string
-	State         string
+	ID          string
+	Title       string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	LatestRunID string
+	State       string
 }
 
 // Message is a user-facing message DTO.

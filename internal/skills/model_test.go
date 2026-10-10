@@ -11,7 +11,6 @@ func TestNormalizeSpecTrimsFields(t *testing.T) {
 		Name:      "  Test  ",
 		Tags:      []string{"  a  ", "b", "", "a"},
 		Platforms: []string{"Linux", "linux", "  Darwin  "},
-		Replaces:  []string{"old", "old", ""},
 	}
 	got, err := NormalizeSpec(spec)
 	if err != nil {
@@ -26,17 +25,11 @@ func TestNormalizeSpecTrimsFields(t *testing.T) {
 	if got.Version != "v1" {
 		t.Errorf("Version = %q, want v1 (default)", got.Version)
 	}
-	if got.Source != "unknown" {
-		t.Errorf("Source = %q, want unknown (default)", got.Source)
-	}
 	if len(got.Tags) != 2 || got.Tags[0] != "a" || got.Tags[1] != "b" {
 		t.Errorf("Tags = %v, want [a b]", got.Tags)
 	}
 	if len(got.Platforms) != 2 || got.Platforms[0] != "linux" || got.Platforms[1] != "darwin" {
 		t.Errorf("Platforms = %v, want [linux darwin] (lowercased, deduped)", got.Platforms)
-	}
-	if len(got.Replaces) != 1 || got.Replaces[0] != "old" {
-		t.Errorf("Replaces = %v, want [old]", got.Replaces)
 	}
 }
 
@@ -56,16 +49,6 @@ func TestNormalizeSpecErrors(t *testing.T) {
 			spec: Spec{ID: "x"},
 			err:  "skill x name is required",
 		},
-		{
-			name: "distilled without task_pattern",
-			spec: Spec{ID: "x", Name: "X", Origin: OriginDistilled},
-			err:  "task_pattern is required for distilled origin",
-		},
-		{
-			name: "invalid origin",
-			spec: Spec{ID: "x", Name: "X", Origin: Origin("bogus")},
-			err:  `origin "bogus" is invalid`,
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -77,17 +60,6 @@ func TestNormalizeSpecErrors(t *testing.T) {
 	}
 }
 
-func TestNormalizeSpecDefaultsHumanOrigin(t *testing.T) {
-	spec := Spec{ID: "x", Name: "X"}
-	got, err := NormalizeSpec(spec)
-	if err != nil {
-		t.Fatalf("NormalizeSpec: %v", err)
-	}
-	if got.Origin != OriginHuman {
-		t.Errorf("Origin = %q, want %q (default)", got.Origin, OriginHuman)
-	}
-}
-
 func TestCopySpecDeepCopiesSlices(t *testing.T) {
 	original := Spec{
 		ID:           "x",
@@ -95,7 +67,6 @@ func TestCopySpecDeepCopiesSlices(t *testing.T) {
 		Tags:         []string{"a", "b"},
 		Platforms:    []string{"linux"},
 		TriggerHints: []string{"hint"},
-		Replaces:     []string{"old"},
 		Requires: Requirements{
 			Tools: []string{"read_file"},
 		},

@@ -186,7 +186,7 @@ func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *contai
 
 	container.runResume = api.NewRunResumeService(db).WithResume(deps.resumeRun)
 	container.skills = api.NewSkillService(cfg, deps.loader)
-	container.threads = api.NewThreadService(db, cfg.WorkspaceRoot())
+	container.threads = api.NewThreadService(db)
 	container.runs = api.NewRunService(db, container.threads, deps.executeRun, deps.runController).WithResumer(container.runResume)
 	container.events = api.NewEventService(db, db)
 	container.pendingAction = api.NewPendingActionService(db).WithResumer(container.runResume)

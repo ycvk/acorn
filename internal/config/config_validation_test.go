@@ -40,9 +40,6 @@ func TestValidateExecutionReadyContextConfig(t *testing.T) {
 			Description:   "test",
 			MaxIterations: 4,
 		},
-		Tools: ToolsConfig{
-			Workspace: WorkspaceToolConfig{RootDir: "."},
-		},
 	}
 
 	cases := []struct {
@@ -118,9 +115,6 @@ func TestValidateExecutionReadyRejectsInvalidExecutionFields(t *testing.T) {
 			Description:   "test",
 			MaxIterations: 0,
 		},
-		Tools: ToolsConfig{
-			Workspace: WorkspaceToolConfig{RootDir: "."},
-		},
 		Owner:    defaultConfig().Owner,
 		Presence: defaultConfig().Presence,
 		Memory:   defaultConfig().Memory,
@@ -169,18 +163,6 @@ func TestValidateExecutionReadyRejectsInvalidExecutionFields(t *testing.T) {
 	cfg.Memory.Embedding.APIKey = "voyage-test"
 	if err := cfg.ValidateExecutionReady(); err != nil {
 		t.Fatalf("expected valid reasoning_effort to pass, got %v", err)
-	}
-}
-
-func TestWorkspaceRootIsCleanedRootDir(t *testing.T) {
-	cfg := defaultConfig()
-	cfg.Tools.Workspace.RootDir = "/srv/acorn/workspace/"
-	if got, want := cfg.WorkspaceRoot(), "/srv/acorn/workspace"; got != want {
-		t.Fatalf("WorkspaceRoot() = %q, want %q", got, want)
-	}
-	cfg.Tools.Workspace.RootDir = "  "
-	if got := cfg.WorkspaceRoot(); got != "" {
-		t.Fatalf("WorkspaceRoot() for blank root = %q, want empty", got)
 	}
 }
 

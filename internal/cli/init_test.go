@@ -44,8 +44,11 @@ func TestInitStorageDirPlacesInstallerLayout(t *testing.T) {
 	if err := cfg.ValidateExecutionReady(); err != nil {
 		t.Fatalf("installer config must execute with model and Voyage keys: %v", err)
 	}
-	if cfg.Runtime.StorageDir != storage || cfg.Tools.Workspace.RootDir != storage {
-		t.Fatalf("storage=%q workspace=%q, want both %q", cfg.Runtime.StorageDir, cfg.Tools.Workspace.RootDir, storage)
+	if cfg.Runtime.StorageDir != storage {
+		t.Fatalf("storage=%q, want %q", cfg.Runtime.StorageDir, storage)
+	}
+	if want := filepath.Join(filepath.Dir(path), "skills"); cfg.Skills.Dir != want {
+		t.Fatalf("skills=%q, want %q beside the config", cfg.Skills.Dir, want)
 	}
 	if _, err := os.Stat(cfg.PersonaPath()); err != nil {
 		t.Fatalf("persona not written into storage: %v", err)

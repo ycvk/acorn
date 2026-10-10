@@ -7,10 +7,10 @@ import (
 
 func TestFilterDuplicateSkillNames(t *testing.T) {
 	items := []Spec{
-		{ID: "a", Name: "Same", Source: "workspace"},
-		{ID: "b", Name: "Same", Source: "generated"},
-		{ID: "c", Name: "Unique", Source: "workspace"},
-		{ID: "d", Name: "  ", Source: "workspace"},
+		{ID: "a", Name: "Same"},
+		{ID: "b", Name: "Same"},
+		{ID: "c", Name: "Unique"},
+		{ID: "d", Name: "  "},
 	}
 	out, problems := filterDuplicateSkillNames(items)
 	if len(out) != 3 {
@@ -53,36 +53,15 @@ func TestSortSkillsByNameThenID(t *testing.T) {
 	}
 }
 
-func TestSortSkillProblemsBySourcePathError(t *testing.T) {
+func TestSortSkillProblemsByPathThenError(t *testing.T) {
 	items := []Problem{
-		{Source: "workspace", Path: "/b", Error: "z"},
-		{Source: "builtin", Path: "/a", Error: "a"},
-		{Source: "workspace", Path: "/a", Error: "b"},
+		{Path: "/b", Error: "z"},
+		{Path: "/a", Error: "b"},
+		{Path: "/a", Error: "a"},
 	}
 	sortSkillProblems(items)
-	if items[0].Source != "builtin" {
-		t.Errorf("first = %q, want builtin (sorted by source)", items[0].Source)
-	}
-	if items[1].Path != "/a" || items[2].Path != "/b" {
-		t.Errorf("order = %v, want sorted by path within same source", items)
-	}
-}
-
-func TestSamePathRoot(t *testing.T) {
-	tests := []struct {
-		left, right string
-		want        bool
-	}{
-		{"./skills", "skills", true},
-		{"skills/", "skills", true},
-		{"skills", "generated", false},
-		{"/abs/path", "/abs/path", true},
-	}
-	for _, tt := range tests {
-		got := samePathRoot(tt.left, tt.right)
-		if got != tt.want {
-			t.Errorf("samePathRoot(%q, %q) = %v, want %v", tt.left, tt.right, got, tt.want)
-		}
+	if items[0].Error != "a" || items[1].Error != "b" || items[2].Path != "/b" {
+		t.Errorf("order = %v, want sorted by path then error", items)
 	}
 }
 
@@ -107,30 +86,9 @@ func TestFirstNonEmpty(t *testing.T) {
 	}
 }
 
-func TestShadowedSkillProblem(t *testing.T) {
-	shadowed := Spec{ID: "old", Name: "Old", Source: "generated", Path: "/path/old"}
-	winner := Spec{ID: "new", Name: "New", Source: "workspace", Path: "/path/new"}
-	p := shadowedSkillProblem(shadowed, winner)
-	if p.ID != "old" {
-		t.Errorf("ID = %q, want old", p.ID)
-	}
-	if !strings.Contains(p.Error, "shadowed by new") {
-		t.Errorf("Error = %q, want 'shadowed by new'", p.Error)
-	}
-	if !strings.Contains(p.Error, "workspace") {
-		t.Errorf("Error = %q, want to contain winner source", p.Error)
-	}
-}
-
 func TestSkillProblemForDir(t *testing.T) {
-	p := skillProblemForDir("/dir", "workspace", "  id  ", "  name  ", "  text  ")
-	if p == nil {
-		t.Fatal("got nil problem")
-	}
-	if p.ID != "id" || p.Name != "name" || p.Source != "workspace" || p.Path != "/dir" {
-		t.Errorf("problem = {ID: %q, Name: %q, Source: %q, Path: %q}, want trimmed values", p.ID, p.Name, p.Source, p.Path)
-	}
-	if p.Error != "text" {
-		t.Errorf("Error = %q, want 'text' (trimmed)", p.Error)
+	p := skillProblemForDir("/dir", "  id  ", "  name  ", "  text  ")
+	if p.ID != "id" || p.Name != "name" || p.Path != "/dir" || p.Error != "text" {
+		t.Errorf("problem = %#v, want trimmed values", p)
 	}
 }

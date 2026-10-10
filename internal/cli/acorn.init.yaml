@@ -89,10 +89,9 @@ agent:
   description: Self-hosted personal agent that works on its owner's behalf and asks for approval before sensitive actions.
   max_iterations: 100
 
-tools:
-  # Holds the seed skills (skills/) and workspace skills (.acorn/skills/workspace).
-  workspace:
-    root_dir: ~/.acorn/workspace
+skills:
+  # One subdirectory with a SKILL.md per skill; relative to this file.
+  dir: skills
 
 mcp:
   providers: []

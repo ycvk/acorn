@@ -10,12 +10,11 @@ import (
 func TestThreadMessageRunHandlers(t *testing.T) {
 	service := &clientHandlerStub{
 		thread: Thread{
-			ID:            "thread_1",
-			Title:         "Inspect repo",
-			WorkspaceRoot: "/repo",
-			CreatedAt:     time.Date(2026, 5, 2, 10, 0, 0, 0, time.UTC),
-			UpdatedAt:     time.Date(2026, 5, 2, 10, 1, 0, 0, time.UTC),
-			State:         "new",
+			ID:        "thread_1",
+			Title:     "Inspect repo",
+			CreatedAt: time.Date(2026, 5, 2, 10, 0, 0, 0, time.UTC),
+			UpdatedAt: time.Date(2026, 5, 2, 10, 1, 0, 0, time.UTC),
+			State:     "new",
 		},
 		message: Message{
 			ID:       "7",
@@ -52,7 +51,7 @@ func TestThreadMessageRunHandlers(t *testing.T) {
 	}
 	var thread ThreadDTO
 	decodeClientTestJSON(t, createThread, &thread)
-	if thread.ID != "thread_1" || thread.Title != "Inspect repo" || thread.WorkspaceRoot != "/repo" || thread.State != "new" {
+	if thread.ID != "thread_1" || thread.Title != "Inspect repo" || thread.State != "new" {
 		t.Fatalf("unexpected create thread response: %#v", thread)
 	}
 	if strings.Contains(createThread.Body.String(), "session_id") {

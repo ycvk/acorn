@@ -15,14 +15,14 @@ func (s *Server) handleClientInbox(w http.ResponseWriter, r *http.Request) {
 		s.respondInternalError(w, r, errors.New("inbox service returned nil"))
 		return
 	}
-	s.respondJSON(w, r, http.StatusOK, inboxDTOFromDomain(*inbox, clientWorkspaceRoot(s.cfg)))
+	s.respondJSON(w, r, http.StatusOK, inboxDTOFromDomain(*inbox))
 }
 
 func (s *Server) handleClientSystemStatus(w http.ResponseWriter, r *http.Request) {
 	snapshot := s.capabilities.Snapshot(r.Context(), CapabilitySnapshotOptions{
 		ProbeMCP: r.URL.Query().Get("probe_mcp") == "1",
 	})
-	s.respondJSON(w, r, http.StatusOK, systemStatusDTOFromSnapshot(snapshot, clientWorkspaceRoot(s.cfg)))
+	s.respondJSON(w, r, http.StatusOK, systemStatusDTOFromSnapshot(snapshot))
 }
 
 func (s *Server) handleClientTools(w http.ResponseWriter, r *http.Request) {

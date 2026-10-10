@@ -27,9 +27,6 @@ agent:
   name: coordinator
   description: test
   max_iterations: 4
-tools:
-  workspace:
-    root_dir: .
 mcp:
   providers:
     - name: my_server
@@ -73,9 +70,6 @@ agent:
   name: coordinator
   description: test
   max_iterations: 4
-tools:
-  workspace:
-    root_dir: .
 mcp:
   providers:
     - name: remote_sse
@@ -120,9 +114,6 @@ agent:
   name: coordinator
   description: test
   max_iterations: 4
-tools:
-  workspace:
-    root_dir: .
 mcp:
   providers:
     - name: prefixed_sse
@@ -167,9 +158,6 @@ agent:
   name: coordinator
   description: test
   max_iterations: 4
-tools:
-  workspace:
-    root_dir: .
 mcp:
   providers:
     - name: remote_http
@@ -214,9 +202,6 @@ agent:
   name: coordinator
   description: test
   max_iterations: 4
-tools:
-  workspace:
-    root_dir: .
 mcp:
   providers:
     - name: bad_transport
@@ -261,9 +246,6 @@ agent:
   name: coordinator
   description: test
   max_iterations: 4
-tools:
-  workspace:
-    root_dir: .
 mcp:
   providers:
     - name: no_command
@@ -308,9 +290,6 @@ agent:
   name: coordinator
   description: test
   max_iterations: 4
-tools:
-  workspace:
-    root_dir: .
 mcp:
   providers:
     - name: no_url

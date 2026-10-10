@@ -30,7 +30,6 @@ func TestBuildHealthReportFailsOnEligibility(t *testing.T) {
 			{
 				ID:           "skill.needs.write",
 				Name:         "Needs Write",
-				Source:       WorkspaceScope,
 				Summary:      "Needs unavailable tool.",
 				TriggerHints: []string{"needs write"},
 				Requires:     Requirements{Tools: []string{"missing_tool"}},
@@ -55,7 +54,6 @@ func TestBuildHealthReportPassesHealthySkillSet(t *testing.T) {
 			{
 				ID:           "skill.inspect.repo",
 				Name:         "Inspect Repo",
-				Source:       WorkspaceScope,
 				Summary:      "Inspect repository structure.",
 				TriggerHints: []string{"inspect repo"},
 				Requires:     Requirements{Tools: []string{"read_file"}},

@@ -37,13 +37,7 @@ import com.squareup.moshi.JsonClass
  * @param enabled 
  * @param healthState 
  * @param risk 
- * @param resourceScope 
- * @param profiles 
  * @param healthReason 
- * @param planPolicy 
- * @param rootDir 
- * @param workDir 
- * @param defaultTimeout 
  */
 
 
@@ -70,26 +64,8 @@ data class CapabilitiesTool (
     @Json(name = "risk")
     val risk: kotlin.String,
 
-    @Json(name = "resource_scope")
-    val resourceScope: kotlin.String? = null,
-
-    @Json(name = "profiles")
-    val profiles: kotlin.collections.List<kotlin.String>? = null,
-
     @Json(name = "health_reason")
-    val healthReason: kotlin.String? = null,
-
-    @Json(name = "plan_policy")
-    val planPolicy: kotlin.String? = null,
-
-    @Json(name = "root_dir")
-    val rootDir: kotlin.String? = null,
-
-    @Json(name = "work_dir")
-    val workDir: kotlin.String? = null,
-
-    @Json(name = "default_timeout")
-    val defaultTimeout: kotlin.Int? = null
+    val healthReason: kotlin.String? = null
 
 ) {
 

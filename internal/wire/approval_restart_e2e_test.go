@@ -147,10 +147,12 @@ memory:
   embedding:
     api_key: fixture
     base_url: http://127.0.0.1:1
-tools:
-  workspace:
-    root_dir: %s
-%s`, filepath.Join(dir, "state"), providerURL, dir, extra)
+skills:
+  dir: %s
+%s`, filepath.Join(dir, "state"), providerURL, filepath.Join(dir, "skills"), extra)
+	if err := os.MkdirAll(filepath.Join(dir, "skills"), 0o755); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.WriteFile(path, []byte(yaml), 0o600); err != nil {
 		t.Fatalf("write config: %v", err)
 	}

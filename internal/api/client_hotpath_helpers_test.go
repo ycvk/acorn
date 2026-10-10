@@ -19,11 +19,7 @@ type clientHandlerStore struct {
 
 func newClientHotPathServices(stub *clientHandlerStub) (*ThreadService, *RunService, *EventService) {
 	store := &clientHandlerStore{stub: stub}
-	workspaceRoot := strings.TrimSpace(stub.thread.WorkspaceRoot)
-	if workspaceRoot == "" {
-		workspaceRoot = "/repo"
-	}
-	threads := NewThreadService(store, workspaceRoot)
+	threads := NewThreadService(store)
 	controller := runtime.NewRunController()
 	controller.Register(clientHotPathRunID(stub), func() {})
 	runs := NewRunService(store, threads, stub.executeRun, controller)

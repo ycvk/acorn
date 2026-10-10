@@ -71,21 +71,16 @@ type SystemSkillSummary struct {
 	ID              string   `json:"id"`
 	Name            string   `json:"name"`
 	Version         string   `json:"version"`
-	Source          string   `json:"source"`
-	Origin          string   `json:"origin"`
-	TaskPattern     string   `json:"task_pattern,omitempty"`
 	Summary         string   `json:"summary,omitempty"`
-	PromotedFrom    string   `json:"promoted_from,omitempty"`
 	Eligible        bool     `json:"eligible"`
 	DisabledReasons []string `json:"disabled_reasons,omitempty"`
 }
 
 type SystemSkillProblem struct {
-	ID     string `json:"id,omitempty"`
-	Name   string `json:"name,omitempty"`
-	Source string `json:"source,omitempty"`
-	Path   string `json:"path,omitempty"`
-	Error  string `json:"error,omitempty"`
+	ID    string `json:"id,omitempty"`
+	Name  string `json:"name,omitempty"`
+	Path  string `json:"path,omitempty"`
+	Error string `json:"error,omitempty"`
 }
 
 type SystemMCPProviderCapability struct {

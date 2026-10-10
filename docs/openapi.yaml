@@ -1090,7 +1090,7 @@ components:
     SkillSummary:
       type: object
       additionalProperties: false
-      required: [id, name, version, source, origin, lifecycle_status, eligible]
+      required: [id, name, version, eligible]
       properties:
         id:
           type: string
@@ -1100,41 +1100,13 @@ components:
           type: string
         category:
           type: string
-        source:
-          type: string
-        origin:
-          type: string
-          enum: [human, distilled]
-        lifecycle_status:
-          type: string
-          enum: [draft, verified, unverified, needs_eval, retired]
-        task_pattern:
-          type: string
         summary:
-          type: string
-        promoted_from:
           type: string
         eligible:
           type: boolean
         requirements:
           $ref: '#/components/schemas/SkillRequirements'
         disabled_reasons:
-          type: array
-          items:
-            type: string
-        created_by_run_id:
-          type: string
-        updated_by_run_id:
-          type: string
-        evidence_refs:
-          type: array
-          items:
-            type: string
-        replaces:
-          type: array
-          items:
-            type: string
-        replaced_by:
           type: array
           items:
             type: string
@@ -1274,33 +1246,19 @@ components:
           type: string
         category:
           type: string
-        resource_scope:
-          type: string
-        profiles:
-          type: array
-          items:
-            type: string
         enabled:
           type: boolean
         health_state:
           type: string
         health_reason:
           type: string
-        plan_policy:
-          type: string
         risk:
           type: string
-        root_dir:
-          type: string
-        work_dir:
-          type: string
-        default_timeout:
-          type: integer
 
     SystemStatus:
       type: object
       additionalProperties: false
-      required: [runtime_readiness, model, workspace_root, summary, features]
+      required: [runtime_readiness, model, summary, features]
       properties:
         runtime_readiness:
           $ref: '#/components/schemas/RuntimeReadiness'
@@ -1310,8 +1268,6 @@ components:
             $ref: '#/components/schemas/ProviderReadiness'
         model:
           $ref: '#/components/schemas/CapabilitiesModel'
-        workspace_root:
-          type: string
         summary:
           $ref: '#/components/schemas/CapabilitiesSummary'
         features:
@@ -1529,13 +1485,11 @@ components:
     Thread:
       type: object
       additionalProperties: false
-      required: [id, title, workspace_root, created_at, updated_at, state]
+      required: [id, title, created_at, updated_at, state]
       properties:
         id:
           type: string
         title:
-          type: string
-        workspace_root:
           type: string
         created_at:
           type: string

@@ -22,13 +22,9 @@ func newTestSkillService(t *testing.T, fixtures ...testSkillFixture) *SkillServi
 	t.Helper()
 
 	root := t.TempDir()
-	home := filepath.Join(t.TempDir(), "home")
-	t.Setenv("HOME", home)
-	t.Setenv("USERPROFILE", home)
-
 	cfg := config.DefaultConfig()
-	cfg.Tools.Workspace.RootDir = root
-	cfg.Runtime.StorageDir = filepath.Join(root, ".acorn")
+	cfg.Skills.Dir = root
+	cfg.Runtime.StorageDir = t.TempDir()
 
 	for _, fixture := range fixtures {
 		id := strings.TrimSpace(fixture.id)
@@ -45,7 +41,7 @@ func newTestSkillService(t *testing.T, fixtures ...testSkillFixture) *SkillServi
 			instruction = "Use repo inspection."
 		}
 
-		dir := filepath.Join(root, "skills", id)
+		dir := filepath.Join(root, id)
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			t.Fatalf("mkdir test skill dir: %v", err)
 		}
@@ -65,5 +61,5 @@ summary: %s
 		}
 	}
 
-	return NewSkillService(cfg, skills.NewLoader(cfg))
+	return NewSkillService(cfg, skills.NewLoader(cfg.Skills.Dir))
 }

@@ -37,7 +37,6 @@ import com.squareup.moshi.JsonClass
  *
  * @param runtimeReadiness 
  * @param model 
- * @param workspaceRoot 
  * @param summary 
  * @param features 
  * @param providerReadiness 
@@ -51,9 +50,6 @@ data class SystemStatus (
 
     @Json(name = "model")
     val model: CapabilitiesModel,
-
-    @Json(name = "workspace_root")
-    val workspaceRoot: kotlin.String,
 
     @Json(name = "summary")
     val summary: CapabilitiesSummary,

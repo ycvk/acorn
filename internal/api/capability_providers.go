@@ -30,11 +30,7 @@ func (s *CapabilitiesService) snapshotSkills(ctx context.Context) SystemSkillCap
 			ID:              item.ID,
 			Name:            item.Name,
 			Version:         item.Version,
-			Source:          item.Source,
-			Origin:          string(item.Origin),
-			TaskPattern:     item.TaskPattern,
 			Summary:         item.Summary,
-			PromotedFrom:    item.PromotedFrom,
 			Eligible:        item.Eligible,
 			DisabledReasons: append([]string(nil), item.DisabledReasons...),
 		})
@@ -42,11 +38,10 @@ func (s *CapabilitiesService) snapshotSkills(ctx context.Context) SystemSkillCap
 	problems := make([]SystemSkillProblem, 0, len(snapshot.Problems))
 	for _, item := range snapshot.Problems {
 		problems = append(problems, SystemSkillProblem{
-			ID:     item.ID,
-			Name:   item.Name,
-			Source: item.Source,
-			Path:   item.Path,
-			Error:  item.Error,
+			ID:    item.ID,
+			Name:  item.Name,
+			Path:  item.Path,
+			Error: item.Error,
 		})
 	}
 	return SystemSkillCapabilities{
