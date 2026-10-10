@@ -78,26 +78,6 @@ func (s *Store) CommitMemory(ctx context.Context, mutation core.MemoryMutation) 
 	return result, nil
 }
 
-func loadMemoryRecord(ctx context.Context, q memorySQL, id string) (core.MemoryRecord, error) {
-	var record core.MemoryRecord
-	var data string
-	var excluded bool
-	err := q.QueryRowContext(ctx, `SELECT data,excluded FROM memory_records WHERE id=?`, id).Scan(&data, &excluded)
-	if errors.Is(err, sql.ErrNoRows) {
-		return record, fmt.Errorf("%w: record %s", core.ErrMemoryNotFound, id)
-	}
-	if err != nil {
-		return record, err
-	}
-	if excluded {
-		return record, fmt.Errorf("%w: record %s", core.ErrMemoryExcluded, id)
-	}
-	if err := json.Unmarshal([]byte(data), &record); err != nil {
-		return record, fmt.Errorf("read memory %s: %w", id, err)
-	}
-	return record, nil
-}
-
 func writeMemoryChange(ctx context.Context, q memorySQL, c core.MemoryChange, now time.Time) (core.MemoryRecord, error) {
 	d := c.Draft
 	d.Content = strings.TrimSpace(d.Content)
@@ -140,7 +120,7 @@ func writeMemoryChange(ctx context.Context, q memorySQL, c core.MemoryChange, no
 		d.ID = memoryID(d.Kind, d.Scope, d.Content, formatZeroableTimestamp(validFrom), strings.Join(uniqueMemoryStrings(origins), ","))
 	}
 	record := core.MemoryRecord{ID: d.ID, Kind: d.Kind, Content: d.Content, Scope: d.Scope, State: d.State, Revision: 1,
-		ValidFrom: validFrom, ValidTo: validTo, RecordedAt: now, UpdatedAt: now, Pinned: d.Pinned,
+		ValidFrom: utcOrZero(validFrom), ValidTo: utcOrZero(validTo), RecordedAt: now, UpdatedAt: now, Pinned: d.Pinned,
 		Entities: uniqueMemoryStrings(d.Entities), Evidence: []core.MemoryEvidence{}, Parents: uniqueMemoryStrings(d.Parents), SourceIDs: []string{}}
 	existing, err := loadMemoryRecord(ctx, q, d.ID)
 	if err == nil {
@@ -233,14 +213,6 @@ func writeMemoryChange(ctx context.Context, q memorySQL, c core.MemoryChange, no
 	if err := persistMemoryRecord(ctx, q, record, c.Reason); err != nil {
 		return empty, err
 	}
-	if _, err := q.ExecContext(ctx, `DELETE FROM memory_evidence WHERE record_id=?`, record.ID); err != nil {
-		return empty, err
-	}
-	for _, e := range record.Evidence {
-		if _, err := q.ExecContext(ctx, `INSERT INTO memory_evidence(record_id,source_id,quote,relation) VALUES(?,?,?,?)`, record.ID, e.SourceID, e.Quote, e.Relation); err != nil {
-			return empty, err
-		}
-	}
 	if _, err := q.ExecContext(ctx, `DELETE FROM memory_links WHERE from_id=? AND relation='derives_from'`, record.ID); err != nil {
 		return empty, err
 	}
@@ -266,26 +238,6 @@ func writeMemoryChange(ctx context.Context, q memorySQL, c core.MemoryChange, no
 		}
 	}
 	return record, nil
-}
-
-func persistMemoryRecord(ctx context.Context, q memorySQL, r core.MemoryRecord, reason string) error {
-	data, err := json.Marshal(r)
-	if err != nil {
-		return err
-	}
-	_, err = q.ExecContext(ctx, `INSERT INTO memory_records(id,kind,content,scope,state,revision,recorded_at,updated_at,valid_from,valid_to,data)
-	VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET kind=excluded.kind,content=excluded.content,scope=excluded.scope,state=excluded.state,revision=excluded.revision,updated_at=excluded.updated_at,valid_from=excluded.valid_from,valid_to=excluded.valid_to,data=excluded.data`,
-		r.ID, r.Kind, r.Content, r.Scope, r.State, r.Revision, formatTimestamp(r.RecordedAt), formatTimestamp(r.UpdatedAt), formatZeroableTimestamp(r.ValidFrom), formatZeroableTimestamp(r.ValidTo), string(data))
-	if err != nil {
-		return err
-	}
-	if _, err = q.ExecContext(ctx, `INSERT INTO memory_revisions(record_id,revision,at,reason,data) VALUES(?,?,?,?,?)`, r.ID, r.Revision, formatTimestamp(r.UpdatedAt), reason, string(data)); err != nil {
-		return err
-	}
-	if err := persistMemoryAliases(ctx, q, r); err != nil {
-		return err
-	}
-	return enqueueMemoryJob(ctx, q, "embed", r.ID, fmt.Sprint(r.Revision), r.UpdatedAt)
 }
 
 func supersedeMemory(ctx context.Context, q memorySQL, c core.MemoryChange, now time.Time) error {
@@ -355,6 +307,14 @@ func insertMemoryLink(ctx context.Context, q memorySQL, l core.MemoryLink) error
 	}
 	_, err := q.ExecContext(ctx, `INSERT OR IGNORE INTO memory_links(from_id,to_id,relation) VALUES(?,?,?)`, l.FromID, l.ToID, l.Relation)
 	return err
+}
+
+// utcOrZero matches the UTC times a stored record is read back with.
+func utcOrZero(t time.Time) time.Time {
+	if t.IsZero() {
+		return t
+	}
+	return t.UTC()
 }
 
 func uniqueMemoryStrings(in []string) []string {

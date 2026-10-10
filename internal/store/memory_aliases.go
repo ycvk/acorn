@@ -2,7 +2,6 @@ package store
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -54,7 +53,7 @@ func persistMemoryAliases(ctx context.Context, q memorySQL, record core.MemoryRe
 }
 
 // CROSS JOIN keeps matching alias declarations ahead of revision reads.
-const memoryAliasQuerySQL = `SELECT DISTINCT a.canonical,a.alias,a.scope,v.data FROM memory_entity_aliases a CROSS JOIN memory_records r ON r.id=a.record_id CROSS JOIN memory_revisions v ON v.record_id=a.record_id AND v.revision=a.revision WHERE r.excluded=0 AND instr(lower(?),lower(a.alias))>0 AND ` + memoryRevisionVisibility
+const memoryAliasQuerySQL = `SELECT DISTINCT a.canonical,a.alias,a.scope,v.valid_from,v.valid_to FROM memory_entity_aliases a CROSS JOIN memory_records r ON r.id=a.record_id CROSS JOIN memory_revisions v ON v.record_id=a.record_id AND v.revision=a.revision WHERE r.excluded=0 AND instr(lower(?),lower(a.alias))>0 AND ` + memoryRevisionVisibility
 
 // Explicit identity assertions expand a name only when its identity is unique
 // or the query names a distinguishing scope. Ambiguous names keep their source
@@ -72,7 +71,7 @@ func (s *Store) expandMemoryAliases(ctx context.Context, q core.MemoryQuery) (co
 		query += ` AND a.revision=(SELECT revision FROM memory_revisions WHERE record_id=a.record_id AND at<=? ORDER BY at DESC,revision DESC LIMIT 1)`
 		args = append(args, formatTimestamp(q.KnownAt))
 	}
-	query += ` AND json_extract(v.data,'$.state')='current' AND COALESCE(json_extract(v.data,'$.needs_review'),0)=0`
+	query += ` AND v.state='current' AND v.needs_review=0`
 	rows, err := s.read.QueryContext(ctx, query, args...)
 	if err != nil {
 		return q, err
@@ -80,12 +79,16 @@ func (s *Store) expandMemoryAliases(ctx context.Context, q core.MemoryQuery) (co
 	byAlias := map[string][]core.MemoryEntityAlias{}
 	if err := scanRows(rows, func(scan func(...any) error) error {
 		var a core.MemoryEntityAlias
-		var data string
-		if err := scan(&a.Canonical, &a.Alias, &a.Scope, &data); err != nil {
+		var validFrom, validTo string
+		if err := scan(&a.Canonical, &a.Alias, &a.Scope, &validFrom, &validTo); err != nil {
 			return err
 		}
-		var record core.MemoryRecord
-		if err := json.Unmarshal([]byte(data), &record); err != nil {
+		record := core.MemoryRecord{State: "current"}
+		var err error
+		if record.ValidFrom, err = parseOptionalTime(validFrom, "memory valid_from"); err != nil {
+			return err
+		}
+		if record.ValidTo, err = parseOptionalTime(validTo, "memory valid_to"); err != nil {
 			return err
 		}
 		if !memoryRecordMatches(record, core.MemoryQuery{AsOf: q.AsOf}) {

@@ -77,7 +77,7 @@ func (s *Store) ForgetMemory(ctx context.Context, request core.MemoryForget) (co
 		}
 		rows, err = tx.QueryContext(ctx, `WITH RECURSIVE affected(id) AS(
 		 SELECT value FROM json_each(?) WHERE value IS NOT NULL UNION
-		 SELECT DISTINCT e.record_id FROM memory_evidence e JOIN memory_exclusions x ON e.source_id=x.source_id
+		 SELECT DISTINCT e.record_id FROM memory_revision_evidence e JOIN memory_records cur ON cur.id=e.record_id AND cur.revision=e.revision JOIN memory_exclusions x ON e.source_id=x.source_id
 		 WHERE x.quote='' OR instr(e.quote,x.quote)>0 OR instr(x.quote,e.quote)>0
 		 UNION SELECT l.from_id FROM memory_links l JOIN affected a ON l.to_id=a.id WHERE l.relation='derives_from'
 		 ) SELECT id FROM affected`, string(targetsJSON))

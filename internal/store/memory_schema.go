@@ -8,8 +8,15 @@ import (
 )
 
 func (s *Store) createMemorySchema() error {
-	for _, ddl := range []string{memorySchema, memoryQueryIndexes, memorySourceTriggers} {
-		if _, err := s.db.ExecContext(context.Background(), ddl); err != nil {
+	ctx := context.Background()
+	if _, err := s.db.ExecContext(ctx, memorySchema); err != nil {
+		return fmt.Errorf("create memory schema: %w", err)
+	}
+	if err := s.migrateMemoryJSON(ctx); err != nil {
+		return err
+	}
+	for _, ddl := range []string{memoryQueryIndexes, memorySourceTriggers} {
+		if _, err := s.db.ExecContext(ctx, ddl); err != nil {
 			return fmt.Errorf("create memory schema: %w", err)
 		}
 	}
@@ -25,18 +32,38 @@ CREATE TABLE IF NOT EXISTS memory_sources (
 );
 CREATE TABLE IF NOT EXISTS memory_records (
  id TEXT PRIMARY KEY, kind TEXT NOT NULL, content TEXT NOT NULL, scope TEXT NOT NULL,
- state TEXT NOT NULL, revision INTEGER NOT NULL, recorded_at TEXT NOT NULL, updated_at TEXT NOT NULL,
- valid_from TEXT NOT NULL DEFAULT '', valid_to TEXT NOT NULL DEFAULT '', excluded INTEGER NOT NULL DEFAULT 0,
- data TEXT NOT NULL
+ state TEXT NOT NULL, basis TEXT NOT NULL, revision INTEGER NOT NULL, recorded_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+ valid_from TEXT NOT NULL DEFAULT '', valid_to TEXT NOT NULL DEFAULT '', needs_review INTEGER NOT NULL DEFAULT 0,
+ pinned INTEGER NOT NULL DEFAULT 0, excluded INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS memory_revisions (
  record_id TEXT NOT NULL REFERENCES memory_records(id), revision INTEGER NOT NULL,
- at TEXT NOT NULL, reason TEXT NOT NULL, data TEXT NOT NULL, PRIMARY KEY(record_id,revision)
+ kind TEXT NOT NULL, content TEXT NOT NULL, scope TEXT NOT NULL, state TEXT NOT NULL, basis TEXT NOT NULL,
+ valid_from TEXT NOT NULL DEFAULT '', valid_to TEXT NOT NULL DEFAULT '', needs_review INTEGER NOT NULL DEFAULT 0,
+ pinned INTEGER NOT NULL DEFAULT 0, at TEXT NOT NULL, reason TEXT NOT NULL, PRIMARY KEY(record_id,revision)
 );
-CREATE TABLE IF NOT EXISTS memory_evidence (
- record_id TEXT NOT NULL REFERENCES memory_records(id), source_id TEXT NOT NULL REFERENCES memory_sources(id),
+-- A revision's evidence, entities, parents and resolved source IDs; rowid keeps
+-- their order.
+CREATE TABLE IF NOT EXISTS memory_revision_evidence (
+ record_id TEXT NOT NULL, revision INTEGER NOT NULL, source_id TEXT NOT NULL REFERENCES memory_sources(id),
  quote TEXT NOT NULL, relation TEXT NOT NULL CHECK(relation IN ('supports','contradicts')),
- PRIMARY KEY(record_id, source_id, quote, relation)
+ UNIQUE(record_id, revision, source_id, quote, relation),
+ FOREIGN KEY(record_id, revision) REFERENCES memory_revisions(record_id, revision)
+);
+CREATE TABLE IF NOT EXISTS memory_revision_entities (
+ record_id TEXT NOT NULL, revision INTEGER NOT NULL, entity TEXT NOT NULL,
+ UNIQUE(record_id, revision, entity),
+ FOREIGN KEY(record_id, revision) REFERENCES memory_revisions(record_id, revision)
+);
+CREATE TABLE IF NOT EXISTS memory_revision_parents (
+ record_id TEXT NOT NULL, revision INTEGER NOT NULL, parent_id TEXT NOT NULL REFERENCES memory_records(id),
+ UNIQUE(record_id, revision, parent_id),
+ FOREIGN KEY(record_id, revision) REFERENCES memory_revisions(record_id, revision)
+);
+CREATE TABLE IF NOT EXISTS memory_revision_sources (
+ record_id TEXT NOT NULL, revision INTEGER NOT NULL, source_id TEXT NOT NULL,
+ UNIQUE(record_id, revision, source_id),
+ FOREIGN KEY(record_id, revision) REFERENCES memory_revisions(record_id, revision)
 );
 CREATE TABLE IF NOT EXISTS memory_links (
  from_id TEXT NOT NULL REFERENCES memory_records(id), to_id TEXT NOT NULL REFERENCES memory_records(id),
@@ -109,7 +136,8 @@ CREATE TABLE IF NOT EXISTS memory_usage (
 CREATE INDEX IF NOT EXISTS idx_memory_jobs_ready ON memory_jobs(state,available_at,lease_until,id);
 CREATE INDEX IF NOT EXISTS idx_memory_sources_run ON memory_sources(run_id);
 CREATE INDEX IF NOT EXISTS idx_memory_sources_session ON memory_sources(session_id,recorded_at);
-CREATE INDEX IF NOT EXISTS idx_memory_evidence_source ON memory_evidence(source_id,record_id);
+CREATE INDEX IF NOT EXISTS idx_memory_revision_evidence_source ON memory_revision_evidence(source_id,record_id,revision);
+CREATE INDEX IF NOT EXISTS idx_memory_revision_sources_source ON memory_revision_sources(source_id,record_id,revision);
 CREATE INDEX IF NOT EXISTS idx_memory_links_parent ON memory_links(to_id,relation,from_id);
 CREATE INDEX IF NOT EXISTS idx_memory_source_links_parent ON memory_source_links(parent_id,source_id);
 CREATE INDEX IF NOT EXISTS idx_commitments_due ON commitments(state,wake_at);

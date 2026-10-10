@@ -2,9 +2,12 @@ package store
 
 var memoryRequiredTables = map[string][]string{
 	"memory_sources":           {"id", "kind", "object_id", "version", "speaker", "session_id", "run_id", "body", "recorded_at", "occurred_at"},
-	"memory_records":           {"id", "kind", "content", "scope", "state", "revision", "recorded_at", "updated_at", "valid_from", "valid_to", "excluded", "data"},
-	"memory_revisions":         {"record_id", "revision", "at", "reason", "data"},
-	"memory_evidence":          {"record_id", "source_id", "quote", "relation"},
+	"memory_records":           {"id", "kind", "content", "scope", "state", "basis", "revision", "recorded_at", "updated_at", "valid_from", "valid_to", "needs_review", "pinned", "excluded"},
+	"memory_revisions":         {"record_id", "revision", "kind", "content", "scope", "state", "basis", "valid_from", "valid_to", "needs_review", "pinned", "at", "reason"},
+	"memory_revision_evidence": {"record_id", "revision", "source_id", "quote", "relation"},
+	"memory_revision_entities": {"record_id", "revision", "entity"},
+	"memory_revision_parents":  {"record_id", "revision", "parent_id"},
+	"memory_revision_sources":  {"record_id", "revision", "source_id"},
 	"memory_links":             {"from_id", "to_id", "relation"},
 	"memory_entities":          {"id", "name"},
 	"memory_mentions":          {"record_id", "entity_id"},
