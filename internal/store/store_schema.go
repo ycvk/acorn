@@ -10,9 +10,6 @@ import (
 )
 
 func (s *Store) createSchema() error {
-	if err := s.dropLegacyKnowledgeIndex(); err != nil {
-		return err
-	}
 	if _, err := s.db.Exec(storeBootstrapTables); err != nil {
 		return fmt.Errorf("create sqlite schema (tables): %w", err)
 	}
