@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/cloudwego/eino/adk"
+	einomodel "github.com/cloudwego/eino/components/model"
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/config"
@@ -51,22 +52,22 @@ func TestStableInstructionJoinsPersonaAndRules(t *testing.T) {
 
 func TestBuildAgentHandlersOrder(t *testing.T) {
 	deps := handlerTestDeps(config.DefaultConfig())
-	req := agentRunnerRequest{RunID: "run_1", ChatModel: &scriptedModel{}, Instruction: "You are Acorn."}
+	req := agentRunnerRequest{RunID: "run_1", ChatModel: &scriptedModel{}, Instruction: "You are Acorn.", Memory: &runMemory{}}
 
 	withoutDeferred, err := buildAgentHandlers(context.Background(), deps, req, nil)
 	if err != nil {
 		t.Fatalf("handlers: %v", err)
 	}
-	if len(withoutDeferred) != 7 {
+	if len(withoutDeferred) != 8 {
 		t.Fatalf("handlers without deferred tools = %d, want patch, summarize, reduce, skill, presence, approval, tool errors", len(withoutDeferred))
 	}
-	if _, ok := withoutDeferred[4].(*presenceMiddleware); !ok {
-		t.Fatalf("presence must follow the skill handler, got %T at index 4", withoutDeferred[4])
+	if _, ok := withoutDeferred[5].(*presenceMiddleware); !ok {
+		t.Fatalf("presence must follow the skill handler, got %T at index 4", withoutDeferred[5])
 	}
-	if _, ok := withoutDeferred[5].(*approvalMiddleware); !ok {
+	if _, ok := withoutDeferred[6].(*approvalMiddleware); !ok {
 		t.Fatalf("approval must wrap the tool error handler, got %T at index 5", withoutDeferred[5])
 	}
-	if _, ok := withoutDeferred[6].(*toolErrorMiddleware); !ok {
+	if _, ok := withoutDeferred[7].(*toolErrorMiddleware); !ok {
 		t.Fatalf("tool error handler must be innermost, got %T at index 6", withoutDeferred[6])
 	}
 
@@ -74,7 +75,7 @@ func TestBuildAgentHandlersOrder(t *testing.T) {
 	if err != nil {
 		t.Fatalf("handlers: %v", err)
 	}
-	if len(withDeferred) != 8 {
+	if len(withDeferred) != 9 {
 		t.Fatalf("handlers with deferred tools = %d, want tool search added", len(withDeferred))
 	}
 }
@@ -82,7 +83,7 @@ func TestBuildAgentHandlersOrder(t *testing.T) {
 func TestBuildAgentHandlersRejectsBadApprovalPattern(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Approval.Require = []string{"["}
-	_, err := buildAgentHandlers(context.Background(), handlerTestDeps(cfg), agentRunnerRequest{ChatModel: &scriptedModel{}}, nil)
+	_, err := buildAgentHandlers(context.Background(), handlerTestDeps(cfg), agentRunnerRequest{ChatModel: &scriptedModel{}, Memory: &runMemory{}}, nil)
 	if err == nil {
 		t.Fatal("expected malformed approval pattern to fail handler assembly")
 	}
@@ -91,8 +92,11 @@ func TestBuildAgentHandlersRejectsBadApprovalPattern(t *testing.T) {
 func handlerTestDeps(cfg *config.Config) RuntimeDeps {
 	return RuntimeDeps{
 		Config:             cfg,
+		Memory:             handlerMemory{},
 		Store:              approvalHandlersStore{},
-		Presence:           newMemPresenceStore(),
+		Activity:           newMemPresenceStore(),
+		MemoryStore:        newMemPresenceStore(),
+		Commitments:        newMemPresenceStore(),
 		PhoneNotifications: newMemPresenceStore(),
 		Clock:              time.Now,
 		Location:           time.UTC,
@@ -119,3 +123,9 @@ func toolNames(t *testing.T, items []einotool.BaseTool) []string {
 }
 
 var _ adk.TypedChatModelAgentMiddleware[*schema.AgenticMessage] = (*approvalMiddleware)(nil)
+
+type handlerMemory struct{ MemoryContextService }
+
+func (handlerMemory) MeterCompaction(model einomodel.AgenticModel) einomodel.AgenticModel {
+	return model
+}

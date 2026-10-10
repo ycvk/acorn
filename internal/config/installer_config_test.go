@@ -9,8 +9,9 @@ import (
 )
 
 // TestInstallerConfigTemplateIsExecutionReady validates the shipped installation
-// configuration after the owner supplies a model key.
+// configuration after the owner supplies model and embedding keys.
 func TestInstallerConfigTemplateIsExecutionReady(t *testing.T) {
+	t.Setenv("VOYAGE_API_KEY", "voyage-test")
 	t.Setenv("OPENAI_API_KEY", "test")
 	body := extractInstallerConfigHeredoc(t, filepath.Join("..", "..", "scripts", "install-release.sh"))
 	dir := t.TempDir()
@@ -23,7 +24,7 @@ func TestInstallerConfigTemplateIsExecutionReady(t *testing.T) {
 		t.Fatalf("installer config heredoc must load against the current schema (drift?): %v", err)
 	}
 	if err := cfg.ValidateExecutionReady(); err != nil {
-		t.Fatalf("installer config must execute after setting the model key: %v", err)
+		t.Fatalf("installer config must execute after setting model and Voyage keys: %v", err)
 	}
 }
 

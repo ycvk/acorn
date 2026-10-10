@@ -20,59 +20,50 @@ func withUsage(reply string, total int) string {
 	return strings.Replace(reply, "data: [DONE]", chunk+"data: [DONE]", 1)
 }
 
-func TestThinkingNightSettlesMemoryAndRecordsProviderUsage(t *testing.T) {
+func TestThinkingNightRevisesThoughtWithEvidenceAndRecordsUsage(t *testing.T) {
 	ctx := context.Background()
 	start := time.Date(2026, 10, 9, 19, 0, 0, 0, time.UTC)
 	h, extra := newPushHarness(t, start)
-	provider := &fakeOpenAI{replies: []string{
-		withUsage(toolCallChunk("skill", "skill", map[string]string{"skill": "skill.night.reflection"}), 20),
-		withUsage(toolCallChunk("release", "settle", map[string]any{"id": 1, "action": "release"}), 20),
-		withUsage(toolCallChunk("renew", "settle", map[string]any{"id": 2, "action": "renew"}), 20),
-		withUsage(textReply("放下 1，内化 0，续期 1，完成 0。"), 20),
-	}}
+	provider := &fakeOpenAI{}
 	server := httptest.NewServer(provider)
 	defer server.Close()
 	cfg := writeTestConfig(t, server.URL, extra+"owner:\n  timezone: Asia/Shanghai\nbriefing:\n  at: \"\"\nthinking:\n  night_at: \"03:00\"\n")
 	installSeedSkill(t, cfg.WorkspaceRoot(), "night_reflection")
 	c := h.open(t, cfg)
 	defer c.Close()
-	for i, content := range []string{"obsolete idea", "still working on it", "owner quote"} {
-		kind, status := core.MemoryThought, core.MemoryActive
-		if i == 2 {
-			kind, status = core.MemorySaid, core.MemoryResting
-		}
-		if _, err := c.store.AddMemoryItem(ctx, core.MemoryItem{Kind: kind, Status: status, Content: content, CreatedAt: start.Add(-72 * time.Hour), ExpiresAt: start.Add(time.Hour)}); err != nil {
-			t.Fatal(err)
-		}
+	source, err := c.store.RegisterMemorySource(ctx, core.MemorySource{ID: "night-origin", Kind: "fixture", ObjectID: "night-origin", Version: "1", Speaker: "owner", Body: "review this idea", RecordedAt: start.Add(-72 * time.Hour)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	records, err := c.store.CommitMemory(ctx, core.MemoryMutation{Now: start, Changes: []core.MemoryChange{{Draft: core.MemoryDraft{Kind: "thought", Content: "obsolete idea", Evidence: []core.MemoryEvidence{{SourceID: source.ID, Quote: source.Content, Relation: "supports"}}}, Reason: "question"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	provider.replies = []string{
+		withUsage(toolCallChunk("skill", "skill", map[string]string{"skill": "skill.night.reflection"}), 20),
+		withUsage(toolCallChunk("release", "think", map[string]any{"id": records[0].ID, "revision": records[0].Revision, "state": "released", "content": "obsolete idea", "source_id": "message:1", "quote": "night reflection", "reason": "reviewed and no longer useful"}), 20),
+		withUsage(textReply("已放下这个念头。"), 20),
 	}
 	if err := c.wake.Tick(ctx); err != nil {
 		t.Fatal(err)
 	}
 	thread, err := c.store.LatestRoutineThread(ctx, "night")
 	if err != nil || thread == "" {
-		t.Fatalf("thread %q %v", thread, err)
+		t.Fatalf("thread=%q err=%v", thread, err)
 	}
 	run := waitNewRun(t, c, thread, "")
-	first, _ := c.store.LoadMemoryItem(ctx, 1)
-	second, _ := c.store.LoadMemoryItem(ctx, 2)
-	if first.Status != core.MemoryReleased || second.Status != core.MemoryActive || !second.ExpiresAt.After(start.Add(time.Hour)) {
-		t.Fatalf("memory %+v %+v", first, second)
-	}
-	messages := requestMessages(provider.request(0))
-	input := chatContentText(messages[len(messages)-2]["content"])
-	for _, want := range []string{"[night 2026-10-10]", "#1 thought active", "#2 thought active", "#3 said resting"} {
-		if !strings.Contains(input, want) {
-			t.Fatalf("input lacks %q: %s", want, input)
-		}
+	read, err := c.store.ReadMemory(ctx, records[0].ID)
+	if err != nil || read.Record.State != "released" || read.Record.Revision != 2 {
+		t.Fatalf("thought=%+v err=%v", read.Record, err)
 	}
 	events, err := c.store.LoadEvents(ctx, run.RunID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	usageCalls, wakes := 0, 0
+	calls, wakes := 0, 0
 	for _, event := range events {
 		if event.Kind == core.EventModelUsage {
-			usageCalls++
+			calls++
 			payload := event.Payload.(map[string]any)
 			if payload["total_tokens"] != float64(20) || payload["reported"] != true {
 				t.Fatalf("usage=%v", payload)
@@ -82,13 +73,13 @@ func TestThinkingNightSettlesMemoryAndRecordsProviderUsage(t *testing.T) {
 			wakes++
 		}
 	}
-	if usageCalls != 4 || wakes != 1 {
-		t.Fatalf("usage calls %d wakes %d", usageCalls, wakes)
+	if calls != 3 || wakes != 1 {
+		t.Fatalf("model calls=%d wakes=%d", calls, wakes)
 	}
 	if err := c.wake.Tick(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if provider.requestCount() != 4 || len(h.fcm.sent()) != 0 {
+	if provider.requestCount() != 3 || len(h.fcm.sent()) != 0 {
 		t.Fatal("night repeated or pushed")
 	}
 }
@@ -150,7 +141,7 @@ func TestThinkingPhoneNotificationsReachPresenceAndBriefing(t *testing.T) {
 	}
 	waitNewRun(t, c, brief, "")
 	msgs = requestMessages(provider.request(1))
-	input := chatContentText(msgs[len(msgs)-2]["content"])
+	input := chatContentText(msgs[len(msgs)-3]["content"])
 	if !strings.Contains(input, "Phone notifications since the last briefing") || !strings.Contains(input, "大促销") || !strings.Contains(input, "2799") {
 		t.Fatalf("briefing=%s", input)
 	}
@@ -183,7 +174,7 @@ func TestThinkingTokenBudgetAcrossOwnerDays(t *testing.T) {
 	}
 	add := func(text string) {
 		t.Helper()
-		if _, err := c.store.AddMemoryItem(ctx, core.MemoryItem{Kind: core.MemoryCommitment, Status: core.MemoryActive, Content: text, SessionID: thread.ID, WakeAt: h.clock.Now(), CreatedAt: start}); err != nil {
+		if _, err := c.store.AddCommitment(ctx, core.Commitment{State: "scheduled", Content: text, SessionID: thread.ID, WakeAt: h.clock.Now(), CreatedAt: start}); err != nil {
 			t.Fatal(err)
 		}
 	}

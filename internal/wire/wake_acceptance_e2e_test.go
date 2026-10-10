@@ -126,7 +126,7 @@ func (h *pushHarness) open(t *testing.T, cfg *config.Config) *Container {
 }
 
 // briefingOff keeps the morning briefing out of tests about commitments.
-const briefingOff = "briefing:\n  at: \"\"\n"
+const briefingOff = "briefing:\n  at: \"\"\nthinking:\n  night_at: \"\"\n"
 
 func registerPushToken(t *testing.T, c *Container, token string) {
 	t.Helper()
@@ -224,7 +224,7 @@ func TestCommitmentWakesAfterRestartAndNotifiesOwner(t *testing.T) {
 		toolCallChunk("call_w", "schedule_wake", map[string]string{"in": "72h", "task": "提醒 owner 看 X"}),
 		textReply("好的"),
 		toolCallChunk("call_n", "notify_owner", map[string]string{"title": "提醒", "body": "该看 X 了"}),
-		toolCallChunk("call_s", "settle", map[string]any{"id": 1, "action": "done"}),
+		toolCallChunk("call_s", "settle", map[string]any{"id": 1, "occurrence_id": 1, "action": "done", "source_id": "__notify_source__"}),
 		textReply("已提醒"),
 	}}
 	server := httptest.NewServer(provider)
@@ -243,11 +243,11 @@ func TestCommitmentWakesAfterRestartAndNotifiesOwner(t *testing.T) {
 		t.Fatalf("create run: %v", err)
 	}
 	waitRunStatus(t, first, run.ID, "completed")
-	commitments, err := first.store.ListMemoryItems(ctx, []core.MemoryStatus{core.MemoryActive})
+	commitments, err := first.store.ListCommitments(ctx, true)
 	if err != nil {
 		t.Fatalf("list memory: %v", err)
 	}
-	if len(commitments) != 1 || commitments[0].Kind != core.MemoryCommitment || !commitments[0].WakeAt.Equal(start.Add(72*time.Hour)) {
+	if len(commitments) != 1 || commitments[0].State != "scheduled" || !commitments[0].WakeAt.Equal(start.Add(72*time.Hour)) {
 		t.Fatalf("commitments = %+v", commitments)
 	}
 	if err := first.Close(); err != nil {
@@ -265,7 +265,7 @@ func TestCommitmentWakesAfterRestartAndNotifiesOwner(t *testing.T) {
 	messages := requestMessages(provider.request(2))
 	var sawWakeInput bool
 	for _, msg := range messages {
-		if msg["role"] == "user" && strings.Contains(fmt.Sprint(msg["content"]), "[commitment #1, made 2026-10-02 10:00] 提醒 owner 看 X") {
+		if msg["role"] == "user" && strings.Contains(fmt.Sprint(msg["content"]), "提醒 owner 看 X") {
 			sawWakeInput = true
 		}
 	}
@@ -276,7 +276,7 @@ func TestCommitmentWakesAfterRestartAndNotifiesOwner(t *testing.T) {
 	present := fmt.Sprint(last["content"])
 	if last["role"] != "system" || !strings.Contains(present, "<presence>") ||
 		!strings.Contains(present, "Woken by: commitment #1: 提醒 owner 看 X") ||
-		!strings.Contains(present, "#1 [due now") {
+		!strings.Contains(present, "#1 occurrence #1") {
 		t.Fatalf("last message is not the presence with the woken commitment: %v", last)
 	}
 
@@ -303,12 +303,12 @@ func TestCommitmentWakesAfterRestartAndNotifiesOwner(t *testing.T) {
 	if sent[0]["token"] != "device-token-1" || data["thread_id"] != thread.ID || data["run_id"] != woken.RunID {
 		t.Fatalf("fcm message = %v, want thread %s run %s", sent[0], thread.ID, woken.RunID)
 	}
-	item, err := second.store.LoadMemoryItem(ctx, 1)
+	item, err := second.store.LoadCommitment(ctx, 1)
 	if err != nil {
 		t.Fatalf("load commitment: %v", err)
 	}
-	if item.Status != core.MemorySettled {
-		t.Fatalf("commitment status = %s, want settled", item.Status)
+	if item.State != "completed" {
+		t.Fatalf("commitment status = %s, want settled", item.State)
 	}
 
 	if err := second.WakeScheduler().Tick(ctx); err != nil {
@@ -382,8 +382,8 @@ func TestCommitmentOfDeletedThreadWakesInReminders(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create thread: %v", err)
 	}
-	if _, err := c.store.AddMemoryItem(ctx, core.MemoryItem{
-		Kind: core.MemoryCommitment, Status: core.MemoryActive, Content: "看 X",
+	if _, err := c.store.AddCommitment(ctx, core.Commitment{
+		State: "scheduled", Content: "看 X",
 		SessionID: thread.ID, WakeAt: start.Add(-time.Minute), CreatedAt: start.Add(-time.Hour),
 	}); err != nil {
 		t.Fatalf("add commitment: %v", err)

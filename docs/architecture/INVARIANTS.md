@@ -6,7 +6,7 @@
 
 - **core 有零内部导入**：`internal/core` 不导入任何 `github.com/ycvk/acorn/internal/*` 包；core 是 Layer 0，只依赖外部 SDK（Eino schema/adk）。
   - `tests/architecture/dependency_direction_test.go`
-- **core 拥有 9 个 store 接口**：`SessionStore`/`IdentityStore`/`ArtifactStore`/`PresenceStore`/`NotificationStore`/`KnowledgeStore`/`WatchStore`/`RoutineStore`/`PhoneNotificationStore` 是 core 定义的 consumer-owned 持久化接口。
+- **core 拥有 11 个 store 接口**：`SessionStore`/`IdentityStore`/`ArtifactStore`/`MemoryStore`/`CommitmentStore`/`ActivityStore`/`NotificationStore`/`KnowledgeStore`/`WatchStore`/`RoutineStore`/`PhoneNotificationStore` 是 core 定义的 consumer-owned 持久化接口。
   - `internal/core/store.go`
   - `internal/core/presence.go`
   - `internal/core/knowledge.go`
@@ -15,7 +15,7 @@
 
 ## 运行时与编排
 
-- **每个 run 一个 Eino ChatModelAgent**：`buildAgentRunner` 组装 `adk.TypedRunner[*schema.AgenticMessage]{ChatModelAgent, EnableStreaming, CheckPointStore}`；handlers 依次为 patchtoolcalls → summarization → reduction(clear-only) → toolsearch(有 deferred 工具时) → skill → presence → approval → tool errors；工具串行执行（`ExecuteSequentially`），普通工具失败与未知工具调用作为模型可见的 tool result 返回。Executor 只负责把 `AgentEvent` 投影成 RunEvent。
+- **每个 run 一个 Eino ChatModelAgent**：`buildAgentRunner` 组装 `adk.TypedRunner[*schema.AgenticMessage]{ChatModelAgent, EnableStreaming, CheckPointStore}`；handlers 依次为 memory visibility → patchtoolcalls → summarization → reduction(clear-only) → toolsearch(有 deferred 工具时) → skill → presence → approval → tool errors；工具串行执行（`ExecuteSequentially`），普通工具失败与未知工具调用作为模型可见的 tool result 返回。Executor 只负责把 `AgentEvent` 投影成 RunEvent。
   - `internal/runtime/agent_test.go`
   - `internal/runtime/events_test.go`
 - **模型使用原生协议并保留推理状态**：Responses、Chat Completions、Anthropic Messages 都经 Eino AgenticModel；推理内容块与签名参与下一轮工具结果回传和 checkpoint，公开事件投影不含签名。sampling 可省略，输出预算和上下文按模型能力验证。请求空闲超时随响应进度刷新，总请求与 run 时限可关闭。
@@ -34,9 +34,11 @@
 
 ## 持久化与 store 边界
 
-- **SQLite adapter 不跨层泄漏**：production 代码只允许 `internal/wire/container.go` 直接 import `internal/store`；其他包只依赖 consumer-owned ports（`core.SessionStore`/`core.IdentityStore`/`core.ArtifactStore`/`core.PresenceStore`/`core.NotificationStore`/`core.KnowledgeStore`/`core.WatchStore`）或 `internal/store` shared records/errors。
+- **SQLite adapter 不跨层泄漏**：production 代码只允许 `internal/wire` 直接 import `internal/store`；其他包只依赖 consumer-owned ports（`core.SessionStore`/`core.IdentityStore`/`core.ArtifactStore`/`core.MemoryStore`/`core.CommitmentStore`/`core.ActivityStore`/`core.NotificationStore`/`core.KnowledgeStore`/`core.WatchStore`）或 `internal/store` shared records/errors。
   - `tests/architecture/dependency_direction_test.go`
-- **时间由调用方给出**：`memory_items` 的 created_at/updated_at 与 `notifications` 的 created_at 由写入方的时钟决定，store 拒绝缺少时间的写入；时钟只在组合根注入，工具、presence、wake 调度器与推送 sender 共用一个。
+- **写入单连接，记忆读取并行**：所有写入与事务经一个 SQLite 连接串行执行；记忆召回与整合候选的读取走 `query_only` 的 WAL 只读连接池，写事务进行中也能读到已提交的数据，只读池拒绝写入。
+  - `internal/store/store_read_pool_test.go`
+- **时间由调用方给出**：记忆与约定的 created_at/recorded_at/updated_at 与 `notifications` 的 created_at 由写入方的时钟决定，store 拒绝缺少时间的写入；时钟只在组合根注入，工具、presence、wake 调度器与推送 sender 共用一个。
   - `internal/store/store_presence_test.go`
   - `internal/wire/wake_acceptance_e2e_test.go`
 - **Consumer-owned store 接口收敛**：`internal/runtime` + `internal/wire` 顶层定义的 consumer-owned store 接口（Store/Port/Repository/Ledger）≤4（RuntimeStore）。
@@ -50,12 +52,23 @@
   - `internal/runtime/agent_test.go`
   - `internal/runtime/skill_backend_test.go`
   - `internal/presence/presence_test.go`
-- **“当下”只存在于单次模型调用**：presence middleware 用 `WrapModel` 在每次模型调用的输入末尾追加 `<presence>` system 消息（owner 时区的时间、唤醒原因、约定、念头、owner 原话、倾向、关切、暂歇条目），不写回 agent 状态，因此不会进入历史或被总结。渲染前先执行衰减；超过 `presence.max_tokens` 时先丢最旧的手机通知、再丢暂歇条目和各类最旧记忆条目，woken 约定永不丢弃。每个不同的渲染结果按哈希存入 `context_snapshots`，并记一条 `presence.snapshot` 事件。
+- **临时上下文有独立预算和来源**：每次模型调用追加 `<memory_context>` 与 `<presence>`；保存上下文快照及 source/record 引用。近期原文与线程摘要按 token 选择,最终模型输入检查容量。念头、关切和约定按各自生命周期显示。
+  - `internal/runtime/memory_visibility_test.go`
   - `internal/runtime/presence_test.go`
-  - `internal/presence/presence_test.go`
-- **工作记忆只有一条衰减路径**：`memory_items` 中的 said/thought/tendency/ruler 到期未续期时，由 `presence.Decay` 从 active 变为 resting，再变为 sunk；commitment 不衰减。续期、内化、放下、完成约定都只经 `settle` 工具。
-  - `internal/presence/presence_test.go`
-  - `internal/tools/presence_tools_test.go`
+  - `internal/memory/context_test.go`
+- **事实修订保留历史，来源排除约束所有读取**：精确证据引用、revision CAS、known_at 与 as_of 分离；更正使派生认识待复核。遗忘事务处理来源片段、派生记录、向量和摘要；旧 worker、checkpoint 与模型输入受 epoch 约束。确认前等待受影响的在途 run 退出。
+  - `internal/store/memory_contract_test.go`
+  - `internal/store/memory_state_test.go`
+  - `internal/runtime/memory_visibility_test.go`
+- **后台处理可恢复，外部调用可计量**：来源与任务原子登记、租约 token 和游标防止重复/过期提交；每个模型、embedding 与压缩调用按预算记录用量。索引模型与维度匹配方可检索，离线维护使用独占数据目录锁。
+  - `internal/memory/process_test.go`
+  - `internal/store/memory_index_test.go`
+  - `internal/store/memory_vector_quality_test.go`
+  - `internal/store/memory_vector_history_test.go`
+  - `internal/store/memory_aliases_test.go`
+  - `internal/memory/read_test.go`
+- **知识记忆绑定不可变版本**：Git 提交游标登记知识来源，展开读取对应 Git 对象；agent 输出保留来源关系，后续派生输出继承已提交的遗忘。agent 知识工具过滤排除，owner 的原文读取保留。
+  - `internal/knowledge/memory_sources_test.go`
 
 ## 知识库与 Capture
 
@@ -85,11 +98,11 @@
 
 ## 约定与唤醒
 
-- **约定只由 wake 调度器触发，且只触发一次**：`wake.Scheduler` 住在 `serve` 进程内，每 30 秒先执行衰减，再处理到期的约定（`memory_items` 中 kind 为 commitment）。`ClaimDueCommitment` 用条件更新把 active 改为 woken，多个调度器并发时只有一个成功；随后经 `RunService.CreateWakeRun` 在约定所属线程里起 run（线程已删除时新建 Reminders 线程），并在该 run 上记录 `wake.fired`。醒来的输入以 role `wake` 记入线程：模型把它当作 user 消息读取，客户端把它和 owner 自己写的消息分开显示。起 run 失败时约定回到 active，唤醒时间推后 5 分钟。带 cron 的约定在触发后插入下一次的 active 条目。
+- **约定发生只认领一次，执行前绑定来源**：约定规则与 occurrence 独立。条件认领后，Executor 在模型调用前绑定执行 run；周期沿同一规则排下一次。五分钟未绑定的认领可恢复，迟到启动受状态校验拦截。完成约定必须引用 owner 确认或成功执行结果。
+  - `internal/store/commitment_contract_test.go`
   - `internal/wake/scheduler_test.go`
-  - `internal/store/store_presence_test.go`
   - `internal/wire/wake_acceptance_e2e_test.go`
-- **每日唤醒上限按 owner 时区计算**：`wake.daily_limit` 限制 owner 本地每天的唤醒次数，计数来自 events 表中当天的 `wake.fired`，重启后依然有效；超限的约定留在 active，次日再处理；为 0 时关闭自主唤醒。
+- **每日唤醒上限按 owner 时区计算**：`wake.daily_limit` 限制 owner 本地每天的唤醒次数，计数来自 events 表中当天的 `wake.fired`，重启后依然有效；超限的约定保持 scheduled，次日再处理；为 0 时关闭自主唤醒。
   - `internal/wake/scheduler_test.go`
 - **推送有上限、守免打扰、随设备失效**：`notify_owner` 经 `notify.Sender` 发送；每小时超过 `notify.max_per_hour` 时返回错误；免打扰时段内的通知排队到时段结束，由 wake 调度器每次 tick 发出；没有任何已登记设备时返回错误。一个 FCM token 只归最近登记它的设备（同一部手机重新配对不会收到重复推送）；FCM 回 404 或 UNREGISTERED 的 token 被删除，设备吊销时其 push token 一并删除。至少一台设备收到即记 sent，否则记 failed 并返回错误。未配置服务账号时工具以 disabled 注册并给出原因。
   - `internal/notify/notify_test.go`
@@ -98,12 +111,13 @@
   - `internal/wire/wake_acceptance_e2e_test.go`
 - **Decision Card 扩展 ask_operator payload**：`OperatorQuestionPayload` 增 `considered_options/rationale/risk/recommendation` 可选维度。它给 `ask_operator` 的提问补上决策依据；工具调用审批由 `approval.require` 规则和 approval middleware 负责。
   - `internal/core/decision_card_test.go`
-- **经历检索覆盖 run 和工作记忆**：`recall` 工具调用 `SearchExperience`，用 FTS5 trigram 检索 `runs` 的输入输出和全部 `memory_items`；少于 3 个字的查询改走 LIKE。FTS 表上线前的 run 在打开数据库时回填一次。
-  - `internal/store/store_presence_test.go`
-  - `internal/tools/presence_tools_test.go`
-
-## 追踪项与早安卡
-
+- **记忆检索融合四路候选**：关键词、向量、关系与时间采用 RRF 排名，deep 调用主模型核对相关性；结果保留事实、认识、念头的类型和来源。当前状态、历史已知时间、有效时间与线程范围分别过滤；语义候选在排名前选定对应 revision，明确别名按来源和范围展开；未整理来源及数量显式返回。
+  - `internal/store/memory_state_test.go`
+  - `internal/memory/process_test.go`
+  - `internal/memory/live_evaluation_test.go`
+  - `internal/memory/consolidation_revision_test.go`
+  - `internal/memory/semantic_history_test.go`
+  - `internal/memory/research_evaluation_test.go`
 - **追踪项只报新东西**：`watch_create` 的首次抓取失败则不建立；成功的首次检查只建基线（条目记 baseline），之后的检查才产生新条目。条目按 (watch, key) 唯一，同一条目只入库一次；网页类追踪项比较选中内容的快照，变化产生一条带前后值的条目，回到旧值同样算变化。
   - `internal/watch/watch_test.go`
   - `internal/store/store_watch_test.go`
@@ -136,7 +150,7 @@
   - `internal/presence/phone_notifications_test.go`
   - `internal/wake/thinking_test.go`
   - `internal/store/store_routine_test.go`
-- **自主预算按调用时间计**：当日本地零点起的 `model.usage` 累计,关联 run 的 `wake.fired` 判定自主用量;早安卡与 owner 运行不计。成功主模型调用逐次记录,缺失 usage 可观察,不改变 live 契约。
+- **自主预算按调用时间计**：当日本地零点起的 `model.usage` 累计,关联 run 的 `wake.fired` 判定自主用量;早安卡与 owner 运行不计。主模型成功调用与记忆处理/召回/摘要/压缩各次尝试分别计量,缺失 usage 可观察,不改变 live 契约。
   - `internal/runtime/usage_test.go`
   - `internal/store/store_phone_notifications_test.go`
   - `internal/wire/thinking_acceptance_e2e_test.go`

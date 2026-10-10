@@ -76,6 +76,7 @@ func expandConfigEnv(cfg *Config) {
 	for i := range cfg.Providers {
 		cfg.Providers[i].APIKey = os.ExpandEnv(cfg.Providers[i].APIKey)
 	}
+	cfg.Memory.Embedding.APIKey = os.ExpandEnv(cfg.Memory.Embedding.APIKey)
 	cfg.WebAccess.Search.APIKey = os.ExpandEnv(cfg.WebAccess.Search.APIKey)
 	cfg.Watch.GitHubToken = os.ExpandEnv(cfg.Watch.GitHubToken)
 }

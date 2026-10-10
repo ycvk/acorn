@@ -1,12 +1,12 @@
 ---
 title: Self-hosted onboarding
 status: current
-last_reviewed: 2026-10-03
+last_reviewed: 2026-10-09
 ---
 
 # Self-hosted Onboarding
 
-Acorn's primary product path is a single-user self-hosted backend with authenticated mobile clients. The backend owns runtime truth: threads, runs, events, pending approvals, the agent's working memory and commitments, the knowledge base, and skills.
+Acorn's primary product path is a single-user self-hosted backend with authenticated mobile clients. The backend owns runtime truth: threads, runs, events, pending approvals, sourced personal memories and commitments, the knowledge base, and skills.
 
 This path installs Acorn as a Linux binary managed by `systemd`. It does not create a hosted account, public unauthenticated API, multi-user boundary, Docker service, or packaged execution sandbox.
 
@@ -43,13 +43,13 @@ The default environment file is:
 /root/.acorn/acorn.env
 ```
 
-If you pass the provider key at install time, the script starts the service immediately:
+If you pass both the model and Voyage keys at install time, the script starts the service immediately:
 
 ```bash
-curl -fsSL https://github.com/ycvk/acorn/releases/latest/download/install-release.sh | OPENAI_API_KEY=your-provider-key sh
+curl -fsSL https://github.com/ycvk/acorn/releases/latest/download/install-release.sh | OPENAI_API_KEY=your-provider-key VOYAGE_API_KEY=your-voyage-key sh
 ```
 
-Without `OPENAI_API_KEY`, the script installs files only. Edit the env file and start the service yourself:
+Without both keys, the script installs files only. Edit the env file and start the service yourself:
 
 ```bash
 sudoedit ~/.acorn/acorn.env
@@ -60,6 +60,7 @@ The env file is intentionally small:
 
 ```dotenv
 OPENAI_API_KEY=your-provider-key
+VOYAGE_API_KEY=your-voyage-key
 ```
 
 ## Model configuration
@@ -79,6 +80,42 @@ Set `context.window_tokens` to the chosen model's context window and `providers[
 `runtime.run_timeout_seconds` and provider `timeout_seconds` default to 0, which leaves the total duration unrestricted. `idle_timeout_seconds` defaults to 300 and resets when response data arrives; 0 disables it. Runs remain cancellable from the app, and `agent.max_iterations` defaults to 100. `wake.daily_tokens: 0` leaves the autonomous token budget unrestricted; `wake.daily_limit` still limits the number of autonomous wakes.
 
 The provider output setting is `max_output_tokens`. Update the YAML before starting this version. Complete pending runs before upgrading the runtime so every resumed checkpoint uses the current AgenticMessage format.
+
+## Personal memory
+
+Ordinary owner messages, observed tool outcomes and tracked changes become immutable source references. A durable background queue extracts concise facts, creates Voyage embeddings and reconciles related evidence. Facts keep their validity until evidence changes them. Understandings retain their supporting records; thoughts and ongoing concerns have explicit progress states.
+
+Every run loads recent conversation within a token budget, summarizes older messages with source IDs and automatically recalls related memories. Ask for a memory's source to inspect its original version. An explicit “remember this” saves synchronously. Corrections retain the earlier version and the date the correction took effect. “Forget this” removes the selected content from future agent recall, summaries and derived context; original chat and knowledge files remain available to the owner.
+
+The defaults use `voyage-4` with 1024 dimensions:
+
+```yaml
+memory:
+  daily_tokens: 100000
+  batch_tokens: 8192
+  context_tokens: 8192
+  history_tokens: 32768
+  embedding:
+    base_url: https://api.voyageai.com/v1
+    api_key: ${VOYAGE_API_KEY}
+    model: voyage-4
+    dimensions: 1024
+```
+
+`daily_tokens` bounds background memory processing; 0 is unlimited. Processing pauses until the next owner-local day when its budget is exhausted. Run-time retrieval, thread summaries and compaction are recorded against that run. `acorn doctor` shows pending and failed processing, oldest queued work, the last completed job, the index generation and its state. A missing model or Voyage key leaves pairing and diagnostics available while execution reports its readiness error.
+
+Before upgrading the memory schema, finish or explicitly cancel active and interrupted runs, then stop Acorn. Use the candidate release binary to run `./acorn memory preflight -c ~/.acorn/acorn.yaml --json` before replacing the installed executable. This checks SQLite integrity and pending work through a read-only connection. Startup migrates stored memories and appointment states transactionally; queued historical processing continues after startup. Existing owner data, persona, devices and knowledge files retain their ownership. An existing installer environment file is preserved; add `VOYAGE_API_KEY` to it before enabling execution.
+
+To change embedding model or dimensions, edit the configuration, stop all Acorn processes and rebuild:
+
+```bash
+sudo systemctl stop acorn
+acorn memory reindex
+acorn doctor
+sudo systemctl start acorn
+```
+
+Reindex uses an exclusive data-directory lock. An interrupted rebuild retains its generation and processing progress; invoke the same command to resume it. Queries become available once every current record has a vector for the configured model and dimensions. Retrieval failures identify the failed stage, and memory saving is confirmed only after persistence succeeds.
 
 ## 2. Installer Options
 
@@ -414,7 +451,7 @@ sudo systemctl start acorn
 
 ## Idle Thinking and Phone Notifications
 
-Night reflection runs once per owner-local day at `thinking.night_at`. It reviews working memory in the Thoughts thread and uses `settle` to release, renew, internalize or finish entries. Idle-thought slots use the same thread and concentrate on one unresolved matter at a time.
+Night reflection runs once per owner-local day at `thinking.night_at`. It reviews changed evidence, understandings awaiting review, open thoughts, concerns and unfinished appointment occurrences in the Thoughts thread. `think` records or ends a thought; `concern` records progress and review time; `settle` completes an occurrence with execution evidence. Idle-thought slots advance one due open concern at a time.
 
 ```yaml
 wake:

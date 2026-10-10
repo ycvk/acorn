@@ -87,18 +87,30 @@ func (e *Executor) ExecuteMessages(ctx context.Context, req core.ExecuteRequest,
 	if err := e.createBoundRun(ctx, runID, req); err != nil {
 		return nil, err
 	}
-	runCtxBase, cleanup := e.newManagedRunContext(ctx, runID)
+	if err := e.runRuntime.deps.MemoryStore.LinkRunInputSources(ctx, runID, req.SourceIDs); err != nil {
+		return nil, e.failSetupOrErr(ctx, runID, err, sink)
+	}
+	if req.Commitment != nil {
+		if err := e.runRuntime.deps.Commitments.StartCommitmentOccurrence(ctx, req.Commitment.Occurrence, runID, req.Commitment.Next, e.runRuntime.deps.Clock()); err != nil {
+			return nil, e.failSetupOrErr(ctx, runID, err, sink)
+		}
+	}
+	runCtxBase, cleanup, err := e.newManagedRunContext(ctx, runID)
+	if err != nil {
+		return nil, e.failSetupOrErr(ctx, runID, err, sink)
+	}
 	defer cleanup()
 	if err := e.emitRunStarted(ctx, runID, req.Input, sink); err != nil {
 		return nil, err
 	}
+	runCtxBase = memoryScope(runCtxBase, runID, req.Autonomous)
 	active, err := e.buildExecuteRunner(runCtxBase, req, runID, sink)
 	if err != nil {
 		return nil, e.failSetupOrErr(ctx, runID, err, sink)
 	}
 	defer active.Close()
 	execCtx := core.WithWake(buildExecutionContext(runCtxBase, runID, req.SessionID), req.Wake)
-	iter := active.Runner.Run(execCtx, req.Messages, adk.WithCheckPointID(runID))
+	iter := active.Runner.Run(execCtx, active.Memory.messages(), adk.WithCheckPointID(runID))
 	return e.consume(ctx, runID, req.SessionID, req.Input, iter, sink, active)
 }
 
@@ -126,11 +138,16 @@ func (e *Executor) buildExecuteRunner(runCtxBase context.Context, req core.Execu
 		RunID:     runID,
 		Input:     req.Input,
 		SkillID:   req.SkillID,
+		Wake:      req.Wake,
 		Sink:      sink,
 	})
 }
 
-func (e *Executor) newManagedRunContext(ctx context.Context, runID string) (context.Context, func()) {
+func (e *Executor) newManagedRunContext(ctx context.Context, runID string) (context.Context, func(), error) {
+	epoch, err := e.runRuntime.deps.MemoryStore.MemoryEpoch(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
 	runTimeout := time.Duration(e.runRuntime.Config().Runtime.RunTimeoutSeconds) * time.Second
 	var runCtxBase context.Context
 	var cancel context.CancelFunc
@@ -140,10 +157,12 @@ func (e *Executor) newManagedRunContext(ctx context.Context, runID string) (cont
 		runCtxBase, cancel = context.WithCancel(ctx)
 	}
 	unregister := e.controller.Register(runID, cancel)
-	return runCtxBase, func() {
-		unregister()
-		cancel()
-	}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		watchRunMemory(runCtxBase, e.runRuntime.deps.MemoryStore, runID, epoch, cancel)
+	}()
+	return runCtxBase, func() { cancel(); <-done; unregister() }, nil
 }
 
 // resumeWake is what the present shows when a run continues after the owner
@@ -162,7 +181,10 @@ func (e *Executor) ResumeWithTargets(ctx context.Context, runID string, targets 
 	if err := e.store.ResumeInterruptedRun(ctx, runID); err != nil {
 		return nil, err
 	}
-	runCtxBase, cleanup := e.newManagedRunContext(ctx, runID)
+	runCtxBase, cleanup, err := e.newManagedRunContext(ctx, runID)
+	if err != nil {
+		return nil, e.failSetupOrErr(ctx, runID, err, sink)
+	}
 	defer cleanup()
 	if err := e.emitRunResumeRequested(ctx, runID, targets, sink); err != nil {
 		return nil, err
@@ -171,6 +193,18 @@ func (e *Executor) ResumeWithTargets(ctx context.Context, runID string, targets 
 }
 
 func (e *Executor) executeResume(ctx context.Context, runCtxBase context.Context, run core.RunRecord, runID string, targets map[string]any, sink core.StreamSink) (*Result, error) {
+	sources, err := e.runRuntime.deps.MemoryStore.RunMemorySources(ctx, runID)
+	if err != nil {
+		return nil, err
+	}
+	autonomous := true
+	for _, source := range sources {
+		if source.Kind == "message" && source.Speaker == "owner" {
+			autonomous = false
+			break
+		}
+	}
+	runCtxBase = memoryScope(runCtxBase, runID, autonomous)
 	active, err := e.runRuntime.New(runCtxBase, RunnerBuildRequest{
 		SessionID: run.SessionID,
 		RunID:     runID,

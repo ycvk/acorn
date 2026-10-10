@@ -60,7 +60,34 @@ func (f *fakeOpenAI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/event-stream")
-	_, _ = io.WriteString(w, f.replies[index])
+	reply := f.replies[index]
+	if strings.Contains(reply, "__notify_source__") {
+		for _, msg := range requestMessages(request) {
+			if msg["role"] != "system" {
+				continue
+			}
+			content := chatContentText(msg["content"])
+			if !strings.HasPrefix(content, "<memory_context>") {
+				continue
+			}
+			var memoryContext struct {
+				Current []struct {
+					ID   string `json:"id"`
+					Tool string `json:"tool"`
+				} `json:"current_run_sources"`
+			}
+			if err := json.Unmarshal([]byte(strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(content, "<memory_context>"), "</memory_context>"))), &memoryContext); err != nil {
+				http.Error(w, err.Error(), 500)
+				return
+			}
+			for _, source := range memoryContext.Current {
+				if source.Tool == "notify_owner" {
+					reply = strings.ReplaceAll(reply, "__notify_source__", source.ID)
+				}
+			}
+		}
+	}
+	_, _ = io.WriteString(w, reply)
 }
 
 func (f *fakeOpenAI) request(i int) map[string]any {
@@ -116,6 +143,10 @@ providers:
     timeout_seconds: 10
     max_output_tokens: 512
     enabled: true
+memory:
+  embedding:
+    api_key: fixture
+    base_url: http://127.0.0.1:1
 tools:
   workspace:
     root_dir: %s

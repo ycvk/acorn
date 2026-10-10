@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ycvk/acorn/internal/config"
+	"github.com/ycvk/acorn/internal/store"
 )
 
 func TestModelStreamIdleDeadlineTracksProgress(t *testing.T) {
@@ -56,8 +57,16 @@ func TestModelStreamIdleDeadlineCancelsStall(t *testing.T) {
 }
 
 func TestRunDeadlineOptional(t *testing.T) {
-	executor := &Executor{runRuntime: &RunnerFactory{deps: RuntimeDeps{Config: config.DefaultConfig()}}, controller: NewRunController()}
-	ctx, cancel := executor.newManagedRunContext(context.Background(), "run_deadline")
+	db, err := store.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	executor := &Executor{runRuntime: &RunnerFactory{deps: RuntimeDeps{Config: config.DefaultConfig(), MemoryStore: db}}, controller: NewRunController()}
+	ctx, cancel, err := executor.newManagedRunContext(context.Background(), "run_deadline")
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer cancel()
 	if _, ok := ctx.Deadline(); ok {
 		t.Fatal("zero run timeout imposed a deadline")

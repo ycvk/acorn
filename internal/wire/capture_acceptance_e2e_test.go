@@ -164,7 +164,7 @@ func TestSharedLinkBecomesACommittedNote(t *testing.T) {
 		t.Fatalf("web_fetch result = %q", fetched)
 	}
 	first := requestMessages(provider.request(0))
-	if input := first[len(first)-2]; !strings.HasPrefix(chatContentText(input["content"]), "[capture] shared from the owner's phone\nSubject: Tokio work stealing\nLink: "+link) {
+	if input := first[len(first)-3]; !strings.HasPrefix(chatContentText(input["content"]), "[capture] shared from the owner's phone\nSubject: Tokio work stealing\nLink: "+link) {
 		t.Fatalf("model input = %v", input)
 	}
 

@@ -18,6 +18,13 @@ func (s *Store) UsageReport(ctx context.Context, since time.Time) (core.UsageRep
 	if err != nil {
 		return report, fmt.Errorf("model usage report: %w", err)
 	}
+	var autonomous, total, unreported int
+	if err := s.db.QueryRowContext(ctx, `SELECT COALESCE(SUM(CASE WHEN budget='autonomous' THEN input_tokens+output_tokens ELSE 0 END),0),COALESCE(SUM(input_tokens+output_tokens),0),COALESCE(SUM(CASE WHEN reported=0 THEN 1 ELSE 0 END),0) FROM memory_usage WHERE created_at>=?`, formatTimestamp(since)).Scan(&autonomous, &total, &unreported); err != nil {
+		return report, fmt.Errorf("memory usage report: %w", err)
+	}
+	report.AutonomousTokens += autonomous
+	report.TotalTokens += total
+	report.UnreportedCalls += unreported
 	return report, nil
 }
 

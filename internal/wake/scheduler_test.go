@@ -13,79 +13,14 @@ import (
 	"github.com/ycvk/acorn/internal/store"
 )
 
-// memStore is an in-memory PresenceStore and EventAppender. Wakes are counted
-// from appended wake.fired events, like the SQLite store does.
+// memStore captures emitted wake events and autonomous usage.
 type memStore struct {
 	mu      sync.Mutex
-	items   []core.MemoryItem
 	wakes   []time.Time
 	clock   func() time.Time
 	events  []string
 	tokens  int
 	usageAt time.Time
-}
-
-func (s *memStore) AddMemoryItem(_ context.Context, item core.MemoryItem) (core.MemoryItem, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	item.ID = int64(len(s.items) + 1)
-	s.items = append(s.items, item)
-	return item, nil
-}
-
-func (s *memStore) ListMemoryItems(_ context.Context, statuses []core.MemoryStatus) ([]core.MemoryItem, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	var out []core.MemoryItem
-	for _, item := range s.items {
-		for _, status := range statuses {
-			if item.Status == status {
-				out = append(out, item)
-			}
-		}
-	}
-	return out, nil
-}
-
-func (s *memStore) LoadMemoryItem(_ context.Context, id int64) (*core.MemoryItem, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	item := s.items[id-1]
-	return &item, nil
-}
-
-func (s *memStore) UpdateMemoryItem(_ context.Context, item core.MemoryItem) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.items[item.ID-1] = item
-	return nil
-}
-
-func (s *memStore) ListDueCommitments(_ context.Context, now time.Time) ([]core.MemoryItem, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	var out []core.MemoryItem
-	for _, item := range s.items {
-		if item.Kind == core.MemoryCommitment && item.Status == core.MemoryActive && !item.WakeAt.After(now) {
-			out = append(out, item)
-		}
-	}
-	return out, nil
-}
-
-func (s *memStore) ClaimDueCommitment(_ context.Context, id int64, now time.Time) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	item := &s.items[id-1]
-	if item.Status != core.MemoryActive || item.WakeAt.After(now) {
-		return fmt.Errorf("%w: %d", core.ErrMemoryItemNotDue, id)
-	}
-	item.Status = core.MemoryWoken
-	return nil
-}
-
-func (s *memStore) SearchExperience(context.Context, string, int) ([]core.ExperienceHit, error) {
-	return nil, nil
 }
 
 func (s *memStore) SaveContextSnapshot(context.Context, string, string) error { return nil }
@@ -113,12 +48,14 @@ func (s *memStore) AppendEvent(_ context.Context, runID, kind string, _ any) (co
 }
 
 type fakeRuns struct {
-	mu     sync.Mutex
-	starts []string // threadID|wake|input
-	fail   error
+	commitments core.CommitmentStore
+	clock       func() time.Time
+	mu          sync.Mutex
+	starts      []string // threadID|wake|input
+	fail        error
 }
 
-func (r *fakeRuns) StartRoutineRun(_ context.Context, threadID, title, wake, input string) (string, string, error) {
+func (r *fakeRuns) StartRoutineRun(_ context.Context, threadID, title, input string, wake core.ScheduledWake) (string, string, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.fail != nil {
@@ -127,18 +64,24 @@ func (r *fakeRuns) StartRoutineRun(_ context.Context, threadID, title, wake, inp
 	if threadID == "" {
 		threadID = "thread_" + strings.ToLower(title)
 	}
-	r.starts = append(r.starts, threadID+"|"+wake+"|"+input)
+	r.starts = append(r.starts, threadID+"|"+wake.Reason+"|"+input)
 	return threadID, fmt.Sprintf("run_%d", len(r.starts)), nil
 }
 
-func (r *fakeRuns) StartWakeRun(_ context.Context, threadID, wake, input string) (string, error) {
+func (r *fakeRuns) StartWakeRun(ctx context.Context, threadID, input string, wake core.ScheduledWake) (string, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.fail != nil {
 		return "", r.fail
 	}
-	r.starts = append(r.starts, threadID+"|"+wake+"|"+input)
-	return fmt.Sprintf("run_%d", len(r.starts)), nil
+	r.starts = append(r.starts, threadID+"|"+wake.Reason+"|"+input)
+	runID := fmt.Sprintf("run_%d", len(r.starts))
+	if commitment := wake.Commitment; commitment != nil {
+		if err := r.commitments.StartCommitmentOccurrence(ctx, commitment.Occurrence, runID, commitment.Next, r.clock()); err != nil {
+			return "", err
+		}
+	}
+	return runID, nil
 }
 
 type harness struct {
@@ -172,10 +115,12 @@ func newHarnessWith(t *testing.T, limit int, briefing Briefing) *harness {
 			t.Error(err)
 		}
 	})
+	h.runs.commitments = h.data
+	h.runs.clock = func() time.Time { return h.now }
 	h.store = &memStore{clock: func() time.Time { return h.now }}
 	h.checker = &fakeChecker{watches: h.watches, found: map[int64][]core.WatchItem{}, clock: func() time.Time { return h.now }}
 	h.sched, err = NewScheduler(Config{
-		Store: h.store, Events: h.store, Runs: h.runs, Watches: h.watches, Checker: h.checker,
+		Store: h.store, Commitments: h.data, Memory: h.data, Events: h.store, Runs: h.runs, Watches: h.watches, Checker: h.checker,
 		Clock: func() time.Time { return h.now }, Location: loc, DailyLimit: limit,
 		MaxChecksPerTick: 5, Briefing: briefing, Interval: time.Second,
 		DailyTokens: 300000, Routines: h.data, PhoneNotifications: h.data,
@@ -186,10 +131,10 @@ func newHarnessWith(t *testing.T, limit int, briefing Briefing) *harness {
 	return h
 }
 
-func (h *harness) commit(t *testing.T, content string, wakeAt time.Time, recurrence string) core.MemoryItem {
+func (h *harness) commit(t *testing.T, content string, wakeAt time.Time, recurrence string) core.Commitment {
 	t.Helper()
-	item, err := h.store.AddMemoryItem(context.Background(), core.MemoryItem{
-		Kind: core.MemoryCommitment, Status: core.MemoryActive, Content: content,
+	item, err := h.data.AddCommitment(context.Background(), core.Commitment{
+		State: "scheduled", Content: content,
 		SessionID: "thread_1", WakeAt: wakeAt, Recurrence: recurrence, CreatedAt: h.now.Add(-72 * time.Hour),
 	})
 	if err != nil {
@@ -214,8 +159,8 @@ func TestTickWakesDueCommitmentOnce(t *testing.T) {
 	if !strings.HasPrefix(start, "thread_1|commitment #1: 提醒 owner 看 X|[commitment #1, made 2026-10-02 09:00] 提醒 owner 看 X") {
 		t.Fatalf("start = %q", start)
 	}
-	if got, _ := h.store.LoadMemoryItem(context.Background(), due.ID); got.Status != core.MemoryWoken {
-		t.Fatalf("status = %s", got.Status)
+	if got, _ := h.data.LoadCommitment(context.Background(), due.ID); got.State != "due" {
+		t.Fatalf("status = %s", got.State)
 	}
 	if len(h.store.events) != 1 || h.store.events[0] != "run_1:wake.fired" {
 		t.Fatalf("events = %v", h.store.events)
@@ -253,7 +198,7 @@ func TestTickSchedulesNextRecurrence(t *testing.T) {
 	if err := h.sched.Tick(context.Background()); err != nil {
 		t.Fatalf("tick: %v", err)
 	}
-	items, _ := h.store.ListMemoryItems(context.Background(), []core.MemoryStatus{core.MemoryActive})
+	items, _ := h.data.ListCommitments(context.Background(), true)
 	if len(items) != 1 || items[0].Recurrence != "0 8 * * *" {
 		t.Fatalf("next occurrence = %+v", items)
 	}
@@ -270,27 +215,12 @@ func TestTickRetriesWhenRunCannotStart(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "thread store down") {
 		t.Fatalf("tick error = %v", err)
 	}
-	got, _ := h.store.LoadMemoryItem(context.Background(), item.ID)
-	if got.Status != core.MemoryActive || !got.WakeAt.Equal(h.now.Add(retryDelay)) {
+	got, _ := h.data.LoadCommitment(context.Background(), item.ID)
+	if got.State != "scheduled" || !got.WakeAt.Equal(h.now.Add(retryDelay)) {
 		t.Fatalf("commitment = %+v, want active and moved by %v", got, retryDelay)
 	}
 	if len(h.store.events) != 0 {
 		t.Fatalf("no wake may be recorded for a run that did not start: %v", h.store.events)
-	}
-}
-
-func TestTickAppliesDecay(t *testing.T) {
-	h := newHarness(t, 20)
-	if _, err := h.store.AddMemoryItem(context.Background(), core.MemoryItem{
-		Kind: core.MemoryThought, Status: core.MemoryActive, Content: "t", ExpiresAt: h.now.Add(-time.Second),
-	}); err != nil {
-		t.Fatal(err)
-	}
-	if err := h.sched.Tick(context.Background()); err != nil {
-		t.Fatalf("tick: %v", err)
-	}
-	if got, _ := h.store.LoadMemoryItem(context.Background(), 1); got.Status != core.MemoryResting {
-		t.Fatalf("status = %s, want resting", got.Status)
 	}
 }
 

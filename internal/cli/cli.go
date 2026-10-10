@@ -12,6 +12,7 @@ import (
 
 	"github.com/ycvk/acorn/internal/api"
 	"github.com/ycvk/acorn/internal/config"
+	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/wire"
 )
 
@@ -25,6 +26,8 @@ func Run(ctx context.Context, args []string) error {
 		return usageError()
 	}
 	switch args[0] {
+	case "memory":
+		return runMemory(ctx, args[1:])
 	case "init":
 		return runInit(ctx, args[1:])
 	case "doctor":
@@ -58,6 +61,8 @@ func usageText() string {
 Usage:
   acorn init [-c path] [--force] [--print]
   acorn doctor [-c path] [--json]
+  acorn memory preflight [-c path] [--json]
+  acorn memory reindex [-c path] [--json]
   acorn skills list [-c path] [--json]
   acorn skills inspect [-c path] [--json] SKILL_ID
   acorn skills check [-c path] [--json] [--fixtures path]
@@ -91,16 +96,25 @@ func runDoctor(ctx context.Context, args []string) error {
 		if err != nil {
 			return fmt.Errorf("thinking status: %w", err)
 		}
+		memoryStatus, err := container.MemoryStatus(ctx)
+		if err != nil {
+			return fmt.Errorf("memory status: %w", err)
+		}
 		if *jsonMode {
 			return printJSON(struct {
 				api.SystemCapabilities
-				Thinking wire.ThinkingStatus `json:"thinking"`
-			}{snapshot, thinking})
+				Thinking wire.ThinkingStatus         `json:"thinking"`
+				Memory   core.MemoryProcessingStatus `json:"memory"`
+			}{snapshot, thinking, memoryStatus})
 		}
 		fmt.Println(renderDoctorSummary(snapshot, container.Config().ConfigPath))
 		fmt.Println(renderDoctorKnowledge(knowledgeStatus))
 		fmt.Println(renderDoctorWatches(container.Config(), watches))
 		fmt.Println(renderDoctorThinking(container.Config(), thinking))
+		fmt.Printf("Memory: tokens_today=%d daily_limit=%d pending=%d failed=%d oldest=%s last_completed=%s index=%s/%d generation=%d state=%s\n", memoryStatus.TokensToday, memoryStatus.DailyTokenLimit, memoryStatus.Pending, memoryStatus.Failed, memoryStatus.Oldest, memoryStatus.LastCompleted, memoryStatus.Index.Model, memoryStatus.Index.Dimensions, memoryStatus.Index.Generation, memoryStatus.Index.State)
+		if memoryStatus.LastError != "" {
+			fmt.Printf("Memory error: %s\n", memoryStatus.LastError)
+		}
 		return nil
 	})
 }

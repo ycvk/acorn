@@ -46,7 +46,10 @@ type RuntimeDeps struct {
 	ArtifactService    core.ArtifactService
 	ToolRegistry       core.ToolRegistry
 	PhoneNotifications core.PhoneNotificationStore
-	Presence           core.PresenceStore
+	Activity           core.ActivityStore
+	MemoryStore        core.MemoryStore
+	Memory             MemoryContextService
+	Commitments        core.CommitmentStore
 	Clock              func() time.Time
 	Location           *time.Location
 }

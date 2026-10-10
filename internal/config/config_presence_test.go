@@ -35,10 +35,12 @@ func TestValidateExecutionReadyBoundsPresenceTokens(t *testing.T) {
 	cfg := defaultConfig()
 	cfg.Providers[0].APIKey = "k"
 	cfg.Presence.MaxTokens = 100
+	cfg.Memory.Embedding.APIKey = "voyage-test"
 	if err := cfg.ValidateExecutionReady(); err == nil || !strings.Contains(err.Error(), "presence.max_tokens") {
 		t.Fatalf("small budget: %v", err)
 	}
 	cfg.Presence.MaxTokens = cfg.Context.CompactMarginTokens
+	cfg.Memory.Embedding.APIKey = "voyage-test"
 	if err := cfg.ValidateExecutionReady(); err == nil || !strings.Contains(err.Error(), "compact_margin_tokens") {
 		t.Fatalf("budget over margin: %v", err)
 	}

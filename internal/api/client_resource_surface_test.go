@@ -83,6 +83,7 @@ func TestClientResourceSurfaceHandlers(t *testing.T) {
 	}
 	workspaceRoot := t.TempDir()
 	cfg := config.DefaultConfig()
+	cfg.Memory.Embedding.APIKey = "voyage-test"
 	cfg.Tools.Workspace.RootDir = workspaceRoot
 	cfg.Providers[0].Model = "gpt-test"
 	cfg.Providers[0].ReasoningEffort = "high"

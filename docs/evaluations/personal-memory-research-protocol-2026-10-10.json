@@ -1,0 +1,47 @@
+{
+  "fixture_sha256": "583c6d89a9780fe1b7db2df0adca182d8e00de5f7e2f9dba1e955914848a09ae",
+  "frozen_at": "2026-10-10",
+  "splits": {
+    "development": {
+      "sources": 16,
+      "queries": 18
+    },
+    "acceptance": {
+      "sources": 16,
+      "queries": 20
+    }
+  },
+  "corpus_characters": 6093,
+  "answer_protocol": "fixed choices; one common Grok answer call; supplied evidence only",
+  "budgets": {
+    "retrieval_results": 5,
+    "context_tokens": 8192,
+    "answer_max_tokens": 1024,
+    "hindsight_budget": "mid",
+    "hindsight_cross_encoder": false
+  },
+  "historical_protocol": "known_at questions are issued before later sources are ingested in both systems; as_of questions use fact-time retrieval after all sources",
+  "quality_targets": {
+    "answer_slot_accuracy": 0.9,
+    "evidence_recall_at_5": 0.9,
+    "citation_errors": 0,
+    "forget_errors": 0,
+    "alias_and_disambiguation_errors": 0,
+    "sourced_insights_minimum": 1
+  },
+  "capacity_targets": {
+    "records": 100000,
+    "dimensions": 1024,
+    "local_standard_p95_ms": 2000,
+    "additional_rss_mib": 64,
+    "concurrency": "one ingestion worker and sequential foreground reads"
+  },
+  "limitations": [
+    "synthetic corpus authored by implementer",
+    "one realization per model and condition",
+    "fixed-choice answer accuracy is distinct from free-form answer quality",
+    "primary model and embedding align; consolidation algorithms and total token use differ",
+    "Hindsight observations and Acorn insights may have different granularity"
+  ],
+  "baseline_source_sha256": "c6af1061c297600eac3ac1fbe29e189117b361b437c4b5e72f33ddf32ffc525f"
+}

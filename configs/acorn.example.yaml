@@ -29,6 +29,17 @@ owner:
   # e.g. Asia/Shanghai.
   timezone: UTC
 
+memory:
+  daily_tokens: 100000
+  batch_tokens: 8192
+  context_tokens: 8192
+  history_tokens: 32768
+  embedding:
+    base_url: https://api.voyageai.com/v1
+    api_key: ${VOYAGE_API_KEY}
+    model: voyage-4
+    dimensions: 1024
+
 presence:
   # Token cap for the working-memory block shown to the model before each call.
   max_tokens: 4000

@@ -1,5 +1,5 @@
 // Package wake runs the serve-process scheduler that keeps the agent's
-// commitments: it decays working memory and starts a run in the commitment's
+// commitments: it starts a run in the commitment's
 // conversation when its wake time arrives.
 package wake
 
@@ -22,9 +22,9 @@ type RunStarter interface {
 	// StartWakeRun starts a run in threadID with input as the run input and
 	// wake as the description of what woke it. When the thread no longer
 	// exists the run starts in a reminders thread.
-	StartWakeRun(ctx context.Context, threadID, wake, input string) (runID string, err error)
+	StartWakeRun(ctx context.Context, threadID, input string, wake core.ScheduledWake) (runID string, err error)
 	// StartRoutineRun starts in threadID or creates a thread with title.
-	StartRoutineRun(ctx context.Context, threadID, title, wake, input string) (thread, runID string, err error)
+	StartRoutineRun(ctx context.Context, threadID, title, input string, wake core.ScheduledWake) (thread, runID string, err error)
 }
 
 // WatchChecker fetches a watch and records what it found.
@@ -42,7 +42,9 @@ type Briefing struct {
 type Config struct {
 	Routines           core.RoutineStore
 	PhoneNotifications core.PhoneNotificationStore
-	Store              core.PresenceStore
+	Store              core.ActivityStore
+	Commitments        core.CommitmentStore
+	Memory             core.MemoryStore
 	Events             core.EventAppender
 	Runs               RunStarter
 	Watches            core.WatchStore
@@ -75,6 +77,8 @@ type Scheduler struct {
 
 func NewScheduler(cfg Config) (*Scheduler, error) {
 	switch {
+	case cfg.Commitments == nil || cfg.Memory == nil:
+		return nil, errors.New("wake scheduler: Commitments and Memory are required")
 	case cfg.Store == nil:
 		return nil, errors.New("wake scheduler: Store is required")
 	case cfg.Routines == nil:
@@ -134,17 +138,17 @@ func (s *Scheduler) Run(ctx context.Context) {
 	}
 }
 
-// Tick applies decay, wakes every due commitment within the daily limit,
+// Tick wakes every due commitment within the daily limit,
 // checks due watches, starts the morning briefing when its time has come, then
 // sends notifications whose quiet hours ended.
 // Errors are joined; one failing commitment does not stop the others.
 func (s *Scheduler) Tick(ctx context.Context) error {
 	now := s.cfg.Clock()
 	var errs []error
-	if err := s.decay(ctx, now); err != nil {
-		errs = append(errs, err)
+	if err := s.cfg.Commitments.RecoverCommitmentClaims(ctx, now); err != nil {
+		return err
 	}
-	due, err := s.cfg.Store.ListDueCommitments(ctx, now)
+	due, err := s.cfg.Commitments.DueCommitments(ctx, now)
 	if err != nil {
 		return errors.Join(append(errs, fmt.Errorf("list due commitments: %w", err))...)
 	}
@@ -170,42 +174,38 @@ func (s *Scheduler) Tick(ctx context.Context) error {
 	return errors.Join(errs...)
 }
 
-func (s *Scheduler) decay(ctx context.Context, now time.Time) error {
-	items, err := s.cfg.Store.ListMemoryItems(ctx, []core.MemoryStatus{core.MemoryActive, core.MemoryResting})
-	if err != nil {
-		return fmt.Errorf("list memory for decay: %w", err)
-	}
-	for _, item := range presence.Decay(items, now) {
-		if err := s.cfg.Store.UpdateMemoryItem(ctx, item); err != nil {
-			return fmt.Errorf("decay memory item %d: %w", item.ID, err)
-		}
-	}
-	return nil
-}
-
-func (s *Scheduler) wake(ctx context.Context, item core.MemoryItem, now time.Time) error {
+func (s *Scheduler) wake(ctx context.Context, item core.Commitment, now time.Time) error {
 	allowed, err := s.withinBudget(ctx, fmt.Sprintf("commitment #%d", item.ID), now)
 	if err != nil || !allowed {
 		return err
 	}
-	if err := s.cfg.Store.ClaimDueCommitment(ctx, item.ID, now); err != nil {
-		if errors.Is(err, core.ErrMemoryItemNotDue) {
-			return nil // another scheduler took it
+	var next time.Time
+	if strings.TrimSpace(item.Recurrence) != "" {
+		schedule, err := presence.ParseCron(item.Recurrence)
+		if err != nil {
+			return fmt.Errorf("recurrence: %w", err)
 		}
+		next, err = schedule.Next(now.In(s.cfg.Location))
+		if err != nil {
+			return fmt.Errorf("recurrence: %w", err)
+		}
+	}
+	occurrence, err := s.cfg.Commitments.ClaimCommitment(ctx, item.ID, now)
+	if errors.Is(err, core.ErrCommitmentNotDue) {
+		return nil
+	}
+	if err != nil {
 		return err
 	}
 	wake := fmt.Sprintf("commitment #%d: %s", item.ID, item.Content)
 	input := fmt.Sprintf("[commitment #%d, made %s] %s",
 		item.ID, item.CreatedAt.In(s.cfg.Location).Format("2006-01-02 15:04"), item.Content)
-	runID, err := s.cfg.Runs.StartWakeRun(ctx, item.SessionID, wake, input)
+	runID, err := s.cfg.Runs.StartWakeRun(ctx, item.SessionID, input, core.ScheduledWake{Reason: wake, Autonomous: true, Commitment: &core.CommitmentWake{Occurrence: occurrence, Next: next}})
 	if err != nil {
-		return s.retryLater(ctx, item, now, err)
+		return s.retryLater(ctx, occurrence, now, err)
 	}
-	if _, err := s.cfg.Events.AppendEvent(ctx, runID, core.EventWakeFired, map[string]any{"memory_id": item.ID}); err != nil {
+	if _, err := s.cfg.Events.AppendEvent(ctx, runID, core.EventWakeFired, map[string]any{"commitment_id": item.ID, "occurrence_id": occurrence.ID}); err != nil {
 		return fmt.Errorf("record wake of run %s: %w", runID, err)
-	}
-	if strings.TrimSpace(item.Recurrence) != "" {
-		return s.scheduleNext(ctx, item, now)
 	}
 	return nil
 }
@@ -240,39 +240,11 @@ func (s *Scheduler) withinBudget(ctx context.Context, subject string, now time.T
 	return false, nil
 }
 
-// retryLater gives the claimed commitment back with a later wake time.
-func (s *Scheduler) retryLater(ctx context.Context, item core.MemoryItem, now time.Time, cause error) error {
-	item.Status = core.MemoryActive
-	item.WakeAt = now.Add(retryDelay)
-	item.UpdatedAt = now
-	if err := s.cfg.Store.UpdateMemoryItem(ctx, item); err != nil {
+// retryLater records the failed occurrence and moves the appointment forward.
+func (s *Scheduler) retryLater(ctx context.Context, occurrence core.CommitmentOccurrence, now time.Time, cause error) error {
+	next := now.Add(retryDelay)
+	if err := s.cfg.Commitments.RetryCommitment(ctx, occurrence, next, now); err != nil {
 		return errors.Join(fmt.Errorf("start wake run: %w", cause), fmt.Errorf("reschedule: %w", err))
 	}
-	return fmt.Errorf("start wake run (retrying at %s): %w", item.WakeAt.Format(time.RFC3339), cause)
-}
-
-// scheduleNext adds the next occurrence of a recurring commitment. The woken
-// item stays for the agent to settle.
-func (s *Scheduler) scheduleNext(ctx context.Context, item core.MemoryItem, now time.Time) error {
-	schedule, err := presence.ParseCron(item.Recurrence)
-	if err != nil {
-		return fmt.Errorf("recurrence: %w", err)
-	}
-	next, err := schedule.Next(now.In(s.cfg.Location))
-	if err != nil {
-		return fmt.Errorf("recurrence: %w", err)
-	}
-	if _, err := s.cfg.Store.AddMemoryItem(ctx, core.MemoryItem{
-		Kind:        core.MemoryCommitment,
-		Content:     item.Content,
-		Status:      core.MemoryActive,
-		SessionID:   item.SessionID,
-		SourceRunID: item.SourceRunID,
-		WakeAt:      next.UTC(),
-		Recurrence:  item.Recurrence,
-		CreatedAt:   now,
-	}); err != nil {
-		return fmt.Errorf("schedule next occurrence: %w", err)
-	}
-	return nil
+	return fmt.Errorf("start wake run (retrying at %s): %w", next.Format(time.RFC3339), cause)
 }

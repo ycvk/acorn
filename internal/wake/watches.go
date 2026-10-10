@@ -61,7 +61,7 @@ func (s *Scheduler) wakeForWatch(ctx context.Context, w core.Watch, items []core
 	}
 	wake := fmt.Sprintf("watch #%d %s: %d new", w.ID, w.Name, len(items))
 	input := fmt.Sprintf("[watch #%d %s] %d new\n%s", w.ID, w.Name, len(items), formatItems(items))
-	runID, err := s.cfg.Runs.StartWakeRun(ctx, w.SessionID, wake, input)
+	runID, err := s.cfg.Runs.StartWakeRun(ctx, w.SessionID, input, core.ScheduledWake{Reason: wake, Autonomous: true, SourceIDs: watchSourceIDs(items)})
 	if err != nil {
 		return fmt.Errorf("start watch run (items wait for the briefing): %w", err)
 	}
@@ -103,4 +103,12 @@ func itemIDs(items []core.WatchItem) []int64 {
 		ids = append(ids, item.ID)
 	}
 	return ids
+}
+
+func watchSourceIDs(items []core.WatchItem) []string {
+	sources := make([]string, 0, len(items))
+	for _, item := range items {
+		sources = append(sources, fmt.Sprintf("watch:%d", item.ID))
+	}
+	return sources
 }

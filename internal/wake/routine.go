@@ -16,10 +16,11 @@ type Thinking struct {
 }
 
 type routineInput struct {
-	wake  string
-	input string
-	skip  bool
-	after func(context.Context, string) error
+	sources []string
+	wake    string
+	input   string
+	skip    bool
+	after   func(context.Context, string) error
 }
 
 func (s *Scheduler) runRoutines(ctx context.Context, now time.Time) error {
@@ -42,7 +43,7 @@ func (s *Scheduler) runRoutines(ctx context.Context, now time.Time) error {
 		}
 		slot := fmt.Sprintf("%s %02d:%02d", day, int(at/time.Hour), int(at%time.Hour/time.Minute))
 		errs = append(errs, s.runRoutine(ctx, "wander", slot, "Thoughts", true, now, func() (routineInput, error) {
-			return routineInput{wake: "idle thought " + slot, input: "[wander " + slot + "] idle time"}, nil
+			return s.wanderInput(ctx, slot, now)
 		}))
 	}
 	return errors.Join(errs...)
@@ -91,7 +92,7 @@ func (s *Scheduler) runRoutine(ctx context.Context, name, slot, title string, au
 	if err != nil {
 		return err
 	}
-	thread, runID, err := s.cfg.Runs.StartRoutineRun(ctx, thread, title, prepared.wake, prepared.input)
+	thread, runID, err := s.cfg.Runs.StartRoutineRun(ctx, thread, title, prepared.input, core.ScheduledWake{Reason: prepared.wake, Autonomous: autonomous, SourceIDs: prepared.sources})
 	if err != nil {
 		return fmt.Errorf("start %s run: %w", name, err)
 	}

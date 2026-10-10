@@ -216,7 +216,11 @@ func TestWatchFailureDoesNotStopOthers(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "connection refused") {
 		t.Fatalf("tick err = %v", err)
 	}
-	if len(h.runs.starts) != 2 || h.store.items[due.ID-1].Status != core.MemoryWoken {
+	item, loadErr := h.data.LoadCommitment(context.Background(), due.ID)
+	if loadErr != nil {
+		t.Fatal(loadErr)
+	}
+	if len(h.runs.starts) != 2 || item.State != "due" {
 		t.Fatalf("the commitment and the healthy watch must still wake: %v", h.runs.starts)
 	}
 }

@@ -83,6 +83,9 @@ func TestStoreInterfaces(t *testing.T) {
 		{"SessionStore", (*SessionStore)(nil), 37},
 		{"IdentityStore", (*IdentityStore)(nil), 7},
 		{"ArtifactStore", (*ArtifactStore)(nil), 6},
+		{"MemoryStore", (*MemoryStore)(nil), 37},
+		{"CommitmentStore", (*CommitmentStore)(nil), 10},
+		{"ActivityStore", (*ActivityStore)(nil), 4},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
