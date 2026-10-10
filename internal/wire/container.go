@@ -41,6 +41,7 @@ type Container struct {
 	knowledge          *api.KnowledgeService
 	captures           *api.CaptureService
 	phoneNotifications *api.PhoneNotificationService
+	now                *api.NowService
 	wake               *wake.Scheduler
 	// watchBrowser renders web_rendered watches; nil without a browser.
 	watchBrowser *tools.Service
@@ -99,6 +100,7 @@ func (c *Container) Handler(logger *slog.Logger) (http.Handler, error) {
 		Knowledge:          c.knowledge,
 		Captures:           c.captures,
 		PhoneNotifications: c.phoneNotifications,
+		Now:                c.now,
 		Config:             c.cfg,
 		Logger:             logger,
 	})
@@ -203,6 +205,9 @@ func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *contai
 		return nil, err
 	}
 	container.phoneNotifications = phoneNotifications
+	if container.now, err = api.NewNowService(db, deps.vault, clock); err != nil {
+		return nil, err
+	}
 	location, err := cfg.OwnerLocation()
 	if err != nil {
 		return nil, err

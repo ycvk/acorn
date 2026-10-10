@@ -488,6 +488,99 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /v1/now:
+    get:
+      tags: [client]
+      summary: Load the now page
+      description: |
+        Returns the latest morning briefing note, the scheduled and due
+        commitments with the occurrences that wait for an outcome, the active
+        and waiting concerns, and every watch with failing watches first. A
+        failing read of any section fails the request.
+      operationId: clientGetNow
+      responses:
+        '200':
+          description: Now page
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NowResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/DeviceRevoked'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/commitments/{commitment_id}:cancel:
+    post:
+      tags: [client]
+      summary: Cancel a commitment
+      description: |
+        Cancels the commitment and its unsettled occurrences, the same change
+        the agent makes with its settle tool.
+      operationId: clientCancelCommitment
+      parameters:
+        - $ref: '#/components/parameters/CommitmentID'
+      responses:
+        '204':
+          description: Commitment cancelled
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/DeviceRevoked'
+        '404':
+          $ref: '#/components/responses/CommitmentNotFound'
+        '409':
+          $ref: '#/components/responses/CommitmentEnded'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/watches/{watch_id}:pause:
+    post:
+      tags: [client]
+      summary: Pause a watch
+      operationId: clientPauseWatch
+      parameters:
+        - $ref: '#/components/parameters/WatchID'
+      responses:
+        '204':
+          description: Watch paused
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/DeviceRevoked'
+        '404':
+          $ref: '#/components/responses/WatchNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/watches/{watch_id}:resume:
+    post:
+      tags: [client]
+      summary: Resume a watch
+      description: Checks the watch right away and clears its failures.
+      operationId: clientResumeWatch
+      parameters:
+        - $ref: '#/components/parameters/WatchID'
+      responses:
+        '204':
+          description: Watch resumed
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/DeviceRevoked'
+        '404':
+          $ref: '#/components/responses/WatchNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
   /v1/runs/{run_id}/detail:
     get:
       tags: [client]
@@ -803,6 +896,20 @@ components:
       required: true
       schema:
         type: string
+    CommitmentID:
+      name: commitment_id
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+    WatchID:
+      name: watch_id
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
     Limit:
       name: limit
       in: query
@@ -901,6 +1008,42 @@ components:
                 error:
                   code: knowledge_attachment_not_found
                   message: 'attachment not found: attachments/2026/10/0123456789abcdef.png'
+    CommitmentNotFound:
+      description: Commitment not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            commitmentNotFound:
+              value:
+                error:
+                  code: commitment_not_found
+                  message: commitment not found
+    CommitmentEnded:
+      description: Commitment is already completed or cancelled
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            commitmentEnded:
+              value:
+                error:
+                  code: commitment_ended
+                  message: 'commitment already ended: commitment 7 is cancelled'
+    WatchNotFound:
+      description: Watch not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            watchNotFound:
+              value:
+                error:
+                  code: watch_not_found
+                  message: 'watch not found: 3'
     PayloadTooLarge:
       description: Request body too large
       content:
@@ -2039,6 +2182,142 @@ components:
           type: string
         run_id:
           type: string
+
+    NowResponse:
+      type: object
+      additionalProperties: false
+      required: [commitments, concerns, watches]
+      properties:
+        briefing:
+          $ref: '#/components/schemas/NowBriefing'
+        commitments:
+          type: array
+          items:
+            $ref: '#/components/schemas/NowCommitment'
+        concerns:
+          type: array
+          items:
+            $ref: '#/components/schemas/NowConcern'
+        watches:
+          type: array
+          items:
+            $ref: '#/components/schemas/NowWatch'
+
+    NowBriefing:
+      type: object
+      additionalProperties: false
+      description: The latest note under briefings/; absent before the first briefing.
+      required: [path, title, snippet, updated_at]
+      properties:
+        path:
+          type: string
+        title:
+          type: string
+        snippet:
+          type: string
+        updated_at:
+          type: string
+          format: date-time
+
+    NowCommitment:
+      type: object
+      additionalProperties: false
+      required: [id, content, state, wake_at, occurrences]
+      properties:
+        id:
+          type: integer
+          format: int64
+        content:
+          type: string
+        state:
+          type: string
+          enum: [scheduled, due]
+        wake_at:
+          type: string
+          format: date-time
+          description: The next wake; for a due commitment, the wake that is being handled.
+        recurrence:
+          type: string
+          description: 5-field cron in the owner's timezone.
+        occurrences:
+          type: array
+          description: Wakes that have not been completed yet.
+          items:
+            $ref: '#/components/schemas/NowOccurrence'
+
+    NowOccurrence:
+      type: object
+      additionalProperties: false
+      required: [id, due_at, state]
+      properties:
+        id:
+          type: integer
+          format: int64
+        due_at:
+          type: string
+          format: date-time
+        state:
+          type: string
+          enum: [claimed, due]
+          description: claimed while the wake is starting, due once its run started and until it is completed.
+        run_id:
+          type: string
+
+    NowConcern:
+      type: object
+      additionalProperties: false
+      required: [id, title, state, reason, updated_at]
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        state:
+          type: string
+          enum: [active, waiting]
+        reason:
+          type: string
+        review_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    NowWatch:
+      type: object
+      additionalProperties: false
+      required: [id, name, kind, target, mode, status, interval_seconds, next_check_at, failures]
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        kind:
+          type: string
+          enum: [rss, github, web, web_rendered]
+        target:
+          type: string
+        mode:
+          type: string
+          enum: [digest, immediate]
+        status:
+          type: string
+          enum: [active, paused, failing]
+        interval_seconds:
+          type: integer
+          format: int64
+        next_check_at:
+          type: string
+          format: date-time
+        last_checked_at:
+          type: string
+          format: date-time
+        last_error:
+          type: string
+        failures:
+          type: integer
 
     KnowledgeNoteSummary:
       type: object

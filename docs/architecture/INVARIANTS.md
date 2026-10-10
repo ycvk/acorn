@@ -101,6 +101,9 @@
   - `internal/core/core_test.go`
   - `internal/api/openapi_test.go`
   - `internal/wire/approval_restart_e2e_test.go`
+- **此刻页只读后端事实，改动与 agent 同路**：`GET /v1/now` 返回最新 `briefings/` 笔记、scheduled/due 约定及未结 occurrence、active/waiting 关切（已遗忘来源不出现）和全部追踪项（failing 在前），任一部分读取失败整个请求失败。`:cancel` 走与 `settle` 相同的 `SettleCommitment` 事务，已结束的约定返回 409；`:pause`/`:resume` 与 `watch_update` 共用 `core.Watch.Pause`/`Resume`。
+  - `internal/api/now_test.go`
+  - `internal/wire/now_acceptance_e2e_test.go`
 - **Mobile 是 control surface 不是 runtime**：mobile 不执行 run、不持 runtime truth、不做 offline-first run execution、不维护第二套 message lifecycle；context pressure/boundary/run status 都消费后端 projection。
   - `mobile-kotlin/app/src/test/...`（JUnit）
 

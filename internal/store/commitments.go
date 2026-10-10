@@ -207,7 +207,7 @@ func (s *Store) SettleCommitment(ctx context.Context, change core.CommitmentSett
 			return err
 		}
 		if c.State == "completed" || c.State == "cancelled" {
-			return fmt.Errorf("commitment %d is %s", c.ID, c.State)
+			return fmt.Errorf("%w: commitment %d is %s", core.ErrCommitmentEnded, c.ID, c.State)
 		}
 		if change.Action == "cancel" {
 			if _, err := tx.ExecContext(ctx, `UPDATE commitments SET state='cancelled',updated_at=? WHERE id=?`, formatTimestamp(change.Now), c.ID); err != nil {
