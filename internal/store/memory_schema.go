@@ -9,13 +9,7 @@ import (
 
 func (s *Store) createMemorySchema() error {
 	ctx := context.Background()
-	if _, err := s.db.ExecContext(ctx, memorySchema); err != nil {
-		return fmt.Errorf("create memory schema: %w", err)
-	}
-	if err := s.migrateMemoryJSON(ctx); err != nil {
-		return err
-	}
-	for _, ddl := range []string{memoryQueryIndexes, memorySourceTriggers} {
+	for _, ddl := range []string{memorySchema, memoryQueryIndexes, memorySourceTriggers} {
 		if _, err := s.db.ExecContext(ctx, ddl); err != nil {
 			return fmt.Errorf("create memory schema: %w", err)
 		}

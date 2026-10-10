@@ -97,9 +97,6 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 	if notifier != nil {
 		notifyDeps.Notifier = notifier
 	}
-	if err := knowledge.ImportLegacyDir(ctx, cfg.Runtime.StorageDir, db, ownerLoc); err != nil {
-		return nil, fmt.Errorf("knowledge base: %w", err)
-	}
 	vault, err := knowledge.NewVault(knowledge.VaultConfig{Store: db, StorageDir: cfg.Runtime.StorageDir, Clock: options.clock, Location: ownerLoc})
 	if err != nil {
 		return nil, fmt.Errorf("knowledge base: %w", err)
