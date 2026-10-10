@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"testing"
 
@@ -148,5 +149,27 @@ func TestMemoryKeywordSearchLeavesFrequentTermsToSemanticRoute(t *testing.T) {
 	}
 	if len(mixed) == 0 || mixed[0].ID != "bench_00000003" {
 		t.Fatalf("the selective term must rank its record first: %+v", mixed)
+	}
+}
+
+func TestMemoryKeywordSearchMatchesEveryShortTermBesideLongTerms(t *testing.T) {
+	s := openTestStore(t)
+	ctx := context.Background()
+	for _, text := range []string{"小王 下周去杭州", "我在学 Go", "周末整理阳台花园", "无关的记录"} {
+		source := seedMemorySource(t, s, "owner:"+text, "owner", text)
+		if _, err := s.CommitMemory(ctx, core.MemoryMutation{Changes: []core.MemoryChange{memoryFact(source, text)}, Now: memoryTestNow}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := s.SearchMemoryText(ctx, core.MemoryQuery{Query: "小王 Go 阳台花园", Limit: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var contents []string
+	for _, r := range got {
+		contents = append(contents, r.Content)
+	}
+	if len(got) != 3 || slices.Contains(contents, "无关的记录") {
+		t.Fatalf("short and long terms must each find their record: %v", contents)
 	}
 }

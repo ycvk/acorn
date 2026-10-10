@@ -28,25 +28,25 @@ func (s *Store) SaveConcern(ctx context.Context, concern core.MemoryConcern, exp
 		if concern.ID == "" {
 			concern.ID = memoryID("concern", concern.Title, concern.SourceID)
 		}
-		var data string
-		err := tx.QueryRowContext(ctx, `SELECT data FROM memory_concerns WHERE id=?`, concern.ID).Scan(&data)
-		if err == nil {
-			var previous core.MemoryConcern
-			if err := json.Unmarshal([]byte(data), &previous); err != nil {
-				return err
-			}
-			if expected != previous.Revision {
+		var revision int64
+		var created string
+		err := tx.QueryRowContext(ctx, `SELECT revision,created_at FROM memory_concerns WHERE id=?`, concern.ID).Scan(&revision, &created)
+		switch {
+		case err == nil:
+			if expected != revision {
 				return core.ErrMemoryConflict
 			}
-			concern.CreatedAt = previous.CreatedAt
-			concern.Revision = previous.Revision + 1
-		} else if errors.Is(err, sql.ErrNoRows) {
+			if concern.CreatedAt, err = parseTimestamp(fixedTimestampLayout, created, "concern created_at"); err != nil {
+				return err
+			}
+			concern.Revision = revision + 1
+		case errors.Is(err, sql.ErrNoRows):
 			if expected != 0 {
 				return core.ErrMemoryConflict
 			}
 			concern.CreatedAt = concern.UpdatedAt
 			concern.Revision = 1
-		} else {
+		default:
 			return err
 		}
 		for _, id := range concern.RecordIDs {
@@ -54,21 +54,15 @@ func (s *Store) SaveConcern(ctx context.Context, concern core.MemoryConcern, exp
 				return err
 			}
 		}
-		encoded, err := json.Marshal(concern)
-		if err != nil {
+		reviewAt, updatedAt := formatZeroableTimestamp(concern.ReviewAt), formatTimestamp(concern.UpdatedAt)
+		if _, err = tx.ExecContext(ctx, `INSERT INTO memory_concerns(id,title,state,reason,source_id,revision,review_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET title=excluded.title,state=excluded.state,reason=excluded.reason,source_id=excluded.source_id,revision=excluded.revision,review_at=excluded.review_at,updated_at=excluded.updated_at`, concern.ID, concern.Title, concern.State, concern.Reason, concern.SourceID, concern.Revision, reviewAt, formatTimestamp(concern.CreatedAt), updatedAt); err != nil {
 			return err
 		}
-		if _, err = tx.ExecContext(ctx, `INSERT INTO memory_concerns(id,title,state,revision,source_id,data) VALUES(?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET title=excluded.title,state=excluded.state,revision=excluded.revision,source_id=excluded.source_id,data=excluded.data`, concern.ID, concern.Title, concern.State, concern.Revision, concern.SourceID, string(encoded)); err != nil {
-			return err
-		}
-		if _, err = tx.ExecContext(ctx, `INSERT INTO memory_concern_revisions(concern_id,revision,data) VALUES(?,?,?)`, concern.ID, concern.Revision, string(encoded)); err != nil {
-			return err
-		}
-		if _, err = tx.ExecContext(ctx, `DELETE FROM memory_concern_links WHERE concern_id=?`, concern.ID); err != nil {
+		if _, err = tx.ExecContext(ctx, `INSERT INTO memory_concern_revisions(concern_id,revision,title,state,reason,source_id,review_at,at) VALUES(?,?,?,?,?,?,?,?)`, concern.ID, concern.Revision, concern.Title, concern.State, concern.Reason, concern.SourceID, reviewAt, updatedAt); err != nil {
 			return err
 		}
 		for _, id := range concern.RecordIDs {
-			if _, err = tx.ExecContext(ctx, `INSERT INTO memory_concern_links(concern_id,record_id) VALUES(?,?)`, concern.ID, id); err != nil {
+			if _, err = tx.ExecContext(ctx, `INSERT INTO memory_concern_records(concern_id,revision,record_id) VALUES(?,?,?)`, concern.ID, concern.Revision, id); err != nil {
 				return err
 			}
 		}
@@ -81,18 +75,33 @@ func (s *Store) SaveConcern(ctx context.Context, concern core.MemoryConcern, exp
 }
 
 func (s *Store) ListConcerns(ctx context.Context, activeOnly bool) ([]core.MemoryConcern, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT c.data FROM memory_concerns c WHERE (?=0 OR c.state IN ('active','waiting')) AND NOT EXISTS(SELECT 1 FROM memory_exclusions x WHERE x.source_id=c.source_id) AND NOT EXISTS(SELECT 1 FROM memory_concern_links l JOIN memory_records r ON r.id=l.record_id WHERE l.concern_id=c.id AND r.excluded=1) ORDER BY c.id`, activeOnly)
+	rows, err := s.db.QueryContext(ctx, `SELECT c.id,c.title,c.state,c.reason,c.source_id,c.revision,c.review_at,c.created_at,c.updated_at,
+ (SELECT json_group_array(l.record_id) FROM (SELECT record_id FROM memory_concern_records WHERE concern_id=c.id AND revision=c.revision ORDER BY rowid) l)
+ FROM memory_concerns c WHERE (?=0 OR c.state IN ('active','waiting'))
+ AND NOT EXISTS(SELECT 1 FROM memory_exclusions x WHERE x.source_id=c.source_id)
+ AND NOT EXISTS(SELECT 1 FROM memory_concern_records l JOIN memory_records r ON r.id=l.record_id WHERE l.concern_id=c.id AND l.revision=c.revision AND r.excluded=1)
+ ORDER BY c.id`, activeOnly)
 	if err != nil {
 		return nil, err
 	}
 	out := []core.MemoryConcern{}
 	err = scanRows(rows, func(scan func(...any) error) error {
-		var data string
-		if err := scan(&data); err != nil {
+		var c core.MemoryConcern
+		var reviewAt, created, updated, records string
+		if err := scan(&c.ID, &c.Title, &c.State, &c.Reason, &c.SourceID, &c.Revision, &reviewAt, &created, &updated, &records); err != nil {
 			return err
 		}
-		var c core.MemoryConcern
-		if err := json.Unmarshal([]byte(data), &c); err != nil {
+		var err error
+		if c.ReviewAt, err = parseOptionalTime(reviewAt, "concern review_at"); err != nil {
+			return err
+		}
+		if c.CreatedAt, err = parseTimestamp(fixedTimestampLayout, created, "concern created_at"); err != nil {
+			return err
+		}
+		if c.UpdatedAt, err = parseTimestamp(fixedTimestampLayout, updated, "concern updated_at"); err != nil {
+			return err
+		}
+		if err := json.Unmarshal([]byte(records), &c.RecordIDs); err != nil {
 			return err
 		}
 		out = append(out, c)

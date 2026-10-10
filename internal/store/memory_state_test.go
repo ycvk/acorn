@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -108,6 +109,10 @@ func TestMemoryConcernUsesRevisionAndVisibleEvidence(t *testing.T) {
 	s := openTestStore(t)
 	ctx := context.Background()
 	source := seedMemorySource(t, s, "owner:goal", "owner", "我要准备 Go 面试")
+	facts, err := s.CommitMemory(ctx, core.MemoryMutation{Changes: []core.MemoryChange{memoryFact(source, "owner 要准备 Go 面试")}, Now: memoryTestNow})
+	if err != nil {
+		t.Fatal(err)
+	}
 	c, err := s.SaveConcern(ctx, core.MemoryConcern{Title: "准备 Go 面试", State: "active", Reason: "owner goal", SourceID: source.ID, CreatedAt: memoryTestNow, UpdatedAt: memoryTestNow}, 0)
 	if err != nil {
 		t.Fatal(err)
@@ -115,10 +120,19 @@ func TestMemoryConcernUsesRevisionAndVisibleEvidence(t *testing.T) {
 	next := c
 	next.State = "waiting"
 	next.Reason = "等待面试安排"
+	next.RecordIDs = []string{facts[0].ID}
+	next.ReviewAt = memoryTestNow.Add(48 * time.Hour)
 	next.UpdatedAt = memoryTestNow.Add(time.Hour)
 	saved, err := s.SaveConcern(ctx, next, c.Revision)
 	if err != nil || saved.Revision != 2 {
 		t.Fatalf("save=%+v %v", saved, err)
+	}
+	listed, err := s.ListConcerns(ctx, true)
+	if err != nil || len(listed) != 1 {
+		t.Fatalf("concerns=%+v err=%v", listed, err)
+	}
+	if got := listed[0]; got.Reason != next.Reason || got.State != "waiting" || !slices.Equal(got.RecordIDs, next.RecordIDs) || !got.ReviewAt.Equal(next.ReviewAt) || !got.CreatedAt.Equal(memoryTestNow) || !got.UpdatedAt.Equal(next.UpdatedAt) {
+		t.Fatalf("listed concern = %+v", got)
 	}
 	if _, err := s.SaveConcern(ctx, next, c.Revision); !errors.Is(err, core.ErrMemoryConflict) {
 		t.Fatalf("stale update: %v", err)

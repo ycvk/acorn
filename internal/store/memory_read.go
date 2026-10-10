@@ -217,10 +217,12 @@ func (s *Store) SearchMemoryText(ctx context.Context, q core.MemoryQuery) ([]cor
 	var query string
 	var args []any
 	if q.KnownAt.IsZero() {
-		var long, selects []string
+		var long, short, selects []string
 		for _, term := range terms {
+			// The trigram index cannot match terms shorter than three runes;
+			// one table pass covers all of them.
 			if utf8.RuneCountInString(term) < 3 {
-				selects = append(selects, `SELECT id,rank FROM (SELECT id,0 AS rank FROM memory_records WHERE excluded=0 AND content LIKE ? ESCAPE '\' ORDER BY id LIMIT 1000)`)
+				short = append(short, `content LIKE ? ESCAPE '\'`)
 				args = append(args, "%"+escapeLike(term)+"%")
 				continue
 			}
@@ -232,6 +234,9 @@ func (s *Store) SearchMemoryText(ctx context.Context, q core.MemoryQuery) ([]cor
 			if matches > 0 && matches <= memoryKeywordTermMatches {
 				long = append(long, phrase)
 			}
+		}
+		if len(short) > 0 {
+			selects = append(selects, `SELECT id,rank FROM (SELECT id,0 AS rank FROM memory_records WHERE excluded=0 AND (`+strings.Join(short, " OR ")+`) ORDER BY id LIMIT 1000)`)
 		}
 		if len(long) > 0 {
 			selects = append(selects, `SELECT r.id,f.rank FROM (SELECT rowid,rank FROM memory_records_fts WHERE memory_records_fts MATCH ? AND rowid NOT IN (SELECT rowid FROM memory_records WHERE excluded=1) ORDER BY rank LIMIT 1000) f JOIN memory_records r ON r.rowid=f.rowid`)

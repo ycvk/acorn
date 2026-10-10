@@ -69,16 +69,20 @@ CREATE TABLE IF NOT EXISTS memory_mentions (
  PRIMARY KEY(record_id,entity_id)
 );
 CREATE TABLE IF NOT EXISTS memory_concerns (
- id TEXT PRIMARY KEY, title TEXT NOT NULL, state TEXT NOT NULL, revision INTEGER NOT NULL,
- source_id TEXT NOT NULL REFERENCES memory_sources(id), data TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS memory_concern_links (
- concern_id TEXT NOT NULL REFERENCES memory_concerns(id), record_id TEXT NOT NULL REFERENCES memory_records(id),
- PRIMARY KEY(concern_id,record_id)
+ id TEXT PRIMARY KEY, title TEXT NOT NULL, state TEXT NOT NULL, reason TEXT NOT NULL,
+ source_id TEXT NOT NULL REFERENCES memory_sources(id), revision INTEGER NOT NULL,
+ review_at TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL, updated_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS memory_concern_revisions (
- concern_id TEXT NOT NULL REFERENCES memory_concerns(id), revision INTEGER NOT NULL, data TEXT NOT NULL,
- PRIMARY KEY(concern_id,revision)
+ concern_id TEXT NOT NULL REFERENCES memory_concerns(id), revision INTEGER NOT NULL,
+ title TEXT NOT NULL, state TEXT NOT NULL, reason TEXT NOT NULL, source_id TEXT NOT NULL REFERENCES memory_sources(id),
+ review_at TEXT NOT NULL DEFAULT '', at TEXT NOT NULL, PRIMARY KEY(concern_id,revision)
+);
+-- A concern revision's linked records; rowid keeps their order.
+CREATE TABLE IF NOT EXISTS memory_concern_records (
+ concern_id TEXT NOT NULL, revision INTEGER NOT NULL, record_id TEXT NOT NULL REFERENCES memory_records(id),
+ UNIQUE(concern_id, revision, record_id),
+ FOREIGN KEY(concern_id, revision) REFERENCES memory_concern_revisions(concern_id, revision)
 );
 CREATE TABLE IF NOT EXISTS commitments (
  id INTEGER PRIMARY KEY AUTOINCREMENT, content TEXT NOT NULL, state TEXT NOT NULL,
