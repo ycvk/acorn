@@ -26,7 +26,7 @@ class ShellViewModel @Inject constructor(
     private val deepLinks: DeepLinks,
 ) : ViewModel() {
 
-    private val _selectedTab = MutableStateFlow(0)
+    private val _selectedTab = MutableStateFlow(TAB_NOW)
     val selectedTab: StateFlow<Int> = _selectedTab.asStateFlow()
 
     private val _openThreadId = MutableStateFlow<String?>(null)
@@ -120,9 +120,10 @@ class ShellViewModel @Inject constructor(
     }
 
     companion object {
-        const val TAB_THREADS = 0
-        const val TAB_KNOWLEDGE = 1
-        const val TAB_SETTINGS = 2
+        const val TAB_NOW = 0
+        const val TAB_THREADS = 1
+        const val TAB_KNOWLEDGE = 2
+        const val TAB_SETTINGS = 3
         private const val POLL_INTERVAL_MS = 30_000L
     }
 }

@@ -42,6 +42,9 @@ func NewHandler(deps Dependencies) (http.Handler, error) {
 		return nil, errors.New("web capture service is required")
 	}
 
+	if deps.Now == nil {
+		return nil, errors.New("web now service is required")
+	}
 	if deps.PhoneNotifications == nil {
 		return nil, errors.New("phone notification service is required")
 	}
@@ -62,6 +65,7 @@ func NewHandler(deps Dependencies) (http.Handler, error) {
 		knowledge:          deps.Knowledge,
 		captures:           deps.Captures,
 		phoneNotifications: deps.PhoneNotifications,
+		now:                deps.Now,
 		logger:             logger,
 		cfg:                deps.Config,
 	}
@@ -113,6 +117,10 @@ func (s *Server) registerRoutes(router chi.Router) {
 			r.Get("/pending-actions/{action_id}", s.handleGetPendingAction)
 			r.Post("/pending-actions/{action_id}:decide", s.handleDecidePendingAction)
 			r.Get("/inbox", s.handleClientInbox)
+			r.Get("/now", s.handleGetNow)
+			r.Post("/commitments/{commitment_id}:cancel", s.handleCancelCommitment)
+			r.Post("/watches/{watch_id}:pause", s.handlePauseWatch)
+			r.Post("/watches/{watch_id}:resume", s.handleResumeWatch)
 			r.Post("/phone-notifications", s.handlePhoneNotifications)
 			r.Post("/captures", s.handleCreateCapture)
 			r.Get("/knowledge/notes", s.handleListKnowledgeNotes)

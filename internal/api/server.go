@@ -18,6 +18,7 @@ type Dependencies struct {
 	Knowledge          *KnowledgeService
 	Captures           *CaptureService
 	PhoneNotifications *PhoneNotificationService
+	Now                *NowService
 	Logger             *slog.Logger
 	Config             *config.Config
 }
@@ -34,6 +35,7 @@ type Server struct {
 	knowledge          *KnowledgeService
 	captures           *CaptureService
 	phoneNotifications *PhoneNotificationService
+	now                *NowService
 	logger             *slog.Logger
 	cfg                *config.Config
 }

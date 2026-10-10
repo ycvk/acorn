@@ -43,6 +43,7 @@ import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Inbox
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Today
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -91,6 +92,8 @@ import io.ycvk.acorn.feature.chat.ChatScreen
 import io.ycvk.acorn.feature.knowledge.KnowledgeScreen
 import io.ycvk.acorn.feature.knowledge.KnowledgeViewModel
 import io.ycvk.acorn.feature.knowledge.NoteScreen
+import io.ycvk.acorn.feature.now.NowScreen
+import io.ycvk.acorn.feature.now.NowViewModel
 import io.ycvk.acorn.feature.pairing.PairingScreen
 import io.ycvk.acorn.feature.settings.SettingsScreen
 import io.ycvk.acorn.feature.threads.ThreadsScreen
@@ -158,6 +161,7 @@ private fun ConnectedShell(
     val scope = rememberCoroutineScope()
     val threadsViewModel: ThreadsViewModel = hiltViewModel()
     val knowledgeViewModel: KnowledgeViewModel = hiltViewModel()
+    val nowViewModel: NowViewModel = hiltViewModel()
     val openDrawer: () -> Unit = { scope.launch { drawerState.open() } }
 
     // Page key drives AnimatedContent transitions — includes threadId so A→B triggers animation
@@ -253,6 +257,19 @@ private fun ConnectedShell(
                                 tonalElevation = 0.dp,
                             ) {
                                 NavigationBarItem(
+                                    selected = selectedTab == ShellViewModel.TAB_NOW,
+                                    onClick = { shellViewModel.selectTab(ShellViewModel.TAB_NOW) },
+                                    icon = {
+                                        Icon(
+                                            Icons.Filled.Today,
+                                            contentDescription = "now",
+                                            modifier = Modifier.size(22.dp),
+                                        )
+                                    },
+                                    label = { Text("now", style = MaterialTheme.typography.labelSmall) },
+                                    colors = navItemColors(),
+                                )
+                                NavigationBarItem(
                                     selected = selectedTab == ShellViewModel.TAB_THREADS,
                                     onClick = { shellViewModel.selectTab(ShellViewModel.TAB_THREADS) },
                                     icon = { InboxIconWithBadge(pendingCount) },
@@ -294,6 +311,11 @@ private fun ConnectedShell(
                                 .gradientBackground(),
                         ) {
                             when (selectedTab) {
+                                ShellViewModel.TAB_NOW -> NowScreen(
+                                    viewModel = nowViewModel,
+                                    onNoteClick = { path -> shellViewModel.openNote(path) },
+                                    modifier = Modifier.padding(innerPadding),
+                                )
                                 ShellViewModel.TAB_THREADS -> ThreadsScreen(
                                     onThreadClick = { id -> shellViewModel.openThread(id) },
                                     onApprovalsClick = { shellViewModel.showApprovalsList() },

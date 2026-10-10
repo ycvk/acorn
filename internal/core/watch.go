@@ -76,6 +76,18 @@ type Watch struct {
 	UpdatedAt     time.Time
 }
 
+// Pause stops checking the watch until it is resumed.
+func (w Watch) Pause(now time.Time) Watch {
+	w.Status, w.UpdatedAt = WatchPaused, now
+	return w
+}
+
+// Resume checks the watch right away and forgets its failures.
+func (w Watch) Resume(now time.Time) Watch {
+	w.Status, w.Failures, w.LastError, w.NextCheckAt, w.UpdatedAt = WatchActive, 0, "", now, now
+	return w
+}
+
 // WatchItem is one new thing seen on a watch.
 type WatchItem struct {
 	ID          int64

@@ -9,6 +9,8 @@ import (
 var (
 	ErrCommitmentNotFound = errors.New("commitment not found")
 	ErrCommitmentNotDue   = errors.New("commitment not due")
+	// ErrCommitmentEnded means the commitment is already completed or cancelled.
+	ErrCommitmentEnded = errors.New("commitment already ended")
 )
 
 type Commitment struct {

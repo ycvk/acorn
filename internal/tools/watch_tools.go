@@ -153,9 +153,9 @@ func buildWatchUpdateTool(deps WatchToolDeps) (einotool.BaseTool, error) {
 			switch input.Status {
 			case "":
 			case string(core.WatchPaused):
-				w.Status = core.WatchPaused
+				w = w.Pause(now)
 			case string(core.WatchActive):
-				w.Status, w.Failures, w.LastError, w.NextCheckAt = core.WatchActive, 0, "", now
+				w = w.Resume(now)
 			default:
 				return WatchOutput{}, fmt.Errorf("watch_update: status %q must be active or paused", input.Status)
 			}
