@@ -89,6 +89,58 @@ func TestDueWatchesAndClaim(t *testing.T) {
 	}
 }
 
+func TestWatchCheckKeepsEditsMadeDuringIt(t *testing.T) {
+	s := openTestStore(t)
+	ctx := context.Background()
+	w := addTestWatch(t, s, "feed", core.WatchActive, watchTestNow)
+	if err := s.ClaimDueWatch(ctx, w.ID, watchTestNow, 10*time.Minute); err != nil {
+		t.Fatal(err)
+	}
+	edited := w
+	edited.Name, edited.UpdatedAt = "renamed", watchTestNow
+	if err := s.UpdateWatch(ctx, edited); err != nil {
+		t.Fatal(err)
+	}
+	item := core.WatchItem{WatchID: w.ID, Key: "a", Title: "a", Status: core.WatchItemBaseline, SeenAt: watchTestNow}
+	checked := core.WatchCheck{At: watchTestNow, NextCheckAt: watchTestNow.Add(time.Hour), Status: core.WatchActive, Snapshot: "¥1", Items: []core.WatchItem{item}}
+	if _, err := s.RecordWatchCheck(ctx, w, checked); err != nil {
+		t.Fatalf("a rename does not touch the check: %v", err)
+	}
+	loaded, err := s.LoadWatch(ctx, w.ID)
+	if err != nil || loaded.Name != "renamed" || loaded.Snapshot != "¥1" || !loaded.LastCheckedAt.Equal(watchTestNow) {
+		t.Fatalf("after check = %+v, %v", loaded, err)
+	}
+
+	if err := s.ClaimDueWatch(ctx, w.ID, watchTestNow.Add(time.Hour), 10*time.Minute); err != nil {
+		t.Fatal(err)
+	}
+	paused := *loaded
+	paused.Status, paused.UpdatedAt = core.WatchPaused, watchTestNow.Add(time.Hour)
+	if err := s.UpdateWatch(ctx, paused); err != nil {
+		t.Fatal(err)
+	}
+	item.Key, item.Status = "b", core.WatchItemPending
+	failed := core.WatchCheck{At: watchTestNow.Add(time.Hour), NextCheckAt: watchTestNow.Add(3 * time.Hour), Status: core.WatchActive, Failures: 1, LastError: "HTTP 500", Items: []core.WatchItem{item}}
+	if _, err := s.RecordWatchCheck(ctx, *loaded, failed); !errors.Is(err, core.ErrWatchChanged) {
+		t.Fatalf("check after a pause err = %v", err)
+	}
+	after, err := s.LoadWatch(ctx, w.ID)
+	if err != nil || after.Status != core.WatchPaused || after.Failures != 0 || after.LastError != "" || !after.LastCheckedAt.Equal(watchTestNow) {
+		t.Fatalf("paused during the check = %+v, %v", after, err)
+	}
+	if due, err := s.ListDueWatches(ctx, watchTestNow.Add(48*time.Hour), 10); err != nil || len(due) != 0 {
+		t.Fatalf("due = %+v, %v", due, err)
+	}
+	if pending, err := s.ListWatchItems(ctx, core.WatchItemPending, 10); err != nil || len(pending) != 0 {
+		t.Fatalf("pending = %+v, %v", pending, err)
+	}
+	missing := w
+	missing.ID = 99
+	if _, err := s.RecordWatchCheck(ctx, missing, checked); !errors.Is(err, core.ErrWatchNotFound) {
+		t.Fatalf("missing watch err = %v", err)
+	}
+}
+
 func TestWatchItemsDedupeAndBriefings(t *testing.T) {
 	s := openTestStore(t)
 	ctx := context.Background()
@@ -96,11 +148,12 @@ func TestWatchItemsDedupeAndBriefings(t *testing.T) {
 	item := func(key string) core.WatchItem {
 		return core.WatchItem{WatchID: w.ID, Key: key, Title: "t " + key, Status: core.WatchItemPending, SeenAt: watchTestNow}
 	}
-	added, err := s.AddWatchItems(ctx, []core.WatchItem{item("a"), item("b")})
+	added, err := s.RecordWatchCheck(ctx, w, core.WatchCheck{At: watchTestNow, NextCheckAt: watchTestNow.Add(time.Hour), Status: core.WatchActive, Items: []core.WatchItem{item("a"), item("b")}})
 	if err != nil || len(added) != 2 || added[0].ID == 0 {
 		t.Fatalf("added = %+v, %v", added, err)
 	}
-	added, err = s.AddWatchItems(ctx, []core.WatchItem{item("b"), item("c")})
+	w.LastCheckedAt = watchTestNow
+	added, err = s.RecordWatchCheck(ctx, w, core.WatchCheck{At: watchTestNow, NextCheckAt: watchTestNow.Add(time.Hour), Status: core.WatchActive, Items: []core.WatchItem{item("b"), item("c")}})
 	if err != nil || len(added) != 1 || added[0].Key != "c" {
 		t.Fatalf("second add = %+v, %v", added, err)
 	}

@@ -123,9 +123,10 @@
   - `internal/tools/watch_tools_test.go`
 - **抓取只经 URL policy**：feed、GitHub 与网页都经 `webaccess.FetchRaw`（与 `web_fetch` 共用 policy、超时与大小上限），渲染页面经浏览器服务的 policy；loopback 一律拒绝。
   - `internal/watch/watch_test.go`
-- **追踪项检查与唤醒只在 wake 调度器**：到期追踪项以条件更新加租约认领，多个调度器只有一个检查。只有 immediate 追踪项的新条目起 wake run（在建立追踪项的线程里），计入 `wake.daily_limit` 并记 `wake.fired{watch_id}`；超限、起 run 失败与 digest 追踪项的条目都留给早安卡。一个追踪项失败不影响约定和其他追踪项；连续 5 次失败标为 failing，退避上限 24 小时。
+- **追踪项检查与唤醒只在 wake 调度器**：到期追踪项以条件更新加租约认领，多个调度器只有一个检查。检查结果只写检查字段（下次与上次检查、错误、失败次数、快照、active 与 failing 之间的切换），与新条目在同一事务里，且仅当追踪项的状态、失败次数与上次检查仍是检查开始时读到的值；检查期间 owner 的暂停、恢复或重设基线优先，这次检查的结果与条目都不记录。只有 immediate 追踪项的新条目起 wake run（在建立追踪项的线程里），计入 `wake.daily_limit` 并记 `wake.fired{watch_id}`；超限、起 run 失败与 digest 追踪项的条目都留给早安卡。一个追踪项失败不影响约定和其他追踪项；连续 5 次失败标为 failing，退避上限 24 小时。
   - `internal/wake/watches_test.go`
   - `internal/watch/watch_test.go`
+  - `internal/store/store_watch_test.go`
   - `internal/wire/watch_acceptance_e2e_test.go`
 - **每个本地日一次早安卡**：过了 `briefing.at`（owner 时区）后，`routine_runs` 表按 (`briefing`,日期) 认领，跨进程只触发一次；起 run 失败释放认领，下个 tick 重试。早安卡在 Briefings 线程里运行，输入列出全部待简报条目和 failing 追踪项，条目随之标为 briefed；它不计入每日唤醒上限。
   - `internal/wake/watches_test.go`

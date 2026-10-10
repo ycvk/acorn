@@ -73,11 +73,17 @@ func (m *memWatches) ClaimDueWatch(_ context.Context, id int64, now time.Time, l
 	return nil
 }
 
-func (m *memWatches) AddWatchItems(_ context.Context, items []core.WatchItem) ([]core.WatchItem, error) {
+func (m *memWatches) RecordWatchCheck(_ context.Context, from core.Watch, check core.WatchCheck) ([]core.WatchItem, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	w := &m.watches[from.ID-1]
+	if w.Status != from.Status || w.Failures != from.Failures || !w.LastCheckedAt.Equal(from.LastCheckedAt) {
+		return nil, fmt.Errorf("%w: %d", core.ErrWatchChanged, from.ID)
+	}
+	w.Status, w.NextCheckAt, w.LastCheckedAt, w.UpdatedAt = check.Status, check.NextCheckAt, check.At, check.At
+	w.Failures, w.LastError, w.Snapshot = check.Failures, check.LastError, check.Snapshot
 	var added []core.WatchItem
-	for _, item := range items {
+	for _, item := range check.Items {
 		item.ID = int64(len(m.items) + 1)
 		m.items = append(m.items, item)
 		added = append(added, item)
@@ -125,14 +131,15 @@ func (c *fakeChecker) Check(ctx context.Context, w core.Watch) (watch.Result, er
 	for i := range items {
 		items[i].WatchID, items[i].Status, items[i].SeenAt = w.ID, core.WatchItemPending, c.clock()
 	}
-	added, err := c.watches.AddWatchItems(ctx, items)
+	check := core.WatchCheck{
+		At: c.clock(), NextCheckAt: c.clock().Add(w.Interval), Status: w.Status,
+		Failures: w.Failures, LastError: w.LastError, Snapshot: w.Snapshot, Items: items,
+	}
+	added, err := c.watches.RecordWatchCheck(ctx, w, check)
 	if err != nil {
-		return watch.Result{}, err
+		return watch.Result{Watch: w}, err
 	}
-	w.NextCheckAt = c.clock().Add(w.Interval)
-	if err := c.watches.UpdateWatch(ctx, w); err != nil {
-		return watch.Result{}, err
-	}
+	w.LastCheckedAt, w.NextCheckAt = check.At, check.NextCheckAt
 	return watch.Result{Watch: w, New: added}, nil
 }
 

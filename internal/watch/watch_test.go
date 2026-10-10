@@ -32,16 +32,19 @@ func (f *fakeFetcher) FetchRaw(_ context.Context, rawURL string, headers map[str
 	return webaccess.RawResult{FinalURL: rawURL, Body: []byte(body)}, nil
 }
 
-// itemStore keeps items in memory and the last written watch.
+// itemStore keeps items in memory and the last checked watch.
 type itemStore struct {
 	core.WatchStore
 	keys    map[string]bool
 	updated core.Watch
 }
 
-func (s *itemStore) AddWatchItems(_ context.Context, items []core.WatchItem) ([]core.WatchItem, error) {
+func (s *itemStore) RecordWatchCheck(_ context.Context, from core.Watch, check core.WatchCheck) ([]core.WatchItem, error) {
+	s.updated = from
+	s.updated.Status, s.updated.NextCheckAt, s.updated.LastCheckedAt, s.updated.UpdatedAt = check.Status, check.NextCheckAt, check.At, check.At
+	s.updated.Failures, s.updated.LastError, s.updated.Snapshot = check.Failures, check.LastError, check.Snapshot
 	var added []core.WatchItem
-	for _, item := range items {
+	for _, item := range check.Items {
 		k := item.Key
 		if s.keys[k] {
 			continue
@@ -51,11 +54,6 @@ func (s *itemStore) AddWatchItems(_ context.Context, items []core.WatchItem) ([]
 		added = append(added, item)
 	}
 	return added, nil
-}
-
-func (s *itemStore) UpdateWatch(_ context.Context, w core.Watch) error {
-	s.updated = w
-	return nil
 }
 
 var checkNow = time.Date(2026, 10, 3, 1, 0, 0, 0, time.UTC)

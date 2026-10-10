@@ -182,6 +182,9 @@ func rebaseline(ctx context.Context, deps WatchToolDeps, w core.Watch) (WatchOut
 		return WatchOutput{}, fmt.Errorf("watch_update: the check with the new selector failed, nothing changed: %w", err)
 	}
 	w.LastCheckedAt, w.Snapshot = time.Time{}, ""
+	if err := deps.Store.UpdateWatch(ctx, w); err != nil {
+		return WatchOutput{}, fmt.Errorf("watch_update: %w", err)
+	}
 	result, err := deps.Checker.Apply(ctx, w, fetched)
 	if err != nil {
 		return WatchOutput{}, fmt.Errorf("watch_update: %w", err)
