@@ -16,12 +16,12 @@ type insightRevisionModel struct {
 }
 
 func (m insightRevisionModel) GenerateMemory(_ context.Context, _, input string, _ int) (Generation, error) {
-	var records []core.MemoryRecord
-	if err := json.Unmarshal([]byte(input), &records); err != nil {
+	var in consolidationInput
+	if err := json.Unmarshal([]byte(input), &in); err != nil {
 		return Generation{}, err
 	}
 	var insight, changed core.MemoryRecord
-	for _, r := range records {
+	for _, r := range append(in.Changed, in.Related...) {
 		if r.Kind == "insight" {
 			insight = r
 		}

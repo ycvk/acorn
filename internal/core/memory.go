@@ -103,10 +103,13 @@ type MemoryChange struct {
 	SupersedesRevision int64       `json:"supersedes_revision,omitempty"`
 }
 
+// MemoryMutation commits changes. Lease is the job doing the work; Batch holds
+// further jobs whose work the same changes complete, finished with Lease.
 type MemoryMutation struct {
 	Changes    []MemoryChange
 	Links      []MemoryLink
 	Lease      *MemoryJob
+	Batch      []MemoryJob
 	Epoch      int64
 	Now        time.Time
 	More       bool
@@ -210,6 +213,8 @@ type MemoryStore interface {
 	SaveConcern(context.Context, MemoryConcern, int64) (MemoryConcern, error)
 	ListConcerns(context.Context, bool) ([]MemoryConcern, error)
 	ClaimMemoryJob(context.Context, time.Time, time.Duration, string) (*MemoryJob, error)
+	ReadyMemoryJobs(context.Context, time.Time, string, int) ([]MemoryJob, error)
+	ClaimMemoryJobs(context.Context, []int64, time.Time, time.Duration) ([]MemoryJob, error)
 	FinishMemoryJob(context.Context, MemoryJob, string, time.Time) error
 	FailMemoryJob(context.Context, MemoryJob, string, time.Time) error
 	DeferMemoryJob(context.Context, MemoryJob, string, time.Time) error

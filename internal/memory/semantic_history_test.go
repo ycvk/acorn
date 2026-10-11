@@ -2,8 +2,8 @@ package memory
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-	"strings"
 	"testing"
 	"time"
 
@@ -44,13 +44,22 @@ func TestConsolidationFindsRelatedEvidenceWithoutSharedWordsOrEntities(t *testin
 	semanticFixtureVector(t, db, a, []float32{1, 0}, now)
 	semanticFixtureVector(t, db, b, []float32{1, 0}, now)
 	job, err := db.ClaimMemoryJob(context.Background(), now, time.Minute, "consolidate")
-	if err != nil || job == nil {
+	if err != nil || job == nil || job.ObjectID != a.ID {
 		t.Fatalf("consolidation job=%+v err=%v", job, err)
+	}
+	// b was consolidated earlier, so only the semantic route can bring it in.
+	done, err := db.ClaimMemoryJob(context.Background(), now, time.Minute, "consolidate")
+	if err != nil || done == nil || done.ObjectID != b.ID {
+		t.Fatalf("second consolidation job=%+v err=%v", done, err)
+	}
+	if err := db.FinishMemoryJob(context.Background(), *done, "fixture setup", now); err != nil {
+		t.Fatal(err)
 	}
 	if err := e.consolidate(context.Background(), *job); err != nil {
 		t.Fatal(err)
 	}
-	if model.calls != 1 || !strings.Contains(model.seen[0], a.ID) || !strings.Contains(model.seen[0], b.ID) {
+	var in consolidationInput
+	if model.calls != 1 || json.Unmarshal([]byte(model.seen[0]), &in) != nil || len(in.Changed) != 1 || len(in.Related) == 0 || in.Related[0].ID != b.ID {
 		t.Fatalf("semantic evidence did not reach consolidation: %v", model.seen)
 	}
 }

@@ -61,8 +61,9 @@
   - `internal/store/memory_contract_test.go`
   - `internal/store/memory_state_test.go`
   - `internal/runtime/memory_visibility_test.go`
-- **后台处理可恢复，外部调用可计量**：来源与任务原子登记、租约 token 和游标防止重复/过期提交；每个模型、embedding 与压缩调用按预算记录用量。索引模型与维度匹配方可检索，离线维护使用独占数据目录锁。
+- **后台处理可恢复，外部调用可计量**：来源与任务原子登记、租约 token 和游标防止重复/过期提交；一次整合调用最多对齐 8 条一起变化的记录，批内每个任务的租约都在提交事务里校验并结束，调用失败时批内任务一起记失败；每个模型、embedding 与压缩调用按预算记录用量。索引模型与维度匹配方可检索，离线维护使用独占数据目录锁。
   - `internal/memory/process_test.go`
+  - `internal/memory/consolidation_batch_test.go`
   - `internal/store/memory_index_test.go`
   - `internal/store/memory_vector_quality_test.go`
   - `internal/store/memory_vector_history_test.go`

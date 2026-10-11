@@ -38,6 +38,14 @@ func (s *Store) CommitMemory(ctx context.Context, mutation core.MemoryMutation) 
 				return err
 			}
 		}
+		if len(mutation.Batch) > 0 && (mutation.Lease == nil || mutation.More) {
+			return errors.New("a memory job batch completes with a final leased mutation")
+		}
+		for _, job := range mutation.Batch {
+			if err := validateMemoryLease(ctx, tx, job, mutation.Now); err != nil {
+				return err
+			}
+		}
 		for _, change := range mutation.Changes {
 			if change.Supersedes != "" {
 				if err := supersedeMemory(ctx, tx, change, mutation.Now); err != nil {
@@ -67,6 +75,11 @@ func (s *Store) CommitMemory(ctx context.Context, mutation core.MemoryMutation) 
 				}
 				_, err := tx.ExecContext(ctx, `UPDATE memory_jobs SET state='pending',cursor=?,attempts=0,available_at=?,lease_until='' WHERE id=? AND token=?`, mutation.NextCursor, formatTimestamp(mutation.Now), mutation.Lease.ID, mutation.Lease.Token)
 				return err
+			}
+			for _, job := range mutation.Batch {
+				if err := finishMemoryJob(ctx, tx, job, "", mutation.Now); err != nil {
+					return err
+				}
 			}
 			return finishMemoryJob(ctx, tx, *mutation.Lease, "", mutation.Now)
 		}

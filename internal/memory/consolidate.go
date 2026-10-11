@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"time"
 
 	"github.com/ycvk/acorn/internal/core"
 )
@@ -49,6 +50,10 @@ func (e *Engine) embedRecord(ctx context.Context, job core.MemoryJob) error {
 	return e.cfg.Store.SaveMemoryVectors(ctx, job, []core.MemoryVector{{ID: record.ID, Revision: record.Revision, Generation: index.Generation, Values: values}}, e.cfg.Clock())
 }
 
+// consolidateBatchRecords bounds how many changed records share one
+// consolidation call; facts committed together are reconciled together.
+const consolidateBatchRecords = 8
+
 func (e *Engine) consolidate(ctx context.Context, job core.MemoryJob) error {
 	read, err := e.cfg.Store.ReadMemory(ctx, job.ObjectID)
 	if errors.Is(err, core.ErrMemoryExcluded) {
@@ -60,47 +65,145 @@ func (e *Engine) consolidate(ctx context.Context, job core.MemoryJob) error {
 	if fmt.Sprint(read.Record.Revision) != job.Version {
 		return e.cfg.Store.FinishMemoryJob(ctx, job, "record revision has advanced", e.cfg.Clock())
 	}
-	neighbors, err := e.cfg.Store.MemoryNeighbors(ctx, []string{read.Record.ID}, 30)
+	changed, batch, err := e.consolidationBatch(ctx, job, read.Record)
 	if err != nil {
 		return err
 	}
-	lexical, err := e.cfg.Store.SearchMemoryText(ctx, core.MemoryQuery{Query: read.Record.Content, Limit: 20})
+	if err := e.consolidateRecords(ctx, job, batch, changed); err != nil {
+		return errors.Join(err, e.failMemoryJobs(ctx, batch, err))
+	}
+	return nil
+}
+
+// consolidationBatch claims further ready consolidation jobs whose current
+// records fit the model input beside the leased record.
+func (e *Engine) consolidationBatch(ctx context.Context, job core.MemoryJob, record core.MemoryRecord) ([]core.MemoryRecord, []core.MemoryJob, error) {
+	now := e.cfg.Clock()
+	ready, err := e.cfg.Store.ReadyMemoryJobs(ctx, now, "consolidate", 2*consolidateBatchRecords)
+	if err != nil {
+		return nil, nil, err
+	}
+	changed := []core.MemoryRecord{record}
+	byJob := map[int64]core.MemoryRecord{}
+	var ids []int64
+	for _, candidate := range ready {
+		if len(changed) == consolidateBatchRecords {
+			break
+		}
+		read, err := e.cfg.Store.ReadMemory(ctx, candidate.ObjectID)
+		if errors.Is(err, core.ErrMemoryExcluded) {
+			continue
+		}
+		if err != nil {
+			return nil, nil, err
+		}
+		if read.Record.ID == record.ID || fmt.Sprint(read.Record.Revision) != candidate.Version {
+			continue
+		}
+		fits, err := e.consolidationFits(ctx, append(append([]core.MemoryRecord(nil), changed...), read.Record), nil)
+		if err != nil {
+			return nil, nil, err
+		}
+		if !fits {
+			break
+		}
+		changed = append(changed, read.Record)
+		byJob[candidate.ID] = read.Record
+		ids = append(ids, candidate.ID)
+	}
+	if len(ids) == 0 {
+		return changed, nil, nil
+	}
+	batch, err := e.cfg.Store.ClaimMemoryJobs(ctx, ids, now, memoryJobLease)
+	if err != nil {
+		return nil, nil, err
+	}
+	changed = changed[:1]
+	for _, claimed := range batch {
+		changed = append(changed, byJob[claimed.ID])
+	}
+	return changed, batch, nil
+}
+
+func (e *Engine) consolidationFits(ctx context.Context, changed, related []core.MemoryRecord) (bool, error) {
+	data, err := json.Marshal(consolidationInput{Changed: changed, Related: related})
+	if err != nil {
+		return false, err
+	}
+	n, err := e.cfg.Count(ctx, consolidateInstruction+string(data))
+	if err != nil {
+		return false, err
+	}
+	return n <= e.cfg.BatchTokens-128, nil
+}
+
+type consolidationInput struct {
+	Changed []core.MemoryRecord `json:"changed"`
+	Related []core.MemoryRecord `json:"related"`
+}
+
+func (e *Engine) failMemoryJobs(ctx context.Context, jobs []core.MemoryJob, cause error) error {
+	recoveryCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancel()
+	var errs []error
+	for _, job := range jobs {
+		if err := e.cfg.Store.FailMemoryJob(recoveryCtx, job, cause.Error(), e.cfg.Clock()); err != nil && !errors.Is(err, core.ErrMemoryLeaseLost) {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
+}
+
+func (e *Engine) consolidateRecords(ctx context.Context, job core.MemoryJob, batch []core.MemoryJob, changed []core.MemoryRecord) error {
+	ids := map[string]bool{}
+	seedIDs := make([]string, 0, len(changed))
+	needsReview := false
+	for _, r := range changed {
+		ids[r.ID] = true
+		seedIDs = append(seedIDs, r.ID)
+		needsReview = needsReview || r.NeedsReview
+	}
+	neighbors, err := e.cfg.Store.MemoryNeighbors(ctx, seedIDs, 30)
 	if err != nil {
 		return err
 	}
-	semantic, err := e.semanticCandidates(ctx, core.MemoryQuery{Query: read.Record.Content + "\n" + read.Record.Scope, Mode: "current", AsOf: e.cfg.Clock(), Limit: 20}, e.cfg.Index)
-	if err != nil {
-		return err
+	routes := [][]core.MemoryRecord{neighbors}
+	names := []string{"entity"}
+	for _, r := range changed {
+		semantic, err := e.semanticCandidates(ctx, core.MemoryQuery{Query: r.Content + "\n" + r.Scope, Mode: "current", AsOf: e.cfg.Clock(), Limit: 20}, e.cfg.Index)
+		if err != nil {
+			return err
+		}
+		lexical, err := e.cfg.Store.SearchMemoryText(ctx, core.MemoryQuery{Query: r.Content, Limit: 20})
+		if err != nil {
+			return err
+		}
+		routes = append(routes, semantic, lexical)
+		names = append(names, "semantic", "keyword")
 	}
-	// Fuse the three routes before fitting the shared model input budget so a
+	// Fuse the routes before fitting the shared model input budget so a
 	// large entity neighborhood cannot crowd out semantic evidence.
-	related := fuseMemory([][]core.MemoryRecord{semantic, neighbors, lexical}, []string{"semantic", "entity", "keyword"})
-	records := []core.MemoryRecord{read.Record}
-	ids := map[string]bool{read.Record.ID: true}
-	for _, hit := range related {
+	var related []core.MemoryRecord
+	for _, hit := range fuseMemory(routes, names) {
 		r := hit.Record
 		if ids[r.ID] {
 			continue
 		}
-		candidate := append(append([]core.MemoryRecord(nil), records...), r)
-		data, err := json.Marshal(candidate)
+		fits, err := e.consolidationFits(ctx, changed, append(append([]core.MemoryRecord(nil), related...), r))
 		if err != nil {
 			return err
 		}
-		n, err := e.cfg.Count(ctx, consolidateInstruction+string(data))
-		if err != nil {
-			return err
-		}
-		if n > e.cfg.BatchTokens-128 {
+		if !fits {
 			break
 		}
-		records = candidate
+		related = append(related, r)
 		ids[r.ID] = true
 	}
-	if len(records) < 2 && !read.Record.NeedsReview {
+	if len(changed)+len(related) < 2 && !needsReview {
 		return e.cfg.Store.FinishMemoryJob(ctx, job, "awaiting related evidence", e.cfg.Clock())
 	}
-	input, err := json.Marshal(records)
+	records := append(append([]core.MemoryRecord(nil), changed...), related...)
+	input, err := json.Marshal(consolidationInput{Changed: changed, Related: related})
 	if err != nil {
 		return err
 	}
@@ -154,6 +257,6 @@ func (e *Engine) consolidate(ctx context.Context, job core.MemoryJob) error {
 			return errors.New("consolidation links must connect supplied records")
 		}
 	}
-	_, err = e.cfg.Store.CommitMemory(ctx, core.MemoryMutation{Changes: output.Changes, Links: output.Links, Lease: &job, Epoch: job.Epoch, Now: e.cfg.Clock()})
+	_, err = e.cfg.Store.CommitMemory(ctx, core.MemoryMutation{Changes: output.Changes, Links: output.Links, Lease: &job, Batch: batch, Epoch: job.Epoch, Now: e.cfg.Clock()})
 	return err
 }

@@ -6,12 +6,12 @@
   "model": "grok-4.7 (reasoning low) via the PVE proxy",
   "embedding": "voyage-4, 1024 dimensions",
   "host": "PVE LXC 109, 4 cores, 2 GiB; Hindsight on LXC 107",
-  "scoring": "Frozen protocol scoring. citation_errors in the protocol counts every cited ID outside the found sources; this record splits it into IDs of returned evidence items and IDs that appear nowhere in the evidence. Acorn memory calls include extraction, consolidation and at most one rerank call per query; Hindsight runs with reranking off and counts only retain and consolidation.",
+  "scoring": "Frozen protocol scoring. citation_errors in the protocol counts every cited ID outside the found sources; this record splits it into IDs of returned evidence items and IDs that appear nowhere in the evidence. Standard recall makes no model call, so Acorn memory calls are extraction and consolidation; Hindsight runs with reranking off and counts retain and consolidation.",
   "runs": [
     {
       "split": "acceptance",
       "backend": "acorn",
-      "label": "ceb679f",
+      "label": "per-record consolidation (ceb679f)",
       "queries": 20,
       "queries_correct": 13,
       "slots_correct": 19,
@@ -1444,7 +1444,7 @@
     {
       "split": "development",
       "backend": "acorn",
-      "label": "ceb679f",
+      "label": "per-record consolidation (ceb679f)",
       "queries": 18,
       "queries_correct": 15,
       "slots_correct": 20,
@@ -2685,6 +2685,1336 @@
           "recall_ms": 270
         }
       ]
+    },
+    {
+      "split": "acceptance",
+      "backend": "acorn",
+      "label": "batched consolidation",
+      "queries": 20,
+      "queries_correct": 16,
+      "slots_correct": 21,
+      "slots_total": 26,
+      "answer_slot_accuracy": 0.808,
+      "evidence_found": 22,
+      "evidence_expected": 22,
+      "citations_of_evidence_ids": 9,
+      "citations_of_unknown_ids": 0,
+      "after_forget_correct": 2,
+      "after_forget_total": 2,
+      "alias_and_disambiguation_errors": 0,
+      "answer_tokens": 51186,
+      "memory": {
+        "model_calls": 35,
+        "tokens": 270044,
+        "processing_retries": 2,
+        "records": 96,
+        "insights": 7
+      },
+      "recall_ms_p50": 230,
+      "recall_ms_max": 271,
+      "elapsed_seconds": 1246,
+      "results": [
+        {
+          "id": "a-q09",
+          "category": "completion",
+          "phase": "",
+          "correct": false,
+          "expected": {
+            "accepted": [
+              "未知"
+            ],
+            "validation": [
+              "样例权限检查通过"
+            ]
+          },
+          "answer": {
+            "accepted": "否",
+            "validation": "样例权限检查通过"
+          },
+          "cited": [
+            "a01",
+            "a03",
+            "a05",
+            "a10",
+            "a12",
+            "a13"
+          ],
+          "expected_sources": [
+            "a13"
+          ],
+          "found_sources": [
+            "a01",
+            "a03",
+            "a05",
+            "a10",
+            "a12",
+            "a13"
+          ],
+          "citations_of_evidence_ids": [],
+          "citations_of_unknown_ids": [],
+          "recall_ms": 230
+        },
+        {
+          "id": "a-q01",
+          "category": "alias",
+          "phase": "",
+          "correct": true,
+          "expected": {
+            "name": [
+              "夏宁"
+            ]
+          },
+          "answer": {
+            "name": "夏宁"
+          },
+          "cited": [
+            "m_8adb7da20b147775cc54b36ae7dfb864",
+            "m_22ec4715cebe8e45f1a3322701e471da",
+            "m_9d3b5fdfdec71143c3ef5a86b4a2cf68",
+            "m_99e04f3776e1dbf68dc6f4bb4216b4a3"
+          ],
+          "expected_sources": [
+            "a01",
+            "a05"
+          ],
+          "found_sources": [
+            "a01",
+            "a05",
+            "a10",
+            "a16"
+          ],
+          "citations_of_evidence_ids": [
+            "m_8adb7da20b147775cc54b36ae7dfb864",
+            "m_22ec4715cebe8e45f1a3322701e471da",
+            "m_9d3b5fdfdec71143c3ef5a86b4a2cf68",
+            "m_99e04f3776e1dbf68dc6f4bb4216b4a3"
+          ],
+          "citations_of_unknown_ids": [],
+          "recall_ms": 227
+        },
+        {
+          "id": "a-q02",
+          "category": "disambiguation",
+          "phase": "",
+          "correct": true,
+          "expected": {
+            "name": [
+              "夏禾"
+            ]
+          },
+          "answer": {
+            "name": "夏禾"
+          },
+          "cited": [
+            "a01",
+            "a16",
+            "a04",
+            "a09"
+          ],
+          "expected_sources": [
+            "a01",
+            "a04"
+          ],
+          "found_sources": [
+            "a01",
+            "a04",
+            "a05",
+            "a09",
+            "a16"
+          ],
+          "citations_of_evidence_ids": [],
+          "citations_of_unknown_ids": [],
+          "recall_ms": 224
+        },
+        {
+          "id": "a-q03",
+          "category": "conditional",
+          "phase": "",
+          "correct": true,
+          "expected": {
+            "sunday": [
+              "熟人结伴"
+            ],
+            "weekday": [
+              "独自散步"
+            ]
+          },
+          "answer": {
+            "sunday": "熟人结伴",
+            "weekday": "独自散步"
+          },
+          "cited": [
+            "a04",
+            "a09"
+          ],
+          "expected_sources": [
+            "a04"
+          ],
+          "found_sources": [
+            "a04",
+            "a09"
+          ],
+          "citations_of_evidence_ids": [],
+          "citations_of_unknown_ids": [],
+          "recall_ms": 223
+        },
+        {
+          "id": "a-q04",
+          "category": "insight",
+          "phase": "",
+          "correct": true,
+          "expected": {
+            "private": [
+              "先运行再调整",
+              "先使用再调整"
+            ],
+            "shared": [
+              "先验证权限再试用"
+            ]
+          },
+          "answer": {
+            "private": "先使用再调整",
+            "shared": "先验证权限再试用"
+          },
+          "cited": [
+            "a03",
+            "a12",
+            "a05",
+            "a07",
+            "a16"
+          ],
+          "expected_sources": [
+            "a07",
+            "a12",
+            "a16"
+          ],
+          "found_sources": [
+            "a01",
+            "a03",
+            "a05",
+            "a07",
+            "a10",
+            "a12",
+            "a13",
+            "a14",
+            "a15",
+            "a16"
+          ],
+          "citations_of_evidence_ids": [],
+          "citations_of_unknown_ids": [],
+          "recall_ms": 271
+        },
+        {
+          "id": "a-q05",
+          "category": "proposal",
+          "phase": "",
+          "correct": true,
+          "expected": {
+            "agreed": [
+              "否"
+            ]
+          },
+          "answer": {
+            "agreed": "否"
+          },
+          "cited": [
+            "m_55d9ccf374b355433e18a10b47f382e7",
+            "m_5a19e6cf3768abb0d8e5c031c73267e2"
+          ],
+          "expected_sources": [
+            "a03",
+            "a10"
+          ],
+          "found_sources": [
+            "a01",
+            "a03",
+            "a04",
+            "a05",
+            "a08",
+            "a09",
+            "a10",
+            "a12",
+            "a13",
+            "a14",
+            "a15",
+            "a16"
+          ],
+          "citations_of_evidence_ids": [
+            "m_55d9ccf374b355433e18a10b47f382e7",
+            "m_5a19e6cf3768abb0d8e5c031c73267e2"
+          ],
+          "citations_of_unknown_ids": [],
+          "recall_ms": 254
+        },
+        {
+          "id": "a-q06",
+          "category": "attribution",
+          "phase": "",
+          "correct": true,
+          "expected": {
+            "registered": [
+              "否"
+            ]
+          },
+          "answer": {
+            "registered": "否"
+          },
+          "cited": [
+            "a15",
+            "a09",
+            "a08",
+            "a04"
+          ],
+          "expected_sources": [
+            "a09"
+          ],
+          "found_sources": [
+            "a04",
+            "a08",
+            "a09",
+            "a15"
+          ],
+          "citations_of_evidence_ids": [],
+          "citations_of_unknown_ids": [],
+          "recall_ms": 220
+        },
+        {
+          "id": "a-q07",
+          "category": "correction",
+          "phase": "",
+          "correct": true,
+          "expected": {
+            "home_changed": [
+              "否"
+            ],
+            "studio": [
+              "听雨街"
+            ]
+          },
+          "answer": {
+            "home_changed": "否",
+            "studio": "听雨街"
+          },
+          "cited": [
+            "a06",
+            "a11",
+            "a16"
+          ],
+          "expected_sources": [
+            "a06"
+          ],
+          "found_sources": [
+            "a01",
+            "a06",
+            "a11",
+            "a16"
+          ],
+          "citations_of_evidence_ids": [],
+          "citations_of_unknown_ids": [],
+          "recall_ms": 236
+        },
+        {
+          "id": "a-q08",
+          "category": "temporal",
+          "phase": "",
+          "correct": false,
+          "expected": {
+            "studio": [
+              "榆树巷"
+            ]
+          },
+          "answer": {
+            "studio": "未知"
+          },
+          "cited": [
+            "a06",
+            "a16"
+          ],
+          "expected_sources": [
+            "a06"
+          ],
+          "found_sources": [
+            "a01",
+            "a06",
+            "a08",
+            "a16"
+          ],
+          "citations_of_evidence_ids": [],
+          "citations_of_unknown_ids": [],
+          "recall_ms": 234
+        },
+        {
+          "id": "a-q10",
+          "category": "completion",
+          "phase": "",
+          "correct": false,
+          "expected": {
+            "accepted": [
+              "是"
+            ]
+          },
+          "answer": {
+            "accepted": "未知"
+          },
+          "cited": [
+            "a15",
+            "a01",
+            "a03",
+            "a05",
+            "a10",
+            "a12",
+            "a13",
+            "a14"
+          ],
+          "expected_sources": [
+            "a15"
+          ],
+          "found_sources": [
+            "a01",
+            "a03",
+            "a05",
+            "a10",
+            "a12",
+            "a13",
+            "a14",
+            "a15"
+          ],
+          "citations_of_evidence_ids": [],
+          "citations_of_unknown_ids": [],
+          "recall_ms": 261
+        },
+        {
+          "id": "a-q11",
+          "category": "scope",
+          "phase": "",
+          "correct": true,
+          "expected": {
+            "visible_to": [
+              "仅本人"
+            ]
+          },
+          "answer": {
+            "visible_to": "仅本人"
+          },
+          "cited": [
+            "a10",
+            "a13",
+            "a01",
+            "a03",
+            "a05",
+            "a12",
+            "a14",
+            "a15"
+          ],
+          "expected_sources": [
+            "a10"
+          ],
+          "found_sources": [
+            "a01",
+            "a03",
+            "a05",
+            "a07",
+            "a10",
+            "a12",
+            "a13",
+            "a14",
+            "a15",
+            "a16"
+          ],
+          "citations_of_evidence_ids": [],
+          "citations_of_unknown_ids": [],
+          "recall_ms": 261
+        },
+        {
+          "id": "a-q12",
+          "category": "proposal",
+          "phase": "",
+          "correct": true,
+          "expected": {
+            "completed": [
+              "否"
+            ]
+          },
+          "answer": {
+            "completed": "否"
+          },
+          "cited": [
+            "a15"
+          ],
+          "expected_sources": [
+            "a15"
+          ],
+          "found_sources": [
+            "a01",
+            "a03",
+            "a05",
+            "a10",
+            "a12",
+            "a13",
+            "a14",
+            "a15"
+          ],
+          "citations_of_evidence_ids": [],
+          "citations_of_unknown_ids": [],
+          "recall_ms": 254
+        },
+        {
+          "id": "a-q13",
+          "category": "conditional",
+          "phase": "",
+          "correct": true,
+          "expected": {
+            "birthday": [
+              "接受小份甜点"
+            ],
+            "drink": [
+              "少糖"
+            ]
+          },
+          "answer": {
+            "birthday": "接受小份甜点",
+            "drink": "少糖"
+          },
+          "cited": [
+            "a11"
+          ],
+          "expected_sources": [
+            "a11"
+          ],
+          "found_sources": [
+            "a01",
+            "a04",
+            "a08",
+            "a09",
+            "a11",
+            "a15"
+          ],
+          "citations_of_evidence_ids": [],
+          "citations_of_unknown_ids": [],
+          "recall_ms": 227
+        },
+        {
+          "id": "a-q14",
+          "category": "privacy",
+          "phase": "",
+          "correct": true,
+          "expected": {
+            "nickname": [
+              "琥珀湾"
+            ]
+          },
+          "answer": {
+            "nickname": "琥珀湾"
+          },
+          "cited": [
+            "a11"
+          ],
+          "expected_sources": [
+            "a11"
+          ],
+          "found_sources": [
+            "a01",
+            "a06",
+            "a11"
+          ],
+          "citations_of_evidence_ids": [],
+          "citations_of_unknown_ids": [],
+          "recall_ms": 221
+        },
+        {
+          "id": "a-q15",
+          "category": "completion",
+          "phase": "",
+          "correct": false,
+          "expected": {
+            "fern": [
+              "未买"
+            ],
+            "pot": [
+              "已买"
+            ]
+          },
+          "answer": {
+            "fern": "未知",
+            "pot": "未知"
+          },
+          "cited": [
+            "m_b6e24f8c34d50dcf7a16aa73a8ad2059"
+          ],
+          "expected_sources": [
+            "a11",
+            "a16"
+          ],
+          "found_sources": [
+            "a01",
+            "a03",
+            "a08",
+            "a10",
+            "a11",
+            "a16"
+          ],
+          "citations_of_evidence_ids": [
+            "m_b6e24f8c34d50dcf7a16aa73a8ad2059"
+          ],
+          "citations_of_unknown_ids": [],
+          "recall_ms": 219
+        },
+        {
+          "id": "a-q16",
+          "category": "unknown",
+          "phase": "",
+          "correct": true,
+          "expected": {
+            "serial": [
+              "未知"
+            ]
+          },
+          "answer": {
+            "serial": "未知"
+          },
+          "cited": [],
+          "expected_sources": [],
+          "found_sources": [
+            "a01",
+            "a06",
+            "a10",
+            "a15",
+            "a16"
+          ],
+          "citations_of_evidence_ids": [],
+          "citations_of_unknown_ids": [],
+          "recall_ms": 239
+        },
+        {
+          "id": "a-q17",
+          "category": "unknown",
+          "phase": "",
+          "correct": true,
+          "expected": {
+            "decided": [
+              "否"
+            ]
+          },
+          "answer": {
+            "decided": "否"
+          },
+          "cited": [
+            "a01",
+            "a03",
+            "a10",
+            "a16"
+          ],
+          "expected_sources": [
+            "a16"
+          ],
+          "found_sources": [
+            "a01",
+            "a03",
+            "a04",
+            "a06",
+            "a08",
+            "a09",
+            "a10",
+            "a15",
+            "a16"
+          ],
+          "citations_of_evidence_ids": [],
+          "citations_of_unknown_ids": [],
+          "recall_ms": 235
+        },
+        {
+          "id": "a-q18",
+          "category": "unknown",
+          "phase": "",
+          "correct": true,
+          "expected": {
+            "birthday": [
+              "未知"
+            ]
+          },
+          "answer": {
+            "birthday": "未知"
+          },
+          "cited": [],
+          "expected_sources": [],
+          "found_sources": [
+            "a01",
+            "a05",
+            "a10",
+            "a16"
+          ],
+          "citations_of_evidence_ids": [],
+          "citations_of_unknown_ids": [],
+          "recall_ms": 226
+        },
+        {
+          "id": "a-q19",
+          "category": "privacy",
+          "phase": "after_forget",
+          "correct": true,
+          "expected": {
+            "nickname": [
+              "未知"
+            ]
+          },
+          "answer": {
+            "nickname": "未知"
+          },
+          "cited": [],
+          "expected_sources": [],
+          "found_sources": [
+            "a01",
+            "a06",
+            "a08",
+            "a15"
+          ],
+          "citations_of_evidence_ids": [],
+          "citations_of_unknown_ids": [],
+          "recall_ms": 230
+        },
+        {
+          "id": "a-q20",
+          "category": "privacy",
+          "phase": "after_forget",
+          "correct": true,
+          "expected": {
+            "nickname": [
+              "未知"
+            ]
+          },
+          "answer": {
+            "nickname": "未知"
+          },
+          "cited": [
+            "m_34c3dbcee81930cb1b043b0f17ebd0a1",
+            "m_287a3310fda09ffdb64e01d04259972e"
+          ],
+          "expected_sources": [],
+          "found_sources": [
+            "a01",
+            "a04",
+            "a08",
+            "a09",
+            "a15"
+          ],
+          "citations_of_evidence_ids": [
+            "m_34c3dbcee81930cb1b043b0f17ebd0a1",
+            "m_287a3310fda09ffdb64e01d04259972e"
+          ],
+          "citations_of_unknown_ids": [],
+          "recall_ms": 230
+        }
+      ]
+    },
+    {
+      "split": "development",
+      "backend": "acorn",
+      "label": "batched consolidation",
+      "queries": 18,
+      "queries_correct": 14,
+      "slots_correct": 19,
+      "slots_total": 23,
+      "answer_slot_accuracy": 0.826,
+      "evidence_found": 19,
+      "evidence_expected": 19,
+      "citations_of_evidence_ids": 15,
+      "citations_of_unknown_ids": 0,
+      "after_forget_correct": 2,
+      "after_forget_total": 2,
+      "alias_and_disambiguation_errors": 1,
+      "answer_tokens": 43831,
+      "memory": {
+        "model_calls": 31,
+        "tokens": 228920,
+        "processing_retries": 1,
+        "records": 87,
+        "insights": 3
+      },
+      "recall_ms_p50": 229,
+      "recall_ms_max": 255,
+      "elapsed_seconds": 959,
+      "results": [
+        {
+          "id": "d-q09",
+          "category": "completion",
+          "phase": "",
+          "correct": false,
+          "expected": {
+            "accepted": [
+              "未知"
+            ],
+            "validation": [
+              "样例测试通过"
+            ]
+          },
+          "answer": {
+            "accepted": "否",
+            "validation": "样例测试通过"
+          },
+          "cited": [
+            "m_2353dbd28eff8edb4a03d0cb44a84463",
+            "m_2518e00be791daacd8de5fdb6863c25d",
+            "m_5fbd05de399bedf2e220f39b99b5ce8f",
+            "m_78c20fe8392f1c6c39fac0a4c7ab134a"
+          ],
+          "expected_sources": [
+            "d14"
+          ],
+          "found_sources": [
+            "d02",
+            "d04",
+            "d06",
+            "d11",
+            "d13",
+            "d14"
+          ],
+          "citations_of_evidence_ids": [
+            "m_2353dbd28eff8edb4a03d0cb44a84463",
+            "m_2518e00be791daacd8de5fdb6863c25d",
+            "m_5fbd05de399bedf2e220f39b99b5ce8f",
+            "m_78c20fe8392f1c6c39fac0a4c7ab134a"
+          ],
+          "citations_of_unknown_ids": [],
+          "recall_ms": 226
+        },
+        {
+          "id": "d-q01",
+          "category": "conditional",
+          "phase": "",
+          "correct": true,
+          "expected": {
+            "weekday": [
+              "独自短途"
+            ],
+            "weekend": [
+              "熟人结伴"
+            ]
+          },
+          "answer": {
+            "weekday": "独自短途",
+            "weekend": "熟人结伴"
+          },
+          "cited": [
+            "d01",
+            "d05"
+          ],
+          "expected_sources": [
+            "d01",
+            "d05"
+          ],
+          "found_sources": [
+            "d01",
+            "d05",
+            "d10",
+            "d16"
+          ],
+          "citations_of_evidence_ids": [],
+          "citations_of_unknown_ids": [],
+          "recall_ms": 228
+        },
+        {
+          "id": "d-q02",
+          "category": "alias",
+          "phase": "",
+          "correct": true,
+          "expected": {
+            "name": [
+              "周青"
+            ]
+          },
+          "answer": {
+            "name": "周青"
+          },
+          "cited": [
+            "d06",
+            "d02"
+          ],
+          "expected_sources": [
+            "d02",
+            "d06"
+          ],
+          "found_sources": [
+            "d02",
+            "d06",
+            "d16"
+          ],
+          "citations_of_evidence_ids": [],
+          "citations_of_unknown_ids": [],
+          "recall_ms": 234
+        },
+        {
+          "id": "d-q03",
+          "category": "disambiguation",
+          "phase": "",
+          "correct": false,
+          "expected": {
+            "name": [
+              "赵庆"
+            ]
+          },
+          "answer": {
+            "name": "未知"
+          },
+          "cited": [
+            "d02",
+            "d05"
+          ],
+          "expected_sources": [
+            "d02",
+            "d05"
+          ],
+          "found_sources": [
+            "d02",
+            "d05",
+            "d06"
+          ],
+          "citations_of_evidence_ids": [],
+          "citations_of_unknown_ids": [],
+          "recall_ms": 226
+        },
+        {
+          "id": "d-q04",
+          "category": "proposal",
+          "phase": "",
+          "correct": true,
+          "expected": {
+            "adopted": [
+              "否"
+            ]
+          },
+          "answer": {
+            "adopted": "否"
+          },
+          "cited": [
+            "d04",
+            "d11"
+          ],
+          "expected_sources": [
+            "d11"
+          ],
+          "found_sources": [
+            "d02",
+            "d04",
+            "d06",
+            "d11",
+            "d13",
+            "d14",
+            "d15",
+            "d16"
+          ],
+          "citations_of_evidence_ids": [],
+          "citations_of_unknown_ids": [],
+          "recall_ms": 236
+        },
+        {
+          "id": "d-q05",
+          "category": "insight",
+          "phase": "",
+          "correct": true,
+          "expected": {
+            "others_data": [
+              "先验证再试用"
+            ],
+            "private": [
+              "先运行再调整",
+              "先使用再调整"
+            ]
+          },
+          "answer": {
+            "others_data": "先验证再试用",
+            "private": "先运行再调整"
+          },
+          "cited": [
+            "m_2e2c898175a7189a324309e3854d50b7",
+            "m_31a50e28aca8328027f2db30709a111b",
+            "m_2a6333edd1d51d81a83316d4b3fdfd3d"
+          ],
+          "expected_sources": [
+            "d08",
+            "d13"
+          ],
+          "found_sources": [
+            "d04",
+            "d08",
+            "d13",
+            "d14"
+          ],
+          "citations_of_evidence_ids": [
+            "m_2e2c898175a7189a324309e3854d50b7",
+            "m_31a50e28aca8328027f2db30709a111b",
+            "m_2a6333edd1d51d81a83316d4b3fdfd3d"
+          ],
+          "citations_of_unknown_ids": [],
+          "recall_ms": 249
+        },
+        {
+          "id": "d-q06",
+          "category": "correction",
+          "phase": "",
+          "correct": true,
+          "expected": {
+            "home_changed": [
+              "否"
+            ],
+            "studio": [
+              "松溪路"
+            ]
+          },
+          "answer": {
+            "home_changed": "否",
+            "studio": "松溪路"
+          },
+          "cited": [
+            "d07",
+            "d12"
+          ],
+          "expected_sources": [
+            "d07"
+          ],
+          "found_sources": [
+            "d07",
+            "d12"
+          ],
+          "citations_of_evidence_ids": [],
+          "citations_of_unknown_ids": [],
+          "recall_ms": 229
+        },
+        {
+          "id": "d-q07",
+          "category": "attribution",
+          "phase": "",
+          "correct": true,
+          "expected": {
+            "registered": [
+              "否"
+            ]
+          },
+          "answer": {
+            "registered": "否"
+          },
+          "cited": [
+            "m_2f926195f99777078d5e218036e76a98",
+            "m_f2f052db74a9d7aaf23a16e493a0dad8",
+            "m_e5474fa4703d3c619349f47b88e1e755"
+          ],
+          "expected_sources": [
+            "d10"
+          ],
+          "found_sources": [
+            "d01",
+            "d05",
+            "d10",
+            "d16"
+          ],
+          "citations_of_evidence_ids": [
+            "m_2f926195f99777078d5e218036e76a98",
+            "m_f2f052db74a9d7aaf23a16e493a0dad8",
+            "m_e5474fa4703d3c619349f47b88e1e755"
+          ],
+          "citations_of_unknown_ids": [],
+          "recall_ms": 241
+        },
+        {
+          "id": "d-q08",
+          "category": "temporal",
+          "phase": "",
+          "correct": true,
+          "expected": {
+            "studio": [
+              "南桥街"
+            ]
+          },
+          "answer": {
+            "studio": "南桥街"
+          },
+          "cited": [
+            "m_365d65e37319123818245cc84f146295"
+          ],
+          "expected_sources": [
+            "d07"
+          ],
+          "found_sources": [
+            "d01",
+            "d05",
+            "d07",
+            "d10",
+            "d12",
+            "d16"
+          ],
+          "citations_of_evidence_ids": [
+            "m_365d65e37319123818245cc84f146295"
+          ],
+          "citations_of_unknown_ids": [],
+          "recall_ms": 234
+        },
+        {
+          "id": "d-q10",
+          "category": "completion",
+          "phase": "",
+          "correct": false,
+          "expected": {
+            "accepted": [
+              "是"
+            ]
+          },
+          "answer": {
+            "accepted": "未知"
+          },
+          "cited": [
+            "d14",
+            "d15",
+            "d16"
+          ],
+          "expected_sources": [
+            "d16"
+          ],
+          "found_sources": [
+            "d02",
+            "d04",
+            "d06",
+            "d11",
+            "d13",
+            "d14",
+            "d15",
+            "d16"
+          ],
+          "citations_of_evidence_ids": [],
+          "citations_of_unknown_ids": [],
+          "recall_ms": 224
+        },
+        {
+          "id": "d-q11",
+          "category": "unknown",
+          "phase": "",
+          "correct": true,
+          "expected": {
+            "serial": [
+              "未知"
+            ]
+          },
+          "answer": {
+            "serial": "未知"
+          },
+          "cited": [],
+          "expected_sources": [],
+          "found_sources": [
+            "d01",
+            "d07"
+          ],
+          "citations_of_evidence_ids": [],
+          "citations_of_unknown_ids": [],
+          "recall_ms": 231
+        },
+        {
+          "id": "d-q12",
+          "category": "unknown",
+          "phase": "",
+          "correct": false,
+          "expected": {
+            "reached": [
+              "未知"
+            ]
+          },
+          "answer": {
+            "reached": "否"
+          },
+          "cited": [
+            "m_515acb6bd58cb0e6ca4de51d69ff0f2a",
+            "m_639bf10e0a907d825daf60df25e1a8f8"
+          ],
+          "expected_sources": [],
+          "found_sources": [
+            "d02",
+            "d04",
+            "d06",
+            "d16"
+          ],
+          "citations_of_evidence_ids": [
+            "m_515acb6bd58cb0e6ca4de51d69ff0f2a",
+            "m_639bf10e0a907d825daf60df25e1a8f8"
+          ],
+          "citations_of_unknown_ids": [],
+          "recall_ms": 226
+        },
+        {
+          "id": "d-q13",
+          "category": "privacy",
+          "phase": "",
+          "correct": true,
+          "expected": {
+            "nickname": [
+              "雪松角"
+            ]
+          },
+          "answer": {
+            "nickname": "雪松角"
+          },
+          "cited": [
+            "d12"
+          ],
+          "expected_sources": [
+            "d12"
+          ],
+          "found_sources": [
+            "d06",
+            "d07",
+            "d12"
+          ],
+          "citations_of_evidence_ids": [],
+          "citations_of_unknown_ids": [],
+          "recall_ms": 227
+        },
+        {
+          "id": "d-q14",
+          "category": "scope",
+          "phase": "",
+          "correct": true,
+          "expected": {
+            "upload_books": [
+              "否"
+            ]
+          },
+          "answer": {
+            "upload_books": "否"
+          },
+          "cited": [
+            "m_cb3df632084c152daeb42db84b736996",
+            "m_2353dbd28eff8edb4a03d0cb44a84463"
+          ],
+          "expected_sources": [
+            "d11"
+          ],
+          "found_sources": [
+            "d02",
+            "d04",
+            "d06",
+            "d11",
+            "d13",
+            "d14",
+            "d15",
+            "d16"
+          ],
+          "citations_of_evidence_ids": [
+            "m_cb3df632084c152daeb42db84b736996",
+            "m_2353dbd28eff8edb4a03d0cb44a84463"
+          ],
+          "citations_of_unknown_ids": [],
+          "recall_ms": 235
+        },
+        {
+          "id": "d-q15",
+          "category": "proposal",
+          "phase": "",
+          "correct": true,
+          "expected": {
+            "completed": [
+              "否"
+            ]
+          },
+          "answer": {
+            "completed": "否"
+          },
+          "cited": [
+            "d16"
+          ],
+          "expected_sources": [
+            "d15",
+            "d16"
+          ],
+          "found_sources": [
+            "d02",
+            "d04",
+            "d06",
+            "d11",
+            "d13",
+            "d14",
+            "d15",
+            "d16"
+          ],
+          "citations_of_evidence_ids": [],
+          "citations_of_unknown_ids": [],
+          "recall_ms": 255
+        },
+        {
+          "id": "d-q16",
+          "category": "conditional",
+          "phase": "",
+          "correct": true,
+          "expected": {
+            "friends": [
+              "可以微辣"
+            ],
+            "usual": [
+              "清淡"
+            ]
+          },
+          "answer": {
+            "friends": "可以微辣",
+            "usual": "清淡"
+          },
+          "cited": [
+            "d12"
+          ],
+          "expected_sources": [
+            "d12"
+          ],
+          "found_sources": [
+            "d01",
+            "d12"
+          ],
+          "citations_of_evidence_ids": [],
+          "citations_of_unknown_ids": [],
+          "recall_ms": 214
+        },
+        {
+          "id": "d-q17",
+          "category": "privacy",
+          "phase": "after_forget",
+          "correct": true,
+          "expected": {
+            "nickname": [
+              "未知"
+            ]
+          },
+          "answer": {
+            "nickname": "未知"
+          },
+          "cited": [],
+          "expected_sources": [],
+          "found_sources": [
+            "d02",
+            "d06",
+            "d07"
+          ],
+          "citations_of_evidence_ids": [],
+          "citations_of_unknown_ids": [],
+          "recall_ms": 210
+        },
+        {
+          "id": "d-q18",
+          "category": "privacy",
+          "phase": "after_forget",
+          "correct": true,
+          "expected": {
+            "nickname": [
+              "未知"
+            ]
+          },
+          "answer": {
+            "nickname": "未知"
+          },
+          "cited": [],
+          "expected_sources": [],
+          "found_sources": [
+            "d02",
+            "d06",
+            "d16"
+          ],
+          "citations_of_evidence_ids": [],
+          "citations_of_unknown_ids": [],
+          "recall_ms": 218
+        }
+      ]
     }
   ],
   "shared_findings": [
@@ -2693,6 +4023,7 @@
   ],
   "acorn_findings": [
     "The first acceptance run stopped at source a15: consolidation replies were capped at 2048 output tokens, which grok-4.7 spent partly on reasoning, so the JSON was cut off until the job ran out of retries. The cap is 8192 from ceb679f; the runs above use that commit.",
-    "Development d-q03 misses source d05 in the top five; the insight retrieved names 赵庆 for the weekend routes, not the 东堤 route the question asks about."
+    "Development d-q03 misses source d05 in the top five; the insight retrieved names 赵庆 for the weekend routes, not the 东堤 route the question asks about.",
+    "Batched consolidation reconciles up to eight records changed together in one call. Against per-record consolidation it cuts memory-model calls from 111 to 35 (acceptance) and 103 to 31 (development), tokens by about 70%, and run time by about 45%; slots move from 19 to 21 and 20 to 19, within one realization per condition. Insights merge into fewer, broader records (16 to 7, 17 to 3)."
   ]
 }
