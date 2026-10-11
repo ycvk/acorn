@@ -19,6 +19,7 @@ type Config struct {
 	Notify    NotifyConfig     `yaml:"notify"`
 	Watch     WatchConfig      `yaml:"watch"`
 	Briefing  BriefingConfig   `yaml:"briefing"`
+	Backup    BackupConfig     `yaml:"backup"`
 
 	ConfigPath string `yaml:"-"`
 	ConfigDir  string `yaml:"-"`
@@ -26,6 +27,13 @@ type Config struct {
 
 // ApprovalConfig lists tool-name glob patterns (path.Match syntax) whose calls
 // pause for owner approval before executing.
+// BackupConfig is where acorn backup writes snapshots and how many it keeps.
+// An empty Dir turns backups off.
+type BackupConfig struct {
+	Dir  string `yaml:"dir"`
+	Keep int    `yaml:"keep"`
+}
+
 type ApprovalConfig struct {
 	Require []string `yaml:"require"`
 }

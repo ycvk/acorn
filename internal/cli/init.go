@@ -28,13 +28,14 @@ func runInit(_ context.Context, args []string) error {
 	printOnly := fs.Bool("print", false, "write the starter config to stdout instead of a file")
 	personaOnly := fs.Bool("persona-only", false, "only write the default persona next to an existing config")
 	storageDir := fs.String("storage-dir", "", "absolute directory for runtime storage")
+	backupDir := fs.String("backup-dir", "", "absolute directory for nightly backups")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	if *personaOnly {
 		return writeDefaultPersona(*configPath)
 	}
-	body, err := initConfig(*storageDir)
+	body, err := initConfig(*storageDir, *backupDir)
 	if err != nil {
 		return err
 	}
@@ -76,19 +77,25 @@ func runInit(_ context.Context, args []string) error {
 }
 
 // initConfig returns the starter config, with runtime storage in storageDir
-// when one is given.
-func initConfig(storageDir string) (string, error) {
-	if storageDir == "" {
-		return initConfigTemplate, nil
+// and backups in backupDir when they are given.
+func initConfig(storageDir, backupDir string) (string, error) {
+	body := initConfigTemplate
+	for _, setting := range []struct{ flag, value, line, key string }{
+		{"--storage-dir", storageDir, "  storage_dir: ~/.acorn\n", "  storage_dir: "},
+		{"--backup-dir", backupDir, "  dir: \"\"\n", "  dir: "},
+	} {
+		if setting.value == "" {
+			continue
+		}
+		if !filepath.IsAbs(setting.value) {
+			return "", fmt.Errorf("%s must be an absolute path: %s", setting.flag, setting.value)
+		}
+		if !strings.Contains(body, setting.line) {
+			return "", fmt.Errorf("init template is missing %q", strings.TrimSpace(setting.line))
+		}
+		body = strings.Replace(body, setting.line, setting.key+strconv.Quote(setting.value)+"\n", 1)
 	}
-	if !filepath.IsAbs(storageDir) {
-		return "", fmt.Errorf("--storage-dir must be an absolute path: %s", storageDir)
-	}
-	const line = "  storage_dir: ~/.acorn\n"
-	if !strings.Contains(initConfigTemplate, line) {
-		return "", fmt.Errorf("init template is missing %q", strings.TrimSpace(line))
-	}
-	return strings.Replace(initConfigTemplate, line, "  storage_dir: "+strconv.Quote(storageDir)+"\n", 1), nil
+	return body, nil
 }
 
 // writeDefaultPersona writes the default persona into the storage dir of the

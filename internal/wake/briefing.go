@@ -35,7 +35,11 @@ func (s *Scheduler) prepareBriefing(ctx context.Context, day string, now time.Ti
 	if err != nil {
 		return routineInput{}, err
 	}
-	return routineInput{sources: watchSourceIDs(items), wake: "morning briefing " + day, input: briefingInput(day, watches, items) + phoneBriefing(notifications, s.cfg.Location), after: func(ctx context.Context, runID string) error {
+	health, err := s.briefingHealth(ctx, now)
+	if err != nil {
+		return routineInput{}, err
+	}
+	return routineInput{sources: watchSourceIDs(items), wake: "morning briefing " + day, input: briefingInput(day, watches, items) + health + phoneBriefing(notifications, s.cfg.Location), after: func(ctx context.Context, runID string) error {
 		return s.cfg.Watches.MarkWatchItems(ctx, itemIDs(items), core.WatchItemBriefed, runID)
 	}}, nil
 }

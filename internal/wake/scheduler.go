@@ -59,7 +59,10 @@ type Config struct {
 	// MaxChecksPerTick bounds the watches fetched in one tick.
 	MaxChecksPerTick int
 	Briefing         Briefing
-	Interval         time.Duration
+	// Backups reports when the newest backup snapshot was taken, for the
+	// briefing's health check; nil when backups are off.
+	Backups  func() (time.Time, error)
+	Interval time.Duration
 }
 
 // retryDelay is how far a commitment moves when its run could not start.

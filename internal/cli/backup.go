@@ -12,20 +12,18 @@ import (
 func runBackup(ctx context.Context, args []string) error {
 	fs := newFlagSet("backup")
 	configPath := addConfigFlag(fs)
-	dir := fs.String("dir", "", "backup directory")
-	keep := fs.Int("keep", 14, "number of snapshots to keep")
 	jsonMode := fs.Bool("json", false, "print the backup report as JSON")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	if fs.NArg() != 0 || *dir == "" {
-		return errors.New("usage: acorn backup [-c path] [--json] --dir path [--keep n]")
+	if fs.NArg() != 0 {
+		return errors.New("usage: acorn backup [-c path] [--json]")
 	}
 	cfg, err := loadConfig(*configPath)
 	if err != nil {
 		return err
 	}
-	report, err := wire.Backup(ctx, cfg, *dir, *keep, time.Now())
+	report, err := wire.Backup(ctx, cfg, time.Now())
 	if err != nil {
 		return err
 	}

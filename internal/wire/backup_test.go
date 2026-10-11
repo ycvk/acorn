@@ -48,7 +48,11 @@ func TestBackupWhileRunningAndRestoreIntoEmptyStorage(t *testing.T) {
 	writeTestFile(t, filepath.Join(source.Runtime.StorageDir, "artifacts", "run_1", "report.md"), "report")
 
 	dir := t.TempDir()
-	first, err := Backup(ctx, source, dir, 1, time.Date(2026, 10, 11, 4, 30, 0, 0, time.UTC))
+	source.Backup.Dir, source.Backup.Keep = dir, 1
+	if latest, err := LatestSnapshot(dir); err != nil || !latest.IsZero() {
+		t.Fatalf("latest snapshot before any backup = %v, %v", latest, err)
+	}
+	first, err := Backup(ctx, source, time.Date(2026, 10, 11, 4, 30, 0, 0, time.UTC))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,12 +62,15 @@ func TestBackupWhileRunningAndRestoreIntoEmptyStorage(t *testing.T) {
 	if _, err := running.CreateSession(ctx, "thread_2", "之后的对话"); err != nil {
 		t.Fatal(err)
 	}
-	second, err := Backup(ctx, source, dir, 1, time.Date(2026, 10, 12, 4, 30, 0, 0, time.UTC))
+	second, err := Backup(ctx, source, time.Date(2026, 10, 12, 4, 30, 0, 0, time.UTC))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if second.FilesCopied != 0 || len(second.Removed) != 1 || second.Removed[0] != first.Snapshot {
 		t.Fatalf("second backup = %+v", second)
+	}
+	if latest, err := LatestSnapshot(dir); err != nil || !latest.Equal(time.Date(2026, 10, 12, 4, 30, 0, 0, time.UTC)) {
+		t.Fatalf("latest snapshot = %v, %v", latest, err)
 	}
 
 	target := backupTestConfig(t)
@@ -103,7 +110,8 @@ func TestRestoreRefusesARunningAcornAndForeignDirectories(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	report, err := Backup(ctx, cfg, t.TempDir(), 3, time.Now())
+	cfg.Backup.Dir = t.TempDir()
+	report, err := Backup(ctx, cfg, time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
