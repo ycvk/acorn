@@ -34,6 +34,9 @@ if [ -z "$service_home" ]; then
 fi
 
 workspace_dir=/srv/acorn/workspace
+backup_dir=/srv/acorn/backups
+backup_unit_path=/etc/systemd/system/acorn-backup.service
+backup_timer_path=/etc/systemd/system/acorn-backup.timer
 config_dir=$service_home/.acorn
 config_path=$config_dir/acorn.yaml
 env_path=$config_dir/acorn.env
@@ -139,6 +142,37 @@ WantedBy=multi-user.target
 EOF
 }
 
+write_backup_templates() {
+	cat > "$1" <<EOF
+[Unit]
+Description=Back up Acorn data
+Documentation=https://github.com/ycvk/acorn
+
+[Service]
+Type=oneshot
+User=$service_user
+Group=$service_group
+Environment=HOME=$service_home
+ExecStart=$bin_path backup -c $config_path --dir $backup_dir --keep 14
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=$workspace_dir $backup_dir
+EOF
+	cat > "$2" <<EOF
+[Unit]
+Description=Daily Acorn backup
+
+[Timer]
+OnCalendar=*-*-* 04:30:00
+RandomizedDelaySec=10m
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF
+}
+
 write_env_template() {
 	target=$1
 	if [ -n "${OPENAI_API_KEY:-}" ]; then
@@ -204,6 +238,9 @@ service_template=$work_dir/acorn.service
 wrapper_template=$work_dir/acorn-wrapper
 write_env_template "$env_template"
 write_service_template "$service_template"
+backup_service_template=$work_dir/acorn-backup.service
+backup_timer_template=$work_dir/acorn-backup.timer
+write_backup_templates "$backup_service_template" "$backup_timer_template"
 cat > "$wrapper_template" <<EOF
 #!/bin/sh
 set -eu
@@ -261,7 +298,7 @@ exec "\$bin" "\$@"' sh "\$env_path" "\$bin" "\$@"
 
 if [ "\$#" -gt 0 ]; then
 	case "\$1" in
-		doctor|memory|pair|token|devices|skills|smoke)
+		doctor|memory|pair|token|devices|skills|smoke|backup|restore)
 			command_name=\$1
 			shift
 			if ! has_config_flag "\$@"; then
@@ -278,6 +315,7 @@ run_root install -d "$install_dir"
 run_root install -d -o "$service_user" -g "$service_group" "$config_dir"
 run_root chmod 0700 "$config_dir"
 run_root install -d -m 0755 -o "$service_user" -g "$service_group" "$workspace_dir"
+run_root install -d -m 0700 -o "$service_user" -g "$service_group" "$backup_dir"
 run_root install -m 0755 "$package_dir/acorn" "$bin_path"
 run_root install -m 0755 "$wrapper_template" "$wrapper_path"
 install_packaged_skills "$package_dir/skills" "$skills_dir"
@@ -296,7 +334,11 @@ else
 fi
 
 run_root install -m 0644 "$service_template" "$unit_path"
+run_root install -m 0644 "$backup_service_template" "$backup_unit_path"
+run_root install -m 0644 "$backup_timer_template" "$backup_timer_path"
 run_root systemctl daemon-reload
+run_root systemctl enable --now acorn-backup.timer
+log "Daily backups: $backup_dir (acorn-backup.timer, keeps 14 snapshots)"
 
 if [ "$start_service" != "1" ]; then
 	log "Installed Acorn without starting service because ACORN_START_SERVICE=$start_service"

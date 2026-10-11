@@ -58,6 +58,7 @@ The installer creates:
 | `~/.acorn/acorn.env` | Provider secrets |
 | `~/.acorn/skills` | Skills, one directory with a `SKILL.md` each |
 | `/srv/acorn/workspace` | Runtime storage: SQLite database, persona and shared images |
+| `/srv/acorn/backups` | Nightly snapshots from `acorn-backup.timer` |
 | `/etc/systemd/system/acorn.service` | `systemd` service |
 
 The installer uses the user that runs the script. On a typical root VPS install, Acorn reads `/root/.acorn/acorn.yaml` and `/root/.acorn/acorn.env`. Commands such as `acorn pair` and `acorn doctor` use the same config unless you pass `-c`.

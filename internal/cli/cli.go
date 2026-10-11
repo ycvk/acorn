@@ -46,6 +46,10 @@ func Run(ctx context.Context, args []string) error {
 		return runSmoke(ctx, args[1:])
 	case "serve":
 		return runServe(ctx, args[1:])
+	case "backup":
+		return runBackup(ctx, args[1:])
+	case "restore":
+		return runRestore(ctx, args[1:])
 	default:
 		return fmt.Errorf("unknown command %q\n\n%s", args[0], usageText())
 	}
@@ -71,7 +75,9 @@ Usage:
   acorn devices revoke [-c path] DEVICE_ID
   acorn smoke [-c path] [--json] "task input"
   acorn run [-c path] [--json] "task input"
-  acorn serve [-c path] [--listen addr]`)
+  acorn serve [-c path] [--listen addr]
+  acorn backup [-c path] [--json] --dir path [--keep n]
+  acorn restore [-c path] [--json] --from snapshot`)
 }
 
 func runDoctor(ctx context.Context, args []string) error {

@@ -29,6 +29,7 @@ The installer:
 - installs `/usr/local/bin/acorn` as a global wrapper command;
 - writes config under the installing user's `~/.acorn` and the default persona (`persona.md`) into `/srv/acorn/workspace`;
 - installs bundled native skills under `~/.acorn/skills`;
+- enables `acorn-backup.timer`, a nightly backup into `/srv/acorn/backups`;
 - installs `/etc/systemd/system/acorn.service`.
 
 Acorn's binary default config path is `~/.acorn/acorn.yaml`. The installer keeps that rule: it resolves the user that runs the script and sets the `systemd` service `HOME` to that user's home. On a typical root VPS install, the service uses:
@@ -410,16 +411,37 @@ Sources a watch can follow:
 
 A watch that keeps failing (five times in a row) is marked failing and listed in the briefing with its last error. Ask the agent to list, pause, resume or change your watches. `acorn doctor` shows how many watches there are and which are failing.
 
-## 14. Backup
+## 14. Backup and Restore
 
-Stop the backend before filesystem-level backups:
+The installer enables `acorn-backup.timer`, which runs `acorn backup` every night at about 04:30 while Acorn keeps running. Each run writes a snapshot under `/srv/acorn/backups/snapshots/<UTC time>/`: a consistent copy of the SQLite database, checked for integrity and schema version, plus `persona.md`. Shared images and run artifacts never change once written, so they are mirrored once into `/srv/acorn/backups/attachments/` and `/srv/acorn/backups/artifacts/`. The newest 14 snapshots are kept.
+
+Back up by hand, or check the timer:
+
+```bash
+acorn backup --dir /srv/acorn/backups
+```
+
+```bash
+systemctl list-timers acorn-backup.timer
+```
+
+Restore a snapshot with Acorn stopped; the command refuses while the service has the storage open:
 
 ```bash
 sudo systemctl stop acorn
-sudo tar -czf /var/backups/acorn-state.tgz -C ~/.acorn .
-sudo tar -czf /var/backups/acorn-workspace.tgz -C /srv/acorn/workspace .
+```
+
+```bash
+acorn restore --from /srv/acorn/backups/snapshots/20261011T043000Z
+```
+
+```bash
 sudo systemctl start acorn
 ```
+
+The backups live on the same machine. Copy `/srv/acorn/backups` to another host or include it in your hypervisor's backups. `~/.acorn/acorn.yaml` and `~/.acorn/acorn.env` are not part of a snapshot; keep a copy of your config and secrets yourself.
+
+The database records its schema version. A newer Acorn upgrades an older database on start; an older Acorn refuses a database written by a newer one, so restore a snapshot made before an upgrade together with the release that made it.
 
 ## 15. Current Limits
 

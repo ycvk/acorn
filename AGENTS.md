@@ -19,7 +19,7 @@ make test-architecture             # 架构边界守卫
 make generate                      # go generate ./internal/api
 make release-linux-amd64           # 纯 Go 交叉编译
 
-acorn serve | run | smoke | init | doctor | skills | pair | token | devices | memory reindex
+acorn serve | run | smoke | init | doctor | skills | pair | token | devices | memory reindex | backup | restore
 cd mobile-kotlin && ./tool/generate_openapi_client.sh --check && ./gradlew assembleDebug
 ```
 
@@ -85,6 +85,7 @@ cd mobile-kotlin && ./tool/generate_openapi_client.sh --check && ./gradlew assem
 - Go 1.27,tab 缩进,goimports 分组;Kotlin 4 空格。
 - 需要被 `errors.Is` 比对的错误是包级 `var ErrXxx`;不该发生的前置条件错误用 inline `errors.New`,消息含字段或参数名。
 - SQLite 关闭 Rows/Stmt 并检查 `rows.Err()`;HTTP 带 context 并关闭 body。
+- 改表结构:`schemaVersion` 加一,在 `migrations` 末尾追加从上一版本升级的迁移,用 `ACORN_RECORD_SCHEMA=1 go test ./internal/store -run TestOpenCreatesTheRecordedLayout` 记录新版本的 `testdata/schema/vN.sql`;已发布版本的结构快照不修改。
 
 ## 配置和文档
 

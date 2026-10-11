@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -9,26 +10,37 @@ import (
 	"github.com/ycvk/acorn/internal/core"
 )
 
-func (s *Store) createSchema() error {
-	if _, err := s.db.Exec(storeBootstrapTables); err != nil {
-		return fmt.Errorf("create sqlite schema (tables): %w", err)
-	}
-	if err := s.validateSchema(); err != nil {
+// createSchema lays out an empty database at schemaVersion in one
+// transaction.
+func createSchema(ctx context.Context, db *sql.DB) (err error) {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
 		return err
 	}
-	if err := s.createMemorySchema(); err != nil {
-		return err
+	defer rollbackOnErr(tx, &err, "create sqlite schema")
+	for _, step := range []struct{ name, ddl string }{
+		{"tables", storeBootstrapTables},
+		{"memory tables", memorySchema},
+		{"memory indexes", memoryQueryIndexes},
+		{"memory triggers", memorySourceTriggers},
+		{"indexes", storeBootstrapIndexes},
+	} {
+		if _, err := tx.ExecContext(ctx, step.ddl); err != nil {
+			return fmt.Errorf("create sqlite schema (%s): %w", step.name, err)
+		}
 	}
-	if _, err := s.db.Exec(storeBootstrapIndexes); err != nil {
-		return fmt.Errorf("create sqlite schema (indexes): %w", err)
+	if _, err := tx.ExecContext(ctx, fmt.Sprintf("PRAGMA user_version = %d", schemaVersion)); err != nil {
+		return fmt.Errorf("record schema version: %w", err)
 	}
-	return nil
+	return tx.Commit()
 }
 
 func (s *Store) validateSchema() error {
-	for table, columns := range schemaRequiredTables {
-		if err := s.requireColumns(table, columns); err != nil {
-			return err
+	for _, required := range []map[string][]string{schemaRequiredTables, memoryRequiredTables} {
+		for table, columns := range required {
+			if err := s.requireColumns(table, columns); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
