@@ -7,6 +7,7 @@ import io.ycvk.acorn.api.models.KnowledgeNote
 import io.ycvk.acorn.api.models.KnowledgeNoteSummary
 import io.ycvk.acorn.core.auth.AuthController
 import io.ycvk.acorn.core.auth.AuthState
+import io.ycvk.acorn.core.ui.userMessage
 import io.ycvk.acorn.core.auth.ConnectionProfile
 import io.ycvk.acorn.data.repository.KnowledgeRepository
 import kotlinx.coroutines.Dispatchers
@@ -55,7 +56,7 @@ fun knowledgeContent(load: KnowledgeLoad, query: String): KnowledgeContent = whe
     }
 }
 
-/** Backs the Knowledge tab: recent notes, search, and one open note. */
+/** Backs the knowledge tab: recent notes, search, and one open note. */
 @OptIn(FlowPreview::class)
 @HiltViewModel
 class KnowledgeViewModel @Inject constructor(
@@ -92,7 +93,7 @@ class KnowledgeViewModel @Inject constructor(
 
     fun openNote(path: String) {
         val profile = profile() ?: run {
-            _note.value = NoteLoad.Failed("Not connected to a server")
+            _note.value = NoteLoad.Failed("还没有连接服务器")
             return
         }
         _note.value = NoteLoad.Loading
@@ -101,14 +102,14 @@ class KnowledgeViewModel @Inject constructor(
             _note.value = try {
                 NoteLoad.Loaded(withContext(Dispatchers.IO) { repository.note(profile, path) })
             } catch (e: Exception) {
-                NoteLoad.Failed(e.message ?: "Failed to load the note")
+                NoteLoad.Failed(userMessage(e))
             }
         }
     }
 
     private fun load(query: String) {
         val profile = profile() ?: run {
-            _load.value = KnowledgeLoad.Failed("Not connected to a server")
+            _load.value = KnowledgeLoad.Failed("还没有连接服务器")
             return
         }
         _load.value = KnowledgeLoad.Loading
@@ -117,7 +118,7 @@ class KnowledgeViewModel @Inject constructor(
             _load.value = try {
                 KnowledgeLoad.Loaded(withContext(Dispatchers.IO) { repository.notes(profile, query) })
             } catch (e: Exception) {
-                KnowledgeLoad.Failed(e.message ?: "Failed to load notes")
+                KnowledgeLoad.Failed(userMessage(e))
             }
         }
     }

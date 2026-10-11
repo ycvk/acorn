@@ -9,6 +9,7 @@ import io.ycvk.acorn.api.models.SystemStatus
 import io.ycvk.acorn.core.auth.AuthController
 import io.ycvk.acorn.core.auth.AuthState
 import io.ycvk.acorn.core.auth.ConnectionProfile
+import io.ycvk.acorn.core.ui.userMessage
 import io.ycvk.acorn.core.push.PushManager
 import io.ycvk.acorn.core.push.PushStatus
 import kotlinx.coroutines.Dispatchers
@@ -20,9 +21,8 @@ import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 /**
- * Backs the Settings tab: loads server [SystemStatus] so the operator can
- * inspect model, readiness, workspace, and the connection, and disconnect the
- * device.
+ * Backs the settings page: loads server [SystemStatus] so the owner can
+ * inspect the model, readiness and the connection, and disconnect the device.
  */
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
@@ -57,8 +57,7 @@ class SettingsViewModel @Inject constructor(
 				_systemStatus.value = status
 				_error.value = null
 			} catch (e: Exception) {
-				android.util.Log.e("AcornSettings", "loadSettings failed", e)
-				_error.value = e.message ?: "Failed to load settings"
+				_error.value = userMessage(e)
             }
         }
     }

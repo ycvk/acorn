@@ -359,7 +359,7 @@ The agent reaches you with `notify_owner` through Firebase Cloud Messaging. With
 
    The same values can come from `ACORN_FIREBASE_PROJECT_ID`, `ACORN_FIREBASE_APP_ID`, `ACORN_FIREBASE_API_KEY` and `ACORN_FIREBASE_SENDER_ID`. The release workflow reads them from the repository secrets of the same names; an APK built without them shows push as not configured.
 
-After pairing, allow notifications when the app asks. Settings shows whether push is registered. Notifications held during quiet hours are sent when they end. Tapping a notification opens its thread. Notification text passes through Google's servers; the agent keeps it to a short summary and leaves details in the thread.
+After pairing, allow notifications when the app asks. Settings (the gear on the 今天 tab) shows whether push is registered. Notifications held during quiet hours are sent when they end. Tapping a notification opens its thread. Notification text passes through Google's servers; the agent keeps it to a short summary and leaves details in the thread.
 
 ## 11. Config Migration
 
@@ -380,7 +380,7 @@ Earlier data under `~/.acorn` (`facts/`, `history/`, `worldstate/`, `vectors.db`
 
 The agent keeps longer material in a knowledge base of markdown notes stored in the SQLite database. Every write keeps a new revision with the run that made it, and personal memory cites the exact revision it learned from. `acorn doctor` shows the note count and where shared images are kept.
 
-Share from any Android app to get something into it: pick Acorn in the system share sheet, add a note if you like, and send. The backend opens a new conversation for the share, and the agent fetches the link, writes a note under `inbox/` and replies with its path. Open the conversation to tell the agent more about it. Images are stored under `attachments/` in the storage directory, and the agent sees the picture itself whenever that conversation is in its context; the app shows them in the shared conversation and inside the notes that embed them. The app's Knowledge tab lists recent notes, searches them, and opens a note to read.
+Share from any Android app to get something into it: pick Acorn in the system share sheet, add a note if you like, and send. The backend opens a new conversation for the share, and the agent fetches the link, writes a note under `inbox/` and replies with its path. Open the conversation to tell the agent more about it. Images are stored under `attachments/` in the storage directory, and the agent sees the picture itself whenever that conversation is in its context; the app shows them in the shared conversation and inside the notes that embed them. The app's 知识 tab lists recent notes, searches them, and opens a note to read.
 
 ## 13. Watches and the Morning Briefing
 
@@ -476,7 +476,7 @@ thinking:
 
 Set a positive `daily_tokens` to impose a token budget. The budget counts provider-reported usage of successful main-model calls in autonomous runs, by the owner's local day. It is checked before starting a run; an already running task can exceed the remaining budget. Summarization calls, failed streams and calls without usage are not included. Owner messages, captures and morning briefings are outside this budget. Run `acorn doctor` to inspect today's wake count, reported tokens, calls without usage and notification counts by app.
 
-In the Android settings, open **phone notifications**, read the data destination, grant notification access, and choose individual apps. The selection starts empty. Acorn captures ordinary notifications from those apps while paired, stores at most 500 on the device, and starts uploading within one minute of the first arrival. Each request contains at most 100 entries. Failed requests retain their batch and show an error with **Retry upload**. Disconnecting or pairing another identity clears waiting notifications; turning an app off removes its waiting entries. Android notification access remains under your control in system settings.
+In the app's settings, under **手机通知**, read the data destination, grant notification access, and choose individual apps under **转发哪些应用**. The selection starts empty. Acorn captures ordinary notifications from those apps while paired, stores at most 500 on the device, and starts uploading within one minute of the first arrival. Each request contains at most 100 entries. Failed requests retain their batch and show an error with **重新上传**. Disconnecting or pairing another identity clears waiting notifications; turning an app off removes its waiting entries. Android notification access remains under your control in system settings.
 
 Notifications do not wake the agent. The latest ten received within six hours can appear in its current context; up to fifty since the previous morning briefing appear in the next briefing input, with a count for additional entries. Briefing instructions select actionable items and omit marketing, passwords and verification codes. Raw notifications are removed after seven days. Content already included in conversation records, context snapshots or notes remains with those records. Selected notification text is sent to your server and model provider.
 

@@ -1,5 +1,7 @@
 <resources>
-    <style name="Theme.Acorn" parent="android:Theme.Material.Light.NoActionBar" />
+    <style name="Theme.Acorn" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/canvas</item>
+    </style>
 
     <!-- The share sheet draws over the sharing app. -->
     <style name="Theme.Acorn.Share">

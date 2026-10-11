@@ -15,6 +15,7 @@ class RunEventProjection {
                 runStatus = RunStatus.Running,
                 assistantText = "",
                 assistantReasoning = "",
+                failure = null,
             )
 
             is RunEventPacket.AssistantDelta -> {
@@ -42,6 +43,7 @@ class RunEventProjection {
             is RunEventPacket.RunFailed -> state.copy(
                 isStreaming = false,
                 runStatus = RunStatus.Failed,
+                failure = packet.event.`data`.error?.takeIf { it.isNotBlank() } ?: "服务器没有给出原因",
                 activities = state.activities.withoutResumeRows(),
             )
 
@@ -57,7 +59,7 @@ class RunEventProjection {
                 runStatus = RunStatus.Running,
                 activities = state.activities + ActivityItem(
                     id = packet.eventId,
-                    label = "Resume requested",
+                    label = "正在继续",
                     kind = ActivityKind.ResumeRequested,
                 ),
             )
@@ -65,7 +67,7 @@ class RunEventProjection {
             is RunEventPacket.ElicitationPending -> state.copy(
                 activities = state.activities + ActivityItem(
                     id = packet.eventId,
-                    label = "Elicitation pending",
+                    label = "等你补充信息",
                     kind = ActivityKind.Elicitation,
                 ),
             )
@@ -77,7 +79,7 @@ class RunEventProjection {
             is RunEventPacket.OperatorQuestionPending -> state.copy(
                 activities = state.activities + ActivityItem(
                     id = packet.eventId,
-                    label = "Operator question",
+                    label = "Acorn 在问你",
                     kind = ActivityKind.OperatorQuestion,
                 ),
             )
@@ -90,7 +92,7 @@ class RunEventProjection {
             is RunEventPacket.ToolApprovalPending -> state.copy(
                 activities = state.activities + ActivityItem(
                     id = packet.event.`data`.actionId,
-                    label = "Waiting for approval: ${packet.event.`data`.toolName.orEmpty()}",
+                    label = "等你批准：${packet.event.`data`.toolName.orEmpty()}",
                     kind = ActivityKind.ToolApproval,
                 ),
             )
@@ -116,11 +118,13 @@ data class ChatState(
     val isStreaming: Boolean = false,
     val runStatus: RunStatus = RunStatus.Idle,
     val activities: List<ActivityItem> = emptyList(),
+    /** Why the last run failed, shown until the next run starts. */
+    val failure: String? = null,
 )
 
 enum class RunStatus { Idle, Running, Completed, Failed, Interrupted }
 
-enum class ChatHeaderStatus(val label: String) { Running("running"), Waiting("waiting"), Idle("idle") }
+enum class ChatHeaderStatus(val label: String) { Running("正在处理"), Waiting("等你确认"), Idle("") }
 
 /** Waiting means the run is paused on a decision only the owner can make. */
 fun ChatState.headerStatus(): ChatHeaderStatus = when {

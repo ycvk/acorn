@@ -11,6 +11,7 @@ import io.ycvk.acorn.api.models.PendingActionSummary
 import io.ycvk.acorn.core.auth.AuthController
 import io.ycvk.acorn.core.auth.AuthState
 import io.ycvk.acorn.core.auth.ConnectionProfile
+import io.ycvk.acorn.core.ui.userMessage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -20,8 +21,8 @@ import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 /**
- * Backs the Approvals tab: lists pending actions and lets the operator decide
- * (accept/decline/answer) on a selected action.
+ * Lists pending actions and lets the owner decide (accept/decline/answer) on
+ * one, inline on Today or from the detail sheet.
  *
  * The generated [ClientApi] is synchronous (OkHttp execute), so calls are
  * offloaded to [Dispatchers.IO]. Auth is via the companion-level
@@ -41,8 +42,9 @@ class ApprovalsViewModel @Inject constructor(
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
 
-    private val _deciding = MutableStateFlow(false)
-    val deciding: StateFlow<Boolean> = _deciding.asStateFlow()
+    /** The action whose decision is being sent. */
+    private val _deciding = MutableStateFlow<String?>(null)
+    val deciding: StateFlow<String?> = _deciding.asStateFlow()
 
     fun loadPendingActions() {
         val profile = getConnectionProfile() ?: return
@@ -55,7 +57,7 @@ class ApprovalsViewModel @Inject constructor(
                 _pendingActions.value = response.items
                 _error.value = null
             } catch (e: Exception) {
-                _error.value = e.message ?: "Failed to load pending actions"
+                _error.value = userMessage(e)
             }
         }
     }
@@ -71,7 +73,7 @@ class ApprovalsViewModel @Inject constructor(
                 _selectedAction.value = detail
                 _error.value = null
             } catch (e: Exception) {
-                _error.value = e.message ?: "Failed to load action detail"
+                _error.value = userMessage(e)
             }
         }
     }
@@ -88,7 +90,7 @@ class ApprovalsViewModel @Inject constructor(
         answer: String? = null,
     ) {
         val profile = getConnectionProfile() ?: return
-        _deciding.value = true
+        _deciding.value = actionId
         viewModelScope.launch {
             try {
                 withContext(Dispatchers.IO) {
@@ -105,11 +107,15 @@ class ApprovalsViewModel @Inject constructor(
                 _selectedAction.value = null
                 loadPendingActions() // refresh list
             } catch (e: Exception) {
-                _error.value = e.message ?: "Failed to decide action"
+                _error.value = userMessage(e)
             } finally {
-                _deciding.value = false
+                _deciding.value = null
             }
         }
+    }
+
+    fun dismissError() {
+        _error.value = null
     }
 
     fun clearSelection() {

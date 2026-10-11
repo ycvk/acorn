@@ -118,10 +118,13 @@ dependencies {
     implementation("com.google.firebase:firebase-messaging")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0")
 
-    // Markdown rendering for assistant messages (JitPack).
-    implementation("com.github.jeziellago:compose-markdown:0.5.7")
+    // Markdown parsing; app/core/ui/Markdown.kt renders the tree with Acorn's typography.
+    implementation("org.commonmark:commonmark:0.24.0")
+    implementation("org.commonmark:commonmark-ext-gfm-tables:0.24.0")
+    implementation("org.commonmark:commonmark-ext-gfm-strikethrough:0.24.0")
+    implementation("org.commonmark:commonmark-ext-autolink:0.24.0")
 
-    // Shared images in notes and capture cards; the version compose-markdown already pulls in.
+    // Shared images in notes and capture cards.
     implementation("io.coil-kt:coil-compose:2.6.0")
 
     // Testing

@@ -1,5 +1,6 @@
 package io.ycvk.acorn.feature.share
 
+import io.ycvk.acorn.core.ui.userMessage
 import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
@@ -65,14 +66,14 @@ class ShareViewModel @Inject constructor(
             _state.value = try {
                 withContext(Dispatchers.IO) { sendCapture(profile, content, note) }
             } catch (e: Exception) {
-                ShareState.Editing(content, apiErrorMessage(e))
+                ShareState.Editing(content, userMessage(e))
             }
         }
     }
 
     private fun sendCapture(profile: ConnectionProfile, content: SharedContent, note: String): ShareState {
         val image = content.imageUri?.let { uri ->
-            copyImage(Uri.parse(uri)) ?: return ShareState.Editing(content, "This image is larger than 10 MiB.")
+            copyImage(Uri.parse(uri)) ?: return ShareState.Editing(content, "图片超过 10 MiB，没法发送。")
         }
         try {
             val accepted = captures.send(profile, captureText(content.text, note), content.subject, image)
