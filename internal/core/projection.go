@@ -81,6 +81,16 @@ type OperatorQuestionData struct {
 type OperatorQuestionPendingData = OperatorQuestionData
 type OperatorQuestionDecidedData = OperatorQuestionData
 
+// ToolCallData carries tool.call.started, tool.call.succeeded and
+// tool.call.failed: which tool, a one-line summary of what it was asked to
+// do, and the error of a failed call. Tool output stays on the server.
+type ToolCallData struct {
+	ToolCallID string `json:"tool_call_id"`
+	ToolName   string `json:"tool_name"`
+	Summary    string `json:"summary,omitempty"`
+	Error      string `json:"error,omitempty"`
+}
+
 // ToolApprovalData carries a tool_approval.pending (tool name and arguments)
 // or tool_approval.decided (decision) event.
 type ToolApprovalData struct {

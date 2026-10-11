@@ -67,6 +67,7 @@ import io.ycvk.acorn.core.ui.DayGroup
 import io.ycvk.acorn.core.ui.clockTime
 import io.ycvk.acorn.core.ui.dayGroup
 import io.ycvk.acorn.core.ui.listTime
+import io.ycvk.acorn.core.ui.plainSnippet
 import io.ycvk.acorn.core.ui.rememberHaptics
 import java.time.LocalDate
 import java.time.ZoneId
@@ -133,6 +134,12 @@ fun ThreadsScreen(
             dismissButton = { TextButton(onClick = { pendingDelete = null }) { Text("取消") } },
         )
     }
+}
+
+/** The latest reply as plain text; the owner's own message reads as "你：…". */
+fun threadPreview(thread: Thread): String? {
+    val text = plainSnippet(thread.preview.orEmpty()).takeIf { it.isNotEmpty() } ?: return null
+    return if (thread.previewRole == Thread.PreviewRole.user) "你：$text" else text
 }
 
 fun threadTitle(thread: Thread): String = thread.title.takeIf { it.isNotBlank() && it != "New Thread" } ?: "新对话"
@@ -217,7 +224,9 @@ private fun ThreadRow(thread: Thread, time: String, onClick: () -> Unit, onDelet
             trailing = { Text(time, style = AcornTheme.type.caption, color = colors.inkFaint) },
         ) {
             Text(threadTitle(thread), style = AcornTheme.type.headline, color = colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            threadState(thread.state)?.let { (label, tone) ->
+            val state = threadState(thread.state)
+            if (state != null) {
+                val (label, tone) = state
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     val color = when (tone) {
                         Tone.Active -> colors.success
@@ -227,6 +236,10 @@ private fun ThreadRow(thread: Thread, time: String, onClick: () -> Unit, onDelet
                     StatusDot(color, pulsing = tone == Tone.Active)
                     Spacer(Modifier.width(6.dp))
                     Text(label, style = AcornTheme.type.footnote, color = colors.inkSoft)
+                }
+            } else {
+                threadPreview(thread)?.let {
+                    Text(it, style = AcornTheme.type.footnote, color = colors.inkSoft, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
         }

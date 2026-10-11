@@ -70,3 +70,10 @@ func (s *clientHandlerStore) ListByRun(_ context.Context, _ string) ([]core.Arti
 	}
 	return out, nil
 }
+
+func (s *clientHandlerStore) LoadToolCallEvents(_ context.Context, _ []string) (map[string][]core.EventRecord, error) {
+	if _, err := s.stubOrErr(); err != nil {
+		return nil, err
+	}
+	return map[string][]core.EventRecord{}, nil
+}

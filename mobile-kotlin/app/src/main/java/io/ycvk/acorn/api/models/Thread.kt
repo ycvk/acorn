@@ -36,6 +36,8 @@ import com.squareup.moshi.JsonClass
  * @param updatedAt 
  * @param state 
  * @param latestRunId 
+ * @param preview The latest owner or assistant message, flattened to one line of at most 120 characters.
+ * @param previewRole 
  */
 
 
@@ -57,7 +59,14 @@ data class Thread (
     val state: Thread.State,
 
     @Json(name = "latest_run_id")
-    val latestRunId: kotlin.String? = null
+    val latestRunId: kotlin.String? = null,
+
+    /* The latest owner or assistant message, flattened to one line of at most 120 characters. */
+    @Json(name = "preview")
+    val preview: kotlin.String? = null,
+
+    @Json(name = "preview_role")
+    val previewRole: Thread.PreviewRole? = null
 
 ) {
 
@@ -74,6 +83,16 @@ data class Thread (
         @Json(name = "failed") failed("failed"),
         @Json(name = "interrupted") interrupted("interrupted"),
         @Json(name = "degraded") degraded("degraded");
+    }
+    /**
+     * 
+     *
+     * Values: user,assistant
+     */
+    @JsonClass(generateAdapter = false)
+    enum class PreviewRole(val value: kotlin.String) {
+        @Json(name = "user") user("user"),
+        @Json(name = "assistant") assistant("assistant");
     }
 
 }

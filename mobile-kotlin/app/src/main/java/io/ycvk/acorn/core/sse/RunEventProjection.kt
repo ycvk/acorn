@@ -101,13 +101,48 @@ class RunEventProjection {
                 activities = state.activities.filter { it.id != packet.event.`data`.actionId },
             )
 
+            is RunEventPacket.ToolCallStarted -> {
+                val data = packet.event.`data`
+                state.copy(
+                    steps = state.steps + ToolStep(data.toolCallId, data.toolName, data.summary.orEmpty(), StepStatus.Running),
+                    activities = state.activities.withoutResumeRows(),
+                )
+            }
+
+            is RunEventPacket.ToolCallSucceeded -> state.copy(
+                steps = state.steps.finish(packet.event.`data`.toolCallId, packet.event.`data`.toolName, StepStatus.Succeeded, null),
+            )
+
+            is RunEventPacket.ToolCallFailed -> state.copy(
+                steps = state.steps.finish(packet.event.`data`.toolCallId, packet.event.`data`.toolName, StepStatus.Failed, packet.event.`data`.error),
+            )
+
             is RunEventPacket.Unknown -> state // ignore unknown events
         }
     }
 
     private fun List<ActivityItem>.withoutResumeRows(): List<ActivityItem> =
         filter { it.kind != ActivityKind.ResumeRequested }
+
+    /** Marks a call finished; a result without a start (a stream joined mid-call) adds the step. */
+    private fun List<ToolStep>.finish(id: String, name: String, status: StepStatus, error: String?): List<ToolStep> =
+        if (any { it.id == id }) {
+            map { if (it.id == id) it.copy(status = status, error = error) else it }
+        } else {
+            this + ToolStep(id, name, "", status, error)
+        }
 }
+
+/** One tool call the agent made during a run. */
+data class ToolStep(
+    val id: String,
+    val toolName: String,
+    val summary: String,
+    val status: StepStatus,
+    val error: String? = null,
+)
+
+enum class StepStatus { Running, Succeeded, Failed }
 
 /**
  * Snapshot of the projected chat state for a single run.
@@ -120,6 +155,8 @@ data class ChatState(
     val activities: List<ActivityItem> = emptyList(),
     /** Why the last run failed, shown until the next run starts. */
     val failure: String? = null,
+    /** Tool calls of the current run, in the order they started. */
+    val steps: List<ToolStep> = emptyList(),
 )
 
 enum class RunStatus { Idle, Running, Completed, Failed, Interrupted }

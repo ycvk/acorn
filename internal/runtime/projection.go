@@ -60,6 +60,8 @@ func streamKindToEventKind(kind core.StreamItemKind) string {
 		return string(kind)
 	case core.StreamKindAssistantMessage:
 		return "runtime.message"
+	case core.StreamKindToolCallStarted:
+		return "tool.call.started"
 	case core.StreamKindToolCallSucceeded:
 		return "tool.call.succeeded"
 	case core.StreamKindToolCallFailed:

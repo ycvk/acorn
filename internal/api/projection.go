@@ -20,6 +20,9 @@ var liveRunEventKinds = []string{
 	"operator_question.decided",
 	"tool_approval.pending",
 	"tool_approval.decided",
+	"tool.call.started",
+	"tool.call.succeeded",
+	"tool.call.failed",
 }
 
 // IsLiveRunEventKind reports whether kind is part of the /v1 mobile live contract.
@@ -92,6 +95,13 @@ func ProjectRunEventData(kind string, payload map[string]any) (any, error) {
 			ToolName:  topLevelString(payload, "tool_name"),
 			Arguments: topLevelString(payload, "arguments"),
 			Decision:  topLevelString(payload, "decision"),
+		}, nil
+	case "tool.call.started", "tool.call.succeeded", "tool.call.failed":
+		return core.ToolCallData{
+			ToolCallID: topLevelString(payload, "tool_call_id"),
+			ToolName:   topLevelString(payload, "tool_name"),
+			Summary:    toolCallSummary(topLevelString(payload, "arguments")),
+			Error:      clip(topLevelString(payload, "error"), toolCallErrorRunes),
 		}, nil
 	default:
 		return nil, projectionError("unsupported live run event kind %q", kind)

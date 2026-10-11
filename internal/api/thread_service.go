@@ -49,6 +49,10 @@ func (s *ThreadService) ListThreads(ctx context.Context, limit int) ([]Thread, e
 	if err != nil {
 		return nil, err
 	}
+	replies, err := s.store.LoadLatestRepliesForSessions(ctx, sessionIDs)
+	if err != nil {
+		return nil, err
+	}
 	items := make([]Thread, 0, len(sessions))
 	for _, session := range sessions {
 		if strings.TrimSpace(session.Title) == "" {
@@ -61,6 +65,10 @@ func (s *ThreadService) ListThreads(ctx context.Context, limit int) ([]Thread, e
 		thread, err := s.projectThread(session, latestRuns[session.SessionID])
 		if err != nil {
 			return nil, err
+		}
+		if reply, ok := replies[session.SessionID]; ok {
+			thread.Preview = threadPreview(reply.Content)
+			thread.PreviewRole = reply.Role
 		}
 		items = append(items, thread)
 	}
@@ -200,15 +208,75 @@ func (s *ThreadService) ListMessages(ctx context.Context, threadID string, limit
 	if err != nil {
 		return nil, err
 	}
+	runIDs := make([]string, 0, len(records))
+	for _, record := range records {
+		if record.Role == "assistant" && record.RunID != "" {
+			runIDs = append(runIDs, record.RunID)
+		}
+	}
+	toolEvents, err := s.store.LoadToolCallEvents(ctx, runIDs)
+	if err != nil {
+		return nil, err
+	}
 	messages := make([]Message, 0, len(records))
 	for _, record := range records {
 		message, err := projectMessage(record)
 		if err != nil {
 			return nil, err
 		}
+		if record.Role == "assistant" {
+			if message.Steps, err = toolSteps(toolEvents[record.RunID]); err != nil {
+				return nil, err
+			}
+		}
 		messages = append(messages, message)
 	}
 	return messages, nil
+}
+
+const threadPreviewRunes = 120
+
+// threadPreview is the latest reply flattened to one short line.
+func threadPreview(content string) string {
+	return clip(strings.Join(strings.Fields(content), " "), threadPreviewRunes)
+}
+
+// toolSteps folds a run's tool.call.* events into the calls it made, in the
+// order they started. Runs recorded before tool.call.started existed only
+// have results, which become steps without a summary.
+func toolSteps(events []core.EventRecord) ([]ToolStep, error) {
+	steps := []ToolStep{}
+	index := map[string]int{}
+	for _, event := range events {
+		payload, ok := event.Payload.(map[string]any)
+		if !ok {
+			return nil, projectionError("tool call event payload must be object: run_id=%s sequence=%d", event.RunID, event.Sequence)
+		}
+		data, err := ProjectRunEventData(event.Kind, payload)
+		if err != nil {
+			return nil, err
+		}
+		call, ok := data.(core.ToolCallData)
+		if !ok {
+			return nil, projectionError("event %q is not a tool call: run_id=%s sequence=%d", event.Kind, event.RunID, event.Sequence)
+		}
+		position, seen := index[call.ToolCallID]
+		if !seen {
+			index[call.ToolCallID] = len(steps)
+			position = len(steps)
+			steps = append(steps, ToolStep{ToolName: call.ToolName, Outcome: ToolStepRunning})
+		}
+		switch event.Kind {
+		case "tool.call.started":
+			steps[position].Summary = call.Summary
+		case "tool.call.succeeded":
+			steps[position].Outcome = ToolStepSucceeded
+		case "tool.call.failed":
+			steps[position].Outcome = ToolStepFailed
+			steps[position].Error = call.Error
+		}
+	}
+	return steps, nil
 }
 
 func (s *ThreadService) CreateMessage(ctx context.Context, threadID, content string) (*Message, error) {
@@ -275,6 +343,8 @@ type Thread struct {
 	UpdatedAt   time.Time
 	LatestRunID string
 	State       string
+	Preview     string
+	PreviewRole string
 }
 
 // Message is a user-facing message DTO.
@@ -285,7 +355,22 @@ type Message struct {
 	Content   MessageContent
 	CreatedAt time.Time
 	RunID     string
+	Steps     []ToolStep
 }
+
+// ToolStep is one tool call behind an assistant message.
+type ToolStep struct {
+	ToolName string
+	Summary  string
+	Outcome  string
+	Error    string
+}
+
+const (
+	ToolStepRunning   = "running"
+	ToolStepSucceeded = "succeeded"
+	ToolStepFailed    = "failed"
+)
 
 // MessageContent holds the content of a message.
 type MessageContent struct {

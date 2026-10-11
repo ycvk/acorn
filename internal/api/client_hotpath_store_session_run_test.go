@@ -253,3 +253,10 @@ func (s *clientHandlerStore) UpdateRunOutput(context.Context, string, string) er
 	_, err := s.stubOrErr()
 	return err
 }
+
+func (s *clientHandlerStore) LoadLatestRepliesForSessions(_ context.Context, _ []string) (map[string]core.SessionMessageRecord, error) {
+	if _, err := s.stubOrErr(); err != nil {
+		return nil, err
+	}
+	return map[string]core.SessionMessageRecord{}, nil
+}

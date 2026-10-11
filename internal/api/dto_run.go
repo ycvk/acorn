@@ -92,6 +92,8 @@ type ThreadDTO struct {
 	UpdatedAt   time.Time `json:"updated_at"`
 	LatestRunID string    `json:"latest_run_id,omitempty"`
 	State       string    `json:"state"`
+	Preview     string    `json:"preview,omitempty"`
+	PreviewRole string    `json:"preview_role,omitempty"`
 }
 
 // ThreadListResponse is the response body for listing threads.
@@ -122,6 +124,15 @@ type MessageDTO struct {
 	Content   MessageContentDTO `json:"content"`
 	CreatedAt time.Time         `json:"created_at"`
 	RunID     string            `json:"run_id,omitempty"`
+	Steps     []ToolStepDTO     `json:"steps,omitempty"`
+}
+
+// ToolStepDTO is one tool call behind an assistant message.
+type ToolStepDTO struct {
+	ToolName string `json:"tool_name"`
+	Summary  string `json:"summary,omitempty"`
+	Outcome  string `json:"outcome"`
+	Error    string `json:"error,omitempty"`
 }
 
 // MessageListResponse is the response body for listing messages.

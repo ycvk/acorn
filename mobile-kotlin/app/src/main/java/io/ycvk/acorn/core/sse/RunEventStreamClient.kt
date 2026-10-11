@@ -9,6 +9,9 @@ import io.ycvk.acorn.api.models.ClientOperatorQuestionDecidedEvent
 import io.ycvk.acorn.api.models.ClientOperatorQuestionPendingEvent
 import io.ycvk.acorn.api.models.ClientToolApprovalDecidedEvent
 import io.ycvk.acorn.api.models.ClientToolApprovalPendingEvent
+import io.ycvk.acorn.api.models.ClientToolCallFailedEvent
+import io.ycvk.acorn.api.models.ClientToolCallStartedEvent
+import io.ycvk.acorn.api.models.ClientToolCallSucceededEvent
 import io.ycvk.acorn.api.models.ClientRunCompletedEvent
 import io.ycvk.acorn.api.models.ClientRunFailedEvent
 import io.ycvk.acorn.api.models.ClientRunInterruptedEvent
@@ -62,6 +65,9 @@ class RunEventStreamClient(
         "operator_question.decided" to ClientOperatorQuestionDecidedEvent::class.java,
         "tool_approval.pending" to ClientToolApprovalPendingEvent::class.java,
         "tool_approval.decided" to ClientToolApprovalDecidedEvent::class.java,
+        "tool.call.started" to ClientToolCallStartedEvent::class.java,
+        "tool.call.succeeded" to ClientToolCallSucceededEvent::class.java,
+        "tool.call.failed" to ClientToolCallFailedEvent::class.java,
     )
 
     private val eventAdapters = ConcurrentHashMap<String, JsonAdapter<*>>()
@@ -134,6 +140,9 @@ class RunEventStreamClient(
             "operator_question.decided" -> RunEventPacket.OperatorQuestionDecided(parsed as ClientOperatorQuestionDecidedEvent)
             "tool_approval.pending" -> RunEventPacket.ToolApprovalPending(parsed as ClientToolApprovalPendingEvent)
             "tool_approval.decided" -> RunEventPacket.ToolApprovalDecided(parsed as ClientToolApprovalDecidedEvent)
+            "tool.call.started" -> RunEventPacket.ToolCallStarted(parsed as ClientToolCallStartedEvent)
+            "tool.call.succeeded" -> RunEventPacket.ToolCallSucceeded(parsed as ClientToolCallSucceededEvent)
+            "tool.call.failed" -> RunEventPacket.ToolCallFailed(parsed as ClientToolCallFailedEvent)
             else -> RunEventPacket.Unknown(rawType = type, rawData = data)
         }
     }
@@ -219,6 +228,24 @@ sealed class RunEventPacket {
     }
 
     data class ToolApprovalDecided(val event: ClientToolApprovalDecidedEvent) : RunEventPacket() {
+        override val eventId: String get() = event.eventId
+        override val runId: String get() = event.runId
+        override val seq: Long get() = event.seq
+    }
+
+    data class ToolCallStarted(val event: ClientToolCallStartedEvent) : RunEventPacket() {
+        override val eventId: String get() = event.eventId
+        override val runId: String get() = event.runId
+        override val seq: Long get() = event.seq
+    }
+
+    data class ToolCallSucceeded(val event: ClientToolCallSucceededEvent) : RunEventPacket() {
+        override val eventId: String get() = event.eventId
+        override val runId: String get() = event.runId
+        override val seq: Long get() = event.seq
+    }
+
+    data class ToolCallFailed(val event: ClientToolCallFailedEvent) : RunEventPacket() {
         override val eventId: String get() = event.eventId
         override val runId: String get() = event.runId
         override val seq: Long get() = event.seq

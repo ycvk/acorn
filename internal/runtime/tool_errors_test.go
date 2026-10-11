@@ -133,7 +133,7 @@ func TestFailedToolCallProjectsAsFailed(t *testing.T) {
 			toolEvents = append(toolEvents, event.kind+":"+event.payload["tool_call_id"].(string))
 		}
 	}
-	if strings.Join(toolEvents, ",") != "tool.call.failed:call_1,tool.call.succeeded:call_2" {
+	if strings.Join(toolEvents, ",") != "tool.call.started:call_1,tool.call.failed:call_1,tool.call.started:call_2,tool.call.succeeded:call_2" {
 		t.Fatalf("tool events = %v", toolEvents)
 	}
 	if got := store.events[indexOfKind(store.events, "tool.call.failed")].payload["error"]; got != "upstream timed out" {
