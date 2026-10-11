@@ -27,8 +27,9 @@ var (
 )
 
 type Store struct {
-	lock *os.File
-	db   *sql.DB
+	lock      *os.File
+	exclusive bool
+	db        *sql.DB
 	// read serves memory recall and candidate reads. WAL lets these readers run
 	// beside the single serialized writer connection in db.
 	read        *sql.DB
@@ -79,7 +80,7 @@ func Open(dir string, options ...OpenOptions) (*Store, error) {
 		_ = db.Close()
 		return nil, fmt.Errorf("create artifact dir: %w", err)
 	}
-	store := &Store{lock: lock, db: db, artifactDir: artifactDir}
+	store := &Store{lock: lock, exclusive: exclusive, db: db, artifactDir: artifactDir}
 	artifactSvc, err := NewArtifactService(artifactDir, store)
 	if err != nil {
 		_ = db.Close()
@@ -90,7 +91,7 @@ func Open(dir string, options ...OpenOptions) (*Store, error) {
 		_ = db.Close()
 		return nil, err
 	}
-	if err := store.createSchema(); err != nil {
+	if err := store.openSchema(context.Background()); err != nil {
 		_ = db.Close()
 		return nil, err
 	}

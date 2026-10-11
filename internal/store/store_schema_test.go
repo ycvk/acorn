@@ -43,7 +43,7 @@ func TestOpenConfiguresAndKeepsWALMode(t *testing.T) {
 	}
 }
 
-func TestOpenRejectsLegacyRunsSchema(t *testing.T) {
+func TestOpenRejectsAVersionedDatabaseMissingColumns(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "state")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatalf("mkdir state dir: %v", err)
@@ -62,7 +62,8 @@ CREATE TABLE runs (
     checkpoint_id TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
-);`); err != nil {
+);
+PRAGMA user_version = 1;`); err != nil {
 		_ = db.Close()
 		t.Fatalf("seed legacy schema: %v", err)
 	}
@@ -74,7 +75,7 @@ CREATE TABLE runs (
 	if !errors.Is(err, core.ErrUnsupportedStorageSchema) {
 		t.Fatalf("Open error = %v, want core.ErrUnsupportedStorageSchema", err)
 	}
-	if !strings.Contains(err.Error(), "runs") {
+	if !strings.Contains(err.Error(), "missing required column") {
 		t.Fatalf("unexpected error detail: %v", err)
 	}
 }

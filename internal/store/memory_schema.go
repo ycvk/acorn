@@ -7,16 +7,6 @@ import (
 	"fmt"
 )
 
-func (s *Store) createMemorySchema() error {
-	ctx := context.Background()
-	for _, ddl := range []string{memorySchema, memoryQueryIndexes, memorySourceTriggers} {
-		if _, err := s.db.ExecContext(ctx, ddl); err != nil {
-			return fmt.Errorf("create memory schema: %w", err)
-		}
-	}
-	return s.validateMemorySchema()
-}
-
 const memorySchema = `
 CREATE TABLE IF NOT EXISTS memory_sources (
  id TEXT PRIMARY KEY, kind TEXT NOT NULL, object_id TEXT NOT NULL, version TEXT NOT NULL,

@@ -39,6 +39,8 @@
 
 - **SQLite adapter 不跨层泄漏**：production 代码只允许 `internal/wire` 直接 import `internal/store`；其他包只依赖 core 定义的接口或 `internal/store` 导出的记录与错误。
   - `tests/architecture/dependency_direction_test.go`
+- **数据库结构有版本**：`PRAGMA user_version` 记录结构版本。空库在一个事务里按当前结构建好并写入版本；旧版本库在独占存储锁下按顺序迁移，每一步与版本号在同一事务提交，外键在迁移期间关闭、每一步结束时不得有失效外键；没有版本号或版本更新的库拒绝打开。每个版本的结构记录在 `internal/store/testdata/schema/vN.sql`，从任一记录版本升级的结果必须与新建库的结构完全一致。
+  - `internal/store/schema_version_test.go`
 - **写入单连接，记忆读取并行**：所有写入与事务经一个 SQLite 连接串行执行；记忆召回与整合候选的读取走 `query_only` 的 WAL 只读连接池，写事务进行中也能读到已提交的数据，只读池拒绝写入。
   - `internal/store/store_read_pool_test.go`
 - **时间由调用方给出**：记忆与约定的 created_at/recorded_at/updated_at 与 `notifications` 的 created_at 由写入方的时钟决定，store 拒绝缺少时间的写入；时钟只在组合根注入，工具、presence、wake 调度器与推送 sender 共用一个。

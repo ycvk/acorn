@@ -28,3 +28,28 @@ func lockStorage(dir string, exclusive bool) (*os.File, error) {
 	}
 	return f, nil
 }
+
+// lockForUpgrade takes the exclusive lock a schema upgrade needs, so no other
+// Acorn process reads the database while its layout changes.
+func (s *Store) lockForUpgrade() error {
+	if s.exclusive {
+		return nil
+	}
+	if err := syscall.Flock(int(s.lock.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+		if errors.Is(err, syscall.EWOULDBLOCK) {
+			return errors.New("storage is in use; stop other Acorn processes so the database schema can be upgraded")
+		}
+		return fmt.Errorf("lock storage for schema upgrade: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) releaseUpgradeLock() error {
+	if s.exclusive {
+		return nil
+	}
+	if err := syscall.Flock(int(s.lock.Fd()), syscall.LOCK_SH|syscall.LOCK_NB); err != nil {
+		return fmt.Errorf("release schema upgrade lock: %w", err)
+	}
+	return nil
+}

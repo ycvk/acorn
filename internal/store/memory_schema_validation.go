@@ -29,12 +29,3 @@ var memoryRequiredTables = map[string][]string{
 	"context_snapshot_refs":    {"hash", "run_id", "source_id", "record_id", "epoch"},
 	"memory_usage":             {"id", "operation", "job_id", "run_id", "budget", "model", "input_tokens", "output_tokens", "reported", "created_at"},
 }
-
-func (s *Store) validateMemorySchema() error {
-	for table, columns := range memoryRequiredTables {
-		if err := s.requireColumns(table, columns); err != nil {
-			return err
-		}
-	}
-	return nil
-}
