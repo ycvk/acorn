@@ -25,7 +25,8 @@ enum class Tab { Today, Threads, Knowledge }
 sealed interface Page {
     val key: String
 
-    data class Chat(val threadId: String?, val nonce: Long = System.nanoTime()) : Page {
+    /** [actionId] is a pending action in the thread to bring up when the chat opens. */
+    data class Chat(val threadId: String?, val actionId: String? = null, val nonce: Long = System.nanoTime()) : Page {
         override val key = "chat:${threadId ?: "new-$nonce"}"
     }
 
@@ -58,11 +59,11 @@ class ShellViewModel @Inject constructor(
         viewModelScope.launch {
             // A notification tap opens its thread once the device is connected;
             // on a cold start the tap arrives before the stored connection loads.
-            combine(deepLinks.threadToOpen, authController.authState) { threadId, auth ->
-                threadId.takeIf { auth is AuthState.Connected }
-            }.collect { threadId ->
-                if (threadId != null) {
-                    _pages.value = listOf(Page.Chat(threadId))
+            combine(deepLinks.threadToOpen, authController.authState) { link, auth ->
+                link.takeIf { auth is AuthState.Connected }
+            }.collect { link ->
+                if (link != null) {
+                    _pages.value = listOf(Page.Chat(link.threadId, link.actionId))
                     deepLinks.consumed()
                 }
             }

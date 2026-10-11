@@ -40,6 +40,8 @@ import com.squareup.moshi.JsonClass
  * @param options 
  * @param createdAt 
  * @param body 
+ * @param toolName Set on tool approvals; the tool waiting to run.
+ * @param toolSummary Set on tool approvals; what the call is about, taken from its arguments, e.g. a URL or a search query.
  */
 
 
@@ -70,7 +72,15 @@ data class PendingActionSummary (
     val createdAt: java.time.OffsetDateTime,
 
     @Json(name = "body")
-    val body: kotlin.String? = null
+    val body: kotlin.String? = null,
+
+    /* Set on tool approvals; the tool waiting to run. */
+    @Json(name = "tool_name")
+    val toolName: kotlin.String? = null,
+
+    /* Set on tool approvals; what the call is about, taken from its arguments, e.g. a URL or a search query. */
+    @Json(name = "tool_summary")
+    val toolSummary: kotlin.String? = null
 
 ) {
 

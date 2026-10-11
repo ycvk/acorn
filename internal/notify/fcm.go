@@ -22,12 +22,34 @@ var ErrTokenUnregistered = errors.New("push token is no longer registered")
 const fcmScope = "https://www.googleapis.com/auth/firebase.messaging"
 
 // Message is one push notification. ThreadID and RunID let the app open the
-// conversation when the notification is tapped.
+// conversation when the notification is tapped. A message with ActionID
+// announces a pending action.
 type Message struct {
 	Title    string
 	Body     string
 	ThreadID string
 	RunID    string
+	ActionID string
+}
+
+// payload is the FCM message for msg. A pending action goes as data only, so
+// the app always builds the notification itself and can attach the action's
+// controls; title and body stay in the data for when it cannot load the action.
+func payload(token string, msg Message) map[string]any {
+	message := map[string]any{
+		"token":   token,
+		"android": map[string]string{"priority": "high"},
+	}
+	if msg.ActionID != "" {
+		message["data"] = map[string]string{
+			"type": "pending_action", "action_id": msg.ActionID, "thread_id": msg.ThreadID, "run_id": msg.RunID,
+			"title": msg.Title, "body": msg.Body,
+		}
+	} else {
+		message["notification"] = map[string]string{"title": msg.Title, "body": msg.Body}
+		message["data"] = map[string]string{"thread_id": msg.ThreadID, "run_id": msg.RunID}
+	}
+	return map[string]any{"message": message}
 }
 
 // ServiceAccount is the part of a Firebase service account key FCM needs.
@@ -79,12 +101,7 @@ const fcmMaxAttempts = 3
 // with backoff; the last failure is returned. A token FCM no longer knows
 // yields ErrTokenUnregistered.
 func (c *FCMClient) Send(ctx context.Context, token string, msg Message) error {
-	body, err := json.Marshal(map[string]any{"message": map[string]any{
-		"token":        token,
-		"notification": map[string]string{"title": msg.Title, "body": msg.Body},
-		"data":         map[string]string{"thread_id": msg.ThreadID, "run_id": msg.RunID},
-		"android":      map[string]string{"priority": "high"},
-	}})
+	body, err := json.Marshal(payload(token, msg))
 	if err != nil {
 		return fmt.Errorf("fcm: encode message: %w", err)
 	}

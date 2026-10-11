@@ -86,7 +86,8 @@ class ChatViewModel @Inject constructor(
     /**
      * Reconnect to the most recent run for this thread.
      *
-     * 1. If inbox shows an active run for this thread, stream its events.
+     * 1. If inbox shows an active run for this thread, or one waiting on a
+     *    pending action, stream its events.
      * 2. Else if we have a lastRunId from a prior sendMessage, stream that run's
      *    events — it may still be running or just finished; follow=true will pick
      *    up terminal events and our onEvent folds the reply into messages.
@@ -109,7 +110,9 @@ class ChatViewModel @Inject constructor(
                 if (_threadId.value != threadId) return@launch
 
                 val activeRun = inbox.activeRuns.find { it.threadId == threadId }
-                val runIdToReconnect = activeRun?.runId ?: lastRunIdByThread[threadId]
+                // A run paused on the owner keeps its stream open, and the stream carries the resumed run.
+                val waitingRun = inbox.pendingActions.find { it.threadId == threadId }
+                val runIdToReconnect = activeRun?.runId ?: waitingRun?.runId ?: lastRunIdByThread[threadId]
 
                 if (runIdToReconnect != null && eventSource == null) {
                     _chatState.value = ChatState(isStreaming = true, runStatus = RunStatus.Running)
@@ -166,6 +169,22 @@ class ChatViewModel @Inject constructor(
                 _error.value = "没发出去：${userMessage(e)}"
             }
         }
+    }
+
+    /**
+     * Brings the thread up to date after the app was in the background: the
+     * stream may have been cut and the run may have moved on. A run still
+     * going is streamed again from its start.
+     */
+    fun refresh() {
+        val threadId = _threadId.value ?: return
+        streamGeneration.incrementAndGet()
+        eventSource?.cancel()
+        eventSource = null
+        _chatState.value = ChatState()
+        _error.value = null
+        loadMessages(threadId)
+        reconnectActiveRun(threadId)
     }
 
     fun consumeRestoredInput() {
@@ -277,6 +296,8 @@ class ChatViewModel @Inject constructor(
             onError = { t ->
                 // Suppress errors from streams we already cancelled (e.g. loadThread).
                 if (streamGeneration.get() == gen) {
+                    eventSource = null
+                    _chatState.value = _chatState.value.copy(isStreaming = false)
                     _error.value = "和服务器的连接断了：${t?.let(::userMessage) ?: "连接被关闭"}"
                 }
             },

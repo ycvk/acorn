@@ -345,3 +345,73 @@ func TestDeliverDropsUnregisteredTokens(t *testing.T) {
 		t.Fatalf("failed notification = %+v", last)
 	}
 }
+
+func TestFCMSendsPendingActionsAsData(t *testing.T) {
+	var got map[string]map[string]any
+	c := testFCM(t, func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		if err := json.Unmarshal(body, &got); err != nil {
+			t.Errorf("decode: %v", err)
+		}
+		w.WriteHeader(http.StatusOK)
+	})
+	if err := c.Send(context.Background(), "tok_1", Message{Title: "发送邮件", Body: "给张三", ThreadID: "thread_1", RunID: "run_1", ActionID: "action_1"}); err != nil {
+		t.Fatalf("send: %v", err)
+	}
+	msg := got["message"]
+	if _, ok := msg["notification"]; ok {
+		t.Fatalf("pending action push has a notification block: %v", msg)
+	}
+	d := msg["data"].(map[string]any)
+	if d["type"] != "pending_action" || d["action_id"] != "action_1" || d["thread_id"] != "thread_1" || d["run_id"] != "run_1" || d["title"] != "发送邮件" || d["body"] != "给张三" {
+		t.Fatalf("data = %v", d)
+	}
+}
+
+type announceStore struct {
+	run     core.RunRecord
+	actions []core.PendingActionRecord
+}
+
+func (s announceStore) LoadRun(context.Context, string) (*core.RunRecord, error) { return &s.run, nil }
+func (s announceStore) ListPendingActionsByRun(context.Context, string) ([]core.PendingActionRecord, error) {
+	return s.actions, nil
+}
+
+type recordingNotifier struct{ sent []core.Notification }
+
+func (r *recordingNotifier) Notify(_ context.Context, n core.Notification) (core.Notification, error) {
+	r.sent = append(r.sent, n)
+	return n, nil
+}
+
+func TestAnnounceRunPushesOnlyPendingActions(t *testing.T) {
+	store := announceStore{
+		run: core.RunRecord{RunID: "run_1", SessionID: "thread_1"},
+		actions: []core.PendingActionRecord{
+			{ActionID: "a1", Kind: core.PendingActionKindToolApproval, Subject: "发送邮件", PayloadJSON: `{"message":"给张三"}`, Status: core.PendingActionStatusPending},
+			{ActionID: "a2", Kind: core.PendingActionKindOperatorQuestion, PayloadJSON: `{"question":"周几方便？"}`, Status: core.PendingActionStatusPending},
+			{ActionID: "a3", Kind: core.PendingActionKindToolApproval, Subject: "已经决定", PayloadJSON: `{}`, Status: core.PendingActionStatusApproved},
+		},
+	}
+	notifier := &recordingNotifier{}
+	announcer, err := NewPendingActionAnnouncer(store, notifier)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := announcer.AnnounceRun(context.Background(), "run_1"); err != nil {
+		t.Fatalf("announce: %v", err)
+	}
+	want := []core.Notification{
+		{Title: "发送邮件", Body: "给张三", ThreadID: "thread_1", RunID: "run_1", ActionID: "a1"},
+		{Title: "operator_question", Body: "周几方便？", ThreadID: "thread_1", RunID: "run_1", ActionID: "a2"},
+	}
+	if len(notifier.sent) != len(want) {
+		t.Fatalf("sent = %+v", notifier.sent)
+	}
+	for i := range want {
+		if notifier.sent[i] != want[i] {
+			t.Fatalf("sent[%d] = %+v, want %+v", i, notifier.sent[i], want[i])
+		}
+	}
+}

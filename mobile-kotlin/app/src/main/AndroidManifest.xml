@@ -56,6 +56,9 @@
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>
         </service>
+        <receiver
+            android:name=".feature.approvals.ApprovalDecisionReceiver"
+            android:exported="false" />
         <service
             android:name=".core.push.AcornMessagingService"
             android:exported="false">

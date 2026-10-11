@@ -31,6 +31,7 @@ import io.ycvk.acorn.core.ui.ButtonKind
 import io.ycvk.acorn.core.ui.Panel
 import io.ycvk.acorn.core.ui.ago
 import io.ycvk.acorn.core.ui.rememberHaptics
+import io.ycvk.acorn.feature.chat.toolLabel
 import java.time.OffsetDateTime
 
 /** The decision an option sends; tool approvals carry accept/decline ids, questions carry their own labels. */
@@ -50,6 +51,14 @@ fun optionLabel(option: PendingActionOption): String = when (option.id) {
     "decline" -> "拒绝"
     else -> option.label
 }
+
+/** A tool approval reads as what Acorn wants to do; other actions keep their own title. */
+fun approvalTitle(title: String, toolName: String?): String =
+    toolName?.takeIf { it.isNotBlank() }?.let { "Acorn 想${toolLabel(it)}" } ?: title
+
+/** A tool approval shows what the call is about; other actions show their message. */
+fun approvalBody(body: String?, toolName: String?, toolSummary: String?): String? =
+    if (toolName.isNullOrBlank()) body?.takeIf { it.isNotBlank() } else toolSummary?.takeIf { it.isNotBlank() }
 
 fun kindLabel(kind: String): String = when (kind) {
     "tool_approval" -> "需要你批准"
@@ -81,8 +90,8 @@ fun ApprovalCard(
             Text(ago(action.createdAt, OffsetDateTime.now()), style = AcornTheme.type.caption, color = colors.warningInk)
         }
         Spacer(Modifier.height(6.dp))
-        Text(action.title, style = AcornTheme.type.headline, color = colors.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
-        action.body?.takeIf { it.isNotBlank() }?.let {
+        Text(approvalTitle(action.title, action.toolName), style = AcornTheme.type.headline, color = colors.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        approvalBody(action.body, action.toolName, action.toolSummary)?.let {
             Spacer(Modifier.height(4.dp))
             Text(it, style = AcornTheme.type.footnote, color = colors.inkSoft, maxLines = 3, overflow = TextOverflow.Ellipsis)
         }
@@ -137,8 +146,8 @@ fun PendingActionSheet(
         ) {
             Text(kindLabel(detail.kind.value), style = AcornTheme.type.footnote, color = colors.warningInk)
             Spacer(Modifier.height(8.dp))
-            Text(detail.title, style = AcornTheme.type.title, color = colors.ink)
-            detail.body?.takeIf { it.isNotBlank() }?.let {
+            Text(approvalTitle(detail.title, detail.toolName), style = AcornTheme.type.title, color = colors.ink)
+            approvalBody(detail.body, detail.toolName, detail.toolSummary)?.let {
                 Spacer(Modifier.height(10.dp))
                 Text(it, style = AcornTheme.type.reading, color = colors.ink)
             }

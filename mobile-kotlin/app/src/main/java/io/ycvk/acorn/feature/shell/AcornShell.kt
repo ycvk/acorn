@@ -156,7 +156,7 @@ private fun ConnectedShell(shellViewModel: ShellViewModel) {
                         )
                     }
                 }
-                is Page.Chat -> ChatScreen(threadId = page.threadId, onBack = shellViewModel::back)
+                is Page.Chat -> ChatScreen(threadId = page.threadId, openActionId = page.actionId, onBack = shellViewModel::back)
                 is Page.Note -> NoteScreen(path = page.path, viewModel = knowledgeViewModel, onBack = shellViewModel::back)
                 Page.Settings -> SettingsScreen(onBack = shellViewModel::back)
             }

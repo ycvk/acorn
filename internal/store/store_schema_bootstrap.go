@@ -114,18 +114,7 @@ CREATE TABLE IF NOT EXISTS push_tokens (
     updated_at TEXT NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS notifications (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    title TEXT NOT NULL,
-    body TEXT NOT NULL,
-    thread_id TEXT NOT NULL DEFAULT '',
-    run_id TEXT NOT NULL DEFAULT '',
-    status TEXT NOT NULL,
-    send_after TEXT NOT NULL,
-    error_text TEXT NOT NULL DEFAULT '',
-    created_at TEXT NOT NULL,
-    sent_at TEXT NOT NULL DEFAULT ''
-);
+` + notificationsTable + `
 
 CREATE TABLE IF NOT EXISTS knowledge_notes (
     path TEXT PRIMARY KEY,
@@ -221,7 +210,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_pending_actions_interrupt_id ON pending_ac
 CREATE INDEX IF NOT EXISTS idx_devices_token_hash ON devices(token_hash);
 CREATE INDEX IF NOT EXISTS idx_artifacts_run ON artifacts(run_id, created_at ASC, artifact_id ASC);
 CREATE INDEX IF NOT EXISTS idx_artifacts_session ON artifacts(session_id, created_at ASC, artifact_id ASC);
-CREATE INDEX IF NOT EXISTS idx_notifications_due ON notifications(status, send_after);
+` + notificationsDueIndex + `
 CREATE INDEX IF NOT EXISTS idx_knowledge_notes_updated ON knowledge_notes(updated_at);
 CREATE INDEX IF NOT EXISTS idx_watches_due ON watches(status, next_check_at);
 CREATE INDEX IF NOT EXISTS idx_watch_items_status ON watch_items(status, seen_at);
@@ -237,3 +226,21 @@ END;
 
 CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_notes_fts USING fts5(path UNINDEXED, title, tags, body, tokenize='trigram');
 `
+
+// notificationsTable is shared with the migration that added action_id, so an
+// upgraded database and a new one store the same definition.
+const notificationsTable = `CREATE TABLE IF NOT EXISTS notifications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    body TEXT NOT NULL,
+    thread_id TEXT NOT NULL DEFAULT '',
+    run_id TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL,
+    send_after TEXT NOT NULL,
+    error_text TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    sent_at TEXT NOT NULL DEFAULT '',
+    action_id TEXT NOT NULL DEFAULT ''
+);`
+
+const notificationsDueIndex = `CREATE INDEX IF NOT EXISTS idx_notifications_due ON notifications(status, send_after);`

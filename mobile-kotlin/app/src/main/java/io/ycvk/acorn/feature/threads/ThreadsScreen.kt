@@ -59,6 +59,7 @@ import io.ycvk.acorn.core.ui.IconAction
 import io.ycvk.acorn.core.ui.InlineError
 import io.ycvk.acorn.core.ui.LargeHeader
 import io.ycvk.acorn.core.ui.ListRow
+import io.ycvk.acorn.core.ui.OnReturnToForeground
 import io.ycvk.acorn.core.ui.ScreenPadding
 import io.ycvk.acorn.core.ui.SectionLabel
 import io.ycvk.acorn.core.ui.SkeletonRows
@@ -87,6 +88,7 @@ fun ThreadsScreen(
     var pendingDelete by remember { mutableStateOf<Thread?>(null) }
 
     LaunchedEffect(Unit) { viewModel.loadThreads() }
+    OnReturnToForeground(viewModel::loadThreads)
 
     Column(modifier = Modifier.fillMaxSize()) {
         LargeHeader("对话") {

@@ -72,7 +72,7 @@ func (s *Store) DeletePushToken(ctx context.Context, deviceID string) error {
 	return nil
 }
 
-const notificationColumns = `id, title, body, thread_id, run_id, status, send_after, error_text, created_at, sent_at`
+const notificationColumns = `id, title, body, thread_id, run_id, action_id, status, send_after, error_text, created_at, sent_at`
 
 func (s *Store) QueueNotification(ctx context.Context, n core.Notification) (core.Notification, error) {
 	if strings.TrimSpace(n.Title) == "" || strings.TrimSpace(n.Body) == "" {
@@ -86,8 +86,8 @@ func (s *Store) QueueNotification(ctx context.Context, n core.Notification) (cor
 	}
 	n.Status = core.NotificationQueued
 	result, err := s.db.ExecContext(ctx,
-		`INSERT INTO notifications(title, body, thread_id, run_id, status, send_after, created_at) VALUES(?, ?, ?, ?, ?, ?, ?)`,
-		n.Title, n.Body, n.ThreadID, n.RunID, string(n.Status), formatTimestamp(n.SendAfter), formatTimestamp(n.CreatedAt))
+		`INSERT INTO notifications(title, body, thread_id, run_id, action_id, status, send_after, created_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?)`,
+		n.Title, n.Body, n.ThreadID, n.RunID, n.ActionID, string(n.Status), formatTimestamp(n.SendAfter), formatTimestamp(n.CreatedAt))
 	if err != nil {
 		return core.Notification{}, fmt.Errorf("queue notification: %w", err)
 	}
@@ -111,7 +111,7 @@ func (s *Store) ListDueNotifications(ctx context.Context, now time.Time) ([]core
 			status, sendAfter, created string
 			sentAt                     string
 		)
-		if err := scan(&n.ID, &n.Title, &n.Body, &n.ThreadID, &n.RunID, &status, &sendAfter, &n.Error, &created, &sentAt); err != nil {
+		if err := scan(&n.ID, &n.Title, &n.Body, &n.ThreadID, &n.RunID, &n.ActionID, &status, &sendAfter, &n.Error, &created, &sentAt); err != nil {
 			return err
 		}
 		n.Status = core.NotificationStatus(status)
