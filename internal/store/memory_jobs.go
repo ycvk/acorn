@@ -29,34 +29,92 @@ func (s *Store) ClaimMemoryJob(ctx context.Context, now time.Time, lease time.Du
 	}
 	var result *core.MemoryJob
 	err := s.memoryTransaction(ctx, func(tx *sql.Tx) error {
-		var job core.MemoryJob
-		err := tx.QueryRowContext(ctx, `SELECT id,operation,object_id,version,token,attempts,cursor,epoch FROM memory_jobs
-		WHERE ((state='pending' AND available_at<=?) OR (state='running' AND lease_until<=?)) AND (?='' OR operation=?) ORDER BY id LIMIT 1`, formatTimestamp(now), formatTimestamp(now), operation, operation).Scan(&job.ID, &job.Operation, &job.ObjectID, &job.Version, &job.Token, &job.Attempts, &job.Cursor, &job.Epoch)
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil
-		}
-		if err != nil {
+		jobs, err := readyMemoryJobs(ctx, tx, now, operation, 1)
+		if err != nil || len(jobs) == 0 {
 			return err
 		}
-		previousEpoch := job.Epoch
-		job.Epoch, err = memoryEpoch(ctx, tx)
-		if err != nil {
-			return err
-		}
-		if previousEpoch != job.Epoch {
-			job.Cursor = 0
-		}
-		job.Token++
-		job.Attempts++
-		job.State = "running"
-		job.LeaseUntil = now.Add(lease)
-		_, err = tx.ExecContext(ctx, `UPDATE memory_jobs SET state='running',token=?,attempts=?,epoch=?,lease_until=?,cursor=? WHERE id=?`, job.Token, job.Attempts, job.Epoch, formatTimestamp(job.LeaseUntil), job.Cursor, job.ID)
+		job, err := claimMemoryJob(ctx, tx, jobs[0], now, lease)
 		if err == nil {
 			result = &job
 		}
 		return err
 	})
 	return result, err
+}
+
+// ReadyMemoryJobs lists up to limit jobs of operation a worker could claim
+// now, oldest first, without claiming them.
+func (s *Store) ReadyMemoryJobs(ctx context.Context, now time.Time, operation string, limit int) ([]core.MemoryJob, error) {
+	if now.IsZero() || operation == "" || limit <= 0 {
+		return nil, errors.New("ready memory jobs require now, operation and a positive limit")
+	}
+	return readyMemoryJobs(ctx, s.db, now, operation, limit)
+}
+
+// ClaimMemoryJobs claims the listed jobs that are still ready and skips the
+// others, which another worker took or which changed state.
+func (s *Store) ClaimMemoryJobs(ctx context.Context, ids []int64, now time.Time, lease time.Duration) ([]core.MemoryJob, error) {
+	if now.IsZero() || lease <= 0 {
+		return nil, errors.New("memory jobs require now and a positive lease")
+	}
+	var claimed []core.MemoryJob
+	err := s.memoryTransaction(ctx, func(tx *sql.Tx) error {
+		for _, id := range ids {
+			var job core.MemoryJob
+			err := tx.QueryRowContext(ctx, `SELECT id,operation,object_id,version,token,attempts,cursor,epoch FROM memory_jobs WHERE id=? AND `+memoryJobReady, id, formatTimestamp(now), formatTimestamp(now)).Scan(&job.ID, &job.Operation, &job.ObjectID, &job.Version, &job.Token, &job.Attempts, &job.Cursor, &job.Epoch)
+			if errors.Is(err, sql.ErrNoRows) {
+				continue
+			}
+			if err != nil {
+				return err
+			}
+			job, err = claimMemoryJob(ctx, tx, job, now, lease)
+			if err != nil {
+				return err
+			}
+			claimed = append(claimed, job)
+		}
+		return nil
+	})
+	return claimed, err
+}
+
+const memoryJobReady = `((state='pending' AND available_at<=?) OR (state='running' AND lease_until<=?))`
+
+func readyMemoryJobs(ctx context.Context, q memorySQL, now time.Time, operation string, limit int) ([]core.MemoryJob, error) {
+	rows, err := q.QueryContext(ctx, `SELECT id,operation,object_id,version,token,attempts,cursor,epoch FROM memory_jobs
+		WHERE `+memoryJobReady+` AND (?='' OR operation=?) ORDER BY id LIMIT ?`, formatTimestamp(now), formatTimestamp(now), operation, operation, limit)
+	if err != nil {
+		return nil, err
+	}
+	var jobs []core.MemoryJob
+	err = scanRows(rows, func(scan func(...any) error) error {
+		var job core.MemoryJob
+		if err := scan(&job.ID, &job.Operation, &job.ObjectID, &job.Version, &job.Token, &job.Attempts, &job.Cursor, &job.Epoch); err != nil {
+			return err
+		}
+		jobs = append(jobs, job)
+		return nil
+	})
+	return jobs, err
+}
+
+func claimMemoryJob(ctx context.Context, q memorySQL, job core.MemoryJob, now time.Time, lease time.Duration) (core.MemoryJob, error) {
+	previousEpoch := job.Epoch
+	var err error
+	job.Epoch, err = memoryEpoch(ctx, q)
+	if err != nil {
+		return job, err
+	}
+	if previousEpoch != job.Epoch {
+		job.Cursor = 0
+	}
+	job.Token++
+	job.Attempts++
+	job.State = "running"
+	job.LeaseUntil = now.Add(lease)
+	_, err = q.ExecContext(ctx, `UPDATE memory_jobs SET state='running',token=?,attempts=?,epoch=?,lease_until=?,cursor=? WHERE id=?`, job.Token, job.Attempts, job.Epoch, formatTimestamp(job.LeaseUntil), job.Cursor, job.ID)
+	return job, err
 }
 
 func validateMemoryLease(ctx context.Context, q memorySQL, job core.MemoryJob, now time.Time) error {
