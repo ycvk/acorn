@@ -47,7 +47,7 @@ func registerMemorySource(ctx context.Context, q memorySQL, source core.MemorySo
 			return err
 		}
 	}
-	if source.Speaker == "owner" || source.Speaker == "tool" || source.Speaker == "external" {
+	if (source.Speaker == "owner" || source.Speaker == "tool" || source.Speaker == "external") && source.Kind != core.MemoryRequestSource {
 		return enqueueMemoryJob(ctx, q, "extract", source.ID, source.Version, source.RecordedAt)
 	}
 	return nil

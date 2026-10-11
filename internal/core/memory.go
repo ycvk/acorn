@@ -13,7 +13,13 @@ var (
 	ErrMemoryLeaseLost     = errors.New("memory job lease lost")
 	ErrMemoryIndexMismatch = errors.New("memory index model mismatch")
 	ErrMemoryBudget        = errors.New("memory daily token budget exhausted")
+	ErrMemoryNotFact       = errors.New("only a fact can be corrected")
 )
+
+// MemoryRequestSource is the kind of source that records a request the owner
+// made in the app, outside any conversation. Its body is the request; it is
+// evidence for the change it asked for and is never extracted on its own.
+const MemoryRequestSource = "request"
 
 // MemorySource identifies a version of a message, event, note or explicit thought.
 // Content is resolved from its owning record; Body is persisted only for sources

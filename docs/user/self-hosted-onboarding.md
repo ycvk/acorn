@@ -88,6 +88,8 @@ Ordinary owner messages, observed tool outcomes and tracked changes become immut
 
 Every run loads recent conversation within a token budget, summarizes older messages with source IDs and automatically recalls related memories. Ask for a memory's source to inspect its original version. An explicit “remember this” saves synchronously. Corrections retain the earlier version and the date the correction took effect. “Forget this” removes the selected content from future agent recall, summaries and derived context; original chat and knowledge files remain available to the owner.
 
+The app's 知识 tab has a 记忆 view listing what Acorn currently remembers, newest change first, with search and a filter for facts, inferences and thoughts. Open a memory to see the quotes it rests on and where each came from; tap one to open its conversation or note. A fact can be corrected in your own words, which become its evidence while the earlier wording stays in its history. Forgetting a memory from the app works like asking in chat: a fact takes its quotes and the inferences drawn from them along, an inference or thought goes alone.
+
 The defaults use `voyage-4` with 1024 dimensions:
 
 ```yaml
