@@ -192,3 +192,15 @@ func TestDefaultApprovalRequiresBrowserAndMCP(t *testing.T) {
 		t.Fatalf("default approval.require = %v", got)
 	}
 }
+
+func TestBackupKeepMustBePositiveWhenBackupsAreOn(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Backup.Keep = 0
+	if err := cfg.ValidateBase(); err != nil {
+		t.Fatalf("backups off: %v", err)
+	}
+	cfg.Backup.Dir = "/srv/acorn/backups"
+	if err := cfg.ValidateBase(); err == nil || !strings.Contains(err.Error(), "backup.keep") {
+		t.Fatalf("backups on with keep 0: %v", err)
+	}
+}

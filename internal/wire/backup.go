@@ -31,16 +31,13 @@ type BackupReport struct {
 	Removed       []string `json:"removed_snapshots"`
 }
 
-// Backup snapshots the database and persona into dir, mirrors attachments and
-// artifacts, and keeps the newest keep snapshots. A running Acorn keeps
-// working meanwhile.
-func Backup(ctx context.Context, cfg *config.Config, dir string, keep int, now time.Time) (BackupReport, error) {
-	if dir == "" || keep < 1 {
-		return BackupReport{}, errors.New("backup needs a directory and keep of at least 1")
-	}
-	dir, err := filepath.Abs(dir)
-	if err != nil {
-		return BackupReport{}, err
+// Backup snapshots the database and persona into backup.dir, mirrors
+// attachments and artifacts, and keeps the newest backup.keep snapshots. A
+// running Acorn keeps working meanwhile.
+func Backup(ctx context.Context, cfg *config.Config, now time.Time) (BackupReport, error) {
+	dir, keep := cfg.Backup.Dir, cfg.Backup.Keep
+	if dir == "" {
+		return BackupReport{}, errors.New("backup.dir is not set; backups are off")
 	}
 	snapshots := filepath.Join(dir, "snapshots")
 	if err := os.MkdirAll(snapshots, 0o700); err != nil {
@@ -192,6 +189,41 @@ func copyFileAtomic(from, to string) (err error) {
 		return err
 	}
 	return os.Rename(tmp.Name(), to)
+}
+
+// backupStatus reads the newest snapshot for the briefing's health check; it
+// is nil when backups are off.
+func backupStatus(cfg *config.Config) func() (time.Time, error) {
+	if cfg.Backup.Dir == "" {
+		return nil
+	}
+	return func() (time.Time, error) { return LatestSnapshot(cfg.Backup.Dir) }
+}
+
+// LatestSnapshot reports when the newest snapshot under the backup directory
+// was taken; the zero time means there is none yet.
+func LatestSnapshot(dir string) (time.Time, error) {
+	entries, err := os.ReadDir(filepath.Join(dir, "snapshots"))
+	if errors.Is(err, fs.ErrNotExist) {
+		return time.Time{}, nil
+	}
+	if err != nil {
+		return time.Time{}, err
+	}
+	var latest time.Time
+	for _, e := range entries {
+		if !e.IsDir() || !snapshotPattern.MatchString(e.Name()) {
+			continue
+		}
+		at, err := time.Parse("20060102T150405Z", e.Name())
+		if err != nil {
+			return time.Time{}, err
+		}
+		if at.After(latest) {
+			latest = at
+		}
+	}
+	return latest, nil
 }
 
 func pruneSnapshots(dir string, keep int) ([]string, error) {

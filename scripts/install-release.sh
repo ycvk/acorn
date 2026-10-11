@@ -153,7 +153,7 @@ Type=oneshot
 User=$service_user
 Group=$service_group
 Environment=HOME=$service_home
-ExecStart=$bin_path backup -c $config_path --dir $backup_dir --keep 14
+ExecStart=$bin_path backup -c $config_path
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
@@ -321,7 +321,7 @@ run_root install -m 0755 "$wrapper_template" "$wrapper_path"
 install_packaged_skills "$package_dir/skills" "$skills_dir"
 
 if [ ! -e "$config_path" ]; then
-	run_root runuser -u "$service_user" -- env HOME="$service_home" "$bin_path" init -c "$config_path" --storage-dir "$workspace_dir"
+	run_root runuser -u "$service_user" -- env HOME="$service_home" "$bin_path" init -c "$config_path" --storage-dir "$workspace_dir" --backup-dir "$backup_dir"
 else
 	log "Keeping existing config: $config_path"
 	run_root runuser -u "$service_user" -- env HOME="$service_home" "$bin_path" init -c "$config_path" --persona-only
@@ -338,7 +338,7 @@ run_root install -m 0644 "$backup_service_template" "$backup_unit_path"
 run_root install -m 0644 "$backup_timer_template" "$backup_timer_path"
 run_root systemctl daemon-reload
 run_root systemctl enable --now acorn-backup.timer
-log "Daily backups: $backup_dir (acorn-backup.timer, keeps 14 snapshots)"
+log "Daily backups: acorn-backup.timer runs acorn backup into backup.dir from $config_path"
 
 if [ "$start_service" != "1" ]; then
 	log "Installed Acorn without starting service because ACORN_START_SERVICE=$start_service"

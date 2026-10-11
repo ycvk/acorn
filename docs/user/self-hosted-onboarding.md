@@ -386,7 +386,7 @@ Share from any Android app to get something into it: pick Acorn in the system sh
 
 Ask the agent to keep an eye on something and it creates a watch: "follow the Go blog", "tell me when golang/go has a new release", "watch the price on this page and tell me right away when it drops". The backend checks each watch on its own schedule (hourly by default, at least every 15 minutes) and only involves the model when something is new. The first check of a watch is the baseline, so what is already there is not reported.
 
-Every morning the agent writes a briefing note, `briefings/YYYY-MM-DD.md` in the knowledge base, with what changed on your watches, today's commitments and what is open, and pushes a short summary. Watches you asked to hear about right away wake the agent in the conversation where you set them up instead; those wakes count toward `wake.daily_limit`, and changes past the limit wait for the briefing.
+Every morning the agent writes a briefing note, `briefings/YYYY-MM-DD.md` in the knowledge base, with what changed on your watches, today's commitments and what is open, and pushes a short summary. When something needs your attention on the server — no recent backup, memory jobs that failed after all retries, or memory jobs waiting for more than a day — the briefing says so with a suggested check; on a healthy server it says nothing about it. Watches you asked to hear about right away wake the agent in the conversation where you set them up instead; those wakes count toward `wake.daily_limit`, and changes past the limit wait for the briefing.
 
 ```yaml
 briefing:
@@ -413,12 +413,20 @@ A watch that keeps failing (five times in a row) is marked failing and listed in
 
 ## 14. Backup and Restore
 
-The installer enables `acorn-backup.timer`, which runs `acorn backup` every night at about 04:30 while Acorn keeps running. Each run writes a snapshot under `/srv/acorn/backups/snapshots/<UTC time>/`: a consistent copy of the SQLite database, checked for integrity and schema version, plus `persona.md`. Shared images and run artifacts never change once written, so they are mirrored once into `/srv/acorn/backups/attachments/` and `/srv/acorn/backups/artifacts/`. The newest 14 snapshots are kept.
+The installer sets `backup.dir` to `/srv/acorn/backups` and enables `acorn-backup.timer`, which runs `acorn backup` every night at about 04:30 while Acorn keeps running. Each run writes a snapshot under `<backup.dir>/snapshots/<UTC time>/`: a consistent copy of the SQLite database, checked for integrity and schema version, plus `persona.md`. Shared images and run artifacts never change once written, so they are mirrored once into `<backup.dir>/attachments/` and `<backup.dir>/artifacts/`. The newest `backup.keep` snapshots are kept (14 by default):
+
+```yaml
+backup:
+  dir: /srv/acorn/backups   # empty turns backups off
+  keep: 14
+```
+
+The morning briefing reports when the newest snapshot is more than 36 hours old or missing.
 
 Back up by hand, or check the timer:
 
 ```bash
-acorn backup --dir /srv/acorn/backups
+acorn backup
 ```
 
 ```bash

@@ -31,6 +31,7 @@ func defaultConfig() *Config {
 		Thinking: ThinkingConfig{NightAt: "03:00", WanderAt: []string{}},
 		Watch:    WatchConfig{MaxChecksPerTick: 5},
 		Briefing: BriefingConfig{At: "08:00"},
+		Backup:   BackupConfig{Keep: 14},
 		Notify: NotifyConfig{
 			MaxPerHour: 6,
 			QuietHours: QuietHoursConfig{Start: "23:00", End: "08:00"},

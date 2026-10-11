@@ -76,6 +76,11 @@ briefing:
   # Morning briefing time in owner.timezone; empty turns it off.
   at: "08:00"
 
+backup:
+  # Where `acorn backup` writes snapshots; empty turns backups off.
+  dir: ""
+  keep: 14
+
 context:
   window_tokens: 1050000
   compact_margin_tokens: 32000

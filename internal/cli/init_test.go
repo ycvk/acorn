@@ -33,8 +33,9 @@ func TestInitStorageDirPlacesInstallerLayout(t *testing.T) {
 	t.Setenv("VOYAGE_API_KEY", "voyage-test")
 	t.Setenv("OPENAI_API_KEY", "sk-test-init")
 	storage := filepath.Join(t.TempDir(), "srv", "acorn workspace")
+	backups := filepath.Join(t.TempDir(), "srv", "acorn backups")
 	path := filepath.Join(t.TempDir(), "acorn.yaml")
-	if err := runInit(t.Context(), []string{"-c", path, "--storage-dir", storage}); err != nil {
+	if err := runInit(t.Context(), []string{"-c", path, "--storage-dir", storage, "--backup-dir", backups}); err != nil {
 		t.Fatalf("init: %v", err)
 	}
 	cfg, err := config.Load(path)
@@ -44,8 +45,8 @@ func TestInitStorageDirPlacesInstallerLayout(t *testing.T) {
 	if err := cfg.ValidateExecutionReady(); err != nil {
 		t.Fatalf("installer config must execute with model and Voyage keys: %v", err)
 	}
-	if cfg.Runtime.StorageDir != storage {
-		t.Fatalf("storage=%q, want %q", cfg.Runtime.StorageDir, storage)
+	if cfg.Runtime.StorageDir != storage || cfg.Backup.Dir != backups || cfg.Backup.Keep != 14 {
+		t.Fatalf("storage=%q backup=%+v, want storage %q and backups %q", cfg.Runtime.StorageDir, cfg.Backup, storage, backups)
 	}
 	if want := filepath.Join(filepath.Dir(path), "skills"); cfg.Skills.Dir != want {
 		t.Fatalf("skills=%q, want %q beside the config", cfg.Skills.Dir, want)
@@ -55,6 +56,9 @@ func TestInitStorageDirPlacesInstallerLayout(t *testing.T) {
 	}
 	if err := runInit(t.Context(), []string{"--print", "--storage-dir", "relative"}); err == nil {
 		t.Fatal("relative storage dir accepted")
+	}
+	if err := runInit(t.Context(), []string{"--print", "--backup-dir", "relative"}); err == nil {
+		t.Fatal("relative backup dir accepted")
 	}
 }
 

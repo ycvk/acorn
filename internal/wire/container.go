@@ -238,6 +238,7 @@ func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *contai
 		Thinking:           thinking,
 		MaxChecksPerTick:   cfg.Watch.MaxChecksPerTick,
 		Briefing:           briefing,
+		Backups:            backupStatus(cfg),
 		Interval:           wakeInterval,
 	})
 	if err == nil && deps.notifier != nil {

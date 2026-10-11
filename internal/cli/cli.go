@@ -76,7 +76,7 @@ Usage:
   acorn smoke [-c path] [--json] "task input"
   acorn run [-c path] [--json] "task input"
   acorn serve [-c path] [--listen addr]
-  acorn backup [-c path] [--json] --dir path [--keep n]
+  acorn backup [-c path] [--json]
   acorn restore [-c path] [--json] --from snapshot`)
 }
 

@@ -17,6 +17,9 @@ func (c *Config) ValidateBase() error {
 	if c.Runtime.RunTimeoutSeconds < 0 {
 		return errors.New("runtime.run_timeout_seconds must be >= 0")
 	}
+	if c.Backup.Dir != "" && c.Backup.Keep < 1 {
+		return errors.New("backup.keep must be >= 1")
+	}
 	if strings.TrimSpace(c.Web.ListenAddr) == "" {
 		return errors.New("web.listen_addr is required")
 	}

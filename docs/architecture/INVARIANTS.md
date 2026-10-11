@@ -41,7 +41,7 @@
   - `tests/architecture/dependency_direction_test.go`
 - **数据库结构有版本**：`PRAGMA user_version` 记录结构版本。空库在一个事务里按当前结构建好并写入版本；旧版本库在独占存储锁下按顺序迁移，每一步与版本号在同一事务提交，外键在迁移期间关闭、每一步结束时不得有失效外键；没有版本号或版本更新的库拒绝打开。每个版本的结构记录在 `internal/store/testdata/schema/vN.sql`，从任一记录版本升级的结果必须与新建库的结构完全一致。
   - `internal/store/schema_version_test.go`
-- **备份不打断运行，恢复要求停机**：`acorn backup` 经只读连接 `VACUUM INTO` 生成数据库快照，校验完整性与结构版本后连同人格文件以原子重命名发布；附件与产出文件在快照之后镜像，只增不删，快照引用的文件都在镜像里。`acorn restore` 持有独占存储锁，Acorn 运行时拒绝执行，先校验快照再替换数据库并清除 WAL。
+- **备份不打断运行，恢复要求停机**：`acorn backup` 写入 `backup.dir`（为空表示关闭备份）、保留最新 `backup.keep` 份快照，经只读连接 `VACUUM INTO` 生成数据库快照，校验完整性与结构版本后连同人格文件以原子重命名发布；附件与产出文件在快照之后镜像，只增不删，快照引用的文件都在镜像里。`acorn restore` 持有独占存储锁，Acorn 运行时拒绝执行，先校验快照再替换数据库并清除 WAL。
   - `internal/wire/backup_test.go`
 - **写入单连接，记忆读取并行**：所有写入与事务经一个 SQLite 连接串行执行；记忆召回与整合候选的读取走 `query_only` 的 WAL 只读连接池，写事务进行中也能读到已提交的数据，只读池拒绝写入。
   - `internal/store/store_read_pool_test.go`
@@ -136,7 +136,8 @@
   - `internal/watch/watch_test.go`
   - `internal/store/store_watch_test.go`
   - `internal/wire/watch_acceptance_e2e_test.go`
-- **每个本地日一次早安卡**：过了 `briefing.at`（owner 时区）后，`routine_runs` 表按 (`briefing`,日期) 认领，跨进程只触发一次；起 run 失败释放认领，下个 tick 重试。早安卡在 Briefings 线程里运行，输入列出全部待简报条目和 failing 追踪项，条目随之标为 briefed；它不计入每日唤醒上限。
+- **每个本地日一次早安卡**：过了 `briefing.at`（owner 时区）后，`routine_runs` 表按 (`briefing`,日期) 认领，跨进程只触发一次；起 run 失败释放认领，下个 tick 重试。早安卡在 Briefings 线程里运行，输入列出全部待简报条目和 failing 追踪项，条目随之标为 briefed；它不计入每日唤醒上限。输入只在有问题时带 System health：`backup.dir` 已设置而最新快照缺失、超过 36 小时或目录不可读，记忆任务重试耗尽失败，或待处理记忆任务等待超过 24 小时。
+  - `internal/wake/health_test.go`
   - `internal/wake/watches_test.go`
   - `internal/store/store_watch_test.go`
   - `internal/wire/watch_acceptance_e2e_test.go`
