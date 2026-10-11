@@ -10,9 +10,12 @@ import (
 	"time"
 )
 
-// OwnerConfig describes the owner. Timezone is an IANA name used to render
-// the present and to interpret wake times the owner gives in local time.
+// OwnerConfig describes the owner. Name tells the agent who "the owner" is
+// when sources name them; empty leaves the owner unnamed. Timezone is an IANA
+// name used to render the present and to interpret wake times the owner gives
+// in local time.
 type OwnerConfig struct {
+	Name     string `yaml:"name"`
 	Timezone string `yaml:"timezone"`
 }
 

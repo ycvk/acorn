@@ -315,10 +315,11 @@ sudo systemctl restart acorn
 
 `{storage_dir}/persona.md` (`/srv/acorn/workspace/persona.md` on an installer setup) is the agent's persona: who it is and how it talks to you. Edit it freely; every run reads it. A run fails with the file path when the file is missing or empty. `acorn init` writes the default persona and keeps an existing one.
 
-Set your timezone so the agent reads and schedules times the way you say them:
+Set your name and timezone. The name tells the agent it is you when shared material, notifications or memories name you; the timezone makes it read and schedule times the way you say them:
 
 ```yaml
 owner:
+  name: 温遥                 # optional
   timezone: Asia/Shanghai   # IANA name; default UTC
 ```
 
@@ -374,7 +375,7 @@ Config is parsed strictly: unknown keys stop the backend. When upgrading from a 
 - `context.preserve_recent_turns`
 - `mcp.providers[].tool_safety` (use `approval.require`)
 
-New keys, all optional: `approval.require`, `owner.timezone`, `presence.max_tokens`, `wake.daily_limit`, `notify.max_per_hour`, `notify.quiet_hours`, `notify.fcm.service_account_file`, `watch.rsshub_base_url`, `watch.github_token`, `watch.max_checks_per_tick`, `briefing.at`. Then run `acorn init --persona-only` to write the default persona, and `acorn doctor` to check the result.
+New keys, all optional: `approval.require`, `owner.name`, `owner.timezone`, `presence.max_tokens`, `wake.daily_limit`, `notify.max_per_hour`, `notify.quiet_hours`, `notify.fcm.service_account_file`, `watch.rsshub_base_url`, `watch.github_token`, `watch.max_checks_per_tick`, `briefing.at`. Then run `acorn init --persona-only` to write the default persona, and `acorn doctor` to check the result.
 
 Earlier data under `~/.acorn` (`facts/`, `history/`, `worldstate/`, `vectors.db`, `skills/generated/`) is no longer read. Delete it once you no longer need it.
 

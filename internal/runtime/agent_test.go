@@ -2,7 +2,6 @@ package runtime
 
 import (
 	"context"
-	"strings"
 	"testing"
 	"time"
 
@@ -44,8 +43,16 @@ func TestSplitToolsByLoading(t *testing.T) {
 }
 
 func TestStableInstructionJoinsPersonaAndRules(t *testing.T) {
-	got := buildStableInstruction("You are Acorn.")
-	if !strings.HasPrefix(got, "You are Acorn.") || !strings.Contains(got, operatingRules) {
+	got := buildStableInstruction("You are Acorn.", "")
+	if got != "You are Acorn.\n\n"+operatingRules {
+		t.Fatalf("instruction = %s", got)
+	}
+}
+
+func TestStableInstructionNamesTheOwner(t *testing.T) {
+	got := buildStableInstruction("You are Acorn.", " 温遥 ")
+	want := "You are Acorn.\n\nThe owner is 温遥. In sources with speaker \"owner\", \"I\" and \"me\" refer to 温遥; other sources and questions may name the owner 温遥.\n\n" + operatingRules
+	if got != want {
 		t.Fatalf("instruction = %s", got)
 	}
 }

@@ -233,7 +233,7 @@ func (f *RunnerFactory) newAgentRunner(ctx context.Context, req RunnerBuildReque
 	if err != nil {
 		return nil, err
 	}
-	mem, err := prepareRunMemory(ctx, f.deps, req, buildStableInstruction(persona), toolTokens)
+	mem, err := prepareRunMemory(ctx, f.deps, req, buildStableInstruction(persona, f.deps.Config.Owner.Name), toolTokens)
 	if err != nil {
 		return nil, err
 	}
@@ -244,7 +244,7 @@ func (f *RunnerFactory) newAgentRunner(ctx context.Context, req RunnerBuildReque
 		ChatModel:   chatModel,
 		Catalog:     capabilities.catalog,
 		Skills:      capabilities.skillSnapshot,
-		Instruction: buildStableInstruction(persona),
+		Instruction: buildStableInstruction(persona, f.deps.Config.Owner.Name),
 		FailedCalls: failed,
 	})
 	if err != nil {
@@ -329,9 +329,20 @@ const operatingRules = `Operating rules:
 - Some tools pause for the owner's approval on their phone. Say what you are about to do before calling them.
 - Prefer available MCP tools over inventing capabilities, and never claim a tool succeeded when it did not run.`
 
-func buildStableInstruction(base string) string {
+// ownerIdentity ties the configured name to the owner, so sources that name
+// the owner are read as being about them.
+func ownerIdentity(name string) string {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return ""
+	}
+	return fmt.Sprintf("The owner is %[1]s. In sources with speaker \"owner\", \"I\" and \"me\" refer to %[1]s; other sources and questions may name the owner %[1]s.", name)
+}
+
+func buildStableInstruction(base, ownerName string) string {
 	parts := []string{
 		strings.TrimSpace(base),
+		ownerIdentity(ownerName),
 		strings.TrimSpace(operatingRules),
 	}
 	out := make([]string, 0, len(parts))
