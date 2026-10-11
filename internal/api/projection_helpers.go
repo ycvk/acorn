@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"strings"
 
 	"github.com/ycvk/acorn/internal/core"
@@ -56,4 +57,36 @@ func cloneMap(value map[string]any) map[string]any {
 		out[key] = item
 	}
 	return out
+}
+
+const (
+	toolCallSummaryRunes = 80
+	toolCallErrorRunes   = 300
+)
+
+// toolCallSummaryKeys are the argument fields that say what a call is about,
+// most telling first: a search query, a URL, a note path.
+var toolCallSummaryKeys = []string{"query", "url", "path", "prefix", "title", "question", "message", "content", "text", "name", "target"}
+
+// toolCallSummary is one line describing a tool call from its JSON
+// arguments, or empty when no telling field is present.
+func toolCallSummary(arguments string) string {
+	var args map[string]any
+	if json.Unmarshal([]byte(arguments), &args) != nil {
+		return ""
+	}
+	for _, key := range toolCallSummaryKeys {
+		if value := topLevelString(args, key); value != "" {
+			return clip(strings.Join(strings.Fields(value), " "), toolCallSummaryRunes)
+		}
+	}
+	return ""
+}
+
+func clip(value string, limit int) string {
+	runes := []rune(value)
+	if len(runes) <= limit {
+		return value
+	}
+	return string(runes[:limit]) + "…"
 }

@@ -143,7 +143,22 @@ func (p *agentEventProjector) projectAssistant(mo *adk.TypedMessageVariant[*sche
 		slog.Warn("model did not report token usage", "run", p.messagePrefix)
 		p.usageWarned = true
 	}
-	return emit(core.StreamItem{Kind: core.StreamItemKind(core.EventModelUsage), CreatedAt: time.Now().UTC(), Payload: payload})
+	if err := emit(core.StreamItem{Kind: core.StreamItemKind(core.EventModelUsage), CreatedAt: time.Now().UTC(), Payload: payload}); err != nil {
+		return err
+	}
+	// Each tool call the model decided on starts here; its result arrives as tool.call.succeeded or tool.call.failed.
+	for _, block := range final.ContentBlocks {
+		if block.Type != schema.ContentBlockTypeFunctionToolCall || block.FunctionToolCall == nil {
+			continue
+		}
+		call := block.FunctionToolCall
+		if err := emit(core.StreamItem{Kind: core.StreamKindToolCallStarted, CreatedAt: time.Now().UTC(), Payload: map[string]any{
+			"tool_call_id": call.CallID, "tool_name": call.Name, "arguments": call.Arguments,
+		}}); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (p *agentEventProjector) projectAssistantStream(stream *schema.StreamReader[*schema.AgenticMessage], messageID string, emit func(core.StreamItem) error) (*schema.AgenticMessage, error) {

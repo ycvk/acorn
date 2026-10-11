@@ -1692,6 +1692,12 @@ components:
         state:
           type: string
           enum: [new, running, completed, failed, interrupted, degraded]
+        preview:
+          type: string
+          description: The latest owner or assistant message, flattened to one line of at most 120 characters.
+        preview_role:
+          type: string
+          enum: [user, assistant]
 
     ThreadListResponse:
       type: object
@@ -1789,6 +1795,27 @@ components:
           format: date-time
         run_id:
           type: string
+        steps:
+          type: array
+          description: Tool calls the run behind an assistant message made, in the order they started.
+          items:
+            $ref: '#/components/schemas/ToolStep'
+
+    ToolStep:
+      type: object
+      additionalProperties: false
+      required: [tool_name, outcome]
+      properties:
+        tool_name:
+          type: string
+        summary:
+          type: string
+          description: What the call was about, taken from its arguments, e.g. a search query or a note path.
+        outcome:
+          type: string
+          enum: [running, succeeded, failed]
+        error:
+          type: string
 
     MessageListResponse:
       type: object
@@ -1853,6 +1880,9 @@ components:
         - $ref: '#/components/schemas/ClientOperatorQuestionDecidedEvent'
         - $ref: '#/components/schemas/ClientToolApprovalPendingEvent'
         - $ref: '#/components/schemas/ClientToolApprovalDecidedEvent'
+        - $ref: '#/components/schemas/ClientToolCallStartedEvent'
+        - $ref: '#/components/schemas/ClientToolCallSucceededEvent'
+        - $ref: '#/components/schemas/ClientToolCallFailedEvent'
       discriminator:
         propertyName: type
         mapping:
@@ -1868,6 +1898,9 @@ components:
           operator_question.decided: '#/components/schemas/ClientOperatorQuestionDecidedEvent'
           tool_approval.pending: '#/components/schemas/ClientToolApprovalPendingEvent'
           tool_approval.decided: '#/components/schemas/ClientToolApprovalDecidedEvent'
+          tool.call.started: '#/components/schemas/ClientToolCallStartedEvent'
+          tool.call.succeeded: '#/components/schemas/ClientToolCallSucceededEvent'
+          tool.call.failed: '#/components/schemas/ClientToolCallFailedEvent'
 
     RunEventBase:
       type: object
@@ -2018,6 +2051,39 @@ components:
               const: tool_approval.decided
             data:
               $ref: '#/components/schemas/ToolApprovalData'
+
+    ClientToolCallStartedEvent:
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: tool.call.started
+            data:
+              $ref: '#/components/schemas/ToolCallData'
+
+    ClientToolCallSucceededEvent:
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: tool.call.succeeded
+            data:
+              $ref: '#/components/schemas/ToolCallData'
+
+    ClientToolCallFailedEvent:
+      allOf:
+        - $ref: '#/components/schemas/RunEventBase'
+        - type: object
+          required: [type, data]
+          properties:
+            type:
+              const: tool.call.failed
+            data:
+              $ref: '#/components/schemas/ToolCallData'
 
     RunStartedData:
       type: object
@@ -2372,6 +2438,22 @@ components:
         body:
           type: string
           description: Markdown body of the current revision.
+
+    ToolCallData:
+      type: object
+      additionalProperties: false
+      required: [tool_call_id, tool_name]
+      properties:
+        tool_call_id:
+          type: string
+        tool_name:
+          type: string
+        summary:
+          type: string
+          description: Set on tool.call.started; what the call is about, taken from its arguments.
+        error:
+          type: string
+          description: Set on tool.call.failed; at most 300 characters.
 
     ToolApprovalData:
       type: object

@@ -19,6 +19,7 @@ const (
 	StreamKindRunResumeRequested StreamItemKind = "run_resume_requested"
 	StreamKindAssistantDelta     StreamItemKind = "assistant.delta"
 	StreamKindAssistantMessage   StreamItemKind = "assistant_message"
+	StreamKindToolCallStarted    StreamItemKind = "tool_call_started"
 	StreamKindToolCallSucceeded  StreamItemKind = "tool_call_succeeded"
 	StreamKindToolCallFailed     StreamItemKind = "tool_call_failed"
 	StreamKindElicitationPending StreamItemKind = "elicitation.pending"

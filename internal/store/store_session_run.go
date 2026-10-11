@@ -57,26 +57,8 @@ func (s *Store) syncAssistantMessageForRun(ctx context.Context, runID string, st
 }
 
 func (s *Store) LoadLatestRunsForSessions(ctx context.Context, sessionIDs []string) (map[string]*core.RunRecord, error) {
-	if len(sessionIDs) == 0 {
-		return map[string]*core.RunRecord{}, nil
-	}
-
-	seen := make(map[string]struct{}, len(sessionIDs))
-	args := make([]any, 0, len(sessionIDs))
-	placeholders := make([]string, 0, len(sessionIDs))
-	for _, sessionID := range sessionIDs {
-		trimmed := strings.TrimSpace(sessionID)
-		if trimmed == "" {
-			continue
-		}
-		if _, ok := seen[trimmed]; ok {
-			continue
-		}
-		seen[trimmed] = struct{}{}
-		args = append(args, trimmed)
-		placeholders = append(placeholders, "?")
-	}
-	if len(placeholders) == 0 {
+	placeholders, args := inClause(sessionIDs)
+	if len(args) == 0 {
 		return map[string]*core.RunRecord{}, nil
 	}
 
@@ -93,7 +75,7 @@ func (s *Store) LoadLatestRunsForSessions(ctx context.Context, sessionIDs []stri
 		SELECT run_id, session_id, turn_index, status, input_text, output_text, error_text, created_at, finished_at
 		FROM ranked_runs
 		WHERE row_num = 1`,
-		strings.Join(placeholders, ", "),
+		placeholders,
 	)
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -101,7 +83,7 @@ func (s *Store) LoadLatestRunsForSessions(ctx context.Context, sessionIDs []stri
 	}
 	defer rows.Close()
 
-	result := make(map[string]*core.RunRecord, len(placeholders))
+	result := make(map[string]*core.RunRecord, len(args))
 	for rows.Next() {
 		rec, err := scanRunRecord(rows)
 		if err != nil {

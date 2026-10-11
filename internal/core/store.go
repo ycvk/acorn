@@ -16,6 +16,7 @@ type SessionStore interface {
 	ListSessions(ctx context.Context, limit int) ([]SessionRecord, error)
 	LoadLatestRunForSession(ctx context.Context, sessionID string) (*RunRecord, error)
 	LoadLatestRunsForSessions(ctx context.Context, sessionIDs []string) (map[string]*RunRecord, error)
+	LoadLatestRepliesForSessions(ctx context.Context, sessionIDs []string) (map[string]SessionMessageRecord, error)
 	UpdateSessionTitle(ctx context.Context, sessionID, title string) error
 	UpdateSessionTitleIfEmpty(ctx context.Context, sessionID, title string) error
 	DeleteSession(ctx context.Context, sessionID string) error
@@ -46,6 +47,7 @@ type SessionStore interface {
 	AppendEvent(ctx context.Context, runID, kind string, payload any) (EventRecord, error)
 	LoadEvents(ctx context.Context, runID string) ([]EventRecord, error)
 	LoadEventsAfter(ctx context.Context, runID string, afterSeq int64) ([]EventRecord, error)
+	LoadToolCallEvents(ctx context.Context, runIDs []string) (map[string][]EventRecord, error)
 
 	// --- Pending actions ---
 	CreatePendingAction(ctx context.Context, input PendingActionInput) (*PendingActionRecord, error)

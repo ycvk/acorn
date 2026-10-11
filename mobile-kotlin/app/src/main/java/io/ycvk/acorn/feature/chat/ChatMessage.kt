@@ -1,6 +1,9 @@
 package io.ycvk.acorn.feature.chat
 
 import io.ycvk.acorn.api.models.Message
+import io.ycvk.acorn.core.sse.StepStatus
+import io.ycvk.acorn.core.sse.ToolStep
+import io.ycvk.acorn.api.models.ToolStep as StoredStep
 import java.util.UUID
 
 sealed class ChatMessage {
@@ -15,6 +18,7 @@ sealed class ChatMessage {
     data class Assistant(
         val text: String,
         val reasoning: String? = null,
+        val steps: List<ToolStep> = emptyList(),
     ) : ChatMessage() {
         override val id: String = "assistant_${UUID.randomUUID()}"
     }
@@ -37,11 +41,11 @@ sealed class ChatMessage {
 }
 
 /** Maps a stored thread message to its chat row. */
-fun chatMessageFrom(role: Message.Role, text: String): ChatMessage = when (role) {
+fun chatMessageFrom(role: Message.Role, text: String, steps: List<StoredStep> = emptyList()): ChatMessage = when (role) {
     Message.Role.user -> ChatMessage.User(text)
     Message.Role.wake -> ChatMessage.Wake(text, wakeSource(text))
     Message.Role.capture -> captureMessage(text)
-    Message.Role.assistant -> ChatMessage.Assistant(text)
+    Message.Role.assistant -> ChatMessage.Assistant(text, steps = steps.mapIndexed { index, step -> toolStep(index, step) })
     // System / tool messages render as assistant bubbles so the
     // history reads top-to-bottom without gaps.
     Message.Role.system, Message.Role.tool -> ChatMessage.Assistant(text)
@@ -69,3 +73,16 @@ fun wakeSource(input: String): WakeSource = when {
     input.startsWith("[briefing") -> WakeSource.Briefing
     else -> WakeSource.Commitment
 }
+
+/** A stored step; ids only need to be unique within the message. */
+fun toolStep(index: Int, step: StoredStep): ToolStep = ToolStep(
+    id = "step_$index",
+    toolName = step.toolName,
+    summary = step.summary.orEmpty(),
+    status = when (step.outcome) {
+        StoredStep.Outcome.running -> StepStatus.Running
+        StoredStep.Outcome.succeeded -> StepStatus.Succeeded
+        StoredStep.Outcome.failed -> StepStatus.Failed
+    },
+    error = step.error,
+)

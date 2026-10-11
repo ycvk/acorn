@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/ycvk/acorn/internal/core"
@@ -177,4 +178,62 @@ func (s *Store) BindUserMessageRunIDByID(ctx context.Context, messageID int64, r
 		return fmt.Errorf("user session message %d not found or already bound", messageID)
 	}
 	return nil
+}
+
+// LoadLatestRepliesForSessions returns each session's newest non-empty owner
+// or assistant message, keyed by session id; sessions without one are absent.
+func (s *Store) LoadLatestRepliesForSessions(ctx context.Context, sessionIDs []string) (map[string]core.SessionMessageRecord, error) {
+	placeholders, args := inClause(sessionIDs)
+	result := map[string]core.SessionMessageRecord{}
+	if len(args) == 0 {
+		return result, nil
+	}
+	rows, err := s.db.QueryContext(ctx, `WITH ranked AS (
+			SELECT id, session_id, turn_index, role, content, run_id, created_at,
+				ROW_NUMBER() OVER (PARTITION BY session_id ORDER BY id DESC) AS row_num
+			FROM session_messages
+			WHERE session_id IN (`+placeholders+`) AND role IN ('user', 'assistant') AND content <> ''
+		)
+		SELECT id, session_id, turn_index, role, content, run_id, created_at FROM ranked WHERE row_num = 1`, args...)
+	if err != nil {
+		return nil, fmt.Errorf("load latest replies: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var (
+			rec     core.SessionMessageRecord
+			created string
+		)
+		if err := rows.Scan(&rec.ID, &rec.SessionID, &rec.TurnIndex, &rec.Role, &rec.Content, &rec.RunID, &created); err != nil {
+			return nil, fmt.Errorf("scan latest reply: %w", err)
+		}
+		if rec.CreatedAt, err = parseTimestamp(time.RFC3339Nano, created, "session_message.created_at"); err != nil {
+			return nil, err
+		}
+		result[rec.SessionID] = rec
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("load latest replies: %w", err)
+	}
+	return result, nil
+}
+
+// inClause returns "?, ?, ..." and the trimmed, de-duplicated non-empty values.
+func inClause(values []string) (string, []any) {
+	seen := make(map[string]struct{}, len(values))
+	args := make([]any, 0, len(values))
+	marks := make([]string, 0, len(values))
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			continue
+		}
+		if _, ok := seen[trimmed]; ok {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		args = append(args, trimmed)
+		marks = append(marks, "?")
+	}
+	return strings.Join(marks, ", "), args
 }

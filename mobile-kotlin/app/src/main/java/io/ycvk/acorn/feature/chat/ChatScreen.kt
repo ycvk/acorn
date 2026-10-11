@@ -103,6 +103,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.ycvk.acorn.core.sse.ActivityItem
 import io.ycvk.acorn.core.sse.ActivityKind
 import io.ycvk.acorn.core.sse.ChatHeaderStatus
+import io.ycvk.acorn.core.sse.StepStatus
+import io.ycvk.acorn.core.sse.ToolStep
 import io.ycvk.acorn.core.sse.headerStatus
 import io.ycvk.acorn.core.theme.AcornShapes
 import io.ycvk.acorn.core.theme.AcornTheme
@@ -169,7 +171,7 @@ fun ChatScreen(
     LaunchedEffect(listState) {
         snapshotFlow { !listState.canScrollForward }.collect { if (it) follow = true }
     }
-    LaunchedEffect(messages.size, chatState.assistantText, chatState.activities.size, threadPending.size) {
+    LaunchedEffect(messages.size, chatState.assistantText, chatState.assistantReasoning, chatState.steps, streaming, chatState.activities.size, threadPending.size) {
         if (follow) {
             val last = listState.layoutInfo.totalItemsCount - 1
             if (last >= 0) listState.scrollToItem(last, scrollOffset = Int.MAX_VALUE / 2)
@@ -231,7 +233,7 @@ fun ChatScreen(
                     val itemModifier = Modifier.animateItem()
                     when (message) {
                         is ChatMessage.User -> UserBubble(message.text, itemModifier)
-                        is ChatMessage.Assistant -> AssistantMessage(message.text, message.reasoning, streaming = false, modifier = itemModifier)
+                        is ChatMessage.Assistant -> AssistantMessage(message.text, message.reasoning, message.steps, streaming = false, modifier = itemModifier)
                         is ChatMessage.Wake -> InputNote(wakeLabel(message.source), wakeIcon(message.source), message.text, itemModifier)
                         is ChatMessage.Capture -> InputNote("从手机分享", Icons.Outlined.Share, message.text, itemModifier) {
                             val profile = viewModel.connection()
@@ -242,11 +244,12 @@ fun ChatScreen(
                         }
                     }
                 }
-                if (streaming || chatState.assistantText.isNotBlank()) {
+                if (streaming || chatState.assistantText.isNotBlank() || chatState.steps.isNotEmpty()) {
                     item(key = "__streaming__") {
                         AssistantMessage(
                             text = chatState.assistantText,
                             reasoning = chatState.assistantReasoning.ifBlank { null },
+                            steps = chatState.steps,
                             streaming = streaming,
                             modifier = Modifier.animateItem(),
                         )
@@ -277,7 +280,7 @@ fun ChatScreen(
 
             // Qualified: the enclosing Column's scoped overload would otherwise win.
             androidx.compose.animation.AnimatedVisibility(
-                visible = !atBottom && messages.isNotEmpty(),
+                visible = !follow && !atBottom && messages.isNotEmpty(),
                 enter = fadeIn() + scaleIn(initialScale = 0.8f),
                 exit = fadeOut() + scaleOut(targetScale = 0.8f),
                 modifier = Modifier
@@ -404,17 +407,21 @@ private fun UserBubble(text: String, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun AssistantMessage(text: String, reasoning: String?, streaming: Boolean, modifier: Modifier = Modifier) {
+private fun AssistantMessage(text: String, reasoning: String?, steps: List<ToolStep>, streaming: Boolean, modifier: Modifier = Modifier) {
     val colors = AcornTheme.colors
     val copy = rememberCopy()
     Column(modifier = modifier.fillMaxWidth()) {
+        if (steps.isNotEmpty()) {
+            ToolSteps(steps, streaming)
+            Spacer(Modifier.height(8.dp))
+        }
         reasoning?.let {
             Reasoning(it)
             Spacer(Modifier.height(8.dp))
         }
         if (text.isNotBlank()) {
             SelectionContainer { Markdown(text) }
-        } else if (streaming) {
+        } else if (streaming && steps.none { it.status == StepStatus.Running }) {
             TypingDots()
         }
         if (!streaming && text.isNotBlank()) {

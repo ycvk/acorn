@@ -250,3 +250,40 @@ func scanEventRows(rows *sql.Rows, runID string) ([]core.EventRecord, error) {
 	}
 	return items, nil
 }
+
+// LoadToolCallEvents returns the tool.call.* events of the given runs keyed by
+// run id, each in sequence order.
+func (s *Store) LoadToolCallEvents(ctx context.Context, runIDs []string) (map[string][]core.EventRecord, error) {
+	placeholders, args := inClause(runIDs)
+	result := map[string][]core.EventRecord{}
+	if len(args) == 0 {
+		return result, nil
+	}
+	rows, err := s.db.QueryContext(ctx, `SELECT run_id, sequence, kind, payload_json, created_at FROM events
+		WHERE run_id IN (`+placeholders+`) AND kind IN ('tool.call.started', 'tool.call.succeeded', 'tool.call.failed')
+		ORDER BY run_id, sequence`, args...)
+	if err != nil {
+		return nil, fmt.Errorf("load tool call events: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var (
+			record           core.EventRecord
+			payload, created string
+		)
+		if err := rows.Scan(&record.RunID, &record.Sequence, &record.Kind, &payload, &created); err != nil {
+			return nil, fmt.Errorf("scan tool call event: %w", err)
+		}
+		if err := json.Unmarshal([]byte(payload), &record.Payload); err != nil {
+			return nil, fmt.Errorf("unmarshal event payload run_id=%s sequence=%d kind=%s: %w", record.RunID, record.Sequence, record.Kind, err)
+		}
+		if record.CreatedAt, err = parseTimestamp(time.RFC3339Nano, created, "event.created_at"); err != nil {
+			return nil, err
+		}
+		result[record.RunID] = append(result[record.RunID], record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("load tool call events: %w", err)
+	}
+	return result, nil
+}

@@ -142,18 +142,20 @@ class ChatViewModel @Inject constructor(
 
         viewModelScope.launch {
             try {
-                val (threadId, runId) = withContext(Dispatchers.IO) {
+                // A new conversation keeps its thread even when the first run fails, so a retry lands in it.
+                val threadId = existing ?: withContext(Dispatchers.IO) {
                     ApiClient.accessToken = profile.accessToken
-                    val clientApi = ClientApi(basePath = profile.serverUrl)
-                    val threadId = existing ?: clientApi.clientCreateThread(CreateThreadRequest(title = threadTitleFor(text))).id
-                    threadId to clientApi.clientCreateRun(
+                    ClientApi(basePath = profile.serverUrl).clientCreateThread(CreateThreadRequest(title = threadTitleFor(text))).id
+                }.also {
+                    _threadId.value = it
+                    _threadTitle.value = threadTitleFor(text)
+                }
+                val runId = withContext(Dispatchers.IO) {
+                    ApiClient.accessToken = profile.accessToken
+                    ClientApi(basePath = profile.serverUrl).clientCreateRun(
                         threadId = threadId,
                         createRunRequest = CreateRunRequest(input = text),
                     ).id
-                }
-                if (existing == null) {
-                    _threadId.value = threadId
-                    _threadTitle.value = threadTitleFor(text)
                 }
                 lastRunIdByThread[threadId] = runId
                 streamEvents(profile, runId)
@@ -217,7 +219,7 @@ class ChatViewModel @Inject constructor(
                     clientApi.clientListMessages(threadId, limit = 50)
                 }
                 if (_threadId.value != threadId) return@launch
-                _messages.value = response.items.map { msg -> chatMessageFrom(msg.role, msg.content.text) }
+                _messages.value = response.items.map { msg -> chatMessageFrom(msg.role, msg.content.text, msg.steps.orEmpty()) }
             } catch (e: Exception) {
                 _error.value = userMessage(e)
             }
@@ -267,7 +269,7 @@ class ChatViewModel @Inject constructor(
                     val lastIsUser = last is ChatMessage.User || last is ChatMessage.Wake || last is ChatMessage.Capture
                     if (finalText.isNotBlank() && lastIsUser) {
                         _messages.value = _messages.value +
-                            ChatMessage.Assistant(finalText, finalReasoning)
+                            ChatMessage.Assistant(finalText, finalReasoning, _chatState.value.steps)
                     }
                     _chatState.value = ChatState(runStatus = _chatState.value.runStatus, failure = _chatState.value.failure)
                 }

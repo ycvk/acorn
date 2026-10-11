@@ -89,3 +89,30 @@ func TestProjectToolResultInterruptAndError(t *testing.T) {
 		t.Fatalf("error = %q", core.ItemGetError(items[2]))
 	}
 }
+
+func TestProjectAssistantToolCallsStartAfterTheMessage(t *testing.T) {
+	msg := assistantMessage("", []*schema.FunctionToolCall{
+		{CallID: "call_1", Name: "web_search", Arguments: `{"query":"go"}`},
+		{CallID: "call_2", Name: "recall", Arguments: `{"query":"wifi"}`},
+	})
+	items := collectProjected(t, &agentEventProjector{messagePrefix: "run_x:assistant:7"}, eventFromMessage(msg, nil, schema.Assistant, ""))
+	kinds := make([]core.StreamItemKind, 0, len(items))
+	for _, item := range items {
+		kinds = append(kinds, item.Kind)
+	}
+	want := []core.StreamItemKind{core.StreamKindAssistantMessage, core.StreamItemKind(core.EventModelUsage), core.StreamKindToolCallStarted, core.StreamKindToolCallStarted}
+	if len(kinds) != len(want) {
+		t.Fatalf("kinds = %v, want %v", kinds, want)
+	}
+	for i := range want {
+		if kinds[i] != want[i] {
+			t.Fatalf("kinds = %v, want %v", kinds, want)
+		}
+	}
+	if p := items[2].Payload; p["tool_call_id"] != "call_1" || p["tool_name"] != "web_search" || p["arguments"] != `{"query":"go"}` {
+		t.Fatalf("started payload = %v", p)
+	}
+	if kind, _, err := ProjectStreamItemToEvent(items[3]); err != nil || kind != "tool.call.started" {
+		t.Fatalf("event kind = %q, %v", kind, err)
+	}
+}

@@ -83,6 +83,14 @@ func (c *ConverterImpl) apiSystemToolCapabilityToApiCapabilitiesToolDTO(source S
 	apiCapabilitiesToolDTO.Risk = source.Risk
 	return apiCapabilitiesToolDTO
 }
+func (c *ConverterImpl) apiToolStepToApiToolStepDTO(source ToolStep) ToolStepDTO {
+	var apiToolStepDTO ToolStepDTO
+	apiToolStepDTO.ToolName = source.ToolName
+	apiToolStepDTO.Summary = source.Summary
+	apiToolStepDTO.Outcome = source.Outcome
+	apiToolStepDTO.Error = source.Error
+	return apiToolStepDTO
+}
 func (c *ConverterImpl) artifactSummaryDTOsFromDomain(source []ArtifactSummary) []ArtifactSummaryDTO {
 	var apiArtifactSummaryDTOList []ArtifactSummaryDTO
 	if source != nil {
@@ -134,6 +142,12 @@ func (c *ConverterImpl) messageDTOFromDomain(source Message) MessageDTO {
 	apiMessageDTO.Content = c.apiMessageContentToApiMessageContentDTO(source.Content)
 	apiMessageDTO.CreatedAt = TimeToTime(source.CreatedAt)
 	apiMessageDTO.RunID = source.RunID
+	if source.Steps != nil {
+		apiMessageDTO.Steps = make([]ToolStepDTO, len(source.Steps))
+		for i := 0; i < len(source.Steps); i++ {
+			apiMessageDTO.Steps[i] = c.apiToolStepToApiToolStepDTO(source.Steps[i])
+		}
+	}
 	return apiMessageDTO
 }
 func (c *ConverterImpl) messageDTOsFromDomain(source []Message) []MessageDTO {
@@ -222,6 +236,8 @@ func (c *ConverterImpl) threadDTOFromDomain(source Thread) ThreadDTO {
 	apiThreadDTO.UpdatedAt = TimeToTime(source.UpdatedAt)
 	apiThreadDTO.LatestRunID = source.LatestRunID
 	apiThreadDTO.State = source.State
+	apiThreadDTO.Preview = source.Preview
+	apiThreadDTO.PreviewRole = source.PreviewRole
 	return apiThreadDTO
 }
 func (c *ConverterImpl) threadDTOsFromDomain(source []Thread) []ThreadDTO {

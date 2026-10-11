@@ -164,3 +164,9 @@ func (unimplementedStore) SaveOAuthToken(context.Context, core.OAuthToken) error
 func (unimplementedStore) GetOAuthToken(context.Context, string) (*core.OAuthToken, error) {
 	return nil, errUnexpectedClientStoreCall
 }
+func (unimplementedStore) LoadLatestRepliesForSessions(context.Context, []string) (map[string]core.SessionMessageRecord, error) {
+	return nil, errUnexpectedClientStoreCall
+}
+func (unimplementedStore) LoadToolCallEvents(context.Context, []string) (map[string][]core.EventRecord, error) {
+	return nil, errUnexpectedClientStoreCall
+}
