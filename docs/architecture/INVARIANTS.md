@@ -129,6 +129,10 @@
   - `internal/store/store_presence_test.go`
   - `internal/api/push_token_handler_test.go`
   - `internal/wire/wake_acceptance_e2e_test.go`
+- **等待 owner 的操作会推送**：run 以 interrupted 结束后，它每个仍 pending 的操作经 `notify.Sender` 推送一次，同样受每小时上限与免打扰约束，推送失败只记录日志、不改变 run 结果。这类推送是只含 data 的 FCM 消息（`type=pending_action`，带 `action_id`、`thread_id`、`run_id`），通知记录保存 `action_id`；App 收到后读取操作当前状态，已决定或已不存在的操作不显示。
+  - `internal/wire/approval_push_e2e_test.go`
+  - `internal/notify/notify_test.go`
+  - `internal/store/store_push_action_test.go`
 - **追踪项只报新东西**：`watch_create` 的首次抓取失败则不建立；成功的首次检查只建基线（条目记 baseline），之后的检查才产生新条目。条目按 (watch, key) 唯一，同一条目只入库一次；网页类追踪项比较选中内容的快照，变化产生一条带前后值的条目，回到旧值同样算变化。
   - `internal/watch/watch_test.go`
   - `internal/store/store_watch_test.go`

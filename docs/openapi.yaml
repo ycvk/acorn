@@ -1587,6 +1587,12 @@ components:
         created_at:
           type: string
           format: date-time
+        tool_name:
+          type: string
+          description: Set on tool approvals; the tool waiting to run.
+        tool_summary:
+          type: string
+          description: Set on tool approvals; what the call is about, taken from its arguments, e.g. a URL or a search query.
 
     PendingActionOption:
       type: object

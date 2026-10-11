@@ -111,6 +111,7 @@ import io.ycvk.acorn.core.theme.AcornTheme
 import io.ycvk.acorn.core.ui.IconAction
 import io.ycvk.acorn.core.ui.InlineError
 import io.ycvk.acorn.core.ui.Markdown
+import io.ycvk.acorn.core.ui.OnReturnToForeground
 import io.ycvk.acorn.core.ui.ScreenPadding
 import io.ycvk.acorn.core.ui.TopBar
 import io.ycvk.acorn.core.ui.rememberHaptics
@@ -125,6 +126,7 @@ import kotlinx.coroutines.launch
 fun ChatScreen(
     threadId: String?,
     onBack: () -> Unit,
+    openActionId: String? = null,
     viewModel: ChatViewModel = hiltViewModel(),
     approvals: ApprovalsViewModel = hiltViewModel(),
 ) {
@@ -139,6 +141,12 @@ fun ChatScreen(
     val selected by approvals.selectedAction.collectAsStateWithLifecycle()
 
     LaunchedEffect(threadId) { viewModel.loadThread(threadId) }
+    OnReturnToForeground {
+        viewModel.refresh()
+        approvals.loadPendingActions()
+    }
+    // Opened from an approval notification: bring the decision up right away.
+    LaunchedEffect(openActionId) { openActionId?.let(approvals::loadActionDetail) }
     // A run that pauses for the owner shows its decision here as well as on Today.
     LaunchedEffect(chatState.activities.size, currentThread) {
         if (currentThread != null) approvals.loadPendingActions()

@@ -140,7 +140,7 @@ func (s *Sender) FlushDue(ctx context.Context) error {
 // deliver sends n to every token. A token FCM no longer knows is removed. The
 // notification counts as sent when at least one device received it.
 func (s *Sender) deliver(ctx context.Context, n core.Notification, tokens []core.PushToken) (core.Notification, error) {
-	msg := Message{Title: n.Title, Body: n.Body, ThreadID: n.ThreadID, RunID: n.RunID}
+	msg := Message{Title: n.Title, Body: n.Body, ThreadID: n.ThreadID, RunID: n.RunID, ActionID: n.ActionID}
 	delivered := 0
 	var errs []error
 	for _, token := range tokens {

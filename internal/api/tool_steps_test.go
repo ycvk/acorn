@@ -83,3 +83,18 @@ func TestToolStepsFoldCallsInStartOrder(t *testing.T) {
 		}
 	}
 }
+
+func TestToolApprovalSummaryNamesTheToolAndItsTarget(t *testing.T) {
+	record := core.PendingActionRecord{
+		ActionID: "action_1", RunID: "run_1", Kind: core.PendingActionKindToolApproval, Status: core.PendingActionStatusPending,
+		Subject:     "Approve web_fetch",
+		PayloadJSON: `{"message":"web_fetch wants to run","tool_name":"web_fetch","arguments":"{\"url\":\"https://go.dev/blog\"}"}`,
+	}
+	summary, err := buildPendingActionSummary(record, core.RunRecord{RunID: "run_1", SessionID: "thread_1"})
+	if err != nil {
+		t.Fatalf("summary: %v", err)
+	}
+	if summary.ToolName != "web_fetch" || summary.ToolSummary != "https://go.dev/blog" || summary.ThreadID != "thread_1" {
+		t.Fatalf("summary = %+v", summary)
+	}
+}

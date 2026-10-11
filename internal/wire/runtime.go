@@ -3,6 +3,7 @@ package wire
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"path/filepath"
 	"time"
 
@@ -156,19 +157,27 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 	if err != nil {
 		return nil, fmt.Errorf("init runner factory: %w", err)
 	}
+	announce, err := pendingActionAnnouncement(db, notifier)
+	if err != nil {
+		return nil, err
+	}
 	executeRun := func(ctx context.Context, req core.ExecuteRequest, sink core.StreamSink) (*runtime.Result, error) {
 		exec, err := runtime.NewExecutorWithRunRuntimeAndController(cfg, db, runnerFactory, runController)
 		if err != nil {
 			return nil, err
 		}
-		return exec.ExecuteMessages(ctx, req, sink)
+		result, err := exec.ExecuteMessages(ctx, req, sink)
+		announce(ctx, result)
+		return result, err
 	}
 	resumeRun := func(ctx context.Context, runID string, targets map[string]any, sink core.StreamSink) (*runtime.Result, error) {
 		exec, err := runtime.NewExecutorWithRunRuntimeAndController(cfg, db, runnerFactory, runController)
 		if err != nil {
 			return nil, err
 		}
-		return exec.ResumeWithTargets(ctx, runID, targets, sink)
+		result, err := exec.ResumeWithTargets(ctx, runID, targets, sink)
+		announce(ctx, result)
+		return result, err
 	}
 
 	return &containerRuntimeDeps{
@@ -184,5 +193,27 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 		vault:                 vault,
 		watchChecker:          watchChecker,
 		watchBrowser:          watchBrowser,
+	}, nil
+}
+
+// pendingActionAnnouncement returns the hook run after every execution: a run
+// that stopped to wait on the owner pushes its pending actions. Without push
+// it does nothing. A failed push leaves the action in the app's inbox and is
+// logged; it does not fail the run.
+func pendingActionAnnouncement(db *store.Store, notifier *notify.Sender) (func(context.Context, *runtime.Result), error) {
+	if notifier == nil {
+		return func(context.Context, *runtime.Result) {}, nil
+	}
+	announcer, err := notify.NewPendingActionAnnouncer(db, notifier)
+	if err != nil {
+		return nil, err
+	}
+	return func(ctx context.Context, result *runtime.Result) {
+		if result == nil || result.Status != core.RunStatusInterrupted {
+			return
+		}
+		if err := announcer.AnnounceRun(core.DurableContext(ctx), result.RunID); err != nil {
+			slog.Error("push pending actions", "run_id", result.RunID, "error", err)
+		}
 	}, nil
 }

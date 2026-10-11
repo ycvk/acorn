@@ -45,6 +45,8 @@ func (c *ConverterImpl) apiPendingActionSummaryToApiPendingActionSummaryDTO(sour
 	apiPendingActionSummaryDTO.Body = source.Body
 	apiPendingActionSummaryDTO.Options = c.pendingActionOptionDTOsFromDomain(source.Options)
 	apiPendingActionSummaryDTO.CreatedAt = TimeToTime(source.CreatedAt)
+	apiPendingActionSummaryDTO.ToolName = source.ToolName
+	apiPendingActionSummaryDTO.ToolSummary = source.ToolSummary
 	return apiPendingActionSummaryDTO
 }
 func (c *ConverterImpl) apiProviderReadinessSummaryToApiProviderReadinessDTO(source ProviderReadinessSummary) ProviderReadinessDTO {

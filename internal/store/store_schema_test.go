@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -63,7 +64,7 @@ CREATE TABLE runs (
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
-PRAGMA user_version = 1;`); err != nil {
+PRAGMA user_version = ` + strconv.Itoa(schemaVersion) + `;`); err != nil {
 		_ = db.Close()
 		t.Fatalf("seed legacy schema: %v", err)
 	}

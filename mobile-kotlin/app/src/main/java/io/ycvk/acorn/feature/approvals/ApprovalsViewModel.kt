@@ -31,6 +31,7 @@ import javax.inject.Inject
 @HiltViewModel
 class ApprovalsViewModel @Inject constructor(
     private val authController: AuthController,
+    private val notifications: ApprovalNotifications,
 ) : ViewModel() {
 
     private val _pendingActions = MutableStateFlow<List<PendingActionSummary>>(emptyList())
@@ -105,6 +106,7 @@ class ApprovalsViewModel @Inject constructor(
                     )
                 }
                 _selectedAction.value = null
+                notifications.cancel(actionId)
                 loadPendingActions() // refresh list
             } catch (e: Exception) {
                 _error.value = userMessage(e)

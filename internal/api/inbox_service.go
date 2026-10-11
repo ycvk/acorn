@@ -58,6 +58,10 @@ type PendingActionSummary struct {
 	Body      string
 	Options   []PendingActionOption
 	CreatedAt time.Time
+	// ToolName and ToolSummary describe a tool approval: which tool, and what
+	// its call is about, taken from the arguments.
+	ToolName    string
+	ToolSummary string
 }
 
 type PendingActionOption struct {
@@ -156,7 +160,7 @@ func buildAcceptDeclinePendingActionSummary(record core.PendingActionRecord, run
 	if title == "" {
 		title = "Approval required"
 	}
-	return PendingActionSummary{
+	summary := PendingActionSummary{
 		ActionID: record.ActionID,
 		RunID:    record.RunID,
 		ThreadID: run.SessionID,
@@ -169,7 +173,16 @@ func buildAcceptDeclinePendingActionSummary(record core.PendingActionRecord, run
 			{ID: "decline", Label: "Decline"},
 		},
 		CreatedAt: record.CreatedAt,
-	}, nil
+	}
+	if record.Kind == core.PendingActionKindToolApproval {
+		payload, err := pendingActionPayload(record)
+		if err != nil {
+			return PendingActionSummary{}, err
+		}
+		summary.ToolName = topLevelString(payload, "tool_name")
+		summary.ToolSummary = toolCallSummary(topLevelString(payload, "arguments"))
+	}
+	return summary, nil
 }
 
 func buildOperatorQuestionPendingActionSummary(record core.PendingActionRecord, run core.RunRecord) (PendingActionSummary, error) {

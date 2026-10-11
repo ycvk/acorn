@@ -30,6 +30,9 @@ type PendingActionSummaryDTO struct {
 	Body      string                   `json:"body,omitempty"`
 	Options   []PendingActionOptionDTO `json:"options"`
 	CreatedAt time.Time                `json:"created_at"`
+	// ToolName and ToolSummary are set on tool approvals.
+	ToolName    string `json:"tool_name,omitempty"`
+	ToolSummary string `json:"tool_summary,omitempty"`
 }
 
 type CreateRunRequest struct {

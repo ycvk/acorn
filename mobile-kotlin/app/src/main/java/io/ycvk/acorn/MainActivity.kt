@@ -10,6 +10,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import dagger.hilt.android.AndroidEntryPoint
 import io.ycvk.acorn.core.push.DeepLinks
+import io.ycvk.acorn.core.push.EXTRA_ACTION_ID
+import io.ycvk.acorn.core.push.ThreadLink
 import io.ycvk.acorn.core.push.threadIdFromExtras
 import io.ycvk.acorn.core.theme.AcornTheme
 import io.ycvk.acorn.feature.shell.AcornShell
@@ -41,6 +43,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun routeNotificationTap(intent: Intent?) {
-        threadIdFromExtras { key -> intent?.getStringExtra(key) }?.let(deepLinks::openThread)
+        val threadId = threadIdFromExtras { key -> intent?.getStringExtra(key) } ?: return
+        deepLinks.openThread(ThreadLink(threadId, intent?.getStringExtra(EXTRA_ACTION_ID)?.takeIf { it.isNotBlank() }))
     }
 }

@@ -65,6 +65,7 @@ import io.ycvk.acorn.core.ui.IconAction
 import io.ycvk.acorn.core.ui.InlineError
 import io.ycvk.acorn.core.ui.LargeHeader
 import io.ycvk.acorn.core.ui.ListRow
+import io.ycvk.acorn.core.ui.OnReturnToForeground
 import io.ycvk.acorn.core.ui.Panel
 import io.ycvk.acorn.core.ui.ScreenPadding
 import io.ycvk.acorn.core.ui.SectionLabel
@@ -106,6 +107,7 @@ fun NowScreen(
         approvals.loadPendingActions()
     }
     LaunchedEffect(Unit) { refresh() }
+    OnReturnToForeground(refresh)
 
     val zone = ZoneId.systemDefault()
     val today = LocalDate.now(zone)

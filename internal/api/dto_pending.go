@@ -43,6 +43,9 @@ type PendingActionDetailDTO struct {
 	Reason    string                   `json:"reason,omitempty"`
 	Rule      string                   `json:"rule,omitempty"`
 	CreatedAt time.Time                `json:"created_at"`
+	// ToolName and ToolSummary are set on tool approvals.
+	ToolName    string `json:"tool_name,omitempty"`
+	ToolSummary string `json:"tool_summary,omitempty"`
 }
 
 // PendingActionOptionDTO represents a single option in a pending action.
@@ -79,18 +82,20 @@ func parsePendingActionDecision(record core.PendingActionRecord) (string, string
 
 func pendingActionDetailDTOFromDomain(item PendingActionDetail) PendingActionDetailDTO {
 	return PendingActionDetailDTO{
-		ActionID:  item.ActionID,
-		RunID:     item.RunID,
-		ThreadID:  item.ThreadID,
-		Kind:      item.Kind,
-		Status:    item.Status,
-		Title:     item.Title,
-		Body:      item.Body,
-		Options:   DefaultConverter.pendingActionOptionDTOsFromDomain(item.Options),
-		Payload:   item.Payload,
-		Reason:    item.Reason,
-		Rule:      item.Rule,
-		CreatedAt: item.CreatedAt,
+		ActionID:    item.ActionID,
+		RunID:       item.RunID,
+		ThreadID:    item.ThreadID,
+		Kind:        item.Kind,
+		Status:      item.Status,
+		Title:       item.Title,
+		Body:        item.Body,
+		Options:     DefaultConverter.pendingActionOptionDTOsFromDomain(item.Options),
+		Payload:     item.Payload,
+		Reason:      item.Reason,
+		Rule:        item.Rule,
+		CreatedAt:   item.CreatedAt,
+		ToolName:    item.ToolName,
+		ToolSummary: item.ToolSummary,
 	}
 }
 

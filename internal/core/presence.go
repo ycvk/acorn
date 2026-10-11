@@ -18,13 +18,15 @@ const (
 )
 
 // Notification is a push message to the owner. SendAfter defers delivery
-// (quiet hours).
+// (quiet hours). ActionID marks a push announcing a pending action, which the
+// app shows with the action's own controls.
 type Notification struct {
 	ID        int64
 	Title     string
 	Body      string
 	ThreadID  string
 	RunID     string
+	ActionID  string
 	Status    NotificationStatus
 	SendAfter time.Time
 	Error     string
