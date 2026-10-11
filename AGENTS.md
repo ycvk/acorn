@@ -19,7 +19,7 @@ make test-architecture             # 架构边界守卫
 make generate                      # go generate ./internal/api
 make release-linux-amd64           # 纯 Go 交叉编译
 
-acorn serve | run | smoke | init | doctor | skills | pair | token | devices | memory reindex
+acorn serve | run | smoke | init | doctor | skills | pair | token | devices | memory reindex | backup | restore
 cd mobile-kotlin && ./tool/generate_openapi_client.sh --check && ./gradlew assembleDebug
 ```
 

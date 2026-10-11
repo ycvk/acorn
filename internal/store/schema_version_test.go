@@ -226,3 +226,17 @@ func TestSchemaUpgradeWaitsForOtherProcessesToClose(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestVerifyDatabaseRequiresTheCurrentVersion(t *testing.T) {
+	dir := t.TempDir()
+	raw := openRaw(t, dir)
+	if _, err := raw.Exec(fmt.Sprintf(`CREATE TABLE sessions(session_id TEXT PRIMARY KEY); PRAGMA user_version = %d;`, schemaVersion+1)); err != nil {
+		t.Fatal(err)
+	}
+	if err := raw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := VerifyDatabase(context.Background(), filepath.Join(dir, "acorn.db")); err == nil || !strings.Contains(err.Error(), "schema version") {
+		t.Fatalf("verify = %v, want a version mismatch", err)
+	}
+}
