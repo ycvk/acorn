@@ -5,8 +5,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -19,9 +17,8 @@ import androidx.compose.ui.unit.dp
 import coil.compose.SubcomposeAsyncImage
 import coil.request.ImageRequest
 import io.ycvk.acorn.core.auth.ConnectionProfile
-import io.ycvk.acorn.core.theme.AetherError
-import io.ycvk.acorn.core.theme.AetherOnSurfaceVariant
-import io.ycvk.acorn.core.theme.AetherSurfaceHigh
+import io.ycvk.acorn.core.theme.AcornShapes
+import io.ycvk.acorn.core.theme.AcornTheme
 import java.net.URLEncoder
 
 /** URL of an image the backend stores under attachments/. */
@@ -48,9 +45,9 @@ fun AttachmentImage(
         model = request,
         contentDescription = description,
         contentScale = ContentScale.FillWidth,
-        modifier = modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)),
+        modifier = modifier.fillMaxWidth().clip(AcornShapes.medium),
         loading = { AttachmentPlaceholder(description, isError = false) },
-        error = { AttachmentPlaceholder("Couldn't load ${path.substringAfterLast('/')}", isError = true) },
+        error = { AttachmentPlaceholder("图片没能加载：${path.substringAfterLast('/')}", isError = true) },
     )
 }
 
@@ -60,14 +57,14 @@ private fun AttachmentPlaceholder(text: String, isError: Boolean) {
         modifier = Modifier
             .fillMaxWidth()
             .height(120.dp)
-            .background(AetherSurfaceHigh)
+            .background(AcornTheme.colors.surfaceMuted)
             .padding(12.dp),
         contentAlignment = Alignment.Center,
     ) {
         Text(
             text,
-            style = MaterialTheme.typography.labelSmall,
-            color = if (isError) AetherError else AetherOnSurfaceVariant,
+            style = AcornTheme.type.caption,
+            color = if (isError) AcornTheme.colors.danger else AcornTheme.colors.inkFaint,
         )
     }
 }

@@ -39,11 +39,23 @@ sealed interface PushStatus {
     data class Failed(val message: String) : PushStatus
 }
 
-/** One-line description of [status] for the settings screen. */
+/** Short state of [status] for the settings row. */
 fun pushStatusLabel(status: PushStatus): String = when (status) {
-    is PushStatus.NotConfigured -> "not configured in this build (missing ${status.missing.joinToString()})"
-    PushStatus.PermissionDenied -> "notifications are turned off for Acorn in system settings"
-    PushStatus.Registering -> "registering…"
-    PushStatus.Registered -> "on"
-    is PushStatus.Failed -> "registration failed: ${status.message}"
+    is PushStatus.NotConfigured -> "这个版本没有配置推送"
+    PushStatus.PermissionDenied -> "系统设置里关闭了通知"
+    PushStatus.Registering -> "正在注册…"
+    PushStatus.Registered -> "已开启"
+    is PushStatus.Failed -> "注册失败"
+}
+
+/** What the owner needs to know beyond the label, or null. */
+fun pushStatusDetail(status: PushStatus): String? = when (status) {
+    is PushStatus.NotConfigured -> "缺少 ${status.missing.joinToString()}"
+    PushStatus.PermissionDenied -> "在系统设置里允许 Acorn 发送通知后，回到这里重试。"
+    is PushStatus.Failed -> if ("MISSING_INSTANCEID_SERVICE" in status.message || "SERVICE_NOT_AVAILABLE" in status.message) {
+        "这台设备没有可用的 Google Play 服务，收不到推送。（${status.message}）"
+    } else {
+        status.message
+    }
+    PushStatus.Registering, PushStatus.Registered -> null
 }

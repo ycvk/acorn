@@ -1,8 +1,5 @@
 package io.ycvk.acorn.feature.share
 
-import io.ycvk.acorn.api.infrastructure.ClientError
-import io.ycvk.acorn.api.infrastructure.ClientException
-import io.ycvk.acorn.api.infrastructure.Serializer
 import java.io.InputStream
 import java.io.OutputStream
 
@@ -53,17 +50,4 @@ fun copyWithin(input: InputStream, output: OutputStream, limit: Long): Boolean {
         if (total > limit) return false
         output.write(buffer, 0, read)
     }
-}
-
-/** The server's error message when there is one, else the exception's. */
-fun apiErrorMessage(e: Exception): String {
-    val body = ((e as? ClientException)?.response as? ClientError<*>)?.body as? String
-    if (body != null) {
-        runCatching {
-            @Suppress("UNCHECKED_CAST")
-            val error = Serializer.moshi.adapter(Map::class.java).fromJson(body)?.get("error") as? Map<String, Any?>
-            (error?.get("message") as? String)?.let { return it }
-        }
-    }
-    return e.message ?: e.javaClass.simpleName
 }

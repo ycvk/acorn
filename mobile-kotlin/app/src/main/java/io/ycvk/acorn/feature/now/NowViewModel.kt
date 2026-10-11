@@ -7,6 +7,9 @@ import io.ycvk.acorn.api.models.NowResponse
 import io.ycvk.acorn.core.auth.AuthController
 import io.ycvk.acorn.core.auth.AuthState
 import io.ycvk.acorn.core.auth.ConnectionProfile
+import io.ycvk.acorn.core.ui.plainSnippet
+import io.ycvk.acorn.core.ui.userMessage
+import io.ycvk.acorn.data.repository.KnowledgeRepository
 import io.ycvk.acorn.data.repository.NowRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -23,15 +26,16 @@ import javax.inject.Inject
 
 sealed interface NowLoad {
     data object Loading : NowLoad
-    data class Loaded(val now: NowResponse) : NowLoad
+    data class Loaded(val now: NowResponse, val briefing: List<BriefingSection> = emptyList()) : NowLoad
     data class Failed(val message: String) : NowLoad
 }
 
-/** Backs the Now tab. Every change is followed by a fresh load; nothing is changed locally. */
+/** Backs the Today tab. Every change is followed by a fresh load; nothing is changed locally. */
 @HiltViewModel
 class NowViewModel @Inject constructor(
     private val authController: AuthController,
     private val repository: NowRepository,
+    private val knowledge: KnowledgeRepository,
 ) : ViewModel() {
 
     private val _load = MutableStateFlow<NowLoad>(NowLoad.Loading)
@@ -48,7 +52,7 @@ class NowViewModel @Inject constructor(
 
     fun refresh() {
         val profile = profile() ?: run {
-            _load.value = NowLoad.Failed("Not connected to a server")
+            _load.value = NowLoad.Failed("还没有连接服务器")
             return
         }
         loadJob?.cancel()
@@ -67,7 +71,7 @@ class NowViewModel @Inject constructor(
 
     private fun change(action: (ConnectionProfile) -> Unit) {
         val profile = profile() ?: run {
-            _actionError.value = "Not connected to a server"
+            _actionError.value = "还没有连接服务器"
             return
         }
         _actionError.value = null
@@ -76,7 +80,7 @@ class NowViewModel @Inject constructor(
             try {
                 withContext(Dispatchers.IO) { action(profile) }
             } catch (e: Exception) {
-                _actionError.value = e.message ?: "The change failed"
+                _actionError.value = userMessage(e)
             }
             reload(profile)
         }
@@ -86,9 +90,13 @@ class NowViewModel @Inject constructor(
         _refreshing.value = true
         if (_load.value !is NowLoad.Loaded) _load.value = NowLoad.Loading
         _load.value = try {
-            NowLoad.Loaded(withContext(Dispatchers.IO) { repository.now(profile) })
+            withContext(Dispatchers.IO) {
+                val now = repository.now(profile)
+                val sections = now.briefing?.let { briefingSections(knowledge.note(profile, it.path).body, it.title) }.orEmpty()
+                NowLoad.Loaded(now, sections)
+            }
         } catch (e: Exception) {
-            NowLoad.Failed(e.message ?: "Failed to load")
+            NowLoad.Failed(userMessage(e))
         } finally {
             _refreshing.value = false
         }
@@ -98,21 +106,53 @@ class NowViewModel @Inject constructor(
 }
 
 private val timeOfDay = DateTimeFormatter.ofPattern("HH:mm")
-private val dayAndTime = DateTimeFormatter.ofPattern("M/d HH:mm")
 
-/** When a commitment wakes, in the phone's time zone: "Today 09:00", "Tomorrow 09:00" or "10/14 09:00". */
-fun wakeLabel(at: OffsetDateTime, today: LocalDate, zone: ZoneId): String {
+/** When a commitment wakes, in the phone's time zone: a day ("今天", "明天", "10月14日") and a time. */
+data class WakeTime(val day: String, val time: String)
+
+fun wakeTime(at: OffsetDateTime, today: LocalDate, zone: ZoneId): WakeTime {
     val local = at.atZoneSameInstant(zone)
-    return when (local.toLocalDate()) {
-        today -> "Today ${local.format(timeOfDay)}"
-        today.plusDays(1) -> "Tomorrow ${local.format(timeOfDay)}"
-        else -> local.format(dayAndTime)
+    val date = local.toLocalDate()
+    val day = when (date) {
+        today -> "今天"
+        today.plusDays(1) -> "明天"
+        else -> "${date.monthValue}月${date.dayOfMonth}日"
     }
+    return WakeTime(day, local.format(timeOfDay))
 }
 
-/** How often a watch is checked: "every 30m", "every 2h", "every 1d". */
+/** How often a watch is checked: "每 30 分钟", "每 2 小时", "每天". */
 fun intervalLabel(seconds: Long): String = when {
-    seconds % 86_400 == 0L -> "every ${seconds / 86_400}d"
-    seconds % 3_600 == 0L -> "every ${seconds / 3_600}h"
-    else -> "every ${seconds / 60}m"
+    seconds == 86_400L -> "每天"
+    seconds % 86_400 == 0L -> "每 ${seconds / 86_400} 天"
+    seconds % 3_600 == 0L -> "每 ${seconds / 3_600} 小时"
+    else -> "每 ${seconds / 60} 分钟"
+}
+
+/** A part of the briefing note: the lines under one heading, flattened for a preview. */
+data class BriefingSection(val heading: String?, val text: String)
+
+/** Splits a briefing note at its headings; the leading "# title" is dropped since the card shows the title. */
+fun briefingSections(body: String, title: String): List<BriefingSection> {
+    val sections = mutableListOf<BriefingSection>()
+    var heading: String? = null
+    val lines = mutableListOf<String>()
+    fun flush() {
+        val text = plainSnippet(lines.joinToString("\n"))
+        if (text.isNotEmpty() || heading != null) sections += BriefingSection(heading, text)
+        lines.clear()
+    }
+    for (line in body.lines()) {
+        val trimmed = line.trim()
+        when {
+            trimmed.startsWith("# ") && trimmed.removePrefix("# ").trim() == title.trim() -> Unit
+            trimmed.startsWith("#") -> {
+                flush()
+                heading = trimmed.trimStart('#').trim()
+            }
+            trimmed.isNotEmpty() -> lines += trimmed
+        }
+    }
+    flush()
+    return sections.filter { it.text.isNotEmpty() }
 }

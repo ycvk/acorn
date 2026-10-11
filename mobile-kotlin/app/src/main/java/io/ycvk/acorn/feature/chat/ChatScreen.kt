@@ -1,34 +1,44 @@
 package io.ycvk.acorn.feature.chat
 
-import androidx.compose.animation.animateContentSize
-import io.ycvk.acorn.feature.knowledge.AttachmentImage
-import androidx.compose.animation.core.CubicBezierEasing
+import android.os.Build
+import android.widget.Toast
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.ime
-import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.union
-import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
@@ -36,596 +46,446 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.DarkMode
-import androidx.compose.material.icons.filled.Lightbulb
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.WbSunny
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material.icons.automirrored.outlined.Redo
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material.icons.outlined.DarkMode
+import androidx.compose.material.icons.outlined.ExpandMore
+import androidx.compose.material.icons.outlined.Lightbulb
+import androidx.compose.material.icons.outlined.MoreHoriz
+import androidx.compose.material.icons.outlined.NotificationsNone
+import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.outlined.Visibility
+import androidx.compose.material.icons.outlined.WbSunny
+import androidx.compose.material.icons.rounded.ArrowDownward
+import androidx.compose.material.icons.rounded.ArrowUpward
+import androidx.compose.material.icons.rounded.Stop
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.text.PlatformTextStyle
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import dev.jeziellago.compose.markdowntext.MarkdownText
+import io.ycvk.acorn.core.sse.ActivityItem
+import io.ycvk.acorn.core.sse.ActivityKind
 import io.ycvk.acorn.core.sse.ChatHeaderStatus
 import io.ycvk.acorn.core.sse.headerStatus
-import io.ycvk.acorn.core.theme.AetherBackground
-import io.ycvk.acorn.core.theme.AetherMessageBubble
-import io.ycvk.acorn.core.theme.AetherOnPrimary
-import io.ycvk.acorn.core.theme.AetherOnSurface
-import io.ycvk.acorn.core.theme.AetherOnSurfaceVariant
-import io.ycvk.acorn.core.theme.AetherOutlineSoft
-import io.ycvk.acorn.core.theme.AetherPrimary
-import io.ycvk.acorn.core.theme.AetherSurface
-import io.ycvk.acorn.core.theme.AetherSurfaceHigh
-import io.ycvk.acorn.core.theme.AetherTertiary
-import io.ycvk.acorn.core.theme.gradientBackground
-// Aether design DNA
-private val ChatGptMotionEasing = CubicBezierEasing(0.22f, 0.84f, 0.18f, 1f)
-private val MessageBubbleShape = RoundedCornerShape(20.dp)
+import io.ycvk.acorn.core.theme.AcornShapes
+import io.ycvk.acorn.core.theme.AcornTheme
+import io.ycvk.acorn.core.ui.IconAction
+import io.ycvk.acorn.core.ui.InlineError
+import io.ycvk.acorn.core.ui.Markdown
+import io.ycvk.acorn.core.ui.ScreenPadding
+import io.ycvk.acorn.core.ui.TopBar
+import io.ycvk.acorn.core.ui.rememberHaptics
+import io.ycvk.acorn.feature.approvals.ApprovalCard
+import io.ycvk.acorn.feature.approvals.ApprovalsViewModel
+import io.ycvk.acorn.feature.approvals.PendingActionSheet
+import io.ycvk.acorn.feature.approvals.optionDecision
+import io.ycvk.acorn.feature.knowledge.AttachmentImage
+import kotlinx.coroutines.launch
 
-// ─── Screen ──────────────────────────────────────────────────────────────────
-@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun ChatScreen(
     threadId: String?,
     onBack: () -> Unit,
-    onOpenDrawer: (() -> Unit)? = null,
     viewModel: ChatViewModel = hiltViewModel(),
+    approvals: ApprovalsViewModel = hiltViewModel(),
 ) {
     val messages by viewModel.messages.collectAsStateWithLifecycle()
     val chatState by viewModel.chatState.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
-    val threadTitle by viewModel.threadTitle.collectAsStateWithLifecycle()
+    val title by viewModel.threadTitle.collectAsStateWithLifecycle()
+    val currentThread by viewModel.threadId.collectAsStateWithLifecycle()
+    val restored by viewModel.restoredInput.collectAsStateWithLifecycle()
+    val pending by approvals.pendingActions.collectAsStateWithLifecycle()
+    val deciding by approvals.deciding.collectAsStateWithLifecycle()
+    val selected by approvals.selectedAction.collectAsStateWithLifecycle()
 
-    LaunchedEffect(threadId) {
-        if (threadId != null) viewModel.loadThread(threadId)
+    LaunchedEffect(threadId) { viewModel.loadThread(threadId) }
+    // A run that pauses for the owner shows its decision here as well as on Today.
+    LaunchedEffect(chatState.activities.size, currentThread) {
+        if (currentThread != null) approvals.loadPendingActions()
     }
 
+    var input by rememberSaveable { mutableStateOf("") }
+    LaunchedEffect(restored) {
+        restored?.let {
+            input = it
+            viewModel.consumeRestoredInput()
+        }
+    }
 
-    var input by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
     val streaming = chatState.isStreaming
-    val keyboard = LocalSoftwareKeyboardController.current
+    val threadPending = pending.filter { it.threadId == currentThread }
 
-    // Smart auto-scroll: follow new content only when already near bottom.
-    var shouldAutoFollow by remember { mutableStateOf(true) }
+    // Follow new content only while the reader is at the bottom.
+    var follow by remember { mutableStateOf(true) }
     val scrollConnection = remember {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                if (available.y < -1f) shouldAutoFollow = false
+                if (available.y > 1f) follow = false
                 return Offset.Zero
             }
         }
     }
-    // Restore auto-follow when user scrolls back to bottom.
+    val atBottom by remember { derivedStateOf { !listState.canScrollForward } }
     LaunchedEffect(listState) {
-        snapshotFlow {
-            val info = listState.layoutInfo
-            val total = info.totalItemsCount
-            if (total == 0) return@snapshotFlow true
-            val lastVisible = info.visibleItemsInfo.lastOrNull()
-            val lastIdx = lastVisible?.index ?: -1
-            val distFromBottom = info.viewportEndOffset - (
-                (lastVisible?.offset ?: 0) + (lastVisible?.size ?: 0)
-            )
-            lastIdx >= total - 1 && distFromBottom >= -32
-        }.collect { atBottom ->
-            if (atBottom) shouldAutoFollow = true
-        }
+        snapshotFlow { !listState.canScrollForward }.collect { if (it) follow = true }
     }
-    // Scroll to bottom when new content arrives and auto-follow is on.
-    LaunchedEffect(messages.size, chatState.assistantText) {
-        if (shouldAutoFollow) {
+    LaunchedEffect(messages.size, chatState.assistantText, chatState.activities.size, threadPending.size) {
+        if (follow) {
             val last = listState.layoutInfo.totalItemsCount - 1
-            if (last >= 0) listState.scrollToItem(last)
+            if (last >= 0) listState.scrollToItem(last, scrollOffset = Int.MAX_VALUE / 2)
         }
     }
-    Box(
+
+    var menu by remember { mutableStateOf(false) }
+    var confirmDelete by remember { mutableStateOf(false) }
+    val status = chatState.headerStatus()
+    val colors = AcornTheme.colors
+
+    Column(
         modifier = Modifier
             .fillMaxSize()
-            .gradientBackground(),
+            .background(colors.canvas)
+            .imePadding(),
     ) {
-        // Message list
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .nestedScroll(scrollConnection),
-            state = listState,
-            contentPadding = PaddingValues(
-                top = 96.dp,
-                bottom = 120.dp,
-                start = 16.dp,
-                end = 16.dp,
-            ),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+        TopBar(
+            onBack = onBack,
+            title = title ?: if (currentThread == null) "新对话" else "",
+            subtitle = status.label.takeIf { it.isNotEmpty() },
+            subtitleColor = if (status == ChatHeaderStatus.Waiting) colors.warning else colors.success,
+            showDivider = listState.canScrollBackward,
         ) {
-            items(messages, key = { it.id }) { message ->
-                when (message) {
-                    is ChatMessage.User -> UserBubble(
-                        text = message.text,
-                        modifier = Modifier.animateItem(),
-                    )
-                    is ChatMessage.Assistant -> AssistantBubble(
-                        text = message.text,
-                        reasoning = message.reasoning,
-                        modifier = Modifier.animateItem(),
-                    )
-                    is ChatMessage.Wake -> InputNote(
-                        label = when (message.source) {
-                            WakeSource.Commitment -> "Woken by a commitment"
-                            WakeSource.Watch -> "New on a watch"
-                            WakeSource.Briefing -> "Morning briefing"
-                            WakeSource.Night -> "Night reflection"
-                            WakeSource.Wander -> "Idle thought"
-                        },
-                        icon = when (message.source) {
-                            WakeSource.Commitment -> Icons.Filled.Notifications
-                            WakeSource.Watch -> Icons.Filled.Visibility
-                            WakeSource.Briefing -> Icons.Filled.WbSunny
-                            WakeSource.Night -> Icons.Filled.DarkMode
-                            WakeSource.Wander -> Icons.Filled.Lightbulb
-                        },
-                        text = message.text,
-                        modifier = Modifier.animateItem(),
-                    )
-                    is ChatMessage.Capture -> InputNote(
-                        label = "Shared from your phone",
-                        icon = Icons.Filled.Share,
-                        text = message.text,
-                        modifier = Modifier.animateItem(),
+            if (currentThread != null) {
+                Box {
+                    IconAction(Icons.Outlined.MoreHoriz, "更多", { menu = true })
+                    DropdownMenu(
+                        expanded = menu,
+                        onDismissRequest = { menu = false },
+                        containerColor = colors.surface,
+                        shape = AcornShapes.medium,
                     ) {
-                        val profile = viewModel.connection()
-                        if (message.image != null && profile != null) {
-                            Spacer(Modifier.height(6.dp))
-                            AttachmentImage(message.image, "Shared image", profile)
+                        DropdownMenuItem(
+                            text = { Text("删除对话", style = AcornTheme.type.callout, color = colors.danger) },
+                            onClick = {
+                                menu = false
+                                confirmDelete = true
+                            },
+                        )
+                    }
+                }
+            }
+        }
+
+        Box(modifier = Modifier.weight(1f)) {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .nestedScroll(scrollConnection),
+                state = listState,
+                contentPadding = PaddingValues(start = ScreenPadding, end = ScreenPadding, top = 8.dp, bottom = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(18.dp),
+            ) {
+                if (messages.isEmpty() && !streaming && currentThread == null) {
+                    item(key = "__welcome__") { Welcome(Modifier.fillParentMaxHeight(0.8f)) }
+                }
+                items(messages, key = { it.id }) { message ->
+                    val itemModifier = Modifier.animateItem()
+                    when (message) {
+                        is ChatMessage.User -> UserBubble(message.text, itemModifier)
+                        is ChatMessage.Assistant -> AssistantMessage(message.text, message.reasoning, streaming = false, modifier = itemModifier)
+                        is ChatMessage.Wake -> InputNote(wakeLabel(message.source), wakeIcon(message.source), message.text, itemModifier)
+                        is ChatMessage.Capture -> InputNote("从手机分享", Icons.Outlined.Share, message.text, itemModifier) {
+                            val profile = viewModel.connection()
+                            if (message.image != null && profile != null) {
+                                Spacer(Modifier.height(8.dp))
+                                AttachmentImage(message.image, "分享的图片", profile)
+                            }
                         }
+                    }
+                }
+                if (streaming || chatState.assistantText.isNotBlank()) {
+                    item(key = "__streaming__") {
+                        AssistantMessage(
+                            text = chatState.assistantText,
+                            reasoning = chatState.assistantReasoning.ifBlank { null },
+                            streaming = streaming,
+                            modifier = Modifier.animateItem(),
+                        )
+                    }
+                }
+                val activities = chatState.activities.filter { it.kind == ActivityKind.ResumeRequested || threadPending.isEmpty() }
+                items(activities, key = { it.id }) { ActivityLine(it, Modifier.animateItem()) }
+                items(threadPending, key = { "pending:${it.actionId}" }) { action ->
+                    ApprovalCard(
+                        action = action,
+                        deciding = deciding == action.actionId,
+                        onDecide = { option -> approvals.decideAction(action.actionId, optionDecision(option), option.id, null) },
+                        onOpen = { approvals.loadActionDetail(action.actionId) },
+                        modifier = Modifier.animateItem(),
+                    )
+                }
+                error?.let {
+                    item(key = "__error__") {
+                        InlineError(it, Modifier.animateItem(), action = "知道了", onAction = viewModel::dismissError)
+                    }
+                }
+                if (error == null && !streaming) {
+                    chatState.failure?.let {
+                        item(key = "__failure__") { RunFailure(it, onDismiss = viewModel::dismissError, modifier = Modifier.animateItem()) }
                     }
                 }
             }
 
-            val showStreaming = streaming || chatState.assistantText.isNotBlank()
-            if (showStreaming) {
-                item(key = "__streaming__") {
-                    StreamingAssistantBubble(
-                        text = chatState.assistantText,
-                        reasoning = chatState.assistantReasoning.ifBlank { null },
-                        isStreaming = streaming,
-                        modifier = Modifier.animateItem(),
-                    )
-                }
-            }
-
-            items(chatState.activities, key = { it.id }) { activity ->
-                ActivityRow(activity.label, modifier = Modifier.animateItem())
-            }
-
-            error?.let {
-                item(key = "__error__") {
-                    ErrorBanner(it, modifier = Modifier.animateItem())
+            // Qualified: the enclosing Column's scoped overload would otherwise win.
+            androidx.compose.animation.AnimatedVisibility(
+                visible = !atBottom && messages.isNotEmpty(),
+                enter = fadeIn() + scaleIn(initialScale = 0.8f),
+                exit = fadeOut() + scaleOut(targetScale = 0.8f),
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 12.dp),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(CircleShape)
+                        .background(colors.surface)
+                        .border(0.5.dp, colors.lineStrong, CircleShape)
+                        .clickable {
+                            follow = true
+                            scope.launch {
+                                val last = listState.layoutInfo.totalItemsCount - 1
+                                if (last >= 0) listState.animateScrollToItem(last, scrollOffset = Int.MAX_VALUE / 2)
+                            }
+                        },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.Rounded.ArrowDownward, contentDescription = "回到底部", tint = colors.inkSoft, modifier = Modifier.size(18.dp))
                 }
             }
         }
 
-        // Top bar overlay
-        ChatTopBar(
-            title = threadTitle ?: "thread",
-            status = chatState.headerStatus(),
-            onBack = onBack,
-            onOpenDrawer = onOpenDrawer,
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .fillMaxWidth(),
-        )
-
-        // Composer
         Composer(
             input = input,
             onInputChange = { input = it },
             streaming = streaming,
+            autoFocus = threadId == null,
             onSend = {
-                if (input.isNotBlank()) {
-                    viewModel.sendMessage(input)
+                val text = input.trim()
+                if (text.isNotEmpty()) {
+                    follow = true
+                    viewModel.sendMessage(text)
                     input = ""
-                    keyboard?.hide()
                 }
             },
-            onStop = { viewModel.interruptRun() },
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars)),
+            onStop = viewModel::interruptRun,
+        )
+    }
+
+    selected?.let { detail ->
+        PendingActionSheet(
+            detail = detail,
+            deciding = deciding == detail.actionId,
+            onDismiss = approvals::clearSelection,
+            onDecide = { option -> approvals.decideAction(detail.actionId, optionDecision(option), option.id, null) },
+        )
+    }
+
+    if (confirmDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            title = { Text("删除这个对话？") },
+            text = { Text("对话里的消息会被删除，无法恢复。") },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmDelete = false
+                    viewModel.deleteThread(onBack)
+                }) { Text("删除", color = colors.danger) }
+            },
+            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("取消") } },
         )
     }
 }
 
-// ─── Top bar ──────────────────────────────────────────────────────────────────
-
 @Composable
-private fun ChatTopBar(
-    title: String,
-    status: ChatHeaderStatus,
-    onBack: () -> Unit,
-    onOpenDrawer: (() -> Unit)? = null,
-    modifier: Modifier = Modifier,
-) {
+private fun Welcome(modifier: Modifier = Modifier) {
     Column(
-        modifier = modifier.background(
-            Brush.verticalGradient(
-                colorStops = arrayOf(
-                    0.0f to AetherBackground.copy(alpha = 0.92f),
-                    0.7f to AetherBackground.copy(alpha = 0.72f),
-                    1.0f to Color.Transparent,
-                ),
-            ),
-        ),
+        modifier = modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .statusBarsPadding()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            if (onOpenDrawer != null) {
-                CircleButton(
-                    icon = Icons.Filled.Menu,
-                    contentDescription = "menu",
-                    onClick = onOpenDrawer,
-                )
-                Spacer(Modifier.width(8.dp))
-            }
-            CircleButton(
-                icon = Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = "back",
-                onClick = onBack,
-            )
-            Spacer(Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    title,
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.SemiBold,
-                    ),
-                    color = AetherOnSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    val statusColor = when (status) {
-                        ChatHeaderStatus.Running -> AetherPrimary
-                        ChatHeaderStatus.Waiting -> AetherTertiary
-                        ChatHeaderStatus.Idle -> AetherOnSurfaceVariant
-                    }
-                    val statusText = status.label
-                    Box(
-                        modifier = Modifier
-                            .size(6.dp)
-                            .background(statusColor, CircleShape),
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        statusText,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = statusColor,
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun CircleButton(
-    icon: ImageVector,
-    contentDescription: String,
-    onClick: () -> Unit,
-    size: Dp = 40.dp,
-) {
-    Box(
-        modifier = Modifier
-            .size(size)
-            .background(AetherSurface.copy(alpha = 0.96f), CircleShape)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            icon,
-            contentDescription = contentDescription,
-            tint = AetherOnSurface,
-            modifier = Modifier.size(20.dp),
+        Icon(Icons.Outlined.AutoAwesome, contentDescription = null, tint = AcornTheme.colors.accent, modifier = Modifier.size(28.dp))
+        Spacer(Modifier.height(14.dp))
+        Text("想让我做点什么？", style = AcornTheme.type.title, color = AcornTheme.colors.ink)
+        Spacer(Modifier.height(6.dp))
+        Text(
+            "问问题、记一个约定、让我盯着某个网页，\n或者把要整理的东西交给我。",
+            style = AcornTheme.type.footnote,
+            color = AcornTheme.colors.inkSoft,
+            textAlign = TextAlign.Center,
         )
     }
 }
 
-// ─── Composer ─────────────────────────────────────────────────────────────────
-
-@Composable
-private fun Composer(
-    input: String,
-    onInputChange: (String) -> Unit,
-    streaming: Boolean,
-    onSend: () -> Unit,
-    onStop: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    var focused by remember { mutableStateOf(false) }
-    val cornerRadius by animateDpAsState(
-        targetValue = if (focused) 28.dp else 26.dp,
-        animationSpec = tween(260, easing = ChatGptMotionEasing),
-        label = "composer_corner",
-    )
-    Surface(
-        modifier = modifier
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        shape = RoundedCornerShape(cornerRadius),
-        color = AetherSurface,
-        shadowElevation = 8.dp,
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            androidx.compose.foundation.text.BasicTextField(
-                value = input,
-                onValueChange = onInputChange,
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(horizontal = 12.dp, vertical = 10.dp)
-                    .onFocusChanged { focused = it.isFocused },
-                enabled = !streaming,
-                textStyle = MaterialTheme.typography.bodyLarge.copy(
-                    color = AetherOnSurface,
-                    platformStyle = PlatformTextStyle(includeFontPadding = false),
-                ),
-                cursorBrush = Brush.verticalGradient(listOf(AetherPrimary, AetherPrimary)),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                keyboardActions = KeyboardActions(onSend = { onSend() }),
-                decorationBox = { innerTextField ->
-                    if (input.isEmpty()) {
-                        Text(
-                            "message…",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = AetherOnSurfaceVariant.copy(alpha = 0.6f),
-                        )
-                    }
-                    innerTextField()
-                },
-            )
-            Spacer(Modifier.width(8.dp))
-            if (streaming) {
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .background(AetherOnSurfaceVariant.copy(alpha = 0.15f), CircleShape)
-                        .clickable(onClick = onStop),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        Icons.Filled.Stop,
-                        contentDescription = "stop",
-                        tint = AetherOnSurface,
-                        modifier = Modifier.size(16.dp),
-                    )
-                }
-            } else {
-                val sendEnabled = input.isNotBlank()
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .background(
-                            if (sendEnabled) AetherPrimary else AetherOutlineSoft,
-                            CircleShape,
-                        )
-                        .clickable(enabled = sendEnabled, onClick = onSend),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        Icons.AutoMirrored.Filled.Send,
-                        contentDescription = "send",
-                        tint = if (sendEnabled) AetherOnPrimary else AetherOnSurfaceVariant,
-                        modifier = Modifier.size(16.dp),
-                    )
-                }
-            }
-        }
-    }
+private fun wakeLabel(source: WakeSource) = when (source) {
+    WakeSource.Commitment -> "约定提醒"
+    WakeSource.Watch -> "追踪有更新"
+    WakeSource.Briefing -> "早安简报"
+    WakeSource.Night -> "夜思"
+    WakeSource.Wander -> "游思"
 }
 
-// ─── Message bubbles ──────────────────────────────────────────────────────────
+private fun wakeIcon(source: WakeSource) = when (source) {
+    WakeSource.Commitment -> Icons.Outlined.NotificationsNone
+    WakeSource.Watch -> Icons.Outlined.Visibility
+    WakeSource.Briefing -> Icons.Outlined.WbSunny
+    WakeSource.Night -> Icons.Outlined.DarkMode
+    WakeSource.Wander -> Icons.Outlined.Lightbulb
+}
 
+private val UserBubbleShape = RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp, bottomEnd = 6.dp, bottomStart = 18.dp)
+
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun UserBubble(text: String, modifier: Modifier = Modifier) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.End,
-    ) {
-        Surface(
-            color = AetherMessageBubble,
-            shape = MessageBubbleShape,
-            modifier = modifier
-                .widthIn(max = 280.dp)
-                .animateContentSize(
-                    animationSpec = tween(280, easing = ChatGptMotionEasing),
-                ),
-        ) {
-            SelectionContainer {
-                Text(
-                    text = text,
-                    modifier = Modifier.padding(14.dp),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = AetherOnSurface,
-                )
+    val copy = rememberCopy()
+    Row(modifier = modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+        Text(
+            text = text,
+            style = AcornTheme.type.body,
+            color = AcornTheme.colors.ink,
+            modifier = Modifier
+                .widthIn(max = 300.dp)
+                .clip(UserBubbleShape)
+                .background(AcornTheme.colors.surfaceMuted)
+                .combinedClickable(onClick = {}, onLongClick = { copy(text) })
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+        )
+    }
+}
+
+@Composable
+private fun AssistantMessage(text: String, reasoning: String?, streaming: Boolean, modifier: Modifier = Modifier) {
+    val colors = AcornTheme.colors
+    val copy = rememberCopy()
+    Column(modifier = modifier.fillMaxWidth()) {
+        reasoning?.let {
+            Reasoning(it)
+            Spacer(Modifier.height(8.dp))
+        }
+        if (text.isNotBlank()) {
+            SelectionContainer { Markdown(text) }
+        } else if (streaming) {
+            TypingDots()
+        }
+        if (!streaming && text.isNotBlank()) {
+            Box(
+                modifier = Modifier
+                    .padding(top = 4.dp)
+                    .offset(x = (-8).dp)
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .clickable(onClickLabel = "复制") { copy(text) },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.Outlined.ContentCopy, contentDescription = "复制", tint = colors.inkFaint, modifier = Modifier.size(16.dp))
             }
         }
     }
 }
 
 @Composable
-private fun AssistantBubble(text: String, reasoning: String? = null, modifier: Modifier = Modifier) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.Start,
-    ) {
-        Column(
-            modifier = modifier
-                .widthIn(max = 320.dp)
-                .animateContentSize(
-                    animationSpec = tween(280, easing = ChatGptMotionEasing),
-                ),
-        ) {
-            Text(
-                "acorn",
-                style = MaterialTheme.typography.labelSmall,
-                color = AetherOnSurfaceVariant.copy(alpha = 0.6f),
-            )
-            Spacer(Modifier.height(4.dp))
-            reasoning?.let {
-                ReasoningBlock(it)
-                Spacer(Modifier.height(8.dp))
-            }
-            SelectionContainer {
-                MarkdownText(
-                    markdown = text,
-                    style = MaterialTheme.typography.bodyLarge.copy(color = AetherOnSurface),
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun StreamingAssistantBubble(text: String, reasoning: String?, isStreaming: Boolean, modifier: Modifier = Modifier) {
-    if (text.isBlank() && !isStreaming) return
-
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.Start,
-    ) {
-        Column(
-            modifier = modifier
-                .widthIn(max = 320.dp)
-                .animateContentSize(
-                    animationSpec = tween(280, easing = ChatGptMotionEasing),
-                ),
-        ) {
-            Text(
-                "acorn",
-                style = MaterialTheme.typography.labelSmall,
-                color = AetherOnSurfaceVariant.copy(alpha = 0.6f),
-            )
-            Spacer(Modifier.height(4.dp))
-            reasoning?.let {
-                ReasoningBlock(it)
-                Spacer(Modifier.height(8.dp))
-            }
-            if (text.isNotBlank()) {
-                SelectionContainer {
-                    MarkdownText(
-                        markdown = text,
-                        style = MaterialTheme.typography.bodyLarge.copy(color = AetherOnSurface),
-                    )
-                }
-            } else if (isStreaming) {
-                TypingDots()
-            }
-        }
-    }
-}
-
-@Composable
-private fun ReasoningBlock(reasoning: String) {
-    var expanded by remember { mutableStateOf(false) }
+private fun Reasoning(reasoning: String) {
+    val colors = AcornTheme.colors
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    val rotation by animateFloatAsState(if (expanded) 180f else 0f, label = "chevron")
     Column {
         Row(
             modifier = Modifier
+                .clip(AcornShapes.small)
                 .clickable { expanded = !expanded }
-                .padding(vertical = 2.dp),
+                .padding(vertical = 4.dp, horizontal = 2.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                "thinking",
-                style = MaterialTheme.typography.labelSmall,
-                color = AetherOnSurfaceVariant.copy(alpha = 0.6f),
-            )
+            Text("思考过程", style = AcornTheme.type.footnote, color = colors.inkFaint)
+            Icon(Icons.Outlined.ExpandMore, contentDescription = null, tint = colors.inkFaint, modifier = Modifier.size(16.dp).rotate(rotation))
         }
-        if (expanded) {
-            Text(
-                reasoning,
-                style = MaterialTheme.typography.bodySmall,
-                color = AetherOnSurfaceVariant,
-            )
+        AnimatedVisibility(visible = expanded, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
+            Row(modifier = Modifier.padding(top = 4.dp).height(IntrinsicSize.Min)) {
+                Box(
+                    Modifier
+                        .width(2.dp)
+                        .fillMaxHeight()
+                        .background(colors.line, RoundedCornerShape(1.dp)),
+                )
+                Spacer(Modifier.width(12.dp))
+                Text(reasoning, style = AcornTheme.type.footnote, color = colors.inkSoft)
+            }
         }
     }
 }
 
 @Composable
 private fun TypingDots() {
-    val infiniteTransition = rememberInfiniteTransition(label = "typing")
-    Row(
-        modifier = Modifier.padding(vertical = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
+    val transition = rememberInfiniteTransition(label = "typing")
+    Row(modifier = Modifier.padding(vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
         repeat(3) { i ->
-            val alpha by infiniteTransition.animateFloat(
-                initialValue = 0.3f,
+            val alpha by transition.animateFloat(
+                initialValue = 0.25f,
                 targetValue = 1f,
-                animationSpec = infiniteRepeatable(
-                    animation = tween(400, delayMillis = i * 160, easing = ChatGptMotionEasing),
-                    repeatMode = RepeatMode.Reverse,
-                ),
+                animationSpec = infiniteRepeatable(tween(480, delayMillis = i * 150), RepeatMode.Reverse),
                 label = "dot_$i",
             )
             Box(
                 modifier = Modifier
                     .size(7.dp)
-                    .background(AetherPrimary.copy(alpha = alpha), CircleShape),
+                    .alpha(alpha)
+                    .background(AcornTheme.colors.accent, CircleShape),
             )
         }
     }
 }
-// ─── Activity / Error ─────────────────────────────────────────────────────────
 
-/** A commitment woke the agent; shown apart from what the owner wrote. */
+/** What started a run when the owner didn't type it: a wake, or something shared from the phone. */
 @Composable
 private fun InputNote(
     label: String,
@@ -634,36 +494,23 @@ private fun InputNote(
     modifier: Modifier = Modifier,
     attachment: @Composable () -> Unit = {},
 ) {
-    Surface(
-        color = AetherTertiary.copy(alpha = 0.10f),
-        shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(1.dp, AetherTertiary.copy(alpha = 0.35f)),
-        modifier = modifier.fillMaxWidth(),
-    ) {
-        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    icon,
-                    contentDescription = null,
-                    tint = AetherTertiary,
-                    modifier = Modifier.size(14.dp),
-                )
-                Spacer(Modifier.width(6.dp))
-                Text(
-                    label,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = AetherTertiary,
-                )
-            }
-            Spacer(Modifier.height(4.dp))
+    val colors = AcornTheme.colors
+    Column(modifier = modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, contentDescription = null, tint = colors.inkFaint, modifier = Modifier.size(15.dp))
+            Spacer(Modifier.width(6.dp))
+            Text(label, style = AcornTheme.type.caption, color = colors.inkFaint)
+        }
+        Spacer(Modifier.height(6.dp))
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(AcornShapes.medium)
+                .border(0.5.dp, colors.line, AcornShapes.medium)
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+        ) {
             if (text.isNotEmpty()) {
-                SelectionContainer {
-                    Text(
-                        text = text,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = AetherOnSurface,
-                    )
-                }
+                Text(text, style = AcornTheme.type.footnote, color = colors.inkSoft, maxLines = 12)
             }
             attachment()
         }
@@ -671,45 +518,140 @@ private fun InputNote(
 }
 
 @Composable
-private fun ActivityRow(label: String, modifier: Modifier = Modifier) {
-    Surface(
-        color = AetherSurfaceHigh,
-        shape = RoundedCornerShape(16.dp),
-        modifier = modifier.fillMaxWidth(),
+private fun ActivityLine(activity: ActivityItem, modifier: Modifier = Modifier) {
+    val colors = AcornTheme.colors
+    val waiting = activity.kind != ActivityKind.ResumeRequested
+    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
+        Icon(
+            if (waiting) Icons.Outlined.NotificationsNone else Icons.AutoMirrored.Outlined.Redo,
+            contentDescription = null,
+            tint = if (waiting) colors.warning else colors.inkFaint,
+            modifier = Modifier.size(15.dp),
+        )
+        Spacer(Modifier.width(6.dp))
+        Text(activity.label, style = AcornTheme.type.footnote, color = if (waiting) colors.warningInk else colors.inkFaint)
+    }
+}
+
+@Composable
+private fun Composer(
+    input: String,
+    onInputChange: (String) -> Unit,
+    streaming: Boolean,
+    autoFocus: Boolean,
+    onSend: () -> Unit,
+    onStop: () -> Unit,
+) {
+    val colors = AcornTheme.colors
+    val haptics = rememberHaptics()
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(autoFocus) { if (autoFocus) focus.requestFocus() }
+    val shape = RoundedCornerShape(24.dp)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .navigationBarsPadding()
+            .padding(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 10.dp)
+            .clip(shape)
+            .background(colors.surface)
+            .border(0.5.dp, colors.lineStrong, shape)
+            .padding(start = 18.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
+        verticalAlignment = Alignment.Bottom,
     ) {
-        Row(
+        Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
+                .weight(1f)
+                .heightIn(min = 36.dp)
+                .padding(vertical = 7.dp),
+            contentAlignment = Alignment.CenterStart,
         ) {
+            if (input.isEmpty()) Text("发消息给 Acorn", style = AcornTheme.type.body, color = colors.inkFaint)
+            BasicTextField(
+                value = input,
+                onValueChange = onInputChange,
+                textStyle = AcornTheme.type.body.copy(color = colors.ink),
+                cursorBrush = SolidColor(colors.accent),
+                maxLines = 6,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(focus),
+            )
+        }
+        Spacer(Modifier.width(8.dp))
+        val canSend = input.isNotBlank()
+        AnimatedContent(
+            targetState = streaming,
+            transitionSpec = { (fadeIn() + scaleIn(initialScale = 0.7f)) togetherWith (fadeOut() + scaleOut(targetScale = 0.7f)) },
+            label = "send",
+        ) { running ->
             Box(
                 modifier = Modifier
-                    .size(width = 3.dp, height = 16.dp)
-                    .background(AetherPrimary),
-            )
-            Spacer(Modifier.width(12.dp))
-            Text(
-                text = label,
-                style = MaterialTheme.typography.bodySmall,
-                color = AetherOnSurface,
-            )
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(if (running || canSend) colors.ink else colors.surfaceMuted)
+                    .clickable(enabled = running || canSend) {
+                        if (running) {
+                            haptics.tick()
+                            onStop()
+                        } else {
+                            haptics.confirm()
+                            onSend()
+                        }
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    if (running) Icons.Rounded.Stop else Icons.Rounded.ArrowUpward,
+                    contentDescription = if (running) "停止" else "发送",
+                    tint = if (running || canSend) colors.canvas else colors.inkFaint,
+                    modifier = Modifier.size(if (running) 16.dp else 20.dp),
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun ErrorBanner(message: String, modifier: Modifier = Modifier) {
-    Surface(
-        color = AetherSurfaceHigh,
-        shape = RoundedCornerShape(16.dp),
-        modifier = modifier.fillMaxWidth(),
+private fun rememberCopy(): (String) -> Unit {
+    val clipboard = LocalClipboardManager.current
+    val context = LocalContext.current
+    val haptics = rememberHaptics()
+    return remember(clipboard, context) {
+        { text: String ->
+            clipboard.setText(AnnotatedString(text))
+            haptics.confirm()
+            // Android 13+ shows its own clipboard confirmation.
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+                Toast.makeText(context, "已复制", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+}
+
+/** A failed run: what happened, with the server's detail folded to a few lines until tapped. */
+@Composable
+private fun RunFailure(detail: String, onDismiss: () -> Unit, modifier: Modifier = Modifier) {
+    val colors = AcornTheme.colors
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(AcornShapes.medium)
+            .background(colors.dangerSoft)
+            .clickable { expanded = !expanded }
+            .padding(start = 14.dp, end = 4.dp, top = 4.dp, bottom = 12.dp),
     ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("这次没能完成", style = AcornTheme.type.headline, color = colors.danger, modifier = Modifier.weight(1f))
+            TextButton(onClick = onDismiss) { Text("知道了", style = AcornTheme.type.footnote, color = colors.danger) }
+        }
         Text(
-            message,
-            modifier = Modifier.padding(12.dp),
-            style = MaterialTheme.typography.bodySmall,
-            color = AetherPrimary,
+            detail.trim(),
+            style = AcornTheme.type.mono.copy(fontSize = AcornTheme.type.caption.fontSize, lineHeight = AcornTheme.type.footnote.lineHeight),
+            color = colors.danger.copy(alpha = 0.85f),
+            maxLines = if (expanded) Int.MAX_VALUE else 3,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(end = 10.dp),
         )
     }
 }

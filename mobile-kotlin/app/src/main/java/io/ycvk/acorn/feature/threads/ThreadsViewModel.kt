@@ -5,11 +5,11 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.ycvk.acorn.api.apis.ClientApi
 import io.ycvk.acorn.api.infrastructure.ApiClient
-import io.ycvk.acorn.api.models.CreateThreadRequest
 import io.ycvk.acorn.api.models.Thread
 import io.ycvk.acorn.core.auth.AuthController
 import io.ycvk.acorn.core.auth.AuthState
 import io.ycvk.acorn.core.auth.ConnectionProfile
+import io.ycvk.acorn.core.ui.userMessage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -19,7 +19,7 @@ import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 /**
- * Backs the Threads tab: lists existing threads and creates new ones.
+ * Backs the conversations tab: lists threads and deletes them.
  *
  * The generated [io.ycvk.acorn.api.apis.ClientApi] is synchronous (OkHttp execute),
  * so calls are offloaded to [Dispatchers.IO]. Auth is via the companion-level
@@ -36,17 +36,21 @@ class ThreadsViewModel @Inject constructor(
     private val _load = MutableStateFlow<ThreadsLoad>(ThreadsLoad.Loading)
     val load: StateFlow<ThreadsLoad> = _load.asStateFlow()
 
-    /** Failures of create and delete; list load failures live in [load]. */
+    private val _refreshing = MutableStateFlow(false)
+    val refreshing: StateFlow<Boolean> = _refreshing.asStateFlow()
+
+    /** Delete failures; list load failures live in [load]. */
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
 
     fun loadThreads() {
         val profile = getConnectionProfile()
         if (profile == null) {
-            _load.value = ThreadsLoad.Failed("Not connected to a server")
+            _load.value = ThreadsLoad.Failed("还没有连接服务器")
             return
         }
-        _load.value = ThreadsLoad.Loading
+        if (_load.value !is ThreadsLoad.Loaded) _load.value = ThreadsLoad.Loading
+        _refreshing.value = true
         viewModelScope.launch {
             try {
                 val response = withContext(Dispatchers.IO) {
@@ -57,32 +61,17 @@ class ThreadsViewModel @Inject constructor(
                 _threads.value = response.items
                 _load.value = ThreadsLoad.Loaded
             } catch (e: Exception) {
-                _load.value = ThreadsLoad.Failed(e.message ?: "Failed to load threads")
+                _load.value = ThreadsLoad.Failed(userMessage(e))
+            } finally {
+                _refreshing.value = false
             }
         }
     }
 
-    /**
-     * Creates a new thread and invokes [onCreated] with its id so the caller can
-     * navigate into the chat. The created thread is prepended to the list so it
-     * appears immediately without a refetch.
-     */
-    fun createNewThread(onCreated: (String) -> Unit) {
-        val profile = getConnectionProfile() ?: return
-        viewModelScope.launch {
-            try {
-                val thread = withContext(Dispatchers.IO) {
-                    ApiClient.accessToken = profile.accessToken
-                    val clientApi = ClientApi(basePath = profile.serverUrl)
-                    clientApi.clientCreateThread(CreateThreadRequest(title = "New Thread"))
-                }
-                _threads.value = listOf(thread) + _threads.value
-                onCreated(thread.id)
-            } catch (e: Exception) {
-                _error.value = e.message ?: "Failed to create thread"
-            }
-        }
+    fun dismissError() {
+        _error.value = null
     }
+
     fun deleteThread(threadId: String) {
         val profile = getConnectionProfile() ?: return
         viewModelScope.launch {
@@ -93,7 +82,7 @@ class ThreadsViewModel @Inject constructor(
                 }
                 _threads.value = _threads.value.filterNot { it.id == threadId }
             } catch (e: Exception) {
-                _error.value = e.message ?: "Failed to delete thread"
+                _error.value = userMessage(e)
             }
         }
     }

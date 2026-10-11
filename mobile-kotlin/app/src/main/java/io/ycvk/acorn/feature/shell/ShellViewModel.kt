@@ -19,6 +19,25 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
+enum class Tab { Today, Threads, Knowledge }
+
+/** A page pushed over the tabs. A chat without a thread id is a new conversation. */
+sealed interface Page {
+    val key: String
+
+    data class Chat(val threadId: String?, val nonce: Long = System.nanoTime()) : Page {
+        override val key = "chat:${threadId ?: "new-$nonce"}"
+    }
+
+    data class Note(val path: String) : Page {
+        override val key = "note:$path"
+    }
+
+    data object Settings : Page {
+        override val key = "settings"
+    }
+}
+
 @HiltViewModel
 class ShellViewModel @Inject constructor(
     val authController: AuthController,
@@ -26,17 +45,11 @@ class ShellViewModel @Inject constructor(
     private val deepLinks: DeepLinks,
 ) : ViewModel() {
 
-    private val _selectedTab = MutableStateFlow(TAB_NOW)
-    val selectedTab: StateFlow<Int> = _selectedTab.asStateFlow()
+    private val _tab = MutableStateFlow(Tab.Today)
+    val tab: StateFlow<Tab> = _tab.asStateFlow()
 
-    private val _openThreadId = MutableStateFlow<String?>(null)
-    val openThreadId: StateFlow<String?> = _openThreadId.asStateFlow()
-
-    private val _openNotePath = MutableStateFlow<String?>(null)
-    val openNotePath: StateFlow<String?> = _openNotePath.asStateFlow()
-
-    private val _showApprovals = MutableStateFlow(false)
-    val showApprovals: StateFlow<Boolean> = _showApprovals.asStateFlow()
+    private val _pages = MutableStateFlow<List<Page>>(emptyList())
+    val pages: StateFlow<List<Page>> = _pages.asStateFlow()
 
     private val _pendingCount = MutableStateFlow(0)
     val pendingCount: StateFlow<Int> = _pendingCount.asStateFlow()
@@ -49,7 +62,7 @@ class ShellViewModel @Inject constructor(
                 threadId.takeIf { auth is AuthState.Connected }
             }.collect { threadId ->
                 if (threadId != null) {
-                    openThread(threadId)
+                    _pages.value = listOf(Page.Chat(threadId))
                     deepLinks.consumed()
                 }
             }
@@ -60,6 +73,8 @@ class ShellViewModel @Inject constructor(
                     pollPendingCount()
                 } else {
                     _pendingCount.value = 0
+                    _pages.value = emptyList()
+                    _tab.value = Tab.Today
                 }
             }
         }
@@ -76,7 +91,7 @@ class ShellViewModel @Inject constructor(
                     }
                     _pendingCount.value = resp.pendingActions.size
                 } catch (_: Exception) {
-                    // badge is best-effort; silent on failure
+                    // The badge refreshes on the next poll; Today shows load failures.
                 }
                 kotlinx.coroutines.delay(POLL_INTERVAL_MS)
             }
@@ -86,8 +101,8 @@ class ShellViewModel @Inject constructor(
     private fun getConnectionProfile(): ConnectionProfile? =
         (authController.authState.value as? AuthState.Connected)?.profile
 
-    fun selectTab(index: Int) {
-        _selectedTab.value = index
+    fun selectTab(tab: Tab) {
+        _tab.value = tab
     }
 
     /** Registers this device for push; call after the notification permission prompt. */
@@ -95,35 +110,15 @@ class ShellViewModel @Inject constructor(
         getConnectionProfile()?.let(pushManager::register)
     }
 
-    fun openThread(threadId: String) {
-        _openThreadId.value = threadId
+    fun open(page: Page) {
+        _pages.value = _pages.value + page
     }
 
-    fun closeThread() {
-        _openThreadId.value = null
-    }
-
-    fun openNote(path: String) {
-        _openNotePath.value = path
-    }
-
-    fun closeNote() {
-        _openNotePath.value = null
-    }
-
-    fun showApprovalsList() {
-        _showApprovals.value = true
-    }
-
-    fun hideApprovalsList() {
-        _showApprovals.value = false
+    fun back() {
+        _pages.value = _pages.value.dropLast(1)
     }
 
     companion object {
-        const val TAB_NOW = 0
-        const val TAB_THREADS = 1
-        const val TAB_KNOWLEDGE = 2
-        const val TAB_SETTINGS = 3
         private const val POLL_INTERVAL_MS = 30_000L
     }
 }

@@ -15,11 +15,12 @@ class PushSettingsTest {
     }
 
     @Test
-    fun `not configured label names the missing settings`() {
-        val label = pushStatusLabel(PushStatus.NotConfigured(listOf("acorn.firebase.apiKey")))
-        assertTrue(label.contains("acorn.firebase.apiKey"))
-        assertEquals("on", pushStatusLabel(PushStatus.Registered))
-        assertTrue(pushStatusLabel(PushStatus.Failed("timeout")).contains("timeout"))
+    fun `status detail names the missing settings and the failure`() {
+        val detail = pushStatusDetail(PushStatus.NotConfigured(listOf("acorn.firebase.apiKey")))
+        assertTrue(detail!!.contains("acorn.firebase.apiKey"))
+        assertEquals("已开启", pushStatusLabel(PushStatus.Registered))
+        assertNull(pushStatusDetail(PushStatus.Registered))
+        assertEquals("timeout", pushStatusDetail(PushStatus.Failed("timeout")))
     }
 
     @Test

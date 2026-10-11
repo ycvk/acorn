@@ -65,13 +65,13 @@ class RunEventProjectionTest {
             ),
         )
 
-    private fun failedEvent(seq: Long) = ClientRunFailedEvent(
+    private fun failedEvent(seq: Long, error: String? = null) = ClientRunFailedEvent(
         eventId = "evt-$seq",
         runId = "run-1",
         seq = seq,
         ts = now,
         type = null,
-        data = RunFailedData(),
+        data = RunFailedData(error = error),
     )
 
     private fun interruptedEvent(seq: Long) = ClientRunInterruptedEvent(
@@ -219,7 +219,7 @@ class RunEventProjectionTest {
                 ),
             ),
         )
-        assertEquals(listOf("Waiting for approval: browser"), state.activities.map { it.label })
+        assertEquals(listOf("等你批准：browser"), state.activities.map { it.label })
         assertEquals(ActivityKind.ToolApproval, state.activities.single().kind)
 
         state = projection.apply(
@@ -259,5 +259,15 @@ class RunEventProjectionTest {
         assertEquals(RunStatus.Completed, state.runStatus)
         assertFalse(state.isStreaming)
         assertEquals("Hello, world!", state.assistantText)
+    }
+
+    @Test
+    fun `a failed run keeps its reason until the next run starts`() {
+        val failed = projection.apply(ChatState(isStreaming = true), RunEventPacket.RunFailed(failedEvent(3, "model returned 401")))
+        assertEquals("model returned 401", failed.failure)
+        assertFalse(failed.isStreaming)
+
+        val restarted = projection.apply(failed, RunEventPacket.Started(startedEvent()))
+        assertEquals(null, restarted.failure)
     }
 }

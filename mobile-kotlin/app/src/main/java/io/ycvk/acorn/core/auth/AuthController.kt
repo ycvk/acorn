@@ -1,5 +1,7 @@
 package io.ycvk.acorn.core.auth
 
+import io.ycvk.acorn.api.infrastructure.ClientException
+import io.ycvk.acorn.core.ui.userMessage
 import io.ycvk.acorn.data.repository.AuthRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -63,7 +65,7 @@ class AuthController @Inject constructor(
                 _authState.value = AuthState.Connected(profile)
                 _pairingState.value = PairingState.Success
             } catch (e: Exception) {
-                _pairingState.value = PairingState.Error(e.message ?: "Pairing failed")
+                _pairingState.value = PairingState.Error(pairingMessage(e))
             }
         }
     }
@@ -93,4 +95,10 @@ sealed class PairingState {
     data object Pairing : PairingState()
     data object Success : PairingState()
     data class Error(val message: String) : PairingState()
+}
+
+/** A rejected code is the common failure; anything else reads like any other request failure. */
+fun pairingMessage(e: Throwable): String = when ((e as? ClientException)?.statusCode) {
+    400, 401, 403, 404, 410 -> "配对码无效或已过期。在服务器上重新运行 acorn pair 获取新的配对码。"
+    else -> userMessage(e)
 }

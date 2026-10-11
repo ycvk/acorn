@@ -1,141 +1,107 @@
 package io.ycvk.acorn.core.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.SideEffect
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.LineHeightStyle
-import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.dp
 
-private val LightAetherColors = lightColorScheme(
-    primary = LightAetherPalette.primary,
-    onPrimary = LightAetherPalette.onPrimary,
-    primaryContainer = LightAetherPalette.primaryContainer,
-    onPrimaryContainer = LightAetherPalette.onPrimaryContainer,
-    secondary = LightAetherPalette.secondary,
-    onSecondary = LightAetherPalette.onSecondary,
-    secondaryContainer = LightAetherPalette.secondaryContainer,
-    onSecondaryContainer = LightAetherPalette.onSecondaryContainer,
-    background = LightAetherPalette.background,
-    surface = LightAetherPalette.surface,
-    surfaceVariant = LightAetherPalette.surfaceVariant,
-    onSurface = LightAetherPalette.onSurface,
-    onSurfaceVariant = LightAetherPalette.onSurfaceVariant,
-    tertiary = LightAetherPalette.tertiary,
-    error = LightAetherPalette.error,
-    outline = LightAetherPalette.outline,
-)
+private val LocalAcornColors = staticCompositionLocalOf { LightColors }
+private val LocalAcornType = staticCompositionLocalOf { DefaultType }
 
-private val DarkAetherColors = darkColorScheme(
-    primary = DarkAetherPalette.primary,
-    onPrimary = DarkAetherPalette.onPrimary,
-    primaryContainer = DarkAetherPalette.primaryContainer,
-    onPrimaryContainer = DarkAetherPalette.onPrimaryContainer,
-    secondary = DarkAetherPalette.secondary,
-    onSecondary = DarkAetherPalette.onSecondary,
-    secondaryContainer = DarkAetherPalette.secondaryContainer,
-    onSecondaryContainer = DarkAetherPalette.onSecondaryContainer,
-    background = DarkAetherPalette.background,
-    surface = DarkAetherPalette.surface,
-    surfaceVariant = DarkAetherPalette.surfaceVariant,
-    onSurface = DarkAetherPalette.onSurface,
-    onSurfaceVariant = DarkAetherPalette.onSurfaceVariant,
-    tertiary = DarkAetherPalette.tertiary,
-    error = DarkAetherPalette.error,
-    outline = DarkAetherPalette.outline,
-)
+object AcornTheme {
+    val colors: AcornColors
+        @Composable @ReadOnlyComposable get() = LocalAcornColors.current
+    val type: AcornType
+        @Composable @ReadOnlyComposable get() = LocalAcornType.current
+}
 
-private val trim = LineHeightStyle(
-    alignment = LineHeightStyle.Alignment.Top,
-    trim = LineHeightStyle.Trim.LastLineBottom,
-)
-
-private val AetherTypography = Typography(
-    headlineLarge = TextStyle(
-        fontFamily = FontFamily.SansSerif,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 34.sp,
-        lineHeight = 40.sp,
-        letterSpacing = (-0.9).sp,
-        lineHeightStyle = trim,
-    ),
-    headlineMedium = TextStyle(
-        fontFamily = FontFamily.SansSerif,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 29.sp,
-        lineHeight = 36.sp,
-        letterSpacing = (-0.5).sp,
-        lineHeightStyle = trim,
-    ),
-    titleLarge = TextStyle(
-        fontFamily = FontFamily.SansSerif,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 24.sp,
-        lineHeight = 31.sp,
-        lineHeightStyle = trim,
-    ),
-    titleMedium = TextStyle(
-        fontFamily = FontFamily.SansSerif,
-        fontWeight = FontWeight.Medium,
-        fontSize = 18.sp,
-        lineHeight = 25.sp,
-        lineHeightStyle = trim,
-    ),
-    bodyLarge = TextStyle(
-        fontFamily = FontFamily.SansSerif,
-        fontWeight = FontWeight.Normal,
-        fontSize = 17.sp,
-        lineHeight = 28.sp,
-    ),
-    bodyMedium = TextStyle(
-        fontFamily = FontFamily.SansSerif,
-        fontWeight = FontWeight.Normal,
-        fontSize = 15.sp,
-        lineHeight = 24.sp,
-    ),
-    bodySmall = TextStyle(
-        fontFamily = FontFamily.SansSerif,
-        fontWeight = FontWeight.Normal,
-        fontSize = 13.sp,
-        lineHeight = 18.sp,
-    ),
-    labelLarge = TextStyle(
-        fontFamily = FontFamily.SansSerif,
-        fontWeight = FontWeight.Medium,
-        fontSize = 14.sp,
-        lineHeight = 20.sp,
-    ),
-    labelMedium = TextStyle(
-        fontFamily = FontFamily.SansSerif,
-        fontWeight = FontWeight.Medium,
-        fontSize = 13.sp,
-        lineHeight = 18.sp,
-    ),
-    labelSmall = TextStyle(
-        fontFamily = FontFamily.SansSerif,
-        fontWeight = FontWeight.Medium,
-        fontSize = 11.sp,
-        lineHeight = 16.sp,
-    ),
-)
+object AcornShapes {
+    val small = RoundedCornerShape(10.dp)
+    val medium = RoundedCornerShape(14.dp)
+    val large = RoundedCornerShape(20.dp)
+}
 
 @Composable
 fun AcornTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit,
 ) {
-    SideEffect {
-        updateAetherPalette(darkTheme)
+    val colors = if (darkTheme) DarkColors else LightColors
+    CompositionLocalProvider(
+        LocalAcornColors provides colors,
+        LocalAcornType provides DefaultType,
+    ) {
+        MaterialTheme(
+            colorScheme = materialColors(colors),
+            typography = materialTypography(DefaultType),
+            shapes = Shapes(
+                extraSmall = AcornShapes.small,
+                small = AcornShapes.small,
+                medium = AcornShapes.medium,
+                large = AcornShapes.large,
+                extraLarge = RoundedCornerShape(28.dp),
+            ),
+            content = content,
+        )
     }
-    MaterialTheme(
-        colorScheme = if (darkTheme) DarkAetherColors else LightAetherColors,
-        typography = AetherTypography,
-        content = content,
+}
+
+/** Material components (dialogs, sheets, switches) draw from the same palette. */
+private fun materialColors(c: AcornColors) = if (c.isDark) {
+    darkColorScheme(
+        primary = c.accent, onPrimary = c.onAccent,
+        primaryContainer = c.accentSoft, onPrimaryContainer = c.accentInk,
+        secondary = c.inkSoft, onSecondary = c.canvas,
+        secondaryContainer = c.surfaceMuted, onSecondaryContainer = c.ink,
+        background = c.canvas, onBackground = c.ink,
+        surface = c.surface, onSurface = c.ink,
+        surfaceVariant = c.surfaceMuted, onSurfaceVariant = c.inkSoft,
+        surfaceContainerLowest = c.canvas, surfaceContainerLow = c.surface,
+        surfaceContainer = c.surface, surfaceContainerHigh = c.surface, surfaceContainerHighest = c.surfaceMuted,
+        outline = c.lineStrong, outlineVariant = c.line,
+        error = c.danger, onError = c.onAccent, errorContainer = c.dangerSoft, onErrorContainer = c.danger,
+        scrim = c.scrim,
+    )
+} else {
+    lightColorScheme(
+        primary = c.accent, onPrimary = c.onAccent,
+        primaryContainer = c.accentSoft, onPrimaryContainer = c.accentInk,
+        secondary = c.inkSoft, onSecondary = c.canvas,
+        secondaryContainer = c.surfaceMuted, onSecondaryContainer = c.ink,
+        background = c.canvas, onBackground = c.ink,
+        surface = c.surface, onSurface = c.ink,
+        surfaceVariant = c.surfaceMuted, onSurfaceVariant = c.inkSoft,
+        surfaceContainerLowest = c.canvas, surfaceContainerLow = c.surface,
+        surfaceContainer = c.surface, surfaceContainerHigh = c.surface, surfaceContainerHighest = c.surfaceMuted,
+        outline = c.lineStrong, outlineVariant = c.line,
+        error = c.danger, onError = c.onAccent, errorContainer = c.dangerSoft, onErrorContainer = c.danger,
+        scrim = c.scrim,
     )
 }
+
+private fun materialTypography(t: AcornType) = Typography(
+    displayLarge = t.largeTitle,
+    displayMedium = t.largeTitle,
+    displaySmall = t.largeTitle,
+    headlineLarge = t.title,
+    headlineMedium = t.title,
+    headlineSmall = t.title,
+    titleLarge = t.title,
+    titleMedium = t.headline,
+    titleSmall = t.label,
+    bodyLarge = t.body,
+    bodyMedium = t.callout,
+    bodySmall = t.footnote,
+    labelLarge = t.label,
+    labelMedium = t.footnote.copy(fontWeight = FontWeight.Medium),
+    labelSmall = t.caption,
+)
