@@ -67,6 +67,8 @@ import io.ycvk.acorn.core.ui.rememberHaptics
 import io.ycvk.acorn.feature.chat.ChatScreen
 import io.ycvk.acorn.feature.knowledge.KnowledgeScreen
 import io.ycvk.acorn.feature.knowledge.KnowledgeViewModel
+import io.ycvk.acorn.feature.memory.MemoryScreen
+import io.ycvk.acorn.feature.memory.MemoryViewModel
 import io.ycvk.acorn.feature.knowledge.NoteScreen
 import io.ycvk.acorn.feature.now.NowScreen
 import io.ycvk.acorn.feature.pairing.PairingScreen
@@ -97,6 +99,7 @@ private fun ConnectedShell(shellViewModel: ShellViewModel) {
     val pages by shellViewModel.pages.collectAsStateWithLifecycle()
     val pendingCount by shellViewModel.pendingCount.collectAsStateWithLifecycle()
     val knowledgeViewModel: KnowledgeViewModel = hiltViewModel()
+    val memoryViewModel: MemoryViewModel = hiltViewModel()
 
     val context = LocalContext.current
     val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
@@ -152,12 +155,23 @@ private fun ConnectedShell(shellViewModel: ShellViewModel) {
                         )
                         Tab.Knowledge -> KnowledgeScreen(
                             viewModel = knowledgeViewModel,
+                            memoryViewModel = memoryViewModel,
                             onNoteClick = { shellViewModel.open(Page.Note(it)) },
+                            onMemoryClick = { shellViewModel.open(Page.Memory(it)) },
                         )
                     }
                 }
                 is Page.Chat -> ChatScreen(threadId = page.threadId, openActionId = page.actionId, onBack = shellViewModel::back)
                 is Page.Note -> NoteScreen(path = page.path, viewModel = knowledgeViewModel, onBack = shellViewModel::back)
+                is Page.Memory -> MemoryScreen(
+                    id = page.id,
+                    viewModel = memoryViewModel,
+                    onBack = shellViewModel::back,
+                    onOpenMemory = { shellViewModel.open(Page.Memory(it)) },
+                    onReplaceMemory = { shellViewModel.replace(Page.Memory(it)) },
+                    onOpenThread = { shellViewModel.open(Page.Chat(it)) },
+                    onOpenNote = { shellViewModel.open(Page.Note(it)) },
+                )
                 Page.Settings -> SettingsScreen(onBack = shellViewModel::back)
             }
         }

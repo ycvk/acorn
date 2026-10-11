@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -427,5 +428,55 @@ fun Tag(text: String, modifier: Modifier = Modifier, color: Color = AcornTheme.c
             .clip(RoundedCornerShape(6.dp))
             .background(container)
             .padding(horizontal = 7.dp, vertical = 2.dp),
+    )
+}
+
+/** Equal options in one rounded track; the selected one is raised. */
+@Composable
+fun SegmentedControl(options: List<String>, selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
+    val colors = AcornTheme.colors
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(36.dp)
+            .clip(AcornShapes.small)
+            .background(colors.surfaceMuted)
+            .padding(3.dp),
+    ) {
+        options.forEachIndexed { index, label ->
+            val active = index == selected
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(if (active) colors.surface else Color.Transparent)
+                    .clickable(role = Role.Tab) { onSelect(index) },
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    label,
+                    style = if (active) AcornTheme.type.footnote.copy(fontWeight = AcornTheme.type.label.fontWeight) else AcornTheme.type.footnote,
+                    color = if (active) colors.ink else colors.inkSoft,
+                )
+            }
+        }
+    }
+}
+
+/** A small selectable pill, for narrowing a list. */
+@Composable
+fun FilterPill(text: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val colors = AcornTheme.colors
+    Text(
+        text,
+        style = AcornTheme.type.footnote,
+        color = if (selected) colors.accentInk else colors.inkSoft,
+        modifier = modifier
+            .clip(RoundedCornerShape(50))
+            .background(if (selected) colors.accentSoft else Color.Transparent)
+            .border(0.5.dp, if (selected) colors.accentSoft else colors.line, RoundedCornerShape(50))
+            .clickable(role = Role.RadioButton, onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
     )
 }

@@ -13,6 +13,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -25,25 +28,48 @@ import io.ycvk.acorn.core.ui.Hairline
 import io.ycvk.acorn.core.ui.LargeHeader
 import io.ycvk.acorn.core.ui.ListRow
 import io.ycvk.acorn.core.ui.ScreenPadding
+import io.ycvk.acorn.core.ui.SegmentedControl
 import io.ycvk.acorn.core.ui.SkeletonRows
 import io.ycvk.acorn.core.ui.listTime
 import io.ycvk.acorn.core.ui.plainSnippet
+import io.ycvk.acorn.feature.memory.MemoryList
+import io.ycvk.acorn.feature.memory.MemoryViewModel
 import io.ycvk.acorn.feature.threads.SearchField
 import java.time.LocalDate
 import java.time.ZoneId
 
+/** The knowledge tab: notes Acorn keeps for the owner, and what it remembers about them. */
 @Composable
 fun KnowledgeScreen(
     viewModel: KnowledgeViewModel,
+    memoryViewModel: MemoryViewModel,
     onNoteClick: (String) -> Unit,
+    onMemoryClick: (String) -> Unit,
 ) {
+    var section by rememberSaveable { mutableIntStateOf(0) }
+    Column(modifier = Modifier.fillMaxSize()) {
+        LargeHeader("知识")
+        SegmentedControl(
+            options = listOf("笔记", "记忆"),
+            selected = section,
+            onSelect = { section = it },
+            modifier = Modifier.padding(horizontal = ScreenPadding, vertical = 4.dp),
+        )
+        when (section) {
+            0 -> NoteList(viewModel, onNoteClick)
+            else -> MemoryList(memoryViewModel, onMemoryClick)
+        }
+    }
+}
+
+@Composable
+private fun NoteList(viewModel: KnowledgeViewModel, onNoteClick: (String) -> Unit) {
     val query by viewModel.query.collectAsStateWithLifecycle()
     val load by viewModel.load.collectAsStateWithLifecycle()
 
     LaunchedEffect(Unit) { viewModel.refresh() }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        LargeHeader("知识")
         SearchField(query, viewModel::onQueryChange, "搜索笔记", Modifier.padding(horizontal = ScreenPadding, vertical = 6.dp))
         when (val content = knowledgeContent(load, query)) {
             KnowledgeContent.Loading -> SkeletonRows()

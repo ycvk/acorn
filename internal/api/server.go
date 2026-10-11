@@ -16,6 +16,7 @@ type Dependencies struct {
 	DeviceAuth         *DeviceAuthService
 	Inbox              *InboxService
 	Knowledge          *KnowledgeService
+	Memories           *MemoryService
 	Captures           *CaptureService
 	PhoneNotifications *PhoneNotificationService
 	Now                *NowService
@@ -33,6 +34,7 @@ type Server struct {
 	deviceAuth         *DeviceAuthService
 	inbox              *InboxService
 	knowledge          *KnowledgeService
+	memories           *MemoryService
 	captures           *CaptureService
 	phoneNotifications *PhoneNotificationService
 	now                *NowService

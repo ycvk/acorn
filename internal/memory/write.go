@@ -119,6 +119,12 @@ func (e *Engine) Correct(ctx context.Context, runID string, in CorrectInput) (co
 	if _, err := e.currentOwner(ctx, runID, in.SourceID); err != nil {
 		return core.MemoryRecord{}, err
 	}
+	return e.correct(ctx, in)
+}
+
+// correct supersedes a fact with in, whose source the caller has checked
+// belongs to the owner.
+func (e *Engine) correct(ctx context.Context, in CorrectInput) (core.MemoryRecord, error) {
 	old, err := e.cfg.Store.ReadMemory(ctx, in.ID)
 	if err != nil {
 		return core.MemoryRecord{}, err

@@ -34,6 +34,10 @@ sealed interface Page {
         override val key = "note:$path"
     }
 
+    data class Memory(val id: String) : Page {
+        override val key = "memory:$id"
+    }
+
     data object Settings : Page {
         override val key = "settings"
     }
@@ -113,6 +117,11 @@ class ShellViewModel @Inject constructor(
 
     fun open(page: Page) {
         _pages.value = _pages.value + page
+    }
+
+    /** Swaps the top page, e.g. a corrected memory for the one it replaced. */
+    fun replace(page: Page) {
+        _pages.value = _pages.value.dropLast(1) + page
     }
 
     fun back() {

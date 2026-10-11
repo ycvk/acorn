@@ -38,6 +38,9 @@ func NewHandler(deps Dependencies) (http.Handler, error) {
 	if deps.Knowledge == nil {
 		return nil, errors.New("web knowledge service is required")
 	}
+	if deps.Memories == nil {
+		return nil, errors.New("web memory service is required")
+	}
 	if deps.Captures == nil {
 		return nil, errors.New("web capture service is required")
 	}
@@ -63,6 +66,7 @@ func NewHandler(deps Dependencies) (http.Handler, error) {
 		deviceAuth:         deps.DeviceAuth,
 		inbox:              deps.Inbox,
 		knowledge:          deps.Knowledge,
+		memories:           deps.Memories,
 		captures:           deps.Captures,
 		phoneNotifications: deps.PhoneNotifications,
 		now:                deps.Now,
@@ -126,6 +130,10 @@ func (s *Server) registerRoutes(router chi.Router) {
 			r.Get("/knowledge/notes", s.handleListKnowledgeNotes)
 			r.Get("/knowledge/note", s.handleGetKnowledgeNote)
 			r.Get("/knowledge/attachment", s.handleGetKnowledgeAttachment)
+			r.Get("/memories", s.handleListMemories)
+			r.Get("/memories/{memory_id}", s.handleGetMemory)
+			r.Post("/memories/{memory_id}:forget", s.handleForgetMemory)
+			r.Post("/memories/{memory_id}:correct", s.handleCorrectMemory)
 			r.Get("/system/status", s.handleClientSystemStatus)
 			r.Get("/tools", s.handleClientTools)
 			r.Route("/skills", func(r chi.Router) {

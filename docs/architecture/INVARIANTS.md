@@ -69,6 +69,9 @@
   - `internal/store/memory_contract_test.go`
   - `internal/store/memory_state_test.go`
   - `internal/runtime/memory_visibility_test.go`
+- **App 里的记忆改动与 agent 同路**：`/v1/memories` 只列出未排除的 current/disputed/open 记录，详情略去已排除来源的证据。owner 在 App 里的修改与遗忘各登记一个 `request` 来源（speaker 为 owner、从不抽取）：修改以它为新事实的证据并 supersede 原事实，只接受 fact 且校验读到的 revision；遗忘以它为请求来源走同一个排除事务，并在回应前经同一个屏障等待受影响的 run 退出。
+  - `internal/wire/memory_page_e2e_test.go`
+  - `internal/store/memory_request_source_test.go`
 - **后台处理可恢复，外部调用可计量**：来源与任务原子登记、租约 token 和游标防止重复/过期提交；一次整合调用最多对齐 8 条一起变化的记录，批内每个任务的租约都在提交事务里校验并结束，调用失败时批内任务一起记失败；每个模型、embedding 与压缩调用按预算记录用量。索引模型与维度匹配方可检索，离线维护使用独占数据目录锁。
   - `internal/memory/process_test.go`
   - `internal/memory/consolidation_batch_test.go`

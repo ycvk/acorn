@@ -20,6 +20,7 @@ tags:
   - name: client
   - name: captures
   - name: knowledge
+  - name: memories
 paths:
   /healthz:
     get:
@@ -865,6 +866,142 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /v1/memories:
+    get:
+      tags: [memories]
+      summary: Search or list what Acorn remembers
+      description: |
+        Current facts, insights and open thoughts. With `q`, memories whose
+        text matches; without it, memories by last change, newest first.
+        Forgotten memories never appear.
+      operationId: clientListMemories
+      parameters:
+        - name: kind
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [fact, insight, thought]
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+      responses:
+        '200':
+          description: Memories
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemoryListResponse'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/DeviceRevoked'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/memories/{memory_id}:
+    get:
+      tags: [memories]
+      summary: Read a memory with its evidence and history
+      description: |
+        Evidence lists the quotes the memory rests on and where each came
+        from; evidence from forgotten sources is left out. `based_on` holds
+        the memories an insight was drawn from, and `earlier` the memory's
+        previous wordings, newest first.
+      operationId: clientGetMemory
+      parameters:
+        - $ref: '#/components/parameters/MemoryID'
+      responses:
+        '200':
+          description: The memory
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemoryDetail'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/DeviceRevoked'
+        '404':
+          $ref: '#/components/responses/MemoryNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/memories/{memory_id}:forget:
+    post:
+      tags: [memories]
+      summary: Forget a memory
+      description: |
+        Excludes the memory from everything Acorn uses from now on. Forgetting
+        a fact also excludes the quotes it rests on and every memory drawn from
+        them; forgetting an insight or thought withdraws only that memory. Runs
+        that saw the memory are stopped before the response. The original
+        messages and notes stay where they are.
+      operationId: clientForgetMemory
+      parameters:
+        - $ref: '#/components/parameters/MemoryID'
+      responses:
+        '200':
+          description: Forgotten
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemoryForgetResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/DeviceRevoked'
+        '404':
+          $ref: '#/components/responses/MemoryNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/memories/{memory_id}:correct:
+    post:
+      tags: [memories]
+      summary: Correct a fact
+      description: |
+        Replaces a fact with the owner's wording, which becomes its evidence.
+        The previous wording stays in the new fact's history. Only facts can
+        be corrected; `revision` is the revision the owner read.
+      operationId: clientCorrectMemory
+      parameters:
+        - $ref: '#/components/parameters/MemoryID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CorrectMemoryRequest'
+      responses:
+        '200':
+          description: The corrected fact, under a new id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemorySummary'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/DeviceRevoked'
+        '404':
+          $ref: '#/components/responses/MemoryNotFound'
+        '409':
+          $ref: '#/components/responses/MemoryChanged'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -926,6 +1063,12 @@ components:
       schema:
         type: integer
         minimum: 0
+    MemoryID:
+      name: memory_id
+      in: path
+      required: true
+      schema:
+        type: string
     ProbeMCP:
       name: probe_mcp
       in: query
@@ -996,6 +1139,30 @@ components:
                 error:
                   code: knowledge_note_not_found
                   message: 'knowledge note not found: inbox/missing.md'
+    MemoryNotFound:
+      description: Memory not found or forgotten
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            memoryNotFound:
+              value:
+                error:
+                  code: memory_not_found
+                  message: 'memory not found: record m_0123'
+    MemoryChanged:
+      description: The memory changed since the client read it
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            memoryChanged:
+              value:
+                error:
+                  code: memory_changed
+                  message: the memory changed since it was read; reload it and try again
     KnowledgeAttachmentNotFound:
       description: Attachment not found
       content:
@@ -2390,6 +2557,139 @@ components:
           type: string
         failures:
           type: integer
+
+    MemorySummary:
+      type: object
+      additionalProperties: false
+      required: [id, kind, content, state, revision, pinned, needs_review, updated_at]
+      properties:
+        id:
+          type: string
+        kind:
+          type: string
+          enum: [fact, insight, thought]
+        content:
+          type: string
+        scope:
+          type: string
+          description: Conditions under which the memory applies.
+        state:
+          type: string
+          description: current, disputed, superseded or retracted for facts and insights; open, resolved or released for thoughts.
+        revision:
+          type: integer
+          format: int64
+        pinned:
+          type: boolean
+          description: The owner explicitly asked Acorn to remember it.
+        needs_review:
+          type: boolean
+        valid_from:
+          type: string
+          format: date-time
+        valid_to:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    MemoryListResponse:
+      type: object
+      additionalProperties: false
+      required: [memories, has_more]
+      properties:
+        memories:
+          type: array
+          items:
+            $ref: '#/components/schemas/MemorySummary'
+        has_more:
+          type: boolean
+          description: More memories match than the limit returned.
+
+    MemoryEvidence:
+      type: object
+      additionalProperties: false
+      required: [quote, relation, source_kind, speaker, recorded_at]
+      properties:
+        quote:
+          type: string
+        relation:
+          type: string
+          enum: [supports, contradicts]
+        source_kind:
+          type: string
+          description: message, knowledge, event (a tool result), watch, thought, or request (the owner's own wording in the app).
+        speaker:
+          type: string
+          description: owner, assistant, tool or external.
+        recorded_at:
+          type: string
+          format: date-time
+        thread_id:
+          type: string
+          description: The conversation the source belongs to, when it has one.
+        note_path:
+          type: string
+          description: Set on knowledge sources.
+        tool_name:
+          type: string
+          description: Set on tool results.
+
+    MemoryEarlier:
+      type: object
+      additionalProperties: false
+      required: [content, updated_at]
+      properties:
+        content:
+          type: string
+        updated_at:
+          type: string
+          format: date-time
+
+    MemoryDetail:
+      type: object
+      additionalProperties: false
+      required: [memory, evidence, based_on, earlier]
+      properties:
+        memory:
+          $ref: '#/components/schemas/MemorySummary'
+        evidence:
+          type: array
+          items:
+            $ref: '#/components/schemas/MemoryEvidence'
+        based_on:
+          type: array
+          items:
+            $ref: '#/components/schemas/MemorySummary'
+        earlier:
+          type: array
+          items:
+            $ref: '#/components/schemas/MemoryEarlier'
+
+    MemoryForgetResponse:
+      type: object
+      additionalProperties: false
+      required: [forgotten_ids]
+      properties:
+        forgotten_ids:
+          type: array
+          description: Every memory excluded, the requested one and those drawn from what it rests on.
+          items:
+            type: string
+
+    CorrectMemoryRequest:
+      type: object
+      additionalProperties: false
+      required: [revision, content]
+      properties:
+        revision:
+          type: integer
+          format: int64
+          minimum: 1
+        content:
+          type: string
+          minLength: 1
 
     KnowledgeNoteSummary:
       type: object
