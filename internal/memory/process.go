@@ -123,7 +123,7 @@ func (e *Engine) extract(ctx context.Context, job core.MemoryJob) error {
 	if err != nil {
 		return err
 	}
-	reply, err := e.generate(ctx, "extract", extractInstruction, string(input), 4096)
+	reply, err := e.generate(ctx, "extract", extractInstruction, string(input), memoryJSONOutputTokens)
 	if err != nil {
 		return err
 	}

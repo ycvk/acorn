@@ -104,7 +104,7 @@ func (e *Engine) consolidate(ctx context.Context, job core.MemoryJob) error {
 	if err != nil {
 		return err
 	}
-	reply, err := e.generate(ctx, "consolidate", consolidateInstruction, string(input), 2048)
+	reply, err := e.generate(ctx, "consolidate", consolidateInstruction, string(input), memoryJSONOutputTokens)
 	if err != nil {
 		return err
 	}
