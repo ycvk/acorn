@@ -56,7 +56,7 @@ jobs:
       - uses: actions/upload-artifact@v7.0.1
         with:
           name: acorn-mobile-android-debug
-          retention-days: 14
+          retention-days: 3
           path: mobile-kotlin/app/build/outputs/apk/debug/app-debug.apk
 
   release-artifacts:
@@ -110,6 +110,7 @@ jobs:
       - uses: actions/upload-artifact@v7.0.1
         with:
           name: acorn-${{ matrix.goos }}-${{ matrix.goarch }}
+          retention-days: 3
           path: |
             dist/acorn_${{ github.sha }}_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz
             dist/acorn_${{ github.sha }}_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz.sha256
