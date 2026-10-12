@@ -10,6 +10,7 @@ ADR 记录 Acorn 架构方向级决策的"为什么"。current-state 架构真�
 | [0004](0004-personal-memory.md) | 个人记忆的证据与行动模型 | Accepted | 2026-10-09 |
 | [0005](0005-knowledge-in-sqlite.md) | 知识库笔记存进 SQLite | Accepted | 2026-10-10 |
 | [0006](0006-agent-workstation.md) | agent 的工作机 — 在 VPS 上有一台能动手的隔离电脑 | Proposed | 2026-10-12 |
+| [0007](0007-agent-maintained-skills.md) | agent 维护自己的技能 | Proposed | 2026-10-12 |
 
 ## Status 约定
 
