@@ -389,7 +389,9 @@ run_root install -m 0644 "$backup_service_template" "$backup_unit_path"
 run_root install -m 0644 "$backup_timer_template" "$backup_timer_path"
 if [ "$install_workstation" = "1" ]; then
 	log "Building the agent workstation image; this downloads Debian packages"
-	run_root podman build -t "localhost/acorn-workstation:$version" "$package_dir/workstation"
+	# Build steps use the host network: inside an unprivileged LXC the build
+	# sandbox cannot create its own (no /dev/net/tun).
+	run_root podman build --network=host -t "localhost/acorn-workstation:$version" "$package_dir/workstation"
 	workstation_template=$work_dir/acorn-workstation.service
 	write_workstation_service_template "$workstation_template"
 	run_root install -m 0644 "$workstation_template" "$workstation_unit_path"
