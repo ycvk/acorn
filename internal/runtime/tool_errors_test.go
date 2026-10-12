@@ -10,6 +10,7 @@ import (
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/compose"
 	"github.com/cloudwego/eino/schema"
+	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
 )
 
@@ -72,7 +73,7 @@ func TestUnknownToolBecomesModelVisibleResult(t *testing.T) {
 
 func TestApprovalInterruptPassesThroughToolErrorMiddleware(t *testing.T) {
 	RegisterTypes()
-	approval, err := newApprovalMiddleware([]string{"echo_tool"}, &approvalTestStore{})
+	approval, err := newApprovalMiddleware(config.ApprovalConfig{Require: []string{"echo_tool"}}, nil, &approvalTestStore{})
 	if err != nil {
 		t.Fatalf("approval middleware: %v", err)
 	}
@@ -99,7 +100,7 @@ func (*failingApprovalStore) CreatePendingAction(context.Context, core.PendingAc
 }
 
 func TestApprovalStoreFailureFailsRun(t *testing.T) {
-	approval, err := newApprovalMiddleware([]string{"echo_tool"}, &failingApprovalStore{})
+	approval, err := newApprovalMiddleware(config.ApprovalConfig{Require: []string{"echo_tool"}}, nil, &failingApprovalStore{})
 	if err != nil {
 		t.Fatalf("approval middleware: %v", err)
 	}

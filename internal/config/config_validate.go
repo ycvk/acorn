@@ -3,7 +3,6 @@ package config
 import (
 	"errors"
 	"fmt"
-	"path"
 	"strings"
 )
 
@@ -41,15 +40,11 @@ func (c *Config) ValidateBase() error {
 	if err := c.validateWorkstation(); err != nil {
 		return err
 	}
-	for i, pattern := range c.Approval.Require {
-		// ask_operator already waits on the owner; gating it would ask twice.
-		matchesAskOperator, err := path.Match(pattern, "ask_operator")
-		if err != nil {
-			return fmt.Errorf("approval.require[%d] %q: %w", i, pattern, err)
-		}
-		if matchesAskOperator {
-			return fmt.Errorf("approval.require[%d] %q must not match ask_operator", i, pattern)
-		}
+	if err := c.validateApproval(); err != nil {
+		return err
+	}
+	if err := c.validateReview(); err != nil {
+		return err
 	}
 	seenProviderNames := make(map[string]struct{}, len(c.MCP.Providers))
 	for _, provider := range c.MCP.Providers {

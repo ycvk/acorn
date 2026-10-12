@@ -129,12 +129,18 @@ providers:
 
 Provider keys can reference environment variables. Missing provider credentials are reported by readiness checks instead of being silently ignored.
 
-Tools whose names match `approval.require` pause the run until you accept or decline the call on your phone. Patterns use glob syntax and default to every MCP tool:
+Tool calls go through your rules first: `approval.block` refuses a call, `approval.require` pauses the run until you accept or decline it on your phone, and `approval.allow` runs it. Patterns use glob syntax; `require` defaults to every MCP tool. With a TypeSafe key, Jev reviews the shell commands, browser actions and MCP calls no rule settles, and the ones with consequences outside the workstation, such as paying, sending, deleting or changing settings, wait for your approval:
 
 ```yaml
 approval:
   require:
     - "mcp__*"
+  block: []
+  allow: []
+
+review:
+  api_key: ${TYPESAFE_API_KEY}
+  model: jev-1.13.0
 ```
 
 ## API

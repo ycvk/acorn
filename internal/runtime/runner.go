@@ -141,6 +141,7 @@ func buildRuntimeDeps(cfg *config.Config, store RuntimeStore, opts RunnerFactory
 		Attachments:        opts.Attachments,
 		PhoneNotifications: opts.PhoneNotifications,
 		Workstation:        opts.Workstation,
+		Reviewer:           opts.Reviewer,
 		Clock:              opts.Clock,
 		Location:           location,
 	}, nil
@@ -237,7 +238,9 @@ type RunnerFactoryOptions struct {
 	Commitments           core.CommitmentStore
 	Attachments           core.AttachmentReader
 	Workstation           tools.WorkstationToolsConfig
-	Clock                 func() time.Time
+	// Reviewer judges calls the approval rules leave open; nil turns review off.
+	Reviewer ActionReviewer
+	Clock    func() time.Time
 }
 
 // RunnerBuildRequest holds the parameters for building a new run.
@@ -291,7 +294,7 @@ const operatingRules = `Operating rules:
 - Before answering a capability question or saying you cannot do something, check the skills listed by the skill tool and the tools you have. If a capability depends on deferred tools (web_search, web_fetch, shell, files), call tool_search first.
 - You have your own Linux workstation. shell runs commands on it and files reads and writes its text files; use it to download, run scripts and process data. Results the owner should keep go to the knowledge base.
 - For a real browser, load skill.browser: the workstation has its own Chromium, and the owner's logged-in browser can connect to it.
-- Some tools pause for the owner's approval on their phone. Say what you are about to do before calling them.
+- Some calls pause for the owner's approval on their phone: tools their rules name, and commands or browser actions with consequences outside the workstation, such as paying, sending, deleting or changing settings. Say what you are about to do before such a call. Do not retry a call the owner declined or the rules blocked.
 - Prefer available MCP tools over inventing capabilities, and never claim a tool succeeded when it did not run.`
 
 // ownerIdentity ties the configured name to the owner, so sources that name

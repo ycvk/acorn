@@ -10,13 +10,20 @@ import (
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/compose"
 	"github.com/cloudwego/eino/schema"
+	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
 )
 
 type approvalTestStore struct {
-	mu      sync.Mutex
-	actions []core.PendingActionInput
-	events  []string
+	mu       sync.Mutex
+	actions  []core.PendingActionInput
+	events   []string
+	payloads []any
+	input    string
+}
+
+func (s *approvalTestStore) LoadRun(_ context.Context, runID string) (*core.RunRecord, error) {
+	return &core.RunRecord{RunID: runID, Input: s.input}, nil
 }
 
 func (s *approvalTestStore) CreatePendingAction(_ context.Context, input core.PendingActionInput) (*core.PendingActionRecord, error) {
@@ -30,6 +37,7 @@ func (s *approvalTestStore) AppendEvent(_ context.Context, runID, kind string, p
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.events = append(s.events, kind)
+	s.payloads = append(s.payloads, payload)
 	return core.EventRecord{RunID: runID, Kind: kind, Payload: payload}, nil
 }
 
@@ -77,7 +85,7 @@ func (t *echoTool) callCount() int {
 func newApprovalTestRunner(t *testing.T, model *scriptedModel, tool *echoTool, store *approvalTestStore, checkpoints adk.CheckPointStore) *adk.TypedRunner[*schema.AgenticMessage] {
 	t.Helper()
 	ctx := context.Background()
-	mw, err := newApprovalMiddleware([]string{"echo_*"}, store)
+	mw, err := newApprovalMiddleware(config.ApprovalConfig{Require: []string{"echo_*"}}, nil, store)
 	if err != nil {
 		t.Fatalf("approval middleware: %v", err)
 	}
@@ -223,19 +231,11 @@ func TestApprovalDeclineSkipsCall(t *testing.T) {
 	assertLastToolMessage(t, second, "The owner declined this echo_tool call")
 }
 
-func TestApprovalSkipsUnmatchedTools(t *testing.T) {
-	mw, err := newApprovalMiddleware([]string{"mcp__*"}, &approvalTestStore{})
-	if err != nil {
-		t.Fatalf("approval middleware: %v", err)
-	}
-	for name, want := range map[string]bool{"echo_tool": false, "mcp__gmail__send": true} {
-		got, err := mw.requiresApproval(name)
-		if err != nil || got != want {
-			t.Fatalf("requiresApproval(%q) = %v, %v; want %v", name, got, err, want)
+func TestApprovalRejectsMalformedPatterns(t *testing.T) {
+	for _, rules := range []config.ApprovalConfig{{Require: []string{"["}}, {Block: []string{"["}}, {Allow: []string{"["}}} {
+		if _, err := newApprovalMiddleware(rules, nil, &approvalTestStore{}); err == nil {
+			t.Fatalf("expected malformed pattern in %+v to be rejected", rules)
 		}
-	}
-	if _, err := newApprovalMiddleware([]string{"["}, &approvalTestStore{}); err == nil {
-		t.Fatal("expected malformed pattern to be rejected")
 	}
 }
 

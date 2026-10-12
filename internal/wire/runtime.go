@@ -144,6 +144,14 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 	if err != nil {
 		return nil, err
 	}
+	reviewer, err := buildReviewer(cfg)
+	if err != nil {
+		return nil, err
+	}
+	var actionReviewer runtime.ActionReviewer
+	if reviewer != nil {
+		actionReviewer = reviewer
+	}
 	runnerFactory, err := runtime.NewRunnerFactory(cfg, db, runtime.RunnerFactoryOptions{
 		Attachments:           vault,
 		Loader:                loader,
@@ -156,6 +164,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 		Commitments:           db,
 		PhoneNotifications:    db,
 		Workstation:           workstationTools,
+		Reviewer:              actionReviewer,
 		Clock:                 options.clock,
 	})
 	if err != nil {

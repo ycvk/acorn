@@ -36,8 +36,11 @@ RUN set -eu; \
 	mkdir -p /opt/browserskill && unzip -q /tmp/extension.zip -d /opt/browserskill/extension; \
 	rm -rf /tmp/bsk /tmp/bsk.tar.gz /tmp/extension.zip
 
-COPY browserskill /opt/browserskill/skill
-COPY entrypoint.sh /usr/local/lib/acorn/workstation-entrypoint
+# Modes are set here so the image does not depend on the umask the release
+# package was built with.
+COPY --chmod=0644 browserskill /opt/browserskill/skill
+COPY --chmod=0755 entrypoint.sh /usr/local/lib/acorn/workstation-entrypoint
+RUN find /opt/browserskill/skill -type d -exec chmod 0755 {} +
 
 # The workstation pins bsk, and the daemons are started by the entrypoint.
 ENV LANG=C.UTF-8 BSK_AUTO_UPDATE=off BSK_AUTO_START=0

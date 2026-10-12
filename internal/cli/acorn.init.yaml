@@ -22,9 +22,21 @@ providers:
     enabled: true
 
 approval:
-  # Tool-name glob patterns whose calls pause for owner approval on the phone.
+  # Tool-name glob patterns. block refuses a call, require pauses it for your
+  # approval on the phone, allow runs it without review. block wins over
+  # require, and require over allow; review judges the rest.
   require:
     - "mcp__*"
+  block: []
+  allow: []
+
+review:
+  # TypeSafe's Jev judges shell commands, browser actions and MCP calls no rule
+  # settles; those with consequences outside the workstation (paying, sending,
+  # deleting, changing settings) pause for your approval. Empty turns it off.
+  api_key: ${TYPESAFE_API_KEY}
+  model: jev-1.13.0
+  timeout_seconds: 20
 
 owner:
   # Your name, so the agent knows it is you when shared material, notifications

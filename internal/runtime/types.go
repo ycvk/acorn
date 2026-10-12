@@ -53,6 +53,7 @@ type RuntimeDeps struct {
 	Commitments        core.CommitmentStore
 	Attachments        core.AttachmentReader
 	Workstation        tools.WorkstationToolsConfig
+	Reviewer           ActionReviewer
 	Clock              func() time.Time
 	Location           *time.Location
 }

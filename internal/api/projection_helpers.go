@@ -61,6 +61,7 @@ func cloneMap(value map[string]any) map[string]any {
 
 const (
 	toolCallSummaryRunes = 80
+	reviewSummaryRunes   = 160
 	toolCallErrorRunes   = 300
 )
 

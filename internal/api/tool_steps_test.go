@@ -97,4 +97,12 @@ func TestToolApprovalSummaryNamesTheToolAndItsTarget(t *testing.T) {
 	if summary.ToolName != "web_fetch" || summary.ToolSummary != "https://go.dev/blog" || summary.ThreadID != "thread_1" {
 		t.Fatalf("summary = %+v", summary)
 	}
+	record.PayloadJSON = `{"tool_name":"shell","arguments":"{\"command\":\"BSK_HOME=$HOME/.bsk-owner bsk click @e3 --session s1\"}","summary":"在你的浏览器里点击「提交订单」 · 订单结算页 —— 涉及付款"}`
+	reviewed, err := buildPendingActionSummary(record, core.RunRecord{RunID: "run_1", SessionID: "thread_1"})
+	if err != nil {
+		t.Fatalf("reviewed summary: %v", err)
+	}
+	if reviewed.ToolName != "shell" || reviewed.ToolSummary != "在你的浏览器里点击「提交订单」 · 订单结算页 —— 涉及付款" {
+		t.Fatalf("reviewed summary = %+v", reviewed)
+	}
 }

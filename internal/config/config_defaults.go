@@ -32,6 +32,11 @@ func defaultConfig() *Config {
 		Watch:    WatchConfig{MaxChecksPerTick: 5},
 		Briefing: BriefingConfig{At: "08:00"},
 		Backup:   BackupConfig{Keep: 14},
+		Review: ReviewConfig{
+			APIKey:         "${TYPESAFE_API_KEY}",
+			Model:          "jev-1.13.0",
+			TimeoutSeconds: 20,
+		},
 		Workstation: WorkstationConfig{
 			Token:                 "${ACORN_WORKSTATION_TOKEN}",
 			CommandTimeoutSeconds: 300,

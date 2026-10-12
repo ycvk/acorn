@@ -243,6 +243,17 @@ func renderDoctorWorkstation(status wire.WorkstationStatus) string {
 	}
 }
 
+func renderDoctorReview(status wire.ReviewStatus) string {
+	switch status.State {
+	case "off":
+		return "Action review: off (review.api_key is not configured; only approval rules gate calls)"
+	case "on":
+		return "Action review: on " + status.Model
+	default:
+		return fmt.Sprintf("Action review: %s %s: %s", status.State, status.Model, status.Error)
+	}
+}
+
 func renderDoctorBrowser(b wire.BrowserStatus) string {
 	name := map[string]string{"workstation": "Workstation browser", "owner": "Your browser"}[b.Daemon]
 	switch b.State {

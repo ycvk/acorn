@@ -373,7 +373,7 @@ Config is parsed strictly: unknown keys stop the backend. When upgrading from a 
 - `mcp.providers[].tool_safety` (use `approval.require`)
 - the whole `browser` block (the workstation runs the browser)
 
-New keys, all optional: `approval.require`, `owner.name`, `owner.timezone`, `presence.max_tokens`, `wake.daily_limit`, `notify.max_per_hour`, `notify.quiet_hours`, `notify.fcm.service_account_file`, `watch.rsshub_base_url`, `watch.github_token`, `watch.max_checks_per_tick`, `briefing.at`, `workstation.*`. Then run `acorn init --persona-only` to write the default persona, and `acorn doctor` to check the result.
+New keys, all optional: `approval.require`, `owner.name`, `owner.timezone`, `presence.max_tokens`, `wake.daily_limit`, `notify.max_per_hour`, `notify.quiet_hours`, `notify.fcm.service_account_file`, `watch.rsshub_base_url`, `watch.github_token`, `watch.max_checks_per_tick`, `briefing.at`, `workstation.*`, `approval.block`, `approval.allow`, `review.*`. Then run `acorn init --persona-only` to write the default persona, and `acorn doctor` to check the result.
 
 Earlier data under `~/.acorn` (`facts/`, `history/`, `worldstate/`, `vectors.db`, `skills/generated/`) is no longer read. Delete it once you no longer need it.
 
@@ -474,7 +474,7 @@ sudo podman volume rm acorn-workstation-home
 sudo systemctl start acorn-workstation
 ```
 
-Commands and file writes on the workstation run without approval. Add `shell` or `files` to `approval.require` to approve each call on your phone.
+Work that stays on the workstation runs without approval. Commands and browser actions with consequences elsewhere wait for your approval when action review is on; see [Approval Rules and Action Review](#approval-rules-and-action-review).
 
 ### Browsers
 
@@ -509,7 +509,38 @@ The agent can also use your own browser, with the sites you are signed in to. Yo
 
 3. Install the BrowserSkill extension in Chrome or Edge from its store, ask the agent to pair your browser, and paste the link it gives you into the extension's popup under **Remote connection**. The link works once and expires after five minutes.
 
-`acorn doctor` shows both browsers. While your browser is connected, the agent opens its own window there, and you see what it does. Its browser instructions tell it to ask you on your phone before submitting forms, sending, buying, deleting or changing account settings, and to hand you sign-in, verification codes and payment confirmation in the browser; Acorn does not enforce this yet. Pairing grants the server the use of every site that browser profile is signed in to; disconnect in the extension popup to stop it. Changing `ACORN_BROWSER_PUBLIC_URL` invalidates existing pairings; pair again afterwards.
+`acorn doctor` shows both browsers. While your browser is connected, the agent opens its own window there, and you see what it does. Submitting forms, sending, buying, deleting or changing account settings wait for your approval on your phone when action review is on, and the agent hands you sign-in, verification codes and payment confirmation in the browser. Pairing grants the server the use of every site that browser profile is signed in to; disconnect in the extension popup to stop it. Changing `ACORN_BROWSER_PUBLIC_URL` invalidates existing pairings; pair again afterwards.
+
+### Approval Rules and Action Review
+
+Every tool call meets your rules first. They are tool-name glob patterns in `~/.acorn/acorn.yaml`:
+
+```yaml
+approval:
+  require:          # pause for your approval on the phone
+    - "mcp__*"
+  block: []         # never run; the agent is told the rules refused it
+  allow: []         # run without review
+```
+
+`block` wins over `require`, and `require` over `allow`.
+
+Action review judges the shell commands, browser actions and MCP calls no rule settles. It uses Jev, TypeSafe's decision model: create a key at [typesafe.ai](https://typesafe.ai), add it to `~/.acorn/acorn.env` and restart Acorn.
+
+```dotenv
+TYPESAFE_API_KEY=your-typesafe-key
+```
+
+```yaml
+review:
+  api_key: ${TYPESAFE_API_KEY}   # empty turns review off
+  model: jev-1.13.0
+  timeout_seconds: 20
+```
+
+Commands that only read, such as reading a page with `bsk observe`, run without review. For a click, fill, key press or select, Acorn sends Jev the element's name and the page it is on, as the agent last observed them, together with what you asked for. Calls that would pay, send, publish, delete, follow, change settings or otherwise change something outside the workstation wait for your approval, and the approval card says what the call does and why. A click on a checkout, payment or security page, text that tries to talk the reviewer into allowing it, an element the agent never observed in your browser, and a review that fails also wait for you.
+
+The calls you are asked about, their target and page, and your request go to TypeSafe. `acorn doctor` shows whether review works.
 
 ## 16. Current Limits
 

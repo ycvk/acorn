@@ -109,13 +109,15 @@ func runDoctor(ctx context.Context, args []string) error {
 			return fmt.Errorf("memory status: %w", err)
 		}
 		workstation := container.WorkstationStatus(ctx)
+		reviewStatus := container.ReviewStatus(ctx)
 		if *jsonMode {
 			return printJSON(struct {
 				api.SystemCapabilities
 				Thinking    wire.ThinkingStatus         `json:"thinking"`
 				Memory      core.MemoryProcessingStatus `json:"memory"`
 				Workstation wire.WorkstationStatus      `json:"workstation"`
-			}{snapshot, thinking, memoryStatus, workstation})
+				Review      wire.ReviewStatus           `json:"review"`
+			}{snapshot, thinking, memoryStatus, workstation, reviewStatus})
 		}
 		fmt.Println(renderDoctorSummary(snapshot, container.Config().ConfigPath))
 		fmt.Println(renderDoctorKnowledge(knowledgeStatus))
@@ -126,6 +128,7 @@ func runDoctor(ctx context.Context, args []string) error {
 			fmt.Printf("Memory error: %s\n", memoryStatus.LastError)
 		}
 		fmt.Println(renderDoctorWorkstation(workstation))
+		fmt.Println(renderDoctorReview(reviewStatus))
 		return nil
 	})
 }

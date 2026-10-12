@@ -147,7 +147,7 @@ func buildAgentHandlers(ctx context.Context, deps RuntimeDeps, req agentRunnerRe
 	if err != nil {
 		return nil, fmt.Errorf("reduction middleware: %w", err)
 	}
-	approval, err := newApprovalMiddleware(deps.Config.Approval.Require, deps.Store)
+	approval, err := newApprovalMiddleware(deps.Config.Approval, deps.Reviewer, deps.Store)
 	if err != nil {
 		return nil, err
 	}

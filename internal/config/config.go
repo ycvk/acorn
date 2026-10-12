@@ -20,13 +20,12 @@ type Config struct {
 	Briefing    BriefingConfig    `yaml:"briefing"`
 	Backup      BackupConfig      `yaml:"backup"`
 	Workstation WorkstationConfig `yaml:"workstation"`
+	Review      ReviewConfig      `yaml:"review"`
 
 	ConfigPath string `yaml:"-"`
 	ConfigDir  string `yaml:"-"`
 }
 
-// ApprovalConfig lists tool-name glob patterns (path.Match syntax) whose calls
-// pause for owner approval before executing.
 // BackupConfig is where acorn backup writes snapshots and how many it keeps.
 // An empty Dir turns backups off.
 type BackupConfig struct {
@@ -34,8 +33,14 @@ type BackupConfig struct {
 	Keep int    `yaml:"keep"`
 }
 
+// ApprovalConfig holds the owner's rules as tool-name glob patterns
+// (path.Match syntax). Block refuses a call, Require pauses it for the
+// owner's approval, and Allow runs it without review; Block wins over
+// Require, and Require over Allow. Calls no rule settles go to review.
 type ApprovalConfig struct {
 	Require []string `yaml:"require"`
+	Block   []string `yaml:"block"`
+	Allow   []string `yaml:"allow"`
 }
 
 type ProviderConfig struct {

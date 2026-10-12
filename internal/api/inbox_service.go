@@ -59,7 +59,8 @@ type PendingActionSummary struct {
 	Options   []PendingActionOption
 	CreatedAt time.Time
 	// ToolName and ToolSummary describe a tool approval: which tool, and what
-	// its call is about, taken from the arguments.
+	// its call is about. Review writes a summary that says what the call does
+	// and why it waits; otherwise it comes from the arguments.
 	ToolName    string
 	ToolSummary string
 }
@@ -181,6 +182,9 @@ func buildAcceptDeclinePendingActionSummary(record core.PendingActionRecord, run
 		}
 		summary.ToolName = topLevelString(payload, "tool_name")
 		summary.ToolSummary = toolCallSummary(topLevelString(payload, "arguments"))
+		if reviewed := topLevelString(payload, "summary"); reviewed != "" {
+			summary.ToolSummary = clip(reviewed, reviewSummaryRunes)
+		}
 	}
 	return summary, nil
 }
