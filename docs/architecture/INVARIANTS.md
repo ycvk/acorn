@@ -172,3 +172,13 @@
   - `internal/wire/thinking_acceptance_e2e_test.go`
 - **手机队列归属清晰**：队列绑定服务器与设备,身份变更清空;取消白名单移除待传项;请求使用批次自己的凭证;失败保留,成功只删除发送的 ID;持续入队保留第一条的上传截止时间。
   - `mobile-kotlin/app/src/test/java/io/ycvk/acorn/core/notifications/NotificationQueueTest.kt`
+
+## 工作机
+
+- **工作机只经带 token 的 HTTP 调用**：serve 不接触容器引擎；`acorn workstation serve` 在容器里运行，每个请求校验 bearer token，token 少于 32 字符时拒绝启动。`shell` 与 `files` 是 deferred 工具，未配置 `workstation.url` 时以原因禁用。
+  - `internal/workstation/workstation_test.go`
+  - `internal/tools/workstation_tools_test.go`
+  - `internal/config/config_workstation_test.go`
+- **命令有界**：超时或请求取消时杀掉命令的整个进程组；工具超时不能超过 `workstation.command_timeout_seconds`；stdout 与 stderr 超出上限时各保留开头和结尾并标出省略的字节数。
+  - `internal/workstation/workstation_test.go`
+  - `internal/tools/workstation_tools_test.go`

@@ -10,6 +10,9 @@ bin_path=$install_dir/acorn
 wrapper_path=/usr/local/bin/acorn
 install_host_tools=${ACORN_INSTALL_HOST_TOOLS:-1}
 start_service=${ACORN_START_SERVICE:-1}
+install_workstation=${ACORN_INSTALL_WORKSTATION:-1}
+workstation_unit_path=/etc/systemd/system/acorn-workstation.service
+workstation_url=http://127.0.0.1:7810
 
 die() {
 	printf '%s\n' "$*" >&2
@@ -61,8 +64,13 @@ install_debian_host_tools() {
 	if ! command -v apt-get >/dev/null 2>&1; then
 		die "automatic host package installation requires apt-get; set ACORN_INSTALL_HOST_TOOLS=0 after installing ca-certificates curl tar sha256sum systemctl"
 	fi
+	packages="ca-certificates curl"
+	if [ "$install_workstation" = "1" ]; then
+		packages="$packages podman"
+	fi
 	run_root apt-get update
-	run_root apt-get install -y ca-certificates curl
+	# shellcheck disable=SC2086
+	run_root apt-get install -y $packages
 }
 
 install_packaged_skills() {
@@ -142,6 +150,31 @@ WantedBy=multi-user.target
 EOF
 }
 
+# The workstation container runs under rootful Podman; inside it the agent
+# user owns /home/agent. Its API listens on host loopback only.
+write_workstation_service_template() {
+	podman_path=$(command -v podman)
+	cat > "$1" <<EOF
+[Unit]
+Description=Acorn agent workstation
+Documentation=https://github.com/ycvk/acorn
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=$env_path
+ExecStartPre=-$podman_path rm -f --ignore acorn-workstation
+ExecStart=$podman_path run --rm --name acorn-workstation --init --pids-limit 4096 -p 127.0.0.1:7810:7810 -v acorn-workstation-home:/home/agent -v $bin_path:/usr/local/bin/acorn:ro -e ACORN_WORKSTATION_TOKEN localhost/acorn-workstation:$version
+ExecStop=$podman_path stop --ignore -t 10 acorn-workstation
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target
+EOF
+}
+
 write_backup_templates() {
 	cat > "$1" <<EOF
 [Unit]
@@ -197,6 +230,9 @@ need_command curl
 need_command tar
 need_command sha256sum
 need_command systemctl
+if [ "$install_workstation" = "1" ]; then
+	command -v podman >/dev/null 2>&1 || die "podman is required for the agent workstation; install it or set ACORN_INSTALL_WORKSTATION=0"
+fi
 
 arch=$(detect_arch)
 version=$(resolve_version)
@@ -230,6 +266,7 @@ download_release_files
 	sha256sum -c CHECKSUMS
 	test -x acorn
 	test -f "skills/capability_recall/SKILL.md"
+	test -f "workstation/Containerfile"
 )
 
 package_dir=$work_dir/$package
@@ -321,9 +358,19 @@ run_root install -m 0755 "$wrapper_template" "$wrapper_path"
 install_packaged_skills "$package_dir/skills" "$skills_dir"
 
 if [ ! -e "$config_path" ]; then
-	run_root runuser -u "$service_user" -- env HOME="$service_home" "$bin_path" init -c "$config_path" --storage-dir "$workspace_dir" --backup-dir "$backup_dir"
+	set -- --storage-dir "$workspace_dir" --backup-dir "$backup_dir"
+	if [ "$install_workstation" = "1" ]; then
+		set -- "$@" --workstation-url "$workstation_url"
+	fi
+	run_root runuser -u "$service_user" -- env HOME="$service_home" "$bin_path" init -c "$config_path" "$@"
 else
 	log "Keeping existing config: $config_path"
+	if [ "$install_workstation" = "1" ] && ! run_root grep -q '^workstation:' "$config_path"; then
+		log "To give the agent its workstation, add this to $config_path and restart acorn:"
+		log "  workstation:"
+		log "    url: $workstation_url"
+		log '    token: ${ACORN_WORKSTATION_TOKEN}'
+	fi
 	run_root runuser -u "$service_user" -- env HOME="$service_home" "$bin_path" init -c "$config_path" --persona-only
 fi
 
@@ -332,13 +379,37 @@ if [ ! -e "$env_path" ]; then
 else
 	log "Keeping existing environment file: $env_path"
 fi
+if [ "$install_workstation" = "1" ] && ! run_root grep -q '^ACORN_WORKSTATION_TOKEN=' "$env_path"; then
+	workstation_token=$(od -An -N32 -tx1 /dev/urandom | tr -d ' \n')
+	printf 'ACORN_WORKSTATION_TOKEN=%s\n' "$workstation_token" | run_root tee -a "$env_path" >/dev/null
+fi
 
 run_root install -m 0644 "$service_template" "$unit_path"
 run_root install -m 0644 "$backup_service_template" "$backup_unit_path"
 run_root install -m 0644 "$backup_timer_template" "$backup_timer_path"
+if [ "$install_workstation" = "1" ]; then
+	log "Building the agent workstation image; this downloads Debian packages"
+	run_root podman build -t "localhost/acorn-workstation:$version" "$package_dir/workstation"
+	workstation_template=$work_dir/acorn-workstation.service
+	write_workstation_service_template "$workstation_template"
+	run_root install -m 0644 "$workstation_template" "$workstation_unit_path"
+fi
 run_root systemctl daemon-reload
 run_root systemctl enable --now acorn-backup.timer
 log "Daily backups: acorn-backup.timer runs acorn backup into backup.dir from $config_path"
+if [ "$install_workstation" = "1" ] && [ "$start_service" = "1" ]; then
+	run_root systemctl enable acorn-workstation
+	run_root systemctl restart acorn-workstation
+	sleep 2
+	if ! run_root systemctl is-active --quiet acorn-workstation; then
+		run_root journalctl -u acorn-workstation --no-pager -n 80
+		die "acorn-workstation service did not become active"
+	fi
+	run_root podman images --format '{{.Repository}}:{{.Tag}}' | grep '^localhost/acorn-workstation:' | grep -v ":$version\$" | while read -r old_image; do
+		run_root podman rmi "$old_image"
+	done
+	log "Agent workstation: acorn-workstation.service serves $workstation_url"
+fi
 
 if [ "$start_service" != "1" ]; then
 	log "Installed Acorn without starting service because ACORN_START_SERVICE=$start_service"

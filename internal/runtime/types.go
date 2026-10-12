@@ -9,6 +9,7 @@ import (
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/skills"
+	"github.com/ycvk/acorn/internal/tools"
 )
 
 func compactText(value string, limit int) (string, bool) {
@@ -51,6 +52,7 @@ type RuntimeDeps struct {
 	Memory             MemoryContextService
 	Commitments        core.CommitmentStore
 	Attachments        core.AttachmentReader
+	Workstation        tools.WorkstationToolsConfig
 	Clock              func() time.Time
 	Location           *time.Location
 }

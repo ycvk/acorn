@@ -46,6 +46,7 @@ if [ "$skill_count" = "0" ]; then
 	exit 1
 fi
 cp -R skills "$package_dir/skills"
+cp -R deploy/workstation "$package_dir/workstation"
 
 install -m 0644 internal/cli/acorn.init.yaml "$package_dir/acorn.yaml.example"
 install -m 0644 deploy/systemd/acorn.service "$package_dir/acorn.service"

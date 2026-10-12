@@ -142,6 +142,12 @@ curl -fsSL https://github.com/ycvk/acorn/releases/latest/download/install-releas
 
 Only use this after installing `ca-certificates`, `curl`, `tar`, `sha256sum` and `systemctl`.
 
+Skip the agent workstation (no Podman, no `acorn-workstation.service`):
+
+```bash
+curl -fsSL https://github.com/ycvk/acorn/releases/latest/download/install-release.sh | ACORN_INSTALL_WORKSTATION=0 sh
+```
+
 Install files without starting `systemd`:
 
 ```bash
@@ -375,7 +381,7 @@ Config is parsed strictly: unknown keys stop the backend. When upgrading from a 
 - `context.preserve_recent_turns`
 - `mcp.providers[].tool_safety` (use `approval.require`)
 
-New keys, all optional: `approval.require`, `owner.name`, `owner.timezone`, `presence.max_tokens`, `wake.daily_limit`, `notify.max_per_hour`, `notify.quiet_hours`, `notify.fcm.service_account_file`, `watch.rsshub_base_url`, `watch.github_token`, `watch.max_checks_per_tick`, `briefing.at`. Then run `acorn init --persona-only` to write the default persona, and `acorn doctor` to check the result.
+New keys, all optional: `approval.require`, `owner.name`, `owner.timezone`, `presence.max_tokens`, `wake.daily_limit`, `notify.max_per_hour`, `notify.quiet_hours`, `notify.fcm.service_account_file`, `watch.rsshub_base_url`, `watch.github_token`, `watch.max_checks_per_tick`, `briefing.at`, `workstation.*`. Then run `acorn init --persona-only` to write the default persona, and `acorn doctor` to check the result.
 
 Earlier data under `~/.acorn` (`facts/`, `history/`, `worldstate/`, `vectors.db`, `skills/generated/`) is no longer read. Delete it once you no longer need it.
 
@@ -454,7 +460,31 @@ The backups live on the same machine. Copy `/srv/acorn/backups` to another host 
 
 The database records its schema version. A newer Acorn upgrades an older database on start; an older Acorn refuses a database written by a newer one, so restore a snapshot made before an upgrade together with the release that made it.
 
-## 15. Current Limits
+## 15. Agent Workstation
+
+The agent has its own Linux computer: a Podman container run by `acorn-workstation.service`. It runs Debian with common command-line tools, Python and internet access; the agent works there as user `agent` with sudo. The agent uses it through two tools, loaded with `tool_search`: `shell` runs a bash command and `files` reads or writes a text file.
+
+The installer installs Podman, builds the image from the release's `workstation/Containerfile`, adds `ACORN_WORKSTATION_TOKEN` to `acorn.env` and starts the service. The Acorn binary is mounted read-only into the container and serves the workstation API on `127.0.0.1:7810`; every request carries the token. The container cannot see Acorn's config, env, data or model keys.
+
+```yaml
+workstation:
+  url: http://127.0.0.1:7810            # empty turns shell and files off
+  token: ${ACORN_WORKSTATION_TOKEN}
+  command_timeout_seconds: 300          # longest a command may run; 1 to 3600
+  max_output_bytes: 32768               # per command; long output keeps its start and end
+```
+
+Files under `/home/agent` live in the `acorn-workstation-home` volume and survive upgrades; `acorn backup` does not include them. Packages installed with `apt` are lost when the image is rebuilt. `acorn doctor` shows whether the workstation answers. To start over with an empty home:
+
+```bash
+sudo systemctl stop acorn-workstation
+sudo podman volume rm acorn-workstation-home
+sudo systemctl start acorn-workstation
+```
+
+Commands and file writes on the workstation run without approval. Add `shell` or `files` to `approval.require` to approve each call on your phone.
+
+## 16. Current Limits
 
 - Host commands are host dependencies. If the model tries to run a command that is not installed on the VPS, the command fails explicitly when used.
 - Web search requires a configured Tavily API key. Browser actions require an operator-installed Chrome/Chromium executable.

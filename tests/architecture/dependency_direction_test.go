@@ -15,30 +15,31 @@ import (
 //
 // Layer 0: core (domain types, contracts, ports, tool registry interfaces)
 // Layer 1: (reserved — port/contract merged into core)
-// Layer 2: store, presence, wake, notify, knowledge, watch, mcp, tools, webaccess, skills, config
+// Layer 2: store, presence, wake, notify, knowledge, watch, mcp, tools, webaccess, skills, workstation, config
 // Layer 3: runtime (executor, per-run assembly, middleware, projection)
 // Layer 4: api
 // Layer 5: wire
 // Layer 6: cli
 
 var layerRank = map[string]int{
-	"core":      0,
-	"config":    2,
-	"store":     2,
-	"presence":  2,
-	"memory":    2,
-	"wake":      2,
-	"notify":    2,
-	"knowledge": 2,
-	"watch":     2,
-	"mcp":       2,
-	"tools":     2,
-	"webaccess": 2,
-	"skills":    2,
-	"runtime":   3,
-	"api":       4,
-	"wire":      5,
-	"cli":       6,
+	"core":        0,
+	"config":      2,
+	"store":       2,
+	"presence":    2,
+	"memory":      2,
+	"wake":        2,
+	"notify":      2,
+	"knowledge":   2,
+	"watch":       2,
+	"mcp":         2,
+	"tools":       2,
+	"webaccess":   2,
+	"skills":      2,
+	"workstation": 2,
+	"runtime":     3,
+	"api":         4,
+	"wire":        5,
+	"cli":         6,
 }
 
 func layerForPkg(internalPkg string) int {

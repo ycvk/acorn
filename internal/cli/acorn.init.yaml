@@ -84,6 +84,14 @@ backup:
   dir: ""
   keep: 14
 
+workstation:
+  # The agent's own Linux computer, served by acorn-workstation.service.
+  # Empty url turns the shell and files tools off.
+  url: ""
+  token: ${ACORN_WORKSTATION_TOKEN}
+  command_timeout_seconds: 300
+  max_output_bytes: 32768
+
 context:
   window_tokens: 1050000
   compact_margin_tokens: 32000

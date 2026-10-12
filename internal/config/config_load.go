@@ -79,6 +79,7 @@ func expandConfigEnv(cfg *Config) {
 	cfg.Memory.Embedding.APIKey = os.ExpandEnv(cfg.Memory.Embedding.APIKey)
 	cfg.WebAccess.Search.APIKey = os.ExpandEnv(cfg.WebAccess.Search.APIKey)
 	cfg.Watch.GitHubToken = os.ExpandEnv(cfg.Watch.GitHubToken)
+	cfg.Workstation.Token = os.ExpandEnv(cfg.Workstation.Token)
 }
 
 func resolveDir(configDir, value string) string {

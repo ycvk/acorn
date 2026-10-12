@@ -68,15 +68,20 @@ func validateToolsetDeps(deps RuntimeDeps) error {
 	return nil
 }
 
-// buildLocalToolset builds the deferred web tool specs from per-run services.
-// The returned closers must be closed even when err is non-nil.
+// buildLocalToolset builds the deferred web and workstation tool specs from
+// per-run services. The returned closers must be closed even when err is
+// non-nil.
 func buildLocalToolset(deps RuntimeDeps) (localToolset, error) {
 	webCfg, closers, err := buildWebToolsConfig(deps)
 	if err != nil {
 		return localToolset{}, err
 	}
 	specs, err := tools.BuildWebToolSpecs(webCfg)
-	return localToolset{specs: specs, closers: closers}, err
+	if err != nil {
+		return localToolset{closers: closers}, err
+	}
+	workstationSpecs, err := tools.BuildWorkstationToolSpecs(deps.Workstation)
+	return localToolset{specs: append(specs, workstationSpecs...), closers: closers}, err
 }
 
 func closeToolsetOnErr(closers []io.Closer, err *error) {

@@ -66,7 +66,7 @@ const (
 
 // toolCallSummaryKeys are the argument fields that say what a call is about,
 // most telling first: a search query, a URL, a note path.
-var toolCallSummaryKeys = []string{"query", "url", "path", "prefix", "title", "question", "message", "content", "text", "name", "target"}
+var toolCallSummaryKeys = []string{"query", "url", "command", "path", "prefix", "title", "question", "message", "content", "text", "name", "target"}
 
 // toolCallSummary is one line describing a tool call from its JSON
 // arguments, or empty when no telling field is present.

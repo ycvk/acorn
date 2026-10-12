@@ -8,6 +8,7 @@ import (
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/knowledge"
+	"github.com/ycvk/acorn/internal/wire"
 )
 
 func mustContainAll(t *testing.T, body string, values []string) {
@@ -169,6 +170,21 @@ func TestRenderDoctorWatches(t *testing.T) {
 	for _, want := range []string{"Summary: 2 total, 1 active, 1 failing, 0 paused", "RSSHub: not configured", "Morning briefing: 08:00 Asia/Shanghai", "#2 shop failing: HTTP 403"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("watches section lacks %q:\n%s", want, got)
+		}
+	}
+}
+
+func TestRenderDoctorWorkstation(t *testing.T) {
+	for _, tc := range []struct {
+		status wire.WorkstationStatus
+		want   string
+	}{
+		{wire.WorkstationStatus{State: "off"}, "Workstation: off (workstation.url is not configured; shell and files are disabled)"},
+		{wire.WorkstationStatus{State: "ok", URL: "http://127.0.0.1:7810", Home: "/home/agent"}, "Workstation: ok http://127.0.0.1:7810 home=/home/agent"},
+		{wire.WorkstationStatus{State: "unreachable", URL: "http://127.0.0.1:7810", Error: "connection refused"}, "Workstation: unreachable http://127.0.0.1:7810: connection refused"},
+	} {
+		if got := renderDoctorWorkstation(tc.status); got != tc.want {
+			t.Fatalf("got %q, want %q", got, tc.want)
 		}
 	}
 }

@@ -32,6 +32,11 @@ func defaultConfig() *Config {
 		Watch:    WatchConfig{MaxChecksPerTick: 5},
 		Briefing: BriefingConfig{At: "08:00"},
 		Backup:   BackupConfig{Keep: 14},
+		Workstation: WorkstationConfig{
+			Token:                 "${ACORN_WORKSTATION_TOKEN}",
+			CommandTimeoutSeconds: 300,
+			MaxOutputBytes:        32768,
+		},
 		Notify: NotifyConfig{
 			MaxPerHour: 6,
 			QuietHours: QuietHoursConfig{Start: "23:00", End: "08:00"},

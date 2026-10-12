@@ -141,6 +141,10 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 		return nil, fmt.Errorf("register native tools: %w", err)
 	}
 
+	workstationTools, err := buildWorkstationTools(cfg)
+	if err != nil {
+		return nil, err
+	}
 	runnerFactory, err := runtime.NewRunnerFactory(cfg, db, runtime.RunnerFactoryOptions{
 		Attachments:           vault,
 		Loader:                loader,
@@ -152,6 +156,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 		Memory:                memoryEngine,
 		Commitments:           db,
 		PhoneNotifications:    db,
+		Workstation:           workstationTools,
 		Clock:                 options.clock,
 	})
 	if err != nil {

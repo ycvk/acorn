@@ -1,0 +1,19 @@
+# The agent's workstation. The installer builds it on the server; the Acorn
+# binary is mounted read-only at /usr/local/bin/acorn and serves the
+# workstation API. /home/agent is a named volume that survives rebuilds.
+FROM docker.io/library/debian:trixie-slim
+
+RUN apt-get update \
+	&& apt-get install -y --no-install-recommends \
+		bash bc ca-certificates curl file gawk git jq less openssh-client procps \
+		python3 python3-pip python3-venv rsync sudo unzip wget xz-utils zip \
+	&& rm -rf /var/lib/apt/lists/* \
+	&& useradd --create-home --uid 1000 --shell /bin/bash agent \
+	&& echo 'agent ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/agent \
+	&& chmod 0440 /etc/sudoers.d/agent
+
+ENV LANG=C.UTF-8
+USER agent
+WORKDIR /home/agent
+EXPOSE 7810
+ENTRYPOINT ["/usr/local/bin/acorn", "workstation", "serve", "--home", "/home/agent"]

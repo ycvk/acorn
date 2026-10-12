@@ -25,7 +25,7 @@ cd mobile-kotlin && ./tool/generate_openapi_client.sh --check && ./gradlew assem
 
 ## 架构
 
-- `internal/wire.Container` 是唯一实例化具体实现的组合根;`cmd/acorn → cli → wire → {api, runtime, store, memory, wake, notify, knowledge, watch}`。`serve` 是唯一长驻命令,同时运行 wake 调度器。
+- `internal/wire.Container` 是唯一实例化具体实现的组合根;`cmd/acorn → cli → wire → {api, runtime, store, memory, wake, notify, knowledge, watch}`。`serve` 是唯一长驻的后端命令,同时运行 wake 调度器;`workstation serve` 只在工作机容器里运行。
 - `internal/core` 只放 domain 类型与 consumer-owned 接口,不导入任何内部包。业务包只依赖 core 接口;只有 `internal/wire` 导入 `internal/store`。
 - 运行时主链在 `internal/runtime`:`Executor → RunnerFactory → Eino ChatModelAgent → adk.Runner`,事件投影写入 SQLite。
 - SQLite(modernc.org/sqlite)是运行时、记忆、约定与索引的真相;写入经单连接串行执行,记忆召回与整合候选读取走 `query_only` 的 WAL 只读连接池。`{storage_dir}/persona.md` 是 owner 编辑的人格,缺失或为空时 run 失败。
@@ -39,6 +39,7 @@ cd mobile-kotlin && ./tool/generate_openapi_client.sh --check && ./gradlew assem
 - 工具串行执行。普通工具失败与未知工具调用是模型可见的 tool result,不是 run failure;interrupt 与 context 取消照常传播。
 - 审批由 `approval.require` 的工具名 glob 决定,登记 `tool_approval` pending action 并发起工具级 interrupt;resume 参数必须与登记一致。`approval.require` 不能命中 `ask_operator`。续跑只由服务端驱动,没有客户端 resume 端点。
 - web 工具是 deferred,经 `tool_search` 加载;所有外部抓取走 `webaccess` 的共享 URL policy。
+- agent 的工作机是一个容器,里面运行只读挂载的 `acorn workstation serve`;`shell` 与 `files` 经 `internal/workstation` 的 HTTP 客户端和 bearer token 调用它,backend 不接触容器引擎。
 - `<memory_context>` 与 `<presence>` 是每次模型调用临时追加的 system 消息,不进入可被总结的消息序列,各自受预算约束。
 
 ### 技能
@@ -71,7 +72,7 @@ cd mobile-kotlin && ./tool/generate_openapi_client.sh --check && ./gradlew assem
 
 ### 发布
 
-- Release 是纯 Go 交叉编译(`CGO_ENABLED=0`),产物含 Linux tarball、签名 Android APK 与 installer。installer 通过 `acorn init` 生成配置,已有配置与 env 原样保留。
+- Release 是纯 Go 交叉编译(`CGO_ENABLED=0`),产物含 Linux tarball、签名 Android APK 与 installer。installer 通过 `acorn init` 生成配置,已有配置与 env 原样保留;它在服务器上用 Podman 构建工作机镜像并安装 `acorn-workstation.service`。
 
 ## 工作方式
 

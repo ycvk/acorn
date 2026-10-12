@@ -32,10 +32,11 @@ func TestInitTemplateIsValidAndExecutionReady(t *testing.T) {
 func TestInitStorageDirPlacesInstallerLayout(t *testing.T) {
 	t.Setenv("VOYAGE_API_KEY", "voyage-test")
 	t.Setenv("OPENAI_API_KEY", "sk-test-init")
+	t.Setenv("ACORN_WORKSTATION_TOKEN", strings.Repeat("w", 32))
 	storage := filepath.Join(t.TempDir(), "srv", "acorn workspace")
 	backups := filepath.Join(t.TempDir(), "srv", "acorn backups")
 	path := filepath.Join(t.TempDir(), "acorn.yaml")
-	if err := runInit(t.Context(), []string{"-c", path, "--storage-dir", storage, "--backup-dir", backups}); err != nil {
+	if err := runInit(t.Context(), []string{"-c", path, "--storage-dir", storage, "--backup-dir", backups, "--workstation-url", "http://127.0.0.1:7810"}); err != nil {
 		t.Fatalf("init: %v", err)
 	}
 	cfg, err := config.Load(path)
@@ -47,6 +48,9 @@ func TestInitStorageDirPlacesInstallerLayout(t *testing.T) {
 	}
 	if cfg.Runtime.StorageDir != storage || cfg.Backup.Dir != backups || cfg.Backup.Keep != 14 {
 		t.Fatalf("storage=%q backup=%+v, want storage %q and backups %q", cfg.Runtime.StorageDir, cfg.Backup, storage, backups)
+	}
+	if cfg.Workstation.URL != "http://127.0.0.1:7810" || cfg.Workstation.Token != strings.Repeat("w", 32) {
+		t.Fatalf("workstation = %+v", cfg.Workstation)
 	}
 	if want := filepath.Join(filepath.Dir(path), "skills"); cfg.Skills.Dir != want {
 		t.Fatalf("skills=%q, want %q beside the config", cfg.Skills.Dir, want)

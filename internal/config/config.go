@@ -1,25 +1,26 @@
 package config
 
 type Config struct {
-	Providers []ProviderConfig `yaml:"providers"`
-	Context   ContextConfig    `yaml:"context"`
-	Runtime   RuntimeConfig    `yaml:"runtime"`
-	Web       WebConfig        `yaml:"web"`
-	WebAccess WebAccessConfig  `yaml:"web_access"`
-	Browser   BrowserConfig    `yaml:"browser"`
-	Agent     AgentConfig      `yaml:"agent"`
-	Skills    SkillsConfig     `yaml:"skills"`
-	MCP       MCPConfig        `yaml:"mcp"`
-	Approval  ApprovalConfig   `yaml:"approval"`
-	Owner     OwnerConfig      `yaml:"owner"`
-	Memory    MemoryConfig     `yaml:"memory"`
-	Presence  PresenceConfig   `yaml:"presence"`
-	Thinking  ThinkingConfig   `yaml:"thinking"`
-	Wake      WakeConfig       `yaml:"wake"`
-	Notify    NotifyConfig     `yaml:"notify"`
-	Watch     WatchConfig      `yaml:"watch"`
-	Briefing  BriefingConfig   `yaml:"briefing"`
-	Backup    BackupConfig     `yaml:"backup"`
+	Providers   []ProviderConfig  `yaml:"providers"`
+	Context     ContextConfig     `yaml:"context"`
+	Runtime     RuntimeConfig     `yaml:"runtime"`
+	Web         WebConfig         `yaml:"web"`
+	WebAccess   WebAccessConfig   `yaml:"web_access"`
+	Browser     BrowserConfig     `yaml:"browser"`
+	Agent       AgentConfig       `yaml:"agent"`
+	Skills      SkillsConfig      `yaml:"skills"`
+	MCP         MCPConfig         `yaml:"mcp"`
+	Approval    ApprovalConfig    `yaml:"approval"`
+	Owner       OwnerConfig       `yaml:"owner"`
+	Memory      MemoryConfig      `yaml:"memory"`
+	Presence    PresenceConfig    `yaml:"presence"`
+	Thinking    ThinkingConfig    `yaml:"thinking"`
+	Wake        WakeConfig        `yaml:"wake"`
+	Notify      NotifyConfig      `yaml:"notify"`
+	Watch       WatchConfig       `yaml:"watch"`
+	Briefing    BriefingConfig    `yaml:"briefing"`
+	Backup      BackupConfig      `yaml:"backup"`
+	Workstation WorkstationConfig `yaml:"workstation"`
 
 	ConfigPath string `yaml:"-"`
 	ConfigDir  string `yaml:"-"`

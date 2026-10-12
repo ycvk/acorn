@@ -228,6 +228,17 @@ func renderDoctorProviderLine(provider api.SystemMCPProviderCapability) string {
 	return strings.Join(parts, " ")
 }
 
+func renderDoctorWorkstation(status wire.WorkstationStatus) string {
+	switch status.State {
+	case "off":
+		return "Workstation: off (workstation.url is not configured; shell and files are disabled)"
+	case "ok":
+		return fmt.Sprintf("Workstation: ok %s home=%s", status.URL, status.Home)
+	default:
+		return fmt.Sprintf("Workstation: %s %s: %s", status.State, status.URL, status.Error)
+	}
+}
+
 func renderDoctorWatches(cfg *config.Config, watches []core.Watch) string {
 	counts := map[core.WatchStatus]int{}
 	for _, w := range watches {

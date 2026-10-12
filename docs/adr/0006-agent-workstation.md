@@ -14,12 +14,15 @@ Acorn 已经跑在 owner 自己的 VPS 上，但 agent 用不了这台机器：�
 
 ### 工作机
 
-agent 有一台隔离的工作机：VPS 上一个由 Acorn 管理的 rootless Podman 容器，有自己的持久 home 卷、常用命令行工具和 Chromium，能联网。容器里看不到 Acorn 的 `storage_dir`、配置、env 和模型 key；agent 在容器里可以随意安装软件、写文件、跑命令，坏了可以由 owner 重置。工作机镜像随 release 发布，`acorn init` 和 installer 负责安装 Podman 并拉取镜像。
+agent 有一台隔离的工作机：VPS 上一个 Podman 容器，由单独的 `acorn-workstation.service` 运行，有持久的 home 卷和常用命令行工具，能联网。容器里以只读方式挂载 Acorn 二进制，运行 `acorn workstation serve`，只在主机回环端口上提供命令与文件接口，每个请求带 env 里的 token。Acorn 的 serve 只经这个 HTTP 接口使用工作机，不接触容器引擎，原有的 systemd 加固保持不变；工作机里的程序随 Acorn 升级自动同版本。
+
+容器里看不到 Acorn 的 `storage_dir`、配置、env 和模型 key。agent 以有 sudo 的普通用户运行，可以随意安装软件、写文件、跑命令；home 下的文件跨重建保留，系统包随镜像重建丢失。镜像定义随 release 包发布，installer 在服务器上用 Podman 构建。
 
 ### 工具
 
-- `shell`：在工作机里执行命令，有超时和输出上限，工作目录跨调用保持。
-- `files`：读写工作机 home 下的文件，大文件只返回摘要并存为 artifact。
+- `shell`：在工作机里执行 bash 命令，超时杀掉整个进程组，输出超出上限时保留开头和结尾。
+- `files`：读写工作机里的 UTF-8 文本文件，读取超出上限时截断并标明。
+
 ### 浏览器
 
 浏览器统一由 [BrowserSkill](https://github.com/Tencent/BrowserSkill) 驱动：工作机里装固定版本的 `bsk` CLI 与 daemon，agent 经 `shell` 调用 `bsk`，用法由随附的技能说明提供。现有基于 chromedp 的 `browser` 工具、主机浏览器路径配置和临时配置目录随之删除。`bsk` 连两种浏览器：

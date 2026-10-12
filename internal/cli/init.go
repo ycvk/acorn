@@ -29,13 +29,14 @@ func runInit(_ context.Context, args []string) error {
 	personaOnly := fs.Bool("persona-only", false, "only write the default persona next to an existing config")
 	storageDir := fs.String("storage-dir", "", "absolute directory for runtime storage")
 	backupDir := fs.String("backup-dir", "", "absolute directory for nightly backups")
+	workstationURL := fs.String("workstation-url", "", "URL of the agent's workstation")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	if *personaOnly {
 		return writeDefaultPersona(*configPath)
 	}
-	body, err := initConfig(*storageDir, *backupDir)
+	body, err := initConfig(*storageDir, *backupDir, *workstationURL)
 	if err != nil {
 		return err
 	}
@@ -76,10 +77,18 @@ func runInit(_ context.Context, args []string) error {
 	return nil
 }
 
-// initConfig returns the starter config, with runtime storage in storageDir
-// and backups in backupDir when they are given.
-func initConfig(storageDir, backupDir string) (string, error) {
+// initConfig returns the starter config, with runtime storage in storageDir,
+// backups in backupDir and the workstation at workstationURL when they are
+// given.
+func initConfig(storageDir, backupDir, workstationURL string) (string, error) {
 	body := initConfigTemplate
+	if workstationURL != "" {
+		line := "  url: \"\"\n"
+		if !strings.Contains(body, line) {
+			return "", errors.New("init template is missing workstation url")
+		}
+		body = strings.Replace(body, line, "  url: "+strconv.Quote(workstationURL)+"\n", 1)
+	}
 	for _, setting := range []struct{ flag, value, line, key string }{
 		{"--storage-dir", storageDir, "  storage_dir: ~/.acorn\n", "  storage_dir: "},
 		{"--backup-dir", backupDir, "  dir: \"\"\n", "  dir: "},

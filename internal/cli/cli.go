@@ -50,6 +50,8 @@ func Run(ctx context.Context, args []string) error {
 		return runBackup(ctx, args[1:])
 	case "restore":
 		return runRestore(ctx, args[1:])
+	case "workstation":
+		return runWorkstation(ctx, args[1:])
 	default:
 		return fmt.Errorf("unknown command %q\n\n%s", args[0], usageText())
 	}
@@ -77,7 +79,8 @@ Usage:
   acorn run [-c path] [--json] "task input"
   acorn serve [-c path] [--listen addr]
   acorn backup [-c path] [--json]
-  acorn restore [-c path] [--json] --from snapshot`)
+  acorn restore [-c path] [--json] --from snapshot
+  acorn workstation serve [--listen addr] [--home dir]`)
 }
 
 func runDoctor(ctx context.Context, args []string) error {
@@ -105,12 +108,14 @@ func runDoctor(ctx context.Context, args []string) error {
 		if err != nil {
 			return fmt.Errorf("memory status: %w", err)
 		}
+		workstation := container.WorkstationStatus(ctx)
 		if *jsonMode {
 			return printJSON(struct {
 				api.SystemCapabilities
-				Thinking wire.ThinkingStatus         `json:"thinking"`
-				Memory   core.MemoryProcessingStatus `json:"memory"`
-			}{snapshot, thinking, memoryStatus})
+				Thinking    wire.ThinkingStatus         `json:"thinking"`
+				Memory      core.MemoryProcessingStatus `json:"memory"`
+				Workstation wire.WorkstationStatus      `json:"workstation"`
+			}{snapshot, thinking, memoryStatus, workstation})
 		}
 		fmt.Println(renderDoctorSummary(snapshot, container.Config().ConfigPath))
 		fmt.Println(renderDoctorKnowledge(knowledgeStatus))
@@ -120,6 +125,7 @@ func runDoctor(ctx context.Context, args []string) error {
 		if memoryStatus.LastError != "" {
 			fmt.Printf("Memory error: %s\n", memoryStatus.LastError)
 		}
+		fmt.Println(renderDoctorWorkstation(workstation))
 		return nil
 	})
 }
