@@ -5,25 +5,15 @@ import (
 	"testing"
 )
 
-func TestBrowserStatusesReadBothDaemons(t *testing.T) {
-	stdout := `{"browsers":[{"instance_id":"afc17aef","label":""}]}
----
-{"browsers":[{"instance_id":"113dacb8","label":"MacBook"}]}
-`
-	got := browserStatuses(stdout)
-	want := []BrowserStatus{
-		{Daemon: "workstation", State: "connected", Connected: []string{"afc17aef"}},
-		{Daemon: "owner", State: "connected", Connected: []string{"113dacb8 (MacBook)"}},
-	}
-	if !reflect.DeepEqual(got, want) {
+func TestParseBrowserStatus(t *testing.T) {
+	got := parseBrowserStatus(`{"browsers":[{"instance_id":"afc17aef","label":""}]}`)
+	if want := (BrowserStatus{State: "connected", Connected: []string{"afc17aef"}}); !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %+v", got)
 	}
-	got = browserStatuses("{\"browsers\":[]}\n---\noff\n")
-	if got[0].State != "waiting" || got[1].State != "off" {
+	if got := parseBrowserStatus(`{"browsers":[]}`); got.State != "waiting" {
 		t.Fatalf("got %+v", got)
 	}
-	got = browserStatuses("error: daemon not running\n---\n{\"browsers\":[]}\n")
-	if got[0].State != "error" || got[0].Error != "bsk status: error: daemon not running" || got[1].State != "waiting" {
+	if got := parseBrowserStatus("error: daemon not running\n"); got.State != "error" || got.Error != "bsk status: error: daemon not running" {
 		t.Fatalf("got %+v", got)
 	}
 }

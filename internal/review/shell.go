@@ -34,7 +34,6 @@ func (s Shell) Actions() []BrowserCall {
 // BrowserCall is one bsk command: its subcommand, the session it targets and,
 // for page actions, the ref and value.
 type BrowserCall struct {
-	Owner   bool
 	Action  string
 	Ref     string
 	Value   string
@@ -87,12 +86,7 @@ func ParseShell(command string) Shell {
 }
 
 func classify(words []string) (bool, *BrowserCall) {
-	owner := false
 	for len(words) > 0 && isAssignment(words[0]) {
-		name, value, _ := strings.Cut(words[0], "=")
-		if name == "BSK_HOME" {
-			owner = strings.Contains(value, ".bsk-owner")
-		}
 		words = words[1:]
 	}
 	if len(words) == 0 {
@@ -110,20 +104,12 @@ func classify(words []string) (bool, *BrowserCall) {
 			break
 		}
 	}
-	call := browserCall(owner, sub, args)
-	switch {
-	case sub == "daemon":
-		// Generating a pairing link is how the owner connects a browser.
-		return len(args) > 1 && args[1] == "pair", call
-	case bskReadOnly[sub]:
-		return true, call
-	default:
-		return false, call
-	}
+	call := browserCall(sub, args)
+	return bskReadOnly[sub], call
 }
 
-func browserCall(owner bool, action string, args []string) *BrowserCall {
-	call := &BrowserCall{Owner: owner, Action: action}
+func browserCall(action string, args []string) *BrowserCall {
+	call := &BrowserCall{Action: action}
 	var positional []string
 	for i := 0; i < len(args); i++ {
 		a := args[i]

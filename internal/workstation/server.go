@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 	"unicode/utf8"
@@ -27,11 +28,20 @@ type Server struct {
 	home     string
 	token    string
 	chromium string
+	view     *View
 }
 
-// NewServer serves the workstation API. chromium is the browser that renders
-// pages; empty turns render off.
-func NewServer(home, token, chromium string) (*Server, error) {
+// ServerConfig sets up a Server. Chromium is the browser that renders pages
+// and View the owner's view of the agent's browser; each is off when unset.
+type ServerConfig struct {
+	Home     string
+	Token    string
+	Chromium string
+	View     *View
+}
+
+func NewServer(cfg ServerConfig) (*Server, error) {
+	home, token := cfg.Home, cfg.Token
 	if !filepath.IsAbs(home) {
 		return nil, fmt.Errorf("workstation home must be absolute: %q", home)
 	}
@@ -45,7 +55,7 @@ func NewServer(home, token, chromium string) (*Server, error) {
 	if len(token) < MinTokenLength {
 		return nil, fmt.Errorf("%s must be at least %d characters", TokenEnv, MinTokenLength)
 	}
-	return &Server{home: filepath.Clean(home), token: token, chromium: chromium}, nil
+	return &Server{home: filepath.Clean(home), token: token, chromium: cfg.Chromium, view: cfg.View}, nil
 }
 
 func (s *Server) Handler() http.Handler {
@@ -55,6 +65,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/files/read", s.authorized(s.read))
 	mux.HandleFunc("POST /v1/files/write", s.authorized(s.write))
 	mux.HandleFunc("POST /v1/render", s.authorized(s.render))
+	mux.HandleFunc("GET /v1/browser/tabs", s.authorized(s.browserTabs))
+	mux.HandleFunc("GET /v1/browser/frames", s.authorized(s.browserFrames))
+	mux.HandleFunc("POST /v1/browser/input", s.authorized(s.browserInput))
 	return mux
 }
 
@@ -264,6 +277,111 @@ func (s *Server) dumpDOM(ctx context.Context, target string, timeout time.Durati
 		return "", fmt.Errorf("render %s: page is larger than %d bytes", target, maxRenderBytes)
 	}
 	return stdout.String(), nil
+}
+
+func (s *Server) browserTabs(w http.ResponseWriter, r *http.Request) {
+	if s.view == nil {
+		writeError(w, http.StatusNotImplemented, ErrNoView)
+		return
+	}
+	tabs, err := s.view.Tabs(r.Context())
+	if err != nil {
+		writeError(w, http.StatusBadGateway, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"tabs": tabs})
+}
+
+func (s *Server) browserInput(w http.ResponseWriter, r *http.Request) {
+	if s.view == nil {
+		writeError(w, http.StatusNotImplemented, ErrNoView)
+		return
+	}
+	var in Input
+	if !decode(w, r, &in) {
+		return
+	}
+	switch err := s.view.Do(r.Context(), in); {
+	case errors.Is(err, ErrNoTab):
+		writeError(w, http.StatusNotFound, err)
+	case err != nil:
+		writeError(w, http.StatusBadRequest, err)
+	default:
+		writeJSON(w, http.StatusOK, map[string]any{})
+	}
+}
+
+// browserFrames streams a tab as server-sent events: one "frame" event per
+// screencast image, a comment every 15 seconds to keep proxies open, and an
+// "error" event when the stream ends on a failure.
+func (s *Server) browserFrames(w http.ResponseWriter, r *http.Request) {
+	if s.view == nil {
+		writeError(w, http.StatusNotImplemented, ErrNoView)
+		return
+	}
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		writeError(w, http.StatusInternalServerError, errors.New("streaming is not supported"))
+		return
+	}
+	tab := r.URL.Query().Get("tab")
+	if tab == "" {
+		writeError(w, http.StatusBadRequest, errors.New("tab is required"))
+		return
+	}
+	viewport, err := ParseViewport(r.URL.Query().Get("width"), r.URL.Query().Get("height"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.WriteHeader(http.StatusOK)
+	flusher.Flush()
+	var mu sync.Mutex
+	write := func(chunk string) error {
+		mu.Lock()
+		defer mu.Unlock()
+		if _, err := io.WriteString(w, chunk); err != nil {
+			return err
+		}
+		flusher.Flush()
+		return nil
+	}
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+	go func() {
+		ticker := time.NewTicker(15 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if err := write(": keepalive\n\n"); err != nil {
+					cancel()
+					return
+				}
+			}
+		}
+	}()
+	err = s.view.Stream(ctx, tab, viewport, func(f Frame) error {
+		data, err := json.Marshal(f)
+		if err != nil {
+			return err
+		}
+		return write("event: frame\ndata: " + string(data) + "\n\n")
+	})
+	if err != nil && ctx.Err() == nil {
+		data, merr := json.Marshal(errorBody{Error: err.Error()})
+		if merr != nil {
+			slog.Error("browser frame stream error", "error", err, "encode_error", merr)
+			return
+		}
+		if werr := write("event: error\ndata: " + string(data) + "\n\n"); werr != nil {
+			slog.Error("browser frame stream error", "error", err, "write_error", werr)
+		}
+	}
 }
 
 func (s *Server) requirePath(path string) (string, error) {

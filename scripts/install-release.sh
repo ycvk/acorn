@@ -151,9 +151,7 @@ EOF
 }
 
 # The workstation container runs under rootful Podman; inside it the agent
-# user owns /home/agent. Its API listens on host loopback only. Port 52801 is
-# the TLS listener the reverse proxy forwards the owner's browser to; it only
-# runs when ACORN_BROWSER_PUBLIC_URL is set in the env file. The attached
+# user owns /home/agent. Its API listens on host loopback only. The attached
 # podman run carries container output to the unit's journal, so Podman keeps
 # no second log of its own.
 write_workstation_service_template() {
@@ -169,7 +167,7 @@ Wants=network-online.target
 Type=simple
 EnvironmentFile=$env_path
 ExecStartPre=-$podman_path rm -f --ignore acorn-workstation
-ExecStart=$podman_path run --rm --name acorn-workstation --init --log-driver none --pids-limit 4096 --shm-size 1g -p 127.0.0.1:7810:7810 -p 52801:52801 -v acorn-workstation-home:/home/agent -v $bin_path:/usr/local/bin/acorn:ro -e ACORN_WORKSTATION_TOKEN -e ACORN_BROWSER_PUBLIC_URL localhost/acorn-workstation:$version
+ExecStart=$podman_path run --rm --name acorn-workstation --init --log-driver none --pids-limit 4096 --shm-size 1g -p 127.0.0.1:7810:7810 -v acorn-workstation-home:/home/agent -v $bin_path:/usr/local/bin/acorn:ro -e ACORN_WORKSTATION_TOKEN localhost/acorn-workstation:$version
 ExecStop=$podman_path stop --ignore -t 10 acorn-workstation
 Restart=on-failure
 RestartSec=5s
@@ -353,6 +351,14 @@ fi
 
 exec "\$bin" "\$@"
 EOF
+# The image builds before anything is installed, so a failed build leaves an
+# existing install as it was.
+if [ "$install_workstation" = "1" ]; then
+	log "Building the agent workstation image; this downloads Debian packages"
+	# Build steps use the host network: inside an unprivileged LXC the build
+	# sandbox cannot create its own (no /dev/net/tun).
+	run_root podman build --network=host -t "localhost/acorn-workstation:$version" "$package_dir/workstation"
+fi
 run_root install -d "$install_dir"
 run_root install -d -o "$service_user" -g "$service_group" "$config_dir"
 run_root chmod 0700 "$config_dir"
@@ -395,10 +401,6 @@ run_root install -m 0644 "$service_template" "$unit_path"
 run_root install -m 0644 "$backup_service_template" "$backup_unit_path"
 run_root install -m 0644 "$backup_timer_template" "$backup_timer_path"
 if [ "$install_workstation" = "1" ]; then
-	log "Building the agent workstation image; this downloads Debian packages"
-	# Build steps use the host network: inside an unprivileged LXC the build
-	# sandbox cannot create its own (no /dev/net/tun).
-	run_root podman build --network=host -t "localhost/acorn-workstation:$version" "$package_dir/workstation"
 	workstation_template=$work_dir/acorn-workstation.service
 	write_workstation_service_template "$workstation_template"
 	run_root install -m 0644 "$workstation_template" "$workstation_unit_path"

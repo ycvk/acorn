@@ -18,12 +18,13 @@ import (
 // the long-running processes it keeps alive, such as the browser.
 func runWorkstation(ctx context.Context, args []string) error {
 	if len(args) == 0 || args[0] != "serve" {
-		return errors.New("usage: acorn workstation serve [--listen addr] [--home dir] [--chromium path] [--keep name=command]")
+		return errors.New("usage: acorn workstation serve [--listen addr] [--home dir] [--chromium path] [--devtools url] [--keep name=command]")
 	}
 	fs := newFlagSet("workstation serve")
 	listen := fs.String("listen", "0.0.0.0:7810", "listen address")
 	home := fs.String("home", os.Getenv("HOME"), "home directory for relative paths and commands")
 	chromium := fs.String("chromium", "", "browser executable that renders pages; empty turns render off")
+	devtools := fs.String("devtools", "", "DevTools URL of the agent's browser, for the owner's view; empty turns the view off")
 	var companions []workstation.Companion
 	fs.Func("keep", "keep a process running, as name=command; repeatable", func(spec string) error {
 		c, err := workstation.ParseCompanion(spec)
@@ -36,7 +37,14 @@ func runWorkstation(ctx context.Context, args []string) error {
 	if err := fs.Parse(args[1:]); err != nil {
 		return err
 	}
-	server, err := workstation.NewServer(*home, os.Getenv(workstation.TokenEnv), *chromium)
+	var view *workstation.View
+	if *devtools != "" {
+		var err error
+		if view, err = workstation.NewView(*devtools, &http.Client{Timeout: 10 * time.Second}); err != nil {
+			return err
+		}
+	}
+	server, err := workstation.NewServer(workstation.ServerConfig{Home: *home, Token: os.Getenv(workstation.TokenEnv), Chromium: *chromium, View: view})
 	if err != nil {
 		return err
 	}

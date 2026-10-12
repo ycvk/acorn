@@ -43,7 +43,7 @@ requires:
 1. 主题型问题：`tool_search({"query":"select:web_search,web_fetch"})` -> `web_search` -> 对可信候选逐个 `web_fetch`。
 2. 明确 URL：`tool_search({"query":"select:web_fetch"})` -> `web_fetch`。
 3. 动态页面或需要交互：加载 `skill.browser`，按它的说明用工作机的浏览器。
-4. 需要 owner 的登录状态：按 `skill.browser` 的说明使用 owner 的浏览器。
+4. 需要登录的网站：按 `skill.browser` 的说明请 owner 在 App 里登录工作机的浏览器。
 
 工具未启用时的处理：
 

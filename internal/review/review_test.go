@@ -18,8 +18,7 @@ func TestParseShellReadOnlyCommands(t *testing.T) {
 		"bsk status --json",
 		`s=$(bsk session start --no-focus --json | jq -r .session_id)`,
 		"bsk navigate https://news.ycombinator.com --session kfap && bsk observe --session kfap | head -n 120",
-		"BSK_HOME=$HOME/.bsk-owner bsk observe --session x > page.txt 2>&1",
-		"BSK_HOME=$HOME/.bsk-owner bsk daemon pair",
+		"BSK_HOME=$HOME/.bsk bsk observe --session x > page.txt 2>&1",
 		"cat notes/a.md | grep -n TODO | wc -l",
 		"bsk request-help --session x --prompt 'Please sign in'",
 	} {
@@ -40,6 +39,7 @@ func TestParseShellNeedsReview(t *testing.T) {
 		"echo 'unterminated",
 		"bsk evaluate 'document.forms[0].submit()' --session x",
 		"bsk daemon revoke --all",
+		"bsk daemon pair",
 		"git push origin main",
 	} {
 		if shell := ParseShell(command); shell.ReadOnly {
@@ -49,11 +49,11 @@ func TestParseShellNeedsReview(t *testing.T) {
 }
 
 func TestParseShellBrowserCalls(t *testing.T) {
-	shell := ParseShell(`BSK_HOME=$HOME/.bsk-owner bsk fill @e3 --value "张三" --session s1 && BSK_HOME=$HOME/.bsk-owner bsk click @e9 --session s1; bsk press Enter --ref @e2 --session s2`)
+	shell := ParseShell(`BSK_AUTO_START=0 bsk fill @e3 --value "张三" --session s1 && bsk click @e9 --session s1; bsk press Enter --ref @e2 --session s2`)
 	want := []BrowserCall{
-		{Owner: true, Action: "fill", Ref: "@e3", Value: "张三", Session: "s1"},
-		{Owner: true, Action: "click", Ref: "@e9", Session: "s1"},
-		{Owner: false, Action: "press", Ref: "@e2", Value: "Enter", Session: "s2"},
+		{Action: "fill", Ref: "@e3", Value: "张三", Session: "s1"},
+		{Action: "click", Ref: "@e9", Session: "s1"},
+		{Action: "press", Ref: "@e2", Value: "Enter", Session: "s2"},
 	}
 	if shell.ReadOnly || shell.Other || !reflect.DeepEqual(shell.Actions(), want) {
 		t.Fatalf("shell = %+v", shell)
@@ -109,7 +109,7 @@ func TestDecide(t *testing.T) {
 		}
 		return out
 	}
-	owner := &BrowserAction{Owner: true, Action: "click", Target: `button "提交订单"`}
+	owner := &BrowserAction{Action: "click", Target: `button "提交订单"`}
 	for _, tc := range []struct {
 		name    string
 		call    Call
@@ -122,9 +122,8 @@ func TestDecide(t *testing.T) {
 		{"external and serious", Call{Command: "scp a b:"}, with(map[string]float64{"external_effect": 0.93, "severity": 1.92}), []string{"会改变外部状态"}},
 		{"reviewer note", Call{Browser: owner}, with(map[string]float64{"addresses_reviewer": 0.98}), []string{"页面文字疑似在误导审查"}},
 		{"click on checkout", Call{Browser: owner}, with(map[string]float64{"sensitive_page": 0.97}), []string{"在付款或账号设置页面上"}},
-		{"fill on checkout", Call{Browser: &BrowserAction{Owner: true, Action: "fill", Target: `textbox "收货人"`}}, with(map[string]float64{"sensitive_page": 0.93}), nil},
-		{"unknown target", Call{Browser: &BrowserAction{Owner: true, Action: "click"}}, quiet, []string{"看不到要操作的是什么"}},
-		{"unknown target in workstation", Call{Browser: &BrowserAction{Action: "click"}}, quiet, nil},
+		{"fill on checkout", Call{Browser: &BrowserAction{Action: "fill", Target: `textbox "收货人"`}}, with(map[string]float64{"sensitive_page": 0.93}), nil},
+		{"unknown target", Call{Browser: &BrowserAction{Action: "click"}}, quiet, []string{"看不到要操作的是什么"}},
 	} {
 		v := Decide(tc.call, tc.scores)
 		if v.NeedsApproval != (len(tc.reasons) > 0) || !reflect.DeepEqual(v.Reasons, tc.reasons) {
@@ -138,11 +137,11 @@ func TestDescribe(t *testing.T) {
 		call Call
 		want string
 	}{
-		{Call{Browser: &BrowserAction{Owner: true, Action: "click", Target: `button "提交订单"`, Title: "订单结算页"}}, "在你的浏览器里点击「提交订单」 · 订单结算页"},
-		{Call{Browser: &BrowserAction{Action: "fill", Value: "张三", Target: `textbox "收货人"`}}, "在工作机的浏览器里把「收货人」填成「张三」"},
-		{Call{Browser: &BrowserAction{Owner: true, Action: "press Enter", Target: `searchbox "搜索"`}}, "在你的浏览器里在「搜索」上按 Enter"},
-		{Call{Browser: &BrowserAction{Owner: true, Action: "click"}}, "在你的浏览器里点击「未知元素」"},
-		{Call{Browser: &BrowserAction{Action: "click", Target: `radio "Medium" [unchecked] ="medium"`, Title: "Customer name: Telephone: E-mail address: Pizza Size Pizza Toppings"}}, "在工作机的浏览器里点击「Medium」 · Customer name: Telephone: E-ma…"},
+		{Call{Browser: &BrowserAction{Action: "click", Target: `button "提交订单"`, Title: "订单结算页"}}, "在浏览器里点击「提交订单」 · 订单结算页"},
+		{Call{Browser: &BrowserAction{Action: "fill", Value: "张三", Target: `textbox "收货人"`}}, "在浏览器里把「收货人」填成「张三」"},
+		{Call{Browser: &BrowserAction{Action: "press Enter", Target: `searchbox "搜索"`}}, "在浏览器里在「搜索」上按 Enter"},
+		{Call{Browser: &BrowserAction{Action: "click"}}, "在浏览器里点击「未知元素」"},
+		{Call{Browser: &BrowserAction{Action: "click", Target: `radio "Medium" [unchecked] ="medium"`, Title: "Customer name: Telephone: E-mail address: Pizza Size Pizza Toppings"}}, "在浏览器里点击「Medium」 · Customer name: Telephone: E-ma…"},
 		{Call{Tool: "shell", Command: "git push"}, "运行命令：git push"},
 		{Call{Tool: "mcp__github__create_issue", Arguments: "{}"}, "调用 mcp__github__create_issue"},
 	} {
@@ -186,7 +185,7 @@ func TestJevRetriesOverloadAndSendsState(t *testing.T) {
 		t.Fatal(err)
 	}
 	jev.backoff = time.Millisecond
-	v, err := jev.Review(t.Context(), Call{OwnerRequest: "买了", Browser: &BrowserAction{Owner: true, Action: "click", Target: `button "立即付款"`, URL: "https://cashier.jd.com/", Title: "收银台"}})
+	v, err := jev.Review(t.Context(), Call{OwnerRequest: "买了", Browser: &BrowserAction{Action: "click", Target: `button "立即付款"`, URL: "https://cashier.jd.com/", Title: "收银台"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -194,7 +193,7 @@ func TestJevRetriesOverloadAndSendsState(t *testing.T) {
 		t.Fatalf("calls=%d verdict=%+v", calls.Load(), v)
 	}
 	state := got["state"].(map[string]any)
-	if state["browser"] != "owner" || state["target"] != `button "立即付款"` || got["model"] != "jev-1.13.0" {
+	if _, ok := state["browser"]; ok || state["target"] != `button "立即付款"` || got["model"] != "jev-1.13.0" {
 		t.Fatalf("state = %v", got)
 	}
 }
@@ -222,7 +221,6 @@ type labelled struct {
 		Tool         string `json:"tool"`
 		Command      string `json:"command"`
 		Browser      *struct {
-			Owner  bool   `json:"owner"`
 			Action string `json:"action"`
 			Value  string `json:"value"`
 			Target string `json:"target"`
@@ -255,7 +253,7 @@ func TestJevOnLabelledCalls(t *testing.T) {
 		for _, c := range cases {
 			call := Call{OwnerRequest: c.Call.OwnerRequest, Tool: c.Call.Tool, Command: c.Call.Command}
 			if b := c.Call.Browser; b != nil {
-				call.Browser = &BrowserAction{Owner: b.Owner, Action: b.Action, Value: b.Value, Target: b.Target, URL: b.URL, Title: b.Title}
+				call.Browser = &BrowserAction{Action: b.Action, Value: b.Value, Target: b.Target, URL: b.URL, Title: b.Title}
 			}
 			ctx, cancel := context.WithTimeout(t.Context(), 90*time.Second)
 			v, err := jev.Review(ctx, call)

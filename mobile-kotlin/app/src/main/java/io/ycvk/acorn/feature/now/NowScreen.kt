@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.WbSunny
@@ -90,6 +91,7 @@ fun NowScreen(
     onThreadClick: (String) -> Unit,
     onNewChat: () -> Unit,
     onSettings: () -> Unit,
+    onBrowser: () -> Unit,
     viewModel: NowViewModel = hiltViewModel(),
     approvals: ApprovalsViewModel = hiltViewModel(),
 ) {
@@ -127,6 +129,7 @@ fun NowScreen(
                         title = greeting(LocalTime.now(zone)),
                         eyebrow = "${today.monthValue}月${today.dayOfMonth}日 ${weekdayName(today.dayOfWeek)}",
                     ) {
+                        IconAction(Icons.Outlined.Language, "Agent 的浏览器", onBrowser, tint = AcornTheme.colors.inkSoft)
                         IconAction(Icons.Outlined.Settings, "设置", onSettings, tint = AcornTheme.colors.inkSoft)
                     }
                 }

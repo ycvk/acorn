@@ -96,7 +96,7 @@ func (f *gateFixture) call(t *testing.T, tool, args string) (string, error) {
 
 func TestGateRunsReadOnlyShellWithoutReview(t *testing.T) {
 	f := newGateFixture(t, config.ApprovalConfig{})
-	if _, err := f.call(t, "shell", shellArgs("BSK_HOME=$HOME/.bsk-owner bsk observe --session s1 | head -n 80")); err != nil {
+	if _, err := f.call(t, "shell", shellArgs("bsk observe --session s1 | head -n 80")); err != nil {
 		t.Fatal(err)
 	}
 	if len(f.reviewer.calls) != 0 || len(f.ran) != 1 || len(f.store.events) != 0 {
@@ -106,10 +106,10 @@ func TestGateRunsReadOnlyShellWithoutReview(t *testing.T) {
 
 func TestGateReviewsClickWithObservedTargetAndAsksOwner(t *testing.T) {
 	f := newGateFixture(t, config.ApprovalConfig{})
-	if _, err := f.call(t, "shell", shellArgs("BSK_HOME=$HOME/.bsk-owner bsk observe --session s1")); err != nil {
+	if _, err := f.call(t, "shell", shellArgs("bsk observe --session s1")); err != nil {
 		t.Fatal(err)
 	}
-	_, err := f.call(t, "shell", shellArgs("BSK_HOME=$HOME/.bsk-owner bsk click @e3 --session s1"))
+	_, err := f.call(t, "shell", shellArgs("bsk click @e3 --session s1"))
 	if err == nil {
 		t.Fatal("expected the approval interrupt")
 	}
@@ -117,7 +117,7 @@ func TestGateReviewsClickWithObservedTargetAndAsksOwner(t *testing.T) {
 		t.Fatalf("click ran before approval: %v", f.ran)
 	}
 	got := f.reviewer.calls[0]
-	want := review.BrowserAction{Owner: true, Action: "click", Target: `button "提交订单"`, URL: "https://trade.jd.com/shopping/order/getOrderInfo.action", Title: "订单结算页"}
+	want := review.BrowserAction{Action: "click", Target: `button "提交订单"`, URL: "https://trade.jd.com/shopping/order/getOrderInfo.action", Title: "订单结算页"}
 	if got.OwnerRequest != "帮我把购物车里的东西买了" || got.Browser == nil || *got.Browser != want {
 		t.Fatalf("review call = %+v %+v", got, got.Browser)
 	}
@@ -128,7 +128,7 @@ func TestGateReviewsClickWithObservedTargetAndAsksOwner(t *testing.T) {
 	if err := json.Unmarshal([]byte(f.store.actions[0].PayloadJSON), &payload); err != nil {
 		t.Fatal(err)
 	}
-	if payload["summary"] != "在你的浏览器里点击「提交订单」 · 订单结算页 —— 涉及付款" {
+	if payload["summary"] != "在浏览器里点击「提交订单」 · 订单结算页 —— 涉及付款" {
 		t.Fatalf("summary = %v", payload["summary"])
 	}
 	if strings.Join(f.store.events, ",") != "tool_review,tool_approval.pending" {
@@ -151,7 +151,7 @@ func TestGateRunsCallsReviewAllows(t *testing.T) {
 	if len(f.ran) != 2 || len(f.store.actions) != 0 {
 		t.Fatalf("ran=%v actions=%v", f.ran, f.store.actions)
 	}
-	if got := f.reviewer.calls[0].Browser; got.Owner || got.Action != "fill" || got.Value != "张三" || got.Target != `textbox "收货人"` {
+	if got := f.reviewer.calls[0].Browser; got.Action != "fill" || got.Value != "张三" || got.Target != `textbox "收货人"` {
 		t.Fatalf("review call = %+v", got)
 	}
 }

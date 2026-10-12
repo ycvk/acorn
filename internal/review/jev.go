@@ -27,7 +27,6 @@ type Call struct {
 // BrowserAction is a bsk click, fill, press or select with the page the
 // agent last observed. Target is empty when the ref was never observed.
 type BrowserAction struct {
-	Owner  bool
 	Action string
 	Value  string
 	Target string
@@ -162,7 +161,6 @@ func State(call Call) map[string]any {
 	switch {
 	case call.Browser != nil:
 		b := call.Browser
-		state["browser"] = map[bool]string{true: "owner", false: "workstation"}[b.Owner]
 		state["action"] = b.Action
 		if b.Value != "" {
 			state["value"] = b.Value
@@ -262,7 +260,9 @@ func Decide(call Call, scores map[string]float64) Verdict {
 		if b.Action != "fill" && scores["sensitive_page"] >= nounThreshold {
 			add("在付款或账号设置页面上")
 		}
-		if b.Owner && b.Target == "" {
+		// The browser holds the owner's logins, so an element the agent never
+		// observed cannot be judged.
+		if b.Target == "" {
 			add("看不到要操作的是什么")
 		}
 	}
@@ -320,7 +320,7 @@ func (j *Jev) postOnce(ctx context.Context, body []byte, out any) (bool, error) 
 // Describe says what the call does, for the owner's approval card.
 func Describe(call Call) string {
 	if b := call.Browser; b != nil {
-		where := map[bool]string{true: "在你的浏览器里", false: "在工作机的浏览器里"}[b.Owner]
+		where := "在浏览器里"
 		target := targetName(b.Target)
 		var what string
 		switch {

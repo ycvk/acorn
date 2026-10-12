@@ -86,6 +86,14 @@ func (c *Container) DeviceAuth() *api.DeviceAuthService {
 
 // Handler is the /v1 client API over this container's services.
 func (c *Container) Handler(logger *slog.Logger) (http.Handler, error) {
+	workstationClient, err := buildWorkstationClient(c.cfg)
+	if err != nil {
+		return nil, err
+	}
+	var browser api.BrowserView
+	if workstationClient != nil {
+		browser = workstationClient
+	}
 	return api.NewHandler(api.Dependencies{
 		Threads:            c.threads,
 		Runs:               c.runs,
@@ -100,6 +108,7 @@ func (c *Container) Handler(logger *slog.Logger) (http.Handler, error) {
 		Captures:           c.captures,
 		PhoneNotifications: c.phoneNotifications,
 		Now:                c.now,
+		Browser:            browser,
 		Config:             c.cfg,
 		Logger:             logger,
 	})

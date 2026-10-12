@@ -11,14 +11,16 @@ ARG BSK_SHA256_AMD64=73e3948ad2232111661729c25e6c762eda7bd5c2320fa2593fe55c98557
 ARG BSK_SHA256_ARM64=625de29561a98b245ef712d13c273c5de744e4610a7bbf1999ff3b279d2220cf
 ARG BSK_EXTENSION_SHA256=9f543214a0ff5f0f2ce213dd8c5300111dba0ab757fa542a3f61b5636132c24e
 
+# Xvfb runs as the agent user, which cannot create /tmp/.X11-unix itself.
 RUN apt-get update \
 	&& apt-get install -y --no-install-recommends \
 		bash bc ca-certificates chromium curl file fonts-noto-cjk gawk git jq less openssh-client \
-		openssl procps python3 python3-pip python3-venv rsync sudo unzip wget xz-utils zip \
+		procps python3 python3-pip python3-venv rsync sudo unzip wget xvfb xz-utils zip \
 	&& rm -rf /var/lib/apt/lists/* \
 	&& useradd --create-home --uid 1000 --shell /bin/bash agent \
 	&& echo 'agent ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/agent \
-	&& chmod 0440 /etc/sudoers.d/agent
+	&& chmod 0440 /etc/sudoers.d/agent \
+	&& install -d -m 1777 /tmp/.X11-unix
 
 RUN set -eu; \
 	case "${TARGETARCH:-$(dpkg --print-architecture)}" in \
@@ -46,5 +48,5 @@ RUN find /opt/browserskill/skill -type d -exec chmod 0755 {} +
 ENV LANG=C.UTF-8 BSK_AUTO_UPDATE=off BSK_AUTO_START=0
 USER agent
 WORKDIR /home/agent
-EXPOSE 7810 52801
+EXPOSE 7810
 ENTRYPOINT ["/usr/local/lib/acorn/workstation-entrypoint"]

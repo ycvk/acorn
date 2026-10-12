@@ -186,6 +186,9 @@
   - `internal/workstation/supervisor_test.go`
 - **页面渲染隔离**：`web_rendered` 追踪经工作机 `/v1/render` 渲染，每次用临时配置目录启动一次性浏览器，只接受 http(s)；backend 先按共享 URL policy 校验目标。
   - `internal/workstation/render_test.go`
+- **浏览器画面只给已认证的 owner**：工作机的 DevTools 只在容器内开放；`/v1/browser/*` 经设备认证转发到工作机，未配置工作机时返回 `browser_unavailable`，未知标签页返回 `browser_tab_not_found`；导航只接受 http(s)。画面流可按 owner 的手机尺寸排版，宽高要么都给、要么都不给。
+  - `internal/workstation/view_test.go`
+  - `internal/api/handlers_browser_test.go`
 - **命令有界**：超时或请求取消时杀掉命令的整个进程组；工具超时不能超过 `workstation.command_timeout_seconds`；stdout 与 stderr 超出上限时各保留开头和结尾并标出省略的字节数。
   - `internal/workstation/workstation_test.go`
   - `internal/tools/workstation_tools_test.go`

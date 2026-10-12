@@ -70,6 +70,7 @@ func NewHandler(deps Dependencies) (http.Handler, error) {
 		captures:           deps.Captures,
 		phoneNotifications: deps.PhoneNotifications,
 		now:                deps.Now,
+		browser:            deps.Browser,
 		logger:             logger,
 		cfg:                deps.Config,
 	}
@@ -134,6 +135,9 @@ func (s *Server) registerRoutes(router chi.Router) {
 			r.Get("/memories/{memory_id}", s.handleGetMemory)
 			r.Post("/memories/{memory_id}:forget", s.handleForgetMemory)
 			r.Post("/memories/{memory_id}:correct", s.handleCorrectMemory)
+			r.Get("/browser/tabs", s.handleBrowserTabs)
+			r.Get("/browser/frames", s.handleBrowserFrames)
+			r.Post("/browser/input", s.handleBrowserInput)
 			r.Get("/system/status", s.handleClientSystemStatus)
 			r.Get("/tools", s.handleClientTools)
 			r.Route("/skills", func(r chi.Router) {

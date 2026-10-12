@@ -64,55 +64,36 @@ func (r policyRenderer) RenderHTML(ctx context.Context, target string) (string, 
 
 // WorkstationStatus is what acorn doctor reports about the workstation.
 type WorkstationStatus struct {
-	URL      string          `json:"url,omitempty"`
-	State    string          `json:"state"`
-	Home     string          `json:"home,omitempty"`
-	Error    string          `json:"error,omitempty"`
-	Browsers []BrowserStatus `json:"browsers,omitempty"`
+	URL     string         `json:"url,omitempty"`
+	State   string         `json:"state"`
+	Home    string         `json:"home,omitempty"`
+	Error   string         `json:"error,omitempty"`
+	Browser *BrowserStatus `json:"browser,omitempty"`
 }
 
-// BrowserStatus reports one bsk daemon: "workstation" drives the
-// workstation's own Chromium, "owner" waits for the owner's browser.
+// BrowserStatus reports whether the workstation's Chromium is connected to
+// its bsk daemon.
 type BrowserStatus struct {
-	Daemon    string   `json:"daemon"`
 	State     string   `json:"state"`
 	Connected []string `json:"connected,omitempty"`
 	Error     string   `json:"error,omitempty"`
 }
 
-// browserStatusCommand prints the status of both bsk daemons, separated by a
-// line of dashes; "off" stands for an owner daemon without a public URL.
-const browserStatusCommand = `bsk status --json; echo ---; if [ -n "${ACORN_BROWSER_PUBLIC_URL:-}" ]; then BSK_HOME=$HOME/.bsk-owner bsk status --json; else echo off; fi`
-
-func parseBrowserStatus(daemon, out string) BrowserStatus {
-	out = strings.TrimSpace(out)
-	if out == "off" {
-		return BrowserStatus{Daemon: daemon, State: "off"}
-	}
+func parseBrowserStatus(out string) BrowserStatus {
 	var status struct {
 		Browsers []struct {
 			InstanceID string `json:"instance_id"`
-			Label      string `json:"label"`
 		} `json:"browsers"`
 	}
 	if err := json.Unmarshal([]byte(out), &status); err != nil {
-		return BrowserStatus{Daemon: daemon, State: "error", Error: "bsk status: " + out}
+		return BrowserStatus{State: "error", Error: "bsk status: " + strings.TrimSpace(out)}
 	}
-	result := BrowserStatus{Daemon: daemon, State: "waiting"}
+	result := BrowserStatus{State: "waiting"}
 	for _, b := range status.Browsers {
 		result.State = "connected"
-		name := b.InstanceID
-		if b.Label != "" {
-			name += " (" + b.Label + ")"
-		}
-		result.Connected = append(result.Connected, name)
+		result.Connected = append(result.Connected, b.InstanceID)
 	}
 	return result
-}
-
-func browserStatuses(stdout string) []BrowserStatus {
-	local, owner, _ := strings.Cut(stdout, "\n---\n")
-	return []BrowserStatus{parseBrowserStatus("workstation", local), parseBrowserStatus("owner", owner)}
 }
 
 // WorkstationStatus asks the configured workstation for its status.
@@ -124,7 +105,7 @@ func (c *Container) WorkstationStatus(ctx context.Context) WorkstationStatus {
 	if client == nil {
 		return WorkstationStatus{State: "off"}
 	}
-	// bsk status waits several seconds on a daemon with no browser connected.
+	// bsk status waits several seconds while no browser is connected.
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	status, err := client.Status(ctx)
@@ -132,11 +113,12 @@ func (c *Container) WorkstationStatus(ctx context.Context) WorkstationStatus {
 		return WorkstationStatus{URL: c.cfg.Workstation.URL, State: "unreachable", Error: err.Error()}
 	}
 	result := WorkstationStatus{URL: c.cfg.Workstation.URL, State: "ok", Home: status.Home}
-	browsers, err := client.Exec(ctx, workstation.ExecRequest{Command: browserStatusCommand, TimeoutSeconds: 25, MaxOutputBytes: 16384})
+	browser, err := client.Exec(ctx, workstation.ExecRequest{Command: "bsk status --json", TimeoutSeconds: 25, MaxOutputBytes: 16384})
 	if err != nil {
-		result.Browsers = []BrowserStatus{{Daemon: "workstation", State: "error", Error: err.Error()}}
+		result.Browser = &BrowserStatus{State: "error", Error: err.Error()}
 		return result
 	}
-	result.Browsers = browserStatuses(browsers.Stdout)
+	browserStatus := parseBrowserStatus(browser.Stdout + browser.Stderr)
+	result.Browser = &browserStatus
 	return result
 }

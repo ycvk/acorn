@@ -64,6 +64,7 @@ import io.ycvk.acorn.core.theme.AcornMotion
 import io.ycvk.acorn.core.theme.AcornTheme
 import io.ycvk.acorn.core.ui.Hairline
 import io.ycvk.acorn.core.ui.rememberHaptics
+import io.ycvk.acorn.feature.browser.BrowserScreen
 import io.ycvk.acorn.feature.chat.ChatScreen
 import io.ycvk.acorn.feature.knowledge.KnowledgeScreen
 import io.ycvk.acorn.feature.knowledge.KnowledgeViewModel
@@ -148,6 +149,7 @@ private fun ConnectedShell(shellViewModel: ShellViewModel) {
                             onThreadClick = { shellViewModel.open(Page.Chat(it)) },
                             onNewChat = newChat,
                             onSettings = { shellViewModel.open(Page.Settings) },
+                            onBrowser = { shellViewModel.open(Page.Browser) },
                         )
                         Tab.Threads -> ThreadsScreen(
                             onThreadClick = { shellViewModel.open(Page.Chat(it)) },
@@ -173,6 +175,7 @@ private fun ConnectedShell(shellViewModel: ShellViewModel) {
                     onOpenNote = { shellViewModel.open(Page.Note(it)) },
                 )
                 Page.Settings -> SettingsScreen(onBack = shellViewModel::back)
+                Page.Browser -> BrowserScreen(onBack = shellViewModel::back)
             }
         }
     }

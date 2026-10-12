@@ -478,38 +478,11 @@ Work that stays on the workstation runs without approval. Commands and browser a
 
 ### Browsers
 
-The workstation runs its own headless Chromium with the [BrowserSkill](https://github.com/Tencent/BrowserSkill) extension, and the agent drives it with the `bsk` command through `shell`. It is always available and has none of your logins; the agent uses it for pages that need JavaScript or interaction. The same browser renders `web_rendered` watches.
+The workstation runs its own Chromium on a virtual display, with the [BrowserSkill](https://github.com/Tencent/BrowserSkill) extension, and the agent drives it with the `bsk` command through `shell`. It is always available; the agent uses it for pages that need JavaScript or interaction, and the same browser renders `web_rendered` watches. `acorn doctor` shows whether it is connected.
 
-The agent can also use your own browser, with the sites you are signed in to. Your browser connects out to the workstation through your reverse proxy, so your computer needs no open port:
+You can watch and use this browser from the app: the globe on the 今天 tab opens Agent 的浏览器. Tapping the picture taps the page, dragging scrolls it, and the bar at the bottom types into the field you tapped. While you watch, pages are laid out for your phone's screen.
 
-1. Pick a public WSS URL on the domain that already serves Acorn, for example `wss://acorn.example.com/browser/extension`, and forward that path to port 52801 on the Acorn host. The workstation listens there with its own self-signed certificate, so the proxy talks TLS to it without verifying it. For nginx:
-
-   ```nginx
-   location /browser/extension {
-       proxy_pass https://127.0.0.1:52801;
-       proxy_ssl_verify off;
-       proxy_http_version 1.1;
-       proxy_set_header Upgrade $http_upgrade;
-       proxy_set_header Connection "upgrade";
-       proxy_set_header Host $host;
-       proxy_buffering off;
-       proxy_read_timeout 3600s;
-   }
-   ```
-
-2. Add the URL to `~/.acorn/acorn.env` and restart the workstation:
-
-   ```dotenv
-   ACORN_BROWSER_PUBLIC_URL=wss://acorn.example.com/browser/extension
-   ```
-
-   ```bash
-   sudo systemctl restart acorn-workstation
-   ```
-
-3. Install the BrowserSkill extension in Chrome or Edge from its store, ask the agent to pair your browser, and paste the link it gives you into the extension's popup under **Remote connection**. The link works once and expires after five minutes.
-
-`acorn doctor` shows both browsers. While your browser is connected, the agent opens its own window there, and you see what it does. Submitting forms, sending, buying, deleting or changing account settings wait for your approval on your phone when action review is on, and the agent hands you sign-in, verification codes and payment confirmation in the browser. Pairing grants the server the use of every site that browser profile is signed in to; disconnect in the extension popup to stop it. Changing `ACORN_BROWSER_PUBLIC_URL` invalidates existing pairings; pair again afterwards.
+When a task needs a site you have an account on, the agent opens its sign-in page and notifies you. Sign in there from the app, then tell the agent you are done. Logins stay in the `acorn-workstation-home` volume across restarts and upgrades, and the agent can use every site signed in there; sign out in the same view to take a site back. Submitting forms, sending, buying, deleting or changing account settings still wait for your approval on your phone when action review is on.
 
 ### Approval Rules and Action Review
 
@@ -538,7 +511,7 @@ review:
   timeout_seconds: 20
 ```
 
-Commands that only read, such as reading a page with `bsk observe`, run without review. For a click, fill, key press or select, Acorn sends Jev the element's name and the page it is on, as the agent last observed them, together with what you asked for. Calls that would pay, send, publish, delete, follow, change settings or otherwise change something outside the workstation wait for your approval, and the approval card says what the call does and why. A click on a checkout, payment or security page, text that tries to talk the reviewer into allowing it, an element the agent never observed in your browser, and a review that fails also wait for you.
+Commands that only read, such as reading a page with `bsk observe`, run without review. For a click, fill, key press or select, Acorn sends Jev the element's name and the page it is on, as the agent last observed them, together with what you asked for. Calls that would pay, send, publish, delete, follow, change settings or otherwise change something outside the workstation wait for your approval, and the approval card says what the call does and why. A click on a checkout, payment or security page, text that tries to talk the reviewer into allowing it, an element the agent never observed on that page, and a review that fails also wait for you.
 
 The calls you are asked about, their target and page, and your request go to TypeSafe. `acorn doctor` shows whether review works.
 

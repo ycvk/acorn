@@ -41,6 +41,10 @@ sealed interface Page {
     data object Settings : Page {
         override val key = "settings"
     }
+
+    data object Browser : Page {
+        override val key = "browser"
+    }
 }
 
 @HiltViewModel

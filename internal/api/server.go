@@ -20,8 +20,10 @@ type Dependencies struct {
 	Captures           *CaptureService
 	PhoneNotifications *PhoneNotificationService
 	Now                *NowService
-	Logger             *slog.Logger
-	Config             *config.Config
+	// Browser is nil when no workstation is configured.
+	Browser BrowserView
+	Logger  *slog.Logger
+	Config  *config.Config
 }
 
 type Server struct {
@@ -38,6 +40,7 @@ type Server struct {
 	captures           *CaptureService
 	phoneNotifications *PhoneNotificationService
 	now                *NowService
+	browser            BrowserView
 	logger             *slog.Logger
 	cfg                *config.Config
 }

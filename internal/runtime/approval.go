@@ -55,9 +55,8 @@ type approvalMiddleware struct {
 	pages map[pageKey]review.Page
 }
 
-// pageKey names a bsk session in one of the two browsers.
+// pageKey names a bsk session.
 type pageKey struct {
-	owner   bool
 	session string
 }
 
@@ -235,7 +234,7 @@ func (m *approvalMiddleware) reviewCalls(ctx context.Context, toolName, args str
 	var calls []review.Call
 	m.mu.Lock()
 	for _, a := range shell.Actions() {
-		page := m.pages[pageKey{a.Owner, a.Session}]
+		page := m.pages[pageKey{a.Session}]
 		action := a.Action
 		value := a.Value
 		if action == "press" {
@@ -246,7 +245,7 @@ func (m *approvalMiddleware) reviewCalls(ctx context.Context, toolName, args str
 			target = "CSS selector " + a.Ref
 		}
 		calls = append(calls, review.Call{OwnerRequest: owner, Browser: &review.BrowserAction{
-			Owner: a.Owner, Action: action, Value: value, Target: target, URL: page.URL, Title: page.Title,
+			Action: action, Value: value, Target: target, URL: page.URL, Title: page.Title,
 		}})
 	}
 	m.mu.Unlock()
@@ -279,7 +278,7 @@ func (m *approvalMiddleware) observing(endpoint adk.InvokableToolCallEndpoint) a
 		sessions := map[pageKey]bool{}
 		for _, c := range review.ParseShell(input.Command).Bsk {
 			if c.Session != "" {
-				sessions[pageKey{c.Owner, c.Session}] = true
+				sessions[pageKey{c.Session}] = true
 			}
 		}
 		// Output mixing several sessions cannot be attributed.
