@@ -57,6 +57,8 @@ sudoedit ~/.acorn/acorn.env
 sudo systemctl enable --now acorn
 ```
 
+Running the script again upgrades in place. It keeps the existing config and env file, then restarts `acorn` (and `acorn-workstation`) on the new release.
+
 The env file is intentionally small:
 
 ```dotenv

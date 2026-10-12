@@ -375,8 +375,10 @@ else
 fi
 
 if [ ! -e "$env_path" ]; then
+	env_existed=0
 	run_root install -m 0600 -o "$service_user" -g "$service_group" "$env_template" "$env_path"
 else
+	env_existed=1
 	log "Keeping existing environment file: $env_path"
 fi
 if [ "$install_workstation" = "1" ] && ! run_root grep -q '^ACORN_WORKSTATION_TOKEN=' "$env_path"; then
@@ -424,7 +426,9 @@ if [ "$start_service" != "1" ]; then
 	exit 0
 fi
 
-if [ -z "${OPENAI_API_KEY:-}" ] || [ -z "${VOYAGE_API_KEY:-}" ]; then
+# A new env file only holds real keys when they were passed to the installer.
+# An existing env file belongs to a configured install, whatever its key names.
+if [ "$env_existed" = "0" ] && { [ -z "${OPENAI_API_KEY:-}" ] || [ -z "${VOYAGE_API_KEY:-}" ]; }; then
 	log "Installed Acorn but did not start the service because both OPENAI_API_KEY and VOYAGE_API_KEY must be provided."
 	log "Set both keys, verify, then start the service:"
 	log "  sudoedit $env_path"
@@ -434,7 +438,9 @@ if [ -z "${OPENAI_API_KEY:-}" ] || [ -z "${VOYAGE_API_KEY:-}" ]; then
 	exit 0
 fi
 
-run_root systemctl enable --now acorn
+# restart also picks up the new binary when upgrading a running service.
+run_root systemctl enable acorn
+run_root systemctl restart acorn
 sleep 2
 if ! run_root systemctl is-active --quiet acorn; then
 	run_root journalctl -u acorn --no-pager -n 80

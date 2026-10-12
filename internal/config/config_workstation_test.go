@@ -17,7 +17,6 @@ func TestValidateBaseRejectsInvalidWorkstationSettings(t *testing.T) {
 		{"timeout", func(c *Config) { c.Workstation.CommandTimeoutSeconds = 0 }, "workstation.command_timeout_seconds"},
 		{"output", func(c *Config) { c.Workstation.MaxOutputBytes = 10 }, "workstation.max_output_bytes"},
 		{"url", func(c *Config) { c.Workstation.URL = "127.0.0.1:7810"; c.Workstation.Token = token }, "workstation.url"},
-		{"token", func(c *Config) { c.Workstation.URL = "http://127.0.0.1:7810"; c.Workstation.Token = "short" }, "workstation.token"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := defaultConfig()
@@ -26,6 +25,25 @@ func TestValidateBaseRejectsInvalidWorkstationSettings(t *testing.T) {
 				t.Fatalf("ValidateBase() = %v, want %q", err, tc.want)
 			}
 		})
+	}
+}
+
+// Backups and init load the config without the env file, so a missing token
+// only blocks execution.
+func TestWorkstationTokenIsRequiredOnlyForExecution(t *testing.T) {
+	t.Setenv("ACORN_WORKSTATION_TOKEN", "")
+	path := filepath.Join(t.TempDir(), "acorn.yaml")
+	if err := os.WriteFile(path, []byte("workstation:\n  url: http://127.0.0.1:7810\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load without the token: %v", err)
+	}
+	cfg.Providers[0].APIKey = "k"
+	cfg.Memory.Embedding.APIKey = "voyage-test"
+	if err := cfg.ValidateExecutionReady(); err == nil || !strings.Contains(err.Error(), "ACORN_WORKSTATION_TOKEN") {
+		t.Fatalf("ValidateExecutionReady() = %v", err)
 	}
 }
 

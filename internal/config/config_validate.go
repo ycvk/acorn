@@ -134,7 +134,7 @@ func (c *Config) ValidateExecutionReady() error {
 	if err := c.validatePresenceBudget(); err != nil {
 		return err
 	}
-	return nil
+	return c.validateWorkstationToken()
 }
 
 func (c *Config) validateContext() error {

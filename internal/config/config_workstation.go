@@ -35,8 +35,18 @@ func (c *Config) validateWorkstation() error {
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
 		return fmt.Errorf("workstation.url %q must be an http(s) URL", base)
 	}
-	if len(w.Token) < workstation.MinTokenLength {
-		return errors.New("workstation.token must be at least 32 characters when workstation.url is set")
+	return nil
+}
+
+// validateWorkstationToken runs with execution readiness, like the model and
+// embedding keys: commands that only load the config (backup, init) run
+// without the env file that holds the token.
+func (c *Config) validateWorkstationToken() error {
+	if strings.TrimSpace(c.Workstation.URL) == "" {
+		return nil
+	}
+	if len(c.Workstation.Token) < workstation.MinTokenLength {
+		return errors.New("workstation.token must be at least 32 characters when workstation.url is set; set ACORN_WORKSTATION_TOKEN")
 	}
 	return nil
 }
