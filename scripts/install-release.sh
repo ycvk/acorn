@@ -186,6 +186,7 @@ Type=oneshot
 User=$service_user
 Group=$service_group
 Environment=HOME=$service_home
+EnvironmentFile=-$env_path
 ExecStart=$bin_path backup -c $config_path
 NoNewPrivileges=true
 PrivateTmp=true
