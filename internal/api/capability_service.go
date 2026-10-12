@@ -79,7 +79,6 @@ type SystemSkillSummary struct {
 type SystemSkillProblem struct {
 	ID    string `json:"id,omitempty"`
 	Name  string `json:"name,omitempty"`
-	Path  string `json:"path,omitempty"`
 	Error string `json:"error,omitempty"`
 }
 

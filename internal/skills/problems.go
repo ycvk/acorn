@@ -17,8 +17,8 @@ func sortSkills(items []Spec) {
 
 func sortSkillProblems(items []Problem) {
 	sort.Slice(items, func(i, j int) bool {
-		if items[i].Path != items[j].Path {
-			return items[i].Path < items[j].Path
+		if items[i].ID != items[j].ID {
+			return items[i].ID < items[j].ID
 		}
 		return items[i].Error < items[j].Error
 	})
@@ -38,7 +38,6 @@ func filterDuplicateSkillNames(items []Spec) ([]Spec, []Problem) {
 			problems = append(problems, Problem{
 				ID:    item.ID,
 				Name:  item.Name,
-				Path:  item.Path,
 				Error: fmt.Sprintf("duplicate skill name %q (conflicts with %s)", item.Name, previousID),
 			})
 			continue
@@ -47,15 +46,6 @@ func filterDuplicateSkillNames(items []Spec) ([]Spec, []Problem) {
 		out = append(out, item)
 	}
 	return out, problems
-}
-
-func skillProblemForDir(dir, id, name, text string) *Problem {
-	return &Problem{
-		ID:    strings.TrimSpace(id),
-		Name:  strings.TrimSpace(name),
-		Path:  strings.TrimSpace(dir),
-		Error: strings.TrimSpace(text),
-	}
 }
 
 func FirstNonEmpty(values ...string) string {

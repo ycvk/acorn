@@ -142,10 +142,7 @@ func (s *Server) registerRoutes(router chi.Router) {
 			r.Get("/tools", s.handleClientTools)
 			r.Route("/skills", func(r chi.Router) {
 				r.Get("/", s.handleListSkills)
-				r.Route("/{id}", func(r chi.Router) {
-					r.Get("/", s.handleGetSkill)
-					r.Get("/files", s.handleReadSkillFile)
-				})
+				r.Get("/{id}", s.handleGetSkill)
 			})
 		})
 	})

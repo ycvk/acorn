@@ -193,3 +193,41 @@ func TestZeroTokenBudgetAllowsAutonomousWake(t *testing.T) {
 		t.Fatalf("starts = %v", h.runs.starts)
 	}
 }
+
+func TestNightListsSkillsTheAgentWroteOrLoaded(t *testing.T) {
+	h := newHarness(t, 20)
+	h.sched.cfg.Thinking.Night = Briefing{Enabled: true, At: 0}
+	// Tool call events carry the wall clock time.
+	h.now = time.Now().UTC().Add(time.Minute)
+	ctx := context.Background()
+	for _, w := range []core.SkillWrite{
+		{ID: "skill.orders", Markdown: "orders", Author: core.SkillAuthorAgent, At: h.now.Add(-time.Hour)},
+		{ID: "skill.morning.briefing", Markdown: "briefing", Author: core.SkillAuthorRelease, At: h.now.Add(-time.Hour)},
+		{ID: "skill.old", Markdown: "old", Author: core.SkillAuthorAgent, At: h.now.Add(-72 * time.Hour)},
+	} {
+		if _, err := h.data.WriteSkill(ctx, w); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := h.data.CreateRun(ctx, core.RunCreateParams{RunID: "run_s", Input: "orders"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.data.AppendEvent(ctx, "run_s", "tool.call.started", map[string]any{"tool_name": "skill", "arguments": `{"skill":"skill.old"}`}); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.sched.Tick(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if len(h.runs.starts) != 1 {
+		t.Fatalf("starts = %v", h.runs.starts)
+	}
+	night := h.runs.starts[0]
+	for _, want := range []string{"- skill skill.orders rev 1 [in use] written=true loads=0", "- skill skill.old rev 1 [in use] written=false loads=1"} {
+		if !strings.Contains(night, want) {
+			t.Fatalf("night input lacks %q:\n%s", want, night)
+		}
+	}
+	if strings.Contains(night, "skill.morning.briefing") {
+		t.Fatalf("a release write is listed:\n%s", night)
+	}
+}

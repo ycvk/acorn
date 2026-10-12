@@ -29,6 +29,8 @@ var localToolNames = []string{
 	"knowledge_read",
 	"knowledge_search",
 	"knowledge_list",
+	"skill_write",
+	"skill_retire",
 	"watch_create",
 	"watch_update",
 	"watch_list",
@@ -70,7 +72,7 @@ func configuredLocalSpec(name string) core.ToolSpec {
 	case "artifact_read", "artifact_list":
 		spec.Kind = core.ToolKindNative
 		spec.Category = core.ToolCategoryRead
-	case "artifact_write", "knowledge_write", "knowledge_edit", "watch_create", "watch_update":
+	case "artifact_write", "knowledge_write", "knowledge_edit", "skill_write", "skill_retire", "watch_create", "watch_update":
 		spec.Kind = core.ToolKindNative
 		spec.Category = core.ToolCategoryWrite
 	case "ask_operator", "notify_owner":

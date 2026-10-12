@@ -106,6 +106,21 @@
   - `internal/runtime/tokens_test.go`
   - `internal/wire/capture_acceptance_e2e_test.go`
 
+## 技能
+
+- **技能的每次写入是一个 revision**：技能存在 SQLite 的 `skills`/`skill_revisions`，每次写入记下全文、哈希、作者（agent 或 release）与 run。写入必须基于当前 revision（新技能为 0），否则以 `ErrSkillConflict` 失败。`skill_write` 严格解析 frontmatter，要求合法 id、不超过 200 字的 summary 和正文，名字不能与其他在用技能重复，写已停用的技能使它恢复；`skill_retire` 写一个停用 revision。run 只加载在用的技能，加载结果是全文加 revision。
+  - `internal/store/store_skills_test.go`
+  - `internal/skills/library_test.go`
+  - `internal/tools/skill_tools_test.go`
+  - `internal/runtime/skill_backend_test.go`
+- **写技能的审批显示全文**：starter config 与默认配置把 `skill_write`、`skill_retire` 放进 `approval.require`；`skill_write` 的待批准项摘要是技能名与 summary，详情的 `tool_detail` 是将写入的技能全文。
+  - `internal/config/config_validation_test.go`
+  - `internal/api/tool_steps_test.go`
+- **内置技能随二进制发布**：`internal/skills/seed` 编进二进制；启动时缺少的内置技能写入 revision 1，内容与上次 release 写入的哈希不同时在当前 revision 之上写新 revision 并保留停用状态，相同则不写。
+  - `internal/skills/library_test.go`
+- **夜思回顾技能**：夜思输入列出上次夜思以来 agent 写过或加载过的技能及其 revision；release 写入的 revision 不列出。
+  - `internal/wake/thinking_test.go`
+
 ## Remote API 与 mobile
 
 - **Remote client 必须设备认证**：除 `/healthz` 和 `POST /v1/devices:pair` 外，`/v1` 只接受 valid device bearer token；missing/malformed/unknown 返回 `unauthenticated`，revoked 返回 `device_revoked`。

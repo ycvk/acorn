@@ -2,7 +2,6 @@ package tools
 
 import (
 	"context"
-	"path/filepath"
 	"testing"
 
 	"github.com/ycvk/acorn/internal/skills"
@@ -24,18 +23,11 @@ func TestSeedWebResearchSkillEligibleWithOnlyWebFetch(t *testing.T) {
 		t.Fatalf("NewCatalog: %v", err)
 	}
 
-	repoRoot, err := filepath.Abs(filepath.Join("..", ".."))
+	builtIn, err := skills.BuiltIn()
 	if err != nil {
-		t.Fatalf("repo root: %v", err)
+		t.Fatalf("built-in skills: %v", err)
 	}
-	scan, err := skills.NewLoader(filepath.Join(repoRoot, "skills")).ScanSkills(context.Background())
-	if err != nil {
-		t.Fatalf("ScanSkills: %v", err)
-	}
-	if len(scan.Problems) > 0 {
-		t.Fatalf("seed skills have problems: %+v", scan.Problems)
-	}
-	snapshot, err := skills.BuildSnapshot(*scan, EligibilityContext(catalog, nil))
+	snapshot, err := skills.BuildSnapshot(skills.ScanResult{Skills: builtIn}, EligibilityContext(catalog, nil))
 	if err != nil {
 		t.Fatalf("BuildSnapshot: %v", err)
 	}

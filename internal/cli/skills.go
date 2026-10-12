@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ycvk/acorn/internal/api"
-	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/wire"
 )
@@ -79,23 +77,20 @@ func runSkillsCheck(ctx context.Context, args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	cfg, err := config.Load(*configPath)
-	if err != nil {
-		return err
-	}
-	service := api.NewSkillService(cfg, skills.NewLoader(cfg.Skills.Dir))
-	report, err := service.Health(ctx)
-	if err != nil {
-		return err
-	}
-	if *jsonMode {
-		if err := printJSON(report); err != nil {
+	return withContainer(ctx, *configPath, func(container *wire.Container) error {
+		report, err := container.Skills().Health(ctx)
+		if err != nil {
 			return err
 		}
-	} else {
-		fmt.Println(renderSkillsCheck(*report))
-	}
-	return skillCheckError(*report)
+		if *jsonMode {
+			if err := printJSON(report); err != nil {
+				return err
+			}
+		} else {
+			fmt.Println(renderSkillsCheck(*report))
+		}
+		return skillCheckError(*report)
+	})
 }
 
 func renderSkillsList(items []skills.View) string {
@@ -122,7 +117,7 @@ func renderSkillDetail(item skills.View) string {
 		"Skill",
 		"  ID: " + item.ID,
 		"  Name: " + item.Name,
-		"  Path: " + item.Path,
+		fmt.Sprintf("  Revision: %d", item.Revision),
 	}
 	if item.Category != "" {
 		lines = append(lines, "  Category: "+item.Category)
@@ -141,9 +136,6 @@ func renderSkillDetail(item skills.View) string {
 	}
 	if len(item.Requires.Env) > 0 {
 		lines = append(lines, "  Required env: "+strings.Join(item.Requires.Env, ", "))
-	}
-	if len(item.Scripts) > 0 {
-		lines = append(lines, "  Files: "+strings.Join(item.Scripts, ", "))
 	}
 	if !item.Eligible {
 		lines = append(lines, "  Disabled: "+strings.Join(item.DisabledReasons, "; "))
@@ -168,7 +160,7 @@ func renderSkillsCheck(report skills.HealthReport) string {
 
 func renderHealthFailure(failure skills.HealthFailure) string {
 	parts := []string{string(failure.Kind)}
-	if label := skills.FirstNonEmpty(failure.SkillID, failure.Path); label != "" {
+	if label := failure.SkillID; label != "" {
 		parts = append(parts, label)
 	}
 	if failure.Message != "" {

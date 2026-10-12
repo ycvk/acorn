@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"context"
 	"encoding/gob"
 	"strings"
 	"sync"
@@ -39,10 +40,15 @@ type RuntimeStore interface {
 	core.ArtifactStore
 }
 
+// SkillScanner reads the skills in use.
+type SkillScanner interface {
+	Scan(ctx context.Context) (*skills.ScanResult, error)
+}
+
 type RuntimeDeps struct {
 	Config             *config.Config
 	Store              RuntimeStore
-	Loader             *skills.Loader
+	Skills             SkillScanner
 	MCPPendingActions  core.SessionStore
 	ArtifactService    core.ArtifactService
 	ToolRegistry       core.ToolRegistry

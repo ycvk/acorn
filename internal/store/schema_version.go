@@ -11,12 +11,13 @@ import (
 // schemaVersion is the database layout this build creates and expects. A
 // layout change bumps it, appends the migration from the previous version to
 // migrations, and records the new layout under testdata/schema.
-const schemaVersion = 3
+const schemaVersion = 4
 
 // migrations[i] upgrades a database from version i+1 to version i+2.
 var migrations = []func(context.Context, *sql.Tx) error{
 	addNotificationActionID,
 	addNotificationBrowserURL,
+	addSkills,
 }
 
 // addNotificationActionID (1 to 2) records which pending action a push
@@ -54,6 +55,13 @@ func addNotificationBrowserURL(ctx context.Context, tx *sql.Tx) error {
 		}
 	}
 	return nil
+}
+
+// addSkills (3 to 4) adds the skills and their revisions; the built-in skills
+// are written on the next start.
+func addSkills(ctx context.Context, tx *sql.Tx) error {
+	_, err := tx.ExecContext(ctx, skillsTables)
+	return err
 }
 
 // openSchema creates the layout of an empty database, upgrades an older one

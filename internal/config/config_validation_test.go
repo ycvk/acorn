@@ -188,9 +188,9 @@ func TestValidateBaseRejectsApprovalPatternMatchingAskOperator(t *testing.T) {
 	}
 }
 
-func TestDefaultApprovalRequiresMCP(t *testing.T) {
+func TestDefaultApprovalRequiresMCPAndSkillWrites(t *testing.T) {
 	got := defaultConfig().Approval.Require
-	if len(got) != 1 || got[0] != "mcp__*" {
+	if strings.Join(got, ",") != "mcp__*,skill_write,skill_retire" {
 		t.Fatalf("default approval.require = %v", got)
 	}
 }

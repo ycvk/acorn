@@ -7,7 +7,6 @@ type Config struct {
 	Web         WebConfig         `yaml:"web"`
 	WebAccess   WebAccessConfig   `yaml:"web_access"`
 	Agent       AgentConfig       `yaml:"agent"`
-	Skills      SkillsConfig      `yaml:"skills"`
 	MCP         MCPConfig         `yaml:"mcp"`
 	Approval    ApprovalConfig    `yaml:"approval"`
 	Owner       OwnerConfig       `yaml:"owner"`
@@ -95,12 +94,6 @@ type AgentConfig struct {
 	Name          string `yaml:"name"`
 	Description   string `yaml:"description"`
 	MaxIterations int    `yaml:"max_iterations"`
-}
-
-// SkillsConfig points at the directory of skill packages, one subdirectory
-// with a SKILL.md per skill.
-type SkillsConfig struct {
-	Dir string `yaml:"dir"`
 }
 
 type MCPConfig struct {

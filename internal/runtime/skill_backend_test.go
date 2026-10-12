@@ -15,7 +15,7 @@ import (
 
 func testSkillSnapshot() *skills.Snapshot {
 	return &skills.Snapshot{Skills: []skills.View{
-		{Spec: skills.Spec{ID: "skill.capture.to.note", Name: "Capture To Note", Summary: "Turn a capture into a note.", TriggerHints: []string{"[capture]", "save this link"}, Instruction: "Fetch the link, then knowledge_write.", Path: "/skills/capture_to_note"}, Eligible: true},
+		{Spec: skills.Spec{ID: "skill.capture.to.note", Name: "Capture To Note", Summary: "Turn a capture into a note.", TriggerHints: []string{"[capture]", "save this link"}, Instruction: "Fetch the link, then knowledge_write.", Revision: 3, Markdown: "---\nid: skill.capture.to.note\n---\nFetch the link, then knowledge_write.\n"}, Eligible: true},
 		{Spec: skills.Spec{ID: "skill.web.browser.research", Summary: "Browse.", Instruction: "Use the browser."}, Eligible: false},
 	}}
 }
@@ -74,7 +74,7 @@ func TestSkillToolLoadsSkillsThroughTheToolChain(t *testing.T) {
 			loaded = messageText(msg)
 		}
 	}
-	if !strings.Contains(loaded, "Fetch the link, then knowledge_write.") {
+	if !strings.Contains(loaded, "Skill skill.capture.to.note, revision 3.\n\n---\nid: skill.capture.to.note\n---\nFetch the link, then knowledge_write.") {
 		t.Fatalf("skill tool result = %q", loaded)
 	}
 	assertLastToolMessage(t, model, `skill "skill.made.up" is not available`)

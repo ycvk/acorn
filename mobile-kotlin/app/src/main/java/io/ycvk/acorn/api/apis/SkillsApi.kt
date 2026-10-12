@@ -29,7 +29,6 @@ import okhttp3.HttpUrl
 
 import io.ycvk.acorn.api.models.ErrorResponse
 import io.ycvk.acorn.api.models.SkillEnvelope
-import io.ycvk.acorn.api.models.SkillFileResponse
 import io.ycvk.acorn.api.models.SkillListResponse
 
 import com.squareup.moshi.Json
@@ -131,7 +130,7 @@ open class SkillsApi(basePath: kotlin.String = defaultBasePath, client: Call.Fac
 
     /**
      * GET /v1/skills
-     * List filesystem skills
+     * List the skills in use
      * 
      * @param limit Positive integer limit. Defaults to 100. (optional)
      * @param offset Non-negative pagination offset. Defaults to 0. (optional)
@@ -164,7 +163,7 @@ open class SkillsApi(basePath: kotlin.String = defaultBasePath, client: Call.Fac
 
     /**
      * GET /v1/skills
-     * List filesystem skills
+     * List the skills in use
      * 
      * @param limit Positive integer limit. Defaults to 100. (optional)
      * @param offset Non-negative pagination offset. Defaults to 0. (optional)
@@ -206,87 +205,6 @@ open class SkillsApi(basePath: kotlin.String = defaultBasePath, client: Call.Fac
         return RequestConfig(
             method = RequestMethod.GET,
             path = "/v1/skills",
-            query = localVariableQuery,
-            headers = localVariableHeaders,
-            requiresAuthentication = true,
-            body = localVariableBody
-        )
-    }
-
-    /**
-     * GET /v1/skills/{id}/files
-     * Read a file from a skill package
-     * 
-     * @param id 
-     * @param path Relative path inside the skill package. Defaults to SKILL.md. (optional)
-     * @return SkillFileResponse
-     * @throws IllegalStateException If the request is not correctly configured
-     * @throws IOException Rethrows the OkHttp execute method exception
-     * @throws UnsupportedOperationException If the API returns an informational or redirection response
-     * @throws ClientException If the API returns a client error response
-     * @throws ServerException If the API returns a server error response
-     */
-    @Suppress("UNCHECKED_CAST")
-    @Throws(IllegalStateException::class, IOException::class, UnsupportedOperationException::class, ClientException::class, ServerException::class)
-    fun clientReadSkillFile(id: kotlin.String, path: kotlin.String? = null) : SkillFileResponse {
-        val localVarResponse = clientReadSkillFileWithHttpInfo(id = id, path = path)
-
-        return when (localVarResponse.responseType) {
-            ResponseType.Success -> (localVarResponse as Success<*>).data as SkillFileResponse
-            ResponseType.Informational -> throw UnsupportedOperationException("Client does not support Informational responses.")
-            ResponseType.Redirection -> throw UnsupportedOperationException("Client does not support Redirection responses.")
-            ResponseType.ClientError -> {
-                val localVarError = localVarResponse as ClientError<*>
-                throw ClientException("Client error : ${localVarError.statusCode} ${localVarError.message.orEmpty()}", localVarError.statusCode, localVarResponse)
-            }
-            ResponseType.ServerError -> {
-                val localVarError = localVarResponse as ServerError<*>
-                throw ServerException("Server error : ${localVarError.statusCode} ${localVarError.message.orEmpty()} ${localVarError.body}", localVarError.statusCode, localVarResponse)
-            }
-        }
-    }
-
-    /**
-     * GET /v1/skills/{id}/files
-     * Read a file from a skill package
-     * 
-     * @param id 
-     * @param path Relative path inside the skill package. Defaults to SKILL.md. (optional)
-     * @return ApiResponse<SkillFileResponse?>
-     * @throws IllegalStateException If the request is not correctly configured
-     * @throws IOException Rethrows the OkHttp execute method exception
-     */
-    @Suppress("UNCHECKED_CAST")
-    @Throws(IllegalStateException::class, IOException::class)
-    fun clientReadSkillFileWithHttpInfo(id: kotlin.String, path: kotlin.String?) : ApiResponse<SkillFileResponse?> {
-        val localVariableConfig = clientReadSkillFileRequestConfig(id = id, path = path)
-
-        return request<Unit, SkillFileResponse>(
-            localVariableConfig
-        )
-    }
-
-    /**
-     * To obtain the request config of the operation clientReadSkillFile
-     *
-     * @param id 
-     * @param path Relative path inside the skill package. Defaults to SKILL.md. (optional)
-     * @return RequestConfig
-     */
-    fun clientReadSkillFileRequestConfig(id: kotlin.String, path: kotlin.String?) : RequestConfig<Unit> {
-        val localVariableBody = null
-        val localVariableQuery: MultiValueMap = mutableMapOf<kotlin.String, kotlin.collections.List<kotlin.String>>()
-            .apply {
-                if (path != null) {
-                    put("path", listOf(path.toString()))
-                }
-            }
-        val localVariableHeaders: MutableMap<String, String> = mutableMapOf()
-        localVariableHeaders["Accept"] = "application/json"
-
-        return RequestConfig(
-            method = RequestMethod.GET,
-            path = "/v1/skills/{id}/files".replace("{"+"id"+"}", encodeURIComponent(id.toString())),
             query = localVariableQuery,
             headers = localVariableHeaders,
             requiresAuthentication = true,

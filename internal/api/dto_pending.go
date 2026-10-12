@@ -46,6 +46,7 @@ type PendingActionDetailDTO struct {
 	// ToolName and ToolSummary are set on tool approvals.
 	ToolName    string `json:"tool_name,omitempty"`
 	ToolSummary string `json:"tool_summary,omitempty"`
+	ToolDetail  string `json:"tool_detail,omitempty"`
 }
 
 // PendingActionOptionDTO represents a single option in a pending action.
@@ -96,6 +97,7 @@ func pendingActionDetailDTOFromDomain(item PendingActionDetail) PendingActionDet
 		CreatedAt:   item.CreatedAt,
 		ToolName:    item.ToolName,
 		ToolSummary: item.ToolSummary,
+		ToolDetail:  item.ToolDetail,
 	}
 }
 

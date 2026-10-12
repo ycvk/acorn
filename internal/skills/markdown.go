@@ -26,6 +26,32 @@ type frontRequirements struct {
 	Env      []string `yaml:"env"`
 }
 
+// Parse reads a skill document: strict frontmatter with the skill's id, then
+// an optional "# Name" heading and the instruction.
+func Parse(markdown string) (Spec, error) {
+	meta, nameFromMarkdown, instruction, err := parseSkillMarkdown(markdown)
+	if err != nil {
+		return Spec{}, err
+	}
+	return NormalizeSpec(Spec{
+		ID:           meta.ID,
+		Name:         FirstNonEmpty(meta.Name, nameFromMarkdown),
+		Version:      meta.Version,
+		Category:     meta.Category,
+		Summary:      meta.Summary,
+		Instruction:  instruction,
+		Tags:         meta.Tags,
+		Platforms:    meta.Platforms,
+		TriggerHints: meta.TriggerHints,
+		Requires: Requirements{
+			Tools:    meta.Requires.Tools,
+			Toolsets: meta.Requires.Toolsets,
+			Bins:     meta.Requires.Bins,
+			Env:      meta.Requires.Env,
+		},
+	})
+}
+
 func parseSkillMarkdown(raw string) (frontmatter, string, string, error) {
 	text := strings.TrimPrefix(strings.ReplaceAll(raw, "\r\n", "\n"), "\uFEFF")
 	meta, body, err := splitFrontmatter(text)

@@ -90,22 +90,6 @@ func (p pairedClient) capture(t *testing.T, fields map[string]string, image []by
 	return accepted
 }
 
-// installSeedSkill copies a repository seed skill into the config's skills dir.
-func installSeedSkill(t *testing.T, root, name string) {
-	t.Helper()
-	body, err := os.ReadFile(filepath.Join("..", "..", "skills", name, "SKILL.md"))
-	if err != nil {
-		t.Fatalf("read seed skill: %v", err)
-	}
-	dir := filepath.Join(root, name)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "SKILL.md"), body, 0o600); err != nil {
-		t.Fatal(err)
-	}
-}
-
 const sharedPage = `<!doctype html><html><head><title>Tokio work stealing</title></head><body><article>
 <h1>Tokio work stealing</h1>
 <p>The Tokio scheduler balances tasks between worker threads by work stealing, so an idle worker takes queued tasks from a busy one.</p>
@@ -136,7 +120,6 @@ func TestSharedLinkBecomesACommittedNote(t *testing.T) {
 	server := httptest.NewServer(provider)
 	defer server.Close()
 	cfg := writeTestConfig(t, server.URL, "web_access:\n  allow_private_networks: true\n")
-	installSeedSkill(t, cfg.Skills.Dir, "capture_to_note")
 	c, err := NewContainer(context.Background(), cfg)
 	if err != nil {
 		t.Fatalf("container: %v", err)

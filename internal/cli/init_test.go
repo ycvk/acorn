@@ -52,9 +52,6 @@ func TestInitStorageDirPlacesInstallerLayout(t *testing.T) {
 	if cfg.Workstation.URL != "http://127.0.0.1:7810" || cfg.Workstation.Token != strings.Repeat("w", 32) {
 		t.Fatalf("workstation = %+v", cfg.Workstation)
 	}
-	if want := filepath.Join(filepath.Dir(path), "skills"); cfg.Skills.Dir != want {
-		t.Fatalf("skills=%q, want %q beside the config", cfg.Skills.Dir, want)
-	}
 	if _, err := os.Stat(cfg.PersonaPath()); err != nil {
 		t.Fatalf("persona not written into storage: %v", err)
 	}

@@ -28,7 +28,6 @@ The installer:
 - installs `/opt/acorn/acorn` (pure Go binary, no shared libraries);
 - installs `/usr/local/bin/acorn` as a global wrapper command;
 - writes config under the installing user's `~/.acorn` and the default persona (`persona.md`) into `/srv/acorn/workspace`;
-- installs bundled native skills under `~/.acorn/skills`;
 - enables `acorn-backup.timer`, a nightly backup into `/srv/acorn/backups`;
 - installs `/etc/systemd/system/acorn.service`.
 
@@ -165,8 +164,7 @@ The installed service uses:
 - the installing user's home as the service `HOME`.
 - `~/.acorn/acorn.yaml` for config.
 - `~/.acorn/acorn.env` for provider secrets.
-- `~/.acorn/skills` for skills (`skills.dir`), one directory with a `SKILL.md` each; the installer refreshes the bundled ones and leaves others in place.
-- `/srv/acorn/workspace` for runtime storage (`runtime.storage_dir`): the SQLite database with memories and knowledge notes, `persona.md`, and images shared from the phone under `attachments/`.
+- `/srv/acorn/workspace` for runtime storage (`runtime.storage_dir`): the SQLite database with memories, knowledge notes and skills, `persona.md`, and images shared from the phone under `attachments/`.
 - `127.0.0.1:8080` for the HTTP listener.
 
 The wrapper runs service-backed operator commands such as `acorn pair`, `acorn doctor`, `acorn skills`, and `acorn smoke` against the same installer-owned `~/.acorn/acorn.yaml` when you do not pass an explicit `-c` config path. If you install as root, that means `/root/.acorn/acorn.yaml`.
@@ -372,10 +370,11 @@ Config is parsed strictly: unknown keys stop the backend. When upgrading from a 
 - `context.preserve_recent_turns`
 - `mcp.providers[].tool_safety` (use `approval.require`)
 - the whole `browser` block (the workstation runs the browser)
+- the whole `skills` block (skills live in the database)
 
 New keys, all optional: `approval.require`, `owner.name`, `owner.timezone`, `presence.max_tokens`, `wake.daily_limit`, `notify.max_per_hour`, `notify.quiet_hours`, `notify.fcm.service_account_file`, `watch.rsshub_base_url`, `watch.github_token`, `watch.max_checks_per_tick`, `briefing.at`, `workstation.*`, `approval.block`, `approval.allow`, `review.*`. Then run `acorn init --persona-only` to write the default persona, and `acorn doctor` to check the result.
 
-Earlier data under `~/.acorn` (`facts/`, `history/`, `worldstate/`, `vectors.db`, `skills/generated/`) is no longer read. Delete it once you no longer need it.
+Earlier data under `~/.acorn` (`facts/`, `history/`, `worldstate/`, `vectors.db`, `skills/`) is no longer read. Delete it once you no longer need it.
 
 ## 12. Knowledge Base and Sharing
 
@@ -492,11 +491,15 @@ Every tool call meets your rules first. They are tool-name glob patterns in `~/.
 approval:
   require:          # pause for your approval on the phone
     - "mcp__*"
+    - skill_write
+    - skill_retire
   block: []         # never run; the agent is told the rules refused it
   allow: []         # run without review
 ```
 
 `block` wins over `require`, and `require` over `allow`.
+
+A skill the agent writes becomes part of every later run's instructions, so `skill_write` and `skill_retire` wait for your approval by default; the approval shows the whole skill. Move them to `allow` to let the agent keep its skills on its own.
 
 Action review judges the shell commands, browser actions and MCP calls no rule settles. It uses Jev, TypeSafe's decision model: create a key at [typesafe.ai](https://typesafe.ai), add it to `~/.acorn/acorn.env` and restart Acorn.
 

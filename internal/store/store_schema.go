@@ -65,6 +65,8 @@ var schemaRequiredTables = map[string][]string{
 	"notifications":       {"id", "title", "body", "thread_id", "run_id", "status", "send_after", "error_text", "created_at", "sent_at", "action_id", "browser_url"},
 	"knowledge_notes":     {"path", "title", "tags", "source", "body", "revision", "created_at", "updated_at"},
 	"knowledge_revisions": {"path", "revision", "title", "tags", "source", "body", "body_sha256", "run_id", "at"},
+	"skills":              {"id", "markdown", "revision", "retired", "seed_sha256", "created_at", "updated_at"},
+	"skill_revisions":     {"id", "revision", "markdown", "markdown_sha256", "retired", "author", "run_id", "at"},
 	"watches":             {"id", "name", "kind", "target", "selector", "mode", "interval_seconds", "status", "session_id", "next_check_at", "last_checked_at", "last_error", "failures", "snapshot", "created_at", "updated_at"},
 	"watch_items":         {"id", "watch_id", "item_key", "title", "url", "summary", "published_at", "status", "run_id", "seen_at"},
 	"routine_runs":        {"routine", "slot", "thread_id", "run_id", "created_at"},

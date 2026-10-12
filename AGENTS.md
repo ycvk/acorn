@@ -44,7 +44,7 @@ cd mobile-kotlin && ./tool/generate_openapi_client.sh --check && ./gradlew assem
 
 ### 技能
 
-- 技能是只读 markdown 包,由 `internal/skills` 从 `skills.dir` 一个目录加载(frontmatter 严格解析)、经 Eino skill middleware 提供;agent 不创建或修改技能。repo `./skills` 是 release seed pack。
+- 技能是一份带 frontmatter 的 markdown,存在 SQLite,每次写入是一个新 revision;编辑基于读到的 revision,并发修改显式失败。agent 经 `skill_write`/`skill_retire` 新建、修改和停用技能,starter config 默认把两者放进 `approval.require`。frontmatter 严格解析,经 Eino skill middleware 提供,加载结果带全文和 revision。内置技能在 `internal/skills/seed` 编进二进制,启动时内容变了才以 release 身份写新 revision。
 
 ### 记忆与约定
 

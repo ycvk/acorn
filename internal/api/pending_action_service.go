@@ -36,6 +36,9 @@ type PendingActionDetail struct {
 	Payload map[string]any
 	Reason  string
 	Rule    string
+	// ToolDetail is the whole text a tool approval acts on when its summary
+	// cannot hold it, such as the skill document skill_write would store.
+	ToolDetail string
 }
 
 type PendingActionDecisionInput struct {
@@ -99,6 +102,7 @@ func (s *PendingActionService) Get(ctx context.Context, actionID string) (*Pendi
 		Payload:              payload,
 		Reason:               record.Reason,
 		Rule:                 "",
+		ToolDetail:           toolCallDetail(summary.ToolName, topLevelString(payload, "arguments")),
 	}, nil
 }
 

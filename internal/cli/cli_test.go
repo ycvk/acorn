@@ -159,7 +159,7 @@ func TestRenderDoctorSummaryIncludesGroupedSectionsAndProviderErrors(t *testing.
 				{ID: "skill.ship.patch", Eligible: false, DisabledReasons: []string{"missing run_command"}},
 			},
 			Problems: []api.SystemSkillProblem{
-				{ID: "skill.bad.frontmatter", Path: "/skills/bad", Error: "invalid yaml"},
+				{ID: "skill.bad.frontmatter", Error: "invalid yaml"},
 			},
 		},
 		MCPProviders: []api.SystemMCPProviderCapability{
@@ -176,7 +176,7 @@ func TestRenderDoctorSummaryIncludesGroupedSectionsAndProviderErrors(t *testing.
 		"Ready: not ready",
 		"Error: model.api_key is required",
 		"skill.ship.patch: ineligible (missing run_command)",
-		"skill.bad.frontmatter path=/skills/bad",
+		"skill.bad.frontmatter error=invalid yaml",
 	} {
 		if !strings.Contains(summary, want) {
 			t.Fatalf("doctor summary should contain %q, got:\n%s", want, summary)

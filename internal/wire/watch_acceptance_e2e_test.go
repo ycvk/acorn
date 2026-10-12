@@ -84,7 +84,6 @@ func TestWatchesWakeAndFeedTheMorningBriefing(t *testing.T) {
 	server := httptest.NewServer(provider)
 	defer server.Close()
 	cfg := writeTestConfig(t, server.URL, extra+watchTestConfig)
-	installSeedSkill(t, cfg.Skills.Dir, "morning_briefing")
 	c := harness.open(t, cfg)
 	defer c.Close()
 	ctx := context.Background()

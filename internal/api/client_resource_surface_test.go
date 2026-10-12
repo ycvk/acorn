@@ -248,7 +248,6 @@ func TestClientResourceSurfaceHandlers(t *testing.T) {
 		{name: "skill detail", method: http.MethodGet, path: "/v1/skills/skill.inspect", wantStatus: http.StatusOK, want: "Inspect"},
 		{name: "skill patch removed", method: http.MethodPatch, path: "/v1/skills/skill.inspect", body: `{"content":"extra instruction"}`, wantStatus: http.StatusMethodNotAllowed},
 		{name: "skill delete removed", method: http.MethodDelete, path: "/v1/skills/skill.inspect", wantStatus: http.StatusMethodNotAllowed},
-		{name: "skill files", method: http.MethodGet, path: "/v1/skills/skill.inspect/files", wantStatus: http.StatusOK, want: "SKILL.md"},
 		{name: "memory facts removed", method: http.MethodGet, path: "/v1/memory/facts", wantStatus: http.StatusNotFound},
 		{name: "core memory removed", method: http.MethodGet, path: "/v1/memory/core", wantStatus: http.StatusNotFound},
 		{name: "core memory update removed", method: http.MethodPatch, path: "/v1/memory/core/core.about_you", body: `{"body":"updated core"}`, wantStatus: http.StatusNotFound},

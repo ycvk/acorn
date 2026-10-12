@@ -9,7 +9,6 @@ func TestBuildHealthReportFailsOnScanProblem(t *testing.T) {
 	report, err := BuildHealthReport(ScanResult{
 		Problems: []Problem{{
 			ID:    "skill.bad",
-			Path:  "/tmp/skill.bad/SKILL.md",
 			Error: "invalid frontmatter",
 		}},
 	}, testEligibleCtx())
@@ -19,8 +18,8 @@ func TestBuildHealthReportFailsOnScanProblem(t *testing.T) {
 	if report.Status != HealthFailed {
 		t.Fatalf("status = %q, want failed", report.Status)
 	}
-	if !hasHealthFailure(report, HealthFailureLoaderProblem, "skill.bad", "invalid frontmatter") {
-		t.Fatalf("failures = %#v, want loader problem", report.Failures)
+	if !hasHealthFailure(report, HealthFailureInvalidSkill, "skill.bad", "invalid frontmatter") {
+		t.Fatalf("failures = %#v, want invalid skill", report.Failures)
 	}
 }
 
@@ -100,7 +99,7 @@ func TestCopyHealthReportDeepCopy(t *testing.T) {
 
 func TestAddFailureAppends(t *testing.T) {
 	report := &HealthReport{Status: HealthPassed}
-	report.addFailure(HealthFailure{Kind: HealthFailureLoaderProblem, Message: "err"})
+	report.addFailure(HealthFailure{Kind: HealthFailureInvalidSkill, Message: "err"})
 	if report.Status != HealthFailed {
 		t.Errorf("Status = %q, addFailure should set Status to failed", report.Status)
 	}

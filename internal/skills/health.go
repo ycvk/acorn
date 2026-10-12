@@ -15,7 +15,7 @@ const (
 type HealthFailureKind string
 
 const (
-	HealthFailureLoaderProblem      HealthFailureKind = "loader_problem"
+	HealthFailureInvalidSkill       HealthFailureKind = "invalid_skill"
 	HealthFailureEligibility        HealthFailureKind = "eligibility"
 	HealthFailureInvalidHealthInput HealthFailureKind = "invalid_health_input"
 )
@@ -28,7 +28,6 @@ type HealthReport struct {
 type HealthFailure struct {
 	Kind    HealthFailureKind `json:"kind"`
 	SkillID string            `json:"skill_id,omitempty"`
-	Path    string            `json:"path,omitempty"`
 	Message string            `json:"message"`
 }
 
@@ -38,9 +37,8 @@ func BuildHealthReport(scan ScanResult, ctx EligibilityContext) (*HealthReport, 
 	}
 	for _, problem := range scan.Problems {
 		report.addFailure(HealthFailure{
-			Kind:    HealthFailureLoaderProblem,
+			Kind:    HealthFailureInvalidSkill,
 			SkillID: problem.ID,
-			Path:    problem.Path,
 			Message: problem.Error,
 		})
 	}
@@ -51,7 +49,6 @@ func BuildHealthReport(scan ScanResult, ctx EligibilityContext) (*HealthReport, 
 			report.addFailure(HealthFailure{
 				Kind:    HealthFailureInvalidHealthInput,
 				SkillID: item.ID,
-				Path:    item.Path,
 				Message: fmt.Sprintf("normalize skill for health: %v", err),
 			})
 			continue
@@ -61,7 +58,6 @@ func BuildHealthReport(scan ScanResult, ctx EligibilityContext) (*HealthReport, 
 			report.addFailure(HealthFailure{
 				Kind:    HealthFailureInvalidHealthInput,
 				SkillID: current.ID,
-				Path:    current.Path,
 				Message: fmt.Sprintf("evaluate skill for health: %v", err),
 			})
 			continue
@@ -70,7 +66,6 @@ func BuildHealthReport(scan ScanResult, ctx EligibilityContext) (*HealthReport, 
 			report.addFailure(HealthFailure{
 				Kind:    HealthFailureEligibility,
 				SkillID: current.ID,
-				Path:    current.Path,
 				Message: strings.Join(view.DisabledReasons, ";"),
 			})
 		}
@@ -94,7 +89,6 @@ func (r *HealthReport) addFailure(failure HealthFailure) {
 		return
 	}
 	failure.SkillID = strings.TrimSpace(failure.SkillID)
-	failure.Path = strings.TrimSpace(failure.Path)
 	failure.Message = strings.TrimSpace(failure.Message)
 	r.Failures = append(r.Failures, failure)
 	r.Status = HealthFailed

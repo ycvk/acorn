@@ -18,24 +18,27 @@ import (
 // agent can run scripts from skill directories.
 const skillSystemPrompt = `Skills are written procedures for recurring kinds of work. The %s tool lists the skills you have and loads one by name. When a task matches a skill's description, load the skill first and follow it.`
 
+// skillContentFormat is a loaded skill: its whole document and the revision
+// skill_write and skill_retire take as base_revision.
+const skillContentFormat = "Skill %s, revision %d.\n\n%s"
+
 // skillBackend serves the run's eligible skills to the Eino skill middleware.
 type skillBackend struct {
-	matters []skill.FrontMatter
-	byName  map[string]skill.Skill
+	matters   []skill.FrontMatter
+	byName    map[string]skill.Skill
+	revisions map[string]int64
 }
 
 func newSkillBackend(snapshot *skills.Snapshot) *skillBackend {
-	b := &skillBackend{byName: map[string]skill.Skill{}}
-	if snapshot == nil {
-		return b
-	}
+	b := &skillBackend{byName: map[string]skill.Skill{}, revisions: map[string]int64{}}
 	for _, view := range snapshot.Skills {
 		if !view.Eligible {
 			continue
 		}
 		matter := skill.FrontMatter{Name: view.ID, Description: skillDescription(view.Spec)}
 		b.matters = append(b.matters, matter)
-		b.byName[view.ID] = skill.Skill{FrontMatter: matter, Content: view.Instruction, BaseDirectory: view.Path}
+		b.byName[view.ID] = skill.Skill{FrontMatter: matter, Content: view.Markdown}
+		b.revisions[view.ID] = view.Revision
 	}
 	sort.Slice(b.matters, func(i, j int) bool { return b.matters[i].Name < b.matters[j].Name })
 	return b
@@ -66,9 +69,15 @@ func skillDescription(spec skills.Spec) string {
 	return description
 }
 
+func (b *skillBackend) content(_ context.Context, loaded skill.Skill, _ string) (string, error) {
+	return fmt.Sprintf(skillContentFormat, loaded.Name, b.revisions[loaded.Name], loaded.Content), nil
+}
+
 func newSkillMiddleware(ctx context.Context, snapshot *skills.Snapshot) (adk.TypedChatModelAgentMiddleware[*schema.AgenticMessage], error) {
+	backend := newSkillBackend(snapshot)
 	middleware, err := skill.NewTyped[*schema.AgenticMessage](ctx, &skill.TypedConfig[*schema.AgenticMessage]{
-		Backend: newSkillBackend(snapshot),
+		Backend:      backend,
+		BuildContent: backend.content,
 		CustomSystemPrompt: func(_ context.Context, toolName string) string {
 			return fmt.Sprintf(skillSystemPrompt, toolName)
 		},

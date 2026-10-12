@@ -741,7 +741,7 @@ paths:
   /v1/skills:
     get:
       tags: [skills]
-      summary: List filesystem skills
+      summary: List the skills in use
       operationId: clientListSkills
       parameters:
         - $ref: '#/components/parameters/Limit'
@@ -775,33 +775,6 @@ paths:
           $ref: '#/components/responses/SkillNotFound'
         '500':
           $ref: '#/components/responses/InternalError'
-  /v1/skills/{id}/files:
-    get:
-      tags: [skills]
-      summary: Read a file from a skill package
-      operationId: clientReadSkillFile
-      parameters:
-        - $ref: '#/components/parameters/SkillId'
-        - name: path
-          in: query
-          required: false
-          description: Relative path inside the skill package. Defaults to SKILL.md.
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Skill file content
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SkillFileResponse'
-        '400':
-          $ref: '#/components/responses/InvalidRequest'
-        '404':
-          $ref: '#/components/responses/SkillNotFound'
-        '500':
-          $ref: '#/components/responses/InternalError'
-
   /v1/phone-notifications:
     post:
       tags: [phone-notifications]
@@ -1604,20 +1577,13 @@ components:
         - $ref: '#/components/schemas/SkillSummary'
         - type: object
           additionalProperties: false
-          required: [path, instruction]
+          required: [revision, instruction]
           properties:
-            path:
-              type: string
+            revision:
+              type: integer
+              format: int64
             instruction:
               type: string
-            scripts:
-              type: array
-              items:
-                type: string
-            files:
-              type: array
-              items:
-                type: string
             tags:
               type: array
               items:
@@ -1630,26 +1596,6 @@ components:
               type: array
               items:
                 type: string
-
-    SkillFile:
-      type: object
-      additionalProperties: false
-      required: [skill_id, path, content]
-      properties:
-        skill_id:
-          type: string
-        path:
-          type: string
-        content:
-          type: string
-
-    SkillFileResponse:
-      type: object
-      additionalProperties: false
-      required: [item]
-      properties:
-        item:
-          $ref: '#/components/schemas/SkillFile'
 
     SkillListResponse:
       type: object
@@ -1928,6 +1874,9 @@ components:
               type: string
             rule:
               type: string
+            tool_detail:
+              type: string
+              description: Set on tool approvals whose summary cannot hold what the call acts on; the skill document a skill_write would store.
 
     Error:
       type: object

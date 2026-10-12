@@ -56,7 +56,6 @@ The installer creates:
 | `/usr/local/bin/acorn` | Global command wrapper |
 | `~/.acorn/acorn.yaml` | Backend configuration |
 | `~/.acorn/acorn.env` | Provider secrets |
-| `~/.acorn/skills` | Skills, one directory with a `SKILL.md` each |
 | `/srv/acorn/workspace` | Runtime storage: SQLite database, persona and shared images |
 | `/srv/acorn/backups` | Nightly snapshots from `acorn-backup.timer` |
 | `/etc/systemd/system/acorn.service` | `systemd` service |
@@ -222,12 +221,11 @@ Mobile checks run from `mobile-kotlin/`:
 | `internal/watch/` | Watch checker: feeds, GitHub, page snapshots, failure backoff |
 | `internal/mcp/` | MCP provider manager |
 | `internal/webaccess/` | Web fetcher, Tavily search, content extraction, shared outbound URL policy |
-| `internal/skills/` | File-backed skill loader |
+| `internal/skills/` | Skill library over SQLite and the built-in skills |
 | `internal/config/` | Config struct, defaults, validation |
 | `internal/cli/` | CLI command dispatch |
 | `internal/api/` | HTTP server, `/healthz`, `/v1` |
 | `mobile-kotlin/` | Kotlin + Jetpack Compose mobile app |
-| `skills/` | Built-in Acorn skill seed pack |
 | `docs/` | User guide, OpenAPI contract, architecture invariants, and ADRs |
 
 ## Documentation

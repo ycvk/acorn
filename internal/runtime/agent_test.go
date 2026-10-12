@@ -11,6 +11,7 @@ import (
 	"github.com/cloudwego/eino/schema"
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
+	"github.com/ycvk/acorn/internal/skills"
 )
 
 type namedTool struct{ name string }
@@ -59,7 +60,7 @@ func TestStableInstructionNamesTheOwner(t *testing.T) {
 
 func TestBuildAgentHandlersOrder(t *testing.T) {
 	deps := handlerTestDeps(config.DefaultConfig())
-	req := agentRunnerRequest{RunID: "run_1", ChatModel: &scriptedModel{}, Instruction: "You are Acorn.", Memory: &runMemory{}}
+	req := agentRunnerRequest{RunID: "run_1", ChatModel: &scriptedModel{}, Skills: &skills.Snapshot{}, Instruction: "You are Acorn.", Memory: &runMemory{}}
 
 	withoutDeferred, err := buildAgentHandlers(context.Background(), deps, req, nil)
 	if err != nil {
@@ -90,7 +91,7 @@ func TestBuildAgentHandlersOrder(t *testing.T) {
 func TestBuildAgentHandlersRejectsBadApprovalPattern(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Approval.Require = []string{"["}
-	_, err := buildAgentHandlers(context.Background(), handlerTestDeps(cfg), agentRunnerRequest{ChatModel: &scriptedModel{}, Memory: &runMemory{}}, nil)
+	_, err := buildAgentHandlers(context.Background(), handlerTestDeps(cfg), agentRunnerRequest{ChatModel: &scriptedModel{}, Skills: &skills.Snapshot{}, Memory: &runMemory{}}, nil)
 	if err == nil {
 		t.Fatal("expected malformed approval pattern to fail handler assembly")
 	}

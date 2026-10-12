@@ -40,7 +40,6 @@ func (s *CapabilitiesService) snapshotSkills(ctx context.Context) SystemSkillCap
 		problems = append(problems, SystemSkillProblem{
 			ID:    item.ID,
 			Name:  item.Name,
-			Path:  item.Path,
 			Error: item.Error,
 		})
 	}

@@ -21,7 +21,7 @@ import (
 
 type containerRuntimeDeps struct {
 	memory                *memory.Engine
-	loader                *skills.Loader
+	skills                *skills.Library
 	mcpPendingActionStore core.SessionStore
 	toolRegistry          core.ToolRegistry
 	runnerFactory         *runtime.RunnerFactory
@@ -70,7 +70,13 @@ func buildNotifier(cfg *config.Config, db *store.Store, loc *time.Location, opti
 }
 
 func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *store.Store, options buildOptions) (*containerRuntimeDeps, error) {
-	loader := skills.NewLoader(cfg.Skills.Dir)
+	skillLibrary, err := skills.NewLibrary(db, options.clock)
+	if err != nil {
+		return nil, err
+	}
+	if err := skillLibrary.Seed(ctx); err != nil {
+		return nil, fmt.Errorf("built-in skills: %w", err)
+	}
 
 	runController := runtime.NewRunController()
 
@@ -129,6 +135,11 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 			Context:  ctxBridge,
 			Location: ownerLoc,
 		},
+		Skills: tools.SkillToolDeps{
+			Library:  skillLibrary,
+			Context:  ctxBridge,
+			Location: ownerLoc,
+		},
 		Watch: tools.WatchToolDeps{
 			Store:    db,
 			Checker:  watchChecker,
@@ -154,7 +165,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 	}
 	runnerFactory, err := runtime.NewRunnerFactory(cfg, db, runtime.RunnerFactoryOptions{
 		Attachments:           vault,
-		Loader:                loader,
+		Skills:                skillLibrary,
 		MCPPendingActionStore: mcpPendingActionStore,
 		ArtifactService:       artifactSvc,
 		ToolRegistry:          toolRegistry,
@@ -194,7 +205,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 	}
 
 	return &containerRuntimeDeps{
-		loader:                loader,
+		skills:                skillLibrary,
 		memory:                memoryEngine,
 		mcpPendingActionStore: mcpPendingActionStore,
 		toolRegistry:          toolRegistry,

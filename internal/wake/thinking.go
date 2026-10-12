@@ -33,6 +33,14 @@ func (s *Scheduler) nightInput(ctx context.Context, day string, now time.Time) (
 	if err != nil {
 		return routineInput{}, err
 	}
+	skills, err := s.cfg.Skills.Skills(ctx)
+	if err != nil {
+		return routineInput{}, err
+	}
+	loads, err := s.cfg.Skills.SkillLoadsSince(ctx, last)
+	if err != nil {
+		return routineInput{}, err
+	}
 	var sources []string
 	var b strings.Builder
 	fmt.Fprintf(&b, "[night %s] night reflection\nReview changed evidence, understandings that need review, open concerns and unfinished actions. Use recall and memory_read to inspect evidence before changing anything.\nMemory processing: pending=%d failed=%d\n", day, status.Pending, status.Failed)
@@ -53,6 +61,20 @@ func (s *Scheduler) nightInput(ctx context.Context, day string, now time.Time) (
 	for _, o := range occurrences {
 		n++
 		fmt.Fprintf(&b, "- commitment #%d occurrence #%d [%s] run %s\n", o.CommitmentID, o.ID, o.State, o.RunID)
+	}
+	// Skills the agent changed or loaded since the last night; a release's
+	// rewrite of a built-in skill is not the agent's work to review.
+	for _, skill := range skills {
+		written := skill.Author == core.SkillAuthorAgent && skill.UpdatedAt.After(last)
+		if !written && loads[skill.ID] == 0 {
+			continue
+		}
+		n++
+		state := "in use"
+		if skill.Retired {
+			state = "retired"
+		}
+		fmt.Fprintf(&b, "- skill %s rev %d [%s] written=%t loads=%d\n", skill.ID, skill.Revision, state, written, loads[skill.ID])
 	}
 	return routineInput{sources: sources, wake: "night reflection " + day, input: b.String(), skip: n == 0}, nil
 }

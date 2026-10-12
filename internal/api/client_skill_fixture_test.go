@@ -1,9 +1,8 @@
 package api
 
 import (
+	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -18,15 +17,21 @@ type testSkillFixture struct {
 	instruction string
 }
 
+type staticSkillScanner struct{ scan skills.ScanResult }
+
+func (s staticSkillScanner) Scan(context.Context) (*skills.ScanResult, error) {
+	scan := s.scan
+	return &scan, nil
+}
+
 func newTestSkillService(t *testing.T, fixtures ...testSkillFixture) *SkillService {
 	t.Helper()
 
-	root := t.TempDir()
 	cfg := config.DefaultConfig()
-	cfg.Skills.Dir = root
 	cfg.Runtime.StorageDir = t.TempDir()
 
-	for _, fixture := range fixtures {
+	var scan skills.ScanResult
+	for i, fixture := range fixtures {
 		id := strings.TrimSpace(fixture.id)
 		if id == "" {
 			t.Fatal("test skill id is required")
@@ -35,31 +40,18 @@ func newTestSkillService(t *testing.T, fixtures ...testSkillFixture) *SkillServi
 		if name == "" {
 			t.Fatalf("test skill %s name is required", id)
 		}
-		summary := strings.TrimSpace(fixture.summary)
 		instruction := strings.TrimSpace(fixture.instruction)
 		if instruction == "" {
 			instruction = "Use repo inspection."
 		}
-
-		dir := filepath.Join(root, id)
-		if err := os.MkdirAll(dir, 0o755); err != nil {
-			t.Fatalf("mkdir test skill dir: %v", err)
+		markdown := fmt.Sprintf("---\nid: %s\nname: %s\nsummary: %s\n---\n\n# %s\n\n%s\n", id, name, strings.TrimSpace(fixture.summary), name, instruction)
+		spec, err := skills.Parse(markdown)
+		if err != nil {
+			t.Fatalf("parse test skill %s: %v", id, err)
 		}
-
-		body := fmt.Sprintf(`---
-id: %s
-name: %s
-summary: %s
----
-
-# %s
-
-%s
-`, id, name, summary, name, instruction)
-		if err := os.WriteFile(filepath.Join(dir, "SKILL.md"), []byte(body), 0o644); err != nil {
-			t.Fatalf("write test skill markdown: %v", err)
-		}
+		spec.Revision, spec.Markdown = int64(i+1), markdown
+		scan.Skills = append(scan.Skills, spec)
 	}
 
-	return NewSkillService(cfg, skills.NewLoader(cfg.Skills.Dir))
+	return NewSkillService(cfg, staticSkillScanner{scan: scan})
 }

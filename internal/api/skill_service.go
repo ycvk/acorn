@@ -12,22 +12,24 @@ import (
 	"github.com/ycvk/acorn/internal/tools"
 )
 
+// SkillScanner reads the skills in use.
+type SkillScanner interface {
+	Scan(ctx context.Context) (*skills.ScanResult, error)
+}
+
 type SkillService struct {
 	cfg     *config.Config
-	scanner *skills.Loader
+	scanner SkillScanner
 }
 
 var ErrSkillNotFound = errors.New("skill not found")
 
-func NewSkillService(cfg *config.Config, scanner *skills.Loader) *SkillService {
+func NewSkillService(cfg *config.Config, scanner SkillScanner) *SkillService {
 	return &SkillService{cfg: cfg, scanner: scanner}
 }
 
 func (s *SkillService) Snapshot(ctx context.Context) (*skills.Snapshot, error) {
-	if s == nil || s.scanner == nil {
-		return nil, errors.New("stable skill scanner is nil")
-	}
-	scan, err := s.scanner.ScanSkills(ctx)
+	scan, err := s.scanner.Scan(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -40,10 +42,7 @@ func (s *SkillService) Snapshot(ctx context.Context) (*skills.Snapshot, error) {
 }
 
 func (s *SkillService) Health(ctx context.Context) (*skills.HealthReport, error) {
-	if s == nil || s.scanner == nil {
-		return nil, errors.New("stable skill scanner is nil")
-	}
-	scan, err := s.scanner.ScanSkills(ctx)
+	scan, err := s.scanner.Scan(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -58,12 +57,6 @@ func (s *SkillService) Health(ctx context.Context) (*skills.HealthReport, error)
 type SkillListFilter struct {
 	Limit  int
 	Offset int
-}
-
-type SkillFileView struct {
-	SkillID string `json:"skill_id"`
-	Path    string `json:"path"`
-	Content string `json:"content"`
 }
 
 func (s *SkillService) ListFiltered(ctx context.Context, filter SkillListFilter) ([]skills.View, int, error) {
@@ -112,32 +105,6 @@ func (s *SkillService) Get(ctx context.Context, id string) (*skills.View, error)
 		}
 	}
 	return nil, fmt.Errorf("%w: %s", ErrSkillNotFound, trimmedID)
-}
-
-func (s *SkillService) ReadFile(ctx context.Context, id, relativePath string) (*SkillFileView, error) {
-	if s == nil || s.scanner == nil {
-		return nil, errors.New("stable skill scanner is nil")
-	}
-	content, err := s.scanner.ReadSkillFile(ctx, id, relativePath)
-	if err != nil {
-		return nil, translateSkillStoreError(err)
-	}
-	path := strings.TrimSpace(relativePath)
-	if path == "" {
-		path = "SKILL.md"
-	}
-	return &SkillFileView{SkillID: strings.TrimSpace(id), Path: path, Content: content}, nil
-}
-
-func translateSkillStoreError(err error) error {
-	switch {
-	case err == nil:
-		return nil
-	case errors.Is(err, skills.ErrNotFound):
-		return fmt.Errorf("%w: %v", ErrSkillNotFound, err)
-	default:
-		return err
-	}
 }
 
 func environmentMap() map[string]string {

@@ -140,6 +140,8 @@ CREATE TABLE IF NOT EXISTS knowledge_revisions (
     PRIMARY KEY (path, revision)
 );
 
+` + skillsTables + `
+
 CREATE TABLE IF NOT EXISTS watches (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
@@ -226,6 +228,29 @@ END;
 
 CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_notes_fts USING fts5(path UNINDEXED, title, tags, body, tokenize='trigram');
 `
+
+// skillsTables is shared with the migration that adds them.
+const skillsTables = `CREATE TABLE IF NOT EXISTS skills (
+    id TEXT PRIMARY KEY,
+    markdown TEXT NOT NULL,
+    revision INTEGER NOT NULL,
+    retired INTEGER NOT NULL DEFAULT 0,
+    seed_sha256 TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS skill_revisions (
+    id TEXT NOT NULL REFERENCES skills(id),
+    revision INTEGER NOT NULL,
+    markdown TEXT NOT NULL,
+    markdown_sha256 TEXT NOT NULL,
+    retired INTEGER NOT NULL DEFAULT 0,
+    author TEXT NOT NULL,
+    run_id TEXT NOT NULL DEFAULT '',
+    at TEXT NOT NULL,
+    PRIMARY KEY (id, revision)
+);`
 
 // notificationsTable is shared with the migrations that rebuild the table, so
 // an upgraded database and a new one store the same definition.

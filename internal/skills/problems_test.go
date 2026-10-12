@@ -53,15 +53,15 @@ func TestSortSkillsByNameThenID(t *testing.T) {
 	}
 }
 
-func TestSortSkillProblemsByPathThenError(t *testing.T) {
+func TestSortSkillProblemsByIDThenError(t *testing.T) {
 	items := []Problem{
-		{Path: "/b", Error: "z"},
-		{Path: "/a", Error: "b"},
-		{Path: "/a", Error: "a"},
+		{ID: "b", Error: "z"},
+		{ID: "a", Error: "b"},
+		{ID: "a", Error: "a"},
 	}
 	sortSkillProblems(items)
-	if items[0].Error != "a" || items[1].Error != "b" || items[2].Path != "/b" {
-		t.Errorf("order = %v, want sorted by path then error", items)
+	if items[0].Error != "a" || items[1].Error != "b" || items[2].ID != "b" {
+		t.Errorf("order = %v, want sorted by id then error", items)
 	}
 }
 
@@ -83,12 +83,5 @@ func TestFirstNonEmpty(t *testing.T) {
 				t.Fatalf("firstNonEmpty(%v) = %q, want %q", tt.values, got, tt.want)
 			}
 		})
-	}
-}
-
-func TestSkillProblemForDir(t *testing.T) {
-	p := skillProblemForDir("/dir", "  id  ", "  name  ", "  text  ")
-	if p.ID != "id" || p.Name != "name" || p.Path != "/dir" || p.Error != "text" {
-		t.Errorf("problem = %#v, want trimmed values", p)
 	}
 }

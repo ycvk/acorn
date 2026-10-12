@@ -69,6 +69,7 @@ type NativeToolDeps struct {
 	Presence        PresenceToolDeps
 	Notify          NotifyToolDeps
 	Knowledge       KnowledgeToolDeps
+	Skills          SkillToolDeps
 	Watch           WatchToolDeps
 }
 
@@ -96,6 +97,11 @@ func nativeToolFactory(name string, deps NativeToolDeps) (core.ToolFactory, erro
 		{"Knowledge.Vault", deps.Knowledge.Vault != nil},
 		{"Knowledge.Context", deps.Knowledge.Context != nil},
 		{"Knowledge.Location", deps.Knowledge.Location != nil},
+	}
+	skillDeps := []nativeToolDep{
+		{"Skills.Library", deps.Skills.Library != nil},
+		{"Skills.Context", deps.Skills.Context != nil},
+		{"Skills.Location", deps.Skills.Location != nil},
 	}
 	watchDeps := []nativeToolDep{
 		{"Watch.Store", deps.Watch.Store != nil},
@@ -181,6 +187,12 @@ func nativeToolFactory(name string, deps NativeToolDeps) (core.ToolFactory, erro
 	case "knowledge_list":
 		needs = knowledgeDeps
 		build = func() (einotool.BaseTool, error) { return buildKnowledgeListTool(deps.Knowledge) }
+	case "skill_write":
+		needs = skillDeps
+		build = func() (einotool.BaseTool, error) { return buildSkillWriteTool(deps.Skills) }
+	case "skill_retire":
+		needs = skillDeps
+		build = func() (einotool.BaseTool, error) { return buildSkillRetireTool(deps.Skills) }
 	case "watch_create":
 		needs = watchDeps
 		build = func() (einotool.BaseTool, error) { return buildWatchCreateTool(deps.Watch) }

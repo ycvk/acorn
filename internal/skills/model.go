@@ -5,16 +5,17 @@ import (
 	"strings"
 )
 
+// Spec is a parsed skill. Revision and Markdown are the stored revision it was
+// read from and its whole document.
 type Spec struct {
 	ID           string
+	Revision     int64
+	Markdown     string
 	Name         string
 	Version      string
 	Category     string
 	Summary      string
 	Instruction  string
-	Path         string
-	Scripts      []string
-	Files        []string
 	Tags         []string
 	Platforms    []string
 	TriggerHints []string
@@ -31,7 +32,6 @@ type Requirements struct {
 type Problem struct {
 	ID    string `json:"id,omitempty"`
 	Name  string `json:"name,omitempty"`
-	Path  string `json:"path,omitempty"`
 	Error string `json:"error,omitempty"`
 }
 
@@ -67,9 +67,6 @@ func NormalizeSpec(item Spec) (Spec, error) {
 	item.Category = strings.TrimSpace(item.Category)
 	item.Summary = strings.TrimSpace(item.Summary)
 	item.Instruction = strings.TrimSpace(item.Instruction)
-	item.Path = strings.TrimSpace(item.Path)
-	item.Scripts = uniqueNonEmpty(item.Scripts)
-	item.Files = uniqueNonEmpty(item.Files)
 	item.Tags = uniqueNonEmpty(item.Tags)
 	item.Platforms = uniqueLowerNonEmpty(item.Platforms)
 	item.TriggerHints = uniqueNonEmpty(item.TriggerHints)
@@ -87,8 +84,6 @@ func NormalizeSpec(item Spec) (Spec, error) {
 
 func CopySpec(item Spec) Spec {
 	copy := item
-	copy.Scripts = append([]string(nil), item.Scripts...)
-	copy.Files = append([]string(nil), item.Files...)
 	copy.Tags = append([]string(nil), item.Tags...)
 	copy.Platforms = append([]string(nil), item.Platforms...)
 	copy.TriggerHints = append([]string(nil), item.TriggerHints...)

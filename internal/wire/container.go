@@ -190,7 +190,7 @@ func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *contai
 	}
 
 	container.runResume = api.NewRunResumeService(db).WithResume(deps.resumeRun)
-	container.skills = api.NewSkillService(cfg, deps.loader)
+	container.skills = api.NewSkillService(cfg, deps.skills)
 	container.threads = api.NewThreadService(db)
 	container.runs = api.NewRunService(db, container.threads, deps.executeRun, deps.runController).WithResumer(container.runResume)
 	container.events = api.NewEventService(db, db)
@@ -234,6 +234,7 @@ func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *contai
 		Store:              db,
 		Commitments:        db,
 		Memory:             db,
+		Skills:             db,
 		Events:             db,
 		Runs:               &wakeRunStarter{runs: container.runs, store: db},
 		Watches:            db,

@@ -177,9 +177,6 @@ func renderDoctorSkillProblem(problem api.SystemSkillProblem) string {
 	} else if problem.Name != "" {
 		parts = append(parts, problem.Name)
 	}
-	if problem.Path != "" {
-		parts = append(parts, "path="+problem.Path)
-	}
 	if problem.Error != "" {
 		parts = append(parts, "error="+problem.Error)
 	}

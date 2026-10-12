@@ -131,7 +131,7 @@ func buildRunCapabilities(ctx context.Context, deps RuntimeDeps, sessionID, runI
 	if err != nil {
 		return nil, err
 	}
-	skillSnapshot, err := loadStableSkillSnapshot(ctx, deps.Loader, skillEligibilityContextFromCatalog(catalog))
+	skillSnapshot, err := loadStableSkillSnapshot(ctx, deps.Skills, skillEligibilityContextFromCatalog(catalog))
 	if err != nil {
 		return nil, err
 	}

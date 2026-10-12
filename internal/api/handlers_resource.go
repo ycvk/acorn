@@ -40,15 +40,6 @@ func (s *Server) handleGetSkill(w http.ResponseWriter, r *http.Request) {
 	s.respondJSON(w, r, http.StatusOK, SkillEnvelope{Item: skillDetailDTOFromView(*item)})
 }
 
-func (s *Server) handleReadSkillFile(w http.ResponseWriter, r *http.Request) {
-	item, err := s.skills.ReadFile(r.Context(), chi.URLParam(r, "id"), r.URL.Query().Get("path"))
-	if err != nil {
-		s.respondKnownError(w, r, err)
-		return
-	}
-	s.respondJSON(w, r, http.StatusOK, SkillFileResponse{Item: *item})
-}
-
 func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {
 	s.respondJSON(w, r, http.StatusOK, HealthResponse{OK: true})
 }

@@ -151,6 +151,13 @@ fun PendingActionSheet(
                 Spacer(Modifier.height(10.dp))
                 Text(it, style = AcornTheme.type.reading, color = colors.ink)
             }
+            // The whole text the call acts on, such as the skill a skill_write stores.
+            detail.toolDetail?.takeIf { it.isNotBlank() }?.let { text ->
+                Spacer(Modifier.height(16.dp))
+                Text("完整内容", style = AcornTheme.type.caption, color = colors.inkFaint)
+                Spacer(Modifier.height(4.dp))
+                Text(text, style = AcornTheme.type.mono, color = colors.ink)
+            }
             detail.reason?.takeIf { it.isNotBlank() }?.let { Detail("原因", it) }
             detail.rule?.takeIf { it.isNotBlank() }?.let { Detail("触发的规则", it) }
             if (detail.options.isNotEmpty()) {

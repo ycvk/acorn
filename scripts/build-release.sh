@@ -36,16 +36,6 @@ cd "$root"
 GOOS=$goos GOARCH=$goarch CGO_ENABLED=0 \
 	go build -trimpath -ldflags="-s -w" -o "$package_dir/acorn" ./cmd/acorn
 
-if [ ! -d skills ]; then
-	echo "skills seed pack not found" >&2
-	exit 1
-fi
-skill_count=$(find skills -mindepth 2 -maxdepth 2 -name SKILL.md -type f | wc -l | tr -d ' ')
-if [ "$skill_count" = "0" ]; then
-	echo "skills seed pack is empty" >&2
-	exit 1
-fi
-cp -R skills "$package_dir/skills"
 cp -R deploy/workstation "$package_dir/workstation"
 
 install -m 0644 internal/cli/acorn.init.yaml "$package_dir/acorn.yaml.example"
@@ -67,7 +57,6 @@ goos=$goos
 goarch=$goarch
 cgo_enabled=0
 installer=install-release.sh
-skills_dir=skills
 EOF
 
 hash_file() {

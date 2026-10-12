@@ -35,14 +35,12 @@ import com.squareup.moshi.JsonClass
  * @param name 
  * @param version 
  * @param eligible 
- * @param path 
+ * @param revision 
  * @param instruction 
  * @param category 
  * @param summary 
  * @param requirements 
  * @param disabledReasons 
- * @param scripts 
- * @param files 
  * @param tags 
  * @param platforms 
  * @param triggerHints 
@@ -63,8 +61,8 @@ data class SkillDetail (
     @Json(name = "eligible")
     val eligible: kotlin.Boolean,
 
-    @Json(name = "path")
-    val path: kotlin.String,
+    @Json(name = "revision")
+    val revision: kotlin.Long,
 
     @Json(name = "instruction")
     val instruction: kotlin.String,
@@ -80,12 +78,6 @@ data class SkillDetail (
 
     @Json(name = "disabled_reasons")
     val disabledReasons: kotlin.collections.List<kotlin.String>? = null,
-
-    @Json(name = "scripts")
-    val scripts: kotlin.collections.List<kotlin.String>? = null,
-
-    @Json(name = "files")
-    val files: kotlin.collections.List<kotlin.String>? = null,
 
     @Json(name = "tags")
     val tags: kotlin.collections.List<kotlin.String>? = null,

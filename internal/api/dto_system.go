@@ -136,10 +136,8 @@ type SkillSummaryDTO struct {
 
 type SkillDetailDTO struct {
 	SkillSummaryDTO
-	Path         string   `json:"path"`
+	Revision     int64    `json:"revision"`
 	Instruction  string   `json:"instruction"`
-	Scripts      []string `json:"scripts,omitempty"`
-	Files        []string `json:"files,omitempty"`
 	Tags         []string `json:"tags,omitempty"`
 	Platforms    []string `json:"platforms,omitempty"`
 	TriggerHints []string `json:"trigger_hints,omitempty"`
@@ -152,10 +150,6 @@ type SkillListResponse struct {
 
 type SkillEnvelope struct {
 	Item SkillDetailDTO `json:"item"`
-}
-
-type SkillFileResponse struct {
-	Item SkillFileView `json:"item"`
 }
 
 func skillSummaryDTOFromView(item skills.View) SkillSummaryDTO {
@@ -174,10 +168,8 @@ func skillSummaryDTOFromView(item skills.View) SkillSummaryDTO {
 func skillDetailDTOFromView(item skills.View) SkillDetailDTO {
 	return SkillDetailDTO{
 		SkillSummaryDTO: skillSummaryDTOFromView(item),
-		Path:            item.Path,
+		Revision:        item.Revision,
 		Instruction:     item.Instruction,
-		Scripts:         append([]string(nil), item.Scripts...),
-		Files:           append([]string(nil), item.Files...),
 		Tags:            append([]string(nil), item.Tags...),
 		Platforms:       append([]string(nil), item.Platforms...),
 		TriggerHints:    append([]string(nil), item.TriggerHints...),

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -104,5 +105,37 @@ func TestToolApprovalSummaryNamesTheToolAndItsTarget(t *testing.T) {
 	}
 	if reviewed.ToolName != "shell" || reviewed.ToolSummary != "在浏览器里点击「提交订单」 · 订单结算页 —— 涉及付款" {
 		t.Fatalf("reviewed summary = %+v", reviewed)
+	}
+}
+
+func TestSkillWriteApprovalCarriesTheWholeSkill(t *testing.T) {
+	markdown := "---\nid: skill.orders\nsummary: Look up recent orders on the shop site.\n---\n# Shop orders\n\n1. Open the orders page.\n"
+	arguments, err := json.Marshal(map[string]any{"markdown": markdown, "base_revision": 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload, err := json.Marshal(map[string]any{"tool_name": "skill_write", "arguments": string(arguments)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	record := core.PendingActionRecord{
+		ActionID: "action_1", RunID: "run_1", Kind: core.PendingActionKindToolApproval, Status: core.PendingActionStatusPending,
+		Subject: "Approve skill_write", PayloadJSON: string(payload),
+	}
+	summary, err := buildPendingActionSummary(record, core.RunRecord{RunID: "run_1", SessionID: "thread_1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if summary.ToolSummary != "Shop orders: Look up recent orders on the shop site." {
+		t.Fatalf("summary = %q", summary.ToolSummary)
+	}
+	if got := toolCallDetail("skill_write", string(arguments)); got != strings.TrimSpace(markdown) {
+		t.Fatalf("detail = %q", got)
+	}
+	if got := toolCallDetail("shell", `{"command":"ls"}`); got != "" {
+		t.Fatalf("shell detail = %q", got)
+	}
+	if got := toolApprovalSummary("skill_retire", `{"id":"skill.orders","base_revision":3}`); got != "skill.orders" {
+		t.Fatalf("retire summary = %q", got)
 	}
 }

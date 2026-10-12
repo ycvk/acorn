@@ -43,7 +43,6 @@ backup_timer_path=/etc/systemd/system/acorn-backup.timer
 config_dir=$service_home/.acorn
 config_path=$config_dir/acorn.yaml
 env_path=$config_dir/acorn.env
-skills_dir=$config_dir/skills
 
 run_root() {
 	if [ "$(id -u)" -eq 0 ]; then
@@ -71,17 +70,6 @@ install_debian_host_tools() {
 	run_root apt-get update
 	# shellcheck disable=SC2086
 	run_root apt-get install -y $packages
-}
-
-install_packaged_skills() {
-	source_dir=$1
-	target_dir=$2
-	if [ ! -d "$source_dir" ]; then
-		die "packaged skills directory not found: $source_dir"
-	fi
-	run_root install -d "$target_dir"
-	run_root cp -R "$source_dir/." "$target_dir/"
-	run_root chown -R "$service_user:$service_group" "$target_dir"
 }
 
 detect_arch() {
@@ -268,7 +256,6 @@ download_release_files
 	cd "$package"
 	sha256sum -c CHECKSUMS
 	test -x acorn
-	test -f "skills/capability_recall/SKILL.md"
 	test -f "workstation/Containerfile"
 )
 
@@ -366,7 +353,6 @@ run_root install -d -m 0755 -o "$service_user" -g "$service_group" "$workspace_d
 run_root install -d -m 0700 -o "$service_user" -g "$service_group" "$backup_dir"
 run_root install -m 0755 "$package_dir/acorn" "$bin_path"
 run_root install -m 0755 "$wrapper_template" "$wrapper_path"
-install_packaged_skills "$package_dir/skills" "$skills_dir"
 
 if [ ! -e "$config_path" ]; then
 	set -- --storage-dir "$workspace_dir" --backup-dir "$backup_dir"

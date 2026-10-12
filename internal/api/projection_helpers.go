@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/ycvk/acorn/internal/core"
+	"github.com/ycvk/acorn/internal/skills"
 )
 
 func topLevelString(payload map[string]any, key string) string {
@@ -67,7 +68,7 @@ const (
 
 // toolCallSummaryKeys are the argument fields that say what a call is about,
 // most telling first: a search query, a URL, a note path.
-var toolCallSummaryKeys = []string{"query", "url", "command", "path", "prefix", "title", "question", "message", "content", "text", "name", "target"}
+var toolCallSummaryKeys = []string{"query", "url", "command", "path", "prefix", "title", "question", "message", "content", "text", "name", "target", "id"}
 
 // toolCallSummary is one line describing a tool call from its JSON
 // arguments, or empty when no telling field is present.
@@ -82,6 +83,34 @@ func toolCallSummary(arguments string) string {
 		}
 	}
 	return ""
+}
+
+// toolApprovalSummary says what a call waiting for approval is about. A skill
+// write reads as the skill's name and summary.
+func toolApprovalSummary(toolName, arguments string) string {
+	if toolName == "skill_write" {
+		if spec, err := skills.Parse(skillWriteMarkdown(arguments)); err == nil {
+			return clip(spec.Name+": "+spec.Summary, reviewSummaryRunes)
+		}
+	}
+	return toolCallSummary(arguments)
+}
+
+// toolCallDetail is the whole text a tool call acts on when its summary
+// cannot hold it: the skill document of skill_write.
+func toolCallDetail(toolName, arguments string) string {
+	if toolName != "skill_write" {
+		return ""
+	}
+	return skillWriteMarkdown(arguments)
+}
+
+func skillWriteMarkdown(arguments string) string {
+	var args map[string]any
+	if json.Unmarshal([]byte(arguments), &args) != nil {
+		return ""
+	}
+	return topLevelString(args, "markdown")
 }
 
 func clip(value string, limit int) string {
