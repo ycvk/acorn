@@ -25,6 +25,9 @@ const val EXTRA_THREAD_ID = "thread_id"
 /** Intent extra carrying the pending action a notification announces. */
 const val EXTRA_ACTION_ID = "action_id"
 
+/** Intent extra carrying a page a notification opens in the agent's browser. */
+const val EXTRA_BROWSER_URL = "browser_url"
+
 /**
  * Returns the thread to open for a notification tap, or null. [extra] reads one
  * intent extra; FCM puts data payload keys there when the system shows the

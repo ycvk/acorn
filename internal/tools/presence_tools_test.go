@@ -202,8 +202,17 @@ func TestNotifyOwnerAttributesConversationAndReportsQueue(t *testing.T) {
 	if !strings.Contains(out, `"status":"queued"`) || !strings.Contains(out, "2026-10-02 Fri 22:00") {
 		t.Fatalf("output = %s", out)
 	}
-	if got := notifier.got[0]; got.ThreadID != "thread_1" || got.RunID != "run_1" || got.Title != "提醒" {
+	if got := notifier.got[0]; got.ThreadID != "thread_1" || got.RunID != "run_1" || got.Title != "提醒" || got.BrowserURL != "" {
 		t.Fatalf("notification = %+v", got)
+	}
+	if _, err := runPresenceTool(t, tool, `{"title":"需要登录","body":"在浏览器里登录 GitHub","browser_url":"https://github.com/login"}`); err != nil {
+		t.Fatalf("notify_owner: %v", err)
+	}
+	if got := notifier.got[1]; got.BrowserURL != "https://github.com/login" {
+		t.Fatalf("notification = %+v", got)
+	}
+	if _, err := runPresenceTool(t, tool, `{"title":"a","body":"b","browser_url":"javascript:alert(1)"}`); err == nil || !strings.Contains(err.Error(), "http(s)") {
+		t.Fatalf("a non-http browser_url must fail: %v", err)
 	}
 	notifier.err = errors.New("no device has registered for push notifications")
 	if _, err := runPresenceTool(t, tool, `{"title":"a","body":"b"}`); err == nil || !strings.Contains(err.Error(), "no device") {

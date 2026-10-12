@@ -11,11 +11,12 @@ import (
 // schemaVersion is the database layout this build creates and expects. A
 // layout change bumps it, appends the migration from the previous version to
 // migrations, and records the new layout under testdata/schema.
-const schemaVersion = 2
+const schemaVersion = 3
 
 // migrations[i] upgrades a database from version i+1 to version i+2.
 var migrations = []func(context.Context, *sql.Tx) error{
 	addNotificationActionID,
+	addNotificationBrowserURL,
 }
 
 // addNotificationActionID (1 to 2) records which pending action a push
@@ -28,6 +29,24 @@ func addNotificationActionID(ctx context.Context, tx *sql.Tx) error {
 		notificationsTable,
 		`INSERT INTO notifications(` + columns + `) SELECT ` + columns + ` FROM notifications_v1`,
 		`DROP TABLE notifications_v1`,
+		notificationsDueIndex,
+	} {
+		if _, err := tx.ExecContext(ctx, statement); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// addNotificationBrowserURL (2 to 3) records the page a tap on a push opens in
+// the agent's browser, rebuilding the table the same way.
+func addNotificationBrowserURL(ctx context.Context, tx *sql.Tx) error {
+	columns := "id, title, body, thread_id, run_id, status, send_after, error_text, created_at, sent_at, action_id"
+	for _, statement := range []string{
+		`ALTER TABLE notifications RENAME TO notifications_v2`,
+		notificationsTable,
+		`INSERT INTO notifications(` + columns + `) SELECT ` + columns + ` FROM notifications_v2`,
+		`DROP TABLE notifications_v2`,
 		notificationsDueIndex,
 	} {
 		if _, err := tx.ExecContext(ctx, statement); err != nil {

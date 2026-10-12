@@ -22,14 +22,15 @@ var ErrTokenUnregistered = errors.New("push token is no longer registered")
 const fcmScope = "https://www.googleapis.com/auth/firebase.messaging"
 
 // Message is one push notification. ThreadID and RunID let the app open the
-// conversation when the notification is tapped. A message with ActionID
-// announces a pending action.
+// conversation when the notification is tapped, and BrowserURL a page in the
+// agent's browser over it. A message with ActionID announces a pending action.
 type Message struct {
-	Title    string
-	Body     string
-	ThreadID string
-	RunID    string
-	ActionID string
+	Title      string
+	Body       string
+	ThreadID   string
+	RunID      string
+	ActionID   string
+	BrowserURL string
 }
 
 // payload is the FCM message for msg. A pending action goes as data only, so
@@ -47,7 +48,11 @@ func payload(token string, msg Message) map[string]any {
 		}
 	} else {
 		message["notification"] = map[string]string{"title": msg.Title, "body": msg.Body}
-		message["data"] = map[string]string{"thread_id": msg.ThreadID, "run_id": msg.RunID}
+		data := map[string]string{"thread_id": msg.ThreadID, "run_id": msg.RunID}
+		if msg.BrowserURL != "" {
+			data["browser_url"] = msg.BrowserURL
+		}
+		message["data"] = data
 	}
 	return map[string]any{"message": message}
 }

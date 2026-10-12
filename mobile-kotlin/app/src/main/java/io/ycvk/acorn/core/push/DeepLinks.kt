@@ -6,8 +6,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/** A thread to open, and the pending action in it to bring up, if any. */
-data class ThreadLink(val threadId: String, val actionId: String? = null)
+/**
+ * A thread to open, and the pending action in it to bring up, if any. With
+ * [browserUrl] the agent's browser opens that page over the thread, so going
+ * back from it lands in the conversation.
+ */
+data class ThreadLink(val threadId: String, val actionId: String? = null, val browserUrl: String? = null)
 
 /**
  * Hands a thread to open from a notification tap (MainActivity) to the shell,

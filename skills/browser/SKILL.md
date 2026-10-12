@@ -41,10 +41,10 @@ requires:
 
 owner 在 Acorn App 里能实时看到并操作这个浏览器（「今天」页右上角的地球图标，「Agent 的浏览器」）。网站需要登录、验证码、二次验证或同意页面时：
 
-1. 先 `bsk navigate` 到登录页，让它留在浏览器里。
-2. 用 `notify_owner` 告诉 owner：在 App 的「Agent 的浏览器」里登录哪个网站、登录后要你做什么。
+1. 记下登录页的网址，照常 `bsk session stop`。
+2. 用 `notify_owner` 告诉 owner 要登录哪个网站、登录后要你做什么，`browser_url` 设为登录页网址。owner 正在对话里也要发：点开通知会在「Agent 的浏览器」里打开这个页面，返回就回到这个对话。
 3. 在回复里说明同样的内容，然后结束这一轮，不要轮询等待。
-4. owner 说登录好了，再 `observe` 确认已登录，继续任务。owner 说不登录，就如实结束。
+4. owner 说登录好了，开新会话打开原来的页面，`observe` 确认已登录后继续任务。owner 说不登录，就如实结束。
 
 不要让 owner 把密码、验证码发给你，也不要替 owner 输入它们。
 

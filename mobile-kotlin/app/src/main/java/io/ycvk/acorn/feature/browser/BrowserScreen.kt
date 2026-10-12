@@ -75,10 +75,13 @@ import io.ycvk.acorn.core.ui.rememberHaptics
  * the bar at the bottom types into the focused field.
  */
 @Composable
-fun BrowserScreen(onBack: () -> Unit, viewModel: BrowserViewModel = hiltViewModel()) {
+fun BrowserScreen(openUrl: String?, onBack: () -> Unit, viewModel: BrowserViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    // The page opens once per screen; a rotation must not reload what the owner is typing into.
+    var opened by rememberSaveable { mutableStateOf(false) }
     DisposableEffect(viewModel) {
-        viewModel.start()
+        viewModel.start(openUrl.takeUnless { opened })
+        opened = true
         onDispose { viewModel.stop() }
     }
     val colors = AcornTheme.colors
@@ -114,7 +117,7 @@ fun BrowserScreen(onBack: () -> Unit, viewModel: BrowserViewModel = hiltViewMode
             val frame = state.frame
             when {
                 frame != null -> Frame(frame, onTap = viewModel::tap, onScroll = viewModel::scroll)
-                state.status is BrowserStatus.Failed -> ErrorState((state.status as BrowserStatus.Failed).message, onRetry = viewModel::start)
+                state.status is BrowserStatus.Failed -> ErrorState((state.status as BrowserStatus.Failed).message, onRetry = { viewModel.start(null) })
                 state.status == BrowserStatus.NoTabs -> EmptyState(Icons.Outlined.Language, "浏览器没有打开的页面", "在上面输入网址打开一个页面")
                 else -> EmptyState(Icons.Outlined.Language, "正在连接 Agent 的浏览器", "画面出来后，点哪里就点网页的哪里")
             }

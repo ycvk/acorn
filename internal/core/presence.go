@@ -19,19 +19,21 @@ const (
 
 // Notification is a push message to the owner. SendAfter defers delivery
 // (quiet hours). ActionID marks a push announcing a pending action, which the
-// app shows with the action's own controls.
+// app shows with the action's own controls. BrowserURL makes a tap open the
+// agent's browser at that page over the conversation.
 type Notification struct {
-	ID        int64
-	Title     string
-	Body      string
-	ThreadID  string
-	RunID     string
-	ActionID  string
-	Status    NotificationStatus
-	SendAfter time.Time
-	Error     string
-	CreatedAt time.Time
-	SentAt    time.Time
+	ID         int64
+	Title      string
+	Body       string
+	ThreadID   string
+	RunID      string
+	ActionID   string
+	BrowserURL string
+	Status     NotificationStatus
+	SendAfter  time.Time
+	Error      string
+	CreatedAt  time.Time
+	SentAt     time.Time
 }
 
 // PushToken is a device's FCM registration token.

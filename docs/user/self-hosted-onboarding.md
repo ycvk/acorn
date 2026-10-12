@@ -482,7 +482,7 @@ The workstation runs its own Chromium on a virtual display, with the [BrowserSki
 
 You can watch and use this browser from the app: the globe on the 今天 tab opens Agent 的浏览器. Tapping the picture taps the page, dragging scrolls it, and the bar at the bottom types into the field you tapped. While you watch, pages are laid out for your phone's screen.
 
-When a task needs a site you have an account on, the agent opens its sign-in page and notifies you. Sign in there from the app, then tell the agent you are done. Logins stay in the `acorn-workstation-home` volume across restarts and upgrades, and the agent can use every site signed in there; sign out in the same view to take a site back. Submitting forms, sending, buying, deleting or changing account settings still wait for your approval on your phone when action review is on.
+When a task needs a site you have an account on, the agent notifies you; tapping the notification opens the site's sign-in page in the browser, over the conversation. Sign in, go back, and tell the agent you are done. Logins stay in the `acorn-workstation-home` volume across restarts and upgrades, and the agent can use every site signed in there; sign out in the same view to take a site back. Submitting forms, sending, buying, deleting or changing account settings still wait for your approval on your phone when action review is on.
 
 ### Approval Rules and Action Review
 

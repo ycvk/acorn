@@ -32,6 +32,7 @@ class AcornMessagingService : FirebaseMessagingService() {
             title = notification.title.orEmpty(),
             body = notification.body.orEmpty(),
             threadId = message.data[EXTRA_THREAD_ID],
+            browserUrl = message.data[EXTRA_BROWSER_URL],
         )
     }
 }

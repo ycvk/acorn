@@ -42,7 +42,8 @@ sealed interface Page {
         override val key = "settings"
     }
 
-    data object Browser : Page {
+    /** The agent's browser; [openUrl] is a page to open in it when the screen shows. */
+    data class Browser(val openUrl: String? = null) : Page {
         override val key = "browser"
     }
 }
@@ -71,7 +72,7 @@ class ShellViewModel @Inject constructor(
                 link.takeIf { auth is AuthState.Connected }
             }.collect { link ->
                 if (link != null) {
-                    _pages.value = listOf(Page.Chat(link.threadId, link.actionId))
+                    _pages.value = listOfNotNull(Page.Chat(link.threadId, link.actionId), link.browserUrl?.let { Page.Browser(it) })
                     deepLinks.consumed()
                 }
             }

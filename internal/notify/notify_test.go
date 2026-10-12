@@ -47,7 +47,13 @@ func TestFCMSendBuildsMessage(t *testing.T) {
 	if n := msg["notification"].(map[string]any); n["title"] != "提醒" || n["body"] != "该看 X 了" {
 		t.Fatalf("notification = %v", n)
 	}
-	if d := msg["data"].(map[string]any); d["thread_id"] != "thread_1" || d["run_id"] != "run_1" {
+	if d := msg["data"].(map[string]any); d["thread_id"] != "thread_1" || d["run_id"] != "run_1" || d["browser_url"] != nil {
+		t.Fatalf("data = %v", d)
+	}
+	if err := c.Send(context.Background(), "tok_1", Message{Title: "需要登录", Body: "在浏览器里登录 GitHub", ThreadID: "thread_1", RunID: "run_1", BrowserURL: "https://github.com/login"}); err != nil {
+		t.Fatalf("send: %v", err)
+	}
+	if d := got["message"]["data"].(map[string]any); d["thread_id"] != "thread_1" || d["browser_url"] != "https://github.com/login" {
 		t.Fatalf("data = %v", d)
 	}
 }

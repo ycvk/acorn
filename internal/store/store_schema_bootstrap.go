@@ -227,8 +227,8 @@ END;
 CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_notes_fts USING fts5(path UNINDEXED, title, tags, body, tokenize='trigram');
 `
 
-// notificationsTable is shared with the migration that added action_id, so an
-// upgraded database and a new one store the same definition.
+// notificationsTable is shared with the migrations that rebuild the table, so
+// an upgraded database and a new one store the same definition.
 const notificationsTable = `CREATE TABLE IF NOT EXISTS notifications (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT NOT NULL,
@@ -240,7 +240,8 @@ const notificationsTable = `CREATE TABLE IF NOT EXISTS notifications (
     error_text TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL,
     sent_at TEXT NOT NULL DEFAULT '',
-    action_id TEXT NOT NULL DEFAULT ''
+    action_id TEXT NOT NULL DEFAULT '',
+    browser_url TEXT NOT NULL DEFAULT ''
 );`
 
 const notificationsDueIndex = `CREATE INDEX IF NOT EXISTS idx_notifications_due ON notifications(status, send_after);`

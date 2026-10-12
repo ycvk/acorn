@@ -106,15 +106,17 @@ class PushManager @Inject constructor(
     }
 
     /** Shows a notification received while the app is in the foreground. */
-    fun show(title: String, body: String, threadId: String?) {
+    fun show(title: String, body: String, threadId: String?, browserUrl: String?) {
         if (!hasPermission()) return
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
             threadId?.let { putExtra(EXTRA_THREAD_ID, it) }
+            browserUrl?.let { putExtra(EXTRA_BROWSER_URL, it) }
         }
+        // Intents that differ in what they open must not replace each other's extras.
         val pending = PendingIntent.getActivity(
             context,
-            threadId.hashCode(),
+            "$threadId/$browserUrl".hashCode(),
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )

@@ -64,6 +64,7 @@ class BrowserViewModel @Inject constructor(
     private var stream: EventSource? = null
     private var tabsJob: Job? = null
     private var screen: PhoneScreen? = null
+    private var pendingUrl: String? = null
 
     /** The page streams laid out for [size]; a new size restarts the stream. */
     fun screen(size: PhoneScreen) {
@@ -72,8 +73,10 @@ class BrowserViewModel @Inject constructor(
         _state.value.tab?.let { if (tabsJob != null) connect(it) }
     }
 
-    fun start() {
+    /** Starts streaming; [openUrl], when it is a web address, opens in the first page shown. */
+    fun start(openUrl: String?) {
         stop()
+        pendingUrl = openUrl?.let(::navigationUrl)
         _state.update { it.copy(status = BrowserStatus.Loading) }
         tabsJob = viewModelScope.launch {
             while (isActive) {
@@ -114,6 +117,11 @@ class BrowserViewModel @Inject constructor(
             }
             chosen == null -> select(tabs.first().id)
             stream == null -> connect(chosen)
+        }
+        val url = pendingUrl
+        if (url != null && _state.value.tab != null) {
+            pendingUrl = null
+            send(BrowserInputRequest.Type.navigate, url = url)
         }
     }
 
