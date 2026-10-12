@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"sort"
 	"strings"
 	"time"
@@ -61,9 +60,6 @@ func (f *RunnerFactory) BuildCapabilitySpecs(ctx context.Context) ([]core.ToolSp
 		specs[i].Factory = nil
 	}
 	sort.Slice(specs, func(i, j int) bool { return specs[i].Name < specs[j].Name })
-	if err := toolset.Close(); err != nil {
-		return nil, fmt.Errorf("close capability toolset: %w", err)
-	}
 	return specs, nil
 }
 
@@ -82,23 +78,9 @@ func (f *RunnerFactory) buildRunChatModel(ctx context.Context, req RunnerBuildRe
 	return newChatModel(ctx, f.deps.Config)
 }
 
-func (r *ActiveRunner) Close() error {
-	var closeErr error
-	if r.CloseRunTools != nil {
-		closeErr = r.CloseRunTools()
-		r.CloseRunTools = nil
-	}
-	return closeErr
-}
-
 // Close releases the cached MCP manager.
 func (f *RunnerFactory) Close() error {
 	return closeMCPCache(f.mcpCache)
-}
-
-type localToolset struct {
-	specs   []core.ToolSpec
-	closers []io.Closer
 }
 
 func (f *RunnerFactory) buildRunCapabilityAssembly(ctx context.Context, req RunnerBuildRequest) (*capabilityAssembly, error) {
@@ -175,36 +157,17 @@ func assembleRunnerFactory(deps RuntimeDeps) *RunnerFactory {
 type runCapabilities struct {
 	catalog       *tools.Catalog
 	skillSnapshot *skills.Snapshot
-	close         func() error
-}
-
-func (c *runCapabilities) Close() error {
-	if c == nil || c.close == nil {
-		return nil
-	}
-	return c.close()
 }
 
 func (f *RunnerFactory) buildRun(ctx context.Context, req RunnerBuildRequest) (active *ActiveRunner, err error) {
 	if f == nil {
 		return nil, errors.New("runner factory is not initialized")
 	}
-	var capabilities *runCapabilities
-	defer func() {
-		if err == nil {
-			return
-		}
-		if capabilities != nil {
-			_ = capabilities.Close()
-		}
-	}()
-	chatModel, capabilityAssembly, prereqErr := f.buildRunPrerequisites(ctx, req)
-	if prereqErr != nil {
-		return nil, prereqErr
+	chatModel, capabilityAssembly, err := f.buildRunPrerequisites(ctx, req)
+	if err != nil {
+		return nil, err
 	}
-	capabilities = capabilityAssembly.capabilities
-	active, err = f.newAgentRunner(ctx, req, chatModel, capabilityAssembly)
-	return active, err
+	return f.newAgentRunner(ctx, req, chatModel, capabilityAssembly)
 }
 
 func (f *RunnerFactory) newAgentRunner(ctx context.Context, req RunnerBuildRequest, chatModel einomodel.AgenticModel, capabilityAssembly *capabilityAssembly) (*ActiveRunner, error) {
@@ -252,14 +215,13 @@ func (f *RunnerFactory) newAgentRunner(ctx context.Context, req RunnerBuildReque
 		return nil, err
 	}
 	return &ActiveRunner{
-		Mcp:           capabilityAssembly.mcpManager,
-		Runner:        runner,
-		ChatModel:     chatModel,
-		FailedCalls:   failed,
-		Memory:        mem,
-		RunID:         req.RunID,
-		ToolCatalog:   capabilities.catalog,
-		CloseRunTools: capabilities.Close,
+		Mcp:         capabilityAssembly.mcpManager,
+		Runner:      runner,
+		ChatModel:   chatModel,
+		FailedCalls: failed,
+		Memory:      mem,
+		RunID:       req.RunID,
+		ToolCatalog: capabilities.catalog,
 	}, nil
 }
 
@@ -289,14 +251,13 @@ type RunnerBuildRequest struct {
 }
 
 type ActiveRunner struct {
-	Memory        *runMemory
-	Mcp           *mcpprovider.Manager
-	Runner        *adk.TypedRunner[*schema.AgenticMessage]
-	ChatModel     einomodel.AgenticModel
-	FailedCalls   *failedToolCalls
-	RunID         string
-	ToolCatalog   *tools.Catalog
-	CloseRunTools func() error
+	Memory      *runMemory
+	Mcp         *mcpprovider.Manager
+	Runner      *adk.TypedRunner[*schema.AgenticMessage]
+	ChatModel   einomodel.AgenticModel
+	FailedCalls *failedToolCalls
+	RunID       string
+	ToolCatalog *tools.Catalog
 }
 
 func (f *RunnerFactory) buildRunPrerequisites(ctx context.Context, req RunnerBuildRequest) (einomodel.AgenticModel, *capabilityAssembly, error) {
@@ -327,8 +288,9 @@ const operatingRules = `Operating rules:
 - An input that starts with [capture] is something the owner shared from their phone. Load the skill.capture.to.note skill and follow it.
 - When the owner wants to keep following a source (a feed, a GitHub repository, a price or a page), create a watch with watch_create instead of scheduling wakes to fetch it. Use immediate only for what the owner wants to hear about right away; everything else goes to the morning briefing.
 - An input that starts with [watch is new on an immediate watch: tell the owner only what is worth their attention. An input that starts with [briefing is the morning briefing: load the skill.morning.briefing skill and follow it.
-- Before answering a capability question or saying you cannot do something, check the skills listed by the skill tool and the tools you have. If a capability depends on deferred tools (web_search, web_fetch, browser, shell, files), call tool_search first.
+- Before answering a capability question or saying you cannot do something, check the skills listed by the skill tool and the tools you have. If a capability depends on deferred tools (web_search, web_fetch, shell, files), call tool_search first.
 - You have your own Linux workstation. shell runs commands on it and files reads and writes its text files; use it to download, run scripts and process data. Results the owner should keep go to the knowledge base.
+- For a real browser, load skill.browser: the workstation has its own Chromium, and the owner's logged-in browser can connect to it.
 - Some tools pause for the owner's approval on their phone. Say what you are about to do before calling them.
 - Prefer available MCP tools over inventing capabilities, and never claim a tool succeeded when it did not run.`
 

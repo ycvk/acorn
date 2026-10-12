@@ -34,7 +34,6 @@ var localToolNames = []string{
 	"watch_list",
 	"web_fetch",
 	"web_search",
-	"browser",
 	"shell",
 	"files",
 }
@@ -86,10 +85,6 @@ func configuredLocalSpec(name string) core.ToolSpec {
 	case "web_fetch", "web_search":
 		spec.Kind = core.ToolKindNative
 		spec.Category = core.ToolCategoryRead
-		spec.Loading = core.DeferredLoadingPolicy("web_access")
-	case "browser":
-		spec.Kind = core.ToolKindNative
-		spec.Category = core.ToolCategoryIntegration
 		spec.Loading = core.DeferredLoadingPolicy("web_access")
 	case "shell", "files":
 		spec.Kind = core.ToolKindNative

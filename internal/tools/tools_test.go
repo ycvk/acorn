@@ -197,30 +197,6 @@ func TestWebSearchToolPersistsRawProviderArtifact(t *testing.T) {
 	}
 }
 
-func TestBrowserToolFailsLoudlyWhenExecutableIsMissing(t *testing.T) {
-	store := newToolArtifactStore()
-	artifactService, err := corestore.NewArtifactService(filepath.Join(t.TempDir(), "artifacts"), store)
-	if err != nil {
-		t.Fatalf("corestore.NewArtifactService: %v", err)
-	}
-	browserService, err := NewService(Config{
-		Timeout: time.Second,
-		Policy:  webaccess.URLPolicy{},
-	})
-	if err != nil {
-		t.Fatalf("browser.NewService: %v", err)
-	}
-	browserTool, err := buildBrowserTool(browserService, artifactService, fixedArtifactContext{runID: "run_browser", sessionID: "session_browser", callID: "call_browser"})
-	if err != nil {
-		t.Fatalf("buildBrowserTool: %v", err)
-	}
-	tool := mustToolByName(t, []einotool.BaseTool{browserTool}, "browser")
-	_, err = tool.InvokableRun(context.Background(), `{"action":"open","url":"http://93.184.216.34/"}`)
-	if err == nil || !strings.Contains(err.Error(), "browser.executable_path is not configured") || !strings.Contains(err.Error(), "install Chrome/Chromium") {
-		t.Fatalf("browser error = %v, want actionable missing executable_path", err)
-	}
-}
-
 func TestAskOperatorCreatesPendingActionAndInterrupts(t *testing.T) {
 	store, err := corestore.Open(filepath.Join(t.TempDir(), "state"))
 	if err != nil {

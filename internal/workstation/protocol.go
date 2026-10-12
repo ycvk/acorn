@@ -17,10 +17,14 @@ const (
 	MaxTimeoutSeconds = 3600
 	MaxOutputBytes    = 1 << 20
 	maxWriteBytes     = 8 << 20
+	maxRenderBytes    = 8 << 20
 )
 
 // ErrNotText is returned when a file is not UTF-8 text.
 var ErrNotText = errors.New("file is not UTF-8 text")
+
+// ErrNoBrowser is returned by render when the workstation has no browser.
+var ErrNoBrowser = errors.New("the workstation has no browser for rendering")
 
 type ExecRequest struct {
 	Command        string `json:"command"`
@@ -61,6 +65,16 @@ type WriteRequest struct {
 type WriteResult struct {
 	Path  string `json:"path"`
 	Bytes int    `json:"bytes"`
+}
+
+type RenderRequest struct {
+	URL            string `json:"url"`
+	TimeoutSeconds int    `json:"timeout_seconds"`
+}
+
+// RenderResult is a page's HTML after its scripts ran.
+type RenderResult struct {
+	HTML string `json:"html"`
 }
 
 type Status struct {

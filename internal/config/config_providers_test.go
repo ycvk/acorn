@@ -39,7 +39,6 @@ func TestValidateExecutionReady_MultipleEnabledProvidersInvalid(t *testing.T) {
 		},
 		Web:       WebConfig{ListenAddr: "127.0.0.1:8080"},
 		WebAccess: defaultConfig().WebAccess,
-		Browser:   defaultConfig().Browser,
 		Agent: AgentConfig{
 			Name:          "coordinator",
 			Description:   "test",
@@ -173,7 +172,6 @@ func TestValidateExecutionReady_DuplicateNames(t *testing.T) {
 		},
 		Web:       WebConfig{ListenAddr: "127.0.0.1:8080"},
 		WebAccess: defaultConfig().WebAccess,
-		Browser:   defaultConfig().Browser,
 		Agent: AgentConfig{
 			Name:          "coordinator",
 			Description:   "test",
@@ -228,7 +226,6 @@ func TestValidateExecutionReady_DisabledProviderNotValidated(t *testing.T) {
 		},
 		Web:       WebConfig{ListenAddr: "127.0.0.1:8080"},
 		WebAccess: defaultConfig().WebAccess,
-		Browser:   defaultConfig().Browser,
 		Agent: AgentConfig{
 			Name:          "coordinator",
 			Description:   "test",

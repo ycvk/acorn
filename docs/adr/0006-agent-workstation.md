@@ -27,8 +27,10 @@ agent 有一台隔离的工作机：VPS 上一个 Podman 容器，由单独的 `
 
 浏览器统一由 [BrowserSkill](https://github.com/Tencent/BrowserSkill) 驱动：工作机里装固定版本的 `bsk` CLI 与 daemon，agent 经 `shell` 调用 `bsk`，用法由随附的技能说明提供。现有基于 chromedp 的 `browser` 工具、主机浏览器路径配置和临时配置目录随之删除。`bsk` 连两种浏览器：
 
-- **owner 自己的浏览器。** daemon 以 server 模式运行，经现有反向代理暴露 WSS；owner 电脑上的扩展主动连入，配对、续期与吊销由 `bsk` 管理。agent 在独立的 Agent Window 里使用 owner 真实的登录状态，借用已打开的标签页需要显式借还。owner 的电脑在线时可用。
-- **工作机里的 Chromium。** 装着同一个扩展，持久配置目录，24 小时可用，用于不需要 owner 登录状态的任务。
+- **owner 自己的浏览器。** 一个 server 模式的 daemon 在工作机的 52801 端口用自签证书监听 TLS，反向代理把 `ACORN_BROWSER_PUBLIC_URL` 的 WSS 路径转发过来；owner 电脑上的扩展主动连入，配对、续期与吊销由 `bsk` 管理。agent 在独立的 Agent Window 里使用 owner 真实的登录状态，借用已打开的标签页需要显式借还。owner 的电脑在线时可用。
+- **工作机里的 Chromium。** 无头运行，装着同一个扩展，连本地模式的 daemon，持久配置目录，24 小时可用，用于不需要 owner 登录状态的任务。
+
+两个 daemon 和工作机的 Chromium 是 `acorn workstation serve` 守护的伴随进程。`web_rendered` 追踪经工作机的 `/v1/render` 用一次性的无头浏览器渲染。agent 的 `browser` 技能说明两个浏览器的用法；BrowserSkill 自带的详细说明随镜像放在工作机上，agent 用 `files` 读取。
 
 ### owner 接手
 

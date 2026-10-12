@@ -7,7 +7,6 @@ import (
 
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/store"
-	"github.com/ycvk/acorn/internal/tools"
 	"github.com/ycvk/acorn/internal/wake"
 	"github.com/ycvk/acorn/internal/watch"
 	"github.com/ycvk/acorn/internal/webaccess"
@@ -16,9 +15,9 @@ import (
 const defaultGitHubAPI = "https://api.github.com"
 
 // buildWatchChecker builds the checker the scheduler and the watch tools
-// share. It renders pages with its own browser when one is configured; the
-// returned browser is nil otherwise and must be closed with the container.
-func buildWatchChecker(cfg *config.Config, db *store.Store, options buildOptions) (*watch.Checker, *tools.Service, error) {
+// share. The workstation's browser renders web_rendered watches when a
+// workstation is configured.
+func buildWatchChecker(cfg *config.Config, db *store.Store, options buildOptions) (*watch.Checker, error) {
 	webCfg := cfg.WebAccess
 	policy := webaccess.URLPolicy{AllowPrivateNetworks: webCfg.AllowPrivateNetworks}
 	fetcher, err := webaccess.NewFetchService(webaccess.FetchConfig{
@@ -28,7 +27,7 @@ func buildWatchChecker(cfg *config.Config, db *store.Store, options buildOptions
 		Policy:           policy,
 	})
 	if err != nil {
-		return nil, nil, fmt.Errorf("watch fetcher: %w", err)
+		return nil, fmt.Errorf("watch fetcher: %w", err)
 	}
 	githubAPI := defaultGitHubAPI
 	if options.githubAPI != "" {
@@ -42,25 +41,14 @@ func buildWatchChecker(cfg *config.Config, db *store.Store, options buildOptions
 		GitHubAPI:     githubAPI,
 		GitHubToken:   strings.TrimSpace(cfg.Watch.GitHubToken),
 	}
-	var browser *tools.Service
-	if path := strings.TrimSpace(cfg.Browser.ExecutablePath); path != "" {
-		browser, err = tools.NewService(tools.Config{
-			ExecutablePath: path,
-			Headless:       cfg.Browser.Headless,
-			Timeout:        time.Duration(cfg.Browser.DefaultTimeoutSeconds) * time.Second,
-			UserAgent:      webCfg.UserAgent,
-			Policy:         policy,
-		})
-		if err != nil {
-			return nil, nil, fmt.Errorf("watch browser: %w", err)
-		}
-		checkerCfg.Renderer = browser
-	}
-	checker, err := watch.NewChecker(checkerCfg)
+	client, err := buildWorkstationClient(cfg)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	return checker, browser, nil
+	if client != nil {
+		checkerCfg.Renderer = policyRenderer{policy: policy, renderer: client}
+	}
+	return watch.NewChecker(checkerCfg)
 }
 
 func briefingSchedule(cfg *config.Config) (wake.Briefing, error) {

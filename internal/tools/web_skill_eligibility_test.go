@@ -15,8 +15,6 @@ func TestSeedWebResearchSkillEligibleWithOnlyWebFetch(t *testing.T) {
 	cfg := testWebToolsConfig(t)
 	cfg.Search = nil
 	cfg.SearchDisabledReason = "web_access.search.api_key is not configured"
-	cfg.Browser = nil
-	cfg.BrowserDisabledReason = "browser.executable_path is not configured"
 	specs, err := BuildWebToolSpecs(cfg)
 	if err != nil {
 		t.Fatalf("BuildWebToolSpecs: %v", err)
@@ -34,18 +32,22 @@ func TestSeedWebResearchSkillEligibleWithOnlyWebFetch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ScanSkills: %v", err)
 	}
+	if len(scan.Problems) > 0 {
+		t.Fatalf("seed skills have problems: %+v", scan.Problems)
+	}
 	snapshot, err := skills.BuildSnapshot(*scan, EligibilityContext(catalog, nil))
 	if err != nil {
 		t.Fatalf("BuildSnapshot: %v", err)
 	}
+	eligible := map[string]bool{}
 	for _, view := range snapshot.Skills {
-		if view.ID != "skill.web.browser.research" {
-			continue
-		}
-		if !view.Eligible {
-			t.Fatalf("web research skill ineligible: %v", view.DisabledReasons)
-		}
-		return
+		eligible[view.ID] = view.Eligible
 	}
-	t.Fatal("seed web research skill not found")
+	if ok, found := eligible["skill.web.browser.research"]; !found || !ok {
+		t.Fatalf("web research skill found=%v eligible=%v", found, ok)
+	}
+	// The browser skill drives bsk through shell, so it waits for a workstation.
+	if ok, found := eligible["skill.browser"]; !found || ok {
+		t.Fatalf("browser skill found=%v eligible=%v, want present and ineligible without shell", found, ok)
+	}
 }

@@ -53,6 +53,15 @@ func (c *Client) WriteFile(ctx context.Context, req WriteRequest) (WriteResult, 
 	return out, c.call(ctx, http.MethodPost, "/v1/files/write", req, &out)
 }
 
+// RenderHTML returns a page's HTML after its scripts ran.
+func (c *Client) RenderHTML(ctx context.Context, target string) (string, error) {
+	var out RenderResult
+	if err := c.call(ctx, http.MethodPost, "/v1/render", RenderRequest{URL: target, TimeoutSeconds: 45}, &out); err != nil {
+		return "", err
+	}
+	return out.HTML, nil
+}
+
 func (c *Client) call(ctx context.Context, method, path string, in, out any) error {
 	var body io.Reader
 	if in != nil {
@@ -75,7 +84,7 @@ func (c *Client) call(ctx context.Context, method, path string, in, out any) err
 		return fmt.Errorf("workstation %s: %w", path, err)
 	}
 	defer resp.Body.Close()
-	data, err := io.ReadAll(io.LimitReader(resp.Body, 4*MaxOutputBytes))
+	data, err := io.ReadAll(io.LimitReader(resp.Body, 3*maxRenderBytes))
 	if err != nil {
 		return fmt.Errorf("workstation %s: read response: %w", path, err)
 	}

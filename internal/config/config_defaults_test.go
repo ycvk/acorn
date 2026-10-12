@@ -19,8 +19,6 @@ func TestDefaultConfigValues(t *testing.T) {
 		{"web_access.search.provider", cfg.WebAccess.Search.Provider, "tavily"},
 		{"web_access.search.timeout_seconds", cfg.WebAccess.Search.TimeoutSeconds, 10},
 		{"web_access.search.max_results", cfg.WebAccess.Search.MaxResults, 10},
-		{"browser.headless", cfg.Browser.Headless, true},
-		{"browser.default_timeout_seconds", cfg.Browser.DefaultTimeoutSeconds, 20},
 		{"context.window_tokens", cfg.Context.WindowTokens, 1050000},
 		{"context.compact_margin_tokens", cfg.Context.CompactMarginTokens, 32000},
 		{"context.mask_after_turns", cfg.Context.MaskAfterTurns, 8},

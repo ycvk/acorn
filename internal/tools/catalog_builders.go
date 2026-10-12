@@ -15,21 +15,18 @@ func init() {
 }
 
 // WebToolsConfig carries the per-run services behind the deferred web tools.
-// Fetch is always required. Search and Browser depend on operator
-// configuration: a nil service disables its tool, and the matching disabled
-// reason is then required so the capability snapshot (acorn doctor) can say
-// why the tool is unavailable.
+// Fetch is always required. Search depends on operator configuration: a nil
+// service disables its tool, and the disabled reason is then required so the
+// capability snapshot (acorn doctor) can say why the tool is unavailable.
 type WebToolsConfig struct {
-	ArtifactService       core.ArtifactService
-	ArtifactContext       core.ToolCallContextBridge
-	Fetch                 WebFetchService
-	Search                WebSearchService
-	SearchDisabledReason  string
-	Browser               BrowserService
-	BrowserDisabledReason string
+	ArtifactService      core.ArtifactService
+	ArtifactContext      core.ToolCallContextBridge
+	Fetch                WebFetchService
+	Search               WebSearchService
+	SearchDisabledReason string
 }
 
-// BuildWebToolSpecs returns the specs for web_fetch, web_search and browser.
+// BuildWebToolSpecs returns the specs for web_fetch and web_search.
 // An unconfigured optional tool is returned as a disabled spec carrying its
 // reason; it never reaches the model.
 func BuildWebToolSpecs(cfg WebToolsConfig) ([]core.ToolSpec, error) {
@@ -51,20 +48,6 @@ func BuildWebToolSpecs(cfg WebToolsConfig) ([]core.ToolSpec, error) {
 			return nil, err
 		}
 		specs = append(specs, enabledLocalSpec("web_search", searchTool))
-	}
-
-	if cfg.Browser == nil {
-		spec, err := disabledLocalSpec("browser", cfg.BrowserDisabledReason)
-		if err != nil {
-			return nil, err
-		}
-		specs = append(specs, spec)
-	} else {
-		browserTool, err := buildBrowserTool(cfg.Browser, cfg.ArtifactService, cfg.ArtifactContext)
-		if err != nil {
-			return nil, err
-		}
-		specs = append(specs, enabledLocalSpec("browser", browserTool))
 	}
 	return specs, nil
 }

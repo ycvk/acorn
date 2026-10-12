@@ -7,24 +7,36 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/ycvk/acorn/internal/workstation"
 )
 
 // runWorkstation serves the workstation API. It runs inside the workstation
-// container and needs no Acorn config, only the shared token.
+// container and needs no Acorn config, only the shared token. Companions are
+// the long-running processes it keeps alive, such as the browser.
 func runWorkstation(ctx context.Context, args []string) error {
 	if len(args) == 0 || args[0] != "serve" {
-		return errors.New("usage: acorn workstation serve [--listen addr] [--home dir]")
+		return errors.New("usage: acorn workstation serve [--listen addr] [--home dir] [--chromium path] [--keep name=command]")
 	}
 	fs := newFlagSet("workstation serve")
 	listen := fs.String("listen", "0.0.0.0:7810", "listen address")
 	home := fs.String("home", os.Getenv("HOME"), "home directory for relative paths and commands")
+	chromium := fs.String("chromium", "", "browser executable that renders pages; empty turns render off")
+	var companions []workstation.Companion
+	fs.Func("keep", "keep a process running, as name=command; repeatable", func(spec string) error {
+		c, err := workstation.ParseCompanion(spec)
+		if err != nil {
+			return err
+		}
+		companions = append(companions, c)
+		return nil
+	})
 	if err := fs.Parse(args[1:]); err != nil {
 		return err
 	}
-	server, err := workstation.NewServer(*home, os.Getenv(workstation.TokenEnv))
+	server, err := workstation.NewServer(*home, os.Getenv(workstation.TokenEnv), *chromium)
 	if err != nil {
 		return err
 	}
@@ -35,6 +47,8 @@ func runWorkstation(ctx context.Context, args []string) error {
 		IdleTimeout:       60 * time.Second,
 		MaxHeaderBytes:    1 << 20,
 	}
+	var companionsDone sync.WaitGroup
+	companionsDone.Go(func() { workstation.NewSupervisor(os.Stdout).Run(ctx, companions) })
 	go func() {
 		<-ctx.Done()
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -43,8 +57,9 @@ func runWorkstation(ctx context.Context, args []string) error {
 			slog.Error("workstation shutdown error", "error", err)
 		}
 	}()
-	fmt.Printf("Acorn workstation listening on %s, home %s\n", *listen, *home)
+	fmt.Printf("Acorn workstation listening on %s, home %s, %d companions\n", *listen, *home, len(companions))
 	err = httpServer.ListenAndServe()
+	companionsDone.Wait()
 	if errors.Is(err, http.ErrServerClosed) {
 		return nil
 	}

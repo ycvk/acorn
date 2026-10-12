@@ -17,7 +17,7 @@ const workstationTestToken = "0123456789abcdef0123456789abcdef"
 
 func workstationSpecs(t *testing.T, timeout int) map[string]core.ToolSpec {
 	t.Helper()
-	server, err := workstation.NewServer(t.TempDir(), workstationTestToken)
+	server, err := workstation.NewServer(t.TempDir(), workstationTestToken, "")
 	if err != nil {
 		t.Fatal(err)
 	}

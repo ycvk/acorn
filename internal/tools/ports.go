@@ -14,24 +14,3 @@ type WebFetchService interface {
 type WebSearchService interface {
 	Search(ctx context.Context, req webaccess.SearchRequest) (webaccess.SearchResult, error)
 }
-
-// BrowserService is the subset of browser automation operations required by tool builders.
-type BrowserService interface {
-	Status(ctx context.Context) (Status, error)
-	Open(ctx context.Context, rawURL string) (NavigateResult, error)
-	Tabs(ctx context.Context) ([]Tab, error)
-	Scan(ctx context.Context, req ScanRequest) (ScanResult, error)
-	Snapshot(ctx context.Context) (SnapshotResult, error)
-	Click(ctx context.Context, ref, selector string) (NavigateResult, error)
-	Fill(ctx context.Context, ref, selector, text string) (NavigateResult, error)
-	Press(ctx context.Context, ref, selector, key string) (NavigateResult, error)
-	Select(ctx context.Context, ref, selector, value string) (NavigateResult, error)
-	Screenshot(ctx context.Context, fullPage bool) ([]byte, error)
-	ConsoleStart(ctx context.Context) (ConsoleResult, error)
-	ConsoleList() ConsoleResult
-	ConsoleStop() ConsoleResult
-	NetworkStart(ctx context.Context) (NetworkResult, error)
-	NetworkList() NetworkResult
-	NetworkStop() NetworkResult
-	Close() error
-}

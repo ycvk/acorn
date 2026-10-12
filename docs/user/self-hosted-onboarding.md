@@ -282,27 +282,16 @@ Acorn can use native runtime tools for public web research:
 
 - `web_search` uses Tavily for search discovery.
 - `web_fetch` fetches a specific public HTTP(S) URL and stores raw/Markdown artifacts.
-- `browser` drives a backend-owned Chromium session for pages that need JavaScript, interaction, screenshots, console, or network inspection.
 
-Release packages do not bundle Chrome/Chromium. To enable browser actions on a Debian/Ubuntu VPS, install Chromium yourself:
+Pages that need JavaScript or interaction open in a real browser on the agent's workstation; see [Agent Workstation](#15-agent-workstation).
 
-```bash
-sudo apt-get update
-sudo apt-get install -y chromium
-```
-
-Then configure the executable path and optional Tavily key in `~/.acorn/acorn.yaml`:
+Configure the optional Tavily key in `~/.acorn/acorn.yaml`:
 
 ```yaml
 web_access:
   search:
     provider: tavily
     api_key: ${TAVILY_API_KEY}
-
-browser:
-  executable_path: /usr/bin/chromium
-  headless: true
-  default_timeout_seconds: 20
 ```
 
 Add the search key to `~/.acorn/acorn.env` if you want search:
@@ -317,7 +306,7 @@ Restart after editing config or env:
 sudo systemctl restart acorn
 ```
 
-`browser.executable_path` and `TAVILY_API_KEY` are optional at backend startup. Without an executable path `browser` is disabled, and without a key `web_search` is disabled; `acorn doctor` lists each disabled tool with the missing setting. `web_fetch` does not require Tavily.
+`TAVILY_API_KEY` is optional at backend startup. Without a key `web_search` is disabled; `acorn doctor` lists each disabled tool with the missing setting. `web_fetch` does not require Tavily.
 
 ## 9. Persona, Timezone and Commitments
 
@@ -382,6 +371,7 @@ Config is parsed strictly: unknown keys stop the backend. When upgrading from a 
 - `tools.mutation` and `tools.run_command`
 - `context.preserve_recent_turns`
 - `mcp.providers[].tool_safety` (use `approval.require`)
+- the whole `browser` block (the workstation runs the browser)
 
 New keys, all optional: `approval.require`, `owner.name`, `owner.timezone`, `presence.max_tokens`, `wake.daily_limit`, `notify.max_per_hour`, `notify.quiet_hours`, `notify.fcm.service_account_file`, `watch.rsshub_base_url`, `watch.github_token`, `watch.max_checks_per_tick`, `briefing.at`, `workstation.*`. Then run `acorn init --persona-only` to write the default persona, and `acorn doctor` to check the result.
 
@@ -418,7 +408,7 @@ Sources a watch can follow:
   ```
 
 - A GitHub repository's releases or newly opened issues.
-- Part of a web page picked by a CSS selector, such as a price; without a selector the page's main text. Pages that only render with JavaScript need `browser.executable_path`.
+- Part of a web page picked by a CSS selector, such as a price; without a selector the page's main text. Pages that only render with JavaScript need the workstation, whose browser renders them.
 
 A watch that keeps failing (five times in a row) is marked failing and listed in the briefing with its last error. Ask the agent to list, pause, resume or change your watches. `acorn doctor` shows how many watches there are and which are failing.
 
@@ -486,10 +476,45 @@ sudo systemctl start acorn-workstation
 
 Commands and file writes on the workstation run without approval. Add `shell` or `files` to `approval.require` to approve each call on your phone.
 
+### Browsers
+
+The workstation runs its own headless Chromium with the [BrowserSkill](https://github.com/Tencent/BrowserSkill) extension, and the agent drives it with the `bsk` command through `shell`. It is always available and has none of your logins; the agent uses it for pages that need JavaScript or interaction. The same browser renders `web_rendered` watches.
+
+The agent can also use your own browser, with the sites you are signed in to. Your browser connects out to the workstation through your reverse proxy, so your computer needs no open port:
+
+1. Pick a public WSS URL on the domain that already serves Acorn, for example `wss://acorn.example.com/browser/extension`, and forward that path to port 52801 on the Acorn host. The workstation listens there with its own self-signed certificate, so the proxy talks TLS to it without verifying it. For nginx:
+
+   ```nginx
+   location /browser/extension {
+       proxy_pass https://127.0.0.1:52801;
+       proxy_ssl_verify off;
+       proxy_http_version 1.1;
+       proxy_set_header Upgrade $http_upgrade;
+       proxy_set_header Connection "upgrade";
+       proxy_set_header Host $host;
+       proxy_buffering off;
+       proxy_read_timeout 3600s;
+   }
+   ```
+
+2. Add the URL to `~/.acorn/acorn.env` and restart the workstation:
+
+   ```dotenv
+   ACORN_BROWSER_PUBLIC_URL=wss://acorn.example.com/browser/extension
+   ```
+
+   ```bash
+   sudo systemctl restart acorn-workstation
+   ```
+
+3. Install the BrowserSkill extension in Chrome or Edge from its store, ask the agent to pair your browser, and paste the link it gives you into the extension's popup under **Remote connection**. The link works once and expires after five minutes.
+
+`acorn doctor` shows both browsers. While your browser is connected, the agent opens its own window there, and you see what it does. Its browser instructions tell it to ask you on your phone before submitting forms, sending, buying, deleting or changing account settings, and to hand you sign-in, verification codes and payment confirmation in the browser; Acorn does not enforce this yet. Pairing grants the server the use of every site that browser profile is signed in to; disconnect in the extension popup to stop it. Changing `ACORN_BROWSER_PUBLIC_URL` invalidates existing pairings; pair again afterwards.
+
 ## 16. Current Limits
 
 - Host commands are host dependencies. If the model tries to run a command that is not installed on the VPS, the command fails explicitly when used.
-- Web search requires a configured Tavily API key. Browser actions require an operator-installed Chrome/Chromium executable.
+- Web search requires a configured Tavily API key. Browser actions require the agent workstation.
 - The mobile app refreshes backend truth through `/v1/inbox`, thread messages, and RunEvent cursors. Push needs your own Firebase project and an APK built with its values; there is no APNs support.
 - Autonomous wakes share the configured daily count and optional token limits.
 - Watches cannot follow pages that need a login. GitHub watches cover releases and newly opened issues only.

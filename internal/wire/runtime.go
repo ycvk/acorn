@@ -32,7 +32,6 @@ type containerRuntimeDeps struct {
 	notifier     *notify.Sender
 	vault        *knowledge.Vault
 	watchChecker *watch.Checker
-	watchBrowser *tools.Service
 }
 
 // buildNotifier returns the push sender, or nil and the reason push is off.
@@ -106,7 +105,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 	if err != nil {
 		return nil, fmt.Errorf("memory: %w", err)
 	}
-	watchChecker, watchBrowser, err := buildWatchChecker(cfg, db, options)
+	watchChecker, err := buildWatchChecker(cfg, db, options)
 	if err != nil {
 		return nil, err
 	}
@@ -197,7 +196,6 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 		notifier:              notifier,
 		vault:                 vault,
 		watchChecker:          watchChecker,
-		watchBrowser:          watchBrowser,
 	}, nil
 }
 

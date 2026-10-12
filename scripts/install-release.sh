@@ -151,7 +151,11 @@ EOF
 }
 
 # The workstation container runs under rootful Podman; inside it the agent
-# user owns /home/agent. Its API listens on host loopback only.
+# user owns /home/agent. Its API listens on host loopback only. Port 52801 is
+# the TLS listener the reverse proxy forwards the owner's browser to; it only
+# runs when ACORN_BROWSER_PUBLIC_URL is set in the env file. The attached
+# podman run carries container output to the unit's journal, so Podman keeps
+# no second log of its own.
 write_workstation_service_template() {
 	podman_path=$(command -v podman)
 	cat > "$1" <<EOF
@@ -165,7 +169,7 @@ Wants=network-online.target
 Type=simple
 EnvironmentFile=$env_path
 ExecStartPre=-$podman_path rm -f --ignore acorn-workstation
-ExecStart=$podman_path run --rm --name acorn-workstation --init --pids-limit 4096 -p 127.0.0.1:7810:7810 -v acorn-workstation-home:/home/agent -v $bin_path:/usr/local/bin/acorn:ro -e ACORN_WORKSTATION_TOKEN localhost/acorn-workstation:$version
+ExecStart=$podman_path run --rm --name acorn-workstation --init --log-driver none --pids-limit 4096 --shm-size 1g -p 127.0.0.1:7810:7810 -p 52801:52801 -v acorn-workstation-home:/home/agent -v $bin_path:/usr/local/bin/acorn:ro -e ACORN_WORKSTATION_TOKEN -e ACORN_BROWSER_PUBLIC_URL localhost/acorn-workstation:$version
 ExecStop=$podman_path stop --ignore -t 10 acorn-workstation
 Restart=on-failure
 RestartSec=5s

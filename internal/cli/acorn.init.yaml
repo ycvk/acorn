@@ -24,7 +24,6 @@ providers:
 approval:
   # Tool-name glob patterns whose calls pause for owner approval on the phone.
   require:
-    - browser
     - "mcp__*"
 
 owner:

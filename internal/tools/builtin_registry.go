@@ -205,8 +205,8 @@ func nativeToolFactory(name string, deps NativeToolDeps) (core.ToolFactory, erro
 
 // RegisterNativeTools registers every eager-loaded static local tool declared by
 // localToolNames/configuredLocalSpec into the core.ToolRegistry. Deferred-loaded
-// tools (web_fetch, web_search, browser) are excluded: they depend on per-run
-// services (web access, browser) constructed at buildRun time, so they cannot
+// tools (web_fetch, web_search, shell, files) are excluded: they depend on
+// per-run services (web access, workstation) constructed at buildRun time, so they cannot
 // be resolved at wire time. They are contributed by the runtime toolset
 // catalog instead (see BuildWebToolSpecs).
 func RegisterNativeTools(registry core.ToolRegistry, deps NativeToolDeps) error {

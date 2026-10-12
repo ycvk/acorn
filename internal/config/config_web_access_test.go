@@ -7,11 +7,10 @@ import (
 	"testing"
 )
 
-func TestValidateExecutionReadyDoesNotRequireWebSearchKeyOrBrowserExecutable(t *testing.T) {
+func TestValidateExecutionReadyDoesNotRequireWebSearchKey(t *testing.T) {
 	cfg := defaultConfig()
 	cfg.Providers[0].APIKey = "sk-chat"
 	cfg.WebAccess.Search.APIKey = ""
-	cfg.Browser.ExecutablePath = ""
 	cfg.Memory.Embedding.APIKey = "voyage-test"
 	if err := cfg.ValidateExecutionReady(); err != nil {
 		t.Fatalf("ValidateExecutionReady: %v", err)
@@ -66,13 +65,6 @@ func TestValidateBaseRejectsInvalidWebAccessConfig(t *testing.T) {
 			},
 			wantErr: "web_access.search.max_results must be > 0",
 		},
-		{
-			name: "zero browser timeout",
-			mutate: func(cfg *Config) {
-				cfg.Browser.DefaultTimeoutSeconds = 0
-			},
-			wantErr: "browser.default_timeout_seconds must be > 0",
-		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -86,7 +78,7 @@ func TestValidateBaseRejectsInvalidWebAccessConfig(t *testing.T) {
 	}
 }
 
-func TestLoadExpandsWebSearchKeyAndResolvesBrowserExecutable(t *testing.T) {
+func TestLoadExpandsWebSearchKey(t *testing.T) {
 	t.Setenv("ACORN_TEST_TAVILY_KEY", "tvly-test")
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "acorn.yaml")
@@ -104,8 +96,6 @@ web:
 web_access:
   search:
     api_key: ${ACORN_TEST_TAVILY_KEY}
-browser:
-  executable_path: bin/chromium
 agent:
   name: coordinator
   description: test
@@ -122,8 +112,5 @@ mcp:
 	}
 	if got := cfg.WebAccess.Search.APIKey; got != "tvly-test" {
 		t.Fatalf("web_access.search.api_key = %q, want expanded value", got)
-	}
-	if got, want := cfg.Browser.ExecutablePath, filepath.Join(dir, "bin/chromium"); got != want {
-		t.Fatalf("browser.executable_path = %q, want %q", got, want)
 	}
 }

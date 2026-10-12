@@ -26,9 +26,6 @@ func (c *Config) ValidateBase() error {
 	if err := c.validateWebAccessBase(); err != nil {
 		return err
 	}
-	if err := c.validateBrowserBase(); err != nil {
-		return err
-	}
 	if err := c.validateMemory(); err != nil {
 		return err
 	}
@@ -180,16 +177,6 @@ func (c *Config) validateWebAccessBase() error {
 	}
 	if search.MaxResults <= 0 {
 		return errors.New("web_access.search.max_results must be > 0")
-	}
-	return nil
-}
-
-func (c *Config) validateBrowserBase() error {
-	if c == nil {
-		return nil
-	}
-	if c.Browser.DefaultTimeoutSeconds <= 0 {
-		return errors.New("browser.default_timeout_seconds must be > 0")
 	}
 	return nil
 }

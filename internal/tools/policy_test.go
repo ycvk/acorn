@@ -7,14 +7,17 @@ import (
 	"github.com/ycvk/acorn/internal/tools"
 )
 
-func TestConfiguredLocalSpecsDeferWebTools(t *testing.T) {
-	for _, name := range []string{"web_fetch", "web_search", "browser"} {
+func TestConfiguredLocalSpecsDeferWebAndWorkstationTools(t *testing.T) {
+	for name, reason := range map[string]string{"web_fetch": "web_access", "web_search": "web_access", "shell": "workstation", "files": "workstation"} {
 		spec, ok := tools.ConfiguredLocalSpec(name)
 		if !ok {
 			t.Fatalf("%s spec missing", name)
 		}
-		if spec.Loading.Mode != core.ToolLoadingModeDeferred || spec.Loading.Reason != "web_access" {
-			t.Fatalf("%s loading = %+v, want deferred/web_access", name, spec.Loading)
+		if spec.Loading.Mode != core.ToolLoadingModeDeferred || spec.Loading.Reason != reason {
+			t.Fatalf("%s loading = %+v, want deferred/%s", name, spec.Loading, reason)
 		}
+	}
+	if _, ok := tools.ConfiguredLocalSpec("browser"); ok {
+		t.Fatal("browser is not a local tool; the agent drives browsers through the workstation")
 	}
 }

@@ -39,7 +39,7 @@ cd mobile-kotlin && ./tool/generate_openapi_client.sh --check && ./gradlew assem
 - 工具串行执行。普通工具失败与未知工具调用是模型可见的 tool result,不是 run failure;interrupt 与 context 取消照常传播。
 - 审批由 `approval.require` 的工具名 glob 决定,登记 `tool_approval` pending action 并发起工具级 interrupt;resume 参数必须与登记一致。`approval.require` 不能命中 `ask_operator`。续跑只由服务端驱动,没有客户端 resume 端点。
 - web 工具是 deferred,经 `tool_search` 加载;所有外部抓取走 `webaccess` 的共享 URL policy。
-- agent 的工作机是一个容器,里面运行只读挂载的 `acorn workstation serve`;`shell` 与 `files` 经 `internal/workstation` 的 HTTP 客户端和 bearer token 调用它,backend 不接触容器引擎。
+- agent 的工作机是一个容器,里面运行只读挂载的 `acorn workstation serve`;`shell` 与 `files` 经 `internal/workstation` 的 HTTP 客户端和 bearer token 调用它,backend 不接触容器引擎。浏览器经工作机里的 `bsk`(BrowserSkill)操作:工作机自带的 Chromium,以及 owner 配对后经反向代理连入的浏览器;`web_rendered` 追踪也由工作机的浏览器渲染。
 - `<memory_context>` 与 `<presence>` 是每次模型调用临时追加的 system 消息,不进入可被总结的消息序列,各自受预算约束。
 
 ### 技能

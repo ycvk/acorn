@@ -35,7 +35,6 @@ func TestValidateExecutionReadyContextConfig(t *testing.T) {
 		},
 		Web:       WebConfig{ListenAddr: "127.0.0.1:8080"},
 		WebAccess: defaultConfig().WebAccess,
-		Browser:   defaultConfig().Browser,
 		Agent: AgentConfig{
 			Name:          "coordinator",
 			Description:   "test",
@@ -110,7 +109,6 @@ func TestValidateExecutionReadyRejectsInvalidExecutionFields(t *testing.T) {
 		},
 		Web:       WebConfig{ListenAddr: "127.0.0.1:8080"},
 		WebAccess: defaultConfig().WebAccess,
-		Browser:   defaultConfig().Browser,
 		Agent: AgentConfig{
 			Name:          "coordinator",
 			Description:   "test",
@@ -180,7 +178,7 @@ func TestValidateBaseRejectsMalformedApprovalPattern(t *testing.T) {
 func TestValidateBaseRejectsApprovalPatternMatchingAskOperator(t *testing.T) {
 	for _, pattern := range []string{"ask_operator", "*", "ask_*"} {
 		cfg := defaultConfig()
-		cfg.Approval.Require = []string{"browser", pattern}
+		cfg.Approval.Require = []string{"shell", pattern}
 		err := cfg.ValidateBase()
 		if err == nil || !strings.Contains(err.Error(), "approval.require[1]") || !strings.Contains(err.Error(), "ask_operator") {
 			t.Fatalf("pattern %q: ValidateBase() error = %v, want ask_operator rejection", pattern, err)
@@ -188,9 +186,9 @@ func TestValidateBaseRejectsApprovalPatternMatchingAskOperator(t *testing.T) {
 	}
 }
 
-func TestDefaultApprovalRequiresBrowserAndMCP(t *testing.T) {
+func TestDefaultApprovalRequiresMCP(t *testing.T) {
 	got := defaultConfig().Approval.Require
-	if len(got) != 2 || got[0] != "browser" || got[1] != "mcp__*" {
+	if len(got) != 1 || got[0] != "mcp__*" {
 		t.Fatalf("default approval.require = %v", got)
 	}
 }

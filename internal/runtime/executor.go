@@ -108,7 +108,6 @@ func (e *Executor) ExecuteMessages(ctx context.Context, req core.ExecuteRequest,
 	if err != nil {
 		return nil, e.failSetupOrErr(ctx, runID, err, sink)
 	}
-	defer active.Close()
 	execCtx := core.WithWake(buildExecutionContext(runCtxBase, runID, req.SessionID), req.Wake)
 	iter := active.Runner.Run(execCtx, active.Memory.messages(), adk.WithCheckPointID(runID))
 	return e.consume(ctx, runID, req.SessionID, req.Input, iter, sink, active)
@@ -212,7 +211,6 @@ func (e *Executor) executeResume(ctx context.Context, runCtxBase context.Context
 	if err != nil {
 		return nil, err
 	}
-	defer active.Close()
 	execCtx := core.WithWake(buildExecutionContext(runCtxBase, runID, run.SessionID), resumeWake)
 	iter, err := active.Runner.ResumeWithParams(execCtx, runID, &adk.ResumeParams{Targets: targets})
 	if err != nil {

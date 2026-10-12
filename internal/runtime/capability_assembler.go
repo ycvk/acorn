@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"strings"
 	"time"
 
@@ -40,22 +39,19 @@ func buildToolset(
 	ctx context.Context,
 	deps RuntimeDeps,
 	sessionID string,
-) (_ *Toolset, err error) {
+) (*Toolset, error) {
 	if err := validateToolsetDeps(deps); err != nil {
 		return nil, err
 	}
-	var closers []io.Closer
-	defer func() { closeToolsetOnErr(closers, &err) }()
-	local, err := buildLocalToolset(deps)
-	closers = append(closers, local.closers...)
+	specs, err := buildLocalToolSpecs(deps)
 	if err != nil {
 		return nil, err
 	}
-	catalog, err := tools.NewCatalog(ctx, local.specs)
+	catalog, err := tools.NewCatalog(ctx, specs)
 	if err != nil {
 		return nil, fmt.Errorf("build toolset catalog: %w", err)
 	}
-	return NewToolset(catalog, closers...), nil
+	return NewToolset(catalog), nil
 }
 
 func validateToolsetDeps(deps RuntimeDeps) error {
@@ -68,44 +64,28 @@ func validateToolsetDeps(deps RuntimeDeps) error {
 	return nil
 }
 
-// buildLocalToolset builds the deferred web and workstation tool specs from
-// per-run services. The returned closers must be closed even when err is
-// non-nil.
-func buildLocalToolset(deps RuntimeDeps) (localToolset, error) {
-	webCfg, closers, err := buildWebToolsConfig(deps)
+// buildLocalToolSpecs builds the deferred web and workstation tool specs from
+// per-run services.
+func buildLocalToolSpecs(deps RuntimeDeps) ([]core.ToolSpec, error) {
+	webCfg, err := buildWebToolsConfig(deps)
 	if err != nil {
-		return localToolset{}, err
+		return nil, err
 	}
 	specs, err := tools.BuildWebToolSpecs(webCfg)
 	if err != nil {
-		return localToolset{closers: closers}, err
+		return nil, err
 	}
 	workstationSpecs, err := tools.BuildWorkstationToolSpecs(deps.Workstation)
-	return localToolset{specs: append(specs, workstationSpecs...), closers: closers}, err
+	if err != nil {
+		return nil, err
+	}
+	return append(specs, workstationSpecs...), nil
 }
 
-func closeToolsetOnErr(closers []io.Closer, err *error) {
-	if *err == nil {
-		return
-	}
-	var closeErrs []error
-	for i := len(closers) - 1; i >= 0; i-- {
-		if closers[i] == nil {
-			continue
-		}
-		if closeErr := closers[i].Close(); closeErr != nil {
-			closeErrs = append(closeErrs, closeErr)
-		}
-	}
-	if len(closeErrs) > 0 {
-		*err = errors.Join(*err, fmt.Errorf("close toolset after build failure: %w", errors.Join(closeErrs...)))
-	}
-}
-
-// buildWebToolsConfig constructs the per-run web services. web_search and
-// browser stay disabled until their config is set; the reason surfaces in the
-// capability snapshot.
-func buildWebToolsConfig(deps RuntimeDeps) (tools.WebToolsConfig, []io.Closer, error) {
+// buildWebToolsConfig constructs the per-run web services. web_search stays
+// disabled until its key is set; the reason surfaces in the capability
+// snapshot.
+func buildWebToolsConfig(deps RuntimeDeps) (tools.WebToolsConfig, error) {
 	webCfg := deps.Config.WebAccess
 	policy := webaccess.URLPolicy{AllowPrivateNetworks: webCfg.AllowPrivateNetworks}
 	fetch, err := webaccess.NewFetchService(webaccess.FetchConfig{
@@ -115,7 +95,7 @@ func buildWebToolsConfig(deps RuntimeDeps) (tools.WebToolsConfig, []io.Closer, e
 		Policy:           policy,
 	})
 	if err != nil {
-		return tools.WebToolsConfig{}, nil, fmt.Errorf("web fetch service: %w", err)
+		return tools.WebToolsConfig{}, fmt.Errorf("web fetch service: %w", err)
 	}
 	out := tools.WebToolsConfig{
 		ArtifactService: deps.ArtifactService,
@@ -133,32 +113,11 @@ func buildWebToolsConfig(deps RuntimeDeps) (tools.WebToolsConfig, []io.Closer, e
 			Policy:           policy,
 		})
 		if err != nil {
-			return tools.WebToolsConfig{}, nil, fmt.Errorf("web search service: %w", err)
+			return tools.WebToolsConfig{}, fmt.Errorf("web search service: %w", err)
 		}
 		out.Search = search
 	}
-	if strings.TrimSpace(deps.Config.Browser.ExecutablePath) == "" {
-		out.BrowserDisabledReason = "browser.executable_path is not configured"
-		return out, nil, nil
-	}
-	browser, err := buildBrowserService(deps)
-	if err != nil {
-		return tools.WebToolsConfig{}, nil, fmt.Errorf("browser service: %w", err)
-	}
-	out.Browser = browser
-	return out, []io.Closer{browser}, nil
-}
-
-func buildBrowserService(deps RuntimeDeps) (*tools.Service, error) {
-	browserCfg := deps.Config.Browser
-	webCfg := deps.Config.WebAccess
-	return tools.NewService(tools.Config{
-		ExecutablePath: strings.TrimSpace(browserCfg.ExecutablePath),
-		Headless:       browserCfg.Headless,
-		Timeout:        time.Duration(browserCfg.DefaultTimeoutSeconds) * time.Second,
-		UserAgent:      webCfg.UserAgent,
-		Policy:         webaccess.URLPolicy{AllowPrivateNetworks: webCfg.AllowPrivateNetworks},
-	})
+	return out, nil
 }
 
 // buildRunCapabilities builds the run's tool catalog (local tools + MCP specs)
@@ -168,11 +127,6 @@ func buildRunCapabilities(ctx context.Context, deps RuntimeDeps, sessionID, runI
 	if err != nil {
 		return nil, err
 	}
-	defer func() {
-		if err != nil {
-			_ = toolset.Close()
-		}
-	}()
 	catalog, err := assembleRunCapabilitiesCatalog(ctx, deps, toolset, sessionID, runID, mcpManager)
 	if err != nil {
 		return nil, err
@@ -184,7 +138,6 @@ func buildRunCapabilities(ctx context.Context, deps RuntimeDeps, sessionID, runI
 	return &runCapabilities{
 		catalog:       catalog,
 		skillSnapshot: skillSnapshot,
-		close:         toolset.Close,
 	}, nil
 }
 
@@ -192,8 +145,8 @@ func buildRunCapabilities(ctx context.Context, deps RuntimeDeps, sessionID, runI
 // merging three sources:
 //   - registry specs: eager-loaded native tools + MCP main tools (MCP tools
 //     are registered into the registry at provider-connect time)
-//   - toolset catalog specs: deferred-loaded native tools (web/browser, built
-//     per run from live services)
+//   - toolset catalog specs: deferred-loaded native tools (web, workstation,
+//     built per run from live services)
 //   - MCP auxiliary specs: resource/prompt wrappers (session-derived, outside
 //     the registry lifecycle)
 //
@@ -222,38 +175,15 @@ func resolveRegistrySpecs(ctx context.Context, deps RuntimeDeps, sessionID, runI
 	return deps.ToolRegistry.ResolveEnabledSpecs(ctx, runCtx)
 }
 
-func NewToolset(catalog *tools.Catalog, closers ...io.Closer) *Toolset {
-	c := make([]io.Closer, 0, len(closers))
-	for _, cl := range closers {
-		if cl != nil {
-			c = append(c, cl)
-		}
-	}
-	return &Toolset{catalog: catalog, closers: c}
+func NewToolset(catalog *tools.Catalog) *Toolset {
+	return &Toolset{catalog: catalog}
 }
 
 // Toolset is a built collection of tools for a run or serve context.
 type Toolset struct {
 	catalog *tools.Catalog
-	closers []io.Closer
 }
 
 func (t Toolset) Catalog() *tools.Catalog {
 	return t.catalog
-}
-
-func (t *Toolset) Close() error {
-	if t == nil {
-		return nil
-	}
-	var errs []error
-	for i := len(t.closers) - 1; i >= 0; i-- {
-		if t.closers[i] == nil {
-			continue
-		}
-		if err := t.closers[i].Close(); err != nil {
-			errs = append(errs, err)
-		}
-	}
-	return errors.Join(errs...)
 }

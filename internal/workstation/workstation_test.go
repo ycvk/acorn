@@ -14,8 +14,13 @@ const testToken = "0123456789abcdef0123456789abcdef"
 
 func newTestClient(t *testing.T) (*Client, string) {
 	t.Helper()
+	return newTestClientWithBrowser(t, "")
+}
+
+func newTestClientWithBrowser(t *testing.T, chromium string) (*Client, string) {
+	t.Helper()
 	home := t.TempDir()
-	server, err := NewServer(home, testToken)
+	server, err := NewServer(home, testToken, chromium)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -29,11 +34,11 @@ func newTestClient(t *testing.T) (*Client, string) {
 }
 
 func TestServerRejectsWrongToken(t *testing.T) {
-	_, err := NewServer(t.TempDir(), "short")
+	_, err := NewServer(t.TempDir(), "short", "")
 	if err == nil || !strings.Contains(err.Error(), TokenEnv) {
 		t.Fatalf("short token err = %v", err)
 	}
-	server, err := NewServer(t.TempDir(), testToken)
+	server, err := NewServer(t.TempDir(), testToken, "")
 	if err != nil {
 		t.Fatal(err)
 	}

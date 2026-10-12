@@ -179,6 +179,10 @@
   - `internal/workstation/workstation_test.go`
   - `internal/tools/workstation_tools_test.go`
   - `internal/config/config_workstation_test.go`
+- **伴随进程常驻**：`acorn workstation serve --keep` 的每个伴随进程在独立进程组里运行，退出后按退避重启，serve 停止时连同其子进程一起结束；日志按名字加前缀并去掉终端颜色码。
+  - `internal/workstation/supervisor_test.go`
+- **页面渲染隔离**：`web_rendered` 追踪经工作机 `/v1/render` 渲染，每次用临时配置目录启动一次性浏览器，只接受 http(s)；backend 先按共享 URL policy 校验目标。
+  - `internal/workstation/render_test.go`
 - **命令有界**：超时或请求取消时杀掉命令的整个进程组；工具超时不能超过 `workstation.command_timeout_seconds`；stdout 与 stderr 超出上限时各保留开头和结尾并标出省略的字节数。
   - `internal/workstation/workstation_test.go`
   - `internal/tools/workstation_tools_test.go`

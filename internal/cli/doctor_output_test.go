@@ -181,6 +181,10 @@ func TestRenderDoctorWorkstation(t *testing.T) {
 	}{
 		{wire.WorkstationStatus{State: "off"}, "Workstation: off (workstation.url is not configured; shell and files are disabled)"},
 		{wire.WorkstationStatus{State: "ok", URL: "http://127.0.0.1:7810", Home: "/home/agent"}, "Workstation: ok http://127.0.0.1:7810 home=/home/agent"},
+		{wire.WorkstationStatus{State: "ok", URL: "http://127.0.0.1:7810", Home: "/home/agent", Browsers: []wire.BrowserStatus{
+			{Daemon: "workstation", State: "connected", Connected: []string{"afc17aef"}},
+			{Daemon: "owner", State: "waiting"},
+		}}, "Workstation: ok http://127.0.0.1:7810 home=/home/agent\n  Workstation browser: connected afc17aef\n  Your browser: waiting for pairing; ask the agent for a pairing link"},
 		{wire.WorkstationStatus{State: "unreachable", URL: "http://127.0.0.1:7810", Error: "connection refused"}, "Workstation: unreachable http://127.0.0.1:7810: connection refused"},
 	} {
 		if got := renderDoctorWorkstation(tc.status); got != tc.want {

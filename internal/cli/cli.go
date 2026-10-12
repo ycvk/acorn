@@ -80,7 +80,7 @@ Usage:
   acorn serve [-c path] [--listen addr]
   acorn backup [-c path] [--json]
   acorn restore [-c path] [--json] --from snapshot
-  acorn workstation serve [--listen addr] [--home dir]`)
+  acorn workstation serve [--listen addr] [--home dir] [--chromium path] [--keep name=command]`)
 }
 
 func runDoctor(ctx context.Context, args []string) error {

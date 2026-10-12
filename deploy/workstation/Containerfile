@@ -3,17 +3,45 @@
 # workstation API. /home/agent is a named volume that survives rebuilds.
 FROM docker.io/library/debian:trixie-slim
 
+ARG TARGETARCH
+# BrowserSkill (https://github.com/Tencent/BrowserSkill): the bsk CLI drives a
+# browser through its extension. Versions and checksums are pinned.
+ARG BSK_VERSION=0.3.2
+ARG BSK_SHA256_AMD64=73e3948ad2232111661729c25e6c762eda7bd5c2320fa2593fe55c9855790631
+ARG BSK_SHA256_ARM64=625de29561a98b245ef712d13c273c5de744e4610a7bbf1999ff3b279d2220cf
+ARG BSK_EXTENSION_SHA256=9f543214a0ff5f0f2ce213dd8c5300111dba0ab757fa542a3f61b5636132c24e
+
 RUN apt-get update \
 	&& apt-get install -y --no-install-recommends \
-		bash bc ca-certificates curl file gawk git jq less openssh-client procps \
-		python3 python3-pip python3-venv rsync sudo unzip wget xz-utils zip \
+		bash bc ca-certificates chromium curl file fonts-noto-cjk gawk git jq less openssh-client \
+		openssl procps python3 python3-pip python3-venv rsync sudo unzip wget xz-utils zip \
 	&& rm -rf /var/lib/apt/lists/* \
 	&& useradd --create-home --uid 1000 --shell /bin/bash agent \
 	&& echo 'agent ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/agent \
 	&& chmod 0440 /etc/sudoers.d/agent
 
-ENV LANG=C.UTF-8
+RUN set -eu; \
+	case "${TARGETARCH:-$(dpkg --print-architecture)}" in \
+		amd64) target=x86_64-unknown-linux-musl; sum=$BSK_SHA256_AMD64 ;; \
+		arm64) target=aarch64-unknown-linux-musl; sum=$BSK_SHA256_ARM64 ;; \
+		*) echo "unsupported architecture" >&2; exit 1 ;; \
+	esac; \
+	base=https://github.com/Tencent/BrowserSkill/releases/download; \
+	curl -fsSL -o /tmp/bsk.tar.gz "$base/cli-v$BSK_VERSION/bsk-v$BSK_VERSION-$target.tar.gz"; \
+	echo "$sum  /tmp/bsk.tar.gz" | sha256sum -c -; \
+	mkdir /tmp/bsk && tar -xzf /tmp/bsk.tar.gz -C /tmp/bsk; \
+	install -m 0755 "$(find /tmp/bsk -type f -name bsk)" /usr/local/bin/bsk; \
+	curl -fsSL -o /tmp/extension.zip "$base/ext-v$BSK_VERSION/browser-skill-extension-v$BSK_VERSION-chrome.zip"; \
+	echo "$BSK_EXTENSION_SHA256  /tmp/extension.zip" | sha256sum -c -; \
+	mkdir -p /opt/browserskill && unzip -q /tmp/extension.zip -d /opt/browserskill/extension; \
+	rm -rf /tmp/bsk /tmp/bsk.tar.gz /tmp/extension.zip
+
+COPY browserskill /opt/browserskill/skill
+COPY entrypoint.sh /usr/local/lib/acorn/workstation-entrypoint
+
+# The workstation pins bsk, and the daemons are started by the entrypoint.
+ENV LANG=C.UTF-8 BSK_AUTO_UPDATE=off BSK_AUTO_START=0
 USER agent
 WORKDIR /home/agent
-EXPOSE 7810
-ENTRYPOINT ["/usr/local/bin/acorn", "workstation", "serve", "--home", "/home/agent"]
+EXPOSE 7810 52801
+ENTRYPOINT ["/usr/local/lib/acorn/workstation-entrypoint"]

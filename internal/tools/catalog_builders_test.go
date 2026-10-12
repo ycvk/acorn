@@ -26,16 +26,11 @@ func testWebToolsConfig(t *testing.T) WebToolsConfig {
 	if err != nil {
 		t.Fatalf("webaccess.NewSearchService: %v", err)
 	}
-	browser, err := NewService(Config{ExecutablePath: "/usr/bin/chromium", Timeout: time.Second})
-	if err != nil {
-		t.Fatalf("NewService: %v", err)
-	}
 	return WebToolsConfig{
 		ArtifactService: artifactService,
 		ArtifactContext: fixedArtifactContext{runID: "run_1", sessionID: "session_1", callID: "call_1"},
 		Fetch:           fetch,
 		Search:          search,
-		Browser:         browser,
 	}
 }
 
@@ -54,7 +49,7 @@ func webSpecsByName(t *testing.T, cfg WebToolsConfig) map[string]core.ToolSpec {
 
 func TestBuildWebToolSpecsEnablesConfiguredTools(t *testing.T) {
 	byName := webSpecsByName(t, testWebToolsConfig(t))
-	for _, name := range []string{"web_fetch", "web_search", "browser"} {
+	for _, name := range []string{"web_fetch", "web_search"} {
 		spec, ok := byName[name]
 		if !ok {
 			t.Fatalf("%s missing from web tool specs", name)
@@ -75,8 +70,6 @@ func TestBuildWebToolSpecsDisablesUnconfiguredOptionalTools(t *testing.T) {
 	cfg := testWebToolsConfig(t)
 	cfg.Search = nil
 	cfg.SearchDisabledReason = "web_access.search.api_key is not configured"
-	cfg.Browser = nil
-	cfg.BrowserDisabledReason = "browser.executable_path is not configured"
 	specs, err := BuildWebToolSpecs(cfg)
 	if err != nil {
 		t.Fatalf("BuildWebToolSpecs: %v", err)
@@ -87,7 +80,6 @@ func TestBuildWebToolSpecsDisablesUnconfiguredOptionalTools(t *testing.T) {
 	}
 	for name, reason := range map[string]string{
 		"web_search": cfg.SearchDisabledReason,
-		"browser":    cfg.BrowserDisabledReason,
 	} {
 		spec, ok := findSpec(catalog.Specs(), name)
 		if !ok {
@@ -112,7 +104,6 @@ func TestBuildWebToolSpecsRequiresDisabledReason(t *testing.T) {
 		clear func(*WebToolsConfig)
 	}{
 		{"web_search", func(c *WebToolsConfig) { c.Search = nil }},
-		{"browser", func(c *WebToolsConfig) { c.Browser = nil }},
 	}
 	for _, tc := range cases {
 		t.Run(tc.tool, func(t *testing.T) {

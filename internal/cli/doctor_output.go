@@ -233,9 +233,30 @@ func renderDoctorWorkstation(status wire.WorkstationStatus) string {
 	case "off":
 		return "Workstation: off (workstation.url is not configured; shell and files are disabled)"
 	case "ok":
-		return fmt.Sprintf("Workstation: ok %s home=%s", status.URL, status.Home)
+		lines := []string{fmt.Sprintf("Workstation: ok %s home=%s", status.URL, status.Home)}
+		for _, b := range status.Browsers {
+			lines = append(lines, "  "+renderDoctorBrowser(b))
+		}
+		return strings.Join(lines, "\n")
 	default:
 		return fmt.Sprintf("Workstation: %s %s: %s", status.State, status.URL, status.Error)
+	}
+}
+
+func renderDoctorBrowser(b wire.BrowserStatus) string {
+	name := map[string]string{"workstation": "Workstation browser", "owner": "Your browser"}[b.Daemon]
+	switch b.State {
+	case "connected":
+		return fmt.Sprintf("%s: connected %s", name, strings.Join(b.Connected, ", "))
+	case "waiting":
+		if b.Daemon == "owner" {
+			return name + ": waiting for pairing; ask the agent for a pairing link"
+		}
+		return name + ": not connected yet"
+	case "off":
+		return name + ": off (ACORN_BROWSER_PUBLIC_URL is not set)"
+	default:
+		return fmt.Sprintf("%s: %s: %s", name, b.State, b.Error)
 	}
 }
 

@@ -129,12 +129,11 @@ providers:
 
 Provider keys can reference environment variables. Missing provider credentials are reported by readiness checks instead of being silently ignored.
 
-Tools whose names match `approval.require` pause the run until you accept or decline the call on your phone. Patterns use glob syntax and default to the browser and every MCP tool:
+Tools whose names match `approval.require` pause the run until you accept or decline the call on your phone. Patterns use glob syntax and default to every MCP tool:
 
 ```yaml
 approval:
   require:
-    - browser
     - "mcp__*"
 ```
 
@@ -206,7 +205,8 @@ Mobile checks run from `mobile-kotlin/`:
 | `internal/wire/` | Composition root — container wiring, the only place concrete implementations are instantiated |
 | `internal/core/` | Layer 0 domain types, store interfaces, tool contracts — zero internal imports |
 | `internal/runtime/` | Executor, RunnerFactory, Eino ChatModelAgent assembly, presence, approval and tool-error middleware, skill backend, StreamItem projection |
-| `internal/tools/` | Tool implementations (artifact, operator, personal memory, notify, knowledge, web, browser), ToolRegistry |
+| `internal/tools/` | Tool implementations (artifact, operator, personal memory, notify, knowledge, web, workstation), ToolRegistry |
+| `internal/workstation/` | The agent workstation's API: commands, files, page rendering and companion processes |
 | `internal/store/` | SQLite persisted state (modernc.org/sqlite; one writer connection, a read-only pool for memory reads), including personal memory, knowledge notes and full-text search |
 | `internal/memory/` | Sourced extraction, consolidation, hybrid recall, thread summaries and per-call budgets |
 | `internal/presence/` | Presence rendering, persona, cron parsing |

@@ -6,7 +6,6 @@ type Config struct {
 	Runtime     RuntimeConfig     `yaml:"runtime"`
 	Web         WebConfig         `yaml:"web"`
 	WebAccess   WebAccessConfig   `yaml:"web_access"`
-	Browser     BrowserConfig     `yaml:"browser"`
 	Agent       AgentConfig       `yaml:"agent"`
 	Skills      SkillsConfig      `yaml:"skills"`
 	MCP         MCPConfig         `yaml:"mcp"`
@@ -85,12 +84,6 @@ type WebSearchConfig struct {
 	APIKey         string `yaml:"api_key"`
 	TimeoutSeconds int    `yaml:"timeout_seconds"`
 	MaxResults     int    `yaml:"max_results"`
-}
-
-type BrowserConfig struct {
-	ExecutablePath        string `yaml:"executable_path"`
-	Headless              bool   `yaml:"headless"`
-	DefaultTimeoutSeconds int    `yaml:"default_timeout_seconds"`
 }
 
 type AgentConfig struct {

@@ -35,7 +35,6 @@ func TestRunCatalogContainsEveryBuiltinTool(t *testing.T) {
 	if err != nil {
 		t.Fatalf("build runner: %v", err)
 	}
-	defer func() { _ = active.Close() }()
 	present := map[string]bool{}
 	for _, spec := range active.ToolCatalog.EnabledSpecs() {
 		present[spec.Name] = true

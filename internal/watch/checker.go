@@ -111,7 +111,7 @@ func (c *Checker) Validate(kind core.WatchKind, target, selector string) error {
 		return nil
 	case core.WatchWebRendered:
 		if c.cfg.Renderer == nil {
-			return errors.New("web_rendered watches need a browser; set browser.executable_path in the config")
+			return errors.New("web_rendered watches need the workstation's browser; set workstation.url in the config")
 		}
 		fallthrough
 	case core.WatchWeb:

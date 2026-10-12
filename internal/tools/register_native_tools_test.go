@@ -62,7 +62,7 @@ func TestRegisterNativeToolsRegistersEagerLocalTools(t *testing.T) {
 			t.Fatalf("spec[%d] = %q, want %q (sorted)", i, spec.Name, eagerNativeToolNames[i])
 		}
 	}
-	for _, name := range []string{"web_fetch", "web_search", "browser"} {
+	for _, name := range []string{"web_fetch", "web_search", "shell", "files"} {
 		if _, ok := reg.Find(name); ok {
 			t.Fatalf("deferred tool %q should not be registered", name)
 		}

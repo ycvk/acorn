@@ -17,7 +17,6 @@ import (
 	"github.com/ycvk/acorn/internal/memory"
 	"github.com/ycvk/acorn/internal/runtime"
 	"github.com/ycvk/acorn/internal/store"
-	"github.com/ycvk/acorn/internal/tools"
 	"github.com/ycvk/acorn/internal/wake"
 )
 
@@ -44,8 +43,6 @@ type Container struct {
 	phoneNotifications *api.PhoneNotificationService
 	now                *api.NowService
 	wake               *wake.Scheduler
-	// watchBrowser renders web_rendered watches; nil without a browser.
-	watchBrowser *tools.Service
 }
 
 // buildOptions are the process-level dependencies of a container.
@@ -136,11 +133,6 @@ func (c *Container) Close() error {
 			errs = append(errs, err)
 		}
 	}
-	if c.watchBrowser != nil {
-		if err := c.watchBrowser.Close(); err != nil {
-			errs = append(errs, err)
-		}
-	}
 	if c.store != nil {
 		if err := c.store.Close(); err != nil {
 			errs = append(errs, err)
@@ -227,7 +219,6 @@ func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *contai
 	if err != nil {
 		return nil, err
 	}
-	container.watchBrowser = deps.watchBrowser
 	container.wake, err = wake.NewScheduler(wake.Config{
 		Routines:           db,
 		PhoneNotifications: db,

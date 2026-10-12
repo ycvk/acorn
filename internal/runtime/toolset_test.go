@@ -54,31 +54,10 @@ func buildTestCatalog(t *testing.T, baseTools ...einotool.BaseTool) *tools.Catal
 	return catalog
 }
 
-type testCloser struct {
-	closed bool
-	err    error
-}
-
-func (c *testCloser) Close() error {
-	c.closed = true
-	return c.err
-}
-
 func TestToolsetCatalog(t *testing.T) {
 	catalog := buildTestCatalog(t, buildTestTool(t, "tool_a"), buildTestTool(t, "tool_b"))
 	ts := NewToolset(catalog)
 	if ts.Catalog() != catalog {
 		t.Fatal("Catalog() should return the catalog the toolset was built with")
-	}
-}
-
-func TestToolsetClosesClosers(t *testing.T) {
-	closer := &testCloser{}
-	ts := NewToolset(buildTestCatalog(t, buildTestTool(t, "tool_a")), closer)
-	if err := ts.Close(); err != nil {
-		t.Fatalf("Close: %v", err)
-	}
-	if !closer.closed {
-		t.Fatal("closer was not closed")
 	}
 }

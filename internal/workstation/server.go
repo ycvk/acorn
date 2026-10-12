@@ -10,9 +10,11 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -22,11 +24,14 @@ import (
 // Server executes requests inside the workstation. Every request needs the
 // bearer token; relative paths resolve against home.
 type Server struct {
-	home  string
-	token string
+	home     string
+	token    string
+	chromium string
 }
 
-func NewServer(home, token string) (*Server, error) {
+// NewServer serves the workstation API. chromium is the browser that renders
+// pages; empty turns render off.
+func NewServer(home, token, chromium string) (*Server, error) {
 	if !filepath.IsAbs(home) {
 		return nil, fmt.Errorf("workstation home must be absolute: %q", home)
 	}
@@ -40,7 +45,7 @@ func NewServer(home, token string) (*Server, error) {
 	if len(token) < MinTokenLength {
 		return nil, fmt.Errorf("%s must be at least %d characters", TokenEnv, MinTokenLength)
 	}
-	return &Server{home: filepath.Clean(home), token: token}, nil
+	return &Server{home: filepath.Clean(home), token: token, chromium: chromium}, nil
 }
 
 func (s *Server) Handler() http.Handler {
@@ -49,6 +54,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/exec", s.authorized(s.exec))
 	mux.HandleFunc("POST /v1/files/read", s.authorized(s.read))
 	mux.HandleFunc("POST /v1/files/write", s.authorized(s.write))
+	mux.HandleFunc("POST /v1/render", s.authorized(s.render))
 	return mux
 }
 
@@ -203,6 +209,63 @@ func (s *Server) write(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, WriteResult{Path: path, Bytes: len(req.Content)})
 }
 
+func (s *Server) render(w http.ResponseWriter, r *http.Request) {
+	var req RenderRequest
+	if !decode(w, r, &req) {
+		return
+	}
+	if s.chromium == "" {
+		writeError(w, http.StatusNotImplemented, ErrNoBrowser)
+		return
+	}
+	u, err := url.Parse(req.URL)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		writeError(w, http.StatusBadRequest, fmt.Errorf("url must be an http(s) URL: %q", req.URL))
+		return
+	}
+	if req.TimeoutSeconds < 1 || req.TimeoutSeconds > 120 {
+		writeError(w, http.StatusBadRequest, errors.New("timeout_seconds must be between 1 and 120"))
+		return
+	}
+	html, err := s.dumpDOM(r.Context(), u.String(), time.Duration(req.TimeoutSeconds)*time.Second)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, RenderResult{HTML: html})
+}
+
+// dumpDOM runs a throwaway headless browser with its own profile, so pages
+// rendered for watches never see the agent's browser state.
+func (s *Server) dumpDOM(ctx context.Context, target string, timeout time.Duration) (string, error) {
+	profile, err := os.MkdirTemp("", "acorn-render-*")
+	if err != nil {
+		return "", err
+	}
+	defer os.RemoveAll(profile)
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	budget := strconv.Itoa(int(timeout.Milliseconds() / 2))
+	cmd := exec.CommandContext(ctx, s.chromium, "--headless=new", "--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage",
+		"--no-first-run", "--user-data-dir="+profile, "--virtual-time-budget="+budget, "--dump-dom", target)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) }
+	cmd.WaitDelay = 2 * time.Second
+	stdout := newCappedBuffer(maxRenderBytes)
+	stderr := newCappedBuffer(4096)
+	cmd.Stdout, cmd.Stderr = stdout, stderr
+	if err := cmd.Run(); err != nil {
+		if ctx.Err() != nil {
+			return "", fmt.Errorf("render %s: timed out after %s", target, timeout)
+		}
+		return "", fmt.Errorf("render %s: %w: %s", target, err, strings.TrimSpace(stderr.String()))
+	}
+	if stdout.Truncated() {
+		return "", fmt.Errorf("render %s: page is larger than %d bytes", target, maxRenderBytes)
+	}
+	return stdout.String(), nil
+}
+
 func (s *Server) requirePath(path string) (string, error) {
 	if strings.TrimSpace(path) == "" {
 		return "", errors.New("path is required")
@@ -233,7 +296,9 @@ func decode(w http.ResponseWriter, r *http.Request, into any) bool {
 func writeJSON(w http.ResponseWriter, status int, body any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	if err := json.NewEncoder(w).Encode(body); err != nil {
+	enc := json.NewEncoder(w)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(body); err != nil {
 		slog.Error("workstation response write failed", "status", status, "error", err)
 	}
 }
