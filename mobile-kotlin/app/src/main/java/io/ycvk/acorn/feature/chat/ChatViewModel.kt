@@ -8,6 +8,7 @@ import io.ycvk.acorn.api.infrastructure.ApiClient
 import io.ycvk.acorn.api.models.CreateRunRequest
 import io.ycvk.acorn.api.models.CreateThreadRequest
 import io.ycvk.acorn.api.models.InboxResponse
+import io.ycvk.acorn.api.models.PendingActionSummary
 import io.ycvk.acorn.api.models.RunSummary
 import io.ycvk.acorn.core.auth.AuthController
 import io.ycvk.acorn.core.auth.AuthState
@@ -19,12 +20,14 @@ import io.ycvk.acorn.core.sse.RunEventStreamClient
 import io.ycvk.acorn.core.sse.RunStatus
 import io.ycvk.acorn.core.ui.userMessage
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.sse.EventSource
+import java.io.IOException
 import javax.inject.Inject
 
 /**
@@ -66,7 +69,9 @@ class ChatViewModel @Inject constructor(
     private var eventSource: EventSource? = null
     private var streamingRunId: String? = null
     private val streamGeneration = java.util.concurrent.atomic.AtomicLong(0)
-    private val lastRunIdByThread = mutableMapOf<String, String>()
+
+    /** Reconnects since the stream last delivered an event. */
+    private var reconnects = 0
 
     /** Opens a thread, or a new conversation when [threadId] is null. */
     fun loadThread(threadId: String?) {
@@ -78,51 +83,64 @@ class ChatViewModel @Inject constructor(
         _messages.value = emptyList()  // clear stale messages immediately
         _chatState.value = ChatState()
         _error.value = null
+        reconnects = 0
         if (threadId == null) return
         loadMessages(threadId)
         loadThreadTitle(threadId)
         reconnectActiveRun(threadId)
     }
+
     /**
-     * Reconnect to the most recent run for this thread.
-     *
-     * 1. If inbox shows an active run for this thread, or one waiting on a
-     *    pending action, stream its events.
-     * 2. Else if we have a lastRunId from a prior sendMessage, stream that run's
-     *    events — it may still be running or just finished; follow=true will pick
-     *    up terminal events and our onEvent folds the reply into messages.
-     * 3. Else reload messages once (run finished before we left).
-     *
-     * The SSE stream with follow=true handles both "still running" (deltas arrive
-     * live) and "just finished" (terminal event arrives, foldReplyIntoMessages
-     * persists it). If the run already finished long ago, the terminal event is
-     * still in the backlog and will be delivered immediately.
+     * Follows the thread's run when the server still has one going or waiting
+     * on the owner; the stream replays it from the start. Otherwise the thread
+     * is idle and its persisted messages, loaded again here, hold the reply of a
+     * run that finished meanwhile. A failed check is retried, since the system
+     * may not have given the app its network back yet.
      */
     private fun reconnectActiveRun(threadId: String) {
         val profile = getConnectionProfile() ?: return
+        val gen = streamGeneration.get()
         viewModelScope.launch {
+            val inbox = fetchInbox(profile, gen) ?: return@launch
+            if (_threadId.value != threadId || streamGeneration.get() != gen) return@launch
+            val runId = runToFollow(inbox.activeRuns, inbox.pendingActions, threadId)
+            if (runId != null) {
+                _chatState.value = ChatState(isStreaming = true, runStatus = RunStatus.Running)
+                streamEvents(profile, runId, threadId)
+            } else {
+                _chatState.value = ChatState()
+                loadMessages(threadId)
+            }
+        }
+    }
+
+    /** The inbox while [gen] is current; null once superseded or failed, the failure reported. */
+    private suspend fun fetchInbox(profile: ConnectionProfile, gen: Long): InboxResponse? = try {
+        withRetries({ streamGeneration.get() == gen }) {
+            withContext(Dispatchers.IO) {
+                ApiClient.accessToken = profile.accessToken
+                ClientApi(basePath = profile.serverUrl).clientGetInbox()
+            }
+        }
+    } catch (e: Exception) {
+        if (streamGeneration.get() == gen) connectionLost(e)
+        null
+    }
+
+    /**
+     * Runs [call], again after a pause when the network fails, since the
+     * system may not have given the app its network back yet. Null once
+     * [current] no longer holds; other failures and the last network failure
+     * are thrown.
+     */
+    private suspend fun <T> withRetries(current: () -> Boolean, call: suspend () -> T): T? {
+        var attempt = 0
+        while (true) {
             try {
-                val inbox = withContext(Dispatchers.IO) {
-                    ApiClient.accessToken = profile.accessToken
-                    val clientApi = ClientApi(basePath = profile.serverUrl)
-                    clientApi.clientGetInbox()
-                }
-                if (_threadId.value != threadId) return@launch
-
-                val activeRun = inbox.activeRuns.find { it.threadId == threadId }
-                // A run paused on the owner keeps its stream open, and the stream carries the resumed run.
-                val waitingRun = inbox.pendingActions.find { it.threadId == threadId }
-                val runIdToReconnect = activeRun?.runId ?: waitingRun?.runId ?: lastRunIdByThread[threadId]
-
-                if (runIdToReconnect != null && eventSource == null) {
-                    _chatState.value = ChatState(isStreaming = true, runStatus = RunStatus.Running)
-                    streamEvents(profile, runIdToReconnect)
-                } else if (activeRun == null) {
-                    // No active run and no lastRunId — just reload persisted messages.
-                    loadMessages(threadId)
-                }
-            } catch (e: Exception) {
-                // Inbox fetch is best-effort; don't surface as error.
+                return call()
+            } catch (e: IOException) {
+                delay(reconnectDelayMs(attempt++) ?: throw e)
+                if (!current()) return null
             }
         }
     }
@@ -160,8 +178,8 @@ class ChatViewModel @Inject constructor(
                         createRunRequest = CreateRunRequest(input = text),
                     ).id
                 }
-                lastRunIdByThread[threadId] = runId
-                streamEvents(profile, runId)
+                reconnects = 0
+                streamEvents(profile, runId, threadId)
             } catch (e: Exception) {
                 _messages.value = _messages.value - bubble
                 _chatState.value = ChatState()
@@ -183,6 +201,7 @@ class ChatViewModel @Inject constructor(
         eventSource = null
         _chatState.value = ChatState()
         _error.value = null
+        reconnects = 0
         loadMessages(threadId)
         reconnectActiveRun(threadId)
     }
@@ -232,15 +251,16 @@ class ChatViewModel @Inject constructor(
         val profile = getConnectionProfile() ?: return
         viewModelScope.launch {
             try {
-                val response = withContext(Dispatchers.IO) {
-                    ApiClient.accessToken = profile.accessToken
-                    val clientApi = ClientApi(basePath = profile.serverUrl)
-                    clientApi.clientListMessages(threadId, limit = 50)
-                }
+                val response = withRetries({ _threadId.value == threadId }) {
+                    withContext(Dispatchers.IO) {
+                        ApiClient.accessToken = profile.accessToken
+                        ClientApi(basePath = profile.serverUrl).clientListMessages(threadId, limit = 50)
+                    }
+                } ?: return@launch
                 if (_threadId.value != threadId) return@launch
                 _messages.value = response.items.map { msg -> chatMessageFrom(msg.role, msg.content.text, msg.steps.orEmpty()) }
             } catch (e: Exception) {
-                _error.value = userMessage(e)
+                if (_threadId.value == threadId) _error.value = userMessage(e)
             }
         }
     }
@@ -262,7 +282,7 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    private fun streamEvents(profile: ConnectionProfile, runId: String) {
+    private fun streamEvents(profile: ConnectionProfile, runId: String, threadId: String) {
         val gen = streamGeneration.incrementAndGet()
         streamingRunId = runId
         val sseClient = RunEventStreamClient(
@@ -274,6 +294,7 @@ class ChatViewModel @Inject constructor(
             afterSeq = 0,
             onEvent = { packet ->
                 if (streamGeneration.get() != gen) return@streamRunEvents
+                reconnects = 0
                 _chatState.value = projection.apply(_chatState.value, packet)
                 // On a terminal event, fold the streamed assistant text into the
                 // persisted message list and clear the streaming bubble so the
@@ -293,23 +314,39 @@ class ChatViewModel @Inject constructor(
                     _chatState.value = ChatState(runStatus = _chatState.value.runStatus, failure = _chatState.value.failure)
                 }
             },
-            onError = { t ->
-                // Suppress errors from streams we already cancelled (e.g. loadThread).
-                if (streamGeneration.get() == gen) {
-                    eventSource = null
-                    _chatState.value = _chatState.value.copy(isStreaming = false)
-                    _error.value = "和服务器的连接断了：${t?.let(::userMessage) ?: "连接被关闭"}"
-                }
-            },
+            // Streams we already cancelled (e.g. loadThread) report nothing.
+            onError = { t -> if (streamGeneration.get() == gen) streamLost(threadId, t) },
             onClosed = {
-                if (streamGeneration.get() == gen) {
-                    val current = _chatState.value
-                    if (current.isStreaming && current.runStatus == RunStatus.Running) {
-                        _chatState.value = current.copy(isStreaming = false)
-                    }
+                if (streamGeneration.get() == gen && !_chatState.value.runStatus.isFinal()) {
+                    streamLost(threadId, IOException("the server closed the stream before the run ended"))
                 }
             },
         )
+    }
+
+    /**
+     * The stream ended before its run did. After a pause the thread is checked
+     * again and followed if the run is still going; past the retries the owner
+     * is told, and the header no longer claims a run it cannot see.
+     */
+    private fun streamLost(threadId: String, cause: Throwable) {
+        eventSource = null
+        val wait = reconnectDelayMs(reconnects++)
+        if (wait == null) {
+            connectionLost(cause)
+            return
+        }
+        _chatState.value = _chatState.value.copy(isStreaming = false)
+        val gen = streamGeneration.incrementAndGet()
+        viewModelScope.launch {
+            delay(wait)
+            if (streamGeneration.get() == gen && _threadId.value == threadId) reconnectActiveRun(threadId)
+        }
+    }
+
+    private fun connectionLost(cause: Throwable) {
+        _chatState.value = _chatState.value.copy(isStreaming = false, runStatus = RunStatus.Idle)
+        _error.value = "和服务器的连接断了：${userMessage(cause)}"
     }
 
     /** The paired server, for loading attachments. */
@@ -324,6 +361,16 @@ class ChatViewModel @Inject constructor(
         super.onCleared()
     }
 }
+
+/** The run of [threadId] worth following: one still going, or one paused on the owner. */
+fun runToFollow(activeRuns: List<RunSummary>, pendingActions: List<PendingActionSummary>, threadId: String): String? =
+    activeRuns.find { it.threadId == threadId }?.runId
+        ?: pendingActions.find { it.threadId == threadId }?.runId
+
+/** How long to wait before reconnect [attempt] (from 0), or null once the retries are spent. */
+fun reconnectDelayMs(attempt: Int): Long? = if (attempt < 3) 1_000L shl attempt else null
+
+private fun RunStatus.isFinal() = this == RunStatus.Completed || this == RunStatus.Failed
 
 /** A new thread is titled by the first line of its first message. */
 fun threadTitleFor(text: String): String {
