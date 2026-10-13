@@ -108,7 +108,7 @@
 
 ## 技能
 
-- **技能的每次写入是一个 revision**：技能存在 SQLite 的 `skills`/`skill_revisions`，每次写入记下全文、哈希、作者（agent 或 release）与 run。写入必须基于当前 revision（新技能为 0），否则以 `ErrSkillConflict` 失败。`skill_write` 严格解析 frontmatter，要求合法 id、不超过 200 字的 summary 和正文，名字不能与其他在用技能重复，写已停用的技能使它恢复；`skill_retire` 写一个停用 revision。run 只加载在用的技能，加载结果是全文加 revision。
+- **技能的每次写入是一个 revision**：技能存在 SQLite 的 `skills`/`skill_revisions`，每次写入记下全文、哈希、作者（agent 或 release）与 run。写入必须基于当前 revision（新技能为 0），否则以 `ErrSkillConflict` 失败。`skill_write` 严格解析 frontmatter，要求合法 id、不超过 200 字的 summary 和正文，requires.tools 只能列出本地工具、内置工具或 `mcp__` 工具，名字不能与其他在用技能重复，写已停用的技能使它恢复；`skill_retire` 写一个停用 revision。run 只加载在用的技能，加载结果是全文加 revision。
   - `internal/store/store_skills_test.go`
   - `internal/skills/library_test.go`
   - `internal/tools/skill_tools_test.go`
