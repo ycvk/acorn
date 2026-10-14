@@ -31,6 +31,29 @@ func (e *Engine) ForgetForOwner(ctx context.Context, id string) (core.MemoryExcl
 	})
 }
 
+// ForgetThreadForOwner forgets the conversation the owner deletes: every
+// message and tool result of the thread, on a request recorded as the owner's
+// source. A thread with nothing to forget returns an empty exclusion.
+func (e *Engine) ForgetThreadForOwner(ctx context.Context, threadID, title string) (core.MemoryExclusion, error) {
+	sources, err := e.cfg.Store.ThreadMemorySourceIDs(ctx, threadID)
+	if err != nil {
+		return core.MemoryExclusion{}, err
+	}
+	if len(sources) == 0 {
+		return core.MemoryExclusion{}, nil
+	}
+	request, err := e.ownerRequest(ctx, "Delete conversation: "+title)
+	if err != nil {
+		return core.MemoryExclusion{}, err
+	}
+	return e.cfg.Store.ForgetMemory(ctx, core.MemoryForget{
+		SourceIDs:       sources,
+		RequestSourceID: request.ID,
+		Reason:          "owner deleted the conversation",
+		Now:             e.cfg.Clock(),
+	})
+}
+
 // CorrectForOwner supersedes a fact with the owner's own wording from the
 // app; the wording is the new fact's evidence. Scope and entities carry over.
 func (e *Engine) CorrectForOwner(ctx context.Context, id string, revision int64, content string) (core.MemoryRecord, error) {

@@ -101,7 +101,7 @@ func (s *clientHandlerStore) UpdateSessionTitleIfEmpty(_ context.Context, _ stri
 	return nil
 }
 
-func (s *clientHandlerStore) DeleteSession(_ context.Context, sessionID string) error {
+func (s *clientHandlerStore) DeleteThread(_ context.Context, sessionID string) error {
 	stub, err := s.stubOrErr()
 	if err != nil {
 		return err

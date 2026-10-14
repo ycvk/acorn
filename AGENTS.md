@@ -50,7 +50,7 @@ cd mobile-kotlin && ./tool/generate_openapi_client.sh --check && ./gradlew assem
 
 - 记忆是 fact/insight/thought,每条可追溯到来源并带修订与有效时间;写入时间由调用方提供。assistant 的话不能直接成为 owner 的事实。
 - 后台处理以租约 token、revision 与 exclusion epoch 防止过期写入;同一来源重复处理必须幂等。
-- 遗忘需要当前 owner 的请求,排除来源及派生记录、向量与摘要;旧 epoch 的 checkpoint 禁止恢复;agent 的知识库读取遵守相同排除。
+- 遗忘需要当前 owner 的请求,排除来源及派生记录、向量与摘要;旧 epoch 的 checkpoint 禁止恢复;agent 的知识库读取遵守相同排除。删除对话是 owner 的遗忘请求:先排除对话的消息与工具结果来源,再删除对话及其 run 留下的记录;笔记、技能、约定与追踪项保留。
 - 约定分规则与每次发生,发生只能被认领一次;完成需要 owner 确认或成功的工具结果。
 - 后台记忆调用受 `memory.daily_tokens` 约束,自主唤醒受 `wake.daily_limit`/`wake.daily_tokens` 约束;预算耗尽时任务保留到下一本地日。
 

@@ -225,9 +225,15 @@ CREATE TRIGGER IF NOT EXISTS runs_fts_au AFTER UPDATE OF input_text, output_text
   DELETE FROM runs_fts WHERE run_id = new.run_id;
   INSERT INTO runs_fts(run_id, input_text, output_text) VALUES (new.run_id, new.input_text, new.output_text);
 END;
+` + runsFTSDeleteTrigger + `
 
 CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_notes_fts USING fts5(path UNINDEXED, title, tags, body, tokenize='trigram');
 `
+
+// runsFTSDeleteTrigger is shared with the migration that adds it.
+const runsFTSDeleteTrigger = `CREATE TRIGGER IF NOT EXISTS runs_fts_ad AFTER DELETE ON runs BEGIN
+  DELETE FROM runs_fts WHERE run_id = old.run_id;
+END;`
 
 // skillsTables is shared with the migration that adds them.
 const skillsTables = `CREATE TABLE IF NOT EXISTS skills (

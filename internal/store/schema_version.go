@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"time"
 
 	"github.com/ycvk/acorn/internal/core"
 )
@@ -11,13 +12,14 @@ import (
 // schemaVersion is the database layout this build creates and expects. A
 // layout change bumps it, appends the migration from the previous version to
 // migrations, and records the new layout under testdata/schema.
-const schemaVersion = 4
+const schemaVersion = 5
 
 // migrations[i] upgrades a database from version i+1 to version i+2.
 var migrations = []func(context.Context, *sql.Tx) error{
 	addNotificationActionID,
 	addNotificationBrowserURL,
 	addSkills,
+	forgetDeletedThreads,
 }
 
 // addNotificationActionID (1 to 2) records which pending action a push
@@ -62,6 +64,53 @@ func addNotificationBrowserURL(ctx context.Context, tx *sql.Tx) error {
 func addSkills(ctx context.Context, tx *sql.Tx) error {
 	_, err := tx.ExecContext(ctx, skillsTables)
 	return err
+}
+
+// forgetDeletedThreads (4 to 5) removes a run's search entry with the run, and
+// finishes the threads deleted while deletion only removed their messages:
+// their conversation sources are excluded on the owner's deletion request and
+// their runs' records removed, as DeleteThread does.
+func forgetDeletedThreads(ctx context.Context, tx *sql.Tx) error {
+	if _, err := tx.ExecContext(ctx, runsFTSDeleteTrigger); err != nil {
+		return err
+	}
+	rows, err := tx.QueryContext(ctx, `SELECT session_id FROM runs WHERE session_id <> '' AND session_id NOT IN (SELECT session_id FROM sessions)
+		UNION SELECT session_id FROM memory_sources WHERE kind IN ('message','event') AND session_id <> '' AND session_id NOT IN (SELECT session_id FROM sessions)`)
+	if err != nil {
+		return err
+	}
+	deleted, err := memoryStringRows(rows)
+	if err != nil {
+		return err
+	}
+	now := time.Now().UTC()
+	for _, sessionID := range deleted {
+		rows, err := tx.QueryContext(ctx, `SELECT id FROM memory_sources WHERE session_id = ? AND kind IN ('message','event') ORDER BY id`, sessionID)
+		if err != nil {
+			return err
+		}
+		sources, err := memoryStringRows(rows)
+		if err != nil {
+			return err
+		}
+		if len(sources) > 0 {
+			request := core.MemorySource{ID: "request:deleted-" + sessionID, Kind: core.MemoryRequestSource, ObjectID: "request:deleted-" + sessionID, Version: "1", Speaker: "owner", Body: "Delete conversation " + sessionID, RecordedAt: now}
+			if err := registerMemorySource(ctx, tx, request); err != nil {
+				return err
+			}
+			if err := forgetMemory(ctx, tx, core.MemoryForget{SourceIDs: sources, RequestSourceID: request.ID, Reason: "owner deleted the conversation", Now: now}); err != nil {
+				return err
+			}
+		}
+		paths, err := purgeThread(ctx, tx, sessionID)
+		if err != nil {
+			return err
+		}
+		if len(paths) > 0 {
+			return fmt.Errorf("deleted thread %s left artifacts %v, whose files an upgrade cannot remove", sessionID, paths)
+		}
+	}
+	return nil
 }
 
 // openSchema creates the layout of an empty database, upgrades an older one

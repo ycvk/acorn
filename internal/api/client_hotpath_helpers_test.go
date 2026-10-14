@@ -17,9 +17,20 @@ type clientHandlerStore struct {
 	stub *clientHandlerStub
 }
 
+type noThreadMemory struct{}
+
+func (noThreadMemory) ForgetThreadForOwner(context.Context, string, string) (core.MemoryExclusion, error) {
+	return core.MemoryExclusion{}, nil
+}
+
+func noForgetBarrier(context.Context, core.MemoryExclusion, string) error { return nil }
+
 func newClientHotPathServices(stub *clientHandlerStub) (*ThreadService, *RunService, *EventService) {
 	store := &clientHandlerStore{stub: stub}
-	threads := NewThreadService(store)
+	threads, err := NewThreadService(store, noThreadMemory{}, noForgetBarrier)
+	if err != nil {
+		panic(err)
+	}
 	controller := runtime.NewRunController()
 	controller.Register(clientHotPathRunID(stub), func() {})
 	runs := NewRunService(store, threads, stub.executeRun, controller)

@@ -452,7 +452,7 @@ open class ClientApi(basePath: kotlin.String = defaultBasePath, client: Call.Fac
     /**
      * DELETE /v1/threads/{thread_id}
      * Delete a client thread
-     * 
+     * Deletes the conversation and makes Acorn forget it. Its messages and tool results are excluded from memory, with what was derived from them, before the thread, its runs and their records are removed. Knowledge notes and skills written in it stay; its commitments and watches keep running in a new thread. Refused while a run of the thread is running.
      * @param threadId 
      * @return void
      * @throws IllegalStateException If the request is not correctly configured
@@ -483,7 +483,7 @@ open class ClientApi(basePath: kotlin.String = defaultBasePath, client: Call.Fac
     /**
      * DELETE /v1/threads/{thread_id}
      * Delete a client thread
-     * 
+     * Deletes the conversation and makes Acorn forget it. Its messages and tool results are excluded from memory, with what was derived from them, before the thread, its runs and their records are removed. Knowledge notes and skills written in it stay; its commitments and watches keep running in a new thread. Refused while a run of the thread is running.
      * @param threadId 
      * @return ApiResponse<Unit?>
      * @throws IllegalStateException If the request is not correctly configured

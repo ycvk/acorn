@@ -91,6 +91,8 @@ Every run loads recent conversation within a token budget, summarizes older mess
 
 The app's 知识 tab has a 记忆 view listing what Acorn currently remembers, newest change first, with search and a filter for facts, inferences and thoughts. Open a memory to see the quotes it rests on and where each came from; tap one to open its conversation or note. A fact can be corrected in your own words, which become its evidence while the earlier wording stays in its history. Forgetting a memory from the app works like asking in chat: a fact takes its quotes and the inferences drawn from them along, an inference or thought goes alone.
 
+Deleting a conversation makes Acorn forget it too: what was said and the tool results in it leave its memory, with the facts and inferences that rested only on them, and the conversation's runs are removed. Notes and skills written there stay, and its reminders and watches keep running in a new conversation. A conversation Acorn is still working in cannot be deleted until the run ends.
+
 The defaults use `voyage-4` with 1024 dimensions:
 
 ```yaml

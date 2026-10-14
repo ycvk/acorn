@@ -76,6 +76,18 @@ func loadMemorySource(ctx context.Context, q memorySQL, id string, filter bool) 
 		}
 	}
 	source.Content = source.Body
+	// A wholly excluded source is read without its content, which a deleted
+	// thread no longer has.
+	if filter {
+		var whole int
+		if err := q.QueryRowContext(ctx, `SELECT COUNT(*) FROM memory_exclusions WHERE source_id=? AND quote=''`, id).Scan(&whole); err != nil {
+			return source, err
+		}
+		if whole > 0 {
+			source.Excluded, source.Content = true, ""
+			return source, fmt.Errorf("%w: source %s", core.ErrMemoryExcluded, id)
+		}
+	}
 	switch source.Kind {
 	case "knowledge":
 		err = q.QueryRowContext(ctx, `SELECT body FROM knowledge_revisions WHERE path=? AND revision=?`, source.ObjectID, source.Version).Scan(&source.Content)

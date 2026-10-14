@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -236,13 +237,14 @@ func TestListInboxRunsFiltersSessionRunsByStatus(t *testing.T) {
 		t.Fatalf("terminal runs = %#v, want %#v", got, want)
 	}
 
-	// A deleted thread's runs stay in runs but belong to no thread.
-	for _, sessionID := range []string{"session_active", "session_done"} {
-		if err := store.DeleteSession(ctx, sessionID); err != nil {
-			t.Fatalf("delete session %s: %v", sessionID, err)
-		}
+	// A deleted thread takes its runs along; one with a running run stays.
+	if err := store.DeleteThread(ctx, "session_active"); !errors.Is(err, core.ErrThreadBusy) {
+		t.Fatalf("delete busy thread: err = %v", err)
 	}
-	if active, err := store.ListActiveRuns(ctx, 10); err != nil || len(active) != 0 {
+	if err := store.DeleteThread(ctx, "session_done"); err != nil {
+		t.Fatalf("delete session_done: %v", err)
+	}
+	if active, err := store.ListActiveRuns(ctx, 10); err != nil || len(active) != 1 {
 		t.Fatalf("active runs after delete = %#v, %v", active, err)
 	}
 	if terminal, err := store.ListRecentTerminalRuns(ctx, 10); err != nil || strings.Join(runIDs(terminal), ",") != "run_failed" {

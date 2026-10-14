@@ -208,14 +208,17 @@ paths:
     delete:
       tags: [client]
       summary: Delete a client thread
+      description: Deletes the conversation and makes Acorn forget it. Its messages and tool results are excluded from memory, with what was derived from them, before the thread, its runs and their records are removed. Knowledge notes and skills written in it stay; its commitments and watches keep running in a new thread. Refused while a run of the thread is running.
       operationId: clientDeleteThread
       parameters:
         - $ref: '#/components/parameters/ThreadID'
       responses:
         '204':
-          description: Thread deleted
+          description: Thread deleted and forgotten
         '404':
           $ref: '#/components/responses/ThreadNotFound'
+        '409':
+          $ref: '#/components/responses/ThreadBusy'
         '500':
           $ref: '#/components/responses/InternalError'
 
@@ -1231,6 +1234,18 @@ components:
                 error:
                   code: memory_not_found
                   message: 'memory not found: record m_0123'
+    ThreadBusy:
+      description: A run of the thread is still running
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            threadBusy:
+              value:
+                error:
+                  code: thread_busy
+                  message: 'thread has a running run: session_1'
     MemoryChanged:
       description: The memory changed since the client read it
       content:

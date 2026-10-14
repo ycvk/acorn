@@ -126,7 +126,7 @@ fun ThreadsScreen(
         AlertDialog(
             onDismissRequest = { pendingDelete = null },
             title = { Text("删除这个对话？") },
-            text = { Text("「${threadTitle(thread)}」会被删除，无法恢复。") },
+            text = { Text("「${threadTitle(thread)}」会被删除，Acorn 也会忘掉其中说过的内容，无法恢复。") },
             confirmButton = {
                 TextButton(onClick = {
                     viewModel.deleteThread(thread.id)

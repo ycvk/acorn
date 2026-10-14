@@ -14,7 +14,10 @@ fun userMessage(e: Throwable): String = when (e) {
     is ClientException -> when (e.statusCode) {
         401, 403 -> "这台设备的授权已失效，需要重新配对"
         404 -> "内容不存在或已被删除"
-        409 -> "内容刚被改过，刷新后再试"
+        409 -> when (serverError(e)?.get("code")) {
+            "thread_busy" -> "Acorn 还在这个对话里工作，等这一轮结束再删"
+            else -> "内容刚被改过，刷新后再试"
+        }
         429 -> "请求太频繁，稍后再试"
         else -> serverMessage(e)?.let { "服务器拒绝了这个请求：$it" } ?: "服务器拒绝了这个请求（${e.statusCode}）"
     }
@@ -26,11 +29,13 @@ fun userMessage(e: Throwable): String = when (e) {
 }
 
 /** The `error.message` from an API error body, when the server sent one. */
-private fun serverMessage(e: ClientException): String? {
+private fun serverMessage(e: ClientException): String? = serverError(e)?.get("message") as? String
+
+/** The `error` object of an API error body, when the server sent one. */
+private fun serverError(e: ClientException): Map<String, Any?>? {
     val body = (e.response as? ClientError<*>)?.body as? String ?: return null
     return runCatching {
         @Suppress("UNCHECKED_CAST")
-        val error = Serializer.moshi.adapter(Map::class.java).fromJson(body)?.get("error") as? Map<String, Any?>
-        error?.get("message") as? String
+        Serializer.moshi.adapter(Map::class.java).fromJson(body)?.get("error") as? Map<String, Any?>
     }.getOrNull()
 }

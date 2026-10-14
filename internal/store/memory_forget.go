@@ -5,136 +5,144 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"slices"
 
 	"github.com/ycvk/acorn/internal/core"
 )
 
 func (s *Store) ForgetMemory(ctx context.Context, request core.MemoryForget) (core.MemoryExclusion, error) {
-	if request.Now.IsZero() || request.Reason == "" || request.RequestSourceID == "" || (len(request.RecordIDs) == 0 && len(request.SourceIDs) == 0) {
-		return core.MemoryExclusion{}, errors.New("forget requires owner source, reason, now and targets")
-	}
-	err := s.memoryTransaction(ctx, func(tx *sql.Tx) error {
-		owner, err := loadMemorySource(ctx, tx, request.RequestSourceID, false)
-		if err != nil {
-			return err
-		}
-		if owner.Speaker != "owner" {
-			return errors.New("forget requires an owner request")
-		}
-		epoch, err := memoryEpoch(ctx, tx)
-		if err != nil {
-			return err
-		}
-		epoch++
-		if _, err := tx.ExecContext(ctx, `UPDATE memory_state SET epoch=?,request_run_id=? WHERE id=1`, epoch, owner.RunID); err != nil {
-			return err
-		}
-		var fragments []core.MemoryExcludedFragment
-		for _, id := range request.SourceIDs {
-			if _, err := loadMemorySource(ctx, tx, id, false); err != nil {
-				return err
-			}
-			fragments = append(fragments, core.MemoryExcludedFragment{SourceID: id})
-		}
-		for _, id := range request.RecordIDs {
-			r, err := loadMemoryRecord(ctx, tx, id)
-			if err != nil {
-				return err
-			}
-			if r.Kind == "fact" {
-				for _, e := range r.Evidence {
-					fragments = append(fragments, core.MemoryExcludedFragment{SourceID: e.SourceID, Quote: e.Quote})
-				}
-			}
-		}
-		fragments = append(fragments, core.MemoryExcludedFragment{SourceID: request.RequestSourceID})
-		for _, f := range fragments {
-			if err := insertMemoryExclusion(ctx, tx, f, request, epoch); err != nil {
-				return err
-			}
-		}
-		// Derived messages and summaries inherit their input source dependencies.
-		rows, err := tx.QueryContext(ctx, `WITH RECURSIVE affected(id) AS(SELECT source_id FROM memory_exclusions UNION SELECT l.source_id FROM memory_source_links l JOIN affected a ON l.parent_id=a.id) SELECT DISTINCT l.source_id FROM memory_source_links l JOIN affected a ON l.parent_id=a.id`)
-		if err != nil {
-			return err
-		}
-		affected, err := memoryStringRows(rows)
-		if err != nil {
-			return err
-		}
-		for _, id := range affected {
-			if slices.ContainsFunc(fragments, func(f core.MemoryExcludedFragment) bool { return f.SourceID == id }) {
-				continue
-			}
-			if err := insertMemoryExclusion(ctx, tx, core.MemoryExcludedFragment{SourceID: id}, request, epoch); err != nil {
-				return err
-			}
-		}
-		targetsJSON, err := json.Marshal(request.RecordIDs)
-		if err != nil {
-			return err
-		}
-		rows, err = tx.QueryContext(ctx, `WITH RECURSIVE affected(id) AS(
-		 SELECT value FROM json_each(?) WHERE value IS NOT NULL UNION
-		 SELECT DISTINCT e.record_id FROM memory_revision_evidence e JOIN memory_records cur ON cur.id=e.record_id AND cur.revision=e.revision JOIN memory_exclusions x ON e.source_id=x.source_id
-		 WHERE x.quote='' OR instr(e.quote,x.quote)>0 OR instr(x.quote,e.quote)>0
-		 UNION SELECT l.from_id FROM memory_links l JOIN affected a ON l.to_id=a.id WHERE l.relation='derives_from'
-		 ) SELECT id FROM affected`, string(targetsJSON))
-		if err != nil {
-			return err
-		}
-		recordIDs, err := memoryStringRows(rows)
-		if err != nil {
-			return err
-		}
-		recordIDs = uniqueMemoryStrings(append(recordIDs, request.RecordIDs...))
-		for _, id := range recordIDs {
-			if _, err := tx.ExecContext(ctx, `UPDATE memory_records SET excluded=1 WHERE id=?`, id); err != nil {
-				return err
-			}
-			if _, err := tx.ExecContext(ctx, `DELETE FROM memory_embeddings WHERE record_id=?`, id); err != nil {
-				return err
-			}
-			if _, err := tx.ExecContext(ctx, `UPDATE memory_jobs SET state='done',completed_at=?,error='owner excluded memory',lease_until='' WHERE object_id=?`, formatTimestamp(request.Now), id); err != nil {
-				return err
-			}
-		}
-		// A current revision may have replaced its evidence. Remove embeddings
-		// of excluded historical evidence even when that current record survives.
-		if _, err := tx.ExecContext(ctx, `DELETE FROM memory_embeddings AS e WHERE EXISTS(SELECT 1 FROM memory_revisions v WHERE v.record_id=e.record_id AND v.revision=e.revision AND NOT (`+memoryRevisionVisibility+`))`); err != nil {
-			return err
-		}
-		// When source evidence is forgotten, surviving parents can support a new
-		// understanding after review. Withdrawing only an inference preserves its
-		// parents without scheduling that same inference again.
-		if len(fragments) > 1 {
-			removed, err := json.Marshal(recordIDs)
-			if err != nil {
-				return err
-			}
-			if _, err := tx.ExecContext(ctx, `INSERT INTO memory_jobs(operation,object_id,version,available_at,created_at)
-    SELECT DISTINCT 'consolidate',r.id,CAST(r.revision AS TEXT),?,? FROM memory_links l JOIN memory_records r ON r.id=l.to_id
-    WHERE l.relation='derives_from' AND l.from_id IN(SELECT value FROM json_each(?)) AND r.excluded=0 AND r.state IN ('current','disputed')
-    ON CONFLICT(operation,object_id,version,processor_version) DO UPDATE SET state='pending',token=memory_jobs.token+1,attempts=0,cursor=0,lease_until='',error='',completed_at='',available_at=excluded.available_at`, formatTimestamp(request.Now), formatTimestamp(request.Now), string(removed)); err != nil {
-				return err
-			}
-		}
-		// Every summary covers at least one source, so a summary left without
-		// sources is one that covered an excluded source.
-		if _, err := tx.ExecContext(ctx, `DELETE FROM thread_summary_sources WHERE session_id IN(SELECT s.session_id FROM thread_summary_sources s JOIN memory_exclusions x ON x.source_id=s.source_id)`); err != nil {
-			return err
-		}
-		if _, err := tx.ExecContext(ctx, `DELETE FROM thread_summaries WHERE NOT EXISTS(SELECT 1 FROM thread_summary_sources s WHERE s.session_id=thread_summaries.session_id)`); err != nil {
-			return err
-		}
-		_, err = tx.ExecContext(ctx, `UPDATE memory_jobs SET state='done',completed_at=?,error='owner excluded source',lease_until='' WHERE object_id IN(SELECT source_id FROM memory_exclusions WHERE quote='')`, formatTimestamp(request.Now))
-		return err
-	})
-	if err != nil {
+	if err := s.memoryTransaction(ctx, func(tx *sql.Tx) error { return forgetMemory(ctx, tx, request) }); err != nil {
 		return core.MemoryExclusion{}, err
 	}
 	return s.MemoryExclusions(ctx)
+}
+
+// forgetMemory excludes the requested records and sources and everything
+// derived from them in one transaction.
+func forgetMemory(ctx context.Context, tx *sql.Tx, request core.MemoryForget) error {
+	if request.Now.IsZero() || request.Reason == "" || request.RequestSourceID == "" || (len(request.RecordIDs) == 0 && len(request.SourceIDs) == 0) {
+		return errors.New("forget requires owner source, reason, now and targets")
+	}
+	owner, err := loadMemorySource(ctx, tx, request.RequestSourceID, false)
+	if err != nil {
+		return err
+	}
+	if owner.Speaker != "owner" {
+		return errors.New("forget requires an owner request")
+	}
+	epoch, err := memoryEpoch(ctx, tx)
+	if err != nil {
+		return err
+	}
+	epoch++
+	if _, err := tx.ExecContext(ctx, `UPDATE memory_state SET epoch=?,request_run_id=? WHERE id=1`, epoch, owner.RunID); err != nil {
+		return err
+	}
+	var fragments []core.MemoryExcludedFragment
+	for _, id := range request.SourceIDs {
+		var known int
+		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM memory_sources WHERE id=?`, id).Scan(&known); err != nil {
+			return err
+		}
+		if known == 0 {
+			return fmt.Errorf("%w: source %s", core.ErrMemoryNotFound, id)
+		}
+		fragments = append(fragments, core.MemoryExcludedFragment{SourceID: id})
+	}
+	for _, id := range request.RecordIDs {
+		r, err := loadMemoryRecord(ctx, tx, id)
+		if err != nil {
+			return err
+		}
+		if r.Kind == "fact" {
+			for _, e := range r.Evidence {
+				fragments = append(fragments, core.MemoryExcludedFragment{SourceID: e.SourceID, Quote: e.Quote})
+			}
+		}
+	}
+	fragments = append(fragments, core.MemoryExcludedFragment{SourceID: request.RequestSourceID})
+	for _, f := range fragments {
+		if err := insertMemoryExclusion(ctx, tx, f, request, epoch); err != nil {
+			return err
+		}
+	}
+	// Derived messages and summaries inherit their input source dependencies.
+	rows, err := tx.QueryContext(ctx, `WITH RECURSIVE affected(id) AS(SELECT source_id FROM memory_exclusions UNION SELECT l.source_id FROM memory_source_links l JOIN affected a ON l.parent_id=a.id) SELECT DISTINCT l.source_id FROM memory_source_links l JOIN affected a ON l.parent_id=a.id`)
+	if err != nil {
+		return err
+	}
+	affected, err := memoryStringRows(rows)
+	if err != nil {
+		return err
+	}
+	for _, id := range affected {
+		if slices.ContainsFunc(fragments, func(f core.MemoryExcludedFragment) bool { return f.SourceID == id }) {
+			continue
+		}
+		if err := insertMemoryExclusion(ctx, tx, core.MemoryExcludedFragment{SourceID: id}, request, epoch); err != nil {
+			return err
+		}
+	}
+	targetsJSON, err := json.Marshal(request.RecordIDs)
+	if err != nil {
+		return err
+	}
+	rows, err = tx.QueryContext(ctx, `WITH RECURSIVE affected(id) AS(
+	 SELECT value FROM json_each(?) WHERE value IS NOT NULL UNION
+	 SELECT DISTINCT e.record_id FROM memory_revision_evidence e JOIN memory_records cur ON cur.id=e.record_id AND cur.revision=e.revision JOIN memory_exclusions x ON e.source_id=x.source_id
+	 WHERE x.quote='' OR instr(e.quote,x.quote)>0 OR instr(x.quote,e.quote)>0
+	 UNION SELECT l.from_id FROM memory_links l JOIN affected a ON l.to_id=a.id WHERE l.relation='derives_from'
+	 ) SELECT id FROM affected`, string(targetsJSON))
+	if err != nil {
+		return err
+	}
+	recordIDs, err := memoryStringRows(rows)
+	if err != nil {
+		return err
+	}
+	recordIDs = uniqueMemoryStrings(append(recordIDs, request.RecordIDs...))
+	for _, id := range recordIDs {
+		if _, err := tx.ExecContext(ctx, `UPDATE memory_records SET excluded=1 WHERE id=?`, id); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `DELETE FROM memory_embeddings WHERE record_id=?`, id); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `UPDATE memory_jobs SET state='done',completed_at=?,error='owner excluded memory',lease_until='' WHERE object_id=?`, formatTimestamp(request.Now), id); err != nil {
+			return err
+		}
+	}
+	// A current revision may have replaced its evidence. Remove embeddings
+	// of excluded historical evidence even when that current record survives.
+	if _, err := tx.ExecContext(ctx, `DELETE FROM memory_embeddings AS e WHERE EXISTS(SELECT 1 FROM memory_revisions v WHERE v.record_id=e.record_id AND v.revision=e.revision AND NOT (`+memoryRevisionVisibility+`))`); err != nil {
+		return err
+	}
+	// When source evidence is forgotten, surviving parents can support a new
+	// understanding after review. Withdrawing only an inference preserves its
+	// parents without scheduling that same inference again.
+	if len(fragments) > 1 {
+		removed, err := json.Marshal(recordIDs)
+		if err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO memory_jobs(operation,object_id,version,available_at,created_at)
+    SELECT DISTINCT 'consolidate',r.id,CAST(r.revision AS TEXT),?,? FROM memory_links l JOIN memory_records r ON r.id=l.to_id
+    WHERE l.relation='derives_from' AND l.from_id IN(SELECT value FROM json_each(?)) AND r.excluded=0 AND r.state IN ('current','disputed')
+    ON CONFLICT(operation,object_id,version,processor_version) DO UPDATE SET state='pending',token=memory_jobs.token+1,attempts=0,cursor=0,lease_until='',error='',completed_at='',available_at=excluded.available_at`, formatTimestamp(request.Now), formatTimestamp(request.Now), string(removed)); err != nil {
+			return err
+		}
+	}
+	// Every summary covers at least one source, so a summary left without
+	// sources is one that covered an excluded source.
+	if _, err := tx.ExecContext(ctx, `DELETE FROM thread_summary_sources WHERE session_id IN(SELECT s.session_id FROM thread_summary_sources s JOIN memory_exclusions x ON x.source_id=s.source_id)`); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM thread_summaries WHERE NOT EXISTS(SELECT 1 FROM thread_summary_sources s WHERE s.session_id=thread_summaries.session_id)`); err != nil {
+		return err
+	}
+	_, err = tx.ExecContext(ctx, `UPDATE memory_jobs SET state='done',completed_at=?,error='owner excluded source',lease_until='' WHERE object_id IN(SELECT source_id FROM memory_exclusions WHERE quote='')`, formatTimestamp(request.Now))
+	return err
 }
 
 func insertMemoryExclusion(ctx context.Context, q memorySQL, f core.MemoryExcludedFragment, r core.MemoryForget, epoch int64) error {

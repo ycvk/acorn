@@ -345,7 +345,7 @@ fun ChatScreen(
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
             title = { Text("删除这个对话？") },
-            text = { Text("对话里的消息会被删除，无法恢复。") },
+            text = { Text("对话会被删除，Acorn 也会忘掉其中说过的内容，无法恢复。") },
             confirmButton = {
                 TextButton(onClick = {
                     confirmDelete = false

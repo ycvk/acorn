@@ -191,7 +191,12 @@ func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *contai
 
 	container.runResume = api.NewRunResumeService(db).WithResume(deps.resumeRun)
 	container.skills = api.NewSkillService(cfg, deps.skills)
-	container.threads = api.NewThreadService(db)
+	forgetBarrier := memoryForgetBarrier(deps.runController, db)
+	threads, err := api.NewThreadService(db, deps.memory, forgetBarrier)
+	if err != nil {
+		return nil, err
+	}
+	container.threads = threads
 	container.runs = api.NewRunService(db, container.threads, deps.executeRun, deps.runController).WithResumer(container.runResume)
 	container.events = api.NewEventService(db, db)
 	container.pendingAction = api.NewPendingActionService(db).WithResumer(container.runResume)
@@ -202,7 +207,7 @@ func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *contai
 	container.vault = deps.vault
 	container.knowledge = api.NewKnowledgeService(deps.vault)
 	container.captures = api.NewCaptureService(deps.vault, container.threads, container.runs)
-	memories, err := api.NewMemoryService(db, deps.memory, memoryForgetBarrier(deps.runController, db))
+	memories, err := api.NewMemoryService(db, deps.memory, forgetBarrier)
 	if err != nil {
 		return nil, err
 	}

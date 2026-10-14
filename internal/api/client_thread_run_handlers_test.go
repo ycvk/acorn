@@ -74,7 +74,13 @@ func TestThreadMessageRunHandlers(t *testing.T) {
 		t.Fatalf("unexpected update request: id=%q title=%q", service.updateThreadID, service.updateThreadTitle)
 	}
 
+	busyDelete := performClientRequest(router, http.MethodDelete, "/v1/threads/thread_1", "")
+	if busyDelete.Code != http.StatusConflict || !strings.Contains(busyDelete.Body.String(), `"thread_busy"`) || service.deleteThreadID != "" {
+		t.Fatalf("delete a thread with a running run: status = %d body=%s deleted=%q", busyDelete.Code, busyDelete.Body.String(), service.deleteThreadID)
+	}
+	service.run.Status = "completed"
 	deleteThread := performClientRequest(router, http.MethodDelete, "/v1/threads/thread_1", "")
+	service.run.Status = "running"
 	if deleteThread.Code != http.StatusNoContent {
 		t.Fatalf("delete thread status = %d body=%s", deleteThread.Code, deleteThread.Body.String())
 	}

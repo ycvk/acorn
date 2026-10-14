@@ -11,20 +11,34 @@ import (
 	"github.com/ycvk/acorn/internal/core"
 )
 
+// threadForgetter forgets a conversation the owner deletes.
+type threadForgetter interface {
+	ForgetThreadForOwner(ctx context.Context, threadID, title string) (core.MemoryExclusion, error)
+}
+
 // ThreadService owns thread and message CRUD: it reads/writes session records,
 // derives thread state from the latest run, and projects stored messages into
 // client-facing DTOs.
 type ThreadService struct {
 	store       core.SessionStore
+	forgetter   threadForgetter
+	barrier     func(context.Context, core.MemoryExclusion, string) error
 	newThreadID func() string
 }
 
 // NewThreadService constructs a ThreadService backed by the given store.
-func NewThreadService(store core.SessionStore) *ThreadService {
+// Deleting a thread forgets it through forgetter, then waits at barrier for
+// the executions that saw it to stop.
+func NewThreadService(store core.SessionStore, forgetter threadForgetter, barrier func(context.Context, core.MemoryExclusion, string) error) (*ThreadService, error) {
+	if store == nil || forgetter == nil || barrier == nil {
+		return nil, errors.New("thread service: store, forgetter and barrier are required")
+	}
 	return &ThreadService{
 		store:       store,
+		forgetter:   forgetter,
+		barrier:     barrier,
 		newThreadID: newThreadID,
-	}
+	}, nil
 }
 
 func newThreadID() string {
@@ -126,11 +140,29 @@ func (s *ThreadService) UpdateThread(ctx context.Context, threadID, title string
 	return s.GetThread(ctx, threadID)
 }
 
+// DeleteThread deletes a conversation and makes Acorn forget it: its messages
+// and tool results are excluded from memory before its records are removed. A
+// thread whose latest run is still running is refused with core.ErrThreadBusy.
 func (s *ThreadService) DeleteThread(ctx context.Context, threadID string) error {
-	if s == nil || s.store == nil {
-		return errors.New("client store is nil")
+	session, err := s.store.LoadSession(ctx, threadID)
+	if err != nil {
+		return err
 	}
-	return s.store.DeleteSession(ctx, threadID)
+	latest, err := s.store.LoadLatestRunForSession(ctx, threadID)
+	if err != nil {
+		return err
+	}
+	if latest != nil && latest.Status == core.RunStatusRunning {
+		return fmt.Errorf("%w: %s", core.ErrThreadBusy, threadID)
+	}
+	exclusion, err := s.forgetter.ForgetThreadForOwner(ctx, threadID, session.Title)
+	if err != nil {
+		return err
+	}
+	if err := s.barrier(ctx, exclusion, ""); err != nil {
+		return err
+	}
+	return s.store.DeleteThread(ctx, threadID)
 }
 
 func (s *ThreadService) threadTitleFromRecentUserMessage(ctx context.Context, threadID string) (string, error) {

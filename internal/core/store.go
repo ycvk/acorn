@@ -19,7 +19,9 @@ type SessionStore interface {
 	LoadLatestRepliesForSessions(ctx context.Context, sessionIDs []string) (map[string]SessionMessageRecord, error)
 	UpdateSessionTitle(ctx context.Context, sessionID, title string) error
 	UpdateSessionTitleIfEmpty(ctx context.Context, sessionID, title string) error
-	DeleteSession(ctx context.Context, sessionID string) error
+	// DeleteThread removes a thread and its runs' records; it fails with
+	// ErrThreadBusy while one of them runs.
+	DeleteThread(ctx context.Context, sessionID string) error
 
 	// --- Messages ---
 	ListSessionMessages(ctx context.Context, sessionID string, limit int) ([]SessionMessageRecord, error)

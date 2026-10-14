@@ -35,7 +35,7 @@ func (unimplementedStore) UpdateSessionTitle(context.Context, string, string) er
 func (unimplementedStore) UpdateSessionTitleIfEmpty(context.Context, string, string) error {
 	return errUnexpectedClientStoreCall
 }
-func (unimplementedStore) DeleteSession(context.Context, string) error {
+func (unimplementedStore) DeleteThread(context.Context, string) error {
 	return errUnexpectedClientStoreCall
 }
 func (unimplementedStore) ListSessionMessages(context.Context, string, int) ([]core.SessionMessageRecord, error) {

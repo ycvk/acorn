@@ -164,6 +164,8 @@ func (s *Server) respondClientKnownError(w http.ResponseWriter, r *http.Request,
 		s.respondError(w, r, http.StatusNotFound, "thread_not_found", err.Error())
 	case errors.Is(err, core.ErrRunNotFound):
 		s.respondError(w, r, http.StatusNotFound, "run_not_found", err.Error())
+	case errors.Is(err, core.ErrThreadBusy):
+		s.respondConflict(w, r, "thread_busy", err.Error())
 	case errors.Is(err, ErrClientNoPendingMessage):
 		s.respondBadRequest(w, r, err.Error())
 	case errors.Is(err, ErrPendingActionDecisionInvalid):
