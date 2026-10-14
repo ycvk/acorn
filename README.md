@@ -1,241 +1,149 @@
-# Acorn
-
 <div align="center">
-  <img src="docs/assets/acorn-logo.png" alt="Acorn logo" width="260">
-  <br><br>
+  <img src="docs/assets/acorn-logo.png" alt="Acorn" width="200">
+
+  <h1>Acorn</h1>
+
+  <p><strong>A self-hosted personal agent that lives on your server and answers on your phone.</strong></p>
+
   <a href="https://github.com/ycvk/acorn/actions/workflows/ci.yml"><img src="https://github.com/ycvk/acorn/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://github.com/ycvk/acorn/releases/latest"><img src="https://img.shields.io/github/v/release/ycvk/acorn?label=release" alt="Latest Release"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache--2.0-blue.svg" alt="License: Apache-2.0"></a>
+  <a href="https://github.com/ycvk/acorn/releases/latest"><img src="https://img.shields.io/github/v/release/ycvk/acorn?label=release" alt="Latest release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="License: Apache-2.0"></a>
 </div>
 
-Acorn is a self-hosted personal agent for one owner and their devices.
+Acorn is an agent for one person. It runs as a single Go binary on your own server, keeps everything in a SQLite database there, and you talk to it from an Android app. It remembers what you tell it and can show where each memory came from, keeps the appointments it makes with you, follows feeds and pages, and has a Linux machine and a browser of its own for work that needs hands. Anything with consequences outside that machine waits for your approval on the phone.
 
-Run Acorn on your own server, pair your phone, and talk to an agent with a persona and sourced personal memory. It keeps the appointments it makes with you, wakes up on its own when one is due, files what you share from your phone into a markdown knowledge base, follows feeds, GitHub repositories and web pages for you with a briefing every morning, and pushes to your phone when you should know something. Its state stays on your server.
+## Highlights
 
-## Features
+- **Memory with sources.** Facts, inferences and the agent's own thoughts each trace back to the message, tool result or note they came from, with revisions over time. Correct or forget a memory from the app; deleting a conversation forgets it too.
+- **A computer of its own.** The agent works in an isolated Podman container with a shell, files and Chromium driven through [BrowserSkill](https://github.com/Tencent/BrowserSkill). When a site needs you to sign in, you open the agent's browser in the app and do it there; passwords never reach the model.
+- **Asks before it acts.** Your rules block, allow or require approval for any tool. Shell commands, browser actions and MCP calls the rules leave open are reviewed by [Jev](https://typesafe.ai); paying, sending, deleting or changing settings waits for you. Approve or decline right on the notification. Runs continue on the server, even across restarts.
+- **Keeps appointments.** "Remind me in three days" wakes the agent in the same conversation at that time. Scheduled night reflection and idle thoughts revisit open questions, within daily budgets you set.
+- **Follows things for you.** RSS and Atom feeds (RSSHub included), GitHub releases and issues, and parts of web pages such as prices. New items reach you right away or in a morning briefing.
+- **A knowledge base.** Share a link or an image from any app and the agent files it as a note. Every edit is kept as a revision; read and search notes in the app.
+- **Learns procedures.** After finishing work you are likely to ask for again, the agent saves the steps as a skill, once you approve, and tidies its skills during night reflection.
+- **Yours to run.** Pure Go, no CGO, Linux `amd64` and `arm64`. One SQLite file, nightly backups, a signed Android APK with every release.
 
-- Single-owner self-hosted backend for personal deployments.
-- Authenticated `/v1` API with one-time device pairing.
-- Android mobile control surface for threads, chat with live run streaming, approvals, push notifications, sharing from other apps, the knowledge base, and settings.
-- Persistent runs, run events, pending actions, artifacts, personal memory, and skills.
-- An editable persona and sourced facts, revisable understandings, open thoughts, ongoing concerns, and appointments with individually recorded occurrences.
-- Commitments: "remind me in three days" wakes the agent in the same thread at that time, also after a restart.
-- Push notifications through Firebase Cloud Messaging, with an hourly cap and quiet hours.
-- Scheduled night reflections and idle thoughts, with daily wake and reported-token budgets.
-- Opt-in phone notification capture by app, with a durable device-scoped upload queue and signals in the agent's context and morning briefing.
-- Watches on RSS and Atom feeds (RSSHub routes included), GitHub releases and issues, and parts of web pages such as prices. New items wake the agent right away or wait for a morning briefing note pushed to your phone.
-- A knowledge base of markdown notes that keeps every revision: share a link from your phone and the agent writes a note; read and search it in the app.
-- Automatic memory extraction and keyword, semantic, relationship and temporal recall; explicit correction, forgetting, and source inspection; full-text search over notes.
-- Tool calls that need your sign-off pause on your phone and continue on the server after you decide, even across restarts.
-- Linux `amd64` and `arm64` release tarballs (pure Go cross-compilation, no CGO).
-- Signed Android APK published with each GitHub Release.
+## How it works
 
-## Install On A VPS
-
-Acorn's supported deployment path is a Linux release tarball managed by `systemd`. Docker is not required, and the server does not need to build from source.
-
-Install the latest release on Debian or Ubuntu:
-
-```bash
-curl -fsSL https://github.com/ycvk/acorn/releases/latest/download/install-release.sh | sh
+```
+ Android app ── /v1 + device token ──▶ acorn serve ─────────▶ model provider
+                                        │  SQLite: runs, memory, notes, skills
+                                        │  scheduler: appointments, watches, briefing
+                                        │  push via Firebase Cloud Messaging
+                                        └─▶ workstation container: shell, files, Chromium
 ```
 
-The installer installs Acorn's host dependencies and creates the systemd service.
+Each run is one [Eino](https://github.com/cloudwego/eino) `ChatModelAgent`. Before every model call it gets a token-budgeted view of the conversation, the memories relevant to it and a short "presence" note of the time, open appointments and concerns. The API contract is [docs/openapi.yaml](docs/openapi.yaml); the Kotlin client in the app is generated from it.
 
-Install and start the service in one step:
+## Requirements
+
+- A Debian or Ubuntu server with systemd, `amd64` or `arm64`. 2 GB of RAM is enough. The installer adds Podman for the workstation.
+- A model provider: the OpenAI Responses API, a Chat Completions compatible API, or the Anthropic API.
+- A [Voyage AI](https://www.voyageai.com) key for memory embeddings.
+- An Android phone (Android 8.0 or newer).
+
+Optional: a TypeSafe key for action review, a Tavily key for web search, a Firebase project for push notifications, an RSSHub instance and a GitHub token for watches.
+
+## Quick start
+
+Install the latest release and start the service:
 
 ```bash
 curl -fsSL https://github.com/ycvk/acorn/releases/latest/download/install-release.sh | OPENAI_API_KEY=your-provider-key VOYAGE_API_KEY=your-voyage-key sh
 ```
 
-The installer creates:
+The installer puts the binary in `/opt/acorn`, writes `~/.acorn/acorn.yaml` and `~/.acorn/acorn.env`, keeps data in `/srv/acorn`, builds the workstation image and installs the `acorn`, `acorn-workstation` and nightly backup services. Running it again upgrades Acorn and leaves your config, secrets and data as they are.
 
-| Path | Purpose |
-| --- | --- |
-| `/opt/acorn/acorn` | Release binary |
-| `/usr/local/bin/acorn` | Global command wrapper |
-| `~/.acorn/acorn.yaml` | Backend configuration |
-| `~/.acorn/acorn.env` | Provider secrets |
-| `/srv/acorn/workspace` | Runtime storage: SQLite database, persona and shared images |
-| `/srv/acorn/backups` | Nightly snapshots from `acorn-backup.timer` |
-| `/etc/systemd/system/acorn.service` | `systemd` service |
-
-The installer uses the user that runs the script. On a typical root VPS install, Acorn reads `/root/.acorn/acorn.yaml` and `/root/.acorn/acorn.env`. Commands such as `acorn pair` and `acorn doctor` use the same config unless you pass `-c`.
-
-If you did not pass both `OPENAI_API_KEY` and `VOYAGE_API_KEY`, edit the environment file and start the service:
-
-```bash
-sudoedit ~/.acorn/acorn.env
-sudo systemctl enable --now acorn
-```
-
-Verify the backend:
+Check that everything is ready:
 
 ```bash
 curl http://127.0.0.1:8080/healthz
 acorn doctor
 ```
 
-Create a pairing QR for the mobile app:
+Acorn listens on the server only. Reach it from your phone through a reverse proxy with TLS, Tailscale or a tunnel, then pair the app:
 
 ```bash
 acorn pair --server-url https://acorn.example.com --qr
 ```
 
-Print the same mobile connection details for manual entry:
+Download `acorn_mobile_<version>_android.apk` from the [latest release](https://github.com/ycvk/acorn/releases/latest), install it and scan the code. The phone receives a device token; the server keeps only its hash.
 
-```bash
-acorn pair --server-url https://acorn.example.com
-```
-
-For remote access, keep Acorn bound to `127.0.0.1:8080` and expose it through Tailscale, a reverse proxy, or a tunnel. See [Self-hosted Onboarding](docs/user/self-hosted-onboarding.md) for the full deployment guide.
-
-## Android App
-
-Each GitHub Release includes a signed Android APK:
-
-```bash
-VERSION_URL=$(curl -fsSLo /dev/null -w '%{url_effective}' https://github.com/ycvk/acorn/releases/latest)
-VERSION=${VERSION_URL##*/}
-curl -fL -O "https://github.com/ycvk/acorn/releases/download/${VERSION}/acorn_mobile_${VERSION}_android.apk"
-curl -fL -O "https://github.com/ycvk/acorn/releases/download/${VERSION}/acorn_mobile_${VERSION}_android.apk.sha256"
-sha256sum -c "acorn_mobile_${VERSION}_android.apk.sha256"
-```
-
-Open the app, scan or enter the pairing payload, and the device receives a bearer token. The token is shown once; the server stores only token hashes.
+The [self-hosted guide](docs/user/self-hosted-onboarding.md) covers every step in detail, including reverse proxy setup, backups and restore.
 
 ## Configuration
 
-Local configuration starts from the starter config that `acorn init` writes:
-
-```bash
-make build
-./bin/acorn init -c configs/acorn.local.yaml
-$EDITOR configs/acorn.local.yaml
-```
-
-Minimal provider configuration:
+`acorn.yaml` holds the settings and refers to secrets in `acorn.env` as `${VAR}`. A provider looks like this:
 
 ```yaml
 providers:
   - name: primary
-    api: responses
+    api: responses            # responses, chat_completions or anthropic
     model: gpt-6-astra
     base_url: https://api.openai.com/v1
     api_key: ${OPENAI_API_KEY}
     enabled: true
 ```
 
-Provider keys can reference environment variables. Missing provider credentials are reported by readiness checks instead of being silently ignored.
-
-Tool calls go through your rules first: `approval.block` refuses a call, `approval.require` pauses the run until you accept or decline it on your phone, and `approval.allow` runs it. Patterns use glob syntax; `require` defaults to every MCP tool. With a TypeSafe key, Jev reviews the shell commands, browser actions and MCP calls no rule settles, and the ones with consequences outside the workstation, such as paying, sending, deleting or changing settings, wait for your approval:
+Tool rules are glob patterns. `block` wins over `require`, and `require` over `allow`:
 
 ```yaml
 approval:
-  require:
-    - "mcp__*"
+  require: ["mcp__*", skill_write, skill_retire]
   block: []
   allow: []
-
-review:
-  api_key: ${TYPESAFE_API_KEY}
-  model: jev-1.13.0
 ```
 
-## API
+Unknown keys stop the backend, so a typo is reported instead of ignored. The guide documents the persona, memory budgets, wake limits, quiet hours, watches and action review.
 
-Remote clients use the authenticated `/v1` API. Common endpoints include:
+Push notifications need your own Firebase project: the released APK cannot receive pushes sent with another project's credentials, so build the app with your Firebase values as the guide describes. Everything else works without push.
 
-| Endpoint | Purpose |
+## Development
+
+Prerequisites: Go 1.27, `golangci-lint` and `goimports`; JDK 21 and the Android SDK for the app.
+
+```bash
+make build                     # bin/acorn
+./bin/acorn init -c configs/acorn.local.yaml
+make serve                     # serves with configs/acorn.local.yaml
+```
+
+Before sending a change:
+
+```bash
+make format-check && make lint && make test
+make test-architecture         # dependency direction and contract guards
+go test -race ./...
+```
+
+Changing the API means updating `docs/openapi.yaml`, then `make generate` and, in `mobile-kotlin/`, `./tool/generate_openapi_client.sh`. App checks run from `mobile-kotlin/` with `./gradlew test assembleDebug`.
+
+| Path | What lives there |
 | --- | --- |
-| `GET /healthz` | Process health |
-| `POST /v1/devices:pair` | Exchange a pairing code for a device token |
-| `GET /v1/inbox` | Mobile-friendly aggregate of active work and pending approvals |
-| `GET /v1/threads` | List threads |
-| `POST /v1/threads` | Create a thread |
-| `POST /v1/threads/{thread_id}/messages` | Append a user message |
-| `POST /v1/threads/{thread_id}/runs` | Start a run |
-| `GET /v1/runs/{run_id}/events?follow=true` | Replay and follow mobile live run events |
-| `GET /v1/runs/{run_id}/detail` | Fetch a full run detail view |
-| `GET /v1/pending-actions` | List pending approvals |
-| `POST /v1/pending-actions/{action_id}:decide` | Accept or decline a pending action |
-
-The full client contract is defined in [docs/openapi.yaml](docs/openapi.yaml). The Kotlin + Jetpack Compose mobile client is generated from that file.
-
-## Develop From Source
-
-Prerequisites:
-
-- Go 1.27
-- `golangci-lint`
-- `goimports`
-- Kotlin + Jetpack Compose, if you work on the mobile app
-
-Run the backend locally:
-
-```bash
-make doctor
-make serve
-```
-
-Pair a local mobile client or API client:
-
-```bash
-go run ./cmd/acorn pair -c configs/acorn.local.yaml --server-url http://127.0.0.1:8080 --qr
-```
-
-Run checks before sending changes:
-
-```bash
-make test
-make format-check
-make lint
-(cd mobile-kotlin && ./tool/generate_openapi_client.sh --check)
-git diff --check
-```
-
-Mobile checks run from `mobile-kotlin/`:
-
-```bash
-./gradlew test
-./gradlew lint
-./gradlew assembleDebug
-```
-
-## Repository Layout
-
-| Path | Purpose |
-| --- | --- |
-| `cmd/acorn/` | CLI entrypoint |
-| `internal/wire/` | Composition root — container wiring, the only place concrete implementations are instantiated |
-| `internal/core/` | Layer 0 domain types, store interfaces, tool contracts — zero internal imports |
-| `internal/runtime/` | Executor, RunnerFactory, Eino ChatModelAgent assembly, presence, approval and tool-error middleware, skill backend, StreamItem projection |
-| `internal/tools/` | Tool implementations (artifact, operator, personal memory, notify, knowledge, web, workstation), ToolRegistry |
-| `internal/workstation/` | The agent workstation's API: commands, files, page rendering and companion processes |
-| `internal/store/` | SQLite persisted state (modernc.org/sqlite; one writer connection, a read-only pool for memory reads), including personal memory, knowledge notes and full-text search |
-| `internal/memory/` | Sourced extraction, consolidation, hybrid recall, thread summaries and per-call budgets |
-| `internal/presence/` | Presence rendering, persona, cron parsing |
-| `internal/wake/` | Scheduler inside `serve`: commitments, watches and the morning briefing |
-| `internal/notify/` | FCM HTTP v1 client and push sender (hourly cap, quiet hours) |
-| `internal/knowledge/` | Knowledge base: note paths, revisions, image attachments, agent-side exclusion filtering |
-| `internal/watch/` | Watch checker: feeds, GitHub, page snapshots, failure backoff |
-| `internal/mcp/` | MCP provider manager |
-| `internal/webaccess/` | Web fetcher, Tavily search, content extraction, shared outbound URL policy |
-| `internal/skills/` | Skill library over SQLite and the built-in skills |
-| `internal/config/` | Config struct, defaults, validation |
-| `internal/cli/` | CLI command dispatch |
-| `internal/api/` | HTTP server, `/healthz`, `/v1` |
-| `mobile-kotlin/` | Kotlin + Jetpack Compose mobile app |
-| `docs/` | User guide, OpenAPI contract, architecture invariants, and ADRs |
+| `cmd/acorn`, `internal/cli` | The `acorn` command |
+| `internal/wire` | Composition root, the only place concrete implementations are built |
+| `internal/core` | Domain types and the interfaces other packages depend on |
+| `internal/runtime` | Runs: agent assembly, middleware, approval, event projection |
+| `internal/memory`, `internal/store` | Sourced memory and recall; SQLite storage and schema migrations |
+| `internal/tools`, `internal/skills` | The agent's tools and skills |
+| `internal/workstation`, `deploy/workstation` | The workstation API and its container image |
+| `internal/wake`, `internal/watch`, `internal/notify` | Scheduler, watches and push |
+| `internal/knowledge`, `internal/webaccess`, `internal/mcp` | Knowledge base, web access, MCP providers |
+| `internal/api` | The `/v1` HTTP API |
+| `mobile-kotlin` | The Android app (Kotlin, Jetpack Compose) |
 
 ## Documentation
 
-- [Self-hosted Onboarding](docs/user/self-hosted-onboarding.md)
-- [OpenAPI contract](docs/openapi.yaml)
-- [Architecture and engineering constraints](AGENTS.md)
+- [Self-hosted guide](docs/user/self-hosted-onboarding.md)
+- [API contract](docs/openapi.yaml)
+- [Architecture decisions](docs/adr/README.md)
 - [Architecture invariants](docs/architecture/INVARIANTS.md)
-- [Architecture decision records](docs/adr/README.md)
+- [Engineering constraints](AGENTS.md)
+
+## Status
+
+Acorn is built for a single owner and is developed in the open. It runs daily on the author's own server; expect configuration and API changes between minor versions, recorded in each release and in the guide's migration notes.
 
 ## License
 
-Acorn is released under the [Apache License 2.0](LICENSE).
+[Apache License 2.0](LICENSE)
