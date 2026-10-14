@@ -149,12 +149,14 @@ func (s *Store) LoadRun(ctx context.Context, runID string) (*core.RunRecord, err
 	return rec, nil
 }
 
+// ListActiveRuns and ListRecentTerminalRuns list runs of existing threads; a
+// deleted thread's runs stay behind without one.
 func (s *Store) ListActiveRuns(ctx context.Context, limit int) ([]core.RunRecord, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT run_id, session_id, turn_index, status, input_text, output_text, error_text, created_at, finished_at
-		 FROM runs
-		 WHERE status = ? AND session_id <> ''
-		 ORDER BY created_at DESC
+		`SELECT r.run_id, r.session_id, r.turn_index, r.status, r.input_text, r.output_text, r.error_text, r.created_at, r.finished_at
+		 FROM runs r JOIN sessions s ON s.session_id = r.session_id
+		 WHERE r.status = ?
+		 ORDER BY r.created_at DESC
 		 LIMIT ?`,
 		string(core.RunStatusRunning),
 		normalizeRunListLimit(limit),
@@ -167,10 +169,10 @@ func (s *Store) ListActiveRuns(ctx context.Context, limit int) ([]core.RunRecord
 
 func (s *Store) ListRecentTerminalRuns(ctx context.Context, limit int) ([]core.RunRecord, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT run_id, session_id, turn_index, status, input_text, output_text, error_text, created_at, finished_at
-		 FROM runs
-		 WHERE status IN (?, ?, ?) AND session_id <> ''
-		 ORDER BY finished_at DESC
+		`SELECT r.run_id, r.session_id, r.turn_index, r.status, r.input_text, r.output_text, r.error_text, r.created_at, r.finished_at
+		 FROM runs r JOIN sessions s ON s.session_id = r.session_id
+		 WHERE r.status IN (?, ?, ?)
+		 ORDER BY r.finished_at DESC
 		 LIMIT ?`,
 		string(core.RunStatusSucceeded),
 		string(core.RunStatusInterrupted),

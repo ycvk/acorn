@@ -235,6 +235,19 @@ func TestListInboxRunsFiltersSessionRunsByStatus(t *testing.T) {
 	if strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Fatalf("terminal runs = %#v, want %#v", got, want)
 	}
+
+	// A deleted thread's runs stay in runs but belong to no thread.
+	for _, sessionID := range []string{"session_active", "session_done"} {
+		if err := store.DeleteSession(ctx, sessionID); err != nil {
+			t.Fatalf("delete session %s: %v", sessionID, err)
+		}
+	}
+	if active, err := store.ListActiveRuns(ctx, 10); err != nil || len(active) != 0 {
+		t.Fatalf("active runs after delete = %#v, %v", active, err)
+	}
+	if terminal, err := store.ListRecentTerminalRuns(ctx, 10); err != nil || strings.Join(runIDs(terminal), ",") != "run_failed" {
+		t.Fatalf("terminal runs after delete = %#v, %v", runIDs(terminal), err)
+	}
 }
 
 func runIDs(items []core.RunRecord) []string {
