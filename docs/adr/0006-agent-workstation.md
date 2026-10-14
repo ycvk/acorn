@@ -1,7 +1,7 @@
 ---
 adr: 0006
 title: agent 的工作机 — 在 VPS 上有一台能动手的隔离电脑
-status: Proposed
+status: Accepted
 date: 2026-10-12
 supersedes: []
 ---
