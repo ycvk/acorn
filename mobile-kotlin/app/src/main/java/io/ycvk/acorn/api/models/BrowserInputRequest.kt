@@ -32,9 +32,9 @@ import com.squareup.moshi.JsonClass
  *
  * @param tab 
  * @param type 
- * @param x Viewport x in CSS pixels, for tap and scroll.
- * @param y Viewport y in CSS pixels, for tap and scroll.
- * @param dy Scroll distance in CSS pixels; positive scrolls down.
+ * @param x x of a point in a frame, for tap and scroll.
+ * @param y y of a point in a frame, for tap and scroll.
+ * @param dy Scroll distance in a frame's units; positive scrolls down.
  * @param text Text to type into the focused field.
  * @param key 
  * @param url http(s) URL to open, for navigate.
@@ -49,15 +49,15 @@ data class BrowserInputRequest (
     @Json(name = "type")
     val type: BrowserInputRequest.Type,
 
-    /* Viewport x in CSS pixels, for tap and scroll. */
+    /* x of a point in a frame, for tap and scroll. */
     @Json(name = "x")
     val x: kotlin.Double? = null,
 
-    /* Viewport y in CSS pixels, for tap and scroll. */
+    /* y of a point in a frame, for tap and scroll. */
     @Json(name = "y")
     val y: kotlin.Double? = null,
 
-    /* Scroll distance in CSS pixels; positive scrolls down. */
+    /* Scroll distance in a frame's units; positive scrolls down. */
     @Json(name = "dy")
     val dy: kotlin.Double? = null,
 

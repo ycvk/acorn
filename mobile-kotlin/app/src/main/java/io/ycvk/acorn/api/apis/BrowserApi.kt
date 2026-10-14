@@ -59,7 +59,7 @@ open class BrowserApi(basePath: kotlin.String = defaultBasePath, client: Call.Fa
     /**
      * POST /v1/browser/input
      * Use a page of the agent&#39;s browser
-     * Performs one input on the page: a tap or scroll at viewport coordinates in CSS pixels (a frame&#39;s width and height span the viewport), typed text, a key, navigation to an http(s) URL, back or reload. 
+     * Performs one input on the page: a tap or scroll at a point of a frame, in the units of the frame&#39;s width and height (a page zoomed out to fit the phone is mapped back onto the page), typed text, a key, navigation to an http(s) URL, back or reload. 
      * @param browserInputRequest 
      * @return void
      * @throws IllegalStateException If the request is not correctly configured
@@ -90,7 +90,7 @@ open class BrowserApi(basePath: kotlin.String = defaultBasePath, client: Call.Fa
     /**
      * POST /v1/browser/input
      * Use a page of the agent&#39;s browser
-     * Performs one input on the page: a tap or scroll at viewport coordinates in CSS pixels (a frame&#39;s width and height span the viewport), typed text, a key, navigation to an http(s) URL, back or reload. 
+     * Performs one input on the page: a tap or scroll at a point of a frame, in the units of the frame&#39;s width and height (a page zoomed out to fit the phone is mapped back onto the page), typed text, a key, navigation to an http(s) URL, back or reload. 
      * @param browserInputRequest 
      * @return ApiResponse<Unit?>
      * @throws IllegalStateException If the request is not correctly configured
@@ -201,7 +201,7 @@ open class BrowserApi(basePath: kotlin.String = defaultBasePath, client: Call.Fa
     /**
      * GET /v1/browser/frames
      * Stream a page of the agent&#39;s browser
-     * The response is &#x60;text/event-stream&#x60;. Each &#x60;event: frame&#x60; message carries a BrowserFrame in &#x60;data:&#x60;; a new frame arrives when the page repaints, and the next frame waits until the previous one is read. Comment lines keep the connection open. An &#x60;event: error&#x60; message with an ErrorResponse-like &#x60;{\&quot;error\&quot;: \&quot;...\&quot;}&#x60; body ends a stream that failed, for example because the page was closed.  With &#x60;width&#x60; and &#x60;height&#x60;, the page is laid out as a phone screen of that many CSS pixels while the stream lasts; give both or neither. 
+     * The response is &#x60;text/event-stream&#x60;. Each &#x60;event: frame&#x60; message carries a BrowserFrame in &#x60;data:&#x60;; a new frame arrives when the page&#39;s image changes, at most five a second, and the next frame waits until the previous one is read. The streamed tab comes to the front. Comment lines keep the connection open. An &#x60;event: error&#x60; message with an ErrorResponse-like &#x60;{\&quot;error\&quot;: \&quot;...\&quot;}&#x60; body ends a stream that failed, for example because the page was closed.  With &#x60;width&#x60; and &#x60;height&#x60;, the page is laid out as a phone screen of that many CSS pixels while the stream lasts, and frames carry two image pixels per unit of their width and height; give both or neither. 
      * @param tab 
      * @param width  (optional)
      * @param height  (optional)
@@ -235,7 +235,7 @@ open class BrowserApi(basePath: kotlin.String = defaultBasePath, client: Call.Fa
     /**
      * GET /v1/browser/frames
      * Stream a page of the agent&#39;s browser
-     * The response is &#x60;text/event-stream&#x60;. Each &#x60;event: frame&#x60; message carries a BrowserFrame in &#x60;data:&#x60;; a new frame arrives when the page repaints, and the next frame waits until the previous one is read. Comment lines keep the connection open. An &#x60;event: error&#x60; message with an ErrorResponse-like &#x60;{\&quot;error\&quot;: \&quot;...\&quot;}&#x60; body ends a stream that failed, for example because the page was closed.  With &#x60;width&#x60; and &#x60;height&#x60;, the page is laid out as a phone screen of that many CSS pixels while the stream lasts; give both or neither. 
+     * The response is &#x60;text/event-stream&#x60;. Each &#x60;event: frame&#x60; message carries a BrowserFrame in &#x60;data:&#x60;; a new frame arrives when the page&#39;s image changes, at most five a second, and the next frame waits until the previous one is read. The streamed tab comes to the front. Comment lines keep the connection open. An &#x60;event: error&#x60; message with an ErrorResponse-like &#x60;{\&quot;error\&quot;: \&quot;...\&quot;}&#x60; body ends a stream that failed, for example because the page was closed.  With &#x60;width&#x60; and &#x60;height&#x60;, the page is laid out as a phone screen of that many CSS pixels while the stream lasts, and frames carry two image pixels per unit of their width and height; give both or neither. 
      * @param tab 
      * @param width  (optional)
      * @param height  (optional)

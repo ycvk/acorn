@@ -30,23 +30,23 @@ import com.squareup.moshi.JsonClass
 /**
  * 
  *
- * @param jpeg Base64 JPEG of the viewport.
- * @param width Viewport width in CSS pixels.
- * @param height Viewport height in CSS pixels.
+ * @param jpeg Base64 JPEG of what the screen shows.
+ * @param width Width of the screen in the units taps and scrolls use.
+ * @param height Height of the screen in the units taps and scrolls use.
  */
 
 
 data class BrowserFrame (
 
-    /* Base64 JPEG of the viewport. */
+    /* Base64 JPEG of what the screen shows. */
     @Json(name = "jpeg")
     val jpeg: kotlin.String,
 
-    /* Viewport width in CSS pixels. */
+    /* Width of the screen in the units taps and scrolls use. */
     @Json(name = "width")
     val width: kotlin.Int,
 
-    /* Viewport height in CSS pixels. */
+    /* Height of the screen in the units taps and scrolls use. */
     @Json(name = "height")
     val height: kotlin.Int
 

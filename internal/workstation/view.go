@@ -1,10 +1,13 @@
 package workstation
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"image/jpeg"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -24,8 +27,8 @@ type Tab struct {
 	URL   string `json:"url"`
 }
 
-// Frame is one screencast image of a tab. Width and Height are the page's
-// viewport in CSS pixels, the coordinates input uses.
+// Frame is one image of a tab. Width and Height are the image's size in
+// device-independent pixels, the coordinates taps and scrolls use.
 type Frame struct {
 	JPEG   string `json:"jpeg"`
 	Width  int    `json:"width"`
@@ -156,59 +159,83 @@ func (v *View) attach(ctx context.Context, tab string) (*cdpConn, error) {
 	return nil, fmt.Errorf("%w: %s", ErrNoTab, tab)
 }
 
-// Stream sends the tab's screencast to send until ctx ends or send fails.
-// A non-zero viewport lays the page out as a phone of that size meanwhile.
-// Each frame is acknowledged after send returns, so a slow viewer slows the
-// screencast instead of queueing frames.
+// streamScale is the device pixel ratio of a phone-sized stream, so text
+// stays sharp on the phone's screen.
+const streamScale = 2
+
+// frameInterval spaces the stream's screenshots. A screenshot repaints the
+// page, so the stream polls at this pace and sends only images that changed.
+const frameInterval = 200 * time.Millisecond
+
+// Stream sends images of the tab to send until ctx ends or send fails, after
+// bringing the tab to the front. A non-zero viewport lays the page out as a
+// phone of that size meanwhile. A slow viewer slows the stream, since the
+// next image is taken after send returns.
 func (v *View) Stream(ctx context.Context, tab string, viewport Viewport, send func(Frame) error) error {
 	conn, err := v.attach(ctx, tab)
 	if err != nil {
 		return err
 	}
 	defer conn.close()
+	scale := 1
 	if viewport != (Viewport{}) {
 		// The override belongs to this DevTools session, so the page returns
 		// to its own layout when the stream ends.
-		if _, err := conn.call(ctx, "Emulation.setDeviceMetricsOverride", map[string]any{"width": viewport.Width, "height": viewport.Height, "deviceScaleFactor": 2, "mobile": true}); err != nil {
+		if _, err := conn.call(ctx, "Emulation.setDeviceMetricsOverride", map[string]any{"width": viewport.Width, "height": viewport.Height, "deviceScaleFactor": streamScale, "mobile": true}); err != nil {
 			return err
 		}
+		scale = streamScale
 	}
-	frames := make(chan json.RawMessage, 1)
-	conn.on("Page.screencastFrame", func(params json.RawMessage) {
-		select {
-		case frames <- params:
-		default:
-		}
-	})
-	if _, err := conn.call(ctx, "Page.startScreencast", map[string]any{"format": "jpeg", "quality": 60, "maxWidth": 1280, "maxHeight": 1280}); err != nil {
+	// A background tab is throttled and slow to capture.
+	if _, err := conn.call(ctx, "Page.bringToFront", map[string]any{}); err != nil {
 		return err
 	}
+	ticker := time.NewTicker(frameInterval)
+	defer ticker.Stop()
+	var last string
 	for {
+		raw, err := conn.call(ctx, "Page.captureScreenshot", map[string]any{"format": "jpeg", "quality": 70})
+		if err != nil {
+			return err
+		}
+		var shot struct {
+			Data string `json:"data"`
+		}
+		if err := json.Unmarshal(raw, &shot); err != nil {
+			return fmt.Errorf("screenshot: %w", err)
+		}
+		if shot.Data != last {
+			frame, err := frameOf(shot.Data, scale)
+			if err != nil {
+				return err
+			}
+			if err := send(frame); err != nil {
+				return err
+			}
+			last = shot.Data
+		}
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		case err := <-conn.done:
 			return err
-		case raw := <-frames:
-			var f struct {
-				Data      string `json:"data"`
-				SessionID int    `json:"sessionId"`
-				Metadata  struct {
-					DeviceWidth  float64 `json:"deviceWidth"`
-					DeviceHeight float64 `json:"deviceHeight"`
-				} `json:"metadata"`
-			}
-			if err := json.Unmarshal(raw, &f); err != nil {
-				return fmt.Errorf("screencast frame: %w", err)
-			}
-			if err := send(Frame{JPEG: f.Data, Width: int(f.Metadata.DeviceWidth), Height: int(f.Metadata.DeviceHeight)}); err != nil {
-				return err
-			}
-			if _, err := conn.call(ctx, "Page.screencastFrameAck", map[string]any{"sessionId": f.SessionID}); err != nil {
-				return err
-			}
+		case <-ticker.C:
 		}
 	}
+}
+
+// frameOf sizes a base64 JPEG screenshot taken at scale device pixels per
+// CSS pixel.
+func frameOf(data string, scale int) (Frame, error) {
+	img, err := base64.StdEncoding.DecodeString(data)
+	if err != nil {
+		return Frame{}, fmt.Errorf("screenshot: %w", err)
+	}
+	cfg, err := jpeg.DecodeConfig(bytes.NewReader(img))
+	if err != nil {
+		return Frame{}, fmt.Errorf("screenshot: %w", err)
+	}
+	return Frame{JPEG: data, Width: cfg.Width / scale, Height: cfg.Height / scale}, nil
 }
 
 // Do performs one input on its tab. Taps and scrolls arrive in the stream's
@@ -243,7 +270,7 @@ func (v *View) Do(ctx context.Context, in Input) error {
 	return nil
 }
 
-// cssVisualViewport is the part of the page the screencast shows: its offset
+// cssVisualViewport is the part of the page the stream shows: its offset
 // in the layout viewport and its scale, both in CSS pixels. A phone-sized view
 // of a desktop page is zoomed out, so a point in the stream is further into
 // the page than its pixel position.
@@ -360,7 +387,6 @@ type cdpConn struct {
 	nextID  atomic.Int64
 	mu      sync.Mutex
 	pending map[int64]chan cdpReply
-	events  map[string]func(json.RawMessage)
 	done    chan error
 	cancel  context.CancelFunc
 }
@@ -379,18 +405,12 @@ func dialCDP(ctx context.Context, wsURL string) (*cdpConn, error) {
 	if err != nil {
 		return nil, fmt.Errorf("attach to browser tab: %w", err)
 	}
-	// Screencast frames of a full page exceed the default message limit.
+	// Screenshots of a full page exceed the default message limit.
 	ws.SetReadLimit(32 << 20)
 	readCtx, cancel := context.WithCancel(context.Background())
-	c := &cdpConn{ws: ws, pending: map[int64]chan cdpReply{}, events: map[string]func(json.RawMessage){}, done: make(chan error, 1), cancel: cancel}
+	c := &cdpConn{ws: ws, pending: map[int64]chan cdpReply{}, done: make(chan error, 1), cancel: cancel}
 	go c.read(readCtx)
 	return c, nil
-}
-
-func (c *cdpConn) on(method string, handle func(json.RawMessage)) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.events[method] = handle
 }
 
 func (c *cdpConn) read(ctx context.Context) {
@@ -402,8 +422,6 @@ func (c *cdpConn) read(ctx context.Context) {
 		}
 		var msg struct {
 			ID     int64           `json:"id"`
-			Method string          `json:"method"`
-			Params json.RawMessage `json:"params"`
 			Result json.RawMessage `json:"result"`
 			Error  *struct {
 				Message string `json:"message"`
@@ -423,8 +441,6 @@ func (c *cdpConn) read(ctx context.Context) {
 				}
 				ch <- reply
 			}
-		} else if handle := c.events[msg.Method]; handle != nil {
-			handle(msg.Params)
 		}
 		c.mu.Unlock()
 	}

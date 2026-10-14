@@ -2,8 +2,12 @@ package workstation
 
 import (
 	"bufio"
+	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
+	"image"
+	"image/jpeg"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -16,12 +20,29 @@ import (
 )
 
 // fakeDevTools serves /json/list and a DevTools socket per page that answers
-// every command, records it, and sends one screencast frame per start.
+// every command and records it. Screenshots return shots in turn, repeating
+// the last.
 type fakeDevTools struct {
 	server *httptest.Server
 	mu     sync.Mutex
 	calls  []string
 	params []map[string]any
+	shots  []string
+	taken  int
+}
+
+// testShot is a base64 JPEG of width by height pixels in one gray level.
+func testShot(t *testing.T, width, height int, gray uint8) string {
+	t.Helper()
+	img := image.NewGray(image.Rect(0, 0, width, height))
+	for i := range img.Pix {
+		img.Pix[i] = gray
+	}
+	var buf bytes.Buffer
+	if err := jpeg.Encode(&buf, img, nil); err != nil {
+		t.Fatal(err)
+	}
+	return base64.StdEncoding.EncodeToString(buf.Bytes())
 }
 
 func newFakeDevTools(t *testing.T) *fakeDevTools {
@@ -61,8 +82,12 @@ func newFakeDevTools(t *testing.T) *fakeDevTools {
 			f.mu.Lock()
 			f.calls = append(f.calls, msg.Method)
 			f.params = append(f.params, msg.Params)
-			f.mu.Unlock()
 			result := map[string]any{}
+			if msg.Method == "Page.captureScreenshot" && len(f.shots) > 0 {
+				result["data"] = f.shots[min(f.taken, len(f.shots)-1)]
+				f.taken++
+			}
+			f.mu.Unlock()
 			switch msg.Method {
 			case "Page.getNavigationHistory":
 				result = map[string]any{"currentIndex": 1, "entries": []map[string]any{{"id": 7}, {"id": 8}}}
@@ -73,14 +98,6 @@ func newFakeDevTools(t *testing.T) *fakeDevTools {
 			reply, _ := json.Marshal(map[string]any{"id": msg.ID, "result": result})
 			if err := conn.Write(ctx, websocket.MessageText, reply); err != nil {
 				return
-			}
-			if msg.Method == "Page.startScreencast" {
-				frame, _ := json.Marshal(map[string]any{"method": "Page.screencastFrame", "params": map[string]any{
-					"data": "/9j/AA==", "sessionId": 3, "metadata": map[string]any{"deviceWidth": 1280, "deviceHeight": 900},
-				}})
-				if err := conn.Write(ctx, websocket.MessageText, frame); err != nil {
-					return
-				}
 			}
 		}
 	})
@@ -126,8 +143,13 @@ func TestViewListsPagesOnly(t *testing.T) {
 	}
 }
 
-func TestViewStreamsFramesLaidOutForThePhone(t *testing.T) {
+func TestViewStreamsSharpChangedImagesLaidOutForThePhone(t *testing.T) {
 	client, devtools := newViewClient(t)
+	first, second := testShot(t, 824, 1400, 40), testShot(t, 824, 1400, 200)
+	devtools.mu.Lock()
+	// The page sits still for three screenshots, then changes.
+	devtools.shots = []string{first, first, first, second}
+	devtools.mu.Unlock()
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 	body, err := client.BrowserFrames(ctx, "T1", Viewport{Width: 412, Height: 700})
@@ -136,40 +158,34 @@ func TestViewStreamsFramesLaidOutForThePhone(t *testing.T) {
 	}
 	defer body.Close()
 	reader := bufio.NewReader(body)
-	var event, data string
-	for data == "" {
+	var frames []Frame
+	for len(frames) < 2 {
 		line, err := reader.ReadString('\n')
 		if err != nil {
 			t.Fatal(err)
 		}
-		switch {
-		case strings.HasPrefix(line, "event: "):
-			event = strings.TrimSpace(strings.TrimPrefix(line, "event: "))
-		case strings.HasPrefix(line, "data: "):
-			data = strings.TrimSpace(strings.TrimPrefix(line, "data: "))
-		}
-	}
-	var frame Frame
-	if err := json.Unmarshal([]byte(data), &frame); err != nil {
-		t.Fatal(err)
-	}
-	if event != "frame" || frame != (Frame{JPEG: "/9j/AA==", Width: 1280, Height: 900}) {
-		t.Fatalf("event %q frame %+v", event, frame)
-	}
-	deadline := time.Now().Add(2 * time.Second)
-	for {
-		calls, params := devtools.recorded()
-		if len(calls) == 3 {
-			want := []string{"Emulation.setDeviceMetricsOverride", "Page.startScreencast", "Page.screencastFrameAck"}
-			if !reflect.DeepEqual(calls, want) || params[0]["width"] != float64(412) || params[0]["mobile"] != true || params[2]["sessionId"] != float64(3) {
-				t.Fatalf("calls %v params %v", calls, params)
+		if data, ok := strings.CutPrefix(line, "data: "); ok {
+			var frame Frame
+			if err := json.Unmarshal([]byte(strings.TrimSpace(data)), &frame); err != nil {
+				t.Fatal(err)
 			}
-			break
+			frames = append(frames, frame)
 		}
-		if time.Now().After(deadline) {
-			t.Fatalf("calls = %v, want the frame acknowledged", calls)
+	}
+	if frames[0] != (Frame{JPEG: first, Width: 412, Height: 700}) || frames[1].JPEG != second {
+		t.Fatalf("frames = %+v", frames)
+	}
+	calls, params := devtools.recorded()
+	if len(calls) < 6 || calls[0] != "Emulation.setDeviceMetricsOverride" || calls[1] != "Page.bringToFront" {
+		t.Fatalf("calls = %v", calls)
+	}
+	if params[0]["width"] != float64(412) || params[0]["deviceScaleFactor"] != float64(streamScale) || params[0]["mobile"] != true {
+		t.Fatalf("override = %v", params[0])
+	}
+	for _, call := range calls[2:6] {
+		if call != "Page.captureScreenshot" {
+			t.Fatalf("calls = %v, want screenshots after the override", calls)
 		}
-		time.Sleep(10 * time.Millisecond)
 	}
 }
 

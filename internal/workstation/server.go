@@ -312,7 +312,7 @@ func (s *Server) browserInput(w http.ResponseWriter, r *http.Request) {
 }
 
 // browserFrames streams a tab as server-sent events: one "frame" event per
-// screencast image, a comment every 15 seconds to keep proxies open, and an
+// changed image, a comment every 15 seconds to keep proxies open, and an
 // "error" event when the stream ends on a failure.
 func (s *Server) browserFrames(w http.ResponseWriter, r *http.Request) {
 	if s.view == nil {

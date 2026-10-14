@@ -634,14 +634,16 @@ paths:
       summary: Stream a page of the agent's browser
       description: |
         The response is `text/event-stream`. Each `event: frame` message
-        carries a BrowserFrame in `data:`; a new frame arrives when the page
-        repaints, and the next frame waits until the previous one is read.
+        carries a BrowserFrame in `data:`; a new frame arrives when the
+        page's image changes, at most five a second, and the next frame waits
+        until the previous one is read. The streamed tab comes to the front.
         Comment lines keep the connection open. An `event: error` message
         with an ErrorResponse-like `{"error": "..."}` body ends a stream that
         failed, for example because the page was closed.
 
         With `width` and `height`, the page is laid out as a phone screen of
-        that many CSS pixels while the stream lasts; give both or neither.
+        that many CSS pixels while the stream lasts, and frames carry two image
+        pixels per unit of their width and height; give both or neither.
       operationId: clientStreamBrowserFrames
       parameters:
         - name: tab
@@ -686,10 +688,10 @@ paths:
       tags: [browser]
       summary: Use a page of the agent's browser
       description: |
-        Performs one input on the page: a tap or scroll at viewport
-        coordinates in CSS pixels (a frame's width and height span the
-        viewport), typed text, a key, navigation to an http(s) URL, back or
-        reload.
+        Performs one input on the page: a tap or scroll at a point of a frame,
+        in the units of the frame's width and height (a page zoomed out to fit
+        the phone is mapped back onto the page), typed text, a key, navigation
+        to an http(s) URL, back or reload.
       operationId: clientBrowserInput
       requestBody:
         required: true
@@ -2541,13 +2543,13 @@ components:
       properties:
         jpeg:
           type: string
-          description: Base64 JPEG of the viewport.
+          description: Base64 JPEG of what the screen shows.
         width:
           type: integer
-          description: Viewport width in CSS pixels.
+          description: Width of the screen in the units taps and scrolls use.
         height:
           type: integer
-          description: Viewport height in CSS pixels.
+          description: Height of the screen in the units taps and scrolls use.
     BrowserInputRequest:
       type: object
       required: [tab, type]
@@ -2560,15 +2562,15 @@ components:
         x:
           type: number
           format: double
-          description: Viewport x in CSS pixels, for tap and scroll.
+          description: x of a point in a frame, for tap and scroll.
         y:
           type: number
           format: double
-          description: Viewport y in CSS pixels, for tap and scroll.
+          description: y of a point in a frame, for tap and scroll.
         dy:
           type: number
           format: double
-          description: Scroll distance in CSS pixels; positive scrolls down.
+          description: Scroll distance in a frame's units; positive scrolls down.
         text:
           type: string
           description: Text to type into the focused field.
