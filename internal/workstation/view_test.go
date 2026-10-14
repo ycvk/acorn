@@ -63,8 +63,12 @@ func newFakeDevTools(t *testing.T) *fakeDevTools {
 			f.params = append(f.params, msg.Params)
 			f.mu.Unlock()
 			result := map[string]any{}
-			if msg.Method == "Page.getNavigationHistory" {
+			switch msg.Method {
+			case "Page.getNavigationHistory":
 				result = map[string]any{"currentIndex": 1, "entries": []map[string]any{{"id": 7}, {"id": 8}}}
+			case "Page.getLayoutMetrics":
+				// A desktop page zoomed out to a phone's width, scrolled within the zoom.
+				result = map[string]any{"cssVisualViewport": map[string]any{"offsetX": 10, "offsetY": 20, "scale": 0.5}}
 			}
 			reply, _ := json.Marshal(map[string]any{"id": msg.ID, "result": result})
 			if err := conn.Write(ctx, websocket.MessageText, reply); err != nil {
@@ -195,12 +199,20 @@ func TestViewInput(t *testing.T) {
 		t.Fatal(err)
 	}
 	calls, params := devtools.recorded()
-	want := []string{"Input.dispatchMouseEvent", "Input.dispatchMouseEvent", "Input.dispatchMouseEvent", "Input.insertText", "Page.getNavigationHistory", "Page.navigateToHistoryEntry"}
+	want := []string{"Page.getLayoutMetrics", "Input.dispatchMouseEvent", "Input.dispatchMouseEvent", "Input.dispatchMouseEvent", "Input.insertText", "Page.getNavigationHistory", "Page.navigateToHistoryEntry"}
 	if !reflect.DeepEqual(calls, want) {
 		t.Fatalf("calls = %v", calls)
 	}
-	if params[1]["type"] != "mousePressed" || params[1]["x"] != float64(100) || params[3]["text"] != "密码123" || params[5]["entryId"] != float64(7) {
+	// The tap at (100, 200) on the stream lands at offset + point / scale.
+	if params[2]["type"] != "mousePressed" || params[2]["x"] != float64(210) || params[2]["y"] != float64(420) || params[4]["text"] != "密码123" || params[6]["entryId"] != float64(7) {
 		t.Fatalf("params = %v", params)
+	}
+	if err := client.BrowserInput(t.Context(), Input{Tab: "T1", Type: "scroll", X: 100, Y: 200, DY: 150}); err != nil {
+		t.Fatal(err)
+	}
+	calls, params = devtools.recorded()
+	if last := params[len(params)-1]; calls[len(calls)-1] != "Input.dispatchMouseEvent" || last["type"] != "mouseWheel" || last["x"] != float64(210) || last["deltaY"] != float64(300) {
+		t.Fatalf("scroll = %v %v", calls[len(calls)-1], last)
 	}
 	if err := client.BrowserInput(t.Context(), Input{Tab: "nope", Type: "reload"}); err == nil || !strings.Contains(err.Error(), ErrNoTab.Error()) {
 		t.Fatalf("unknown tab err = %v", err)

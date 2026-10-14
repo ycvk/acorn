@@ -211,7 +211,8 @@ func (v *View) Stream(ctx context.Context, tab string, viewport Viewport, send f
 	}
 }
 
-// Do performs one input on its tab.
+// Do performs one input on its tab. Taps and scrolls arrive in the stream's
+// coordinates and are moved onto the page first.
 func (v *View) Do(ctx context.Context, in Input) error {
 	commands, err := inputCommands(in)
 	if err != nil {
@@ -225,12 +226,56 @@ func (v *View) Do(ctx context.Context, in Input) error {
 	if in.Type == "back" {
 		return goBack(ctx, conn)
 	}
+	if in.Type == "tap" || in.Type == "scroll" {
+		viewport, err := visualViewport(ctx, conn)
+		if err != nil {
+			return err
+		}
+		if commands, err = inputCommands(viewport.toPage(in)); err != nil {
+			return err
+		}
+	}
 	for _, c := range commands {
 		if _, err := conn.call(ctx, c.method, c.params); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// cssVisualViewport is the part of the page the screencast shows: its offset
+// in the layout viewport and its scale, both in CSS pixels. A phone-sized view
+// of a desktop page is zoomed out, so a point in the stream is further into
+// the page than its pixel position.
+type cssVisualViewport struct {
+	OffsetX float64 `json:"offsetX"`
+	OffsetY float64 `json:"offsetY"`
+	Scale   float64 `json:"scale"`
+}
+
+func visualViewport(ctx context.Context, conn *cdpConn) (cssVisualViewport, error) {
+	raw, err := conn.call(ctx, "Page.getLayoutMetrics", map[string]any{})
+	if err != nil {
+		return cssVisualViewport{}, err
+	}
+	var metrics struct {
+		Viewport cssVisualViewport `json:"cssVisualViewport"`
+	}
+	if err := json.Unmarshal(raw, &metrics); err != nil {
+		return cssVisualViewport{}, fmt.Errorf("layout metrics: %w", err)
+	}
+	if metrics.Viewport.Scale <= 0 {
+		return cssVisualViewport{}, fmt.Errorf("layout metrics: visual viewport scale is %v", metrics.Viewport.Scale)
+	}
+	return metrics.Viewport, nil
+}
+
+// toPage moves a point and scroll distance from the stream onto the page.
+func (v cssVisualViewport) toPage(in Input) Input {
+	in.X = v.OffsetX + in.X/v.Scale
+	in.Y = v.OffsetY + in.Y/v.Scale
+	in.DY /= v.Scale
+	return in
 }
 
 type command struct {
