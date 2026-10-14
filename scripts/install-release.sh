@@ -325,7 +325,7 @@ exec "\$bin" "\$@"' sh "\$env_path" "\$bin" "\$@"
 
 if [ "\$#" -gt 0 ]; then
 	case "\$1" in
-		doctor|memory|pair|token|devices|skills|smoke|backup|restore)
+		doctor|memory|pair|token|devices|skills|smoke|run|backup|restore)
 			command_name=\$1
 			shift
 			if ! has_config_flag "\$@"; then
