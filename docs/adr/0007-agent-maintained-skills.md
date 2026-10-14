@@ -10,30 +10,45 @@ supersedes: []
 
 技能现在是 `skills.dir` 下的 `SKILL.md` 文件，只来自 release 的 seed pack，agent 只能读。agent 做成一件多步骤的事之后，下次遇到同类任务还得从头摸索；它学到的东西只能写成 insight，insight 适合表达判断和偏好，装不下一套操作流程。有了工作机和浏览器之后，这类可复用的流程（在某个网站上查订单、按固定口径处理一份数据）正是 agent 最该积累的东西。installer 每次升级都用 seed pack 覆盖技能目录，技能也不在备份范围里，现在的存放方式本身就留不住任何本地积累。
 
+技能在业界已有开放格式 [Agent Skills](https://agentskills.io/specification)：一个技能是一个目录，`SKILL.md` 以 `name` 和 `description` 开头，旁边可以带脚本、参考文档和素材。Acorn 自定的 frontmatter 和单文件形态让这些现成的技能装不进来。
+
 ## 决策
+
+### 格式
+
+技能采用 Agent Skills 格式。`SKILL.md` 的 frontmatter 只接受规范定义的字段：`name`、`description`、`license`、`compatibility`、`metadata` 与 `allowed-tools`，其他字段拒绝。`name` 是技能的标识，按规范为至多 64 个小写字母、数字和连字符；`description` 说明技能做什么、何时使用，`skill` 工具的列表即由它构成。`allowed-tools` 不授予任何权限，工具调用仍只按 owner 的规则与审查放行。技能运行所必需的工具写在 `metadata` 的 `acorn-requires-tools` 中，以空格分隔；缺少其中任一工具的 run 不列出该技能。
 
 ### 存储
 
-技能存进 SQLite：`skills` 保存当前 revision，`skill_revisions` 保存每次写入的正文、哈希、作者与写入它的 run。一个技能是一份带 frontmatter 的 markdown，字段沿用现在的 id、name、summary、trigger_hints、requires，frontmatter 仍按现有规则严格解析。编辑基于读到的 revision，期间被改过则失败。技能纳入 `acorn backup` 与 `restore`。
+技能存进 SQLite：`skills` 保存当前 revision，`skill_revisions` 保存每次写入的 `SKILL.md`、哈希、作者与写入它的 run，`skill_files` 保存每个 revision 的附带文件。编辑基于读到的 revision，期间被改过则失败。技能纳入 `acorn backup` 与 `restore`。
 
 seed pack 编进二进制，作为内置技能。启动时缺少的内置技能以 release 身份写入 revision 1；某个内置技能的内容在新版本里变了，启动时以 release 身份在当前 revision 之上写一个新 revision，agent 之前的修改留在历史里。内置技能和其他技能一样可以被修改和停用。
 
-`skills.dir` 配置、installer 复制技能目录的步骤与从文件系统扫描技能的代码随之删除。技能只经 App、agent 和内置 seed 写入。
+`skills.dir` 配置、installer 复制技能目录的步骤与从文件系统扫描技能的代码随之删除。技能只经 App、CLI、agent 和内置 seed 写入。
+
+### 技能包
+
+一个技能的附带文件是相对路径下的任意文件，不含 `..` 与绝对路径，整个包有大小与文件数上限。带文件的技能需要工作机：每次 run 开始前，backend 按内容哈希把在用技能的整个包同步到工作机的 `/home/agent/skills/<name>/`，删除已停用或已不存在的技能目录。agent 加载技能时得知这个目录，用 `files` 读取参考文档，用 `shell` 运行脚本。没有配置工作机时，带文件的技能不列出。工作机上的技能目录随同步覆盖，修改技能只经 `skill_write`。
 
 ### 工具
 
-- `skill_write`：创建技能，或基于读到的 revision 修改技能。
+- `skill_write`：创建技能，或基于读到的 revision 修改技能的 `SKILL.md` 与附带文件。
+- `skill_import`：从工作机上的一个目录或 zip 导入一个技能包，用于安装 owner 指给 agent 的现成技能。
 - `skill_retire`：停用技能，写一个停用 revision，可以从历史恢复。
 
 内置规则要求技能只写可复用的操作流程与适用条件；关于 owner 的事实写进记忆，不写进技能。夜思在回顾时检查最近用过和新写的技能，合并重复、修正过时步骤、停用不再适用的技能。
 
 ### 审批
 
-技能正文会进入之后每一次 run 的 Instruction，一段被网页、邮件或通知诱导写进去的文字会长期影响所有后续运行。starter config 默认把 `skill_write` 与 `skill_retire` 放进 `approval.require`：写入登记为 `tool_approval`，手机上的审批显示技能全文或与当前 revision 的差异，批准后写入。owner 把它们移到 `approval.allow` 即放开审批，revision 历史照常保留。
+技能正文会进入之后每一次 run 的 Instruction，一段被网页、邮件或通知诱导写进去的文字会长期影响所有后续运行；导入的技能还带着会在工作机上运行的脚本。starter config 默认把 `skill_write`、`skill_import` 与 `skill_retire` 放进 `approval.require`：写入登记为 `tool_approval`，手机上的审批显示技能全文与附带文件列表，批准后写入。owner 把它们移到 `approval.allow` 即放开审批，revision 历史照常保留。
 
 ### owner 的入口
 
-App 的技能页显示每个技能的当前内容、revision 历史和每次修改出自哪个 run，owner 可以回滚到任一 revision、直接编辑或新建技能。
+owner 在服务器上用 `acorn skills import <目录或 zip>` 安装技能包，这是 owner 本人的操作，不经审批。App 的技能页显示每个技能的当前内容、附带文件、revision 历史和每次修改出自哪个 run，owner 可以回滚到任一 revision、直接编辑、新建或从 zip 安装技能。
+
+### 内置技能
+
+内置技能包括 Acorn 自己的流程（早安卡、夜思、游思、分享整理、浏览器、网页调研、能力查询）、BrowserSkill 随附的 `browser-skill` 包，以及按 Acorn 的工具改写的 `skill-creator`，教 agent 写出简洁、可复用的技能。第三方技能保留各自的许可文件与出处。
 
 ### 跟着 owner 学
 
@@ -48,13 +63,17 @@ owner 在「Agent 的浏览器」里接手操作时，工作机记录这段操�
 | 期 | 内容 | 验收 |
 |---|---|---|
 | S1 | 技能进 SQLite、内置 seed、`skill_write` 与 `skill_retire`、默认审批、夜思整理技能；删除 `skills.dir` | 让 agent 完成一件多步骤的事后记下流程，手机收到含技能全文的审批，批准后在新对话里交代同类任务，agent 加载并照着做 |
-| S2 | App 技能页：历史、差异、回滚、编辑与新建 | owner 在 App 回滚 agent 的一次修改，下一次 run 用回滚后的内容 |
-| S3 | 记录 owner 接手浏览器的操作，agent 据此写技能 | owner 在 App 里亲手完成一次网站查询，让 agent 存成技能，之后 agent 独自完成同样的查询 |
+| S2 | Agent Skills 格式、技能包与工作机同步、`skill_import` 与 `acorn skills import`、`browser-skill` 与 `skill-creator` 内置；已有技能迁移到新格式 | 把一个带脚本的公开技能包交给 agent 导入，批准后在新对话里交代对应任务，agent 读取包里的参考文档并在工作机上运行脚本完成 |
+| S3 | App 技能页：内容、附带文件、历史、差异、回滚、编辑、新建与从 zip 安装 | owner 在 App 回滚 agent 的一次修改，下一次 run 用回滚后的内容 |
+| S4 | 记录 owner 接手浏览器的操作，agent 据此写技能 | owner 在 App 里亲手完成一次网站查询，让 agent 存成技能，之后 agent 独自完成同样的查询 |
+| S5 | PDF、Word 与表格处理的内置技能及工作机所需的工具 | 交给 agent 一份 PDF 表单和一份 Excel，它填好表单、汇总表格并把结果写进知识库 |
 
 ## 代价
 
 - 技能质量取决于 agent 写得好不好，会出现重复和过时；靠审批、夜思整理和 owner 的回滚兜住，没有自动的对错保证。
-- 每个技能的摘要都列在 `skill` 工具的描述里，技能变多会挤占上下文；摘要要短，重复的技能要合并。
+- 每个技能的描述都列在 `skill` 工具里，技能变多会挤占上下文；描述要短，重复的技能要合并。
 - 内置技能和代码的输入格式有耦合（比如简报的 `[briefing` 输入）。release 改了内置技能时会盖过 agent 对它的修改，修改只留在历史里，需要 agent 或 owner 重新取舍。
 - 技能不是记忆来源，遗忘请求不会顺带改动技能；技能里出现了不该留的内容，由 owner 在 App 里编辑或停用。
 - 默认审批让每次写技能都要 owner 批一次；放开审批后，持久化注入的风险由 owner 自己承担。
+- 导入的技能带着在工作机上运行的脚本，工作机里的登录状态对这些脚本同样可见；导入前的审批是 owner 判断来源可信的地方。
+- 带文件的技能依赖工作机，每次 run 前多一次同步检查；包体积和文件数有上限。
