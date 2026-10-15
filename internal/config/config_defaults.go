@@ -34,7 +34,7 @@ func defaultConfig() *Config {
 		Backup:   BackupConfig{Keep: 14},
 		Review: ReviewConfig{
 			APIKey:         "${TYPESAFE_API_KEY}",
-			Model:          "jev-1.13.0",
+			Model:          "jev-preview",
 			TimeoutSeconds: 20,
 		},
 		Workstation: WorkstationConfig{

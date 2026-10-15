@@ -525,7 +525,7 @@ TYPESAFE_API_KEY=your-typesafe-key
 ```yaml
 review:
   api_key: ${TYPESAFE_API_KEY}   # empty turns review off
-  model: jev-1.13.0
+  model: jev-preview
   timeout_seconds: 20
 ```
 

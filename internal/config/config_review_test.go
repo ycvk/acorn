@@ -44,7 +44,7 @@ func TestReviewTurnsOnWithAnExpandedKey(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.ReviewEnabled() || cfg.Review.Model != "jev-1.13.0" || cfg.Review.TimeoutSeconds != 20 || cfg.Approval.Block[0] != "mcp__bank__*" {
+	if cfg.ReviewEnabled() || cfg.Review.Model != "jev-preview" || cfg.Review.TimeoutSeconds != 20 || cfg.Approval.Block[0] != "mcp__bank__*" {
 		t.Fatalf("review = %+v approval = %+v", cfg.Review, cfg.Approval)
 	}
 	t.Setenv("TYPESAFE_API_KEY", "apikey_test")

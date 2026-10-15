@@ -273,7 +273,7 @@ func TestJevOnLabelledCalls(t *testing.T) {
 	if key == "" {
 		t.Skip("set TYPESAFE_API_KEY to evaluate the reviewer against the real model")
 	}
-	jev, err := NewJev(DefaultBaseURL, key, "jev-1.13.0", &http.Client{Timeout: 60 * time.Second})
+	jev, err := NewJev(DefaultBaseURL, key, "jev-preview", &http.Client{Timeout: 60 * time.Second})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -38,7 +38,7 @@ review:
   # settles; those with consequences outside the workstation (paying, sending,
   # deleting, changing settings) pause for your approval. Empty turns it off.
   api_key: ${TYPESAFE_API_KEY}
-  model: jev-1.13.0
+  model: jev-preview
   timeout_seconds: 20
 
 owner:
