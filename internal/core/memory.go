@@ -14,6 +14,7 @@ var (
 	ErrMemoryIndexMismatch = errors.New("memory index model mismatch")
 	ErrMemoryBudget        = errors.New("memory daily token budget exhausted")
 	ErrMemoryNotFact       = errors.New("only a fact can be corrected")
+	ErrMemoryCredential    = errors.New("memory text contains a credential")
 )
 
 // MemoryRequestSource is the kind of source that records a request the owner
@@ -205,7 +206,10 @@ type MemoryStore interface {
 	SaveMemoryCheckpoint(context.Context, string, []byte, int64, time.Time) error
 	MemoryMessages(context.Context, string, int64, int64, bool, int) ([]SessionMessageRecord, int64, error)
 	RegisterMemorySource(context.Context, MemorySource) (MemorySource, error)
+	// LoadMemorySource reads a source as memory sees it, with credentials
+	// redacted; LoadThreadSource reads it as thread history, which keeps them.
 	LoadMemorySource(context.Context, string) (MemorySource, error)
+	LoadThreadSource(context.Context, string) (MemorySource, error)
 	RunMemorySources(context.Context, string) ([]MemorySource, error)
 	PendingMemorySources(context.Context, MemoryQuery) ([]MemorySource, int, error)
 	CommitMemory(context.Context, MemoryMutation) ([]MemoryRecord, error)

@@ -19,7 +19,7 @@ func (s *Store) LinkRunInputSources(ctx context.Context, runID string, parents [
 			return err
 		}
 		for _, parent := range uniqueMemoryStrings(parents) {
-			if _, err := loadMemorySource(ctx, tx, parent, true); err != nil {
+			if _, err := loadMemorySource(ctx, tx, parent, sourceMemory); err != nil {
 				return err
 			}
 			var excluded bool

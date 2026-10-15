@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/ycvk/acorn/internal/core"
+	"github.com/ycvk/acorn/internal/redact"
 )
 
 func memoryID(parts ...string) string {
@@ -114,6 +115,13 @@ func writeMemoryChange(ctx context.Context, q memorySQL, c core.MemoryChange, no
 	if !slices.Contains(allowed, d.State) {
 		return empty, fmt.Errorf("memory state %q is invalid for %s", d.State, d.Kind)
 	}
+	// Sources reach memory redacted; text written straight into a record must
+	// not carry a credential either.
+	for _, text := range append([]string{d.Content, d.Scope}, d.Entities...) {
+		if spans := redact.Find(text); len(spans) > 0 {
+			return empty, fmt.Errorf("%w: %s in memory content, scope or entities", core.ErrMemoryCredential, spans[0].Kind)
+		}
+	}
 	validFrom, err := parseMemoryValidity(d.ValidFrom, "memory.valid_from")
 	if err != nil {
 		return empty, err
@@ -166,7 +174,7 @@ func writeMemoryChange(ctx context.Context, q memorySQL, c core.MemoryChange, no
 		if e.Relation != "supports" && e.Relation != "contradicts" {
 			return empty, errors.New("evidence relation must be supports or contradicts")
 		}
-		source, err := loadMemorySource(ctx, q, e.SourceID, true)
+		source, err := loadMemorySource(ctx, q, e.SourceID, sourceMemory)
 		if err != nil {
 			return empty, err
 		}

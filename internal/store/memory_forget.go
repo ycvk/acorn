@@ -24,7 +24,7 @@ func forgetMemory(ctx context.Context, tx *sql.Tx, request core.MemoryForget) er
 	if request.Now.IsZero() || request.Reason == "" || request.RequestSourceID == "" || (len(request.RecordIDs) == 0 && len(request.SourceIDs) == 0) {
 		return errors.New("forget requires owner source, reason, now and targets")
 	}
-	owner, err := loadMemorySource(ctx, tx, request.RequestSourceID, false)
+	owner, err := loadMemorySource(ctx, tx, request.RequestSourceID, sourceStored)
 	if err != nil {
 		return err
 	}

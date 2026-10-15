@@ -44,7 +44,7 @@ func (s *Store) MemoryMessages(ctx context.Context, session string, after, throu
 	var cursor int64
 	for _, m := range items {
 		cursor = m.ID
-		source, err := s.LoadMemorySource(ctx, "message:"+strconv.FormatInt(m.ID, 10))
+		source, err := s.LoadThreadSource(ctx, "message:"+strconv.FormatInt(m.ID, 10))
 		if errors.Is(err, core.ErrMemoryExcluded) {
 			continue
 		}

@@ -260,7 +260,7 @@ func (m *memoryVisibilityMiddleware) BeforeModelRewriteState(ctx context.Context
 	history.Messages = nil
 	for _, msg := range m.memory.history.Messages {
 		id := "message:" + strconv.FormatInt(msg.ID, 10)
-		source, err := m.memory.store.LoadMemorySource(ctx, id)
+		source, err := m.memory.store.LoadThreadSource(ctx, id)
 		if errors.Is(err, core.ErrMemoryExcluded) {
 			continue
 		}

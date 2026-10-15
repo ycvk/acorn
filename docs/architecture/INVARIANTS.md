@@ -72,6 +72,10 @@
   - `internal/store/memory_contract_test.go`
   - `internal/store/memory_state_test.go`
   - `internal/runtime/memory_visibility_test.go`
+- **记忆只读脱敏后的来源**：store 解析来源时有两个视图。记忆视图把 `internal/redact` 识别的凭据替换为 `[REDACTED:<类型>]`，抽取输入、证据校验、召回里的未整理来源、`memory_read` 与 App 的记忆详情都用它；线程视图只应用排除，供线程历史、线程摘要输入与当前输入使用。遗忘的引用在脱敏正文里定位后映射回原文，两个视图排除同一段话，排除范围碰到的凭据整段排除。记录的正文、条件或实体带凭据时以 `ErrMemoryCredential` 拒绝提交。
+  - `internal/redact/redact_test.go`
+  - `internal/store/memory_redaction_test.go`
+  - `internal/memory/redaction_test.go`
 - **App 里的记忆改动与 agent 同路**：`/v1/memories` 只列出未排除的 current/disputed/open 记录，详情略去已排除来源的证据。owner 在 App 里的修改与遗忘各登记一个 `request` 来源（speaker 为 owner、从不抽取）：修改以它为新事实的证据并 supersede 原事实，只接受 fact 且校验读到的 revision；遗忘以它为请求来源走同一个排除事务，并在回应前经同一个屏障等待受影响的 run 退出。
   - `internal/wire/memory_page_e2e_test.go`
   - `internal/store/memory_request_source_test.go`

@@ -6,10 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/ycvk/acorn/internal/core"
+	"github.com/ycvk/acorn/internal/redact"
 )
 
 func (s *Store) RegisterMemorySource(ctx context.Context, source core.MemorySource) (core.MemorySource, error) {
@@ -53,11 +55,32 @@ func registerMemorySource(ctx context.Context, q memorySQL, source core.MemorySo
 	return nil
 }
 
+// sourceView selects how a resolved source's content is rendered.
+type sourceView int
+
+const (
+	// sourceStored is the unfiltered content, for the store's own checks.
+	sourceStored sourceView = iota
+	// sourceThread is the conversation the agent continues: owner exclusions
+	// apply and credentials stay, so a key or code the owner hands over remains
+	// usable in its thread.
+	sourceThread
+	// sourceMemory is what memory processing, evidence checks, recall and
+	// memory_read see: owner exclusions apply and credentials are redacted.
+	sourceMemory
+)
+
+// LoadMemorySource reads a source as memory sees it.
 func (s *Store) LoadMemorySource(ctx context.Context, id string) (core.MemorySource, error) {
-	return loadMemorySource(ctx, s.db, id, true)
+	return loadMemorySource(ctx, s.db, id, sourceMemory)
 }
 
-func loadMemorySource(ctx context.Context, q memorySQL, id string, filter bool) (core.MemorySource, error) {
+// LoadThreadSource reads a source as thread history.
+func (s *Store) LoadThreadSource(ctx context.Context, id string) (core.MemorySource, error) {
+	return loadMemorySource(ctx, s.db, id, sourceThread)
+}
+
+func loadMemorySource(ctx context.Context, q memorySQL, id string, view sourceView) (core.MemorySource, error) {
 	var source core.MemorySource
 	var recorded, occurred string
 	err := q.QueryRowContext(ctx, `SELECT id,kind,object_id,version,speaker,session_id,run_id,body,recorded_at,occurred_at FROM memory_sources WHERE id=?`, id).Scan(&source.ID, &source.Kind, &source.ObjectID, &source.Version, &source.Speaker, &source.SessionID, &source.RunID, &source.Body, &recorded, &occurred)
@@ -78,7 +101,7 @@ func loadMemorySource(ctx context.Context, q memorySQL, id string, filter bool) 
 	source.Content = source.Body
 	// A wholly excluded source is read without its content, which a deleted
 	// thread no longer has.
-	if filter {
+	if view != sourceStored {
 		var whole int
 		if err := q.QueryRowContext(ctx, `SELECT COUNT(*) FROM memory_exclusions WHERE source_id=? AND quote=''`, id).Scan(&whole); err != nil {
 			return source, err
@@ -117,35 +140,185 @@ func loadMemorySource(ctx context.Context, q memorySQL, id string, filter bool) 
 	if err != nil {
 		return source, fmt.Errorf("resolve memory source %s: %w", id, err)
 	}
-	if filter {
-		rows, err := q.QueryContext(ctx, `SELECT quote FROM memory_exclusions WHERE source_id=?`, id)
-		if err != nil {
-			return source, err
+	if view == sourceStored {
+		return source, nil
+	}
+	rows, err := q.QueryContext(ctx, `SELECT quote FROM memory_exclusions WHERE source_id=?`, id)
+	if err != nil {
+		return source, err
+	}
+	var quotes []string
+	if err = scanRows(rows, func(scan func(...any) error) error {
+		var quote string
+		if err := scan(&quote); err != nil {
+			return err
 		}
-		var quotes []string
-		if err = scanRows(rows, func(scan func(...any) error) error {
-			var quote string
-			if err := scan(&quote); err != nil {
-				return err
-			}
-			quotes = append(quotes, quote)
-			return nil
-		}); err != nil {
-			return source, err
-		}
-		for _, quote := range quotes {
-			source.Excluded = true
-			if quote == "" {
-				source.Content = ""
-				break
-			}
-			source.Content = strings.ReplaceAll(source.Content, quote, "[owner excluded this memory]")
-		}
-		if source.Content == "" && source.Excluded {
-			return source, fmt.Errorf("%w: source %s", core.ErrMemoryExcluded, id)
-		}
+		quotes = append(quotes, quote)
+		return nil
+	}); err != nil {
+		return source, err
+	}
+	if len(quotes) > 0 {
+		source.Excluded = true
+	}
+	if !slices.Contains(quotes, "") {
+		source.Content = renderSource(source.Content, quotes, view == sourceMemory)
+	} else {
+		source.Content = ""
+	}
+	if source.Content == "" && source.Excluded {
+		return source, fmt.Errorf("%w: source %s", core.ErrMemoryExcluded, id)
 	}
 	return source, nil
+}
+
+const excludedPlaceholder = "[owner excluded this memory]"
+
+// renderSource replaces excluded quotes and, when redacted, credentials.
+// Excluded quotes come from either view: a quote of memory's redacted text is
+// located there and mapped back onto the raw text, so forgetting hides the same
+// words in thread history. A credential that an excluded range touches is
+// excluded with it, so no part of it survives at the range's edge.
+func renderSource(raw string, quotes []string, redacted bool) string {
+	if !redacted && len(quotes) == 0 {
+		return raw
+	}
+	secrets := redact.Find(raw)
+	if len(secrets) == 0 && len(quotes) == 0 {
+		return raw
+	}
+	var excluded []textRange
+	if len(quotes) > 0 {
+		view := newRedactedView(raw, secrets)
+		for _, quote := range quotes {
+			excluded = append(excluded, occurrences(raw, quote)...)
+			for _, r := range occurrences(view.text, quote) {
+				excluded = append(excluded, view.raw(r))
+			}
+		}
+	}
+	if redacted {
+		for _, s := range secrets {
+			for i, r := range excluded {
+				if s.Start < r.end && r.start < s.End {
+					excluded[i] = textRange{min(r.start, s.Start), max(r.end, s.End)}
+				}
+			}
+		}
+	}
+	excluded = mergeRanges(excluded)
+	var b strings.Builder
+	at, next := 0, 0
+	for _, r := range excluded {
+		if redacted {
+			next = writeRedacted(&b, raw, at, r.start, secrets, next)
+		} else {
+			b.WriteString(raw[at:r.start])
+		}
+		b.WriteString(excludedPlaceholder)
+		at = r.end
+	}
+	if redacted {
+		writeRedacted(&b, raw, at, len(raw), secrets, next)
+	} else {
+		b.WriteString(raw[at:])
+	}
+	return b.String()
+}
+
+type textRange struct{ start, end int }
+
+// occurrences lists the non-overlapping positions of quote in text.
+func occurrences(text, quote string) []textRange {
+	var out []textRange
+	for at := 0; quote != ""; {
+		i := strings.Index(text[at:], quote)
+		if i < 0 {
+			break
+		}
+		out = append(out, textRange{at + i, at + i + len(quote)})
+		at += i + len(quote)
+	}
+	return out
+}
+
+func mergeRanges(ranges []textRange) []textRange {
+	slices.SortFunc(ranges, func(a, b textRange) int { return a.start - b.start })
+	var out []textRange
+	for _, r := range ranges {
+		if n := len(out); n > 0 && r.start < out[n-1].end {
+			out[n-1].end = max(out[n-1].end, r.end)
+			continue
+		}
+		out = append(out, r)
+	}
+	return out
+}
+
+// writeRedacted writes raw[from:to] with the credentials wholly inside it
+// replaced, starting the search at secrets[next], and returns the next unused
+// secret. Excluded ranges absorb the credentials they touch.
+func writeRedacted(b *strings.Builder, raw string, from, to int, secrets []redact.Span, next int) int {
+	for next < len(secrets) && secrets[next].End <= from {
+		next++
+	}
+	for ; next < len(secrets) && secrets[next].End <= to; next++ {
+		s := secrets[next]
+		b.WriteString(raw[from:s.Start])
+		b.WriteString(redact.Placeholder(s.Kind))
+		from = s.End
+	}
+	b.WriteString(raw[from:to])
+	return next
+}
+
+// redactedView is raw with every credential replaced, plus the segments that
+// map its offsets back onto raw.
+type redactedView struct {
+	text     string
+	segments []viewSegment
+}
+
+type viewSegment struct {
+	start, end, rawStart, rawEnd int
+	secret                       bool
+}
+
+func newRedactedView(raw string, secrets []redact.Span) redactedView {
+	var v redactedView
+	var b strings.Builder
+	at := 0
+	add := func(text string, rawEnd int, secret bool) {
+		start := b.Len()
+		b.WriteString(text)
+		v.segments = append(v.segments, viewSegment{start, b.Len(), at, rawEnd, secret})
+		at = rawEnd
+	}
+	for _, s := range secrets {
+		add(raw[at:s.Start], s.Start, false)
+		add(redact.Placeholder(s.Kind), s.End, true)
+	}
+	add(raw[at:], len(raw), false)
+	v.text = b.String()
+	return v
+}
+
+// raw maps a range of the view onto raw; a range that touches a placeholder
+// covers the whole credential behind it.
+func (v redactedView) raw(r textRange) textRange {
+	out := textRange{v.segments[len(v.segments)-1].rawEnd, 0}
+	for _, s := range v.segments {
+		if s.end <= r.start || s.start >= r.end {
+			continue
+		}
+		if s.secret {
+			out.start, out.end = min(out.start, s.rawStart), max(out.end, s.rawEnd)
+			continue
+		}
+		out.start = min(out.start, s.rawStart+max(r.start, s.start)-s.start)
+		out.end = max(out.end, s.rawStart+min(r.end, s.end)-s.start)
+	}
+	return out
 }
 
 func (s *Store) RunMemorySources(ctx context.Context, runID string) ([]core.MemorySource, error) {
@@ -157,13 +330,13 @@ func (s *Store) RunMemorySources(ctx context.Context, runID string) ([]core.Memo
 	if err != nil {
 		return nil, err
 	}
-	return resolveMemorySources(ctx, s.db, ids)
+	return resolveMemorySources(ctx, s.db, ids, sourceThread)
 }
 
-func resolveMemorySources(ctx context.Context, q memorySQL, ids []string) ([]core.MemorySource, error) {
+func resolveMemorySources(ctx context.Context, q memorySQL, ids []string, view sourceView) ([]core.MemorySource, error) {
 	result := make([]core.MemorySource, 0, len(ids))
 	for _, id := range ids {
-		source, err := loadMemorySource(ctx, q, id, true)
+		source, err := loadMemorySource(ctx, q, id, view)
 		if errors.Is(err, core.ErrMemoryExcluded) {
 			continue
 		}
@@ -218,7 +391,7 @@ func (s *Store) PendingMemorySources(ctx context.Context, query core.MemoryQuery
 	if err != nil {
 		return nil, 0, err
 	}
-	sources, err := resolveMemorySources(ctx, s.read, ids)
+	sources, err := resolveMemorySources(ctx, s.read, ids, sourceMemory)
 	if err != nil {
 		return nil, 0, err
 	}

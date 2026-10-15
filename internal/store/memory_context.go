@@ -22,7 +22,7 @@ func (s *Store) SaveConcern(ctx context.Context, concern core.MemoryConcern, exp
 	}
 	concern.RecordIDs = uniqueMemoryStrings(concern.RecordIDs)
 	err := s.memoryTransaction(ctx, func(tx *sql.Tx) error {
-		if _, err := loadMemorySource(ctx, tx, concern.SourceID, true); err != nil {
+		if _, err := loadMemorySource(ctx, tx, concern.SourceID, sourceMemory); err != nil {
 			return err
 		}
 		if concern.ID == "" {
@@ -123,7 +123,7 @@ func (s *Store) SaveThreadSummary(ctx context.Context, summary core.ThreadSummar
 			return core.ErrMemoryExcluded
 		}
 		for _, id := range summary.SourceIDs {
-			if _, err := loadMemorySource(ctx, tx, id, true); err != nil {
+			if _, err := loadMemorySource(ctx, tx, id, sourceMemory); err != nil {
 				return err
 			}
 		}

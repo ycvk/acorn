@@ -45,7 +45,12 @@ func (m *protocolModel) GenerateMemory(_ context.Context, instruction, input str
 
 func testEngine(t *testing.T, model *protocolModel, limit int) (*Engine, *store.Store) {
 	t.Helper()
-	db, err := store.Open(t.TempDir())
+	return testEngineAt(t, t.TempDir(), model, limit)
+}
+
+func testEngineAt(t *testing.T, dir string, model *protocolModel, limit int) (*Engine, *store.Store) {
+	t.Helper()
+	db, err := store.Open(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
