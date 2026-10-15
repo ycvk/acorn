@@ -44,7 +44,7 @@ cd mobile-kotlin && ./tool/generate_openapi_client.sh --check && ./gradlew assem
 
 ### 技能
 
-- 技能是一份带 frontmatter 的 markdown,存在 SQLite,每次写入是一个新 revision;编辑基于读到的 revision,并发修改显式失败。agent 经 `skill_write`/`skill_retire` 新建、修改和停用技能,starter config 默认把两者放进 `approval.require`。frontmatter 严格解析,经 Eino skill middleware 提供,加载结果带全文和 revision。内置技能在 `internal/skills/seed` 编进二进制,启动时内容变了才以 release 身份写新 revision。
+- 技能是 Agent Skills 格式的包:frontmatter 严格解析的 `SKILL.md` 加附带文件,存在 SQLite,每次写入是一个新 revision;编辑基于读到的 revision,并发修改显式失败。agent 经 `skill_write`/`skill_retire` 新建、修改和停用技能,经 `skill_inspect` 把工作机上的目录或 zip 按内容哈希暂存、`skill_import` 按哈希导入;starter config 默认把 `skill_write`、`skill_import`、`skill_retire` 放进 `approval.require`。owner 经 `acorn skills import` 安装技能包。每次 run 前,在用技能的附带文件按哈希同步到工作机的 `~/skills/<name>/`;没有工作机或同步失败时,带文件的技能不列出。技能经 Eino skill middleware 提供,加载结果带全文、revision 与文件所在目录。内置技能在 `internal/skills/seed` 编进二进制,启动时内容变了才以 release 身份写新 revision。
 
 ### 记忆与约定
 

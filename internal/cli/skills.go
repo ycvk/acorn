@@ -12,7 +12,7 @@ import (
 
 func runSkills(ctx context.Context, args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("skills requires a subcommand: list, inspect, or check")
+		return fmt.Errorf("skills requires a subcommand: list, inspect, check, or import")
 	}
 	switch args[0] {
 	case "list":
@@ -21,6 +21,8 @@ func runSkills(ctx context.Context, args []string) error {
 		return runSkillsInspect(ctx, args[1:])
 	case "check":
 		return runSkillsCheck(ctx, args[1:])
+	case "import":
+		return runSkillsImport(ctx, args[1:])
 	default:
 		return fmt.Errorf("unknown skills subcommand %q", args[0])
 	}
@@ -55,7 +57,7 @@ func runSkillsInspect(ctx context.Context, args []string) error {
 		return err
 	}
 	if fs.NArg() != 1 {
-		return fmt.Errorf("skills inspect requires a skill id")
+		return fmt.Errorf("skills inspect requires a skill name")
 	}
 	return withContainer(ctx, *configPath, func(container *wire.Container) error {
 		item, err := container.Skills().Get(ctx, fs.Arg(0))
@@ -93,6 +95,30 @@ func runSkillsCheck(ctx context.Context, args []string) error {
 	})
 }
 
+func runSkillsImport(ctx context.Context, args []string) error {
+	fs := newFlagSet("skills import")
+	configPath := addConfigFlag(fs)
+	replace := fs.Bool("replace", false, "replace an existing skill of the same name")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if fs.NArg() != 1 {
+		return fmt.Errorf("skills import requires a skill directory or .zip")
+	}
+	entries, err := skills.ReadPath(fs.Arg(0))
+	if err != nil {
+		return err
+	}
+	return withContainer(ctx, *configPath, func(container *wire.Container) error {
+		skill, err := container.Skills().Import(ctx, entries, *replace)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("Imported %s at revision %d with %d files.\n", skill.ID, skill.Revision, len(skill.Files))
+		return nil
+	})
+}
+
 func renderSkillsList(items []skills.View) string {
 	if len(items) == 0 {
 		return "No skills found."
@@ -103,11 +129,7 @@ func renderSkillsList(items []skills.View) string {
 		if !item.Eligible {
 			state = "ineligible: " + strings.Join(item.DisabledReasons, ";")
 		}
-		line := fmt.Sprintf("- %s %s", item.ID, state)
-		if summary := strings.TrimSpace(item.Summary); summary != "" {
-			line += " - " + summary
-		}
-		lines = append(lines, line)
+		lines = append(lines, fmt.Sprintf("- %s %s - %s", item.Name, state, item.Description))
 	}
 	return strings.Join(lines, "\n")
 }
@@ -115,27 +137,21 @@ func renderSkillsList(items []skills.View) string {
 func renderSkillDetail(item skills.View) string {
 	lines := []string{
 		"Skill",
-		"  ID: " + item.ID,
 		"  Name: " + item.Name,
 		fmt.Sprintf("  Revision: %d", item.Revision),
+		"  Description: " + item.Description,
 	}
-	if item.Category != "" {
-		lines = append(lines, "  Category: "+item.Category)
+	if item.License != "" {
+		lines = append(lines, "  License: "+item.License)
 	}
-	if item.Summary != "" {
-		lines = append(lines, "  Summary: "+item.Summary)
+	if item.Compatibility != "" {
+		lines = append(lines, "  Compatibility: "+item.Compatibility)
 	}
-	if len(item.Requires.Tools) > 0 {
-		lines = append(lines, "  Required tools: "+strings.Join(item.Requires.Tools, ", "))
+	if len(item.RequiresTools) > 0 {
+		lines = append(lines, "  Required tools: "+strings.Join(item.RequiresTools, ", "))
 	}
-	if len(item.Requires.Toolsets) > 0 {
-		lines = append(lines, "  Required toolsets: "+strings.Join(item.Requires.Toolsets, ", "))
-	}
-	if len(item.Requires.Bins) > 0 {
-		lines = append(lines, "  Required bins: "+strings.Join(item.Requires.Bins, ", "))
-	}
-	if len(item.Requires.Env) > 0 {
-		lines = append(lines, "  Required env: "+strings.Join(item.Requires.Env, ", "))
+	for _, f := range item.Files {
+		lines = append(lines, fmt.Sprintf("  File: %s (%d bytes)", f.Path, f.Size))
 	}
 	if !item.Eligible {
 		lines = append(lines, "  Disabled: "+strings.Join(item.DisabledReasons, "; "))
@@ -160,7 +176,7 @@ func renderSkillsCheck(report skills.HealthReport) string {
 
 func renderHealthFailure(failure skills.HealthFailure) string {
 	parts := []string{string(failure.Kind)}
-	if label := failure.SkillID; label != "" {
+	if label := failure.Skill; label != "" {
 		parts = append(parts, label)
 	}
 	if failure.Message != "" {

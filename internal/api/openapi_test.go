@@ -76,7 +76,7 @@ func TestOpenAPIContractMatchesClientSurface(t *testing.T) {
 		"/v1/system/status",
 		"/v1/tools",
 		"/v1/skills",
-		"/v1/skills/{id}",
+		"/v1/skills/{name}",
 		"/v1/captures",
 		"/v1/knowledge/notes",
 		"/v1/knowledge/note",

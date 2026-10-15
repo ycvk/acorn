@@ -1,20 +1,8 @@
 ---
-id: skill.wander
-name: Idle Thought
-version: v2
-category: native
-summary: Advance one open concern from its evidence and prior attempts during a scheduled idle-thought slot.
-trigger_hints:
-  - "[wander"
-  - idle time
-  - 游思
-requires:
-  tools:
-    - think
-    - recall
-    - memory_read
-    - concern
-    - knowledge_search
+name: wander
+description: Advance one open concern from its evidence and earlier attempts in a scheduled idle-thought slot, an input starting with [wander (游思).
+metadata:
+  acorn-requires-tools: think recall memory_read concern knowledge_search
 ---
 # Idle Thought
 

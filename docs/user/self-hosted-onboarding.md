@@ -485,6 +485,18 @@ You can watch and use this browser from the app: the globe on the 今天 tab ope
 
 When a task needs a site you have an account on, the agent notifies you; tapping the notification opens the site's sign-in page in the browser, over the conversation. Sign in, go back, and tell the agent you are done. Logins stay in the `acorn-workstation-home` volume across restarts and upgrades, and the agent can use every site signed in there; sign out in the same view to take a site back. Submitting forms, sending, buying, deleting or changing account settings still wait for your approval on your phone when action review is on.
 
+### Skills
+
+Skills follow the [Agent Skills](https://agentskills.io) format: a `SKILL.md` with `name` and `description` frontmatter, plus optional `scripts/`, `references/` and `assets/`. Acorn ships its own skills, BrowserSkill's `browser-skill`, and `skill-creator`, which teaches the agent to write good skills. Before each run, the files of the skills in use are copied to `~/skills/<name>/` on the workstation, where the agent reads them and runs their scripts; skills with files need the workstation.
+
+To add a published skill, point the agent at it: it downloads the package to the workstation, reads it, and imports it once you approve. On the server you can install one yourself:
+
+```bash
+acorn skills import ./pdf.zip
+```
+
+`--replace` replaces a skill of the same name. `acorn skills list`, `acorn skills inspect <name>` and `acorn skills check` show what the agent has.
+
 ### Approval Rules and Action Review
 
 Every tool call meets your rules first. They are tool-name glob patterns in `~/.acorn/acorn.yaml`:
@@ -494,6 +506,7 @@ approval:
   require:          # pause for your approval on the phone
     - "mcp__*"
     - skill_write
+    - skill_import
     - skill_retire
   block: []         # never run; the agent is told the rules refused it
   allow: []         # run without review
@@ -501,7 +514,7 @@ approval:
 
 `block` wins over `require`, and `require` over `allow`.
 
-A skill the agent writes becomes part of every later run's instructions, so `skill_write` and `skill_retire` wait for your approval by default; the approval shows the whole skill. Move them to `allow` to let the agent keep its skills on its own.
+A skill the agent writes becomes part of every later run's instructions, and an imported skill can carry scripts that run on the workstation, so `skill_write`, `skill_import` and `skill_retire` wait for your approval by default; the approval shows the skill's `SKILL.md` and the files it adds. Move them to `allow` to let the agent keep its skills on its own.
 
 Action review judges the shell commands, browser actions and MCP calls no rule settles. It uses Jev, TypeSafe's decision model: create a key at [typesafe.ai](https://typesafe.ai), add it to `~/.acorn/acorn.env` and restart Acorn.
 

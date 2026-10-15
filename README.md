@@ -89,7 +89,7 @@ Tool rules are glob patterns. `block` wins over `require`, and `require` over `a
 
 ```yaml
 approval:
-  require: ["mcp__*", skill_write, skill_retire]
+  require: ["mcp__*", skill_write, skill_import, skill_retire]
   block: []
   allow: []
 ```

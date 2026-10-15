@@ -131,13 +131,15 @@ func buildRunCapabilities(ctx context.Context, deps RuntimeDeps, sessionID, runI
 	if err != nil {
 		return nil, err
 	}
-	skillSnapshot, err := loadStableSkillSnapshot(ctx, deps.Skills, skillEligibilityContextFromCatalog(catalog))
+	skillSnapshot, err := loadStableSkillSnapshot(ctx, deps.Skills, tools.EligibilityContext(catalog))
 	if err != nil {
 		return nil, err
 	}
+	skillDir, synced := syncSkillPackages(ctx, deps.Skills, deps.SkillPackages, *skillSnapshot)
 	return &runCapabilities{
 		catalog:       catalog,
-		skillSnapshot: skillSnapshot,
+		skillSnapshot: &synced,
+		skillDir:      skillDir,
 	}, nil
 }
 

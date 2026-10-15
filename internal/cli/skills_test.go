@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/skills"
 )
 
@@ -12,14 +13,14 @@ func TestRenderSkillsCheckUsesHealthReport(t *testing.T) {
 		Status: skills.HealthFailed,
 		Failures: []skills.HealthFailure{{
 			Kind:    skills.HealthFailureEligibility,
-			SkillID: "skill.memory.triage",
+			Skill:   "memory-triage",
 			Message: "missing_required_tools:memory_search",
 		}},
 	})
 
 	for _, want := range []string{
 		"Status: failed",
-		"failure eligibility: skill.memory.triage: missing_required_tools:memory_search",
+		"failure eligibility: memory-triage: missing_required_tools:memory_search",
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("renderSkillsCheck missing %q:\n%s", want, body)
@@ -39,12 +40,24 @@ func TestSkillCheckErrorFailsOnlyOnHealthFailure(t *testing.T) {
 		Status: skills.HealthFailed,
 		Failures: []skills.HealthFailure{{
 			Kind:    skills.HealthFailureEligibility,
-			SkillID: "skill.ineligible",
+			Skill:   "ineligible",
 			Message: "missing_required_tools:read_file",
 		}},
 	}
 	err := skillCheckError(failed)
-	if err == nil || !strings.Contains(err.Error(), "eligibility: skill.ineligible") {
+	if err == nil || !strings.Contains(err.Error(), "eligibility: ineligible") {
 		t.Fatalf("skillCheckError failed report = %v, want eligibility failure", err)
+	}
+}
+
+func TestRenderSkillDetailShowsFiles(t *testing.T) {
+	body := renderSkillDetail(skills.View{Spec: skills.Spec{
+		Name: "pdf", Description: "Fill PDF forms.", License: "MIT", Revision: 2, Instruction: "Run scripts/fill.py.",
+		Files: []core.SkillFileInfo{{Path: "scripts/fill.py", Size: 12}},
+	}, Eligible: true})
+	for _, want := range []string{"Name: pdf", "Revision: 2", "License: MIT", "File: scripts/fill.py (12 bytes)", "Run scripts/fill.py."} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("renderSkillDetail missing %q:\n%s", want, body)
+		}
 	}
 }

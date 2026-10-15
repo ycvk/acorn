@@ -190,7 +190,7 @@ func TestValidateBaseRejectsApprovalPatternMatchingAskOperator(t *testing.T) {
 
 func TestDefaultApprovalRequiresMCPAndSkillWrites(t *testing.T) {
 	got := defaultConfig().Approval.Require
-	if strings.Join(got, ",") != "mcp__*,skill_write,skill_retire" {
+	if strings.Join(got, ",") != "mcp__*,skill_write,skill_import,skill_retire" {
 		t.Fatalf("default approval.require = %v", got)
 	}
 }

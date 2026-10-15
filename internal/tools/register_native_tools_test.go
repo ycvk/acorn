@@ -23,7 +23,7 @@ func (stubOperatorStore) AppendEvent(context.Context, string, string, any) (core
 	return core.EventRecord{}, nil
 }
 
-var eagerNativeToolNames = []string{"artifact_list", "artifact_read", "artifact_write", "ask_operator", "concern", "keep", "knowledge_edit", "knowledge_list", "knowledge_read", "knowledge_search", "knowledge_write", "memory_correct", "memory_forget", "memory_read", "notify_owner", "recall", "schedule_wake", "settle", "skill_retire", "skill_write", "think", "watch_create", "watch_list", "watch_update"}
+var eagerNativeToolNames = []string{"artifact_list", "artifact_read", "artifact_write", "ask_operator", "concern", "keep", "knowledge_edit", "knowledge_list", "knowledge_read", "knowledge_search", "knowledge_write", "memory_correct", "memory_forget", "memory_read", "notify_owner", "recall", "schedule_wake", "settle", "skill_import", "skill_inspect", "skill_retire", "skill_write", "think", "watch_create", "watch_list", "watch_update"}
 
 func testNativeToolDeps(t *testing.T) NativeToolDeps {
 	t.Helper()
@@ -41,7 +41,7 @@ func testNativeToolDeps(t *testing.T) NativeToolDeps {
 		Presence:        presenceDeps,
 		Notify:          NotifyToolDeps{Notifier: &fakeNotifier{}, Context: bridge, Location: time.UTC},
 		Knowledge:       KnowledgeToolDeps{Vault: &fakeVault{}, Context: bridge, Location: time.UTC},
-		Skills:          SkillToolDeps{Library: &fakeSkillLibrary{}, Context: bridge, Location: time.UTC},
+		Skills:          SkillToolDeps{Library: &fakeSkillLibrary{}, Packages: &fakePackageReader{}, Context: bridge, Location: time.UTC},
 		Watch:           WatchToolDeps{Store: &toolWatchStore{}, Checker: &fakeWatchChecker{}, Context: bridge, Clock: time.Now, Location: time.UTC},
 	}
 }
@@ -111,6 +111,7 @@ func TestRegisterNativeToolsFailsOnMissingDependency(t *testing.T) {
 		{"OperatorContext", "ask_operator", func(d *NativeToolDeps) { d.OperatorContext = nil }},
 		{"Presence.Store", "keep", func(d *NativeToolDeps) { d.Presence.Store = nil }},
 		{"Presence.Location", "keep", func(d *NativeToolDeps) { d.Presence.Location = nil }},
+		{"Skills.Library", "skill_write", func(d *NativeToolDeps) { d.Skills.Library = nil }},
 	}
 	for _, tc := range cases {
 		t.Run(tc.field, func(t *testing.T) {
@@ -177,5 +178,25 @@ func TestRegisterNativeToolsDisablesNotifyOwnerWithReason(t *testing.T) {
 	deps.Notify.DisabledReason = ""
 	if err := RegisterNativeTools(NewToolRegistry(), deps); err == nil || !strings.Contains(err.Error(), "notify_owner") {
 		t.Fatalf("missing notifier without reason: %v", err)
+	}
+}
+
+func TestRegisterNativeToolsDisablesSkillInspectWithoutAWorkstation(t *testing.T) {
+	deps := testNativeToolDeps(t)
+	deps.Skills.Packages, deps.Skills.PackagesDisabledReason = nil, "workstation.url is not configured"
+	reg := NewToolRegistry()
+	if err := RegisterNativeTools(reg, deps); err != nil {
+		t.Fatalf("RegisterNativeTools: %v", err)
+	}
+	spec, ok := reg.Find("skill_inspect")
+	if !ok || spec.Enabled() || spec.Health.Reason != deps.Skills.PackagesDisabledReason {
+		t.Fatalf("skill_inspect spec = %+v", spec)
+	}
+	if spec, ok := reg.Find("skill_import"); !ok || !spec.Enabled() {
+		t.Fatalf("skill_import spec = %+v", spec)
+	}
+	deps.Skills.PackagesDisabledReason = ""
+	if err := RegisterNativeTools(NewToolRegistry(), deps); err == nil || !strings.Contains(err.Error(), "skill_inspect") {
+		t.Fatalf("missing packages without reason: %v", err)
 	}
 }

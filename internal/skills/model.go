@@ -1,36 +1,33 @@
 package skills
 
 import (
-	"fmt"
-	"strings"
+	"maps"
+	"slices"
+
+	"github.com/ycvk/acorn/internal/core"
 )
 
-// Spec is a parsed skill. Revision and Markdown are the stored revision it was
-// read from and its whole document.
-type Spec struct {
-	ID           string
-	Revision     int64
-	Markdown     string
-	Name         string
-	Version      string
-	Category     string
-	Summary      string
-	Instruction  string
-	Tags         []string
-	Platforms    []string
-	TriggerHints []string
-	Requires     Requirements
-}
+// RequiresToolsKey is the metadata key that lists, separated by spaces, the
+// tools a skill cannot run without.
+const RequiresToolsKey = "acorn-requires-tools"
 
-type Requirements struct {
-	Tools    []string `json:"tools,omitempty"`
-	Toolsets []string `json:"toolsets,omitempty"`
-	Bins     []string `json:"bins,omitempty"`
-	Env      []string `json:"env,omitempty"`
+// Spec is a parsed skill in the Agent Skills format. Revision, Markdown and
+// Files come from the stored revision it was read from.
+type Spec struct {
+	Name          string
+	Description   string
+	License       string
+	Compatibility string
+	Metadata      map[string]string
+	AllowedTools  string
+	RequiresTools []string
+	Instruction   string
+	Revision      int64
+	Markdown      string
+	Files         []core.SkillFileInfo
 }
 
 type Problem struct {
-	ID    string `json:"id,omitempty"`
 	Name  string `json:"name,omitempty"`
 	Error string `json:"error,omitempty"`
 }
@@ -51,107 +48,25 @@ type Snapshot struct {
 	Problems []Problem `json:"problems,omitempty"`
 }
 
-func CopyRequirements(item Requirements) Requirements {
-	return Requirements{
-		Tools:    append([]string(nil), item.Tools...),
-		Toolsets: append([]string(nil), item.Toolsets...),
-		Bins:     append([]string(nil), item.Bins...),
-		Env:      append([]string(nil), item.Env...),
-	}
-}
-
-func NormalizeSpec(item Spec) (Spec, error) {
-	item.ID = strings.TrimSpace(item.ID)
-	item.Name = strings.TrimSpace(item.Name)
-	item.Version = strings.TrimSpace(item.Version)
-	item.Category = strings.TrimSpace(item.Category)
-	item.Summary = strings.TrimSpace(item.Summary)
-	item.Instruction = strings.TrimSpace(item.Instruction)
-	item.Tags = uniqueNonEmpty(item.Tags)
-	item.Platforms = uniqueLowerNonEmpty(item.Platforms)
-	item.TriggerHints = uniqueNonEmpty(item.TriggerHints)
-	if item.ID == "" {
-		return Spec{}, fmt.Errorf("skill id is required")
-	}
-	if item.Name == "" {
-		return Spec{}, fmt.Errorf("skill %s name is required", item.ID)
-	}
-	if item.Version == "" {
-		item.Version = "v1"
-	}
-	return item, nil
-}
-
 func CopySpec(item Spec) Spec {
-	copy := item
-	copy.Tags = append([]string(nil), item.Tags...)
-	copy.Platforms = append([]string(nil), item.Platforms...)
-	copy.TriggerHints = append([]string(nil), item.TriggerHints...)
-	copy.Requires = CopyRequirements(item.Requires)
-	return copy
-}
-
-func CopyView(item View) View {
-	copy := item
-	copy.Spec = CopySpec(item.Spec)
-	copy.DisabledReasons = append([]string(nil), item.DisabledReasons...)
-	return copy
-}
-
-func CopySnapshot(item Snapshot) Snapshot {
-	copy := Snapshot{
-		Skills:   make([]View, 0, len(item.Skills)),
-		Problems: make([]Problem, 0, len(item.Problems)),
-	}
-	for _, current := range item.Skills {
-		copy.Skills = append(copy.Skills, CopyView(current))
-	}
-	copy.Problems = append(copy.Problems, item.Problems...)
-	return copy
-}
-
-func uniqueNonEmpty(items []string) []string {
-	if len(items) == 0 {
-		return nil
-	}
-	seen := make(map[string]struct{}, len(items))
-	out := make([]string, 0, len(items))
-	for _, item := range items {
-		trimmed := strings.TrimSpace(item)
-		if trimmed == "" {
-			continue
-		}
-		if _, ok := seen[trimmed]; ok {
-			continue
-		}
-		seen[trimmed] = struct{}{}
-		out = append(out, trimmed)
-	}
-	if len(out) == 0 {
-		return nil
-	}
+	out := item
+	out.Metadata = maps.Clone(item.Metadata)
+	out.RequiresTools = slices.Clone(item.RequiresTools)
+	out.Files = slices.Clone(item.Files)
 	return out
 }
 
-func uniqueLowerNonEmpty(items []string) []string {
-	if len(items) == 0 {
-		return nil
-	}
-	seen := make(map[string]struct{}, len(items))
-	out := make([]string, 0, len(items))
-	for _, item := range items {
-		trimmed := strings.ToLower(strings.TrimSpace(item))
-		if trimmed == "" {
-			continue
-		}
-		if _, ok := seen[trimmed]; ok {
-			continue
-		}
-		seen[trimmed] = struct{}{}
-		out = append(out, trimmed)
-	}
-	if len(out) == 0 {
-		return nil
+func CopyView(item View) View {
+	out := item
+	out.Spec = CopySpec(item.Spec)
+	out.DisabledReasons = slices.Clone(item.DisabledReasons)
+	return out
+}
+
+func CopySnapshot(item Snapshot) Snapshot {
+	out := Snapshot{Skills: make([]View, 0, len(item.Skills)), Problems: slices.Clone(item.Problems)}
+	for _, view := range item.Skills {
+		out.Skills = append(out.Skills, CopyView(view))
 	}
 	return out
 }

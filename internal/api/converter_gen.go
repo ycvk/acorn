@@ -3,8 +3,6 @@
 
 package api
 
-import skills "github.com/ycvk/acorn/internal/skills"
-
 type ConverterImpl struct{}
 
 func (c *ConverterImpl) apiArtifactSummaryToApiArtifactSummaryDTO(source ArtifactSummary) ArtifactSummaryDTO {
@@ -201,34 +199,6 @@ func (c *ConverterImpl) runSummaryDTOsFromDomain(source []RunSummary) []RunSumma
 		}
 	}
 	return apiRunSummaryDTOList
-}
-func (c *ConverterImpl) skillRequirementsDTOFromDomain(source skills.Requirements) SkillRequirementsDTO {
-	var apiSkillRequirementsDTO SkillRequirementsDTO
-	if source.Tools != nil {
-		apiSkillRequirementsDTO.Tools = make([]string, len(source.Tools))
-		for i := 0; i < len(source.Tools); i++ {
-			apiSkillRequirementsDTO.Tools[i] = source.Tools[i]
-		}
-	}
-	if source.Toolsets != nil {
-		apiSkillRequirementsDTO.Toolsets = make([]string, len(source.Toolsets))
-		for j := 0; j < len(source.Toolsets); j++ {
-			apiSkillRequirementsDTO.Toolsets[j] = source.Toolsets[j]
-		}
-	}
-	if source.Bins != nil {
-		apiSkillRequirementsDTO.Bins = make([]string, len(source.Bins))
-		for k := 0; k < len(source.Bins); k++ {
-			apiSkillRequirementsDTO.Bins[k] = source.Bins[k]
-		}
-	}
-	if source.Env != nil {
-		apiSkillRequirementsDTO.Env = make([]string, len(source.Env))
-		for l := 0; l < len(source.Env); l++ {
-			apiSkillRequirementsDTO.Env[l] = source.Env[l]
-		}
-	}
-	return apiSkillRequirementsDTO
 }
 func (c *ConverterImpl) threadDTOFromDomain(source Thread) ThreadDTO {
 	var apiThreadDTO ThreadDTO

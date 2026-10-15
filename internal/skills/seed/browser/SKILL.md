@@ -1,25 +1,8 @@
 ---
-id: skill.browser
-name: Browser
-version: v1
-category: native
-summary: Drive the agent's own Chromium on the workstation through bsk, and have the owner sign in to sites in it from the app.
-trigger_hints:
-  - browser
-  - open the page in a browser
-  - log in
-  - sign in
-  - my account
-  - logged in
-  - 浏览器
-  - 用浏览器
-  - 打开网页
-  - 登录
-  - 我的账号
-  - 帮我在网站上
-requires:
-  tools:
-    - shell
+name: browser
+description: Use the agent's own Chromium on the workstation through bsk and hand sign-ins to the owner in the app. Use when a page needs a real browser, an account or a login (浏览器, 登录, 我的账号).
+metadata:
+  acorn-requires-tools: shell
 ---
 # Browser
 
@@ -29,7 +12,7 @@ requires:
 
 ## 用法
 
-完整说明在工作机上：先用 `files` 读 `/opt/browserskill/skill/SKILL.md`，遇到它列出的情况再读 `/opt/browserskill/skill/references/` 下对应的文件。要点：
+完整说明在 `browser-skill` 技能里：用 `skill` 工具加载它，遇到它列出的情况再用 `files` 读它目录下 `references/` 里对应的文件。要点：
 
 1. `bsk session start --no-focus --json`，记下 `session_id`。
 2. `bsk navigate <url> --session <id>`，然后 `bsk observe --session <id>` 读页面，拿到 `@eN` 引用。

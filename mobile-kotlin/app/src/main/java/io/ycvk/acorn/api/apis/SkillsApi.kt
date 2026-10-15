@@ -56,10 +56,10 @@ open class SkillsApi(basePath: kotlin.String = defaultBasePath, client: Call.Fac
     }
 
     /**
-     * GET /v1/skills/{id}
+     * GET /v1/skills/{name}
      * Load one skill in detail
      * 
-     * @param id 
+     * @param name 
      * @return SkillEnvelope
      * @throws IllegalStateException If the request is not correctly configured
      * @throws IOException Rethrows the OkHttp execute method exception
@@ -69,8 +69,8 @@ open class SkillsApi(basePath: kotlin.String = defaultBasePath, client: Call.Fac
      */
     @Suppress("UNCHECKED_CAST")
     @Throws(IllegalStateException::class, IOException::class, UnsupportedOperationException::class, ClientException::class, ServerException::class)
-    fun clientGetSkill(id: kotlin.String) : SkillEnvelope {
-        val localVarResponse = clientGetSkillWithHttpInfo(id = id)
+    fun clientGetSkill(name: kotlin.String) : SkillEnvelope {
+        val localVarResponse = clientGetSkillWithHttpInfo(name = name)
 
         return when (localVarResponse.responseType) {
             ResponseType.Success -> (localVarResponse as Success<*>).data as SkillEnvelope
@@ -88,18 +88,18 @@ open class SkillsApi(basePath: kotlin.String = defaultBasePath, client: Call.Fac
     }
 
     /**
-     * GET /v1/skills/{id}
+     * GET /v1/skills/{name}
      * Load one skill in detail
      * 
-     * @param id 
+     * @param name 
      * @return ApiResponse<SkillEnvelope?>
      * @throws IllegalStateException If the request is not correctly configured
      * @throws IOException Rethrows the OkHttp execute method exception
      */
     @Suppress("UNCHECKED_CAST")
     @Throws(IllegalStateException::class, IOException::class)
-    fun clientGetSkillWithHttpInfo(id: kotlin.String) : ApiResponse<SkillEnvelope?> {
-        val localVariableConfig = clientGetSkillRequestConfig(id = id)
+    fun clientGetSkillWithHttpInfo(name: kotlin.String) : ApiResponse<SkillEnvelope?> {
+        val localVariableConfig = clientGetSkillRequestConfig(name = name)
 
         return request<Unit, SkillEnvelope>(
             localVariableConfig
@@ -109,10 +109,10 @@ open class SkillsApi(basePath: kotlin.String = defaultBasePath, client: Call.Fac
     /**
      * To obtain the request config of the operation clientGetSkill
      *
-     * @param id 
+     * @param name 
      * @return RequestConfig
      */
-    fun clientGetSkillRequestConfig(id: kotlin.String) : RequestConfig<Unit> {
+    fun clientGetSkillRequestConfig(name: kotlin.String) : RequestConfig<Unit> {
         val localVariableBody = null
         val localVariableQuery: MultiValueMap = mutableMapOf()
         val localVariableHeaders: MutableMap<String, String> = mutableMapOf()
@@ -120,7 +120,7 @@ open class SkillsApi(basePath: kotlin.String = defaultBasePath, client: Call.Fac
 
         return RequestConfig(
             method = RequestMethod.GET,
-            path = "/v1/skills/{id}".replace("{"+"id"+"}", encodeURIComponent(id.toString())),
+            path = "/v1/skills/{name}".replace("{"+"name"+"}", encodeURIComponent(name.toString())),
             query = localVariableQuery,
             headers = localVariableHeaders,
             requiresAuthentication = true,

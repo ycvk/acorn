@@ -11,9 +11,8 @@ import (
 
 func TestListSkillsHandler(t *testing.T) {
 	server := &Server{skills: newTestSkillService(t, testSkillFixture{
-		id:      "skill.read-file",
-		name:    "Read File",
-		summary: "Read files safely.",
+		name:        "read-file",
+		description: "Read files safely.",
 	})}
 	router := newTestRouterForServer(server)
 
@@ -30,29 +29,27 @@ func TestListSkillsHandler(t *testing.T) {
 
 func TestGetSkillHandler(t *testing.T) {
 	server := &Server{skills: newTestSkillService(t, testSkillFixture{
-		id:          "skill.read-file",
-		name:        "Read File",
-		summary:     "Reads files",
+		name:        "read-file",
+		description: "Reads files",
 		instruction: "Read files from the workspace.",
 	})}
 	router := newTestRouterForServer(server)
 
-	rec := performClientRequest(router, http.MethodGet, "/v1/skills/skill.read-file", "")
+	rec := performClientRequest(router, http.MethodGet, "/v1/skills/read-file", "")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rec.Code)
 	}
 	var resp SkillEnvelope
 	decodeClientTestJSON(t, rec, &resp)
-	if resp.Item.Name != "Read File" {
+	if resp.Item.Name != "read-file" || resp.Item.Instruction != "Read files from the workspace." {
 		t.Fatalf("unexpected response: %#v", resp)
 	}
 }
 
 func TestGetSkillNotFound(t *testing.T) {
 	server := &Server{skills: newTestSkillService(t, testSkillFixture{
-		id:      "skill.read-file",
-		name:    "Read File",
-		summary: "Reads files",
+		name:        "read-file",
+		description: "Reads files",
 	})}
 	router := newTestRouterForServer(server)
 

@@ -115,6 +115,16 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 	if err != nil {
 		return nil, err
 	}
+	workstationClient, err := buildWorkstationClient(cfg)
+	if err != nil {
+		return nil, err
+	}
+	skillDeps := tools.SkillToolDeps{Library: skillLibrary, Context: ctxBridge, Location: ownerLoc, PackagesDisabledReason: noWorkstation}
+	var skillPackages skills.PackageHost
+	if workstationClient != nil {
+		skillDeps.Packages, skillDeps.PackagesDisabledReason = workstationClient, ""
+		skillPackages = workstationClient
+	}
 	toolRegistry := tools.NewToolRegistry()
 	if err := tools.RegisterNativeTools(toolRegistry, tools.NativeToolDeps{
 		ArtifactService: artifactSvc,
@@ -135,11 +145,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 			Context:  ctxBridge,
 			Location: ownerLoc,
 		},
-		Skills: tools.SkillToolDeps{
-			Library:  skillLibrary,
-			Context:  ctxBridge,
-			Location: ownerLoc,
-		},
+		Skills: skillDeps,
 		Watch: tools.WatchToolDeps{
 			Store:    db,
 			Checker:  watchChecker,
@@ -151,10 +157,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 		return nil, fmt.Errorf("register native tools: %w", err)
 	}
 
-	workstationTools, err := buildWorkstationTools(cfg)
-	if err != nil {
-		return nil, err
-	}
+	workstationTools := buildWorkstationTools(cfg, workstationClient)
 	reviewer, err := buildReviewer(cfg)
 	if err != nil {
 		return nil, err
@@ -166,6 +169,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 	runnerFactory, err := runtime.NewRunnerFactory(cfg, db, runtime.RunnerFactoryOptions{
 		Attachments:           vault,
 		Skills:                skillLibrary,
+		SkillPackages:         skillPackages,
 		MCPPendingActionStore: mcpPendingActionStore,
 		ArtifactService:       artifactSvc,
 		ToolRegistry:          toolRegistry,

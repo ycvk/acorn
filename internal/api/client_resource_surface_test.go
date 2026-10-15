@@ -100,9 +100,8 @@ func TestClientResourceSurfaceHandlers(t *testing.T) {
 		func(context.Context) (*skills.Snapshot, error) {
 			return &skills.Snapshot{Skills: []skills.View{{
 				Spec: skills.Spec{
-					ID:      "skill.inspect",
-					Name:    "Inspect",
-					Version: "1.0.0",
+					Name:        "inspect",
+					Description: "Inspect the repo.",
 				},
 				Eligible: true,
 			}}}, nil
@@ -218,9 +217,8 @@ func TestClientResourceSurfaceHandlers(t *testing.T) {
 	}
 	server.inbox = newInboxTestService(inboxStore)
 	server.skills = newTestSkillService(t, testSkillFixture{
-		id:          "skill.inspect",
-		name:        "Inspect",
-		summary:     "Inspect the repo.",
+		name:        "inspect",
+		description: "Inspect the repo.",
 		instruction: "Use repo inspection.",
 	})
 	server.deviceAuth = newDeviceAuthTestService(&deviceAuthHandlerStub{})
@@ -243,11 +241,11 @@ func TestClientResourceSurfaceHandlers(t *testing.T) {
 		{name: "pending actions", method: http.MethodGet, path: "/v1/pending-actions", wantStatus: http.StatusOK, want: `"items":[{"action_id":"action_1"`},
 		{name: "system status", method: http.MethodGet, path: "/v1/system/status?probe_mcp=1", wantStatus: http.StatusOK, want: `"runtime_readiness":{"status":"ready"}`},
 		{name: "tools", method: http.MethodGet, path: "/v1/tools", wantStatus: http.StatusOK, want: "recall"},
-		{name: "skills", method: http.MethodGet, path: "/v1/skills", wantStatus: http.StatusOK, want: "skill.inspect"},
-		{name: "skill create removed", method: http.MethodPost, path: "/v1/skills", body: `{"id":"skill.inspect","name":"Inspect","instruction":"Use repo inspection."}`, wantStatus: http.StatusMethodNotAllowed},
-		{name: "skill detail", method: http.MethodGet, path: "/v1/skills/skill.inspect", wantStatus: http.StatusOK, want: "Inspect"},
-		{name: "skill patch removed", method: http.MethodPatch, path: "/v1/skills/skill.inspect", body: `{"content":"extra instruction"}`, wantStatus: http.StatusMethodNotAllowed},
-		{name: "skill delete removed", method: http.MethodDelete, path: "/v1/skills/skill.inspect", wantStatus: http.StatusMethodNotAllowed},
+		{name: "skills", method: http.MethodGet, path: "/v1/skills", wantStatus: http.StatusOK, want: `"name":"inspect"`},
+		{name: "skill create removed", method: http.MethodPost, path: "/v1/skills", body: `{"name":"inspect","instruction":"Use repo inspection."}`, wantStatus: http.StatusMethodNotAllowed},
+		{name: "skill detail", method: http.MethodGet, path: "/v1/skills/inspect", wantStatus: http.StatusOK, want: "Use repo inspection."},
+		{name: "skill patch removed", method: http.MethodPatch, path: "/v1/skills/inspect", body: `{"content":"extra instruction"}`, wantStatus: http.StatusMethodNotAllowed},
+		{name: "skill delete removed", method: http.MethodDelete, path: "/v1/skills/inspect", wantStatus: http.StatusMethodNotAllowed},
 		{name: "memory facts removed", method: http.MethodGet, path: "/v1/memory/facts", wantStatus: http.StatusNotFound},
 		{name: "core memory removed", method: http.MethodGet, path: "/v1/memory/core", wantStatus: http.StatusNotFound},
 		{name: "core memory update removed", method: http.MethodPatch, path: "/v1/memory/core/core.about_you", body: `{"body":"updated core"}`, wantStatus: http.StatusNotFound},

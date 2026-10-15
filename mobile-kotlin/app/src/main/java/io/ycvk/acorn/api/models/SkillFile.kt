@@ -30,26 +30,18 @@ import com.squareup.moshi.JsonClass
 /**
  * 
  *
- * @param tools 
- * @param toolsets 
- * @param bins 
- * @param env 
+ * @param path 
+ * @param propertySize 
  */
 
 
-data class SkillRequirements (
+data class SkillFile (
 
-    @Json(name = "tools")
-    val tools: kotlin.collections.List<kotlin.String>? = null,
+    @Json(name = "path")
+    val path: kotlin.String,
 
-    @Json(name = "toolsets")
-    val toolsets: kotlin.collections.List<kotlin.String>? = null,
-
-    @Json(name = "bins")
-    val bins: kotlin.collections.List<kotlin.String>? = null,
-
-    @Json(name = "env")
-    val env: kotlin.collections.List<kotlin.String>? = null
+    @Json(name = "size")
+    val propertySize: kotlin.Long
 
 ) {
 

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -109,8 +110,8 @@ func TestToolApprovalSummaryNamesTheToolAndItsTarget(t *testing.T) {
 }
 
 func TestSkillWriteApprovalCarriesTheWholeSkill(t *testing.T) {
-	markdown := "---\nid: skill.orders\nsummary: Look up recent orders on the shop site.\n---\n# Shop orders\n\n1. Open the orders page.\n"
-	arguments, err := json.Marshal(map[string]any{"markdown": markdown, "base_revision": 2})
+	markdown := "---\nname: shop-orders\ndescription: Look up recent orders on the shop site.\n---\n1. Run scripts/orders.py.\n"
+	arguments, err := json.Marshal(map[string]any{"markdown": markdown, "files": map[string]string{"scripts/orders.py": "print('orders')\n"}, "delete": []string{"old.md"}, "base_revision": 2})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,16 +127,49 @@ func TestSkillWriteApprovalCarriesTheWholeSkill(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if summary.ToolSummary != "Shop orders: Look up recent orders on the shop site." {
+	if summary.ToolSummary != "shop-orders: Look up recent orders on the shop site." {
 		t.Fatalf("summary = %q", summary.ToolSummary)
 	}
-	if got := toolCallDetail("skill_write", string(arguments)); got != strings.TrimSpace(markdown) {
+	want := strings.TrimSpace(markdown) + "\n\n── scripts/orders.py (16 bytes) ──\nprint('orders')\n\n── old.md (removed) ──"
+	if got := toolCallDetail("skill_write", string(arguments)); got != want {
 		t.Fatalf("detail = %q", got)
 	}
 	if got := toolCallDetail("shell", `{"command":"ls"}`); got != "" {
 		t.Fatalf("shell detail = %q", got)
 	}
-	if got := toolApprovalSummary("skill_retire", `{"id":"skill.orders","base_revision":3}`); got != "skill.orders" {
+	if got := toolApprovalSummary("skill_retire", `{"name":"shop-orders","base_revision":3}`); got != "shop-orders" {
 		t.Fatalf("retire summary = %q", got)
+	}
+	if got := toolApprovalSummary("skill_import", `{"name":"pdf","sha256":"abc"}`); got != "pdf" {
+		t.Fatalf("import summary = %q", got)
+	}
+}
+
+type stagedPackagesStub map[string]core.SkillPackage
+
+func (s stagedPackagesStub) StagedSkillPackage(_ context.Context, sha256 string) (core.SkillPackage, error) {
+	pkg, ok := s[sha256]
+	if !ok {
+		return core.SkillPackage{}, core.ErrSkillPackageNotStaged
+	}
+	return pkg, nil
+}
+
+func TestSkillImportApprovalShowsTheStagedPackage(t *testing.T) {
+	service := NewPendingActionService(nil).WithSkillPackages(stagedPackagesStub{"abc": {
+		SHA256: "abc", Name: "pdf", Markdown: "---\nname: pdf\ndescription: Fill PDF forms.\n---\nRun the script.\n",
+		Files: []core.SkillFile{{Path: "scripts/fill.py", Content: []byte("print(1)\n")}, {Path: "assets/logo.png", Content: []byte{0x89, 0xff, 0x00}}},
+	}})
+	got, err := service.toolDetail(context.Background(), "skill_import", `{"name":"pdf","sha256":"abc"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "---\nname: pdf\ndescription: Fill PDF forms.\n---\nRun the script.\n\n── assets/logo.png (3 bytes) ──\n(binary)\n\n── scripts/fill.py (9 bytes) ──\nprint(1)"
+	if got != want {
+		t.Fatalf("detail = %q", got)
+	}
+	got, err = service.toolDetail(context.Background(), "skill_import", `{"name":"pdf","sha256":"gone"}`)
+	if err != nil || !strings.Contains(got, "not staged") {
+		t.Fatalf("unstaged detail = %q, %v", got, err)
 	}
 }

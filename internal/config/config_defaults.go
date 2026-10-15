@@ -23,7 +23,7 @@ func defaultConfig() *Config {
 			CompactMarginTokens: 32000,
 			MaskAfterTurns:      8,
 		},
-		Approval: ApprovalConfig{Require: []string{"mcp__*", "skill_write", "skill_retire"}},
+		Approval: ApprovalConfig{Require: []string{"mcp__*", "skill_write", "skill_import", "skill_retire"}},
 		Owner:    OwnerConfig{Timezone: "UTC"},
 		Presence: PresenceConfig{MaxTokens: 4000},
 		Memory:   MemoryConfig{DailyTokens: 100000, BatchTokens: 8192, ContextTokens: 8192, HistoryTokens: 32768, Embedding: MemoryEmbeddingConfig{BaseURL: "https://api.voyageai.com/v1", APIKey: "${VOYAGE_API_KEY}", Model: "voyage-4", Dimensions: 1024}},

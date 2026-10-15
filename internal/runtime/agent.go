@@ -26,6 +26,7 @@ type agentRunnerRequest struct {
 	ChatModel   einomodel.AgenticModel
 	Catalog     *tools.Catalog
 	Skills      *skills.Snapshot
+	SkillDir    string
 	Instruction string
 	FailedCalls *failedToolCalls
 }
@@ -156,7 +157,7 @@ func buildAgentHandlers(ctx context.Context, deps RuntimeDeps, req agentRunnerRe
 		return nil, err
 	}
 	present.runMemory = req.Memory
-	skillHandler, err := newSkillMiddleware(ctx, req.Skills)
+	skillHandler, err := newSkillMiddleware(ctx, req.Skills, req.SkillDir)
 	if err != nil {
 		return nil, err
 	}

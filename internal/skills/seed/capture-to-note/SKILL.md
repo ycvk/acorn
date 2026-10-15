@@ -1,21 +1,8 @@
 ---
-id: skill.capture.to.note
-name: Capture To Note
-version: v1
-category: native
-summary: Turn something the owner shared from their phone (an input starting with [capture]) into a knowledge base note.
-trigger_hints:
-  - "[capture]"
-  - shared from the owner's phone
-  - save this link
-  - 收藏
-  - 存一下
-  - 记到知识库
-requires:
-  tools:
-    - knowledge_write
-    - knowledge_search
-    - web_fetch
+name: capture-to-note
+description: Turn something the owner shared from their phone, an input starting with [capture], into a knowledge base note (收藏, 存一下, 记到知识库).
+metadata:
+  acorn-requires-tools: knowledge_write knowledge_search web_fetch
 ---
 # Capture To Note
 

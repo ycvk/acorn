@@ -3,6 +3,7 @@ package runtime
 import (
 	"context"
 	"fmt"
+	"path"
 	"sort"
 	"strings"
 
@@ -22,23 +23,24 @@ const skillSystemPrompt = `Skills are written procedures for recurring kinds of 
 // skill_write and skill_retire take as base_revision.
 const skillContentFormat = "Skill %s, revision %d.\n\n%s"
 
+// skillFilesFormat tells where a loaded skill's files are.
+const skillFilesFormat = "Skill %s, revision %d. Its files are in %s on your workstation: %s. Paths in the skill are relative to that directory; read them with files and run scripts with shell.\n\n%s"
+
 // skillBackend serves the run's eligible skills to the Eino skill middleware.
 type skillBackend struct {
-	matters   []skill.FrontMatter
-	byName    map[string]skill.Skill
-	revisions map[string]int64
+	matters []skill.FrontMatter
+	byName  map[string]skills.View
+	dir     string
 }
 
-func newSkillBackend(snapshot *skills.Snapshot) *skillBackend {
-	b := &skillBackend{byName: map[string]skill.Skill{}, revisions: map[string]int64{}}
+func newSkillBackend(snapshot *skills.Snapshot, dir string) *skillBackend {
+	b := &skillBackend{byName: map[string]skills.View{}, dir: dir}
 	for _, view := range snapshot.Skills {
 		if !view.Eligible {
 			continue
 		}
-		matter := skill.FrontMatter{Name: view.ID, Description: skillDescription(view.Spec)}
-		b.matters = append(b.matters, matter)
-		b.byName[view.ID] = skill.Skill{FrontMatter: matter, Content: view.Markdown}
-		b.revisions[view.ID] = view.Revision
+		b.matters = append(b.matters, skill.FrontMatter{Name: view.Name, Description: view.Description})
+		b.byName[view.Name] = view
 	}
 	sort.Slice(b.matters, func(i, j int) bool { return b.matters[i].Name < b.matters[j].Name })
 	return b
@@ -49,32 +51,27 @@ func (b *skillBackend) List(context.Context) ([]skill.FrontMatter, error) {
 }
 
 func (b *skillBackend) Get(_ context.Context, name string) (skill.Skill, error) {
-	found, ok := b.byName[strings.TrimSpace(name)]
+	view, ok := b.byName[strings.TrimSpace(name)]
 	if !ok {
 		return skill.Skill{}, fmt.Errorf("skill %q is not available; use a name from the skill tool's list", name)
 	}
-	return found, nil
-}
-
-// skillDescription is the summary plus a few trigger hints, which tell the
-// model when the skill applies.
-func skillDescription(spec skills.Spec) string {
-	description := strings.TrimSpace(spec.Summary)
-	if description == "" {
-		description = spec.Name
-	}
-	if len(spec.TriggerHints) > 0 {
-		description += " Use for: " + strings.Join(spec.TriggerHints[:min(4, len(spec.TriggerHints))], "; ") + "."
-	}
-	return description
+	return skill.Skill{FrontMatter: skill.FrontMatter{Name: view.Name, Description: view.Description}, Content: view.Markdown}, nil
 }
 
 func (b *skillBackend) content(_ context.Context, loaded skill.Skill, _ string) (string, error) {
-	return fmt.Sprintf(skillContentFormat, loaded.Name, b.revisions[loaded.Name], loaded.Content), nil
+	view := b.byName[loaded.Name]
+	if len(view.Files) == 0 {
+		return fmt.Sprintf(skillContentFormat, view.Name, view.Revision, view.Markdown), nil
+	}
+	paths := make([]string, 0, len(view.Files))
+	for _, f := range view.Files {
+		paths = append(paths, f.Path)
+	}
+	return fmt.Sprintf(skillFilesFormat, view.Name, view.Revision, path.Join(b.dir, view.Name), strings.Join(paths, ", "), view.Markdown), nil
 }
 
-func newSkillMiddleware(ctx context.Context, snapshot *skills.Snapshot) (adk.TypedChatModelAgentMiddleware[*schema.AgenticMessage], error) {
-	backend := newSkillBackend(snapshot)
+func newSkillMiddleware(ctx context.Context, snapshot *skills.Snapshot, dir string) (adk.TypedChatModelAgentMiddleware[*schema.AgenticMessage], error) {
+	backend := newSkillBackend(snapshot, dir)
 	middleware, err := skill.NewTyped[*schema.AgenticMessage](ctx, &skill.TypedConfig[*schema.AgenticMessage]{
 		Backend:      backend,
 		BuildContent: backend.content,

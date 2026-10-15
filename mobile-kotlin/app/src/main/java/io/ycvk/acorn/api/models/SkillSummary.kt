@@ -23,7 +23,6 @@
 
 package io.ycvk.acorn.api.models
 
-import io.ycvk.acorn.api.models.SkillRequirements
 
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
@@ -31,39 +30,32 @@ import com.squareup.moshi.JsonClass
 /**
  * 
  *
- * @param id 
  * @param name 
- * @param version 
+ * @param description 
  * @param eligible 
- * @param category 
- * @param summary 
- * @param requirements 
+ * @param requiresTools 
+ * @param fileCount Number of files the skill carries besides its SKILL.md.
  * @param disabledReasons 
  */
 
 
 data class SkillSummary (
 
-    @Json(name = "id")
-    val id: kotlin.String,
-
     @Json(name = "name")
     val name: kotlin.String,
 
-    @Json(name = "version")
-    val version: kotlin.String,
+    @Json(name = "description")
+    val description: kotlin.String,
 
     @Json(name = "eligible")
     val eligible: kotlin.Boolean,
 
-    @Json(name = "category")
-    val category: kotlin.String? = null,
+    @Json(name = "requires_tools")
+    val requiresTools: kotlin.collections.List<kotlin.String>? = null,
 
-    @Json(name = "summary")
-    val summary: kotlin.String? = null,
-
-    @Json(name = "requirements")
-    val requirements: SkillRequirements? = null,
+    /* Number of files the skill carries besides its SKILL.md. */
+    @Json(name = "file_count")
+    val fileCount: kotlin.Int? = null,
 
     @Json(name = "disabled_reasons")
     val disabledReasons: kotlin.collections.List<kotlin.String>? = null

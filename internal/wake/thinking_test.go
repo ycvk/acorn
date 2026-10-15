@@ -201,9 +201,9 @@ func TestNightListsSkillsTheAgentWroteOrLoaded(t *testing.T) {
 	h.now = time.Now().UTC().Add(time.Minute)
 	ctx := context.Background()
 	for _, w := range []core.SkillWrite{
-		{ID: "skill.orders", Markdown: "orders", Author: core.SkillAuthorAgent, At: h.now.Add(-time.Hour)},
-		{ID: "skill.morning.briefing", Markdown: "briefing", Author: core.SkillAuthorRelease, At: h.now.Add(-time.Hour)},
-		{ID: "skill.old", Markdown: "old", Author: core.SkillAuthorAgent, At: h.now.Add(-72 * time.Hour)},
+		{ID: "orders", Markdown: "orders", Author: core.SkillAuthorAgent, At: h.now.Add(-time.Hour)},
+		{ID: "morning-briefing", Markdown: "briefing", Author: core.SkillAuthorRelease, At: h.now.Add(-time.Hour)},
+		{ID: "old", Markdown: "old", Author: core.SkillAuthorAgent, At: h.now.Add(-72 * time.Hour)},
 	} {
 		if _, err := h.data.WriteSkill(ctx, w); err != nil {
 			t.Fatal(err)
@@ -212,7 +212,7 @@ func TestNightListsSkillsTheAgentWroteOrLoaded(t *testing.T) {
 	if err := h.data.CreateRun(ctx, core.RunCreateParams{RunID: "run_s", Input: "orders"}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := h.data.AppendEvent(ctx, "run_s", "tool.call.started", map[string]any{"tool_name": "skill", "arguments": `{"skill":"skill.old"}`}); err != nil {
+	if _, err := h.data.AppendEvent(ctx, "run_s", "tool.call.started", map[string]any{"tool_name": "skill", "arguments": `{"skill":"old"}`}); err != nil {
 		t.Fatal(err)
 	}
 	if err := h.sched.Tick(ctx); err != nil {
@@ -222,12 +222,12 @@ func TestNightListsSkillsTheAgentWroteOrLoaded(t *testing.T) {
 		t.Fatalf("starts = %v", h.runs.starts)
 	}
 	night := h.runs.starts[0]
-	for _, want := range []string{"- skill skill.orders rev 1 [in use] written=true loads=0", "- skill skill.old rev 1 [in use] written=false loads=1"} {
+	for _, want := range []string{"- skill orders rev 1 [in use] written=true loads=0", "- skill old rev 1 [in use] written=false loads=1"} {
 		if !strings.Contains(night, want) {
 			t.Fatalf("night input lacks %q:\n%s", want, night)
 		}
 	}
-	if strings.Contains(night, "skill.morning.briefing") {
+	if strings.Contains(night, "morning-briefing") {
 		t.Fatalf("a release write is listed:\n%s", night)
 	}
 }

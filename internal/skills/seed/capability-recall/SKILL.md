@@ -1,27 +1,6 @@
 ---
-id: skill.capability.recall
-name: Capability Recall
-version: v1
-category: native
-summary: Inspect the current skill catalog and loaded tool surface before answering what Acorn can do or which skill should handle a task.
-trigger_hints:
-  - what can you do
-  - can you do this
-  - do you support
-  - which skill should I use
-  - which skill fits
-  - capability question
-  - ability question
-  - what skill
-  - use what skill
-  - 你会什么
-  - 你能做什么
-  - 你支持什么
-  - 该用哪个 skill
-  - 该用什么 skill
-  - 能不能联网
-  - 会联网吗
-  - 联网能力
+name: capability-recall
+description: Check the skills and tools this run actually has before saying what Acorn can or cannot do or which skill fits a task (你会什么, 能不能联网, 该用哪个技能).
 ---
 # Capability Recall
 

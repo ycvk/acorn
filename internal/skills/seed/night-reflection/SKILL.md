@@ -1,20 +1,8 @@
 ---
-id: skill.night.reflection
-name: Night Reflection
-version: v3
-category: native
-summary: Review changed evidence, unresolved concerns and action outcomes during scheduled night reflection.
-trigger_hints:
-  - "[night"
-  - night reflection
-  - 夜思
-requires:
-  tools:
-    - recall
-    - memory_read
-    - think
-    - concern
-    - settle
+name: night-reflection
+description: Review changed evidence, open concerns, action outcomes and recently used skills in the scheduled night reflection, an input starting with [night (夜思).
+metadata:
+  acorn-requires-tools: recall memory_read think concern settle
 ---
 # Night Reflection
 

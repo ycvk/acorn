@@ -1,18 +1,8 @@
 ---
-id: skill.morning.briefing
-name: Morning Briefing
-version: v1
-category: native
-summary: Write the owner's morning briefing (an input starting with [briefing) as a knowledge note and push a short summary.
-trigger_hints:
-  - "[briefing"
-  - morning briefing
-  - 早安
-  - 简报
-requires:
-  tools:
-    - knowledge_write
-    - notify_owner
+name: morning-briefing
+description: Write the morning briefing for an input starting with [briefing as a knowledge note and push a short summary (早安, 简报).
+metadata:
+  acorn-requires-tools: knowledge_write notify_owner
 ---
 # Morning Briefing
 

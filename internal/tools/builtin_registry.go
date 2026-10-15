@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	einotool "github.com/cloudwego/eino/components/tool"
 
@@ -193,6 +194,12 @@ func nativeToolFactory(name string, deps NativeToolDeps) (core.ToolFactory, erro
 	case "skill_retire":
 		needs = skillDeps
 		build = func() (einotool.BaseTool, error) { return buildSkillRetireTool(deps.Skills) }
+	case "skill_inspect":
+		needs = append(slices.Clone(skillDeps), nativeToolDep{"Skills.Packages", deps.Skills.Packages != nil})
+		build = func() (einotool.BaseTool, error) { return buildSkillInspectTool(deps.Skills) }
+	case "skill_import":
+		needs = skillDeps
+		build = func() (einotool.BaseTool, error) { return buildSkillImportTool(deps.Skills) }
 	case "watch_create":
 		needs = watchDeps
 		build = func() (einotool.BaseTool, error) { return buildWatchCreateTool(deps.Watch) }
@@ -237,6 +244,16 @@ func RegisterNativeTools(registry core.ToolRegistry, deps NativeToolDeps) error 
 				return errors.New("RegisterNativeTools: notify_owner needs NativeToolDeps.Notify.Notifier or a DisabledReason")
 			}
 			spec.Health = core.ToolHealth{State: core.HealthStateDisabled, Reason: deps.Notify.DisabledReason}
+			if err := registry.Register(spec); err != nil {
+				return fmt.Errorf("RegisterNativeTools: register %q: %w", name, err)
+			}
+			continue
+		}
+		if name == "skill_inspect" && deps.Skills.Packages == nil {
+			if deps.Skills.PackagesDisabledReason == "" {
+				return errors.New("RegisterNativeTools: skill_inspect needs NativeToolDeps.Skills.Packages or a PackagesDisabledReason")
+			}
+			spec.Health = core.ToolHealth{State: core.HealthStateDisabled, Reason: deps.Skills.PackagesDisabledReason}
 			if err := registry.Register(spec); err != nil {
 				return fmt.Errorf("RegisterNativeTools: register %q: %w", name, err)
 			}

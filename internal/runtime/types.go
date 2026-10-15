@@ -40,15 +40,18 @@ type RuntimeStore interface {
 	core.ArtifactStore
 }
 
-// SkillScanner reads the skills in use.
-type SkillScanner interface {
+// SkillLibrary reads the skills in use and puts their files where the agent
+// runs them.
+type SkillLibrary interface {
 	Scan(ctx context.Context) (*skills.ScanResult, error)
+	Sync(ctx context.Context, host skills.PackageHost, snapshot skills.Snapshot) (string, error)
 }
 
 type RuntimeDeps struct {
 	Config             *config.Config
 	Store              RuntimeStore
-	Skills             SkillScanner
+	Skills             SkillLibrary
+	SkillPackages      skills.PackageHost
 	MCPPendingActions  core.SessionStore
 	ArtifactService    core.ArtifactService
 	ToolRegistry       core.ToolRegistry

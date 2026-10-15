@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -12,8 +13,14 @@ import (
 var ErrPendingActionDecisionInvalid = errors.New("pending action decision invalid")
 
 type PendingActionService struct {
-	store   core.SessionStore
-	resumer runResumer
+	store    core.SessionStore
+	resumer  runResumer
+	packages stagedSkillPackages
+}
+
+// stagedSkillPackages reads the package a skill_import would store.
+type stagedSkillPackages interface {
+	StagedSkillPackage(ctx context.Context, sha256 string) (core.SkillPackage, error)
 }
 
 // runResumer resumes an interrupted run once nothing in it awaits a decision.
@@ -23,6 +30,12 @@ type runResumer interface {
 
 func NewPendingActionService(store core.SessionStore) *PendingActionService {
 	return &PendingActionService{store: store}
+}
+
+// WithSkillPackages shows a skill_import's staged package in its detail.
+func (s *PendingActionService) WithSkillPackages(packages stagedSkillPackages) *PendingActionService {
+	s.packages = packages
+	return s
 }
 
 // WithResumer makes every decision try to resume the decided run.
@@ -37,7 +50,8 @@ type PendingActionDetail struct {
 	Reason  string
 	Rule    string
 	// ToolDetail is the whole text a tool approval acts on when its summary
-	// cannot hold it, such as the skill document skill_write would store.
+	// cannot hold it, such as the skill skill_write or skill_import would
+	// store.
 	ToolDetail string
 }
 
@@ -97,13 +111,42 @@ func (s *PendingActionService) Get(ctx context.Context, actionID string) (*Pendi
 	if err != nil {
 		return nil, err
 	}
+	detail, err := s.toolDetail(ctx, summary.ToolName, topLevelString(payload, "arguments"))
+	if err != nil {
+		return nil, err
+	}
 	return &PendingActionDetail{
 		PendingActionSummary: summary,
 		Payload:              payload,
 		Reason:               record.Reason,
 		Rule:                 "",
-		ToolDetail:           toolCallDetail(summary.ToolName, topLevelString(payload, "arguments")),
+		ToolDetail:           detail,
 	}, nil
+}
+
+// toolDetail is toolCallDetail, with a skill_import's staged package read from
+// the store. A package no longer staged shows as such, and the import fails.
+func (s *PendingActionService) toolDetail(ctx context.Context, toolName, arguments string) (string, error) {
+	if toolName != "skill_import" {
+		return toolCallDetail(toolName, arguments), nil
+	}
+	if s.packages == nil {
+		return "", errors.New("pending action service: skill packages are required to show skill_import")
+	}
+	var args struct {
+		SHA256 string `json:"sha256"`
+	}
+	if err := json.Unmarshal([]byte(arguments), &args); err != nil {
+		return "", fmt.Errorf("skill_import arguments: %w", err)
+	}
+	pkg, err := s.packages.StagedSkillPackage(ctx, strings.TrimSpace(args.SHA256))
+	switch {
+	case errors.Is(err, core.ErrSkillPackageNotStaged):
+		return fmt.Sprintf("Package %s is not staged; the import will fail.", args.SHA256), nil
+	case err != nil:
+		return "", err
+	}
+	return skillPackageDetail(pkg.Markdown, pkg.Files, nil), nil
 }
 
 func (s *PendingActionService) Decide(ctx context.Context, actionID string, input PendingActionDecisionInput) (*core.PendingActionRecord, error) {

@@ -32,7 +32,7 @@ func (s *Server) handleListSkills(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleGetSkill(w http.ResponseWriter, r *http.Request) {
-	item, err := s.skills.Get(r.Context(), chi.URLParam(r, "id"))
+	item, err := s.skills.Get(r.Context(), chi.URLParam(r, "name"))
 	if err != nil {
 		s.respondKnownError(w, r, err)
 		return

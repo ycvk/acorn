@@ -17,22 +17,21 @@ import (
 
 // buildWorkstationTools connects the shell and files tools to the configured
 // workstation, or disables them with the reason when none is configured.
-func buildWorkstationTools(cfg *config.Config) (tools.WorkstationToolsConfig, error) {
+func buildWorkstationTools(cfg *config.Config, client *workstation.Client) tools.WorkstationToolsConfig {
 	out := tools.WorkstationToolsConfig{
 		CommandTimeoutSeconds: cfg.Workstation.CommandTimeoutSeconds,
 		MaxOutputBytes:        cfg.Workstation.MaxOutputBytes,
 	}
-	client, err := buildWorkstationClient(cfg)
-	if err != nil {
-		return tools.WorkstationToolsConfig{}, err
-	}
 	if client == nil {
-		out.DisabledReason = "workstation.url is not configured"
-		return out, nil
+		out.DisabledReason = noWorkstation
+		return out
 	}
 	out.Service = client
-	return out, nil
+	return out
 }
+
+// noWorkstation is why the tools that need a workstation are disabled.
+const noWorkstation = "workstation.url is not configured"
 
 // buildWorkstationClient returns nil when no workstation is configured. The
 // HTTP client has no overall timeout: each command carries its own.

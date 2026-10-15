@@ -112,14 +112,24 @@
 
 ## 技能
 
-- **技能的每次写入是一个 revision**：技能存在 SQLite 的 `skills`/`skill_revisions`，每次写入记下全文、哈希、作者（agent 或 release）与 run。写入必须基于当前 revision（新技能为 0），否则以 `ErrSkillConflict` 失败。`skill_write` 严格解析 frontmatter，要求合法 id、不超过 200 字的 summary 和正文，requires.tools 只能列出本地工具、内置工具或 `mcp__` 工具，名字不能与其他在用技能重复，写已停用的技能使它恢复；`skill_retire` 写一个停用 revision。run 只加载在用的技能，加载结果是全文加 revision。
+- **技能的每次写入是一个 revision**：技能是 Agent Skills 格式的包，存在 SQLite 的 `skills`/`skill_revisions`/`skill_files`，每次写入记下 `SKILL.md`、哈希、附带文件、作者（agent、owner 或 release）与 run。写入必须基于当前 revision（新技能为 0），否则以 `ErrSkillConflict` 失败。frontmatter 严格解析，要求合法的 name、不超过 1024 字符的 description 和正文，`metadata.acorn-requires-tools` 经 `skill_write` 写入时只能列出本地工具、内置工具或 `mcp__` 工具；附带文件是包内相对路径，包有大小与文件数上限。`skill_write` 在 base revision 的文件上增删文件，写已停用的技能使它恢复；`skill_retire` 写一个停用 revision。run 只加载在用的技能，加载结果是全文加 revision，带文件的技能还给出文件所在目录。
   - `internal/store/store_skills_test.go`
   - `internal/skills/library_test.go`
   - `internal/tools/skill_tools_test.go`
   - `internal/runtime/skill_backend_test.go`
-- **写技能的审批显示全文**：starter config 与默认配置把 `skill_write`、`skill_retire` 放进 `approval.require`；`skill_write` 的待批准项摘要是技能名与 summary，详情的 `tool_detail` 是将写入的技能全文。
+- **导入的就是检查过的包**：`skill_inspect` 读取工作机上的目录或 zip，只接受普通文件，按内容哈希暂存技能包；`skill_import` 只导入给定哈希的暂存包，包里的技能名必须与参数一致，导入后暂存移除，超过 7 天的暂存在下次暂存时清除。`acorn skills import` 以 owner 身份写入，同名技能只在 `--replace` 时替换。
+  - `internal/skills/library_test.go`
+  - `internal/store/store_skills_test.go`
+  - `internal/tools/skill_tools_test.go`
+  - `internal/workstation/skills_test.go`
+- **写技能的审批显示全文**：starter config 与默认配置把 `skill_write`、`skill_import`、`skill_retire` 放进 `approval.require`；`skill_write` 的待批准项摘要是技能名与 description，详情的 `tool_detail` 是将写入的 `SKILL.md`、增改的文件内容与删除的文件；`skill_import` 的详情是暂存包的 `SKILL.md` 与文件内容。
   - `internal/config/config_validation_test.go`
   - `internal/api/tool_steps_test.go`
+- **带文件的技能同步到工作机**：每次 run 前，backend 按包哈希把在用且带文件的技能写入工作机的 `~/skills/<name>/`，删除不再需要的技能目录，只动带 `.acorn-package` 标记的目录；工作机先写临时目录再整体替换，`scripts/` 下的文件可执行。没有工作机时这些技能因缺少 `files` 不列出；同步失败时它们本次不列出，run 照常进行。
+  - `internal/skills/library_test.go`
+  - `internal/workstation/skills_test.go`
+  - `internal/runtime/skill_backend_test.go`
+  - `internal/tools/web_skill_eligibility_test.go`
 - **内置技能随二进制发布**：`internal/skills/seed` 编进二进制；启动时缺少的内置技能写入 revision 1，内容与上次 release 写入的哈希不同时在当前 revision 之上写新 revision 并保留停用状态，相同则不写。
   - `internal/skills/library_test.go`
 - **夜思回顾技能**：夜思输入列出上次夜思以来 agent 写过或加载过的技能及其 revision；release 写入的 revision 不列出。

@@ -155,11 +155,11 @@ func TestRenderDoctorSummaryIncludesGroupedSectionsAndProviderErrors(t *testing.
 			IneligibleCount: 1,
 			InvalidCount:    1,
 			Items: []api.SystemSkillSummary{
-				{ID: "skill.inspect.repo", Eligible: true},
-				{ID: "skill.ship.patch", Eligible: false, DisabledReasons: []string{"missing run_command"}},
+				{Name: "inspect-repo", Eligible: true},
+				{Name: "ship-patch", Eligible: false, DisabledReasons: []string{"missing run_command"}},
 			},
 			Problems: []api.SystemSkillProblem{
-				{ID: "skill.bad.frontmatter", Error: "invalid yaml"},
+				{Name: "bad-frontmatter", Error: "invalid yaml"},
 			},
 		},
 		MCPProviders: []api.SystemMCPProviderCapability{
@@ -175,8 +175,8 @@ func TestRenderDoctorSummaryIncludesGroupedSectionsAndProviderErrors(t *testing.
 		"MCP providers",
 		"Ready: not ready",
 		"Error: model.api_key is required",
-		"skill.ship.patch: ineligible (missing run_command)",
-		"skill.bad.frontmatter error=invalid yaml",
+		"ship-patch: ineligible (missing run_command)",
+		"bad-frontmatter error=invalid yaml",
 	} {
 		if !strings.Contains(summary, want) {
 			t.Fatalf("doctor summary should contain %q, got:\n%s", want, summary)
@@ -201,7 +201,7 @@ func TestDoctorJSONModeKeepsCanonicalCapabilitySchema(t *testing.T) {
 		Tools: []api.SystemToolCapability{{Name: "read_file", Enabled: true, Risk: "read_only", Source: "local", Kind: "native", Category: "read", HealthState: "healthy"}},
 		Skills: api.SystemSkillCapabilities{
 			Count: 1,
-			Items: []api.SystemSkillSummary{{ID: "skill.inspect.repo", Eligible: true}},
+			Items: []api.SystemSkillSummary{{Name: "inspect-repo", Eligible: true}},
 		},
 		MCPProviders: []api.SystemMCPProviderCapability{
 			{Name: "broken", Configured: true, Enabled: true, Error: "provider failed"},
@@ -217,7 +217,7 @@ func TestDoctorJSONModeKeepsCanonicalCapabilitySchema(t *testing.T) {
 		"\"skills\"",
 		"\"mcp_providers\"",
 		"\"error\":\"provider failed\"",
-		"\"id\":\"skill.inspect.repo\"",
+		"\"name\":\"inspect-repo\"",
 	} {
 		if !strings.Contains(jsonText, want) {
 			t.Fatalf("doctor json should contain %q, got %s", want, jsonText)

@@ -45,7 +45,7 @@ import com.squareup.moshi.JsonClass
  * @param toolSummary Set on tool approvals; what the call is about, taken from its arguments, e.g. a URL or a search query.
  * @param reason 
  * @param rule 
- * @param toolDetail Set on tool approvals whose summary cannot hold what the call acts on; the skill document a skill_write would store.
+ * @param toolDetail Set on tool approvals whose summary cannot hold what the call acts on; the SKILL.md and files a skill_write or skill_import would store.
  */
 
 
@@ -95,7 +95,7 @@ data class PendingActionDetail (
     @Json(name = "rule")
     val rule: kotlin.String? = null,
 
-    /* Set on tool approvals whose summary cannot hold what the call acts on; the skill document a skill_write would store. */
+    /* Set on tool approvals whose summary cannot hold what the call acts on; the SKILL.md and files a skill_write or skill_import would store. */
     @Json(name = "tool_detail")
     val toolDetail: kotlin.String? = null
 

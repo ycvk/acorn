@@ -76,6 +76,8 @@ fun toolLabel(name: String): String = when (name) {
     "skill" -> "使用技能"
     "skill_write" -> "写技能"
     "skill_retire" -> "停用技能"
+    "skill_inspect" -> "检查技能包"
+    "skill_import" -> "导入技能"
     else -> name
 }
 

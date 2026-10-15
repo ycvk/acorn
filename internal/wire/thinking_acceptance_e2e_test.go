@@ -38,7 +38,7 @@ func TestThinkingNightRevisesThoughtWithEvidenceAndRecordsUsage(t *testing.T) {
 		t.Fatal(err)
 	}
 	provider.replies = []string{
-		withUsage(toolCallChunk("skill", "skill", map[string]string{"skill": "skill.night.reflection"}), 20),
+		withUsage(toolCallChunk("skill", "skill", map[string]string{"skill": "night-reflection"}), 20),
 		withUsage(toolCallChunk("release", "think", map[string]any{"id": records[0].ID, "revision": records[0].Revision, "state": "released", "content": "obsolete idea", "source_id": "message:1", "quote": "night reflection", "reason": "reviewed and no longer useful"}), 20),
 		withUsage(textReply("已放下这个念头。"), 20),
 	}

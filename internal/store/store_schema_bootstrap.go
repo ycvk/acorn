@@ -142,6 +142,8 @@ CREATE TABLE IF NOT EXISTS knowledge_revisions (
 
 ` + skillsTables + `
 
+` + skillPackageTables + `
+
 CREATE TABLE IF NOT EXISTS watches (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
@@ -256,6 +258,33 @@ CREATE TABLE IF NOT EXISTS skill_revisions (
     run_id TEXT NOT NULL DEFAULT '',
     at TEXT NOT NULL,
     PRIMARY KEY (id, revision)
+);`
+
+// skillPackageTables are shared with the migration that adds them: the files
+// of each skill revision, and packages read for import waiting for approval.
+const skillPackageTables = `CREATE TABLE IF NOT EXISTS skill_files (
+    id TEXT NOT NULL,
+    revision INTEGER NOT NULL,
+    path TEXT NOT NULL,
+    content BLOB NOT NULL,
+    size INTEGER NOT NULL,
+    sha256 TEXT NOT NULL,
+    PRIMARY KEY (id, revision, path),
+    FOREIGN KEY (id, revision) REFERENCES skill_revisions(id, revision)
+);
+
+CREATE TABLE IF NOT EXISTS skill_package_stages (
+    sha256 TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    markdown TEXT NOT NULL,
+    staged_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS skill_package_stage_files (
+    sha256 TEXT NOT NULL REFERENCES skill_package_stages(sha256),
+    path TEXT NOT NULL,
+    content BLOB NOT NULL,
+    PRIMARY KEY (sha256, path)
 );`
 
 // notificationsTable is shared with the migrations that rebuild the table, so

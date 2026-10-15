@@ -4,54 +4,53 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/ycvk/acorn/internal/config"
+	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/tools"
 )
 
-// SkillScanner reads the skills in use.
-type SkillScanner interface {
+// SkillLibrary reads the skills in use and installs the owner's packages.
+type SkillLibrary interface {
 	Scan(ctx context.Context) (*skills.ScanResult, error)
+	Import(ctx context.Context, entries []core.SkillFile, replace bool) (core.Skill, error)
 }
 
 type SkillService struct {
 	cfg     *config.Config
-	scanner SkillScanner
+	library SkillLibrary
 }
 
 var ErrSkillNotFound = errors.New("skill not found")
 
-func NewSkillService(cfg *config.Config, scanner SkillScanner) *SkillService {
-	return &SkillService{cfg: cfg, scanner: scanner}
+func NewSkillService(cfg *config.Config, library SkillLibrary) *SkillService {
+	return &SkillService{cfg: cfg, library: library}
+}
+
+// Import installs a package the owner read from a directory or zip. An
+// existing skill of the same name is replaced only when replace is set.
+func (s *SkillService) Import(ctx context.Context, entries []core.SkillFile, replace bool) (core.Skill, error) {
+	return s.library.Import(ctx, entries, replace)
 }
 
 func (s *SkillService) Snapshot(ctx context.Context) (*skills.Snapshot, error) {
-	scan, err := s.scanner.Scan(ctx)
+	scan, err := s.library.Scan(ctx)
 	if err != nil {
 		return nil, err
 	}
-	snapshot, err := skills.BuildSnapshot(*scan, staticSkillEligibilityContext(s.cfg))
-	if err != nil {
-		return nil, err
-	}
-	copied := skills.CopySnapshot(snapshot)
-	return &copied, nil
+	snapshot := skills.BuildSnapshot(*scan, staticSkillEligibilityContext(s.cfg))
+	return &snapshot, nil
 }
 
 func (s *SkillService) Health(ctx context.Context) (*skills.HealthReport, error) {
-	scan, err := s.scanner.Scan(ctx)
+	scan, err := s.library.Scan(ctx)
 	if err != nil {
 		return nil, err
 	}
-	report, err := skills.BuildHealthReport(*scan, staticSkillEligibilityContext(s.cfg))
-	if err != nil {
-		return nil, err
-	}
-	copied := skills.CopyHealthReport(*report)
-	return &copied, nil
+	report := skills.BuildHealthReport(*scan, staticSkillEligibilityContext(s.cfg))
+	return &report, nil
 }
 
 type SkillListFilter struct {
@@ -90,40 +89,32 @@ func (s *SkillService) List(ctx context.Context, limit int) ([]skills.View, erro
 	return items, err
 }
 
-func (s *SkillService) Get(ctx context.Context, id string) (*skills.View, error) {
+func (s *SkillService) Get(ctx context.Context, name string) (*skills.View, error) {
 	snapshot, err := s.Snapshot(ctx)
 	if err != nil {
 		return nil, err
 	}
-	trimmedID := strings.TrimSpace(id)
-	if trimmedID == "" {
-		return nil, fmt.Errorf("skill id is required")
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return nil, fmt.Errorf("skill name is required")
 	}
 	for _, item := range snapshot.Skills {
-		if item.ID == trimmedID {
+		if item.Name == name {
 			return new(skills.CopyView(item)), nil
 		}
 	}
-	return nil, fmt.Errorf("%w: %s", ErrSkillNotFound, trimmedID)
-}
-
-func environmentMap() map[string]string {
-	env := make(map[string]string)
-	for _, item := range os.Environ() {
-		key, value, ok := strings.Cut(item, "=")
-		if !ok {
-			continue
-		}
-		env[key] = value
-	}
-	return env
+	return nil, fmt.Errorf("%w: %s", ErrSkillNotFound, name)
 }
 
 func localEligibilityToolNames(cfg *config.Config) []string {
 	specs := tools.ConfiguredLocalSpecs()
 	names := make([]string, 0, len(specs)+11)
 	seen := make(map[string]struct{}, len(specs)+11)
+	workstation := cfg != nil && strings.TrimSpace(cfg.Workstation.URL) != ""
 	for _, spec := range specs {
+		if spec.Loading.Reason == "workstation" && !workstation {
+			continue
+		}
 		if spec.Enabled() {
 			if _, ok := seen[spec.Name]; ok {
 				continue
@@ -144,19 +135,12 @@ func localEligibilityToolNames(cfg *config.Config) []string {
 
 func staticSkillEligibilityContext(cfg *config.Config) skills.EligibilityContext {
 	availableTools := localEligibilityToolNames(cfg)
-	availableToolsets := make([]string, 0, 1)
 	if cfg != nil {
 		for _, provider := range cfg.MCP.Providers {
-			if !provider.Enabled {
-				continue
+			if provider.Enabled {
+				availableTools = append(availableTools, provider.ToolNames...)
 			}
-			availableToolsets = append(availableToolsets, provider.Name)
-			availableTools = append(availableTools, provider.ToolNames...)
 		}
 	}
-	return skills.EligibilityContext{
-		AvailableTools:    availableTools,
-		AvailableToolsets: availableToolsets,
-		Env:               environmentMap(),
-	}
+	return skills.EligibilityContext{AvailableTools: availableTools}
 }

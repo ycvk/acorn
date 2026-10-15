@@ -2,8 +2,6 @@ package api
 
 import (
 	"time"
-
-	"github.com/ycvk/acorn/internal/skills"
 )
 
 // TimeToTime passes time.Time through directly. Used by goverter to avoid
@@ -46,7 +44,4 @@ type Converter interface {
 
 	// Artifacts
 	artifactSummaryDTOsFromDomain(source []ArtifactSummary) []ArtifactSummaryDTO
-
-	// Skills
-	skillRequirementsDTOFromDomain(source skills.Requirements) SkillRequirementsDTO
 }

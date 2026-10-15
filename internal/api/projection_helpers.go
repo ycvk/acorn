@@ -2,7 +2,10 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
+	"slices"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/skills"
@@ -86,31 +89,72 @@ func toolCallSummary(arguments string) string {
 }
 
 // toolApprovalSummary says what a call waiting for approval is about. A skill
-// write reads as the skill's name and summary.
+// write reads as the skill's name and description.
 func toolApprovalSummary(toolName, arguments string) string {
 	if toolName == "skill_write" {
-		if spec, err := skills.Parse(skillWriteMarkdown(arguments)); err == nil {
-			return clip(spec.Name+": "+spec.Summary, reviewSummaryRunes)
+		if spec, err := skills.Parse(skillWriteArgs(arguments).Markdown); err == nil {
+			return clip(spec.Name+": "+spec.Description, reviewSummaryRunes)
 		}
 	}
 	return toolCallSummary(arguments)
 }
 
 // toolCallDetail is the whole text a tool call acts on when its summary
-// cannot hold it: the skill document of skill_write.
+// cannot hold it: the skill skill_write would store.
 func toolCallDetail(toolName, arguments string) string {
 	if toolName != "skill_write" {
 		return ""
 	}
-	return skillWriteMarkdown(arguments)
+	args := skillWriteArgs(arguments)
+	files := make([]core.SkillFile, 0, len(args.Files))
+	for path, content := range args.Files {
+		files = append(files, core.SkillFile{Path: path, Content: []byte(content)})
+	}
+	return skillPackageDetail(args.Markdown, files, args.Delete)
 }
 
-func skillWriteMarkdown(arguments string) string {
-	var args map[string]any
+type skillWriteArguments struct {
+	Markdown string            `json:"markdown"`
+	Files    map[string]string `json:"files"`
+	Delete   []string          `json:"delete"`
+}
+
+func skillWriteArgs(arguments string) skillWriteArguments {
+	var args skillWriteArguments
 	if json.Unmarshal([]byte(arguments), &args) != nil {
-		return ""
+		return skillWriteArguments{}
 	}
-	return topLevelString(args, "markdown")
+	return args
+}
+
+// skillDetailBytes bounds the file contents an approval shows; files past it
+// are listed by path and size.
+const skillDetailBytes = 256 << 10
+
+// skillPackageDetail shows a skill's SKILL.md, then each file it adds or
+// replaces and each file it removes.
+func skillPackageDetail(markdown string, files []core.SkillFile, deletes []string) string {
+	var b strings.Builder
+	b.WriteString(strings.TrimSpace(markdown))
+	sorted := slices.Clone(files)
+	slices.SortFunc(sorted, func(a, b core.SkillFile) int { return strings.Compare(a.Path, b.Path) })
+	shown := 0
+	for _, f := range sorted {
+		fmt.Fprintf(&b, "\n\n── %s (%d bytes) ──", f.Path, len(f.Content))
+		switch {
+		case !utf8.Valid(f.Content):
+			b.WriteString("\n(binary)")
+		case shown+len(f.Content) > skillDetailBytes:
+			b.WriteString("\n(not shown)")
+		default:
+			shown += len(f.Content)
+			b.WriteString("\n" + strings.TrimRight(string(f.Content), "\n"))
+		}
+	}
+	for _, p := range slices.Sorted(slices.Values(deletes)) {
+		fmt.Fprintf(&b, "\n\n── %s (removed) ──", p)
+	}
+	return b.String()
 }
 
 func clip(value string, limit int) string {

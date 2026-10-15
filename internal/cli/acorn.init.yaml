@@ -28,6 +28,7 @@ approval:
   require:
     - "mcp__*"
     - skill_write
+    - skill_import
     - skill_retire
   block: []
   allow: []

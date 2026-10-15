@@ -163,7 +163,7 @@ func renderDoctorSkillLine(item api.SystemSkillSummary) string {
 	if !item.Eligible {
 		status = "ineligible"
 	}
-	line := fmt.Sprintf("  - %s: %s", item.ID, status)
+	line := fmt.Sprintf("  - %s: %s", item.Name, status)
 	if len(item.DisabledReasons) > 0 {
 		line += " (" + strings.Join(item.DisabledReasons, "; ") + ")"
 	}
@@ -172,9 +172,7 @@ func renderDoctorSkillLine(item api.SystemSkillSummary) string {
 
 func renderDoctorSkillProblem(problem api.SystemSkillProblem) string {
 	parts := make([]string, 0, 4)
-	if problem.ID != "" {
-		parts = append(parts, problem.ID)
-	} else if problem.Name != "" {
+	if problem.Name != "" {
 		parts = append(parts, problem.Name)
 	}
 	if problem.Error != "" {

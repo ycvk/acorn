@@ -68,16 +68,13 @@ type SystemSkillCapabilities struct {
 }
 
 type SystemSkillSummary struct {
-	ID              string   `json:"id"`
 	Name            string   `json:"name"`
-	Version         string   `json:"version"`
-	Summary         string   `json:"summary,omitempty"`
+	Description     string   `json:"description,omitempty"`
 	Eligible        bool     `json:"eligible"`
 	DisabledReasons []string `json:"disabled_reasons,omitempty"`
 }
 
 type SystemSkillProblem struct {
-	ID    string `json:"id,omitempty"`
 	Name  string `json:"name,omitempty"`
 	Error string `json:"error,omitempty"`
 }

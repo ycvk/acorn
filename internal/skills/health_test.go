@@ -1,109 +1,22 @@
 package skills
 
-import (
-	"strings"
-	"testing"
-)
+import "testing"
 
-func TestBuildHealthReportFailsOnScanProblem(t *testing.T) {
-	report, err := BuildHealthReport(ScanResult{
-		Problems: []Problem{{
-			ID:    "skill.bad",
-			Error: "invalid frontmatter",
-		}},
-	}, testEligibleCtx())
-	if err != nil {
-		t.Fatalf("BuildHealthReport: %v", err)
+func TestHealthReportFailsOnBrokenAndUnusableSkills(t *testing.T) {
+	report := BuildHealthReport(ScanResult{
+		Skills:   []Spec{{Name: "shop-orders", RequiresTools: []string{"shell"}}, {Name: "plain"}},
+		Problems: []Problem{{Name: "broken", Error: "invalid frontmatter"}},
+	}, EligibilityContext{AvailableTools: []string{"files"}})
+	if report.Status != HealthFailed || len(report.Failures) != 2 {
+		t.Fatalf("report = %+v", report)
 	}
-	if report.Status != HealthFailed {
-		t.Fatalf("status = %q, want failed", report.Status)
+	if f := report.Failures[0]; f.Kind != HealthFailureInvalidSkill || f.Skill != "broken" {
+		t.Fatalf("first failure = %+v", f)
 	}
-	if !hasHealthFailure(report, HealthFailureInvalidSkill, "skill.bad", "invalid frontmatter") {
-		t.Fatalf("failures = %#v, want invalid skill", report.Failures)
+	if f := report.Failures[1]; f.Kind != HealthFailureEligibility || f.Skill != "shop-orders" || f.Message != "missing_required_tools:shell" {
+		t.Fatalf("second failure = %+v", f)
 	}
-}
-
-func TestBuildHealthReportFailsOnEligibility(t *testing.T) {
-	scan := ScanResult{
-		Skills: []Spec{
-			{
-				ID:           "skill.needs.write",
-				Name:         "Needs Write",
-				Summary:      "Needs unavailable tool.",
-				TriggerHints: []string{"needs write"},
-				Requires:     Requirements{Tools: []string{"missing_tool"}},
-			},
-		},
-	}
-	report, err := BuildHealthReport(scan, testEligibleCtx())
-	if err != nil {
-		t.Fatalf("BuildHealthReport: %v", err)
-	}
-	if report.Status != HealthFailed {
-		t.Fatalf("status = %q, want failed", report.Status)
-	}
-	if !hasHealthFailure(report, HealthFailureEligibility, "skill.needs.write", "missing_required_tools:missing_tool") {
-		t.Fatalf("failures = %#v, want eligibility failure", report.Failures)
-	}
-}
-
-func TestBuildHealthReportPassesHealthySkillSet(t *testing.T) {
-	scan := ScanResult{
-		Skills: []Spec{
-			{
-				ID:           "skill.inspect.repo",
-				Name:         "Inspect Repo",
-				Summary:      "Inspect repository structure.",
-				TriggerHints: []string{"inspect repo"},
-				Requires:     Requirements{Tools: []string{"read_file"}},
-			},
-		},
-	}
-	report, err := BuildHealthReport(scan, testEligibleCtx())
-	if err != nil {
-		t.Fatalf("BuildHealthReport: %v", err)
-	}
-	if report.Status != HealthPassed {
-		t.Fatalf("status = %q, failures=%#v", report.Status, report.Failures)
-	}
-}
-
-func hasHealthFailure(report *HealthReport, kind HealthFailureKind, skillID string, contains string) bool {
-	if report == nil {
-		return false
-	}
-	for _, failure := range report.Failures {
-		if failure.Kind != kind || failure.SkillID != skillID {
-			continue
-		}
-		if strings.Contains(failure.Message, contains) {
-			return true
-		}
-	}
-	return false
-}
-
-func TestCopyHealthReportDeepCopy(t *testing.T) {
-	original := HealthReport{
-		Status: HealthFailed,
-		Failures: []HealthFailure{
-			{Kind: HealthFailureEligibility, SkillID: "x", Message: "msg"},
-		},
-	}
-	copy := CopyHealthReport(original)
-	copy.Failures[0].SkillID = "mutated"
-	if original.Failures[0].SkillID != "x" {
-		t.Error("CopyHealthReport did not deep-copy Failures slice")
-	}
-}
-
-func TestAddFailureAppends(t *testing.T) {
-	report := &HealthReport{Status: HealthPassed}
-	report.addFailure(HealthFailure{Kind: HealthFailureInvalidSkill, Message: "err"})
-	if report.Status != HealthFailed {
-		t.Errorf("Status = %q, addFailure should set Status to failed", report.Status)
-	}
-	if len(report.Failures) != 1 {
-		t.Fatalf("Failures = %d, want 1", len(report.Failures))
+	if ok := BuildHealthReport(ScanResult{Skills: []Spec{{Name: "plain"}}}, EligibilityContext{}); ok.Status != HealthPassed {
+		t.Fatalf("healthy report = %+v", ok)
 	}
 }

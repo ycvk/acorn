@@ -104,7 +104,7 @@ func TestSharedLinkBecomesACommittedNote(t *testing.T) {
 	defer page.Close()
 	link := page.URL + "/blog/work-stealing"
 	provider := &fakeOpenAI{replies: []string{
-		toolCallChunk("call_skill", "skill", map[string]string{"skill": "skill.capture.to.note"}),
+		toolCallChunk("call_skill", "skill", map[string]string{"skill": "capture-to-note"}),
 		toolCallChunk("call_search_tools", "tool_search", map[string]string{"query": "select:web_fetch"}),
 		toolCallChunk("call_fetch", "web_fetch", map[string]string{"url": link}),
 		toolCallChunk("call_search", "knowledge_search", map[string]string{"query": "Tokio work stealing"}),

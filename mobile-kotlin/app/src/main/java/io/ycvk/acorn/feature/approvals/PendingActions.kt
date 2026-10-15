@@ -151,7 +151,7 @@ fun PendingActionSheet(
                 Spacer(Modifier.height(10.dp))
                 Text(it, style = AcornTheme.type.reading, color = colors.ink)
             }
-            // The whole text the call acts on, such as the skill a skill_write stores.
+            // The whole text the call acts on, such as the skill a skill_write or skill_import stores.
             detail.toolDetail?.takeIf { it.isNotBlank() }?.let { text ->
                 Spacer(Modifier.height(16.dp))
                 Text("完整内容", style = AcornTheme.type.caption, color = colors.inkFaint)

@@ -76,7 +76,7 @@ func TestWatchesWakeAndFeedTheMorningBriefing(t *testing.T) {
 		toolCallChunk("call_price", "watch_create", map[string]string{"name": "phone price", "kind": "web", "target": web.URL + "/phone", "selector": ".price", "mode": "immediate"}),
 		textReply("盯上了"),
 		textReply("手机降价了"),
-		toolCallChunk("call_skill", "skill", map[string]string{"skill": "skill.morning.briefing"}),
+		toolCallChunk("call_skill", "skill", map[string]string{"skill": "morning-briefing"}),
 		toolCallChunk("call_note", "knowledge_write", map[string]any{"path": "briefings/2026-10-05.md", "title": "早安 2026-10-05", "tags": []string{"briefing"}, "body": "Go 博客有新文章 go1.27。"}),
 		toolCallChunk("call_push", "notify_owner", map[string]string{"title": "早安", "body": "Go 博客有新文章"}),
 		textReply("简报在 briefings/2026-10-05.md"),

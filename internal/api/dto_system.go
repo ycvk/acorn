@@ -116,31 +116,27 @@ type ToolListResponse struct {
 	Total int                   `json:"total"`
 }
 
-type SkillRequirementsDTO struct {
-	Tools    []string `json:"tools,omitempty"`
-	Toolsets []string `json:"toolsets,omitempty"`
-	Bins     []string `json:"bins,omitempty"`
-	Env      []string `json:"env,omitempty"`
+type SkillSummaryDTO struct {
+	Name            string   `json:"name"`
+	Description     string   `json:"description"`
+	Eligible        bool     `json:"eligible"`
+	RequiresTools   []string `json:"requires_tools,omitempty"`
+	FileCount       int      `json:"file_count,omitempty"`
+	DisabledReasons []string `json:"disabled_reasons,omitempty"`
 }
 
-type SkillSummaryDTO struct {
-	ID              string               `json:"id"`
-	Name            string               `json:"name"`
-	Version         string               `json:"version"`
-	Category        string               `json:"category,omitempty"`
-	Summary         string               `json:"summary,omitempty"`
-	Eligible        bool                 `json:"eligible"`
-	Requirements    SkillRequirementsDTO `json:"requirements,omitempty"`
-	DisabledReasons []string             `json:"disabled_reasons,omitempty"`
+type SkillFileDTO struct {
+	Path string `json:"path"`
+	Size int64  `json:"size"`
 }
 
 type SkillDetailDTO struct {
 	SkillSummaryDTO
-	Revision     int64    `json:"revision"`
-	Instruction  string   `json:"instruction"`
-	Tags         []string `json:"tags,omitempty"`
-	Platforms    []string `json:"platforms,omitempty"`
-	TriggerHints []string `json:"trigger_hints,omitempty"`
+	Revision      int64          `json:"revision"`
+	Instruction   string         `json:"instruction"`
+	License       string         `json:"license,omitempty"`
+	Compatibility string         `json:"compatibility,omitempty"`
+	Files         []SkillFileDTO `json:"files,omitempty"`
 }
 
 type SkillListResponse struct {
@@ -154,25 +150,27 @@ type SkillEnvelope struct {
 
 func skillSummaryDTOFromView(item skills.View) SkillSummaryDTO {
 	return SkillSummaryDTO{
-		ID:              item.ID,
 		Name:            item.Name,
-		Version:         item.Version,
-		Category:        item.Category,
-		Summary:         item.Summary,
+		Description:     item.Description,
 		Eligible:        item.Eligible,
-		Requirements:    DefaultConverter.skillRequirementsDTOFromDomain(item.Requires),
+		RequiresTools:   append([]string(nil), item.RequiresTools...),
+		FileCount:       len(item.Files),
 		DisabledReasons: append([]string(nil), item.DisabledReasons...),
 	}
 }
 
 func skillDetailDTOFromView(item skills.View) SkillDetailDTO {
+	files := make([]SkillFileDTO, 0, len(item.Files))
+	for _, f := range item.Files {
+		files = append(files, SkillFileDTO{Path: f.Path, Size: f.Size})
+	}
 	return SkillDetailDTO{
 		SkillSummaryDTO: skillSummaryDTOFromView(item),
 		Revision:        item.Revision,
 		Instruction:     item.Instruction,
-		Tags:            append([]string(nil), item.Tags...),
-		Platforms:       append([]string(nil), item.Platforms...),
-		TriggerHints:    append([]string(nil), item.TriggerHints...),
+		License:         item.License,
+		Compatibility:   item.Compatibility,
+		Files:           files,
 	}
 }
 

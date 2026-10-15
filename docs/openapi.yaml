@@ -762,13 +762,13 @@ paths:
           $ref: '#/components/responses/InvalidRequest'
         '500':
           $ref: '#/components/responses/InternalError'
-  /v1/skills/{id}:
+  /v1/skills/{name}:
     get:
       tags: [skills]
       summary: Load one skill in detail
       operationId: clientGetSkill
       parameters:
-        - $ref: '#/components/parameters/SkillId'
+        - $ref: '#/components/parameters/SkillName'
       responses:
         '200':
           description: Skill detail
@@ -1112,8 +1112,8 @@ components:
       required: true
       schema:
         type: string
-    SkillId:
-      name: id
+    SkillName:
+      name: name
       in: path
       required: true
       schema:
@@ -1432,7 +1432,7 @@ components:
               value:
                 error:
                   code: skill_not_found
-                  message: skill inspect-repo not found
+                  message: 'skill not found: inspect-repo'
     ExecutionNotReady:
       description: Execution paths are unavailable because required model/runtime config is missing
       content:
@@ -1544,50 +1544,39 @@ components:
         access_token:
           type: string
 
-    SkillRequirements:
-      type: object
-      additionalProperties: false
-      properties:
-        tools:
-          type: array
-          items:
-            type: string
-        toolsets:
-          type: array
-          items:
-            type: string
-        bins:
-          type: array
-          items:
-            type: string
-        env:
-          type: array
-          items:
-            type: string
-
     SkillSummary:
       type: object
       additionalProperties: false
-      required: [id, name, version, eligible]
+      required: [name, description, eligible]
       properties:
-        id:
-          type: string
         name:
           type: string
-        version:
-          type: string
-        category:
-          type: string
-        summary:
+        description:
           type: string
         eligible:
           type: boolean
-        requirements:
-          $ref: '#/components/schemas/SkillRequirements'
+        requires_tools:
+          type: array
+          items:
+            type: string
+        file_count:
+          type: integer
+          description: Number of files the skill carries besides its SKILL.md.
         disabled_reasons:
           type: array
           items:
             type: string
+
+    SkillFile:
+      type: object
+      additionalProperties: false
+      required: [path, size]
+      properties:
+        path:
+          type: string
+        size:
+          type: integer
+          format: int64
 
     SkillDetail:
       allOf:
@@ -1601,18 +1590,14 @@ components:
               format: int64
             instruction:
               type: string
-            tags:
+            license:
+              type: string
+            compatibility:
+              type: string
+            files:
               type: array
               items:
-                type: string
-            platforms:
-              type: array
-              items:
-                type: string
-            trigger_hints:
-              type: array
-              items:
-                type: string
+                $ref: '#/components/schemas/SkillFile'
 
     SkillListResponse:
       type: object
@@ -1893,7 +1878,7 @@ components:
               type: string
             tool_detail:
               type: string
-              description: Set on tool approvals whose summary cannot hold what the call acts on; the skill document a skill_write would store.
+              description: Set on tool approvals whose summary cannot hold what the call acts on; the SKILL.md and files a skill_write or skill_import would store.
 
     Error:
       type: object

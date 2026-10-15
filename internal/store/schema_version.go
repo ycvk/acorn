@@ -2,17 +2,23 @@ package store
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
+	"errors"
 	"fmt"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/ycvk/acorn/internal/core"
+	"gopkg.in/yaml.v3"
 )
 
 // schemaVersion is the database layout this build creates and expects. A
 // layout change bumps it, appends the migration from the previous version to
 // migrations, and records the new layout under testdata/schema.
-const schemaVersion = 5
+const schemaVersion = 6
 
 // migrations[i] upgrades a database from version i+1 to version i+2.
 var migrations = []func(context.Context, *sql.Tx) error{
@@ -20,6 +26,7 @@ var migrations = []func(context.Context, *sql.Tx) error{
 	addNotificationBrowserURL,
 	addSkills,
 	forgetDeletedThreads,
+	adoptAgentSkills,
 }
 
 // addNotificationActionID (1 to 2) records which pending action a push
@@ -112,6 +119,106 @@ func forgetDeletedThreads(ctx context.Context, tx *sql.Tx) error {
 	}
 	return nil
 }
+
+// adoptAgentSkills (5 to 6) adds skill files and staged packages, and moves
+// each skill to the Agent Skills format as a new revision: its id becomes a
+// name such as csv-group-count, its summary and trigger hints a description,
+// and its required tools metadata. Built-in skills then get their new
+// content from the next start's seed.
+func adoptAgentSkills(ctx context.Context, tx *sql.Tx) error {
+	if _, err := tx.ExecContext(ctx, skillPackageTables); err != nil {
+		return err
+	}
+	rows, err := tx.QueryContext(ctx, `SELECT id, markdown, revision, retired FROM skills ORDER BY id`)
+	if err != nil {
+		return err
+	}
+	type stored struct {
+		id, markdown string
+		revision     int64
+		retired      bool
+	}
+	var skills []stored
+	if err := scanRows(rows, func(scan func(...any) error) error {
+		var s stored
+		if err := scan(&s.id, &s.markdown, &s.revision, &s.retired); err != nil {
+			return err
+		}
+		skills = append(skills, s)
+		return nil
+	}); err != nil {
+		return err
+	}
+	now := formatTimestamp(time.Now().UTC())
+	taken := map[string]string{}
+	for _, s := range skills {
+		name, markdown, err := agentSkillOf(s.id, s.markdown)
+		if err != nil {
+			return fmt.Errorf("skill %s: %w", s.id, err)
+		}
+		if other, ok := taken[name]; ok {
+			return fmt.Errorf("skills %s and %s both become %s", other, s.id, name)
+		}
+		taken[name] = s.id
+		sum := sha256.Sum256([]byte(markdown))
+		for _, statement := range []struct {
+			query string
+			args  []any
+		}{
+			{`UPDATE skill_revisions SET id = ? WHERE id = ?`, []any{name, s.id}},
+			{`UPDATE skills SET id = ?, markdown = ?, revision = ?, updated_at = ? WHERE id = ?`, []any{name, markdown, s.revision + 1, now, s.id}},
+			{`INSERT INTO skill_revisions (id, revision, markdown, markdown_sha256, retired, author, run_id, at) VALUES (?, ?, ?, ?, ?, 'release', '', ?)`, []any{name, s.revision + 1, markdown, hex.EncodeToString(sum[:]), s.retired, now}},
+		} {
+			if _, err := tx.ExecContext(ctx, statement.query, statement.args...); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// agentSkillOf rewrites a skill of schema version 5 in the Agent Skills
+// format and returns its name.
+func agentSkillOf(id, markdown string) (string, string, error) {
+	front, body, ok := strings.Cut(strings.TrimPrefix(markdown, "---\n"), "\n---\n")
+	if !strings.HasPrefix(markdown, "---\n") || !ok {
+		return "", "", errors.New("no frontmatter")
+	}
+	var old struct {
+		Summary      string   `yaml:"summary"`
+		TriggerHints []string `yaml:"trigger_hints"`
+		Requires     struct {
+			Tools []string `yaml:"tools"`
+		} `yaml:"requires"`
+	}
+	if err := yaml.Unmarshal([]byte(front), &old); err != nil {
+		return "", "", fmt.Errorf("frontmatter: %w", err)
+	}
+	name := strings.Trim(skillNameRun.ReplaceAllString(strings.ToLower(strings.TrimPrefix(id, "skill.")), "-"), "-")
+	description := strings.TrimSpace(old.Summary)
+	if len(old.TriggerHints) > 0 {
+		description += " Use for: " + strings.Join(old.TriggerHints, "; ") + "."
+	}
+	if runes := []rune(description); len(runes) > 1024 {
+		description = string(runes[:1024])
+	}
+	meta := struct {
+		Name        string            `yaml:"name"`
+		Description string            `yaml:"description"`
+		Metadata    map[string]string `yaml:"metadata,omitempty"`
+	}{Name: name, Description: description}
+	if len(old.Requires.Tools) > 0 {
+		meta.Metadata = map[string]string{"acorn-requires-tools": strings.Join(old.Requires.Tools, " ")}
+	}
+	front2, err := yaml.Marshal(meta)
+	if err != nil {
+		return "", "", err
+	}
+	return name, "---\n" + string(front2) + "---\n" + strings.TrimLeft(body, "\n"), nil
+}
+
+// skillNameRun matches what a skill name cannot hold.
+var skillNameRun = regexp.MustCompile(`[^a-z0-9]+`)
 
 // openSchema creates the layout of an empty database, upgrades an older one
 // and refuses one this build cannot read.
