@@ -1,8 +1,8 @@
 package presence
 
 import (
-	"os"
-	"path/filepath"
+	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -71,23 +71,66 @@ func TestRenderPreservesDueOccurrenceAndEnforcesBudget(t *testing.T) {
 	}
 }
 
-func TestLoadPersona(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "persona.md")
-	if _, err := LoadPersona(path); err == nil || !strings.Contains(err.Error(), path) {
-		t.Fatalf("missing persona error = %v", err)
+type memoryPersonaStore struct{ revisions []core.PersonaRevision }
+
+func (m *memoryPersonaStore) WritePersona(_ context.Context, w core.PersonaWrite) (core.PersonaRevision, error) {
+	if int64(len(m.revisions)) != w.BaseRevision {
+		return core.PersonaRevision{}, core.ErrPersonaConflict
 	}
-	if err := os.WriteFile(path, []byte("  \n"), 0o600); err != nil {
+	r := core.PersonaRevision{Revision: w.BaseRevision + 1, Content: w.Content, Author: w.Author, DeviceID: w.DeviceID, At: w.At}
+	m.revisions = append(m.revisions, r)
+	return r, nil
+}
+
+func (m *memoryPersonaStore) Persona(context.Context) (core.PersonaRevision, error) {
+	if len(m.revisions) == 0 {
+		return core.PersonaRevision{}, core.ErrPersonaNotFound
+	}
+	return m.revisions[len(m.revisions)-1], nil
+}
+
+func (m *memoryPersonaStore) PersonaRevisions(context.Context) ([]core.PersonaRevision, error) {
+	return m.revisions, nil
+}
+
+func (m *memoryPersonaStore) PersonaRevision(_ context.Context, revision int64) (core.PersonaRevision, error) {
+	if revision < 1 || revision > int64(len(m.revisions)) {
+		return core.PersonaRevision{}, core.ErrPersonaNotFound
+	}
+	return m.revisions[revision-1], nil
+}
+
+func TestSeedPersonaWritesTheDefaultOnceAndKeepsTheOwners(t *testing.T) {
+	store := &memoryPersonaStore{}
+	if err := SeedPersona(t.Context(), store, t0); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := LoadPersona(path); err == nil || !strings.Contains(err.Error(), "empty") {
-		t.Fatalf("empty persona error = %v", err)
+	if len(store.revisions) != 1 || store.revisions[0].Author != core.PersonaAuthorRelease || store.revisions[0].Content != strings.TrimSpace(DefaultPersona) {
+		t.Fatalf("seeded = %+v", store.revisions)
 	}
-	if err := os.WriteFile(path, []byte(DefaultPersona), 0o600); err != nil {
+	if _, err := SavePersona(t.Context(), store, core.PersonaWrite{Content: "你是 Acorn。", Author: core.PersonaAuthorOwner, At: t0, BaseRevision: 1}); err != nil {
 		t.Fatal(err)
 	}
-	got, err := LoadPersona(path)
-	if err != nil || !strings.HasPrefix(got, "You are Acorn") {
-		t.Fatalf("persona = %q err=%v", got, err)
+	if err := SeedPersona(t.Context(), store, t0); err != nil {
+		t.Fatal(err)
+	}
+	if len(store.revisions) != 2 || store.revisions[1].Content != "你是 Acorn。" {
+		t.Fatalf("seed over the owner's persona: %+v", store.revisions)
+	}
+}
+
+func TestSavePersonaTrimsAndBoundsTheContent(t *testing.T) {
+	store := &memoryPersonaStore{}
+	saved, err := SavePersona(t.Context(), store, core.PersonaWrite{Content: "\n  Be brief.  \n", Author: core.PersonaAuthorOwner, At: t0})
+	if err != nil || saved.Content != "Be brief." {
+		t.Fatalf("saved = %+v, %v", saved, err)
+	}
+	for _, content := range []string{" \n\t", strings.Repeat("x", MaxPersonaBytes+1)} {
+		if _, err := SavePersona(t.Context(), store, core.PersonaWrite{Content: content, Author: core.PersonaAuthorOwner, At: t0, BaseRevision: 1}); !errors.Is(err, core.ErrPersonaInvalid) {
+			t.Fatalf("persona of %d bytes: err = %v", len(content), err)
+		}
+	}
+	if len(store.revisions) != 1 {
+		t.Fatalf("rejected personas were written: %+v", store.revisions)
 	}
 }

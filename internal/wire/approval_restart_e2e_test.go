@@ -19,7 +19,6 @@ import (
 	"github.com/ycvk/acorn/internal/api"
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
-	"github.com/ycvk/acorn/internal/presence"
 )
 
 // fakeOpenAI replays scripted chat-completion streams in request order and
@@ -126,7 +125,7 @@ func writeApprovalTestConfig(t *testing.T, providerURL string) *config.Config {
 }
 
 // writeTestConfig writes a config for the fake provider plus extra top-level
-// YAML, and the default persona.
+// YAML.
 func writeTestConfig(t *testing.T, providerURL, extra string) *config.Config {
 	t.Helper()
 	dir := t.TempDir()
@@ -157,9 +156,6 @@ memory:
 	}
 	if err := os.MkdirAll(cfg.Runtime.StorageDir, 0o700); err != nil {
 		t.Fatalf("create storage dir: %v", err)
-	}
-	if err := os.WriteFile(cfg.PersonaPath(), []byte(presence.DefaultPersona), 0o600); err != nil {
-		t.Fatalf("write persona: %v", err)
 	}
 	return cfg
 }

@@ -1,15 +1,20 @@
 package presence
 
 import (
+	"context"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
+	"time"
+
+	"github.com/ycvk/acorn/internal/core"
 )
 
-// DefaultPersona is written to {storage_dir}/persona.md by `acorn init` and the
-// installer. The owner edits it freely; operating rules for tools live in the
-// runtime, not here.
+// MaxPersonaBytes bounds the persona, which enters every run's instruction.
+const MaxPersonaBytes = 8 << 10
+
+// DefaultPersona is the release's first persona revision. The owner edits it
+// freely; operating rules for tools live in the runtime, not here.
 const DefaultPersona = `You are Acorn, the owner's personal agent. You run on the owner's own server and
 work only for them.
 
@@ -21,19 +26,31 @@ work only for them.
   waiting to be asked.
 `
 
-// LoadPersona reads the persona file. A missing or empty file is an error that
-// names the path, so a misconfigured install fails loudly.
-func LoadPersona(path string) (string, error) {
-	data, err := os.ReadFile(path)
-	if errors.Is(err, os.ErrNotExist) {
-		return "", fmt.Errorf("persona file %s does not exist; run 'acorn init' or create it", path)
+// SavePersona saves the trimmed content as a new revision on top of
+// write.BaseRevision.
+func SavePersona(ctx context.Context, store core.PersonaStore, write core.PersonaWrite) (core.PersonaRevision, error) {
+	content := strings.TrimSpace(write.Content)
+	if content == "" {
+		return core.PersonaRevision{}, fmt.Errorf("%w: the persona is empty", core.ErrPersonaInvalid)
 	}
-	if err != nil {
-		return "", fmt.Errorf("read persona file %s: %w", path, err)
+	if len(content) > MaxPersonaBytes {
+		return core.PersonaRevision{}, fmt.Errorf("%w: the persona is %d bytes, over the %d byte limit", core.ErrPersonaInvalid, len(content), MaxPersonaBytes)
 	}
-	persona := strings.TrimSpace(string(data))
-	if persona == "" {
-		return "", fmt.Errorf("persona file %s is empty", path)
+	write.Content = content
+	return store.WritePersona(ctx, write)
+}
+
+// SeedPersona saves the default persona as the release's first revision when
+// no persona exists yet. An existing persona is the owner's and stays.
+func SeedPersona(ctx context.Context, store core.PersonaStore, at time.Time) error {
+	_, err := store.Persona(ctx)
+	if !errors.Is(err, core.ErrPersonaNotFound) {
+		return err
 	}
-	return persona, nil
+	_, err = SavePersona(ctx, store, core.PersonaWrite{Content: DefaultPersona, Author: core.PersonaAuthorRelease, At: at})
+	if errors.Is(err, core.ErrPersonaConflict) {
+		// Another Acorn process starting at the same time seeded it first.
+		return nil
+	}
+	return err
 }

@@ -16,7 +16,6 @@ import (
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
 	mcpprovider "github.com/ycvk/acorn/internal/mcp"
-	"github.com/ycvk/acorn/internal/presence"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/tools"
 )
@@ -115,6 +114,9 @@ func buildRuntimeDeps(cfg *config.Config, store RuntimeStore, opts RunnerFactory
 	if opts.ToolRegistry == nil {
 		return RuntimeDeps{}, errors.New("tool registry is required")
 	}
+	if opts.Persona == nil {
+		return RuntimeDeps{}, errors.New("persona reader is required")
+	}
 	if opts.Skills == nil {
 		return RuntimeDeps{}, errors.New("skill library is required")
 	}
@@ -131,6 +133,7 @@ func buildRuntimeDeps(cfg *config.Config, store RuntimeStore, opts RunnerFactory
 	return RuntimeDeps{
 		Config:             cfg,
 		Store:              store,
+		Persona:            opts.Persona,
 		Skills:             opts.Skills,
 		SkillPackages:      opts.SkillPackages,
 		MCPPendingActions:  opts.MCPPendingActionStore,
@@ -181,10 +184,11 @@ func (f *RunnerFactory) newAgentRunner(ctx context.Context, req RunnerBuildReque
 		return nil, errors.New("run capabilities are required")
 	}
 	capabilities := capabilityAssembly.capabilities
-	persona, err := presence.LoadPersona(f.deps.Config.PersonaPath())
+	current, err := f.deps.Persona.Persona(ctx)
 	if err != nil {
 		return nil, err
 	}
+	persona := current.Content
 	infos := make([]*schema.ToolInfo, 0)
 	for _, spec := range capabilities.catalog.EnabledSpecs() {
 		if spec.Tool != nil {
@@ -233,6 +237,7 @@ func (f *RunnerFactory) newAgentRunner(ctx context.Context, req RunnerBuildReque
 }
 
 type RunnerFactoryOptions struct {
+	Persona               PersonaReader
 	Skills                SkillLibrary
 	SkillPackages         skills.PackageHost
 	MCPPendingActionStore core.SessionStore

@@ -17,6 +17,7 @@ type Dependencies struct {
 	Inbox              *InboxService
 	Knowledge          *KnowledgeService
 	Memories           *MemoryService
+	Persona            *PersonaService
 	Captures           *CaptureService
 	PhoneNotifications *PhoneNotificationService
 	Now                *NowService
@@ -37,6 +38,7 @@ type Server struct {
 	inbox              *InboxService
 	knowledge          *KnowledgeService
 	memories           *MemoryService
+	persona            *PersonaService
 	captures           *CaptureService
 	phoneNotifications *PhoneNotificationService
 	now                *NowService

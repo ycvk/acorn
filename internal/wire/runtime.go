@@ -12,6 +12,7 @@ import (
 	"github.com/ycvk/acorn/internal/knowledge"
 	"github.com/ycvk/acorn/internal/memory"
 	"github.com/ycvk/acorn/internal/notify"
+	"github.com/ycvk/acorn/internal/presence"
 	"github.com/ycvk/acorn/internal/runtime"
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/store"
@@ -76,6 +77,9 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 	}
 	if err := skillLibrary.Seed(ctx); err != nil {
 		return nil, fmt.Errorf("built-in skills: %w", err)
+	}
+	if err := presence.SeedPersona(ctx, db, options.clock()); err != nil {
+		return nil, fmt.Errorf("default persona: %w", err)
 	}
 
 	runController := runtime.NewRunController()
@@ -168,6 +172,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 	}
 	runnerFactory, err := runtime.NewRunnerFactory(cfg, db, runtime.RunnerFactoryOptions{
 		Attachments:           vault,
+		Persona:               db,
 		Skills:                skillLibrary,
 		SkillPackages:         skillPackages,
 		MCPPendingActionStore: mcpPendingActionStore,

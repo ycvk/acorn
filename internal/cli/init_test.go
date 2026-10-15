@@ -52,9 +52,6 @@ func TestInitStorageDirPlacesInstallerLayout(t *testing.T) {
 	if cfg.Workstation.URL != "http://127.0.0.1:7810" || cfg.Workstation.Token != strings.Repeat("w", 32) {
 		t.Fatalf("workstation = %+v", cfg.Workstation)
 	}
-	if _, err := os.Stat(cfg.PersonaPath()); err != nil {
-		t.Fatalf("persona not written into storage: %v", err)
-	}
 	if err := runInit(t.Context(), []string{"--print", "--storage-dir", "relative"}); err == nil {
 		t.Fatal("relative storage dir accepted")
 	}
@@ -99,40 +96,5 @@ func TestInitPrintDoesNotWriteFile(t *testing.T) {
 	}
 	if _, err := os.Stat(path); !os.IsNotExist(err) {
 		t.Fatalf("--print must not write the config file, stat err = %v", err)
-	}
-}
-
-func TestInitWritesPersonaAndKeepsTheOwnersCopy(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	path := filepath.Join(home, "acorn.yaml")
-	if err := runInit(t.Context(), []string{"-c", path}); err != nil {
-		t.Fatalf("init: %v", err)
-	}
-	personaPath := filepath.Join(home, ".acorn", "persona.md")
-	body, err := os.ReadFile(personaPath)
-	if err != nil || !strings.HasPrefix(string(body), "You are Acorn") {
-		t.Fatalf("persona = %q err=%v", body, err)
-	}
-	if err := os.WriteFile(personaPath, []byte("my own persona"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := runInit(t.Context(), []string{"-c", path, "--force"}); err != nil {
-		t.Fatalf("init --force: %v", err)
-	}
-	if err := runInit(t.Context(), []string{"-c", path, "--persona-only"}); err != nil {
-		t.Fatalf("init --persona-only: %v", err)
-	}
-	if body, _ := os.ReadFile(personaPath); string(body) != "my own persona" {
-		t.Fatalf("owner persona overwritten: %q", body)
-	}
-	if err := os.Remove(personaPath); err != nil {
-		t.Fatal(err)
-	}
-	if err := runInit(t.Context(), []string{"-c", path, "--persona-only"}); err != nil {
-		t.Fatalf("init --persona-only: %v", err)
-	}
-	if _, err := os.Stat(personaPath); err != nil {
-		t.Fatalf("persona not rewritten: %v", err)
 	}
 }

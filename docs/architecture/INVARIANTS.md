@@ -60,10 +60,15 @@
 
 - **上下文管理由 Eino middleware 承担**：summarization 在 token 超过 `window_tokens - 输出预留 - presence.max_tokens - compact_margin_tokens` 时总结历史；reduction 只做 clear（保留最近 `mask_after_turns` 轮工具调用原样）。public YAML 只暴露 `context.window_tokens`、`context.compact_margin_tokens`、`context.mask_after_turns`。
   - `internal/runtime/agent_test.go`
-- **Instruction = 人格 + 内置规则 + 技能说明**：人格来自 `{storage_dir}/persona.md`，缺失或为空时 run 失败并给出路径；内置 operating rules 说明工作记忆、约定、知识库、审批和工具发现的用法；Eino skill middleware 追加技能说明并提供 `skill` 工具，工具描述列出本 run 可用（eligible）的技能，按名加载正文。这些都在 Instruction 或工具描述里，不参与总结。context 快照记录的是 skill middleware 追加之后的 Instruction。
+- **人格只由 owner 修改**：人格存在 SQLite 的 `persona_revisions`，最新 revision 是当前人格；每次保存是基于读到的 revision 的新 revision，并发修改显式失败；内容去掉首尾空白后不能为空，至多 8 KiB。启动时没有人格才以 release 身份写入默认人格，已有人格不被覆盖。owner 经 `/v1/persona` 与 `acorn persona` 保存，agent 没有写人格的工具。每个 run 开始时读当前人格。
+  - `internal/store/store_persona_test.go`
+  - `internal/presence/presence_test.go`
+  - `internal/api/handlers_persona_test.go`
+  - `internal/wire/persona_e2e_test.go`
+- **Instruction = 人格 + 内置规则 + 技能说明**：人格是 run 开始时的当前人格；内置 operating rules 说明工作记忆、约定、知识库、审批和工具发现的用法；Eino skill middleware 追加技能说明并提供 `skill` 工具，工具描述列出本 run 可用（eligible）的技能，按名加载正文。这些都在 Instruction 或工具描述里，不参与总结。context 快照记录的是 skill middleware 追加之后的 Instruction。
   - `internal/runtime/agent_test.go`
   - `internal/runtime/skill_backend_test.go`
-  - `internal/presence/presence_test.go`
+  - `internal/wire/persona_e2e_test.go`
 - **临时上下文有独立预算和来源**：每次模型调用追加 `<memory_context>` 与 `<presence>`；保存上下文快照及 source/record 引用。近期原文与线程摘要按 token 选择,最终模型输入检查容量。念头、关切和约定按各自生命周期显示。
   - `internal/runtime/memory_visibility_test.go`
   - `internal/runtime/presence_test.go`

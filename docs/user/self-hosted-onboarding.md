@@ -27,7 +27,7 @@ The installer:
 - verifies the outer release checksum and package `CHECKSUMS`;
 - installs `/opt/acorn/acorn` (pure Go binary, no shared libraries);
 - installs `/usr/local/bin/acorn` as a global wrapper command;
-- writes config under the installing user's `~/.acorn` and the default persona (`persona.md`) into `/srv/acorn/workspace`;
+- writes config under the installing user's `~/.acorn`;
 - enables `acorn-backup.timer`, a nightly backup into `/srv/acorn/backups`;
 - installs `/etc/systemd/system/acorn.service`.
 
@@ -166,7 +166,7 @@ The installed service uses:
 - the installing user's home as the service `HOME`.
 - `~/.acorn/acorn.yaml` for config.
 - `~/.acorn/acorn.env` for provider secrets.
-- `/srv/acorn/workspace` for runtime storage (`runtime.storage_dir`): the SQLite database with memories, knowledge notes and skills, `persona.md`, and images shared from the phone under `attachments/`.
+- `/srv/acorn/workspace` for runtime storage (`runtime.storage_dir`): the SQLite database with memories, knowledge notes, skills and the persona, and images shared from the phone under `attachments/`.
 - `127.0.0.1:8080` for the HTTP listener.
 
 The wrapper runs service-backed operator commands such as `acorn pair`, `acorn doctor`, `acorn skills`, and `acorn smoke` against the same installer-owned `~/.acorn/acorn.yaml` when you do not pass an explicit `-c` config path. If you install as root, that means `/root/.acorn/acorn.yaml`.
@@ -310,7 +310,17 @@ sudo systemctl restart acorn
 
 ## 9. Persona, Timezone and Commitments
 
-`{storage_dir}/persona.md` (`/srv/acorn/workspace/persona.md` on an installer setup) is the agent's persona: who it is and how it talks to you. Edit it freely; every run reads it. A run fails with the file path when the file is missing or empty. `acorn init` writes the default persona and keeps an existing one.
+The persona is who the agent is and how it talks to you. It lives in the database: the first start saves a default persona as revision 1, and every run reads the current revision when it starts. Show it, or replace it with the contents of a file:
+
+```bash
+acorn persona show
+```
+
+```bash
+acorn persona set my-persona.md
+```
+
+Every save is a new revision on top of the one it replaces and fails when the persona changed in the meantime. A persona is trimmed, must not be empty and holds at most 8 KiB, because it goes into every model call. The agent cannot change it; preferences you tell it in conversation become memories.
 
 Set your name and timezone. The name tells the agent it is you when shared material, notifications or memories name you; the timezone makes it read and schedule times the way you say them:
 
@@ -365,7 +375,7 @@ After pairing, allow notifications when the app asks. Settings (the gear on the 
 
 Config is parsed strictly: unknown keys stop the backend. When upgrading from a release before the personal-agent rework, remove these keys from `~/.acorn/acorn.yaml`:
 
-- `agent.system_prompt` (put lasting instructions in `persona.md`)
+- `agent.system_prompt` (put lasting instructions in the persona)
 - the whole `memory` block
 - the whole `triggers` block (webhooks and crons; ask the agent for a recurring commitment instead)
 - `tools.mutation` and `tools.run_command`
@@ -374,9 +384,17 @@ Config is parsed strictly: unknown keys stop the backend. When upgrading from a 
 - the whole `browser` block (the workstation runs the browser)
 - the whole `skills` block (skills live in the database)
 
-New keys, all optional: `approval.require`, `owner.name`, `owner.timezone`, `presence.max_tokens`, `wake.daily_limit`, `notify.max_per_hour`, `notify.quiet_hours`, `notify.fcm.service_account_file`, `watch.rsshub_base_url`, `watch.github_token`, `watch.max_checks_per_tick`, `briefing.at`, `workstation.*`, `approval.block`, `approval.allow`, `review.*`. Then run `acorn init --persona-only` to write the default persona, and `acorn doctor` to check the result.
+New keys, all optional: `approval.require`, `owner.name`, `owner.timezone`, `presence.max_tokens`, `wake.daily_limit`, `notify.max_per_hour`, `notify.quiet_hours`, `notify.fcm.service_account_file`, `watch.rsshub_base_url`, `watch.github_token`, `watch.max_checks_per_tick`, `briefing.at`, `workstation.*`, `approval.block`, `approval.allow`, `review.*`. Then run `acorn doctor` to check the result.
 
 Earlier data under `~/.acorn` (`facts/`, `history/`, `worldstate/`, `vectors.db`, `skills/`) is no longer read. Delete it once you no longer need it.
+
+`{storage_dir}/persona.md` is no longer read either; the upgrade starts with the default persona. If you had edited the file, save it as the persona and then delete it:
+
+```bash
+acorn persona set /srv/acorn/workspace/persona.md
+```
+
+The same goes for `persona.md` in a snapshot made before this upgrade, after restoring it.
 
 ## 12. Knowledge Base and Sharing
 
@@ -415,7 +433,7 @@ A watch that keeps failing (five times in a row) is marked failing and listed in
 
 ## 14. Backup and Restore
 
-The installer sets `backup.dir` to `/srv/acorn/backups` and enables `acorn-backup.timer`, which runs `acorn backup` every night at about 04:30 while Acorn keeps running. Each run writes a snapshot under `<backup.dir>/snapshots/<UTC time>/`: a consistent copy of the SQLite database, checked for integrity and schema version, plus `persona.md`. Shared images and run artifacts never change once written, so they are mirrored once into `<backup.dir>/attachments/` and `<backup.dir>/artifacts/`. The newest `backup.keep` snapshots are kept (14 by default):
+The installer sets `backup.dir` to `/srv/acorn/backups` and enables `acorn-backup.timer`, which runs `acorn backup` every night at about 04:30 while Acorn keeps running. Each run writes a snapshot under `<backup.dir>/snapshots/<UTC time>/`: a consistent copy of the SQLite database, checked for integrity and schema version. Shared images and run artifacts never change once written, so they are mirrored once into `<backup.dir>/attachments/` and `<backup.dir>/artifacts/`. The newest `backup.keep` snapshots are kept (14 by default):
 
 ```yaml
 backup:

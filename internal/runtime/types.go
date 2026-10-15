@@ -40,6 +40,11 @@ type RuntimeStore interface {
 	core.ArtifactStore
 }
 
+// PersonaReader reads the owner's current persona.
+type PersonaReader interface {
+	Persona(ctx context.Context) (core.PersonaRevision, error)
+}
+
 // SkillLibrary reads the skills in use and puts their files where the agent
 // runs them.
 type SkillLibrary interface {
@@ -50,6 +55,7 @@ type SkillLibrary interface {
 type RuntimeDeps struct {
 	Config             *config.Config
 	Store              RuntimeStore
+	Persona            PersonaReader
 	Skills             SkillLibrary
 	SkillPackages      skills.PackageHost
 	MCPPendingActions  core.SessionStore

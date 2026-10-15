@@ -9,7 +9,6 @@ import (
 
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
-	"github.com/ycvk/acorn/internal/presence"
 )
 
 // TestMemoryLiveRuntime uses the real primary model against an isolated store,
@@ -47,9 +46,6 @@ func TestMemoryLiveRuntime(t *testing.T) {
 	cfg.Briefing.At = ""
 	cfg.Thinking.NightAt = "00:00"
 	cfg.Thinking.WanderAt = nil
-	if err := os.WriteFile(cfg.PersonaPath(), []byte(presence.DefaultPersona), 0o600); err != nil {
-		t.Fatal(err)
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
 	defer cancel()
 	c, err := NewContainer(ctx, cfg)

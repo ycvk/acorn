@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 )
@@ -58,11 +57,6 @@ type FCMServiceAccount struct {
 	ClientEmail string `json:"client_email"`
 	PrivateKey  string `json:"private_key"`
 	TokenURI    string `json:"token_uri"`
-}
-
-// PersonaPath is the owner-editable persona file.
-func (c *Config) PersonaPath() string {
-	return filepath.Join(c.Runtime.StorageDir, "persona.md")
 }
 
 // OwnerLocation returns the owner's timezone.
