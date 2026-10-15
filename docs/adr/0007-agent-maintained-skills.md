@@ -51,10 +51,6 @@ owner 在服务器上用 `acorn skills import <目录或 zip>` 安装技能包�
 
 内置技能包括 Acorn 自己的流程（早安卡、夜思、游思、分享整理、浏览器、网页调研、能力查询）、BrowserSkill 随附的 `browser-skill` 包，以及按 Acorn 的工具改写的 `skill-creator`，教 agent 写出简洁、可复用的技能。第三方技能保留各自的许可文件与出处。
 
-### 跟着 owner 学
-
-owner 在「Agent 的浏览器」里接手操作时，工作机记录这段操作：经过的页面地址和标题、点击和选择的元素名、导航与滚动。输入只记录输入到了哪个元素，文字本身不记录，密码和验证码因此不会进入记录。owner 结束接手后可以让 agent 把这段操作写成技能，agent 读取记录、补全适用条件与判断，经 `skill_write` 写入。
-
 ### 边界变化
 
 本决定取代 ADR 0003 中「技能经只读发布流程提供」与 ADR 0004 中「技能保留现有只读发布流程」两处。insight 仍承担行为经验中的判断与偏好，技能承担可执行的流程。
@@ -66,8 +62,6 @@ owner 在「Agent 的浏览器」里接手操作时，工作机记录这段操�
 | S1 | 技能进 SQLite、内置 seed、`skill_write` 与 `skill_retire`、默认审批、夜思整理技能；删除 `skills.dir` | 让 agent 完成一件多步骤的事后记下流程，手机收到含技能全文的审批，批准后在新对话里交代同类任务，agent 加载并照着做 |
 | S2 | Agent Skills 格式、技能包与工作机同步、`skill_import` 与 `acorn skills import`、`browser-skill` 与 `skill-creator` 内置；已有技能迁移到新格式 | 把一个带脚本的公开技能包交给 agent 导入，批准后在新对话里交代对应任务，agent 读取包里的参考文档并在工作机上运行脚本完成 |
 | S3 | App 技能页：内容、附带文件、历史、差异、回滚、编辑、新建与从 zip 安装 | owner 在 App 回滚 agent 的一次修改，下一次 run 用回滚后的内容 |
-| S4 | 记录 owner 接手浏览器的操作，agent 据此写技能 | owner 在 App 里亲手完成一次网站查询，让 agent 存成技能，之后 agent 独自完成同样的查询 |
-| S5 | PDF、Word 与表格处理的内置技能及工作机所需的工具 | 交给 agent 一份 PDF 表单和一份 Excel，它填好表单、汇总表格并把结果写进知识库 |
 
 ## 代价
 
