@@ -55,6 +55,7 @@ import io.ycvk.acorn.core.ui.TopBar
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
+    onOpenPersona: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val status by viewModel.systemStatus.collectAsStateWithLifecycle()
@@ -85,6 +86,10 @@ fun SettingsScreen(
                 } else {
                     SettingRow("状态", "未连接")
                 }
+            }
+
+            SettingsGroup("Acorn") {
+                SettingRow("人格", "它是谁、怎么说话", onClick = onOpenPersona)
             }
 
             SettingsGroup("推送通知") {

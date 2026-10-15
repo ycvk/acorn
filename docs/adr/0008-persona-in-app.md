@@ -1,7 +1,7 @@
 ---
 adr: 0008
 title: 人格存进 SQLite，owner 在 App 里编辑
-status: Proposed
+status: Accepted
 date: 2026-10-15
 supersedes: []
 ---

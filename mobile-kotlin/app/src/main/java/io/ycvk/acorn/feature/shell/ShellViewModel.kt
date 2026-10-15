@@ -42,6 +42,14 @@ sealed interface Page {
         override val key = "settings"
     }
 
+    data object Persona : Page {
+        override val key = "persona"
+    }
+
+    data class PersonaRevision(val revision: Long) : Page {
+        override val key = "persona:$revision"
+    }
+
     /** The agent's browser; [openUrl] is a page to open in it when the screen shows. */
     data class Browser(val openUrl: String? = null) : Page {
         override val key = "browser"

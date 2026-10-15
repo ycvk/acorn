@@ -310,7 +310,7 @@ sudo systemctl restart acorn
 
 ## 9. Persona, Timezone and Commitments
 
-The persona is who the agent is and how it talks to you. It lives in the database: the first start saves a default persona as revision 1, and every run reads the current revision when it starts. Show it, or replace it with the contents of a file:
+The persona is who the agent is and how it talks to you. It lives in the database: the first start saves a default persona as revision 1, and every run reads the current revision when it starts. In the app, Settings → 人格 shows the persona and its history: edit it there, compare any revision with the current one, or restore it. Restoring saves that revision's content as a new revision. On the server, show it or replace it with the contents of a file:
 
 ```bash
 acorn persona show

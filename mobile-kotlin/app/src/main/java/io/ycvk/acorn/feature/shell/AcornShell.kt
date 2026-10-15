@@ -73,6 +73,9 @@ import io.ycvk.acorn.feature.memory.MemoryViewModel
 import io.ycvk.acorn.feature.knowledge.NoteScreen
 import io.ycvk.acorn.feature.now.NowScreen
 import io.ycvk.acorn.feature.pairing.PairingScreen
+import io.ycvk.acorn.feature.persona.PersonaRevisionScreen
+import io.ycvk.acorn.feature.persona.PersonaScreen
+import io.ycvk.acorn.feature.persona.PersonaViewModel
 import io.ycvk.acorn.feature.settings.SettingsScreen
 import io.ycvk.acorn.feature.threads.ThreadsScreen
 
@@ -101,6 +104,7 @@ private fun ConnectedShell(shellViewModel: ShellViewModel) {
     val pendingCount by shellViewModel.pendingCount.collectAsStateWithLifecycle()
     val knowledgeViewModel: KnowledgeViewModel = hiltViewModel()
     val memoryViewModel: MemoryViewModel = hiltViewModel()
+    val personaViewModel: PersonaViewModel = hiltViewModel()
 
     val context = LocalContext.current
     val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
@@ -174,7 +178,13 @@ private fun ConnectedShell(shellViewModel: ShellViewModel) {
                     onOpenThread = { shellViewModel.open(Page.Chat(it)) },
                     onOpenNote = { shellViewModel.open(Page.Note(it)) },
                 )
-                Page.Settings -> SettingsScreen(onBack = shellViewModel::back)
+                Page.Settings -> SettingsScreen(onBack = shellViewModel::back, onOpenPersona = { shellViewModel.open(Page.Persona) })
+                Page.Persona -> PersonaScreen(
+                    viewModel = personaViewModel,
+                    onBack = shellViewModel::back,
+                    onOpenRevision = { shellViewModel.open(Page.PersonaRevision(it)) },
+                )
+                is Page.PersonaRevision -> PersonaRevisionScreen(revision = page.revision, viewModel = personaViewModel, onBack = shellViewModel::back)
                 is Page.Browser -> BrowserScreen(openUrl = page.openUrl, onBack = shellViewModel::back)
             }
         }
