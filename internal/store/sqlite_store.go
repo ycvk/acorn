@@ -24,6 +24,7 @@ var (
 	_ core.MemoryStore     = (*Store)(nil)
 	_ core.CommitmentStore = (*Store)(nil)
 	_ core.ActivityStore   = (*Store)(nil)
+	_ core.PersonaStore    = (*Store)(nil)
 )
 
 type Store struct {

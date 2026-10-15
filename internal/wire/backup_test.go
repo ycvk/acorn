@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ycvk/acorn/internal/config"
+	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/store"
 )
 
@@ -16,9 +17,6 @@ func backupTestConfig(t *testing.T) *config.Config {
 	t.Helper()
 	cfg := config.DefaultConfig()
 	cfg.Runtime.StorageDir = t.TempDir()
-	if err := os.WriteFile(cfg.PersonaPath(), []byte("你是 Acorn。\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
 	return cfg
 }
 
@@ -41,6 +39,9 @@ func TestBackupWhileRunningAndRestoreIntoEmptyStorage(t *testing.T) {
 	}
 	defer running.Close()
 	if _, err := running.CreateSession(ctx, "thread_1", "周末计划"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := running.WritePersona(ctx, core.PersonaWrite{Content: "你是 Acorn。", Author: core.PersonaAuthorOwner, At: time.Date(2026, 10, 10, 0, 0, 0, 0, time.UTC)}); err != nil {
 		t.Fatal(err)
 	}
 	attachment := filepath.Join("attachments", "2026", "10", "0123456789abcdef.png")
@@ -74,9 +75,6 @@ func TestBackupWhileRunningAndRestoreIntoEmptyStorage(t *testing.T) {
 	}
 
 	target := backupTestConfig(t)
-	if err := os.Remove(target.PersonaPath()); err != nil {
-		t.Fatal(err)
-	}
 	restored, err := Restore(ctx, target, second.Snapshot)
 	if err != nil {
 		t.Fatal(err)
@@ -94,8 +92,8 @@ func TestBackupWhileRunningAndRestoreIntoEmptyStorage(t *testing.T) {
 			t.Fatalf("restored %s: %v", id, err)
 		}
 	}
-	if persona, err := os.ReadFile(target.PersonaPath()); err != nil || string(persona) != "你是 Acorn。\n" {
-		t.Fatalf("restored persona %q: %v", persona, err)
+	if persona, err := db.Persona(ctx); err != nil || persona.Content != "你是 Acorn。" {
+		t.Fatalf("restored persona %+v: %v", persona, err)
 	}
 	if data, err := os.ReadFile(filepath.Join(target.Runtime.StorageDir, attachment)); err != nil || string(data) != "png bytes" {
 		t.Fatalf("restored attachment %q: %v", data, err)

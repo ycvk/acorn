@@ -34,6 +34,8 @@ func Run(ctx context.Context, args []string) error {
 		return runDoctor(ctx, args[1:])
 	case "skills":
 		return runSkills(ctx, args[1:])
+	case "persona":
+		return runPersona(ctx, args[1:])
 	case "pair":
 		return runPair(ctx, args[1:])
 	case "token":
@@ -71,6 +73,8 @@ Usage:
   acorn skills list [-c path] [--json]
   acorn skills inspect [-c path] [--json] SKILL_ID
   acorn skills check [-c path] [--json] [--fixtures path]
+  acorn persona show [-c path] [--json]
+  acorn persona set [-c path] FILE
   acorn pair [-c path] [--json] [--qr] [--ttl duration] [--server-url url]
   acorn token issue [-c path] [--json] [--name name] [--ttl duration]
   acorn devices list [-c path] [--json]

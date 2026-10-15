@@ -368,7 +368,6 @@ else
 		log "    url: $workstation_url"
 		log '    token: ${ACORN_WORKSTATION_TOKEN}'
 	fi
-	run_root runuser -u "$service_user" -- env HOME="$service_home" "$bin_path" init -c "$config_path" --persona-only
 fi
 
 if [ ! -e "$env_path" ]; then

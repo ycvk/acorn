@@ -21,6 +21,7 @@ tags:
   - name: captures
   - name: knowledge
   - name: memories
+  - name: persona
   - name: browser
 paths:
   /healthz:
@@ -1087,6 +1088,102 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /v1/persona:
+    get:
+      tags: [persona]
+      summary: Load the current persona
+      description: |
+        The persona is who the agent is and how it talks. Every run reads the
+        current revision when it starts.
+      operationId: clientGetPersona
+      responses:
+        '200':
+          description: The current persona revision
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Persona'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/DeviceRevoked'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    put:
+      tags: [persona]
+      summary: Save the persona
+      description: |
+        Saves `content`, trimmed, as a new revision by the owner from this
+        device. `base_revision` is the revision the owner edited; saving fails
+        when the persona has changed since. Restoring an old revision saves its
+        content the same way.
+      operationId: clientSavePersona
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SavePersonaRequest'
+      responses:
+        '200':
+          description: The saved revision
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Persona'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/DeviceRevoked'
+        '409':
+          $ref: '#/components/responses/PersonaChanged'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/persona/revisions:
+    get:
+      tags: [persona]
+      summary: List the persona revisions
+      operationId: clientListPersonaRevisions
+      responses:
+        '200':
+          description: Every revision without content, newest first
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PersonaRevisionListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/DeviceRevoked'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/persona/revisions/{revision}:
+    get:
+      tags: [persona]
+      summary: Load one persona revision
+      operationId: clientGetPersonaRevision
+      parameters:
+        - $ref: '#/components/parameters/PersonaRevision'
+      responses:
+        '200':
+          description: The revision with its content
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Persona'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/DeviceRevoked'
+        '404':
+          $ref: '#/components/responses/PersonaNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -1154,6 +1251,14 @@ components:
       required: true
       schema:
         type: string
+    PersonaRevision:
+      name: revision
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
     ProbeMCP:
       name: probe_mcp
       in: query
@@ -1260,6 +1365,30 @@ components:
                 error:
                   code: memory_changed
                   message: the memory changed since it was read; reload it and try again
+    PersonaChanged:
+      description: The persona changed since the client read it
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            personaChanged:
+              value:
+                error:
+                  code: persona_changed
+                  message: the persona changed since it was read; reload it and try again
+    PersonaNotFound:
+      description: No persona revision with that number
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            personaNotFound:
+              value:
+                error:
+                  code: persona_not_found
+                  message: 'persona not found: revision 9'
     KnowledgeAttachmentNotFound:
       description: Attachment not found
       content:
@@ -2833,6 +2962,71 @@ components:
         content:
           type: string
           minLength: 1
+
+    Persona:
+      type: object
+      additionalProperties: false
+      required: [revision, content, sha256, author, saved_at]
+      properties:
+        revision:
+          type: integer
+          format: int64
+        content:
+          type: string
+        sha256:
+          type: string
+        author:
+          type: string
+          enum: [owner, release]
+        device_id:
+          type: string
+          description: The device the owner saved it from; absent for the release and the server CLI.
+        saved_at:
+          type: string
+          format: date-time
+
+    PersonaRevisionSummary:
+      type: object
+      additionalProperties: false
+      required: [revision, sha256, author, saved_at]
+      properties:
+        revision:
+          type: integer
+          format: int64
+        sha256:
+          type: string
+        author:
+          type: string
+          enum: [owner, release]
+        device_id:
+          type: string
+        saved_at:
+          type: string
+          format: date-time
+
+    PersonaRevisionListResponse:
+      type: object
+      additionalProperties: false
+      required: [revisions]
+      properties:
+        revisions:
+          type: array
+          items:
+            $ref: '#/components/schemas/PersonaRevisionSummary'
+
+    SavePersonaRequest:
+      type: object
+      additionalProperties: false
+      required: [content, base_revision]
+      properties:
+        content:
+          type: string
+          minLength: 1
+          description: At most 8 KiB of UTF-8 once trimmed.
+        base_revision:
+          type: integer
+          format: int64
+          minimum: 1
 
     KnowledgeNoteSummary:
       type: object

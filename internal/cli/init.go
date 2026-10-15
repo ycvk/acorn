@@ -9,9 +9,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-
-	"github.com/ycvk/acorn/internal/config"
-	"github.com/ycvk/acorn/internal/presence"
 )
 
 //go:embed acorn.init.yaml
@@ -26,15 +23,11 @@ func runInit(_ context.Context, args []string) error {
 	configPath := addConfigFlag(fs)
 	force := fs.Bool("force", false, "overwrite an existing config file")
 	printOnly := fs.Bool("print", false, "write the starter config to stdout instead of a file")
-	personaOnly := fs.Bool("persona-only", false, "only write the default persona next to an existing config")
 	storageDir := fs.String("storage-dir", "", "absolute directory for runtime storage")
 	backupDir := fs.String("backup-dir", "", "absolute directory for nightly backups")
 	workstationURL := fs.String("workstation-url", "", "URL of the agent's workstation")
 	if err := fs.Parse(args); err != nil {
 		return err
-	}
-	if *personaOnly {
-		return writeDefaultPersona(*configPath)
 	}
 	body, err := initConfig(*storageDir, *backupDir, *workstationURL)
 	if err != nil {
@@ -70,9 +63,6 @@ func runInit(_ context.Context, args []string) error {
 	}
 
 	fmt.Printf("Wrote starter config to %s\n", absPath)
-	if err := writeDefaultPersona(absPath); err != nil {
-		return err
-	}
 	fmt.Println("Next: set OPENAI_API_KEY and VOYAGE_API_KEY in your environment, then run 'acorn doctor' and 'acorn smoke \"hello\"'.")
 	return nil
 }
@@ -105,34 +95,6 @@ func initConfig(storageDir, backupDir, workstationURL string) (string, error) {
 		body = strings.Replace(body, setting.line, setting.key+strconv.Quote(setting.value)+"\n", 1)
 	}
 	return body, nil
-}
-
-// writeDefaultPersona writes the default persona into the storage dir of the
-// config at configPath. An existing persona is the owner's and is kept.
-func writeDefaultPersona(configPath string) error {
-	absPath, err := resolveInitConfigPath(configPath)
-	if err != nil {
-		return err
-	}
-	cfg, err := config.Load(absPath)
-	if err != nil {
-		return err
-	}
-	path := cfg.PersonaPath()
-	if _, err := os.Stat(path); err == nil {
-		fmt.Printf("Keeping existing persona: %s\n", path)
-		return nil
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("stat persona %s: %w", path, err)
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		return fmt.Errorf("create storage dir %s: %w", filepath.Dir(path), err)
-	}
-	if err := os.WriteFile(path, []byte(presence.DefaultPersona), 0o600); err != nil {
-		return fmt.Errorf("write persona %s: %w", path, err)
-	}
-	fmt.Printf("Wrote persona to %s (edit it to shape how Acorn talks and acts)\n", path)
-	return nil
 }
 
 func resolveInitConfigPath(path string) (string, error) {

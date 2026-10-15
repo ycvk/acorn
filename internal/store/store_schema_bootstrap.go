@@ -144,6 +144,8 @@ CREATE TABLE IF NOT EXISTS knowledge_revisions (
 
 ` + skillPackageTables + `
 
+` + personaTable + `
+
 CREATE TABLE IF NOT EXISTS watches (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
@@ -285,6 +287,17 @@ CREATE TABLE IF NOT EXISTS skill_package_stage_files (
     path TEXT NOT NULL,
     content BLOB NOT NULL,
     PRIMARY KEY (sha256, path)
+);`
+
+// personaTable is shared with the migration that adds it. The newest
+// revision is the current persona.
+const personaTable = `CREATE TABLE IF NOT EXISTS persona_revisions (
+    revision INTEGER PRIMARY KEY,
+    content TEXT NOT NULL,
+    content_sha256 TEXT NOT NULL,
+    author TEXT NOT NULL,
+    device_id TEXT NOT NULL DEFAULT '',
+    at TEXT NOT NULL
 );`
 
 // notificationsTable is shared with the migrations that rebuild the table, so

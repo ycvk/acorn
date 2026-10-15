@@ -18,7 +18,7 @@ import (
 // schemaVersion is the database layout this build creates and expects. A
 // layout change bumps it, appends the migration from the previous version to
 // migrations, and records the new layout under testdata/schema.
-const schemaVersion = 6
+const schemaVersion = 7
 
 // migrations[i] upgrades a database from version i+1 to version i+2.
 var migrations = []func(context.Context, *sql.Tx) error{
@@ -27,6 +27,7 @@ var migrations = []func(context.Context, *sql.Tx) error{
 	addSkills,
 	forgetDeletedThreads,
 	adoptAgentSkills,
+	addPersona,
 }
 
 // addNotificationActionID (1 to 2) records which pending action a push
@@ -310,4 +311,11 @@ func brokenForeignKeys(ctx context.Context, tx *sql.Tx) (bool, error) {
 	defer rows.Close()
 	broken := rows.Next()
 	return broken, rows.Err()
+}
+
+// addPersona (6 to 7) adds the persona revisions. The next start writes the
+// default persona as the first revision.
+func addPersona(ctx context.Context, tx *sql.Tx) error {
+	_, err := tx.ExecContext(ctx, personaTable)
+	return err
 }

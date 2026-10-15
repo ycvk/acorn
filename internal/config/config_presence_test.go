@@ -74,7 +74,4 @@ func TestParseClockAndOwnerLocation(t *testing.T) {
 	if err != nil || loc.String() != "Asia/Shanghai" {
 		t.Fatalf("location = %v err=%v", loc, err)
 	}
-	if got := cfg.PersonaPath(); got != filepath.Join(cfg.Runtime.StorageDir, "persona.md") {
-		t.Fatalf("persona path = %s", got)
-	}
 }

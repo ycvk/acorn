@@ -1,4 +1,4 @@
-// Package presence renders the agent's present and reads its owner-edited persona.
+// Package presence renders the agent's present and saves the owner's persona.
 package presence
 
 import (

@@ -16,7 +16,7 @@ import (
 )
 
 // A backup directory holds one snapshot per run under snapshots/ (the
-// database and persona at that moment) beside add-only mirrors of the
+// database at that moment) beside add-only mirrors of the
 // storage directories whose files never change once written.
 var (
 	mirroredDirs    = []string{"attachments", "artifacts"}
@@ -31,7 +31,7 @@ type BackupReport struct {
 	Removed       []string `json:"removed_snapshots"`
 }
 
-// Backup snapshots the database and persona into backup.dir, mirrors
+// Backup snapshots the database into backup.dir, mirrors
 // attachments and artifacts, and keeps the newest backup.keep snapshots. A
 // running Acorn keeps working meanwhile.
 func Backup(ctx context.Context, cfg *config.Config, now time.Time) (BackupReport, error) {
@@ -76,9 +76,6 @@ func Backup(ctx context.Context, cfg *config.Config, now time.Time) (BackupRepor
 		}
 		report.FilesCopied += n
 	}
-	if err := copyFileAtomic(cfg.PersonaPath(), filepath.Join(partial, "persona.md")); err != nil {
-		return BackupReport{}, fmt.Errorf("back up persona: %w", err)
-	}
 	if err := os.Rename(partial, final); err != nil {
 		return BackupReport{}, err
 	}
@@ -92,7 +89,7 @@ type RestoreReport struct {
 	FilesCopied int    `json:"files_copied"`
 }
 
-// Restore puts a snapshot's database and persona back into the storage
+// Restore puts a snapshot's database back into the storage
 // directory and copies mirrored files that are missing there. Acorn must be
 // stopped.
 func Restore(ctx context.Context, cfg *config.Config, snapshot string) (RestoreReport, error) {
@@ -109,9 +106,6 @@ func Restore(ctx context.Context, cfg *config.Config, snapshot string) (RestoreR
 	}
 	report := RestoreReport{Snapshot: snapshot}
 	err = store.RestoreStorage(ctx, cfg.Runtime.StorageDir, filepath.Join(snapshot, "acorn.db"), func() error {
-		if err := copyFileAtomic(filepath.Join(snapshot, "persona.md"), cfg.PersonaPath()); err != nil {
-			return fmt.Errorf("restore persona: %w", err)
-		}
 		for _, name := range mirroredDirs {
 			n, err := mirrorFiles(filepath.Join(dir, name), filepath.Join(cfg.Runtime.StorageDir, name))
 			if err != nil {

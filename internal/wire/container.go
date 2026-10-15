@@ -39,6 +39,7 @@ type Container struct {
 	vault              *knowledge.Vault
 	knowledge          *api.KnowledgeService
 	memories           *api.MemoryService
+	persona            *api.PersonaService
 	captures           *api.CaptureService
 	phoneNotifications *api.PhoneNotificationService
 	now                *api.NowService
@@ -76,6 +77,10 @@ func (c *Container) Skills() *api.SkillService {
 	return c.skills
 }
 
+func (c *Container) Persona() *api.PersonaService {
+	return c.persona
+}
+
 func (c *Container) Capabilities() *api.CapabilitiesService {
 	return c.capabilities
 }
@@ -105,6 +110,7 @@ func (c *Container) Handler(logger *slog.Logger) (http.Handler, error) {
 		Inbox:              c.inbox,
 		Knowledge:          c.knowledge,
 		Memories:           c.memories,
+		Persona:            c.persona,
 		Captures:           c.captures,
 		PhoneNotifications: c.phoneNotifications,
 		Now:                c.now,
@@ -212,6 +218,9 @@ func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *contai
 		return nil, err
 	}
 	container.memories = memories
+	if container.persona, err = api.NewPersonaService(db, clock); err != nil {
+		return nil, err
+	}
 
 	phoneNotifications, err := api.NewPhoneNotificationService(db, clock)
 	if err != nil {
