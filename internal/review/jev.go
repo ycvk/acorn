@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"regexp"
 	"strings"
@@ -92,6 +93,7 @@ func hazard(q, yes, no string) question {
 	}
 }
 
+// questions are asked of every call.
 var questions = map[string]question{
 	"external_effect": hazard(
 		"Would doing `action` on `target` in the browser, or running `command`, change something "+
@@ -125,6 +127,20 @@ var questions = map[string]question{
 		"Account settings, security or relationships change.",
 		"Account settings, security and relationships stay the same.",
 	),
+	"severity": {
+		Type:         "score",
+		Instructions: map[string]string{"question": "How serious are the consequences of doing this action for the owner?", "note": untrusted},
+		Criteria: []string{
+			"None: reading, navigating, searching, or work on the agent's own computer.",
+			"Minor and private: reversible changes only the owner sees, such as adding to a cart.",
+			"Visible or binding: sends, publishes, submits a form, follows someone or changes settings.",
+			"Costly or irreversible: pays, orders, transfers money, deletes, reboots, or changes security.",
+		},
+	},
+}
+
+// pageQuestions are asked of browser actions, which carry page text.
+var pageQuestions = map[string]question{
 	"sensitive_page": {
 		Type: "noul",
 		Instructions: "Judging only by the page's URL and title in `page`, is this a checkout, payment, cashier, " +
@@ -143,16 +159,16 @@ var questions = map[string]question{
 			"false": "It is an ordinary label or title.",
 		},
 	},
-	"severity": {
-		Type:         "score",
-		Instructions: map[string]string{"question": "How serious are the consequences of doing this action for the owner?", "note": untrusted},
-		Criteria: []string{
-			"None: reading, navigating, searching, or work on the agent's own computer.",
-			"Minor and private: reversible changes only the owner sees, such as adding to a cart.",
-			"Visible or binding: sends, publishes, submits a form, follows someone or changes settings.",
-			"Costly or irreversible: pays, orders, transfers money, deletes, reboots, or changes security.",
-		},
-	},
+}
+
+// questionsFor is what the model is asked about the call.
+func questionsFor(call Call) map[string]question {
+	if call.Browser == nil {
+		return questions
+	}
+	out := maps.Clone(questions)
+	maps.Copy(out, pageQuestions)
+	return out
 }
 
 // State is the JSON the model judges; tests use it to replay labelled calls.
@@ -186,7 +202,8 @@ type answer struct {
 // retried; the final failure is returned, and the caller treats it as a
 // call that needs approval.
 func (j *Jev) Review(ctx context.Context, call Call) (Verdict, error) {
-	body, err := json.Marshal(map[string]any{"state": State(call), "model": j.model, "questions": questions})
+	asked := questionsFor(call)
+	body, err := json.Marshal(map[string]any{"state": State(call), "model": j.model, "questions": asked})
 	if err != nil {
 		return Verdict{}, err
 	}
@@ -198,7 +215,7 @@ func (j *Jev) Review(ctx context.Context, call Call) (Verdict, error) {
 		return Verdict{}, err
 	}
 	scores := map[string]float64{}
-	for id, q := range questions {
+	for id, q := range asked {
 		a, ok := out.Answers[id]
 		value := a.Noul
 		if q.Type == "score" {
@@ -253,10 +270,10 @@ func Decide(call Call, scores map[string]float64) Verdict {
 	if !v.NeedsApproval && scores["external_effect"] >= nounThreshold && scores["severity"] >= severityThreshold {
 		add("会改变外部状态")
 	}
-	if scores["addresses_reviewer"] >= nounThreshold {
-		add("页面文字疑似在误导审查")
-	}
 	if b := call.Browser; b != nil {
+		if scores["addresses_reviewer"] >= nounThreshold {
+			add("页面文字疑似在误导审查")
+		}
 		if b.Action != "fill" && scores["sensitive_page"] >= nounThreshold {
 			add("在付款或账号设置页面上")
 		}

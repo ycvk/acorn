@@ -2,6 +2,7 @@ package review
 
 import (
 	"path"
+	"slices"
 	"strings"
 )
 
@@ -42,10 +43,18 @@ type BrowserCall struct {
 
 // readOnlyPrograms only read or work on the workstation's own files.
 var readOnlyPrograms = map[string]bool{
-	"basename": true, "cat": true, "cd": true, "cut": true, "date": true, "dirname": true,
-	"echo": true, "egrep": true, "grep": true, "head": true, "jq": true, "ls": true,
-	"printf": true, "pwd": true, "sleep": true, "sort": true, "tail": true, "test": true,
-	"tr": true, "true": true, "uniq": true, "wc": true, "[": true,
+	"basename": true, "cat": true, "cd": true, "cut": true, "date": true, "diff": true,
+	"dirname": true, "du": true, "echo": true, "egrep": true, "file": true, "grep": true,
+	"head": true, "jq": true, "ls": true, "md5sum": true, "printf": true, "pwd": true,
+	"readlink": true, "realpath": true, "sha256sum": true, "sleep": true, "sort": true,
+	"stat": true, "tail": true, "test": true, "tr": true, "tree": true, "true": true,
+	"uniq": true, "wc": true, "[": true,
+}
+
+// findActions are the find expressions that run commands or write files.
+var findActions = map[string]bool{
+	"-delete": true, "-exec": true, "-execdir": true, "-ok": true, "-okdir": true,
+	"-fls": true, "-fprint": true, "-fprint0": true, "-fprintf": true,
 }
 
 // bskReadOnly are bsk subcommands that read the page, move around in it or
@@ -93,6 +102,9 @@ func classify(words []string) (bool, *BrowserCall) {
 		return true, nil
 	}
 	program := path.Base(words[0])
+	if program == "find" {
+		return !slices.ContainsFunc(words[1:], func(w string) bool { return findActions[w] }), nil
+	}
 	if program != "bsk" {
 		return readOnlyPrograms[program], nil
 	}

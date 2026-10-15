@@ -21,6 +21,8 @@ func TestParseShellReadOnlyCommands(t *testing.T) {
 		"BSK_HOME=$HOME/.bsk bsk observe --session x > page.txt 2>&1",
 		"cat notes/a.md | grep -n TODO | wc -l",
 		"bsk request-help --session x --prompt 'Please sign in'",
+		`find ~/downloads/word-count -type f -printf '%p\n' | sort`,
+		"stat -c %s report.pdf && sha256sum report.pdf",
 	} {
 		shell := ParseShell(command)
 		want := !strings.HasPrefix(command, "s=$(")
@@ -41,6 +43,9 @@ func TestParseShellNeedsReview(t *testing.T) {
 		"bsk daemon revoke --all",
 		"bsk daemon pair",
 		"git push origin main",
+		"find . -name '*.tmp' -delete",
+		"find . -type f -exec rm {} +",
+		"find . -fprint list.txt",
 	} {
 		if shell := ParseShell(command); shell.ReadOnly {
 			t.Errorf("%q parsed as read-only", command)
@@ -124,6 +129,7 @@ func TestDecide(t *testing.T) {
 		{"click on checkout", Call{Browser: owner}, with(map[string]float64{"sensitive_page": 0.97}), []string{"在付款或账号设置页面上"}},
 		{"fill on checkout", Call{Browser: &BrowserAction{Action: "fill", Target: `textbox "收货人"`}}, with(map[string]float64{"sensitive_page": 0.93}), nil},
 		{"unknown target", Call{Browser: &BrowserAction{Action: "click"}}, quiet, []string{"看不到要操作的是什么"}},
+		{"page scores do not apply to commands", Call{Tool: "shell", Command: "python3 count.py a.txt"}, with(map[string]float64{"addresses_reviewer": 0.54, "sensitive_page": 0.9}), nil},
 	} {
 		v := Decide(tc.call, tc.scores)
 		if v.NeedsApproval != (len(tc.reasons) > 0) || !reflect.DeepEqual(v.Reasons, tc.reasons) {
@@ -153,7 +159,7 @@ func TestDescribe(t *testing.T) {
 
 func fakeAnswers(noul float64) map[string]any {
 	answers := map[string]any{}
-	for id, q := range questions {
+	for id, q := range questionsFor(Call{Browser: &BrowserAction{}}) {
 		if q.Type == "score" {
 			answers[id] = map[string]any{"type": "score", "score": 0.0}
 		} else {
@@ -195,6 +201,36 @@ func TestJevRetriesOverloadAndSendsState(t *testing.T) {
 	state := got["state"].(map[string]any)
 	if _, ok := state["browser"]; ok || state["target"] != `button "立即付款"` || got["model"] != "jev-1.13.0" {
 		t.Fatalf("state = %v", got)
+	}
+}
+
+func TestJevAsksPageQuestionsOnlyOfBrowserActions(t *testing.T) {
+	var asked []map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Questions map[string]any `json:"questions"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Error(err)
+		}
+		asked = append(asked, body.Questions)
+		_ = json.NewEncoder(w).Encode(fakeAnswers(0.1))
+	}))
+	defer server.Close()
+	jev, err := NewJev(server.URL, "key", "jev-1.13.0", server.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, call := range []Call{{Tool: "shell", Command: "python3 count.py a.txt"}, {Browser: &BrowserAction{Action: "click", Target: `button "下一页"`}}} {
+		if _, err := jev.Review(t.Context(), call); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, ok := asked[0]["addresses_reviewer"]; ok || len(asked[0]) != len(questions) {
+		t.Fatalf("shell questions = %v", asked[0])
+	}
+	if _, ok := asked[1]["addresses_reviewer"]; !ok || len(asked[1]) != len(questions)+len(pageQuestions) {
+		t.Fatalf("browser questions = %v", asked[1])
 	}
 }
 
