@@ -87,3 +87,55 @@ func TestHistoryChunksLongOlderMessageAndKeepsCurrentInput(t *testing.T) {
 		t.Fatal("current input was clipped")
 	}
 }
+
+func TestThreadSummaryBudgetScalesWithHistoryBudget(t *testing.T) {
+	for budget, want := range map[int]int{2048: 512, 8191: 1024, 8192: 1024, 32768: 4096, 65536: 8192, 131072: 8192} {
+		if got := threadSummaryBudget(budget); got != want {
+			t.Errorf("threadSummaryBudget(%d)=%d want %d", budget, got, want)
+		}
+	}
+}
+
+func TestHistorySummaryUsesScaledBudgetAndRejectsOverflow(t *testing.T) {
+	ctx := context.Background()
+	older := strings.Repeat("更早的讨论", 12000)
+	for _, tc := range []struct {
+		name    string
+		summary string
+		wantErr string
+	}{
+		{name: "within budget", summary: strings.Repeat("摘要", 2000)},
+		{name: "over budget", summary: strings.Repeat("摘要", 4100), wantErr: "thread summary exceeds 4096-token budget"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			model := &protocolModel{summary: tc.summary}
+			e, db := testEngine(t, model, 0)
+			if _, err := db.CreateSession(ctx, "scaled", "history"); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := db.AppendSessionMessage(ctx, "scaled", 1, "user", older, ""); err != nil {
+				t.Fatal(err)
+			}
+			latest, err := db.AppendSessionMessage(ctx, "scaled", 2, "user", "接着说", "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := e.History(ctx, "scaled", latest.ID, 32768)
+			if tc.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("err=%v want %q", err, tc.wantErr)
+				}
+			} else if err != nil || got.Summary == nil || got.Summary.Content != tc.summary {
+				t.Fatalf("history=%+v err=%v", got, err)
+			}
+			if len(model.maxOutputs) == 0 {
+				t.Fatal("summary was not generated")
+			}
+			for _, n := range model.maxOutputs {
+				if n != 4096-64 {
+					t.Fatalf("max output %d, want %d", n, 4096-64)
+				}
+			}
+		})
+	}
+}

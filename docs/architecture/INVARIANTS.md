@@ -69,7 +69,7 @@
   - `internal/runtime/agent_test.go`
   - `internal/runtime/skill_backend_test.go`
   - `internal/wire/persona_e2e_test.go`
-- **临时上下文有独立预算和来源**：每次模型调用追加 `<memory_context>` 与 `<presence>`；保存上下文快照及 source/record 引用。近期原文与线程摘要按 token 选择,最终模型输入检查容量。念头、关切和约定按各自生命周期显示。
+- **临时上下文有独立预算和来源**：每次模型调用追加 `<memory_context>` 与 `<presence>`；保存上下文快照及 source/record 引用。近期原文与线程摘要按 token 选择,线程摘要占历史预算的八分之一并限制在 1024 到 8192 token 之间（历史预算不足 8192 时取四分之一、不超过 1024），生成的摘要超过该预算即报错,最终模型输入检查容量。念头、关切和约定按各自生命周期显示。
   - `internal/runtime/memory_visibility_test.go`
   - `internal/runtime/presence_test.go`
   - `internal/memory/context_test.go`

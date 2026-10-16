@@ -20,11 +20,14 @@ type protocolModel struct {
 	calls       int
 	beforeReply func()
 	seen        []string
+	maxOutputs  []int
+	summary     string
 }
 
-func (m *protocolModel) GenerateMemory(_ context.Context, instruction, input string, _ int) (Generation, error) {
+func (m *protocolModel) GenerateMemory(_ context.Context, instruction, input string, maxOutput int) (Generation, error) {
 	m.calls++
 	m.seen = append(m.seen, input)
+	m.maxOutputs = append(m.maxOutputs, maxOutput)
 	if m.beforeReply != nil {
 		fn := m.beforeReply
 		m.beforeReply = nil
@@ -39,6 +42,9 @@ func (m *protocolModel) GenerateMemory(_ context.Context, instruction, input str
 		}
 		reply, err := json.Marshal(map[string]any{"records": []core.MemoryDraft{{Kind: "fact", Content: in.Source.Content, Entities: []string{"饮食"}, Evidence: []core.MemoryEvidence{{SourceID: in.Source.ID, Quote: in.Source.Content, Relation: "supports"}}}}})
 		return Generation{Text: string(reply), InputTokens: 100, OutputTokens: 30, Reported: true}, err
+	}
+	if m.summary != "" && instruction == threadSummaryInstruction {
+		return Generation{Text: m.summary, InputTokens: 100, OutputTokens: 3, Reported: true}, nil
 	}
 	return Generation{Text: `{"changes":[],"links":[]}`, InputTokens: 100, OutputTokens: 3, Reported: true}, nil
 }
