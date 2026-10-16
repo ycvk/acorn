@@ -10,20 +10,22 @@ metadata:
 
 工作方式：
 
-1. 先判断是否需要联网。如果用户给了明确 URL，通常先加载 `web_fetch`；如果页面需要 JavaScript、登录态、截图或按钮交互，改用 `browser` 技能，在工作机的浏览器里打开。
-2. 如果用户只给主题，没有 URL，先加载 `web_search` 搜索候选来源。搜索 snippet 只用于发现来源，不当作最终证据。
-3. 对需要引用或事实回答的内容，使用 `web_fetch` 产出 Markdown artifact，或在浏览器里 `observe` 读到的正文，再基于 URL/title/evidence 作答。
-4. 每次回答都区分“搜索发现”和“已抓取证据”。不要把搜索结果摘要当成已验证事实。
+1. 先判断是否需要联网。用户给了明确 URL 时直接 `web_fetch`；页面需要 JavaScript、登录态、截图或按钮交互时，改用 `browser` 技能，在工作机的浏览器里打开。
+2. 用户只给主题、没有 URL 时，先 `web_search` 找候选来源。snippet 只用于发现来源，不当作最终证据。
+3. 简单的事实问题（某本书在哪个平台、某个版本何时发布）用 `web_search` 加 `include_text: true` 和较小的 `max_results`（3 到 5）。每条结果会带上搜索服务抓取的页面正文（截断到 3000 字），读到答案就可以直接作答，不必再逐页 `web_fetch`。
+4. 需要完整页面、页面的最新状态，或正文被截断而答案不在里面时，对可信候选 `web_fetch`，基于产出的 Markdown artifact 作答；浏览器里的页面用 `observe` 读正文。
+5. 每次回答都区分“搜索发现”和“读过正文的证据”，引用时给出 URL 和标题。不要把 snippet 当成已验证事实。
 
 推荐调用顺序：
 
-1. 主题型问题：`tool_search({"query":"select:web_search,web_fetch"})` -> `web_search` -> 对可信候选逐个 `web_fetch`。
-2. 明确 URL：`tool_search({"query":"select:web_fetch"})` -> `web_fetch`。
-3. 动态页面或需要交互：加载 `browser` 技能，按它的说明用工作机的浏览器。
-4. 需要登录的网站：按 `browser` 技能的说明请 owner 在 App 里登录工作机的浏览器。
+1. 简单事实问题：`web_search`（`include_text: true`，`max_results` 3 到 5）-> 直接作答，必要时补一次 `web_fetch`。
+2. 需要比较或深入的主题：`web_search` -> 对可信候选逐个 `web_fetch`。
+3. 明确 URL：`web_fetch`。
+4. 动态页面或需要交互：加载 `browser` 技能，按它的说明用工作机的浏览器。
+5. 需要登录的网站：按 `browser` 技能的说明请 owner 在 App 里登录工作机的浏览器。
 
 工具未启用时的处理：
 
-1. `web_search` 只在配置了 `web_access.search.api_key` 时启用；`tool_search` 加载不到它就说明配置缺失，不要反复重试。
+1. `web_search` 只在配置了 `web_access.search.api_key` 时启用；工具列表里没有它就说明配置缺失，不要反复重试。
 2. 没有 `web_search` 时，请用户提供 URL，或对已知的可信来源直接 `web_fetch`。
 3. `browser` 技能不可用（没有配置工作机）时，停止需要 JavaScript 或交互的部分，如实告诉用户需要在配置里设置 `workstation.url`。

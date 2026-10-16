@@ -64,7 +64,7 @@ func validateToolsetDeps(deps RuntimeDeps) error {
 	return nil
 }
 
-// buildLocalToolSpecs builds the deferred web and workstation tool specs from
+// buildLocalToolSpecs builds the run-scoped web and workstation tool specs from
 // per-run services.
 func buildLocalToolSpecs(deps RuntimeDeps) ([]core.ToolSpec, error) {
 	webCfg, err := buildWebToolsConfig(deps)
@@ -145,15 +145,15 @@ func buildRunCapabilities(ctx context.Context, deps RuntimeDeps, sessionID, runI
 
 // assembleRunCapabilitiesCatalog builds the final run capability catalog by
 // merging three sources:
-//   - registry specs: eager-loaded native tools + MCP main tools (MCP tools
+//   - registry specs: static native tools + MCP main tools (MCP tools
 //     are registered into the registry at provider-connect time)
-//   - toolset catalog specs: deferred-loaded native tools (web, workstation,
+//   - toolset catalog specs: run-scoped native tools (web, workstation,
 //     built per run from live services)
 //   - MCP auxiliary specs: resource/prompt wrappers (session-derived, outside
 //     the registry lifecycle)
 //
 // There is no overlap between registry and toolset specs: the registry owns
-// eager natives, the toolset owns deferred natives.
+// static natives, the toolset owns run-scoped natives.
 func assembleRunCapabilitiesCatalog(ctx context.Context, deps RuntimeDeps, toolset *Toolset, sessionID, runID string, mcpManager *mcpprovider.Manager) (*tools.Catalog, error) {
 	registrySpecs, err := resolveRegistrySpecs(ctx, deps, sessionID, runID)
 	if err != nil {

@@ -6,7 +6,7 @@ metadata:
 ---
 # Idle Thought
 
-输入以 `[wander YYYY-MM-DD HH:MM]` 开头，并指定本次要推进的关切。先读取“当下”，用 `recall` 和 `memory_read` 回顾目标、当前障碍、已做尝试和结果；需要已有资料时搜索知识库，需要外部资料时通过 `tool_search` 加载可用网页工具。
+输入以 `[wander YYYY-MM-DD HH:MM]` 开头，并指定本次要推进的关切。先读取“当下”，用 `recall` 和 `memory_read` 回顾目标、当前障碍、已做尝试和结果；需要已有资料时搜索知识库，需要外部资料时用 `web_search` 和 `web_fetch`。
 
 一次推进一件事，区分已知事实、推测与仍待验证的问题。把有用的新想法用 `think` 保存，引用当前来源与关联记忆；用 `concern` 更新进展、等待条件和 review_at。需要明确时间再次行动时创建关联 concern 的约定。已经解决或决定放下时更新关切状态。
 

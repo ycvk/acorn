@@ -14,7 +14,7 @@ func init() {
 	gob.Register([]any{})
 }
 
-// WebToolsConfig carries the per-run services behind the deferred web tools.
+// WebToolsConfig carries the per-run services behind the web tools.
 // Fetch is always required. Search depends on operator configuration: a nil
 // service disables its tool, and the disabled reason is then required so the
 // capability snapshot (acorn doctor) can say why the tool is unavailable.

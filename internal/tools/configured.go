@@ -42,6 +42,17 @@ var localToolNames = []string{
 	"files",
 }
 
+// runScopedTool reports whether the runtime toolset builds the tool for each
+// run from live services (web access, workstation) instead of the registry
+// resolving it from wire-time dependencies.
+func runScopedTool(name string) bool {
+	switch name {
+	case "web_fetch", "web_search", "shell", "files":
+		return true
+	}
+	return false
+}
+
 func ConfiguredLocalSpecs() []core.ToolSpec {
 	specs := make([]core.ToolSpec, 0, len(localToolNames))
 	for _, name := range localToolNames {
@@ -89,7 +100,6 @@ func configuredLocalSpec(name string) core.ToolSpec {
 	case "web_fetch", "web_search":
 		spec.Kind = core.ToolKindNative
 		spec.Category = core.ToolCategoryRead
-		spec.Loading = core.DeferredLoadingPolicy("web_access")
 	case "shell", "files":
 		spec.Kind = core.ToolKindNative
 		spec.Category = core.ToolCategoryIntegration

@@ -222,8 +222,8 @@ func nativeToolFactory(name string, deps NativeToolDeps) (core.ToolFactory, erro
 	}, nil
 }
 
-// RegisterNativeTools registers every eager-loaded static local tool declared by
-// localToolNames/configuredLocalSpec into the core.ToolRegistry. Deferred-loaded
+// RegisterNativeTools registers every static local tool declared by
+// localToolNames/configuredLocalSpec into the core.ToolRegistry. Run-scoped
 // tools (web_fetch, web_search, shell, files) are excluded: they depend on
 // per-run services (web access, workstation) constructed at buildRun time, so they cannot
 // be resolved at wire time. They are contributed by the runtime toolset
@@ -235,10 +235,10 @@ func RegisterNativeTools(registry core.ToolRegistry, deps NativeToolDeps) error 
 	// localToolNames is the canonical name list in canonical order; reusing it
 	// keeps the registry from drifting from configuredLocalSpec.
 	for _, name := range localToolNames {
-		spec := configuredLocalSpec(name)
-		if spec.Loading.Mode == core.ToolLoadingModeDeferred {
+		if runScopedTool(name) {
 			continue
 		}
+		spec := configuredLocalSpec(name)
 		if name == "notify_owner" && deps.Notify.Notifier == nil {
 			if deps.Notify.DisabledReason == "" {
 				return errors.New("RegisterNativeTools: notify_owner needs NativeToolDeps.Notify.Notifier or a DisabledReason")

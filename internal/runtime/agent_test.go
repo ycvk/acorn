@@ -27,10 +27,10 @@ func (t namedTool) InvokableRun(context.Context, string, ...einotool.Option) (st
 func TestSplitToolsByLoading(t *testing.T) {
 	specs := []core.ToolSpec{
 		{ToolContract: core.ToolContract{Name: "eager_tool", Loading: core.ToolLoadingPolicy{Mode: core.ToolLoadingModeEager}}},
-		{ToolContract: core.ToolContract{Name: "web_fetch", Loading: core.ToolLoadingPolicy{Mode: core.ToolLoadingModeDeferred}}},
+		{ToolContract: core.ToolContract{Name: "shell", Loading: core.ToolLoadingPolicy{Mode: core.ToolLoadingModeDeferred}}},
 		{ToolContract: core.ToolContract{Name: "hidden_tool", Loading: core.ToolLoadingPolicy{Mode: core.ToolLoadingModeHidden}}},
 	}
-	built := []einotool.BaseTool{namedTool{"eager_tool"}, namedTool{"web_fetch"}, namedTool{"hidden_tool"}}
+	built := []einotool.BaseTool{namedTool{"eager_tool"}, namedTool{"shell"}, namedTool{"hidden_tool"}}
 	eager, deferred, err := splitToolsByLoading(context.Background(), specs, built)
 	if err != nil {
 		t.Fatalf("split: %v", err)
@@ -38,7 +38,7 @@ func TestSplitToolsByLoading(t *testing.T) {
 	if names := toolNames(t, eager); len(names) != 1 || names[0] != "eager_tool" {
 		t.Fatalf("eager = %v", names)
 	}
-	if names := toolNames(t, deferred); len(names) != 1 || names[0] != "web_fetch" {
+	if names := toolNames(t, deferred); len(names) != 1 || names[0] != "shell" {
 		t.Fatalf("deferred = %v", names)
 	}
 }
@@ -79,7 +79,7 @@ func TestBuildAgentHandlersOrder(t *testing.T) {
 		t.Fatalf("tool error handler must be innermost, got %T at index 6", withoutDeferred[6])
 	}
 
-	withDeferred, err := buildAgentHandlers(context.Background(), deps, req, []einotool.BaseTool{namedTool{"web_fetch"}})
+	withDeferred, err := buildAgentHandlers(context.Background(), deps, req, []einotool.BaseTool{namedTool{"shell"}})
 	if err != nil {
 		t.Fatalf("handlers: %v", err)
 	}

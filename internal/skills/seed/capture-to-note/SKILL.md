@@ -10,7 +10,7 @@ owner 从手机分享进来的内容以 `[capture]` 开头，可能包含标题�
 
 工作方式：
 
-1. 有链接时，先用 `tool_search`（`select:web_fetch`）加载 `web_fetch`，再抓取链接正文。抓不到正文（需要登录、反爬、超时）时照样建笔记，只写链接、标题和附言，并在回复里说明没抓到正文。
+1. 有链接时，先用 `web_fetch` 抓取链接正文。抓不到正文（需要登录、反爬、超时）时照样建笔记，只写链接、标题和附言，并在回复里说明没抓到正文。
 2. 用 `knowledge_search` 搜标题和主题关键词。已有讲同一件事的笔记时，用 `knowledge_edit` 在原笔记里补充这次的内容和来源，不另起一篇。
 3. 新笔记用 `knowledge_write` 写到 `inbox/` 下，文件名用简短的英文或拼音 slug，例如 `inbox/tokio-work-stealing.md`：
    - `title`：文章标题，或用一句话概括内容。

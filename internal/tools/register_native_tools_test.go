@@ -47,8 +47,8 @@ func testNativeToolDeps(t *testing.T) NativeToolDeps {
 }
 
 // TestRegisterNativeToolsRegistersEagerLocalTools verifies that
-// RegisterNativeTools registers every eager static local tool from
-// localToolNames, skips the deferred web tools, and returns specs sorted by name.
+// RegisterNativeTools registers every static local tool from localToolNames,
+// skips the run-scoped web and workstation tools, and returns specs sorted by name.
 func TestRegisterNativeToolsRegistersEagerLocalTools(t *testing.T) {
 	reg := NewToolRegistry()
 	if err := RegisterNativeTools(reg, testNativeToolDeps(t)); err != nil {
@@ -65,7 +65,7 @@ func TestRegisterNativeToolsRegistersEagerLocalTools(t *testing.T) {
 	}
 	for _, name := range []string{"web_fetch", "web_search", "shell", "files"} {
 		if _, ok := reg.Find(name); ok {
-			t.Fatalf("deferred tool %q should not be registered", name)
+			t.Fatalf("run-scoped tool %q should not be registered", name)
 		}
 	}
 	for name, want := range map[string]core.ToolCategory{
