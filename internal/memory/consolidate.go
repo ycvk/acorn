@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"time"
 
 	"github.com/ycvk/acorn/internal/core"
 )
@@ -70,7 +69,7 @@ func (e *Engine) consolidate(ctx context.Context, job core.MemoryJob) error {
 		return err
 	}
 	if err := e.consolidateRecords(ctx, job, batch, changed); err != nil {
-		return errors.Join(err, e.failMemoryJobs(ctx, batch, err))
+		return errors.Join(err, e.recoverMemoryJobs(ctx, batch, err))
 	}
 	return nil
 }
@@ -140,18 +139,6 @@ func (e *Engine) consolidationFits(ctx context.Context, changed, related []core.
 type consolidationInput struct {
 	Changed []core.MemoryRecord `json:"changed"`
 	Related []core.MemoryRecord `json:"related"`
-}
-
-func (e *Engine) failMemoryJobs(ctx context.Context, jobs []core.MemoryJob, cause error) error {
-	recoveryCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
-	defer cancel()
-	var errs []error
-	for _, job := range jobs {
-		if err := e.cfg.Store.FailMemoryJob(recoveryCtx, job, cause.Error(), e.cfg.Clock()); err != nil && !errors.Is(err, core.ErrMemoryLeaseLost) {
-			errs = append(errs, err)
-		}
-	}
-	return errors.Join(errs...)
 }
 
 func (e *Engine) consolidateRecords(ctx context.Context, job core.MemoryJob, batch []core.MemoryJob, changed []core.MemoryRecord) error {

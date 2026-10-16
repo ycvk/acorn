@@ -18,7 +18,7 @@ import (
 // schemaVersion is the database layout this build creates and expects. A
 // layout change bumps it, appends the migration from the previous version to
 // migrations, and records the new layout under testdata/schema.
-const schemaVersion = 8
+const schemaVersion = 9
 
 // migrations[i] upgrades a database from version i+1 to version i+2.
 var migrations = []func(context.Context, *sql.Tx) error{
@@ -29,6 +29,7 @@ var migrations = []func(context.Context, *sql.Tx) error{
 	adoptAgentSkills,
 	addPersona,
 	extractOwnerSourcesOnly,
+	requeueBudgetFailedMemoryJobs,
 }
 
 // addNotificationActionID (1 to 2) records which pending action a push
@@ -221,6 +222,15 @@ func agentSkillOf(id, markdown string) (string, string, error) {
 
 // skillNameRun matches what a skill name cannot hold.
 var skillNameRun = regexp.MustCompile(`[^a-z0-9]+`)
+
+// requeueBudgetFailedMemoryJobs (8 to 9) returns memory jobs that retries
+// gave up on the daily token budget to the queue: pending, with no attempts
+// and available at upgrade time. The stored error wraps the budget message in
+// the job's context.
+func requeueBudgetFailedMemoryJobs(ctx context.Context, tx *sql.Tx) error {
+	_, err := tx.ExecContext(ctx, `UPDATE memory_jobs SET state='pending',attempts=0,available_at=?,lease_until='' WHERE state='failed' AND error LIKE ?`, formatTimestamp(time.Now()), "%"+core.ErrMemoryBudget.Error()+"%")
+	return err
+}
 
 // openSchema creates the layout of an empty database, upgrades an older one
 // and refuses one this build cannot read.

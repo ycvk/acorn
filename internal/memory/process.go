@@ -77,18 +77,31 @@ func (e *Engine) processOne(ctx context.Context, operation string) (bool, error)
 	if err == nil {
 		return true, nil
 	}
-	recoveryCtx, recoveryCancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
-	defer recoveryCancel()
-	var updateErr error
-	if errors.Is(err, core.ErrMemoryBudget) {
-		updateErr = e.cfg.Store.DeferMemoryJob(recoveryCtx, *job, err.Error(), e.midnight(e.cfg.Clock()).AddDate(0, 0, 1))
-	} else {
-		updateErr = e.cfg.Store.FailMemoryJob(recoveryCtx, *job, err.Error(), e.cfg.Clock())
+	return true, fmt.Errorf("memory job %d %s %s version %s: %w", job.ID, job.Operation, job.ObjectID, job.Version, errors.Join(err, e.recoverMemoryJobs(ctx, []core.MemoryJob{*job}, err)))
+}
+
+// recoverMemoryJobs releases leased jobs whose work ended in cause. Budget
+// exhaustion defers them to the next local day with their attempt returned;
+// any other error records a failed attempt. A lease lost meanwhile is not an
+// error of its own.
+func (e *Engine) recoverMemoryJobs(ctx context.Context, jobs []core.MemoryJob, cause error) error {
+	recoveryCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancel()
+	now := e.cfg.Clock()
+	tomorrow := e.midnight(now).AddDate(0, 0, 1)
+	var errs []error
+	for _, job := range jobs {
+		var err error
+		if errors.Is(cause, core.ErrMemoryBudget) {
+			err = e.cfg.Store.DeferMemoryJob(recoveryCtx, job, cause.Error(), tomorrow)
+		} else {
+			err = e.cfg.Store.FailMemoryJob(recoveryCtx, job, cause.Error(), now)
+		}
+		if err != nil && !errors.Is(err, core.ErrMemoryLeaseLost) {
+			errs = append(errs, err)
+		}
 	}
-	if errors.Is(updateErr, core.ErrMemoryLeaseLost) {
-		updateErr = nil
-	}
-	return true, fmt.Errorf("memory job %d %s %s version %s: %w", job.ID, job.Operation, job.ObjectID, job.Version, errors.Join(err, updateErr))
+	return errors.Join(errs...)
 }
 
 func (e *Engine) extract(ctx context.Context, job core.MemoryJob) error {

@@ -3,6 +3,7 @@ package memory
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 
@@ -79,6 +80,39 @@ func TestConsolidationBatchFailsTogether(t *testing.T) {
 	for _, r := range ready {
 		if r.Attempts != 1 {
 			t.Fatalf("job %d attempts=%d, want 1", r.ID, r.Attempts)
+		}
+	}
+}
+
+func TestConsolidationBatchDefersTogetherOnBudget(t *testing.T) {
+	model := &protocolModel{}
+	e, db := testEngine(t, model, 1)
+	now := time.Now()
+	e.cfg.Clock = func() time.Time { return now }
+	ctx := context.Background()
+	a := semanticFixtureFact(t, db, "a", "清晨跑步", now)
+	b := semanticFixtureFact(t, db, "b", "傍晚游泳", now)
+	semanticFixtureVector(t, db, a, []float32{1, 0}, now)
+	semanticFixtureVector(t, db, b, []float32{1, 0}, now)
+	worked, err := e.processOne(ctx, "consolidate")
+	if !worked || !errors.Is(err, core.ErrMemoryBudget) || model.calls != 0 {
+		t.Fatalf("worked=%v err=%v calls=%d", worked, err, model.calls)
+	}
+	status, err := db.MemoryProcessingStatus(ctx)
+	if err != nil || status.Failed != 0 {
+		t.Fatalf("status=%+v %v", status, err)
+	}
+	tomorrow := e.midnight(now).AddDate(0, 0, 1)
+	if ready, err := db.ReadyMemoryJobs(ctx, tomorrow.Add(-time.Second), "consolidate", 10); err != nil || len(ready) != 0 {
+		t.Fatalf("deferred jobs ready before the next local day: %+v err=%v", ready, err)
+	}
+	ready, err := db.ReadyMemoryJobs(ctx, tomorrow, "consolidate", 10)
+	if err != nil || len(ready) != 2 {
+		t.Fatalf("both jobs must return the next local day: %+v err=%v", ready, err)
+	}
+	for _, r := range ready {
+		if r.Attempts != 0 {
+			t.Fatalf("job %d attempts=%d, want 0", r.ID, r.Attempts)
 		}
 	}
 }

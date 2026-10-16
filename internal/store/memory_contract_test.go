@@ -296,3 +296,40 @@ INSERT INTO memory_jobs (operation, object_id, version, state, available_at, cre
 		t.Fatalf("upgraded trigger still queues tool extraction: %+v err=%v", next, err)
 	}
 }
+
+// A v8 database kept memory jobs that retries gave up on the daily token
+// budget as failed. The upgrade requeues them and leaves other failures alone.
+func TestSchemaNineRequeuesBudgetFailedJobs(t *testing.T) {
+	dir := t.TempDir()
+	raw := openRaw(t, dir)
+	at := "2026-10-01T00:00:00.000000000Z"
+	if _, err := raw.Exec(readLayout(t, 8)+`PRAGMA user_version = 8;
+INSERT INTO memory_state (id, epoch) VALUES (1, 0);
+INSERT INTO memory_jobs (operation, object_id, version, state, attempts, available_at, created_at, error) VALUES
+ ('consolidate', 'fact:budget', '1', 'failed', 3, ?1, ?1, 'memory job 7 consolidate fact:budget version 1: `+core.ErrMemoryBudget.Error()+`'),
+ ('consolidate', 'fact:broken', '1', 'failed', 3, ?1, ?1, 'memory model JSON: unexpected end of JSON input');`, at); err != nil {
+		t.Fatal(err)
+	}
+	if err := raw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	s, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+	ctx := context.Background()
+	now := time.Now().Add(time.Minute)
+	job, err := s.ClaimMemoryJob(ctx, now, time.Minute, "consolidate")
+	if err != nil || job == nil || job.ObjectID != "fact:budget" || job.Attempts != 1 {
+		t.Fatalf("requeued job=%+v err=%v", job, err)
+	}
+	if next, err := s.ClaimMemoryJob(ctx, now, time.Minute, "consolidate"); err != nil || next != nil {
+		t.Fatalf("a job failed for another reason was requeued: %+v err=%v", next, err)
+	}
+	var state string
+	var attempts int
+	if err := s.db.QueryRow(`SELECT state, attempts FROM memory_jobs WHERE object_id='fact:broken'`).Scan(&state, &attempts); err != nil || state != "failed" || attempts != 3 {
+		t.Fatalf("other failure state=%s attempts=%d err=%v", state, attempts, err)
+	}
+}
