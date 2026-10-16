@@ -58,6 +58,50 @@ func TestKnowledgeSearchFollowsCurrentRevision(t *testing.T) {
 	}
 }
 
+func TestDeleteKnowledgeNoteKeepsSourcesAndContinuesRevisions(t *testing.T) {
+	s := openTestStore(t)
+	ctx := context.Background()
+	day := time.Date(2026, 10, 3, 9, 0, 0, 0, time.UTC)
+	path := "inbox/tokio.md"
+	for i, body := range []string{"Tokio 第一版", "Tokio 第二版"} {
+		if _, err := s.WriteKnowledgeNote(ctx, core.KnowledgeWrite{Path: path, Title: "Tokio", Body: body, At: day.Add(time.Duration(i) * time.Hour)}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	sources, err := s.KnowledgeMemorySourceIDs(ctx, path)
+	if err != nil || len(sources) != 2 {
+		t.Fatalf("sources = %v, %v", sources, err)
+	}
+	if err := s.DeleteKnowledgeNote(ctx, path, 1); !errors.Is(err, core.ErrKnowledgeConflict) {
+		t.Fatalf("delete at a stale revision: %v", err)
+	}
+	if err := s.DeleteKnowledgeNote(ctx, path, 2); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.KnowledgeNote(ctx, path); !errors.Is(err, core.ErrKnowledgeNoteNotFound) {
+		t.Fatalf("deleted note still reads: %v", err)
+	}
+	if hits, err := s.SearchKnowledge(ctx, "第二版", 5); err != nil || len(hits) != 0 {
+		t.Fatalf("deleted note still matches: %+v, %v", hits, err)
+	}
+	if kept, err := s.KnowledgeMemorySourceIDs(ctx, path); err != nil || len(kept) != 2 {
+		t.Fatalf("sources after delete = %v, %v", kept, err)
+	}
+	if _, err := s.WriteKnowledgeNote(ctx, core.KnowledgeWrite{Path: path, Title: "Tokio", Body: "改一处", At: day, BaseRevision: 2}); !errors.Is(err, core.ErrKnowledgeConflict) {
+		t.Fatalf("an edit based on the deleted note must fail: %v", err)
+	}
+	again, err := s.WriteKnowledgeNote(ctx, core.KnowledgeWrite{Path: path, Title: "Tokio", Body: "重新写的笔记", At: day.Add(3 * time.Hour)})
+	if err != nil || again.Revision != 3 {
+		t.Fatalf("rewritten note = %+v, %v", again, err)
+	}
+	if source, err := s.LoadMemorySource(ctx, core.KnowledgeSourceID(path, 3)); err != nil || source.Content != "重新写的笔记" {
+		t.Fatalf("rewritten note source = %+v, %v", source, err)
+	}
+	if err := s.DeleteKnowledgeNote(ctx, "missing.md", 1); !errors.Is(err, core.ErrKnowledgeNoteNotFound) {
+		t.Fatalf("missing note delete err = %v", err)
+	}
+}
+
 func TestRecentKnowledgeOrdersAndFilters(t *testing.T) {
 	s := openTestStore(t)
 	ctx := context.Background()

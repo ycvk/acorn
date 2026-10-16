@@ -111,6 +111,14 @@ func (s *Server) handleGetKnowledgeNote(w http.ResponseWriter, r *http.Request) 
 	s.respondJSON(w, r, http.StatusOK, note)
 }
 
+func (s *Server) handleDeleteKnowledgeNote(w http.ResponseWriter, r *http.Request) {
+	if err := s.knowledge.DeleteNote(r.Context(), r.URL.Query().Get("path")); err != nil {
+		s.respondKnowledgeError(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // handleGetKnowledgeAttachment serves a stored image. Attachment paths carry a
 // random ID and are never rewritten, so clients may cache them indefinitely.
 func (s *Server) handleGetKnowledgeAttachment(w http.ResponseWriter, r *http.Request) {
@@ -135,6 +143,8 @@ func (s *Server) respondKnowledgeError(w http.ResponseWriter, r *http.Request, e
 		s.respondBadRequest(w, r, err.Error())
 	case errors.Is(err, core.ErrKnowledgeNoteNotFound):
 		s.respondNotFound(w, r, "knowledge_note_not_found", err.Error())
+	case errors.Is(err, core.ErrKnowledgeConflict):
+		s.respondConflict(w, r, "knowledge_note_conflict", err.Error())
 	case errors.Is(err, knowledge.ErrAttachmentNotFound):
 		s.respondNotFound(w, r, "knowledge_attachment_not_found", err.Error())
 	default:

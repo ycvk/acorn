@@ -133,6 +133,16 @@ func (v *Vault) write(ctx context.Context, w core.KnowledgeWrite, verb string) (
 	return v.store.WriteKnowledgeNote(ctx, w)
 }
 
+// Delete removes a note the owner deleted, at the revision the caller read
+// and forgot; a concurrent change fails it.
+func (v *Vault) Delete(ctx context.Context, notePath string, revision int64) error {
+	notePath, err := CleanNotePath(notePath)
+	if err != nil {
+		return err
+	}
+	return v.store.DeleteKnowledgeNote(ctx, notePath, revision)
+}
+
 // Read returns the current revision of one note.
 func (v *Vault) Read(ctx context.Context, notePath string) (core.KnowledgeNote, error) {
 	notePath, err := CleanNotePath(notePath)

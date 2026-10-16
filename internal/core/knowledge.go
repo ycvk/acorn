@@ -70,4 +70,7 @@ type KnowledgeStore interface {
 	SearchKnowledge(ctx context.Context, query string, limit int) ([]KnowledgeHit, error)
 	// RecentKnowledge lists notes under prefix by update time, newest first.
 	RecentKnowledge(ctx context.Context, prefix string, limit int) ([]KnowledgeHit, error)
+	// DeleteKnowledgeNote removes a note at revision with all its revisions;
+	// its memory sources stay so the exclusions that forget them keep holding.
+	DeleteKnowledgeNote(ctx context.Context, path string, revision int64) error
 }

@@ -56,6 +56,80 @@ open class KnowledgeApi(basePath: kotlin.String = defaultBasePath, client: Call.
     }
 
     /**
+     * DELETE /v1/knowledge/note
+     * Delete one knowledge base note
+     * Deletes the note and makes Acorn forget it. Every revision of the note is excluded from memory, with what was derived from it, before the note and its revisions are removed. Images the note links stay. Refused when the note changed while it was being forgotten; deleting again forgets the new revision too.
+     * @param path Note path relative to the knowledge base, e.g. inbox/tokio.md.
+     * @return void
+     * @throws IllegalStateException If the request is not correctly configured
+     * @throws IOException Rethrows the OkHttp execute method exception
+     * @throws UnsupportedOperationException If the API returns an informational or redirection response
+     * @throws ClientException If the API returns a client error response
+     * @throws ServerException If the API returns a server error response
+     */
+    @Throws(IllegalStateException::class, IOException::class, UnsupportedOperationException::class, ClientException::class, ServerException::class)
+    fun clientDeleteKnowledgeNote(path: kotlin.String) : Unit {
+        val localVarResponse = clientDeleteKnowledgeNoteWithHttpInfo(path = path)
+
+        return when (localVarResponse.responseType) {
+            ResponseType.Success -> Unit
+            ResponseType.Informational -> throw UnsupportedOperationException("Client does not support Informational responses.")
+            ResponseType.Redirection -> throw UnsupportedOperationException("Client does not support Redirection responses.")
+            ResponseType.ClientError -> {
+                val localVarError = localVarResponse as ClientError<*>
+                throw ClientException("Client error : ${localVarError.statusCode} ${localVarError.message.orEmpty()}", localVarError.statusCode, localVarResponse)
+            }
+            ResponseType.ServerError -> {
+                val localVarError = localVarResponse as ServerError<*>
+                throw ServerException("Server error : ${localVarError.statusCode} ${localVarError.message.orEmpty()} ${localVarError.body}", localVarError.statusCode, localVarResponse)
+            }
+        }
+    }
+
+    /**
+     * DELETE /v1/knowledge/note
+     * Delete one knowledge base note
+     * Deletes the note and makes Acorn forget it. Every revision of the note is excluded from memory, with what was derived from it, before the note and its revisions are removed. Images the note links stay. Refused when the note changed while it was being forgotten; deleting again forgets the new revision too.
+     * @param path Note path relative to the knowledge base, e.g. inbox/tokio.md.
+     * @return ApiResponse<Unit?>
+     * @throws IllegalStateException If the request is not correctly configured
+     * @throws IOException Rethrows the OkHttp execute method exception
+     */
+    @Throws(IllegalStateException::class, IOException::class)
+    fun clientDeleteKnowledgeNoteWithHttpInfo(path: kotlin.String) : ApiResponse<Unit?> {
+        val localVariableConfig = clientDeleteKnowledgeNoteRequestConfig(path = path)
+
+        return request<Unit, Unit>(
+            localVariableConfig
+        )
+    }
+
+    /**
+     * To obtain the request config of the operation clientDeleteKnowledgeNote
+     *
+     * @param path Note path relative to the knowledge base, e.g. inbox/tokio.md.
+     * @return RequestConfig
+     */
+    fun clientDeleteKnowledgeNoteRequestConfig(path: kotlin.String) : RequestConfig<Unit> {
+        val localVariableBody = null
+        val localVariableQuery: MultiValueMap = mutableMapOf<kotlin.String, kotlin.collections.List<kotlin.String>>()
+            .apply {
+                put("path", listOf(path.toString()))
+            }
+        val localVariableHeaders: MutableMap<String, String> = mutableMapOf()
+        localVariableHeaders["Accept"] = "application/json"
+
+        return RequestConfig(
+            method = RequestMethod.DELETE,
+            path = "/v1/knowledge/note",
+            query = localVariableQuery,
+            headers = localVariableHeaders,
+            requiresAuthentication = true,
+            body = localVariableBody
+        )
+    }
+
+    /**
      * GET /v1/knowledge/attachment
      * Read an image stored by a capture
      * Returns the image bytes. Notes embed attachments as &#x60;![alt](attachments/...)&#x60;, and a capture input names its image on an &#x60;Image:&#x60; line. Attachment paths never change content, so responses may be cached indefinitely. 

@@ -134,6 +134,7 @@ func (s *Server) registerRoutes(router chi.Router) {
 			r.Post("/captures", s.handleCreateCapture)
 			r.Get("/knowledge/notes", s.handleListKnowledgeNotes)
 			r.Get("/knowledge/note", s.handleGetKnowledgeNote)
+			r.Delete("/knowledge/note", s.handleDeleteKnowledgeNote)
 			r.Get("/knowledge/attachment", s.handleGetKnowledgeAttachment)
 			r.Get("/memories", s.handleListMemories)
 			r.Get("/memories/{memory_id}", s.handleGetMemory)

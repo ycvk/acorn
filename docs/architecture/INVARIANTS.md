@@ -119,11 +119,15 @@
 
 ## 知识库与 Capture
 
-- **笔记的每次写入是一个 revision**：笔记只经 `knowledge.Vault` 写入 SQLite；`knowledge_write`/`knowledge_edit` 各产生一个新 revision，保留创建时间、正文哈希与写入它的 run。编辑基于读到的 revision，期间被改过则以 `ErrKnowledgeConflict` 失败。搜索与列表读当前 revision。笔记路径必须是相对 `.md` 路径，不能含 `..`、隐藏段或位于 `attachments/`。
+- **笔记的每次写入是一个 revision**：笔记只经 `knowledge.Vault` 写入 SQLite；`knowledge_write`/`knowledge_edit` 各产生一个新 revision，保留创建时间、正文哈希与写入它的 run。编辑基于读到的 revision，期间被改过或笔记已删除则以 `ErrKnowledgeConflict` 失败。同一路径在删除后重建，revision 接着该路径已登记来源的最大版本编号，来源 ID 不复用。搜索与列表读当前 revision。笔记路径必须是相对 `.md` 路径，不能含 `..`、隐藏段或位于 `attachments/`。
   - `internal/knowledge/knowledge_test.go`
   - `internal/store/store_knowledge_test.go`
   - `internal/tools/knowledge_tools_test.go`
   - `internal/wire/capture_acceptance_e2e_test.go`
+- **删除笔记是 owner 的遗忘请求**：`DELETE /v1/knowledge/note` 先读出当前 revision，以 owner 请求排除该路径每个 revision 的记忆来源及其派生记录，经遗忘屏障等用过它们的 run 结束，再按读到的 revision 删除笔记、全部 revision 与搜索索引；期间笔记被改过则以 409 失败，再删一次会连新 revision 一起遗忘。记忆来源保留，排除持续生效；笔记引用的附件保留。agent 没有删除笔记的工具。
+  - `internal/api/capture_knowledge_test.go`
+  - `internal/store/store_knowledge_test.go`
+  - `internal/wire/note_delete_e2e_test.go`
 - **Capture 是 owner 发起的 run**：`POST /v1/captures` 先把图片（JPEG/PNG/WebP/GIF，≤10 MiB，类型按内容判断）存入 `{storage_dir}/attachments/`，再为这次分享新建线程，以 role `capture` 的输入立即起 run；模型把它当作 user 消息读取，客户端单独显示。capture 不记 `wake.fired`，不计入 `wake.daily_limit`。历史里的 capture 消息把 `Image:` 行指向的附件作为图片输入随消息交给模型，附件读取失败则 run 失败；token 预算按每张 `core.ImageInputTokens` 计。`GET /v1/knowledge/attachment` 只返回符合 `attachments/YYYY/MM/<16 位 hex>.<jpg|png|webp|gif>` 的文件，其他路径按无效请求拒绝；笔记以 `![描述](attachments/...)` 引用图片。
   - `internal/knowledge/knowledge_test.go`
   - `internal/api/capture_knowledge_test.go`

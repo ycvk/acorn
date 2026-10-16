@@ -14,21 +14,35 @@ const (
 	maxKnowledgeListLimit     = 100
 )
 
-// knowledgeReader is the part of the knowledge base the client API reads.
-type knowledgeReader interface {
+// knowledgeVault is the part of the knowledge base the client API uses.
+type knowledgeVault interface {
 	Search(ctx context.Context, query string, limit int) ([]core.KnowledgeHit, error)
 	Recent(ctx context.Context, prefix string, limit int) ([]core.KnowledgeHit, error)
 	Read(ctx context.Context, path string) (core.KnowledgeNote, error)
 	ReadAttachment(ctx context.Context, path string) (core.Attachment, error)
+	Delete(ctx context.Context, path string, revision int64) error
 }
 
-// KnowledgeService serves the knowledge base to clients, read-only.
+// noteForgetter forgets a note the owner deletes.
+type noteForgetter interface {
+	ForgetNoteForOwner(ctx context.Context, path, title string) (core.MemoryExclusion, error)
+}
+
+// KnowledgeService serves the knowledge base to clients: reading notes and
+// deleting them on the owner's request.
 type KnowledgeService struct {
-	vault knowledgeReader
+	vault     knowledgeVault
+	forgetter noteForgetter
+	barrier   func(context.Context, core.MemoryExclusion, string) error
 }
 
-func NewKnowledgeService(vault knowledgeReader) *KnowledgeService {
-	return &KnowledgeService{vault: vault}
+// Deleting a note forgets it through forgetter, then waits at barrier for
+// the runs that used it to stop before the note is removed.
+func NewKnowledgeService(vault knowledgeVault, forgetter noteForgetter, barrier func(context.Context, core.MemoryExclusion, string) error) (*KnowledgeService, error) {
+	if vault == nil || forgetter == nil || barrier == nil {
+		return nil, errors.New("knowledge service: vault, forgetter and barrier are required")
+	}
+	return &KnowledgeService{vault: vault, forgetter: forgetter, barrier: barrier}, nil
 }
 
 // KnowledgeNoteSummaryDTO is one note in a listing.
@@ -106,6 +120,24 @@ func (s *KnowledgeService) GetNote(ctx context.Context, path string) (KnowledgeN
 		Body:      note.Body,
 	}
 	return dto, nil
+}
+
+// DeleteNote deletes a note and makes Acorn forget it: every revision is
+// excluded from memory before the note is removed. Images the note links
+// stay, since the conversation that shared them may show them too.
+func (s *KnowledgeService) DeleteNote(ctx context.Context, path string) error {
+	note, err := s.vault.Read(ctx, path)
+	if err != nil {
+		return err
+	}
+	exclusion, err := s.forgetter.ForgetNoteForOwner(ctx, note.Path, note.Title)
+	if err != nil {
+		return err
+	}
+	if err := s.barrier(ctx, exclusion, ""); err != nil {
+		return err
+	}
+	return s.vault.Delete(ctx, note.Path, note.Revision)
 }
 
 // GetAttachment reads one image a capture stored.

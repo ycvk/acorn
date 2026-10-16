@@ -43,6 +43,8 @@ func (f *captureFakes) CreateCaptureRun(_ context.Context, threadID, input strin
 type knowledgeFake struct {
 	query, prefix string
 	limit         int
+	steps         []string
+	deleteErr     error
 }
 
 var knowledgeFakeTime = time.Date(2026, 10, 3, 1, 0, 0, 0, time.UTC)
@@ -64,7 +66,22 @@ func (k *knowledgeFake) Read(_ context.Context, path string) (core.KnowledgeNote
 	if path != "inbox/tokio.md" {
 		return core.KnowledgeNote{}, fmt.Errorf("%w: %s", core.ErrKnowledgeNoteNotFound, path)
 	}
-	return core.KnowledgeNote{Path: path, Title: "Tokio", Source: "https://tokio.rs", CreatedAt: knowledgeFakeTime, UpdatedAt: knowledgeFakeTime, Body: "Async runtime."}, nil
+	return core.KnowledgeNote{Path: path, Title: "Tokio", Source: "https://tokio.rs", Revision: 3, CreatedAt: knowledgeFakeTime, UpdatedAt: knowledgeFakeTime, Body: "Async runtime."}, nil
+}
+
+func (k *knowledgeFake) ForgetNoteForOwner(_ context.Context, path, title string) (core.MemoryExclusion, error) {
+	k.steps = append(k.steps, "forget "+path+" "+title)
+	return core.MemoryExclusion{Epoch: 7}, nil
+}
+
+func (k *knowledgeFake) barrier(_ context.Context, exclusion core.MemoryExclusion, _ string) error {
+	k.steps = append(k.steps, fmt.Sprintf("barrier %d", exclusion.Epoch))
+	return nil
+}
+
+func (k *knowledgeFake) Delete(_ context.Context, path string, revision int64) error {
+	k.steps = append(k.steps, fmt.Sprintf("delete %s %d", path, revision))
+	return k.deleteErr
 }
 
 const knowledgeFakeAttachment = "attachments/2026/10/0123456789abcdef.png"
@@ -83,10 +100,14 @@ func (k *knowledgeFake) ReadAttachment(_ context.Context, path string) (core.Att
 func newCaptureKnowledgeRouter(t *testing.T) (*captureFakes, *knowledgeFake, http.Handler) {
 	t.Helper()
 	fakes, kf := &captureFakes{}, &knowledgeFake{}
+	knowledgeService, err := NewKnowledgeService(kf, kf, kf.barrier)
+	if err != nil {
+		t.Fatal(err)
+	}
 	server := &Server{
 		deviceAuth: newDeviceAuthTestService(&deviceAuthHandlerStub{}),
 		captures:   NewCaptureService(fakes, fakes, fakes),
-		knowledge:  NewKnowledgeService(kf),
+		knowledge:  knowledgeService,
 		logger:     slog.New(slog.NewTextHandler(bytes.NewBuffer(nil), nil)),
 	}
 	router := chi.NewRouter()
@@ -236,5 +257,40 @@ func TestKnowledgeAttachmentServesImageBytes(t *testing.T) {
 	}
 	if rec := performClientRequestWithoutAuth(router, http.MethodGet, "/v1/knowledge/attachment?path="+knowledgeFakeAttachment, ""); rec.Code != http.StatusUnauthorized {
 		t.Fatalf("unauthenticated status = %d", rec.Code)
+	}
+}
+
+func TestDeleteKnowledgeNoteForgetsItBeforeRemovingIt(t *testing.T) {
+	_, kf, router := newCaptureKnowledgeRouter(t)
+	rec := performClientRequest(router, http.MethodDelete, "/v1/knowledge/note?path=inbox/tokio.md", "")
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	want := []string{"forget inbox/tokio.md Tokio", "barrier 7", "delete inbox/tokio.md 3"}
+	if strings.Join(kf.steps, "|") != strings.Join(want, "|") {
+		t.Fatalf("steps = %q, want %q", kf.steps, want)
+	}
+}
+
+func TestDeleteKnowledgeNoteReportsMissingInvalidAndChangedNotes(t *testing.T) {
+	for _, tc := range []struct {
+		path      string
+		deleteErr error
+		status    int
+		code      string
+	}{
+		{path: "inbox/missing.md", status: http.StatusNotFound, code: "knowledge_note_not_found"},
+		{path: "../secrets.md", status: http.StatusBadRequest, code: "invalid_request"},
+		{path: "inbox/tokio.md", deleteErr: fmt.Errorf("%w: inbox/tokio.md is at revision 4, not 3", core.ErrKnowledgeConflict), status: http.StatusConflict, code: "knowledge_note_conflict"},
+	} {
+		_, kf, router := newCaptureKnowledgeRouter(t)
+		kf.deleteErr = tc.deleteErr
+		rec := performClientRequest(router, http.MethodDelete, "/v1/knowledge/note?path="+tc.path, "")
+		if rec.Code != tc.status || !strings.Contains(rec.Body.String(), tc.code) {
+			t.Fatalf("%s: status = %d body=%s", tc.path, rec.Code, rec.Body.String())
+		}
+		if tc.status != http.StatusConflict && len(kf.steps) != 0 {
+			t.Fatalf("%s: a note that cannot be read must not be forgotten: %q", tc.path, kf.steps)
+		}
 	}
 }

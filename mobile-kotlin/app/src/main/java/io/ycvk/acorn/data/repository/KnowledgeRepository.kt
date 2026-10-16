@@ -8,7 +8,7 @@ import io.ycvk.acorn.core.auth.ConnectionProfile
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/** Reads the knowledge base from the paired server. Blocking; call from an IO dispatcher. */
+/** Reads and deletes knowledge base notes on the paired server. Blocking; call from an IO dispatcher. */
 @Singleton
 class KnowledgeRepository @Inject constructor() {
     fun notes(profile: ConnectionProfile, query: String): List<KnowledgeNoteSummary> {
@@ -21,5 +21,11 @@ class KnowledgeRepository @Inject constructor() {
     fun note(profile: ConnectionProfile, path: String): KnowledgeNote {
         ApiClient.accessToken = profile.accessToken
         return KnowledgeApi(basePath = profile.serverUrl).clientGetKnowledgeNote(path)
+    }
+
+    /** Deletes a note; the server makes Acorn forget it before removing it. */
+    fun delete(profile: ConnectionProfile, path: String) {
+        ApiClient.accessToken = profile.accessToken
+        KnowledgeApi(basePath = profile.serverUrl).clientDeleteKnowledgeNote(path)
     }
 }

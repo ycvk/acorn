@@ -916,6 +916,33 @@ paths:
           $ref: '#/components/responses/KnowledgeNoteNotFound'
         '500':
           $ref: '#/components/responses/InternalError'
+    delete:
+      tags: [knowledge]
+      summary: Delete one knowledge base note
+      description: Deletes the note and makes Acorn forget it. Every revision of the note is excluded from memory, with what was derived from it, before the note and its revisions are removed. Images the note links stay. Refused when the note changed while it was being forgotten; deleting again forgets the new revision too.
+      operationId: clientDeleteKnowledgeNote
+      parameters:
+        - name: path
+          in: query
+          required: true
+          description: Note path relative to the knowledge base, e.g. inbox/tokio.md.
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Note deleted and forgotten
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/DeviceRevoked'
+        '404':
+          $ref: '#/components/responses/KnowledgeNoteNotFound'
+        '409':
+          $ref: '#/components/responses/KnowledgeNoteChanged'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /v1/knowledge/attachment:
     get:
       tags: [knowledge]
@@ -1329,6 +1356,18 @@ components:
                 error:
                   code: knowledge_note_not_found
                   message: 'knowledge note not found: inbox/missing.md'
+    KnowledgeNoteChanged:
+      description: The note changed while it was being deleted
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            knowledgeNoteChanged:
+              value:
+                error:
+                  code: knowledge_note_conflict
+                  message: 'knowledge note changed concurrently: inbox/tokio.md is at revision 4, not 3'
     MemoryNotFound:
       description: Memory not found or forgotten
       content:

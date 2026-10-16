@@ -3,6 +3,7 @@ package io.ycvk.acorn.feature.knowledge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -17,11 +18,19 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Link
+import androidx.compose.material.icons.outlined.MoreHoriz
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -34,6 +43,8 @@ import io.ycvk.acorn.core.auth.ConnectionProfile
 import io.ycvk.acorn.core.theme.AcornShapes
 import io.ycvk.acorn.core.theme.AcornTheme
 import io.ycvk.acorn.core.ui.ErrorState
+import io.ycvk.acorn.core.ui.IconAction
+import io.ycvk.acorn.core.ui.InlineError
 import io.ycvk.acorn.core.ui.Markdown
 import io.ycvk.acorn.core.ui.ScreenPadding
 import io.ycvk.acorn.core.ui.SkeletonRows
@@ -49,17 +60,52 @@ fun NoteScreen(
     onBack: () -> Unit,
 ) {
     val load by viewModel.note.collectAsStateWithLifecycle()
-    LaunchedEffect(path) { viewModel.openNote(path) }
+    val deleteError by viewModel.deleteError.collectAsStateWithLifecycle()
+    LaunchedEffect(path) {
+        viewModel.clearDeleteError()
+        viewModel.openNote(path)
+    }
     val scroll = rememberScrollState()
     val note = (load as? NoteLoad.Loaded)?.note
+    val colors = AcornTheme.colors
+    var menu by remember { mutableStateOf(false) }
+    var confirmDelete by remember { mutableStateOf(false) }
 
-    Column(modifier = Modifier.fillMaxSize().background(AcornTheme.colors.canvas)) {
+    Column(modifier = Modifier.fillMaxSize().background(colors.canvas)) {
         // The title moves into the bar once the heading scrolls away.
         TopBar(
             onBack = onBack,
             title = note?.title?.takeIf { scroll.value > 160 },
             showDivider = scroll.value > 0,
-        )
+        ) {
+            if (note != null) {
+                Box {
+                    IconAction(Icons.Outlined.MoreHoriz, "更多", { menu = true })
+                    DropdownMenu(
+                        expanded = menu,
+                        onDismissRequest = { menu = false },
+                        containerColor = colors.surface,
+                        shape = AcornShapes.medium,
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("删除笔记", style = AcornTheme.type.callout, color = colors.danger) },
+                            onClick = {
+                                menu = false
+                                confirmDelete = true
+                            },
+                        )
+                    }
+                }
+            }
+        }
+        deleteError?.let { message ->
+            InlineError(
+                message,
+                modifier = Modifier.padding(horizontal = ScreenPadding, vertical = 4.dp),
+                action = "知道了",
+                onAction = viewModel::clearDeleteError,
+            )
+        }
         when (val current = load) {
             NoteLoad.Loading -> SkeletonRows(rows = 5)
             is NoteLoad.Failed -> ErrorState(current.message, onRetry = { viewModel.openNote(path) })
@@ -69,6 +115,21 @@ fun NoteScreen(
                 modifier = Modifier.verticalScroll(scroll),
             )
         }
+    }
+
+    if (confirmDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            title = { Text("删除这篇笔记？") },
+            text = { Text("笔记会被删除，Acorn 也会忘掉其中的内容，无法恢复。") },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmDelete = false
+                    viewModel.deleteNote(path, onBack)
+                }) { Text("删除", color = colors.danger) }
+            },
+            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("取消") } },
+        )
     }
 }
 

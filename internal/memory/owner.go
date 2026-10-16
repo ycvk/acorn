@@ -54,6 +54,29 @@ func (e *Engine) ForgetThreadForOwner(ctx context.Context, threadID, title strin
 	})
 }
 
+// ForgetNoteForOwner forgets the note the owner deletes: every revision of
+// it, on a request recorded as the owner's source. A note with nothing to
+// forget returns an empty exclusion.
+func (e *Engine) ForgetNoteForOwner(ctx context.Context, path, title string) (core.MemoryExclusion, error) {
+	sources, err := e.cfg.Store.KnowledgeMemorySourceIDs(ctx, path)
+	if err != nil {
+		return core.MemoryExclusion{}, err
+	}
+	if len(sources) == 0 {
+		return core.MemoryExclusion{}, nil
+	}
+	request, err := e.ownerRequest(ctx, "Delete note: "+title)
+	if err != nil {
+		return core.MemoryExclusion{}, err
+	}
+	return e.cfg.Store.ForgetMemory(ctx, core.MemoryForget{
+		SourceIDs:       sources,
+		RequestSourceID: request.ID,
+		Reason:          "owner deleted the note",
+		Now:             e.cfg.Clock(),
+	})
+}
+
 // CorrectForOwner supersedes a fact with the owner's own wording from the
 // app; the wording is the new fact's evidence. Scope and entities carry over.
 func (e *Engine) CorrectForOwner(ctx context.Context, id string, revision int64, content string) (core.MemoryRecord, error) {

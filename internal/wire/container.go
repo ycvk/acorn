@@ -211,7 +211,9 @@ func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *contai
 	container.deviceAuth = api.NewDeviceAuthService(db).WithPushTokens(db)
 	container.inbox = api.NewInboxService(db, container.capabilities)
 	container.vault = deps.vault
-	container.knowledge = api.NewKnowledgeService(deps.vault)
+	if container.knowledge, err = api.NewKnowledgeService(deps.vault, deps.memory, forgetBarrier); err != nil {
+		return nil, err
+	}
 	container.captures = api.NewCaptureService(deps.vault, container.threads, container.runs)
 	memories, err := api.NewMemoryService(db, deps.memory, forgetBarrier)
 	if err != nil {

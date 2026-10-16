@@ -73,6 +73,9 @@ class KnowledgeViewModel @Inject constructor(
     private val _note = MutableStateFlow<NoteLoad>(NoteLoad.Loading)
     val note: StateFlow<NoteLoad> = _note.asStateFlow()
 
+    private val _deleteError = MutableStateFlow<String?>(null)
+    val deleteError: StateFlow<String?> = _deleteError.asStateFlow()
+
     private var listJob: Job? = null
     private var noteJob: Job? = null
 
@@ -105,6 +108,27 @@ class KnowledgeViewModel @Inject constructor(
                 NoteLoad.Failed(userMessage(e))
             }
         }
+    }
+
+    /** Deletes a note, refreshes the list, then calls [onDeleted]; a failure stays on the note. */
+    fun deleteNote(path: String, onDeleted: () -> Unit) {
+        val profile = profile() ?: run {
+            _deleteError.value = "还没有连接服务器"
+            return
+        }
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) { repository.delete(profile, path) }
+                load(_query.value)
+                onDeleted()
+            } catch (e: Exception) {
+                _deleteError.value = userMessage(e)
+            }
+        }
+    }
+
+    fun clearDeleteError() {
+        _deleteError.value = null
     }
 
     private fun load(query: String) {

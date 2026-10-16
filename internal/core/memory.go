@@ -231,6 +231,9 @@ type MemoryStore interface {
 	// ThreadMemorySourceIDs lists the sources of a thread's messages and tool
 	// results.
 	ThreadMemorySourceIDs(context.Context, string) ([]string, error)
+	// KnowledgeMemorySourceIDs lists the sources of every revision of the
+	// note at a path.
+	KnowledgeMemorySourceIDs(context.Context, string) ([]string, error)
 	SaveConcern(context.Context, MemoryConcern, int64) (MemoryConcern, error)
 	ListConcerns(context.Context, bool) ([]MemoryConcern, error)
 	ClaimMemoryJob(context.Context, time.Time, time.Duration, string) (*MemoryJob, error)

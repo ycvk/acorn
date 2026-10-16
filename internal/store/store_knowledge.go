@@ -30,6 +30,16 @@ func (s *Store) WriteKnowledgeNote(ctx context.Context, w core.KnowledgeWrite) (
 		if err != nil && !errors.Is(err, core.ErrKnowledgeNoteNotFound) {
 			return err
 		}
+		if !exists {
+			if w.BaseRevision > 0 {
+				return fmt.Errorf("%w: %s was deleted after revision %d was read", core.ErrKnowledgeConflict, w.Path, w.BaseRevision)
+			}
+			// A deleted note's sources outlive it; a note written again at its
+			// path continues past their revisions so no source ID is reused.
+			if err := tx.QueryRowContext(ctx, `SELECT COALESCE(MAX(CAST(version AS INTEGER)), 0) FROM memory_sources WHERE kind = 'knowledge' AND object_id = ?`, w.Path).Scan(&current.Revision); err != nil {
+				return fmt.Errorf("last knowledge revision: %w", err)
+			}
+		}
 		if w.BaseRevision > 0 && current.Revision != w.BaseRevision {
 			return fmt.Errorf("%w: %s is at revision %d, not %d", core.ErrKnowledgeConflict, w.Path, current.Revision, w.BaseRevision)
 		}
