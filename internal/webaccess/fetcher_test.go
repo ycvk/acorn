@@ -2,6 +2,7 @@ package webaccess
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -9,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"golang.org/x/text/encoding/simplifiedchinese"
 )
 
 func TestFetchServiceFetchesHTMLAndExtractsMarkdown(t *testing.T) {
@@ -94,6 +97,48 @@ func TestFetchServiceRejectsUnsupportedContentType(t *testing.T) {
 	_, err := service.Fetch(context.Background(), FetchRequest{URL: "http://example.com/binary"})
 	if err == nil || !strings.Contains(err.Error(), "unsupported web fetch content type") {
 		t.Fatalf("Fetch binary error = %v", err)
+	}
+}
+
+func TestFetchServiceDecodesDeclaredCharsetBeforeExtraction(t *testing.T) {
+	page := `<!doctype html>
+<html>
+<head>%s<title>橡果笔记</title></head>
+<body><main><h1>橡果笔记</h1><p>这是一页用中文写成的测试文章，用来确认抓取后的正文没有乱码。</p></main></body>
+</html>`
+	tests := []struct {
+		name   string
+		header string
+		meta   string
+	}{
+		{name: "meta", header: "text/html", meta: `<meta http-equiv="Content-Type" content="text/html; charset=gb2312">`},
+		{name: "header", header: "text/html; charset=GBK"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			body, err := simplifiedchinese.GBK.NewEncoder().String(fmt.Sprintf(page, tc.meta))
+			if err != nil {
+				t.Fatalf("encode GBK page: %v", err)
+			}
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", tc.header)
+				_, _ = w.Write([]byte(body))
+			}))
+			defer server.Close()
+			service := newTestFetchService(t, server, 1024*1024)
+			for _, mode := range []ExtractionMode{ExtractionModeAuto, ExtractionModeFullPageMarkdown, ExtractionModeVisibleText} {
+				result, err := service.Fetch(context.Background(), FetchRequest{URL: "http://example.com/gbk", ExtractMode: mode})
+				if err != nil {
+					t.Fatalf("Fetch %s: %v", mode, err)
+				}
+				if result.Extracted.Title != "橡果笔记" || !strings.Contains(result.Extracted.Markdown, "确认抓取后的正文没有乱码") {
+					t.Fatalf("%s extraction = title %q, markdown %q", mode, result.Extracted.Title, result.Extracted.Markdown)
+				}
+				if string(result.Raw) != body {
+					t.Fatalf("%s raw body changed", mode)
+				}
+			}
+		})
 	}
 }
 

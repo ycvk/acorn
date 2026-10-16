@@ -12,6 +12,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"golang.org/x/net/html/charset"
 )
 
 type FetchConfig struct {
@@ -90,7 +92,11 @@ func (s *FetchService) Fetch(ctx context.Context, req FetchRequest) (FetchResult
 	if err != nil {
 		return FetchResult{}, err
 	}
-	extracted, err := s.extract(got.url, got.finalURL, got.contentType, got.body, req.ExtractMode)
+	text, err := decodeUTF8(got.body, got.contentTypeHeader)
+	if err != nil {
+		return FetchResult{}, err
+	}
+	extracted, err := s.extract(got.url, got.finalURL, got.contentType, text, req.ExtractMode)
 	if err != nil {
 		return FetchResult{}, err
 	}
@@ -130,10 +136,10 @@ func (s *FetchService) FetchRaw(ctx context.Context, rawURL string, headers map[
 }
 
 type fetched struct {
-	url, finalURL, contentType string
-	status                     int
-	body                       []byte
-	redirects, validatedIPs    []string
+	url, finalURL, contentType, contentTypeHeader string
+	status                                        int
+	body                                          []byte
+	redirects, validatedIPs                       []string
 }
 
 func (s *FetchService) get(ctx context.Context, rawURL string, headers map[string]string) (fetched, error) {
@@ -181,14 +187,27 @@ func (s *FetchService) get(ctx context.Context, rawURL string, headers map[strin
 		return fetched{}, err
 	}
 	return fetched{
-		url:          validated.Normalized,
-		finalURL:     resp.Request.URL.String(),
-		contentType:  normalizeContentType(resp.Header.Get("Content-Type"), raw),
-		status:       resp.StatusCode,
-		body:         raw,
-		redirects:    append([]string(nil), redirects...),
-		validatedIPs: append([]string(nil), validated.IPs...),
+		url:               validated.Normalized,
+		finalURL:          resp.Request.URL.String(),
+		contentType:       normalizeContentType(resp.Header.Get("Content-Type"), raw),
+		contentTypeHeader: resp.Header.Get("Content-Type"),
+		status:            resp.StatusCode,
+		body:              raw,
+		redirects:         append([]string(nil), redirects...),
+		validatedIPs:      append([]string(nil), validated.IPs...),
 	}, nil
+}
+
+// decodeUTF8 converts body to UTF-8 by the charset the response declares in
+// its Content-Type, BOM or <meta>, as browsers do. Extraction reads bytes as
+// UTF-8 and would garble GBK or Shift_JIS pages.
+func decodeUTF8(body []byte, contentTypeHeader string) ([]byte, error) {
+	enc, name, _ := charset.DetermineEncoding(body, contentTypeHeader)
+	decoded, err := enc.NewDecoder().Bytes(body)
+	if err != nil {
+		return nil, fmt.Errorf("decode %s web fetch response: %w", name, err)
+	}
+	return decoded, nil
 }
 
 func (s *FetchService) extract(originalURL, finalURL, contentType string, raw []byte, mode ExtractionMode) (ExtractResult, error) {
