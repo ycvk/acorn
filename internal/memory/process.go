@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"slices"
 	"strings"
 	"time"
 
@@ -99,11 +98,8 @@ func (e *Engine) extract(ctx context.Context, job core.MemoryJob) error {
 	if err != nil {
 		return err
 	}
-	if source.Speaker != "owner" && source.Speaker != "tool" && source.Speaker != "external" {
-		return e.cfg.Store.FinishMemoryJob(ctx, job, "source retained with its original attribution", e.cfg.Clock())
-	}
-	if slices.Contains([]string{"keep", "think", "recall", "memory_read", "memory_correct", "memory_forget", "concern", "settle", "tool_search", "skill", "knowledge_read", "knowledge_search", "knowledge_list", "knowledge_write", "knowledge_edit"}, source.ToolName) {
-		return e.cfg.Store.FinishMemoryJob(ctx, job, "memory operation already has source provenance", e.cfg.Clock())
+	if source.Speaker != "owner" {
+		return fmt.Errorf("extract job for %s source %s: only owner sources are extracted", source.Speaker, source.ID)
 	}
 	runes := []rune(source.Content)
 	if job.Cursor >= len(runes) {

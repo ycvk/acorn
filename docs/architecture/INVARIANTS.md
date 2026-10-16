@@ -88,6 +88,10 @@
   - `internal/store/store_thread_delete_test.go`
   - `internal/wire/thread_delete_e2e_test.go`
   - `internal/api/client_thread_run_handlers_test.go`
+- **自动抽取只读 owner 的话，insight 需要独立的 owner 证据**：只有 speaker 为 owner 的来源登记 extract 任务；工具结果、watch 条目与笔记 revision 登记为来源供证据引用，不自动抽取，v8 迁移结束此前排队的非 owner 抽取。整合新建或修订 insight 时，其父记录经 `memory_revision_sources` 解析到的根来源中必须有至少两个不同的 owner 来源，否则整批拒绝。
+  - `internal/store/memory_contract_test.go`
+  - `internal/memory/process_test.go`
+  - `internal/memory/consolidation_evidence_test.go`
 - **后台处理可恢复，外部调用可计量**：来源与任务原子登记、租约 token 和游标防止重复/过期提交；一次整合调用最多对齐 8 条一起变化的记录，批内每个任务的租约都在提交事务里校验并结束，调用失败时批内任务一起记失败；每个模型、embedding 与压缩调用按预算记录用量。索引模型与维度匹配方可检索，离线维护使用独占数据目录锁。
   - `internal/memory/process_test.go`
   - `internal/memory/consolidation_batch_test.go`

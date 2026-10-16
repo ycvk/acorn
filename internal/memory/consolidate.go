@@ -219,7 +219,9 @@ func (e *Engine) consolidateRecords(ctx context.Context, job core.MemoryJob, bat
 		return err
 	}
 	sources := map[string]bool{}
+	byID := make(map[string]core.MemoryRecord, len(records))
 	for _, r := range records {
+		byID[r.ID] = r
 		for _, id := range r.SourceIDs {
 			sources[id] = true
 		}
@@ -234,16 +236,19 @@ func (e *Engine) consolidateRecords(ctx context.Context, job core.MemoryJob, bat
 		if c.Supersedes != "" && !ids[c.Supersedes] {
 			return errors.New("consolidation supersedes an unseen record")
 		}
-		var originalParents []string
-		for _, r := range records {
-			if r.ID == c.Draft.ID {
-				originalParents = r.Parents
-				break
-			}
-		}
+		originalParents := byID[c.Draft.ID].Parents
 		for _, p := range c.Draft.Parents {
 			if !ids[p] && !slices.Contains(originalParents, p) {
 				return errors.New("consolidation references an unseen parent")
+			}
+		}
+		if c.Draft.Kind == "insight" {
+			owners, err := e.independentOwnerSources(ctx, byID, c.Draft.Parents)
+			if err != nil {
+				return err
+			}
+			if owners < 2 {
+				return errors.New("consolidation insight needs two independent owner sources")
 			}
 		}
 		for _, evidence := range c.Draft.Evidence {
@@ -259,4 +264,36 @@ func (e *Engine) consolidateRecords(ctx context.Context, job core.MemoryJob, bat
 	}
 	_, err = e.cfg.Store.CommitMemory(ctx, core.MemoryMutation{Changes: output.Changes, Links: output.Links, Lease: &job, Batch: batch, Epoch: job.Epoch, Now: e.cfg.Clock()})
 	return err
+}
+
+// independentOwnerSources counts the distinct owner sources behind parents,
+// resolved through each parent's root sources. Parents outside the model
+// input are an existing insight's retained parents.
+func (e *Engine) independentOwnerSources(ctx context.Context, byID map[string]core.MemoryRecord, parents []string) (int, error) {
+	seen := map[string]bool{}
+	owners := 0
+	for _, id := range parents {
+		parent, ok := byID[id]
+		if !ok {
+			read, err := e.cfg.Store.ReadMemory(ctx, id)
+			if err != nil {
+				return 0, err
+			}
+			parent = read.Record
+		}
+		for _, sourceID := range parent.SourceIDs {
+			if seen[sourceID] {
+				continue
+			}
+			seen[sourceID] = true
+			source, err := e.cfg.Store.LoadMemorySource(ctx, sourceID)
+			if err != nil {
+				return 0, err
+			}
+			if source.Speaker == "owner" {
+				owners++
+			}
+		}
+	}
+	return owners, nil
 }

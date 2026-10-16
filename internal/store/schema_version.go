@@ -18,7 +18,7 @@ import (
 // schemaVersion is the database layout this build creates and expects. A
 // layout change bumps it, appends the migration from the previous version to
 // migrations, and records the new layout under testdata/schema.
-const schemaVersion = 7
+const schemaVersion = 8
 
 // migrations[i] upgrades a database from version i+1 to version i+2.
 var migrations = []func(context.Context, *sql.Tx) error{
@@ -28,6 +28,7 @@ var migrations = []func(context.Context, *sql.Tx) error{
 	forgetDeletedThreads,
 	adoptAgentSkills,
 	addPersona,
+	extractOwnerSourcesOnly,
 }
 
 // addNotificationActionID (1 to 2) records which pending action a push
@@ -317,5 +318,17 @@ func brokenForeignKeys(ctx context.Context, tx *sql.Tx) (bool, error) {
 // default persona as the first revision.
 func addPersona(ctx context.Context, tx *sql.Tx) error {
 	_, err := tx.ExecContext(ctx, personaTable)
+	return err
+}
+
+// extractOwnerSourcesOnly (7 to 8) stops queueing extraction for tool results
+// and watch items: the triggers are recreated without the job insert, and the
+// extraction still queued for sources the owner did not speak is finished.
+func extractOwnerSourcesOnly(ctx context.Context, tx *sql.Tx) error {
+	if _, err := tx.ExecContext(ctx, `DROP TRIGGER memory_event_ai; DROP TRIGGER memory_watch_ai;`+memoryEventTrigger+memoryWatchTrigger); err != nil {
+		return err
+	}
+	_, err := tx.ExecContext(ctx, `UPDATE memory_jobs SET state='done',completed_at=?,lease_until='',error='source retained with its original attribution'
+		WHERE operation='extract' AND state IN ('pending','running','failed') AND object_id IN (SELECT id FROM memory_sources WHERE speaker<>'owner')`, formatTimestamp(time.Now()))
 	return err
 }

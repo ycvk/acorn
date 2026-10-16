@@ -207,3 +207,92 @@ func TestMemoryValidityAllowsUnknownAndRejectsRelativeDates(t *testing.T) {
 		t.Fatal("relative date accepted")
 	}
 }
+
+// Only the owner's own words queue extraction. Tool results and watch items
+// are registered as sources through their triggers, external and tool sources
+// through RegisterMemorySource, and none of them gets an extract job.
+func TestMemoryExtractionQueuesOnlyOwnerSources(t *testing.T) {
+	s := openTestStore(t)
+	ctx := context.Background()
+	if _, err := s.CreateSession(ctx, "thread_1", "memory"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.CreateRun(ctx, core.RunCreateParams{RunID: "run_1", SessionID: "thread_1", TurnIndex: 1, Input: "查书"}); err != nil {
+		t.Fatal(err)
+	}
+	event, err := s.AppendEvent(ctx, "run_1", "tool.call.succeeded", map[string]any{"tool_name": "web_fetch", "output": "豆瓣短评：这本书一般"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := addTestWatch(t, s, "feed", core.WatchActive, watchTestNow.Add(time.Hour))
+	item := core.WatchItem{WatchID: w.ID, Key: "a", Title: "新文章", URL: "https://example.com/a", Status: core.WatchItemPending, SeenAt: watchTestNow}
+	added, err := s.RecordWatchCheck(ctx, w, core.WatchCheck{At: watchTestNow, NextCheckAt: watchTestNow.Add(time.Hour), Status: core.WatchActive, Items: []core.WatchItem{item}})
+	if err != nil || len(added) != 1 {
+		t.Fatalf("watch items=%+v err=%v", added, err)
+	}
+	seedMemorySource(t, s, "note:1", "external", "一篇剪藏的文章")
+	seedMemorySource(t, s, "shell:1", "tool", "$ ls")
+	for _, id := range []string{fmt.Sprintf("event:%d", event.Sequence), fmt.Sprintf("watch:%d", added[0].ID), "note:1", "shell:1"} {
+		source, err := s.LoadMemorySource(ctx, id)
+		if err != nil || source.Content == "" || source.Speaker == "owner" {
+			t.Fatalf("source %s=%+v err=%v", id, source, err)
+		}
+	}
+	if job, err := s.ClaimMemoryJob(ctx, memoryTestNow.Add(time.Hour), time.Minute, "extract"); err != nil || job != nil {
+		t.Fatalf("extraction queued for a source the owner did not speak: %+v err=%v", job, err)
+	}
+	message, err := s.AppendSessionMessage(ctx, "thread_1", 1, "user", "我不吃香菜", "run_1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	job, err := s.ClaimMemoryJob(ctx, message.CreatedAt.Add(time.Minute), time.Minute, "extract")
+	if err != nil || job == nil || job.ObjectID != fmt.Sprintf("message:%d", message.ID) {
+		t.Fatalf("owner message job=%+v err=%v", job, err)
+	}
+}
+
+// A v7 database queued extraction for every tool result and watch item. The
+// upgrade finishes that queued work and stops the triggers from queueing more.
+func TestSchemaEightFinishesQueuedToolExtraction(t *testing.T) {
+	dir := t.TempDir()
+	raw := openRaw(t, dir)
+	at := "2026-10-01T00:00:00.000000000Z"
+	if _, err := raw.Exec(readLayout(t, 7)+`PRAGMA user_version = 7;
+INSERT INTO memory_state (id, epoch) VALUES (1, 0);
+INSERT INTO memory_sources (id, kind, object_id, version, speaker, body, recorded_at) VALUES ('owner:1', 'import', '1', '1', 'owner', '我不吃香菜', ?1), ('shell:1', 'import', '2', '1', 'tool', '$ ls', ?1), ('note:1', 'import', '3', '1', 'external', '文章', ?1);
+INSERT INTO memory_jobs (operation, object_id, version, state, available_at, created_at) VALUES ('extract', 'owner:1', '1', 'pending', ?1, ?1), ('extract', 'shell:1', '1', 'pending', ?1, ?1), ('extract', 'note:1', '1', 'failed', ?1, ?1);`, at); err != nil {
+		t.Fatal(err)
+	}
+	if err := raw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	s, err := Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+	ctx := context.Background()
+	job, err := s.ClaimMemoryJob(ctx, memoryTestNow, time.Minute, "extract")
+	if err != nil || job == nil || job.ObjectID != "owner:1" {
+		t.Fatalf("owner job=%+v err=%v", job, err)
+	}
+	if next, err := s.ClaimMemoryJob(ctx, memoryTestNow, time.Minute, "extract"); err != nil || next != nil {
+		t.Fatalf("tool extraction survived the upgrade: %+v err=%v", next, err)
+	}
+	var done int
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM memory_jobs WHERE state='done' AND completed_at<>'' AND error='source retained with its original attribution' AND object_id IN ('shell:1','note:1')`).Scan(&done); err != nil || done != 2 {
+		t.Fatalf("finished jobs=%d err=%v", done, err)
+	}
+	if _, err := s.CreateSession(ctx, "thread_1", "memory"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.CreateRun(ctx, core.RunCreateParams{RunID: "run_1", SessionID: "thread_1", TurnIndex: 1, Input: "查书"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.AppendEvent(ctx, "run_1", "tool.call.succeeded", map[string]any{"tool_name": "shell", "output": "ok"}); err != nil {
+		t.Fatal(err)
+	}
+	if next, err := s.ClaimMemoryJob(ctx, memoryTestNow, time.Minute, "extract"); err != nil || next != nil {
+		t.Fatalf("upgraded trigger still queues tool extraction: %+v err=%v", next, err)
+	}
+}

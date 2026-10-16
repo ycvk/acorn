@@ -194,3 +194,52 @@ func TestWorkerCannotCommitAcrossOwnerForget(t *testing.T) {
 		t.Fatalf("forgotten record appeared: %+v %v", records, err)
 	}
 }
+
+// A tool result and an external document are registered as sources the agent
+// can cite, but the model is never asked to extract from them; only the
+// owner's message is.
+func TestWorkerExtractsOnlyOwnerSources(t *testing.T) {
+	ctx := context.Background()
+	model := &protocolModel{}
+	engine, db := testEngine(t, model, 100000)
+	if _, err := db.CreateSession(ctx, "books", "读书"); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.CreateRun(ctx, core.RunCreateParams{RunID: "run_books", SessionID: "books", TurnIndex: 1, Input: "查书"}); err != nil {
+		t.Fatal(err)
+	}
+	event, err := db.AppendEvent(ctx, "run_books", "tool.call.succeeded", map[string]any{"tool_name": "web_fetch", "output": "豆瓣短评：这本书读起来很一般"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	external, err := db.RegisterMemorySource(ctx, core.MemorySource{ID: "clip:1", Kind: "import", ObjectID: "1", Version: "1", Speaker: "external", Body: "作者在文中说自己不吃香菜", RecordedAt: time.Now()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	drainMemory(t, engine)
+	if model.calls != 0 {
+		t.Fatalf("model extracted from sources the owner did not speak: %d calls, inputs=%v", model.calls, model.seen)
+	}
+	for _, id := range []string{fmt.Sprintf("event:%d", event.Sequence), external.ID} {
+		if source, err := db.LoadMemorySource(ctx, id); err != nil || source.Content == "" {
+			t.Fatalf("source %s=%+v %v", id, source, err)
+		}
+	}
+	status, err := db.MemoryProcessingStatus(ctx)
+	if err != nil || status.Pending != 0 || status.Failed != 0 {
+		t.Fatalf("status=%+v %v", status, err)
+	}
+	recall, err := engine.Recall(ctx, core.MemoryQuery{Query: "香菜"})
+	if err != nil || len(recall.Hits) != 0 || recall.Pending != 0 {
+		t.Fatalf("recall=%+v %v", recall, err)
+	}
+	msg, err := db.AppendSessionMessage(ctx, "books", 1, "user", "我不吃香菜", "run_books")
+	if err != nil {
+		t.Fatal(err)
+	}
+	drainMemory(t, engine)
+	got, err := engine.Recall(ctx, core.MemoryQuery{Query: "香菜"})
+	if err != nil || model.calls != 1 || len(got.Hits) != 1 || got.Hits[0].Record.Evidence[0].SourceID != fmt.Sprintf("message:%d", msg.ID) {
+		t.Fatalf("calls=%d recall=%+v %v", model.calls, got, err)
+	}
+}

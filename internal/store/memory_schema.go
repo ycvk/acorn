@@ -174,12 +174,7 @@ CREATE TRIGGER IF NOT EXISTS memory_source_link_ai AFTER INSERT ON memory_source
  UPDATE memory_jobs SET state='done',error='owner excluded source',lease_until=''
  WHERE object_id=new.source_id AND EXISTS(SELECT 1 FROM memory_exclusions WHERE source_id=new.source_id AND quote='');
 END;
-CREATE TRIGGER IF NOT EXISTS memory_watch_ai AFTER INSERT ON watch_items BEGIN
- INSERT INTO memory_sources(id,kind,object_id,version,speaker,session_id,recorded_at,occurred_at)
- VALUES('watch:'||new.id,'watch',CAST(new.id AS TEXT),'1','external',COALESCE((SELECT session_id FROM watches WHERE id=new.watch_id),''),new.seen_at,new.published_at);
- INSERT OR IGNORE INTO memory_jobs(operation,object_id,version,available_at,created_at)
- VALUES('extract','watch:'||new.id,'1',new.seen_at,new.seen_at);
-END;
+` + memoryWatchTrigger + `
 
 CREATE TRIGGER IF NOT EXISTS memory_message_ai AFTER INSERT ON session_messages BEGIN
  INSERT INTO memory_sources(id,kind,object_id,version,speaker,session_id,run_id,recorded_at)
@@ -195,18 +190,7 @@ END;
 CREATE TRIGGER IF NOT EXISTS memory_message_run_au AFTER UPDATE OF run_id ON session_messages BEGIN
  UPDATE memory_sources SET run_id=new.run_id WHERE id='message:'||new.id;
 END;
-CREATE TRIGGER IF NOT EXISTS memory_event_ai AFTER INSERT ON events
- WHEN new.kind IN ('tool.call.succeeded','tool.call.failed') BEGIN
- INSERT INTO memory_sources(id,kind,object_id,version,speaker,session_id,run_id,recorded_at)
- VALUES('event:'||new.sequence,'event',CAST(new.sequence AS TEXT),'1','tool',
- COALESCE((SELECT session_id FROM runs WHERE run_id=new.run_id),''),new.run_id,new.created_at);
- INSERT OR IGNORE INTO memory_jobs(operation,object_id,version,available_at,created_at)
- VALUES('extract','event:'||new.sequence,'1',new.created_at,new.created_at);
- INSERT OR IGNORE INTO memory_source_links(source_id,parent_id)
- SELECT 'event:'||new.sequence,ref.source_id FROM context_snapshot_refs ref
- WHERE ref.run_id=new.run_id AND ref.source_id<>'' AND ref.source_id<>'event:'||new.sequence;
-
-END;
+` + memoryEventTrigger + `
 `
 
 // memorySQL keeps transaction-scoped operations on the same connection.
@@ -234,3 +218,25 @@ func (s *Store) memoryTransaction(ctx context.Context, fn func(*sql.Tx) error) (
 	}
 	return nil
 }
+
+// memoryWatchTrigger and memoryEventTrigger register watch items and tool
+// results as sources without queueing extraction; only owner messages are
+// extracted. The v8 migration recreates them from these definitions.
+const memoryWatchTrigger = `
+CREATE TRIGGER IF NOT EXISTS memory_watch_ai AFTER INSERT ON watch_items BEGIN
+ INSERT INTO memory_sources(id,kind,object_id,version,speaker,session_id,recorded_at,occurred_at)
+ VALUES('watch:'||new.id,'watch',CAST(new.id AS TEXT),'1','external',COALESCE((SELECT session_id FROM watches WHERE id=new.watch_id),''),new.seen_at,new.published_at);
+END;
+`
+
+const memoryEventTrigger = `
+CREATE TRIGGER IF NOT EXISTS memory_event_ai AFTER INSERT ON events
+ WHEN new.kind IN ('tool.call.succeeded','tool.call.failed') BEGIN
+ INSERT INTO memory_sources(id,kind,object_id,version,speaker,session_id,run_id,recorded_at)
+ VALUES('event:'||new.sequence,'event',CAST(new.sequence AS TEXT),'1','tool',
+ COALESCE((SELECT session_id FROM runs WHERE run_id=new.run_id),''),new.run_id,new.created_at);
+ INSERT OR IGNORE INTO memory_source_links(source_id,parent_id)
+ SELECT 'event:'||new.sequence,ref.source_id FROM context_snapshot_refs ref
+ WHERE ref.run_id=new.run_id AND ref.source_id<>'' AND ref.source_id<>'event:'||new.sequence;
+END;
+`

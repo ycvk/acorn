@@ -12,9 +12,10 @@ import (
 	"github.com/ycvk/acorn/internal/core"
 )
 
-// Credentials in a shell result and an owner message reach extraction, record
-// evidence, the keyword index and recall only as placeholders, while the thread
-// keeps them for the conversation itself.
+// Credentials in an owner message reach extraction, record evidence, the
+// keyword index and recall only as placeholders; a shell result is never
+// extracted and memory reads it redacted, while the thread keeps both for the
+// conversation itself.
 func TestExtractionNeverSeesOrStoresCredentials(t *testing.T) {
 	ctx := context.Background()
 	dir := t.TempDir()
@@ -56,7 +57,7 @@ func TestExtractionNeverSeesOrStoresCredentials(t *testing.T) {
 		}
 	}()
 	var records int
-	if err := conn.QueryRowContext(ctx, `SELECT COUNT(*) FROM memory_records`).Scan(&records); err != nil || records != 2 {
+	if err := conn.QueryRowContext(ctx, `SELECT COUNT(*) FROM memory_records`).Scan(&records); err != nil || records != 1 {
 		t.Fatalf("records=%d %v", records, err)
 	}
 	for _, secret := range raw {
@@ -76,7 +77,7 @@ func TestExtractionNeverSeesOrStoresCredentials(t *testing.T) {
 		}
 	}
 
-	for query, placeholder := range map[string]string{"招商银行 验证码": "[REDACTED:otp]", "OPENAI_API_KEY": "[REDACTED:openai_key]"} {
+	for query, placeholder := range map[string]string{"招商银行 验证码": "[REDACTED:otp]"} {
 		recall, err := engine.Recall(ctx, core.MemoryQuery{Query: query, Mode: "current"})
 		if err != nil || len(recall.Hits) == 0 {
 			t.Fatalf("recall %q=%+v %v", query, recall, err)
@@ -108,5 +109,9 @@ func TestExtractionNeverSeesOrStoresCredentials(t *testing.T) {
 	tool, err := db.LoadThreadSource(ctx, fmt.Sprintf("event:%d", event.Sequence))
 	if err != nil || !strings.Contains(tool.Content, apiKey) {
 		t.Fatalf("thread tool source=%+v %v", tool, err)
+	}
+	memoryView, err := db.LoadMemorySource(ctx, tool.ID)
+	if err != nil || !strings.Contains(memoryView.Content, "[REDACTED:openai_key]") || strings.Contains(memoryView.Content, apiKey) {
+		t.Fatalf("memory tool source=%+v %v", memoryView, err)
 	}
 }

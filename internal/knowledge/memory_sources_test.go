@@ -31,8 +31,9 @@ func TestKnowledgeRevisionsAreSourcesAndDerivedExclusion(t *testing.T) {
 	if a.Content != "不吃香菜" || b.Content != "现在可以吃少量香菜" || a.Body != "" || a.Speaker != "external" {
 		t.Fatalf("incorrect version resolution: %+v %+v", a, b)
 	}
+	// A note revision is evidence, not the owner's words: nothing is queued.
 	pending, count, err := db.PendingMemorySources(ctx, core.MemoryQuery{})
-	if err != nil || count != 2 || len(pending) != 2 {
+	if err != nil || count != 0 || len(pending) != 0 {
 		t.Fatalf("pending sources: %d %d %v", count, len(pending), err)
 	}
 	request, err := db.RegisterMemorySource(ctx, core.MemorySource{ID: "owner:forget", Kind: "standalone", ObjectID: "forget", Version: "1", Speaker: "owner", Body: "忘掉饮食偏好", RecordedAt: v.now})

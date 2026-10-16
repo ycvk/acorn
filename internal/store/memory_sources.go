@@ -49,7 +49,10 @@ func registerMemorySource(ctx context.Context, q memorySQL, source core.MemorySo
 			return err
 		}
 	}
-	if (source.Speaker == "owner" || source.Speaker == "tool" || source.Speaker == "external") && source.Kind != core.MemoryRequestSource {
+	// Only the owner's own words are extracted automatically. Tool results,
+	// external documents and watch items stay registered as sources that
+	// evidence can cite, but nothing is extracted from them.
+	if source.Speaker == "owner" && source.Kind != core.MemoryRequestSource {
 		return enqueueMemoryJob(ctx, q, "extract", source.ID, source.Version, source.RecordedAt)
 	}
 	return nil
