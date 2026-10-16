@@ -18,6 +18,7 @@ fun userMessage(e: Throwable): String = when (e) {
             "thread_busy" -> "Acorn 还在这个对话里工作，等这一轮结束再删"
             else -> "内容刚被改过，刷新后再试"
         }
+        413 -> "文件超过了服务器允许的大小" + (serverMessage(e)?.let { "（$it）" } ?: "")
         429 -> "请求太频繁，稍后再试"
         else -> serverMessage(e)?.let { "服务器拒绝了这个请求：$it" } ?: "服务器拒绝了这个请求（${e.statusCode}）"
     }

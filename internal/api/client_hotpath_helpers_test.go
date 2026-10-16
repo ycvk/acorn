@@ -3,6 +3,8 @@ package api
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io"
 	"strings"
 	"time"
 
@@ -25,9 +27,30 @@ func (noThreadMemory) ForgetThreadForOwner(context.Context, string, string) (cor
 
 func noForgetBarrier(context.Context, core.MemoryExclusion, string) error { return nil }
 
+// noThreadFiles is a thread file store holding no files.
+type noThreadFiles struct{}
+
+func (noThreadFiles) SaveThreadFile(context.Context, core.ThreadFileWrite) (core.ThreadFile, error) {
+	return core.ThreadFile{}, errors.New("no thread files in this test")
+}
+
+func (noThreadFiles) ThreadFiles(context.Context, string) ([]core.ThreadFile, error) {
+	return nil, nil
+}
+
+func (noThreadFiles) OpenThreadFile(_ context.Context, _, fileID string) (core.ThreadFile, io.ReadCloser, error) {
+	return core.ThreadFile{}, nil, fmt.Errorf("%w: %s", core.ErrThreadFileNotFound, fileID)
+}
+
+func (noThreadFiles) AttachThreadFiles(context.Context, string, int64, []string) error {
+	return errors.New("no thread files in this test")
+}
+
+func (noThreadFiles) OwnerThreadFileIDs(context.Context) ([]string, error) { return nil, nil }
+
 func newClientHotPathServices(stub *clientHandlerStub) (*ThreadService, *RunService, *EventService) {
 	store := &clientHandlerStore{stub: stub}
-	threads, err := NewThreadService(store, noThreadMemory{}, noForgetBarrier)
+	threads, err := NewThreadService(store, noThreadFiles{}, noThreadMemory{}, noForgetBarrier)
 	if err != nil {
 		panic(err)
 	}

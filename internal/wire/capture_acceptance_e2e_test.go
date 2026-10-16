@@ -222,7 +222,7 @@ func TestSharedImageIsStoredBeforeTheRunAndServedToTheOwner(t *testing.T) {
 		t.Fatalf("capture request images = %d, want the shared image", len(got))
 	}
 	first := waitNewRun(t, c, accepted.ThreadID, "")
-	if _, err := c.runs.CreateRun(context.Background(), accepted.ThreadID, "", "图里写了什么？"); err != nil {
+	if _, err := c.runs.CreateRun(context.Background(), accepted.ThreadID, "", "图里写了什么？", nil); err != nil {
 		t.Fatal(err)
 	}
 	waitNewRun(t, c, accepted.ThreadID, first.RunID)

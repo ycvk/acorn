@@ -148,6 +148,12 @@ func (c *ConverterImpl) messageDTOFromDomain(source Message) MessageDTO {
 			apiMessageDTO.Steps[i] = c.apiToolStepToApiToolStepDTO(source.Steps[i])
 		}
 	}
+	if source.Files != nil {
+		apiMessageDTO.Files = make([]ThreadFileDTO, len(source.Files))
+		for j := 0; j < len(source.Files); j++ {
+			apiMessageDTO.Files[j] = c.threadFileDTOFromDomain(source.Files[j])
+		}
+	}
 	return apiMessageDTO
 }
 func (c *ConverterImpl) messageDTOsFromDomain(source []Message) []MessageDTO {
@@ -221,4 +227,14 @@ func (c *ConverterImpl) threadDTOsFromDomain(source []Thread) []ThreadDTO {
 		}
 	}
 	return apiThreadDTOList
+}
+func (c *ConverterImpl) threadFileDTOFromDomain(source ThreadFileInfo) ThreadFileDTO {
+	var apiThreadFileDTO ThreadFileDTO
+	apiThreadFileDTO.ID = source.ID
+	apiThreadFileDTO.Name = source.Name
+	apiThreadFileDTO.MIMEType = source.MIMEType
+	apiThreadFileDTO.SizeBytes = source.SizeBytes
+	apiThreadFileDTO.Origin = source.Origin
+	apiThreadFileDTO.CreatedAt = TimeToTime(source.CreatedAt)
+	return apiThreadFileDTO
 }

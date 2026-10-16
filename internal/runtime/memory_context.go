@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -36,6 +37,7 @@ type runMemory struct {
 	epoch       atomic.Int64
 	history     memory.History
 	images      map[int64][]*schema.UserInputImage
+	owner       ownerFiles
 	recall      core.MemoryRecall
 	current     []core.MemorySource
 	budget      int
@@ -47,7 +49,7 @@ type runMemory struct {
 	clock       func() time.Time
 }
 
-func prepareRunMemory(ctx context.Context, deps RuntimeDeps, req RunnerBuildRequest, instruction string, catalogTokens int) (*runMemory, error) {
+func prepareRunMemory(ctx context.Context, deps RuntimeDeps, req RunnerBuildRequest, instruction string, catalogTokens int, owner ownerFiles) (*runMemory, error) {
 	if deps.Memory == nil {
 		return nil, errors.New("runtime memory service is required")
 	}
@@ -90,6 +92,11 @@ func prepareRunMemory(ctx context.Context, deps RuntimeDeps, req RunnerBuildRequ
 		return nil, err
 	}
 	inputTokens += core.ImageInputTokens * len(core.CaptureImagePaths(current[0].Content))
+	for _, file := range owner.byMessage[through] {
+		if file.InlineImage() {
+			inputTokens += core.ImageInputTokens
+		}
+	}
 	memoryBudget := min(deps.Config.Memory.ContextTokens, max(256, (available-inputTokens-512)/3))
 	historyBudget := min(available-memoryBudget, max(deps.Config.Memory.HistoryTokens, inputTokens+128))
 	if historyBudget < 256 || available <= inputTokens+512 {
@@ -107,7 +114,19 @@ func prepareRunMemory(ctx context.Context, deps RuntimeDeps, req RunnerBuildRequ
 	if err != nil {
 		return nil, err
 	}
+	fileImages, err := ownerFileImages(ctx, deps.Files, req.SessionID, owner, history.Messages)
+	if err != nil {
+		return nil, err
+	}
+	for id, list := range fileImages {
+		images[id] = append(images[id], list...)
+	}
 	query := current[0].Content
+	// The names of the files the owner sent are part of what they asked about,
+	// and all there is when the message has no text.
+	for _, file := range owner.byMessage[through] {
+		query = strings.TrimSpace(query + "\n" + file.Name)
+	}
 	if req.Wake != "" {
 		query = req.Wake + "\n" + query
 	}
@@ -120,7 +139,7 @@ func prepareRunMemory(ctx context.Context, deps RuntimeDeps, req RunnerBuildRequ
 	if err != nil {
 		return nil, fmt.Errorf("automatic recall: %w", err)
 	}
-	m := &runMemory{instruction: instruction, history: history, images: images, recall: recall, current: current, budget: memoryBudget, service: deps.Memory, store: deps.MemoryStore, activity: deps.Activity, runID: req.RunID, counter: counter, clock: deps.Clock}
+	m := &runMemory{instruction: instruction, history: history, images: images, owner: owner, recall: recall, current: current, budget: memoryBudget, service: deps.Memory, store: deps.MemoryStore, activity: deps.Activity, runID: req.RunID, counter: counter, clock: deps.Clock}
 	if recall.Epoch != history.Epoch {
 		return nil, core.ErrMemoryExcluded
 	}
@@ -142,7 +161,11 @@ func (m *runMemory) messages() []*schema.AgenticMessage {
 		if item.Role != "user" && item.Role != "assistant" && item.Role != core.MessageRoleWake && item.Role != core.MessageRoleCapture {
 			continue
 		}
-		msg := schema.UserAgenticMessage(item.Content)
+		text := item.Content
+		if note := m.owner.note(item.ID); note != "" {
+			text = strings.TrimSpace(text + "\n\n" + note)
+		}
+		msg := schema.UserAgenticMessage(text)
 		for _, image := range m.images[item.ID] {
 			msg.ContentBlocks = append(msg.ContentBlocks, schema.NewContentBlock(image))
 		}

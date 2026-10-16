@@ -40,6 +40,7 @@ var localToolNames = []string{
 	"web_search",
 	"shell",
 	"files",
+	"send_file",
 }
 
 // runScopedTool reports whether the runtime toolset builds the tool for each
@@ -47,7 +48,7 @@ var localToolNames = []string{
 // resolving it from wire-time dependencies.
 func runScopedTool(name string) bool {
 	switch name {
-	case "web_fetch", "web_search", "shell", "files":
+	case "web_fetch", "web_search", "shell", "files", "send_file":
 		return true
 	}
 	return false
@@ -88,7 +89,7 @@ func configuredLocalSpec(name string) core.ToolSpec {
 	case "artifact_write", "knowledge_write", "knowledge_edit", "skill_write", "skill_retire", "skill_import", "watch_create", "watch_update":
 		spec.Kind = core.ToolKindNative
 		spec.Category = core.ToolCategoryWrite
-	case "ask_operator", "notify_owner":
+	case "ask_operator", "notify_owner", "send_file":
 		spec.Kind = core.ToolKindNative
 		spec.Category = core.ToolCategoryIntegration
 	case "keep", "think", "schedule_wake", "settle", "memory_correct", "memory_forget", "concern":

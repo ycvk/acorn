@@ -106,6 +106,12 @@ workstation:
   command_timeout_seconds: 300
   max_output_bytes: 32768
 
+files:
+  # Size caps, in MiB, for a file you send the agent from the app and for one
+  # it sends you from its workstation.
+  max_upload_mib: 50
+  max_send_mib: 100
+
 context:
   window_tokens: 1050000
   compact_margin_tokens: 32000

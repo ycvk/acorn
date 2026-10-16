@@ -36,8 +36,9 @@ type PendingActionSummaryDTO struct {
 }
 
 type CreateRunRequest struct {
-	SkillID string `json:"skill_id,omitempty"`
-	Input   string `json:"input,omitempty"`
+	SkillID string   `json:"skill_id,omitempty"`
+	Input   string   `json:"input,omitempty"`
+	FileIDs []string `json:"file_ids,omitempty"`
 }
 
 // RunDTO represents a client-visible run summary.
@@ -128,6 +129,17 @@ type MessageDTO struct {
 	CreatedAt time.Time         `json:"created_at"`
 	RunID     string            `json:"run_id,omitempty"`
 	Steps     []ToolStepDTO     `json:"steps,omitempty"`
+	Files     []ThreadFileDTO   `json:"files,omitempty"`
+}
+
+// ThreadFileDTO describes a file in a thread.
+type ThreadFileDTO struct {
+	ID        string    `json:"id"`
+	Name      string    `json:"name"`
+	MIMEType  string    `json:"mime_type"`
+	SizeBytes int64     `json:"size_bytes"`
+	Origin    string    `json:"origin"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 // ToolStepDTO is one tool call behind an assistant message.

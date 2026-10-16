@@ -19,7 +19,7 @@ import (
 // database at that moment) beside add-only mirrors of the
 // storage directories whose files never change once written.
 var (
-	mirroredDirs    = []string{"attachments", "artifacts"}
+	mirroredDirs    = []string{"attachments", "artifacts", "files"}
 	snapshotPattern = regexp.MustCompile(`^\d{8}T\d{6}Z$`)
 )
 
@@ -31,8 +31,8 @@ type BackupReport struct {
 	Removed       []string `json:"removed_snapshots"`
 }
 
-// Backup snapshots the database into backup.dir, mirrors
-// attachments and artifacts, and keeps the newest backup.keep snapshots. A
+// Backup snapshots the database into backup.dir, mirrors attachments,
+// artifacts and thread files, and keeps the newest backup.keep snapshots. A
 // running Acorn keeps working meanwhile.
 func Backup(ctx context.Context, cfg *config.Config, now time.Time) (BackupReport, error) {
 	dir, keep := cfg.Backup.Dir, cfg.Backup.Keep

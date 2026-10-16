@@ -119,7 +119,7 @@ func TestThinkingPhoneNotificationsReachPresenceAndBriefing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := c.runs.CreateRun(ctx, thread.ID, "", "早上好"); err != nil {
+	if _, err := c.runs.CreateRun(ctx, thread.ID, "", "早上好", nil); err != nil {
 		t.Fatal(err)
 	}
 	waitNewRun(t, c, thread.ID, "")

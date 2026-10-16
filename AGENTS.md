@@ -50,13 +50,17 @@ cd mobile-kotlin && ./tool/generate_openapi_client.sh --check && ./gradlew assem
 
 - 记忆是 fact/insight/thought,每条可追溯到来源并带修订与有效时间;写入时间由调用方提供。assistant 的话不能直接成为 owner 的事实。
 - 后台处理以租约 token、revision 与 exclusion epoch 防止过期写入;同一来源重复处理必须幂等。
-- 遗忘需要当前 owner 的请求,排除来源及派生记录、向量与摘要;旧 epoch 的 checkpoint 禁止恢复;agent 的知识库读取遵守相同排除。删除对话是 owner 的遗忘请求:先排除对话的消息与工具结果来源,再删除对话及其 run 留下的记录;笔记、技能、约定与追踪项保留。删除笔记同样是遗忘请求:先排除它每个 revision 的来源,再删除笔记与全部 revision。
+- 遗忘需要当前 owner 的请求,排除来源及派生记录、向量与摘要;旧 epoch 的 checkpoint 禁止恢复;agent 的知识库读取遵守相同排除。删除对话是 owner 的遗忘请求:先排除对话的消息与工具结果来源,再删除对话、对话里的文件及其 run 留下的记录;笔记、技能、约定与追踪项保留。删除笔记同样是遗忘请求:先排除它每个 revision 的来源,再删除笔记与全部 revision。
 - 约定分规则与每次发生,发生只能被认领一次;完成需要 owner 确认或成功的工具结果。
 - 后台记忆调用受 `memory.daily_tokens` 约束,自主唤醒受 `wake.daily_limit`/`wake.daily_tokens` 约束;预算耗尽时任务保留到下一本地日。
 
 ### 知识库
 
 - 知识库笔记存在 SQLite,只经 `knowledge.Vault` 写入;每次写入是一个新 revision,并在同一事务里登记为记忆来源。编辑基于读到的 revision,并发修改显式失败。agent 不删除、不移动笔记,只有 owner 经 App 删除笔记;同一路径重建的笔记接着已登记来源的最大 revision 编号。早安卡不写笔记。笔记路径是相对 `.md` 路径,不含 `..`、隐藏段或 `attachments/`。分享的图片存为 `{storage_dir}/attachments/` 下的文件,笔记以 `![描述](attachments/...)` 引用,客户端经 `/v1/knowledge/attachment` 读取。
+
+### 对话文件
+
+- owner 在 App 里发给 agent 的文件与 agent 经 `send_file` 从工作机发给 owner 的文件存为 `{storage_dir}/files/<file_id>`,在 SQLite 里按对话登记,内容不变。owner 先上传,run 随 owner 的消息发送它们;消息可以只有文件。模型直接看到支持的图片,所有文件在 run 前复制到工作机的 `~/uploads/<file_id>/<文件名>`,不再属于任何对话的副本同时删除。大小上限是 `files.max_upload_mib` 与 `files.max_send_mib`。
 
 ### 推送与手机通知
 

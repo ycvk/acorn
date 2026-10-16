@@ -129,8 +129,11 @@ func (s *RunService) InterruptRun(ctx context.Context, runID string) error {
 	return s.controller.Interrupt(runID)
 }
 
-func (s *RunService) CreateRun(ctx context.Context, threadID, skillID, input string) (*Run, error) {
-	return s.createRun(ctx, threadID, skillID, input, "", "user", nil)
+// CreateRun starts a run on the owner's message. fileIDs are files uploaded
+// to the thread that the message sends; with files, the message is recorded
+// even when input is empty.
+func (s *RunService) CreateRun(ctx context.Context, threadID, skillID, input string, fileIDs []string) (*Run, error) {
+	return s.createRun(ctx, threadID, skillID, input, fileIDs, "", "user", nil)
 }
 
 // CreateScheduledRun starts a scheduler input with explicit provenance and budget ownership.
@@ -138,7 +141,7 @@ func (s *RunService) CreateScheduledRun(ctx context.Context, threadID, input str
 	if strings.TrimSpace(wake.Reason) == "" {
 		return nil, errors.New("scheduled run requires wake reason")
 	}
-	return s.createRun(ctx, threadID, "", input, wake.Reason, core.MessageRoleWake, &wake)
+	return s.createRun(ctx, threadID, "", input, nil, wake.Reason, core.MessageRoleWake, &wake)
 }
 
 // captureWake describes what wakes a capture run.
@@ -150,13 +153,13 @@ func (s *RunService) CreateCaptureRun(ctx context.Context, threadID, input strin
 	if strings.TrimSpace(input) == "" {
 		return nil, errors.New("capture run requires input")
 	}
-	return s.createRun(ctx, threadID, "", input, captureWake, core.MessageRoleCapture, nil)
+	return s.createRun(ctx, threadID, "", input, nil, captureWake, core.MessageRoleCapture, nil)
 }
 
 // createRun records input under role (or, with empty input, binds the latest
 // unbound message) and starts the run. wake, when set, tells the agent what
 // woke it.
-func (s *RunService) createRun(ctx context.Context, threadID, skillID, input, wake, role string, scheduled *core.ScheduledWake) (*Run, error) {
+func (s *RunService) createRun(ctx context.Context, threadID, skillID, input string, fileIDs []string, wake, role string, scheduled *core.ScheduledWake) (*Run, error) {
 	if s == nil || s.store == nil || s.executeRun == nil || s.newRunID == nil || s.threads == nil {
 		return nil, errors.New("client service is not initialized")
 	}
@@ -174,10 +177,20 @@ func (s *RunService) createRun(ctx context.Context, threadID, skillID, input, wa
 	// rolled back), never silently mis-binding.
 	var message *core.SessionMessageRecord
 	var err error
-	if strings.TrimSpace(input) != "" {
+	if len(fileIDs) > 0 {
+		if err := s.threads.unsentFiles(ctx, threadID, fileIDs); err != nil {
+			return nil, err
+		}
+	}
+	if strings.TrimSpace(input) != "" || len(fileIDs) > 0 {
 		message, err = s.threads.createInputMessage(ctx, threadID, role, input)
 		if err != nil {
 			return nil, err
+		}
+		if len(fileIDs) > 0 {
+			if err := s.threads.files.AttachThreadFiles(ctx, threadID, message.ID, fileIDs); err != nil {
+				return nil, err
+			}
 		}
 	} else {
 		message, err = s.store.LoadLatestUnboundUserMessage(ctx, threadID)

@@ -42,6 +42,7 @@ func defaultConfig() *Config {
 			CommandTimeoutSeconds: 300,
 			MaxOutputBytes:        32768,
 		},
+		Files: FilesConfig{MaxUploadMiB: 50, MaxSendMiB: 100},
 		Notify: NotifyConfig{
 			MaxPerHour: 6,
 			QuietHours: QuietHoursConfig{Start: "23:00", End: "08:00"},

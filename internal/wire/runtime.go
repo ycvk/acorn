@@ -161,7 +161,11 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 		return nil, fmt.Errorf("register native tools: %w", err)
 	}
 
-	workstationTools := buildWorkstationTools(cfg, workstationClient)
+	workstationTools := buildWorkstationTools(cfg, workstationClient, db, ctxBridge)
+	var uploads runtime.UploadHost
+	if workstationClient != nil {
+		uploads = workstationClient
+	}
 	reviewer, err := buildReviewer(cfg)
 	if err != nil {
 		return nil, err
@@ -172,6 +176,8 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 	}
 	runnerFactory, err := runtime.NewRunnerFactory(cfg, db, runtime.RunnerFactoryOptions{
 		Attachments:           vault,
+		Files:                 db,
+		Uploads:               uploads,
 		Persona:               db,
 		Skills:                skillLibrary,
 		SkillPackages:         skillPackages,

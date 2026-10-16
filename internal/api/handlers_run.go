@@ -12,7 +12,7 @@ func (s *Server) handleClientCreateRun(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	item, err := s.runs.CreateRun(r.Context(), chi.URLParam(r, "thread_id"), req.SkillID, req.Input)
+	item, err := s.runs.CreateRun(r.Context(), chi.URLParam(r, "thread_id"), req.SkillID, req.Input, req.FileIDs)
 	if err != nil {
 		s.respondClientKnownError(w, r, err)
 		return

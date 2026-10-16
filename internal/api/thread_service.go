@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -21,20 +22,22 @@ type threadForgetter interface {
 // client-facing DTOs.
 type ThreadService struct {
 	store       core.SessionStore
+	files       core.ThreadFiles
 	forgetter   threadForgetter
 	barrier     func(context.Context, core.MemoryExclusion, string) error
 	newThreadID func() string
 }
 
-// NewThreadService constructs a ThreadService backed by the given store.
-// Deleting a thread forgets it through forgetter, then waits at barrier for
-// the executions that saw it to stop.
-func NewThreadService(store core.SessionStore, forgetter threadForgetter, barrier func(context.Context, core.MemoryExclusion, string) error) (*ThreadService, error) {
-	if store == nil || forgetter == nil || barrier == nil {
-		return nil, errors.New("thread service: store, forgetter and barrier are required")
+// NewThreadService constructs a ThreadService backed by the given store and
+// the files of its threads. Deleting a thread forgets it through forgetter,
+// then waits at barrier for the executions that saw it to stop.
+func NewThreadService(store core.SessionStore, files core.ThreadFiles, forgetter threadForgetter, barrier func(context.Context, core.MemoryExclusion, string) error) (*ThreadService, error) {
+	if store == nil || files == nil || forgetter == nil || barrier == nil {
+		return nil, errors.New("thread service: store, files, forgetter and barrier are required")
 	}
 	return &ThreadService{
 		store:       store,
+		files:       files,
 		forgetter:   forgetter,
 		barrier:     barrier,
 		newThreadID: newThreadID,
@@ -250,20 +253,84 @@ func (s *ThreadService) ListMessages(ctx context.Context, threadID string, limit
 	if err != nil {
 		return nil, err
 	}
+	files, err := s.files.ThreadFiles(ctx, threadID)
+	if err != nil {
+		return nil, err
+	}
+	sent, attached := map[string][]ThreadFileInfo{}, map[int64][]ThreadFileInfo{}
+	for _, file := range files {
+		switch {
+		case file.Origin == core.ThreadFileFromAgent:
+			sent[file.RunID] = append(sent[file.RunID], threadFileInfo(file))
+		case file.MessageID > 0:
+			attached[file.MessageID] = append(attached[file.MessageID], threadFileInfo(file))
+		}
+	}
 	messages := make([]Message, 0, len(records))
 	for _, record := range records {
 		message, err := projectMessage(record)
 		if err != nil {
 			return nil, err
 		}
-		if record.Role == "assistant" {
+		switch record.Role {
+		case "assistant":
 			if message.Steps, err = toolSteps(toolEvents[record.RunID]); err != nil {
 				return nil, err
 			}
+			message.Files = sent[record.RunID]
+		case "user":
+			message.Files = attached[record.ID]
 		}
 		messages = append(messages, message)
 	}
 	return messages, nil
+}
+
+func threadFileInfo(file core.ThreadFile) ThreadFileInfo {
+	return ThreadFileInfo{ID: file.ID, Name: file.Name, MIMEType: file.MIME, SizeBytes: file.Size, Origin: file.Origin, CreatedAt: file.CreatedAt}
+}
+
+// UploadFile stores a file the owner sends in a thread; a run sends it with
+// the owner's message.
+func (s *ThreadService) UploadFile(ctx context.Context, threadID, name string, content io.Reader, maxBytes int64) (ThreadFileInfo, error) {
+	file, err := s.files.SaveThreadFile(ctx, core.ThreadFileWrite{SessionID: threadID, Origin: core.ThreadFileFromOwner, Name: name, Content: content, MaxBytes: maxBytes})
+	if err != nil {
+		return ThreadFileInfo{}, err
+	}
+	return threadFileInfo(file), nil
+}
+
+// OpenFile opens a file of a thread for reading.
+func (s *ThreadService) OpenFile(ctx context.Context, threadID, fileID string) (core.ThreadFile, io.ReadCloser, error) {
+	return s.files.OpenThreadFile(ctx, threadID, fileID)
+}
+
+// maxMessageFiles caps the files one message sends.
+const maxMessageFiles = 10
+
+// unsentFiles checks that fileIDs name owner files of the thread no message
+// has sent yet.
+func (s *ThreadService) unsentFiles(ctx context.Context, threadID string, fileIDs []string) error {
+	if len(fileIDs) > maxMessageFiles {
+		return fmt.Errorf("%w: a message sends at most %d files", core.ErrInvalidThreadFile, maxMessageFiles)
+	}
+	files, err := s.files.ThreadFiles(ctx, threadID)
+	if err != nil {
+		return err
+	}
+	unsent := map[string]bool{}
+	for _, file := range files {
+		if file.Origin == core.ThreadFileFromOwner && file.MessageID == 0 {
+			unsent[file.ID] = true
+		}
+	}
+	for _, id := range fileIDs {
+		if !unsent[id] {
+			return fmt.Errorf("%w: %s is not a file sent to thread %s and waiting for a message", core.ErrInvalidThreadFile, id, threadID)
+		}
+		delete(unsent, id)
+	}
+	return nil
 }
 
 const threadPreviewRunes = 120
@@ -388,6 +455,19 @@ type Message struct {
 	CreatedAt time.Time
 	RunID     string
 	Steps     []ToolStep
+	// Files are what an owner message sent, or what the run behind an
+	// assistant message sent the owner.
+	Files []ThreadFileInfo
+}
+
+// ThreadFileInfo describes a file in a thread.
+type ThreadFileInfo struct {
+	ID        string
+	Name      string
+	MIMEType  string
+	SizeBytes int64
+	Origin    string
+	CreatedAt time.Time
 }
 
 // ToolStep is one tool call behind an assistant message.

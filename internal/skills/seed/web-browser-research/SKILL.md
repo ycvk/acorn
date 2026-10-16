@@ -1,6 +1,6 @@
 ---
 name: web-browser-research
-description: Research the public web with web_search and web_fetch, and open pages that need a real browser with the browser skill (查网页, 搜索, 联网).
+description: Research the public web with web_search and web_fetch, open pages that need a real browser with the browser skill, and download files the owner asks for (查网页, 搜索, 联网, 下载).
 metadata:
   acorn-requires-tools: web_fetch
 ---
@@ -15,6 +15,7 @@ metadata:
 3. 简单的事实问题（某本书在哪个平台、某个版本何时发布）用 `web_search` 加 `include_text: true` 和较小的 `max_results`（3 到 5）。每条结果会带上搜索服务抓取的页面正文（截断到 3000 字），读到答案就可以直接作答，不必再逐页 `web_fetch`。
 4. 需要完整页面、页面的最新状态，或正文被截断而答案不在里面时，对可信候选 `web_fetch`，基于产出的 Markdown artifact 作答；浏览器里的页面用 `observe` 读正文。
 5. 每次回答都区分“搜索发现”和“读过正文的证据”，引用时给出 URL 和标题。不要把 snippet 当成已验证事实。
+6. 用户要文件（电子书、PDF、数据集）时，先找到直接下载链接，优先作者、出版方或公版书库（维基文库、Project Gutenberg）提供的文件。用 `tool_search` 加载 `shell`，在工作机上 `curl -L -o` 下载，用 `file` 和大小确认拿到的是真文件而不是网页，再用 `send_file` 发给用户，回复里说明发了什么、来自哪里。需要点击或登录才能下载时，按 `browser` 技能在工作机的浏览器里下载。
 
 推荐调用顺序：
 
@@ -23,6 +24,7 @@ metadata:
 3. 明确 URL：`web_fetch`。
 4. 动态页面或需要交互：加载 `browser` 技能，按它的说明用工作机的浏览器。
 5. 需要登录的网站：按 `browser` 技能的说明请 owner 在 App 里登录工作机的浏览器。
+6. 要文件：`web_search` 找下载页 -> `shell` 下载并确认 -> `send_file`。
 
 工具未启用时的处理：
 

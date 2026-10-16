@@ -19,6 +19,7 @@ type Config struct {
 	Briefing    BriefingConfig    `yaml:"briefing"`
 	Backup      BackupConfig      `yaml:"backup"`
 	Workstation WorkstationConfig `yaml:"workstation"`
+	Files       FilesConfig       `yaml:"files"`
 	Review      ReviewConfig      `yaml:"review"`
 
 	ConfigPath string `yaml:"-"`

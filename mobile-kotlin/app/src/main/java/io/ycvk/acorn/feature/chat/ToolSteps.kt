@@ -69,6 +69,7 @@ fun toolLabel(name: String): String = when (name) {
     "browser" -> "用浏览器打开"
     "shell" -> "运行命令"
     "files" -> "读写文件"
+    "send_file" -> "发送文件"
     "artifact_write" -> "保存文件"
     "artifact_read" -> "读取文件"
     "artifact_list" -> "查看文件"

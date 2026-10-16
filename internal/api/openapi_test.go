@@ -61,6 +61,8 @@ func TestOpenAPIContractMatchesClientSurface(t *testing.T) {
 		"/v1/threads/{thread_id}",
 		"/v1/threads/{thread_id}/messages",
 		"/v1/threads/{thread_id}/runs",
+		"/v1/threads/{thread_id}/files",
+		"/v1/threads/{thread_id}/files/{file_id}",
 		"/v1/runs/{run_id}",
 		"/v1/runs/{run_id}/events",
 		"/v1/runs/{run_id}/detail",

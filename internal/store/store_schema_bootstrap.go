@@ -146,6 +146,8 @@ CREATE TABLE IF NOT EXISTS knowledge_revisions (
 
 ` + personaTable + `
 
+` + threadFilesTable + `
+
 CREATE TABLE IF NOT EXISTS watches (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,

@@ -25,6 +25,7 @@ var (
 	_ core.CommitmentStore = (*Store)(nil)
 	_ core.ActivityStore   = (*Store)(nil)
 	_ core.PersonaStore    = (*Store)(nil)
+	_ core.ThreadFiles     = (*Store)(nil)
 )
 
 type Store struct {
@@ -36,6 +37,7 @@ type Store struct {
 	read        *sql.DB
 	artifactDir string
 	artifactSvc *ArtifactService
+	filesDir    string
 }
 
 const fixedTimestampLayout = "2006-01-02T15:04:05.000000000Z07:00"
@@ -81,7 +83,12 @@ func Open(dir string, options ...OpenOptions) (*Store, error) {
 		_ = db.Close()
 		return nil, fmt.Errorf("create artifact dir: %w", err)
 	}
-	store := &Store{lock: lock, exclusive: exclusive, db: db, artifactDir: artifactDir}
+	filesDir := filepath.Join(dir, threadFilesDir)
+	if err := os.MkdirAll(filesDir, 0o700); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("create thread files dir: %w", err)
+	}
+	store := &Store{lock: lock, exclusive: exclusive, db: db, artifactDir: artifactDir, filesDir: filesDir}
 	artifactSvc, err := NewArtifactService(artifactDir, store)
 	if err != nil {
 		_ = db.Close()

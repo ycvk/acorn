@@ -45,6 +45,7 @@ import io.ycvk.acorn.api.models.RunDetail
 import io.ycvk.acorn.api.models.RunEvent
 import io.ycvk.acorn.api.models.SystemStatus
 import io.ycvk.acorn.api.models.Thread
+import io.ycvk.acorn.api.models.ThreadFile
 import io.ycvk.acorn.api.models.ThreadListResponse
 import io.ycvk.acorn.api.models.ToolListResponse
 import io.ycvk.acorn.api.models.UpdateThreadRequest
@@ -1134,6 +1135,82 @@ open class ClientApi(basePath: kotlin.String = defaultBasePath, client: Call.Fac
     }
 
     /**
+     * GET /v1/threads/{thread_id}/files/{file_id}
+     * Download a file of a thread
+     * Returns the file bytes with its media type and name. File content never changes, so responses may be cached indefinitely. 
+     * @param threadId 
+     * @param fileId 
+     * @return java.io.File
+     * @throws IllegalStateException If the request is not correctly configured
+     * @throws IOException Rethrows the OkHttp execute method exception
+     * @throws UnsupportedOperationException If the API returns an informational or redirection response
+     * @throws ClientException If the API returns a client error response
+     * @throws ServerException If the API returns a server error response
+     */
+    @Suppress("UNCHECKED_CAST")
+    @Throws(IllegalStateException::class, IOException::class, UnsupportedOperationException::class, ClientException::class, ServerException::class)
+    fun clientGetThreadFile(threadId: kotlin.String, fileId: kotlin.String) : java.io.File {
+        val localVarResponse = clientGetThreadFileWithHttpInfo(threadId = threadId, fileId = fileId)
+
+        return when (localVarResponse.responseType) {
+            ResponseType.Success -> (localVarResponse as Success<*>).data as java.io.File
+            ResponseType.Informational -> throw UnsupportedOperationException("Client does not support Informational responses.")
+            ResponseType.Redirection -> throw UnsupportedOperationException("Client does not support Redirection responses.")
+            ResponseType.ClientError -> {
+                val localVarError = localVarResponse as ClientError<*>
+                throw ClientException("Client error : ${localVarError.statusCode} ${localVarError.message.orEmpty()}", localVarError.statusCode, localVarResponse)
+            }
+            ResponseType.ServerError -> {
+                val localVarError = localVarResponse as ServerError<*>
+                throw ServerException("Server error : ${localVarError.statusCode} ${localVarError.message.orEmpty()} ${localVarError.body}", localVarError.statusCode, localVarResponse)
+            }
+        }
+    }
+
+    /**
+     * GET /v1/threads/{thread_id}/files/{file_id}
+     * Download a file of a thread
+     * Returns the file bytes with its media type and name. File content never changes, so responses may be cached indefinitely. 
+     * @param threadId 
+     * @param fileId 
+     * @return ApiResponse<java.io.File?>
+     * @throws IllegalStateException If the request is not correctly configured
+     * @throws IOException Rethrows the OkHttp execute method exception
+     */
+    @Suppress("UNCHECKED_CAST")
+    @Throws(IllegalStateException::class, IOException::class)
+    fun clientGetThreadFileWithHttpInfo(threadId: kotlin.String, fileId: kotlin.String) : ApiResponse<java.io.File?> {
+        val localVariableConfig = clientGetThreadFileRequestConfig(threadId = threadId, fileId = fileId)
+
+        return request<Unit, java.io.File>(
+            localVariableConfig
+        )
+    }
+
+    /**
+     * To obtain the request config of the operation clientGetThreadFile
+     *
+     * @param threadId 
+     * @param fileId 
+     * @return RequestConfig
+     */
+    fun clientGetThreadFileRequestConfig(threadId: kotlin.String, fileId: kotlin.String) : RequestConfig<Unit> {
+        val localVariableBody = null
+        val localVariableQuery: MultiValueMap = mutableMapOf()
+        val localVariableHeaders: MutableMap<String, String> = mutableMapOf()
+        localVariableHeaders["Accept"] = "application/json"
+
+        return RequestConfig(
+            method = RequestMethod.GET,
+            path = "/v1/threads/{thread_id}/files/{file_id}".replace("{"+"thread_id"+"}", encodeURIComponent(threadId.toString())).replace("{"+"file_id"+"}", encodeURIComponent(fileId.toString())),
+            query = localVariableQuery,
+            headers = localVariableHeaders,
+            requiresAuthentication = true,
+            body = localVariableBody
+        )
+    }
+
+    /**
      * POST /v1/runs/{run_id}:interrupt
      * Request interruption for a running client run
      * 
@@ -1749,6 +1826,83 @@ open class ClientApi(basePath: kotlin.String = defaultBasePath, client: Call.Fac
         return RequestConfig(
             method = RequestMethod.PATCH,
             path = "/v1/threads/{thread_id}".replace("{"+"thread_id"+"}", encodeURIComponent(threadId.toString())),
+            query = localVariableQuery,
+            headers = localVariableHeaders,
+            requiresAuthentication = true,
+            body = localVariableBody
+        )
+    }
+
+    /**
+     * POST /v1/threads/{thread_id}/files
+     * Upload a file to send with the next message
+     * Stores the file part as it streams in and returns its id. A run sends it with the owner&#39;s message when &#x60;CreateRunRequest.file_ids&#x60; names it; the agent sees images directly and finds every file on its workstation. The size cap is &#x60;files.max_upload_mib&#x60; (50 MiB by default). 
+     * @param threadId 
+     * @param file 
+     * @return ThreadFile
+     * @throws IllegalStateException If the request is not correctly configured
+     * @throws IOException Rethrows the OkHttp execute method exception
+     * @throws UnsupportedOperationException If the API returns an informational or redirection response
+     * @throws ClientException If the API returns a client error response
+     * @throws ServerException If the API returns a server error response
+     */
+    @Suppress("UNCHECKED_CAST")
+    @Throws(IllegalStateException::class, IOException::class, UnsupportedOperationException::class, ClientException::class, ServerException::class)
+    fun clientUploadThreadFile(threadId: kotlin.String, file: java.io.File) : ThreadFile {
+        val localVarResponse = clientUploadThreadFileWithHttpInfo(threadId = threadId, file = file)
+
+        return when (localVarResponse.responseType) {
+            ResponseType.Success -> (localVarResponse as Success<*>).data as ThreadFile
+            ResponseType.Informational -> throw UnsupportedOperationException("Client does not support Informational responses.")
+            ResponseType.Redirection -> throw UnsupportedOperationException("Client does not support Redirection responses.")
+            ResponseType.ClientError -> {
+                val localVarError = localVarResponse as ClientError<*>
+                throw ClientException("Client error : ${localVarError.statusCode} ${localVarError.message.orEmpty()}", localVarError.statusCode, localVarResponse)
+            }
+            ResponseType.ServerError -> {
+                val localVarError = localVarResponse as ServerError<*>
+                throw ServerException("Server error : ${localVarError.statusCode} ${localVarError.message.orEmpty()} ${localVarError.body}", localVarError.statusCode, localVarResponse)
+            }
+        }
+    }
+
+    /**
+     * POST /v1/threads/{thread_id}/files
+     * Upload a file to send with the next message
+     * Stores the file part as it streams in and returns its id. A run sends it with the owner&#39;s message when &#x60;CreateRunRequest.file_ids&#x60; names it; the agent sees images directly and finds every file on its workstation. The size cap is &#x60;files.max_upload_mib&#x60; (50 MiB by default). 
+     * @param threadId 
+     * @param file 
+     * @return ApiResponse<ThreadFile?>
+     * @throws IllegalStateException If the request is not correctly configured
+     * @throws IOException Rethrows the OkHttp execute method exception
+     */
+    @Suppress("UNCHECKED_CAST")
+    @Throws(IllegalStateException::class, IOException::class)
+    fun clientUploadThreadFileWithHttpInfo(threadId: kotlin.String, file: java.io.File) : ApiResponse<ThreadFile?> {
+        val localVariableConfig = clientUploadThreadFileRequestConfig(threadId = threadId, file = file)
+
+        return request<Map<String, PartConfig<*>>, ThreadFile>(
+            localVariableConfig
+        )
+    }
+
+    /**
+     * To obtain the request config of the operation clientUploadThreadFile
+     *
+     * @param threadId 
+     * @param file 
+     * @return RequestConfig
+     */
+    fun clientUploadThreadFileRequestConfig(threadId: kotlin.String, file: java.io.File) : RequestConfig<Map<String, PartConfig<*>>> {
+        val localVariableBody = mapOf(
+            "file" to PartConfig(body = file, headers = mutableMapOf()),)
+        val localVariableQuery: MultiValueMap = mutableMapOf()
+        val localVariableHeaders: MutableMap<String, String> = mutableMapOf("Content-Type" to "multipart/form-data")
+        localVariableHeaders["Accept"] = "application/json"
+
+        return RequestConfig(
+            method = RequestMethod.POST,
+            path = "/v1/threads/{thread_id}/files".replace("{"+"thread_id"+"}", encodeURIComponent(threadId.toString())),
             query = localVariableQuery,
             headers = localVariableHeaders,
             requiresAuthentication = true,

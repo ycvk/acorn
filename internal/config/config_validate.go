@@ -40,6 +40,9 @@ func (c *Config) ValidateBase() error {
 	if err := c.validateWorkstation(); err != nil {
 		return err
 	}
+	if err := c.validateFiles(); err != nil {
+		return err
+	}
 	if err := c.validateApproval(); err != nil {
 		return err
 	}

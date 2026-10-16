@@ -67,8 +67,11 @@ type RuntimeDeps struct {
 	Memory             MemoryContextService
 	Commitments        core.CommitmentStore
 	Attachments        core.AttachmentReader
-	Workstation        tools.WorkstationToolsConfig
-	Reviewer           ActionReviewer
-	Clock              func() time.Time
-	Location           *time.Location
+	Files              core.ThreadFiles
+	// Uploads is nil when no workstation is configured.
+	Uploads     UploadHost
+	Workstation tools.WorkstationToolsConfig
+	Reviewer    ActionReviewer
+	Clock       func() time.Time
+	Location    *time.Location
 }

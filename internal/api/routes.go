@@ -114,6 +114,8 @@ func (s *Server) registerRoutes(router chi.Router) {
 					r.Get("/messages", s.handleClientListMessages)
 					r.Post("/messages", s.handleClientCreateMessage)
 					r.Post("/runs", s.handleClientCreateRun)
+					r.Post("/files", s.handleUploadThreadFile)
+					r.Get("/files/{file_id}", s.handleGetThreadFile)
 				})
 			})
 			r.Post("/runs/{run_id}:interrupt", s.handleClientInterruptRun)

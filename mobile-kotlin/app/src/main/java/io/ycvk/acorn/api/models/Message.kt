@@ -24,6 +24,7 @@
 package io.ycvk.acorn.api.models
 
 import io.ycvk.acorn.api.models.MessageContent
+import io.ycvk.acorn.api.models.ThreadFile
 import io.ycvk.acorn.api.models.ToolStep
 
 import com.squareup.moshi.Json
@@ -39,6 +40,7 @@ import com.squareup.moshi.JsonClass
  * @param createdAt 
  * @param runId 
  * @param steps Tool calls the run behind an assistant message made, in the order they started.
+ * @param files Files an owner message sent, or files the run behind an assistant message sent the owner, oldest first. 
  */
 
 
@@ -65,7 +67,11 @@ data class Message (
 
     /* Tool calls the run behind an assistant message made, in the order they started. */
     @Json(name = "steps")
-    val steps: kotlin.collections.List<ToolStep>? = null
+    val steps: kotlin.collections.List<ToolStep>? = null,
+
+    /* Files an owner message sent, or files the run behind an assistant message sent the owner, oldest first.  */
+    @Json(name = "files")
+    val files: kotlin.collections.List<ThreadFile>? = null
 
 ) {
 

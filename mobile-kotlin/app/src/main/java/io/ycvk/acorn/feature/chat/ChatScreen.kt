@@ -2,6 +2,9 @@ package io.ycvk.acorn.feature.chat
 
 import android.os.Build
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.RepeatMode
@@ -50,16 +53,19 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Redo
+import androidx.compose.material.icons.outlined.AttachFile
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.ExpandMore
+import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Lightbulb
 import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.NotificationsNone
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.WbSunny
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ArrowDownward
 import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.Stop
@@ -136,6 +142,9 @@ fun ChatScreen(
     val title by viewModel.threadTitle.collectAsStateWithLifecycle()
     val currentThread by viewModel.threadId.collectAsStateWithLifecycle()
     val restored by viewModel.restoredInput.collectAsStateWithLifecycle()
+    val attachments by viewModel.attachments.collectAsStateWithLifecycle()
+    val uploading by viewModel.uploading.collectAsStateWithLifecycle()
+    val fileBusy by viewModel.fileBusy.collectAsStateWithLifecycle()
     val pending by approvals.pendingActions.collectAsStateWithLifecycle()
     val deciding by approvals.deciding.collectAsStateWithLifecycle()
     val selected by approvals.selectedAction.collectAsStateWithLifecycle()
@@ -188,6 +197,30 @@ fun ChatScreen(
 
     var menu by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val pickPhotos = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(MAX_MESSAGE_FILES)) { uris ->
+        viewModel.addAttachments(uris.map { pendingAttachment(context, it, photo = true) })
+    }
+    val pickFiles = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        viewModel.addAttachments(uris.map { pendingAttachment(context, it, photo = false) })
+    }
+    var saving by remember { mutableStateOf<FileView?>(null) }
+    val saveFile = rememberLauncherForActivityResult(SaveFileContract()) { destination ->
+        val file = saving
+        saving = null
+        if (destination != null && file != null) {
+            viewModel.saveFile(file, destination) { Toast.makeText(context, "已保存 ${file.name}", Toast.LENGTH_SHORT).show() }
+        }
+    }
+    val openThreadFile: (FileView) -> Unit = { file ->
+        viewModel.withFile(file) { local ->
+            if (!openFile(context, local, file.mimeType)) viewModel.reportError("手机上没有能打开 ${file.name} 的应用，可以点下载按钮保存到手机")
+        }
+    }
+    val saveThreadFile: (FileView) -> Unit = { file ->
+        saving = file
+        saveFile.launch(file)
+    }
     val status = chatState.headerStatus()
     val colors = AcornTheme.colors
 
@@ -240,8 +273,12 @@ fun ChatScreen(
                 items(messages, key = { it.id }) { message ->
                     val itemModifier = Modifier.animateItem()
                     when (message) {
-                        is ChatMessage.User -> UserBubble(message.text, itemModifier)
-                        is ChatMessage.Assistant -> AssistantMessage(message.text, message.reasoning, message.steps, streaming = false, modifier = itemModifier)
+                        is ChatMessage.User -> UserBubble(message.text, itemModifier) {
+                            MessageFiles(message.files, currentThread, viewModel.connection(), fileBusy, openThreadFile, saveThreadFile, alignment = Alignment.End)
+                        }
+                        is ChatMessage.Assistant -> AssistantMessage(message.text, message.reasoning, message.steps, streaming = false, modifier = itemModifier) {
+                            MessageFiles(message.files, currentThread, viewModel.connection(), fileBusy, openThreadFile, saveThreadFile, Modifier.padding(top = 8.dp))
+                        }
                         is ChatMessage.Wake -> InputNote(wakeLabel(message.source), wakeIcon(message.source), message.text, itemModifier)
                         is ChatMessage.Capture -> InputNote("从手机分享", Icons.Outlined.Share, message.text, itemModifier) {
                             val profile = viewModel.connection()
@@ -315,14 +352,23 @@ fun ChatScreen(
             }
         }
 
+        if (attachments.isNotEmpty()) {
+            PendingAttachments(attachments, enabled = uploading == null, onRemove = viewModel::removeAttachment)
+        }
+        uploading?.let {
+            Text(it, style = AcornTheme.type.caption, color = colors.inkFaint, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp))
+        }
         Composer(
             input = input,
             onInputChange = { input = it },
             streaming = streaming,
             autoFocus = threadId == null,
+            hasAttachments = attachments.isNotEmpty(),
+            onPickPhotos = { pickPhotos.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+            onPickFiles = { pickFiles.launch(arrayOf("*/*")) },
             onSend = {
                 val text = input.trim()
-                if (text.isNotEmpty()) {
+                if (text.isNotEmpty() || attachments.isNotEmpty()) {
                     follow = true
                     viewModel.sendMessage(text)
                     input = ""
@@ -345,7 +391,7 @@ fun ChatScreen(
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
             title = { Text("删除这个对话？") },
-            text = { Text("对话会被删除，Acorn 也会忘掉其中说过的内容，无法恢复。") },
+            text = { Text("对话和其中的文件会被删除，Acorn 也会忘掉其中说过的内容，无法恢复。") },
             confirmButton = {
                 TextButton(onClick = {
                     confirmDelete = false
@@ -397,25 +443,35 @@ private val UserBubbleShape = RoundedCornerShape(topStart = 18.dp, topEnd = 18.d
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun UserBubble(text: String, modifier: Modifier = Modifier) {
+private fun UserBubble(text: String, modifier: Modifier = Modifier, files: @Composable () -> Unit = {}) {
     val copy = rememberCopy()
-    Row(modifier = modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-        Text(
-            text = text,
-            style = AcornTheme.type.body,
-            color = AcornTheme.colors.ink,
-            modifier = Modifier
-                .widthIn(max = 300.dp)
-                .clip(UserBubbleShape)
-                .background(AcornTheme.colors.surfaceMuted)
-                .combinedClickable(onClick = {}, onLongClick = { copy(text) })
-                .padding(horizontal = 14.dp, vertical = 10.dp),
-        )
+    Column(modifier = modifier.fillMaxWidth(), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        files()
+        if (text.isNotEmpty()) {
+            Text(
+                text = text,
+                style = AcornTheme.type.body,
+                color = AcornTheme.colors.ink,
+                modifier = Modifier
+                    .widthIn(max = 300.dp)
+                    .clip(UserBubbleShape)
+                    .background(AcornTheme.colors.surfaceMuted)
+                    .combinedClickable(onClick = {}, onLongClick = { copy(text) })
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+            )
+        }
     }
 }
 
 @Composable
-private fun AssistantMessage(text: String, reasoning: String?, steps: List<ToolStep>, streaming: Boolean, modifier: Modifier = Modifier) {
+private fun AssistantMessage(
+    text: String,
+    reasoning: String?,
+    steps: List<ToolStep>,
+    streaming: Boolean,
+    modifier: Modifier = Modifier,
+    files: @Composable () -> Unit = {},
+) {
     val colors = AcornTheme.colors
     val copy = rememberCopy()
     Column(modifier = modifier.fillMaxWidth()) {
@@ -432,6 +488,7 @@ private fun AssistantMessage(text: String, reasoning: String?, steps: List<ToolS
         } else if (streaming && steps.none { it.status == StepStatus.Running }) {
             TypingDots()
         }
+        files()
         if (!streaming && text.isNotBlank()) {
             Box(
                 modifier = Modifier
@@ -554,6 +611,9 @@ private fun Composer(
     onInputChange: (String) -> Unit,
     streaming: Boolean,
     autoFocus: Boolean,
+    hasAttachments: Boolean,
+    onPickPhotos: () -> Unit,
+    onPickFiles: () -> Unit,
     onSend: () -> Unit,
     onStop: () -> Unit,
 ) {
@@ -570,9 +630,45 @@ private fun Composer(
             .clip(shape)
             .background(colors.surface)
             .border(0.5.dp, colors.lineStrong, shape)
-            .padding(start = 18.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
+            .padding(start = 6.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
         verticalAlignment = Alignment.Bottom,
     ) {
+        var attachMenu by remember { mutableStateOf(false) }
+        Box {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .clickable(onClickLabel = "添加图片或文件") { attachMenu = true },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.Rounded.Add, contentDescription = "添加图片或文件", tint = colors.inkSoft, modifier = Modifier.size(22.dp))
+            }
+            DropdownMenu(
+                expanded = attachMenu,
+                onDismissRequest = { attachMenu = false },
+                containerColor = colors.surface,
+                shape = AcornShapes.medium,
+            ) {
+                DropdownMenuItem(
+                    text = { Text("图片", style = AcornTheme.type.callout, color = colors.ink) },
+                    leadingIcon = { Icon(Icons.Outlined.Image, contentDescription = null, tint = colors.inkSoft) },
+                    onClick = {
+                        attachMenu = false
+                        onPickPhotos()
+                    },
+                )
+                DropdownMenuItem(
+                    text = { Text("文件", style = AcornTheme.type.callout, color = colors.ink) },
+                    leadingIcon = { Icon(Icons.Outlined.AttachFile, contentDescription = null, tint = colors.inkSoft) },
+                    onClick = {
+                        attachMenu = false
+                        onPickFiles()
+                    },
+                )
+            }
+        }
+        Spacer(Modifier.width(6.dp))
         Box(
             modifier = Modifier
                 .weight(1f)
@@ -593,7 +689,7 @@ private fun Composer(
             )
         }
         Spacer(Modifier.width(8.dp))
-        val canSend = input.isNotBlank()
+        val canSend = input.isNotBlank() || hasAttachments
         AnimatedContent(
             targetState = streaming,
             transitionSpec = { (fadeIn() + scaleIn(initialScale = 0.7f)) togetherWith (fadeOut() + scaleOut(targetScale = 0.7f)) },

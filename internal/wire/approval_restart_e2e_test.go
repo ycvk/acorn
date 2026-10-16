@@ -231,7 +231,7 @@ func startApprovalRun(t *testing.T, cfg *config.Config) (runID, actionID string)
 	if err != nil {
 		t.Fatalf("create thread: %v", err)
 	}
-	run, err := first.runs.CreateRun(ctx, thread.ID, "", "find probe")
+	run, err := first.runs.CreateRun(ctx, thread.ID, "", "find probe", nil)
 	if err != nil {
 		t.Fatalf("create run: %v", err)
 	}
@@ -399,7 +399,7 @@ func TestBrokenAssistantStreamFailsRunThroughNormalPath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create thread: %v", err)
 	}
-	run, err := c.runs.CreateRun(ctx, thread.ID, "", "say something")
+	run, err := c.runs.CreateRun(ctx, thread.ID, "", "say something", nil)
 	if err != nil {
 		t.Fatalf("create run: %v", err)
 	}

@@ -94,7 +94,7 @@ func TestWatchesWakeAndFeedTheMorningBriefing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	run, err := c.runs.CreateRun(ctx, thread.ID, "", "帮我盯着 Go 博客，手机降价马上告诉我")
+	run, err := c.runs.CreateRun(ctx, thread.ID, "", "帮我盯着 Go 博客，手机降价马上告诉我", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/ycvk/acorn/internal/core"
 )
@@ -22,11 +23,11 @@ func (s *Store) ThreadMemorySourceIDs(ctx context.Context, sessionID string) ([]
 }
 
 // DeleteThread removes a thread with what its runs left behind: messages,
-// runs, events, pending actions, checkpoints, notifications, artifacts and
-// the context snapshots no other run used. The thread's memory sources stay,
+// files, runs, events, pending actions, checkpoints, notifications, artifacts
+// and the context snapshots no other run used. The thread's memory sources stay,
 // so the exclusions that forget them keep holding.
 func (s *Store) DeleteThread(ctx context.Context, sessionID string) error {
-	var paths []string
+	var paths, files []string
 	err := s.memoryTransaction(ctx, func(tx *sql.Tx) error {
 		var exists, running int
 		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM sessions WHERE session_id = ?`, sessionID).Scan(&exists); err != nil {
@@ -42,7 +43,10 @@ func (s *Store) DeleteThread(ctx context.Context, sessionID string) error {
 			return fmt.Errorf("%w: %s", core.ErrThreadBusy, sessionID)
 		}
 		var err error
-		paths, err = purgeThread(ctx, tx, sessionID)
+		if paths, err = purgeThread(ctx, tx, sessionID); err != nil {
+			return err
+		}
+		files, err = purgeThreadFiles(ctx, tx, sessionID)
 		return err
 	})
 	if err != nil {
@@ -55,6 +59,11 @@ func (s *Store) DeleteThread(ctx context.Context, sessionID string) error {
 		}
 		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return fmt.Errorf("delete thread %s artifact: %w", sessionID, err)
+		}
+	}
+	for _, id := range files {
+		if err := os.Remove(filepath.Join(s.filesDir, id)); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("delete thread %s file: %w", sessionID, err)
 		}
 	}
 	return nil

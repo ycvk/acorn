@@ -75,6 +75,7 @@ var schemaRequiredTables = map[string][]string{
 	"watch_items":               {"id", "watch_id", "item_key", "title", "url", "summary", "published_at", "status", "run_id", "seen_at"},
 	"routine_runs":              {"routine", "slot", "thread_id", "run_id", "created_at"},
 	"phone_notifications":       {"id", "device_id", "notification_key", "package", "app", "title", "text", "posted_at", "received_at"},
+	"thread_files":              {"file_id", "session_id", "message_id", "run_id", "origin", "name", "mime_type", "size_bytes", "sha256", "created_at"},
 }
 
 func (s *Store) requireColumns(table string, columns []string) error {

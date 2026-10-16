@@ -198,7 +198,7 @@ func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *contai
 	container.runResume = api.NewRunResumeService(db).WithResume(deps.resumeRun)
 	container.skills = api.NewSkillService(cfg, deps.skills)
 	forgetBarrier := memoryForgetBarrier(deps.runController, db)
-	threads, err := api.NewThreadService(db, deps.memory, forgetBarrier)
+	threads, err := api.NewThreadService(db, db, deps.memory, forgetBarrier)
 	if err != nil {
 		return nil, err
 	}

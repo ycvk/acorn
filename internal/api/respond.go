@@ -166,8 +166,12 @@ func (s *Server) respondClientKnownError(w http.ResponseWriter, r *http.Request,
 		s.respondError(w, r, http.StatusNotFound, "run_not_found", err.Error())
 	case errors.Is(err, core.ErrThreadBusy):
 		s.respondConflict(w, r, "thread_busy", err.Error())
-	case errors.Is(err, ErrClientNoPendingMessage):
+	case errors.Is(err, ErrClientNoPendingMessage), errors.Is(err, core.ErrInvalidThreadFile):
 		s.respondBadRequest(w, r, err.Error())
+	case errors.Is(err, core.ErrThreadFileNotFound):
+		s.respondNotFound(w, r, "thread_file_not_found", err.Error())
+	case errors.Is(err, core.ErrThreadFileTooLarge):
+		s.respondError(w, r, http.StatusRequestEntityTooLarge, "payload_too_large", err.Error())
 	case errors.Is(err, ErrPendingActionDecisionInvalid):
 		s.respondBadRequest(w, r, err.Error())
 	case errors.Is(err, ErrClientProjectionFailed):

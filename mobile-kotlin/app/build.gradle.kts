@@ -127,6 +127,9 @@ dependencies {
     // Shared images in notes and capture cards.
     implementation("io.coil-kt:coil-compose:2.6.0")
 
+    // Turns photos upright before they are resized for sending.
+    implementation("androidx.exifinterface:exifinterface:1.3.7")
+
     // Testing
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")

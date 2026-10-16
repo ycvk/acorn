@@ -299,6 +299,73 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /v1/threads/{thread_id}/files:
+    post:
+      tags: [client]
+      summary: Upload a file to send with the next message
+      description: |
+        Stores the file part as it streams in and returns its id. A run
+        sends it with the owner's message when `CreateRunRequest.file_ids`
+        names it; the agent sees images directly and finds every file on
+        its workstation. The size cap is `files.max_upload_mib` (50 MiB by
+        default).
+      operationId: clientUploadThreadFile
+      parameters:
+        - $ref: '#/components/parameters/ThreadID'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ThreadFileUploadRequest'
+      responses:
+        '201':
+          description: File stored
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ThreadFile'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/DeviceRevoked'
+        '404':
+          $ref: '#/components/responses/ThreadNotFound'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /v1/threads/{thread_id}/files/{file_id}:
+    get:
+      tags: [client]
+      summary: Download a file of a thread
+      description: |
+        Returns the file bytes with its media type and name. File content
+        never changes, so responses may be cached indefinitely.
+      operationId: clientGetThreadFile
+      parameters:
+        - $ref: '#/components/parameters/ThreadID'
+        - $ref: '#/components/parameters/FileID'
+      responses:
+        '200':
+          description: The file
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/DeviceRevoked'
+        '404':
+          $ref: '#/components/responses/ThreadFileNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
   /v1/runs/{run_id}:
     get:
       tags: [client]
@@ -1236,6 +1303,12 @@ components:
       required: true
       schema:
         type: string
+    FileID:
+      name: file_id
+      in: path
+      required: true
+      schema:
+        type: string
     SkillName:
       name: name
       in: path
@@ -1512,6 +1585,18 @@ components:
                 error:
                   code: thread_not_found
                   message: session thread_123 not found
+    ThreadFileNotFound:
+      description: No file with this id in the thread
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            threadFileNotFound:
+              value:
+                error:
+                  code: thread_file_not_found
+                  message: 'thread file not found: file_0123 in thread thread_123'
     RunNotFound:
       description: Run not found
       content:
@@ -2223,6 +2308,43 @@ components:
           description: Tool calls the run behind an assistant message made, in the order they started.
           items:
             $ref: '#/components/schemas/ToolStep'
+        files:
+          type: array
+          description: |
+            Files an owner message sent, or files the run behind an assistant
+            message sent the owner, oldest first.
+          items:
+            $ref: '#/components/schemas/ThreadFile'
+
+    ThreadFile:
+      type: object
+      additionalProperties: false
+      required: [id, name, mime_type, size_bytes, origin, created_at]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        mime_type:
+          type: string
+        size_bytes:
+          type: integer
+          format: int64
+        origin:
+          type: string
+          enum: [owner, agent]
+          description: '`owner` for a file the owner sent, `agent` for one the agent sent with `send_file`.'
+        created_at:
+          type: string
+          format: date-time
+
+    ThreadFileUploadRequest:
+      type: object
+      required: [file]
+      properties:
+        file:
+          type: string
+          format: binary
 
     ToolStep:
       type: object
@@ -2269,6 +2391,14 @@ components:
           description: >-
             Optional run input. When set, the run records it as the pending user
             message in one step, so a separate POST /messages is not required.
+        file_ids:
+          type: array
+          maxItems: 10
+          description: >-
+            Files uploaded to the thread that the message sends. With files,
+            the message is recorded even when input is empty.
+          items:
+            type: string
 
     Run:
       type: object

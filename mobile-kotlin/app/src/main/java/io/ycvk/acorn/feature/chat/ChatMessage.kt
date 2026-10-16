@@ -1,6 +1,7 @@
 package io.ycvk.acorn.feature.chat
 
 import io.ycvk.acorn.api.models.Message
+import io.ycvk.acorn.api.models.ThreadFile
 import io.ycvk.acorn.core.sse.StepStatus
 import io.ycvk.acorn.core.sse.ToolStep
 import io.ycvk.acorn.api.models.ToolStep as StoredStep
@@ -11,6 +12,7 @@ sealed class ChatMessage {
 
     data class User(
         val text: String,
+        val files: List<FileView> = emptyList(),
     ) : ChatMessage() {
         override val id: String = "user_${UUID.randomUUID()}"
     }
@@ -19,6 +21,7 @@ sealed class ChatMessage {
         val text: String,
         val reasoning: String? = null,
         val steps: List<ToolStep> = emptyList(),
+        val files: List<FileView> = emptyList(),
     ) : ChatMessage() {
         override val id: String = "assistant_${UUID.randomUUID()}"
     }
@@ -41,11 +44,11 @@ sealed class ChatMessage {
 }
 
 /** Maps a stored thread message to its chat row. */
-fun chatMessageFrom(role: Message.Role, text: String, steps: List<StoredStep> = emptyList()): ChatMessage = when (role) {
-    Message.Role.user -> ChatMessage.User(text)
+fun chatMessageFrom(role: Message.Role, text: String, steps: List<StoredStep> = emptyList(), files: List<ThreadFile> = emptyList()): ChatMessage = when (role) {
+    Message.Role.user -> ChatMessage.User(text, files.map(::fileView))
     Message.Role.wake -> ChatMessage.Wake(text, wakeSource(text))
     Message.Role.capture -> captureMessage(text)
-    Message.Role.assistant -> ChatMessage.Assistant(text, steps = steps.mapIndexed { index, step -> toolStep(index, step) })
+    Message.Role.assistant -> ChatMessage.Assistant(text, steps = steps.mapIndexed { index, step -> toolStep(index, step) }, files = files.map(::fileView))
     // System / tool messages render as assistant bubbles so the
     // history reads top-to-bottom without gaps.
     Message.Role.system, Message.Role.tool -> ChatMessage.Assistant(text)

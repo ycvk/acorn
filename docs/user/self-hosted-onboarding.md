@@ -270,7 +270,7 @@ sha256sum -c "acorn_mobile_${VERSION}_android.apk.sha256"
 Choose one explicit remote boundary:
 
 - **Tailscale**: listen on a private interface or `0.0.0.0:8080`, restrict access through the tailnet, and pair with `http://<tailnet-host>:8080` or a Tailscale HTTPS name.
-- **Reverse proxy**: keep Acorn bound to `127.0.0.1:8080`, terminate TLS in Caddy/Nginx/Traefik, and pair with the public HTTPS origin.
+- **Reverse proxy**: keep Acorn bound to `127.0.0.1:8080`, terminate TLS in Caddy/Nginx/Traefik, and pair with the public HTTPS origin. Let request bodies through up to the file cap (`files.max_upload_mib`, 50 MiB by default), for example `client_max_body_size 51m;` in Nginx, whose default of 1 MiB refuses most files and photos.
 - **Cloudflare Tunnel**: keep Acorn bound to `127.0.0.1:8080`, tunnel to that local origin, and pair with the tunnel HTTPS URL.
 - **LAN only**: bind to `0.0.0.0:8080` only on a trusted network and pair with the LAN IP.
 
@@ -402,6 +402,16 @@ The agent keeps longer material in a knowledge base of markdown notes stored in 
 
 Share from any Android app to get something into it: pick Acorn in the system share sheet, add a note if you like, and send. The backend opens a new conversation for the share, and the agent fetches the link, writes a note under `inbox/` and replies with its path. Open the conversation to tell the agent more about it. Images are stored under `attachments/` in the storage directory, and the agent sees the picture itself whenever that conversation is in its context; the app shows them in the shared conversation and inside the notes that embed them. The app's 知识 tab lists recent notes, searches them, and opens a note to read. Delete a note from its ⋯ menu: like deleting a conversation, it makes Acorn forget every revision of the note and what was drawn from it. Images the note embeds stay with the conversation that shared them.
 
+### Files in Conversations
+
+Tap + next to the message box to send the agent photos or files with your message. 图片 sends photos resized for viewing; 文件 sends any file unchanged. The agent sees supported pictures (JPEG, PNG, WebP, GIF up to 10 MiB) directly, and every file is copied to its workstation under `~/uploads/`, where it can unpack, read or convert it. Ask for a file in return, such as a public-domain book to find and download, and the agent sends it from its workstation with `send_file`: it appears under the reply, where a tap opens it in another app and the download button saves it to your phone. Files stay with their conversation and are deleted with it.
+
+```yaml
+files:
+  max_upload_mib: 50   # largest file you can send; 1 to 1024
+  max_send_mib: 100    # largest file the agent can send you; 1 to 1024
+```
+
 ## 13. Watches and the Morning Briefing
 
 Ask the agent to keep an eye on something and it creates a watch: "follow the Go blog", "tell me when golang/go has a new release", "watch the price on this page and tell me right away when it drops". The backend checks each watch on its own schedule (hourly by default, at least every 15 minutes) and only involves the model when something is new. The first check of a watch is the baseline, so what is already there is not reported.
@@ -433,7 +443,7 @@ A watch that keeps failing (five times in a row) is marked failing and listed in
 
 ## 14. Backup and Restore
 
-The installer sets `backup.dir` to `/srv/acorn/backups` and enables `acorn-backup.timer`, which runs `acorn backup` every night at about 04:30 while Acorn keeps running. Each run writes a snapshot under `<backup.dir>/snapshots/<UTC time>/`: a consistent copy of the SQLite database, checked for integrity and schema version. Shared images and run artifacts never change once written, so they are mirrored once into `<backup.dir>/attachments/` and `<backup.dir>/artifacts/`. The newest `backup.keep` snapshots are kept (14 by default):
+The installer sets `backup.dir` to `/srv/acorn/backups` and enables `acorn-backup.timer`, which runs `acorn backup` every night at about 04:30 while Acorn keeps running. Each run writes a snapshot under `<backup.dir>/snapshots/<UTC time>/`: a consistent copy of the SQLite database, checked for integrity and schema version. Shared images, run artifacts and the files of conversations never change once written, so they are mirrored once into `<backup.dir>/attachments/`, `<backup.dir>/artifacts/` and `<backup.dir>/files/`. The newest `backup.keep` snapshots are kept (14 by default):
 
 ```yaml
 backup:
@@ -473,7 +483,7 @@ The database records its schema version. A newer Acorn upgrades an older databas
 
 ## 15. Agent Workstation
 
-The agent has its own Linux computer: a Podman container run by `acorn-workstation.service`. It runs Debian with common command-line tools, Python and internet access; the agent works there as user `agent` with sudo. The agent uses it through two tools, loaded with `tool_search`: `shell` runs a bash command and `files` reads or writes a text file.
+The agent has its own Linux computer: a Podman container run by `acorn-workstation.service`. It runs Debian with common command-line tools, Python and internet access; the agent works there as user `agent` with sudo. The agent uses it through two tools, loaded with `tool_search`: `shell` runs a bash command and `files` reads or writes a text file. `send_file` hands you a file from it, and files you send the agent are copied there under `~/uploads/`.
 
 The installer installs Podman, builds the image from the release's `workstation/Containerfile`, adds `ACORN_WORKSTATION_TOKEN` to `acorn.env` and starts the service. The Acorn binary is mounted read-only into the container and serves the workstation API on `127.0.0.1:7810`; every request carries the token. The container cannot see Acorn's config, env, data or model keys.
 

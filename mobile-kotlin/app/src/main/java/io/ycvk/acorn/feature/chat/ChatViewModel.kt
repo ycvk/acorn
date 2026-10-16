@@ -19,6 +19,7 @@ import io.ycvk.acorn.core.sse.RunEventProjection
 import io.ycvk.acorn.core.sse.RunEventStreamClient
 import io.ycvk.acorn.core.sse.RunStatus
 import io.ycvk.acorn.core.ui.userMessage
+import io.ycvk.acorn.data.repository.ThreadFileRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -26,7 +27,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import android.net.Uri
 import okhttp3.sse.EventSource
+import java.io.File
 import java.io.IOException
 import javax.inject.Inject
 
@@ -45,6 +48,7 @@ import javax.inject.Inject
 class ChatViewModel @Inject constructor(
     private val projection: RunEventProjection,
     private val authController: AuthController,
+    private val files: ThreadFileRepository,
 ) : ViewModel() {
 
     private val _threadId = MutableStateFlow<String?>(null)
@@ -66,6 +70,18 @@ class ChatViewModel @Inject constructor(
     private val _restoredInput = MutableStateFlow<String?>(null)
     val restoredInput: StateFlow<String?> = _restoredInput.asStateFlow()
 
+    /** Files picked for the next message. */
+    private val _attachments = MutableStateFlow<List<PendingAttachment>>(emptyList())
+    val attachments: StateFlow<List<PendingAttachment>> = _attachments.asStateFlow()
+
+    /** What the composer is sending while files upload, such as 上传 1/2. */
+    private val _uploading = MutableStateFlow<String?>(null)
+    val uploading: StateFlow<String?> = _uploading.asStateFlow()
+
+    /** Ids of the files being downloaded to open or save. */
+    private val _fileBusy = MutableStateFlow<Set<String>>(emptySet())
+    val fileBusy: StateFlow<Set<String>> = _fileBusy.asStateFlow()
+
     private var eventSource: EventSource? = null
     private var streamingRunId: String? = null
     private val streamGeneration = java.util.concurrent.atomic.AtomicLong(0)
@@ -81,6 +97,7 @@ class ChatViewModel @Inject constructor(
         _threadId.value = threadId
         _threadTitle.value = null
         _messages.value = emptyList()  // clear stale messages immediately
+        _attachments.value = emptyList()
         _chatState.value = ChatState()
         _error.value = null
         reconnects = 0
@@ -145,15 +162,66 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    /** Adds picked files to the next message; a photo is resized for viewing when sent. */
+    fun addAttachments(picked: List<PendingAttachment>) {
+        val room = MAX_MESSAGE_FILES - _attachments.value.size
+        if (picked.size > room) _error.value = "一条消息最多带 $MAX_MESSAGE_FILES 个文件"
+        _attachments.value = _attachments.value + picked.take(room.coerceAtLeast(0))
+    }
+
+    fun removeAttachment(attachment: PendingAttachment) {
+        _attachments.value = _attachments.value.filterNot { it.key == attachment.key }
+    }
+
+    /** Downloads a file of the thread and hands the local copy to [onReady]. */
+    fun withFile(file: FileView, onReady: (File) -> Unit) {
+        val profile = getConnectionProfile() ?: return
+        val threadId = _threadId.value ?: return
+        val id = file.id ?: return
+        if (id in _fileBusy.value) return
+        _fileBusy.value = _fileBusy.value + id
+        viewModelScope.launch {
+            try {
+                val local = withContext(Dispatchers.IO) { files.download(profile, threadId, file) }
+                onReady(local)
+            } catch (e: Exception) {
+                _error.value = "没能下载 ${file.name}：${userMessage(e)}"
+            } finally {
+                _fileBusy.value = _fileBusy.value - id
+            }
+        }
+    }
+
+    /** Saves a file of the thread where the owner chose. */
+    fun saveFile(file: FileView, destination: Uri, onSaved: () -> Unit) {
+        withFile(file) { local ->
+            viewModelScope.launch {
+                try {
+                    withContext(Dispatchers.IO) { files.saveTo(local, destination) }
+                    onSaved()
+                } catch (e: Exception) {
+                    _error.value = "没能保存 ${file.name}：${userMessage(e)}"
+                }
+            }
+        }
+    }
+
+    fun reportError(message: String) {
+        _error.value = message
+    }
+
     fun sendMessage(text: String) {
         val profile = getConnectionProfile() ?: run {
             _error.value = "还没有连接服务器"
             return
         }
         val existing = _threadId.value
+        val attachments = _attachments.value
+        if (text.isBlank() && attachments.isEmpty()) return
+        _attachments.value = emptyList()
 
         // Optimistic user bubble + fresh streaming state.
-        val bubble = ChatMessage.User(text)
+        val bubble = ChatMessage.User(text, attachments.map { it.view() })
         _messages.value = _messages.value + bubble
         streamGeneration.incrementAndGet()  // cancel any pending reconnectActiveRun
         eventSource?.cancel()
@@ -164,26 +232,34 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 // A new conversation keeps its thread even when the first run fails, so a retry lands in it.
+                val title = threadTitleFor(text.ifBlank { attachments.firstOrNull { !it.photo }?.name ?: "图片" })
                 val threadId = existing ?: withContext(Dispatchers.IO) {
                     ApiClient.accessToken = profile.accessToken
-                    ClientApi(basePath = profile.serverUrl).clientCreateThread(CreateThreadRequest(title = threadTitleFor(text))).id
+                    ClientApi(basePath = profile.serverUrl).clientCreateThread(CreateThreadRequest(title = title)).id
                 }.also {
                     _threadId.value = it
-                    _threadTitle.value = threadTitleFor(text)
+                    _threadTitle.value = title
                 }
+                val fileIds = attachments.mapIndexed { index, attachment ->
+                    _uploading.value = if (attachments.size == 1) "正在上传 ${attachment.name}" else "正在上传 ${index + 1}/${attachments.size}：${attachment.name}"
+                    withContext(Dispatchers.IO) { files.upload(profile, threadId, attachment).id }
+                }
+                _uploading.value = null
                 val runId = withContext(Dispatchers.IO) {
                     ApiClient.accessToken = profile.accessToken
                     ClientApi(basePath = profile.serverUrl).clientCreateRun(
                         threadId = threadId,
-                        createRunRequest = CreateRunRequest(input = text),
+                        createRunRequest = CreateRunRequest(input = text.ifBlank { null }, fileIds = fileIds.ifEmpty { null }),
                     ).id
                 }
                 reconnects = 0
                 streamEvents(profile, runId, threadId)
             } catch (e: Exception) {
+                _uploading.value = null
                 _messages.value = _messages.value - bubble
                 _chatState.value = ChatState()
                 _restoredInput.value = text
+                _attachments.value = attachments + _attachments.value
                 _error.value = "没发出去：${userMessage(e)}"
             }
         }
@@ -258,7 +334,7 @@ class ChatViewModel @Inject constructor(
                     }
                 } ?: return@launch
                 if (_threadId.value != threadId) return@launch
-                _messages.value = response.items.map { msg -> chatMessageFrom(msg.role, msg.content.text, msg.steps.orEmpty()) }
+                _messages.value = response.items.map { msg -> chatMessageFrom(msg.role, msg.content.text, msg.steps.orEmpty(), msg.files.orEmpty()) }
             } catch (e: Exception) {
                 if (_threadId.value == threadId) _error.value = userMessage(e)
             }
@@ -312,6 +388,8 @@ class ChatViewModel @Inject constructor(
                             ChatMessage.Assistant(finalText, finalReasoning, _chatState.value.steps)
                     }
                     _chatState.value = ChatState(runStatus = _chatState.value.runStatus, failure = _chatState.value.failure)
+                    // The stored messages carry what the stream does not: the files sent with them.
+                    loadMessages(threadId)
                 }
             },
             // Streams we already cancelled (e.g. loadThread) report nothing.
@@ -361,6 +439,9 @@ class ChatViewModel @Inject constructor(
         super.onCleared()
     }
 }
+
+/** The most files one message sends; the server takes no more. */
+const val MAX_MESSAGE_FILES = 10
 
 /** The run of [threadId] worth following: one still going, or one paused on the owner. */
 fun runToFollow(activeRuns: List<RunSummary>, pendingActions: List<PendingActionSummary>, threadId: String): String? =

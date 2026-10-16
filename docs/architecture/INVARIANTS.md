@@ -86,7 +86,7 @@
 - **App 里的记忆改动与 agent 同路**：`/v1/memories` 只列出未排除的 current/disputed/open 记录，详情略去已排除来源的证据。owner 在 App 里的修改与遗忘各登记一个 `request` 来源（speaker 为 owner、从不抽取）：修改以它为新事实的证据并 supersede 原事实，只接受 fact 且校验读到的 revision；遗忘以它为请求来源走同一个排除事务，并在回应前经同一个屏障等待受影响的 run 退出。
   - `internal/wire/memory_page_e2e_test.go`
   - `internal/store/memory_request_source_test.go`
-- **删除对话即遗忘**：`DELETE /v1/threads/{id}` 以 owner 的删除请求为来源，先经遗忘事务排除该对话的全部 message 与 event 来源及其派生记录、向量和摘要，经同一屏障等待看过它们的 run 退出，再删除对话、消息、run（连同 `runs_fts`）、事件、待处理请求、checkpoint、通知、产物文件和只被这些 run 引用的上下文快照；记忆来源行保留以维持排除。整体排除的来源读取时直接返回 `ErrMemoryExcluded`，不再解析已删除的原文。最新 run 仍在执行时以 `thread_busy`（409）拒绝。v5 迁移以同样方式补完此前只删了消息的对话。
+- **删除对话即遗忘**：`DELETE /v1/threads/{id}` 以 owner 的删除请求为来源，先经遗忘事务排除该对话的全部 message 与 event 来源及其派生记录、向量和摘要，经同一屏障等待看过它们的 run 退出，再删除对话、消息、对话文件、run（连同 `runs_fts`）、事件、待处理请求、checkpoint、通知、产物文件和只被这些 run 引用的上下文快照；记忆来源行保留以维持排除。整体排除的来源读取时直接返回 `ErrMemoryExcluded`，不再解析已删除的原文。最新 run 仍在执行时以 `thread_busy`（409）拒绝。v5 迁移以同样方式补完此前只删了消息的对话。
   - `internal/store/store_thread_delete_test.go`
   - `internal/wire/thread_delete_e2e_test.go`
   - `internal/api/client_thread_run_handlers_test.go`
@@ -172,6 +172,10 @@
 - **此刻页只读后端事实，改动与 agent 同路**：`GET /v1/now` 返回最近一次成功且有回复的早安卡 run（所在线程、日期、正文）、scheduled/due 约定及未结 occurrence、active/waiting 关切（已遗忘来源不出现）和全部追踪项（failing 在前），任一部分读取失败整个请求失败。`:cancel` 走与 `settle` 相同的 `SettleCommitment` 事务，已结束的约定返回 409；`:pause`/`:resume` 与 `watch_update` 共用 `core.Watch.Pause`/`Resume`。
   - `internal/api/now_test.go`
   - `internal/wire/now_acceptance_e2e_test.go`
+- **对话文件随消息往返**：`POST /v1/threads/{id}/files` 边接收边写入 `{storage_dir}/files/<file_id>`（临时文件改名后才登记），超过 `files.max_upload_mib` 以 `payload_too_large`（413）拒绝，名字只保留最后一段、去掉控制字符；媒体类型对图片、音视频与 PDF 按内容判断，其他按扩展名。`CreateRunRequest.file_ids` 只接受本对话里尚未随消息发送的 owner 文件，至多 10 个，否则整个请求按无效请求拒绝；有文件时消息可以没有正文。线程消息把 owner 文件列在它随行的 user 消息上，把 agent 文件列在其 run 的 assistant 消息上；`GET /v1/threads/{id}/files/{file_id}` 只返回该对话的文件。
+  - `internal/store/thread_files_test.go`
+  - `internal/core/thread_file_test.go`
+  - `internal/wire/thread_files_e2e_test.go`
 - **Mobile 是 control surface 不是 runtime**：mobile 不执行 run、不持 runtime truth、不做 offline-first run execution、不维护第二套 message lifecycle；context pressure/boundary/run status 都消费后端 projection。
   - `mobile-kotlin/app/src/test/...`（JUnit）
 
@@ -237,6 +241,10 @@
   - `internal/workstation/workstation_test.go`
   - `internal/tools/workstation_tools_test.go`
   - `internal/config/config_workstation_test.go`
+- **文件经工作机往返**：每次 run 前，对话里已发送的 owner 文件按 id 复制到工作机 `~/uploads/<file_id>/<文件名>`（写在旁边再整体换入），不再属于任何对话的副本被删除；复制失败时 run 继续，模型从消息附注里得知原因。模型看到每条 owner 消息附带的文件名、类型、大小与工作机路径，≤10 MiB 的 JPEG/PNG/WebP/GIF 作为图片输入随消息交给模型并按 `core.ImageInputTokens` 计入输入预算。`send_file` 是 eager 工具，经工作机 `/v1/files/raw` 读取文件，超过 `files.max_send_mib` 时失败，存为本 run 的 agent 文件。
+  - `internal/workstation/files_test.go`
+  - `internal/tools/workstation_tools_test.go`
+  - `internal/wire/thread_files_e2e_test.go`
 - **伴随进程常驻**：`acorn workstation serve --keep` 的每个伴随进程在独立进程组里运行，退出后按退避重启，serve 停止时连同其子进程一起结束；日志按名字加前缀并去掉终端颜色码。
   - `internal/workstation/supervisor_test.go`
 - **页面渲染隔离**：`web_rendered` 追踪经工作机 `/v1/render` 渲染，每次用临时配置目录启动一次性浏览器，只接受 http(s)；backend 先按共享 URL policy 校验目标。

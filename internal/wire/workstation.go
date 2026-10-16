@@ -9,18 +9,23 @@ import (
 	"time"
 
 	"github.com/ycvk/acorn/internal/config"
+	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/tools"
 	"github.com/ycvk/acorn/internal/watch"
 	"github.com/ycvk/acorn/internal/webaccess"
 	"github.com/ycvk/acorn/internal/workstation"
 )
 
-// buildWorkstationTools connects the shell and files tools to the configured
-// workstation, or disables them with the reason when none is configured.
-func buildWorkstationTools(cfg *config.Config, client *workstation.Client) tools.WorkstationToolsConfig {
+// buildWorkstationTools connects the shell, files and send_file tools to the
+// configured workstation, or disables them with the reason when none is
+// configured.
+func buildWorkstationTools(cfg *config.Config, client *workstation.Client, files core.ThreadFiles, bridge core.ToolCallContextBridge) tools.WorkstationToolsConfig {
 	out := tools.WorkstationToolsConfig{
+		Files:                 files,
+		Context:               bridge,
 		CommandTimeoutSeconds: cfg.Workstation.CommandTimeoutSeconds,
 		MaxOutputBytes:        cfg.Workstation.MaxOutputBytes,
+		MaxSendBytes:          cfg.Files.MaxSendBytes(),
 	}
 	if client == nil {
 		out.DisabledReason = noWorkstation
