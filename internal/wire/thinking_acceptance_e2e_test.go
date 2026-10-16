@@ -88,9 +88,8 @@ func TestThinkingPhoneNotificationsReachPresenceAndBriefing(t *testing.T) {
 	h, extra := newPushHarness(t, start)
 	provider := &fakeOpenAI{replies: []string{
 		textReply("知道了"),
-		toolCallChunk("note", "knowledge_write", map[string]any{"path": "briefings/2026-10-10.md", "title": "早安", "body": "手机通知：银行支出 2799 元。"}),
 		toolCallChunk("push", "notify_owner", map[string]string{"title": "早安", "body": "银行支出已整理"}),
-		textReply("简报已写入"),
+		textReply("## 手机通知\n银行支出 2799 元。"),
 	}}
 	server := httptest.NewServer(provider)
 	defer server.Close()
@@ -143,15 +142,14 @@ func TestThinkingPhoneNotificationsReachPresenceAndBriefing(t *testing.T) {
 	if !strings.Contains(input, "Phone notifications since the last briefing") || !strings.Contains(input, "大促销") || !strings.Contains(input, "2799") {
 		t.Fatalf("briefing=%s", input)
 	}
-	note, err := c.store.KnowledgeNote(context.Background(), "briefings/2026-10-10.md")
-	if err != nil || !strings.Contains(note.Body, "2799") || strings.Contains(note.Body, "大促销") {
-		t.Fatalf("note=%+v %v", note, err)
+	if out, err := c.store.LatestRoutineOutput(ctx, "briefing"); err != nil || out.ThreadID != brief || !strings.Contains(out.Text, "2799") {
+		t.Fatalf("briefing reply = %+v %v", out, err)
+	}
+	if notes, err := c.store.CountKnowledgeNotes(ctx); err != nil || notes != 0 {
+		t.Fatalf("the briefing wrote %d notes, %v", notes, err)
 	}
 	if len(h.fcm.sent()) != 1 {
 		t.Fatalf("pushes=%v", h.fcm.sent())
-	}
-	if source, err := c.store.LoadMemorySource(context.Background(), core.KnowledgeSourceID(note.Path, note.Revision)); err != nil || source.RunID == "" {
-		t.Fatalf("note revision lacks run identity: %+v %v", source, err)
 	}
 }
 

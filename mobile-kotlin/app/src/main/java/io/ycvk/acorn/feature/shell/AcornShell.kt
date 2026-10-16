@@ -149,7 +149,6 @@ private fun ConnectedShell(shellViewModel: ShellViewModel) {
                 ) { current ->
                     when (current) {
                         Tab.Today -> NowScreen(
-                            onNoteClick = { shellViewModel.open(Page.Note(it)) },
                             onThreadClick = { shellViewModel.open(Page.Chat(it)) },
                             onNewChat = newChat,
                             onSettings = { shellViewModel.open(Page.Settings) },

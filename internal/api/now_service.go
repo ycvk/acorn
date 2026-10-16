@@ -9,9 +9,6 @@ import (
 	"github.com/ycvk/acorn/internal/core"
 )
 
-// briefingNotesPrefix is where the morning briefing skill writes its notes.
-const briefingNotesPrefix = "briefings/"
-
 // nowStore is the part of the store the now page reads and changes.
 type nowStore interface {
 	ListCommitments(ctx context.Context, activeOnly bool) ([]core.Commitment, error)
@@ -21,26 +18,21 @@ type nowStore interface {
 	ListWatches(ctx context.Context) ([]core.Watch, error)
 	LoadWatch(ctx context.Context, id int64) (*core.Watch, error)
 	UpdateWatch(ctx context.Context, w core.Watch) error
-}
-
-// briefingReader finds the latest briefing note.
-type briefingReader interface {
-	Recent(ctx context.Context, prefix string, limit int) ([]core.KnowledgeHit, error)
+	LatestRoutineOutput(ctx context.Context, routine string) (core.RoutineOutput, error)
 }
 
 // NowService serves the now page: the latest briefing, what is coming up,
 // what the agent is working on and the watches.
 type NowService struct {
 	store nowStore
-	notes briefingReader
 	clock func() time.Time
 }
 
-func NewNowService(store nowStore, notes briefingReader, clock func() time.Time) (*NowService, error) {
-	if store == nil || notes == nil || clock == nil {
-		return nil, errors.New("now service: store, notes and clock are required")
+func NewNowService(store nowStore, clock func() time.Time) (*NowService, error) {
+	if store == nil || clock == nil {
+		return nil, errors.New("now service: store and clock are required")
 	}
-	return &NowService{store: store, notes: notes, clock: clock}, nil
+	return &NowService{store: store, clock: clock}, nil
 }
 
 // NowResponse is GET /v1/now.
@@ -51,12 +43,13 @@ type NowResponse struct {
 	Watches     []NowWatchDTO      `json:"watches"`
 }
 
-// NowBriefingDTO is the latest briefing note.
+// NowBriefingDTO is the reply of the newest succeeded briefing run.
 type NowBriefingDTO struct {
-	Path      string    `json:"path"`
-	Title     string    `json:"title"`
-	Snippet   string    `json:"snippet"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ThreadID   string    `json:"thread_id"`
+	RunID      string    `json:"run_id"`
+	Date       string    `json:"date"`
+	Body       string    `json:"body"`
+	FinishedAt time.Time `json:"finished_at"`
 }
 
 // NowCommitmentDTO is a scheduled or due commitment with the occurrences that
@@ -105,7 +98,7 @@ type NowWatchDTO struct {
 
 // Load reads every section; any failing read fails the whole page.
 func (s *NowService) Load(ctx context.Context) (NowResponse, error) {
-	hits, err := s.notes.Recent(ctx, briefingNotesPrefix, 1)
+	briefing, err := s.store.LatestRoutineOutput(ctx, "briefing")
 	if err != nil {
 		return NowResponse{}, fmt.Errorf("latest briefing: %w", err)
 	}
@@ -126,8 +119,8 @@ func (s *NowService) Load(ctx context.Context) (NowResponse, error) {
 		return NowResponse{}, fmt.Errorf("list watches: %w", err)
 	}
 	out := NowResponse{Concerns: nowConcerns(concerns), Watches: nowWatches(watches)}
-	if len(hits) > 0 {
-		out.Briefing = &NowBriefingDTO{Path: hits[0].Path, Title: hits[0].Title, Snippet: hits[0].Snippet, UpdatedAt: hits[0].UpdatedAt.UTC()}
+	if briefing.RunID != "" {
+		out.Briefing = &NowBriefingDTO{ThreadID: briefing.ThreadID, RunID: briefing.RunID, Date: briefing.Slot, Body: briefing.Text, FinishedAt: briefing.FinishedAt.UTC()}
 	}
 	if out.Commitments, err = nowCommitments(commitments, occurrences); err != nil {
 		return NowResponse{}, err

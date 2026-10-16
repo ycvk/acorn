@@ -55,3 +55,40 @@ func TestRoutineClaimsAndSuccessfulWindow(t *testing.T) {
 		t.Fatalf("unknown routine: %+v, %v", none, err)
 	}
 }
+
+func TestLatestRoutineOutputSkipsRunsWithoutAReply(t *testing.T) {
+	s := openTestStore(t)
+	ctx := context.Background()
+	at := time.Date(2026, 10, 5, 0, 0, 0, 0, time.UTC)
+	if none, err := s.LatestRoutineOutput(ctx, "briefing"); err != nil || none.RunID != "" {
+		t.Fatalf("before any briefing: %+v, %v", none, err)
+	}
+	for i, run := range []struct {
+		id, slot, output string
+		status           core.RunStatus
+	}{
+		{"run_1", "2026-10-05", "## 今天\n交房租", core.RunStatusSucceeded},
+		{"run_2", "2026-10-06", "", core.RunStatusSucceeded},
+		{"run_3", "2026-10-07", "", core.RunStatusFailed},
+	} {
+		if err := s.ClaimRoutine(ctx, "briefing", run.slot, at.Add(time.Duration(i)*24*time.Hour)); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.CreateRun(ctx, core.RunCreateParams{RunID: run.id, Input: "[briefing " + run.slot + "]"}); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.FinishRun(ctx, run.id, run.status, run.output, ""); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.SetRoutineRun(ctx, "briefing", run.slot, "thread_briefings", run.id); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := s.LatestRoutineOutput(ctx, "briefing")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.RunID != "run_1" || got.Slot != "2026-10-05" || got.ThreadID != "thread_briefings" || got.Text != "## 今天\n交房租" || got.FinishedAt.IsZero() {
+		t.Fatalf("latest briefing output = %+v", got)
+	}
+}

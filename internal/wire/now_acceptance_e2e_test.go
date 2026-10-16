@@ -10,7 +10,6 @@ import (
 
 	"github.com/ycvk/acorn/internal/api"
 	"github.com/ycvk/acorn/internal/core"
-	"github.com/ycvk/acorn/internal/knowledge"
 )
 
 func TestNowPageReadsAndChangesTheStore(t *testing.T) {
@@ -27,8 +26,17 @@ func TestNowPageReadsAndChangesTheStore(t *testing.T) {
 	defer func() { _ = c.Close() }()
 	client := newPairedClient(t, c)
 
-	if _, err := c.vault.Write(ctx, knowledge.WriteNote{Path: "briefings/2026-10-11.md", Title: "早安 2026-10-11", Body: "今天有一个约定。"}); err != nil {
-		t.Fatalf("write briefing: %v", err)
+	if err := c.store.ClaimRoutine(ctx, "briefing", "2026-10-11", start); err != nil {
+		t.Fatalf("claim briefing: %v", err)
+	}
+	if err := c.store.CreateRun(ctx, core.RunCreateParams{RunID: "run_briefing", Input: "[briefing 2026-10-11]"}); err != nil {
+		t.Fatalf("create briefing run: %v", err)
+	}
+	if err := c.store.FinishRun(ctx, "run_briefing", core.RunStatusSucceeded, "## 今天\n有一个约定。", ""); err != nil {
+		t.Fatalf("finish briefing run: %v", err)
+	}
+	if err := c.store.SetRoutineRun(ctx, "briefing", "2026-10-11", "thread_briefings", "run_briefing"); err != nil {
+		t.Fatalf("record briefing run: %v", err)
 	}
 	commitment, err := c.store.AddCommitment(ctx, core.Commitment{State: "scheduled", Content: "看 X", SessionID: "thread_a", WakeAt: start.Add(time.Hour), CreatedAt: start})
 	if err != nil {
@@ -51,7 +59,7 @@ func TestNowPageReadsAndChangesTheStore(t *testing.T) {
 	}
 
 	now := loadNow(t, client)
-	if now.Briefing == nil || now.Briefing.Path != "briefings/2026-10-11.md" {
+	if now.Briefing == nil || now.Briefing.ThreadID != "thread_briefings" || now.Briefing.Date != "2026-10-11" || now.Briefing.Body != "## 今天\n有一个约定。" {
 		t.Fatalf("briefing = %+v", now.Briefing)
 	}
 	if len(now.Commitments) != 1 || now.Commitments[0].ID != commitment.ID || now.Commitments[0].State != "scheduled" {

@@ -28,14 +28,14 @@ class NowLabelsTest {
     }
 
     @Test
-    fun `briefing sections follow the headings and skip the title`() {
-        val body = "# 早安 2026-10-11\n\n周日，08:00。\n\n## 今天的安排\n\n- 没有到期的约定\n- **10:00** 开会\n\n## 追踪\n\n"
+    fun `briefing sections follow the headings and drop empty ones`() {
+        val body = "周日，08:00。\n\n## 今天的安排\n\n- 没有到期的约定\n- **10:00** 开会\n\n## 追踪\n\n"
         assertEquals(
             listOf(
                 BriefingSection(null, "周日，08:00。"),
                 BriefingSection("今天的安排", "没有到期的约定 10:00 开会"),
             ),
-            briefingSections(body, "早安 2026-10-11"),
+            briefingSections(body),
         )
     }
 }

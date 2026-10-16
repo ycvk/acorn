@@ -87,7 +87,6 @@ import java.time.ZoneId
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NowScreen(
-    onNoteClick: (String) -> Unit,
     onThreadClick: (String) -> Unit,
     onNewChat: () -> Unit,
     onSettings: () -> Unit,
@@ -171,7 +170,7 @@ fun NowScreen(
                         pending = pending,
                         today = today,
                         zone = zone,
-                        onNoteClick = onNoteClick,
+                        onBriefingClick = onThreadClick,
                         onCancel = { cancelling = it },
                         onPause = viewModel::pauseWatch,
                         onResume = viewModel::resumeWatch,
@@ -221,7 +220,7 @@ private fun LazyListScope.nowSections(
     pending: List<PendingActionSummary>,
     today: LocalDate,
     zone: ZoneId,
-    onNoteClick: (String) -> Unit,
+    onBriefingClick: (String) -> Unit,
     onCancel: (NowCommitment) -> Unit,
     onPause: (Long) -> Unit,
     onResume: (Long) -> Unit,
@@ -241,9 +240,8 @@ private fun LazyListScope.nowSections(
     }
 
     if (briefing != null) {
-        val fresh = briefing.updatedAt.atZoneSameInstant(zone).toLocalDate() == today
-        item(key = "briefing:label") { SectionLabel(if (fresh) "今日简报" else "最近的简报") }
-        item(key = "briefing") { BriefingCard(briefing, briefingSections, onClick = { onNoteClick(briefing.path) }) }
+        item(key = "briefing:label") { SectionLabel(if (briefing.date == today) "今日简报" else "最近的简报") }
+        item(key = "briefing") { BriefingCard(briefing, briefingSections, onClick = { onBriefingClick(briefing.threadId) }) }
     }
 
     if (now.commitments.isNotEmpty()) {
@@ -278,7 +276,7 @@ private fun BriefingCard(briefing: NowBriefing, sections: List<BriefingSection>,
     Panel(modifier = Modifier.padding(horizontal = ScreenPadding), onClick = onClick) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                briefing.title,
+                "早安 · ${briefing.date.monthValue}月${briefing.date.dayOfMonth}日",
                 style = AcornTheme.type.headline,
                 color = colors.ink,
                 maxLines = 1,
@@ -286,7 +284,7 @@ private fun BriefingCard(briefing: NowBriefing, sections: List<BriefingSection>,
                 modifier = Modifier.weight(1f),
             )
             Spacer(Modifier.width(8.dp))
-            Text(ago(briefing.updatedAt, OffsetDateTime.now()), style = AcornTheme.type.caption, color = colors.inkFaint)
+            Text(ago(briefing.finishedAt, OffsetDateTime.now()), style = AcornTheme.type.caption, color = colors.inkFaint)
         }
         sections.take(4).forEach { section ->
             Spacer(Modifier.height(12.dp))

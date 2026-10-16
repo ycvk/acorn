@@ -76,9 +76,6 @@ func TestBriefingCarriesCommitmentsMemoryNotesAndNight(t *testing.T) {
 	if _, err := h.data.WriteKnowledgeNote(ctx, core.KnowledgeWrite{Path: "reading/sectors.md", Title: "板块统计", Body: "……", At: h.now.Add(-time.Hour)}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := h.data.WriteKnowledgeNote(ctx, core.KnowledgeWrite{Path: "briefings/2026-10-04.md", Title: "早安 2026-10-04", Body: "昨天的简报", At: h.now.Add(-time.Hour)}); err != nil {
-		t.Fatal(err)
-	}
 	if err := h.data.ClaimRoutine(ctx, "night", "2026-10-05", h.now.Add(-time.Hour)); err != nil {
 		t.Fatal(err)
 	}
@@ -110,7 +107,7 @@ func TestBriefingCarriesCommitmentsMemoryNotesAndNight(t *testing.T) {
 			t.Fatalf("briefing input lacks %q:\n%s", want, input)
 		}
 	}
-	for _, unwanted := range []string{"下周的事", "我住在新加坡", "briefings/2026-10-04.md", "Watch changes", "No watch changes"} {
+	for _, unwanted := range []string{"下周的事", "我住在新加坡", "Watch changes", "No watch changes"} {
 		if strings.Contains(input, unwanted) {
 			t.Fatalf("briefing input carries %q:\n%s", unwanted, input)
 		}

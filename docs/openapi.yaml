@@ -2717,16 +2717,22 @@ components:
     NowBriefing:
       type: object
       additionalProperties: false
-      description: The latest note under briefings/; absent before the first briefing.
-      required: [path, title, snippet, updated_at]
+      description: The reply of the newest succeeded morning briefing run; absent before the first one.
+      required: [thread_id, run_id, date, body, finished_at]
       properties:
-        path:
+        thread_id:
           type: string
-        title:
+          description: The Briefings thread the run belongs to.
+        run_id:
           type: string
-        snippet:
+        date:
           type: string
-        updated_at:
+          format: date
+          description: The owner-local day the briefing is for.
+        body:
+          type: string
+          description: The briefing in Markdown, one section per `##` heading.
+        finished_at:
           type: string
           format: date-time
 

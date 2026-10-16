@@ -227,7 +227,7 @@ func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *contai
 		return nil, err
 	}
 	container.phoneNotifications = phoneNotifications
-	if container.now, err = api.NewNowService(db, deps.vault, clock); err != nil {
+	if container.now, err = api.NewNowService(db, clock); err != nil {
 		return nil, err
 	}
 	location, err := cfg.OwnerLocation()

@@ -98,7 +98,7 @@ private fun NoteList(viewModel: KnowledgeViewModel, onNoteClick: (String) -> Uni
     }
 }
 
-/** The folder a note lives in, e.g. "briefings" for briefings/2026-10-11.md. */
+/** The folder a note lives in, e.g. "inbox" for inbox/tokio.md. */
 fun noteFolder(path: String): String? = path.substringBeforeLast('/', "").takeIf { it.isNotEmpty() }
 
 @Composable

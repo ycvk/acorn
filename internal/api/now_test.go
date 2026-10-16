@@ -24,6 +24,8 @@ type nowStoreFake struct {
 	watches     []core.Watch
 	settled     []core.CommitmentSettlement
 	settleErr   error
+	briefing    core.RoutineOutput
+	routine     string
 }
 
 func (f *nowStoreFake) ListCommitments(context.Context, bool) ([]core.Commitment, error) {
@@ -66,19 +68,14 @@ func (f *nowStoreFake) UpdateWatch(_ context.Context, w core.Watch) error {
 	return fmt.Errorf("%w: %d", core.ErrWatchNotFound, w.ID)
 }
 
-type briefingFake struct {
-	hits   []core.KnowledgeHit
-	prefix string
+func (f *nowStoreFake) LatestRoutineOutput(_ context.Context, routine string) (core.RoutineOutput, error) {
+	f.routine = routine
+	return f.briefing, nil
 }
 
-func (b *briefingFake) Recent(_ context.Context, prefix string, limit int) ([]core.KnowledgeHit, error) {
-	b.prefix = prefix
-	return b.hits[:min(limit, len(b.hits))], nil
-}
-
-func newNowRouter(t *testing.T, store *nowStoreFake, notes *briefingFake) http.Handler {
+func newNowRouter(t *testing.T, store *nowStoreFake) http.Handler {
 	t.Helper()
-	service, err := NewNowService(store, notes, func() time.Time { return nowTestTime })
+	service, err := NewNowService(store, func() time.Time { return nowTestTime })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,9 +101,9 @@ func TestNowListsBriefingCommitmentsConcernsAndFailingWatchesFirst(t *testing.T)
 			{ID: 1, Name: "tokio", Kind: core.WatchGitHub, Mode: core.WatchModeDigest, Status: core.WatchActive, Interval: time.Hour, NextCheckAt: nowTestTime},
 			{ID: 2, Name: "price", Kind: core.WatchWeb, Mode: core.WatchModeImmediate, Status: core.WatchFailing, Interval: 30 * time.Minute, NextCheckAt: nowTestTime, LastCheckedAt: nowTestTime, LastError: "selector matched nothing", Failures: 3},
 		},
+		briefing: core.RoutineOutput{Slot: "2026-10-11", ThreadID: "thread_briefings", RunID: "run_briefing", Text: "## 今天\n交房租", FinishedAt: nowTestTime},
 	}
-	notes := &briefingFake{hits: []core.KnowledgeHit{{Path: "briefings/2026-10-11.md", Title: "早安 2026-10-11", Snippet: "今天…", UpdatedAt: nowTestTime}}}
-	router := newNowRouter(t, store, notes)
+	router := newNowRouter(t, store)
 
 	rec := performClientRequest(router, http.MethodGet, "/v1/now", "")
 	if rec.Code != http.StatusOK {
@@ -114,8 +111,9 @@ func TestNowListsBriefingCommitmentsConcernsAndFailingWatchesFirst(t *testing.T)
 	}
 	var got NowResponse
 	decodeClientTestJSON(t, rec, &got)
-	if notes.prefix != "briefings/" || got.Briefing == nil || got.Briefing.Path != "briefings/2026-10-11.md" {
-		t.Fatalf("briefing = %+v prefix %q", got.Briefing, notes.prefix)
+	want := NowBriefingDTO{ThreadID: "thread_briefings", RunID: "run_briefing", Date: "2026-10-11", Body: "## 今天\n交房租", FinishedAt: nowTestTime}
+	if store.routine != "briefing" || got.Briefing == nil || *got.Briefing != want {
+		t.Fatalf("briefing = %+v from routine %q", got.Briefing, store.routine)
 	}
 	if len(got.Commitments) != 2 || len(got.Commitments[0].Occurrences) != 1 || got.Commitments[0].Occurrences[0].RunID != "run_x" {
 		t.Fatalf("commitments = %+v", got.Commitments)
@@ -135,7 +133,7 @@ func TestNowListsBriefingCommitmentsConcernsAndFailingWatchesFirst(t *testing.T)
 }
 
 func TestNowWithoutBriefingOmitsIt(t *testing.T) {
-	router := newNowRouter(t, &nowStoreFake{}, &briefingFake{})
+	router := newNowRouter(t, &nowStoreFake{})
 	rec := performClientRequest(router, http.MethodGet, "/v1/now", "")
 	if rec.Code != http.StatusOK || rec.Body.String() != `{"commitments":[],"concerns":[],"watches":[]}` {
 		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
@@ -144,7 +142,7 @@ func TestNowWithoutBriefingOmitsIt(t *testing.T) {
 
 func TestNowFailsOnAnOccurrenceWithoutActiveCommitment(t *testing.T) {
 	store := &nowStoreFake{occurrences: []core.CommitmentOccurrence{{ID: 9, CommitmentID: 4, State: "due"}}}
-	rec := performClientRequest(newNowRouter(t, store, &briefingFake{}), http.MethodGet, "/v1/now", "")
+	rec := performClientRequest(newNowRouter(t, store), http.MethodGet, "/v1/now", "")
 	if rec.Code != http.StatusInternalServerError {
 		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
 	}
@@ -152,7 +150,7 @@ func TestNowFailsOnAnOccurrenceWithoutActiveCommitment(t *testing.T) {
 
 func TestCancelCommitmentSettlesAsCancel(t *testing.T) {
 	store := &nowStoreFake{}
-	router := newNowRouter(t, store, &briefingFake{})
+	router := newNowRouter(t, store)
 	rec := performClientRequest(router, http.MethodPost, "/v1/commitments/7:cancel", "")
 	if rec.Code != http.StatusNoContent {
 		t.Fatalf("status = %d body=%s", rec.Code, rec.Body.String())
@@ -186,7 +184,7 @@ func TestCancelCommitmentSettlesAsCancel(t *testing.T) {
 
 func TestPauseAndResumeWatch(t *testing.T) {
 	store := &nowStoreFake{watches: []core.Watch{{ID: 3, Name: "price", Status: core.WatchFailing, Failures: 4, LastError: "timeout", NextCheckAt: nowTestTime.Add(time.Hour)}}}
-	router := newNowRouter(t, store, &briefingFake{})
+	router := newNowRouter(t, store)
 
 	if rec := performClientRequest(router, http.MethodPost, "/v1/watches/3:pause", ""); rec.Code != http.StatusNoContent {
 		t.Fatalf("pause status = %d body=%s", rec.Code, rec.Body.String())

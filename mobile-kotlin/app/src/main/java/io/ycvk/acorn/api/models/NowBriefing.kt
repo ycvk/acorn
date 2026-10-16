@@ -28,28 +28,35 @@ import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 
 /**
- * The latest note under briefings/; absent before the first briefing.
+ * The reply of the newest succeeded morning briefing run; absent before the first one.
  *
- * @param path 
- * @param title 
- * @param snippet 
- * @param updatedAt 
+ * @param threadId The Briefings thread the run belongs to.
+ * @param runId 
+ * @param date The owner-local day the briefing is for.
+ * @param body The briefing in Markdown, one section per `##` heading.
+ * @param finishedAt 
  */
 
 
 data class NowBriefing (
 
-    @Json(name = "path")
-    val path: kotlin.String,
+    /* The Briefings thread the run belongs to. */
+    @Json(name = "thread_id")
+    val threadId: kotlin.String,
 
-    @Json(name = "title")
-    val title: kotlin.String,
+    @Json(name = "run_id")
+    val runId: kotlin.String,
 
-    @Json(name = "snippet")
-    val snippet: kotlin.String,
+    /* The owner-local day the briefing is for. */
+    @Json(name = "date")
+    val date: java.time.LocalDate,
 
-    @Json(name = "updated_at")
-    val updatedAt: java.time.OffsetDateTime
+    /* The briefing in Markdown, one section per `##` heading. */
+    @Json(name = "body")
+    val body: kotlin.String,
+
+    @Json(name = "finished_at")
+    val finishedAt: java.time.OffsetDateTime
 
 ) {
 

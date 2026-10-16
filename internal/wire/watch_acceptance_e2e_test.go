@@ -77,9 +77,8 @@ func TestWatchesWakeAndFeedTheMorningBriefing(t *testing.T) {
 		textReply("盯上了"),
 		textReply("手机降价了"),
 		toolCallChunk("call_skill", "skill", map[string]string{"skill": "morning-briefing"}),
-		toolCallChunk("call_note", "knowledge_write", map[string]any{"path": "briefings/2026-10-05.md", "title": "早安 2026-10-05", "tags": []string{"briefing"}, "body": "Go 博客有新文章 go1.27。"}),
 		toolCallChunk("call_push", "notify_owner", map[string]string{"title": "早安", "body": "Go 博客有新文章"}),
-		textReply("简报在 briefings/2026-10-05.md"),
+		textReply("## 追踪\nGo 博客有新文章 go1.27。"),
 		textReply("夜思：昨天的技能用法没有问题。"),
 		textReply("第二天的简报"),
 	}}
@@ -139,8 +138,8 @@ func TestWatchesWakeAndFeedTheMorningBriefing(t *testing.T) {
 	if input := chatContentText(briefingInput[len(briefingInput)-3]["content"]); !strings.HasPrefix(input, "[briefing 2026-10-05] morning briefing") || !strings.Contains(input, "## #1 Go blog (rss, 1 new)\n- go1.27 — https://go.dev/blog/go1.27") {
 		t.Fatalf("briefing input = %q", input)
 	}
-	if _, err := c.store.KnowledgeNote(ctx, "briefings/2026-10-05.md"); err != nil {
-		t.Fatalf("briefing note: %v", err)
+	if out, err := c.store.LatestRoutineOutput(ctx, "briefing"); err != nil || out.ThreadID != briefingThread || out.Text != "## 追踪\nGo 博客有新文章 go1.27。" {
+		t.Fatalf("briefing reply = %+v, %v", out, err)
 	}
 	sent := harness.fcm.sent()
 	if len(sent) != 1 {
@@ -189,7 +188,7 @@ func TestWatchesWakeAndFeedTheMorningBriefing(t *testing.T) {
 	if !strings.Contains(joined, "[briefing 2026-10-06] morning briefing") || !strings.Contains(joined, "go1.28") || !strings.Contains(joined, "Last night's reflection (2026-10-06):\n夜思：昨天的技能用法没有问题。") {
 		t.Fatalf("second briefing input = %q", joined)
 	}
-	if strings.Contains(joined, "[briefing 2026-10-05]") || strings.Contains(joined, "简报在 briefings/2026-10-05.md") {
+	if strings.Contains(joined, "[briefing 2026-10-05]") || strings.Contains(joined, "Go 博客有新文章 go1.27。") {
 		t.Fatalf("second briefing carries the first one's thread history: %q", joined)
 	}
 }

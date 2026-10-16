@@ -17,6 +17,15 @@ type RoutineRun struct {
 	CreatedAt time.Time
 }
 
+// RoutineOutput is the reply of a routine's newest succeeded run.
+type RoutineOutput struct {
+	Slot       string
+	ThreadID   string
+	RunID      string
+	Text       string
+	FinishedAt time.Time
+}
+
 // RoutineStore persists owner-local slots for briefings and idle thinking.
 type RoutineStore interface {
 	ClaimRoutine(ctx context.Context, routine, slot string, at time.Time) error

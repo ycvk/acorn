@@ -104,3 +104,24 @@ func (s *Store) LatestRoutineRun(ctx context.Context, routine string) (core.Rout
 	run.CreatedAt, err = parseTimestamp(fixedTimestampLayout, at, "routine_runs.created_at")
 	return run, err
 }
+
+// LatestRoutineOutput is the reply of routine's newest succeeded run; zero
+// when none succeeded or its thread was deleted with the run.
+func (s *Store) LatestRoutineOutput(ctx context.Context, routine string) (core.RoutineOutput, error) {
+	if routine == "" {
+		return core.RoutineOutput{}, errors.New("latest routine output: routine is required")
+	}
+	var out core.RoutineOutput
+	var finished string
+	err := s.db.QueryRowContext(ctx, `SELECT rr.slot, rr.thread_id, rr.run_id, r.output_text, r.finished_at FROM routine_runs rr JOIN runs r ON r.run_id = rr.run_id
+		WHERE rr.routine = ? AND r.status = ? AND r.output_text <> '' ORDER BY rr.created_at DESC, rr.slot DESC LIMIT 1`, routine, string(core.RunStatusSucceeded)).
+		Scan(&out.Slot, &out.ThreadID, &out.RunID, &out.Text, &finished)
+	if errors.Is(err, sql.ErrNoRows) {
+		return core.RoutineOutput{}, nil
+	}
+	if err != nil {
+		return core.RoutineOutput{}, fmt.Errorf("latest routine output: %w", err)
+	}
+	out.FinishedAt, err = parseTimestamp(time.RFC3339Nano, finished, "runs.finished_at")
+	return out, err
+}

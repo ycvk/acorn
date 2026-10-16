@@ -9,7 +9,6 @@ import io.ycvk.acorn.core.auth.AuthState
 import io.ycvk.acorn.core.auth.ConnectionProfile
 import io.ycvk.acorn.core.ui.plainSnippet
 import io.ycvk.acorn.core.ui.userMessage
-import io.ycvk.acorn.data.repository.KnowledgeRepository
 import io.ycvk.acorn.data.repository.NowRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -35,7 +34,6 @@ sealed interface NowLoad {
 class NowViewModel @Inject constructor(
     private val authController: AuthController,
     private val repository: NowRepository,
-    private val knowledge: KnowledgeRepository,
 ) : ViewModel() {
 
     private val _load = MutableStateFlow<NowLoad>(NowLoad.Loading)
@@ -92,7 +90,7 @@ class NowViewModel @Inject constructor(
         _load.value = try {
             withContext(Dispatchers.IO) {
                 val now = repository.now(profile)
-                val sections = now.briefing?.let { briefingSections(knowledge.note(profile, it.path).body, it.title) }.orEmpty()
+                val sections = now.briefing?.let { briefingSections(it.body) }.orEmpty()
                 NowLoad.Loaded(now, sections)
             }
         } catch (e: Exception) {
@@ -129,11 +127,11 @@ fun intervalLabel(seconds: Long): String = when {
     else -> "每 ${seconds / 60} 分钟"
 }
 
-/** A part of the briefing note: the lines under one heading, flattened for a preview. */
+/** A part of the briefing: the lines under one heading, flattened for a preview. */
 data class BriefingSection(val heading: String?, val text: String)
 
-/** Splits a briefing note at its headings; the leading "# title" is dropped since the card shows the title. */
-fun briefingSections(body: String, title: String): List<BriefingSection> {
+/** Splits a briefing at its headings; a heading with nothing under it is dropped. */
+fun briefingSections(body: String): List<BriefingSection> {
     val sections = mutableListOf<BriefingSection>()
     var heading: String? = null
     val lines = mutableListOf<String>()
@@ -145,7 +143,6 @@ fun briefingSections(body: String, title: String): List<BriefingSection> {
     for (line in body.lines()) {
         val trimmed = line.trim()
         when {
-            trimmed.startsWith("# ") && trimmed.removePrefix("# ").trim() == title.trim() -> Unit
             trimmed.startsWith("#") -> {
                 flush()
                 heading = trimmed.trimStart('#').trim()

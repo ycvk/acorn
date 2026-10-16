@@ -220,8 +220,7 @@ func (s *Scheduler) briefingNight(ctx context.Context, since time.Time) (string,
 	return fmt.Sprintf("Last night's reflection (%s):\n%s\n", night.Slot, output), nil
 }
 
-// briefingNotes lists the notes written since the last briefing, earlier
-// briefings excepted.
+// briefingNotes lists the notes written since the last briefing.
 func (s *Scheduler) briefingNotes(ctx context.Context, m *briefingMaterial, since time.Time) error {
 	hits, err := s.cfg.Knowledge.Recent(ctx, "", maxBriefingNotes)
 	if err != nil {
@@ -231,9 +230,6 @@ func (s *Scheduler) briefingNotes(ctx context.Context, m *briefingMaterial, sinc
 	for _, hit := range hits {
 		if !hit.UpdatedAt.After(since) {
 			break
-		}
-		if strings.HasPrefix(hit.Path, "briefings/") {
-			continue
 		}
 		m.sources = append(m.sources, core.KnowledgeSourceID(hit.Path, hit.Revision))
 		lines = append(lines, fmt.Sprintf("- %s — %s", hit.Path, hit.Title))
