@@ -51,7 +51,9 @@ type fakeRuns struct {
 	commitments core.CommitmentStore
 	clock       func() time.Time
 	mu          sync.Mutex
-	starts      []string // threadID|wake|input
+	starts      []string   // threadID|wake|input
+	standalone  []bool     // per start
+	sources     [][]string // per start
 	fail        error
 }
 
@@ -65,6 +67,8 @@ func (r *fakeRuns) StartRoutineRun(_ context.Context, threadID, title, input str
 		threadID = "thread_" + strings.ToLower(title)
 	}
 	r.starts = append(r.starts, threadID+"|"+wake.Reason+"|"+input)
+	r.standalone = append(r.standalone, wake.Standalone)
+	r.sources = append(r.sources, wake.SourceIDs)
 	return threadID, fmt.Sprintf("run_%d", len(r.starts)), nil
 }
 
@@ -75,6 +79,7 @@ func (r *fakeRuns) StartWakeRun(ctx context.Context, threadID, input string, wak
 		return "", r.fail
 	}
 	r.starts = append(r.starts, threadID+"|"+wake.Reason+"|"+input)
+	r.standalone = append(r.standalone, wake.Standalone)
 	runID := fmt.Sprintf("run_%d", len(r.starts))
 	if commitment := wake.Commitment; commitment != nil {
 		if err := r.commitments.StartCommitmentOccurrence(ctx, commitment.Occurrence, runID, commitment.Next, r.clock()); err != nil {
@@ -82,6 +87,13 @@ func (r *fakeRuns) StartWakeRun(ctx context.Context, threadID, input string, wak
 		}
 	}
 	return runID, nil
+}
+
+// memKnowledge lists notes straight from the store.
+type memKnowledge struct{ store *store.Store }
+
+func (k memKnowledge) Recent(ctx context.Context, prefix string, limit int) ([]core.KnowledgeHit, error) {
+	return k.store.RecentKnowledge(ctx, prefix, limit)
 }
 
 type harness struct {
@@ -120,7 +132,7 @@ func newHarnessWith(t *testing.T, limit int, briefing Briefing) *harness {
 	h.store = &memStore{clock: func() time.Time { return h.now }}
 	h.checker = &fakeChecker{watches: h.watches, found: map[int64][]core.WatchItem{}, clock: func() time.Time { return h.now }}
 	h.sched, err = NewScheduler(Config{
-		Store: h.store, Commitments: h.data, Memory: h.data, Skills: h.data, Events: h.store, Runs: h.runs, Watches: h.watches, Checker: h.checker,
+		Store: h.store, Commitments: h.data, Memory: h.data, Skills: h.data, Knowledge: memKnowledge{h.data}, RunRecords: h.data, Events: h.store, Runs: h.runs, Watches: h.watches, Checker: h.checker,
 		Clock: func() time.Time { return h.now }, Location: loc, DailyLimit: limit,
 		MaxChecksPerTick: 5, Briefing: briefing, Interval: time.Second,
 		DailyTokens: 300000, Routines: h.data, PhoneNotifications: h.data,

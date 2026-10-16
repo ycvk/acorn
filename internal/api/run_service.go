@@ -207,6 +207,7 @@ func (s *RunService) createRun(ctx context.Context, threadID, skillID, input, wa
 		req.Commitment = scheduled.Commitment
 		req.SourceIDs = append([]string(nil), scheduled.SourceIDs...)
 		req.Autonomous = scheduled.Autonomous
+		req.Standalone = scheduled.Standalone
 	}
 	runCtx := context.WithoutCancel(ctx)
 	go s.executeRunAsync(runCtx, req, started)

@@ -22,7 +22,9 @@ import (
 
 type MemoryContextService interface {
 	MeterCompaction(einomodel.AgenticModel) einomodel.AgenticModel
-	History(context.Context, string, int64, int) (memory.History, error)
+	// History is the thread history through the run's input; after leaves
+	// out the messages up to it.
+	History(ctx context.Context, session string, after, through int64, budget int) (memory.History, error)
 	Recall(context.Context, core.MemoryQuery) (core.MemoryRecall, error)
 	RefreshRecall(context.Context, core.MemoryRecall) (core.MemoryRecall, error)
 }
@@ -93,7 +95,11 @@ func prepareRunMemory(ctx context.Context, deps RuntimeDeps, req RunnerBuildRequ
 	if historyBudget < 256 || available <= inputTokens+512 {
 		return nil, fmt.Errorf("run input and tools exceed context budget (%d available)", available)
 	}
-	history, err := deps.Memory.History(ctx, req.SessionID, through, historyBudget)
+	var after int64
+	if req.Standalone {
+		after = through - 1
+	}
+	history, err := deps.Memory.History(ctx, req.SessionID, after, through, historyBudget)
 	if err != nil {
 		return nil, fmt.Errorf("thread history: %w", err)
 	}

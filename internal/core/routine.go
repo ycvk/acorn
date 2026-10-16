@@ -8,12 +8,23 @@ import (
 
 var ErrRoutineTaken = errors.New("routine slot already taken")
 
+// RoutineRun is the run a routine slot started.
+type RoutineRun struct {
+	Routine   string
+	Slot      string
+	ThreadID  string
+	RunID     string
+	CreatedAt time.Time
+}
+
 // RoutineStore persists owner-local slots for briefings and idle thinking.
 type RoutineStore interface {
 	ClaimRoutine(ctx context.Context, routine, slot string, at time.Time) error
 	ReleaseRoutine(ctx context.Context, routine, slot string) error
 	SetRoutineRun(ctx context.Context, routine, slot, threadID, runID string) error
 	LatestRoutineThread(ctx context.Context, routines ...string) (string, error)
+	// LatestRoutineRun is the newest started run of routine; zero when none.
+	LatestRoutineRun(ctx context.Context, routine string) (RoutineRun, error)
 	// LastRoutineAt excludes skipped slots and the current slot.
 	LastRoutineAt(ctx context.Context, routine, beforeSlot string) (time.Time, error)
 }

@@ -80,6 +80,8 @@ func TestWatchesWakeAndFeedTheMorningBriefing(t *testing.T) {
 		toolCallChunk("call_note", "knowledge_write", map[string]any{"path": "briefings/2026-10-05.md", "title": "早安 2026-10-05", "tags": []string{"briefing"}, "body": "Go 博客有新文章 go1.27。"}),
 		toolCallChunk("call_push", "notify_owner", map[string]string{"title": "早安", "body": "Go 博客有新文章"}),
 		textReply("简报在 briefings/2026-10-05.md"),
+		textReply("夜思：昨天的技能用法没有问题。"),
+		textReply("第二天的简报"),
 	}}
 	server := httptest.NewServer(provider)
 	defer server.Close()
@@ -158,6 +160,37 @@ func TestWatchesWakeAndFeedTheMorningBriefing(t *testing.T) {
 	}
 	if provider.requestCount() != requests {
 		t.Fatal("the briefing ran twice on one day")
+	}
+
+	// The next briefing carries the night reflection and sees only its own
+	// input: the earlier briefing's input and reply stay out of the model's
+	// messages.
+	harness.clock.Set(time.Date(2026, 10, 5, 19, 0, 0, 0, time.UTC)) // 03:00 on the 6th: night reflection
+	if err := c.wake.Tick(ctx); err != nil {
+		t.Fatalf("tick: %v", err)
+	}
+	thoughts, err := c.store.LatestRoutineThread(ctx, "night")
+	if err != nil || thoughts == "" {
+		t.Fatalf("thoughts thread = %q, %v", thoughts, err)
+	}
+	waitNewRun(t, c, thoughts, "")
+	src.set(func(s *sources) { s.feed = rss("go1.26", "go1.27", "go1.28") })
+	harness.clock.Set(time.Date(2026, 10, 6, 0, 0, 0, 0, time.UTC))
+	if err := c.wake.Tick(ctx); err != nil {
+		t.Fatalf("tick: %v", err)
+	}
+	waitNewRun(t, c, briefingThread, "")
+	second := requestMessages(provider.request(requests + 1))
+	var texts []string
+	for _, msg := range second {
+		texts = append(texts, chatContentText(msg["content"]))
+	}
+	joined := strings.Join(texts, "\n")
+	if !strings.Contains(joined, "[briefing 2026-10-06] morning briefing") || !strings.Contains(joined, "go1.28") || !strings.Contains(joined, "Last night's reflection (2026-10-06):\n夜思：昨天的技能用法没有问题。") {
+		t.Fatalf("second briefing input = %q", joined)
+	}
+	if strings.Contains(joined, "[briefing 2026-10-05]") || strings.Contains(joined, "简报在 briefings/2026-10-05.md") {
+		t.Fatalf("second briefing carries the first one's thread history: %q", joined)
 	}
 }
 

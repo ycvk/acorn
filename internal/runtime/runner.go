@@ -257,12 +257,14 @@ type RunnerFactoryOptions struct {
 
 // RunnerBuildRequest holds the parameters for building a new run.
 type RunnerBuildRequest struct {
-	Wake      string
-	SessionID string
-	RunID     string
-	Input     string
-	SkillID   string
-	Sink      core.StreamSink
+	Wake string
+	// Standalone leaves the thread's earlier messages out of the run.
+	Standalone bool
+	SessionID  string
+	RunID      string
+	Input      string
+	SkillID    string
+	Sink       core.StreamSink
 }
 
 type ActiveRunner struct {

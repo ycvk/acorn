@@ -46,5 +46,5 @@ func (s *Scheduler) briefingHealth(ctx context.Context, now time.Time) (string, 
 	if len(problems) == 0 {
 		return "", nil
 	}
-	return "\nSystem health (problems for the owner to act on):\n- " + strings.Join(problems, "\n- ") + "\n", nil
+	return "System health (problems for the owner to act on):\n- " + strings.Join(problems, "\n- ") + "\n", nil
 }

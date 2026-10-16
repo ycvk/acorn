@@ -49,6 +49,8 @@ type ScheduledWake struct {
 	Reason     string
 	SourceIDs  []string
 	Autonomous bool
+	// Standalone runs see their input alone, without the thread's history.
+	Standalone bool
 	Commitment *CommitmentWake
 }
 

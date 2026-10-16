@@ -199,9 +199,11 @@
   - `internal/watch/watch_test.go`
   - `internal/store/store_watch_test.go`
   - `internal/wire/watch_acceptance_e2e_test.go`
-- **每个本地日一次早安卡**：过了 `briefing.at`（owner 时区）后，`routine_runs` 表按 (`briefing`,日期) 认领，跨进程只触发一次；起 run 失败释放认领，下个 tick 重试。早安卡在 Briefings 线程里运行，输入列出全部待简报条目和 failing 追踪项，条目随之标为 briefed；它不计入每日唤醒上限。输入只在有问题时带 System health：`backup.dir` 已设置而最新快照缺失、超过 36 小时或目录不可读，记忆任务重试耗尽失败，或待处理记忆任务等待超过 24 小时。
+- **每个本地日一次早安卡，没材料不醒**：过了 `briefing.at`（owner 时区）后，`routine_runs` 表按 (`briefing`,日期) 认领，跨进程只触发一次；起 run 失败释放认领，下个 tick 重试。调度器确定性地收集材料，输入只含有内容的段落：今天到期的约定与未结 occurrence、上次简报以来 `updated_at` 变化的记忆记录、一周内生效的事实、上次简报之后成功的夜思 run 的输出、上次简报之后写的笔记（`briefings/` 除外）、全部待简报条目、failing 追踪项、System health、手机通知。一周内生效的事实只在当天生效时算材料，其余段落有内容即算；没有材料时保留认领、不起 run、不写笔记、不推送。早安卡在 Briefings 线程里以 standalone run 运行：模型只看到本次输入，不带线程历史与摘要；条目随之标为 briefed，列出的记录与笔记 revision 作为 run 输入来源登记；它不计入每日唤醒上限。System health 只在有问题时出现：`backup.dir` 已设置而最新快照缺失、超过 36 小时或目录不可读，记忆任务重试耗尽失败，或待处理记忆任务等待超过 24 小时。
+  - `internal/wake/briefing_test.go`
   - `internal/wake/health_test.go`
   - `internal/wake/watches_test.go`
+  - `internal/memory/context_test.go`
   - `internal/store/store_watch_test.go`
   - `internal/wire/watch_acceptance_e2e_test.go`
 

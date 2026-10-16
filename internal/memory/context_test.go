@@ -23,7 +23,7 @@ func TestHistoryUsesBudgetAndStableSourceIDs(t *testing.T) {
 		}
 		last = m.ID
 	}
-	got, err := e.History(ctx, "history", last, 8192)
+	got, err := e.History(ctx, "history", 0, last, 8192)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,7 +37,7 @@ func TestHistoryUsesBudgetAndStableSourceIDs(t *testing.T) {
 	if _, err = db.ForgetMemory(ctx, core.MemoryForget{SourceIDs: got.SourceIDs[:1], RequestSourceID: request.ID, Reason: "owner request", Now: e.cfg.Clock()}); err != nil {
 		t.Fatal(err)
 	}
-	visible, err := e.History(ctx, "history", last, 8192)
+	visible, err := e.History(ctx, "history", 0, last, 8192)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,7 +61,7 @@ func TestHistoryChunksLongOlderMessageAndKeepsCurrentInput(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err := e.History(ctx, "long-history", latest.ID, 3000)
+	got, err := e.History(ctx, "long-history", 0, latest.ID, 3000)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +79,7 @@ func TestHistoryChunksLongOlderMessageAndKeepsCurrentInput(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got, err = e.History(ctx, "large-current", msg.ID, 12000)
+	got, err = e.History(ctx, "large-current", 0, msg.ID, 12000)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,7 +120,7 @@ func TestHistorySummaryUsesScaledBudgetAndRejectsOverflow(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			got, err := e.History(ctx, "scaled", latest.ID, 32768)
+			got, err := e.History(ctx, "scaled", 0, latest.ID, 32768)
 			if tc.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
 					t.Fatalf("err=%v want %q", err, tc.wantErr)
@@ -137,5 +137,28 @@ func TestHistorySummaryUsesScaledBudgetAndRejectsOverflow(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestHistoryAfterLeavesOutEarlierMessagesAndTheSummary(t *testing.T) {
+	e, db := testEngine(t, &protocolModel{}, 0)
+	ctx := context.Background()
+	if _, err := db.CreateSession(ctx, "standalone", "briefings"); err != nil {
+		t.Fatal(err)
+	}
+	var last int64
+	for i := range 3 {
+		m, err := db.AppendSessionMessage(ctx, "standalone", i+1, "wake", fmt.Sprintf("[briefing 2026-10-0%d] morning briefing", i+1), "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		last = m.ID
+	}
+	got, err := e.History(ctx, "standalone", last-1, last, 1024)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Messages) != 1 || got.Messages[0].ID != last || got.Summary != nil || len(got.SourceIDs) != 1 {
+		t.Fatalf("standalone history=%+v", got)
 	}
 }

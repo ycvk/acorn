@@ -133,12 +133,13 @@ func (e *Executor) createBoundRun(ctx context.Context, runID string, req core.Ex
 
 func (e *Executor) buildExecuteRunner(runCtxBase context.Context, req core.ExecuteRequest, runID string, sink core.StreamSink) (*ActiveRunner, error) {
 	return e.runRuntime.New(runCtxBase, RunnerBuildRequest{
-		SessionID: req.SessionID,
-		RunID:     runID,
-		Input:     req.Input,
-		SkillID:   req.SkillID,
-		Wake:      req.Wake,
-		Sink:      sink,
+		SessionID:  req.SessionID,
+		RunID:      runID,
+		Input:      req.Input,
+		SkillID:    req.SkillID,
+		Wake:       req.Wake,
+		Standalone: req.Standalone,
+		Sink:       sink,
 	})
 }
 

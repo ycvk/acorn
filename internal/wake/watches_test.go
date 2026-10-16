@@ -259,11 +259,15 @@ func TestMorningBriefingRunsOncePerDay(t *testing.T) {
 		t.Fatalf("briefings = %v, want one", h.runs.starts)
 	}
 	parts := strings.SplitN(h.runs.starts[0], "|", 3)
-	want := "[briefing 2026-10-06] morning briefing\nWatch changes since the last briefing:\n\n## #1 blog (rss, 2 new)\n" +
+	want := "[briefing 2026-10-06] morning briefing\nSince the last briefing (2026-10-05 08:00). Write only what deserves the owner's attention.\n" +
+		"\nWatch changes since the last briefing:\n\n## #1 blog (rss, 2 new)\n" +
 		"- post-1 — https://x.test/post-1\n  about post-1\n- post-2 — https://x.test/post-2\n  about post-2\n" +
 		"\nFailing watches:\n- #2 shop: HTTP 403 (5 failures in a row)\n"
 	if parts[0] != "thread_briefings" || parts[1] != "morning briefing 2026-10-06" || parts[2] != want {
 		t.Fatalf("briefing start = %q\nwant input:\n%s", h.runs.starts[0], want)
+	}
+	if !h.runs.standalone[0] {
+		t.Fatal("a briefing must run without the thread's history")
 	}
 	thread, err := h.data.LatestRoutineThread(context.Background(), "briefing")
 	if err != nil || h.watches.items[0].Status != core.WatchItemBriefed || thread != "thread_briefings" {
@@ -278,13 +282,15 @@ func TestMorningBriefingRunsOncePerDay(t *testing.T) {
 	if err := h.sched.Tick(context.Background()); err != nil {
 		t.Fatalf("tick: %v", err)
 	}
-	if len(h.runs.starts) != 2 || !strings.HasPrefix(h.runs.starts[1], "thread_briefings|") || !strings.Contains(h.runs.starts[1], "No watch changes since the last briefing.") {
+	// The failing watch still needs the owner; it carries the next briefing alone.
+	if len(h.runs.starts) != 2 || !strings.HasPrefix(h.runs.starts[1], "thread_briefings|") || strings.Contains(h.runs.starts[1], "Watch changes") || !strings.Contains(h.runs.starts[1], "Since the last briefing (2026-10-06 08:00).") || !strings.Contains(h.runs.starts[1], "\n\nFailing watches:\n- #2 shop") {
 		t.Fatalf("next day = %v", h.runs.starts)
 	}
 }
 
 func TestBriefingStartFailureReleasesTheDay(t *testing.T) {
 	h := newHarnessWith(t, 20, Briefing{Enabled: true, At: 0})
+	h.commit(t, "today", h.now.Add(time.Hour), "")
 	h.runs.fail = errors.New("execution not ready")
 	if err := h.sched.Tick(context.Background()); err == nil {
 		t.Fatal("a failed briefing start must be reported")

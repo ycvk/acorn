@@ -46,6 +46,8 @@ type Config struct {
 	Commitments        core.CommitmentStore
 	Memory             core.MemoryStore
 	Skills             core.SkillStore
+	Knowledge          KnowledgeReader
+	RunRecords         RunReader
 	Events             core.EventAppender
 	Runs               RunStarter
 	Watches            core.WatchStore
@@ -87,6 +89,8 @@ func NewScheduler(cfg Config) (*Scheduler, error) {
 		return nil, errors.New("wake scheduler: Store is required")
 	case cfg.Skills == nil:
 		return nil, errors.New("wake scheduler: Skills is required")
+	case cfg.Knowledge == nil || cfg.RunRecords == nil:
+		return nil, errors.New("wake scheduler: Knowledge and RunRecords are required")
 	case cfg.Routines == nil:
 		return nil, errors.New("wake scheduler: Routines is required")
 	case cfg.PhoneNotifications == nil:

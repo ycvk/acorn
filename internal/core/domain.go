@@ -149,9 +149,11 @@ type OperatorQuestionDecision struct {
 // --- ExecuteRequest ---
 
 type ExecuteRequest struct {
-	SourceIDs      []string
-	Commitment     *CommitmentWake
-	Autonomous     bool
+	SourceIDs  []string
+	Commitment *CommitmentWake
+	Autonomous bool
+	// Standalone runs see their input alone, without the thread's history.
+	Standalone     bool
 	RunID          string
 	SessionID      string
 	TurnIndex      int

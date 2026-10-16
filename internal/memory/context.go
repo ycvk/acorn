@@ -23,8 +23,10 @@ type History struct {
 }
 
 // History selects complete recent messages and incrementally summarizes the
-// older prefix. through binds a run to its input even when another turn arrives.
-func (e *Engine) History(ctx context.Context, session string, through int64, budget int) (History, error) {
+// older prefix. through binds a run to its input even when another turn
+// arrives; after, when positive, leaves out the messages up to it and the
+// summary, so a run sees only its own input.
+func (e *Engine) History(ctx context.Context, session string, after, through int64, budget int) (History, error) {
 	out := History{}
 	ex, err := e.cfg.Store.MemoryExclusions(ctx)
 	if err != nil {
@@ -38,7 +40,7 @@ func (e *Engine) History(ctx context.Context, session string, through int64, bud
 	recentBudget := budget - summaryBudget
 	end := through
 	for {
-		page, cursor, err := e.cfg.Store.MemoryMessages(ctx, session, 0, end, true, 128)
+		page, cursor, err := e.cfg.Store.MemoryMessages(ctx, session, after, end, true, 128)
 		if err != nil {
 			return out, err
 		}
@@ -63,13 +65,13 @@ func (e *Engine) History(ctx context.Context, session string, through int64, bud
 			out.Messages = append(out.Messages, m)
 			out.Tokens += n
 		}
-		if stop || cursor <= 1 {
+		if stop || cursor <= after+1 {
 			break
 		}
 		end = cursor - 1
 	}
 	slices.Reverse(out.Messages)
-	if len(out.Messages) > 0 && summaryBudget >= 128 {
+	if after == 0 && len(out.Messages) > 0 && summaryBudget >= 128 {
 		cutoff := out.Messages[0].ID - 1
 		out.Summary, err = e.summarizeThrough(ctx, session, cutoff, ex.Epoch, summaryBudget)
 		if err != nil {

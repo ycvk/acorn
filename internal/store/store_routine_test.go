@@ -47,4 +47,11 @@ func TestRoutineClaimsAndSuccessfulWindow(t *testing.T) {
 	if err != nil || thread != "wander" {
 		t.Fatalf("latest thoughts thread: %q, %v", thread, err)
 	}
+	night, err := s.LatestRoutineRun(ctx, "night")
+	if err != nil || night.Slot != "2026-10-05" || night.RunID != "run" || night.ThreadID != "night" || !night.CreatedAt.Equal(at) {
+		t.Fatalf("latest night run: %+v, %v", night, err)
+	}
+	if none, err := s.LatestRoutineRun(ctx, "never"); err != nil || none.RunID != "" {
+		t.Fatalf("unknown routine: %+v, %v", none, err)
+	}
 }

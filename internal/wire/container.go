@@ -249,6 +249,8 @@ func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *contai
 		Commitments:        db,
 		Memory:             db,
 		Skills:             db,
+		Knowledge:          &knowledge.MemoryView{Vault: deps.vault, Store: db},
+		RunRecords:         db,
 		Events:             db,
 		Runs:               &wakeRunStarter{runs: container.runs, store: db},
 		Watches:            db,

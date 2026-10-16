@@ -16,11 +16,12 @@ type Thinking struct {
 }
 
 type routineInput struct {
-	sources []string
-	wake    string
-	input   string
-	skip    bool
-	after   func(context.Context, string) error
+	sources    []string
+	wake       string
+	input      string
+	skip       bool
+	standalone bool
+	after      func(context.Context, string) error
 }
 
 func (s *Scheduler) runRoutines(ctx context.Context, now time.Time) error {
@@ -92,7 +93,7 @@ func (s *Scheduler) runRoutine(ctx context.Context, name, slot, title string, au
 	if err != nil {
 		return err
 	}
-	thread, runID, err := s.cfg.Runs.StartRoutineRun(ctx, thread, title, prepared.input, core.ScheduledWake{Reason: prepared.wake, Autonomous: autonomous, SourceIDs: prepared.sources})
+	thread, runID, err := s.cfg.Runs.StartRoutineRun(ctx, thread, title, prepared.input, core.ScheduledWake{Reason: prepared.wake, Autonomous: autonomous, Standalone: prepared.standalone, SourceIDs: prepared.sources})
 	if err != nil {
 		return fmt.Errorf("start %s run: %w", name, err)
 	}
