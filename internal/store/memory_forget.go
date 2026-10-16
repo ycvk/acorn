@@ -6,7 +6,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
+	"strings"
+	"time"
 
 	"github.com/ycvk/acorn/internal/core"
 )
@@ -84,16 +87,41 @@ func forgetMemory(ctx context.Context, tx *sql.Tx, request core.MemoryForget) er
 			return err
 		}
 	}
-	targetsJSON, err := json.Marshal(request.RecordIDs)
+	// A record whose current revision cites an excluded source keeps the rest
+	// of its evidence when that rest still supports it; otherwise the whole
+	// record goes.
+	rows, err = tx.QueryContext(ctx, `SELECT DISTINCT e.record_id FROM memory_revision_evidence e JOIN memory_records cur ON cur.id=e.record_id AND cur.revision=e.revision JOIN memory_exclusions x ON e.source_id=x.source_id
+	 WHERE cur.excluded=0 AND (x.quote='' OR instr(e.quote,x.quote)>0 OR instr(x.quote,e.quote)>0)`)
 	if err != nil {
 		return err
 	}
-	rows, err = tx.QueryContext(ctx, `WITH RECURSIVE affected(id) AS(
-	 SELECT value FROM json_each(?) WHERE value IS NOT NULL UNION
-	 SELECT DISTINCT e.record_id FROM memory_revision_evidence e JOIN memory_records cur ON cur.id=e.record_id AND cur.revision=e.revision JOIN memory_exclusions x ON e.source_id=x.source_id
-	 WHERE x.quote='' OR instr(e.quote,x.quote)>0 OR instr(x.quote,e.quote)>0
-	 UNION SELECT l.from_id FROM memory_links l JOIN affected a ON l.to_id=a.id WHERE l.relation='derives_from'
-	 ) SELECT id FROM affected`, string(targetsJSON))
+	cited, err := memoryStringRows(rows)
+	if err != nil {
+		return err
+	}
+	wholly := append([]string{}, request.RecordIDs...)
+	retained := map[string][]core.MemoryEvidence{}
+	for _, id := range cited {
+		if slices.Contains(request.RecordIDs, id) {
+			continue
+		}
+		kept, err := retainedMemoryEvidence(ctx, tx, id)
+		if err != nil {
+			return err
+		}
+		if slices.ContainsFunc(kept, func(e core.MemoryEvidence) bool { return e.Relation == "supports" }) {
+			retained[id] = kept
+		} else {
+			wholly = append(wholly, id)
+		}
+	}
+	// Exclusion cascades along derives_from only from wholly excluded records;
+	// an insight loses its last unexcluded parent only this way.
+	targetsJSON, err := json.Marshal(wholly)
+	if err != nil {
+		return err
+	}
+	rows, err = tx.QueryContext(ctx, `WITH RECURSIVE affected(id) AS(SELECT value FROM json_each(?) UNION SELECT l.from_id FROM memory_links l JOIN affected a ON l.to_id=a.id WHERE l.relation='derives_from') SELECT id FROM affected`, string(targetsJSON))
 	if err != nil {
 		return err
 	}
@@ -101,7 +129,7 @@ func forgetMemory(ctx context.Context, tx *sql.Tx, request core.MemoryForget) er
 	if err != nil {
 		return err
 	}
-	recordIDs = uniqueMemoryStrings(append(recordIDs, request.RecordIDs...))
+	recordIDs = uniqueMemoryStrings(recordIDs)
 	for _, id := range recordIDs {
 		if _, err := tx.ExecContext(ctx, `UPDATE memory_records SET excluded=1 WHERE id=?`, id); err != nil {
 			return err
@@ -112,6 +140,9 @@ func forgetMemory(ctx context.Context, tx *sql.Tx, request core.MemoryForget) er
 		if _, err := tx.ExecContext(ctx, `UPDATE memory_jobs SET state='done',completed_at=?,error='owner excluded memory',lease_until='' WHERE object_id=?`, formatTimestamp(request.Now), id); err != nil {
 			return err
 		}
+	}
+	if err := stripExcludedEvidence(ctx, tx, retained, request.Now); err != nil {
+		return err
 	}
 	// A current revision may have replaced its evidence. Remove embeddings
 	// of excluded historical evidence even when that current record survives.
@@ -214,4 +245,165 @@ func (s *Store) SaveMemorySnapshotRefs(ctx context.Context, hash, runID string, 
 		}
 		return nil
 	})
+}
+
+// retainedMemoryEvidence is the evidence of record id's current revision whose
+// source is not excluded, under the fragment rule memoryRevisionVisibility
+// applies.
+func retainedMemoryEvidence(ctx context.Context, q memorySQL, id string) ([]core.MemoryEvidence, error) {
+	rows, err := q.QueryContext(ctx, `SELECT e.source_id,e.quote,e.relation FROM memory_revision_evidence e JOIN memory_records r ON r.id=e.record_id AND r.revision=e.revision
+	 WHERE e.record_id=? AND NOT EXISTS(SELECT 1 FROM memory_exclusions x WHERE x.source_id=e.source_id AND (x.quote='' OR instr(e.quote,x.quote)>0 OR instr(x.quote,e.quote)>0)) ORDER BY e.rowid`, id)
+	if err != nil {
+		return nil, err
+	}
+	kept := []core.MemoryEvidence{}
+	err = scanRows(rows, func(scan func(...any) error) error {
+		var e core.MemoryEvidence
+		if err := scan(&e.SourceID, &e.Quote, &e.Relation); err != nil {
+			return err
+		}
+		kept = append(kept, e)
+		return nil
+	})
+	return kept, err
+}
+
+// stripExcludedEvidence writes a new revision for each surviving record with
+// its excluded evidence removed, and marks the insights derived from them for
+// review. A parent is rewritten before its children, so a child's root sources
+// come from the parent's new revision.
+func stripExcludedEvidence(ctx context.Context, q memorySQL, retained map[string][]core.MemoryEvidence, now time.Time) error {
+	if len(retained) == 0 {
+		return nil
+	}
+	seeds, err := json.Marshal(slices.Sorted(maps.Keys(retained)))
+	if err != nil {
+		return err
+	}
+	rows, err := q.QueryContext(ctx, `WITH RECURSIVE derived(id) AS(SELECT value FROM json_each(?) UNION SELECT l.from_id FROM memory_links l JOIN derived d ON l.to_id=d.id WHERE l.relation='derives_from')
+	 SELECT d.id FROM derived d JOIN memory_records r ON r.id=d.id WHERE r.excluded=0`, string(seeds))
+	if err != nil {
+		return err
+	}
+	ids, err := memoryStringRows(rows)
+	if err != nil {
+		return err
+	}
+	ordered, err := memoryDerivationOrder(ctx, q, uniqueMemoryStrings(ids))
+	if err != nil {
+		return err
+	}
+	for _, id := range ordered {
+		r, err := loadMemoryRecord(ctx, q, id)
+		if err != nil {
+			return err
+		}
+		reason := "supporting evidence excluded"
+		if kept, ok := retained[id]; ok {
+			dropped := slices.DeleteFunc(slices.Clone(r.Evidence), func(e core.MemoryEvidence) bool { return slices.Contains(kept, e) })
+			r.Entities = retainedMemoryEntities(r, kept, dropped)
+			r.Aliases = retainedMemoryAliases(r.Aliases, kept)
+			r.Evidence = kept
+			reason = "evidence excluded by owner"
+		}
+		derived := slices.ContainsFunc(r.Parents, func(parent string) bool { return slices.Contains(ordered, parent) })
+		if derived {
+			r.NeedsReview = true
+		}
+		if r.SourceIDs, err = memoryRecordSources(ctx, q, r); err != nil {
+			return err
+		}
+		r.Revision++
+		r.UpdatedAt = now
+		if err := persistMemoryRecord(ctx, q, r, reason); err != nil {
+			return err
+		}
+		if err := replaceMemoryMentions(ctx, q, r); err != nil {
+			return err
+		}
+		if derived {
+			if err := enqueueMemoryJob(ctx, q, "consolidate", r.ID, fmt.Sprint(r.Revision), now); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// memoryDerivationOrder sorts ids so every record follows the records it
+// derives from within the set.
+func memoryDerivationOrder(ctx context.Context, q memorySQL, ids []string) ([]string, error) {
+	data, err := json.Marshal(ids)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := q.QueryContext(ctx, `SELECT l.from_id,l.to_id FROM memory_links l WHERE l.relation='derives_from' AND l.from_id IN(SELECT value FROM json_each(?)) AND l.to_id IN(SELECT value FROM json_each(?))`, string(data), string(data))
+	if err != nil {
+		return nil, err
+	}
+	parents := map[string][]string{}
+	if err := scanRows(rows, func(scan func(...any) error) error {
+		var from, to string
+		if err := scan(&from, &to); err != nil {
+			return err
+		}
+		parents[from] = append(parents[from], to)
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+	ordered := make([]string, 0, len(ids))
+	for remaining := ids; len(remaining) > 0; {
+		var next []string
+		for _, id := range remaining {
+			if slices.ContainsFunc(parents[id], func(parent string) bool { return !slices.Contains(ordered, parent) }) {
+				next = append(next, id)
+				continue
+			}
+			ordered = append(ordered, id)
+		}
+		if len(next) == len(remaining) {
+			return nil, fmt.Errorf("memory derivation cycle among %v", next)
+		}
+		remaining = next
+	}
+	return ordered, nil
+}
+
+// retainedMemoryEntities drops the entities that only the dropped evidence
+// names; the content or the kept evidence vouches for the rest.
+func retainedMemoryEntities(r core.MemoryRecord, kept, dropped []core.MemoryEvidence) []string {
+	named := func(entity string, evidence []core.MemoryEvidence) bool {
+		return slices.ContainsFunc(evidence, func(e core.MemoryEvidence) bool { return strings.Contains(e.Quote, entity) })
+	}
+	return slices.DeleteFunc(slices.Clone(r.Entities), func(entity string) bool {
+		return named(entity, dropped) && !named(entity, kept) && !strings.Contains(r.Content, entity)
+	})
+}
+
+// retainedMemoryAliases keeps the aliases the kept evidence still quotes, the
+// same support validateMemoryAliases demands on write.
+func retainedMemoryAliases(aliases []core.MemoryEntityAlias, kept []core.MemoryEvidence) []core.MemoryEntityAlias {
+	return slices.DeleteFunc(slices.Clone(aliases), func(a core.MemoryEntityAlias) bool {
+		return !slices.ContainsFunc(kept, func(e core.MemoryEvidence) bool {
+			return e.SourceID == a.SourceID && e.Relation == "supports" && strings.Contains(e.Quote, a.Quote)
+		})
+	})
+}
+
+// memoryRecordSources resolves a record's root sources: its evidence sources
+// and the current root sources of its parents.
+func memoryRecordSources(ctx context.Context, q memorySQL, r core.MemoryRecord) ([]string, error) {
+	var ids []string
+	for _, e := range r.Evidence {
+		ids = append(ids, e.SourceID)
+	}
+	for _, parentID := range r.Parents {
+		parent, err := loadMemoryRecord(ctx, q, parentID)
+		if err != nil {
+			return nil, err
+		}
+		ids = append(ids, parent.SourceIDs...)
+	}
+	return uniqueMemoryStrings(ids), nil
 }

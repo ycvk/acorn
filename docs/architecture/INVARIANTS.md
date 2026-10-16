@@ -73,9 +73,11 @@
   - `internal/runtime/memory_visibility_test.go`
   - `internal/runtime/presence_test.go`
   - `internal/memory/context_test.go`
-- **事实修订保留历史，来源排除约束所有读取**：精确证据引用、revision CAS、known_at 与 as_of 分离；更正使派生认识待复核。遗忘事务处理来源片段、派生记录、向量和摘要；旧 worker、checkpoint 与模型输入受 epoch 约束。确认前等待受影响的在途 run 退出。
+- **事实修订保留历史，来源排除约束所有读取**：精确证据引用、revision CAS、known_at 与 as_of 分离；更正使派生认识待复核。遗忘按独立证据判断：当前 revision 引用被排除来源（整体或片段匹配）的记录，去掉这些证据后仍有未排除的支持证据时写一个新 revision（证据、只由被排除证据提及的实体与别名、根来源重算，reason 为 `evidence excluded by owner`，入队 embed），否则整条排除并沿 derives_from 级联；被剥离的存活记录不级联，其派生认识标 needs_review 并入队 consolidate。旧 revision 仍引用被排除来源，`memoryRevisionVisibility` 让历史读取、向量与别名看不到它；整合经记忆视图读来源，无法把剥离的证据加回来。遗忘事务同时处理来源片段、向量和摘要；旧 worker、checkpoint 与模型输入受 epoch 约束。确认前等待受影响的在途 run 退出。
   - `internal/store/memory_contract_test.go`
   - `internal/store/memory_state_test.go`
+  - `internal/store/memory_forget_test.go`
+  - `internal/store/memory_merge_test.go`
   - `internal/runtime/memory_visibility_test.go`
 - **记忆只读脱敏后的来源**：store 解析来源时有两个视图。记忆视图把 `internal/redact` 识别的凭据替换为 `[REDACTED:<类型>]`，抽取输入、证据校验、召回里的未整理来源、`memory_read` 与 App 的记忆详情都用它；线程视图只应用排除，供线程历史、线程摘要输入与当前输入使用。遗忘的引用在脱敏正文里定位后映射回原文，两个视图排除同一段话，排除范围碰到的凭据整段排除。记录的正文、条件或实体带凭据时以 `ErrMemoryCredential` 拒绝提交。
   - `internal/redact/redact_test.go`

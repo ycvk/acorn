@@ -153,11 +153,10 @@ func TestMemoryMergeRejectsStaleOrRetiredDuplicates(t *testing.T) {
 	}
 }
 
-// Forgetting the duplicate's source follows the revision evidence that merge
-// copied into the survivor: the survivor's current revision cites that source,
-// so the exclusion takes the survivor with it, as it does any fact whose
-// current revision cites a forgotten source.
-func TestMemoryForgetMergedSourceExcludesSurvivorCitingIt(t *testing.T) {
+// Forgetting the duplicate's source strips the evidence merge copied into the
+// survivor: the survivor keeps its own source in a new revision while the
+// merged duplicate, which cites nothing else, is excluded.
+func TestMemoryForgetMergedSourceKeepsSurvivorOnItsOwnEvidence(t *testing.T) {
 	s := openTestStore(t)
 	ctx := context.Background()
 	survivor, duplicate := mergeFixture(t, s)
@@ -169,13 +168,18 @@ func TestMemoryForgetMergedSourceExcludesSurvivorCitingIt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, id := range []string{survivor.ID, duplicate.ID} {
-		if !slices.Contains(exclusion.RecordIDs, id) {
-			t.Fatalf("%s not excluded: %+v", id, exclusion.RecordIDs)
-		}
-		if _, err := s.ReadMemory(ctx, id); !errors.Is(err, core.ErrMemoryExcluded) {
-			t.Fatalf("read %s after forget: %v", id, err)
-		}
+	if !slices.Equal(exclusion.RecordIDs, []string{duplicate.ID}) {
+		t.Fatalf("excluded records=%v", exclusion.RecordIDs)
+	}
+	if _, err := s.ReadMemory(ctx, duplicate.ID); !errors.Is(err, core.ErrMemoryExcluded) {
+		t.Fatalf("read merged duplicate after forget: %v", err)
+	}
+	read, err := s.ReadMemory(ctx, survivor.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := read.Record; got.State != "current" || got.Revision != 3 || len(got.Evidence) != 1 || got.Evidence[0].SourceID != "owner:keep" || !slices.Equal(got.SourceIDs, []string{"owner:keep"}) {
+		t.Fatalf("survivor after forget=%+v", got)
 	}
 	if _, err := s.LoadMemorySource(ctx, "owner:keep"); err != nil {
 		t.Fatalf("the survivor's own source is excluded: %v", err)

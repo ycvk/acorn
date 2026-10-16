@@ -260,16 +260,8 @@ func writeMemoryChange(ctx context.Context, q memorySQL, c core.MemoryChange, no
 			return empty, err
 		}
 	}
-	if _, err := q.ExecContext(ctx, `DELETE FROM memory_mentions WHERE record_id=?`, record.ID); err != nil {
+	if err := replaceMemoryMentions(ctx, q, record); err != nil {
 		return empty, err
-	}
-	for _, entity := range record.Entities {
-		if _, err := q.ExecContext(ctx, `INSERT OR IGNORE INTO memory_entities(name) VALUES(?)`, entity); err != nil {
-			return empty, err
-		}
-		if _, err := q.ExecContext(ctx, `INSERT INTO memory_mentions(record_id,entity_id) SELECT ?,id FROM memory_entities WHERE name=?`, record.ID, entity); err != nil {
-			return empty, err
-		}
 	}
 	if d.Kind == "fact" {
 		if err := enqueueMemoryJob(ctx, q, "consolidate", record.ID, fmt.Sprint(record.Revision), now); err != nil {
@@ -277,6 +269,22 @@ func writeMemoryChange(ctx context.Context, q memorySQL, c core.MemoryChange, no
 		}
 	}
 	return record, nil
+}
+
+// replaceMemoryMentions points the entity index at the record's current entities.
+func replaceMemoryMentions(ctx context.Context, q memorySQL, record core.MemoryRecord) error {
+	if _, err := q.ExecContext(ctx, `DELETE FROM memory_mentions WHERE record_id=?`, record.ID); err != nil {
+		return err
+	}
+	for _, entity := range record.Entities {
+		if _, err := q.ExecContext(ctx, `INSERT OR IGNORE INTO memory_entities(name) VALUES(?)`, entity); err != nil {
+			return err
+		}
+		if _, err := q.ExecContext(ctx, `INSERT INTO memory_mentions(record_id,entity_id) SELECT ?,id FROM memory_entities WHERE name=?`, record.ID, entity); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func supersedeMemory(ctx context.Context, q memorySQL, c core.MemoryChange, now time.Time) error {
