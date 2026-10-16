@@ -58,7 +58,7 @@ flowchart LR
 
 ## 有效性与注意力
 
-事实和认识的有效性，使用 `current`、`disputed`、`superseded`、`retracted` 表达。适用时间由 `valid_from`、`valid_to` 表达，系统获知时间由 `recorded_at` 表达；无法确定的时间留空。过去时间的查询按适用时间和修订关系解释，无法重建的细节明确保留未知。
+事实和认识的有效性，使用 `current`、`disputed`、`superseded`、`retracted` 表达；被合并进另一条事实的 fact 为 `merged`。适用时间由 `valid_from`、`valid_to` 表达，系统获知时间由 `recorded_at` 表达；无法确定的时间留空。过去时间的查询按适用时间和修订关系解释，无法重建的细节明确保留未知。
 
 注意力决定信息是否进入本次“当下”。它综合当前任务相关性、owner 最近的明确关注、关联事项是否未完成、已知复查时间和 owner 的固定要求。时间衰减作用于注意力；事实的有效性由证据、明确更正和适用期限控制。
 
@@ -73,6 +73,8 @@ flowchart LR
 来源强度按问题判断。owner 对自己的偏好具有直接解释权；外部世界的事实需要相应来源；assistant 的推断保持推断。直接证据标记为 `direct`，认识和念头标记为 `inferred`，尚待核对的导入记录标记为 `unverified`。模型输出的任意数值不作为置信度事实。
 
 明确更正形成修订关系。例如先说“不吃香菜”，后来说明“现在可以接受少量”：新偏好从明确的生效时间起适用，旧偏好有对应的结束时间，修订记录关联两次原话。仅仅新增一条相似事实，不能自动覆盖旧记录；时间、对象或情境不同的事实可以同时成立。证据冲突且无法消解时，两者组成 `disputed` 集合，当前召回同时给出冲突和依据。
+
+两条表达同一主张且可同时成立的 fact（例如 owner 要求 `keep` 的偏好与同一句话自动抽取出的偏好）由整合合并：存活记录写入新 revision，证据与实体取两边并集，正文与条件保留存活记录的；被合并记录写入 `merged` 状态的 revision，有效时间不变，并以 `merged_into` 关联存活记录。存活者由代码决定：恰有一条 pinned 时是它，否则是 `recorded_at` 更早的那条；模型选错存活者、遗漏被合并记录的任何证据、或合并不在本次输入里的记录，整批拒绝。`merged` 记录只在 history 模式出现。抽取前先去重：抽取输入带本来源已支持的 current fact，模型只输出未被覆盖的主张，与其中某条正文完全相同的草稿被丢弃。
 
 新的直接证据进入后，受影响的 insight 标记为待重算。召回返回直接证据和该状态，完成整合后再提供修订后的认识。owner 的明确更正通过同步工具事务立即生效，agent 只有在工具成功后才能确认已更新。
 
@@ -154,7 +156,7 @@ embedding 使用独立的外部模型配置，抽取、整合和深度重排复�
 |---|---|
 | `recall` | `query`、`mode=current/history`、`depth=standard/deep`、可选实体、时间范围、`as_of`、`known_at`、`max_tokens`；返回状态、依据、覆盖范围和展开 ID |
 | `memory_read` | 展开记录、根来源原文、修订链和关联经历，按 token 预算分页 |
-| `keep` | owner 明确要求记住时，引用当前原话并同步保存事实或偏好；返回实际持久化结果 |
+| `keep` | owner 明确要求记住时，引用当前原话并同步保存 pinned 事实或偏好；返回实际持久化结果。同一句话随后抽取出的重复事实由整合合并进它 |
 | `think` | 保存带来源的 agent 念头，标明待验证的问题及关联关切 |
 | `memory_correct` | 引用当前 owner 更正及目标 revision，提交修订和直接证据 |
 | `memory_forget` | 接收已解析的目标 ID、范围和 owner 请求来源，提交检索排除及派生记忆清理 |
@@ -184,7 +186,7 @@ SQLite 继续承载持久化真相。以下为主要逻辑表与关键约束；�
 | `memory_records` | 当前 revision 的 fact/insight/thought、正文、适用范围、有效状态、有效时间、来源标签、注意力属性；任何可用记录有可追溯来源 |
 | `memory_revisions` | 每次修订的全部字段、系统时间与原因；支持 known_at、撤回与审计 |
 | `memory_revision_evidence`、`memory_revision_entities`、`memory_revision_parents`、`memory_revision_sources` | 每个 revision 的支持/反驳证据及精确原文片段、实体、父记录与解析后的根来源；可见性与遗忘按 revision 判断 |
-| `memory_links` | record 间的 derives_from、supersedes、contradicts、related_to；修订关系有明确方向 |
+| `memory_links` | record 间的 derives_from、supersedes、merged_into、contradicts、related_to；修订关系有明确方向 |
 | `memory_entities` 与 `memory_mentions` | 实体名称与记录关联；实体条件按名称过滤，语义检索补充不同表达的候选 |
 | `memory_concerns`、`memory_concern_revisions` 与 `memory_concern_records` | 事项的当前状态、理由、来源与复查时间；每次修订的全部字段及当时关联的记录；约定经 `concern_id` 关联事项 |
 | `commitments` 与 `commitment_occurrences` | 约定规则及每次发生的认领、执行 run、结果；一次发生只认领成功一次 |

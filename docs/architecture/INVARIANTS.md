@@ -92,6 +92,10 @@
   - `internal/store/memory_contract_test.go`
   - `internal/memory/process_test.go`
   - `internal/memory/consolidation_evidence_test.go`
+- **重复事实合并，存活者由代码决定**：整合可以把两条表达同一主张且可同时成立的 current fact 合并：`consolidateRecords` 要求两条都在本次输入里、都是 current fact，恰有一条 pinned 时存活者是它，否则是 `recorded_at` 更早的那条，草稿必须带被合并记录的全部证据，否则整批拒绝；`CommitMemory` 校验被合并记录的 revision 与 current 状态，写入 `merged` 状态的新 revision（有效时间不变）、`merged_into` 链接与存活记录的新 revision，并为存活记录入队整合。`merged` 记录不进 current 模式的列表、搜索与召回，history 模式可见。抽取输入列出本来源已支持的 current fact，与其中某条正文完全相同的草稿被丢弃。
+  - `internal/memory/consolidation_merge_test.go`
+  - `internal/memory/extraction_dedup_test.go`
+  - `internal/store/memory_merge_test.go`
 - **后台处理可恢复，外部调用可计量**：来源与任务原子登记、租约 token 和游标防止重复/过期提交；一次整合调用最多对齐 8 条一起变化的记录，批内每个任务的租约都在提交事务里校验并结束，调用失败时批内任务一起记失败；每个模型、embedding 与压缩调用按预算记录用量。索引模型与维度匹配方可检索，离线维护使用独占数据目录锁。
   - `internal/memory/process_test.go`
   - `internal/memory/consolidation_batch_test.go`

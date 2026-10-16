@@ -236,6 +236,11 @@ func (e *Engine) consolidateRecords(ctx context.Context, job core.MemoryJob, bat
 		if c.Supersedes != "" && !ids[c.Supersedes] {
 			return errors.New("consolidation supersedes an unseen record")
 		}
+		if c.Merges != "" {
+			if err := validateMerge(c, byID); err != nil {
+				return err
+			}
+		}
 		originalParents := byID[c.Draft.ID].Parents
 		for _, p := range c.Draft.Parents {
 			if !ids[p] && !slices.Contains(originalParents, p) {
@@ -264,6 +269,69 @@ func (e *Engine) consolidateRecords(ctx context.Context, job core.MemoryJob, bat
 	}
 	_, err = e.cfg.Store.CommitMemory(ctx, core.MemoryMutation{Changes: output.Changes, Links: output.Links, Lease: &job, Batch: batch, Epoch: job.Epoch, Now: e.cfg.Clock()})
 	return err
+}
+
+// validateMerge checks a merge against the records the model was shown. The
+// code picks the survivor: a pinned fact over an unpinned one, otherwise the
+// earlier recorded one; the draft must be that record at its current revision
+// and carry every piece of the duplicate's evidence.
+func validateMerge(c core.MemoryChange, byID map[string]core.MemoryRecord) error {
+	if c.Supersedes != "" {
+		return errors.New("a consolidation change either merges or supersedes")
+	}
+	survivor, ok := byID[c.Draft.ID]
+	if !ok || c.Draft.ID == "" {
+		return errors.New("consolidation merges into an unseen record")
+	}
+	merged, ok := byID[c.Merges]
+	if !ok {
+		return errors.New("consolidation merges an unseen record")
+	}
+	if survivor.ID == merged.ID {
+		return errors.New("consolidation merges a record into itself")
+	}
+	for _, r := range []core.MemoryRecord{survivor, merged} {
+		if r.Kind != "fact" || r.State != "current" {
+			return fmt.Errorf("consolidation merges only current facts, %s is a %s %s", r.ID, r.State, r.Kind)
+		}
+	}
+	if c.ExpectedRevision != survivor.Revision || c.MergesRevision != merged.Revision {
+		return errors.New("consolidation merge revisions do not match the supplied records")
+	}
+	if want := mergeSurvivor(survivor, merged); want.ID != survivor.ID {
+		return fmt.Errorf("consolidation merge must keep %s, not %s", want.ID, survivor.ID)
+	}
+	if survivor.Pinned && !c.Draft.Pinned {
+		return fmt.Errorf("consolidation merge unpins %s", survivor.ID)
+	}
+	for _, evidence := range merged.Evidence {
+		if !slices.ContainsFunc(c.Draft.Evidence, func(e core.MemoryEvidence) bool {
+			relation := e.Relation
+			if relation == "" {
+				relation = "supports"
+			}
+			return e.SourceID == evidence.SourceID && e.Quote == evidence.Quote && relation == evidence.Relation
+		}) {
+			return fmt.Errorf("consolidation merge drops evidence of %s", merged.ID)
+		}
+	}
+	return nil
+}
+
+// mergeSurvivor is the record that survives a merge of a and b: the pinned
+// one when exactly one is pinned, otherwise the one recorded first, ties
+// broken by id.
+func mergeSurvivor(a, b core.MemoryRecord) core.MemoryRecord {
+	if a.Pinned != b.Pinned {
+		if a.Pinned {
+			return a
+		}
+		return b
+	}
+	if a.RecordedAt.Before(b.RecordedAt) || (a.RecordedAt.Equal(b.RecordedAt) && a.ID < b.ID) {
+		return a
+	}
+	return b
 }
 
 // independentOwnerSources counts the distinct owner sources behind parents,

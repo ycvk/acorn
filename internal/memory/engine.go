@@ -22,15 +22,17 @@ type Model interface {
 }
 
 type Config struct {
-	Ready            func() error
-	Store            core.MemoryStore
-	Model            Model
-	ModelName        string
-	Embedder         embedding.Embedder
-	Index            core.MemoryIndex
-	Count            func(context.Context, string) (int, error)
-	Clock            func() time.Time
-	Location         *time.Location
+	Ready     func() error
+	Store     core.MemoryStore
+	Model     Model
+	ModelName string
+	Embedder  embedding.Embedder
+	Index     core.MemoryIndex
+	Count     func(context.Context, string) (int, error)
+	Clock     func() time.Time
+	Location  *time.Location
+	// OwnerName is how extracted facts refer to the owner; empty means "owner".
+	OwnerName        string
 	DailyTokens      int
 	AutonomousTokens int
 	BatchTokens      int

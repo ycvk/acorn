@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -363,6 +364,25 @@ func (s *Store) MemoryRecordsByIDs(ctx context.Context, ids []string, q core.Mem
 		}
 	}
 	return out, nil
+}
+
+func (s *Store) MemorySourceFacts(ctx context.Context, sourceID string) ([]core.MemoryRecord, error) {
+	if sourceID == "" {
+		return nil, errors.New("memory source facts require a source id")
+	}
+	rows, err := s.read.QueryContext(ctx, `SELECT DISTINCT r.id FROM memory_revision_evidence e JOIN memory_records r ON r.id=e.record_id AND r.revision=e.revision
+ WHERE e.source_id=? AND e.relation='supports' AND r.excluded=0 AND r.kind='fact' AND r.state='current' ORDER BY r.recorded_at,r.id`, sourceID)
+	if err != nil {
+		return nil, err
+	}
+	ids, err := memoryStringRows(rows)
+	if err != nil {
+		return nil, err
+	}
+	if len(ids) == 0 {
+		return []core.MemoryRecord{}, nil
+	}
+	return s.MemoryRecordsByIDs(ctx, ids, core.MemoryQuery{Mode: "current", Limit: len(ids)})
 }
 
 func (s *Store) MemoryNeighbors(ctx context.Context, ids []string, limit int) ([]core.MemoryRecord, error) {

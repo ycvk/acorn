@@ -48,8 +48,16 @@ func (s *Store) CommitMemory(ctx context.Context, mutation core.MemoryMutation) 
 			}
 		}
 		for _, change := range mutation.Changes {
+			if change.Supersedes != "" && change.Merges != "" {
+				return errors.New("a memory change either supersedes or merges a fact")
+			}
 			if change.Supersedes != "" {
 				if err := supersedeMemory(ctx, tx, change, mutation.Now); err != nil {
+					return err
+				}
+			}
+			if change.Merges != "" {
+				if err := mergeMemory(ctx, tx, change, mutation.Now); err != nil {
 					return err
 				}
 			}
@@ -60,6 +68,16 @@ func (s *Store) CommitMemory(ctx context.Context, mutation core.MemoryMutation) 
 			result = append(result, record)
 			if change.Supersedes != "" {
 				if err := insertMemoryLink(ctx, tx, core.MemoryLink{FromID: record.ID, ToID: change.Supersedes, Relation: "supersedes"}); err != nil {
+					return err
+				}
+			}
+			if change.Merges != "" {
+				if err := insertMemoryLink(ctx, tx, core.MemoryLink{FromID: change.Merges, ToID: record.ID, Relation: "merged_into"}); err != nil {
+					return err
+				}
+				// The survivor is reconciled again with the duplicate's evidence
+				// behind it, even when the draft repeated its current state.
+				if err := enqueueMemoryJob(ctx, tx, "consolidate", record.ID, fmt.Sprint(record.Revision), mutation.Now); err != nil {
 					return err
 				}
 			}
@@ -309,14 +327,43 @@ func supersedeMemory(ctx context.Context, q memorySQL, c core.MemoryChange, now 
 	return nil
 }
 
+// mergeMemory retires the duplicate fact c.Merges at its expected revision:
+// its new revision is state merged with validity unchanged, so history still
+// shows it while current reads see only the survivor c.Draft.ID.
+func mergeMemory(ctx context.Context, q memorySQL, c core.MemoryChange, now time.Time) error {
+	if c.Draft.ID == "" || c.ExpectedRevision == 0 {
+		return errors.New("a merge revises the surviving fact at its current revision")
+	}
+	if c.Draft.ID == c.Merges {
+		return errors.New("a fact cannot merge into itself")
+	}
+	if c.Draft.Kind != "fact" {
+		return fmt.Errorf("a merge survivor must be a fact, not %s", c.Draft.Kind)
+	}
+	old, err := loadMemoryRecord(ctx, q, c.Merges)
+	if err != nil {
+		return err
+	}
+	if old.Kind != "fact" {
+		return fmt.Errorf("only a fact can be merged, %s is a %s", old.ID, old.Kind)
+	}
+	if old.Revision != c.MergesRevision || old.State != "current" {
+		return core.ErrMemoryConflict
+	}
+	old.State = "merged"
+	old.Revision++
+	old.UpdatedAt = now
+	return persistMemoryRecord(ctx, q, old, c.Reason)
+}
+
 func insertMemoryLink(ctx context.Context, q memorySQL, l core.MemoryLink) error {
 	if l.FromID == l.ToID {
 		return errors.New("memory link cannot reference itself")
 	}
-	if !slices.Contains([]string{"derives_from", "supersedes", "contradicts", "related_to"}, l.Relation) {
+	if !slices.Contains([]string{"derives_from", "supersedes", "merged_into", "contradicts", "related_to"}, l.Relation) {
 		return errors.New("invalid memory link relation")
 	}
-	if l.Relation == "derives_from" || l.Relation == "supersedes" {
+	if l.Relation == "derives_from" || l.Relation == "supersedes" || l.Relation == "merged_into" {
 		var cycle int
 		err := q.QueryRowContext(ctx, `WITH RECURSIVE chain(id) AS(SELECT to_id FROM memory_links WHERE from_id=? AND relation=? UNION SELECT l.to_id FROM memory_links l JOIN chain c ON l.from_id=c.id WHERE l.relation=?) SELECT COUNT(*) FROM chain WHERE id=?`, l.ToID, l.Relation, l.Relation, l.FromID).Scan(&cycle)
 		if err != nil {

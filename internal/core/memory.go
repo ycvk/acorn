@@ -102,12 +102,17 @@ type MemoryDraft struct {
 	Pinned    bool                `json:"pinned,omitempty"`
 }
 
+// MemoryChange revises or creates Draft. Supersedes names a fact the draft
+// replaces; Merges names a duplicate fact whose evidence the draft, an
+// existing fact, absorbs.
 type MemoryChange struct {
 	Draft              MemoryDraft `json:"draft"`
 	ExpectedRevision   int64       `json:"expected_revision"`
 	Reason             string      `json:"reason"`
 	Supersedes         string      `json:"supersedes,omitempty"`
 	SupersedesRevision int64       `json:"supersedes_revision,omitempty"`
+	Merges             string      `json:"merges,omitempty"`
+	MergesRevision     int64       `json:"merges_revision,omitempty"`
 }
 
 // MemoryMutation commits changes. Lease is the job doing the work; Batch holds
@@ -216,6 +221,9 @@ type MemoryStore interface {
 	ReadMemory(context.Context, string) (MemoryRead, error)
 	ListMemoryRecords(context.Context, MemoryQuery) ([]MemoryRecord, error)
 	MemoryRecordsByIDs(context.Context, []string, MemoryQuery) ([]MemoryRecord, error)
+	// MemorySourceFacts lists the current facts whose current revision cites
+	// the source as supporting evidence.
+	MemorySourceFacts(context.Context, string) ([]MemoryRecord, error)
 	SearchMemoryText(context.Context, MemoryQuery) ([]MemoryRecord, error)
 	MemoryNeighbors(context.Context, []string, int) ([]MemoryRecord, error)
 	ForgetMemory(context.Context, MemoryForget) (MemoryExclusion, error)
