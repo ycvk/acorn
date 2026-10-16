@@ -25,7 +25,7 @@ func TestBuildWebToolsConfigDisablesUnconfiguredSearch(t *testing.T) {
 
 func TestBuildWebToolsConfigEnablesConfiguredSearch(t *testing.T) {
 	cfg := config.DefaultConfig()
-	cfg.WebAccess.Search.APIKey = "tvly-test"
+	cfg.WebAccess.Search.APIKey = "exa-test"
 	webCfg, err := buildWebToolsConfig(RuntimeDeps{Config: cfg})
 	if err != nil {
 		t.Fatalf("buildWebToolsConfig: %v", err)

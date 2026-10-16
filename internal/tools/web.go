@@ -12,9 +12,10 @@ import (
 )
 
 type WebSearchInput struct {
-	Query      string `json:"query" jsonschema:"required" jsonschema_description:"Search query for public web source discovery."`
-	MaxResults int    `json:"max_results,omitempty" jsonschema_description:"Maximum returned results. Defaults to configured max_results."`
-	TimeRange  string `json:"time_range,omitempty" jsonschema_description:"Optional provider time range such as day, week, month, or year."`
+	Query       string `json:"query" jsonschema:"required" jsonschema_description:"Search query for public web source discovery."`
+	MaxResults  int    `json:"max_results,omitempty" jsonschema_description:"Maximum returned results. Defaults to configured max_results."`
+	TimeRange   string `json:"time_range,omitempty" jsonschema_description:"Optional published-date window: day, week, month, or year."`
+	IncludeText bool   `json:"include_text,omitempty" jsonschema_description:"Also return each result's page text, cut at 3000 characters, so a simple question can be answered without web_fetch. Keep max_results small when set."`
 }
 
 type WebSearchOutput struct {
@@ -25,7 +26,6 @@ type WebSearchOutput struct {
 	FilteredResults []webaccess.FilteredSearchResult `json:"filtered_results,omitempty"`
 	RawArtifactID   string                           `json:"raw_artifact_id"`
 	RawArtifact     ArtifactSummary                  `json:"raw_artifact"`
-	ResponseTime    float64                          `json:"response_time,omitempty"`
 }
 
 func buildWebSearchTool(search WebSearchService, artifactService core.ArtifactService, bridge core.ToolCallContextBridge) (einotool.BaseTool, error) {
@@ -49,9 +49,10 @@ func buildWebSearchTool(search WebSearchService, artifactService core.ArtifactSe
 		}
 		sourceRef := "tool_result:" + runID + ":" + callID
 		result, err := search.Search(ctx, webaccess.SearchRequest{
-			Query:      input.Query,
-			MaxResults: input.MaxResults,
-			TimeRange:  input.TimeRange,
+			Query:       input.Query,
+			MaxResults:  input.MaxResults,
+			TimeRange:   input.TimeRange,
+			IncludeText: input.IncludeText,
 		})
 		if err != nil {
 			return WebSearchOutput{}, err
@@ -79,7 +80,6 @@ func buildWebSearchTool(search WebSearchService, artifactService core.ArtifactSe
 			FilteredResults: append([]webaccess.FilteredSearchResult(nil), result.FilteredResults...),
 			RawArtifactID:   rawRecord.ArtifactID,
 			RawArtifact:     artifactSummaryFromRecord(rawRecord),
-			ResponseTime:    result.ResponseTime,
 		}, nil
 	})
 	if err != nil {

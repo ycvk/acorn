@@ -280,24 +280,24 @@ Do not expose `/v1` without device auth. Acorn does not provide a local/dev auth
 
 Acorn can use native runtime tools for public web research:
 
-- `web_search` uses Tavily for search discovery.
+- `web_search` uses Exa for search discovery.
 - `web_fetch` fetches a specific public HTTP(S) URL and stores raw/Markdown artifacts.
 
 Pages that need JavaScript or interaction open in a real browser on the agent's workstation; see [Agent Workstation](#15-agent-workstation).
 
-Configure the optional Tavily key in `~/.acorn/acorn.yaml`:
+Configure the optional Exa key in `~/.acorn/acorn.yaml`:
 
 ```yaml
 web_access:
   search:
-    provider: tavily
-    api_key: ${TAVILY_API_KEY}
+    provider: exa
+    api_key: ${EXA_API_KEY}
 ```
 
 Add the search key to `~/.acorn/acorn.env` if you want search:
 
 ```dotenv
-TAVILY_API_KEY=your-tavily-key
+EXA_API_KEY=your-exa-key
 ```
 
 Restart after editing config or env:
@@ -306,7 +306,7 @@ Restart after editing config or env:
 sudo systemctl restart acorn
 ```
 
-`TAVILY_API_KEY` is optional at backend startup. Without a key `web_search` is disabled; `acorn doctor` lists each disabled tool with the missing setting. `web_fetch` does not require Tavily.
+`EXA_API_KEY` is optional at backend startup. Without a key `web_search` is disabled; `acorn doctor` lists each disabled tool with the missing setting. `web_fetch` does not require Exa.
 
 ## 9. Persona, Timezone and Commitments
 
@@ -554,7 +554,7 @@ The calls you are asked about, their target and page, and your request go to Typ
 ## 16. Current Limits
 
 - Host commands are host dependencies. If the model tries to run a command that is not installed on the VPS, the command fails explicitly when used.
-- Web search requires a configured Tavily API key. Browser actions require the agent workstation.
+- Web search requires a configured Exa API key. Browser actions require the agent workstation.
 - The mobile app refreshes backend truth through `/v1/inbox`, thread messages, and RunEvent cursors. Push needs your own Firebase project and an APK built with its values; there is no APNs support.
 - Autonomous wakes share the configured daily count and optional token limits.
 - Watches cannot follow pages that need a login. GitHub watches cover releases and newly opened issues only.

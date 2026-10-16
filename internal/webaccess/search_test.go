@@ -2,6 +2,7 @@ package webaccess
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -9,18 +10,30 @@ import (
 	"time"
 )
 
-func TestSearchServiceSearchesTavilyAndFiltersURLs(t *testing.T) {
+func TestSearchServiceSearchesExaAndFiltersURLs(t *testing.T) {
 	service := newTestSearchService(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if got := r.Header.Get("Authorization"); got != "Bearer tvly-test" {
-			t.Fatalf("Authorization = %q", got)
+		if got := r.Header.Get("x-api-key"); got != "exa-test" {
+			t.Fatalf("x-api-key = %q", got)
+		}
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		if body["query"] != "acorn" || body["numResults"] != float64(5) {
+			t.Fatalf("request = %+v", body)
+		}
+		if contents, _ := body["contents"].(map[string]any); contents["highlights"] != true || contents["text"] != nil {
+			t.Fatalf("contents = %+v", body["contents"])
+		}
+		if _, ok := body["startPublishedDate"]; ok {
+			t.Fatalf("startPublishedDate sent without a time range: %+v", body)
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{
-  "query": "acorn",
-  "response_time": 0.12,
+  "requestId": "req-1",
   "results": [
-    {"title":"Acorn Docs","url":"https://example.com/docs","content":"Official docs","score":0.91,"published_date":"2026-05-01"},
-    {"title":"Private","url":"http://10.0.0.1/admin","content":"private","score":0.4}
+    {"title":"Acorn Docs","url":"https://example.com/docs","publishedDate":"2026-05-01T00:00:00.000Z","highlights":["Official docs","Second highlight"]},
+    {"title":"Private","url":"http://10.0.0.1/admin","highlights":["private"]}
   ]
 }`))
 	}))
@@ -28,17 +41,75 @@ func TestSearchServiceSearchesTavilyAndFiltersURLs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Search: %v", err)
 	}
-	if len(result.Results) != 1 {
-		t.Fatalf("results = %+v", result.Results)
+	if result.Provider != "exa" || len(result.Results) != 1 {
+		t.Fatalf("result = %+v", result)
 	}
-	if result.Results[0].URL != "https://example.com/docs" || result.Results[0].Rank != 1 {
-		t.Fatalf("result[0] = %+v", result.Results[0])
+	got := result.Results[0]
+	if got.URL != "https://example.com/docs" || got.Rank != 1 || got.Snippet != "Official docs\nSecond highlight" || got.PublishedDate != "2026-05-01T00:00:00.000Z" {
+		t.Fatalf("result[0] = %+v", got)
 	}
 	if len(result.FilteredResults) != 1 || result.FilteredResults[0].Reason != "private_network" || result.FilteredResults[0].Count != 1 {
 		t.Fatalf("filtered = %+v", result.FilteredResults)
 	}
-	if result.Raw == nil || result.ResponseTime != 0.12 {
-		t.Fatalf("raw/response time = %d/%f", len(result.Raw), result.ResponseTime)
+	if result.Raw == nil {
+		t.Fatal("raw response missing")
+	}
+}
+
+func TestSearchServiceReturnsTruncatedTextWhenAsked(t *testing.T) {
+	service := newTestSearchService(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Contents struct {
+				Text struct {
+					MaxCharacters int `json:"maxCharacters"`
+				} `json:"text"`
+			} `json:"contents"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		if body.Contents.Text.MaxCharacters != SearchTextMaxCharacters {
+			t.Fatalf("text maxCharacters = %d, want %d", body.Contents.Text.MaxCharacters, SearchTextMaxCharacters)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"results":[{"title":"Acorn Docs","url":"https://example.com/docs","highlights":["Official docs"],"text":"  Acorn runs on your own server.  "}]}`))
+	}))
+	result, err := service.Search(context.Background(), SearchRequest{Query: "acorn", IncludeText: true})
+	if err != nil {
+		t.Fatalf("Search: %v", err)
+	}
+	if len(result.Results) != 1 || result.Results[0].Text != "Acorn runs on your own server." {
+		t.Fatalf("results = %+v", result.Results)
+	}
+}
+
+func TestSearchServiceSendsTimeRangeAsPublishedDate(t *testing.T) {
+	var start any
+	service := newTestSearchService(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		start = body["startPublishedDate"]
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"results":[]}`))
+	}))
+	if _, err := service.Search(context.Background(), SearchRequest{Query: "acorn", TimeRange: "week"}); err != nil {
+		t.Fatalf("Search: %v", err)
+	}
+	want := time.Unix(1_700_000_000, 0).UTC().AddDate(0, 0, -7).Format(time.RFC3339)
+	if start != want {
+		t.Fatalf("startPublishedDate = %v, want %s", start, want)
+	}
+}
+
+func TestSearchServiceRejectsUnknownTimeRange(t *testing.T) {
+	service := newTestSearchService(t, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		t.Fatal("search sent with an unknown time range")
+	}))
+	_, err := service.Search(context.Background(), SearchRequest{Query: "acorn", TimeRange: "decade"})
+	if err == nil || !strings.Contains(err.Error(), "time_range must be day, week, month or year") {
+		t.Fatalf("Search error = %v", err)
 	}
 }
 
@@ -63,7 +134,7 @@ func newTestSearchService(t *testing.T, handler http.Handler) *SearchService {
 	t.Helper()
 	server := httptestServer(t, handler)
 	service, err := NewSearchService(SearchConfig{
-		APIKey:           "tvly-test",
+		APIKey:           "exa-test",
 		Timeout:          time.Second,
 		MaxResults:       10,
 		MaxResponseBytes: 1024 * 1024,

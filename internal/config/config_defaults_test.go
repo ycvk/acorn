@@ -16,7 +16,7 @@ func TestDefaultConfigValues(t *testing.T) {
 		{"web_access.timeout_seconds", cfg.WebAccess.TimeoutSeconds, 20},
 		{"web_access.max_response_bytes", cfg.WebAccess.MaxResponseBytes, int64(10 * 1024 * 1024)},
 		{"web_access.allow_private_networks", cfg.WebAccess.AllowPrivateNetworks, false},
-		{"web_access.search.provider", cfg.WebAccess.Search.Provider, "tavily"},
+		{"web_access.search.provider", cfg.WebAccess.Search.Provider, "exa"},
 		{"web_access.search.timeout_seconds", cfg.WebAccess.Search.TimeoutSeconds, 10},
 		{"web_access.search.max_results", cfg.WebAccess.Search.MaxResults, 10},
 		{"context.window_tokens", cfg.Context.WindowTokens, 1050000},

@@ -49,7 +49,7 @@ func TestValidateBaseRejectsInvalidWebAccessConfig(t *testing.T) {
 			mutate: func(cfg *Config) {
 				cfg.WebAccess.Search.Provider = "google"
 			},
-			wantErr: "web_access.search.provider must be tavily",
+			wantErr: "web_access.search.provider must be exa",
 		},
 		{
 			name: "zero search timeout",
@@ -79,7 +79,7 @@ func TestValidateBaseRejectsInvalidWebAccessConfig(t *testing.T) {
 }
 
 func TestLoadExpandsWebSearchKey(t *testing.T) {
-	t.Setenv("ACORN_TEST_TAVILY_KEY", "tvly-test")
+	t.Setenv("ACORN_TEST_EXA_KEY", "exa-test")
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "acorn.yaml")
 	body := `providers:
@@ -95,7 +95,7 @@ web:
   listen_addr: 127.0.0.1:8080
 web_access:
   search:
-    api_key: ${ACORN_TEST_TAVILY_KEY}
+    api_key: ${ACORN_TEST_EXA_KEY}
 agent:
   name: coordinator
   description: test
@@ -110,7 +110,7 @@ mcp:
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if got := cfg.WebAccess.Search.APIKey; got != "tvly-test" {
+	if got := cfg.WebAccess.Search.APIKey; got != "exa-test" {
 		t.Fatalf("web_access.search.api_key = %q, want expanded value", got)
 	}
 }

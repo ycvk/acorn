@@ -163,9 +163,9 @@ func (c *Config) validateWebAccessBase() error {
 	}
 	search := c.WebAccess.Search
 	switch strings.TrimSpace(search.Provider) {
-	case "tavily":
+	case "exa":
 	default:
-		return fmt.Errorf("web_access.search.provider must be tavily, got %q", search.Provider)
+		return fmt.Errorf("web_access.search.provider must be exa, got %q", search.Provider)
 	}
 	if search.TimeoutSeconds <= 0 {
 		return errors.New("web_access.search.timeout_seconds must be > 0")

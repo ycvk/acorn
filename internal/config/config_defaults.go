@@ -57,8 +57,8 @@ func defaultConfig() *Config {
 			MaxResponseBytes:     10 * 1024 * 1024,
 			AllowPrivateNetworks: false,
 			Search: WebSearchConfig{
-				Provider:       "tavily",
-				APIKey:         "${TAVILY_API_KEY}",
+				Provider:       "exa",
+				APIKey:         "${EXA_API_KEY}",
 				TimeoutSeconds: 10,
 				MaxResults:     10,
 			},

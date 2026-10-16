@@ -11,7 +11,11 @@ import (
 	"time"
 )
 
-const defaultTavilySearchURL = "https://api.tavily.com/search"
+const defaultExaSearchURL = "https://api.exa.ai/search"
+
+// SearchTextMaxCharacters caps the page text returned per result when a
+// search asks for it, so a full result list stays within one tool result.
+const SearchTextMaxCharacters = 3000
 
 type SearchConfig struct {
 	APIKey           string
@@ -36,23 +40,24 @@ type SearchService struct {
 }
 
 type SearchRequest struct {
-	Query      string
-	MaxResults int
-	TimeRange  string
+	Query       string
+	MaxResults  int
+	TimeRange   string
+	IncludeText bool
 }
 
 type SearchResultItem struct {
-	Title         string
-	URL           string
-	Snippet       string
-	Score         float64
-	PublishedDate string
-	Rank          int
+	Title         string `json:"title"`
+	URL           string `json:"url"`
+	Snippet       string `json:"snippet"`
+	PublishedDate string `json:"published_date,omitempty"`
+	Rank          int    `json:"rank"`
+	Text          string `json:"text,omitempty"`
 }
 
 type FilteredSearchResult struct {
-	Reason string
-	Count  int
+	Reason string `json:"reason"`
+	Count  int    `json:"count"`
 }
 
 type SearchResult struct {
@@ -62,7 +67,6 @@ type SearchResult struct {
 	Results         []SearchResultItem
 	FilteredResults []FilteredSearchResult
 	Raw             []byte
-	ResponseTime    float64
 }
 
 func NewSearchService(cfg SearchConfig) (*SearchService, error) {
@@ -81,7 +85,7 @@ func NewSearchService(cfg SearchConfig) (*SearchService, error) {
 	}
 	searchURL := strings.TrimSpace(cfg.SearchURL)
 	if searchURL == "" {
-		searchURL = defaultTavilySearchURL
+		searchURL = defaultExaSearchURL
 	}
 	now := cfg.Now
 	if now == nil {
@@ -114,25 +118,31 @@ func (s *SearchService) Search(ctx context.Context, req SearchRequest) (SearchRe
 	if maxResults <= 0 || maxResults > s.maxResults {
 		maxResults = s.maxResults
 	}
+	startPublished, err := exaStartPublishedDate(req.TimeRange, s.now())
+	if err != nil {
+		return SearchResult{}, err
+	}
 	ctx, cancel := context.WithTimeout(ctx, s.timeout)
 	defer cancel()
 
-	body, err := json.Marshal(tavilySearchRequest{
-		Query:             query,
-		SearchDepth:       "basic",
-		MaxResults:        maxResults,
-		TimeRange:         strings.TrimSpace(req.TimeRange),
-		IncludeAnswer:     false,
-		IncludeRawContent: false,
+	contents := exaContents{Highlights: true}
+	if req.IncludeText {
+		contents.Text = &exaTextOptions{MaxCharacters: SearchTextMaxCharacters}
+	}
+	body, err := json.Marshal(exaSearchRequest{
+		Query:              query,
+		NumResults:         maxResults,
+		StartPublishedDate: startPublished,
+		Contents:           contents,
 	})
 	if err != nil {
-		return SearchResult{}, fmt.Errorf("marshal Tavily search request: %w", err)
+		return SearchResult{}, fmt.Errorf("marshal Exa search request: %w", err)
 	}
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, s.searchURL, bytes.NewReader(body))
 	if err != nil {
-		return SearchResult{}, fmt.Errorf("create Tavily search request: %w", err)
+		return SearchResult{}, fmt.Errorf("create Exa search request: %w", err)
 	}
-	httpReq.Header.Set("Authorization", "Bearer "+s.apiKey)
+	httpReq.Header.Set("x-api-key", s.apiKey)
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Accept", "application/json")
 
@@ -140,7 +150,7 @@ func (s *SearchService) Search(ctx context.Context, req SearchRequest) (SearchRe
 	client.Timeout = s.timeout
 	resp, err := client.Do(httpReq)
 	if err != nil {
-		return SearchResult{}, fmt.Errorf("tavily search request failed: %w", err)
+		return SearchResult{}, fmt.Errorf("exa search request failed: %w", err)
 	}
 	defer resp.Body.Close()
 	raw, err := readBounded(resp.Body, s.maxResponseBytes)
@@ -148,25 +158,46 @@ func (s *SearchService) Search(ctx context.Context, req SearchRequest) (SearchRe
 		return SearchResult{}, err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return SearchResult{}, fmt.Errorf("tavily search returned HTTP status %d: %s", resp.StatusCode, strings.TrimSpace(string(raw)))
+		return SearchResult{}, fmt.Errorf("exa search returned HTTP status %d: %s", resp.StatusCode, strings.TrimSpace(string(raw)))
 	}
-	var decoded tavilySearchResponse
+	var decoded exaSearchResponse
 	if err := json.Unmarshal(raw, &decoded); err != nil {
-		return SearchResult{}, fmt.Errorf("decode Tavily search response: %w", err)
+		return SearchResult{}, fmt.Errorf("decode Exa search response: %w", err)
 	}
 	results, filtered := s.filterResults(ctx, decoded.Results)
 	return SearchResult{
 		Query:           query,
-		Provider:        "tavily",
+		Provider:        "exa",
 		SearchedAt:      s.now().UTC(),
 		Results:         results,
 		FilteredResults: filtered,
 		Raw:             raw,
-		ResponseTime:    decoded.ResponseTime,
 	}, nil
 }
 
-func (s *SearchService) filterResults(ctx context.Context, input []tavilySearchResult) ([]SearchResultItem, []FilteredSearchResult) {
+// exaStartPublishedDate turns the tool's time range into the lower bound of
+// Exa's published-date filter; an empty range searches all dates.
+func exaStartPublishedDate(timeRange string, now time.Time) (string, error) {
+	now = now.UTC()
+	var start time.Time
+	switch strings.TrimSpace(timeRange) {
+	case "":
+		return "", nil
+	case "day":
+		start = now.AddDate(0, 0, -1)
+	case "week":
+		start = now.AddDate(0, 0, -7)
+	case "month":
+		start = now.AddDate(0, -1, 0)
+	case "year":
+		start = now.AddDate(-1, 0, 0)
+	default:
+		return "", fmt.Errorf("time_range must be day, week, month or year, got %q", timeRange)
+	}
+	return start.Format(time.RFC3339), nil
+}
+
+func (s *SearchService) filterResults(ctx context.Context, input []exaSearchResult) ([]SearchResultItem, []FilteredSearchResult) {
 	results := make([]SearchResultItem, 0, len(input))
 	filtered := make(map[string]int)
 	for _, item := range input {
@@ -178,10 +209,10 @@ func (s *SearchService) filterResults(ctx context.Context, input []tavilySearchR
 		results = append(results, SearchResultItem{
 			Title:         strings.TrimSpace(item.Title),
 			URL:           validated.Normalized,
-			Snippet:       strings.TrimSpace(item.Content),
-			Score:         item.Score,
+			Snippet:       strings.TrimSpace(strings.Join(item.Highlights, "\n")),
 			PublishedDate: strings.TrimSpace(item.PublishedDate),
 			Rank:          len(results) + 1,
+			Text:          strings.TrimSpace(item.Text),
 		})
 	}
 	return results, filteredSearchResults(filtered)
@@ -216,25 +247,30 @@ func classifyURLPolicyError(err error) string {
 	}
 }
 
-type tavilySearchRequest struct {
-	Query             string `json:"query"`
-	SearchDepth       string `json:"search_depth,omitempty"`
-	MaxResults        int    `json:"max_results,omitempty"`
-	TimeRange         string `json:"time_range,omitempty"`
-	IncludeAnswer     bool   `json:"include_answer"`
-	IncludeRawContent bool   `json:"include_raw_content"`
+type exaSearchRequest struct {
+	Query              string      `json:"query"`
+	NumResults         int         `json:"numResults"`
+	StartPublishedDate string      `json:"startPublishedDate,omitempty"`
+	Contents           exaContents `json:"contents"`
 }
 
-type tavilySearchResponse struct {
-	Query        string               `json:"query"`
-	Results      []tavilySearchResult `json:"results"`
-	ResponseTime float64              `json:"response_time"`
+type exaContents struct {
+	Highlights bool            `json:"highlights"`
+	Text       *exaTextOptions `json:"text,omitempty"`
 }
 
-type tavilySearchResult struct {
-	Title         string  `json:"title"`
-	URL           string  `json:"url"`
-	Content       string  `json:"content"`
-	Score         float64 `json:"score"`
-	PublishedDate string  `json:"published_date"`
+type exaTextOptions struct {
+	MaxCharacters int `json:"maxCharacters"`
+}
+
+type exaSearchResponse struct {
+	Results []exaSearchResult `json:"results"`
+}
+
+type exaSearchResult struct {
+	Title         string   `json:"title"`
+	URL           string   `json:"url"`
+	PublishedDate string   `json:"publishedDate"`
+	Highlights    []string `json:"highlights"`
+	Text          string   `json:"text"`
 }

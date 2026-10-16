@@ -42,7 +42,7 @@ Each run is one [Eino](https://github.com/cloudwego/eino) `ChatModelAgent`. Befo
 - A [Voyage AI](https://www.voyageai.com) key for memory embeddings.
 - An Android phone (Android 8.0 or newer).
 
-Optional: a TypeSafe key for action review, a Tavily key for web search, a Firebase project for push notifications, an RSSHub instance and a GitHub token for watches.
+Optional: a TypeSafe key for action review, an Exa key for web search, a Firebase project for push notifications, an RSSHub instance and a GitHub token for watches.
 
 ## Quick start
 

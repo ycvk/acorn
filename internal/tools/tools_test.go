@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -143,24 +144,23 @@ func TestWebSearchToolPersistsRawProviderArtifact(t *testing.T) {
 		t.Fatalf("corestore.NewArtifactService: %v", err)
 	}
 	searchService, err := webaccess.NewSearchService(webaccess.SearchConfig{
-		APIKey:           "tvly-test",
+		APIKey:           "exa-test",
 		Timeout:          time.Second,
 		MaxResults:       10,
 		MaxResponseBytes: 1024 * 1024,
 		Policy: webaccess.URLPolicy{Resolver: toolWebFetchResolver{
 			"example.com": {"93.184.216.34"},
 		}},
-		SearchURL: "https://tavily.test/search",
+		SearchURL: "https://exa.test/search",
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 			return &http.Response{
 				StatusCode: http.StatusOK,
 				Header:     http.Header{"Content-Type": []string{"application/json"}},
 				Body: io.NopCloser(strings.NewReader(`{
-  "query": "acorn",
-  "response_time": 0.1,
+  "requestId": "req-1",
   "results": [
-    {"title":"Acorn Docs","url":"https://example.com/docs","content":"Official docs","score":0.9},
-    {"title":"Private","url":"http://10.0.0.1/admin","content":"Private","score":0.1}
+    {"title":"Acorn Docs","url":"https://example.com/docs","highlights":["Official docs"]},
+    {"title":"Private","url":"http://10.0.0.1/admin","highlights":["Private"]}
   ]
 }`)),
 				Request: req,
@@ -194,6 +194,74 @@ func TestWebSearchToolPersistsRawProviderArtifact(t *testing.T) {
 	}
 	if len(store.records) != 1 {
 		t.Fatalf("stored artifacts = %d, want 1", len(store.records))
+	}
+}
+
+func TestWebSearchToolReturnsPageTextWhenAsked(t *testing.T) {
+	artifactService, err := corestore.NewArtifactService(filepath.Join(t.TempDir(), "artifacts"), newToolArtifactStore())
+	if err != nil {
+		t.Fatalf("corestore.NewArtifactService: %v", err)
+	}
+	var requested []byte
+	searchService, err := webaccess.NewSearchService(webaccess.SearchConfig{
+		APIKey:           "exa-test",
+		Timeout:          time.Second,
+		MaxResults:       10,
+		MaxResponseBytes: 1024 * 1024,
+		Policy: webaccess.URLPolicy{Resolver: toolWebFetchResolver{
+			"example.com": {"93.184.216.34"},
+		}},
+		SearchURL: "https://exa.test/search",
+		HTTPClient: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			body, err := io.ReadAll(req.Body)
+			if err != nil {
+				return nil, err
+			}
+			requested = body
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+				Body:       io.NopCloser(strings.NewReader(`{"results":[{"title":"Acorn Docs","url":"https://example.com/docs","highlights":["Official docs"],"text":"Acorn runs on your own server."}]}`)),
+				Request:    req,
+			}, nil
+		})},
+	})
+	if err != nil {
+		t.Fatalf("webaccess.NewSearchService: %v", err)
+	}
+	searchTool, err := buildWebSearchTool(searchService, artifactService, fixedArtifactContext{runID: "run_search", sessionID: "session_search", callID: "call_search"})
+	if err != nil {
+		t.Fatalf("buildWebSearchTool: %v", err)
+	}
+	info, err := searchTool.Info(context.Background())
+	if err != nil {
+		t.Fatalf("Info: %v", err)
+	}
+	schema, err := info.ToJSONSchema()
+	if err != nil {
+		t.Fatalf("ToJSONSchema: %v", err)
+	}
+	schemaJSON, err := json.Marshal(schema)
+	if err != nil {
+		t.Fatalf("marshal schema: %v", err)
+	}
+	if want := fmt.Sprintf("cut at %d characters", webaccess.SearchTextMaxCharacters); !strings.Contains(string(schemaJSON), want) {
+		t.Fatalf("include_text description does not state the cap %q: %s", want, schemaJSON)
+	}
+	tool := mustToolByName(t, []einotool.BaseTool{searchTool}, "web_search")
+	output, err := tool.InvokableRun(context.Background(), `{"query":"acorn","max_results":2,"include_text":true}`)
+	if err != nil {
+		t.Fatalf("web_search: %v", err)
+	}
+	if want := fmt.Sprintf(`"maxCharacters":%d`, webaccess.SearchTextMaxCharacters); !strings.Contains(string(requested), want) {
+		t.Fatalf("request = %s, want %s", requested, want)
+	}
+	var decoded WebSearchOutput
+	if err := json.Unmarshal([]byte(output), &decoded); err != nil {
+		t.Fatalf("decode web_search output: %v", err)
+	}
+	if len(decoded.Results) != 1 || decoded.Results[0].Text != "Acorn runs on your own server." {
+		t.Fatalf("results = %+v", decoded.Results)
 	}
 }
 
