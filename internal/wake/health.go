@@ -43,6 +43,11 @@ func (s *Scheduler) briefingHealth(ctx context.Context, now time.Time) (string, 
 		}
 		problems = append(problems, line+".")
 	}
+	triggers, err := s.cfg.Triggers.ListTriggers(ctx)
+	if err != nil {
+		return "", err
+	}
+	problems = append(problems, failingTriggers(triggers)...)
 	if len(problems) == 0 {
 		return "", nil
 	}

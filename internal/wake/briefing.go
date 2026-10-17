@@ -13,7 +13,8 @@ import (
 const EventBriefingFired = "briefing.fired"
 
 const (
-	// maxBriefingItems bounds the watch items one briefing input carries.
+	// maxBriefingItems bounds the watch items, and the trigger events, one
+	// briefing input carries.
 	maxBriefingItems = 100
 	// maxBriefingRecords bounds the memory records one briefing lists per section.
 	maxBriefingRecords = 50
@@ -90,6 +91,12 @@ func (s *Scheduler) prepareBriefing(ctx context.Context, day string, now time.Ti
 	m.add(watchChanges(watches, items), true)
 	m.add(failingWatches(watches), true)
 	m.sources = append(m.sources, watchSourceIDs(items)...)
+	events, err := s.cfg.Triggers.ListTriggerEvents(ctx, core.TriggerEventPending, maxBriefingItems)
+	if err != nil {
+		return routineInput{}, err
+	}
+	m.add(triggerChanges(events), true)
+	m.sources = append(m.sources, triggerSourceIDs(events)...)
 	health, err := s.briefingHealth(ctx, now)
 	if err != nil {
 		return routineInput{}, err
@@ -109,10 +116,10 @@ func (s *Scheduler) prepareBriefing(ctx context.Context, day string, now time.Ti
 		b.WriteString("\n" + section)
 	}
 	return routineInput{sources: m.sources, wake: "morning briefing " + day, input: b.String(), standalone: true, after: func(ctx context.Context, runID string) error {
-		if len(items) == 0 {
-			return nil
+		if err := s.cfg.Watches.MarkWatchItems(ctx, itemIDs(items), core.WatchItemBriefed, runID); err != nil {
+			return err
 		}
-		return s.cfg.Watches.MarkWatchItems(ctx, itemIDs(items), core.WatchItemBriefed, runID)
+		return s.cfg.Triggers.MarkTriggerEvents(ctx, eventIDs(events), core.TriggerEventBriefed, runID)
 	}}, nil
 }
 

@@ -166,7 +166,7 @@ CREATE TABLE IF NOT EXISTS memory_vector_sketches (
 );
 `
 
-const memorySourceTriggers = memorySourceLinkTrigger + memoryWatchTrigger + `
+const memorySourceTriggers = memorySourceLinkTrigger + memoryWatchTrigger + memoryTriggerEventTrigger + `
 
 CREATE TRIGGER IF NOT EXISTS memory_message_ai AFTER INSERT ON session_messages BEGIN
  INSERT INTO memory_sources(id,kind,object_id,version,speaker,session_id,run_id,recorded_at)
@@ -235,6 +235,15 @@ const memoryWatchTrigger = `
 CREATE TRIGGER IF NOT EXISTS memory_watch_ai AFTER INSERT ON watch_items BEGIN
  INSERT INTO memory_sources(id,kind,object_id,version,speaker,session_id,recorded_at,occurred_at)
  VALUES('watch:'||new.id,'watch',CAST(new.id AS TEXT),'1','external',COALESCE((SELECT session_id FROM watches WHERE id=new.watch_id),''),new.seen_at,new.published_at);
+END;
+`
+
+// memoryTriggerEventTrigger registers the events of package triggers as
+// external sources, which evidence can cite and nothing extracts.
+const memoryTriggerEventTrigger = `
+CREATE TRIGGER IF NOT EXISTS memory_trigger_event_ai AFTER INSERT ON skill_trigger_events BEGIN
+ INSERT INTO memory_sources(id,kind,object_id,version,speaker,recorded_at)
+ VALUES('trigger:'||new.id,'trigger',CAST(new.id AS TEXT),'1','external',new.seen_at);
 END;
 `
 

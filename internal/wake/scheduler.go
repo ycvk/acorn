@@ -52,6 +52,7 @@ type Config struct {
 	Runs               RunStarter
 	Watches            core.WatchStore
 	Checker            WatchChecker
+	Triggers           core.TriggerStore
 	Clock              func() time.Time
 	Location           *time.Location
 	// DailyLimit caps commitment and watch wakes per owner-local day; zero
@@ -76,6 +77,7 @@ const retryDelay = 5 * time.Minute
 type Scheduler struct {
 	cfg           Config
 	notifications NotificationFlusher
+	triggers      TriggerRunner
 
 	mu     sync.Mutex
 	warned map[string]string // commitment or watch -> local day already warned about the limit
@@ -105,6 +107,8 @@ func NewScheduler(cfg Config) (*Scheduler, error) {
 		return nil, errors.New("wake scheduler: Watches is required")
 	case cfg.Checker == nil:
 		return nil, errors.New("wake scheduler: Checker is required")
+	case cfg.Triggers == nil:
+		return nil, errors.New("wake scheduler: Triggers is required")
 	case cfg.MaxChecksPerTick <= 0:
 		return nil, errors.New("wake scheduler: MaxChecksPerTick must be positive")
 	case cfg.Clock == nil:
@@ -131,6 +135,13 @@ func (s *Scheduler) WithNotifications(flusher NotificationFlusher) *Scheduler {
 	return s
 }
 
+// WithTriggers makes each tick fire the due triggers of skill packages.
+// Without a workstation there is nothing to run them on.
+func (s *Scheduler) WithTriggers(triggers TriggerRunner) *Scheduler {
+	s.triggers = triggers
+	return s
+}
+
 // Run ticks immediately, then every interval until ctx ends. Tick errors are
 // logged; the next tick tries again.
 func (s *Scheduler) Run(ctx context.Context) {
@@ -149,8 +160,9 @@ func (s *Scheduler) Run(ctx context.Context) {
 }
 
 // Tick wakes every due commitment within the daily limit,
-// checks due watches, starts the morning briefing when its time has come, then
-// sends notifications whose quiet hours ended.
+// checks due watches, fires due skill package triggers, starts the morning
+// briefing when its time has come, then sends notifications whose quiet hours
+// ended.
 // Errors are joined; one failing commitment does not stop the others.
 func (s *Scheduler) Tick(ctx context.Context) error {
 	now := s.cfg.Clock()
@@ -168,6 +180,9 @@ func (s *Scheduler) Tick(ctx context.Context) error {
 		}
 	}
 	if err := s.checkWatches(ctx, now); err != nil {
+		errs = append(errs, err)
+	}
+	if err := s.fireTriggers(ctx, now); err != nil {
 		errs = append(errs, err)
 	}
 	if err := s.runRoutines(ctx, now); err != nil {

@@ -3073,7 +3073,7 @@ components:
           enum: [supports, contradicts]
         source_kind:
           type: string
-          description: message, knowledge, event (a tool result), watch, thought, or request (the owner's own wording in the app).
+          description: message, knowledge, event (a tool result), watch, trigger (an event a skill package's trigger reported), thought, or request (the owner's own wording in the app).
         speaker:
           type: string
           description: owner, assistant, tool or external.

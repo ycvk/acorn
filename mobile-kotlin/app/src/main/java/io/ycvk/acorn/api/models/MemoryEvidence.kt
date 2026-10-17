@@ -32,7 +32,7 @@ import com.squareup.moshi.JsonClass
  *
  * @param quote 
  * @param relation 
- * @param sourceKind message, knowledge, event (a tool result), watch, thought, or request (the owner's own wording in the app).
+ * @param sourceKind message, knowledge, event (a tool result), watch, trigger (an event a skill package's trigger reported), thought, or request (the owner's own wording in the app).
  * @param speaker owner, assistant, tool or external.
  * @param recordedAt 
  * @param threadId The conversation the source belongs to, when it has one.
@@ -49,7 +49,7 @@ data class MemoryEvidence (
     @Json(name = "relation")
     val relation: MemoryEvidence.Relation,
 
-    /* message, knowledge, event (a tool result), watch, thought, or request (the owner's own wording in the app). */
+    /* message, knowledge, event (a tool result), watch, trigger (an event a skill package's trigger reported), thought, or request (the owner's own wording in the app). */
     @Json(name = "source_kind")
     val sourceKind: kotlin.String,
 

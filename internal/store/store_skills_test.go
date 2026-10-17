@@ -205,3 +205,69 @@ func TestSkillSecretsAreSetPerSkillAndReplaced(t *testing.T) {
 		t.Fatal("read a file the revision does not hold")
 	}
 }
+
+func TestTriggerSlotsEventsAndThreads(t *testing.T) {
+	s := openTestStore(t)
+	ctx := context.Background()
+	at := time.Date(2026, 10, 17, 9, 30, 0, 0, time.UTC)
+	if err := s.PutTrigger(ctx, core.TriggerState{Skill: "price-watch", Name: "price", Schedule: "*/30 * * * *", NextAt: at}); err != nil {
+		t.Fatal(err)
+	}
+	next := at.Add(30 * time.Minute)
+	if err := s.ClaimTrigger(ctx, "price-watch", "price", at, next); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.ClaimTrigger(ctx, "price-watch", "price", at, next); !errors.Is(err, core.ErrTriggerNotDue) {
+		t.Fatalf("a slot claimed twice: %v", err)
+	}
+	run := core.TriggerRun{At: at, NextAt: next, Status: core.TriggerActive, Events: []core.TriggerEvent{{Key: "a", Text: "first"}, {Key: "b", Text: "second"}}}
+	added, err := s.RecordTriggerRun(ctx, "price-watch", "price", run)
+	if err != nil || len(added) != 2 || added[0].ID == 0 || added[0].Status != core.TriggerEventPending {
+		t.Fatalf("added = %+v, %v", added, err)
+	}
+	run.Events = append(run.Events, core.TriggerEvent{Key: "c", Text: "third"})
+	run.Failures, run.LastError, run.Status = 5, "boom", core.TriggerFailing
+	again, err := s.RecordTriggerRun(ctx, "price-watch", "price", run)
+	if err != nil || len(again) != 1 || again[0].Key != "c" {
+		t.Fatalf("a repeated key was added again: %+v, %v", again, err)
+	}
+	if _, err := s.RecordTriggerRun(ctx, "other", "price", core.TriggerRun{At: at, NextAt: next, Status: core.TriggerActive, Events: []core.TriggerEvent{{Key: "a", Text: "x"}}}); err != nil {
+		t.Fatalf("keys are per skill and trigger: %v", err)
+	}
+	states, err := s.ListTriggers(ctx)
+	if err != nil || len(states) != 1 || states[0].Status != core.TriggerFailing || states[0].Failures != 5 || !states[0].LastRunAt.Equal(at) || !states[0].NextAt.Equal(next) {
+		t.Fatalf("states = %+v, %v", states, err)
+	}
+	source, err := s.LoadMemorySource(ctx, core.TriggerSourceID(added[0].ID))
+	if err != nil || source.Kind != "trigger" || source.Speaker != "external" || source.Content != "price-watch/price a\nfirst" {
+		t.Fatalf("source = %+v, %v", source, err)
+	}
+	if err := s.MarkTriggerEvents(ctx, []int64{added[0].ID}, core.TriggerEventWoken, "run_1"); err != nil {
+		t.Fatal(err)
+	}
+	pending, err := s.ListTriggerEvents(ctx, core.TriggerEventPending, 10)
+	if err != nil || len(pending) != 3 {
+		t.Fatalf("pending = %+v, %v", pending, err)
+	}
+	if err := s.PutTrigger(ctx, core.TriggerState{Skill: "price-watch", Name: "price", Schedule: "0 * * * *", NextAt: next}); err != nil {
+		t.Fatal(err)
+	}
+	if states, _ := s.ListTriggers(ctx); states[0].Status != core.TriggerActive || states[0].Failures != 0 || states[0].Schedule != "0 * * * *" {
+		t.Fatalf("a new schedule keeps old failures: %+v", states)
+	}
+	if err := s.RemoveTrigger(ctx, "price-watch", "price"); err != nil {
+		t.Fatal(err)
+	}
+	if states, _ := s.ListTriggers(ctx); len(states) != 0 {
+		t.Fatalf("states after remove = %+v", states)
+	}
+	if thread, err := s.SkillThread(ctx, "price-watch"); err != nil || thread != "" {
+		t.Fatalf("thread before the first run = %q, %v", thread, err)
+	}
+	if err := s.SetSkillThread(ctx, "price-watch", "thread_1"); err != nil {
+		t.Fatal(err)
+	}
+	if thread, err := s.SkillThread(ctx, "price-watch"); err != nil || thread != "thread_1" {
+		t.Fatalf("thread = %q, %v", thread, err)
+	}
+}

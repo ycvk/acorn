@@ -118,16 +118,21 @@ func runDoctor(ctx context.Context, args []string) error {
 		if err != nil {
 			return fmt.Errorf("package tools: %w", err)
 		}
+		packageTriggers, err := container.PackageTriggersStatus(ctx)
+		if err != nil {
+			return fmt.Errorf("package triggers: %w", err)
+		}
 		reviewStatus := container.ReviewStatus(ctx)
 		if *jsonMode {
 			return printJSON(struct {
 				api.SystemCapabilities
-				Thinking     wire.ThinkingStatus         `json:"thinking"`
-				Memory       core.MemoryProcessingStatus `json:"memory"`
-				Workstation  wire.WorkstationStatus      `json:"workstation"`
-				PackageTools []wire.PackageToolStatus    `json:"package_tools"`
-				Review       wire.ReviewStatus           `json:"review"`
-			}{snapshot, thinking, memoryStatus, workstation, packageTools, reviewStatus})
+				Thinking        wire.ThinkingStatus         `json:"thinking"`
+				Memory          core.MemoryProcessingStatus `json:"memory"`
+				Workstation     wire.WorkstationStatus      `json:"workstation"`
+				PackageTools    []wire.PackageToolStatus    `json:"package_tools"`
+				PackageTriggers []wire.PackageTriggerStatus `json:"package_triggers"`
+				Review          wire.ReviewStatus           `json:"review"`
+			}{snapshot, thinking, memoryStatus, workstation, packageTools, packageTriggers, reviewStatus})
 		}
 		fmt.Println(renderDoctorSummary(snapshot, container.Config().ConfigPath))
 		fmt.Println(renderDoctorKnowledge(knowledgeStatus))
@@ -140,6 +145,13 @@ func runDoctor(ctx context.Context, args []string) error {
 		fmt.Println(renderDoctorWorkstation(workstation))
 		if len(packageTools) > 0 {
 			fmt.Println(renderDoctorPackageTools(packageTools))
+		}
+		if len(packageTriggers) > 0 {
+			loc, err := container.Config().OwnerLocation()
+			if err != nil {
+				return err
+			}
+			fmt.Println(renderDoctorPackageTriggers(packageTriggers, loc))
 		}
 		fmt.Println(renderDoctorReview(reviewStatus))
 		return nil

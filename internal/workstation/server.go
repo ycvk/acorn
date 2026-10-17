@@ -9,11 +9,13 @@ import (
 	"io"
 	"io/fs"
 	"log/slog"
+	"maps"
 	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -87,6 +89,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/mcp", s.authorized(s.mcpServers))
 	mux.HandleFunc("PUT /v1/mcp", s.authorized(s.runMCPServers))
 	mux.HandleFunc("/v1/mcp/{name}", s.authorized(s.mcpEndpoint))
+	mux.HandleFunc("POST /v1/triggers/run", s.authorized(s.runTrigger))
 	mux.HandleFunc("POST /v1/render", s.authorized(s.render))
 	mux.HandleFunc("GET /v1/browser/tabs", s.authorized(s.browserTabs))
 	mux.HandleFunc("GET /v1/browser/frames", s.authorized(s.browserFrames))
@@ -126,7 +129,7 @@ func (s *Server) exec(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, fmt.Errorf("max_output_bytes must be between 2 and %d", MaxOutputBytes))
 		return
 	}
-	result, err := s.run(r.Context(), req)
+	result, err := s.run(r.Context(), req, nil)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err)
 		return
@@ -135,13 +138,17 @@ func (s *Server) exec(w http.ResponseWriter, r *http.Request) {
 }
 
 // run kills the command's whole process group on timeout or when the caller
-// goes away, so background children cannot outlive the request.
-func (s *Server) run(ctx context.Context, req ExecRequest) (ExecResult, error) {
+// goes away, so background children cannot outlive the request. env is added
+// to the command's environment.
+func (s *Server) run(ctx context.Context, req ExecRequest, env map[string]string) (ExecResult, error) {
 	ctx, cancel := context.WithTimeout(ctx, time.Duration(req.TimeoutSeconds)*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "bash", "-lc", req.Command)
 	cmd.Dir = s.resolve(req.Dir)
 	cmd.Env = append(os.Environ(), "HOME="+s.home)
+	for _, name := range slices.Sorted(maps.Keys(env)) {
+		cmd.Env = append(cmd.Env, name+"="+env[name])
+	}
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) }
 	cmd.WaitDelay = 2 * time.Second

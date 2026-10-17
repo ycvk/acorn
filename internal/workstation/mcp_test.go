@@ -31,7 +31,7 @@ func buildMCPFixture(t *testing.T) string {
 
 func fixturePackage(binary, tools string) []core.SkillFile {
 	return []core.SkillFile{
-		{Path: skills.ManifestFileName, Content: []byte("mcp:\n  command: " + binary + "\n  secrets: [FIXTURE_TOKEN]\n")},
+		{Path: skills.ManifestFileName, Content: []byte("mcp:\n  command: " + binary + "\nsecrets: [FIXTURE_TOKEN]\n")},
 		{Path: "tools.txt", Content: []byte(tools)},
 	}
 }

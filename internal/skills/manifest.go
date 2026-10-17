@@ -12,24 +12,46 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/ycvk/acorn/internal/core"
+	"github.com/ycvk/acorn/internal/presence"
 )
 
 // ManifestFileName is the optional file at a package's root that declares
 // what the package provides besides its instructions.
 const ManifestFileName = "acorn-package.yaml"
 
-// Manifest is a package's acorn-package.yaml.
+// Manifest is a package's acorn-package.yaml: the MCP server and the
+// triggers the package runs on the workstation, and the secrets both get as
+// environment variables from the values the owner sets.
 type Manifest struct {
-	MCP *MCPServer `yaml:"mcp"`
+	MCP      *MCPServer `yaml:"mcp"`
+	Triggers []Trigger  `yaml:"triggers"`
+	Secrets  []string   `yaml:"secrets"`
 }
 
 // MCPServer is the stdio MCP server a package runs on the workstation, from
-// the package's directory. Secrets names the environment variables it gets
-// from the values the owner sets.
+// the package's directory.
 type MCPServer struct {
 	Command string   `yaml:"command" json:"command"`
 	Args    []string `yaml:"args" json:"args,omitempty"`
-	Secrets []string `yaml:"secrets" json:"secrets,omitempty"`
+}
+
+// Deliver says where a trigger's events go.
+type Deliver string
+
+const (
+	// DeliverImmediate events start a run in the package's thread.
+	DeliverImmediate Deliver = "immediate"
+	// DeliverDigest events wait for the morning briefing.
+	DeliverDigest Deliver = "digest"
+)
+
+// Trigger runs a command from the package's directory on a cron schedule in
+// the owner's time zone. Each line the command prints is an event.
+type Trigger struct {
+	Name     string  `yaml:"name" json:"name"`
+	Schedule string  `yaml:"schedule" json:"schedule"`
+	Run      string  `yaml:"run" json:"run"`
+	Deliver  Deliver `yaml:"deliver" json:"deliver"`
 }
 
 const maxManifestBytes = 64 << 10
@@ -43,7 +65,8 @@ func ValidSecretName(name string) bool {
 }
 
 // ParseManifest reads acorn-package.yaml strictly: one document, no unknown
-// fields, and an MCP server with a command and well-formed secret names.
+// fields, an MCP server with a command or at least one trigger, and
+// well-formed secret names.
 func ParseManifest(content []byte) (Manifest, error) {
 	if len(content) > maxManifestBytes {
 		return Manifest{}, fmt.Errorf("%s is %d bytes; the limit is %d", ManifestFileName, len(content), maxManifestBytes)
@@ -61,18 +84,34 @@ func ParseManifest(content []byte) (Manifest, error) {
 	if err := decoder.Decode(&next); !errors.Is(err, io.EOF) {
 		return Manifest{}, fmt.Errorf("%s must hold one YAML document", ManifestFileName)
 	}
-	if m.MCP == nil {
-		return Manifest{}, fmt.Errorf("%s declares no mcp server", ManifestFileName)
+	if m.MCP == nil && len(m.Triggers) == 0 {
+		return Manifest{}, fmt.Errorf("%s declares neither an mcp server nor triggers", ManifestFileName)
 	}
-	server := MCPServer{Command: strings.TrimSpace(m.MCP.Command), Args: m.MCP.Args, Secrets: m.MCP.Secrets}
-	switch {
-	case server.Command == "":
-		return Manifest{}, fmt.Errorf("%s: mcp.command is required", ManifestFileName)
-	case strings.ContainsRune(server.Command, 0) || slices.ContainsFunc(server.Args, func(a string) bool { return strings.ContainsRune(a, 0) }):
-		return Manifest{}, fmt.Errorf("%s: mcp.command and mcp.args cannot hold NUL", ManifestFileName)
+	out := Manifest{Secrets: m.Secrets}
+	if m.MCP != nil {
+		server := MCPServer{Command: strings.TrimSpace(m.MCP.Command), Args: m.MCP.Args}
+		switch {
+		case server.Command == "":
+			return Manifest{}, fmt.Errorf("%s: mcp.command is required", ManifestFileName)
+		case strings.ContainsRune(server.Command, 0) || slices.ContainsFunc(server.Args, func(a string) bool { return strings.ContainsRune(a, 0) }):
+			return Manifest{}, fmt.Errorf("%s: mcp.command and mcp.args cannot hold NUL", ManifestFileName)
+		}
+		out.MCP = &server
+	}
+	names := map[string]bool{}
+	for i, t := range m.Triggers {
+		trigger, err := checkTrigger(t)
+		if err != nil {
+			return Manifest{}, fmt.Errorf("%s: triggers[%d]: %w", ManifestFileName, i, err)
+		}
+		if names[trigger.Name] {
+			return Manifest{}, fmt.Errorf("%s: trigger %s appears twice", ManifestFileName, trigger.Name)
+		}
+		names[trigger.Name] = true
+		out.Triggers = append(out.Triggers, trigger)
 	}
 	seen := map[string]bool{}
-	for _, name := range server.Secrets {
+	for _, name := range m.Secrets {
 		if !ValidSecretName(name) {
 			return Manifest{}, fmt.Errorf("%s: secret %q must be an environment variable name of uppercase letters, digits and underscores", ManifestFileName, name)
 		}
@@ -81,7 +120,27 @@ func ParseManifest(content []byte) (Manifest, error) {
 		}
 		seen[name] = true
 	}
-	return Manifest{MCP: &server}, nil
+	return out, nil
+}
+
+func checkTrigger(t Trigger) (Trigger, error) {
+	t.Name, t.Schedule, t.Run = strings.TrimSpace(t.Name), strings.TrimSpace(t.Schedule), strings.TrimSpace(t.Run)
+	switch {
+	case !ValidName(t.Name):
+		return Trigger{}, fmt.Errorf("name %q must be 1-%d lowercase letters, digits and single hyphens", t.Name, maxNameLength)
+	case t.Schedule == "":
+		return Trigger{}, fmt.Errorf("trigger %s needs a schedule", t.Name)
+	case t.Run == "":
+		return Trigger{}, fmt.Errorf("trigger %s needs a command to run", t.Name)
+	case strings.ContainsRune(t.Run, 0):
+		return Trigger{}, fmt.Errorf("trigger %s: run cannot hold NUL", t.Name)
+	case t.Deliver != DeliverImmediate && t.Deliver != DeliverDigest:
+		return Trigger{}, fmt.Errorf("trigger %s: deliver must be immediate or digest, not %q", t.Name, t.Deliver)
+	}
+	if _, err := presence.ParseCron(t.Schedule); err != nil {
+		return Trigger{}, fmt.Errorf("trigger %s schedule: %w", t.Name, err)
+	}
+	return t, nil
 }
 
 // ManifestOf parses the manifest among a package's files; ok is false when

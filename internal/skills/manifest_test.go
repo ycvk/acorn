@@ -21,34 +21,70 @@ metadata:
 Call mcp__fetch__fetch with the URL.
 `
 
-const fetchManifest = "mcp:\n  command: uvx\n  args: [mcp-server-fetch, --user-agent, \"Acorn bot\"]\n  secrets: [FETCH_TOKEN]\n"
+const fetchManifest = "mcp:\n  command: uvx\n  args: [mcp-server-fetch, --user-agent, \"Acorn bot\"]\nsecrets: [FETCH_TOKEN]\n"
 
-func TestParseManifestIsStrictAndDeclaresAnMCPServer(t *testing.T) {
+func TestParseManifestIsStrict(t *testing.T) {
 	m, err := ParseManifest([]byte(fetchManifest))
-	if err != nil || m.MCP == nil || m.MCP.Command != "uvx" || !slices.Equal(m.MCP.Args, []string{"mcp-server-fetch", "--user-agent", "Acorn bot"}) || !slices.Equal(m.MCP.Secrets, []string{"FETCH_TOKEN"}) {
-		t.Fatalf("manifest = %+v, %v", m.MCP, err)
+	if err != nil || m.MCP == nil || m.MCP.Command != "uvx" || !slices.Equal(m.MCP.Args, []string{"mcp-server-fetch", "--user-agent", "Acorn bot"}) || !slices.Equal(m.Secrets, []string{"FETCH_TOKEN"}) || len(m.Triggers) != 0 {
+		t.Fatalf("manifest = %+v, %v", m, err)
 	}
 	if got := m.MCP.CommandLine(); got != "uvx mcp-server-fetch --user-agent 'Acorn bot'" {
 		t.Fatalf("command line = %q", got)
 	}
+	triggers, err := ParseManifest([]byte(priceManifest))
+	want := []Trigger{
+		{Name: "price", Schedule: "*/30 * * * *", Run: "scripts/check_price.py --above 100", Deliver: DeliverImmediate},
+		{Name: "weekly", Schedule: "0 9 * * 1", Run: "scripts/weekly.sh", Deliver: DeliverDigest},
+	}
+	if err != nil || triggers.MCP != nil || !slices.Equal(triggers.Triggers, want) || !slices.Equal(triggers.Secrets, []string{"PRICE_TOKEN"}) {
+		t.Fatalf("triggers = %+v, %v", triggers, err)
+	}
+	trigger := func(fields string) string {
+		return "triggers:\n  - name: price\n    schedule: \"*/30 * * * *\"\n    run: scripts/check.py\n    deliver: digest\n" + fields
+	}
 	for name, content := range map[string]string{
-		"empty":            "",
-		"no mcp":           "mcp: null\n",
-		"unknown field":    "mcp:\n  command: uvx\nversion: 1\n",
-		"unknown mcp key":  "mcp:\n  command: uvx\n  env: {A: b}\n",
-		"triggers":         "mcp:\n  command: uvx\ntriggers:\n  - name: price\n",
-		"no command":       "mcp:\n  args: [x]\n",
-		"blank command":    "mcp:\n  command: \"  \"\n",
-		"lowercase secret": "mcp:\n  command: uvx\n  secrets: [token]\n",
-		"repeated secret":  "mcp:\n  command: uvx\n  secrets: [A, A]\n",
-		"two documents":    "mcp:\n  command: uvx\n---\nmcp:\n  command: npx\n",
-		"not a mapping":    "- uvx\n",
+		"empty":                 "",
+		"nothing":               "secrets: [A]\n",
+		"no mcp":                "mcp: null\n",
+		"unknown field":         "mcp:\n  command: uvx\nversion: 1\n",
+		"unknown mcp key":       "mcp:\n  command: uvx\n  env: {A: b}\n",
+		"secrets under mcp":     "mcp:\n  command: uvx\n  secrets: [A]\n",
+		"no command":            "mcp:\n  args: [x]\n",
+		"blank command":         "mcp:\n  command: \"  \"\n",
+		"lowercase secret":      "mcp:\n  command: uvx\nsecrets: [token]\n",
+		"repeated secret":       "mcp:\n  command: uvx\nsecrets: [A, A]\n",
+		"two documents":         "mcp:\n  command: uvx\n---\nmcp:\n  command: npx\n",
+		"not a mapping":         "- uvx\n",
+		"webhook":               "triggers:\n  - name: issues\n    webhook: true\n    run: x\n    deliver: digest\n",
+		"trigger without name":  "triggers:\n  - schedule: \"* * * * *\"\n    run: x\n    deliver: digest\n",
+		"bad trigger name":      "triggers:\n  - name: Price_1\n    schedule: \"* * * * *\"\n    run: x\n    deliver: digest\n",
+		"no schedule":           "triggers:\n  - name: price\n    run: x\n    deliver: digest\n",
+		"bad schedule":          "triggers:\n  - name: price\n    schedule: \"every hour\"\n    run: x\n    deliver: digest\n",
+		"no run":                "triggers:\n  - name: price\n    schedule: \"* * * * *\"\n    deliver: digest\n",
+		"no deliver":            "triggers:\n  - name: price\n    schedule: \"* * * * *\"\n    run: x\n",
+		"unknown deliver":       "triggers:\n  - name: price\n    schedule: \"* * * * *\"\n    run: x\n    deliver: later\n",
+		"repeated trigger name": trigger("  - name: price\n    schedule: \"0 * * * *\"\n    run: y\n    deliver: digest\n"),
 	} {
 		if _, err := ParseManifest([]byte(content)); err == nil {
 			t.Errorf("%s: parsed %q", name, content)
 		}
 	}
+	if _, err := ParseManifest([]byte(trigger(""))); err != nil {
+		t.Fatalf("a trigger-only manifest: %v", err)
+	}
 }
+
+const priceManifest = `triggers:
+  - name: price
+    schedule: "*/30 * * * *"
+    run: scripts/check_price.py --above 100
+    deliver: immediate
+  - name: weekly
+    schedule: "0 9 * * 1"
+    run: scripts/weekly.sh
+    deliver: digest
+secrets: [PRICE_TOKEN]
+`
 
 func TestPackagesWithAManifestAreCheckedOnEveryWrite(t *testing.T) {
 	ctx := context.Background()
@@ -177,9 +213,14 @@ func TestServeRunsTheServersOfEligibleSkillsWithTheirSecrets(t *testing.T) {
 	for name, manifest := range map[string]string{
 		"fetch":  fetchManifest,
 		"broken": "mcp:\n  command: nonexistent\n",
-		"locked": "mcp:\n  command: npx\n  secrets: [API_KEY, API_SECRET]\n",
+		"locked": "mcp:\n  command: npx\nsecrets: [API_KEY, API_SECRET]\n",
+		"quiet":  "triggers:\n  - name: poll\n    schedule: \"0 * * * *\"\n    run: scripts/poll.sh\n    deliver: digest\nsecrets: [POLL_KEY]\n",
+		"timer":  "triggers:\n  - name: poll\n    schedule: \"0 * * * *\"\n    run: scripts/poll.sh\n    deliver: digest\n",
 	} {
 		markdown := strings.ReplaceAll(fetchSkill, "fetch", name)
+		if !strings.HasPrefix(manifest, "mcp:") {
+			markdown = strings.Replace(markdown, "  acorn-requires-tools: mcp__"+name+"__"+name+"\n", "  note: none\n", 1)
+		}
 		if _, err := library.Write(ctx, WriteRequest{Markdown: markdown, Put: map[string]string{ManifestFileName: manifest}}); err != nil {
 			t.Fatal(err)
 		}
@@ -212,7 +253,7 @@ func TestServeRunsTheServersOfEligibleSkillsWithTheirSecrets(t *testing.T) {
 	if host.runs[1].Hash != snapshot.Skills[1].Hash() {
 		t.Fatalf("hash = %s, want the synced package's %s", host.runs[1].Hash, snapshot.Skills[1].Hash())
 	}
-	want := map[string]string{"broken": "mcp_server_failed:exit status 127", "fetch": "", "locked": "missing_secrets:API_SECRET"}
+	want := map[string]string{"broken": "mcp_server_failed:exit status 127", "fetch": "", "locked": "missing_secrets:API_SECRET", "quiet": "missing_secrets:POLL_KEY", "timer": ""}
 	for _, view := range served.Skills {
 		reason := strings.Join(view.DisabledReasons, ";")
 		if reason != want[view.Name] || view.Eligible != (reason == "") {
@@ -231,5 +272,92 @@ func TestServeRunsTheServersOfEligibleSkillsWithTheirSecrets(t *testing.T) {
 	host = &fakeServerHost{}
 	if _, err := library.Serve(ctx, host, Snapshot{}); err != nil || host.runs == nil || len(host.runs) != 0 {
 		t.Fatalf("with no servers the host still stops the others: %+v, %v", host.runs, err)
+	}
+}
+
+type fakeTriggerHost struct {
+	fakeHost
+	runs   []TriggerRun
+	result TriggerResult
+}
+
+func (h *fakeTriggerHost) RunTrigger(_ context.Context, run TriggerRun) (TriggerResult, error) {
+	h.runs = append(h.runs, run)
+	return h.result, nil
+}
+
+func TestTriggersFireFromTheirPackageWithItsSecrets(t *testing.T) {
+	ctx := context.Background()
+	library, _ := newTestLibrary(t)
+	price := strings.ReplaceAll(strings.Replace(fetchSkill, "  acorn-requires-tools: mcp__fetch__fetch\n", "  note: none\n", 1), "fetch", "price-watch")
+	if _, err := library.Write(ctx, WriteRequest{Markdown: price, Put: map[string]string{ManifestFileName: priceManifest, "scripts/check_price.py": "print()"}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := library.Write(ctx, WriteRequest{Markdown: fetchSkill, Put: map[string]string{ManifestFileName: fetchManifest}}); err != nil {
+		t.Fatal(err)
+	}
+	triggers, err := library.Triggers(ctx)
+	if err != nil || len(triggers) != 2 || triggers[0].ID() != "price-watch/price" || triggers[1].ID() != "price-watch/weekly" || !slices.Equal(triggers[0].Missing, []string{"PRICE_TOKEN"}) {
+		t.Fatalf("triggers = %+v, %v", triggers, err)
+	}
+	host := &fakeTriggerHost{fakeHost: fakeHost{held: map[string]string{}, put: map[string]int{}}, result: TriggerResult{Stdout: `{"key":"price-120","text":"BTC crossed 120k"}` + "\n\n"}}
+	runner, err := NewTriggerRunner(library, host, 300, 32768)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runner.Fire(ctx, triggers[0]); !errors.Is(err, ErrMissingSecrets) || len(host.runs) != 0 {
+		t.Fatalf("fire without the secret = %v, runs %v", err, host.runs)
+	}
+	if err := library.SetSecret(ctx, "price-watch", "PRICE_TOKEN", "s3cret"); err != nil {
+		t.Fatal(err)
+	}
+	events, err := runner.Fire(ctx, triggers[0])
+	if err != nil || !slices.Equal(events, []Event{{Key: "price-120", Text: "BTC crossed 120k"}}) {
+		t.Fatalf("events = %+v, %v", events, err)
+	}
+	run := host.runs[0]
+	if run.Skill != "price-watch" || run.Trigger != "price" || run.Hash != triggers[0].Hash || run.Env["PRICE_TOKEN"] != "s3cret" || run.TimeoutSeconds != 300 || run.MaxOutputBytes != 32768 {
+		t.Fatalf("run = %+v", run)
+	}
+	if host.put["price-watch"] != 2 || host.held["price-watch"] != triggers[0].Hash {
+		t.Fatalf("the package was not put first: %v", host.put)
+	}
+	host.put = map[string]int{}
+	if _, err := runner.Fire(ctx, triggers[0]); err != nil || len(host.put) != 0 {
+		t.Fatalf("a held package was put again: %v, %v", host.put, err)
+	}
+	for name, result := range map[string]TriggerResult{
+		"status 2: Traceback\nValueError: bad price": {ExitCode: 2, Stderr: "Traceback\nValueError: bad price"},
+		"timed out":    {TimedOut: true, ExitCode: -1},
+		"more than":    {StdoutTruncated: true},
+		"not an event": {Stdout: "price is 120\n"},
+	} {
+		host.result = result
+		if _, err := runner.Fire(ctx, triggers[0]); err == nil || !strings.Contains(err.Error(), name) {
+			t.Fatalf("%s: err = %v", name, err)
+		}
+	}
+}
+
+func TestParseEventsReadsOneEventPerLine(t *testing.T) {
+	events, err := ParseEvents(" {\"key\": \"a\", \"text\": \"first\\nline\"}\n\n{\"key\":\"b\",\"text\":\"second\"}")
+	if err != nil || !slices.Equal(events, []Event{{Key: "a", Text: "first\nline"}, {Key: "b", Text: "second"}}) {
+		t.Fatalf("events = %+v, %v", events, err)
+	}
+	if events, err := ParseEvents("\n  \n"); err != nil || len(events) != 0 {
+		t.Fatalf("no output = %+v, %v", events, err)
+	}
+	for _, out := range []string{
+		`{"key":"a"}`,
+		`{"text":"x"}`,
+		`{"key":"a","text":"x","extra":1}`,
+		`{"key":"a","text":"x"} trailing`,
+		`["a","x"]`,
+		`{"key":"a","text":"x"}` + "\n" + `{"key":"a","text":"y"}`,
+		`{"key":"` + strings.Repeat("k", 257) + `","text":"x"}`,
+	} {
+		if _, err := ParseEvents(out); err == nil {
+			t.Fatalf("parsed %q", out)
+		}
 	}
 }

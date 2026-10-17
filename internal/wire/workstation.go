@@ -173,7 +173,7 @@ func (c *Container) PackageToolsStatus(ctx context.Context) ([]PackageToolStatus
 	}
 	out := make([]PackageToolStatus, 0, len(specs))
 	for _, spec := range specs {
-		status := PackageToolStatus{Skill: spec.Name, Command: spec.MCP.CommandLine(), Secrets: spec.MCP.Secrets}
+		status := PackageToolStatus{Skill: spec.Name, Command: spec.MCP.CommandLine(), Secrets: spec.Secrets}
 		missing, err := c.skillLibrary.MissingSecrets(ctx, spec)
 		if err != nil {
 			return nil, err
@@ -195,6 +195,59 @@ func (c *Container) PackageToolsStatus(ctx context.Context) ([]PackageToolStatus
 			status.State = "ready"
 		default:
 			status.State, status.Error = "failed", server.Error
+		}
+		out = append(out, status)
+	}
+	return out, nil
+}
+
+// PackageTriggerStatus is what acorn doctor reports about a trigger of a
+// skill in use. State is scheduled, failing, unscheduled (serve has not
+// scheduled it yet), missing_secrets or off (no workstation).
+type PackageTriggerStatus struct {
+	Trigger        string    `json:"trigger"`
+	Schedule       string    `json:"schedule"`
+	Deliver        string    `json:"deliver"`
+	Run            string    `json:"run"`
+	State          string    `json:"state"`
+	NextAt         time.Time `json:"next_at,omitzero"`
+	Failures       int       `json:"failures,omitempty"`
+	LastError      string    `json:"last_error,omitempty"`
+	MissingSecrets []string  `json:"missing_secrets,omitempty"`
+}
+
+// PackageTriggersStatus reports the triggers of the skills in use and how
+// their schedules stand.
+func (c *Container) PackageTriggersStatus(ctx context.Context) ([]PackageTriggerStatus, error) {
+	triggers, err := c.skillLibrary.Triggers(ctx)
+	if err != nil || len(triggers) == 0 {
+		return nil, err
+	}
+	states, err := c.store.ListTriggers(ctx)
+	if err != nil {
+		return nil, err
+	}
+	byID := map[string]core.TriggerState{}
+	for _, state := range states {
+		byID[state.Skill+"/"+state.Name] = state
+	}
+	workstation := strings.TrimSpace(c.cfg.Workstation.URL) != ""
+	out := make([]PackageTriggerStatus, 0, len(triggers))
+	for _, t := range triggers {
+		status := PackageTriggerStatus{Trigger: t.ID(), Schedule: t.Schedule, Deliver: string(t.Deliver), Run: t.Run}
+		state, scheduled := byID[t.ID()]
+		switch {
+		case !workstation:
+			status.State = "off"
+		case len(t.Missing) > 0:
+			status.State, status.MissingSecrets = "missing_secrets", t.Missing
+		case !scheduled || state.Schedule != t.Schedule:
+			status.State = "unscheduled"
+		default:
+			status.State, status.NextAt, status.Failures, status.LastError = string(state.Status), state.NextAt, state.Failures, state.LastError
+			if state.Status == core.TriggerActive {
+				status.State = "scheduled"
+			}
 		}
 		out = append(out, status)
 	}

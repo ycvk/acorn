@@ -119,6 +119,8 @@ func loadMemorySource(ctx context.Context, q memorySQL, id string, view sourceVi
 		err = q.QueryRowContext(ctx, `SELECT body FROM knowledge_revisions WHERE path=? AND revision=?`, source.ObjectID, source.Version).Scan(&source.Content)
 	case "watch":
 		err = q.QueryRowContext(ctx, `SELECT title||char(10)||url||char(10)||summary FROM watch_items WHERE id=?`, source.ObjectID).Scan(&source.Content)
+	case "trigger":
+		err = q.QueryRowContext(ctx, `SELECT skill||'/'||trigger_name||' '||event_key||char(10)||text FROM skill_trigger_events WHERE id=?`, source.ObjectID).Scan(&source.Content)
 	case "message":
 		err = q.QueryRowContext(ctx, `SELECT content FROM session_messages WHERE id=?`, source.ObjectID).Scan(&source.Content)
 	case "event":

@@ -195,7 +195,7 @@ func (c *Checker) recordFailure(ctx context.Context, w core.Watch, cause error) 
 	checked.Failures++
 	checked.LastError = cause.Error()
 	checked.LastCheckedAt, checked.UpdatedAt = now, now
-	checked.NextCheckAt = now.Add(backoff(w.Interval, checked.Failures))
+	checked.NextCheckAt = now.Add(Backoff(w.Interval, checked.Failures))
 	if checked.Failures >= FailingAfter && w.Status == core.WatchActive {
 		checked.Status = core.WatchFailing
 	}
@@ -213,8 +213,8 @@ func (c *Checker) record(ctx context.Context, from, checked core.Watch, items []
 	})
 }
 
-// backoff doubles the interval per consecutive failure, up to a day.
-func backoff(interval time.Duration, failures int) time.Duration {
+// Backoff doubles the interval per consecutive failure, up to a day.
+func Backoff(interval time.Duration, failures int) time.Duration {
 	wait := interval
 	for range failures {
 		wait *= 2

@@ -219,9 +219,12 @@ func renderSkillDetail(item skills.View) string {
 	}
 	if item.MCP != nil {
 		lines = append(lines, "  MCP server: "+item.MCP.CommandLine())
-		if len(item.MCP.Secrets) > 0 {
-			lines = append(lines, "  Secrets: "+strings.Join(item.MCP.Secrets, ", "))
-		}
+	}
+	for _, t := range item.Triggers {
+		lines = append(lines, fmt.Sprintf("  Trigger %s: %s at %q, delivered %s", t.Name, t.Run, t.Schedule, t.Deliver))
+	}
+	if len(item.Secrets) > 0 {
+		lines = append(lines, "  Secrets: "+strings.Join(item.Secrets, ", "))
 	}
 	for _, f := range item.Files {
 		lines = append(lines, fmt.Sprintf("  File: %s (%d bytes)", f.Path, f.Size))

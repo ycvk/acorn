@@ -45,6 +45,10 @@ Keep SKILL.md the map: imperative steps, checks and edge cases, under about 200 
 
 For step, output and file-splitting patterns, read `references/patterns.md`.
 
+## Tools and triggers
+
+A package can also run things on the workstation: an MCP server whose tools join every run that has the skill, and triggers that run a command on a schedule and wake you only when it prints something new, such as a price crossing a threshold. Both are declared in `acorn-package.yaml` beside SKILL.md. Before writing one, read `references/package.md`.
+
 ## Installing a skill package
 
 When the owner points you to a skill, such as a directory in a GitHub repository or a zip:
