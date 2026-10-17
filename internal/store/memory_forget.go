@@ -71,7 +71,10 @@ func forgetMemory(ctx context.Context, tx *sql.Tx, request core.MemoryForget) er
 		}
 	}
 	// Derived messages and summaries inherit their input source dependencies.
-	rows, err := tx.QueryContext(ctx, `WITH RECURSIVE affected(id) AS(SELECT source_id FROM memory_exclusions UNION SELECT l.source_id FROM memory_source_links l JOIN affected a ON l.parent_id=a.id) SELECT DISTINCT l.source_id FROM memory_source_links l JOIN affected a ON l.parent_id=a.id`)
+	// Sources derived so far read what this request excludes, so they go
+	// whole. Sources derived after an earlier fragment exclusion read their
+	// parent without it and stay.
+	rows, err := tx.QueryContext(ctx, `WITH RECURSIVE affected(id) AS(SELECT source_id FROM memory_exclusions WHERE epoch=? UNION SELECT l.source_id FROM memory_source_links l JOIN affected a ON l.parent_id=a.id) SELECT DISTINCT l.source_id FROM memory_source_links l JOIN affected a ON l.parent_id=a.id`, epoch)
 	if err != nil {
 		return err
 	}
@@ -165,8 +168,8 @@ func forgetMemory(ctx context.Context, tx *sql.Tx, request core.MemoryForget) er
 		}
 	}
 	// Every summary covers at least one source, so a summary left without
-	// sources is one that covered an excluded source.
-	if _, err := tx.ExecContext(ctx, `DELETE FROM thread_summary_sources WHERE session_id IN(SELECT s.session_id FROM thread_summary_sources s JOIN memory_exclusions x ON x.source_id=s.source_id)`); err != nil {
+	// sources is one that covered a source this request excludes.
+	if _, err := tx.ExecContext(ctx, `DELETE FROM thread_summary_sources WHERE session_id IN(SELECT s.session_id FROM thread_summary_sources s JOIN memory_exclusions x ON x.source_id=s.source_id WHERE x.epoch=?)`, epoch); err != nil {
 		return err
 	}
 	if _, err := tx.ExecContext(ctx, `DELETE FROM thread_summaries WHERE NOT EXISTS(SELECT 1 FROM thread_summary_sources s WHERE s.session_id=thread_summaries.session_id)`); err != nil {
@@ -214,7 +217,11 @@ func (s *Store) MemoryExclusions(ctx context.Context) (core.MemoryExclusion, err
 	if err != nil {
 		return out, err
 	}
-	rows, err = s.read.QueryContext(ctx, `SELECT DISTINCT r.run_id FROM context_snapshot_refs r WHERE r.source_id IN(SELECT source_id FROM memory_exclusions) OR r.record_id IN(SELECT id FROM memory_records WHERE excluded=1)`)
+	// The affected runs read an excluded source before its exclusion; a run
+	// that reads a partly excluded source later sees it without the fragment.
+	// Recall never returns an excluded record, so every reference to one was
+	// taken before its exclusion.
+	rows, err = s.read.QueryContext(ctx, `SELECT DISTINCT r.run_id FROM context_snapshot_refs r WHERE EXISTS(SELECT 1 FROM memory_exclusions x WHERE x.source_id=r.source_id AND x.epoch>r.epoch) OR r.record_id IN(SELECT id FROM memory_records WHERE excluded=1)`)
 	if err != nil {
 		return out, err
 	}

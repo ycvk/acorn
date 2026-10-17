@@ -18,7 +18,7 @@ import (
 // schemaVersion is the database layout this build creates and expects. A
 // layout change bumps it, appends the migration from the previous version to
 // migrations, and records the new layout under testdata/schema.
-const schemaVersion = 10
+const schemaVersion = 11
 
 // migrations[i] upgrades a database from version i+1 to version i+2.
 var migrations = []func(context.Context, *sql.Tx) error{
@@ -31,6 +31,7 @@ var migrations = []func(context.Context, *sql.Tx) error{
 	extractOwnerSourcesOnly,
 	requeueBudgetFailedMemoryJobs,
 	addThreadFiles,
+	inheritFragmentExclusionsByEpoch,
 }
 
 // addNotificationActionID (1 to 2) records which pending action a push
@@ -341,5 +342,13 @@ func extractOwnerSourcesOnly(ctx context.Context, tx *sql.Tx) error {
 	}
 	_, err := tx.ExecContext(ctx, `UPDATE memory_jobs SET state='done',completed_at=?,lease_until='',error='source retained with its original attribution'
 		WHERE operation='extract' AND state IN ('pending','running','failed') AND object_id IN (SELECT id FROM memory_sources WHERE speaker<>'owner')`, formatTimestamp(time.Now()))
+	return err
+}
+
+// inheritFragmentExclusionsByEpoch (10 to 11) recreates memory_source_link_ai
+// so a source derived from a partly excluded parent is excluded whole only
+// when its run read that parent before the fragment was excluded.
+func inheritFragmentExclusionsByEpoch(ctx context.Context, tx *sql.Tx) error {
+	_, err := tx.ExecContext(ctx, `DROP TRIGGER memory_source_link_ai;`+memorySourceLinkTrigger)
 	return err
 }
