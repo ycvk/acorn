@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -130,12 +131,13 @@ func TestSkillWriteApprovalCarriesTheWholeSkill(t *testing.T) {
 	if summary.ToolSummary != "shop-orders: Look up recent orders on the shop site." {
 		t.Fatalf("summary = %q", summary.ToolSummary)
 	}
+	service := NewPendingActionService(nil).WithSkillPackages(stagedPackagesStub{})
 	want := strings.TrimSpace(markdown) + "\n\n── scripts/orders.py (16 bytes) ──\nprint('orders')\n\n── old.md (removed) ──"
-	if got := toolCallDetail("skill_write", string(arguments)); got != want {
-		t.Fatalf("detail = %q", got)
+	if got, err := service.toolDetail(context.Background(), "skill_write", string(arguments)); err != nil || got != want {
+		t.Fatalf("detail = %q, %v", got, err)
 	}
-	if got := toolCallDetail("shell", `{"command":"ls"}`); got != "" {
-		t.Fatalf("shell detail = %q", got)
+	if got, err := service.toolDetail(context.Background(), "shell", `{"command":"ls"}`); err != nil || got != "" {
+		t.Fatalf("shell detail = %q, %v", got, err)
 	}
 	if got := toolApprovalSummary("skill_retire", `{"name":"shop-orders","base_revision":3}`); got != "shop-orders" {
 		t.Fatalf("retire summary = %q", got)
@@ -155,6 +157,12 @@ func (s stagedPackagesStub) StagedSkillPackage(_ context.Context, sha256 string)
 	return pkg, nil
 }
 
+// SkillFiles reads a revision stored as the package staged under
+// "<id>@<revision>".
+func (s stagedPackagesStub) SkillFiles(_ context.Context, id string, revision int64) ([]core.SkillFile, error) {
+	return s[fmt.Sprintf("%s@%d", id, revision)].Files, nil
+}
+
 func TestSkillImportApprovalShowsTheStagedPackage(t *testing.T) {
 	service := NewPendingActionService(nil).WithSkillPackages(stagedPackagesStub{"abc": {
 		SHA256: "abc", Name: "pdf", Markdown: "---\nname: pdf\ndescription: Fill PDF forms.\n---\nRun the script.\n",
@@ -171,5 +179,58 @@ func TestSkillImportApprovalShowsTheStagedPackage(t *testing.T) {
 	got, err = service.toolDetail(context.Background(), "skill_import", `{"name":"pdf","sha256":"gone"}`)
 	if err != nil || !strings.Contains(got, "not staged") {
 		t.Fatalf("unstaged detail = %q, %v", got, err)
+	}
+}
+
+func TestSkillApprovalsListThePackageManifestFirst(t *testing.T) {
+	manifest := "mcp:\n  command: uvx\n  args: [mcp-server-github, --read-only]\n  secrets: [GITHUB_TOKEN]\n"
+	markdown := "---\nname: github\ndescription: Read GitHub issues.\n---\nUse the tools.\n"
+	service := NewPendingActionService(nil).WithSkillPackages(stagedPackagesStub{
+		"abc": {SHA256: "abc", Name: "github", Markdown: markdown, Files: []core.SkillFile{{Path: "acorn-package.yaml", Content: []byte(manifest)}}},
+		// Revision 1 of the stored skill.
+		"github@1": {Files: []core.SkillFile{{Path: "acorn-package.yaml", Content: []byte(manifest)}, {Path: "notes.md", Content: []byte("n")}}},
+	})
+	ctx := context.Background()
+	header := "MCP server, run on the workstation from the package's directory:\nuvx mcp-server-github --read-only\nSecrets: GITHUB_TOKEN\n\n"
+	imported, err := service.toolDetail(ctx, "skill_import", `{"name":"github","sha256":"abc"}`)
+	if err != nil || !strings.HasPrefix(imported, header+"---\nname: github") || !strings.Contains(imported, "── acorn-package.yaml (") {
+		t.Fatalf("import detail = %q, %v", imported, err)
+	}
+
+	write := func(args map[string]any) string {
+		t.Helper()
+		args["markdown"] = markdown
+		data, err := json.Marshal(args)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, err := service.toolDetail(ctx, "skill_write", string(data))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return got
+	}
+	if got := write(map[string]any{"files": map[string]string{"acorn-package.yaml": manifest}}); !strings.HasPrefix(got, header) {
+		t.Fatalf("new package detail = %q", got)
+	}
+	kept := write(map[string]any{"files": map[string]string{"notes.md": "m"}, "base_revision": 1})
+	if !strings.HasPrefix(kept, "MCP server (unchanged), run on the workstation from the package's directory:\nuvx mcp-server-github --read-only\nSecrets: GITHUB_TOKEN\n\n---") {
+		t.Fatalf("edit detail = %q", kept)
+	}
+	if got := write(map[string]any{"delete": []string{"acorn-package.yaml"}, "base_revision": 1}); !strings.HasPrefix(got, "Removes acorn-package.yaml: the package no longer runs an MCP server.\n\n---") {
+		t.Fatalf("removal detail = %q", got)
+	}
+	if got := write(map[string]any{"files": map[string]string{"acorn-package.yaml": "mcp:\n  command: uvx\nextra: 1\n"}}); !strings.HasPrefix(got, "acorn-package.yaml does not parse, and the write will fail") {
+		t.Fatalf("bad manifest detail = %q", got)
+	}
+	if got := write(map[string]any{"files": map[string]string{"notes.md": "m"}}); strings.Contains(got, "MCP server") {
+		t.Fatalf("a package without a manifest shows none: %q", got)
+	}
+	data, err := json.Marshal(map[string]any{"markdown": "no frontmatter", "base_revision": 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := service.toolDetail(ctx, "skill_write", string(data)); err != nil || !strings.HasPrefix(got, "SKILL.md does not parse, and the write will fail: ") || !strings.HasSuffix(got, "no frontmatter") {
+		t.Fatalf("unparsable skill detail = %q, %v", got, err)
 	}
 }

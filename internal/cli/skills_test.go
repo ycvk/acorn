@@ -61,3 +61,16 @@ func TestRenderSkillDetailShowsFiles(t *testing.T) {
 		}
 	}
 }
+
+func TestSecretValuesDropOneTrailingNewline(t *testing.T) {
+	for in, want := range map[string]string{"ghp_1\n": "ghp_1", "ghp_1\r\n": "ghp_1", "a b\n\n": "a b\n", "ghp_1": "ghp_1"} {
+		if got, err := secretValue([]byte(in)); err != nil || got != want {
+			t.Fatalf("secretValue(%q) = %q, %v", in, got, err)
+		}
+	}
+	for _, in := range []string{"", "\n", strings.Repeat("x", maxSecretBytes+1)} {
+		if _, err := secretValue([]byte(in)); err == nil {
+			t.Fatalf("secretValue(%q) succeeded", in)
+		}
+	}
+}

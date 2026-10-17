@@ -15,7 +15,8 @@ import (
 
 // runWorkstation serves the workstation API. It runs inside the workstation
 // container and needs no Acorn config, only the shared token. Companions are
-// the long-running processes it keeps alive, such as the browser.
+// the long-running processes it keeps alive, such as the browser; the skill
+// packages' MCP servers run under the same supervisor.
 func runWorkstation(ctx context.Context, args []string) error {
 	if len(args) == 0 || args[0] != "serve" {
 		return errors.New("usage: acorn workstation serve [--listen addr] [--home dir] [--chromium path] [--devtools url] [--keep name=command]")
@@ -44,7 +45,8 @@ func runWorkstation(ctx context.Context, args []string) error {
 			return err
 		}
 	}
-	server, err := workstation.NewServer(workstation.ServerConfig{Home: *home, Token: os.Getenv(workstation.TokenEnv), Chromium: *chromium, View: view})
+	supervisor := workstation.NewSupervisor(os.Stdout)
+	server, err := workstation.NewServer(workstation.ServerConfig{Home: *home, Token: os.Getenv(workstation.TokenEnv), Chromium: *chromium, View: view, Supervisor: supervisor})
 	if err != nil {
 		return err
 	}
@@ -56,7 +58,7 @@ func runWorkstation(ctx context.Context, args []string) error {
 		MaxHeaderBytes:    1 << 20,
 	}
 	var companionsDone sync.WaitGroup
-	companionsDone.Go(func() { workstation.NewSupervisor(os.Stdout).Run(ctx, companions) })
+	companionsDone.Go(func() { supervisor.Run(ctx, companions) })
 	go func() {
 		<-ctx.Done()
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -67,6 +69,7 @@ func runWorkstation(ctx context.Context, args []string) error {
 	}()
 	fmt.Printf("Acorn workstation listening on %s, home %s, %d companions\n", *listen, *home, len(companions))
 	err = httpServer.ListenAndServe()
+	server.Close()
 	companionsDone.Wait()
 	if errors.Is(err, http.ErrServerClosed) {
 		return nil

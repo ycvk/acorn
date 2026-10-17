@@ -99,24 +99,21 @@ func toolApprovalSummary(toolName, arguments string) string {
 	return toolCallSummary(arguments)
 }
 
-// toolCallDetail is the whole text a tool call acts on when its summary
-// cannot hold it: the skill skill_write would store.
-func toolCallDetail(toolName, arguments string) string {
-	if toolName != "skill_write" {
-		return ""
-	}
-	args := skillWriteArgs(arguments)
+// skillWriteDetail is the skill skill_write would store. kept is the
+// manifest the write keeps from its base revision, nil when it keeps none.
+func skillWriteDetail(args skillWriteArguments, kept []byte) string {
 	files := make([]core.SkillFile, 0, len(args.Files))
 	for path, content := range args.Files {
 		files = append(files, core.SkillFile{Path: path, Content: []byte(content)})
 	}
-	return skillPackageDetail(args.Markdown, files, args.Delete)
+	return skillPackageDetail(args.Markdown, files, args.Delete, kept)
 }
 
 type skillWriteArguments struct {
-	Markdown string            `json:"markdown"`
-	Files    map[string]string `json:"files"`
-	Delete   []string          `json:"delete"`
+	Markdown     string            `json:"markdown"`
+	Files        map[string]string `json:"files"`
+	Delete       []string          `json:"delete"`
+	BaseRevision int64             `json:"base_revision"`
 }
 
 func skillWriteArgs(arguments string) skillWriteArguments {
@@ -131,10 +128,21 @@ func skillWriteArgs(arguments string) skillWriteArguments {
 // are listed by path and size.
 const skillDetailBytes = 256 << 10
 
-// skillPackageDetail shows a skill's SKILL.md, then each file it adds or
-// replaces and each file it removes.
-func skillPackageDetail(markdown string, files []core.SkillFile, deletes []string) string {
+// skillPackageDetail shows what a package's manifest makes the workstation
+// run, then the skill's SKILL.md, each file it adds or replaces and each file
+// it removes. kept is the manifest a write keeps from its base revision, nil
+// when it keeps none.
+func skillPackageDetail(markdown string, files []core.SkillFile, deletes []string, kept []byte) string {
 	var b strings.Builder
+	i := slices.IndexFunc(files, func(f core.SkillFile) bool { return f.Path == skills.ManifestFileName })
+	switch {
+	case i >= 0:
+		b.WriteString(manifestDetail(files[i].Content, "") + "\n\n")
+	case slices.Contains(deletes, skills.ManifestFileName):
+		b.WriteString("Removes " + skills.ManifestFileName + ": the package no longer runs an MCP server.\n\n")
+	case kept != nil:
+		b.WriteString(manifestDetail(kept, " (unchanged)") + "\n\n")
+	}
 	b.WriteString(strings.TrimSpace(markdown))
 	sorted := slices.Clone(files)
 	slices.SortFunc(sorted, func(a, b core.SkillFile) int { return strings.Compare(a.Path, b.Path) })
@@ -155,6 +163,20 @@ func skillPackageDetail(markdown string, files []core.SkillFile, deletes []strin
 		fmt.Fprintf(&b, "\n\n── %s (removed) ──", p)
 	}
 	return b.String()
+}
+
+// manifestDetail says which command a package's MCP server runs and which
+// secrets it gets, by name.
+func manifestDetail(content []byte, note string) string {
+	m, err := skills.ParseManifest(content)
+	if err != nil {
+		return fmt.Sprintf("%s does not parse, and the write will fail: %v", skills.ManifestFileName, err)
+	}
+	secrets := "none"
+	if len(m.MCP.Secrets) > 0 {
+		secrets = strings.Join(m.MCP.Secrets, ", ")
+	}
+	return fmt.Sprintf("MCP server%s, run on the workstation from the package's directory:\n%s\nSecrets: %s", note, m.MCP.CommandLine(), secrets)
 }
 
 func clip(value string, limit int) string {

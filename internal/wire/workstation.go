@@ -10,6 +10,7 @@ import (
 
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
+	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/tools"
 	"github.com/ycvk/acorn/internal/watch"
 	"github.com/ycvk/acorn/internal/webaccess"
@@ -125,4 +126,77 @@ func (c *Container) WorkstationStatus(ctx context.Context) WorkstationStatus {
 	browserStatus := parseBrowserStatus(browser.Stdout + browser.Stderr)
 	result.Browser = &browserStatus
 	return result
+}
+
+// PackageToolStatus is what acorn doctor reports about the MCP server a
+// skill package declares. State is ready, failed, stopped, missing_secrets,
+// off (no workstation) or unknown (the workstation did not answer).
+type PackageToolStatus struct {
+	Skill          string   `json:"skill"`
+	Command        string   `json:"command"`
+	Secrets        []string `json:"secrets,omitempty"`
+	MissingSecrets []string `json:"missing_secrets,omitempty"`
+	State          string   `json:"state"`
+	Error          string   `json:"error,omitempty"`
+}
+
+// PackageToolsStatus reports the MCP server of every skill in use that
+// declares one: whether its secrets are set and how the workstation runs it.
+// It starts and stops nothing; servers start with the next run that uses
+// their skill.
+func (c *Container) PackageToolsStatus(ctx context.Context) ([]PackageToolStatus, error) {
+	scan, err := c.skillLibrary.Scan(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var specs []skills.Spec
+	for _, spec := range scan.Skills {
+		if spec.MCP != nil {
+			specs = append(specs, spec)
+		}
+	}
+	if len(specs) == 0 {
+		return nil, nil
+	}
+	client, err := buildWorkstationClient(c.cfg)
+	if err != nil {
+		return nil, err
+	}
+	running := map[string]workstation.MCPServerStatus{}
+	var unreachable error
+	if client != nil {
+		statuses, err := client.MCPServers(ctx)
+		unreachable = err
+		for _, status := range statuses {
+			running[status.Name] = status
+		}
+	}
+	out := make([]PackageToolStatus, 0, len(specs))
+	for _, spec := range specs {
+		status := PackageToolStatus{Skill: spec.Name, Command: spec.MCP.CommandLine(), Secrets: spec.MCP.Secrets}
+		missing, err := c.skillLibrary.MissingSecrets(ctx, spec)
+		if err != nil {
+			return nil, err
+		}
+		server, ok := running[spec.Name]
+		switch {
+		case len(missing) > 0:
+			status.State, status.MissingSecrets = "missing_secrets", missing
+		case client == nil:
+			status.State, status.Error = "off", noWorkstation
+		case unreachable != nil:
+			status.State, status.Error = "unknown", unreachable.Error()
+		case !ok:
+			status.State = "stopped"
+		case server.Hash != spec.Hash():
+			status.State = "stopped"
+			status.Error = "the workstation runs an older revision until the next run"
+		case server.Ready:
+			status.State = "ready"
+		default:
+			status.State, status.Error = "failed", server.Error
+		}
+		out = append(out, status)
+	}
+	return out, nil
 }

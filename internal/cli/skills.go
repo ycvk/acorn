@@ -4,7 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"os"
 	"strings"
+
+	"golang.org/x/term"
 
 	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/wire"
@@ -12,9 +16,11 @@ import (
 
 func runSkills(ctx context.Context, args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("skills requires a subcommand: list, inspect, check, or import")
+		return fmt.Errorf("skills requires a subcommand: list, inspect, check, import, or secret")
 	}
 	switch args[0] {
+	case "secret":
+		return runSkillsSecret(ctx, args[1:])
 	case "list":
 		return runSkillsList(ctx, args[1:])
 	case "inspect":
@@ -119,6 +125,67 @@ func runSkillsImport(ctx context.Context, args []string) error {
 	})
 }
 
+// maxSecretBytes bounds a secret's value.
+const maxSecretBytes = 64 << 10
+
+// runSkillsSecret sets a secret a skill's MCP server declares. The value is
+// read from standard input, without echo from a terminal, and never printed.
+func runSkillsSecret(ctx context.Context, args []string) error {
+	if len(args) == 0 || args[0] != "set" {
+		return errors.New("usage: acorn skills secret set [-c path] SKILL NAME < value")
+	}
+	fs := newFlagSet("skills secret set")
+	configPath := addConfigFlag(fs)
+	if err := fs.Parse(args[1:]); err != nil {
+		return err
+	}
+	if fs.NArg() != 2 {
+		return errors.New("usage: acorn skills secret set [-c path] SKILL NAME < value")
+	}
+	skill, name := fs.Arg(0), fs.Arg(1)
+	value, err := readSecret(os.Stdin, name)
+	if err != nil {
+		return err
+	}
+	return withContainer(ctx, *configPath, func(container *wire.Container) error {
+		if err := container.Skills().SetSecret(ctx, skill, name, value); err != nil {
+			return err
+		}
+		fmt.Printf("Set %s for %s; its MCP server gets it from the next run on.\n", name, skill)
+		return nil
+	})
+}
+
+// readSecret reads a secret's value: from a terminal as a hidden line,
+// otherwise all of the input without one trailing newline.
+func readSecret(in *os.File, name string) (string, error) {
+	if term.IsTerminal(int(in.Fd())) {
+		fmt.Fprintf(os.Stderr, "Value of %s: ", name)
+		value, err := term.ReadPassword(int(in.Fd()))
+		fmt.Fprintln(os.Stderr)
+		if err != nil {
+			return "", fmt.Errorf("read %s: %w", name, err)
+		}
+		return secretValue(value)
+	}
+	value, err := io.ReadAll(io.LimitReader(in, maxSecretBytes+1))
+	if err != nil {
+		return "", fmt.Errorf("read %s from standard input: %w", name, err)
+	}
+	return secretValue(value)
+}
+
+func secretValue(value []byte) (string, error) {
+	if len(value) > maxSecretBytes {
+		return "", fmt.Errorf("the value is longer than %d bytes", maxSecretBytes)
+	}
+	text := strings.TrimSuffix(strings.TrimSuffix(string(value), "\n"), "\r")
+	if text == "" {
+		return "", errors.New("the value is empty")
+	}
+	return text, nil
+}
+
 func renderSkillsList(items []skills.View) string {
 	if len(items) == 0 {
 		return "No skills found."
@@ -149,6 +216,12 @@ func renderSkillDetail(item skills.View) string {
 	}
 	if len(item.RequiresTools) > 0 {
 		lines = append(lines, "  Required tools: "+strings.Join(item.RequiresTools, ", "))
+	}
+	if item.MCP != nil {
+		lines = append(lines, "  MCP server: "+item.MCP.CommandLine())
+		if len(item.MCP.Secrets) > 0 {
+			lines = append(lines, "  Secrets: "+strings.Join(item.MCP.Secrets, ", "))
+		}
 	}
 	for _, f := range item.Files {
 		lines = append(lines, fmt.Sprintf("  File: %s (%d bytes)", f.Path, f.Size))

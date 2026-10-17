@@ -10,6 +10,7 @@ import (
 	"github.com/ycvk/acorn/internal/config"
 	"github.com/ycvk/acorn/internal/core"
 	"github.com/ycvk/acorn/internal/knowledge"
+	mcpprovider "github.com/ycvk/acorn/internal/mcp"
 	"github.com/ycvk/acorn/internal/memory"
 	"github.com/ycvk/acorn/internal/notify"
 	"github.com/ycvk/acorn/internal/presence"
@@ -71,12 +72,15 @@ func buildNotifier(cfg *config.Config, db *store.Store, loc *time.Location, opti
 }
 
 func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *store.Store, options buildOptions) (*containerRuntimeDeps, error) {
-	skillLibrary, err := skills.NewLibrary(db, options.clock)
+	skillLibrary, err := skills.NewLibrary(db, options.clock, runtime.ProviderNamespaces(mcpprovider.ProviderConfigsFromConfig(cfg.MCP.Providers)))
 	if err != nil {
 		return nil, err
 	}
 	if err := skillLibrary.Seed(ctx); err != nil {
 		return nil, fmt.Errorf("built-in skills: %w", err)
+	}
+	if err := skillLibrary.CheckProviders(ctx); err != nil {
+		return nil, err
 	}
 	if err := presence.SeedPersona(ctx, db, options.clock()); err != nil {
 		return nil, fmt.Errorf("default persona: %w", err)
@@ -125,9 +129,10 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 	}
 	skillDeps := tools.SkillToolDeps{Library: skillLibrary, Context: ctxBridge, Location: ownerLoc, PackagesDisabledReason: noWorkstation}
 	var skillPackages skills.PackageHost
+	var skillServers runtime.SkillServerHost
 	if workstationClient != nil {
 		skillDeps.Packages, skillDeps.PackagesDisabledReason = workstationClient, ""
-		skillPackages = workstationClient
+		skillPackages, skillServers = workstationClient, workstationClient
 	}
 	toolRegistry := tools.NewToolRegistry()
 	if err := tools.RegisterNativeTools(toolRegistry, tools.NativeToolDeps{
@@ -181,6 +186,7 @@ func buildContainerRuntimeDeps(ctx context.Context, cfg *config.Config, db *stor
 		Persona:               db,
 		Skills:                skillLibrary,
 		SkillPackages:         skillPackages,
+		SkillServers:          skillServers,
 		MCPPendingActionStore: mcpPendingActionStore,
 		ArtifactService:       artifactSvc,
 		ToolRegistry:          toolRegistry,

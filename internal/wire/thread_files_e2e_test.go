@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -62,7 +63,7 @@ func (p pairedClient) postJSON(t *testing.T, path string, in any, wantStatus int
 // and deletes the thread.
 func TestFilesTravelBetweenOwnerAndAgent(t *testing.T) {
 	home := t.TempDir()
-	ws, err := workstation.NewServer(workstation.ServerConfig{Home: home, Token: fileTestToken})
+	ws, err := workstation.NewServer(workstation.ServerConfig{Home: home, Token: fileTestToken, Supervisor: workstation.NewSupervisor(io.Discard)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,7 +181,7 @@ func TestFilesTravelBetweenOwnerAndAgent(t *testing.T) {
 // owner's message.
 func TestFilesOfARunWithoutAReplyStayInTheThread(t *testing.T) {
 	home := t.TempDir()
-	ws, err := workstation.NewServer(workstation.ServerConfig{Home: home, Token: fileTestToken})
+	ws, err := workstation.NewServer(workstation.ServerConfig{Home: home, Token: fileTestToken, Supervisor: workstation.NewSupervisor(io.Discard)})
 	if err != nil {
 		t.Fatal(err)
 	}

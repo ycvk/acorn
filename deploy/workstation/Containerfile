@@ -10,6 +10,15 @@ ARG BSK_VERSION=0.3.2
 ARG BSK_SHA256_AMD64=73e3948ad2232111661729c25e6c762eda7bd5c2320fa2593fe55c9855790631
 ARG BSK_SHA256_ARM64=625de29561a98b245ef712d13c273c5de744e4610a7bbf1999ff3b279d2220cf
 ARG BSK_EXTENSION_SHA256=9f543214a0ff5f0f2ce213dd8c5300111dba0ab757fa542a3f61b5636132c24e
+# uv (https://github.com/astral-sh/uv) runs the Python MCP servers skill
+# packages declare with uvx, and Node.js LTS the npx ones; Debian's Node.js
+# is older than current npm packages need.
+ARG UV_VERSION=0.13.1
+ARG UV_SHA256_AMD64=eadd9d27c134ab5ac1ffd4473b97a741407f3ea238288f03121fc4deddf90220
+ARG UV_SHA256_ARM64=9041c73c99fdc5892cf128140beb354eca9231d502068cc36e6cb53a8e59ad14
+ARG NODE_VERSION=24.22.0
+ARG NODE_SHA256_AMD64=cc2f601cee82d9a5a233302fe307abc600727035fd7d2c3a3571755989e95008
+ARG NODE_SHA256_ARM64=fef00bb4d36e1c50104a9775a10359beee98f162b4104dd12472c75065c6a143
 
 # Xvfb runs as the agent user, which cannot create /tmp/.X11-unix itself.
 RUN apt-get update \
@@ -37,6 +46,30 @@ RUN set -eu; \
 	echo "$BSK_EXTENSION_SHA256  /tmp/extension.zip" | sha256sum -c -; \
 	mkdir -p /opt/browserskill && unzip -q /tmp/extension.zip -d /opt/browserskill/extension; \
 	rm -rf /tmp/bsk /tmp/bsk.tar.gz /tmp/extension.zip
+
+RUN set -eu; \
+	case "${TARGETARCH:-$(dpkg --print-architecture)}" in \
+		amd64) target=x86_64-unknown-linux-gnu; sum=$UV_SHA256_AMD64 ;; \
+		arm64) target=aarch64-unknown-linux-gnu; sum=$UV_SHA256_ARM64 ;; \
+		*) echo "unsupported architecture" >&2; exit 1 ;; \
+	esac; \
+	curl -fsSL -o /tmp/uv.tar.gz "https://github.com/astral-sh/uv/releases/download/$UV_VERSION/uv-$target.tar.gz"; \
+	echo "$sum  /tmp/uv.tar.gz" | sha256sum -c -; \
+	tar -xzf /tmp/uv.tar.gz -C /tmp; \
+	install -m 0755 "/tmp/uv-$target/uv" "/tmp/uv-$target/uvx" /usr/local/bin/; \
+	rm -rf /tmp/uv.tar.gz "/tmp/uv-$target"
+
+RUN set -eu; \
+	case "${TARGETARCH:-$(dpkg --print-architecture)}" in \
+		amd64) target=linux-x64; sum=$NODE_SHA256_AMD64 ;; \
+		arm64) target=linux-arm64; sum=$NODE_SHA256_ARM64 ;; \
+		*) echo "unsupported architecture" >&2; exit 1 ;; \
+	esac; \
+	curl -fsSL -o /tmp/node.tar.xz "https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION-$target.tar.xz"; \
+	echo "$sum  /tmp/node.tar.xz" | sha256sum -c -; \
+	mkdir -p /opt/node && tar -xJf /tmp/node.tar.xz -C /opt/node --strip-components=1; \
+	ln -s /opt/node/bin/node /opt/node/bin/npm /opt/node/bin/npx /usr/local/bin/; \
+	rm /tmp/node.tar.xz
 
 # The mode is set here so the image does not depend on the umask the release
 # package was built with.

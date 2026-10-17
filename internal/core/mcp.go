@@ -14,6 +14,7 @@ type ProviderConfig struct {
 	Enabled               bool
 	Transport             string
 	URL                   string
+	Headers               map[string]string // sent with every request of an HTTP transport
 	TimeoutSeconds        int
 	Command               string
 	Args                  []string

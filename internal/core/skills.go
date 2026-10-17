@@ -88,6 +88,8 @@ type SkillStore interface {
 	Skills(ctx context.Context) ([]Skill, error)
 	// SkillFiles reads the files of one revision of a skill.
 	SkillFiles(ctx context.Context, id string, revision int64) ([]SkillFile, error)
+	// SkillFile reads one file of one revision of a skill.
+	SkillFile(ctx context.Context, id string, revision int64, path string) ([]byte, error)
 	// SkillLoadsSince counts the skill tool's loads per skill id since a time.
 	SkillLoadsSince(ctx context.Context, since time.Time) (map[string]int, error)
 	// StageSkillPackage keeps a package for import and drops packages staged
@@ -95,4 +97,9 @@ type SkillStore interface {
 	StageSkillPackage(ctx context.Context, pkg SkillPackage, staleBefore time.Time) error
 	StagedSkillPackage(ctx context.Context, sha256 string) (SkillPackage, error)
 	DeleteStagedSkillPackage(ctx context.Context, sha256 string) error
+	// SetSkillSecret stores the value of a secret a skill's package declares;
+	// SkillSecrets reads them by name. Values only go to the package's own
+	// processes.
+	SetSkillSecret(ctx context.Context, skill, name, value string, at time.Time) error
+	SkillSecrets(ctx context.Context, skill string) (map[string]string, error)
 }

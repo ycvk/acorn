@@ -28,16 +28,19 @@ const stageLifetime = 7 * 24 * time.Hour
 type Library struct {
 	store core.SkillStore
 	clock func() time.Time
+	// providers are the names the configured MCP providers' tools are
+	// namespaced under; a package's MCP server cannot take one.
+	providers []string
 }
 
-func NewLibrary(store core.SkillStore, clock func() time.Time) (*Library, error) {
+func NewLibrary(store core.SkillStore, clock func() time.Time, providers []string) (*Library, error) {
 	switch {
 	case store == nil:
 		return nil, errors.New("skill library: store is required")
 	case clock == nil:
 		return nil, errors.New("skill library: clock is required")
 	}
-	return &Library{store: store, clock: clock}, nil
+	return &Library{store: store, clock: clock, providers: slices.Clone(providers)}, nil
 }
 
 // Package is a skill with the files it carries.
@@ -98,7 +101,44 @@ func packageOf(entries []core.SkillFile) (Package, error) {
 	if err != nil {
 		return Package{}, err
 	}
+	if spec.MCP, err = mcpOf(files); err != nil {
+		return Package{}, err
+	}
 	return Package{Spec: spec, Markdown: markdown, Files: files}, nil
+}
+
+// mcpOf is the MCP server a package's manifest declares, nil without a
+// manifest.
+func mcpOf(files []core.SkillFile) (*MCPServer, error) {
+	m, ok, err := ManifestOf(files)
+	if err != nil || !ok {
+		return nil, err
+	}
+	return m.MCP, nil
+}
+
+// checkProvider rejects a package whose MCP server would take the name of a
+// configured MCP provider, which would give two servers the same tool names.
+func (l *Library) checkProvider(name string, server *MCPServer) error {
+	if server != nil && slices.Contains(l.providers, name) {
+		return fmt.Errorf("skill %s declares an MCP server, and a provider in mcp.providers already names its tools %s*; rename the skill or the provider", name, MCPToolPrefix(name))
+	}
+	return nil
+}
+
+// CheckProviders fails when a skill in use declares an MCP server under the
+// name of a configured MCP provider, as when a provider is added to the
+// config after the skill.
+func (l *Library) CheckProviders(ctx context.Context) error {
+	scan, err := l.Scan(ctx)
+	if err != nil {
+		return err
+	}
+	var errs []error
+	for _, spec := range scan.Skills {
+		errs = append(errs, l.checkProvider(spec.Name, spec.MCP))
+	}
+	return errors.Join(errs...)
 }
 
 // Seed writes every built-in skill whose shipped package differs from what a
@@ -148,6 +188,18 @@ func (l *Library) Scan(ctx context.Context) (*ScanResult, error) {
 			continue
 		}
 		spec.Revision, spec.Markdown, spec.Files = skill.Revision, skill.Markdown, slices.Clone(skill.Files)
+		if slices.ContainsFunc(skill.Files, func(f core.SkillFileInfo) bool { return f.Path == ManifestFileName }) {
+			content, err := l.store.SkillFile(ctx, skill.ID, skill.Revision, ManifestFileName)
+			if err != nil {
+				return nil, err
+			}
+			m, err := ParseManifest(content)
+			if err != nil {
+				problems = append(problems, Problem{Name: skill.ID, Error: err.Error()})
+				continue
+			}
+			spec.MCP = m.MCP
+		}
 		items = append(items, spec)
 	}
 	sortSkills(items)
@@ -199,6 +251,13 @@ func (l *Library) Write(ctx context.Context, req WriteRequest) (core.Skill, erro
 	if files, err = normalizeFiles(markdown, files); err != nil {
 		return core.Skill{}, err
 	}
+	server, err := mcpOf(files)
+	if err != nil {
+		return core.Skill{}, err
+	}
+	if err := l.checkProvider(spec.Name, server); err != nil {
+		return core.Skill{}, err
+	}
 	return l.store.WriteSkill(ctx, core.SkillWrite{ID: spec.Name, Markdown: markdown, Files: files, Author: core.SkillAuthorAgent, RunID: req.RunID, At: l.clock(), BaseRevision: req.BaseRevision})
 }
 
@@ -226,6 +285,9 @@ func (l *Library) Stage(ctx context.Context, entries []core.SkillFile) (core.Ski
 	if err != nil {
 		return core.SkillPackage{}, err
 	}
+	if err := l.checkProvider(pkg.Spec.Name, pkg.Spec.MCP); err != nil {
+		return core.SkillPackage{}, err
+	}
 	now := l.clock()
 	staged := core.SkillPackage{SHA256: PackageHash(pkg.Markdown, pkg.Files), Name: pkg.Spec.Name, Markdown: pkg.Markdown, Files: pkg.Files, StagedAt: now}
 	if err := l.store.StageSkillPackage(ctx, staged, now.Add(-stageLifetime)); err != nil {
@@ -245,6 +307,13 @@ func (l *Library) ImportStaged(ctx context.Context, name, sha256 string, baseRev
 	if pkg.Name != strings.TrimSpace(name) {
 		return core.Skill{}, fmt.Errorf("staged package %s holds skill %s, not %s", pkg.SHA256, pkg.Name, name)
 	}
+	server, err := mcpOf(pkg.Files)
+	if err != nil {
+		return core.Skill{}, err
+	}
+	if err := l.checkProvider(pkg.Name, server); err != nil {
+		return core.Skill{}, err
+	}
 	skill, err := l.store.WriteSkill(ctx, core.SkillWrite{ID: pkg.Name, Markdown: pkg.Markdown, Files: pkg.Files, Author: core.SkillAuthorAgent, RunID: runID, At: l.clock(), BaseRevision: baseRevision})
 	if err != nil {
 		return core.Skill{}, err
@@ -257,6 +326,9 @@ func (l *Library) ImportStaged(ctx context.Context, name, sha256 string, baseRev
 func (l *Library) Import(ctx context.Context, entries []core.SkillFile, replace bool) (core.Skill, error) {
 	pkg, err := packageOf(entries)
 	if err != nil {
+		return core.Skill{}, err
+	}
+	if err := l.checkProvider(pkg.Spec.Name, pkg.Spec.MCP); err != nil {
 		return core.Skill{}, err
 	}
 	var base int64
@@ -295,7 +367,7 @@ func (l *Library) Sync(ctx context.Context, host PackageHost, snapshot Snapshot)
 			continue
 		}
 		wanted[view.Name] = true
-		hash := packageHash(view.Markdown, infoSums(view.Files))
+		hash := view.Hash()
 		if held[view.Name] == hash {
 			continue
 		}
@@ -316,6 +388,121 @@ func (l *Library) Sync(ctx context.Context, host PackageHost, snapshot Snapshot)
 		}
 	}
 	return dir, nil
+}
+
+// SetSecret stores the value of a secret the MCP server of a skill's current
+// revision declares.
+func (l *Library) SetSecret(ctx context.Context, name, secret, value string) error {
+	skill, err := l.store.Skill(ctx, strings.TrimSpace(name))
+	if err != nil {
+		return err
+	}
+	if !slices.ContainsFunc(skill.Files, func(f core.SkillFileInfo) bool { return f.Path == ManifestFileName }) {
+		return fmt.Errorf("skill %s has no %s and takes no secrets", skill.ID, ManifestFileName)
+	}
+	content, err := l.store.SkillFile(ctx, skill.ID, skill.Revision, ManifestFileName)
+	if err != nil {
+		return err
+	}
+	m, err := ParseManifest(content)
+	if err != nil {
+		return err
+	}
+	if !slices.Contains(m.MCP.Secrets, secret) {
+		return fmt.Errorf("skill %s's MCP server declares the secrets %v, not %s", skill.ID, m.MCP.Secrets, secret)
+	}
+	if value == "" {
+		return fmt.Errorf("the value of %s is empty", secret)
+	}
+	return l.store.SetSkillSecret(ctx, skill.ID, secret, value, l.clock())
+}
+
+// MissingSecrets lists the secrets a skill's MCP server declares that have no
+// value.
+func (l *Library) MissingSecrets(ctx context.Context, spec Spec) ([]string, error) {
+	_, missing, err := l.secretEnv(ctx, spec)
+	return missing, err
+}
+
+// secretEnv is the environment of a skill's MCP server, from the values of
+// its secrets, and the secrets that have none.
+func (l *Library) secretEnv(ctx context.Context, spec Spec) (map[string]string, []string, error) {
+	if spec.MCP == nil {
+		return nil, nil, nil
+	}
+	values, err := l.store.SkillSecrets(ctx, spec.Name)
+	if err != nil {
+		return nil, nil, err
+	}
+	env := map[string]string{}
+	var missing []string
+	for _, name := range spec.MCP.Secrets {
+		value, ok := values[name]
+		if !ok {
+			missing = append(missing, name)
+			continue
+		}
+		env[name] = value
+	}
+	return env, missing, nil
+}
+
+// MCPServerRun is a package's MCP server as a host runs it: from the package
+// it holds under Name at Hash, with Env from the package's secrets.
+type MCPServerRun struct {
+	Name string
+	Hash string
+	Env  map[string]string
+}
+
+// ServerHost runs the MCP servers of the packages it holds.
+type ServerHost interface {
+	// RunMCPServers makes the host run exactly these servers, stopping any
+	// other, and returns why each of them that does not serve fails, by name.
+	RunMCPServers(ctx context.Context, servers []MCPServerRun) (map[string]string, error)
+}
+
+// Serve has the host run the MCP server of every eligible skill that declares
+// one, with its secrets, and stop the others. A skill whose secrets are not
+// all set, or whose server does not serve, leaves the snapshot with the
+// reason.
+func (l *Library) Serve(ctx context.Context, host ServerHost, snapshot Snapshot) (Snapshot, error) {
+	out := CopySnapshot(snapshot)
+	runs := []MCPServerRun{}
+	index := map[string]int{}
+	for i, view := range out.Skills {
+		if !view.Eligible || view.MCP == nil {
+			continue
+		}
+		env, missing, err := l.secretEnv(ctx, view.Spec)
+		if err != nil {
+			return Snapshot{}, err
+		}
+		if len(missing) > 0 {
+			out.Skills[i] = Disable(view, "missing_secrets:"+strings.Join(missing, ","))
+			continue
+		}
+		runs = append(runs, MCPServerRun{Name: view.Name, Hash: view.Hash(), Env: env})
+		index[view.Name] = i
+	}
+	failed, err := host.RunMCPServers(ctx, runs)
+	if err != nil {
+		return Snapshot{}, fmt.Errorf("run MCP servers: %w", err)
+	}
+	for name, reason := range failed {
+		if i, ok := index[name]; ok {
+			out.Skills[i] = Disable(out.Skills[i], "mcp_server_failed:"+reason)
+		}
+	}
+	return out, nil
+}
+
+// Disable takes a skill out of a run for the reason.
+func Disable(view View, reason string) View {
+	out := CopyView(view)
+	out.Eligible = false
+	out.DisabledReasons = append(out.DisabledReasons, reason)
+	return out
 }
 
 func validateSkill(markdown string) (Spec, error) {

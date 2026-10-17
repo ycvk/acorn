@@ -29,6 +29,10 @@ func (s staticSkillLibrary) Import(context.Context, []core.SkillFile, bool) (cor
 	return core.Skill{}, errors.New("static skill library does not import")
 }
 
+func (s staticSkillLibrary) SetSecret(context.Context, string, string, string) error {
+	return errors.New("static skill library keeps no secrets")
+}
+
 func newTestSkillService(t *testing.T, fixtures ...testSkillFixture) *SkillService {
 	t.Helper()
 

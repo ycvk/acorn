@@ -12,10 +12,12 @@ import (
 	"github.com/ycvk/acorn/internal/tools"
 )
 
-// SkillLibrary reads the skills in use and installs the owner's packages.
+// SkillLibrary reads the skills in use, installs the owner's packages and
+// keeps the secrets they declare.
 type SkillLibrary interface {
 	Scan(ctx context.Context) (*skills.ScanResult, error)
 	Import(ctx context.Context, entries []core.SkillFile, replace bool) (core.Skill, error)
+	SetSecret(ctx context.Context, name, secret, value string) error
 }
 
 type SkillService struct {
@@ -33,6 +35,12 @@ func NewSkillService(cfg *config.Config, library SkillLibrary) *SkillService {
 // existing skill of the same name is replaced only when replace is set.
 func (s *SkillService) Import(ctx context.Context, entries []core.SkillFile, replace bool) (core.Skill, error) {
 	return s.library.Import(ctx, entries, replace)
+}
+
+// SetSecret stores the value of a secret a skill's MCP server declares; the
+// server gets it as an environment variable from the next run on.
+func (s *SkillService) SetSecret(ctx context.Context, name, secret, value string) error {
+	return s.library.SetSecret(ctx, name, secret, value)
 }
 
 func (s *SkillService) Snapshot(ctx context.Context) (*skills.Snapshot, error) {

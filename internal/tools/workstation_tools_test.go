@@ -29,7 +29,7 @@ func workstationSpecs(t *testing.T, timeout int) map[string]core.ToolSpec {
 // thread_send.
 func workstationSpecsWithFiles(t *testing.T, timeout int, maxSend int64) (map[string]core.ToolSpec, *store.Store) {
 	t.Helper()
-	server, err := workstation.NewServer(workstation.ServerConfig{Home: t.TempDir(), Token: workstationTestToken})
+	server, err := workstation.NewServer(workstation.ServerConfig{Home: t.TempDir(), Token: workstationTestToken, Supervisor: workstation.NewSupervisor(io.Discard)})
 	if err != nil {
 		t.Fatal(err)
 	}

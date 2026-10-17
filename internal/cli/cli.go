@@ -73,6 +73,7 @@ Usage:
   acorn skills list [-c path] [--json]
   acorn skills inspect [-c path] [--json] SKILL_ID
   acorn skills check [-c path] [--json] [--fixtures path]
+  acorn skills secret set [-c path] SKILL NAME < value
   acorn persona show [-c path] [--json]
   acorn persona set [-c path] FILE
   acorn pair [-c path] [--json] [--qr] [--ttl duration] [--server-url url]
@@ -113,15 +114,20 @@ func runDoctor(ctx context.Context, args []string) error {
 			return fmt.Errorf("memory status: %w", err)
 		}
 		workstation := container.WorkstationStatus(ctx)
+		packageTools, err := container.PackageToolsStatus(ctx)
+		if err != nil {
+			return fmt.Errorf("package tools: %w", err)
+		}
 		reviewStatus := container.ReviewStatus(ctx)
 		if *jsonMode {
 			return printJSON(struct {
 				api.SystemCapabilities
-				Thinking    wire.ThinkingStatus         `json:"thinking"`
-				Memory      core.MemoryProcessingStatus `json:"memory"`
-				Workstation wire.WorkstationStatus      `json:"workstation"`
-				Review      wire.ReviewStatus           `json:"review"`
-			}{snapshot, thinking, memoryStatus, workstation, reviewStatus})
+				Thinking     wire.ThinkingStatus         `json:"thinking"`
+				Memory       core.MemoryProcessingStatus `json:"memory"`
+				Workstation  wire.WorkstationStatus      `json:"workstation"`
+				PackageTools []wire.PackageToolStatus    `json:"package_tools"`
+				Review       wire.ReviewStatus           `json:"review"`
+			}{snapshot, thinking, memoryStatus, workstation, packageTools, reviewStatus})
 		}
 		fmt.Println(renderDoctorSummary(snapshot, container.Config().ConfigPath))
 		fmt.Println(renderDoctorKnowledge(knowledgeStatus))
@@ -132,6 +138,9 @@ func runDoctor(ctx context.Context, args []string) error {
 			fmt.Printf("Memory error: %s\n", memoryStatus.LastError)
 		}
 		fmt.Println(renderDoctorWorkstation(workstation))
+		if len(packageTools) > 0 {
+			fmt.Println(renderDoctorPackageTools(packageTools))
+		}
 		fmt.Println(renderDoctorReview(reviewStatus))
 		return nil
 	})

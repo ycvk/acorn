@@ -83,20 +83,52 @@ func connectProvider(ctx context.Context, cfg core.ProviderConfig, opts *mcp.Cli
 		toolNames:   toolNames,
 	}
 
-	if resResult, err := session.ListResources(connectCtx, nil); err == nil {
-		p.resources = resResult.Resources
-	} else {
-		slog.Warn("MCP resource discovery failed, continuing with tools only",
-			"provider", cfg.Name, "error", err)
+	var capabilities *mcp.ServerCapabilities
+	if result := session.InitializeResult(); result != nil {
+		capabilities = result.Capabilities
 	}
-	if promptResult, err := session.ListPrompts(connectCtx, nil); err == nil {
-		p.prompts = promptResult.Prompts
-	} else {
-		slog.Warn("MCP prompt discovery failed, continuing with tools only",
-			"provider", cfg.Name, "error", err)
+	if capabilities != nil && capabilities.Resources != nil {
+		if resResult, err := session.ListResources(connectCtx, nil); err == nil {
+			p.resources = resResult.Resources
+		} else {
+			slog.Warn("MCP resource discovery failed, continuing with tools only",
+				"provider", cfg.Name, "error", err)
+		}
+	}
+	if capabilities != nil && capabilities.Prompts != nil {
+		if promptResult, err := session.ListPrompts(connectCtx, nil); err == nil {
+			p.prompts = promptResult.Prompts
+		} else {
+			slog.Warn("MCP prompt discovery failed, continuing with tools only",
+				"provider", cfg.Name, "error", err)
+		}
 	}
 
 	return p, nil
+}
+
+// Connection is a session with one MCP provider and the tools it offered
+// when it connected.
+type Connection struct {
+	p *provider
+}
+
+// Connect opens a session with the provider and lists its tools.
+func Connect(ctx context.Context, cfg core.ProviderConfig) (*Connection, error) {
+	p, err := connectProvider(ctx, cfg, nil, nil, nil)
+	if err != nil {
+		return nil, fmt.Errorf("connect MCP provider %s: %w", cfg.Name, err)
+	}
+	return &Connection{p: p}, nil
+}
+
+// Tools are the provider's tools under their own names.
+func (c *Connection) Tools() []einotool.BaseTool {
+	return c.p.tools
+}
+
+func (c *Connection) Close() error {
+	return c.p.close()
 }
 
 func collectToolNames(ctx context.Context, tools []einotool.BaseTool) ([]string, error) {

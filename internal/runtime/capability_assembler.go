@@ -121,7 +121,8 @@ func buildWebToolsConfig(deps RuntimeDeps) (tools.WebToolsConfig, error) {
 }
 
 // buildRunCapabilities builds the run's tool catalog (local tools + MCP specs)
-// and resolves a stable skill snapshot for capability eligibility.
+// and resolves a stable skill snapshot for capability eligibility. The tools
+// of the skills' own MCP servers join the catalog once the servers serve.
 func buildRunCapabilities(ctx context.Context, deps RuntimeDeps, sessionID, runID string, mcpManager *mcpprovider.Manager) (*runCapabilities, error) {
 	toolset, err := buildToolset(ctx, deps, sessionID)
 	if err != nil {
@@ -136,9 +137,15 @@ func buildRunCapabilities(ctx context.Context, deps RuntimeDeps, sessionID, runI
 		return nil, err
 	}
 	skillDir, synced := syncSkillPackages(ctx, deps.Skills, deps.SkillPackages, *skillSnapshot)
+	served, skillTools := serveSkillTools(ctx, deps, synced)
+	if len(skillTools) > 0 {
+		if catalog, err = tools.NewCatalog(ctx, append(catalog.Specs(), skillTools...)); err != nil {
+			return nil, fmt.Errorf("add skill tools: %w", err)
+		}
+	}
 	return &runCapabilities{
 		catalog:       catalog,
-		skillSnapshot: &synced,
+		skillSnapshot: &served,
 		skillDir:      skillDir,
 	}, nil
 }

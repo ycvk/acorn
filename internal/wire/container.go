@@ -16,6 +16,7 @@ import (
 	mcpprovider "github.com/ycvk/acorn/internal/mcp"
 	"github.com/ycvk/acorn/internal/memory"
 	"github.com/ycvk/acorn/internal/runtime"
+	"github.com/ycvk/acorn/internal/skills"
 	"github.com/ycvk/acorn/internal/store"
 	"github.com/ycvk/acorn/internal/wake"
 )
@@ -29,6 +30,7 @@ type Container struct {
 	runController      *runtime.RunController
 	runResume          *api.RunResumeService
 	skills             *api.SkillService
+	skillLibrary       *skills.Library
 	threads            *api.ThreadService
 	runs               *api.RunService
 	events             *api.EventService
@@ -221,6 +223,7 @@ func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *contai
 
 	container.runResume = api.NewRunResumeService(db).WithResume(deps.resumeRun)
 	container.skills = api.NewSkillService(cfg, deps.skills)
+	container.skillLibrary = deps.skills
 	forgetBarrier := memoryForgetBarrier(deps.runController, db)
 	threads, err := api.NewThreadService(db, db, deps.memory, forgetBarrier)
 	if err != nil {

@@ -26,6 +26,10 @@ const skillContentFormat = "Skill %s, revision %d.\n\n%s"
 // skillFilesFormat tells where a loaded skill's files are.
 const skillFilesFormat = "Skill %s, revision %d. Its files are in %s on your workstation: %s. Paths in the skill are relative to that directory; read them with files and run scripts with shell.\n\n%s"
 
+// skillToolsFormat is skillFilesFormat for a skill whose package runs an MCP
+// server.
+const skillToolsFormat = "Skill %s, revision %d. Its files are in %s on your workstation: %s. Paths in the skill are relative to that directory; read them with files and run scripts with shell. Its package's MCP server gives you the tools named %s*.\n\n%s"
+
 // skillBackend serves the run's eligible skills to the Eino skill middleware.
 type skillBackend struct {
 	matters []skill.FrontMatter
@@ -66,6 +70,9 @@ func (b *skillBackend) content(_ context.Context, loaded skill.Skill, _ string) 
 	paths := make([]string, 0, len(view.Files))
 	for _, f := range view.Files {
 		paths = append(paths, f.Path)
+	}
+	if view.MCP != nil {
+		return fmt.Sprintf(skillToolsFormat, view.Name, view.Revision, path.Join(b.dir, view.Name), strings.Join(paths, ", "), skills.MCPToolPrefix(view.Name), view.Markdown), nil
 	}
 	return fmt.Sprintf(skillFilesFormat, view.Name, view.Revision, path.Join(b.dir, view.Name), strings.Join(paths, ", "), view.Markdown), nil
 }

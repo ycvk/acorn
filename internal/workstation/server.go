@@ -29,15 +29,18 @@ type Server struct {
 	token    string
 	chromium string
 	view     *View
+	mcp      *mcpHost
 }
 
 // ServerConfig sets up a Server. Chromium is the browser that renders pages
 // and View the owner's view of the agent's browser; each is off when unset.
+// Supervisor keeps the skill packages' MCP servers running.
 type ServerConfig struct {
-	Home     string
-	Token    string
-	Chromium string
-	View     *View
+	Home       string
+	Token      string
+	Chromium   string
+	View       *View
+	Supervisor *Supervisor
 }
 
 func NewServer(cfg ServerConfig) (*Server, error) {
@@ -55,7 +58,16 @@ func NewServer(cfg ServerConfig) (*Server, error) {
 	if len(token) < MinTokenLength {
 		return nil, fmt.Errorf("%s must be at least %d characters", TokenEnv, MinTokenLength)
 	}
-	return &Server{home: filepath.Clean(home), token: token, chromium: cfg.Chromium, view: cfg.View}, nil
+	if cfg.Supervisor == nil {
+		return nil, errors.New("workstation supervisor is required")
+	}
+	home = filepath.Clean(home)
+	return &Server{home: home, token: token, chromium: cfg.Chromium, view: cfg.View, mcp: newMCPHost(home, cfg.Supervisor)}, nil
+}
+
+// Close stops the skill packages' MCP servers and waits for them to exit.
+func (s *Server) Close() {
+	s.mcp.close()
 }
 
 func (s *Server) Handler() http.Handler {
@@ -72,6 +84,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/skills", s.authorized(s.skillPackages))
 	mux.HandleFunc("PUT /v1/skills/{name}", s.authorized(s.putSkillPackage))
 	mux.HandleFunc("DELETE /v1/skills/{name}", s.authorized(s.deleteSkillPackage))
+	mux.HandleFunc("GET /v1/mcp", s.authorized(s.mcpServers))
+	mux.HandleFunc("PUT /v1/mcp", s.authorized(s.runMCPServers))
+	mux.HandleFunc("/v1/mcp/{name}", s.authorized(s.mcpEndpoint))
 	mux.HandleFunc("POST /v1/render", s.authorized(s.render))
 	mux.HandleFunc("GET /v1/browser/tabs", s.authorized(s.browserTabs))
 	mux.HandleFunc("GET /v1/browser/frames", s.authorized(s.browserFrames))
