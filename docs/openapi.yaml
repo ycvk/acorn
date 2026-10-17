@@ -2092,6 +2092,9 @@ components:
         tool_summary:
           type: string
           description: Set on tool approvals; what the call is about, taken from its arguments, e.g. a URL or a search query.
+        allow_freeform:
+          type: boolean
+          description: Set on operator questions that take a typed answer, sent as `answer` with decision `answer`.
 
     PendingActionOption:
       type: object
@@ -2245,6 +2248,7 @@ components:
 
     DecidePendingActionRequest:
       type: object
+      description: Tool approvals and elicitations send accept or decline. Operator questions send answer with selected_option_id or a freeform answer, or decline with neither.
       additionalProperties: false
       required: [decision]
       properties:

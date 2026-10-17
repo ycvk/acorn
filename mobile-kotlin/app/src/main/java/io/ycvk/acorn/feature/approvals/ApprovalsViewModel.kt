@@ -79,31 +79,16 @@ class ApprovalsViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Submits a decision for the selected pending action. The backend enum is
-     * accept/decline/answer; an [optionId] selects a specific option (sent as
-     * `selected_option_id`) and [answer] carries free-text input for elicitation.
-     */
-    fun decideAction(
-        actionId: String,
-        decision: DecidePendingActionRequest.Decision,
-        selectedOptionId: String? = null,
-        answer: String? = null,
-    ) {
+    /** Sends [request] as the decision on [actionId]; its shape depends on the action's kind, see [optionRequest]. */
+    fun decideAction(actionId: String, request: DecidePendingActionRequest) {
         val profile = getConnectionProfile() ?: return
         _deciding.value = actionId
+        _error.value = null
         viewModelScope.launch {
             try {
                 withContext(Dispatchers.IO) {
                     ApiClient.accessToken = profile.accessToken
-                    ClientApi(basePath = profile.serverUrl).clientDecidePendingAction(
-                        actionId,
-                        DecidePendingActionRequest(
-                            decision = decision,
-                            selectedOptionId = selectedOptionId,
-                            answer = answer,
-                        ),
-                    )
+                    ClientApi(basePath = profile.serverUrl).clientDecidePendingAction(actionId, request)
                 }
                 _selectedAction.value = null
                 notifications.cancel(actionId)

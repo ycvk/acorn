@@ -42,6 +42,7 @@ import com.squareup.moshi.JsonClass
  * @param body 
  * @param toolName Set on tool approvals; the tool waiting to run.
  * @param toolSummary Set on tool approvals; what the call is about, taken from its arguments, e.g. a URL or a search query.
+ * @param allowFreeform Set on operator questions that take a typed answer, sent as `answer` with decision `answer`.
  */
 
 
@@ -80,7 +81,11 @@ data class PendingActionSummary (
 
     /* Set on tool approvals; what the call is about, taken from its arguments, e.g. a URL or a search query. */
     @Json(name = "tool_summary")
-    val toolSummary: kotlin.String? = null
+    val toolSummary: kotlin.String? = null,
+
+    /* Set on operator questions that take a typed answer, sent as `answer` with decision `answer`. */
+    @Json(name = "allow_freeform")
+    val allowFreeform: kotlin.Boolean? = null
 
 ) {
 

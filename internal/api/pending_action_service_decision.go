@@ -100,9 +100,6 @@ func validateOperatorAnswer(payload core.OperatorQuestionPayload, selectedOption
 		return fmt.Errorf("%w: operator question does not allow freeform answer", ErrPendingActionDecisionInvalid)
 	}
 	if selectedOptionID == "" {
-		if len(payload.Options) > 0 && !payload.AllowFreeform {
-			return fmt.Errorf("%w: operator answer requires selected_option_id", ErrPendingActionDecisionInvalid)
-		}
 		return nil
 	}
 	for _, option := range payload.Options {

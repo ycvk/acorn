@@ -17,6 +17,11 @@ class ErrorsTest {
     }
 
     @Test
+    fun anActionDecidedElsewhereSaysSo() {
+        assertEquals("这件事已经处理过了", userMessage(conflict("pending_action_already_decided")))
+    }
+
+    @Test
     fun otherConflictsAskToRefresh() {
         assertEquals("内容刚被改过，刷新后再试", userMessage(conflict("memory_changed")))
     }

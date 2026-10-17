@@ -33,6 +33,8 @@ type PendingActionSummaryDTO struct {
 	// ToolName and ToolSummary are set on tool approvals.
 	ToolName    string `json:"tool_name,omitempty"`
 	ToolSummary string `json:"tool_summary,omitempty"`
+	// AllowFreeform is set on operator questions that take a typed answer.
+	AllowFreeform bool `json:"allow_freeform,omitempty"`
 }
 
 type CreateRunRequest struct {

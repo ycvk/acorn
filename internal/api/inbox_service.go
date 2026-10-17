@@ -63,6 +63,8 @@ type PendingActionSummary struct {
 	// and why it waits; otherwise it comes from the arguments.
 	ToolName    string
 	ToolSummary string
+	// AllowFreeform is set on operator questions that take a typed answer.
+	AllowFreeform bool
 }
 
 type PendingActionOption struct {
@@ -199,15 +201,16 @@ func buildOperatorQuestionPendingActionSummary(record core.PendingActionRecord, 
 		title = "Operator question"
 	}
 	return PendingActionSummary{
-		ActionID:  record.ActionID,
-		RunID:     record.RunID,
-		ThreadID:  run.SessionID,
-		Kind:      string(record.Kind),
-		Status:    string(record.Status),
-		Title:     title,
-		Body:      strings.TrimSpace(payload.Question),
-		Options:   pendingActionOptionsFromEventOptions(payload.Options),
-		CreatedAt: record.CreatedAt,
+		ActionID:      record.ActionID,
+		RunID:         record.RunID,
+		ThreadID:      run.SessionID,
+		Kind:          string(record.Kind),
+		Status:        string(record.Status),
+		Title:         title,
+		Body:          strings.TrimSpace(payload.Question),
+		Options:       pendingActionOptionsFromEventOptions(payload.Options),
+		CreatedAt:     record.CreatedAt,
+		AllowFreeform: payload.AllowFreeform,
 	}, nil
 }
 
@@ -250,10 +253,9 @@ func operatorQuestionPayload(record core.PendingActionRecord) (core.OperatorQues
 	return payload, nil
 }
 
+// pendingActionOptionsFromEventOptions never returns nil: options is a
+// required array in the contract, empty for a freeform-only question.
 func pendingActionOptionsFromEventOptions(items []core.PendingActionOption) []PendingActionOption {
-	if len(items) == 0 {
-		return nil
-	}
 	out := make([]PendingActionOption, 0, len(items))
 	for _, item := range items {
 		out = append(out, PendingActionOption{

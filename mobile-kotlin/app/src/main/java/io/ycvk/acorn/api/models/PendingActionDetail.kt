@@ -43,6 +43,7 @@ import com.squareup.moshi.JsonClass
  * @param body 
  * @param toolName Set on tool approvals; the tool waiting to run.
  * @param toolSummary Set on tool approvals; what the call is about, taken from its arguments, e.g. a URL or a search query.
+ * @param allowFreeform Set on operator questions that take a typed answer, sent as `answer` with decision `answer`.
  * @param reason 
  * @param rule 
  * @param toolDetail Set on tool approvals whose summary cannot hold what the call acts on; the SKILL.md and files a skill_write or skill_import would store.
@@ -88,6 +89,10 @@ data class PendingActionDetail (
     /* Set on tool approvals; what the call is about, taken from its arguments, e.g. a URL or a search query. */
     @Json(name = "tool_summary")
     val toolSummary: kotlin.String? = null,
+
+    /* Set on operator questions that take a typed answer, sent as `answer` with decision `answer`. */
+    @Json(name = "allow_freeform")
+    val allowFreeform: kotlin.Boolean? = null,
 
     @Json(name = "reason")
     val reason: kotlin.String? = null,

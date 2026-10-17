@@ -28,7 +28,7 @@ import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 
 /**
- * 
+ * Tool approvals and elicitations send accept or decline. Operator questions send answer with selected_option_id or a freeform answer, or decline with neither.
  *
  * @param decision 
  * @param selectedOptionId 

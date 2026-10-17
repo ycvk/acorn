@@ -1,25 +1,34 @@
 package io.ycvk.acorn.feature.approvals
 
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -30,9 +39,11 @@ import io.ycvk.acorn.api.models.DecidePendingActionRequest
 import io.ycvk.acorn.api.models.PendingActionDetail
 import io.ycvk.acorn.api.models.PendingActionOption
 import io.ycvk.acorn.api.models.PendingActionSummary
+import io.ycvk.acorn.core.theme.AcornShapes
 import io.ycvk.acorn.core.theme.AcornTheme
 import io.ycvk.acorn.core.ui.AcornButton
 import io.ycvk.acorn.core.ui.ButtonKind
+import io.ycvk.acorn.core.ui.InlineError
 import io.ycvk.acorn.core.ui.Panel
 import io.ycvk.acorn.core.ui.SheetHandle
 import io.ycvk.acorn.core.ui.SheetShape
@@ -40,17 +51,28 @@ import io.ycvk.acorn.core.ui.ago
 import io.ycvk.acorn.core.ui.rememberHaptics
 import io.ycvk.acorn.feature.chat.toolLabel
 
-/** The decision an option sends; tool approvals carry accept/decline ids, questions carry their own labels. */
-fun optionDecision(option: PendingActionOption): DecidePendingActionRequest.Decision {
-    if (option.id == "accept") return DecidePendingActionRequest.Decision.accept
-    if (option.id == "decline") return DecidePendingActionRequest.Decision.decline
-    val label = option.label.lowercase()
-    val isDecline = label.startsWith("reject") ||
-        label.startsWith("decline") ||
-        label.startsWith("no") ||
-        label == "cancel"
-    return if (isDecline) DecidePendingActionRequest.Decision.decline else DecidePendingActionRequest.Decision.accept
+/**
+ * What choosing an option sends. A tool approval or elicitation decides by the
+ * option's id, accept or decline; a question answers with the option it names.
+ */
+fun optionRequest(kind: String, option: PendingActionOption): DecidePendingActionRequest {
+    if (kind == "operator_question") {
+        return DecidePendingActionRequest(decision = DecidePendingActionRequest.Decision.answer, selectedOptionId = option.id)
+    }
+    val decision = when (option.id) {
+        "accept" -> DecidePendingActionRequest.Decision.accept
+        "decline" -> DecidePendingActionRequest.Decision.decline
+        else -> error("$kind option ${option.id} is neither accept nor decline")
+    }
+    return DecidePendingActionRequest(decision = decision, selectedOptionId = option.id)
 }
+
+/** A question that allows freeform answers takes the owner's own words. */
+fun freeformAnswer(text: String): DecidePendingActionRequest =
+    DecidePendingActionRequest(decision = DecidePendingActionRequest.Decision.answer, answer = text.trim())
+
+/** Declining a question names no option and carries no answer. */
+val declineQuestion = DecidePendingActionRequest(decision = DecidePendingActionRequest.Decision.decline)
 
 fun optionLabel(option: PendingActionOption): String = when (option.id) {
     "accept" -> "批准"
@@ -78,7 +100,7 @@ fun kindLabel(kind: String): String = when (kind) {
 fun ApprovalCard(
     action: PendingActionSummary,
     deciding: Boolean,
-    onDecide: (PendingActionOption) -> Unit,
+    onDecide: (DecidePendingActionRequest) -> Unit,
     onOpen: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -107,13 +129,13 @@ fun ApprovalCard(
                 val inline = action.kind == PendingActionSummary.Kind.tool_approval && action.options.size == 2
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End), modifier = Modifier.fillMaxWidth()) {
                     if (inline) {
-                        action.options.sortedBy { optionDecision(it) == DecidePendingActionRequest.Decision.accept }.forEach { option ->
-                            val accept = optionDecision(option) == DecidePendingActionRequest.Decision.accept
+                        action.options.sortedBy { it.id == "accept" }.forEach { option ->
+                            val accept = option.id == "accept"
                             AcornButton(
                                 text = optionLabel(option),
                                 onClick = {
                                     if (accept) haptics.confirm() else haptics.reject()
-                                    onDecide(option)
+                                    onDecide(optionRequest(action.kind.value, option))
                                 },
                                 kind = if (accept) ButtonKind.Primary else ButtonKind.Secondary,
                                 compact = true,
@@ -130,16 +152,17 @@ fun ApprovalCard(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PendingActionSheet(
     detail: PendingActionDetail,
     deciding: Boolean,
+    error: String?,
     onDismiss: () -> Unit,
-    onDecide: (PendingActionOption) -> Unit,
+    onDismissError: () -> Unit,
+    onDecide: (DecidePendingActionRequest) -> Unit,
 ) {
     val colors = AcornTheme.colors
-    val haptics = rememberHaptics()
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -151,6 +174,7 @@ fun PendingActionSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .imePadding()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.dp)
                 .padding(bottom = 28.dp),
@@ -171,46 +195,106 @@ fun PendingActionSheet(
             }
             detail.reason?.takeIf { it.isNotBlank() }?.let { Detail("原因", it) }
             detail.rule?.takeIf { it.isNotBlank() }?.let { Detail("触发的规则", it) }
-            if (detail.options.isNotEmpty()) {
-                Spacer(Modifier.height(24.dp))
-                // Decline sits left of accept, as on the Today card.
-                val options = detail.options.sortedBy { optionDecision(it) == DecidePendingActionRequest.Decision.accept }
-                val button: @Composable (PendingActionOption, Modifier) -> Unit = { option, modifier ->
-                    val accept = optionDecision(option) == DecidePendingActionRequest.Decision.accept
-                    AcornButton(
-                        text = optionLabel(option),
-                        onClick = {
-                            if (accept) haptics.confirm() else haptics.reject()
-                            onDecide(option)
-                        },
-                        kind = if (accept) ButtonKind.Primary else ButtonKind.Secondary,
-                        enabled = !deciding,
-                        modifier = modifier,
-                    )
-                }
-                if (options.size <= 2) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                        options.forEach { button(it, Modifier.weight(1f)) }
-                    }
-                } else {
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        options.forEach { button(it, Modifier) }
-                    }
-                }
-                detail.options.mapNotNull { it.description?.takeIf(String::isNotBlank)?.let { d -> optionLabel(it) to d } }
-                    .takeIf { it.isNotEmpty() }
-                    ?.let { described ->
-                        Spacer(Modifier.height(12.dp))
-                        described.forEach { (label, description) ->
-                            Text("$label：$description", style = AcornTheme.type.footnote, color = colors.inkSoft)
-                        }
-                    }
+            Spacer(Modifier.height(24.dp))
+            // A failed decision shows where it was made; the sheet stays open so a typed answer survives.
+            error?.let {
+                InlineError(it, action = "知道了", onAction = onDismissError)
+                Spacer(Modifier.height(12.dp))
+            }
+            if (detail.kind == PendingActionDetail.Kind.operator_question) {
+                QuestionAnswers(detail, deciding, onDecide)
+            } else {
+                AcceptDecline(detail, deciding, onDecide)
             }
         }
+    }
+}
+
+/** Decline sits left of accept, as on the Today card. */
+@Composable
+private fun AcceptDecline(detail: PendingActionDetail, deciding: Boolean, onDecide: (DecidePendingActionRequest) -> Unit) {
+    val haptics = rememberHaptics()
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+        detail.options.sortedBy { it.id == "accept" }.forEach { option ->
+            val accept = option.id == "accept"
+            AcornButton(
+                text = optionLabel(option),
+                onClick = {
+                    if (accept) haptics.confirm() else haptics.reject()
+                    onDecide(optionRequest(detail.kind.value, option))
+                },
+                kind = if (accept) ButtonKind.Primary else ButtonKind.Secondary,
+                enabled = !deciding,
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+/** A question is answered with one of its options or, when it allows, in the owner's own words; it can also go unanswered. */
+@Composable
+private fun QuestionAnswers(detail: PendingActionDetail, deciding: Boolean, onDecide: (DecidePendingActionRequest) -> Unit) {
+    val colors = AcornTheme.colors
+    val haptics = rememberHaptics()
+    var answer by rememberSaveable(detail.actionId) { mutableStateOf("") }
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+        detail.options.forEach { option ->
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                AcornButton(
+                    text = option.label,
+                    onClick = {
+                        haptics.confirm()
+                        onDecide(optionRequest(detail.kind.value, option))
+                    },
+                    kind = ButtonKind.Secondary,
+                    enabled = !deciding,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                option.description?.takeIf(String::isNotBlank)?.let {
+                    Text(it, style = AcornTheme.type.footnote, color = colors.inkSoft, modifier = Modifier.padding(horizontal = 4.dp))
+                }
+            }
+        }
+        if (detail.allowFreeform == true) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 72.dp)
+                    .clip(AcornShapes.small)
+                    .border(0.5.dp, colors.lineStrong, AcornShapes.small)
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+            ) {
+                if (answer.isEmpty()) Text("写下你的回答", style = AcornTheme.type.callout, color = colors.inkFaint)
+                BasicTextField(
+                    value = answer,
+                    onValueChange = { answer = it },
+                    enabled = !deciding,
+                    maxLines = 6,
+                    textStyle = AcornTheme.type.callout.copy(color = colors.ink),
+                    cursorBrush = SolidColor(colors.accent),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            AcornButton(
+                text = "发送回答",
+                onClick = {
+                    haptics.confirm()
+                    onDecide(freeformAnswer(answer))
+                },
+                enabled = !deciding && answer.isNotBlank(),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        AcornButton(
+            text = "不回答",
+            onClick = {
+                haptics.reject()
+                onDecide(declineQuestion)
+            },
+            kind = ButtonKind.Quiet,
+            enabled = !deciding,
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 }
 

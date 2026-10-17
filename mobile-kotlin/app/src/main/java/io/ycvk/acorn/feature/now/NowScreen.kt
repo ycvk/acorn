@@ -76,7 +76,6 @@ import io.ycvk.acorn.core.ui.weekdayName
 import io.ycvk.acorn.feature.approvals.ApprovalCard
 import io.ycvk.acorn.feature.approvals.ApprovalsViewModel
 import io.ycvk.acorn.feature.approvals.PendingActionSheet
-import io.ycvk.acorn.feature.approvals.optionDecision
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.OffsetDateTime
@@ -155,9 +154,7 @@ fun NowScreen(
                         ApprovalCard(
                             action = action,
                             deciding = deciding == action.actionId,
-                            onDecide = { option ->
-                                approvals.decideAction(action.actionId, optionDecision(option), option.id, null)
-                            },
+                            onDecide = { approvals.decideAction(action.actionId, it) },
                             onOpen = { approvals.loadActionDetail(action.actionId) },
                             modifier = Modifier
                                 .animateItem()
@@ -189,8 +186,10 @@ fun NowScreen(
         PendingActionSheet(
             detail = detail,
             deciding = deciding == detail.actionId,
+            error = approvalError,
             onDismiss = approvals::clearSelection,
-            onDecide = { option -> approvals.decideAction(detail.actionId, optionDecision(option), option.id, null) },
+            onDismissError = approvals::dismissError,
+            onDecide = { approvals.decideAction(detail.actionId, it) },
         )
     }
 

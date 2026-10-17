@@ -128,7 +128,6 @@ import io.ycvk.acorn.core.ui.rememberHaptics
 import io.ycvk.acorn.feature.approvals.ApprovalCard
 import io.ycvk.acorn.feature.approvals.ApprovalsViewModel
 import io.ycvk.acorn.feature.approvals.PendingActionSheet
-import io.ycvk.acorn.feature.approvals.optionDecision
 import io.ycvk.acorn.feature.knowledge.AttachmentImage
 import kotlin.math.PI
 import kotlin.math.sin
@@ -154,6 +153,7 @@ fun ChatScreen(
     val pending by approvals.pendingActions.collectAsStateWithLifecycle()
     val deciding by approvals.deciding.collectAsStateWithLifecycle()
     val selected by approvals.selectedAction.collectAsStateWithLifecycle()
+    val approvalError by approvals.error.collectAsStateWithLifecycle()
 
     LaunchedEffect(threadId) { viewModel.loadThread(threadId) }
     OnReturnToForeground {
@@ -303,10 +303,15 @@ fun ChatScreen(
                     ApprovalCard(
                         action = action,
                         deciding = deciding == action.actionId,
-                        onDecide = { option -> approvals.decideAction(action.actionId, optionDecision(option), option.id, null) },
+                        onDecide = { approvals.decideAction(action.actionId, it) },
                         onOpen = { approvals.loadActionDetail(action.actionId) },
                         modifier = rowAnimation(),
                     )
+                }
+                approvalError?.let {
+                    item(key = "__approval_error__") {
+                        InlineError(it, rowAnimation(), action = "知道了", onAction = approvals::dismissError)
+                    }
                 }
                 error?.let {
                     item(key = "__error__") {
@@ -381,8 +386,10 @@ fun ChatScreen(
         PendingActionSheet(
             detail = detail,
             deciding = deciding == detail.actionId,
+            error = approvalError,
             onDismiss = approvals::clearSelection,
-            onDecide = { option -> approvals.decideAction(detail.actionId, optionDecision(option), option.id, null) },
+            onDismissError = approvals::dismissError,
+            onDecide = { approvals.decideAction(detail.actionId, it) },
         )
     }
 
