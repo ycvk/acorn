@@ -24,7 +24,6 @@ Acorn 在运行时能扩展的只有两处：配置里的 MCP provider 与技能
 mcp:
   command: uvx
   args: [mcp-server-fetch]
-  secrets: []
 triggers:
   - name: price
     schedule: "*/30 * * * *"
@@ -34,6 +33,7 @@ triggers:
     webhook: true
     run: scripts/github_issue.py
     deliver: digest
+secrets: [GITHUB_WEBHOOK_SECRET]
 ```
 
 ### 工具：工作机里的 MCP 服务器
@@ -46,7 +46,7 @@ triggers:
 
 ### 密钥
 
-清单用 `secrets` 列出需要的环境变量名。owner 用 `acorn skills secret set <skill> <NAME>` 从标准输入设置值，存在 SQLite，随备份保存。值不进入模型输入、审批详情、API 响应与日志，只作为环境变量交给这个包的 MCP 服务器和触发器命令。agent 没有设置密钥的工具。
+清单顶层的 `secrets` 列出包需要的环境变量名，MCP 服务器与触发器共用。owner 用 `acorn skills secret set <skill> <NAME>` 从标准输入设置值，存在 SQLite，随备份保存。值不进入模型输入、审批详情、API 响应与日志，只作为环境变量交给这个包的 MCP 服务器和触发器命令。agent 没有设置密钥的工具。
 
 ### 触发器
 
