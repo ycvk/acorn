@@ -45,6 +45,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyItemScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -271,7 +272,7 @@ fun ChatScreen(
                     item(key = "__welcome__") { Welcome(Modifier.fillParentMaxHeight(0.8f)) }
                 }
                 items(messages, key = { it.id }) { message ->
-                    val itemModifier = Modifier.animateItem()
+                    val itemModifier = rowAnimation()
                     when (message) {
                         is ChatMessage.User -> UserBubble(message.text, itemModifier) {
                             MessageFiles(message.files, currentThread, viewModel.connection(), fileBusy, openThreadFile, saveThreadFile, alignment = Alignment.End)
@@ -296,29 +297,29 @@ fun ChatScreen(
                             reasoning = chatState.assistantReasoning.ifBlank { null },
                             steps = chatState.steps,
                             streaming = streaming,
-                            modifier = Modifier.animateItem(),
+                            modifier = rowAnimation(),
                         )
                     }
                 }
                 val activities = chatState.activities.filter { it.kind == ActivityKind.ResumeRequested || threadPending.isEmpty() }
-                items(activities, key = { it.id }) { ActivityLine(it, Modifier.animateItem()) }
+                items(activities, key = { it.id }) { ActivityLine(it, rowAnimation()) }
                 items(threadPending, key = { "pending:${it.actionId}" }) { action ->
                     ApprovalCard(
                         action = action,
                         deciding = deciding == action.actionId,
                         onDecide = { option -> approvals.decideAction(action.actionId, optionDecision(option), option.id, null) },
                         onOpen = { approvals.loadActionDetail(action.actionId) },
-                        modifier = Modifier.animateItem(),
+                        modifier = rowAnimation(),
                     )
                 }
                 error?.let {
                     item(key = "__error__") {
-                        InlineError(it, Modifier.animateItem(), action = "知道了", onAction = viewModel::dismissError)
+                        InlineError(it, rowAnimation(), action = "知道了", onAction = viewModel::dismissError)
                     }
                 }
                 if (error == null && !streaming) {
                     chatState.failure?.let {
-                        item(key = "__failure__") { RunFailure(it, onDismiss = viewModel::dismissError, modifier = Modifier.animateItem()) }
+                        item(key = "__failure__") { RunFailure(it, onDismiss = viewModel::dismissError, modifier = rowAnimation()) }
                     }
                 }
             }
@@ -402,6 +403,13 @@ fun ChatScreen(
         )
     }
 }
+
+/**
+ * Rows move into place but do not fade. The list follows a streaming reply
+ * with scrollToItem, and each such jump resets item animations, so a fade-in
+ * replayed on every row with every token and the whole chat flickered.
+ */
+private fun LazyItemScope.rowAnimation(): Modifier = Modifier.animateItem(fadeInSpec = null, fadeOutSpec = null)
 
 @Composable
 private fun Welcome(modifier: Modifier = Modifier) {
