@@ -2,10 +2,15 @@ package io.ycvk.acorn.chat
 
 import io.ycvk.acorn.api.models.PendingActionSummary
 import io.ycvk.acorn.api.models.RunSummary
+import io.ycvk.acorn.feature.chat.ChatMessage
+import io.ycvk.acorn.feature.chat.FileView
+import io.ycvk.acorn.feature.chat.awaitsReply
 import io.ycvk.acorn.feature.chat.reconnectDelayMs
 import io.ycvk.acorn.feature.chat.runToFollow
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.OffsetDateTime
 
@@ -31,6 +36,16 @@ class ChatReconnectTest {
     @Test
     fun anIdleThreadHasNoRunToFollow() {
         assertNull(runToFollow(listOf(run("run_1", "other")), listOf(waiting("run_2", "other")), "thread"))
+    }
+
+    @Test
+    fun aStreamedReplyIsAddedUntilTheListHasIt() {
+        val input = ChatMessage.User("把周报发我")
+        val sent = ChatMessage.Assistant("", files = listOf(FileView("file_1", "report.txt", "text/plain", 6)))
+        assertTrue(awaitsReply(listOf(input)))
+        assertTrue(awaitsReply(listOf(input, sent)))
+        assertFalse(awaitsReply(listOf(input, ChatMessage.Assistant("发给你了"))))
+        assertFalse(awaitsReply(emptyList()))
     }
 
     @Test

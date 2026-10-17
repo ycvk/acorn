@@ -378,12 +378,7 @@ class ChatViewModel @Inject constructor(
                 if (packet is RunEventPacket.RunCompleted || packet is RunEventPacket.RunFailed) {
                     val finalText = _chatState.value.assistantText
                     val finalReasoning = _chatState.value.assistantReasoning.ifBlank { null }
-                    // Only append if the last message is a user bubble — avoids
-                    // duplicating the assistant reply when loadMessages already
-                    // persisted it before the SSE terminal event arrived.
-                    val last = _messages.value.lastOrNull()
-                    val lastIsUser = last is ChatMessage.User || last is ChatMessage.Wake || last is ChatMessage.Capture
-                    if (finalText.isNotBlank() && lastIsUser) {
+                    if (finalText.isNotBlank() && awaitsReply(_messages.value)) {
                         _messages.value = _messages.value +
                             ChatMessage.Assistant(finalText, finalReasoning, _chatState.value.steps)
                     }
@@ -447,6 +442,18 @@ const val MAX_MESSAGE_FILES = 10
 fun runToFollow(activeRuns: List<RunSummary>, pendingActions: List<PendingActionSummary>, threadId: String): String? =
     activeRuns.find { it.threadId == threadId }?.runId
         ?: pendingActions.find { it.threadId == threadId }?.runId
+
+/**
+ * Whether a finished run's streamed reply still belongs at the end of
+ * [messages]: the last one is the run's input, or the files the run sent
+ * before it replied. A listed reply was persisted by loadMessages before the
+ * stream's terminal event arrived.
+ */
+fun awaitsReply(messages: List<ChatMessage>): Boolean = when (val last = messages.lastOrNull()) {
+    null -> false
+    is ChatMessage.Assistant -> last.text.isBlank()
+    else -> true
+}
 
 /** How long to wait before reconnect [attempt] (from 0), or null once the retries are spent. */
 fun reconnectDelayMs(attempt: Int): Long? = if (attempt < 3) 1_000L shl attempt else null

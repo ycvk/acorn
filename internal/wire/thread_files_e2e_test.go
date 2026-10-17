@@ -175,6 +175,56 @@ func TestFilesTravelBetweenOwnerAndAgent(t *testing.T) {
 	}
 }
 
+// TestFilesOfARunWithoutAReplyStayInTheThread has the agent send a file and
+// then fail before it replies; the thread still shows the file after the
+// owner's message.
+func TestFilesOfARunWithoutAReplyStayInTheThread(t *testing.T) {
+	home := t.TempDir()
+	ws, err := workstation.NewServer(workstation.ServerConfig{Home: home, Token: fileTestToken})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wsServer := httptest.NewServer(ws.Handler())
+	defer wsServer.Close()
+	if err := os.WriteFile(filepath.Join(home, "report.txt"), []byte("周报"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// The model has nothing scripted after the tool call, so the run fails before replying.
+	provider := &fakeOpenAI{replies: []string{
+		toolCallChunk("call_send", "send_file", map[string]string{"path": "report.txt"}),
+	}}
+	server := httptest.NewServer(provider)
+	defer server.Close()
+	cfg := writeTestConfig(t, server.URL, fmt.Sprintf("workstation:\n  url: %s\n  token: %s\n", wsServer.URL, fileTestToken))
+	c, err := NewContainer(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("container: %v", err)
+	}
+	defer c.Close()
+	client := newPairedClient(t, c)
+	thread, err := c.threads.CreateThread(context.Background(), "周报")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var run api.RunDTO
+	client.postJSON(t, "/v1/threads/"+thread.ID+"/runs", map[string]any{"input": "把周报发我"}, http.StatusCreated, &run)
+	waitRunStatus(t, c, run.ID, "failed")
+
+	var listed api.MessageListResponse
+	client.do(t, httptest.NewRequest(http.MethodGet, "/v1/threads/"+thread.ID+"/messages", nil), http.StatusOK, &listed)
+	if len(listed.Items) != 2 || listed.Items[0].Role != "user" {
+		t.Fatalf("messages = %+v", listed.Items)
+	}
+	reply := listed.Items[1]
+	if reply.Role != "assistant" || reply.ID != run.ID || reply.RunID != run.ID || reply.Content.Text != "" || len(reply.Files) != 1 {
+		t.Fatalf("message after the owner's = %+v", reply)
+	}
+	if sent := reply.Files[0]; sent.Name != "report.txt" || sent.Origin != "agent" || !reply.CreatedAt.Equal(sent.CreatedAt) {
+		t.Fatalf("sent file = %+v", sent)
+	}
+}
+
 // lastOwnerInput is the text of the last user message a request sends.
 func lastOwnerInput(request map[string]any) string {
 	messages := requestMessages(request)

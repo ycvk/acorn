@@ -244,9 +244,11 @@ func (s *ThreadService) ListMessages(ctx context.Context, threadID string, limit
 		return nil, err
 	}
 	runIDs := make([]string, 0, len(records))
+	replied := map[string]bool{}
 	for _, record := range records {
 		if record.Role == "assistant" && record.RunID != "" {
 			runIDs = append(runIDs, record.RunID)
+			replied[record.RunID] = true
 		}
 	}
 	toolEvents, err := s.store.LoadToolCallEvents(ctx, runIDs)
@@ -282,8 +284,35 @@ func (s *ThreadService) ListMessages(ctx context.Context, threadID string, limit
 			message.Files = attached[record.ID]
 		}
 		messages = append(messages, message)
+		if isRunInput(record) && !replied[record.RunID] && len(sent[record.RunID]) > 0 {
+			messages = append(messages, unrepliedRunMessage(record, sent[record.RunID]))
+		}
 	}
 	return messages, nil
+}
+
+func isRunInput(record core.SessionMessageRecord) bool {
+	switch record.Role {
+	case "user", core.MessageRoleWake, core.MessageRoleCapture:
+		return record.RunID != ""
+	}
+	return false
+}
+
+// unrepliedRunMessage is the assistant message of a run that sent the owner
+// files but stored no reply, because it failed, was stopped or is still
+// going. It has no text, takes the run id as its id and follows the run's
+// input.
+func unrepliedRunMessage(input core.SessionMessageRecord, files []ThreadFileInfo) Message {
+	return Message{
+		ID:        input.RunID,
+		ThreadID:  input.SessionID,
+		Role:      "assistant",
+		Content:   MessageContent{Type: "text"},
+		CreatedAt: files[len(files)-1].CreatedAt,
+		RunID:     input.RunID,
+		Files:     files,
+	}
 }
 
 func threadFileInfo(file core.ThreadFile) ThreadFileInfo {

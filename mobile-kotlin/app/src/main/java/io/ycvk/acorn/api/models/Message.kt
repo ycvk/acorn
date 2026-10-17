@@ -40,7 +40,7 @@ import com.squareup.moshi.JsonClass
  * @param createdAt 
  * @param runId 
  * @param steps Tool calls the run behind an assistant message made, in the order they started.
- * @param files Files an owner message sent, or files the run behind an assistant message sent the owner, oldest first. 
+ * @param files Files an owner message sent, or files the run behind an assistant message sent the owner, oldest first. A run that sent files but has no stored reply, because it failed, was stopped or is still going, is listed right after its input as an assistant message with empty text whose id is the run id. 
  */
 
 
@@ -69,7 +69,7 @@ data class Message (
     @Json(name = "steps")
     val steps: kotlin.collections.List<ToolStep>? = null,
 
-    /* Files an owner message sent, or files the run behind an assistant message sent the owner, oldest first.  */
+    /* Files an owner message sent, or files the run behind an assistant message sent the owner, oldest first. A run that sent files but has no stored reply, because it failed, was stopped or is still going, is listed right after its input as an assistant message with empty text whose id is the run id.  */
     @Json(name = "files")
     val files: kotlin.collections.List<ThreadFile>? = null
 
