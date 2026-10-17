@@ -29,11 +29,8 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Undo
-import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Tab
-import androidx.compose.material.icons.rounded.ArrowUpward
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -61,6 +58,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.ycvk.acorn.api.models.BrowserInputRequest
 import io.ycvk.acorn.core.theme.AcornTheme
 import io.ycvk.acorn.core.ui.AcornButton
+import io.ycvk.acorn.core.ui.AcornIcons
+import io.ycvk.acorn.core.ui.AcornMenu
 import io.ycvk.acorn.core.ui.ButtonKind
 import io.ycvk.acorn.core.ui.EmptyState
 import io.ycvk.acorn.core.ui.ErrorState
@@ -118,8 +117,8 @@ fun BrowserScreen(openUrl: String?, onBack: () -> Unit, viewModel: BrowserViewMo
             when {
                 frame != null -> Frame(frame, onTap = viewModel::tap, onScroll = viewModel::scroll)
                 state.status is BrowserStatus.Failed -> ErrorState((state.status as BrowserStatus.Failed).message, onRetry = { viewModel.start(null) })
-                state.status == BrowserStatus.NoTabs -> EmptyState(Icons.Outlined.Language, "浏览器没有打开的页面", "在上面输入网址打开一个页面")
-                else -> EmptyState(Icons.Outlined.Language, "正在连接 Agent 的浏览器", "画面出来后，点哪里就点网页的哪里")
+                state.status == BrowserStatus.NoTabs -> EmptyState(AcornIcons.Globe, "浏览器没有打开的页面", "在上面输入网址打开一个页面")
+                else -> EmptyState(AcornIcons.Globe, "正在连接 Agent 的浏览器", "画面出来后，点哪里就点网页的哪里")
             }
         }
         KeyBar(enabled = state.tab != null, onType = viewModel::type, onKey = viewModel::press)
@@ -131,7 +130,7 @@ private fun TabMenu(state: BrowserUiState, onSelect: (String) -> Unit) {
     var open by remember { mutableStateOf(false) }
     Box {
         IconAction(Icons.Outlined.Tab, "切换页面", { open = true }, enabled = state.tabs.size > 1)
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+        AcornMenu(expanded = open, onDismiss = { open = false }) {
             state.tabs.forEach { tab ->
                 DropdownMenuItem(
                     text = {
@@ -277,7 +276,7 @@ private fun KeyBar(enabled: Boolean, onType: (String) -> Unit, onKey: (BrowserIn
                     },
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(Icons.Rounded.ArrowUpward, contentDescription = "输入到网页", tint = if (canSend) colors.canvas else colors.inkFaint, modifier = Modifier.size(20.dp))
+                Icon(AcornIcons.ArrowUp, contentDescription = "输入到网页", tint = if (canSend) colors.canvas else colors.inkFaint, modifier = Modifier.size(20.dp))
             }
         }
     }

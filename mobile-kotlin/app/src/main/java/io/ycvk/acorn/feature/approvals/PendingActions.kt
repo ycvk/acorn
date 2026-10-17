@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -21,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import java.time.OffsetDateTime
 import io.ycvk.acorn.api.models.DecidePendingActionRequest
 import io.ycvk.acorn.api.models.PendingActionDetail
 import io.ycvk.acorn.api.models.PendingActionOption
@@ -29,10 +31,12 @@ import io.ycvk.acorn.core.theme.AcornTheme
 import io.ycvk.acorn.core.ui.AcornButton
 import io.ycvk.acorn.core.ui.ButtonKind
 import io.ycvk.acorn.core.ui.Panel
+import io.ycvk.acorn.core.ui.SheetHandle
+import io.ycvk.acorn.core.ui.SheetShape
+import io.ycvk.acorn.core.ui.StatusDot
 import io.ycvk.acorn.core.ui.ago
 import io.ycvk.acorn.core.ui.rememberHaptics
 import io.ycvk.acorn.feature.chat.toolLabel
-import java.time.OffsetDateTime
 
 /** The decision an option sends; tool approvals carry accept/decline ids, questions carry their own labels. */
 fun optionDecision(option: PendingActionOption): DecidePendingActionRequest.Decision {
@@ -81,21 +85,23 @@ fun ApprovalCard(
     Panel(
         modifier = modifier,
         color = colors.warningSoft,
-        borderColor = colors.warningSoft,
+        elevated = false,
         onClick = onOpen,
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 12.dp),
+        contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 16.dp, bottom = 14.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(kindLabel(action.kind.value), style = AcornTheme.type.caption, color = colors.warningInk, modifier = Modifier.weight(1f))
-            Text(ago(action.createdAt, OffsetDateTime.now()), style = AcornTheme.type.caption, color = colors.warningInk)
+            StatusDot(colors.warning, pulsing = true)
+            Spacer(Modifier.width(8.dp))
+            Text(kindLabel(action.kind.value), style = AcornTheme.type.eyebrow, color = colors.warningInk, modifier = Modifier.weight(1f))
+            Text(ago(action.createdAt, OffsetDateTime.now()), style = AcornTheme.type.caption, color = colors.warningInk.copy(alpha = 0.75f))
         }
-        Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.height(10.dp))
         Text(approvalTitle(action.title, action.toolName), style = AcornTheme.type.headline, color = colors.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
         approvalBody(action.body, action.toolName, action.toolSummary)?.let {
             Spacer(Modifier.height(4.dp))
             Text(it, style = AcornTheme.type.footnote, color = colors.inkSoft, maxLines = 3, overflow = TextOverflow.Ellipsis)
         }
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(14.dp))
         val inline = action.kind == PendingActionSummary.Kind.tool_approval && action.options.size == 2
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             if (inline) {
@@ -134,8 +140,10 @@ fun PendingActionSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        shape = SheetShape,
         containerColor = colors.surface,
         scrimColor = colors.scrim,
+        dragHandle = { SheetHandle() },
     ) {
         Column(
             modifier = Modifier

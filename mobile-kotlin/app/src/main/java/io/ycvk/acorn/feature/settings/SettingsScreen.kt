@@ -17,12 +17,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -44,6 +40,8 @@ import io.ycvk.acorn.core.push.pushStatusDetail
 import io.ycvk.acorn.core.push.pushStatusLabel
 import io.ycvk.acorn.core.theme.AcornTheme
 import io.ycvk.acorn.core.ui.AcornButton
+import io.ycvk.acorn.core.ui.AcornDialog
+import io.ycvk.acorn.core.ui.AcornIcons
 import io.ycvk.acorn.core.ui.ButtonKind
 import io.ycvk.acorn.core.ui.Hairline
 import io.ycvk.acorn.core.ui.InlineError
@@ -167,17 +165,16 @@ fun SettingsScreen(
     }
 
     if (confirmDisconnect) {
-        AlertDialog(
-            onDismissRequest = { confirmDisconnect = false },
-            title = { Text("断开连接？") },
-            text = { Text("这台手机会退出配对，不再收到推送。要重新连接，需要在服务器上生成新的配对码。") },
-            confirmButton = {
-                TextButton(onClick = {
-                    confirmDisconnect = false
-                    viewModel.disconnect()
-                }) { Text("断开", color = colors.danger) }
+        AcornDialog(
+            title = "断开连接？",
+            body = "这台手机会退出配对，不再收到推送。要重新连接，需要在服务器上生成新的配对码。",
+            confirm = "断开",
+            destructive = true,
+            onConfirm = {
+                confirmDisconnect = false
+                viewModel.disconnect()
             },
-            dismissButton = { TextButton(onClick = { confirmDisconnect = false }) { Text("取消") } },
+            onDismiss = { confirmDisconnect = false },
         )
     }
 }
@@ -190,6 +187,7 @@ internal fun SettingsGroup(title: String, content: @Composable ColumnScope.() ->
     SectionLabel(title)
     Panel(
         modifier = Modifier.padding(horizontal = ScreenPadding),
+        elevated = false,
         contentPadding = PaddingValues(0.dp),
         content = content,
     )
@@ -207,8 +205,8 @@ internal fun SettingRow(
         modifier = Modifier
             .fillMaxWidth()
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-            .heightIn(min = 50.dp)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .heightIn(min = 52.dp)
+            .padding(horizontal = 16.dp, vertical = 13.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(label, style = AcornTheme.type.callout, color = labelColor)
@@ -219,7 +217,7 @@ internal fun SettingRow(
         }
         if (onClick != null && labelColor == AcornTheme.colors.ink) {
             Spacer(Modifier.width(4.dp))
-            Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, contentDescription = null, tint = AcornTheme.colors.inkFaint, modifier = Modifier.size(18.dp))
+            Icon(AcornIcons.ChevronRight, contentDescription = null, tint = AcornTheme.colors.inkFaint, modifier = Modifier.size(18.dp))
         }
     }
 }

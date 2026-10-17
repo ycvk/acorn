@@ -36,13 +36,15 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.delay
 import io.ycvk.acorn.core.theme.AcornShapes
 import io.ycvk.acorn.core.theme.AcornTheme
 import io.ycvk.acorn.core.ui.AcornButton
 import io.ycvk.acorn.core.ui.ButtonKind
 import io.ycvk.acorn.core.ui.InlineError
+import io.ycvk.acorn.core.ui.SheetHandle
+import io.ycvk.acorn.core.ui.SheetShape
 import io.ycvk.acorn.core.ui.rememberHaptics
-import kotlinx.coroutines.delay
 
 private const val SENT_CLOSE_DELAY_MS = 4_000L
 
@@ -60,8 +62,10 @@ fun ShareSheet(
     ModalBottomSheet(
         onDismissRequest = onClose,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        shape = SheetShape,
         containerColor = colors.surface,
         scrimColor = colors.scrim,
+        dragHandle = { SheetHandle() },
     ) {
         Column(
             modifier = Modifier

@@ -5,13 +5,8 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.AutoStories
-import androidx.compose.material.icons.outlined.SearchOff
-import androidx.compose.material3.AlertDialog
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -26,8 +21,11 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.ycvk.acorn.api.models.KnowledgeNoteSummary
 import io.ycvk.acorn.core.theme.AcornTheme
+import io.ycvk.acorn.core.ui.AcornDialog
+import io.ycvk.acorn.core.ui.AcornIcons
 import io.ycvk.acorn.core.ui.EmptyState
 import io.ycvk.acorn.core.ui.ErrorState
+import io.ycvk.acorn.core.ui.GroupPadding
 import io.ycvk.acorn.core.ui.Hairline
 import io.ycvk.acorn.core.ui.InlineError
 import io.ycvk.acorn.core.ui.LargeHeader
@@ -36,6 +34,7 @@ import io.ycvk.acorn.core.ui.ScreenPadding
 import io.ycvk.acorn.core.ui.SegmentedControl
 import io.ycvk.acorn.core.ui.SkeletonRows
 import io.ycvk.acorn.core.ui.SwipeToDelete
+import io.ycvk.acorn.core.ui.groupItem
 import io.ycvk.acorn.core.ui.listTime
 import io.ycvk.acorn.core.ui.plainSnippet
 import io.ycvk.acorn.feature.memory.MemoryList
@@ -59,7 +58,7 @@ fun KnowledgeScreen(
             options = listOf("笔记", "记忆"),
             selected = section,
             onSelect = { section = it },
-            modifier = Modifier.padding(horizontal = ScreenPadding, vertical = 4.dp),
+            modifier = Modifier.padding(start = ScreenPadding, end = ScreenPadding, top = 2.dp, bottom = 8.dp),
         )
         when (section) {
             0 -> NoteList(viewModel, onNoteClick)
@@ -78,7 +77,7 @@ private fun NoteList(viewModel: KnowledgeViewModel, onNoteClick: (String) -> Uni
     LaunchedEffect(Unit) { viewModel.refresh() }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        SearchField(query, viewModel::onQueryChange, "搜索笔记", Modifier.padding(horizontal = ScreenPadding, vertical = 6.dp))
+        SearchField(query, viewModel::onQueryChange, "搜索笔记", Modifier.padding(horizontal = ScreenPadding, vertical = 4.dp))
         deleteError?.let {
             InlineError("没能删除：$it", Modifier.padding(horizontal = ScreenPadding, vertical = 4.dp), action = "知道了", onAction = viewModel::clearDeleteError)
         }
@@ -86,24 +85,27 @@ private fun NoteList(viewModel: KnowledgeViewModel, onNoteClick: (String) -> Uni
             KnowledgeContent.Loading -> SkeletonRows()
             is KnowledgeContent.Failed -> ErrorState(content.message, onRetry = viewModel::refresh)
             KnowledgeContent.Empty -> EmptyState(
-                icon = Icons.Outlined.AutoStories,
+                icon = AcornIcons.Knowledge,
                 title = "知识库还是空的",
                 body = "在任意应用里点「分享」并选择 Acorn，链接、文字和图片都会整理成笔记放在这里。",
             )
             KnowledgeContent.NoMatches -> EmptyState(
-                icon = Icons.Outlined.SearchOff,
+                icon = AcornIcons.Search,
                 title = "没有找到相关笔记",
                 body = "换个关键词试试。",
             )
             is KnowledgeContent.Items -> {
                 val zone = ZoneId.systemDefault()
                 val today = LocalDate.now(zone)
-                LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp)) {
-                    items(content.notes, key = { it.path }) { note ->
-                        SwipeToDelete(onDelete = { pendingDelete = note }, modifier = Modifier.animateItem()) {
-                            NoteRow(note, listTime(note.updatedAt, today, zone), onClick = { onNoteClick(note.path) })
+                val surface = AcornTheme.colors.surface
+                LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 12.dp, bottom = 32.dp)) {
+                    itemsIndexed(content.notes, key = { _, it -> it.path }) { index, note ->
+                        Column(Modifier.animateItem().groupItem(index, content.notes.size, surface)) {
+                            SwipeToDelete(onDelete = { pendingDelete = note }, background = surface) {
+                                NoteRow(note, listTime(note.updatedAt, today, zone), onClick = { onNoteClick(note.path) })
+                            }
+                            if (index < content.notes.lastIndex) Hairline(inset = GroupPadding)
                         }
-                        Hairline(inset = ScreenPadding)
                     }
                 }
             }
@@ -111,17 +113,16 @@ private fun NoteList(viewModel: KnowledgeViewModel, onNoteClick: (String) -> Uni
     }
 
     pendingDelete?.let { note ->
-        AlertDialog(
-            onDismissRequest = { pendingDelete = null },
-            title = { Text("删除这篇笔记？") },
-            text = { Text("「${note.title}」会被删除，Acorn 也会忘掉其中的内容，无法恢复。") },
-            confirmButton = {
-                TextButton(onClick = {
-                    viewModel.deleteNote(note.path) {}
-                    pendingDelete = null
-                }) { Text("删除", color = AcornTheme.colors.danger) }
+        AcornDialog(
+            title = "删除这篇笔记？",
+            body = "「${note.title}」会被删除，Acorn 也会忘掉其中的内容，无法恢复。",
+            confirm = "删除",
+            destructive = true,
+            onConfirm = {
+                viewModel.deleteNote(note.path) {}
+                pendingDelete = null
             },
-            dismissButton = { TextButton(onClick = { pendingDelete = null }) { Text("取消") } },
+            onDismiss = { pendingDelete = null },
         )
     }
 }
@@ -132,7 +133,7 @@ fun noteFolder(path: String): String? = path.substringBeforeLast('/', "").takeIf
 @Composable
 private fun NoteRow(note: KnowledgeNoteSummary, time: String, onClick: () -> Unit) {
     val colors = AcornTheme.colors
-    ListRow(onClick = onClick) {
+    ListRow(onClick = onClick, horizontalPadding = GroupPadding) {
         Text(note.title, style = AcornTheme.type.headline, color = colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
         val snippet = plainSnippet(snippetText(note.snippet), note.title)
         if (snippet.isNotBlank()) {

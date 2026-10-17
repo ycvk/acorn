@@ -1,5 +1,6 @@
 package io.ycvk.acorn.core.theme
 
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -14,7 +15,7 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
-private val LocalAcornColors = staticCompositionLocalOf { LightColors }
+internal val LocalAcornColors = staticCompositionLocalOf { LightColors }
 private val LocalAcornType = staticCompositionLocalOf { DefaultType }
 
 object AcornTheme {
@@ -24,10 +25,13 @@ object AcornTheme {
         @Composable @ReadOnlyComposable get() = LocalAcornType.current
 }
 
+/** Corners grow with the size of the thing: chips and fields, menus and blocks, cards, sheets and dialogs. */
 object AcornShapes {
-    val small = RoundedCornerShape(10.dp)
-    val medium = RoundedCornerShape(14.dp)
+    val small = RoundedCornerShape(12.dp)
+    val medium = RoundedCornerShape(16.dp)
     val large = RoundedCornerShape(20.dp)
+    val sheet = RoundedCornerShape(28.dp)
+    val pill = RoundedCornerShape(percent = 50)
 }
 
 @Composable
@@ -48,10 +52,12 @@ fun AcornTheme(
                 small = AcornShapes.small,
                 medium = AcornShapes.medium,
                 large = AcornShapes.large,
-                extraLarge = RoundedCornerShape(28.dp),
+                extraLarge = AcornShapes.sheet,
             ),
-            content = content,
-        )
+        ) {
+            // Every clickable without its own indication dims under a soft wash instead of a ripple.
+            CompositionLocalProvider(LocalIndication provides PressHighlight, content = content)
+        }
     }
 }
 
