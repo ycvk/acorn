@@ -300,7 +300,8 @@ func TestAskOperatorCreatesPendingActionAndInterrupts(t *testing.T) {
 		t.Fatalf("pending actions = %#v, want one", actions)
 	}
 	action := actions[0]
-	if action.Kind != core.PendingActionKindOperatorQuestion || !strings.HasPrefix(action.ActionID, "action_") {
+	// The kind already says why a question waits; a reason would only repeat it.
+	if action.Kind != core.PendingActionKindOperatorQuestion || !strings.HasPrefix(action.ActionID, "action_") || action.Reason != "" {
 		t.Fatalf("pending action = %#v", action)
 	}
 	var payload core.OperatorQuestionPayload

@@ -56,7 +56,6 @@ func newOperatorQuestionRecord(payloadJSON string) core.PendingActionRecord {
 		Subject:     "Pick a day",
 		PayloadJSON: payloadJSON,
 		Status:      core.PendingActionStatusPending,
-		Reason:      "operator_question",
 		CreatedAt:   time.Date(2026, 10, 17, 9, 0, 0, 0, time.UTC),
 	}
 }

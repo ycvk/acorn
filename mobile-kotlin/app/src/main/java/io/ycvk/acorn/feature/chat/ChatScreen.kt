@@ -153,6 +153,7 @@ fun ChatScreen(
     val pending by approvals.pendingActions.collectAsStateWithLifecycle()
     val deciding by approvals.deciding.collectAsStateWithLifecycle()
     val selected by approvals.selectedAction.collectAsStateWithLifecycle()
+    val approvalError by approvals.error.collectAsStateWithLifecycle()
 
     LaunchedEffect(threadId) { viewModel.loadThread(threadId) }
     OnReturnToForeground {
@@ -307,6 +308,11 @@ fun ChatScreen(
                         modifier = rowAnimation(),
                     )
                 }
+                approvalError?.let {
+                    item(key = "__approval_error__") {
+                        InlineError(it, rowAnimation(), action = "知道了", onAction = approvals::dismissError)
+                    }
+                }
                 error?.let {
                     item(key = "__error__") {
                         InlineError(it, rowAnimation(), action = "知道了", onAction = viewModel::dismissError)
@@ -380,7 +386,9 @@ fun ChatScreen(
         PendingActionSheet(
             detail = detail,
             deciding = deciding == detail.actionId,
+            error = approvalError,
             onDismiss = approvals::clearSelection,
+            onDismissError = approvals::dismissError,
             onDecide = { approvals.decideAction(detail.actionId, it) },
         )
     }

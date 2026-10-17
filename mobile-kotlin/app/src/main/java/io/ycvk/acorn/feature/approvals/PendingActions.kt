@@ -43,6 +43,7 @@ import io.ycvk.acorn.core.theme.AcornShapes
 import io.ycvk.acorn.core.theme.AcornTheme
 import io.ycvk.acorn.core.ui.AcornButton
 import io.ycvk.acorn.core.ui.ButtonKind
+import io.ycvk.acorn.core.ui.InlineError
 import io.ycvk.acorn.core.ui.Panel
 import io.ycvk.acorn.core.ui.SheetHandle
 import io.ycvk.acorn.core.ui.SheetShape
@@ -156,7 +157,9 @@ fun ApprovalCard(
 fun PendingActionSheet(
     detail: PendingActionDetail,
     deciding: Boolean,
+    error: String?,
     onDismiss: () -> Unit,
+    onDismissError: () -> Unit,
     onDecide: (DecidePendingActionRequest) -> Unit,
 ) {
     val colors = AcornTheme.colors
@@ -193,6 +196,11 @@ fun PendingActionSheet(
             detail.reason?.takeIf { it.isNotBlank() }?.let { Detail("原因", it) }
             detail.rule?.takeIf { it.isNotBlank() }?.let { Detail("触发的规则", it) }
             Spacer(Modifier.height(24.dp))
+            // A failed decision shows where it was made; the sheet stays open so a typed answer survives.
+            error?.let {
+                InlineError(it, action = "知道了", onAction = onDismissError)
+                Spacer(Modifier.height(12.dp))
+            }
             if (detail.kind == PendingActionDetail.Kind.operator_question) {
                 QuestionAnswers(detail, deciding, onDecide)
             } else {

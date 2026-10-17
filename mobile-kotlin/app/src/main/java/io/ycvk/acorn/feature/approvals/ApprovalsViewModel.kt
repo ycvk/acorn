@@ -83,6 +83,7 @@ class ApprovalsViewModel @Inject constructor(
     fun decideAction(actionId: String, request: DecidePendingActionRequest) {
         val profile = getConnectionProfile() ?: return
         _deciding.value = actionId
+        _error.value = null
         viewModelScope.launch {
             try {
                 withContext(Dispatchers.IO) {

@@ -186,7 +186,9 @@ fun NowScreen(
         PendingActionSheet(
             detail = detail,
             deciding = deciding == detail.actionId,
+            error = approvalError,
             onDismiss = approvals::clearSelection,
+            onDismissError = approvals::dismissError,
             onDecide = { approvals.decideAction(detail.actionId, it) },
         )
     }

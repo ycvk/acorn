@@ -16,6 +16,7 @@ fun userMessage(e: Throwable): String = when (e) {
         404 -> "内容不存在或已被删除"
         409 -> when (serverError(e)?.get("code")) {
             "thread_busy" -> "Acorn 还在这个对话里工作，等这一轮结束再删"
+            "pending_action_already_decided" -> "这件事已经处理过了"
             else -> "内容刚被改过，刷新后再试"
         }
         413 -> "文件超过了服务器允许的大小" + (serverMessage(e)?.let { "（$it）" } ?: "")
