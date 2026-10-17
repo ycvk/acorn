@@ -75,7 +75,6 @@ fun NoteScreen(
         TopBar(
             onBack = onBack,
             title = note?.title?.takeIf { scroll.value > 160 },
-            showDivider = scroll.value > 0,
         ) {
             if (note != null) {
                 Box {

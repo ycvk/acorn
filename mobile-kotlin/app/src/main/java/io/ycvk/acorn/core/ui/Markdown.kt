@@ -130,9 +130,9 @@ private fun Block(node: Node, style: TextStyle) {
 
 private fun headingStyle(level: Int, base: TextStyle): TextStyle {
     val (size, line) = when (level) {
-        1 -> 21 to 30
-        2 -> 19 to 28
-        else -> 17 to 26
+        1 -> 18 to 25
+        2 -> 16 to 23
+        else -> 15 to 22
     }
     return base.copy(
         fontFamily = FontFamily.SansSerif,
@@ -170,8 +170,9 @@ private fun CodeBlock(code: String) {
             .fillMaxWidth()
             .clip(AcornShapes.medium)
             .background(colors.surfaceMuted)
+            .border(1.dp, colors.line, AcornShapes.medium)
             .horizontalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 14.dp),
+            .padding(horizontal = 12.dp, vertical = 10.dp),
     ) {
         Text(code, style = AcornTheme.type.mono, color = colors.ink, softWrap = false)
     }

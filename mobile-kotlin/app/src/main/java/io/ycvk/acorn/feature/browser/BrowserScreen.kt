@@ -22,8 +22,6 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -56,6 +54,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.ycvk.acorn.api.models.BrowserInputRequest
+import io.ycvk.acorn.core.theme.AcornShapes
 import io.ycvk.acorn.core.theme.AcornTheme
 import io.ycvk.acorn.core.ui.AcornButton
 import io.ycvk.acorn.core.ui.AcornIcons
@@ -165,10 +164,11 @@ private fun AddressBar(enabled: Boolean, onOpen: (String) -> Boolean) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 4.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(colors.surfaceMuted)
-            .padding(horizontal = 14.dp, vertical = 10.dp),
+            .padding(horizontal = 12.dp, vertical = 8.dp)
+            .clip(AcornShapes.medium)
+            .background(colors.surfaceMuted.copy(alpha = 0.6f))
+            .border(1.dp, colors.line, AcornShapes.medium)
+            .padding(horizontal = 12.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(modifier = Modifier.weight(1f)) {
@@ -230,7 +230,7 @@ private fun Frame(frame: ShownFrame, onTap: (ViewportPoint) -> Unit, onScroll: (
 private fun KeyBar(enabled: Boolean, onType: (String) -> Unit, onKey: (BrowserInputRequest.Key) -> Unit) {
     val colors = AcornTheme.colors
     var text by remember { mutableStateOf("") }
-    val shape = RoundedCornerShape(24.dp)
+    val shape = AcornShapes.large
     Column(modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 12.dp, vertical = 6.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 6.dp)) {
             listOf("回车" to BrowserInputRequest.Key.Enter, "退格" to BrowserInputRequest.Key.Backspace, "Tab" to BrowserInputRequest.Key.Tab).forEach { (label, key) ->
@@ -242,8 +242,8 @@ private fun KeyBar(enabled: Boolean, onType: (String) -> Unit, onKey: (BrowserIn
                 .fillMaxWidth()
                 .clip(shape)
                 .background(colors.surface)
-                .border(0.5.dp, colors.lineStrong, shape)
-                .padding(start = 18.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
+                .border(1.dp, colors.lineStrong, shape)
+                .padding(start = 12.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(modifier = Modifier.weight(1f).heightIn(min = 36.dp).padding(vertical = 7.dp), contentAlignment = Alignment.CenterStart) {
@@ -267,16 +267,16 @@ private fun KeyBar(enabled: Boolean, onType: (String) -> Unit, onKey: (BrowserIn
             val canSend = enabled && text.isNotEmpty()
             Box(
                 modifier = Modifier
-                    .size(36.dp)
-                    .clip(CircleShape)
-                    .background(if (canSend) colors.ink else colors.surfaceMuted)
+                    .size(30.dp)
+                    .clip(AcornShapes.small)
+                    .background(if (canSend) colors.accent else colors.surfaceMuted)
                     .clickable(enabled = canSend) {
                         onType(text)
                         text = ""
                     },
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(AcornIcons.ArrowUp, contentDescription = "输入到网页", tint = if (canSend) colors.canvas else colors.inkFaint, modifier = Modifier.size(20.dp))
+                Icon(AcornIcons.ArrowUp, contentDescription = "输入到网页", tint = if (canSend) colors.onAccent else colors.inkFaint, modifier = Modifier.size(16.dp))
             }
         }
     }

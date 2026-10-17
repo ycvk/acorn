@@ -5,6 +5,7 @@ import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.scaleIn
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -17,8 +18,10 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -28,8 +31,8 @@ import io.ycvk.acorn.core.theme.AcornShapes
 import io.ycvk.acorn.core.theme.AcornTheme
 
 /**
- * A centred card that asks one question: a title, what happens, optional
- * content, and two equal buttons with the confirming one on the right.
+ * A centred bordered card that asks one question: a title, what happens,
+ * optional content, and the buttons at the end with the confirming one last.
  * It grows in from slightly smaller as it appears.
  */
 @Composable
@@ -51,38 +54,39 @@ fun AcornDialog(
         val appear = remember { MutableTransitionState(false) }.apply { targetState = true }
         AnimatedVisibility(
             visibleState = appear,
-            enter = fadeIn(AcornMotion.enter(AcornMotion.SHORT)) + scaleIn(AcornMotion.glide(), initialScale = 0.92f),
+            enter = fadeIn(AcornMotion.enter(AcornMotion.SHORT)) + scaleIn(AcornMotion.glide(), initialScale = 0.95f),
         ) {
             Column(
                 modifier = Modifier
-                    .padding(horizontal = 28.dp)
+                    .padding(horizontal = 24.dp)
                     .widthIn(max = 420.dp)
                     .fillMaxWidth()
                     .clip(AcornShapes.sheet)
                     .background(colors.surface)
-                    .padding(start = 24.dp, end = 24.dp, top = 26.dp, bottom = 20.dp),
+                    .border(1.dp, colors.line, AcornShapes.sheet)
+                    .padding(20.dp),
             ) {
-                Text(title, style = AcornTheme.type.title.copy(fontSize = 19.sp), color = colors.ink)
+                Text(title, style = AcornTheme.type.headline.copy(fontSize = 16.sp, fontWeight = FontWeight.SemiBold), color = colors.ink)
                 body?.let {
-                    Spacer(Modifier.height(10.dp))
+                    Spacer(Modifier.height(8.dp))
                     Text(it, style = AcornTheme.type.callout, color = colors.inkSoft)
                 }
                 content?.let {
-                    Spacer(Modifier.height(16.dp))
+                    Spacer(Modifier.height(14.dp))
                     it()
                 }
-                Spacer(Modifier.height(24.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                Spacer(Modifier.height(20.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End), modifier = Modifier.fillMaxWidth()) {
                     dismiss?.let {
-                        AcornButton(it, onDismiss, kind = ButtonKind.Secondary, enabled = dismissEnabled, modifier = Modifier.weight(1f))
+                        AcornButton(it, onDismiss, kind = ButtonKind.Secondary, compact = true, enabled = dismissEnabled)
                     }
                     AcornButton(
                         confirm,
                         onConfirm,
-                        kind = if (destructive) ButtonKind.Danger else ButtonKind.Primary,
+                        kind = if (destructive) ButtonKind.Destructive else ButtonKind.Primary,
+                        compact = true,
                         enabled = confirmEnabled,
                         loading = confirmLoading,
-                        modifier = Modifier.weight(1f),
                     )
                 }
             }

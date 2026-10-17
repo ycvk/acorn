@@ -20,8 +20,11 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import io.ycvk.acorn.core.ui.Status
+import io.ycvk.acorn.core.ui.StatusGlyph
 import java.time.OffsetDateTime
 import io.ycvk.acorn.api.models.DecidePendingActionRequest
 import io.ycvk.acorn.api.models.PendingActionDetail
@@ -33,7 +36,6 @@ import io.ycvk.acorn.core.ui.ButtonKind
 import io.ycvk.acorn.core.ui.Panel
 import io.ycvk.acorn.core.ui.SheetHandle
 import io.ycvk.acorn.core.ui.SheetShape
-import io.ycvk.acorn.core.ui.StatusDot
 import io.ycvk.acorn.core.ui.ago
 import io.ycvk.acorn.core.ui.rememberHaptics
 import io.ycvk.acorn.feature.chat.toolLabel
@@ -84,44 +86,45 @@ fun ApprovalCard(
     val haptics = rememberHaptics()
     Panel(
         modifier = modifier,
-        color = colors.warningSoft,
-        elevated = false,
         onClick = onOpen,
-        contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 16.dp, bottom = 14.dp),
+        contentPadding = PaddingValues(14.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            StatusDot(colors.warning, pulsing = true)
-            Spacer(Modifier.width(8.dp))
-            Text(kindLabel(action.kind.value), style = AcornTheme.type.eyebrow, color = colors.warningInk, modifier = Modifier.weight(1f))
-            Text(ago(action.createdAt, OffsetDateTime.now()), style = AcornTheme.type.caption, color = colors.warningInk.copy(alpha = 0.75f))
-        }
-        Spacer(Modifier.height(10.dp))
-        Text(approvalTitle(action.title, action.toolName), style = AcornTheme.type.headline, color = colors.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
-        approvalBody(action.body, action.toolName, action.toolSummary)?.let {
-            Spacer(Modifier.height(4.dp))
-            Text(it, style = AcornTheme.type.footnote, color = colors.inkSoft, maxLines = 3, overflow = TextOverflow.Ellipsis)
-        }
-        Spacer(Modifier.height(14.dp))
-        val inline = action.kind == PendingActionSummary.Kind.tool_approval && action.options.size == 2
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            if (inline) {
-                action.options.sortedBy { optionDecision(it) == DecidePendingActionRequest.Decision.accept }.forEach { option ->
-                    val accept = optionDecision(option) == DecidePendingActionRequest.Decision.accept
-                    AcornButton(
-                        text = optionLabel(option),
-                        onClick = {
-                            if (accept) haptics.confirm() else haptics.reject()
-                            onDecide(option)
-                        },
-                        kind = if (accept) ButtonKind.Primary else ButtonKind.Raised,
-                        compact = true,
-                        loading = deciding && accept,
-                        enabled = !deciding,
-                        modifier = Modifier.weight(1f),
-                    )
+        Row {
+            StatusGlyph(Status.Waiting, Modifier.padding(top = 2.dp))
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(kindLabel(action.kind.value), style = AcornTheme.type.eyebrow, color = colors.warningInk, modifier = Modifier.weight(1f))
+                    Text(ago(action.createdAt, OffsetDateTime.now()), style = AcornTheme.type.caption, color = colors.inkFaint)
                 }
-            } else {
-                AcornButton("查看并回答", onOpen, kind = ButtonKind.Primary, compact = true)
+                Spacer(Modifier.height(4.dp))
+                Text(approvalTitle(action.title, action.toolName), style = AcornTheme.type.headline.copy(fontWeight = FontWeight.SemiBold), color = colors.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                approvalBody(action.body, action.toolName, action.toolSummary)?.let {
+                    Spacer(Modifier.height(2.dp))
+                    Text(it, style = AcornTheme.type.footnote, color = colors.inkSoft, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                }
+                Spacer(Modifier.height(12.dp))
+                val inline = action.kind == PendingActionSummary.Kind.tool_approval && action.options.size == 2
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End), modifier = Modifier.fillMaxWidth()) {
+                    if (inline) {
+                        action.options.sortedBy { optionDecision(it) == DecidePendingActionRequest.Decision.accept }.forEach { option ->
+                            val accept = optionDecision(option) == DecidePendingActionRequest.Decision.accept
+                            AcornButton(
+                                text = optionLabel(option),
+                                onClick = {
+                                    if (accept) haptics.confirm() else haptics.reject()
+                                    onDecide(option)
+                                },
+                                kind = if (accept) ButtonKind.Primary else ButtonKind.Secondary,
+                                compact = true,
+                                loading = deciding && accept,
+                                enabled = !deciding,
+                            )
+                        }
+                    } else {
+                        AcornButton("查看并回答", onOpen, kind = ButtonKind.Primary, compact = true)
+                    }
+                }
             }
         }
     }
@@ -152,12 +155,12 @@ fun PendingActionSheet(
                 .padding(horizontal = 24.dp)
                 .padding(bottom = 28.dp),
         ) {
-            Text(kindLabel(detail.kind.value), style = AcornTheme.type.footnote, color = colors.warningInk)
-            Spacer(Modifier.height(8.dp))
+            Text(kindLabel(detail.kind.value), style = AcornTheme.type.eyebrow, color = colors.warningInk)
+            Spacer(Modifier.height(6.dp))
             Text(approvalTitle(detail.title, detail.toolName), style = AcornTheme.type.title, color = colors.ink)
             approvalBody(detail.body, detail.toolName, detail.toolSummary)?.let {
                 Spacer(Modifier.height(10.dp))
-                Text(it, style = AcornTheme.type.reading, color = colors.ink)
+                Text(it, style = AcornTheme.type.body, color = colors.ink)
             }
             // The whole text the call acts on, such as the skill a skill_write or skill_import stores.
             detail.toolDetail?.takeIf { it.isNotBlank() }?.let { text ->

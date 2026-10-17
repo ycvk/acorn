@@ -25,6 +25,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -46,7 +47,6 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyItemScope
 import androidx.compose.foundation.lazy.items
@@ -94,14 +94,14 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import io.ycvk.acorn.R
 import io.ycvk.acorn.core.sse.ActivityItem
 import io.ycvk.acorn.core.sse.ActivityKind
 import io.ycvk.acorn.core.sse.ChatHeaderStatus
@@ -113,6 +113,7 @@ import io.ycvk.acorn.core.theme.AcornShapes
 import io.ycvk.acorn.core.theme.AcornTheme
 import io.ycvk.acorn.core.ui.AcornDialog
 import io.ycvk.acorn.core.ui.AcornIcons
+import io.ycvk.acorn.core.ui.AcornMark
 import io.ycvk.acorn.core.ui.AcornMenu
 import io.ycvk.acorn.core.ui.AcornMenuItem
 import io.ycvk.acorn.core.ui.IconAction
@@ -240,7 +241,6 @@ fun ChatScreen(
             title = title ?: if (currentThread == null) "新对话" else "",
             subtitle = status.label.takeIf { it.isNotEmpty() },
             subtitleColor = if (status == ChatHeaderStatus.Waiting) colors.warning else colors.success,
-            showDivider = listState.canScrollBackward,
         ) {
             if (currentThread != null) {
                 Box {
@@ -261,8 +261,8 @@ fun ChatScreen(
                     .fillMaxSize()
                     .nestedScroll(scrollConnection),
                 state = listState,
-                contentPadding = PaddingValues(start = ScreenPadding, end = ScreenPadding, top = 8.dp, bottom = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(18.dp),
+                contentPadding = PaddingValues(start = ScreenPadding, end = ScreenPadding, top = 16.dp, bottom = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(24.dp),
             ) {
                 if (messages.isEmpty() && !streaming && currentThread == null) {
                     item(key = "__welcome__") { Welcome(Modifier.fillParentMaxHeight(0.8f)) }
@@ -333,9 +333,9 @@ fun ChatScreen(
                 Box(
                     modifier = Modifier
                         .pressScale(interaction, 0.9f)
-                        .raised(CircleShape, 10.dp)
-                        .size(40.dp)
-                        .clip(CircleShape)
+                        .raised(AcornShapes.medium)
+                        .size(34.dp)
+                        .clip(AcornShapes.medium)
                         .background(colors.surface)
                         .clickable(interaction, LocalIndication.current) {
                             follow = true
@@ -346,7 +346,7 @@ fun ChatScreen(
                         },
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(AcornIcons.ArrowDown, contentDescription = "回到底部", tint = colors.inkSoft, modifier = Modifier.size(20.dp))
+                    Icon(AcornIcons.ArrowDown, contentDescription = "回到底部", tint = colors.inkSoft, modifier = Modifier.size(17.dp))
                 }
             }
         }
@@ -416,20 +416,13 @@ private fun Welcome(modifier: Modifier = Modifier) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Box(
-            modifier = Modifier
-                .size(64.dp)
-                .background(colors.accentSoft, RoundedCornerShape(20.dp)),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(painterResource(R.drawable.ic_acorn), contentDescription = null, tint = colors.accent, modifier = Modifier.size(30.dp))
-        }
-        Spacer(Modifier.height(20.dp))
-        Text("想让我做点什么？", style = AcornTheme.type.title, color = colors.ink)
-        Spacer(Modifier.height(8.dp))
+        AcornMark(size = 36.dp)
+        Spacer(Modifier.height(16.dp))
+        Text("想让我做点什么？", style = AcornTheme.type.title.copy(fontSize = 17.sp), color = colors.ink)
+        Spacer(Modifier.height(6.dp))
         Text(
             "问问题、记一个约定、让我盯着某个网页，\n或者把要整理的东西交给我。",
-            style = AcornTheme.type.callout,
+            style = AcornTheme.type.footnote,
             color = colors.inkSoft,
             textAlign = TextAlign.Center,
         )
@@ -452,26 +445,47 @@ private fun wakeIcon(source: WakeSource) = when (source) {
     WakeSource.Wander -> Icons.Outlined.Lightbulb
 }
 
-private val UserBubbleShape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp, bottomEnd = 6.dp, bottomStart = 22.dp)
+/** Who is speaking: a small avatar and a name, above the message indented under it. */
+@Composable
+private fun Speaker(acorn: Boolean) {
+    val colors = AcornTheme.colors
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        if (acorn) {
+            AcornMark(size = 20.dp)
+        } else {
+            Box(
+                Modifier
+                    .size(20.dp)
+                    .background(colors.surfaceMuted, AcornShapes.small)
+                    .border(1.dp, colors.line, AcornShapes.small),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(AcornIcons.Person, contentDescription = null, tint = colors.inkSoft, modifier = Modifier.size(13.dp))
+            }
+        }
+        Spacer(Modifier.width(8.dp))
+        Text(if (acorn) "Acorn" else "你", style = AcornTheme.type.footnote.copy(fontWeight = FontWeight.SemiBold), color = colors.ink)
+    }
+}
+
+private val MessageIndent = 28.dp
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun UserBubble(text: String, modifier: Modifier = Modifier, files: @Composable () -> Unit = {}) {
     val copy = rememberCopy()
-    Column(modifier = modifier.fillMaxWidth(), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        files()
-        if (text.isNotEmpty()) {
-            Text(
-                text = text,
-                style = AcornTheme.type.body,
-                color = AcornTheme.colors.ink,
-                modifier = Modifier
-                    .widthIn(max = 300.dp)
-                    .clip(UserBubbleShape)
-                    .background(AcornTheme.colors.bubble)
-                    .combinedClickable(onClick = {}, onLongClick = { copy(text) })
-                    .padding(horizontal = 16.dp, vertical = 11.dp),
-            )
+    Column(modifier = modifier.fillMaxWidth()) {
+        Speaker(acorn = false)
+        Column(modifier = Modifier.padding(start = MessageIndent, top = 6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            files()
+            if (text.isNotEmpty()) {
+                Text(
+                    text = text,
+                    style = AcornTheme.type.body,
+                    color = AcornTheme.colors.ink,
+                    modifier = Modifier.combinedClickable(onClick = {}, onLongClick = { copy(text) }),
+                )
+            }
         }
     }
 }
@@ -488,6 +502,9 @@ private fun AssistantMessage(
     val colors = AcornTheme.colors
     val copy = rememberCopy()
     Column(modifier = modifier.fillMaxWidth()) {
+        Speaker(acorn = true)
+        Spacer(Modifier.height(6.dp))
+        Column(modifier = Modifier.padding(start = MessageIndent)) {
         if (steps.isNotEmpty()) {
             ToolSteps(steps, streaming)
             Spacer(Modifier.height(8.dp))
@@ -509,10 +526,11 @@ private fun AssistantMessage(
                 { copy(text) },
                 tint = colors.inkFaint,
                 modifier = Modifier
-                    .padding(top = 2.dp)
-                    .offset(x = (-11).dp)
-                    .size(36.dp),
+                    .padding(top = 4.dp)
+                    .offset(x = (-8).dp)
+                    .size(30.dp),
             )
+        }
         }
     }
 }
@@ -600,8 +618,9 @@ private fun InputNote(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(AcornShapes.medium)
-                .background(colors.surface)
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .background(colors.surfaceMuted.copy(alpha = 0.5f))
+                .border(1.dp, colors.line, AcornShapes.medium)
+                .padding(horizontal = 12.dp, vertical = 10.dp),
         ) {
             if (text.isNotEmpty()) {
                 Text(text, style = AcornTheme.type.footnote, color = colors.inkSoft, maxLines = 12)
@@ -643,47 +662,25 @@ private fun Composer(
     val haptics = rememberHaptics()
     val focus = remember { FocusRequester() }
     LaunchedEffect(autoFocus) { if (autoFocus) focus.requestFocus() }
-    val shape = RoundedCornerShape(26.dp)
-    Row(
+    val shape = AcornShapes.large
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .navigationBarsPadding()
             .padding(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 10.dp)
-            .raised(shape, 16.dp)
             .clip(shape)
             .background(colors.surface)
-            .padding(6.dp),
-        verticalAlignment = Alignment.Bottom,
+            .border(1.dp, colors.lineStrong, shape)
+            .padding(start = 12.dp, end = 8.dp, top = 10.dp, bottom = 8.dp),
     ) {
-        var attachMenu by remember { mutableStateOf(false) }
-        Box {
-            IconAction(
-                AcornIcons.Plus,
-                "添加图片或文件",
-                { attachMenu = true },
-                tint = colors.inkSoft,
-                modifier = Modifier.size(40.dp),
-            )
-            AcornMenu(expanded = attachMenu, onDismiss = { attachMenu = false }) {
-                AcornMenuItem("图片", onClick = {
-                    attachMenu = false
-                    onPickPhotos()
-                }, icon = Icons.Outlined.Image)
-                AcornMenuItem("文件", onClick = {
-                    attachMenu = false
-                    onPickFiles()
-                }, icon = Icons.Outlined.AttachFile)
-            }
-        }
-        Spacer(Modifier.width(4.dp))
         Box(
             modifier = Modifier
-                .weight(1f)
-                .heightIn(min = 40.dp)
-                .padding(vertical = 8.dp),
+                .fillMaxWidth()
+                .heightIn(min = 22.dp)
+                .padding(end = 4.dp),
             contentAlignment = Alignment.CenterStart,
         ) {
-            if (input.isEmpty()) Text("发消息给 Acorn", style = AcornTheme.type.body, color = colors.inkFaint)
+            if (input.isEmpty()) Text("回复 Acorn…", style = AcornTheme.type.body, color = colors.inkFaint)
             BasicTextField(
                 value = input,
                 onValueChange = onInputChange,
@@ -695,50 +692,67 @@ private fun Composer(
                     .focusRequester(focus),
             )
         }
-        Spacer(Modifier.width(8.dp))
-        val canSend = input.isNotBlank() || hasAttachments
-        val fill by animateColorAsState(
-            when {
-                streaming -> colors.ink
-                canSend -> colors.accent
-                else -> colors.surfaceMuted
-            },
-            AcornMotion.standard(),
-            label = "send_fill",
-        )
-        val interaction = remember { MutableInteractionSource() }
-        Box(
-            modifier = Modifier
-                .pressScale(interaction, 0.88f)
-                .size(40.dp)
-                .clip(CircleShape)
-                .background(fill)
-                .clickable(interaction, LocalIndication.current, enabled = streaming || canSend) {
-                    if (streaming) {
-                        haptics.tick()
-                        onStop()
-                    } else {
-                        haptics.confirm()
-                        onSend()
-                    }
+        Spacer(Modifier.height(8.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            var attachMenu by remember { mutableStateOf(false) }
+            Box {
+                IconAction(AcornIcons.Attach, "添加图片或文件", { attachMenu = true }, modifier = Modifier.offset(x = (-8).dp).size(32.dp))
+                AcornMenu(expanded = attachMenu, onDismiss = { attachMenu = false }) {
+                    AcornMenuItem("图片", onClick = {
+                        attachMenu = false
+                        onPickPhotos()
+                    }, icon = Icons.Outlined.Image)
+                    AcornMenuItem("文件", onClick = {
+                        attachMenu = false
+                        onPickFiles()
+                    }, icon = Icons.Outlined.AttachFile)
+                }
+            }
+            Spacer(Modifier.weight(1f))
+            val canSend = input.isNotBlank() || hasAttachments
+            val fill by animateColorAsState(
+                when {
+                    streaming -> colors.ink
+                    canSend -> colors.accent
+                    else -> colors.surfaceMuted
                 },
-            contentAlignment = Alignment.Center,
-        ) {
-            // The arrow turns into a stop square while a reply runs.
-            AnimatedContent(
-                targetState = streaming,
-                transitionSpec = {
-                    (fadeIn(AcornMotion.enter(AcornMotion.SHORT)) + scaleIn(AcornMotion.pop(), initialScale = 0.4f)) togetherWith
-                        (fadeOut(AcornMotion.exit()) + scaleOut(AcornMotion.exit(), targetScale = 0.4f))
-                },
-                label = "send",
-            ) { running ->
-                Icon(
-                    if (running) AcornIcons.Stop else AcornIcons.ArrowUp,
-                    contentDescription = if (running) "停止" else "发送",
-                    tint = if (running) colors.canvas else if (canSend) colors.onAccent else colors.inkFaint,
-                    modifier = Modifier.size(if (running) 22.dp else 20.dp),
-                )
+                AcornMotion.standard(AcornMotion.SHORT),
+                label = "send_fill",
+            )
+            val interaction = remember { MutableInteractionSource() }
+            Box(
+                modifier = Modifier
+                    .pressScale(interaction, 0.9f)
+                    .size(30.dp)
+                    .clip(AcornShapes.small)
+                    .background(fill)
+                    .clickable(interaction, LocalIndication.current, enabled = streaming || canSend) {
+                        if (streaming) {
+                            haptics.tick()
+                            onStop()
+                        } else {
+                            haptics.confirm()
+                            onSend()
+                        }
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                // The arrow turns into a stop square while a reply runs.
+                AnimatedContent(
+                    targetState = streaming,
+                    transitionSpec = {
+                        (fadeIn(AcornMotion.enter(AcornMotion.SHORT)) + scaleIn(AcornMotion.pop(), initialScale = 0.4f)) togetherWith
+                            (fadeOut(AcornMotion.exit()) + scaleOut(AcornMotion.exit(), targetScale = 0.4f))
+                    },
+                    label = "send",
+                ) { running ->
+                    Icon(
+                        if (running) AcornIcons.Stop else AcornIcons.ArrowUp,
+                        contentDescription = if (running) "停止" else "发送",
+                        tint = if (running) colors.canvas else if (canSend) colors.onAccent else colors.inkFaint,
+                        modifier = Modifier.size(if (running) 18.dp else 16.dp),
+                    )
+                }
             }
         }
     }

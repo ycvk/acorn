@@ -47,21 +47,17 @@ fun Modifier.pressScale(interactionSource: InteractionSource, pressed: Float = 0
 }
 
 /**
- * Lifts a surface off the canvas with a soft, warm shadow. Shadows barely
- * read on a dark canvas, so there a hairline edge does the work.
+ * Floating chrome (menus, the ask bar, the jump-to-latest button) sits on a
+ * 1px rule plus a short, neutral shadow; in-flow content never casts one.
  */
 @Composable
-fun Modifier.raised(shape: Shape, elevation: Dp = 12.dp): Modifier {
+fun Modifier.raised(shape: Shape, elevation: Dp = 8.dp): Modifier {
     val colors = AcornTheme.colors
-    return if (colors.isDark) {
-        border(0.5.dp, colors.lineStrong, shape)
-    } else {
-        shadow(
-            elevation = elevation,
-            shape = shape,
-            clip = false,
-            ambientColor = colors.shadow.copy(alpha = 0.35f),
-            spotColor = colors.shadow.copy(alpha = 0.45f),
-        )
-    }
+    return shadow(
+        elevation = elevation,
+        shape = shape,
+        clip = false,
+        ambientColor = colors.shadow.copy(alpha = if (colors.isDark) 0.6f else 0.18f),
+        spotColor = colors.shadow.copy(alpha = if (colors.isDark) 0.6f else 0.22f),
+    ).border(1.dp, colors.lineStrong, shape)
 }

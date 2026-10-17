@@ -8,8 +8,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
@@ -21,7 +19,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -35,7 +32,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -46,7 +43,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
@@ -203,10 +199,7 @@ private fun Tabs(
         Box(modifier = Modifier.weight(1f)) {
             AnimatedContent(
                 targetState = tab,
-                transitionSpec = {
-                    (fadeIn(AcornMotion.enter(AcornMotion.MEDIUM)) + scaleIn(AcornMotion.enter(AcornMotion.MEDIUM), initialScale = 0.985f)) togetherWith
-                        fadeOut(AcornMotion.exit())
-                },
+                transitionSpec = { fadeIn(AcornMotion.enter(AcornMotion.SHORT)) togetherWith fadeOut(AcornMotion.exit(100)) },
                 label = "tabs",
             ) { current ->
                 saveable.SaveableStateProvider(current.name) { content(current) }
@@ -229,41 +222,29 @@ private fun TabBar(tab: Tab, pendingCount: Int, onSelect: (Tab) -> Unit) {
     val colors = AcornTheme.colors
     Column(modifier = Modifier.fillMaxWidth().background(colors.canvas)) {
         Hairline()
-        BoxWithConstraints(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
-                .height(62.dp),
+                .height(56.dp),
         ) {
-            // One indicator glides between tabs instead of each tab fading its own.
-            val slot = maxWidth / Tab.entries.size
-            val indicatorWidth = 58.dp
-            val offset by animateDpAsState(slot * tab.ordinal + (slot - indicatorWidth) / 2, AcornMotion.glide(), label = "tab_indicator")
-            Box(
-                Modifier
-                    .offset(x = offset, y = 8.dp)
-                    .size(width = indicatorWidth, height = 30.dp)
-                    .background(colors.accentSoft, AcornShapes.pill),
-            )
-            Row(modifier = Modifier.fillMaxSize()) {
-                Tab.entries.forEach { item ->
-                    val (label, icon) = when (item) {
-                        Tab.Today -> "今天" to AcornIcons.Today
-                        Tab.Threads -> "对话" to AcornIcons.Threads
-                        Tab.Knowledge -> "知识" to AcornIcons.Knowledge
-                    }
-                    TabItem(
-                        label = label,
-                        icon = icon,
-                        selected = item == tab,
-                        badge = if (item == Tab.Today) pendingCount else 0,
-                        onClick = {
-                            if (item != tab) haptics.tick()
-                            onSelect(item)
-                        },
-                        modifier = Modifier.weight(1f),
-                    )
+            Tab.entries.forEach { item ->
+                val (label, icon) = when (item) {
+                    Tab.Today -> "今天" to AcornIcons.Today
+                    Tab.Threads -> "对话" to AcornIcons.Threads
+                    Tab.Knowledge -> "知识" to AcornIcons.Knowledge
                 }
+                TabItem(
+                    label = label,
+                    icon = icon,
+                    selected = item == tab,
+                    badge = if (item == Tab.Today) pendingCount else 0,
+                    onClick = {
+                        if (item != tab) haptics.tick()
+                        onSelect(item)
+                    },
+                    modifier = Modifier.weight(1f),
+                )
             }
         }
     }
@@ -279,15 +260,7 @@ private fun TabItem(
     modifier: Modifier = Modifier,
 ) {
     val colors = AcornTheme.colors
-    val tint by animateColorAsState(if (selected) colors.accentInk else colors.inkFaint, AcornMotion.standard(), label = "tab_tint")
-    // The icon dips and springs back when its tab becomes selected.
-    val bounce = remember { Animatable(1f) }
-    LaunchedEffect(selected) {
-        if (selected) {
-            bounce.snapTo(0.82f)
-            bounce.animateTo(1f, AcornMotion.pop())
-        }
-    }
+    val tint by animateColorAsState(if (selected) colors.ink else colors.inkFaint, AcornMotion.standard(AcornMotion.SHORT), label = "tab_tint")
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -297,49 +270,36 @@ private fun TabItem(
                 role = Role.Tab,
                 onClick = onClick,
             )
-            .semantics { this.selected = selected },
+            .semantics { this.selected = selected }
+            .padding(top = 9.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Box(modifier = Modifier.padding(top = 11.dp).height(24.dp)) {
-            Icon(
-                icon,
-                contentDescription = null,
-                tint = tint,
-                modifier = Modifier
-                    .size(24.dp)
-                    .graphicsLayer {
-                        scaleX = bounce.value
-                        scaleY = bounce.value
-                    },
-            )
+        Box {
+            Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(22.dp))
             androidx.compose.animation.AnimatedVisibility(
                 visible = badge > 0,
                 enter = scaleIn(AcornMotion.pop()) + fadeIn(),
                 exit = scaleOut(AcornMotion.exit()) + fadeOut(),
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .offset(x = 11.dp, y = (-5).dp),
+                    .offset(x = 12.dp, y = (-4).dp),
             ) {
-                Box(
+                Text(
+                    if (badge > 9) "9+" else badge.toString(),
+                    style = AcornTheme.type.caption.copy(fontSize = 10.sp, fontWeight = FontWeight.SemiBold, lineHeight = 14.sp),
+                    color = colors.onAccent,
                     modifier = Modifier
-                        .size(18.dp)
-                        .background(colors.canvas, CircleShape)
+                        .background(colors.canvas, AcornShapes.small)
                         .padding(1.5.dp)
-                        .background(colors.warning, CircleShape),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        if (badge > 9) "9+" else badge.toString(),
-                        style = AcornTheme.type.caption.copy(fontSize = 10.sp, fontWeight = FontWeight.SemiBold),
-                        color = colors.onAccent,
-                    )
-                }
+                        .background(colors.accent, RoundedCornerShape(4.5.dp))
+                        .padding(horizontal = 4.dp),
+                )
             }
         }
-        Spacer(Modifier.height(9.dp))
+        Spacer(Modifier.height(4.dp))
         Text(
             label,
-            style = AcornTheme.type.caption.copy(fontSize = 11.sp, fontWeight = FontWeight.Medium),
+            style = AcornTheme.type.caption.copy(fontSize = 10.5.sp, fontWeight = FontWeight.Medium),
             color = tint,
         )
     }

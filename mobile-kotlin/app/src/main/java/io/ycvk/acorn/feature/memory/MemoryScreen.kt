@@ -76,7 +76,7 @@ fun MemoryScreen(
     val detail = (load as? MemoryLoad.Loaded)?.detail?.takeIf { it.memory.id == id }
 
     Column(modifier = Modifier.fillMaxSize().background(AcornTheme.colors.canvas)) {
-        TopBar(onBack = onBack, title = detail?.let { kindLabel(it.memory.kind) }, showDivider = scroll.value > 0)
+        TopBar(onBack = onBack, title = detail?.let { kindLabel(it.memory.kind) })
         when (val current = load) {
             MemoryLoad.Loading -> SkeletonRows(rows = 4)
             is MemoryLoad.Failed -> ErrorState(current.message, onRetry = { viewModel.open(id) })

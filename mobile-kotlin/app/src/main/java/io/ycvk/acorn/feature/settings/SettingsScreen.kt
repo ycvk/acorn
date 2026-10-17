@@ -67,7 +67,7 @@ fun SettingsScreen(
     LaunchedEffect(Unit) { viewModel.loadSettings() }
 
     Column(modifier = Modifier.fillMaxSize().background(colors.canvas)) {
-        TopBar(onBack = onBack, title = "设置", showDivider = scroll.value > 0)
+        TopBar(onBack = onBack, title = "设置")
         Column(
             modifier = Modifier
                 .verticalScroll(scroll)
@@ -187,7 +187,6 @@ internal fun SettingsGroup(title: String, content: @Composable ColumnScope.() ->
     SectionLabel(title)
     Panel(
         modifier = Modifier.padding(horizontal = ScreenPadding),
-        elevated = false,
         contentPadding = PaddingValues(0.dp),
         content = content,
     )

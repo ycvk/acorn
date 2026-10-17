@@ -1,6 +1,7 @@
 package io.ycvk.acorn.feature.threads
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -13,7 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -32,6 +33,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.ycvk.acorn.api.models.Thread
@@ -44,22 +46,21 @@ import io.ycvk.acorn.core.ui.AcornMenu
 import io.ycvk.acorn.core.ui.AcornMenuItem
 import io.ycvk.acorn.core.ui.EmptyState
 import io.ycvk.acorn.core.ui.ErrorState
-import io.ycvk.acorn.core.ui.GroupPadding
 import io.ycvk.acorn.core.ui.Hairline
 import io.ycvk.acorn.core.ui.IconAction
 import io.ycvk.acorn.core.ui.InlineError
-import io.ycvk.acorn.core.ui.LargeHeader
 import io.ycvk.acorn.core.ui.ListRow
+import io.ycvk.acorn.core.ui.ListSection
 import io.ycvk.acorn.core.ui.OnReturnToForeground
+import io.ycvk.acorn.core.ui.PageHeader
 import io.ycvk.acorn.core.ui.ScreenPadding
-import io.ycvk.acorn.core.ui.SectionLabel
 import io.ycvk.acorn.core.ui.SkeletonRows
-import io.ycvk.acorn.core.ui.StatusDot
 import io.ycvk.acorn.core.ui.DayGroup
+import io.ycvk.acorn.core.ui.Status
+import io.ycvk.acorn.core.ui.StatusGlyph
 import io.ycvk.acorn.core.ui.SwipeToDelete
 import io.ycvk.acorn.core.ui.clockTime
 import io.ycvk.acorn.core.ui.dayGroup
-import io.ycvk.acorn.core.ui.groupItem
 import io.ycvk.acorn.core.ui.listTime
 import io.ycvk.acorn.core.ui.plainSnippet
 import io.ycvk.acorn.core.ui.rememberHaptics
@@ -84,10 +85,11 @@ fun ThreadsScreen(
     OnReturnToForeground(viewModel::loadThreads)
 
     Column(modifier = Modifier.fillMaxSize()) {
-        LargeHeader("对话") {
+        PageHeader("对话") {
             IconAction(AcornIcons.Compose, "新对话", onNewChat)
         }
-        SearchField(query, { query = it }, "搜索对话", Modifier.padding(horizontal = ScreenPadding, vertical = 4.dp))
+        SearchField(query, { query = it }, "搜索对话", Modifier.padding(start = ScreenPadding, end = ScreenPadding, bottom = 10.dp))
+        Hairline()
         error?.let {
             InlineError(it, Modifier.padding(horizontal = ScreenPadding, vertical = 4.dp), action = "知道了", onAction = viewModel::dismissError)
         }
@@ -152,13 +154,12 @@ private fun ThreadList(
     val zone = ZoneId.systemDefault()
     val today = LocalDate.now(zone)
     val groups = threads.groupBy { dayGroup(it.updatedAt, today, zone) }.toSortedMap()
-    val surface = AcornTheme.colors.surface
     LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp)) {
         groups.forEach { (group, items) ->
-            item(key = "group:${group.name}") { SectionLabel(group.label, Modifier.animateItem()) }
-            itemsIndexed(items, key = { _, it -> it.id }) { index, thread ->
-                Column(Modifier.animateItem().groupItem(index, items.size, surface)) {
-                    SwipeToDelete(onDelete = { onDelete(thread) }, background = surface) {
+            item(key = "group:${group.name}") { ListSection(group.label, Modifier.animateItem(), count = items.size) }
+            items(items, key = { it.id }) { thread ->
+                Column(Modifier.animateItem()) {
+                    SwipeToDelete(onDelete = { onDelete(thread) }) {
                         ThreadRow(
                             thread = thread,
                             time = if (group == DayGroup.Today || group == DayGroup.Yesterday) clockTime(thread.updatedAt, zone) else listTime(thread.updatedAt, today, zone),
@@ -166,7 +167,7 @@ private fun ThreadList(
                             onDelete = { onDelete(thread) },
                         )
                     }
-                    if (index < items.lastIndex) Hairline(inset = GroupPadding)
+                    Hairline(inset = ScreenPadding + 28.dp)
                 }
             }
         }
@@ -185,30 +186,17 @@ private fun ThreadRow(thread: Thread, time: String, onClick: () -> Unit, onDelet
                 haptics.longPress()
                 menu = true
             },
-            horizontalPadding = GroupPadding,
+            leading = { StatusGlyph(threadStatus(thread.state), Modifier.padding(top = 3.dp)) },
+            verticalAlignment = Alignment.Top,
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(threadTitle(thread), style = AcornTheme.type.headline, color = colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                Spacer(Modifier.width(12.dp))
-                Text(time, style = AcornTheme.type.caption, color = colors.inkFaint)
+                Spacer(Modifier.width(10.dp))
+                Text(time, style = AcornTheme.type.mono.copy(fontSize = 12.sp), color = colors.inkFaint)
             }
-            val state = threadState(thread.state)
-            if (state != null) {
-                val (label, tone) = state
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    val color = when (tone) {
-                        Tone.Active -> colors.success
-                        Tone.Attention -> colors.warning
-                        Tone.Problem -> colors.danger
-                    }
-                    StatusDot(color, pulsing = tone == Tone.Active)
-                    Spacer(Modifier.width(6.dp))
-                    Text(label, style = AcornTheme.type.footnote, color = colors.inkSoft)
-                }
-            } else {
-                threadPreview(thread)?.let {
-                    Text(it, style = AcornTheme.type.footnote, color = colors.inkSoft, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
+            val line = threadStateLabel(thread.state) ?: threadPreview(thread)
+            line?.let {
+                Text(it, style = AcornTheme.type.footnote, color = colors.inkSoft, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
         AcornMenu(expanded = menu, onDismiss = { menu = false }) {
@@ -220,44 +208,51 @@ private fun ThreadRow(thread: Thread, time: String, onClick: () -> Unit, onDelet
     }
 }
 
-private enum class Tone { Active, Attention, Problem }
+private fun threadStatus(state: Thread.State): Status = when (state) {
+    Thread.State.running -> Status.Running
+    Thread.State.interrupted -> Status.Waiting
+    Thread.State.failed, Thread.State.degraded -> Status.Failed
+    Thread.State.completed -> Status.Done
+    Thread.State.new -> Status.Idle
+}
 
-private fun threadState(state: Thread.State): Pair<String, Tone>? = when (state) {
-    Thread.State.running -> "正在进行" to Tone.Active
-    Thread.State.interrupted -> "已暂停" to Tone.Attention
-    Thread.State.failed -> "上次运行出错了" to Tone.Problem
-    Thread.State.degraded -> "部分步骤失败" to Tone.Problem
+private fun threadStateLabel(state: Thread.State): String? = when (state) {
+    Thread.State.running -> "正在进行"
+    Thread.State.interrupted -> "已暂停，等你确认"
+    Thread.State.failed -> "上次运行出错了"
+    Thread.State.degraded -> "部分步骤失败"
     Thread.State.new, Thread.State.completed -> null
 }
 
-/** A rounded, filled search box. */
+/** A bordered search input with a tight radius. */
 @Composable
 fun SearchField(value: String, onValueChange: (String) -> Unit, placeholder: String, modifier: Modifier = Modifier) {
     val colors = AcornTheme.colors
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(42.dp)
-            .clip(AcornShapes.small)
-            .background(colors.surfaceMuted)
-            .padding(start = 12.dp, end = 4.dp),
+            .height(36.dp)
+            .clip(AcornShapes.medium)
+            .background(colors.surfaceMuted.copy(alpha = 0.6f))
+            .border(1.dp, colors.line, AcornShapes.medium)
+            .padding(start = 10.dp, end = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(AcornIcons.Search, contentDescription = null, tint = colors.inkFaint, modifier = Modifier.size(19.dp))
+        Icon(AcornIcons.Search, contentDescription = null, tint = colors.inkFaint, modifier = Modifier.size(16.dp))
         Spacer(Modifier.width(8.dp))
         Box(modifier = Modifier.weight(1f)) {
-            if (value.isEmpty()) Text(placeholder, style = AcornTheme.type.callout, color = colors.inkFaint)
+            if (value.isEmpty()) Text(placeholder, style = AcornTheme.type.footnote, color = colors.inkFaint)
             BasicTextField(
                 value = value,
                 onValueChange = onValueChange,
                 singleLine = true,
-                textStyle = AcornTheme.type.callout.copy(color = colors.ink),
+                textStyle = AcornTheme.type.footnote.copy(color = colors.ink),
                 cursorBrush = SolidColor(colors.accent),
                 modifier = Modifier.fillMaxWidth(),
             )
         }
         if (value.isNotEmpty()) {
-            IconAction(AcornIcons.Close, "清除", { onValueChange("") }, tint = colors.inkFaint, modifier = Modifier.size(36.dp))
+            IconAction(AcornIcons.Close, "清除", { onValueChange("") }, tint = colors.inkFaint, modifier = Modifier.size(32.dp))
         }
     }
 }

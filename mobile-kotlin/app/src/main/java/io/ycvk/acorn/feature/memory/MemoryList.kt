@@ -5,11 +5,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Psychology
 import androidx.compose.material3.Text
@@ -20,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.ycvk.acorn.api.models.MemorySummary
 import io.ycvk.acorn.core.theme.AcornTheme
@@ -29,13 +32,12 @@ import io.ycvk.acorn.core.ui.ButtonKind
 import io.ycvk.acorn.core.ui.EmptyState
 import io.ycvk.acorn.core.ui.ErrorState
 import io.ycvk.acorn.core.ui.FilterPill
-import io.ycvk.acorn.core.ui.GroupPadding
 import io.ycvk.acorn.core.ui.Hairline
 import io.ycvk.acorn.core.ui.ListRow
 import io.ycvk.acorn.core.ui.OnReturnToForeground
 import io.ycvk.acorn.core.ui.ScreenPadding
 import io.ycvk.acorn.core.ui.SkeletonRows
-import io.ycvk.acorn.core.ui.groupItem
+import io.ycvk.acorn.core.ui.Tag
 import io.ycvk.acorn.core.ui.listTime
 import io.ycvk.acorn.feature.threads.SearchField
 import java.time.LocalDate
@@ -53,16 +55,17 @@ fun MemoryList(viewModel: MemoryViewModel, onMemoryClick: (String) -> Unit) {
     OnReturnToForeground { viewModel.refresh() }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        SearchField(query, viewModel::onQueryChange, "搜索记忆", Modifier.padding(horizontal = ScreenPadding, vertical = 4.dp))
+        SearchField(query, viewModel::onQueryChange, "搜索记忆", Modifier.padding(start = ScreenPadding, end = ScreenPadding, bottom = 8.dp))
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = ScreenPadding, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth().padding(start = ScreenPadding - 4.dp, end = ScreenPadding, bottom = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             FilterPill("全部", kind == null, { viewModel.selectKind(null) })
             MemorySummary.Kind.entries.forEach { option ->
                 FilterPill(kindLabel(option), kind == option, { viewModel.selectKind(option) })
             }
         }
+        Hairline()
         when (val content = memoryListContent(load, query, kind, limit)) {
             MemoryListContent.Loading -> SkeletonRows()
             is MemoryListContent.Failed -> ErrorState(content.message, onRetry = viewModel::refresh)
@@ -79,12 +82,11 @@ fun MemoryList(viewModel: MemoryViewModel, onMemoryClick: (String) -> Unit) {
             is MemoryListContent.Items -> {
                 val zone = ZoneId.systemDefault()
                 val today = LocalDate.now(zone)
-                val surface = AcornTheme.colors.surface
-                LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 8.dp, bottom = 32.dp)) {
-                    itemsIndexed(content.memories, key = { _, it -> it.id }) { index, memory ->
-                        Column(Modifier.animateItem().groupItem(index, content.memories.size, surface)) {
+                LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp)) {
+                    items(content.memories, key = { it.id }) { memory ->
+                        Column(Modifier.animateItem()) {
                             MemoryRow(memory, listTime(memory.updatedAt, today, zone), onClick = { onMemoryClick(memory.id) })
-                            if (index < content.memories.lastIndex) Hairline(inset = GroupPadding)
+                            Hairline(inset = ScreenPadding)
                         }
                     }
                     if (content.canLoadMore) {
@@ -103,12 +105,16 @@ fun MemoryList(viewModel: MemoryViewModel, onMemoryClick: (String) -> Unit) {
 @Composable
 private fun MemoryRow(memory: MemorySummary, time: String, onClick: () -> Unit) {
     val colors = AcornTheme.colors
-    ListRow(onClick = onClick, horizontalPadding = GroupPadding) {
+    ListRow(onClick = onClick) {
         Text(memory.content, style = AcornTheme.type.body, color = colors.ink, maxLines = 3, overflow = TextOverflow.Ellipsis)
-        Text(
-            (listOf(kindLabel(memory.kind)) + memoryMarks(memory) + time).joinToString(" · "),
-            style = AcornTheme.type.caption,
-            color = colors.inkFaint,
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Tag(kindLabel(memory.kind))
+            memoryMarks(memory).takeIf { it.isNotEmpty() }?.let {
+                Spacer(Modifier.width(8.dp))
+                Text(it.joinToString(" · "), style = AcornTheme.type.caption, color = colors.inkSoft)
+            }
+            Spacer(Modifier.weight(1f))
+            Text(time, style = AcornTheme.type.mono.copy(fontSize = 12.sp), color = colors.inkFaint)
+        }
     }
 }

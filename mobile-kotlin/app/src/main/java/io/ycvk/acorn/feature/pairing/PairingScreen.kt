@@ -17,12 +17,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -37,7 +35,6 @@ import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -46,13 +43,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import io.ycvk.acorn.R
 import io.ycvk.acorn.core.auth.AuthController
 import io.ycvk.acorn.core.auth.PairingState
 import io.ycvk.acorn.core.theme.AcornMotion
 import io.ycvk.acorn.core.theme.AcornShapes
 import io.ycvk.acorn.core.theme.AcornTheme
 import io.ycvk.acorn.core.ui.AcornButton
+import io.ycvk.acorn.core.ui.AcornMark
 import io.ycvk.acorn.core.ui.InlineError
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
@@ -88,17 +85,10 @@ fun PairingScreen(authController: AuthController) {
             .navigationBarsPadding()
             .imePadding()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 28.dp),
+            .padding(horizontal = 24.dp),
     ) {
         Spacer(Modifier.height(72.dp))
-        Box(
-            modifier = Modifier
-                .size(64.dp)
-                .background(colors.accentSoft, RoundedCornerShape(20.dp)),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(painterResource(R.drawable.ic_acorn), contentDescription = null, tint = colors.accent, modifier = Modifier.size(32.dp))
-        }
+        AcornMark(size = 44.dp)
         Spacer(Modifier.height(24.dp))
         Text("连接你的 Acorn", style = AcornTheme.type.largeTitle, color = colors.ink)
         Spacer(Modifier.height(8.dp))
@@ -195,18 +185,18 @@ private fun Field(
 ) {
     val colors = AcornTheme.colors
     var focused by rememberSaveable { mutableStateOf(false) }
-    val edge by animateColorAsState(if (focused) colors.accent else colors.line, AcornMotion.standard(AcornMotion.SHORT), label = "field_edge")
+    val edge by animateColorAsState(if (focused) colors.accent else colors.lineStrong, AcornMotion.standard(AcornMotion.SHORT), label = "field_edge")
     Column {
         Text(label, style = AcornTheme.type.eyebrow, color = colors.inkSoft)
         Spacer(Modifier.height(8.dp))
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(54.dp)
+                .height(44.dp)
                 .clip(AcornShapes.medium)
                 .background(colors.surface)
                 .border(if (focused) 1.5.dp else 1.dp, edge, AcornShapes.medium)
-                .padding(horizontal = 16.dp),
+                .padding(horizontal = 12.dp),
             contentAlignment = Alignment.CenterStart,
         ) {
             if (value.isEmpty()) Text(placeholder, style = textStyle, color = colors.inkFaint)

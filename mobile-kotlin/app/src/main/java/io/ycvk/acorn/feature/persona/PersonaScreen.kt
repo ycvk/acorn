@@ -71,7 +71,7 @@ fun PersonaScreen(
 
     val scroll = rememberScrollState()
     Column(modifier = Modifier.fillMaxSize().background(AcornTheme.colors.canvas)) {
-        TopBar(onBack = onBack, title = "人格", showDivider = scroll.value > 0)
+        TopBar(onBack = onBack, title = "人格")
         when (val state = load) {
             PersonaLoad.Loading -> SkeletonRows(rows = 4)
             is PersonaLoad.Failed -> ErrorState(state.message, onRetry = viewModel::load)
@@ -166,12 +166,12 @@ private fun PersonaEditor(draft: PersonaDraft, current: Persona, save: PersonaSa
                 color = if (state == DraftState.Empty || state == DraftState.TooLong) colors.danger else colors.inkFaint,
             )
             draft.mine?.let { mine ->
-                Panel(color = colors.warningSoft, elevated = false) {
+                Panel(color = colors.warningSoft) {
                     Text("你刚才写的", style = AcornTheme.type.footnote, color = colors.warningInk)
                     Spacer(Modifier.height(6.dp))
                     Text(mine, style = AcornTheme.type.callout, color = colors.ink, maxLines = 8, overflow = TextOverflow.Ellipsis)
                     Spacer(Modifier.height(10.dp))
-                    AcornButton("用我写的替换上面的内容", viewModel::useMine, kind = ButtonKind.Raised, compact = true)
+                    AcornButton("用我写的替换上面的内容", viewModel::useMine, kind = ButtonKind.Secondary, compact = true)
                 }
             }
             Spacer(Modifier.height(8.dp))
@@ -241,7 +241,6 @@ fun PersonaRevisionScreen(
             onBack = onBack,
             title = revisionTitle(revision),
             subtitle = shown?.let { revisionMeta(it.author.value, it.deviceId, viewModel.deviceId, it.savedAt, now) },
-            showDivider = scroll.value > 0,
         )
         when {
             load is RevisionLoad.Failed -> ErrorState((load as RevisionLoad.Failed).message, onRetry = { viewModel.openRevision(revision) })

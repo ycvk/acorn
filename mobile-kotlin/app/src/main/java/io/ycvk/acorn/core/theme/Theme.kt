@@ -25,12 +25,12 @@ object AcornTheme {
         @Composable @ReadOnlyComposable get() = LocalAcornType.current
 }
 
-/** Corners grow with the size of the thing: chips and fields, menus and blocks, cards, sheets and dialogs. */
+/** Tight corners: chips and fields, buttons and blocks, cards and menus, sheets and dialogs. */
 object AcornShapes {
-    val small = RoundedCornerShape(12.dp)
-    val medium = RoundedCornerShape(16.dp)
-    val large = RoundedCornerShape(20.dp)
-    val sheet = RoundedCornerShape(28.dp)
+    val small = RoundedCornerShape(6.dp)
+    val medium = RoundedCornerShape(8.dp)
+    val large = RoundedCornerShape(10.dp)
+    val sheet = RoundedCornerShape(12.dp)
     val pill = RoundedCornerShape(percent = 50)
 }
 
