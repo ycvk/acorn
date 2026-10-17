@@ -73,7 +73,7 @@
   - `internal/runtime/memory_visibility_test.go`
   - `internal/runtime/presence_test.go`
   - `internal/memory/context_test.go`
-- **事实修订保留历史，来源排除约束所有读取**：精确证据引用、revision CAS、known_at 与 as_of 分离；更正使派生认识待复核。遗忘按独立证据判断：当前 revision 引用被排除来源（整体或片段匹配）的记录，去掉这些证据后仍有未排除的支持证据时写一个新 revision（证据、只由被排除证据提及的实体与别名、根来源重算，reason 为 `evidence excluded by owner`，入队 embed），否则整条排除并沿 derives_from 级联；被剥离的存活记录不级联，其派生认识标 needs_review 并入队 consolidate。旧 revision 仍引用被排除来源，`memoryRevisionVisibility` 让历史读取、向量与别名看不到它；整合经记忆视图读来源，无法把剥离的证据加回来。遗忘事务同时处理来源片段、向量和摘要。来源的整体排除传给由它派生的全部来源；片段排除只传给在排除之前读过它的 run 派生的来源，之后写成的派生来源与线程摘要读到的是去掉片段的正文，照常可读。旧 worker、checkpoint 与模型输入受 epoch 约束。确认前等待受影响的在途 run 退出。
+- **事实修订保留历史，来源排除约束所有读取**：精确证据引用、revision CAS、known_at 与 as_of 分离；更正使派生认识待复核。遗忘按独立证据判断：当前 revision 引用被排除来源（整体或片段匹配）的记录，去掉这些证据后仍有未排除的支持证据时写一个新 revision（证据、只由被排除证据提及的实体与别名、根来源重算，reason 为 `evidence excluded by owner`，入队 embed），否则整条排除并沿 derives_from 级联；被剥离的存活记录不级联，其派生认识标 needs_review 并入队 consolidate。旧 revision 仍引用被排除来源，`memoryRevisionVisibility` 让历史读取、向量与别名看不到它；整合经记忆视图读来源，无法把剥离的证据加回来。遗忘事务同时处理来源片段、向量和摘要。来源的整体排除传给由它派生的全部来源；片段排除只传给在排除之前读过它的 run 派生的来源，之后写成的派生来源与线程摘要读到的是去掉片段的正文，照常可读。旧 worker、checkpoint 与模型输入受 epoch 约束。确认前等待在排除之前读过被排除内容的在途 run 退出。
   - `internal/store/memory_contract_test.go`
   - `internal/store/memory_state_test.go`
   - `internal/store/memory_forget_test.go`

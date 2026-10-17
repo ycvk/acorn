@@ -217,7 +217,11 @@ func (s *Store) MemoryExclusions(ctx context.Context) (core.MemoryExclusion, err
 	if err != nil {
 		return out, err
 	}
-	rows, err = s.read.QueryContext(ctx, `SELECT DISTINCT r.run_id FROM context_snapshot_refs r WHERE r.source_id IN(SELECT source_id FROM memory_exclusions) OR r.record_id IN(SELECT id FROM memory_records WHERE excluded=1)`)
+	// The affected runs read an excluded source before its exclusion; a run
+	// that reads a partly excluded source later sees it without the fragment.
+	// Recall never returns an excluded record, so every reference to one was
+	// taken before its exclusion.
+	rows, err = s.read.QueryContext(ctx, `SELECT DISTINCT r.run_id FROM context_snapshot_refs r WHERE EXISTS(SELECT 1 FROM memory_exclusions x WHERE x.source_id=r.source_id AND x.epoch>r.epoch) OR r.record_id IN(SELECT id FROM memory_records WHERE excluded=1)`)
 	if err != nil {
 		return out, err
 	}
