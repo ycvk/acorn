@@ -18,13 +18,8 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Link
-import androidx.compose.material.icons.outlined.MoreHoriz
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -42,6 +37,10 @@ import io.ycvk.acorn.api.models.KnowledgeNote
 import io.ycvk.acorn.core.auth.ConnectionProfile
 import io.ycvk.acorn.core.theme.AcornShapes
 import io.ycvk.acorn.core.theme.AcornTheme
+import io.ycvk.acorn.core.ui.AcornDialog
+import io.ycvk.acorn.core.ui.AcornIcons
+import io.ycvk.acorn.core.ui.AcornMenu
+import io.ycvk.acorn.core.ui.AcornMenuItem
 import io.ycvk.acorn.core.ui.ErrorState
 import io.ycvk.acorn.core.ui.IconAction
 import io.ycvk.acorn.core.ui.InlineError
@@ -80,20 +79,12 @@ fun NoteScreen(
         ) {
             if (note != null) {
                 Box {
-                    IconAction(Icons.Outlined.MoreHoriz, "更多", { menu = true })
-                    DropdownMenu(
-                        expanded = menu,
-                        onDismissRequest = { menu = false },
-                        containerColor = colors.surface,
-                        shape = AcornShapes.medium,
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text("删除笔记", style = AcornTheme.type.callout, color = colors.danger) },
-                            onClick = {
-                                menu = false
-                                confirmDelete = true
-                            },
-                        )
+                    IconAction(AcornIcons.More, "更多", { menu = true })
+                    AcornMenu(expanded = menu, onDismiss = { menu = false }) {
+                        AcornMenuItem("删除笔记", onClick = {
+                            menu = false
+                            confirmDelete = true
+                        }, danger = true, icon = AcornIcons.Trash)
                     }
                 }
             }
@@ -118,17 +109,16 @@ fun NoteScreen(
     }
 
     if (confirmDelete) {
-        AlertDialog(
-            onDismissRequest = { confirmDelete = false },
-            title = { Text("删除这篇笔记？") },
-            text = { Text("笔记会被删除，Acorn 也会忘掉其中的内容，无法恢复。") },
-            confirmButton = {
-                TextButton(onClick = {
-                    confirmDelete = false
-                    viewModel.deleteNote(path, onBack)
-                }) { Text("删除", color = colors.danger) }
+        AcornDialog(
+            title = "删除这篇笔记？",
+            body = "笔记会被删除，Acorn 也会忘掉其中的内容，无法恢复。",
+            confirm = "删除",
+            destructive = true,
+            onConfirm = {
+                confirmDelete = false
+                viewModel.deleteNote(path, onBack)
             },
-            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("取消") } },
+            onDismiss = { confirmDelete = false },
         )
     }
 }

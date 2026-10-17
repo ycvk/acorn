@@ -168,10 +168,10 @@ private fun CodeBlock(code: String) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(AcornShapes.small)
+            .clip(AcornShapes.medium)
             .background(colors.surfaceMuted)
             .horizontalScroll(rememberScrollState())
-            .padding(horizontal = 14.dp, vertical = 12.dp),
+            .padding(horizontal = 16.dp, vertical = 14.dp),
     ) {
         Text(code, style = AcornTheme.type.mono, color = colors.ink, softWrap = false)
     }

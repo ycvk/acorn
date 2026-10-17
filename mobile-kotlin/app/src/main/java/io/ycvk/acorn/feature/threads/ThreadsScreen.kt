@@ -13,26 +13,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.Chat
-import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material.icons.outlined.Delete
-import androidx.compose.material.icons.outlined.Edit
-import androidx.compose.material.icons.outlined.Search
-import androidx.compose.material.icons.outlined.SearchOff
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.SwipeToDismissBox
-import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
-import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -52,8 +38,13 @@ import io.ycvk.acorn.api.models.Thread
 import io.ycvk.acorn.core.theme.AcornShapes
 import io.ycvk.acorn.core.theme.AcornTheme
 import io.ycvk.acorn.core.ui.AcornButton
+import io.ycvk.acorn.core.ui.AcornDialog
+import io.ycvk.acorn.core.ui.AcornIcons
+import io.ycvk.acorn.core.ui.AcornMenu
+import io.ycvk.acorn.core.ui.AcornMenuItem
 import io.ycvk.acorn.core.ui.EmptyState
 import io.ycvk.acorn.core.ui.ErrorState
+import io.ycvk.acorn.core.ui.GroupPadding
 import io.ycvk.acorn.core.ui.Hairline
 import io.ycvk.acorn.core.ui.IconAction
 import io.ycvk.acorn.core.ui.InlineError
@@ -65,8 +56,10 @@ import io.ycvk.acorn.core.ui.SectionLabel
 import io.ycvk.acorn.core.ui.SkeletonRows
 import io.ycvk.acorn.core.ui.StatusDot
 import io.ycvk.acorn.core.ui.DayGroup
+import io.ycvk.acorn.core.ui.SwipeToDelete
 import io.ycvk.acorn.core.ui.clockTime
 import io.ycvk.acorn.core.ui.dayGroup
+import io.ycvk.acorn.core.ui.groupItem
 import io.ycvk.acorn.core.ui.listTime
 import io.ycvk.acorn.core.ui.plainSnippet
 import io.ycvk.acorn.core.ui.rememberHaptics
@@ -92,9 +85,9 @@ fun ThreadsScreen(
 
     Column(modifier = Modifier.fillMaxSize()) {
         LargeHeader("对话") {
-            IconAction(Icons.Outlined.Edit, "新对话", onNewChat)
+            IconAction(AcornIcons.Compose, "新对话", onNewChat)
         }
-        SearchField(query, { query = it }, "搜索对话", Modifier.padding(horizontal = ScreenPadding, vertical = 6.dp))
+        SearchField(query, { query = it }, "搜索对话", Modifier.padding(horizontal = ScreenPadding, vertical = 4.dp))
         error?.let {
             InlineError(it, Modifier.padding(horizontal = ScreenPadding, vertical = 4.dp), action = "知道了", onAction = viewModel::dismissError)
         }
@@ -107,7 +100,7 @@ fun ThreadsScreen(
                 ThreadsContent.Loading -> SkeletonRows()
                 is ThreadsContent.Failed -> ErrorState(content.message, onRetry = viewModel::loadThreads)
                 ThreadsContent.Empty -> EmptyState(
-                    icon = Icons.AutoMirrored.Outlined.Chat,
+                    icon = AcornIcons.Threads,
                     title = "还没有对话",
                     body = "和 Acorn 说点什么。它会记住重要的事，按约定提醒你。",
                     action = { AcornButton("开始对话", onNewChat, compact = true) },
@@ -123,17 +116,16 @@ fun ThreadsScreen(
     }
 
     pendingDelete?.let { thread ->
-        AlertDialog(
-            onDismissRequest = { pendingDelete = null },
-            title = { Text("删除这个对话？") },
-            text = { Text("「${threadTitle(thread)}」会被删除，Acorn 也会忘掉其中说过的内容，无法恢复。") },
-            confirmButton = {
-                TextButton(onClick = {
-                    viewModel.deleteThread(thread.id)
-                    pendingDelete = null
-                }) { Text("删除", color = AcornTheme.colors.danger) }
+        AcornDialog(
+            title = "删除这个对话？",
+            body = "「${threadTitle(thread)}」会被删除，Acorn 也会忘掉其中说过的内容，无法恢复。",
+            confirm = "删除",
+            destructive = true,
+            onConfirm = {
+                viewModel.deleteThread(thread.id)
+                pendingDelete = null
             },
-            dismissButton = { TextButton(onClick = { pendingDelete = null }) { Text("取消") } },
+            onDismiss = { pendingDelete = null },
         )
     }
 }
@@ -154,60 +146,30 @@ private fun ThreadList(
     onDelete: (Thread) -> Unit,
 ) {
     if (threads.isEmpty()) {
-        EmptyState(Icons.Outlined.SearchOff, "没有找到", "没有标题包含「${query.trim()}」的对话。")
+        EmptyState(AcornIcons.Search, "没有找到", "没有标题包含「${query.trim()}」的对话。")
         return
     }
     val zone = ZoneId.systemDefault()
     val today = LocalDate.now(zone)
     val groups = threads.groupBy { dayGroup(it.updatedAt, today, zone) }.toSortedMap()
-    LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
+    val surface = AcornTheme.colors.surface
+    LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp)) {
         groups.forEach { (group, items) ->
             item(key = "group:${group.name}") { SectionLabel(group.label, Modifier.animateItem()) }
-            items(items, key = { it.id }) { thread ->
-                SwipeToDelete(onDelete = { onDelete(thread) }, modifier = Modifier.animateItem()) {
-                    ThreadRow(
-                        thread = thread,
-                        time = if (group == DayGroup.Today || group == DayGroup.Yesterday) clockTime(thread.updatedAt, zone) else listTime(thread.updatedAt, today, zone),
-                        onClick = { onThreadClick(thread.id) },
-                        onDelete = { onDelete(thread) },
-                    )
+            itemsIndexed(items, key = { _, it -> it.id }) { index, thread ->
+                Column(Modifier.animateItem().groupItem(index, items.size, surface)) {
+                    SwipeToDelete(onDelete = { onDelete(thread) }, background = surface) {
+                        ThreadRow(
+                            thread = thread,
+                            time = if (group == DayGroup.Today || group == DayGroup.Yesterday) clockTime(thread.updatedAt, zone) else listTime(thread.updatedAt, today, zone),
+                            onClick = { onThreadClick(thread.id) },
+                            onDelete = { onDelete(thread) },
+                        )
+                    }
+                    if (index < items.lastIndex) Hairline(inset = GroupPadding)
                 }
-                Hairline(inset = ScreenPadding)
             }
         }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun SwipeToDelete(onDelete: () -> Unit, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
-    val haptics = rememberHaptics()
-    val state = rememberSwipeToDismissBoxState(
-        confirmValueChange = { value ->
-            if (value == SwipeToDismissBoxValue.EndToStart) {
-                haptics.longPress()
-                onDelete()
-            }
-            false
-        },
-    )
-    SwipeToDismissBox(
-        state = state,
-        enableDismissFromStartToEnd = false,
-        modifier = modifier,
-        backgroundContent = {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(AcornTheme.colors.danger)
-                    .padding(horizontal = 24.dp),
-                contentAlignment = Alignment.CenterEnd,
-            ) {
-                Icon(Icons.Outlined.Delete, contentDescription = "删除", tint = AcornTheme.colors.onAccent)
-            }
-        },
-    ) {
-        Box(Modifier.background(AcornTheme.colors.canvas)) { content() }
     }
 }
 
@@ -223,9 +185,13 @@ private fun ThreadRow(thread: Thread, time: String, onClick: () -> Unit, onDelet
                 haptics.longPress()
                 menu = true
             },
-            trailing = { Text(time, style = AcornTheme.type.caption, color = colors.inkFaint) },
+            horizontalPadding = GroupPadding,
         ) {
-            Text(threadTitle(thread), style = AcornTheme.type.headline, color = colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(threadTitle(thread), style = AcornTheme.type.headline, color = colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                Spacer(Modifier.width(12.dp))
+                Text(time, style = AcornTheme.type.caption, color = colors.inkFaint)
+            }
             val state = threadState(thread.state)
             if (state != null) {
                 val (label, tone) = state
@@ -245,19 +211,11 @@ private fun ThreadRow(thread: Thread, time: String, onClick: () -> Unit, onDelet
                 }
             }
         }
-        DropdownMenu(
-            expanded = menu,
-            onDismissRequest = { menu = false },
-            containerColor = colors.surface,
-            shape = AcornShapes.medium,
-        ) {
-            DropdownMenuItem(
-                text = { Text("删除对话", style = AcornTheme.type.callout, color = colors.danger) },
-                onClick = {
-                    menu = false
-                    onDelete()
-                },
-            )
+        AcornMenu(expanded = menu, onDismiss = { menu = false }) {
+            AcornMenuItem("删除对话", onClick = {
+                menu = false
+                onDelete()
+            }, danger = true, icon = AcornIcons.Trash)
         }
     }
 }
@@ -279,13 +237,13 @@ fun SearchField(value: String, onValueChange: (String) -> Unit, placeholder: Str
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(40.dp)
+            .height(42.dp)
             .clip(AcornShapes.small)
             .background(colors.surfaceMuted)
             .padding(start = 12.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(Icons.Outlined.Search, contentDescription = null, tint = colors.inkFaint, modifier = Modifier.size(18.dp))
+        Icon(AcornIcons.Search, contentDescription = null, tint = colors.inkFaint, modifier = Modifier.size(19.dp))
         Spacer(Modifier.width(8.dp))
         Box(modifier = Modifier.weight(1f)) {
             if (value.isEmpty()) Text(placeholder, style = AcornTheme.type.callout, color = colors.inkFaint)
@@ -299,7 +257,7 @@ fun SearchField(value: String, onValueChange: (String) -> Unit, placeholder: Str
             )
         }
         if (value.isNotEmpty()) {
-            IconAction(Icons.Outlined.Close, "清除", { onValueChange("") }, tint = colors.inkFaint, modifier = Modifier.size(36.dp))
+            IconAction(AcornIcons.Close, "清除", { onValueChange("") }, tint = colors.inkFaint, modifier = Modifier.size(36.dp))
         }
     }
 }

@@ -2,6 +2,7 @@ package io.ycvk.acorn.feature.pairing
 
 import android.os.Build
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
@@ -48,6 +49,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.ycvk.acorn.R
 import io.ycvk.acorn.core.auth.AuthController
 import io.ycvk.acorn.core.auth.PairingState
+import io.ycvk.acorn.core.theme.AcornMotion
 import io.ycvk.acorn.core.theme.AcornShapes
 import io.ycvk.acorn.core.theme.AcornTheme
 import io.ycvk.acorn.core.ui.AcornButton
@@ -91,11 +93,11 @@ fun PairingScreen(authController: AuthController) {
         Spacer(Modifier.height(72.dp))
         Box(
             modifier = Modifier
-                .size(56.dp)
-                .background(colors.accentSoft, RoundedCornerShape(16.dp)),
+                .size(64.dp)
+                .background(colors.accentSoft, RoundedCornerShape(20.dp)),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(painterResource(R.drawable.ic_acorn), contentDescription = null, tint = colors.accent, modifier = Modifier.size(30.dp))
+            Icon(painterResource(R.drawable.ic_acorn), contentDescription = null, tint = colors.accent, modifier = Modifier.size(32.dp))
         }
         Spacer(Modifier.height(24.dp))
         Text("连接你的 Acorn", style = AcornTheme.type.largeTitle, color = colors.ink)
@@ -193,17 +195,18 @@ private fun Field(
 ) {
     val colors = AcornTheme.colors
     var focused by rememberSaveable { mutableStateOf(false) }
+    val edge by animateColorAsState(if (focused) colors.accent else colors.line, AcornMotion.standard(AcornMotion.SHORT), label = "field_edge")
     Column {
-        Text(label, style = AcornTheme.type.footnote, color = colors.inkSoft)
+        Text(label, style = AcornTheme.type.eyebrow, color = colors.inkSoft)
         Spacer(Modifier.height(8.dp))
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(52.dp)
-                .clip(AcornShapes.small)
+                .height(54.dp)
+                .clip(AcornShapes.medium)
                 .background(colors.surface)
-                .border(if (focused) 1.5.dp else 0.5.dp, if (focused) colors.accent else colors.lineStrong, AcornShapes.small)
-                .padding(horizontal = 14.dp),
+                .border(if (focused) 1.5.dp else 1.dp, edge, AcornShapes.medium)
+                .padding(horizontal = 16.dp),
             contentAlignment = Alignment.CenterStart,
         ) {
             if (value.isEmpty()) Text(placeholder, style = textStyle, color = colors.inkFaint)

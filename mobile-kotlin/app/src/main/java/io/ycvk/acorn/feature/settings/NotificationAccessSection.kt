@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.toggleable
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -40,6 +39,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.ycvk.acorn.core.theme.AcornShapes
 import io.ycvk.acorn.core.theme.AcornTheme
+import io.ycvk.acorn.core.ui.AcornDialog
 import io.ycvk.acorn.core.ui.Hairline
 import io.ycvk.acorn.core.ui.ScreenPadding
 import io.ycvk.acorn.feature.threads.SearchField
@@ -105,47 +105,47 @@ fun NotificationAccessSection(viewModel: NotificationAccessViewModel = hiltViewM
     }
 
     if (chooseApps) {
-        AlertDialog(
-            onDismissRequest = { chooseApps = false },
-            containerColor = colors.surface,
-            title = { Text("转发哪些应用") },
-            confirmButton = { TextButton(onClick = { chooseApps = false }) { Text("完成") } },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("只有选中的应用会被转发。关掉某个应用，它还没上传的通知也会一起删掉。", style = AcornTheme.type.footnote, color = colors.inkSoft)
-                    SearchField(query, { query = it }, "查找应用")
-                    if (loading) CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
-                    error?.let {
-                        Text(it, style = AcornTheme.type.footnote, color = colors.danger)
-                        TextButton(onClick = viewModel::refresh) { Text("重新加载") }
-                    }
-                    Spacer(Modifier.height(2.dp))
-                    LazyColumn(Modifier.heightIn(max = 380.dp)) {
-                        items(apps.filter { it.name.contains(query, true) || it.packageName.contains(query, true) }, key = { it.packageName }) { app ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(AcornShapes.small)
-                                    .toggleable(value = app.packageName in allowed, role = Role.Switch, onValueChange = { viewModel.select(app.packageName, it) })
-                                    .padding(vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            ) {
-                                Image(app.icon, contentDescription = null, modifier = Modifier.size(32.dp))
-                                Column(Modifier.weight(1f)) {
-                                    Text(app.name, style = AcornTheme.type.callout, color = colors.ink)
-                                    Text(app.packageName, style = AcornTheme.type.caption, color = colors.inkFaint)
-                                }
-                                Switch(
-                                    checked = app.packageName in allowed,
-                                    onCheckedChange = null,
-                                    colors = SwitchDefaults.colors(checkedTrackColor = colors.accent, checkedThumbColor = colors.onAccent),
-                                )
+        AcornDialog(
+            title = "转发哪些应用",
+            body = "只有选中的应用会被转发。关掉某个应用，它还没上传的通知也会一起删掉。",
+            confirm = "完成",
+            dismiss = null,
+            onConfirm = { chooseApps = false },
+            onDismiss = { chooseApps = false },
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                SearchField(query, { query = it }, "查找应用")
+                if (loading) CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
+                error?.let {
+                    Text(it, style = AcornTheme.type.footnote, color = colors.danger)
+                    TextButton(onClick = viewModel::refresh) { Text("重新加载") }
+                }
+                Spacer(Modifier.height(2.dp))
+                LazyColumn(Modifier.heightIn(max = 380.dp)) {
+                    items(apps.filter { it.name.contains(query, true) || it.packageName.contains(query, true) }, key = { it.packageName }) { app ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(AcornShapes.small)
+                                .toggleable(value = app.packageName in allowed, role = Role.Switch, onValueChange = { viewModel.select(app.packageName, it) })
+                                .padding(vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            Image(app.icon, contentDescription = null, modifier = Modifier.size(32.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(app.name, style = AcornTheme.type.callout, color = colors.ink)
+                                Text(app.packageName, style = AcornTheme.type.caption, color = colors.inkFaint)
                             }
+                            Switch(
+                                checked = app.packageName in allowed,
+                                onCheckedChange = null,
+                                colors = SwitchDefaults.colors(checkedTrackColor = colors.accent, checkedThumbColor = colors.onAccent),
+                            )
                         }
                     }
                 }
-            },
-        )
+            }
+        }
     }
 }

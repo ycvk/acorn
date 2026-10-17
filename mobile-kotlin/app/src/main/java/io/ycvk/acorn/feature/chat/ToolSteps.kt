@@ -23,7 +23,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.ErrorOutline
-import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -42,6 +41,7 @@ import io.ycvk.acorn.core.sse.StepStatus
 import io.ycvk.acorn.core.sse.ToolStep
 import io.ycvk.acorn.core.theme.AcornShapes
 import io.ycvk.acorn.core.theme.AcornTheme
+import io.ycvk.acorn.core.ui.AcornIcons
 
 /** What a tool does, in the words the owner would use. */
 fun toolLabel(name: String): String = when (name) {
@@ -131,7 +131,7 @@ fun ToolSteps(steps: List<ToolStep>, streaming: Boolean, modifier: Modifier = Mo
                     Text("，$failures 步出错", style = AcornTheme.type.footnote, color = colors.warningInk)
                 }
             }
-            Icon(Icons.Outlined.ExpandMore, contentDescription = if (expanded) "收起步骤" else "展开步骤", tint = colors.inkFaint, modifier = Modifier.size(16.dp).rotate(rotation))
+            Icon(AcornIcons.ChevronDown, contentDescription = if (expanded) "收起步骤" else "展开步骤", tint = colors.inkFaint, modifier = Modifier.size(16.dp).rotate(rotation))
         }
         AnimatedVisibility(visible = expanded, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
             Row(modifier = Modifier.padding(start = 7.dp, top = 4.dp, bottom = 2.dp).height(IntrinsicSize.Min)) {

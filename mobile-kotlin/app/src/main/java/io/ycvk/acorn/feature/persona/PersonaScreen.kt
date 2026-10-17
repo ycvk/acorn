@@ -16,9 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -36,6 +34,7 @@ import io.ycvk.acorn.api.models.Persona
 import io.ycvk.acorn.core.theme.AcornShapes
 import io.ycvk.acorn.core.theme.AcornTheme
 import io.ycvk.acorn.core.ui.AcornButton
+import io.ycvk.acorn.core.ui.AcornDialog
 import io.ycvk.acorn.core.ui.ButtonKind
 import io.ycvk.acorn.core.ui.DiffView
 import io.ycvk.acorn.core.ui.ErrorState
@@ -167,7 +166,7 @@ private fun PersonaEditor(draft: PersonaDraft, current: Persona, save: PersonaSa
                 color = if (state == DraftState.Empty || state == DraftState.TooLong) colors.danger else colors.inkFaint,
             )
             draft.mine?.let { mine ->
-                Panel(color = colors.warningSoft, borderColor = colors.warningSoft) {
+                Panel(color = colors.warningSoft, elevated = false) {
                     Text("你刚才写的", style = AcornTheme.type.footnote, color = colors.warningInk)
                     Spacer(Modifier.height(6.dp))
                     Text(mine, style = AcornTheme.type.callout, color = colors.ink, maxLines = 8, overflow = TextOverflow.Ellipsis)
@@ -200,17 +199,17 @@ private fun PersonaEditor(draft: PersonaDraft, current: Persona, save: PersonaSa
     }
 
     if (confirmDiscard) {
-        AlertDialog(
-            onDismissRequest = { confirmDiscard = false },
-            title = { Text("放弃这次修改？") },
-            text = { Text("改过的内容不会保存，人格保持${revisionTitle(current.revision)}。") },
-            confirmButton = {
-                TextButton(onClick = {
-                    confirmDiscard = false
-                    viewModel.cancelEditing()
-                }) { Text("放弃", color = colors.danger) }
+        AcornDialog(
+            title = "放弃这次修改？",
+            body = "改过的内容不会保存，人格保持${revisionTitle(current.revision)}。",
+            confirm = "放弃",
+            dismiss = "继续编辑",
+            destructive = true,
+            onConfirm = {
+                confirmDiscard = false
+                viewModel.cancelEditing()
             },
-            dismissButton = { TextButton(onClick = { confirmDiscard = false }) { Text("继续编辑") } },
+            onDismiss = { confirmDiscard = false },
         )
     }
 }
@@ -305,17 +304,15 @@ fun PersonaRevisionScreen(
     }
 
     if (confirmRestore && shown != null && current != null) {
-        AlertDialog(
-            onDismissRequest = { confirmRestore = false },
-            title = { Text("恢复到${revisionTitle(shown.revision)}？") },
-            text = { Text("这一版的内容会另存为新的一版，接下来的对话用它。现在的${revisionTitle(current.revision)}和其他版本都留在历史里。") },
-            confirmButton = {
-                TextButton(onClick = {
-                    confirmRestore = false
-                    viewModel.restore(shown, onRestored = onBack)
-                }) { Text("恢复") }
+        AcornDialog(
+            title = "恢复到${revisionTitle(shown.revision)}？",
+            body = "这一版的内容会另存为新的一版，接下来的对话用它。现在的${revisionTitle(current.revision)}和其他版本都留在历史里。",
+            confirm = "恢复",
+            onConfirm = {
+                confirmRestore = false
+                viewModel.restore(shown, onRestored = onBack)
             },
-            dismissButton = { TextButton(onClick = { confirmRestore = false }) { Text("取消") } },
+            onDismiss = { confirmRestore = false },
         )
     }
 }

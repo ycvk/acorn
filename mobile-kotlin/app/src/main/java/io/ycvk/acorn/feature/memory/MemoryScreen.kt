@@ -17,12 +17,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -43,6 +39,8 @@ import io.ycvk.acorn.api.models.MemorySummary
 import io.ycvk.acorn.core.theme.AcornShapes
 import io.ycvk.acorn.core.theme.AcornTheme
 import io.ycvk.acorn.core.ui.AcornButton
+import io.ycvk.acorn.core.ui.AcornDialog
+import io.ycvk.acorn.core.ui.AcornIcons
 import io.ycvk.acorn.core.ui.ButtonKind
 import io.ycvk.acorn.core.ui.ErrorState
 import io.ycvk.acorn.core.ui.InlineError
@@ -121,55 +119,50 @@ fun MemoryScreen(
     }
 
     if (confirmForget && detail != null) {
-        AlertDialog(
-            onDismissRequest = { confirmForget = false },
-            title = { Text("忘掉这条记忆？") },
-            text = { Text(forgetConsequence(detail.memory.kind)) },
-            confirmButton = {
-                TextButton(onClick = {
-                    confirmForget = false
-                    viewModel.forget(detail.memory.id, onDone = onBack)
-                }) { Text("忘掉", color = AcornTheme.colors.danger) }
+        AcornDialog(
+            title = "忘掉这条记忆？",
+            body = forgetConsequence(detail.memory.kind),
+            confirm = "忘掉",
+            destructive = true,
+            onConfirm = {
+                confirmForget = false
+                viewModel.forget(detail.memory.id, onDone = onBack)
             },
-            dismissButton = { TextButton(onClick = { confirmForget = false }) { Text("取消") } },
+            onDismiss = { confirmForget = false },
         )
     }
 
     val draft = editing
     if (draft != null && detail != null) {
-        AlertDialog(
-            onDismissRequest = { if (change != MemoryChange.Saving) editing = null },
-            title = { Text("修改这条事实") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("用你自己的话写下正确的说法，Acorn 会以此为准，原来的说法留在历史里。", style = AcornTheme.type.footnote, color = AcornTheme.colors.inkSoft)
-                    BasicTextField(
-                        value = draft,
-                        onValueChange = { editing = it },
-                        textStyle = AcornTheme.type.body.copy(color = AcornTheme.colors.ink),
-                        cursorBrush = SolidColor(AcornTheme.colors.accent),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 96.dp)
-                            .clip(AcornShapes.small)
-                            .background(AcornTheme.colors.surfaceMuted)
-                            .padding(12.dp),
-                    )
+        val saving = change == MemoryChange.Saving
+        AcornDialog(
+            title = "修改这条事实",
+            body = "用你自己的话写下正确的说法，Acorn 会以此为准，原来的说法留在历史里。",
+            confirm = "保存",
+            confirmEnabled = draft.isNotBlank() && draft.trim() != detail.memory.content && !saving,
+            confirmLoading = saving,
+            dismissEnabled = !saving,
+            onConfirm = {
+                viewModel.correct(detail.memory, draft) { newId ->
+                    editing = null
+                    onReplaceMemory(newId)
                 }
             },
-            confirmButton = {
-                TextButton(
-                    enabled = draft.isNotBlank() && draft.trim() != detail.memory.content && change != MemoryChange.Saving,
-                    onClick = {
-                        viewModel.correct(detail.memory, draft) { newId ->
-                            editing = null
-                            onReplaceMemory(newId)
-                        }
-                    },
-                ) { Text(if (change == MemoryChange.Saving) "保存中…" else "保存") }
-            },
-            dismissButton = { TextButton(onClick = { editing = null }, enabled = change != MemoryChange.Saving) { Text("取消") } },
-        )
+            onDismiss = { if (!saving) editing = null },
+        ) {
+            BasicTextField(
+                value = draft,
+                onValueChange = { editing = it },
+                textStyle = AcornTheme.type.body.copy(color = AcornTheme.colors.ink),
+                cursorBrush = SolidColor(AcornTheme.colors.accent),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 96.dp)
+                    .clip(AcornShapes.medium)
+                    .background(AcornTheme.colors.surfaceMuted)
+                    .padding(14.dp),
+            )
+        }
     }
 }
 
@@ -217,7 +210,7 @@ private fun MemoryBody(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(parent.content, style = AcornTheme.type.callout, color = colors.ink, modifier = Modifier.weight(1f), maxLines = 3, overflow = TextOverflow.Ellipsis)
-                    Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, contentDescription = null, tint = colors.inkFaint, modifier = Modifier.size(20.dp))
+                    Icon(AcornIcons.ChevronRight, contentDescription = null, tint = colors.inkFaint, modifier = Modifier.size(18.dp))
                 }
             }
         }
@@ -260,7 +253,7 @@ private fun EvidenceQuote(
             Text("$relation${evidenceSource(evidence)} · ${ago(evidence.recordedAt, now)}", style = AcornTheme.type.caption, color = colors.inkFaint)
         }
         if (open != null) {
-            Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, contentDescription = "打开来源", tint = colors.inkFaint, modifier = Modifier.size(20.dp))
+            Icon(AcornIcons.ChevronRight, contentDescription = "打开来源", tint = colors.inkFaint, modifier = Modifier.size(18.dp))
         }
     }
 }
