@@ -139,7 +139,7 @@ func skillPackageDetail(markdown string, files []core.SkillFile, deletes []strin
 	case i >= 0:
 		b.WriteString(manifestDetail(files[i].Content, "") + "\n\n")
 	case slices.Contains(deletes, skills.ManifestFileName):
-		b.WriteString("Removes " + skills.ManifestFileName + ": the package no longer runs an MCP server.\n\n")
+		b.WriteString("Removes " + skills.ManifestFileName + ": the package no longer runs an MCP server or triggers.\n\n")
 	case kept != nil:
 		b.WriteString(manifestDetail(kept, " (unchanged)") + "\n\n")
 	}
@@ -165,18 +165,33 @@ func skillPackageDetail(markdown string, files []core.SkillFile, deletes []strin
 	return b.String()
 }
 
-// manifestDetail says which command a package's MCP server runs and which
-// secrets it gets, by name.
+// manifestDetail says what a package's manifest runs on the workstation: its
+// MCP server's command, then each trigger's schedule and command, and the
+// secrets they get, by name.
 func manifestDetail(content []byte, note string) string {
 	m, err := skills.ParseManifest(content)
 	if err != nil {
 		return fmt.Sprintf("%s does not parse, and the write will fail: %v", skills.ManifestFileName, err)
 	}
-	secrets := "none"
-	if len(m.MCP.Secrets) > 0 {
-		secrets = strings.Join(m.MCP.Secrets, ", ")
+	lines := []string{"Runs on the workstation from the package's directory" + note + ":"}
+	if m.MCP != nil {
+		lines = append(lines, "MCP server: "+m.MCP.CommandLine())
 	}
-	return fmt.Sprintf("MCP server%s, run on the workstation from the package's directory:\n%s\nSecrets: %s", note, m.MCP.CommandLine(), secrets)
+	for _, t := range m.Triggers {
+		lines = append(lines, fmt.Sprintf("Trigger %s at %q (owner's time), events %s: %s", t.Name, t.Schedule, deliverText(t.Deliver), t.Run))
+	}
+	secrets := "none"
+	if len(m.Secrets) > 0 {
+		secrets = strings.Join(m.Secrets, ", ")
+	}
+	return strings.Join(append(lines, "Secrets: "+secrets), "\n")
+}
+
+func deliverText(d skills.Deliver) string {
+	if d == skills.DeliverImmediate {
+		return "start a run at once"
+	}
+	return "wait for the morning briefing"
 }
 
 func clip(value string, limit int) string {

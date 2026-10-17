@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/ycvk/acorn/internal/api"
 	"github.com/ycvk/acorn/internal/config"
@@ -258,6 +259,32 @@ func renderDoctorPackageTools(items []wire.PackageToolStatus) string {
 		}
 		if item.State == "stopped" && item.Error != "" {
 			line += " (" + item.Error + ")"
+		}
+		lines = append(lines, line)
+	}
+	return strings.Join(lines, "\n")
+}
+
+// renderDoctorPackageTriggers lists each skill trigger with its schedule
+// and, when it does not fire, why.
+func renderDoctorPackageTriggers(items []wire.PackageTriggerStatus, loc *time.Location) string {
+	lines := []string{"Package triggers"}
+	for _, item := range items {
+		line := fmt.Sprintf("- %s (%q, %s, %s): ", item.Trigger, item.Schedule, item.Deliver, item.Run)
+		switch item.State {
+		case "scheduled":
+			line += "next at " + item.NextAt.In(loc).Format("2006-01-02 15:04")
+		case "failing":
+			line += fmt.Sprintf("failing after %d failures in a row, next try at %s: %s", item.Failures, item.NextAt.In(loc).Format("2006-01-02 15:04"), item.LastError)
+		case "missing_secrets":
+			line += fmt.Sprintf("does not run until its secrets %s are set with acorn skills secret set", strings.Join(item.MissingSecrets, ", "))
+		case "unscheduled":
+			line += "serve schedules it on its next tick"
+		case "off":
+			line += "off (workstation.url is not configured)"
+		}
+		if item.State == "scheduled" && item.Failures > 0 {
+			line += fmt.Sprintf(" (%d failures in a row: %s)", item.Failures, item.LastError)
 		}
 		lines = append(lines, line)
 	}

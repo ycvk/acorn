@@ -284,6 +284,7 @@ func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *contai
 		Runs:               &wakeRunStarter{runs: container.runs, store: db},
 		Watches:            db,
 		Checker:            deps.watchChecker,
+		Triggers:           db,
 		Clock:              clock,
 		Location:           location,
 		DailyLimit:         cfg.Wake.DailyLimit,
@@ -296,6 +297,9 @@ func buildContainerAppServices(cfg *config.Config, db *store.Store, deps *contai
 	})
 	if err == nil && deps.notifier != nil {
 		container.wake = container.wake.WithNotifications(deps.notifier)
+	}
+	if err == nil && deps.triggers != nil {
+		container.wake = container.wake.WithTriggers(deps.triggers)
 	}
 	if err != nil {
 		return nil, err

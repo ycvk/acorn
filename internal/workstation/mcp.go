@@ -194,11 +194,15 @@ func (h *mcpHost) start(srv *mcpServer, spec MCPServerSpec) {
 func (h *mcpHost) attempt(ctx context.Context, srv *mcpServer, spec MCPServerSpec) error {
 	srv.begin()
 	dir := filepath.Join(h.home, skillsDir, spec.Name)
-	server, err := packageServer(dir, spec.Hash)
+	m, err := packageManifest(dir, spec.Hash)
+	if err == nil && m.MCP == nil {
+		err = fmt.Errorf("package %s declares no MCP server", spec.Name)
+	}
 	if err != nil {
 		srv.finish(err)
 		return err
 	}
+	server := *m.MCP
 	attemptCtx, stop := context.WithCancel(ctx)
 	defer stop()
 	cmd := h.sup.Command(attemptCtx, server.Command, server.Args...)
@@ -351,28 +355,24 @@ func strayText(line []byte) string {
 	return text
 }
 
-// packageServer reads the MCP server of the package in dir, which must be
+// packageManifest reads the manifest of the package in dir, which must be
 // the package with that hash.
-func packageServer(dir, hash string) (skills.MCPServer, error) {
+func packageManifest(dir, hash string) (skills.Manifest, error) {
 	held, err := os.ReadFile(filepath.Join(dir, packageMarker))
 	if errors.Is(err, fs.ErrNotExist) {
-		return skills.MCPServer{}, fmt.Errorf("the workstation holds no package %s", filepath.Base(dir))
+		return skills.Manifest{}, fmt.Errorf("the workstation holds no package %s", filepath.Base(dir))
 	}
 	if err != nil {
-		return skills.MCPServer{}, err
+		return skills.Manifest{}, err
 	}
 	if got := strings.TrimSpace(string(held)); got != hash {
-		return skills.MCPServer{}, fmt.Errorf("the workstation holds package %s at %s, not %s", filepath.Base(dir), got, hash)
+		return skills.Manifest{}, fmt.Errorf("the workstation holds package %s at %s, not %s", filepath.Base(dir), got, hash)
 	}
 	content, err := os.ReadFile(filepath.Join(dir, skills.ManifestFileName))
 	if err != nil {
-		return skills.MCPServer{}, fmt.Errorf("package %s: %w", filepath.Base(dir), err)
+		return skills.Manifest{}, fmt.Errorf("package %s: %w", filepath.Base(dir), err)
 	}
-	m, err := skills.ParseManifest(content)
-	if err != nil {
-		return skills.MCPServer{}, err
-	}
-	return *m.MCP, nil
+	return skills.ParseManifest(content)
 }
 
 // syncTools mirrors the server's tools on the bridge.

@@ -101,20 +101,17 @@ func packageOf(entries []core.SkillFile) (Package, error) {
 	if err != nil {
 		return Package{}, err
 	}
-	if spec.MCP, err = mcpOf(files); err != nil {
+	m, _, err := ManifestOf(files)
+	if err != nil {
 		return Package{}, err
 	}
-	return Package{Spec: spec, Markdown: markdown, Files: files}, nil
+	return Package{Spec: spec.withManifest(m), Markdown: markdown, Files: files}, nil
 }
 
-// mcpOf is the MCP server a package's manifest declares, nil without a
-// manifest.
+// mcpOf is the MCP server a package's manifest declares, nil without one.
 func mcpOf(files []core.SkillFile) (*MCPServer, error) {
-	m, ok, err := ManifestOf(files)
-	if err != nil || !ok {
-		return nil, err
-	}
-	return m.MCP, nil
+	m, _, err := ManifestOf(files)
+	return m.MCP, err
 }
 
 // checkProvider rejects a package whose MCP server would take the name of a
@@ -198,7 +195,7 @@ func (l *Library) Scan(ctx context.Context) (*ScanResult, error) {
 				problems = append(problems, Problem{Name: skill.ID, Error: err.Error()})
 				continue
 			}
-			spec.MCP = m.MCP
+			spec = spec.withManifest(m)
 		}
 		items = append(items, spec)
 	}
@@ -390,7 +387,7 @@ func (l *Library) Sync(ctx context.Context, host PackageHost, snapshot Snapshot)
 	return dir, nil
 }
 
-// SetSecret stores the value of a secret the MCP server of a skill's current
+// SetSecret stores the value of a secret the package of a skill's current
 // revision declares.
 func (l *Library) SetSecret(ctx context.Context, name, secret, value string) error {
 	skill, err := l.store.Skill(ctx, strings.TrimSpace(name))
@@ -408,8 +405,8 @@ func (l *Library) SetSecret(ctx context.Context, name, secret, value string) err
 	if err != nil {
 		return err
 	}
-	if !slices.Contains(m.MCP.Secrets, secret) {
-		return fmt.Errorf("skill %s's MCP server declares the secrets %v, not %s", skill.ID, m.MCP.Secrets, secret)
+	if !slices.Contains(m.Secrets, secret) {
+		return fmt.Errorf("skill %s's package declares the secrets %v, not %s", skill.ID, m.Secrets, secret)
 	}
 	if value == "" {
 		return fmt.Errorf("the value of %s is empty", secret)
@@ -417,18 +414,18 @@ func (l *Library) SetSecret(ctx context.Context, name, secret, value string) err
 	return l.store.SetSkillSecret(ctx, skill.ID, secret, value, l.clock())
 }
 
-// MissingSecrets lists the secrets a skill's MCP server declares that have no
+// MissingSecrets lists the secrets a skill's package declares that have no
 // value.
 func (l *Library) MissingSecrets(ctx context.Context, spec Spec) ([]string, error) {
 	_, missing, err := l.secretEnv(ctx, spec)
 	return missing, err
 }
 
-// secretEnv is the environment of a skill's MCP server, from the values of
-// its secrets, and the secrets that have none.
+// secretEnv is the environment of a skill's MCP server and trigger commands,
+// from the values of its package's secrets, and the secrets that have none.
 func (l *Library) secretEnv(ctx context.Context, spec Spec) (map[string]string, []string, error) {
-	if spec.MCP == nil {
-		return nil, nil, nil
+	if len(spec.Secrets) == 0 {
+		return map[string]string{}, nil, nil
 	}
 	values, err := l.store.SkillSecrets(ctx, spec.Name)
 	if err != nil {
@@ -436,7 +433,7 @@ func (l *Library) secretEnv(ctx context.Context, spec Spec) (map[string]string, 
 	}
 	env := map[string]string{}
 	var missing []string
-	for _, name := range spec.MCP.Secrets {
+	for _, name := range spec.Secrets {
 		value, ok := values[name]
 		if !ok {
 			missing = append(missing, name)
@@ -463,15 +460,15 @@ type ServerHost interface {
 }
 
 // Serve has the host run the MCP server of every eligible skill that declares
-// one, with its secrets, and stop the others. A skill whose secrets are not
-// all set, or whose server does not serve, leaves the snapshot with the
-// reason.
+// one, with its secrets, and stop the others. A skill whose package's
+// secrets are not all set, or whose server does not serve, leaves the
+// snapshot with the reason.
 func (l *Library) Serve(ctx context.Context, host ServerHost, snapshot Snapshot) (Snapshot, error) {
 	out := CopySnapshot(snapshot)
 	runs := []MCPServerRun{}
 	index := map[string]int{}
 	for i, view := range out.Skills {
-		if !view.Eligible || view.MCP == nil {
+		if !view.Eligible || view.MCP == nil && len(view.Secrets) == 0 {
 			continue
 		}
 		env, missing, err := l.secretEnv(ctx, view.Spec)
@@ -480,6 +477,9 @@ func (l *Library) Serve(ctx context.Context, host ServerHost, snapshot Snapshot)
 		}
 		if len(missing) > 0 {
 			out.Skills[i] = Disable(view, "missing_secrets:"+strings.Join(missing, ","))
+			continue
+		}
+		if view.MCP == nil {
 			continue
 		}
 		runs = append(runs, MCPServerRun{Name: view.Name, Hash: view.Hash(), Env: env})

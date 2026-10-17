@@ -209,7 +209,7 @@ func TestBuiltInSkillsShipWithTheirFiles(t *testing.T) {
 	if got := paths(byName["browser-skill"]); !slices.Contains(got, "LICENSE") || !slices.Contains(got, "references/environment.md") {
 		t.Fatalf("browser-skill files = %v", got)
 	}
-	if got := paths(byName["skill-creator"]); !slices.Equal(got, []string{"LICENSE.txt", "references/patterns.md"}) || byName["skill-creator"].Spec.License == "" {
+	if got := paths(byName["skill-creator"]); !slices.Equal(got, []string{"LICENSE.txt", "references/package.md", "references/patterns.md"}) || byName["skill-creator"].Spec.License == "" {
 		t.Fatalf("skill-creator files = %v", got)
 	}
 }
@@ -328,7 +328,7 @@ func TestSeedWritesBuiltInsOnceAndReleaseChangesOnTop(t *testing.T) {
 		t.Fatalf("unchanged seed wrote again: %d, %v", len(store.writes), err)
 	}
 	creator, _ := store.current("skill-creator")
-	if len(creator.files) != 2 || creator.skill.SeedSHA256 != PackageHash(creator.skill.Markdown, creator.files) {
+	if len(creator.files) != 3 || creator.skill.SeedSHA256 != PackageHash(creator.skill.Markdown, creator.files) {
 		t.Fatalf("seeded skill-creator = %+v", creator.skill)
 	}
 	if _, err := library.Retire(ctx, "skill-creator", 1, "run-1"); err != nil {
@@ -340,7 +340,7 @@ func TestSeedWritesBuiltInsOnceAndReleaseChangesOnTop(t *testing.T) {
 		t.Fatal(err)
 	}
 	after, _ := store.current("skill-creator")
-	if after.skill.Revision != 3 || !after.skill.Retired || len(after.files) != 2 || after.skill.Author != core.SkillAuthorRelease {
+	if after.skill.Revision != 3 || !after.skill.Retired || len(after.files) != 3 || after.skill.Author != core.SkillAuthorRelease {
 		t.Fatalf("release update = %+v", after.skill)
 	}
 }

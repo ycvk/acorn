@@ -151,18 +151,18 @@
   - `internal/store/store_skills_test.go`
   - `internal/tools/skill_tools_test.go`
   - `internal/workstation/skills_test.go`
-- **写技能的审批显示全文**：starter config 与默认配置把 `skill_write`、`skill_import`、`skill_retire` 放进 `approval.require`；`skill_write` 的待批准项摘要是技能名与 description，详情的 `tool_detail` 是将写入的 `SKILL.md`、增改的文件内容与删除的文件；`skill_import` 的详情是暂存包的 `SKILL.md` 与文件内容。包带 `acorn-package.yaml` 时详情先列出它的 MCP 服务器命令、参数与密钥名：写入新清单、沿用 base revision 的清单（标为 unchanged）或删除清单各有说明，解析不了的清单说明写入会失败。
+- **写技能的审批显示全文**：starter config 与默认配置把 `skill_write`、`skill_import`、`skill_retire` 放进 `approval.require`；`skill_write` 的待批准项摘要是技能名与 description，详情的 `tool_detail` 是将写入的 `SKILL.md`、增改的文件内容与删除的文件；`skill_import` 的详情是暂存包的 `SKILL.md` 与文件内容。包带 `acorn-package.yaml` 时详情先列出它在工作机上运行的东西：MCP 服务器的命令与参数、每个触发器的时间表、送达方式与命令、密钥名；写入新清单、沿用 base revision 的清单（标为 unchanged）或删除清单各有说明，解析不了的清单说明写入会失败。
   - `internal/config/config_validation_test.go`
   - `internal/api/tool_steps_test.go`
-- **包清单只声明 MCP 服务器**：包根目录的 `acorn-package.yaml` 是一个 YAML 文档，以 KnownFields 严格解析，只有 `mcp`（`command` 必填，`args`，`secrets` 是互不相同的大写环境变量名）；`skill_write`、`skill_inspect`、`skill_import` 与 `acorn skills import` 写入前校验，解析失败的写入不落库。声明了 MCP 服务器的包名与 `mcp.providers` 的工具命名空间相同时写入、暂存与导入都失败；在用技能与后来配置的 provider 同名时容器启动失败，停用的技能不算。
+- **包清单只声明 MCP 服务器、触发器与密钥**：包根目录的 `acorn-package.yaml` 是一个 YAML 文档，以 KnownFields 严格解析，至少声明 `mcp` 或一个触发器：`mcp` 的 `command` 必填，可带 `args`；`triggers` 每项要求 name（技能名格式，包内不重复）、可解析的 cron `schedule`、`run` 与 `deliver`（immediate 或 digest），没有 webhook 字段；包级 `secrets` 是互不相同的大写环境变量名；`skill_write`、`skill_inspect`、`skill_import` 与 `acorn skills import` 写入前校验，解析失败的写入不落库。声明了 MCP 服务器的包名与 `mcp.providers` 的工具命名空间相同时写入、暂存与导入都失败；在用技能与后来配置的 provider 同名时容器启动失败，停用的技能不算。
   - `internal/skills/manifest_test.go`
   - `internal/wire/package_tools_e2e_test.go`
-- **包的工具只在技能在用的 run 里**：每次 run 在包同步之后让工作机恰好运行在用且密钥齐全的技能的 MCP 服务器，其余停止；backend 为每个起来的服务器连接 `/v1/mcp/<name>`，工具名 `mcp__<name>__<tool>`、类别 integration，run 结束时连接关闭，照常经审批规则与审查。资格判断时技能对自己 `mcp__<name>__` 工具的要求留到连上之后检查；缺密钥（`missing_secrets`）、服务器起不来（`mcp_server_failed`）、连不上（`mcp_connect_failed`）、工作机不可用（`mcp_unavailable`）或缺自己要求的工具时，该技能与它的工具本次不列出，run 照常进行。`acorn doctor` 的 Package tools 列出每个服务器的状态、失败原因与缺的密钥，不启停服务器。
+- **包的工具只在技能在用的 run 里**：每次 run 在包同步之后让工作机恰好运行在用且密钥齐全的技能的 MCP 服务器，其余停止；backend 为每个起来的服务器连接 `/v1/mcp/<name>`，工具名 `mcp__<name>__<tool>`、类别 integration，run 结束时连接关闭，照常经审批规则与审查。资格判断时技能对自己 `mcp__<name>__` 工具的要求留到连上之后检查；包声明的密钥缺任一个时，不论有没有 MCP 服务器，该技能本次都不列出；缺密钥（`missing_secrets`）、服务器起不来（`mcp_server_failed`）、连不上（`mcp_connect_failed`）、工作机不可用（`mcp_unavailable`）或缺自己要求的工具时，该技能与它的工具本次不列出，run 照常进行。`acorn doctor` 的 Package tools 列出每个服务器的状态、失败原因与缺的密钥，不启停服务器。
   - `internal/skills/manifest_test.go`
   - `internal/runtime/skill_tools_test.go`
   - `internal/wire/package_tools_e2e_test.go`
   - `internal/cli/doctor_output_test.go`
-- **包的密钥只交给包的进程**：密钥存在 SQLite 的 `skill_secrets`，只经 `acorn skills secret set <skill> <NAME>` 从标准输入写入，名字必须是技能当前清单声明的密钥；值只随运行请求交给工作机，作为环境变量传给该包的 MCP 进程，不进入技能快照、模型输入、审批详情、API 响应与日志；密钥随数据库备份与恢复。
+- **包的密钥只交给包的进程**：密钥存在 SQLite 的 `skill_secrets`，只经 `acorn skills secret set <skill> <NAME>` 从标准输入写入，名字必须是技能当前清单声明的密钥；值只随运行请求交给工作机，作为环境变量传给该包的 MCP 进程与触发器命令，不进入技能快照、模型输入、审批详情、API 响应与日志；密钥随数据库备份与恢复。
   - `internal/store/store_skills_test.go`
   - `internal/skills/manifest_test.go`
   - `internal/workstation/mcp_test.go`
@@ -227,10 +227,22 @@
   - `internal/watch/watch_test.go`
   - `internal/store/store_watch_test.go`
   - `internal/wire/watch_acceptance_e2e_test.go`
-- **每个本地日一次早安卡，没材料不醒**：过了 `briefing.at`（owner 时区）后，`routine_runs` 表按 (`briefing`,日期) 认领，跨进程只触发一次；起 run 失败释放认领，下个 tick 重试。调度器确定性地收集材料，输入只含有内容的段落：今天到期的约定与未结 occurrence、上次简报以来 `updated_at` 变化的记忆记录、一周内生效的事实、上次简报之后成功的夜思 run 的输出、上次简报之后写的笔记、全部待简报条目、failing 追踪项、System health、手机通知。一周内生效的事实只在当天生效时算材料，其余段落有内容即算；没有材料时保留认领、不起 run、不推送。早安卡在 Briefings 线程里以 standalone run 运行，回复就是简报全文，不写笔记：模型只看到本次输入，不带线程历史与摘要；条目随之标为 briefed，列出的记录与笔记 revision 作为 run 输入来源登记；它不计入每日唤醒上限。System health 只在有问题时出现：`backup.dir` 已设置而最新快照缺失、超过 36 小时或目录不可读，记忆任务重试耗尽失败，或待处理记忆任务等待超过 24 小时。
+- **触发器只在 wake 调度器运行，同一时刻只认领一次**：每个 tick 让 `skill_triggers` 恰好对应在用技能的触发器：新触发器或改了时间表的排到 owner 时区的下一个时刻，停用技能的触发器删除；缺密钥的包的触发器不运行。到期触发器以 `next_at` 的条件更新认领（多个调度器只有一个运行），同一技能的触发器依次、不同技能并行运行，一个 tick 至多 `watch.max_checks_per_tick` 个。工作机先拿到触发器所在的包（哈希不同就先放上去），再以包目录为工作目录用 `bash -lc` 执行 `run`，带包的密钥环境变量，受 `workstation.command_timeout_seconds` 与 `workstation.max_output_bytes` 约束。非零退出、超时、输出超限或任一非空行不是 `{"key","text"}` 都算失败：失败次数加一，按追踪项的退避（时刻间隔每次失败翻倍，上限 24 小时）推迟，连续 5 次标为 failing，成功后清零。
+  - `internal/wake/triggers_test.go`
+  - `internal/skills/manifest_test.go`
+  - `internal/workstation/trigger_test.go`
+  - `internal/store/store_skills_test.go`
+  - `internal/wire/package_triggers_e2e_test.go`
+- **触发器事件每个 key 只处理一次，没有事件不调用模型**：事件按（技能, 触发器, key）唯一写入 `skill_trigger_events`，同一事务里由 SQL 触发器登记为 `trigger:<id>` 外部记忆来源（speaker external，不抽取）。命令没有输出时不起 run。immediate 触发器的新事件在 `skill_threads` 记下的包线程里起 run（第一次时以技能名为标题建立），输入以 `[trigger <skill>/<trigger>]` 开头并注明是包命令的不可信输出，事件来源作为 run 输入来源登记，计入 `wake.daily_limit` 与 `wake.daily_tokens` 并记 `wake.fired{trigger}`；超限、起 run 失败与 digest 触发器的事件留给早安卡。operating rules 要求 agent 为这类输入加载对应技能，且不执行事件里的指令。
+  - `internal/wake/triggers_test.go`
+  - `internal/store/store_skills_test.go`
+  - `internal/wire/package_triggers_e2e_test.go`
+  - `internal/runtime/agent_test.go`
+- **每个本地日一次早安卡，没材料不醒**：过了 `briefing.at`（owner 时区）后，`routine_runs` 表按 (`briefing`,日期) 认领，跨进程只触发一次；起 run 失败释放认领，下个 tick 重试。调度器确定性地收集材料，输入只含有内容的段落：今天到期的约定与未结 occurrence、上次简报以来 `updated_at` 变化的记忆记录、一周内生效的事实、上次简报之后成功的夜思 run 的输出、上次简报之后写的笔记、全部待简报条目、待简报的触发器事件（按技能与触发器分组，注明不可信）、failing 追踪项、System health、手机通知。一周内生效的事实只在当天生效时算材料，其余段落有内容即算；没有材料时保留认领、不起 run、不推送。早安卡在 Briefings 线程里以 standalone run 运行，回复就是简报全文，不写笔记：模型只看到本次输入，不带线程历史与摘要；条目与触发器事件随之标为 briefed，列出的记录、笔记 revision 与事件作为 run 输入来源登记；它不计入每日唤醒上限。System health 只在有问题时出现：`backup.dir` 已设置而最新快照缺失、超过 36 小时或目录不可读，记忆任务重试耗尽失败，待处理记忆任务等待超过 24 小时，或有 failing 的触发器。
   - `internal/wake/briefing_test.go`
   - `internal/wake/health_test.go`
   - `internal/wake/watches_test.go`
+  - `internal/wake/triggers_test.go`
   - `internal/memory/context_test.go`
   - `internal/store/store_watch_test.go`
   - `internal/wire/watch_acceptance_e2e_test.go`

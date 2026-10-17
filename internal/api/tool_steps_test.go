@@ -183,7 +183,7 @@ func TestSkillImportApprovalShowsTheStagedPackage(t *testing.T) {
 }
 
 func TestSkillApprovalsListThePackageManifestFirst(t *testing.T) {
-	manifest := "mcp:\n  command: uvx\n  args: [mcp-server-github, --read-only]\n  secrets: [GITHUB_TOKEN]\n"
+	manifest := "mcp:\n  command: uvx\n  args: [mcp-server-github, --read-only]\ntriggers:\n  - name: issues\n    schedule: \"*/30 * * * *\"\n    run: scripts/issues.py --open\n    deliver: immediate\n  - name: weekly\n    schedule: \"0 9 * * 1\"\n    run: scripts/weekly.py\n    deliver: digest\nsecrets: [GITHUB_TOKEN]\n"
 	markdown := "---\nname: github\ndescription: Read GitHub issues.\n---\nUse the tools.\n"
 	service := NewPendingActionService(nil).WithSkillPackages(stagedPackagesStub{
 		"abc": {SHA256: "abc", Name: "github", Markdown: markdown, Files: []core.SkillFile{{Path: "acorn-package.yaml", Content: []byte(manifest)}}},
@@ -191,7 +191,7 @@ func TestSkillApprovalsListThePackageManifestFirst(t *testing.T) {
 		"github@1": {Files: []core.SkillFile{{Path: "acorn-package.yaml", Content: []byte(manifest)}, {Path: "notes.md", Content: []byte("n")}}},
 	})
 	ctx := context.Background()
-	header := "MCP server, run on the workstation from the package's directory:\nuvx mcp-server-github --read-only\nSecrets: GITHUB_TOKEN\n\n"
+	header := "Runs on the workstation from the package's directory:\nMCP server: uvx mcp-server-github --read-only\nTrigger issues at \"*/30 * * * *\" (owner's time), events start a run at once: scripts/issues.py --open\nTrigger weekly at \"0 9 * * 1\" (owner's time), events wait for the morning briefing: scripts/weekly.py\nSecrets: GITHUB_TOKEN\n\n"
 	imported, err := service.toolDetail(ctx, "skill_import", `{"name":"github","sha256":"abc"}`)
 	if err != nil || !strings.HasPrefix(imported, header+"---\nname: github") || !strings.Contains(imported, "── acorn-package.yaml (") {
 		t.Fatalf("import detail = %q, %v", imported, err)
@@ -214,10 +214,10 @@ func TestSkillApprovalsListThePackageManifestFirst(t *testing.T) {
 		t.Fatalf("new package detail = %q", got)
 	}
 	kept := write(map[string]any{"files": map[string]string{"notes.md": "m"}, "base_revision": 1})
-	if !strings.HasPrefix(kept, "MCP server (unchanged), run on the workstation from the package's directory:\nuvx mcp-server-github --read-only\nSecrets: GITHUB_TOKEN\n\n---") {
+	if !strings.HasPrefix(kept, strings.Replace(header, "directory:", "directory (unchanged):", 1)+"---") {
 		t.Fatalf("edit detail = %q", kept)
 	}
-	if got := write(map[string]any{"delete": []string{"acorn-package.yaml"}, "base_revision": 1}); !strings.HasPrefix(got, "Removes acorn-package.yaml: the package no longer runs an MCP server.\n\n---") {
+	if got := write(map[string]any{"delete": []string{"acorn-package.yaml"}, "base_revision": 1}); !strings.HasPrefix(got, "Removes acorn-package.yaml: the package no longer runs an MCP server or triggers.\n\n---") {
 		t.Fatalf("removal detail = %q", got)
 	}
 	if got := write(map[string]any{"files": map[string]string{"acorn-package.yaml": "mcp:\n  command: uvx\nextra: 1\n"}}); !strings.HasPrefix(got, "acorn-package.yaml does not parse, and the write will fail") {

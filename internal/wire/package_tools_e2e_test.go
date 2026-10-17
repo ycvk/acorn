@@ -71,7 +71,7 @@ func TestPackageToolsComeWithTheirSkill(t *testing.T) {
 	description := "Echo text through the fixture MCP server."
 	skill, err := c.Skills().Import(ctx, []core.SkillFile{
 		{Path: "SKILL.md", Content: []byte("---\nname: fixture\ndescription: " + description + "\nmetadata:\n  acorn-requires-tools: mcp__fixture__echo\n---\nCall mcp__fixture__echo.\n")},
-		{Path: skills.ManifestFileName, Content: []byte("mcp:\n  command: " + binary + "\n  secrets: [FIXTURE_TOKEN]\n")},
+		{Path: skills.ManifestFileName, Content: []byte("mcp:\n  command: " + binary + "\nsecrets: [FIXTURE_TOKEN]\n")},
 		{Path: "tools.txt", Content: []byte("echo\n")},
 	}, false)
 	if err != nil {

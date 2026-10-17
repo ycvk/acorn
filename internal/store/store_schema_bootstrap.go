@@ -146,6 +146,8 @@ CREATE TABLE IF NOT EXISTS knowledge_revisions (
 
 ` + skillSecretsTable + `
 
+` + skillTriggerTables + `
+
 ` + personaTable + `
 
 ` + threadFilesTable + `
@@ -303,6 +305,41 @@ const skillSecretsTable = `CREATE TABLE IF NOT EXISTS skill_secrets (
     value TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     PRIMARY KEY (skill, name)
+);`
+
+// skillTriggerTables are shared with the migration that adds them: the
+// schedule of each trigger of a skill in use, the events trigger commands
+// printed, unique per skill, trigger and key, and the thread each skill's
+// trigger runs happen in.
+const skillTriggerTables = `CREATE TABLE IF NOT EXISTS skill_triggers (
+    skill TEXT NOT NULL,
+    name TEXT NOT NULL,
+    schedule TEXT NOT NULL,
+    status TEXT NOT NULL,
+    next_at TEXT NOT NULL,
+    failures INTEGER NOT NULL DEFAULT 0,
+    last_error TEXT NOT NULL DEFAULT '',
+    last_run_at TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (skill, name)
+);
+
+CREATE TABLE IF NOT EXISTS skill_trigger_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    skill TEXT NOT NULL,
+    trigger_name TEXT NOT NULL,
+    event_key TEXT NOT NULL,
+    text TEXT NOT NULL,
+    status TEXT NOT NULL,
+    run_id TEXT NOT NULL DEFAULT '',
+    seen_at TEXT NOT NULL,
+    UNIQUE (skill, trigger_name, event_key)
+);
+
+CREATE INDEX IF NOT EXISTS skill_trigger_events_status ON skill_trigger_events(status, id);
+
+CREATE TABLE IF NOT EXISTS skill_threads (
+    skill TEXT PRIMARY KEY,
+    thread_id TEXT NOT NULL
 );`
 
 // personaTable is shared with the migration that adds it. The newest

@@ -3,6 +3,7 @@ package cli
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ycvk/acorn/internal/api"
 	"github.com/ycvk/acorn/internal/config"
@@ -216,5 +217,23 @@ func TestRenderDoctorPackageToolsSaysWhyAServerDoesNotServe(t *testing.T) {
 		"- github (npx github-mcp): missing secrets GITHUB_TOKEN; set each with acorn skills secret set github NAME",
 		"- broken (./server): failed: exit status 1",
 		"- idle (uvx idle): not running; it starts with the next run that uses the skill",
+	})
+}
+
+func TestRenderDoctorPackageTriggersSaysWhenEachFires(t *testing.T) {
+	loc := time.FixedZone("CST", 8*3600)
+	next := time.Date(2026, 10, 17, 2, 30, 0, 0, time.UTC)
+	got := renderDoctorPackageTriggers([]wire.PackageTriggerStatus{
+		{Trigger: "price-watch/price", Schedule: "*/30 * * * *", Deliver: "immediate", Run: "scripts/check.sh", State: "scheduled", NextAt: next},
+		{Trigger: "price-watch/feed", Schedule: "0 * * * *", Deliver: "digest", Run: "scripts/feed.sh", State: "failing", NextAt: next, Failures: 5, LastError: "the command exited with status 1"},
+		{Trigger: "issues/weekly", Schedule: "0 9 * * 1", Deliver: "digest", Run: "scripts/weekly.py", State: "missing_secrets", MissingSecrets: []string{"GITHUB_TOKEN"}},
+		{Trigger: "news/daily", Schedule: "0 7 * * *", Deliver: "digest", Run: "scripts/news.py", State: "unscheduled"},
+	}, loc)
+	mustContainAll(t, got, []string{
+		"Package triggers",
+		`- price-watch/price ("*/30 * * * *", immediate, scripts/check.sh): next at 2026-10-17 10:30`,
+		`- price-watch/feed ("0 * * * *", digest, scripts/feed.sh): failing after 5 failures in a row, next try at 2026-10-17 10:30: the command exited with status 1`,
+		`- issues/weekly ("0 9 * * 1", digest, scripts/weekly.py): does not run until its secrets GITHUB_TOKEN are set with acorn skills secret set`,
+		`- news/daily ("0 7 * * *", digest, scripts/news.py): serve schedules it on its next tick`,
 	})
 }
