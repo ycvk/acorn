@@ -221,13 +221,13 @@ func (m *approvalMiddleware) reviewCalls(ctx context.Context, toolName, args str
 	if toolName != "shell" {
 		return []review.Call{{OwnerRequest: owner, Tool: toolName, Arguments: args}}, nil
 	}
-	var input struct {
-		Command string `json:"command"`
+	command, ok := shellCommand(args)
+	if !ok {
+		// The shell tool rejects the same arguments, so the call fails as a
+		// tool result without running a command.
+		return nil, nil
 	}
-	if err := json.Unmarshal([]byte(args), &input); err != nil {
-		return nil, fmt.Errorf("review shell arguments: %w", err)
-	}
-	shell := review.ParseShell(input.Command)
+	shell := review.ParseShell(command)
 	if shell.ReadOnly {
 		return nil, nil
 	}
@@ -250,9 +250,21 @@ func (m *approvalMiddleware) reviewCalls(ctx context.Context, toolName, args str
 	}
 	m.mu.Unlock()
 	if shell.Other {
-		calls = append(calls, review.Call{OwnerRequest: owner, Tool: "shell", Command: input.Command})
+		calls = append(calls, review.Call{OwnerRequest: owner, Tool: "shell", Command: command})
 	}
 	return calls, nil
+}
+
+// shellCommand reads the command from shell arguments; ok is false when they
+// do not decode, which the shell tool rejects too.
+func shellCommand(args string) (command string, ok bool) {
+	var input struct {
+		Command string `json:"command"`
+	}
+	if json.Unmarshal([]byte(args), &input) != nil {
+		return "", false
+	}
+	return input.Command, true
 }
 
 // observing remembers what bsk showed of each session, so a later click on

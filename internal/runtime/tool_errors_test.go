@@ -60,17 +60,23 @@ func TestToolFailureBecomesModelVisibleResult(t *testing.T) {
 }
 
 func TestShellFailureUnderApprovalBecomesModelVisibleResult(t *testing.T) {
-	for name, args := range map[string]string{
-		"workstation error":   shellArgs("bsk observe --session s1"),
-		"malformed arguments": `{"command":`,
+	for name, tc := range map[string]struct {
+		reviewer ActionReviewer
+		args     string
+	}{
+		"workstation error":            {args: shellArgs("bsk observe --session s1")},
+		"malformed arguments":          {args: `{"command":`},
+		"reviewed workstation error":   {reviewer: &fakeReviewer{}, args: shellArgs("rm -rf build")},
+		"reviewed malformed arguments": {reviewer: &fakeReviewer{}, args: `{"command":`},
+		"reviewed mistyped arguments":  {reviewer: &fakeReviewer{}, args: `{"command":5}`},
 	} {
 		t.Run(name, func(t *testing.T) {
-			approval, err := newApprovalMiddleware(config.ApprovalConfig{}, nil, &approvalTestStore{})
+			approval, err := newApprovalMiddleware(config.ApprovalConfig{}, tc.reviewer, &approvalTestStore{})
 			if err != nil {
 				t.Fatalf("approval middleware: %v", err)
 			}
 			model := &scriptedModel{replies: []*schema.AgenticMessage{
-				toolCallReply("call_1", "shell", args),
+				toolCallReply("call_1", "shell", tc.args),
 				assistantMessage("recovered", nil),
 			}}
 			ctx := core.WithRunID(context.Background(), "run_shell_fail")
