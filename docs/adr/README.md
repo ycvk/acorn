@@ -12,6 +12,7 @@ ADR 记录 Acorn 架构方向级决策的"为什么"。current-state 架构真�
 | [0006](0006-agent-workstation.md) | agent 的工作机 — 在 VPS 上有一台能动手的隔离电脑 | Accepted | 2026-10-12 |
 | [0007](0007-agent-maintained-skills.md) | agent 维护自己的技能 | Proposed | 2026-10-12 |
 | [0008](0008-persona-in-app.md) | 人格存进 SQLite，owner 在 App 里编辑 | Accepted | 2026-10-15 |
+| [0009](0009-background-work-on-concerns.md) | 后台把关切推进到成品 | Proposed | 2026-10-17 |
 
 ## Status 约定
 
