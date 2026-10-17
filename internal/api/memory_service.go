@@ -25,7 +25,7 @@ type memoryReader interface {
 
 // memoryOwner applies the changes the owner makes in the app.
 type memoryOwner interface {
-	ForgetForOwner(ctx context.Context, id string) (core.MemoryExclusion, error)
+	ForgetForOwner(ctx context.Context, id string) (core.MemoryForgotten, error)
 	CorrectForOwner(ctx context.Context, id string, revision int64, content string) (core.MemoryRecord, error)
 }
 
@@ -186,14 +186,14 @@ func (s *MemoryService) Get(ctx context.Context, id string) (MemoryDetailDTO, er
 // Forget excludes the memory and everything derived from it, and returns
 // once executions that saw it have stopped.
 func (s *MemoryService) Forget(ctx context.Context, id string) (MemoryForgetResponse, error) {
-	exclusion, err := s.owner.ForgetForOwner(ctx, id)
+	forgotten, err := s.owner.ForgetForOwner(ctx, id)
 	if err != nil {
 		return MemoryForgetResponse{}, err
 	}
-	if err := s.barrier(ctx, exclusion, ""); err != nil {
+	if err := s.barrier(ctx, forgotten.Exclusion, ""); err != nil {
 		return MemoryForgetResponse{}, err
 	}
-	return MemoryForgetResponse{ForgottenIDs: nonNilStrings(exclusion.RecordIDs)}, nil
+	return MemoryForgetResponse{ForgottenIDs: nonNilStrings(forgotten.RecordIDs)}, nil
 }
 
 // Correct replaces a fact with the owner's wording and returns the new fact.

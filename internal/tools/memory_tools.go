@@ -14,7 +14,7 @@ type MemoryService interface {
 	Keep(context.Context, string, memory.WriteInput) (core.MemoryRecord, error)
 	Think(context.Context, string, string, memory.WriteInput) (core.MemoryRecord, error)
 	Correct(context.Context, string, memory.CorrectInput) (core.MemoryRecord, error)
-	Forget(context.Context, string, core.MemoryForget) (core.MemoryExclusion, error)
+	Forget(context.Context, string, core.MemoryForget) (core.MemoryForgotten, error)
 	Read(context.Context, memory.ReadInput) (memory.ReadPage, error)
 	Concern(context.Context, string, memory.ConcernInput) ([]core.MemoryConcern, error)
 }
@@ -59,14 +59,14 @@ func buildMemoryCorrectTool(deps PresenceToolDeps) (einotool.BaseTool, error) {
 func buildMemoryForgetTool(deps PresenceToolDeps) (einotool.BaseTool, error) {
 	return inferProgressTool("memory_forget", "Exclude identified memories from future agent use. Requires the current owner's request source. Fact IDs exclude their supporting fragments; inference IDs withdraw the inference while preserving its underlying facts. source_ids exclude whole sources. Resolve ambiguous scope with the owner first.", func(ctx context.Context, in core.MemoryForget, _ ToolProgressEmitter) (core.MemoryForgetResult, error) {
 		runID := deps.Context.CurrentRunID(ctx)
-		exclusion, err := deps.Memory.Forget(ctx, runID, in)
+		forgotten, err := deps.Memory.Forget(ctx, runID, in)
 		if err != nil {
 			return core.MemoryForgetResult{}, err
 		}
-		if err := deps.ForgetBarrier(ctx, exclusion, runID); err != nil {
+		if err := deps.ForgetBarrier(ctx, forgotten.Exclusion, runID); err != nil {
 			return core.MemoryForgetResult{}, err
 		}
-		return core.MemoryForgetResult{Version: exclusion.Epoch, RecordIDs: exclusion.RecordIDs, SourceIDs: exclusion.SourceIDs, Scope: "Excluded from future agent memory and context. Original chat and knowledge files remain in their owning stores."}, nil
+		return core.MemoryForgetResult{Version: forgotten.Exclusion.Epoch, RecordIDs: forgotten.RecordIDs, SourceIDs: forgotten.SourceIDs, Scope: "Excluded from future agent memory and context. Original chat and knowledge files remain in their owning stores."}, nil
 	})
 }
 

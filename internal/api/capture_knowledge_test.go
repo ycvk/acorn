@@ -69,9 +69,9 @@ func (k *knowledgeFake) Read(_ context.Context, path string) (core.KnowledgeNote
 	return core.KnowledgeNote{Path: path, Title: "Tokio", Source: "https://tokio.rs", Revision: 3, CreatedAt: knowledgeFakeTime, UpdatedAt: knowledgeFakeTime, Body: "Async runtime."}, nil
 }
 
-func (k *knowledgeFake) ForgetNoteForOwner(_ context.Context, path, title string) (core.MemoryExclusion, error) {
+func (k *knowledgeFake) ForgetNoteForOwner(_ context.Context, path, title string) (core.MemoryForgotten, error) {
 	k.steps = append(k.steps, "forget "+path+" "+title)
-	return core.MemoryExclusion{Epoch: 7}, nil
+	return core.MemoryForgotten{Exclusion: core.MemoryExclusion{Epoch: 7}}, nil
 }
 
 func (k *knowledgeFake) barrier(_ context.Context, exclusion core.MemoryExclusion, _ string) error {

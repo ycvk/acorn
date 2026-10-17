@@ -25,7 +25,7 @@ type knowledgeVault interface {
 
 // noteForgetter forgets a note the owner deletes.
 type noteForgetter interface {
-	ForgetNoteForOwner(ctx context.Context, path, title string) (core.MemoryExclusion, error)
+	ForgetNoteForOwner(ctx context.Context, path, title string) (core.MemoryForgotten, error)
 }
 
 // KnowledgeService serves the knowledge base to clients: reading notes and
@@ -130,11 +130,11 @@ func (s *KnowledgeService) DeleteNote(ctx context.Context, path string) error {
 	if err != nil {
 		return err
 	}
-	exclusion, err := s.forgetter.ForgetNoteForOwner(ctx, note.Path, note.Title)
+	forgotten, err := s.forgetter.ForgetNoteForOwner(ctx, note.Path, note.Title)
 	if err != nil {
 		return err
 	}
-	if err := s.barrier(ctx, exclusion, ""); err != nil {
+	if err := s.barrier(ctx, forgotten.Exclusion, ""); err != nil {
 		return err
 	}
 	return s.vault.Delete(ctx, note.Path, note.Revision)

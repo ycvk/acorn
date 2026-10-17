@@ -132,9 +132,9 @@ func TestMemoryForgetInvalidatesDerivationsAndInFlightWork(t *testing.T) {
 		t.Fatal(err)
 	}
 	request := seedMemorySource(t, s, "owner:forget", "owner", "忘掉我的香菜偏好")
-	exclusion, err := s.ForgetMemory(ctx, core.MemoryForget{RecordIDs: []string{facts[0].ID}, RequestSourceID: request.ID, Reason: "owner request", Now: memoryTestNow.Add(time.Second)})
-	if err != nil || exclusion.Epoch != 1 {
-		t.Fatalf("forget=%+v %v", exclusion, err)
+	forgotten, err := s.ForgetMemory(ctx, core.MemoryForget{RecordIDs: []string{facts[0].ID}, RequestSourceID: request.ID, Reason: "owner request", Now: memoryTestNow.Add(time.Second)})
+	if err != nil || forgotten.Exclusion.Epoch != 1 {
+		t.Fatalf("forget=%+v %v", forgotten, err)
 	}
 	for _, id := range []string{facts[0].ID, insights[0].ID} {
 		if _, err := s.ReadMemory(ctx, id); !errors.Is(err, core.ErrMemoryExcluded) {

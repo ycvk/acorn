@@ -14,7 +14,7 @@ import (
 
 // threadForgetter forgets a conversation the owner deletes.
 type threadForgetter interface {
-	ForgetThreadForOwner(ctx context.Context, threadID, title string) (core.MemoryExclusion, error)
+	ForgetThreadForOwner(ctx context.Context, threadID, title string) (core.MemoryForgotten, error)
 }
 
 // ThreadService owns thread and message CRUD: it reads/writes session records,
@@ -158,11 +158,11 @@ func (s *ThreadService) DeleteThread(ctx context.Context, threadID string) error
 	if latest != nil && latest.Status == core.RunStatusRunning {
 		return fmt.Errorf("%w: %s", core.ErrThreadBusy, threadID)
 	}
-	exclusion, err := s.forgetter.ForgetThreadForOwner(ctx, threadID, session.Title)
+	forgotten, err := s.forgetter.ForgetThreadForOwner(ctx, threadID, session.Title)
 	if err != nil {
 		return err
 	}
-	if err := s.barrier(ctx, exclusion, ""); err != nil {
+	if err := s.barrier(ctx, forgotten.Exclusion, ""); err != nil {
 		return err
 	}
 	return s.store.DeleteThread(ctx, threadID)

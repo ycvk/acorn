@@ -156,9 +156,9 @@ func (e *Engine) correct(ctx context.Context, in CorrectInput) (core.MemoryRecor
 
 // Forget commits exclusions before the runtime cancels old model input. The
 // tool acknowledges only after its injected visibility barrier has completed.
-func (e *Engine) Forget(ctx context.Context, runID string, request core.MemoryForget) (core.MemoryExclusion, error) {
+func (e *Engine) Forget(ctx context.Context, runID string, request core.MemoryForget) (core.MemoryForgotten, error) {
 	if _, err := e.currentOwner(ctx, runID, request.RequestSourceID); err != nil {
-		return core.MemoryExclusion{}, err
+		return core.MemoryForgotten{}, err
 	}
 	request.Now = e.cfg.Clock()
 	return e.cfg.Store.ForgetMemory(ctx, request)

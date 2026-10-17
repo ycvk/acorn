@@ -41,12 +41,12 @@ func TestMemoryForgetOneSourceKeepsFactOnIndependentEvidence(t *testing.T) {
 	fact, a, b := twoSourceFact(t, s)
 	request := seedMemorySource(t, s, "owner:forget", "owner", "忘记第一次聊天")
 	at := memoryTestNow.Add(time.Hour)
-	exclusion, err := s.ForgetMemory(ctx, core.MemoryForget{SourceIDs: []string{a.ID}, RequestSourceID: request.ID, Reason: "owner deleted the conversation", Now: at})
+	forgotten, err := s.ForgetMemory(ctx, core.MemoryForget{SourceIDs: []string{a.ID}, RequestSourceID: request.ID, Reason: "owner deleted the conversation", Now: at})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(exclusion.RecordIDs) != 0 {
-		t.Fatalf("fact with independent evidence excluded: %v", exclusion.RecordIDs)
+	if len(forgotten.RecordIDs) != 0 {
+		t.Fatalf("fact with independent evidence excluded: %v", forgotten.RecordIDs)
 	}
 	read, err := s.ReadMemory(ctx, fact.ID)
 	if err != nil {
@@ -92,12 +92,12 @@ func TestMemoryForgetOnlySourceExcludesWholeFact(t *testing.T) {
 		t.Fatal(err)
 	}
 	request := seedMemorySource(t, s, "owner:forget", "owner", "忘记那次聊天")
-	exclusion, err := s.ForgetMemory(ctx, core.MemoryForget{SourceIDs: []string{source.ID}, RequestSourceID: request.ID, Reason: "owner deleted the conversation", Now: memoryTestNow.Add(time.Hour)})
+	forgotten, err := s.ForgetMemory(ctx, core.MemoryForget{SourceIDs: []string{source.ID}, RequestSourceID: request.ID, Reason: "owner deleted the conversation", Now: memoryTestNow.Add(time.Hour)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Equal(exclusion.RecordIDs, []string{records[0].ID}) {
-		t.Fatalf("excluded records=%v", exclusion.RecordIDs)
+	if !slices.Equal(forgotten.RecordIDs, []string{records[0].ID}) {
+		t.Fatalf("excluded records=%v", forgotten.RecordIDs)
 	}
 	if _, err := s.ReadMemory(ctx, records[0].ID); !errors.Is(err, core.ErrMemoryExcluded) {
 		t.Fatalf("read after forget: %v", err)
@@ -105,6 +105,32 @@ func TestMemoryForgetOnlySourceExcludesWholeFact(t *testing.T) {
 	var revisions int
 	if err := s.db.QueryRow(`SELECT COUNT(*) FROM memory_revisions WHERE record_id=?`, records[0].ID).Scan(&revisions); err != nil || revisions != 1 {
 		t.Fatalf("excluded fact gained a revision: %d %v", revisions, err)
+	}
+}
+
+func TestMemoryForgetReportsOnlyWhatTheRequestExcluded(t *testing.T) {
+	s := openTestStore(t)
+	ctx := context.Background()
+	tea := seedMemorySource(t, s, "owner:tea", "owner", "我喜欢喝茶")
+	run := seedMemorySource(t, s, "owner:run", "owner", "我周末跑步")
+	records, err := s.CommitMemory(ctx, core.MemoryMutation{Changes: []core.MemoryChange{memoryFact(tea, "owner 喜欢喝茶"), memoryFact(run, "owner 周末跑步")}, Now: memoryTestNow})
+	if err != nil {
+		t.Fatal(err)
+	}
+	first := seedMemorySource(t, s, "owner:forget-tea", "owner", "忘了喝茶那条")
+	if _, err := s.ForgetMemory(ctx, core.MemoryForget{RecordIDs: []string{records[0].ID}, RequestSourceID: first.ID, Reason: "owner forgot it in the app", Now: memoryTestNow.Add(time.Hour)}); err != nil {
+		t.Fatal(err)
+	}
+	second := seedMemorySource(t, s, "owner:forget-run", "owner", "忘了跑步那条")
+	forgotten, err := s.ForgetMemory(ctx, core.MemoryForget{RecordIDs: []string{records[1].ID}, RequestSourceID: second.ID, Reason: "owner forgot it in the app", Now: memoryTestNow.Add(2 * time.Hour)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(forgotten.RecordIDs, []string{records[1].ID}) {
+		t.Fatalf("forgotten records=%v, want only %s", forgotten.RecordIDs, records[1].ID)
+	}
+	if want := []string{second.ID, run.ID}; !slices.Equal(forgotten.SourceIDs, want) {
+		t.Fatalf("forgotten sources=%v, want %v", forgotten.SourceIDs, want)
 	}
 }
 
@@ -130,12 +156,12 @@ func TestMemoryForgetStrippedParentMarksDerivedInsightForReview(t *testing.T) {
 	}
 	request := seedMemorySource(t, s, "owner:forget", "owner", "忘记第一次聊天")
 	at := memoryTestNow.Add(time.Hour)
-	exclusion, err := s.ForgetMemory(ctx, core.MemoryForget{SourceIDs: []string{a.ID}, RequestSourceID: request.ID, Reason: "owner deleted the conversation", Now: at})
+	forgotten, err := s.ForgetMemory(ctx, core.MemoryForget{SourceIDs: []string{a.ID}, RequestSourceID: request.ID, Reason: "owner deleted the conversation", Now: at})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(exclusion.RecordIDs) != 0 {
-		t.Fatalf("stripped parent cascaded: %v", exclusion.RecordIDs)
+	if len(forgotten.RecordIDs) != 0 {
+		t.Fatalf("stripped parent cascaded: %v", forgotten.RecordIDs)
 	}
 	parent, err := s.ReadMemory(ctx, fact.ID)
 	if err != nil || parent.Record.Revision != 2 || parent.Record.NeedsReview {
@@ -176,12 +202,12 @@ func TestMemoryForgetFragmentStripsOnlyMatchingEvidence(t *testing.T) {
 		t.Fatal(err)
 	}
 	request := seedMemorySource(t, s, "owner:forget", "owner", "忘记香菜偏好")
-	exclusion, err := s.ForgetMemory(ctx, core.MemoryForget{RecordIDs: []string{records[0].ID}, RequestSourceID: request.ID, Reason: "owner request", Now: memoryTestNow.Add(time.Hour)})
+	forgotten, err := s.ForgetMemory(ctx, core.MemoryForget{RecordIDs: []string{records[0].ID}, RequestSourceID: request.ID, Reason: "owner request", Now: memoryTestNow.Add(time.Hour)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Equal(exclusion.RecordIDs, []string{records[0].ID}) {
-		t.Fatalf("excluded records=%v", exclusion.RecordIDs)
+	if !slices.Equal(forgotten.RecordIDs, []string{records[0].ID}) {
+		t.Fatalf("excluded records=%v", forgotten.RecordIDs)
 	}
 	stripped, err := s.ReadMemory(ctx, records[1].ID)
 	if err != nil {
@@ -232,13 +258,13 @@ func TestMemoryConsolidationCannotRestoreStrippedEvidence(t *testing.T) {
 	ctx := context.Background()
 	fact, a, b := twoSourceFact(t, s)
 	request := seedMemorySource(t, s, "owner:forget", "owner", "忘记第一次聊天")
-	exclusion, err := s.ForgetMemory(ctx, core.MemoryForget{SourceIDs: []string{a.ID}, RequestSourceID: request.ID, Reason: "owner deleted the conversation", Now: memoryTestNow.Add(time.Hour)})
+	forgotten, err := s.ForgetMemory(ctx, core.MemoryForget{SourceIDs: []string{a.ID}, RequestSourceID: request.ID, Reason: "owner deleted the conversation", Now: memoryTestNow.Add(time.Hour)})
 	if err != nil {
 		t.Fatal(err)
 	}
 	restore := core.MemoryChange{Reason: "consolidation", ExpectedRevision: 2, Draft: core.MemoryDraft{ID: fact.ID, Kind: "fact", Content: fact.Content, Entities: fact.Entities,
 		Evidence: []core.MemoryEvidence{{SourceID: a.ID, Quote: a.Content, Relation: "supports"}, {SourceID: b.ID, Quote: b.Content, Relation: "supports"}}}}
-	if _, err := s.CommitMemory(ctx, core.MemoryMutation{Changes: []core.MemoryChange{restore}, Now: memoryTestNow.Add(2 * time.Hour), Epoch: exclusion.Epoch}); !errors.Is(err, core.ErrMemoryExcluded) {
+	if _, err := s.CommitMemory(ctx, core.MemoryMutation{Changes: []core.MemoryChange{restore}, Now: memoryTestNow.Add(2 * time.Hour), Epoch: forgotten.Exclusion.Epoch}); !errors.Is(err, core.ErrMemoryExcluded) {
 		t.Fatalf("forgotten evidence restored: %v", err)
 	}
 	read, err := s.ReadMemory(ctx, fact.ID)
@@ -285,7 +311,7 @@ func TestMemoryFragmentExclusionSparesLaterDerivedSources(t *testing.T) {
 		t.Fatal(err)
 	}
 	request := seedMemorySource(t, s, "owner:forget", "owner", "忘记香菜偏好")
-	exclusion, err := s.ForgetMemory(ctx, core.MemoryForget{RecordIDs: []string{records[0].ID}, RequestSourceID: request.ID, Reason: "owner request", Now: memoryTestNow.Add(time.Hour)})
+	forgotten, err := s.ForgetMemory(ctx, core.MemoryForget{RecordIDs: []string{records[0].ID}, RequestSourceID: request.ID, Reason: "owner request", Now: memoryTestNow.Add(time.Hour)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -299,7 +325,7 @@ func TestMemoryFragmentExclusionSparesLaterDerivedSources(t *testing.T) {
 		}
 	}
 
-	if err := s.SaveMemorySnapshotRefs(ctx, "after", "run_2", []string{owner.ID}, nil, exclusion.Epoch); err != nil {
+	if err := s.SaveMemorySnapshotRefs(ctx, "after", "run_2", []string{owner.ID}, nil, forgotten.Exclusion.Epoch); err != nil {
 		t.Fatal(err)
 	}
 	reply, err := s.AppendSessionMessage(ctx, "thread_1", 2, "assistant", "游泳很好", "run_2")
@@ -311,7 +337,7 @@ func TestMemoryFragmentExclusionSparesLaterDerivedSources(t *testing.T) {
 		t.Fatal(err)
 	}
 	derived := []string{fmt.Sprintf("message:%d", reply.ID), fmt.Sprintf("event:%d", result.Sequence)}
-	summary := core.ThreadSummary{SessionID: "thread_1", ThroughMessageID: reply.ID, Content: "owner 喜欢游泳", SourceIDs: append([]string{owner.ID}, derived[0]), Epoch: exclusion.Epoch, UpdatedAt: memoryTestNow.Add(2 * time.Hour)}
+	summary := core.ThreadSummary{SessionID: "thread_1", ThroughMessageID: reply.ID, Content: "owner 喜欢游泳", SourceIDs: append([]string{owner.ID}, derived[0]), Epoch: forgotten.Exclusion.Epoch, UpdatedAt: memoryTestNow.Add(2 * time.Hour)}
 	if err := s.SaveThreadSummary(ctx, summary); err != nil {
 		t.Fatal(err)
 	}
@@ -357,17 +383,17 @@ func TestMemoryExclusionsListOnlyRunsThatReadExcludedContent(t *testing.T) {
 		t.Fatal(err)
 	}
 	request := seedMemorySource(t, s, "owner:forget", "owner", "忘记香菜偏好")
-	exclusion, err := s.ForgetMemory(ctx, core.MemoryForget{RecordIDs: []string{records[0].ID}, RequestSourceID: request.ID, Reason: "owner request", Now: memoryTestNow.Add(time.Hour)})
+	forgotten, err := s.ForgetMemory(ctx, core.MemoryForget{RecordIDs: []string{records[0].ID}, RequestSourceID: request.ID, Reason: "owner request", Now: memoryTestNow.Add(time.Hour)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := slices.Sorted(slices.Values(exclusion.RunIDs)); !slices.Equal(got, []string{"read-source", "recalled-record"}) {
+	if got := slices.Sorted(slices.Values(forgotten.Exclusion.RunIDs)); !slices.Equal(got, []string{"read-source", "recalled-record"}) {
 		t.Fatalf("runs listed by the forget=%v", got)
 	}
 
 	tea := seedMemorySource(t, s, "owner:tea", "owner", "我早上喝茶")
 	for run, sources := range map[string][]string{"read-after": {source.ID}, "read-tea": {tea.ID}} {
-		if err := s.SaveMemorySnapshotRefs(ctx, run, run, sources, nil, exclusion.Epoch); err != nil {
+		if err := s.SaveMemorySnapshotRefs(ctx, run, run, sources, nil, forgotten.Exclusion.Epoch); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -376,7 +402,7 @@ func TestMemoryExclusionsListOnlyRunsThatReadExcludedContent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := slices.Sorted(slices.Values(later.RunIDs)); !slices.Equal(got, []string{"read-source", "read-tea", "recalled-record"}) {
+	if got := slices.Sorted(slices.Values(later.Exclusion.RunIDs)); !slices.Equal(got, []string{"read-source", "read-tea", "recalled-record"}) {
 		t.Fatalf("runs listed by the later forget=%v", got)
 	}
 }

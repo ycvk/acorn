@@ -21,8 +21,8 @@ type clientHandlerStore struct {
 
 type noThreadMemory struct{}
 
-func (noThreadMemory) ForgetThreadForOwner(context.Context, string, string) (core.MemoryExclusion, error) {
-	return core.MemoryExclusion{}, nil
+func (noThreadMemory) ForgetThreadForOwner(context.Context, string, string) (core.MemoryForgotten, error) {
+	return core.MemoryForgotten{}, nil
 }
 
 func noForgetBarrier(context.Context, core.MemoryExclusion, string) error { return nil }

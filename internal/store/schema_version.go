@@ -110,7 +110,7 @@ func forgetDeletedThreads(ctx context.Context, tx *sql.Tx) error {
 			if err := registerMemorySource(ctx, tx, request); err != nil {
 				return err
 			}
-			if err := forgetMemory(ctx, tx, core.MemoryForget{SourceIDs: sources, RequestSourceID: request.ID, Reason: "owner deleted the conversation", Now: now}); err != nil {
+			if _, err := forgetMemory(ctx, tx, core.MemoryForget{SourceIDs: sources, RequestSourceID: request.ID, Reason: "owner deleted the conversation", Now: now}); err != nil {
 				return err
 			}
 		}

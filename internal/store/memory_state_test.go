@@ -74,12 +74,12 @@ func TestMemoryNewOwnerSourceCanReintroduceForgottenFact(t *testing.T) {
 		t.Fatal(err)
 	}
 	request := seedMemorySource(t, s, "owner:forget", "owner", "忘记颜色偏好")
-	exclusion, err := s.ForgetMemory(ctx, core.MemoryForget{RecordIDs: []string{records[0].ID}, RequestSourceID: request.ID, Reason: "owner request", Now: memoryTestNow})
+	forgotten, err := s.ForgetMemory(ctx, core.MemoryForget{RecordIDs: []string{records[0].ID}, RequestSourceID: request.ID, Reason: "owner request", Now: memoryTestNow})
 	if err != nil {
 		t.Fatal(err)
 	}
 	fresh := seedMemorySource(t, s, "owner:fresh", "owner", "我喜欢红色")
-	next, err := s.CommitMemory(ctx, core.MemoryMutation{Changes: []core.MemoryChange{memoryFact(fresh, "owner 喜欢红色")}, Now: memoryTestNow.Add(time.Hour), Epoch: exclusion.Epoch})
+	next, err := s.CommitMemory(ctx, core.MemoryMutation{Changes: []core.MemoryChange{memoryFact(fresh, "owner 喜欢红色")}, Now: memoryTestNow.Add(time.Hour), Epoch: forgotten.Exclusion.Epoch})
 	if err != nil || len(next) != 1 || next[0].ID == records[0].ID {
 		t.Fatalf("fresh=%+v err=%v", next, err)
 	}

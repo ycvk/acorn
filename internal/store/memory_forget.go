@@ -14,49 +14,61 @@ import (
 	"github.com/ycvk/acorn/internal/core"
 )
 
-func (s *Store) ForgetMemory(ctx context.Context, request core.MemoryForget) (core.MemoryExclusion, error) {
-	if err := s.memoryTransaction(ctx, func(tx *sql.Tx) error { return forgetMemory(ctx, tx, request) }); err != nil {
-		return core.MemoryExclusion{}, err
+func (s *Store) ForgetMemory(ctx context.Context, request core.MemoryForget) (core.MemoryForgotten, error) {
+	var forgotten core.MemoryForgotten
+	if err := s.memoryTransaction(ctx, func(tx *sql.Tx) error {
+		var err error
+		forgotten, err = forgetMemory(ctx, tx, request)
+		return err
+	}); err != nil {
+		return core.MemoryForgotten{}, err
 	}
-	return s.MemoryExclusions(ctx)
+	exclusion, err := s.MemoryExclusions(ctx)
+	if err != nil {
+		return core.MemoryForgotten{}, err
+	}
+	forgotten.Exclusion = exclusion
+	return forgotten, nil
 }
 
 // forgetMemory excludes the requested records and sources and everything
-// derived from them in one transaction.
-func forgetMemory(ctx context.Context, tx *sql.Tx, request core.MemoryForget) error {
+// derived from them in one transaction, and reports the records and sources
+// this request excluded.
+func forgetMemory(ctx context.Context, tx *sql.Tx, request core.MemoryForget) (core.MemoryForgotten, error) {
+	var forgotten core.MemoryForgotten
 	if request.Now.IsZero() || request.Reason == "" || request.RequestSourceID == "" || (len(request.RecordIDs) == 0 && len(request.SourceIDs) == 0) {
-		return errors.New("forget requires owner source, reason, now and targets")
+		return forgotten, errors.New("forget requires owner source, reason, now and targets")
 	}
 	owner, err := loadMemorySource(ctx, tx, request.RequestSourceID, sourceStored)
 	if err != nil {
-		return err
+		return forgotten, err
 	}
 	if owner.Speaker != "owner" {
-		return errors.New("forget requires an owner request")
+		return forgotten, errors.New("forget requires an owner request")
 	}
 	epoch, err := memoryEpoch(ctx, tx)
 	if err != nil {
-		return err
+		return forgotten, err
 	}
 	epoch++
 	if _, err := tx.ExecContext(ctx, `UPDATE memory_state SET epoch=?,request_run_id=? WHERE id=1`, epoch, owner.RunID); err != nil {
-		return err
+		return forgotten, err
 	}
 	var fragments []core.MemoryExcludedFragment
 	for _, id := range request.SourceIDs {
 		var known int
 		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM memory_sources WHERE id=?`, id).Scan(&known); err != nil {
-			return err
+			return forgotten, err
 		}
 		if known == 0 {
-			return fmt.Errorf("%w: source %s", core.ErrMemoryNotFound, id)
+			return forgotten, fmt.Errorf("%w: source %s", core.ErrMemoryNotFound, id)
 		}
 		fragments = append(fragments, core.MemoryExcludedFragment{SourceID: id})
 	}
 	for _, id := range request.RecordIDs {
 		r, err := loadMemoryRecord(ctx, tx, id)
 		if err != nil {
-			return err
+			return forgotten, err
 		}
 		if r.Kind == "fact" {
 			for _, e := range r.Evidence {
@@ -67,7 +79,7 @@ func forgetMemory(ctx context.Context, tx *sql.Tx, request core.MemoryForget) er
 	fragments = append(fragments, core.MemoryExcludedFragment{SourceID: request.RequestSourceID})
 	for _, f := range fragments {
 		if err := insertMemoryExclusion(ctx, tx, f, request, epoch); err != nil {
-			return err
+			return forgotten, err
 		}
 	}
 	// Derived messages and summaries inherit their input source dependencies.
@@ -76,18 +88,18 @@ func forgetMemory(ctx context.Context, tx *sql.Tx, request core.MemoryForget) er
 	// parent without it and stay.
 	rows, err := tx.QueryContext(ctx, `WITH RECURSIVE affected(id) AS(SELECT source_id FROM memory_exclusions WHERE epoch=? UNION SELECT l.source_id FROM memory_source_links l JOIN affected a ON l.parent_id=a.id) SELECT DISTINCT l.source_id FROM memory_source_links l JOIN affected a ON l.parent_id=a.id`, epoch)
 	if err != nil {
-		return err
+		return forgotten, err
 	}
 	affected, err := memoryStringRows(rows)
 	if err != nil {
-		return err
+		return forgotten, err
 	}
 	for _, id := range affected {
 		if slices.ContainsFunc(fragments, func(f core.MemoryExcludedFragment) bool { return f.SourceID == id }) {
 			continue
 		}
 		if err := insertMemoryExclusion(ctx, tx, core.MemoryExcludedFragment{SourceID: id}, request, epoch); err != nil {
-			return err
+			return forgotten, err
 		}
 	}
 	// A record whose current revision cites an excluded source keeps the rest
@@ -96,11 +108,11 @@ func forgetMemory(ctx context.Context, tx *sql.Tx, request core.MemoryForget) er
 	rows, err = tx.QueryContext(ctx, `SELECT DISTINCT e.record_id FROM memory_revision_evidence e JOIN memory_records cur ON cur.id=e.record_id AND cur.revision=e.revision JOIN memory_exclusions x ON e.source_id=x.source_id
 	 WHERE cur.excluded=0 AND (x.quote='' OR instr(e.quote,x.quote)>0 OR instr(x.quote,e.quote)>0)`)
 	if err != nil {
-		return err
+		return forgotten, err
 	}
 	cited, err := memoryStringRows(rows)
 	if err != nil {
-		return err
+		return forgotten, err
 	}
 	wholly := append([]string{}, request.RecordIDs...)
 	retained := map[string][]core.MemoryEvidence{}
@@ -110,7 +122,7 @@ func forgetMemory(ctx context.Context, tx *sql.Tx, request core.MemoryForget) er
 		}
 		kept, err := retainedMemoryEvidence(ctx, tx, id)
 		if err != nil {
-			return err
+			return forgotten, err
 		}
 		if slices.ContainsFunc(kept, func(e core.MemoryEvidence) bool { return e.Relation == "supports" }) {
 			retained[id] = kept
@@ -122,35 +134,45 @@ func forgetMemory(ctx context.Context, tx *sql.Tx, request core.MemoryForget) er
 	// an insight loses its last unexcluded parent only this way.
 	targetsJSON, err := json.Marshal(wholly)
 	if err != nil {
-		return err
+		return forgotten, err
 	}
 	rows, err = tx.QueryContext(ctx, `WITH RECURSIVE affected(id) AS(SELECT value FROM json_each(?) UNION SELECT l.from_id FROM memory_links l JOIN affected a ON l.to_id=a.id WHERE l.relation='derives_from') SELECT id FROM affected`, string(targetsJSON))
 	if err != nil {
-		return err
+		return forgotten, err
 	}
 	recordIDs, err := memoryStringRows(rows)
 	if err != nil {
-		return err
+		return forgotten, err
 	}
 	recordIDs = uniqueMemoryStrings(recordIDs)
+	// The cascade can reach records an earlier request excluded; this request
+	// reports only the records it excludes.
 	for _, id := range recordIDs {
-		if _, err := tx.ExecContext(ctx, `UPDATE memory_records SET excluded=1 WHERE id=?`, id); err != nil {
-			return err
+		res, err := tx.ExecContext(ctx, `UPDATE memory_records SET excluded=1 WHERE id=? AND excluded=0`, id)
+		if err != nil {
+			return forgotten, err
+		}
+		changed, err := res.RowsAffected()
+		if err != nil {
+			return forgotten, err
+		}
+		if changed > 0 {
+			forgotten.RecordIDs = append(forgotten.RecordIDs, id)
 		}
 		if _, err := tx.ExecContext(ctx, `DELETE FROM memory_embeddings WHERE record_id=?`, id); err != nil {
-			return err
+			return forgotten, err
 		}
 		if _, err := tx.ExecContext(ctx, `UPDATE memory_jobs SET state='done',completed_at=?,error='owner excluded memory',lease_until='' WHERE object_id=?`, formatTimestamp(request.Now), id); err != nil {
-			return err
+			return forgotten, err
 		}
 	}
 	if err := stripExcludedEvidence(ctx, tx, retained, request.Now); err != nil {
-		return err
+		return forgotten, err
 	}
 	// A current revision may have replaced its evidence. Remove embeddings
 	// of excluded historical evidence even when that current record survives.
 	if _, err := tx.ExecContext(ctx, `DELETE FROM memory_embeddings AS e WHERE EXISTS(SELECT 1 FROM memory_revisions v WHERE v.record_id=e.record_id AND v.revision=e.revision AND NOT (`+memoryRevisionVisibility+`))`); err != nil {
-		return err
+		return forgotten, err
 	}
 	// When source evidence is forgotten, surviving parents can support a new
 	// understanding after review. Withdrawing only an inference preserves its
@@ -158,25 +180,32 @@ func forgetMemory(ctx context.Context, tx *sql.Tx, request core.MemoryForget) er
 	if len(fragments) > 1 {
 		removed, err := json.Marshal(recordIDs)
 		if err != nil {
-			return err
+			return forgotten, err
 		}
 		if _, err := tx.ExecContext(ctx, `INSERT INTO memory_jobs(operation,object_id,version,available_at,created_at)
     SELECT DISTINCT 'consolidate',r.id,CAST(r.revision AS TEXT),?,? FROM memory_links l JOIN memory_records r ON r.id=l.to_id
     WHERE l.relation='derives_from' AND l.from_id IN(SELECT value FROM json_each(?)) AND r.excluded=0 AND r.state IN ('current','disputed')
     ON CONFLICT(operation,object_id,version,processor_version) DO UPDATE SET state='pending',token=memory_jobs.token+1,attempts=0,cursor=0,lease_until='',error='',completed_at='',available_at=excluded.available_at`, formatTimestamp(request.Now), formatTimestamp(request.Now), string(removed)); err != nil {
-			return err
+			return forgotten, err
 		}
 	}
 	// Every summary covers at least one source, so a summary left without
 	// sources is one that covered a source this request excludes.
 	if _, err := tx.ExecContext(ctx, `DELETE FROM thread_summary_sources WHERE session_id IN(SELECT s.session_id FROM thread_summary_sources s JOIN memory_exclusions x ON x.source_id=s.source_id WHERE x.epoch=?)`, epoch); err != nil {
-		return err
+		return forgotten, err
 	}
 	if _, err := tx.ExecContext(ctx, `DELETE FROM thread_summaries WHERE NOT EXISTS(SELECT 1 FROM thread_summary_sources s WHERE s.session_id=thread_summaries.session_id)`); err != nil {
-		return err
+		return forgotten, err
 	}
-	_, err = tx.ExecContext(ctx, `UPDATE memory_jobs SET state='done',completed_at=?,error='owner excluded source',lease_until='' WHERE object_id IN(SELECT source_id FROM memory_exclusions WHERE quote='')`, formatTimestamp(request.Now))
-	return err
+	if _, err := tx.ExecContext(ctx, `UPDATE memory_jobs SET state='done',completed_at=?,error='owner excluded source',lease_until='' WHERE object_id IN(SELECT source_id FROM memory_exclusions WHERE quote='')`, formatTimestamp(request.Now)); err != nil {
+		return forgotten, err
+	}
+	rows, err = tx.QueryContext(ctx, `SELECT DISTINCT source_id FROM memory_exclusions WHERE epoch=? ORDER BY source_id`, epoch)
+	if err != nil {
+		return forgotten, err
+	}
+	forgotten.SourceIDs, err = memoryStringRows(rows)
+	return forgotten, err
 }
 
 func insertMemoryExclusion(ctx context.Context, q memorySQL, f core.MemoryExcludedFragment, r core.MemoryForget, epoch int64) error {

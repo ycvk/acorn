@@ -186,6 +186,15 @@ type MemoryExclusion struct {
 	Fragments    []MemoryExcludedFragment `json:"-"`
 }
 
+// MemoryForgotten reports one forget: the records it excluded, the sources
+// it excluded wholly or in part, and the exclusion state after it, which the
+// visibility barrier uses to stop runs that read what was excluded.
+type MemoryForgotten struct {
+	RecordIDs []string
+	SourceIDs []string
+	Exclusion MemoryExclusion
+}
+
 type MemoryExcludedFragment struct {
 	SourceID string
 	Quote    string
@@ -226,7 +235,7 @@ type MemoryStore interface {
 	MemorySourceFacts(context.Context, string) ([]MemoryRecord, error)
 	SearchMemoryText(context.Context, MemoryQuery) ([]MemoryRecord, error)
 	MemoryNeighbors(context.Context, []string, int) ([]MemoryRecord, error)
-	ForgetMemory(context.Context, MemoryForget) (MemoryExclusion, error)
+	ForgetMemory(context.Context, MemoryForget) (MemoryForgotten, error)
 	MemoryExclusions(context.Context) (MemoryExclusion, error)
 	// ThreadMemorySourceIDs lists the sources of a thread's messages and tool
 	// results.

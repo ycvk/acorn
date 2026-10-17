@@ -14,14 +14,14 @@ import (
 
 // ForgetForOwner excludes a memory the owner chose to forget in the app. The
 // request is recorded as the owner's source and excluded with the memory.
-func (e *Engine) ForgetForOwner(ctx context.Context, id string) (core.MemoryExclusion, error) {
+func (e *Engine) ForgetForOwner(ctx context.Context, id string) (core.MemoryForgotten, error) {
 	read, err := e.cfg.Store.ReadMemory(ctx, id)
 	if err != nil {
-		return core.MemoryExclusion{}, err
+		return core.MemoryForgotten{}, err
 	}
 	request, err := e.ownerRequest(ctx, "Forget: "+read.Record.Content)
 	if err != nil {
-		return core.MemoryExclusion{}, err
+		return core.MemoryForgotten{}, err
 	}
 	return e.cfg.Store.ForgetMemory(ctx, core.MemoryForget{
 		RecordIDs:       []string{id},
@@ -34,17 +34,17 @@ func (e *Engine) ForgetForOwner(ctx context.Context, id string) (core.MemoryExcl
 // ForgetThreadForOwner forgets the conversation the owner deletes: every
 // message and tool result of the thread, on a request recorded as the owner's
 // source. A thread with nothing to forget returns an empty exclusion.
-func (e *Engine) ForgetThreadForOwner(ctx context.Context, threadID, title string) (core.MemoryExclusion, error) {
+func (e *Engine) ForgetThreadForOwner(ctx context.Context, threadID, title string) (core.MemoryForgotten, error) {
 	sources, err := e.cfg.Store.ThreadMemorySourceIDs(ctx, threadID)
 	if err != nil {
-		return core.MemoryExclusion{}, err
+		return core.MemoryForgotten{}, err
 	}
 	if len(sources) == 0 {
-		return core.MemoryExclusion{}, nil
+		return core.MemoryForgotten{}, nil
 	}
 	request, err := e.ownerRequest(ctx, "Delete conversation: "+title)
 	if err != nil {
-		return core.MemoryExclusion{}, err
+		return core.MemoryForgotten{}, err
 	}
 	return e.cfg.Store.ForgetMemory(ctx, core.MemoryForget{
 		SourceIDs:       sources,
@@ -57,17 +57,17 @@ func (e *Engine) ForgetThreadForOwner(ctx context.Context, threadID, title strin
 // ForgetNoteForOwner forgets the note the owner deletes: every revision of
 // it, on a request recorded as the owner's source. A note with nothing to
 // forget returns an empty exclusion.
-func (e *Engine) ForgetNoteForOwner(ctx context.Context, path, title string) (core.MemoryExclusion, error) {
+func (e *Engine) ForgetNoteForOwner(ctx context.Context, path, title string) (core.MemoryForgotten, error) {
 	sources, err := e.cfg.Store.KnowledgeMemorySourceIDs(ctx, path)
 	if err != nil {
-		return core.MemoryExclusion{}, err
+		return core.MemoryForgotten{}, err
 	}
 	if len(sources) == 0 {
-		return core.MemoryExclusion{}, nil
+		return core.MemoryForgotten{}, nil
 	}
 	request, err := e.ownerRequest(ctx, "Delete note: "+title)
 	if err != nil {
-		return core.MemoryExclusion{}, err
+		return core.MemoryForgotten{}, err
 	}
 	return e.cfg.Store.ForgetMemory(ctx, core.MemoryForget{
 		SourceIDs:       sources,

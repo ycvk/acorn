@@ -164,12 +164,12 @@ func TestMemoryForgetMergedSourceKeepsSurvivorOnItsOwnEvidence(t *testing.T) {
 		t.Fatal(err)
 	}
 	request := seedMemorySource(t, s, "owner:forget", "owner", "忘记那次聊天")
-	exclusion, err := s.ForgetMemory(ctx, core.MemoryForget{SourceIDs: []string{"owner:chat"}, RequestSourceID: request.ID, Reason: "owner deleted the conversation", Now: memoryTestNow.Add(3 * time.Hour)})
+	forgotten, err := s.ForgetMemory(ctx, core.MemoryForget{SourceIDs: []string{"owner:chat"}, RequestSourceID: request.ID, Reason: "owner deleted the conversation", Now: memoryTestNow.Add(3 * time.Hour)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Equal(exclusion.RecordIDs, []string{duplicate.ID}) {
-		t.Fatalf("excluded records=%v", exclusion.RecordIDs)
+	if !slices.Equal(forgotten.RecordIDs, []string{duplicate.ID}) {
+		t.Fatalf("excluded records=%v", forgotten.RecordIDs)
 	}
 	if _, err := s.ReadMemory(ctx, duplicate.ID); !errors.Is(err, core.ErrMemoryExcluded) {
 		t.Fatalf("read merged duplicate after forget: %v", err)
