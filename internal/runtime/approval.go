@@ -263,17 +263,21 @@ func (m *approvalMiddleware) observing(endpoint adk.InvokableToolCallEndpoint) a
 		if err != nil {
 			return out, err
 		}
-		var input struct {
-			Command string `json:"command"`
+		// A failed call arrives as the tool error handler's text; it showed no page.
+		if !json.Valid([]byte(out)) {
+			return out, nil
 		}
 		var result struct {
 			Stdout string `json:"stdout"`
 		}
-		if err := json.Unmarshal([]byte(args), &input); err != nil {
-			return "", fmt.Errorf("observe shell arguments: %w", err)
-		}
 		if err := json.Unmarshal([]byte(out), &result); err != nil {
 			return "", fmt.Errorf("observe shell result: %w", err)
+		}
+		var input struct {
+			Command string `json:"command"`
+		}
+		if err := json.Unmarshal([]byte(args), &input); err != nil {
+			return "", fmt.Errorf("observe shell arguments: %w", err)
 		}
 		sessions := map[pageKey]bool{}
 		for _, c := range review.ParseShell(input.Command).Bsk {

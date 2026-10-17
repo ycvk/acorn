@@ -14,10 +14,10 @@ import (
 	"github.com/ycvk/acorn/internal/core"
 )
 
-type failingTool struct{}
+type failingTool struct{ name string }
 
-func (failingTool) Info(context.Context) (*schema.ToolInfo, error) {
-	return &schema.ToolInfo{Name: "flaky_tool", Desc: "always fails"}, nil
+func (t failingTool) Info(context.Context) (*schema.ToolInfo, error) {
+	return &schema.ToolInfo{Name: t.name, Desc: "always fails"}, nil
 }
 
 func (failingTool) InvokableRun(context.Context, string, ...einotool.Option) (string, error) {
@@ -34,7 +34,7 @@ func newToolErrorTestRunner(t *testing.T, model *scriptedModel, failed *failedTo
 		Description: "tool error test agent",
 		Model:       model,
 		ToolsConfig: adk.ToolsConfig{ToolsNodeConfig: compose.ToolsNodeConfig{
-			Tools:               []einotool.BaseTool{failingTool{}, &echoTool{}},
+			Tools:               []einotool.BaseTool{failingTool{"flaky_tool"}, failingTool{"shell"}, &echoTool{}},
 			ExecuteSequentially: true,
 			UnknownToolsHandler: unknownToolResult,
 		}},
@@ -57,6 +57,30 @@ func TestToolFailureBecomesModelVisibleResult(t *testing.T) {
 		t.Fatalf("run failed instead of surfacing the tool error to the model: %v", err)
 	}
 	assertLastToolMessage(t, model, "Tool flaky_tool failed: upstream timed out")
+}
+
+func TestShellFailureUnderApprovalBecomesModelVisibleResult(t *testing.T) {
+	for name, args := range map[string]string{
+		"workstation error":   shellArgs("bsk observe --session s1"),
+		"malformed arguments": `{"command":`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			approval, err := newApprovalMiddleware(config.ApprovalConfig{}, nil, &approvalTestStore{})
+			if err != nil {
+				t.Fatalf("approval middleware: %v", err)
+			}
+			model := &scriptedModel{replies: []*schema.AgenticMessage{
+				toolCallReply("call_1", "shell", args),
+				assistantMessage("recovered", nil),
+			}}
+			ctx := core.WithRunID(context.Background(), "run_shell_fail")
+			_, err = drainEvents(t, newToolErrorTestRunner(t, model, newFailedToolCalls(), approval).Run(ctx, []adk.AgenticMessage{schema.UserAgenticMessage("go")}))
+			if err != nil {
+				t.Fatalf("run failed instead of surfacing the shell error to the model: %v", err)
+			}
+			assertLastToolMessage(t, model, "Tool shell failed: upstream timed out")
+		})
+	}
 }
 
 func TestUnknownToolBecomesModelVisibleResult(t *testing.T) {

@@ -2,6 +2,9 @@ package runtime
 
 import (
 	"context"
+	"path"
+	"reflect"
+	"slices"
 	"testing"
 	"time"
 
@@ -66,26 +69,33 @@ func TestBuildAgentHandlersOrder(t *testing.T) {
 	if err != nil {
 		t.Fatalf("handlers: %v", err)
 	}
-	if len(withoutDeferred) != 8 {
-		t.Fatalf("handlers without deferred tools = %d, want patch, summarize, reduce, skill, presence, approval, tool errors", len(withoutDeferred))
-	}
-	if _, ok := withoutDeferred[5].(*presenceMiddleware); !ok {
-		t.Fatalf("presence must follow the skill handler, got %T at index 4", withoutDeferred[5])
-	}
-	if _, ok := withoutDeferred[6].(*approvalMiddleware); !ok {
-		t.Fatalf("approval must wrap the tool error handler, got %T at index 5", withoutDeferred[5])
-	}
-	if _, ok := withoutDeferred[7].(*toolErrorMiddleware); !ok {
-		t.Fatalf("tool error handler must be innermost, got %T at index 6", withoutDeferred[6])
+	want := []string{"memoryVisibilityMiddleware", "patchtoolcalls", "summarization", "reduction", "skill", "presenceMiddleware", "approvalMiddleware", "toolErrorMiddleware"}
+	if got := handlerKinds(withoutDeferred); !slices.Equal(got, want) {
+		t.Fatalf("handlers without deferred tools = %v, want %v", got, want)
 	}
 
 	withDeferred, err := buildAgentHandlers(context.Background(), deps, req, []einotool.BaseTool{namedTool{"shell"}})
 	if err != nil {
 		t.Fatalf("handlers: %v", err)
 	}
-	if len(withDeferred) != 9 {
-		t.Fatalf("handlers with deferred tools = %d, want tool search added", len(withDeferred))
+	want = slices.Insert(want, 4, "toolsearch")
+	if got := handlerKinds(withDeferred); !slices.Equal(got, want) {
+		t.Fatalf("handlers with deferred tools = %v, want %v", got, want)
 	}
+}
+
+// handlerKinds names Acorn handlers by type and Eino handlers by package.
+func handlerKinds(handlers []adk.TypedChatModelAgentMiddleware[*schema.AgenticMessage]) []string {
+	kinds := make([]string, len(handlers))
+	for i, h := range handlers {
+		typ := reflect.TypeOf(h).Elem()
+		if typ.PkgPath() == reflect.TypeFor[approvalMiddleware]().PkgPath() {
+			kinds[i] = typ.Name()
+		} else {
+			kinds[i] = path.Base(typ.PkgPath())
+		}
+	}
+	return kinds
 }
 
 func TestBuildAgentHandlersRejectsBadApprovalPattern(t *testing.T) {
