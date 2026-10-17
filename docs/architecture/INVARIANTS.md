@@ -53,7 +53,7 @@
   - `tests/architecture/dependency_direction_test.go`
 - **数据库结构有版本**：`PRAGMA user_version` 记录结构版本。空库在一个事务里按当前结构建好并写入版本；旧版本库在独占存储锁下按顺序迁移，每一步与版本号在同一事务提交，外键在迁移期间关闭、每一步结束时不得有失效外键；没有版本号或版本更新的库拒绝打开。每个版本的结构记录在 `internal/store/testdata/schema/vN.sql`，从任一记录版本升级的结果必须与新建库的结构完全一致。
   - `internal/store/schema_version_test.go`
-- **备份不打断运行，恢复要求停机**：`acorn backup` 写入 `backup.dir`（为空表示关闭备份）、保留最新 `backup.keep` 份快照，经只读连接 `VACUUM INTO` 生成数据库快照，校验完整性与结构版本后连同人格文件以原子重命名发布；附件与产出文件在快照之后镜像，只增不删，快照引用的文件都在镜像里。`acorn restore` 持有独占存储锁，Acorn 运行时拒绝执行，先校验快照再替换数据库并清除 WAL。
+- **备份不打断运行，恢复要求停机**：`acorn backup` 写入 `backup.dir`（为空表示关闭备份）、保留最新 `backup.keep` 份快照，经只读连接 `VACUUM INTO` 生成数据库快照，校验完整性与结构版本后以原子重命名发布；附件与产出文件在快照之后镜像，只增不删，快照引用的文件都在镜像里。`acorn restore` 持有独占存储锁，Acorn 运行时拒绝执行，先校验快照再替换数据库并清除 WAL。
   - `internal/wire/backup_test.go`
 - **写入单连接，记忆读取并行**：所有写入与事务经一个 SQLite 连接串行执行；记忆召回与整合候选的读取走 `query_only` 的 WAL 只读连接池，写事务进行中也能读到已提交的数据，只读池拒绝写入。
   - `internal/store/store_read_pool_test.go`
