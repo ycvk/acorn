@@ -128,7 +128,6 @@ import io.ycvk.acorn.core.ui.rememberHaptics
 import io.ycvk.acorn.feature.approvals.ApprovalCard
 import io.ycvk.acorn.feature.approvals.ApprovalsViewModel
 import io.ycvk.acorn.feature.approvals.PendingActionSheet
-import io.ycvk.acorn.feature.approvals.optionDecision
 import io.ycvk.acorn.feature.knowledge.AttachmentImage
 import kotlin.math.PI
 import kotlin.math.sin
@@ -303,7 +302,7 @@ fun ChatScreen(
                     ApprovalCard(
                         action = action,
                         deciding = deciding == action.actionId,
-                        onDecide = { option -> approvals.decideAction(action.actionId, optionDecision(option), option.id, null) },
+                        onDecide = { approvals.decideAction(action.actionId, it) },
                         onOpen = { approvals.loadActionDetail(action.actionId) },
                         modifier = rowAnimation(),
                     )
@@ -382,7 +381,7 @@ fun ChatScreen(
             detail = detail,
             deciding = deciding == detail.actionId,
             onDismiss = approvals::clearSelection,
-            onDecide = { option -> approvals.decideAction(detail.actionId, optionDecision(option), option.id, null) },
+            onDecide = { approvals.decideAction(detail.actionId, it) },
         )
     }
 
