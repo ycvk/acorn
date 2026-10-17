@@ -139,6 +139,7 @@ func buildRuntimeDeps(cfg *config.Config, store RuntimeStore, opts RunnerFactory
 		Persona:            opts.Persona,
 		Skills:             opts.Skills,
 		SkillPackages:      opts.SkillPackages,
+		SkillServers:       opts.SkillServers,
 		MCPPendingActions:  opts.MCPPendingActionStore,
 		ArtifactService:    artifactService,
 		ToolRegistry:       opts.ToolRegistry,
@@ -249,6 +250,7 @@ type RunnerFactoryOptions struct {
 	Persona               PersonaReader
 	Skills                SkillLibrary
 	SkillPackages         skills.PackageHost
+	SkillServers          SkillServerHost
 	MCPPendingActionStore core.SessionStore
 	ArtifactService       core.ArtifactService
 	ToolRegistry          core.ToolRegistry
@@ -259,7 +261,7 @@ type RunnerFactoryOptions struct {
 	Commitments           core.CommitmentStore
 	Attachments           core.AttachmentReader
 	Files                 core.ThreadFiles
-	// Uploads is nil when no workstation is configured.
+	// Uploads and SkillServers are nil when no workstation is configured.
 	Uploads     UploadHost
 	Workstation tools.WorkstationToolsConfig
 	// Reviewer judges calls the approval rules leave open; nil turns review off.

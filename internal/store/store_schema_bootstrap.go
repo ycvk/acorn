@@ -144,6 +144,8 @@ CREATE TABLE IF NOT EXISTS knowledge_revisions (
 
 ` + skillPackageTables + `
 
+` + skillSecretsTable + `
+
 ` + personaTable + `
 
 ` + threadFilesTable + `
@@ -291,6 +293,16 @@ CREATE TABLE IF NOT EXISTS skill_package_stage_files (
     path TEXT NOT NULL,
     content BLOB NOT NULL,
     PRIMARY KEY (sha256, path)
+);`
+
+// skillSecretsTable is shared with the migration that adds it: the values of
+// the secrets a skill package's MCP server declares, by skill and name.
+const skillSecretsTable = `CREATE TABLE IF NOT EXISTS skill_secrets (
+    skill TEXT NOT NULL REFERENCES skills(id),
+    name TEXT NOT NULL,
+    value TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (skill, name)
 );`
 
 // personaTable is shared with the migration that adds it. The newest

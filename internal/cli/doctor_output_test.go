@@ -202,3 +202,19 @@ func TestRenderDoctorWorkstation(t *testing.T) {
 		}
 	}
 }
+
+func TestRenderDoctorPackageToolsSaysWhyAServerDoesNotServe(t *testing.T) {
+	got := renderDoctorPackageTools([]wire.PackageToolStatus{
+		{Skill: "fetch", Command: "uvx mcp-server-fetch", State: "ready"},
+		{Skill: "github", Command: "npx github-mcp", State: "missing_secrets", MissingSecrets: []string{"GITHUB_TOKEN"}},
+		{Skill: "broken", Command: "./server", State: "failed", Error: "exit status 1"},
+		{Skill: "idle", Command: "uvx idle", State: "stopped"},
+	})
+	mustContainAll(t, got, []string{
+		"Package tools",
+		"- fetch (uvx mcp-server-fetch): ready",
+		"- github (npx github-mcp): missing secrets GITHUB_TOKEN; set each with acorn skills secret set github NAME",
+		"- broken (./server): failed: exit status 1",
+		"- idle (uvx idle): not running; it starts with the next run that uses the skill",
+	})
+}

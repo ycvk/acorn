@@ -1,6 +1,7 @@
 package workstation
 
 import (
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -20,7 +21,7 @@ func newTestClient(t *testing.T) (*Client, string) {
 func newTestClientWithBrowser(t *testing.T, chromium string) (*Client, string) {
 	t.Helper()
 	home := t.TempDir()
-	server, err := NewServer(ServerConfig{Home: home, Token: testToken, Chromium: chromium})
+	server, err := NewServer(ServerConfig{Home: home, Token: testToken, Chromium: chromium, Supervisor: NewSupervisor(io.Discard)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -34,11 +35,11 @@ func newTestClientWithBrowser(t *testing.T, chromium string) (*Client, string) {
 }
 
 func TestServerRejectsWrongToken(t *testing.T) {
-	_, err := NewServer(ServerConfig{Home: t.TempDir(), Token: "short"})
+	_, err := NewServer(ServerConfig{Home: t.TempDir(), Token: "short", Supervisor: NewSupervisor(io.Discard)})
 	if err == nil || !strings.Contains(err.Error(), TokenEnv) {
 		t.Fatalf("short token err = %v", err)
 	}
-	server, err := NewServer(ServerConfig{Home: t.TempDir(), Token: testToken})
+	server, err := NewServer(ServerConfig{Home: t.TempDir(), Token: testToken, Supervisor: NewSupervisor(io.Discard)})
 	if err != nil {
 		t.Fatal(err)
 	}

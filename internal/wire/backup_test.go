@@ -44,6 +44,12 @@ func TestBackupWhileRunningAndRestoreIntoEmptyStorage(t *testing.T) {
 	if _, err := running.WritePersona(ctx, core.PersonaWrite{Content: "你是 Acorn。", Author: core.PersonaAuthorOwner, At: time.Date(2026, 10, 10, 0, 0, 0, 0, time.UTC)}); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := running.WriteSkill(ctx, core.SkillWrite{ID: "github", Markdown: "md", Author: core.SkillAuthorOwner, At: time.Date(2026, 10, 10, 0, 0, 0, 0, time.UTC)}); err != nil {
+		t.Fatal(err)
+	}
+	if err := running.SetSkillSecret(ctx, "github", "GITHUB_TOKEN", "ghp_backup", time.Date(2026, 10, 10, 0, 0, 0, 0, time.UTC)); err != nil {
+		t.Fatal(err)
+	}
 	attachment := filepath.Join("attachments", "2026", "10", "0123456789abcdef.png")
 	writeTestFile(t, filepath.Join(source.Runtime.StorageDir, attachment), "png bytes")
 	writeTestFile(t, filepath.Join(source.Runtime.StorageDir, "artifacts", "run_1", "report.md"), "report")
@@ -94,6 +100,9 @@ func TestBackupWhileRunningAndRestoreIntoEmptyStorage(t *testing.T) {
 	}
 	if persona, err := db.Persona(ctx); err != nil || persona.Content != "你是 Acorn。" {
 		t.Fatalf("restored persona %+v: %v", persona, err)
+	}
+	if secrets, err := db.SkillSecrets(ctx, "github"); err != nil || secrets["GITHUB_TOKEN"] != "ghp_backup" {
+		t.Fatalf("restored secrets %v: %v", secrets, err)
 	}
 	if data, err := os.ReadFile(filepath.Join(target.Runtime.StorageDir, attachment)); err != nil || string(data) != "png bytes" {
 		t.Fatalf("restored attachment %q: %v", data, err)

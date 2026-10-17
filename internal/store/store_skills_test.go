@@ -170,3 +170,38 @@ INSERT INTO skill_revisions (id, revision, markdown, markdown_sha256, retired, a
 		t.Fatalf("revisions = %d, %v", revisions, err)
 	}
 }
+
+func TestSkillSecretsAreSetPerSkillAndReplaced(t *testing.T) {
+	s := openTestStore(t)
+	ctx := context.Background()
+	day := time.Date(2026, 10, 17, 9, 0, 0, 0, time.UTC)
+	if err := s.SetSkillSecret(ctx, "github", "GITHUB_TOKEN", "ghp_1", day); err == nil {
+		t.Fatal("set a secret of a skill that does not exist")
+	}
+	if _, err := s.WriteSkill(ctx, core.SkillWrite{ID: "github", Markdown: "v1", Author: core.SkillAuthorOwner, At: day,
+		Files: []core.SkillFile{{Path: "acorn-package.yaml", Content: []byte("mcp:\n  command: uvx\n")}}}); err != nil {
+		t.Fatal(err)
+	}
+	for _, value := range []string{"ghp_1", "ghp_2"} {
+		if err := s.SetSkillSecret(ctx, "github", "GITHUB_TOKEN", value, day); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := s.SetSkillSecret(ctx, "github", "OTHER", "", day); err == nil {
+		t.Fatal("stored an empty secret")
+	}
+	got, err := s.SkillSecrets(ctx, "github")
+	if err != nil || len(got) != 1 || got["GITHUB_TOKEN"] != "ghp_2" {
+		t.Fatalf("secrets = %v, %v", got, err)
+	}
+	if none, err := s.SkillSecrets(ctx, "pdf"); err != nil || len(none) != 0 {
+		t.Fatalf("secrets of another skill = %v, %v", none, err)
+	}
+	manifest, err := s.SkillFile(ctx, "github", 1, "acorn-package.yaml")
+	if err != nil || string(manifest) != "mcp:\n  command: uvx\n" {
+		t.Fatalf("manifest = %q, %v", manifest, err)
+	}
+	if _, err := s.SkillFile(ctx, "github", 1, "SKILL.md"); err == nil {
+		t.Fatal("read a file the revision does not hold")
+	}
+}

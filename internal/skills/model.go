@@ -12,7 +12,8 @@ import (
 const RequiresToolsKey = "acorn-requires-tools"
 
 // Spec is a parsed skill in the Agent Skills format. Revision, Markdown and
-// Files come from the stored revision it was read from.
+// Files come from the stored revision it was read from, and MCP from its
+// package's manifest.
 type Spec struct {
 	Name          string
 	Description   string
@@ -25,6 +26,7 @@ type Spec struct {
 	Revision      int64
 	Markdown      string
 	Files         []core.SkillFileInfo
+	MCP           *MCPServer
 }
 
 type Problem struct {
@@ -53,7 +55,15 @@ func CopySpec(item Spec) Spec {
 	out.Metadata = maps.Clone(item.Metadata)
 	out.RequiresTools = slices.Clone(item.RequiresTools)
 	out.Files = slices.Clone(item.Files)
+	if item.MCP != nil {
+		out.MCP = &MCPServer{Command: item.MCP.Command, Args: slices.Clone(item.MCP.Args), Secrets: slices.Clone(item.MCP.Secrets)}
+	}
 	return out
+}
+
+// Hash names the package the spec was read from, as hosts hold it.
+func (s Spec) Hash() string {
+	return packageHash(s.Markdown, infoSums(s.Files))
 }
 
 func CopyView(item View) View {

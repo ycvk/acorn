@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"image"
 	"image/jpeg"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -119,7 +120,7 @@ func newViewClient(t *testing.T) (*Client, *fakeDevTools) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	server, err := NewServer(ServerConfig{Home: t.TempDir(), Token: testToken, View: view})
+	server, err := NewServer(ServerConfig{Home: t.TempDir(), Token: testToken, View: view, Supervisor: NewSupervisor(io.Discard)})
 	if err != nil {
 		t.Fatal(err)
 	}

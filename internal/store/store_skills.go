@@ -160,6 +160,19 @@ func (s *Store) SkillFiles(ctx context.Context, id string, revision int64) ([]co
 	return scanSkillFiles(rows)
 }
 
+// SkillFile reads one file of one revision of a skill.
+func (s *Store) SkillFile(ctx context.Context, id string, revision int64, path string) ([]byte, error) {
+	var content []byte
+	err := s.db.QueryRowContext(ctx, `SELECT content FROM skill_files WHERE id = ? AND revision = ? AND path = ?`, id, revision, path).Scan(&content)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("skill %s revision %d has no file %s", id, revision, path)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("read skill %s file %s: %w", id, path, err)
+	}
+	return content, nil
+}
+
 func scanSkillFiles(rows *sql.Rows) ([]core.SkillFile, error) {
 	files := []core.SkillFile{}
 	err := scanRows(rows, func(scan func(...any) error) error {
@@ -266,4 +279,48 @@ func (s *Store) SkillLoadsSince(ctx context.Context, since time.Time) (map[strin
 		return nil, fmt.Errorf("scan skill loads: %w", err)
 	}
 	return loads, nil
+}
+
+// addSkillSecrets (12 to 13) adds the values of the secrets skill packages
+// declare.
+func addSkillSecrets(ctx context.Context, tx *sql.Tx) error {
+	_, err := tx.ExecContext(ctx, skillSecretsTable)
+	return err
+}
+
+// SetSkillSecret stores the value of one secret of a skill, replacing any
+// earlier value.
+func (s *Store) SetSkillSecret(ctx context.Context, skill, name, value string, at time.Time) error {
+	if skill == "" || name == "" || value == "" || at.IsZero() {
+		return errors.New("set skill secret: skill, name, value and at are required")
+	}
+	err := s.memoryTransaction(ctx, func(tx *sql.Tx) error {
+		_, err := tx.ExecContext(ctx, `INSERT INTO skill_secrets (skill, name, value, updated_at) VALUES (?, ?, ?, ?)
+			ON CONFLICT(skill, name) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`, skill, name, value, formatTimestamp(at))
+		return err
+	})
+	if err != nil {
+		return fmt.Errorf("set secret %s of skill %s: %w", name, skill, err)
+	}
+	return nil
+}
+
+// SkillSecrets reads the values of a skill's secrets by name.
+func (s *Store) SkillSecrets(ctx context.Context, skill string) (map[string]string, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT name, value FROM skill_secrets WHERE skill = ? ORDER BY name`, skill)
+	if err != nil {
+		return nil, fmt.Errorf("read secrets of skill %s: %w", skill, err)
+	}
+	secrets := map[string]string{}
+	if err := scanRows(rows, func(scan func(...any) error) error {
+		var name, value string
+		if err := scan(&name, &value); err != nil {
+			return err
+		}
+		secrets[name] = value
+		return nil
+	}); err != nil {
+		return nil, fmt.Errorf("scan secrets of skill %s: %w", skill, err)
+	}
+	return secrets, nil
 }

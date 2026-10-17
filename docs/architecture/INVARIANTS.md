@@ -151,9 +151,24 @@
   - `internal/store/store_skills_test.go`
   - `internal/tools/skill_tools_test.go`
   - `internal/workstation/skills_test.go`
-- **写技能的审批显示全文**：starter config 与默认配置把 `skill_write`、`skill_import`、`skill_retire` 放进 `approval.require`；`skill_write` 的待批准项摘要是技能名与 description，详情的 `tool_detail` 是将写入的 `SKILL.md`、增改的文件内容与删除的文件；`skill_import` 的详情是暂存包的 `SKILL.md` 与文件内容。
+- **写技能的审批显示全文**：starter config 与默认配置把 `skill_write`、`skill_import`、`skill_retire` 放进 `approval.require`；`skill_write` 的待批准项摘要是技能名与 description，详情的 `tool_detail` 是将写入的 `SKILL.md`、增改的文件内容与删除的文件；`skill_import` 的详情是暂存包的 `SKILL.md` 与文件内容。包带 `acorn-package.yaml` 时详情先列出它的 MCP 服务器命令、参数与密钥名：写入新清单、沿用 base revision 的清单（标为 unchanged）或删除清单各有说明，解析不了的清单说明写入会失败。
   - `internal/config/config_validation_test.go`
   - `internal/api/tool_steps_test.go`
+- **包清单只声明 MCP 服务器**：包根目录的 `acorn-package.yaml` 是一个 YAML 文档，以 KnownFields 严格解析，只有 `mcp`（`command` 必填，`args`，`secrets` 是互不相同的大写环境变量名）；`skill_write`、`skill_inspect`、`skill_import` 与 `acorn skills import` 写入前校验，解析失败的写入不落库。声明了 MCP 服务器的包名与 `mcp.providers` 的工具命名空间相同时写入、暂存与导入都失败；在用技能与后来配置的 provider 同名时容器启动失败，停用的技能不算。
+  - `internal/skills/manifest_test.go`
+  - `internal/wire/package_tools_e2e_test.go`
+- **包的工具只在技能在用的 run 里**：每次 run 在包同步之后让工作机恰好运行在用且密钥齐全的技能的 MCP 服务器，其余停止；backend 为每个起来的服务器连接 `/v1/mcp/<name>`，工具名 `mcp__<name>__<tool>`、类别 integration，run 结束时连接关闭，照常经审批规则与审查。资格判断时技能对自己 `mcp__<name>__` 工具的要求留到连上之后检查；缺密钥（`missing_secrets`）、服务器起不来（`mcp_server_failed`）、连不上（`mcp_connect_failed`）、工作机不可用（`mcp_unavailable`）或缺自己要求的工具时，该技能与它的工具本次不列出，run 照常进行。`acorn doctor` 的 Package tools 列出每个服务器的状态、失败原因与缺的密钥，不启停服务器。
+  - `internal/skills/manifest_test.go`
+  - `internal/runtime/skill_tools_test.go`
+  - `internal/wire/package_tools_e2e_test.go`
+  - `internal/cli/doctor_output_test.go`
+- **包的密钥只交给包的进程**：密钥存在 SQLite 的 `skill_secrets`，只经 `acorn skills secret set <skill> <NAME>` 从标准输入写入，名字必须是技能当前清单声明的密钥；值只随运行请求交给工作机，作为环境变量传给该包的 MCP 进程，不进入技能快照、模型输入、审批详情、API 响应与日志；密钥随数据库备份与恢复。
+  - `internal/store/store_skills_test.go`
+  - `internal/skills/manifest_test.go`
+  - `internal/workstation/mcp_test.go`
+  - `internal/wire/package_tools_e2e_test.go`
+  - `internal/wire/backup_test.go`
+  - `internal/cli/skills_test.go`
 - **带文件的技能同步到工作机**：每次 run 前，backend 按包哈希把在用且带文件的技能写入工作机的 `~/skills/<name>/`，删除不再需要的技能目录，只动带 `.acorn-package` 标记的目录；工作机先写临时目录再整体替换，`scripts/` 下的文件可执行。没有工作机时这些技能因缺少 `files` 不列出；同步失败时它们本次不列出，run 照常进行。
   - `internal/skills/library_test.go`
   - `internal/workstation/skills_test.go`
@@ -252,6 +267,8 @@
   - `internal/wire/thread_files_e2e_test.go`
 - **伴随进程常驻**：`acorn workstation serve --keep` 的每个伴随进程在独立进程组里运行，退出后按退避重启，serve 停止时连同其子进程一起结束；日志按名字加前缀并去掉终端颜色码。
   - `internal/workstation/supervisor_test.go`
+- **包的 MCP 服务器由工作机守护**：`PUT /v1/mcp` 给出应运行的包（名字、包哈希、密钥环境变量），工作机停止其余服务器，包哈希或环境变了的重启，新的启动，最多等 90 秒报告每个服务器能否服务。服务器与伴随进程用同一个 supervisor：以包目录为工作目录、独立进程组、退避重启，stderr 以 `mcp:<name>` 为前缀写入日志；包目录的哈希必须与请求一致。工作机以 MCP 客户端经 stdio 连接服务器，把它的工具挂在 `/v1/mcp/<name>` 的 streamable HTTP 上，经 bearer token 鉴权，会话跨重启保留；进程退出或 stdio 会话断开都算一次失败，停掉进程后退避重启，重启进行中的请求等它结束再报告；不再运行的服务器的地址返回 404。serve 停止时这些服务器一起结束。
+  - `internal/workstation/mcp_test.go`
 - **页面渲染隔离**：`web_rendered` 追踪经工作机 `/v1/render` 渲染，每次用临时配置目录启动一次性浏览器，只接受 http(s)；backend 先按共享 URL policy 校验目标。
   - `internal/workstation/render_test.go`
 - **浏览器画面只给已认证的 owner**：工作机的 DevTools 只在容器内开放；`/v1/browser/*` 经设备认证转发到工作机，未配置工作机时返回 `browser_unavailable`，未知标签页返回 `browser_tab_not_found`；导航只接受 http(s)。画面流可按 owner 的手机尺寸排版，宽高要么都给、要么都不给。

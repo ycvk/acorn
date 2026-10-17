@@ -238,6 +238,32 @@ func renderDoctorWorkstation(status wire.WorkstationStatus) string {
 	}
 }
 
+// renderDoctorPackageTools says, for each skill package's MCP server, whether
+// it serves and, when not, why its skill and tools stay out of runs.
+func renderDoctorPackageTools(items []wire.PackageToolStatus) string {
+	lines := []string{"Package tools"}
+	for _, item := range items {
+		line := fmt.Sprintf("- %s (%s): ", item.Skill, item.Command)
+		switch item.State {
+		case "ready":
+			line += "ready"
+		case "missing_secrets":
+			line += fmt.Sprintf("missing secrets %s; set each with acorn skills secret set %s NAME", strings.Join(item.MissingSecrets, ", "), item.Skill)
+		case "stopped":
+			line += "not running; it starts with the next run that uses the skill"
+		case "off":
+			line += "off (" + item.Error + ")"
+		default:
+			line += item.State + ": " + item.Error
+		}
+		if item.State == "stopped" && item.Error != "" {
+			line += " (" + item.Error + ")"
+		}
+		lines = append(lines, line)
+	}
+	return strings.Join(lines, "\n")
+}
+
 func renderDoctorReview(status wire.ReviewStatus) string {
 	switch status.State {
 	case "off":

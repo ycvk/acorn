@@ -45,11 +45,19 @@ type PersonaReader interface {
 	Persona(ctx context.Context) (core.PersonaRevision, error)
 }
 
-// SkillLibrary reads the skills in use and puts their files where the agent
-// runs them.
+// SkillLibrary reads the skills in use, puts their files where the agent
+// runs them and has their MCP servers run there.
 type SkillLibrary interface {
 	Scan(ctx context.Context) (*skills.ScanResult, error)
 	Sync(ctx context.Context, host skills.PackageHost, snapshot skills.Snapshot) (string, error)
+	Serve(ctx context.Context, host skills.ServerHost, snapshot skills.Snapshot) (skills.Snapshot, error)
+}
+
+// SkillServerHost runs the MCP servers skill packages declare and says how
+// to reach each one.
+type SkillServerHost interface {
+	skills.ServerHost
+	MCPProvider(name string) core.ProviderConfig
 }
 
 type RuntimeDeps struct {
@@ -58,6 +66,7 @@ type RuntimeDeps struct {
 	Persona            PersonaReader
 	Skills             SkillLibrary
 	SkillPackages      skills.PackageHost
+	SkillServers       SkillServerHost
 	MCPPendingActions  core.SessionStore
 	ArtifactService    core.ArtifactService
 	ToolRegistry       core.ToolRegistry

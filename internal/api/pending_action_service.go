@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/ycvk/acorn/internal/core"
+	"github.com/ycvk/acorn/internal/skills"
 )
 
 var ErrPendingActionDecisionInvalid = errors.New("pending action decision invalid")
@@ -15,12 +17,14 @@ var ErrPendingActionDecisionInvalid = errors.New("pending action decision invali
 type PendingActionService struct {
 	store    core.SessionStore
 	resumer  runResumer
-	packages stagedSkillPackages
+	packages skillPackages
 }
 
-// stagedSkillPackages reads the package a skill_import would store.
-type stagedSkillPackages interface {
+// skillPackages reads the package a skill_import would store and the files a
+// skill_write builds on.
+type skillPackages interface {
 	StagedSkillPackage(ctx context.Context, sha256 string) (core.SkillPackage, error)
+	SkillFiles(ctx context.Context, id string, revision int64) ([]core.SkillFile, error)
 }
 
 // runResumer resumes an interrupted run once nothing in it awaits a decision.
@@ -32,8 +36,9 @@ func NewPendingActionService(store core.SessionStore) *PendingActionService {
 	return &PendingActionService{store: store}
 }
 
-// WithSkillPackages shows a skill_import's staged package in its detail.
-func (s *PendingActionService) WithSkillPackages(packages stagedSkillPackages) *PendingActionService {
+// WithSkillPackages shows a skill_import's staged package, and the manifest
+// a skill_write keeps, in their detail.
+func (s *PendingActionService) WithSkillPackages(packages skillPackages) *PendingActionService {
 	s.packages = packages
 	return s
 }
@@ -51,7 +56,7 @@ type PendingActionDetail struct {
 	Rule    string
 	// ToolDetail is the whole text a tool approval acts on when its summary
 	// cannot hold it, such as the skill skill_write or skill_import would
-	// store.
+	// store with its package's manifest first.
 	ToolDetail string
 }
 
@@ -124,14 +129,34 @@ func (s *PendingActionService) Get(ctx context.Context, actionID string) (*Pendi
 	}, nil
 }
 
-// toolDetail is toolCallDetail, with a skill_import's staged package read from
-// the store. A package no longer staged shows as such, and the import fails.
+// toolDetail is the whole text a tool approval acts on when its summary
+// cannot hold it: the skill a skill_write or skill_import would store, its
+// package's manifest first. A package no longer staged shows as such, and the
+// import fails.
 func (s *PendingActionService) toolDetail(ctx context.Context, toolName, arguments string) (string, error) {
-	if toolName != "skill_import" {
-		return toolCallDetail(toolName, arguments), nil
+	switch toolName {
+	case "skill_write", "skill_import":
+	default:
+		return "", nil
 	}
 	if s.packages == nil {
-		return "", errors.New("pending action service: skill packages are required to show skill_import")
+		return "", fmt.Errorf("pending action service: skill packages are required to show %s", toolName)
+	}
+	if toolName == "skill_write" {
+		args := skillWriteArgs(arguments)
+		spec, parseErr := skills.Parse(args.Markdown)
+		var kept []byte
+		if parseErr == nil {
+			var err error
+			if kept, err = s.keptManifest(ctx, spec.Name, args); err != nil {
+				return "", err
+			}
+		}
+		detail := skillWriteDetail(args, kept)
+		if parseErr != nil {
+			detail = fmt.Sprintf("SKILL.md does not parse, and the write will fail: %v\n\n%s", parseErr, detail)
+		}
+		return detail, nil
 	}
 	var args struct {
 		SHA256 string `json:"sha256"`
@@ -146,7 +171,25 @@ func (s *PendingActionService) toolDetail(ctx context.Context, toolName, argumen
 	case err != nil:
 		return "", err
 	}
-	return skillPackageDetail(pkg.Markdown, pkg.Files, nil), nil
+	return skillPackageDetail(pkg.Markdown, pkg.Files, nil, nil), nil
+}
+
+// keptManifest is the manifest a skill_write keeps from its base revision:
+// one it neither replaces nor deletes.
+func (s *PendingActionService) keptManifest(ctx context.Context, name string, args skillWriteArguments) ([]byte, error) {
+	if _, ok := args.Files[skills.ManifestFileName]; ok || args.BaseRevision == 0 || slices.Contains(args.Delete, skills.ManifestFileName) {
+		return nil, nil
+	}
+	files, err := s.packages.SkillFiles(ctx, name, args.BaseRevision)
+	if err != nil {
+		return nil, err
+	}
+	for _, f := range files {
+		if f.Path == skills.ManifestFileName {
+			return f.Content, nil
+		}
+	}
+	return nil, nil
 }
 
 func (s *PendingActionService) Decide(ctx context.Context, actionID string, input PendingActionDecisionInput) (*core.PendingActionRecord, error) {

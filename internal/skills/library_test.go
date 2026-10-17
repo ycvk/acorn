@@ -24,10 +24,11 @@ type memorySkillStore struct {
 	revisions map[string][]storedRevision
 	staged    map[string]core.SkillPackage
 	writes    []core.SkillWrite
+	secrets   map[string]map[string]string
 }
 
 func newMemorySkillStore() *memorySkillStore {
-	return &memorySkillStore{revisions: map[string][]storedRevision{}, staged: map[string]core.SkillPackage{}}
+	return &memorySkillStore{revisions: map[string][]storedRevision{}, staged: map[string]core.SkillPackage{}, secrets: map[string]map[string]string{}}
 }
 
 func (m *memorySkillStore) current(id string) (storedRevision, bool) {
@@ -83,6 +84,38 @@ func (m *memorySkillStore) SkillFiles(_ context.Context, id string, revision int
 	return nil, fmt.Errorf("%w: %s revision %d", core.ErrSkillNotFound, id, revision)
 }
 
+func (m *memorySkillStore) SkillFile(ctx context.Context, id string, revision int64, path string) ([]byte, error) {
+	files, err := m.SkillFiles(ctx, id, revision)
+	if err != nil {
+		return nil, err
+	}
+	for _, f := range files {
+		if f.Path == path {
+			return f.Content, nil
+		}
+	}
+	return nil, fmt.Errorf("skill %s revision %d has no file %s", id, revision, path)
+}
+
+func (m *memorySkillStore) SetSkillSecret(_ context.Context, skill, name, value string, _ time.Time) error {
+	if _, ok := m.current(skill); !ok {
+		return fmt.Errorf("%w: %s", core.ErrSkillNotFound, skill)
+	}
+	if m.secrets[skill] == nil {
+		m.secrets[skill] = map[string]string{}
+	}
+	m.secrets[skill][name] = value
+	return nil
+}
+
+func (m *memorySkillStore) SkillSecrets(_ context.Context, skill string) (map[string]string, error) {
+	out := map[string]string{}
+	for name, value := range m.secrets[skill] {
+		out[name] = value
+	}
+	return out, nil
+}
+
 func (m *memorySkillStore) SkillLoadsSince(context.Context, time.Time) (map[string]int, error) {
 	return map[string]int{}, nil
 }
@@ -105,10 +138,10 @@ func (m *memorySkillStore) DeleteStagedSkillPackage(_ context.Context, sha strin
 	return nil
 }
 
-func newTestLibrary(t *testing.T) (*Library, *memorySkillStore) {
+func newTestLibrary(t *testing.T, providers ...string) (*Library, *memorySkillStore) {
 	t.Helper()
 	store := newMemorySkillStore()
-	library, err := NewLibrary(store, func() time.Time { return time.Date(2026, 10, 14, 9, 0, 0, 0, time.UTC) })
+	library, err := NewLibrary(store, func() time.Time { return time.Date(2026, 10, 14, 9, 0, 0, 0, time.UTC) }, providers)
 	if err != nil {
 		t.Fatal(err)
 	}

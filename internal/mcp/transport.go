@@ -3,6 +3,8 @@ package mcp
 import (
 	"fmt"
 	"log/slog"
+	"maps"
+	"net/http"
 	"os"
 	"os/exec"
 	"strings"
@@ -111,7 +113,25 @@ func buildStreamableHTTPTransport(cfg core.ProviderConfig) (mcp.Transport, func(
 	// MaxRetries is set to -1 so that startup failures are visible immediately
 	// instead of being hidden behind implicit reconnect attempts. Phase 47
 	// adds explicit reconnection with backpressure.
-	return &mcp.StreamableClientTransport{Endpoint: cfg.URL, MaxRetries: -1}, cleanup, TransportMetadata{Kind: "streamable_http"}, nil
+	transport := &mcp.StreamableClientTransport{Endpoint: cfg.URL, MaxRetries: -1}
+	if len(cfg.Headers) > 0 {
+		transport.HTTPClient = &http.Client{Transport: headerTransport{headers: maps.Clone(cfg.Headers), base: http.DefaultTransport}}
+	}
+	return transport, cleanup, TransportMetadata{Kind: "streamable_http"}, nil
+}
+
+// headerTransport adds fixed headers to every request.
+type headerTransport struct {
+	headers map[string]string
+	base    http.RoundTripper
+}
+
+func (t headerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	req = req.Clone(req.Context())
+	for key, value := range t.headers {
+		req.Header.Set(key, value)
+	}
+	return t.base.RoundTrip(req)
 }
 
 // buildOAuthTransport creates a StreamableClientTransport with an OAuthHandler

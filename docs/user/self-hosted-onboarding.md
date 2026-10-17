@@ -525,6 +525,29 @@ acorn skills import ./pdf.zip
 
 `--replace` replaces a skill of the same name. `acorn skills list`, `acorn skills inspect <name>` and `acorn skills check` show what the agent has.
 
+#### Packages with tools
+
+A package can bring its own tools: an `acorn-package.yaml` beside `SKILL.md` declares a stdio MCP server, which runs on the workstation from the package's directory. The workstation image has `uv` and Node.js, so the usual `uvx` and `npx` commands work:
+
+```yaml
+mcp:
+  command: uvx
+  args: [mcp-server-fetch]
+  secrets: []
+```
+
+Unknown fields are rejected. When the agent writes or imports such a package, the approval shows the command and the secrets it needs before the skill itself. While the skill is in use, its server runs on the workstation, restarts when the skill gets a new revision and stops when the skill is retired; its tools are named `mcp__<skill>__<tool>` and appear only in runs that have the skill. Like any MCP tool they meet your approval rules first, so with the default `mcp__*` in `require` every call waits for your approval. A package cannot take the name of a provider in `mcp.providers`, and Acorn refuses to start when you later add a provider named like one.
+
+`secrets` lists environment variables the server needs. Set each on the server; the value is read from standard input, or typed without echo:
+
+```bash
+acorn skills secret set github GITHUB_TOKEN < token.txt
+```
+
+The value is stored in the database and kept in backups. It goes only to the package's server, as an environment variable, from the next run on; the model, approvals, the app and the logs never see it, but commands the agent runs on the workstation run as the same user and can read it. Until every secret is set, the skill and its tools stay out of runs. `acorn doctor` lists each package's server under Package tools: ready, not running yet, failed with the reason, or the secrets it still needs.
+
+`uvx` and `npx` fetch the server's code the first time it starts, so the first run that uses a new package can wait up to 90 seconds; if the server is not up by then, that run goes without the skill. The fetched code is not what you approved; judge where a package comes from before you approve it.
+
 ### Approval Rules and Action Review
 
 Every tool call meets your rules first. They are tool-name glob patterns in `~/.acorn/acorn.yaml`:
@@ -542,7 +565,7 @@ approval:
 
 `block` wins over `require`, and `require` over `allow`.
 
-A skill the agent writes becomes part of every later run's instructions, and an imported skill can carry scripts that run on the workstation, so `skill_write`, `skill_import` and `skill_retire` wait for your approval by default; the approval shows the skill's `SKILL.md` and the files it adds. Move them to `allow` to let the agent keep its skills on its own.
+A skill the agent writes becomes part of every later run's instructions, and an imported skill can carry scripts and an MCP server that run on the workstation, so `skill_write`, `skill_import` and `skill_retire` wait for your approval by default; the approval shows the package's MCP server command and secret names, then the skill's `SKILL.md` and the files it adds. Move them to `allow` to let the agent keep its skills on its own.
 
 Action review judges the shell commands, browser actions and MCP calls no rule settles. It uses Jev, TypeSafe's decision model: create a key at [typesafe.ai](https://typesafe.ai), add it to `~/.acorn/acorn.env` and restart Acorn.
 

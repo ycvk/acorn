@@ -115,6 +115,10 @@ func (l *fakeSyncLibrary) Sync(_ context.Context, _ skills.PackageHost, snapshot
 	return "/home/agent/skills", l.err
 }
 
+func (l *fakeSyncLibrary) Serve(_ context.Context, _ skills.ServerHost, snapshot skills.Snapshot) (skills.Snapshot, error) {
+	return snapshot, nil
+}
+
 type nopPackageHost struct{}
 
 func (nopPackageHost) SkillPackages(context.Context) (string, map[string]string, error) {
