@@ -1,9 +1,13 @@
 package workstation
 
 import (
+	"bufio"
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"maps"
 	"net/http"
@@ -227,7 +231,8 @@ func (h *mcpHost) attempt(ctx context.Context, srv *mcpServer, spec MCPServerSpe
 		},
 	})
 	connectCtx, cancelConnect := context.WithTimeout(attemptCtx, mcpStartWait)
-	session, err := client.Connect(connectCtx, &mcp.IOTransport{Reader: stdout, Writer: stdin}, &mcp.ClientSessionOptions{ProtocolVersion: stdioProtocolVersion})
+	messages := newRPCLines(stdout, func(line string) { h.sup.log().line("mcp:"+spec.Name, "stray stdout: "+line) })
+	session, err := client.Connect(connectCtx, &mcp.IOTransport{Reader: messages, Writer: stdin}, &mcp.ClientSessionOptions{ProtocolVersion: stdioProtocolVersion})
 	cancelConnect()
 	if err == nil {
 		if err = srv.syncTools(attemptCtx, session); err != nil {
@@ -241,8 +246,9 @@ func (h *mcpHost) attempt(ctx context.Context, srv *mcpServer, spec MCPServerSpe
 		return err
 	}
 	srv.up(session)
-	// The server serves while both its process and its session last; a
-	// session that breaks, such as on stray output, stops the process too.
+	// The server serves while both its process and its session last. Stray
+	// stdout lines are skipped; a session that still ends, such as on a
+	// message the client cannot decode, stops the process too.
 	exited := make(chan error, 1)
 	go func() { exited <- h.sup.Wait(cmd) }()
 	ended := make(chan error, 1)
@@ -256,6 +262,93 @@ func (h *mcpHost) attempt(ctx context.Context, srv *mcpServer, spec MCPServerSpe
 	srv.finish(err)
 	_ = session.Close() // the process has exited and its pipes are closed
 	return err
+}
+
+// maxStdoutLine bounds one line of a server's stdout, as the SDK bounds one
+// message.
+const maxStdoutLine = mcp.DefaultMaxLineLength
+
+// maxStrayLog bounds how much of a stray stdout line the log keeps.
+const maxStrayLog = 1024
+
+// rpcLines passes on the lines of a server's stdout that are JSON-RPC
+// messages and hands every other line to stray, as the official SDKs' stdio
+// clients do: a server's dependencies sometimes print there, such as npm
+// installing what a library needs on first use. Blank lines are dropped.
+type rpcLines struct {
+	src     *bufio.Reader
+	closer  io.Closer
+	stray   func(string)
+	pending []byte
+	err     error
+}
+
+func newRPCLines(stdout io.ReadCloser, stray func(string)) *rpcLines {
+	return &rpcLines{src: bufio.NewReader(stdout), closer: stdout, stray: stray}
+}
+
+func (r *rpcLines) Read(p []byte) (int, error) {
+	for len(r.pending) == 0 && r.err == nil {
+		line, err := r.readLine()
+		switch {
+		case isRPCMessage(line):
+			r.pending = line
+		case len(bytes.TrimSpace(line)) > 0:
+			r.stray(strayText(line))
+		}
+		r.err = err
+	}
+	if len(r.pending) == 0 {
+		return 0, r.err
+	}
+	n := copy(p, r.pending)
+	r.pending = r.pending[n:]
+	return n, nil
+}
+
+// readLine reads up to and including the next newline; a line longer than
+// maxStdoutLine fails the stream.
+func (r *rpcLines) readLine() ([]byte, error) {
+	var line []byte
+	for {
+		chunk, err := r.src.ReadSlice('\n')
+		line = append(line, chunk...)
+		if len(line) > maxStdoutLine {
+			return nil, fmt.Errorf("a stdout line is longer than %d bytes", maxStdoutLine)
+		}
+		if !errors.Is(err, bufio.ErrBufferFull) {
+			return line, err
+		}
+	}
+}
+
+func (r *rpcLines) Close() error {
+	return r.closer.Close()
+}
+
+// isRPCMessage reports whether a line is a JSON-RPC message or a batch of
+// them.
+func isRPCMessage(line []byte) bool {
+	type message struct {
+		JSONRPC string `json:"jsonrpc"`
+	}
+	var one message
+	if json.Unmarshal(line, &one) == nil {
+		return one.JSONRPC == "2.0"
+	}
+	var batch []message
+	if json.Unmarshal(line, &batch) != nil || len(batch) == 0 {
+		return false
+	}
+	return !slices.ContainsFunc(batch, func(m message) bool { return m.JSONRPC != "2.0" })
+}
+
+func strayText(line []byte) string {
+	text := strings.TrimRight(string(line), "\r\n")
+	if len(text) > maxStrayLog {
+		return fmt.Sprintf("%s… (%d more bytes)", strings.ToValidUTF8(text[:maxStrayLog], ""), len(text)-maxStrayLog)
+	}
+	return text
 }
 
 // packageServer reads the MCP server of the package in dir, which must be
